@@ -3,10 +3,7 @@ using DocumenterCitations
 
 bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
 
-pages = Any[
-    "Home" => "index.md",
-    "References" => "References.md",
-]
+pages = Any["Home" => "index.md", "References" => "References.md"]
 
 mathengine = MathJax(Dict(
     :TeX => Dict(
