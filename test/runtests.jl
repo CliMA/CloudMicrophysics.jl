@@ -1,7 +1,7 @@
 using Test
 
-using Microphysics_0M
-using Microphysics_1M
+using CloudMicrophysics.Microphysics_0M
+using CloudMicrophysics.Microphysics_1M
 using Thermodynamics
 
 using CLIMAParameters
