@@ -13,6 +13,6 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 [compat]
 CLIMAParameters = "0.1"
 DocStringExtensions = "0.8"
-KernelAbstractions = "0.5, 0.6"
+KernelAbstractions = "0.5, 0.6, 0.7"
 SpecialFunctions = "1"
 Thermodynamics = "0.3"
