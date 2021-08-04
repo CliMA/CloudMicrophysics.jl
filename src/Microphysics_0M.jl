@@ -1,11 +1,9 @@
 """
-    Microphysics_0M
-
-Zero-moment bulk microphysics scheme that instantly removes
-moisture above certain threshold.
-This is equivalent to instanteneous conversion of cloud condensate
-into precipitation and precipitation fallout with infinite
-terminal velocity.
+    Zero-moment bulk microphysics scheme that instantly removes
+    moisture above certain threshold.
+    This is equivalent to instanteneous conversion of cloud condensate
+    into precipitation and precipitation fallout with infinite
+    terminal velocity.
 
 """
 module Microphysics_0M
