@@ -6,10 +6,12 @@ using DocumenterCitations
 
 bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
 
-pages = Any["Home" => "index.md",
-            "0-moment microphysics" => "Microphysics_0M.md",
-            "1-moment microphysics" => "Microphysics_1M.md",
-            "References" => "References.md"]
+pages = Any[
+    "Home" => "index.md",
+    "0-moment microphysics" => "Microphysics_0M.md",
+    "1-moment microphysics" => "Microphysics_1M.md",
+    "References" => "References.md",
+]
 
 mathengine = MathJax(Dict(
     :TeX => Dict(
