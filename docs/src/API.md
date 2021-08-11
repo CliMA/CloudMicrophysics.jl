@@ -1,16 +1,12 @@
 ```@meta
 CurrentModule = CloudMicrophysics
 ```
+# .
 
 # 0-moment microphysics
 
 ```@docs
 Microphysics_0M
-```
-
-## Methods
-
-```@docs
 Microphysics_0M.remove_precipitation
 ```
 
@@ -18,11 +14,6 @@ Microphysics_0M.remove_precipitation
 
 ```@docs
 Microphysics_1M
-```
-
-## Methods
-
-```@docs
 Microphysics_1M.v0_rai
 Microphysics_1M.n0_sno
 Microphysics_1M.τ_relax
@@ -38,4 +29,24 @@ Microphysics_1M.accretion_rain_sink
 Microphysics_1M.accretion_snow_rain
 Microphysics_1M.evaporation_sublimation
 Microphysics_1M.snow_melt
+```
+
+# Aerosol model
+
+```@docs
+AerosolModel
+AerosolModel.Mode
+AerosolModel.AerosolDistribution
+```
+
+# Aerosol activation
+
+```@docs
+AerosolActivation
+AerosolActivation.mean_hygroscopicity
+AerosolActivation.max_supersaturation
+AerosolActivation.N_activated_per_mode
+AerosolActivation.M_activated_per_mode
+AerosolActivation.total_N_activated
+AerosolActivation.total_M_activated
 ```
