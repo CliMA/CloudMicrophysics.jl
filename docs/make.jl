@@ -10,6 +10,8 @@ pages = Any[
     "Home" => "index.md",
     "0-moment microphysics" => "Microphysics_0M.md",
     "1-moment microphysics" => "Microphysics_1M.md",
+    "Aerosol activation" => "Aerosol_activation.md",
+    "API" => "API.md",
     "References" => "References.md",
 ]
 
