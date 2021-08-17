@@ -1,19 +1,18 @@
 """
-    Aerosol activation scheme, which includes:
+    Kappa-Kohler based Aerosol activation scheme, which includes:
 
-  - mean hygroscopicity for each mode of the aerosol size distribution
   - critical supersaturation for each mode of the aerosol size distribution
   - maximum supersaturation
   - total number of particles actived
   - total mass of particles actived
 """
-module AerosolActivation
+# module KappaKohlerAerosolActivation
 
 using SpecialFunctions
 
 using Thermodynamics
 
-using CloudMicrophysics.AerosolModel
+include("/home/idularaz/CloudMicrophysics.jl/src/KappaKohlerAerosolModel.jl")
 using CloudMicrophysics.Microphysics_1M: G_func
 
 using CLIMAParameters
@@ -30,13 +29,11 @@ using CLIMAParameters.Atmos.Microphysics: K_therm, D_vapor
 
 const APS = AbstractParameterSet
 
-export mean_hygroscopicity
-export critical_supersaturation
-export max_supersaturation
-export N_activated_per_mode
-export M_activated_per_mode
-export total_N_activated
-export total_M_activated
+#export KK_max_supersaturation
+# KK_N_activated_per_mode
+#export KK_M_activated_per_mode
+#export KK_total_N_activated
+#export KK_total_M_activated
 
 """
     coeff_of_curvature(param_set, T)
@@ -46,7 +43,7 @@ export total_M_activated
 
 Returns a curvature coefficient.
 """
-function coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
+function KK_coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
 
     _molmass_water::FT = molmass_water(param_set)
     _gas_constant::FT = gas_constant()
@@ -57,38 +54,6 @@ function coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
            _gas_constant / T
 end
 
-"""
-    mean_hygroscopicity(param_set, ad)
-
-  - `param_set` - abstract set with Earth's parameters
-  - `ad` - aerosol distribution struct
-
-Returns a tuple of mean hygroscopicities
-(one tuple element for each aerosol size distribution mode).
-"""
-function mean_hygroscopicity(param_set::APS, ad::AerosolDistribution)
-
-    _molmass_water = molmass_water(param_set)
-    _ρ_cloud_liq = ρ_cloud_liq(param_set)
-
-    return ntuple(length(ad.Modes)) do i
-
-        mode_i = ad.Modes[i]
-
-        nom = sum(1:(mode_i.n_components)) do j
-            mode_i.mass_mix_ratio[j] *
-            mode_i.dissoc[j] *
-            mode_i.osmotic_coeff[j] *
-            mode_i.soluble_mass_frac[j] / mode_i.molar_mass[j]
-        end
-
-        den = sum(1:(mode_i.n_components)) do j
-            mode_i.mass_mix_ratio[j] / mode_i.aerosol_density[j]
-        end
-
-        nom / den * _molmass_water / _ρ_cloud_liq
-    end
-end
 
 """
     critical_supersaturation(param_set, ad, T)
@@ -100,19 +65,20 @@ end
 Returns a tuple of critical supersaturations
 (one tuple element for each aerosol size distribution mode).
 """
-function critical_supersaturation(
-    param_set::APS,
-    ad::AerosolDistribution,
-    T::FT,
-) where {FT <: Real}
+# function KK_critical_supersaturation(
+#     param_set::APS,
+#     ad::KappaKohlerAerosolDistribution,
+#     T::FT,
+# ) where {FT <: Real}
 
-    A::FT = coeff_of_curvature(param_set, T)
-    B = mean_hygroscopicity(param_set, ad)
+#     A::FT = KK_coeff_of_curvature(param_set, T)
 
-    return ntuple(length(ad.Modes)) do i
-        2 / sqrt(B[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
-    end
-end
+#     return ntuple(length(ad.KK_Modes)) do i
+#         modei = ad.KK_Modes[i]
+#         Diam = modei.r_dry * 2
+#         exp((4 * A ^ 3 / (27 * Diam^3 * modei.kappa))^.5)
+#     end
+# end
 
 """
     max_supersaturation(param_set, ad, T, p, w)
@@ -125,9 +91,9 @@ end
 
 Returns the maximum supersaturation.
 """
-function max_supersaturation(
+function KK_max_supersaturation(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::KappaKohlerAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -152,14 +118,15 @@ function max_supersaturation(
         _gas_constant * T / p_vs / _molmass_water +
         _molmass_water * L^2 / _cp_d / p / _molmass_dryair / T
 
-    A::FT = coeff_of_curvature(param_set, T)
+    A::FT = KK_coeff_of_curvature(param_set, T)
     ζ::FT = 2 * A / 3 * sqrt(α * w / G)
 
-    Sm = critical_supersaturation(param_set, ad, T)
+    # Sm = KK_critical_supersaturation(param_set, ad, T)
+    Sm = (1.107-1, )
 
-    tmp::FT = sum(1:length(ad.Modes)) do i
+    tmp::FT = sum(1:length(ad.KK_Modes)) do i
 
-        mode_i = ad.Modes[i]
+        mode_i = ad.KK_Modes[i]
 
         f::FT = 0.5 * exp(2.5 * (log(mode_i.stdev))^2)
         g::FT = 1 + 0.25 * log(mode_i.stdev)
@@ -184,20 +151,20 @@ end
 Returns the number of activated aerosol particles
 in each aerosol size distribution mode.
 """
-function N_activated_per_mode(
+function KK_N_activated_per_mode(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::KappaKohlerAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
 ) where {FT <: Real}
 
-    smax::FT = max_supersaturation(param_set, ad, T, p, w)
-    sm = critical_supersaturation(param_set, ad, T)
+    smax::FT = KK_max_supersaturation(param_set, ad, T, p, w)
+    # sm = KK_critical_supersaturation(param_set, ad, T)
+    sm = (1.107-1, )
+    return ntuple(length(ad.KK_Modes)) do i
 
-    return ntuple(length(ad.Modes)) do i
-
-        mode_i = ad.Modes[i]
+        mode_i = ad.KK_Modes[i]
         u_i::FT = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
 
         mode_i.N * (1 / 2) * (1 - erf(u_i))
@@ -216,20 +183,20 @@ end
 Returns the mass of activated aerosol particles
 per mode of the aerosol size distribution.
 """
-function M_activated_per_mode(
+function KK_M_activated_per_mode(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::KappaKohlerAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
 ) where {FT <: Real}
 
-    smax = max_supersaturation(param_set, ad, T, p, w)
-    sm = critical_supersaturation(param_set, ad, T)
+    smax = KK_max_supersaturation(param_set, ad, T, p, w)
+    # sm = KK_critical_supersaturation(param_set, ad, T)
+    sm = (1.107-1, )
+    return ntuple(length(ad.KK_Modes)) do i
 
-    return ntuple(length(ad.Modes)) do i
-
-        mode_i = ad.Modes[i]
+        mode_i = ad.KK_Modes[i]
 
         avg_molar_mass_i = sum(1:(mode_i.n_components)) do j
             mode_i.molar_mass[j] * mode_i.mass_mix_ratio[j]
@@ -253,15 +220,15 @@ end
 
 Returns the total number of activated aerosol particles.
 """
-function total_N_activated(
+function KK_total_N_activated(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::KappaKohlerAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
 ) where {FT <: Real}
 
-    return sum(N_activated_per_mode(param_set, ad, T, p, w))
+    return sum(KK_N_activated_per_mode(param_set, ad, T, p, w))
 
 end
 
@@ -276,16 +243,16 @@ end
 
 Returns the total mass of activated aerosol particles.
 """
-function total_M_activated(
+function KK_total_M_activated(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::KappaKohlerAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
 ) where {FT <: Real}
 
-    return sum(M_activated_per_mode(param_set, ad, T, p, w))
+    return sum(KK_M_activated_per_mode(param_set, ad, T, p, w))
 
 end
 
-end # module AerosolActivation.jl
+# end # module AerosolActivation.jl
