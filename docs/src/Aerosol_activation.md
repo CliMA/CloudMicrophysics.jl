@@ -230,21 +230,14 @@ where:
 ## Example figures
 
 ```@example example_figures
-using Plots
+import Plots as PL
 
-using Thermodynamics
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
 
-using CloudMicrophysics.AerosolModel
-using CloudMicrophysics.AerosolActivation
+import CLIMAParameters as CP
 
-using CLIMAParameters
-using CLIMAParameters: gas_constant
-using CLIMAParameters.Planet:
-    molmass_water, ρ_cloud_liq, grav, cp_d, surface_tension_coeff
-using CLIMAParameters.Atmos.Microphysics
-
-struct EarthParameterSet <: AbstractEarthParameterSet end
-const EPS = EarthParameterSet
+struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
 # Atmospheric conditions
@@ -265,7 +258,7 @@ M_sulfate = 0.132
 ν_sulfate = 3.0
 ϵ_sulfate = 1.0
 
-paper_mode_1 = Mode(
+paper_mode_1 = AM.Mode(
     r_dry_paper,
     stdev_paper,
     N_1_paper,
@@ -284,7 +277,7 @@ N_act_frac = Vector{Float64}(undef, 100)
 it = 1
 for N_2_paper in N_2_range
 
-        paper_mode_2 = Mode(
+        paper_mode_2 = AM.Mode(
           r_dry_paper,
           stdev_paper,
           N_2_paper,
@@ -297,8 +290,8 @@ for N_2_paper in N_2_range
           1,
         )
 
-        AD =  AerosolDistribution((paper_mode_1, paper_mode_2))
-        N_act_frac[it] = N_activated_per_mode(param_set, AD, T, p, w)[1] / N_1_paper
+        AD =  AM.AerosolDistribution((paper_mode_1, paper_mode_2))
+        N_act_frac[it] = AA.N_activated_per_mode(param_set, AD, T, p, w)[1] / N_1_paper
 
         global it += 1
 end
@@ -331,10 +324,10 @@ N_act_paper_param = [0.7307884005437245, 0.7016538287267784, 0.676110104213865, 
                      0.17778658812868153, 0.16647032170367027]
 
 
-plot(N_2_range * 1e-6, N_act_frac, label="CliMA", xlabel="Mode 2 aerosol number concentration [1/cm3]", ylabel="Mode 1 number fraction activated")
-scatter!(N_2_obs, N_act_obs, label="paper observations")
-plot!(N_2_paper_param, N_act_paper_param, label="paper parameterization")
+PL.plot(N_2_range * 1e-6, N_act_frac, label="CliMA", xlabel="Mode 2 aerosol number concentration [1/cm3]", ylabel="Mode 1 number fraction activated")
+PL.scatter!(N_2_obs, N_act_obs, label="paper observations")
+PL.plot!(N_2_paper_param, N_act_paper_param, label="paper parameterization")
 
-savefig("Abdul-Razzak_and_Ghan_fig_1.svg")
+PL.savefig("Abdul-Razzak_and_Ghan_fig_1.svg")
 ```
 ![](Abdul-Razzak_and_Ghan_fig_1.svg)

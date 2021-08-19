@@ -1,18 +1,11 @@
-using Test
+import Test as TT
 
-using Thermodynamics
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
 
-using CloudMicrophysics.AerosolModel
-using CloudMicrophysics.AerosolActivation
+import CLIMAParameters as CP
 
-using CLIMAParameters
-using CLIMAParameters: gas_constant
-using CLIMAParameters.Planet:
-    molmass_water, ρ_cloud_liq, grav, cp_d, surface_tension_coeff
-using CLIMAParameters.Atmos.Microphysics
-
-struct EarthParameterSet <: AbstractEarthParameterSet end
-const EPS = EarthParameterSet
+struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
 # Atmospheric conditions
@@ -50,7 +43,7 @@ M_sulfate = 0.132
 ϵ_sulfate = 1.0
 
 # Aerosol size distribution modes
-accum_seasalt = Mode(
+accum_seasalt = AM.Mode(
     r_dry_accum,
     stdev_accum,
     N_accum,
@@ -63,7 +56,7 @@ accum_seasalt = Mode(
     1,
 )
 
-coarse_seasalt = Mode(
+coarse_seasalt = AM.Mode(
     r_dry_coarse,
     stdev_coarse,
     N_coarse,
@@ -76,7 +69,7 @@ coarse_seasalt = Mode(
     1,
 )
 
-paper_mode_1 = Mode(
+paper_mode_1 = AM.Mode(
     r_dry_paper,
     stdev_paper,
     N_1_paper,
@@ -90,40 +83,40 @@ paper_mode_1 = Mode(
 )
 
 # Aerosol size distributions
-AM_1 = AerosolDistribution((accum_seasalt,))
-AM_2 = AerosolDistribution((coarse_seasalt, accum_seasalt))
-AM_3 = AerosolDistribution((accum_seasalt, coarse_seasalt))
+AM_1 = AM.AerosolDistribution((accum_seasalt,))
+AM_2 = AM.AerosolDistribution((coarse_seasalt, accum_seasalt))
+AM_3 = AM.AerosolDistribution((accum_seasalt, coarse_seasalt))
 
-@testset "callable and positive" begin
+@TT.testset "callable and positive" begin
 
-    @test all(mean_hygroscopicity(param_set, AM_3) .> 0.0)
-    @test max_supersaturation(param_set, AM_3, T, p, w) > 0.0
-    @test all(N_activated_per_mode(param_set, AM_3, T, p, w) .> 0.0)
-    @test all(M_activated_per_mode(param_set, AM_3, T, p, w) .> 0.0)
-    @test total_N_activated(param_set, AM_3, T, p, w) > 0.0
-    @test total_M_activated(param_set, AM_3, T, p, w) > 0.0
-
-end
-
-@testset "same mean hygroscopicity for the same aerosol" begin
-
-    @test mean_hygroscopicity(param_set, AM_3)[1] ==
-          mean_hygroscopicity(param_set, AM_1)[1]
-    @test mean_hygroscopicity(param_set, AM_3)[2] ==
-          mean_hygroscopicity(param_set, AM_1)[1]
+    @TT.test all(AA.mean_hygroscopicity(param_set, AM_3) .> 0.0)
+    @TT.test AA.max_supersaturation(param_set, AM_3, T, p, w) > 0.0
+    @TT.test all(AA.N_activated_per_mode(param_set, AM_3, T, p, w) .> 0.0)
+    @TT.test all(AA.M_activated_per_mode(param_set, AM_3, T, p, w) .> 0.0)
+    @TT.test AA.total_N_activated(param_set, AM_3, T, p, w) > 0.0
+    @TT.test AA.total_M_activated(param_set, AM_3, T, p, w) > 0.0
 
 end
 
-@testset "order of modes does not matter" begin
+@TT.testset "same mean hygroscopicity for the same aerosol" begin
 
-    @test total_N_activated(param_set, AM_3, T, p, w) ==
-          total_N_activated(param_set, AM_2, T, p, w)
-    @test total_M_activated(param_set, AM_3, T, p, w) ==
-          total_M_activated(param_set, AM_2, T, p, w)
+    @TT.test AA.mean_hygroscopicity(param_set, AM_3)[1] ==
+             AA.mean_hygroscopicity(param_set, AM_1)[1]
+    @TT.test AA.mean_hygroscopicity(param_set, AM_3)[2] ==
+             AA.mean_hygroscopicity(param_set, AM_1)[1]
 
 end
 
-@testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
+@TT.testset "order of modes does not matter" begin
+
+    @TT.test AA.total_N_activated(param_set, AM_3, T, p, w) ==
+             AA.total_N_activated(param_set, AM_2, T, p, w)
+    @TT.test AA.total_M_activated(param_set, AM_3, T, p, w) ==
+             AA.total_M_activated(param_set, AM_2, T, p, w)
+
+end
+
+@TT.testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
 
     # data read from Fig 1 in Abdul-Razzak and Ghan 2000
     # using https://automeris.io/WebPlotDigitizer/
@@ -148,7 +141,7 @@ end
 
     it = 1
     for N_2_paper in N_2_obs
-        paper_mode_2 = Mode(
+        paper_mode_2 = AM.Mode(
             r_dry_paper,
             stdev_paper,
             N_2_paper * 1e6,
@@ -161,12 +154,12 @@ end
             1,
         )
 
-        AD = AerosolDistribution((paper_mode_1, paper_mode_2))
+        AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
         N_act_frac[it] =
-            N_activated_per_mode(param_set, AD, T, p, w)[1] / N_1_paper
+            AA.N_activated_per_mode(param_set, AD, T, p, w)[1] / N_1_paper
 
         it += 1
     end
 
-    @test all(isapprox(N_act_frac, N_act_obs, rtol = 0.05))
+    @TT.test all(isapprox(N_act_frac, N_act_obs, rtol = 0.05))
 end

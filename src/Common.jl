@@ -3,13 +3,13 @@
 """
 module Common
 
-using Thermodynamics
+import Thermodynamics as TD
 
-using CLIMAParameters
-using CLIMAParameters.Planet: R_v
-using CLIMAParameters.Atmos.Microphysics
+import CLIMAParameters as CP
+import CLIMAParameters.Planet as CP_planet
+import CLIMAParameters.Atmos.Microphysics as CP_micro
 
-const APS = AbstractParameterSet
+const APS = CP.AbstractParameterSet
 
 export G_func
 
@@ -23,27 +23,27 @@ export G_func
 
 Utility function combining thermal conductivity and vapor diffusivity effects.
 """
-function G_func(param_set::APS, T::FT, ::Liquid) where {FT <: Real}
+function G_func(param_set::APS, T::FT, ::TD.Liquid) where {FT <: Real}
 
-    _K_therm::FT = K_therm(param_set)
-    _R_v::FT = R_v(param_set)
-    _D_vapor::FT = D_vapor(param_set)
+    _K_therm::FT = CP_micro.K_therm(param_set)
+    _R_v::FT = CP_planet.R_v(param_set)
+    _D_vapor::FT = CP_micro.D_vapor(param_set)
 
-    L = latent_heat_vapor(param_set, T)
-    p_vs = saturation_vapor_pressure(param_set, T, Liquid())
+    L = TD.latent_heat_vapor(param_set, T)
+    p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
 
     return FT(1) / (
         L / _K_therm / T * (L / _R_v / T - FT(1)) + _R_v * T / _D_vapor / p_vs
     )
 end
-function G_func(param_set::APS, T::FT, ::Ice) where {FT <: Real}
+function G_func(param_set::APS, T::FT, ::TD.Ice) where {FT <: Real}
 
-    _K_therm::FT = K_therm(param_set)
-    _R_v::FT = R_v(param_set)
-    _D_vapor::FT = D_vapor(param_set)
+    _K_therm::FT = CP_micro.K_therm(param_set)
+    _R_v::FT = CP_planet.R_v(param_set)
+    _D_vapor::FT = CP_micro.D_vapor(param_set)
 
-    L = latent_heat_sublim(param_set, T)
-    p_vs = saturation_vapor_pressure(param_set, T, Ice())
+    L = TD.latent_heat_sublim(param_set, T)
+    p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Ice())
 
     return FT(1) / (
         L / _K_therm / T * (L / _R_v / T - FT(1)) + _R_v * T / _D_vapor / p_vs
