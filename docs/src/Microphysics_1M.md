@@ -687,11 +687,11 @@ import Thermodynamics
 import CloudMicrophysics
 import CLIMAParameters
 
-PL = Plots
-CM1 = CloudMicrophysics.Microphysics_1M
-TD = Thermodynamics
-CP = CLIMAParameters
-CP_planet = CLIMAParameters.Planet
+const PL = Plots
+const CM1 = CloudMicrophysics.Microphysics_1M
+const TD = Thermodynamics
+const CP = CLIMAParameters
+const CP_planet = CLIMAParameters.Planet
 
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 struct LiquidParameterSet <: CP.AbstractLiquidParameterSet end

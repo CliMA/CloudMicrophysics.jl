@@ -11,10 +11,9 @@ module Microphysics_0M
 import Thermodynamics
 import CLIMAParameters
 
-TD = Thermodynamics
-CP = CLIMAParameters
-CP_micro = CLIMAParameters.Atmos.Microphysics_0M
-
+const TD = Thermodynamics
+const CP = CLIMAParameters
+const CP_micro = CLIMAParameters.Atmos.Microphysics_0M
 const APS = CP.AbstractParameterSet
 
 export remove_precipitation

@@ -8,11 +8,10 @@ import CLIMAParameters
 import CLIMAParameters.Planet
 import CLIMAParameters.Atmos.Microphysics
 
-TD = Thermodynamics
-CP = CLIMAParameters
-CP_planet = CLIMAParameters.Planet
-CP_micro = CLIMAParameters.Atmos.Microphysics
-
+const TD = Thermodynamics
+const CP = CLIMAParameters
+const CP_planet = CLIMAParameters.Planet
+const CP_micro = CLIMAParameters.Atmos.Microphysics
 const APS = CP.AbstractParameterSet
 
 export G_func

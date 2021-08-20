@@ -3,10 +3,10 @@ import Test
 import CloudMicrophysics
 import CLIMAParameters
 
-TT = Test
-AM = CloudMicrophysics.AerosolModel
-AA = CloudMicrophysics.AerosolActivation
-CP = CLIMAParameters
+const TT = Test
+const AM = CloudMicrophysics.AerosolModel
+const AA = CloudMicrophysics.AerosolActivation
+const CP = CLIMAParameters
 
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set = EarthParameterSet()

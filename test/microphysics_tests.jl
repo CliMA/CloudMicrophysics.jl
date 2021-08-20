@@ -4,14 +4,14 @@ import Thermodynamics
 import CloudMicrophysics
 import CLIMAParameters
 
-TT = Test
-TD = Thermodynamics
-CM0 = CloudMicrophysics.Microphysics_0M
-CM1 = CloudMicrophysics.Microphysics_1M
-CP = CLIMAParameters
-CP_planet = CLIMAParameters.Planet
-CP_micro0 = CLIMAParameters.Atmos.Microphysics_0M
-CP_micro1 = CLIMAParameters.Atmos.Microphysics
+const TT = Test
+const TD = Thermodynamics
+const CM0 = CloudMicrophysics.Microphysics_0M
+const CM1 = CloudMicrophysics.Microphysics_1M
+const CP = CLIMAParameters
+const CP_planet = CLIMAParameters.Planet
+const CP_micro0 = CLIMAParameters.Atmos.Microphysics_0M
+const CP_micro1 = CLIMAParameters.Atmos.Microphysics
 
 struct LiquidParameterSet <: CP.AbstractLiquidParameterSet end
 struct IceParameterSet <: CP.AbstractIceParameterSet end

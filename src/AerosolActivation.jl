@@ -15,13 +15,12 @@ import Thermodynamics
 import CloudMicrophysics
 import CLIMAParameters
 
-SF = SpecialFunctions
-TD = Thermodynamics
-AM = CloudMicrophysics.AerosolModel
-CO = CloudMicrophysics.Common
-CP = CLIMAParameters
-CP_planet = CLIMAParameters.Planet
-
+const SF = SpecialFunctions
+const TD = Thermodynamics
+const AM = CloudMicrophysics.AerosolModel
+const CO = CloudMicrophysics.Common
+const CP = CLIMAParameters
+const CP_planet = CLIMAParameters.Planet
 const APS = CP.AbstractParameterSet
 
 export mean_hygroscopicity

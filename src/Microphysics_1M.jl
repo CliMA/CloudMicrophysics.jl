@@ -17,12 +17,12 @@ import Thermodynamics
 import CloudMicrophysics
 import CLIMAParameters
 
-SF = SpecialFunctions
-TD = Thermodynamics
-CO = CloudMicrophysics.Common
-CP = CLIMAParameters
-CP_planet = CLIMAParameters.Planet
-CP_micro = CLIMAParameters.Atmos.Microphysics
+const SF = SpecialFunctions
+const TD = Thermodynamics
+const CO = CloudMicrophysics.Common
+const CP = CLIMAParameters
+const CP_planet = CLIMAParameters.Planet
+const CP_micro = CLIMAParameters.Atmos.Microphysics
 
 const APS = CP.AbstractParameterSet
 const ACloudPS = CP.AbstractCloudParameterSet
