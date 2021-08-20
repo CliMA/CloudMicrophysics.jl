@@ -681,13 +681,17 @@ If ``T > T_{freeze}``:
 ## Example figures
 
 ```@example example_figures
-import Plots as PL
+import Plots
 
-import CloudMicrophysics.Microphysics_1M as CM1
-import Thermodynamics as TD
+import Thermodynamics
+import CloudMicrophysics
+import CLIMAParameters
 
-import CLIMAParameters as CP
-import CLIMAParameters.Planet as CP_planet
+PL = Plots
+CM1 = CloudMicrophysics.Microphysics_1M
+TD = Thermodynamics
+CP = CLIMAParameters
+CP_planet = CLIMAParameters.Planet
 
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 struct LiquidParameterSet <: CP.AbstractLiquidParameterSet end

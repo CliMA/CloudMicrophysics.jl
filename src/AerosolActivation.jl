@@ -9,15 +9,18 @@
 """
 module AerosolActivation
 
-import SpecialFunctions as SF
+import SpecialFunctions
 
-import Thermodynamics as TD
+import Thermodynamics
+import CloudMicrophysics
+import CLIMAParameters
 
-import CloudMicrophysics.AerosolModel as AM
-import CloudMicrophysics.Common as CO
-
-import CLIMAParameters as CP
-import CLIMAParameters.Planet as CP_planet
+SF = SpecialFunctions
+TD = Thermodynamics
+AM = CloudMicrophysics.AerosolModel
+CO = CloudMicrophysics.Common
+CP = CLIMAParameters
+CP_planet = CLIMAParameters.Planet
 
 const APS = CP.AbstractParameterSet
 

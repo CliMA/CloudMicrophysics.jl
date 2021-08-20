@@ -8,10 +8,12 @@
 """
 module Microphysics_0M
 
-import Thermodynamics as TD
+import Thermodynamics
+import CLIMAParameters
 
-import CLIMAParameters as CP
-import CLIMAParameters.Atmos.Microphysics_0M as CP_micro
+TD = Thermodynamics
+CP = CLIMAParameters
+CP_micro = CLIMAParameters.Atmos.Microphysics_0M
 
 const APS = CP.AbstractParameterSet
 

@@ -1,21 +1,25 @@
-import Test as TT
+import Test
 
-import Thermodynamics as TD
+import Thermodynamics
+import CloudMicrophysics
+import CLIMAParameters
 
-import CloudMicrophysics.Microphysics_0M as CM0
-import CloudMicrophysics.Microphysics_1M as CM1
-
-import CLIMAParameters as CP
-import CLIMAParameters.Planet as CP_planet
-import CLIMAParameters.Atmos.Microphysics_0M as CP_micro0
-import CLIMAParameters.Atmos.Microphysics as CP_micro1
+TT = Test
+TD = Thermodynamics
+CM0 = CloudMicrophysics.Microphysics_0M
+CM1 = CloudMicrophysics.Microphysics_1M
+CP = CLIMAParameters
+CP_planet = CLIMAParameters.Planet
+CP_micro0 = CLIMAParameters.Atmos.Microphysics_0M
+CP_micro1 = CLIMAParameters.Atmos.Microphysics
 
 struct LiquidParameterSet <: CP.AbstractLiquidParameterSet end
 struct IceParameterSet <: CP.AbstractIceParameterSet end
 struct RainParameterSet <: CP.AbstractRainParameterSet end
 struct SnowParameterSet <: CP.AbstractSnowParameterSet end
 
-struct MicropysicsParameterSet{L, I, R, S} <: CP.AbstractMicrophysicsParameterSet
+struct MicropysicsParameterSet{L, I, R, S} <:
+       CP.AbstractMicrophysicsParameterSet
     liquid::L
     ice::I
     rain::R
@@ -70,7 +74,7 @@ end
         q = TD.PhasePartition(q_tot, q_liq, q_ice)
 
         @TT.test CM0.remove_precipitation(prs, q) ≈
-              -max(0, q_liq + q_ice - _qc_0) / _τ_precip
+                 -max(0, q_liq + q_ice - _qc_0) / _τ_precip
     end
 
     # rain based on supersaturation threshold
@@ -81,7 +85,7 @@ end
         q = TD.PhasePartition(q_tot, q_liq, q_ice)
 
         @TT.test CM0.remove_precipitation(prs, q, q_vap_sat) ≈
-              -max(0, q_liq + q_ice - _S_0 * q_vap_sat) / _τ_precip
+                 -max(0, q_liq + q_ice - _S_0 * q_vap_sat) / _τ_precip
     end
 end
 
@@ -104,7 +108,7 @@ end
 
     for q_rai in q_rain_range
         @TT.test CM1.terminal_velocity(prs, rai_prs, ρ_air, q_rai) ≈
-              terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground) atol =
+                 terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground) atol =
             0.2 * terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground)
 
     end
@@ -156,7 +160,7 @@ end
 
     q_liq_big = 1.5 * _q_liq_threshold
     @TT.test CM1.conv_q_liq_to_q_rai(rai_prs, q_liq_big) ==
-          0.5 * _q_liq_threshold / _τ_acnv
+             0.5 * _q_liq_threshold / _τ_acnv
 end
 
 @TT.testset "SnowAutoconversion" begin
@@ -186,7 +190,8 @@ end
     q_liq = 0.0
     q_ice = 0.03 * q_vap
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
-    @TT.test CM1.conv_q_ice_to_q_sno(prs, ice_prs, q, ρ, T) ≈ 1.8512022335645584e-9
+    @TT.test CM1.conv_q_ice_to_q_sno(prs, ice_prs, q, ρ, T) ≈
+             1.8512022335645584e-9
 
 end
 
@@ -205,7 +210,7 @@ end
 
     for q_rai in q_rain_range
         @TT.test CM1.accretion(prs, liq_prs, rai_prs, q_liq, q_rai, ρ_air) ≈
-              accretion_empir(q_rai, q_liq, q_tot) atol =
+                 accretion_empir(q_rai, q_liq, q_tot) atol =
             (0.1 * accretion_empir(q_rai, q_liq, q_tot))
     end
 end
@@ -223,21 +228,21 @@ end
     q_rai = 5e-4
 
     @TT.test CM1.accretion(prs, liq_prs, rai_prs, q_liq, q_rai, ρ) ≈
-          1.4150106417043544e-6
+             1.4150106417043544e-6
     @TT.test CM1.accretion(prs, ice_prs, sno_prs, q_ice, q_sno, ρ) ≈
-          2.453070979562392e-7
+             2.453070979562392e-7
     @TT.test CM1.accretion(prs, liq_prs, sno_prs, q_liq, q_sno, ρ) ≈
-          2.453070979562392e-7
+             2.453070979562392e-7
     @TT.test CM1.accretion(prs, ice_prs, rai_prs, q_ice, q_rai, ρ) ≈
-          1.768763302130443e-6
+             1.768763302130443e-6
 
     @TT.test CM1.accretion_rain_sink(prs, ice_prs, rai_prs, q_ice, q_rai, ρ) ≈
-          3.085229094251214e-5
+             3.085229094251214e-5
 
     @TT.test CM1.accretion_snow_rain(prs, sno_prs, rai_prs, q_sno, q_rai, ρ) ≈
-          2.1705865794293408e-4
+             2.1705865794293408e-4
     @TT.test CM1.accretion_snow_rain(prs, rai_prs, sno_prs, q_rai, q_sno, ρ) ≈
-          6.0118801860768854e-5
+             6.0118801860768854e-5
 end
 
 @TT.testset "RainEvaporation" begin
@@ -285,7 +290,7 @@ end
 
     for q_rai in q_rain_range
         @TT.test CM1.evaporation_sublimation(prs, rai_prs, q, q_rai, ρ, T) ≈
-              rain_evap_empir(prs, q_rai, q, T, p, ρ) atol =
+                 rain_evap_empir(prs, q_rai, q, T, p, ρ) atol =
             -0.5 * rain_evap_empir(prs, q_rai, q, T, p, ρ)
     end
 
@@ -339,7 +344,7 @@ end
             ρ = p / R / T
 
             @TT.test CM1.evaporation_sublimation(prs, sno_prs, q, q_sno, ρ, T) ≈
-                  ref_val[cnt]
+                     ref_val[cnt]
 
         end
     end

@@ -3,11 +3,15 @@
 """
 module Common
 
-import Thermodynamics as TD
+import Thermodynamics
+import CLIMAParameters
+import CLIMAParameters.Planet
+import CLIMAParameters.Atmos.Microphysics
 
-import CLIMAParameters as CP
-import CLIMAParameters.Planet as CP_planet
-import CLIMAParameters.Atmos.Microphysics as CP_micro
+TD = Thermodynamics
+CP = CLIMAParameters
+CP_planet = CLIMAParameters.Planet
+CP_micro = CLIMAParameters.Atmos.Microphysics
 
 const APS = CP.AbstractParameterSet
 

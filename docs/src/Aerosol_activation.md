@@ -230,12 +230,15 @@ where:
 ## Example figures
 
 ```@example example_figures
-import Plots as PL
+import Plots
 
-import CloudMicrophysics.AerosolModel as AM
-import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics
+import CLIMAParameters
 
-import CLIMAParameters as CP
+PL = Plots
+AM = CloudMicrophysics.AerosolModel
+AA = CloudMicrophysics.AerosolActivation
+CP =  CLIMAParameters
 
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set = EarthParameterSet()

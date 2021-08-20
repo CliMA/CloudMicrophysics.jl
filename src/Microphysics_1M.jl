@@ -11,15 +11,18 @@
 """
 module Microphysics_1M
 
-import SpecialFunctions as SF
+import SpecialFunctions
 
-import Thermodynamics as TD
+import Thermodynamics
+import CloudMicrophysics
+import CLIMAParameters
 
-import CloudMicrophysics.Common as CO
-
-import CLIMAParameters as CP
-import CLIMAParameters.Planet as CP_planet
-import CLIMAParameters.Atmos.Microphysics as CP_micro
+SF = SpecialFunctions
+TD = Thermodynamics
+CO = CloudMicrophysics.Common
+CP = CLIMAParameters
+CP_planet = CLIMAParameters.Planet
+CP_micro = CLIMAParameters.Atmos.Microphysics
 
 const APS = CP.AbstractParameterSet
 const ACloudPS = CP.AbstractCloudParameterSet
@@ -280,7 +283,8 @@ function terminal_velocity(
             _χv *
             _v0 *
             (_λ * _r0)^(-_ve - _Δv) *
-            SF.gamma(_me + _ve + _Δm + _Δv + FT(1)) / SF.gamma(_me + _Δm + FT(1))
+            SF.gamma(_me + _ve + _Δm + _Δv + FT(1)) /
+            SF.gamma(_me + _Δm + FT(1))
     end
 
     return fall_w
