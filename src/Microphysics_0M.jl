@@ -8,12 +8,13 @@
 """
 module Microphysics_0M
 
-using Thermodynamics
+import Thermodynamics
+import CLIMAParameters
 
-using CLIMAParameters
-using CLIMAParameters.Atmos.Microphysics_0M
-
-const APS = AbstractParameterSet
+const TD = Thermodynamics
+const CP = CLIMAParameters
+const CP_micro = CLIMAParameters.Atmos.Microphysics_0M
+const APS = CP.AbstractParameterSet
 
 export remove_precipitation
 
@@ -34,22 +35,22 @@ CLIMAParameters.
 """
 function remove_precipitation(
     param_set::APS,
-    q::PhasePartition{FT},
+    q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    _τ_precip::FT = τ_precip(param_set)
-    _qc_0::FT = qc_0(param_set)
+    _τ_precip::FT = CP_micro.τ_precip(param_set)
+    _qc_0::FT = CP_micro.qc_0(param_set)
 
     return -max(0, (q.liq + q.ice - _qc_0)) / _τ_precip
 end
 function remove_precipitation(
     param_set::APS,
-    q::PhasePartition{FT},
+    q::TD.PhasePartition{FT},
     q_vap_sat::FT,
 ) where {FT <: Real}
 
-    _τ_precip::FT = τ_precip(param_set)
-    _S_0::FT = S_0(param_set)
+    _τ_precip::FT = CP_micro.τ_precip(param_set)
+    _S_0::FT = CP_micro.S_0(param_set)
 
     return -max(0, (q.liq + q.ice - _S_0 * q_vap_sat)) / _τ_precip
 end

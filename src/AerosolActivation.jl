@@ -9,26 +9,19 @@
 """
 module AerosolActivation
 
-using SpecialFunctions
+import SpecialFunctions
 
-using Thermodynamics
+import Thermodynamics
+import CloudMicrophysics
+import CLIMAParameters
 
-using CloudMicrophysics.AerosolModel
-using CloudMicrophysics.Common: G_func
-
-using CLIMAParameters
-using CLIMAParameters: gas_constant
-using CLIMAParameters.Planet:
-    ρ_cloud_liq,
-    R_v,
-    grav,
-    molmass_water,
-    molmass_dryair,
-    cp_d,
-    surface_tension_coeff
-using CLIMAParameters.Atmos.Microphysics: K_therm, D_vapor
-
-const APS = AbstractParameterSet
+const SF = SpecialFunctions
+const TD = Thermodynamics
+const AM = CloudMicrophysics.AerosolModel
+const CO = CloudMicrophysics.Common
+const CP = CLIMAParameters
+const CP_planet = CLIMAParameters.Planet
+const APS = CP.AbstractParameterSet
 
 export mean_hygroscopicity
 export max_supersaturation
@@ -47,10 +40,10 @@ Returns a curvature coefficient.
 """
 function coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
 
-    _molmass_water::FT = molmass_water(param_set)
-    _gas_constant::FT = gas_constant()
-    _ρ_cloud_liq::FT = ρ_cloud_liq(param_set)
-    _surface_tension::FT = surface_tension_coeff(param_set)
+    _molmass_water::FT = CP_planet.molmass_water(param_set)
+    _gas_constant::FT = CP.gas_constant()
+    _ρ_cloud_liq::FT = CP_planet.ρ_cloud_liq(param_set)
+    _surface_tension::FT = CP_planet.surface_tension_coeff(param_set)
 
     return 2 * _surface_tension * _molmass_water / _ρ_cloud_liq /
            _gas_constant / T
@@ -65,10 +58,10 @@ end
 Returns a tuple of mean hygroscopicities
 (one tuple element for each aerosol size distribution mode).
 """
-function mean_hygroscopicity(param_set::APS, ad::AerosolDistribution)
+function mean_hygroscopicity(param_set::APS, ad::AM.AerosolDistribution)
 
-    _molmass_water = molmass_water(param_set)
-    _ρ_cloud_liq = ρ_cloud_liq(param_set)
+    _molmass_water = CP_planet.molmass_water(param_set)
+    _ρ_cloud_liq = CP_planet.ρ_cloud_liq(param_set)
 
     return ntuple(length(ad.Modes)) do i
 
@@ -101,7 +94,7 @@ Returns a tuple of critical supersaturations
 """
 function critical_supersaturation(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::AM.AerosolDistribution,
     T::FT,
 ) where {FT <: Real}
 
@@ -126,22 +119,22 @@ Returns the maximum supersaturation.
 """
 function max_supersaturation(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::AM.AerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
 ) where {FT <: Real}
 
-    _grav::FT = grav(param_set)
-    _molmass_water::FT = molmass_water(param_set)
-    _molmass_dryair::FT = molmass_dryair(param_set)
-    _gas_constant::FT = gas_constant()
-    _cp_d::FT = cp_d(param_set)
-    _ρ_cloud_liq::FT = ρ_cloud_liq(param_set)
+    _grav::FT = CP_planet.grav(param_set)
+    _molmass_water::FT = CP_planet.molmass_water(param_set)
+    _molmass_dryair::FT = CP_planet.molmass_dryair(param_set)
+    _gas_constant::FT = CP.gas_constant()
+    _cp_d::FT = CP_planet.cp_d(param_set)
+    _ρ_cloud_liq::FT = CP_planet.ρ_cloud_liq(param_set)
 
-    L::FT = latent_heat_vapor(param_set, T)
-    p_vs::FT = saturation_vapor_pressure(param_set, T, Liquid())
-    G::FT = G_func(param_set, T, Liquid()) / _ρ_cloud_liq
+    L::FT = TD.latent_heat_vapor(param_set, T)
+    p_vs::FT = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
+    G::FT = CO.G_func(param_set, T, TD.Liquid()) / _ρ_cloud_liq
 
     # eq 11, 12 in Razzak et al 1998
     α::FT =
@@ -185,7 +178,7 @@ in each aerosol size distribution mode.
 """
 function N_activated_per_mode(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::AM.AerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -199,7 +192,7 @@ function N_activated_per_mode(
         mode_i = ad.Modes[i]
         u_i::FT = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
 
-        mode_i.N * (1 / 2) * (1 - erf(u_i))
+        mode_i.N * (1 / 2) * (1 - SF.erf(u_i))
     end
 end
 
@@ -217,7 +210,7 @@ per mode of the aerosol size distribution.
 """
 function M_activated_per_mode(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::AM.AerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -237,7 +230,7 @@ function M_activated_per_mode(
         u_i = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
 
         avg_molar_mass_i * 1 / 2 *
-        (1 - erf(u_i - 3 * sqrt(2) / 2 * log(mode_i.stdev)))
+        (1 - SF.erf(u_i - 3 * sqrt(2) / 2 * log(mode_i.stdev)))
     end
 end
 
@@ -254,7 +247,7 @@ Returns the total number of activated aerosol particles.
 """
 function total_N_activated(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::AM.AerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -277,7 +270,7 @@ Returns the total mass of activated aerosol particles.
 """
 function total_M_activated(
     param_set::APS,
-    ad::AerosolDistribution,
+    ad::AM.AerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
