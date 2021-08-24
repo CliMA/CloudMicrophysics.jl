@@ -54,6 +54,22 @@ function KK_coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
            _gas_constant / T
 end
 
+"""
+    kappa(param_set, ad)
+ 
+ - 'param_set' - abstract set with Earth's parameters
+ - 'ad' - aerosol distribution
+
+Returns volume-weighted kappa parameter. 
+"""
+function kappa(param_set::APS, ad::KappaKohlerAerosolDistribution)
+    return ntuple(length(ad.KK_Modes)) do i
+        modei = ad.KK_Modes[i]
+        sum(1:modei.n_components) do i
+            modei.vol_mix_ratio[i] * modei.kappa[i]
+        end
+    end
+end
 
 """
     critical_supersaturation(param_set, ad, T)
@@ -65,20 +81,14 @@ end
 Returns a tuple of critical supersaturations
 (one tuple element for each aerosol size distribution mode).
 """
-# function KK_critical_supersaturation(
-#     param_set::APS,
-#     ad::KappaKohlerAerosolDistribution,
-#     T::FT,
-# ) where {FT <: Real}
-
-#     A::FT = KK_coeff_of_curvature(param_set, T)
-
-#     return ntuple(length(ad.KK_Modes)) do i
-#         modei = ad.KK_Modes[i]
-#         Diam = modei.r_dry * 2
-#         exp((4 * A ^ 3 / (27 * Diam^3 * modei.kappa))^.5)
-#     end
-# end
+function KK_critical_supersaturation(param_set::APS, ad::KappaKohlerAerosolDistribution, T::FT) where {FT <: Real}
+    kappa_avg = kappa(param_set, ad)
+    A = KK_coeff_of_curvature(param_set, T)
+    return ntuple(length(ad.KK_Modes)) do i
+        modei = ad.KK_Modes[i]
+        2 / sqrt(kappa_avg[i]) * (A / 3 / ad.KK_Modes[i].r_dry)^(3 / 2)
+    end
+end
 
 """
     max_supersaturation(param_set, ad, T, p, w)
@@ -122,7 +132,7 @@ function KK_max_supersaturation(
     ζ::FT = 2 * A / 3 * sqrt(α * w / G)
 
     # Sm = KK_critical_supersaturation(param_set, ad, T)
-    Sm = (1.107-1, )
+    Sm = KK_critical_supersaturation(param_set, ad, T)
 
     tmp::FT = sum(1:length(ad.KK_Modes)) do i
 
@@ -160,8 +170,8 @@ function KK_N_activated_per_mode(
 ) where {FT <: Real}
 
     smax::FT = KK_max_supersaturation(param_set, ad, T, p, w)
-    # sm = KK_critical_supersaturation(param_set, ad, T)
-    sm = (1.107-1, )
+    
+    sm = KK_critical_supersaturation(param_set, ad, T)
     return ntuple(length(ad.KK_Modes)) do i
 
         mode_i = ad.KK_Modes[i]
@@ -192,8 +202,7 @@ function KK_M_activated_per_mode(
 ) where {FT <: Real}
 
     smax = KK_max_supersaturation(param_set, ad, T, p, w)
-    # sm = KK_critical_supersaturation(param_set, ad, T)
-    sm = (1.107-1, )
+    sm = KK_critical_supersaturation(param_set, ad, T)
     return ntuple(length(ad.KK_Modes)) do i
 
         mode_i = ad.KK_Modes[i]

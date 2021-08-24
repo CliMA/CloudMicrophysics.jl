@@ -25,11 +25,11 @@ struct KappaKohlerMode{T}
     "total number concentration"
     N::Real
     "tuple of mass mixing ratios for all components in this mode"
-    mass_mix_ratio::T
+    vol_mix_ratio::T
     "tuple of molar masses for all components in this mode"
     molar_mass::T
     "tuple of kappa-kohler values for all components in this mode"
-    kappa::Real
+    kappa::T
     "number of components in the mode"
     n_components::Int64
 end
@@ -49,8 +49,8 @@ struct KappaKohlerAerosolDistribution{T}
     "tuple with all aerosol size distribution modes"
    KK_Modes::T
 
-    function KappaKohlerAerosolDistribution(Modes::T) where {T}
-        return new{T}(Modes)
+    function KappaKohlerAerosolDistribution(KK_Modes::T) where {T}
+        return new{T}(KK_Modes)
     end
 
 end
