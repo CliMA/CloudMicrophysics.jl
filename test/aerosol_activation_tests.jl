@@ -38,15 +38,17 @@ M_seasalt = 0.058443
 ϕ_seasalt = 0.9
 ν_seasalt = 2.0
 ϵ_seasalt = 1.0
+κ_seasalt = 1.12   # TODO - which value to take?
 # Sulfate - universal parameters
 M_sulfate = 0.132
 ρ_sulfate = 1770.0
 ϕ_sulfate = 1.0
 ν_sulfate = 3.0
 ϵ_sulfate = 1.0
+κ_sulfate = 0.53   # TODO - which value to take?
 
 # Aerosol size distribution modes
-accum_seasalt = AM.Mode(
+accum_seasalt_B = AM.Mode_B(
     r_dry_accum,
     stdev_accum,
     N_accum,
@@ -58,8 +60,18 @@ accum_seasalt = AM.Mode(
     (ρ_seasalt,),
     1,
 )
+accum_seasalt_κ = AM.Mode_κ(
+    r_dry_accum,
+    stdev_accum,
+    N_accum,
+    (1.0,),
+    (1.0,),
+    (M_seasalt,),
+    (κ_seasalt,),
+    1,
+)
 
-coarse_seasalt = AM.Mode(
+coarse_seasalt_B = AM.Mode_B(
     r_dry_coarse,
     stdev_coarse,
     N_coarse,
@@ -71,8 +83,18 @@ coarse_seasalt = AM.Mode(
     (ρ_seasalt,),
     1,
 )
+coarse_seasalt_κ = AM.Mode_κ(
+    r_dry_coarse,
+    stdev_coarse,
+    N_coarse,
+    (1.0,),
+    (1.0,),
+    (M_seasalt,),
+    (κ_seasalt,),
+    1,
+)
 
-paper_mode_1 = AM.Mode(
+paper_mode_1_B = AM.Mode_B(
     r_dry_paper,
     stdev_paper,
     N_1_paper,
@@ -84,39 +106,74 @@ paper_mode_1 = AM.Mode(
     (ρ_sulfate,),
     1,
 )
+paper_mode_1_κ = AM.Mode_κ(
+    r_dry_paper,
+    stdev_paper,
+    N_1_paper,
+    (1.0,),
+    (1.0,),
+    (M_sulfate,),
+    (κ_sulfate,),
+    1,
+)
 
 # Aerosol size distributions
-AM_1 = AM.AerosolDistribution((accum_seasalt,))
-AM_2 = AM.AerosolDistribution((coarse_seasalt, accum_seasalt))
-AM_3 = AM.AerosolDistribution((accum_seasalt, coarse_seasalt))
+AM_1_B = AM.AerosolDistribution((accum_seasalt_B,))
+AM_2_B = AM.AerosolDistribution((coarse_seasalt_B, accum_seasalt_B))
+AM_3_B = AM.AerosolDistribution((accum_seasalt_B, coarse_seasalt_B))
+
+AM_1_κ = AM.AerosolDistribution((accum_seasalt_κ,))
+AM_2_κ = AM.AerosolDistribution((coarse_seasalt_κ, accum_seasalt_κ))
+AM_3_κ = AM.AerosolDistribution((accum_seasalt_κ, coarse_seasalt_κ))
 
 @TT.testset "callable and positive" begin
 
-    @TT.test all(AA.mean_hygroscopicity(param_set, AM_3) .> 0.0)
-    @TT.test AA.max_supersaturation(param_set, AM_3, T, p, w) > 0.0
-    @TT.test all(AA.N_activated_per_mode(param_set, AM_3, T, p, w) .> 0.0)
-    @TT.test all(AA.M_activated_per_mode(param_set, AM_3, T, p, w) .> 0.0)
-    @TT.test AA.total_N_activated(param_set, AM_3, T, p, w) > 0.0
-    @TT.test AA.total_M_activated(param_set, AM_3, T, p, w) > 0.0
-
+    for AM_t in (AM_3_B, AM_3_κ)
+        @TT.test all(AA.mean_hygroscopicity_parameter(param_set, AM_t) .> 0.0)
+        @TT.test AA.max_supersaturation(param_set, AM_t, T, p, w) > 0.0
+        @TT.test all(AA.N_activated_per_mode(param_set, AM_t, T, p, w) .> 0.0)
+        @TT.test all(AA.M_activated_per_mode(param_set, AM_t, T, p, w) .> 0.0)
+        @TT.test AA.total_N_activated(param_set, AM_t, T, p, w) > 0.0
+        @TT.test AA.total_M_activated(param_set, AM_t, T, p, w) > 0.0
+    end
 end
 
 @TT.testset "same mean hygroscopicity for the same aerosol" begin
 
-    @TT.test AA.mean_hygroscopicity(param_set, AM_3)[1] ==
-             AA.mean_hygroscopicity(param_set, AM_1)[1]
-    @TT.test AA.mean_hygroscopicity(param_set, AM_3)[2] ==
-             AA.mean_hygroscopicity(param_set, AM_1)[1]
+    @TT.test AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[1] ==
+             AA.mean_hygroscopicity_parameter(param_set, AM_1_B)[1]
 
+    @TT.test AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2] ==
+             AA.mean_hygroscopicity_parameter(param_set, AM_1_B)[1]
+
+    @TT.test AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[1] ==
+             AA.mean_hygroscopicity_parameter(param_set, AM_1_κ)[1]
+
+    @TT.test AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2] ==
+             AA.mean_hygroscopicity_parameter(param_set, AM_1_κ)[1]
+
+end
+
+@TT.testset "B and kappa hygroscopicities are equivalent" begin
+
+    @TT.test all(isapprox(
+        AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2],
+        AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2],
+        rtol = 0.1,
+    ))
 end
 
 @TT.testset "order of modes does not matter" begin
 
-    @TT.test AA.total_N_activated(param_set, AM_3, T, p, w) ==
-             AA.total_N_activated(param_set, AM_2, T, p, w)
-    @TT.test AA.total_M_activated(param_set, AM_3, T, p, w) ==
-             AA.total_M_activated(param_set, AM_2, T, p, w)
+    @TT.test AA.total_N_activated(param_set, AM_3_B, T, p, w) ==
+             AA.total_N_activated(param_set, AM_2_B, T, p, w)
+    @TT.test AA.total_M_activated(param_set, AM_3_B, T, p, w) ==
+             AA.total_M_activated(param_set, AM_2_B, T, p, w)
 
+    @TT.test AA.total_N_activated(param_set, AM_3_κ, T, p, w) ==
+             AA.total_N_activated(param_set, AM_2_κ, T, p, w)
+    @TT.test AA.total_M_activated(param_set, AM_3_κ, T, p, w) ==
+             AA.total_M_activated(param_set, AM_2_κ, T, p, w)
 end
 
 @TT.testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
@@ -140,11 +197,12 @@ end
         0.162630267331219,
     ]
 
-    N_act_frac = Vector{Float64}(undef, 6)
+    N_act_frac_B = Vector{Float64}(undef, 6)
+    N_act_frac_κ = Vector{Float64}(undef, 6)
 
     it = 1
     for N_2_paper in N_2_obs
-        paper_mode_2 = AM.Mode(
+        paper_mode_2_B = AM.Mode_B(
             r_dry_paper,
             stdev_paper,
             N_2_paper * 1e6,
@@ -156,13 +214,28 @@ end
             (ρ_sulfate,),
             1,
         )
+        paper_mode_2_κ = AM.Mode_κ(
+            r_dry_paper,
+            stdev_paper,
+            N_2_paper * 1e6,
+            (1.0,),
+            (1.0,),
+            (M_sulfate,),
+            (κ_sulfate,),
+            1,
+        )
 
-        AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
-        N_act_frac[it] =
-            AA.N_activated_per_mode(param_set, AD, T, p, w)[1] / N_1_paper
+        AD_B = AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
+        AD_κ = AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
 
+        N_act_frac_B[it] =
+            AA.N_activated_per_mode(param_set, AD_B, T, p, w)[1] / N_1_paper
+        N_act_frac_κ[it] =
+            AA.N_activated_per_mode(param_set, AD_κ, T, p, w)[1] / N_1_paper
         it += 1
     end
 
-    @TT.test all(isapprox(N_act_frac, N_act_obs, rtol = 0.05))
+    @TT.test all(isapprox(N_act_frac_B, N_act_obs, rtol = 0.05))
+    @TT.test all(isapprox(N_act_frac_κ, N_act_obs, rtol = 0.1))
+
 end
