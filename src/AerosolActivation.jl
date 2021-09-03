@@ -23,10 +23,12 @@ const CP = CLIMAParameters
 const CP_planet = CLIMAParameters.Planet
 const APS = CP.AbstractParameterSet
 
-export mean_hygroscopicity
+export mean_hygroscopicity_parameter
 export max_supersaturation
+
 export N_activated_per_mode
 export M_activated_per_mode
+
 export total_N_activated
 export total_M_activated
 
@@ -50,15 +52,22 @@ function coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
 end
 
 """
-    mean_hygroscopicity(param_set, ad)
+    mean_hygroscopicity_parameter(param_set, ad)
 
   - `param_set` - abstract set with Earth's parameters
   - `ad` - aerosol distribution struct
 
-Returns a tuple of mean hygroscopicities
+Returns a tuple of hygroscopicity parameters
 (one tuple element for each aerosol size distribution mode).
+The tuple is computed either as mass-weighted B parameters
+(Abdul-Razzak and Ghan 2000)
+or volume weighted kappa parameters (Petters and Kreidenweis 2007).
+Implemented via a dispatch based on aerosol distribution mode type.
 """
-function mean_hygroscopicity(param_set::APS, ad::AM.AerosolDistribution)
+function mean_hygroscopicity_parameter(
+    param_set::APS,
+    ad::AM.AerosolDistribution{NTuple{N, T}},
+) where {N, T <: AM.Mode_B}
 
     _molmass_water = CP_planet.molmass_water(param_set)
     _ρ_cloud_liq = CP_planet.ρ_cloud_liq(param_set)
@@ -81,6 +90,19 @@ function mean_hygroscopicity(param_set::APS, ad::AM.AerosolDistribution)
         nom / den * _molmass_water / _ρ_cloud_liq
     end
 end
+function mean_hygroscopicity_parameter(
+    param_set::APS,
+    ad::AM.AerosolDistribution{NTuple{N, T}},
+) where {N, T <: AM.Mode_κ}
+
+    return ntuple(length(ad.Modes)) do i
+
+        modei = ad.Modes[i]
+        sum(1:(modei.n_components)) do j
+            modei.vol_mix_ratio[j] * modei.kappa[j]
+        end
+    end
+end
 
 """
     critical_supersaturation(param_set, ad, T)
@@ -94,15 +116,15 @@ Returns a tuple of critical supersaturations
 """
 function critical_supersaturation(
     param_set::APS,
-    ad::AM.AerosolDistribution,
+    ad::AM.AbstractAerosolDistribution,
     T::FT,
 ) where {FT <: Real}
 
     A::FT = coeff_of_curvature(param_set, T)
-    B = mean_hygroscopicity(param_set, ad)
+    hygro = mean_hygroscopicity_parameter(param_set, ad)
 
     return ntuple(length(ad.Modes)) do i
-        2 / sqrt(B[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
+        2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
     end
 end
 
@@ -119,7 +141,7 @@ Returns the maximum supersaturation.
 """
 function max_supersaturation(
     param_set::APS,
-    ad::AM.AerosolDistribution,
+    ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -178,7 +200,7 @@ in each aerosol size distribution mode.
 """
 function N_activated_per_mode(
     param_set::APS,
-    ad::AM.AerosolDistribution,
+    ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -210,7 +232,7 @@ per mode of the aerosol size distribution.
 """
 function M_activated_per_mode(
     param_set::APS,
-    ad::AM.AerosolDistribution,
+    ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -247,7 +269,7 @@ Returns the total number of activated aerosol particles.
 """
 function total_N_activated(
     param_set::APS,
-    ad::AM.AerosolDistribution,
+    ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -270,7 +292,7 @@ Returns the total mass of activated aerosol particles.
 """
 function total_M_activated(
     param_set::APS,
-    ad::AM.AerosolDistribution,
+    ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,

@@ -34,7 +34,9 @@ Microphysics_1M.snow_melt
 
 ```@docs
 AerosolModel
-AerosolModel.Mode
+AerosolModel.Mode_B
+AerosolModel.Mode_κ
+AerosolModel.AbstractAerosolDistribution
 AerosolModel.AerosolDistribution
 ```
 
@@ -42,7 +44,7 @@ AerosolModel.AerosolDistribution
 
 ```@docs
 AerosolActivation
-AerosolActivation.mean_hygroscopicity
+AerosolActivation.mean_hygroscopicity_parameter
 AerosolActivation.max_supersaturation
 AerosolActivation.N_activated_per_mode
 AerosolActivation.M_activated_per_mode

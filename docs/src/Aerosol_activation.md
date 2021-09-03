@@ -12,6 +12,9 @@ It is based on [Köhler theory](https://en.wikipedia.org/wiki/K%C3%B6hler_theory
 The modules are an implementation of the parameterization
   from [Abdul-Razzaketal1998](@cite) and
   [Abdul-RazzakandGhan2000](@cite).
+The aerosol chemical composition can be expressed using the B parameter
+  from [Abdul-RazzakandGhan2000](@cite)
+  or the kappa parameter from [PettersandKreidenweis2007](@cite).
 
 
 ## Assumed aerosol size distribution and properties
@@ -20,7 +23,7 @@ Aerosol particles are assumed to follow a multi-mode lognormal
   size distribution.
 Particles in each mode are assumed to be internally mixed.
 The following table lists the parameters defining the aerosol
-  physical and chemical properties.
+  physical and chemical properties using the B parameter.
 The ``r_{dry}``, ``\sigma``, and ``N_{tot}`` are given for each mode.
 Other parameters are defined for each component in each mode.
 
@@ -36,6 +39,17 @@ Other parameters are defined for each component in each mode.
 |``\nu``               | number of ions the salt dissociates into in water | ``-``               |
 |``\rho_a``            | aerosol density                                   | ``kg \, m^{-3}``    |
 
+When using the kappa formulation, one has to specify fewer parameters.
+
+|    variable name     |         definition                                | units               |
+|----------------------|---------------------------------------------------|---------------------|
+|``r_{dry}``           | geometric mean dry radius                         | ``m``               |
+|``\sigma``            | geometric standard deviation                      | ``-``               |
+|``N_{tot}``           | total number concentration                        | ``m^{-3}``          |
+|``r_{vol}``           | component volume mixing ratio                     | ``-``               |
+|``M_a``               | molar mass                                        | ``kg \, mol^{-1}``  |
+|``\kappa``            | kappa parameter                                   | ``-``               |
+
 !!! note
 
     The parameterization assumes that the solute is sufficiently soluble
@@ -47,7 +61,9 @@ Other parameters are defined for each component in each mode.
 
 Hygroscopicity describes the impact of solute on aerosol efficiency in taking up
   water vapor from the environment (i.e. the [Raoult's law](https://en.wikipedia.org/wiki/Raoult%27s_law)).
-For a given aerosol, it is defined as in eq. (3) in [Abdul-RazzakandGhan2000](@cite):
+The parametrization accepts two ways of describing it, either using the
+  ``B`` parameter or ``\kappa`` parameter.
+The ``B`` parameter is defined in eq. (3) in [Abdul-RazzakandGhan2000](@cite):
 
 ```math
 B = \frac{\nu \, \phi \, M_w \, \rho_a}{M_a \, \rho_w}
@@ -57,7 +73,7 @@ where:
   - ``M_w`` is the molar mass of water,
   - ``\rho_w`` is the density of water.
 
-The mean hygroscopicity for internally mixed mode ``i``
+The mean ``B`` parameter for internally mixed mode ``i``
   made up of ``j`` aerosol species is computed
   according to eq. (4) in [Abdul-RazzakandGhan2000](@cite):
 
@@ -70,6 +86,16 @@ where:
   - ``i = 1, 2, ..., I`` iterates over aerosol size distribution modes,
   - ``j = 1, 2, ..., J`` iterates over aerosol components within a given mode,
   - ``r_{ij}`` is the mass ratio of component ``j`` in mode ``i``.
+
+The ``\kappa`` parameter values for different chemical compounds are provided
+  in Table 1 in  [PettersandKreidenweis2007](@cite).
+The mean ``\kappa`` parameter for internally mixed mode ``i``
+  made up of ``j`` aerosol species is computed as a volume weighted average:
+```math
+\kappa_i = \sum_{j=1}^{J} r_{ij,\, vol} \kappa_{ij}
+```
+where:
+  - ``r_{ij, \, vol}`` is the volume ratio of component ``j`` in mode ``i``.
 
 
 ## Critical supersaturation
@@ -91,11 +117,12 @@ For example, eq.(9) in [Abdul-RazzakandGhan2000](@cite) defines the
 
 ```math
 \begin{equation}
-S_{ci} = \frac{2}{\sqrt{\bar{B_{i}}}} \bigg( \frac{A}{3 \, r_{dry, \, i}} \bigg)^{3/2}
+S_{ci} = \frac{2}{\sqrt{\bar{H_{i}}}} \bigg( \frac{A}{3 \, r_{dry, \, i}} \bigg)^{3/2}
 \label{eq:Scriti}
 \end{equation}
 ```
 where:
+  - ``H_i`` is either the ``B_i`` or the ``\kappa_i`` hygroscopicity parameter
   - ``A`` is the coefficient describing the curvature effects (i.e. [Kelvin effect](https://en.wikipedia.org/wiki/Kelvin_equation)),
   - ``r_{dry \, i}`` is the mean dry radius for mode ``i``.
 
@@ -261,7 +288,9 @@ M_sulfate = 0.132
 ν_sulfate = 3.0
 ϵ_sulfate = 1.0
 
-paper_mode_1 = AM.Mode(
+κ_sulfate = 0.53
+
+paper_mode_1_B = AM.Mode_B(
     r_dry_paper,
     stdev_paper,
     N_1_paper,
@@ -273,14 +302,25 @@ paper_mode_1 = AM.Mode(
     (ρ_sulfate,),
     1,
 )
+paper_mode_1_κ = AM.Mode_κ(
+    r_dry_paper,
+    stdev_paper,
+    N_1_paper,
+    (1.0,),
+    (1.0,),
+    (M_sulfate,),
+    (κ_sulfate,),
+    1,
+)
 
 N_2_range = range(0, stop=5000 * 1e6, length=100)
-N_act_frac = Vector{Float64}(undef, 100)
+N_act_frac_B = Vector{Float64}(undef, 100)
+N_act_frac_κ = Vector{Float64}(undef, 100)
 
 it = 1
 for N_2_paper in N_2_range
 
-        paper_mode_2 = AM.Mode(
+        paper_mode_2_B = AM.Mode_B(
           r_dry_paper,
           stdev_paper,
           N_2_paper,
@@ -292,9 +332,22 @@ for N_2_paper in N_2_range
           (ρ_sulfate,),
           1,
         )
+        paper_mode_2_κ = AM.Mode_κ(
+          r_dry_paper,
+          stdev_paper,
+          N_2_paper,
+          (1.0,),
+          (1.0,),
+          (M_sulfate,),
+          (κ_sulfate,),
+          1,
+        )
 
-        AD =  AM.AerosolDistribution((paper_mode_1, paper_mode_2))
-        N_act_frac[it] = AA.N_activated_per_mode(param_set, AD, T, p, w)[1] / N_1_paper
+        AD_B =  AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
+        AD_κ =  AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
+
+        N_act_frac_B[it] = AA.N_activated_per_mode(param_set, AD_B, T, p, w)[1] / N_1_paper
+        N_act_frac_κ[it] = AA.N_activated_per_mode(param_set, AD_κ, T, p, w)[1] / N_1_paper
 
         global it += 1
 end
@@ -326,10 +379,10 @@ N_act_paper_param = [0.7307884005437245, 0.7016538287267784, 0.676110104213865, 
                      0.2081898504757591, 0.20062301767104684, 0.19316946080652464, 0.19298821930222032, 0.1854893520616221, 0.18164929768917082,
                      0.17778658812868153, 0.16647032170367027]
 
-
-PL.plot(N_2_range * 1e-6, N_act_frac, label="CliMA", xlabel="Mode 2 aerosol number concentration [1/cm3]", ylabel="Mode 1 number fraction activated")
-PL.scatter!(N_2_obs, N_act_obs, label="paper observations")
+PL.plot(N_2_range * 1e-6, N_act_frac_B, label="CliMA-B", xlabel="Mode 2 aerosol number concentration [1/cm3]", ylabel="Mode 1 number fraction activated")
+PL.plot!(N_2_range * 1e-6, N_act_frac_κ, label="CliMA-kappa")
 PL.plot!(N_2_paper_param, N_act_paper_param, label="paper parameterization")
+PL.scatter!(N_2_obs, N_act_obs, label="paper observations")
 
 PL.savefig("Abdul-Razzak_and_Ghan_fig_1.svg")
 ```
