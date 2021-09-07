@@ -14,6 +14,12 @@ Microphysics_0M.remove_precipitation
 
 ```@docs
 Microphysics_1M
+Microphysics_1M.AbstractCloudType
+Microphysics_1M.AbstractPrecipType
+Microphysics_1M.LiquidType
+Microphysics_1M.IceType
+Microphysics_1M.RainType
+Microphysics_1M.SnowType
 Microphysics_1M.v0_rai
 Microphysics_1M.n0_sno
 Microphysics_1M.τ_relax
