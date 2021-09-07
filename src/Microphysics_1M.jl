@@ -25,12 +25,27 @@ const CP_planet = CLIMAParameters.Planet
 const CP_micro = CLIMAParameters.Atmos.Microphysics
 
 const APS = CP.AbstractParameterSet
-const ACloudPS = CP.AbstractCloudParameterSet
-const APrecipPS = CP.AbstractPrecipParameterSet
-const ALPS = CP.AbstractLiquidParameterSet
-const AIPS = CP.AbstractIceParameterSet
-const ARPS = CP.AbstractRainParameterSet
-const ASPS = CP.AbstractSnowParameterSet
+# const ACloudPS = CP.AbstractCloudParameterSet
+# const APrecipPS = CP.AbstractPrecipParameterSet
+# const ALPS = CP.AbstractLiquidParameterSet
+# const AIPS = CP.AbstractIceParameterSet
+# const ARPS = CP.AbstractRainParameterSet
+# const ASPS = CP.AbstractSnowParameterSet
+
+
+abstract type AbstractCloudType end
+struct LiquidType <: AbstractCloudType end
+struct IceType <: AbstractCloudType end
+
+abstract type AbstractPrecipType end
+struct RainType <: AbstractPrecipType end
+struct SnowType <: AbstractPrecipType end
+
+CP_micro.E(param_set::APS, ::LiquidType, ::RainType) = CP_micro.E_liq_rai(param_set::APS)
+CP_micro.E(param_set::APS, ::LiquidType, ::SnowType) = CP_micro.E_liq_sno(param_set::APS)
+CP_micro.E(param_set::APS, ::IceType, ::RainType) = CP_micro.E_ice_rai(param_set::APS)
+CP_micro.E(param_set::APS, ::IceType, ::SnowType) = CP_micro.E_ice_sno(param_set::APS)
+
 
 export τ_relax
 
@@ -401,8 +416,8 @@ due to collisions with cloud water (liquid or ice).
 """
 function accretion(
     param_set::APS,
-    cloud_param_set::ACloudPS,
-    precip_param_set::APrecipPS,
+    cloud::AbstractCloudType,
+    precip::AbstractPrecipType,
     q_clo::FT,
     q_pre::FT,
     ρ::FT,
@@ -415,7 +430,7 @@ function accretion(
             unpack_params(param_set, precip_param_set, ρ, q_pre)
 
         _λ::FT = lambda(q_pre, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
-        _E::FT = CP_micro.E(cloud_param_set, precip_param_set)
+        _E::FT = CP_micro.E(param_set, cloud, precip)
 
         accr_rate =
             q_clo * _E * _n0 * _a0 * _v0 * _χa * _χv / _λ *
