@@ -187,7 +187,7 @@ They consider approximate solutions for very small and very large
 The final formula is presented in eq (6) in [Abdul-RazzakandGhan2000](@cite)
 ```math
 \begin{equation}
-S_{max} = \frac{1}{{\sum_{i=1}^{I} \frac{1}{S_{ci}^{2}} \bigg[ f_i \bigg( \frac{\zeta}{\eta_{i}} \bigg)^{\frac{3}{2}} + g_{i} \bigg(\frac{S_{ci}^{2}}{\eta_{i} + 3\zeta} \bigg)^{\frac{3}{4}}} \bigg]^{\frac{1}{2}}}
+S_{max} = \frac{1}{\Bigg\{ {\sum_{i=1}^{I}\frac{1}{S_{ci}^{2}}\bigg[f_i \Big( \frac{\zeta}{\eta_{i}} \Big)^{\frac{3}{2}} + g_{i} \Big(\frac{S_{ci}^{2}}{\eta_{i} + 3\zeta} \Big)^{\frac{3}{4}}\bigg]} \Bigg\}^{\frac{1}{2}}}
 \end{equation}
 ```
 where
