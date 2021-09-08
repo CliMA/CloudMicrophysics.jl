@@ -126,57 +126,57 @@ AM_1_κ = AM.AerosolDistribution((accum_seasalt_κ,))
 AM_2_κ = AM.AerosolDistribution((coarse_seasalt_κ, accum_seasalt_κ))
 AM_3_κ = AM.AerosolDistribution((accum_seasalt_κ, coarse_seasalt_κ))
 
-@TT.testset "callable and positive" begin
+TT.@testset "callable and positive" begin
 
     for AM_t in (AM_3_B, AM_3_κ)
-        @TT.test all(AA.mean_hygroscopicity_parameter(param_set, AM_t) .> 0.0)
-        @TT.test AA.max_supersaturation(param_set, AM_t, T, p, w) > 0.0
-        @TT.test all(AA.N_activated_per_mode(param_set, AM_t, T, p, w) .> 0.0)
-        @TT.test all(AA.M_activated_per_mode(param_set, AM_t, T, p, w) .> 0.0)
-        @TT.test AA.total_N_activated(param_set, AM_t, T, p, w) > 0.0
-        @TT.test AA.total_M_activated(param_set, AM_t, T, p, w) > 0.0
+        TT.@test all(AA.mean_hygroscopicity_parameter(param_set, AM_t) .> 0.0)
+        TT.@test AA.max_supersaturation(param_set, AM_t, T, p, w) > 0.0
+        TT.@test all(AA.N_activated_per_mode(param_set, AM_t, T, p, w) .> 0.0)
+        TT.@test all(AA.M_activated_per_mode(param_set, AM_t, T, p, w) .> 0.0)
+        TT.@test AA.total_N_activated(param_set, AM_t, T, p, w) > 0.0
+        TT.@test AA.total_M_activated(param_set, AM_t, T, p, w) > 0.0
     end
 end
 
-@TT.testset "same mean hygroscopicity for the same aerosol" begin
+TT.@testset "same mean hygroscopicity for the same aerosol" begin
 
-    @TT.test AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[1] ==
+    TT.@test AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[1] ==
              AA.mean_hygroscopicity_parameter(param_set, AM_1_B)[1]
 
-    @TT.test AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2] ==
+    TT.@test AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2] ==
              AA.mean_hygroscopicity_parameter(param_set, AM_1_B)[1]
 
-    @TT.test AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[1] ==
+    TT.@test AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[1] ==
              AA.mean_hygroscopicity_parameter(param_set, AM_1_κ)[1]
 
-    @TT.test AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2] ==
+    TT.@test AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2] ==
              AA.mean_hygroscopicity_parameter(param_set, AM_1_κ)[1]
 
 end
 
-@TT.testset "B and kappa hygroscopicities are equivalent" begin
+TT.@testset "B and kappa hygroscopicities are equivalent" begin
 
-    @TT.test all(isapprox(
+    TT.@test all(isapprox(
         AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2],
         AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2],
         rtol = 0.1,
     ))
 end
 
-@TT.testset "order of modes does not matter" begin
+TT.@testset "order of modes does not matter" begin
 
-    @TT.test AA.total_N_activated(param_set, AM_3_B, T, p, w) ==
+    TT.@test AA.total_N_activated(param_set, AM_3_B, T, p, w) ==
              AA.total_N_activated(param_set, AM_2_B, T, p, w)
-    @TT.test AA.total_M_activated(param_set, AM_3_B, T, p, w) ==
+    TT.@test AA.total_M_activated(param_set, AM_3_B, T, p, w) ==
              AA.total_M_activated(param_set, AM_2_B, T, p, w)
 
-    @TT.test AA.total_N_activated(param_set, AM_3_κ, T, p, w) ==
+    TT.@test AA.total_N_activated(param_set, AM_3_κ, T, p, w) ==
              AA.total_N_activated(param_set, AM_2_κ, T, p, w)
-    @TT.test AA.total_M_activated(param_set, AM_3_κ, T, p, w) ==
+    TT.@test AA.total_M_activated(param_set, AM_3_κ, T, p, w) ==
              AA.total_M_activated(param_set, AM_2_κ, T, p, w)
 end
 
-@TT.testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
+TT.@testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
 
     # data read from Fig 1 in Abdul-Razzak and Ghan 2000
     # using https://automeris.io/WebPlotDigitizer/
@@ -235,7 +235,7 @@ end
         it += 1
     end
 
-    @TT.test all(isapprox(N_act_frac_B, N_act_obs, rtol = 0.05))
-    @TT.test all(isapprox(N_act_frac_κ, N_act_obs, rtol = 0.1))
+    TT.@test all(isapprox(N_act_frac_B, N_act_obs, rtol = 0.05))
+    TT.@test all(isapprox(N_act_frac_κ, N_act_obs, rtol = 0.1))
 
 end
