@@ -158,23 +158,26 @@ where:
   - ``\alpha`` and ``\gamma`` are coefficients that do not depend on aerosol properties.
 
 The parameters ``\alpha`` and ``\gamma`` are defined by eq. (11) and (12)
-  in [Abdul-RazzakandGhan2000](@cite):
+  in [Abdul-Razzaketal1998](@cite) .
+Here, they are implemented following the [Rogers1975](@cite) eq. (10):
 ```math
 \begin{equation}
-\alpha = \frac{g \, M_w \, L_v}{c_p \, R \, T^2} - \frac{g \, M_{air}}{R  T}
+\alpha = \frac{L_v \, g \, \epsilon}{R_m \, c_{pm} \, T^2} - \frac{g}{R_m \, T}
 \end{equation}
 ```
 ```math
 \begin{equation}
-\gamma = \frac{R T}{p_{vap}^{sat} \, M_w} + \frac{M_w \, L_v^2}{c_p \,p \, M_{air} \, T}
+\gamma = \frac{R_m T}{\epsilon \, p_{vap}^{sat}} + \frac{\epsilon \, L_v^2}{c_{pm} \, T \, p}
 \end{equation}
 ```
 where:
-  - ``g`` is gravitational acceleration,
   - ``L_v`` is the latent heat of vaporization,
-  - ``c_p`` is the specific heat of air,
+  - ``g`` is gravitational acceleration,
+  - ``\epsilon`` is the ratio of water molar mass to dry air molar mass,
+  - ``R_m`` is the gas constant of air (dry air and moisture)
+  - ``c_{pm}`` is the specific heat of air (dry air and moisture),
   - ``p_{vap}^{sat}`` is the saturation vapor pressure,
-  - ``p`` is the air pressure.
+  - ``p`` is the total air pressure.
 
 The maximum supersaturation is estimated from eq. (\ref{eq:Sevolution})
   assuming steady a state solution ``dS/dt = 0``.
@@ -261,11 +264,13 @@ import Plots
 
 import CloudMicrophysics
 import CLIMAParameters
+import Thermodynamics
 
 const PL = Plots
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CP =  CLIMAParameters
+const TD = Thermodynamics
 
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
@@ -274,6 +279,14 @@ const param_set = EarthParameterSet()
 T = 294.0         # air temperature
 p = 1000.0 *1e2   # air pressure
 w = 0.5           # vertical velocity
+
+# We need the phase partition here only so that we can compute the
+# moist R_m and cp_m in aerosol activation module.
+# We are assuming here saturated conditions and no liquid water or ice.
+# This is consistent with the assumptions of the aerosol activation scheme.
+p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
+q_vs = 1 / (1 - CP.Planet.molmass_ratio(param_set) * (p_vs - p) / p_vs)
+q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Abdul-Razzak and Ghan 2000 Figure 1 mode 1
 # https://doi.org/10.1029/1999JD901161
@@ -346,8 +359,8 @@ for N_2_paper in N_2_range
         AD_B =  AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
         AD_κ =  AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
 
-        N_act_frac_B[it] = AA.N_activated_per_mode(param_set, AD_B, T, p, w)[1] / N_1_paper
-        N_act_frac_κ[it] = AA.N_activated_per_mode(param_set, AD_κ, T, p, w)[1] / N_1_paper
+        N_act_frac_B[it] = AA.N_activated_per_mode(param_set, AD_B, T, p, w, q)[1] / N_1_paper
+        N_act_frac_κ[it] = AA.N_activated_per_mode(param_set, AD_κ, T, p, w, q)[1] / N_1_paper
 
         global it += 1
 end

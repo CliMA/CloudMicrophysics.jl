@@ -129,13 +129,14 @@ function critical_supersaturation(
 end
 
 """
-    max_supersaturation(param_set, ad, T, p, w)
+    max_supersaturation(param_set, ad, T, p, w, q)
 
   - `param_set` - abstract set with Earth's parameters
   - `ad` - aerosol distribution struct
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
+  - `q` - phase partition
 
 Returns the maximum supersaturation.
 """
@@ -145,26 +146,24 @@ function max_supersaturation(
     T::FT,
     p::FT,
     w::FT,
+    q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
     _grav::FT = CP_planet.grav(param_set)
-    _molmass_water::FT = CP_planet.molmass_water(param_set)
-    _molmass_dryair::FT = CP_planet.molmass_dryair(param_set)
-    _gas_constant::FT = CP.gas_constant()
-    _cp_d::FT = CP_planet.cp_d(param_set)
     _ρ_cloud_liq::FT = CP_planet.ρ_cloud_liq(param_set)
+
+    ϵ::FT = 1 / CP_planet.molmass_ratio(param_set)
+    R_m::FT = TD.gas_constant_air(param_set, q)
+    cp_m::FT = TD.cp_m(param_set, q)
 
     L::FT = TD.latent_heat_vapor(param_set, T)
     p_vs::FT = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
     G::FT = CO.G_func(param_set, T, TD.Liquid()) / _ρ_cloud_liq
 
     # eq 11, 12 in Razzak et al 1998
-    α::FT =
-        _grav * _molmass_water * L / _cp_d / _gas_constant / T^2 -
-        _grav * _molmass_dryair / _gas_constant / T
-    γ::FT =
-        _gas_constant * T / p_vs / _molmass_water +
-        _molmass_water * L^2 / _cp_d / p / _molmass_dryair / T
+    # but following eq 10 from Rogers 1975
+    α::FT = L * _grav * ϵ / R_m / cp_m / T^2 - _grav / R_m / T
+    γ::FT = R_m * T / ϵ / p_vs + ϵ * L^2 / cp_m / T / p
 
     A::FT = coeff_of_curvature(param_set, T)
     ζ::FT = 2 * A / 3 * sqrt(α * w / G)
@@ -187,13 +186,14 @@ function max_supersaturation(
 end
 
 """
-    N_activated_per_mode(param_set, ad, T, p, w)
+    N_activated_per_mode(param_set, ad, T, p, w, q)
 
   - `param_set` - abstract set with Earth's parameters
   - `ad` - aerosol distribution struct
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
+  - `q` - phase partition
 
 Returns the number of activated aerosol particles
 in each aerosol size distribution mode.
@@ -204,9 +204,10 @@ function N_activated_per_mode(
     T::FT,
     p::FT,
     w::FT,
+    q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    smax::FT = max_supersaturation(param_set, ad, T, p, w)
+    smax::FT = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
 
     return ntuple(length(ad.Modes)) do i
@@ -219,13 +220,14 @@ function N_activated_per_mode(
 end
 
 """
-    M_activated_per_mode(param_set, ad, T, p, w)
+    M_activated_per_mode(param_set, ad, T, p, w, q)
 
   - `param_set` - abstract set with Earth's parameters
   - `ad` - aerosol distribution struct
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
+  - `q` - phase partition
 
 Returns the mass of activated aerosol particles
 per mode of the aerosol size distribution.
@@ -236,9 +238,10 @@ function M_activated_per_mode(
     T::FT,
     p::FT,
     w::FT,
+    q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    smax = max_supersaturation(param_set, ad, T, p, w)
+    smax = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
 
     return ntuple(length(ad.Modes)) do i
@@ -257,13 +260,14 @@ function M_activated_per_mode(
 end
 
 """
-    total_N_activated(param_set, ad, T, p, w)
+    total_N_activated(param_set, ad, T, p, w, q)
 
   - `param_set` - abstract set with Earth's parameters
   - `ad` - aerosol distribution struct
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
+  - `q` - phase partition
 
 Returns the total number of activated aerosol particles.
 """
@@ -273,20 +277,22 @@ function total_N_activated(
     T::FT,
     p::FT,
     w::FT,
+    q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    return sum(N_activated_per_mode(param_set, ad, T, p, w))
+    return sum(N_activated_per_mode(param_set, ad, T, p, w, q))
 
 end
 
 """
-    total_M_activated(param_set, ad, T, p, w)
+    total_M_activated(param_set, ad, T, p, w, q)
 
   - `param_set` - abstract set with Earth's parameters
   - `ad` - aerosol distribution struct
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
+  - `q` - phase partition
 
 Returns the total mass of activated aerosol particles.
 """
@@ -296,9 +302,10 @@ function total_M_activated(
     T::FT,
     p::FT,
     w::FT,
+    q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    return sum(M_activated_per_mode(param_set, ad, T, p, w))
+    return sum(M_activated_per_mode(param_set, ad, T, p, w, q))
 
 end
 
