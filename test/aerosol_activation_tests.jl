@@ -2,11 +2,13 @@ import Test
 
 import CloudMicrophysics
 import CLIMAParameters
+import Thermodynamics
 
 const TT = Test
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CP = CLIMAParameters
+const TD = Thermodynamics
 
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
@@ -15,6 +17,14 @@ const param_set = EarthParameterSet()
 T = 294.0       # air temperature K
 p = 100000.0    # air pressure Pa
 w = 0.5         # vertical velocity m/s
+
+# We need the phase partition here only so that we can compute the
+# moist air R_m and cp_m in aerosol activation module.
+# We are assuming here saturated conditions and no liquid water or ice.
+# This is consistent with the assumptions of the aerosol activation scheme.
+p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
+q_vs = 1 / (1 - CP.Planet.molmass_ratio(param_set) * (p_vs - p) / p_vs)
+q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Accumulation mode
 r_dry_accum = 0.243 * 1e-6 # m
@@ -130,11 +140,15 @@ TT.@testset "callable and positive" begin
 
     for AM_t in (AM_3_B, AM_3_κ)
         TT.@test all(AA.mean_hygroscopicity_parameter(param_set, AM_t) .> 0.0)
-        TT.@test AA.max_supersaturation(param_set, AM_t, T, p, w) > 0.0
-        TT.@test all(AA.N_activated_per_mode(param_set, AM_t, T, p, w) .> 0.0)
-        TT.@test all(AA.M_activated_per_mode(param_set, AM_t, T, p, w) .> 0.0)
-        TT.@test AA.total_N_activated(param_set, AM_t, T, p, w) > 0.0
-        TT.@test AA.total_M_activated(param_set, AM_t, T, p, w) > 0.0
+        TT.@test AA.max_supersaturation(param_set, AM_t, T, p, w, q) > 0.0
+        TT.@test all(
+            AA.N_activated_per_mode(param_set, AM_t, T, p, w, q) .> 0.0,
+        )
+        TT.@test all(
+            AA.M_activated_per_mode(param_set, AM_t, T, p, w, q) .> 0.0,
+        )
+        TT.@test AA.total_N_activated(param_set, AM_t, T, p, w, q) > 0.0
+        TT.@test AA.total_M_activated(param_set, AM_t, T, p, w, q) > 0.0
     end
 end
 
@@ -165,15 +179,15 @@ end
 
 TT.@testset "order of modes does not matter" begin
 
-    TT.@test AA.total_N_activated(param_set, AM_3_B, T, p, w) ==
-             AA.total_N_activated(param_set, AM_2_B, T, p, w)
-    TT.@test AA.total_M_activated(param_set, AM_3_B, T, p, w) ==
-             AA.total_M_activated(param_set, AM_2_B, T, p, w)
+    TT.@test AA.total_N_activated(param_set, AM_3_B, T, p, w, q) ==
+             AA.total_N_activated(param_set, AM_2_B, T, p, w, q)
+    TT.@test AA.total_M_activated(param_set, AM_3_B, T, p, w, q) ==
+             AA.total_M_activated(param_set, AM_2_B, T, p, w, q)
 
-    TT.@test AA.total_N_activated(param_set, AM_3_κ, T, p, w) ==
-             AA.total_N_activated(param_set, AM_2_κ, T, p, w)
-    TT.@test AA.total_M_activated(param_set, AM_3_κ, T, p, w) ==
-             AA.total_M_activated(param_set, AM_2_κ, T, p, w)
+    TT.@test AA.total_N_activated(param_set, AM_3_κ, T, p, w, q) ==
+             AA.total_N_activated(param_set, AM_2_κ, T, p, w, q)
+    TT.@test AA.total_M_activated(param_set, AM_3_κ, T, p, w, q) ==
+             AA.total_M_activated(param_set, AM_2_κ, T, p, w, q)
 end
 
 TT.@testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
@@ -229,9 +243,9 @@ TT.@testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
         AD_κ = AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
 
         N_act_frac_B[it] =
-            AA.N_activated_per_mode(param_set, AD_B, T, p, w)[1] / N_1_paper
+            AA.N_activated_per_mode(param_set, AD_B, T, p, w, q)[1] / N_1_paper
         N_act_frac_κ[it] =
-            AA.N_activated_per_mode(param_set, AD_κ, T, p, w)[1] / N_1_paper
+            AA.N_activated_per_mode(param_set, AD_κ, T, p, w, q)[1] / N_1_paper
         it += 1
     end
 
