@@ -8,9 +8,9 @@ steps:
   - label: "init :computer:"
     key: "init_cpu_env"
     command:
-      - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project=test/ -e 'using Pkg; Pkg.precompile(;strict=true)'"
-      - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - "julia --project -e 'using Pkg; Pkg.status()'"
     agents:
       config: cpu
       queue: central
@@ -21,14 +21,15 @@ steps:
     command:
       - "export CUDA_HOME=/usr/local/cuda-$$CUDA_VERSION"
 
-      - "julia --project=test/ -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project=test/ -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
 
       # force the initialization of the CUDA runtime as it is lazily loaded by default
-      - "julia --project=test/ -e 'using CUDA; CUDA.precompile_runtime()'"
-      - "julia --project=test/ -e 'using CUDA; CUDA.versioninfo()'"
+      - "julia --project -e 'using Pkg; Pkg.add(name=\"CUDA\",version=\"3.2.1\")'"
+      - "julia --project -e 'using CUDA; CUDA.precompile_runtime()'"
+      - "julia --project -e 'using CUDA; CUDA.versioninfo()'"
 
-      - "julia --project=test/ -e 'using Pkg; Pkg.status()'"
+      - "julia --project -e 'using Pkg; Pkg.status()'"
     agents:
       config: gpu
       queue: central
@@ -50,7 +51,7 @@ steps:
     key: "gpu_unittests"
     command:
       - "export CUDA_HOME=/usr/local/cuda-$$CUDA_VERSION"
-      - "julia --project -e 'using Pkg; Pkg.test()'"
+      - "julia --project -e 'using Pkg; Pkg.test(;test_args=[\"CuArray\"])'"
     agents:
       config: gpu
       queue: central
