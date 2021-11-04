@@ -759,7 +759,7 @@ function snow_melt(param_set::APS, q_sno::FT, ρ::FT, T::FT) where {FT <: Real}
         _D_vapor::FT = CP_micro.D_vapor(param_set)
         _K_therm::FT = CP_micro.K_therm(param_set)
 
-        L = TD.latent_heat_fusion(param_set, T)
+        L::FT = CP_planet.LH_v0(param_set)
 
         (_n0, _r0, _m0, _me, _χm, _Δm, _a0, _ae, _χa, _Δa, _v0, _ve, _χv, _Δv) =
             unpack_params(param_set, SnowType(), ρ, q_sno)

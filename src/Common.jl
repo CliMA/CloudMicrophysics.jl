@@ -32,7 +32,8 @@ function G_func(param_set::APS, T::FT, ::TD.Liquid) where {FT <: Real}
     _R_v::FT = CP_planet.R_v(param_set)
     _D_vapor::FT = CP_micro.D_vapor(param_set)
 
-    L = TD.latent_heat_vapor(param_set, T)
+    L::FT = CP_planet.LH_v0(param_set)
+
     p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
 
     return FT(1) / (
@@ -45,7 +46,8 @@ function G_func(param_set::APS, T::FT, ::TD.Ice) where {FT <: Real}
     _R_v::FT = CP_planet.R_v(param_set)
     _D_vapor::FT = CP_micro.D_vapor(param_set)
 
-    L = TD.latent_heat_sublim(param_set, T)
+    L::FT = CP_planet.LH_s0(param_set)
+
     p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Ice())
 
     return FT(1) / (

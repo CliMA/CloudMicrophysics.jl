@@ -270,7 +270,7 @@ end
     wait(dev, event)
 
     # test if 1-moment snow melt is callable and returns reasonable values
-    @test Array(output)[1] ≈ 9.518235437405256e-6
+    @test Array(output)[1] ≈ 1.2854687f-6
     @test Array(output)[2] ≈ 0.0
     @test Array(output)[3] ≈ 0.0
 end

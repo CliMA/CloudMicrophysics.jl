@@ -170,7 +170,7 @@ TT.@testset "SnowAutoconversion" begin
     q_liq = 0.0
     q_ice = 0.03 * q_vap
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
-    TT.@test CM1.conv_q_ice_to_q_sno(prs, q, ρ, T) ≈ 1.8512022335645584e-9
+    TT.@test CM1.conv_q_ice_to_q_sno(prs, q, ρ, T) ≈ 1.8522548852155242e-9
 
 end
 
@@ -297,11 +297,12 @@ TT.@testset "SnowSublimation" begin
 
     cnt = 0
     ref_val = [
-        -1.9756907119482267e-7,
-        1.9751292385808357e-7,
-        -1.6641552112891826e-7,
-        1.663814937710236e-7,
+        -1.9753215128237854e-7,
+        1.9747601443794254e-7,
+        -1.6644279188516292e-7,
+        1.6640875895115502e-7,
     ]
+
     # some example values
     for T in [273.15 + 2, 273.15 - 2]
         p = 90000.0
@@ -335,7 +336,7 @@ TT.@testset "SnowMelt" begin
     T = 273.15 + 2
     ρ = 1.2
     q_sno = 1e-4
-    TT.@test CM1.snow_melt(prs, q_sno, ρ, T) ≈ 9.518235437405256e-6
+    TT.@test CM1.snow_melt(prs, q_sno, ρ, T) ≈ 1.2854687153428587e-6
 
     # no snow -> no snow melt
     T = 273.15 + 2

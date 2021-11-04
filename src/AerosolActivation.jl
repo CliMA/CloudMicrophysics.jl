@@ -156,7 +156,8 @@ function max_supersaturation(
     R_m::FT = TD.gas_constant_air(param_set, q)
     cp_m::FT = TD.cp_m(param_set, q)
 
-    L::FT = TD.latent_heat_vapor(param_set, T)
+    L::FT = CP_planet.LH_v0(param_set)
+
     p_vs::FT = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
     G::FT = CO.G_func(param_set, T, TD.Liquid()) / _ρ_cloud_liq
 
