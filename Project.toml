@@ -12,6 +12,6 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 [compat]
 CLIMAParameters = "0.2"
 DocStringExtensions = "0.8"
-SpecialFunctions = "1"
+SpecialFunctions = "1, 2"
 Thermodynamics = "0.5"
 julia = "1.5"
