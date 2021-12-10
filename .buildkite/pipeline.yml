@@ -1,7 +1,6 @@
 env:
-  JULIA_VERSION: "1.6.0"
+  JULIA_VERSION: "1.7.0"
   OPENMPI_VERSION: "4.0.4"
-  CUDA_VERSION: "11.2"
   OPENBLAS_NUM_THREADS: 1
 
 steps:
@@ -19,16 +18,13 @@ steps:
   - label: "init :flower_playing_cards:"
     key: "init_gpu_env"
     command:
-      - "export CUDA_HOME=/usr/local/cuda-$$CUDA_VERSION"
-
       - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
+      - "julia --project -e 'using Pkg; Pkg.precompile()'"
 
       # force the initialization of the CUDA runtime as it is lazily loaded by default
-      - "julia --project -e 'using Pkg; Pkg.add(name=\"CUDA\",version=\"3.2.1\")'"
-      - "julia --project -e 'using CUDA; CUDA.precompile_runtime()'"
+      - "julia --project -e 'using Pkg; Pkg.add(name=\"CUDA\",version=\"3.5.0\")'"
       - "julia --project -e 'using CUDA; CUDA.versioninfo()'"
-
+      - "julia --project -e 'using CUDA; CUDA.precompile_runtime()'"
       - "julia --project -e 'using Pkg; Pkg.status()'"
     agents:
       config: gpu
@@ -50,7 +46,6 @@ steps:
   - label: ":flower_playing_cards: unit tests"
     key: "gpu_unittests"
     command:
-      - "export CUDA_HOME=/usr/local/cuda-$$CUDA_VERSION"
       - "julia --project -e 'using Pkg; Pkg.test(;test_args=[\"CuArray\"])'"
     agents:
       config: gpu

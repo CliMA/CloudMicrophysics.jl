@@ -202,8 +202,10 @@ They consist of:
 |``C_{drag}``                | rain drop drag coefficient                                | -                        | ``0.55``               | ``C_{drag}`` is such that the mass averaged terminal velocity is close to [Grabowski1996](@cite) |
 |``\tau_{cond\_evap}``       | cloud water condensation/evaporation timescale            | ``s``                    | ``10``                 |           |
 |``\tau_{dep\_sub}``         | cloud ice deposition/sublimation timescale                | ``s``                    | ``10``                 |           |
-|``\tau_{acnv}``             | cloud to rain water autoconversion timescale              | ``s``                    | ``10^3``               | eq (5a) [Grabowski1996](@cite) |
-|``q_{liq\_threshold}``      | cloud to rain water autoconversion threshold              | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite) |
+|``\tau_{acnv\_rain}``       | cloud liquid to rain water autoconversion timescale       | ``s``                    | ``10^3``               | eq (5a) [Grabowski1996](@cite) |
+|``\tau_{acnv\_snow}``       | cloud ice to snow autoconversion timescale                | ``s``                    | ``10^2``               |           |
+|``q_{liq\_threshold}``      | cloud liquid to rain water autoconversion threshold       | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite) |
+|``q_{ice\_threshold}``      | cloud ice snow autoconversion threshold                   | -                        | ``1 \cdot 10^{-6}``    |           |
 |``r_{is}``                  | threshold particle radius between ice and snow            | ``m``                    | ``62.5 \cdot 10^{-6}`` | abstract [Harrington1995](@cite) |
 |``E_{lr}``                  | collision efficiency between rain drops and cloud droplets| -                        | ``0.8``                | eq (16a) [Grabowski1998](@cite) |
 |``E_{ls}``                  | collision efficiency between snow and cloud droplets      | -                        | ``0.1``                | Appendix B [Rutledge1983](@cite) |
@@ -338,12 +340,12 @@ It is parameterized following
 ```math
 \begin{equation}
   \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
-    \frac{max(0, q_{liq} - q_{liq\_threshold})}{\tau_{acnv}}
+    \frac{max(0, q_{liq} - q_{liq\_threshold})}{\tau_{acnv\_rain}}
 \end{equation}
 ```
 where:
  - ``q_{liq}`` - liquid water specific humidity,
- - ``\tau_{acnv}`` - timescale,
+ - ``\tau_{acnv\_rain}`` - timescale,
  - ``q_{liq\_threshold}`` - autoconversion threshold.
 
 !!! note
@@ -422,6 +424,21 @@ Finally the snow autoconversion rate is computed as
     should be multiplied by a function depending on the particle aspect ratio.
     For functions proposed for different crystal habitats see
     [Harrington1995](@cite) Appendix B.
+
+We also have a simplified version of snow autoconversion rate,
+  to be used in modeling configurations that
+  don't allow supersaturation to be present in the computational domain.
+It is formulated similarly to the rain autoconversion:
+```math
+\begin{equation}
+  \left. \frac{d \, q_{sno}}{dt} \right|_{acnv} =
+    \frac{max(0, q_{ice} - q_{ice\_threshold})}{\tau_{acnv\_snow}}
+\end{equation}
+```
+where:
+ - ``q_{liq}`` - liquid water specific humidity,
+ - ``\tau_{acnv\_rain}`` - timescale,
+ - ``q_{liq\_threshold}`` - autoconversion threshold.
 
 ## Accretion
 

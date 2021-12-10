@@ -385,10 +385,32 @@ Returns the q_rai tendency due to collisions between cloud droplets
 """
 function conv_q_liq_to_q_rai(param_set::APS, q_liq::FT) where {FT <: Real}
 
-    _τ_acnv::FT = CP_micro.τ_acnv(param_set)
+    _τ_acnv_rai::FT = CP_micro.τ_acnv_rai(param_set)
     _q_liq_threshold::FT = CP_micro.q_liq_threshold(param_set)
 
-    return max(0, q_liq - _q_liq_threshold) / _τ_acnv
+    return max(0, q_liq - _q_liq_threshold) / _τ_acnv_rai
+end
+
+"""
+    conv_q_ice_to_q_sno_no_supersat(param_set, q_ice)
+
+ - `param_set` - abstract set with Earth parameters
+ - `q_ice` -  cloud ice specific humidity
+
+Returns the q_sno tendency due to autoconversion from ice.
+This is a simplified version of a snow autoconversion rate that can be used in
+simulations where there is no supersaturation
+(for example in TC.jl when using saturation adjustment).
+"""
+function conv_q_ice_to_q_sno_no_supersat(
+    param_set::APS,
+    q_ice::FT,
+) where {FT <: Real}
+
+    _τ_acnv_sno::FT = CP_micro.τ_acnv_sno(param_set)
+    _q_ice_threshold::FT = CP_micro.q_ice_threshold(param_set)
+
+    return max(0, q_ice - _q_ice_threshold) / _τ_acnv_sno
 end
 
 """
