@@ -28,6 +28,7 @@ Microphysics_1M.unpack_params
 Microphysics_1M.terminal_velocity
 Microphysics_1M.conv_q_vap_to_q_liq_ice
 Microphysics_1M.conv_q_liq_to_q_rai
+Microphysics_1M.conv_q_ice_to_q_sno_no_supersat
 Microphysics_1M.conv_q_ice_to_q_sno
 Microphysics_1M.accretion
 Microphysics_1M.accretion_rain_sink

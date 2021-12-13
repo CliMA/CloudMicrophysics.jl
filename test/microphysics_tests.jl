@@ -133,14 +133,27 @@ end
 TT.@testset "RainAutoconversion" begin
 
     _q_liq_threshold = CP_micro1.q_liq_threshold(prs)
-    _τ_acnv = CP_micro1.τ_acnv(prs)
+    _τ_acnv_rai = CP_micro1.τ_acnv_rai(prs)
 
     q_liq_small = 0.5 * _q_liq_threshold
     TT.@test CM1.conv_q_liq_to_q_rai(prs, q_liq_small) == 0.0
 
     q_liq_big = 1.5 * _q_liq_threshold
     TT.@test CM1.conv_q_liq_to_q_rai(prs, q_liq_big) ==
-             0.5 * _q_liq_threshold / _τ_acnv
+             0.5 * _q_liq_threshold / _τ_acnv_rai
+end
+
+TT.@testset "SnowAutoconversionNoSupersat" begin
+
+    _q_ice_threshold = CP_micro1.q_ice_threshold(prs)
+    _τ_acnv_sno = CP_micro1.τ_acnv_sno(prs)
+
+    q_ice_small = 0.5 * _q_ice_threshold
+    TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(prs, q_ice_small) == 0.0
+
+    q_ice_big = 1.5 * _q_ice_threshold
+    TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(prs, q_ice_big) ≈
+             0.5 * _q_ice_threshold / _τ_acnv_sno
 end
 
 TT.@testset "SnowAutoconversion" begin
