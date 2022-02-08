@@ -12,7 +12,7 @@ const TD = Thermodynamics
 param_set = CloudMicrophysicsParameters(
     src_parameter_dict,
     NoMicrophysicsParameters(),
-    Thermodynamics.ThermodynamicsParameters(src_parameter_dict)
+    Thermodynamics.ThermodynamicsParameters(src_parameter_dict),
 )
 
 # we need the molmass ratio for testing - here just use the saved version

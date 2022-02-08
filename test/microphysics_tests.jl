@@ -19,13 +19,13 @@ const CM1 = CloudMicrophysics.Microphysics_1M
 param_set_0M = CloudMicrophysicsParameters(
     src_parameter_dict,
     Microphysics_0M_Parameters(src_parameter_dict),
-    ThermodynamicsParameters(src_parameter_dict)
+    ThermodynamicsParameters(src_parameter_dict),
 )
 
 param_set_1M = CloudMicrophysicsParameters(
     src_parameter_dict,
     Microphysics_1M_Parameters(src_parameter_dict),
-    ThermodynamicsParameters(src_parameter_dict)
+    ThermodynamicsParameters(src_parameter_dict),
 )
 
 # we need the molmass ratio for testing - here just use the saved version
@@ -165,7 +165,10 @@ TT.@testset "SnowAutoconversionNoSupersat" begin
     τ_acnv_sno = param_set_1M.τ_acnv_sno
 
     q_ice_small = 0.5 * q_ice_threshold
-    TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(param_set_1M.MPS, q_ice_small) == 0.0
+    TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(
+        param_set_1M.MPS,
+        q_ice_small,
+    ) == 0.0
 
     q_ice_big = 1.5 * q_ice_threshold
     TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(param_set_1M.MPS, q_ice_big) ≈
@@ -199,7 +202,8 @@ TT.@testset "SnowAutoconversion" begin
     q_liq = 0.0
     q_ice = 0.03 * q_vap
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
-    TT.@test CM1.conv_q_ice_to_q_sno(param_set_1M.MPS, q, ρ, T) ≈ 1.8512022335645584e-9
+    TT.@test CM1.conv_q_ice_to_q_sno(param_set_1M.MPS, q, ρ, T) ≈
+             1.8512022335645584e-9
 
 end
 
@@ -217,8 +221,14 @@ TT.@testset "RainLiquidAccretion" begin
     ρ_air, q_liq, q_tot = 1.2, 5e-4, 20e-3
 
     for q_rai in q_rain_range
-        TT.@test CM1.accretion(param_set_1M.MPS, liquid, rain, q_liq, q_rai, ρ_air) ≈
-                 accretion_empir(q_rai, q_liq, q_tot) atol =
+        TT.@test CM1.accretion(
+            param_set_1M.MPS,
+            liquid,
+            rain,
+            q_liq,
+            q_rai,
+            ρ_air,
+        ) ≈ accretion_empir(q_rai, q_liq, q_tot) atol =
             (0.1 * accretion_empir(q_rai, q_liq, q_tot))
     end
 end
@@ -247,10 +257,22 @@ TT.@testset "Accretion" begin
     TT.@test CM1.accretion_rain_sink(param_set_1M.MPS, q_ice, q_rai, ρ) ≈
              3.085229094251214e-5
 
-    TT.@test CM1.accretion_snow_rain(param_set_1M.MPS, snow, rain, q_sno, q_rai, ρ) ≈
-             2.1705865794293408e-4
-    TT.@test CM1.accretion_snow_rain(param_set_1M.MPS, rain, snow, q_rai, q_sno, ρ) ≈
-             6.0118801860768854e-5
+    TT.@test CM1.accretion_snow_rain(
+        param_set_1M.MPS,
+        snow,
+        rain,
+        q_sno,
+        q_rai,
+        ρ,
+    ) ≈ 2.1705865794293408e-4
+    TT.@test CM1.accretion_snow_rain(
+        param_set_1M.MPS,
+        rain,
+        snow,
+        q_rai,
+        q_sno,
+        ρ,
+    ) ≈ 6.0118801860768854e-5
 end
 
 TT.@testset "RainEvaporation" begin
@@ -297,8 +319,14 @@ TT.@testset "RainEvaporation" begin
     ρ = p / R / T
 
     for q_rai in q_rain_range
-        TT.@test CM1.evaporation_sublimation(param_set_1M.MPS, rain, q, q_rai, ρ, T) ≈
-                 rain_evap_empir(param_set_1M, q_rai, q, T, p, ρ) atol =
+        TT.@test CM1.evaporation_sublimation(
+            param_set_1M.MPS,
+            rain,
+            q,
+            q_rai,
+            ρ,
+            T,
+        ) ≈ rain_evap_empir(param_set_1M, q_rai, q, T, p, ρ) atol =
             -0.5 * rain_evap_empir(param_set_1M, q_rai, q, T, p, ρ)
     end
 
@@ -316,7 +344,14 @@ TT.@testset "RainEvaporation" begin
     R = TD.gas_constant_air(param_set_1M.TPS, q)
     ρ = p / R / T
 
-    TT.@test CM1.evaporation_sublimation(param_set_1M.MPS, rain, q, q_rai, ρ, T) ≈ 0.0
+    TT.@test CM1.evaporation_sublimation(
+        param_set_1M.MPS,
+        rain,
+        q,
+        q_rai,
+        ρ,
+        T,
+    ) ≈ 0.0
 
 end
 
@@ -351,8 +386,14 @@ TT.@testset "SnowSublimation" begin
             R = TD.gas_constant_air(param_set_1M.TPS, q)
             ρ = p / R / T
 
-            TT.@test CM1.evaporation_sublimation(param_set_1M.MPS, snow, q, q_sno, ρ, T) ≈
-                     ref_val[cnt]
+            TT.@test CM1.evaporation_sublimation(
+                param_set_1M.MPS,
+                snow,
+                q,
+                q_sno,
+                ρ,
+                T,
+            ) ≈ ref_val[cnt]
 
         end
     end

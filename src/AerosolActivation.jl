@@ -38,15 +38,17 @@ export total_M_activated
 
 Returns a curvature coefficient.
 """
-function coeff_of_curvature(param_set::CloudMicrophysicsParameters, T::FT) where {FT <: Real}
+function coeff_of_curvature(
+    param_set::CloudMicrophysicsParameters,
+    T::FT,
+) where {FT <: Real}
 
     molmass_water = param_set.molmass_water
     gas_constant = param_set.gas_constant
     ρ_cloud_liq = param_set.ρ_cloud_liq
     surface_tension = param_set.surface_tension_coeff
 
-    return 2 * surface_tension * molmass_water / ρ_cloud_liq /
-           gas_constant / T
+    return 2 * surface_tension * molmass_water / ρ_cloud_liq / gas_constant / T
 end
 
 """

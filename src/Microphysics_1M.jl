@@ -65,12 +65,18 @@ The type for snow
 """
 struct SnowType <: AbstractPrecipType end
 
-E(param_set::Microphysics_1M_Parameters, ::LiquidType, ::RainType) = param_set.E_liq_rai
-E(param_set::Microphysics_1M_Parameters, ::LiquidType, ::SnowType) = param_set.E_liq_sno
-E(param_set::Microphysics_1M_Parameters, ::IceType, ::RainType) = param_set.E_ice_rai
-E(param_set::Microphysics_1M_Parameters, ::IceType, ::SnowType) = param_set.E_ice_sno
-E(param_set::Microphysics_1M_Parameters, ::RainType, ::SnowType) = param_set.E_rai_sno
-E(param_set::Microphysics_1M_Parameters, ::SnowType, ::RainType) = param_set.E_rai_sno
+E(param_set::Microphysics_1M_Parameters, ::LiquidType, ::RainType) =
+    param_set.E_liq_rai
+E(param_set::Microphysics_1M_Parameters, ::LiquidType, ::SnowType) =
+    param_set.E_liq_sno
+E(param_set::Microphysics_1M_Parameters, ::IceType, ::RainType) =
+    param_set.E_ice_rai
+E(param_set::Microphysics_1M_Parameters, ::IceType, ::SnowType) =
+    param_set.E_ice_sno
+E(param_set::Microphysics_1M_Parameters, ::RainType, ::SnowType) =
+    param_set.E_rai_sno
+E(param_set::Microphysics_1M_Parameters, ::SnowType, ::RainType) =
+    param_set.E_rai_sno
 
 export τ_relax
 
@@ -103,9 +109,7 @@ function v0_rai(param_set::Microphysics_1M_Parameters, ρ::FT) where {FT <: Real
     grav = param_set.grav
     r0_rai = param_set.r0_rai
 
-    return sqrt(
-        FT(8 / 3) / C_drag * (ρ_cloud_liq / ρ - FT(1)) * grav * r0_rai,
-    )
+    return sqrt(FT(8 / 3) / C_drag * (ρ_cloud_liq / ρ - FT(1)) * grav * r0_rai)
 end
 
 """
@@ -118,7 +122,11 @@ end
 Returns the intercept parameter of the assumed Marshall-Palmer distribution of
 snow particles.
 """
-function n0_sno(param_set::Microphysics_1M_Parameters, q_sno::FT, ρ::FT) where {FT <: Real}
+function n0_sno(
+    param_set::Microphysics_1M_Parameters,
+    q_sno::FT,
+    ρ::FT,
+) where {FT <: Real}
 
     ν_sno = param_set.ν_sno
     μ_sno = param_set.μ_sno
@@ -326,8 +334,7 @@ function terminal_velocity(
             χv *
             v0 *
             (λ * r0)^(-_ve - Δv) *
-            SF.gamma(me + ve + Δm + Δv + FT(1)) /
-            SF.gamma(me + Δm + FT(1))
+            SF.gamma(me + ve + Δm + Δv + FT(1)) / SF.gamma(me + Δm + FT(1))
     end
 
     return fall_w
@@ -380,7 +387,10 @@ end
 Returns the q_rai tendency due to collisions between cloud droplets
 (autoconversion), parametrized following Kessler (1995).
 """
-function conv_q_liq_to_q_rai(param_set::Microphysics_1M_Parameters, q_liq::FT) where {FT <: Real}
+function conv_q_liq_to_q_rai(
+    param_set::Microphysics_1M_Parameters,
+    q_liq::FT,
+) where {FT <: Real}
 
     τ_acnv_rai = param_set.τ_acnv_rai
     q_liq_threshold = param_set.q_liq_threshold
@@ -436,18 +446,14 @@ function conv_q_ice_to_q_sno(
 
         r_ice_snow::FT = param_Set.r_ice_snow
 
-        (n0, r0, m0, me, χm, Δm) =
-            unpack_params(param_set, IceType(), ρ, q.ice)
+        (n0, r0, m0, me, χm, Δm) = unpack_params(param_set, IceType(), ρ, q.ice)
 
         λ::FT = lambda(q.ice, ρ, n0, m0, me, r0, χm, Δm)
 
         acnv_rate =
             4 * FT(π) * S * G * n0 / ρ *
             exp(-_λ * r_ice_snow) *
-            (
-                r_ice_snow^FT(2) / (me + Δm) +
-                (r_ice_snow * λ + FT(1)) / λ^FT(2)
-            )
+            (r_ice_snow^FT(2) / (me + Δm) + (r_ice_snow * λ + FT(1)) / λ^FT(2))
     end
     return acnv_rate
 end
@@ -485,8 +491,7 @@ function accretion(
 
         accr_rate =
             q_clo * E * n0 * a0 * v0 * χa * χv / λ *
-            SF.gamma(ae + ve + Δa + Δv + FT(1)) /
-            (λ * r0)^(ae + ve + Δa + Δv)
+            SF.gamma(ae + ve + Δa + Δv + FT(1)) / (λ * r0)^(ae + ve + Δa + Δv)
     end
     return accr_rate
 end
@@ -534,26 +539,10 @@ function accretion_rain_sink(
 
         E::FT = E(param_set, IceType(), RainType())
 
-        λ_rai::FT = lambda(
-            q_rai,
-            ρ,
-            n0_rai,
-            m0_rai,
-            me_rai,
-            r0_rai,
-            χm_rai,
-            Δm_rai,
-        )
-        λ_ice::FT = lambda(
-            q_ice,
-            ρ,
-            n0_ice,
-            m0_ice,
-            me_ice,
-            r0_ice,
-            χm_ice,
-            Δm_ice,
-        )
+        λ_rai::FT =
+            lambda(q_rai, ρ, n0_rai, m0_rai, me_rai, r0_rai, χm_rai, Δm_rai)
+        λ_ice::FT =
+            lambda(q_ice, ρ, n0_ice, m0_ice, me_ice, r0_ice, χm_ice, Δm_ice)
 
         accr_rate =
             E / ρ *
@@ -565,13 +554,7 @@ function accretion_rain_sink(
             χm_rai *
             χa_rai *
             χv_rai / λ_ice / λ_rai * SF.gamma(
-                me_rai +
-                ae_rai +
-                ve_rai +
-                Δm_rai +
-                Δa_rai +
-                Δv_rai +
-                FT(1),
+                me_rai + ae_rai + ve_rai + Δm_rai + Δa_rai + Δv_rai + FT(1),
             ) /
             (
                 r0_rai * λ_rai
@@ -650,19 +633,13 @@ function accretion_snow_rain(
         v_tj = terminal_velocity(param_set, type_j, ρ, q_j)
 
         accr_rate =
-            FT(π) / ρ *
-            n0_i *
-            n0_j *
-            m0_j *
-            χm_j *
-            E_ij *
-            abs(v_ti - v_tj) / r0_j^(me_j + Δm_j) * (
+            FT(π) / ρ * n0_i * n0_j * m0_j * χm_j * E_ij * abs(v_ti - v_tj) /
+            r0_j^(me_j + Δm_j) * (
                 FT(2) * SF.gamma(me_j + Δm_j + FT(1)) / λ_i^FT(3) /
                 λ_j^(me_j + Δm_j + FT(1)) +
                 FT(2) * SF.gamma(me_j + Δm_j + FT(2)) / λ_i^FT(2) /
                 λ_j^(me_j + Δm_j + FT(2)) +
-                SF.gamma(me_j + Δm_j + FT(3)) / λ_i /
-                λ_j^(me_j + Δm_j + FT(3))
+                SF.gamma(me_j + Δm_j + FT(3)) / λ_i / λ_j^(me_j + Δm_j + FT(3))
             )
     end
     return accr_rate
@@ -765,7 +742,12 @@ end
 
 Returns the tendency due to snow melt.
 """
-function snow_melt(param_set::Microphysics_1M_Parameters, q_sno::FT, ρ::FT, T::FT) where {FT <: Real}
+function snow_melt(
+    param_set::Microphysics_1M_Parameters,
+    q_sno::FT,
+    ρ::FT,
+    T::FT,
+) where {FT <: Real}
 
     snow_melt_rate = FT(0)
     T_freeze = param_set.T_freeze

@@ -79,7 +79,7 @@ struct Microphysics_1M_Parameters{FT} <: AbstractMicrophysicsParameters
     N_Sc::FT
     m0_ice::FT
     m0_rai::FT
-    a0_rai::FT       
+    a0_rai::FT
     m0_sno::FT
     a0_sno::FT
     v0_sno::FT
@@ -89,7 +89,7 @@ function Microphysics_1M_Parameters(param_set::Dict)
     K_therm = param_set["K_therm"]
     D_vapor = param_set["D_vapor"]
     ν_air = param_set["ν_air"]
-    
+
     τ_cond_evap = param_set["τ_cond_evap"]
     τ_sub_dep = param_set["τ_sub_dep"]
     r_ice_snow = param_set["r_ice_snow"]
@@ -132,7 +132,7 @@ function Microphysics_1M_Parameters(param_set::Dict)
     Δa_sno = param_set["Δa_sno"]
     χv_sno = param_set["χv_sno"]
     Δv_sno = param_set["Δv_sno"]
-    
+
     E_liq_rai = param_set["E_liq_rai"]
     E_liq_sno = param_set["E_liq_sno"]
     E_ice_rai = param_set["E_ice_rai"]
@@ -143,17 +143,17 @@ function Microphysics_1M_Parameters(param_set::Dict)
     ρ_cloud_ice = param_set["ρ_cloud_ice"]
     grav = param_set["grav"]
     T_freeze = param_set["T_freeze"]
-    
+
     #derived parameters
     N_Sc = ν_air / D_vapor
-    m0_ice = 4/3 * π * ρ_cloud_ice * r0_ice ^ me_ice
-    m0_rai = 4/3 * π * ρ_cloud_liq * r0_rai ^ me_rai
-    a0_rai = π * r0_rai ^ ae_rai
-    m0_sno = 1e-1 * r0_sno ^ me_sno
-    a0_sno = 0.3 * π * r0_sno ^ ae_sno
-    v0_sno = 2^(9/4) * r0_sno ^ ve_sno
+    m0_ice = 4 / 3 * π * ρ_cloud_ice * r0_ice^me_ice
+    m0_rai = 4 / 3 * π * ρ_cloud_liq * r0_rai^me_rai
+    a0_rai = π * r0_rai^ae_rai
+    m0_sno = 1e-1 * r0_sno^me_sno
+    a0_sno = 0.3 * π * r0_sno^ae_sno
+    v0_sno = 2^(9 / 4) * r0_sno^ve_sno
 
-    
+
     return Microphysics_1M_Parameters{valtype(param_set)}(
         C_drag,
         K_therm,
@@ -208,13 +208,13 @@ function Microphysics_1M_Parameters(param_set::Dict)
         N_Sc,
         m0_ice,
         m0_rai,
-        a0_rai,       
+        a0_rai,
         m0_sno,
         a0_sno,
         v0_sno,
     )
-    
-    
+
+
 end
 
 
@@ -225,7 +225,7 @@ struct CloudMicrophysicsParameters{FT, AMPS <: AbstractMicrophysicsParameters}
     molmass_water::FT
     gas_constant::FT
     ρ_cloud_liq::FT
-    surface_tension_coeff::FT    
+    surface_tension_coeff::FT
     molmass_ratio::FT
     R_v::FT
     MPS::AMPS
@@ -242,8 +242,9 @@ end
 function CloudMicrophysicsParameters(
     param_set::Dict,
     MPS::AMPS,
-    TPS::ThermodynamicsParameters{FT}) where {FT, AMPS <: AbstractMicrophysicsParameters}
-    
+    TPS::ThermodynamicsParameters{FT},
+) where {FT, AMPS <: AbstractMicrophysicsParameters}
+
     K_therm = param_set["K_therm"]
     D_vapor = param_set["D_vapor"]
     molmass_dryair = param_set["molmass_dryair"]
@@ -251,13 +252,13 @@ function CloudMicrophysicsParameters(
     gas_constant = param_set["gas_constant"]
     ρ_cloud_liq = param_set["ρ_cloud_liq"]
     surface_tension_coeff = param_set["surface_tension_coeff"]
-    
+
     #derived parameters (one could also get this from thermodynamics)
     molmass_ratio = molmass_dryair / molmass_water
     R_v = gas_constant / molmass_ratio
 
     #derived_parameters
-    
+
     return CloudMicrophysicsParameters{valtype(param_set), AMPS}(
         K_therm,
         D_vapor,
