@@ -15,6 +15,8 @@ param_set = CloudMicrophysicsParameters(
     Thermodynamics.ThermodynamicsParameters(src_parameter_dict)
 )
 
+# we need the molmass ratio for testing - here just use the saved version
+test_parameter_dict = ("molmass_ratio" => param_set.molmass_ratio)
 
 # Atmospheric conditions
 T = 294.0       # air temperature K

@@ -24,6 +24,9 @@ param_set_1M = CloudMicrophysicsParameters(
     ThermodynamicsParameters(src_parameter_dict)
 )
 
+# we need the molmass ratio for testing - here just use the saved version
+test_parameter_dict = ("molmass_ratio" => param_set.molmass_ratio)
+
 
 const liquid = CM1.LiquidType()
 const ice = CM1.IceType()
