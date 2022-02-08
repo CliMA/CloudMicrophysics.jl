@@ -10,6 +10,7 @@ for (key, val) in parameter_parse
     src_parameter_dict[val["alias"]] = val["value"]
 end
 
+include("parameter_tests.jl")
 include("aerosol_activation_tests.jl")
 include("microphysics_tests.jl")
 include("gpu_tests.jl")
