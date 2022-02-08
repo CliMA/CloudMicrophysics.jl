@@ -13,15 +13,13 @@ import SpecialFunctions
 
 import Thermodynamics
 import CloudMicrophysics
-import CLIMAParameters
 
 const SF = SpecialFunctions
 const TD = Thermodynamics
 const AM = CloudMicrophysics.AerosolModel
 const CO = CloudMicrophysics.Common
-const CP = CLIMAParameters
-const CP_planet = CLIMAParameters.Planet
-const APS = CP.AbstractParameterSet
+
+import CloudMicrophysics.CloudMicrophysicsParameters
 
 export mean_hygroscopicity_parameter
 export max_supersaturation
@@ -40,15 +38,15 @@ export total_M_activated
 
 Returns a curvature coefficient.
 """
-function coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
+function coeff_of_curvature(param_set::CloudMicrophysicsParameters, T::FT) where {FT <: Real}
 
-    _molmass_water::FT = CP_planet.molmass_water(param_set)
-    _gas_constant::FT = CP.gas_constant()
-    _ρ_cloud_liq::FT = CP_planet.ρ_cloud_liq(param_set)
-    _surface_tension::FT = CP_planet.surface_tension_coeff(param_set)
+    molmass_water = param_set.molmass_water
+    gas_constant = param_set.gas_constant
+    ρ_cloud_liq = param_set.ρ_cloud_liq
+    surface_tension = param_set.surface_tension_coeff
 
-    return 2 * _surface_tension * _molmass_water / _ρ_cloud_liq /
-           _gas_constant / T
+    return 2 * surface_tension * molmass_water / ρ_cloud_liq /
+           gas_constant / T
 end
 
 """
@@ -65,12 +63,12 @@ or volume weighted kappa parameters (Petters and Kreidenweis 2007).
 Implemented via a dispatch based on aerosol distribution mode type.
 """
 function mean_hygroscopicity_parameter(
-    param_set::APS,
+    param_set::CloudMicrophysicsParameters,
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_B}
 
-    _molmass_water = CP_planet.molmass_water(param_set)
-    _ρ_cloud_liq = CP_planet.ρ_cloud_liq(param_set)
+    molmass_water = param_set.molmass_water
+    ρ_cloud_liq = param_set.ρ_cloud_liq
 
     return ntuple(length(ad.Modes)) do i
 
@@ -87,11 +85,11 @@ function mean_hygroscopicity_parameter(
             mode_i.mass_mix_ratio[j] / mode_i.aerosol_density[j]
         end
 
-        nom / den * _molmass_water / _ρ_cloud_liq
+        nom / den * molmass_water / ρ_cloud_liq
     end
 end
 function mean_hygroscopicity_parameter(
-    param_set::APS,
+    param_set::CloudMicrophysicsParameters,
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_κ}
 
@@ -115,7 +113,7 @@ Returns a tuple of critical supersaturations
 (one tuple element for each aerosol size distribution mode).
 """
 function critical_supersaturation(
-    param_set::APS,
+    param_set::CloudMicrophysicsParameters,
     ad::AM.AbstractAerosolDistribution,
     T::FT,
 ) where {FT <: Real}
@@ -141,7 +139,7 @@ end
 Returns the maximum supersaturation.
 """
 function max_supersaturation(
-    param_set::APS,
+    param_set::CloudMicrophysicsParameters,
     ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
@@ -149,20 +147,20 @@ function max_supersaturation(
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    _grav::FT = CP_planet.grav(param_set)
-    _ρ_cloud_liq::FT = CP_planet.ρ_cloud_liq(param_set)
+    grav = param_set.grav
+    ρ_cloud_liq = param_set.ρ_cloud_liq
 
-    ϵ::FT = 1 / CP_planet.molmass_ratio(param_set)
+    ϵ::FT = 1 / param_set.molmass_ratio
     R_m::FT = TD.gas_constant_air(param_set, q)
     cp_m::FT = TD.cp_m(param_set, q)
 
     L::FT = TD.latent_heat_vapor(param_set, T)
     p_vs::FT = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
-    G::FT = CO.G_func(param_set, T, TD.Liquid()) / _ρ_cloud_liq
+    G::FT = CO.G_func(param_set, T, TD.Liquid()) / ρ_cloud_liq
 
     # eq 11, 12 in Razzak et al 1998
     # but following eq 10 from Rogers 1975
-    α::FT = L * _grav * ϵ / R_m / cp_m / T^2 - _grav / R_m / T
+    α::FT = L * grav * ϵ / R_m / cp_m / T^2 - grav / R_m / T
     γ::FT = R_m * T / ϵ / p_vs + ϵ * L^2 / cp_m / T / p
 
     A::FT = coeff_of_curvature(param_set, T)
@@ -176,7 +174,7 @@ function max_supersaturation(
 
         f::FT = 0.5 * exp(2.5 * (log(mode_i.stdev))^2)
         g::FT = 1 + 0.25 * log(mode_i.stdev)
-        η::FT = (α * w / G)^(3 / 2) / (2 * pi * _ρ_cloud_liq * γ * mode_i.N)
+        η::FT = (α * w / G)^(3 / 2) / (2 * pi * ρ_cloud_liq * γ * mode_i.N)
 
         1 / (Sm[i])^2 *
         (f * (ζ / η)^(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^(3 / 4))
@@ -199,7 +197,7 @@ Returns the number of activated aerosol particles
 in each aerosol size distribution mode.
 """
 function N_activated_per_mode(
-    param_set::APS,
+    param_set::CloudMicrophysicsParameters,
     ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
@@ -233,7 +231,7 @@ Returns the mass of activated aerosol particles
 per mode of the aerosol size distribution.
 """
 function M_activated_per_mode(
-    param_set::APS,
+    param_set::CloudMicrophysicsParameters,
     ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
@@ -272,7 +270,7 @@ end
 Returns the total number of activated aerosol particles.
 """
 function total_N_activated(
-    param_set::APS,
+    param_set::CloudMicrophysicsParameters,
     ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,
@@ -297,7 +295,7 @@ end
 Returns the total mass of activated aerosol particles.
 """
 function total_M_activated(
-    param_set::APS,
+    param_set::CloudMicrophysicsParameters,
     ad::AM.AbstractAerosolDistribution,
     T::FT,
     p::FT,

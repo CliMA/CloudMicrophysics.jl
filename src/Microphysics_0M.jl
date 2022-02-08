@@ -9,12 +9,11 @@
 module Microphysics_0M
 
 import Thermodynamics
-import CLIMAParameters
 
 const TD = Thermodynamics
-const CP = CLIMAParameters
-const CP_micro = CLIMAParameters.Atmos.Microphysics_0M
-const APS = CP.AbstractParameterSet
+
+import CloudMicrophysics.Microphysics_0M_Parameters
+
 
 export remove_precipitation
 
@@ -34,25 +33,27 @@ The thresholds and the relaxation timescale are defined in
 CLIMAParameters.
 """
 function remove_precipitation(
-    param_set::APS,
+    param_set::Microphysics_0M_Parameters,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    _τ_precip::FT = CP_micro.τ_precip(param_set)
-    _qc_0::FT = CP_micro.qc_0(param_set)
+    τ_precip = param_set.τ_precip
+    qc_0 = param_set.qc_0
 
-    return -max(0, (q.liq + q.ice - _qc_0)) / _τ_precip
+    return -max(0, (q.liq + q.ice - qc_0)) / τ_precip
 end
 function remove_precipitation(
-    param_set::APS,
+    param_set::Microphysics_0M_Parameters
     q::TD.PhasePartition{FT},
     q_vap_sat::FT,
 ) where {FT <: Real}
 
-    _τ_precip::FT = CP_micro.τ_precip(param_set)
-    _S_0::FT = CP_micro.S_0(param_set)
+    τ_precip = param_set.τ_precip
+    S_0 = param_set.S_0
 
-    return -max(0, (q.liq + q.ice - _S_0 * q_vap_sat)) / _τ_precip
+    return -max(0, (q.liq + q.ice - S_0 * q_vap_sat)) / τ_precip
 end
+
+
 
 end #module Microphysics_0M.jl

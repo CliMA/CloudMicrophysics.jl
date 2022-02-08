@@ -1,17 +1,20 @@
 import Test
 
 import CloudMicrophysics
-import CLIMAParameters
 import Thermodynamics
 
 const TT = Test
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
-const CP = CLIMAParameters
 const TD = Thermodynamics
 
-struct EarthParameterSet <: CP.AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+# build the parameter sets
+param_set = CloudMicrophysicsParameters(
+    src_parameter_dict,
+    NoMicrophysicsParameters(),
+    Thermodynamics.ThermodynamicsParameters(src_parameter_dict)
+)
+
 
 # Atmospheric conditions
 T = 294.0       # air temperature K
@@ -23,7 +26,7 @@ w = 0.5         # vertical velocity m/s
 # We are assuming here saturated conditions and no liquid water or ice.
 # This is consistent with the assumptions of the aerosol activation scheme.
 p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
-q_vs = 1 / (1 - CP.Planet.molmass_ratio(param_set) * (p_vs - p) / p_vs)
+q_vs = 1 / (1 - test_parameter_dict["molmass_ratio"] * (p_vs - p) / p_vs)
 q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Accumulation mode

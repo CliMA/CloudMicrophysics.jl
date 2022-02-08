@@ -4,15 +4,9 @@
 module Common
 
 import Thermodynamics
-import CLIMAParameters
-import CLIMAParameters.Planet
-import CLIMAParameters.Atmos.Microphysics
-
 const TD = Thermodynamics
-const CP = CLIMAParameters
-const CP_planet = CLIMAParameters.Planet
-const CP_micro = CLIMAParameters.Atmos.Microphysics
-const APS = CP.AbstractParameterSet
+
+import CloudMicrophysics.CloudMicrophysicsParameters
 
 export G_func
 
@@ -26,31 +20,38 @@ export G_func
 
 Utility function combining thermal conductivity and vapor diffusivity effects.
 """
-function G_func(param_set::APS, T::FT, ::TD.Liquid) where {FT <: Real}
+function G_func(param_set::CloudMicrophysicsParameters, T::FT, ::TD.Liquid) where {FT <: Real}
 
-    _K_therm::FT = CP_micro.K_therm(param_set)
-    _R_v::FT = CP_planet.R_v(param_set)
-    _D_vapor::FT = CP_micro.D_vapor(param_set)
+    K_therm = param_set.K_therm
+    R_v = param_set.R_v
+    D_vapor = param_set.D_vapor
 
-    L = TD.latent_heat_vapor(param_set, T)
-    p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
+    L = TD.latent_heat_vapor(param_set.ThermodynamicsParameters, T)
+    p_vs = TD.saturation_vapor_pressure(param_set.ThermodynamicsParameters, T, TD.Liquid())
+    
+    return FT(1) / (
+        L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs
+    )
+end
+function G_func(param_set::CloudMicrophysicsParameters, T::FT, ::TD.Ice) where {FT <: Real}
+
+    K_therm = param_set.K_therm
+    R_v = param_set.R_v
+    D_vapor = param_set.D_vapor
+
+    L = TD.latent_heat_sublim(param_set.ThermodynamicsParameters, T)
+    p_vs = TD.saturation_vapor_pressure(param_set.ThermodynamicsParameters, T, TD.Ice())
 
     return FT(1) / (
         L / _K_therm / T * (L / _R_v / T - FT(1)) + _R_v * T / _D_vapor / p_vs
     )
 end
-function G_func(param_set::APS, T::FT, ::TD.Ice) where {FT <: Real}
 
-    _K_therm::FT = CP_micro.K_therm(param_set)
-    _R_v::FT = CP_planet.R_v(param_set)
-    _D_vapor::FT = CP_micro.D_vapor(param_set)
 
-    L = TD.latent_heat_sublim(param_set, T)
-    p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Ice())
 
-    return FT(1) / (
-        L / _K_therm / T * (L / _R_v / T - FT(1)) + _R_v * T / _D_vapor / p_vs
-    )
-end
+
+
+
+
 
 end
