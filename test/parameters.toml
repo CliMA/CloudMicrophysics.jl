@@ -19,7 +19,7 @@ value = 0.55
 type = "float"
 
 [thermal_conductivity_of_air ]
-alias = "K_therm "
+alias = "K_therm"
 value = 0.024
 type = "float"
 

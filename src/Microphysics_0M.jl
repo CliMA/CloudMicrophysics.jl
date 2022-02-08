@@ -43,7 +43,7 @@ function remove_precipitation(
     return -max(0, (q.liq + q.ice - qc_0)) / τ_precip
 end
 function remove_precipitation(
-    param_set::Microphysics_0M_Parameters
+    param_set::Microphysics_0M_Parameters,
     q::TD.PhasePartition{FT},
     q_vap_sat::FT,
 ) where {FT <: Real}

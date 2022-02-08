@@ -6,7 +6,7 @@ import Thermodynamics.ThermodynamicsParameters
 #types of Microphysics
 abstract type AbstractMicrophysicsParameters end
 
-struct NoMicrophysicsParameters <: AbsractMicrophysicsParameters end #just for testing
+struct NoMicrophysicsParameters <: AbstractMicrophysicsParameters end #just for testing
 
 struct Microphysics_0M_Parameters{FT} <: AbstractMicrophysicsParameters
     τ_precip::FT
@@ -17,7 +17,7 @@ function Microphysics_0M_Parameters(param_set::Dict)
     τ_precip = param_set["τ_precip"]
     qc_0 = param_set["qc_0"]
     S_0 = param_set["S_0"]
-    return Microphysics_0M_Parameters{typeof(param_set[1])}(
+    return Microphysics_0M_Parameters{typeof(param_set["τ_precip"])}(
         τ_precip,
         qc_0,
         S_0,
@@ -36,7 +36,6 @@ struct Microphysics_1M_Parameters{FT} <: AbstractMicrophysicsParameters
     n0_ice::FT
     r0_ice::FT
     me_ice::FT
-    m0_ice::FT
     χm_ice::FT
     Δm_ice::FT
     a_vent_rai::FT
@@ -65,7 +64,7 @@ struct Microphysics_1M_Parameters{FT} <: AbstractMicrophysicsParameters
     χm_sno::FT
     Δm_sno::FT
     χa_sno::FT
-    Δa_sn::FT
+    Δa_sno::FT
     χv_sno::FT
     Δv_sno::FT
     E_liq_rai::FT
@@ -74,7 +73,7 @@ struct Microphysics_1M_Parameters{FT} <: AbstractMicrophysicsParameters
     E_ice_sno::FT
     E_rai_sno::FT
     ρ_cloud_ice::FT
-    ρ_cloud_rai::FT
+    ρ_cloud_liq::FT
     grav::FT
     T_freeze::FT
     N_Sc::FT
@@ -97,7 +96,6 @@ function Microphysics_1M_Parameters(param_set::Dict)
     n0_ice = param_set["n0_ice"]
     r0_ice = param_set["r0_ice"]
     me_ice = param_set["me_ice"]
-    m0_ice = param_set["m0_ice"]
     ρ_cloud_ice = param_set["ρ_cloud_ice"]
     χm_ice = param_set["χm_ice"]
     Δm_ice = param_set["Δm_ice"]
@@ -156,7 +154,7 @@ function Microphysics_1M_Parameters(param_set::Dict)
     v0_sno = 2^(9/4) * r0_sno ^ ve_sno
 
     
-    return Microphysics_1M_Parameters{typeof(param_set[1])}(
+    return Microphysics_1M_Parameters{valtype(param_set)}(
         C_drag,
         K_therm,
         D_vapor,
@@ -167,7 +165,6 @@ function Microphysics_1M_Parameters(param_set::Dict)
         n0_ice,
         r0_ice,
         me_ice,
-        m0_ice,
         χm_ice,
         Δm_ice,
         a_vent_rai,
@@ -196,7 +193,7 @@ function Microphysics_1M_Parameters(param_set::Dict)
         χm_sno,
         Δm_sno,
         χa_sno,
-        Δa_sn,
+        Δa_sno,
         χv_sno,
         Δv_sno,
         E_liq_rai,
@@ -205,7 +202,7 @@ function Microphysics_1M_Parameters(param_set::Dict)
         E_ice_sno,
         E_rai_sno,
         ρ_cloud_ice,
-        ρ_cloud_rai,
+        ρ_cloud_liq,
         grav,
         T_freeze,
         N_Sc,
@@ -222,7 +219,7 @@ end
 
 
 #General parameters outside of modular
-struct CloudMicrophysicsParameters{FT}
+struct CloudMicrophysicsParameters{FT, AMPS <: AbstractMicrophysicsParameters}
     K_therm::FT
     D_vapor::FT
     molmass_water::FT
@@ -231,8 +228,8 @@ struct CloudMicrophysicsParameters{FT}
     surface_tension_coeff::FT    
     molmass_ratio::FT
     R_v::FT
-    MicrophysicsScheme::AbstractMicrophysicsParameters{FT}
-    ThermodynamicsParameters::ThermodynamicsParameters{FT}
+    MPS::AMPS
+    TPS::ThermodynamicsParameters{FT}
 end
 
 # For example:
@@ -242,10 +239,10 @@ end
 #     ThermodynamicsParameters(param_set)
 # )
 
-function CloudMicrophysicsParameters{FT}(
+function CloudMicrophysicsParameters(
     param_set::Dict,
-    MicrophysicsParameters::AbstractMicrophysics{FT}
-    ThermodynamicsParameters::ThermodynamicsParameters{FT}) where {FT}
+    MPS::AMPS,
+    TPS::ThermodynamicsParameters{FT}) where {FT, AMPS <: AbstractMicrophysicsParameters}
     
     K_therm = param_set["K_therm"]
     D_vapor = param_set["D_vapor"]
@@ -260,7 +257,7 @@ function CloudMicrophysicsParameters{FT}(
 
     #derived_parameters
     
-    return CloudMicrophysicsParameters{typeof(param_set[1])}(
+    return CloudMicrophysicsParameters{valtype(param_set), AMPS}(
         K_therm,
         D_vapor,
         molmass_water,
@@ -269,8 +266,8 @@ function CloudMicrophysicsParameters{FT}(
         surface_tension_coeff,
         molmass_ratio,
         R_v,
-        MicrophysicsParameters,
-        ThermodynamicsParameters,
+        MPS,
+        TPS,
     )
 
 end
