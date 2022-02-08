@@ -246,14 +246,15 @@ function CloudMicrophysicsParameters(
     
     K_therm = param_set["K_therm"]
     D_vapor = param_set["D_vapor"]
+    molmass_dryair = param_set["molmass_dryair"]
     molmass_water = param_set["molmass_water"]
     gas_constant = param_set["gas_constant"]
     ρ_cloud_liq = param_set["ρ_cloud_liq"]
     surface_tension_coeff = param_set["surface_tension_coeff"]
     
     #derived parameters (one could also get this from thermodynamics)
-    R_v = gas_constant / molmass_ratio
     molmass_ratio = molmass_dryair / molmass_water
+    R_v = gas_constant / molmass_ratio
 
     #derived_parameters
     
