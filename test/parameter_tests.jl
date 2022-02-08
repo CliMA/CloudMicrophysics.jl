@@ -43,7 +43,7 @@ using Thermodynamics
     #check parameter_file agrees with current CP defaults
     for (k, v) in full_parameter_set
         if ~(k in universal_constant_aliases)
-            try 
+            try
                 cp_k = getfield(CP_planet, Symbol(k))
             catch
                 try
