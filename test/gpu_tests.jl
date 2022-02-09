@@ -3,21 +3,45 @@ using KernelAbstractions
 using CUDAKernels
 
 import CloudMicrophysics
-import CLIMAParameters
 import Thermodynamics
 
 const CM = CloudMicrophysics
-const CP = CLIMAParameters
 const TD = Thermodynamics
 
-struct EarthParameterSet <: CP.AbstractEarthParameterSet end
-const prs = EarthParameterSet()
+#import CLIMAParameters
+#const CP = CLIMAParameters
+#struct EarthParameterSet <: CP.AbstractEarthParameterSet end
+#const prs = EarthParameterSet()
+
+
+import Thermodynamics.ThermodynamicsParameters
+import CloudMicrophysics.CloudMicrophysicsParameters
+import CloudMicrophysics.NoMicrophysicsParameters
+import CloudMicrophysics.Microphysics_0M_Parameters
+import CloudMicrophysics.Microphysics_1M_Parameters
+
+# build the parameter sets
+param_therm = ThermodynamicsParameters(src_parameter_dict)
+param_0M = Microphysics_0M_Parameters(src_parameter_dict)
+param_1M = Microphysics_1M_Parameters(src_parameter_dict, param_therm)
+
+param_set_noM = CloudMicrophysicsParameters(
+    src_parameter_dict,
+    NoMicrophysicsParameters(),
+    param_therm,
+)
+param_set_0M =
+    CloudMicrophysicsParameters(src_parameter_dict, param_0M, param_therm)
+param_set_1M =
+    CloudMicrophysicsParameters(src_parameter_dict, param_1M, param_therm)
+
+
 
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CM0 = CloudMicrophysics.Microphysics_0M
 const CM1 = CloudMicrophysics.Microphysics_1M
-const CP0 = CLIMAParameters.Atmos.Microphysics_0M
+#const CP0 = CLIMAParameters.Atmos.Microphysics_0M
 
 const liquid = CM.Microphysics_1M.LiquidType()
 const ice = CM.Microphysics_1M.IceType()
@@ -37,7 +61,7 @@ end
 @show ArrayType
 
 @kernel function test_aerosol_activation_kernel!(
-    prs,
+    param_set,
     output::AbstractArray{FT},
     r,
     stdev,
@@ -50,14 +74,17 @@ end
     κ,
 ) where {FT}
 
+    #for testing
+    test_parameter_set = Dict("molmass_ratio" => param_set.molmass_ratio)
+
     i = @index(Group, Linear)
 
     # atmospheric conditions (taken from aerosol activation tests)
     T::FT = 294.0       # air temperature K
     p::FT = 100000.0    # air pressure Pa
     w::FT = 0.5         # vertical velocity m/s
-    p_vs::FT = TD.saturation_vapor_pressure(prs, T, TD.Liquid())
-    q_vs::FT = 1 / (1 - CP.Planet.molmass_ratio(prs) * (p_vs - p) / p_vs)
+    p_vs::FT = TD.saturation_vapor_pressure(param_set.TPS, T, TD.Liquid())
+    q_vs::FT = 1 / (1 - test_parameter_set["molmass_ratio"] * (p_vs - p) / p_vs)
     # water vapor specific humidity (saturated)
     q = TD.PhasePartition(q_vs, FT(0.0), FT(0.0))
 
@@ -90,24 +117,27 @@ end
         arsl_dst_B = AM.AerosolDistribution((mode_B,))
         arsl_dst_κ = AM.AerosolDistribution((mode_κ,))
 
-        output[1, i] = AA.mean_hygroscopicity_parameter(prs, arsl_dst_B)[1]
-        output[2, i] = AA.mean_hygroscopicity_parameter(prs, arsl_dst_κ)[1]
+        output[1, i] =
+            AA.mean_hygroscopicity_parameter(param_set, arsl_dst_B)[1]
+        output[2, i] =
+            AA.mean_hygroscopicity_parameter(param_set, arsl_dst_κ)[1]
 
-        output[3, i] = AA.total_N_activated(prs, arsl_dst_B, args...)
-        output[4, i] = AA.total_N_activated(prs, arsl_dst_κ, args...)
+        output[3, i] = AA.total_N_activated(param_set, arsl_dst_B, args...)
+        output[4, i] = AA.total_N_activated(param_set, arsl_dst_κ, args...)
 
-        output[5, i] = AA.total_M_activated(prs, arsl_dst_B, args...)
-        output[6, i] = AA.total_M_activated(prs, arsl_dst_κ, args...)
+        output[5, i] = AA.total_M_activated(param_set, arsl_dst_B, args...)
+        output[6, i] = AA.total_M_activated(param_set, arsl_dst_κ, args...)
     end
 end
 
 @kernel function test_0_moment_micro_kernel!(
-    prs,
+    param_set,
     output::AbstractArray{FT},
     liquid_frac,
     qc,
     qt,
 ) where {FT}
+
 
     i = @index(Group, Linear)
 
@@ -116,17 +146,17 @@ end
         qi::FT = (1 - liquid_frac[i]) * qc[i]
         q = TD.PhasePartition(FT(qt[i]), ql, qi)
 
-        output[1, i] = CM0.remove_precipitation(prs, q)
+        output[1, i] = CM0.remove_precipitation(param_set.MPS, q)
 
-        _τ_precip = CP0.τ_precip(prs)
-        _qc_0 = CP0.qc_0(prs)
+        τ_precip = param_set.MPS.τ_precip
+        qc_0 = param_set.MPS.qc_0
 
-        output[2, i] = -max(0, ql + qi - _qc_0) / _τ_precip
+        output[2, i] = -max(0, ql + qi - qc_0) / τ_precip
     end
 end
 
 @kernel function test_1_moment_micro_accretion_kernel!(
-    prs,
+    param_set,
     output::AbstractArray{FT},
     ρ,
     qt,
@@ -139,20 +169,37 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = CM1.accretion(prs, liquid, rain, ql[i], qr[i], ρ[i])
-        output[2, i] = CM1.accretion(prs, ice, snow, qi[i], qs[i], ρ[i])
-        output[3, i] = CM1.accretion(prs, liquid, snow, ql[i], qs[i], ρ[i])
-        output[4, i] = CM1.accretion(prs, ice, rain, qi[i], qr[i], ρ[i])
-        output[5, i] = CM1.accretion_rain_sink(prs, qi[i], qr[i], ρ[i])
-        output[6, i] =
-            CM1.accretion_snow_rain(prs, snow, rain, qs[i], qr[i], ρ[i])
-        output[7, i] =
-            CM1.accretion_snow_rain(prs, rain, snow, qr[i], qs[i], ρ[i])
+        output[1, i] =
+            CM1.accretion(param_set.MPS, liquid, rain, ql[i], qr[i], ρ[i])
+        output[2, i] =
+            CM1.accretion(param_set.MPS, ice, snow, qi[i], qs[i], ρ[i])
+        output[3, i] =
+            CM1.accretion(param_set.MPS, liquid, snow, ql[i], qs[i], ρ[i])
+        output[4, i] =
+            CM1.accretion(param_set.MPS, ice, rain, qi[i], qr[i], ρ[i])
+        output[5, i] =
+            CM1.accretion_rain_sink(param_set.MPS, qi[i], qr[i], ρ[i])
+        output[6, i] = CM1.accretion_snow_rain(
+            param_set.MPS,
+            snow,
+            rain,
+            qs[i],
+            qr[i],
+            ρ[i],
+        )
+        output[7, i] = CM1.accretion_snow_rain(
+            param_set.MPS,
+            rain,
+            snow,
+            qr[i],
+            qs[i],
+            ρ[i],
+        )
     end
 end
 
 @kernel function test_1_moment_micro_snow_melt_kernel!(
-    prs,
+    param_set,
     output::AbstractArray{FT},
     ρ,
     T,
@@ -162,7 +209,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = CM1.snow_melt(prs, qs[i], ρ[i], T[i])
+        output[i] = CM1.snow_melt(param_set.MPS, qs[i], ρ[i], T[i])
     end
 end
 
@@ -187,8 +234,20 @@ end
     κ = ArrayType([0.53, 1.12])
 
     kernel! = test_aerosol_activation_kernel!(dev, work_groups)
-    event =
-        kernel!(prs, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ, ndrange = ndrange)
+    event = kernel!(
+        param_set_noM,
+        output,
+        r,
+        stdev,
+        N,
+        ϵ,
+        ϕ,
+        M,
+        ν,
+        ρ,
+        κ,
+        ndrange = ndrange,
+    )
     wait(dev, event)
 
     # test if all aerosol activation output is positive
@@ -215,7 +274,8 @@ end
     qc = ArrayType([3e-3, 4e-3, 5e-3])
 
     kernel! = test_0_moment_micro_kernel!(dev, work_groups)
-    event = kernel!(prs, output, liquid_frac, qc, qt, ndrange = ndrange)
+    event =
+        kernel!(param_set_0M, output, liquid_frac, qc, qt, ndrange = ndrange)
     wait(dev, event)
 
     # test 0-moment rain removal is callable and returns a reasonable value
@@ -240,7 +300,8 @@ end
     qr = ArrayType([0.0, 5e-4])
 
     kernel! = test_1_moment_micro_accretion_kernel!(dev, work_groups)
-    event = kernel!(prs, output, ρ, qt, qi, qs, ql, qr, ndrange = ndrange)
+    event =
+        kernel!(param_set_1M, output, ρ, qt, qi, qs, ql, qr, ndrange = ndrange)
     wait(dev, event)
 
     # test 1-moment accretion is callable and returns a reasonable value
@@ -266,7 +327,7 @@ end
     qs = ArrayType([1e-4, 0.0, 1e-4])
 
     kernel! = test_1_moment_micro_snow_melt_kernel!(dev, work_groups)
-    event = kernel!(prs, output, ρ, T, qs, ndrange = ndrange)
+    event = kernel!(param_set_1M, output, ρ, T, qs, ndrange = ndrange)
     wait(dev, event)
 
     # test if 1-moment snow melt is callable and returns reasonable values
