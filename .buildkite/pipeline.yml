@@ -8,6 +8,8 @@ steps:
     key: "init_cpu_env"
     command:
       - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
+      - "julia --project -e 'using Pkg; Pkg.rm(name=\"Thermodynamics\")'"
+      - "julia --project -e 'using Pkg; Pkg.add(name=\"https://github.com/CliMA/Thermodynamics.jl.git#orad/refactor-parameters\")'"
       - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
       - "julia --project -e 'using Pkg; Pkg.status()'"
     agents:
@@ -19,7 +21,10 @@ steps:
     key: "init_gpu_env"
     command:
       - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project -e 'using Pkg; Pkg.precompile()'"
+      - "julia --project -e 'using Pkg; Pkg.rm(name=Thermodynamics)'"
+      - "julia --project -e 'using Pkg; Pkg.add(name=\"https://github.com/CliMA/Thermodynamics.jl.git#orad/refactor-parameters\")'"
+
+- "julia --project -e 'using Pkg; Pkg.precompile()'"
 
       # force the initialization of the CUDA runtime as it is lazily loaded by default
       - "julia --project -e 'using Pkg; Pkg.add(name=\"CUDA\",version=\"3.5.0\")'"
