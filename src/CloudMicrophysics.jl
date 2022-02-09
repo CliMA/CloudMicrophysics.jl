@@ -227,6 +227,7 @@ struct CloudMicrophysicsParameters{FT, AMPS <: AbstractMicrophysicsParameters}
     ρ_cloud_liq::FT
     surface_tension_coeff::FT
     molmass_ratio::FT
+    grav::FT
     R_v::FT
     MPS::AMPS
     TPS::ThermodynamicsParameters{FT}
@@ -252,7 +253,7 @@ function CloudMicrophysicsParameters(
     gas_constant = param_set["gas_constant"]
     ρ_cloud_liq = param_set["ρ_cloud_liq"]
     surface_tension_coeff = param_set["surface_tension_coeff"]
-
+    grav = param_set["grav"]
     #derived parameters (one could also get this from thermodynamics)
     molmass_ratio = molmass_dryair / molmass_water
     R_v = gas_constant / molmass_ratio
@@ -266,6 +267,7 @@ function CloudMicrophysicsParameters(
         gas_constant,
         ρ_cloud_liq,
         surface_tension_coeff,
+        grav,
         molmass_ratio,
         R_v,
         MPS,

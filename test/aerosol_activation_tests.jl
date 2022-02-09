@@ -9,14 +9,14 @@ const AA = CloudMicrophysics.AerosolActivation
 const TD = Thermodynamics
 
 # build the parameter sets
-param_set = CloudMicrophysicsParameters(
+param_set = CloudMicrophysics.CloudMicrophysicsParameters(
     src_parameter_dict,
-    NoMicrophysicsParameters(),
+    CloudMicrophysics.NoMicrophysicsParameters(),
     Thermodynamics.ThermodynamicsParameters(src_parameter_dict),
 )
 
 # we need the molmass ratio for testing - here just use the saved version
-test_parameter_dict = ("molmass_ratio" => param_set.molmass_ratio)
+test_parameter_dict = Dict("molmass_ratio" => param_set.molmass_ratio)
 
 # Atmospheric conditions
 T = 294.0       # air temperature K
@@ -27,7 +27,7 @@ w = 0.5         # vertical velocity m/s
 # moist air R_m and cp_m in aerosol activation module.
 # We are assuming here saturated conditions and no liquid water or ice.
 # This is consistent with the assumptions of the aerosol activation scheme.
-p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
+p_vs = TD.saturation_vapor_pressure(param_set.TPS, T, TD.Liquid())
 q_vs = 1 / (1 - test_parameter_dict["molmass_ratio"] * (p_vs - p) / p_vs)
 q = TD.PhasePartition(q_vs, 0.0, 0.0)
 

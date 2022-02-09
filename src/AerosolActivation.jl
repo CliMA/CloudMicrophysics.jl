@@ -153,11 +153,11 @@ function max_supersaturation(
     ρ_cloud_liq = param_set.ρ_cloud_liq
 
     ϵ::FT = 1 / param_set.molmass_ratio
-    R_m::FT = TD.gas_constant_air(param_set, q)
-    cp_m::FT = TD.cp_m(param_set, q)
+    R_m::FT = TD.gas_constant_air(param_set.TPS, q)
+    cp_m::FT = TD.cp_m(param_set.TPS, q)
 
-    L::FT = TD.latent_heat_vapor(param_set, T)
-    p_vs::FT = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
+    L::FT = TD.latent_heat_vapor(param_set.TPS, T)
+    p_vs::FT = TD.saturation_vapor_pressure(param_set.TPS, T, TD.Liquid())
     G::FT = CO.G_func(param_set, T, TD.Liquid()) / ρ_cloud_liq
 
     # eq 11, 12 in Razzak et al 1998

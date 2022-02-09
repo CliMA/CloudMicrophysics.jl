@@ -30,9 +30,9 @@ function G_func(
     R_v = param_set.R_v
     D_vapor = param_set.D_vapor
 
-    L = TD.latent_heat_vapor(param_set.ThermodynamicsParameters, T)
+    L = TD.latent_heat_vapor(param_set.TPS, T)
     p_vs = TD.saturation_vapor_pressure(
-        param_set.ThermodynamicsParameters,
+        param_set.TPS,
         T,
         TD.Liquid(),
     )
@@ -50,9 +50,9 @@ function G_func(
     R_v = param_set.R_v
     D_vapor = param_set.D_vapor
 
-    L = TD.latent_heat_sublim(param_set.ThermodynamicsParameters, T)
+    L = TD.latent_heat_sublim(param_set.TPS, T)
     p_vs = TD.saturation_vapor_pressure(
-        param_set.ThermodynamicsParameters,
+        param_set.TPS,
         T,
         TD.Ice(),
     )
