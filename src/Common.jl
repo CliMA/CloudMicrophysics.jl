@@ -7,6 +7,7 @@ import Thermodynamics
 const TD = Thermodynamics
 
 import CloudMicrophysics.CloudMicrophysicsParameters
+import CloudMicrophysics.AbstractMicrophysicsParameters
 
 export G_func
 
@@ -21,45 +22,36 @@ export G_func
 Utility function combining thermal conductivity and vapor diffusivity effects.
 """
 function G_func(
-    param_set::CloudMicrophysicsParameters,
+    param_set::Union{CloudMicrophysicsParameters, AMPS},
     T::FT,
     ::TD.Liquid,
-) where {FT <: Real}
+) where {FT <: Real, AMPS <: AbstractMicrophysicsParameters}
 
     K_therm = param_set.K_therm
     R_v = param_set.R_v
     D_vapor = param_set.D_vapor
 
     L = TD.latent_heat_vapor(param_set.TPS, T)
-    p_vs = TD.saturation_vapor_pressure(
-        param_set.TPS,
-        T,
-        TD.Liquid(),
-    )
+    p_vs = TD.saturation_vapor_pressure(param_set.TPS, T, TD.Liquid())
 
     return FT(1) /
            (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
 end
 function G_func(
-    param_set::CloudMicrophysicsParameters,
+    param_set::Union{CloudMicrophysicsParameters, AMPS},
     T::FT,
     ::TD.Ice,
-) where {FT <: Real}
+) where {FT <: Real, AMPS <: AbstractMicrophysicsParameters}
 
     K_therm = param_set.K_therm
     R_v = param_set.R_v
     D_vapor = param_set.D_vapor
 
     L = TD.latent_heat_sublim(param_set.TPS, T)
-    p_vs = TD.saturation_vapor_pressure(
-        param_set.TPS,
-        T,
-        TD.Ice(),
-    )
+    p_vs = TD.saturation_vapor_pressure(param_set.TPS, T, TD.Ice())
 
-    return FT(1) / (
-        L / _K_therm / T * (L / _R_v / T - FT(1)) + _R_v * T / _D_vapor / p_vs
-    )
+    return FT(1) /
+           (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
 end
 
 

@@ -4,7 +4,7 @@ using Test
 ### read parameters needed for tests
 using TOML
 parameter_parse = TOML.parsefile(joinpath(@__DIR__, "parameters.toml"))
-param_dict = Dict{String, Any}()
+param_dict = Dict{String, Float64}()
 for (key, val) in parameter_parse
     # In the future - we will use the full names,
     # param_dict[key] = val["value"]
@@ -35,8 +35,10 @@ const CP_micro_0M = CLIMAParameters.Atmos.Microphysics_0M
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set_cpp = EarthParameterSet()
 
-using Thermodynamics
-
+import Thermodynamics.ThermodynamicsParameters
+import CloudMicrophysics.Microphysics_0M_Parameters
+import CloudMicrophysics.Microphysics_1M_Parameters
+import CloudMicrophysics.CloudMicrophysicsParameters
 
 @testset "parameter read tests" begin
 
@@ -60,24 +62,60 @@ using Thermodynamics
     end
 
     #check new local implementation agrees with CP
-    param_set_by_alias =
-        Thermodynamics.ThermodynamicsParameters(full_parameter_set)
-    for fn in fieldnames(typeof(param_set_by_alias))
-        v = getfield(param_set_by_alias, fn)
-        if ~(String(fn) in universal_constant_aliases)
-            try
-                cp_fn = getfield(CP_planet, fn)
-            catch
-                try
-                    cp_fn = getfield(CP_micro, fn)
-                catch
-                    cp_fn = getfield(CP_micro_0M, fn)
+    # first the microphysics schemes
+    param_set_0M = Microphysics_0M_Parameters(full_parameter_set)
+    param_set_1M = Microphysics_1M_Parameters(
+        full_parameter_set,
+        ThermodynamicsParameters(full_parameter_set),
+    )
+    for param_set_by_alias in (param_set_0M, param_set_1M)
+        for fn in fieldnames(typeof(param_set_by_alias))
+            if ~(fn in [:TPS]) #avoid the TPS argument
+                v = getfield(param_set_by_alias, fn)
+                if ~(String(fn) in universal_constant_aliases)
+                    try
+                        cp_fn = getfield(CP_planet, fn)
+                    catch
+                        try
+                            cp_fn = getfield(CP_micro, fn)
+                        catch
+                            cp_fn = getfield(CP_micro_0M, fn)
+                        end
+                    end
+                    @test (v ≈ cp_fn(param_set_cpp))
+                else
+                    cp_fn = getfield(CP, fn)
+                    @test (v ≈ cp_fn())
                 end
             end
-            @test (v ≈ cp_fn(param_set_cpp))
-        else
-            cp_fn = getfield(CP, fn)
-            @test (v ≈ cp_fn())
         end
     end
+
+    param_set_CM = CloudMicrophysicsParameters(
+        full_parameter_set,
+        Microphysics_0M_Parameters(full_parameter_set),
+        ThermodynamicsParameters(full_parameter_set),
+    )
+    for fn in fieldnames(typeof(param_set_CM))
+        if ~(fn in [:TPS, :MPS])
+            v = getfield(param_set_CM, fn)
+            if ~(String(fn) in universal_constant_aliases)
+                try
+                    cp_fn = getfield(CP_planet, fn)
+                catch
+                    try
+                        cp_fn = getfield(CP_micro, fn)
+                    catch
+                        cp_fn = getfield(CP_micro_0M, fn)
+                    end
+                end
+                @test (v ≈ cp_fn(param_set_cpp))
+            else
+                cp_fn = getfield(CP, fn)
+                @test (v ≈ cp_fn())
+            end
+        end
+    end
+
+
 end

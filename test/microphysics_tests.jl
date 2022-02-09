@@ -16,20 +16,17 @@ const CM1 = CloudMicrophysics.Microphysics_1M
 
 
 # build the parameter sets
-param_set_0M = CloudMicrophysicsParameters(
-    src_parameter_dict,
-    Microphysics_0M_Parameters(src_parameter_dict),
-    ThermodynamicsParameters(src_parameter_dict),
-)
+param_therm = ThermodynamicsParameters(src_parameter_dict)
+param_0M = Microphysics_0M_Parameters(src_parameter_dict)
+param_1M = Microphysics_1M_Parameters(src_parameter_dict, param_therm)
 
-param_set_1M = CloudMicrophysicsParameters(
-    src_parameter_dict,
-    Microphysics_1M_Parameters(src_parameter_dict),
-    ThermodynamicsParameters(src_parameter_dict),
-)
+param_set_0M =
+    CloudMicrophysicsParameters(src_parameter_dict, param_0M, param_therm)
+param_set_1M =
+    CloudMicrophysicsParameters(src_parameter_dict, param_1M, param_therm)
 
 # we need the molmass ratio for testing - here just use the saved version
-test_parameter_dict = ("molmass_ratio" => param_set.molmass_ratio)
+test_parameter_dict = Dict("molmass_ratio" => param_set_0M.molmass_ratio)
 
 
 const liquid = CM1.LiquidType()
@@ -39,16 +36,16 @@ const snow = CM1.SnowType()
 
 TT.@testset "τ_relax" begin
 
-    TT.@test CM1.τ_relax(param_set.MPS, liquid) ≈ 10
-    TT.@test CM1.τ_relax(param_set.MPS, ice) ≈ 10
+    TT.@test CM1.τ_relax(param_set_1M.MPS, liquid) ≈ 10
+    TT.@test CM1.τ_relax(param_set_1M.MPS, ice) ≈ 10
 
 end
 
 TT.@testset "0M_microphysics" begin
-
-    τ_precip = param_set_0M.τ_precip
-    qc_0 = param_set_0M.qc_0
-    S_0 = param_set_0M.S_0
+    #these parameters are stored in 0M microphysics
+    τ_precip = param_set_0M.MPS.τ_precip
+    qc_0 = param_set_0M.MPS.qc_0
+    S_0 = param_set_0M.MPS.S_0
 
     q_vap_sat = 10e-3
     qc = 3e-3
@@ -147,9 +144,9 @@ TT.@testset "CloudIceCondEvap" begin
 end
 
 TT.@testset "RainAutoconversion" begin
-
-    q_liq_threshold = param_set_1M.q_liq_threshold
-    τ_acnv_rai = param_set_1M.τ_acnv_rai
+    #get parameters from Microphysics scheme
+    q_liq_threshold = param_set_1M.MPS.q_liq_threshold
+    τ_acnv_rai = param_set_1M.MPS.τ_acnv_rai
 
     q_liq_small = 0.5 * q_liq_threshold
     TT.@test CM1.conv_q_liq_to_q_rai(param_set_1M.MPS, q_liq_small) == 0.0
@@ -160,9 +157,9 @@ TT.@testset "RainAutoconversion" begin
 end
 
 TT.@testset "SnowAutoconversionNoSupersat" begin
-
-    q_ice_threshold = param_set_1M.q_ice_threshold
-    τ_acnv_sno = param_set_1M.τ_acnv_sno
+    #get parameters from Microphysics scheme
+    q_ice_threshold = param_set_1M.MPS.q_ice_threshold
+    τ_acnv_sno = param_set_1M.MPS.τ_acnv_sno
 
     q_ice_small = 0.5 * q_ice_threshold
     TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(

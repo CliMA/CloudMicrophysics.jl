@@ -213,7 +213,7 @@ function unpack_params(
     q_sno::FT,
 ) where {FT <: Real}
 
-    n0_sno = n0_sno(param_set, q_sno, ρ)
+    _n0_sno = n0_sno(param_set, q_sno, ρ)
     r0_sno = param_set.r0_sno
 
     m0_sno = param_set.m0_sno
@@ -231,7 +231,7 @@ function unpack_params(
     Δv_sno = param_set.Δv_sno
 
     return (
-        n0_sno,
+        _n0_sno,
         r0_sno,
         m0_sno,
         me_sno,
@@ -333,7 +333,7 @@ function terminal_velocity(
         fall_w =
             χv *
             v0 *
-            (λ * r0)^(-_ve - Δv) *
+            (λ * r0)^(-ve - Δv) *
             SF.gamma(me + ve + Δm + Δv + FT(1)) / SF.gamma(me + Δm + FT(1))
     end
 
@@ -438,13 +438,13 @@ function conv_q_ice_to_q_sno(
     T::FT,
 ) where {FT <: Real}
     acnv_rate = FT(0)
-    S::FT = TD.supersaturation(param_set, q, ρ, T, TD.Ice())
+    S::FT = TD.supersaturation(param_set.TPS, q, ρ, T, TD.Ice())
 
     if (q.ice > FT(0) && S > FT(0))
 
         G::FT = CO.G_func(param_set, T, TD.Ice())
 
-        r_ice_snow::FT = param_Set.r_ice_snow
+        r_ice_snow::FT = param_set.r_ice_snow
 
         (n0, r0, m0, me, χm, Δm) = unpack_params(param_set, IceType(), ρ, q.ice)
 
@@ -452,7 +452,7 @@ function conv_q_ice_to_q_sno(
 
         acnv_rate =
             4 * FT(π) * S * G * n0 / ρ *
-            exp(-_λ * r_ice_snow) *
+            exp(-λ * r_ice_snow) *
             (r_ice_snow^FT(2) / (me + Δm) + (r_ice_snow * λ + FT(1)) / λ^FT(2))
     end
     return acnv_rate
@@ -487,10 +487,10 @@ function accretion(
             unpack_params(param_set, precip, ρ, q_pre)
 
         λ::FT = lambda(q_pre, ρ, n0, m0, me, r0, χm, Δm)
-        E::FT = E(param_set, cloud, precip)
+        _E::FT = E(param_set, cloud, precip)
 
         accr_rate =
-            q_clo * E * n0 * a0 * v0 * χa * χv / λ *
+            q_clo * _E * n0 * a0 * v0 * χa * χv / λ *
             SF.gamma(ae + ve + Δa + Δv + FT(1)) / (λ * r0)^(ae + ve + Δa + Δv)
     end
     return accr_rate
@@ -537,7 +537,7 @@ function accretion_rain_sink(
             Δv_rai,
         ) = unpack_params(param_set, RainType(), ρ, q_rai)
 
-        E::FT = E(param_set, IceType(), RainType())
+        _E::FT = E(param_set, IceType(), RainType())
 
         λ_rai::FT =
             lambda(q_rai, ρ, n0_rai, m0_rai, me_rai, r0_rai, χm_rai, Δm_rai)
@@ -545,7 +545,7 @@ function accretion_rain_sink(
             lambda(q_ice, ρ, n0_ice, m0_ice, me_ice, r0_ice, χm_ice, Δm_ice)
 
         accr_rate =
-            E / ρ *
+            _E / ρ *
             n0_rai *
             n0_ice *
             m0_rai *
@@ -669,7 +669,7 @@ function evaporation_sublimation(
     T::FT,
 ) where {FT <: Real}
     evap_subl_rate = FT(0)
-    S::FT = TD.supersaturation(param_set, q, ρ, T, TD.Liquid())
+    S::FT = TD.supersaturation(param_set.TPS, q, ρ, T, TD.Liquid())
 
     if (q_rai > FT(0) && S < FT(0))
 
@@ -713,7 +713,7 @@ function evaporation_sublimation(
         ν_air = param_set.ν_air
         D_vapor = param_set.D_vapor
 
-        S::FT = TD.supersaturation(param_set, q, ρ, T, TD.Ice())
+        S::FT = TD.supersaturation(param_set.TPS, q, ρ, T, TD.Ice())
         G::FT = CO.G_func(param_set, T, TD.Ice())
 
         (n0, r0, m0, me, χm, Δm, a0, ae, χa, Δa, v0, ve, χv, Δv) =
@@ -760,7 +760,7 @@ function snow_melt(
         D_vapor::FT = param_set.D_vapor
         K_therm::FT = param_set.K_therm
 
-        L = TD.latent_heat_fusion(param_set, T)
+        L = TD.latent_heat_fusion(param_set.TPS, T)
 
         (n0, r0, m0, me, χm, Δm, a0, ae, χa, Δa, v0, ve, χv, Δv) =
             unpack_params(param_set, SnowType(), ρ, q_sno)
