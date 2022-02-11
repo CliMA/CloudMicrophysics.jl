@@ -30,7 +30,7 @@ param_set_1M =
 # we need the molmass ratio for testing - here just use the saved version
 test_parameter_dict = Dict("molmass_ratio" => param_set_0M.molmass_ratio)
 
-CLIMAParameters.write_log_file(micro_parameter_dict,"test_log_file.toml")
+CLIMAParameters.write_log_file(micro_parameter_dict, "test_log_file.toml")
 
 const liquid = CM1.LiquidType()
 const ice = CM1.IceType()
