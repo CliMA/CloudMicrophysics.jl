@@ -3,6 +3,8 @@ module CloudMicrophysics
 import Thermodynamics
 import Thermodynamics.ThermodynamicsParameters
 
+import CLIMAParameters
+
 #types of Microphysics
 abstract type AbstractMicrophysicsParameters end
 
@@ -13,11 +15,10 @@ struct Microphysics_0M_Parameters{FT} <: AbstractMicrophysicsParameters
     qc_0::FT
     S_0::FT
 end
-function Microphysics_0M_Parameters(param_set::Dict)
-    τ_precip = param_set["τ_precip"]
-    qc_0 = param_set["qc_0"]
-    S_0 = param_set["S_0"]
-    return Microphysics_0M_Parameters{valtype(param_set)}(τ_precip, qc_0, S_0)
+function Microphysics_0M_Parameters(param_set)
+    aliases = ["τ_precip","qc_0","S_0"]
+    (τ_precip, qc_0, S_0) = CLIMAParameters.get_parameter_values!(param_set,aliases, Microphysics_0M_Parameters)
+    return Microphysics_0M_Parameters{CLIMAParameters.get_parametric_type(param_set)}(τ_precip, qc_0, S_0)
 end
 
 
@@ -87,69 +88,32 @@ struct Microphysics_1M_Parameters{FT} <: AbstractMicrophysicsParameters
     TPS::ThermodynamicsParameters{FT}
 end
 function Microphysics_1M_Parameters(
-    param_set::Dict,
+    param_set,
     TPS::ThermodynamicsParameters{FT},
 ) where {FT}
-    C_drag = param_set["C_drag"]
-    K_therm = param_set["K_therm"]
-    D_vapor = param_set["D_vapor"]
-    ν_air = param_set["ν_air"]
+    
+    aliases = ["C_drag", "K_therm", "D_vapor", "ν_air", "τ_cond_evap",
+               "τ_sub_dep", "r_ice_snow", "n0_ice", "r0_ice", "me_ice",
+               "ρ_cloud_ice", "χm_ice", "Δm_ice", "q_liq_threshold",
+               "τ_acnv_rai", "a_vent_rai", "b_vent_rai", "n0_rai",
+               "r0_rai", "me_rai", "ae_rai", "ve_rai", "χm_rai", "Δm_rai",
+               "χa_rai", "Δa_rai", "χv_rai", "Δv_rai", "q_ice_threshold",
+               "τ_acnv_sno", "a_vent_sno", "b_vent_sno", "ν_sno", "μ_sno",
+               "r0_sno", "me_sno", "ae_sno", "ve_sno", "χm_sno", "Δm_sno",
+               "χa_sno", "Δa_sno", "χv_sno", "Δv_sno", "E_liq_rai", "E_liq_sno",
+               "E_ice_rai", "E_ice_sno", "E_rai_sno", "ρ_cloud_liq",
+               "ρ_cloud_ice", "grav", "T_freeze", "gas_constant", "molmass_water"] 
 
-    τ_cond_evap = param_set["τ_cond_evap"]
-    τ_sub_dep = param_set["τ_sub_dep"]
-    r_ice_snow = param_set["r_ice_snow"]
-    n0_ice = param_set["n0_ice"]
-    r0_ice = param_set["r0_ice"]
-    me_ice = param_set["me_ice"]
-    ρ_cloud_ice = param_set["ρ_cloud_ice"]
-    χm_ice = param_set["χm_ice"]
-    Δm_ice = param_set["Δm_ice"]
+    (C_drag, K_therm, D_vapor, ν_air, τ_cond_evap, τ_sub_dep,
+     r_ice_snow, n0_ice, r0_ice, me_ice, ρ_cloud_ice, χm_ice,
+     Δm_ice, q_liq_threshold, τ_acnv_rai, a_vent_rai, b_vent_rai,
+     n0_rai, r0_rai, me_rai, ae_rai, ve_rai, χm_rai, Δm_rai, χa_rai,
+     Δa_rai, χv_rai, Δv_rai, q_ice_threshold, τ_acnv_sno, a_vent_sno,
+     b_vent_sno, ν_sno, μ_sno, r0_sno, me_sno, ae_sno, ve_sno,
+     χm_sno, Δm_sno, χa_sno, Δa_sno, χv_sno, Δv_sno, E_liq_rai,
+     E_liq_sno, E_ice_rai, E_ice_sno, E_rai_sno, ρ_cloud_liq,
+     ρ_cloud_ice, grav, T_freeze, gas_constant, molmass_water) = CLIMAParameters.get_parameter_values!(param_set,aliases,Microphysics_1M_Parameters)
 
-    q_liq_threshold = param_set["q_liq_threshold"]
-    τ_acnv_rai = param_set["τ_acnv_rai"]
-    a_vent_rai = param_set["a_vent_rai"]
-    b_vent_rai = param_set["b_vent_rai"]
-    n0_rai = param_set["n0_rai"]
-    r0_rai = param_set["r0_rai"]
-    me_rai = param_set["me_rai"]
-    ae_rai = param_set["ae_rai"]
-    ve_rai = param_set["ve_rai"]
-    χm_rai = param_set["χm_rai"]
-    Δm_rai = param_set["Δm_rai"]
-    χa_rai = param_set["χa_rai"]
-    Δa_rai = param_set["Δa_rai"]
-    χv_rai = param_set["χv_rai"]
-    Δv_rai = param_set["Δv_rai"]
-
-    q_ice_threshold = param_set["q_ice_threshold"]
-    τ_acnv_sno = param_set["τ_acnv_sno"]
-    a_vent_sno = param_set["a_vent_sno"]
-    b_vent_sno = param_set["b_vent_sno"]
-    ν_sno = param_set["ν_sno"]
-    μ_sno = param_set["μ_sno"]
-    r0_sno = param_set["r0_sno"]
-    me_sno = param_set["me_sno"]
-    ae_sno = param_set["ae_sno"]
-    ve_sno = param_set["ve_sno"]
-    χm_sno = param_set["χm_sno"]
-    Δm_sno = param_set["Δm_sno"]
-    χa_sno = param_set["χa_sno"]
-    Δa_sno = param_set["Δa_sno"]
-    χv_sno = param_set["χv_sno"]
-    Δv_sno = param_set["Δv_sno"]
-
-    E_liq_rai = param_set["E_liq_rai"]
-    E_liq_sno = param_set["E_liq_sno"]
-    E_ice_rai = param_set["E_ice_rai"]
-    E_ice_sno = param_set["E_ice_sno"]
-    E_rai_sno = param_set["E_rai_sno"]
-
-    ρ_cloud_liq = param_set["ρ_cloud_liq"]
-    ρ_cloud_ice = param_set["ρ_cloud_ice"]
-    grav = param_set["grav"]
-    T_freeze = param_set["T_freeze"]
-    gas_constant = param_set["gas_constant"]
-    molmass_water = param_set["molmass_water"]
     #derived parameters
     N_Sc = ν_air / D_vapor
     m0_ice = 4 / 3 * π * ρ_cloud_ice * r0_ice^me_ice
@@ -161,7 +125,7 @@ function Microphysics_1M_Parameters(
     R_v = gas_constant / molmass_water
 
 
-    return Microphysics_1M_Parameters{valtype(param_set)}(
+    return Microphysics_1M_Parameters{CLIMAParameters.get_parametric_type(param_set)}(
         C_drag,
         K_therm,
         D_vapor,
@@ -255,24 +219,22 @@ end
 # )
 
 function CloudMicrophysicsParameters(
-    param_set::Dict,
+    param_set,
     MPS::AMPS,
     TPS::ThermodynamicsParameters{FT},
 ) where {FT, AMPS <: AbstractMicrophysicsParameters}
 
-    K_therm = param_set["K_therm"]
-    D_vapor = param_set["D_vapor"]
-    molmass_dryair = param_set["molmass_dryair"]
-    molmass_water = param_set["molmass_water"]
-    gas_constant = param_set["gas_constant"]
-    ρ_cloud_liq = param_set["ρ_cloud_liq"]
-    surface_tension_coeff = param_set["surface_tension_coeff"]
-    grav = param_set["grav"]
+    aliases = ["K_therm", "D_vapor", "molmass_dryair", "molmass_water",
+               "gas_constant", "ρ_cloud_liq", "surface_tension_coeff", "grav"]
+
+    (K_therm, D_vapor, molmass_dryair, molmass_water,
+     gas_constant,ρ_cloud_liq, surface_tension_coeff, grav) = CLIMAParameters.get_parameter_values!(param_set,aliases,CloudMicrophysicsParameters)
+    
     #derived parameters 
     molmass_ratio = molmass_dryair / molmass_water
     R_v = gas_constant / molmass_water
 
-    return CloudMicrophysicsParameters{valtype(param_set), AMPS}(
+    return CloudMicrophysicsParameters{CLIMAParameters.get_parametric_type(param_set), AMPS}(
         K_therm,
         D_vapor,
         molmass_dryair,
