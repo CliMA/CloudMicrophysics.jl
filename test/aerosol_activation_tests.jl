@@ -1,7 +1,11 @@
 import Test
 
 import CloudMicrophysics
+import CloudMicrophysics.CloudMicrophysicsParameters
+import CloudMicrophysics.NoMicrophysicsParameters
+
 import Thermodynamics
+import Thermodynamics.ThermodynamicsParameters
 
 const TT = Test
 const AM = CloudMicrophysics.AerosolModel
@@ -9,14 +13,15 @@ const AA = CloudMicrophysics.AerosolActivation
 const TD = Thermodynamics
 
 # build the parameter sets
-param_set = CloudMicrophysics.CloudMicrophysicsParameters(
-    src_parameter_dict,
-    CloudMicrophysics.NoMicrophysicsParameters(),
-    Thermodynamics.ThermodynamicsParameters(src_parameter_dict),
+param_set = CloudMicrophysicsParameters(
+    aerosol_parameter_dict,
+    NoMicrophysicsParameters(),
+    ThermodynamicsParameters(aerosol_parameter_dict),
 )
 
 # we need the molmass ratio for testing - here just use the saved version
 test_parameter_dict = Dict("molmass_ratio" => param_set.molmass_ratio)
+
 
 # Atmospheric conditions
 T = 294.0       # air temperature K

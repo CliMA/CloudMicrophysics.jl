@@ -21,19 +21,19 @@ import CloudMicrophysics.Microphysics_0M_Parameters
 import CloudMicrophysics.Microphysics_1M_Parameters
 
 # build the parameter sets
-param_therm = ThermodynamicsParameters(src_parameter_dict)
-param_0M = Microphysics_0M_Parameters(src_parameter_dict)
-param_1M = Microphysics_1M_Parameters(src_parameter_dict, param_therm)
+param_therm = ThermodynamicsParameters(gpu_parameter_dict)
+param_0M = Microphysics_0M_Parameters(gpu_parameter_dict)
+param_1M = Microphysics_1M_Parameters(gpu_parameter_dict, param_therm)
 
 param_set_noM = CloudMicrophysicsParameters(
-    src_parameter_dict,
+    gpu_parameter_dict,
     NoMicrophysicsParameters(),
     param_therm,
 )
 param_set_0M =
-    CloudMicrophysicsParameters(src_parameter_dict, param_0M, param_therm)
+    CloudMicrophysicsParameters(gpu_parameter_dict, param_0M, param_therm)
 param_set_1M =
-    CloudMicrophysicsParameters(src_parameter_dict, param_1M, param_therm)
+    CloudMicrophysicsParameters(gpu_parameter_dict, param_1M, param_therm)
 
 
 

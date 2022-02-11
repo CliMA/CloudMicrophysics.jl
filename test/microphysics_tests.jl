@@ -18,19 +18,19 @@ const CM1 = CloudMicrophysics.Microphysics_1M
 
 
 # build the parameter sets
-param_therm = ThermodynamicsParameters(src_parameter_dict)
-param_0M = Microphysics_0M_Parameters(src_parameter_dict)
-param_1M = Microphysics_1M_Parameters(src_parameter_dict, param_therm)
+param_therm = ThermodynamicsParameters(micro_parameter_dict)
+param_0M = Microphysics_0M_Parameters(micro_parameter_dict)
+param_1M = Microphysics_1M_Parameters(micro_parameter_dict, param_therm)
 
 param_set_0M =
-    CloudMicrophysicsParameters(src_parameter_dict, param_0M, param_therm)
+    CloudMicrophysicsParameters(micro_parameter_dict, param_0M, param_therm)
 param_set_1M =
-    CloudMicrophysicsParameters(src_parameter_dict, param_1M, param_therm)
+    CloudMicrophysicsParameters(micro_parameter_dict, param_1M, param_therm)
 
 # we need the molmass ratio for testing - here just use the saved version
 test_parameter_dict = Dict("molmass_ratio" => param_set_0M.molmass_ratio)
 
-CLIMAParameters.write_log_file(src_parameter_dict,"test_log_file.toml")
+CLIMAParameters.write_log_file(micro_parameter_dict,"test_log_file.toml")
 
 const liquid = CM1.LiquidType()
 const ice = CM1.IceType()
