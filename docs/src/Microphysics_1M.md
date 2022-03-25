@@ -17,8 +17,9 @@ The cloud microphysics variables are expressed as specific humidities:
 
 ## Assumed particle size relationships
 
-Particles are assumed to follow mass(radius), cross section(radius), and
-  terminal velocity(radius) relationships defined as power laws.
+Particles are assumed to follow power-law relationships involving the mass(radius),
+denoted by ``m(r)``, the cross section(radius), denoted by ``a(r)``, and the
+terminal velocity(radius), denoted by ``v_{term}(r)``, respectively.
 The coefficients are defined in the
   [CLIMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) package
   and are shown in the table below.
@@ -285,7 +286,6 @@ Integrating over the assumed Marshall-Palmer distribution and using the
 
     Assuming a constant drag coefficient is an approximation and it should
     be size and flow dependent.
-    <!-- [drag_coefficient](https://www.grc.nasa.gov/www/K-12/airplane/dragsphere.html) -->
     In general we should implement these terminal velocity parameterizations:
     [Khvorostyanov2002](@cite)
     or
