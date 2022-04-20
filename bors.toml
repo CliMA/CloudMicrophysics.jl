@@ -1,7 +1,4 @@
 status = [
-  "ci 1.5 - ubuntu-latest",
-  "ci 1.5 - windows-latest",
-  "ci 1.5 - macOS-latest",
   "ci 1.6.0 - ubuntu-latest",
   "ci 1.6.0 - windows-latest",
   "ci 1.6.0 - macOS-latest",
