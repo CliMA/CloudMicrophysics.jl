@@ -11,6 +11,7 @@ pages = Any[
     "0-moment microphysics" => "Microphysics_0M.md",
     "1-moment microphysics" => "Microphysics_1M.md",
     "Aerosol activation" => "Aerosol_activation.md",
+    "ARG2000 activation example" => "ARG2000_example.md",
     "API" => "API.md",
     "References" => "References.md",
 ]
