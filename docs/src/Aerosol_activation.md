@@ -259,7 +259,7 @@ where:
 
 ## Example figures
 
-```@example example_figures
+```@example
 import Plots
 
 import CloudMicrophysics
@@ -290,9 +290,9 @@ q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Abdul-Razzak and Ghan 2000 Figure 1 mode 1
 # https://doi.org/10.1029/1999JD901161
-r_dry_paper = 0.05 * 1e-6 # um
-stdev_paper = 2.0         # -
-N_1_paper = 100.0 * 1e6   # 1/m3
+r_dry = 0.05 * 1e-6 # um
+stdev = 2.0         # -
+N_1 = 100.0 * 1e6   # 1/m3
 
 # Sulfate - universal parameters
 M_sulfate = 0.132
@@ -301,101 +301,52 @@ M_sulfate = 0.132
 ν_sulfate = 3.0
 ϵ_sulfate = 1.0
 
-κ_sulfate = 0.53
-
+n_components_1 = 1
+mass_fractions_1 = (1.0,)
 paper_mode_1_B = AM.Mode_B(
-    r_dry_paper,
-    stdev_paper,
-    N_1_paper,
-    (1.0,),
+    r_dry,
+    stdev,
+    N_1,
+    mass_fractions_1,
     (ϵ_sulfate,),
     (ϕ_sulfate,),
     (M_sulfate,),
     (ν_sulfate,),
     (ρ_sulfate,),
-    1,
-)
-paper_mode_1_κ = AM.Mode_κ(
-    r_dry_paper,
-    stdev_paper,
-    N_1_paper,
-    (1.0,),
-    (1.0,),
-    (M_sulfate,),
-    (κ_sulfate,),
-    1,
+    n_components_1,
 )
 
 N_2_range = range(0, stop=5000 * 1e6, length=100)
 N_act_frac_B = Vector{Float64}(undef, 100)
-N_act_frac_κ = Vector{Float64}(undef, 100)
 
 it = 1
-for N_2_paper in N_2_range
-
+for N_2 in N_2_range
+        n_components_2 = 1
+        mass_fractions_2 = (1.0,)
         paper_mode_2_B = AM.Mode_B(
-          r_dry_paper,
-          stdev_paper,
-          N_2_paper,
-          (1.0,),
+          r_dry,
+          stdev,
+          N_2,
+          mass_fractions_2,
           (ϵ_sulfate,),
           (ϕ_sulfate,),
           (M_sulfate,),
           (ν_sulfate,),
           (ρ_sulfate,),
-          1,
+          n_components_2,
         )
-        paper_mode_2_κ = AM.Mode_κ(
-          r_dry_paper,
-          stdev_paper,
-          N_2_paper,
-          (1.0,),
-          (1.0,),
-          (M_sulfate,),
-          (κ_sulfate,),
-          1,
-        )
-
         AD_B =  AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
-        AD_κ =  AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
-
-        N_act_frac_B[it] = AA.N_activated_per_mode(param_set, AD_B, T, p, w, q)[1] / N_1_paper
-        N_act_frac_κ[it] = AA.N_activated_per_mode(param_set, AD_κ, T, p, w, q)[1] / N_1_paper
-
+        N_act_frac_B[it] = AA.N_activated_per_mode(param_set, AD_B, T, p, w, q)[1] / N_1
         global it += 1
 end
 
 # data read from Fig 1 in Abdul-Razzak and Ghan 2000
 # using https://automeris.io/WebPlotDigitizer/
-N_2_obs = [18.74716810149539, 110.41572270049846, 416.00589034889026, 918.1014952424102, 1914.816492976891, 4919.913910285455]
-N_act_obs = [0.7926937018577255, 0.7161078386950611, 0.5953670140462167, 0.4850589034888989, 0.34446080652469424, 0.162630267331219]
-N_2_paper_param = [54.6839601268689, 72.69483461712753, 109.48119619392855, 127.7469415496148, 155.44290892614436, 183.2238332578163,
-                   220.2650657000454, 275.8269143633893, 312.86814680561884, 368.5999093792484, 433.50702310829183, 554.4007702763934,
-                   628.9080199365658, 693.9850475758949, 740.5414589941097, 787.0129134571821, 852.3448119619393, 917.4218396012684,
-                   973.3235160851837, 1047.915722700498, 1103.8173991844137, 1178.2396918894428, 1234.1413683733576,1280.7827367467153,
-                   1364.5502945174449,1467.1782963298592,1513.734707748075, 1560.2911191662893, 1709.5604893520617, 1765.547122791119,
-                   1849.4845944721342, 1989.408699592207, 2092.0367014046215, 2157.3685999093796, 2222.7004984141367, 2297.292705029451,
-                   2353.364295423651, 2456.07725419121, 2549.2750339827826, 2605.26166742184, 2689.199139102854, 2810.6026280018123,
-                   2997.3380154055285, 3099.8810602628, 3221.2845491617572, 3314.6522428636154, 3389.2444494789315, 3463.9216130493887,
-                   3566.634571816946, 3650.657000453103, 3762.5453103760756, 3827.9621658359765, 3911.814680561849, 3995.922066153149,
-                   4126.585863162664, 4247.904395106479, 4322.496601721793, 4397.258722247395, 4490.54145899411, 4574.563887630267,
-                   4667.9315813321255, 4835.891481649297]
-N_act_paper_param = [0.7307884005437245, 0.7016538287267784, 0.676110104213865, 0.657884005437245, 0.643271409152696, 0.6322949705482556,
-                     0.6176597190756684, 0.5957068418667876, 0.5810715903942004, 0.5663910285455369, 0.5444154961486181, 0.5186678749433621,
-                     0.5075781603987314, 0.49287494336202997, 0.48548935206162214, 0.4744676030811056, 0.47067285908473044, 0.45596964204802903,
-                     0.4485613955595833, 0.4411078386950612, 0.43369959220661536, 0.41897371998187594, 0.4115654734934301, 0.4078160398731311,
-                     0.39306751246035343, 0.3855459900317173, 0.37816039873130947, 0.37077480743090174, 0.3595038513819666, 0.3557317625736294,
-                     0.3482555505210695, 0.33700724966017237, 0.32948572723153613, 0.325690983235161, 0.32189623923878585, 0.31444268237426376,
-                     0.31430675124603535, 0.31042138649750806, 0.2992863615768011, 0.2955142727684641, 0.2880380607159041, 0.28410738559130055,
-                     0.27638196647032176, 0.265224286361577, 0.2612936112369735, 0.25743090167648397, 0.249977344811962, 0.24615994562754873,
-                     0.24227458087902143, 0.23843452650657015, 0.22725419120978696, 0.22709560489352065, 0.21598323516085194, 0.21577933846850939,
-                     0.2081898504757591, 0.20062301767104684, 0.19316946080652464, 0.19298821930222032, 0.1854893520616221, 0.18164929768917082,
-                     0.17778658812868153, 0.16647032170367027]
+include("ARGdata.jl")
 
 PL.plot(N_2_range * 1e-6, N_act_frac_B, label="CliMA-B", xlabel="Mode 2 aerosol number concentration [1/cm3]", ylabel="Mode 1 number fraction activated")
-PL.plot!(N_2_range * 1e-6, N_act_frac_κ, label="CliMA-kappa")
-PL.plot!(N_2_paper_param, N_act_paper_param, label="paper parameterization")
-PL.scatter!(N_2_obs, N_act_obs, label="paper observations")
+PL.scatter!(Fig1_x_obs, Fig1_y_obs, markercolor = :black, label="paper observations")
+PL.plot!(Fig1_x_param, Fig1_y_param, linecolor = :black, label="paper parameterization")
 
 PL.savefig("Abdul-Razzak_and_Ghan_fig_1.svg")
 ```
