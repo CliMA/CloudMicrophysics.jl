@@ -1,6 +1,6 @@
-# Microphysics_0M
+# Microphysics 0M
 
-The `Microphysics_0M.jl` module defines a 0-moment bulk parameterization of
+The `Microphysics0M.jl` module defines a 0-moment bulk parameterization of
   the moisture sink due to precipitation.
 It offers a simplified way of removing the excess water
   without assuming anything about the size distributions of cloud
