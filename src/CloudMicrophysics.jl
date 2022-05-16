@@ -20,7 +20,7 @@ function Microphysics_0M_Parameters(param_set)
     (τ_precip, qc_0, S_0) = CLIMAParameters.get_parameter_values!(
         param_set,
         aliases,
-        "Microphysics_0M_Parameters",
+        "Microphysics_0M",
     )
     return Microphysics_0M_Parameters{
         CLIMAParameters.get_parametric_type(param_set),
@@ -219,7 +219,7 @@ function Microphysics_1M_Parameters(
     ) = CLIMAParameters.get_parameter_values!(
         param_set,
         aliases,
-        "Microphysics_1M_Parameters",
+        "Microphysics_1M",
     )
 
     #derived parameters
@@ -357,7 +357,7 @@ function CloudMicrophysicsParameters(
     ) = CLIMAParameters.get_parameter_values!(
         param_set,
         aliases,
-        "CloudMicrophysicsParameters",
+        "CloudMicrophysics",
     )
 
     #derived parameters 
