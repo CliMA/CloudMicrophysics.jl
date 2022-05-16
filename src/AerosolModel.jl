@@ -8,8 +8,8 @@
 """
 module AerosolModel
 
-import CloudMicrophysics
-const CT = CloudMicrophysics.CommonTypes
+import ..CommonTypes
+const CT = CommonTypes
 
 export Mode_B
 export Mode_κ

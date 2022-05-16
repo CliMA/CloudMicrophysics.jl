@@ -7,13 +7,17 @@
 module MicrophysicsNonEq
 
 import Thermodynamics
-import CloudMicrophysics
-import CLIMAParameters
-
 const TD = Thermodynamics
-const CT = CloudMicrophysics.CommonTypes
-const CP_ne = CLIMAParameters.Atmos.Microphysics
-const APS = CLIMAParameters.AbstractParameterSet
+
+import CLIMAParameters
+const CP = CLIMAParameters
+const APS = CP.AbstractParameterSet
+
+import ..CommonTypes
+const CT = CommonTypes
+
+import ..InternalClimaParams
+const ICP = InternalClimaParams
 
 export τ_relax
 export conv_q_vap_to_q_liq_ice
@@ -32,12 +36,12 @@ deposition of cloud ice.
 """
 function τ_relax(param_set::APS, liquid::CT.LiquidType)
 
-    _τ_relax = CP_ne.τ_cond_evap(param_set)
+    _τ_relax = ICP.τ_cond_evap(param_set)
     return _τ_relax
 end
 function τ_relax(param_set::APS, ice::CT.IceType)
 
-    _τ_relax = CP_ne.τ_sub_dep(param_set)
+    _τ_relax = ICP.τ_sub_dep(param_set)
     return _τ_relax
 end
 

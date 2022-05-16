@@ -10,19 +10,26 @@
 module AerosolActivation
 
 import SpecialFunctions
+const SF = SpecialFunctions
 
 import Thermodynamics
-import CloudMicrophysics
-import CLIMAParameters
-
-const SF = SpecialFunctions
 const TD = Thermodynamics
-const AM = CloudMicrophysics.AerosolModel
-const CO = CloudMicrophysics.Common
-const CT = CloudMicrophysics.CommonTypes
+
+import CLIMAParameters
 const CP = CLIMAParameters
-const CP_planet = CLIMAParameters.Planet
 const APS = CP.AbstractParameterSet
+
+import ..InternalClimaParams
+const ICP = InternalClimaParams
+
+import ..CommonTypes
+const CT = CommonTypes
+
+import ..Common
+const CO = Common
+
+import ..AerosolModel
+const AM = AerosolModel
 
 export mean_hygroscopicity_parameter
 export max_supersaturation
@@ -43,10 +50,10 @@ Returns a curvature coefficient.
 """
 function coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
 
-    _molmass_water::FT = CP_planet.molmass_water(param_set)
-    _gas_constant::FT = CP.gas_constant()
-    _ρ_cloud_liq::FT = CP_planet.ρ_cloud_liq(param_set)
-    _surface_tension::FT = CP_planet.surface_tension_coeff(param_set)
+    _molmass_water::FT = ICP.molmass_water(param_set)
+    _gas_constant::FT = ICP.gas_constant()
+    _ρ_cloud_liq::FT = ICP.ρ_cloud_liq(param_set)
+    _surface_tension::FT = ICP.surface_tension_coeff(param_set)
 
     return 2 * _surface_tension * _molmass_water / _ρ_cloud_liq /
            _gas_constant / T
@@ -70,8 +77,8 @@ function mean_hygroscopicity_parameter(
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_B}
 
-    _molmass_water = CP_planet.molmass_water(param_set)
-    _ρ_cloud_liq = CP_planet.ρ_cloud_liq(param_set)
+    _molmass_water = ICP.molmass_water(param_set)
+    _ρ_cloud_liq = ICP.ρ_cloud_liq(param_set)
 
     return ntuple(length(ad.Modes)) do i
 
@@ -150,10 +157,10 @@ function max_supersaturation(
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    _grav::FT = CP_planet.grav(param_set)
-    _ρ_cloud_liq::FT = CP_planet.ρ_cloud_liq(param_set)
+    _grav::FT = ICP.grav(param_set)
+    _ρ_cloud_liq::FT = ICP.ρ_cloud_liq(param_set)
 
-    ϵ::FT = 1 / CP_planet.molmass_ratio(param_set)
+    _ϵ::FT = 1 / ICP.molmass_ratio(param_set)
     R_m::FT = TD.gas_constant_air(param_set, q)
     cp_m::FT = TD.cp_m(param_set, q)
 
@@ -163,8 +170,8 @@ function max_supersaturation(
 
     # eq 11, 12 in Razzak et al 1998
     # but following eq 10 from Rogers 1975
-    α::FT = L * _grav * ϵ / R_m / cp_m / T^2 - _grav / R_m / T
-    γ::FT = R_m * T / ϵ / p_vs + ϵ * L^2 / cp_m / T / p
+    α::FT = L * _grav * _ϵ / R_m / cp_m / T^2 - _grav / R_m / T
+    γ::FT = R_m * T / _ϵ / p_vs + _ϵ * L^2 / cp_m / T / p
 
     A::FT = coeff_of_curvature(param_set, T)
     ζ::FT = 2 * A / 3 * sqrt(α * w / G)

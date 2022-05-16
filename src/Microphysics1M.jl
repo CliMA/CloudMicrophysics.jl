@@ -10,30 +10,32 @@
 module Microphysics1M
 
 import SpecialFunctions
+const SF = SpecialFunctions
 
 import Thermodynamics
-import CloudMicrophysics
-import CLIMAParameters
-
-const SF = SpecialFunctions
 const TD = Thermodynamics
-const CO = CloudMicrophysics.Common
-const CT = CloudMicrophysics.CommonTypes
+
+import CLIMAParameters
 const CP = CLIMAParameters
-const CP_planet = CLIMAParameters.Planet
-const CP_1M = CLIMAParameters.Atmos.Microphysics
 const APS = CP.AbstractParameterSet
 
+import ..CommonTypes
+const CT = CommonTypes
+
+import ..Common
+const CO = Common
+
+import ..InternalClimaParams
+const ICP = InternalClimaParams
+
 E(param_set::APS, ::CT.LiquidType, ::CT.RainType) =
-    CP_1M.E_liq_rai(param_set::APS)
+    ICP.E_liq_rai(param_set::APS)
 E(param_set::APS, ::CT.LiquidType, ::CT.SnowType) =
-    CP_1M.E_liq_sno(param_set::APS)
-E(param_set::APS, ::CT.IceType, ::CT.RainType) = CP_1M.E_ice_rai(param_set::APS)
-E(param_set::APS, ::CT.IceType, ::CT.SnowType) = CP_1M.E_ice_sno(param_set::APS)
-E(param_set::APS, ::CT.RainType, ::CT.SnowType) =
-    CP_1M.E_rai_sno(param_set::APS)
-E(param_set::APS, ::CT.SnowType, ::CT.RainType) =
-    CP_1M.E_rai_sno(param_set::APS)
+    ICP.E_liq_sno(param_set::APS)
+E(param_set::APS, ::CT.IceType, ::CT.RainType) = ICP.E_ice_rai(param_set::APS)
+E(param_set::APS, ::CT.IceType, ::CT.SnowType) = ICP.E_ice_sno(param_set::APS)
+E(param_set::APS, ::CT.RainType, ::CT.SnowType) = ICP.E_rai_sno(param_set::APS)
+E(param_set::APS, ::CT.SnowType, ::CT.RainType) = ICP.E_rai_sno(param_set::APS)
 
 export terminal_velocity
 
@@ -57,10 +59,10 @@ Returns the proportionality coefficient in terminal velocity(r/r0).
 """
 function v0_rai(param_set::APS, ρ::FT) where {FT <: Real}
 
-    _ρ_cloud_liq::FT = CP_planet.ρ_cloud_liq(param_set)
-    _C_drag::FT = CP_1M.C_drag(param_set)
-    _grav::FT = CP_planet.grav(param_set)
-    _r0_rai::FT = CP_1M.r0_rai(param_set)
+    _ρ_cloud_liq::FT = ICP.ρ_cloud_liq(param_set)
+    _C_drag::FT = ICP.C_drag(param_set)
+    _grav::FT = ICP.grav(param_set)
+    _r0_rai::FT = ICP.r0_rai(param_set)
 
     return sqrt(
         FT(8 / 3) / _C_drag * (_ρ_cloud_liq / ρ - FT(1)) * _grav * _r0_rai,
@@ -79,8 +81,8 @@ snow particles.
 """
 function n0_sno(param_set::APS, q_sno::FT, ρ::FT) where {FT <: Real}
 
-    _ν_sno::FT = CP_1M.ν_sno(param_set)
-    _μ_sno::FT = CP_1M.μ_sno(param_set)
+    _ν_sno::FT = ICP.ν_sno(param_set)
+    _μ_sno::FT = ICP.μ_sno(param_set)
 
     # TODO               this max should be replaced by
     #                    limiting inside a PhasePartition struct for
@@ -105,14 +107,14 @@ function unpack_params(
     q_ice::FT,
 ) where {FT <: Real}
     #TODO - make ρ and q_ice optional
-    _n0_ice::FT = CP_1M.n0_ice(param_set)
-    _r0_ice::FT = CP_1M.r0_ice(param_set)
+    _n0_ice::FT = ICP.n0_ice(param_set)
+    _r0_ice::FT = ICP.r0_ice(param_set)
 
-    _m0_ice::FT = CP_1M.m0_ice(param_set)
-    _me_ice::FT = CP_1M.me_ice(param_set)
+    _m0_ice::FT = ICP.m0_ice(param_set)
+    _me_ice::FT = ICP.me_ice(param_set)
 
-    _χm_ice::FT = CP_1M.χm_ice(param_set)
-    _Δm_ice::FT = CP_1M.Δm_ice(param_set)
+    _χm_ice::FT = ICP.χm_ice(param_set)
+    _Δm_ice::FT = ICP.Δm_ice(param_set)
 
     return (_n0_ice, _r0_ice, _m0_ice, _me_ice, _χm_ice, _Δm_ice)
 end
@@ -123,22 +125,22 @@ function unpack_params(
     q_rai::FT,
 ) where {FT <: Real}
     #TODO - make q_rai optional
-    _n0_rai::FT = CP_1M.n0_rai(param_set)
-    _r0_rai::FT = CP_1M.r0_rai(param_set)
+    _n0_rai::FT = ICP.n0_rai(param_set)
+    _r0_rai::FT = ICP.r0_rai(param_set)
 
-    _m0_rai::FT = CP_1M.m0_rai(param_set)
-    _me_rai::FT = CP_1M.me_rai(param_set)
-    _a0_rai::FT = CP_1M.a0_rai(param_set)
-    _ae_rai::FT = CP_1M.ae_rai(param_set)
+    _m0_rai::FT = ICP.m0_rai(param_set)
+    _me_rai::FT = ICP.me_rai(param_set)
+    _a0_rai::FT = ICP.a0_rai(param_set)
+    _ae_rai::FT = ICP.ae_rai(param_set)
     _v0_rai::FT = v0_rai(param_set, ρ)
-    _ve_rai::FT = CP_1M.ve_rai(param_set)
+    _ve_rai::FT = ICP.ve_rai(param_set)
 
-    _χm_rai::FT = CP_1M.χm_rai(param_set)
-    _Δm_rai::FT = CP_1M.Δm_rai(param_set)
-    _χa_rai::FT = CP_1M.χa_rai(param_set)
-    _Δa_rai::FT = CP_1M.Δa_rai(param_set)
-    _χv_rai::FT = CP_1M.χv_rai(param_set)
-    _Δv_rai::FT = CP_1M.Δv_rai(param_set)
+    _χm_rai::FT = ICP.χm_rai(param_set)
+    _Δm_rai::FT = ICP.Δm_rai(param_set)
+    _χa_rai::FT = ICP.χa_rai(param_set)
+    _Δa_rai::FT = ICP.Δa_rai(param_set)
+    _χv_rai::FT = ICP.χv_rai(param_set)
+    _Δv_rai::FT = ICP.Δv_rai(param_set)
 
     return (
         _n0_rai,
@@ -165,21 +167,21 @@ function unpack_params(
 ) where {FT <: Real}
 
     _n0_sno::FT = n0_sno(param_set, q_sno, ρ)
-    _r0_sno::FT = CP_1M.r0_sno(param_set)
+    _r0_sno::FT = ICP.r0_sno(param_set)
 
-    _m0_sno::FT = CP_1M.m0_sno(param_set)
-    _me_sno::FT = CP_1M.me_sno(param_set)
-    _a0_sno::FT = CP_1M.a0_sno(param_set)
-    _ae_sno::FT = CP_1M.ae_sno(param_set)
-    _v0_sno::FT = CP_1M.v0_sno(param_set)
-    _ve_sno::FT = CP_1M.ve_sno(param_set)
+    _m0_sno::FT = ICP.m0_sno(param_set)
+    _me_sno::FT = ICP.me_sno(param_set)
+    _a0_sno::FT = ICP.a0_sno(param_set)
+    _ae_sno::FT = ICP.ae_sno(param_set)
+    _v0_sno::FT = ICP.v0_sno(param_set)
+    _ve_sno::FT = ICP.ve_sno(param_set)
 
-    _χm_sno::FT = CP_1M.χm_sno(param_set)
-    _Δm_sno::FT = CP_1M.Δm_sno(param_set)
-    _χa_sno::FT = CP_1M.χa_sno(param_set)
-    _Δa_sno::FT = CP_1M.Δa_sno(param_set)
-    _χv_sno::FT = CP_1M.χv_sno(param_set)
-    _Δv_sno::FT = CP_1M.Δv_sno(param_set)
+    _χm_sno::FT = ICP.χm_sno(param_set)
+    _Δm_sno::FT = ICP.Δm_sno(param_set)
+    _χa_sno::FT = ICP.χa_sno(param_set)
+    _Δa_sno::FT = ICP.Δa_sno(param_set)
+    _χv_sno::FT = ICP.χv_sno(param_set)
+    _Δv_sno::FT = ICP.Δv_sno(param_set)
 
     return (
         _n0_sno,
@@ -280,8 +282,8 @@ Returns the q_rai tendency due to collisions between cloud droplets
 """
 function conv_q_liq_to_q_rai(param_set::APS, q_liq::FT) where {FT <: Real}
 
-    _τ_acnv_rai::FT = CP_1M.τ_acnv_rai(param_set)
-    _q_liq_threshold::FT = CP_1M.q_liq_threshold(param_set)
+    _τ_acnv_rai::FT = ICP.τ_acnv_rai(param_set)
+    _q_liq_threshold::FT = ICP.q_liq_threshold(param_set)
 
     return max(0, q_liq - _q_liq_threshold) / _τ_acnv_rai
 end
@@ -302,8 +304,8 @@ function conv_q_ice_to_q_sno_no_supersat(
     q_ice::FT,
 ) where {FT <: Real}
 
-    _τ_acnv_sno::FT = CP_1M.τ_acnv_sno(param_set)
-    _q_ice_threshold::FT = CP_1M.q_ice_threshold(param_set)
+    _τ_acnv_sno::FT = ICP.τ_acnv_sno(param_set)
+    _q_ice_threshold::FT = ICP.q_ice_threshold(param_set)
 
     return max(0, q_ice - _q_ice_threshold) / _τ_acnv_sno
 end
@@ -332,7 +334,7 @@ function conv_q_ice_to_q_sno(
 
         _G::FT = CO.G_func(param_set, T, TD.Ice())
 
-        _r_ice_snow::FT = CP_1M.r_ice_snow(param_set)
+        _r_ice_snow::FT = ICP.r_ice_snow(param_set)
 
         (_n0, _r0, _m0, _me, _χm, _Δm) =
             unpack_params(param_set, CT.IceType(), ρ, q.ice)
@@ -594,10 +596,10 @@ function evaporation_sublimation(
 
     if (q_rai > FT(0) && _S < FT(0))
 
-        _a_vent::FT = CP_1M.a_vent_rai(param_set)
-        _b_vent::FT = CP_1M.b_vent_rai(param_set)
-        _ν_air::FT = CP_1M.ν_air(param_set)
-        _D_vapor::FT = CP_1M.D_vapor(param_set)
+        _a_vent::FT = ICP.a_vent_rai(param_set)
+        _b_vent::FT = ICP.b_vent_rai(param_set)
+        _ν_air::FT = ICP.ν_air(param_set)
+        _D_vapor::FT = ICP.D_vapor(param_set)
 
         _G::FT = CO.G_func(param_set, T, TD.Liquid())
 
@@ -629,10 +631,10 @@ function evaporation_sublimation(
     evap_subl_rate = FT(0)
     if q_sno > FT(0)
 
-        _a_vent::FT = CP_1M.a_vent_sno(param_set)
-        _b_vent::FT = CP_1M.b_vent_sno(param_set)
-        _ν_air::FT = CP_1M.ν_air(param_set)
-        _D_vapor::FT = CP_1M.D_vapor(param_set)
+        _a_vent::FT = ICP.a_vent_sno(param_set)
+        _b_vent::FT = ICP.b_vent_sno(param_set)
+        _ν_air::FT = ICP.ν_air(param_set)
+        _D_vapor::FT = ICP.D_vapor(param_set)
 
         _S::FT = TD.supersaturation(param_set, q, ρ, T, TD.Ice())
         _G::FT = CO.G_func(param_set, T, TD.Ice())
@@ -666,15 +668,15 @@ Returns the tendency due to snow melt.
 function snow_melt(param_set::APS, q_sno::FT, ρ::FT, T::FT) where {FT <: Real}
 
     snow_melt_rate = FT(0)
-    _T_freeze = CP_planet.T_freeze(param_set)
+    _T_freeze::FT = ICP.T_freeze(param_set)
 
     if (q_sno > FT(0) && T > _T_freeze)
 
-        _a_vent::FT = CP_1M.a_vent_sno(param_set)
-        _b_vent::FT = CP_1M.b_vent_sno(param_set)
-        _ν_air::FT = CP_1M.ν_air(param_set)
-        _D_vapor::FT = CP_1M.D_vapor(param_set)
-        _K_therm::FT = CP_1M.K_therm(param_set)
+        _a_vent::FT = ICP.a_vent_sno(param_set)
+        _b_vent::FT = ICP.b_vent_sno(param_set)
+        _ν_air::FT = ICP.ν_air(param_set)
+        _D_vapor::FT = ICP.D_vapor(param_set)
+        _K_therm::FT = ICP.K_therm(param_set)
 
         L = TD.latent_heat_fusion(param_set, T)
 
