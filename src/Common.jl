@@ -7,7 +7,7 @@ import Thermodynamics
 const TD = Thermodynamics
 
 import CloudMicrophysics.CloudMicrophysicsParameters
-import CloudMicrophysics.AbstractMicrophysicsParameters
+import CloudMicrophysics.AbstractPrecipitationParameters
 
 export G_func
 
@@ -22,10 +22,10 @@ export G_func
 Utility function combining thermal conductivity and vapor diffusivity effects.
 """
 function G_func(
-    param_set::Union{CloudMicrophysicsParameters, AMPS},
+    param_set::Union{CloudMicrophysicsParameters, APPS},
     T::FT,
     ::TD.Liquid,
-) where {FT <: Real, AMPS <: AbstractMicrophysicsParameters}
+) where {FT <: Real, APPS <: AbstractPrecipitationParameters}
 
     K_therm = param_set.K_therm
     R_v = param_set.R_v
@@ -38,10 +38,10 @@ function G_func(
            (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
 end
 function G_func(
-    param_set::Union{CloudMicrophysicsParameters, AMPS},
+    param_set::Union{CloudMicrophysicsParameters, APPS},
     T::FT,
     ::TD.Ice,
-) where {FT <: Real, AMPS <: AbstractMicrophysicsParameters}
+) where {FT <: Real, APPS <: AbstractPrecipitationParameters}
 
     K_therm = param_set.K_therm
     R_v = param_set.R_v

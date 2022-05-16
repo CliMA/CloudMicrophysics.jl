@@ -6,14 +6,13 @@
     terminal velocity.
 
 """
-module Microphysics_0M
+module Microphysics0M
 
 import Thermodynamics
 
 const TD = Thermodynamics
 
 import CloudMicrophysics.Microphysics_0M_Parameters
-
 
 export remove_precipitation
 
@@ -54,6 +53,4 @@ function remove_precipitation(
     return -max(0, (q.liq + q.ice - S_0 * q_vap_sat)) / τ_precip
 end
 
-
-
-end #module Microphysics_0M.jl
+end #module Microphysics0M.jl

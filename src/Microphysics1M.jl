@@ -2,16 +2,15 @@
     One-moment bulk microphysics scheme, which includes:
 
   - terminal velocity of precipitation
-  - condensation and evaporation of cloud liquid water and
-    deposition and sublimation of cloud ice (relaxation to equilibrium)
   - autoconversion of cloud liquid water into rain and of cloud ice into snow
   - accretion due to collisions between categories of condensed species
   - evaporation and sublimation of hydrometeors
   - melting of snow into rain
 """
-module Microphysics_1M
+module Microphysics1M
 
 import SpecialFunctions
+const SF = SpecialFunctions
 
 import Thermodynamics
 import CloudMicrophysics
@@ -22,67 +21,20 @@ const CO = CloudMicrophysics.Common
 
 import CloudMicrophysics.Microphysics_1M_Parameters
 
-# Additional type hierarchy to dispatch over for some microphysics parameters
-"""
-    AbstractCloudType
+import ..CommonTypes
+const CT = CommonTypes
 
-The top-level super-type for cloud liquid water and cloud ice types
-"""
-abstract type AbstractCloudType end
+import ..Common
+const CO = Common
 
-"""
-    AbstractPrecipType
-
-The top-level super-type for precipitation types (rain and snow)
-"""
-abstract type AbstractPrecipType end
-
-"""
-    LiquidType
-
-The type for cloud liquid water condensate
-"""
-struct LiquidType <: AbstractCloudType end
-
-"""
-    IceType
-
-The type for cloud ice condensate
-"""
-struct IceType <: AbstractCloudType end
-
-"""
-    RainType
-
-The type for rain
-"""
-struct RainType <: AbstractPrecipType end
-
-"""
-    SnowType
-
-The type for snow
-"""
-struct SnowType <: AbstractPrecipType end
-
-E(param_set::Microphysics_1M_Parameters, ::LiquidType, ::RainType) =
-    param_set.E_liq_rai
-E(param_set::Microphysics_1M_Parameters, ::LiquidType, ::SnowType) =
-    param_set.E_liq_sno
-E(param_set::Microphysics_1M_Parameters, ::IceType, ::RainType) =
-    param_set.E_ice_rai
-E(param_set::Microphysics_1M_Parameters, ::IceType, ::SnowType) =
-    param_set.E_ice_sno
-E(param_set::Microphysics_1M_Parameters, ::RainType, ::SnowType) =
-    param_set.E_rai_sno
-E(param_set::Microphysics_1M_Parameters, ::SnowType, ::RainType) =
-    param_set.E_rai_sno
-
-export τ_relax
+E(param_set::Microphysics_1M_Parameters, ::CT.LiquidType, ::CT.RainType) = param_set.E_liq_rai
+E(param_set::Microphysics_1M_Parameters, ::CT.LiquidType, ::CT.SnowType) = param_set.E_liq_sno
+E(param_set::Microphysics_1M_Parameters, ::CT.IceType, ::CT.RainType) = param_set.E_ice_rai
+E(param_set::Microphysics_1M_Parameters, ::CT.IceType, ::CT.SnowType) = param_set.E_ice_sno
+E(param_set::Microphysics_1M_Parameters, ::CT.RainType, ::CT.SnowType) = param_set.E_rai_sno
+E(param_set::Microphysics_1M_Parameters, ::CT.SnowType, ::CT.RainType) = param_set.E_rai_sno
 
 export terminal_velocity
-
-export conv_q_vap_to_q_liq_ice
 
 export conv_q_liq_to_q_rai
 export conv_q_ice_to_q_sno
@@ -149,7 +101,7 @@ Utility function that unpacks microphysics parameters.
 """
 function unpack_params(
     param_set::Microphysics_1M_Parameters,
-    ice::IceType,
+    ice::CT.IceType,
     ρ::FT,
     q_ice::FT,
 ) where {FT <: Real}
@@ -167,7 +119,7 @@ function unpack_params(
 end
 function unpack_params(
     param_set::Microphysics_1M_Parameters,
-    rain::RainType,
+    rain::CT.RainType,
     ρ::FT,
     q_rai::FT,
 ) where {FT <: Real}
@@ -208,7 +160,7 @@ function unpack_params(
 end
 function unpack_params(
     param_set::Microphysics_1M_Parameters,
-    snow::SnowType,
+    snow::CT.SnowType,
     ρ::FT,
     q_sno::FT,
 ) where {FT <: Real}
@@ -283,29 +235,7 @@ function lambda(
 end
 
 """
-    τ_relax(param_set, liquid)
-    τ_relax(param_set, ice)
 
- - `param_set` - abstract set with Earth parameters
- - `liquid` - a type for cloud liquid water
- - `ice` - a type for cloud ice
-
-Returns the relaxation timescale for condensation and evaporation of
-cloud liquid water or the relaxation timescale for sublimation and
-deposition of cloud ice.
-"""
-function τ_relax(param_set::Microphysics_1M_Parameters, liquid::LiquidType)
-
-    τ_relax = param_set.τ_cond_evap
-    return τ_relax
-end
-function τ_relax(param_set::Microphysics_1M_Parameters, ice::IceType)
-
-    τ_relax = param_set.τ_sub_dep
-    return τ_relax
-end
-
-"""
     terminal_velocity(param_set, precip, ρ, q_)
 
  - `param_set` - abstract set with Earth parameters
@@ -318,7 +248,7 @@ a Marshall-Palmer (1948) distribution of rain drops and snow crystals.
 """
 function terminal_velocity(
     param_set::Microphysics_1M_Parameters,
-    precip::AbstractPrecipType,
+    precip::CT.AbstractPrecipType,
     ρ::FT,
     q_::FT,
 ) where {FT <: Real}
@@ -341,44 +271,7 @@ function terminal_velocity(
 end
 
 """
-    conv_q_vap_to_q_liq_ice(param_set, liquid, q_sat, q)
-    conv_q_vap_to_q_liq_ice(param_set, ice, q_sat, q)
 
- - `param_set` - abstract set with Earth parameters
- - `liquid` - a type for cloud water
- - `ice` - a type for cloud ice
- - `q_sat` - PhasePartition at equilibrium
- - `q` - current PhasePartition
-
-Returns the cloud water tendency due to condensation and evaporation
-or cloud ice tendency due to sublimation and vapor deposition.
-The tendency is obtained assuming a relaxation to equilibrium with
-a constant timescale.
-"""
-function conv_q_vap_to_q_liq_ice(
-    param_set::Microphysics_1M_Parameters,
-    liquid::LiquidType,
-    q_sat::TD.PhasePartition{FT},
-    q::TD.PhasePartition{FT},
-) where {FT <: Real}
-
-    τ_cond_evap::FT = τ_relax(param_set, liquid)
-
-    return (q_sat.liq - q.liq) / τ_cond_evap
-end
-function conv_q_vap_to_q_liq_ice(
-    param_set::Microphysics_1M_Parameters,
-    ice::IceType,
-    q_sat::TD.PhasePartition{FT},
-    q::TD.PhasePartition{FT},
-) where {FT <: Real}
-
-    τ_sub_dep::FT = τ_relax(param_set, ice)
-
-    return (q_sat.ice - q.ice) / τ_sub_dep
-end
-
-"""
     conv_q_liq_to_q_rai(param_set, q_liq)
 
  - `param_set` - abstract set with Earth parameters
@@ -446,7 +339,7 @@ function conv_q_ice_to_q_sno(
 
         r_ice_snow::FT = param_set.r_ice_snow
 
-        (n0, r0, m0, me, χm, Δm) = unpack_params(param_set, IceType(), ρ, q.ice)
+        (n0, r0, m0, me, χm, Δm) = unpack_params(param_set, CT.IceType(), ρ, q.ice)
 
         λ::FT = lambda(q.ice, ρ, n0, m0, me, r0, χm, Δm)
 
@@ -473,8 +366,8 @@ due to collisions with cloud water (liquid or ice).
 """
 function accretion(
     param_set::Microphysics_1M_Parameters,
-    cloud::AbstractCloudType,
-    precip::AbstractPrecipType,
+    cloud::CT.AbstractCloudType,
+    precip::CT.AbstractPrecipType,
     q_clo::FT,
     q_pre::FT,
     ρ::FT,
@@ -518,7 +411,7 @@ function accretion_rain_sink(
     if (q_ice > FT(0) && q_rai > FT(0))
 
         (n0_ice, r0_ice, m0_ice, me_ice, χm_ice, Δm_ice) =
-            unpack_params(param_set, IceType(), ρ, q_ice)
+            unpack_params(param_set, CT.IceType(), ρ, q_ice)
 
         (
             n0_rai,
@@ -535,9 +428,9 @@ function accretion_rain_sink(
             ve_rai,
             χv_rai,
             Δv_rai,
-        ) = unpack_params(param_set, RainType(), ρ, q_rai)
+        ) = unpack_params(param_set, CT.RainType(), ρ, q_rai)
 
-        _E::FT = E(param_set, IceType(), RainType())
+        _E::FT = E(param_set, CT.IceType(), CT.RainType())
 
         λ_rai::FT =
             lambda(q_rai, ρ, n0_rai, m0_rai, me_rai, r0_rai, χm_rai, Δm_rai)
@@ -581,8 +474,8 @@ snow at temperatures below freezing and in rain at temperatures above freezing.
 """
 function accretion_snow_rain(
     param_set::Microphysics_1M_Parameters,
-    type_i::AbstractPrecipType,
-    type_j::AbstractPrecipType,
+    type_i::CT.AbstractPrecipType,
+    type_j::CT.AbstractPrecipType,
     q_i::FT,
     q_j::FT,
     ρ::FT,
@@ -662,7 +555,7 @@ Returns the tendency due to rain evaporation or snow sublimation.
 """
 function evaporation_sublimation(
     param_set::Microphysics_1M_Parameters,
-    rain::RainType,
+    rain::CT.RainType,
     q::TD.PhasePartition{FT},
     q_rai::FT,
     ρ::FT,
@@ -699,7 +592,7 @@ function evaporation_sublimation(
 end
 function evaporation_sublimation(
     param_set::Microphysics_1M_Parameters,
-    snow::SnowType,
+    snow::CT.SnowType,
     q::TD.PhasePartition{FT},
     q_sno::FT,
     ρ::FT,
@@ -763,7 +656,7 @@ function snow_melt(
         L = TD.latent_heat_fusion(param_set.TPS, T)
 
         (n0, r0, m0, me, χm, Δm, a0, ae, χa, Δa, v0, ve, χv, Δv) =
-            unpack_params(param_set, SnowType(), ρ, q_sno)
+            unpack_params(param_set, CT.SnowType(), ρ, q_sno)
         λ::FT = lambda(q_sno, ρ, n0, m0, me, r0, χm, Δm)
 
         snow_melt_rate =
@@ -778,4 +671,4 @@ function snow_melt(
     return snow_melt_rate
 end
 
-end #module Microphysics_1M.jl
+end #module Microphysics1M.jl

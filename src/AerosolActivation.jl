@@ -10,16 +10,22 @@
 module AerosolActivation
 
 import SpecialFunctions
+const SF = SpecialFunctions
 
 import Thermodynamics
-import CloudMicrophysics
 
-const SF = SpecialFunctions
 const TD = Thermodynamics
-const AM = CloudMicrophysics.AerosolModel
-const CO = CloudMicrophysics.Common
 
 import CloudMicrophysics.CloudMicrophysicsParameters
+
+import ..CommonTypes
+const CT = CommonTypes
+
+import ..Common
+const CO = Common
+
+import ..AerosolModel
+const AM = AerosolModel
 
 export mean_hygroscopicity_parameter
 export max_supersaturation
@@ -116,7 +122,7 @@ Returns a tuple of critical supersaturations
 """
 function critical_supersaturation(
     param_set::CloudMicrophysicsParameters,
-    ad::AM.AbstractAerosolDistribution,
+    ad::CT.AbstractAerosolDistribution,
     T::FT,
 ) where {FT <: Real}
 
@@ -142,7 +148,7 @@ Returns the maximum supersaturation.
 """
 function max_supersaturation(
     param_set::CloudMicrophysicsParameters,
-    ad::AM.AbstractAerosolDistribution,
+    ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -200,7 +206,7 @@ in each aerosol size distribution mode.
 """
 function N_activated_per_mode(
     param_set::CloudMicrophysicsParameters,
-    ad::AM.AbstractAerosolDistribution,
+    ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -234,7 +240,7 @@ per mode of the aerosol size distribution.
 """
 function M_activated_per_mode(
     param_set::CloudMicrophysicsParameters,
-    ad::AM.AbstractAerosolDistribution,
+    ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -273,7 +279,7 @@ Returns the total number of activated aerosol particles.
 """
 function total_N_activated(
     param_set::CloudMicrophysicsParameters,
-    ad::AM.AbstractAerosolDistribution,
+    ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
@@ -298,7 +304,7 @@ Returns the total mass of activated aerosol particles.
 """
 function total_M_activated(
     param_set::CloudMicrophysicsParameters,
-    ad::AM.AbstractAerosolDistribution,
+    ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,

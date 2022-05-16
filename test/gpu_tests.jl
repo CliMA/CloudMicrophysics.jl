@@ -5,7 +5,7 @@ using CUDAKernels
 import CloudMicrophysics
 import Thermodynamics
 
-const CM = CloudMicrophysics
+const CP = CLIMAParameters
 const TD = Thermodynamics
 
 #import CLIMAParameters
@@ -19,34 +19,37 @@ import CloudMicrophysics.CloudMicrophysicsParameters
 import CloudMicrophysics.NoMicrophysicsParameters
 import CloudMicrophysics.Microphysics_0M_Parameters
 import CloudMicrophysics.Microphysics_1M_Parameters
+import CloudMicrophysics.NonEqMoistureParameters
 
 # build the parameter sets
-param_therm = ThermodynamicsParameters(gpu_parameter_dict)
-param_0M = Microphysics_0M_Parameters(gpu_parameter_dict)
-param_1M = Microphysics_1M_Parameters(gpu_parameter_dict, param_therm)
+param_therm = ThermodynamicsParameters(gpu_parameter_dict) # TPS
+param_0M = Microphysics_0M_Parameters(gpu_parameter_dict) # PPS
+param_1M = Microphysics_1M_Parameters(gpu_parameter_dict, param_therm) # PPS
+param_noneq = NonEqMoistureParameters(gpu_parameter_dict) # MPS
 
 param_set_noM = CloudMicrophysicsParameters(
     gpu_parameter_dict,
     NoMicrophysicsParameters(),
+    param_noneq,
     param_therm,
 )
 param_set_0M =
-    CloudMicrophysicsParameters(gpu_parameter_dict, param_0M, param_therm)
+    CloudMicrophysicsParameters(gpu_parameter_dict, param_0M, param_noneq, param_therm)
 param_set_1M =
-    CloudMicrophysicsParameters(gpu_parameter_dict, param_1M, param_therm)
+    CloudMicrophysicsParameters(gpu_parameter_dict, param_1M, param_noneq, param_therm)
 
 
 
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
-const CM0 = CloudMicrophysics.Microphysics_0M
-const CM1 = CloudMicrophysics.Microphysics_1M
-#const CP0 = CLIMAParameters.Atmos.Microphysics_0M
+const CMT = CloudMicrophysics.CommonTypes
+const CM0 = CloudMicrophysics.Microphysics0M
+const CM1 = CloudMicrophysics.Microphysics1M
 
-const liquid = CM.Microphysics_1M.LiquidType()
-const ice = CM.Microphysics_1M.IceType()
-const rain = CM.Microphysics_1M.RainType()
-const snow = CM.Microphysics_1M.SnowType()
+const liquid = CMT.LiquidType()
+const ice = CMT.IceType()
+const rain = CMT.RainType()
+const snow = CMT.SnowType()
 
 if get(ARGS, 1, "Array") == "CuArray"
     using CUDA
@@ -146,10 +149,10 @@ end
         qi::FT = (1 - liquid_frac[i]) * qc[i]
         q = TD.PhasePartition(FT(qt[i]), ql, qi)
 
-        output[1, i] = CM0.remove_precipitation(param_set.MPS, q)
+        output[1, i] = CM0.remove_precipitation(param_set.PPS, q)
 
-        τ_precip = param_set.MPS.τ_precip
-        qc_0 = param_set.MPS.qc_0
+        τ_precip = param_set.PPS.τ_precip
+        qc_0 = param_set.PPS.qc_0
 
         output[2, i] = -max(0, ql + qi - qc_0) / τ_precip
     end
@@ -170,17 +173,17 @@ end
 
     @inbounds begin
         output[1, i] =
-            CM1.accretion(param_set.MPS, liquid, rain, ql[i], qr[i], ρ[i])
+            CM1.accretion(param_set.PPS, liquid, rain, ql[i], qr[i], ρ[i])
         output[2, i] =
-            CM1.accretion(param_set.MPS, ice, snow, qi[i], qs[i], ρ[i])
+            CM1.accretion(param_set.PPS, ice, snow, qi[i], qs[i], ρ[i])
         output[3, i] =
-            CM1.accretion(param_set.MPS, liquid, snow, ql[i], qs[i], ρ[i])
+            CM1.accretion(param_set.PPS, liquid, snow, ql[i], qs[i], ρ[i])
         output[4, i] =
-            CM1.accretion(param_set.MPS, ice, rain, qi[i], qr[i], ρ[i])
+            CM1.accretion(param_set.PPS, ice, rain, qi[i], qr[i], ρ[i])
         output[5, i] =
-            CM1.accretion_rain_sink(param_set.MPS, qi[i], qr[i], ρ[i])
+            CM1.accretion_rain_sink(param_set.PPS, qi[i], qr[i], ρ[i])
         output[6, i] = CM1.accretion_snow_rain(
-            param_set.MPS,
+            param_set.PPS,
             snow,
             rain,
             qs[i],
@@ -188,7 +191,7 @@ end
             ρ[i],
         )
         output[7, i] = CM1.accretion_snow_rain(
-            param_set.MPS,
+            param_set.PPS,
             rain,
             snow,
             qr[i],
@@ -209,7 +212,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = CM1.snow_melt(param_set.MPS, qs[i], ρ[i], T[i])
+        output[i] = CM1.snow_melt(param_set.PPS, qs[i], ρ[i], T[i])
     end
 end
 

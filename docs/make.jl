@@ -8,19 +8,23 @@ bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
 
 pages = Any[
     "Home" => "index.md",
-    "0-moment microphysics" => "Microphysics_0M.md",
-    "1-moment microphysics" => "Microphysics_1M.md",
-    "Aerosol activation" => "Aerosol_activation.md",
+    "0-moment precipitation microphysics" => "Microphysics0M.md",
+    "1-moment precipitation microphysics" => "Microphysics1M.md",
+    "Non-equilibrium cloud formation" => "MicrophysicsNonEq.md",
+    "Aerosol activation" => "AerosolActivation.md",
+    "ARG2000 activation example" => "ARG2000_example.md",
     "API" => "API.md",
     "References" => "References.md",
 ]
 
-mathengine = MathJax(Dict(
-    :TeX => Dict(
-        :equationNumbers => Dict(:autoNumber => "AMS"),
-        :Macros => Dict(),
+mathengine = MathJax(
+    Dict(
+        :TeX => Dict(
+            :equationNumbers => Dict(:autoNumber => "AMS"),
+            :Macros => Dict(),
+        ),
     ),
-))
+)
 
 format = Documenter.HTML(
     prettyurls = get(ENV, "CI", nothing) == "true",

@@ -4,26 +4,50 @@ import Thermodynamics
 import Thermodynamics.ThermodynamicsParameters
 
 import CLIMAParameters
+const CP = CLIMAParameters
+
+#parameters for moisture Microphysics
+abstract type AbstractMoistureParameters end
+struct EqMoistureParameters <: AbstractMoistureParameters end # unused
+struct NonEqMoistureParameters{FT} <: AbstractMoistureParameters
+    τ_cond_evap::FT
+    τ_sub_dep::FT
+end
+function NonEqMoistureParameters(param_struct)
+    aliases = ["τ_cond_evap","τ_sub_dep"]
+    (τ_cond_evap,τ_sub_dep) = CP.get_parameter_values!(
+        param_struct,
+        aliases,
+        "NonEqMoisture",
+    )
+    return NonEqMoistureParameters{
+        CP.get_parametric_type(param_struct),
+    }(
+        τ_cond_evap,
+        τ_sub_dep,
+    )
+end
+    
 
 #types of Microphysics
-abstract type AbstractMicrophysicsParameters end
+abstract type AbstractPrecipitationParameters end
 
-struct NoMicrophysicsParameters <: AbstractMicrophysicsParameters end #just for testing
+struct NoMicrophysicsParameters <: AbstractPrecipitationParameters end #just for testing
 
-struct Microphysics_0M_Parameters{FT} <: AbstractMicrophysicsParameters
+struct Microphysics_0M_Parameters{FT} <: AbstractPrecipitationParameters
     τ_precip::FT
     qc_0::FT
     S_0::FT
 end
-function Microphysics_0M_Parameters(param_set)
+function Microphysics_0M_Parameters(param_struct)
     aliases = ["τ_precip", "qc_0", "S_0"]
-    (τ_precip, qc_0, S_0) = CLIMAParameters.get_parameter_values!(
-        param_set,
+    (τ_precip, qc_0, S_0) = CP.get_parameter_values!(
+        param_struct,
         aliases,
         "Microphysics_0M",
     )
     return Microphysics_0M_Parameters{
-        CLIMAParameters.get_parametric_type(param_set),
+        CP.get_parametric_type(param_struct),
     }(
         τ_precip,
         qc_0,
@@ -32,13 +56,11 @@ function Microphysics_0M_Parameters(param_set)
 end
 
 
-struct Microphysics_1M_Parameters{FT} <: AbstractMicrophysicsParameters
+struct Microphysics_1M_Parameters{FT} <: AbstractPrecipitationParameters
     C_drag::FT
     K_therm::FT
     D_vapor::FT
     ν_air::FT
-    τ_cond_evap::FT
-    τ_sub_dep::FT
     r_ice_snow::FT
     n0_ice::FT
     r0_ice::FT
@@ -98,7 +120,7 @@ struct Microphysics_1M_Parameters{FT} <: AbstractMicrophysicsParameters
     TPS::ThermodynamicsParameters{FT}
 end
 function Microphysics_1M_Parameters(
-    param_set,
+    param_struct,
     TPS::ThermodynamicsParameters{FT},
 ) where {FT}
 
@@ -107,8 +129,6 @@ function Microphysics_1M_Parameters(
         "K_therm",
         "D_vapor",
         "ν_air",
-        "τ_cond_evap",
-        "τ_sub_dep",
         "r_ice_snow",
         "n0_ice",
         "r0_ice",
@@ -165,8 +185,6 @@ function Microphysics_1M_Parameters(
         K_therm,
         D_vapor,
         ν_air,
-        τ_cond_evap,
-        τ_sub_dep,
         r_ice_snow,
         n0_ice,
         r0_ice,
@@ -216,8 +234,8 @@ function Microphysics_1M_Parameters(
         T_freeze,
         gas_constant,
         molmass_water,
-    ) = CLIMAParameters.get_parameter_values!(
-        param_set,
+    ) = CP.get_parameter_values!(
+        param_struct,
         aliases,
         "Microphysics_1M",
     )
@@ -234,14 +252,12 @@ function Microphysics_1M_Parameters(
 
 
     return Microphysics_1M_Parameters{
-        CLIMAParameters.get_parametric_type(param_set),
+        CP.get_parametric_type(param_struct),
     }(
         C_drag,
         K_therm,
         D_vapor,
         ν_air,
-        τ_cond_evap,
-        τ_sub_dep,
         r_ice_snow,
         n0_ice,
         r0_ice,
@@ -306,7 +322,7 @@ end
 
 
 #General parameters outside of modular
-struct CloudMicrophysicsParameters{FT, AMPS <: AbstractMicrophysicsParameters}
+struct CloudMicrophysicsParameters{FT, APPS, AMPS}
     K_therm::FT
     D_vapor::FT
     molmass_dryair::FT
@@ -317,22 +333,26 @@ struct CloudMicrophysicsParameters{FT, AMPS <: AbstractMicrophysicsParameters}
     grav::FT
     molmass_ratio::FT
     R_v::FT
+    PPS::APPS
     MPS::AMPS
     TPS::ThermodynamicsParameters{FT}
 end
 
 # For example:
 # CloudMicrophysicsParameters(
-#     param_set,
-#     Microphysics_1M_Parameters(param_set),
-#     ThermodynamicsParameters(param_set)
+#     param_struct,
+#     Microphysics_1M_Parameters(param_struct),
+#     ThermodynamicsParameters(param_struct)
 # )
 
 function CloudMicrophysicsParameters(
-    param_set,
+    param_struct,
+    PPS::APPS,
     MPS::AMPS,
     TPS::ThermodynamicsParameters{FT},
-) where {FT, AMPS <: AbstractMicrophysicsParameters}
+) where {FT,
+         APPS <: AbstractPrecipitationParameters,
+         AMPS <: AbstractMoistureParameters}
 
     aliases = [
         "K_therm",
@@ -354,8 +374,8 @@ function CloudMicrophysicsParameters(
         ρ_cloud_liq,
         surface_tension_coeff,
         grav,
-    ) = CLIMAParameters.get_parameter_values!(
-        param_set,
+    ) = CP.get_parameter_values!(
+        param_struct,
         aliases,
         "CloudMicrophysics",
     )
@@ -365,7 +385,8 @@ function CloudMicrophysicsParameters(
     R_v = gas_constant / molmass_water
 
     return CloudMicrophysicsParameters{
-        CLIMAParameters.get_parametric_type(param_set),
+        CP.get_parametric_type(param_struct),
+        APPS,
         AMPS,
     }(
         K_therm,
@@ -378,16 +399,19 @@ function CloudMicrophysicsParameters(
         grav,
         molmass_ratio,
         R_v,
+        PPS,
         MPS,
         TPS,
     )
 
 end
 
+include("CommonTypes.jl")
 
 include("Common.jl")
-include("Microphysics_0M.jl")
-include("Microphysics_1M.jl")
+include("Microphysics0M.jl")
+include("Microphysics1M.jl")
+include("MicrophysicsNonEq.jl")
 include("AerosolModel.jl")
 include("AerosolActivation.jl")
 

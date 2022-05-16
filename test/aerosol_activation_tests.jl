@@ -3,6 +3,7 @@ import Test
 import CloudMicrophysics
 import CloudMicrophysics.CloudMicrophysicsParameters
 import CloudMicrophysics.NoMicrophysicsParameters
+import CloudMicrophysics.EqMoistureParameters
 
 import Thermodynamics
 import Thermodynamics.ThermodynamicsParameters
@@ -15,7 +16,8 @@ const TD = Thermodynamics
 # build the parameter sets
 param_set = CloudMicrophysicsParameters(
     aerosol_parameter_dict,
-    NoMicrophysicsParameters(),
+    NoMicrophysicsParameters(), #empty
+    EqMoistureParameters(), #empty
     ThermodynamicsParameters(aerosol_parameter_dict),
 )
 
@@ -180,11 +182,13 @@ end
 
 TT.@testset "B and kappa hygroscopicities are equivalent" begin
 
-    TT.@test all(isapprox(
-        AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2],
-        AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2],
-        rtol = 0.1,
-    ))
+    TT.@test all(
+        isapprox(
+            AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2],
+            AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2],
+            rtol = 0.1,
+        ),
+    )
 end
 
 TT.@testset "order of modes does not matter" begin
