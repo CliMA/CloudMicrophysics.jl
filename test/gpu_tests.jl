@@ -6,7 +6,6 @@ import CloudMicrophysics
 import CLIMAParameters
 import Thermodynamics
 
-const CM = CloudMicrophysics
 const CP = CLIMAParameters
 const TD = Thermodynamics
 
@@ -15,14 +14,15 @@ const prs = EarthParameterSet()
 
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
-const CM0 = CloudMicrophysics.Microphysics_0M
-const CM1 = CloudMicrophysics.Microphysics_1M
+const CMT = CloudMicrophysics.CommonTypes
+const CM0 = CloudMicrophysics.Microphysics0M
+const CM1 = CloudMicrophysics.Microphysics1M
 const CP0 = CLIMAParameters.Atmos.Microphysics_0M
 
-const liquid = CM.Microphysics_1M.LiquidType()
-const ice = CM.Microphysics_1M.IceType()
-const rain = CM.Microphysics_1M.RainType()
-const snow = CM.Microphysics_1M.SnowType()
+const liquid = CMT.LiquidType()
+const ice = CMT.IceType()
+const rain = CMT.RainType()
+const snow = CMT.SnowType()
 
 if get(ARGS, 1, "Array") == "CuArray"
     using CUDA

@@ -170,11 +170,13 @@ end
 
 TT.@testset "B and kappa hygroscopicities are equivalent" begin
 
-    TT.@test all(isapprox(
-        AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2],
-        AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2],
-        rtol = 0.1,
-    ))
+    TT.@test all(
+        isapprox(
+            AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2],
+            AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2],
+            rtol = 0.1,
+        ),
+    )
 end
 
 TT.@testset "order of modes does not matter" begin

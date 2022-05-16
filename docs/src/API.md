@@ -3,38 +3,38 @@ CurrentModule = CloudMicrophysics
 ```
 # .
 
-# 0-moment microphysics
+# Non-equilibrium cloud formation
 
 ```@docs
-Microphysics_0M
-Microphysics_0M.remove_precipitation
+MicrophysicsNonEq
+MicrophysicsNonEq.τ_relax
+MicrophysicsNonEq.conv_q_vap_to_q_liq_ice
 ```
 
-# 1-moment microphysics
+# 0-moment precipitation microphysics
 
 ```@docs
-Microphysics_1M
-Microphysics_1M.AbstractCloudType
-Microphysics_1M.AbstractPrecipType
-Microphysics_1M.LiquidType
-Microphysics_1M.IceType
-Microphysics_1M.RainType
-Microphysics_1M.SnowType
-Microphysics_1M.v0_rai
-Microphysics_1M.n0_sno
-Microphysics_1M.τ_relax
-Microphysics_1M.lambda
-Microphysics_1M.unpack_params
-Microphysics_1M.terminal_velocity
-Microphysics_1M.conv_q_vap_to_q_liq_ice
-Microphysics_1M.conv_q_liq_to_q_rai
-Microphysics_1M.conv_q_ice_to_q_sno_no_supersat
-Microphysics_1M.conv_q_ice_to_q_sno
-Microphysics_1M.accretion
-Microphysics_1M.accretion_rain_sink
-Microphysics_1M.accretion_snow_rain
-Microphysics_1M.evaporation_sublimation
-Microphysics_1M.snow_melt
+Microphysics0M
+Microphysics0M.remove_precipitation
+```
+
+# 1-moment precipitation microphysics
+
+```@docs
+Microphysics1M
+Microphysics1M.v0_rai
+Microphysics1M.n0_sno
+Microphysics1M.lambda
+Microphysics1M.unpack_params
+Microphysics1M.terminal_velocity
+Microphysics1M.conv_q_liq_to_q_rai
+Microphysics1M.conv_q_ice_to_q_sno_no_supersat
+Microphysics1M.conv_q_ice_to_q_sno
+Microphysics1M.accretion
+Microphysics1M.accretion_rain_sink
+Microphysics1M.accretion_snow_rain
+Microphysics1M.evaporation_sublimation
+Microphysics1M.snow_melt
 ```
 
 # Aerosol model
@@ -43,7 +43,6 @@ Microphysics_1M.snow_melt
 AerosolModel
 AerosolModel.Mode_B
 AerosolModel.Mode_κ
-AerosolModel.AbstractAerosolDistribution
 AerosolModel.AerosolDistribution
 ```
 
@@ -64,4 +63,17 @@ AerosolActivation.total_M_activated
 ```@docs
 Common
 Common.G_func
+```
+
+# Common utility types
+
+```@docs
+CommonTypes
+CommonTypes.AbstractAerosolDistribution
+CommonTypes.AbstractCloudType
+CommonTypes.AbstractPrecipType
+CommonTypes.LiquidType
+CommonTypes.IceType
+CommonTypes.RainType
+CommonTypes.SnowType
 ```

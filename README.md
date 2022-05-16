@@ -83,7 +83,7 @@ Below is a list of possible examples,
 
 - The CloudMicrophysics.jl package contains an aerosol activation parameterization
   that is an implementation of [Abdul-Razzak and Ghan 2000](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/1999JD901161).
-  In the [documentation](https://clima.github.io/CloudMicrophysics.jl/dev/Aerosol_activation/#Example-figures)
+  In the [documentation](https://clima.github.io/CloudMicrophysics.jl/dev/AerosolActivation/#Example-figures)
   we show we can reproduce the first figure from the original paper.
   It would be great to see how we compare with other tests and plots discussed in there.
   This is a good first issue to get used to the library and coding in Julia.

@@ -8,17 +8,11 @@
 """
 module AerosolModel
 
+import ..CommonTypes
+const CT = CommonTypes
+
 export Mode_B
 export Mode_κ
-
-export AbstractAerosolDistribution
-
-"""
-    AbstractAerosolDistribution
-
-The top-level super-type for all aerosol distribution types.
-"""
-abstract type AbstractAerosolDistribution{T} end
 
 """
     Mode_B
@@ -93,7 +87,7 @@ or of type Mode_κ (Petters and Kreidenweis 2007).
 
     AerosolDistribution(Modes::T)
 """
-struct AerosolDistribution{T} <: AbstractAerosolDistribution{T}
+struct AerosolDistribution{T} <: CT.AbstractAerosolDistribution{T}
 
     "tuple with all aerosol size distribution modes"
     Modes::T

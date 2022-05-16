@@ -6,8 +6,11 @@ import CLIMAParameters
 
 const TT = Test
 const TD = Thermodynamics
-const CM0 = CloudMicrophysics.Microphysics_0M
-const CM1 = CloudMicrophysics.Microphysics_1M
+const CMT = CloudMicrophysics.CommonTypes
+const CMNe = CloudMicrophysics.MicrophysicsNonEq
+const CM0 = CloudMicrophysics.Microphysics0M
+const CM1 = CloudMicrophysics.Microphysics1M
+
 const CP = CLIMAParameters
 const CP_planet = CLIMAParameters.Planet
 const CP_micro0 = CLIMAParameters.Atmos.Microphysics_0M
@@ -16,15 +19,15 @@ const CP_micro1 = CLIMAParameters.Atmos.Microphysics
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const prs = EarthParameterSet()
 
-const liquid = CM1.LiquidType()
-const ice = CM1.IceType()
-const rain = CM1.RainType()
-const snow = CM1.SnowType()
+const liquid = CMT.LiquidType()
+const ice = CMT.IceType()
+const rain = CMT.RainType()
+const snow = CMT.SnowType()
 
 TT.@testset "τ_relax" begin
 
-    TT.@test CM1.τ_relax(prs, liquid) ≈ 10
-    TT.@test CM1.τ_relax(prs, ice) ≈ 10
+    TT.@test CMNe.τ_relax(prs, liquid) ≈ 10
+    TT.@test CMNe.τ_relax(prs, ice) ≈ 10
 
 end
 
@@ -97,12 +100,12 @@ TT.@testset "CloudLiquidCondEvap" begin
     q_liq_sat = 5e-3
     frac = [0.0, 0.5, 1.0, 1.5]
 
-    _τ_cond_evap = CM1.τ_relax(prs, liquid)
+    _τ_cond_evap = CMNe.τ_relax(prs, liquid)
 
     for fr in frac
         q_liq = q_liq_sat * fr
 
-        TT.@test CM1.conv_q_vap_to_q_liq_ice(
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice(
             prs,
             liquid,
             TD.PhasePartition(0.0, q_liq_sat, 0.0),
@@ -116,12 +119,12 @@ TT.@testset "CloudIceCondEvap" begin
     q_ice_sat = 2e-3
     frac = [0.0, 0.5, 1.0, 1.5]
 
-    _τ_cond_evap = CM1.τ_relax(prs, ice)
+    _τ_cond_evap = CMNe.τ_relax(prs, ice)
 
     for fr in frac
         q_ice = q_ice_sat * fr
 
-        TT.@test CM1.conv_q_vap_to_q_liq_ice(
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice(
             prs,
             ice,
             TD.PhasePartition(0.0, 0.0, q_ice_sat),

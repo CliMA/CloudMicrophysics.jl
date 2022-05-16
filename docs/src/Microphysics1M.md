@@ -1,6 +1,6 @@
-# Microphysics
+# Microphysics 1M
 
-The `Microphysics_1M.jl` module describes a 1-moment bulk parameterization of
+The `Microphysics1M.jl` module describes a 1-moment bulk parameterization of
   cloud microphysical processes.
 The module is based on the ideas of
   [Kessler1995](@cite),
@@ -184,8 +184,6 @@ In other derivations cloud ice, similar to cloud liquid water,
 ## Parameterized processes
 
 Parameterized processes include:
-  - diffusion of water vapour on cloud droplets and cloud ice crystals
-    modeled as a relaxation to equilibrium,
   - autoconversion of rain and snow,
   - accretion,
   - evaporation of rain water,
@@ -201,8 +199,6 @@ They consist of:
 |    symbol                  |         definition                                        | units                    | default value          | reference |
 |----------------------------|-----------------------------------------------------------|--------------------------|------------------------|-----------|
 |``C_{drag}``                | rain drop drag coefficient                                | -                        | ``0.55``               | ``C_{drag}`` is such that the mass averaged terminal velocity is close to [Grabowski1996](@cite) |
-|``\tau_{cond\_evap}``       | cloud water condensation/evaporation timescale            | ``s``                    | ``10``                 |           |
-|``\tau_{dep\_sub}``         | cloud ice deposition/sublimation timescale                | ``s``                    | ``10``                 |           |
 |``\tau_{acnv\_rain}``       | cloud liquid to rain water autoconversion timescale       | ``s``                    | ``10^3``               | eq (5a) [Grabowski1996](@cite) |
 |``\tau_{acnv\_snow}``       | cloud ice to snow autoconversion timescale                | ``s``                    | ``10^2``               |           |
 |``q_{liq\_threshold}``      | cloud liquid to rain water autoconversion threshold       | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite) |
@@ -290,45 +286,6 @@ Integrating over the assumed Marshall-Palmer distribution and using the
     [Khvorostyanov2002](@cite)
     or
     [Karrer2020](@cite)
-
-## Cloud water condensation/evaporation
-
-Condensation and evaporation of cloud liquid water is parameterized
-  as a relaxation to equilibrium value at the current time step.
-```math
-\begin{equation}
-  \left. \frac{d \, q_{liq}}{dt} \right|_{cond, evap} =
-    \frac{q^{eq}_{liq} - q_{liq}}{\tau_{cond\_evap}}
-\end{equation}
-```
-where:
- - ``q^{eq}_{liq}`` - liquid water specific humidity in equilibrium,
- - ``q_{liq}`` - liquid water specific humidity,
- - ``\tau_{cond\_evap}`` - relaxation timescale.
-
-## Cloud ice deposition/sublimation
-
-Deposition and sublimation of cloud ice is parameterized as
-  a relaxation to equilibrium value at the current time step.
-```math
-\begin{equation}
-  \left. \frac{d \, q_{ice}}{dt} \right|_{dep, sub} =
-    \frac{q^{eq}_{ice} - q_{ice}}{\tau_{dep\_sub}}
-\end{equation}
-```
-where:
- - ``q^{eq}_{ice}`` - ice specific humidity in equilibrium,
- - ``q_{ice}`` - ice specific humidity,
- - ``\tau_{dep\_sub}`` - relaxation timescale.
-
-!!! note
-    Both ``\tau_{cond\_evap}`` and ``\tau_{dep\_sub}`` are
-    assumed constant here.
-    It would be great to make the relaxation time a function of
-    available condensation nuclei, turbulence intensity, etc.
-    See works by [prof Raymond Shaw](https://www.mtu.edu/physics/department/faculty/shaw/)
-    for hints.
-    In particular, [Desai2019](@cite).
 
 ## Rain autoconversion
 
@@ -705,7 +662,8 @@ import CloudMicrophysics
 import CLIMAParameters
 
 const PL = Plots
-const CM1 = CloudMicrophysics.Microphysics_1M
+const CMT = CloudMicrophysics.CommonTypes
+const CM1 = CloudMicrophysics.Microphysics1M
 const TD = Thermodynamics
 const CP = CLIMAParameters
 const CP_planet = CLIMAParameters.Planet
@@ -713,10 +671,10 @@ const CP_planet = CLIMAParameters.Planet
 struct EarthParameterSet <: CP.AbstractEarthParameterSet end
 const param_set = EarthParameterSet()
 
-const liquid = CM1.LiquidType()
-const ice = CM1.IceType()
-const rain = CM1.RainType()
-const snow = CM1.SnowType()
+const liquid = CMT.LiquidType()
+const ice = CMT.IceType()
+const rain = CMT.RainType()
+const snow = CMT.SnowType()
 
 # eq. 5d in [Grabowski1996](@cite)
 function terminal_velocity_empirical(q_rai::DT, q_tot::DT, ρ::DT, ρ_air_ground::DT) where {DT<:Real}
