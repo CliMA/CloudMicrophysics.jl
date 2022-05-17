@@ -17,14 +17,12 @@ pages = Any[
     "References" => "References.md",
 ]
 
-mathengine = MathJax(
-    Dict(
-        :TeX => Dict(
-            :equationNumbers => Dict(:autoNumber => "AMS"),
-            :Macros => Dict(),
-        ),
+mathengine = MathJax(Dict(
+    :TeX => Dict(
+        :equationNumbers => Dict(:autoNumber => "AMS"),
+        :Macros => Dict(),
     ),
-)
+),)
 
 format = Documenter.HTML(
     prettyurls = get(ENV, "CI", nothing) == "true",

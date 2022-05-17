@@ -27,12 +27,18 @@ const CT = CommonTypes
 import ..Common
 const CO = Common
 
-E(param_set::Microphysics_1M_Parameters, ::CT.LiquidType, ::CT.RainType) = param_set.E_liq_rai
-E(param_set::Microphysics_1M_Parameters, ::CT.LiquidType, ::CT.SnowType) = param_set.E_liq_sno
-E(param_set::Microphysics_1M_Parameters, ::CT.IceType, ::CT.RainType) = param_set.E_ice_rai
-E(param_set::Microphysics_1M_Parameters, ::CT.IceType, ::CT.SnowType) = param_set.E_ice_sno
-E(param_set::Microphysics_1M_Parameters, ::CT.RainType, ::CT.SnowType) = param_set.E_rai_sno
-E(param_set::Microphysics_1M_Parameters, ::CT.SnowType, ::CT.RainType) = param_set.E_rai_sno
+E(param_set::Microphysics_1M_Parameters, ::CT.LiquidType, ::CT.RainType) =
+    param_set.E_liq_rai
+E(param_set::Microphysics_1M_Parameters, ::CT.LiquidType, ::CT.SnowType) =
+    param_set.E_liq_sno
+E(param_set::Microphysics_1M_Parameters, ::CT.IceType, ::CT.RainType) =
+    param_set.E_ice_rai
+E(param_set::Microphysics_1M_Parameters, ::CT.IceType, ::CT.SnowType) =
+    param_set.E_ice_sno
+E(param_set::Microphysics_1M_Parameters, ::CT.RainType, ::CT.SnowType) =
+    param_set.E_rai_sno
+E(param_set::Microphysics_1M_Parameters, ::CT.SnowType, ::CT.RainType) =
+    param_set.E_rai_sno
 
 export terminal_velocity
 
@@ -339,7 +345,8 @@ function conv_q_ice_to_q_sno(
 
         r_ice_snow::FT = param_set.r_ice_snow
 
-        (n0, r0, m0, me, χm, Δm) = unpack_params(param_set, CT.IceType(), ρ, q.ice)
+        (n0, r0, m0, me, χm, Δm) =
+            unpack_params(param_set, CT.IceType(), ρ, q.ice)
 
         λ::FT = lambda(q.ice, ρ, n0, m0, me, r0, χm, Δm)
 

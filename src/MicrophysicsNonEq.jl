@@ -30,8 +30,10 @@ Returns the relaxation timescale for condensation and evaporation of
 cloud liquid water or the relaxation timescale for sublimation and
 deposition of cloud ice.
 """
-τ_relax(param_set::NonEqMoistureParameters, liquid::CT.LiquidType) = param_set.τ_cond_evap
-τ_relax(param_set::NonEqMoistureParameters, ice::CT.IceType) = param_set.τ_sub_dep
+τ_relax(param_set::NonEqMoistureParameters, liquid::CT.LiquidType) =
+    param_set.τ_cond_evap
+τ_relax(param_set::NonEqMoistureParameters, ice::CT.IceType) =
+    param_set.τ_sub_dep
 
 """
     conv_q_vap_to_q_liq_ice(param_set, liquid, q_sat, q)

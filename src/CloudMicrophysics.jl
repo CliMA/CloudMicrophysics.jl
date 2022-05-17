@@ -14,20 +14,15 @@ struct NonEqMoistureParameters{FT} <: AbstractMoistureParameters
     τ_sub_dep::FT
 end
 function NonEqMoistureParameters(param_struct)
-    aliases = ["τ_cond_evap","τ_sub_dep"]
-    (τ_cond_evap,τ_sub_dep) = CP.get_parameter_values!(
-        param_struct,
-        aliases,
-        "NonEqMoisture",
-    )
-    return NonEqMoistureParameters{
-        CP.get_parametric_type(param_struct),
-    }(
+    aliases = ["τ_cond_evap", "τ_sub_dep"]
+    (τ_cond_evap, τ_sub_dep) =
+        CP.get_parameter_values!(param_struct, aliases, "NonEqMoisture")
+    return NonEqMoistureParameters{CP.get_parametric_type(param_struct)}(
         τ_cond_evap,
         τ_sub_dep,
     )
 end
-    
+
 
 #types of Microphysics
 abstract type AbstractPrecipitationParameters end
@@ -41,14 +36,9 @@ struct Microphysics_0M_Parameters{FT} <: AbstractPrecipitationParameters
 end
 function Microphysics_0M_Parameters(param_struct)
     aliases = ["τ_precip", "qc_0", "S_0"]
-    (τ_precip, qc_0, S_0) = CP.get_parameter_values!(
-        param_struct,
-        aliases,
-        "Microphysics_0M",
-    )
-    return Microphysics_0M_Parameters{
-        CP.get_parametric_type(param_struct),
-    }(
+    (τ_precip, qc_0, S_0) =
+        CP.get_parameter_values!(param_struct, aliases, "Microphysics_0M")
+    return Microphysics_0M_Parameters{CP.get_parametric_type(param_struct)}(
         τ_precip,
         qc_0,
         S_0,
@@ -234,11 +224,7 @@ function Microphysics_1M_Parameters(
         T_freeze,
         gas_constant,
         molmass_water,
-    ) = CP.get_parameter_values!(
-        param_struct,
-        aliases,
-        "Microphysics_1M",
-    )
+    ) = CP.get_parameter_values!(param_struct, aliases, "Microphysics_1M")
 
     #derived parameters
     N_Sc = ν_air / D_vapor
@@ -251,9 +237,7 @@ function Microphysics_1M_Parameters(
     R_v = gas_constant / molmass_water
 
 
-    return Microphysics_1M_Parameters{
-        CP.get_parametric_type(param_struct),
-    }(
+    return Microphysics_1M_Parameters{CP.get_parametric_type(param_struct)}(
         C_drag,
         K_therm,
         D_vapor,
@@ -350,9 +334,11 @@ function CloudMicrophysicsParameters(
     PPS::APPS,
     MPS::AMPS,
     TPS::ThermodynamicsParameters{FT},
-) where {FT,
-         APPS <: AbstractPrecipitationParameters,
-         AMPS <: AbstractMoistureParameters}
+) where {
+    FT,
+    APPS <: AbstractPrecipitationParameters,
+    AMPS <: AbstractMoistureParameters,
+}
 
     aliases = [
         "K_therm",
@@ -374,11 +360,7 @@ function CloudMicrophysicsParameters(
         ρ_cloud_liq,
         surface_tension_coeff,
         grav,
-    ) = CP.get_parameter_values!(
-        param_struct,
-        aliases,
-        "CloudMicrophysics",
-    )
+    ) = CP.get_parameter_values!(param_struct, aliases, "CloudMicrophysics")
 
     #derived parameters 
     molmass_ratio = molmass_dryair / molmass_water
