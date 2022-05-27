@@ -1,7 +1,7 @@
 name = "CloudMicrophysics"
 uuid = "6a9e3e04-43cd-43ba-94b9-e8782df3c71b"
 authors = ["Climate Modeling Alliance"]
-version = "0.5.0"
+version = "0.5.1"
 
 [deps]
 CLIMAParameters = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
@@ -10,8 +10,8 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
-CLIMAParameters = "0.2, 0.3, 0.4"
+CLIMAParameters = "0.2, 0.3, 0.4, 0.5, 0.6"
 DocStringExtensions = "0.8"
 SpecialFunctions = "1, 2"
-Thermodynamics = "0.7"
+Thermodynamics = "0.7, 0.8"
 julia = "1.5"
