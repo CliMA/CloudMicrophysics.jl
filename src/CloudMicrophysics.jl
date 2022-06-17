@@ -1,12 +1,8 @@
 module CloudMicrophysics
 
-import CLIMAParameters
-const CP = CLIMAParameters
-const APS = CP.AbstractParameterSet
-
-include("InternalClimaParams.jl")
-import .InternalClimaParams
-const ICP = InternalClimaParams
+include("Parameters.jl")
+import .Parameters
+const CMP = Parameters
 
 include("CommonTypes.jl")
 include("Common.jl")

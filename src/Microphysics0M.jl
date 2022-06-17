@@ -1,22 +1,20 @@
 """
-    Zero-moment bulk microphysics scheme that instantly removes
-    moisture above certain threshold.
-    This is equivalent to instanteneous conversion of cloud condensate
-    into precipitation and precipitation fallout with infinite
-    terminal velocity.
+    Microphysics0M
 
+Zero-moment bulk microphysics scheme that instantly removes
+moisture above certain threshold.
+This is equivalent to instanteneous conversion of cloud condensate
+into precipitation and precipitation fallout with infinite
+terminal velocity.
 """
 module Microphysics0M
 
 import Thermodynamics
 const TD = Thermodynamics
 
-import CLIMAParameters
-const CP = CLIMAParameters
-const APS = CP.AbstractParameterSet
-
-import ..InternalClimaParams
-const ICP = InternalClimaParams
+import ..Parameters
+const CMP = Parameters
+const APS = CMP.AbstractCloudMicrophysicsParameters
 
 export remove_precipitation
 
@@ -40,8 +38,8 @@ function remove_precipitation(
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    _τ_precip::FT = ICP.τ_precip(param_set)
-    _qc_0::FT = ICP.qc_0(param_set)
+    _τ_precip::FT = CMP.τ_precip(param_set)
+    _qc_0::FT = CMP.qc_0(param_set)
 
     return -max(0, (q.liq + q.ice - _qc_0)) / _τ_precip
 end
@@ -51,8 +49,8 @@ function remove_precipitation(
     q_vap_sat::FT,
 ) where {FT <: Real}
 
-    _τ_precip::FT = ICP.τ_precip(param_set)
-    _S_0::FT = ICP.S_0(param_set)
+    _τ_precip::FT = CMP.τ_precip(param_set)
+    _S_0::FT = CMP.S_0(param_set)
 
     return -max(0, (q.liq + q.ice - _S_0 * q_vap_sat)) / _τ_precip
 end

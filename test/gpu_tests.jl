@@ -8,16 +8,18 @@ import Thermodynamics
 
 const CP = CLIMAParameters
 const TD = Thermodynamics
+const CMP = CloudMicrophysics.Parameters
 
-struct EarthParameterSet <: CP.AbstractEarthParameterSet end
-const prs = EarthParameterSet()
+include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
+FT = Float64
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+const prs = cloud_microphysics_parameters(toml_dict)
 
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CMT = CloudMicrophysics.CommonTypes
 const CM0 = CloudMicrophysics.Microphysics0M
 const CM1 = CloudMicrophysics.Microphysics1M
-const CP0 = CLIMAParameters.Atmos.Microphysics_0M
 
 const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
@@ -51,13 +53,13 @@ end
 ) where {FT}
 
     i = @index(Group, Linear)
-
+    thermo_params = CMP.thermodynamics_params(param_set)
     # atmospheric conditions (taken from aerosol activation tests)
     T::FT = 294.0       # air temperature K
     p::FT = 100000.0    # air pressure Pa
     w::FT = 0.5         # vertical velocity m/s
-    p_vs::FT = TD.saturation_vapor_pressure(prs, T, TD.Liquid())
-    q_vs::FT = 1 / (1 - CP.Planet.molmass_ratio(prs) * (p_vs - p) / p_vs)
+    p_vs::FT = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+    q_vs::FT = 1 / (1 - CMP.molmass_ratio(prs) * (p_vs - p) / p_vs)
     # water vapor specific humidity (saturated)
     q = TD.PhasePartition(q_vs, FT(0.0), FT(0.0))
 
@@ -118,8 +120,8 @@ end
 
         output[1, i] = CM0.remove_precipitation(prs, q)
 
-        _τ_precip = CP0.τ_precip(prs)
-        _qc_0 = CP0.qc_0(prs)
+        _τ_precip = CMP.τ_precip(prs)
+        _qc_0 = CMP.qc_0(prs)
 
         output[2, i] = -max(0, ql + qi - _qc_0) / _τ_precip
     end

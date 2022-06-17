@@ -8,10 +8,14 @@ const PL = Plots
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CP = CLIMAParameters
+const CMP = CloudMicrophysics.Parameters
 const TD = Thermodynamics
 
-struct EarthParameterSet <: CP.AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
+FT = Float64
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+const param_set = cloud_microphysics_parameters(toml_dict)
+thermo_params = CMP.thermodynamics_params(param_set)
 
 include("ARGdata.jl")
 
@@ -23,8 +27,8 @@ p = 1000.0 * 1e2   # air pressure
 # moist R_m and cp_m in aerosol activation module.
 # We are assuming here saturated conditions and no liquid water or ice.
 # This is consistent with the assumptions of the aerosol activation scheme.
-p_vs = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
-q_vs = 1 / (1 - CP.Planet.molmass_ratio(param_set) * (p_vs - p) / p_vs)
+p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+q_vs = 1 / (1 - CMP.molmass_ratio(param_set) * (p_vs - p) / p_vs)
 q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Sulfate
