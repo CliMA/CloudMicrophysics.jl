@@ -666,10 +666,13 @@ const CMT = CloudMicrophysics.CommonTypes
 const CM1 = CloudMicrophysics.Microphysics1M
 const TD = Thermodynamics
 const CP = CLIMAParameters
-const CP_planet = CLIMAParameters.Planet
+const CMP = CloudMicrophysics.Parameters
 
-struct EarthParameterSet <: CP.AbstractEarthParameterSet end
-const param_set = EarthParameterSet()
+include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
+FT = Float64
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+const param_set = cloud_microphysics_parameters(toml_dict)
+thermo_params = CMP.thermodynamics_params(param_set)
 
 const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
@@ -693,8 +696,8 @@ end
 # eq. 5c in [Grabowski1996](@cite)
 function rain_evap_empirical(q_rai::DT, q::TD.PhasePartition, T::DT, p::DT, ρ::DT) where {DT<:Real}
 
-    ts_neq = TD.PhaseNonEquil_ρTq(param_set, ρ, T, q)
-    q_sat  = TD.q_vap_saturation(param_set, ts_neq)
+    ts_neq = TD.PhaseNonEquil_ρTq(thermo_params, ρ, T, q)
+    q_sat  = TD.q_vap_saturation(thermo_params, ts_neq)
     q_vap  = q.tot - q.liq
     rr     = q_rai / (DT(1) - q.tot)
     rv_sat = q_sat / (DT(1) - q.tot)
@@ -762,8 +765,8 @@ PL.savefig("accretion_snow_rain_below_freeze.svg") # hide
 
 # example values
 T, p = 273.15 + 15, 90000.
-ϵ = 1. / CP_planet.molmass_ratio(param_set)
-p_sat = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
+ϵ = 1. / CMP.molmass_ratio(param_set)
+p_sat = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.))
 q_rain_range = range(1e-8, stop=5e-3, length=100)
 q_tot = 15e-3
@@ -771,7 +774,7 @@ q_vap = 0.15 * q_sat
 q_ice = 0.
 q_liq = q_tot - q_vap - q_ice
 q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(param_set, q)
+R = TD.gas_constant_air(thermo_params, q)
 ρ = p / R / T
 
 PL.plot(q_rain_range * 1e3,  [CM1.evaporation_sublimation(param_set, rain, q, q_rai, ρ, T) for q_rai in q_rain_range], xlabel="q_rain [g/kg]", linewidth=3, ylabel="rain evaporation rate [1/s]", label="ClimateMachine")
@@ -780,8 +783,8 @@ PL.savefig("rain_evaporation_rate.svg") # hide
 
 # example values
 T, p = 273.15 - 15, 90000.
-ϵ = 1. / CP_planet.molmass_ratio(param_set)
-p_sat = TD.saturation_vapor_pressure(param_set, T, TD.Ice())
+ϵ = 1. / CMP.molmass_ratio(param_set)
+p_sat = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.))
 q_snow_range = range(1e-8, stop=5e-3, length=100)
 q_tot = 15e-3
@@ -789,14 +792,14 @@ q_vap = 0.15 * q_sat
 q_liq = 0.
 q_ice = q_tot - q_vap - q_ice
 q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(param_set, q)
+R = TD.gas_constant_air(thermo_params, q)
 ρ = p / R / T
 
 PL.plot(q_snow_range * 1e3,  [CM1.evaporation_sublimation(param_set, snow, q, q_sno, ρ, T) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, ylabel="snow deposition sublimation rate [1/s]", label="T<0")
 
 T, p = 273.15 + 15, 90000.
-ϵ = 1. / CP_planet.molmass_ratio(param_set)
-p_sat = TD.saturation_vapor_pressure(param_set, T, TD.Ice())
+ϵ = 1. / CMP.molmass_ratio(param_set)
+p_sat = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.))
 q_snow_range = range(1e-8, stop=5e-3, length=100)
 q_tot = 15e-3
@@ -804,7 +807,7 @@ q_vap = 0.15 * q_sat
 q_liq = 0.
 q_ice = q_tot - q_vap - q_ice
 q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(param_set, q)
+R = TD.gas_constant_air(thermo_params, q)
 ρ = p / R / T
 
 PL.plot!(q_snow_range * 1e3,  [CM1.evaporation_sublimation(param_set, snow, q, q_sno, ρ, T) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, ylabel="snow deposition sublimation rate [1/s]", label="T>0")

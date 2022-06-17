@@ -15,12 +15,9 @@ const SF = SpecialFunctions
 import Thermodynamics
 const TD = Thermodynamics
 
-import CLIMAParameters
-const CP = CLIMAParameters
-const APS = CP.AbstractParameterSet
-
-import ..InternalClimaParams
-const ICP = InternalClimaParams
+import ..Parameters
+const CMP = Parameters
+const APS = CMP.AbstractCloudMicrophysicsParameters
 
 import ..CommonTypes
 const CT = CommonTypes
@@ -50,10 +47,10 @@ Returns a curvature coefficient.
 """
 function coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
 
-    _molmass_water::FT = ICP.molmass_water(param_set)
-    _gas_constant::FT = ICP.gas_constant()
-    _ρ_cloud_liq::FT = ICP.ρ_cloud_liq(param_set)
-    _surface_tension::FT = ICP.surface_tension_coeff(param_set)
+    _molmass_water::FT = CMP.molmass_water(param_set)
+    _gas_constant::FT = CMP.gas_constant(param_set)
+    _ρ_cloud_liq::FT = CMP.ρ_cloud_liq(param_set)
+    _surface_tension::FT = CMP.surface_tension_coeff(param_set)
 
     return 2 * _surface_tension * _molmass_water / _ρ_cloud_liq /
            _gas_constant / T
@@ -77,8 +74,8 @@ function mean_hygroscopicity_parameter(
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_B}
 
-    _molmass_water = ICP.molmass_water(param_set)
-    _ρ_cloud_liq = ICP.ρ_cloud_liq(param_set)
+    _molmass_water = CMP.molmass_water(param_set)
+    _ρ_cloud_liq = CMP.ρ_cloud_liq(param_set)
 
     return ntuple(length(ad.Modes)) do i
 
@@ -157,15 +154,16 @@ function max_supersaturation(
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
-    _grav::FT = ICP.grav(param_set)
-    _ρ_cloud_liq::FT = ICP.ρ_cloud_liq(param_set)
+    thermo_params = CMP.thermodynamics_params(param_set)
+    _grav::FT = CMP.grav(param_set)
+    _ρ_cloud_liq::FT = CMP.ρ_cloud_liq(param_set)
 
-    _ϵ::FT = 1 / ICP.molmass_ratio(param_set)
-    R_m::FT = TD.gas_constant_air(param_set, q)
-    cp_m::FT = TD.cp_m(param_set, q)
+    _ϵ::FT = 1 / CMP.molmass_ratio(param_set)
+    R_m::FT = TD.gas_constant_air(thermo_params, q)
+    cp_m::FT = TD.cp_m(thermo_params, q)
 
-    L::FT = TD.latent_heat_vapor(param_set, T)
-    p_vs::FT = TD.saturation_vapor_pressure(param_set, T, TD.Liquid())
+    L::FT = TD.latent_heat_vapor(thermo_params, T)
+    p_vs::FT = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
     G::FT = CO.G_func(param_set, T, TD.Liquid()) / _ρ_cloud_liq
 
     # eq 11, 12 in Razzak et al 1998
