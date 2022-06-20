@@ -484,7 +484,7 @@ end
  - `i` - snow for temperatures below freezing
          or rain for temperatures above freezing
  - `j` - rain for temperatures below freezing
-         or rain for temperatures above freezing
+         or snow for temperatures above freezing
  - `param_set` - abstract set with Earth parameters
  - `type_i`, `type_j` - a type for snow or rain
  - `q_` - specific humidity of snow or rain
