@@ -1,5 +1,11 @@
 # CloudMicrophysics.jl
 
-The CloudMicrophysics.jl is a library of bulk microphysics schemes.
+The `CloudMicrophysics.jl` is a library of bulk microphysics schemes.
 So far it includes a 0-moment scheme that instantly removes the precipitable cloud condensate
 and a simple 1-moment scheme, and an aerosol activation scheme.
+
+## Authors
+
+`CloudMicrophysics.jl` is being developed by the [Climate Modeling Alliance](https://clima.caltech.edu/).
+
+![Clima logo](assets/Clima_logo.png)
