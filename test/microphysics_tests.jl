@@ -11,7 +11,7 @@ const CMT = CloudMicrophysics.CommonTypes
 const CMNe = CloudMicrophysics.MicrophysicsNonEq
 const CM0 = CloudMicrophysics.Microphysics0M
 const CM1 = CloudMicrophysics.Microphysics1M
-
+const CM2 = CloudMicrophysics.Microphysics2M
 
 include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
 FT = Float64
@@ -368,4 +368,110 @@ TT.@testset "SnowMelt" begin
     q_sno = 1e-4
     TT.@test CM1.snow_melt(prs, q_sno, ρ, T) ≈ 0
 
+end
+
+TT.@testset "2M_microphysics" begin
+
+    q_liq = 0.5e-3
+    q_rai = 1e-6
+    ρ = 1.0
+
+    # compare with Wood 2005 Fig 1 panel a
+    function compare(f, input, output; eps = 0.1)
+        TT.@test f(prs, input * 1e-3, ρ) ≈ output atol = eps * output
+    end
+    compare(
+        CM2.conv_q_liq_to_q_rai_KK2000,
+        0.03138461538461537,
+        2.636846054348105e-12,
+    )
+    compare(
+        CM2.conv_q_liq_to_q_rai_KK2000,
+        0.8738461538461537,
+        9.491665962977648e-9,
+    )
+    compare(
+        CM2.conv_q_liq_to_q_rai_B1994,
+        0.13999999999999999,
+        4.584323122458155e-12,
+        eps = 1,
+    )
+    compare(
+        CM2.conv_q_liq_to_q_rai_B1994,
+        0.9000000000000006,
+        5.4940586176564715e-8,
+        eps = 1,
+    )
+    compare(
+        CM2.conv_q_liq_to_q_rai_TC1980,
+        0.2700000000000001,
+        3.2768635256661366e-8,
+    )
+    compare(
+        CM2.conv_q_liq_to_q_rai_TC1980,
+        0.9000000000000006,
+        5.340418612468997e-7,
+    )
+    compare(
+        CM2.conv_q_liq_to_q_rai_LD2004,
+        0.3700000000000002,
+        8.697439193234471e-9,
+    )
+    compare(
+        CM2.conv_q_liq_to_q_rai_LD2004,
+        0.9000000000000006,
+        1.1325570516983242e-7,
+    )
+
+    # compare with Wood 2005 Fig 1 panel b
+    function compare_Nd(f, input, output; eps = 0.1)
+        TT.@test f(prs, q_liq, N_d = input * 1e6, ρ) ≈ output atol =
+            eps * output
+    end
+    compare_Nd(
+        CM2.conv_q_liq_to_q_rai_KK2000,
+        16.13564081404141,
+        6.457285532394289e-8,
+    )
+    compare_Nd(
+        CM2.conv_q_liq_to_q_rai_KK2000,
+        652.093931356625,
+        8.604011482409198e-11,
+    )
+    compare_Nd(
+        CM2.conv_q_liq_to_q_rai_B1994,
+        14.47851799831075,
+        4.2829062386778675e-7,
+    )
+    compare_Nd(
+        CM2.conv_q_liq_to_q_rai_B1994,
+        693.0425211336465,
+        6.076294746898778e-12,
+    )
+    compare_Nd(
+        CM2.conv_q_liq_to_q_rai_TC1980,
+        13.658073017575544,
+        2.7110779872658386e-7,
+    )
+    compare_Nd(
+        CM2.conv_q_liq_to_q_rai_TC1980,
+        205.0970632305975,
+        1.0928660431622176e-7,
+    )
+    compare_Nd(
+        CM2.conv_q_liq_to_q_rai_LD2004,
+        15.122629721719655,
+        1.1647783461546477e-7,
+    )
+    compare_Nd(
+        CM2.conv_q_liq_to_q_rai_LD2004,
+        149.01220754857331,
+        1.3917890403908125e-8,
+        eps = 1,
+    )
+
+    # no reference data available - checking if callable and not NaN
+    TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) != NaN
+    TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) != NaN
+    TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) != NaN
 end

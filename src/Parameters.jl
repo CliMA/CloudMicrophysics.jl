@@ -70,6 +70,29 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     ρ_cloud_ice::FT
     gas_constant::FT
     thermo_params::TP
+    D_acnv_TC1980::FT
+    a_acnv_TC1980::FT
+    b_acnv_TC1980::FT
+    r_0_acnv_TC1980::FT
+    A_acc_TC1980::FT
+    me_liq_TC1980::FT
+    C_acnv_B1994::FT
+    a_acnv_B1994::FT
+    b_acnv_B1994::FT
+    c_acnv_B1994::FT
+    d_low_acnv_B1994::FT
+    d_high_acnv_B1994::FT
+    N_0_B1994::FT
+    A_acc_B1994::FT
+    A_acnv_KK2000::FT
+    a_acnv_KK2000::FT
+    b_acnv_KK2000::FT
+    c_acnv_KK2000::FT
+    A_acc_KK2000::FT
+    a_acc_KK2000::FT
+    b_acc_KK2000::FT
+    R_6C_coeff_LD2004::FT
+    E_0_LD2004::FT
 end
 
 const CMPS = CloudMicrophysicsParameters
@@ -87,6 +110,7 @@ m0_sno(ps::CMPS{FT}) where {FT} = FT(1e-1) * ps.r0_sno^ps.me_sno
 a0_sno(ps::CMPS{FT}) where {FT} = FT(0.3) * π * ps.r0_sno^ps.ae_sno
 v0_sno(ps::CMPS{FT}) where {FT} = FT(2^(9 / 4)) * ps.r0_sno^ps.ve_sno
 
+m0_liq_coeff_TC1980(ps::CMPS{FT}) where {FT} = FT(4 / 3) * π * ps.ρ_cloud_liq
 
 # For example: ρ_cloud_ice(ps::CMPS) = ps.ρ_cloud_ice
 for var in filter(x -> x ≠ :thermo_params, fieldnames(CMPS))

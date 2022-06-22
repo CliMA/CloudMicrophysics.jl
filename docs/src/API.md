@@ -37,6 +37,18 @@ Microphysics1M.evaporation_sublimation
 Microphysics1M.snow_melt
 ```
 
+# 2-moment precipitation microphysics
+```@docs
+Microphysics2M
+Microphysics2M.conv_q_liq_to_q_rai_KK2000
+Microphysics2M.conv_q_liq_to_q_rai_B1994
+Microphysics2M.conv_q_liq_to_q_rai_TC1980
+Microphysics2M.conv_q_liq_to_q_rai_LD2004
+Microphysics2M.accretion_KK2000
+Microphysics2M.accretion_B1994
+Microphysics2M.accretion_TC1980
+```
+
 # Aerosol model
 
 ```@docs
