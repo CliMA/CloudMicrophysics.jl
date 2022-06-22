@@ -283,7 +283,7 @@ Returns the q_rai tendency due to collisions between cloud droplets
 function conv_q_liq_to_q_rai(param_set::APS, q_liq::FT) where {FT <: Real}
 
     _τ_acnv_rai::FT = ICP.τ_acnv_rai(param_set)
-    _q_liq_threshold::FT = ICP.q_liq_threshold(param_set)
+    _q_liq_threshold::FT = ICP.q_liq_threshold(param_set) 
 
     return max(0, q_liq - _q_liq_threshold) / _τ_acnv_rai
 end
