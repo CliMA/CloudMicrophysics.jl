@@ -87,7 +87,7 @@ function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) wh
     β_6::FT = ((r_v+3)/r_v)^(1/3)
     E::FT = 1.08e10*β_6^6
     R_6::FT = β_6*r_v
-    R_6C::FT = 2/(q_liq^(1/6)*R_6^(1/2))
+    R_6C::FT = 2.25/(q_liq^(1/6)*R_6^(1/2))
     a::FT = 3
     b::FT = -1
 
