@@ -33,6 +33,8 @@ function heaviside(x::FT) where {FT <: Real}
     end
 end
 
+# autoconversion rates
+
 function conv_q_liq_to_q_rai_KK2000(param_set::APS, q_liq::FT, ρ::FT; N_d::FT = 1e8) where {FT <: Real}
 
     A::FT = 7.42e13
@@ -49,7 +51,7 @@ function conv_q_liq_to_q_rai_B1994(param_set::APS, q_liq::FT, N_d::FT = 1e8) whe
     a::FT = -1.7
     b::FT = 4.7
     c::FT = -3.3
-    if N_d >= 2e8
+    if N_d <= 2e8
         d = 3.9
     else
         d = 9.9
@@ -94,6 +96,38 @@ function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) wh
     print("R_6 vs R_6C: ", R_6, " ", R_6C, "\n")
 
     return E*q_liq^a*N_d^b*heaviside(R_6 - R_6C)
+end
+
+# accretion rates
+
+function accretion_KK2000(
+    param_set::APS,
+    q_liq::FT,
+    q_D::FT, # what is q_D?
+    ρ::FT,
+) where {FT <: Real}
+
+    a::FT = 1.15
+    b::FT = -1.3
+    return 67*(q_liq*q_D)^a*ρ^b
+end
+
+function accretion_B1994(
+    param_set::APS,
+    q_liq::FT,
+    q_D::FT, 
+) where {FT <: Real}
+
+    return 6.0*q_liq*q_D
+end
+
+function accretion_TC1980(
+    param_set::APS,
+    q_liq::FT,
+    q_D::FT, 
+) where {FT <: Real}
+
+    return 4.7*q_liq*q_D
 end
 
 end

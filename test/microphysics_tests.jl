@@ -37,6 +37,7 @@ TT.@testset "autoconversion_test" begin
     TT.@test CM2.conv_q_liq_to_q_rai_KK2000(prs, 1e-3, 1.0) != NaN
     TT.@test CM2.conv_q_liq_to_q_rai_B1994(prs, 1e-3) != NaN
     TT.@test CM2.conv_q_liq_to_q_rai_TC1980(prs, 1e-3) != NaN
+    TT.@test CM2.conv_q_liq_to_q_rai_LD2004(prs, 1e-3) != NaN
 
 end
 
