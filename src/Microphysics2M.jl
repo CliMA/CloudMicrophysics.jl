@@ -4,6 +4,9 @@
 """
 module Microphysics2M
 
+import SpecialFunctions
+const SF = SpecialFunctions
+
 import Thermodynamics
 const TD = Thermodynamics
 
@@ -70,6 +73,25 @@ end
 
 function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) where {FT <: Real}
 
+    ρ_w::FT = 1e3 # kg/m^3
+    r_0::FT = 1e-3 # m
+    m_e::FT = 3
+    Δ_m::FT = 0
+    χ_m::FT = 1
+    m_0::FT = 4/3*pi*ρ_w*r_0^3 # kg
+    n_0::FT = 16e6 # 1/m^4
+    ρ::FT = 1.225 # kg/m^3
+    λ = (SF.gamma(m_e+Δ_m+1)*χ_m*m_0*n_0)/(q_liq*ρ*r_0^(m_e+Δ_m))^(1/(m_e+Δ_m+1))
+
+    r_v::FT = 6^(1/3)/λ
+    β_6::FT = ((r_v+3)/r_v)^(1/3)
+    E::FT = 1.08e10*β_6^6
+    R_6::FT = β_6*r_v
+    R_6C::FT = 7.5/(q_liq^(1/6)*R_6^(1/2))
+    a::FT = 3
+    b::FT = -1
+
+    return E*q_liq^a*N_d^b*heaviside(R_6 - R_6C)
 end
 
 end
