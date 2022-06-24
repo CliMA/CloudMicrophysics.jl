@@ -83,13 +83,15 @@ function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) wh
     ρ::FT = 1.225 # kg/m^3
     λ = (SF.gamma(m_e+Δ_m+1)*χ_m*m_0*n_0)/(q_liq*ρ*r_0^(m_e+Δ_m))^(1/(m_e+Δ_m+1))
 
-    r_v::FT = 6^(1/3)/λ
+    r_v::FT = 6^(1/3)/λ * 1e6
     β_6::FT = ((r_v+3)/r_v)^(1/3)
     E::FT = 1.08e10*β_6^6
     R_6::FT = β_6*r_v
-    R_6C::FT = 7.5/(q_liq^(1/6)*R_6^(1/2))
+    R_6C::FT = 2/(q_liq^(1/6)*R_6^(1/2))
     a::FT = 3
     b::FT = -1
+
+    print("R_6 vs R_6C: ", R_6, " ", R_6C, "\n")
 
     return E*q_liq^a*N_d^b*heaviside(R_6 - R_6C)
 end

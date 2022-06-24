@@ -32,6 +32,7 @@ yvalsK1969 = [CM1.conv_q_liq_to_q_rai(param_set, q_liq) for q_liq in q_liq_range
 
 fig = Figure()
 ax1 = Axis(fig[1, 1]; yscale = log10)
+ylims!(ax1, [1e-13, 1e-5])
 l1 = lines!(fig[1, 1], q_liq_range * 1e3, yvalsKK2000, color = :red)
 l2 = lines!(fig[1, 1], q_liq_range * 1e3, yvalsB1994, color = :green)
 l3 = lines!(fig[1, 1], q_liq_range * 1e3, yvalsTC1980, color = :blue)
@@ -39,6 +40,5 @@ l4 = lines!(fig[1, 1], q_liq_range * 1e3, yvalsLD2004, color = :purple)
 l5 = lines!(fig[1, 1], q_liq_range * 1e3, yvalsK1969, color = :black)
 ax1.xlabel = "q_liq [g/kg]"
 ax1.ylabel = "autoconversion rate [kg m^-3 s^-1]"
-ylims!(ax1, [1e-13, 1e-5])
 Legend(fig[1, 2], [l1, l2, l3, l4, l5], ["KK2000", "B1994", "TC1980", "LD2004", "K1969"])
 display(fig)
