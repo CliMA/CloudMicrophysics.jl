@@ -35,7 +35,7 @@ end
 
 # autoconversion rates
 
-function conv_q_liq_to_q_rai_KK2000(param_set::APS, q_liq::FT, ρ::FT; N_d::FT = 1e8) where {FT <: Real}
+function conv_q_liq_to_q_rai_KK2000(param_set::APS, q_liq::FT, ρ::FT, N_d::FT) where {FT <: Real}
 
     A::FT = 7.42e13
     a::FT = 2.47
@@ -45,13 +45,13 @@ function conv_q_liq_to_q_rai_KK2000(param_set::APS, q_liq::FT, ρ::FT; N_d::FT =
     return A*q_liq^a*N_d^b*ρ^c
 end
 
-function conv_q_liq_to_q_rai_B1994(param_set::APS, q_liq::FT, N_d::FT = 1e8) where {FT <: Real}
+function conv_q_liq_to_q_rai_B1994(param_set::APS, q_liq::FT, N_d::FT) where {FT <: Real}
 
     C::FT = 3e34
     a::FT = -1.7
     b::FT = 4.7
     c::FT = -3.3
-    if N_d <= 2e8
+    if N_d::FT >= 2e8
         d = 3.9
     else
         d = 9.9
@@ -60,7 +60,7 @@ function conv_q_liq_to_q_rai_B1994(param_set::APS, q_liq::FT, N_d::FT = 1e8) whe
     return C*d^a*q_liq^b*N_d^c
 end
 
-function conv_q_liq_to_q_rai_TC1980(param_set::APS, q_liq::FT, N_d::FT = 1e8) where {FT <: Real}
+function conv_q_liq_to_q_rai_TC1980(param_set::APS, q_liq::FT, N_d::FT) where {FT <: Real}
 
     D = 3268
     a = 7/3
@@ -73,7 +73,7 @@ function conv_q_liq_to_q_rai_TC1980(param_set::APS, q_liq::FT, N_d::FT = 1e8) wh
     return D*q_liq^a*N_d^b*H
 end
 
-function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) where {FT <: Real}
+function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT) where {FT <: Real}
 
     ρ_w::FT = 1e3 # kg/m^3
     r_0::FT = 1e-3 # m
@@ -82,7 +82,7 @@ function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) wh
     χ_m::FT = 1
     m_0::FT = 4/3*pi*ρ_w*r_0^3 # kg
     n_0::FT = 16e6 # 1/m^4
-    ρ::FT = 1.225 # kg/m^3
+    ρ::FT = 1.2 # kg/m^3
     λ = (SF.gamma(m_e+Δ_m+1)*χ_m*m_0*n_0)/(q_liq*ρ*r_0^(m_e+Δ_m))^(1/(m_e+Δ_m+1))
 
     r_v::FT = 6^(1/3)/λ * 1e6
@@ -93,7 +93,7 @@ function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) wh
     a::FT = 3
     b::FT = -1
 
-    print("R_6 vs R_6C: ", R_6, " ", R_6C, "\n")
+    #print("R_6 vs R_6C: ", R_6, " ", R_6C, "\n")
 
     return E*q_liq^a*N_d^b*heaviside(R_6 - R_6C)
 end
@@ -103,31 +103,31 @@ end
 function accretion_KK2000(
     param_set::APS,
     q_liq::FT,
-    q_D::FT, # what is q_D?
+    q_rai::FT, # what is q_D?
     ρ::FT,
 ) where {FT <: Real}
 
     a::FT = 1.15
     b::FT = -1.3
-    return 67*(q_liq*q_D)^a*ρ^b
+    return 67*(q_liq*q_rai)^a*ρ^b
 end
 
 function accretion_B1994(
     param_set::APS,
     q_liq::FT,
-    q_D::FT, 
+    q_rai::FT, 
 ) where {FT <: Real}
 
-    return 6.0*q_liq*q_D
+    return 6.0*q_liq*q_rai
 end
 
 function accretion_TC1980(
     param_set::APS,
     q_liq::FT,
-    q_D::FT, 
+    q_rai::FT, 
 ) where {FT <: Real}
 
-    return 4.7*q_liq*q_D
+    return 4.7*q_liq*q_rai
 end
 
 end
