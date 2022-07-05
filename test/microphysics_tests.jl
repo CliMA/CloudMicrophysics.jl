@@ -11,6 +11,7 @@ const CMT = CloudMicrophysics.CommonTypes
 const CMNe = CloudMicrophysics.MicrophysicsNonEq
 const CM0 = CloudMicrophysics.Microphysics0M
 const CM1 = CloudMicrophysics.Microphysics1M
+const CM2 = CloudMicrophysics.Microphysics2M
 
 
 include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
@@ -27,6 +28,15 @@ TT.@testset "τ_relax" begin
 
     TT.@test CMNe.τ_relax(prs, liquid) ≈ 10
     TT.@test CMNe.τ_relax(prs, ice) ≈ 10
+
+end
+
+TT.@testset "autoconversion_test" begin
+
+    TT.@test CM2.conv_q_liq_to_q_rai_KK2000(prs, 1e-3, 1.0) != NaN
+    TT.@test CM2.conv_q_liq_to_q_rai_B1994(prs, 1e-3) != NaN
+    TT.@test CM2.conv_q_liq_to_q_rai_TC1980(prs, 1e-3) != NaN
+    TT.@test CM2.conv_q_liq_to_q_rai_LD2004(prs, 1e-3) != NaN
 
 end
 
