@@ -37,7 +37,7 @@ function conv_q_liq_to_q_rai_B1994(param_set::APS, q_liq::FT; N_d::FT = 1e8) whe
     b::FT = CMP.b_acnv_B1994(param_set)
     c::FT = CMP.c_acnv_B1994(param_set)
     N_0::FT = CMP.N_0_B1994(param_set)
-    d::FT = N_d::FT >= N_0 ? CMP.d_low_B1994(param_set) : CMP.d_high_B1994(param_set)
+    d::FT = N_d::FT >= N_0 ? CMP.d_low_acnv_B1994(param_set) : CMP.d_high_acnv_B1994(param_set)
 
     return C * d^a * q_liq^b * N_d^c
 end
@@ -52,17 +52,17 @@ function conv_q_liq_to_q_rai_TC1980(param_set::APS, q_liq::FT; N_d::FT = 1e8) wh
     b::FT = CMP.b_acnv_TC1980(param_set)
     r_0::FT = CMP.r_0_acnv_TC1980(param_set)
 
+    #q_liq_threshold::FT = 4/3 * pi * CMP.ρ_cloud_liq(param_set) * N_d * (7 * 1e-6)^3
+    #return 3268.0 * (q_liq * 1.2)^(7.0/3) / N_d^(1.0/3) * max(0.0, (q_liq * 1.2) - q_liq_threshold) * 1e3
     q_liq_threshold::FT = m0_liq_coeff * N_d * r_0^me_liq
-
-    return D * q_liq^a * N_d^b * max(0.0, q_liq - q_liq_threshold)
-
+    return D * q_liq^a * N_d^b * max(0.0, q_liq - q_liq_threshold) * 1e3
 end
 
-function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) where {FT <: Real}
+function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT; N_d::FT = 1e8) where {FT <: Real}
 
-    ρ_w::FT = ρ_cloud_liq(param_set)
-    R_6C_0::FT = R_6C_coeff_LD2004(param_set)
-    E_0::FT = E_0_LD2004(param_set)
+    ρ_w::FT = CMP.ρ_cloud_liq(param_set)
+    R_6C_0::FT = CMP.R_6C_coeff_LD2004(param_set)
+    E_0::FT = CMP.E_0_LD2004(param_set)
 
     # Mean volume radius in microns (assuming spherical cloud droplets)
     r_vol = (3 * q_liq / 4 / π / ρ_w / N_d)^(1/3) * 1e6
@@ -73,7 +73,7 @@ function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT = 1e8) wh
     R_6::FT = β_6 * r_vol
     R_6C::FT = R_6C_0 / q_liq^(1/6) / R_6^(1/2)
 
-    return E * q_liq^a * N_d^b * max(0.0, R_6 - R_6C)
+    return E * q_liq^3 / N_d * max(0.0, R_6 - R_6C)
 end
 
 # accretion rates

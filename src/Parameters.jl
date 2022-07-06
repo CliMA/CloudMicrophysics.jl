@@ -90,7 +90,7 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     c_acnv_KK2000::FT
     A_acc_KK2000::FT
     a_acc_KK2000::FT
-    b_acc_KK200::FT
+    b_acc_KK2000::FT
     R_6C_coeff_LD2004::FT
     E_0_LD2004::FT
 end
