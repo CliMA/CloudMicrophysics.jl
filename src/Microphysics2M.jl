@@ -46,6 +46,7 @@ end
 
 # autoconversion rates
 
+<<<<<<< HEAD
 """
     conv_q_liq_to_q_rai_KK2000(param_set, q_liq, ρ, N_d)
 
@@ -57,6 +58,8 @@ end
 Returns the q_rai tendency due to collisions between cloud droplets
 (autoconversion), parametrized following Khairoutdinov and Kogan (2000).
 """
+=======
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
 function conv_q_liq_to_q_rai_KK2000(param_set::APS, q_liq::FT, ρ::FT, N_d::FT) where {FT <: Real}
 
     A::FT = 7.42e13
@@ -67,6 +70,7 @@ function conv_q_liq_to_q_rai_KK2000(param_set::APS, q_liq::FT, ρ::FT, N_d::FT) 
     return A*q_liq^a*N_d^b*ρ^c
 end
 
+<<<<<<< HEAD
 """
     conv_q_liq_to_q_rai_B1994(param_set, q_liq, N_d)
 
@@ -77,6 +81,8 @@ end
 Returns the q_rai tendency due to collisions between cloud droplets
 (autoconversion), parametrized following Beheng (1994).
 """
+=======
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
 function conv_q_liq_to_q_rai_B1994(param_set::APS, q_liq::FT, N_d::FT) where {FT <: Real}
 
     C::FT = 3e34
@@ -92,6 +98,7 @@ function conv_q_liq_to_q_rai_B1994(param_set::APS, q_liq::FT, N_d::FT) where {FT
     return C*d^a*q_liq^b*N_d^c
 end
 
+<<<<<<< HEAD
 """
     conv_q_liq_to_q_rai_TC1980(param_set, q_liq, N_d)
 
@@ -102,6 +109,8 @@ end
 Returns the q_rai tendency due to collisions between cloud droplets
 (autoconversion), parametrized following Tripoli and Cotton (1980).
 """
+=======
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
 function conv_q_liq_to_q_rai_TC1980(param_set::APS, q_liq::FT, N_d::FT) where {FT <: Real}
 
     D = 3268
@@ -115,6 +124,7 @@ function conv_q_liq_to_q_rai_TC1980(param_set::APS, q_liq::FT, N_d::FT) where {F
     return D*q_liq^a*N_d^b*H
 end
 
+<<<<<<< HEAD
 """
     conv_q_liq_to_q_rai_LD2004(param_set, q_liq, N_d)
 
@@ -125,6 +135,8 @@ end
 Returns the q_rai tendency due to collisions between cloud droplets
 (autoconversion), parametrized following Liu and Daum (2004).
 """
+=======
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
 function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT) where {FT <: Real}
 
     ρ_w::FT = 1e3 # kg/m^3
@@ -145,6 +157,11 @@ function conv_q_liq_to_q_rai_LD2004(param_set::APS, q_liq::FT, N_d::FT) where {F
     a::FT = 3
     b::FT = -1
 
+<<<<<<< HEAD
+=======
+    #print("R_6 vs R_6C: ", R_6, " ", R_6C, "\n")
+
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
     return E*q_liq^a*N_d^b*heaviside(R_6 - R_6C)
 end
 
@@ -164,14 +181,22 @@ end
 function accretion_KK2000(
     param_set::APS,
     q_liq::FT,
+<<<<<<< HEAD
     q_rai::FT,
+=======
+    q_rai::FT, # what is q_D?
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
     ρ::FT,
 ) where {FT <: Real}
 
     A::FT = 67.0
     a::FT = 1.15
     b::FT = -1.3
+<<<<<<< HEAD
     return A*(q_liq*q_rai)^a*ρ^b
+=======
+    return 67*(q_liq*q_rai)^a*ρ^b
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
 end
 
 """
@@ -190,8 +215,12 @@ function accretion_B1994(
     q_rai::FT, 
 ) where {FT <: Real}
 
+<<<<<<< HEAD
     B::FT = 6.0
     return B*q_liq*q_rai
+=======
+    return 6.0*q_liq*q_rai
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
 end
 
 """
@@ -210,8 +239,12 @@ function accretion_TC1980(
     q_rai::FT, 
 ) where {FT <: Real}
 
+<<<<<<< HEAD
     C::FT = 4.7
     return C*q_liq*q_rai
+=======
+    return 4.7*q_liq*q_rai
+>>>>>>> 0e8a6a3a4345bf6fc0587b01af54103a7a1fa1a0
 end
 
 end
