@@ -81,13 +81,6 @@ There is a variety of projects big and small that are available to take up as
 Below is a list of possible examples,
   but other suggestions and ideas are always welcome!
 
-- The CloudMicrophysics.jl package contains an aerosol activation parameterization
-  that is an implementation of [Abdul-Razzak and Ghan 2000](https://agupubs.onlinelibrary.wiley.com/doi/abs/10.1029/1999JD901161).
-  In the [documentation](https://clima.github.io/CloudMicrophysics.jl/dev/AerosolActivation/#Example-figures)
-  we show we can reproduce the first figure from the original paper.
-  It would be great to see how we compare with other tests and plots discussed in there.
-  This is a good first issue to get used to the library and coding in Julia.
-
 - The CloudMicrophysics.jl package should be tested against a high-resolution model.
   We have chosen [PySDM](https://github.com/atmos-cloud-sim-uj/PySDM)
   as our high-resolution benchmark.
@@ -95,7 +88,8 @@ Below is a list of possible examples,
   and is based on the [Super-Droplet algorithm](https://rmets.onlinelibrary.wiley.com/doi/abs/10.1002/qj.441).
   Possible tasks in this project would include testing the aerosol activation parameterization
   against PySDM in an adiabatic parcel setup, or testing the 1-moment
-  microphysics parameterization against PySDM in a 1-dimensional or
+  microphysics parameterization against PySDM in an already implemented
+  [1-dimensional](https://github.com/CliMA/Kinematic1D.jl) or
   2-dimensional prescribed flow setup.
   This could be extended further into a calibration exercise using the
   [EnsembleKalmanProcesses.jl](https://github.com/CliMA/EnsembleKalmanProcesses.jl) package.
@@ -105,6 +99,8 @@ Below is a list of possible examples,
 
 - Adding a 2-moment microphysics scheme for warm rain formation to the CloudMicrophysics.jl package.
   This is a priority for us and the next development goal.
+  We already have implemented a set of different autoconversion and accretion formulations.
+  The next step is to add tendencies for cloud and rain drop number concentrations.
   Contributions in coding, testing, (re)deriving the parameterization equations
   and discussing microphysics parameterization assumptions are welcome!
 

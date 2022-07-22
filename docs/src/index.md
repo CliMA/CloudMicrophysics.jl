@@ -6,3 +6,8 @@ So far it includes
   a simple 1-moment scheme,
   a collection of different 2-moment autoconversion and accretion functions,
   and an aerosol activation scheme.
+
+## Authors
+
+`CloudMicrophysics.jl` is being developed by the [Climate Modeling Alliance](https://clima.caltech.edu/).
+![Clima logo](assets/Clima_logo.png)
