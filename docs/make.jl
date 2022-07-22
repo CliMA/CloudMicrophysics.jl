@@ -10,6 +10,7 @@ pages = Any[
     "Home" => "index.md",
     "0-moment precipitation microphysics" => "Microphysics0M.md",
     "1-moment precipitation microphysics" => "Microphysics1M.md",
+    "2-moment precipitation microphysics" => "Microphysics2M.md",
     "Non-equilibrium cloud formation" => "MicrophysicsNonEq.md",
     "Aerosol activation" => "AerosolActivation.md",
     "ARG2000 activation example" => "ARG2000_example.md",
