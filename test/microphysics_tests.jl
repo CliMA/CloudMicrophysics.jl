@@ -370,11 +370,38 @@ TT.@testset "SnowMelt" begin
 
 end
 
-TT.@testset "2M_microphysics" begin
+TT.@testset "2M_microphysics - unit tests" begin
 
+    ρ = 1.0
+
+    # no reference data available - checking if callable and not NaN
     q_liq = 0.5e-3
     q_rai = 1e-6
+    TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) != NaN
+    TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) != NaN
+    TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) != NaN
+
+    # output should be zero if either q_liq or q_rai are zero
+    q_liq = 0.0
+    q_rai = 1e-6
+    TT.@test CM2.conv_q_liq_to_q_rai_KK2000(prs, q_liq, ρ) == 0.0
+    TT.@test CM2.conv_q_liq_to_q_rai_B1994(prs, q_liq, ρ) == 0.0
+    TT.@test CM2.conv_q_liq_to_q_rai_TC1980(prs, q_liq, ρ) == 0.0
+    TT.@test CM2.conv_q_liq_to_q_rai_LD2004(prs, q_liq, ρ) == 0.0
+    TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) == 0.0
+    TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) == 0.0
+    TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) == 0.0
+    q_liq = 0.5e-3
+    q_rai = 0.0
+    TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) == 0.0
+    TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) == 0.0
+    TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) == 0.0
+end
+
+TT.@testset "2M_microphysics - compare with Wood_2005" begin
+
     ρ = 1.0
+    q_liq = 0.5e-3
 
     # compare with Wood 2005 Fig 1 panel a
     function compare(f, input, output; eps = 0.1)
@@ -470,8 +497,4 @@ TT.@testset "2M_microphysics" begin
         eps = 1,
     )
 
-    # no reference data available - checking if callable and not NaN
-    TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) != NaN
-    TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) != NaN
-    TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) != NaN
 end
