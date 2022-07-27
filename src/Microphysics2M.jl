@@ -139,22 +139,24 @@ function conv_q_liq_to_q_rai_LD2004(
     N_d::FT = 1e8,
 ) where {FT <: Real}
 
-    q_liq = max(0.0, q_liq)
+    if q_liq <= eps(FT)
+        return FT(0)
+    else
+        ρ_w::FT = CMP.ρ_cloud_liq(param_set)
+        R_6C_0::FT = CMP.R_6C_coeff_LD2004(param_set)
+        E_0::FT = CMP.E_0_LD2004(param_set)
 
-    ρ_w::FT = CMP.ρ_cloud_liq(param_set)
-    R_6C_0::FT = CMP.R_6C_coeff_LD2004(param_set)
-    E_0::FT = CMP.E_0_LD2004(param_set)
+        # Mean volume radius in microns (assuming spherical cloud droplets)
+        r_vol = (3 * (q_liq * ρ) / 4 / π / ρ_w / N_d)^(1 / 3) * 1e6
 
-    # Mean volume radius in microns (assuming spherical cloud droplets)
-    r_vol = (3 * (q_liq * ρ) / 4 / π / ρ_w / N_d)^(1 / 3) * 1e6
+        # Assumed size distribution: modified gamma distribution
+        β_6::FT = ((r_vol + 3) / r_vol)^(1 / 3)
+        E::FT = 1.08e10 * β_6^6
+        R_6::FT = β_6 * r_vol
+        R_6C::FT = R_6C_0 / (q_liq * ρ)^(1 / 6) / R_6^(1 / 2)
 
-    # Assumed size distribution: modified gamma distribution
-    β_6::FT = ((r_vol + 3) / r_vol)^(1 / 3)
-    E::FT = 1.08e10 * β_6^6
-    R_6::FT = β_6 * r_vol
-    R_6C::FT = R_6C_0 / (q_liq * ρ)^(1 / 6) / R_6^(1 / 2)
-
-    return E * (q_liq * ρ)^3 / N_d * heaviside(R_6 - R_6C) / ρ
+        return E * (q_liq * ρ)^3 / N_d * heaviside(R_6 - R_6C) / ρ
+    end
 end
 
 # accretion rates
