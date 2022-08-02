@@ -51,4 +51,62 @@ function G_func(param_set::APS, T::FT, ::TD.Ice) where {FT <: Real}
     )
 end
 
+"""
+    logistic_function(x, x_0, k)
+
+ - `x` - independent variable
+ - `x_0` - threshold value for x
+ - `k` - growth rate of the curve, characterizing steepness of the transition
+
+Returns the value of the logistic function for smooth transitioning at thresholds. This is
+a normalized curve changing from 0 to 1 while x varies from 0 to Inf (for positive k). For
+x < 0 the value at x = 0 (zero) is returned. For x_0 = 0 H(x) is returned.
+"""
+function logistic_function(x::FT, x_0::FT, k::FT) where {FT <: Real}
+
+    @assert k > 0
+    @assert x_0 >= 0
+    x = max(0, x)
+
+    if abs(x) < eps(FT)
+        return FT(0)
+    elseif abs(x_0) < eps(FT)
+        return FT(1)
+    end
+
+    return 1 / (1 + exp(-k * (x / x_0 - x_0 / x)))
+end
+
+"""
+    logistic_function_integral(x, x_0, k)
+
+ - `x` - independent variable
+ - `x_0` - threshold value for x
+ - `k` - growth rate of the logistic function, characterizing steepness of the transition
+
+Returns the value of the indefinite integral of the logistic function, for smooth transitioning
+of piecewise linear profiles at thresholds. This curve smoothly transition from y = 0
+for 0 < x < x_0 to y = x - x_0 for x_0 < x.
+"""
+function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT <: Real}
+
+    @assert k > 0
+    @assert x_0 >= 0
+    x = max(0, x)
+
+    if abs(x) < eps(FT)
+        return FT(0)
+    elseif abs(x_0) < eps(FT)
+        return x
+    end
+
+    # translation of the curve in x and y to enforce zero at x = 0
+    _trnslt::FT = -log(1 - exp(-k)) / k
+
+    _kt::FT = k * (x / x_0 - 1 + _trnslt)
+    _result::FT =
+        (_kt > 40.0) ? x - x_0 : (log(1 + exp(_kt)) / k - _trnslt) * x_0
+    return _result
+end
+
 end

@@ -7,6 +7,9 @@
 """
 module Microphysics2M
 
+import ..Common
+const CO = Common
+
 import ..Parameters
 const CMP = Parameters
 const APS = CMP.AbstractCloudMicrophysicsParameters
@@ -45,7 +48,7 @@ function conv_q_liq_to_q_rai_KK2000(
     N_d::FT = 1e8,
 ) where {FT <: Real}
 
-    q_liq = max(0.0, q_liq)
+    q_liq = max(0, q_liq)
 
     A::FT = CMP.A_acnv_KK2000(param_set)
     a::FT = CMP.a_acnv_KK2000(param_set)
@@ -71,18 +74,29 @@ function conv_q_liq_to_q_rai_B1994(
     q_liq::FT,
     ρ::FT;
     N_d::FT = 1e8,
+    smooth_transition::Bool = false,
 ) where {FT <: Real}
 
-    q_liq = max(0.0, q_liq)
+    q_liq = max(0, q_liq)
 
     C::FT = CMP.C_acnv_B1994(param_set)
     a::FT = CMP.a_acnv_B1994(param_set)
     b::FT = CMP.b_acnv_B1994(param_set)
     c::FT = CMP.c_acnv_B1994(param_set)
     N_0::FT = CMP.N_0_B1994(param_set)
-    d::FT =
-        N_d >= N_0 ? CMP.d_low_acnv_B1994(param_set) :
-        CMP.d_high_acnv_B1994(param_set)
+    d::FT = FT(0)
+    if smooth_transition
+        _k::FT = CMP.k_thrshld_stpnss(param_set)
+        _d_low_acnv_fraction::FT = CO.logistic_function(N_d, N_0, _k)
+        _d_high_acnv_fraction::FT = 1 - _d_low_acnv_fraction
+        d =
+            _d_low_acnv_fraction * CMP.d_low_acnv_B1994(param_set) +
+            _d_high_acnv_fraction * CMP.d_high_acnv_B1994(param_set)
+    else
+        d =
+            N_d >= N_0 ? CMP.d_low_acnv_B1994(param_set) :
+            CMP.d_high_acnv_B1994(param_set)
+    end
 
     return C * d^a * (q_liq * ρ)^b * N_d^c / ρ
 end
@@ -103,10 +117,11 @@ function conv_q_liq_to_q_rai_TC1980(
     q_liq::FT,
     ρ::FT;
     N_d::FT = 1e8,
+    smooth_transition::Bool = false,
 ) where {FT <: Real}
     #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
 
-    q_liq = max(0.0, q_liq)
+    q_liq = max(0, q_liq)
 
     m0_liq_coeff::FT = CMP.m0_liq_coeff_TC1980(param_set)
     me_liq::FT = CMP.me_liq_TC1980(param_set)
@@ -118,7 +133,14 @@ function conv_q_liq_to_q_rai_TC1980(
 
     q_liq_threshold::FT = m0_liq_coeff * N_d / ρ * r_0^me_liq
 
-    return D * q_liq^a * N_d^b * heaviside(q_liq - q_liq_threshold)
+    _output::FT = FT(0)
+    if smooth_transition
+        _k::FT = CMP.k_thrshld_stpnss(param_set)
+        _output = CO.logistic_function(q_liq, q_liq_threshold, _k)
+    else
+        _output = heaviside(q_liq - q_liq_threshold)
+    end
+    return D * q_liq^a * N_d^b * _output
 end
 
 """
@@ -137,6 +159,7 @@ function conv_q_liq_to_q_rai_LD2004(
     q_liq::FT,
     ρ::FT;
     N_d::FT = 1e8,
+    smooth_transition::Bool = false,
 ) where {FT <: Real}
 
     if q_liq <= eps(FT)
@@ -151,11 +174,18 @@ function conv_q_liq_to_q_rai_LD2004(
 
         # Assumed size distribution: modified gamma distribution
         β_6::FT = ((r_vol + 3) / r_vol)^(1 / 3)
-        E::FT = 1.08e10 * β_6^6
+        E::FT = E_0 * β_6^6
         R_6::FT = β_6 * r_vol
         R_6C::FT = R_6C_0 / (q_liq * ρ)^(1 / 6) / R_6^(1 / 2)
 
-        return E * (q_liq * ρ)^3 / N_d * heaviside(R_6 - R_6C) / ρ
+        _output::FT = FT(0)
+        if smooth_transition
+            _k::FT = CMP.k_thrshld_stpnss(param_set)
+            _output = CO.logistic_function(R_6, R_6C, _k)
+        else
+            _output = heaviside(R_6 - R_6C)
+        end
+        return E * (q_liq * ρ)^3 / N_d / ρ * _output
     end
 end
 
@@ -179,8 +209,8 @@ function accretion_KK2000(
     ρ::FT,
 ) where {FT <: Real}
 
-    q_liq = max(0.0, q_liq)
-    q_rai = max(0.0, q_rai)
+    q_liq = max(0, q_liq)
+    q_rai = max(0, q_rai)
 
     A::FT = CMP.A_acc_KK2000(param_set)
     a::FT = CMP.a_acc_KK2000(param_set)
@@ -207,8 +237,8 @@ function accretion_B1994(
     ρ::FT,
 ) where {FT <: Real}
 
-    q_liq = max(0.0, q_liq)
-    q_rai = max(0.0, q_rai)
+    q_liq = max(0, q_liq)
+    q_rai = max(0, q_rai)
 
     A::FT = CMP.A_acc_B1994(param_set)
 
@@ -233,8 +263,8 @@ function accretion_TC1980(
 ) where {FT <: Real}
     #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
 
-    q_liq = max(0.0, q_liq)
-    q_rai = max(0.0, q_rai)
+    q_liq = max(0, q_liq)
+    q_rai = max(0, q_rai)
 
     A::FT = CMP.A_acc_TC1980(param_set)
 
