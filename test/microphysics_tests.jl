@@ -140,9 +140,20 @@ TT.@testset "RainAutoconversion" begin
     q_liq_small = 0.5 * _q_liq_threshold
     TT.@test CM1.conv_q_liq_to_q_rai(prs, q_liq_small) == 0.0
 
+    TT.@test CM1.conv_q_liq_to_q_rai(
+        prs,
+        q_liq_small,
+        smooth_transition = true,
+    ) ≈ 0.0 atol = 0.15 * _q_liq_threshold / _τ_acnv_rai
+
     q_liq_big = 1.5 * _q_liq_threshold
     TT.@test CM1.conv_q_liq_to_q_rai(prs, q_liq_big) ==
              0.5 * _q_liq_threshold / _τ_acnv_rai
+
+    TT.@test CM1.conv_q_liq_to_q_rai(prs, q_liq_big, smooth_transition = true) ≈
+             0.5 * _q_liq_threshold / _τ_acnv_rai atol =
+        0.15 * _q_liq_threshold / _τ_acnv_rai
+
 end
 
 TT.@testset "SnowAutoconversionNoSupersat" begin
@@ -153,9 +164,22 @@ TT.@testset "SnowAutoconversionNoSupersat" begin
     q_ice_small = 0.5 * _q_ice_threshold
     TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(prs, q_ice_small) == 0.0
 
+    TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(
+        prs,
+        q_ice_small,
+        smooth_transition = true,
+    ) ≈ 0.0 atol = 0.15 * _q_ice_threshold / _τ_acnv_sno
+
     q_ice_big = 1.5 * _q_ice_threshold
     TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(prs, q_ice_big) ≈
              0.5 * _q_ice_threshold / _τ_acnv_sno
+
+    TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(
+        prs,
+        q_ice_big,
+        smooth_transition = true,
+    ) ≈ 0.5 * _q_ice_threshold / _τ_acnv_sno atol =
+        0.15 * _q_ice_threshold / _τ_acnv_sno
 end
 
 TT.@testset "SnowAutoconversion" begin
@@ -396,6 +420,44 @@ TT.@testset "2M_microphysics - unit tests" begin
     TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) == 0.0
     TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) == 0.0
     TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) == 0.0
+
+    # far from threshold points, autoconversion with and without smooth transition should 
+    # be approximately equal
+    q_liq = 0.5e-3
+    TT.@test CM2.conv_q_liq_to_q_rai_B1994(
+        prs,
+        q_liq,
+        ρ,
+        smooth_transition = true,
+    ) ≈ CM2.conv_q_liq_to_q_rai_B1994(
+        prs,
+        q_liq,
+        ρ,
+        smooth_transition = false,
+    ) rtol = 0.2
+    TT.@test CM2.conv_q_liq_to_q_rai_TC1980(
+        prs,
+        q_liq,
+        ρ,
+        smooth_transition = true,
+    ) ≈ CM2.conv_q_liq_to_q_rai_TC1980(
+        prs,
+        q_liq,
+        ρ,
+        smooth_transition = false,
+    ) rtol = 0.2
+    TT.@test CM2.conv_q_liq_to_q_rai_LD2004(
+        prs,
+        q_liq,
+        ρ,
+        smooth_transition = true,
+    ) ≈ CM2.conv_q_liq_to_q_rai_LD2004(
+        prs,
+        q_liq,
+        ρ,
+        smooth_transition = false,
+    ) rtol = 0.2
+
 end
 
 TT.@testset "2M_microphysics - compare with Wood_2005" begin

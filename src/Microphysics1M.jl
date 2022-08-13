@@ -277,12 +277,24 @@ end
 Returns the q_rai tendency due to collisions between cloud droplets
 (autoconversion), parametrized following Kessler (1995).
 """
-function conv_q_liq_to_q_rai(param_set::APS, q_liq::FT) where {FT <: Real}
+function conv_q_liq_to_q_rai(
+    param_set::APS,
+    q_liq::FT;
+    smooth_transition::Bool = false,
+) where {FT <: Real}
 
     _τ_acnv_rai::FT = CMP.τ_acnv_rai(param_set)
     _q_liq_threshold::FT = CMP.q_liq_threshold(param_set)
 
-    return max(0, q_liq - _q_liq_threshold) / _τ_acnv_rai
+    _output::FT = FT(0)
+    if smooth_transition
+        _k::FT = CMP.k_thrshld_stpnss(param_set)
+        _output = CO.logistic_function_integral(q_liq, _q_liq_threshold, _k)
+    else
+        _output = max(0, q_liq - _q_liq_threshold)
+    end
+    return _output / _τ_acnv_rai
+
 end
 
 """
@@ -298,13 +310,22 @@ simulations where there is no supersaturation
 """
 function conv_q_ice_to_q_sno_no_supersat(
     param_set::APS,
-    q_ice::FT,
+    q_ice::FT;
+    smooth_transition::Bool = false,
 ) where {FT <: Real}
 
     _τ_acnv_sno::FT = CMP.τ_acnv_sno(param_set)
     _q_ice_threshold::FT = CMP.q_ice_threshold(param_set)
 
-    return max(0, q_ice - _q_ice_threshold) / _τ_acnv_sno
+    _output::FT = FT(0)
+    if smooth_transition
+        _k::FT = CMP.k_thrshld_stpnss(param_set)
+        _output = CO.logistic_function_integral(q_ice, _q_ice_threshold, _k)
+    else
+        _output = max(0, q_ice - _q_ice_threshold)
+    end
+    return _output / _τ_acnv_sno
+
 end
 
 """

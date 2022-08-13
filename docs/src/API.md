@@ -75,6 +75,8 @@ AerosolActivation.total_M_activated
 ```@docs
 Common
 Common.G_func
+Common.logistic_function
+Common.logistic_function_integral
 ```
 
 # Common utility types

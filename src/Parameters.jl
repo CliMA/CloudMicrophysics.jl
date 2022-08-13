@@ -93,6 +93,7 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     b_acc_KK2000::FT
     R_6C_coeff_LD2004::FT
     E_0_LD2004::FT
+    k_thrshld_stpnss::FT
 end
 
 const CMPS = CloudMicrophysicsParameters
