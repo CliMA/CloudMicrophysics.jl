@@ -5,6 +5,7 @@ const TD = Thermodynamics
 const TDPS = TD.Parameters.ThermodynamicsParameters
 
 abstract type AbstractCloudMicrophysicsParameters end
+Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = Ref(ps)
 
 # TODO: add doc strings
 # Cloud microphysics parameters
