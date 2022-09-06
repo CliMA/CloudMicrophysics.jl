@@ -23,6 +23,11 @@ const ice = CMT.IceType()
 const rain = CMT.RainType()
 const snow = CMT.SnowType()
 
+const KK2000 = CMT.KK2000Type()
+const B1994 = CMT.B1994Type()
+const TC1980 = CMT.TC1980Type()
+const LD2004 = CMT.LD2004Type()
+
 TT.@testset "τ_relax" begin
 
     TT.@test CMNe.τ_relax(prs, liquid) ≈ 10
@@ -401,58 +406,64 @@ TT.@testset "2M_microphysics - unit tests" begin
     # no reference data available - checking if callable and not NaN
     q_liq = 0.5e-3
     q_rai = 1e-6
-    TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) != NaN
-    TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) != NaN
-    TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) != NaN
+    TT.@test CM2.accretion(prs, KK2000, q_liq, q_rai, ρ) != NaN
+    TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) != NaN
+    TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) != NaN
 
     # output should be zero if either q_liq or q_rai are zero
     q_liq = 0.0
     q_rai = 1e-6
-    TT.@test CM2.conv_q_liq_to_q_rai_KK2000(prs, q_liq, ρ) == 0.0
-    TT.@test CM2.conv_q_liq_to_q_rai_B1994(prs, q_liq, ρ) == 0.0
-    TT.@test CM2.conv_q_liq_to_q_rai_TC1980(prs, q_liq, ρ) == 0.0
-    TT.@test CM2.conv_q_liq_to_q_rai_LD2004(prs, q_liq, ρ) == 0.0
-    TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) == 0.0
-    TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) == 0.0
-    TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) == 0.0
+    TT.@test CM2.conv_q_liq_to_q_rai(prs, KK2000, q_liq, ρ) == 0.0
+    TT.@test CM2.conv_q_liq_to_q_rai(prs, B1994, q_liq, ρ) == 0.0
+    TT.@test CM2.conv_q_liq_to_q_rai(prs, TC1980, q_liq, ρ) == 0.0
+    TT.@test CM2.conv_q_liq_to_q_rai(prs, LD2004, q_liq, ρ) == 0.0
+    TT.@test CM2.accretion(prs, KK2000, q_liq, q_rai, ρ) == 0.0
+    TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) == 0.0
+    TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) == 0.0
     q_liq = 0.5e-3
     q_rai = 0.0
-    TT.@test CM2.accretion_KK2000(prs, q_liq, q_rai, ρ) == 0.0
-    TT.@test CM2.accretion_B1994(prs, q_liq, q_rai, ρ) == 0.0
-    TT.@test CM2.accretion_TC1980(prs, q_liq, q_rai) == 0.0
+    TT.@test CM2.accretion(prs, KK2000, q_liq, q_rai, ρ) == 0.0
+    TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) == 0.0
+    TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) == 0.0
 
-    # far from threshold points, autoconversion with and without smooth transition should 
+    # far from threshold points, autoconversion with and without smooth transition should
     # be approximately equal
     q_liq = 0.5e-3
-    TT.@test CM2.conv_q_liq_to_q_rai_B1994(
+    TT.@test CM2.conv_q_liq_to_q_rai(
         prs,
+        B1994,
         q_liq,
         ρ,
         smooth_transition = true,
-    ) ≈ CM2.conv_q_liq_to_q_rai_B1994(
+    ) ≈ CM2.conv_q_liq_to_q_rai(
         prs,
+        B1994,
         q_liq,
         ρ,
         smooth_transition = false,
     ) rtol = 0.2
-    TT.@test CM2.conv_q_liq_to_q_rai_TC1980(
+    TT.@test CM2.conv_q_liq_to_q_rai(
         prs,
+        TC1980,
         q_liq,
         ρ,
         smooth_transition = true,
-    ) ≈ CM2.conv_q_liq_to_q_rai_TC1980(
+    ) ≈ CM2.conv_q_liq_to_q_rai(
         prs,
+        TC1980,
         q_liq,
         ρ,
         smooth_transition = false,
     ) rtol = 0.2
-    TT.@test CM2.conv_q_liq_to_q_rai_LD2004(
+    TT.@test CM2.conv_q_liq_to_q_rai(
         prs,
+        LD2004,
         q_liq,
         ρ,
         smooth_transition = true,
-    ) ≈ CM2.conv_q_liq_to_q_rai_LD2004(
+    ) ≈ CM2.conv_q_liq_to_q_rai(
         prs,
+        LD2004,
         q_liq,
         ρ,
         smooth_transition = false,
@@ -466,97 +477,36 @@ TT.@testset "2M_microphysics - compare with Wood_2005" begin
     q_liq = 0.5e-3
 
     # compare with Wood 2005 Fig 1 panel a
-    function compare(f, input, output; eps = 0.1)
-        TT.@test f(prs, input * 1e-3, ρ) ≈ output atol = eps * output
-    end
-    compare(
-        CM2.conv_q_liq_to_q_rai_KK2000,
-        0.03138461538461537,
-        2.636846054348105e-12,
-    )
-    compare(
-        CM2.conv_q_liq_to_q_rai_KK2000,
-        0.8738461538461537,
-        9.491665962977648e-9,
-    )
-    compare(
-        CM2.conv_q_liq_to_q_rai_B1994,
-        0.13999999999999999,
-        4.584323122458155e-12,
-        eps = 1,
-    )
-    compare(
-        CM2.conv_q_liq_to_q_rai_B1994,
-        0.9000000000000006,
-        5.4940586176564715e-8,
-        eps = 1,
-    )
-    compare(
-        CM2.conv_q_liq_to_q_rai_TC1980,
-        0.2700000000000001,
-        3.2768635256661366e-8,
-    )
-    compare(
-        CM2.conv_q_liq_to_q_rai_TC1980,
-        0.9000000000000006,
-        5.340418612468997e-7,
-    )
-    compare(
-        CM2.conv_q_liq_to_q_rai_LD2004,
-        0.3700000000000002,
-        8.697439193234471e-9,
-    )
-    compare(
-        CM2.conv_q_liq_to_q_rai_LD2004,
-        0.9000000000000006,
-        1.1325570516983242e-7,
-    )
-
-    # compare with Wood 2005 Fig 1 panel b
-    function compare_Nd(f, input, output; eps = 0.1)
-        TT.@test f(prs, q_liq, N_d = input * 1e6, ρ) ≈ output atol =
+    function compare(scheme, input, output; eps = 0.1)
+        TT.@test CM2.conv_q_liq_to_q_rai(prs, scheme, input * 1e-3, ρ) ≈ output atol =
             eps * output
     end
-    compare_Nd(
-        CM2.conv_q_liq_to_q_rai_KK2000,
-        16.13564081404141,
-        6.457285532394289e-8,
-    )
-    compare_Nd(
-        CM2.conv_q_liq_to_q_rai_KK2000,
-        652.093931356625,
-        8.604011482409198e-11,
-    )
-    compare_Nd(
-        CM2.conv_q_liq_to_q_rai_B1994,
-        14.47851799831075,
-        4.2829062386778675e-7,
-    )
-    compare_Nd(
-        CM2.conv_q_liq_to_q_rai_B1994,
-        693.0425211336465,
-        6.076294746898778e-12,
-    )
-    compare_Nd(
-        CM2.conv_q_liq_to_q_rai_TC1980,
-        13.658073017575544,
-        2.7110779872658386e-7,
-    )
-    compare_Nd(
-        CM2.conv_q_liq_to_q_rai_TC1980,
-        205.0970632305975,
-        1.0928660431622176e-7,
-    )
-    compare_Nd(
-        CM2.conv_q_liq_to_q_rai_LD2004,
-        15.122629721719655,
-        1.1647783461546477e-7,
-    )
-    compare_Nd(
-        CM2.conv_q_liq_to_q_rai_LD2004,
-        149.01220754857331,
-        1.3917890403908125e-8,
-        eps = 1,
-    )
+    compare(KK2000, 0.03138461538461537, 2.636846054348105e-12)
+    compare(KK2000, 0.8738461538461537, 9.491665962977648e-9)
+    compare(B1994, 0.13999999999999999, 4.584323122458155e-12, eps = 1)
+    compare(B1994, 0.9000000000000006, 5.4940586176564715e-8, eps = 1)
+    compare(TC1980, 0.2700000000000001, 3.2768635256661366e-8)
+    compare(TC1980, 0.9000000000000006, 5.340418612468997e-7)
+    compare(LD2004, 0.3700000000000002, 8.697439193234471e-9)
+    compare(LD2004, 0.9000000000000006, 1.1325570516983242e-7)
+
+    # compare with Wood 2005 Fig 1 panel b
+    function compare_Nd(scheme, input, output; eps = 0.1)
+        TT.@test CM2.conv_q_liq_to_q_rai(
+            prs,
+            scheme,
+            q_liq,
+            N_d = input * 1e6,
+            ρ,
+        ) ≈ output atol = eps * output
+    end
+    compare_Nd(KK2000, 16.13564081404141, 6.457285532394289e-8)
+    compare_Nd(KK2000, 652.093931356625, 8.604011482409198e-11)
+    compare_Nd(B1994, 14.47851799831075, 4.2829062386778675e-7)
+    compare_Nd(B1994, 693.0425211336465, 6.076294746898778e-12)
+    compare_Nd(TC1980, 13.658073017575544, 2.7110779872658386e-7)
+    compare_Nd(TC1980, 205.0970632305975, 1.0928660431622176e-7)
+    compare_Nd(LD2004, 15.122629721719655, 1.1647783461546477e-7)
+    compare_Nd(LD2004, 149.01220754857331, 1.3917890403908125e-8, eps = 1)
 
 end

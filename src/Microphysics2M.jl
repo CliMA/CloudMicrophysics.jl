@@ -10,17 +10,15 @@ module Microphysics2M
 import ..Common
 const CO = Common
 
+import ..CommonTypes
+const CT = CommonTypes
+
 import ..Parameters
 const CMP = Parameters
 const APS = CMP.AbstractCloudMicrophysicsParameters
 
-export conv_q_liq_to_q_rai_KK2000
-export conv_q_liq_to_q_rai_B1994
-export conv_q_liq_to_q_rai_TC1980
-export conv_q_liq_to_q_rai_LD2004
-export accretion_KK2000
-export accretion_B1994
-export accretion_TC198
+export conv_q_liq_to_q_rai
+export accretion
 
 """
     A Heaviside step function
@@ -29,20 +27,32 @@ function heaviside(x::FT) where {FT <: Real}
     return FT(x > 0)
 end
 
-# autoconversion rates
 """
-    conv_q_liq_to_q_rai_KK2000(param_set, q_liq, ρ, N_d)
+    conv_q_liq_to_q_rai(param_set, scheme, q_liq, ρ; N_d, smooth_transition)
 
  - `param_set` - abstract set with Earth parameters
+ - `scheme` - type for 2-moment rain autoconversion parameterization
  - `q_liq` - cloud water specific humidity
  - `ρ` - air density
- - `N_d` - cloud droplet number concentration
+ - `N_d` - prescribed cloud droplet number concentration
 
 Returns the q_rai tendency due to collisions between cloud droplets
-(autoconversion), parametrized following Khairoutdinov and Kogan (2000).
+(autoconversion), parametrized following:
+ - Khairoutdinov and Kogan (2000) for `scheme == KK200Type`
+ - Beheng (1994) for `scheme == Beheng1994Type`
+ - Tripoli and Cotton (1980) for `scheme == TC1980Type`
+ - Liu and Daum (2004) for `scheme ==LD2004Type`
+
+`N_d` is an optional argument with the default value of 100 cm-3
+
+The `Beheng1994Type`, `TC1980Type` and `LD2004Type` of schemes
+additionally accept `smooth_transition` flag that
+smoothes their thershold behaviour if set to `true`.
+The default value is `false`.
 """
-function conv_q_liq_to_q_rai_KK2000(
+function conv_q_liq_to_q_rai(
     param_set::APS,
+    scheme::CT.KK2000Type,
     q_liq::FT,
     ρ::FT;
     N_d::FT = 1e8,
@@ -57,20 +67,9 @@ function conv_q_liq_to_q_rai_KK2000(
 
     return A * q_liq^a * N_d^b * ρ^c
 end
-
-"""
-    conv_q_liq_to_q_rai_B1994(param_set, q_liq, ρ, N_d)
-
- - `param_set` - abstract set with Earth parameters
- - `q_liq` - cloud water specific humidity
- - `ρ` - air density
- - `N_d` - cloud droplet number concentration
-
-Returns the q_rai tendency due to collisions between cloud droplets
-(autoconversion), parametrized following Beheng (1994).
-"""
-function conv_q_liq_to_q_rai_B1994(
+function conv_q_liq_to_q_rai(
     param_set::APS,
+    scheme::CT.B1994Type,
     q_liq::FT,
     ρ::FT;
     N_d::FT = 1e8,
@@ -100,20 +99,9 @@ function conv_q_liq_to_q_rai_B1994(
 
     return C * d^a * (q_liq * ρ)^b * N_d^c / ρ
 end
-
-"""
-    conv_q_liq_to_q_rai_TC1980(param_set, q_liq, ρ, N_d)
-
- - `param_set` - abstract set with Earth parameters
- - `q_liq` - cloud water water specific humidity
- - `ρ` - air density
- - `N_d` - cloud droplet number concentration
-
-Returns the q_rai tendency due to collisions between cloud droplets
-(autoconversion), parametrized following Tripoli and Cotton (1980).
-"""
-function conv_q_liq_to_q_rai_TC1980(
+function conv_q_liq_to_q_rai(
     param_set::APS,
+    scheme::CT.TC1980Type,
     q_liq::FT,
     ρ::FT;
     N_d::FT = 1e8,
@@ -142,20 +130,9 @@ function conv_q_liq_to_q_rai_TC1980(
     end
     return D * q_liq^a * N_d^b * _output
 end
-
-"""
-    conv_q_liq_to_q_rai_LD2004(param_set, q_liq, ρ, N_d)
-
- - `param_set` - abstract set with Earth parameters
- - `q_liq` - cloud water specific humidity
- - `ρ` - air density
- - `N_d` - cloud droplet number concentration
-
-Returns the q_rai tendency due to collisions between cloud droplets
-(autoconversion), parametrized following Liu and Daum (2004).
-"""
-function conv_q_liq_to_q_rai_LD2004(
+function conv_q_liq_to_q_rai(
     param_set::APS,
+    scheme::CT.LD2004Type,
     q_liq::FT,
     ρ::FT;
     N_d::FT = 1e8,
@@ -189,21 +166,23 @@ function conv_q_liq_to_q_rai_LD2004(
     end
 end
 
-# accretion rates
-
 """
-    accretion_KK2000(param_set, q_liq, q_rai, ρ)
+    accretion(param_set, scheme, q_liq, q_rai, ρ)
 
  - `param_set` - abstract set with Earth parameters
+ - `scheme` - type for 2-moment rain accretion parameterization
  - `q_liq` - cloud water specific humidity
  - `q_rai` - rain water specific humidity
- - `ρ` - air density
+ - `ρ` - air density (for `KK200Type` and `Beheng1994Type`)
 
- Returns the accretion rate of rain, parametrized
- following Khairoutdinov and Kogan (2000).
+ Returns the accretion rate of rain, parametrized following
+ - Khairoutdinov and Kogan (2000) for `scheme == KK200Type`
+ - Beheng (1994) for `scheme == Beheng1994Type`
+ - Tripoli and Cotton (1980) for `scheme == TC1980Type`
 """
-function accretion_KK2000(
+function accretion(
     param_set::APS,
+    scheme::CT.KK2000Type,
     q_liq::FT,
     q_rai::FT,
     ρ::FT,
@@ -218,20 +197,9 @@ function accretion_KK2000(
 
     return A * (q_liq * q_rai)^a * ρ^b
 end
-
-"""
-    accretion_B1994(param_set, q_liq, q_rai, ρ)
-
- - `param_set` - abstract set with Earth parameters
- - `q_liq` - cloud water specific humidity
- - `q_rai` - rain water specific humidity
- - `ρ` - air density
-
- Returns the accretion rate of rain, parametrized
- following Beheng (1994).
-"""
-function accretion_B1994(
+function accretion(
     param_set::APS,
+    scheme::CT.B1994Type,
     q_liq::FT,
     q_rai::FT,
     ρ::FT,
@@ -244,20 +212,9 @@ function accretion_B1994(
 
     return A * q_liq * ρ * q_rai
 end
-
-"""
-    accretion_TC1980(param_set, q_liq, q_rai)
-
- - `param_set` - abstract set with Earth parameters
- - `q_liq` - cloud water specific humidity
- - `q_rai` - rain water specific humidity
- - `ρ` - air density
-
- Returns the accretion rate of rain, parametrized
- following Tripoli and Cotton (1980).
-"""
-function accretion_TC1980(
+function accretion(
     param_set::APS,
+    scheme::CT.TC1980Type,
     q_liq::FT,
     q_rai::FT,
 ) where {FT <: Real}
