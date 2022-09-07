@@ -1,7 +1,7 @@
 name = "CloudMicrophysics"
 uuid = "6a9e3e04-43cd-43ba-94b9-e8782df3c71b"
 authors = ["Climate Modeling Alliance"]
-version = "0.8.2"
+version = "0.9.0"
 
 [deps]
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
