@@ -12,6 +12,11 @@ export IceType
 export RainType
 export SnowType
 export AbstractAerosolDistribution
+export Abstract2MPrecipType
+export KK2000Type
+export B1994Type
+export TC1980Type
+export LD2004Type
 
 """
     AbstractAerosolDistribution
@@ -61,5 +66,40 @@ struct RainType <: AbstractPrecipType end
 The type for snow
 """
 struct SnowType <: AbstractPrecipType end
+
+"""
+    Abstract2MPrecipType
+
+The top-level super-type for 2-moment precipitation formation types
+"""
+abstract type Abstract2MPrecipType end
+
+"""
+    KK2000Type
+
+The type for 2-moment precipitation formation by Khairoutdinov and Kogan (2000)
+"""
+struct KK2000Type <: Abstract2MPrecipType end
+
+"""
+    B1994Type
+
+The type for 2-moment precipitation formation by Beheng (1994)
+"""
+struct B1994Type <: Abstract2MPrecipType end
+
+"""
+    TC1980Type
+
+The type for 2-moment precipitation formation by Tripoli and Cotton (1980)
+"""
+struct TC1980Type <: Abstract2MPrecipType end
+
+"""
+    LD2004Type
+
+The type for 2-moment precipitation formation by Liu and Daum (2004)
+"""
+struct LD2004Type <: Abstract2MPrecipType end
 
 end #module CommoniTypes.jl

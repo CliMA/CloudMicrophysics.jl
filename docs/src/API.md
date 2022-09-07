@@ -40,13 +40,8 @@ Microphysics1M.snow_melt
 # 2-moment precipitation microphysics
 ```@docs
 Microphysics2M
-Microphysics2M.conv_q_liq_to_q_rai_KK2000
-Microphysics2M.conv_q_liq_to_q_rai_B1994
-Microphysics2M.conv_q_liq_to_q_rai_TC1980
-Microphysics2M.conv_q_liq_to_q_rai_LD2004
-Microphysics2M.accretion_KK2000
-Microphysics2M.accretion_B1994
-Microphysics2M.accretion_TC1980
+Microphysics2M.conv_q_liq_to_q_rai
+Microphysics2M.accretion
 ```
 
 # Aerosol model
@@ -90,4 +85,9 @@ CommonTypes.LiquidType
 CommonTypes.IceType
 CommonTypes.RainType
 CommonTypes.SnowType
+CommonTypes.Abstract2MPrecipType
+CommonTypes.KK2000Type
+CommonTypes.B1994Type
+CommonTypes.TC1980Type
+CommonTypes.LD2004Type
 ```
