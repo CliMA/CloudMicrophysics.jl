@@ -77,18 +77,18 @@ function mean_hygroscopicity_parameter(
     _molmass_water = CMP.molmass_water(param_set)
     _ρ_cloud_liq = CMP.ρ_cloud_liq(param_set)
 
-    return ntuple(length(ad.Modes)) do i
+    return ntuple(AM.n_modes(ad)) do i
 
         mode_i = ad.Modes[i]
 
-        nom = sum(1:(mode_i.n_components)) do j
+        nom = sum(1:(AM.n_components(mode_i))) do j
             mode_i.mass_mix_ratio[j] *
             mode_i.dissoc[j] *
             mode_i.osmotic_coeff[j] *
             mode_i.soluble_mass_frac[j] / mode_i.molar_mass[j]
         end
 
-        den = sum(1:(mode_i.n_components)) do j
+        den = sum(1:(AM.n_components(mode_i))) do j
             mode_i.mass_mix_ratio[j] / mode_i.aerosol_density[j]
         end
 
@@ -100,11 +100,11 @@ function mean_hygroscopicity_parameter(
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_κ}
 
-    return ntuple(length(ad.Modes)) do i
+    return ntuple(AM.n_modes(ad)) do i
 
-        modei = ad.Modes[i]
-        sum(1:(modei.n_components)) do j
-            modei.vol_mix_ratio[j] * modei.kappa[j]
+        mode_i = ad.Modes[i]
+        sum(1:(AM.n_components(mode_i))) do j
+            mode_i.vol_mix_ratio[j] * mode_i.kappa[j]
         end
     end
 end
@@ -128,7 +128,7 @@ function critical_supersaturation(
     A::FT = coeff_of_curvature(param_set, T)
     hygro = mean_hygroscopicity_parameter(param_set, ad)
 
-    return ntuple(length(ad.Modes)) do i
+    return ntuple(AM.n_modes(ad)) do i
         2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
     end
 end
@@ -176,7 +176,7 @@ function max_supersaturation(
 
     Sm = critical_supersaturation(param_set, ad, T)
 
-    tmp::FT = sum(1:length(ad.Modes)) do i
+    tmp::FT = sum(1:AM.n_modes(ad)) do i
 
         mode_i = ad.Modes[i]
 
@@ -216,7 +216,7 @@ function N_activated_per_mode(
     smax::FT = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
 
-    return ntuple(length(ad.Modes)) do i
+    return ntuple(AM.n_modes(ad)) do i
 
         mode_i = ad.Modes[i]
         u_i::FT = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
@@ -250,11 +250,11 @@ function M_activated_per_mode(
     smax = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
 
-    return ntuple(length(ad.Modes)) do i
+    return ntuple(AM.n_modes(ad)) do i
 
         mode_i = ad.Modes[i]
 
-        avg_molar_mass_i = sum(1:(mode_i.n_components)) do j
+        avg_molar_mass_i = sum(1:(AM.n_components(mode_i))) do j
             mode_i.molar_mass[j] * mode_i.mass_mix_ratio[j]
         end
 
