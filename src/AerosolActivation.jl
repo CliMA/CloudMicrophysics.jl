@@ -78,7 +78,7 @@ function mean_hygroscopicity_parameter(
     _ρ_cloud_liq = CMP.ρ_cloud_liq(param_set)
     FT = eltype(param_set)
 
-    return ntuple(AM.n_modes(ad)) do i
+    return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
 
@@ -105,7 +105,7 @@ function mean_hygroscopicity_parameter(
 ) where {N, T <: AM.Mode_κ}
 
     FT = eltype(param_set)
-    return ntuple(AM.n_modes(ad)) do i
+    return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
         _result = FT(0)
@@ -135,7 +135,7 @@ function critical_supersaturation(
     A::FT = coeff_of_curvature(param_set, T)
     hygro = mean_hygroscopicity_parameter(param_set, ad)
 
-    return ntuple(AM.n_modes(ad)) do i
+    return ntuple(Val(AM.n_modes(ad))) do i
         2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
     end
 end
@@ -225,7 +225,7 @@ function N_activated_per_mode(
     smax::FT = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
 
-    return ntuple(AM.n_modes(ad)) do i
+    return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
         u_i::FT = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
@@ -259,7 +259,7 @@ function M_activated_per_mode(
     smax = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
 
-    return ntuple(AM.n_modes(ad)) do i
+    return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
 
