@@ -103,8 +103,8 @@ function mean_hygroscopicity_parameter(
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_κ}
 
-    FT = eltype(param_set)
     return ntuple(Val(AM.n_modes(ad))) do i
+        FT = eltype(param_set)
 
         mode_i = ad.Modes[i]
         _result = FT(0)
@@ -130,10 +130,17 @@ function critical_supersaturation(
     ad::CT.AbstractAerosolDistribution,
     T::FT,
 ) where {FT <: Real}
-
     A::FT = coeff_of_curvature(param_set, T)
     hygro = mean_hygroscopicity_parameter(param_set, ad)
-
+    critical_supersaturation(param_set, ad, T, A, hygro)
+end
+function critical_supersaturation(
+    param_set::APS,
+    ad::CT.AbstractAerosolDistribution,
+    T::FT,
+    A,
+    hygro,
+) where {FT <: Real}
     return ntuple(Val(AM.n_modes(ad))) do i
         2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
     end
@@ -220,10 +227,21 @@ function N_activated_per_mode(
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
     smax::FT = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
+    N_activated_per_mode(param_set, ad, T, p, w, q, smax, sm)
+end
 
+function N_activated_per_mode(
+    param_set::APS,
+    ad::CT.AbstractAerosolDistribution,
+    T::FT,
+    p::FT,
+    w::FT,
+    q::TD.PhasePartition{FT},
+    smax,
+    sm,
+) where {FT <: Real}
     return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
@@ -254,10 +272,21 @@ function M_activated_per_mode(
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
     smax = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
+    M_activated_per_mode(param_set, ad, T, p, w, q, smax, sm)
+end
 
+function M_activated_per_mode(
+    param_set::APS,
+    ad::CT.AbstractAerosolDistribution,
+    T::FT,
+    p::FT,
+    w::FT,
+    q::TD.PhasePartition{FT},
+    smax,
+    sm,
+) where {FT <: Real}
     return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
