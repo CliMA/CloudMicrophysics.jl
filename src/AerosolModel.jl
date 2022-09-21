@@ -24,7 +24,7 @@ and follow a lognormal size distribution.
 The chemical composition of aerosol particles in this mode
 is described using the parameters from Abdul-Razzak and Ghan 2000.
 """
-struct Mode_B{T, FT}
+struct Mode_B{NCOMP, T, FT}
     "geometric mean dry radius"
     r_dry::FT
     "geometric standard deviation"
@@ -43,9 +43,33 @@ struct Mode_B{T, FT}
     dissoc::T
     "tuple of aerosol densities for all components in this mode"
     aerosol_density::T
-    "number of components in the mode"
-    n_components::Int64
 end
+@inline Mode_B(
+    r_dry::FT,
+    stdev::FT,
+    N::FT,
+    mass_mix_ratio::T,
+    soluble_mass_frac::T,
+    osmotic_coeff::T,
+    molar_mass::T,
+    dissoc::T,
+    aerosol_density::T,
+    NCOMP::Int,
+) where {T, FT} = Mode_B{NCOMP, T, FT}(
+    r_dry,
+    stdev,
+    N,
+    mass_mix_ratio,
+    soluble_mass_frac,
+    osmotic_coeff,
+    molar_mass,
+    dissoc,
+    aerosol_density,
+)
+
+""" number of components in the mode """
+n_components(::Mode_B{NCOMP}) where {NCOMP} = NCOMP
+
 
 """
     Mode_κ
@@ -57,7 +81,7 @@ and follow a lognormal size distribution.
 The chemical composition of aerosol particles in this mode
 is described using the parameters from Petters and Kreidenweis 2007.
 """
-struct Mode_κ{T, FT}
+struct Mode_κ{NCOMP, T, FT}
     "geometric mean dry radius"
     r_dry::FT
     "geometric standard deviation"
@@ -72,9 +96,28 @@ struct Mode_κ{T, FT}
     molar_mass::T
     "tuple of kappa-kohler values for all components in this mode"
     kappa::T
-    "number of components in the mode"
-    n_components::Int64
 end
+@inline Mode_κ(
+    r_dry::FT,
+    stdev::FT,
+    N::FT,
+    vol_mix_ratio::T,
+    mass_mix_ratio::T,
+    molar_mass::T,
+    kappa::T,
+    NCOMP::Int,
+) where {T, FT} = Mode_κ{NCOMP, T, FT}(
+    r_dry,
+    stdev,
+    N,
+    vol_mix_ratio,
+    mass_mix_ratio,
+    molar_mass,
+    kappa,
+)
+
+""" number of components in the mode """
+n_components(::Mode_κ{NCOMP}) where {NCOMP} = NCOMP
 
 """
     AerosolDistribution
@@ -97,5 +140,7 @@ struct AerosolDistribution{T} <: CT.AbstractAerosolDistribution{T}
     end
 
 end
+
+n_modes(::AerosolDistribution{NTuple{N, T}}) where {N, T} = N
 
 end

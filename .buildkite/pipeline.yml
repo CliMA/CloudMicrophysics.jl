@@ -22,7 +22,7 @@ steps:
       - "julia --project -e 'using Pkg; Pkg.precompile()'"
 
       # force the initialization of the CUDA runtime as it is lazily loaded by default
-      - "julia --project -e 'using Pkg; Pkg.add(name=\"CUDA\",version=\"3.5.0\")'"
+      - "julia --project -e 'using Pkg; Pkg.add(name=\"CUDA\",version=\"3.12.0\")'"
       - "julia --project -e 'using CUDA; CUDA.versioninfo()'"
       - "julia --project -e 'using CUDA; CUDA.precompile_runtime()'"
       - "julia --project -e 'using Pkg; Pkg.status()'"

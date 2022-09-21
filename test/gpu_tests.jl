@@ -1,6 +1,7 @@
 using Test
 using KernelAbstractions
-using CUDAKernels
+import CUDAKernels
+const CK = CUDAKernels
 
 import CloudMicrophysics
 import CLIMAParameters
@@ -11,9 +12,8 @@ const TD = Thermodynamics
 const CMP = CloudMicrophysics.Parameters
 
 include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
-FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-const prs = cloud_microphysics_parameters(toml_dict)
+make_prs(::Type{FT}) where {FT} =
+    cloud_microphysics_parameters(CP.create_toml_dict(FT; dict_type = "alias"))
 
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
@@ -27,13 +27,13 @@ const rain = CMT.RainType()
 const snow = CMT.SnowType()
 
 if get(ARGS, 1, "Array") == "CuArray"
-    using CUDA
+    import CUDA
     ArrayType = CUDA.CuArray
     CUDA.allowscalar(false)
-    device(::Type{T}) where {T <: CuArray} = CUDADevice()
+    device(::Type{T}) where {T <: CUDA.CuArray} = CK.CUDADevice()
 else
     ArrayType = Array
-    device(::Type{T}) where {T <: Array} = CPU()
+    device(::Type{T}) where {T <: Array} = CK.CPU()
 end
 
 @show ArrayType
@@ -189,8 +189,20 @@ end
     κ = ArrayType([0.53, 1.12])
 
     kernel! = test_aerosol_activation_kernel!(dev, work_groups)
-    event =
-        kernel!(prs, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ, ndrange = ndrange)
+    event = kernel!(
+        make_prs(FT),
+        output,
+        r,
+        stdev,
+        N,
+        ϵ,
+        ϕ,
+        M,
+        ν,
+        ρ,
+        κ,
+        ndrange = ndrange,
+    )
     wait(dev, event)
 
     # test if all aerosol activation output is positive
@@ -217,7 +229,8 @@ end
     qc = ArrayType([3e-3, 4e-3, 5e-3])
 
     kernel! = test_0_moment_micro_kernel!(dev, work_groups)
-    event = kernel!(prs, output, liquid_frac, qc, qt, ndrange = ndrange)
+    event =
+        kernel!(make_prs(FT), output, liquid_frac, qc, qt, ndrange = ndrange)
     wait(dev, event)
 
     # test 0-moment rain removal is callable and returns a reasonable value
@@ -242,7 +255,8 @@ end
     qr = ArrayType([0.0, 5e-4])
 
     kernel! = test_1_moment_micro_accretion_kernel!(dev, work_groups)
-    event = kernel!(prs, output, ρ, qt, qi, qs, ql, qr, ndrange = ndrange)
+    event =
+        kernel!(make_prs(FT), output, ρ, qt, qi, qs, ql, qr, ndrange = ndrange)
     wait(dev, event)
 
     # test 1-moment accretion is callable and returns a reasonable value
@@ -268,7 +282,7 @@ end
     qs = ArrayType([1e-4, 0.0, 1e-4])
 
     kernel! = test_1_moment_micro_snow_melt_kernel!(dev, work_groups)
-    event = kernel!(prs, output, ρ, T, qs, ndrange = ndrange)
+    event = kernel!(make_prs(FT), output, ρ, T, qs, ndrange = ndrange)
     wait(dev, event)
 
     # test if 1-moment snow melt is callable and returns reasonable values

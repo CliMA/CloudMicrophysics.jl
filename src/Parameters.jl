@@ -97,6 +97,8 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     k_thrshld_stpnss::FT
 end
 
+Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT
+
 const CMPS = CloudMicrophysicsParameters
 
 thermodynamics_params(cmp::CMPS) = cmp.thermo_params

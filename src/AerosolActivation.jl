@@ -73,23 +73,26 @@ function mean_hygroscopicity_parameter(
     param_set::APS,
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_B}
+    return ntuple(Val(AM.n_modes(ad))) do i
+        _molmass_water = CMP.molmass_water(param_set)
+        _ρ_cloud_liq = CMP.ρ_cloud_liq(param_set)
 
-    _molmass_water = CMP.molmass_water(param_set)
-    _ρ_cloud_liq = CMP.ρ_cloud_liq(param_set)
-
-    return ntuple(length(ad.Modes)) do i
+        FT = eltype(param_set)
 
         mode_i = ad.Modes[i]
 
-        nom = sum(1:(mode_i.n_components)) do j
-            mode_i.mass_mix_ratio[j] *
-            mode_i.dissoc[j] *
-            mode_i.osmotic_coeff[j] *
-            mode_i.soluble_mass_frac[j] / mode_i.molar_mass[j]
+        nom = FT(0)
+        @inbounds for j in 1:(AM.n_components(mode_i))
+            nom +=
+                mode_i.mass_mix_ratio[j] *
+                mode_i.dissoc[j] *
+                mode_i.osmotic_coeff[j] *
+                mode_i.soluble_mass_frac[j] / mode_i.molar_mass[j]
         end
 
-        den = sum(1:(mode_i.n_components)) do j
-            mode_i.mass_mix_ratio[j] / mode_i.aerosol_density[j]
+        den = FT(0)
+        @inbounds for j in 1:(AM.n_components(mode_i))
+            den += mode_i.mass_mix_ratio[j] / mode_i.aerosol_density[j]
         end
 
         nom / den * _molmass_water / _ρ_cloud_liq
@@ -100,12 +103,15 @@ function mean_hygroscopicity_parameter(
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_κ}
 
-    return ntuple(length(ad.Modes)) do i
+    return ntuple(Val(AM.n_modes(ad))) do i
+        FT = eltype(param_set)
 
-        modei = ad.Modes[i]
-        sum(1:(modei.n_components)) do j
-            modei.vol_mix_ratio[j] * modei.kappa[j]
+        mode_i = ad.Modes[i]
+        _result = FT(0)
+        @inbounds for j in 1:(AM.n_components(mode_i))
+            _result += mode_i.vol_mix_ratio[j] * mode_i.kappa[j]
         end
+        _result
     end
 end
 
@@ -124,11 +130,18 @@ function critical_supersaturation(
     ad::CT.AbstractAerosolDistribution,
     T::FT,
 ) where {FT <: Real}
-
     A::FT = coeff_of_curvature(param_set, T)
     hygro = mean_hygroscopicity_parameter(param_set, ad)
-
-    return ntuple(length(ad.Modes)) do i
+    critical_supersaturation(param_set, ad, T, A, hygro)
+end
+function critical_supersaturation(
+    param_set::APS,
+    ad::CT.AbstractAerosolDistribution,
+    T::FT,
+    A,
+    hygro,
+) where {FT <: Real}
+    return ntuple(Val(AM.n_modes(ad))) do i
         2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
     end
 end
@@ -176,7 +189,8 @@ function max_supersaturation(
 
     Sm = critical_supersaturation(param_set, ad, T)
 
-    tmp::FT = sum(1:length(ad.Modes)) do i
+    tmp::FT = FT(0)
+    @inbounds for i in 1:AM.n_modes(ad)
 
         mode_i = ad.Modes[i]
 
@@ -184,8 +198,9 @@ function max_supersaturation(
         g::FT = 1 + 0.25 * log(mode_i.stdev)
         η::FT = (α * w / G)^(3 / 2) / (2 * pi * _ρ_cloud_liq * γ * mode_i.N)
 
-        1 / (Sm[i])^2 *
-        (f * (ζ / η)^(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^(3 / 4))
+        tmp +=
+            1 / (Sm[i])^2 *
+            (f * (ζ / η)^(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^(3 / 4))
     end
 
     return FT(1) / sqrt(tmp)
@@ -212,11 +227,22 @@ function N_activated_per_mode(
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
     smax::FT = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
+    N_activated_per_mode(param_set, ad, T, p, w, q, smax, sm)
+end
 
-    return ntuple(length(ad.Modes)) do i
+function N_activated_per_mode(
+    param_set::APS,
+    ad::CT.AbstractAerosolDistribution,
+    T::FT,
+    p::FT,
+    w::FT,
+    q::TD.PhasePartition{FT},
+    smax,
+    sm,
+) where {FT <: Real}
+    return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
         u_i::FT = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
@@ -246,16 +272,28 @@ function M_activated_per_mode(
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
     smax = max_supersaturation(param_set, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
+    M_activated_per_mode(param_set, ad, T, p, w, q, smax, sm)
+end
 
-    return ntuple(length(ad.Modes)) do i
+function M_activated_per_mode(
+    param_set::APS,
+    ad::CT.AbstractAerosolDistribution,
+    T::FT,
+    p::FT,
+    w::FT,
+    q::TD.PhasePartition{FT},
+    smax,
+    sm,
+) where {FT <: Real}
+    return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
 
-        avg_molar_mass_i = sum(1:(mode_i.n_components)) do j
-            mode_i.molar_mass[j] * mode_i.mass_mix_ratio[j]
+        avg_molar_mass_i = FT(0)
+        @inbounds for j in 1:(AM.n_components(mode_i))
+            avg_molar_mass_i += mode_i.molar_mass[j] * mode_i.mass_mix_ratio[j]
         end
 
         u_i = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
