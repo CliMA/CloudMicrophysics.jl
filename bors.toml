@@ -1,7 +1,7 @@
 status = [
-  "ci 1.6.0 - ubuntu-latest",
-  "ci 1.6.0 - windows-latest",
-  "ci 1.6.0 - macOS-latest",
+  "ci 1.8.1 - ubuntu-latest",
+  "ci 1.8.1 - windows-latest",
+  "ci 1.8.1 - macOS-latest",
   "buildkite/cloudmicrophysics-ci",
   "docbuild",
   "format",
