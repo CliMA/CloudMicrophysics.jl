@@ -73,12 +73,11 @@ function mean_hygroscopicity_parameter(
     param_set::APS,
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_B}
-
-    _molmass_water = CMP.molmass_water(param_set)
-    _ρ_cloud_liq = CMP.ρ_cloud_liq(param_set)
-    FT = eltype(param_set)
-
     return ntuple(Val(AM.n_modes(ad))) do i
+        _molmass_water = CMP.molmass_water(param_set)
+        _ρ_cloud_liq = CMP.ρ_cloud_liq(param_set)
+
+        FT = eltype(param_set)
 
         mode_i = ad.Modes[i]
 
