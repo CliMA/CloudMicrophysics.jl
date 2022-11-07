@@ -3,16 +3,14 @@ module Nucleation
 """
     nucleation_timestep(rh, temp, so4)
 
-Calculates the nucleation rate for a single timestep under the given conditions.
-All newly formed particles will be placed into the Aitken mode.
+ - `rh` - Relative humidity, expressed as a percentage between 0 and 1
+ - `temp` - Temperature (K)
+ - `so4` - Total gas phase concentration of sulfuric acid (cm^-3)
 
+Returns the nucleation rate for a single timestep under the given conditions.
+All newly formed particles will be placed into the Aitken mode.
 The initial nucleation rate comes from Vehkamaki et al, 2002 doi:10.1029/2002JD002184
 Adjustment factor comes from Kerminen and Kulmala, 2002 doi:10.1029/2002JD002184
-
-# Inputs
-rh: Relative humidity, expressed as a percentage between 0 and 1
-temp: Temperature (K)
-so4: Total gas phase concentration of sulfuric acid (cm^-3)
 
 # Examples
 ```julia-repl
@@ -20,7 +18,6 @@ julia> nucleation_timestep(0.55, 236, 1e7)
 162.96173344575243
 ```
 """
-
 function nucleation_timestep(rh, temp, so4)
     # Vehkamaki et al 2002 for initial parameterization of nucleation rate J
     ln_so4 = log(so4)
