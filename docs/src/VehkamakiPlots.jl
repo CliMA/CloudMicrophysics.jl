@@ -1,6 +1,6 @@
 using Plots
 
-include("Nucleation.jl")
+include("../../src/Nucleation.jl")
 using .Nucleation
 
 # Reproduces figures from Vehkamaki et al, 2002 doi:10.1029/2002JD002184
@@ -17,7 +17,10 @@ function plot_vehk(
     ylog = true,
     points = [],
 )
-    rates = map(x -> Nucleation.nucleation_timestep(rh, temp, x), so4)
+    rates = map(
+        x -> Nucleation.so4_nucleation_timestep(rh, temp, x * 1e6) / 1e6,
+        so4,
+    )
     title = "$temp K, RH=$(round(rh*100;digits=3))%"
     Plots.plot(
         title = title,
@@ -34,7 +37,7 @@ function plot_vehk(
     if !isempty(points)
         Plots.scatter!(points, label = "Vehkamaki Points")
     end
-    Plots.svg("$temp K_$(round(rh*100;digits=3))")
+    Plots.svg("Vehk_$(temp)_K_$(round(rh*100;digits=3))_P")
 
 end
 

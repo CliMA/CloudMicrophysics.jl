@@ -1,25 +1,28 @@
 module Nucleation
 
 """
-    nucleation_timestep(rh, temp, so4)
+    so4_nucleation_timestep(rh, temp, so4)
 
  - `rh` - Relative humidity, expressed as a percentage between 0 and 1
  - `temp` - Temperature (K)
- - `so4` - Total gas phase concentration of sulfuric acid (cm^-3)
+ - `so4` - Total gas phase concentration of sulfuric acid (m⁻³)
 
-Returns the nucleation rate for a single timestep under the given conditions.
+Calculates the rate of binary H2SO4-H2O nucleation for a single timestep under the given conditions.
+The parameterization is valid for the temperature range 230.15–300.15 K, 
+relative humidities 0.01–100% and total sulfuric acid concentrations 1e10-1e17 m⁻³.
+
 All newly formed particles will be placed into the Aitken mode.
 The initial nucleation rate comes from Vehkamaki et al, 2002 doi:10.1029/2002JD002184
 Adjustment factor comes from Kerminen and Kulmala, 2002 doi:10.1029/2002JD002184
 
 # Examples
 ```julia-repl
-julia> nucleation_timestep(0.55, 236, 1e7)
-162.96173344575243
+julia> so4_nucleation_timestep(0.55, 236, 1e12)
+3370.459263987254
 ```
 """
-function nucleation_timestep(rh, temp, so4)
-    # Vehkamaki et al 2002 for initial parameterization of nucleation rate J
+function so4_nucleation_timestep(rh, temp, so4)
+    so4 = so4 / 1e6 # convert to cm⁻³
     ln_so4 = log(so4)
     log_rh = log(rh)
     x_crit = (
@@ -75,19 +78,20 @@ function nucleation_timestep(rh, temp, so4)
         5.00427e-9 * temp^3 - 0.0127081 / x_crit
     )
 
-    # Nucleation rate 1/(cm^3 s)
-    J = exp(
-        a_T +
-        b_T * log_rh +
-        c_T * log_rh^2 +
-        d_T * log_rh^3 +
-        e_T * ln_so4 +
-        f_T * log_rh * ln_so4 +
-        g_T * log_rh^2 * ln_so4 +
-        h_T * ln_so4^2 +
-        i_T * log_rh * ln_so4^2 +
-        j_T * ln_so4^3,
-    )
+    # Nucleation rate 1/(m^3 s)
+    J =
+        exp(
+            a_T +
+            b_T * log_rh +
+            c_T * log_rh^2 +
+            d_T * log_rh^3 +
+            e_T * ln_so4 +
+            f_T * log_rh * ln_so4 +
+            g_T * log_rh^2 * ln_so4 +
+            h_T * ln_so4^2 +
+            i_T * log_rh * ln_so4^2 +
+            j_T * ln_so4^3,
+        ) * 1e6
     return J
 end
 
