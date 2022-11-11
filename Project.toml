@@ -5,6 +5,8 @@ version = "0.9.2"
 
 [deps]
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
+FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
+OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 

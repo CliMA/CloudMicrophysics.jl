@@ -16,6 +16,7 @@ pages = Any[
     "Aerosol activation" => "AerosolActivation.md",
     "ARG2000 activation example" => "ARG2000_example.md",
     "Aerosol Nucleation" => "AerosolNucleation.md",
+    "Aerosol Coagulation" => "AerosolCoagulation.md",
     "API" => "API.md",
     "References" => "References.md",
 ]
