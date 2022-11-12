@@ -1,5 +1,7 @@
 module Coagulation
 
+include("CoagCorrectionFactors.jl")
+import .CoagCorrectionFactors as CCF
 """
     whitby_intramodal_coag(ad, temp, rho_p)
 
@@ -19,12 +21,12 @@ function whitby_intramodal_coag(
     K_nc,
     ESG, 
 )
-    SQD_gn = sqrt(D_gn)  # D_gn is the Geometric mean size of the number weighted lognormal distribution - aka 2*r_dry?
+    SQD_gn = sqrt(2 * am.r_dry)  
 
     # Whitby H.11a
-    m_0_fm(am) = -am.N^2 * K_fm * b_0 * SQD_gn * (ESG + ESG^25 + 2 * ESG^5)
+    m_0_fm(am) = -am.N^2 * K_fm * CCF.intramodal_correction(am.stdev) * SQD_gn * (ESG + ESG^25 + 2 * ESG^5)
     # Whitby H.11b
-    m_6_fm(am) = -2 * am.N^2 * K_fm * b_6 * SQD_gn^6 * (ESG^85 + 2*ESG^89 + ESG^109)
+    m_6_fm(am) = -2 * am.N^2 * K_fm * intramodal_correction(am.stdev) * SQD_gn^6 * (ESG^85 + 2*ESG^89 + ESG^109)
     # Whitby H.12a
     m_0_nc(am) = -am.N^2 * K_nc * (1 + ESG^8 + A * Kn_g * (ESG^20 + ESG^4))
     #Whitby H.12b
