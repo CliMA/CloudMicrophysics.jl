@@ -46,12 +46,10 @@ function whitby_coagulation(
     # Call coags for aitken and accumulation modes:
     intra_m_0_ait = whitby_intramodal_coag(aitken, K_fm, K_nc, Kn_ait, ESG_ait)
     intra_m_0_acc = whitby_intramodal_coag(accum, K_fm, K_nc, Kn_acc, ESG_acc)
-    (inter_m_0_ait, m_3) = whitby_intermodal_coag(ad, K_fm, K_nc, Kn_ait, Kn_acc, ESG_ait, ESG_acc)
+    (inter_m_0_ait, m_2_ait, m_2_acc, m_3) = whitby_intermodal_coag(ad, K_fm, K_nc, Kn_ait, Kn_acc, ESG_ait, ESG_acc)
 
     aitken.N += intra_m_0_ait + inter_m_0_ait
     accum.N += intra_m_0_acc
-
-
 end
 
 
@@ -115,11 +113,13 @@ function whitby_intermodal_coag(
     )
     aitken = ad.Modes[1]
     accum = ad.Modes[2]
-
-    R = sqrt(2*accum.r_dry) / sqrt(2*aitken.r_dry)
+    sqrt_diam_ait = sqrt(2*aitken.r_dry)
+    sqrt_diam_acc = sqrt(2*accum.r_dry)
+    R = sqrt_diam_acc / sqrt_diam_ait
     R_2 = R^2
     R_3 = R^3
     R_4 = R^4
+    # Issue: a is hardcoded to one value in CAM5? 
     A_ait = 1.43 * Kn_ait^0.0814
     A_acc = 1.43 * Kn_acc^0.0814
     # Free molecular form:
@@ -130,6 +130,12 @@ function whitby_intermodal_coag(
          R^4 * ESG_ait^9 * ESG_acc^16 + 
          (1/R_3) * ESG_ait^16 * ESG_acc^9 +
          2 * (1/R) * ESG_ait^4 * ESG_acc)
+    # From CAM5 code, Whitby doesn't specify 2nd moment integral approximation
+    # Not sure about sign or units - should this be multiplied by number concentration?
+    m_2_ait_fm =  aitken.N * accum.N * K_fm * sqrt_diam_ait^5 * CCF.intermodal_m2_ait_correction(n1,n2n,n2a) * 
+        (ESG_ait^25 + 2 * R_2 * ESG_ait^9 * ESG_acc^04 
+        + R_4 * ESG_ait * ESG_acc^16 + (1/R_3) * ESG_ait^64 * ESG_acc^9
+        + 2 * (1/R) * ESG_ait^36 * ESG_acc + R * ESG_ait^16 * ESG_acc)
     # Whitby H.7b
     m_3_fm = 
         - aitken.N * accum.N * K_fm * CCF.intermodal_m3_correction(R_2, aitken.stdev, accum.stdev) * sqrt_diam_ait^7 *
@@ -155,6 +161,14 @@ function whitby_intermodal_coag(
         A_ait * Kn_ait * (ESG_ait^4 + R_2 * ESG_ait^16 * ESG_acc^4) +
         A_acc + Kn_acc * (ESG_acc^4 + (1/R_2) * ESG_acc^16 * ESG_ait^4) +
         (R_2 + (1/R_2) * ESG_ait^4 * ESG_acc^4)
+    # Unsure about A_ait or A_acc for this case
+    m_2_ait_nc =
+        K_nc * (2*aitken.r_dry)^2 * 
+        (2 * ESG_ait^16 + R_2 * ESG_ait^4 * ESG_acc^4 +
+         A_ait * Kn_ait * (ESG_ait^4 + (1/R_2) * ESG_ait^16 * ESG_acc^4 +
+                      (1/R_4) * ESG_ait^36 * ESG_acc^16 + R_2 * ESG_acc^4
+                     )
+        )
     # Whitby H.10b
     m_3_nc =
         - aitken.N * accum.N * K_nc * aitken.r_dry^3 *
@@ -175,9 +189,12 @@ function whitby_intermodal_coag(
         A_acc * Kn_acc * (ESG_ait^36 * ESG_acc^16 + (1/R_2) * ESG_ait^64 * ESG_acc^4) +
         R_2 * ESG_ait^16 * ESG_acc^64 + (1/R_2) * ESG_ait^64 * ESG_acc^16)
     # Harmonic mean
-    m_3 = m_3_fm * m_3_nc / (m_3_fm + m_3_nc)
     m_0_ait = m_0_ait_fm * m_0_ait_nc / (m_0_ait_fm + m_0_ait_nc)
-    return (m_0_ait, m_3)
+    m_2_ait = m_2_ait_fm * m_2_ait_nc / (m_2_ait_fm + m_2_ait_nc)
+    m_3 = m_3_fm * m_3_nc / (m_3_fm + m_3_nc)
+    # From CAM5 :  coagacat2 = ( ( one + r6 ) ** two3rds - rx4 ) * i1
+    m_2_acc = (((1 + R_6)^(2/3) - R_4) * m_2_ait) * CCF.intermodal_m2_acc_correction(R_2, aitken.stdev, accum.stdev)
+    return (m_0_ait, m_2_ait, m_2_acc, m_3)
 end
 
 end
