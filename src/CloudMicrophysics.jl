@@ -18,5 +18,5 @@ include("Microphysics2M.jl")
 include("MicrophysicsNonEq.jl")
 include("AerosolModel.jl")
 include("AerosolActivation.jl")
-
+include("Coagulation.jl")
 end # module
