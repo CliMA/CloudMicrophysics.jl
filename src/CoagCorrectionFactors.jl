@@ -3,13 +3,13 @@ module CoagCorrectionFactors
 export intramodal_correction
 
 """
-intramodal_correction(stdev)
+intramodal_m0_correction(stdev)
 Given the geometric standard deviation of an aerosol mode,
 returns the correction factor for the intramodal coagulation integral
-Correction factors for 0-th and 6-th moment are the same in Whitby 91 - see p. H.8
+Correction factors for 0-th moment are the same in Whitby 91 - see p. H.8
 These correction factors are obtained from the CAM5 code for higher precision.
 """
-function intramodal_correction(stdev)
+function intramodal_m0_correction(stdev)
     index = max(1, min(10, 
                 round(Integer, (stdev - 0.75) / 0.25)))
     correction_factors = 
@@ -19,6 +19,16 @@ function intramodal_correction(stdev)
     0.985397173215326]
     return correction_factors[index]
 end
+
+function intramodal_m2_correction(stdev)
+    index = max(1, min(10, 
+                round(Integer, (stdev - 0.75) / 0.25)))
+    correction_factors = 
+    [1.000000, 0.907452, 0.680931, 0.409815, 0.196425,
+    0.078814, 0.028473, 0.009800, 0.003322, 0.001129]
+    return correction_factors[index]
+end
+
 
 function getindex(R_2, stdev_ait, stdev_acc)
     i_R_2 = max(1, min(10, 

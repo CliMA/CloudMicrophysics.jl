@@ -12,20 +12,18 @@ The `Nucleation.jl` module contains parameterization
   of binary ``H_{2}SO_{4}-H_{2}O`` nucleation, as described by [Vehkamaki2002](@cite).
 This parameterization approximates theoretical nucleation values with empirical fits.
 
-The theoretical values are given by:
+The theoretical nucleation rate J ``(m^{-3} s^{-1})`` is given by the Arrhenius equation:
 ``` math
-  J = Z \cdot \rho(1,2) \cdot \exp [\frac{-(W^{*}-W(1,2))}{kT}]
+  J = Z \cdot \rho(1,2) \cdot \exp [\frac{-(W^{*}-W(1,2))}{k_B T}]
 ```
 where:
- - ``\rho(1, 2)`` is the number concentration of sulfuric acid dihydrate,
- - ``W(1, 2)`` is the formation energy of sulfuric acid dihydrate,
- - ``W^{*}`` is the work needed to form the critical cluster,
- - ``Z`` is a kinetic pre-factor.
+ - ``\rho(1, 2)`` is the number concentration of sulfuric acid dihydrate ``(m^{-3})``,
+ - ``W(1, 2)`` is the formation energy of sulfuric acid dihydrate ``(J)``,
+ - ``W^{*}`` is the work needed to form the critical cluster ``(J)``,
+ - ``Z`` is a kinetic pre-factor ``(s^{-1})``.
 
 TODO - add how the above are approximated by the parameterization.
 (at least the example functional form)
-
-TODO - what is J and what are the units of all those variables?
 
 ## Example of Aerosol Nucleation from Vehkamaki et. al 2002
 

@@ -27,12 +27,16 @@ where  ``D_p`` is the particle diffusion coefficient ``(m^2/s)``:
 ``` math
 D_p = [k_B\cdot T\cdot C_C /(3\pi\mu d_p)]
 \\
-C_C \approx 1 + A \cdot K_n
+C_C \approx 1 + A \cdot Kn
 \\
 A = 1.392Kn_{g}^{0.0783}
 \\
 Kn_g = 2\lambda/D_{gn}
 ```
+where: 
+ - ``Kn`` is the Knudsen number for air at the given temperature and pressure (m)
+ - ``\lambda`` is the mean free path ``(m)``
+ - ``D_{gn}`` is the average diameter of the ``i``-th mode ``(m)``
 Substituting ``(2)`` into ``(1)`` yields:
 ``` math
 \frac{1}{2}\int_{0}^{\infty}\int_{0}^{\infty}
@@ -44,4 +48,4 @@ N_{i}^{2}K_{nc} [1 + \text{ESG}_i^8 + A_i Kn_{g_i}(\text{ESG}_i^{20}+\text{ESG}_
 where:
  - ``N_i`` is the number concentration of the ``i``-th mode ``(1/m^3)``
  - ``K_{nc} = \sqrt{2k_B T / 3\mu}`` is the non size-dependent term for the continuum/near-continuum coagulation coefficient ``(m^3/s)``, and ``\mu`` is the gas viscosity ``[kg/(m\cdot s)]``
- - ``ESG_i = exp(1/8 ln^2 \sigma_g``, where ``\sigma_g`` is the geometric standard deviation of the ``i``-th mode
+ - ``ESG_i = exp(1/8 \cdot ln^2 \sigma_g)``, where ``\sigma_g`` is the geometric standard deviation of the ``i``-th mode
