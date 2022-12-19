@@ -1,24 +1,93 @@
 module Coagulation
 
+using Cubature
+using CLIMAParameters
+
 import ..AerosolModel as AM
 include("CoagCorrectionFactors.jl")
 import .CoagCorrectionFactors as CCF
 
 """
+    coagulation_quadrature(ad, air_pressure, temp, parameter_file)
+ - ad: AerosolDistribution, a tuple of aerosol modes. Currently only MAM3 is supported.
+ - air_pressure: Ambient air pressure (pa)
+ - temp: Ambient air temperature (K)
+ - parameter_file: TOML file to read in parameters. This may be changed once the coagulation rate is actually applied to the aerosol data struct.
+Calculates the rates of change to the 0th, 2nd, and 3rd moments of the Aitken
+and Accumulation modes due to inter- and intramodal coagulation. This is done
+Gaussian quadrature over the log-normal distributions using Cubature.jl.
+"""
+function coagulation_quadrature(ad, air_pressure, temp, parameter_file)
+    # parameter_file = "temp_params.toml"
+    local_exp_file = joinpath(@__DIR__, parameter_file)
+    FT = Float64
+    toml_dict = CLIMAParameters.create_toml_dict(FT;override_file=local_exp_file)
+    # Read parameters in
+    param_names = ["MSLP", "T_surf_ref"]
+    params = CLIMAParameters.get_parameter_values!(toml_dict, param_names)
+    params = (;params...)
+
+    # Set up lognormal distributions
+    aitken = ad.Modes[1]
+    accum = ad.Modes[2]
+    function lognormal_dist(am)
+        diam = 2*am.r_dry
+        stdev = am.stdev
+        # Transform for lognormal distribution
+        mu = log((diam)^2/ sqrt(diam + stdev^2))
+        sigma = sqrt(log(1+ stdev^2 / (diam)^2))
+        return lognormal(mu, sigma) = x -> 1/(x*sigma*sqrt(2*pi)) * exp(-(log(x)-mu)^2/(2*sigma^2))
+    end
+    lg_ait = lognormal_dist(aitken)
+    lg_acc = lognormal_dist(accum)
+
+    # Coag coefficient
+    p0 = params.MSLP        #  standard surface pressure (pa)
+    t0 = params.T_surf_ref  #  standard surface temperature (K)
+    # From CAM: 
+    # 6.6328e-8 is the sea level value given in table i.2.8
+    # on page 10 of u.s. standard atmosphere 1962
+    lambda = 6.6328e-8 * p0 * temp  / ( t0 * air_pressure )
+    beta_fm(dp1, dp2) = sqrt(1/dp1^3 + 1/dp2^3) * (dp1 + dp2)^2
+    beta_nc(dp1, dp2) = (dp1 + dp2) * (1/dp1 + 1/dp2 + 2.492 * lambda * (1/dp1^2 + 1/dp2^2))
+    integrand_intermodal(moment, beta) = dp -> dp[1]^moment * beta(dp[1], dp[2]) * lg_ait(dp[1]) * lg_acc(dp[2])
+    integrand_intramodal(moment, beta) = dp -> dp[1]^moment * beta(dp[1], dp[1]) * lg_ait(dp[1]) * lg_ait(dp[2])
+    start = 0
+    stop = 1e3
+    # Modes: 0, 2, 3
+    n_modes = 3
+    intermodal_coag_change  = Vector{Float64}(undef, n_modes)
+    intramodal_coag_change = Vector{Float64}(undef, n_modes)
+    for i in [0, 2, 3]
+        coag_nc_inter =
+            Cubature.hcubature(integrand_intermodal(i, beta_nc), [start, start], [stop, stop])
+        coag_fm_inter =
+            Cubature.hcubature(integrand_intermodal(i, beta_fm), [start, start], [stop, stop])
+        coag_nc_intra =
+            Cubature.hcubature(integrand_intramodal(i, beta_nc), [start, start], [stop, stop])
+        coag_fm_intra =
+            Cubature.hcubature(integrand_intramodal(i, beta_fm), [start, start], [stop, stop])
+        if i == 0
+            i = 1
+        end
+        intermodal_coag_change[i] = coag_nc_inter * coag_fm_inter / (coag_nc_inter + coag_fm_inter)
+        intramodal_coag_change[i] = coag_nc_intra * coag_fm_intra / (coag_nc_intra + coag_fm_intra)
+    end
+    return intermodal_coag_change, intramodal_coag_change
+end
+"""
     whitby_coagulation(ad, temp, particle_density, gas_viscosity, K_b)
 
  - `ad` - AerosolDistribution, a tuple of aerosol modes. Currently only MAM3 is supported.
  - `temp` - Air temperature (K)
- - `particle_density` - Particle density (kg/m^3)
+ - `particle_density_ait`, `particle_density_acc` - Particle density of aitken and accumulation mode, respectively (kg/m^3)
  - `gas_viscosity` - Gas viscosity (kg/(m s))
  - `K_b` - Boltzmann constant. TODO: Obtain this from climaparameters
 Calculates and applies changes from coagulation to the aerosol modes.
 This method follows CAM5 (10.5194/gmd-5-709-2012), which is largely based off of 
 Whitby et al., 1991. 
-Current notable differences from CAM5:
- - K_nc and K_fm are calculated from Whitby, not CAM
 """
-function whitby_coagulation(ad, temp, particle_density, gas_viscosity, K_b)
+function whitby_coagulation(ad, temp, particle_density_ait, particle_density_acc, gas_viscosity, K_b)
     # TODO: add these values to climaparameters - this comes from CAM5
     surface_temp = 288.15
     surface_pressure = 101325.0
@@ -32,16 +101,18 @@ function whitby_coagulation(ad, temp, particle_density, gas_viscosity, K_b)
     ESG_acc = exp(1 / 8 * log(accum.stdev)^2)
     # Issue: CAM5 and Whitby don't match for K_nc and K_fm
     # Currently implementing Whitby, should be cam
-    K_fm = sqrt(3 * K_b * T / particle_density)
+    K_fm_ait = sqrt(3 * K_b * T / particle_density_ait)
+    K_fm_acc = sqrt(3 * K_b * T / particle_density_acc)
+    K_fm_both = sqrt(6 * K_b * T / (particle_density_ait + particle_density_acc))
     K_nc = sqrt(2 * K_b * T / (3 * gas_viscosity))
 
     # Call coags for aitken and accumulation modes:
     (intra_m_0_ait, intra_m_2_ait) =
-        whitby_intramodal_coag(aitken, K_fm, K_nc, Kn_ait, ESG_ait)
+        whitby_intramodal_coag(aitken, K_fm_ait, K_nc, Kn_ait, ESG_ait)
     (intra_m_0_acc, intra_m_2_acc) =
-        whitby_intramodal_coag(accum, K_fm, K_nc, Kn_acc, ESG_acc)
+        whitby_intramodal_coag(accum, K_fm_acc, K_nc, Kn_acc, ESG_acc)
     (inter_m_0_ait, m_2_ait, m_2_acc, m_3) =
-        whitby_intermodal_coag(ad, K_fm, K_nc, Kn_ait, Kn_acc, ESG_ait, ESG_acc)
+        whitby_intermodal_coag(ad, K_fm_both, K_nc, Kn_ait, Kn_acc, ESG_ait, ESG_acc)
 
     aitken.N += intra_m_0_ait + inter_m_0_ait
     accum.N += intra_m_0_acc
