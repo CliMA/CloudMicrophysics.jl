@@ -1,7 +1,76 @@
 module Nucleation
 
+using CLIMAParameters
+
 """
-    so4_nucleation_timestep(rh, temp, so4)
+    cloud_h2so4_nucleation_rate(h2so4_conc, nh3_conc, negative_ion_conc, temp)
+
+ - `h2so4_conc`
+ - `nh3_conc`
+ - `negative_ion_conc`
+ - `temp`
+Calculates  the rate of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation for a single timestep.
+The particle formation rate is parameterized using data from the CLOUD experiment.
+For more background, see Nucleation documentation page or doi:10.1126/science.aaf2649 Appendix 8-10
+"""
+function cloud_h2so4_nucleation_rate(
+    h2so4_conc,
+    nh3_conc,
+    negative_ion_conc,
+    temp,
+)
+    # Set up params:
+    parameter_file = "temp_params.toml"
+    local_exp_file = joinpath(@__DIR__, parameter_file)
+    FT = Float64
+    toml_dict =
+        CLIMAParameters.create_toml_dict(FT; override_file = local_exp_file)
+    param_names = [
+        "u_b_n",
+        "v_b_n",
+        "w_b_n",
+        "u_b_i",
+        "v_b_i",
+        "w_b_i",
+        "u_t_n",
+        "v_t_n",
+        "w_t_n",
+        "u_t_i",
+        "v_t_i",
+        "w_t_i",
+        "p_t_n",
+        "p_A_n",
+        "a_n",
+        "p_t_i",
+        "p_A_i",
+        "a_i",
+        "p_b_n",
+        "p_b_i",
+        "p_t_n",
+        "p_t_i",
+    ]
+    params = CLIMAParameters.get_parameter_values!(toml_dict, param_names)
+    params = (; params...)
+    k(T, u, v, w) = exp(u - exp(v * (T / 1000 - w)))
+    f_y(h2so4, nh3, p_t_y, p_A_y, a_y) = nh3 / (a_y + h2so4^p_t_y / nh3^p_A_y)
+    k_b_n = k(temp, params.u_b_n, params.v_b_n, params.w_b_n)
+    k_b_i = k(temp, params.u_b_i, params.v_b_i, params.w_b_i)
+    k_t_n = k(temp, params.u_t_n, params.v_t_n, params.w_t_n)
+    k_t_i = k(temp, params.u_t_i, params.v_t_i, params.w_t_i)
+    f_n = f_y(h2so4_conc, nh3_conc, params.p_t_n, params.p_A_n, params.a_n)
+    f_i = f_y(h2so4_conc, nh3_conc, params.p_t_i, params.p_A_i, params.a_i)
+    # Calculate rates
+    binary_rate =
+        k_b_n * h2so4_conc^params.p_b_n +
+        k_b_i * h2so4_conc^params.p_b_i * negative_ion_conc
+    ternary_rate =
+        k_t_n * f_n * h2so4_conc^params.p_t_n +
+        k_t_i * f_i * h2so4_conc^params.p_t_i * negative_ion_conc
+    return binary_rate, ternary_rate
+end
+
+"""
+    vehkamaki_nucleation_timestep(rh, temp, so4)
 
  - `rh` - Relative humidity, expressed as a percentage between 0 and 1
  - `temp` - Temperature (K)
@@ -14,14 +83,8 @@ relative humidities 0.01–100% and total sulfuric acid concentrations 1e10-1e17
 All newly formed particles will be placed into the Aitken mode.
 The initial nucleation rate comes from Vehkamaki et al, 2002 doi:10.1029/2002JD002184
 Adjustment factor comes from Kerminen and Kulmala, 2002 doi:10.1029/2002JD002184
-
-# Examples
-```julia-repl
-julia> so4_nucleation_timestep(0.55, 236, 1e12)
-3370.459263987254
-```
 """
-function so4_nucleation_timestep(rh, temp, so4)
+function vehkamaki_nucleation_timestep(rh, temp, so4)
     so4 = so4 / 1e6 # convert to cm⁻³
     ln_so4 = log(so4)
     log_rh = log(rh)
