@@ -1,13 +1,28 @@
 # Aerosol Coagulation
 
 Aerosol coagulation describes the formation of a new particle via collision of two particles from the same or different modes.
+In MAM3 (and our implementation), coagulation rates and effects are computed by moment and mode. 
 According to [Liu2012](@cite), coagulation involving modes with sizes larger than the accumulation mode is very slow
 and is therefore neglected.
 Intramodal coagulation reduces number and leaves mass unchanged.
 For intermodal coagulation, mass is transferred to the mode with the larger mean size.
-
+The change to a given mode and moment is given by the following integral over the distribution sizes of the two given modes:
+``` math
+\frac{\partial }{\partial t}(M_{k_{i}}) = \Gamma_T \frac{1}{2}\int_{0}^{\infty}\int_{0}^{\infty}
+f_k(d_{p_1}, d_{p_2})\gamma(d_{p_1}, d_{p_2})n_i(d_{p_1})n_j(d_{p_2})
+d(\text{ln}d_{p_1})d(\text{ln}d_{p_2})
+```
+where 
+ - ``\Gamma_T`` is the non size-dependent term
+ - ``f_k`` is the moment factor (``d^p``, where ``p`` is the moment)
+ - ``\gamma`` is the size-dependent coagulation rate, equivalent to ``\beta`` below
+ - ``n_i`` and ``n_j`` are the number concentrations of the given modes (``i``,``j``) at the given diameters (``d_{p_1}``, ``d_{p_2}``)
+ 
 The `Coagulation.jl` module contains analytical expressions for the coagulation integrals of the modal dynamics equations.
-A full derivation of these expressions is found in Appendix H of [Whitby1991](@cite), 
+The module has two methods for approximating these integrals: quadrature, and approximation of the size-dependent coagulation rate terms.
+Quadrature is computed using the [Cubature.jl](https://github.com/JuliaMath/Cubature.jl) package.
+
+For the substitution-based approximation, a full derivation of these expressions is found in Appendix H of [Whitby1991](@cite), 
 but an example of 0-th moment change due to intramodal coagulation under the continuum/near-continuum regime for the ``i``-th mode is included below:
 ``` math
 \begin{equation}

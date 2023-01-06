@@ -5,10 +5,10 @@ using CLIMAParameters
 """
     cloud_h2so4_nucleation_rate(h2so4_conc, nh3_conc, negative_ion_conc, temp)
 
- - `h2so4_conc`
- - `nh3_conc`
- - `negative_ion_conc`
- - `temp`
+ - `h2so4_conc` - Concentration of h2so4 (1/cm3) - This will be changed to (1/m3)
+ - `nh3_conc` - Concentration of nh3 (1/cm3)
+ - `negative_ion_conc` - Concentration of negative ions (1/cm3)
+ - `temp` - Temperature (K)
 Calculates  the rate of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation for a single timestep.
 The particle formation rate is parameterized using data from the CLOUD experiment.
 For more background, see Nucleation documentation page or doi:10.1126/science.aaf2649 Appendix 8-10
@@ -18,39 +18,8 @@ function cloud_h2so4_nucleation_rate(
     nh3_conc,
     negative_ion_conc,
     temp,
+    params
 )
-    # Set up params:
-    parameter_file = "temp_params.toml"
-    local_exp_file = joinpath(@__DIR__, parameter_file)
-    FT = Float64
-    toml_dict =
-        CLIMAParameters.create_toml_dict(FT; override_file = local_exp_file)
-    param_names = [
-        "u_b_n",
-        "v_b_n",
-        "w_b_n",
-        "u_b_i",
-        "v_b_i",
-        "w_b_i",
-        "u_t_n",
-        "v_t_n",
-        "w_t_n",
-        "u_t_i",
-        "v_t_i",
-        "w_t_i",
-        "p_t_n",
-        "p_A_n",
-        "a_n",
-        "p_t_i",
-        "p_A_i",
-        "a_i",
-        "p_b_n",
-        "p_b_i",
-        "p_t_n",
-        "p_t_i",
-    ]
-    params = CLIMAParameters.get_parameter_values!(toml_dict, param_names)
-    params = (; params...)
     k(T, u, v, w) = exp(u - exp(v * (T / 1000 - w)))
     f_y(h2so4, nh3, p_t_y, p_A_y, a_y) = nh3 / (a_y + h2so4^p_t_y / nh3^p_A_y)
     k_b_n = k(temp, params.u_b_n, params.v_b_n, params.w_b_n)
