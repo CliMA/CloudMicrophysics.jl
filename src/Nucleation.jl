@@ -10,7 +10,7 @@ using CLIMAParameters
  - `negative_ion_conc` - Concentration of negative ions (1/cm3)
  - `temp` - Temperature (K)
 Calculates  the rate of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation for a single timestep.
-The particle formation rate is parameterized using data from the CLOUD experiment.
+The particle formation rate is parameterized using data from the CLOUD experiment, through neutral and ion-induced channels.
 For more background, see Nucleation documentation page or doi:10.1126/science.aaf2649 Appendix 8-10
 """
 function cloud_h2so4_nucleation_rate(
@@ -36,6 +36,66 @@ function cloud_h2so4_nucleation_rate(
         k_t_n * f_n * h2so4_conc^params.p_t_n +
         k_t_i * f_i * h2so4_conc^params.p_t_i * negative_ion_conc
     return binary_rate, ternary_rate
+end
+
+"""
+    cloud_organic_nucleation_rate(negative_ion_conc, monoterpene_conc, O3_conc, OH_conc, temp, condensation_sink, params)
+
+ - `negative_ion_conc` - Concentration of negative ions (1/cm3)
+ - `monoterpene_conc` - Concentration of monoterpenes (1/cm3)
+ - `O3_conc` - Concentration of O3 (1/cm3)
+ - `OH_conc` - Concentration of OH (1/cm3)
+ - `temp` - Temperature (K)
+ - `condensation_sink` - Condensation sink (1/s?)
+ - `params` - Parameters from the TOML file
+"""
+function cloud_organic_nucleation_rate(
+    negative_ion_conc,
+    monoterpene_conc,
+    O3_conc,
+    OH_conc,
+    temp,
+    condensation_sink,
+    params
+)
+    # Y_ params from Dunne et al. 2016
+    a_1 = params.a_1
+    a_2 = params.a_2
+    a_3 = params.a_3
+    a_4 = params.a_4
+    a_5 = params.a_5
+    Y_MTO3 = params.Y_MTO3
+    Y_MTOH = params.Y_MTOH
+    k_MTO3 = params.k_MTO3 * exp(444/temp)
+    k_MTOH = params.k_MTOH * exp(444/temp)
+    HOM_conc = (Y_MTO3 * k_MTO3 * monoterpene_conc * O3_conc + Y_MTOH * k_MTOH * monoterpene_conc * OH_conc) / condensation_sink
+    rate = a_1 + HOM_conc^(a_2+a_5/HOM_conc) + a_3 * HOM_conc ^ (a_4 + a_5/HOM_conc) * negative_ion_conc
+    return rate
+end
+
+"""
+    cloud_organic_and_h2so4_nucleation_rate(h2so4_conc monoterpene_conc, OH_conc, temp, condensation_sink, params)
+
+- `h2so4_conc` - Concentration of sulfuric acid (1/cm3)
+- `monoterpene_conc` - Concentration of monoterpenes (1/cm3)
+- `OH_conc` - Concentration of OH (1/cm3)
+- `temp` - Temperature (K)
+- `condensation_sink` - Condensation sink (1/s?)
+- `params` - Parameters from the TOML file
+"""
+function cloud_organic_and_h2so4_nucleation_rate(
+    h2so4_conc,
+    monoterpene_conc,
+    OH_conc,
+    temp,
+    condensation_sink,
+    params
+)
+    k_H2SO4org = params.k_H2SO4org
+    k_MTOH = params.k_MTOH * exp(444/temp)
+    bioOxOrg = k_MTOH * monoterpene_conc * OH_conc / condensation_sink
+    rate = 0.5 * k_H2SO4org * h2so4_conc^2 * bioOxOrg
+    return rate
 end
 
 """
