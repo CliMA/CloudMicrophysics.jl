@@ -9,10 +9,13 @@ import .CoagCorrectionFactors as CCF
 """
     coagulation_quadrature(ad, air_pressure, temp, parameter_file)
 
- - ad: AerosolDistribution, a tuple of aerosol modes. Currently only MAM3 is supported.
- - air_pressure: Ambient air pressure (pa)
- - temp: Ambient air temperature (K)
- - parameter_file: TOML file to read in parameters. This may be changed once the coagulation rate is actually applied to the aerosol data struct.
+ - `ad`: AerosolDistribution, a tuple of aerosol modes. Currently only MAM3 is supported.
+ - `particle_density_ait`: Particle density for the aitken mode (kg/m^3)
+ - `particle_density_acc`: Particle density for the accumulation mode (kg/m^3)
+ - `air_pressure`: Ambient air pressure (pa)
+ - `gas_viscosity`: Gas viscosity (kg/(m s))
+ - `temp`: Ambient air temperature (K)
+ - `parameter_file`: TOML file to read in parameters. This may be changed once the coagulation rate is actually applied to the aerosol data struct.
 Calculates the rates of change to the 0th, 2nd, and 3rd moments of the Aitken
 and Accumulation modes due to inter- and intramodal coagulation. This is done
 Gaussian quadrature over the log-normal distributions using Cubature.jl.
@@ -44,9 +47,9 @@ function coagulation_quadrature(
     accumulation_distribution = lognormal_dist(accum)
     k_fm = sqrt(
         6 * params.k_Boltzmann * temp /
-        (particle_density_ait + particle_density_acc),
+        (particle_density_ait + particle_density_acc)
     )
-    k_nc = sqrt(2 * params.k_Boltzmann * temp / (3 * gas_viscosity))
+    k_nc = 2 * params.k_Boltzmann * temp / (3 * gas_viscosity)
     # Coag coefficient
     p0 = params.MSLP        #  standard surface pressure (pa)
     t0 = params.T_surf_ref  #  standard surface temperature (K)
@@ -74,22 +77,28 @@ function coagulation_quadrature(
         accumulation_distribution,
     )
 
-    # Apply changes
-    println(
-        ait_m0_intercoag,
-        ait_m3_intercoag,
-        aitken_m0_intracoag,
-        accum_m0_intracoag,
-    )
-    return ad
+    
+    return  (ait_m0_intercoag,
+    ait_m3_intercoag,
+    aitken_m0_intracoag,
+    accum_m0_intracoag)
 end
 
+# Wrapper function for computing Gaussian quadrature. Takes an integrand formatted for Cubature.jl
 function cubature(integrand)
     start = 0
     stop = 1e3
     return Cubature.hcubature(integrand, [start, start], [stop, stop])[1]
 end
 
+"""
+    intracoag_quadrature(beta_fm, beta_nc, distribution)
+ - `beta_fm`: Coagulation coefficient for free-molecule Knudsen regime
+ - `beta_nc`: Coagulation coefficient for near-continuum Knudsen regime
+ - `distribution`: A function for the given lognormal aerosol distribution
+Helper function for `coagulation_quadrature`, calculates 
+intramodal coagulation rates for the given modal distribution.
+"""
 function intracoag_quadrature(beta_fm, beta_nc, distribution)
     intramodal_integrand(moment, beta) =
         dp ->
@@ -106,6 +115,15 @@ function intracoag_quadrature(beta_fm, beta_nc, distribution)
     return delta_m0
 end
 
+"""
+    intracoag_quadrature(beta_fm, beta_nc, distribution)
+ - `beta_fm`: Coagulation coefficient for free-molecule Knudsen regime
+ - `beta_nc`: Coagulation coefficient for near-continuum Knudsen regime
+ - `aitken_dist`: A function for the aitken mode log-normal distribution
+ - `accum_dist`: A function for the accumulation mode log-normal distribution
+Helper function for `coagulation_quadrature`, calculates 
+intermodal coagulation rates between the aitken and accumulation modes.
+"""
 function intercoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
     intermodal_integrand(moment, beta) =
         dp ->
@@ -125,6 +143,7 @@ function intercoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
     delta_m3 = -delta_m3_fm * delta_m3_nc / (delta_m3_fm + delta_m3_nc)
     return delta_m0, delta_m3
 end
+
 """
     whitby_coagulation(ad, temp, particle_density, gas_viscosity, K_b)
 
