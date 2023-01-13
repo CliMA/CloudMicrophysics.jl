@@ -18,7 +18,7 @@ function cloud_h2so4_nucleation_rate(
     nh3_conc,
     negative_ion_conc,
     temp,
-    params
+    params,
 )
     k(T, u, v, w) = exp(u - exp(v * (T / 1000 - w)))
     f_y(h2so4, nh3, p_t_y, p_A_y, a_y) = nh3 / (a_y + h2so4^p_t_y / nh3^p_A_y)
@@ -56,7 +56,7 @@ function cloud_organic_nucleation_rate(
     OH_conc,
     temp,
     condensation_sink,
-    params
+    params,
 )
     # Y_ params from Dunne et al. 2016
     a_1 = params.a_1
@@ -66,10 +66,17 @@ function cloud_organic_nucleation_rate(
     a_5 = params.a_5
     Y_MTO3 = params.Y_MTO3
     Y_MTOH = params.Y_MTOH
-    k_MTO3 = params.k_MTO3 * exp(444/temp)
-    k_MTOH = params.k_MTOH * exp(444/temp)
-    HOM_conc = (Y_MTO3 * k_MTO3 * monoterpene_conc * O3_conc + Y_MTOH * k_MTOH * monoterpene_conc * OH_conc) / condensation_sink
-    rate = a_1 + HOM_conc^(a_2+a_5/HOM_conc) + a_3 * HOM_conc ^ (a_4 + a_5/HOM_conc) * negative_ion_conc
+    k_MTO3 = params.k_MTO3 * exp(444 / temp)
+    k_MTOH = params.k_MTOH * exp(444 / temp)
+    HOM_conc =
+        (
+            Y_MTO3 * k_MTO3 * monoterpene_conc * O3_conc +
+            Y_MTOH * k_MTOH * monoterpene_conc * OH_conc
+        ) / condensation_sink
+    rate =
+        a_1 +
+        HOM_conc^(a_2 + a_5 / HOM_conc) +
+        a_3 * HOM_conc^(a_4 + a_5 / HOM_conc) * negative_ion_conc
     return rate
 end
 
@@ -89,10 +96,10 @@ function cloud_organic_and_h2so4_nucleation_rate(
     OH_conc,
     temp,
     condensation_sink,
-    params
+    params,
 )
     k_H2SO4org = params.k_H2SO4org
-    k_MTOH = params.k_MTOH * exp(444/temp)
+    k_MTOH = params.k_MTOH * exp(444 / temp)
     bioOxOrg = k_MTOH * monoterpene_conc * OH_conc / condensation_sink
     rate = 0.5 * k_H2SO4org * h2so4_conc^2 * bioOxOrg
     return rate

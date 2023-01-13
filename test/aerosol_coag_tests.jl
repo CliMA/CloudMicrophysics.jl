@@ -9,10 +9,9 @@ const CG = CloudMicrophysics.Coagulation
 
 include("../src/Coagulation.jl")
 using .Coagulation
-local_exp_file = joinpath(@__DIR__,  "temp_params.toml")
+local_exp_file = joinpath(@__DIR__, "temp_params.toml")
 FT = Float64
-toml_dict =
-    CLIMAParameters.create_toml_dict(FT; override_file = local_exp_file)
+toml_dict = CLIMAParameters.create_toml_dict(FT; override_file = local_exp_file)
 
 param_names = ["MSLP", "T_surf_ref", "k_Boltzmann"]
 params = CLIMAParameters.get_parameter_values!(toml_dict, param_names)
@@ -69,7 +68,7 @@ accum_sulfate_κ = AM.Mode_κ(
     1,
 )
 
-ad = AM.AerosolDistribution((aitken_sulfate_κ,accum_sulfate_κ))
+ad = AM.AerosolDistribution((aitken_sulfate_κ, accum_sulfate_κ))
 
 air_pressure = params.MSLP        #  standard surface pressure (pa)
 air_temp = params.T_surf_ref  #  standard surface temperature (K)
@@ -79,4 +78,12 @@ particle_density_acc = 0.1
 particle_density_ait = 0.1
 gas_viscosity = 1e-5
 
-Coagulation.coagulation_quadrature(ad, particle_density_ait, particle_density_acc, gas_viscosity, air_pressure, air_temp, params)
+Coagulation.coagulation_quadrature(
+    ad,
+    particle_density_ait,
+    particle_density_acc,
+    gas_viscosity,
+    air_pressure,
+    air_temp,
+    params,
+)

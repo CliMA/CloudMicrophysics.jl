@@ -7,8 +7,7 @@ using .Nucleation
 parameter_file = "temp_params.toml"
 local_exp_file = joinpath(@__DIR__, parameter_file)
 FT = Float64
-toml_dict =
-    CLIMAParameters.create_toml_dict(FT; override_file = local_exp_file)
+toml_dict = CLIMAParameters.create_toml_dict(FT; override_file = local_exp_file)
 param_names = [
     "u_b_n",
     "v_b_n",
@@ -41,12 +40,18 @@ function plot_pure_h2so4_nucleation_rate(
     nh3_conc,
     negative_ion_conc,
     temp,
-    params
+    params,
 )
 
     rates = map(
-        x -> Nucleation.cloud_h2so4_nucleation_rate(x, nh3_conc, negative_ion_conc, temp, params)[1],
-        h2so4_conc
+        x -> Nucleation.cloud_h2so4_nucleation_rate(
+            x,
+            nh3_conc,
+            negative_ion_conc,
+            temp,
+            params,
+        )[1],
+        h2so4_conc,
     )
     title = "$temp K"
     Plots.plot(
@@ -68,4 +73,10 @@ h2so4_conc = [1e5, 3e5, 5e5, 7e5, 9e5, 1e6, 3e6, 5e6, 7e6, 9e6, 1e7, 3e7, 5e7]
 nh3_conc = 0
 negative_ion_conc = 0
 temp = 208
-plot_pure_h2so4_nucleation_rate(h2so4_conc, nh3_conc, negative_ion_conc, temp, params)
+plot_pure_h2so4_nucleation_rate(
+    h2so4_conc,
+    nh3_conc,
+    negative_ion_conc,
+    temp,
+    params,
+)

@@ -18,7 +18,8 @@ function plot_vehk(
     points = [],
 )
     rates = map(
-        x -> Nucleation.vehkamaki_nucleation_timestep(rh, temp, x * 1e6) / 1e6,
+        x ->
+            Nucleation.vehkamaki_nucleation_timestep(rh, temp, x * 1e6) / 1e6,
         so4,
     )
     title = "$temp K, RH=$(round(rh*100;digits=3))%"

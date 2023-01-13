@@ -17,7 +17,15 @@ Calculates the rates of change to the 0th, 2nd, and 3rd moments of the Aitken
 and Accumulation modes due to inter- and intramodal coagulation. This is done
 Gaussian quadrature over the log-normal distributions using Cubature.jl.
 """
-function coagulation_quadrature(ad, particle_density_ait, particle_density_acc, air_pressure, gas_viscosity, temp, params)
+function coagulation_quadrature(
+    ad,
+    particle_density_ait,
+    particle_density_acc,
+    air_pressure,
+    gas_viscosity,
+    temp,
+    params,
+)
     # Set up lognormal distributions
     aitken = ad.Modes[1]
     accum = ad.Modes[2]
@@ -28,12 +36,16 @@ function coagulation_quadrature(ad, particle_density_ait, particle_density_acc, 
         # Transform for lognormal distribution
         mu = log((mean)^2 / sqrt(mean + stdev^2))
         sigma = sqrt(log(1 + stdev^2 / (mean)^2))
-        return x -> 1 / (x * sigma * sqrt(2 * pi)) *
-                exp(-(log(x) - mu)^2 / (2 * sigma^2))
+        return x ->
+            1 / (x * sigma * sqrt(2 * pi)) *
+            exp(-(log(x) - mu)^2 / (2 * sigma^2))
     end
     aitken_distribution = lognormal_dist(aitken)
     accumulation_distribution = lognormal_dist(accum)
-    k_fm = sqrt(6 * params.k_Boltzmann * temp / (particle_density_ait + particle_density_acc))
+    k_fm = sqrt(
+        6 * params.k_Boltzmann * temp /
+        (particle_density_ait + particle_density_acc),
+    )
     k_nc = sqrt(2 * params.k_Boltzmann * temp / (3 * gas_viscosity))
     # Coag coefficient
     p0 = params.MSLP        #  standard surface pressure (pa)
@@ -43,17 +55,32 @@ function coagulation_quadrature(ad, particle_density_ait, particle_density_acc, 
     # on page 10 of u.s. standard atmosphere 1962
     lambda = 6.6328e-8 * p0 * temp / (t0 * air_pressure)
     # Binkowski and Shankar, 95 - a5
-    beta_fm(dp1,dp2) =  k_fm * sqrt(1 / dp1^3 + 1 / dp2^3) * (dp1 + dp2)^2
+    beta_fm(dp1, dp2) = k_fm * sqrt(1 / dp1^3 + 1 / dp2^3) * (dp1 + dp2)^2
     # Binkowski and Shankar, 95 - a6
-    beta_nc(dp1, dp2) = k_nc * (dp1 + dp2) * (1/dp1 + 1/dp2 + 2.492 * lambda * (1/dp1^2 + 1/dp2^2))
+    beta_nc(dp1, dp2) =
+        k_nc *
+        (dp1 + dp2) *
+        (1 / dp1 + 1 / dp2 + 2.492 * lambda * (1 / dp1^2 + 1 / dp2^2))
 
     # Calculate quadrature
-    aitken_m0_intracoag = intracoag_quadrature(beta_fm, beta_nc, aitken_distribution)
-    accum_m0_intracoag = intracoag_quadrature(beta_fm, beta_nc, accumulation_distribution)
-    (ait_m0_intercoag, ait_m3_intercoag) = intercoag_quadrature(beta_fm, beta_nc, aitken_distribution, accumulation_distribution)
-    
+    aitken_m0_intracoag =
+        intracoag_quadrature(beta_fm, beta_nc, aitken_distribution)
+    accum_m0_intracoag =
+        intracoag_quadrature(beta_fm, beta_nc, accumulation_distribution)
+    (ait_m0_intercoag, ait_m3_intercoag) = intercoag_quadrature(
+        beta_fm,
+        beta_nc,
+        aitken_distribution,
+        accumulation_distribution,
+    )
+
     # Apply changes
-    println(ait_m0_intercoag, ait_m3_intercoag, aitken_m0_intracoag, accum_m0_intracoag)
+    println(
+        ait_m0_intercoag,
+        ait_m3_intercoag,
+        aitken_m0_intracoag,
+        accum_m0_intracoag,
+    )
     return ad
 end
 
@@ -65,7 +92,12 @@ end
 
 function intracoag_quadrature(beta_fm, beta_nc, distribution)
     intramodal_integrand(moment, beta) =
-    dp -> dp[1]^moment * dp[2]^moment * beta(dp[1], dp[2]) * distribution(dp[1]) * distribution(dp[2])
+        dp ->
+            dp[1]^moment *
+            dp[2]^moment *
+            beta(dp[1], dp[2]) *
+            distribution(dp[1]) *
+            distribution(dp[2])
 
     # Whitby 1991 4.30a
     delta_m0_fm = cubature(intramodal_integrand(0, beta_fm))
@@ -76,17 +108,21 @@ end
 
 function intercoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
     intermodal_integrand(moment, beta) =
-    dp -> dp[1]^moment * beta(dp[1], dp[2]) * aitken_dist(dp[1]) * accum_dist(dp[2])
+        dp ->
+            dp[1]^moment *
+            beta(dp[1], dp[2]) *
+            aitken_dist(dp[1]) *
+            accum_dist(dp[2])
 
     # Whitby 1991 4.31a
     delta_m0_fm = cubature(intermodal_integrand(0, beta_fm))
     delta_m0_nc = cubature(intermodal_integrand(0, beta_nc))
-    delta_m0 = - delta_m0_fm * delta_m0_nc / (delta_m0_fm + delta_m0_nc)
+    delta_m0 = -delta_m0_fm * delta_m0_nc / (delta_m0_fm + delta_m0_nc)
 
     # Whitby 1991 4.31b
     delta_m3_fm = cubature(intermodal_integrand(3, beta_fm))
     delta_m3_nc = cubature(intermodal_integrand(3, beta_nc))
-    delta_m3 =  - delta_m3_fm * delta_m3_nc / (delta_m3_fm + delta_m3_nc)
+    delta_m3 = -delta_m3_fm * delta_m3_nc / (delta_m3_fm + delta_m3_nc)
     return delta_m0, delta_m3
 end
 """
@@ -142,7 +178,7 @@ function whitby_coagulation(
         ESG_ait,
         ESG_acc,
     )
-    
+
     aitken.N += intra_m_0_ait + inter_m_0_ait
     accum.N += intra_m_0_acc
 end
