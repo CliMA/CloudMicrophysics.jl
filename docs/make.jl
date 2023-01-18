@@ -15,6 +15,8 @@ pages = Any[
     "Smooth transition at thresholds" => "ThresholdsTransition.md",
     "Aerosol activation" => "AerosolActivation.md",
     "ARG2000 activation example" => "ARG2000_example.md",
+    "Ice Nucleation" => "IceNucleation.md",
+    "Box model ice nucleation example" => "IceNucleationBox.md",
     "API" => "API.md",
     "References" => "References.md",
 ]
