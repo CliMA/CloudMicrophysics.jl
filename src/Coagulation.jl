@@ -13,7 +13,6 @@ import .CoagCorrectionFactors as CCF
  - `particle_density_ait`: Particle density for the aitken mode (kg/m^3)
  - `particle_density_acc`: Particle density for the accumulation mode (kg/m^3)
  - `air_pressure`: Ambient air pressure (pa)
- - `gas_viscosity`: Gas viscosity (kg/(m s))
  - `temp`: Ambient air temperature (K)
  - `parameter_file`: TOML file to read in parameters. This may be changed once the coagulation rate is actually applied to the aerosol data struct.
 Calculates the rates of change to the 0th, 2nd, and 3rd moments of the Aitken
@@ -21,11 +20,11 @@ and Accumulation modes due to inter- and intramodal coagulation. This is done
 Gaussian quadrature over the log-normal distributions using Cubature.jl.
 """
 function coagulation_quadrature(
+    #TODO: refactor inter- and intra- to add moment as fn input, 
     ad,
     particle_density_ait,
     particle_density_acc,
     air_pressure,
-    gas_viscosity,
     temp,
     params,
 )
@@ -49,6 +48,9 @@ function coagulation_quadrature(
         6 * params.k_Boltzmann * temp /
         (particle_density_ait + particle_density_acc)
     )
+    # u.s. standard atmosphere 1962 page 14 expression for dynamic viscosity is:
+    #   1.458e-6 * t * sqrt(t) / ( t + 110.4)
+    gas_viscosity = 1.458e-6 * temp^1.5 / ( temp + 110.4 )
     k_nc = 2 * params.k_Boltzmann * temp / (3 * gas_viscosity)
     # Coag coefficient
     p0 = params.MSLP        #  standard surface pressure (pa)
@@ -66,28 +68,69 @@ function coagulation_quadrature(
         (1 / dp1 + 1 / dp2 + 2.492 * lambda * (1 / dp1^2 + 1 / dp2^2))
 
     # Calculate quadrature
+    # Whitby 4.30a
     aitken_m0_intracoag =
-        intracoag_quadrature(beta_fm, beta_nc, aitken_distribution)
+        intracoag_quadrature(0, beta_fm, beta_nc, aitken_distribution)
+    # Whitby 4.30a
     accum_m0_intracoag =
-        intracoag_quadrature(beta_fm, beta_nc, accumulation_distribution)
-    (ait_m0_intercoag, ait_m3_intercoag) = intercoag_quadrature(
+        intracoag_quadrature(0, beta_fm, beta_nc, accumulation_distribution)
+    # Moment 2 - Intramodal coagulation
+    aitken_m2_intracoag =
+        intracoag_quadrature(2, beta_fm, beta_nc, aitken_distribution)
+    accum_m2_intracoag =
+        intracoag_quadrature(2, beta_fm, beta_nc, accumulation_distribution)
+    # TODO: Clean up this repeating code
+    # Whitby 4.31a
+    aitken_m0_intercoag = intercoag_quadrature(
+        0,
         beta_fm,
         beta_nc,
         aitken_distribution,
         accumulation_distribution,
     )
-
+    # Moment 2 - Intermodal coagulation
+    aitken_m2_intercoag = intercoag_quadrature(
+        2,
+        beta_fm,
+        beta_nc,
+        aitken_distribution,
+        accumulation_distribution,
+    )
+    accum_m2_intercoag = intercoag_quadrature(
+        2,
+        beta_fm,
+        beta_nc,
+        aitken_distribution,
+        accumulation_distribution,
+    )
+    # Whitby 4.31b
+    aitken_m3_intercoag = intercoag_quadrature(
+        3,
+        beta_fm,
+        beta_nc,
+        aitken_distribution,
+        accumulation_distribution,
+    )
+    # Whitby 4.32b
+    accum_m3_intercoag = -aitken_m3_intercoag
     
-    return  (ait_m0_intercoag,
-    ait_m3_intercoag,
-    aitken_m0_intracoag,
-    accum_m0_intracoag)
+    return (
+        aitken_m0_intracoag,
+        accum_m0_intracoag,
+        aitken_m2_intracoag,
+        accum_m2_intracoag,
+        aitken_m0_intercoag,
+        aitken_m2_intercoag,
+        accum_m2_intercoag,
+        aitken_m3_intercoag,
+        accum_m3_intercoag
+    )
 end
 
 # Wrapper function for computing Gaussian quadrature. Takes an integrand formatted for Cubature.jl
 function cubature(integrand)
     start = 0
-    stop = 1e3
+    stop = 1e2
     return Cubature.hcubature(integrand, [start, start], [stop, stop])[1]
 end
 
@@ -99,7 +142,7 @@ end
 Helper function for `coagulation_quadrature`, calculates 
 intramodal coagulation rates for the given modal distribution.
 """
-function intracoag_quadrature(beta_fm, beta_nc, distribution)
+function intracoag_quadrature(moment, beta_fm, beta_nc, distribution)
     intramodal_integrand(moment, beta) =
         dp ->
             dp[1]^moment *
@@ -108,11 +151,14 @@ function intracoag_quadrature(beta_fm, beta_nc, distribution)
             distribution(dp[1]) *
             distribution(dp[2])
 
-    # Whitby 1991 4.30a
-    delta_m0_fm = cubature(intramodal_integrand(0, beta_fm))
-    delta_m0_nc = cubature(intramodal_integrand(0, beta_nc))
-    delta_m0 = -0.5 * (delta_m0_fm * delta_m0_nc / (delta_m0_fm + delta_m0_nc))
-    return delta_m0
+    # Whitby 1991 4.30
+    rate_fm = cubature(intramodal_integrand(0, beta_fm))
+    rate_nc = cubature(intramodal_integrand(0, beta_nc))
+    coagulation_rate = -(rate_fm * rate_nc / (rate_fm + rate_nc))
+    if moment == 0
+        coagulation_rate *= 0.5
+    end
+    return coagulation_rate
 end
 
 """
@@ -124,7 +170,7 @@ end
 Helper function for `coagulation_quadrature`, calculates 
 intermodal coagulation rates between the aitken and accumulation modes.
 """
-function intercoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
+function intercoag_quadrature(moment, beta_fm, beta_nc, aitken_dist, accum_dist)
     intermodal_integrand(moment, beta) =
         dp ->
             dp[1]^moment *
@@ -132,63 +178,61 @@ function intercoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
             aitken_dist(dp[1]) *
             accum_dist(dp[2])
 
-    # Whitby 1991 4.31a
-    delta_m0_fm = cubature(intermodal_integrand(0, beta_fm))
-    delta_m0_nc = cubature(intermodal_integrand(0, beta_nc))
-    delta_m0 = -delta_m0_fm * delta_m0_nc / (delta_m0_fm + delta_m0_nc)
-
-    # Whitby 1991 4.31b
-    delta_m3_fm = cubature(intermodal_integrand(3, beta_fm))
-    delta_m3_nc = cubature(intermodal_integrand(3, beta_nc))
-    delta_m3 = -delta_m3_fm * delta_m3_nc / (delta_m3_fm + delta_m3_nc)
-    return delta_m0, delta_m3
+    # Whitby 1991 4.31
+    rate_fm = cubature(intermodal_integrand(moment, beta_fm))
+    rate_nc = cubature(intermodal_integrand(moment, beta_nc))
+    coagulation_rate = -rate_fm * rate_nc / (rate_fm + rate_nc)
+    return coagulation_rate
 end
 
 """
-    whitby_coagulation(ad, temp, particle_density, gas_viscosity, K_b)
+    whitby_coagulation(ad, air_pressure, temp, parameter_file)
 
- - `ad` - AerosolDistribution, a tuple of aerosol modes. Currently only MAM3 is supported.
- - `temp` - Air temperature (K)
- - `particle_density_ait`, `particle_density_acc` - Particle density of aitken and accumulation mode, respectively (kg/m^3)
- - `gas_viscosity` - Gas viscosity (kg/(m s))
- - `K_b` - Boltzmann constant. TODO: Obtain this from climaparameters
+    - `ad`: AerosolDistribution, a tuple of aerosol modes. Currently only MAM3 is supported.
+    - `particle_density_ait`: Particle density for the aitken mode (kg/m^3)
+    - `particle_density_acc`: Particle density for the accumulation mode (kg/m^3)
+    - `air_pressure`: Ambient air pressure (pa)
+    - `temp`: Ambient air temperature (K)
+    - `parameter_file`: TOML file to read in parameters. This may be changed once the coagulation rate is actually applied to the aerosol data struct.
 Calculates and applies changes from coagulation to the aerosol modes.
 This method follows CAM5 (10.5194/gmd-5-709-2012), which is largely based off of 
 Whitby et al., 1991. 
 """
 function whitby_coagulation(
     ad,
+    air_pressure,
     temp,
     particle_density_ait,
     particle_density_acc,
-    gas_viscosity,
-    K_b,
+    params
 )
-    # TODO: add these values to climaparameters - this comes from CAM5
-    surface_temp = 288.15
-    surface_pressure = 101325.0
-    mean_free_path =
-        6.6328e-8 * surface_pressure * temp / (surface_temp * pressure)
+    surface_pressure = params.MSLP        #  standard surface pressure (pa)
+    surface_temp = params.T_surf_ref  #  standard surface temperature (K)
+    k_Boltzmann = params.k_Boltzmann
+
+    lambda =
+        6.6328e-8 * surface_pressure * temp / (surface_temp * air_pressure)
+    gas_viscosity = 1.458e-6 * temp^1.5 / ( temp + 110.4 )
     aitken = ad.Modes[1]
     accum = ad.Modes[2]
-    Kn_ait = mean_free_path / aitken.r_dry
-    Kn_acc = mean_free_path / accum.r_dry
+    Kn_ait = lambda / aitken.r_dry
+    Kn_acc = lambda / accum.r_dry
     ESG_ait = exp(1 / 8 * log(aitken.stdev)^2)
     ESG_acc = exp(1 / 8 * log(accum.stdev)^2)
     # Issue: CAM5 and Whitby don't match for K_nc and K_fm
     # Currently implementing Whitby, should be cam
-    K_fm_ait = sqrt(3 * K_b * T / particle_density_ait)
-    K_fm_acc = sqrt(3 * K_b * T / particle_density_acc)
+    K_fm_ait = sqrt(3 * k_Boltzmann * temp / particle_density_ait)
+    K_fm_acc = sqrt(3 * k_Boltzmann * temp / particle_density_acc)
     K_fm_both =
-        sqrt(6 * K_b * T / (particle_density_ait + particle_density_acc))
-    K_nc = sqrt(2 * K_b * T / (3 * gas_viscosity))
+        sqrt(6 * k_Boltzmann * temp / (particle_density_ait + particle_density_acc))
+    K_nc = sqrt(2 * k_Boltzmann * temp / (3 * gas_viscosity))
 
     # Call coags for aitken and accumulation modes:
-    (intra_m_0_ait, intra_m_2_ait) =
+    (aitken_m0_intracoag, aitken_m2_intracoag) =
         whitby_intramodal_coag(aitken, K_fm_ait, K_nc, Kn_ait, ESG_ait)
-    (intra_m_0_acc, intra_m_2_acc) =
+    (accum_m0_intracoag, accum_m2_intracoag) =
         whitby_intramodal_coag(accum, K_fm_acc, K_nc, Kn_acc, ESG_acc)
-    (inter_m_0_ait, m_2_ait, m_2_acc, m_3) = whitby_intermodal_coag(
+    (aitken_m0_intercoag, aitken_m2_intercoag, accum_m2_intercoag, aitken_m3_intercoag) = whitby_intermodal_coag(
         ad,
         K_fm_both,
         K_nc,
@@ -198,8 +242,19 @@ function whitby_coagulation(
         ESG_acc,
     )
 
-    aitken.N += intra_m_0_ait + inter_m_0_ait
-    accum.N += intra_m_0_acc
+    # aitken.N += intra_m_0_ait + inter_m_0_ait
+    # accum.N += intra_m_0_acc
+    return (
+        aitken_m0_intracoag,
+        accum_m0_intracoag,
+        aitken_m2_intracoag,
+        accum_m2_intracoag,
+        aitken_m0_intercoag,
+        aitken_m2_intercoag,
+        accum_m2_intercoag,
+        aitken_m3_intercoag,
+        -aitken_m3_intercoag
+    )
 end
 
 
@@ -228,7 +283,7 @@ function whitby_intramodal_coag(am, K_fm, K_nc, Kn_g, ESG)
         -am.N^2 *
         K_fm *
         CCF.intramodal_m0_correction(am.stdev) *
-        sqrt_diameter *
+        sqrt_diam *
         (ESG + ESG^25 + 2 * ESG^5)
     # Whitby H.12a
     m_0_nc = -am.N^2 * K_nc * (1 + ESG^8 + A * Kn_g * (ESG^20 + ESG^4))
@@ -236,7 +291,7 @@ function whitby_intramodal_coag(am, K_fm, K_nc, Kn_g, ESG)
     m_2_fm =
         am.N^2 *
         K_fm *
-        sqrt_diam^5CCF.intramodal_m2_correction_factor(am.stdev) *
+        sqrt_diam^5CCF.intramodal_m2_correction(am.stdev) *
         (ESG^25 + 2 * ESG^13 + ESG^17 + ESG^73 + 2 * ESG^37 + ESG^17)
 
     m_2_nc =
@@ -282,6 +337,7 @@ function whitby_intermodal_coag(
     R_2 = R^2
     R_3 = R^3
     R_4 = R^4
+    R_6 = R^6
     # Issue: a is hardcoded to one value in CAM5? 
     A = 1.246
     A_ait = A
@@ -309,7 +365,7 @@ function whitby_intermodal_coag(
         accum.N *
         K_fm *
         sqrt_diam_ait^5 *
-        CCF.intermodal_m2_ait_correction(n1, n2n, n2a) *
+        CCF.intermodal_m2_ait_correction(R_2, aitken.stdev, accum.stdev) *
         (
             ESG_ait^25 +
             2 * R_2 * ESG_ait^9 * ESG_acc^04 +
@@ -327,7 +383,7 @@ function whitby_intermodal_coag(
         sqrt_diam_ait^7 *
         (
             ESG_ait^49 +
-            R * ESG^36 * ESG_acc +
+            R * ESG_ait^36 * ESG_acc +
             2 * R_2 * ESG_ait^25 * ESG_acc^4 +
             R_4 * ESG_ait^9 * ESG_acc^16 +
             (1 / R_3) * ESG_ait^100 * ESG_acc^9 +

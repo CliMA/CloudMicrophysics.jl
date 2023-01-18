@@ -9,9 +9,9 @@ const CG = CloudMicrophysics.Coagulation
 
 include("../src/Coagulation.jl")
 using .Coagulation
-local_exp_file = joinpath(@__DIR__, "temp_params.toml")
+
 FT = Float64
-toml_dict = CLIMAParameters.create_toml_dict(FT; override_file = local_exp_file)
+toml_dict = CLIMAParameters.create_toml_dict(FT)
 
 param_names = ["MSLP", "T_surf_ref", "k_Boltzmann"]
 params = CLIMAParameters.get_parameter_values!(toml_dict, param_names)
@@ -76,14 +76,39 @@ air_temp = params.T_surf_ref  #  standard surface temperature (K)
 # TODO: Add better values
 particle_density_acc = 0.1
 particle_density_ait = 0.1
-gas_viscosity = 1e-5
 
-Coagulation.coagulation_quadrature(
-    ad,
+
+function compare_whitby_quadrature(
     particle_density_ait,
     particle_density_acc,
-    gas_viscosity,
     air_pressure,
     air_temp,
-    params,
+    params
+
 )
+    quadrature = Coagulation.coagulation_quadrature(
+        ad,
+        particle_density_ait,
+        particle_density_acc,
+        air_pressure,
+        air_temp,
+        params,
+    )
+    whitby = Coagulation.whitby_coagulation(
+        ad,
+        particle_density_ait,
+        particle_density_acc,
+        air_pressure,
+        air_temp,
+        params,
+    )
+    difference = quadrature .- whitby
+    return difference
+end
+
+compare_whitby_quadrature(
+    particle_density_ait,
+    particle_density_acc,
+    air_pressure,
+    air_temp,
+    params)

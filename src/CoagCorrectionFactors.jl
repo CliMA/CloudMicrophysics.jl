@@ -10,33 +10,44 @@ Correction factors for 0-th moment are the same in Whitby 91 - see p. H.8
 These correction factors are obtained from the CAM5 code for higher precision.
 """
 function intramodal_m0_correction(stdev)
-    index = max(1, min(10, 
-                round(Integer, (stdev - 0.75) / 0.25)))
-    correction_factors = 
-    [0.707106785165097, 0.726148960080488, 0.766430744110958,
-    0.814106389441342, 0.861679526483207, 0.903600509090092,
-    0.936578814219156, 0.960098926735545, 0.975646823342881,
-    0.985397173215326]
+    index = max(1, min(10, round(Integer, (stdev - 0.75) / 0.25)))
+    correction_factors = [
+        0.707106785165097,
+        0.726148960080488,
+        0.766430744110958,
+        0.814106389441342,
+        0.861679526483207,
+        0.903600509090092,
+        0.936578814219156,
+        0.960098926735545,
+        0.975646823342881,
+        0.985397173215326,
+    ]
     return correction_factors[index]
 end
 
 function intramodal_m2_correction(stdev)
-    index = max(1, min(10, 
-                round(Integer, (stdev - 0.75) / 0.25)))
-    correction_factors = 
-    [1.000000, 0.907452, 0.680931, 0.409815, 0.196425,
-    0.078814, 0.028473, 0.009800, 0.003322, 0.001129]
+    index = max(1, min(10, round(Integer, (stdev - 0.75) / 0.25)))
+    correction_factors = [
+        1.000000,
+        0.907452,
+        0.680931,
+        0.409815,
+        0.196425,
+        0.078814,
+        0.028473,
+        0.009800,
+        0.003322,
+        0.001129,
+    ]
     return correction_factors[index]
 end
 
 
 function getindex(R_2, stdev_ait, stdev_acc)
-    i_R_2 = max(1, min(10, 
-                1+round(Integer, (log(R_2) / log(sqrt(2))))))
-    i_stdev_ait = max(1, min(10, 
-                    round(Integer, (stdev_ait - 0.75) / 0.25)))
-    i_stdev_acc = max(1, min(10, 
-                    round(Integer, (stdev_acc - 0.75) / 0.25)))
+    i_R_2 = max(1, min(10, 1 + round(Integer, (log(R_2) / log(sqrt(2))))))
+    i_stdev_ait = max(1, min(10, round(Integer, (stdev_ait - 0.75) / 0.25)))
+    i_stdev_acc = max(1, min(10, round(Integer, (stdev_acc - 0.75) / 0.25)))
     return i_R_2, i_stdev_ait, i_stdev_acc
 end
 
@@ -243,7 +254,7 @@ function intermodal_m0_correction(R_2, stdev_ait, stdev_acc)
     0.999079,  0.999346,  0.999538,  0.999673,  0.999769],
     [0.997402,  0.997632,  0.998089,  0.998554,  0.998945,
     0.999244,  0.999464,  0.999622,  0.999733,  0.999811]]]
-    return correction_factors[i_R][i_stdev_ait][i_stdev_acc]
+    return correction_factors[i_R_2][i_stdev_ait][i_stdev_acc]
 end
 
 function intermodal_m2_ait_correction(R_2, stdev_ait, stdev_acc)
@@ -449,7 +460,7 @@ function intermodal_m2_ait_correction(R_2, stdev_ait, stdev_acc)
     0.964987,  0.974061,  0.981038,  0.986253,  0.990078],
     [0.911143,  0.915972,  0.926455,  0.938721,  0.950701,
     0.961370,  0.970329,  0.977549,  0.983197,  0.987518]]]
-    return correction_factors[i_R][i_stdev_ait][i_stdev_acc]
+    return correction_factors[i_R_2][i_stdev_ait][i_stdev_acc]
 end
 
 function intermodal_m2_acc_correction(R_2, stdev_ait, stdev_acc)
@@ -655,7 +666,7 @@ function intermodal_m2_acc_correction(R_2, stdev_ait, stdev_acc)
     4.189530,  4.389145,  4.707528,  5.161567,  5.765283],
     [6.119526,  6.127611,  6.171174,  6.286528,  6.508738,
     6.869521,  7.396912,  8.113749,  9.034683, 10.162190]]]
-    return correction_factors[i_R][i_stdev_ait][i_stdev_acc]
+    return correction_factors[i_R_2][i_stdev_ait][i_stdev_acc]
 end
 
 function intermodal_m3_correction(R_2, stdev_ait, stdev_acc)
@@ -861,7 +872,7 @@ function intermodal_m3_correction(R_2, stdev_ait, stdev_acc)
     0.96704, 0.97203, 0.97602, 0.97900, 0.98106],
     [0.97977, 0.98071, 0.98270, 0.98492, 0.98695, 
     0.98858, 0.98970, 0.99027, 0.99026, 0.98968]]]
-    return correction_factors[i_R][i_stdev_ait][i_stdev_acc]
+    return correction_factors[i_R_2][i_stdev_ait][i_stdev_acc]
 end 
 
 end
