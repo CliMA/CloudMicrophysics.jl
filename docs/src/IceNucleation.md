@@ -6,8 +6,8 @@ Future work includes addition of parameterization for differential activated fra
 The parameterization computes the activated fraction and ice saturation ratio.
 
 The modules are an implementation of the parameterization
-  from [Murray et al. (2012)](@cite) and
-  [Vali (1971)](@cite).
+  from [Murray2012](@cite) and
+  [Mohler2006](@cite).
 
 
 ## Assumed ice nucleating aerosol composition and dependencies
@@ -15,6 +15,8 @@ The modules are an implementation of the parameterization
 There are two major descriptions for ice nucleation data: *stochastic* and *singular*. The stochastic model accounts for the time dependency of the probability of nucleation. The singular model assumes that the dependence on the distribution of ice nuclei types is of much greater relative importance than that of time in nucleation of ice. The modified singular model by Vali in which time is a contributing factor through cooling rate is also included.
 
 Within stochastic modeling, there is the *single component stochastic (SCS)* and the *multiple component stochastic (MSC)*. SCS assumes each droplet contains the same ice nucleating materials and thus same probability of freezing. In MSC, droplets may contain varying amounts and types of particles and, therefore, have differing freezing probabilities. Similarly, the singular models hold for droplets with varying composition of aerosol types.
+
+An addiitonal model which uses ice saturation ratio to parameterize activated fraction is also included.
 
 Particles are assumed to be internally mixed.
 The following table lists the parameters defining the droplet
@@ -32,6 +34,7 @@ The following table lists the parameters defining the droplet
 |``T_c``               | characteristic temperature                        | ``°C``               |
 |``n_s``               | active site density                        | ``kg \, m^{-3}``    |
 |``k``                 | density of nucleation sites                | ``kg \, m^{-3}``    |
+|``S``                 | ice saturation ratio                              | ``-``                |
 
 
 ## Single Component Stochastic (SCS)
@@ -112,3 +115,14 @@ where:
   - ``r`` is cooling rate,
   - ``\beta`` is an empirical parameter.
 
+## Ice Saturation Ratio Model
+Defined in eq. (3) of Mohler (2006):
+
+```math
+f_{ice}(S_i) = exp[a(S_i - S_0)] - 1
+```
+where:
+  - ``S_0`` is the threshold ice saturation ratio,
+  - ``a`` is a scaling parameter dependent on aerosol properties and temperature.
+
+Experimental values for both ``S_0`` and ``a`` can be found in Mohler (2006). 
