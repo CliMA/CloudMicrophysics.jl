@@ -6,6 +6,17 @@ using CLIMAParameters
 include("CoagCorrectionFactors.jl")
 import .CoagCorrectionFactors as CCF
 
+
+# Returns a log-normal distribution for the given aerosol mode.
+function lognormal_dist(am)
+    # Transform geometric mean and stdev for lognormal distribution
+    mu = log(2 * am.r_dry)
+    sigma = log(am.stdev)
+    return x ->
+        1 / (x * sigma * sqrt(2 * pi)) *
+        exp(-(log(x) - mu)^2 / (2 * sigma^2))
+end
+
 """
     coagulation_quadrature(ad, air_pressure, temp, parameter_file)
 
@@ -31,17 +42,6 @@ function coagulation_quadrature(
     # Set up lognormal distributions
     aitken = ad.Modes[1]
     accum = ad.Modes[2]
-    # Returns a log-normal distribution for the given aerosol mode.
-    function lognormal_dist(am)
-        mean = 2 * am.r_dry
-        stdev = am.stdev
-        # Transform for lognormal distribution
-        mu = log((mean)^2 / sqrt(mean + stdev^2))
-        sigma = sqrt(log(1 + stdev^2 / (mean)^2))
-        return x ->
-            1 / (x * sigma * sqrt(2 * pi)) *
-            exp(-(log(x) - mu)^2 / (2 * sigma^2))
-    end
     aitken_distribution = lognormal_dist(aitken)
     accumulation_distribution = lognormal_dist(accum)
     k_fm = sqrt(
