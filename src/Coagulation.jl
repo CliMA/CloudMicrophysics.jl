@@ -114,7 +114,7 @@ function intracoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
         rate_nc = 
             0.5 * cubature(integrand1(moment, beta_nc, aitken_dist))
             - cubature(integrand2(moment, beta_nc, aitken_dist))
-        aitken_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc)
+        aitken_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc + eps())
     end
     # Accumulation
     accum_rates = Vector{Float64}(undef, 3)
@@ -125,7 +125,7 @@ function intracoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
         rate_nc = 
             0.5 * cubature(integrand1(moment, beta_nc, accum_dist))
             - cubature(integrand2(moment, beta_nc, accum_dist))
-        accum_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc)
+        accum_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc + eps())
     end
     return (aitken_rates, accum_rates)
 end
@@ -159,7 +159,7 @@ function intercoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
     for moment in 0:3
         rate_fm = -cubature(integrand1(moment, beta_fm, aitken_dist, accum_dist))
         rate_nc = -cubature(integrand1(moment, beta_nc, aitken_dist, accum_dist))
-        aitken_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc)
+        aitken_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc + eps())
     end
     # Accumulation:
     accum_rates = Vector{Float64}(undef, 4)
@@ -170,7 +170,7 @@ function intercoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
         rate_nc = 
         cubature(integrand2(moment, beta_nc, accum_dist, aitken_dist))
             -cubature(integrand1(moment, beta_nc, accum_dist, aitken_dist))
-        accum_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc)
+        accum_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc + eps())
     end
     return (aitken_rates, accum_rates)
 end
