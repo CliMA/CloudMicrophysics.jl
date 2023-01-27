@@ -7,6 +7,7 @@ include("CoagCorrectionFactors.jl")
 import .CoagCorrectionFactors as CCF
 
 
+
 # Returns a log-normal distribution for the given aerosol mode.
 function lognormal_dist(am)
     # Transform geometric mean and stdev for lognormal distribution
@@ -18,20 +19,19 @@ function lognormal_dist(am)
 end
 
 """
-    coagulation_quadrature(ad, air_pressure, temp, parameter_file)
+    quadrature(ad, air_pressure, temp, params)
 
  - `ad`: AerosolDistribution, a tuple of aerosol modes. Currently only MAM3 is supported.
  - `particle_density_ait`: Particle density for the aitken mode (kg/m^3)
  - `particle_density_acc`: Particle density for the accumulation mode (kg/m^3)
  - `air_pressure`: Ambient air pressure (pa)
  - `temp`: Ambient air temperature (K)
- - `parameter_file`: TOML file to read in parameters. This may be changed once the coagulation rate is actually applied to the aerosol data struct.
+ - `params`: NamedTuple of relevant parameters
 Calculates the rates of change to the 0th, 2nd, and 3rd moments of the Aitken
 and Accumulation modes due to inter- and intramodal coagulation. This is done
 Gaussian quadrature over the log-normal distributions using Cubature.jl.
 """
-function coagulation_quadrature(
-    #TODO: refactor inter- and intra- to add moment as fn input, 
+function quadrature(
     ad,
     particle_density_ait,
     particle_density_acc,
@@ -68,70 +68,19 @@ function coagulation_quadrature(
         (1 / dp1 + 1 / dp2 + 2.492 * lambda * (1 / dp1^2 + 1 / dp2^2))
 
     # Calculate quadrature
-    # Whitby 4.30a
-    aitken_m0_intracoag =
-        intracoag_quadrature(0, beta_fm, beta_nc, aitken_distribution)
-    # Whitby 4.30a
-    accum_m0_intracoag =
-        intracoag_quadrature(0, beta_fm, beta_nc, accumulation_distribution)
-    # Moment 2 - Intramodal coagulation
-    aitken_m2_intracoag =
-        intracoag_quadrature(2, beta_fm, beta_nc, aitken_distribution)
-    accum_m2_intracoag =
-        intracoag_quadrature(2, beta_fm, beta_nc, accumulation_distribution)
-    # TODO: Clean up this repeating code
-    # Whitby 4.31a
-    aitken_m0_intercoag = intercoag_quadrature(
-        0,
-        beta_fm,
-        beta_nc,
-        aitken_distribution,
-        accumulation_distribution,
-    )
-    # Moment 2 - Intermodal coagulation
-    aitken_m2_intercoag = intercoag_quadrature(
-        2,
-        beta_fm,
-        beta_nc,
-        aitken_distribution,
-        accumulation_distribution,
-    )
-    accum_m2_intercoag = intercoag_quadrature(
-        2,
-        beta_fm,
-        beta_nc,
-        aitken_distribution,
-        accumulation_distribution,
-    )
-    # Whitby 4.31b
-    aitken_m3_intercoag = intercoag_quadrature(
-        3,
-        beta_fm,
-        beta_nc,
-        aitken_distribution,
-        accumulation_distribution,
-    )
-    # Whitby 4.32b
-    accum_m3_intercoag = -aitken_m3_intercoag
-    
-    return (
-        aitken_m0_intracoag,
-        accum_m0_intracoag,
-        aitken_m2_intracoag,
-        accum_m2_intracoag,
-        aitken_m0_intercoag,
-        aitken_m2_intercoag,
-        accum_m2_intercoag,
-        aitken_m3_intercoag,
-        accum_m3_intercoag
-    )
+    # Intramodal
+    intramodal_rates = intracoag_quadrature(beta_fm, beta_nc, aitken_distribution, accumulation_distribution)
+    # Intermodal
+    intermodal_rates = intercoag_quadrature(beta_fm, beta_nc, aitken_distribution, accumulation_distribution)
+    return (intramodal_rates, intermodal_rates)
 end
 
 # Wrapper function for computing Gaussian quadrature. Takes an integrand formatted for Cubature.jl
 function cubature(integrand)
-    start = 0
+    start = eps()
     stop = 1e2
-    return Cubature.hcubature(integrand, [start, start], [stop, stop])[1]
+    (result, err) = Cubature.hcubature(integrand, [start, start], [stop, stop])
+    return result
 end
 
 """
@@ -142,23 +91,43 @@ end
 Helper function for `coagulation_quadrature`, calculates 
 intramodal coagulation rates for the given modal distribution.
 """
-function intracoag_quadrature(moment, beta_fm, beta_nc, distribution)
-    intramodal_integrand(moment, beta) =
+function intracoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
+    integrand1(moment, beta, distribution) =
         dp ->
             dp[1]^moment *
             dp[2]^moment *
             beta(dp[1], dp[2]) *
             distribution(dp[1]) *
             distribution(dp[2])
-
-    # Whitby 1991 4.30
-    rate_fm = cubature(intramodal_integrand(0, beta_fm))
-    rate_nc = cubature(intramodal_integrand(0, beta_nc))
-    coagulation_rate = -(rate_fm * rate_nc / (rate_fm + rate_nc))
-    if moment == 0
-        coagulation_rate *= 0.5
+    integrand2(moment, beta, distribution) =
+        dp ->
+            (dp[1]^3 + dp[2]^3)^(moment/3) *
+            beta(dp[1], dp[2]) *
+            distribution(dp[1]) *
+            distribution(dp[2])
+    aitken_rates = Vector{Float64}(undef, 3)
+    # Aitken
+    for moment in 0:2
+        rate_fm = 
+            0.5 * cubature(integrand1(moment, beta_fm, aitken_dist))
+            - cubature(integrand2(moment, beta_fm, aitken_dist))
+        rate_nc = 
+            0.5 * cubature(integrand1(moment, beta_nc, aitken_dist))
+            - cubature(integrand2(moment, beta_nc, aitken_dist))
+        aitken_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc)
     end
-    return coagulation_rate
+    # Accumulation
+    accum_rates = Vector{Float64}(undef, 3)
+    for moment in 0:2
+        rate_fm = 
+            0.5 * cubature(integrand1(moment, beta_fm, accum_dist))
+            - cubature(integrand2(moment, beta_fm, accum_dist))
+        rate_nc = 
+            0.5 * cubature(integrand1(moment, beta_nc, accum_dist))
+            - cubature(integrand2(moment, beta_nc, accum_dist))
+        accum_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc)
+    end
+    return (aitken_rates, accum_rates)
 end
 
 """
@@ -170,19 +139,40 @@ end
 Helper function for `coagulation_quadrature`, calculates 
 intermodal coagulation rates between the aitken and accumulation modes.
 """
-function intercoag_quadrature(moment, beta_fm, beta_nc, aitken_dist, accum_dist)
-    intermodal_integrand(moment, beta) =
+function intercoag_quadrature(beta_fm, beta_nc, aitken_dist, accum_dist)
+    integrand1(moment, beta, dist1, dist2) =
         dp ->
             dp[1]^moment *
             beta(dp[1], dp[2]) *
-            aitken_dist(dp[1]) *
-            accum_dist(dp[2])
+            dist1(dp[1]) *
+            dist2(dp[2])
+    
+    integrand2(moment, beta, dist1, dist2) =
+        dp ->
+            (dp[1]^3 + dp[2]^3)^(moment/3) *
+            beta(dp[1], dp[2]) *
+            dist1(dp[1]) *
+            dist2(dp[2])
 
-    # Whitby 1991 4.31
-    rate_fm = cubature(intermodal_integrand(moment, beta_fm))
-    rate_nc = cubature(intermodal_integrand(moment, beta_nc))
-    coagulation_rate = -rate_fm * rate_nc / (rate_fm + rate_nc)
-    return coagulation_rate
+    # Aitken
+    aitken_rates = Vector{Float64}(undef, 4)
+    for moment in 0:3
+        rate_fm = -cubature(integrand1(moment, beta_fm, aitken_dist, accum_dist))
+        rate_nc = -cubature(integrand1(moment, beta_nc, aitken_dist, accum_dist))
+        aitken_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc)
+    end
+    # Accumulation:
+    accum_rates = Vector{Float64}(undef, 4)
+    for moment in 0:3
+        rate_fm = 
+            cubature(integrand2(moment, beta_fm, accum_dist, aitken_dist))
+            -cubature(integrand1(moment, beta_fm, accum_dist, aitken_dist))
+        rate_nc = 
+        cubature(integrand2(moment, beta_nc, accum_dist, aitken_dist))
+            -cubature(integrand1(moment, beta_nc, accum_dist, aitken_dist))
+        accum_rates[moment+1] = rate_fm * rate_nc / (rate_fm + rate_nc)
+    end
+    return (aitken_rates, accum_rates)
 end
 
 """

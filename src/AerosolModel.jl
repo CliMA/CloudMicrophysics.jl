@@ -81,7 +81,7 @@ and follow a lognormal size distribution.
 The chemical composition of aerosol particles in this mode
 is described using the parameters from Petters and Kreidenweis 2007.
 """
-struct Mode_κ{NCOMP, T, FT}
+mutable struct Mode_κ{NCOMP, T, FT}
     "geometric mean dry radius"
     r_dry::FT
     "geometric standard deviation"

@@ -2,6 +2,7 @@ import Test
 import CLIMAParameters
 
 import CloudMicrophysics
+using Plots
 
 const TT = Test
 const AM = CloudMicrophysics.AerosolModel
@@ -68,8 +69,6 @@ accum_sulfate_κ = AM.Mode_κ(
     1,
 )
 
-ad = AM.AerosolDistribution((aitken_sulfate_κ, accum_sulfate_κ))
-
 air_pressure = params.MSLP        #  standard surface pressure (pa)
 air_temp = params.T_surf_ref  #  standard surface temperature (K)
 
@@ -77,38 +76,31 @@ air_temp = params.T_surf_ref  #  standard surface temperature (K)
 particle_density_acc = 0.1
 particle_density_ait = 0.1
 
+ad = AM.AerosolDistribution((aitken_sulfate_κ, accum_sulfate_κ))
 
-function compare_whitby_quadrature(
+quadrature = Coagulation.quadrature(
+    ad,
     particle_density_ait,
     particle_density_acc,
     air_pressure,
     air_temp,
     params
-
 )
-    quadrature = Coagulation.coagulation_quadrature(
-        ad,
-        particle_density_ait,
-        particle_density_acc,
-        air_pressure,
-        air_temp,
-        params,
-    )
-    whitby = Coagulation.whitby_coagulation(
-        ad,
-        particle_density_ait,
-        particle_density_acc,
-        air_pressure,
-        air_temp,
-        params,
-    )
-    difference = quadrature .- whitby
-    return difference
+
+function plot(ad::AM.AerosolDistribution)
+    step=1e-9
+    stop=5e-6
+    Plots.plot(xlims=[1e-8,1e-5], xaxis=:log)
+    sizes = range(eps(), stop=stop, step=step)
+    for mode in ad.Modes
+        lognormal = Coagulation.lognormal_dist(mode)
+        distribution = lognormal.(sizes)
+        # Normalize
+        distribution *= mode.N / sum(distribution)
+        Plots.plot!(sizes, distribution)
+    end
+    plot!()
 end
 
-compare_whitby_quadrature(
-    particle_density_ait,
-    particle_density_acc,
-    air_pressure,
-    air_temp,
-    params)
+plot(ad)
+
