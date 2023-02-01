@@ -1,7 +1,7 @@
-import Test
-import CLIMAParameters
+using Test
+using CLIMAParameters
 
-import CloudMicrophysics
+using CloudMicrophysics
 using Plots
 
 const TT = Test
@@ -102,5 +102,15 @@ function plot(ad::AM.AerosolDistribution)
     plot!()
 end
 
-plot(ad)
+
+# Test that cubature returns 1 for integrating over the distribution
+test_cubature(am) = test_cubature(2 * am.r_dry, am.stdev)
+
+function test_cubature(diameter, stdev)
+    dist = Coagulation.lognormal_dist(diameter, stdev)
+    integrand = dp -> dist(dp[1]) * dist(dp[2])
+    result = Coagulation.cubature(integrand)
+    @test result ≈ 1 rtol=1e-9
+end
+
 

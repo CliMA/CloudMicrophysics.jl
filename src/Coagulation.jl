@@ -10,9 +10,13 @@ import .CoagCorrectionFactors as CCF
 
 # Returns a log-normal distribution for the given aerosol mode.
 function lognormal_dist(am)
+    return lognormal_dist(2 * am.r_dry, am.stdev)
+end
+
+function lognormal_dist(diameter, stdev)
     # Transform geometric mean and stdev for lognormal distribution
-    mu = log(2 * am.r_dry)
-    sigma = log(am.stdev)
+    mu = log(diameter)
+    sigma = log(stdev)
     return x ->
         1 / (x * sigma * sqrt(2 * pi)) *
         exp(-(log(x) - mu)^2 / (2 * sigma^2))
