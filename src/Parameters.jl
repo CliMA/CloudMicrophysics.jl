@@ -95,6 +95,15 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     R_6C_coeff_LD2004::FT
     E_0_LD2004::FT
     k_thrshld_stpnss::FT
+    kc_SB2001::FT
+    kr_SB2001::FT
+    xstar_SB2001::FT
+    ν_SB2001::FT
+    A_phi_au_SB2001::FT
+    a_phi_au_SB2001::FT
+    b_phi_au_SB2001::FT
+    τ_0_phi_ac_SB2001::FT
+    c_phi_ac_SB2001::FT
 end
 
 Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT
@@ -138,6 +147,5 @@ cv_d(ps::CMPS) = TD.Parameters.cv_d(thermodynamics_params(ps))
 cv_v(ps::CMPS) = TD.Parameters.cv_v(thermodynamics_params(ps))
 cv_l(ps::CMPS) = TD.Parameters.cv_l(thermodynamics_params(ps))
 cv_i(ps::CMPS) = TD.Parameters.cv_i(thermodynamics_params(ps))
-
 
 end # module

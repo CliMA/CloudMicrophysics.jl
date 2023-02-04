@@ -510,3 +510,96 @@ TT.@testset "2M_microphysics - compare with Wood_2005" begin
     compare_Nd(LD2004, 149.01220754857331, 1.3917890403908125e-8, eps = 1)
 
 end
+
+TT.@testset "2M_microphysics - Seifert and Beheng 2001 double moment" begin
+    #setup
+    ρ = 1.1
+    q_liq = 0.5e-3
+    N_liq = 1e8
+    q_rai = 1e-6
+    N_rai = 1e4
+
+    kc = 9.44e9
+    kr = 5.78
+    xstar = 2.6e-10
+    ν = 2
+
+    #action
+    au = CM2.autoconversion(prs, CMT.SB2001Type(), q_liq, q_rai, ρ, N_liq)
+    ac = CM2.accretion(prs, CMT.SB2001Type(), q_liq, q_rai, ρ, N_liq)
+    sc_liq = CM2.liquid_self_collection(
+        prs,
+        CMT.SB2001Type(),
+        q_liq,
+        ρ,
+        au.dN_liq_dt,
+    )
+    sc_rai = CM2.rain_self_collection(prs, CMT.SB2001Type(), q_rai, ρ, N_rai)
+
+    Lc = ρ * q_liq
+    Lr = ρ * q_rai
+    xc = Lc / N_liq
+    τ = 1 - Lc / (Lc + Lr)
+    ϕ_au = 600 * τ^0.68 * (1 - τ^0.68)^3
+    ϕ_ac = (τ / (τ + 5e-4))^4
+
+    dqrdt_au =
+        kc / 20 / xstar * (ν + 2) * (ν + 4) / (ν + 1)^2 *
+        Lc^2 *
+        xc^2 *
+        (1 + ϕ_au / (1 - τ)^2) / ρ
+    dqrdt_ac = kr * Lc * Lr * ϕ_ac / ρ
+    dqcdt_au = -dqrdt_au
+    dqcdt_ac = -dqrdt_ac
+    dNcdt_au = 2 / xstar * ρ * dqcdt_au
+    dNcdt_ac = 1 / xc * ρ * dqcdt_ac
+    dNrdt_au = -0.5 * dNcdt_au
+    dNrdt_ac = 0.0
+    dNcdt_sc = -kc * (ν + 2) / (ν + 1) * Lc^2 - dNcdt_au
+    dNrdt_sc = -kr * N_rai * Lr
+
+
+    #test
+    TT.@test au isa CM2.LiqRaiRates
+    TT.@test ac isa CM2.LiqRaiRates
+    TT.@test sc_liq isa Float64
+    TT.@test sc_rai isa Float64
+    TT.@test au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
+    TT.@test au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
+    TT.@test au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
+    TT.@test au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
+    TT.@test ac.dq_liq_dt ≈ dqcdt_ac rtol = 1e-6
+    TT.@test ac.dq_rai_dt ≈ dqrdt_ac rtol = 1e-6
+    TT.@test ac.dN_liq_dt ≈ dNcdt_ac rtol = 1e-6
+    TT.@test ac.dN_rai_dt ≈ dNrdt_ac rtol = 1e-6
+    TT.@test sc_liq ≈ dNcdt_sc rtol = 1e-6
+    TT.@test sc_rai ≈ dNrdt_sc rtol = 1e-6
+
+    #setup
+    q_liq = 0.0
+    q_rai = 0.0
+
+    #action
+    au = CM2.autoconversion(prs, CMT.SB2001Type(), q_liq, q_rai, ρ, N_liq)
+    ac = CM2.accretion(prs, CMT.SB2001Type(), q_liq, q_rai, ρ, N_liq)
+    sc_liq = CM2.liquid_self_collection(
+        prs,
+        CMT.SB2001Type(),
+        q_liq,
+        ρ,
+        au.dN_liq_dt,
+    )
+    sc_rai = CM2.rain_self_collection(prs, CMT.SB2001Type(), q_rai, ρ, N_rai)
+
+    #test
+    TT.@test au.dq_liq_dt ≈ 0 atol = eps(Float64)
+    TT.@test au.dq_rai_dt ≈ 0 atol = eps(Float64)
+    TT.@test au.dN_liq_dt ≈ 0 atol = eps(Float64)
+    TT.@test au.dN_rai_dt ≈ 0 atol = eps(Float64)
+    TT.@test ac.dq_liq_dt ≈ 0 atol = eps(Float64)
+    TT.@test ac.dq_rai_dt ≈ 0 atol = eps(Float64)
+    TT.@test ac.dN_liq_dt ≈ 0 atol = eps(Float64)
+    TT.@test ac.dN_rai_dt ≈ 0 atol = eps(Float64)
+    TT.@test sc_liq ≈ 0 atol = eps(Float64)
+    TT.@test sc_rai ≈ 0 atol = eps(Float64)
+end
