@@ -22,10 +22,9 @@ Microphysics0M.remove_precipitation
 
 ```@docs
 Microphysics1M
-Microphysics1M.v0_rai
-Microphysics1M.n0_sno
+Microphysics1M.v0
+Microphysics1M.n0
 Microphysics1M.lambda
-Microphysics1M.unpack_params
 Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_liq_to_q_rai
 Microphysics1M.conv_q_ice_to_q_sno_no_supersat
@@ -40,8 +39,28 @@ Microphysics1M.snow_melt
 # 2-moment precipitation microphysics
 ```@docs
 Microphysics2M
-Microphysics2M.conv_q_liq_to_q_rai
+Microphysics2M.LiqRaiRates
+Microphysics2M.raindrops_limited_vars
+Microphysics2M.autoconversion
 Microphysics2M.accretion
+Microphysics2M.liquid_self_collection
+Microphysics2M.autoconversion_and_liquid_self_collection
+Microphysics2M.rain_self_collection
+Microphysics2M.rain_breakup
+Microphysics2M.rain_self_collection_and_breakup
+Microphysics2M.rain_terminal_velocity
+Microphysics2M.rain_evaporation
+Microphysics2M.conv_q_liq_to_q_rai
+```
+
+# P3 scheme
+
+```@docs
+P3Scheme
+P3Scheme.thresholds
+P3Scheme.generate_threshold_table
+P3Scheme.read_threshold_table
+P3Scheme.lookup_threshold
 ```
 
 # Aerosol model
@@ -65,6 +84,19 @@ AerosolActivation.total_N_activated
 AerosolActivation.total_M_activated
 ```
 
+# Heterogeneous ice nucleation
+```@docs
+HetIceNucleation
+HetIceNucleation.dust_activated_number_fraction
+HetIceNucleation.ABIFM_J
+```
+
+# Homogeneous ice nucleation
+```@docs
+HomIceNucleation
+HomIceNucleation.homogeneous_J
+```
+
 # Common utility functions
 
 ```@docs
@@ -72,6 +104,8 @@ Common
 Common.G_func
 Common.logistic_function
 Common.logistic_function_integral
+Common.H2SO4_soln_saturation_vapor_pressure
+Common.Delta_a_w
 ```
 
 # Common utility types
@@ -90,4 +124,16 @@ CommonTypes.KK2000Type
 CommonTypes.B1994Type
 CommonTypes.TC1980Type
 CommonTypes.LD2004Type
+CommonTypes.SB2006Type
+CommonTypes.Chen2022Type
+CommonTypes.AbstractAerosolType
+CommonTypes.ArizonaTestDustType
+CommonTypes.DesertDustType
+```
+
+# Precipitation susceptibility
+
+```@docs
+PrecipitationSusceptibility.precipitation_susceptibility_autoconversion
+PrecipitationSusceptibility.precipitation_susceptibility_accretion
 ```

@@ -17,6 +17,11 @@ export KK2000Type
 export B1994Type
 export TC1980Type
 export LD2004Type
+export SB2006Type
+export Chen2022Type
+export AbstractAerosolType
+export ArizonaTestDustType
+export DesertDustType
 
 """
     AbstractAerosolDistribution
@@ -101,5 +106,59 @@ struct TC1980Type <: Abstract2MPrecipType end
 The type for 2-moment precipitation formation by Liu and Daum (2004)
 """
 struct LD2004Type <: Abstract2MPrecipType end
+
+"""
+    SB2001Type
+
+The type for 2-moment precipitation formation by Seifert and Beheng (2001)
+"""
+struct SB2001Type <: Abstract2MPrecipType end
+
+"""
+    Chen2022Type
+
+The type for 2-moment precipitation terminal velocity by Chen et al 2022
+"""
+struct Chen2022Type <: Abstract2MPrecipType end
+
+"""
+    AbstractAerosolType
+
+The top-level super-type for all aerosol types.
+"""
+abstract type AbstractAerosolType end
+
+"""
+    ArizonaTestDustType
+
+The type for Arizona test dust for deposition activated fraction
+"""
+struct ArizonaTestDustType <: AbstractAerosolType end
+
+"""
+    DesertDustType
+
+The type for desert dust for deposition activated fraction
+"""
+struct DesertDustType <: AbstractAerosolType end
+
+"""
+    KaoliniteType
+
+The type for Kaolinite for ABIFM nucleation rate
+"""
+struct KaoliniteType <: AbstractAerosolType end
+
+"""
+    IlliteType
+
+The type for illite for ABIFM nucleation rate
+"""
+struct IlliteType <: AbstractAerosolType end
+
+Base.broadcastable(x::LiquidType) = tuple(x)
+Base.broadcastable(x::IceType) = tuple(x)
+Base.broadcastable(x::RainType) = tuple(x)
+Base.broadcastable(x::SnowType) = tuple(x)
 
 end #module CommoniTypes.jl

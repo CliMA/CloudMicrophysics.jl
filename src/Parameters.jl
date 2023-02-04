@@ -5,7 +5,7 @@ const TD = Thermodynamics
 const TDPS = TD.Parameters.ThermodynamicsParameters
 
 abstract type AbstractCloudMicrophysicsParameters end
-Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = Ref(ps)
+Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = tuple(ps)
 
 # TODO: add doc strings
 # Cloud microphysics parameters
@@ -69,7 +69,6 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     E_ice_sno::FT
     E_rai_sno::FT
     ρ_cloud_ice::FT
-    gas_constant::FT
     thermo_params::TP
     D_acnv_TC1980::FT
     a_acnv_TC1980::FT
@@ -95,6 +94,69 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     R_6C_coeff_LD2004::FT
     E_0_LD2004::FT
     k_thrshld_stpnss::FT
+    kcc_SB2006::FT
+    kcr_SB2006::FT
+    krr_SB2006::FT
+    κrr_SB2006::FT
+    xr_min_SB2006::FT
+    xr_max_SB2006::FT
+    νc_SB2006::FT
+    ρ0_SB2006::FT
+    A_phi_au_SB2006::FT
+    a_phi_au_SB2006::FT
+    b_phi_au_SB2006::FT
+    τ0_phi_ac_SB2006::FT
+    c_phi_ac_SB2006::FT
+    d_sc_SB2006::FT
+    Deq_br_SB2006::FT
+    Dr_th_br_SB2006::FT
+    kbr_SB2006::FT
+    κbr_SB2006::FT
+    aR_tv_SB2006::FT
+    bR_tv_SB2006::FT
+    cR_tv_SB2006::FT
+    av_evap_SB2006::FT
+    bv_evap_SB2006::FT
+    α_evap_SB2006::FT
+    β_evap_SB2006::FT
+    N0_min_SB2006::FT
+    N0_max_SB2006::FT
+    λ_min_SB2006::FT
+    λ_max_SB2006::FT
+    q_coeff_rain_Ch2022::FT
+    a1_coeff_rain_Ch2022::FT
+    a2_coeff_rain_Ch2022::FT
+    a3_coeff_rain_Ch2022::FT
+    a3_pow_coeff_rain_Ch2022::FT
+    b1_coeff_rain_Ch2022::FT
+    b2_coeff_rain_Ch2022::FT
+    b3_coeff_rain_Ch2022::FT
+    b_rho_coeff_rain_Ch2022::FT
+    c1_coeff_rain_Ch2022::FT
+    c2_coeff_rain_Ch2022::FT
+    c3_coeff_rain_Ch2022::FT
+    Si_max_Mohler2006::FT
+    T_thr_Mohler2006::FT
+    S0_warm_ATD_Mohler2006::FT
+    S0_cold_ATD_Mohler2006::FT
+    a_warm_ATD_Mohler2006::FT
+    a_cold_ATD_Mohler2006::FT
+    S0_warm_DD_Mohler2006::FT
+    S0_cold_DD_Mohler2006::FT
+    a_warm_DD_Mohler2006::FT
+    a_cold_DD_Mohler2006::FT
+    molmass_seasalt::FT
+    rho_seasalt::FT
+    osm_coeff_seasalt::FT
+    N_ion_seasalt::FT
+    water_soluble_mass_frac_seasalt::FT
+    kappa_seasalt::FT
+    molmass_sulfate::FT
+    rho_sulfate::FT
+    osm_coeff_sulfate::FT
+    N_ion_sulfate::FT
+    water_soluble_mass_frac_sulfate::FT
+    kappa_sulfate::FT
 end
 
 Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT
@@ -109,7 +171,7 @@ m0_ice(ps::CMPS{FT}) where {FT} =
     FT(4 / 3) * π * ps.ρ_cloud_ice * ps.r0_ice^ps.me_ice
 m0_rai(ps::CMPS{FT}) where {FT} =
     FT(4 / 3) * π * ps.ρ_cloud_liq * ps.r0_rai^ps.me_rai
-a0_rai(ps::CMPS) = π * ps.r0_rai^ps.ae_rai
+a0_rai(ps::CMPS{FT}) where {FT} = FT(π) * ps.r0_rai^ps.ae_rai
 m0_sno(ps::CMPS{FT}) where {FT} = FT(1e-1) * ps.r0_sno^ps.me_sno
 a0_sno(ps::CMPS{FT}) where {FT} = FT(0.3) * π * ps.r0_sno^ps.ae_sno
 v0_sno(ps::CMPS{FT}) where {FT} = FT(2^(9 / 4)) * ps.r0_sno^ps.ve_sno
@@ -138,6 +200,5 @@ cv_d(ps::CMPS) = TD.Parameters.cv_d(thermodynamics_params(ps))
 cv_v(ps::CMPS) = TD.Parameters.cv_v(thermodynamics_params(ps))
 cv_l(ps::CMPS) = TD.Parameters.cv_l(thermodynamics_params(ps))
 cv_i(ps::CMPS) = TD.Parameters.cv_i(thermodynamics_params(ps))
-
 
 end # module

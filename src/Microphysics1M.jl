@@ -9,30 +9,15 @@
 """
 module Microphysics1M
 
-import SpecialFunctions
-const SF = SpecialFunctions
+import SpecialFunctions as SF
 
-import Thermodynamics
-const TD = Thermodynamics
+import Thermodynamics as TD
 
-import ..CommonTypes
-const CT = CommonTypes
+import ..CommonTypes as CT
+import ..Common as CO
+import ..Parameters as CMP
 
-import ..Common
-const CO = Common
-
-import ..Parameters
-const CMP = Parameters
 const APS = CMP.AbstractCloudMicrophysicsParameters
-
-E(param_set::APS, ::CT.LiquidType, ::CT.RainType) =
-    CMP.E_liq_rai(param_set::APS)
-E(param_set::APS, ::CT.LiquidType, ::CT.SnowType) =
-    CMP.E_liq_sno(param_set::APS)
-E(param_set::APS, ::CT.IceType, ::CT.RainType) = CMP.E_ice_rai(param_set::APS)
-E(param_set::APS, ::CT.IceType, ::CT.SnowType) = CMP.E_ice_sno(param_set::APS)
-E(param_set::APS, ::CT.RainType, ::CT.SnowType) = CMP.E_rai_sno(param_set::APS)
-E(param_set::APS, ::CT.SnowType, ::CT.RainType) = CMP.E_rai_sno(param_set::APS)
 
 export terminal_velocity
 
@@ -47,157 +32,102 @@ export evaporation_sublimation
 export snow_melt
 
 """
-    v0_rai(param_set, ρ)
+    E(prs, type_1, type_2)
 
- - `param_set` - abstract set with Earth parameters
- - `ρ` air density
+ - `prs` - set with model parameters
+ - `type_1` and `type_2` - types of colliding species
 
-Returns the proportionality coefficient in terminal velocity(r/r0).
+Returns collision efficiency for two colliding species
 """
-function v0_rai(param_set::APS, ρ::FT) where {FT <: Real}
-
-    _ρ_cloud_liq::FT = CMP.ρ_cloud_liq(param_set)
-    _C_drag::FT = CMP.C_drag(param_set)
-    _grav::FT = CMP.grav(param_set)
-    _r0_rai::FT = CMP.r0_rai(param_set)
-
-    return sqrt(
-        FT(8 / 3) / _C_drag * (_ρ_cloud_liq / ρ - FT(1)) * _grav * _r0_rai,
-    )
-end
+E(prs::APS, ::CT.LiquidType, ::CT.RainType) = CMP.E_liq_rai(prs::APS)
+E(prs::APS, ::CT.LiquidType, ::CT.SnowType) = CMP.E_liq_sno(prs::APS)
+E(prs::APS, ::CT.IceType, ::CT.RainType) = CMP.E_ice_rai(prs::APS)
+E(prs::APS, ::CT.IceType, ::CT.SnowType) = CMP.E_ice_sno(prs::APS)
+E(prs::APS, ::CT.RainType, ::CT.SnowType) = CMP.E_rai_sno(prs::APS)
+E(prs::APS, ::CT.SnowType, ::CT.RainType) = CMP.E_rai_sno(prs::APS)
 
 """
-    n0_sno(param_set, q_sno, ρ)
+    n0(prs, q_sno, ρ, snow_type)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `q_sno` -  snow specific humidity
  - `ρ` - air density
+ - `type` - type for dispatch
 
-Returns the intercept parameter of the assumed Marshall-Palmer distribution of
-snow particles.
+Returns the intercept parameter of the assumed Marshall-Palmer distribution
 """
-function n0_sno(param_set::APS, q_sno::FT, ρ::FT) where {FT <: Real}
+function n0(prs::APS, q_sno::FT, ρ::FT, ::CT.SnowType) where {FT <: Real}
 
-    _ν_sno::FT = CMP.ν_sno(param_set)
-    _μ_sno::FT = CMP.μ_sno(param_set)
+    _ν_sno::FT = CMP.ν_sno(prs)
+    _μ_sno::FT = CMP.μ_sno(prs)
 
     # TODO               this max should be replaced by
     #                    limiting inside a PhasePartition struct for
     #                    precipitation (once it is implemented)
     return _μ_sno * (ρ * max(0, q_sno))^_ν_sno
 end
+n0(prs::APS, ::Any, ::Any, ::CT.IceType) = CMP.n0_ice(prs)
+n0(prs::APS, ::Any, ::Any, ::CT.RainType) = CMP.n0_rai(prs)
 
 """
-    unpack_params(param_set, micro, ρ, q_)
+    v0(prs, ρ, rain_type)
 
- - `param_set` - abstract set with Earth parameters
- - `micro` - type for cloud ice, rain or snow
- - `q_` - specific humidity
+ - `prs` - abstract set with Earth parameters
  - `ρ` - air density
+ - `type` - type for dispatch
 
-Utility function that unpacks microphysics parameters.
+Returns the proportionality coefficient in terminal velocity(r/r0).
 """
-function unpack_params(
-    param_set::APS,
-    ice::CT.IceType,
-    ρ::FT,
-    q_ice::FT,
-) where {FT <: Real}
-    #TODO - make ρ and q_ice optional
-    _n0_ice::FT = CMP.n0_ice(param_set)
-    _r0_ice::FT = CMP.r0_ice(param_set)
+function v0(prs::APS, ρ::FT, ::CT.RainType) where {FT <: Real}
 
-    _m0_ice::FT = CMP.m0_ice(param_set)
-    _me_ice::FT = CMP.me_ice(param_set)
+    _ρ_cloud_liq::FT = CMP.ρ_cloud_liq(prs)
+    _C_drag::FT = CMP.C_drag(prs)
+    _grav::FT = CMP.grav(prs)
+    _r0_rai::FT = CMP.r0_rai(prs)
 
-    _χm_ice::FT = CMP.χm_ice(param_set)
-    _Δm_ice::FT = CMP.Δm_ice(param_set)
-
-    return (_n0_ice, _r0_ice, _m0_ice, _me_ice, _χm_ice, _Δm_ice)
-end
-function unpack_params(
-    param_set::APS,
-    rain::CT.RainType,
-    ρ::FT,
-    q_rai::FT,
-) where {FT <: Real}
-    #TODO - make q_rai optional
-    _n0_rai::FT = CMP.n0_rai(param_set)
-    _r0_rai::FT = CMP.r0_rai(param_set)
-
-    _m0_rai::FT = CMP.m0_rai(param_set)
-    _me_rai::FT = CMP.me_rai(param_set)
-    _a0_rai::FT = CMP.a0_rai(param_set)
-    _ae_rai::FT = CMP.ae_rai(param_set)
-    _v0_rai::FT = v0_rai(param_set, ρ)
-    _ve_rai::FT = CMP.ve_rai(param_set)
-
-    _χm_rai::FT = CMP.χm_rai(param_set)
-    _Δm_rai::FT = CMP.Δm_rai(param_set)
-    _χa_rai::FT = CMP.χa_rai(param_set)
-    _Δa_rai::FT = CMP.Δa_rai(param_set)
-    _χv_rai::FT = CMP.χv_rai(param_set)
-    _Δv_rai::FT = CMP.Δv_rai(param_set)
-
-    return (
-        _n0_rai,
-        _r0_rai,
-        _m0_rai,
-        _me_rai,
-        _χm_rai,
-        _Δm_rai,
-        _a0_rai,
-        _ae_rai,
-        _χa_rai,
-        _Δa_rai,
-        _v0_rai,
-        _ve_rai,
-        _χv_rai,
-        _Δv_rai,
+    return sqrt(
+        FT(8 / 3) / _C_drag * (_ρ_cloud_liq / ρ - FT(1)) * _grav * _r0_rai,
     )
 end
-function unpack_params(
-    param_set::APS,
-    snow::CT.SnowType,
-    ρ::FT,
-    q_sno::FT,
-) where {FT <: Real}
+v0(prs::APS, ::Any, ::CT.SnowType) = CMP.v0_sno(prs)
 
-    _n0_sno::FT = n0_sno(param_set, q_sno, ρ)
-    _r0_sno::FT = CMP.r0_sno(param_set)
+# Other ice/rain/snow parameters to dispatch over
+a_vent(prs::APS, ::CT.RainType) = CMP.a_vent_rai(prs)
+b_vent(prs::APS, ::CT.RainType) = CMP.b_vent_rai(prs)
+a_vent(prs::APS, ::CT.SnowType) = CMP.a_vent_sno(prs)
+b_vent(prs::APS, ::CT.SnowType) = CMP.b_vent_sno(prs)
 
-    _m0_sno::FT = CMP.m0_sno(param_set)
-    _me_sno::FT = CMP.me_sno(param_set)
-    _a0_sno::FT = CMP.a0_sno(param_set)
-    _ae_sno::FT = CMP.ae_sno(param_set)
-    _v0_sno::FT = CMP.v0_sno(param_set)
-    _ve_sno::FT = CMP.ve_sno(param_set)
+r0(prs::APS, ::CT.IceType) = CMP.r0_ice(prs)
+m0(prs::APS, ::CT.IceType) = CMP.m0_ice(prs)
+me(prs::APS, ::CT.IceType) = CMP.me_ice(prs)
+χm(prs::APS, ::CT.IceType) = CMP.χm_ice(prs)
+Δm(prs::APS, ::CT.IceType) = CMP.Δm_ice(prs)
 
-    _χm_sno::FT = CMP.χm_sno(param_set)
-    _Δm_sno::FT = CMP.Δm_sno(param_set)
-    _χa_sno::FT = CMP.χa_sno(param_set)
-    _Δa_sno::FT = CMP.Δa_sno(param_set)
-    _χv_sno::FT = CMP.χv_sno(param_set)
-    _Δv_sno::FT = CMP.Δv_sno(param_set)
+r0(prs::APS, ::CT.RainType) = CMP.r0_rai(prs)
+m0(prs::APS, ::CT.RainType) = CMP.m0_rai(prs)
+me(prs::APS, ::CT.RainType) = CMP.me_rai(prs)
+a0(prs::APS, ::CT.RainType) = CMP.a0_rai(prs)
+ae(prs::APS, ::CT.RainType) = CMP.ae_rai(prs)
+ve(prs::APS, ::CT.RainType) = CMP.ve_rai(prs)
+χm(prs::APS, ::CT.RainType) = CMP.χm_rai(prs)
+Δm(prs::APS, ::CT.RainType) = CMP.Δm_rai(prs)
+χa(prs::APS, ::CT.RainType) = CMP.χa_rai(prs)
+Δa(prs::APS, ::CT.RainType) = CMP.Δa_rai(prs)
+χv(prs::APS, ::CT.RainType) = CMP.χv_rai(prs)
+Δv(prs::APS, ::CT.RainType) = CMP.Δv_rai(prs)
 
-    return (
-        _n0_sno,
-        _r0_sno,
-        _m0_sno,
-        _me_sno,
-        _χm_sno,
-        _Δm_sno,
-        _a0_sno,
-        _ae_sno,
-        _χa_sno,
-        _Δa_sno,
-        _v0_sno,
-        _ve_sno,
-        _χv_sno,
-        _Δv_sno,
-    )
-end
-
+r0(prs::APS, ::CT.SnowType) = CMP.r0_sno(prs)
+m0(prs::APS, ::CT.SnowType) = CMP.m0_sno(prs)
+me(prs::APS, ::CT.SnowType) = CMP.me_sno(prs)
+a0(prs::APS, ::CT.SnowType) = CMP.a0_sno(prs)
+ae(prs::APS, ::CT.SnowType) = CMP.ae_sno(prs)
+ve(prs::APS, ::CT.SnowType) = CMP.ve_sno(prs)
+χm(prs::APS, ::CT.SnowType) = CMP.χm_sno(prs)
+Δm(prs::APS, ::CT.SnowType) = CMP.Δm_sno(prs)
+χa(prs::APS, ::CT.SnowType) = CMP.χa_sno(prs)
+Δa(prs::APS, ::CT.SnowType) = CMP.Δa_sno(prs)
+χv(prs::APS, ::CT.SnowType) = CMP.χv_sno(prs)
+Δv(prs::APS, ::CT.SnowType) = CMP.Δv_sno(prs)
 
 """
     lambda(q, ρ, n0, m0, me, r0, χm, Δm)
@@ -233,9 +163,9 @@ function lambda(
 end
 
 """
-    terminal_velocity(param_set, precip, ρ, q_)
+    terminal_velocity(prs, precip, ρ, q_)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `precip` - a type for rain or snow
  - `ρ` - air density
  - `q_` - rain or snow specific humidity
@@ -244,7 +174,7 @@ Returns the mass weighted average terminal velocity assuming
 a Marshall-Palmer (1948) distribution of rain drops and snow crystals.
 """
 function terminal_velocity(
-    param_set::APS,
+    prs::APS,
     precip::CT.AbstractPrecipType,
     ρ::FT,
     q_::FT,
@@ -252,9 +182,16 @@ function terminal_velocity(
     fall_w = FT(0)
     if q_ > FT(0)
 
-        (_n0, _r0, _m0, _me, _χm, _Δm, _a0, _ae, _χa, _Δa, _v0, _ve, _χv, _Δv) =
-            unpack_params(param_set, precip, ρ, q_)
-
+        _n0::FT = n0(prs, q_, ρ, precip)
+        _r0::FT = r0(prs, precip)
+        _m0::FT = m0(prs, precip)
+        _me::FT = me(prs, precip)
+        _Δm::FT = Δm(prs, precip)
+        _χm::FT = χm(prs, precip)
+        _χv::FT = χv(prs, precip)
+        _v0::FT = v0(prs, ρ, precip)
+        _ve::FT = ve(prs, precip)
+        _Δv::FT = Δv(prs, precip)
         _λ::FT = lambda(q_, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
 
         fall_w =
@@ -269,26 +206,26 @@ function terminal_velocity(
 end
 
 """
-    conv_q_liq_to_q_rai(param_set, q_liq)
+    conv_q_liq_to_q_rai(prs, q_liq)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `q_liq` - liquid water specific humidity
 
 Returns the q_rai tendency due to collisions between cloud droplets
 (autoconversion), parametrized following Kessler (1995).
 """
 function conv_q_liq_to_q_rai(
-    param_set::APS,
+    prs::APS,
     q_liq::FT;
     smooth_transition::Bool = false,
 ) where {FT <: Real}
 
-    _τ_acnv_rai::FT = CMP.τ_acnv_rai(param_set)
-    _q_liq_threshold::FT = CMP.q_liq_threshold(param_set)
+    _τ_acnv_rai::FT = CMP.τ_acnv_rai(prs)
+    _q_liq_threshold::FT = CMP.q_liq_threshold(prs)
 
     _output::FT = FT(0)
     if smooth_transition
-        _k::FT = CMP.k_thrshld_stpnss(param_set)
+        _k::FT = CMP.k_thrshld_stpnss(prs)
         _output = CO.logistic_function_integral(q_liq, _q_liq_threshold, _k)
     else
         _output = max(0, q_liq - _q_liq_threshold)
@@ -298,9 +235,9 @@ function conv_q_liq_to_q_rai(
 end
 
 """
-    conv_q_ice_to_q_sno_no_supersat(param_set, q_ice)
+    conv_q_ice_to_q_sno_no_supersat(prs, q_ice)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `q_ice` -  cloud ice specific humidity
 
 Returns the q_sno tendency due to autoconversion from ice.
@@ -309,17 +246,17 @@ simulations where there is no supersaturation
 (for example in TC.jl when using saturation adjustment).
 """
 function conv_q_ice_to_q_sno_no_supersat(
-    param_set::APS,
+    prs::APS,
     q_ice::FT;
     smooth_transition::Bool = false,
 ) where {FT <: Real}
 
-    _τ_acnv_sno::FT = CMP.τ_acnv_sno(param_set)
-    _q_ice_threshold::FT = CMP.q_ice_threshold(param_set)
+    _τ_acnv_sno::FT = CMP.τ_acnv_sno(prs)
+    _q_ice_threshold::FT = CMP.q_ice_threshold(prs)
 
     _output::FT = FT(0)
     if smooth_transition
-        _k::FT = CMP.k_thrshld_stpnss(param_set)
+        _k::FT = CMP.k_thrshld_stpnss(prs)
         _output = CO.logistic_function_integral(q_ice, _q_ice_threshold, _k)
     else
         _output = max(0, q_ice - _q_ice_threshold)
@@ -329,9 +266,9 @@ function conv_q_ice_to_q_sno_no_supersat(
 end
 
 """
-    conv_q_ice_to_q_sno(param_set, q, ρ, T)
+    conv_q_ice_to_q_sno(prs, q, ρ, T)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `q` - phase partition
  - `ρ` - air density
  - `T` - air temperature
@@ -340,24 +277,26 @@ Returns the q_sno tendency due to autoconversion from ice.
 Parameterized following Harrington et al. (1996) and Kaul et al. (2015).
 """
 function conv_q_ice_to_q_sno(
-    param_set::APS,
+    prs::APS,
     q::TD.PhasePartition{FT},
     ρ::FT,
     T::FT,
 ) where {FT <: Real}
     acnv_rate = FT(0)
-    thermo_params = CMP.thermodynamics_params(param_set)
+    thermo_params = CMP.thermodynamics_params(prs)
     _S::FT = TD.supersaturation(thermo_params, q, ρ, T, TD.Ice())
 
     if (q.ice > FT(0) && _S > FT(0))
 
-        _G::FT = CO.G_func(param_set, T, TD.Ice())
+        _G::FT = CO.G_func(prs, T, TD.Ice())
 
-        _r_ice_snow::FT = CMP.r_ice_snow(param_set)
-
-        (_n0, _r0, _m0, _me, _χm, _Δm) =
-            unpack_params(param_set, CT.IceType(), ρ, q.ice)
-
+        _r_ice_snow::FT = CMP.r_ice_snow(prs)
+        _n0::FT = n0(prs, FT(0), ρ, CT.IceType())
+        _r0::FT = r0(prs, CT.IceType())
+        _m0::FT = m0(prs, CT.IceType())
+        _me::FT = me(prs, CT.IceType())
+        _Δm::FT = Δm(prs, CT.IceType())
+        _χm::FT = χm(prs, CT.IceType())
         _λ::FT = lambda(q.ice, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
 
         acnv_rate =
@@ -372,9 +311,9 @@ function conv_q_ice_to_q_sno(
 end
 
 """
-    accretion(param_set, cloud, precip, q_clo, q_pre, ρ)
+    accretion(prs, cloud, precip, q_clo, q_pre, ρ)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `cloud` - type for cloud water or cloud ice
  - `precip` - type for rain or snow
  - `q_clo` - cloud water or cloud ice specific humidity
@@ -385,7 +324,7 @@ Returns the source of precipitating water (rain or snow)
 due to collisions with cloud water (liquid or ice).
 """
 function accretion(
-    param_set::APS,
+    prs::APS,
     cloud::CT.AbstractCloudType,
     precip::CT.AbstractPrecipType,
     q_clo::FT,
@@ -396,11 +335,22 @@ function accretion(
     accr_rate = FT(0)
     if (q_clo > FT(0) && q_pre > FT(0))
 
-        (_n0, _r0, _m0, _me, _χm, _Δm, _a0, _ae, _χa, _Δa, _v0, _ve, _χv, _Δv) =
-            unpack_params(param_set, precip, ρ, q_pre)
-
+        _n0::FT = n0(prs, q_pre, ρ, precip)
+        _r0::FT = r0(prs, precip)
+        _m0::FT = m0(prs, precip)
+        _me::FT = me(prs, precip)
+        _Δm::FT = Δm(prs, precip)
+        _χm::FT = χm(prs, precip)
+        _χv::FT = χv(prs, precip)
+        _v0::FT = v0(prs, ρ, precip)
+        _ve::FT = ve(prs, precip)
+        _Δv::FT = Δv(prs, precip)
+        _a0::FT = a0(prs, precip)
+        _ae::FT = ae(prs, precip)
+        _χa::FT = χa(prs, precip)
+        _Δa::FT = Δa(prs, precip)
         _λ::FT = lambda(q_pre, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
-        _E::FT = E(param_set, cloud, precip)
+        _E::FT = E(prs, cloud, precip)
 
         accr_rate =
             q_clo * _E * _n0 * _a0 * _v0 * _χa * _χv / _λ *
@@ -411,9 +361,9 @@ function accretion(
 end
 
 """
-    accretion_rain_sink(param_set, q_ice, q_rai, ρ)
+    accretion_rain_sink(prs, q_ice, q_rai, ρ)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `q_ice` - cloud ice specific humidity
  - `q_rai` - rain water specific humidity
  - `ρ` - air density
@@ -422,7 +372,7 @@ Returns the sink of rain water (partial source of snow) due to collisions
 with cloud ice.
 """
 function accretion_rain_sink(
-    param_set::APS,
+    prs::APS,
     q_ice::FT,
     q_rai::FT,
     ρ::FT,
@@ -431,27 +381,28 @@ function accretion_rain_sink(
     accr_rate = FT(0)
     if (q_ice > FT(0) && q_rai > FT(0))
 
-        (_n0_ice, _r0_ice, _m0_ice, _me_ice, _χm_ice, _Δm_ice) =
-            unpack_params(param_set, CT.IceType(), ρ, q_ice)
-
-        (
-            _n0_rai,
-            _r0_rai,
-            _m0_rai,
-            _me_rai,
-            _χm_rai,
-            _Δm_rai,
-            _a0_rai,
-            _ae_rai,
-            _χa_rai,
-            _Δa_rai,
-            _v0_rai,
-            _ve_rai,
-            _χv_rai,
-            _Δv_rai,
-        ) = unpack_params(param_set, CT.RainType(), ρ, q_rai)
-
-        _E::FT = E(param_set, CT.IceType(), CT.RainType())
+        _r_ice_snow::FT = CMP.r_ice_snow(prs)
+        _n0_ice::FT = n0(prs, FT(0), ρ, CT.IceType())
+        _r0_ice::FT = r0(prs, CT.IceType())
+        _m0_ice::FT = m0(prs, CT.IceType())
+        _me_ice::FT = me(prs, CT.IceType())
+        _Δm_ice::FT = Δm(prs, CT.IceType())
+        _χm_ice::FT = χm(prs, CT.IceType())
+        _n0_rai::FT = n0(prs, q_rai, ρ, CT.RainType())
+        _r0_rai::FT = r0(prs, CT.RainType())
+        _m0_rai::FT = m0(prs, CT.RainType())
+        _me_rai::FT = me(prs, CT.RainType())
+        _Δm_rai::FT = Δm(prs, CT.RainType())
+        _χm_rai::FT = χm(prs, CT.RainType())
+        _χv_rai::FT = χv(prs, CT.RainType())
+        _v0_rai::FT = v0(prs, ρ, CT.RainType())
+        _ve_rai::FT = ve(prs, CT.RainType())
+        _Δv_rai::FT = Δv(prs, CT.RainType())
+        _a0_rai::FT = a0(prs, CT.RainType())
+        _ae_rai::FT = ae(prs, CT.RainType())
+        _χa_rai::FT = χa(prs, CT.RainType())
+        _Δa_rai::FT = Δa(prs, CT.RainType())
+        _E::FT = E(prs, CT.IceType(), CT.RainType())
 
         _λ_rai::FT = lambda(
             q_rai,
@@ -494,19 +445,19 @@ function accretion_rain_sink(
             ) /
             (
                 _r0_rai * _λ_rai
-            )^(_me_rai + _ae_rai + _ve_rai + _Δm_rai + _Δa_rai + _Δv_rai)
+            )^FT(_me_rai + _ae_rai + _ve_rai + _Δm_rai + _Δa_rai + _Δv_rai)
     end
     return accr_rate
 end
 
 """
-    accretion_snow_rain(param_set, type_i, type_j, q_i, q_j, ρ)
+    accretion_snow_rain(prs, type_i, type_j, q_i, q_j, ρ)
 
  - `i` - snow for temperatures below freezing
          or rain for temperatures above freezing
  - `j` - rain for temperatures below freezing
          or snow for temperatures above freezing
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `type_i`, `type_j` - a type for snow or rain
  - `q_` - specific humidity of snow or rain
  - `ρ` - air density
@@ -516,7 +467,7 @@ Collisions between rain and snow result in
 snow at temperatures below freezing and in rain at temperatures above freezing.
 """
 function accretion_snow_rain(
-    param_set::APS,
+    prs::APS,
     type_i::CT.AbstractPrecipType,
     type_j::CT.AbstractPrecipType,
     q_i::FT,
@@ -527,46 +478,43 @@ function accretion_snow_rain(
     accr_rate = FT(0)
     if (q_i > FT(0) && q_j > FT(0))
 
-        (
-            _n0_i,
-            _r0_i,
-            _m0_i,
-            _me_i,
-            _χm_i,
-            _Δm_i,
-            _a0_i,
-            _ae_i,
-            _χa_i,
-            _Δa_i,
-            _v0_i,
-            _ve_i,
-            _χv_i,
-            _Δv_i,
-        ) = unpack_params(param_set, type_i, ρ, q_i)
-        (
-            _n0_j,
-            _r0_j,
-            _m0_j,
-            _me_j,
-            _χm_j,
-            _Δm_j,
-            _a0_j,
-            _ae_j,
-            _χa_j,
-            _Δa_j,
-            _v0_j,
-            _ve_j,
-            _χv_j,
-            _Δv_j,
-        ) = unpack_params(param_set, type_j, ρ, q_j)
+        _n0_i::FT = n0(prs, q_i, ρ, type_i)
+        _r0_i::FT = r0(prs, type_i)
+        _m0_i::FT = m0(prs, type_i)
+        _me_i::FT = me(prs, type_i)
+        _Δm_i::FT = Δm(prs, type_i)
+        _χm_i::FT = χm(prs, type_i)
+        _χv_i::FT = χv(prs, type_i)
+        _v0_i::FT = v0(prs, ρ, type_i)
+        _ve_i::FT = ve(prs, type_i)
+        _Δv_i::FT = Δv(prs, type_i)
+        _a0_i::FT = a0(prs, type_i)
+        _ae_i::FT = ae(prs, type_i)
+        _χa_i::FT = χa(prs, type_i)
+        _Δa_i::FT = Δa(prs, type_i)
 
-        _E_ij::FT = E(param_set, type_i, type_j)
+        _n0_j::FT = n0(prs, q_j, ρ, type_j)
+        _r0_j::FT = r0(prs, type_j)
+        _m0_j::FT = m0(prs, type_j)
+        _me_j::FT = me(prs, type_j)
+        _Δm_j::FT = Δm(prs, type_j)
+        _χm_j::FT = χm(prs, type_j)
+        _χv_j::FT = χv(prs, type_j)
+        _v0_j::FT = v0(prs, ρ, type_j)
+        _ve_j::FT = ve(prs, type_j)
+        _Δv_j::FT = Δv(prs, type_j)
+        _a0_j::FT = a0(prs, type_j)
+        _ae_j::FT = ae(prs, type_j)
+        _χa_j::FT = χa(prs, type_j)
+        _Δa_j::FT = Δa(prs, type_j)
+
+        _E_ij::FT = E(prs, type_i, type_j)
 
         _λ_i::FT = lambda(q_i, ρ, _n0_i, _m0_i, _me_i, _r0_i, _χm_i, _Δm_i)
         _λ_j::FT = lambda(q_j, ρ, _n0_j, _m0_j, _me_j, _r0_j, _χm_j, _Δm_j)
 
-        _v_ti = terminal_velocity(param_set, type_i, ρ, q_i)
-        _v_tj = terminal_velocity(param_set, type_j, ρ, q_j)
+        _v_ti = terminal_velocity(prs, type_i, ρ, q_i)
+        _v_tj = terminal_velocity(prs, type_j, ρ, q_j)
 
         accr_rate =
             FT(π) / ρ *
@@ -588,10 +536,10 @@ function accretion_snow_rain(
 end
 
 """
-    evaporation_sublimation(param_set, rain, q, q_rai, ρ, T)
-    evaporation_sublimation(param_set, snow, q, q_sno, ρ, T)
+    evaporation_sublimation(prs, rain, q, q_rai, ρ, T)
+    evaporation_sublimation(prs, snow, q, q_sno, ρ, T)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `rain` - a type for rain
  - `snow` - a type for snow
  - `q` - phase partition
@@ -603,7 +551,7 @@ end
 Returns the tendency due to rain evaporation or snow sublimation.
 """
 function evaporation_sublimation(
-    param_set::APS,
+    prs::APS,
     rain::CT.RainType,
     q::TD.PhasePartition{FT},
     q_rai::FT,
@@ -611,20 +559,33 @@ function evaporation_sublimation(
     T::FT,
 ) where {FT <: Real}
     evap_subl_rate = FT(0)
-    thermo_params = CMP.thermodynamics_params(param_set)
+    thermo_params = CMP.thermodynamics_params(prs)
     _S::FT = TD.supersaturation(thermo_params, q, ρ, T, TD.Liquid())
 
     if (q_rai > FT(0) && _S < FT(0))
 
-        _a_vent::FT = CMP.a_vent_rai(param_set)
-        _b_vent::FT = CMP.b_vent_rai(param_set)
-        _ν_air::FT = CMP.ν_air(param_set)
-        _D_vapor::FT = CMP.D_vapor(param_set)
+        _ν_air::FT = CMP.ν_air(prs)
+        _D_vapor::FT = CMP.D_vapor(prs)
 
-        _G::FT = CO.G_func(param_set, T, TD.Liquid())
+        _G::FT = CO.G_func(prs, T, TD.Liquid())
 
-        (_n0, _r0, _m0, _me, _χm, _Δm, _a0, _ae, _χa, _Δa, _v0, _ve, _χv, _Δv) =
-            unpack_params(param_set, rain, ρ, q_rai)
+        _n0::FT = n0(prs, q_rai, ρ, rain)
+        _r0::FT = r0(prs, rain)
+        _m0::FT = m0(prs, rain)
+        _me::FT = me(prs, rain)
+        _Δm::FT = Δm(prs, rain)
+        _χm::FT = χm(prs, rain)
+        _χv::FT = χv(prs, rain)
+        _v0::FT = v0(prs, ρ, rain)
+        _ve::FT = ve(prs, rain)
+        _Δv::FT = Δv(prs, rain)
+        _a0::FT = a0(prs, rain)
+        _ae::FT = ae(prs, rain)
+        _χa::FT = χa(prs, rain)
+        _Δa::FT = Δa(prs, rain)
+
+        _a_vent::FT = a_vent(prs, rain)
+        _b_vent::FT = b_vent(prs, rain)
 
         _λ::FT = lambda(q_rai, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
 
@@ -641,7 +602,7 @@ function evaporation_sublimation(
     return min(0, evap_subl_rate)
 end
 function evaporation_sublimation(
-    param_set::APS,
+    prs::APS,
     snow::CT.SnowType,
     q::TD.PhasePartition{FT},
     q_sno::FT,
@@ -650,17 +611,31 @@ function evaporation_sublimation(
 ) where {FT <: Real}
     evap_subl_rate = FT(0)
     if q_sno > FT(0)
-        _a_vent::FT = CMP.a_vent_sno(param_set)
-        _b_vent::FT = CMP.b_vent_sno(param_set)
-        _ν_air::FT = CMP.ν_air(param_set)
-        _D_vapor::FT = CMP.D_vapor(param_set)
+        _ν_air::FT = CMP.ν_air(prs)
+        _D_vapor::FT = CMP.D_vapor(prs)
 
-        thermo_params = CMP.thermodynamics_params(param_set)
+        thermo_params = CMP.thermodynamics_params(prs)
         _S::FT = TD.supersaturation(thermo_params, q, ρ, T, TD.Ice())
-        _G::FT = CO.G_func(param_set, T, TD.Ice())
+        _G::FT = CO.G_func(prs, T, TD.Ice())
 
-        (_n0, _r0, _m0, _me, _χm, _Δm, _a0, _ae, _χa, _Δa, _v0, _ve, _χv, _Δv) =
-            unpack_params(param_set, snow, ρ, q_sno)
+        _n0::FT = n0(prs, q_sno, ρ, snow)
+        _r0::FT = r0(prs, snow)
+        _m0::FT = m0(prs, snow)
+        _me::FT = me(prs, snow)
+        _Δm::FT = Δm(prs, snow)
+        _χm::FT = χm(prs, snow)
+        _χv::FT = χv(prs, snow)
+        _v0::FT = v0(prs, ρ, snow)
+        _ve::FT = ve(prs, snow)
+        _Δv::FT = Δv(prs, snow)
+        _a0::FT = a0(prs, snow)
+        _ae::FT = ae(prs, snow)
+        _χa::FT = χa(prs, snow)
+        _Δa::FT = Δa(prs, snow)
+
+        _a_vent::FT = a_vent(prs, snow)
+        _b_vent::FT = b_vent(prs, snow)
+
         _λ::FT = lambda(q_sno, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
 
         evap_subl_rate =
@@ -676,33 +651,49 @@ function evaporation_sublimation(
 end
 
 """
-    snow_melt(param_set, q_sno, ρ, T)
+    snow_melt(prs, q_sno, ρ, T)
 
- - `param_set` - abstract set with Earth parameters
+ - `prs` - abstract set with Earth parameters
  - `q_sno` - snow water specific humidity
  - `ρ` - air density
  - `T` - air temperature
 
 Returns the tendency due to snow melt.
 """
-function snow_melt(param_set::APS, q_sno::FT, ρ::FT, T::FT) where {FT <: Real}
+function snow_melt(prs::APS, q_sno::FT, ρ::FT, T::FT) where {FT <: Real}
 
     snow_melt_rate = FT(0)
-    _T_freeze::FT = CMP.T_freeze(param_set)
+    _T_freeze::FT = CMP.T_freeze(prs)
 
     if (q_sno > FT(0) && T > _T_freeze)
 
-        _a_vent::FT = CMP.a_vent_sno(param_set)
-        _b_vent::FT = CMP.b_vent_sno(param_set)
-        _ν_air::FT = CMP.ν_air(param_set)
-        _D_vapor::FT = CMP.D_vapor(param_set)
-        _K_therm::FT = CMP.K_therm(param_set)
+        _ν_air::FT = CMP.ν_air(prs)
+        _D_vapor::FT = CMP.D_vapor(prs)
+        _K_therm::FT = CMP.K_therm(prs)
 
-        thermo_params = CMP.thermodynamics_params(param_set)
+        thermo_params = CMP.thermodynamics_params(prs)
         L = TD.latent_heat_fusion(thermo_params, T)
 
-        (_n0, _r0, _m0, _me, _χm, _Δm, _a0, _ae, _χa, _Δa, _v0, _ve, _χv, _Δv) =
-            unpack_params(param_set, CT.SnowType(), ρ, q_sno)
+        snow = CT.SnowType()
+
+        _n0::FT = n0(prs, q_sno, ρ, snow)
+        _r0::FT = r0(prs, snow)
+        _m0::FT = m0(prs, snow)
+        _me::FT = me(prs, snow)
+        _Δm::FT = Δm(prs, snow)
+        _χm::FT = χm(prs, snow)
+        _χv::FT = χv(prs, snow)
+        _v0::FT = v0(prs, ρ, snow)
+        _ve::FT = ve(prs, snow)
+        _Δv::FT = Δv(prs, snow)
+        _a0::FT = a0(prs, snow)
+        _ae::FT = ae(prs, snow)
+        _χa::FT = χa(prs, snow)
+        _Δa::FT = Δa(prs, snow)
+
+        _a_vent::FT = a_vent(prs, snow)
+        _b_vent::FT = b_vent(prs, snow)
+
         _λ::FT = lambda(q_sno, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
 
         snow_melt_rate =

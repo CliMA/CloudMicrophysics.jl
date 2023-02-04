@@ -9,24 +9,15 @@
 """
 module AerosolActivation
 
-import SpecialFunctions
-const SF = SpecialFunctions
+import SpecialFunctions as SF
 
-import Thermodynamics
-const TD = Thermodynamics
+import Thermodynamics as TD
 
-import ..Parameters
-const CMP = Parameters
+import ..CommonTypes as CT
+import ..Common as CO
+import ..AerosolModel as AM
+import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
-
-import ..CommonTypes
-const CT = CommonTypes
-
-import ..Common
-const CO = Common
-
-import ..AerosolModel
-const AM = AerosolModel
 
 export mean_hygroscopicity_parameter
 export max_supersaturation
@@ -142,7 +133,7 @@ function critical_supersaturation(
     hygro,
 ) where {FT <: Real}
     return ntuple(Val(AM.n_modes(ad))) do i
-        2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
+        2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^FT(3 / 2)
     end
 end
 
@@ -196,11 +187,12 @@ function max_supersaturation(
 
         f::FT = 0.5 * exp(2.5 * (log(mode_i.stdev))^2)
         g::FT = 1 + 0.25 * log(mode_i.stdev)
-        η::FT = (α * w / G)^(3 / 2) / (2 * pi * _ρ_cloud_liq * γ * mode_i.N)
+        η::FT =
+            (α * w / G)^FT(3 / 2) / (FT(2 * pi) * _ρ_cloud_liq * γ * mode_i.N)
 
         tmp +=
             1 / (Sm[i])^2 *
-            (f * (ζ / η)^(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^(3 / 4))
+            (f * (ζ / η)^FT(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^FT(3 / 4))
     end
 
     return FT(1) / sqrt(tmp)
