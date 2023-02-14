@@ -2,14 +2,12 @@ using Test
 using CLIMAParameters
 
 using CloudMicrophysics
-using Plots
+using CairoMakie
 
 const TT = Test
 const AM = CloudMicrophysics.AerosolModel
 const CG = CloudMicrophysics.Coagulation
 
-include("../src/Coagulation.jl")
-using .Coagulation
 
 FT = Float64
 toml_dict = CLIMAParameters.create_toml_dict(FT)
@@ -21,11 +19,11 @@ params = (; params...)
 # Adapted from microphysics_tests.jl
 
 # Accumulation mode
-r_dry_accum = 0.243 * 1e-6 # m
+r_dry_accum = 0.243 # um
 stdev_accum = 1.8          # -
 N_accum = 100.0 * 1e6      # 1/m3
 # Aitken mode
-r_dry_paper = 0.05 * 1e-6  # m
+r_dry_paper = 0.05  # m
 stdev_paper = 1.6          # -
 N_1_paper = 100.0 * 1e6    # 1/m3
 
@@ -78,7 +76,16 @@ particle_density_ait = 0.1
 
 ad = AM.AerosolDistribution((aitken_sulfate_κ, accum_sulfate_κ))
 
-quadrature = Coagulation.quadrature(
+quadrature = CG.quadrature(
+    ad,
+    particle_density_ait,
+    particle_density_acc,
+    air_pressure,
+    air_temp,
+    params
+)
+
+CG.whitby_coagulation(
     ad,
     particle_density_ait,
     particle_density_acc,
@@ -88,29 +95,33 @@ quadrature = Coagulation.quadrature(
 )
 
 function plot(ad::AM.AerosolDistribution)
-    step=1e-9
-    stop=5e-6
-    Plots.plot(xlims=[1e-8,1e-5], xaxis=:log)
+    step=1e-3
+    stop=2
+    f = Figure()
+    ax = Axis(f[1, 1],
+        title = "",
+        xlabel = "Particle Diameter",
+        ylabel = "Number"
+    )
     sizes = range(eps(), stop=stop, step=step)
     for mode in ad.Modes
-        lognormal = Coagulation.lognormal_dist(mode)
+        lognormal = CG.lognormal_dist(mode)
         distribution = lognormal.(sizes)
         # Normalize
         distribution *= mode.N / sum(distribution)
-        Plots.plot!(sizes, distribution)
+        lines!(sizes, distribution)
     end
-    plot!()
+    save("test.png", f)
+    return f
 end
-
+plot(ad)
 
 # Test that cubature returns 1 for integrating over the distribution
-test_cubature(am) = test_cubature(2 * am.r_dry, am.stdev)
-
-function test_cubature(diameter, stdev)
-    dist = Coagulation.lognormal_dist(diameter, stdev)
+function test_cubature(am)
+    dist = CG.lognormal_dist(am)
     integrand = dp -> dist(dp[1]) * dist(dp[2])
-    result = Coagulation.cubature(integrand)
+    result = CG.cubature(integrand) / am.N^2
     @test result ≈ 1 rtol=1e-9
 end
 
-
+test_cubature(ad.Modes[1])

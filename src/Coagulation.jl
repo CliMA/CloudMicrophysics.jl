@@ -10,16 +10,16 @@ import .CoagCorrectionFactors as CCF
 
 # Returns a log-normal distribution for the given aerosol mode.
 function lognormal_dist(am)
-    return lognormal_dist(2 * am.r_dry, am.stdev)
+    return lognormal_dist(2 * am.r_dry, am.stdev, am.N)
 end
 
-function lognormal_dist(diameter, stdev)
+function lognormal_dist(diameter, stdev, number)
     # Transform geometric mean and stdev for lognormal distribution
     mu = log(diameter)
     sigma = log(stdev)
     return x ->
         1 / (x * sigma * sqrt(2 * pi)) *
-        exp(-(log(x) - mu)^2 / (2 * sigma^2))
+        exp(-(log(x) - mu)^2 / (2 * sigma^2)) * number
 end
 
 """
@@ -236,8 +236,6 @@ function whitby_coagulation(
         ESG_acc,
     )
 
-    # aitken.N += intra_m_0_ait + inter_m_0_ait
-    # accum.N += intra_m_0_acc
     return (
         aitken_m0_intracoag,
         accum_m0_intracoag,
