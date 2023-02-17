@@ -21,11 +21,11 @@ params = (; params...)
 # Accumulation mode
 r_dry_accum = 0.243 # um
 stdev_accum = 1.8          # -
-N_accum = 100.0 * 1e6      # 1/m3
+N_accum = 100.0 * 1e-12      # 1/um3
 # Aitken mode
 r_dry_paper = 0.05  # m
 stdev_paper = 1.6          # -
-N_1_paper = 100.0 * 1e6    # 1/m3
+N_1_paper = 100.0 * 1e-12    # 1/um3
 
 # TODO - move areosol properties to CLIMAParameters
 # Sea Salt - universal parameters
