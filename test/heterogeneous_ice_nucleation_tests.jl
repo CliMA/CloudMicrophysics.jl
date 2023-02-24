@@ -16,7 +16,7 @@ toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 const prs = cloud_microphysics_parameters(toml_dict)
 
 const ArizonaTestDust = CMT.ArizonaTestDustType()
-const DesertDust = CMT.ArizonaTestDustType()
+const DesertDust = CMT.DesertDustType()
 
 TT.@testset "dust_activation" begin
 
