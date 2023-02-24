@@ -18,6 +18,10 @@ export B1994Type
 export TC1980Type
 export LD2004Type
 
+export AbstractAerosolType
+export ArizonaTestDustType
+export DesertDustType
+
 """
     AbstractAerosolDistribution
 
@@ -101,5 +105,26 @@ struct TC1980Type <: Abstract2MPrecipType end
 The type for 2-moment precipitation formation by Liu and Daum (2004)
 """
 struct LD2004Type <: Abstract2MPrecipType end
+
+"""
+    AbstractAerosolType
+
+The top-level super-type for all aerosol types.
+"""
+abstract type AbstractAerosolType end
+
+"""
+    ArizonaTestDustType
+
+The type for Arizona test dust for deposition activated fraction
+"""
+struct ArizonaTestDustType <: AbstractAerosolType end
+
+"""
+    DesertDustType
+
+The type for desert dust for deposition activated fraction
+"""
+struct DesertDustType <: AbstractAerosolType end
 
 end #module CommoniTypes.jl
