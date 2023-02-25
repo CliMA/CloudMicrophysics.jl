@@ -102,4 +102,11 @@ The type for 2-moment precipitation formation by Liu and Daum (2004)
 """
 struct LD2004Type <: Abstract2MPrecipType end
 
+"""
+    SB2001Type
+
+The type for 2-moment precipitation formation by Seifert and Beheng (2001)
+"""
+struct SB2001Type <: Abstract2MPrecipType end
+
 end #module CommoniTypes.jl

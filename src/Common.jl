@@ -52,6 +52,13 @@ function G_func(param_set::APS, T::FT, ::TD.Ice) where {FT <: Real}
 end
 
 """
+    A Heaviside step function
+"""
+function heaviside(x::FT) where {FT <: Real}
+    return FT(x > 0)
+end
+
+"""
     logistic_function(x, x_0, k)
 
  - `x` - independent variable

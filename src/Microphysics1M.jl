@@ -198,7 +198,6 @@ function unpack_params(
     )
 end
 
-
 """
     lambda(q, ρ, n0, m0, me, r0, χm, Δm)
 
