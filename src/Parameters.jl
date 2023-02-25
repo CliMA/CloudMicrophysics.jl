@@ -95,6 +95,8 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     R_6C_coeff_LD2004::FT
     E_0_LD2004::FT
     k_thrshld_stpnss::FT
+    k_Boltzmann::FT
+    avogad::FT
 end
 
 Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT
