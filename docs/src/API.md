@@ -65,12 +65,6 @@ AerosolActivation.total_N_activated
 AerosolActivation.total_M_activated
 ```
 
-# Heterogeneous ice nucleation
-```@docs
-HetIceNucleation
-HetIceNucleation.dust_activated_number_fraction
-```
-
 # Common utility functions
 
 ```@docs
@@ -96,7 +90,4 @@ CommonTypes.KK2000Type
 CommonTypes.B1994Type
 CommonTypes.TC1980Type
 CommonTypes.LD2004Type
-CommonTypes.AbstractAerosolType
-CommonTypes.ArizonaTestDustType
-CommonTypes.DesertDustType
 ```
