@@ -18,14 +18,16 @@ params = (; params...)
 
 # Adapted from microphysics_tests.jl
 
-# Accumulation mode
-r_dry_accum = 0.243 # um
-stdev_accum = 1.8          # -
-N_accum = 100.0 * 1e-12      # 1/um3
+# Stdev, radius, number concentration from Whitby 1978 - Table 2.
 # Aitken mode
-r_dry_paper = 0.05  # m
-stdev_paper = 1.6          # -
-N_1_paper = 100.0 * 1e-12    # 1/um3
+r_dry_paper = 0.013  # um
+stdev_paper = 1.7          # -
+N_1_paper = 7.7e3 # no / cm3
+# Accumulation mode
+r_dry_accum = 0.069  # um
+stdev_accum = 2.03          # -
+N_accum = 1.3e3
+
 
 # TODO - move areosol properties to CLIMAParameters
 # Sea Salt - universal parameters
@@ -76,23 +78,7 @@ particle_density_ait = 0.1
 
 ad = AM.AerosolDistribution((aitken_sulfate_κ, accum_sulfate_κ))
 
-quadrature = CG.quadrature(
-    ad,
-    particle_density_ait,
-    particle_density_acc,
-    air_pressure,
-    air_temp,
-    params
-)
 
-CG.whitby_coagulation(
-    ad,
-    particle_density_ait,
-    particle_density_acc,
-    air_pressure,
-    air_temp,
-    params
-)
 
 function plot(ad::AM.AerosolDistribution)
     step=1e-3
@@ -125,3 +111,67 @@ function test_cubature(am)
 end
 
 test_cubature(ad.Modes[1])
+
+function timestep_coagulation_changes(
+    ad::AM.AerosolDistribution,
+    particle_density_ait,
+    particle_density_acc,
+    air_pressure,
+    air_temp,
+    params,
+    t
+)
+    for i in 1:t
+        rates = CG.quadrature(
+            ad,
+            particle_density_ait,
+            particle_density_acc,
+            air_pressure,
+            air_temp,
+            params
+        )
+        (intra_rates, inter_rates) = rates
+        for rate in rates
+            for (i, mode) in enumerate(ad.Modes)
+                modal_rates = rate[i]
+                mode.N += modal_rates[1]
+                mode.r_dry += modal_rates[2]/2
+                # Need to add surface area, volume?
+            end
+        end
+        if i%100 == 0
+            println(rates)
+            println(ad)
+        end
+    end
+    return ad
+end
+
+function binkowski_roselle_rates(
+    ad::AM.AerosolDistribution,
+    particle_density_ait,
+    particle_density_acc,
+    air_pressure,
+    air_temp,
+    params)
+
+    ad = timestep_coagulation_changes(
+        ad::AM.AerosolDistribution,
+        particle_density_ait,
+        particle_density_acc,
+        air_pressure,
+        air_temp,
+        params,
+        3600
+    )
+
+end
+
+binkowski_roselle_rates(
+    ad,
+    particle_density_ait,
+    particle_density_acc,
+    air_pressure,
+    air_temp,
+    params
+)
