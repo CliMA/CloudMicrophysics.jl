@@ -95,15 +95,35 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     R_6C_coeff_LD2004::FT
     E_0_LD2004::FT
     k_thrshld_stpnss::FT
-    kc_SB2001::FT
-    kr_SB2001::FT
-    xstar_SB2001::FT
-    ν_SB2001::FT
-    A_phi_au_SB2001::FT
-    a_phi_au_SB2001::FT
-    b_phi_au_SB2001::FT
-    τ_0_phi_ac_SB2001::FT
-    c_phi_ac_SB2001::FT
+    kcc_SB2006::FT
+    kcr_SB2006::FT
+    krr_SB2006::FT
+    κrr_SB2006::FT
+    xr_min_SB2006::FT
+    xr_max_SB2006::FT
+    νc_SB2006::FT
+    ρ0_SB2006::FT
+    A_phi_au_SB2006::FT
+    a_phi_au_SB2006::FT
+    b_phi_au_SB2006::FT
+    τ0_phi_ac_SB2006::FT
+    c_phi_ac_SB2006::FT
+    d_sc_SB2006::FT
+    Deq_br_SB2006::FT
+    Dr_th_br_SB2006::FT
+    kbr_SB2006::FT
+    κbr_SB2006::FT
+    aR_tv_SB2006::FT
+    bR_tv_SB2006::FT
+    cR_tv_SB2006::FT
+    av_evap_SB2006::FT
+    bv_evap_SB2006::FT
+    α_evap_SB2006::FT
+    β_evap_SB2006::FT
+    N0_min_SB2006::FT
+    N0_max_SB2006::FT
+    λ_min_SB2006::FT
+    λ_max_SB2006::FT
 end
 
 Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT

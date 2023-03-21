@@ -511,7 +511,119 @@ TT.@testset "2M_microphysics - compare with Wood_2005" begin
 
 end
 
-TT.@testset "2M_microphysics - Seifert and Beheng 2001 double moment" begin
+# 2M_microphysics - Seifert and Beheng 2006 double moment scheme tests
+TT.@testset "limiting lambda_r and x_r - Seifert and Beheng 2006" begin
+    #setup
+    q_rai = [0.0, 1e-4, 1e-2]
+    N_rai = [1e1, 1e3, 1e5]
+    ρ = 1.0
+
+    xr_min = 2.6e-10
+    xr_max = 5e-6
+    λ_min = 1e3
+    λ_max = 1e4
+
+    for Nr in N_rai
+        for qr in q_rai
+            #action
+            λ = CM2.raindrops_limited_vars(param_set, qr, ρ, Nr).λr
+            xr = CM2.raindrops_limited_vars(param_set, qr, ρ, Nr).xr
+
+            #test
+            TT.@test λ_min <= λ <= λ_max
+            TT.@test xr_min <= xr <= xr_max
+        end
+    end
+
+end
+
+TT.@testset "2M_microphysics - Seifert and Beheng 2006 autoconversion and liquid self-collection" begin
+    #setup
+    ρ = 1.1
+    q_liq = 0.5e-3
+    N_liq = 1e8
+    q_rai = 1e-6
+
+    kcc = 4.44e9
+    xstar = 2.6e-10
+    νc = 2.0
+    ρ0 = 1.225
+
+    #action
+    au = CM2.autoconversion(prs, CMT.SB2006Type(), q_liq, q_rai, ρ, N_liq)
+    sc = CM2.liquid_self_collection(
+        prs,
+        CMT.SB2006Type(),
+        q_liq,
+        ρ,
+        au.dN_liq_dt,
+    )
+    au_sc = CM2.autoconversion_and_liquid_self_collection(
+        prs,
+        CMT.SB2006Type(),
+        q_liq,
+        q_rai,
+        ρ,
+        N_liq,
+    )
+
+    Lc = ρ * q_liq
+    Lr = ρ * q_rai
+    xc = min(xstar, Lc / N_liq)
+    τ = 1 - Lc / (Lc + Lr)
+    ϕ_au = 400 * τ^0.7 * (1 - τ^0.7)^3
+    dqrdt_au =
+        kcc / 20 / xstar * (νc + 2) * (νc + 4) / (νc + 1)^2 *
+        Lc^2 *
+        xc^2 *
+        (1 + ϕ_au / (1 - τ)^2) *
+        (ρ0 / ρ) / ρ
+    dqcdt_au = -dqrdt_au
+    dNcdt_au = 2 / xstar * ρ * dqcdt_au
+    dNrdt_au = -0.5 * dNcdt_au
+    dNcdt_sc = -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * Lc^2 - au.dN_liq_dt
+
+    #test
+    TT.@test au isa CM2.LiqRaiRates
+    TT.@test au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
+    TT.@test au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
+    TT.@test au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
+    TT.@test au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
+    TT.@test sc isa Float64
+    TT.@test sc ≈ dNcdt_sc rtol = 1e-6
+    TT.@test au_sc isa NamedTuple
+    TT.@test au_sc.au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
+    TT.@test au_sc.au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
+    TT.@test au_sc.au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
+    TT.@test au_sc.au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
+    TT.@test au_sc.sc ≈ dNcdt_sc rtol = 1e-6
+
+    #action
+    au = CM2.autoconversion(prs, CMT.SB2006Type(), 0.0, 0.0, ρ, N_liq)
+    sc = CM2.liquid_self_collection(prs, CMT.SB2006Type(), 0.0, ρ, au.dN_liq_dt)
+    au_sc = CM2.autoconversion_and_liquid_self_collection(
+        prs,
+        CMT.SB2006Type(),
+        0.0,
+        0.0,
+        ρ,
+        N_liq,
+    )
+
+    #test
+    TT.@test au.dq_liq_dt ≈ 0 atol = eps(Float64)
+    TT.@test au.dq_rai_dt ≈ 0 atol = eps(Float64)
+    TT.@test au.dN_liq_dt ≈ 0 atol = eps(Float64)
+    TT.@test au.dN_rai_dt ≈ 0 atol = eps(Float64)
+    TT.@test sc ≈ 0 atol = eps(Float64)
+    TT.@test au_sc.au.dq_liq_dt ≈ 0 atol = eps(Float64)
+    TT.@test au_sc.au.dq_rai_dt ≈ 0 atol = eps(Float64)
+    TT.@test au_sc.au.dN_liq_dt ≈ 0 atol = eps(Float64)
+    TT.@test au_sc.au.dN_rai_dt ≈ 0 atol = eps(Float64)
+    TT.@test au_sc.sc ≈ 0 atol = eps(Float64)
+end
+
+TT.@testset "2M_microphysics - Seifert and Beheng 2006 accretion" begin
     #setup
     ρ = 1.1
     q_liq = 0.5e-3
@@ -519,87 +631,186 @@ TT.@testset "2M_microphysics - Seifert and Beheng 2001 double moment" begin
     q_rai = 1e-6
     N_rai = 1e4
 
-    kc = 9.44e9
-    kr = 5.78
-    xstar = 2.6e-10
-    ν = 2
+    kcr = 5.25
+    ρ0 = 1.225
 
     #action
-    au = CM2.autoconversion(prs, CMT.SB2001Type(), q_liq, q_rai, ρ, N_liq)
-    ac = CM2.accretion(prs, CMT.SB2001Type(), q_liq, q_rai, ρ, N_liq)
-    sc_liq = CM2.liquid_self_collection(
-        prs,
-        CMT.SB2001Type(),
-        q_liq,
-        ρ,
-        au.dN_liq_dt,
-    )
-    sc_rai = CM2.rain_self_collection(prs, CMT.SB2001Type(), q_rai, ρ, N_rai)
+    ac = CM2.accretion(prs, CMT.SB2006Type(), q_liq, q_rai, ρ, N_liq)
 
     Lc = ρ * q_liq
     Lr = ρ * q_rai
     xc = Lc / N_liq
     τ = 1 - Lc / (Lc + Lr)
-    ϕ_au = 600 * τ^0.68 * (1 - τ^0.68)^3
-    ϕ_ac = (τ / (τ + 5e-4))^4
+    ϕ_ac = (τ / (τ + 5e-5))^4
 
-    dqrdt_au =
-        kc / 20 / xstar * (ν + 2) * (ν + 4) / (ν + 1)^2 *
-        Lc^2 *
-        xc^2 *
-        (1 + ϕ_au / (1 - τ)^2) / ρ
-    dqrdt_ac = kr * Lc * Lr * ϕ_ac / ρ
-    dqcdt_au = -dqrdt_au
+    dqrdt_ac = kcr * Lc * Lr * ϕ_ac * sqrt(ρ0 / ρ) / ρ
     dqcdt_ac = -dqrdt_ac
-    dNcdt_au = 2 / xstar * ρ * dqcdt_au
     dNcdt_ac = 1 / xc * ρ * dqcdt_ac
-    dNrdt_au = -0.5 * dNcdt_au
     dNrdt_ac = 0.0
-    dNcdt_sc = -kc * (ν + 2) / (ν + 1) * Lc^2 - dNcdt_au
-    dNrdt_sc = -kr * N_rai * Lr
 
 
     #test
-    TT.@test au isa CM2.LiqRaiRates
     TT.@test ac isa CM2.LiqRaiRates
-    TT.@test sc_liq isa Float64
-    TT.@test sc_rai isa Float64
-    TT.@test au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
-    TT.@test au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
-    TT.@test au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
-    TT.@test au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
     TT.@test ac.dq_liq_dt ≈ dqcdt_ac rtol = 1e-6
     TT.@test ac.dq_rai_dt ≈ dqrdt_ac rtol = 1e-6
     TT.@test ac.dN_liq_dt ≈ dNcdt_ac rtol = 1e-6
     TT.@test ac.dN_rai_dt ≈ dNrdt_ac rtol = 1e-6
-    TT.@test sc_liq ≈ dNcdt_sc rtol = 1e-6
-    TT.@test sc_rai ≈ dNrdt_sc rtol = 1e-6
-
-    #setup
-    q_liq = 0.0
-    q_rai = 0.0
 
     #action
-    au = CM2.autoconversion(prs, CMT.SB2001Type(), q_liq, q_rai, ρ, N_liq)
-    ac = CM2.accretion(prs, CMT.SB2001Type(), q_liq, q_rai, ρ, N_liq)
-    sc_liq = CM2.liquid_self_collection(
-        prs,
-        CMT.SB2001Type(),
-        q_liq,
-        ρ,
-        au.dN_liq_dt,
-    )
-    sc_rai = CM2.rain_self_collection(prs, CMT.SB2001Type(), q_rai, ρ, N_rai)
+    ac = CM2.accretion(prs, CMT.SB2006Type(), 0.0, 0.0, ρ, N_liq)
 
     #test
-    TT.@test au.dq_liq_dt ≈ 0 atol = eps(Float64)
-    TT.@test au.dq_rai_dt ≈ 0 atol = eps(Float64)
-    TT.@test au.dN_liq_dt ≈ 0 atol = eps(Float64)
-    TT.@test au.dN_rai_dt ≈ 0 atol = eps(Float64)
     TT.@test ac.dq_liq_dt ≈ 0 atol = eps(Float64)
     TT.@test ac.dq_rai_dt ≈ 0 atol = eps(Float64)
     TT.@test ac.dN_liq_dt ≈ 0 atol = eps(Float64)
     TT.@test ac.dN_rai_dt ≈ 0 atol = eps(Float64)
-    TT.@test sc_liq ≈ 0 atol = eps(Float64)
+end
+
+TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain self-collection and breakup" begin
+    #setup
+    ρ = 1.1
+    q_rai = 1e-6
+    N_rai = 1e4
+
+    krr = 7.12
+    κrr = 60.7
+    Deq = 9e-4
+    Dr_th = 3.5e-4
+    kbr = 1000.0
+    κbr = 2300.0
+    ρ0 = 1.225
+
+    #action
+    sc_rai = CM2.rain_self_collection(prs, CMT.SB2006Type(), q_rai, ρ, N_rai)
+    br_rai = CM2.rain_breakup(prs, CMT.SB2006Type(), q_rai, ρ, N_rai, sc_rai)
+    sc_br_rai = CM2.rain_self_collection_and_breakup(
+        prs,
+        CMT.SB2006Type(),
+        q_rai,
+        ρ,
+        N_rai,
+    )
+
+    λr =
+        CM2.raindrops_limited_vars(param_set, q_rai, ρ, N_rai).λr *
+        (6 / π / 1000.0)^(1 / 3)
+    dNrdt_sc = -krr * N_rai * ρ * q_rai * (1 + κrr / λr)^-5 * sqrt(ρ0 / ρ)
+
+    Dr =
+        (
+            CM2.raindrops_limited_vars(prs, q_rai, ρ, N_rai).xr / 1000 / π * 6
+        )^(1 / 3)
+    ΔDr = Dr - Deq
+    ϕ_br =
+        Dr < 0.35e-3 ? -1.0 :
+        ((Dr < 0.9e-3) ? kbr * ΔDr : 2 * (exp(κbr * ΔDr) - 1))
+
+    dNrdt_br = -(ϕ_br + 1) * sc_rai
+
+    #test
+    TT.@test sc_rai isa Float64
+    TT.@test sc_rai ≈ dNrdt_sc rtol = 1e-6
+    TT.@test CM2.rain_self_collection(prs, CMT.SB2006Type(), 0.0, ρ, N_rai) ≈ 0 atol =
+        eps(Float64)
+    TT.@test br_rai isa Float64
+    TT.@test br_rai ≈ dNrdt_br rtol = 1e-6
+    TT.@test sc_br_rai isa NamedTuple
+    TT.@test sc_br_rai.sc ≈ dNrdt_sc rtol = 1e-6
+    TT.@test sc_br_rai.br ≈ dNrdt_br rtol = 1e-6
+
+    #setup
+    q_rai = 0.0
+
+    #action
+    sc_rai = CM2.rain_self_collection(prs, CMT.SB2006Type(), q_rai, ρ, N_rai)
+    br_rai = CM2.rain_breakup(prs, CMT.SB2006Type(), q_rai, ρ, N_rai, sc_rai)
+    sc_br_rai = CM2.rain_self_collection_and_breakup(
+        prs,
+        CMT.SB2006Type(),
+        q_rai,
+        ρ,
+        N_rai,
+    )
+
+    #test
     TT.@test sc_rai ≈ 0 atol = eps(Float64)
+    TT.@test br_rai ≈ 0 atol = eps(Float64)
+    TT.@test sc_br_rai.sc ≈ 0 atol = eps(Float64)
+    TT.@test sc_br_rai.br ≈ 0 atol = eps(Float64)
+end
+
+TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity" begin
+    #setup
+    ρ = 1.1
+    q_rai = 1e-6
+    N_rai = 1e4
+
+    ρ0 = 1.225
+    aR = 9.65
+    bR = 10.3
+    cR = 600.0
+
+    #action
+    vt_rai = CM2.rain_terminal_velocity(prs, CMT.SB2006Type(), q_rai, ρ, N_rai)
+
+    λr = CM2.raindrops_limited_vars(prs, q_rai, ρ, N_rai).λr
+    vt0 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
+    vt1 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^4))
+
+    #test
+    TT.@test vt_rai isa Tuple
+    TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
+    TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
+    TT.@test CM2.rain_terminal_velocity(prs, CMT.SB2006Type(), 0.0, ρ, N_rai)[1] ≈
+             0 atol = eps(Float64)
+    TT.@test CM2.rain_terminal_velocity(prs, CMT.SB2006Type(), 0.0, ρ, N_rai)[2] ≈
+             0 atol = eps(Float64)
+end
+
+TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain evaporation" begin
+    #setup
+    ρ = 1.1
+    q_rai = 1e-6
+    N_rai = 1e4
+    T = 288.15
+    q_tot = 1e-3
+    q = TD.PhasePartition(q_tot, 0.0, 0.0)
+
+    av = 0.78
+    bv = 0.308
+    α = 159.0
+    β = 0.266
+    ν_air = CMP.ν_air(param_set)
+    D_vapor = CMP.D_vapor(param_set)
+    ρ0 = 1.225
+
+    #action
+    evap = CM2.rain_evaporation(prs, CMT.SB2006Type(), q, q_rai, ρ, N_rai, T)
+
+    G = CloudMicrophysics.Common.G_func(param_set, T, TD.Liquid())
+    thermo_params = CMP.thermodynamics_params(prs)
+    S = TD.supersaturation(thermo_params, q, ρ, T, TD.Liquid())
+
+    xr = CM2.raindrops_limited_vars(param_set, q_rai, ρ, N_rai).xr
+    Dr = (6 / π / 1000.0)^(1 / 3) * xr^(1 / 3)
+    N_Re = α * xr^β * sqrt(ρ0 / ρ) * Dr / ν_air
+
+    a_vent_0 = av * 0.1915222379058504
+    b_vent_0 = bv * 0.2040123897555518
+    Fv0 = a_vent_0 + b_vent_0 * (ν_air / D_vapor)^(1 / 3) * sqrt(N_Re)
+    a_vent_1 = av * 0.5503212081491045
+    b_vent_1 = bv * 0.5873135598802672
+    Fv1 = a_vent_1 + b_vent_1 * (ν_air / D_vapor)^(1 / 3) * sqrt(N_Re)
+
+    evap0 = 2 * π * G * S * N_rai * Dr * Fv0 / xr
+    evap1 = 2 * π * G * S * N_rai * Dr * Fv1 / ρ
+
+    #test
+    TT.@test evap isa Tuple
+    TT.@test evap[1] ≈ evap0 rtol = 1e-6
+    TT.@test evap[2] ≈ evap1 rtol = 1e-6
+    TT.@test CM2.rain_evaporation(prs, CMT.SB2006Type(), q, 0.0, ρ, N_rai, T)[1] ≈
+             0 atol = eps(Float64)
+    TT.@test CM2.rain_evaporation(prs, CMT.SB2006Type(), q, 0.0, ρ, N_rai, T)[2] ≈
+             0 atol = eps(Float64)
 end
