@@ -41,10 +41,16 @@ Microphysics1M.snow_melt
 ```@docs
 Microphysics2M
 Microphysics2M.LiqRaiRates
+Microphysics2M.raindrops_limited_vars
 Microphysics2M.autoconversion
 Microphysics2M.accretion
 Microphysics2M.liquid_self_collection
+Microphysics2M.autoconversion_and_liquid_self_collection
 Microphysics2M.rain_self_collection
+Microphysics2M.rain_breakup
+Microphysics2M.rain_self_collection_and_breakup
+Microphysics2M.rain_terminal_velocity
+Microphysics2M.rain_evaporation
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
@@ -94,5 +100,5 @@ CommonTypes.KK2000Type
 CommonTypes.B1994Type
 CommonTypes.TC1980Type
 CommonTypes.LD2004Type
-CommonTypes.SB2001Type
+CommonTypes.SB2006Type
 ```
