@@ -109,4 +109,9 @@ The type for 2-moment precipitation formation by Seifert and Beheng (2001)
 """
 struct SB2001Type <: Abstract2MPrecipType end
 
+Base.broadcastable(x::LiquidType) = tuple(x)
+Base.broadcastable(x::IceType) = tuple(x)
+Base.broadcastable(x::RainType) = tuple(x)
+Base.broadcastable(x::SnowType) = tuple(x)
+
 end #module CommoniTypes.jl
