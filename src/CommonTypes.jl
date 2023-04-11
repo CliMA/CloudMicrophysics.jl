@@ -17,6 +17,7 @@ export KK2000Type
 export B1994Type
 export TC1980Type
 export LD2004Type
+export SB2006Type
 
 """
     AbstractAerosolDistribution
@@ -103,11 +104,11 @@ The type for 2-moment precipitation formation by Liu and Daum (2004)
 struct LD2004Type <: Abstract2MPrecipType end
 
 """
-    SB2001Type
+    SB2006Type
 
-The type for 2-moment precipitation formation by Seifert and Beheng (2001)
+The type for 2-moment precipitation formation by Seifert and Beheng (2006)
 """
-struct SB2001Type <: Abstract2MPrecipType end
+struct SB2006Type <: Abstract2MPrecipType end
 
 Base.broadcastable(x::LiquidType) = tuple(x)
 Base.broadcastable(x::IceType) = tuple(x)
