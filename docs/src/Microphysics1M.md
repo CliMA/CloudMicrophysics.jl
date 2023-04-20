@@ -219,7 +219,7 @@ They consist of:
 
 The ventilation factor parameterizes the increase in the mass and heat exchange
   for falling particles.
-Following [Seifert2006](@cite)
+Following [SeifertBeheng2006](@cite)
   eq. 24  the ventilation factor is defined as:
 ```math
 \begin{equation}

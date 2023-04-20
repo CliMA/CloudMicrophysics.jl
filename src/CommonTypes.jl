@@ -18,6 +18,9 @@ export B1994Type
 export TC1980Type
 export LD2004Type
 export SB2006Type
+export AbstractAerosolType
+export ArizonaTestDustType
+export DesertDustType
 
 """
     AbstractAerosolDistribution
@@ -109,6 +112,27 @@ struct LD2004Type <: Abstract2MPrecipType end
 The type for 2-moment precipitation formation by Seifert and Beheng (2006)
 """
 struct SB2006Type <: Abstract2MPrecipType end
+
+"""
+    AbstractAerosolType
+
+The top-level super-type for all aerosol types.
+"""
+abstract type AbstractAerosolType end
+
+"""
+    ArizonaTestDustType
+
+The type for Arizona test dust for deposition activated fraction
+"""
+struct ArizonaTestDustType <: AbstractAerosolType end
+
+"""
+    DesertDustType
+
+The type for desert dust for deposition activated fraction
+"""
+struct DesertDustType <: AbstractAerosolType end
 
 Base.broadcastable(x::LiquidType) = tuple(x)
 Base.broadcastable(x::IceType) = tuple(x)
