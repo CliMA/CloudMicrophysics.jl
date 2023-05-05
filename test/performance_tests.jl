@@ -113,5 +113,10 @@ function benchmark_test(FT)
 
 end
 
+println("")
+println("Testing Float64")
 benchmark_test(Float64)
+
+println("")
+println("Testing Float32")
 benchmark_test(Float32)
