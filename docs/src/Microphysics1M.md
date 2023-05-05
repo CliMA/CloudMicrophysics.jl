@@ -281,7 +281,8 @@ Integrating over the assumed Marshall-Palmer distribution and using the
 !!! note
 
     Assuming a constant drag coefficient is an approximation and it should
-    be size and flow dependent.
+    be size and flow dependent, see for example
+    [here](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-of-a-sphere/).
     In general we should implement these terminal velocity parameterizations:
     [Khvorostyanov2002](@cite)
     or
