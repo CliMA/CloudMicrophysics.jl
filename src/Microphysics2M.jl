@@ -1,9 +1,9 @@
 """
 Double-moment bulk microphysics parametrizations including:
- - autoconversion, accretion, self-collection, breakup, mean terminal velocity of raindrops and rain 
+ - autoconversion, accretion, self-collection, breakup, mean terminal velocity of raindrops and rain
     evaporation rates from Seifert and Beheng 2006,
  - additional double-moment bulk microphysics autoconversion and accretion rates
-   from: Khairoutdinov and Kogan 2000, Beheng 1994, Tripoli and Cotton 1980, and 
+   from: Khairoutdinov and Kogan 2000, Beheng 1994, Tripoli and Cotton 1980, and
    Liu and Daum 2004.
 """
 module Microphysics2M
@@ -304,7 +304,7 @@ function rain_self_collection(
     L_rai = ρ * q_rai
     λr =
         raindrops_limited_vars(param_set, q_rai, ρ, N_rai).λr *
-        (SF.gamma(4) / FT(π) / ρw)^FT(1 / 3)
+        (SF.gamma(FT(4)) / FT(π) / ρw)^FT(1 / 3)
 
     dN_rai_dt_sc = -krr * N_rai * L_rai * sqrt(ρ0 / ρ) * (1 + κrr / λr)^d
 
@@ -426,9 +426,9 @@ end
  - `ρ` - air density
  - `N_rai` - raindrops number density
  - `T` - air temperature
-   
-Returns a tupple containing the tendency of raindrops number density and rain water 
-specific humidity due to rain rain_evaporation, assuming a power law velocity relation for 
+
+Returns a tupple containing the tendency of raindrops number density and rain water
+specific humidity due to rain rain_evaporation, assuming a power law velocity relation for
 fall velocity of individual drops and an exponential size distribution, for `scheme == SB2006Type`
 """
 function rain_evaporation(
@@ -608,13 +608,13 @@ function conv_q_liq_to_q_rai(
         E_0::FT = CMP.E_0_LD2004(param_set)
 
         # Mean volume radius in microns (assuming spherical cloud droplets)
-        r_vol = (3 * (q_liq * ρ) / 4 / π / ρ_w / N_d)^(1 / 3) * 1e6
+        r_vol = (3 * (q_liq * ρ) / 4 / π / ρ_w / N_d)^FT(1 / 3) * 1e6
 
         # Assumed size distribution: modified gamma distribution
-        β_6::FT = ((r_vol + 3) / r_vol)^(1 / 3)
+        β_6::FT = ((r_vol + 3) / r_vol)^FT(1 / 3)
         E::FT = E_0 * β_6^6
         R_6::FT = β_6 * r_vol
-        R_6C::FT = R_6C_0 / (q_liq * ρ)^(1 / 6) / R_6^(1 / 2)
+        R_6C::FT = R_6C_0 / (q_liq * ρ)^FT(1 / 6) / R_6^FT(1 / 2)
 
         _output::FT = FT(0)
         if smooth_transition
