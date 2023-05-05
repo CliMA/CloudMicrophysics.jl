@@ -142,7 +142,7 @@ function critical_supersaturation(
     hygro,
 ) where {FT <: Real}
     return ntuple(Val(AM.n_modes(ad))) do i
-        2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^(3 / 2)
+        2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^FT(3 / 2)
     end
 end
 
@@ -200,7 +200,7 @@ function max_supersaturation(
 
         tmp +=
             1 / (Sm[i])^2 *
-            (f * (ζ / η)^(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^(3 / 4))
+            (f * (ζ / η)^FT(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^FT(3 / 4))
     end
 
     return FT(1) / sqrt(tmp)
