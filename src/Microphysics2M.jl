@@ -82,8 +82,8 @@ function raindrops_limited_vars(
     L_rai = ρ * q_rai
     xr_0 = L_rai / N_rai
     xr_hat = max(xr_min, min(xr_max, xr_0))
-    N0 = max(N0_min, min(N0_max, N_rai * (π * ρw / xr_hat)^FT(1 / 3)))
-    λr = max(λ_min, min(λ_max, (π * ρw * N0 / L_rai)^FT(1 / 4)))
+    N0 = max(N0_min, min(N0_max, N_rai * (FT(π) * ρw / xr_hat)^FT(1 / 3)))
+    λr = max(λ_min, min(λ_max, (FT(π) * ρw * N0 / L_rai)^FT(1 / 4)))
     xr = max(xr_min, min(xr_max, L_rai * λr / N0))
 
     return (; λr, xr)
@@ -344,7 +344,7 @@ function rain_breakup(
     κbr::FT = CMP.κbr_SB2006(param_set)
 
     xr = raindrops_limited_vars(param_set, q_rai, ρ, N_rai).xr
-    Dr = (xr * 6 / π / ρw)^FT(1 / 3)
+    Dr = (xr * 6 / FT(π) / ρw)^FT(1 / 3)
     ΔD = Dr - Deq
     phi_br =
         (Dr < Dr_th) ? FT(-1) : ((ΔD <= 0) ? kbr * ΔD : 2 * (exp(κbr * ΔD) - 1))
@@ -516,7 +516,7 @@ function conv_q_liq_to_q_rai(
     scheme::CT.KK2000Type,
     q_liq::FT,
     ρ::FT;
-    N_d::FT = 1e8,
+    N_d::FT = FT(1e8),
 ) where {FT <: Real}
 
     q_liq = max(0, q_liq)
@@ -533,7 +533,7 @@ function conv_q_liq_to_q_rai(
     scheme::CT.B1994Type,
     q_liq::FT,
     ρ::FT;
-    N_d::FT = 1e8,
+    N_d::FT = FT(1e8),
     smooth_transition::Bool = false,
 ) where {FT <: Real}
 
@@ -565,7 +565,7 @@ function conv_q_liq_to_q_rai(
     scheme::CT.TC1980Type,
     q_liq::FT,
     ρ::FT;
-    N_d::FT = 1e8,
+    N_d::FT = FT(1e8),
     smooth_transition::Bool = false,
 ) where {FT <: Real}
     #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
@@ -596,7 +596,7 @@ function conv_q_liq_to_q_rai(
     scheme::CT.LD2004Type,
     q_liq::FT,
     ρ::FT;
-    N_d::FT = 1e8,
+    N_d::FT = FT(1e8),
     smooth_transition::Bool = false,
 ) where {FT <: Real}
 
@@ -608,7 +608,7 @@ function conv_q_liq_to_q_rai(
         E_0::FT = CMP.E_0_LD2004(param_set)
 
         # Mean volume radius in microns (assuming spherical cloud droplets)
-        r_vol = (3 * (q_liq * ρ) / 4 / π / ρ_w / N_d)^FT(1 / 3) * 1e6
+        r_vol = (3 * (q_liq * ρ) / 4 / FT(π) / ρ_w / N_d)^FT(1 / 3) * 1e6
 
         # Assumed size distribution: modified gamma distribution
         β_6::FT = ((r_vol + 3) / r_vol)^FT(1 / 3)

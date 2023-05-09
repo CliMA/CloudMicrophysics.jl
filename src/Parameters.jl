@@ -69,7 +69,6 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     E_ice_sno::FT
     E_rai_sno::FT
     ρ_cloud_ice::FT
-    gas_constant::FT
     thermo_params::TP
     D_acnv_TC1980::FT
     a_acnv_TC1980::FT
@@ -138,7 +137,7 @@ m0_ice(ps::CMPS{FT}) where {FT} =
     FT(4 / 3) * π * ps.ρ_cloud_ice * ps.r0_ice^ps.me_ice
 m0_rai(ps::CMPS{FT}) where {FT} =
     FT(4 / 3) * π * ps.ρ_cloud_liq * ps.r0_rai^ps.me_rai
-a0_rai(ps::CMPS) = π * ps.r0_rai^ps.ae_rai
+a0_rai(ps::CMPS{FT}) where {FT} = FT(π) * ps.r0_rai^ps.ae_rai
 m0_sno(ps::CMPS{FT}) where {FT} = FT(1e-1) * ps.r0_sno^ps.me_sno
 a0_sno(ps::CMPS{FT}) where {FT} = FT(0.3) * π * ps.r0_sno^ps.ae_sno
 v0_sno(ps::CMPS{FT}) where {FT} = FT(2^(9 / 4)) * ps.r0_sno^ps.ve_sno
