@@ -493,7 +493,7 @@ function accretion_rain_sink(
             ) /
             (
                 _r0_rai * _λ_rai
-            )^(_me_rai + _ae_rai + _ve_rai + _Δm_rai + _Δa_rai + _Δv_rai)
+            )^FT(_me_rai + _ae_rai + _ve_rai + _Δm_rai + _Δa_rai + _Δv_rai)
     end
     return accr_rate
 end
