@@ -44,21 +44,21 @@ function test_aerosol_activation(FT)
     stdev_paper = FT(2)            # -
     N_1_paper = FT(100 * 1e6)      # 1/m3
 
-    # TODO - move areosol properties to CLIMAParameters
+    # TODO - what κ values we should use?
     # Sea Salt - universal parameters
-    M_seasalt = FT(0.058443)
-    ρ_seasalt = FT(2170)
-    ϕ_seasalt = FT(0.9)
-    ν_seasalt = FT(2)
-    ϵ_seasalt = FT(1)
-    κ_seasalt = FT(1.12)   # TODO - which value to take?
+    M_seasalt = CMP.molmass_seasalt(param_set)
+    ρ_seasalt = CMP.rho_seasalt(param_set)
+    ϕ_seasalt = CMP.osm_coeff_seasalt(param_set)
+    ν_seasalt = CMP.N_ion_seasalt(param_set)
+    ϵ_seasalt = CMP.water_soluble_mass_frac_seasalt(param_set)
+    κ_seasalt = CMP.kappa_seasalt(param_set)
     # Sulfate - universal parameters
-    M_sulfate = FT(0.132)
-    ρ_sulfate = FT(1770)
-    ϕ_sulfate = FT(1)
-    ν_sulfate = FT(3)
-    ϵ_sulfate = FT(1)
-    κ_sulfate = FT(0.53)   # TODO - which value to take?
+    M_sulfate = CMP.molmass_sulfate(param_set)
+    ρ_sulfate = CMP.rho_sulfate(param_set)
+    ϕ_sulfate = CMP.osm_coeff_sulfate(param_set)
+    ν_sulfate = CMP.N_ion_sulfate(param_set)
+    ϵ_sulfate = CMP.water_soluble_mass_frac_sulfate(param_set)
+    κ_sulfate = CMP.kappa_sulfate(param_set)
 
     # Aerosol size distribution modes
     accum_seasalt_B = AM.Mode_B(

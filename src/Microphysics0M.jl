@@ -9,11 +9,9 @@ terminal velocity.
 """
 module Microphysics0M
 
-import Thermodynamics
-const TD = Thermodynamics
+import Thermodynamics as TD
 
-import ..Parameters
-const CMP = Parameters
+import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
 
 export remove_precipitation
