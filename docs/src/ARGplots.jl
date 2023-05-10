@@ -32,12 +32,12 @@ q_vs = 1 / (1 - CMP.molmass_ratio(param_set) * (p_vs - p) / p_vs)
 q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Sulfate
-ϵ_sulfate = 1.0         # solubility of sulfate
-ϕ_sulfate = 1.0         # osmotic coeff of sulfate
-M_sulfate = 0.132       # molar mass of sulfate
-ν_sulfate = 3.0         # ions of salt in sulfate
-ρ_sulfate = 1770.0      # density of sulfate
-κ_sulfate = 0.53        # hygroscopicity of sulfate
+M_sulfate = CMP.molmass_sulfate(param_set)
+ρ_sulfate = CMP.rho_sulfate(param_set)
+ϕ_sulfate = CMP.osm_coeff_sulfate(param_set)
+ν_sulfate = CMP.N_ion_sulfate(param_set)
+ϵ_sulfate = CMP.water_soluble_mass_frac_sulfate(param_set)
+κ_sulfate = CMP.kappa_sulfate(param_set)
 
 # Insoluble material from ARG2000
 ϵ_insol = 0.0         # solubility of insol

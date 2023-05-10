@@ -18,7 +18,7 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function cirrus_box(dY, Y, p, t)
 
     # Get simulation parameters
-    (; param_set, const_dt, r_nuc, w, α_m) = p
+    (; prs, const_dt, r_nuc, w, α_m) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
 
@@ -32,12 +32,12 @@ function cirrus_box(dY, Y, p, t)
     N_aerosol = Y[7]  # number concentration of interstitial aerosol
 
     # Constants
-    R_v = CMP.R_v(param_set)
-    grav = CMP.grav(param_set)
-    ρ_ice = CMP.ρ_cloud_liq(param_set)
+    R_v = CMP.R_v(prs)
+    grav = CMP.grav(prs)
+    ρ_ice = CMP.ρ_cloud_liq(prs)
 
     # Get thermodynamic parameters, phase partition and create thermo state.
-    thermo_params = CMP.thermodynamics_params(param_set)
+    thermo_params = CMP.thermodynamics_params(prs)
     q = TD.PhasePartition(q_vap + q_ice, FT(0), q_ice)
     ts = TD.PhaseNonEquil_pTq(thermo_params, p_a, T, q)
 
@@ -62,14 +62,14 @@ function cirrus_box(dY, Y, p, t)
     a3 = L_subl^2 / R_v / T^2 / cp_a
 
     # Activating new crystals
-    AF = CMI.dust_activated_number_fraction(S_i, T, CMT.DesertDustType())
+    AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
     τ_relax = const_dt
     dN_act_dt = max(FT(0), AF * N_aerosol - N_act) / τ_relax
     dN_aerosol_dt = -dN_act_dt
     dqi_dt_new_particles = dN_act_dt * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ
 
     # Growing existing crystals (assuming all are the same...)
-    G = CMO.G_func(param_set, T, TD.Ice())
+    G = CMO.G_func(prs, T, TD.Ice())
     r = N_act > 0 ? cbrt(q_ice / N_act / (4 / 3 * π) / ρ_ice * ρ) : 0
     C = r
     dqi_dt_deposition = 1 / ρ * N_act * α_m * 4 * π * C * (S_i - 1) * G
@@ -101,7 +101,7 @@ end
     Wrapper for initial condition
 """
 function get_initial_condition(
-    param_set,
+    prs,
     N_act,
     p_a,
     T,
@@ -110,10 +110,10 @@ function get_initial_condition(
     q_ice,
     N_aerosol,
 )
-    thermo_params = CMP.thermodynamics_params(param_set)
+    thermo_params = CMP.thermodynamics_params(prs)
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
     R_a = TD.gas_constant_air(thermo_params, q)
-    R_v = CMP.R_v(param_set)
+    R_v = CMP.R_v(prs)
     e_si = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
     e = q_vap * p_a * R_v / R_a
     S_i = e / e_si
@@ -133,8 +133,8 @@ function run_parcel(FT)
 
     # Boiler plate code to have access to model parameters and constants
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    param_set = cloud_microphysics_parameters(toml_dict)
-    thermo_params = CMP.thermodynamics_params(param_set)
+    prs = cloud_microphysics_parameters(toml_dict)
+    thermo_params = CMP.thermodynamics_params(prs)
 
     # Initial conditions for 1st period
     N_aerosol = FT(2000 * 1e3)
@@ -159,11 +159,11 @@ function run_parcel(FT)
     w = FT(3.5 * 1e-2) # updraft speed
     α_m = FT(0.5) # accomodation coefficient
     const_dt = 0.1 # model timestep
-    p = (; param_set, const_dt, r_nuc, w, α_m)
+    p = (; prs, const_dt, r_nuc, w, α_m)
 
     # Simulation 1
     IC1 = get_initial_condition(
-        param_set,
+        prs,
         N_0,
         p_0,
         T_0,
@@ -185,7 +185,7 @@ function run_parcel(FT)
     # (alternatively set T and take q_vap from the previous simulation)
     #IC2 = get_initial_condition(sol1[2, end], sol1[3, end], T2, sol1[5, end], 0.0, sol1[6, end], sol1[7, end])
     IC2 = get_initial_condition(
-        param_set,
+        prs,
         sol1[2, end],
         sol1[3, end],
         sol1[4, end],
@@ -212,7 +212,7 @@ function run_parcel(FT)
     # (alternatively set T and take q_vap from the previous simulation)
     #IC3 = get_initial_condition(sol2[2, end], sol2[3, end], T3, sol2[5, end], 0.0, sol2[6, end], sol2[7, end])
     IC3 = get_initial_condition(
-        param_set,
+        prs,
         sol2[2, end],
         sol2[3, end],
         sol2[4, end],

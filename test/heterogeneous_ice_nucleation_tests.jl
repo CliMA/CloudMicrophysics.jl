@@ -27,22 +27,45 @@ function test_dust_activation(FT)
         # No activation below critical supersaturation
         for dust in [ArizonaTestDust, DesertDust]
             for T in [T_warm, T_cold]
-                TT.@test CMI.dust_activated_number_fraction(Si_low, T, dust) ==
-                         FT(0)
+                TT.@test CMI.dust_activated_number_fraction(
+                    prs,
+                    Si_low,
+                    T,
+                    dust,
+                ) == FT(0)
             end
         end
 
         # Activate more in cold temperatures and higher supersaturations
         for dust in [ArizonaTestDust, DesertDust]
-            TT.@test CMI.dust_activated_number_fraction(Si_hgh, T_warm, dust) >
-                     CMI.dust_activated_number_fraction(Si_med, T_warm, dust)
-            TT.@test CMI.dust_activated_number_fraction(Si_med, T_cold, dust) >
-                     CMI.dust_activated_number_fraction(Si_med, T_warm, dust)
+            TT.@test CMI.dust_activated_number_fraction(
+                prs,
+                Si_hgh,
+                T_warm,
+                dust,
+            ) > CMI.dust_activated_number_fraction(
+                prs,
+                Si_med,
+                T_warm,
+                dust,
+            )
+            TT.@test CMI.dust_activated_number_fraction(
+                prs,
+                Si_med,
+                T_cold,
+                dust,
+            ) > CMI.dust_activated_number_fraction(
+                prs,
+                Si_med,
+                T_warm,
+                dust,
+            )
         end
 
         for dust in [ArizonaTestDust, DesertDust]
             for T in [T_warm, T_cold]
                 TT.@test CMI.dust_activated_number_fraction(
+                    prs,
                     Si_too_hgh,
                     T,
                     dust,
@@ -54,8 +77,8 @@ end
 
 println("")
 println("Testing Float64")
-benchmark_test(Float64)
+test_dust_activation(Float64)
 
 println("")
 println("Testing Float32")
-benchmark_test(Float32)
+test_dust_activation(Float32)
