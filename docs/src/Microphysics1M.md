@@ -729,8 +729,8 @@ PL.savefig("terminal_velocity.svg") # hide
 T = 273.15
 PL.plot( q_liq_range * 1e3, [CM1.conv_q_liq_to_q_rai(param_set, q_liq) for q_liq in q_liq_range], linewidth=3, xlabel="q_liq or q_ice [g/kg]", ylabel="autoconversion rate [1/s]", label="Rain")
 PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(param_set, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-5)  for q_ice in q_ice_range], linewidth=3, label="Snow T=-5C")
-PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(param_set, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-10) for q_ice in q_ice_range], linewidth=3, label="Snow T=-15C")
-PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(param_set, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-15) for q_ice in q_ice_range], linewidth=3, label="Snow T=-25C")
+PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(param_set, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-10) for q_ice in q_ice_range], linewidth=3, label="Snow T=-10C")
+PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(param_set, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-15) for q_ice in q_ice_range], linewidth=3, label="Snow T=-15C")
 PL.savefig("autoconversion_rate.svg") # hide
 
 PL.plot( q_rain_range * 1e3, [CM1.accretion(param_set, liquid, rain, q_liq, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rate [1/s]", label="Liq+Rain-CLIMA")
@@ -791,7 +791,7 @@ q_snow_range = range(1e-8, stop=5e-3, length=100)
 q_tot = 15e-3
 q_vap = 0.15 * q_sat
 q_liq = 0.
-q_ice = q_tot - q_vap - q_ice
+q_ice = q_tot - q_vap - q_liq
 q = TD.PhasePartition(q_tot, q_liq, q_ice)
 R = TD.gas_constant_air(thermo_params, q)
 ρ = p / R / T
@@ -806,7 +806,7 @@ q_snow_range = range(1e-8, stop=5e-3, length=100)
 q_tot = 15e-3
 q_vap = 0.15 * q_sat
 q_liq = 0.
-q_ice = q_tot - q_vap - q_ice
+q_ice = q_tot - q_vap - q_liq
 q = TD.PhasePartition(q_tot, q_liq, q_ice)
 R = TD.gas_constant_air(thermo_params, q)
 ρ = p / R / T
