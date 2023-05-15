@@ -123,6 +123,28 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     N0_max_SB2006::FT
     λ_min_SB2006::FT
     λ_max_SB2006::FT
+    Si_max_Mohler2006::FT
+    T_thr_Mohler2006::FT
+    S0_warm_ATD_Mohler2006::FT
+    S0_cold_ATD_Mohler2006::FT
+    a_warm_ATD_Mohler2006::FT
+    a_cold_ATD_Mohler2006::FT
+    S0_warm_DD_Mohler2006::FT
+    S0_cold_DD_Mohler2006::FT
+    a_warm_DD_Mohler2006::FT
+    a_cold_DD_Mohler2006::FT
+    molmass_seasalt::FT
+    rho_seasalt::FT
+    osm_coeff_seasalt::FT
+    N_ion_seasalt::FT
+    water_soluble_mass_frac_seasalt::FT
+    kappa_seasalt::FT
+    molmass_sulfate::FT
+    rho_sulfate::FT
+    osm_coeff_sulfate::FT
+    N_ion_sulfate::FT
+    water_soluble_mass_frac_sulfate::FT
+    kappa_sulfate::FT
 end
 
 Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT

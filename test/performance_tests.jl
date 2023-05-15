@@ -79,11 +79,15 @@ function benchmark_test(FT)
     bench_press(
         AA.total_N_activated,
         (prs, aer_distr, T_air, p_air, w_air, q),
-        1000,
+        1100,
     )
 
     # ice nucleation
-    bench_press(CMI.dust_activated_number_fraction, (S_ice, T_air_2, dust), 30)
+    bench_press(
+        CMI.dust_activated_number_fraction,
+        (prs, S_ice, T_air_2, dust),
+        40,
+    )
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (prs, liquid), 10)

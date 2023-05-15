@@ -299,11 +299,11 @@ stdev = 2.0         # -
 N_1 = 100.0 * 1e6   # 1/m3
 
 # Sulfate - universal parameters
-M_sulfate = 0.132
-ρ_sulfate = 1770.0
-ϕ_sulfate = 1.0
-ν_sulfate = 3.0
-ϵ_sulfate = 1.0
+M_sulfate = CMP.molmass_sulfate(param_set)
+ρ_sulfate = CMP.rho_sulfate(param_set)
+ϕ_sulfate = CMP.osm_coeff_sulfate(param_set)
+ν_sulfate = CMP.N_ion_sulfate(param_set)
+ϵ_sulfate = CMP.water_soluble_mass_frac_sulfate(param_set)
 
 n_components_1 = 1
 mass_fractions_1 = (1.0,)
