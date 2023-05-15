@@ -22,10 +22,9 @@ Microphysics0M.remove_precipitation
 
 ```@docs
 Microphysics1M
-Microphysics1M.v0_rai
-Microphysics1M.n0_sno
+Microphysics1M.v0
+Microphysics1M.n0
 Microphysics1M.lambda
-Microphysics1M.unpack_params
 Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_liq_to_q_rai
 Microphysics1M.conv_q_ice_to_q_sno_no_supersat
