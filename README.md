@@ -1,5 +1,5 @@
 # CloudMicrophysics.jl
-A package containing a library of cloud microphysics parameterizations.
+A package containing a library of cloud microphysics and aerosol parameterizations.
 
 |||
 |---------------------:|:----------------------------------------------|
@@ -60,7 +60,7 @@ For example, to get all the needed dependencies and then run all the tests
   you could try:
 
 ```julia
-julia --project
+julia --project=test
 
 julia>]
 
@@ -85,7 +85,7 @@ Below is a list of possible examples,
   We have chosen [PySDM](https://github.com/atmos-cloud-sim-uj/PySDM)
   as our high-resolution benchmark.
   PySDM is a package for simulating the dynamics of population of particles
-  and is based on the [Super-Droplet algorithm](https://rmets.onlinelibrary.wiley.com/doi/abs/10.1002/qj.441).
+  and is based on the [Super-Droplet algorithm](https://doi.org/10.1002/qj.441).
   Possible tasks in this project would include testing the aerosol activation parameterization
   against PySDM in an adiabatic parcel setup, or testing the 1-moment
   microphysics parameterization against PySDM in an already implemented
@@ -97,19 +97,15 @@ Below is a list of possible examples,
   [EKP.jl docs](https://clima.github.io/EnsembleKalmanProcesses.jl/dev/examples/Cloudy_example/)
   where [Cloudy.jl](https://github.com/CliMA/Cloudy.jl) parameters are calibrated.
 
-- Adding a 2-moment microphysics scheme for warm rain formation to the CloudMicrophysics.jl package.
-  This is a priority for us and the next development goal.
-  We already have implemented a set of different autoconversion and accretion formulations.
-  The next step is to add tendencies for cloud and rain drop number concentrations.
-  Contributions in coding, testing, (re)deriving the parameterization equations
-  and discussing microphysics parameterization assumptions are welcome!
-
-- Adding the [P3 scheme](https://journals.ametsoc.org/view/journals/atsc/72/1/jas-d-14-0065.1.xml)
-  for ice phase microphysics.
-  This is a next development goal after we implement the 2-moment scheme - and also a big task.
-
 - Adding an aerosol model and coupling it with the aerosol activation
   parameterization.
-  [This](https://gmd.copernicus.org/articles/5/709/2012/) could be the aerosol
-  model to implement.
+  [MAM4](https://doi.org/10.5194/gmd-9-505-2016) could be the aerosol model to implement.
   This is a big project and an opportunity for a more long term contribution.
+
+- Adding the [P3 scheme](https://doi.org/10.1175/JAS-D-14-0065.1) for ice phase microphysics.
+
+- Adding more accurate fall speed parameterization based on
+  [Chen et. al. 2022](https://doi.org/10.1016/j.atmosres.2022.106171).
+
+- Adding precipitation susceptibility tests based on
+  [Glassmeier and Lohmann 2016](https://doi.org/10.1175/JAS-D-16-0008.1).
