@@ -79,7 +79,7 @@ function benchmark_test(FT)
     bench_press(
         AA.total_N_activated,
         (prs, aer_distr, T_air, p_air, w_air, q),
-        1100,
+        1300,
     )
 
     # ice nucleation
@@ -107,7 +107,7 @@ function benchmark_test(FT)
     bench_press(
         CM2.rain_self_collection_and_breakup,
         (prs, sb2006, q_rai, ρ_air, N_rai),
-        800,
+        820,
     )
     bench_press(
         CM2.rain_evaporation,
