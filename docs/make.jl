@@ -17,6 +17,7 @@ pages = Any[
     "ARG2000 activation example" => "ARG2000_example.md",
     "Ice Nucleation" => "IceNucleation.md",
     "Box model ice nucleation example" => "IceNucleationBox.md",
+    "Aerosol Nucleation" => "AerosolNucleation.md",
     "API" => "API.md",
     "References" => "References.md",
 ]
