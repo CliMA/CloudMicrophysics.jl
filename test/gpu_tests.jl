@@ -16,11 +16,14 @@ const AA = CM.AerosolActivation
 const CMT = CM.CommonTypes
 const CM0 = CM.Microphysics0M
 const CM1 = CM.Microphysics1M
+const HN = CM.Nucleation
 
 const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
 const rain = CMT.RainType()
 const snow = CMT.SnowType()
+
+@info "GPU Tests"
 
 if get(ARGS, 1, "Array") == "CuArray"
     import CUDA
@@ -160,6 +163,104 @@ end
 
     @inbounds begin
         output[i] = CM1.snow_melt(prs, qs[i], ρ[i], T[i])
+    end
+end
+
+@kernel function test_h2so4_nucleation_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    h2so4_conc,
+    nh3_conc,
+    negative_ion_conc,
+    temp,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = sum(
+            HN.h2so4_nucleation_rate(
+                h2so4_conc[i],
+                nh3_conc[i],
+                negative_ion_conc[i],
+                temp[i],
+                prs,
+            ),
+        )
+    end
+end
+
+@kernel function test_organic_nucleation_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    negative_ion_conc,
+    monoterpene_conc,
+    O3_conc,
+    OH_conc,
+    temp,
+    condensation_sink,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = HN.organic_nucleation_rate(
+            negative_ion_conc[i],
+            monoterpene_conc[i],
+            O3_conc[i],
+            OH_conc[i],
+            temp[i],
+            condensation_sink[i],
+            prs,
+        )
+    end
+end
+
+@kernel function test_organic_and_h2so4_nucleation_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    h2so4_conc,
+    monoterpene_conc,
+    OH_conc,
+    temp,
+    condensation_sink,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = HN.organic_and_h2so4_nucleation_rate(
+            h2so4_conc[i],
+            monoterpene_conc[i],
+            OH_conc[i],
+            temp[i],
+            condensation_sink[i],
+            prs,
+        )
+    end
+end
+
+@kernel function test_apparent_nucleation_rate_kernel!(
+    output::AbstractArray{FT},
+    output_diam,
+    nucleation_rate,
+    condensation_growth_rate,
+    coag_sink,
+    coag_sink_input_diam,
+    input_diam,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = HN.apparent_nucleation_rate(
+            output_diam[i],
+            nucleation_rate[i],
+            condensation_growth_rate[i],
+            coag_sink[i],
+            coag_sink_input_diam[i],
+            input_diam[i],
+        )
     end
 end
 
@@ -309,13 +410,118 @@ function test_gpu(FT)
         @test Array(output)[2] ≈ FT(0)
         @test Array(output)[3] ≈ FT(0)
     end
+
+    @testset "Homogeneous nucleation kernels" begin
+        make_nuc_prs(::Type{FT}) where {FT} =
+            nucleation_parameters(CP.create_toml_dict(FT; dict_type = "alias"))
+
+        data_length = 2
+        output = ArrayType(Array{FT}(undef, 1, data_length))
+        fill!(output, FT(-44.0))
+        ndrange = (data_length,)
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+
+        # h2so4 nucleation
+        h2so4_conc = ArrayType([FT(1e12), FT(1e12)])
+        nh3_conc = ArrayType([FT(1), FT(1)])
+        negative_ion_conc = ArrayType([FT(1), FT(1)])
+        temp = ArrayType([FT(208), FT(208)])
+
+        kernel! = test_h2so4_nucleation_kernel!(dev, work_groups)
+        event = kernel!(
+            make_nuc_prs(FT),
+            output,
+            h2so4_conc,
+            nh3_conc,
+            negative_ion_conc,
+            temp,
+            ndrange = ndrange,
+        )
+        wait(dev, event)
+
+        @test all(Array(output) .> FT(0))
+
+        # Organic nucleation
+        fill!(output, FT(-44.0))
+
+        negative_ion_conc = ArrayType([FT(0.0), FT(0.0)])
+        monoterpene_conc = ArrayType([FT(1e24), FT(1e24)])
+        O3_conc = ArrayType([FT(1e24), FT(1e24)])
+        OH_conc = ArrayType([FT(1e24), FT(1e24)])
+        temp = ArrayType([FT(300), FT(300)])
+        condensation_sink = ArrayType([FT(1), FT(1)])
+
+        kernel! = test_organic_nucleation_kernel!(dev, work_groups)
+        event = kernel!(
+            make_nuc_prs(FT),
+            output,
+            negative_ion_conc,
+            monoterpene_conc,
+            O3_conc,
+            OH_conc,
+            temp,
+            condensation_sink,
+            ndrange = ndrange,
+        )
+        wait(dev, event)
+
+        @test all(Array(output) .> FT(0))
+
+        # Organic and h2so4 nucleation
+        fill!(output, FT(-44.0))
+
+        h2so4_conc = ArrayType([FT(2.6e6), FT(2.6e6)])
+        monoterpene_conc = ArrayType([FT(1), FT(1)])
+        OH_conc = ArrayType([FT(1), FT(1)])
+        temp = ArrayType([FT(300), FT(300)])
+        condensation_sink = ArrayType([FT(1), FT(1)])
+
+        kernel! = test_organic_and_h2so4_nucleation_kernel!(dev, work_groups)
+        event = kernel!(
+            make_nuc_prs(FT),
+            output,
+            h2so4_conc,
+            monoterpene_conc,
+            OH_conc,
+            temp,
+            condensation_sink,
+            ndrange = ndrange,
+        )
+        wait(dev, event)
+
+        @test all(Array(output) .> FT(0))
+
+        # Apparent nucleation rate
+        fill!(output, FT(-44.0))
+
+        output_diam = ArrayType([FT(1e-9), FT(1e-9)])
+        nucleation_rate = ArrayType([FT(1e6), FT(1e6)])
+        condensation_growth_rate = ArrayType([FT(1e6), FT(1e6)])
+        coag_sink = ArrayType([FT(1e6), FT(1e6)])
+        coag_sink_input_diam = ArrayType([FT(1e-9), FT(1e-9)])
+        input_diam = ArrayType([FT(1e-9), FT(1e-9)])
+
+        kernel! = test_apparent_nucleation_rate_kernel!(dev, work_groups)
+        event = kernel!(
+            output,
+            output_diam,
+            nucleation_rate,
+            condensation_growth_rate,
+            coag_sink,
+            coag_sink_input_diam,
+            input_diam,
+            ndrange = ndrange,
+        )
+        wait(dev, event)
+
+        @test all(Array(output) .> FT(0))
+    end
 end
 
-
-println("")
 println("Testing Float64")
 test_gpu(Float64)
 
-println("")
 println("Testing Float32")
 test_gpu(Float32)
