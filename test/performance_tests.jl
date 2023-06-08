@@ -16,13 +16,19 @@ const CM0 = CM.Microphysics0M
 const CM1 = CM.Microphysics1M
 const CM2 = CM.Microphysics2M
 const HN = CM.Nucleation
+const P3 = CM.P3Scheme
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 @info "Performance Tests"
 
-function bench_press(foo, args, min_run_time)
-
+function bench_press(
+    foo,
+    args,
+    min_run_time,
+    min_memory = 0.0,
+    min_allocs = 0.0,
+)
     println("Testing ", "$foo")
     # Calling foo once before benchmarking
     # to make sure compile time is not included in the benchmark
@@ -33,8 +39,8 @@ function bench_press(foo, args, min_run_time)
     println("\n")
 
     TT.@test BT.minimum(trail).time < min_run_time
-    TT.@test trail.memory == 0
-    TT.@test trail.allocs == 0
+    TT.@test trail.memory <= min_memory
+    TT.@test trail.allocs <= min_allocs
 end
 
 function benchmark_test(FT)
@@ -58,6 +64,9 @@ function benchmark_test(FT)
     q_sno = FT(1e-4)
     N_liq = FT(1e8)
     N_rai = FT(1e8)
+
+    ρ_r = FT(400.0)
+    F_r = FT(0.95)
 
     T_air_2 = FT(250)
     T_air_cold = FT(230)
@@ -84,6 +93,9 @@ function benchmark_test(FT)
 
     x_sulph = FT(0.1)
     Delta_a_w = FT(0.27)
+
+    # P3 scheme
+    bench_press(P3.thresholds, (ρ_r, F_r), 12e6, 4e6, 4e4)
 
     # aerosol activation
     bench_press(
