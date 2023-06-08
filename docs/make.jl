@@ -11,6 +11,7 @@ pages = Any[
     "0-moment precipitation microphysics" => "Microphysics0M.md",
     "1-moment precipitation microphysics" => "Microphysics1M.md",
     "2-moment precipitation microphysics" => "Microphysics2M.md",
+    "P3 Scheme" => "P3Scheme.md",
     "Non-equilibrium cloud formation" => "MicrophysicsNonEq.md",
     "Smooth transition at thresholds" => "ThresholdsTransition.md",
     "Aerosol activation" => "AerosolActivation.md",
