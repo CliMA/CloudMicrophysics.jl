@@ -176,6 +176,10 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     N_ion_sulfate::FT
     water_soluble_mass_frac_sulfate::FT
     kappa_sulfate::FT
+    α_va_BF1995::FT
+    β_va_BF1995::FT
+    σ_M1996::FT
+    γ_M1996::FT
 end
 
 Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT
