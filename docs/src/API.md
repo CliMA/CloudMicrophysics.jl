@@ -78,6 +78,9 @@ AerosolActivation.total_M_activated
 ```@docs
 HetIceNucleation
 HetIceNucleation.dust_activated_number_fraction
+HetIceNucleation.H2SO4_soln_saturation_vapor_pressure
+HetIceNucleation.ABIFM_Delta_a_w
+HetIceNucleation.ABIFM_J
 ```
 
 # Common utility functions
