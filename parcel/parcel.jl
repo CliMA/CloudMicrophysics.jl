@@ -61,6 +61,7 @@ function cirrus_box(dY, Y, p, t)
     a1 = L_subl * grav / cp_a / T^2 / R_v - grav / R_a / T
     a2 = p_a / e_si * R_v / R_a
     a3 = L_subl^2 / R_v / T^2 / cp_a
+    a4 = L_subl * L_fus / R_v / T^2 / cp_a
 
     # Activating new crystals
     AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
@@ -78,6 +79,7 @@ function cirrus_box(dY, Y, p, t)
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
+    # TODO - update dqw_dt when implementing homo. and immersion freezing
 
     # Update the tendecies
     dS_i_dt = a1 * w * S_i - (a2 + a3 * S_i) * dqi_dt - (a2 + a4 * S_i) * dqw_dt
@@ -85,6 +87,7 @@ function cirrus_box(dY, Y, p, t)
     dT_dt = -grav / cp_a * w + L_subl / cp_a * dqi_dt
     dq_vap_dt = -dqi_dt
     dq_ice_dt = dqi_dt
+    # dq_liq_dt = dqw_dt # Use this when introducing liquid water
 
     # Set tendencies
     dY[1] = dS_i_dt        # supersaturation over ice
