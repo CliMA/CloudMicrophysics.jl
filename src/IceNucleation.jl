@@ -5,6 +5,7 @@ module HetIceNucleation
 
 import ..CommonTypes as CT
 import ..Parameters as CMP
+import Thermodynamics as TD
 
 const APS = CMP.AbstractCloudMicrophysicsParameters
 
@@ -53,5 +54,3 @@ function dust_activated_number_fraction(
         return max(0, exp(a * (Si - S0)) - 1)
     end
 end
-
-end # end module

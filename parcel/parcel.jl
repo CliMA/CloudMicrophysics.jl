@@ -45,6 +45,7 @@ function cirrus_box(dY, Y, p, t)
     R_a = TD.gas_constant_air(thermo_params, q)
     cp_a = TD.cp_m(thermo_params, q)
     L_subl = TD.latent_heat_sublim(thermo_params, T)
+    L_fus = TD.latent_heat_fusion(thermo_params, T)
     ρ = TD.air_density(thermo_params, ts)
 
     # We are solving for both q_ and supersaturation. This is unneccessary.
@@ -79,7 +80,7 @@ function cirrus_box(dY, Y, p, t)
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
 
     # Update the tendecies
-    dS_i_dt = a1 * w * S_i - (a2 + a3 * S_i) * dqi_dt
+    dS_i_dt = a1 * w * S_i - (a2 + a3 * S_i) * dqi_dt - (a2 + a4 * S_i) * dqw_dt
     dp_a_dt = -p_a * grav / R_a / T * w
     dT_dt = -grav / cp_a * w + L_subl / cp_a * dqi_dt
     dq_vap_dt = -dqi_dt
@@ -93,6 +94,7 @@ function cirrus_box(dY, Y, p, t)
     dY[5] = dq_vap_dt      # vapor specific humidity
     dY[6] = dq_ice_dt      # ice specific humidity
     dY[7] = dN_aerosol_dt  # number concentration of interstitial aerosol
+    # add dY state for dq_liq_dt when introducing liquid
 
     # TODO - add diagnostics output (radius, S, etc)
 end

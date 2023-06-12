@@ -8,11 +8,6 @@ It is based on [KorolevMazin2003](@cite), as well as the cirrus box model
 The model solves for saturation in a 0-dimensional
   adiabatic parcel raising with constant velocity.
 
-!!! note
-    For now, the equations are written assuming
-    that only the water vapor and cloud ice
-    are present in the system.
-
 We define ice saturation ratio ``S_i``
 ```math
 \begin{equation}
@@ -26,7 +21,7 @@ where:
 The change in saturation can be described as
 ```math
 \begin{equation}
-\frac{dS_i}{dt} = \frac{1}{e_{si}} \frac{de}{dt} - \frac{e}{e_{si}} \frac{de_{si}}{dt}
+\frac{dS_i}{dt} = \frac{1}{e_{si}} \frac{de}{dt} - \frac{e}{e_{si}^2} \frac{de_{si}}{dt}
 \end{equation}
 ```
 From ideal gas law the partial pressure of water vapor can be written as
@@ -76,11 +71,11 @@ where:
 - ``g`` is the gravitational acceleration
 - ``w`` is the constant vertical velocity.
 
-Assuming only water vapor and ice are present ``q_l = 0``, ``\frac{dq_v}{dt} = -\frac{dq_i}{dt}``,
+Accounting for conservation of water, i.e. ``\frac{dq_v}{dt} + \frac{dq_w}{dt} + \frac{dq_i}{dt} = 0``,
 and rearranging the terms
 ```math
 \begin{equation}
-\frac{dS_i}{dt} = a_1 w S_i - \left(a_2 + a_3 S_i\right) \frac{dq_i}{dt}
+\frac{dS_i}{dt} = a_1 w S_i - \left(a_2 + a_4 S_i\right) \frac{dq_w}{dt} - \left(a_2 + a_3 S_i\right) \frac{dq_i}{dt}
 \end{equation}
 ```
 where:
@@ -97,6 +92,11 @@ a_2 = \frac{p}{e_{si}} \frac{R_v}{R_a}
 ```math
 \begin{equation}
 a_3 = \frac{L_s^2}{R_v T^2 c_p}
+\end{equation}
+```
+```math
+\begin{equation}
+a_4 = \frac{L_s L_w}{R_v T^2 c_p}
 \end{equation}
 ```
 
@@ -158,7 +158,7 @@ where ``N_{act}`` is the number of activated ice particles.
 ```math
 \begin{equation}
   N_{act} = N_{tot} * f_i
-\end{equation}
+\end{equation} 
 ```
 
 ## Example figures
