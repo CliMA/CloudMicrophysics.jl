@@ -68,9 +68,11 @@ Returns the immersion freezing nucleation rate coefficient, `J`, in cm^-2 s^-1.
 function ABIFM_J(
     prs::APS,
     x::FT,
-    T::FT,
+    T::FT
 ) where {FT <: Real}
-    
+
+    thermo_params = CMP.thermodynamics_params(prs)
+
     m = 54.48075    # for illite particles
     c = -10.66873
 
