@@ -65,10 +65,10 @@ function cirrus_box(dY, Y, p, t)
 
     # Activating new crystals
     # AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
-    J_immer = ABIFM_J(prs, x_sulph, T) * 10000 * 60 # converting cm^-2 s^-1 to m^-2 min^-1
-    P_ice = J_immer * 4*pi()*r_nuc^2 * (N_aerosol - N_act)
+    J_immer = CMI.ABIFM_J(prs, x_sulph, T) * 10000 * 60 # converting cm^-2 s^-1 to m^-2 min^-1
+    P_ice = J_immer * 4*π*r_nuc^2 * (N_aerosol - N_act) # per minute
     τ_relax = const_dt
-    dN_act_dt = max(FT(0), AF * N_aerosol - N_act) / τ_relax
+    dN_act_dt = max(FT(0), P_ice * τ_relax)
     dN_aerosol_dt = -dN_act_dt
     dqi_dt_new_particles = dN_act_dt * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ
 
@@ -130,12 +130,9 @@ function get_initial_condition(
 end
 
 """
-    Wrapper for running the simulation following the same framework as in
-    Tully et al 2022 (10.5194/egusphere-2022-1057)
-     - the simulation consists of 3 periods mimicking 3 large scale model steps
-     - each period is 30 minutes long
-     - each period is run with user specified constant timestep
-     - the large scale initial conditions between each period are different
+    Wrapper for running the simulation. Rising parcel under cirrus initial conditions
+        undergoing immersion freezing and growth by deposition only. Conservation of water 
+        has not been fixed to account for immersion freezing. 
 """
 function run_parcel(FT)
 
