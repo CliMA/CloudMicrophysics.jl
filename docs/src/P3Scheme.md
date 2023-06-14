@@ -28,7 +28,7 @@ where:
  - ``D`` is the maximum particle dimension (m),
  - ``N_0`` is the intercept parameter,
  - ``\mu `` is the shape parameter,
- - ``\lamda `` is the slope parameter.
+ - ``\lambda `` is the slope parameter.
 
 and ``\mu \ = 0.00191 \lambda \ ^{0.8} - 2`` for ``\mu \ \in (0,6)``.
 
@@ -39,13 +39,34 @@ The mass (m) of particles as a function of maximum particle dimension (D)
  by the following table.
 
 | particle properties |      conditions       |    m(D) relation      |
-|---------------------|-----------------------|-----------------------|
-|small, spherical ice | ``D < D_th`` | ``\frac{\pi}{6} \rho_i \ D^3`` |
-|large, unrimed ice   | ``q_i > 0``, ``q_rim = 0``, and ``D > D_th`` | ``\alpha_va \ D^{\beta_va}`` |
-|dense nonspherical ice | ``q_rim > 0`` and ``D_th < D < D_gr`` | ^ |
-|partially rimed ice | ``q_rim > 0`` and ``D < D_cr`` | ``\frac{\alpha_va}{1-F_r} D^{\beta_va}`` |
-|graupel | ``q_rim > 0`` and ``D < D_cr`` | ``\frac{\pi}{6} \rho_g \ D^3`` |
+|:--------------------|:----------------------|:----------------------|
+|small, spherical ice | ``D < D_{th}`` | ``\frac{\pi}{6} \rho_i \ D^3`` |
+|large, unrimed ice   | ``q_{rim} = 0`` and ``D > D_{th}`` | ``\alpha_{va} \ D^{\beta_{va}}`` |
+|dense nonspherical ice | ``q_rim > 0`` and ``D_th < D < D_gr`` | ``\alpha_{va} \ D^{\beta_{va}}`` |
+|partially rimed ice | ``q_{rim} > 0`` and ``D < D_{cr}`` | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` |
+|graupel (completely rimed, spherical)| ``q_{rim} > 0``, ``D < D_{cr}``, and ``D > D_{gr}`` | ``\frac{\pi}{6} \rho_g \ D^3`` |
 
+where:
+ - ``\rho_i \ = 917 kgm^{-3}`` (density of bulk ice)
+ - ``D_{th} = \frac{\pi \ \rho_i\}{6\alpha_{va}}^{\frac{1}{\beta_{va}\ - 3}}``,
+  the threshold between spherical and nonspherical ice;
+ - ``q_{rim}`` is the rime mass mixing ratio for ice;
+  (should this be specific humidity for us?)
+ - ``\alpha_{va} = 7.38*10^{-11}``, a parameter from [cite:Brown and Francis 1995],
+  derived from measurements of mass grown
+  by vapor diffusion and aggregation in midlatitude cirrus;
+ - ``\beta_{va} = 1.9``, another parameter from [cite:Brown and Francis 1995];
+ - ``D_{gr} = \frac{6\alpha_{va}}{\pi \\rho_g \}^{\frac{1}{3 - \beta_{va}\}}``,
+  a threshold defined to ensure continuity
+  and reasonable masses for smaller D;
+ - ``D_{cr} = [(\frac{1}{1-F_r}\frac{6\alpha_{va}}{\pi \\rho_g \}]^{\frac{1}{3 - \beta_{va}\}}``,
+  the threshold separating partially rimed ice from graupel;
+ - ``\rho_g \ = \rho_r \ F_r + (1 - F_r)\rho_d \``,
+  the rime mass fraction (``F_r = \frac{q_{rim}}{q_i,tot}``)
+  weighted average of the predicted rime density
+  ``\rho_r \ = \frac{q_{rim}}{B_{rim}}``
+  and the density of the unrimed part
+  ``\rho_d \ = \frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}
 ## A(D)
 
 ## Velocity
