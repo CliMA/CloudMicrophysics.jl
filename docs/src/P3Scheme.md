@@ -1,5 +1,4 @@
 # P3 Scheme
-TO DO: This is where P3 documentation will be.
 
 The `P3Scheme.jl` module implements the predicted particle properties
  (P3) scheme for ice-phase microphysics developed by [cite articles].
@@ -38,13 +37,15 @@ The mass (m) of particles as a function of maximum particle dimension (D)
  is a piecewise function with variable breakpoints described
  by the following table.
 
-| particle properties |      conditions       |    m(D) relation      |
+| particle properties |      condition(s)     |    m(D) relation      |
 |:--------------------|:----------------------|:----------------------|
 |small, spherical ice | ``D < D_{th}`` | ``\frac{\pi}{6} \rho_i \ D^3`` |
 |large, unrimed ice   | ``q_{rim} = 0`` and ``D > D_{th}`` | ``\alpha_{va} \ D^{\beta_{va}}`` |
-|dense nonspherical ice | ``q_rim > 0`` and ``D_th < D < D_gr`` | ``\alpha_{va} \ D^{\beta_{va}}`` |
+|dense nonspherical ice | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | ``\alpha_{va} \ D^{\beta_{va}}`` |
 |partially rimed ice | ``q_{rim} > 0`` and ``D < D_{cr}`` | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` |
 |graupel (completely rimed, spherical)| ``q_{rim} > 0``, ``D < D_{cr}``, and ``D > D_{gr}`` | ``\frac{\pi}{6} \rho_g \ D^3`` |
+
+> **_NOTE:_**  unsure about D_cr: should graupel be defined by D > D_cr? and partially rimed ice?
 
 where:
  - ``\rho_i \ = 917 kgm^{-3}`` (density of bulk ice)
@@ -66,7 +67,22 @@ where:
   weighted average of the predicted rime density
   ``\rho_r \ = \frac{q_{rim}}{B_{rim}}``
   and the density of the unrimed part
-  ``\rho_d \ = \frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}
-## A(D)
+  ``\rho_d \ = \frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}``
 
+> **_NOTE:_**  unsure about what B_rim is
+## Assumed projected area relationships
+
+The projected area (A) of particles as a function of maximum particle dimension (D)
+ is another piecewise function with variable breakpoints described
+ by the following table.
+
+| particle properties |      condition(s)     |    A(D) relation      |
+|:--------------------|:----------------------|:----------------------|
+|small, spherical ice | ``D < D_{th}``        | ``\frac{\pi}{4} D^2`` |
+|graupel (completely rimed, spherical)| ``q_{rim} > 0`` and ``D_{gr} < D < D_{cr}`` | ``\frac{\pi}{4} D^2`` |
+|large, unrimed ice   | ``q_{rim} = 0`` and ``D > D_{th}`` | see below |
+|dense nonspherical ice | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | see p7 of mitchell 1996 and do aggregates |
+|partially rimed ice | ``q_{rim} > 0`` and ``D < D_{cr}`` | ...todo |
 ## Velocity
+
+> **_TODO:_**  finish documentation and add more sections
