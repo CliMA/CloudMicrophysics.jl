@@ -86,4 +86,4 @@ Once ``J_{het}`` is calculated, it can be used to determine the ice production r
   P_{ice} = J_{het}A(N_{tot}-N_{ice})
 \end{equation}
 ```
-where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system.
+where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 

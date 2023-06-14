@@ -158,7 +158,7 @@ where ``N_{act}`` is the number of activated ice particles.
 ```math
 \begin{equation}
   N_{act} = N_{tot} * f_i
-\end{equation}
+\end{equation} 
 ```
 
 ## Example figures
