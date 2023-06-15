@@ -80,6 +80,7 @@ function ABIFM_J(
     p_sol = exp( 23.306 - 5.3465*x + 12*x*w_h - 8.19*x*w_h^2 + ( -5814 + 928.9*x - 1876.7*x*w_h )/T ) * 100 # * 100 converts mbar --> Pa
     p_sat = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
     p_ice = exp( 9.550426 - 5723.265/T + 3.53068*log(T) - 0.00728332*T ) # check with TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
+    # p_ice = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
 
     a_w = p_sol / p_sat
     a_w_ice = p_ice / p_sat

@@ -68,7 +68,7 @@ function cirrus_box(dY, Y, p, t)
     # Activating new crystals
     # AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
     J_immer = CMI.ABIFM_J(prs, x_sulph, T) * 10000 # converting cm^-2 s^-1 to m^-2 s^-1
-    P_ice = J_immer * 4*π*r_nuc^2 * (N_aerosol - N_act) / 60 # per sec
+    P_ice = J_immer * 4*π*r_nuc^2 * (N_aerosol - N_act) # per sec
     τ_relax = const_dt
     dN_act_dt = max(FT(0), P_ice * τ_relax)
     dN_aerosol_dt = -dN_act_dt
@@ -79,7 +79,7 @@ function cirrus_box(dY, Y, p, t)
     r = N_act > 0 ? cbrt(q_ice / N_act / (4 / 3 * π) / ρ_ice * ρ) : 0
     C = r
     dqi_dt_deposition = 1 / ρ * N_act * α_m * 4 * π * C * (S_i - 1) * G
-    #dqi_dt_deposition = FT(0.0) # Use this if you don't want to grow
+    dqi_dt_deposition = FT(0.0) # Use this if you don't want to grow
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
@@ -150,7 +150,7 @@ function run_parcel(FT)
     # Initial conditions for 1st period
     N_aerosol = FT(500*1000) # m^-3
     N_0 = FT(0)
-    p_0 = FT(101325)
+    p_0 = FT(20000)
     T_0 = FT(230)
     q_vap_0 = FT(0.0003345)
     q_liq_0 = FT(0)
@@ -200,7 +200,9 @@ function run_parcel(FT)
 
     MK.ylims!(ax1, 1.0, 1.5)
     MK.ylims!(ax3, 3, 2e3)
-    MK.ylims!(ax7, 3, 10e8)
+    MK.ylims!(ax5, 0.3, 0.4)
+    MK.ylims!(ax6, 0, 0.013)
+    MK.ylims!(ax7, 10, 10e8)
     MK.ylims!(ax8, 10^(-4), 10e3)
 
     MK.lines!(ax1, sol1.t * w, sol1[1, :])
@@ -213,6 +215,11 @@ function run_parcel(FT)
     MK.lines!(ax8, sol1.t * w, sol1[9, :] * 60)
 
     MK.save("cirrus_box.svg", fig)
+
+    println("q_vap ")
+    println(sol1[5,1:15])
+    println("\n q_ice ")
+    println(sol1[6,1:15])
 end
 
 run_parcel(Float64)
