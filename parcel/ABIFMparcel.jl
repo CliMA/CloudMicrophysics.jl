@@ -30,6 +30,8 @@ function cirrus_box(dY, Y, p, t)
     q_vap = Y[5]      # vapor specific humidity
     q_ice = Y[6]      # ice specific humidity
     N_aerosol = Y[7]  # number concentration of interstitial aerosol
+    J_immer_t = Y[8]  # J per unit area only
+    P_ice_t = Y[9]    # ice produced
 
     # Constants
     R_v = CMP.R_v(prs)
@@ -65,8 +67,8 @@ function cirrus_box(dY, Y, p, t)
 
     # Activating new crystals
     # AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
-    J_immer = CMI.ABIFM_J(prs, x_sulph, T) * 10000 * 60 # converting cm^-2 s^-1 to m^-2 min^-1
-    P_ice = J_immer * 4*π*r_nuc^2 * (N_aerosol - N_act) # per minute
+    J_immer = CMI.ABIFM_J(prs, x_sulph, T) * 10000 # converting cm^-2 s^-1 to m^-2 s^-1
+    P_ice = J_immer * 4*π*r_nuc^2 * (N_aerosol - N_act) / 60 # per sec
     τ_relax = const_dt
     dN_act_dt = max(FT(0), P_ice * τ_relax)
     dN_aerosol_dt = -dN_act_dt
@@ -100,6 +102,8 @@ function cirrus_box(dY, Y, p, t)
     dY[5] = dq_vap_dt      # vapor specific humidity
     dY[6] = dq_ice_dt      # ice specific humidity
     dY[7] = dN_aerosol_dt  # number concentration of interstitial aerosol
+    dY[8] = J_immer        # nucleation rate coefficient per unit area per unit time
+    dY[9] = P_ice          # ice production rate
     # add dY state for dq_liq_dt when introducing liquid
 
     # TODO - add diagnostics output (radius, S, etc)
@@ -125,8 +129,10 @@ function get_initial_condition(
     e_si = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
     e = q_vap * p_a * R_v / R_a
     S_i = e / e_si
+    J_immer_t = 0.0
+    P_ice_t = 0.0
 
-    return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol]
+    return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol, J_immer_t, P_ice_t]
 end
 
 """
@@ -187,11 +193,15 @@ function run_parcel(FT)
     ax2 = MK.Axis(fig[1, 2], ylabel = "Temperature [K]")
     ax3 = MK.Axis(fig[2, 1], ylabel = "N act [1/dm3]", yscale = log10)
     ax4 = MK.Axis(fig[2, 2], ylabel = "N areo [1/dm3]")
-    ax5 = MK.Axis(fig[3, 1], ylabel = "q_vap [g/kg]", xlabel = "Height [m]")
-    ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]", xlabel = "Height [m]")
+    ax5 = MK.Axis(fig[3, 1], ylabel = "q_vap [g/kg]")
+    ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]")
+    ax7 = MK.Axis(fig[4, 1], ylabel = "J [cm^-2 s^-1]", xlabel = "Height [m]", yscale = log10)
+    ax8 = MK.Axis(fig[4, 2], ylabel = "P_ice [min^-1]", xlabel = "Height [m]", yscale = log10)
 
     MK.ylims!(ax1, 1.0, 1.5)
     MK.ylims!(ax3, 3, 2e3)
+    MK.ylims!(ax7, 3, 10e8)
+    MK.ylims!(ax8, 10^(-4), 10e3)
 
     MK.lines!(ax1, sol1.t * w, sol1[1, :])
     MK.lines!(ax2, sol1.t * w, sol1[4, :])
@@ -199,6 +209,8 @@ function run_parcel(FT)
     MK.lines!(ax4, sol1.t * w, sol1[7, :] * 1e-3)
     MK.lines!(ax5, sol1.t * w, sol1[5, :] * 1e3)
     MK.lines!(ax6, sol1.t * w, sol1[6, :] * 1e3)
+    MK.lines!(ax7, sol1.t * w, sol1[8, :] / 10000)
+    MK.lines!(ax8, sol1.t * w, sol1[9, :] * 60)
 
     MK.save("cirrus_box.svg", fig)
 end
