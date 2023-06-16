@@ -18,7 +18,7 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function cirrus_box(dY, Y, p, t)
 
     # Get simulation parameters
-    (; prs, const_dt, r_nuc, w, α_m, x_sulph) = p
+    (; prs, const_dt, r_nuc, w, α_m) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
 
@@ -32,6 +32,7 @@ function cirrus_box(dY, Y, p, t)
     N_aerosol = Y[7]  # number concentration of interstitial aerosol
     J_immer_t = Y[8]  # J per unit area only
     P_ice_t = Y[9]    # ice produced
+    x_sulph = Y[10]   # percent mass sulphuric acid
 
     # Constants
     R_v = CMP.R_v(prs)
@@ -68,7 +69,7 @@ function cirrus_box(dY, Y, p, t)
     # Activating new crystals
     # AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
     J_immer = CMI.ABIFM_J(prs, x_sulph, T) * 10000 # converting cm^-2 s^-1 to m^-2 s^-1
-    P_ice = J_immer * 4*π*r_nuc^2 * (N_aerosol - N_act) # per sec
+    P_ice = J_immer * 4*π*r_nuc^2 * N_aerosol # per sec
     τ_relax = const_dt
     dN_act_dt = max(FT(0), P_ice * τ_relax)
     dN_aerosol_dt = -dN_act_dt
@@ -83,7 +84,7 @@ function cirrus_box(dY, Y, p, t)
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
-    dqw_dt = 0 
+    dqw_dt = FT(0.0)
     # TODO - update dqw_dt when implementing homo. and immersion freezing
 
     # Update the tendecies
@@ -92,6 +93,7 @@ function cirrus_box(dY, Y, p, t)
     dT_dt = -grav / cp_a * w + L_subl / cp_a * dqi_dt
     dq_vap_dt = -dqi_dt
     dq_ice_dt = dqi_dt
+    x_sulph_dt = FT(0.0)
     # dq_liq_dt = dqw_dt # Use this when introducing liquid water
 
     # Set tendencies
@@ -104,6 +106,7 @@ function cirrus_box(dY, Y, p, t)
     dY[7] = dN_aerosol_dt  # number concentration of interstitial aerosol
     dY[8] = J_immer        # nucleation rate coefficient per unit area per unit time
     dY[9] = P_ice          # ice production rate
+    dY[10] = x_sulph_dt    # %wt. sulphuric acid
     # add dY state for dq_liq_dt when introducing liquid
 
     # TODO - add diagnostics output (radius, S, etc)
@@ -121,6 +124,7 @@ function get_initial_condition(
     q_liq,
     q_ice,
     N_aerosol,
+    x_sulph
 )
     thermo_params = CMP.thermodynamics_params(prs)
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
@@ -131,8 +135,9 @@ function get_initial_condition(
     S_i = e / e_si
     J_immer_t = 0.0
     P_ice_t = 0.0
+    x_sulph = x_sulph
 
-    return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol, J_immer_t, P_ice_t]
+    return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol, J_immer_t, P_ice_t, x_sulph]
 end
 
 """
@@ -157,6 +162,7 @@ function run_parcel(FT)
     q_ice_0 = FT(0)
     x_sulph = FT(0.1)
 
+
     # Simulation time
     t_max = 30 * 60
 
@@ -165,7 +171,7 @@ function run_parcel(FT)
     w = FT(0.1) # updraft speed, m/s
     α_m = FT(0.5) # accomodation coefficient
     const_dt = 0.1 # model timestep
-    p = (; prs, const_dt, r_nuc, w, α_m, x_sulph)
+    p = (; prs, const_dt, r_nuc, w, α_m)
 
     # Simulation 1
     IC1 = get_initial_condition(
@@ -177,6 +183,7 @@ function run_parcel(FT)
         q_liq_0,
         q_ice_0,
         N_aerosol,
+        x_sulph
     )
     prob1 = ODE.ODEProblem(cirrus_box, IC1, (FT(0), t_max), p)
     sol1 = ODE.solve(
@@ -188,7 +195,7 @@ function run_parcel(FT)
     )
 
     # Plot results
-    fig = MK.Figure(resolution = (800, 600))
+    fig = MK.Figure(resolution = (1000, 800))
     ax1 = MK.Axis(fig[1, 1], ylabel = "Supersaturation [-]")
     ax2 = MK.Axis(fig[1, 2], ylabel = "Temperature [K]")
     ax3 = MK.Axis(fig[2, 1], ylabel = "N act [1/dm3]", yscale = log10)
@@ -211,15 +218,13 @@ function run_parcel(FT)
     MK.lines!(ax4, sol1.t * w, sol1[7, :] * 1e-3)
     MK.lines!(ax5, sol1.t * w, sol1[5, :] * 1e3)
     MK.lines!(ax6, sol1.t * w, sol1[6, :] * 1e3)
-    MK.lines!(ax7, sol1.t * w, sol1[8, :] / 10000)
+    MK.lines!(ax7, sol1.t * w, sol1[8, :] * 1e-4)
     MK.lines!(ax8, sol1.t * w, sol1[9, :] * 60)
 
     MK.save("cirrus_box.svg", fig)
 
-    println("q_vap ")
-    println(sol1[5,1:15])
-    println("\n q_ice ")
-    println(sol1[6,1:15])
+    println(sol1[2,1:15])
+
 end
 
 run_parcel(Float64)
