@@ -11,6 +11,8 @@ const DesertDust = CMT.DesertDustType()
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
+@info "Heterogeneous Ice Nucleation Tests"
+
 function test_dust_activation(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
@@ -75,10 +77,10 @@ function test_dust_activation(FT)
     end
 end
 
-println("")
+
 println("Testing Float64")
 test_dust_activation(Float64)
 
-println("")
+
 println("Testing Float32")
 test_dust_activation(Float32)

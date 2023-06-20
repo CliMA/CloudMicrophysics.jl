@@ -13,8 +13,11 @@ const CMN = CM.MicrophysicsNonEq
 const CM0 = CM.Microphysics0M
 const CM1 = CM.Microphysics1M
 const CM2 = CM.Microphysics2M
+const HN = CM.Nucleation
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
+
+@info "Performance Tests"
 
 function bench_press(foo, args, min_run_time)
 
@@ -36,7 +39,7 @@ function benchmark_test(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
-
+    nucleation_params = nucleation_parameters(toml_dict)
     liquid = CMT.LiquidType()
     rain = CMT.RainType()
     sb2006 = CMT.SB2006Type()
@@ -115,12 +118,26 @@ function benchmark_test(FT)
         2000,
     )
 
+    # Homogeneous Nucleation
+    bench_press(
+        HN.h2so4_nucleation_rate,
+        (1e12, 1.0, 1.0, 208, nucleation_params),
+        450,
+    )
+    bench_press(
+        HN.organic_nucleation_rate,
+        (0.0, 1e3, 1e3, 1e3, 300, 1, nucleation_params),
+        420,
+    )
+    bench_press(
+        HN.organic_and_h2so4_nucleation_rate,
+        (2.6e6, 1.0, 1.0, 300, 1, nucleation_params),
+        120,
+    )
 end
 
-println("")
 println("Testing Float64")
 benchmark_test(Float64)
 
-println("")
 println("Testing Float32")
 benchmark_test(Float32)

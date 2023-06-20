@@ -64,6 +64,8 @@ julia --project=test
 
 julia>]
 
+pkg> dev .
+
 pkg> instantiate
 
 julia> include("test/runtests.jl")
