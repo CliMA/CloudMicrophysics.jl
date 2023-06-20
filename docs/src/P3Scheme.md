@@ -49,7 +49,7 @@ The mass (m) of particles as a function of maximum particle dimension (D)
 
 where:
  - ``\rho_i \ = 917 kgm^{-3}`` (density of bulk ice)
- - ``D_{th} = \frac{\pi \ \rho_i\}{6\alpha_{va}}^{\frac{1}{\beta_{va}\ - 3}}``,
+ - ``D_{th} = \frac{\pi \rho_i}{6\alpha_{va}}^{\frac{1}{\beta_{va} - 3}}``,
   the threshold between spherical and nonspherical ice;
  - ``q_{rim}`` is the rime mass mixing ratio for ice;
   (should this be specific humidity for us?)
@@ -80,9 +80,23 @@ The projected area (A) of particles as a function of maximum particle dimension 
 |:--------------------|:----------------------|:----------------------|
 |small, spherical ice | ``D < D_{th}``        | ``\frac{\pi}{4} D^2`` |
 |graupel (completely rimed, spherical)| ``q_{rim} > 0`` and ``D_{gr} < D < D_{cr}`` | ``\frac{\pi}{4} D^2`` |
-|large, unrimed ice   | ``q_{rim} = 0`` and ``D > D_{th}`` | see below |
-|dense nonspherical ice | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | see p7 of mitchell 1996 and do aggregates |
-|partially rimed ice | ``q_{rim} > 0`` and ``D < D_{cr}`` | ...todo |
-## Velocity
+|large, unrimed ice   | ``q_{rim} = 0`` and ``D > D_{th}`` | ``\gamma \ D^{\sigma}`` |
+|dense nonspherical ice | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | ``\gamma \ D^{\sigma}`` |
+|partially rimed ice | ``q_{rim} > 0`` and ``D < D_{cr}`` | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
+
+where all variables from the m(D) regime are as defined above, and:
+ - ``\gamma = 0.2285`` and
+ - ``\sigma = 1.88``, both from the aggregates of side planes, columns, bullets,
+  and planar polycrystals in [cite:Mitchell 1996]
+
+> **_NOTE:_**  for partially rimed ice, the A(D) relationship is a simple
+ > linear weighting between unrimed ice and graupel as a function of the rime
+ > mass fraction ``F_r``. If this means what I think it means, then my A(D)
+ > in the table should be fine, but I'm just signaling that I'm 
+ > not 100% sure I'm right.
+
+## Assumed particle fall speed relationships
+
+
 
 > **_TODO:_**  finish documentation and add more sections
