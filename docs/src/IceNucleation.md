@@ -87,3 +87,79 @@ Once ``J_{het}`` is calculated, it can be used to determine the ice production r
 \end{equation}
 ```
 where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 
+
+## Homogeneous Freezing for Sulphuric Acid Containing Droplets
+Based off [Koop2000](@cite), this parameterization determines a homoegneous nucleation rate coefficient, ``J_{hom}``, using water activity. First, ``a_w^i(T,P = 0)``, ``\int [v_w(c,T,P) - v^i(T,P)] dP``, and ``a_w(c,T,P = 0)`` are calculated on the assumption that the solution droplets contain an ideal solvent (water) and that ``v_w(c,T,P) \approx v_w^0(T,P)``. They are then used to calculate ``\Delta a_w(c,T,P)`` and ultimately, ``J_{hom}(\Delta a_w)`` with units of ``cm^{-3}s^{-1}``.
+
+To find ``a_w^i(T,P = 0)``, the activity of water in solution in equilibrium with ice at ambient pressure,
+```math
+\begin{equation}
+  a_w^i(T,P) = exp{[\mu_w^i(T,P) - \mu_w^0(T,P)]/RT}
+\end{equation}
+```
+where:
+  - ``R`` is the ideal gas constant,
+  - ``T`` is temperature in Kelvins,
+  - ``\mu_w^i(T,P)`` is chemical potential of pure ice,
+  - ``\mu_w^0(T,P)`` is chemical potential of pure water.
+
+Because we need water activity at ambient pressure, ``\mu_w^i(T,P) - \mu_w^0(T,P)`` can be determined empirically at ``P = 0`` through
+```math
+\begin{equation}
+  \mu_w^i(T,0) - \mu_w^0(T,0) = 210368 + 131.438T - 3.32373 \times 10^6 T^{-1} - 41729.1ln(T)
+\end{equation}
+```
+
+``\int [v_w(c,T,P) - v^i(T,P)] dP`` can be approximated as
+```math
+\begin{equation}
+  \int [v_w(c,T,P) - v^i(T,P)] dP \approx v_w^0(T,0){P - \frac{1}{2}\kappa_T^0(T,P)P^2 - \frac{1}{6}[\frac{\delta \kappa_T^0(T,P)}{\delta P}]P^3} - v^i(T,0){P - \frac{1}{2}\kappa_T^i(T,P)P^2 - \frac{1}{6}[\frac{\delta \kappa_T^i(T,P)}{\delta P}]P^3}
+\end{equation}
+```
+where:
+  - ``v_w`` is partial molar volume of water in solution with units of ``cm^3mol^{-1}``,
+  - ``v^i`` is molar volume of hexagonal ice,
+  - ``v_w^0`` is molar volume of pure liquid water,
+  - ``\kappa_T^0`` is isothermal compressibility of pure water
+      (at ambient pressure (P=0), this is taken to be 1.6 GPa^{-1}),
+  - ``\kappa_T^i`` is isothermal compressibility of pure ice
+      (at ambient pressure (P=0), this is taken to be 0.22 GPa^{-1}),
+  - ``\frac{\delta \kappa_T^0}{\delta P}`` is pressure dependence of ``\kappa_T^0``
+      (this is taken to be -8.8 GPa^{-2}),
+  - ``\frac{\delta \kappa_T^i}{\delta P}`` is pressure dependence of ``\kappa_T^i``
+      (this is taken to be -0.17 GPa^{-2}).
+Both ``v_w^0(T,0)`` and ``v^i(T,0)`` are computed empirically using
+```math
+\begin{equation}
+  v_w^0(T,0) = -230.76 - 0.1478T + 4099.2T^{-1} + 48.8341ln(T)
+\end{equation}
+```
+```math
+\begin{equation}
+  v^i(T,0) = 19.43 - 2.2\times 10^{-3}T + 1.08 \times 10^{-5}T^2
+\end{equation}
+```
+
+``a_w(c,T,P = 0)`` can be found from the equation for chemical potential of solution.
+```math
+\begin{equation}
+  RTln(a_w(c,T,P)) = \mu_w(c,T,0) + \int v_w(c,T,P)dP - \mu_w^0(T,0) - int v_w^0(T,P)dP
+\end{equation}
+```
+!!! note
+
+    Requires parameterization of \mu_w(c,T,0) - \mu_w^0(T,0)
+
+``\Delta a_w(C,T,P)`` can now be computed using
+```math
+\begin{equation}
+  \Delta a_w(C,T,P) = a_w(c,T,0)exp \{ \frac{1}{RT} \int [v_w(c,T,P) - v^i(T, P)]dP \} - a_w^i(T,0)
+\end{equation}
+```
+And finally, the nucleation rate coefficient is determined with a cubic function
+```math
+\begin{equation}
+  logJ_{hom} = -906.7 + 8502 \Delta a_w - 26924(\Delta a_w)^2 + 29180(\Delta a_w)^3
+\end{equation}
+```
+This parameterization is valid for ``0.26 < \Delta a_w < 0.36``.
