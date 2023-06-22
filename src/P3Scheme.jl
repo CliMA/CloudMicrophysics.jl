@@ -94,22 +94,22 @@ m(D, q_rim, q_i)
  which computes breakpoints, classifies particles, and returns mass
 """
 function m(D::FT, q_rim::FT, q_i::FT, B_rim::FT) where {FT <: Real}
-    if D <= D_th:
+    if D <= D_th
         return m_s(D, ρ_i) # small spherical ice
-    elseif q_rim == 0:
+    elseif q_rim == 0
         return m_nl(D) # large, nonspherical, unrimed ice
-    else:
-        # find variable densities:
+    else
+        # find variable densities
         ρ_r = q_rim/B_rim
         ρ_d = 1 # unsure how to compute this, depends on D_cr/gr which depend on it
         ρ_g = 1 # ^
         D_cr = 1 # ^
         D_gr = 2 # ^
-        if D <= D_cr:
+        if D <= D_cr
             return m_r(D, q_rim, q_i) # partially rimed ice
-        elseif {D > D_cr} & {D >= D_gr}:
+        elseif {D > D_cr} & {D >= D_gr}
             return m_s(D, ρ_g) # graupel
-        elseif D < D_gr:
+        elseif D < D_gr
             return m_nl(D) # dense nonspherical ice
         end
     end
@@ -159,16 +159,16 @@ function A(D::FT, q_rim::FT, q_i::FT) where {FT <: Real}
     ρ_g = 1
     D_gr = 1
     F_r = q_rim/q_i
-    if D < D_th:
+    if D < D_th
         return A_s(D) # small, spherical ice
-    elseif q_rim == 0:
+    elseif q_rim == 0
         return A_ns(D) # large, unrimed ice
-    else:
-        if D <= D_cr:
+    else
+        if D <= D_cr
             return (F_r * A_s(D)) + (1 - F_r) * A_ns(D) # partially rimed ice
-        elseif {D > D_cr} & {D >= D_gr}:
+        elseif {D > D_cr} & {D >= D_gr}
             return A_s(D) # graupel
-        elseif D < D_gr:
+        elseif D < D_gr
             return A_ns(D) # dense nonspherical ice
         end
     end

@@ -97,6 +97,4 @@ where all variables from the m(D) regime are as defined above, and:
 
 ## Assumed particle fall speed relationships
 
-
-
 > **_TODO:_**  finish documentation and add more sections
