@@ -19,7 +19,7 @@ const APS = CMP.AbstractCloudMicrophysicsParameters
 const ρ_i::Float64 = 917
 const α_va::Float64 = 7.38e-11
 const β_va::Float64 = 1.9
-const D_th::Float64 = ((Float64(π) * 6)/(6 * α_va))^(1/(β_va - 3))
+const D_th::Float64 = ((Float64(π) * 6) / (6 * α_va))^(1 / (β_va - 3))
 const γ::Float64 = 0.2285
 const σ::Float64 = 1.88
 
@@ -39,7 +39,7 @@ const σ::Float64 = 1.88
 Predicted rime density
 """
 function ρ_r(q_rim::FT, B_rim::FT) where {FT <: Real}
-    return q_rim/B_rim
+    return q_rim / B_rim
 end
 
 """
@@ -51,7 +51,7 @@ m_s(D, ρ)
 m(D) relation for spherical ice (small ice or completely rimed ice)
 """
 function m_s(D::FT, ρ::FT) where {FT <: Real}
-    return (FT(π)/6) * ρ * D^3
+    return (FT(π) / 6) * ρ * D^3
 end
 
 """
@@ -79,8 +79,8 @@ m_r(D, q_rim, q_i)
 m(D) relation for partially rimed ice
 """
 function m_r(D::FT, q_rim::FT, q_i::FT) where {FT <: Real}
-    F_r = q_rim/q_i
-    return (α_va/(1-F_r)) * D^β_va
+    F_r = q_rim / q_i
+    return (α_va / (1 - F_r)) * D^β_va
 end
 
 """
@@ -100,14 +100,14 @@ function m(D::FT, q_rim::FT, q_i::FT, B_rim::FT) where {FT <: Real}
         return m_nl(D) # large, nonspherical, unrimed ice
     else
         # find variable densities
-        ρ_r = q_rim/B_rim
+        ρ_r = q_rim / B_rim
         ρ_d = 1 # unsure how to compute this, depends on D_cr/gr which depend on it
         ρ_g = 1 # ^
         D_cr = 1 # ^
         D_gr = 2 # ^
         if D <= D_cr
             return m_r(D, q_rim, q_i) # partially rimed ice
-        elseif {D > D_cr} & {D >= D_gr}
+        elseif D > D_cr & D >= D_gr
             return m_s(D, ρ_g) # graupel
         elseif D < D_gr
             return m_nl(D) # dense nonspherical ice
@@ -124,7 +124,7 @@ A_s(D)
 Particle projected area relation for assumed spherical particles
 """
 function A_s(D::FT) where {FT <: Real}
-    return (FT(π)/4) * D^2
+    return (FT(π) / 4) * D^2
 end
 
 """
@@ -158,7 +158,7 @@ function A(D::FT, q_rim::FT, q_i::FT) where {FT <: Real}
     ρ_d = 1
     ρ_g = 1
     D_gr = 1
-    F_r = q_rim/q_i
+    F_r = q_rim / q_i
     if D < D_th
         return A_s(D) # small, spherical ice
     elseif q_rim == 0
