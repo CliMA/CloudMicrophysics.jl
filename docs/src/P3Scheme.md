@@ -26,8 +26,8 @@ where:
  - ``N'`` is the number concentration,
  - ``D`` is the maximum particle dimension (m),
  - ``N_0`` is the intercept parameter,
- - ``\mu `` is the shape parameter,
- - ``\lambda `` is the slope parameter.
+ - ``\mu`` is the shape parameter,
+ - ``\lambda`` is the slope parameter.
 
 and ``\mu \ = 0.00191 \lambda \ ^{0.8} - 2`` for ``\mu \ \in (0,6)``.
 
@@ -70,6 +70,7 @@ where:
   ``\rho_d \ = \frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}``
 
 > **_NOTE:_**  unsure about what B_rim is
+
 ## Assumed projected area relationships
 
 The projected area (A) of particles as a function of maximum particle dimension (D)
@@ -92,7 +93,7 @@ where all variables from the m(D) regime are as defined above, and:
 > **_NOTE:_**  for partially rimed ice, the A(D) relationship is a simple
  > linear weighting between unrimed ice and graupel as a function of the rime
  > mass fraction ``F_r``. If this means what I think it means, then my A(D)
- > in the table should be fine, but I'm just signaling that I'm 
+ > in the table should be fine, but I'm just signaling that I'm
  > not 100% sure I'm right.
 
 ## Assumed particle fall speed relationships
