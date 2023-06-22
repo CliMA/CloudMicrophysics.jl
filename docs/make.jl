@@ -18,6 +18,7 @@ pages = Any[
     "Ice Nucleation" => "IceNucleation.md",
     "Box model ice nucleation example" => "IceNucleationBox.md",
     "Aerosol Nucleation" => "AerosolNucleation.md",
+    "Precipitation Susceptibility" => "PrecipitationSusceptibility.md",
     "API" => "API.md",
     "References" => "References.md",
 ]
