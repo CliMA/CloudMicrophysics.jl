@@ -166,7 +166,7 @@ function A(D::FT, q_rim::FT, q_i::FT) where {FT <: Real}
     else
         if D <= D_cr
             return (F_r * A_s(D)) + (1 - F_r) * A_ns(D) # partially rimed ice
-        elseif {D > D_cr} & {D >= D_gr}
+        elseif D > D_cr & D >= D_gr
             return A_s(D) # graupel
         elseif D < D_gr
             return A_ns(D) # dense nonspherical ice
