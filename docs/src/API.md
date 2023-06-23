@@ -53,6 +53,19 @@ Microphysics2M.rain_evaporation
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
+# P3 scheme
+
+```@docs
+P3Scheme
+P3Scheme.m_s
+P3Scheme.m_nl
+P3Scheme.m_r
+P3Scheme.m
+P3Scheme.A_s
+P3Scheme.A_ns
+P3Scheme.A
+```
+
 # Aerosol model
 
 ```@docs

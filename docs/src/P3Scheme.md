@@ -49,7 +49,7 @@ The mass (m) of particles as a function of maximum particle dimension (D)
 
 where:
  - ``\rho_i \ = 917 kgm^{-3}`` (density of bulk ice)
- - ``D_{th} = \frac{\pi \rho_i}{6\alpha_{va}}^{\frac{1}{\beta_{va} - 3}}``,
+ - ``D_{th} = (\frac{\pi \rho_i}{6\alpha_{va}})^({\frac{1}{\beta_{va} - 3}})``,
   the threshold between spherical and nonspherical ice;
  - ``q_{rim}`` is the rime mass mixing ratio for ice;
   (should this be specific humidity for us?)
@@ -57,12 +57,12 @@ where:
   derived from measurements of mass grown
   by vapor diffusion and aggregation in midlatitude cirrus;
  - ``\beta_{va} = 1.9``, another parameter from [cite:Brown and Francis 1995];
- - ``D_{gr} = \frac{6\alpha_{va}}{\pi \\rho_g \}^{\frac{1}{3 - \beta_{va}\}}``,
+ - ``D_{gr} = (\frac{6\alpha_{va}}{\pi \\rho_g \})^({\frac{1}{3 - \beta_{va}\}})``,
   a threshold defined to ensure continuity
   and reasonable masses for smaller D;
- - ``D_{cr} = [(\frac{1}{1-F_r}\frac{6\alpha_{va}}{\pi \\rho_g \}]^{\frac{1}{3 - \beta_{va}\}}``,
+ - ``D_{cr} = ((\frac{1}{1-F_r} \ frac{6 \alpha_{va}}{\pi \ \rho_g \})^({\frac{1}{3 - \beta_{va}\}})``,
   the threshold separating partially rimed ice from graupel;
- - ``\rho_g \ = \rho_r \ F_r + (1 - F_r)\rho_d \``,
+ - ``\rho_g \ = \rho_r \ F_r + (1 - F_r) \rho_d \``,
   the rime mass fraction (``F_r = \frac{q_{rim}}{q_i,tot}``)
   weighted average of the predicted rime density
   ``\rho_r \ = \frac{q_{rim}}{B_{rim}}``
@@ -97,5 +97,23 @@ where all variables from the m(D) regime are as defined above, and:
  > not 100% sure I'm right.
 
 ## Assumed particle fall speed relationships
+
+Particle fall speed (V) as a function of maximum particle dimension,
+ following [cite: Morrison and Milbrandt 2015], uses coefficients
+ derived by [cite: Mitchell and Heymsfield 2005] and
+ an air density modification provided by [cite: Heymsfield 2007]:
+
+```math
+V(D) = (\frac{\rho_0}{\rho})^{0.54} a_{1} D^b_{1}
+```
+
+where:
+ - ``a_{1} = xx``
+ - ``b_{1} = xx``
+ - ``\rho_0 \`` is a reference air density, here taken as ``xx``
+ - ``\rho \`` is particle density
+
+and the air density correction is only applied to 
+ particles having undergone sedimentation.
 
 > **_TODO:_**  finish documentation and add more sections

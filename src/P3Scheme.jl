@@ -1,9 +1,9 @@
 """
-Predicted particle properties scheme (P3) for cloud ice, which includes:
+Predicted particle properties scheme (P3) for ice, which includes:
  - m(D) regime
  - A(D) regime
  - particle fall speed regime
- - add more as we go! (TODO)
+ - add more (source/sink) as we go! (TODO)
 """
 module P3Scheme
 
@@ -14,14 +14,16 @@ import Thermodynamics as TD
 import ..CommonTypes as CT
 import ..Common as CO
 import ..Parameters as CMP
+import NLSolve as NLS
 
+const FT = Float64
 const APS = CMP.AbstractCloudMicrophysicsParameters
-const ρ_i::Float64 = 917
-const α_va::Float64 = 7.38e-11
-const β_va::Float64 = 1.9
-const D_th::Float64 = ((Float64(π) * 6) / (6 * α_va))^(1 / (β_va - 3))
-const γ::Float64 = 0.2285
-const σ::Float64 = 1.88
+const ρ_i::FT = 917
+const α_va::FT = 7.38e-11
+const β_va::FT = 1.9
+const D_th::FT = ((FT(π) * 6) / (6 * α_va))^(1 / (β_va - 3))
+const γ::FT = 0.2285
+const σ::FT = 1.88
 
 # TODO: should I define the constants like ρ_i and α_va here?
 #       polish code
@@ -30,17 +32,8 @@ const σ::Float64 = 1.88
 #           they "form a closed set of equations that can be solved by iteration"
 #           so do we use IterativeSolvers.jl here? Or do we have an in-house solver?
 #       finish adding A(D), V(D) regimes
-"""
-ρ_r(q_rim, B_rim)
-
- - q_rim: rime mass mixing ratio
- - B_rim: TODO???
-
-Predicted rime density
-"""
-function ρ_r(q_rim::FT, B_rim::FT) where {FT <: Real}
-    return q_rim / B_rim
-end
+#       instead of using if/elif/else statements, would it be better to define
+#           new types (i.e. small spherical ice, graupel, etc) ?
 
 """
 m_s(D, ρ)
@@ -100,7 +93,7 @@ function m(D::FT, q_rim::FT, q_i::FT, B_rim::FT) where {FT <: Real}
         return m_nl(D) # large, nonspherical, unrimed ice
     else
         # find variable densities
-        ρ_r = q_rim / B_rim
+        ρ_r = q_rim / B_rim # predicted rime density
         ρ_d = 1 # unsure how to compute this, depends on D_cr/gr which depend on it
         ρ_g = 1 # ^
         D_cr = 1 # ^
