@@ -14,7 +14,7 @@ import Thermodynamics as TD
 import ..CommonTypes as CT
 import ..Common as CO
 import ..Parameters as CMP
-import NLSolve as NLS
+# import NLSolve as NLS
 
 const FT = Float64
 const APS = CMP.AbstractCloudMicrophysicsParameters
