@@ -10,6 +10,8 @@ const CMP = CM.Parameters
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
+@info "Aerosol Activation Tests"
+
 function test_aerosol_activation(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
@@ -264,10 +266,8 @@ function test_aerosol_activation(FT)
     end
 end
 
-println("")
 println("Testing Float64")
 test_aerosol_activation(Float64)
 
-println("")
 println("Testing Float32")
 test_aerosol_activation(Float32)

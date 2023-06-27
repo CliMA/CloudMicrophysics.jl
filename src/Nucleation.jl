@@ -169,7 +169,7 @@ function organic_nucleation_rate(
     O3_conc *= 1e-6
     OH_conc *= 1e-6
 
-    # Y_ params from Dunne et al. 2016
+    # Y_* params from Dunne et al. 2016
     (; Y_MTO3, Y_MTOH, k_MTO3, k_MTOH, exp_MTO3, exp_MTOH) = params
     k_MTO3 = k_MTO3 * exp(exp_MTO3 / temp)
     k_MTOH = k_MTOH * exp(exp_MTOH / temp)

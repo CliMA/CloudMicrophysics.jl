@@ -1,42 +1,13 @@
 using Test
 import CLIMAParameters as CP
 
-include("../src/Nucleation.jl")
-import .Nucleation
+import CloudMicrophysics as CM
 
+include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
-const FT = Float64
+FT = Float64
 toml_dict = CP.create_toml_dict(FT)
-param_names = (
-    "u_b_n",
-    "v_b_n",
-    "w_b_n",
-    "u_b_i",
-    "v_b_i",
-    "w_b_i",
-    "u_t_n",
-    "v_t_n",
-    "w_t_n",
-    "u_t_i",
-    "v_t_i",
-    "w_t_i",
-    "p_t_n",
-    "p_A_n",
-    "a_n",
-    "p_t_i",
-    "p_A_i",
-    "a_i",
-    "p_b_n",
-    "p_b_i",
-    "a_1",
-    "a_2",
-    "a_3",
-    "a_4",
-    "a_5",
-    "k_H2SO4org",
-)
-params = CP.get_parameter_values!(toml_dict, param_names)
-params = (; params...)
+params = nucleation_parameters(toml_dict)
 
 @testset "Pure H2SO4 Nucleation Smoke Test" begin
     nh3_conc = 0.0
@@ -44,7 +15,7 @@ params = (; params...)
     temp = 208
     test_h2so4(h2so4_c) =
         sum(
-            Nucleation.h2so4_nucleation_rate(
+            CM.Nucleation.h2so4_nucleation_rate(
                 h2so4_c * 1e6,
                 nh3_conc,
                 negative_ion_conc,
@@ -73,7 +44,7 @@ end
     negative_ion_conc = 0.0
     test_organic(hom_c) =
         sum(
-            Nucleation.organic_nucleation_rate(
+            CM.Nucleation.organic_nucleation_rate(
                 negative_ion_conc,
                 hom_c,
                 params,
@@ -97,7 +68,7 @@ end
 @testset "Mixed Organic and H2SO4 Nucleation Smoke Test" begin
     h2so4_conc = 2.6e6
     test_mixed_nucleation(bioOxOrg) =
-        Nucleation.organic_and_h2so4_nucleation_rate(
+        CM.Nucleation.organic_and_h2so4_nucleation_rate(
             h2so4_conc,
             bioOxOrg,
             params,

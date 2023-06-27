@@ -23,6 +23,8 @@ const B1994 = CMT.B1994Type()
 const TC1980 = CMT.TC1980Type()
 const LD2004 = CMT.LD2004Type()
 
+@info "Microphysics Tests"
+
 function test_microphysics(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
@@ -888,10 +890,8 @@ function test_microphysics(FT)
     end
 end
 
-println("")
 println("Testing Float64")
 test_microphysics(Float64)
 
-println("")
 println("Testing Float32")
 test_microphysics(Float32)
