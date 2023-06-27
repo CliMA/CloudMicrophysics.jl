@@ -1,7 +1,7 @@
 # P3 Scheme
 
 The `P3Scheme.jl` module implements the predicted particle properties
- (P3) scheme for ice-phase microphysics developed by [Morrison_and_Milbrandt_2015](@cite)
+ (P3) scheme for ice-phase microphysics developed by [MorrisonMilbrandt2015](@cite)
 
 The P3 scheme is a 2-moment, bulk scheme involving a
  single ice-phase category with 4 degrees of freedom: total mass,
@@ -15,7 +15,7 @@ Traditionally, cloud ice microphysics models use various predefined
 
 ## Assumed particle size distribution (PSD)
 
-Following [Morrison_and_Milbrandt_2015](@cite), the scheme assumes a
+Following [MorrisonMilbrandt2015](@cite), the scheme assumes a
  gamma distribution for the concentration of particles per unit volume:
 
 ```math
