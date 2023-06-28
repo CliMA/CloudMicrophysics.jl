@@ -13,6 +13,7 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 const AM = CM.AerosolModel
 const AA = CM.AerosolActivation
+const CMI = CM.HetIceNucleation
 const CMT = CM.CommonTypes
 const CM0 = CM.Microphysics0M
 const CM1 = CM.Microphysics1M
@@ -22,6 +23,8 @@ const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
 const rain = CMT.RainType()
 const snow = CMT.SnowType()
+const kaolinite = CMT.KaoliniteType()
+const illite = CMT.IlliteType()
 
 @info "GPU Tests"
 
@@ -163,6 +166,144 @@ end
 
     @inbounds begin
         output[i] = CM1.snow_melt(prs, qs[i], ρ[i], T[i])
+    end
+end
+
+@kernel function test_h2so4_nucleation_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    h2so4_conc,
+    nh3_conc,
+    negative_ion_conc,
+    temp,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = sum(
+            HN.h2so4_nucleation_rate(
+                h2so4_conc[i],
+                nh3_conc[i],
+                negative_ion_conc[i],
+                temp[i],
+                prs,
+            ),
+        )
+    end
+end
+
+@kernel function test_organic_nucleation_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    negative_ion_conc,
+    monoterpene_conc,
+    O3_conc,
+    OH_conc,
+    temp,
+    condensation_sink,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = HN.organic_nucleation_rate(
+            negative_ion_conc[i],
+            monoterpene_conc[i],
+            O3_conc[i],
+            OH_conc[i],
+            temp[i],
+            condensation_sink[i],
+            prs,
+        )
+    end
+end
+
+@kernel function test_organic_and_h2so4_nucleation_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    h2so4_conc,
+    monoterpene_conc,
+    OH_conc,
+    temp,
+    condensation_sink,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = HN.organic_and_h2so4_nucleation_rate(
+            h2so4_conc[i],
+            monoterpene_conc[i],
+            OH_conc[i],
+            temp[i],
+            condensation_sink[i],
+            prs,
+        )
+    end
+end
+
+@kernel function test_apparent_nucleation_rate_kernel!(
+    output::AbstractArray{FT},
+    output_diam,
+    nucleation_rate,
+    condensation_growth_rate,
+    coag_sink,
+    coag_sink_input_diam,
+    input_diam,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = HN.apparent_nucleation_rate(
+            output_diam[i],
+            nucleation_rate[i],
+            condensation_growth_rate[i],
+            coag_sink[i],
+            coag_sink_input_diam[i],
+            input_diam[i],
+        )
+    end
+end
+
+@kernel function test_IceNucleation_H2SO4_soln_saturation_vapor_pressure_kernel!(
+    output::AbstractArray{FT},
+    x_sulph,
+    T,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = CMI.H2SO4_soln_saturation_vapor_pressure(x_sulph[i], T[i])
+    end
+end
+
+@kernel function test_IceNucleation_ABIFM_Delta_a_w_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    x_sulph,
+    T,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = CMI.ABIFM_Delta_a_w(prs, x_sulph[i], T[i])
+    end
+end
+
+@kernel function test_IceNucleation_ABIFM_J_kernel!(
+    output::AbstractArray{FT},
+    Delta_a_w,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] = CMI.ABIFM_J(kaolinite, Delta_a_w[1])
+        output[2] = CMI.ABIFM_J(illite, Delta_a_w[2])
     end
 end
 
@@ -409,6 +550,66 @@ function test_gpu(FT)
         @test Array(output)[1] ≈ FT(9.518235437405256e-6)
         @test Array(output)[2] ≈ FT(0)
         @test Array(output)[3] ≈ FT(0)
+    end
+
+    @testset "Ice Nucleation kernels" begin
+        data_length = 1
+        output = ArrayType(Array{FT}(undef, 1, data_length))
+        fill!(output, FT(-44))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        T = ArrayType([FT(230)])
+        x_sulph = ArrayType([FT(0.1)])
+
+        kernel! =
+            test_IceNucleation_H2SO4_soln_saturation_vapor_pressure_kernel!(
+                dev,
+                work_groups,
+            )
+        event = kernel!(output, x_sulph, T, ndrange = ndrange)
+        wait(dev, event)
+
+        # test H2SO4_soln_saturation_vapor_pressure is callable and returns a reasonable value
+        @test Array(output)[1] ≈ FT(12.685507586924)
+
+        data_length = 1
+        output = ArrayType(Array{FT}(undef, 1, data_length))
+        fill!(output, FT(-44.0))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        T = ArrayType([FT(230)])
+        x_sulph = ArrayType([FT(0.1)])
+
+        kernel! = test_IceNucleation_ABIFM_Delta_a_w_kernel!(dev, work_groups)
+        event = kernel!(make_prs(FT), output, x_sulph, T, ndrange = ndrange)
+        wait(dev, event)
+
+        # test if ABIFM_Delta_a_w is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(0.2750536615)
+
+        data_length = 2
+        output = ArrayType(Array{FT}(undef, 1, data_length))
+        fill!(output, FT(-44.0))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        Delta_a_w = ArrayType([FT(0.16), FT(0.15)])
+
+        kernel! = test_IceNucleation_ABIFM_J_kernel!(dev, work_groups)
+        event = kernel!(output, Delta_a_w, ndrange = ndrange)
+        wait(dev, event)
+
+        # test if ABIFM_J is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(153.65772539109)
+        @test Array(output)[2] ≈ FT(31.870032033791)
     end
 
     @testset "Homogeneous nucleation kernels" begin

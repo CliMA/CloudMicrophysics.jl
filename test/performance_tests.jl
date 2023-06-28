@@ -57,6 +57,7 @@ function benchmark_test(FT)
     N_rai = FT(1e8)
 
     T_air_2 = FT(250)
+    T_air_cold = FT(230)
     S_ice = FT(1.2)
 
     w_air = FT(0.5)
@@ -78,6 +79,9 @@ function benchmark_test(FT)
     )
     aer_distr = AM.AerosolDistribution((seasalt_mode,))
 
+    x_sulph = FT(0.1)
+    Delta_a_w = FT(0.2)
+
     # aerosol activation
     bench_press(
         AA.total_N_activated,
@@ -89,8 +93,15 @@ function benchmark_test(FT)
     bench_press(
         CMI.dust_activated_number_fraction,
         (prs, S_ice, T_air_2, dust),
-        40,
+        50,
     )
+    bench_press(
+        CMI.H2SO4_soln_saturation_vapor_pressure,
+        (x_sulph, T_air_cold),
+        50,
+    )
+    bench_press(CMI.ABIFM_Delta_a_w, (prs, x_sulph, T_air_cold), 200)
+    bench_press(CMI.ABIFM_J, (dust, Delta_a_w), 200)
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (prs, liquid), 10)
@@ -122,12 +133,12 @@ function benchmark_test(FT)
     bench_press(
         HN.h2so4_nucleation_rate,
         (1e12, 1.0, 1.0, 208, nucleation_params),
-        450,
+        470,
     )
     bench_press(
         HN.organic_nucleation_rate,
         (0.0, 1e3, 1e3, 1e3, 300, 1, nucleation_params),
-        420,
+        450,
     )
     bench_press(
         HN.organic_and_h2so4_nucleation_rate,

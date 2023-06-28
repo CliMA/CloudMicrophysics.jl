@@ -77,6 +77,7 @@ function cirrus_box(dY, Y, p, t)
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
+    # TODO - update dqw_dt when implementing homo. and immersion freezing
 
     # Update the tendecies
     dS_i_dt = a1 * w * S_i - (a2 + a3 * S_i) * dqi_dt
@@ -84,6 +85,7 @@ function cirrus_box(dY, Y, p, t)
     dT_dt = -grav / cp_a * w + L_subl / cp_a * dqi_dt
     dq_vap_dt = -dqi_dt
     dq_ice_dt = dqi_dt
+    # dq_liq_dt = dqw_dt # Use this when introducing liquid water
 
     # Set tendencies
     dY[1] = dS_i_dt        # supersaturation over ice
@@ -93,6 +95,7 @@ function cirrus_box(dY, Y, p, t)
     dY[5] = dq_vap_dt      # vapor specific humidity
     dY[6] = dq_ice_dt      # ice specific humidity
     dY[7] = dN_aerosol_dt  # number concentration of interstitial aerosol
+    # add dY state for dq_liq_dt when introducing liquid
 
     # TODO - add diagnostics output (radius, S, etc)
 end
