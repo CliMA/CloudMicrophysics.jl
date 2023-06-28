@@ -19,8 +19,8 @@ import ..Parameters as CMP
 const FT = Float64
 const APS = CMP.AbstractCloudMicrophysicsParameters
 const ρ_i::FT = 917
-const α_va::FT = 7.38e-11
 const β_va::FT = 1.9
+const α_va::FT =  1e-3 * (7.38e-11) * 10 ^ (6 * β_va)
 const D_th::FT = ((FT(π) * 6) / (6 * α_va))^(1 / (β_va - 3))
 const γ::FT = 0.2285
 const σ::FT = 1.88
