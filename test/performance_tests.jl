@@ -6,6 +6,7 @@ import Thermodynamics as TD
 import CLIMAParameters as CP
 
 const CMT = CM.CommonTypes
+const CO = CM.Common
 const AM = CM.AerosolModel
 const AA = CM.AerosolActivation
 const CMI = CM.HetIceNucleation
@@ -89,18 +90,20 @@ function benchmark_test(FT)
         1300,
     )
 
+    # Common
+    bench_press(
+        CO.H2SO4_soln_saturation_vapor_pressure,
+        (x_sulph, T_air_cold),
+        50,
+    )
+    bench_press(CO.Delta_a_w, (prs, x_sulph, T_air_cold), 200)
+
     # ice nucleation
     bench_press(
         CMI.dust_activated_number_fraction,
         (prs, S_ice, T_air_2, dust),
         50,
     )
-    bench_press(
-        CMI.H2SO4_soln_saturation_vapor_pressure,
-        (x_sulph, T_air_cold),
-        50,
-    )
-    bench_press(CMI.ABIFM_Delta_a_w, (prs, x_sulph, T_air_cold), 200)
     bench_press(CMI.ABIFM_J, (dust, Delta_a_w), 200)
 
     # non-equilibrium
