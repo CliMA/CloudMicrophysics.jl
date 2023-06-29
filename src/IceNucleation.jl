@@ -66,10 +66,10 @@ function dust_activated_number_fraction(
 end
 
 """
-    ABIFM_J(dust_type, Delta_a_w)
+    ABIFM_J(dust_type, Δa_w)
 
  - `dust_type` - choosing aerosol type
- - `Delta_a_w` - change in water activity [unitless].
+ - `Δa_w` - change in water activity [unitless].
 
 Returns the immersion freezing nucleation rate coefficient, `J`, in m^-2 s^-1 for sulphuric acid containing solutions. 
 For other solutions, p_sol should be adjusted accordingly. Delta_a_w can be found using the Delta_a_w function in Common.jl. 
@@ -83,6 +83,41 @@ function ABIFM_J(dust_type::CT.AbstractAerosolType, Δa_w::FT) where {FT <: Real
     logJ = m * Δa_w + c
 
     return max(0, 10^logJ * 100^2) # converts cm^-2 s^-1 to m^-2 s^-1
+end
+
+end # end module
+
+"""
+Parameterization for homogeneous ice nucleation
+"""
+module HomIceNucleation
+
+import ..CommonTypes as CT
+import ..Parameters as CMP
+import Thermodynamics as TD
+
+const APS = CMP.AbstractCloudMicrophysicsParameters
+
+export homogeneous_J
+
+"""
+    homogeneous_J(Δa_w)
+
+ - `Δa_w` - change in water activity
+
+Returns the homogeneous freezing nucleation rate coefficient, `J`, in m^-3 s^-1 for sulphuric
+acid containing solutions. Parameterization based off Koop 2000.
+Delta_a_w can be found using the Delta_a_w function in Common.jl.
+"""
+function homogeneous_J(Δa_w::FT) where {FT <: Real}
+
+    @assert Δa_w > 0.26
+    @assert Δa_w < 0.34
+
+    logJ = -906.7 + 8502 * Δa_w - 26924 * Δa_w^2 + 29180 * Δa_w^3
+    J = 10^(logJ)
+
+    return J * 1e6
 end
 
 end # end module

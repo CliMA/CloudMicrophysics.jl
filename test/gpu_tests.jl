@@ -13,7 +13,8 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 const AM = CM.AerosolModel
 const AA = CM.AerosolActivation
-const CMI = CM.HetIceNucleation
+const CMI_het = CM.HetIceNucleation
+const CMI_hom = CM.HomIceNucleation
 const CO = CM.Common
 const CMT = CM.CommonTypes
 const CM0 = CM.Microphysics0M
@@ -303,8 +304,20 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI.ABIFM_J(kaolinite, Delta_a_w[1])
-        output[2] = CMI.ABIFM_J(illite, Delta_a_w[2])
+        output[1] = CMI_het.ABIFM_J(kaolinite, Delta_a_w[1])
+        output[2] = CMI_het.ABIFM_J(illite, Delta_a_w[2])
+    end
+end
+
+@kernel function test_IceNucleation_homogeneous_J_kernel!(
+    output::AbstractArray{FT},
+    Delta_a_w,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] = CMI_hom.homogeneous_J(Delta_a_w[1])
     end
 end
 
@@ -612,6 +625,25 @@ function test_gpu(FT)
         # test if ABIFM_J is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(153.65772539109)
         @test Array(output)[2] ≈ FT(31.870032033791)
+
+        data_length = 1
+        output = ArrayType(Array{FT}(undef, 1, data_length))
+        fill!(output, FT(-44))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        T = ArrayType([FT(220)])
+        x_sulph = ArrayType([FT(0.15)])
+        Delta_a_w = ArrayType([FT(0.2907389666103033)])
+
+        kernel! = test_IceNucleation_homogeneous_J_kernel!(dev, work_groups)
+        event = kernel!(output, Delta_a_w, ndrange = ndrange)
+        wait(dev, event)
+
+        # test homogeneous_J is callable and returns a reasonable value
+        @test Array(output)[1] ≈ FT(2.66194650334444e12)
     end
 
     @testset "Homogeneous nucleation kernels" begin
