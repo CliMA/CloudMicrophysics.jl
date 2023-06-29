@@ -5,6 +5,7 @@ import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
 const CMT = CM.CommonTypes
+const CO = CM.Common
 const CMI = CM.HetIceNucleation
 const ArizonaTestDust = CMT.ArizonaTestDustType()
 const DesertDust = CMT.DesertDustType()
@@ -77,51 +78,6 @@ function test_dust_activation(FT)
     end
 end
 
-function test_H2SO4_soln_saturation_vapor_pressure(FT)
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-
-    TT.@testset "H2SO4 solution saturated vapor pressure" begin
-
-        T_warm = FT(225.0)
-        T_cold = FT(200.0)
-        T_too_warm = FT(240)
-        T_too_cold = FT(180)
-        x_sulph = FT(0.1)
-
-        # If T out of range
-        TT.@test_throws AssertionError("T < FT(235)") CMI.H2SO4_soln_saturation_vapor_pressure(
-            x_sulph,
-            T_too_warm,
-        )
-        TT.@test_throws AssertionError("T > FT(185)") CMI.H2SO4_soln_saturation_vapor_pressure(
-            x_sulph,
-            T_too_cold,
-        )
-
-        # p_sol should be higher at warmer temperatures
-        TT.@test CMI.H2SO4_soln_saturation_vapor_pressure(x_sulph, T_warm) >
-                 CMI.H2SO4_soln_saturation_vapor_pressure(x_sulph, T_cold)
-    end
-end
-
-function test_ABIFM_Delta_a_w(FT)
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-
-    TT.@testset "ABIFM Delta_a_w" begin
-
-        T_warm = FT(229.2)
-        T_cold = FT(228.8)
-        x_sulph = FT(0.1)
-
-        # Delta_a_w never greater than 1
-        for T in [T_warm, T_cold]
-            TT.@test CMI.ABIFM_Delta_a_w(prs, x_sulph, T) <= FT(1)
-        end
-    end
-end
-
 function test_ABIFM_J(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
@@ -135,13 +91,8 @@ function test_ABIFM_J(FT)
         # higher nucleation rate at colder temperatures
         for dust in
             [CMT.IlliteType(), CMT.KaoliniteType(), CMT.DesertDustType()]
-            TT.@test CMI.ABIFM_J(
-                dust,
-                CMI.ABIFM_Delta_a_w(prs, x_sulph, T_cold),
-            ) > CMI.ABIFM_J(
-                dust,
-                CMI.ABIFM_Delta_a_w(prs, x_sulph, T_warm),
-            )
+            TT.@test CMI.ABIFM_J(dust, CO.Delta_a_w(prs, x_sulph, T_cold)) >
+                     CMI.ABIFM_J(dust, CO.Delta_a_w(prs, x_sulph, T_warm))
         end
     end
 end
@@ -154,22 +105,6 @@ test_dust_activation(Float64)
 
 println("Testing Float32")
 test_dust_activation(Float32)
-
-
-println("Testing Float64")
-test_H2SO4_soln_saturation_vapor_pressure(Float64)
-
-
-println("Testing Float32")
-test_H2SO4_soln_saturation_vapor_pressure(Float32)
-
-
-println("Testing Float64")
-test_ABIFM_Delta_a_w(Float64)
-
-
-println("Testing Float32")
-test_ABIFM_Delta_a_w(Float32)
 
 
 println("Testing Float64")

@@ -18,7 +18,6 @@ The parameterization for deposition on dust particles is an implementation of
     heterogeneous immersion freezing or homogeneous freezing
     and modeling the competition between them.
 
-
 ## Activated fraction for deposition freezing on dust
 The parameterization models the activated fraction
   as an empirical function of ice saturation ratio,
@@ -55,7 +54,6 @@ Water Activity-Based Immersion Freezing Model (ABFIM)
   aerosols are assumed to contain an insoluble and soluble material. When immersed in water,
   the soluble material diffuses into the liquid water to create a sulphuric acid solution.
 
-
 Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite), 
   the heterogeneous nucleation rate coefficient in units of ``cm^{-2}s^{-1}`` can be determined by the linear equation
 ```math
@@ -82,7 +80,7 @@ Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
 where ``p_{sol}`` is saturated vapor pressure of water above solution, ``p_{sat}``
   is saturated vapor pressure above pure liquid water, and ``p_{i,sat}`` is saturated
   vapor pressure above ice. ``p_{sol}`` is determined in mbar using a parameterization
-  for supercooled, binary ``H_2SO_4/H_2O`` solution from [Luo1995](@cite) which is valid for 185K < T < 235K:
+  for supercooled, binary ``H_2SO_4/H_2O`` solution from [Luo1995](@cite) which is valid for ``185K < T < 235K``:
 ```math
 \begin{equation}
   ln(p_{sol}) = 23.306 - 5.3465x + 12xw_h - 8.19xw_h^2 + \frac{1}{T}(-5814 + 928.9x - 1876.7xw_h)
@@ -98,7 +96,8 @@ Once ``J_{het}`` is calculated, it can be used to determine the ice production r
   P_{ice} = J_{het}A(N_{tot}-N_{ice})
 \end{equation}
 ```
-where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 
+where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number 
+  of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 
 
 ## ABIFM Example Figures
 ```@example
@@ -112,6 +111,7 @@ const PL = Plots
 const IN = CloudMicrophysics.HetIceNucleation
 const CMP = CloudMicrophysics.Parameters
 const CT = CloudMicrophysics.CommonTypes
+const CO = CloudMicrophysics.Common
 const CP =  CLIMAParameters
 const TD = Thermodynamics
 
@@ -133,7 +133,7 @@ dust_type = CT.KaoliniteType()
 
 it = 1
 for T in temp
-        Delta_a[it] = IN.ABIFM_Delta_a_w(prs, x, T)
+        Delta_a[it] = CO.Delta_a_w(prs, x, T)
         J[it] = IN.ABIFM_J(dust_type, Delta_a[it])
         global it += 1
 end
