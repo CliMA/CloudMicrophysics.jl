@@ -13,6 +13,7 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
 CLIMAParameters = "0.7"
+CUDAKernels = "0.4"
 DocStringExtensions = "0.8, 0.9"
 SpecialFunctions = "1, 2"
 Thermodynamics = "0.9, 0.10"
