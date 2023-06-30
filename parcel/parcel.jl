@@ -74,8 +74,9 @@ function cirrus_box(dY, Y, p, t)
     G = CMO.G_func(prs, T, TD.Ice())
     r = N_act > 0 ? cbrt(q_ice / N_act / (4 / 3 * π) / ρ_ice * ρ) : 0
     C = r
-    dqi_dt_deposition = deposition_growth == true ? 1 / ρ * N_act * α_m * 4 * π * C * (S_i - 1) * G : FT(0)
-    #dqi_dt_deposition = FT(0.0) # Use this if you don't want to grow
+    dqi_dt_deposition =
+        deposition_growth == true ?
+        1 / ρ * N_act * α_m * 4 * π * C * (S_i - 1) * G : FT(0)
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition

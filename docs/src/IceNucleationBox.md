@@ -76,11 +76,11 @@ where:
 - ``g`` is the gravitational acceleration
 - ``w`` is the constant vertical velocity.
 
-Assuming only water vapor and ice are present ``q_l = 0``, ``\frac{dq_v}{dt} = -\frac{dq_i}{dt}``,
+Accounting for conservation of water, i.e. ``\frac{dq_v}{dt} + \frac{dq_w}{dt} + \frac{dq_i}{dt} = 0``,
 and rearranging the terms
 ```math
 \begin{equation}
-\frac{dS_i}{dt} = a_1 w S_i - \left(a_2 + a_3 S_i\right) \frac{dq_i}{dt}
+\frac{dS_i}{dt} = a_1 w S_i - \left(a_2 + a_4 S_i\right) \frac{dq_w}{dt} - \left(a_2 + a_3 S_i\right) \frac{dq_i}{dt}
 \end{equation}
 ```
 where:
@@ -97,6 +97,11 @@ a_2 = \frac{p}{e_{si}} \frac{R_v}{R_a}
 ```math
 \begin{equation}
 a_3 = \frac{L_s^2}{R_v T^2 c_p}
+\end{equation}
+```
+```math
+\begin{equation}
+a_4 = \frac{L_s L_w}{R_v T^2 c_p}
 \end{equation}
 ```
 
