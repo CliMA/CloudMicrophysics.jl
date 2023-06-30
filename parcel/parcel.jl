@@ -7,7 +7,8 @@ import CLIMAParameters as CP
 
 const CMT = CM.CommonTypes
 const CMO = CM.Common
-const CMI = CM.HetIceNucleation
+const CMI_het = CM.HetIceNucleation
+const CMI_hom = CM.HomIceNucleation
 const CMP = CM.Parameters
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
@@ -30,6 +31,7 @@ function cirrus_box(dY, Y, p, t)
     q_vap = Y[5]      # vapor specific humidity
     q_ice = Y[6]      # ice specific humidity
     N_aerosol = Y[7]  # number concentration of interstitial aerosol
+    x_sulph = Y[8]   # percent mass sulphuric acid
 
     # Constants
     R_v = CMP.R_v(prs)
@@ -64,9 +66,19 @@ function cirrus_box(dY, Y, p, t)
     a4 = L_subl * L_fus / R_v / T^2 / cp_a
 
     # Activating new crystals
-    AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
     τ_relax = const_dt
-    dN_act_dt = max(FT(0), AF * N_aerosol - N_act) / τ_relax
+    if freeze_mode == "deposition"
+
+        AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
+
+        dN_act_dt = max(FT(0), AF * N_aerosol - N_act) / τ_relax
+    elseif freeze_mode == "ABIFM"
+        Delta_a_w = CMO.Delta_a_w(prs, x_sulph, T)
+        J_immer = CMI_het.ABIFM_J(CMT.DesertDustType(), Delta_a_w) * 1e4 # converting cm^-2 s^-1 to m^-2 s^-1
+        P_ice = J_immer * 4 * π * r_nuc^2 * N_aerosol # per sec
+
+        dN_act_dt = max(FT(0), P_ice * τ_relax)
+    end
     dN_aerosol_dt = -dN_act_dt
     dqi_dt_new_particles = dN_act_dt * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ
 
@@ -90,6 +102,7 @@ function cirrus_box(dY, Y, p, t)
     dq_vap_dt = -dqi_dt
     dq_ice_dt = dqi_dt
     # dq_liq_dt = dqw_dt # Use this when introducing liquid water
+    x_sulph_dt = FT(0)
 
     # Set tendencies
     dY[1] = dS_i_dt        # supersaturation over ice
@@ -99,6 +112,7 @@ function cirrus_box(dY, Y, p, t)
     dY[5] = dq_vap_dt      # vapor specific humidity
     dY[6] = dq_ice_dt      # ice specific humidity
     dY[7] = dN_aerosol_dt  # number concentration of interstitial aerosol
+    dY[8] = x_sulph_dt        # nucleation rate coefficient per unit area per unit time
     # add dY state for dq_liq_dt when introducing liquid
 
     # TODO - add diagnostics output (radius, S, etc)
@@ -116,6 +130,7 @@ function get_initial_condition(
     q_liq,
     q_ice,
     N_aerosol,
+    x_sulph,
 )
     thermo_params = CMP.thermodynamics_params(prs)
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
@@ -124,8 +139,9 @@ function get_initial_condition(
     e_si = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
     e = q_vap * p_a * R_v / R_a
     S_i = e / e_si
+    x_sulph = x_sulph
 
-    return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol]
+    return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol, x_sulph]
 end
 
 """
@@ -153,6 +169,7 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
     q_vap_0 = FT(0.0003345)
     q_liq_0 = FT(0)
     q_ice_0 = FT(0)
+    x_sulph = (0.1)
     # Initial conditions for the 2nd period
     T2 = FT(229.25)
     q_vap2 = FT(0.00034)
@@ -180,6 +197,7 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
         q_liq_0,
         q_ice_0,
         N_aerosol,
+        x_sulph,
     )
     prob1 = ODE.ODEProblem(cirrus_box, IC1, (FT(0), t_max), p)
     sol1 = ODE.solve(
@@ -202,6 +220,7 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
         q_liq_0,
         sol1[6, end],
         sol1[7, end],
+        x_sulph,
     )
     prob2 = ODE.ODEProblem(
         cirrus_box,
@@ -229,6 +248,7 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
         q_liq_0,
         sol2[6, end],
         sol2[7, end],
+        x_sulph,
     )
     prob3 = ODE.ODEProblem(
         cirrus_box,
