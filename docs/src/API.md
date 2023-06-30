@@ -81,6 +81,12 @@ HetIceNucleation.dust_activated_number_fraction
 HetIceNucleation.ABIFM_J
 ```
 
+# Homogeneous ice nucleation
+```@docs
+HomIceNucleation
+HomIceNucleation.homogeneous_J
+```
+
 # Common utility functions
 
 ```@docs

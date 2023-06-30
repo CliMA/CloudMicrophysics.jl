@@ -9,7 +9,8 @@ const CMT = CM.CommonTypes
 const CO = CM.Common
 const AM = CM.AerosolModel
 const AA = CM.AerosolActivation
-const CMI = CM.HetIceNucleation
+const CMI_het = CM.HetIceNucleation
+const CMI_hom = CM.HomIceNucleation
 const CMN = CM.MicrophysicsNonEq
 const CM0 = CM.Microphysics0M
 const CM1 = CM.Microphysics1M
@@ -81,7 +82,7 @@ function benchmark_test(FT)
     aer_distr = AM.AerosolDistribution((seasalt_mode,))
 
     x_sulph = FT(0.1)
-    Delta_a_w = FT(0.2)
+    Delta_a_w = FT(0.27)
 
     # aerosol activation
     bench_press(
@@ -96,15 +97,16 @@ function benchmark_test(FT)
         (x_sulph, T_air_cold),
         50,
     )
-    bench_press(CO.Delta_a_w, (prs, x_sulph, T_air_cold), 200)
+    bench_press(CO.Delta_a_w, (prs, x_sulph, T_air_cold), 230)
 
     # ice nucleation
     bench_press(
-        CMI.dust_activated_number_fraction,
+        CMI_het.dust_activated_number_fraction,
         (prs, S_ice, T_air_2, dust),
         50,
     )
-    bench_press(CMI.ABIFM_J, (dust, Delta_a_w), 200)
+    bench_press(CMI_het.ABIFM_J, (dust, Delta_a_w), 230)
+    bench_press(CMI_hom.homogeneous_J, (Delta_a_w), 230)
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (prs, liquid), 10)

@@ -99,6 +99,22 @@ Once ``J_{het}`` is calculated, it can be used to determine the ice production r
 where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number 
   of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 
 
+## Homogeneous Freezing for Sulphuric Acid Containing Droplets
+Homogeneous freezing occurs when supercooled liquid droplets freeze on their own.
+  Closly based off [Koop2000](@cite), this parameterization determines a homoegneous nucleation
+  rate coefficient, ``J_{hom}``, using water activity. The change in water activity,
+  ``\Delta a_w(c,T,P)``, can be found in the same fashion that it is determined under the ABIFM
+  section above. It is then used to empirically calculate ``J_{hom}(\Delta a_w)`` with units of
+  ``cm^{-3}s^{-1}``.
+
+The nucleation rate coefficient is determined with the cubic function from [Koop2000](@cite)
+```math
+\begin{equation}
+  logJ_{hom} = -906.7 + 8502 \Delta a_w - 26924(\Delta a_w)^2 + 29180(\Delta a_w)^3
+\end{equation}
+```
+This parameterization is valid only when ``0.26 < \Delta a_w < 0.36`` and ``185K < T < 235K``.
+
 ## ABIFM Example Figures
 ```@example
 import Plots
