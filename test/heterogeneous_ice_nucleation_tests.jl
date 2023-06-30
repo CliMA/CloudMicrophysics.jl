@@ -4,9 +4,9 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
-const CMT = CM.CommonTypes
-const CO = CM.Common
-const CMI = CM.HetIceNucleation
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.HetIceNucleation as CMI_het
 const ArizonaTestDust = CMT.ArizonaTestDustType()
 const DesertDust = CMT.DesertDustType()
 
@@ -14,7 +14,8 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 @info "Heterogeneous Ice Nucleation Tests"
 
-function test_dust_activation(FT)
+function test_heterogeneous_ice_nucleation(FT)
+
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
 
@@ -30,7 +31,7 @@ function test_dust_activation(FT)
         # No activation below critical supersaturation
         for dust in [ArizonaTestDust, DesertDust]
             for T in [T_warm, T_cold]
-                TT.@test CMI.dust_activated_number_fraction(
+                TT.@test CMI_het.dust_activated_number_fraction(
                     prs,
                     Si_low,
                     T,
@@ -41,23 +42,23 @@ function test_dust_activation(FT)
 
         # Activate more in cold temperatures and higher supersaturations
         for dust in [ArizonaTestDust, DesertDust]
-            TT.@test CMI.dust_activated_number_fraction(
+            TT.@test CMI_het.dust_activated_number_fraction(
                 prs,
                 Si_hgh,
                 T_warm,
                 dust,
-            ) > CMI.dust_activated_number_fraction(
+            ) > CMI_het.dust_activated_number_fraction(
                 prs,
                 Si_med,
                 T_warm,
                 dust,
             )
-            TT.@test CMI.dust_activated_number_fraction(
+            TT.@test CMI_het.dust_activated_number_fraction(
                 prs,
                 Si_med,
                 T_cold,
                 dust,
-            ) > CMI.dust_activated_number_fraction(
+            ) > CMI_het.dust_activated_number_fraction(
                 prs,
                 Si_med,
                 T_warm,
@@ -67,7 +68,7 @@ function test_dust_activation(FT)
 
         for dust in [ArizonaTestDust, DesertDust]
             for T in [T_warm, T_cold]
-                TT.@test CMI.dust_activated_number_fraction(
+                TT.@test CMI_het.dust_activated_number_fraction(
                     prs,
                     Si_too_hgh,
                     T,
@@ -76,11 +77,6 @@ function test_dust_activation(FT)
             end
         end
     end
-end
-
-function test_ABIFM_J(FT)
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
 
     TT.@testset "ABIFM J" begin
 
@@ -91,25 +87,21 @@ function test_ABIFM_J(FT)
         # higher nucleation rate at colder temperatures
         for dust in
             [CMT.IlliteType(), CMT.KaoliniteType(), CMT.DesertDustType()]
-            TT.@test CMI.ABIFM_J(dust, CO.Delta_a_w(prs, x_sulph, T_cold)) >
-                     CMI.ABIFM_J(dust, CO.Delta_a_w(prs, x_sulph, T_warm))
+            TT.@test CMI_het.ABIFM_J(
+                prs,
+                dust,
+                CO.Delta_a_w(prs, x_sulph, T_cold),
+            ) > CMI_het.ABIFM_J(
+                prs,
+                dust,
+                CO.Delta_a_w(prs, x_sulph, T_warm),
+            )
         end
     end
 end
 
-
-
 println("Testing Float64")
-test_dust_activation(Float64)
-
+test_heterogeneous_ice_nucleation(Float64)
 
 println("Testing Float32")
-test_dust_activation(Float32)
-
-
-println("Testing Float64")
-test_ABIFM_J(Float64)
-
-
-println("Testing Float32")
-test_ABIFM_J(Float32)
+test_heterogeneous_ice_nucleation(Float32)

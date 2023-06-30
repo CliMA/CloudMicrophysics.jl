@@ -4,22 +4,21 @@ using KernelAbstractions
 import CUDAKernels as CK
 
 import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters as CMP
 import CLIMAParameters as CP
 import Thermodynamics as TD
 
-const CMP = CM.Parameters
-
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
-const AM = CM.AerosolModel
-const AA = CM.AerosolActivation
-const CMI_het = CM.HetIceNucleation
-const CMI_hom = CM.HomIceNucleation
-const CO = CM.Common
-const CMT = CM.CommonTypes
-const CM0 = CM.Microphysics0M
-const CM1 = CM.Microphysics1M
-const HN = CM.Nucleation
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics.HetIceNucleation as CMI_het
+import CloudMicrophysics.HomIceNucleation as CMI_hom
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Microphysics0M as CM0
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Nucleation as MN
 
 const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
@@ -184,7 +183,7 @@ end
 
     @inbounds begin
         output[i] = sum(
-            HN.h2so4_nucleation_rate(
+            MN.h2so4_nucleation_rate(
                 h2so4_conc[i],
                 nh3_conc[i],
                 negative_ion_conc[i],
@@ -209,7 +208,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_nucleation_rate(
+        output[i] = MN.organic_nucleation_rate(
             negative_ion_conc[i],
             monoterpene_conc[i],
             O3_conc[i],
@@ -234,7 +233,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_and_h2so4_nucleation_rate(
+        output[i] = MN.organic_and_h2so4_nucleation_rate(
             h2so4_conc[i],
             monoterpene_conc[i],
             OH_conc[i],
@@ -258,7 +257,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.apparent_nucleation_rate(
+        output[i] = MN.apparent_nucleation_rate(
             output_diam[i],
             nucleation_rate[i],
             condensation_growth_rate[i],
@@ -270,6 +269,7 @@ end
 end
 
 @kernel function test_Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
+    prs,
     output::AbstractArray{FT},
     x_sulph,
     T,
@@ -278,7 +278,8 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = CO.H2SO4_soln_saturation_vapor_pressure(x_sulph[i], T[i])
+        output[i] =
+            CO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph[i], T[i])
     end
 end
 
@@ -297,6 +298,7 @@ end
 end
 
 @kernel function test_IceNucleation_ABIFM_J_kernel!(
+    prs,
     output::AbstractArray{FT},
     Delta_a_w,
 ) where {FT}
@@ -304,12 +306,13 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_het.ABIFM_J(kaolinite, Delta_a_w[1])
-        output[2] = CMI_het.ABIFM_J(illite, Delta_a_w[2])
+        output[1] = CMI_het.ABIFM_J(prs, kaolinite, Delta_a_w[1])
+        output[2] = CMI_het.ABIFM_J(prs, illite, Delta_a_w[2])
     end
 end
 
 @kernel function test_IceNucleation_homogeneous_J_kernel!(
+    prs,
     output::AbstractArray{FT},
     Delta_a_w,
 ) where {FT}
@@ -317,7 +320,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_hom.homogeneous_J(Delta_a_w[1])
+        output[1] = CMI_hom.homogeneous_J(prs, Delta_a_w[1])
     end
 end
 
@@ -334,7 +337,7 @@ end
 
     @inbounds begin
         output[i] = sum(
-            HN.h2so4_nucleation_rate(
+            MN.h2so4_nucleation_rate(
                 h2so4_conc[i],
                 nh3_conc[i],
                 negative_ion_conc[i],
@@ -359,7 +362,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_nucleation_rate(
+        output[i] = MN.organic_nucleation_rate(
             negative_ion_conc[i],
             monoterpene_conc[i],
             O3_conc[i],
@@ -384,7 +387,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_and_h2so4_nucleation_rate(
+        output[i] = MN.organic_and_h2so4_nucleation_rate(
             h2so4_conc[i],
             monoterpene_conc[i],
             OH_conc[i],
@@ -408,7 +411,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.apparent_nucleation_rate(
+        output[i] = MN.apparent_nucleation_rate(
             output_diam[i],
             nucleation_rate[i],
             condensation_growth_rate[i],
@@ -582,7 +585,7 @@ function test_gpu(FT)
             dev,
             work_groups,
         )
-        event = kernel!(output, x_sulph, T, ndrange = ndrange)
+        event = kernel!(make_prs(FT), output, x_sulph, T, ndrange = ndrange)
         wait(dev, event)
 
         # test H2SO4_soln_saturation_vapor_pressure is callable and returns a reasonable value
@@ -619,7 +622,7 @@ function test_gpu(FT)
         Delta_a_w = ArrayType([FT(0.16), FT(0.15)])
 
         kernel! = test_IceNucleation_ABIFM_J_kernel!(dev, work_groups)
-        event = kernel!(output, Delta_a_w, ndrange = ndrange)
+        event = kernel!(make_prs(FT), output, Delta_a_w, ndrange = ndrange)
         wait(dev, event)
 
         # test if ABIFM_J is callable and returns reasonable values
@@ -639,7 +642,7 @@ function test_gpu(FT)
         Delta_a_w = ArrayType([FT(0.2907389666103033)])
 
         kernel! = test_IceNucleation_homogeneous_J_kernel!(dev, work_groups)
-        event = kernel!(output, Delta_a_w, ndrange = ndrange)
+        event = kernel!(make_prs(FT), output, Delta_a_w, ndrange = ndrange)
         wait(dev, event)
 
         # test homogeneous_J is callable and returns a reasonable value
@@ -647,9 +650,6 @@ function test_gpu(FT)
     end
 
     @testset "Homogeneous nucleation kernels" begin
-        make_nuc_prs(::Type{FT}) where {FT} =
-            nucleation_parameters(CP.create_toml_dict(FT; dict_type = "alias"))
-
         data_length = 2
         output = ArrayType(Array{FT}(undef, 1, data_length))
         fill!(output, FT(-44.0))
@@ -666,7 +666,7 @@ function test_gpu(FT)
 
         kernel! = test_h2so4_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_nuc_prs(FT),
+            make_prs(FT),
             output,
             h2so4_conc,
             nh3_conc,
@@ -690,7 +690,7 @@ function test_gpu(FT)
 
         kernel! = test_organic_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_nuc_prs(FT),
+            make_prs(FT),
             output,
             negative_ion_conc,
             monoterpene_conc,
@@ -715,7 +715,7 @@ function test_gpu(FT)
 
         kernel! = test_organic_and_h2so4_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_nuc_prs(FT),
+            make_prs(FT),
             output,
             h2so4_conc,
             monoterpene_conc,

@@ -8,20 +8,15 @@ Double-moment bulk microphysics parametrizations including:
 """
 module Microphysics2M
 
-import ..Common
-const CO = Common
+import ..Common as CO
 
-import ..CommonTypes
-const CT = CommonTypes
+import ..CommonTypes as CT
 
-import SpecialFunctions
-const SF = SpecialFunctions
+import SpecialFunctions as SF
 
-import Thermodynamics
-const TD = Thermodynamics
+import Thermodynamics as TD
 
-import ..Parameters
-const CMP = Parameters
+import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
 
 export autoconversion
@@ -380,26 +375,29 @@ function rain_self_collection_and_breakup(
 end
 
 """
-    rain_terminal_velocity(param_set, scheme, q_rai, ρ, N_rai)
+    rain_terminal_velocity(param_set, scheme, velo_scheme, q_rai, ρ, N_rai)
 
  - `param_set` - abstract set with Earth parameters
- - `scheme` - type for 2-moment liquid self-collection parameterization
- - `q_rai` - rain water specific humidity
- - `ρ` - air density
- - `N_rai` - raindrops number density
+ - `scheme` - type for 2-moment parameterization
+ - `velo_scheme` - type for terminal velocity parameterization
+ - `q_rai` - rain water specific humidity [kg/kg]
+ - `ρ` - air density [kg/m^3]
+ - `N_rai` - raindrops number density [1/m^3]
 
-Returns a tuple containing the number and mass weigthed mean fall velocities of raindrops,
-assuming an empirical relation similar to Rogers (1993) for fall velocity of individual drops
-and an exponential size distribution, for `scheme == SB2006Type`
+Returns a tuple containing the number and mass weigthed mean fall velocities of raindrops in [m/s].
+Assuming an exponential size distribution from Seifert and Beheng 2006 for `scheme == SB2006Type`
+Fall velocity of individual rain drops is parameterized:
+ - assuming an empirical relation similar to Rogers (1993) for `velo_scheme == SB2006VelType`
+ - following Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171 for `velo_scheme == Chen2022Type`
 """
 function rain_terminal_velocity(
     param_set::APS,
     scheme::CT.SB2006Type,
+    velo_scheme::CT.SB2006VelType,
     q_rai::FT,
     ρ::FT,
     N_rai::FT,
 ) where {FT <: Real}
-
     if q_rai < eps(FT)
         return (FT(0), FT(0))
     end
@@ -414,6 +412,31 @@ function rain_terminal_velocity(
     vt1 = max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^FT(4)))
 
     return (vt0, vt1)
+end
+function rain_terminal_velocity(
+    param_set::APS,
+    scheme::CT.SB2006Type,
+    velo_scheme::CT.Chen2022Type,
+    q_rai::FT,
+    ρ::FT,
+    N_rai::FT,
+) where {FT <: Real}
+    if q_rai < eps(FT)
+        return (FT(0), FT(0))
+    end
+    # coefficients from Table B1 from Chen et. al. 2022
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(param_set, CT.RainType(), ρ)
+    # size distribution parameter
+    λ = raindrops_limited_vars(param_set, q_rai, ρ, N_rai).λr
+
+    # eq 20 from Chen et al 2022
+    vt0 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 0))
+    vt3 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 3))
+
+    vt0 = max(FT(0), vt0)
+    vt3 = max(FT(0), vt3)
+    # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
+    return (vt0, vt3)
 end
 
 """

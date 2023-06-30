@@ -1,6 +1,6 @@
 module CloudMicrophysics
 
-include("Parameters.jl")
+include("parameters/Parameters.jl")
 import .Parameters
 const CMP = Parameters
 
@@ -15,10 +15,12 @@ include("Common.jl")
 include("Microphysics0M.jl")
 include("Microphysics1M.jl")
 include("Microphysics2M.jl")
+include("P3Scheme.jl")
 include("MicrophysicsNonEq.jl")
 include("AerosolModel.jl")
 include("AerosolActivation.jl")
 include("Nucleation.jl")
 include("IceNucleation.jl")
+include("PrecipitationSusceptibility.jl")
 
 end # module

@@ -1,7 +1,7 @@
 import Test as TT
 
 import CloudMicrophysics
-const CO = CloudMicrophysics.Common
+import CloudMicrophysics.Common as CO
 
 import Thermodynamics as TD
 import CLIMAParameters as CP
@@ -63,18 +63,20 @@ function test_H2SO4_soln_saturation_vapor_pressure(FT)
         x_sulph = FT(0.1)
 
         # If T out of range
-        TT.@test_throws AssertionError("T < FT(235)") CO.H2SO4_soln_saturation_vapor_pressure(
+        TT.@test_throws AssertionError("T < T_max") CO.H2SO4_soln_saturation_vapor_pressure(
+            prs,
             x_sulph,
             T_too_warm,
         )
-        TT.@test_throws AssertionError("T > FT(185)") CO.H2SO4_soln_saturation_vapor_pressure(
+        TT.@test_throws AssertionError("T > T_min") CO.H2SO4_soln_saturation_vapor_pressure(
+            prs,
             x_sulph,
             T_too_cold,
         )
 
         # p_sol should be higher at warmer temperatures
-        TT.@test CO.H2SO4_soln_saturation_vapor_pressure(x_sulph, T_warm) >
-                 CO.H2SO4_soln_saturation_vapor_pressure(x_sulph, T_cold)
+        TT.@test CO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph, T_warm) >
+                 CO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph, T_cold)
     end
 end
 
@@ -97,15 +99,9 @@ end
 
 println("Testing Float64")
 test_H2SO4_soln_saturation_vapor_pressure(Float64)
-
-
 println("Testing Float32")
 test_H2SO4_soln_saturation_vapor_pressure(Float32)
-
-
 println("Testing Float64")
 test_Delta_a_w(Float64)
-
-
 println("Testing Float32")
 test_Delta_a_w(Float32)
