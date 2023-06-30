@@ -119,3 +119,10 @@ CommonTypes.AbstractAerosolType
 CommonTypes.ArizonaTestDustType
 CommonTypes.DesertDustType
 ```
+
+# Precipitation susceptibility
+
+```@docs
+PrecipitationSusceptibility.precipitation_susceptibility_autoconversion
+PrecipitationSusceptibility.precipitation_susceptibility_accretion
+```
