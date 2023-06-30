@@ -8,25 +8,20 @@ It is based on [KorolevMazin2003](@cite), as well as the cirrus box model
 The model solves for saturation in a 0-dimensional
   adiabatic parcel raising with constant velocity.
 
-!!! note
-    For now, the equations are written assuming
-    that only the water vapor and cloud ice
-    are present in the system.
-
-We define ice saturation ratio ``S_i``
+We define liquid saturation ratio ``S_l``
 ```math
 \begin{equation}
-S_i = \frac{e}{e_{si}}
+S_l = \frac{e}{e_{sl}}
 \end{equation}
 ```
 where:
 - ``e`` - is the partial pressure of water vapor,
-- ``e_{si}`` - is the partial pressure of water vapor at saturation over ice.
+- ``e_{sl}`` - is the partial pressure of water vapor at saturation over liquid water.
 
 The change in saturation can be described as
 ```math
 \begin{equation}
-\frac{dS_i}{dt} = \frac{1}{e_{si}} \frac{de}{dt} - \frac{e}{e_{si}^2} \frac{de_{si}}{dt}
+\frac{dS_l}{dt} = \frac{1}{e_{sl}} \frac{de}{dt} - \frac{e}{e_{sl}^2} \frac{de_{sl}}{dt}
 \end{equation}
 ```
 From ideal gas law the partial pressure of water vapor can be written as
@@ -50,21 +45,21 @@ The change in partial pressure can be written as
 From the Clausius–Clapeyron relation
 ```math
 \begin{equation}
-\frac{de_{si}}{dt} = \frac{L_s e_{si}}{R_v T^2} \frac{dT}{dt}
+\frac{de_{sl}}{dt} = \frac{L_v e_{sl}}{R_v T^2} \frac{dT}{dt}
 \end{equation}
 ```
 where:
-- ``L_s`` is the latent heat of sublimation
+- ``L_v`` is the latent heat of vaporization,
 - ``T`` is the temperature.
 
 From the moist adiabatic assumption
 ```math
 \begin{equation}
-\frac{dT}{dt} = \frac{R_a T}{c_p p} \frac{dp}{dt} + \frac{L_w}{c_p} \frac{dq_l}{dt} + \frac{L_s}{c_p} \frac{d q_i}{dt}
+\frac{dT}{dt} = \frac{R_a T}{c_p p} \frac{dp}{dt} + \frac{L_v}{c_p} \frac{dq_l}{dt} + \frac{L_s}{c_p} \frac{d q_i}{dt}
 \end{equation}
 ```
 where:
-- ``L_w`` is the latent heat of evaporation.
+- ``L_s`` is the latent heat of sublimation.
 
 From hydrostatic balance and assuming constant vertical velocity:
 ```math
@@ -76,17 +71,17 @@ where:
 - ``g`` is the gravitational acceleration
 - ``w`` is the constant vertical velocity.
 
-Assuming only water vapor and ice are present ``q_l = 0``, ``\frac{dq_v}{dt} = -\frac{dq_i}{dt}``,
+Accounting for conservation of water, i.e. ``\frac{dq_v}{dt} + \frac{dq_w}{dt} + \frac{dq_i}{dt} = 0``,
 and rearranging the terms
 ```math
 \begin{equation}
-\frac{dS_i}{dt} = a_1 w S_i - \left(a_2 + a_3 S_i\right) \frac{dq_i}{dt}
+\frac{dS_l}{dt} = a_1 w S_l - \left(a_2 + a_4 S_l\right) \frac{dq_w}{dt} - \left(a_2 + a_3 S_l\right) \frac{dq_i}{dt}
 \end{equation}
 ```
 where:
 ```math
 \begin{equation}
-a_1 = \frac{L_s g}{c_p T^2 R_v} - \frac{g}{R_a T}
+a_1 = \frac{L_v g}{c_p T^2 R_v} - \frac{g}{R_a T}
 \end{equation}
 ```
 ```math
@@ -96,9 +91,23 @@ a_2 = \frac{p}{e_{si}} \frac{R_v}{R_a}
 ```
 ```math
 \begin{equation}
-a_3 = \frac{L_s^2}{R_v T^2 c_p}
+a_3 = \frac{L_v^2}{R_v T^2 c_p}
 \end{equation}
 ```
+```math
+\begin{equation}
+a_4 = \frac{L_v L_s}{R_v T^2 c_p}
+\end{equation}
+```
+
+Supersaturation over ice can then be related to ``S_l`` by the relation
+```math
+\begin{equation}
+  S_i = \xi * S_l + \xi - 1
+  \label{eq:supersat_relation}
+\end{equation}
+```
+where ``\xi`` is the ratio of liquid saturation vapor pressure over ice saturation vapor pressure.
 
 The crux of the problem is modeling the ``\frac{dq_i}{dt}`` for different homogeneous and
 heterogeneous ice nucleation paths. For now we only consider the water vapor deposition
@@ -163,7 +172,8 @@ where ``N_{act}`` is the number of activated ice particles.
 
 ## Example figures
 
-Here we show example simulation results from the adiabatic parcel model.
+Here we show example simulation results from the adiabatic parcel
+  model with deposition freezing on dust.
 The model is run three times for 30 minutes simulation time,
   (shown by three different colors on the plot).
 Between each run the water vapor specific humidity is changed,
@@ -175,3 +185,12 @@ The prescribed vertical velocity is equal to 3.5 cm/s.
 include("../../parcel/Tully_et_al_2023.jl")
 ```
 ![](cirrus_box.svg)
+
+The parcel can also run a liquid-only option. In the plots below, the model
+  ran with only condensation (no ice or freezing). It is compared to
+  [Rogers1975](@cite) figure 1 in yellow.
+
+```@example
+include("../../parcel/Liquid_only.jl")
+```
+![](liquid_only_parcel.svg)

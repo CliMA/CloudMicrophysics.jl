@@ -87,4 +87,3 @@ MK.axislegend(ax1, position = :rt, labelsize = 13.0f0)
 MK.axislegend(ax2, position = :rb, labelsize = 14.0f0)
 
 MK.save("HomFreezingPlots.svg", fig)
-fig

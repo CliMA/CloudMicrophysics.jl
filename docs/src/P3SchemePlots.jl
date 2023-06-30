@@ -133,6 +133,7 @@ function p3_mass_plot()
         yminorticks = Plt.IntervalsBetween(3),
         xticks = [0.01, 0.1, 1, 10],
         aspect = 1.75,
+        limits = ((0.02, 10.0), nothing),
     )
 
     sol_5 = P3.thresholds(p3, 400.0, 0.5)
@@ -171,6 +172,7 @@ function p3_mass_plot()
         xminorticks = Plt.IntervalsBetween(5),
         xticks = [0.01, 0.1, 1, 10],
         aspect = 1.67,
+        limits = ((0.02, 10.0), nothing),
     )
 
     sol_2 = P3.thresholds(p3, 200.0, 0.95)
@@ -221,6 +223,7 @@ function p3_area_plot()
         yminorticks = Plt.IntervalsBetween(3),
         xticks = [0.01, 0.1, 1, 10],
         aspect = 1.75,
+        limits = ((0.02, 10.0), nothing),
     )
     sol_5 = P3.thresholds(p3, 400.0, 0.5)
     sol_8 = P3.thresholds(p3, 400.0, 0.8)
@@ -257,6 +260,7 @@ function p3_area_plot()
         xminorticks = Plt.IntervalsBetween(5),
         xticks = [0.01, 0.1, 1, 10],
         aspect = 1.67,
+        limits = ((0.02, 10.0), nothing),
     )
     sol_2 = P3.thresholds(p3, 200.0, 0.95)
     sol_4 = P3.thresholds(p3, 400.0, 0.95)

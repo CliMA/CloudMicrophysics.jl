@@ -16,23 +16,26 @@ include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
 """
 function get_initial_condition(
     prs,
-    N_act,
     p_a,
     T,
     q_vap,
     q_liq,
     q_ice,
-    N_aerosol,
+    N_aer,
+    N_liq,
+    N_ice,
+    x_sulph,
 )
+
     thermo_params = CMP.thermodynamics_params(prs)
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
     R_a = TD.gas_constant_air(thermo_params, q)
     R_v = CMP.R_v(prs)
-    e_si = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
+    e_sl = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
     e = q_vap * p_a * R_v / R_a
-    S_i = e / e_si
+    S_liq = e / e_sl - 1
 
-    return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol]
+    return [S_liq, p_a, T, q_vap, q_liq, q_ice, N_aer, N_liq, N_ice, x_sulph]
 end
 
 """
@@ -43,7 +46,7 @@ end
      - each period is run with user specified constant timestep
      - the large scale initial conditions between each period are different
 """
-function run_parcel(FT)
+function Tully_et_al_2023(FT)
 
     # Boiler plate code to have access to model parameters and constants
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
@@ -52,48 +55,47 @@ function run_parcel(FT)
 
     # Initial conditions for 1st period
     N_aerosol = FT(2000 * 1e3)
+    N_droplets = FT(0)
     N_0 = FT(0)
     p_0 = FT(20000)
     T_0 = FT(230)
-    q_vap_0 = FT(0.0003345)
+    q_vap_0 = FT(3.3e-4)
     q_liq_0 = FT(0)
     q_ice_0 = FT(0)
+    x_sulph = FT(0)
     # Initial conditions for the 2nd period
     T2 = FT(229.25)
-    q_vap2 = FT(0.00034)
+    q_vap2 = FT(3.3e-4)
     # Initial conditions for the 3rd period
     T3 = FT(228.55)
-    q_vap3 = FT(0.000345)
+    q_vap3 = FT(3.3e-4)
 
     # Simulation time
     t_max = 30 * 60
 
     # Simulation parameters passed into ODE solver
-    r_nuc = FT(0.5 * 1.e-4 * 1e-6) # assumed size of nucleated particles
-    w = FT(3.5 * 1e-2) # updraft speed
-    α_m = FT(0.5) # accomodation coefficient
-    const_dt = 0.1 # model timestep
-    p = (; prs, const_dt, r_nuc, w, α_m)
+    r_nuc = FT(0.5 * 1.e-4 * 1e-6)             # assumed size of nucleated particles
+    w = FT(3.5 * 1e-2)                         # updraft speed
+    α_m = FT(0.5)                              # accomodation coefficient
+    const_dt = 0.1                             # model timestep
+    ice_nucleation_modes = ["DustDeposition"]  # switch on deposition on dust
+    growth_modes = ["Deposition"]              # switch on deposition growth
+    p = (; prs, const_dt, r_nuc, w, α_m, ice_nucleation_modes, growth_modes)
 
     # Simulation 1
     IC1 = get_initial_condition(
         prs,
-        N_0,
         p_0,
         T_0,
         q_vap_0,
         q_liq_0,
         q_ice_0,
         N_aerosol,
+        N_droplets,
+        N_0,
+        x_sulph,
     )
-    prob1 = ODE.ODEProblem(parcel_model, IC1, (FT(0), t_max), p)
-    sol1 = ODE.solve(
-        prob1,
-        ODE.Euler(),
-        dt = const_dt,
-        reltol = 10 * eps(FT),
-        abstol = 10 * eps(FT),
-    )
+    sol1 = run_parcel(IC1, 0, t_max, p)
 
     # Simulation 2
     # (alternatively set T and take q_vap from the previous simulation)
@@ -101,26 +103,17 @@ function run_parcel(FT)
     IC2 = get_initial_condition(
         prs,
         sol1[2, end],
-        sol1[3, end],
-        sol1[4, end],
+        #sol1[3, end],
+        T2,
         q_vap2,
         q_liq_0,
         sol1[6, end],
         sol1[7, end],
+        sol1[8, end],
+        sol1[9, end],
+        x_sulph,
     )
-    prob2 = ODE.ODEProblem(
-        parcel_model,
-        IC2,
-        (FT(sol1.t[end]), sol1.t[end] + t_max),
-        p,
-    )
-    sol2 = ODE.solve(
-        prob2,
-        ODE.Euler(),
-        dt = const_dt,
-        reltol = 10 * eps(FT),
-        abstol = 10 * eps(FT),
-    )
+    sol2 = run_parcel(IC2, sol1.t[end], sol1.t[end] + t_max, p)
 
     # Simulation 3
     # (alternatively set T and take q_vap from the previous simulation)
@@ -128,26 +121,17 @@ function run_parcel(FT)
     IC3 = get_initial_condition(
         prs,
         sol2[2, end],
-        sol2[3, end],
-        sol2[4, end],
+        #sol2[3, end],
+        T3,
         q_vap3,
         q_liq_0,
         sol2[6, end],
         sol2[7, end],
+        sol2[8, end],
+        sol2[9, end],
+        x_sulph,
     )
-    prob3 = ODE.ODEProblem(
-        parcel_model,
-        IC3,
-        (FT(sol2.t[end]), sol2.t[end] + t_max),
-        p,
-    )
-    sol3 = ODE.solve(
-        prob3,
-        ODE.Euler(),
-        dt = const_dt,
-        reltol = 10 * eps(FT),
-        abstol = 10 * eps(FT),
-    )
+    sol3 = run_parcel(IC3, sol2.t[end], sol2.t[end] + t_max, p)
 
     # Plot results
     fig = MK.Figure(resolution = (800, 600))
@@ -158,28 +142,36 @@ function run_parcel(FT)
     ax5 = MK.Axis(fig[3, 1], ylabel = "q_vap [g/kg]", xlabel = "Height [m]")
     ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]", xlabel = "Height [m]")
 
-    MK.ylims!(ax1, 1.0, 1.5)
+    #MK.ylims!(ax1, 1.0, 1.5)
     MK.ylims!(ax3, 3, 2e3)
 
+    ξ(T) =
+        TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid()) /
+        TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
+    S_i(T, S_liq) = ξ(T) * S_liq + ξ(T) - 1
+
     MK.lines!(ax1, sol1.t * w, sol1[1, :])
+    MK.lines!(ax1, sol1.t * w, S_i.(sol1[3, :], sol1[1, :]), linestyle = :dash)
     MK.lines!(ax1, sol2.t * w, sol2[1, :])
+    MK.lines!(ax1, sol2.t * w, S_i.(sol2[3, :], sol2[1, :]), linestyle = :dash)
     MK.lines!(ax1, sol3.t * w, sol3[1, :])
+    MK.lines!(ax1, sol3.t * w, S_i.(sol3[3, :], sol3[1, :]), linestyle = :dash)
 
-    MK.lines!(ax2, sol1.t * w, sol1[4, :])
-    MK.lines!(ax2, sol2.t * w, sol2[4, :])
-    MK.lines!(ax2, sol3.t * w, sol3[4, :])
+    MK.lines!(ax2, sol1.t * w, sol1[3, :])
+    MK.lines!(ax2, sol2.t * w, sol2[3, :])
+    MK.lines!(ax2, sol3.t * w, sol3[3, :])
 
-    MK.lines!(ax3, sol1.t * w, sol1[2, :] * 1e-3)
-    MK.lines!(ax3, sol2.t * w, sol2[2, :] * 1e-3)
-    MK.lines!(ax3, sol3.t * w, sol3[2, :] * 1e-3)
+    MK.lines!(ax3, sol1.t * w, sol1[9, :] * 1e-3)
+    MK.lines!(ax3, sol2.t * w, sol2[9, :] * 1e-3)
+    MK.lines!(ax3, sol3.t * w, sol3[9, :] * 1e-3)
 
     MK.lines!(ax4, sol1.t * w, sol1[7, :] * 1e-3)
     MK.lines!(ax4, sol2.t * w, sol2[7, :] * 1e-3)
     MK.lines!(ax4, sol3.t * w, sol3[7, :] * 1e-3)
 
-    MK.lines!(ax5, sol1.t * w, sol1[5, :] * 1e3)
-    MK.lines!(ax5, sol2.t * w, sol2[5, :] * 1e3)
-    MK.lines!(ax5, sol3.t * w, sol3[5, :] * 1e3)
+    MK.lines!(ax5, sol1.t * w, sol1[4, :] * 1e3)
+    MK.lines!(ax5, sol2.t * w, sol2[4, :] * 1e3)
+    MK.lines!(ax5, sol3.t * w, sol3[4, :] * 1e3)
 
     MK.lines!(ax6, sol1.t * w, sol1[6, :] * 1e3)
     MK.lines!(ax6, sol2.t * w, sol2[6, :] * 1e3)
@@ -188,4 +180,4 @@ function run_parcel(FT)
     MK.save("cirrus_box.svg", fig)
 end
 
-run_parcel(Float64)
+Tully_et_al_2023(Float64)
