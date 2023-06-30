@@ -18,7 +18,7 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function cirrus_box(dY, Y, p, t)
 
     # Get simulation parameters
-    (; prs, const_dt, r_nuc, w, α_m) = p
+    (; prs, const_dt, r_nuc, w, α_m, freeze_mode, deposition_growth) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
 
@@ -74,12 +74,12 @@ function cirrus_box(dY, Y, p, t)
     G = CMO.G_func(prs, T, TD.Ice())
     r = N_act > 0 ? cbrt(q_ice / N_act / (4 / 3 * π) / ρ_ice * ρ) : 0
     C = r
-    dqi_dt_deposition = 1 / ρ * N_act * α_m * 4 * π * C * (S_i - 1) * G
+    dqi_dt_deposition = deposition_growth == true ? 1 / ρ * N_act * α_m * 4 * π * C * (S_i - 1) * G : FT(0)
     #dqi_dt_deposition = FT(0.0) # Use this if you don't want to grow
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
-    dqw_dt = 0 
+    dqw_dt = freeze_mode == "deposition" ? 0 : 1
     # TODO - update dqw_dt when implementing homo. and immersion freezing
 
     # Update the tendecies
@@ -134,8 +134,10 @@ end
      - each period is 30 minutes long
      - each period is run with user specified constant timestep
      - the large scale initial conditions between each period are different
+    Possible freeze_mode inputs are the following strings
+     - "deposition"
 """
-function run_parcel(FT)
+function run_parcel(FT, freeze_mode, deposition_growth = true)
 
     # Boiler plate code to have access to model parameters and constants
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
@@ -165,7 +167,7 @@ function run_parcel(FT)
     w = FT(3.5 * 1e-2) # updraft speed
     α_m = FT(0.5) # accomodation coefficient
     const_dt = 0.1 # model timestep
-    p = (; prs, const_dt, r_nuc, w, α_m)
+    p = (; prs, const_dt, r_nuc, w, α_m, freeze_mode, deposition_growth)
 
     # Simulation 1
     IC1 = get_initial_condition(
@@ -280,4 +282,4 @@ function run_parcel(FT)
     MK.save("cirrus_box.svg", fig)
 end
 
-run_parcel(Float64)
+run_parcel(Float64, "deposition")
