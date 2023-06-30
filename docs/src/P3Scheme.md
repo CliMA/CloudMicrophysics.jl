@@ -24,7 +24,7 @@ N'(D) = N_{0} D^\mu \, e^{-\lambda \, D}
 
 where:
  - ``N'`` is the number concentration,
- - ``D`` is the maximum particle dimension (m),
+ - ``D`` is the maximum particle dimension,
  - ``N_0`` is the intercept parameter,
  - ``\mu`` is the shape parameter,
  - ``\lambda`` is the slope parameter.
@@ -42,10 +42,8 @@ The mass (m) of particles as a function of maximum particle dimension (D)
 |small, spherical ice | ``D < D_{th}`` | ``\frac{\pi}{6} \rho_i \ D^3`` |
 |large, unrimed ice   | ``q_{rim} = 0`` and ``D > D_{th}`` | ``\alpha_{va} \ D^{\beta_{va}}`` |
 |dense nonspherical ice | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | ``\alpha_{va} \ D^{\beta_{va}}`` |
-|partially rimed ice | ``q_{rim} > 0`` and ``D < D_{cr}`` | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` |
-|graupel (completely rimed, spherical)| ``q_{rim} > 0``, ``D > D_{cr}``, and ``D > D_{gr}`` | ``\frac{\pi}{6} \rho_g \ D^3`` |
-
-> **_NOTE:_**  unsure about D_cr: should graupel be defined by D > D_cr? and partially rimed ice?
+|partially rimed ice | ``q_{rim} > 0`` and ``D > D_{cr}`` | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` |
+|graupel (completely rimed, spherical)| ``q_{rim} > 0``and ``D_{gr} < D < D_{cr}`` | ``\frac{\pi}{6} \rho_g \ D^3`` |
 
 where:
  - ``\rho_i \ = 917 kgm^{-3}`` (density of bulk ice)
@@ -78,40 +76,46 @@ The projected area (A) of particles as a function of maximum particle dimension 
 | particle properties |      condition(s)     |    A(D) relation      |
 |:--------------------|:----------------------|:----------------------|
 |small, spherical ice | ``D < D_{th}``        | ``\frac{\pi}{4} D^2`` |
-|graupel (completely rimed, spherical)| ``q_{rim} > 0``, ``D > D_{cr}``, and ``D > D_{gr}`` | ``\frac{\pi}{4} D^2`` |
+|graupel (completely rimed, spherical)| ``q_{rim} > 0``and ``D_{gr} < D < D_{cr}`` | ``\frac{\pi}{4} D^2`` |
 |large, unrimed ice   | ``q_{rim} = 0`` and ``D > D_{th}`` | ``\gamma \ D^{\sigma}`` |
 |dense nonspherical ice | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | ``\gamma \ D^{\sigma}`` |
-|partially rimed ice | ``q_{rim} > 0`` and ``D < D_{cr}`` | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
+|partially rimed ice | ``q_{rim} > 0`` and ``D > D_{cr}`` | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
 
 where all variables from the m(D) regime are as defined above, and:
  - ``\gamma = 0.2285`` and
  - ``\sigma = 1.88``, both from the aggregates of side planes, columns, bullets,
   and planar polycrystals in [Mitchell1996](@cite)
 
-> **_NOTE:_**  for partially rimed ice, the A(D) relationship is a simple
- > linear weighting between unrimed ice and graupel as a function of the rime
- > mass fraction ``F_r``. If this means what I think it means, then my A(D)
- > in the table should be fine, but I'm just signaling that I'm
- > not 100% sure I'm right.
-
 ## Assumed particle fall speed relationships
 
 Particle fall speed (V) as a function of maximum particle dimension,
  following [MorrisonMilbrandt2015](@cite), uses coefficients
  derived by [cite: Mitchell and Heymsfield 2005] and
- an air density modification provided by [cite: Heymsfield 2007]:
+ an air density modification provided by [cite: Heymsfield 2007] only applied to
+ particles having undergone sedimentation.
+
+With the modification, particle fall speed is given:
 
 ```math
-V(D) = (\frac{\rho_0}{\rho})^{0.54} a_{1} D^b_{1}
+V(D) = (\frac{\rho_0}{\rho})^{0.54} a D^b
 ```
 
 where:
- - ``a_{1} = xx``
- - ``b_{1} = xx``
+ - ``D`` is the maximum particle dimension
  - ``\rho_0`` is a reference air density, here taken as ``xx``
  - ``\rho`` is particle density
 
-and the air density correction is only applied to
- particles having undergone sedimentation.
+And without:
 
-> **_TODO:_**  finish documentation and add more sections, figure out fall speed regime
+```math
+V(D) = a D^b
+```
+
+where:
+ - ``a = a_{1} \nu^{1 - 2 b_{1}} (\frac{2 \alpha_{va} g}{\rho_{air} \gamma})^b_{1}``
+ - ``b = b_{1} (B - \sigma + 2) - 1``
+
+The parameters governing the coefficients a and b of the power law are:
+|    parameter     |              value                |
+|:-----------------|:----------------------------------|
+|``a_{1}``         | ``\frac{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2} - a_{o} X^{b_{o}}}{X^{b_{1}}}`` |
