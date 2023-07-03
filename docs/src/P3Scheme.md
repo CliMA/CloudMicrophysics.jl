@@ -91,18 +91,18 @@ where all variables from the m(D) regime are as defined above, and:
 Particle fall speed (V) as a function of maximum particle dimension,
  following [MorrisonMilbrandt2015](@cite), uses coefficients
  derived by [cite: Mitchell and Heymsfield 2005] and
- an air density modification provided by [cite: Heymsfield 2007] only applied to
+ an air density modification provided by [cite: Heymsfield 2007] applied to
  particles having undergone sedimentation.
 
 With the modification, particle fall speed is given:
 
 ```math
-V(D) = (\frac{\rho_0}{\rho})^{0.54} a D^b
+V(D) = (\frac{\rho_air}{\rho})^{0.54} a D^b
 ```
 
 where:
  - ``D`` is the maximum particle dimension
- - ``\rho_0`` is a reference air density, here taken as ``xx``
+ - ``\rho_air`` is a reference air density (see table below)
  - ``\rho`` is particle density
 
 And without:
@@ -112,10 +112,25 @@ V(D) = a D^b
 ```
 
 where:
- - ``a = a_{1} \nu^{1 - 2 b_{1}} (\frac{2 \alpha_{va} g}{\rho_{air} \gamma})^b_{1}``
- - ``b = b_{1} (B - \sigma + 2) - 1``
+ - ``a = a_{1} \nu_{air}^{1 - 2 b_{1}} (\frac{2 \alpha_{va} g}{\rho_{air} \gamma})^b_{1}``
+ - ``b = \frac{b_{1} (2 - \sigma) - 1}{1 - b_{1}}``
 
 The parameters governing the coefficients a and b of the power law are:
 |    parameter     |              value                |
 |:-----------------|:----------------------------------|
 |``a_{1}``         | ``\frac{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2} - a_{o} X^{b_{o}}}{X^{b_{1}}}`` |
+|``b_{1}``         | ``\frac{C_{1} X^{0.5}}{2 ([1 + C_{1} X^{0.5}]^{0.5} - 1) (1 + C_{1} X^{0.5})^{0.5}} - \frac{a_{o} b{o} X^{b_{o}}}{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2}}`` |
+|``\nu_{air}``, kinematic viscocity of air | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
+|``g``, gravitational acceleration | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
+|``\rho_{air}``, density of air | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
+|``C_{1}``         | ``\frac{4}{\delta_{o}^{2} C_{o}^{0.5}}`` |
+|``C_{2}``          | ``\frac{\delta_{o}^{2}}{4}`` |
+|``\delta_{o}``, surface roughness constant for ice | ``5.83`` |
+|``C_{o}``, surface roughness constant for ice | ``0.6`` |
+|``a_{o}``, boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant | ``1e-5`` |
+|``b_{o}``, boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant | ``1.0`` |
+|``X``, Best/Davies number expressed in terms of m(D) and A(D) regimes | ``\frac{2 \alpha_{va} g \rho_{air} D^{\beta_va + 2 - \sigma}}{\gamma \nu_{air}^2}`` |
+
+> **_NOTE:_**  Uncertain about delta_o, C_o, a_o, b_o values: Heymsfield (2005) gives multiple possible values,
+> each of which is more accurate under certain conditions (convective with graupel/hail and stratiform with ice
+> crystal aggregates) ... would like to discuss this to make sure I understand
