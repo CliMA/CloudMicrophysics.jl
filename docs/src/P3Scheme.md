@@ -121,6 +121,7 @@ The parameters governing the coefficients a and b of the power law are:
 |``a_{1}``         | ``\frac{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2} - a_{o} X^{b_{o}}}{X^{b_{1}}}`` |
 |``b_{1}``         | ``\frac{C_{1} X^{0.5}}{2 ([1 + C_{1} X^{0.5}]^{0.5} - 1) (1 + C_{1} X^{0.5})^{0.5}} - \frac{a_{o} b{o} X^{b_{o}}}{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2}}`` |
 |``\nu_{air}``, kinematic viscocity of air | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
+|``\mu_{air}``, dynamic viscocity of air | ??? - 1.67e-5 for now? |
 |``g``, gravitational acceleration | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
 |``\rho_{air}``, density of air | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
 |``C_{1}``         | ``\frac{4}{\delta_{o}^{2} C_{o}^{0.5}}`` |
@@ -134,3 +135,4 @@ The parameters governing the coefficients a and b of the power law are:
 > **_NOTE:_**  Uncertain about delta_o, C_o, a_o, b_o values: Heymsfield (2005) gives multiple possible values,
 > each of which is more accurate under certain conditions (convective with graupel/hail and stratiform with ice
 > crystal aggregates) ... would like to discuss this to make sure I understand
+> **_ALSO:_**  Uncertain about what value to use for dynamic viscocity of air
