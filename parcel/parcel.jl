@@ -69,12 +69,17 @@ function cirrus_box(dY, Y, p, t)
     τ_relax = const_dt
     if freeze_mode == "deposition"
 
-        AF = CMI.dust_activated_number_fraction(prs, S_i, T, CMT.DesertDustType())
+        AF = CMI_het.dust_activated_number_fraction(
+            prs,
+            S_i,
+            T,
+            CMT.DesertDustType(),
+        )
 
         dN_act_dt = max(FT(0), AF * N_aerosol - N_act) / τ_relax
     elseif freeze_mode == "ABIFM"
-        Delta_a_w = CMO.Delta_a_w(prs, x_sulph, T)
-        J_immer = CMI_het.ABIFM_J(CMT.DesertDustType(), Delta_a_w) * 1e4 # converting cm^-2 s^-1 to m^-2 s^-1
+        Delta_a_w = T > FT(185) && T < FT(235) ? CMO.Delta_a_w(prs, x_sulph, T) : FT(0)
+        J_immer = T > FT(185) && T < FT(235) ? CMI_het.ABIFM_J(CMT.DesertDustType(), Delta_a_w) * 1e4 : FT(0)
         P_ice = J_immer * 4 * π * r_nuc^2 * N_aerosol # per sec
 
         dN_act_dt = max(FT(0), P_ice * τ_relax)
@@ -92,7 +97,7 @@ function cirrus_box(dY, Y, p, t)
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
-    dqw_dt = freeze_mode == "deposition" ? 0 : 1
+    dqw_dt = freeze_mode == "deposition" ? FT(0) : FT(0)
     # TODO - update dqw_dt when implementing homo. and immersion freezing
 
     # Update the tendecies
@@ -303,4 +308,5 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
     MK.save("cirrus_box.svg", fig)
 end
 
-run_parcel(Float64, "deposition")
+#run_parcel(Float64, "deposition")
+run_parcel(Float64, "ABIFM")
