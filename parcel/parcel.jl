@@ -95,7 +95,7 @@ function cirrus_box(dY, Y, p, t)
             Delta_a_w > 0.26 && Delta_a_w < 0.34 ?
             CMI_hom.homogeneous_J(Delta_a_w) : FT(0)
         P_ice = J_homogeneous * 4 / 3 * π * r_nuc^3 * N_aerosol
-        
+
         dN_act_dt = max(FT(0), P_ice * τ_relax)
     end
     dN_aerosol_dt = -dN_act_dt
