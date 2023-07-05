@@ -109,13 +109,95 @@ where:
  - ``\rho`` is the density of air.
 
 !!! note
+    Assuming a constant drag coefficient is an approximation and it should
+    be size and flow dependent, see for example
+    [here](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-of-a-sphere/).
+    We are in the process of updating the 1-moment microphysics scheme to formulae from [Chen2022](@cite).
+    Other possibilities: [Khvorostyanov2002](@cite) or [Karrer2020](@cite)
 
-    It would be great to replace the above simple power laws
-    with more accurate relationships.
-    For example:
-    [Khvorostyanov2002](@cite)
-    or
-    [Karrer2020](@cite)
+[Chen2022](@cite) provides a terminal velocity parameterisation
+  based on an empirical fit to a high accuracy model.
+The terminal velocity depends on particle shape, size and density,
+  consideres the deformation effects of large rain drops,
+  as well as size-specific air density dependence.
+The fall speed of individual particles $v(D)$ is parameterized as:
+```math
+\begin{equation}
+    v_{term}(D) = \phi^{\kappa} \sum_{i=1}^{j} \; a_i D^{b_i} e^{-c_i \; D}
+\end{equation}
+```
+where:
+ - ``D`` is the particle diameter,
+ - ``a_i``, ``b_i``, ``c_i`` are the free parameters,
+ - ``\phi`` is the aspect ratio, and
+ - ``\kappa`` is a parameter that depends on the particle shape (``\kappa=0`` for spheres, ``\kappa=-1/3`` for oblate and ``\kappa=1/6`` for prolate spheroids).
+
+For ice and snow ``j=2`` and for rain ``j=3``, to account for deformation at larger sizes.
+For rain and ice we assume ``\phi=1`` (spherical).
+For snow we assume ``\kappa = -1/3`` and
+  find the aspect ratio that is consistent with the assumed ``m(r)`` and ``a(r)`` relationships.
+The aspect ratio is defined as:
+```math
+\begin{equation}
+    \phi \equiv c/a
+\end{equation}
+```
+where:
+ - ``a`` is the basal plane axial half-length, and
+ - ``c`` is perpendicular to the basal plane.
+
+The volume of a spheroid can be represented as ``V_p = 4\pi/3 \; a^2 c``
+  and the area can be represented as ``A_p = \pi a c``.
+It follows that
+  ``c = (4A_p^2) / (3 \pi V_p)``,
+  ``a = (3V_p) / (4A_p)``, and
+  ``\phi = (16 A_p^3) / (9 \pi V_p^2)``.
+The volume and area are defined by the assumed power-law size relations
+  ``V_p = m(r) / (\rho_{ice})``, ``A_p = a(r)``.
+As a result the terminal velocity of individual snow particles as:
+```math
+\begin{equation}
+    v_{term}(r) = \left(\frac{16 \; \rho_{ice}^2 \; a_0^3 \; (r/r_0)^{3a_e}}{9 \pi \; m_0^2 \; (r/r_0)^{2 m_e}} \right)^{\kappa}  \sum_{i=1}^{2} \; a_i (2r)^{b_i} e^{-2 c_i r}
+\end{equation}
+```
+where $r$ is the radius of the particle.
+
+Here we plot the terminal velocity formulae from the current default 1-moment scheme and [Chen2022](@cite).
+We also show the aspect ratio of snow particles.
+
+```@example
+include("TerminalVelocityComparisons.jl")
+```
+![](1M_individual_terminal_velocity_comparisons.svg)
+
+The rain ``a_i``, ``b_i``, and ``c_i`` are listed in the table below.
+The formula is applicable when ``D > 0.1 mm``,
+$q$ refers to ``q = e^{0.115231 \; \rho_a}``, where  ``\rho_a`` is air density [kg/m3].
+The units are: [v] = m/s, [D]=mm, [``a_i``] = ``mm^{-b_i} m/s``, [``b_i``] is dimensionless, [``c_i``] = 1/mm.
+
+|  ``i``  |            ``a_i``                        |         ``b_i``                      |   ``c_i``           |
+|---------|-------------------------------------------|--------------------------------------|---------------------|
+|   1     |   `` 0.044612 \; q``                      |   ``2.2955 \; -0.038465 \; \rho_a``  |   ``0``             |
+|   2     |   ``-0.263166 \; q``                      |   ``2.2955 \; -0.038465 \; \rho_a``  |   ``0.184325``      |
+|   3     |   ``4.7178 \; q \; (\rho_a)^{-0.47335}``  |   ``1.1451 \; -0.038465 \; \rho_a``  |   ``0.184325``      |
+
+The ice and snow ``a_i``, ``b_i``, and ``c_i`` are listed in the table below.
+The formula is applicable when ``D < 0.625 mm``.
+
+| ``i`` |        ``a_i``              |       ``b_i``           |   ``c_i`` |
+|-------|-----------------------------|-------------------------|-----------|
+|   1   |   ``E_s (\rho_a)^{A_s}``    |   ``B_s + C_s \rho_a``  |   ``0``   |
+|   2   |   ``F_s (\rho_a)^{A_s}``    |   ``B_s + C_s \rho_a``  |   ``G_s`` |
+
+| Coefficient  | Formula                                                                                        |
+|--------------|------------------------------------------------------------------------------------------------|
+| ``A_s``      | ``0.00174079 \log{(\rho_{ice})}^2 − 0.0378769 \log{(\rho_{ice})} - 0.263503``                  |
+| ``B_s``      | ``(0.575231 + 0.0909307 \log{(\rho_{ice})} + 0.515579 / \sqrt{\rho_{ice}})^{-1}``              |
+| ``C_s``      | ``-0.345387 + 0.177362 \, \exp{(-0.000427794 \rho_{ice})} + 0.00419647 \sqrt{\rho_{ice}}``     |
+| ``E_s``      | ``-0.156593 - 0.0189334 \log{(\rho_{ice})}^2 + 0.1377817 \sqrt{\rho_{ice}}``                   |
+| ``F_s``      | ``- \exp{[-3.35641 - 0.0156199 \log{\rho_{ice}}^2 + 0.765337 \log{\rho_{ice}}]}``              |
+| ``G_s``      | ``(-0.0309715 + 1.55054 / \log{(\rho_{ice})} - 0.518349 log{(\rho_{ice})} / \rho_{ice})^{-1}`` |
+
 
 ## Assumed particle size distributions
 
@@ -259,8 +341,7 @@ F(r) = a_{vent} +
 
 ## Terminal velocity
 
-The mass weighted terminal velocity ``v_t`` is defined following
-[Ogura1971](@cite):
+The mass weighted terminal velocity ``v_t`` (following [Ogura1971](@cite)) is:
 ```math
 \begin{equation}
   v_t = \frac{\int_0^\infty n(r) \, m(r) \, v_{term}(r) \, dr}
@@ -268,8 +349,8 @@ The mass weighted terminal velocity ``v_t`` is defined following
 \label{eq:vt}
 \end{equation}
 ```
-Integrating over the assumed Marshall-Palmer distribution and using the
-  ``m(r)`` and ``v_{term}(r)`` relationships results in
+Integrating the default 1-moment ``m(r)`` and ``v_{term}(r)`` relationships
+    over the assumed Marshall-Palmer distribution results in group terminal velocity:
 ```math
 \begin{equation}
   v_t = \chi_v \, v_0 \, \left(\frac{1}{r_0 \, \lambda}\right)^{v_e + \Delta_v}
@@ -278,15 +359,30 @@ Integrating over the assumed Marshall-Palmer distribution and using the
 \end{equation}
 ```
 
-!!! note
-
-    Assuming a constant drag coefficient is an approximation and it should
-    be size and flow dependent, see for example
-    [here](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-of-a-sphere/).
-    In general we should implement these terminal velocity parameterizations:
-    [Khvorostyanov2002](@cite)
-    or
-    [Karrer2020](@cite)
+Integrating [Chen2022](@cite) formulae for rain and ice
+  over the assumed Marshall-Palmer size distribution,
+  results in group terminal velocity:
+```math
+\begin{equation}
+  v_t = \sum_{i=1}^{j} \frac{a_i \lambda^{\delta} \Gamma(b_i + \delta)}{(\lambda + c_i)^{b_i + 4} \; \Gamma(4)}
+\end{equation}
+```
+Finally, integrating [Chen2022](@cite) formulae for snow
+  over the assumed Marshall-Palmer distribution,
+  results in group terminal velocity:
+```math
+\begin{equation}
+  v_t = \sum_{i=1}^{2} t_i \frac{\Gamma(3a_e \kappa - 2 m_e \kappa + b_i + k + 1)}{\Gamma(k+1)}
+\end{equation}
+```
+where:
+```math
+\begin{equation}
+t_i = \frac{[16 a_0^3 \rho_{ice}^2]^{\kappa} \; a_i \; 2^{b_i} [2 c_i \lambda]^{-(3 a_e \kappa - 2 m_e \kappa + b_i + k)-1}}
+{[9 \pi m_0^2]^{\kappa} \; r_0^{3 a_e \kappa - 2 m_e \kappa} \lambda^{-k-1}}
+\end{equation}
+```
+and $k = 3$.
 
 ## Rain autoconversion
 
@@ -679,6 +775,8 @@ const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
 const rain = CMT.RainType()
 const snow = CMT.SnowType()
+const Chen2022 = CMT.Chen2022Type()
+const Blk1MVel = CMT.Blk1MVelType()
 
 # eq. 5d in [Grabowski1996](@cite)
 function terminal_velocity_empirical(q_rai::DT, q_tot::DT, ρ::DT, ρ_air_ground::DT) where {DT<:Real}
@@ -721,9 +819,12 @@ q_snow_range = range(1e-8, stop=5e-3, length=100)
 ρ_air, ρ_air_ground = 1.2, 1.22
 q_liq, q_ice, q_tot = 5e-4, 5e-4, 20e-3
 
-PL.plot( q_rain_range * 1e3, [CM1.terminal_velocity(param_set, rain, ρ_air, q_rai) for q_rai in q_rain_range],     linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="terminal velocity [m/s]", label="Rain-CLIMA")
-PL.plot!(q_snow_range * 1e3, [CM1.terminal_velocity(param_set, snow, ρ_air, q_sno) for q_sno in q_snow_range],     linewidth=3, label="Snow-CLIMA")
-PL.plot!(q_rain_range * 1e3, [terminal_velocity_empirical(q_rai, q_tot, ρ_air, ρ_air_ground) for q_rai in q_rain_range], linewidth=3, label="Rain-Empirical")
+PL.plot( q_rain_range * 1e3, [CM1.terminal_velocity(param_set, rain, Blk1MVel, ρ_air, q_rai) for q_rai in q_rain_range], linewidth=3, label="Rain-1M-default", color=:blue, xlabel="q_rain/ice/snow [g/kg]", ylabel="terminal velocity [m/s]")
+PL.plot!(q_rain_range * 1e3, [CM1.terminal_velocity(param_set, rain, Chen2022, ρ_air, q_rai) for q_rai in q_rain_range], linewidth=3, label="Rain-Chen",       color=:blue, linestyle=:dot)
+PL.plot!(q_rain_range * 1e3, [terminal_velocity_empirical(q_rai, q_tot, ρ_air, ρ_air_ground) for q_rai in q_rain_range],        linewidth=3, label="Rain-Empirical",  color=:green)
+PL.plot!(q_ice_range  * 1e3, [CM1.terminal_velocity(param_set, ice,  Chen2022, ρ_air, q_ice) for q_ice in q_ice_range],  linewidth=3, label="Ice-Chen",        color=:pink, linestyle=:dot)
+PL.plot!(q_snow_range * 1e3, [CM1.terminal_velocity(param_set, snow, Blk1MVel, ρ_air, q_sno) for q_sno in q_snow_range], linewidth=3, label="Snow-1M-default", color=:red)
+PL.plot!(q_snow_range * 1e3, [CM1.terminal_velocity(param_set, snow, Chen2022, ρ_air, q_sno) for q_sno in q_snow_range], linewidth=3, label="Snow-Chen",       color=:red, linestyle=:dot)
 PL.savefig("terminal_velocity.svg") # hide
 
 T = 273.15
@@ -830,4 +931,3 @@ PL.savefig("snow_melt_rate.svg") # hide
 ![](rain_evaporation_rate.svg)
 ![](snow_sublimation_deposition_rate.svg)
 ![](snow_melt_rate.svg)
-
