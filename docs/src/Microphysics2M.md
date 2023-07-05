@@ -403,12 +403,10 @@ Below, we compare the individual terminal velocity formulas for [Chen2022](@cite
 We also compare bulk number weighted [ND] and mass weighted [MD]
 terminal velocities for both formulas integrated over the size distribution from [SeifertBeheng2006](@cite).
 We also show the mass weighted terminal velocity from the 1-moment scheme.
-
 ```@example
 include("TerminalVelocityComparisons.jl")
 ```
-![](terminal_velocity_bulk_comparisons.svg)
-![](terminal_velocity_individual_raindrop.svg)
+![](2M_terminal_velocity_comparisons.svg)
 
 ### Accretion and Autoconversion
 

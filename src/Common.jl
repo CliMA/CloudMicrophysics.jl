@@ -3,16 +3,20 @@
 """
 module Common
 
-import Thermodynamics
-const TD = Thermodynamics
+import SpecialFunctions as SF
 
-import ..Parameters
-const CMP = Parameters
-const APS = Parameters.AbstractCloudMicrophysicsParameters
+import Thermodynamics as TD
+
+import ..Parameters as CMP
+const APS = CMP.AbstractCloudMicrophysicsParameters
+
+import ..CommonTypes as CT
 
 export G_func
 export H2SO4_soln_saturation_vapor_pressure
 export ABIFM_Delta_a_w
+export Chen2022_vel_add
+export Chen2022_vel_coeffs
 
 """
     G_func(param_set, T, Liquid())
@@ -121,7 +125,7 @@ end
 """
     H2SO4_soln_saturation_vapor_pressure(x, T)
 
- - `x` - wt percent sulphuric acid [unitless] 
+ - `x` - wt percent sulphuric acid [unitless]
  - `T` - air temperature [K].
 
 Returns the saturation vapor pressure above a sulphuric acid solution droplet in Pa.
@@ -166,4 +170,96 @@ function Delta_a_w(prs::APS, x::FT, T::FT) where {FT <: Real}
     return min(Δa_w, FT(1))
 end
 
+"""
+    Chen2022_vel_coeffs(prs, precip_type, ρ)
+
+ - prs - set with free parameters
+ - precip_type - type for ice, rain or snow
+ - ρ - air density
+
+Returns the coefficients from Appendix B in Chen et al 2022
+DOI: 10.1016/j.atmosres.2022.106171
+"""
+function Chen2022_vel_coeffs(prs::APS, ::CT.RainType, ρ::FT) where {FT <: Real}
+
+    ρ0::FT = CMP.q_coeff_rain_Ch2022(prs)
+    a1::FT = CMP.a1_coeff_rain_Ch2022(prs)
+    a2::FT = CMP.a2_coeff_rain_Ch2022(prs)
+    a3::FT = CMP.a3_coeff_rain_Ch2022(prs)
+    a3_pow::FT = CMP.a3_pow_coeff_rain_Ch2022(prs)
+    b1::FT = CMP.b1_coeff_rain_Ch2022(prs)
+    b2::FT = CMP.b2_coeff_rain_Ch2022(prs)
+    b3::FT = CMP.b3_coeff_rain_Ch2022(prs)
+    b_ρ::FT = CMP.b_rho_coeff_rain_Ch2022(prs)
+    c1::FT = CMP.c1_coeff_rain_Ch2022(prs)
+    c2::FT = CMP.c2_coeff_rain_Ch2022(prs)
+    c3::FT = CMP.c3_coeff_rain_Ch2022(prs)
+
+    q = exp(ρ0 * ρ)
+    ai = (a1 * q, a2 * q, a3 * q * ρ^a3_pow)
+    bi = (b1 - b_ρ * ρ, b2 - b_ρ * ρ, b3 - b_ρ * ρ)
+    ci = (c1, c2, c3)
+
+    # unit conversions
+    aiu = ai .* 1000 .^ bi
+    ciu = ci .* 1000
+
+    return (aiu, bi, ciu)
+end
+function Chen2022_vel_coeffs(
+    prs::APS,
+    ::Union{CT.IceType, CT.SnowType},
+    ρ::FT,
+) where {FT <: Real}
+
+    ρ_i::FT = CMP.ρ_cloud_ice(prs)
+
+    # TODO - move to CLIMAParameters
+    As = FT(0.00174079) * (log(ρ_i))^2 − FT(0.0378769) * log(ρ_i) - FT(0.263503)
+    Bs =
+        FT(1) /
+        (FT(0.575231) + FT(0.0909307) * log(ρ_i) + FT(0.515579) / sqrt(ρ_i))
+    Cs =
+        FT(-0.345387) +
+        FT(0.177362) * exp(FT(-0.000427794) * ρ_i) +
+        FT(0.00419647) * sqrt(ρ_i)
+    Es =
+        FT(-0.156593) - FT(0.0189334) * (log(ρ_i))^2 + FT(0.1377817) * sqrt(ρ_i)
+    Fs =
+        -exp(
+            FT(-3.35641) - FT(0.0156199) * (log(ρ_i))^2 +
+            FT(0.765337) * log(ρ_i),
+        )
+    Gs =
+        FT(1) / (
+            FT(-0.0309715) + FT(1.55054) / (log(ρ_i)) -
+            FT(0.518349) * log(ρ_i) / ρ_i
+        )
+
+    ai = (Es * ρ^As, Fs * ρ^As)
+    bi = (Bs + ρ * Cs, Bs + ρ * Cs)
+    ci = (FT(0), Gs)
+    # unit conversions
+    aiu = ai .* 1000 .^ bi
+    ciu = ci .* 1000
+
+    return (aiu, bi, ciu)
+end
+
+"""
+    Chen2022_vel_add(a, b, c, λ, k)
+
+ - a, b, c, - free parameters defined in Chen etl al 2022
+ - λ - size distribution parameter
+ - k - size distribution moment for which we compute the bulk fall speed
+
+Returns the addends of the bulk fall speed of rain or ice particles
+following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
+We are assuming exponential size distribution and hence μ=0.
+"""
+function Chen2022_vel_add(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT <: Real}
+    μ = 0 # Exponantial instaed of gamma distribution
+    δ = μ + k + 1
+    return a * λ^δ * SF.gamma(b + δ) / (λ + c)^(b + δ) / SF.gamma(δ)
+end
 end
