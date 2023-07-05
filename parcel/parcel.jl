@@ -88,12 +88,14 @@ function cirrus_box(dY, Y, p, t)
 
         dN_act_dt = max(FT(0), P_ice * τ_relax)
     elseif freeze_mode == "homogeneous"
-        
+
         Delta_a_w =
             T > FT(185) && T < FT(235) ? CMO.Delta_a_w(prs, x_sulph, T) : FT(0)
         J_homogeneous =
-            Delta_a_w > 0.26 && Delta_a_w < 0.34 ? CMI_hom.homogeneous_J(Delta_a_w) : FT(0)
+            Delta_a_w > 0.26 && Delta_a_w < 0.34 ?
+            CMI_hom.homogeneous_J(Delta_a_w) : FT(0)
         P_ice = J_homogeneous * 4 / 3 * π * r_nuc^3 * N_aerosol
+        
         dN_act_dt = max(FT(0), P_ice * τ_relax)
     end
     dN_aerosol_dt = -dN_act_dt
