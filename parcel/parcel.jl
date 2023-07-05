@@ -97,6 +97,9 @@ function cirrus_box(dY, Y, p, t)
         P_ice = J_homogeneous * 4 / 3 * π * r_nuc^3 * N_aerosol
 
         dN_act_dt = max(FT(0), P_ice * τ_relax)
+    else
+        @warn "Invalid freezing mode in run_parcel argument. Running without freezing.\nPlease choose between \"deposition\", \"ABIFM\", or \"homogeneous\" (include quotation marks)."
+        dN_act_dt = FT(0)
     end
     dN_aerosol_dt = -dN_act_dt
     dqi_dt_new_particles = dN_act_dt * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ
