@@ -45,6 +45,7 @@ function benchmark_test(FT)
     liquid = CMT.LiquidType()
     rain = CMT.RainType()
     sb2006 = CMT.SB2006Type()
+    ch2022 = CMT.Chen2022Type()
     dust = CMT.DesertDustType()
 
     ρ_air = FT(1.2)
@@ -133,7 +134,16 @@ function benchmark_test(FT)
         (prs, sb2006, q, q_rai, ρ_air, N_rai, T_air),
         2000,
     )
-
+    bench_press(
+        CM2.rain_terminal_velocity,
+        (prs, sb2006, q_rai, ρ_air, N_rai),
+        300,
+    )
+    bench_press(
+        CM2.rain_terminal_velocity,
+        (prs, ch2022, q_rai, ρ_air, N_rai),
+        1700,
+    )
     # Homogeneous Nucleation
     bench_press(
         HN.h2so4_nucleation_rate,

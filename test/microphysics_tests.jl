@@ -22,6 +22,7 @@ const KK2000 = CMT.KK2000Type()
 const B1994 = CMT.B1994Type()
 const TC1980 = CMT.TC1980Type()
 const LD2004 = CMT.LD2004Type()
+const Ch2022 = CMT.Chen2022Type()
 
 @info "Microphysics Tests"
 
@@ -824,6 +825,30 @@ function test_microphysics(FT)
             ρ,
             N_rai,
         )[2] ≈ 0 atol = eps(FT)
+    end
+
+    TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity" begin
+        #setup
+        ρ = FT(1.1)
+        q_rai = FT(5e-4)
+        N_rai = FT(1e4)
+
+        #action
+        vt_rai = CM2.rain_terminal_velocity(prs, Ch2022, q_rai, ρ, N_rai)
+        v_bigger = CM2.rain_terminal_velocity(prs, Ch2022, q_rai * 2, ρ, N_rai)
+
+        #test
+        TT.@test vt_rai isa Tuple
+        TT.@test vt_rai[1] ≈ 1.2591475834547752 rtol = 1e-6
+        TT.@test vt_rai[2] ≈ 4.552478635185714 rtol = 1e-6
+
+        TT.@test CM2.rain_terminal_velocity(prs, Ch2022, FT(0), ρ, N_rai)[1] ≈ 0 atol =
+            eps(FT)
+        TT.@test CM2.rain_terminal_velocity(prs, Ch2022, FT(0), ρ, N_rai)[2] ≈ 0 atol =
+            eps(FT)
+
+        TT.@test v_bigger[1] > vt_rai[1]
+        TT.@test v_bigger[2] > vt_rai[2]
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain evaporation" begin
