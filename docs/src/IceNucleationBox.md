@@ -7,6 +7,8 @@ It is based on [KorolevMazin2003](@cite), as well as the cirrus box model
   [Karcher2006](@cite), [Tully2022](@cite).
 The model solves for saturation in a 0-dimensional
   adiabatic parcel raising with constant velocity.
+Possible freezing modes for this model includes "deposition", "ABIFM", and "homogeneous".
+  Deposition growth of existing ice cyrstals can be turned on or off.
 
 !!! note
     For now, the equations are written assuming
@@ -165,6 +167,32 @@ where ``N_{act}`` is the number of activated ice particles.
   N_{act} = N_{tot} * f_i
 \end{equation}
 ```
+
+## Immersion freezing for Sulphuric Acid Containing Droplets
+
+Following the water activity based immersion freezing model (ABIFM), the ABIFM derived
+  nucleation rate coefficient, ``J_{immer}``, can be determined. The ice production rate,``P_{ice}``,
+  per second via immersion freezing can then be calculating using
+```math
+\begin{equation}
+  P_{ice} = J_{immer}A(N_{tot}-N_{ice})
+  \label{eq:ABIFM_P_ice}
+\end{equation}
+```
+where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number 
+  of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system.
+
+ ## Homogeneous Freezing for Sulphuric Acid Containing Droplets
+
+The ice production rate, ``P_{ice}``, per second via homogeneous freezing can be calculated using the homogeneous nucleation rate coefficient, ``J_{hom}``, using
+```math
+\begin{equation}
+  P_{ice} = J_{hom}V(N_{tot}-N_{ice})
+  \label{eq:hom_P_ice}
+\end{equation}
+```
+where ``V`` is volume of an individual ice nuclei, ``N_{tot}`` is total number 
+  of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 
 
 ## Example figures
 
