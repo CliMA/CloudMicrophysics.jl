@@ -26,7 +26,7 @@ where:
 The change in saturation can be described as
 ```math
 \begin{equation}
-\frac{dS_i}{dt} = \frac{1}{e_{si}} \frac{de}{dt} - \frac{e}{e_{si}} \frac{de_{si}}{dt}
+\frac{dS_i}{dt} = \frac{1}{e_{si}} \frac{de}{dt} - \frac{e}{e_{si}^2} \frac{de_{si}}{dt}
 \end{equation}
 ```
 From ideal gas law the partial pressure of water vapor can be written as

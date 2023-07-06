@@ -134,6 +134,20 @@ The type for desert dust for deposition activated fraction
 """
 struct DesertDustType <: AbstractAerosolType end
 
+"""
+    KaoliniteType
+
+The type for Kaolinite for ABIFM nucleation rate
+"""
+struct KaoliniteType <: AbstractAerosolType end
+
+"""
+    IlliteType
+
+The type for illite for ABIFM nucleation rate
+"""
+struct IlliteType <: AbstractAerosolType end
+
 Base.broadcastable(x::LiquidType) = tuple(x)
 Base.broadcastable(x::IceType) = tuple(x)
 Base.broadcastable(x::RainType) = tuple(x)

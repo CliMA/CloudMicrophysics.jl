@@ -16,6 +16,8 @@ import ..Common as CO
 import ..Parameters as CMP
 import NLsolve as NLS
 
+export m
+
 const FT = Float64
 const APS = CMP.AbstractCloudMicrophysicsParameters
 const ρ_i::FT = 917
@@ -86,6 +88,7 @@ function breakpoints(ρ_r::FT, F_r::FT) where {FT <: Real}
         autodiff = :forward)
     D_cr, D_gr, ρ_g, ρ_d = sol.zero
     return D_th, D_gr, D_cr
+end
 
 """
 m_s(D, ρ)
@@ -248,4 +251,4 @@ function V(param_set::APS, D::FT, ρ::FT, ρ_mod="n") where {FT <: Real}
     end
 end
 
-end
+end # module P3Scheme.jl

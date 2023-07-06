@@ -5,6 +5,7 @@ import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
 const CMT = CM.CommonTypes
+const CO = CM.Common
 const CMI = CM.HetIceNucleation
 const ArizonaTestDust = CMT.ArizonaTestDustType()
 const DesertDust = CMT.DesertDustType()
@@ -77,6 +78,26 @@ function test_dust_activation(FT)
     end
 end
 
+function test_ABIFM_J(FT)
+    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+    prs = cloud_microphysics_parameters(toml_dict)
+
+    TT.@testset "ABIFM J" begin
+
+        T_warm = FT(229.2)
+        T_cold = FT(228.8)
+        x_sulph = FT(0.1)
+
+        # higher nucleation rate at colder temperatures
+        for dust in
+            [CMT.IlliteType(), CMT.KaoliniteType(), CMT.DesertDustType()]
+            TT.@test CMI.ABIFM_J(dust, CO.Delta_a_w(prs, x_sulph, T_cold)) >
+                     CMI.ABIFM_J(dust, CO.Delta_a_w(prs, x_sulph, T_warm))
+        end
+    end
+end
+
+
 
 println("Testing Float64")
 test_dust_activation(Float64)
@@ -84,3 +105,11 @@ test_dust_activation(Float64)
 
 println("Testing Float32")
 test_dust_activation(Float32)
+
+
+println("Testing Float64")
+test_ABIFM_J(Float64)
+
+
+println("Testing Float32")
+test_ABIFM_J(Float32)

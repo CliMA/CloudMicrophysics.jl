@@ -91,6 +91,13 @@ AerosolActivation.total_M_activated
 ```@docs
 HetIceNucleation
 HetIceNucleation.dust_activated_number_fraction
+HetIceNucleation.ABIFM_J
+```
+
+# Homogeneous ice nucleation
+```@docs
+HomIceNucleation
+HomIceNucleation.homogeneous_J
 ```
 
 # Common utility functions
@@ -100,6 +107,8 @@ Common
 Common.G_func
 Common.logistic_function
 Common.logistic_function_integral
+Common.H2SO4_soln_saturation_vapor_pressure
+Common.Delta_a_w
 ```
 
 # Common utility types
@@ -122,4 +131,11 @@ CommonTypes.SB2006Type
 CommonTypes.AbstractAerosolType
 CommonTypes.ArizonaTestDustType
 CommonTypes.DesertDustType
+```
+
+# Precipitation susceptibility
+
+```@docs
+PrecipitationSusceptibility.precipitation_susceptibility_autoconversion
+PrecipitationSusceptibility.precipitation_susceptibility_accretion
 ```
