@@ -40,7 +40,7 @@ function cirrus_box(dY, Y, p, t)
 
     # Get thermodynamic parameters, phase partition and create thermo state.
     thermo_params = CMP.thermodynamics_params(prs)
-    q = TD.PhasePartition(q_vap + q_ice, FT(0), q_ice)
+    q = TD.PhasePartition(q_vap + q_ice, FT(0), q_ice) # TODO add liquid
     ts = TD.PhaseNonEquil_pTq(thermo_params, p_a, T, q)
 
     # Constants and variables that depend on the moisture content
@@ -84,9 +84,9 @@ function cirrus_box(dY, Y, p, t)
         J_immer =
             T > FT(185) && T < FT(235) ?
             CMI_het.ABIFM_J(CMT.DesertDustType(), Delta_a_w) : FT(0)
-        P_ice = J_immer * 4 * π * r_nuc^2 * N_aerosol # per sec
+        P_ice = J_immer * 4 * π * r_nuc^2 * N_aerosol
 
-        dN_act_dt = max(FT(0), P_ice * τ_relax)
+        dN_act_dt = max(FT(0), P_ice)
     elseif freeze_mode == "homogeneous"
 
         Delta_a_w =
@@ -96,7 +96,7 @@ function cirrus_box(dY, Y, p, t)
             CMI_hom.homogeneous_J(Delta_a_w) : FT(0)
         P_ice = J_homogeneous * 4 / 3 * π * r_nuc^3 * N_aerosol
 
-        dN_act_dt = max(FT(0), P_ice * τ_relax)
+        dN_act_dt = max(FT(0), P_ice)
     else
         @warn "Invalid freezing mode in run_parcel argument. Running without freezing.\nPlease choose between \"deposition\", \"ABIFM\", or \"homogeneous\" (include quotation marks)."
         dN_act_dt = FT(0)
@@ -203,7 +203,7 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
     t_max = 30 * 60
 
     # Simulation parameters passed into ODE solver
-    r_nuc = FT(0.5 * 1.e-4 * 1e-6) # assumed size of nucleated particles
+    r_nuc = FT(0.5 * 1.e-6) # assumed size of nucleated particles, meters
     w = FT(3.5 * 1e-2) # updraft speed
     α_m = FT(0.5) # accomodation coefficient
     const_dt = 0.1 # model timestep
