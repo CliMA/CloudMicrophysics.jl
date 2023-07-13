@@ -41,7 +41,7 @@ Solves the nonlinear system consisting of D_cr, D_gr, ρ_g, ρ_d
 function breakpoints(ρ_r::FT, F_r::FT) where {FT <: Real}
     if ρ_r == 0.0 || F_r == 0.0
         return [NaN64, NaN64, NaN64, NaN64]
-    
+
     else
         # Let u[1] = D_cr, u[2] = D_gr, u[3] = ρ_g, u[3] = ρ_d,
         # and let each corresponding component function of F        
@@ -69,13 +69,13 @@ function breakpoints(ρ_r::FT, F_r::FT) where {FT <: Real}
                 ),
             ]
         end
-        
+
         u0 = [-5.0, -6.0, 6.0, 8.0] # guess for solver
         p = [0.0] # (no parameters)
         prob_obj = NLS.NonlinearProblem(f, u0, p)
         sol = NLS.solve(prob_obj, NLS.NewtonRaphson(), reltol = 1e-9)
         D_cr, D_gr, ρ_g, ρ_d = exp.(sol) # shift back into desired domain space
-        
+
         return [D_cr, D_gr, ρ_g, ρ_d]
     end
 end
