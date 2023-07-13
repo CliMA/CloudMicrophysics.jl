@@ -50,9 +50,11 @@ where:
  - ``D_{th} = (\frac{\pi \rho_i}{6\alpha_{va}})^({\frac{1}{\beta_{va} - 3}})``,
   the threshold between spherical and nonspherical ice;
  - ``q_{rim}`` is the rime mass mixing ratio for ice;
- - ``\alpha_{va} = 7.38*10^{-11}``, a parameter from [BrownFrancis1995](@cite),
+ - ``\alpha_{va} = 7.38*10^{-11} * 10^{(6 * \beta_{va}) - 3}``, a parameter from [BrownFrancis1995](@cite),
   derived from measurements of mass grown
-  by vapor diffusion and aggregation in midlatitude cirrus;
+  by vapor diffusion and aggregation in midlatitude cirrus
+  — modified for our units of ``kg`` and ``m``rather than 
+  their ``g`` and ``\mu m``;
  - ``\beta_{va} = 1.9``, another parameter from [BrownFrancis1995](@cite);
  - ``D_{gr} = (\frac{6\alpha_{va}}{\pi \rho_g})^({\frac{1}{3 - \beta_{va}}})``,
   a threshold defined to ensure continuity
@@ -66,6 +68,13 @@ where:
   and the density of the unrimed part
   ``\rho_d \ = \frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}``;
  - ``F_{r} = \frac{q_{rim}}{B_{rim}}`` where ``B_{rim}`` is the bulk rime volume.
+
+Below is a graphical representation of the m(D) regime, replicating
+ Figures 1 (a) and (b) of [MorrisonMilbrandt2015](@cite):
+
+![mass_regime](./assets/P3_mass_regime.png)
+
+[add figure 1 b here]
 
 ## Assumed projected area relationships
 
@@ -90,7 +99,7 @@ where all variables from the m(D) regime are as defined above, and:
 
 Particle fall speed (V) as a function of maximum particle dimension,
  following [MorrisonMilbrandt2015](@cite), uses coefficients
- derived by [cite: Mitchell and Heymsfield 2005] and
+ derived by [MitchellHeymsfield2005](@cite) and
  an air density modification provided by [cite: Heymsfield 2007] applied to
  particles having undergone sedimentation.
 
@@ -115,24 +124,22 @@ where:
  - ``a = a_{1} \nu_{air}^{1 - 2 b_{1}} (\frac{2 \alpha_{va} g}{\rho_{air} \gamma})^b_{1}``
  - ``b = \frac{b_{1} (2 - \sigma) - 1}{1 - b_{1}}``
 
-The parameters governing the coefficients a and b of the power law are:
+The parameters governing the coefficients a and b of the power law are from [MitchellHeymsfield2005](@cite) with exceptions as noted:
 |    parameter     |              value                |
 |:-----------------|:----------------------------------|
 |``a_{1}``         | ``\frac{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2} - a_{o} X^{b_{o}}}{X^{b_{1}}}`` |
 |``b_{1}``         | ``\frac{C_{1} X^{0.5}}{2 ([1 + C_{1} X^{0.5}]^{0.5} - 1) (1 + C_{1} X^{0.5})^{0.5}} - \frac{a_{o} b{o} X^{b_{o}}}{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2}}`` |
 |``\nu_{air}``, kinematic viscocity of air | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
-|``\mu_{air}``, dynamic viscocity of air | ??? - 1.67e-5 for now? |
+|``\rho_{air}``, reference density of air | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
+|``\mu_{air}``, dynamic viscocity of air | ``\nu_{air} \rho_{air}`` |
 |``g``, gravitational acceleration | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
-|``\rho_{air}``, density of air | See [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) |
 |``C_{1}``         | ``\frac{4}{\delta_{o}^{2} C_{o}^{0.5}}`` |
 |``C_{2}``          | ``\frac{\delta_{o}^{2}}{4}`` |
-|``\delta_{o}``, surface roughness constant for ice | ``5.83`` |
-|``C_{o}``, surface roughness constant for ice | ``0.6`` |
-|``a_{o}``, boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant | ``1e-5`` |
-|``b_{o}``, boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant | ``1.0`` |
+|``\delta_{o}``, surface roughness constant for ice (applicable to graupel) | ``5.83`` |
+|``C_{o}``, surface roughness constant for ice (applicable to graupel) | ``0.6`` |
+|``a_{o}``, boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant for aggregates | ``1.7e-3`` |
+|``b_{o}``, boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant for aggregates | ``0.8`` |
 |``X``, Best/Davies number expressed in terms of m(D) and A(D) regimes | ``\frac{2 \alpha_{va} g \rho_{air} D^{\beta_va + 2 - \sigma}}{\gamma \nu_{air}^2}`` |
-
-> **_NOTE:_**  Uncertain about delta_o, C_o, a_o, b_o values: Heymsfield (2005) gives multiple possible values,
-> each of which is more accurate under certain conditions (convective with graupel/hail and stratiform with ice
-> crystal aggregates) ... would like to discuss this to make sure I understand
-> **_ALSO:_**  Uncertain about what value to use for dynamic viscocity of air
+|``Re_{agg}``, Reynold's number used for aggregates | ``\frac{\delta_{o}^2}{4}((1 + \frac{4 X^0.5}{\delta_{o}^2 C_{o}^0.5})^0.5 - 1)^2 - a_{o} X^b_{o}`` |
+|``Re_{grau}``, Reynold's numnber for graupel and hail (we drop the ``a_{o} X^b_{o}`` term here) | ``\frac{\delta_{o}^2}{4}((1 + \frac{4 X^0.5}{\delta_{o}^2 C_{o}^0.5})^0.5 - 1)^2`` |
+|``A_{e}``, effective particle projected area accounting for increased boundary depth ``\delta`` | ``A(1 + \frac{\delta_o}{Re^0.5})`` |
