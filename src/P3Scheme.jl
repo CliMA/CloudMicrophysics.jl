@@ -40,28 +40,43 @@ Solves the nonlinear system consisting of D_cr, D_gr, ρ_g, ρ_d
 """
 function breakpoints(ρ_r::FT, F_r::FT) where {FT <: Real}
     if ρ_r == 0.0 || F_r == 0.0
-        return [NaN64, NaN64 , NaN64, NaN64]
+        return [NaN64, NaN64, NaN64, NaN64]
     
     else
-    # Let u[1] = D_cr, u[2] = D_gr, u[3] = ρ_g, u[3] = ρ_d,
-    # and let each corresponding component function of F
-    # be defined F[i] = x[i] - a[i] where x[i] = a[i]
-    # such that F[x] = 0:
-    function f(u, p)
-        # implementation of above function with domain shift exp(u)
-        return [ (exp(u[1])) - ((1 / (1 - F_r)) * ((6 * α_va) / (FT(π) * exp(u[3])))) ^ (1 / (3 - β_va)),
-          (exp(u[2])) - (((6 * α_va) / (FT(π) * (exp(u[3])))) ^ (1 / (3 - β_va))),
-         (exp(u[3])) - (ρ_r * F_r) - ((1 - F_r) * (exp(u[4]))),
-         (exp(u[4])) - (((6 * α_va) * ((exp(u[1])^(β_va - 2)) - ((exp(u[2]))^(β_va - 2)))) / (FT(π) * (β_va - 2) * ( max((exp(u[1])) -  (exp(u[2])), 1e-16))))]
-    end
-    
-    u0 = [-5.0, -6.0, 6.0, 8.0] # guess for solver
-    p = [0.0] # (no parameters)
-    prob_obj = NLS.NonlinearProblem(f, u0, p)
-    sol = NLS.solve(prob_obj, NLS.NewtonRaphson(), reltol = 1e-9)
-    D_cr, D_gr, ρ_g, ρ_d = exp.(sol) # shift back into desired domain space
-    
-    return [D_cr, D_gr, ρ_g, ρ_d]
+        # Let u[1] = D_cr, u[2] = D_gr, u[3] = ρ_g, u[3] = ρ_d,
+        # and let each corresponding component function of F        
+        # be defined F[i] = x[i] - a[i] where x[i] = a[i]
+        # such that F[x] = 0:
+        function f(u, p)
+            # implementation of function with domain shift exp(u)
+            return [
+                (exp(u[1])) -
+                (
+                    (1 / (1 - F_r)) * ((6 * α_va) / (FT(π) * exp(u[3])))
+                )^(1 / (3 - β_va)),
+                (exp(u[2])) -
+                (((6 * α_va) / (FT(π) * (exp(u[3]))))^(1 / (3 - β_va))),
+                (exp(u[3])) - (ρ_r * F_r) - ((1 - F_r) * (exp(u[4]))),
+                (exp(u[4])) - (
+                    (
+                        (6 * α_va) *
+                        ((exp(u[1])^(β_va - 2)) - ((exp(u[2]))^(β_va - 2)))
+                    ) / (
+                        FT(π) *
+                        (β_va - 2) *
+                        (max((exp(u[1])) - (exp(u[2])), 1e-16))
+                    )
+                ),
+            ]
+        end
+        
+        u0 = [-5.0, -6.0, 6.0, 8.0] # guess for solver
+        p = [0.0] # (no parameters)
+        prob_obj = NLS.NonlinearProblem(f, u0, p)
+        sol = NLS.solve(prob_obj, NLS.NewtonRaphson(), reltol = 1e-9)
+        D_cr, D_gr, ρ_g, ρ_d = exp.(sol) # shift back into desired domain space
+        
+        return [D_cr, D_gr, ρ_g, ρ_d]
     end
 end
 
