@@ -21,6 +21,7 @@ pages = Any[
     "Precipitation Susceptibility" => "PrecipitationSusceptibility.md",
     "API" => "API.md",
     "References" => "References.md",
+    "Developer's Guide" => "DevelopersGuide.md",
 ]
 
 mathengine = MathJax(
