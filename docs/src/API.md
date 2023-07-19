@@ -57,11 +57,7 @@ Microphysics2M.conv_q_liq_to_q_rai
 
 ```@docs
 P3Scheme
-P3Scheme.breakpoints
-P3Scheme.m_s
-P3Scheme.m_nl
-P3Scheme.m_r
-P3Scheme.m
+P3Scheme.thresholds
 ```
 
 # Aerosol model

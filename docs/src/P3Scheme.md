@@ -96,12 +96,12 @@ Particle fall speed (V) as a function of maximum particle dimension,
 With the modification, particle fall speed is given:
 
 ```math
-V(D) = (\frac{\rho_air}{\rho})^{0.54} a D^b
+V(D) = (\frac{\rho_{air}}{\rho})^{0.54} a D^b
 ```
 
 where:
  - ``D`` is the maximum particle dimension
- - ``\rho_air`` is a reference air density (see table below)
+ - ``\rho_{air}`` is a reference air density (see table below)
  - ``\rho`` is particle density
 
 And without:
