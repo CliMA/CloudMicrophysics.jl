@@ -8,16 +8,19 @@ Predicted particle properties scheme (P3) for ice, which includes:
 module P3Scheme
 
 import NonlinearSolve as NLS
-import CLIMAParameters as CP
+import ..Parameters as CMP
 
+const APS = CMP.AbstractCloudMicrophysicsParameters
 FT = Float64
 
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-const param_set = cloud_microphysics_parameters(toml_dict)
+# include(joinpath("..", "test", "create_parameters.jl"))
+# toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+# const param_set = cloud_microphysics_parameters(toml_dict)
+# # thermo_params = CMP.thermodynamics_params(param_set)
 
-# bulk density of ice
-const ρ_i::FT = param_set.density_ice_water
+# # bulk density of ice
+# const ρ_i::FT = CMP.ρ_cloud_ice(param_set)
+const ρ_i::FT = 917.0
 # exponent in power law from Brown and Francis 1995 for mass grown by
 # vapor diffusion and aggregation in midlatitude cirrus: (unitless I think?)
 const β_va::FT = 1.9
@@ -56,7 +59,7 @@ for a given predicted rime density and rime mass fraction, where:
     is the density of the unrimed portion of the particle,
     given here in ``kg m^{-3}``
 """
-function thresholds(ρ_r::FT, F_r::FT, u0::Vector{FT} = [[-7.6, -8.2, 5.7, 5.4]]) where {FT <: Real}
+function thresholds(ρ_r::FT, F_r::FT, u0::Vector{FT} = [-7.6, -8.2, 5.7, 5.4]) where {FT <: Real}
     if ρ_r == 0.0
         throw(
             DomainError(
