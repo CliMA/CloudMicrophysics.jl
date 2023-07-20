@@ -30,57 +30,61 @@ mass(D, thresholds, F_r)
  which computes thresholds, classifies particles, and returns mass;
  used to create figures for the docs page.
 """
-function mass(D::FT, F_r::FT, thresholds::Vector{FT} = [0.0, 0.0, 0.0, 0.0]) where {FT <: Real}
+function mass(
+    D::FT,
+    F_r::FT,
+    thresholds::Vector{FT} = [0.0, 0.0, 0.0, 0.0],
+) where {FT <: Real}
     # Helper functions:
     """
-    m_s(D, ρ)
+    mass_s(D, ρ)
 
     - D: maximum particle dimension (m)
     - ρ: bulk ice density (note to self: use ρ_i for small ice and ρ_g for graupel) (kg m^-3)
 
     m(D) relation for spherical ice (small ice or completely rimed ice), returns mass (kg)
     """
-    function m_s(D::FT, ρ::FT) where {FT <: Real}
+    function mass_s(D::FT, ρ::FT) where {FT <: Real}
         return FT(π) / 6 * ρ * D^3
     end
 
     """
-    m_nl(D)
+    mass_nl(D)
 
      - D: maximum particle dimension (m)
 
 
     m(D) relation for large, nonspherical ice (used for unrimed and dense types), returns mass (kg)
     """
-    function m_nl(D::FT) where {FT <: Real}
+    function mass_nl(D::FT) where {FT <: Real}
         return α_va * D^β_va
     end
 
     """
-    m_r(D, F_r)
+    mass_r(D, F_r)
 
     - D: maximum particle dimension (m)
     - F_r: rime mass fraction (q_rim/q_i)
 
     m(D) relation for partially rimed ice, returns mass (kg)
     """
-    function m_r(D::FT, F_r::FT) where {FT <: Real}
+    function mass_r(D::FT, F_r::FT) where {FT <: Real}
         return (α_va / (1 - F_r)) * D^β_va
     end
 
     # Mass regime:
     if D <= D_th
-        return m_s(D, ρ_i) # small spherical ice
+        return mass_s(D, ρ_i) # small spherical ice
     elseif F_r == 0
-        return m_nl(D) # large, nonspherical, unrimed ice
+        return mass_nl(D) # large, nonspherical, unrimed ice
     else
         if D >= thresholds[1]
-            return m_r(D, F_r) # partially rimed ice
+            return mass_r(D, F_r) # partially rimed ice
         elseif D < thresholds[1]
             if D >= thresholds[2]
-                return m_s(D, thresholds[3]) # graupel
+                return mass_s(D, thresholds[3]) # graupel
             elseif D < thresholds[2]
-                return m_nl(D) # dense nonspherical ice
+                return mass_nl(D) # dense nonspherical ice
             end
         end
     end
@@ -95,7 +99,11 @@ p3_m_plot1(colors, threshold_colors, len_D_range = 10000)
 
 Function that allows for the replication of Fig. 1a from Morrison and Milbrandt 2015.
 """
-function p3_m_plot1(colors::Vector{String}, threshold_colors::Vector{String}, len_D_range::Int64 = 10000)
+function p3_m_plot1(
+    colors::Vector{String},
+    threshold_colors::Vector{String},
+    len_D_range::Int64 = 10000,
+)
     D_range = range(1e-5, stop = 1e-2, length = len_D_range)
 
     fig1_a = Plt.Figure()
@@ -133,7 +141,7 @@ function p3_m_plot1(colors::Vector{String}, threshold_colors::Vector{String}, le
         ax1_a,
         D_range * 1e3,
         [mass(D, 0.8, P3.thresholds(400.0, 0.8)) for D in D_range],
-        color = colors[3]
+        color = colors[3],
     )
 
     d_cr_5 = Plt.lines!(
@@ -149,7 +157,7 @@ function p3_m_plot1(colors::Vector{String}, threshold_colors::Vector{String}, le
         [D = P3.thresholds(400.0, 0.8)[1] * 1e3 for D in D_range],
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "---",
-        color = threshold_colors[3]
+        color = threshold_colors[3],
     )
 
     d_gr_5 = Plt.lines!(
@@ -187,7 +195,7 @@ function p3_m_plot1(colors::Vector{String}, threshold_colors::Vector{String}, le
     leg1_a_dth = Plt.Legend(fig1_a[8:9, 3], [d_tha], [Plt.L"$D_{th}$"])
 
     leg1_a_dcr = Plt.Legend(
-        fig1_a[8:9, 7], 
+        fig1_a[8:9, 7],
         [d_cr_5, d_cr_8],
         [Plt.L"$D_{cr}$ for $F_{r} = 0.5$", Plt.L"$D_{cr}$ for $F_{r} = 0.8$"],
     )
@@ -210,11 +218,15 @@ p3_m_plot2(colors, threshold_colors, len_D_range = 10000)
 
 Function that allows for the replication of Fig. 1b from Morrison and Milbrandt 2015.
 """
-function p3_m_plot2(colors::Vector{String}, threshold_colors::Vector{String}, len_D_range::Int64 = 10000)
+function p3_m_plot2(
+    colors::Vector{String},
+    threshold_colors::Vector{String},
+    len_D_range::Int64 = 10000,
+)
     D_range = range(1e-5, stop = 1e-2, length = len_D_range)
 
     fig1_b = Plt.Figure()
-    
+
     ax1_b = Plt.Axis(
         fig1_b[1:10, 1:11],
         title = Plt.L"m(D) regime for $F_r = 0.95$",
@@ -312,25 +324,33 @@ function p3_m_plot2(colors::Vector{String}, threshold_colors::Vector{String}, le
     leg1_b = Plt.Legend(
         fig1_b[11:12, 2],
         [fig1_b200, fig1_b400, fig1_b800],
-        [Plt.L"$\rho_{r} = 200.0 kg m^{-3}$", Plt.L"$\rho_{r} = 400.0 kg m^{-3}$", Plt.L"$\rho_{r} = 800.0 kg m^{-3}$"]
+        [
+            Plt.L"$\rho_{r} = 200.0 kg m^{-3}$",
+            Plt.L"$\rho_{r} = 400.0 kg m^{-3}$",
+            Plt.L"$\rho_{r} = 800.0 kg m^{-3}$",
+        ],
     )
 
-    leg1_b_dth = Plt.Legend(
-        fig1_b[11:12, 3],
-        [d_thb],
-        [Plt.L"$D_{th}$"]
-    )
-    
+    leg1_b_dth = Plt.Legend(fig1_b[11:12, 3], [d_thb], [Plt.L"$D_{th}$"])
+
     leg1_b_dcr = Plt.Legend(
         fig1_b[11:12, 6],
         [d_cr_200, d_cr_400, d_cr_800],
-        [Plt.L"$D_{cr}$ for $\rho_{r} = 200.0 kg m^{-3}$", Plt.L"$D_{cr}$ for $\rho_{r} = 400.0 kg m^{-3}$", Plt.L"$D_{cr}$ for $\rho_{r} = 800.0 kg m^{-3}$"]
+        [
+            Plt.L"$D_{cr}$ for $\rho_{r} = 200.0 kg m^{-3}$",
+            Plt.L"$D_{cr}$ for $\rho_{r} = 400.0 kg m^{-3}$",
+            Plt.L"$D_{cr}$ for $\rho_{r} = 800.0 kg m^{-3}$",
+        ],
     )
 
     leg1_b_dgr = Plt.Legend(
         fig1_b[11:12, 4],
         [d_gr_200, d_gr_400, d_gr_800],
-        [Plt.L"$D_{gr}$ for $\rho_{r} = 200.0 kg m^{-3}$", Plt.L"$D_{gr}$ for $\rho_{r} = 400.0 kg m^{-3}$", Plt.L"$D_{gr}$ for $\rho_{r} = 800.0 kg m^{-3}$"]
+        [
+            Plt.L"$D_{gr}$ for $\rho_{r} = 200.0 kg m^{-3}$",
+            Plt.L"$D_{gr}$ for $\rho_{r} = 400.0 kg m^{-3}$",
+            Plt.L"$D_{gr}$ for $\rho_{r} = 800.0 kg m^{-3}$",
+        ],
     )
 
     Plt.save("MorrisonandMilbrandtFig1b.svg", fig1_b)

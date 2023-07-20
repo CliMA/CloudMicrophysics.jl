@@ -59,48 +59,44 @@ for a given predicted rime density and rime mass fraction, where:
     is the density of the unrimed portion of the particle,
     given here in ``kg m^{-3}``
 """
-function thresholds(ρ_r::FT, F_r::FT, u0::Vector{FT} = [-7.6, -8.2, 5.7, 5.4]) where {FT <: Real}
+function thresholds(
+    ρ_r::FT,
+    F_r::FT,
+    u0::Vector{FT} = [-7.6, -8.2, 5.7, 5.4],
+) where {FT <: Real}
     if ρ_r == 0.0
         throw(
             DomainError(
                 ρ_r,
-                "D_cr, D_gr, ρ_g, ρ_d are not physically relevant when no rime is present."
-            )
+                "D_cr, D_gr, ρ_g, ρ_d are not physically relevant when no rime is present.",
+            ),
         )
     elseif F_r == 0.0
         throw(
             DomainError(
                 ρ_r,
-                "D_cr, D_gr, ρ_g, ρ_d are not physically relevant when no rime is present."
-            )
+                "D_cr, D_gr, ρ_g, ρ_d are not physically relevant when no rime is present.",
+            ),
         )
     elseif ρ_r > 997
         throw(
             DomainError(
                 ρ_r,
-                "Predicted rime density ρ_r, being a density of bulk ice, cannot exceed the density of water."
-            )
+                "Predicted rime density ρ_r, being a density of bulk ice, cannot exceed the density of water.",
+            ),
         )
     elseif F_r == 1.0 || F_r > 1.0
         throw(
             DomainError(
                 F_r,
-                "The rime mass fraction F_r is not physically defined for values greater than or equal to 1 because some fraction of the total mass must always consist of the mass of the unrimed portion of the particle."
-                )
-            )
-    elseif F_r < 0
-        throw(
-            DomainError(
-                F_r,
-                "Rime mass fraction F_r cannot be negative."
-            )
+                "The rime mass fraction F_r is not physically defined for values greater than or equal to 1 because some fraction of the total mass must always consist of the mass of the unrimed portion of the particle.",
+            ),
         )
+    elseif F_r < 0
+        throw(DomainError(F_r, "Rime mass fraction F_r cannot be negative."))
     elseif ρ_r < 0
         throw(
-            DomainError(
-                ρ_r,
-                "Predicted rime density ρ_r cannot be negative."
-            )
+            DomainError(ρ_r, "Predicted rime density ρ_r cannot be negative."),
         )
     else
         # Let u[1] = D_cr, u[2] = D_gr, u[3] = ρ_g, u[4] = ρ_d,
