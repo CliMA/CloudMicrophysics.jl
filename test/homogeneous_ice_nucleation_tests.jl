@@ -5,7 +5,7 @@ import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
 const CO = CM.Common
-const CMI = CM.HomIceNucleation
+const CMI_hom = CM.HomIceNucleation
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
@@ -24,14 +24,14 @@ function test_homogeneous_J(FT)
         Δa_w_too_large = FT(0.35)
 
         # higher nucleation rate at colder temperatures
-        TT.@test CMI.homogeneous_J(CO.Delta_a_w(prs, x_sulph, T_cold)) >
-                 CMI.homogeneous_J(CO.Delta_a_w(prs, x_sulph, T_warm))
+        TT.@test CMI_hom.homogeneous_J(CO.Delta_a_w(prs, x_sulph, T_cold)) >
+                 CMI_hom.homogeneous_J(CO.Delta_a_w(prs, x_sulph, T_warm))
 
         # If Δa_w out of range
-        TT.@test_throws AssertionError("Δa_w > 0.26") CMI.homogeneous_J(
+        TT.@test_throws AssertionError("Δa_w > 0.26") CMI_hom.homogeneous_J(
             Δa_w_too_small,
         )
-        TT.@test_throws AssertionError("Δa_w < 0.34") CMI.homogeneous_J(
+        TT.@test_throws AssertionError("Δa_w < 0.34") CMI_hom.homogeneous_J(
             Δa_w_too_large,
         )
     end
