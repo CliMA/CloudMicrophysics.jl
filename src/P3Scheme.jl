@@ -13,23 +13,27 @@ import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
 FT = Float64
 
-# include(joinpath("..", "test", "create_parameters.jl"))
-# toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-# const param_set = cloud_microphysics_parameters(toml_dict)
-# # thermo_params = CMP.thermodynamics_params(param_set)
-
-# # bulk density of ice
-# const ρ_i::FT = CMP.ρ_cloud_ice(param_set)
-const ρ_i::FT = 916.7
 # exponent in power law from Brown and Francis 1995 for mass grown by
 # vapor diffusion and aggregation in midlatitude cirrus: (unitless I think?)
 const β_va::FT = 1.9
 # coefficient in power law modified from Brown and Francis 1995 for mass grown by
 # vapor diffusion and aggregation in midlatitude cirrus: (units of kg m^(-β_va) I think?)
 const α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
-# threshold particle dimension between small spherical ice and
-# large, nonspherical ice, from p. 292 of Morrison and Milbrandt 2015: (units of meters)
-const D_th::FT = ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
+
+"""
+D_th(param_set::APS)
+
+ - prs: abstract set with Earth parameters
+
+Returns the threshold particle dimension from p. 292 of Morrison and Milbrandt 2015 
+between small spherical and large, nonspherical unrimed ice, D_th (m),
+which is a constant function of α_va, β_va, and ρ_i (bulk density of ice (kg m^{-3})), with no D-dependency.
+"""
+function D_th(param_set::APS) where {FT <: Real}
+    ρ_i::FT = CMP.ρ_cloud_ice(param_set)
+    # add alpha and beta once they get into CloudMicrophysicsParameters
+    return ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
+end
 
 """
 thresholds(ρ_r, F_r, u0)

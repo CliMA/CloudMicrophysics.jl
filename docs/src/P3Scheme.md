@@ -43,14 +43,14 @@ The mass `m` of particles as a function of maximum particle dimension `D`
 |partially rimed ice | ``q_{rim} > 0`` and ``D > D_{cr}`` | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` |
 |graupel (completely rimed, spherical)| ``q_{rim} > 0``and ``D_{gr} < D < D_{cr}`` | ``\frac{\pi}{6} \rho_g \ D^3`` |
 
-with physical constant ``\rho_i \ = 916.7 kg m^{-3}``: see [CliMA Parameters](https://github.com/CliMA/CLIMAParameters.jl)'s ``\rho_cloud_ice`` ;
-and empirical coefficients:
+with physical constant ``\rho_i \ = 916.7 kg m^{-3}``: see [CliMA Parameters](https://github.com/CliMA/CLIMAParameters.jl)'s `ρ_cloud_ice` ;
+empirical coefficients:
 
   - ``\alpha_{va} = 7.38 \times 10^{-11} \times 10^{6 \beta_{va} - 3}`` (``kg m^{-β_va}``), a parameter from [BrownFrancis1995](@cite), derived from measurements of mass grown by vapor diffusion and aggregation in midlatitude cirrus, and modified to agree with CliMA's units of ``kg`` and ``m`` rather than [BrownFrancis1995](@cite)'s ``g`` and ``\mu m``,
   - ``\beta_{va} = 1.9``, another parameter from [BrownFrancis1995](@cite);
 
-which together determine ``D_{th} = (\frac{\pi \rho_i}{6\alpha_{va}})^{\frac{1}{\beta_{va} - 3}}`` (``m``), the threshold between spherical and nonspherical unrimed ice;
-and model state variables:
+which together determine ``D_{th} = (\frac{\pi \rho_i}{6\alpha_{va}})^{\frac{1}{\beta_{va} - 3}}`` (``m``), the threshold particle dimension between small spherical and large, nonspherical unrimed ice.
+Relevant model state variables here are:
 
  - ``q_{rim}``, rime mass concentration;
  - ``q_{ice}``, total ice mass concentration;
