@@ -354,5 +354,5 @@ function p3_m_plot2(
     )
 
     Plt.save("MorrisonandMilbrandtFig1b.svg", fig1_b)
-    fig1_b
+
 end

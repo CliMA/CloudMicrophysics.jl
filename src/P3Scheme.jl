@@ -20,7 +20,7 @@ FT = Float64
 
 # # bulk density of ice
 # const ρ_i::FT = CMP.ρ_cloud_ice(param_set)
-const ρ_i::FT = 917.0
+const ρ_i::FT = 916.7
 # exponent in power law from Brown and Francis 1995 for mass grown by
 # vapor diffusion and aggregation in midlatitude cirrus: (unitless I think?)
 const β_va::FT = 1.9
@@ -32,7 +32,7 @@ const α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
 const D_th::FT = ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
 
 """
-thresholds(ρ_r, F_r)
+thresholds(ρ_r, F_r, u0)
 
 - ρ_r: predicted rime density (q_rim/B_rim)
     - [ρ_r] = ``kg m^{-3}``

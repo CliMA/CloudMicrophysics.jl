@@ -43,21 +43,26 @@ The mass `m` of particles as a function of maximum particle dimension `D`
 |partially rimed ice | ``q_{rim} > 0`` and ``D > D_{cr}`` | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` |
 |graupel (completely rimed, spherical)| ``q_{rim} > 0``and ``D_{gr} < D < D_{cr}`` | ``\frac{\pi}{6} \rho_g \ D^3`` |
 
-where:
- - ``\rho_i \ = 917 kgm^{-3}`` (density of bulk ice)
- - ``D_{th} = (\frac{\pi \rho_i}{6\alpha_{va}})^{\frac{1}{\beta_{va} - 3}}``, the threshold between spherical and nonspherical unrimed ice;
- - ``q_{rim}`` is the rime mass mixing ratio for ice;
- - ``\alpha_{va} = 7.38 \times 10^{-11} \times 10^{6 \beta_{va} - 3}``, a parameter from [BrownFrancis1995](@cite), derived from measurements of mass grown by vapor diffusion and aggregation in midlatitude cirrus, and modified to agree with CliMA's units of ``kg`` and ``m`` rather than [BrownFrancis1995](@cite)'s ``g`` and ``\mu m``;
- - ``\beta_{va} = 1.9``, another parameter from [BrownFrancis1995](@cite);
- - ``D_{gr} = (\frac{6\alpha_{va}}{\pi \rho_g})^{\frac{1}{3 - \beta_{va}}}``, a threshold defined to ensure continuity and reasonable masses for smaller D;
- - ``D_{cr} = [ (\frac{1}{1-F_r}) \frac{6 \alpha_{va}}{\pi \rho_g} ]^{\frac{1}{3 - \beta_{va}}}``, the threshold separating partially rimed ice from graupel;
- - ``\rho_g = \rho_r F_r + (1 - F_r) \rho_d``, bulk density of graupel, calculated with the rime mass fraction weighted average of the predicted rime density and the density of the unrimed part, where the three determiners of ``\rho_g`` are defined:
+with physical constant ``\rho_i \ = 916.7 kg m^{-3}``: see [CliMA Parameters](https://github.com/CliMA/CLIMAParameters.jl)'s ``\rho_cloud_ice`` ;
+and empirical coefficients:
 
-| quantity |      symbol    |    definition      |
-|:--------------------|:----------------------|:----------------------|
-|rime mass fraction | ``F_{r}`` | ``\frac{q_{rim}}{q_{ice}}`` |
-|predicted rime density   | ``\rho_{r}`` | ``\frac{q_{rim}}{B_{rim}}`` |
-|density of unrimed ice | ``\rho_d`` | ``\frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}`` |
+  - ``\alpha_{va} = 7.38 \times 10^{-11} \times 10^{6 \beta_{va} - 3}`` (``kg m^{-β_va}``), a parameter from [BrownFrancis1995](@cite), derived from measurements of mass grown by vapor diffusion and aggregation in midlatitude cirrus, and modified to agree with CliMA's units of ``kg`` and ``m`` rather than [BrownFrancis1995](@cite)'s ``g`` and ``\mu m``,
+  - ``\beta_{va} = 1.9``, another parameter from [BrownFrancis1995](@cite);
+
+which together determine ``D_{th} = (\frac{\pi \rho_i}{6\alpha_{va}})^{\frac{1}{\beta_{va} - 3}}`` (``m``), the threshold between spherical and nonspherical unrimed ice;
+and model state variables:
+
+ - ``q_{rim}``, rime mass concentration;
+ - ``q_{ice}``, total ice mass concentration;
+ - ``B_{rim}``, bulk rime volume;
+
+from which rime mass fraction ``F_r = \frac{q_rim}{q_ice}`` and predicted rime density ``\rho_{r} = \frac{q_rim}{B_rim}`` are derived.
+The following four thresholds (``D_{i}``) and densities (``\rho_{i}``) which form a nonlinear system solved by `thresholds(ρ_r, F_r, u0)` , which employs [`NonlinearSolve.jl`](https://docs.sciml.ai/NonlinearSolve/stable/):
+
+ - ``D_{gr} = (\frac{6\alpha_{va}}{\pi \rho_g})^{\frac{1}{3 - \beta_{va}}}`` (``m``), a threshold defined to ensure continuity and reasonable masses for smaller D;
+ - ``D_{cr} = [ (\frac{1}{1-F_r}) \frac{6 \alpha_{va}}{\pi \rho_g} ]^{\frac{1}{3 - \beta_{va}}}``, the threshold separating partially rimed ice from graupel;
+ - ``\rho_g = \rho_r F_r + (1 - F_r) \rho_d``, bulk density of graupel, calculated with the rime mass fraction weighted average of the predicted rime density and the density of the unrimed part, where
+ - ``\rho_d = \frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}`` is the density of the unrimed part.
 
 Below are graphical representations of the m(D) regime, replicating
  Figures 1 (a) and (b) of [MorrisonMilbrandt2015](@cite):
