@@ -8,20 +8,15 @@ Double-moment bulk microphysics parametrizations including:
 """
 module Microphysics2M
 
-import ..Common
-const CO = Common
+import ..Common as CO
 
-import ..CommonTypes
-const CT = CommonTypes
+import ..CommonTypes as CT
 
-import SpecialFunctions
-const SF = SpecialFunctions
+import SpecialFunctions as SF
 
-import Thermodynamics
-const TD = Thermodynamics
+import Thermodynamics as TD
 
-import ..Parameters
-const CMP = Parameters
+import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
 
 export autoconversion
