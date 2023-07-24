@@ -15,7 +15,7 @@ thermo_params = CMP.thermodynamics_params(param_set)
 const ρ_i::FT = CMP.ρ_cloud_ice(param_set)
 const β_va::FT = 1.9
 const α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
-const D_th::FT = P3.D_th(param_set)
+const D_th::FT = ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
 
 """
 mass(D, thresholds, F_r)
