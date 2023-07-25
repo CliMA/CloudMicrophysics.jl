@@ -32,14 +32,14 @@ where:
 
 We assume ``\mu \ = 0.00191 \lambda \ ^{0.8} - 2`` for ``\mu \ \in (0,6)``, which occurs only for ``\frac{1}{\gamma} < ~0.17 mm``.
 
-``N_0`` and ``/lambda`` are found using different moments of the PSD, total, cumulative number concentration ``N`` and mass mixing ratio ``q``, where
+``N_0`` and ``\lambda`` are found using different moments of the PSD, total, cumulative number concentration ``N`` and mass mixing ratio ``q``, where
 
 ```math
 N = \int_{0}^{\infty} \! N'(D) \mathrm{d}D
 ```
 
 ```math
-q = \int_{0}^{/infty} \! m(D) N'(D) \mathrm{d}D
+q = \int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D
 ```
 
 

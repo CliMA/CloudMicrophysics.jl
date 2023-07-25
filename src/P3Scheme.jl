@@ -7,20 +7,19 @@ module P3Scheme
 
 import NonlinearSolve as NLS
 
-FT = Float64
 
 # THINGS TO ADD TO PARAMETERS
 # exponent in power law from Brown and Francis 1995 for mass grown by
 # vapor diffusion and aggregation in midlatitude cirrus: (unitless I think?)
-const β_va::FT = 1.9
+# const β_va::FT = 1.9
 # coefficient in power law modified from Brown and Francis 1995 for mass grown by
 # vapor diffusion and aggregation in midlatitude cirrus: (units of kg m^(-β_va) I think?)
-const α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
-const ρ_i::FT = 916.7
+# const α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
+# const ρ_i::FT = 916.7
 # the threshold particle dimension from p. 292 of Morrison and Milbrandt 2015 
 # between small spherical and large, nonspherical unrimed ice, D_th (m),
 # which is a constant function of α_va, β_va, and ρ_i with no D-dependency
-const D_th::FT = ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
+# const D_th::FT = ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
 # ρ_i::FT = CMP.ρ_cloud_ice(param_set) # ρ_i (bulk density of ice (kg m^{-3}))
 
 """
@@ -56,37 +55,41 @@ function thresholds(
     F_r::FT,
     u0::Vector{FT} = [-7.6, -8.2, 5.7, 5.4],
 ) where {FT <: Real}
-    if ρ_r == 0.0
+
+    β_va::FT = 1.9
+    α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
+
+    if ρ_r == FT(0.0)
         throw(
             DomainError(
                 ρ_r,
                 "D_cr, D_gr, ρ_g, ρ_d are not physically relevant when no rime is present.",
             ),
         )
-    elseif F_r == 0.0
+    elseif F_r == FT(0.0)
         throw(
             DomainError(
-                ρ_r,
+                F_r,
                 "D_cr, D_gr, ρ_g, ρ_d are not physically relevant when no rime is present.",
             ),
         )
-    elseif ρ_r > 997
+    elseif ρ_r > FT(997.0)
         throw(
             DomainError(
                 ρ_r,
-                "Predicted rime density ρ_r, being a density of bulk ice, cannot exceed the density of water.",
+                "Predicted rime density ρ_r, being a density of bulk ice, cannot exceed the density of water (997 kg m^-3).",
             ),
         )
-    elseif F_r == 1.0 || F_r > 1.0
+    elseif F_r == FT(1.0) || F_r > FT(1.0)
         throw(
             DomainError(
                 F_r,
                 "The rime mass fraction F_r is not physically defined for values greater than or equal to 1 because some fraction of the total mass must always consist of the mass of the unrimed portion of the particle.",
             ),
         )
-    elseif F_r < 0
+    elseif F_r < FT(0)
         throw(DomainError(F_r, "Rime mass fraction F_r cannot be negative."))
-    elseif ρ_r < 0
+    elseif ρ_r < FT(0)
         throw(
             DomainError(ρ_r, "Predicted rime density ρ_r cannot be negative."),
         )

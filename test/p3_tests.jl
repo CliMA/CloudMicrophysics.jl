@@ -1,0 +1,115 @@
+import Test as TT
+import CloudMicrophysics as CM
+
+const P3 = CM.P3Scheme
+
+include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
+
+@info "P3 Scheme Tests"
+
+function test_p3_thresholds(FT)
+    
+    TT.@testset "thresholds (nonlinear solver function)" begin
+
+        # P3 params:
+        β_va::FT = 1.9
+        α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
+
+        # initialize test values:
+        F_r_bad = [FT(0.0), FT(-1.0), FT(1.0), FT(1.5)] # unreasonable ("bad") values
+        ρ_r_bad = [FT(0.0), FT(-1.0), FT(1200.0)] # unreasonable ("bad") values
+        ρ_r_good = (FT(200), FT(400), FT(800)) # representative ρ_r values
+        F_r_good = (FT(0.5), FT(0.8), FT(0.95)) # representative F_r values
+
+        # If no rime present:
+        for ρ_r in ρ_r_good
+            TT.@test_throws DomainError(F_r_bad[1], "D_cr, D_gr, ρ_g, ρ_d are not physically relevant when no rime is present.",) P3.thresholds(
+                ρ_r,
+                F_r_bad[1],
+            )
+        end
+
+        for F_r in F_r_good
+            TT.@test_throws DomainError(ρ_r_bad[1], "D_cr, D_gr, ρ_g, ρ_d are not physically relevant when no rime is present.",) P3.thresholds(
+                ρ_r_bad[1],
+                F_r,
+            )
+        end
+
+        # If unreasonably large values:
+        for ρ_r in ρ_r_good
+            for F_r in F_r_bad[3:4]
+                TT.@test_throws DomainError(F_r, "The rime mass fraction F_r is not physically defined for values greater than or equal to 1 because some fraction of the total mass must always consist of the mass of the unrimed portion of the particle.",) P3.thresholds(
+                    ρ_r,
+                    F_r,
+                )
+            end
+        end
+    
+        for F_r in F_r_good
+            TT.@test_throws DomainError(ρ_r_bad[3], "Predicted rime density ρ_r, being a density of bulk ice, cannot exceed the density of water (997 kg m^-3).",) P3.thresholds(
+                ρ_r_bad[3],
+                F_r,
+            )
+        end
+
+        # If negative values:
+        for ρ_r in ρ_r_good
+            TT.@test_throws DomainError(F_r_bad[2], "Rime mass fraction F_r cannot be negative.",) P3.thresholds(
+                ρ_r,
+                F_r_bad[2],
+            )
+        end
+    
+        for F_r in F_r_good
+            TT.@test_throws DomainError(ρ_r_bad[2], "Predicted rime density ρ_r cannot be negative.",) P3.thresholds(
+                ρ_r_bad[2],
+                F_r,
+            )
+        end
+
+        # Is the result consistent with the expressions for D_cr, D_gr, ρ_g, ρ_d?
+        # Define function:
+        function f(u, p)
+            return [
+                (u[1]) -
+                (
+                    (1 / (1 - p[2])) * ((6 * α_va) / (FT(π) * u[3]))
+                )^(1 / (3 - β_va)),
+                (u[2]) -
+                (((6 * α_va) / (FT(π) * (u[3])))^(1 / (3 - β_va))),
+                (u[3]) - (p[1] * p[2]) - ((1 - p[2]) * (u[4])),
+                (u[4]) - (
+                    (
+                        (6 * α_va) *
+                        ((u[1]^(β_va - 2)) - ((u[2])^(β_va - 2)))
+                    ) / (
+                        FT(π) *
+                        (β_va - 2) *
+                        (max((u[1]) - (u[2]), 1e-16))
+                    )
+                ),
+            ]
+        end
+
+        # test for all "good" values if passing the output back
+        # into the function gives 0, with tolerance 1.5e-6
+        for F_r in F_r_good
+            for ρ_r in ρ_r_good
+                p = [ρ_r, F_r]
+                vals = P3.thresholds(ρ_r, F_r)
+                output = f(vals, p)
+                for result in output
+                    TT.@test abs(result) < FT(1.5e-6)
+                end
+            end
+        end
+
+    end
+end
+
+println("Testing Float64")
+test_p3_thresholds(Float64)
+
+# println("Testing Float32")
+# test_p3_thresholds(Float32)
