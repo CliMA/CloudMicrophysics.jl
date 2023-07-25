@@ -109,24 +109,54 @@ function test_p3_thresholds(FT)
         # MM2015 values against which we test are obtained with use of
         # WebPlotDigitizer (https://automeris.io/WebPlotDigitizer/)
 
-        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[1])[1] * 1e3), FT(0.4946323381999426))
-        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[2])[1] * 1e3), FT(1.0170979628696817))
+        diff(
+            FT(P3.thresholds(ρ_r_good[2], F_r_good[1])[1] * 1e3),
+            FT(0.4946323381999426),
+        )
+        diff(
+            FT(P3.thresholds(ρ_r_good[2], F_r_good[2])[1] * 1e3),
+            FT(1.0170979628696817),
+        )
 
         # same for D_gr:
-        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[1])[2] * 1e3), FT(0.26151186272014415))
-        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[2])[2] * 1e3), FT(0.23392868352755775))
+        diff(
+            FT(P3.thresholds(ρ_r_good[2], F_r_good[1])[2] * 1e3),
+            FT(0.26151186272014415),
+        )
+        diff(
+            FT(P3.thresholds(ρ_r_good[2], F_r_good[2])[2] * 1e3),
+            FT(0.23392868352755775),
+        )
 
         # Similarly, check that D_cr, D_gr returned by P3.thresholds()
         # matches the value displayed in Fig. 1b of MM2015 within 1% error
         # D_cr: 
-        diff(FT(P3.thresholds(ρ_r_good[1], F_r_good[3])[1] * 1e3), FT(6.152144691917768))
-        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[3])[1] * 1e3), FT(3.2718818175768405))
-        diff(FT(P3.thresholds(ρ_r_good[3], F_r_good[3])[1] * 1e3), FT(1.7400778369620664))
+        diff(
+            FT(P3.thresholds(ρ_r_good[1], F_r_good[3])[1] * 1e3),
+            FT(6.152144691917768),
+        )
+        diff(
+            FT(P3.thresholds(ρ_r_good[2], F_r_good[3])[1] * 1e3),
+            FT(3.2718818175768405),
+        )
+        diff(
+            FT(P3.thresholds(ρ_r_good[3], F_r_good[3])[1] * 1e3),
+            FT(1.7400778369620664),
+        )
 
         # D_gr
-        diff(FT(P3.thresholds(ρ_r_good[1], F_r_good[3])[2] * 1e3), FT(0.39875043123651077))
-        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[3])[2] * 1e3), FT(0.2147085163169669))
-        diff(FT(P3.thresholds(ρ_r_good[3], F_r_good[3])[2] * 1e3), FT(0.11516682512848))
+        diff(
+            FT(P3.thresholds(ρ_r_good[1], F_r_good[3])[2] * 1e3),
+            FT(0.39875043123651077),
+        )
+        diff(
+            FT(P3.thresholds(ρ_r_good[2], F_r_good[3])[2] * 1e3),
+            FT(0.2147085163169669),
+        )
+        diff(
+            FT(P3.thresholds(ρ_r_good[3], F_r_good[3])[2] * 1e3),
+            FT(0.11516682512848),
+        )
 
     end
 end
