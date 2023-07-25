@@ -85,7 +85,7 @@ function test_p3_thresholds(FT)
             ]
         end
 
-        # test for all "good" values if passing the output back
+        # Test for all "good" values if passing the output back
         # into the function gives 0, with tolerance 1.5e-6
         for F_r in F_r_good
             for ρ_r in ρ_r_good
@@ -97,6 +97,36 @@ function test_p3_thresholds(FT)
                 end
             end
         end
+
+        # Define diff function for comparisons
+        function diff(test, gold, delta = 1e-2)
+            test_delta = abs(test - gold)
+            TT.@test test_delta < delta
+        end
+
+        # Check that D_cr returned by P3.thresholds() matches the value
+        # displayed in Fig. 1a of Morrison and Milbrandt 2015 within 1% error:
+        # MM2015 values against which we test are obtained with use of
+        # WebPlotDigitizer (https://automeris.io/WebPlotDigitizer/)
+
+        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[1])[1] * 1e3), FT(0.4946323381999426))
+        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[2])[1] * 1e3), FT(1.0170979628696817))
+
+        # same for D_gr:
+        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[1])[2] * 1e3), FT(0.26151186272014415))
+        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[2])[2] * 1e3), FT(0.23392868352755775))
+
+        # Similarly, check that D_cr, D_gr returned by P3.thresholds()
+        # matches the value displayed in Fig. 1b of MM2015 within 1% error
+        # D_cr: 
+        diff(FT(P3.thresholds(ρ_r_good[1], F_r_good[3])[1] * 1e3), FT(6.152144691917768))
+        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[3])[1] * 1e3), FT(3.2718818175768405))
+        diff(FT(P3.thresholds(ρ_r_good[3], F_r_good[3])[1] * 1e3), FT(1.7400778369620664))
+
+        # D_gr
+        diff(FT(P3.thresholds(ρ_r_good[1], F_r_good[3])[2] * 1e3), FT(0.39875043123651077))
+        diff(FT(P3.thresholds(ρ_r_good[2], F_r_good[3])[2] * 1e3), FT(0.2147085163169669))
+        diff(FT(P3.thresholds(ρ_r_good[3], F_r_good[3])[2] * 1e3), FT(0.11516682512848))
 
     end
 end
