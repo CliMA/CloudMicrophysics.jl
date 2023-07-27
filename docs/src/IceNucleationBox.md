@@ -4,7 +4,7 @@
 
 This is a 0-dimensional adiabatic parcel model for testing nucleation schemes.
 It is based on [KorolevMazin2003](@cite), as well as the cirrus box model
-  [Karcher2006](@cite), [Tully2022](@cite).
+  [Karcher2006](@cite), [Tully2023](@cite).
 The model solves for saturation in a 0-dimensional
   adiabatic parcel raising with constant velocity.
 
@@ -172,6 +172,6 @@ Between each run the water vapor specific humidity is changed,
 The prescribed vertical velocity is equal to 3.5 cm/s.
 
 ```@example
-include("../../parcel/parcel.jl")
+include("../../parcel/Tully_et_al_2023.jl")
 ```
 ![](cirrus_box.svg)
