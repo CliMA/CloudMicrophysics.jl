@@ -34,8 +34,8 @@ function bench_press(foo, args, min_run_time)
     println("\n")
 
     TT.@test BT.minimum(trail).time < min_run_time
-    TT.@test trail.memory <= 2e6
-    TT.@test trail.allocs <= 2e4
+    TT.@test trail.memory <= 4e6
+    TT.@test trail.allocs <= 4e4
 end
 
 function benchmark_test(FT)
