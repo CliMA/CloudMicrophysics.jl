@@ -53,7 +53,7 @@ for a given predicted rime density and rime mass fraction, where:
 function thresholds(
     ρ_r::FT,
     F_r::FT,
-    u0::Vector{FT} = [-7.6, -8.2, 5.7, 5.4],
+    u0::Vector{FT} = [FT(-7.6), FT(-8.2), FT(5.7), FT(5.4)],
 ) where {FT <: Real}
 
     β_va::FT = 1.9
@@ -131,7 +131,6 @@ function thresholds(
         prob_obj = NLS.NonlinearProblem(f, u0, p)
         sol = NLS.solve(prob_obj, NLS.NewtonRaphson(), reltol = 1e-9)
         D_cr, D_gr, ρ_g, ρ_d = exp.(sol) # shift back into desired domain space
-
         return [D_cr, D_gr, ρ_g, ρ_d]
     end
 end
