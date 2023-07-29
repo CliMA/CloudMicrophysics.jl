@@ -42,7 +42,6 @@ N = \int_{0}^{\infty} \! N'(D) \mathrm{d}D
 q = \int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D
 ```
 
-
 ## Assumed particle mass relationships
 
 The mass ``m`` of particles as a function of maximum particle dimension ``D``
@@ -70,7 +69,7 @@ Relevant model state variables here are:
  - ``q_{ice}``, total ice mass concentration;
  - ``B_{rim}``, bulk rime volume;
 
-from which rime mass fraction ``F_r = \frac{q_rim}{q_ice}`` and predicted rime density ``\rho_{r} = \frac{q_rim}{B_rim}`` are derived.
+from which rime mass fraction ``F_r = \frac{q_{rim}}{q_{ice}}`` and predicted rime density ``\rho_{r} = \frac{q_{rim}}{B_{rim}}`` are derived.
 The following four thresholds (``D_{i}``) and densities (``\rho_{i}``) which form a nonlinear system solved by `thresholds(ρ_r, F_r, u0)` , which employs [`NonlinearSolve.jl`](https://docs.sciml.ai/NonlinearSolve/stable/):
 
  - ``D_{gr} = (\frac{6\alpha_{va}}{\pi \rho_g})^{\frac{1}{3 - \beta_{va}}}`` (``m``), a threshold defined to ensure continuity and reasonable masses for smaller D;
