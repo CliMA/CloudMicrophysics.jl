@@ -6,6 +6,7 @@ Predicted particle properties scheme (P3) for ice, which includes:
 module P3Scheme
 
 import NonlinearSolve as NLS
+import IndirectArrays as IA
 
 
 # THINGS TO ADD TO PARAMETERS
@@ -133,6 +134,63 @@ function thresholds(
         D_cr, D_gr, ρ_g, ρ_d = exp.(sol) # shift back into desired domain space
         return [D_cr, D_gr, ρ_g, ρ_d]
     end
+end
+
+"""
+generate_threshold_lookup_table(ρ_r_dim, F_r_dim)
+
+- ρ_r_dim: dimension of ρ_r vector in lookup table
+- F_r_dim: dimension of F_r vector in lookup table
+
+Employs thresholds(ρ_r, F_r, u0) to solve the nonlinear system
+consisting of D_cr, D_gr, ρ_g, ρ_d for a range of predicted
+rime density and rime mass fraction values.
+generate_threshold_lookup_table() then returns a lookup table
+object which can be indexed at each time step to generate
+D_cr, D_gr, ρ_g, ρ_d without the longer run time
+and memory which are byproducts of thresholds()'s dependency
+on NonlinearSolve.jl.
+"""
+function generate_threshold_lookup_table(ρ_r_dim::T, F_r_dim::T, FT::Type) where {T <: Integer}
+    F_r_range = collect(range(start = 1e-10, stop = 0.995, length = F_r_dim))
+    ρ_r_range = collect(range(start = 50, stop = 996, length = ρ_r_dim))
+    println(ρ_r_range)
+
+    D_cr_vals = Array{FT}(undef, ρ_r_dim, F_r_dim)
+    D_gr_vals = Array{FT}(undef, ρ_r_dim, F_r_dim)
+    ρ_g_vals = Array{FT}(undef, ρ_r_dim, F_r_dim)
+    ρ_d_vals = Array{FT}(undef, ρ_r_dim, F_r_dim)
+    ρi = 0
+    Fi = 0
+
+    for ρ_r in ρ_r_range
+        ρi += 1
+        println(string(ρi) * " " * string(ρ_r))
+        for F_r in F_r_range
+            Fi += 1
+            println(string(Fi) * " " * string(F_r))
+            D_cr_vals[ρi, Fi] = 0.0 #thresholds(ρ_r, F_r)[1]
+            D_gr_vals[ρi, Fi] = 0.0 #thresholds(ρ_r, F_r)[2]
+            ρ_g_vals[ρi, Fi] = 0.0 #thresholds(ρ_r, F_r)[3]
+            ρ_d_vals[ρi, Fi] = 0.0 #thresholds(ρ_r, F_r)[4]
+        end
+        Fi = 0
+    end
+
+    # index[1:ρ_r_dim;] = collect(ρ_r_range)
+    # index[;1:F_r_dim] = collect(F_r_range)
+    # thresholds_vals = (
+    #     D_cr = IA.IndirectArray(index, zeros(ρ_r_dim, F_r_dim)),
+    #     D_gr = zzeros(ρ_r_dim, F_r_dim),
+    #     ρ_g = zeros(ρ_r_dim, F_r_dim), 
+    #     ρ_d = zeros(ρ_r_dim, F_r_dim),
+    # )
+
+    # # for F_r in F_r_range
+    # #     for ρ_r in ρ_r_range
+            
+    # return thresholds_vals
+    return D_cr_vals, D_gr_vals, ρ_g_vals, ρ_d_vals
 end
 
 end
