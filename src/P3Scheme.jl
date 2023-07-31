@@ -6,7 +6,7 @@ Predicted particle properties scheme (P3) for ice, which includes:
 module P3Scheme
 
 import NonlinearSolve as NLS
-import IndirectArrays as IA
+import NCDatasets as NC
 
 
 # THINGS TO ADD TO PARAMETERS
@@ -137,25 +137,27 @@ function thresholds(
 end
 
 """
-generate_threshold_lookup_table(ρ_r_dim, F_r_dim)
+generate_threshold_table(ρ_r_dim, F_r_dim)
 
-- ρ_r_dim: dimension of ρ_r vector in lookup table
-- F_r_dim: dimension of F_r vector in lookup table
+- ρ_r_dim: dimension of ρ_r vector in look-up table
+- F_r_dim: dimension of F_r vector in look-up table
 
 Employs thresholds(ρ_r, F_r, u0) to solve the nonlinear system
 consisting of D_cr, D_gr, ρ_g, ρ_d for a range of predicted
 rime density and rime mass fraction values.
-generate_threshold_lookup_table() then returns a lookup table
-object which can be indexed at each time step to generate
+generate_threshold_table() then returns a NetCDF file
+look-up table which can be read as arrays containing
 D_cr, D_gr, ρ_g, ρ_d without the longer run time
 and memory which are byproducts of thresholds()'s dependency
 on NonlinearSolve.jl.
 """
-function generate_threshold_lookup_table(ρ_r_dim::T, F_r_dim::T, FT::Type) where {T <: Integer}
+function generate_threshold_table(ρ_r_dim::T, F_r_dim::T, FT::Type) where {T <: Integer}
+    # generate ranges of values based on the dimensions given in the function arguments:
     F_r_range = collect(range(start = 1e-10, stop = 0.995, length = F_r_dim))
     ρ_r_range = collect(range(start = 50, stop = 996, length = ρ_r_dim))
-    println(ρ_r_range)
 
+    # initialize arrays and indexes which will allow us to iterate over the arrays
+    # and populate them with look-up values provided by thresholds()
     D_cr_vals = Array{FT}(undef, ρ_r_dim, F_r_dim)
     D_gr_vals = Array{FT}(undef, ρ_r_dim, F_r_dim)
     ρ_g_vals = Array{FT}(undef, ρ_r_dim, F_r_dim)
@@ -163,34 +165,87 @@ function generate_threshold_lookup_table(ρ_r_dim::T, F_r_dim::T, FT::Type) wher
     ρi = 0
     Fi = 0
 
+    # populate the arrays with look-up values using a nested for loop
     for ρ_r in ρ_r_range
         ρi += 1
         println(string(ρi) * " " * string(ρ_r))
         for F_r in F_r_range
             Fi += 1
             println(string(Fi) * " " * string(F_r))
-            D_cr_vals[ρi, Fi] = 0.0 #thresholds(ρ_r, F_r)[1]
-            D_gr_vals[ρi, Fi] = 0.0 #thresholds(ρ_r, F_r)[2]
-            ρ_g_vals[ρi, Fi] = 0.0 #thresholds(ρ_r, F_r)[3]
-            ρ_d_vals[ρi, Fi] = 0.0 #thresholds(ρ_r, F_r)[4]
+            D_cr_vals[ρi, Fi] = thresholds(ρ_r, F_r)[1]
+            D_gr_vals[ρi, Fi] = thresholds(ρ_r, F_r)[2]
+            ρ_g_vals[ρi, Fi] = thresholds(ρ_r, F_r)[3]
+            ρ_d_vals[ρi, Fi] = thresholds(ρ_r, F_r)[4]
         end
         Fi = 0
     end
 
-    # index[1:ρ_r_dim;] = collect(ρ_r_range)
-    # index[;1:F_r_dim] = collect(F_r_range)
-    # thresholds_vals = (
-    #     D_cr = IA.IndirectArray(index, zeros(ρ_r_dim, F_r_dim)),
-    #     D_gr = zzeros(ρ_r_dim, F_r_dim),
-    #     ρ_g = zeros(ρ_r_dim, F_r_dim), 
-    #     ρ_d = zeros(ρ_r_dim, F_r_dim),
-    # )
+    # save as NetCDF: create NetCDF file
+    table = NC.NCDataset("./test.nc", "c")
 
-    # # for F_r in F_r_range
-    # #     for ρ_r in ρ_r_range
-            
-    # return thresholds_vals
+    # define dimensions ρ_r, F_r
+    NC.defDim(table, "ρ_r", ρ_r_dim)
+    NC.defDim(table, "F_r", F_r_dim)
+
+    # define and write variables stored in the look-up table
+    D_cr = NC.defVar(table, "D_cr", FT, ("ρ_r", "F_r"))
+    D_cr[:,:] = D_cr_vals
+    D_gr = NC.defVar(table, "D_gr", FT, ("ρ_r", "F_r"))
+    D_gr[:,:] = D_gr_vals
+    ρ_g = NC.defVar(table, "ρ_g", FT, ("ρ_r", "F_r"))
+    ρ_g[:,:] = ρ_g_vals
+    ρ_d = NC.defVar(table, "ρ_d", FT, ("ρ_r", "F_r"))
+    ρ_d[:,:] = ρ_d_vals
+
+    # add file attributes
+
+    close(table)
+end
+
+"""
+read_threshold_table(path, heatmap = "n")
+
+- path: path to threshold table
+- heatmap = "n" : option that toggles creation of a heatmap graph
+
+
+Reads in the NetCDF file created by generate_threshold_table(),
+then returns arrays which can be indexed at each time step to generate
+D_cr, D_gr, ρ_g, ρ_d without:
+(i) the longer run time and memory which are byproducts of thresholds()'s dependency
+on NonlinearSolve.jl and
+(ii) opening and closing the NetCDF file containing the lookup table at each timestep 
+"""
+function read_threshold_table(path::String = "/Users/rowan/Desktop/p3_scheme_work/CloudMicrophysics.jl/test.nc", heatmap::String = "n")
+    table = NC.NCDataset(path, "r")
+    D_cr = table["D_cr"]
+    D_gr = table["D_gr"]
+    ρ_g = table["ρ_g"]
+    ρ_d = table["ρ_d"]
+    D_cr_vals = D_cr[:,:]
+    D_gr_vals = D_gr[:,:]
+    ρ_g_vals = ρ_g[:,:]
+    ρ_d_vals = ρ_d[:,:]
+
     return D_cr_vals, D_gr_vals, ρ_g_vals, ρ_d_vals
+end
+
+"""
+lookup_threshold(ρ_r, F_r, vals; opt)
+
+ - ρ_r: predicted rime density (q_rim/B_rim, kg/m3)
+ - F_r: rime mass fraction (q_rim/q_i, --)
+ - vals: matrix containing lookup values
+ - opt: kwarg specifying which of the four look-up quantities is desired
+
+Uses a matrix generated by read_threshold_table()
+to look-up one or more quantities. This function can be used at each time step
+because it does not open and close NetCDF objects; rather, it uses
+arrays stored in local memory to generate values. If values
+lie between lookup table points, a linear weighting between table points
+is used to generate the returned values.
+"""
+function lookup_threshold(ρ_r::FT, F_r::FT, vals::Matrix{FT}; opt::String) where {FT <: Real}
 end
 
 end
