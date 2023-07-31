@@ -1,3 +1,6 @@
+import OrdinaryDiffEq as ODE
+import CairoMakie as MK
+
 import Thermodynamics as TD
 import CloudMicrophysics as CM
 
@@ -130,7 +133,7 @@ function parcel_model(dY, Y, p, t)
     dY[5] = dq_vap_dt      # vapor specific humidity
     dY[6] = dq_ice_dt      # ice specific humidity
     dY[7] = dN_aerosol_dt  # number concentration of interstitial aerosol
-    dY[8] = x_sulph_dt        # nucleation rate coefficient per unit area per unit time
+    dY[8] = x_sulph_dt     # sulphuric acid concentration
     # add dY state for dq_liq_dt when introducing liquid
 
     # TODO - add diagnostics output (radius, S, etc)

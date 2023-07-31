@@ -11,9 +11,6 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
 
-"""
-    Wrapper for initial condition
-"""
 function get_initial_condition(
     prs,
     N_act,
@@ -36,14 +33,6 @@ function get_initial_condition(
     return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol, x_sulph]
 end
 
-"""
-    Wrapper for running the simulation following the same framework as in
-    Tully et al 2023 (https://doi.org/10.5194/gmd-16-2957-2023)
-     - the simulation consists of 3 periods mimicking 3 large scale model steps
-     - each period is 30 minutes long
-     - each period is run with user specified constant timestep
-     - the large scale initial conditions between each period are different
-"""
 function run_parcel(FT, freeze_mode, deposition_growth = true)
 
     # Boiler plate code to have access to model parameters and constants
@@ -59,24 +48,18 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
     q_vap_0 = FT(0.0003345)
     q_liq_0 = FT(0)
     q_ice_0 = FT(0)
-    x_sulph = FT(0)
-    # Initial conditions for the 2nd period
-    T2 = FT(229.25)
-    q_vap2 = FT(0.00034)
-    # Initial conditions for the 3rd period
-    T3 = FT(228.55)
-    q_vap3 = FT(0.000345)
+    x_sulph = FT(0.1)
 
     # Simulation time
-    t_max = 30 * 60
+    t_max = 30 * 60 * 30
 
     # Simulation parameters passed into ODE solver
     r_nuc = FT(0.5 * 1.e-4 * 1e-6) # assumed size of nucleated particles
-    w = FT(3.5 * 1e-2) # updraft speed
+    w = FT(1.0 * 1e-2) # updraft speed
     α_m = FT(0.5) # accomodation coefficient
     const_dt = 0.1 # model timestep
     p = (; prs, const_dt, r_nuc, w, α_m, freeze_mode, deposition_growth)
-
+    
     # Simulation 1
     IC1 = get_initial_condition(
         prs,
@@ -98,62 +81,6 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
         abstol = 10 * eps(FT),
     )
 
-    # Simulation 2
-    # (alternatively set T and take q_vap from the previous simulation)
-    #IC2 = get_initial_condition(sol1[2, end], sol1[3, end], T2, sol1[5, end], 0.0, sol1[6, end], sol1[7, end])
-    IC2 = get_initial_condition(
-        prs,
-        sol1[2, end],
-        sol1[3, end],
-        sol1[4, end],
-        q_vap2,
-        q_liq_0,
-        sol1[6, end],
-        sol1[7, end],
-        x_sulph,
-    )
-    prob2 = ODE.ODEProblem(
-        parcel_model,
-        IC2,
-        (FT(sol1.t[end]), sol1.t[end] + t_max),
-        p,
-    )
-    sol2 = ODE.solve(
-        prob2,
-        ODE.Euler(),
-        dt = const_dt,
-        reltol = 10 * eps(FT),
-        abstol = 10 * eps(FT),
-    )
-
-    # Simulation 3
-    # (alternatively set T and take q_vap from the previous simulation)
-    #IC3 = get_initial_condition(sol2[2, end], sol2[3, end], T3, sol2[5, end], 0.0, sol2[6, end], sol2[7, end])
-    IC3 = get_initial_condition(
-        prs,
-        sol2[2, end],
-        sol2[3, end],
-        sol2[4, end],
-        q_vap3,
-        q_liq_0,
-        sol2[6, end],
-        sol2[7, end],
-        x_sulph,
-    )
-    prob3 = ODE.ODEProblem(
-        parcel_model,
-        IC3,
-        (FT(sol2.t[end]), sol2.t[end] + t_max),
-        p,
-    )
-    sol3 = ODE.solve(
-        prob3,
-        ODE.Euler(),
-        dt = const_dt,
-        reltol = 10 * eps(FT),
-        abstol = 10 * eps(FT),
-    )
-
     # Plot results
     fig = MK.Figure(resolution = (800, 600))
     ax1 = MK.Axis(fig[1, 1], ylabel = "Supersaturation [-]")
@@ -167,30 +94,18 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
     MK.ylims!(ax3, 3, 2e3)
 
     MK.lines!(ax1, sol1.t * w, sol1[1, :])
-    MK.lines!(ax1, sol2.t * w, sol2[1, :])
-    MK.lines!(ax1, sol3.t * w, sol3[1, :])
 
     MK.lines!(ax2, sol1.t * w, sol1[4, :])
-    MK.lines!(ax2, sol2.t * w, sol2[4, :])
-    MK.lines!(ax2, sol3.t * w, sol3[4, :])
 
     MK.lines!(ax3, sol1.t * w, sol1[2, :] * 1e-3)
-    MK.lines!(ax3, sol2.t * w, sol2[2, :] * 1e-3)
-    MK.lines!(ax3, sol3.t * w, sol3[2, :] * 1e-3)
 
     MK.lines!(ax4, sol1.t * w, sol1[7, :] * 1e-3)
-    MK.lines!(ax4, sol2.t * w, sol2[7, :] * 1e-3)
-    MK.lines!(ax4, sol3.t * w, sol3[7, :] * 1e-3)
 
     MK.lines!(ax5, sol1.t * w, sol1[5, :] * 1e3)
-    MK.lines!(ax5, sol2.t * w, sol2[5, :] * 1e3)
-    MK.lines!(ax5, sol3.t * w, sol3[5, :] * 1e3)
 
     MK.lines!(ax6, sol1.t * w, sol1[6, :] * 1e3)
-    MK.lines!(ax6, sol2.t * w, sol2[6, :] * 1e3)
-    MK.lines!(ax6, sol3.t * w, sol3[6, :] * 1e3)
 
     MK.save("cirrus_box.svg", fig)
 end
 
-run_parcel(Float64, "deposition")
+run_parcel(Float64, "ABIFM")
