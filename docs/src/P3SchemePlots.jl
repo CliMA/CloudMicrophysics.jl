@@ -355,3 +355,37 @@ function p3_m_plot2(
 
     Plt.save("MorrisonandMilbrandtFig1b.svg", fig1_b)
 end
+
+"""
+p3_heatmap(path, quantity, ρ_r_axis, F_r_axis)
+
+ - path to look-up table file
+ - quantity: option that toggles between heat maps of different quantities
+
+Uses P3Scheme.read_threshold_table() to generate matrices from an existing
+NetCDF lookup table and plots the matrices as heat map functions of ρ_r and F_r.
+"""
+function p3_heatmap(
+    quantity::String,
+    path::String = "/Users/rowan/Desktop/p3_scheme_work/CloudMicrophysics.jl/test.nc",
+    ρ_r_axis::AbstractRange{FT} = range(start = 100, stop = 950, length = 10),
+    F_r_axis::AbstractRange{FT} = range(start = 0.01, stop = 0.99, length = 10),
+) where {FT <: Real}
+    matrices = P3.read_threshold_table(path)
+    if quantity === "D_cr"
+        i = 1
+    elseif quantity === "D_gr"
+        i = 2
+    elseif quantity === "ρ_g"
+        i = 3
+    elseif quantity === "ρ_d"
+        i = 4
+    else
+        throw(ArgumentError("Specify a valid quantity to graph."))
+    end
+
+    fig, ax, hm = Plt.heatmap(ρ_r_axis, F_r_axis, matrices[i])
+    Plt.Colorbar(fig[:, end + 1], hm)
+
+    fig
+end
