@@ -361,31 +361,55 @@ p3_heatmap(path, quantity, ρ_r_axis, F_r_axis)
 
  - path to look-up table file
  - quantity: option that toggles between heat maps of different quantities
+ - ρ_r_axis, F_r_axis: ranges of ρ_r, F_r values which should match those passed to generate_threshold_table() -- see above
 
 Uses P3Scheme.read_threshold_table() to generate matrices from an existing
 NetCDF lookup table and plots the matrices as heat map functions of ρ_r and F_r.
 """
 function p3_heatmap(
     quantity::String,
-    path::String = "/Users/rowan/Desktop/p3_scheme_work/CloudMicrophysics.jl/test.nc",
-    ρ_r_axis::AbstractRange{FT} = range(start = 100, stop = 950, length = 10),
-    F_r_axis::AbstractRange{FT} = range(start = 0.01, stop = 0.99, length = 10),
+    path::String = "../p3_lookup.nc";
+    ρ_r_axis::Vector{FT} = exp10.(range(start = 2, stop = 2.965, length = 100)),
+    F_r_axis::Vector{FT} = exp10.(range(start = -2, stop = -0.02, length = 100)),
 ) where {FT <: Real}
     matrices = P3.read_threshold_table(path)
     if quantity === "D_cr"
         i = 1
+        t = Plt.L"$D_{cr}$ heat map generated from look-up table"
+        lab = Plt.L"$D_{cr}$ (m)"
+        fname = "p3_D_cr_lookup.svg"
     elseif quantity === "D_gr"
         i = 2
+        t = Plt.L"$D_{gr}$ heat map generated from look-up table"
+        lab = Plt.L"$D_{gr}$ (m)"
+        fname = "p3_D_gr_lookup.svg"
     elseif quantity === "ρ_g"
         i = 3
+        t = Plt.L"$ρ_{g}$ heat map generated from look-up table"
+        lab = Plt.L"$ρ_{g}$ ($kgm^{-3}$)"
+        fname = "p3_ρ_g_lookup.svg"
     elseif quantity === "ρ_d"
         i = 4
+        t = Plt.L"$ρ_{d}$ heat map generated from look-up table"
+        lab = Plt.L"$ρ_{d}$ ($kgm^{-3}$)"
+        fname = "p3_ρ_d_lookup.svg"
     else
         throw(ArgumentError("Specify a valid quantity to graph."))
     end
 
-    fig, ax, hm = Plt.heatmap(ρ_r_axis, F_r_axis, matrices[i])
-    Plt.Colorbar(fig[:, end + 1], hm)
+    fig = Plt.Figure()
 
-    fig
+    ax = Plt.Axis(
+        fig[1:10, 1:15],
+        title = t,
+        xlabel = Plt.L"$\rho_{r}$ ($kgm^{-3}$)",
+        ylabel = Plt.L"$F_{r}$ (--)",
+        xscale = Plt.log10,
+        yscale = Plt.log10,
+        xticks = [100, 300, 500, 700, 900],
+        yticks = [0.01, 0.1, 0.3, 0.5, 0.7, 0.9]
+    )
+    hm = Plt.heatmap!(ax, ρ_r_axis, F_r_axis, matrices[i])
+    Plt.Colorbar(fig[:, end + 1], hm, label = lab, labelrotation = 2*pi)
+    Plt.save(fname, fig)
 end

@@ -89,3 +89,23 @@ p3_m_plot2(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"
 ![](MorrisonandMilbrandtFig1a.svg)
 
 ![](MorrisonandMilbrandtFig1b.svg)
+
+## Threshold solver and look-up table
+
+```@example
+using CloudMicrophysics
+CloudMicrophysics.P3Scheme.generate_threshold_table()
+include("P3SchemePlots.jl")
+p3_heatmap("D_cr", "../build/p3_lookup.nc")
+p3_heatmap("D_gr", "../build/p3_lookup.nc")
+p3_heatmap("ρ_g", "../build/p3_lookup.nc")
+p3_heatmap("ρ_d", "../build/p3_lookup.nc")
+```
+
+![](p3_D_cr_lookup.svg)
+
+![](p3_D_gr_lookup.svg)
+
+![](p3_ρ_g_lookup.svg)
+
+![](p3_ρ_d_lookup.svg)

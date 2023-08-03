@@ -150,9 +150,9 @@ look-up table which serves to avoid the longer run time
 and memory which are byproducts of thresholds()'s dependency
 on NonlinearSolve.jl.
 """
-function generate_threshold_table(
-    ρ_r_axis::AbstractRange{FT} = range(start = 100, stop = 950, length = 10),
-    F_r_axis::AbstractRange{FT} = range(start = 0.01, stop = 0.99, length = 10),
+function generate_threshold_table(;
+    ρ_r_axis::Vector{FT} = exp10.(range(start = 2, stop = 2.965, length = 100)),
+    F_r_axis::Vector{FT} = exp10.(range(start = -2, stop = -0.02, length = 100)),
 ) where {FT <: Real}
     # generate ranges of values based on the dimensions given in the function arguments:
     F_r_vals = collect(F_r_axis)
@@ -170,10 +170,8 @@ function generate_threshold_table(
     # populate the arrays with look-up values using a nested for loop
     for ρ_r in ρ_r_vals
         ρi += 1
-        println(string(ρi) * " " * string(ρ_r))
         for F_r in F_r_vals
             Fi += 1
-            println(string(Fi) * " " * string(F_r))
             D_cr_vals[ρi, Fi] = thresholds(ρ_r, F_r)[1]
             D_gr_vals[ρi, Fi] = thresholds(ρ_r, F_r)[2]
             ρ_g_vals[ρi, Fi] = thresholds(ρ_r, F_r)[3]
@@ -183,7 +181,7 @@ function generate_threshold_table(
     end
 
     # save as NetCDF: create NetCDF file
-    table = NC.NCDataset("./test.nc", "c")
+    table = NC.NCDataset("./p3_lookup.nc", "c")
 
     # define dimensions ρ_r, F_r
     NC.defDim(table, "ρ_r", length(ρ_r_axis))
@@ -217,7 +215,7 @@ on NonlinearSolve.jl and
 (ii) opening and closing the NetCDF file containing the lookup table at each timestep 
 """
 function read_threshold_table(
-    path::String = "/Users/rowan/Desktop/p3_scheme_work/CloudMicrophysics.jl/test.nc",
+    path::String = "../p3_lookup.nc",
 )
     # open file object
     table = NC.NCDataset(path, "r")
@@ -258,9 +256,9 @@ is used to generate the returned values.
 function lookup_threshold(
     ρ_r::FT,
     F_r::FT,
-    vals::NTuple{4, Matrix{FT}},
-    ρ_r_axis::AbstractRange{FT} = range(start = 100, stop = 950, length = 10),
-    F_r_axis::AbstractRange{FT} = range(start = 0.01, stop = 0.99, length = 10),
+    vals::NTuple{4, Matrix{FT}};
+    ρ_r_axis::Vector{FT} = exp10.(range(start = 2, stop = 2.965, length = 100)),
+    F_r_axis::Vector{FT} = exp10.(range(start = -2, stop = -0.02, length = 100)),
 ) where {FT <: Real}
     ρ_r_vals = collect(ρ_r_axis)
     F_r_vals = collect(F_r_axis)
