@@ -152,7 +152,9 @@ on NonlinearSolve.jl.
 """
 function generate_threshold_table(;
     ρ_r_axis::Vector{FT} = exp10.(range(start = 2, stop = 2.965, length = 100)),
-    F_r_axis::Vector{FT} = exp10.(range(start = -2, stop = -0.02, length = 100)),
+    F_r_axis::Vector{FT} = exp10.(
+        range(start = -2, stop = -0.02, length = 100)
+    ),
 ) where {FT <: Real}
     # generate ranges of values based on the dimensions given in the function arguments:
     F_r_vals = collect(F_r_axis)
@@ -214,9 +216,7 @@ D_cr, D_gr, ρ_g, ρ_d without:
 on NonlinearSolve.jl and
 (ii) opening and closing the NetCDF file containing the lookup table at each timestep 
 """
-function read_threshold_table(
-    path::String = "../p3_lookup.nc",
-)
+function read_threshold_table(path::String = "../p3_lookup.nc")
     # open file object
     table = NC.NCDataset(path, "r")
 
@@ -258,7 +258,9 @@ function lookup_threshold(
     F_r::FT,
     vals::NTuple{4, Matrix{FT}};
     ρ_r_axis::Vector{FT} = exp10.(range(start = 2, stop = 2.965, length = 100)),
-    F_r_axis::Vector{FT} = exp10.(range(start = -2, stop = -0.02, length = 100)),
+    F_r_axis::Vector{FT} = exp10.(
+        range(start = -2, stop = -0.02, length = 100)
+    ),
 ) where {FT <: Real}
     ρ_r_vals = collect(ρ_r_axis)
     F_r_vals = collect(F_r_axis)

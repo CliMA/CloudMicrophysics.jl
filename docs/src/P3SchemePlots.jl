@@ -370,7 +370,9 @@ function p3_heatmap(
     quantity::String,
     path::String = "../p3_lookup.nc";
     ρ_r_axis::Vector{FT} = exp10.(range(start = 2, stop = 2.965, length = 100)),
-    F_r_axis::Vector{FT} = exp10.(range(start = -2, stop = -0.02, length = 100)),
+    F_r_axis::Vector{FT} = exp10.(
+        range(start = -2, stop = -0.02, length = 100)
+    ),
 ) where {FT <: Real}
     matrices = P3.read_threshold_table(path)
     if quantity === "D_cr"
@@ -407,9 +409,9 @@ function p3_heatmap(
         xscale = Plt.log10,
         yscale = Plt.log10,
         xticks = [100, 300, 500, 700, 900],
-        yticks = [0.01, 0.1, 0.3, 0.5, 0.7, 0.9]
+        yticks = [0.01, 0.1, 0.3, 0.5, 0.7, 0.9],
     )
     hm = Plt.heatmap!(ax, ρ_r_axis, F_r_axis, matrices[i])
-    Plt.Colorbar(fig[:, end + 1], hm, label = lab, labelrotation = 2*pi)
+    Plt.Colorbar(fig[:, end + 1], hm, label = lab, labelrotation = 2 * pi)
     Plt.save(fname, fig)
 end
