@@ -83,7 +83,7 @@ function parcel_model(dY, Y, p, t)
         J_immer =
             T > FT(185) && T < FT(235) ?
             CMI_het.ABIFM_J(CMT.DesertDustType(), Delta_a_w) : FT(0)
-        P_ice = J_immer * 4 * π * r_nuc^2 * N_aerosol
+        P_ice = J_immer * 4 * π * r_nuc^2 * (N_aerosol - N_act)
 
         dN_act_dt = max(FT(0), P_ice)
     elseif freeze_mode == "homogeneous"
@@ -93,7 +93,7 @@ function parcel_model(dY, Y, p, t)
         J_homogeneous =
             Delta_a_w > 0.26 && Delta_a_w < 0.34 ?
             CMI_hom.homogeneous_J(Delta_a_w) : FT(0)
-        P_ice = J_homogeneous * 4 / 3 * π * r_nuc^3 * N_aerosol
+        P_ice = J_homogeneous * 4 / 3 * π * r_nuc^3 * (N_aerosol - N_act)
 
         dN_act_dt = max(FT(0), P_ice)
     else
