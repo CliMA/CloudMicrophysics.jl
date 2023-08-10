@@ -18,6 +18,7 @@ export B1994Type
 export TC1980Type
 export LD2004Type
 export SB2006Type
+export Chen2022Type
 export AbstractAerosolType
 export ArizonaTestDustType
 export DesertDustType
@@ -112,6 +113,13 @@ struct LD2004Type <: Abstract2MPrecipType end
 The type for 2-moment precipitation formation by Seifert and Beheng (2006)
 """
 struct SB2006Type <: Abstract2MPrecipType end
+
+"""
+    Chen2022Type
+
+The type for 2-moment precipitation terminal velocity by Chen et al 2022
+"""
+struct Chen2022Type <: Abstract2MPrecipType end
 
 """
     AbstractAerosolType
