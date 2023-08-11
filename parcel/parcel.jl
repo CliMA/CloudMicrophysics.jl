@@ -30,7 +30,7 @@ function parcel_model(dY, Y, p, t)
     q_vap = Y[5]      # vapor specific humidity
     q_ice = Y[6]      # ice specific humidity
     N_aerosol = Y[7]  # number concentration of interstitial aerosol
-    x_sulph = Y[8]   # percent mass sulphuric acid
+    x_sulph = Y[8]    # percent mass sulphuric acid
 
     # Constants
     R_v = CMP.R_v(prs)
@@ -64,6 +64,10 @@ function parcel_model(dY, Y, p, t)
     a3 = L_subl^2 / R_v / T^2 / cp_a
     a4 = L_subl * L_fus / R_v / T^2 / cp_a
 
+    dN_act_dt_deposition = FT(0)
+    dN_act_dt_ABIFM = FT(0)
+    dN_act_dt_homogeneous = FT(0)
+
     # Activating new crystals
     τ_relax = const_dt
     if freeze_mode == "deposition"
@@ -75,7 +79,7 @@ function parcel_model(dY, Y, p, t)
             CMT.DesertDustType(),
         )
 
-        dN_act_dt = max(FT(0), AF * N_aerosol - N_act) / τ_relax
+        dN_act_dt_deposition = max(FT(0), AF * N_aerosol - N_act) / τ_relax
     elseif freeze_mode == "ABIFM"
 
         Delta_a_w =
@@ -85,7 +89,7 @@ function parcel_model(dY, Y, p, t)
             CMI_het.ABIFM_J(CMT.DesertDustType(), Delta_a_w) : FT(0)
         P_ice = J_immer * 4 * π * r_nuc^2 * (N_aerosol - N_act)
 
-        dN_act_dt = max(FT(0), P_ice)
+        dN_act_dt_ABIFM = max(FT(0), P_ice)
     elseif freeze_mode == "homogeneous"
 
         Delta_a_w =
@@ -95,11 +99,13 @@ function parcel_model(dY, Y, p, t)
             CMI_hom.homogeneous_J(Delta_a_w) : FT(0)
         P_ice = J_homogeneous * 4 / 3 * π * r_nuc^3 * (N_aerosol - N_act)
 
-        dN_act_dt = max(FT(0), P_ice)
+        dN_act_dt_homogeneous = max(FT(0), P_ice)
     else
         @warn "Invalid freezing mode in run_parcel argument. Running without freezing.\nPlease choose between \"deposition\", \"ABIFM\", or \"homogeneous\" (include quotation marks)."
-        dN_act_dt = FT(0)
     end
+
+    dN_act_dt = dN_act_dt_deposition + dN_act_dt_ABIFM + dN_act_dt_homogeneous
+
     dN_aerosol_dt = -dN_act_dt
     dqi_dt_new_particles = dN_act_dt * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ
 
