@@ -32,15 +32,15 @@ Following [MorrisonMilbrandt2015](@cite), the scheme assumes a
 N'(D) = N_{0} D^\mu \, e^{-\lambda \, D}
 ```
 where:
- - ``N'`` is the number concentration (``m^{-4}``),
- - ``D`` is the maximum particle dimension (``m``),
- - ``N_0`` is the intercept parameter (``m^{-4}``),
+ - ``N'`` is the number concentration in ``m^{-4}``
+ - ``D`` is the maximum particle dimension in ``m``,
+ - ``N_0`` is the intercept parameter in ``m^{-4}``,
  - ``\mu`` is the shape parameter (dimensionless),
- - ``\lambda`` is the slope parameter (``m^{-1}``).
+ - ``\lambda`` is the slope parameter in ``m^{-1}``.
 
 We assume ``\mu \ = 0.00191 \; \lambda \ ^{0.8} - 2``.
 Following [MorrisonGrabowski2008](@cite) we limit ``\mu \ \in (0,6)``.
-A non-zero ``\mu`` can occur only for very small mean particle sizes``\frac{1}{\lambda} < ~0.17 mm``.
+A negative ``\mu`` can occur only for very small mean particle sizes``\frac{1}{\lambda} < ~0.17 mm``.
 ``N_0`` and ``\lambda`` can be found using different moments of the PSD,
 namely the total number concentration ``N`` and mass mixing ratio ``q``, where
 

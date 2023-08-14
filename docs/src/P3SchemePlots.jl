@@ -107,7 +107,7 @@ function p3_m_plot1(
 )
     D_range = range(1e-5, stop = 1e-2, length = len_D_range)
 
-    lw = 4
+    lw = 3
 
     fig1_a = Plt.Figure()
 
@@ -236,7 +236,7 @@ function p3_m_plot2(
 
     fig1_b = Plt.Figure()
 
-    lw = 4
+    lw = 3
 
     ax1_b = Plt.Axis(
         fig1_b[1:10, 1:11],
