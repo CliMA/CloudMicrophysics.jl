@@ -22,8 +22,13 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 @info "Performance Tests"
 
-function bench_press(foo, args, min_run_time, min_memory=0.0, min_allocs=0.0)
-
+function bench_press(
+    foo,
+    args,
+    min_run_time,
+    min_memory = 0.0,
+    min_allocs = 0.0,
+)
     println("Testing ", "$foo")
     # Calling foo once before benchmarking
     # to make sure compile time is not included in the benchmark
