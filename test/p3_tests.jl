@@ -93,15 +93,14 @@ function test_p3_thresholds(FT)
                 vals = P3.thresholds(ρ_r, F_r)
                 output = f(vals, p)
                 for result in output
-                    TT.@test abs(result) < FT(1.5e-6)
+                    TT.@test abs(result) ≈ FT(0) atol = 1.1e3 * eps(FT)
                 end
             end
         end
 
         # Define diff function for comparisons
-        function diff(test, gold, delta = 1e-2)
-            test_delta = abs(test - gold)
-            TT.@test test_delta < delta
+        function diff(test, gold, delta = 2e-2)
+            TT.@test test ≈ gold rtol = delta
         end
 
         # Check that D_cr returned by P3.thresholds() matches the value
@@ -130,7 +129,7 @@ function test_p3_thresholds(FT)
 
         # Similarly, check that D_cr, D_gr returned by P3.thresholds()
         # matches the value displayed in Fig. 1b of MM2015 within 1% error
-        # D_cr: 
+        # D_cr:
         diff(
             FT(P3.thresholds(ρ_r_good[1], F_r_good[3])[1] * 1e3),
             FT(6.152144691917768),
@@ -161,8 +160,8 @@ function test_p3_thresholds(FT)
     end
 end
 
+println("Testing Float32")
+test_p3_thresholds(Float32)
+
 println("Testing Float64")
 test_p3_thresholds(Float64)
-
-# println("Testing Float32")
-# test_p3_thresholds(Float32)

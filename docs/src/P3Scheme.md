@@ -15,7 +15,7 @@ The prognostic variables are:
  - ``N_{ice}`` - number concentration 1/m3
  - ``q_{ice}`` - ice mass density kg/m3
  - ``q_{rim}`` - rime mass density kg/m3
- - ``B_{rim}`` - rime volume - TODO - units?
+ - ``B_{rim}`` - rime volume - (volume of rime per total air volume: dimensionless)
 
 !!! note
     TODO - At some point we should switch to specific humidities...
@@ -32,15 +32,15 @@ Following [MorrisonMilbrandt2015](@cite), the scheme assumes a
 N'(D) = N_{0} D^\mu \, e^{-\lambda \, D}
 ```
 where:
- - ``N'`` is the number concentration (``m^{-4}``),
- - ``D`` is the maximum particle dimension (``m``),
- - ``N_0`` is the intercept parameter (``m^{-4}``),
+ - ``N'`` is the number concentration in ``m^{-4}``
+ - ``D`` is the maximum particle dimension in ``m``,
+ - ``N_0`` is the intercept parameter in ``m^{-4}``,
  - ``\mu`` is the shape parameter (dimensionless),
- - ``\lambda`` is the slope parameter (``m^{-1}``).
+ - ``\lambda`` is the slope parameter in ``m^{-1}``.
 
 We assume ``\mu \ = 0.00191 \; \lambda \ ^{0.8} - 2``.
 Following [MorrisonGrabowski2008](@cite) we limit ``\mu \ \in (0,6)``.
-A non-zero ``\mu`` can occur only for very small mean particle sizes``\frac{1}{\lambda} < ~0.17 mm``.
+A negative ``\mu`` can occur only for very small mean particle sizes``\frac{1}{\lambda} < ~0.17 mm``.
 ``N_0`` and ``\lambda`` can be found using different moments of the PSD,
 namely the total number concentration ``N`` and mass mixing ratio ``q``, where
 
@@ -52,9 +52,10 @@ N = \int_{0}^{\infty} \! N'(D) \mathrm{d}D
 q = \int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D
 ```
 
-!!! note
-    TODO - write the formulae for ``N_0`` and ``\lambda``
+For liquid droplets, these equations are solved without issue, but for ice, the third moment of the size distribution listed above (i.e. ``\int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D``) varies as the mass relation varies across the PSD (see below for the mass regime documentation). On the other hand, the first moment of the PSD, the number concentration, does not vary across the PSD and yields ``N = \frac{N_0}{\lambda}``.
 
+!!! note
+    TODO - The scheme uses a mean particle size value ``D_m`` for each time step to determine which mass relation to employ. In other words, ``N_0`` and ``\lambda`` must be calculated for the five different mass relations below to accommodate ranges of ``D_m`` corresponding to each mass relation. For mean particle sizes that employ the mass relations characterized by graupel and by partially rimed ice, the mass relations are time-dependent due to the presence of ``\rho_g`` and ``F_r``. This complicates the scheme's use of the PSD, and as a result, writing analytical formulas for the PSD parameters is challenging.
 
 ## Assumed particle mass relationships
 
@@ -91,6 +92,9 @@ where
  - ``F_r = \frac{q_{rim}}{q_{ice}}`` is the rime mass fraction,
  - ``\rho_{r} = \frac{q_{rim}}{B_{rim}}`` is the predicted rime density.
 The system is solved using [`NonlinearSolve.jl`](https://docs.sciml.ai/NonlinearSolve/stable/).
+
+!!! note
+    TODO - The use of NonlinearSolve.jl is not ideal because of its runtime and memory allocation requirements. Currently, there is also a look-up table NetCDF file which could be used to look up values of the quantities which form the nonlinear system. However, the look-up table is not GPU-compatible and would require too much memory in an Earth System Model. The current approach may be of use for testing and for visualization of the system, but other options, such as using RootSolvers.jl or using a simpler fit that approximates the solver output, are more suitable long term solutions which do not require outside packages which employ auto-differentiation or use memory, both of which do not suit the needs of CliMA.
 
 Below we show the m(D) regime, replicating Figures 1 (a) and (b) from [MorrisonMilbrandt2015](@cite).
 
