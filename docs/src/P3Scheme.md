@@ -52,8 +52,10 @@ N = \int_{0}^{\infty} \! N'(D) \mathrm{d}D
 q = \int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D
 ```
 
+For liquid droplets, these equations are solved without issue, but for ice, the third moment of the size distribution listed above (i.e. ``\int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D``) varies as the mass relation varies across the PSD (see below for the mass regime documentation). On the other hand, the first moment of the PSD, the number concentration, does not vary across the PSD and yields ``N = \frac{N_0}{\lambda}``.
+
 !!! note
-    TODO - write the formulae for ``N_0`` and ``\lambda``
+    TODO - decide on a method to solve for ``N_0`` and ``\lambda``. Ideally, a simple and GPU-friendly approach would be used, such as RootSolvers.jl or a fit that does not require the use of an outside package which uses auto-differentiation and requires significant runtime and memory allocations. ``D_m``, the mean particle size, determines what mass regime is used to calculate the mass specific humidity/mixing ratio. For mean particle sizes that employ the mass relations characterized by graupel and by partially rimed ice, the mass relations are time-dependent due to the presence of ``\rho_g`` and ``F_r``.
 
 
 ## Assumed particle mass relationships
