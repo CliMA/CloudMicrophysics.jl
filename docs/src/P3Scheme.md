@@ -57,7 +57,6 @@ For liquid droplets, these equations are solved without issue, but for ice, the 
 !!! note
     TODO - decide on a method to solve for ``N_0`` and ``\lambda``. Ideally, a simple and GPU-friendly approach would be used, such as RootSolvers.jl or a fit that does not require the use of an outside package which uses auto-differentiation and requires significant runtime and memory allocations. ``D_m``, the mean particle size, determines what mass regime is used to calculate the mass specific humidity/mixing ratio. For mean particle sizes that employ the mass relations characterized by graupel and by partially rimed ice, the mass relations are time-dependent due to the presence of ``\rho_g`` and ``F_r``.
 
-
 ## Assumed particle mass relationships
 
 The mass ``m`` of particles as a function of maximum particle dimension ``D``
@@ -105,3 +104,23 @@ p3_m_plot2(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"
 ![](MorrisonandMilbrandtFig1a.svg)
 
 ![](MorrisonandMilbrandtFig1b.svg)
+
+## Assumed particle projected area relationships
+
+The projected area ``A`` of particles as a function of maximum particle dimension ``D``
+ is another piecewise function with variable breakpoints described
+ by the following table.
+
+| particle properties |      condition(s)     |    A(D) relation      |
+|:--------------------|:----------------------|:----------------------|
+|small, spherical ice | ``D < D_{th}``        | ``\frac{\pi}{4} D^2`` |
+|graupel (completely rimed, spherical)| ``q_{rim} > 0``and ``D_{gr} < D < D_{cr}`` | ``\frac{\pi}{4} D^2`` |
+|large, unrimed ice   | ``q_{rim} = 0`` and ``D > D_{th}`` | ``\gamma \ D^{\sigma}`` |
+|dense nonspherical ice | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | ``\gamma \ D^{\sigma}`` |
+|partially rimed ice | ``q_{rim} > 0`` and ``D > D_{cr}`` | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
+
+where all variables from the m(D) regime are as defined above, and:
+ - ``\gamma = 0.2285`` and
+ - ``\sigma = 1.88``, both from the aggregates of side planes, columns, bullets, and planar polycrystals in [Mitchell1996](@cite).
+
+The figures below, imitating the above mass regime figures, illustrate the particle projected area regime:
