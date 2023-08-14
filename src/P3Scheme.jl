@@ -128,7 +128,7 @@ function thresholds(
 
         p = Nothing # (no parameters)
         prob_obj = NLS.NonlinearProblem(f, u0, p)
-        sol = NLS.solve(prob_obj, NLS.NewtonRaphson(), reltol = 1e-9)
+        sol = NLS.solve(prob_obj, NLS.NewtonRaphson(), abstol = eps(FT))
         D_cr, D_gr, ρ_g, ρ_d = exp.(sol) # shift back into desired domain space
         return [D_cr, D_gr, ρ_g, ρ_d]
     end
