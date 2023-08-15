@@ -90,7 +90,13 @@ p3_m_plot2(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"
 
 ![](MorrisonandMilbrandtFig1b.svg)
 
-## Threshold solver and look-up table
+### Threshold solver and look-up table
+
+The look-up table environment involves three functions: one to generate the table using [`NonlinearSolve.jl`](https://docs.sciml.ai/NonlinearSolve/stable/), another to load the table as Julia Matrix objects, and a last function that can be called at each time step to generate look-up quantities. The table itself is a NetCDF file with dimensions of predicted rime density and rime mass fraction, which form domains over which look-up values for four variables (``D_{cr}``, ``D_{gr}``, ``\rho_{g}``, ``\rho_{d}``) are stored. Rather than call upon [`NCDatasets.jl`](https://github.com/Alexander-Barth/NCDatasets.jl) to open and close a NetCDF file for each time step, passing a 4-vector containing matrices corresponding to each quantity optimizes performance. The look-up function indexes into the aforementioned matrices to generate values corresponding to specific predicted rime density and rime mass fraction inputs, and in the event that the inputs do not align perfectly with axis points, a linear interpolation is used between the values closest to the inputs to approximate the result given by the solver.
+
+However, the look-up table is not GPU-compatible and would require too much memory in an Earth System Model. The current approach may be of use for testing and for visualization of the system, but other options such as using [`RootSolvers.jl`](https://github.com/CliMA/RootSolvers.jl) or using a simpler fit that approximates the solver output are more suitable long-term solutions which do not require outside packages which employ auto-differentiation or use memory, both of which do not suit the needs of CliMA.
+
+Although the table will ultimately be futile, we have provided the following heatmaps for testing and visualization of the system.
 
 ```@example
 using CloudMicrophysics
