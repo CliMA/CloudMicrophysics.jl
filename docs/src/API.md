@@ -125,6 +125,7 @@ CommonTypes.B1994Type
 CommonTypes.TC1980Type
 CommonTypes.LD2004Type
 CommonTypes.SB2006Type
+CommonTypes.Chen2022Type
 CommonTypes.AbstractAerosolType
 CommonTypes.ArizonaTestDustType
 CommonTypes.DesertDustType

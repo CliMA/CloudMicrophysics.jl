@@ -17,7 +17,7 @@ import NCDatasets as NC
 # vapor diffusion and aggregation in midlatitude cirrus: (units of kg m^(-β_va) I think?)
 # const α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
 # const ρ_i::FT = 916.7
-# the threshold particle dimension from p. 292 of Morrison and Milbrandt 2015 
+# the threshold particle dimension from p. 292 of Morrison and Milbrandt 2015
 # between small spherical and large, nonspherical unrimed ice, D_th (m),
 # which is a constant function of α_va, β_va, and ρ_i with no D-dependency
 # const D_th::FT = ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
@@ -96,7 +96,7 @@ function thresholds(
         )
     else
         # Let u[1] = D_cr, u[2] = D_gr, u[3] = ρ_g, u[4] = ρ_d,
-        # and let each corresponding component function of F        
+        # and let each corresponding component function of F
         # be defined F[i] = x[i] - a[i] where x[i] = a[i]
         # such that F[x] = 0:
         function f(u, p)
@@ -104,7 +104,7 @@ function thresholds(
             # This domain shift is necessary because it constrains
             # the solver to search only for positive values, preventing
             # a DomainError with complex exponentiation.
-            # The domain restriction is reasonable in any case 
+            # The domain restriction is reasonable in any case
             # because the quantities of interest, [D_cr, D_gr, ρ_g, ρ_d],
             # should all be positive regardless of ρ_r and F_r.
             return [
@@ -130,7 +130,7 @@ function thresholds(
 
         p = Nothing # (no parameters)
         prob_obj = NLS.NonlinearProblem(f, u0, p)
-        sol = NLS.solve(prob_obj, NLS.NewtonRaphson(), reltol = 1e-9)
+        sol = NLS.solve(prob_obj, NLS.NewtonRaphson(), abstol = eps(FT))
         D_cr, D_gr, ρ_g, ρ_d = exp.(sol) # shift back into desired domain space
         return [D_cr, D_gr, ρ_g, ρ_d]
     end

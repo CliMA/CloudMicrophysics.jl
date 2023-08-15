@@ -13,6 +13,7 @@ thermo_params = CMP.thermodynamics_params(param_set)
 
 # bulk density of ice
 const ρ_i::FT = CMP.ρ_cloud_ice(param_set)
+# TODO - use from CLIMAParameters
 const β_va::FT = 1.9
 const α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
 const D_th::FT = ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
@@ -106,6 +107,8 @@ function p3_m_plot1(
 )
     D_range = range(1e-5, stop = 1e-2, length = len_D_range)
 
+    lw = 3
+
     fig1_a = Plt.Figure()
 
     ax1_a = Plt.Axis(
@@ -128,6 +131,7 @@ function p3_m_plot1(
         D_range * 1e3,
         [mass(D, 0.0) for D in D_range],
         color = colors[1],
+        linewidth = lw,
     )
 
     fig1_a_5 = Plt.lines!(
@@ -135,6 +139,7 @@ function p3_m_plot1(
         D_range * 1e3,
         [mass(D, 0.5, P3.thresholds(400.0, 0.5)) for D in D_range],
         color = colors[2],
+        linewidth = lw,
     )
 
     fig1_a_8 = Plt.lines!(
@@ -142,6 +147,7 @@ function p3_m_plot1(
         D_range * 1e3,
         [mass(D, 0.8, P3.thresholds(400.0, 0.8)) for D in D_range],
         color = colors[3],
+        linewidth = lw,
     )
 
     d_cr_5 = Plt.lines!(
@@ -150,6 +156,7 @@ function p3_m_plot1(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[2],
+        linewidth = lw,
     )
 
     d_cr_8 = Plt.lines!(
@@ -158,6 +165,7 @@ function p3_m_plot1(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[3],
+        linewidth = lw,
     )
 
     d_gr_5 = Plt.lines!(
@@ -166,7 +174,7 @@ function p3_m_plot1(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[2],
-        linewidth = 1.5,
+        linewidth = lw,
     )
 
     d_gr_8 = Plt.lines!(
@@ -175,7 +183,7 @@ function p3_m_plot1(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[3],
-        linewidth = 1.5,
+        linewidth = lw,
     )
 
     d_tha = Plt.lines!(
@@ -184,6 +192,7 @@ function p3_m_plot1(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "---",
         color = "red",
+        linewidth = lw,
     )
 
     leg1_a = Plt.Legend(
@@ -227,6 +236,8 @@ function p3_m_plot2(
 
     fig1_b = Plt.Figure()
 
+    lw = 3
+
     ax1_b = Plt.Axis(
         fig1_b[1:10, 1:11],
         title = Plt.L"m(D) regime for $F_r = 0.95$",
@@ -247,6 +258,7 @@ function p3_m_plot2(
         D_range * 1e3,
         [mass(D, 0.95, P3.thresholds(200.0, 0.95)) for D in D_range],
         color = colors[1],
+        linewidth = lw,
     )
 
     fig1_b400 = Plt.lines!(
@@ -254,6 +266,7 @@ function p3_m_plot2(
         D_range * 1e3,
         [mass(D, 0.95, P3.thresholds(400.0, 0.95)) for D in D_range],
         color = colors[2],
+        linewidth = lw,
     )
 
     fig1_b800 = Plt.lines!(
@@ -261,6 +274,7 @@ function p3_m_plot2(
         D_range * 1e3,
         [mass(D, 0.95, P3.thresholds(800.0, 0.95)) for D in D_range],
         color = colors[3],
+        linewidth = lw,
     )
 
     d_thb = Plt.lines!(
@@ -269,6 +283,7 @@ function p3_m_plot2(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "---",
         color = "red",
+        linewidth = lw,
     )
 
     d_cr_200 = Plt.lines!(
@@ -277,6 +292,7 @@ function p3_m_plot2(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[1],
+        linewidth = lw,
     )
 
     d_cr_400 = Plt.lines!(
@@ -285,6 +301,7 @@ function p3_m_plot2(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[2],
+        linewidth = lw,
     )
 
     d_cr_800 = Plt.lines!(
@@ -293,6 +310,7 @@ function p3_m_plot2(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[3],
+        linewidth = lw,
     )
 
     d_gr_200 = Plt.lines!(
@@ -301,7 +319,7 @@ function p3_m_plot2(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[1],
-        linewidth = 1.5,
+        linewidth = lw,
     )
 
     d_gr_400 = Plt.lines!(
@@ -310,6 +328,7 @@ function p3_m_plot2(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[2],
+        linewidth = lw,
     )
 
     d_gr_800 = Plt.lines!(
@@ -318,7 +337,7 @@ function p3_m_plot2(
         range(1e-14, stop = 1e-4, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[3],
-        linewidth = 1.5,
+        linewidth = lw,
     )
 
     leg1_b = Plt.Legend(
