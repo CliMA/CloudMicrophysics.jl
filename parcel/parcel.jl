@@ -32,6 +32,26 @@ function parcel_model(dY, Y, p, t)
     N_aerosol = Y[7]  # number concentration of interstitial aerosol
     x_sulph = Y[8]    # percent mass sulphuric acid
 
+# -------------------- delete this part below later ----------------
+   # trying to access previous values
+   history_length = (t + const_dt) / const_dt
+   if history_length == FT(1)
+       prev_states = Array{FT, 2}(undef, length(Y), 1)
+       for i in eachindex(Y)
+           prev_states[i, 1] = Y[i]
+       end
+   end
+
+    # Append new state
+    if history_length ≠ 1
+        for i in eachindex(Y)
+            append!(prev_staes[i,:], Y[i])
+        end
+    end
+    println(prev_states)
+    sleep(1)
+# -------------------- delete this part above later ----------------
+
     # Constants
     R_v = CMP.R_v(prs)
     grav = CMP.grav(prs)
@@ -119,6 +139,13 @@ function parcel_model(dY, Y, p, t)
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
+    # -------------------- delete this part below later ----------------
+    # integrand(t_0, p) = @. α_m * 4 * π / ρ * G * (S_i - 1) * (N_aerosol - N_act) # actually can't do this cuz it's not really a numerical integral I need to solve
+    # int_prob = IntegralProblem(integrand, FT(0), time)
+    # int_solve = solve(int_prob, HCubatureJL(); reltol = 1e-3, abstol = 1e-3)
+    # growth_freezing_integral = int_solve.t_0
+    # dqi_dt = 4 * pi() * ρ_ice / ρ * (growth_freezing_integral)
+    # -------------------- delete this part above later ----------------
     dqw_dt = freeze_mode == "deposition" ? FT(0) : FT(0)
     # TODO - update dqw_dt when implementing homo. and immersion freezing
 
