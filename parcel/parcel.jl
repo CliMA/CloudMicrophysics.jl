@@ -32,26 +32,6 @@ function parcel_model(dY, Y, p, t)
     N_aerosol = Y[7]  # number concentration of interstitial aerosol
     x_sulph = Y[8]    # percent mass sulphuric acid
 
-# -------------------- delete this part below later ----------------
-   # trying to access previous values
-   history_length = (t + const_dt) / const_dt
-   if history_length == FT(1)
-       prev_states = Array{FT, 2}(undef, length(Y), 1)
-       for i in eachindex(Y)
-           prev_states[i, 1] = Y[i]
-       end
-   end
-
-    # Append new state
-    if history_length ≠ 1
-        for i in eachindex(Y)
-            append!(prev_staes[i,:], Y[i])
-        end
-    end
-    println(prev_states)
-    sleep(1)
-# -------------------- delete this part above later ----------------
-
     # Constants
     R_v = CMP.R_v(prs)
     grav = CMP.grav(prs)
@@ -123,31 +103,26 @@ function parcel_model(dY, Y, p, t)
     else
         @warn "Invalid freezing mode in run_parcel argument. Running without freezing.\nPlease choose between \"deposition\", \"ABIFM\", or \"homogeneous\" (include quotation marks)."
     end
-
     dN_act_dt = dN_act_dt_deposition + dN_act_dt_ABIFM + dN_act_dt_homogeneous
-
     dN_aerosol_dt = -dN_act_dt
     dqi_dt_new_particles = dN_act_dt * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ
+    # TODO - separate homogeneous from dqi_dt_new_particles and use radius of droplet that activated
 
     # Growing existing crystals (assuming all are the same...)
     G = CMO.G_func(prs, T, TD.Ice())
     r = N_act > 0 ? cbrt(q_ice / N_act / (4 / 3 * π) / ρ_ice * ρ) : 0
+    # TODO - have separate radius for each freezing mode so we can compare modes later
     C = r
     dqi_dt_deposition =
         deposition_growth == true ?
         1 / ρ * N_act * α_m * 4 * π * C * (S_i - 1) * G : FT(0)
+    # TODO - have separate dqi_dt_deposition for each mode so we can compare modes later
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
-    # -------------------- delete this part below later ----------------
-    # integrand(t_0, p) = @. α_m * 4 * π / ρ * G * (S_i - 1) * (N_aerosol - N_act) # actually can't do this cuz it's not really a numerical integral I need to solve
-    # int_prob = IntegralProblem(integrand, FT(0), time)
-    # int_solve = solve(int_prob, HCubatureJL(); reltol = 1e-3, abstol = 1e-3)
-    # growth_freezing_integral = int_solve.t_0
-    # dqi_dt = 4 * pi() * ρ_ice / ρ * (growth_freezing_integral)
-    # -------------------- delete this part above later ----------------
     dqw_dt = freeze_mode == "deposition" ? FT(0) : FT(0)
-    # TODO - update dqw_dt when implementing homo. and immersion freezing
+    # TODO - update dqw_dt when implementing homo. and immersion freezing. 
+    # this would be along the lines of -dqi_dt_new_particles_homog
 
     # Update the tendecies
     dS_i_dt = a1 * w * S_i - (a2 + a3 * S_i) * dqi_dt - (a2 + a4 * S_i) * dqw_dt
