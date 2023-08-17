@@ -498,7 +498,7 @@ function p3_a_plot1(
     d_cr_5 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.5)[1] * 1e3 for D in D_range],
-        range(1e-11, stop = 1e-5, length = len_D_range),
+        range(1e-10, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[2],
         linewidth = lw,
@@ -507,7 +507,7 @@ function p3_a_plot1(
     d_cr_8 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.8)[1] * 1e3 for D in D_range],
-        range(1e-11, stop = 1e-5, length = len_D_range),
+        range(1e-10, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[3],
         linewidth = lw,
@@ -516,7 +516,7 @@ function p3_a_plot1(
     d_gr_5 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.5)[2] * 1e3 for D in D_range],
-        range(1e-11, stop = 1e-5, length = len_D_range),
+        range(1e-10, stop = 1e-5, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[2],
         linewidth = lw,
@@ -525,7 +525,7 @@ function p3_a_plot1(
     d_gr_8 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.8)[2] * 1e3 for D in D_range],
-        range(1e-11, stop = 1e-5, length = len_D_range),
+        range(1e-10, stop = 1e-5, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[3],
         linewidth = lw,
@@ -534,7 +534,7 @@ function p3_a_plot1(
     d_th = Plt.lines!(
         ax,
         [D = D_th * 1e3 for D in D_range],
-        range(1e-11, stop = 1e-5, length = len_D_range),
+        range(1e-10, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = "red",
         linewidth = lw,
@@ -625,7 +625,7 @@ function p3_a_plot2(
     d_thb = Plt.lines!(
         ax,
         [D = D_th * 1e3 for D in D_range],
-        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        range(1e-9, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = "red",
         linewidth = lw,
@@ -634,7 +634,7 @@ function p3_a_plot2(
     d_cr_200 = Plt.lines!(
         ax,
         [D = P3.thresholds(200.0, 0.5)[1] * 1e3 for D in D_range],
-        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        range(1e-9, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[1],
         linewidth = lw,
@@ -643,7 +643,7 @@ function p3_a_plot2(
     d_cr_400 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.5)[1] * 1e3 for D in D_range],
-        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        range(1e-9, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[2],
         linewidth = lw,
@@ -652,7 +652,7 @@ function p3_a_plot2(
     d_cr_800 = Plt.lines!(
         ax,
         [D = P3.thresholds(800.0, 0.5)[1] * 1e3 for D in D_range],
-        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        range(1e-9, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[3],
         linewidth = lw,
@@ -661,7 +661,7 @@ function p3_a_plot2(
     d_gr_200 = Plt.lines!(
         ax,
         [D = P3.thresholds(200.0, 0.5)[2] * 1e3 for D in D_range],
-        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        range(1e-9, stop = 1e-5, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[1],
         linewidth = lw,
@@ -670,7 +670,7 @@ function p3_a_plot2(
     d_gr_400 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.8)[2] * 1e3 for D in D_range],
-        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        range(1e-9, stop = 1e-5, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[2],
         linewidth = lw,
@@ -679,7 +679,7 @@ function p3_a_plot2(
     d_gr_800 = Plt.lines!(
         ax,
         [D = P3.thresholds(800.0, 0.5)[2] * 1e3 for D in D_range],
-        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        range(1e-9, stop = 1e-5, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[3],
         linewidth = lw,
