@@ -437,20 +437,20 @@ function p3_m_plot2(
 end
 
 """
-p3_a_plot1(colors, threshold_colors, len_D_range = 10000)
+p3_a_plot1(colors, threshold_colors, len_D_range = 5000)
 
  - colors: string vector with three elements corresponding to the line colors
  - threshold_colors: string vector with three elements corresponding to the threshold line colors
- - len_D_range: amount of points to graph, defaults to 10000
+ - len_D_range: amount of points to graph, defaults to 5000
 
-Function that creates a figure which represents the area regime visually in the documentation.
+ Function that creates a visual representation of the area regime for the documentation.
 """
 function p3_a_plot1(
     colors::Vector{String},
     threshold_colors::Vector{String},
-    len_D_range::Int64 = 10000,
+    len_D_range::Int64 = 5000,
 )
-    D_range = range(1e-5, stop = 1e-2, length = len_D_range)
+D_range = range(0.00005, stop = 0.003, length = len_D_range)
 
     lw = 3
 
@@ -463,11 +463,11 @@ function p3_a_plot1(
         ylabel = Plt.L"$A$ ($m^2$)",
         xscale = Plt.log10,
         yscale = Plt.log10,
-        xminorticksvisible = true,
-        xminorticks = Plt.IntervalsBetween(5),
         yminorticksvisible = true,
-        yminorticks = Plt.IntervalsBetween(3),
-        xticks = [0.01, 0.1, 1, 10],
+        yminorticks = Plt.IntervalsBetween(2),
+        xticks = [0.1, 1],
+        xminorticksvisible = true,
+        xminorticks = Plt.IntervalsBetween(4),
         aspect = 2,
     )
 
@@ -498,7 +498,7 @@ function p3_a_plot1(
     d_cr_5 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.5)[1] * 1e3 for D in D_range],
-        range(1e-14, stop = 1e-4, length = len_D_range),
+        range(1e-11, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[2],
         linewidth = lw,
@@ -507,7 +507,7 @@ function p3_a_plot1(
     d_cr_8 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.8)[1] * 1e3 for D in D_range],
-        range(1e-14, stop = 1e-4, length = len_D_range),
+        range(1e-11, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = threshold_colors[3],
         linewidth = lw,
@@ -516,7 +516,7 @@ function p3_a_plot1(
     d_gr_5 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.5)[2] * 1e3 for D in D_range],
-        range(1e-14, stop = 1e-4, length = len_D_range),
+        range(1e-11, stop = 1e-5, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[2],
         linewidth = lw,
@@ -525,7 +525,7 @@ function p3_a_plot1(
     d_gr_8 = Plt.lines!(
         ax,
         [D = P3.thresholds(400.0, 0.8)[2] * 1e3 for D in D_range],
-        range(1e-14, stop = 1e-4, length = len_D_range),
+        range(1e-11, stop = 1e-5, length = len_D_range),
         linestyle = "...",
         color = threshold_colors[3],
         linewidth = lw,
@@ -534,7 +534,7 @@ function p3_a_plot1(
     d_th = Plt.lines!(
         ax,
         [D = D_th * 1e3 for D in D_range],
-        range(1e-14, stop = 1e-4, length = len_D_range),
+        range(1e-11, stop = 1e-5, length = len_D_range),
         linestyle = "---",
         color = "red",
         linewidth = lw,
@@ -560,6 +560,161 @@ function p3_a_plot1(
         [Plt.L"$D_{gr}$ for $F_{r} = 0.5$", Plt.L"$D_{gr}$ for $F_{r} = 0.8$"],
     )
 
-    #Plt.save("P3Scheme_Area_Docs1.svg", fig)
-    fig
+    Plt.save("P3Scheme_Area_1.svg", fig)
+end
+
+"""
+p3_a_plot2(colors, threshold_colors, len_D_range = 11000)
+
+ - colors: string vector with three elements corresponding to the line colors
+ - threshold_colors: string vector with three elements corresponding to the threshold line colors
+ - len_D_range: amount of points to graph, defaults to 11000
+
+Function that creates a visual representation of the area regime for the documentation.
+"""
+function p3_a_plot2(
+    colors::Vector{String},
+    threshold_colors::Vector{String},
+    len_D_range::Int64 = 11000,
+)
+    D_range = range(0.00005, stop = 0.003, length = len_D_range)
+
+    fig = Plt.Figure()
+
+    lw = 3
+
+    ax = Plt.Axis(
+        fig[1:10, 1:11],
+        title = Plt.L"A(D) regime for $F_r = 0.5$",
+        xlabel = Plt.L"$D$ (mm)",
+        ylabel = Plt.L"$A$ ($m^2$)",
+        xscale = Plt.log10,
+        yscale = Plt.log10,
+        yminorticksvisible = true,
+        yminorticks = Plt.IntervalsBetween(2),
+        xticks = [0.1, 1],
+        xminorticksvisible = true,
+        xminorticks = Plt.IntervalsBetween(4),
+        aspect = 1.67,
+    )
+
+    fig200 = Plt.lines!(
+        ax,
+        D_range * 1e3,
+        [area(D, 0.5, P3.thresholds(200.0, 0.5)) for D in D_range],
+        color = colors[1],
+        linewidth = lw,
+    )
+
+    fig400 = Plt.lines!(
+        ax,
+        D_range * 1e3,
+        [area(D, 0.5, P3.thresholds(400.0, 0.5)) for D in D_range],
+        color = colors[2],
+        linewidth = lw,
+    )
+
+    fig800 = Plt.lines!(
+        ax,
+        D_range * 1e3,
+        [area(D, 0.5, P3.thresholds(800.0, 0.5)) for D in D_range],
+        color = colors[3],
+        linewidth = lw,
+    )
+
+    d_thb = Plt.lines!(
+        ax,
+        [D = D_th * 1e3 for D in D_range],
+        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        linestyle = "---",
+        color = "red",
+        linewidth = lw,
+    )
+
+    d_cr_200 = Plt.lines!(
+        ax,
+        [D = P3.thresholds(200.0, 0.5)[1] * 1e3 for D in D_range],
+        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        linestyle = "---",
+        color = threshold_colors[1],
+        linewidth = lw,
+    )
+
+    d_cr_400 = Plt.lines!(
+        ax,
+        [D = P3.thresholds(400.0, 0.5)[1] * 1e3 for D in D_range],
+        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        linestyle = "---",
+        color = threshold_colors[2],
+        linewidth = lw,
+    )
+
+    d_cr_800 = Plt.lines!(
+        ax,
+        [D = P3.thresholds(800.0, 0.5)[1] * 1e3 for D in D_range],
+        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        linestyle = "---",
+        color = threshold_colors[3],
+        linewidth = lw,
+    )
+
+    d_gr_200 = Plt.lines!(
+        ax,
+        [D = P3.thresholds(200.0, 0.5)[2] * 1e3 for D in D_range],
+        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        linestyle = "...",
+        color = threshold_colors[1],
+        linewidth = lw,
+    )
+
+    d_gr_400 = Plt.lines!(
+        ax,
+        [D = P3.thresholds(400.0, 0.8)[2] * 1e3 for D in D_range],
+        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        linestyle = "...",
+        color = threshold_colors[2],
+        linewidth = lw,
+    )
+
+    d_gr_800 = Plt.lines!(
+        ax,
+        [D = P3.thresholds(800.0, 0.5)[2] * 1e3 for D in D_range],
+        range(10^-10.5, stop = 10^-4.5, length = len_D_range),
+        linestyle = "...",
+        color = threshold_colors[3],
+        linewidth = lw,
+    )
+
+    leg1_b = Plt.Legend(
+        fig[11:12, 2],
+        [fig200, fig400, fig800],
+        [
+            Plt.L"$\rho_{r} = 200.0 kg m^{-3}$",
+            Plt.L"$\rho_{r} = 400.0 kg m^{-3}$",
+            Plt.L"$\rho_{r} = 800.0 kg m^{-3}$",
+        ],
+    )
+
+    leg1_b_dth = Plt.Legend(fig[11:12, 3], [d_thb], [Plt.L"$D_{th}$"])
+
+    leg1_b_dcr = Plt.Legend(
+        fig[11:12, 6],
+        [d_cr_200, d_cr_400, d_cr_800],
+        [
+            Plt.L"$D_{cr}$ for $\rho_{r} = 200.0 kg m^{-3}$",
+            Plt.L"$D_{cr}$ for $\rho_{r} = 400.0 kg m^{-3}$",
+            Plt.L"$D_{cr}$ for $\rho_{r} = 800.0 kg m^{-3}$",
+        ],
+    )
+
+    leg1_b_dgr = Plt.Legend(
+        fig[11:12, 4],
+        [d_gr_200, d_gr_400, d_gr_800],
+        [
+            Plt.L"$D_{gr}$ for $\rho_{r} = 200.0 kg m^{-3}$",
+            Plt.L"$D_{gr}$ for $\rho_{r} = 400.0 kg m^{-3}$",
+            Plt.L"$D_{gr}$ for $\rho_{r} = 800.0 kg m^{-3}$",
+        ],
+    )
+    Plt.save("P3Scheme_Area_2.svg", fig)
 end
