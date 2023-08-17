@@ -115,7 +115,7 @@ function area(
 
 
     - D: maximum particle dimension
-    
+
     Particle projected area relation for assumed spherical particles
     """
     function A_s(D::FT) where {FT <: Real}
@@ -450,7 +450,7 @@ function p3_a_plot1(
     threshold_colors::Vector{String},
     len_D_range::Int64 = 5000,
 )
-D_range = range(0.00005, stop = 0.003, length = len_D_range)
+    D_range = range(0.00005, stop = 0.003, length = len_D_range)
 
     lw = 3
 
