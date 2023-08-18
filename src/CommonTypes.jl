@@ -115,11 +115,32 @@ The type for 2-moment precipitation formation by Seifert and Beheng (2006)
 struct SB2006Type <: Abstract2MPrecipType end
 
 """
+    AbstractTerminalVelocityType
+
+The top-level super-type for terminal velocity parameterizations
+"""
+abstract type AbstractTerminalVelocityType end
+
+"""
+    Blk1MVelType
+
+The type for precipitation terminal velocity from the simple 1-moment scheme
+"""
+struct Blk1MVelType <: AbstractTerminalVelocityType end
+
+"""
+    SB2006VelType
+
+The type for precipitation terminal velocity from Seifert and Beheng (2006)
+"""
+struct SB2006VelType <: AbstractTerminalVelocityType end
+
+"""
     Chen2022Type
 
-The type for 2-moment precipitation terminal velocity by Chen et al 2022
+The type for precipitation terminal velocity from Chen et. al. 2022
 """
-struct Chen2022Type <: Abstract2MPrecipType end
+struct Chen2022Type <: AbstractTerminalVelocityType end
 
 """
     AbstractAerosolType
