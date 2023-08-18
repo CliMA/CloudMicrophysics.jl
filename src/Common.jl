@@ -124,24 +124,41 @@ function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT <: Real}
 end
 
 """
-    H2SO4_soln_saturation_vapor_pressure(x, T)
+    H2SO4_soln_saturation_vapor_pressure(prs, x, T)
 
+ - `prs` - a set with free parameters
  - `x` - wt percent sulphuric acid [unitless]
  - `T` - air temperature [K].
 
 Returns the saturation vapor pressure above a sulphuric acid solution droplet in Pa.
 `x` is, for example, 0.1 if droplets are 10 percent sulphuric acid by weight
 """
-function H2SO4_soln_saturation_vapor_pressure(x::FT, T::FT) where {FT <: Real}
+function H2SO4_soln_saturation_vapor_pressure(
+    prs::APS,
+    x::FT,
+    T::FT,
+) where {FT <: Real}
 
-    @assert T < FT(235)
-    @assert T > FT(185)
+    T_max::FT = CMP.H2SO4_sol_T_max(prs)
+    T_min::FT = CMP.H2SO4_sol_T_min(prs)
+    w_2::FT = CMP.H2SO4_sol_w_2(prs)
 
-    w_h = 1.4408 * x
+    c1::FT = CMP.H2SO4_sol_c1(prs)
+    c2::FT = CMP.H2SO4_sol_c2(prs)
+    c3::FT = CMP.H2SO4_sol_c3(prs)
+    c4::FT = CMP.H2SO4_sol_c4(prs)
+    c5::FT = CMP.H2SO4_sol_c5(prs)
+    c6::FT = CMP.H2SO4_sol_c6(prs)
+    c7::FT = CMP.H2SO4_sol_c7(prs)
+
+    @assert T < T_max
+    @assert T > T_min
+
+    w_h = w_2 * x
     p_sol =
         exp(
-            23.306 - 5.3465 * x + 12 * x * w_h - 8.19 * x * w_h^2 +
-            (-5814 + 928.9 * x - 1876.7 * x * w_h) / T,
+            c1 - c2 * x + c3 * x * w_h - c4 * x * w_h^2 +
+            (c5 + c6 * x - c7 * x * w_h) / T,
         ) * 100 # * 100 converts mbar --> Pa
     return p_sol
 end
@@ -160,7 +177,7 @@ function Delta_a_w(prs::APS, x::FT, T::FT) where {FT <: Real}
 
     thermo_params = CMP.thermodynamics_params(prs)
 
-    p_sol = H2SO4_soln_saturation_vapor_pressure(x, T)
+    p_sol = H2SO4_soln_saturation_vapor_pressure(prs, x, T)
     p_sat = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
     p_ice = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
 
