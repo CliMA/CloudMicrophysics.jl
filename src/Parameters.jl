@@ -135,6 +135,25 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     c1_coeff_rain_Ch2022::FT
     c2_coeff_rain_Ch2022::FT
     c3_coeff_rain_Ch2022::FT
+    As_coeff_1_Ch2022::FT
+    As_coeff_2_Ch2022::FT
+    As_coeff_3_Ch2022::FT
+    Bs_coeff_1_Ch2022::FT
+    Bs_coeff_2_Ch2022::FT
+    Bs_coeff_3_Ch2022::FT
+    Cs_coeff_1_Ch2022::FT
+    Cs_coeff_2_Ch2022::FT
+    Cs_coeff_3_Ch2022::FT
+    Cs_coeff_4_Ch2022::FT
+    Es_coeff_1_Ch2022::FT
+    Es_coeff_2_Ch2022::FT
+    Es_coeff_3_Ch2022::FT
+    Fs_coeff_1_Ch2022::FT
+    Fs_coeff_2_Ch2022::FT
+    Fs_coeff_3_Ch2022::FT
+    Gs_coeff_1_Ch2022::FT
+    Gs_coeff_2_Ch2022::FT
+    Gs_coeff_3_Ch2022::FT
     Si_max_Mohler2006::FT
     T_thr_Mohler2006::FT
     S0_warm_ATD_Mohler2006::FT
