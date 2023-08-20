@@ -12,6 +12,9 @@ export IceType
 export RainType
 export SnowType
 export AbstractAerosolDistribution
+export AbstractAerosolActivation
+export AbstractParameterizedAerosolActivation
+export ARG2000Type
 export Abstract2MPrecipType
 export KK2000Type
 export B1994Type
@@ -29,6 +32,28 @@ export DesertDustType
 The top-level super-type for all aerosol distribution types.
 """
 abstract type AbstractAerosolDistribution{T} end
+
+"""
+    AbstractAerosolActivation
+
+The top-level super-type for all aerosol activation schemes.
+"""
+abstract type AbstractAerosolActivation end
+
+"""
+    AbstractParameterizedAerosolActivation
+
+The type for all aerosol activation schemes that use a parameterization based
+    on maximum supersaturation (as opposed to using an ML emulator)
+"""
+abstract type AbstractParameterizedAerosolActivation end
+
+"""
+    ARG2000Type
+
+The type for the aerosol activation scheme formulated by Abdul-Razzak and Ghan (2000)
+"""
+struct ARG2000Type <: AbstractParameterizedAerosolActivation end
 
 """
     AbstractCloudType

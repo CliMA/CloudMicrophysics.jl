@@ -21,5 +21,7 @@ include("AerosolActivation.jl")
 include("Nucleation.jl")
 include("IceNucleation.jl")
 include("PrecipitationSusceptibility.jl")
+include("PreprocessAerosolData.jl")
+include("ActivationEmulatorModels.jl")
 
 end # module

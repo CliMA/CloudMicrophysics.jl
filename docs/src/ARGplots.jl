@@ -1,15 +1,14 @@
-import Plots
+import Plots as PL
 
 import CloudMicrophysics
-import CLIMAParameters
-import Thermodynamics
-
-const PL = Plots
-const AM = CloudMicrophysics.AerosolModel
-const AA = CloudMicrophysics.AerosolActivation
-const CP = CLIMAParameters
-const CMP = CloudMicrophysics.Parameters
-const TD = Thermodynamics
+import CloudMicrophysics:
+    AerosolModel as AM,
+    AerosolActivation as AA,
+    Parameters as CMP,
+    CommonTypes as CMT
+import CLIMAParameters as CP
+import Thermodynamics as TD
+import DataFrames as DF
 
 include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
 FT = Float64
@@ -47,6 +46,12 @@ M_insol = 0.044       # molar mass of insol
 ρ_insol = 1770.0      # density of insol
 κ_insol = 0.0         # hygroscopicity of insol
 
+# Schemes
+ARG_scheme = CMT.ARG2000Type()
+ML_scheme = AA.MLEmulatedAerosolActivation(
+    joinpath(pkgdir(CloudMicrophysics), "aerosol_activation_emulators", "2modal_nn_machine1.jls"),
+)
+
 function mass2vol(mass_mixing_ratios)
     if length(mass_mixing_ratios) == 2
         densities = (ρ_sulfate, ρ_insol)
@@ -61,7 +66,7 @@ end
 
 # Abdul-Razzak and Ghan 2000
 # https://doi.org/10.1029/1999JD901161
-function make_ARG_figX(X)
+function make_ARG_figX(X, scheme)
     p1 = PL.plot()
     p2 = PL.plot()
 
@@ -176,19 +181,39 @@ function make_ARG_figX(X)
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[1] / N_1
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        w,
+                        q,
+                    )[1] / N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[2] / N2i
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        w,
+                        q,
+                    )[2] / N2i
                 global it += 1
             end
 
             x1_obs = Fig1_x_obs
             y1_obs = Fig1_y_obs
+            x1_PySDM = Fig1_x_PySDM
+            y1_PySDM = Fig1_y_PySDM
             x1_param = Fig1_x_param
             y1_param = Fig1_y_param
 
             x2_obs = Fig1_x_obs
             y2_obs = Fig1_y_obs
+            x2_PySDM = Fig1_x_PySDM
+            y2_PySDM = Fig1_y_PySDM
             x2_param = Fig1_x_param
             y2_param = Fig1_y_param
 
@@ -230,19 +255,39 @@ function make_ARG_figX(X)
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[1] / N_1
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        w,
+                        q,
+                    )[1] / N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[2] / N2i
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        w,
+                        q,
+                    )[2] / N2i
                 global it += 1
             end
 
             x1_obs = Fig2a_x_obs
             y1_obs = Fig2a_y_obs
+            x1_PySDM = Fig2a_x_PySDM
+            y1_PySDM = Fig2a_y_PySDM
             x1_param = Fig2a_x_param
             y1_param = Fig2a_y_param
 
             x2_obs = Fig2b_x_obs
             y2_obs = Fig2b_y_obs
+            x2_PySDM = Fig2b_x_PySDM
+            y2_PySDM = Fig2b_y_PySDM
             x2_param = Fig2b_x_param
             y2_param = Fig2b_y_param
 
@@ -286,19 +331,39 @@ function make_ARG_figX(X)
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[1] / N_1
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        w,
+                        q,
+                    )[1] / N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[2] / N_2
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        w,
+                        q,
+                    )[2] / N_2
                 global it += 1
             end
 
             x1_obs = Fig3a_x_obs
             y1_obs = Fig3a_y_obs
+            x1_PySDM = Fig3a_x_PySDM
+            y1_PySDM = Fig3a_y_PySDM
             x1_param = Fig3a_x_param
             y1_param = Fig3a_y_param
 
             x2_obs = Fig3b_x_obs
             y2_obs = Fig3b_y_obs
+            x2_PySDM = Fig3b_x_PySDM
+            y2_PySDM = Fig3b_y_PySDM
             x2_param = Fig3b_x_param
             y2_param = Fig3b_y_param
 
@@ -339,19 +404,39 @@ function make_ARG_figX(X)
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[1] / N_1
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        w,
+                        q,
+                    )[1] / N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[2] / N_2
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        w,
+                        q,
+                    )[2] / N_2
                 global it += 1
             end
 
             x1_obs = Fig4a_x_obs
             y1_obs = Fig4a_y_obs
+            x1_PySDM = Fig4a_x_PySDM
+            y1_PySDM = Fig4a_y_PySDM
             x1_param = Fig4a_x_param
             y1_param = Fig4a_y_param
 
             x2_obs = Fig4b_x_obs
             y2_obs = Fig4b_y_obs
+            x2_PySDM = Fig4b_x_PySDM
+            y2_PySDM = Fig4b_y_PySDM
             x2_param = Fig4b_x_param
             y2_param = Fig4b_y_param
 
@@ -394,19 +479,39 @@ function make_ARG_figX(X)
 
             for wi in w
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, wi, q)[1] / N_1
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        wi,
+                        q,
+                    )[1] / N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, wi, q)[2] / N_2
+                    AA.N_activated_per_mode(
+                        param_set,
+                        scheme,
+                        AD,
+                        T,
+                        p,
+                        wi,
+                        q,
+                    )[2] / N_2
                 global it += 1
             end
 
             x1_obs = Fig5a_x_obs
             y1_obs = Fig5a_y_obs
+            x1_PySDM = Fig5a_x_PySDM
+            y1_PySDM = Fig5a_y_PySDM
             x1_param = Fig5a_x_param
             y1_param = Fig5a_y_param
 
             x2_obs = Fig5b_x_obs
             y2_obs = Fig5b_y_obs
+            x2_PySDM = Fig5b_x_PySDM
+            y2_PySDM = Fig5b_y_PySDM
             x2_param = Fig5b_x_param
             y2_param = Fig5b_y_param
 
@@ -449,6 +554,14 @@ function make_ARG_figX(X)
             )
             PL.scatter!(p2, x2_obs, y2_obs, markercolor = :black)
             PL.plot!(p2, x2_param, y2_param, linecolor = :black)
+            PL.scatter!(
+                p1,
+                x1_PySDM,
+                y1_PySDM,
+                markercolor = :green,
+                label = "PySDM observations",
+            )
+            PL.scatter!(p2, x2_PySDM, y2_PySDM, markercolor = :green)
         end
     end
 
