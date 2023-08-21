@@ -12,10 +12,9 @@ import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
 
 """
-α_va(prs, FT)
+α_va(prs)
 
  - prs - abstract set with Earth parameters
- - FT - float type
 
 α_va [kg m^(-β_va)] is the coefficient used in the mass regime power law for
 large, unrimed ice and dense, nonspherical ice.
@@ -35,6 +34,7 @@ end
 """
 D_th(prs, FT)
 
+ - prs - abstract set with Earth parameters
  - FT - float type
 
 D_th [m] is the threshold particle dimension from p. 292 of Morrison and Milbrandt (2015)

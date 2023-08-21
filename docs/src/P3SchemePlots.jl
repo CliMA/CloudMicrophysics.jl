@@ -17,8 +17,9 @@ const α_va::FT = P3.α_va(prs)
 const β_va = CMP.β_va_BF1995(prs)
 # threshold particle dimension
 const D_th::FT = P3.D_th(prs, FT)
-const γ::FT = 0.2285
-const σ::FT = 1.88
+# area parameters
+const γ::FT = CMP.γ_M1996(prs)
+const σ::FT = CMP.σ_M1996(prs)
 
 """
 mass(D, thresholds, F_r)
