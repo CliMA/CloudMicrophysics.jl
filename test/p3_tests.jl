@@ -4,16 +4,22 @@ import CloudMicrophysics as CM
 const P3 = CM.P3Scheme
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
+toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+prs = cloud_microphysics_parameters(toml_dict)
+
+# bulk density of ice:
+const ρ_i::FT = CMP.ρ_cloud_ice(prs)
+# mass power law coefficient and exponent:
+const α_va::FT = P3.α_va(prs)
+const β_va = CMP.β_va_BF1995(prs)
+# threshold particle dimension
+const D_th::FT = P3.D_th(prs, FT)
 
 @info "P3 Scheme Tests"
 
 function test_p3_thresholds(FT)
 
     TT.@testset "thresholds (nonlinear solver function)" begin
-
-        # P3 params:
-        β_va::FT = 1.9
-        α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
 
         # initialize test values:
         F_r_bad = [FT(0.0), FT(-1.0), FT(1.0), FT(1.5)] # unreasonable ("bad") values

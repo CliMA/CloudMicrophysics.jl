@@ -20,7 +20,7 @@ const CMT = CM.CommonTypes
 const CM0 = CM.Microphysics0M
 const CM1 = CM.Microphysics1M
 const HN = CM.Nucleation
-const P3 = CM.P3Scheme
+const P3 = CM.P3Scheme # deleted GPU tests for P3 from this branch
 
 const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
@@ -420,19 +420,6 @@ end
     end
 end
 
-@kernel function test_p3_thresholds_kernel!(
-    output::AbstractArray{FT},
-    ρ_r,
-    F_r,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = P3.thresholds(ρ_r, F_r)[i]
-    end
-end
-
 function test_gpu(FT)
 
     make_prs(::Type{FT}) where {FT} = cloud_microphysics_parameters(
@@ -766,30 +753,6 @@ function test_gpu(FT)
         wait(dev, event)
 
         @test all(Array(output) .> FT(0))
-    end
-
-    @testset "P3 Kernels" begin
-        data_length = 4
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
-
-        ρ_r = FT(400)
-        F_r = FT(0.5)
-
-        kernel! = test_p3_thresholds_kernel!(dev, work_groups)
-        event = kernel!(output, ρ_r, F_r, ndrange = ndrange)
-        wait(dev, event)
-
-        # test thresholds is callable and returns a reasonable value
-        @test Array(output)[1] ≈ FT(0.0004943308543980244)
-        @test Array(output)[2] ≈ FT(0.00026324133585593025)
-        @test Array(output)[3] ≈ FT(306.6678474961574)
-        @test Array(output)[4] ≈ FT(213.3356949923147)
-
     end
 end
 

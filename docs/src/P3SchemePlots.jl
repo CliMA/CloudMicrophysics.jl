@@ -1,5 +1,6 @@
 import CairoMakie as Plt
 import CloudMicrophysics as CM
+import CLIMAParameters as CP
 const CMP = CM.Parameters
 const P3 = CM.P3Scheme
 const APS = CMP.AbstractCloudMicrophysicsParameters
@@ -7,16 +8,15 @@ FT = Float64
 
 include(joinpath("..", "..", "test", "create_parameters.jl"))
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-const param_set = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(param_set)
+prs = cloud_microphysics_parameters(toml_dict)
 
 # bulk density of ice
-const ρ_i::FT = CMP.ρ_cloud_ice(param_set)
+const ρ_i::FT = CMP.ρ_cloud_ice(prs)
 # mass power law coefficient and exponent
-const β_va::FT = CP.get_parameter_values(toml_dict, ["β_va_BF1995"])[1].second
-const α_va::FT = P3.α_va(FT)
+const α_va::FT = P3.α_va(prs)
+const β_va = CMP.β_va_BF1995(prs)
 # threshold particle dimension
-const D_th::FT = P3.D_th(FT)
+const D_th::FT = P3.D_th(prs, FT)
 
 """
 mass(D, thresholds, F_r)
