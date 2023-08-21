@@ -18,6 +18,9 @@ export B1994Type
 export TC1980Type
 export LD2004Type
 export SB2006Type
+export AbstractTerminalVelocityType
+export Blk1MVelType
+export SB2006VelType
 export Chen2022Type
 export AbstractAerosolType
 export ArizonaTestDustType
