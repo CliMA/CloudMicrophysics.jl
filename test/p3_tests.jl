@@ -2,22 +2,23 @@ import Test as TT
 import CloudMicrophysics as CM
 
 const P3 = CM.P3Scheme
-
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-prs = cloud_microphysics_parameters(toml_dict)
-
-# bulk density of ice:
-const ρ_i::FT = CMP.ρ_cloud_ice(prs)
-# mass power law coefficient and exponent:
-const α_va::FT = P3.α_va(prs)
-const β_va = CMP.β_va_BF1995(prs)
-# threshold particle dimension
-const D_th::FT = P3.D_th(prs, FT)
+const CMP = CM.Parameters
 
 @info "P3 Scheme Tests"
 
 function test_p3_thresholds(FT)
+
+    include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
+    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+    prs = cloud_microphysics_parameters(toml_dict)
+
+    # bulk density of ice:
+    ρ_i::FT = CMP.ρ_cloud_ice(prs)
+    # mass power law coefficient and exponent:
+    α_va::FT = P3.α_va(prs)
+    β_va = CMP.β_va_BF1995(prs)
+    # threshold particle dimension
+    D_th::FT = P3.D_th(prs, FT)
 
     TT.@testset "thresholds (nonlinear solver function)" begin
 
