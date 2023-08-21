@@ -57,6 +57,8 @@ Microphysics2M.conv_q_liq_to_q_rai
 
 ```@docs
 P3Scheme
+P3Scheme.α_va
+P3Scheme.D_th
 P3Scheme.thresholds
 ```
 

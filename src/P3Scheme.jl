@@ -6,20 +6,44 @@ Predicted particle properties scheme (P3) for ice, which includes:
 module P3Scheme
 
 import NonlinearSolve as NLS
+import CLIMAParameters as CP
+import ..Parameters as CMP
 
-# THINGS TO ADD TO PARAMETERS
-# exponent in power law from Brown and Francis 1995 for mass grown by
-# vapor diffusion and aggregation in midlatitude cirrus: (unitless I think?)
-# const β_va::FT = 1.9
-# coefficient in power law modified from Brown and Francis 1995 for mass grown by
-# vapor diffusion and aggregation in midlatitude cirrus: (units of kg m^(-β_va) I think?)
-# const α_va::FT = (7.38e-11) * 10^((6 * β_va) - 3)
-# const ρ_i::FT = 916.7
-# the threshold particle dimension from p. 292 of Morrison and Milbrandt 2015
-# between small spherical and large, nonspherical unrimed ice, D_th (m),
-# which is a constant function of α_va, β_va, and ρ_i with no D-dependency
-# const D_th::FT = ((FT(π) * ρ_i) / (6 * α_va))^(1 / (β_va - 3))
-# ρ_i::FT = CMP.ρ_cloud_ice(param_set) # ρ_i (bulk density of ice (kg m^{-3}))
+const APS = CMP.AbstractCloudMicrophysicsParameters
+
+"""
+α_va(FT)
+ - prs - abstract set with Earth parameters
+ - FT - float type
+α_va [kg m^(-β_va)] is the coefficient used in the mass regime power law for
+large, unrimed ice and dense, nonspherical ice.
+In Brown and Francis (1995), mass is in g, and particle dimension is in μm.
+Here we compute α_va, which for our mass regime which has units
+of kg and m, and this process requires Brown and Francis (1995)'s values,
+which are stored in CLIMAParameters.jl.
+The power law modified from Brown and Francis (1995) is for mass grown by
+vapor diffusion and aggregation in midlatitude cirrus.
+"""
+function α_va(prs::APS)
+    β_va = CMP.β_va_BF1995(prs)
+    α_va_BF1995 = CMP.α_va_BF1995(prs)
+    return α_va_BF1995 * 10^((6 * β_va) - 3)
+end
+
+"""
+D_th(FT)
+ - FT - float type
+D_th [m] is the threshold particle dimension from p. 292 of Morrison and Milbrandt (2015)
+between small, spherical and large, nonspherical unrimed ice,
+which is a constant function of α_va, β_va, and ρ_i, independent of the particle dimension D.
+Here, we compute D_th.
+"""
+function D_th(prs::APS, FT)
+    β_va = CMP.β_va_BF1995(prs)
+    ρ_i = CMP.ρ_cloud_ice(prs)
+    # return D_th, making a call to α_va()
+    return ((FT(π) * ρ_i) / (6 * α_va(prs)))^(1 / (β_va - 3))
+end
 
 """
 thresholds(ρ_r, F_r, u0)
