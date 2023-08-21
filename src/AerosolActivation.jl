@@ -173,7 +173,7 @@ function max_supersaturation(
     T::FT,
     p::FT,
     w::FT,
-    q::TD.PhasePartition{FT}
+    q::TD.PhasePartition{FT},
 ) where {FT <: Real}
 
     thermo_params = CMP.thermodynamics_params(param_set)
@@ -296,7 +296,8 @@ function N_activated_per_mode(
             :initial_pressure => p,
         )
         X = DF.DataFrame([merge(reduce(merge, per_mode_data), additional_data)])
-        max(FT(0), min(FT(1), MLJ.predict(scheme.machine, X)[1])) * ad.Modes[i].N
+        max(FT(0), min(FT(1), MLJ.predict(scheme.machine, X)[1])) *
+        ad.Modes[i].N
     end
 end
 

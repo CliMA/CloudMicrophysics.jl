@@ -30,17 +30,6 @@ function MLJFlux.build(builder::NNBuilder, rng, n_in, n_out)
     )
 end
 
-function NNModel()
-    model = NeuralNetworkRegressor(
-        builder = NNBuilder(50, 100, 30, 0.1, 0.3, 0.2),
-        optimiser = Flux.Optimise.Adam(0.001, (0.9, 0.999), 1.0e-8),
-        epochs = 200,
-        loss = Flux.mse,
-        batch_size = 50,
-    )
-    return model
-end
-
 mutable struct GPRegressor <: MLJ.Deterministic
     num_gps::Integer
     sample_size::Integer
@@ -51,13 +40,36 @@ end
 
 function MLJ.fit(model::GPRegressor, verbosity, X, y)
     gps = []
-    for i in 1:model.num_gps
-        weights = StatsBase.Weights([
-            model.use_ARG_weights ? Distributions.pdf(Distributions.Normal(0.0, 0.5), x) : 1 for
-            x in X.mode_1_ARG_act_frac
-        ])
-        inds = StatsBase.sample(1:DF.nrow(X), weights, model.sample_size, replace = false)
-        inds_inducing = StatsBase.sample(1:DF.nrow(X), weights, model.sample_size_inducing, replace = false)
+    for i in 1:(model.num_gps)
+        if model.use_ARG_weights
+            weights = StatsBase.Weights([
+                Distributions.pdf(Distributions.Normal(0.0, 0.5), x) for
+                x in X.mode_1_ARG_act_frac
+            ])
+            inds = StatsBase.sample(
+                1:DF.nrow(X),
+                weights,
+                model.sample_size,
+                replace = false,
+            )
+            inds_inducing = StatsBase.sample(
+                1:DF.nrow(X),
+                weights,
+                model.sample_size_inducing,
+                replace = false,
+            )
+        else
+            inds = StatsBase.sample(
+                1:DF.nrow(X),
+                model.sample_size,
+                replace = false,
+            )
+            inds_inducing = StatsBase.sample(
+                1:DF.nrow(X),
+                model.sample_size_inducing,
+                replace = false,
+            )
+        end
         if model.use_DTC
             gp = GaussianProcesses.DTC(
                 Matrix(X[inds, :])',

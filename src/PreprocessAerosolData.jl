@@ -6,6 +6,7 @@ import ..AerosolModel as AM
 import ..Parameters as CMP
 import ..CommonTypes as CT
 import ..Parameters as CMP
+import ..Common as CO
 import CLIMAParameters as CP
 import Thermodynamics as TD
 import DataFrames as DF
@@ -45,9 +46,9 @@ function convert_to_ARG_params(data_row::NamedTuple, param_set::APS)
     mode_means = []
     mode_stdevs = []
     mode_kappas = []
-    velocity = data_row.velocity
-    temperature = data_row.initial_temperature
-    pressure = data_row.initial_pressure
+    w = data_row.velocity
+    T = data_row.initial_temperature
+    p = data_row.initial_pressure
     for i in 1:num_modes
         push!(mode_Ns, data_row[Symbol("mode_$(i)_N")])
         push!(mode_means, data_row[Symbol("mode_$(i)_mean")])
@@ -69,30 +70,68 @@ function convert_to_ARG_params(data_row::NamedTuple, param_set::APS)
         ),
     )
     thermo_params = CMP.thermodynamics_params(param_set)
-    pv0 = TD.saturation_vapor_pressure(thermo_params, temperature, TD.Liquid())
+    pv0 = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
     vapor_mix_ratio =
-        pv0 / TD.Parameters.molmass_ratio(thermo_params) / (pressure - pv0)
+        pv0 / TD.Parameters.molmass_ratio(thermo_params) / (p - pv0)
     q_vap = vapor_mix_ratio / (vapor_mix_ratio + 1)
     q = TD.PhasePartition(q_vap, FT(0), FT(0))
-    return (; ad, temperature, pressure, velocity, q, mode_Ns)
+    return (; ad, T, p, w, q, mode_Ns)
 end
 
 function convert_to_ARG_params(data_row::NamedTuple)
     return convert_to_ARG_params(data_row, default_param_set)
 end
 
+function convert_to_ARG_intermediates(data_row::NamedTuple, param_set::APS)
+    num_modes = get_num_modes(data_row)
+    @assert num_modes > 0
+
+    (; ad, T, p, w, q) = convert_to_ARG_params(data_row, param_set)
+
+    thermo_params = CMP.thermodynamics_params(param_set)
+    _grav::FT = CMP.grav(param_set)
+    _ρ_cloud_liq::FT = CMP.ρ_cloud_liq(param_set)
+
+    _ϵ::FT = 1 / CMP.molmass_ratio(param_set)
+    R_m::FT = TD.gas_constant_air(thermo_params, q)
+    cp_m::FT = TD.cp_m(thermo_params, q)
+
+    L::FT = TD.latent_heat_vapor(thermo_params, T)
+    p_vs::FT = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+    G::FT = CO.G_func(param_set, T, TD.Liquid()) / _ρ_cloud_liq
+
+    α::FT = L * _grav * _ϵ / R_m / cp_m / T^2 - _grav / R_m / T
+    γ::FT = R_m * T / _ϵ / p_vs + _ϵ * L^2 / cp_m / T / p
+
+    A::FT = AA.coeff_of_curvature(param_set, T)
+    ζ::FT = 2 * A / 3 * sqrt(α * w / G)
+
+    Sm = AA.critical_supersaturation(param_set, ad, T)
+    η = [
+        (α * w / G)^FT(3 / 2) / (FT(2 * pi) * _ρ_cloud_liq * γ * ad.Modes[i].N) for i in 1:num_modes
+    ]
+
+    per_mode_intermediates = [
+        (;
+            Symbol("mode_$(i)_log_stdev") => log(ad.Modes[i].stdev),
+            Symbol("mode_$(i)_η") => η[i],
+            Symbol("mode_$(i)_Sm") => Sm[i],
+            Symbol("mode_$(i)_term1") => (ζ / η[i])^(3 / 2),
+            Symbol("mode_$(i)_term2") => (Sm[i]^2 / (η[i] + 3 * ζ))^(3 / 4),
+        ) for i in 1:num_modes
+    ]
+
+    return merge(reduce(merge, per_mode_intermediates), (; ζ))
+end
+
+function convert_to_ARG_intermediates(data_row::NamedTuple)
+    return convert_to_ARG_intermediates(data_row, default_param_set)
+end
+
 function get_ARG_S_max(data_row::NamedTuple, param_set::APS)
-    (; ad, temperature, pressure, velocity, q) =
-        convert_to_ARG_params(data_row, param_set)
-    max_supersaturation = AA.max_supersaturation(
-        param_set,
-        CT.ARG2000Type(),
-        ad,
-        temperature,
-        pressure,
-        velocity,
-        q,
-    )
+    (; ad, T, p, w, q) = convert_to_ARG_params(data_row, param_set)
+    max_supersaturation =
+        AA.max_supersaturation(param_set, CT.ARG2000Type(), ad, T, p, w, q)
     return max_supersaturation
 end
 
@@ -109,8 +148,8 @@ function get_ARG_S_max(X::DataFrame)
 end
 
 function get_ARG_S_crit(data_row::NamedTuple, param_set::APS)
-    (; ad, temperature) = convert_to_ARG_params(data_row, param_set)
-    return AA.critical_supersaturation(param_set, ad, temperature)
+    (; ad, T) = convert_to_ARG_params(data_row, param_set)
+    return AA.critical_supersaturation(param_set, ad, T)
 end
 
 function get_ARG_S_crit(data_row::NamedTuple)
@@ -125,36 +164,30 @@ function get_ARG_S_crit(X::DataFrame)
     return get_ARG_S_crit(X, default_param_set)
 end
 
-function get_ARG_act_N(
-    data_row::NamedTuple,
-    param_set::APS,
-    S_max = nothing,
-)
-    (; ad, temperature, pressure, velocity, q) =
-        convert_to_ARG_params(data_row, param_set)
+function get_ARG_act_N(data_row::NamedTuple, param_set::APS, S_max = nothing)
+    (; ad, T, p, w, q) = convert_to_ARG_params(data_row, param_set)
     if S_max === nothing
         return collect(
             AA.N_activated_per_mode(
                 param_set,
                 CT.ARG2000Type(),
                 ad,
-                temperature,
-                pressure,
-                velocity,
+                T,
+                p,
+                w,
                 q,
             ),
         )
     else
-        critical_supersaturation =
-            AA.critical_supersaturation(param_set, ad, temperature)
+        critical_supersaturation = AA.critical_supersaturation(param_set, ad, T)
         return collect(
             AA.N_activated_per_mode(
                 param_set,
                 CT.ARG2000Type(),
                 ad,
-                temperature,
-                pressure,
-                velocity,
+                T,
+                p,
+                w,
                 q,
                 S_max,
                 critical_supersaturation,
@@ -177,11 +210,7 @@ function get_ARG_act_N(X::DataFrame, S_max = nothing)
     return get_ARG_act_N(X, default_param_set, S_max)
 end
 
-function get_ARG_act_frac(
-    data_row::NamedTuple,
-    param_set::APS,
-    S_max = nothing,
-)
+function get_ARG_act_frac(data_row::NamedTuple, param_set::APS, S_max = nothing)
     (; mode_Ns) = convert_to_ARG_params(data_row, param_set)
     return get_ARG_act_N(data_row, param_set, S_max) ./ mode_Ns
 end
@@ -234,7 +263,7 @@ function preprocess_aerosol_data_with_ARG_act_frac(X::DataFrame)
 end
 
 function preprocess_aerosol_data_with_ARG_intermediates(X::DataFrame)
-    
+    return DF.DataFrame(convert_to_ARG_intermediates.(NamedTuple.(eachrow(X))))
 end
 
 function target_transform(act_frac)

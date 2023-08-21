@@ -49,7 +49,11 @@ M_insol = 0.044       # molar mass of insol
 # Schemes
 ARG_scheme = CMT.ARG2000Type()
 ML_scheme = AA.MLEmulatedAerosolActivation(
-    joinpath(pkgdir(CloudMicrophysics), "aerosol_activation_emulators", "2modal_nn_machine1.jls"),
+    joinpath(
+        pkgdir(CloudMicrophysics),
+        "aerosol_activation_emulators",
+        "2modal_nn_machine1.jls",
+    ),
 )
 
 function mass2vol(mass_mixing_ratios)
