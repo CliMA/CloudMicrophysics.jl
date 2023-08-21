@@ -420,6 +420,19 @@ end
     end
 end
 
+@kernel function test_p3_thresholds_kernel!(
+    output::AbstractArray{FT},
+    ρ_r,
+    F_r,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = P3.thresholds(ρ_r, F_r)[i]
+    end
+end
+
 function test_gpu(FT)
 
     make_prs(::Type{FT}) where {FT} = cloud_microphysics_parameters(

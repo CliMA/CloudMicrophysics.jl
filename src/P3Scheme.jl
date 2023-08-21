@@ -12,7 +12,7 @@ import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
 
 """
-α_va(FT)
+α_va(prs, FT)
 
  - prs - abstract set with Earth parameters
  - FT - float type
@@ -33,7 +33,7 @@ function α_va(prs::APS)
 end
 
 """
-D_th(FT)
+D_th(prs, FT)
 
  - FT - float type
 
