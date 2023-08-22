@@ -18,7 +18,7 @@ module Nucleation
  - input_diam: The diameter of freshly nucleated particles (nm). Currently defaults to 1.7 nm.
 Computes the apparent nucleation rate from Lehtinen et al., 2007 (doi: 10.1016/j.jaerosci.2007.06.009)
 This is a rough approximation accounting for the effect of coagulation as newly formed particles
-grow to the minimal model size.
+grow to the output diameter.
 """
 function apparent_nucleation_rate(
     output_diam,
@@ -29,36 +29,6 @@ function apparent_nucleation_rate(
     input_diam = 1.7,
 )
     m = log(coag_sink / coag_sink_input_diam) / (log(output_diam / input_diam))
-    return apparent_nucleation_rate(
-        output_diam,
-        nucleation_rate,
-        condensation_growth_rate,
-        coag_sink_input_diam,
-        m,
-        input_diam,
-    )
-end
-
-"""
-    apparent_nucleation_rate(
-        output_diam,
-        nucleation_rate,
-        condensation_growth_rate,
-        coag_sink_input_diam,
-        m,
-        input_diam,
-    )
-Computes the apparent nucleation rate from Lehtinen et al., 2007 (doi: 10.1016/j.jaerosci.2007.06.009)
-but prescribing the value of m.
-"""
-function apparent_nucleation_rate(
-    output_diam,
-    nucleation_rate,
-    condensation_growth_rate,
-    coag_sink_input_diam,
-    m,
-    input_diam = 1.7,
-)
     γ = 1 / (m + 1) * ((output_diam / input_diam)^(m + 1) - 1)
     J_x =
         nucleation_rate *

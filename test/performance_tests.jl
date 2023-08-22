@@ -108,7 +108,7 @@ function benchmark_test(FT)
     # Common
     bench_press(
         CO.H2SO4_soln_saturation_vapor_pressure,
-        (x_sulph, T_air_cold),
+        (prs, x_sulph, T_air_cold),
         50,
     )
     bench_press(CO.Delta_a_w, (prs, x_sulph, T_air_cold), 230)
@@ -119,8 +119,8 @@ function benchmark_test(FT)
         (prs, S_ice, T_air_2, dust),
         50,
     )
-    bench_press(CMI_het.ABIFM_J, (dust, Delta_a_w), 230)
-    bench_press(CMI_hom.homogeneous_J, (Delta_a_w), 230)
+    bench_press(CMI_het.ABIFM_J, (prs, dust, Delta_a_w), 230)
+    bench_press(CMI_hom.homogeneous_J, (prs, Delta_a_w), 230)
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (prs, liquid), 10)

@@ -164,6 +164,28 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     S0_cold_DD_Mohler2006::FT
     a_warm_DD_Mohler2006::FT
     a_cold_DD_Mohler2006::FT
+    J_ABIFM_m_KA2013_DesertDust::FT
+    J_ABIFM_c_KA2013_DesertDust::FT
+    J_ABIFM_m_KA2013_Kaolinite::FT
+    J_ABIFM_c_KA2013_Kaolinite::FT
+    J_ABIFM_m_KA2013_Illite::FT
+    J_ABIFM_c_KA2013_Illite::FT
+    Koop2000_min_delta_aw::FT
+    Koop2000_max_delta_aw::FT
+    Koop2000_J_hom_c1::FT
+    Koop2000_J_hom_c2::FT
+    Koop2000_J_hom_c3::FT
+    Koop2000_J_hom_c4::FT
+    H2SO4_sol_T_max::FT
+    H2SO4_sol_T_min::FT
+    H2SO4_sol_w_2::FT
+    H2SO4_sol_c1::FT
+    H2SO4_sol_c2::FT
+    H2SO4_sol_c3::FT
+    H2SO4_sol_c4::FT
+    H2SO4_sol_c5::FT
+    H2SO4_sol_c6::FT
+    H2SO4_sol_c7::FT
     molmass_seasalt::FT
     rho_seasalt::FT
     osm_coeff_seasalt::FT
