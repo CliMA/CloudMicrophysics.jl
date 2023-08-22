@@ -8,7 +8,7 @@ The parameterization for deposition on dust particles is an implementation of
   the empirical formulae from [Mohler2006](@cite)
   and is valid for two types of dust particles:
   Arizona Test Dust and desert dust from Sahara.
-  The parameterization for immersion freezing is an implementation of [KnopfAlpert2013](@cite) 
+  The parameterization for immersion freezing is an implementation of [KnopfAlpert2013](@cite)
   and is valid for droplets containing sulphuric acid.
 
 !!! note
@@ -45,16 +45,16 @@ Both parameters are dependent on aerosol properties and temperature.
     (either a second deposition or other condensation type mode).
 
 ## ABIFM for Sulphuric Acid Containing Droplets
-Water Activity-Based Immersion Freezing Model (ABFIM) 
+Water Activity-Based Immersion Freezing Model (ABFIM)
   is a method of parameterizing immersion freezing inspired by the time-dependent
-  classical nucleation theory (CNT). More on CNT can be found in [Karthika2016](@cite). 
-  The nucleation rate coefficient, ``J``, describes the number of ice nuclei formed per unit area 
+  classical nucleation theory (CNT). More on CNT can be found in [Karthika2016](@cite).
+  The nucleation rate coefficient, ``J``, describes the number of ice nuclei formed per unit area
   per unit time and can be determined by the water activity, ``a_w``. This parameterization follows
   [KnopfAlpert2013](@cite), [Koop2002](@cite), [MurphyKoop2005](@cite), and [Luo1995](@cite). In this model,
   aerosols are assumed to contain an insoluble and soluble material. When immersed in water,
   the soluble material diffuses into the liquid water to create a sulphuric acid solution.
 
-Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite), 
+Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
   the heterogeneous nucleation rate coefficient in units of ``cm^{-2}s^{-1}`` can be determined by the linear equation
 ```math
 \begin{equation}
@@ -63,10 +63,10 @@ Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
 ```
 !!! note
 
-    Our source code for the nucleation rate coefficient returns 
+    Our source code for the nucleation rate coefficient returns
     ``J`` in base SI units.
 
-``\Delta a_w``is the difference between the water activity of the droplet, ``a_w``, and the water activity of ice at the same temperature, ``a_{w,ice}(T)``. From [Koop2002](@cite), 
+``\Delta a_w``is the difference between the water activity of the droplet, ``a_w``, and the water activity of ice at the same temperature, ``a_{w,ice}(T)``. From [Koop2002](@cite),
 ```math
 \begin{equation}
   a_w = \frac{p_{sol}}{p_{sat}}
@@ -96,8 +96,8 @@ Once ``J_{het}`` is calculated, it can be used to determine the ice production r
   P_{ice} = J_{het}A(N_{tot}-N_{ice})
 \end{equation}
 ```
-where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number 
-  of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 
+where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number
+  of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system.
 
 ## Homogeneous Freezing for Sulphuric Acid Containing Droplets
 Homogeneous freezing occurs when supercooled liquid droplets freeze on their own.
@@ -144,13 +144,13 @@ Delta_a = Vector{Float64}(undef, length(temp))
 J = Vector{Float64}(undef, length(temp))
 
 # Knopf and Alpert 2013 Figure 4A
-# https://doi.org/10.1039/C3FD00035D 
+# https://doi.org/10.1039/C3FD00035D
 dust_type = CT.KaoliniteType()
 
 it = 1
 for T in temp
         Delta_a[it] = CO.Delta_a_w(prs, x, T)
-        J[it] = IN.ABIFM_J(dust_type, Delta_a[it])
+        J[it] = IN.ABIFM_J(prs, dust_type, Delta_a[it])
         global it += 1
 end
 log10J_converted = @. log10(J*1e-4)

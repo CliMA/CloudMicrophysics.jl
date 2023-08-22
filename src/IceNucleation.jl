@@ -22,14 +22,12 @@ S0_cold(prs::APS, ::CT.DesertDustType) = CMP.S0_cold_DD_Mohler2006(prs)
 a_warm(prs::APS, ::CT.DesertDustType) = CMP.a_warm_DD_Mohler2006(prs)
 a_cold(prs::APS, ::CT.DesertDustType) = CMP.a_cold_DD_Mohler2006(prs)
 
-J_het_coeff_m(::CT.DesertDustType) = 22.62
-J_het_coeff_c(::CT.DesertDustType) = -1.35
-
-J_het_coeff_m(::CT.KaoliniteType) = 54.58834
-J_het_coeff_c(::CT.KaoliniteType) = -10.54758
-
-J_het_coeff_m(::CT.IlliteType) = 54.48075
-J_het_coeff_c(::CT.IlliteType) = -10.66873
+J_het_m(prs::APS, ::CT.DesertDustType) = CMP.J_ABIFM_m_KA2013_DesertDust(prs)
+J_het_c(prs::APS, ::CT.DesertDustType) = CMP.J_ABIFM_c_KA2013_DesertDust(prs)
+J_het_m(prs::APS, ::CT.KaoliniteType) = CMP.J_ABIFM_m_KA2013_Kaolinite(prs)
+J_het_c(prs::APS, ::CT.KaoliniteType) = CMP.J_ABIFM_c_KA2013_Kaolinite(prs)
+J_het_m(prs::APS, ::CT.IlliteType) = CMP.J_ABIFM_m_KA2013_Illite(prs)
+J_het_c(prs::APS, ::CT.IlliteType) = CMP.J_ABIFM_c_KA2013_Illite(prs)
 
 """
     dust_activated_number_fraction(prs, Si, T, dust_type)
@@ -66,23 +64,31 @@ function dust_activated_number_fraction(
 end
 
 """
-    ABIFM_J(dust_type, Δa_w)
+    ABIFM_J(prs, dust_type, Δa_w)
 
- - `dust_type` - choosing aerosol type
+ - `prs` - set with free parameters
+ - `dust_type` - aerosol type
  - `Δa_w` - change in water activity [unitless].
 
-Returns the immersion freezing nucleation rate coefficient, `J`, in m^-2 s^-1 for sulphuric acid containing solutions. 
-For other solutions, p_sol should be adjusted accordingly. Delta_a_w can be found using the Delta_a_w function in Common.jl. 
-`m` and `c` constants are taken from Knopf & Alpert 2013.
+Returns the immersion freezing nucleation rate coefficient, `J`, in m^-2 s^-1
+for sulphuric acid solutions.
+For other solutions, p_sol should be adjusted accordingly.
+Delta_a_w can be found using the Delta_a_w function in Common.jl.
+The free parameters `m` and `c` are taken from Knopf & Alpert 2013
+see DOI: 10.1039/C3FD00035D
 """
-function ABIFM_J(dust_type::CT.AbstractAerosolType, Δa_w::FT) where {FT <: Real}
+function ABIFM_J(
+    prs::APS,
+    dust_type::CT.AbstractAerosolType,
+    Δa_w::FT,
+) where {FT <: Real}
 
-    m = J_het_coeff_m(dust_type)
-    c = J_het_coeff_c(dust_type)
+    m::FT = J_het_m(prs, dust_type)
+    c::FT = J_het_c(prs, dust_type)
 
-    logJ = m * Δa_w + c
+    logJ::FT = m * Δa_w + c
 
-    return max(0, 10^logJ * 100^2) # converts cm^-2 s^-1 to m^-2 s^-1
+    return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
 end
 
 end # end module
@@ -101,23 +107,31 @@ const APS = CMP.AbstractCloudMicrophysicsParameters
 export homogeneous_J
 
 """
-    homogeneous_J(Δa_w)
+    homogeneous_J(prs, Δa_w)
 
- - `Δa_w` - change in water activity
+ - `prs` - a set with free parameters
+ - `Δa_w` - change in water activity [-].
 
-Returns the homogeneous freezing nucleation rate coefficient, `J`, in m^-3 s^-1 for sulphuric
-acid containing solutions. Parameterization based off Koop 2000.
+Returns the homogeneous freezing nucleation rate coefficient,
+`J`, in m^-3 s^-1 for sulphuric acid solutions.
+Parameterization based on Koop 2000, DOI: 10.1038/35020537.
 Delta_a_w can be found using the Delta_a_w function in Common.jl.
 """
-function homogeneous_J(Δa_w::FT) where {FT <: Real}
+function homogeneous_J(prs::APS, Δa_w::FT) where {FT <: Real}
 
-    @assert Δa_w > 0.26
-    @assert Δa_w < 0.34
+    Δa_w_min::FT = CMP.Koop2000_min_delta_aw(prs)
+    Δa_w_max::FT = CMP.Koop2000_max_delta_aw(prs)
+    c1::FT = CMP.Koop2000_J_hom_c1(prs)
+    c2::FT = CMP.Koop2000_J_hom_c2(prs)
+    c3::FT = CMP.Koop2000_J_hom_c3(prs)
+    c4::FT = CMP.Koop2000_J_hom_c4(prs)
 
-    logJ = -906.7 + 8502 * Δa_w - 26924 * Δa_w^2 + 29180 * Δa_w^3
-    J = 10^(logJ)
+    @assert Δa_w > Δa_w_min
+    @assert Δa_w < Δa_w_max
 
-    return J * 1e6
+    logJ::FT = c1 + c2 * Δa_w - c3 * Δa_w^2 + c4 * Δa_w^3
+
+    return FT(10)^(logJ) * 1e6
 end
 
 end # end module
