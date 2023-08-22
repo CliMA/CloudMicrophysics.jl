@@ -19,7 +19,7 @@ const APS = CMP.AbstractCloudMicrophysicsParameters
 α_va [kg m^(-β_va)] is the coefficient used in the mass regime power law for
 large, unrimed ice and dense, nonspherical ice.
 In Brown and Francis (1995), mass is in g, and particle dimension is in μm.
-Here we compute α_va, which for our mass regime which has units
+Here we compute α_va for our mass regime, which has units
 of kg and m, and this process requires Brown and Francis (1995)'s values,
 which are stored in CLIMAParameters.jl.
 The power law modified from Brown and Francis (1995) is for mass grown by
