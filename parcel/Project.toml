@@ -9,4 +9,4 @@ OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 [compat]
-CLIMAParameters = ">=0.7.12"
+CLIMAParameters = "0.7.12"
