@@ -270,6 +270,7 @@ end
 end
 
 @kernel function test_Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
+    prs,
     output::AbstractArray{FT},
     x_sulph,
     T,
@@ -278,7 +279,8 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = CO.H2SO4_soln_saturation_vapor_pressure(x_sulph[i], T[i])
+        output[i] =
+            CO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph[i], T[i])
     end
 end
 
@@ -297,6 +299,7 @@ end
 end
 
 @kernel function test_IceNucleation_ABIFM_J_kernel!(
+    prs,
     output::AbstractArray{FT},
     Delta_a_w,
 ) where {FT}
@@ -304,12 +307,13 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_het.ABIFM_J(kaolinite, Delta_a_w[1])
-        output[2] = CMI_het.ABIFM_J(illite, Delta_a_w[2])
+        output[1] = CMI_het.ABIFM_J(prs, kaolinite, Delta_a_w[1])
+        output[2] = CMI_het.ABIFM_J(prs, illite, Delta_a_w[2])
     end
 end
 
 @kernel function test_IceNucleation_homogeneous_J_kernel!(
+    prs,
     output::AbstractArray{FT},
     Delta_a_w,
 ) where {FT}
@@ -317,7 +321,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_hom.homogeneous_J(Delta_a_w[1])
+        output[1] = CMI_hom.homogeneous_J(prs, Delta_a_w[1])
     end
 end
 
@@ -582,7 +586,7 @@ function test_gpu(FT)
             dev,
             work_groups,
         )
-        event = kernel!(output, x_sulph, T, ndrange = ndrange)
+        event = kernel!(make_prs(FT), output, x_sulph, T, ndrange = ndrange)
         wait(dev, event)
 
         # test H2SO4_soln_saturation_vapor_pressure is callable and returns a reasonable value
@@ -619,7 +623,7 @@ function test_gpu(FT)
         Delta_a_w = ArrayType([FT(0.16), FT(0.15)])
 
         kernel! = test_IceNucleation_ABIFM_J_kernel!(dev, work_groups)
-        event = kernel!(output, Delta_a_w, ndrange = ndrange)
+        event = kernel!(make_prs(FT), output, Delta_a_w, ndrange = ndrange)
         wait(dev, event)
 
         # test if ABIFM_J is callable and returns reasonable values
@@ -639,7 +643,7 @@ function test_gpu(FT)
         Delta_a_w = ArrayType([FT(0.2907389666103033)])
 
         kernel! = test_IceNucleation_homogeneous_J_kernel!(dev, work_groups)
-        event = kernel!(output, Delta_a_w, ndrange = ndrange)
+        event = kernel!(make_prs(FT), output, Delta_a_w, ndrange = ndrange)
         wait(dev, event)
 
         # test homogeneous_J is callable and returns a reasonable value

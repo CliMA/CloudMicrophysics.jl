@@ -27,7 +27,6 @@ export rain_self_collection
 export rain_breakup
 export rain_self_collection_and_breakup
 export rain_terminal_velocity
-export rain_terminal_velocity_reduce
 export rain_evaporation
 export conv_q_liq_to_q_rai
 
@@ -376,26 +375,29 @@ function rain_self_collection_and_breakup(
 end
 
 """
-    rain_terminal_velocity(param_set, scheme, q_rai, ρ, N_rai)
+    rain_terminal_velocity(param_set, scheme, velo_scheme, q_rai, ρ, N_rai)
 
  - `param_set` - abstract set with Earth parameters
- - `scheme` - type for 2-moment liquid self-collection parameterization
- - `q_rai` - rain water specific humidity
- - `ρ` - air density
- - `N_rai` - raindrops number density
+ - `scheme` - type for 2-moment parameterization
+ - `velo_scheme` - type for terminal velocity parameterization
+ - `q_rai` - rain water specific humidity [kg/kg]
+ - `ρ` - air density [kg/m^3]
+ - `N_rai` - raindrops number density [1/m^3]
 
-Returns a tuple containing the number and mass weigthed mean fall velocities of raindrops,
-assuming an empirical relation similar to Rogers (1993) for fall velocity of individual drops
-and an exponential size distribution, for `scheme == SB2006Type`
+Returns a tuple containing the number and mass weigthed mean fall velocities of raindrops in [m/s].
+Assuming an exponential size distribution from Seifert and Beheng 2006 for `scheme == SB2006Type`
+Fall velocity of individual rain drops is parameterized:
+ - assuming an empirical relation similar to Rogers (1993) for `velo_scheme == SB2006VelType`
+ - following Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171 for `velo_scheme == Chen2022Type`
 """
 function rain_terminal_velocity(
     param_set::APS,
     scheme::CT.SB2006Type,
+    velo_scheme::CT.SB2006VelType,
     q_rai::FT,
     ρ::FT,
     N_rai::FT,
 ) where {FT <: Real}
-
     if q_rai < eps(FT)
         return (FT(0), FT(0))
     end
@@ -411,24 +413,10 @@ function rain_terminal_velocity(
 
     return (vt0, vt1)
 end
-
-"""
-    rain_terminal_velocity(param_set, scheme, q_rai, ρ, N_rai)
-
- - `param_set` - abstract set with Earth parameters
- - `scheme` - type for parameterization
- - `q_rai` - rain water specific humidity [kg/kg]
- - `ρ` - air density [kg/m^3]
- - `N_rai` - raindrops number density [1/m^3]
-
-Returns a tuple containing the number and mass weigthed men fall velocities of raindrops.
-Individual rain drop terminal velocity is computed based on multiple gamma-funciton terms
-from Chen et. al 2022, see https://doi.org/10.1016/j.atmosres.2022.106171
-Assuming an exponential size distribution from Seifert and Beheng 2006).
-"""
 function rain_terminal_velocity(
     param_set::APS,
-    scheme::CT.Chen2022Type,
+    scheme::CT.SB2006Type,
+    velo_scheme::CT.Chen2022Type,
     q_rai::FT,
     ρ::FT,
     N_rai::FT,
@@ -436,39 +424,14 @@ function rain_terminal_velocity(
     if q_rai < eps(FT)
         return (FT(0), FT(0))
     end
-
     # coefficients from Table B1 from Chen et. al. 2022
-    ρ0::FT = CMP.q_coeff_rain_Ch2022(param_set)
-    a1::FT = CMP.a1_coeff_rain_Ch2022(param_set)
-    a2::FT = CMP.a2_coeff_rain_Ch2022(param_set)
-    a3::FT = CMP.a3_coeff_rain_Ch2022(param_set)
-    a3_pow::FT = CMP.a3_pow_coeff_rain_Ch2022(param_set)
-    b1::FT = CMP.b1_coeff_rain_Ch2022(param_set)
-    b2::FT = CMP.b2_coeff_rain_Ch2022(param_set)
-    b3::FT = CMP.b3_coeff_rain_Ch2022(param_set)
-    b_ρ::FT = CMP.b_rho_coeff_rain_Ch2022(param_set)
-    c1::FT = CMP.c1_coeff_rain_Ch2022(param_set)
-    c2::FT = CMP.c2_coeff_rain_Ch2022(param_set)
-    c3::FT = CMP.c3_coeff_rain_Ch2022(param_set)
-    q = exp(ρ0 * ρ)
-    ai = (a1 * q, a2 * q, a3 * q * ρ^a3_pow)
-    bi = (b1 - b_ρ * ρ, b2 - b_ρ * ρ, b3 - b_ρ * ρ)
-    ci = (c1, c2, c3)
-
-    #unit conversions
-    aiu = ai .* 1000 .^ bi
-    ciu = ci .* 1000
-
-    # size distribution coefficients
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(param_set, CT.RainType(), ρ)
+    # size distribution parameter
     λ = raindrops_limited_vars(param_set, q_rai, ρ, N_rai).λr
-    μ = FT(0)
 
     # eq 20 from Chen et al 2022
-    # k = 0 for the number density, k = 3 for the mass
-    v_i(a, b, c, λ, δ) =
-        a .* λ^δ .* SF.gamma.(b .+ δ) ./ (λ .+ c) .^ (b .+ δ) ./ SF.gamma(δ)
-    vt0 = sum(v_i(aiu, bi, ciu, λ, μ + 1))
-    vt3 = sum(v_i(aiu, bi, ciu, λ, μ + 4))
+    vt0 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 0))
+    vt3 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 3))
 
     vt0 = max(FT(0), vt0)
     vt3 = max(FT(0), vt3)

@@ -53,6 +53,15 @@ Microphysics2M.rain_evaporation
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
+# P3 scheme
+
+```@docs
+P3Scheme
+P3Scheme.α_va
+P3Scheme.D_th
+P3Scheme.thresholds
+```
+
 # Aerosol model
 
 ```@docs
@@ -96,6 +105,9 @@ Common.logistic_function
 Common.logistic_function_integral
 Common.H2SO4_soln_saturation_vapor_pressure
 Common.Delta_a_w
+Common.Chen2022_snow_ice_coeffs
+Common.Chen2022_vel_add
+Common.Chen2022_vel_coeffs
 ```
 
 # Common utility types
@@ -115,6 +127,9 @@ CommonTypes.B1994Type
 CommonTypes.TC1980Type
 CommonTypes.LD2004Type
 CommonTypes.SB2006Type
+CommonTypes.AbstractTerminalVelocityType
+CommonTypes.Blk1MVelType
+CommonTypes.SB2006VelType
 CommonTypes.Chen2022Type
 CommonTypes.AbstractAerosolType
 CommonTypes.ArizonaTestDustType

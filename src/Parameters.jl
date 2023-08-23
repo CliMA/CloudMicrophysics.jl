@@ -135,6 +135,25 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     c1_coeff_rain_Ch2022::FT
     c2_coeff_rain_Ch2022::FT
     c3_coeff_rain_Ch2022::FT
+    As_coeff_1_Ch2022::FT
+    As_coeff_2_Ch2022::FT
+    As_coeff_3_Ch2022::FT
+    Bs_coeff_1_Ch2022::FT
+    Bs_coeff_2_Ch2022::FT
+    Bs_coeff_3_Ch2022::FT
+    Cs_coeff_1_Ch2022::FT
+    Cs_coeff_2_Ch2022::FT
+    Cs_coeff_3_Ch2022::FT
+    Cs_coeff_4_Ch2022::FT
+    Es_coeff_1_Ch2022::FT
+    Es_coeff_2_Ch2022::FT
+    Es_coeff_3_Ch2022::FT
+    Fs_coeff_1_Ch2022::FT
+    Fs_coeff_2_Ch2022::FT
+    Fs_coeff_3_Ch2022::FT
+    Gs_coeff_1_Ch2022::FT
+    Gs_coeff_2_Ch2022::FT
+    Gs_coeff_3_Ch2022::FT
     Si_max_Mohler2006::FT
     T_thr_Mohler2006::FT
     S0_warm_ATD_Mohler2006::FT
@@ -145,6 +164,28 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     S0_cold_DD_Mohler2006::FT
     a_warm_DD_Mohler2006::FT
     a_cold_DD_Mohler2006::FT
+    J_ABIFM_m_KA2013_DesertDust::FT
+    J_ABIFM_c_KA2013_DesertDust::FT
+    J_ABIFM_m_KA2013_Kaolinite::FT
+    J_ABIFM_c_KA2013_Kaolinite::FT
+    J_ABIFM_m_KA2013_Illite::FT
+    J_ABIFM_c_KA2013_Illite::FT
+    Koop2000_min_delta_aw::FT
+    Koop2000_max_delta_aw::FT
+    Koop2000_J_hom_c1::FT
+    Koop2000_J_hom_c2::FT
+    Koop2000_J_hom_c3::FT
+    Koop2000_J_hom_c4::FT
+    H2SO4_sol_T_max::FT
+    H2SO4_sol_T_min::FT
+    H2SO4_sol_w_2::FT
+    H2SO4_sol_c1::FT
+    H2SO4_sol_c2::FT
+    H2SO4_sol_c3::FT
+    H2SO4_sol_c4::FT
+    H2SO4_sol_c5::FT
+    H2SO4_sol_c6::FT
+    H2SO4_sol_c7::FT
     molmass_seasalt::FT
     rho_seasalt::FT
     osm_coeff_seasalt::FT
@@ -157,6 +198,10 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     N_ion_sulfate::FT
     water_soluble_mass_frac_sulfate::FT
     kappa_sulfate::FT
+    α_va_BF1995::FT
+    β_va_BF1995::FT
+    σ_M1996::FT
+    γ_M1996::FT
     f_coeff_1_ARG2000::FT
     f_coeff_2_ARG2000::FT
     g_coeff_ARG2000::FT
