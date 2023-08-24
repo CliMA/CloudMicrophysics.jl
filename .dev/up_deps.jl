@@ -7,9 +7,8 @@ root = dirname(@__DIR__)
 dirs = (
     root,
     joinpath(root, "test"),
-    joinpath(root, "perf"),
     joinpath(root, "docs"),
-    joinpath(root, "integration_tests"),
+    joinpath(root, "parcel"),
 )
 
 cd(root) do
