@@ -107,3 +107,37 @@ p3_m_plot2(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"
 ![](MorrisonandMilbrandtFig1a.svg)
 
 ![](MorrisonandMilbrandtFig1b.svg)
+
+## Assumed particle projected area relationships
+
+The projected area ``A`` of particles as a function of maximum particle dimension ``D``
+ is another piecewise function with variable breakpoints described
+ by the following table. The mean particle dimension ``D_m``, a predicted property,
+ determines which portion of the piecewise function to use for each time step.
+
+| particle properties                 |      condition(s)                           |    A(D) relation                                           |
+|:------------------------------------|:--------------------------------------------|:-----------------------------------------------------------|
+|small, spherical ice                 | ``D < D_{th}``                              | ``\frac{\pi}{4} D^2``                                      |
+|large, unrimed ice                   | ``q_{rim} = 0`` and ``D > D_{th}``          | ``\gamma \ D^{\sigma}``                                    |
+|dense nonspherical ice               | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | ``\gamma \ D^{\sigma}``                                    |
+|graupel (completely rimed, spherical)| ``q_{rim} > 0``and ``D_{gr} < D < D_{cr}``  | ``\frac{\pi}{4} D^2``                                      |
+|partially rimed ice                  | ``q_{rim} > 0`` and ``D > D_{cr}``          | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
+
+where all variables from the m(D) regime are as defined above, and:
+ - ``\gamma = 0.2285`` (``m^{2 - \sigma}``) where
+ - ``\sigma = 1.88`` (dimensionless), both from the aggregates of side planes, columns, bullets, and planar polycrystals in [Mitchell1996](@cite).
+
+!!! note
+    TODO - As mentioned in [issue #151](https://github.com/CliMA/CloudMicrophysics.jl/issues/151), the units of ``\gamma`` and ``\sigma`` are not immediately clear from [Mitchell1996](@cite) and [MorrisonMilbrandt2015](@cite). To resolve this issue, it may be useful to contact the authors of the paper, or, examine the representative figures below to check units. It has occured to me that the units of ``D`` are probably m and that the units of ``A`` are probably m2. I have assumed these dimensions for the time being. Another likely scenario would be if ``D`` had units of mm, in which case we would have ``\gamma = 0.2285 \; 10^{3 \sigma}`` to correct for units. However, the plots of area versus particle dimension look outlandish in this case.
+
+The figures below, imitating the above mass regime figures, illustrate the particle projected area regime:
+
+```@example
+include("P3SchemePlots.jl")
+p3_a_plot1(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"])
+p3_a_plot2(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"])
+```
+
+![](P3Scheme_Area_1.svg)
+
+![](P3Scheme_Area_2.svg)
