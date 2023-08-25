@@ -45,8 +45,8 @@ const C_2 = δ_o^2 / 4
 # A_r needs the area() function below
 # Re and X have different relations for different values of X
 # the air density modification requires
-    # a reference air density (maybe ρ_air?)
-    # particle density
+# a reference air density (maybe ρ_air?)
+# particle density
 # A_e (if it is used, see TODO) depends on Re
 
 """
