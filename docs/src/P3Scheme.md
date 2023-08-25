@@ -141,3 +141,104 @@ p3_a_plot2(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"
 ![](P3Scheme_Area_1.svg)
 
 ![](P3Scheme_Area_2.svg)
+
+## Assumed particle fall speed relationships
+
+Particle fall speed (``V``) as a function of maximum particle dimension ``D``,
+ following [MorrisonMilbrandt2015](@cite), uses parameters and coefficients
+ derived by [MitchellHeymsfield2005](@cite) and
+ an air density modification provided by [Heymsfield2007](@cite).
+ The ``V(D)`` relation is integrated over the PSD to obtain mass
+ and number-weighted fall speeds for the four prognostic variables.
+ Although the fall speed regime takes the form of a power law function of
+ maximum particle dimension with many layers of interdependent parameters,
+ it is important to note that the Best/Davies number ``X``
+ is also dependent on maximum particle dimension ``D``.
+
+The total mass, rime volume, and rime mass specific humidities sediment
+ according to the mass-weighted fall speed,
+
+```math
+V_{m} = \frac{\int_{0}^{\infty} \! V(D) m(D) N'(D) \mathrm{d}D}{\int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D}
+```
+
+while sedimentation of the number concentration is governed by the number-weighted fall speed,
+
+```math
+V_{m} = \frac{\int_{0}^{\infty} \! V(D) N'(D) \mathrm{d}D}{\int_{0}^{\infty} \! N'(D) \mathrm{d}D}
+```
+
+The air density modification is applied only to
+ particles having undergone sedimentation, and is given by:
+
+```math
+V(D) = (\frac{\rho_{o}}{\rho})^{0.54} a D^b
+```
+
+where:
+ - ``D`` is the maximum particle dimension
+ - ``\rho_{o}`` is a reference air density
+ - ``\rho`` is particle density
+
+Without this modification, the relation takes the form of the below power law:
+
+```math
+V(D) = a D^b
+```
+
+where:
+ - ``a = a_{1} \nu_{air}^{1 - 2 b_{1}} (\frac{2 \alpha_{va} g}{\rho_{air} \gamma})^b_{1}``
+ - ``b = \frac{b_{1} (2 - \sigma) - 1}{1 - b_{1}}``
+
+These parameters are governed by the derived parameters:
+ - ``a_{1} = \frac{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2} - a_{o} X^{b_{o}}}{X^{b_{1}}}``
+ - ``b_{1} = \frac{C_{1} X^{0.5}}{2 ([1 + C_{1} X^{0.5}]^{0.5} - 1) (1 + C_{1} X^{0.5})^{0.5}} - \frac{a_{o} b{o} X^{b_{o}}}{C_{2} ([1 + C_{1} X^{0.5}]^{0.5} - 1)^{2}}``
+
+where:
+ - ``C_{1} = \frac{4}{\delta_{o}^{2} C_{o}^{0.5}}``
+ - ``C_{2} = \frac{\delta_{o}^{2}}{4}``
+ - ``\delta_{o} = 5.83``, the surface roughness constant for ice particles
+ - ``C_{o} = 0.6``, another surface roughness constant for ice particles
+
+And for ``X > 1.56 \; 10^{5}`` (conditions for which ice crystal aggregates are present, i.e. stratiform conditions):
+ - ``a_{o, agg} = 1.7 \; 10^{-3}``, a boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant for aggregates
+ - ``b_{o, agg} = 0.8``, a second boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant for aggregates
+
+while for ``X < 1.56 \; 10^{5}`` (convective conditions, i.e. for graupel and hail):
+ - ``a_{o, grau} = 10^{-5}``, a boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant for graupel and hail
+ - ``b_{o, grau} = 1``, a second boundary layer depth (``\delta``) and effective area (``A_{e}``) dilation correction constant for graupel and hail
+
+!!! note
+    TODO - The condition ``X > 1.56 \; 10^{5}`` is given when the different Re-X relationships are introduced in section 2a of [MitchellHeymsfield2005](@cite). In section 2b, the authors go on to state that "all aggregates from natural clouds should have ``X < 10^{8}``, so perhaps the aggregate-relevant parameters should only be used for ``1.56 \; 10^{5} < X < 10^{8}``.
+
+The scheme uses physical constants from [CliMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl):
+ - ``\nu_{air} = 0.000016`` (m2/s), kinematic viscocity of air 
+ - ``\rho_{air} = 1.225`` (kg/m3), density of air
+ - ``\mu_{air} = `\nu_{air} \rho_{air}`` (kg/ms), dynamic viscocity of air
+ - ``g = 9.81`` (m/s2), acceleration due to gravity
+
+And the dimensionless fluid dynamical numbers are defined for ``X > 1.56 \; 10^{5}`` (conditions for which ice crystal aggregates are present): 
+ - ``Re_{agg} = \frac{\delta_{o}^2}{4}((1 + \frac{4 X^0.5}{\delta_{o}^2 C_{o}^0.5})^0.5 - 1)^{2} - a_{o, agg} X^b_{o, agg}``, Reynold's number used for aggregates
+ - ``X_{agg} = \frac{4}{3} \frac{\g \k \A_{r}^{n - 1} D^{3}}{\rho_{a} \nu^{2}}`` from [Heymsfield2002](@cite), where ``k = 0.015`` and ``n = 1.5``.
+
+``A_{r}`` is defined by [MitchellHeymsfield2005](@cite) to be the particle projected area as predicted by 
+ the model divided by the projected area of a sphere with diameter ``D``. ``A_{r}`` is described in depth by 
+ [Heymsfield2002](@cite): symbolic expressions are given for various crystal geometries, and
+ empirically derived values are also given in [Table 1](https://journals.ametsoc.org/view/journals/atsc/59/1/1520-0469_2002_059_0003_agafdt_2.0.co_2.xml#i1520-0469-59-1-3-t01) of [Heymsfield2002](@cite)
+ for various geometries. For the purposes of this model, and with the definition given by [MitchellHeymsfield2005](@cite) in mind,
+ [Heymsfield2002](@cite)'s ``A_{r}`` relation for planar crystals, 
+ ``A_{r} = \frac{A}{(\frac{\pi}{4}) D^{2}}`` is the most reasonable option. 
+ This is a simple relation which depends on our own particle projected area regime above
+ and which does not introduce new parameters.
+
+!!! note
+    TODO - equation (9) from [MitchellHeymsfield2005](@cite) and equation (14) from [Heymsfield2002](@cite), which should be identical, are not: there is a ``3`` in the denominator of [Heymsfield2002](@cite)'s equation (14) which is not in [MitchellHeymsfield2005](@cite)'s equation (9). However, I believe [Heymsfield2002](@cite)'s equation (14) is right because [MitchellHeymsfield2005](@cite)'s equation (9) cites [Heymsfield2002](@cite)'s equation (14), and the general treatment of the Reynolds-Best number relations for aggregates used in [MitchellHeymsfield2005](@cite) is attributed to [Heymsfield2002](@cite).
+    TODO#2 - for k and n in the same equation, no particular value is really specified as far as I could tell in section 2b of [MitchellHeymsfield2005](@cite), yet many are given in [Heymsfield2002](@cite). See [Table 1](https://journals.ametsoc.org/view/journals/atsc/59/1/1520-0469_2002_059_0003_agafdt_2.0.co_2.xml#i1520-0469-59-1-3-t01) of [Heymsfield2002](@cite) for all of the k, n values. I went with two that seemed representative for aggregates.
+
+And for ``X < 1.56 \; 10^{5}`` (non-aggregate conditions):
+ - ``X_{grau} = \frac{2 \alpha_{va} g \rho_{air} D^{\beta_va + 2 - \sigma}}{\gamma \nu_{air}^2}``, Best/Davies number expressed in terms of m(D) and A(D) regimes
+ - ``Re_{grau} = \frac{\delta_{o}^2}{4}((1 + \frac{4 X^0.5}{\delta_{o}^2 C_{o}^0.5})^0.5 - 1)^{2}``, Reynold's numnber for graupel and hail (we drop the ``a_{o} X^b_{o}`` term here)
+
+!!! note
+    TODO - Explore setting ``a_{o} = a_{o, grau}`` and same for ``b_{o}`` rather than dropping the ``a_{o} X^b_{o}`` term for ``Re_{grau}``. (The article says that the  term "may not be needed" for graupel and hail, so more investigation may be beneficial for our purposes.)
+    TODO#2 - ``A_{e} = A(1 + \frac{\delta_o}{Re^0.5})``, the effective particle projected area, is introduced by [MitchellHeymsfield2005](@cite) as a more accurate area term to use for aggregates accounting for increased boundary depth ``\delta``. The authors write that this approximation is "fairly valid for aggregates" in section 2a.

@@ -20,6 +20,34 @@ const D_th::FT = P3.D_th(prs, FT)
 # area parameters
 const γ::FT = CMP.γ_M1996(prs)
 const σ::FT = CMP.σ_M1996(prs)
+# fall speed parameters
+# physical parameters:
+const ν_air::FT = CMP.ν_air(prs)
+const ρ_air::FT = CMP.ρ0_SB2006(prs)
+const μ_air::FT = ν_air * ρ_air
+const g::FT = CMP.grav(prs)
+# constants:
+# TODO - add to CLIMAParameters
+const a_o_agg::FT = 1.7e-3
+const a_o_grau::FT = 1e-5
+const b_o_agg::FT = 0.8
+const b_o_grau::FT = 1.0
+const δ_o::FT = 5.83
+const C_o::FT = 0.6
+const k::FT = 0.015
+const n::FT = 1.5
+# derived parameters:
+const C_1 = 4 / (δ_o^2 * C_o^0.5)
+const C_2 = δ_o^2 / 4
+
+# further notes on derived parameters that have yet to be implemented:
+# a1, b1, a, and b all depend on X and Re
+# A_r needs the area() function below
+# Re and X have different relations for different values of X
+# the air density modification requires
+    # a reference air density (maybe ρ_air?)
+    # particle density
+# A_e (if it is used, see TODO) depends on Re
 
 """
 mass(D, thresholds, F_r)
