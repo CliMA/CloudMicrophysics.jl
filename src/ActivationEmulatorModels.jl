@@ -9,25 +9,46 @@ import StatsBase
 import Distributions
 
 struct NNBuilder <: MLJFlux.Builder
-    n1::Int
-    n2::Int
-    n3::Int
-    dropout1::Float64
-    dropout2::Float64
-    dropout3::Float64
+    layer_sizes::Vector{Integer}
+    dropout::Vector{Float64}
 end
 
 function MLJFlux.build(builder::NNBuilder, rng, n_in, n_out)
+    @assert length(builder.layer_sizes) == length(builder.dropout)
+    num_hidden_layers = length(builder.layer_sizes)
     init = Flux.glorot_uniform(rng)
-    return Flux.Chain(
-        Flux.Dense(n_in => builder.n1, Flux.relu, init = init),
-        Flux.Dropout(builder.dropout1),
-        Flux.Dense(builder.n1 => builder.n2, Flux.relu, init = init),
-        Flux.Dropout(builder.dropout2),
-        Flux.Dense(builder.n2 => builder.n3, Flux.relu, init = init),
-        Flux.Dropout(builder.dropout3),
-        Flux.Dense(builder.n3 => n_out, init = init),
-    )
+    layers::Vector{Any} = []
+    if num_hidden_layers == 0
+        push!(layers, Flux.Dense(n_in => n_out, init = init))
+    else
+        push!(
+            layers,
+            Flux.Dense(
+                n_in => builder.layer_sizes[1],
+                Flux.sigmoid_fast,
+                init = init,
+            ),
+        )
+    end
+    for i in 1:num_hidden_layers
+        push!(layers, Flux.Dropout(builder.dropout[i]))
+        if i == num_hidden_layers
+            push!(
+                layers,
+                Flux.Dense(builder.layer_sizes[i] => n_out, init = init),
+            )
+        else
+            push!(
+                layers,
+                Flux.Dense(
+                    builder.layer_sizes[i] => builder.layer_sizes[i + 1],
+                    Flux.sigmoid_fast,
+                    init = init,
+                ),
+            )
+        end
+    end
+    return Flux.Chain(layers...)
 end
 
 mutable struct GPRegressor <: MLJ.Deterministic

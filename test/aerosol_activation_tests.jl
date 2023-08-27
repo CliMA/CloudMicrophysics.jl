@@ -6,6 +6,7 @@ import Thermodynamics as TD
 
 const AM = CM.AerosolModel
 const AA = CM.AerosolActivation
+const CMT = CM.CommonTypes
 const CMP = CM.Parameters
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
@@ -17,6 +18,8 @@ function test_aerosol_activation(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     param_set = cloud_microphysics_parameters(toml_dict)
     thermo_params = CMP.thermodynamics_params(param_set)
+
+    ARG2000 = CMT.ARG2000Type()
 
     # Atmospheric conditions
     T = FT(294)    # air temperature K
@@ -147,15 +150,41 @@ function test_aerosol_activation(FT)
             TT.@test all(
                 AA.mean_hygroscopicity_parameter(param_set, AM_t) .> 0.0,
             )
-            TT.@test AA.max_supersaturation(param_set, AM_t, T, p, w, q) > 0.0
+            TT.@test AA.max_supersaturation(
+                param_set,
+                ARG2000,
+                AM_t,
+                T,
+                p,
+                w,
+                q,
+            ) > 0.0
             TT.@test all(
-                AA.N_activated_per_mode(param_set, AM_t, T, p, w, q) .> 0.0,
+                AA.N_activated_per_mode(param_set, ARG2000, AM_t, T, p, w, q) .>
+                0.0,
             )
             TT.@test all(
-                AA.M_activated_per_mode(param_set, AM_t, T, p, w, q) .> 0.0,
+                AA.M_activated_per_mode(param_set, ARG2000, AM_t, T, p, w, q) .>
+                0.0,
             )
-            TT.@test AA.total_N_activated(param_set, AM_t, T, p, w, q) > 0.0
-            TT.@test AA.total_M_activated(param_set, AM_t, T, p, w, q) > 0.0
+            TT.@test AA.total_N_activated(
+                param_set,
+                ARG2000,
+                AM_t,
+                T,
+                p,
+                w,
+                q,
+            ) > 0.0
+            TT.@test AA.total_M_activated(
+                param_set,
+                ARG2000,
+                AM_t,
+                T,
+                p,
+                w,
+                q,
+            ) > 0.0
         end
     end
 
@@ -188,15 +217,15 @@ function test_aerosol_activation(FT)
 
     TT.@testset "order of modes does not matter" begin
 
-        TT.@test AA.total_N_activated(param_set, AM_3_B, T, p, w, q) ==
-                 AA.total_N_activated(param_set, AM_2_B, T, p, w, q)
-        TT.@test AA.total_M_activated(param_set, AM_3_B, T, p, w, q) ==
-                 AA.total_M_activated(param_set, AM_2_B, T, p, w, q)
+        TT.@test AA.total_N_activated(param_set, ARG2000, AM_3_B, T, p, w, q) ==
+                 AA.total_N_activated(param_set, ARG2000, AM_2_B, T, p, w, q)
+        TT.@test AA.total_M_activated(param_set, ARG2000, AM_3_B, T, p, w, q) ==
+                 AA.total_M_activated(param_set, ARG2000, AM_2_B, T, p, w, q)
 
-        TT.@test AA.total_N_activated(param_set, AM_3_κ, T, p, w, q) ==
-                 AA.total_N_activated(param_set, AM_2_κ, T, p, w, q)
-        TT.@test AA.total_M_activated(param_set, AM_3_κ, T, p, w, q) ==
-                 AA.total_M_activated(param_set, AM_2_κ, T, p, w, q)
+        TT.@test AA.total_N_activated(param_set, ARG2000, AM_3_κ, T, p, w, q) ==
+                 AA.total_N_activated(param_set, ARG2000, AM_2_κ, T, p, w, q)
+        TT.@test AA.total_M_activated(param_set, ARG2000, AM_3_κ, T, p, w, q) ==
+                 AA.total_M_activated(param_set, ARG2000, AM_2_κ, T, p, w, q)
     end
 
     TT.@testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
@@ -252,10 +281,10 @@ function test_aerosol_activation(FT)
             AD_κ = AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
 
             N_act_frac_B[it] =
-                AA.N_activated_per_mode(param_set, AD_B, T, p, w, q)[1] /
+                AA.N_activated_per_mode(param_set, ARG2000, AD_B, T, p, w, q)[1] /
                 N_1_paper
             N_act_frac_κ[it] =
-                AA.N_activated_per_mode(param_set, AD_κ, T, p, w, q)[1] /
+                AA.N_activated_per_mode(param_set, ARG2000, AD_κ, T, p, w, q)[1] /
                 N_1_paper
             it += 1
         end

@@ -235,13 +235,13 @@ in each aerosol size distribution mode.
 """
 function N_activated_per_mode(
     param_set::APS,
-    scheme::CT.AbstractParameterizedAerosolActivation,
+    scheme::ST,
     ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT <: Real, ST <: CT.AbstractParameterizedAerosolActivation}
     smax::FT = max_supersaturation(param_set, scheme, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
     N_activated_per_mode(param_set, scheme, ad, T, p, w, q, smax, sm)
@@ -249,7 +249,7 @@ end
 
 function N_activated_per_mode(
     param_set::APS,
-    scheme::CT.AbstractParameterizedAerosolActivation,
+    scheme::ST,
     ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
@@ -257,7 +257,7 @@ function N_activated_per_mode(
     q::TD.PhasePartition{FT},
     smax,
     sm,
-) where {FT <: Real}
+) where {FT <: Real, ST <: CT.AbstractParameterizedAerosolActivation}
     return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
@@ -316,13 +316,13 @@ per mode of the aerosol size distribution.
 """
 function M_activated_per_mode(
     param_set::APS,
-    scheme::CT.AbstractParameterizedAerosolActivation,
+    scheme::ST,
     ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT <: Real, ST <: CT.AbstractParameterizedAerosolActivation}
     smax = max_supersaturation(param_set, scheme, ad, T, p, w, q)
     sm = critical_supersaturation(param_set, ad, T)
     M_activated_per_mode(param_set, scheme, ad, T, p, w, q, smax, sm)
@@ -330,7 +330,7 @@ end
 
 function M_activated_per_mode(
     param_set::APS,
-    scheme::CT.AbstractParameterizedAerosolActivation,
+    scheme::ST,
     ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
@@ -338,7 +338,7 @@ function M_activated_per_mode(
     q::TD.PhasePartition{FT},
     smax,
     sm,
-) where {FT <: Real}
+) where {FT <: Real, ST <: CT.AbstractParameterizedAerosolActivation}
     return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
@@ -369,13 +369,13 @@ Returns the total number of activated aerosol particles.
 """
 function total_N_activated(
     param_set::APS,
-    scheme::CT.AbstractAerosolActivation,
+    scheme::ST,
     ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT <: Real, ST <: CT.AbstractAerosolActivation}
 
     return sum(N_activated_per_mode(param_set, scheme, ad, T, p, w, q))
 
@@ -395,13 +395,13 @@ Returns the total mass of activated aerosol particles.
 """
 function total_M_activated(
     param_set::APS,
-    scheme::CT.AbstractAerosolActivation,
+    scheme::ST,
     ad::CT.AbstractAerosolDistribution,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT <: Real, ST <: CT.AbstractAerosolActivation}
 
     return sum(M_activated_per_mode(param_set, scheme, ad, T, p, w, q))
 

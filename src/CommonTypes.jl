@@ -49,7 +49,8 @@ abstract type AbstractAerosolActivation end
 The type for all aerosol activation schemes that use a parameterization based
     on maximum supersaturation (as opposed to using an ML emulator)
 """
-abstract type AbstractParameterizedAerosolActivation end
+abstract type AbstractParameterizedAerosolActivation <:
+              AbstractAerosolActivation end
 
 """
     ARG2000Type

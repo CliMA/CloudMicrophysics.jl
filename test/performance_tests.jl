@@ -54,6 +54,7 @@ function benchmark_test(FT)
     sb2006vel = CMT.SB2006VelType()
     ch2022 = CMT.Chen2022Type()
     dust = CMT.DesertDustType()
+    arg2000 = CMT.ARG2000Type()
 
     ρ_air = FT(1.2)
     T_air = FT(280)
@@ -101,7 +102,7 @@ function benchmark_test(FT)
     # aerosol activation
     bench_press(
         AA.total_N_activated,
-        (prs, aer_distr, T_air, p_air, w_air, q),
+        (prs, arg2000, aer_distr, T_air, p_air, w_air, q),
         1300,
     )
 

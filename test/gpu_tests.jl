@@ -57,6 +57,7 @@ end
 
     i = @index(Group, Linear)
     thermo_params = CMP.thermodynamics_params(prs)
+    arg2000 = CMT.ARG2000Type()
     # atmospheric conditions (taken from aerosol activation tests)
     T = FT(294)      # air temperature K
     p = FT(1e5)    # air pressure Pa
@@ -98,11 +99,11 @@ end
         output[1, i] = AA.mean_hygroscopicity_parameter(prs, arsl_dst_B)[1]
         output[2, i] = AA.mean_hygroscopicity_parameter(prs, arsl_dst_κ)[1]
 
-        output[3, i] = AA.total_N_activated(prs, arsl_dst_B, args...)
-        output[4, i] = AA.total_N_activated(prs, arsl_dst_κ, args...)
+        output[3, i] = AA.total_N_activated(prs, arg2000, arsl_dst_B, args...)
+        output[4, i] = AA.total_N_activated(prs, arg2000, arsl_dst_κ, args...)
 
-        output[5, i] = AA.total_M_activated(prs, arsl_dst_B, args...)
-        output[6, i] = AA.total_M_activated(prs, arsl_dst_κ, args...)
+        output[5, i] = AA.total_M_activated(prs, arg2000, arsl_dst_B, args...)
+        output[6, i] = AA.total_M_activated(prs, arg2000, arsl_dst_κ, args...)
     end
 end
 
