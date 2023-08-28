@@ -4,13 +4,13 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
-const CMP = CM.Parameters
-const CMC = CM.Common
-const CMT = CM.CommonTypes
-const CMNe = CM.MicrophysicsNonEq
-const CM0 = CM.Microphysics0M
-const CM1 = CM.Microphysics1M
-const CM2 = CM.Microphysics2M
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Common as CMC
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.MicrophysicsNonEq as CMNe
+import CloudMicrophysics.Microphysics0M as CM0
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Microphysics2M as CM2
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 

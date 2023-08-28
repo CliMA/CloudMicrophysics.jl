@@ -13,7 +13,7 @@ Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = tuple(ps)
     CloudMicrophysicsParameters
 
 """
-Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
+Base.@kwdef struct CloudMicrophysicsParameters{FT, TP, MNP} <:
                    AbstractCloudMicrophysicsParameters
     K_therm::FT
     D_vapor::FT
@@ -202,6 +202,42 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
     β_va_BF1995::FT
     σ_M1996::FT
     γ_M1996::FT
+    modal_nucleation_params::MNP
+end
+
+Base.@kwdef struct ModalNucleationParameters{FT}
+    p_b_n::FT
+    p_b_i::FT
+    u_b_n::FT
+    u_b_i::FT
+    v_b_n::FT
+    v_b_i::FT
+    w_b_n::FT
+    w_b_i::FT
+    p_t_n::FT
+    p_t_i::FT
+    u_t_n::FT
+    u_t_i::FT
+    v_t_n::FT
+    v_t_i::FT
+    w_t_n::FT
+    w_t_i::FT
+    p_A_n::FT
+    p_A_i::FT
+    a_n::FT
+    a_i::FT
+    a_1::FT
+    a_2::FT
+    a_3::FT
+    a_4::FT
+    a_5::FT
+    Y_MTO3::FT
+    Y_MTOH::FT
+    k_MTO3::FT
+    k_MTOH::FT
+    exp_MTO3::FT
+    exp_MTOH::FT
+    k_H2SO4org::FT
 end
 
 Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT
@@ -209,6 +245,7 @@ Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT
 const CMPS = CloudMicrophysicsParameters
 
 thermodynamics_params(cmp::CMPS) = cmp.thermo_params
+modal_nucleation_params(cmp::CMPS) = cmp.modal_nucleation_params
 
 # Derived parameters
 N_Sc(ps::CMPS) = ps.ν_air / ps.D_vapor
@@ -224,13 +261,20 @@ v0_sno(ps::CMPS{FT}) where {FT} = FT(2^(9 / 4)) * ps.r0_sno^ps.ve_sno
 m0_liq_coeff_TC1980(ps::CMPS{FT}) where {FT} = FT(4 / 3) * π * ps.ρ_cloud_liq
 
 # For example: ρ_cloud_ice(ps::CMPS) = ps.ρ_cloud_ice
-for var in filter(x -> x ≠ :thermo_params, fieldnames(CMPS))
+for var in filter(
+    x -> !(x in [:modal_nucleation_params :thermo_params]),
+    fieldnames(CMPS),
+)
     @eval $var(ps::CMPS) = ps.$var
 end
 
 # Parameters forwarded to Thermodynamics
 for var in fieldnames(TDPS)
     @eval $var(ps::CMPS) = TD.Parameters.$var(thermodynamics_params(ps))
+end
+
+for var in fieldnames(ModalNucleationParameters)
+    @eval $var(ps::CMPS) = modal_nucleation_params(ps).$var
 end
 
 # Thermodynamics derived parameters

@@ -5,18 +5,18 @@ import CloudMicrophysics as CM
 import Thermodynamics as TD
 import CLIMAParameters as CP
 
-const CMT = CM.CommonTypes
-const CO = CM.Common
-const AM = CM.AerosolModel
-const AA = CM.AerosolActivation
-const CMI_het = CM.HetIceNucleation
-const CMI_hom = CM.HomIceNucleation
-const CMN = CM.MicrophysicsNonEq
-const CM0 = CM.Microphysics0M
-const CM1 = CM.Microphysics1M
-const CM2 = CM.Microphysics2M
-const HN = CM.Nucleation
-const P3 = CM.P3Scheme
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics.HetIceNucleation as CMI_het
+import CloudMicrophysics.HomIceNucleation as CMI_hom
+import CloudMicrophysics.MicrophysicsNonEq as CMN
+import CloudMicrophysics.Microphysics0M as CM0
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.Nucleation as HN
+import CloudMicrophysics.P3Scheme as P3
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
@@ -47,7 +47,6 @@ function benchmark_test(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
-    nucleation_params = nucleation_parameters(toml_dict)
     liquid = CMT.LiquidType()
     rain = CMT.RainType()
     sb2006 = CMT.SB2006Type()
@@ -158,19 +157,15 @@ function benchmark_test(FT)
         1700,
     )
     # Homogeneous Nucleation
-    bench_press(
-        HN.h2so4_nucleation_rate,
-        (1e12, 1.0, 1.0, 208, nucleation_params),
-        470,
-    )
+    bench_press(HN.h2so4_nucleation_rate, (1e12, 1.0, 1.0, 208, prs), 470)
     bench_press(
         HN.organic_nucleation_rate,
-        (0.0, 1e3, 1e3, 1e3, 300, 1, nucleation_params),
+        (0.0, 1e3, 1e3, 1e3, 300, 1, prs),
         550,
     )
     bench_press(
         HN.organic_and_h2so4_nucleation_rate,
-        (2.6e6, 1.0, 1.0, 300, 1, nucleation_params),
+        (2.6e6, 1.0, 1.0, 300, 1, prs),
         120,
     )
 end

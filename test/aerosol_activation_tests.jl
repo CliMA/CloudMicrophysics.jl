@@ -4,9 +4,9 @@ import CloudMicrophysics as CM
 import CLIMAParameters as CP
 import Thermodynamics as TD
 
-const AM = CM.AerosolModel
-const AA = CM.AerosolActivation
-const CMP = CM.Parameters
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics.Parameters as CMP
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 

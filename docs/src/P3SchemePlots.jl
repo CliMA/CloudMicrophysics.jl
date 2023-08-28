@@ -1,8 +1,8 @@
 import CairoMakie as Plt
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
-const CMP = CM.Parameters
-const P3 = CM.P3Scheme
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.P3Scheme as P3
 const APS = CMP.AbstractCloudMicrophysicsParameters
 FT = Float64
 

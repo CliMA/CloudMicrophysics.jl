@@ -4,8 +4,8 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
-const CO = CM.Common
-const CMH = CM.HomIceNucleation
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.HomIceNucleation as CMH
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 

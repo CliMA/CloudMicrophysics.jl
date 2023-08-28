@@ -1,8 +1,7 @@
 import Test as TT
 import CloudMicrophysics as CM
-
-const P3 = CM.P3Scheme
-const CMP = CM.Parameters
+import CloudMicrophysics.P3Scheme as P3
+import CloudMicrophysics.Parameters as CMP
 
 @info "P3 Scheme Tests"
 

@@ -53,7 +53,7 @@ function dust_activated_number_fraction(
     T_thr::FT = CMP.T_thr_Mohler2006(prs)
 
     if Si > Si_max
-        @warn "Supersaturation exceedes the allowed value."
+        @warn "Supersaturation exceeds the allowed value."
         @warn "No dust particles will be activated"
         return FT(0)
     else

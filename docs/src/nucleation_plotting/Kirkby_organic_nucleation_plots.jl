@@ -1,21 +1,18 @@
 using Plots
+
 import CLIMAParameters as CP
-
-include("../../src/Nucleation.jl")
-using .Nucleation
-
-# Testing for CLOUD-experiment based nucleation rates.
+import CloudMicrophysics as CM
+import CloudMicrophysics.Nucleation as Nucleation
+include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 FT = Float64
 toml_dict = CP.create_toml_dict(FT)
-param_names = ("a_1", "a_2", "a_3", "a_4", "a_5")
-params = CP.get_parameter_values!(toml_dict, param_names)
-params = (; params...)
+params = cloud_microphysics_parameters(toml_dict)
 
 HOM_concentrations = 10 .^ (6:0.125:8.7)
 
 rates = map(HOM_concentrations) do HOM_conc
-    sum(Nucleation.organic_nucleation_rate(0, HOM_conc, params)) * 1e-6
+    sum(Nucleation.organic_nucleation_rate_hom_prescribed(0, HOM_conc, params)) * 1e-6
 end
 
 Plots.plot()

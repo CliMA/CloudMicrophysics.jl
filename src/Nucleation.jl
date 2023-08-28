@@ -1,5 +1,5 @@
 module Nucleation
-
+import ..Parameters as CMP
 """
     apparent_nucleation_rate(
         output_diam,
@@ -55,28 +55,6 @@ function h2so4_nucleation_rate(
     temp,
     params,
 )
-    (;
-        u_b_n,
-        v_b_n,
-        w_b_n,
-        u_b_i,
-        v_b_i,
-        w_b_i,
-        u_t_n,
-        v_t_n,
-        w_t_n,
-        u_t_i,
-        v_t_i,
-        w_t_i,
-        p_t_n,
-        p_A_n,
-        a_n,
-        p_t_i,
-        p_A_i,
-        a_i,
-        p_b_n,
-        p_b_i,
-    ) = params
     # Change units from 1/m³ to 1/cm³
     h2so4_conc *= 1e-6
     nh3_conc *= 1e-6
@@ -89,20 +67,35 @@ function h2so4_nucleation_rate(
     f_y(h2so4, nh3, p_t_y, p_A_y, a_y) =
         (nh3 / ref_conc) /
         (a_y + (h2so4 / ref_conc)^p_t_y / (nh3 / ref_conc)^p_A_y)
-    k_b_n = k(temp, u_b_n, v_b_n, w_b_n)
-    k_b_i = k(temp, u_b_i, v_b_i, w_b_i)
-    k_t_n = k(temp, u_t_n, v_t_n, w_t_n)
-    k_t_i = k(temp, u_t_i, v_t_i, w_t_i)
-    f_n = f_y(h2so4_conc, nh3_conc, p_t_n, p_A_n, a_n)
-    f_i = f_y(h2so4_conc, nh3_conc, p_t_i, p_A_i, a_i)
+    k_b_n = k(temp, CMP.u_b_n(params), CMP.v_b_n(params), CMP.w_b_n(params))
+    k_b_i = k(temp, CMP.u_b_i(params), CMP.v_b_i(params), CMP.w_b_i(params))
+    k_t_n = k(temp, CMP.u_t_n(params), CMP.v_t_n(params), CMP.w_t_n(params))
+    k_t_i = k(temp, CMP.u_t_i(params), CMP.v_t_i(params), CMP.w_t_i(params))
+    f_n = f_y(
+        h2so4_conc,
+        nh3_conc,
+        CMP.p_t_n(params),
+        CMP.p_A_n(params),
+        CMP.a_n(params),
+    )
+    f_i = f_y(
+        h2so4_conc,
+        nh3_conc,
+        CMP.p_t_i(params),
+        CMP.p_A_i(params),
+        CMP.a_i(params),
+    )
 
     # Calculate rates 1/cm³/s
     binary_rate =
-        k_b_n * (h2so4_conc / ref_conc)^p_b_n +
-        k_b_i * (h2so4_conc / ref_conc)^p_b_i * negative_ion_conc
+        k_b_n * (h2so4_conc / ref_conc)^CMP.p_b_n(params) +
+        k_b_i * (h2so4_conc / ref_conc)^CMP.p_b_i(params) * negative_ion_conc
     ternary_rate =
-        k_t_n * f_n * (h2so4_conc / ref_conc)^p_t_n +
-        k_t_i * f_i * (h2so4_conc / ref_conc)^p_t_i * negative_ion_conc
+        k_t_n * f_n * (h2so4_conc / ref_conc)^CMP.p_t_n(params) +
+        k_t_i *
+        f_i *
+        (h2so4_conc / ref_conc)^CMP.p_t_i(params) *
+        negative_ion_conc
     # Convert to 1/m³/s
     return (;
         binary_rate = binary_rate * 1e6,
@@ -140,25 +133,36 @@ function organic_nucleation_rate(
     OH_conc *= 1e-6
 
     # Y_* params from Dunne et al. 2016
-    (; Y_MTO3, Y_MTOH, k_MTO3, k_MTOH, exp_MTO3, exp_MTOH) = params
-    k_MTO3 = k_MTO3 * exp(exp_MTO3 / temp)
-    k_MTOH = k_MTOH * exp(exp_MTOH / temp)
+    k_MTO3 = CMP.k_MTO3(params) * exp(CMP.exp_MTO3(params) / temp)
+    k_MTOH = CMP.k_MTOH(params) * exp(CMP.exp_MTOH(params) / temp)
     HOM_conc =
         (
-            Y_MTO3 * k_MTO3 * monoterpene_conc * O3_conc +
-            Y_MTOH * k_MTOH * monoterpene_conc * OH_conc
+            CMP.Y_MTO3(params) * k_MTO3 * monoterpene_conc * O3_conc +
+            CMP.Y_MTOH(params) * k_MTOH * monoterpene_conc * OH_conc
         ) / condensation_sink
-    return organic_nucleation_rate(negative_ion_conc, HOM_conc, params)
+    return organic_nucleation_rate_hom_prescribed(
+        negative_ion_conc,
+        HOM_conc,
+        params,
+    )
 end
 
-function organic_nucleation_rate(negative_ion_conc, HOM_conc, params)
-    (; a_1, a_2, a_3, a_4, a_5) = params
+function organic_nucleation_rate_hom_prescribed(
+    negative_ion_conc,
+    HOM_conc,
+    params,
+)
     # HOM reference concentration: 1e7/cm³
     ref_conc = 1e7
     rate =
-        a_1 * (HOM_conc / ref_conc)^(a_2 + a_5 / (HOM_conc / ref_conc)) +
-        a_3 *
-        (HOM_conc / ref_conc)^(a_4 + a_5 / (HOM_conc / ref_conc)) *
+        CMP.a_1(params) *
+        (
+            HOM_conc / ref_conc
+        )^(CMP.a_2(params) + CMP.a_5(params) / (HOM_conc / ref_conc)) +
+        CMP.a_3(params) *
+        (
+            HOM_conc / ref_conc
+        )^(CMP.a_4(params) + CMP.a_5(params) / (HOM_conc / ref_conc)) *
         negative_ion_conc
     # Convert from (1/cm³/s) to (1/m³/s)
     return rate * 1e6
@@ -185,18 +189,24 @@ function organic_and_h2so4_nucleation_rate(
     condensation_sink,
     params,
 )
-    (; k_MTOH, exp_MTOH) = params
-    k_MTOH = k_MTOH * exp(exp_MTOH / temp) # Units: 1/cm³/s
+    k_MTOH = CMP.k_MTOH(params) * exp(CMP.exp_MTOH(params) / temp) # Units: 1/cm³/s
     bioOxOrg = k_MTOH * monoterpene_conc * OH_conc / condensation_sink
     # Convert from 1/cm³ to 1/m³
     bioOxOrg *= 1e6
-    return organic_and_h2so4_nucleation_rate(h2so4_conc, bioOxOrg, params)
+    return organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
+        h2so4_conc,
+        bioOxOrg,
+        params,
+    )
 end
 
-function organic_and_h2so4_nucleation_rate(h2so4_conc, bioOxOrg, params)
-    (; k_H2SO4org) = params
+function organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
+    h2so4_conc,
+    bioOxOrg,
+    params,
+)
     # Convert bioOxOrg and k_H2SO4org from 1/m³ to 1/cm³
-    k_H2SO4org *= 1e-6
+    k_H2SO4org = 1e-6 * CMP.k_H2SO4org(params)
     bioOxOrg *= 1e-6
     # Convert from 1/m³ to 10⁶/cm³
     # h2so4_conc *= 1e-6

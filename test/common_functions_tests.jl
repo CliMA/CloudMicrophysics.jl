@@ -1,7 +1,7 @@
 import Test as TT
 
 import CloudMicrophysics
-const CO = CloudMicrophysics.Common
+import CloudMicrophysics.Common as CO
 
 import Thermodynamics as TD
 import CLIMAParameters as CP
