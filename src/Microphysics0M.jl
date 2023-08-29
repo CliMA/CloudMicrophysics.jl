@@ -31,26 +31,10 @@ condensate specific humidity or supersaturation.
 The thresholds and the relaxation timescale are defined in
 CLIMAParameters.
 """
-function remove_precipitation(
-    param_set::APS,
-    q::TD.PhasePartition{FT},
-) where {FT <: Real}
+remove_precipitation((; τ_precip, qc_0), q::TD.PhasePartition) =
+    -max(0, (q.liq + q.ice - qc_0)) / τ_precip
 
-    _τ_precip::FT = CMP.τ_precip(param_set)
-    _qc_0::FT = CMP.qc_0(param_set)
-
-    return -max(0, (q.liq + q.ice - _qc_0)) / _τ_precip
-end
-function remove_precipitation(
-    param_set::APS,
-    q::TD.PhasePartition{FT},
-    q_vap_sat::FT,
-) where {FT <: Real}
-
-    _τ_precip::FT = CMP.τ_precip(param_set)
-    _S_0::FT = CMP.S_0(param_set)
-
-    return -max(0, (q.liq + q.ice - _S_0 * q_vap_sat)) / _τ_precip
-end
+remove_precipitation((; τ_precip, S_0), q::TD.PhasePartition, q_vap_sat) =
+    -max(0, (q.liq + q.ice - S_0 * q_vap_sat)) / τ_precip
 
 end #module Microphysics0M.jl
