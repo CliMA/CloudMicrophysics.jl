@@ -5,11 +5,11 @@ import CLIMAParameters as CP
 
 FT = Float64
 
-const CMT = CM.CommonTypes
-const CM1 = CM.Microphysics1M
-const CM2 = CM.Microphysics2M
-const CMP = CM.Parameters
-const CMO = CM.Common
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Common as CMO
 
 const rain = CMT.RainType()
 const liquid = CMT.LiquidType()

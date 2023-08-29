@@ -7,7 +7,7 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 FT = Float64
 toml_dict = CP.create_toml_dict(FT)
-params = nucleation_parameters(toml_dict)
+params = cloud_microphysics_parameters(toml_dict)
 
 @testset "Pure H2SO4 Nucleation Smoke Test" begin
     nh3_conc = 0.0
@@ -44,7 +44,7 @@ end
     negative_ion_conc = 0.0
     test_organic(hom_c) =
         sum(
-            CM.Nucleation.organic_nucleation_rate(
+            CM.Nucleation.organic_nucleation_rate_hom_prescribed(
                 negative_ion_conc,
                 hom_c,
                 params,
@@ -68,7 +68,7 @@ end
 @testset "Mixed Organic and H2SO4 Nucleation Smoke Test" begin
     h2so4_conc = 2.6e6
     test_mixed_nucleation(bioOxOrg) =
-        CM.Nucleation.organic_and_h2so4_nucleation_rate(
+        CM.Nucleation.organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
             h2so4_conc,
             bioOxOrg,
             params,

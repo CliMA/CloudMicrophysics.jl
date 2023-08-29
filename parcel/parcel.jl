@@ -1,10 +1,10 @@
 import Thermodynamics as TD
 import CloudMicrophysics as CM
 
-const CMT = CM.CommonTypes
-const CMO = CM.Common
-const CMI = CM.HetIceNucleation
-const CMP = CM.Parameters
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Common as CMO
+import CloudMicrophysics.HetIceNucleation as CMI
+import CloudMicrophysics.Parameters as CMP
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 

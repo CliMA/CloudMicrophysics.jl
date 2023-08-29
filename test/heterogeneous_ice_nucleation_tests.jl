@@ -4,9 +4,9 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
-const CMT = CM.CommonTypes
-const CO = CM.Common
-const CMI_het = CM.HetIceNucleation
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.HetIceNucleation as CMI_het
 const ArizonaTestDust = CMT.ArizonaTestDustType()
 const DesertDust = CMT.DesertDustType()
 

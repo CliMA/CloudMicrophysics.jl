@@ -4,22 +4,21 @@ using KernelAbstractions
 import CUDAKernels as CK
 
 import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters as CMP
 import CLIMAParameters as CP
 import Thermodynamics as TD
 
-const CMP = CM.Parameters
-
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
-const AM = CM.AerosolModel
-const AA = CM.AerosolActivation
-const CMI_het = CM.HetIceNucleation
-const CMI_hom = CM.HomIceNucleation
-const CO = CM.Common
-const CMT = CM.CommonTypes
-const CM0 = CM.Microphysics0M
-const CM1 = CM.Microphysics1M
-const HN = CM.Nucleation
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics.HetIceNucleation as CMI_het
+import CloudMicrophysics.HomIceNucleation as CMI_hom
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Microphysics0M as CM0
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Nucleation as MN
 
 const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
@@ -184,7 +183,7 @@ end
 
     @inbounds begin
         output[i] = sum(
-            HN.h2so4_nucleation_rate(
+            MN.h2so4_nucleation_rate(
                 h2so4_conc[i],
                 nh3_conc[i],
                 negative_ion_conc[i],
@@ -209,7 +208,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_nucleation_rate(
+        output[i] = MN.organic_nucleation_rate(
             negative_ion_conc[i],
             monoterpene_conc[i],
             O3_conc[i],
@@ -234,7 +233,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_and_h2so4_nucleation_rate(
+        output[i] = MN.organic_and_h2so4_nucleation_rate(
             h2so4_conc[i],
             monoterpene_conc[i],
             OH_conc[i],
@@ -258,7 +257,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.apparent_nucleation_rate(
+        output[i] = MN.apparent_nucleation_rate(
             output_diam[i],
             nucleation_rate[i],
             condensation_growth_rate[i],
@@ -338,7 +337,7 @@ end
 
     @inbounds begin
         output[i] = sum(
-            HN.h2so4_nucleation_rate(
+            MN.h2so4_nucleation_rate(
                 h2so4_conc[i],
                 nh3_conc[i],
                 negative_ion_conc[i],
@@ -363,7 +362,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_nucleation_rate(
+        output[i] = MN.organic_nucleation_rate(
             negative_ion_conc[i],
             monoterpene_conc[i],
             O3_conc[i],
@@ -388,7 +387,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_and_h2so4_nucleation_rate(
+        output[i] = MN.organic_and_h2so4_nucleation_rate(
             h2so4_conc[i],
             monoterpene_conc[i],
             OH_conc[i],
@@ -412,7 +411,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.apparent_nucleation_rate(
+        output[i] = MN.apparent_nucleation_rate(
             output_diam[i],
             nucleation_rate[i],
             condensation_growth_rate[i],
@@ -651,9 +650,6 @@ function test_gpu(FT)
     end
 
     @testset "Homogeneous nucleation kernels" begin
-        make_nuc_prs(::Type{FT}) where {FT} =
-            nucleation_parameters(CP.create_toml_dict(FT; dict_type = "alias"))
-
         data_length = 2
         output = ArrayType(Array{FT}(undef, 1, data_length))
         fill!(output, FT(-44.0))
@@ -670,7 +666,7 @@ function test_gpu(FT)
 
         kernel! = test_h2so4_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_nuc_prs(FT),
+            make_prs(FT),
             output,
             h2so4_conc,
             nh3_conc,
@@ -694,7 +690,7 @@ function test_gpu(FT)
 
         kernel! = test_organic_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_nuc_prs(FT),
+            make_prs(FT),
             output,
             negative_ion_conc,
             monoterpene_conc,
@@ -719,7 +715,7 @@ function test_gpu(FT)
 
         kernel! = test_organic_and_h2so4_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_nuc_prs(FT),
+            make_prs(FT),
             output,
             h2so4_conc,
             monoterpene_conc,
