@@ -7,9 +7,12 @@ steps:
   - label: "init :computer:"
     key: "init_cpu_env"
     command:
-      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
-      - "julia --project -e 'using Pkg; Pkg.precompile(;strict=true)'"
-      - "julia --project -e 'using Pkg; Pkg.status()'"
+      - echo "--- Instantiate project"
+      - "julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+
+      - echo "--- Instantiate test"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project=test --check-bounds=yes -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
     agents:
       config: cpu
       queue: central
