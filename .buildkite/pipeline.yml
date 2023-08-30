@@ -37,7 +37,8 @@ steps:
   - label: ":computer: unit tests"
     key: "cpu_unittests"
     command:
-      - "julia --project -e 'using Pkg; Pkg.test()'"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project=test --color=yes test/runtests.jl"
     agents:
       config: cpu
       queue: central
@@ -46,7 +47,8 @@ steps:
   - label: ":flower_playing_cards: unit tests"
     key: "gpu_unittests"
     command:
-      - "julia --project -e 'using Pkg; Pkg.test(;test_args=[\"CuArray\"])'"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'"
+      - "julia --project=test --color=yes test/gpu_tests.jl"
     agents:
       config: gpu
       queue: central
