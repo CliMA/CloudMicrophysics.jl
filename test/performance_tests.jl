@@ -161,7 +161,7 @@ function benchmark_test(FT)
     bench_press(
         HN.organic_nucleation_rate,
         (0.0, 1e3, 1e3, 1e3, 300, 1, prs),
-        550,
+        650,
     )
     bench_press(
         HN.organic_and_h2so4_nucleation_rate,
