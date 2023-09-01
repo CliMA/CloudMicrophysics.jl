@@ -58,7 +58,7 @@ Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
   the heterogeneous nucleation rate coefficient in units of ``cm^{-2}s^{-1}`` can be determined by the linear equation
 ```math
 \begin{equation}
-  log_{10}J_{het} = m \Delta a_w + c
+  log_{10}J_{ABIFM} = m \Delta a_w + c
 \end{equation}
 ```
 !!! note
@@ -90,10 +90,10 @@ where ``x`` is the weight fraction of sulphuric acid in the droplets
   (i.e. if droplets are 10% sulphuric acid by mass, ``x = 0.1``), ``w_h = 1.4408x``,
   and temperature is in Kelvins.
 
-Once ``J_{het}`` is calculated, it can be used to determine the ice production rate, ``P_{ice}``, per second via immersion freezing.
+Once ``J_{ABIFM}`` is calculated, it can be used to determine the ice production rate, ``P_{ice}``, per second via immersion freezing.
 ```math
 \begin{equation}
-  P_{ice} = J_{het}A(N_{tot}-N_{ice})
+  P_{ice} = J_{ABIFM}A(N_{tot}-N_{ice})
 \end{equation}
 ```
 where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number
@@ -116,57 +116,32 @@ The nucleation rate coefficient is determined with the cubic function from [Koop
 This parameterization is valid only when ``0.26 < \Delta a_w < 0.36`` and ``185K < T < 235K``.
 
 ## ABIFM Example Figures
+The following plot shows ``J`` as a function of ``\Delta a_w`` as compared to
+  figure 1 in Knopf & Alpert 2013. Solution droplets were assumed to contain
+  a constant 10% wt. sulphuric acid. Changing the concentration will simply
+  shift the line, following Knopf & Alpert's parameterization. As such, this
+  plot is just to prove that ``J`` is correctly parameterized as a function
+  of ``\Delta a_w``, with no implications of whether ``\Delta a_w`` is properly
+  parameterized. For more on water activity, please see above section.
 ```@example
-import Plots
-
-import CloudMicrophysics
-import CLIMAParameters
-import Thermodynamics
-
-const PL = Plots
-const IN = CloudMicrophysics.HetIceNucleation
-const CMP = CloudMicrophysics.Parameters
-const CT = CloudMicrophysics.CommonTypes
-const CO = CloudMicrophysics.Common
-const CP =  CLIMAParameters
-const TD = Thermodynamics
-
-include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
-FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-const prs = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(prs)
-
-# Initializing
-temp = collect(210.0:2:232.0) # air temperature
-x = 0.1                     # wt% sulphuric acid in droplets
-Delta_a = Vector{Float64}(undef, length(temp))
-J = Vector{Float64}(undef, length(temp))
-
-# Knopf and Alpert 2013 Figure 4A
-# https://doi.org/10.1039/C3FD00035D
-dust_type = CT.KaoliniteType()
-
-it = 1
-for T in temp
-        Delta_a[it] = CO.Delta_a_w(prs, x, T)
-        J[it] = IN.ABIFM_J(prs, dust_type, Delta_a[it])
-        global it += 1
-end
-log10J_converted = @. log10(J*1e-4)
-
-# data read from Fig 4 in Knopf & Alpert 2013
-# using https://automeris.io/WebPlotDigitizer/
-KA13_Delta_a_obs = [0.13641, 0.16205, 0.21538, 0.23897, 0.24513, 0.24718, 0.25026, 0.25128, 0.25231, 0.25333, 0.25538, 0.25744, 0.25846, 0.25949, 0.26051, 0.26051, 0.26462, 0.26462, 0.26872, 0.26974, 0.27077, 0.27077, 0.27179, 0.27385, 0.27692, 0.27795, 0.27795, 0.27795, 0.28308, 0.28410, 0.28410, 0.28615, 0.28718, 0.28718, 0.29128, 0.29128, 0.29231, 0.29333, 0.29744, 0.29744, 0.29744, 0.29949, 0.30359, 0.30462, 0.30564, 0.30667, 0.31077, 0.31077, 0.31077]
-KA13_log10J_obs = [-3.51880, -3.20301, 2.21053, 2.57143, 2.25564, 3.56391, 3.20301, 2.25564, 3.78947, 4.42105, 3.51880, 2.84211, 4.15038, 3.24812, 3.78947, 4.37594, 3.38346, 4.46617, 4.06015, 4.73684, 4.06015, 3.60902, 6.13534, 4.51128, 4.37594, 4.82707, 4.96241, 5.23308, 3.92481, 5.36842, 5.63910, 5.81955, 4.60150, 4.96241, 5.50376, 6.00000, 5.14286, 5.77444, 5.41353, 6.09023, 5.77444, 5.14286, 6.18045, 5.86466, 5.54887, 5.27820, 6.09023, 5.77444, 5.54887]
-
-KA13_Delta_a_param = [0.10256, 0.35692, 0.21949]
-KA13_log10J_param = [-4.91729, 8.97744, 1.44361]
-
-PL.plot(Delta_a, log10J_converted, label="CliMA", xlabel="Delta a_w [unitless]", ylabel="log10(J) [cm^-2 s^-1]")
-PL.scatter!(KA13_Delta_a_obs, KA13_log10J_obs, markercolor = :black, label="paper observations")
-PL.plot!(KA13_Delta_a_param, KA13_log10J_param, linecolor = :red, label="paper parameterization")
-
-PL.savefig("Knopf_Alpert_fig_1.svg")
+include("ice_nucleation_plots/KnopfAlpert2013_fig1.jl")
 ```
 ![](Knopf_Alpert_fig_1.svg)
+
+The following plot shows J as a function of temperature as compared to figure 5a in Knopf & Alpert 2013.
+
+```@example
+include("ice_nucleation_plots/KnopfAlpert2013_fig5.jl")
+```
+![](KnopfAlpert2013_fig5.svg)
+Note that water activity of the droplet was assumed equal to relative humidity so that:
+```math
+\begin{equation}
+  a_{w} = \frac{p_{sol}(x_{sulph} = 0, T = T_{dew})}{p_{sat}}
+\end{equation}
+```
+where `T_dew` is the dewpoint (in this example it is -45C).
+
+It is also important to note that this plot is reflective of cirrus clouds
+  and shows only a very small temperature range. The two curves are slightly
+  off because of small differences in parameterizations for vapor pressures.
