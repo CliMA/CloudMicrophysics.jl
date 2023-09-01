@@ -1,6 +1,6 @@
 module CloudMicrophysics
 
-include("Parameters.jl")
+include("parameters/Parameters.jl")
 import .Parameters
 const CMP = Parameters
 

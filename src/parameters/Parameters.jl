@@ -1,11 +1,16 @@
 module Parameters
 
+using DocStringExtensions
 import Thermodynamics
 const TD = Thermodynamics
 const TDPS = TD.Parameters.ThermodynamicsParameters
 
 abstract type AbstractCloudMicrophysicsParameters end
 Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = tuple(ps)
+
+export CloudMicrophysicsParameters0M
+
+include("cmp_0m.jl")
 
 # TODO: add doc strings
 # Cloud microphysics parameters
