@@ -42,10 +42,8 @@ function test_microphysics(FT)
     end
 
     TT.@testset "0M_microphysics" begin
-
-        _τ_precip = CMP.τ_precip(prs)
-        _qc_0 = CMP.qc_0(prs)
-        _S_0 = CMP.S_0(prs)
+        params_0m = CMP.CloudMicrophysicsParameters0M(prs)
+        (; τ_precip, qc_0, S_0) = params_0m
 
         q_vap_sat = FT(10e-3)
         qc = FT(3e-3)
@@ -54,8 +52,8 @@ function test_microphysics(FT)
 
         # no rain if no cloud
         q = TD.PhasePartition(q_tot)
-        TT.@test CM0.remove_precipitation(prs, q) ≈ FT(0)
-        TT.@test CM0.remove_precipitation(prs, q, q_vap_sat) ≈ FT(0)
+        TT.@test CM0.remove_precipitation(params_0m, q) ≈ FT(0)
+        TT.@test CM0.remove_precipitation(params_0m, q, q_vap_sat) ≈ FT(0)
 
         # rain based on qc threshold
         for lf in frac
@@ -65,7 +63,7 @@ function test_microphysics(FT)
             q = TD.PhasePartition(q_tot, q_liq, q_ice)
 
             TT.@test CM0.remove_precipitation(prs, q) ≈
-                     -max(0, q_liq + q_ice - _qc_0) / _τ_precip
+                     -max(0, q_liq + q_ice - qc_0) / τ_precip
         end
 
         # rain based on supersaturation threshold
@@ -76,7 +74,7 @@ function test_microphysics(FT)
             q = TD.PhasePartition(q_tot, q_liq, q_ice)
 
             TT.@test CM0.remove_precipitation(prs, q, q_vap_sat) ≈
-                     -max(0, q_liq + q_ice - _S_0 * q_vap_sat) / _τ_precip
+                     -max(0, q_liq + q_ice - S_0 * q_vap_sat) / τ_precip
         end
     end
 

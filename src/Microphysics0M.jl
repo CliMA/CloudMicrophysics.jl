@@ -12,12 +12,12 @@ module Microphysics0M
 import Thermodynamics as TD
 
 import ..Parameters as CMP
-const APS = CMP.AbstractCloudMicrophysicsParameters
+const PS0M = CMP.CloudMicrophysicsParameters0M
 
 export remove_precipitation
 
 """
-    remove_precipitation(param_set::APS, q; q_vap_sat)
+    remove_precipitation(param_set::PS0M, q; q_vap_sat)
 
  - `param_set` - abstract parameter set
  - `q` - current PhasePartition
