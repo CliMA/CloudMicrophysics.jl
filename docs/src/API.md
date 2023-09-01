@@ -140,6 +140,8 @@ CommonTypes.Chen2022Type
 CommonTypes.AbstractAerosolType
 CommonTypes.ArizonaTestDustType
 CommonTypes.DesertDustType
+CommonTypes.KaoliniteType
+CommonTypes.IlliteType
 ```
 
 # Precipitation susceptibility
