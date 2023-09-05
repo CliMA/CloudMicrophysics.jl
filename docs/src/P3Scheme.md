@@ -67,8 +67,8 @@ The mass ``m`` of particles as a function of maximum particle dimension ``D``
 |:-------------------------------------|:---------------------------------------------|:---------------------------------------------|
 |small, spherical ice                  | ``D < D_{th}``                               | ``\frac{\pi}{6} \rho_i \ D^3``               |
 |large, unrimed ice                    | ``q_{rim} = 0`` and ``D > D_{th}``           | ``\alpha_{va} \ D^{\beta_{va}}``             |
-|dense nonspherical ice                | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}``  | ``\alpha_{va} \ D^{\beta_{va}}``             |
-|graupel (completely rimed, spherical) | ``q_{rim} > 0`` and ``D_{gr} < D < D_{cr}``  | ``\frac{\pi}{6} \rho_g \ D^3``               |
+|dense nonspherical ice                | ``q_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\alpha_{va} \ D^{\beta_{va}}``             |
+|graupel (completely rimed, spherical) | ``q_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\frac{\pi}{6} \rho_g \ D^3``               |
 |partially rimed ice                   | ``q_{rim} > 0`` and ``D > D_{cr}``           | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` |
 
 where:
@@ -96,18 +96,6 @@ The system is solved using [`NonlinearSolve.jl`](https://docs.sciml.ai/Nonlinear
 !!! note
     TODO - The use of NonlinearSolve.jl is not ideal because of its runtime and memory allocation requirements. Currently, there is also a look-up table NetCDF file which could be used to look up values of the quantities which form the nonlinear system. However, the look-up table is not GPU-compatible and would require too much memory in an Earth System Model. The current approach may be of use for testing and for visualization of the system, but other options, such as using RootSolvers.jl or using a simpler fit that approximates the solver output, are more suitable long term solutions which do not require outside packages which employ auto-differentiation or use memory, both of which do not suit the needs of CliMA.
 
-Below we show the m(D) regime, replicating Figures 1 (a) and (b) from [MorrisonMilbrandt2015](@cite).
-
-```@example
-include("P3SchemePlots.jl")
-p3_m_plot1(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"])
-p3_m_plot2(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"])
-```
-
-![](MorrisonandMilbrandtFig1a.svg)
-
-![](MorrisonandMilbrandtFig1b.svg)
-
 ## Assumed particle projected area relationships
 
 The projected area ``A`` of particles as a function of maximum particle dimension ``D``
@@ -119,8 +107,8 @@ The projected area ``A`` of particles as a function of maximum particle dimensio
 |:------------------------------------|:--------------------------------------------|:-----------------------------------------------------------|
 |small, spherical ice                 | ``D < D_{th}``                              | ``\frac{\pi}{4} D^2``                                      |
 |large, unrimed ice                   | ``q_{rim} = 0`` and ``D > D_{th}``          | ``\gamma \ D^{\sigma}``                                    |
-|dense nonspherical ice               | ``q_{rim} > 0`` and ``D_{th} < D < D_{gr}`` | ``\gamma \ D^{\sigma}``                                    |
-|graupel (completely rimed, spherical)| ``q_{rim} > 0``and ``D_{gr} < D < D_{cr}``  | ``\frac{\pi}{4} D^2``                                      |
+|dense nonspherical ice               | ``q_{rim} > 0`` and ``D_{gr} > D > D_{th}`` | ``\gamma \ D^{\sigma}``                                    |
+|graupel (completely rimed, spherical)| ``q_{rim} > 0`` and ``D_{cr} > D > D_{gr}`` | ``\frac{\pi}{4} D^2``                                      |
 |partially rimed ice                  | ``q_{rim} > 0`` and ``D > D_{cr}``          | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
 
 where all variables from the m(D) regime are as defined above, and:
@@ -130,14 +118,14 @@ where all variables from the m(D) regime are as defined above, and:
 !!! note
     TODO - As mentioned in [issue #151](https://github.com/CliMA/CloudMicrophysics.jl/issues/151), the units of ``\gamma`` and ``\sigma`` are not immediately clear from [Mitchell1996](@cite) and [MorrisonMilbrandt2015](@cite). To resolve this issue, it may be useful to contact the authors of the paper, or, examine the representative figures below to check units. It has occured to me that the units of ``D`` are probably m and that the units of ``A`` are probably m2. I have assumed these dimensions for the time being. Another likely scenario would be if ``D`` had units of mm, in which case we would have ``\gamma = 0.2285 \; 10^{3 \sigma}`` to correct for units. However, the plots of area versus particle dimension look outlandish in this case.
 
-The figures below, imitating the above mass regime figures, illustrate the particle projected area regime:
+## Example figures
 
+Below we show the m(D) regime, replicating Figures 1 (a) and (b) from [MorrisonMilbrandt2015](@cite).
+We also show a(D).
 ```@example
 include("P3SchemePlots.jl")
-p3_a_plot1(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"])
-p3_a_plot2(["cyan2", "cyan4", "midnightblue"], ["hotpink", "magenta3", "purple4"])
 ```
-
+![](MorrisonandMilbrandtFig1a.svg)
+![](MorrisonandMilbrandtFig1b.svg)
 ![](P3Scheme_Area_1.svg)
-
 ![](P3Scheme_Area_2.svg)

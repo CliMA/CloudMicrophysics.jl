@@ -7,6 +7,7 @@ CurrentModule = CloudMicrophysics
 
 ```@docs
 Parameters.CloudMicrophysicsParameters0M
+Parameters.CloudMicrophysicsParametersP3
 ```
 
 # Non-equilibrium cloud formation
@@ -63,8 +64,6 @@ Microphysics2M.conv_q_liq_to_q_rai
 
 ```@docs
 P3Scheme
-P3Scheme.α_va
-P3Scheme.D_th
 P3Scheme.thresholds
 ```
 

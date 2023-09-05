@@ -9,8 +9,10 @@ abstract type AbstractCloudMicrophysicsParameters end
 Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = tuple(ps)
 
 export CloudMicrophysicsParameters0M
+export CloudMicrophysicsParametersP3
 
 include("cmp_0m.jl")
+include("cmp_p3.jl")
 
 # TODO: add doc strings
 # Cloud microphysics parameters
