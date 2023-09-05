@@ -52,7 +52,7 @@ ML_scheme = AA.MLEmulatedAerosolActivation(
     joinpath(
         pkgdir(CloudMicrophysics),
         "aerosol_activation_emulators",
-        "2modal_nn_machine1.jls",
+        "2modal_nn_machine_naive.jls",
     ),
 )
 
@@ -70,7 +70,7 @@ end
 
 # Abdul-Razzak and Ghan 2000
 # https://doi.org/10.1029/1999JD901161
-function make_ARG_figX(X, scheme)
+function make_ARG_figX(X, scheme = ARG_scheme)
     p1 = PL.plot()
     p2 = PL.plot()
 

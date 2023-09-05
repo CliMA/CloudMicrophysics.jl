@@ -190,7 +190,19 @@ function max_supersaturation(
 
     f_coeff_1::FT = CMP.f_coeff_1_ARG2000(param_set)
     f_coeff_2::FT = CMP.f_coeff_2_ARG2000(param_set)
-    g_coeff::FT = CMP.g_coeff_ARG2000(param_set)
+    g_coeff_1::FT = CMP.g_coeff_1_ARG2000(param_set)
+    g_coeff_2::FT = CMP.g_coeff_2_ARG2000(param_set)
+    pow_1::FT = CMP.pow_1_ARG2000(param_set)
+    pow_2::FT = CMP.pow_2_ARG2000(param_set)
+
+    # New values of parameters obtained through calibration.
+    # TODO: add to CLIMAParameters
+    # f_coeff_1 = 0.26583888195264627
+    # f_coeff_2 = 2.3851515425961853
+    # g_coeff_1 = 0.779519468021862
+    # g_coeff_2 = 0.10571967167118024
+    # pow_1 = 1.6523365679298359
+    # pow_2 = 0.7578626397779737
 
     # eq 11, 12 in Razzak et al 1998
     # but following eq 10 from Rogers 1975
@@ -208,13 +220,13 @@ function max_supersaturation(
         mode_i = ad.Modes[i]
 
         f::FT = f_coeff_1 * exp(f_coeff_2 * (log(mode_i.stdev))^2)
-        g::FT = 1 + g_coeff * log(mode_i.stdev)
+        g::FT = g_coeff_1 + g_coeff_2 * log(mode_i.stdev)
         η::FT =
             (α * w / G)^FT(3 / 2) / (FT(2 * pi) * _ρ_cloud_liq * γ * mode_i.N)
 
         tmp +=
             1 / (Sm[i])^2 *
-            (f * (ζ / η)^FT(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^FT(3 / 4))
+            (f * (ζ / η)^pow_1 + g * (Sm[i]^2 / (η + 3 * ζ))^pow_2)
     end
 
     return FT(1) / sqrt(tmp)

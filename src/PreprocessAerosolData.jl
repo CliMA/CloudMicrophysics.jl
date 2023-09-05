@@ -113,11 +113,9 @@ function convert_to_ARG_intermediates(data_row::NamedTuple, param_set::APS)
 
     per_mode_intermediates = [
         (;
-            Symbol("mode_$(i)_log_stdev") => log(ad.Modes[i].stdev),
+            Symbol("mode_$(i)_stdev") => ad.Modes[i].stdev,
             Symbol("mode_$(i)_η") => η[i],
             Symbol("mode_$(i)_Sm") => Sm[i],
-            Symbol("mode_$(i)_term1") => (ζ / η[i])^(3 / 2),
-            Symbol("mode_$(i)_term2") => (Sm[i]^2 / (η[i] + 3 * ζ))^(3 / 4),
         ) for i in 1:num_modes
     ]
 
