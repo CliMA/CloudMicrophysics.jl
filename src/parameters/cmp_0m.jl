@@ -20,3 +20,13 @@ CloudMicrophysicsParameters0M(param_set) = CloudMicrophysicsParameters0M(
     param_set.qc_0,
     param_set.S_0,
 )
+
+function CloudMicrophysicsParameters0M(::Type{FT}) where {FT}
+    toml_dict = CP.create_toml_dict(FT)
+    (; data) = toml_dict
+    return CloudMicrophysicsParameters0M(
+        FT(data["precipitation_timescale"]["value"]),
+        FT(data["specific_humidity_precipitation_threshold"]["value"]),
+        FT(data["supersaturation_precipitation_threshold"]["value"]),
+    )
+end

@@ -1,7 +1,9 @@
 module Parameters
 
 using DocStringExtensions
+import CLIMAParameters
 import Thermodynamics
+const CP = CLIMAParameters
 const TD = Thermodynamics
 const TDPS = TD.Parameters.ThermodynamicsParameters
 

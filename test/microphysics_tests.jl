@@ -42,7 +42,7 @@ function test_microphysics(FT)
     end
 
     TT.@testset "0M_microphysics" begin
-        params_0m = CMP.CloudMicrophysicsParameters0M(prs)
+        params_0m = CMP.CloudMicrophysicsParameters0M(FT)
         (; τ_precip, qc_0, S_0) = params_0m
 
         q_vap_sat = FT(10e-3)

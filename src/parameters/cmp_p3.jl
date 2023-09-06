@@ -29,3 +29,16 @@ CloudMicrophysicsParametersP3(param_set) = CloudMicrophysicsParametersP3(
     param_set.γ_M1996,
     param_set.σ_M1996,
 )
+
+function CloudMicrophysicsParametersP3(::Type{FT}) where {FT}
+    toml_dict = CP.create_toml_dict(FT)
+    (; data) = toml_dict
+    return CloudMicrophysicsParametersP3(
+        FT(data["BF1995_mass_coeff_alpha"]["value"]),
+        FT(data["BF1995_mass_exponent_beta"]["value"]),
+        FT(data["density_ice_water"]["value"]),
+        FT(data["density_liquid_water"]["value"]),
+        FT(data["M1996_area_coeff_gamma"]["value"]),
+        FT(data["M1996_area_exponent_sigma"]["value"]),
+    )
+end

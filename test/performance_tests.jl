@@ -47,7 +47,7 @@ function benchmark_test(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
-    p3 = CMP.CloudMicrophysicsParametersP3(prs)
+    p3 = CMP.CloudMicrophysicsParametersP3(FT)
     liquid = CMT.LiquidType()
     rain = CMT.RainType()
     sb2006 = CMT.SB2006Type()
