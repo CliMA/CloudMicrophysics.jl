@@ -50,47 +50,28 @@ Water Activity-Based Immersion Freezing Model (ABFIM)
   classical nucleation theory (CNT). More on CNT can be found in [Karthika2016](@cite).
   The nucleation rate coefficient, ``J``, describes the number of ice nuclei formed per unit area
   per unit time and can be determined by the water activity, ``a_w``. This parameterization follows
-  [KnopfAlpert2013](@cite), [Koop2002](@cite), [MurphyKoop2005](@cite), and [Luo1995](@cite). In this model,
-  aerosols are assumed to contain an insoluble and soluble material. When immersed in water,
-  the soluble material diffuses into the liquid water to create a sulphuric acid solution.
+  [KnopfAlpert2013](@cite). In this model, aerosols are assumed to contain an insoluble and
+  soluble material. When immersed in water, the soluble material diffuses into the liquid water
+  to create a sulphuric acid solution.
 
 Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
-  the heterogeneous nucleation rate coefficient in units of ``cm^{-2}s^{-1}`` can be determined by the linear equation
+  the heterogeneous nucleation rate coefficient in units of ``cm^{-2}s^{-1}``
+  can be determined by the linear equation
 ```math
 \begin{equation}
   log_{10}J_{ABIFM} = m \Delta a_w + c
 \end{equation}
 ```
+A parameterization for ``\Delta a_w`` can be found in `Common.jl`. More information on
+  it can be found in the `Water Activity` section.
+  
 !!! note
 
     Our source code for the nucleation rate coefficient returns
     ``J`` in base SI units.
 
-``\Delta a_w``is the difference between the water activity of the droplet, ``a_w``, and the water activity of ice at the same temperature, ``a_{w,ice}(T)``. From [Koop2002](@cite),
-```math
-\begin{equation}
-  a_w = \frac{p_{sol}}{p_{sat}}
-\end{equation}
-```
-```math
-\begin{equation}
-  a_{w,ice} = \frac{p_{i,sat}}{p_{sat}}
-\end{equation}
-```
-where ``p_{sol}`` is saturated vapor pressure of water above solution, ``p_{sat}``
-  is saturated vapor pressure above pure liquid water, and ``p_{i,sat}`` is saturated
-  vapor pressure above ice. ``p_{sol}`` is determined in mbar using a parameterization
-  for supercooled, binary ``H_2SO_4/H_2O`` solution from [Luo1995](@cite) which is valid for ``185K < T < 235K``:
-```math
-\begin{equation}
-  ln(p_{sol}) = 23.306 - 5.3465x + 12xw_h - 8.19xw_h^2 + \frac{1}{T}(-5814 + 928.9x - 1876.7xw_h)
-\end{equation}
-```
-where ``x`` is the weight fraction of sulphuric acid in the droplets
-  (i.e. if droplets are 10% sulphuric acid by mass, ``x = 0.1``), ``w_h = 1.4408x``,
-  and temperature is in Kelvins.
-
-Once ``J_{ABIFM}`` is calculated, it can be used to determine the ice production rate, ``P_{ice}``, per second via immersion freezing.
+Once ``J_{ABIFM}`` is calculated, it can be used to determine the ice production rate, ``P_{ice}``,
+per second via immersion freezing.
 ```math
 \begin{equation}
   P_{ice} = J_{ABIFM}A(N_{tot} - N_{ice})
