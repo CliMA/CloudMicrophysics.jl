@@ -14,8 +14,6 @@ import ..CommonTypes as CT
 
 export G_func
 export H2SO4_soln_saturation_vapor_pressure
-export ABIFM_Delta_a_w
-export Chen_snow_ice_coeffs
 export Chen2022_vel_add
 export Chen2022_vel_coeffs
 
