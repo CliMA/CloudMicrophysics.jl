@@ -2,21 +2,21 @@
 
 The `IceNucleation.jl` module includes
   the parameterization of activation of dust aerosol particles into ice crystals
-  via deposition of water vapor and water activity based parameterization of immersion freezing.
-These are heterogeneous ice nucleation processes.
+  via deposition of water vapor, water activity based parameterization of immersion freezing,
+  and water activity based parameterization of homogeneous freezing.
 The parameterization for deposition on dust particles is an implementation of
   the empirical formulae from [Mohler2006](@cite)
   and is valid for two types of dust particles:
   Arizona Test Dust and desert dust from Sahara.
   The parameterization for immersion freezing is an implementation of [KnopfAlpert2013](@cite)
   and is valid for droplets containing sulphuric acid.
+  The parameterization for homogeneous freezing is an implementation of [Koop2000](@cite).
 
 !!! note
 
-    Future work includes adding parameterizations
-    for other nucleation paths such as
-    heterogeneous immersion freezing or homogeneous freezing
-    and modeling the competition between them.
+    Future work includes refining the homogeneous freezing
+    parameterization and modeling the competition between
+    freezing modes.
 
 ## Activated fraction for deposition freezing on dust
 The parameterization models the activated fraction
@@ -93,7 +93,7 @@ where ``x`` is the weight fraction of sulphuric acid in the droplets
 Once ``J_{ABIFM}`` is calculated, it can be used to determine the ice production rate, ``P_{ice}``, per second via immersion freezing.
 ```math
 \begin{equation}
-  P_{ice} = J_{ABIFM}A(N_{tot}-N_{ice})
+  P_{ice} = J_{ABIFM}A(N_{tot} - N_{ice})
 \end{equation}
 ```
 where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number
@@ -137,10 +137,17 @@ include("ice_nucleation_plots/KnopfAlpert2013_fig5.jl")
 Note that water activity of the droplet was assumed equal to relative humidity so that:
 ```math
 \begin{equation}
-  a_{w} = \frac{p_{sol}(x_{sulph} = 0, T = T_{dew})}{p_{sat}}
+  a_{w} = \frac{p_{sat}(T = T_{dew})}{p_{sat}(T)}
 \end{equation}
 ```
-where `T_dew` is the dewpoint (in this example it is -45C).
+where `T_dew` is the dewpoint (in this example, it is constant at -45C).
+
+!!! note
+
+    For the same figure in Knopf & Alpert,
+    the mixed-phase cloud uses T_{dew} = T.
+    We are unsure when to use constant T_{dew}
+    or set it equal to T.
 
 It is also important to note that this plot is reflective of cirrus clouds
   and shows only a very small temperature range. The two curves are slightly
