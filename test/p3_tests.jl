@@ -11,7 +11,7 @@ function test_p3_thresholds(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
-    p3 = CMP.CloudMicrophysicsParametersP3(prs)
+    p3 = CMP.CloudMicrophysicsParametersP3(FT)
 
     TT.@testset "thresholds (nonlinear solver function)" begin
 
