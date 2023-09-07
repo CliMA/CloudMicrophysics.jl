@@ -98,6 +98,7 @@ Once ``J_{het}`` is calculated, it can be used to determine the ice production r
 ```
 where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number 
   of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 
+  
 ## Homogeneous Freezing for Sulphuric Acid Containing Droplets
 Homogeneous freezing occurs when supercooled liquid droplets freeze on their own.
   Closly based off [Koop2000](@cite), this parameterization determines a homoegneous nucleation
