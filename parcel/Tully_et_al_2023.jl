@@ -23,6 +23,7 @@ function get_initial_condition(
     q_liq,
     q_ice,
     N_aerosol,
+    N_droplets,
     x_sulph,
 )
     thermo_params = CMP.thermodynamics_params(prs)
@@ -33,7 +34,7 @@ function get_initial_condition(
     e = q_vap * p_a * R_v / R_a
     S_i = e / e_si
 
-    return [S_i, N_act, p_a, T, q_vap, q_ice, N_aerosol, x_sulph]
+    return [S_i, N_act, p_a, T, q_vap, q_liq, q_ice, N_aerosol, N_droplets, x_sulph]
 end
 
 """
@@ -44,7 +45,7 @@ end
      - each period is run with user specified constant timestep
      - the large scale initial conditions between each period are different
 """
-function run_parcel(FT, freeze_mode, deposition_growth = true)
+function run_parcel(FT)
 
     # Boiler plate code to have access to model parameters and constants
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
@@ -53,6 +54,7 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
 
     # Initial conditions for 1st period
     N_aerosol = FT(2000 * 1e3)
+    N_droplets = FT(0)
     N_0 = FT(0)
     p_0 = FT(20000)
     T_0 = FT(230)
@@ -71,11 +73,15 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
     t_max = 30 * 60
 
     # Simulation parameters passed into ODE solver
-    r_nuc = FT(0.5 * 1.e-4 * 1e-6) # assumed size of nucleated particles
-    w = FT(3.5 * 1e-2) # updraft speed
-    α_m = FT(0.5) # accomodation coefficient
-    const_dt = 0.1 # model timestep
-    p = (; prs, const_dt, r_nuc, w, α_m, freeze_mode, deposition_growth)
+    r_nuc = FT(0.5 * 1.e-4 * 1e-6)  # assumed size of nucleated particles
+    w = FT(3.5 * 1e-2)              # updraft speed
+    α_m = FT(0.5)                   # accomodation coefficient
+    const_dt = 0.1                  # model timestep
+    freeze_mode = "deposition"      # freezing mode
+    deposition_growth = true        # deposition growth
+    condensation_growth = false     # no condensational growth
+    options = (; freeze_mode, deposition_growth, condensation_growth)
+    p = (; prs, const_dt, r_nuc, w, α_m, options)
 
     # Simulation 1
     IC1 = get_initial_condition(
@@ -87,6 +93,7 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
         q_liq_0,
         q_ice_0,
         N_aerosol,
+        N_droplets,
         x_sulph,
     )
     prob1 = ODE.ODEProblem(parcel_model, IC1, (FT(0), t_max), p)
@@ -108,8 +115,9 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
         sol1[4, end],
         q_vap2,
         q_liq_0,
-        sol1[6, end],
         sol1[7, end],
+        sol1[8, end],
+        sol1[9, end],
         x_sulph,
     )
     prob2 = ODE.ODEProblem(
@@ -136,8 +144,9 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
         sol2[4, end],
         q_vap3,
         q_liq_0,
-        sol2[6, end],
         sol2[7, end],
+        sol2[8, end],
+        sol2[9, end],
         x_sulph,
     )
     prob3 = ODE.ODEProblem(
@@ -178,19 +187,19 @@ function run_parcel(FT, freeze_mode, deposition_growth = true)
     MK.lines!(ax3, sol2.t * w, sol2[2, :] * 1e-3)
     MK.lines!(ax3, sol3.t * w, sol3[2, :] * 1e-3)
 
-    MK.lines!(ax4, sol1.t * w, sol1[7, :] * 1e-3)
-    MK.lines!(ax4, sol2.t * w, sol2[7, :] * 1e-3)
-    MK.lines!(ax4, sol3.t * w, sol3[7, :] * 1e-3)
+    MK.lines!(ax4, sol1.t * w, sol1[8, :] * 1e-3)
+    MK.lines!(ax4, sol2.t * w, sol2[8, :] * 1e-3)
+    MK.lines!(ax4, sol3.t * w, sol3[8, :] * 1e-3)
 
     MK.lines!(ax5, sol1.t * w, sol1[5, :] * 1e3)
     MK.lines!(ax5, sol2.t * w, sol2[5, :] * 1e3)
     MK.lines!(ax5, sol3.t * w, sol3[5, :] * 1e3)
 
-    MK.lines!(ax6, sol1.t * w, sol1[6, :] * 1e3)
-    MK.lines!(ax6, sol2.t * w, sol2[6, :] * 1e3)
-    MK.lines!(ax6, sol3.t * w, sol3[6, :] * 1e3)
+    MK.lines!(ax6, sol1.t * w, sol1[7, :] * 1e3)
+    MK.lines!(ax6, sol2.t * w, sol2[7, :] * 1e3)
+    MK.lines!(ax6, sol3.t * w, sol3[7, :] * 1e3)
 
     MK.save("cirrus_box.svg", fig)
 end
 
-run_parcel(Float64, "deposition")
+run_parcel(Float64)

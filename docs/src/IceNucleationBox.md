@@ -7,8 +7,6 @@ It is based on [KorolevMazin2003](@cite), as well as the cirrus box model
   [Karcher2006](@cite), [Tully2023](@cite).
 The model solves for saturation in a 0-dimensional
   adiabatic parcel raising with constant velocity.
-Possible freezing modes for this model includes "deposition", "ABIFM", and "homogeneous".
-  Deposition growth of existing ice cyrstals can be turned on or off.
 
 !!! note
     For now, the equations are written assuming
