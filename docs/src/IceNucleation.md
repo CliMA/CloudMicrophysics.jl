@@ -91,7 +91,13 @@ where ``x`` is the weight fraction of sulphuric acid in the droplets
   and temperature is in Kelvins.
 
 Once ``J_{het}`` is calculated, it can be used to determine the ice production rate, ``P_{ice}``, per second via immersion freezing.
-
+```math
+\begin{equation}
+  P_{ice} = J_{het}A(N_{tot}-N_{ice})
+\end{equation}
+```
+where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number 
+  of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system. 
 ## Homogeneous Freezing for Sulphuric Acid Containing Droplets
 Homogeneous freezing occurs when supercooled liquid droplets freeze on their own.
   Closly based off [Koop2000](@cite), this parameterization determines a homoegneous nucleation
