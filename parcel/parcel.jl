@@ -1,6 +1,3 @@
-import OrdinaryDiffEq as ODE
-import CairoMakie as MK
-
 import Thermodynamics as TD
 import CloudMicrophysics as CM
 
