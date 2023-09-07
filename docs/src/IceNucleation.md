@@ -80,23 +80,7 @@ per second via immersion freezing.
 where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number
   of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system.
 
-## Homogeneous Freezing for Sulphuric Acid Containing Droplets
-Homogeneous freezing occurs when supercooled liquid droplets freeze on their own.
-  Closly based off [Koop2000](@cite), this parameterization determines a homoegneous nucleation
-  rate coefficient, ``J_{hom}``, using water activity. The change in water activity,
-  ``\Delta a_w(c,T,P)``, can be found in the same fashion that it is determined under the ABIFM
-  section above. It is then used to empirically calculate ``J_{hom}(\Delta a_w)`` with units of
-  ``cm^{-3}s^{-1}``.
-
-The nucleation rate coefficient is determined with the cubic function from [Koop2000](@cite)
-```math
-\begin{equation}
-  logJ_{hom} = -906.7 + 8502 \Delta a_w - 26924(\Delta a_w)^2 + 29180(\Delta a_w)^3
-\end{equation}
-```
-This parameterization is valid only when ``0.26 < \Delta a_w < 0.36`` and ``185K < T < 235K``.
-
-## ABIFM Example Figures
+### ABIFM Example Figures
 The following plot shows ``J`` as a function of ``\Delta a_w`` as compared to
   figure 1 in Knopf & Alpert 2013. Solution droplets were assumed to contain
   a constant 10% wt. sulphuric acid. Changing the concentration will simply
@@ -133,3 +117,46 @@ where `T_dew` is the dewpoint (in this example, it is constant at -45C).
 It is also important to note that this plot is reflective of cirrus clouds
   and shows only a very small temperature range. The two curves are slightly
   off because of small differences in parameterizations for vapor pressures.
+
+## Homogeneous Freezing for Sulphuric Acid Containing Droplets
+Homogeneous freezing occurs when supercooled liquid droplets freeze on their own.
+  Closly based off [Koop2000](@cite), this parameterization determines a homoegneous nucleation
+  rate coefficient, ``J_{hom}``, using water activity. The change in water activity,
+  ``\Delta a_w(c,T,P)``, can be found in `Common.jl` and is described in the
+  `Water Activity section`. It is then used to empirically calculate ``J_{hom}(\Delta a_w)``
+  with units of ``cm^{-3}s^{-1}``.
+
+The nucleation rate coefficient is determined with the cubic function from [Koop2000](@cite)
+```math
+\begin{equation}
+  logJ_{hom} = -906.7 + 8502 \Delta a_w - 26924(\Delta a_w)^2 + 29180(\Delta a_w)^3
+\end{equation}
+```
+This parameterization is valid only when ``0.26 < \Delta a_w < 0.36`` and ``185K < T < 235K``.
+
+### Homogeneous Ice Nucleation Rate Coefficient
+Here is a comparison of our parameterization of ``J_{hom}`` compared to Koop 2000 as
+  plotted in figure 1 of [Spichtinger2023](@cite). Our parameterization differs in the calculation
+  of ``\Delta a_w``. We define water activity to be a ratio of saturated vapor pressures whereas
+  Koop 2000 uses the difference in chemical potential. 
+
+```@example
+include("ice_nucleation_plots/HomFreezingPlots.jl")
+```
+![](HomFreezingPlots.svg)
+
+It should be noted that the Koop 2000
+  parameterization is only valid for temperatures up to 240K and a temperature-dependent max
+  pressure. The max valid pressure becomes negative around 237K, so the Koop 2000 parameterizaiton
+  should not be valid beyond 237K. For this reason, we limit the curve from [Spichtinger2023](@cite)
+  to 237K.
+  
+Multiple sulphuric acid concentrations, ``x``,
+  are plotted since the actual concentration used in literature values is unspecified. 
+
+!!! note
+
+    Spichtinger plot may be under the condition that x = 0 (pure liquid droplets).
+    The current parameterization in CloudMicrophysics.jl is not valid for \Delta a_w
+    values that are obtained from pure water droplets. Though CliMA lines look far
+    from the Spichtinger 2023 line, the lines seem to move closer as x approaches 0.
