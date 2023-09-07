@@ -115,8 +115,7 @@ function parcel_model(dY, Y, p, t)
 
     # Sum of all phase changes
     dqi_dt = dqi_dt_new_particles + dqi_dt_deposition
-    dql_dt = dql_dt_condensation
-    # TODO - add activation of new, liquid, water droplets?
+    dql_dt = dN_droplets_dt + dql_dt_condensation
 
     # Update the tendecies
     dS_i_dt = a1 * w * S_i - (a2 + a3 * S_i) * dqi_dt - (a2 + a4 * S_i) * dql_dt
