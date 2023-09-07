@@ -20,7 +20,7 @@ The [SeifertBeheng2006](@cite) parametrization provides process rates for autoco
 The piece-wise polynomial collection Kernel, used for the derivation of the parametrization, is given by:
 ```math
 \begin{align}
-    K(x,y) = 
+    K(x,y) =
     \begin{cases}
     k_{cc}(x^2+y^2), \quad & x\wedge y < x^*\\
     k_{cr}(x+y), \quad & x\oplus y \geq x^*,\\
@@ -28,7 +28,7 @@ The piece-wise polynomial collection Kernel, used for the derivation of the para
     \end{cases}
 \end{align}
 ```
-where ``x`` and ``y`` are drop masses and ``x^*`` is the mass threshold chosen to separate the cloud and rain portions of the mass distribution. For ``K`` in ``m^3 s^{-1}`` the constants are 
+where ``x`` and ``y`` are drop masses and ``x^*`` is the mass threshold chosen to separate the cloud and rain portions of the mass distribution. For ``K`` in ``m^3 s^{-1}`` the constants are
 
 |   symbol      | default value                                       |
 |---------------|-----------------------------------------------------|
@@ -79,7 +79,7 @@ where:
   - ``\rho_0 = 1.225 \, kg \cdot m^{-3}`` is the air density at surface conditions,
   - ``k_{cc}`` is the cloud-cloud collection kernel constant,
   - ``\nu`` is the cloud droplet gamma distribution parameter,
-  - ``x^*`` is the drop mass separating the cloud and rain categories 
+  - ``x^*`` is the drop mass separating the cloud and rain categories
   - ``\overline{x}_c = (q_{liq} \rho) / N_{liq}`` is the cloud droplet mean mass with ``N_{liq}`` denoting the cloud droplet number density. Here, to ensure numerical stability, we limit ``\overline{x}_c`` by the upper bound of ``x^*``.
 
 The function ``\phi_{acnv}(\tau)`` is used to correct the autoconversion rate for the undeveloped cloud droplet spectrum and the early stage rain evolution assumptions. This is a universal function which is obtained by fitting to numerical results of the SCE:
@@ -113,7 +113,7 @@ and the rate of change of liquid water specific humidity and cloud droplets numb
   \left. \frac{\partial N_{liq}}{\partial t} \right|_{acnv} = -2 \left. \frac{\partial N_{rai}}{\partial t} \right|_{acnv}.
 \end{align}
 ```
-!!! note 
+!!! note
     The Seifert and Beheng parametrization is formulated for the rate of change of liquid water content ``L = \rho q``. Here, we assume constant ``\rho`` and divide the rates by ``\rho`` to derive the equations for the rate of change of specific humidities.
 
 ### Accretion
@@ -231,7 +231,7 @@ Raindrops breakup is modeled by assuming that in a precipitation event coalescen
 where ``\Delta \overline{D}_r = \overline{D}_r - \overline{D}_{eq}`` with ``\overline{D}_r`` denoting the mean volume raindrop diameter and ``\overline{D}_{eq}`` being the equilibrium mean diameter. The function ``\Phi_{br}(\Delta \overline{D}_r)`` is given by
 ```math
   \begin{align}
-    \Phi_{br}(\Delta \overline{D}_r) = 
+    \Phi_{br}(\Delta \overline{D}_r) =
     \begin{cases}
     -1, \quad & \overline{D}_r < \overline{D}_{threshold},\\
     k_{br} \Delta \overline{D}_r, \quad & \overline{D}_{threshold} < \overline{D}_r < \overline{D}_{eq},\\
@@ -260,7 +260,13 @@ For the two moment scheme which is based on number density and mass, it is strai
   \overline{v}_{r,\, k} = \frac{1}{M_r^k} \int_0^\infty x^k f_r(x) v(x) dx,
 \end{equation}
 ```
-where the superscript ``k`` indicates the moment number, ``k=0`` for number density and ``k=1`` for mass. The individual terminal velocity of particles is approximated by ``v_(x) = (\rho_0/\rho)^{1/2} [a_R - b_R exp(-c_R D_r)]`` where ``a_R``, ``b_R`` and ``c_R`` are three free parameters and ``D_r`` is the particle diameter. Evaluating the integral results in the following equation for terminal velocity:
+where the superscript ``k`` indicates the moment number, ``k=0`` for number density and ``k=1`` for mass.
+The individual terminal velocity of particles is approximated by
+```math
+v(x) = \left(\rho_0/\rho\right)^{\frac{1}{2}} [a_R - b_R exp(-c_R D_r)]
+```
+where ``a_R``, ``b_R`` and ``c_R`` are three free parameters and ``D_r`` is the particle diameter.
+Evaluating the integral results in the following equation for terminal velocity:
 ```math
 \begin{equation}
   \overline{v}_{r,\, k} = \left(\frac{\rho_0}{\rho}\right)^{\frac{1}{2}}\left[a_R - b_R \left(1+\frac{c_R}{\lambda_r}\right)^{-(3k+1)}\right],
@@ -338,7 +344,7 @@ The two-moment parametrization of evaporation suffers from the similar numerical
   \overline{x}_r = max \left(\overline{x}_{r,\, min} , min \left(\overline{x}_{r,\, max} , \frac{\rho q_{rai} \lambda_r}{N_0}\right)\right).
 \end{equation}
 ```
-This mean mass is used for computing the evaporation rate. 
+This mean mass is used for computing the evaporation rate.
 
 The default free parameter values are:
 
@@ -349,7 +355,60 @@ The default free parameter values are:
 |``\alpha_r``                | ``159 \, m \cdot s^{-1} \cdot kg^{-\beta_r}``   |
 |``\alpha_r``                | ``0.266``                                       |
 
-## Other double-moment autoconversion and accretion schemes
+## Additional 2-moment microphysics options
+
+### Terminal Velocity
+
+[Chen2022](@cite) provides a terminal velocity parameterisation
+based on an empirical fit to a high accuracy model.
+It consideres the deformation effects of large rain drops,
+as well as size-specific air density dependence.
+The fall speed of individual raindrops $v(D)$ is parameterized as:
+```math
+\begin{equation}
+    v(D) = (\phi)^{\kappa} \Sigma_{i = 1,3} \; a_i D^{b_i} e^{-c_i*D}
+\end{equation}
+```
+where D is the diameter of the particle,
+$a_i$, $b_i$, and $c_i$ are free parameers that account for deformation at larger sizes and air density dependance,
+$\phi$ is the aspect ratio (assumed to be 1 for spherical droplets), and
+$\kappa$ is 0 (corresponding to a spherical raindrop).
+$a_i$, $b_i$, and $c_i$ are listed in the table below.
+The formula is applicable when $D > 0.1 mm$,
+$q$ refers to $q = e^{0.115231 * \rho_a}$, where  $\rho_a$ refers to air density.
+The units are: [v] = m/s, [D]=mm, [$a_i$] = $mm^{-b_i} m/s$, [$b_i$] is dimensionless, [$c_i$] = 1/mm.
+
+|  $i$  |            $a_i$                        |         $b_i$                      |   $c_i$           |
+|-------|-----------------------------------------|------------------------------------|-------------------|
+|   1   |   $ 0.044612 \; q$                      |   $2.2955 \; -0.038465 \; \rho_a$  |   $0$             |
+|   2   |   $-0.263166 \; q$                      |   $2.2955 \; -0.038465 \; \rho_a$  |   $0.184325$      |
+|   3   |   $4.7178 \; q \; (\rho_a)^{-0.47335}$  |   $1.1451 \; -0.038465 \; \rho_a$  |   $0.184325$      |
+
+Assuming the same size distribution as in [SeifertBeheng2006](@cite),
+the number- and mass-weighted mean terminal velocities are:
+```math
+\begin{equation}
+  \overline{v_k} = \frac{\int_0^\infty v(D) \, D^k \, n(D) \, dD}
+             {\int_0^\infty D^k \, n(D) \, dD}
+             = (\phi)^{\kappa} \Sigma_{i} \frac{a_i \lambda^\delta \Gamma(b_i + \delta)}
+             {(\lambda + c_i)^{b_i + \delta} \; \Gamma(\delta)}
+\end{equation}
+```
+where $\Gamma$ is the gamma function, $\delta = k + 1$, and
+$\lambda$ is the size distribution parameter.
+$\overline{v_k}$ corresponds to the number-weighted mean terminal velocity when k = 0,
+and mass-weighted mean terminal velocity when k = 3.
+
+Below, we compare the individual terminal velocity formulas for [Chen2022](@cite) and [SeifertBeheng2006](@cite).
+We also compare bulk number weighted [ND] and mass weighted [MD]
+terminal velocities for both formulas integrated over the size distribution from [SeifertBeheng2006](@cite).
+We also show the mass weighted terminal velocity from the 1-moment scheme.
+```@example
+include("TerminalVelocityComparisons.jl")
+```
+![](2M_terminal_velocity_comparisons.svg)
+
+### Accretion and Autoconversion
 
 The other autoconversion and accretion rates in the `Microphysics2M.jl` module are implemented after Table 1 from [Wood2005](@cite)
   and are based on the works of

@@ -4,9 +4,9 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
-const CMT = CM.CommonTypes
-const CO = CM.Common
-const CMI_het = CM.HetIceNucleation
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.HetIceNucleation as CMI_het
 const ArizonaTestDust = CMT.ArizonaTestDustType()
 const DesertDust = CMT.DesertDustType()
 
@@ -87,15 +87,21 @@ function test_heterogeneous_ice_nucleation(FT)
         # higher nucleation rate at colder temperatures
         for dust in
             [CMT.IlliteType(), CMT.KaoliniteType(), CMT.DesertDustType()]
-            TT.@test CMI_het.ABIFM_J(dust, CO.Delta_a_w(prs, x_sulph, T_cold)) >
-                     CMI_het.ABIFM_J(dust, CO.Delta_a_w(prs, x_sulph, T_warm))
+            TT.@test CMI_het.ABIFM_J(
+                prs,
+                dust,
+                CO.Delta_a_w(prs, x_sulph, T_cold),
+            ) > CMI_het.ABIFM_J(
+                prs,
+                dust,
+                CO.Delta_a_w(prs, x_sulph, T_warm),
+            )
         end
     end
 end
 
 println("Testing Float64")
 test_heterogeneous_ice_nucleation(Float64)
-
 
 println("Testing Float32")
 test_heterogeneous_ice_nucleation(Float32)

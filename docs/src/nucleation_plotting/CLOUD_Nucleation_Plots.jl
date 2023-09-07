@@ -1,39 +1,13 @@
 using Plots
-using CLIMAParameters
 
-include("../../src/Nucleation.jl")
-using .Nucleation
-
-# Testing for CLOUD-experiment based nucleation rates.
+import CLIMAParameters as CP
+import CloudMicrophysics as CM
+import CloudMicrophysics.Nucleation as Nucleation
+include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 FT = Float64
-toml_dict = CLIMAParameters.create_toml_dict(FT)
-param_names = [
-    "u_b_n",
-    "v_b_n",
-    "w_b_n",
-    "u_b_i",
-    "v_b_i",
-    "w_b_i",
-    "u_t_n",
-    "v_t_n",
-    "w_t_n",
-    "u_t_i",
-    "v_t_i",
-    "w_t_i",
-    "p_t_n",
-    "p_A_n",
-    "a_n",
-    "p_t_i",
-    "p_A_i",
-    "a_i",
-    "p_b_n",
-    "p_b_i",
-    "p_t_n",
-    "p_t_i",
-]
-params = CLIMAParameters.get_parameter_values!(toml_dict, param_names)
-params = (; params...)
+toml_dict = CP.create_toml_dict(FT)
+params = cloud_microphysics_parameters(toml_dict)
 
 function plot_pure_h2so4_nucleation_rate(
     h2so4_concentrations,

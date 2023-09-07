@@ -5,24 +5,30 @@ import CloudMicrophysics as CM
 import Thermodynamics as TD
 import CLIMAParameters as CP
 
-const CMT = CM.CommonTypes
-const CO = CM.Common
-const AM = CM.AerosolModel
-const AA = CM.AerosolActivation
-const CMI_het = CM.HetIceNucleation
-const CMI_hom = CM.HomIceNucleation
-const CMN = CM.MicrophysicsNonEq
-const CM0 = CM.Microphysics0M
-const CM1 = CM.Microphysics1M
-const CM2 = CM.Microphysics2M
-const HN = CM.Nucleation
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics.HetIceNucleation as CMI_het
+import CloudMicrophysics.HomIceNucleation as CMI_hom
+import CloudMicrophysics.MicrophysicsNonEq as CMN
+import CloudMicrophysics.Microphysics0M as CM0
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.Nucleation as HN
+import CloudMicrophysics.P3Scheme as P3
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 @info "Performance Tests"
 
-function bench_press(foo, args, min_run_time)
-
+function bench_press(
+    foo,
+    args,
+    min_run_time,
+    min_memory = 0.0,
+    min_allocs = 0.0,
+)
     println("Testing ", "$foo")
     # Calling foo once before benchmarking
     # to make sure compile time is not included in the benchmark
@@ -33,18 +39,20 @@ function bench_press(foo, args, min_run_time)
     println("\n")
 
     TT.@test BT.minimum(trail).time < min_run_time
-    TT.@test trail.memory == 0
-    TT.@test trail.allocs == 0
+    TT.@test trail.memory <= min_memory
+    TT.@test trail.allocs <= min_allocs
 end
 
 function benchmark_test(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
-    nucleation_params = nucleation_parameters(toml_dict)
+    p3 = CMP.CloudMicrophysicsParametersP3(FT)
     liquid = CMT.LiquidType()
     rain = CMT.RainType()
     sb2006 = CMT.SB2006Type()
+    sb2006vel = CMT.SB2006VelType()
+    ch2022 = CMT.Chen2022Type()
     dust = CMT.DesertDustType()
 
     ρ_air = FT(1.2)
@@ -57,6 +65,9 @@ function benchmark_test(FT)
     q_sno = FT(1e-4)
     N_liq = FT(1e8)
     N_rai = FT(1e8)
+
+    ρ_r = FT(400.0)
+    F_r = FT(0.95)
 
     T_air_2 = FT(250)
     T_air_cold = FT(230)
@@ -84,6 +95,9 @@ function benchmark_test(FT)
     x_sulph = FT(0.1)
     Delta_a_w = FT(0.27)
 
+    # P3 scheme
+    bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 4e6, 4e4)
+
     # aerosol activation
     bench_press(
         AA.total_N_activated,
@@ -94,7 +108,7 @@ function benchmark_test(FT)
     # Common
     bench_press(
         CO.H2SO4_soln_saturation_vapor_pressure,
-        (x_sulph, T_air_cold),
+        (prs, x_sulph, T_air_cold),
         50,
     )
     bench_press(CO.Delta_a_w, (prs, x_sulph, T_air_cold), 230)
@@ -105,8 +119,8 @@ function benchmark_test(FT)
         (prs, S_ice, T_air_2, dust),
         50,
     )
-    bench_press(CMI_het.ABIFM_J, (dust, Delta_a_w), 230)
-    bench_press(CMI_hom.homogeneous_J, (Delta_a_w), 230)
+    bench_press(CMI_het.ABIFM_J, (prs, dust, Delta_a_w), 230)
+    bench_press(CMI_hom.homogeneous_J, (prs, Delta_a_w), 230)
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (prs, liquid), 10)
@@ -133,21 +147,26 @@ function benchmark_test(FT)
         (prs, sb2006, q, q_rai, ρ_air, N_rai, T_air),
         2000,
     )
-
-    # Homogeneous Nucleation
     bench_press(
-        HN.h2so4_nucleation_rate,
-        (1e12, 1.0, 1.0, 208, nucleation_params),
-        470,
+        CM2.rain_terminal_velocity,
+        (prs, sb2006, sb2006vel, q_rai, ρ_air, N_rai),
+        300,
     )
     bench_press(
+        CM2.rain_terminal_velocity,
+        (prs, sb2006, ch2022, q_rai, ρ_air, N_rai),
+        1700,
+    )
+    # Homogeneous Nucleation
+    bench_press(HN.h2so4_nucleation_rate, (1e12, 1.0, 1.0, 208, prs), 470)
+    bench_press(
         HN.organic_nucleation_rate,
-        (0.0, 1e3, 1e3, 1e3, 300, 1, nucleation_params),
-        450,
+        (0.0, 1e3, 1e3, 1e3, 300, 1, prs),
+        650,
     )
     bench_press(
         HN.organic_and_h2so4_nucleation_rate,
-        (2.6e6, 1.0, 1.0, 300, 1, nucleation_params),
+        (2.6e6, 1.0, 1.0, 300, 1, prs),
         120,
     )
 end

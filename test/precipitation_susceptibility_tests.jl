@@ -2,11 +2,10 @@ import Test as TT
 
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
-
-const CMP = CM.Parameters
-const CMT = CM.CommonTypes
-const CM2 = CM.Microphysics2M
-const CMPS = CM.PrecipitationSusceptibility
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.PrecipitationSusceptibility as CMPS
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 

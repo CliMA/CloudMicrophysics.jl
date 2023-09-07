@@ -132,59 +132,66 @@ ve(prs::APS, ::CT.SnowType) = CMP.ve_sno(prs)
 """
     lambda(q, ρ, n0, m0, me, r0, χm, Δm)
 
+ - `prs` - set with free parameters
+ - `precip` - a type for cloud ice, rain or snow
  - `q` - specific humidity of rain, ice or snow
  - `ρ` - air density
- - `n0` - size distribution parameter
- - `m0`, `me`, `χm`, `Δm`, `r0` - mass(radius) parameters
 
 Returns the rate parameter of the assumed size distribution of
 particles (rain drops, ice crystals, snow crystals).
 """
 function lambda(
+    prs::APS,
+    precip::Union{CT.IceType, CT.RainType, CT.SnowType},
     q::FT,
     ρ::FT,
-    n0::FT,
-    m0::FT,
-    me::FT,
-    r0::FT,
-    χm::FT,
-    Δm::FT,
 ) where {FT <: Real}
+
+    _n0::FT = n0(prs, q, ρ, precip)
+    _r0::FT = r0(prs, precip)
+    _m0::FT = m0(prs, precip)
+    _me::FT = me(prs, precip)
+    _Δm::FT = Δm(prs, precip)
+    _χm::FT = χm(prs, precip)
 
     λ::FT = FT(0)
 
     if q > FT(0)
         λ =
             (
-                χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
-            )^FT(1 / (me + Δm + 1))
+                _χm * _m0 * _n0 * SF.gamma(_me + _Δm + FT(1)) / ρ / q /
+                _r0^(_me + _Δm)
+            )^FT(1 / (_me + _Δm + 1))
     end
     return λ
 end
 
 """
-    terminal_velocity(prs, precip, ρ, q_)
+    terminal_velocity(prs, precip, velo_scheme, ρ, q_)
 
  - `prs` - abstract set with Earth parameters
- - `precip` - a type for rain or snow
+ - `precip` - a type for ice, rain or snow
+ - `velo_scheme` - type for terminal velocity parameterization
  - `ρ` - air density
  - `q_` - rain or snow specific humidity
 
 Returns the mass weighted average terminal velocity assuming
-a Marshall-Palmer (1948) distribution of rain drops and snow crystals.
+a Marshall-Palmer (1948) distribution of particles.
+Fall velocity of individual rain drops is parameterized:
+ - assuming an empirical power-law relations for `velo_scheme == Blk1MVelType`
+ - following Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171, for `velo_scheme == Chen2022Type`
 """
 function terminal_velocity(
     prs::APS,
     precip::CT.AbstractPrecipType,
+    velo_scheme::CT.Blk1MVelType,
     ρ::FT,
     q_::FT,
 ) where {FT <: Real}
     fall_w = FT(0)
     if q_ > FT(0)
 
-        _n0::FT = n0(prs, q_, ρ, precip)
         _r0::FT = r0(prs, precip)
-        _m0::FT = m0(prs, precip)
         _me::FT = me(prs, precip)
         _Δm::FT = Δm(prs, precip)
         _χm::FT = χm(prs, precip)
@@ -192,7 +199,7 @@ function terminal_velocity(
         _v0::FT = v0(prs, ρ, precip)
         _ve::FT = ve(prs, precip)
         _Δv::FT = Δv(prs, precip)
-        _λ::FT = lambda(q_, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
+        _λ::FT = lambda(prs, precip, q_, ρ)
 
         fall_w =
             _χv *
@@ -202,6 +209,95 @@ function terminal_velocity(
             SF.gamma(_me + _Δm + FT(1))
     end
 
+    return fall_w
+end
+function terminal_velocity(
+    prs::APS,
+    precip::CT.RainType,
+    velo_scheme::CT.Chen2022Type,
+    ρ::FT,
+    q_::FT,
+) where {FT <: Real}
+    fall_w = FT(0)
+    if q_ > FT(0)
+
+        # coefficients from Table B1 from Chen et. al. 2022
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs(prs, precip, ρ)
+        # size distribution parameter
+        _λ::FT = lambda(prs, precip, q_, ρ)
+
+        # eq 20 from Chen et al 2022
+        fall_w = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, _λ, 3))
+        # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
+        fall_w = max(FT(0), fall_w)
+    end
+    return fall_w
+end
+function terminal_velocity(
+    prs::APS,
+    precip::CT.IceType,
+    velo_scheme::CT.Chen2022Type,
+    ρ::FT,
+    q_::FT,
+) where {FT <: Real}
+    fall_w = FT(0)
+    if q_ > FT(0)
+
+        ρ_i::FT = CMP.ρ_cloud_ice(prs)
+        _λ::FT = lambda(prs, precip, q_, ρ)
+
+        # coefficients from Appendix B from Chen et. al. 2022
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs(prs, precip, ρ)
+
+        # eq 20 from Chen et al 2022
+        fall_w = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, _λ, 3))
+        # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
+        fall_w = max(FT(0), fall_w)
+    end
+    return fall_w
+end
+function terminal_velocity(
+    prs::APS,
+    precip::CT.SnowType,
+    velo_scheme::CT.Chen2022Type,
+    ρ::FT,
+    q_::FT,
+) where {FT <: Real}
+    fall_w = FT(0)
+    if q_ > FT(0)
+
+        _r0::FT = r0(prs, precip)
+        _λ::FT = lambda(prs, precip, q_, ρ)
+
+        m0c::FT = m0(prs, precip) * χm(prs, precip)
+        a0c::FT = a0(prs, precip) * χa(prs, precip)
+        mec::FT = me(prs, precip) + Δm(prs, precip)
+        aec::FT = ae(prs, precip) + Δa(prs, precip)
+
+        ρ_i::FT = CMP.ρ_cloud_ice(prs)
+
+        # coefficients from Appendix B from Chen et. al. 2022
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs(prs, precip, ρ)
+
+        κ = FT(-1 / 3) #oblate
+        k = 3 # mass weighted
+
+        tmp =
+            _λ^(k + 1) *
+            ((16 * a0c^3 * ρ_i^2) / (9 * π * m0c^2 * _r0^(3 * aec - 2 * mec)))^κ
+        ci_pow =
+            (2 .* ciu .+ _λ) .^
+            (.-(3 .* aec .* κ .- 2 .* mec .* κ .+ bi .+ k .+ 1))
+
+        ti = tmp .* aiu .* FT(2) .^ bi .* ci_pow
+
+        Chen2022_vel_add_sno(t, b, aec, mec, κ, k) =
+            t * SF.gamma(3 * κ * aec - 2 * κ * mec + b + k + 1) /
+            SF.gamma(k + 1)
+
+        fall_w = sum(Chen2022_vel_add_sno.(ti, bi, aec, mec, κ, k))
+        fall_w = max(FT(0), fall_w)
+    end
     return fall_w
 end
 
@@ -292,12 +388,9 @@ function conv_q_ice_to_q_sno(
 
         _r_ice_snow::FT = CMP.r_ice_snow(prs)
         _n0::FT = n0(prs, FT(0), ρ, CT.IceType())
-        _r0::FT = r0(prs, CT.IceType())
-        _m0::FT = m0(prs, CT.IceType())
         _me::FT = me(prs, CT.IceType())
         _Δm::FT = Δm(prs, CT.IceType())
-        _χm::FT = χm(prs, CT.IceType())
-        _λ::FT = lambda(q.ice, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
+        _λ::FT = lambda(prs, CT.IceType(), q.ice, ρ)
 
         acnv_rate =
             4 * FT(π) * _S * _G * _n0 / ρ *
@@ -337,10 +430,6 @@ function accretion(
 
         _n0::FT = n0(prs, q_pre, ρ, precip)
         _r0::FT = r0(prs, precip)
-        _m0::FT = m0(prs, precip)
-        _me::FT = me(prs, precip)
-        _Δm::FT = Δm(prs, precip)
-        _χm::FT = χm(prs, precip)
         _χv::FT = χv(prs, precip)
         _v0::FT = v0(prs, ρ, precip)
         _ve::FT = ve(prs, precip)
@@ -349,7 +438,7 @@ function accretion(
         _ae::FT = ae(prs, precip)
         _χa::FT = χa(prs, precip)
         _Δa::FT = Δa(prs, precip)
-        _λ::FT = lambda(q_pre, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
+        _λ::FT = lambda(prs, precip, q_pre, ρ)
         _E::FT = E(prs, cloud, precip)
 
         accr_rate =
@@ -381,13 +470,7 @@ function accretion_rain_sink(
     accr_rate = FT(0)
     if (q_ice > FT(0) && q_rai > FT(0))
 
-        _r_ice_snow::FT = CMP.r_ice_snow(prs)
         _n0_ice::FT = n0(prs, FT(0), ρ, CT.IceType())
-        _r0_ice::FT = r0(prs, CT.IceType())
-        _m0_ice::FT = m0(prs, CT.IceType())
-        _me_ice::FT = me(prs, CT.IceType())
-        _Δm_ice::FT = Δm(prs, CT.IceType())
-        _χm_ice::FT = χm(prs, CT.IceType())
         _n0_rai::FT = n0(prs, q_rai, ρ, CT.RainType())
         _r0_rai::FT = r0(prs, CT.RainType())
         _m0_rai::FT = m0(prs, CT.RainType())
@@ -404,26 +487,8 @@ function accretion_rain_sink(
         _Δa_rai::FT = Δa(prs, CT.RainType())
         _E::FT = E(prs, CT.IceType(), CT.RainType())
 
-        _λ_rai::FT = lambda(
-            q_rai,
-            ρ,
-            _n0_rai,
-            _m0_rai,
-            _me_rai,
-            _r0_rai,
-            _χm_rai,
-            _Δm_rai,
-        )
-        _λ_ice::FT = lambda(
-            q_ice,
-            ρ,
-            _n0_ice,
-            _m0_ice,
-            _me_ice,
-            _r0_ice,
-            _χm_ice,
-            _Δm_ice,
-        )
+        _λ_rai::FT = lambda(prs, CT.RainType(), q_rai, ρ)
+        _λ_ice::FT = lambda(prs, CT.IceType(), q_ice, ρ)
 
         accr_rate =
             _E / ρ *
@@ -479,42 +544,21 @@ function accretion_snow_rain(
     if (q_i > FT(0) && q_j > FT(0))
 
         _n0_i::FT = n0(prs, q_i, ρ, type_i)
-        _r0_i::FT = r0(prs, type_i)
-        _m0_i::FT = m0(prs, type_i)
-        _me_i::FT = me(prs, type_i)
-        _Δm_i::FT = Δm(prs, type_i)
-        _χm_i::FT = χm(prs, type_i)
-        _χv_i::FT = χv(prs, type_i)
-        _v0_i::FT = v0(prs, ρ, type_i)
-        _ve_i::FT = ve(prs, type_i)
-        _Δv_i::FT = Δv(prs, type_i)
-        _a0_i::FT = a0(prs, type_i)
-        _ae_i::FT = ae(prs, type_i)
-        _χa_i::FT = χa(prs, type_i)
-        _Δa_i::FT = Δa(prs, type_i)
-
         _n0_j::FT = n0(prs, q_j, ρ, type_j)
+
         _r0_j::FT = r0(prs, type_j)
         _m0_j::FT = m0(prs, type_j)
         _me_j::FT = me(prs, type_j)
         _Δm_j::FT = Δm(prs, type_j)
         _χm_j::FT = χm(prs, type_j)
-        _χv_j::FT = χv(prs, type_j)
-        _v0_j::FT = v0(prs, ρ, type_j)
-        _ve_j::FT = ve(prs, type_j)
-        _Δv_j::FT = Δv(prs, type_j)
-        _a0_j::FT = a0(prs, type_j)
-        _ae_j::FT = ae(prs, type_j)
-        _χa_j::FT = χa(prs, type_j)
-        _Δa_j::FT = Δa(prs, type_j)
 
         _E_ij::FT = E(prs, type_i, type_j)
 
-        _λ_i::FT = lambda(q_i, ρ, _n0_i, _m0_i, _me_i, _r0_i, _χm_i, _Δm_i)
-        _λ_j::FT = lambda(q_j, ρ, _n0_j, _m0_j, _me_j, _r0_j, _χm_j, _Δm_j)
+        _λ_i::FT = lambda(prs, type_i, q_i, ρ)
+        _λ_j::FT = lambda(prs, type_j, q_j, ρ)
 
-        _v_ti = terminal_velocity(prs, type_i, ρ, q_i)
-        _v_tj = terminal_velocity(prs, type_j, ρ, q_j)
+        _v_ti = terminal_velocity(prs, type_i, CT.Blk1MVelType(), ρ, q_i)
+        _v_tj = terminal_velocity(prs, type_j, CT.Blk1MVelType(), ρ, q_j)
 
         accr_rate =
             FT(π) / ρ *
@@ -571,23 +615,15 @@ function evaporation_sublimation(
 
         _n0::FT = n0(prs, q_rai, ρ, rain)
         _r0::FT = r0(prs, rain)
-        _m0::FT = m0(prs, rain)
-        _me::FT = me(prs, rain)
-        _Δm::FT = Δm(prs, rain)
-        _χm::FT = χm(prs, rain)
         _χv::FT = χv(prs, rain)
         _v0::FT = v0(prs, ρ, rain)
         _ve::FT = ve(prs, rain)
         _Δv::FT = Δv(prs, rain)
-        _a0::FT = a0(prs, rain)
-        _ae::FT = ae(prs, rain)
-        _χa::FT = χa(prs, rain)
-        _Δa::FT = Δa(prs, rain)
 
         _a_vent::FT = a_vent(prs, rain)
         _b_vent::FT = b_vent(prs, rain)
 
-        _λ::FT = lambda(q_rai, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
+        _λ::FT = lambda(prs, rain, q_rai, ρ)
 
         evap_subl_rate =
             4 * FT(π) * _n0 / ρ * _S * _G / _λ^FT(2) * (
@@ -620,23 +656,15 @@ function evaporation_sublimation(
 
         _n0::FT = n0(prs, q_sno, ρ, snow)
         _r0::FT = r0(prs, snow)
-        _m0::FT = m0(prs, snow)
-        _me::FT = me(prs, snow)
-        _Δm::FT = Δm(prs, snow)
-        _χm::FT = χm(prs, snow)
         _χv::FT = χv(prs, snow)
         _v0::FT = v0(prs, ρ, snow)
         _ve::FT = ve(prs, snow)
         _Δv::FT = Δv(prs, snow)
-        _a0::FT = a0(prs, snow)
-        _ae::FT = ae(prs, snow)
-        _χa::FT = χa(prs, snow)
-        _Δa::FT = Δa(prs, snow)
 
         _a_vent::FT = a_vent(prs, snow)
         _b_vent::FT = b_vent(prs, snow)
 
-        _λ::FT = lambda(q_sno, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
+        _λ::FT = lambda(prs, snow, q_sno, ρ)
 
         evap_subl_rate =
             4 * FT(π) * _n0 / ρ * _S * _G / _λ^FT(2) * (
@@ -678,23 +706,15 @@ function snow_melt(prs::APS, q_sno::FT, ρ::FT, T::FT) where {FT <: Real}
 
         _n0::FT = n0(prs, q_sno, ρ, snow)
         _r0::FT = r0(prs, snow)
-        _m0::FT = m0(prs, snow)
-        _me::FT = me(prs, snow)
-        _Δm::FT = Δm(prs, snow)
-        _χm::FT = χm(prs, snow)
         _χv::FT = χv(prs, snow)
         _v0::FT = v0(prs, ρ, snow)
         _ve::FT = ve(prs, snow)
         _Δv::FT = Δv(prs, snow)
-        _a0::FT = a0(prs, snow)
-        _ae::FT = ae(prs, snow)
-        _χa::FT = χa(prs, snow)
-        _Δa::FT = Δa(prs, snow)
 
         _a_vent::FT = a_vent(prs, snow)
         _b_vent::FT = b_vent(prs, snow)
 
-        _λ::FT = lambda(q_sno, ρ, _n0, _m0, _me, _r0, _χm, _Δm)
+        _λ::FT = lambda(prs, snow, q_sno, ρ)
 
         snow_melt_rate =
             4 * FT(π) * _n0 / ρ * _K_therm / L * (T - _T_freeze) / _λ^FT(2) * (
