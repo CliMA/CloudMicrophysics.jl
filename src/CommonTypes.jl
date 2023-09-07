@@ -125,6 +125,14 @@ struct LD2004Type <: Abstract2MPrecipType end
 Base.broadcastable(x::LD2004Type) = tuple(x)
 
 """
+    VarTimeScaleAcnvType
+
+The type for 2-moment precipitation formation based on the 1-moment parameterization
+"""
+struct VarTimeScaleAcnvType <: Abstract2MPrecipType end
+Base.broadcastable(x::VarTimeScaleAcnvType) = tuple(x)
+
+"""
     SB2006Type
 
 The type for 2-moment precipitation formation by Seifert and Beheng (2006)

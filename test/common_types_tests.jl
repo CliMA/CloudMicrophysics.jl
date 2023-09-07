@@ -17,6 +17,7 @@ function test_common_types_broadcasts()
         CMT.B1994Type,
         CMT.TC1980Type,
         CMT.LD2004Type,
+        CMT.VarTimeScaleAcnvType,
         CMT.SB2006Type,
         CMT.AbstractTerminalVelocityType,
         CMT.Blk1MVelType,

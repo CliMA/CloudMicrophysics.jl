@@ -23,6 +23,7 @@ const KK2000 = CMT.KK2000Type()
 const B1994 = CMT.B1994Type()
 const TC1980 = CMT.TC1980Type()
 const LD2004 = CMT.LD2004Type()
+const VarTimeScaleAcnv = CMT.VarTimeScaleAcnvType()
 const Blk1MVel = CMT.Blk1MVelType()
 const SB2006Vel = CMT.SB2006VelType()
 const Ch2022 = CMT.Chen2022Type()
@@ -480,6 +481,7 @@ function test_microphysics(FT)
         # no reference data available - checking if callable and not NaN
         q_liq = FT(0.5e-3)
         q_rai = FT(1e-6)
+        TT.@test CM2.conv_q_liq_to_q_rai(prs, VarTimeScaleAcnv, q_liq, ρ) != NaN
         TT.@test CM2.accretion(prs, KK2000, q_liq, q_rai, ρ) != NaN
         TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) != NaN
         TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) != NaN
@@ -492,6 +494,8 @@ function test_microphysics(FT)
         TT.@test CM2.conv_q_liq_to_q_rai(prs, B1994, q_liq, ρ) == FT(0)
         TT.@test CM2.conv_q_liq_to_q_rai(prs, TC1980, q_liq, ρ) == FT(0)
         TT.@test CM2.conv_q_liq_to_q_rai(prs, LD2004, q_liq, ρ) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(prs, VarTimeScaleAcnv, q_liq, ρ) ==
+                 FT(0)
         TT.@test CM2.accretion(prs, KK2000, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) == FT(0)

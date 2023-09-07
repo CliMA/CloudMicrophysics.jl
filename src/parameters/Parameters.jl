@@ -102,6 +102,7 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP, MNP} <:
     b_acc_KK2000::FT
     R_6C_coeff_LD2004::FT
     E_0_LD2004::FT
+    α_var_time_scale_acnv::FT
     k_thrshld_stpnss::FT
     kcc_SB2006::FT
     kcr_SB2006::FT

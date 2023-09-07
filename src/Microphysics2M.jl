@@ -649,6 +649,21 @@ function conv_q_liq_to_q_rai(
         return E * (q_liq * ρ)^3 / N_d / ρ * _output
     end
 end
+function conv_q_liq_to_q_rai(
+    param_set::APS,
+    scheme::CT.VarTimeScaleAcnvType,
+    q_liq::FT,
+    ρ::FT;
+    N_d::FT = FT(1e8),
+) where {FT <: Real}
+
+    q_liq = max(0, q_liq)
+
+    _τ_acnv_0::FT = CMP.τ_acnv_rai(param_set)
+    _α_acnv::FT = CMP.α_var_time_scale_acnv(param_set)
+
+    return max(0, q_liq) / (_τ_acnv_0 * (N_d / 1e8)^_α_acnv)
+end
 
 """
     accretion(param_set, scheme, q_liq, q_rai, ρ)
