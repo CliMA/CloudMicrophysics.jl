@@ -84,14 +84,14 @@ function parcel_model(dY, Y, p, t)
 
         dN_act_dt_deposition = max(FT(0), AF * N_aerosol - N_act) / τ_relax
     else
-        @warn "Invalid freezing mode in run_parcel argument. Running without freezing.\nPlease choose between \"no freezing\" or \"deposition\" (include quotation marks)."
+        @warn "Invalid freezing mode. Running without freezing.\nPlease choose between \"no freezing\" or \"deposition\" (include quotation marks)."
 
     end
     dN_act_dt = dN_act_dt_deposition
     dN_aerosol_dt = -dN_act_dt
     dqi_dt_new_particles = dN_act_dt * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ
 
-    # TODO - Activating new droplets
+    # TODO - Activating new droplets, need to find dS_liq/dt
     dN_droplets_dt = FT(0)
 
     # Growth
