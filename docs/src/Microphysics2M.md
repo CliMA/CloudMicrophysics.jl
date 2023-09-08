@@ -542,6 +542,26 @@ Then the ``R_6`` and ``R_{6C}`` are defined as
 |``R_{C0}``  | ``7.5 ``                  |
 |``E_0``     | ``1.08 \times 10^{10}``   |
 
+#### Auto-conversion with time scale depending on number density
+
+```math
+\begin{equation}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
+    \frac{q_{liq}}{\tau_{acnv,\, 0} \left(\frac{N_d}{100\, cm^{-3}}\right)^{\alpha_{acnv}}}
+\end{equation}
+```
+where:
+  - ``q_{liq}`` is the cloud liquid water specific humidity,
+  - ``N_d`` is the cloud droplet number concentration,
+  - ``\tau_{acnv,\, 0}`` is the auto-conversion time scale at ``N_d = 100 cm^{-3}``.
+
+The default free parameter values are:
+
+|   symbol             | default value             |
+|----------------------|---------------------------|
+|``\tau_{acnv,\, 0}``  | ``1000\ s``               |
+|``\alpha_{acnv}``     | ``1``                     |
+
 ### Accretion
 
 #### Khairoutdinov and Kogan (2000)
@@ -630,6 +650,7 @@ const KK2000 = CMT.KK2000Type()
 const B1994  = CMT.B1994Type()
 const TC1980 = CMT.TC1980Type()
 const LD2004 = CMT.LD2004Type()
+const VarTimeScaleAcnv = CMT.VarTimeScaleAcnvType()
 const SB2006 = CMT.SB2006Type()
 
 include(joinpath(pkgdir(CloudMicrophysics), "docs", "src", "Wooddata.jl"))
@@ -646,6 +667,7 @@ q_liq_KK2000 = [CM2.conv_q_liq_to_q_rai(param_set, KK2000, q_liq, ρ_air, N_d = 
 q_liq_B1994 = [CM2.conv_q_liq_to_q_rai(param_set, B1994, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
 q_liq_TC1980 = [CM2.conv_q_liq_to_q_rai(param_set, TC1980, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
 q_liq_LD2004 = [CM2.conv_q_liq_to_q_rai(param_set, LD2004, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_VarTimeScaleAcnv = [CM2.conv_q_liq_to_q_rai(param_set, VarTimeScaleAcnv, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
 q_liq_SB2006 = [CM2.autoconversion(param_set, SB2006, q_liq, q_rai, ρ_air, 1e8).dq_rai_dt for q_liq in q_liq_range]
 q_liq_K1969 = [CM1.conv_q_liq_to_q_rai(param_set, q_liq) for q_liq in q_liq_range]
 
@@ -653,6 +675,7 @@ N_d_KK2000 = [CM2.conv_q_liq_to_q_rai(param_set, KK2000, 5e-4, ρ_air, N_d = N_d
 N_d_B1994 = [CM2.conv_q_liq_to_q_rai(param_set, B1994, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
 N_d_TC1980 = [CM2.conv_q_liq_to_q_rai(param_set, TC1980, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
 N_d_LD2004 = [CM2.conv_q_liq_to_q_rai(param_set, LD2004, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_VarTimeScaleAcnv = [CM2.conv_q_liq_to_q_rai(param_set, VarTimeScaleAcnv, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
 N_d_SB2006 = [CM2.autoconversion(param_set, SB2006, q_liq, q_rai, ρ_air, N_d).dq_rai_dt for N_d in N_d_range]
 
 accKK2000_q_liq = [CM2.accretion(param_set, KK2000, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
@@ -713,6 +736,9 @@ l27 = lines!(ax2, N_d_range * 1e-6, N_d_SB2006,    color = :cyan)
 l28 = lines!(ax3, q_liq_range * 1e3, accSB2006_q_liq,    color = :cyan)
 l28 = lines!(ax4, q_rai_range * 1e3, accSB2006_q_rai,    color = :cyan)
 
+l29 = lines!(ax1, q_liq_range * 1e3, q_liq_VarTimeScaleAcnv,    color = :orange)
+l30 = lines!(ax2, N_d_range * 1e-6, N_d_VarTimeScaleAcnv,    color = :orange)
+
 ax1.xlabel = "q_liq [g/kg]"
 ax1.ylabel = "autoconversion rate [1/s]"
 ax2.xlabel = "N_d [1/cm3]"
@@ -724,8 +750,8 @@ ax4.ylabel = "accretion rate [1/s]"
 
 Legend(
     fig[1, 3],
-    [l1, l2, l3, l4, l26, l5, l6, l7, l8, l9],
-    ["KK2000", "B1994", "TC1980", "LD2004", "SB2006", "K1969", "Wood_KK2000", "Wood_B1994", "Wood_TC1980", "Wood_LD2004"]
+    [l1, l2, l3, l4, l26, l5, l6, l7, l8, l9, l29],
+    ["KK2000", "B1994", "TC1980", "LD2004", "SB2006", "K1969", "Wood_KK2000", "Wood_B1994", "Wood_TC1980", "Wood_LD2004", "SA2023"]
 )
 save("Autoconversion_accretion.svg", fig)
 ```

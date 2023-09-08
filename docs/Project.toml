@@ -10,4 +10,4 @@ Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
-CLIMAParameters = "0.7.12"
+CLIMAParameters = "0.7.15"
