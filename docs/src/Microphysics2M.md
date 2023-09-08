@@ -750,8 +750,8 @@ ax4.ylabel = "accretion rate [1/s]"
 
 Legend(
     fig[1, 3],
-    [l1, l2, l3, l4, l26, l5, l6, l7, l8, l9],
-    ["KK2000", "B1994", "TC1980", "LD2004", "SB2006", "K1969", "Wood_KK2000", "Wood_B1994", "Wood_TC1980", "Wood_LD2004"]
+    [l1, l2, l3, l4, l26, l5, l6, l7, l8, l9, l29],
+    ["KK2000", "B1994", "TC1980", "LD2004", "SB2006", "K1969", "Wood_KK2000", "Wood_B1994", "Wood_TC1980", "Wood_LD2004", "SA2023"]
 )
 save("Autoconversion_accretion.svg", fig)
 ```

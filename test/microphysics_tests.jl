@@ -505,6 +505,20 @@ function test_microphysics(FT)
         TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) == FT(0)
 
+        TT.@test CM2.conv_q_liq_to_q_rai(
+            prs,
+            VarTimeScaleAcnv,
+            q_liq,
+            ρ,
+            N_d = FT(1e8),
+        ) > CM2.conv_q_liq_to_q_rai(
+            prs,
+            VarTimeScaleAcnv,
+            q_liq,
+            ρ,
+            N_d = FT(1e9),
+        )
+
         # far from threshold points, autoconversion with and without smooth transition should
         # be approximately equal
         q_liq = FT(0.5e-3)
