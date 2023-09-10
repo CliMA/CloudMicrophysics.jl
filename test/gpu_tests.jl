@@ -19,6 +19,7 @@ import CloudMicrophysics.CommonTypes as CMT
 import CloudMicrophysics.Microphysics0M as CM0
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Nucleation as MN
+import CloudMicrophysics.P3Scheme as P3
 
 const liquid = CMT.LiquidType()
 const ice = CMT.IceType()
@@ -422,11 +423,27 @@ end
     end
 end
 
+@kernel function test_P3_scheme_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    F_r,
+    ρ_r,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1, i] = P3.thresholds(prs, ρ_r[i], F_r[i])[1]
+        output[2, i] = P3.thresholds(prs, ρ_r[i], F_r[i])[2]
+    end
+end
+
 function test_gpu(FT)
 
     make_prs(::Type{FT}) where {FT} = cloud_microphysics_parameters(
         CP.create_toml_dict(FT; dict_type = "alias"),
     )
+    p3_prs = CMP.CloudMicrophysicsParametersP3(FT)
 
     @testset "Aerosol activation kernels" begin
         data_length = 2
@@ -752,6 +769,47 @@ function test_gpu(FT)
         wait(dev, event)
 
         @test all(Array(output) .> FT(0))
+    end
+
+    @testset "P3 scheme kernels" begin
+        data_length = 2
+        output = ArrayType(Array{FT}(undef, 2, data_length))
+        fill!(output, FT(-44.0))
+
+        ndrange = (data_length,)
+        dev = device(ArrayType)
+        work_groups = (1,)
+
+        F_r = ArrayType([FT(0.5), FT(0.95)])
+        ρ_r = ArrayType([FT(400), FT(800)])
+
+        kernel! = test_P3_scheme_kernel!(dev, work_groups)
+        event = kernel!(p3_prs, output, F_r, ρ_r, ndrange = ndrange)
+        wait(dev, event)
+
+        # test if all output is positive...
+        @test all(Array(output) .> FT(0))
+        #... and returns reasonable numbers
+        @test isapprox(
+            Array(output)[1, 1],
+            FT(0.4946323381999426 * 1e-3),
+            rtol = 1e-2,
+        )
+        @test isapprox(
+            Array(output)[2, 1],
+            FT(0.26151186272014415 * 1e-3),
+            rtol = 1e-2,
+        )
+        @test isapprox(
+            Array(output)[1, 2],
+            FT(1.7400778369620664 * 1e-3),
+            rtol = 1e-2,
+        )
+        @test isapprox(
+            Array(output)[2, 2],
+            FT(0.11516682512848 * 1e-3),
+            rtol = 1e-2,
+        )
     end
 end
 

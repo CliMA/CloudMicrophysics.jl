@@ -10,7 +10,7 @@ Note: Particle size is defined as its maximum length (i.e. max dimesion).
 """
 module P3Scheme
 
-import NonlinearSolve as NLS
+import RootSolvers as RS
 import CLIMAParameters as CP
 import ..Parameters as CMP
 
@@ -102,54 +102,45 @@ function ρ_d_helper(p3::PSP3, D_cr, D_gr)
 end
 
 """
-    thresholds(p3, ρ_r, F_r, u0)
+    thresholds(p3, ρ_r, F_r)
 
  - p3 - a struct with P3 scheme parameters
  - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
  - F_r - rime mass fraction (q_rim/q_i) [-]
- - u0 - initial guess for the solver.
-   Best option is to pass the natural logarithm of the solution from the previous time step.
-   The default value is set to around log.(thresholds(400.0, 0.5, log.([0.00049, 0.00026, 306.668, 213.336])))
 
 Solves the nonlinear system consisting of D_cr, D_gr, ρ_g, ρ_d
-for a given rime density and rime mass fraction, where:
+for a given rime density and rime mass fraction.
+Returns a named tuple containing:
  - D_cr - is the threshold size separating partially rimed ice and graupel [m],
  - D_gr - is the threshold size separating graupel and dense nonspherical ice [m],
  - ρ_g - is the effective density of a spherical graupel particle [kg/m3],
  - ρ_d - is the density of the unrimed portion of the particle [kg/m3],
 """
-function thresholds(
-    p3::PSP3,
-    ρ_r::FT,
-    F_r::FT,
-    u0::Vector{FT} = [FT(-7.6), FT(-8.2), FT(5.7), FT(5.4)], # TODO - Vectors won't work on GPU
-) where {FT <: Real}
+function thresholds(p3::PSP3, ρ_r::FT, F_r::FT) where {FT <: Real}
 
     @assert ρ_r > FT(0)   # rime density must be positive ...
     @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
     @assert F_r > FT(0)   # rime mass fraction must be positive ...
     @assert F_r < FT(1)   # ... and there must always be some unrimed part
-    p = (; p3, ρ_r, F_r)
 
-    # Domain shift exp(u) to constrain the solutions to be positive.
-    # We are solving a set of four equations: u[i] - _helper(u[i], p) = 0
-    function f(u, p)
-        _D_cr = exp(u[1])
-        _D_gr = exp(u[2])
-        _ρ_g = exp(u[3])
-        _ρ_d = exp(u[4])
-        return [
-            _D_cr - D_cr_helper(p.p3, p.F_r, _ρ_g),
-            _D_gr - D_gr_helper(p.p3, _ρ_g),
-            _ρ_g - ρ_g_helper(p.ρ_r, p.F_r, _ρ_d),
-            _ρ_d - ρ_d_helper(p.p3, _D_cr, _D_gr),
-        ]
+    function P3_problem(ρ_d)
+        ρ_g = ρ_g_helper(ρ_r, F_r, ρ_d)
+        D_cr = D_cr_helper(p3, F_r, ρ_g)
+        D_gr = D_gr_helper(p3, ρ_g)
+        return ρ_d - ρ_d_helper(p3, D_cr, D_gr)
     end
 
-    P3_prob = NLS.NonlinearProblem(f, u0, p)
-    sol = NLS.solve(P3_prob, NLS.NewtonRaphson(), abstol = eps(FT))
-    D_cr, D_gr, ρ_g, ρ_d = exp.(sol) # shift back into desired domain space
-    return [D_cr, D_gr, ρ_g, ρ_d]
+    sol = RS.find_zero(
+        P3_problem,
+        RS.SecantMethod(FT(0), FT(1000)),
+        RS.CompactSolution(),
+    )
+    ρ_d = sol.root
+    ρ_g = ρ_g_helper(ρ_r, F_r, ρ_d)
+    D_cr = D_cr_helper(p3, F_r, ρ_g)
+    D_gr = D_gr_helper(p3, ρ_g)
+
+    return (; D_cr, D_gr, ρ_g, ρ_d)
 end
 
 end

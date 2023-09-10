@@ -57,11 +57,11 @@ function test_p3_thresholds(FT)
         for F_r in F_r_good
             for ρ_r in ρ_r_good
                 sol = P3.thresholds(p3, ρ_r, F_r)
-                atol = 1.5e3 * eps(FT)
-                TT.@test sol[1] ≈ P3.D_cr_helper(p3, F_r, sol[3]) atol = atol
-                TT.@test sol[2] ≈ P3.D_gr_helper(p3, sol[3]) atol = atol
-                TT.@test sol[3] ≈ P3.ρ_g_helper(ρ_r, F_r, sol[4]) atol = atol
-                TT.@test sol[4] ≈ P3.ρ_d_helper(p3, sol[1], sol[2]) atol = atol
+                atol = 5e3 * eps(FT)
+                TT.@test sol.D_cr ≈ P3.D_cr_helper(p3, F_r, sol[3]) atol = atol
+                TT.@test sol.D_gr ≈ P3.D_gr_helper(p3, sol[3]) atol = atol
+                TT.@test sol.ρ_g ≈ P3.ρ_g_helper(ρ_r, F_r, sol[4]) atol = atol
+                TT.@test sol.ρ_d ≈ P3.ρ_d_helper(p3, sol[1], sol[2]) atol = atol
             end
         end
 
