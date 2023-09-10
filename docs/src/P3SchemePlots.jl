@@ -57,7 +57,7 @@ function mass(
     p3::PSP3,
     D::FT,
     F_r::FT,
-    th = (; D_cr = 0.0, D_gr = 0.0, ρ_g = 0.0, ρ_d = 0.0),
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT <: Real}
     if P3.D_th_helper(p3) > D
         return mass_s(D, p3.ρ_i)          # small spherical ice
@@ -90,7 +90,7 @@ function area(
     p3::PSP3,
     D::FT,
     F_r::FT,
-    th = (; D_cr = 0.0, D_gr = 0.0, ρ_g = 0.0, ρ_d = 0.0),
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT <: Real}
     # Area regime:
     if P3.D_th_helper(p3) > D
