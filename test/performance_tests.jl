@@ -96,7 +96,7 @@ function benchmark_test(FT)
     Delta_a_w = FT(0.27)
 
     # P3 scheme
-    bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 4e6, 4e4)
+    bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 2048, 80)
 
     # aerosol activation
     bench_press(

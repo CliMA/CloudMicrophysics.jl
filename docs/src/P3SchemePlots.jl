@@ -44,12 +44,12 @@ A_ns(p3::PSP3, D::FT) = p3.γ * D^p3.σ
 # partially rimed ice
 A_r(p3::PSP3, F_r::FT, D::FT) = F_r * A_s(D) + (1 - F_r) * A_ns(p3, D)
 """
-    mass(p3, D, D_th, F_r)
+    mass(p3, D, F_r, th)
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
- - D_th - P3Scheme nonlinear solve output vector with [D_cr, D_gr, ρ_g, ρ_d]
  - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns mass(D) regime, used to create figures for the docs page.
 """
@@ -57,7 +57,7 @@ function mass(
     p3::PSP3,
     D::FT,
     F_r::FT,
-    D_th::Vector{FT} = [0.0, 0.0, 0.0, 0.0],
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT <: Real}
     if P3.D_th_helper(p3) > D
         return mass_s(D, p3.ρ_i)          # small spherical ice
@@ -65,24 +65,24 @@ function mass(
     if F_r == 0
         return mass_nl(p3, D)             # large nonspherical unrimed ice
     end
-    if D_th[2] > D >= P3.D_th_helper(p3)
+    if th.D_gr > D >= P3.D_th_helper(p3)
         return mass_nl(p3, D)             # dense nonspherical ice
     end
-    if D_th[1] > D >= D_th[2]
-        return mass_s(D, D_th[3])         # graupel
+    if th.D_cr > D >= th.D_gr
+        return mass_s(D, th.ρ_g)          # graupel
     end
-    if D >= D_th[1]
+    if D >= th.D_cr
         return mass_r(p3, D, F_r)         # partially rimed ice
     end
 end
 
 """
-    area(p3, D, F_r, thresholds)
+    area(p3, D, F_r, th)
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
  - F_r - rime mass fraction (q_rim/q_i)
- - thresholds - P3Scheme nonlinear solve output vector with [D_cr, D_gr, ρ_g, ρ_d]
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns area(D), used to create figures for the documentation.
 """
@@ -90,7 +90,7 @@ function area(
     p3::PSP3,
     D::FT,
     F_r::FT,
-    D_th::Vector{FT} = [0.0, 0.0, 0.0, 0.0],
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT <: Real}
     # Area regime:
     if P3.D_th_helper(p3) > D
@@ -99,13 +99,13 @@ function area(
     if F_r == 0
         return A_ns(p3, D)                 # large nonspherical unrimed ice
     end
-    if D_th[2] > D >= P3.D_th_helper(p3)
+    if th.D_gr > D >= P3.D_th_helper(p3)
         return A_ns(p3, D)                 # dense nonspherical ice
     end
-    if D_th[1] > D >= D_th[2]
+    if th.D_cr > D >= th.D_gr
         return A_s(D)                      # graupel
     end
-    if D >= D_th[1]
+    if D >= th.D_cr
         return A_r(p3, F_r, D)             # partially rimed ice
     end
 
