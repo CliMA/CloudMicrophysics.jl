@@ -18,7 +18,10 @@ import CloudMicrophysics.Common as CO
 import CloudMicrophysics.CommonTypes as CMT
 import CloudMicrophysics.Microphysics0M as CM0
 import CloudMicrophysics.Microphysics1M as CM1
-import CloudMicrophysics.Nucleation as MN
+import CloudMicrophysics.Nucleation as HN
+import CloudMicrophysics.Parameters.H2S04NucleationParameters
+import CloudMicrophysics.Parameters.MixedNucleationParameters
+import CloudMicrophysics.Parameters.OrganicNucleationParameters
 import CloudMicrophysics.P3Scheme as P3
 
 const liquid = CMT.LiquidType()
@@ -184,7 +187,7 @@ end
 
     @inbounds begin
         output[i] = sum(
-            MN.h2so4_nucleation_rate(
+            HN.h2so4_nucleation_rate(
                 h2so4_conc[i],
                 nh3_conc[i],
                 negative_ion_conc[i],
@@ -209,7 +212,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = MN.organic_nucleation_rate(
+        output[i] = HN.organic_nucleation_rate(
             negative_ion_conc[i],
             monoterpene_conc[i],
             O3_conc[i],
@@ -234,7 +237,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = MN.organic_and_h2so4_nucleation_rate(
+        output[i] = HN.organic_and_h2so4_nucleation_rate(
             h2so4_conc[i],
             monoterpene_conc[i],
             OH_conc[i],
@@ -258,7 +261,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = MN.apparent_nucleation_rate(
+        output[i] = HN.apparent_nucleation_rate(
             output_diam[i],
             nucleation_rate[i],
             condensation_growth_rate[i],
@@ -338,7 +341,7 @@ end
 
     @inbounds begin
         output[i] = sum(
-            MN.h2so4_nucleation_rate(
+            HN.h2so4_nucleation_rate(
                 h2so4_conc[i],
                 nh3_conc[i],
                 negative_ion_conc[i],
@@ -363,7 +366,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = MN.organic_nucleation_rate(
+        output[i] = HN.organic_nucleation_rate(
             negative_ion_conc[i],
             monoterpene_conc[i],
             O3_conc[i],
@@ -388,7 +391,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = MN.organic_and_h2so4_nucleation_rate(
+        output[i] = HN.organic_and_h2so4_nucleation_rate(
             h2so4_conc[i],
             monoterpene_conc[i],
             OH_conc[i],
@@ -412,7 +415,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = MN.apparent_nucleation_rate(
+        output[i] = HN.apparent_nucleation_rate(
             output_diam[i],
             nucleation_rate[i],
             condensation_growth_rate[i],
@@ -683,7 +686,7 @@ function test_gpu(FT)
 
         kernel! = test_h2so4_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_prs(FT),
+            H2S04NucleationParameters(FT),
             output,
             h2so4_conc,
             nh3_conc,
@@ -707,7 +710,7 @@ function test_gpu(FT)
 
         kernel! = test_organic_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_prs(FT),
+            OrganicNucleationParameters(FT),
             output,
             negative_ion_conc,
             monoterpene_conc,
@@ -732,7 +735,7 @@ function test_gpu(FT)
 
         kernel! = test_organic_and_h2so4_nucleation_kernel!(dev, work_groups)
         event = kernel!(
-            make_prs(FT),
+            MixedNucleationParameters(FT),
             output,
             h2so4_conc,
             monoterpene_conc,

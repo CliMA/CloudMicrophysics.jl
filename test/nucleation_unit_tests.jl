@@ -2,12 +2,16 @@ using Test
 import CLIMAParameters as CP
 
 import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters.MixedNucleationParameters
+import CloudMicrophysics.Parameters.H2S04NucleationParameters
+import CloudMicrophysics.Parameters.OrganicNucleationParameters
 
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 FT = Float64
 toml_dict = CP.create_toml_dict(FT)
-params = cloud_microphysics_parameters(toml_dict)
+mixed_nuc_params = MixedNucleationParameters(FT)
+h2s04_nuc_params = H2S04NucleationParameters(FT)
+organic_nuc_params = OrganicNucleationParameters(FT)
 
 @testset "Pure H2SO4 Nucleation Smoke Test" begin
     nh3_conc = 0.0
@@ -20,7 +24,7 @@ params = cloud_microphysics_parameters(toml_dict)
                 nh3_conc,
                 negative_ion_conc,
                 temp,
-                params,
+                h2s04_nuc_params,
             ),
         ) * 1e-6
 
@@ -47,7 +51,7 @@ end
             CM.Nucleation.organic_nucleation_rate_hom_prescribed(
                 negative_ion_conc,
                 hom_c,
-                params,
+                organic_nuc_params,
             ),
         ) * 1e-6
 
@@ -71,7 +75,7 @@ end
         CM.Nucleation.organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
             h2so4_conc,
             bioOxOrg,
-            params,
+            mixed_nuc_params,
         ) * 1e6
 
     bioOxOrg_concentrations = 10 .^ (5.8:0.25:8.5)

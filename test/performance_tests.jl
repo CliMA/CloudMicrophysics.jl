@@ -16,6 +16,9 @@ import CloudMicrophysics.Microphysics0M as CM0
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Nucleation as HN
+import CloudMicrophysics.Parameters.MixedNucleationParameters
+import CloudMicrophysics.Parameters.H2S04NucleationParameters
+import CloudMicrophysics.Parameters.OrganicNucleationParameters
 import CloudMicrophysics.P3Scheme as P3
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
@@ -158,15 +161,19 @@ function benchmark_test(FT)
         1700,
     )
     # Homogeneous Nucleation
-    bench_press(HN.h2so4_nucleation_rate, (1e12, 1.0, 1.0, 208, prs), 470)
+    bench_press(
+        HN.h2so4_nucleation_rate,
+        (1e12, 1.0, 1.0, 208, H2S04NucleationParameters(FT)),
+        470,
+    )
     bench_press(
         HN.organic_nucleation_rate,
-        (0.0, 1e3, 1e3, 1e3, 300, 1, prs),
+        (0.0, 1e3, 1e3, 1e3, 300, 1, OrganicNucleationParameters(FT)),
         650,
     )
     bench_press(
         HN.organic_and_h2so4_nucleation_rate,
-        (2.6e6, 1.0, 1.0, 300, 1, prs),
+        (2.6e6, 1.0, 1.0, 300, 1, MixedNucleationParameters(FT)),
         120,
     )
 end

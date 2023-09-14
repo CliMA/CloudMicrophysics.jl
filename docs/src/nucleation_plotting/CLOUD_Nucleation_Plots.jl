@@ -3,11 +3,10 @@ using Plots
 import CLIMAParameters as CP
 import CloudMicrophysics as CM
 import CloudMicrophysics.Nucleation as Nucleation
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
+import CloudMicrophysics.Parameters.H2S04NucleationParameters
 
 FT = Float64
-toml_dict = CP.create_toml_dict(FT)
-params = cloud_microphysics_parameters(toml_dict)
+params = H2S04NucleationParameters(FT)
 
 function plot_pure_h2so4_nucleation_rate(
     h2so4_concentrations,

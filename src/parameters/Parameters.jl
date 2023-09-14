@@ -15,6 +15,7 @@ export CloudMicrophysicsParametersP3
 
 include("cmp_0m.jl")
 include("cmp_p3.jl")
+include("modal_nucleation.jl")
 
 # TODO: add doc strings
 # Cloud microphysics parameters
@@ -22,7 +23,7 @@ include("cmp_p3.jl")
     CloudMicrophysicsParameters
 
 """
-Base.@kwdef struct CloudMicrophysicsParameters{FT, TP, MNP} <:
+Base.@kwdef struct CloudMicrophysicsParameters{FT, TP} <:
                    AbstractCloudMicrophysicsParameters
     K_therm::FT
     D_vapor::FT
@@ -212,10 +213,6 @@ Base.@kwdef struct CloudMicrophysicsParameters{FT, TP, MNP} <:
     β_va_BF1995::FT
     σ_M1996::FT
     γ_M1996::FT
-    modal_nucleation_params::MNP
-end
-
-Base.@kwdef struct ModalNucleationParameters{FT}
     p_b_n::FT
     p_b_i::FT
     u_b_n::FT
@@ -255,7 +252,6 @@ Base.eltype(::CloudMicrophysicsParameters{FT}) where {FT} = FT
 const CMPS = CloudMicrophysicsParameters
 
 thermodynamics_params(cmp::CMPS) = cmp.thermo_params
-modal_nucleation_params(cmp::CMPS) = cmp.modal_nucleation_params
 
 # Derived parameters
 N_Sc(ps::CMPS) = ps.ν_air / ps.D_vapor
@@ -271,10 +267,7 @@ v0_sno(ps::CMPS{FT}) where {FT} = FT(2^(9 / 4)) * ps.r0_sno^ps.ve_sno
 m0_liq_coeff_TC1980(ps::CMPS{FT}) where {FT} = FT(4 / 3) * π * ps.ρ_cloud_liq
 
 # For example: ρ_cloud_ice(ps::CMPS) = ps.ρ_cloud_ice
-for var in filter(
-    x -> !(x in [:modal_nucleation_params :thermo_params]),
-    fieldnames(CMPS),
-)
+for var in filter(x -> !(x in [:thermo_params]), fieldnames(CMPS))
     @eval $var(ps::CMPS) = ps.$var
 end
 
@@ -283,9 +276,6 @@ for var in fieldnames(TDPS)
     @eval $var(ps::CMPS) = TD.Parameters.$var(thermodynamics_params(ps))
 end
 
-for var in fieldnames(ModalNucleationParameters)
-    @eval $var(ps::CMPS) = modal_nucleation_params(ps).$var
-end
 
 # Thermodynamics derived parameters
 R_d(ps::CMPS) = TD.Parameters.R_d(thermodynamics_params(ps))
