@@ -1,9 +1,12 @@
 # Ice Nucleation
 
-The `IceNucleation.jl` module includes
-  the parameterization of activation of dust aerosol particles into ice crystals
-  via deposition of water vapor, water activity based parameterization of immersion freezing,
-  and water activity based parameterization of homogeneous freezing.
+Ice nucleation describes the process of forming ice crystals
+  from aerosol particles and/or liquid droplets.
+The `IceNucleation.jl` module includes:
+  - the parameterization of activation of dust aerosol particles into ice crystals
+    via deposition of water vapor,
+  - water activity based parameterization of immersion freezing,
+  - water activity based parameterization of homogeneous freezing.
 The parameterization for deposition on dust particles is an implementation of
   the empirical formulae from [Mohler2006](@cite)
   and is valid for two types of dust particles:
@@ -64,7 +67,7 @@ Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
 ```
 A parameterization for ``\Delta a_w`` can be found in `Common.jl`. More information on
   it can be found in the `Water Activity` section.
-  
+
 !!! note
 
     Our source code for the nucleation rate coefficient returns
@@ -138,7 +141,7 @@ This parameterization is valid only when ``0.26 < \Delta a_w < 0.36`` and ``185K
 Here is a comparison of our parameterization of ``J_{hom}`` compared to Koop 2000 as
   plotted in figure 1 of [Spichtinger2023](@cite). Our parameterization differs in the calculation
   of ``\Delta a_w``. We define water activity to be a ratio of saturated vapor pressures whereas
-  Koop 2000 uses the difference in chemical potential. 
+  Koop 2000 uses the difference in chemical potential.
 
 ```@example
 include("ice_nucleation_plots/HomFreezingPlots.jl")
@@ -150,9 +153,9 @@ It should be noted that the Koop 2000
   pressure. The max valid pressure becomes negative around 237K, so the Koop 2000 parameterizaiton
   should not be valid beyond 237K. For this reason, we limit the curve from [Spichtinger2023](@cite)
   to 237K.
-  
+
 Multiple sulphuric acid concentrations, ``x``,
-  are plotted since the actual concentration used in literature values is unspecified. 
+  are plotted since the actual concentration used in literature values is unspecified.
 
 !!! note
 
