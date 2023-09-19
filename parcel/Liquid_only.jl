@@ -44,7 +44,7 @@ qᵢ = FT(0)
 q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
 R_a = TD.gas_constant_air(thermo_params, q)
-Sₗ = FT(e / eₛ - 1)
+Sₗ = FT(e / eₛ)
 IC = [Sₗ, p, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
 
 # Simulation parameters passed into ODE solver
@@ -78,7 +78,7 @@ ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
 ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
 ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
-MK.lines!(ax1, sol.t, sol[1, :] * 100.0, label = "CloudMicrophysics.jl")
+MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = "CloudMicrophysics.jl")
 MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers")
 MK.lines!(ax2, sol.t, sol[3, :])
 MK.lines!(ax3, sol.t, sol[4, :] * 1e3)

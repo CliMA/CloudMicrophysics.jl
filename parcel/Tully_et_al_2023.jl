@@ -33,7 +33,7 @@ function get_initial_condition(
     R_v = CMP.R_v(prs)
     e_sl = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
     e = q_vap * p_a * R_v / R_a
-    S_liq = e / e_sl - 1
+    S_liq = e / e_sl
 
     return [S_liq, p_a, T, q_vap, q_liq, q_ice, N_aer, N_liq, N_ice, x_sulph]
 end
@@ -148,13 +148,13 @@ function Tully_et_al_2023(FT)
     ξ(T) =
         TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid()) /
         TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
-    S_i(T, S_liq) = ξ(T) * S_liq + ξ(T) - 1
+    S_i(T, S_liq) = ξ(T) * S_liq - 1
 
-    MK.lines!(ax1, sol1.t * w, sol1[1, :])
+    MK.lines!(ax1, sol1.t * w, sol1[1, :] .- 1)
     MK.lines!(ax1, sol1.t * w, S_i.(sol1[3, :], sol1[1, :]), linestyle = :dash)
-    MK.lines!(ax1, sol2.t * w, sol2[1, :])
+    MK.lines!(ax1, sol2.t * w, sol2[1, :] .- 1)
     MK.lines!(ax1, sol2.t * w, S_i.(sol2[3, :], sol2[1, :]), linestyle = :dash)
-    MK.lines!(ax1, sol3.t * w, sol3[1, :])
+    MK.lines!(ax1, sol3.t * w, sol3[1, :] .- 1)
     MK.lines!(ax1, sol3.t * w, S_i.(sol3[3, :], sol3[1, :]), linestyle = :dash)
 
     MK.lines!(ax2, sol1.t * w, sol1[3, :])
