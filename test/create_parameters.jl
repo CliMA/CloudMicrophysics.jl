@@ -22,17 +22,8 @@ function cloud_microphysics_parameters(toml_dict)
     thermo_params = TD.Parameters.ThermodynamicsParameters{FT}(; pairs...)
     TP = typeof(thermo_params)
 
-    aliases = string.(fieldnames(CMP.ModalNucleationParameters))
-    pairs = CP.get_parameter_values!(toml_dict, aliases, "CloudMicrophysics")
-    modal_nucleation_params = CMP.ModalNucleationParameters{FT}(; pairs...)
-    MNP = typeof(modal_nucleation_params)
-
     aliases = string.(fieldnames(CMP.CloudMicrophysicsParameters))
     pairs = CP.get_parameter_values!(toml_dict, aliases, "CloudMicrophysics")
 
-    return CMP.CloudMicrophysicsParameters{FT, TP, MNP}(;
-        pairs...,
-        thermo_params,
-        modal_nucleation_params,
-    )
+    return CMP.CloudMicrophysicsParameters{FT, TP}(; pairs..., thermo_params)
 end

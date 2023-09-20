@@ -2,12 +2,11 @@ using Plots
 
 import CLIMAParameters as CP
 import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters.OrganicNucleationParameters
 import CloudMicrophysics.Nucleation as Nucleation
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 FT = Float64
-toml_dict = CP.create_toml_dict(FT)
-params = cloud_microphysics_parameters(toml_dict)
+params = OrganicNucleationParameters(FT)
 
 HOM_concentrations = 10 .^ (6:0.125:8.7)
 
@@ -52,6 +51,6 @@ Plots.plot!(
     Kirkby_points,
     xticks = 10 .^ (5:10),
     seriestype = :scatter,
-    label = "CLOUD Points",
+    label = "CLOUD Data",
 )
 Plots.svg("Kirkby_organic_nucleation");

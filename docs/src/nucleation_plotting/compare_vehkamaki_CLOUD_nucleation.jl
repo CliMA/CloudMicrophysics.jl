@@ -2,12 +2,11 @@ using Plots
 
 import CLIMAParameters as CP
 import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters.H2S04NucleationParameters
 import CloudMicrophysics.Nucleation as Nucleation
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 FT = Float64
-toml_dict = CP.create_toml_dict(FT)
-params = cloud_microphysics_parameters(toml_dict)
+params = H2S04NucleationParameters(FT)
 
 """
     vehkamaki_nucleation_timestep(rh, temp, so4)

@@ -3,11 +3,10 @@ using Plots
 import CLIMAParameters as CP
 import CloudMicrophysics as CM
 import CloudMicrophysics.Nucleation as Nucleation
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
+import CloudMicrophysics.Parameters.MixedNucleationParameters
 
 FT = Float64
-toml_dict = CP.create_toml_dict(FT)
-params = cloud_microphysics_parameters(toml_dict)
+params = MixedNucleationParameters(FT)
 
 # Units: 1/m³
 bioOxOrg_concentrations = 10 .^ (5.8:0.125:8.5)

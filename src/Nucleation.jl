@@ -67,35 +67,20 @@ function h2so4_nucleation_rate(
     f_y(h2so4, nh3, p_t_y, p_A_y, a_y) =
         (nh3 / ref_conc) /
         (a_y + (h2so4 / ref_conc)^p_t_y / (nh3 / ref_conc)^p_A_y)
-    k_b_n = k(temp, CMP.u_b_n(params), CMP.v_b_n(params), CMP.w_b_n(params))
-    k_b_i = k(temp, CMP.u_b_i(params), CMP.v_b_i(params), CMP.w_b_i(params))
-    k_t_n = k(temp, CMP.u_t_n(params), CMP.v_t_n(params), CMP.w_t_n(params))
-    k_t_i = k(temp, CMP.u_t_i(params), CMP.v_t_i(params), CMP.w_t_i(params))
-    f_n = f_y(
-        h2so4_conc,
-        nh3_conc,
-        CMP.p_t_n(params),
-        CMP.p_A_n(params),
-        CMP.a_n(params),
-    )
-    f_i = f_y(
-        h2so4_conc,
-        nh3_conc,
-        CMP.p_t_i(params),
-        CMP.p_A_i(params),
-        CMP.a_i(params),
-    )
+    k_b_n = k(temp, params.u_b_n, params.v_b_n, params.w_b_n)
+    k_b_i = k(temp, params.u_b_i, params.v_b_i, params.w_b_i)
+    k_t_n = k(temp, params.u_t_n, params.v_t_n, params.w_t_n)
+    k_t_i = k(temp, params.u_t_i, params.v_t_i, params.w_t_i)
+    f_n = f_y(h2so4_conc, nh3_conc, params.p_t_n, params.p_A_n, params.a_n)
+    f_i = f_y(h2so4_conc, nh3_conc, params.p_t_i, params.p_A_i, params.a_i)
 
     # Calculate rates 1/cm³/s
     binary_rate =
-        k_b_n * (h2so4_conc / ref_conc)^CMP.p_b_n(params) +
-        k_b_i * (h2so4_conc / ref_conc)^CMP.p_b_i(params) * negative_ion_conc
+        k_b_n * (h2so4_conc / ref_conc)^params.p_b_n +
+        k_b_i * (h2so4_conc / ref_conc)^params.p_b_i * negative_ion_conc
     ternary_rate =
-        k_t_n * f_n * (h2so4_conc / ref_conc)^CMP.p_t_n(params) +
-        k_t_i *
-        f_i *
-        (h2so4_conc / ref_conc)^CMP.p_t_i(params) *
-        negative_ion_conc
+        k_t_n * f_n * (h2so4_conc / ref_conc)^params.p_t_n +
+        k_t_i * f_i * (h2so4_conc / ref_conc)^params.p_t_i * negative_ion_conc
     # Convert to 1/m³/s
     return (;
         binary_rate = binary_rate * 1e6,
@@ -133,12 +118,12 @@ function organic_nucleation_rate(
     OH_conc *= 1e-6
 
     # Y_* params from Dunne et al. 2016
-    k_MTO3 = CMP.k_MTO3(params) * exp(CMP.exp_MTO3(params) / temp)
-    k_MTOH = CMP.k_MTOH(params) * exp(CMP.exp_MTOH(params) / temp)
+    k_MTO3 = params.k_MTO3 * exp(params.exp_MTO3 / temp)
+    k_MTOH = params.k_MTOH * exp(params.exp_MTOH / temp)
     HOM_conc =
         (
-            CMP.Y_MTO3(params) * k_MTO3 * monoterpene_conc * O3_conc +
-            CMP.Y_MTOH(params) * k_MTOH * monoterpene_conc * OH_conc
+            params.Y_MTO3 * k_MTO3 * monoterpene_conc * O3_conc +
+            params.Y_MTOH * k_MTOH * monoterpene_conc * OH_conc
         ) / condensation_sink
     return organic_nucleation_rate_hom_prescribed(
         negative_ion_conc,
@@ -155,14 +140,14 @@ function organic_nucleation_rate_hom_prescribed(
     # HOM reference concentration: 1e7/cm³
     ref_conc = 1e7
     rate =
-        CMP.a_1(params) *
+        params.a_1 *
         (
             HOM_conc / ref_conc
-        )^(CMP.a_2(params) + CMP.a_5(params) / (HOM_conc / ref_conc)) +
-        CMP.a_3(params) *
+        )^(params.a_2 + params.a_5 / (HOM_conc / ref_conc)) +
+        params.a_3 *
         (
             HOM_conc / ref_conc
-        )^(CMP.a_4(params) + CMP.a_5(params) / (HOM_conc / ref_conc)) *
+        )^(params.a_4 + params.a_5 / (HOM_conc / ref_conc)) *
         negative_ion_conc
     # Convert from (1/cm³/s) to (1/m³/s)
     return rate * 1e6
@@ -189,7 +174,7 @@ function organic_and_h2so4_nucleation_rate(
     condensation_sink,
     params,
 )
-    k_MTOH = CMP.k_MTOH(params) * exp(CMP.exp_MTOH(params) / temp) # Units: 1/cm³/s
+    k_MTOH = params.k_MTOH * exp(params.exp_MTOH / temp) # Units: 1/cm³/s
     bioOxOrg = k_MTOH * monoterpene_conc * OH_conc / condensation_sink
     # Convert from 1/cm³ to 1/m³
     bioOxOrg *= 1e6
@@ -206,7 +191,7 @@ function organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
     params,
 )
     # Convert bioOxOrg and k_H2SO4org from 1/m³ to 1/cm³
-    k_H2SO4org = 1e-6 * CMP.k_H2SO4org(params)
+    k_H2SO4org = 1e-6 * params.k_H2SO4org
     bioOxOrg *= 1e-6
     # Convert from 1/m³ to 10⁶/cm³
     # h2so4_conc *= 1e-6
