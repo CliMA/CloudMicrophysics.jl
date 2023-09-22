@@ -100,7 +100,15 @@ function parcel_model(dY, Y, p, t)
         # Condensation on existing droplets (assuming all are the same)
         G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
         r_l = cbrt(q_liq / N_liq / (4 / 3 * π) / ρ_liq * ρ_air)
-        C_l = r_l
+        dql_dt_cond = 4 * π / ρ_air * (S_liq - 1) * G_l * r_l * N_liq
+    end
+    if "Condensation_DSD" in growth_modes && N_liq > 0
+        # Condensation on existing droplets
+        # assuming n(r) = A r exp(-λr)
+        G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
+        λ = cbrt(32 * π * N_liq / q_liq * ρ_liq / ρ_air)
+        #A = N_liq* λ^2
+        r_l = 2 / λ
         dql_dt_cond = 4 * π / ρ_air * (S_liq - 1) * G_l * r_l * N_liq
     end
 
@@ -176,10 +184,15 @@ function run_parcel(IC, t_0, t_end, p)
     print("\n")
     print("Growth modes: ")
     if "Condensation" in growth_modes
-        print("Condensation on liquid droplets ")
+        print(
+            "Condensation on liquid droplets with monodisperse size distribution",
+        )
+    end
+    if "Condensation_DSD" in growth_modes
+        print("Condensation on liquid droplets with gamma distribution")
     end
     if "Deposition" in growth_modes
-        print("Deposition on ice crystals ")
+        print("Deposition on ice crystals with monodisperse size distribution")
     end
     print("\n")
     println(" ")

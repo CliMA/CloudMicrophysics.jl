@@ -160,34 +160,24 @@ function Tully_et_al_2023(FT)
         TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
     S_i(T, S_liq) = ξ(T) * S_liq - 1
 
-    MK.lines!(ax1, sol1.t * w, sol1[1, :] .- 1)
-    MK.lines!(ax1, sol1.t * w, S_i.(sol1[3, :], sol1[1, :]), linestyle = :dash)
-    MK.lines!(ax1, sol2.t * w, sol2[1, :] .- 1)
-    MK.lines!(ax1, sol2.t * w, S_i.(sol2[3, :], sol2[1, :]), linestyle = :dash)
-    MK.lines!(ax1, sol3.t * w, sol3[1, :] .- 1)
-    MK.lines!(ax1, sol3.t * w, S_i.(sol3[3, :], sol3[1, :]), linestyle = :dash)
+    sol = [sol1, sol2, sol3]
+    clr = ["blue", "orange", "green"]
+    for it in [1, 2, 3]
+        MK.lines!(ax1, sol[it].t * w, sol[it][1, :] .- 1, color = clr[it])
+        MK.lines!(ax2, sol[it].t * w, sol[it][3, :], color = clr[it])
+        MK.lines!(ax3, sol[it].t * w, sol[it][9, :] * 1e-3, color = clr[it])
+        MK.lines!(ax4, sol[it].t * w, sol[it][7, :] * 1e-3, color = clr[it])
+        MK.lines!(ax5, sol[it].t * w, sol[it][4, :] * 1e3, color = clr[it])
+        MK.lines!(ax6, sol[it].t * w, sol[it][6, :] * 1e3, color = clr[it])
 
-    MK.lines!(ax2, sol1.t * w, sol1[3, :])
-    MK.lines!(ax2, sol2.t * w, sol2[3, :])
-    MK.lines!(ax2, sol3.t * w, sol3[3, :])
-
-    MK.lines!(ax3, sol1.t * w, sol1[9, :] * 1e-3)
-    MK.lines!(ax3, sol2.t * w, sol2[9, :] * 1e-3)
-    MK.lines!(ax3, sol3.t * w, sol3[9, :] * 1e-3)
-
-    MK.lines!(ax4, sol1.t * w, sol1[7, :] * 1e-3)
-    MK.lines!(ax4, sol2.t * w, sol2[7, :] * 1e-3)
-    MK.lines!(ax4, sol3.t * w, sol3[7, :] * 1e-3)
-
-    MK.lines!(ax5, sol1.t * w, sol1[4, :] * 1e3)
-    MK.lines!(ax5, sol2.t * w, sol2[4, :] * 1e3)
-    MK.lines!(ax5, sol3.t * w, sol3[4, :] * 1e3)
-
-    MK.lines!(ax6, sol1.t * w, sol1[6, :] * 1e3)
-    MK.lines!(ax6, sol2.t * w, sol2[6, :] * 1e3)
-    MK.lines!(ax6, sol3.t * w, sol3[6, :] * 1e3)
-
+        MK.lines!(
+            ax1,
+            sol[it].t * w,
+            S_i.(sol[it][3, :], sol[it][1, :]),
+            linestyle = :dash,
+            color = clr[it],
+        )
+    end
     MK.save("cirrus_box.svg", fig)
 end
-
 Tully_et_al_2023(Float64)
