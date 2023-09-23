@@ -29,21 +29,23 @@ r_0 = FT(8e-6)
 p = FT(800 * 1e2)
 T = FT(273.15 + 7.0)
 x_sulph = FT(0)
-
-# Moisture dependent initial conditions
-# TODO - include q_l in calculation of q for ρ_air
 eₛ = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
 e = eₛ
 ϵ = R_d / R_v
-qᵥ = ϵ * e / (ϵ * e - e + p)
 
-q_vap_only = TD.PhasePartition(qᵥ, FT(0), FT(0))
-ts_vap_only = TD.PhaseNonEquil_pTq(thermo_params, p, T, q_vap_only)
-ρ_air = TD.air_density(thermo_params, ts_vap_only)
+# mass per volume for dry air, vapor and liquid
+md_v = (p - e) / R_d / T
+mv_v = e / R_v / T
+ml_v = Nₗ * 4 / 3 * π * ρₗ * r_0^3
 
-qₗ = FT(Nₗ * (4 / 3 * π) * r_0^3 * ρₗ / ρ_air)
+qᵥ = mv_v / (md_v + mv_v + ml_v)
+qₗ = ml_v / (md_v + mv_v + ml_v)
 qᵢ = FT(0)
+
+# Moisture dependent initial conditions
 q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+ts = TD.PhaseNonEquil_pTq(thermo_params, p, T, q)
+ρ_air = TD.air_density(thermo_params, ts)
 
 R_a = TD.gas_constant_air(thermo_params, q)
 Sₗ = FT(e / eₛ)
