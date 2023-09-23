@@ -42,15 +42,12 @@ format = Documenter.HTML(
 )
 
 makedocs(
-    bib,
     sitename = "CloudMicrophysics.jl",
-    strict = true,
     format = format,
     checkdocs = :exports,
-    clean = true,
-    doctest = true,
     modules = [CloudMicrophysics],
     pages = pages,
+    plugins = [bib],
 )
 
 deploydocs(
