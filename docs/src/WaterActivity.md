@@ -66,7 +66,7 @@ where ``p_v`` is the ambient partial pressure of water vapor.
   An alternative is using the parameterization for ``p_{sol}`` and setting
   `x = 0`. We choose to use the `Thermodynamics.jl` to keep saturated vapor
   pressure of pure water consistent throughout `CloudMicrophysic.jl`.
-  
+
 Similarly, ``p_{i,sat}`` is defined through the `Thermodynamics.jl` library. It is
   possible to calculate it using chemical potential as done in [Koop2000](@cite), however,
   we will use the current parameterization for consistency since they give similar results.
@@ -78,7 +78,7 @@ To verify that our parameterizations for ``p_{i,sat}`` and ``p_{sat}`` from
     implementations of ``p_{i,sat}`` and ``p_{sat}`` (``p_{sat}`` labelled as
     ``p_{liq}`` to emphasize ice vs liquid phase of the pure water).
 ```@example
-include("water_activity_plots/p_sol_parameterizations.jl")
+include("water_activity_plots/Baumgartner2022_fig5.jl")
 ```
 ![](vap_pressure_vs_T.svg)
 
@@ -86,9 +86,6 @@ To verify that our parameterizations for water activty using `Thermodynamics.jl`
     is ok, we plot critical water activity (water activtiy at which freezing occurs)
     against the other variations found in [Baumgartner2022](@cite). Though not
     matching exactly, our parameterization is relatively close to the other parameterizations.
-```@example
-include("water_activity_plots/Baumgartner2022_fig5.jl")
-```
 ![](Baumgartner2022_fig5.svg)
 Shown in red is the water activity over ice using our parameterization. With these two lines
   plotted (critical water activity of the droplet and ice water activity), we create a phase
@@ -109,4 +106,3 @@ include("water_activity_plots/T_vs_wateractivity.jl")
 Taking the difference between any pair of blue and green lines will give a ``\Delta a_w(T)``.
   Since all the blue lines are similar and all the green lines are similar, we can
   assume that our parameterization of pure liquid and ice water activities are reasonable.
-  
