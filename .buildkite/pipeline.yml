@@ -7,8 +7,6 @@ steps:
   - label: "init :computer:"
     key: "init_cpu_env"
     command:
-      - "pwd"
-      - "ls"
       - "julia --project=test -e 'using Pkg; Pkg.develop(path = \".\")'"
       - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
       - "julia --project=test -e 'using Pkg; Pkg.resolve()'"
