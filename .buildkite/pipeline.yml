@@ -7,7 +7,7 @@ steps:
   - label: "init :computer:"
     key: "init_cpu_env"
     command:
-      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\"..\")'"
       - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
       - "julia --project=test -e 'using Pkg; Pkg.resolve()'"
       - "julia --project=test -e 'using Pkg; Pkg.precompile(;strict=true)'"
@@ -21,7 +21,7 @@ steps:
     key: "init_gpu_env"
     command:
       # force the initialization of the CUDA runtime as it is lazily loaded by default
-      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\".\")'"
+      - "julia --project=test -e 'using Pkg; Pkg.develop(path=\"..\")'"
       - "julia --project=test -e 'using Pkg; Pkg.instantiate(;verbose=true)'"
       - "julia --project=test -e 'using Pkg; Pkg.resolve()'"
       - "julia --project=test -e 'using Pkg; Pkg.precompile(;strict=true)'"
