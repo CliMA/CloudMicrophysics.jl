@@ -2,6 +2,7 @@ env:
   JULIA_VERSION: "1.9.2"
   OPENMPI_VERSION: "4.0.4"
   OPENBLAS_NUM_THREADS: 1
+  JULIA_LOAD_PATH: "${JULIA_LOAD_PATH}:${BUILDKITE_BUILD_CHECKOUT_PATH}/.buildkite"
 
 steps:
   - label: "init :computer:"
