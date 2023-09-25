@@ -19,9 +19,9 @@ T_range = range(229.0, stop = 234.5, length = 50)  # air temperature
 x_sulph = Vector{FT}([0.03, 0.04, 0.06])           # wt% sulphuric acid in droplets
 
 # Solving for Δa and J values
-Δa1 = [CMO.Delta_a_w(prs, x_sulph[1], T) for T in T_range]
-Δa2 = [CMO.Delta_a_w(prs, x_sulph[2], T) for T in T_range]
-Δa3 = [CMO.Delta_a_w(prs, x_sulph[3], T) for T in T_range]
+Δa1 = [CMO.a_w_xT(prs, x_sulph[1], T) - CMO.a_w_ice(prs, T) for T in T_range]
+Δa2 = [CMO.a_w_xT(prs, x_sulph[2], T) - CMO.a_w_ice(prs, T) for T in T_range]
+Δa3 = [CMO.a_w_xT(prs, x_sulph[3], T) - CMO.a_w_ice(prs, T) for T in T_range]
 
 J1 = @. CMI.homogeneous_J(prs, Δa1)
 J2 = @. CMI.homogeneous_J(prs, Δa2)

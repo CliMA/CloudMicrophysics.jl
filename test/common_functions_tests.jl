@@ -80,28 +80,75 @@ function test_H2SO4_soln_saturation_vapor_pressure(FT)
     end
 end
 
-function test_Delta_a_w(FT)
+function test_a_w_xT(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
 
-    TT.@testset "Delta_a_w" begin
+    TT.@testset "a_w_xT" begin
 
         T_warm = FT(229.2)
         T_cold = FT(228.8)
-        x_sulph = FT(0.1)
+        x_sulph_low = FT(0.06)
+        x_sulph_high = FT(0.1)
 
-        # Delta_a_w never greater than 1
-        for T in [T_warm, T_cold]
-            TT.@test CO.Delta_a_w(prs, x_sulph, T) <= FT(1)
+        # a_w greater at warmer temperatures
+        for x_sulph in [x_sulph_high, x_sulph_low]
+            TT.@test CO.a_w_xT(prs, x_sulph, T_cold) <
+                     CO.a_w_xT(prs, x_sulph, T_warm)
         end
+
+        # a_w greater at lower sulphuric acid concentration
+        for T in [T_warm, T_cold]
+            TT.@test CO.a_w_xT(prs, x_sulph_high, T) <
+                     CO.a_w_xT(prs, x_sulph_low, T)
+        end
+    end
+end
+
+function test_a_w_eT(FT)
+    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+    prs = cloud_microphysics_parameters(toml_dict)
+
+    TT.@testset "a_w_eT" begin
+
+        T_warm = FT(285)
+        T_cold = FT(251)
+        e_high = FT(1088)
+        e_low = FT(544)
+
+        # a_w greater at higher altitudes
+        TT.@test CO.a_w_eT(prs, e_low, T_cold) > CO.a_w_eT(prs, e_high, T_warm)
+
+        # a_w greater at greater partial pressures
+        for T in [T_warm, T_cold]
+            TT.@test CO.a_w_eT(prs, e_low, T) < CO.a_w_eT(prs, e_high, T)
+        end
+    end
+end
+
+function test_a_w_ice(FT)
+    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
+    prs = cloud_microphysics_parameters(toml_dict)
+
+    TT.@testset "a_w_ice" begin
+
+        T_warm = FT(240)
+        T_cold = FT(230)
+
+        # a_w greater at warmer temperatures
+        TT.@test CO.a_w_ice(prs, T_cold) < CO.a_w_ice(prs, T_warm)
+
     end
 end
 
 println("Testing Float64")
 test_H2SO4_soln_saturation_vapor_pressure(Float64)
+test_a_w_xT(Float64)
+test_a_w_eT(Float64)
+test_a_w_ice(Float64)
+
 println("Testing Float32")
 test_H2SO4_soln_saturation_vapor_pressure(Float32)
-println("Testing Float64")
-test_Delta_a_w(Float64)
-println("Testing Float32")
-test_Delta_a_w(Float32)
+test_a_w_xT(Float32)
+test_a_w_eT(Float32)
+test_a_w_ice(Float32)

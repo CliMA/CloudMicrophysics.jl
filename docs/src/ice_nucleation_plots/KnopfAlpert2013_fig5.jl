@@ -43,8 +43,9 @@ KA13_fig5A_J = [
 dust_type = CMT.IlliteType()    # dust type
 T_range = range(228.2, stop = 229.6, length = 100)  # air temperature
 T_dew = FT(228.0)               # dew point temperature
+x_sulph = FT(0)                 # sulphuric acid concentration in droplets
 a_sol = [                       # water activity of solution droplet at equilibrium
-    TD.saturation_vapor_pressure(thermo_params, T_dew, TD.Liquid()) /
+    CMO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph, T_dew) /
     TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid()) for
     T in T_range
 ]

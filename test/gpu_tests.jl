@@ -310,7 +310,7 @@ end
     end
 end
 
-@kernel function test_Common_Delta_a_w_kernel!(
+@kernel function test_Common_a_w_xT_kernel!(
     prs,
     output::AbstractArray{FT},
     x_sulph,
@@ -320,7 +320,34 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = CO.Delta_a_w(prs, x_sulph[i], T[i])
+        output[i] = CO.a_w_xT(prs, x_sulph[i], T[i])
+    end
+end
+
+@kernel function test_Common_a_w_eT_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    e,
+    T,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = CO.a_w_eT(prs, e[i], T[i])
+    end
+end
+
+@kernel function test_Common_a_w_ice_kernel!(
+    prs,
+    output::AbstractArray{FT},
+    T,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[i] = CO.a_w_ice(prs, T[i])
     end
 end
 
@@ -670,12 +697,48 @@ function test_gpu(FT)
         T = ArrayType([FT(230)])
         x_sulph = ArrayType([FT(0.1)])
 
-        kernel! = test_Common_Delta_a_w_kernel!(dev, work_groups)
+        kernel! = test_Common_a_w_xT_kernel!(dev, work_groups)
         event = kernel!(make_prs(FT), output, x_sulph, T, ndrange = ndrange)
         wait(dev, event)
 
-        # test if Delta_a_w is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(0.2750536615)
+        # test if a_w_xT is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(0.92824538441)
+
+        data_length = 1
+        output = ArrayType(Array{FT}(undef, 1, data_length))
+        fill!(output, FT(-44.0))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        T = ArrayType([FT(282)])
+        e = ArrayType([FT(1001)])
+
+        kernel! = test_Common_a_w_eT_kernel!(dev, work_groups)
+        event = kernel!(make_prs(FT), output, e, T, ndrange = ndrange)
+        wait(dev, event)
+
+        # test if a_w_eT is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(0.880978146)
+
+        data_length = 1
+        output = ArrayType(Array{FT}(undef, 1, data_length))
+        fill!(output, FT(-44.0))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        T = ArrayType([FT(230)])
+
+        kernel! = test_Common_a_w_ice_kernel!(dev, work_groups)
+        event = kernel!(make_prs(FT), output, T, ndrange = ndrange)
+        wait(dev, event)
+
+        # test if a_w_ice is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(0.653191723)
+
     end
 
     @testset "Ice Nucleation kernels" begin
