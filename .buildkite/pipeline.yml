@@ -18,7 +18,7 @@ steps:
       - julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'
 
       - echo "--- Instantiate test"
-      - julia --project=test -e 'using Pkg; Pkg.develop(path=\".\"); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'
+      - julia --project=test -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'
 
       - julia --project -e 'using CUDA; CUDA.precompile_runtime()'
       - julia --project -e 'using Pkg; Pkg.status()'
