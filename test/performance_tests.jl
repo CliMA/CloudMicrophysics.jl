@@ -129,7 +129,7 @@ function benchmark_test(FT)
     bench_press(CMN.τ_relax, (prs, liquid), 10)
 
     # 0-moment
-    bench_press(CM0.remove_precipitation, (prs, q), 10)
+    bench_press(CM0.remove_precipitation, (prs, q), 20)
 
     # 1-moment
     bench_press(CM1.accretion, (prs, liquid, rain, q_liq, q_rai, ρ_air), 350)
