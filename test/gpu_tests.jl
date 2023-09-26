@@ -1,8 +1,6 @@
 using Test
 using KernelAbstractions
 
-import CUDAKernels as CK
-
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import CLIMAParameters as CP
@@ -35,6 +33,7 @@ const illite = CMT.IlliteType()
 
 if get(ARGS, 1, "Array") == "CuArray"
     import CUDA
+    import CUDAKernels as CK
     ArrayType = CUDA.CuArray
     CUDA.allowscalar(false)
     device(::Type{T}) where {T <: CUDA.CuArray} = CK.CUDADevice()
