@@ -20,8 +20,8 @@ steps:
       - echo "--- Instantiate test"
       - julia --project=test -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'
 
-      - julia --project -e 'using CUDA; CUDA.precompile_runtime()'
-      - julia --project -e 'using Pkg; Pkg.status()'
+      - julia --project=test -e 'using CUDA; CUDA.precompile_runtime()'
+      - julia --project=test -e 'using Pkg; Pkg.status()'
     agents:
       slurm_gpus: 1
       slurm_cpus_per_task: 8
