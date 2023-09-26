@@ -30,10 +30,10 @@ const kaolinite = CMT.KaoliniteType()
 const illite = CMT.IlliteType()
 
 @info "GPU Tests"
+import CUDAKernels as CK
 
 if get(ARGS, 1, "Array") == "CuArray"
     import CUDA
-    import CUDAKernels as CK
     ArrayType = CUDA.CuArray
     CUDA.allowscalar(false)
     device(::Type{T}) where {T <: CUDA.CuArray} = CK.CUDADevice()
