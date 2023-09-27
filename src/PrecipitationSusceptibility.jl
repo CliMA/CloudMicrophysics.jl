@@ -18,7 +18,7 @@ A structure containing the logarithmic derivatives of the production of
 precipitation with respect to the specific humidities and number
 densities of liquid and rain water.
 """
-Base.@kwdef struct precip_susceptibility_rates{FT <: Real}
+Base.@kwdef struct precip_susceptibility_rates{FT}
     d_ln_pp_d_ln_q_liq::FT
     d_ln_pp_d_ln_q_rai::FT
     d_ln_pp_d_ln_N_liq::FT
@@ -40,16 +40,14 @@ object, using automatic differentiation.
 Works for any 2-moment scheme, as long as autoconversion is defined for it.
 """
 function precipitation_susceptibility_autoconversion(
-    param_set::APS,
-    scheme::ST,
+    scheme::CT.AutoconversionSB2006{FT},
     q_liq::FT,
     q_rai::FT,
     ρ::FT,
     N_liq::FT,
-) where {FT <: Real, ST <: CT.Abstract2MPrecipType}
-
+) where {FT}
     grad = ForwardDiff.gradient(
-        x -> log(CM2.autoconversion(param_set, scheme, exp.(x)...).dq_rai_dt),
+        x -> log(CM2.autoconversion(scheme, exp.(x)...).dq_rai_dt),
         log.(abs.([q_liq, q_rai, ρ, N_liq])),
     )
     return precip_susceptibility_rates(
@@ -58,7 +56,6 @@ function precipitation_susceptibility_autoconversion(
         d_ln_pp_d_ln_N_liq = grad[4],
         d_ln_pp_d_ln_N_rai = FT(0),
     )
-
 end
 
 """
@@ -76,16 +73,15 @@ object, using automatic differentiation.
 Works for any 2-moment scheme, as long as accretion is defined for it.
 """
 function precipitation_susceptibility_accretion(
-    param_set::APS,
-    scheme::ST,
+    scheme::CT.AccretionSB2006{FT},
     q_liq::FT,
     q_rai::FT,
     ρ::FT,
     N_liq::FT,
-) where {FT <: Real, ST <: CT.Abstract2MPrecipType}
+) where {FT <: Real}
 
     grad = ForwardDiff.gradient(
-        x -> log(CM2.accretion(param_set, scheme, exp.(x)...).dq_rai_dt),
+        x -> log(CM2.accretion(scheme, exp.(x)...).dq_rai_dt),
         log.(abs.([q_liq, q_rai, ρ, N_liq])),
     )
     return precip_susceptibility_rates(
@@ -94,7 +90,6 @@ function precipitation_susceptibility_accretion(
         d_ln_pp_d_ln_N_liq = grad[4],
         d_ln_pp_d_ln_N_rai = FT(0),
     )
-
 end
 
 end # module

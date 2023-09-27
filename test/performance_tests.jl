@@ -20,6 +20,7 @@ import CloudMicrophysics.Parameters.MixedNucleationParameters
 import CloudMicrophysics.Parameters.H2S04NucleationParameters
 import CloudMicrophysics.Parameters.OrganicNucleationParameters
 import CloudMicrophysics.P3Scheme as P3
+import CloudMicrophysics.Parameters as CMP
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
@@ -52,11 +53,19 @@ function benchmark_test(FT)
     prs = cloud_microphysics_parameters(toml_dict)
     p3 = CMP.CloudMicrophysicsParametersP3(FT)
     liquid = CMT.LiquidType()
-    rain = CMT.RainType()
+    rain = CMT.RainType(FT)
     sb2006 = CMT.SB2006Type()
     sb2006vel = CMT.SB2006VelType()
-    ch2022 = CMT.Chen2022Type()
+    ch2022 = CMT.Chen2022Type(FT)
     dust = CMT.DesertDustType()
+    ce = CMT.CollisionEfficiency(FT)
+    air_props = CMT.AirProperties(FT)
+    thermo_params = CMP.thermodynamics_params(prs)
+    acnv_sb2006 = CMT.AutoconversionSB2006(FT)
+    tv_sb2006 = CMT.TerminalVelocitySB2006(FT)
+    evap_sb2006 = CMT.EvaporationSB2006(FT)
+    breakup_sb2006 = CMT.BreakupSB2006(FT)
+    selfcollection_sb2006 = CMT.SelfCollectionSB2006(FT)
 
     ρ_air = FT(1.2)
     T_air = FT(280)
@@ -132,32 +141,32 @@ function benchmark_test(FT)
     bench_press(CM0.remove_precipitation, (prs, q), 10)
 
     # 1-moment
-    bench_press(CM1.accretion, (prs, liquid, rain, q_liq, q_rai, ρ_air), 350)
+    bench_press(CM1.accretion, (ce, liquid, rain, q_liq, q_rai, ρ_air), 350)
 
     # 2-moment
     bench_press(
         CM2.autoconversion_and_liquid_self_collection,
-        (prs, sb2006, q_liq, q_rai, ρ_air, N_liq),
+        (acnv_sb2006, q_liq, q_rai, ρ_air, N_liq),
         250,
     )
     bench_press(
         CM2.rain_self_collection_and_breakup,
-        (prs, sb2006, q_rai, ρ_air, N_rai),
+        (selfcollection_sb2006, breakup_sb2006, tv_sb2006, q_rai, ρ_air, N_rai),
         820,
     )
     bench_press(
         CM2.rain_evaporation,
-        (prs, sb2006, q, q_rai, ρ_air, N_rai, T_air),
+        (evap_sb2006, air_props, thermo_params, q, q_rai, ρ_air, N_rai, T_air),
         2000,
     )
     bench_press(
         CM2.rain_terminal_velocity,
-        (prs, sb2006, sb2006vel, q_rai, ρ_air, N_rai),
+        (rain, tv_sb2006, q_rai, ρ_air, N_rai),
         300,
     )
     bench_press(
         CM2.rain_terminal_velocity,
-        (prs, sb2006, ch2022, q_rai, ρ_air, N_rai),
+        (rain, ch2022, tv_sb2006, q_rai, ρ_air, N_rai),
         1700,
     )
     # Homogeneous Nucleation

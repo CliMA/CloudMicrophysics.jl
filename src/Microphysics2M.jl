@@ -19,22 +19,22 @@ import Thermodynamics as TD
 import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
 
-export autoconversion
-export accretion
-export liquid_self_collection
-export autoconversion_and_liquid_self_collection
-export rain_self_collection
-export rain_breakup
-export rain_self_collection_and_breakup
-export rain_terminal_velocity
-export rain_evaporation
-export conv_q_liq_to_q_rai
+export autoconversion,
+    accretion,
+    liquid_self_collection,
+    autoconversion_and_liquid_self_collection,
+    rain_terminal_velocity,
+    conv_q_liq_to_q_rai,
+    rain_evaporation,
+    rain_self_collection,
+    rain_breakup,
+    rain_self_collection_and_breakup
 
 """
 A structure containing the rates of change of the specific humidities and number
 densities of liquid and rain water.
 """
-Base.@kwdef struct LiqRaiRates{FT <: Real}
+Base.@kwdef struct LiqRaiRates{FT}
     "Rate of change of the liquid water specific humidity"
     dq_liq_dt::FT
     "Rate of change of the liquid water number density"
@@ -49,9 +49,9 @@ end
 # mean terminal velocity of raindrops, and rain evaporation rates from Seifert and Beheng 2001
 
 """
-    raindrops_limited_vars(param_set, q_rai, ρ, N_rai)
+    raindrops_limited_vars(tv, q_rai, ρ, N_rai)
 
- - `param_set` - abstract set with Earth parameters
+ - `tv` - terminal velocity scheme parameters (SB2006)
  - `q_rai` - rain water specific humidity
  - `ρ` - air density
  - `N_rai` raindrops number density
@@ -60,19 +60,13 @@ Returns a named tupple containing the mean mass of raindrops, xr, and the rate p
 size distribution of raindrops (based on drops diameter), λr, limited within prescribed ranges
 """
 function raindrops_limited_vars(
-    param_set::APS,
-    q_rai::FT,
-    ρ::FT,
-    N_rai::FT,
-) where {FT <: Real}
-
-    xr_min::FT = CMP.xr_min_SB2006(param_set)
-    xr_max::FT = CMP.xr_max_SB2006(param_set)
-    N0_min::FT = CMP.N0_min_SB2006(param_set)
-    N0_max::FT = CMP.N0_max_SB2006(param_set)
-    λ_min::FT = CMP.λ_min_SB2006(param_set)
-    λ_max::FT = CMP.λ_max_SB2006(param_set)
-    ρw::FT = CMP.ρ_cloud_liq(param_set)
+    tv::CT.TerminalVelocitySB2006{FT},
+    q_rai,
+    ρ,
+    N_rai,
+) where {FT}
+    (; xr_min, xr_max, N0_min, N0_max, λ_min, λ_max) = tv
+    ρw = tv.ρ_cloud_liq
 
     L_rai = ρ * q_rai
     xr_0 = L_rai / N_rai
@@ -85,9 +79,8 @@ function raindrops_limited_vars(
 end
 
 """
-    autoconversion(param_set, scheme, q_liq, q_rai, ρ, N_liq)
+    autoconversion(scheme, q_liq, q_rai, ρ, N_liq)
 
- - `param_set` - abstract set with Earth parameters
  - `scheme` - type for 2-moment rain autoconversion parameterization
  - `q_liq` - cloud water specific humidity
  - `q_rai` - rain water specific humidity
@@ -98,13 +91,12 @@ Returns a LiqRaiRates object containing `q_liq`, `N_liq`, `q_rai`, `N_rai` tende
 collisions between cloud droplets (autoconversion) for `scheme == SB2006Type`
 """
 function autoconversion(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    q_liq::FT,
-    q_rai::FT,
-    ρ::FT,
-    N_liq::FT,
-) where {FT <: Real}
+    scheme::CT.AutoconversionSB2006{FT},
+    q_liq,
+    q_rai,
+    ρ,
+    N_liq,
+) where {FT}
 
     if q_liq < eps(FT)
         return LiqRaiRates(
@@ -115,13 +107,7 @@ function autoconversion(
         )
     end
 
-    kcc::FT = CMP.kcc_SB2006(param_set)
-    νc::FT = CMP.νc_SB2006(param_set)
-    x_star::FT = CMP.xr_min_SB2006(param_set)
-    ρ0::FT = CMP.ρ0_SB2006(param_set)
-    A::FT = CMP.A_phi_au_SB2006(param_set)
-    a::FT = CMP.a_phi_au_SB2006(param_set)
-    b::FT = CMP.b_phi_au_SB2006(param_set)
+    (; kcc, νc, x_star, ρ0, A, a, b) = scheme
 
     L_liq = ρ * q_liq
     x_liq = min(x_star, L_liq / N_liq)
@@ -148,9 +134,8 @@ function autoconversion(
 end
 
 """
-    accretion(param_set, scheme, q_liq, q_rai, ρ, N_liq)
+    accretion(scheme, q_liq, q_rai, ρ, N_liq)
 
- - `param_set` - abstract set with Earth parameters
  - `scheme` - type for 2-moment accretion parameterization
  - `q_liq` - cloud water specific humidity
  - `q_rai` - rain water specific humidity
@@ -161,27 +146,21 @@ Returns a LiqRaiRates object containing `q_liq`, `N_liq`, `q_rai`, `N_rai` tende
 collisions between raindrops and cloud droplets (accretion) for `scheme == SB2006Type`
 """
 function accretion(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    q_liq::FT,
-    q_rai::FT,
-    ρ::FT,
-    N_liq::FT,
-) where {FT <: Real}
+    (; kcr, τ0, ρ0, c)::CT.AccretionSB2006{FT},
+    q_liq,
+    q_rai,
+    ρ,
+    N_liq,
+) where {FT}
 
     if q_liq < eps(FT) || q_rai < eps(FT)
         return LiqRaiRates(
-            dq_liq_dt = FT(0),
-            dN_liq_dt = FT(0),
-            dq_rai_dt = FT(0),
-            dN_rai_dt = FT(0),
+            dq_liq_dt = zero(q_liq),
+            dN_liq_dt = zero(N_liq),
+            dq_rai_dt = zero(q_rai),
+            dN_rai_dt = zero(N_liq),
         )
     end
-
-    kcr::FT = CMP.kcr_SB2006(param_set)
-    τ0::FT = CMP.τ0_phi_ac_SB2006(param_set)
-    ρ0::FT = CMP.ρ0_SB2006(param_set)
-    c::FT = CMP.c_phi_ac_SB2006(param_set)
 
     L_liq = ρ * q_liq
     L_rai = ρ * q_rai
@@ -190,7 +169,7 @@ function accretion(
     ϕ_ac = (τ / (τ + τ0))^c
 
     dL_rai_dt = kcr * L_liq * L_rai * ϕ_ac * sqrt(ρ0 / ρ)
-    dN_rai_dt = FT(0)
+    dN_rai_dt = zero(N_liq)
     dL_liq_dt = -dL_rai_dt
     dN_liq_dt = dL_liq_dt / x_liq
 
@@ -203,9 +182,8 @@ function accretion(
 end
 
 """
-    liquid_self_collection(param_set, scheme, q_liq, ρ, dN_liq_dt_au)
+    liquid_self_collection(scheme, q_liq, ρ, dN_liq_dt_au)
 
- - `param_set` - abstract set with Earth parameters
  - `scheme` - type for 2-moment liquid self-collection parameterization
  - `q_liq` - cloud water specific humidity
  - `ρ` - air density
@@ -215,20 +193,15 @@ Returns the cloud droplets number density tendency due to collisions of cloud dr
 that produce larger cloud droplets (self-collection) for `scheme == SB2006Type`
 """
 function liquid_self_collection(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    q_liq::FT,
-    ρ::FT,
-    dN_liq_dt_au::FT,
-) where {FT <: Real}
+    (; kcc, ρ0, νc)::CT.AutoconversionSB2006{FT},
+    q_liq,
+    ρ,
+    dN_liq_dt_au,
+) where {FT}
 
     if q_liq < eps(FT)
         return FT(0)
     end
-
-    kcc::FT = CMP.kcc_SB2006(param_set)
-    ρ0::FT = CMP.ρ0_SB2006(param_set)
-    νc::FT = CMP.νc_SB2006(param_set)
 
     L_liq = ρ * q_liq
 
@@ -239,9 +212,8 @@ function liquid_self_collection(
 end
 
 """
-    autoconversion_and_liquid_self_collection(param_set, scheme, q_liq, q_rai, ρ, N_liq)
+    autoconversion_and_liquid_self_collection(scheme, q_liq, q_rai, ρ, N_liq)
 
- - `param_set` - abstract set with Earth parameters
  - `scheme` - type for 2-moment rain autoconversion parameterization
  - `q_liq` - cloud water specific humidity
  - `q_rai` - rain water specific humidity
@@ -252,24 +224,22 @@ Returns a named tupple containing a LiqRaiRates object for the autoconversion ra
 the liquid self-collection rate for `scheme == SB2006Type`
 """
 function autoconversion_and_liquid_self_collection(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    q_liq::FT,
-    q_rai::FT,
-    ρ::FT,
-    N_liq::FT,
-) where {FT <: Real}
+    acnv_scheme::CT.AutoconversionSB2006{FT},
+    q_liq,
+    q_rai,
+    ρ,
+    N_liq,
+) where {FT}
 
-    au = autoconversion(param_set, scheme, q_liq, q_rai, ρ, N_liq)
-    sc = liquid_self_collection(param_set, scheme, q_liq, ρ, au.dN_liq_dt)
+    au = autoconversion(acnv_scheme, q_liq, q_rai, ρ, N_liq)
+    sc = liquid_self_collection(acnv_scheme, q_liq, ρ, au.dN_liq_dt)
 
     return (; au, sc)
 end
 
 """
-    rain_self_collection(param_set, scheme, q_rai, ρ, N_rai)
+    rain_self_collection(scheme, q_rai, ρ, N_rai)
 
- - `param_set` - abstract set with Earth parameters
  - `scheme` - type for 2-moment rain self-collection parameterization
  - `q_rai` - rain water specific humidity
  - `ρ` - air density
@@ -279,26 +249,22 @@ Returns the raindrops number density tendency due to collisions of raindrops
 that produce larger raindrops (self-collection) for `scheme == SB2006Type`
 """
 function rain_self_collection(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    q_rai::FT,
-    ρ::FT,
-    N_rai::FT,
-) where {FT <: Real}
+    (; krr, κrr, d)::CT.SelfCollectionSB2006{FT},
+    tv::CT.TerminalVelocitySB2006{FT},
+    q_rai,
+    ρ,
+    N_rai,
+) where {FT}
 
     if q_rai < eps(FT)
         return FT(0)
     end
 
-    krr::FT = CMP.krr_SB2006(param_set)
-    κrr::FT = CMP.κrr_SB2006(param_set)
-    d::FT = CMP.d_sc_SB2006(param_set)
-    ρw::FT = CMP.ρ_cloud_liq(param_set)
-    ρ0::FT = CMP.ρ0_SB2006(param_set)
-
+    ρw = tv.ρ_cloud_liq
+    ρ0 = tv.ρ0
     L_rai = ρ * q_rai
     λr =
-        raindrops_limited_vars(param_set, q_rai, ρ, N_rai).λr *
+        raindrops_limited_vars(tv, q_rai, ρ, N_rai).λr *
         (SF.gamma(FT(4)) / FT(π) / ρw)^FT(1 / 3)
 
     dN_rai_dt_sc = -krr * N_rai * L_rai * sqrt(ρ0 / ρ) * (1 + κrr / λr)^d
@@ -307,9 +273,8 @@ function rain_self_collection(
 end
 
 """
-    rain_breakup(param_set, scheme, q_rai, ρ, dN_rai_dt_sc)
+    rain_breakup(scheme, q_rai, ρ, dN_rai_dt_sc)
 
- - `param_set` - abstract set with Earth parameters
  - `scheme` - type for 2-moment liquid self-collection parameterization
  - `q_rai` - rain water specific humidity
  - `ρ` - air density
@@ -320,25 +285,19 @@ Returns the raindrops number density tendency due to breakup of raindrops
 that produce smaller raindrops for `scheme == SB2006Type`
 """
 function rain_breakup(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    q_rai::FT,
-    ρ::FT,
-    N_rai::FT,
-    dN_rai_dt_sc::FT,
-) where {FT <: Real}
+    scheme::CT.BreakupSB2006{FT},
+    q_rai,
+    ρ,
+    N_rai,
+    dN_rai_dt_sc,
+) where {FT}
 
     if q_rai < eps(FT)
         return FT(0)
     end
-
-    ρw::FT = CMP.ρ_cloud_liq(param_set)
-    Deq::FT = CMP.Deq_br_SB2006(param_set)
-    Dr_th::FT = CMP.Dr_th_br_SB2006(param_set)
-    kbr::FT = CMP.kbr_SB2006(param_set)
-    κbr::FT = CMP.κbr_SB2006(param_set)
-
-    xr = raindrops_limited_vars(param_set, q_rai, ρ, N_rai).xr
+    (; Deq, Dr_th, kbr, κbr, tv) = scheme
+    ρw = tv.ρ_cloud_liq
+    xr = raindrops_limited_vars(tv, q_rai, ρ, N_rai).xr
     Dr = (xr * 6 / FT(π) / ρw)^FT(1 / 3)
     ΔD = Dr - Deq
     phi_br =
@@ -349,10 +308,11 @@ function rain_breakup(
 end
 
 """
-    rain_sef_collection_and_breakup(param_set, scheme, q_rai, ρ)
+    rain_sef_collection_and_breakup(selfcollection, breakup, tv, q_rai, ρ, N_rai)
 
- - `param_set` - abstract set with Earth parameters
- - `scheme` - type for 2-moment liquid self-collection parameterization
+ - `selfcollection` - 2-moment liquid self-collection parameterization
+ - `breakup` - breakup parameterization
+ - `tv` - terminal velocity parameterization
  - `q_rai` - rain water specific humidity
  - `ρ` - air density
  - `N_rai` - raindrops number density
@@ -361,25 +321,26 @@ Returns a named tupple containing the raindrops self-collection and breakup rate
 for `scheme == SB2006Type`
 """
 function rain_self_collection_and_breakup(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    q_rai::FT,
-    ρ::FT,
-    N_rai::FT,
-) where {FT <: Real}
+    selfcollection::CT.SelfCollectionSB2006{FT},
+    breakup::CT.BreakupSB2006{FT},
+    tv::CT.TerminalVelocitySB2006{FT},
+    q_rai,
+    ρ,
+    N_rai,
+) where {FT}
 
-    sc = rain_self_collection(param_set, scheme, q_rai, ρ, N_rai)
-    br = rain_breakup(param_set, scheme, q_rai, ρ, N_rai, sc)
+    sc = rain_self_collection(selfcollection, tv, q_rai, ρ, N_rai)
+    br = rain_breakup(breakup, q_rai, ρ, N_rai, sc)
 
     return (; sc, br)
 end
 
 """
-    rain_terminal_velocity(param_set, scheme, velo_scheme, q_rai, ρ, N_rai)
+    rain_terminal_velocity(type, velo_scheme, q_rai, ρ, N_rai)
 
- - `param_set` - abstract set with Earth parameters
- - `scheme` - type for 2-moment parameterization
+ - `type` - `RainType`
  - `velo_scheme` - type for terminal velocity parameterization
+ - `tv_sb2006` - terminal velocity parameterization (SB2006)
  - `q_rai` - rain water specific humidity [kg/kg]
  - `ρ` - air density [kg/m^3]
  - `N_rai` - raindrops number density [1/m^3]
@@ -391,43 +352,39 @@ Fall velocity of individual rain drops is parameterized:
  - following Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171 for `velo_scheme == Chen2022Type`
 """
 function rain_terminal_velocity(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    velo_scheme::CT.SB2006VelType,
-    q_rai::FT,
-    ρ::FT,
-    N_rai::FT,
-) where {FT <: Real}
+    ::CT.RainType,
+    velo_scheme::CT.TerminalVelocitySB2006{FT},
+    q_rai,
+    ρ,
+    N_rai,
+) where {FT}
+    # TODO: Input argument list needs to be redesigned
     if q_rai < eps(FT)
         return (FT(0), FT(0))
     end
+    (; ρ0, aR, bR, cR) = velo_scheme
 
-    ρ0::FT = CMP.ρ0_SB2006(param_set)
-    aR::FT = CMP.aR_tv_SB2006(param_set)
-    bR::FT = CMP.bR_tv_SB2006(param_set)
-    cR::FT = CMP.cR_tv_SB2006(param_set)
-
-    λr = raindrops_limited_vars(param_set, q_rai, ρ, N_rai).λr
+    λr = raindrops_limited_vars(velo_scheme, q_rai, ρ, N_rai).λr
     vt0 = max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
     vt1 = max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^FT(4)))
 
     return (vt0, vt1)
 end
 function rain_terminal_velocity(
-    param_set::APS,
-    scheme::CT.SB2006Type,
-    velo_scheme::CT.Chen2022Type,
-    q_rai::FT,
-    ρ::FT,
-    N_rai::FT,
-) where {FT <: Real}
+    precip::CT.RainType{FT},
+    velo_scheme::CT.Chen2022Type{FT},
+    tv_sb2006::CT.TerminalVelocitySB2006{FT},
+    q_rai,
+    ρ,
+    N_rai,
+) where {FT}
     if q_rai < eps(FT)
         return (FT(0), FT(0))
     end
     # coefficients from Table B1 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs(param_set, CT.RainType(), ρ)
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(precip, velo_scheme, ρ)
     # size distribution parameter
-    λ = raindrops_limited_vars(param_set, q_rai, ρ, N_rai).λr
+    λ = raindrops_limited_vars(tv_sb2006, q_rai, ρ, N_rai).λr
 
     # eq 20 from Chen et al 2022
     vt0 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 0))
@@ -440,10 +397,11 @@ function rain_terminal_velocity(
 end
 
 """
-    rain_evaporation(param_set, scheme, q, q_rai, ρ, N_rai, T)
+    rain_evaporation(evap_scheme, air_props, thermo_params, q, q_rai, ρ, N_rai, T)
 
- - `param_set` - abstract set with Earth parameters
- - `scheme` - type for 2-moment liquid self-collection parameterization
+ - `scheme` - evaporation parameterization scheme
+ - `air_props` - air properties
+ - `thermo_params` - thermodynamics parameters
  - `q` - phase partition
  - `q_rai` - rain specific humidity
  - `ρ` - air density
@@ -455,51 +413,46 @@ specific humidity due to rain rain_evaporation, assuming a power law velocity re
 fall velocity of individual drops and an exponential size distribution, for `scheme == SB2006Type`
 """
 function rain_evaporation(
-    param_set::APS,
-    scheme::CT.SB2006Type,
+    evap_scheme::CT.EvaporationSB2006{FT, TV},
+    air_props::CT.AirProperties{FT},
+    thermo_params,
     q::TD.PhasePartition{FT},
-    q_rai::FT,
-    ρ::FT,
-    N_rai::FT,
-    T::FT,
-) where {FT <: Real}
+    q_rai,
+    ρ,
+    N_rai,
+    T,
+) where {FT, TV <: CT.TerminalVelocitySB2006{FT}}
 
     evap_rate_0 = FT(0)
     evap_rate_1 = FT(0)
-    thermo_params = CMP.thermodynamics_params(param_set)
-    S::FT = TD.supersaturation(thermo_params, q, ρ, T, TD.Liquid())
+    S = TD.supersaturation(thermo_params, q, ρ, T, TD.Liquid())
 
     if (q_rai > FT(0) && S < FT(0))
 
-        ν_air::FT = CMP.ν_air(param_set)
-        D_vapor::FT = CMP.D_vapor(param_set)
-        ρw::FT = CMP.ρ_cloud_liq(param_set)
-        ρ0::FT = CMP.ρ0_SB2006(param_set)
-        av::FT = CMP.av_evap_SB2006(param_set)
-        bv::FT = CMP.bv_evap_SB2006(param_set)
-        α::FT = CMP.α_evap_SB2006(param_set)
-        β::FT = CMP.β_evap_SB2006(param_set)
-        x_star::FT = CMP.xr_min_SB2006(param_set)
+        (; ν_air, D_vapor) = air_props
+        (; av, bv, α, β, tv) = evap_scheme
+        ρ0 = tv.ρ0
+        ρw = tv.ρ_cloud_liq
+        x_star = tv.xr_min
+        G = CO.G_func(air_props, thermo_params, T, TD.Liquid())
 
-        G::FT = CO.G_func(param_set, T, TD.Liquid())
-
-        xr = raindrops_limited_vars(param_set, q_rai, ρ, N_rai).xr
+        xr = raindrops_limited_vars(tv, q_rai, ρ, N_rai).xr
         Dr = (FT(6) / FT(π) / ρw)^FT(1 / 3) * xr^FT(1 / 3)
         t_star = (FT(6) * x_star / xr)^FT(1 / 3)
-        a_vent_0::FT = av * SF.gamma(FT(-1), t_star) / FT(6)^FT(-2 / 3)
-        b_vent_0::FT =
-            bv * SF.gamma(FT(-1 / 2) + FT(3 / 2) * β, t_star) /
+        a_vent_0 = av * FT(SF.gamma(-1, t_star)) / FT(6)^FT(-2 / 3)
+        b_vent_0 =
+            bv * FT(SF.gamma((-1 / 2) + (3 / 2) * β, t_star)) /
             FT(6)^FT(β / 2 - 1 / 2)
-        a_vent_1::FT = av * SF.gamma(FT(2)) / FT(6)^FT(1 / 3)
-        b_vent_1::FT =
+        a_vent_1 = av * SF.gamma(FT(2)) / FT(6)^FT(1 / 3)
+        b_vent_1 =
             bv * SF.gamma(FT(5 / 2) + FT(3 / 2) * β) / FT(6)^FT(β / 2 + 1 / 2)
 
         N_Re = α * xr^β * sqrt(ρ0 / ρ) * Dr / ν_air
-        Fv0::FT = a_vent_0 + b_vent_0 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
-        Fv1::FT = a_vent_1 + b_vent_1 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
+        Fv0 = a_vent_0 + b_vent_0 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
+        Fv1 = a_vent_1 + b_vent_1 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
 
-        evap_rate_0 = min(0, 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr)
-        evap_rate_1 = min(0, 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
+        evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv0 / xr)
+        evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
     end
 
     return (evap_rate_0, evap_rate_1)
@@ -512,10 +465,9 @@ end
 # - Liu and Daum (2004)
 
 """
-    conv_q_liq_to_q_rai(param_set, scheme, q_liq, ρ; N_d, smooth_transition)
+    conv_q_liq_to_q_rai(acnv, q_liq, ρ; N_d, smooth_transition)
 
- - `param_set` - abstract set with Earth parameters
- - `scheme` - type for 2-moment rain autoconversion parameterization
+ - `acnv` - 2-moment rain autoconversion parameterization
  - `q_liq` - cloud water specific humidity
  - `ρ` - air density
  - `N_d` - prescribed cloud droplet number concentration
@@ -535,118 +487,79 @@ smoothes their thershold behaviour if set to `true`.
 The default value is `false`.
 """
 function conv_q_liq_to_q_rai(
-    param_set::APS,
-    scheme::CT.KK2000Type,
-    q_liq::FT,
-    ρ::FT;
-    N_d::FT = FT(1e8),
-) where {FT <: Real}
-
+    (; A, a, b, c)::CT.AutoconversionKK2000{FT},
+    q_liq,
+    ρ;
+    N_d = FT(1e8),
+) where {FT}
     q_liq = max(0, q_liq)
-
-    A::FT = CMP.A_acnv_KK2000(param_set)
-    a::FT = CMP.a_acnv_KK2000(param_set)
-    b::FT = CMP.b_acnv_KK2000(param_set)
-    c::FT = CMP.c_acnv_KK2000(param_set)
-
     return A * q_liq^a * N_d^b * ρ^c
 end
 function conv_q_liq_to_q_rai(
-    param_set::APS,
-    scheme::CT.B1994Type,
-    q_liq::FT,
-    ρ::FT;
-    N_d::FT = FT(1e8),
-    smooth_transition::Bool = false,
-) where {FT <: Real}
-
+    scheme::CT.AutoconversionB1994{FT},
+    q_liq,
+    ρ;
+    N_d = FT(1e8),
+    smooth_transition = false,
+) where {FT <: AbstractFloat}
     q_liq = max(0, q_liq)
-
-    C::FT = CMP.C_acnv_B1994(param_set)
-    a::FT = CMP.a_acnv_B1994(param_set)
-    b::FT = CMP.b_acnv_B1994(param_set)
-    c::FT = CMP.c_acnv_B1994(param_set)
-    N_0::FT = CMP.N_0_B1994(param_set)
-    d::FT = FT(0)
+    (; C, a, b, c, N_0, k, d_low, d_high) = scheme
+    d = FT(0)
     if smooth_transition
-        _k::FT = CMP.k_thrshld_stpnss(param_set)
-        _d_low_acnv_fraction::FT = CO.logistic_function(N_d, N_0, _k)
-        _d_high_acnv_fraction::FT = 1 - _d_low_acnv_fraction
-        d =
-            _d_low_acnv_fraction * CMP.d_low_acnv_B1994(param_set) +
-            _d_high_acnv_fraction * CMP.d_high_acnv_B1994(param_set)
+        d_low_acnv_fraction = CO.logistic_function(N_d, N_0, k)
+        d_high_acnv_fraction = FT(1) - d_low_acnv_fraction
+        d = d_low_acnv_fraction * d_low + d_high_acnv_fraction * d_high
     else
-        d =
-            N_d >= N_0 ? CMP.d_low_acnv_B1994(param_set) :
-            CMP.d_high_acnv_B1994(param_set)
+        d = N_d >= N_0 ? d_low : d_high
     end
-
     return C * d^a * (q_liq * ρ)^b * N_d^c / ρ
 end
 function conv_q_liq_to_q_rai(
-    param_set::APS,
-    scheme::CT.TC1980Type,
-    q_liq::FT,
-    ρ::FT;
-    N_d::FT = FT(1e8),
-    smooth_transition::Bool = false,
-) where {FT <: Real}
+    scheme::CT.AutoconversionTC1980{FT},
+    q_liq,
+    ρ;
+    N_d = FT(1e8),
+    smooth_transition = false,
+) where {FT <: AbstractFloat}
     #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
 
     q_liq = max(0, q_liq)
 
-    m0_liq_coeff::FT = CMP.m0_liq_coeff_TC1980(param_set)
-    me_liq::FT = CMP.me_liq_TC1980(param_set)
+    (; m0_liq_coeff, me_liq, D, a, b, r_0, k) = scheme
 
-    D::FT = CMP.D_acnv_TC1980(param_set)
-    a::FT = CMP.a_acnv_TC1980(param_set)
-    b::FT = CMP.b_acnv_TC1980(param_set)
-    r_0::FT = CMP.r_0_acnv_TC1980(param_set)
 
     q_liq_threshold::FT = m0_liq_coeff * N_d / ρ * r_0^me_liq
 
-    _output::FT = FT(0)
-    if smooth_transition
-        _k::FT = CMP.k_thrshld_stpnss(param_set)
-        _output = CO.logistic_function(q_liq, q_liq_threshold, _k)
-    else
-        _output = CO.heaviside(q_liq - q_liq_threshold)
-    end
-    return D * q_liq^a * N_d^b * _output
+    output =
+        smooth_transition ? CO.logistic_function(q_liq, q_liq_threshold, k) :
+        CO.heaviside(q_liq - q_liq_threshold)
+    return D * q_liq^a * N_d^b * output
 end
 function conv_q_liq_to_q_rai(
-    param_set::APS,
-    scheme::CT.LD2004Type,
-    q_liq::FT,
-    ρ::FT;
-    N_d::FT = FT(1e8),
-    smooth_transition::Bool = false,
-) where {FT <: Real}
-
+    (; ρ_w, R_6C_0, E_0, k)::CT.AutoconversionLD2004{FT},
+    q_liq,
+    ρ;
+    N_d = FT(1e8),
+    smooth_transition = false,
+) where {FT}
     if q_liq <= eps(FT)
         return FT(0)
     else
-        ρ_w::FT = CMP.ρ_cloud_liq(param_set)
-        R_6C_0::FT = CMP.R_6C_coeff_LD2004(param_set)
-        E_0::FT = CMP.E_0_LD2004(param_set)
-
         # Mean volume radius in microns (assuming spherical cloud droplets)
-        r_vol = (3 * (q_liq * ρ) / 4 / FT(π) / ρ_w / N_d)^FT(1 / 3) * 1e6
+        r_vol =
+            (FT(3) * (q_liq * ρ) / FT(4) / FT(π) / ρ_w / N_d)^FT(1 / 3) *
+            FT(1e6)
 
         # Assumed size distribution: modified gamma distribution
-        β_6::FT = ((r_vol + 3) / r_vol)^FT(1 / 3)
-        E::FT = E_0 * β_6^6
-        R_6::FT = β_6 * r_vol
-        R_6C::FT = R_6C_0 / (q_liq * ρ)^FT(1 / 6) / R_6^FT(1 / 2)
+        β_6 = ((r_vol + FT(3)) / r_vol)^FT(1 / 3)
+        E = E_0 * β_6^6
+        R_6 = β_6 * r_vol
+        R_6C = R_6C_0 / (q_liq * ρ)^FT(1 / 6) / R_6^FT(1 / 2)
 
-        _output::FT = FT(0)
-        if smooth_transition
-            _k::FT = CMP.k_thrshld_stpnss(param_set)
-            _output = CO.logistic_function(R_6, R_6C, _k)
-        else
-            _output = CO.heaviside(R_6 - R_6C)
-        end
-        return E * (q_liq * ρ)^3 / N_d / ρ * _output
+        output =
+            smooth_transition ? CO.logistic_function(R_6, R_6C, k) :
+            CO.heaviside(R_6 - R_6C)
+        return E * (q_liq * ρ)^3 / N_d / ρ * output
     end
 end
 function conv_q_liq_to_q_rai(
@@ -666,10 +579,9 @@ function conv_q_liq_to_q_rai(
 end
 
 """
-    accretion(param_set, scheme, q_liq, q_rai, ρ)
+    accretion(accretion_scheme, q_liq, q_rai, ρ)
 
- - `param_set` - abstract set with Earth parameters
- - `scheme` - type for 2-moment rain accretion parameterization
+ - `accretion_scheme` - type for 2-moment rain accretion parameterization
  - `q_liq` - cloud water specific humidity
  - `q_rai` - rain water specific humidity
  - `ρ` - air density (for `KK2000Type` and `Beheng1994Type`)
@@ -680,49 +592,28 @@ end
  - Tripoli and Cotton (1980) for `scheme == TC1980Type`
 """
 function accretion(
-    param_set::APS,
-    scheme::CT.KK2000Type,
-    q_liq::FT,
-    q_rai::FT,
-    ρ::FT,
-) where {FT <: Real}
-
+    (; A, a, b)::CT.AccretionKK2000{FT},
+    q_liq,
+    q_rai,
+    ρ,
+) where {FT}
     q_liq = max(0, q_liq)
     q_rai = max(0, q_rai)
-
-    A::FT = CMP.A_acc_KK2000(param_set)
-    a::FT = CMP.a_acc_KK2000(param_set)
-    b::FT = CMP.b_acc_KK2000(param_set)
 
     return A * (q_liq * q_rai)^a * ρ^b
 end
-function accretion(
-    param_set::APS,
-    scheme::CT.B1994Type,
-    q_liq::FT,
-    q_rai::FT,
-    ρ::FT,
-) where {FT <: Real}
 
+function accretion((; A)::CT.AccretionB1994{FT}, q_liq, q_rai, ρ) where {FT}
     q_liq = max(0, q_liq)
     q_rai = max(0, q_rai)
-
-    A::FT = CMP.A_acc_B1994(param_set)
 
     return A * q_liq * ρ * q_rai
 end
-function accretion(
-    param_set::APS,
-    scheme::CT.TC1980Type,
-    q_liq::FT,
-    q_rai::FT,
-) where {FT <: Real}
-    #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
 
+function accretion((; A)::CT.AccretionTC1980{FT}, q_liq, q_rai) where {FT}
+    #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
     q_liq = max(0, q_liq)
     q_rai = max(0, q_rai)
-
-    A::FT = CMP.A_acc_TC1980(param_set)
 
     return A * q_liq * q_rai
 end

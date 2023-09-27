@@ -29,8 +29,8 @@ Microphysics0M.remove_precipitation
 
 ```@docs
 Microphysics1M
-Microphysics1M.v0
-Microphysics1M.n0
+Microphysics1M.get_v0
+Microphysics1M.get_n0
 Microphysics1M.lambda
 Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_liq_to_q_rai
@@ -110,7 +110,6 @@ Common.logistic_function
 Common.logistic_function_integral
 Common.H2SO4_soln_saturation_vapor_pressure
 Common.Delta_a_w
-Common.Chen2022_snow_ice_coeffs
 Common.Chen2022_vel_add
 Common.Chen2022_vel_coeffs
 ```
@@ -127,6 +126,7 @@ CommonTypes.IceType
 CommonTypes.RainType
 CommonTypes.SnowType
 CommonTypes.Abstract2MPrecipType
+CommonTypes.CollisionEfficiency
 CommonTypes.KK2000Type
 CommonTypes.B1994Type
 CommonTypes.TC1980Type

@@ -10,9 +10,9 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 const FT = Float64
 
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-prs = cloud_microphysics_parameters(toml_dict)
 
-scheme = CMT.SB2006Type()
+autoconversion_scheme = CMT.AutoconversionSB2006(FT)
+accretion_scheme = CMT.AccretionSB2006(FT)
 
 q_tot = FT(0.5e-3)
 
@@ -27,8 +27,7 @@ N_liq = FT(1e8)
 
 aut_rates =
     CMPS.precipitation_susceptibility_autoconversion.(
-        Ref(prs),
-        Ref(scheme),
+        Ref(autoconversion_scheme),
         q_liq,
         q_rai,
         Ref(ρ),
@@ -37,8 +36,7 @@ aut_rates =
 
 acc_rates =
     CMPS.precipitation_susceptibility_accretion.(
-        Ref(prs),
-        Ref(scheme),
+        Ref(accretion_scheme),
         q_liq,
         q_rai,
         Ref(ρ),

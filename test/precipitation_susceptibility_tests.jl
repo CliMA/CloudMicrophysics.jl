@@ -18,42 +18,33 @@ Logarithmic derivative of universal function for autoconversion as described
     in Glassmeier & Lohmann, which is (1 + Phi(τ)/(1 - τ^2)) for Phi(τ)
     from SB2006.
 """
-function d_ln_phi_au_d_ln_τ(
-    param_set::APS,
-    scheme::CMT.SB2006Type,
+d_ln_phi_au_d_ln_τ(
+    (; A, a, b)::CMT.AutoconversionSB2006{FT},
     τ::FT,
-) where {FT <: Real}
-    A::FT = CMP.A_phi_au_SB2006(param_set)
-    a::FT = CMP.a_phi_au_SB2006(param_set)
-    b::FT = CMP.b_phi_au_SB2006(param_set)
-    return -(
+) where {FT <: AbstractFloat} =
+    -(
         A *
         τ^a *
         (1 - τ^a)^(b - 1) *
         (a * (τ - 1) * ((b + 1) * τ^a - 1) - 2 * τ * (τ^a - 1))
     ) / (A * (τ - 1) * τ^a * (1 - τ^a)^b + (τ - 1)^3)
-end
 
 """
 Logarithmic derivative of universal function for accretion as described
     in Glassmeier & Lohmann
 """
-function d_ln_phi_acc_d_ln_τ(
-    param_set::APS,
-    scheme::CMT.SB2006Type,
+d_ln_phi_acc_d_ln_τ(
+    (; τ0, c)::CMT.AccretionSB2006,
     τ::FT,
-) where {FT <: Real}
-    τ0::FT = CMP.τ0_phi_ac_SB2006(param_set)
-    c::FT = CMP.c_phi_ac_SB2006(param_set)
-    return (c * τ0) / (τ + τ0)
-end
+) where {FT <: AbstractFloat} = (c * τ0) / (τ + τ0)
 
 
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 prs = cloud_microphysics_parameters(toml_dict)
 
 TT.@testset "precipitation_susceptibility_SB2006" begin
-    scheme = CMT.SB2006Type()
+    acnv_sb2006 = CMT.AutoconversionSB2006(FT)
+    accretion_sb2006 = CMT.AccretionSB2006(FT)
 
     q_liq = FT(0.5e-3)
     N_liq = FT(1e8)
@@ -63,8 +54,7 @@ TT.@testset "precipitation_susceptibility_SB2006" begin
     τ = FT(1) - q_liq / (q_liq + q_rai)
 
     aut_rates = CMPS.precipitation_susceptibility_autoconversion(
-        prs,
-        scheme,
+        acnv_sb2006,
         q_liq,
         q_rai,
         ρ,
@@ -72,8 +62,7 @@ TT.@testset "precipitation_susceptibility_SB2006" begin
     )
 
     acc_rates = CMPS.precipitation_susceptibility_accretion(
-        prs,
-        scheme,
+        accretion_sb2006,
         q_liq,
         q_rai,
         ρ,
@@ -82,12 +71,12 @@ TT.@testset "precipitation_susceptibility_SB2006" begin
 
     TT.@test aut_rates.d_ln_pp_d_ln_N_liq ≈ -2
     TT.@test aut_rates.d_ln_pp_d_ln_q_liq ≈
-             4 - (1 - τ) * d_ln_phi_au_d_ln_τ(prs, scheme, τ)
+             4 - (1 - τ) * d_ln_phi_au_d_ln_τ(acnv_sb2006, τ)
     TT.@test aut_rates.d_ln_pp_d_ln_q_rai ≈
-             (1 - τ) * d_ln_phi_au_d_ln_τ(prs, scheme, τ)
+             (1 - τ) * d_ln_phi_au_d_ln_τ(acnv_sb2006, τ)
 
     TT.@test acc_rates.d_ln_pp_d_ln_q_liq ≈
-             1 - (1 - τ) * d_ln_phi_acc_d_ln_τ(prs, scheme, τ)
+             1 - (1 - τ) * d_ln_phi_acc_d_ln_τ(accretion_sb2006, τ)
     TT.@test acc_rates.d_ln_pp_d_ln_q_rai ≈
-             1 + (1 - τ) * d_ln_phi_acc_d_ln_τ(prs, scheme, τ)
+             1 + (1 - τ) * d_ln_phi_acc_d_ln_τ(accretion_sb2006, τ)
 end
