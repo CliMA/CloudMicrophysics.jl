@@ -771,12 +771,17 @@ toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 const param_set = cloud_microphysics_parameters(toml_dict)
 thermo_params = CMP.thermodynamics_params(param_set)
 
+const air_props = CMT.AirProperties(FT)
 const liquid = CMT.LiquidType()
-const ice = CMT.IceType()
-const rain = CMT.RainType()
-const snow = CMT.SnowType()
-const Chen2022 = CMT.Chen2022Type()
-const Blk1MVel = CMT.Blk1MVelType()
+const ice = CMT.IceType(FT)
+const rain = CMT.RainType(FT)
+const snow = CMT.SnowType(FT)
+const Chen2022 = CMT.Chen2022Type(FT)
+const Blk1MVel_rain = CMT.Blk1MVelType(FT, rain)
+const Blk1MVel_snow = CMT.Blk1MVelType(FT, rain)
+const rain_acnv_1m = CMT.Autoconversion1M(FT, rain)
+const snow_acnv_1m = CMT.Autoconversion1M(FT, snow)
+const ce = CMT.CollisionEfficiency(FT)
 
 # eq. 5d in [Grabowski1996](@cite)
 function terminal_velocity_empirical(q_rai::DT, q_tot::DT, ρ::DT, ρ_air_ground::DT) where {DT<:Real}
@@ -819,50 +824,50 @@ q_snow_range = range(1e-8, stop=5e-3, length=100)
 ρ_air, ρ_air_ground = 1.2, 1.22
 q_liq, q_ice, q_tot = 5e-4, 5e-4, 20e-3
 
-PL.plot( q_rain_range * 1e3, [CM1.terminal_velocity(param_set, rain, Blk1MVel, ρ_air, q_rai) for q_rai in q_rain_range], linewidth=3, label="Rain-1M-default", color=:blue, xlabel="q_rain/ice/snow [g/kg]", ylabel="terminal velocity [m/s]")
-PL.plot!(q_rain_range * 1e3, [CM1.terminal_velocity(param_set, rain, Chen2022, ρ_air, q_rai) for q_rai in q_rain_range], linewidth=3, label="Rain-Chen",       color=:blue, linestyle=:dot)
+PL.plot( q_rain_range * 1e3, [CM1.terminal_velocity(rain, Blk1MVel_rain, ρ_air, q_rai) for q_rai in q_rain_range], linewidth=3, label="Rain-1M-default", color=:blue, xlabel="q_rain/ice/snow [g/kg]", ylabel="terminal velocity [m/s]")
+PL.plot!(q_rain_range * 1e3, [CM1.terminal_velocity(rain, Chen2022, ρ_air, q_rai) for q_rai in q_rain_range], linewidth=3, label="Rain-Chen",       color=:blue, linestyle=:dot)
 PL.plot!(q_rain_range * 1e3, [terminal_velocity_empirical(q_rai, q_tot, ρ_air, ρ_air_ground) for q_rai in q_rain_range],        linewidth=3, label="Rain-Empirical",  color=:green)
-PL.plot!(q_ice_range  * 1e3, [CM1.terminal_velocity(param_set, ice,  Chen2022, ρ_air, q_ice) for q_ice in q_ice_range],  linewidth=3, label="Ice-Chen",        color=:pink, linestyle=:dot)
-PL.plot!(q_snow_range * 1e3, [CM1.terminal_velocity(param_set, snow, Blk1MVel, ρ_air, q_sno) for q_sno in q_snow_range], linewidth=3, label="Snow-1M-default", color=:red)
-PL.plot!(q_snow_range * 1e3, [CM1.terminal_velocity(param_set, snow, Chen2022, ρ_air, q_sno) for q_sno in q_snow_range], linewidth=3, label="Snow-Chen",       color=:red, linestyle=:dot)
+PL.plot!(q_ice_range  * 1e3, [CM1.terminal_velocity(ice,  Chen2022, ρ_air, q_ice) for q_ice in q_ice_range],  linewidth=3, label="Ice-Chen",        color=:pink, linestyle=:dot)
+PL.plot!(q_snow_range * 1e3, [CM1.terminal_velocity(snow, Blk1MVel_snow, ρ_air, q_sno) for q_sno in q_snow_range], linewidth=3, label="Snow-1M-default", color=:red)
+PL.plot!(q_snow_range * 1e3, [CM1.terminal_velocity(snow, Chen2022, ρ_air, q_sno) for q_sno in q_snow_range], linewidth=3, label="Snow-Chen",       color=:red, linestyle=:dot)
 PL.savefig("terminal_velocity.svg") # hide
 
 T = 273.15
-PL.plot( q_liq_range * 1e3, [CM1.conv_q_liq_to_q_rai(param_set, q_liq) for q_liq in q_liq_range], linewidth=3, xlabel="q_liq or q_ice [g/kg]", ylabel="autoconversion rate [1/s]", label="Rain")
-PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(param_set, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-5)  for q_ice in q_ice_range], linewidth=3, label="Snow T=-5C")
-PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(param_set, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-10) for q_ice in q_ice_range], linewidth=3, label="Snow T=-10C")
-PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(param_set, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-15) for q_ice in q_ice_range], linewidth=3, label="Snow T=-15C")
+PL.plot( q_liq_range * 1e3, [CM1.conv_q_liq_to_q_rai(rain_acnv_1m, q_liq) for q_liq in q_liq_range], linewidth=3, xlabel="q_liq or q_ice [g/kg]", ylabel="autoconversion rate [1/s]", label="Rain")
+PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(ice, air_props, thermo_params, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-5)  for q_ice in q_ice_range], linewidth=3, label="Snow T=-5C")
+PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(ice, air_props, thermo_params, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-10) for q_ice in q_ice_range], linewidth=3, label="Snow T=-10C")
+PL.plot!(q_ice_range * 1e3, [CM1.conv_q_ice_to_q_sno(ice, air_props, thermo_params, TD.PhasePartition(q_tot, 0., q_ice), ρ_air, T-15) for q_ice in q_ice_range], linewidth=3, label="Snow T=-15C")
 PL.savefig("autoconversion_rate.svg") # hide
 
-PL.plot( q_rain_range * 1e3, [CM1.accretion(param_set, liquid, rain, q_liq, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rate [1/s]", label="Liq+Rain-CLIMA")
-PL.plot!(q_rain_range * 1e3, [CM1.accretion(param_set, ice,    rain, q_ice, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, label="Ice+Rain-CLIMA")
-PL.plot!(q_snow_range * 1e3, [CM1.accretion(param_set, liquid, snow, q_liq, q_sno, ρ_air) for q_sno in q_snow_range], linewidth=3, label="Liq+Snow-CLIMA")
-PL.plot!(q_snow_range * 1e3, [CM1.accretion(param_set, ice,    snow, q_ice, q_sno, ρ_air) for q_sno in q_snow_range], linewidth=4, linestyle=:dash, label="Ice+Snow-CLIMA")
+PL.plot( q_rain_range * 1e3, [CM1.accretion(ce, liquid, rain, q_liq, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rate [1/s]", label="Liq+Rain-CLIMA")
+PL.plot!(q_rain_range * 1e3, [CM1.accretion(ce, ice,    rain, q_ice, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, label="Ice+Rain-CLIMA")
+PL.plot!(q_snow_range * 1e3, [CM1.accretion(ce, liquid, snow, q_liq, q_sno, ρ_air) for q_sno in q_snow_range], linewidth=3, label="Liq+Snow-CLIMA")
+PL.plot!(q_snow_range * 1e3, [CM1.accretion(ce, ice,    snow, q_ice, q_sno, ρ_air) for q_sno in q_snow_range], linewidth=4, linestyle=:dash, label="Ice+Snow-CLIMA")
 PL.plot!(q_rain_range * 1e3, [accretion_empirical(q_rai, q_liq, q_tot) for q_rai in q_rain_range], linewidth=3, label="Liq+Rain-Empirical")
 PL.savefig("accretion_rate.svg") # hide
 
 q_ice = 1e-6
-PL.plot(q_rain_range * 1e3, [CM1.accretion_rain_sink(param_set, q_ice, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rain sink rate [1/s]", label="q_ice=1e-6")
+PL.plot(q_rain_range * 1e3, [CM1.accretion_rain_sink(rain, ice, ce, q_ice, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rain sink rate [1/s]", label="q_ice=1e-6")
 q_ice = 1e-5
-PL.plot!(q_rain_range * 1e3, [CM1.accretion_rain_sink(param_set, q_ice, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rain sink rate [1/s]", label="q_ice=1e-5")
+PL.plot!(q_rain_range * 1e3, [CM1.accretion_rain_sink(rain, ice, ce, q_ice, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rain sink rate [1/s]", label="q_ice=1e-5")
 q_ice = 1e-4
-PL.plot!(q_rain_range * 1e3, [CM1.accretion_rain_sink(param_set, q_ice, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rain sink rate [1/s]", label="q_ice=1e-4")
+PL.plot!(q_rain_range * 1e3, [CM1.accretion_rain_sink(rain, ice, ce, q_ice, q_rai, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain or q_snow [g/kg]", ylabel="accretion rain sink rate [1/s]", label="q_ice=1e-4")
 PL.savefig("accretion_rain_sink_rate.svg") # hide
 
 q_sno = 1e-6
-PL.plot(q_rain_range * 1e3, [CM1.accretion_snow_rain(param_set, rain, snow, q_rai, q_sno, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain [g/kg]", ylabel="snow-rain accretion rate [1/s] T>0", label="q_snow=1e-6")
+PL.plot(q_rain_range * 1e3, [CM1.accretion_snow_rain(ce, rain, snow, Blk1MVel_rain, Blk1MVel_snow, q_rai, q_sno, ρ_air) for q_rai in q_rain_range], linewidth=3, xlabel="q_rain [g/kg]", ylabel="snow-rain accretion rate [1/s] T>0", label="q_snow=1e-6")
 q_sno = 1e-5
-PL.plot!(q_rain_range * 1e3, [CM1.accretion_snow_rain(param_set, rain, snow, q_rai, q_sno, ρ_air) for q_rai in q_rain_range], linewidth=3, label="q_snow=1e-5")
+PL.plot!(q_rain_range * 1e3, [CM1.accretion_snow_rain(ce, rain, snow, Blk1MVel_rain, Blk1MVel_snow, q_rai, q_sno, ρ_air) for q_rai in q_rain_range], linewidth=3, label="q_snow=1e-5")
 q_sno = 1e-4
-PL.plot!(q_rain_range * 1e3, [CM1.accretion_snow_rain(param_set, rain, snow, q_rai, q_sno, ρ_air) for q_rai in q_rain_range], linewidth=3, label="q_snow=1e-4")
+PL.plot!(q_rain_range * 1e3, [CM1.accretion_snow_rain(ce, rain, snow, Blk1MVel_rain, Blk1MVel_snow, q_rai, q_sno, ρ_air) for q_rai in q_rain_range], linewidth=3, label="q_snow=1e-4")
 PL.savefig("accretion_snow_rain_above_freeze.svg") # hide
 
 q_rai = 1e-6
-PL.plot(q_snow_range * 1e3, [CM1.accretion_snow_rain(param_set, snow, rain, q_sno, q_rai, ρ_air) for q_sno in q_snow_range], linewidth=3, xlabel="q_snow [g/kg]", ylabel="snow-rain accretion rate [1/s] T<0", label="q_rain=1e-6")
+PL.plot(q_snow_range * 1e3, [CM1.accretion_snow_rain(ce, snow, rain, Blk1MVel_snow, Blk1MVel_rain, q_sno, q_rai, ρ_air) for q_sno in q_snow_range], linewidth=3, xlabel="q_snow [g/kg]", ylabel="snow-rain accretion rate [1/s] T<0", label="q_rain=1e-6")
 q_rai = 1e-5
-PL.plot!(q_snow_range * 1e3, [CM1.accretion_snow_rain(param_set, snow, rain, q_sno, q_rai, ρ_air) for q_sno in q_snow_range], linewidth=3, label="q_rain=1e-5")
+PL.plot!(q_snow_range * 1e3, [CM1.accretion_snow_rain(ce, snow, rain, Blk1MVel_snow, Blk1MVel_rain, q_sno, q_rai, ρ_air) for q_sno in q_snow_range], linewidth=3, label="q_rain=1e-5")
 q_rai = 1e-4
-PL.plot!(q_snow_range * 1e3, [CM1.accretion_snow_rain(param_set, snow, rain, q_sno, q_rai, ρ_air) for q_sno in q_snow_range], linewidth=3, label="q_rain=1e-4")
+PL.plot!(q_snow_range * 1e3, [CM1.accretion_snow_rain(ce, snow, rain, Blk1MVel_snow, Blk1MVel_rain, q_sno, q_rai, ρ_air) for q_sno in q_snow_range], linewidth=3, label="q_rain=1e-4")
 PL.savefig("accretion_snow_rain_below_freeze.svg") # hide
 
 # example values
@@ -879,7 +884,7 @@ q = TD.PhasePartition(q_tot, q_liq, q_ice)
 R = TD.gas_constant_air(thermo_params, q)
 ρ = p / R / T
 
-PL.plot(q_rain_range * 1e3,  [CM1.evaporation_sublimation(param_set, rain, q, q_rai, ρ, T) for q_rai in q_rain_range], xlabel="q_rain [g/kg]", linewidth=3, ylabel="rain evaporation rate [1/s]", label="ClimateMachine")
+PL.plot(q_rain_range * 1e3,  [CM1.evaporation_sublimation(rain, air_props, thermo_params, q, q_rai, ρ, T) for q_rai in q_rain_range], xlabel="q_rain [g/kg]", linewidth=3, ylabel="rain evaporation rate [1/s]", label="ClimateMachine")
 PL.plot!(q_rain_range * 1e3, [rain_evap_empirical(q_rai, q, T, p, ρ) for q_rai in q_rain_range], linewidth=3, label="empirical")
 PL.savefig("rain_evaporation_rate.svg") # hide
 
@@ -897,7 +902,7 @@ q = TD.PhasePartition(q_tot, q_liq, q_ice)
 R = TD.gas_constant_air(thermo_params, q)
 ρ = p / R / T
 
-PL.plot(q_snow_range * 1e3,  [CM1.evaporation_sublimation(param_set, snow, q, q_sno, ρ, T) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, ylabel="snow deposition sublimation rate [1/s]", label="T<0")
+PL.plot(q_snow_range * 1e3,  [CM1.evaporation_sublimation(snow, air_props, thermo_params, q, q_sno, ρ, T) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, ylabel="snow deposition sublimation rate [1/s]", label="T<0")
 
 T, p = 273.15 + 15, 90000.
 ϵ = 1. / CMP.molmass_ratio(param_set)
@@ -912,13 +917,13 @@ q = TD.PhasePartition(q_tot, q_liq, q_ice)
 R = TD.gas_constant_air(thermo_params, q)
 ρ = p / R / T
 
-PL.plot!(q_snow_range * 1e3,  [CM1.evaporation_sublimation(param_set, snow, q, q_sno, ρ, T) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, ylabel="snow deposition sublimation rate [1/s]", label="T>0")
+PL.plot!(q_snow_range * 1e3,  [CM1.evaporation_sublimation(snow, air_props, thermo_params, q, q_sno, ρ, T) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, ylabel="snow deposition sublimation rate [1/s]", label="T>0")
 PL.savefig("snow_sublimation_deposition_rate.svg") # hide
 
 T=273.15
-PL.plot( q_snow_range * 1e3,  [CM1.snow_melt(param_set, q_sno, ρ, T+2) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, ylabel="snow melt rate [1/s]", label="T=2C")
-PL.plot!(q_snow_range * 1e3,  [CM1.snow_melt(param_set, q_sno, ρ, T+4) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, label="T=4C")
-PL.plot!(q_snow_range * 1e3,  [CM1.snow_melt(param_set, q_sno, ρ, T+6) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, label="T=6C")
+PL.plot( q_snow_range * 1e3,  [CM1.snow_melt(snow, air_props, thermo_params, q_sno, ρ, T+2) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, ylabel="snow melt rate [1/s]", label="T=2C")
+PL.plot!(q_snow_range * 1e3,  [CM1.snow_melt(snow, air_props, thermo_params, q_sno, ρ, T+4) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, label="T=4C")
+PL.plot!(q_snow_range * 1e3,  [CM1.snow_melt(snow, air_props, thermo_params, q_sno, ρ, T+6) for q_sno in q_snow_range], xlabel="q_snow [g/kg]", linewidth=3, label="T=6C")
 PL.savefig("snow_melt_rate.svg") # hide
 
 ```

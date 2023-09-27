@@ -27,41 +27,38 @@ export Chen2022_vel_coeffs
 
 Utility function combining thermal conductivity and vapor diffusivity effects.
 """
-function G_func(param_set::APS, T::FT, ::TD.Liquid) where {FT <: Real}
-
-    thermo_params = CMP.thermodynamics_params(param_set)
-    _K_therm::FT = CMP.K_therm(param_set)
-    _R_v::FT = CMP.R_v(param_set)
-    _D_vapor::FT = CMP.D_vapor(param_set)
-
+function G_func(
+    (; K_therm, D_vapor)::CT.AirProperties,
+    thermo_params,
+    T::FT,
+    ::TD.Liquid,
+) where {FT <: Real}
+    R_v = TD.Parameters.R_v(thermo_params)
     L = TD.latent_heat_vapor(thermo_params, T)
     p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
 
-    return FT(1) / (
-        L / _K_therm / T * (L / _R_v / T - FT(1)) + _R_v * T / _D_vapor / p_vs
-    )
+    return FT(1) /
+           (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
 end
-function G_func(param_set::APS, T::FT, ::TD.Ice) where {FT <: Real}
 
-    thermo_params = CMP.thermodynamics_params(param_set)
-    _K_therm::FT = CMP.K_therm(param_set)
-    _R_v::FT = CMP.R_v(param_set)
-    _D_vapor::FT = CMP.D_vapor(param_set)
-
+function G_func(
+    (; K_therm, D_vapor)::CT.AirProperties,
+    thermo_params,
+    T::FT,
+    ::TD.Ice,
+) where {FT <: Real}
+    R_v = TD.Parameters.R_v(thermo_params)
     L = TD.latent_heat_sublim(thermo_params, T)
     p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
 
-    return FT(1) / (
-        L / _K_therm / T * (L / _R_v / T - FT(1)) + _R_v * T / _D_vapor / p_vs
-    )
+    return FT(1) /
+           (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
 end
 
 """
     A Heaviside step function
 """
-function heaviside(x::FT) where {FT <: Real}
-    return FT(x > 0)
-end
+heaviside(x::FT) where {FT} = FT(x > 0)
 
 """
     logistic_function(x, x_0, k)
@@ -74,7 +71,7 @@ Returns the value of the logistic function for smooth transitioning at threshold
 a normalized curve changing from 0 to 1 while x varies from 0 to Inf (for positive k). For
 x < 0 the value at x = 0 (zero) is returned. For x_0 = 0 H(x) is returned.
 """
-function logistic_function(x::FT, x_0::FT, k::FT) where {FT <: Real}
+function logistic_function(x::FT, x_0::FT, k::FT) where {FT <: AbstractFloat}
 
     @assert k > 0
     @assert x_0 >= 0
@@ -86,7 +83,7 @@ function logistic_function(x::FT, x_0::FT, k::FT) where {FT <: Real}
         return FT(1)
     end
 
-    return 1 / (1 + exp(-k * (x / x_0 - x_0 / x)))
+    return FT(1) / (FT(1) + exp(-k * (x / x_0 - x_0 / x)))
 end
 
 """
@@ -100,8 +97,11 @@ Returns the value of the indefinite integral of the logistic function, for smoot
 of piecewise linear profiles at thresholds. This curve smoothly transition from y = 0
 for 0 < x < x_0 to y = x - x_0 for x_0 < x.
 """
-function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT <: Real}
-
+function logistic_function_integral(
+    x::FT,
+    x_0::FT,
+    k::FT,
+) where {FT <: AbstractFloat}
     @assert k > 0
     @assert x_0 >= 0
     x = max(0, x)
@@ -113,12 +113,10 @@ function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT <: Real}
     end
 
     # translation of the curve in x and y to enforce zero at x = 0
-    _trnslt::FT = -log(1 - exp(-k)) / k
+    trnslt = -log(FT(1) - exp(-k)) / k
 
-    _kt::FT = k * (x / x_0 - 1 + _trnslt)
-    _result::FT =
-        (_kt > 40.0) ? x - x_0 : (log(1 + exp(_kt)) / k - _trnslt) * x_0
-    return _result
+    kt = k * (x / x_0 - FT(1) + trnslt)
+    return (kt > FT(40)) ? x - x_0 : (log(FT(1) + exp(kt)) / k - trnslt) * x_0
 end
 
 """
@@ -187,48 +185,6 @@ function Delta_a_w(prs::APS, x::FT, T::FT) where {FT <: Real}
 end
 
 """
-    Chen2022_snow_ice_coeffs(prs, ρ_i)
-
- - prs - set with model parameters
- - ρ_i - cloud ice density
-
-Returns the coefficients from Appendix B, Table B3 in Chen et al 2022
-DOI: 10.1016/j.atmosres.2022.106171
-needed for snow and ice terminal velocity
-"""
-function Chen2022_snow_ice_coeffs(prs::APS, ρ_i::FT) where {FT <: Real}
-
-    As_1::FT = CMP.As_coeff_1_Ch2022(prs)
-    As_2::FT = CMP.As_coeff_2_Ch2022(prs)
-    As_3::FT = CMP.As_coeff_3_Ch2022(prs)
-    Bs_1::FT = CMP.Bs_coeff_1_Ch2022(prs)
-    Bs_2::FT = CMP.Bs_coeff_2_Ch2022(prs)
-    Bs_3::FT = CMP.Bs_coeff_3_Ch2022(prs)
-    Cs_1::FT = CMP.Cs_coeff_1_Ch2022(prs)
-    Cs_2::FT = CMP.Cs_coeff_2_Ch2022(prs)
-    Cs_3::FT = CMP.Cs_coeff_3_Ch2022(prs)
-    Cs_4::FT = CMP.Cs_coeff_4_Ch2022(prs)
-    Es_1::FT = CMP.Es_coeff_1_Ch2022(prs)
-    Es_2::FT = CMP.Es_coeff_2_Ch2022(prs)
-    Es_3::FT = CMP.Es_coeff_3_Ch2022(prs)
-    Fs_1::FT = CMP.Fs_coeff_1_Ch2022(prs)
-    Fs_2::FT = CMP.Fs_coeff_2_Ch2022(prs)
-    Fs_3::FT = CMP.Fs_coeff_3_Ch2022(prs)
-    Gs_1::FT = CMP.Gs_coeff_1_Ch2022(prs)
-    Gs_2::FT = CMP.Gs_coeff_2_Ch2022(prs)
-    Gs_3::FT = CMP.Gs_coeff_3_Ch2022(prs)
-
-    As = As_1 * (log(ρ_i))^2 − As_2 * log(ρ_i) - As_3
-    Bs = FT(1) / (Bs_1 + Bs_2 * log(ρ_i) + Bs_3 / sqrt(ρ_i))
-    Cs = Cs_1 + Cs_2 * exp(Cs_3 * ρ_i) + Cs_4 * sqrt(ρ_i)
-    Es = Es_1 - Es_2 * (log(ρ_i))^2 + Es_3 * sqrt(ρ_i)
-    Fs = -exp(Fs_1 - Fs_2 * (log(ρ_i))^2 + Fs_3 * log(ρ_i))
-    Gs = FT(1) / (Gs_1 + Gs_2 / (log(ρ_i)) - Gs_3 * log(ρ_i) / ρ_i)
-
-    return (As, Bs, Cs, Es, Fs, Gs)
-end
-
-"""
     Chen2022_vel_coeffs(prs, precip_type, ρ)
 
  - prs - set with free parameters
@@ -238,20 +194,13 @@ end
 Returns the coefficients from Appendix B in Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
 """
-function Chen2022_vel_coeffs(prs::APS, ::CT.RainType, ρ::FT) where {FT <: Real}
+function Chen2022_vel_coeffs(
+    ::CT.RainType,
+    velo_scheme::CT.Chen2022Type,
+    ρ::FT,
+) where {FT <: Real}
 
-    ρ0::FT = CMP.q_coeff_rain_Ch2022(prs)
-    a1::FT = CMP.a1_coeff_rain_Ch2022(prs)
-    a2::FT = CMP.a2_coeff_rain_Ch2022(prs)
-    a3::FT = CMP.a3_coeff_rain_Ch2022(prs)
-    a3_pow::FT = CMP.a3_pow_coeff_rain_Ch2022(prs)
-    b1::FT = CMP.b1_coeff_rain_Ch2022(prs)
-    b2::FT = CMP.b2_coeff_rain_Ch2022(prs)
-    b3::FT = CMP.b3_coeff_rain_Ch2022(prs)
-    b_ρ::FT = CMP.b_rho_coeff_rain_Ch2022(prs)
-    c1::FT = CMP.c1_coeff_rain_Ch2022(prs)
-    c2::FT = CMP.c2_coeff_rain_Ch2022(prs)
-    c3::FT = CMP.c3_coeff_rain_Ch2022(prs)
+    (; ρ0, a1, a2, a3, a3_pow, b1, b2, b3, b_ρ, c1, c2, c3) = velo_scheme.rain
 
     q = exp(ρ0 * ρ)
     ai = (a1 * q, a2 * q, a3 * q * ρ^a3_pow)
@@ -265,18 +214,15 @@ function Chen2022_vel_coeffs(prs::APS, ::CT.RainType, ρ::FT) where {FT <: Real}
     return (aiu, bi, ciu)
 end
 function Chen2022_vel_coeffs(
-    prs::APS,
     ::Union{CT.IceType, CT.SnowType},
+    velo_scheme::CT.Chen2022Type,
     ρ::FT,
-) where {FT <: Real}
+) where {FT <: AbstractFloat}
+    (; As, Bs, Cs, Es, Fs, Gs) = velo_scheme.snowice
 
-    ρ_i::FT = CMP.ρ_cloud_ice(prs)
-
-    _As, _Bs, _Cs, _Es, _Fs, _Gs = Chen2022_snow_ice_coeffs(prs, ρ_i)
-
-    ai = (_Es * ρ^_As, _Fs * ρ^_As)
-    bi = (_Bs + ρ * _Cs, _Bs + ρ * _Cs)
-    ci = (FT(0), _Gs)
+    ai = (Es * ρ^As, Fs * ρ^As)
+    bi = (Bs + ρ * Cs, Bs + ρ * Cs)
+    ci = (FT(0), Gs)
     # unit conversions
     aiu = ai .* 1000 .^ bi
     ciu = ci .* 1000
@@ -296,8 +242,8 @@ following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
 We are assuming exponential size distribution and hence μ=0.
 """
 function Chen2022_vel_add(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT <: Real}
-    μ = 0 # Exponantial instaed of gamma distribution
-    δ = μ + k + 1
+    μ = 0 # Exponential instead of gamma distribution
+    δ = FT(μ + k + 1)
     return a * λ^δ * SF.gamma(b + δ) / (λ + c)^(b + δ) / SF.gamma(δ)
 end
 end

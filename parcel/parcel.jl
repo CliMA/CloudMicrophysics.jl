@@ -15,7 +15,7 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function parcel_model(dY, Y, p, t)
 
     # Get simulation parameters
-    (; prs, const_dt, r_nuc, w, α_m) = p
+    (; prs, air_props, thermo_params, const_dt, r_nuc, w, α_m) = p
     (; ice_nucleation_modes, growth_modes) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
@@ -88,7 +88,7 @@ function parcel_model(dY, Y, p, t)
     dqi_dt_depo = FT(0)
     if "Deposition" in growth_modes && N_ice > 0
         # Deposition on existing crystals (assuming all are the same...)
-        G_i = CMO.G_func(prs, T, TD.Ice())
+        G_i = CMO.G_func(air_props, thermo_params, T, TD.Ice())
         r_i = cbrt(q_ice / N_ice / (4 / 3 * π) / ρ_ice * ρ_air)
         C_i = r_i
         dqi_dt_depo = 4 * π / ρ_air * (S_i - 1) * G_i * r_i * N_ice
@@ -98,7 +98,7 @@ function parcel_model(dY, Y, p, t)
     dql_dt_cond = FT(0)
     if "Condensation" in growth_modes && N_liq > 0
         # Condensation on existing droplets (assuming all are the same)
-        G_l = CMO.G_func(prs, T, TD.Liquid())
+        G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
         r_l = cbrt(q_liq / N_liq / (4 / 3 * π) / ρ_liq * ρ_air)
         C_l = r_l
         dql_dt_cond = 4 * π / ρ_air * (S_liq - 1) * G_l * r_l * N_liq

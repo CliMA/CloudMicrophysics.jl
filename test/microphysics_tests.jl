@@ -15,18 +15,13 @@ import CloudMicrophysics.Microphysics2M as CM2
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 const liquid = CMT.LiquidType()
-const ice = CMT.IceType()
-const rain = CMT.RainType()
-const snow = CMT.SnowType()
 const SB2006 = CMT.SB2006Type()
 const KK2000 = CMT.KK2000Type()
 const B1994 = CMT.B1994Type()
 const TC1980 = CMT.TC1980Type()
 const LD2004 = CMT.LD2004Type()
 const VarTimeScaleAcnv = CMT.VarTimeScaleAcnvType()
-const Blk1MVel = CMT.Blk1MVelType()
 const SB2006Vel = CMT.SB2006VelType()
-const Ch2022 = CMT.Chen2022Type()
 
 @info "Microphysics Tests"
 
@@ -34,6 +29,30 @@ function test_microphysics(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
+    rain = CMT.RainType(FT)
+    snow = CMT.SnowType(FT)
+    ice = CMT.IceType(FT)
+    Ch2022 = CMT.Chen2022Type(FT)
+    ce = CMT.CollisionEfficiency(FT)
+    rain_acnv_1m = CMT.Autoconversion1M(FT, rain)
+    snow_acnv_1m = CMT.Autoconversion1M(FT, snow)
+    thermo_params = CMP.thermodynamics_params(prs)
+    air_props = CMT.AirProperties(FT)
+    accretion_KK2000 = CMT.AccretionKK2000(FT)
+    accretion_B1994 = CMT.AccretionB1994(FT)
+    accretion_TC1980 = CMT.AccretionTC1980(FT)
+    accretion_SB2006 = CMT.AccretionSB2006(FT)
+    acnv_SB2006 = CMT.AutoconversionSB2006(FT)
+    tv_SB2006 = CMT.TerminalVelocitySB2006(FT)
+    acnv_KK2000 = CMT.AutoconversionKK2000(FT)
+    acnv_B1994 = CMT.AutoconversionB1994(FT)
+    acnv_TC1980 = CMT.AutoconversionTC1980(FT)
+    acnv_LD2004 = CMT.AutoconversionLD2004(FT)
+    evap_SB2006 = CMT.EvaporationSB2006(FT)
+    breakup_SB2006 = CMT.BreakupSB2006(FT)
+    selfcollection_SB2006 = CMT.SelfCollectionSB2006(FT)
+    rain_blk1mvel = CMT.Blk1MVelType(FT, rain)
+    snow_blk1mvel = CMT.Blk1MVelType(FT, snow)
 
     TT.@testset "τ_relax" begin
 
@@ -79,7 +98,7 @@ function test_microphysics(FT)
         end
     end
 
-    TT.@testset "RainFallSpeed" begin
+    TT.@testset "1M_microphysics RainFallSpeed" begin
         # eq. 5d in [Grabowski1996](@cite)
         function terminal_velocity_empir(
             q_rai::FT,
@@ -98,7 +117,7 @@ function test_microphysics(FT)
         ρ_air, q_tot, ρ_air_ground = FT(1.2), FT(20 * 1e-3), FT(1.22)
 
         for q_rai in q_rain_range
-            TT.@test CM1.terminal_velocity(prs, rain, Blk1MVel, ρ_air, q_rai) ≈
+            TT.@test CM1.terminal_velocity(rain, rain_blk1mvel, ρ_air, q_rai) ≈
                      terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground) atol =
                 0.2 * terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground)
 
@@ -112,12 +131,12 @@ function test_microphysics(FT)
         N_rai = FT(1e4)
 
         #action
-        vt_rai = CM1.terminal_velocity(prs, rain, Ch2022, ρ, q_rai)
-        v_bigger = CM1.terminal_velocity(prs, rain, Ch2022, ρ, q_rai * 2)
+        vt_rai = CM1.terminal_velocity(rain, Ch2022, ρ, q_rai)
+        v_bigger = CM1.terminal_velocity(rain, Ch2022, ρ, q_rai * 2)
 
         #test
         TT.@test vt_rai ≈ 3.0721397260869705 rtol = 2e-6
-        TT.@test CM1.terminal_velocity(prs, rain, Ch2022, ρ, FT(0))[1] ≈ 0 atol =
+        TT.@test CM1.terminal_velocity(rain, Ch2022, ρ, FT(0))[1] ≈ 0 atol =
             eps(FT)
         TT.@test v_bigger > vt_rai
     end
@@ -129,13 +148,12 @@ function test_microphysics(FT)
         N_rai = FT(1e4)
 
         #action
-        vt_ice = CM1.terminal_velocity(prs, ice, Ch2022, ρ, q_ice)
-        v_bigger = CM1.terminal_velocity(prs, ice, Ch2022, ρ, q_ice * 2)
+        vt_ice = CM1.terminal_velocity(ice, Ch2022, ρ, q_ice)
+        v_bigger = CM1.terminal_velocity(ice, Ch2022, ρ, q_ice * 2)
 
         #test
         TT.@test vt_ice ≈ 2.2309476335899388 rtol = 2e-6
-        TT.@test CM1.terminal_velocity(prs, ice, Ch2022, ρ, FT(0)) ≈ 0 atol =
-            eps(FT)
+        TT.@test CM1.terminal_velocity(ice, Ch2022, ρ, FT(0)) ≈ 0 atol = eps(FT)
         TT.@test v_bigger > vt_ice
     end
 
@@ -146,12 +164,12 @@ function test_microphysics(FT)
         N_rai = FT(1e4)
 
         #action
-        vt_sno = CM1.terminal_velocity(prs, snow, Ch2022, ρ, q_sno)
-        v_bigger = CM1.terminal_velocity(prs, snow, Ch2022, ρ, q_sno * 2)
+        vt_sno = CM1.terminal_velocity(snow, Ch2022, ρ, q_sno)
+        v_bigger = CM1.terminal_velocity(snow, Ch2022, ρ, q_sno * 2)
 
         #test
         TT.@test vt_sno ≈ 1.4722373984934243 rtol = 2e-6
-        TT.@test CM1.terminal_velocity(prs, snow, Ch2022, ρ, FT(0)) ≈ 0 atol =
+        TT.@test CM1.terminal_velocity(snow, Ch2022, ρ, FT(0)) ≈ 0 atol =
             eps(FT)
         TT.@test v_bigger > vt_sno
     end
@@ -197,55 +215,58 @@ function test_microphysics(FT)
 
     TT.@testset "RainAutoconversion" begin
 
-        _q_liq_threshold = CMP.q_liq_threshold(prs)
-        _τ_acnv_rai = CMP.τ_acnv_rai(prs)
+        _q_liq_threshold = rain_acnv_1m.q_threshold
+        _τ_acnv_rai = rain_acnv_1m.τ
 
         q_liq_small = FT(0.5) * _q_liq_threshold
-        TT.@test CM1.conv_q_liq_to_q_rai(prs, q_liq_small) == FT(0)
+        TT.@test CM1.conv_q_liq_to_q_rai(rain_acnv_1m, q_liq_small) == FT(0)
 
         TT.@test CM1.conv_q_liq_to_q_rai(
-            prs,
+            rain_acnv_1m,
             q_liq_small,
             smooth_transition = true,
         ) ≈ FT(0.0) atol = 0.15 * _q_liq_threshold / _τ_acnv_rai
 
-        q_liq_big = 1.5 * _q_liq_threshold
-        TT.@test CM1.conv_q_liq_to_q_rai(prs, q_liq_big) ==
-                 0.5 * _q_liq_threshold / _τ_acnv_rai
+        q_liq_big = FT(1.5) * _q_liq_threshold
+        TT.@test CM1.conv_q_liq_to_q_rai(rain_acnv_1m, q_liq_big) ≈
+                 FT(0.5) * _q_liq_threshold / _τ_acnv_rai
 
         TT.@test CM1.conv_q_liq_to_q_rai(
-            prs,
+            rain_acnv_1m,
             q_liq_big,
             smooth_transition = true,
-        ) ≈ 0.5 * _q_liq_threshold / _τ_acnv_rai atol =
-            0.15 * _q_liq_threshold / _τ_acnv_rai
+        ) ≈ FT(0.5) * _q_liq_threshold / _τ_acnv_rai atol =
+            FT(0.15) * _q_liq_threshold / _τ_acnv_rai
 
     end
 
     TT.@testset "SnowAutoconversionNoSupersat" begin
 
-        _q_ice_threshold = CMP.q_ice_threshold(prs)
-        _τ_acnv_sno = CMP.τ_acnv_sno(prs)
+        _q_ice_threshold = snow_acnv_1m.q_threshold
+        _τ_acnv_sno = snow_acnv_1m.τ
 
-        q_ice_small = 0.5 * _q_ice_threshold
-        TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(prs, q_ice_small) == FT(0)
+        q_ice_small = FT(0.5) * _q_ice_threshold
+        TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(
+            snow_acnv_1m,
+            q_ice_small,
+        ) == FT(0)
 
         TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(
-            prs,
+            snow_acnv_1m,
             q_ice_small,
             smooth_transition = true,
-        ) ≈ FT(0.0) atol = 0.15 * _q_ice_threshold / _τ_acnv_sno
+        ) ≈ FT(0.0) atol = FT(0.15) * _q_ice_threshold / _τ_acnv_sno
 
-        q_ice_big = 1.5 * _q_ice_threshold
-        TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(prs, q_ice_big) ≈
-                 0.5 * _q_ice_threshold / _τ_acnv_sno
+        q_ice_big = FT(1.5) * _q_ice_threshold
+        TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(snow_acnv_1m, q_ice_big) ≈
+                 FT(0.5) * _q_ice_threshold / _τ_acnv_sno
 
         TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(
-            prs,
+            snow_acnv_1m,
             q_ice_big,
             smooth_transition = true,
-        ) ≈ 0.5 * _q_ice_threshold / _τ_acnv_sno atol =
-            0.15 * _q_ice_threshold / _τ_acnv_sno
+        ) ≈ FT(0.5) * _q_ice_threshold / _τ_acnv_sno atol =
+            FT(0.15) * _q_ice_threshold / _τ_acnv_sno
     end
 
     TT.@testset "SnowAutoconversion" begin
@@ -256,18 +277,39 @@ function test_microphysics(FT)
         # above freezing temperatures -> no snow
         q = TD.PhasePartition(FT(15e-3), FT(2e-3), FT(1e-3))
         T = FT(273.15 + 30)
-        TT.@test CM1.conv_q_ice_to_q_sno(prs, q, ρ, T) == FT(0)
+        TT.@test CM1.conv_q_ice_to_q_sno(
+            ice,
+            air_props,
+            thermo_params,
+            q,
+            ρ,
+            T,
+        ) == FT(0)
 
         # no ice -> no snow
         q = TD.PhasePartition(FT(15e-3), FT(2e-3), FT(0))
         T = FT(273.15 - 30)
-        TT.@test CM1.conv_q_ice_to_q_sno(prs, q, ρ, T) == FT(0)
+        TT.@test CM1.conv_q_ice_to_q_sno(
+            ice,
+            air_props,
+            thermo_params,
+            q,
+            ρ,
+            T,
+        ) == FT(0)
 
         # no supersaturation -> no snow
         T = FT(273.15 - 5)
         q_sat_ice = TD.q_vap_saturation_generic(thermo_params, T, ρ, TD.Ice())
         q = TD.PhasePartition(q_sat_ice, FT(2e-3), FT(3e-3))
-        TT.@test CM1.conv_q_ice_to_q_sno(prs, q, ρ, T) == FT(0)
+        TT.@test CM1.conv_q_ice_to_q_sno(
+            ice,
+            air_props,
+            thermo_params,
+            q,
+            ρ,
+            T,
+        ) == FT(0)
 
         # TODO - coudnt find a plot of what it should be from the original paper
         # just chacking if the number stays the same
@@ -279,8 +321,14 @@ function test_microphysics(FT)
         q_ice = FT(0.03) * q_vap
         q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
 
-        TT.@test CM1.conv_q_ice_to_q_sno(prs, q, ρ, T) ≈
-                 FT(1.8512022335645584e-9)
+        TT.@test CM1.conv_q_ice_to_q_sno(
+            ice,
+            air_props,
+            thermo_params,
+            q,
+            ρ,
+            T,
+        ) ≈ FT(1.8512022335645584e-9)
     end
 
     TT.@testset "RainLiquidAccretion" begin
@@ -301,7 +349,7 @@ function test_microphysics(FT)
         ρ_air, q_liq, q_tot = FT(1.2), FT(5e-4), FT(20e-3)
 
         for q_rai in q_rain_range
-            TT.@test CM1.accretion(prs, liquid, rain, q_liq, q_rai, ρ_air) ≈
+            TT.@test CM1.accretion(ce, liquid, rain, q_liq, q_rai, ρ_air) ≈
                      accretion_empir(q_rai, q_liq, q_tot) atol =
                 (0.1 * accretion_empir(q_rai, q_liq, q_tot))
         end
@@ -319,22 +367,38 @@ function test_microphysics(FT)
         q_liq = FT(5e-4)
         q_rai = FT(5e-4)
 
-        TT.@test CM1.accretion(prs, liquid, rain, q_liq, q_rai, ρ) ≈
+        TT.@test CM1.accretion(ce, liquid, rain, q_liq, q_rai, ρ) ≈
                  FT(1.4150106417043544e-6)
-        TT.@test CM1.accretion(prs, ice, snow, q_ice, q_sno, ρ) ≈
+        TT.@test CM1.accretion(ce, ice, snow, q_ice, q_sno, ρ) ≈
                  FT(2.453070979562392e-7)
-        TT.@test CM1.accretion(prs, liquid, snow, q_liq, q_sno, ρ) ≈
+        TT.@test CM1.accretion(ce, liquid, snow, q_liq, q_sno, ρ) ≈
                  FT(2.453070979562392e-7)
-        TT.@test CM1.accretion(prs, ice, rain, q_ice, q_rai, ρ) ≈
+        TT.@test CM1.accretion(ce, ice, rain, q_ice, q_rai, ρ) ≈
                  FT(1.768763302130443e-6)
 
-        TT.@test CM1.accretion_rain_sink(prs, q_ice, q_rai, ρ) ≈
+        TT.@test CM1.accretion_rain_sink(rain, ice, ce, q_ice, q_rai, ρ) ≈
                  FT(3.085229094251214e-5)
 
-        TT.@test CM1.accretion_snow_rain(prs, snow, rain, q_sno, q_rai, ρ) ≈
-                 FT(2.1705865794293408e-4)
-        TT.@test CM1.accretion_snow_rain(prs, rain, snow, q_rai, q_sno, ρ) ≈
-                 FT(6.0118801860768854e-5)
+        TT.@test CM1.accretion_snow_rain(
+            ce,
+            snow,
+            rain,
+            snow_blk1mvel,
+            rain_blk1mvel,
+            q_sno,
+            q_rai,
+            ρ,
+        ) ≈ FT(2.1705865794293408e-4)
+        TT.@test CM1.accretion_snow_rain(
+            ce,
+            rain,
+            snow,
+            rain_blk1mvel,
+            snow_blk1mvel,
+            q_rai,
+            q_sno,
+            ρ,
+        ) ≈ FT(6.0118801860768854e-5)
     end
 
     TT.@testset "RainEvaporation" begin
@@ -384,8 +448,15 @@ function test_microphysics(FT)
         ρ = p / R / T
 
         for q_rai in q_rain_range
-            TT.@test CM1.evaporation_sublimation(prs, rain, q, q_rai, ρ, T) ≈
-                     rain_evap_empir(prs, q_rai, q, T, p, ρ) atol =
+            TT.@test CM1.evaporation_sublimation(
+                rain,
+                air_props,
+                thermo_params,
+                q,
+                q_rai,
+                ρ,
+                T,
+            ) ≈ rain_evap_empir(prs, q_rai, q, T, p, ρ) atol =
                 -0.5 * rain_evap_empir(prs, q_rai, q, T, p, ρ)
         end
 
@@ -403,7 +474,15 @@ function test_microphysics(FT)
         R = TD.gas_constant_air(thermo_params, q)
         ρ = p / R / T
 
-        TT.@test CM1.evaporation_sublimation(prs, rain, q, q_rai, ρ, T) ≈ FT(0)
+        TT.@test CM1.evaporation_sublimation(
+            rain,
+            air_props,
+            thermo_params,
+            q,
+            q_rai,
+            ρ,
+            T,
+        ) ≈ FT(0)
 
     end
 
@@ -440,8 +519,9 @@ function test_microphysics(FT)
                 ρ = p / R / T
 
                 TT.@test CM1.evaporation_sublimation(
-                    prs,
                     snow,
+                    air_props,
+                    thermo_params,
                     q,
                     q_sno,
                     ρ,
@@ -458,19 +538,22 @@ function test_microphysics(FT)
         T = FT(273.15 + 2)
         ρ = FT(1.2)
         q_sno = FT(1e-4)
-        TT.@test CM1.snow_melt(prs, q_sno, ρ, T) ≈ FT(9.518235437405256e-6)
+        TT.@test CM1.snow_melt(snow, air_props, thermo_params, q_sno, ρ, T) ≈
+                 FT(9.518235437405256e-6)
 
         # no snow -> no snow melt
         T = FT(273.15 + 2)
         ρ = FT(1.2)
         q_sno = FT(0)
-        TT.@test CM1.snow_melt(prs, q_sno, ρ, T) ≈ FT(0)
+        TT.@test CM1.snow_melt(snow, air_props, thermo_params, q_sno, ρ, T) ≈
+                 FT(0)
 
         # T < T_freeze -> no snow melt
         T = FT(273.15 - 2)
         ρ = FT(1.2)
         q_sno = FT(1e-4)
-        TT.@test CM1.snow_melt(prs, q_sno, ρ, T) ≈ FT(0)
+        TT.@test CM1.snow_melt(snow, air_props, thermo_params, q_sno, ρ, T) ≈
+                 FT(0)
 
     end
 
@@ -481,29 +564,31 @@ function test_microphysics(FT)
         # no reference data available - checking if callable and not NaN
         q_liq = FT(0.5e-3)
         q_rai = FT(1e-6)
+
+        TT.@test CM2.accretion(accretion_KK2000, q_liq, q_rai, ρ) != NaN
+        TT.@test CM2.accretion(accretion_B1994, q_liq, q_rai, ρ) != NaN
+        TT.@test CM2.accretion(accretion_TC1980, q_liq, q_rai) != NaN
         TT.@test CM2.conv_q_liq_to_q_rai(prs, VarTimeScaleAcnv, q_liq, ρ) != NaN
-        TT.@test CM2.accretion(prs, KK2000, q_liq, q_rai, ρ) != NaN
-        TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) != NaN
-        TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) != NaN
 
         # output should be zero if either q_liq or q_rai are zero
         q_liq = FT(0)
         q_rai = FT(1e-6)
 
-        TT.@test CM2.conv_q_liq_to_q_rai(prs, KK2000, q_liq, ρ) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(prs, B1994, q_liq, ρ) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(prs, TC1980, q_liq, ρ) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(prs, LD2004, q_liq, ρ) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(acnv_KK2000, q_liq, ρ) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(acnv_B1994, q_liq, ρ) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(acnv_TC1980, q_liq, ρ) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(acnv_LD2004, q_liq, ρ) == FT(0)
+        TT.@test CM2.accretion(accretion_KK2000, q_liq, q_rai, ρ) == FT(0)
+        TT.@test CM2.accretion(accretion_B1994, q_liq, q_rai, ρ) == FT(0)
+        TT.@test CM2.accretion(accretion_TC1980, q_liq, q_rai) == FT(0)
         TT.@test CM2.conv_q_liq_to_q_rai(prs, VarTimeScaleAcnv, q_liq, ρ) ==
                  FT(0)
-        TT.@test CM2.accretion(prs, KK2000, q_liq, q_rai, ρ) == FT(0)
-        TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) == FT(0)
-        TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) == FT(0)
+
         q_liq = FT(0.5e-3)
         q_rai = FT(0)
-        TT.@test CM2.accretion(prs, KK2000, q_liq, q_rai, ρ) == FT(0)
-        TT.@test CM2.accretion(prs, B1994, q_liq, q_rai, ρ) == FT(0)
-        TT.@test CM2.accretion(prs, TC1980, q_liq, q_rai) == FT(0)
+        TT.@test CM2.accretion(accretion_KK2000, q_liq, q_rai, ρ) == FT(0)
+        TT.@test CM2.accretion(accretion_B1994, q_liq, q_rai, ρ) == FT(0)
+        TT.@test CM2.accretion(accretion_TC1980, q_liq, q_rai) == FT(0)
 
         TT.@test CM2.conv_q_liq_to_q_rai(
             prs,
@@ -523,40 +608,34 @@ function test_microphysics(FT)
         # be approximately equal
         q_liq = FT(0.5e-3)
         TT.@test CM2.conv_q_liq_to_q_rai(
-            prs,
-            B1994,
+            acnv_B1994,
             q_liq,
             ρ,
             smooth_transition = true,
         ) ≈ CM2.conv_q_liq_to_q_rai(
-            prs,
-            B1994,
+            acnv_B1994,
             q_liq,
             ρ,
             smooth_transition = false,
         ) rtol = 0.2
         TT.@test CM2.conv_q_liq_to_q_rai(
-            prs,
-            TC1980,
+            acnv_TC1980,
             q_liq,
             ρ,
             smooth_transition = true,
         ) ≈ CM2.conv_q_liq_to_q_rai(
-            prs,
-            TC1980,
+            acnv_TC1980,
             q_liq,
             ρ,
             smooth_transition = false,
         ) rtol = 0.2
         TT.@test CM2.conv_q_liq_to_q_rai(
-            prs,
-            LD2004,
+            acnv_LD2004,
             q_liq,
             ρ,
             smooth_transition = true,
         ) ≈ CM2.conv_q_liq_to_q_rai(
-            prs,
-            LD2004,
+            acnv_LD2004,
             q_liq,
             ρ,
             smooth_transition = false,
@@ -571,47 +650,58 @@ function test_microphysics(FT)
 
         # compare with Wood 2005 Fig 1 panel a
         function compare(scheme, input, output; eps = 0.1)
-            TT.@test CM2.conv_q_liq_to_q_rai(prs, scheme, input * FT(1e-3), ρ) ≈
+            TT.@test CM2.conv_q_liq_to_q_rai(scheme, input * FT(1e-3), ρ) ≈
                      output atol = eps * output
         end
-        compare(KK2000, FT(0.03138461538461537), FT(2.636846054348105e-12))
-        compare(KK2000, FT(0.8738461538461537), FT(9.491665962977648e-9))
+        compare(acnv_KK2000, FT(0.03138461538461537), FT(2.636846054348105e-12))
+        compare(acnv_KK2000, FT(0.8738461538461537), FT(9.491665962977648e-9))
         compare(
-            B1994,
+            acnv_B1994,
             FT(0.13999999999999999),
             FT(4.584323122458155e-12),
             eps = 1,
         )
         compare(
-            B1994,
+            acnv_B1994,
             FT(0.9000000000000006),
             FT(5.4940586176564715e-8),
             eps = 1,
         )
-        compare(TC1980, FT(0.2700000000000001), FT(3.2768635256661366e-8))
-        compare(TC1980, FT(0.9000000000000006), FT(5.340418612468997e-7))
-        compare(LD2004, FT(0.3700000000000002), FT(8.697439193234471e-9))
-        compare(LD2004, FT(0.9000000000000006), FT(1.1325570516983242e-7))
+        compare(acnv_TC1980, FT(0.2700000000000001), FT(3.2768635256661366e-8))
+        compare(acnv_TC1980, FT(0.9000000000000006), FT(5.340418612468997e-7))
+        compare(acnv_LD2004, FT(0.3700000000000002), FT(8.697439193234471e-9))
+        compare(acnv_LD2004, FT(0.9000000000000006), FT(1.1325570516983242e-7))
 
         # compare with Wood 2005 Fig 1 panel b
         function compare_Nd(scheme, input, output; eps = 0.1)
             TT.@test CM2.conv_q_liq_to_q_rai(
-                prs,
                 scheme,
                 q_liq,
                 N_d = input * FT(1e6),
                 ρ,
             ) ≈ output atol = eps * output
         end
-        compare_Nd(KK2000, FT(16.13564081404141), FT(6.457285532394289e-8))
-        compare_Nd(KK2000, FT(652.093931356625), FT(8.604011482409198e-11))
-        compare_Nd(B1994, FT(14.47851799831075), FT(4.2829062386778675e-7))
-        compare_Nd(B1994, FT(693.0425211336465), FT(6.076294746898778e-12))
-        compare_Nd(TC1980, FT(13.658073017575544), FT(2.7110779872658386e-7))
-        compare_Nd(TC1980, FT(205.0970632305975), FT(1.0928660431622176e-7))
-        compare_Nd(LD2004, FT(15.122629721719655), FT(1.1647783461546477e-7))
+        compare_Nd(acnv_KK2000, FT(16.13564081404141), FT(6.457285532394289e-8))
+        compare_Nd(acnv_KK2000, FT(652.093931356625), FT(8.604011482409198e-11))
+        compare_Nd(acnv_B1994, FT(14.47851799831075), FT(4.2829062386778675e-7))
+        compare_Nd(acnv_B1994, FT(693.0425211336465), FT(6.076294746898778e-12))
         compare_Nd(
-            LD2004,
+            acnv_TC1980,
+            FT(13.658073017575544),
+            FT(2.7110779872658386e-7),
+        )
+        compare_Nd(
+            acnv_TC1980,
+            FT(205.0970632305975),
+            FT(1.0928660431622176e-7),
+        )
+        compare_Nd(
+            acnv_LD2004,
+            FT(15.122629721719655),
+            FT(1.1647783461546477e-7),
+        )
+        compare_Nd(
+            acnv_LD2004,
             FT(149.01220754857331),
             FT(1.3917890403908125e-8),
             eps = 1,
@@ -634,8 +724,8 @@ function test_microphysics(FT)
         for Nr in N_rai
             for qr in q_rai
                 #action
-                λ = CM2.raindrops_limited_vars(prs, qr, ρ, Nr).λr
-                xr = CM2.raindrops_limited_vars(prs, qr, ρ, Nr).xr
+                λ = CM2.raindrops_limited_vars(tv_SB2006, qr, ρ, Nr).λr
+                xr = CM2.raindrops_limited_vars(tv_SB2006, qr, ρ, Nr).xr
 
                 #test
                 TT.@test λ_min <= λ <= λ_max
@@ -658,11 +748,10 @@ function test_microphysics(FT)
         ρ0 = FT(1.225)
 
         #action
-        au = CM2.autoconversion(prs, SB2006, q_liq, q_rai, ρ, N_liq)
-        sc = CM2.liquid_self_collection(prs, SB2006, q_liq, ρ, au.dN_liq_dt)
+        au = CM2.autoconversion(acnv_SB2006, q_liq, q_rai, ρ, N_liq)
+        sc = CM2.liquid_self_collection(acnv_SB2006, q_liq, ρ, au.dN_liq_dt)
         au_sc = CM2.autoconversion_and_liquid_self_collection(
-            prs,
-            SB2006,
+            acnv_SB2006,
             q_liq,
             q_rai,
             ρ,
@@ -700,11 +789,10 @@ function test_microphysics(FT)
         TT.@test au_sc.sc ≈ dNcdt_sc rtol = 1e-6
 
         #action
-        au = CM2.autoconversion(prs, SB2006, FT(0), FT(0), ρ, N_liq)
-        sc = CM2.liquid_self_collection(prs, SB2006, FT(0), ρ, au.dN_liq_dt)
+        au = CM2.autoconversion(acnv_SB2006, FT(0), FT(0), ρ, N_liq)
+        sc = CM2.liquid_self_collection(acnv_SB2006, FT(0), ρ, au.dN_liq_dt)
         au_sc = CM2.autoconversion_and_liquid_self_collection(
-            prs,
-            SB2006,
+            acnv_SB2006,
             FT(0),
             FT(0),
             ρ,
@@ -736,7 +824,7 @@ function test_microphysics(FT)
         ρ0 = FT(1.225)
 
         #action
-        ac = CM2.accretion(prs, SB2006, q_liq, q_rai, ρ, N_liq)
+        ac = CM2.accretion(accretion_SB2006, q_liq, q_rai, ρ, N_liq)
 
         Lc = ρ * q_liq
         Lr = ρ * q_rai
@@ -757,7 +845,7 @@ function test_microphysics(FT)
         TT.@test ac.dN_rai_dt ≈ dNrdt_ac rtol = FT(1e-6)
 
         #action
-        ac = CM2.accretion(prs, SB2006, FT(0), FT(0), ρ, N_liq)
+        ac = CM2.accretion(accretion_SB2006, FT(0), FT(0), ρ, N_liq)
 
         #test
         TT.@test ac.dq_liq_dt ≈ FT(0) atol = eps(FT)
@@ -781,20 +869,32 @@ function test_microphysics(FT)
         ρ0 = FT(1.225)
 
         #action
-        sc_rai = CM2.rain_self_collection(prs, SB2006, q_rai, ρ, N_rai)
-        br_rai = CM2.rain_breakup(prs, SB2006, q_rai, ρ, N_rai, sc_rai)
-        sc_br_rai =
-            CM2.rain_self_collection_and_breakup(prs, SB2006, q_rai, ρ, N_rai)
+        sc_rai = CM2.rain_self_collection(
+            selfcollection_SB2006,
+            tv_SB2006,
+            q_rai,
+            ρ,
+            N_rai,
+        )
+        br_rai = CM2.rain_breakup(breakup_SB2006, q_rai, ρ, N_rai, sc_rai)
+        sc_br_rai = CM2.rain_self_collection_and_breakup(
+            selfcollection_SB2006,
+            breakup_SB2006,
+            tv_SB2006,
+            q_rai,
+            ρ,
+            N_rai,
+        )
 
         λr =
-            CM2.raindrops_limited_vars(prs, q_rai, ρ, N_rai).λr *
+            CM2.raindrops_limited_vars(tv_SB2006, q_rai, ρ, N_rai).λr *
             FT(6 / π / 1000)^FT(1 / 3)
         dNrdt_sc = -krr * N_rai * ρ * q_rai * (1 + κrr / λr)^-5 * sqrt(ρ0 / ρ)
 
         Dr =
             (
-                CM2.raindrops_limited_vars(prs, q_rai, ρ, N_rai).xr / 1000 /
-                FT(π) * 6
+                CM2.raindrops_limited_vars(tv_SB2006, q_rai, ρ, N_rai).xr /
+                1000 / FT(π) * 6
             )^FT(1 / 3)
         ΔDr = Dr - Deq
         ϕ_br =
@@ -805,8 +905,13 @@ function test_microphysics(FT)
 
         #test
         TT.@test sc_rai ≈ dNrdt_sc rtol = 1e-6
-        TT.@test CM2.rain_self_collection(prs, SB2006, FT(0), ρ, N_rai) ≈ FT(0) atol =
-            eps(FT)
+        TT.@test CM2.rain_self_collection(
+            selfcollection_SB2006,
+            tv_SB2006,
+            FT(0),
+            ρ,
+            N_rai,
+        ) ≈ FT(0) atol = eps(FT)
         TT.@test br_rai ≈ dNrdt_br rtol = 1e-6
         TT.@test sc_br_rai isa NamedTuple
         TT.@test sc_br_rai.sc ≈ dNrdt_sc rtol = 1e-6
@@ -816,10 +921,22 @@ function test_microphysics(FT)
         q_rai = FT(0)
 
         #action
-        sc_rai = CM2.rain_self_collection(prs, SB2006, q_rai, ρ, N_rai)
-        br_rai = CM2.rain_breakup(prs, SB2006, q_rai, ρ, N_rai, sc_rai)
-        sc_br_rai =
-            CM2.rain_self_collection_and_breakup(prs, SB2006, q_rai, ρ, N_rai)
+        sc_rai = CM2.rain_self_collection(
+            selfcollection_SB2006,
+            tv_SB2006,
+            q_rai,
+            ρ,
+            N_rai,
+        )
+        br_rai = CM2.rain_breakup(breakup_SB2006, q_rai, ρ, N_rai, sc_rai)
+        sc_br_rai = CM2.rain_self_collection_and_breakup(
+            selfcollection_SB2006,
+            breakup_SB2006,
+            tv_SB2006,
+            q_rai,
+            ρ,
+            N_rai,
+        )
 
         #test
         TT.@test sc_rai ≈ FT(0) atol = eps(FT)
@@ -840,10 +957,9 @@ function test_microphysics(FT)
         cR = FT(600)
 
         #action
-        vt_rai =
-            CM2.rain_terminal_velocity(prs, SB2006, SB2006Vel, q_rai, ρ, N_rai)
+        vt_rai = CM2.rain_terminal_velocity(rain, tv_SB2006, q_rai, ρ, N_rai)
 
-        λr = CM2.raindrops_limited_vars(prs, q_rai, ρ, N_rai).λr
+        λr = CM2.raindrops_limited_vars(tv_SB2006, q_rai, ρ, N_rai).λr
         vt0 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
         vt1 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^4))
 
@@ -851,22 +967,10 @@ function test_microphysics(FT)
         TT.@test vt_rai isa Tuple
         TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
         TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
-        TT.@test CM2.rain_terminal_velocity(
-            prs,
-            SB2006,
-            SB2006Vel,
-            FT(0),
-            ρ,
-            N_rai,
-        )[1] ≈ 0 atol = eps(FT)
-        TT.@test CM2.rain_terminal_velocity(
-            prs,
-            SB2006,
-            SB2006Vel,
-            FT(0),
-            ρ,
-            N_rai,
-        )[2] ≈ 0 atol = eps(FT)
+        TT.@test CM2.rain_terminal_velocity(rain, tv_SB2006, FT(0), ρ, N_rai)[1] ≈
+                 0 atol = eps(FT)
+        TT.@test CM2.rain_terminal_velocity(rain, tv_SB2006, FT(0), ρ, N_rai)[2] ≈
+                 0 atol = eps(FT)
     end
 
     TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity" begin
@@ -877,9 +981,15 @@ function test_microphysics(FT)
 
         #action
         vt_rai =
-            CM2.rain_terminal_velocity(prs, SB2006, Ch2022, q_rai, ρ, N_rai)
-        v_bigger =
-            CM2.rain_terminal_velocity(prs, SB2006, Ch2022, q_rai * 2, ρ, N_rai)
+            CM2.rain_terminal_velocity(rain, Ch2022, tv_SB2006, q_rai, ρ, N_rai)
+        v_bigger = CM2.rain_terminal_velocity(
+            rain,
+            Ch2022,
+            tv_SB2006,
+            q_rai * 2,
+            ρ,
+            N_rai,
+        )
 
         #test
         TT.@test vt_rai isa Tuple
@@ -887,17 +997,17 @@ function test_microphysics(FT)
         TT.@test vt_rai[2] ≈ 4.552478635185714 rtol = 1e-6
 
         TT.@test CM2.rain_terminal_velocity(
-            prs,
-            SB2006,
+            rain,
             Ch2022,
+            tv_SB2006,
             FT(0),
             ρ,
             N_rai,
         )[1] ≈ 0 atol = eps(FT)
         TT.@test CM2.rain_terminal_velocity(
-            prs,
-            SB2006,
+            rain,
             Ch2022,
+            tv_SB2006,
             FT(0),
             ρ,
             N_rai,
@@ -925,13 +1035,22 @@ function test_microphysics(FT)
         ρ0 = FT(1.225)
 
         #action
-        evap = CM2.rain_evaporation(prs, SB2006, q, q_rai, ρ, N_rai, T)
+        evap = CM2.rain_evaporation(
+            evap_SB2006,
+            air_props,
+            thermo_params,
+            q,
+            q_rai,
+            ρ,
+            N_rai,
+            T,
+        )
 
-        G = CMC.G_func(prs, T, TD.Liquid())
+        G = CMC.G_func(air_props, thermo_params, T, TD.Liquid())
         thermo_params = CMP.thermodynamics_params(prs)
         S = TD.supersaturation(thermo_params, q, ρ, T, TD.Liquid())
 
-        xr = CM2.raindrops_limited_vars(prs, q_rai, ρ, N_rai).xr
+        xr = CM2.raindrops_limited_vars(tv_SB2006, q_rai, ρ, N_rai).xr
         Dr = FT(6 / π / 1000.0)^FT(1 / 3) * xr^FT(1 / 3)
         N_Re = α * xr^β * sqrt(ρ0 / ρ) * Dr / ν_air
 
@@ -949,10 +1068,26 @@ function test_microphysics(FT)
         TT.@test evap isa Tuple
         TT.@test evap[1] ≈ evap0 rtol = 1e-5
         TT.@test evap[2] ≈ evap1 rtol = 1e-5
-        TT.@test CM2.rain_evaporation(prs, SB2006, q, FT(0), ρ, N_rai, T)[1] ≈ 0 atol =
-            eps(FT)
-        TT.@test CM2.rain_evaporation(prs, SB2006, q, FT(0), ρ, N_rai, T)[2] ≈ 0 atol =
-            eps(FT)
+        TT.@test CM2.rain_evaporation(
+            evap_SB2006,
+            air_props,
+            thermo_params,
+            q,
+            FT(0),
+            ρ,
+            N_rai,
+            T,
+        )[1] ≈ 0 atol = eps(FT)
+        TT.@test CM2.rain_evaporation(
+            evap_SB2006,
+            air_props,
+            thermo_params,
+            q,
+            FT(0),
+            ρ,
+            N_rai,
+            T,
+        )[2] ≈ 0 atol = eps(FT)
     end
 end
 

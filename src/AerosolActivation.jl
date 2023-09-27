@@ -28,6 +28,9 @@ export M_activated_per_mode
 export total_N_activated
 export total_M_activated
 
+CT.AirProperties((; K_therm, D_vapor, ν_air)::CMP.CloudMicrophysicsParameters) =
+    CT.AirProperties(K_therm, D_vapor, ν_air)
+
 """
     coeff_of_curvature(param_set, T)
 
@@ -157,7 +160,7 @@ function max_supersaturation(
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
+    air_props = CT.AirProperties(param_set)
     thermo_params = CMP.thermodynamics_params(param_set)
     _grav::FT = CMP.grav(param_set)
     _ρ_cloud_liq::FT = CMP.ρ_cloud_liq(param_set)
@@ -168,7 +171,7 @@ function max_supersaturation(
 
     L::FT = TD.latent_heat_vapor(thermo_params, T)
     p_vs::FT = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
-    G::FT = CO.G_func(param_set, T, TD.Liquid()) / _ρ_cloud_liq
+    G::FT = CO.G_func(air_props, thermo_params, T, TD.Liquid()) / _ρ_cloud_liq
 
     # eq 11, 12 in Razzak et al 1998
     # but following eq 10 from Rogers 1975

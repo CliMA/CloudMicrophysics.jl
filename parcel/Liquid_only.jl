@@ -2,6 +2,7 @@ import OrdinaryDiffEq as ODE
 import CairoMakie as MK
 import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.CommonTypes as CMT
 import CLIMAParameters as CP
 
 # boilerplate code to get free parameter values
@@ -13,6 +14,7 @@ FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 prs = cloud_microphysics_parameters(toml_dict)
 thermo_params = CMP.thermodynamics_params(prs)
+air_props = CMT.AirProperties(FT)
 
 # Constants
 ρₗ = FT(CMP.ρ_cloud_liq(prs))
@@ -55,7 +57,17 @@ const_dt = FT(0.5)                         # model timestep
 t_max = FT(20)
 ice_nucleation_modes = []                  # no freezing
 growth_modes = ["Condensation"]            # switch on condensation
-p = (; prs, const_dt, r_nuc, w, α_m, ice_nucleation_modes, growth_modes)
+p = (;
+    prs,
+    air_props,
+    thermo_params,
+    const_dt,
+    r_nuc,
+    w,
+    α_m,
+    ice_nucleation_modes,
+    growth_modes,
+)
 
 # solve ODE
 sol = run_parcel(IC, FT(0), t_max, p)

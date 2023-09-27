@@ -3,8 +3,8 @@ import CairoMakie as MK
 
 import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.CommonTypes as CMT
 import CLIMAParameters as CP
-
 # boilerplate code to get free parameter values
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
@@ -52,7 +52,7 @@ function Tully_et_al_2023(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
     thermo_params = CMP.thermodynamics_params(prs)
-
+    air_props = CMT.AirProperties(FT)
     # Initial conditions for 1st period
     N_aerosol = FT(2000 * 1e3)
     N_droplets = FT(0)
@@ -80,7 +80,17 @@ function Tully_et_al_2023(FT)
     const_dt = 0.1                             # model timestep
     ice_nucleation_modes = ["DustDeposition"]  # switch on deposition on dust
     growth_modes = ["Deposition"]              # switch on deposition growth
-    p = (; prs, const_dt, r_nuc, w, α_m, ice_nucleation_modes, growth_modes)
+    p = (;
+        prs,
+        air_props,
+        thermo_params,
+        const_dt,
+        r_nuc,
+        w,
+        α_m,
+        ice_nucleation_modes,
+        growth_modes,
+    )
 
     # Simulation 1
     IC1 = get_initial_condition(
