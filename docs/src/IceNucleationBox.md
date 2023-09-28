@@ -114,7 +114,7 @@ where ``\xi = \frac{e_{sl}}{e_{si}}`` is the ratio of saturation vapor pressure 
 The crux of the problem is modeling the ``\frac{dq_l}{dt}`` and ``\frac{dq_i}{dt}``
   for different homogeneous and heterogeneous ice nucleation paths.
 
-## Condensation on a monodisperse droplet population
+## Condensation
 
 The diffusional growth of individual cloud droplet is described by
 ([see discussion](https://clima.github.io/CloudMicrophysics.jl/previews/PR103/Microphysics1M/#Snow-autoconversion)),
@@ -140,19 +140,25 @@ Assuming spherical water droplets, the change in droplet mass ``m_l`` can be des
   \frac{dm_l}{dt} = 4 \pi \rho_l r^2 \frac{dr_l}{dt} = 4 \pi r_l (S_l - 1) G_l(T)
 \end{equation}
 ```
-
-Then, for a monodisperse distribution of droplets ``n(r) = N_{tot} \delta(r-r_0)``
+Integrating over the assumed size distribution of droplets
 ```math
 \begin{equation}
    \frac{dq_l}{dt} = \frac{1}{V} \frac{1}{\rho_a} 4 \pi (S_l - 1) G_l(T) \int_{0}^{\infty} n(r) r dr =
-                                 \frac{1}{\rho_a} 4 \pi (S_l - 1) G_l(T) N_{tot} r_0
+                                 \frac{1}{\rho_a} 4 \pi (S_l - 1) G_l(T) N_{tot} \bar{r}
 \end{equation}
 ```
 where:
 - ``N_{tot}`` is the total number concentration of droplets per volume of air ``V``
-- ``r_0`` is their radius.
+- ``\bar{r}`` is their mean radius
+- ``\rho_a`` is the density of air.
 
-## Water vapour deposition on dust
+For a monodisperse distribution of droplets ``n(r) = N_{tot} \delta(r-\bar{r})``,
+``\bar{r} = \left( \frac{3 \rho_a q_l}{4 \pi \rho_l N_{tot}} \right)^{1/3}``.
+For a gamma distribution of droplets ``n(r) = A \; r \; exp(-\lambda r)``,
+``\bar{r} = \frac{2}{\lambda}``
+where ``\lambda = \left(\frac{32 \pi N_{tot} \rho_l}{q_l \rho_a}\right)^{1/3}``.
+
+## Deposition on dust particles
 
 Similarly, for a case of a spherical ice particle growing through water vapor deposition
 ```math
@@ -167,8 +173,6 @@ where:
      that arrive at the particle surface will join the growing crystal,
  - ``G_i(T) = \left(\frac{L_s}{KT} \left(\frac{L_s}{R_v T} - 1 \right) + \frac{R_v T}{e_{si} D} \right)^{-1}``
      combines the effects of thermal conductivity and water diffusivity,
- - ``K`` is the thermal conductivity of air,
- - ``D`` is the diffusivity of water vapor.
 
 !!! note
     The ``r_i`` in eq. (\ref{eq:massratesphere})
@@ -176,33 +180,24 @@ where:
     when considering non-spherical particles.
     For a sphere ``C=r``, for a circular disc ``C=2r/\pi``.
 
-The rate of change of ice specific humidity ``q_i`` can be computed as
+It follows that
 ```math
 \begin{equation}
-  \frac{d \, q_i}{dt} =
-  \frac{1}{V} \frac{1}{\rho_a} \int_{0}^{\infty} \frac{dm_i}{dt} n(r) dr
-  \label{eq:qi_rat}
+  \frac{dq_i}{dt} = \frac{1}{\rho_a} \alpha_m 4 \pi (S_i - 1) G_i(T) N_{act} \bar{r}
 \end{equation}
 ```
-
-Assuming that the size distribution of nucleated and growing ice crystals is a delta function
-(i.e. in a monodisperse population of ice crystals) ``n(r) = N_{act} \delta(r-r_0)``
-eq. (\ref{eq:qi_rat}) can be written as
-```math
-\begin{equation}
-  \frac{d \, q_i}{dt} =
-  \frac{1}{\rho} N_{act} \alpha_m 4 \pi \, r_0 \, (S_i - 1) \, G_i(T)
-\end{equation}
-```
-where ``N_{act}`` is the number of activated ice particles and ``r_0`` is their radius.
+where:
+- ``N_{act}`` is the number of activated ice particles.
 
 ``N_{act}`` can be computed for example from
   [activated fraction](https://clima.github.io/CloudMicrophysics.jl/previews/PR103/IceNucleation/#Activated-fraction-for-deposition-freezing-on-dust) ``f_i``
 ```math
 \begin{equation}
-  N_{act} = N_{tot} f_i
+  N_{act} = N_{aer} f_i
 \end{equation}
 ```
+where:
+- ``N_{aer}`` is the number of available dust aerosol particles.
 
 ## Example figures
 
@@ -214,15 +209,16 @@ Between each run the water vapor specific humidity is changed,
   while keeping all other state variables the same as at the last time step
   of the previous run.
 The prescribed vertical velocity is equal to 3.5 cm/s.
+Supersaturation is plotted for both liquid (solid lines) and ice (dashed lines).
 
 ```@example
 include("../../parcel/Tully_et_al_2023.jl")
 ```
 ![](cirrus_box.svg)
 
-The parcel can also run a liquid-only option. In the plots below, the model
-  ran with only condensation (no ice or freezing). It is compared to
-  [Rogers1975](@cite) figure 1 in yellow.
+In the plots below, the parcel model is ran with only condensation (no ice or freezing)
+  assuming either a monodisperse or a gamma distribution of droplets.
+It is compared to [Rogers1975](@cite).
 
 ```@example
 include("../../parcel/Liquid_only.jl")

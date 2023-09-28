@@ -11,5 +11,5 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
 CLIMAParameters = "0.7.15"
-Documenter = "1.0"
+Documenter = "1.1"
 DocumenterCitations = "1.2"
