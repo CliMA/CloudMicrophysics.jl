@@ -19,6 +19,7 @@ import CloudMicrophysics.Common as CO
 import CloudMicrophysics.CommonTypes as CMT
 import CloudMicrophysics.Microphysics0M as CM0
 import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Nucleation as HN
 import CloudMicrophysics.Parameters.H2S04NucleationParameters
 import CloudMicrophysics.Parameters.MixedNucleationParameters
@@ -194,6 +195,174 @@ end
     @inbounds begin
         output[i] =
             CM1.snow_melt(snow, air_props, thermo_params, qs[i], ρ[i], T[i])
+    end
+end
+
+@kernel function test_2_moment_acnv_kernel!(
+    prs,
+    acnvKK2000,
+    acnvB1994,
+    acnvTC1980,
+    acnvLD2004,
+    acnvVarT,
+    output::AbstractArray{FT},
+    ql,
+    ρ,
+    Nd,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1, i] =
+            CM2.conv_q_liq_to_q_rai(prs, acnvVarT, ql[i], ρ[i], N_d = Nd[i])
+        output[2, i] =
+            CM2.conv_q_liq_to_q_rai(acnvLD2004, ql[i], ρ[i], N_d = Nd[i])
+        output[3, i] =
+            CM2.conv_q_liq_to_q_rai(acnvTC1980, ql[i], ρ[i], N_d = Nd[i])
+        output[4, i] =
+            CM2.conv_q_liq_to_q_rai(acnvB1994, ql[i], ρ[i], N_d = Nd[i])
+        output[5, i] =
+            CM2.conv_q_liq_to_q_rai(acnvKK2000, ql[i], ρ[i], N_d = Nd[i])
+    end
+end
+
+@kernel function test_2_moment_accr_kernel!(
+    accKK2000,
+    accB1994,
+    accTC1980,
+    output::AbstractArray{FT},
+    ql,
+    qr,
+    ρ,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1, i] = CM2.accretion(accKK2000, ql[i], qr[i], ρ[i])
+        output[2, i] = CM2.accretion(accB1994, ql[i], qr[i], ρ[i])
+        output[3, i] = CM2.accretion(accTC1980, ql[i], qr[i])
+    end
+end
+
+@kernel function test_2_moment_SB2006_kernel!(
+    rain,
+    air_props,
+    thermo_params,
+    acnvSB2006,
+    accrSB2006,
+    scSB2006,
+    brkSB2006,
+    tvSB2006,
+    evpSB2006,
+    output::AbstractArray{FT},
+    qt,
+    ql,
+    qr,
+    Nl,
+    Nr,
+    ρ,
+    T,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        q = TD.PhasePartition(FT(qt[i]), FT(ql[i]), FT(0))
+
+        output[1, i] =
+            CM2.autoconversion_and_liquid_self_collection(
+                acnvSB2006,
+                ql[i],
+                qr[i],
+                ρ[i],
+                Nl[i],
+            ).au.dq_liq_dt
+        output[2, i] =
+            CM2.autoconversion_and_liquid_self_collection(
+                acnvSB2006,
+                ql[i],
+                qr[i],
+                ρ[i],
+                Nl[i],
+            ).au.dN_liq_dt
+        output[3, i] =
+            CM2.autoconversion_and_liquid_self_collection(
+                acnvSB2006,
+                ql[i],
+                qr[i],
+                ρ[i],
+                Nl[i],
+            ).au.dq_rai_dt
+        output[4, i] =
+            CM2.autoconversion_and_liquid_self_collection(
+                acnvSB2006,
+                ql[i],
+                qr[i],
+                ρ[i],
+                Nl[i],
+            ).au.dN_rai_dt
+
+        output[5, i] =
+            CM2.autoconversion_and_liquid_self_collection(
+                acnvSB2006,
+                ql[i],
+                qr[i],
+                ρ[i],
+                Nl[i],
+            ).sc
+        output[6, i] =
+            CM2.accretion(accrSB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_liq_dt
+        output[7, i] =
+            CM2.accretion(accrSB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_liq_dt
+        output[8, i] =
+            CM2.accretion(accrSB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_rai_dt
+        output[9, i] =
+            CM2.accretion(accrSB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_rai_dt
+        output[10, i] =
+            CM2.rain_self_collection_and_breakup(
+                scSB2006,
+                brkSB2006,
+                tvSB2006,
+                qr[i],
+                ρ[i],
+                Nr[i],
+            ).sc
+        output[11, i] =
+            CM2.rain_self_collection_and_breakup(
+                scSB2006,
+                brkSB2006,
+                tvSB2006,
+                qr[i],
+                ρ[i],
+                Nr[i],
+            ).br
+        output[12, i] =
+            CM2.rain_terminal_velocity(rain, tvSB2006, qr[i], ρ[i], Nr[i])[1]
+        output[13, i] =
+            CM2.rain_terminal_velocity(rain, tvSB2006, qr[i], ρ[i], Nr[i])[2]
+        #TODO - I think the incomplete gamma function doesnt work on the GPU
+        #output[14, i] = CM2.rain_evaporation(
+        #    evpSB2006,
+        #    air_props,
+        #    thermo_params,
+        #    q,
+        #    qr[i],
+        #    ρ[i],
+        #    Nr[i],
+        #    T[i],
+        #)[1]
+        #output[15, i] = CM2.rain_evaporation(
+        #    evpSB2006,
+        #    air_props,
+        #    thermo_params,
+        #    q,
+        #    qr[i],
+        #    ρ[i],
+        #    Nr[i],
+        #    T[i],
+        #)[2]
     end
 end
 
@@ -497,16 +666,33 @@ function test_gpu(FT)
         CP.create_toml_dict(FT; dict_type = "alias"),
     )
     prs = make_prs(FT)
+    air_props = CMT.AirProperties(FT)
+    thermo_params = CMP.thermodynamics_params(prs)
+
     liquid = CMT.LiquidType()
     ice = CMT.IceType(FT)
     rain = CMT.RainType(FT)
     snow = CMT.SnowType(FT)
+
     ce = CMT.CollisionEfficiency(FT)
-    air_props = CMT.AirProperties(FT)
-    thermo_params = CMP.thermodynamics_params(prs)
     p3_prs = CMP.CloudMicrophysicsParametersP3(FT)
     rain_blk1mvel = CMT.Blk1MVelType(FT, rain)
     snow_blk1mvel = CMT.Blk1MVelType(FT, snow)
+
+    acnvSB2006 = CMT.AutoconversionSB2006(FT)
+    accrSB2006 = CMT.AccretionSB2006(FT)
+    scSB2006 = CMT.SelfCollectionSB2006(FT)
+    brkSB2006 = CMT.BreakupSB2006(FT)
+    tvSB2006 = CMT.TerminalVelocitySB2006(FT)
+    evpSB2006 = CMT.EvaporationSB2006(FT)
+    acnvKK2000 = CMT.AutoconversionKK2000(FT)
+    acnvB1994 = CMT.AutoconversionB1994(FT)
+    acnvTC1980 = CMT.AutoconversionTC1980(FT)
+    acnvLD2004 = CMT.AutoconversionLD2004(FT)
+    acnvVarT = CMT.VarTimeScaleAcnvType()
+    accKK2000 = CMT.AccretionKK2000(FT)
+    accB1994 = CMT.AccretionB1994(FT)
+    accTC1980 = CMT.AccretionTC1980(FT)
 
     @testset "Aerosol activation kernels" begin
         data_length = 2
@@ -662,6 +848,128 @@ function test_gpu(FT)
         @test Array(output)[1] ≈ FT(9.518235437405256e-6)
         @test Array(output)[2] ≈ FT(0)
         @test Array(output)[3] ≈ FT(0)
+    end
+
+    @testset "2-moment microphysics kernels" begin
+
+        data_length = 1
+        output = ArrayType(Array{FT}(undef, 5, data_length))
+        fill!(output, FT(-44))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        ql = ArrayType([FT(2e-3)])
+        ρ = ArrayType([FT(1.2)])
+        Nd = ArrayType([FT(1e8)])
+
+        kernel! = test_2_moment_acnv_kernel!(dev, work_groups)
+        event = kernel!(
+            prs,
+            acnvKK2000,
+            acnvB1994,
+            acnvTC1980,
+            acnvLD2004,
+            acnvVarT,
+            output,
+            ql,
+            ρ,
+            Nd,
+            ndrange = ndrange,
+        )
+        wait(dev, event)
+
+        @test Array(output)[1] ≈ FT(2e-6)
+        @test Array(output)[2] ≈ FT(1.6963072465911614e-6)
+        @test Array(output)[3] ≈ FT(3.5482867084128596e-6)
+        @test Array(output)[4] ≈ FT(9.825462758968215e-7)
+        @test Array(output)[5] ≈ FT(5.855332513368727e-8)
+
+        data_length = 1
+        output = ArrayType(Array{FT}(undef, 3, data_length))
+        fill!(output, FT(-44))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        ql = ArrayType([FT(2e-3)])
+        qr = ArrayType([FT(5e-4)])
+        ρ = ArrayType([FT(1.2)])
+
+        kernel! = test_2_moment_accr_kernel!(dev, work_groups)
+        event = kernel!(
+            accKK2000,
+            accB1994,
+            accTC1980,
+            output,
+            ql,
+            qr,
+            ρ,
+            ndrange = ndrange,
+        )
+        wait(dev, event)
+
+        @test isapprox(Array(output)[1], FT(6.6548664e-6), rtol = 1e-6)
+        @test Array(output)[2] ≈ FT(7.2e-6)
+        @test Array(output)[3] ≈ FT(4.7e-6)
+
+        data_length = 1
+        output = ArrayType(Array{FT}(undef, 13, data_length))
+        fill!(output, FT(-44))
+
+        dev = device(ArrayType)
+        work_groups = (1,)
+        ndrange = (data_length,)
+
+        T = ArrayType([FT(290)])
+        qt = ArrayType([FT(7e-3)])
+        ql = ArrayType([FT(2e-3)])
+        qr = ArrayType([FT(5e-4)])
+        ρ = ArrayType([FT(1.2)])
+        Nl = ArrayType([FT(1e8)])
+        Nr = ArrayType([FT(1e7)])
+
+        kernel! = test_2_moment_SB2006_kernel!(dev, work_groups)
+        event = kernel!(
+            rain,
+            air_props,
+            thermo_params,
+            acnvSB2006,
+            accrSB2006,
+            scSB2006,
+            brkSB2006,
+            tvSB2006,
+            evpSB2006,
+            output,
+            qt,
+            ql,
+            qr,
+            Nl,
+            Nr,
+            ρ,
+            T,
+            ndrange = ndrange,
+        )
+        wait(dev, event)
+
+        @test isapprox(Array(output)[1], FT(-4.083606e-7), rtol = 1e-6)
+        @test isapprox(Array(output)[2], FT(-3769.4827), rtol = 1e-6)
+        @test isapprox(Array(output)[3], FT(4.083606e-7), rtol = 1e-6)
+        @test isapprox(Array(output)[4], FT(1884.7413), rtol = 1e-6)
+        @test isapprox(Array(output)[5], FT(-31040.115), rtol = 1e-6)
+        @test isapprox(Array(output)[6], FT(-6.358926e-6), rtol = 1e-6)
+        @test isapprox(Array(output)[7], FT(-317946.28), rtol = 1e-6)
+        @test isapprox(Array(output)[8], FT(6.358926e-6), rtol = 1e-6)
+        @test isapprox(Array(output)[9], FT(0.0), rtol = 1e-6)
+        @test isapprox(Array(output)[10], FT(-21187.494), rtol = 1e-6)
+        @test isapprox(Array(output)[11], FT(14154.027), rtol = 1e-6)
+        @test isapprox(Array(output)[12], FT(0.9868878), rtol = 1e-6)
+        @test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
+        #TODO - doesn't work on the GPU
+        #@test isapprox(Array(output)[14], FT(-241447.55), rtol = 1e-6)
+        #@test isapprox(Array(output)[15], FT(-0.0034601581), rtol = 1e-6)
     end
 
     @testset "Common Kernels" begin

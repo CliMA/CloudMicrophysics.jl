@@ -308,7 +308,7 @@ function rain_breakup(
 end
 
 """
-    rain_sef_collection_and_breakup(selfcollection, breakup, tv, q_rai, ρ, N_rai)
+    rain_self_collection_and_breakup(selfcollection, breakup, tv, q_rai, ρ, N_rai)
 
  - `selfcollection` - 2-moment liquid self-collection parameterization
  - `breakup` - breakup parameterization
