@@ -78,8 +78,10 @@ function Tully_et_al_2023(FT)
     w = FT(3.5 * 1e-2)                         # updraft speed
     α_m = FT(0.5)                              # accomodation coefficient
     const_dt = 0.1                             # model timestep
+    aerosol_type = CMT.DesertDustType()        # aerosol type
     ice_nucleation_modes = ["DustDeposition"]  # switch on deposition on dust
     growth_modes = ["Deposition"]              # switch on deposition growth
+    droplet_size_distribution = ["Monodisperse"]
     p = (;
         prs,
         air_props,
@@ -88,8 +90,10 @@ function Tully_et_al_2023(FT)
         r_nuc,
         w,
         α_m,
+        aerosol_type,
         ice_nucleation_modes,
         growth_modes,
+        droplet_size_distribution,
     )
 
     # Simulation 1

@@ -15,8 +15,8 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function parcel_model(dY, Y, p, t)
 
     # Get simulation parameters
-    (; prs, air_props, thermo_params, const_dt, r_nuc, w, α_m) = p
-    (; ice_nucleation_modes, growth_modes) = p
+    (; prs, air_props, thermo_params, const_dt, r_nuc, w, α_m, aerosol_type) = p
+    (; ice_nucleation_modes, growth_modes, droplet_size_distribution) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
 
@@ -40,6 +40,7 @@ function parcel_model(dY, Y, p, t)
     grav = CMP.grav(prs)
     ρ_ice = CMP.ρ_cloud_ice(prs)
     ρ_liq = CMP.ρ_cloud_liq(prs)
+    H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     # Get thermodynamic parameters, phase partition and create thermo state.
     thermo_params = CMP.thermodynamics_params(prs)
@@ -58,6 +59,7 @@ function parcel_model(dY, Y, p, t)
     L_subl = TD.latent_heat_sublim(thermo_params, T)
     L_vap = TD.latent_heat_vapor(thermo_params, T)
     ρ_air = TD.air_density(thermo_params, ts)
+    e = q_vap * p_a * R_v / R_a
 
     # Adiabatic parcel coefficients
     a1 = L_vap * grav / cp_a / T^2 / R_v - grav / R_a / T
@@ -67,23 +69,48 @@ function parcel_model(dY, Y, p, t)
 
     # TODO - we should zero out all tendencies and augemnt them
     # TODO - add immersion, homogeneous, ...
-    #dN_act_dt_immersion = FT(0)
     #dN_act_dt_homogeneous = FT(0)
 
     dN_act_dt_depo = FT(0)
+    dqi_dt_new_depo = FT(0)
     if "DustDeposition" in ice_nucleation_modes
         AF = CMI_het.dust_activated_number_fraction(
             prs,
             S_i,
             T,
-            CMT.DesertDustType(),
+            aerosol_type,
         )
         dN_act_dt_depo = max(FT(0), AF * N_aer - N_ice) / const_dt
+        dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ_air
     end
-    dN_ice_dt = dN_act_dt_depo
-    dN_aer_dt = -dN_act_dt_depo
-    dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ_air
 
+    dN_act_dt_immersion = FT(0)
+    dqi_dt_new_immers = FT(0)
+    if "ImmersionFreezing" in ice_nucleation_modes
+        Δa_w = T > FT(185) && T < FT(235) ?
+            CMO.a_w_xT(H2SO4_prs, thermo_params, x_sulph, T) - CMO.a_w_ice(thermo_params, T) :
+            CMO.a_w_eT(thermo_params, e, T) - CMO.a_w_ice(thermo_params, T)
+        J_immersion = CMI_het.ABIFM_J(prs, aerosol_type, Δa_w)
+        if "Monodisperse" in droplet_size_distribution && "ImmersionFreezing" in ice_nucleation_modes
+            r_l = cbrt(q_liq / N_liq / (4 / 3 * π) / ρ_liq * ρ_air)
+            A_aer = 4 * π * r_l^2
+            dN_act_dt_immersion = max(FT(0), J_immersion * N_liq * A_aer)
+            dqi_dt_new_immers = dN_act_dt_immersion * 4 / 3 * π * r_l^3 * ρ_ice / ρ_air
+        end
+        if "Gamma" in droplet_size_distribution && "ImmersionFreezing" in ice_nucleation_modes
+            λ = cbrt(32 * π * N_liq / q_liq * ρ_liq / ρ_air)
+            #A = N_liq* λ^2
+            r_l = 2 / λ
+            A_aer = 4 * π * r_l^2
+            dN_act_dt_immersion = max(FT(0), J_immersion * N_liq * A_aer)
+            dqi_dt_new_immers = dN_act_dt_immersion * 4 / 3 * π * r_l^3 * ρ_ice / ρ_air
+        end
+    end
+
+    dN_ice_dt = dN_act_dt_depo + dN_act_dt_immersion
+    dN_aer_dt = -dN_act_dt_depo
+    dN_liq_dt = -dN_act_dt_immersion
+    
     # Growth
     dqi_dt_depo = FT(0)
     if "Deposition" in growth_modes && N_ice > 0
@@ -97,24 +124,24 @@ function parcel_model(dY, Y, p, t)
 
     dql_dt_cond = FT(0)
     if "Condensation" in growth_modes && N_liq > 0
-        # Condensation on existing droplets (assuming all are the same)
-        G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
-        r_l = cbrt(q_liq / N_liq / (4 / 3 * π) / ρ_liq * ρ_air)
-        dql_dt_cond = 4 * π / ρ_air * (S_liq - 1) * G_l * r_l * N_liq
-    end
-    if "Condensation_DSD" in growth_modes && N_liq > 0
-        # Condensation on existing droplets
-        # assuming n(r) = A r exp(-λr)
-        G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
-        λ = cbrt(32 * π * N_liq / q_liq * ρ_liq / ρ_air)
-        #A = N_liq* λ^2
-        r_l = 2 / λ
-        dql_dt_cond = 4 * π / ρ_air * (S_liq - 1) * G_l * r_l * N_liq
+        if "Monodisperse" in droplet_size_distribution
+        # Condensation on existing droplets assuming all are the same
+            G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
+            r_l = cbrt(q_liq / N_liq / (4 / 3 * π) / ρ_liq * ρ_air)
+            dql_dt_cond = 4 * π / ρ_air * (S_liq - 1) * G_l * r_l * N_liq
+        elseif "Gamma" in droplet_size_distribution
+        # Condensation on existing droplets assuming n(r) = A r exp(-λr)
+            G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
+            λ = cbrt(32 * π * N_liq / q_liq * ρ_liq / ρ_air)
+            #A = N_liq* λ^2
+            r_l = 2 / λ
+            dql_dt_cond = 4 * π / ρ_air * (S_liq - 1) * G_l * r_l * N_liq
+        end
     end
 
     # Update the tendecies
-    dq_ice_dt = dqi_dt_new_depo + dqi_dt_depo
-    dq_liq_dt = dql_dt_cond
+    dq_ice_dt = dqi_dt_new_depo + dqi_dt_depo + dqi_dt_new_immers
+    dq_liq_dt = dql_dt_cond - dqi_dt_new_immers
     dS_l_dt = a1 * w * S_liq - (a2 + a3) * S_liq * dq_liq_dt - (a2 + a4) * S_liq * dq_ice_dt
     dp_a_dt = -p_a * grav / R_a / T * w
     dT_dt = -grav / cp_a * w + L_vap / cp_a * dq_liq_dt + L_subl / cp_a * dq_ice_dt
@@ -128,7 +155,7 @@ function parcel_model(dY, Y, p, t)
     dY[5] = dq_liq_dt      # liquid water specific humidity
     dY[6] = dq_ice_dt      # ice specific humidity
     dY[7] = dN_aer_dt      # number concentration of interstitial aerosol
-    dY[8] = FT(0)          # mumber concentration of droplets
+    dY[8] = dN_liq_dt      # mumber concentration of droplets
     dY[9] = dN_ice_dt      # number concentration of activated particles
     dY[10] = FT(0)         # sulphuric acid concentration
 
@@ -180,6 +207,9 @@ function run_parcel(IC, t_0, t_end, p)
     print("Ice nucleation modes: ")
     if "DustDeposition" in ice_nucleation_modes
         print("Deposition on dust particles ")
+    end
+    if "ImmersionFreezing" in ice_nucleation_modes
+        print("Immersion freezing")
     end
     print("\n")
     print("Growth modes: ")
