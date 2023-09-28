@@ -73,7 +73,6 @@ end
 Returns the immersion freezing nucleation rate coefficient, `J`, in m^-2 s^-1
 for sulphuric acid solutions.
 For other solutions, p_sol should be adjusted accordingly.
-Delta_a_w can be found using the Delta_a_w function in Common.jl.
 The free parameters `m` and `c` are taken from Knopf & Alpert 2013
 see DOI: 10.1039/C3FD00035D
 """
@@ -115,7 +114,6 @@ export homogeneous_J
 Returns the homogeneous freezing nucleation rate coefficient,
 `J`, in m^-3 s^-1 for sulphuric acid solutions.
 Parameterization based on Koop 2000, DOI: 10.1038/35020537.
-Delta_a_w can be found using the Delta_a_w function in Common.jl.
 """
 function homogeneous_J(prs::APS, Δa_w::FT) where {FT <: Real}
 

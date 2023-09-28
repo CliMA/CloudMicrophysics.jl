@@ -23,10 +23,10 @@ function test_homogeneous_J(FT)
         Δa_w_too_small = FT(0.25)
         Δa_w_too_large = FT(0.35)
 
-
+        #! format: off
         # higher nucleation rate at colder temperatures
-        TT.@test CMH.homogeneous_J(prs, CO.Delta_a_w(prs, x_sulph, T_cold)) >
-                 CMH.homogeneous_J(prs, CO.Delta_a_w(prs, x_sulph, T_warm))
+        TT.@test CMH.homogeneous_J(prs, CO.a_w_xT(prs, x_sulph, T_cold) - CO.a_w_ice(prs, T_cold)) >
+                 CMH.homogeneous_J(prs, CO.a_w_xT(prs, x_sulph, T_warm) - CO.a_w_ice(prs, T_warm))
 
         # If Δa_w out of range
         TT.@test_throws AssertionError("Δa_w > Δa_w_min") CMH.homogeneous_J(
@@ -37,6 +37,7 @@ function test_homogeneous_J(FT)
             prs,
             Δa_w_too_large,
         )
+        #! format: on
     end
 end
 

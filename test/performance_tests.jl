@@ -77,6 +77,7 @@ function benchmark_test(FT)
     q_sno = FT(1e-4)
     N_liq = FT(1e8)
     N_rai = FT(1e8)
+    e = FT(600)
 
     ρ_r = FT(400.0)
     F_r = FT(0.95)
@@ -123,7 +124,9 @@ function benchmark_test(FT)
         (prs, x_sulph, T_air_cold),
         50,
     )
-    bench_press(CO.Delta_a_w, (prs, x_sulph, T_air_cold), 230)
+    bench_press(CO.a_w_xT, (prs, x_sulph, T_air_cold), 230)
+    bench_press(CO.a_w_eT, (prs, e, T_air_cold), 230)
+    bench_press(CO.a_w_ice, (prs, T_air_cold), 230)
 
     # ice nucleation
     bench_press(

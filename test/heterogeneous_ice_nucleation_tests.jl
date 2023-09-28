@@ -80,9 +80,14 @@ function test_heterogeneous_ice_nucleation(FT)
 
     TT.@testset "ABIFM J" begin
 
-        T_warm = FT(229.2)
-        T_cold = FT(228.8)
+        T_warm_1 = FT(229.2)
+        T_cold_1 = FT(228.8)
         x_sulph = FT(0.1)
+
+        T_warm_2 = FT(285)
+        T_cold_2 = FT(251)
+        e_warm = FT(1088)
+        e_cold = FT(544)
 
         # higher nucleation rate at colder temperatures
         for dust in
@@ -90,11 +95,21 @@ function test_heterogeneous_ice_nucleation(FT)
             TT.@test CMI_het.ABIFM_J(
                 prs,
                 dust,
-                CO.Delta_a_w(prs, x_sulph, T_cold),
+                CO.a_w_xT(prs, x_sulph, T_cold_1) - CO.a_w_ice(prs, T_cold_1),
             ) > CMI_het.ABIFM_J(
                 prs,
                 dust,
-                CO.Delta_a_w(prs, x_sulph, T_warm),
+                CO.a_w_xT(prs, x_sulph, T_warm_1) - CO.a_w_ice(prs, T_warm_1),
+            )
+
+            TT.@test CMI_het.ABIFM_J(
+                prs,
+                dust,
+                CO.a_w_eT(prs, e_cold, T_cold_2) - CO.a_w_ice(prs, T_cold_2),
+            ) > CMI_het.ABIFM_J(
+                prs,
+                dust,
+                CO.a_w_eT(prs, e_warm, T_warm_2) - CO.a_w_ice(prs, T_warm_2),
             )
         end
     end

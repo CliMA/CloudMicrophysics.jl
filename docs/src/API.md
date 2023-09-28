@@ -109,7 +109,9 @@ Common.G_func
 Common.logistic_function
 Common.logistic_function_integral
 Common.H2SO4_soln_saturation_vapor_pressure
-Common.Delta_a_w
+Common.a_w_xT
+Common.a_w_eT
+Common.a_w_ice
 Common.Chen2022_vel_add
 Common.Chen2022_vel_coeffs
 ```

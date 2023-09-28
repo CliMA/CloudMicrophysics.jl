@@ -14,6 +14,9 @@ import ..CommonTypes as CT
 
 export G_func
 export H2SO4_soln_saturation_vapor_pressure
+export a_w_xT
+export a_w_eT
+export a_w_ice
 export Chen2022_vel_add
 export Chen2022_vel_coeffs
 
@@ -160,28 +163,57 @@ function H2SO4_soln_saturation_vapor_pressure(
 end
 
 """
-    Delta_a_w(prs, x, T)
+    a_w_xT(prs, x, T)
 
  - `prs` - set with model parameters
  - `x` - wt percent sulphuric acid [unitless]
  - `T` - air temperature [K].
 
-Returns the change in water activity when droplet undergoes immersion freezing.
+Returns water activity of H2SO4 containing droplet.
 `x` is, for example, 0.1 if droplets are 10 percent sulphuric acid by weight.
 """
-function Delta_a_w(prs::APS, x::FT, T::FT) where {FT <: Real}
+function a_w_xT(prs::APS, x::FT, T::FT) where {FT <: Real}
 
     thermo_params = CMP.thermodynamics_params(prs)
 
     p_sol = H2SO4_soln_saturation_vapor_pressure(prs, x, T)
     p_sat = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
-    p_ice = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
 
-    a_w = p_sol / p_sat
-    a_w_ice = p_ice / p_sat
-    Δa_w = a_w - a_w_ice
+    return p_sol / p_sat
+end
 
-    return min(Δa_w, FT(1))
+"""
+    a_w_eT(prs, e, T)
+
+ - `prs` - set with model parameters
+ - `e` - partial pressure of water [Pa]
+ - `T` - air temperature [K].
+
+Returns water activity of pure water droplet.
+Valid when droplet is in equilibrium with surroundings.
+"""
+function a_w_eT(prs::APS, e::FT, T::FT) where {FT <: Real}
+
+    thermo_params = CMP.thermodynamics_params(prs)
+    RH = e / TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+
+    return RH
+end
+
+"""
+    a_w_ice(prs, T)
+
+ - `prs` - set with model parameters
+ - `T` - air temperature [K].
+
+Returns water activity of ice.
+"""
+function a_w_ice(prs::APS, T::FT) where {FT <: Real}
+
+    thermo_params = CMP.thermodynamics_params(prs)
+
+    return TD.saturation_vapor_pressure(thermo_params, T, TD.Ice()) /
+           TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
 end
 
 """
