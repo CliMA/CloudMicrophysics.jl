@@ -8,6 +8,7 @@ CurrentModule = CloudMicrophysics
 ```@docs
 Parameters.CloudMicrophysicsParameters0M
 Parameters.CloudMicrophysicsParametersP3
+Parameters.H2SO4SolutionParameters
 ```
 
 # Non-equilibrium cloud formation

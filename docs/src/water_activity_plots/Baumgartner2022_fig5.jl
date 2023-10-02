@@ -16,6 +16,7 @@ FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 cmp = cloud_microphysics_parameters(toml_dict)
 thp = CMP.thermodynamics_params(cmp)
+H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
 # Baumgartner at al 2022 Figure 5
 # https://acp.copernicus.org/articles/22/65/2022/acp-22-65-2022.pdf
@@ -59,7 +60,8 @@ a_w_Nach = [Δa_crit + (Baumgartner_p_ice(T)) / (Nach_p_liq(T)) for T in T_range
 a_w_Luo = [
     Δa_crit +
     (Baumgartner_p_ice(T)) /
-    (CMO.H2SO4_soln_saturation_vapor_pressure(cmp, 0.0, T)) for T in T_range
+    (CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, 0.0, T)) for
+    T in T_range
 ]
 
 #! format: off
@@ -80,7 +82,7 @@ MK.lines!(ax1, T_range, [Baumgartner_p_ice(T) for T in T_range], label = "Baumga
 MK.lines!(ax1, T_range, p_sat_ice, label = "CM's p_ice", color = :blue)
 MK.lines!(ax1, T_range, [MK_p_liq(T) for T in T_range], label = "MK_p_liq", color = :green, linestyle = :dash)
 MK.lines!(ax1, T_range, [Nach_p_liq(T) for T in T_range], label = "Nach_p_liq", color = :lightgreen, linestyle = :dash)
-MK.lines!(ax1, T_range, [TD.saturation_vapor_pressure(thp, T, TD.Liquid()) for T in T_range], label = "CM's p_liq", color = :green)
+MK.lines!(ax1, T_range, p_sat_liq, label = "CM's p_liq", color = :green)
 MK.axislegend(position = :lt)
 MK.save("vap_pressure_vs_T.svg", fig)
 #! format: on

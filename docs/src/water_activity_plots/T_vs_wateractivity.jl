@@ -14,15 +14,16 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 prs = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(prs)
+tps = CMP.thermodynamics_params(prs)
+H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
 T_range = range(190, stop = 234, length = 100)
 x = FT(0.1)
 #! format: off
-p_sol_1 = [CMO.H2SO4_soln_saturation_vapor_pressure(prs, x, T) for T in T_range]     # p_sol for concentration x
-p_sol_0 = [CMO.H2SO4_soln_saturation_vapor_pressure(prs, 0.0, T) for T in T_range]   # sat vap pressure over pure liq water using p_sol eqn
-p_sat_liq = [TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid()) for T in T_range]  # sat vap pressure over pure liq water using TD package
-p_sat_ice = [TD.saturation_vapor_pressure(thermo_params, T, TD.Ice()) for T in T_range]     # sat vap pressure over ice using TD package
+p_sol_1 = [CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x, T) for T in T_range]     # p_sol for concentration x
+p_sol_0 = [CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, 0.0, T) for T in T_range]   # sat vap pressure over pure liq water using p_sol eqn
+p_sat_liq = [TD.saturation_vapor_pressure(tps, T, TD.Liquid()) for T in T_range]  # sat vap pressure over pure liq water using TD package
+p_sat_ice = [TD.saturation_vapor_pressure(tps, T, TD.Ice()) for T in T_range]     # sat vap pressure over ice using TD package
 
 a_w = p_sol_1 ./ p_sat_liq                 # a_w current parameterization
 a_w_alternate = p_sol_1 ./ p_sol_0         # a_w if sat vapor pressure over pure liq water was calculated with p_sol eqn

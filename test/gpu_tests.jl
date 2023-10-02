@@ -40,8 +40,8 @@ CUDA.allowscalar(false)
 const ArrayType = CuArray
 
 # For debugging on the CPU
-# const backend = CPU()
-# const ArrayType = Array
+#const backend = CPU()
+#const ArrayType = Array
 
 @info "GPU Tests" backend ArrayType
 
@@ -468,7 +468,7 @@ end
 end
 
 @kernel function Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
-    prs,
+    H2SO4_prs,
     output::AbstractArray{FT},
     x_sulph,
     T,
@@ -478,12 +478,13 @@ end
 
     @inbounds begin
         output[i] =
-            CO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph[i], T[i])
+            CO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x_sulph[i], T[i])
     end
 end
 
 @kernel function Common_a_w_xT_kernel!(
-    prs,
+    H2SO4_prs,
+    tps,
     output::AbstractArray{FT},
     x_sulph,
     T,
@@ -492,12 +493,12 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = CO.a_w_xT(prs, x_sulph[i], T[i])
+        output[i] = CO.a_w_xT(H2SO4_prs, tps, x_sulph[i], T[i])
     end
 end
 
 @kernel function Common_a_w_eT_kernel!(
-    prs,
+    tps,
     output::AbstractArray{FT},
     e,
     T,
@@ -506,12 +507,12 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = CO.a_w_eT(prs, e[i], T[i])
+        output[i] = CO.a_w_eT(tps, e[i], T[i])
     end
 end
 
 @kernel function Common_a_w_ice_kernel!(
-    prs,
+    tps,
     output::AbstractArray{FT},
     T,
 ) where {FT}
@@ -519,7 +520,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = CO.a_w_ice(prs, T[i])
+        output[i] = CO.a_w_ice(tps, T[i])
     end
 end
 
@@ -704,6 +705,8 @@ function test_gpu(FT)
     accKK2000 = CMT.AccretionKK2000(FT)
     accB1994 = CMT.AccretionB1994(FT)
     accTC1980 = CMT.AccretionTC1980(FT)
+
+    H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     @testset "Aerosol activation kernels" begin
         dims = (6, 2)
@@ -923,7 +926,7 @@ function test_gpu(FT)
             backend,
             work_groups,
         )
-        kernel!(prs, output, x_sulph, T; ndrange)
+        kernel!(H2SO4_prs, output, x_sulph, T; ndrange)
 
         # test H2SO4_soln_saturation_vapor_pressure is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(12.685507586924)
@@ -935,7 +938,7 @@ function test_gpu(FT)
         x_sulph = ArrayType([FT(0.1)])
 
         kernel! = Common_a_w_xT_kernel!(backend, work_groups)
-        kernel!(prs, output, x_sulph, T; ndrange)
+        kernel!(H2SO4_prs, thermo_params, output, x_sulph, T; ndrange)
 
         # test if a_w_xT is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.92824538441)
@@ -947,7 +950,7 @@ function test_gpu(FT)
         e = ArrayType([FT(1001)])
 
         kernel! = Common_a_w_eT_kernel!(backend, work_groups)
-        kernel!(prs, output, e, T; ndrange)
+        kernel!(thermo_params, output, e, T; ndrange)
 
         # test if a_w_eT is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.880978146)
@@ -958,7 +961,7 @@ function test_gpu(FT)
         T = ArrayType([FT(230)])
 
         kernel! = Common_a_w_ice_kernel!(backend, work_groups)
-        kernel!(prs, output, T; ndrange)
+        kernel!(thermo_params, output, T; ndrange)
 
         # test if a_w_ice is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.653191723)
