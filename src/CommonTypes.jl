@@ -441,6 +441,21 @@ function AutoconversionB1994(
     )
 end
 
+struct AutoconversionVarTimescale{FT}
+    τ::FT
+    α::FT
+end
+
+function AutoconversionVarTimescale(
+    ::Type{FT};
+    toml_dict = CP.create_toml_dict(FT),
+) where {FT}
+    (; data) = toml_dict
+    τ = FT(data["rain_autoconversion_timescale"]["value"])
+    α = FT(data["Variable_time_scale_autoconversion_coeff_alpha"]["value"])
+    return AutoconversionVarTimescale(τ, α)
+end
+
 struct AccretionTC1980{FT}
     A::FT
 end

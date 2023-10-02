@@ -218,7 +218,7 @@ end
 
     @inbounds begin
         output[1, i] =
-            CM2.conv_q_liq_to_q_rai(prs, acnvVarT, ql[i], ρ[i], N_d = Nd[i])
+            CM2.conv_q_liq_to_q_rai(acnvVarT, ql[i], ρ[i], N_d = Nd[i])
         output[2, i] =
             CM2.conv_q_liq_to_q_rai(acnvLD2004, ql[i], ρ[i], N_d = Nd[i])
         output[3, i] =
@@ -701,7 +701,7 @@ function test_gpu(FT)
     acnvB1994 = CMT.AutoconversionB1994(FT)
     acnvTC1980 = CMT.AutoconversionTC1980(FT)
     acnvLD2004 = CMT.AutoconversionLD2004(FT)
-    acnvVarT = CMT.VarTimeScaleAcnvType()
+    acnvVarT = CMT.AutoconversionVarTimescale(FT)
     accKK2000 = CMT.AccretionKK2000(FT)
     accB1994 = CMT.AccretionB1994(FT)
     accTC1980 = CMT.AccretionTC1980(FT)
