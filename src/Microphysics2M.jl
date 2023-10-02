@@ -430,19 +430,16 @@ function rain_evaporation(
     if (q_rai > FT(0) && S < FT(0))
 
         (; ν_air, D_vapor) = air_props
-        (; av, bv, α, β, tv) = evap_scheme
+        (; av, bv, α, β, tv, Γ₁, Γ₂) = evap_scheme
         ρ0 = tv.ρ0
         ρw = tv.ρ_cloud_liq
-        x_star = tv.xr_min
         G = CO.G_func(air_props, thermo_params, T, TD.Liquid())
 
         xr = raindrops_limited_vars(tv, q_rai, ρ, N_rai).xr
         Dr = (FT(6) / FT(π) / ρw)^FT(1 / 3) * xr^FT(1 / 3)
-        t_star = (FT(6) * x_star / xr)^FT(1 / 3)
-        a_vent_0 = av * FT(SF.gamma(-1, t_star)) / FT(6)^FT(-2 / 3)
-        b_vent_0 =
-            bv * FT(SF.gamma((-1 / 2) + (3 / 2) * β, t_star)) /
-            FT(6)^FT(β / 2 - 1 / 2)
+
+        a_vent_0 = av * Γ₁ / FT(6)^FT(-2 / 3)
+        b_vent_0 = bv * Γ₂ / FT(6)^FT(β / 2 - 1 / 2)
         a_vent_1 = av * SF.gamma(FT(2)) / FT(6)^FT(1 / 3)
         b_vent_1 =
             bv * SF.gamma(FT(5 / 2) + FT(3 / 2) * β) / FT(6)^FT(β / 2 + 1 / 2)

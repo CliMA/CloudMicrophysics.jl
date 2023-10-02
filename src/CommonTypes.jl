@@ -8,6 +8,8 @@ module CommonTypes
 using DocStringExtensions
 import CLIMAParameters as CP
 
+import SpecialFunctions as SF
+
 export AbstractCloudType
 export AbstractPrecipType
 export LiquidType
@@ -610,6 +612,8 @@ struct EvaporationSB2006{FT, TV}
     α::FT
     β::FT
     tv::TV
+    Γ₁::FT
+    Γ₂::FT
 end
 
 function EvaporationSB2006(
@@ -622,7 +626,13 @@ function EvaporationSB2006(
     α = FT(data["SB2006_rain_evaportation_coeff_alpha"]["value"])
     β = FT(data["SB2006_rain_evaportation_coeff_beta"]["value"])
     tv = TerminalVelocitySB2006(FT)
-    return EvaporationSB2006{FT, typeof(tv)}(av, bv, α, β, tv)
+    # TODO xr = raindrops_limited_vars(tv, q_rai, ρ, N_rai).xr
+    x_star = tv.xr_min
+    xr = x_star
+    t_star = (FT(6) * x_star / xr)^FT(1 / 3)
+    Γ₁ = FT(SF.gamma(-1, t_star))
+    Γ₂ = FT(SF.gamma((-1 / 2) + (3 / 2) * β, t_star))
+    return EvaporationSB2006{FT, typeof(tv)}(av, bv, α, β, tv, Γ₁, Γ₂)
 end
 
 struct BreakupSB2006{FT, TV}
