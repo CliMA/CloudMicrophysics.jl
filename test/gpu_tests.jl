@@ -1083,7 +1083,7 @@ function test_gpu(FT)
 
         @test all(Array(output) .> FT(0))
     end
-    #=
+
     @testset "P3 scheme kernels" begin
         dims = (2, 2)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1118,7 +1118,7 @@ function test_gpu(FT)
             rtol = 1e-2,
         )
     end
-    =#
+
 end
 
 println("Testing Float64")
