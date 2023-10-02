@@ -1,16 +1,18 @@
 using Test
 using KernelAbstractions
-
-import CUDAKernels as CK
 using ClimaComms
 
+# Needed for parameters
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import CLIMAParameters as CP
 import Thermodynamics as TD
-
+import CloudMicrophysics.Parameters.H2S04NucleationParameters
+import CloudMicrophysics.Parameters.MixedNucleationParameters
+import CloudMicrophysics.Parameters.OrganicNucleationParameters
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
+# Modules to test
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.HetIceNucleation as CMI_het
@@ -20,29 +22,30 @@ import CloudMicrophysics.CommonTypes as CMT
 import CloudMicrophysics.Microphysics0M as CM0
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2
-import CloudMicrophysics.Nucleation as HN
-import CloudMicrophysics.Parameters.H2S04NucleationParameters
-import CloudMicrophysics.Parameters.MixedNucleationParameters
-import CloudMicrophysics.Parameters.OrganicNucleationParameters
+import CloudMicrophysics.Nucleation as MN
 import CloudMicrophysics.P3Scheme as P3
 
 const kaolinite = CMT.KaoliniteType()
 const illite = CMT.IlliteType()
 
-@info "GPU Tests"
+const work_groups = (1,)
 
-if ClimaComms.device() isa ClimaComms.CUDADevice
-    import CUDA
-    ArrayType = CUDA.CuArray
-    CUDA.allowscalar(false)
-    device(::Type{T}) where {T <: CUDA.CuArray} = CK.CUDADevice()
-else
-    ArrayType = Array
-    device(::Type{T}) where {T <: Array} = CK.CPU()
-end
-@show ArrayType
+ClimaComms.device() isa ClimaComms.CUDADevice || error("No GPU found")
 
-@kernel function test_aerosol_activation_kernel!(
+# Set up GPU
+using CUDA
+using CUDA.CUDAKernels
+const backend = CUDABackend()
+CUDA.allowscalar(false)
+const ArrayType = CuArray
+
+# For debugging on the CPU
+# const backend = CPU()
+# const ArrayType = Array
+
+@info "GPU Tests" backend ArrayType
+
+@kernel function aerosol_activation_kernel!(
     prs,
     output::AbstractArray{FT},
     r,
@@ -366,7 +369,7 @@ end
     end
 end
 
-@kernel function test_h2so4_nucleation_kernel!(
+@kernel function h2so4_nucleation_kernel!(
     prs,
     output::AbstractArray{FT},
     h2so4_conc,
@@ -379,7 +382,7 @@ end
 
     @inbounds begin
         output[i] = sum(
-            HN.h2so4_nucleation_rate(
+            MN.h2so4_nucleation_rate(
                 h2so4_conc[i],
                 nh3_conc[i],
                 negative_ion_conc[i],
@@ -390,7 +393,7 @@ end
     end
 end
 
-@kernel function test_organic_nucleation_kernel!(
+@kernel function organic_nucleation_kernel!(
     prs,
     output::AbstractArray{FT},
     negative_ion_conc,
@@ -404,7 +407,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_nucleation_rate(
+        output[i] = MN.organic_nucleation_rate(
             negative_ion_conc[i],
             monoterpene_conc[i],
             O3_conc[i],
@@ -416,7 +419,7 @@ end
     end
 end
 
-@kernel function test_organic_and_h2so4_nucleation_kernel!(
+@kernel function organic_and_h2so4_nucleation_kernel!(
     prs,
     output::AbstractArray{FT},
     h2so4_conc,
@@ -429,7 +432,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_and_h2so4_nucleation_rate(
+        output[i] = MN.organic_and_h2so4_nucleation_rate(
             h2so4_conc[i],
             monoterpene_conc[i],
             OH_conc[i],
@@ -440,7 +443,7 @@ end
     end
 end
 
-@kernel function test_apparent_nucleation_rate_kernel!(
+@kernel function apparent_nucleation_rate_kernel!(
     output::AbstractArray{FT},
     output_diam,
     nucleation_rate,
@@ -453,7 +456,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.apparent_nucleation_rate(
+        output[i] = MN.apparent_nucleation_rate(
             output_diam[i],
             nucleation_rate[i],
             condensation_growth_rate[i],
@@ -464,7 +467,7 @@ end
     end
 end
 
-@kernel function test_Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
+@kernel function Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
     prs,
     output::AbstractArray{FT},
     x_sulph,
@@ -479,7 +482,7 @@ end
     end
 end
 
-@kernel function test_Common_a_w_xT_kernel!(
+@kernel function Common_a_w_xT_kernel!(
     prs,
     output::AbstractArray{FT},
     x_sulph,
@@ -493,7 +496,7 @@ end
     end
 end
 
-@kernel function test_Common_a_w_eT_kernel!(
+@kernel function Common_a_w_eT_kernel!(
     prs,
     output::AbstractArray{FT},
     e,
@@ -507,7 +510,7 @@ end
     end
 end
 
-@kernel function test_Common_a_w_ice_kernel!(
+@kernel function Common_a_w_ice_kernel!(
     prs,
     output::AbstractArray{FT},
     T,
@@ -520,7 +523,7 @@ end
     end
 end
 
-@kernel function test_IceNucleation_ABIFM_J_kernel!(
+@kernel function IceNucleation_ABIFM_J_kernel!(
     prs,
     output::AbstractArray{FT},
     Delta_a_w,
@@ -534,7 +537,7 @@ end
     end
 end
 
-@kernel function test_IceNucleation_homogeneous_J_kernel!(
+@kernel function IceNucleation_homogeneous_J_kernel!(
     prs,
     output::AbstractArray{FT},
     Delta_a_w,
@@ -547,7 +550,7 @@ end
     end
 end
 
-@kernel function test_h2so4_nucleation_kernel!(
+@kernel function h2so4_nucleation_kernel!(
     prs,
     output::AbstractArray{FT},
     h2so4_conc,
@@ -560,7 +563,7 @@ end
 
     @inbounds begin
         output[i] = sum(
-            HN.h2so4_nucleation_rate(
+            MN.h2so4_nucleation_rate(
                 h2so4_conc[i],
                 nh3_conc[i],
                 negative_ion_conc[i],
@@ -571,7 +574,7 @@ end
     end
 end
 
-@kernel function test_organic_nucleation_kernel!(
+@kernel function organic_nucleation_kernel!(
     prs,
     output::AbstractArray{FT},
     negative_ion_conc,
@@ -585,7 +588,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_nucleation_rate(
+        output[i] = MN.organic_nucleation_rate(
             negative_ion_conc[i],
             monoterpene_conc[i],
             O3_conc[i],
@@ -597,7 +600,7 @@ end
     end
 end
 
-@kernel function test_organic_and_h2so4_nucleation_kernel!(
+@kernel function organic_and_h2so4_nucleation_kernel!(
     prs,
     output::AbstractArray{FT},
     h2so4_conc,
@@ -610,7 +613,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.organic_and_h2so4_nucleation_rate(
+        output[i] = MN.organic_and_h2so4_nucleation_rate(
             h2so4_conc[i],
             monoterpene_conc[i],
             OH_conc[i],
@@ -621,7 +624,7 @@ end
     end
 end
 
-@kernel function test_apparent_nucleation_rate_kernel!(
+@kernel function apparent_nucleation_rate_kernel!(
     output::AbstractArray{FT},
     output_diam,
     nucleation_rate,
@@ -634,7 +637,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[i] = HN.apparent_nucleation_rate(
+        output[i] = MN.apparent_nucleation_rate(
             output_diam[i],
             nucleation_rate[i],
             condensation_growth_rate[i],
@@ -645,7 +648,7 @@ end
     end
 end
 
-@kernel function test_P3_scheme_kernel!(
+@kernel function P3_scheme_kernel!(
     prs,
     output::AbstractArray{FT},
     F_r,
@@ -660,13 +663,20 @@ end
     end
 end
 
-function test_gpu(FT)
+"""
+    setup_output(dims, FT)
+Helper function for GPU tests. Allocates an array of type `FT` with dimensions
+`dims`. The second element of `dims` is the `data_length`.
+"""
+function setup_output(dims, FT)
+    output = allocate(backend, FT, dims...)
+    return (; output, ndrange = (dims[2],))
+end
 
-    make_prs(::Type{FT}) where {FT} = cloud_microphysics_parameters(
+function test_gpu(FT)
+    prs = cloud_microphysics_parameters(
         CP.create_toml_dict(FT; dict_type = "alias"),
     )
-    prs = make_prs(FT)
-    air_props = CMT.AirProperties(FT)
     thermo_params = CMP.thermodynamics_params(prs)
 
     liquid = CMT.LiquidType()
@@ -676,6 +686,7 @@ function test_gpu(FT)
 
     ce = CMT.CollisionEfficiency(FT)
     p3_prs = CMP.CloudMicrophysicsParametersP3(FT)
+    air_props = CMT.AirProperties(FT)
     rain_blk1mvel = CMT.Blk1MVelType(FT, rain)
     snow_blk1mvel = CMT.Blk1MVelType(FT, snow)
 
@@ -695,13 +706,8 @@ function test_gpu(FT)
     accTC1980 = CMT.AccretionTC1980(FT)
 
     @testset "Aerosol activation kernels" begin
-        data_length = 2
-        output = ArrayType(Array{FT}(undef, 6, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (6, 2)
+        (; output, ndrange) = setup_output(dims, FT)
 
         r = ArrayType([FT(0.243 * 1e-6), FT(1.5 * 1e-6)])
         stdev = ArrayType([FT(1.4), FT(2.1)])
@@ -713,22 +719,8 @@ function test_gpu(FT)
         ρ = ArrayType([FT(1770), FT(2170)])
         κ = ArrayType([FT(0.53), FT(1.12)])
 
-        kernel! = test_aerosol_activation_kernel!(dev, work_groups)
-        event = kernel!(
-            make_prs(FT),
-            output,
-            r,
-            stdev,
-            N,
-            ϵ,
-            ϕ,
-            M,
-            ν,
-            ρ,
-            κ,
-            ndrange = ndrange,
-        )
-        wait(dev, event)
+        kernel! = aerosol_activation_kernel!(backend, work_groups)
+        kernel!(prs, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ, ; ndrange)
 
         # test if all aerosol activation output is positive
         @test all(Array(output)[:, :] .>= FT(0))
@@ -746,41 +738,23 @@ function test_gpu(FT)
     end
 
     @testset "0-moment microphysics kernels" begin
-        data_length = 3
-        output = ArrayType(Array{FT}(undef, 2, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (3, 2)
+        (; output, ndrange) = setup_output(dims, FT)
 
         liquid_frac = ArrayType([FT(0), FT(0.5), FT(1)])
         qt = ArrayType([FT(13e-3), FT(13e-3), FT(13e-3)])
         qc = ArrayType([FT(3e-3), FT(4e-3), FT(5e-3)])
 
-        kernel! = test_0_moment_micro_kernel!(dev, work_groups)
-        event = kernel!(
-            make_prs(FT),
-            output,
-            liquid_frac,
-            qc,
-            qt,
-            ndrange = ndrange,
-        )
-        wait(dev, event)
+        kernel! = test_0_moment_micro_kernel!(backend, work_groups)
+        kernel!(prs, output, liquid_frac, qc, qt, ; ndrange)
 
         # test 0-moment rain removal is callable and returns a reasonable value
         @test all(isequal(Array(output)[1, :], Array(output)[2, :]))
     end
 
     @testset "1-moment microphysics kernels" begin
-        data_length = 2
-        output = ArrayType(Array{FT}(undef, 7, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (7, 2)
+        (; output, ndrange) = setup_output(dims, FT)
 
         ρ = ArrayType([FT(1.2), FT(1.2)])
         qt = ArrayType([FT(0), FT(20e-3)])
@@ -789,8 +763,8 @@ function test_gpu(FT)
         ql = ArrayType([FT(0), FT(5e-4)])
         qr = ArrayType([FT(0), FT(5e-4)])
 
-        kernel! = test_1_moment_micro_accretion_kernel!(dev, work_groups)
-        event = kernel!(
+        kernel! = test_1_moment_micro_accretion_kernel!(backend, work_groups)
+        kernel!(
             liquid,
             rain,
             ice,
@@ -804,10 +778,9 @@ function test_gpu(FT)
             qi,
             qs,
             ql,
-            qr,
-            ndrange = ndrange,
+            qr;
+            ndrange,
         )
-        wait(dev, event)
 
         # test 1-moment accretion is callable and returns a reasonable value
         @test all(Array(output)[:, 1] .== FT(0))
@@ -819,30 +792,15 @@ function test_gpu(FT)
         @test Array(output)[6, 2] ≈ FT(2.1705865794293408e-4)
         @test Array(output)[7, 2] ≈ FT(6.0118801860768854e-5)
 
-        data_length = 3
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (1, 3)
+        (; output, ndrange) = setup_output(dims, FT)
 
         ρ = ArrayType([FT(1.2), FT(1.2), FT(1.2)])
         T = ArrayType([FT(273.15 + 2), FT(273.15 + 2), FT(273.15 - 2)])
         qs = ArrayType([FT(1e-4), FT(0), FT(1e-4)])
 
-        kernel! = test_1_moment_micro_snow_melt_kernel!(dev, work_groups)
-        event = kernel!(
-            snow,
-            air_props,
-            thermo_params,
-            output,
-            ρ,
-            T,
-            qs,
-            ndrange = ndrange,
-        )
-        wait(dev, event)
+        kernel! = test_1_moment_micro_snow_melt_kernel!(backend, work_groups)
+        kernel!(snow, air_props, thermo_params, output, ρ, T, qs, ; ndrange)
 
         # test if 1-moment snow melt is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(9.518235437405256e-6)
@@ -852,20 +810,15 @@ function test_gpu(FT)
 
     @testset "2-moment microphysics kernels" begin
 
-        data_length = 1
-        output = ArrayType(Array{FT}(undef, 5, data_length))
-        fill!(output, FT(-44))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (5, 1)
+        (; output, ndrange) = setup_output(dims, FT)
 
         ql = ArrayType([FT(2e-3)])
         ρ = ArrayType([FT(1.2)])
         Nd = ArrayType([FT(1e8)])
 
-        kernel! = test_2_moment_acnv_kernel!(dev, work_groups)
-        event = kernel!(
+        kernel! = test_2_moment_acnv_kernel!(backend, work_groups)
+        kernel!(
             prs,
             acnvKK2000,
             acnvB1994,
@@ -878,7 +831,6 @@ function test_gpu(FT)
             Nd,
             ndrange = ndrange,
         )
-        wait(dev, event)
 
         @test Array(output)[1] ≈ FT(2e-6)
         @test Array(output)[2] ≈ FT(1.6963072465911614e-6)
@@ -886,20 +838,15 @@ function test_gpu(FT)
         @test Array(output)[4] ≈ FT(9.825462758968215e-7)
         @test Array(output)[5] ≈ FT(5.855332513368727e-8)
 
-        data_length = 1
-        output = ArrayType(Array{FT}(undef, 3, data_length))
-        fill!(output, FT(-44))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (3, 1)
+        (; output, ndrange) = setup_output(dims, FT)
 
         ql = ArrayType([FT(2e-3)])
         qr = ArrayType([FT(5e-4)])
         ρ = ArrayType([FT(1.2)])
 
-        kernel! = test_2_moment_accr_kernel!(dev, work_groups)
-        event = kernel!(
+        kernel! = test_2_moment_accr_kernel!(backend, work_groups)
+        kernel!(
             accKK2000,
             accB1994,
             accTC1980,
@@ -909,19 +856,13 @@ function test_gpu(FT)
             ρ,
             ndrange = ndrange,
         )
-        wait(dev, event)
 
         @test isapprox(Array(output)[1], FT(6.6548664e-6), rtol = 1e-6)
         @test Array(output)[2] ≈ FT(7.2e-6)
         @test Array(output)[3] ≈ FT(4.7e-6)
 
-        data_length = 1
-        output = ArrayType(Array{FT}(undef, 13, data_length))
-        fill!(output, FT(-44))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (13, 1)
+        (; output, ndrange) = setup_output(dims, FT)
 
         T = ArrayType([FT(290)])
         qt = ArrayType([FT(7e-3)])
@@ -931,8 +872,8 @@ function test_gpu(FT)
         Nl = ArrayType([FT(1e8)])
         Nr = ArrayType([FT(1e7)])
 
-        kernel! = test_2_moment_SB2006_kernel!(dev, work_groups)
-        event = kernel!(
+        kernel! = test_2_moment_SB2006_kernel!(backend, work_groups)
+        kernel!(
             rain,
             air_props,
             thermo_params,
@@ -952,7 +893,6 @@ function test_gpu(FT)
             T,
             ndrange = ndrange,
         )
-        wait(dev, event)
 
         @test isapprox(Array(output)[1], FT(-4.083606e-7), rtol = 1e-6)
         @test isapprox(Array(output)[2], FT(-3769.4827), rtol = 1e-6)
@@ -973,129 +913,87 @@ function test_gpu(FT)
     end
 
     @testset "Common Kernels" begin
-        data_length = 1
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (1, 1)
+        (; output, ndrange) = setup_output(dims, FT)
 
         T = ArrayType([FT(230)])
         x_sulph = ArrayType([FT(0.1)])
 
-        kernel! = test_Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
-            dev,
+        kernel! = Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
+            backend,
             work_groups,
         )
-        event = kernel!(make_prs(FT), output, x_sulph, T, ndrange = ndrange)
-        wait(dev, event)
+        kernel!(prs, output, x_sulph, T; ndrange)
 
         # test H2SO4_soln_saturation_vapor_pressure is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(12.685507586924)
 
-        data_length = 1
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (1, 1)
+        (; output, ndrange) = setup_output(dims, FT)
 
         T = ArrayType([FT(230)])
         x_sulph = ArrayType([FT(0.1)])
 
-        kernel! = test_Common_a_w_xT_kernel!(dev, work_groups)
-        event = kernel!(make_prs(FT), output, x_sulph, T, ndrange = ndrange)
-        wait(dev, event)
+        kernel! = Common_a_w_xT_kernel!(backend, work_groups)
+        kernel!(prs, output, x_sulph, T; ndrange)
 
         # test if a_w_xT is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.92824538441)
 
-        data_length = 1
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (1, 1)
+        (; output, ndrange) = setup_output(dims, FT)
 
         T = ArrayType([FT(282)])
         e = ArrayType([FT(1001)])
 
-        kernel! = test_Common_a_w_eT_kernel!(dev, work_groups)
-        event = kernel!(make_prs(FT), output, e, T, ndrange = ndrange)
-        wait(dev, event)
+        kernel! = Common_a_w_eT_kernel!(backend, work_groups)
+        kernel!(prs, output, e, T; ndrange)
 
         # test if a_w_eT is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.880978146)
 
-        data_length = 1
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (1, 1)
+        (; output, ndrange) = setup_output(dims, FT)
 
         T = ArrayType([FT(230)])
 
-        kernel! = test_Common_a_w_ice_kernel!(dev, work_groups)
-        event = kernel!(make_prs(FT), output, T, ndrange = ndrange)
-        wait(dev, event)
+        kernel! = Common_a_w_ice_kernel!(backend, work_groups)
+        kernel!(prs, output, T; ndrange)
 
         # test if a_w_ice is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.653191723)
-
     end
 
     @testset "Ice Nucleation kernels" begin
-        data_length = 2
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44.0))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (1, 2)
+        (; output, ndrange) = setup_output(dims, FT)
 
         Delta_a_w = ArrayType([FT(0.16), FT(0.15)])
 
-        kernel! = test_IceNucleation_ABIFM_J_kernel!(dev, work_groups)
-        event = kernel!(make_prs(FT), output, Delta_a_w, ndrange = ndrange)
-        wait(dev, event)
+        kernel! = IceNucleation_ABIFM_J_kernel!(backend, work_groups)
+        kernel!(prs, output, Delta_a_w; ndrange)
 
         # test if ABIFM_J is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(153.65772539109)
         @test Array(output)[2] ≈ FT(31.870032033791)
 
-        data_length = 1
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44))
-
-        dev = device(ArrayType)
-        work_groups = (1,)
-        ndrange = (data_length,)
+        dims = (1, 1)
+        (; output, ndrange) = setup_output(dims, FT)
 
         T = ArrayType([FT(220)])
         x_sulph = ArrayType([FT(0.15)])
         Delta_a_w = ArrayType([FT(0.2907389666103033)])
 
-        kernel! = test_IceNucleation_homogeneous_J_kernel!(dev, work_groups)
-        event = kernel!(make_prs(FT), output, Delta_a_w, ndrange = ndrange)
-        wait(dev, event)
+        kernel! = IceNucleation_homogeneous_J_kernel!(backend, work_groups)
+        kernel!(prs, output, Delta_a_w; ndrange)
 
         # test homogeneous_J is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(2.66194650334444e12)
     end
 
-    @testset "Homogeneous nucleation kernels" begin
-        data_length = 2
-        output = ArrayType(Array{FT}(undef, 1, data_length))
-        fill!(output, FT(-44.0))
-        ndrange = (data_length,)
-
-        dev = device(ArrayType)
-        work_groups = (1,)
+    @testset "Modal nucleation kernels" begin
+        dims = (1, 2)
+        (; output, ndrange) = setup_output(dims, FT)
 
         # h2so4 nucleation
         h2so4_conc = ArrayType([FT(1e12), FT(1e12)])
@@ -1103,22 +1001,20 @@ function test_gpu(FT)
         negative_ion_conc = ArrayType([FT(1), FT(1)])
         temp = ArrayType([FT(208), FT(208)])
 
-        kernel! = test_h2so4_nucleation_kernel!(dev, work_groups)
-        event = kernel!(
+        kernel! = h2so4_nucleation_kernel!(backend, work_groups)
+        kernel!(
             H2S04NucleationParameters(FT),
             output,
             h2so4_conc,
             nh3_conc,
             negative_ion_conc,
-            temp,
-            ndrange = ndrange,
+            temp;
+            ndrange,
         )
-        wait(dev, event)
 
         @test all(Array(output) .> FT(0))
 
         # Organic nucleation
-        fill!(output, FT(-44.0))
 
         negative_ion_conc = ArrayType([FT(0.0), FT(0.0)])
         monoterpene_conc = ArrayType([FT(1e24), FT(1e24)])
@@ -1127,8 +1023,8 @@ function test_gpu(FT)
         temp = ArrayType([FT(300), FT(300)])
         condensation_sink = ArrayType([FT(1), FT(1)])
 
-        kernel! = test_organic_nucleation_kernel!(dev, work_groups)
-        event = kernel!(
+        kernel! = organic_nucleation_kernel!(backend, work_groups)
+        kernel!(
             OrganicNucleationParameters(FT),
             output,
             negative_ion_conc,
@@ -1136,15 +1032,13 @@ function test_gpu(FT)
             O3_conc,
             OH_conc,
             temp,
-            condensation_sink,
-            ndrange = ndrange,
+            condensation_sink;
+            ndrange,
         )
-        wait(dev, event)
 
         @test all(Array(output) .> FT(0))
 
         # Organic and h2so4 nucleation
-        fill!(output, FT(-44.0))
 
         h2so4_conc = ArrayType([FT(2.6e6), FT(2.6e6)])
         monoterpene_conc = ArrayType([FT(1), FT(1)])
@@ -1152,23 +1046,21 @@ function test_gpu(FT)
         temp = ArrayType([FT(300), FT(300)])
         condensation_sink = ArrayType([FT(1), FT(1)])
 
-        kernel! = test_organic_and_h2so4_nucleation_kernel!(dev, work_groups)
-        event = kernel!(
+        kernel! = organic_and_h2so4_nucleation_kernel!(backend, work_groups)
+        kernel!(
             MixedNucleationParameters(FT),
             output,
             h2so4_conc,
             monoterpene_conc,
             OH_conc,
             temp,
-            condensation_sink,
-            ndrange = ndrange,
+            condensation_sink;
+            ndrange,
         )
-        wait(dev, event)
 
         @test all(Array(output) .> FT(0))
 
         # Apparent nucleation rate
-        fill!(output, FT(-44.0))
 
         output_diam = ArrayType([FT(1e-9), FT(1e-9)])
         nucleation_rate = ArrayType([FT(1e6), FT(1e6)])
@@ -1177,37 +1069,30 @@ function test_gpu(FT)
         coag_sink_input_diam = ArrayType([FT(1e-9), FT(1e-9)])
         input_diam = ArrayType([FT(1e-9), FT(1e-9)])
 
-        kernel! = test_apparent_nucleation_rate_kernel!(dev, work_groups)
-        event = kernel!(
+        kernel! = apparent_nucleation_rate_kernel!(backend, work_groups)
+        kernel!(
             output,
             output_diam,
             nucleation_rate,
             condensation_growth_rate,
             coag_sink,
             coag_sink_input_diam,
-            input_diam,
-            ndrange = ndrange,
+            input_diam;
+            ndrange,
         )
-        wait(dev, event)
 
         @test all(Array(output) .> FT(0))
     end
     #=
     @testset "P3 scheme kernels" begin
-        data_length = 2
-        output = ArrayType(Array{FT}(undef, 2, data_length))
-        fill!(output, FT(-44.0))
-
-        ndrange = (data_length,)
-        dev = device(ArrayType)
-        work_groups = (1,)
+        dims = (2, 2)
+        (; output, ndrange) = setup_output(dims, FT)
 
         F_r = ArrayType([FT(0.5), FT(0.95)])
         ρ_r = ArrayType([FT(400), FT(800)])
 
-        kernel! = test_P3_scheme_kernel!(dev, work_groups)
-        event = kernel!(p3_prs, output, F_r, ρ_r, ndrange = ndrange)
-        wait(dev, event)
+        kernel! = P3_scheme_kernel!(backend, work_groups)
+        kernel!(p3_prs, output, F_r, ρ_r; ndrange)
 
         # test if all output is positive...
         @test all(Array(output) .> FT(0))
