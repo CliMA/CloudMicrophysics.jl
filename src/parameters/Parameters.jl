@@ -12,10 +12,12 @@ Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = tuple(ps)
 
 export CloudMicrophysicsParameters0M
 export CloudMicrophysicsParametersP3
+export H2SO4SolutionParameters
 
 include("cmp_0m.jl")
 include("cmp_p3.jl")
 include("modal_nucleation.jl")
+include("H2SO4_solution.jl")
 
 # TODO: add doc strings
 # Cloud microphysics parameters

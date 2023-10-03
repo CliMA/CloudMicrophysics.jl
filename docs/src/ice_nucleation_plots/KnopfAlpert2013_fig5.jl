@@ -14,10 +14,11 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 prs = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(prs)
+tps = CMP.thermodynamics_params(prs)
+H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
 # Knopf and Alpert 2013 Figure 5A: Cirrus
-# https://doi.org/10.1039/C3FD00035D 
+# https://doi.org/10.1039/C3FD00035D
 temp = [
     228.20357,
     228.33571,
@@ -45,15 +46,12 @@ T_range = range(228.2, stop = 229.6, length = 100)  # air temperature
 T_dew = FT(228.0)               # dew point temperature
 x_sulph = FT(0)                 # sulphuric acid concentration in droplets
 a_sol = [                       # water activity of solution droplet at equilibrium
-    CMO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph, T_dew) /
-    TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid()) for
-    T in T_range
+    CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x_sulph, T_dew) /
+    TD.saturation_vapor_pressure(tps, T, TD.Liquid()) for T in T_range
 ]
-a_ice = [                       # water activity of ice
-    TD.saturation_vapor_pressure(thermo_params, T, TD.Ice()) /
-    TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid()) for
-    T in T_range
-]
+# water activity of ice
+a_ice = [CMO.a_w_ice(tps, T) for T in T_range]
+
 Δa_w = @. max(abs(a_sol - a_ice), FT(0.0))
 J_ABIFM = @. CMI.ABIFM_J(prs, (dust_type,), Δa_w) * 1e-4 # converted from SI units to cm^-2 s^-1
 

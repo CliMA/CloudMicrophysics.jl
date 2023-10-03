@@ -12,16 +12,26 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 const prs = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(prs)
+const tps = CM.Parameters.thermodynamics_params(prs)
+const H2SO4_prs = CM.Parameters.H2SO4SolutionParameters(FT)
 
 # Initializing
 T_range = range(229.0, stop = 234.5, length = 50)  # air temperature
 x_sulph = Vector{FT}([0.03, 0.04, 0.06])           # wt% sulphuric acid in droplets
 
 # Solving for Δa and J values
-Δa1 = [CMO.a_w_xT(prs, x_sulph[1], T) - CMO.a_w_ice(prs, T) for T in T_range]
-Δa2 = [CMO.a_w_xT(prs, x_sulph[2], T) - CMO.a_w_ice(prs, T) for T in T_range]
-Δa3 = [CMO.a_w_xT(prs, x_sulph[3], T) - CMO.a_w_ice(prs, T) for T in T_range]
+Δa1 = [
+    CMO.a_w_xT(H2SO4_prs, tps, x_sulph[1], T) - CMO.a_w_ice(tps, T) for
+    T in T_range
+]
+Δa2 = [
+    CMO.a_w_xT(H2SO4_prs, tps, x_sulph[2], T) - CMO.a_w_ice(tps, T) for
+    T in T_range
+]
+Δa3 = [
+    CMO.a_w_xT(H2SO4_prs, tps, x_sulph[3], T) - CMO.a_w_ice(tps, T) for
+    T in T_range
+]
 
 J1 = @. CMI.homogeneous_J(prs, Δa1)
 J2 = @. CMI.homogeneous_J(prs, Δa2)

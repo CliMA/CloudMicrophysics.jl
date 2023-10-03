@@ -1,6 +1,6 @@
 import Test as TT
 
-import CloudMicrophysics
+import CloudMicrophysics as CM
 import CloudMicrophysics.Common as CO
 
 import Thermodynamics as TD
@@ -51,8 +51,8 @@ TT.@testset "logistic_function_integral unit tests" begin
 end
 
 function test_H2SO4_soln_saturation_vapor_pressure(FT)
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
+
+    H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     TT.@testset "H2SO4 solution saturated vapor pressure" begin
 
@@ -64,25 +64,35 @@ function test_H2SO4_soln_saturation_vapor_pressure(FT)
 
         # If T out of range
         TT.@test_throws AssertionError("T < T_max") CO.H2SO4_soln_saturation_vapor_pressure(
-            prs,
+            H2SO4_prs,
             x_sulph,
             T_too_warm,
         )
         TT.@test_throws AssertionError("T > T_min") CO.H2SO4_soln_saturation_vapor_pressure(
-            prs,
+            H2SO4_prs,
             x_sulph,
             T_too_cold,
         )
 
         # p_sol should be higher at warmer temperatures
-        TT.@test CO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph, T_warm) >
-                 CO.H2SO4_soln_saturation_vapor_pressure(prs, x_sulph, T_cold)
+        TT.@test CO.H2SO4_soln_saturation_vapor_pressure(
+            H2SO4_prs,
+            x_sulph,
+            T_warm,
+        ) > CO.H2SO4_soln_saturation_vapor_pressure(
+            H2SO4_prs,
+            x_sulph,
+            T_cold,
+        )
     end
 end
 
 function test_a_w_xT(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
+    tps = CMP.thermodynamics_params(prs)
+
+    H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     TT.@testset "a_w_xT" begin
 
@@ -93,14 +103,14 @@ function test_a_w_xT(FT)
 
         # a_w greater at warmer temperatures
         for x_sulph in [x_sulph_high, x_sulph_low]
-            TT.@test CO.a_w_xT(prs, x_sulph, T_cold) <
-                     CO.a_w_xT(prs, x_sulph, T_warm)
+            TT.@test CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_cold) <
+                     CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_warm)
         end
 
         # a_w greater at lower sulphuric acid concentration
         for T in [T_warm, T_cold]
-            TT.@test CO.a_w_xT(prs, x_sulph_high, T) <
-                     CO.a_w_xT(prs, x_sulph_low, T)
+            TT.@test CO.a_w_xT(H2SO4_prs, tps, x_sulph_high, T) <
+                     CO.a_w_xT(H2SO4_prs, tps, x_sulph_low, T)
         end
     end
 end
@@ -108,6 +118,7 @@ end
 function test_a_w_eT(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
+    tps = CMP.thermodynamics_params(prs)
 
     TT.@testset "a_w_eT" begin
 
@@ -117,11 +128,11 @@ function test_a_w_eT(FT)
         e_low = FT(544)
 
         # a_w greater at higher altitudes
-        TT.@test CO.a_w_eT(prs, e_low, T_cold) > CO.a_w_eT(prs, e_high, T_warm)
+        TT.@test CO.a_w_eT(tps, e_low, T_cold) > CO.a_w_eT(tps, e_high, T_warm)
 
         # a_w greater at greater partial pressures
         for T in [T_warm, T_cold]
-            TT.@test CO.a_w_eT(prs, e_low, T) < CO.a_w_eT(prs, e_high, T)
+            TT.@test CO.a_w_eT(tps, e_low, T) < CO.a_w_eT(tps, e_high, T)
         end
     end
 end
@@ -129,6 +140,7 @@ end
 function test_a_w_ice(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
+    tps = CMP.thermodynamics_params(prs)
 
     TT.@testset "a_w_ice" begin
 
@@ -136,7 +148,7 @@ function test_a_w_ice(FT)
         T_cold = FT(230)
 
         # a_w greater at warmer temperatures
-        TT.@test CO.a_w_ice(prs, T_cold) < CO.a_w_ice(prs, T_warm)
+        TT.@test CO.a_w_ice(tps, T_cold) < CO.a_w_ice(tps, T_warm)
 
     end
 end

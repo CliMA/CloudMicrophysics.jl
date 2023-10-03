@@ -14,6 +14,8 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function test_homogeneous_J(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
+    tps = CM.Parameters.thermodynamics_params(prs)
+    H2SO4_prs = CM.Parameters.H2SO4SolutionParameters(FT)
 
     TT.@testset "Homogeneous J" begin
 
@@ -23,10 +25,16 @@ function test_homogeneous_J(FT)
         Δa_w_too_small = FT(0.25)
         Δa_w_too_large = FT(0.35)
 
-        #! format: off
         # higher nucleation rate at colder temperatures
-        TT.@test CMH.homogeneous_J(prs, CO.a_w_xT(prs, x_sulph, T_cold) - CO.a_w_ice(prs, T_cold)) >
-                 CMH.homogeneous_J(prs, CO.a_w_xT(prs, x_sulph, T_warm) - CO.a_w_ice(prs, T_warm))
+        TT.@test CMH.homogeneous_J(
+            prs,
+            CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_cold) -
+            CO.a_w_ice(tps, T_cold),
+        ) > CMH.homogeneous_J(
+            prs,
+            CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_warm) -
+            CO.a_w_ice(tps, T_warm),
+        )
 
         # If Δa_w out of range
         TT.@test_throws AssertionError("Δa_w > Δa_w_min") CMH.homogeneous_J(
@@ -37,7 +45,6 @@ function test_homogeneous_J(FT)
             prs,
             Δa_w_too_large,
         )
-        #! format: on
     end
 end
 

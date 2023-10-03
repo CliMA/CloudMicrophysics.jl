@@ -66,6 +66,7 @@ function benchmark_test(FT)
     evap_sb2006 = CMT.EvaporationSB2006(FT)
     breakup_sb2006 = CMT.BreakupSB2006(FT)
     selfcollection_sb2006 = CMT.SelfCollectionSB2006(FT)
+    H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     ρ_air = FT(1.2)
     T_air = FT(280)
@@ -121,12 +122,12 @@ function benchmark_test(FT)
     # Common
     bench_press(
         CO.H2SO4_soln_saturation_vapor_pressure,
-        (prs, x_sulph, T_air_cold),
+        (H2SO4_prs, x_sulph, T_air_cold),
         50,
     )
-    bench_press(CO.a_w_xT, (prs, x_sulph, T_air_cold), 230)
-    bench_press(CO.a_w_eT, (prs, e, T_air_cold), 230)
-    bench_press(CO.a_w_ice, (prs, T_air_cold), 230)
+    bench_press(CO.a_w_xT, (H2SO4_prs, thermo_params, x_sulph, T_air_cold), 230)
+    bench_press(CO.a_w_eT, (thermo_params, e, T_air_cold), 230)
+    bench_press(CO.a_w_ice, (thermo_params, T_air_cold), 230)
 
     # ice nucleation
     bench_press(

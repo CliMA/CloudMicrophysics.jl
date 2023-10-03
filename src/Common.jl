@@ -6,6 +6,7 @@ module Common
 import SpecialFunctions as SF
 
 import Thermodynamics as TD
+const TPS = TD.Parameters.ThermodynamicsParameters
 
 import ..Parameters as CMP
 const APS = CMP.AbstractCloudMicrophysicsParameters
@@ -21,10 +22,11 @@ export Chen2022_vel_add
 export Chen2022_vel_coeffs
 
 """
-    G_func(param_set, T, Liquid())
-    G_func(param_set, T, Ice())
+    G_func(air_props, thermo_params, T, Liquid())
+    G_func(air_props, thermo_params, T, Ice())
 
- - `param_set` - abstract set with earth parameters
+ - `air_props` - struct with air parameters
+ - `thermo_params` - struct with thermodynamics parameters
  - `T` - air temperature
  - `Liquid()`, `Ice()` - liquid or ice phase to dispatch over.
 
@@ -32,27 +34,26 @@ Utility function combining thermal conductivity and vapor diffusivity effects.
 """
 function G_func(
     (; K_therm, D_vapor)::CT.AirProperties,
-    thermo_params,
+    tps::TPS,
     T::FT,
     ::TD.Liquid,
 ) where {FT <: Real}
-    R_v = TD.Parameters.R_v(thermo_params)
-    L = TD.latent_heat_vapor(thermo_params, T)
-    p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+    R_v = TD.Parameters.R_v(tps)
+    L = TD.latent_heat_vapor(tps, T)
+    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 
     return FT(1) /
            (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
 end
-
 function G_func(
     (; K_therm, D_vapor)::CT.AirProperties,
-    thermo_params,
+    tps::TPS,
     T::FT,
     ::TD.Ice,
 ) where {FT <: Real}
-    R_v = TD.Parameters.R_v(thermo_params)
-    L = TD.latent_heat_sublim(thermo_params, T)
-    p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
+    R_v = TD.Parameters.R_v(tps)
+    L = TD.latent_heat_sublim(tps, T)
+    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Ice())
 
     return FT(1) /
            (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
@@ -125,7 +126,7 @@ end
 """
     H2SO4_soln_saturation_vapor_pressure(prs, x, T)
 
- - `prs` - a set with free parameters
+ - `prs` - a struct with H2SO4 solution free parameters
  - `x` - wt percent sulphuric acid [unitless]
  - `T` - air temperature [K].
 
@@ -133,22 +134,21 @@ Returns the saturation vapor pressure above a sulphuric acid solution droplet in
 `x` is, for example, 0.1 if droplets are 10 percent sulphuric acid by weight
 """
 function H2SO4_soln_saturation_vapor_pressure(
-    prs::APS,
+    (;
+        T_max,
+        T_min,
+        w_2,
+        c1,
+        c2,
+        c3,
+        c4,
+        c5,
+        c6,
+        c7,
+    )::CMP.H2SO4SolutionParameters{FT},
     x::FT,
     T::FT,
 ) where {FT <: Real}
-
-    T_max::FT = CMP.H2SO4_sol_T_max(prs)
-    T_min::FT = CMP.H2SO4_sol_T_min(prs)
-    w_2::FT = CMP.H2SO4_sol_w_2(prs)
-
-    c1::FT = CMP.H2SO4_sol_c1(prs)
-    c2::FT = CMP.H2SO4_sol_c2(prs)
-    c3::FT = CMP.H2SO4_sol_c3(prs)
-    c4::FT = CMP.H2SO4_sol_c4(prs)
-    c5::FT = CMP.H2SO4_sol_c5(prs)
-    c6::FT = CMP.H2SO4_sol_c6(prs)
-    c7::FT = CMP.H2SO4_sol_c7(prs)
 
     @assert T < T_max
     @assert T > T_min
@@ -163,64 +163,58 @@ function H2SO4_soln_saturation_vapor_pressure(
 end
 
 """
-    a_w_xT(prs, x, T)
+    a_w_xT(H2SO4_prs, tps, x, T)
 
- - `prs` - set with model parameters
+ - `H2SO4_prs` - a struct with H2SO4 solution free parameters
+ - `tps` - a struct with thermodynamics parameters
  - `x` - wt percent sulphuric acid [unitless]
  - `T` - air temperature [K].
 
 Returns water activity of H2SO4 containing droplet.
 `x` is, for example, 0.1 if droplets are 10 percent sulphuric acid by weight.
 """
-function a_w_xT(prs::APS, x::FT, T::FT) where {FT <: Real}
+function a_w_xT(H2SO4_prs::APS, tps::TPS, x::FT, T::FT) where {FT <: Real}
 
-    thermo_params = CMP.thermodynamics_params(prs)
-
-    p_sol = H2SO4_soln_saturation_vapor_pressure(prs, x, T)
-    p_sat = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+    p_sol = H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x, T)
+    p_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 
     return p_sol / p_sat
 end
 
 """
-    a_w_eT(prs, e, T)
+    a_w_eT(tps, e, T)
 
- - `prs` - set with model parameters
+ - `tps` - struct with thermodynamics parameters
  - `e` - partial pressure of water [Pa]
  - `T` - air temperature [K].
 
 Returns water activity of pure water droplet.
 Valid when droplet is in equilibrium with surroundings.
 """
-function a_w_eT(prs::APS, e::FT, T::FT) where {FT <: Real}
-
-    thermo_params = CMP.thermodynamics_params(prs)
-    RH = e / TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
-
-    return RH
+function a_w_eT(tps::TPS, e::FT, T::FT) where {FT <: Real}
+    # RH
+    return e / TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 end
 
 """
-    a_w_ice(prs, T)
+    a_w_ice(tps, T)
 
- - `prs` - set with model parameters
+- `tps` - struct with thermodynamics parameters
  - `T` - air temperature [K].
 
 Returns water activity of ice.
 """
-function a_w_ice(prs::APS, T::FT) where {FT <: Real}
+function a_w_ice(tps::TPS, T::FT) where {FT <: Real}
 
-    thermo_params = CMP.thermodynamics_params(prs)
-
-    return TD.saturation_vapor_pressure(thermo_params, T, TD.Ice()) /
-           TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+    return TD.saturation_vapor_pressure(tps, T, TD.Ice()) /
+           TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 end
 
 """
-    Chen2022_vel_coeffs(prs, precip_type, ρ)
+    Chen2022_vel_coeffs(precip_type, velo_scheme, ρ)
 
- - prs - set with free parameters
- - precip_type - type for ice, rain or snow
+ - precip_type - type for ice, rain or snow (contains free parameters)
+ - velo_scheme - type for terminal velocity scheme (contains free parameters)
  - ρ - air density
 
 Returns the coefficients from Appendix B in Chen et al 2022

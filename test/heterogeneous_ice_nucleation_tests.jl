@@ -18,6 +18,8 @@ function test_heterogeneous_ice_nucleation(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
+    tps = CM.Parameters.thermodynamics_params(prs)
+    H2SO4_prs = CM.Parameters.H2SO4SolutionParameters(FT)
 
     TT.@testset "dust_activation" begin
 
@@ -95,21 +97,23 @@ function test_heterogeneous_ice_nucleation(FT)
             TT.@test CMI_het.ABIFM_J(
                 prs,
                 dust,
-                CO.a_w_xT(prs, x_sulph, T_cold_1) - CO.a_w_ice(prs, T_cold_1),
+                CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_cold_1) -
+                CO.a_w_ice(tps, T_cold_1),
             ) > CMI_het.ABIFM_J(
                 prs,
                 dust,
-                CO.a_w_xT(prs, x_sulph, T_warm_1) - CO.a_w_ice(prs, T_warm_1),
+                CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_warm_1) -
+                CO.a_w_ice(tps, T_warm_1),
             )
 
             TT.@test CMI_het.ABIFM_J(
                 prs,
                 dust,
-                CO.a_w_eT(prs, e_cold, T_cold_2) - CO.a_w_ice(prs, T_cold_2),
+                CO.a_w_eT(tps, e_cold, T_cold_2) - CO.a_w_ice(tps, T_cold_2),
             ) > CMI_het.ABIFM_J(
                 prs,
                 dust,
-                CO.a_w_eT(prs, e_warm, T_warm_2) - CO.a_w_ice(prs, T_warm_2),
+                CO.a_w_eT(tps, e_warm, T_warm_2) - CO.a_w_ice(tps, T_warm_2),
             )
         end
     end
