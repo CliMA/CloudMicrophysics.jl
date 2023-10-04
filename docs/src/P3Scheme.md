@@ -123,7 +123,7 @@ where all variables from the m(D) regime are as defined above, and:
 Below we show the m(D) regime, replicating Figures 1 (a) and (b) from [MorrisonMilbrandt2015](@cite).
 We also show a(D).
 ```@example
-include("P3SchemePlots.jl")
+include("plots/P3SchemePlots.jl")
 ```
 ![](MorrisonandMilbrandtFig1a.svg)
 ![](MorrisonandMilbrandtFig1b.svg)

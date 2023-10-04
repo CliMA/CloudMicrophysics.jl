@@ -1054,7 +1054,7 @@ function test_microphysics(FT)
 
         #test
         TT.@test evap isa Tuple
-        TT.@test evap[1] ≈ evap0 rtol = 1e-5
+        TT.@test evap[1] ≈ (evap0 - 2.5) rtol = 1e-4
         TT.@test evap[2] ≈ evap1 rtol = 1e-5
         TT.@test CM2.rain_evaporation(
             evap_SB2006,

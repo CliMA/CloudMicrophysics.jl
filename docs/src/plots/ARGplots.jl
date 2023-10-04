@@ -17,7 +17,7 @@ toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 const param_set = cloud_microphysics_parameters(toml_dict)
 thermo_params = CMP.thermodynamics_params(param_set)
 
-include("ARGdata.jl")
+include("plots/ARGdata.jl")
 
 # Atmospheric conditions
 T = 294.0         # air temperature

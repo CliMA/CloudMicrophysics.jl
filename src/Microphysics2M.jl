@@ -397,6 +397,18 @@ function rain_terminal_velocity(
 end
 
 """
+    Returns the approximation of an incomplete gamma function
+    for a ∈ {-1.0, -0.101}, and x in [0.067 1.82]
+"""
+function Γ_incl(a::FT, x::FT) where {FT}
+    #return exp(-x) / ((FT(1.5) - FT(0.54) * a) * x^(FT(0.46) - FT(0.75) * a))
+    return exp(-x) / (
+        (FT(0.33) - FT(0.7) * a) * x^(FT(0.08) - FT(0.93) * a) +
+        (FT(1.34) - FT(0.1) * a) * x^(FT(0.8) - a)
+    )
+end
+
+"""
     rain_evaporation(evap_scheme, air_props, thermo_params, q, q_rai, ρ, N_rai, T)
 
  - `scheme` - evaporation parameterization scheme
@@ -438,11 +450,13 @@ function rain_evaporation(
 
         xr = raindrops_limited_vars(tv, q_rai, ρ, N_rai).xr
         Dr = (FT(6) / FT(π) / ρw)^FT(1 / 3) * xr^FT(1 / 3)
+
         t_star = (FT(6) * x_star / xr)^FT(1 / 3)
-        a_vent_0 = av * FT(SF.gamma(-1, t_star)) / FT(6)^FT(-2 / 3)
+        a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^FT(-2 / 3)
         b_vent_0 =
-            bv * FT(SF.gamma((-1 / 2) + (3 / 2) * β, t_star)) /
-            FT(6)^FT(β / 2 - 1 / 2)
+            bv * Γ_incl(-FT(0.5) + FT(1.5) * β, t_star) /
+            FT(6)^FT(β / 2 - FT(0.5))
+
         a_vent_1 = av * SF.gamma(FT(2)) / FT(6)^FT(1 / 3)
         b_vent_1 =
             bv * SF.gamma(FT(5 / 2) + FT(3 / 2) * β) / FT(6)^FT(β / 2 + 1 / 2)

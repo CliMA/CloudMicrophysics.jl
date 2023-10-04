@@ -78,7 +78,7 @@ To verify that our parameterizations for ``p_{i,sat}`` and ``p_{sat}`` from
     implementations of ``p_{i,sat}`` and ``p_{sat}`` (``p_{sat}`` labelled as
     ``p_{liq}`` to emphasize ice vs liquid phase of the pure water).
 ```@example
-include("water_activity_plots/Baumgartner2022_fig5.jl")
+include("plots/Baumgartner2022_fig5.jl")
 ```
 ![](vap_pressure_vs_T.svg)
 
@@ -100,7 +100,7 @@ Another plot to test if our parameterization is reasonable is plotting against o
   droplet is used but setting concentration of H2SO4 to zero. ``using \mu`` refers to the parameterization
   used in [Koop2000](@cite) where water activity is dependent on chemical potential.
 ```@example
-include("water_activity_plots/T_vs_wateractivity.jl")
+include("plots/T_vs_wateractivity.jl")
 ```
 ![](T_vs_wateractivity.svg)
 Taking the difference between any pair of blue and green lines will give a ``\Delta a_w(T)``.

@@ -355,6 +355,16 @@ The default free parameter values are:
 |``\alpha_r``                | ``159 \, m \cdot s^{-1} \cdot kg^{-\beta_r}``   |
 |``\alpha_r``                | ``0.266``                                       |
 
+!!! note
+    In our implementation we approximate the incomplete gamma function in order to get good
+    performance on the GPU. Below we show the evaporation rates for the number concnetration
+    and mass using both the exact and approximated gamma function
+
+```@example
+include("plots/RainEvapoartionSB2006.jl")
+```
+![](SB2006_rain_evaporation.svg)
+
 ## Additional 2-moment microphysics options
 
 ### Terminal Velocity
@@ -404,7 +414,7 @@ We also compare bulk number weighted [ND] and mass weighted [MD]
 terminal velocities for both formulas integrated over the size distribution from [SeifertBeheng2006](@cite).
 We also show the mass weighted terminal velocity from the 1-moment scheme.
 ```@example
-include("TerminalVelocityComparisons.jl")
+include("plots/TerminalVelocityComparisons.jl")
 ```
 ![](2M_terminal_velocity_comparisons.svg)
 
@@ -665,7 +675,7 @@ const accretion_SB2006 = CMT.AccretionSB2006(FT)
 const ce = CMT.CollisionEfficiency(FT)
 
 
-include(joinpath(pkgdir(CloudMicrophysics), "docs", "src", "Wooddata.jl"))
+include(joinpath(pkgdir(CloudMicrophysics), "docs", "src", "plots", "Wooddata.jl"))
 
 # Example values
 q_liq_range = range(1e-8, stop=1e-3, length=1000)
