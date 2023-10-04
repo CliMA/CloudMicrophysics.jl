@@ -563,19 +563,12 @@ function conv_q_liq_to_q_rai(
     end
 end
 function conv_q_liq_to_q_rai(
-    param_set::APS,
-    scheme::CT.VarTimeScaleAcnvType,
+    (; τ, α)::CT.AutoconversionVarTimescale{FT},
     q_liq::FT,
     ρ::FT;
     N_d::FT = FT(1e8),
 ) where {FT <: Real}
-
-    q_liq = max(0, q_liq)
-
-    _τ_acnv_0::FT = CMP.τ_acnv_rai(param_set)
-    _α_acnv::FT = CMP.α_var_time_scale_acnv(param_set)
-
-    return max(0, q_liq) / (_τ_acnv_0 * (N_d / 1e8)^_α_acnv)
+    return max(0, q_liq) / (τ * (N_d / 1e8)^α)
 end
 
 """

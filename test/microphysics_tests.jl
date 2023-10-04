@@ -20,7 +20,6 @@ const KK2000 = CMT.KK2000Type()
 const B1994 = CMT.B1994Type()
 const TC1980 = CMT.TC1980Type()
 const LD2004 = CMT.LD2004Type()
-const VarTimeScaleAcnv = CMT.VarTimeScaleAcnvType()
 const SB2006Vel = CMT.SB2006VelType()
 
 @info "Microphysics Tests"
@@ -48,6 +47,7 @@ function test_microphysics(FT)
     acnv_B1994 = CMT.AutoconversionB1994(FT)
     acnv_TC1980 = CMT.AutoconversionTC1980(FT)
     acnv_LD2004 = CMT.AutoconversionLD2004(FT)
+    acnv_VarTSc = CMT.AutoconversionVarTimescale(FT)
     evap_SB2006 = CMT.EvaporationSB2006(FT)
     breakup_SB2006 = CMT.BreakupSB2006(FT)
     selfcollection_SB2006 = CMT.SelfCollectionSB2006(FT)
@@ -568,12 +568,13 @@ function test_microphysics(FT)
         TT.@test CM2.accretion(accretion_KK2000, q_liq, q_rai, ρ) != NaN
         TT.@test CM2.accretion(accretion_B1994, q_liq, q_rai, ρ) != NaN
         TT.@test CM2.accretion(accretion_TC1980, q_liq, q_rai) != NaN
-        TT.@test CM2.conv_q_liq_to_q_rai(prs, VarTimeScaleAcnv, q_liq, ρ) != NaN
+        TT.@test CM2.conv_q_liq_to_q_rai(acnv_VarTSc, q_liq, ρ) != NaN
 
         # output should be zero if either q_liq or q_rai are zero
         q_liq = FT(0)
         q_rai = FT(1e-6)
 
+        TT.@test CM2.conv_q_liq_to_q_rai(acnv_VarTSc, q_liq, ρ) == FT(0)
         TT.@test CM2.conv_q_liq_to_q_rai(acnv_KK2000, q_liq, ρ) == FT(0)
         TT.@test CM2.conv_q_liq_to_q_rai(acnv_B1994, q_liq, ρ) == FT(0)
         TT.@test CM2.conv_q_liq_to_q_rai(acnv_TC1980, q_liq, ρ) == FT(0)
@@ -581,8 +582,6 @@ function test_microphysics(FT)
         TT.@test CM2.accretion(accretion_KK2000, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(accretion_B1994, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(accretion_TC1980, q_liq, q_rai) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(prs, VarTimeScaleAcnv, q_liq, ρ) ==
-                 FT(0)
 
         q_liq = FT(0.5e-3)
         q_rai = FT(0)
@@ -590,19 +589,8 @@ function test_microphysics(FT)
         TT.@test CM2.accretion(accretion_B1994, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(accretion_TC1980, q_liq, q_rai) == FT(0)
 
-        TT.@test CM2.conv_q_liq_to_q_rai(
-            prs,
-            VarTimeScaleAcnv,
-            q_liq,
-            ρ,
-            N_d = FT(1e8),
-        ) > CM2.conv_q_liq_to_q_rai(
-            prs,
-            VarTimeScaleAcnv,
-            q_liq,
-            ρ,
-            N_d = FT(1e9),
-        )
+        TT.@test CM2.conv_q_liq_to_q_rai(acnv_VarTSc, q_liq, ρ, N_d = FT(1e8)) >
+                 CM2.conv_q_liq_to_q_rai(acnv_VarTSc, q_liq, ρ, N_d = FT(1e9))
 
         # far from threshold points, autoconversion with and without smooth transition should
         # be approximately equal
