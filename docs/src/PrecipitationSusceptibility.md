@@ -26,6 +26,6 @@ Where $R$ is the set of all process rates that contribute to precipitation produ
 Example reproducing Fig. 2 From [Glassmeier2016](@cite):
 
 ```@example
-include("PrecipitationSusceptibilityPlots.jl")
+include("plots/PrecipitationSusceptibilityPlots.jl")
 ```
 ![](Glassmeier-Lohmann_Fig2.svg)

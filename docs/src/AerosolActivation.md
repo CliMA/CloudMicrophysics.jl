@@ -346,7 +346,7 @@ end
 
 # data read from Fig 1 in Abdul-Razzak and Ghan 2000
 # using https://automeris.io/WebPlotDigitizer/
-include("ARGdata.jl")
+include("plots/ARGdata.jl")
 
 PL.plot(N_2_range * 1e-6, N_act_frac_B, label="CliMA-B", xlabel="Mode 2 aerosol number concentration [1/cm3]", ylabel="Mode 1 number fraction activated")
 PL.scatter!(Fig1_x_obs, Fig1_y_obs, markercolor = :black, label="paper observations")
@@ -355,3 +355,20 @@ PL.plot!(Fig1_x_param, Fig1_y_param, linecolor = :black, label="paper parameteri
 PL.savefig("Abdul-Razzak_and_Ghan_fig_1.svg")
 ```
 ![](Abdul-Razzak_and_Ghan_fig_1.svg)
+
+## Example of Aerosol Activation from ARG2000
+
+The figures below have been reproduced from [Abdul-RazzakandGhan2000](@cite)
+using the aerosol activation parameterization implemented in this project.
+
+```@example
+include("plots/ARGplots.jl")
+make_ARG_figX(2)
+make_ARG_figX(3)
+make_ARG_figX(4)
+make_ARG_figX(5)
+```
+![](Abdul-Razzak_and_Ghan_fig_2.svg)
+![](Abdul-Razzak_and_Ghan_fig_3.svg)
+![](Abdul-Razzak_and_Ghan_fig_4.svg)
+![](Abdul-Razzak_and_Ghan_fig_5.svg)

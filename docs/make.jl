@@ -15,7 +15,6 @@ pages = Any[
     "Non-equilibrium cloud formation" => "MicrophysicsNonEq.md",
     "Smooth transition at thresholds" => "ThresholdsTransition.md",
     "Aerosol activation" => "AerosolActivation.md",
-    "ARG2000 activation example" => "ARG2000_example.md",
     "Water Activity" => "WaterActivity.md",
     "Ice Nucleation" => "IceNucleation.md",
     "Aerosol Nucleation" => "AerosolNucleation.md",

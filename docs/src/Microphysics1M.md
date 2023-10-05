@@ -166,7 +166,7 @@ Here we plot the terminal velocity formulae from the current default 1-moment sc
 We also show the aspect ratio of snow particles.
 
 ```@example
-include("TerminalVelocityComparisons.jl")
+include("plots/TerminalVelocityComparisons.jl")
 ```
 ![](1M_individual_terminal_velocity_comparisons.svg)
 

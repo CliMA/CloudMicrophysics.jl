@@ -345,27 +345,26 @@ end
             CM2.rain_terminal_velocity(rain, tvSB2006, qr[i], ρ[i], Nr[i])[1]
         output[13, i] =
             CM2.rain_terminal_velocity(rain, tvSB2006, qr[i], ρ[i], Nr[i])[2]
-        #TODO - I think the incomplete gamma function doesnt work on the GPU
-        #output[14, i] = CM2.rain_evaporation(
-        #    evpSB2006,
-        #    air_props,
-        #    thermo_params,
-        #    q,
-        #    qr[i],
-        #    ρ[i],
-        #    Nr[i],
-        #    T[i],
-        #)[1]
-        #output[15, i] = CM2.rain_evaporation(
-        #    evpSB2006,
-        #    air_props,
-        #    thermo_params,
-        #    q,
-        #    qr[i],
-        #    ρ[i],
-        #    Nr[i],
-        #    T[i],
-        #)[2]
+        output[14, i] = CM2.rain_evaporation(
+            evpSB2006,
+            air_props,
+            thermo_params,
+            q,
+            qr[i],
+            ρ[i],
+            Nr[i],
+            T[i],
+        )[1]
+        output[15, i] = CM2.rain_evaporation(
+            evpSB2006,
+            air_props,
+            thermo_params,
+            q,
+            qr[i],
+            ρ[i],
+            Nr[i],
+            T[i],
+        )[2]
     end
 end
 
@@ -864,7 +863,7 @@ function test_gpu(FT)
         @test Array(output)[2] ≈ FT(7.2e-6)
         @test Array(output)[3] ≈ FT(4.7e-6)
 
-        dims = (13, 1)
+        dims = (15, 1)
         (; output, ndrange) = setup_output(dims, FT)
 
         T = ArrayType([FT(290)])
@@ -910,9 +909,8 @@ function test_gpu(FT)
         @test isapprox(Array(output)[11], FT(14154.027), rtol = 1e-6)
         @test isapprox(Array(output)[12], FT(0.9868878), rtol = 1e-6)
         @test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
-        #TODO - doesn't work on the GPU
-        #@test isapprox(Array(output)[14], FT(-241447.55), rtol = 1e-6)
-        #@test isapprox(Array(output)[15], FT(-0.0034601581), rtol = 1e-6)
+        @test isapprox(Array(output)[14], FT(-243259.75126), rtol = 1e-6)
+        @test isapprox(Array(output)[15], FT(-0.0034601581), rtol = 1e-6)
     end
 
     @testset "Common Kernels" begin

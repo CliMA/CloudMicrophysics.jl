@@ -92,14 +92,14 @@ The following plot shows ``J`` as a function of ``\Delta a_w`` as compared to
   of ``\Delta a_w``, with no implications of whether ``\Delta a_w`` is properly
   parameterized. For more on water activity, please see above section.
 ```@example
-include("ice_nucleation_plots/KnopfAlpert2013_fig1.jl")
+include("plots/KnopfAlpert2013_fig1.jl")
 ```
 ![](Knopf_Alpert_fig_1.svg)
 
 The following plot shows J as a function of temperature as compared to figure 5a in Knopf & Alpert 2013.
 
 ```@example
-include("ice_nucleation_plots/KnopfAlpert2013_fig5.jl")
+include("plots/KnopfAlpert2013_fig5.jl")
 ```
 ![](KnopfAlpert2013_fig5.svg)
 Note that water activity of the droplet was assumed equal to relative humidity so that:
@@ -144,7 +144,7 @@ Here is a comparison of our parameterization of ``J_{hom}`` compared to Koop 200
   Koop 2000 uses the difference in chemical potential.
 
 ```@example
-include("ice_nucleation_plots/HomFreezingPlots.jl")
+include("plots/HomFreezingPlots.jl")
 ```
 ![](HomFreezingPlots.svg)
 

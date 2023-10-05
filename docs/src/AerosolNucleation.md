@@ -60,7 +60,7 @@ The values of free parameters ``p``, ``u``, ``v``, ``w``, and ``a`` are defined 
 Below figure reproduces results from [Dunne2016](@cite) without negative ion concentrations.
 
 ```@example
-include("nucleation_plotting/CLOUD_Nucleation_Plots.jl")
+include("plots/CLOUD_Nucleation_Plots.jl")
 ```
 ![](CLOUD_nucleation.svg)
 
@@ -71,7 +71,7 @@ Below we show a comparison between the Vehkamaki et al 2002 parameterization
   and the Dunne et al 2016 parameterization for two relative humidities.
 
 ```@example
-include("nucleation_plotting/compare_vehkamaki_CLOUD_nucleation.jl")
+include("plots/compare_vehkamaki_CLOUD_nucleation.jl")
 ```
 ![](CLOUD_Vehk_comparison_236.svg)
 ![](CLOUD_Vehk_comparison_298.svg)
@@ -114,7 +114,7 @@ k_{MT,OH} = 1.2 \; 10^{-11} \; exp(444/T)
 ### Example plots
 
 ```@example
-include("nucleation_plotting/Kirkby_organic_nucleation_plots.jl")
+include("plots/Kirkby_organic_nucleation_plots.jl")
 ```
 ![](Kirkby_organic_nucleation.svg)
 ## Nucleation of organics with sulfuric acid
@@ -139,7 +139,7 @@ An empirical derivation is given by:
 
 Below is a plot reproducing the results from [Riccobono2014](@cite), with a constant `H_2SO_4` concentration of `2.6e6 cm\^{-3}.
 ```@example
-include("nucleation_plotting/Riccobono_mixed_nucleation_plots.jl")
+include("plots/Riccobono_mixed_nucleation_plots.jl")
 ```
 ![](Riccobono_nucleation.svg)
 
@@ -173,7 +173,7 @@ m = \frac{log(CG(d_x) / CG(d_1))}{(log(d_x / d_1)}
 ### Example plots
 
 ```@example
-include("nucleation_plotting/lehtinen_apparent_nucleation_rate.jl")
+include("plots/lehtinen_apparent_nucleation_rate.jl")
 ```
 ![](apparent_nucleation.svg)
 
