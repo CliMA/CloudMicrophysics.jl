@@ -679,7 +679,7 @@ function test_gpu(FT)
     )
     thermo_params = CMP.thermodynamics_params(prs)
 
-    liquid = CMT.LiquidType()
+    liquid = CMT.LiquidType(FT)
     ice = CMT.IceType(FT)
     rain = CMT.RainType(FT)
     snow = CMT.SnowType(FT)

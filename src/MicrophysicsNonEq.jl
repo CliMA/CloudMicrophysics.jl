@@ -17,24 +17,22 @@ export τ_relax
 export conv_q_vap_to_q_liq_ice
 
 """
-    τ_relax(prs, liquid)
-    τ_relax(prs, ice)
+    τ_relax(liquid)
+    τ_relax(ice)
 
- - `prs` - abstract set with Earth parameters
  - `liquid` or `ice` - a type for cloud liquid water or ice
 
 Returns the relaxation timescale for condensation and evaporation of
 cloud liquid water or the relaxation timescale for sublimation and
 deposition of cloud ice.
 """
-τ_relax(prs::APS, ::CT.LiquidType) = CMP.τ_cond_evap(prs)
-τ_relax(prs::APS, ::CT.IceType) = CMP.τ_sub_dep(prs)
+τ_relax(p::CT.LiquidType) = p.τ_relax
+τ_relax(p::CT.IceType) = p.τ_relax
 
 """
-    conv_q_vap_to_q_liq_ice(prs, liquid, q_sat, q)
-    conv_q_vap_to_q_liq_ice(prs, ice, q_sat, q)
+    conv_q_vap_to_q_liq_ice(liquid, q_sat, q)
+    conv_q_vap_to_q_liq_ice(ice, q_sat, q)
 
- - `prs` - abstract set with Earth parameters
  - `liquid` or `ice` - a type for cloud water or ice
  - `q_sat` - PhasePartition at equilibrium
  - `q` - current PhasePartition
@@ -45,26 +43,18 @@ The tendency is obtained assuming a relaxation to equilibrium with
 a constant timescale.
 """
 function conv_q_vap_to_q_liq_ice(
-    prs::APS,
     liquid::CT.LiquidType,
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
-    _τ_cond_evap::FT = τ_relax(prs, liquid)
-
-    return (q_sat.liq - q.liq) / _τ_cond_evap
+    return (q_sat.liq - q.liq) / liquid.τ_relax
 end
 function conv_q_vap_to_q_liq_ice(
-    prs::APS,
     ice::CT.IceType,
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
-    _τ_sub_dep::FT = τ_relax(prs, ice)
-
-    return (q_sat.ice - q.ice) / _τ_sub_dep
+    return (q_sat.ice - q.ice) / ice.τ_relax
 end
 
 end #module MicrophysicsNonEq.jl

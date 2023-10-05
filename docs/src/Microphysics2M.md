@@ -653,7 +653,7 @@ toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 const param_set = cloud_microphysics_parameters(toml_dict)
 thermo_params = CMP.thermodynamics_params(param_set)
 
-const liquid = CMT.LiquidType()
+const liquid = CMT.LiquidType(FT)
 const rain = CMT.RainType(FT)
 
 const KK2000 = CMT.KK2000Type()

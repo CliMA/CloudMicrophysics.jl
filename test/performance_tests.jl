@@ -52,7 +52,7 @@ function benchmark_test(FT)
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
     p3 = CMP.CloudMicrophysicsParametersP3(FT)
-    liquid = CMT.LiquidType()
+    liquid = CMT.LiquidType(FT)
     rain = CMT.RainType(FT)
     sb2006 = CMT.SB2006Type()
     sb2006vel = CMT.SB2006VelType()
@@ -139,7 +139,7 @@ function benchmark_test(FT)
     bench_press(CMI_hom.homogeneous_J, (prs, Delta_a_w), 230)
 
     # non-equilibrium
-    bench_press(CMN.τ_relax, (prs, liquid), 10)
+    bench_press(CMN.τ_relax, (liquid,), 10)
 
     # 0-moment
     bench_press(CM0.remove_precipitation, (prs, q), 10)

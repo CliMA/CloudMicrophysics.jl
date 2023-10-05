@@ -60,8 +60,20 @@ Base.broadcastable(x::AbstractPrecipType) = tuple(x)
     LiquidType
 
 The type for cloud liquid water condensate
+
+# Fields
+$(DocStringExtensions.FIELDS)
 """
-struct LiquidType <: AbstractCloudType end
+struct LiquidType{FT} <: AbstractCloudType
+    "condensation evaporation non_equil microphysics relaxation timescale [s]"
+    τ_relax::FT
+end
+
+function LiquidType(::Type{FT}, toml_dict = CP.create_toml_dict(FT)) where {FT}
+    (; data) = toml_dict
+    τ_relax = FT(data["condensation_evaporation_timescale"]["value"])
+    return LiquidType(τ_relax)
+end
 Base.broadcastable(x::LiquidType) = tuple(x)
 
 """
@@ -89,6 +101,8 @@ struct IceType{FT} <: AbstractCloudType
     m0::FT
     "ice snow threshold radius"
     r_ice_snow::FT
+    "deposition sublimation non_equil microphysics relaxation timescale [s]"
+    τ_relax::FT
 end
 
 function IceType(::Type{FT}, toml_dict = CP.create_toml_dict(FT)) where {FT}
@@ -101,7 +115,8 @@ function IceType(::Type{FT}, toml_dict = CP.create_toml_dict(FT)) where {FT}
     n0 = FT(data["cloud_ice_size_distribution_coefficient_n0"]["value"])
     m0 = FT(4 / 3) * π * ρ * r0^me
     r_ice_snow = FT(data["ice_snow_threshold_radius"]["value"])
-    return IceType(r0, me, Δm, χm, ρ, n0, m0, r_ice_snow)
+    τ_relax = FT(data["sublimation_deposition_timescale"]["value"])
+    return IceType(r0, me, Δm, χm, ρ, n0, m0, r_ice_snow, τ_relax)
 end
 Base.broadcastable(x::IceType) = tuple(x)
 
