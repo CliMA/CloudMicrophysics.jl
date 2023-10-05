@@ -12,7 +12,7 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CMO
 
 const rain = CMT.RainType(FT)
-const liquid = CMT.LiquidType()
+const liquid = CMT.LiquidType(FT)
 const ice = CMT.IceType(FT)
 const snow = CMT.SnowType(FT)
 const tv_SB2006 = CMT.TerminalVelocitySB2006(FT)

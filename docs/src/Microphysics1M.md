@@ -772,7 +772,7 @@ const param_set = cloud_microphysics_parameters(toml_dict)
 thermo_params = CMP.thermodynamics_params(param_set)
 
 const air_props = CMT.AirProperties(FT)
-const liquid = CMT.LiquidType()
+const liquid = CMT.LiquidType(FT)
 const ice = CMT.IceType(FT)
 const rain = CMT.RainType(FT)
 const snow = CMT.SnowType(FT)

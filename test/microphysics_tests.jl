@@ -14,7 +14,6 @@ import CloudMicrophysics.Microphysics2M as CM2
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
-const liquid = CMT.LiquidType()
 const SB2006 = CMT.SB2006Type()
 const KK2000 = CMT.KK2000Type()
 const B1994 = CMT.B1994Type()
@@ -31,6 +30,7 @@ function test_microphysics(FT)
     rain = CMT.RainType(FT)
     snow = CMT.SnowType(FT)
     ice = CMT.IceType(FT)
+    liquid = CMT.LiquidType(FT)
     Ch2022 = CMT.Chen2022Type(FT)
     ce = CMT.CollisionEfficiency(FT)
     rain_acnv_1m = CMT.Autoconversion1M(FT, rain)
@@ -56,8 +56,8 @@ function test_microphysics(FT)
 
     TT.@testset "τ_relax" begin
 
-        TT.@test CMNe.τ_relax(prs, liquid) ≈ FT(10)
-        TT.@test CMNe.τ_relax(prs, ice) ≈ FT(10)
+        TT.@test CMNe.τ_relax(liquid) ≈ FT(10)
+        TT.@test CMNe.τ_relax(ice) ≈ FT(10)
 
     end
 
@@ -180,13 +180,12 @@ function test_microphysics(FT)
         q_liq_sat = FT(5e-3)
         frac = [FT(0), FT(0.5), FT(1), FT(1.5)]
 
-        _τ_cond_evap = CMNe.τ_relax(prs, liquid)
+        _τ_cond_evap = CMNe.τ_relax(liquid)
 
         for fr in frac
             q_liq = q_liq_sat * fr
 
             TT.@test CMNe.conv_q_vap_to_q_liq_ice(
-                prs,
                 liquid,
                 TD.PhasePartition(FT(0), q_liq_sat, FT(0)),
                 TD.PhasePartition(FT(0), q_liq, FT(0)),
@@ -199,13 +198,12 @@ function test_microphysics(FT)
         q_ice_sat = FT(2e-3)
         frac = [FT(0), FT(0.5), FT(1), FT(1.5)]
 
-        _τ_cond_evap = CMNe.τ_relax(prs, ice)
+        _τ_cond_evap = CMNe.τ_relax(ice)
 
         for fr in frac
             q_ice = q_ice_sat * fr
 
             TT.@test CMNe.conv_q_vap_to_q_liq_ice(
-                prs,
                 ice,
                 TD.PhasePartition(FT(0), FT(0), q_ice_sat),
                 TD.PhasePartition(FT(0), FT(0), q_ice),
