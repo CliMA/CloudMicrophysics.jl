@@ -7,6 +7,7 @@ import Thermodynamics as TD
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.CommonTypes as CMT
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
@@ -15,8 +16,11 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function test_aerosol_activation(FT)
 
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    param_set = cloud_microphysics_parameters(toml_dict)
-    thermo_params = CMP.thermodynamics_params(param_set)
+    prs = cloud_microphysics_parameters(toml_dict)
+    tps = CMP.thermodynamics_params(prs)
+
+    aip = CMT.AirProperties(FT)
+    ap = CMP.AerosolActivationParameters(FT)
 
     # Atmospheric conditions
     T = FT(294)    # air temperature K
@@ -27,8 +31,8 @@ function test_aerosol_activation(FT)
     # moist air R_m and cp_m in aerosol activation module.
     # We are assuming here saturated conditions and no liquid water or ice.
     # This is consistent with the assumptions of the aerosol activation scheme.
-    p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
-    q_vs = 1 / (1 - CMP.molmass_ratio(param_set) * (p_vs - p) / p_vs)
+    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
     q = TD.PhasePartition(q_vs)
 
     # Accumulation mode
@@ -48,19 +52,9 @@ function test_aerosol_activation(FT)
 
     # TODO - what κ values we should use?
     # Sea Salt - universal parameters
-    M_seasalt = CMP.molmass_seasalt(param_set)
-    ρ_seasalt = CMP.rho_seasalt(param_set)
-    ϕ_seasalt = CMP.osm_coeff_seasalt(param_set)
-    ν_seasalt = CMP.N_ion_seasalt(param_set)
-    ϵ_seasalt = CMP.water_soluble_mass_frac_seasalt(param_set)
-    κ_seasalt = CMP.kappa_seasalt(param_set)
+    seasalt = CMP.SeasaltParameters(FT)
     # Sulfate - universal parameters
-    M_sulfate = CMP.molmass_sulfate(param_set)
-    ρ_sulfate = CMP.rho_sulfate(param_set)
-    ϕ_sulfate = CMP.osm_coeff_sulfate(param_set)
-    ν_sulfate = CMP.N_ion_sulfate(param_set)
-    ϵ_sulfate = CMP.water_soluble_mass_frac_sulfate(param_set)
-    κ_sulfate = CMP.kappa_sulfate(param_set)
+    sulfate = CMP.SulfateParameters(FT)
 
     # Aerosol size distribution modes
     accum_seasalt_B = AM.Mode_B(
@@ -68,11 +62,11 @@ function test_aerosol_activation(FT)
         stdev_accum,
         N_accum,
         (FT(1.0),),
-        (ϵ_seasalt,),
-        (ϕ_seasalt,),
-        (M_seasalt,),
-        (ν_seasalt,),
-        (ρ_seasalt,),
+        (seasalt.ϵ,),
+        (seasalt.ϕ,),
+        (seasalt.M,),
+        (seasalt.ν,),
+        (seasalt.ρ,),
         1,
     )
     accum_seasalt_κ = AM.Mode_κ(
@@ -81,8 +75,8 @@ function test_aerosol_activation(FT)
         N_accum,
         (FT(1.0),),
         (FT(1.0),),
-        (M_seasalt,),
-        (κ_seasalt,),
+        (seasalt.M,),
+        (seasalt.κ,),
         1,
     )
 
@@ -91,11 +85,11 @@ function test_aerosol_activation(FT)
         stdev_coarse,
         N_coarse,
         (FT(1.0),),
-        (ϵ_seasalt,),
-        (ϕ_seasalt,),
-        (M_seasalt,),
-        (ν_seasalt,),
-        (ρ_seasalt,),
+        (seasalt.ϵ,),
+        (seasalt.ϕ,),
+        (seasalt.M,),
+        (seasalt.ν,),
+        (seasalt.ρ,),
         1,
     )
     coarse_seasalt_κ = AM.Mode_κ(
@@ -104,8 +98,8 @@ function test_aerosol_activation(FT)
         N_coarse,
         (FT(1.0),),
         (FT(1.0),),
-        (M_seasalt,),
-        (κ_seasalt,),
+        (seasalt.M,),
+        (seasalt.κ,),
         1,
     )
 
@@ -114,11 +108,11 @@ function test_aerosol_activation(FT)
         stdev_paper,
         N_1_paper,
         (FT(1.0),),
-        (ϵ_sulfate,),
-        (ϕ_sulfate,),
-        (M_sulfate,),
-        (ν_sulfate,),
-        (ρ_sulfate,),
+        (sulfate.ϵ,),
+        (sulfate.ϕ,),
+        (sulfate.M,),
+        (sulfate.ν,),
+        (sulfate.ρ,),
         1,
     )
     paper_mode_1_κ = AM.Mode_κ(
@@ -127,8 +121,8 @@ function test_aerosol_activation(FT)
         N_1_paper,
         (FT(1.0),),
         (FT(1.0),),
-        (M_sulfate,),
-        (κ_sulfate,),
+        (sulfate.M,),
+        (sulfate.κ,),
         1,
     )
 
@@ -144,34 +138,33 @@ function test_aerosol_activation(FT)
     TT.@testset "callable and positive" begin
 
         for AM_t in (AM_3_B, AM_3_κ)
+            TT.@test all(AA.mean_hygroscopicity_parameter(ap, AM_t) .> 0.0)
+            TT.@test AA.max_supersaturation(ap, AM_t, aip, tps, T, p, w, q) >
+                     0.0
             TT.@test all(
-                AA.mean_hygroscopicity_parameter(param_set, AM_t) .> 0.0,
-            )
-            TT.@test AA.max_supersaturation(param_set, AM_t, T, p, w, q) > 0.0
-            TT.@test all(
-                AA.N_activated_per_mode(param_set, AM_t, T, p, w, q) .> 0.0,
+                AA.N_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q) .> 0.0,
             )
             TT.@test all(
-                AA.M_activated_per_mode(param_set, AM_t, T, p, w, q) .> 0.0,
+                AA.M_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q) .> 0.0,
             )
-            TT.@test AA.total_N_activated(param_set, AM_t, T, p, w, q) > 0.0
-            TT.@test AA.total_M_activated(param_set, AM_t, T, p, w, q) > 0.0
+            TT.@test AA.total_N_activated(ap, AM_t, aip, tps, T, p, w, q) > 0.0
+            TT.@test AA.total_M_activated(ap, AM_t, aip, tps, T, p, w, q) > 0.0
         end
     end
 
     TT.@testset "same mean hygroscopicity for the same aerosol" begin
 
-        TT.@test AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[1] ==
-                 AA.mean_hygroscopicity_parameter(param_set, AM_1_B)[1]
+        TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_B)[1] ==
+                 AA.mean_hygroscopicity_parameter(ap, AM_1_B)[1]
 
-        TT.@test AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2] ==
-                 AA.mean_hygroscopicity_parameter(param_set, AM_1_B)[1]
+        TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_B)[2] ==
+                 AA.mean_hygroscopicity_parameter(ap, AM_1_B)[1]
 
-        TT.@test AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[1] ==
-                 AA.mean_hygroscopicity_parameter(param_set, AM_1_κ)[1]
+        TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[1] ==
+                 AA.mean_hygroscopicity_parameter(ap, AM_1_κ)[1]
 
-        TT.@test AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2] ==
-                 AA.mean_hygroscopicity_parameter(param_set, AM_1_κ)[1]
+        TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[2] ==
+                 AA.mean_hygroscopicity_parameter(ap, AM_1_κ)[1]
 
     end
 
@@ -179,8 +172,8 @@ function test_aerosol_activation(FT)
 
         TT.@test all(
             isapprox(
-                AA.mean_hygroscopicity_parameter(param_set, AM_3_κ)[2],
-                AA.mean_hygroscopicity_parameter(param_set, AM_3_B)[2],
+                AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[2],
+                AA.mean_hygroscopicity_parameter(ap, AM_3_B)[2],
                 rtol = 0.1,
             ),
         )
@@ -188,15 +181,15 @@ function test_aerosol_activation(FT)
 
     TT.@testset "order of modes does not matter" begin
 
-        TT.@test AA.total_N_activated(param_set, AM_3_B, T, p, w, q) ==
-                 AA.total_N_activated(param_set, AM_2_B, T, p, w, q)
-        TT.@test AA.total_M_activated(param_set, AM_3_B, T, p, w, q) ==
-                 AA.total_M_activated(param_set, AM_2_B, T, p, w, q)
+        TT.@test AA.total_N_activated(ap, AM_3_B, aip, tps, T, p, w, q) ==
+                 AA.total_N_activated(ap, AM_2_B, aip, tps, T, p, w, q)
+        TT.@test AA.total_M_activated(ap, AM_3_B, aip, tps, T, p, w, q) ==
+                 AA.total_M_activated(ap, AM_2_B, aip, tps, T, p, w, q)
 
-        TT.@test AA.total_N_activated(param_set, AM_3_κ, T, p, w, q) ==
-                 AA.total_N_activated(param_set, AM_2_κ, T, p, w, q)
-        TT.@test AA.total_M_activated(param_set, AM_3_κ, T, p, w, q) ==
-                 AA.total_M_activated(param_set, AM_2_κ, T, p, w, q)
+        TT.@test AA.total_N_activated(ap, AM_3_κ, aip, tps, T, p, w, q) ==
+                 AA.total_N_activated(ap, AM_2_κ, aip, tps, T, p, w, q)
+        TT.@test AA.total_M_activated(ap, AM_3_κ, aip, tps, T, p, w, q) ==
+                 AA.total_M_activated(ap, AM_2_κ, aip, tps, T, p, w, q)
     end
 
     TT.@testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
@@ -230,11 +223,11 @@ function test_aerosol_activation(FT)
                 stdev_paper,
                 N_2_paper * FT(1e6),
                 (FT(1.0),),
-                (ϵ_sulfate,),
-                (ϕ_sulfate,),
-                (M_sulfate,),
-                (ν_sulfate,),
-                (ρ_sulfate,),
+                (sulfate.ϵ,),
+                (sulfate.ϕ,),
+                (sulfate.M,),
+                (sulfate.ν,),
+                (sulfate.ρ,),
                 1,
             )
             paper_mode_2_κ = AM.Mode_κ(
@@ -243,8 +236,8 @@ function test_aerosol_activation(FT)
                 N_2_paper * FT(1e6),
                 (FT(1.0),),
                 (FT(1.0),),
-                (M_sulfate,),
-                (κ_sulfate,),
+                (sulfate.M,),
+                (sulfate.κ,),
                 1,
             )
 
@@ -252,10 +245,10 @@ function test_aerosol_activation(FT)
             AD_κ = AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
 
             N_act_frac_B[it] =
-                AA.N_activated_per_mode(param_set, AD_B, T, p, w, q)[1] /
+                AA.N_activated_per_mode(ap, AD_B, aip, tps, T, p, w, q)[1] /
                 N_1_paper
             N_act_frac_κ[it] =
-                AA.N_activated_per_mode(param_set, AD_κ, T, p, w, q)[1] /
+                AA.N_activated_per_mode(ap, AD_κ, aip, tps, T, p, w, q)[1] /
                 N_1_paper
             it += 1
         end

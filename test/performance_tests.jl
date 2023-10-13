@@ -67,6 +67,7 @@ function benchmark_test(FT)
     breakup_sb2006 = CMT.BreakupSB2006(FT)
     selfcollection_sb2006 = CMT.SelfCollectionSB2006(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
+    ap = CMP.AerosolActivationParameters(FT)
 
     ρ_air = FT(1.2)
     T_air = FT(280)
@@ -115,7 +116,7 @@ function benchmark_test(FT)
     # aerosol activation
     bench_press(
         AA.total_N_activated,
-        (prs, aer_distr, T_air, p_air, w_air, q),
+        (ap, aer_distr, air_props, thermo_params, T_air, p_air, w_air, q),
         1300,
     )
 

@@ -9,13 +9,16 @@ const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CP = CLIMAParameters
 const CMP = CloudMicrophysics.Parameters
+const CMT = CloudMicrophysics.CommonTypes
 const TD = Thermodynamics
 
 include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
 FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 const param_set = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(param_set)
+tps = CMP.thermodynamics_params(param_set)
+aip = CMT.AirProperties(FT)
+ap = CMP.AerosolActivationParameters(FT)
 
 include("plots/ARGdata.jl")
 
@@ -27,17 +30,12 @@ p = 1000.0 * 1e2   # air pressure
 # moist R_m and cp_m in aerosol activation module.
 # We are assuming here saturated conditions and no liquid water or ice.
 # This is consistent with the assumptions of the aerosol activation scheme.
-p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
-q_vs = 1 / (1 - CMP.molmass_ratio(param_set) * (p_vs - p) / p_vs)
+p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
 q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Sulfate
-M_sulfate = CMP.molmass_sulfate(param_set)
-ρ_sulfate = CMP.rho_sulfate(param_set)
-ϕ_sulfate = CMP.osm_coeff_sulfate(param_set)
-ν_sulfate = CMP.N_ion_sulfate(param_set)
-ϵ_sulfate = CMP.water_soluble_mass_frac_sulfate(param_set)
-κ_sulfate = CMP.kappa_sulfate(param_set)
+sulfate = CMP.SulfateParameters(FT)
 
 # Insoluble material from ARG2000
 ϵ_insol = 0.0         # solubility of insol
@@ -49,9 +47,9 @@ M_insol = 0.044       # molar mass of insol
 
 function mass2vol(mass_mixing_ratios)
     if length(mass_mixing_ratios) == 2
-        densities = (ρ_sulfate, ρ_insol)
+        densities = (sulfate.ρ, ρ_insol)
     else
-        densities = (ρ_sulfate,)
+        densities = (sulfate.ρ,)
     end
     volfractions =
         (mass_mixing_ratios ./ densities) ./
@@ -81,11 +79,11 @@ function make_ARG_figX(X)
                     stdev_1,
                     N_1,
                     mass_mixing_ratios_1,
-                    (ϵ_sulfate,),
-                    (ϕ_sulfate,),
-                    (M_sulfate,),
-                    (ν_sulfate,),
-                    (ρ_sulfate,),
+                    (sulfate.ϵ,),
+                    (sulfate.ϕ,),
+                    (sulfate.M,),
+                    (sulfate.ν,),
+                    (sulfate.ρ,),
                     n_components_1,
                 )
             else
@@ -95,8 +93,8 @@ function make_ARG_figX(X)
                     N_1,
                     vol_mixing_ratios_1,
                     mass_mixing_ratios_1,
-                    (M_sulfate,),
-                    (κ_sulfate,),
+                    (sulfate.M,),
+                    (sulfate.κ,),
                     n_components_1,
                 )
             end
@@ -112,11 +110,11 @@ function make_ARG_figX(X)
                     stdev_1,
                     N_1,
                     mass_mixing_ratios_1,
-                    (ϵ_sulfate, ϵ_insol),
-                    (ϕ_sulfate, ϕ_insol),
-                    (M_sulfate, M_insol),
-                    (ν_sulfate, ν_insol),
-                    (ρ_sulfate, ρ_insol),
+                    (sulfate.ϵ, ϵ_insol),
+                    (sulfate.ϕ, ϕ_insol),
+                    (sulfate.M, M_insol),
+                    (sulfate.ν, ν_insol),
+                    (sulfate.ρ, ρ_insol),
                     n_components_1,
                 )
             else
@@ -126,8 +124,8 @@ function make_ARG_figX(X)
                     N_1,
                     vol_mixing_ratios_1,
                     mass_mixing_ratios_1,
-                    (M_sulfate, M_insol),
-                    (κ_sulfate, κ_insol),
+                    (sulfate.M, M_insol),
+                    (sulfate.κ, κ_insol),
                     n_components_1,
                 )
             end
@@ -155,11 +153,11 @@ function make_ARG_figX(X)
                         stdev_2,
                         N2i,
                         mass_mixing_ratios_2,
-                        (ϵ_sulfate,),
-                        (ϕ_sulfate,),
-                        (M_sulfate,),
-                        (ν_sulfate,),
-                        (ρ_sulfate,),
+                        (sulfate.ϵ,),
+                        (sulfate.ϕ,),
+                        (sulfate.M,),
+                        (sulfate.ν,),
+                        (sulfate.ρ,),
                         n_components_2,
                     )
                 else
@@ -169,16 +167,18 @@ function make_ARG_figX(X)
                         N2i,
                         vol_mixing_ratios_2,
                         mass_mixing_ratios_2,
-                        (M_sulfate,),
-                        (κ_sulfate,),
+                        (sulfate.M,),
+                        (sulfate.κ,),
                         n_components_2,
                     )
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[1] / N_1
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[1] /
+                    N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[2] / N2i
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[2] /
+                    N2i
                 global it += 1
             end
 
@@ -209,11 +209,11 @@ function make_ARG_figX(X)
                         stdev_2,
                         N2i,
                         mass_mixing_ratios_2,
-                        (ϵ_sulfate, ϵ_insol),
-                        (ϕ_sulfate, ϕ_insol),
-                        (M_sulfate, M_insol),
-                        (ν_sulfate, ν_insol),
-                        (ρ_sulfate, ρ_insol),
+                        (sulfate.ϵ, ϵ_insol),
+                        (sulfate.ϕ, ϕ_insol),
+                        (sulfate.M, M_insol),
+                        (sulfate.ν, ν_insol),
+                        (sulfate.ρ, ρ_insol),
                         n_components_2,
                     )
                 else
@@ -223,16 +223,18 @@ function make_ARG_figX(X)
                         N2i,
                         vol_mixing_ratios_2,
                         mass_mixing_ratios_2,
-                        (M_sulfate, M_insol),
-                        (κ_sulfate, κ_insol),
+                        (sulfate.M, M_insol),
+                        (sulfate.κ, κ_insol),
                         n_components_2,
                     )
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[1] / N_1
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[1] /
+                    N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[2] / N2i
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[2] /
+                    N2i
                 global it += 1
             end
 
@@ -265,11 +267,11 @@ function make_ARG_figX(X)
                         stdev_2,
                         N_2,
                         mmr2i,
-                        (ϵ_sulfate, ϵ_insol),
-                        (ϕ_sulfate, ϕ_insol),
-                        (M_sulfate, M_insol),
-                        (ν_sulfate, ν_insol),
-                        (ρ_sulfate, ρ_insol),
+                        (sulfate.ϵ, ϵ_insol),
+                        (sulfate.ϕ, ϕ_insol),
+                        (sulfate.M, M_insol),
+                        (sulfate.ν, ν_insol),
+                        (sulfate.ρ, ρ_insol),
                         n_components_2,
                     )
                 else
@@ -279,16 +281,18 @@ function make_ARG_figX(X)
                         N_2,
                         vmr2i,
                         mmr2i,
-                        (M_sulfate, M_insol),
-                        (κ_sulfate, κ_insol),
+                        (sulfate.M, M_insol),
+                        (sulfate.κ, κ_insol),
                         n_components_2,
                     )
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[1] / N_1
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[1] /
+                    N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[2] / N_2
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[2] /
+                    N_2
                 global it += 1
             end
 
@@ -318,11 +322,11 @@ function make_ARG_figX(X)
                         stdev_2,
                         N_2,
                         mass_mixing_ratios_2,
-                        (ϵ_sulfate,),
-                        (ϕ_sulfate,),
-                        (M_sulfate,),
-                        (ν_sulfate,),
-                        (ρ_sulfate,),
+                        (sulfate.ϵ,),
+                        (sulfate.ϕ,),
+                        (sulfate.M,),
+                        (sulfate.ν,),
+                        (sulfate.ρ,),
                         n_components_2,
                     )
                 else
@@ -332,16 +336,18 @@ function make_ARG_figX(X)
                         N_2,
                         vol_mixing_ratios_2,
                         mass_mixing_ratios_2,
-                        (M_sulfate,),
-                        (κ_sulfate,),
+                        (sulfate.M,),
+                        (sulfate.κ,),
                         n_components_2,
                     )
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[1] / N_1
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[1] /
+                    N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, w, q)[2] / N_2
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[2] /
+                    N_2
                 global it += 1
             end
 
@@ -371,11 +377,11 @@ function make_ARG_figX(X)
                     stdev_2,
                     N_2,
                     mass_mixing_ratios_2,
-                    (ϵ_sulfate, ϵ_insol),
-                    (ϕ_sulfate, ϕ_insol),
-                    (M_sulfate, M_insol),
-                    (ν_sulfate, ν_insol),
-                    (ρ_sulfate, ρ_insol),
+                    (sulfate.ϵ, ϵ_insol),
+                    (sulfate.ϕ, ϕ_insol),
+                    (sulfate.M, M_insol),
+                    (sulfate.ν, ν_insol),
+                    (sulfate.ρ, ρ_insol),
                     n_components_2,
                 )
             else
@@ -385,8 +391,8 @@ function make_ARG_figX(X)
                     N_2,
                     vol_mixing_ratios_2,
                     mass_mixing_ratios_2,
-                    (M_sulfate, M_insol),
-                    (κ_sulfate, κ_insol),
+                    (sulfate.M, M_insol),
+                    (sulfate.κ, κ_insol),
                     n_components_2,
                 )
             end
@@ -394,9 +400,11 @@ function make_ARG_figX(X)
 
             for wi in w
                 act_frac1[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, wi, q)[1] / N_1
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, wi, q)[1] /
+                    N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(param_set, AD, T, p, wi, q)[2] / N_2
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, wi, q)[2] /
+                    N_2
                 global it += 1
             end
 

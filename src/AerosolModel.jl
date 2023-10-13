@@ -140,6 +140,7 @@ struct AerosolDistribution{T} <: CT.AbstractAerosolDistribution{T}
     end
 
 end
+Base.broadcastable(x::AerosolDistribution) = tuple(x)
 
 n_modes(::AerosolDistribution{NTuple{N, T}}) where {N, T} = N
 
