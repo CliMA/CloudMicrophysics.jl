@@ -199,6 +199,19 @@ where:
 where:
 - ``N_{aer}`` is the number of available dust aerosol particles.
 
+## Immersion Freezing
+Following the water activity based immersion freezing model (ABIFM), the ABIFM derived
+  nucleation rate coefficient, ``J_{immer}``, can be determined. The ice production rate,``P_{ice}``,
+  per second via immersion freezing can then be calculating using
+```math
+\begin{equation}
+  P_{ice} = [\frac{dN_i}{dt}]_{immer} = J_{immer}A(N_{liq})
+  \label{eq:ABIFM_P_ice}
+\end{equation}
+```
+where ``N_{liq}`` is total number of ice nuclei containing droplets and 
+  ``A`` is surface area of those droplets.
+
 ## Example figures
 
 Here we show example simulation results from the adiabatic parcel
@@ -224,3 +237,13 @@ It is compared to [Rogers1975](@cite).
 include("../../parcel/Liquid_only.jl")
 ```
 ![](liquid_only_parcel.svg)
+
+The plots below are the results of the adiabatic parcel model
+  with immersion freezing, condensation growth, and deposition growth for
+  both a monodisperse and gamma size distribution. Note that this has not
+  yet been validated against literature.
+
+```@example
+include("../../parcel/Immersion_Freezing.jl")
+```
+![](immersion_freezing.svg)
