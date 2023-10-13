@@ -270,6 +270,7 @@ const PL = Plots
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CMP = CloudMicrophysics.Parameters
+const CMT = CloudMicrophysics.CommonTypes
 const CP =  CLIMAParameters
 const TD = Thermodynamics
 
@@ -277,7 +278,9 @@ include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
 FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 const param_set = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(param_set)
+tps = CMP.thermodynamics_params(param_set)
+aip = CMT.AirProperties(FT)
+ap = CMP.AerosolActivationParameters(FT)
 
 # Atmospheric conditions
 T = 294.0         # air temperature
@@ -288,8 +291,8 @@ w = 0.5           # vertical velocity
 # moist R_m and cp_m in aerosol activation module.
 # We are assuming here saturated conditions and no liquid water or ice.
 # This is consistent with the assumptions of the aerosol activation scheme.
-p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
-q_vs = 1 / (1 - CMP.molmass_ratio(param_set) * (p_vs - p) / p_vs)
+p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
 q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Abdul-Razzak and Ghan 2000 Figure 1 mode 1
@@ -299,11 +302,7 @@ stdev = 2.0         # -
 N_1 = 100.0 * 1e6   # 1/m3
 
 # Sulfate - universal parameters
-M_sulfate = CMP.molmass_sulfate(param_set)
-ρ_sulfate = CMP.rho_sulfate(param_set)
-ϕ_sulfate = CMP.osm_coeff_sulfate(param_set)
-ν_sulfate = CMP.N_ion_sulfate(param_set)
-ϵ_sulfate = CMP.water_soluble_mass_frac_sulfate(param_set)
+sulfate = CMP.SulfateParameters(FT)
 
 n_components_1 = 1
 mass_fractions_1 = (1.0,)
@@ -312,11 +311,11 @@ paper_mode_1_B = AM.Mode_B(
     stdev,
     N_1,
     mass_fractions_1,
-    (ϵ_sulfate,),
-    (ϕ_sulfate,),
-    (M_sulfate,),
-    (ν_sulfate,),
-    (ρ_sulfate,),
+    (sulfate.ϵ,),
+    (sulfate.ϕ,),
+    (sulfate.M,),
+    (sulfate.ν,),
+    (sulfate.ρ,),
     n_components_1,
 )
 
@@ -332,15 +331,15 @@ for N_2 in N_2_range
           stdev,
           N_2,
           mass_fractions_2,
-          (ϵ_sulfate,),
-          (ϕ_sulfate,),
-          (M_sulfate,),
-          (ν_sulfate,),
-          (ρ_sulfate,),
+          (sulfate.ϵ,),
+          (sulfate.ϕ,),
+          (sulfate.M,),
+          (sulfate.ν,),
+          (sulfate.ρ,),
           n_components_2,
         )
         AD_B =  AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
-        N_act_frac_B[it] = AA.N_activated_per_mode(param_set, AD_B, T, p, w, q)[1] / N_1
+        N_act_frac_B[it] = AA.N_activated_per_mode(ap, AD_B, aip, tps, T, p, w, q)[1] / N_1
         global it += 1
 end
 

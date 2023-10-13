@@ -8,28 +8,33 @@ module CommonTypes
 using DocStringExtensions
 import CLIMAParameters as CP
 
+export AbstractAerosolType
+export AbstractAerosolDistribution
 export AbstractCloudType
 export AbstractPrecipType
+export Abstract2MPrecipType
+export AbstractTerminalVelocityType
+
 export LiquidType
 export IceType
 export RainType
 export SnowType
-export AbstractAerosolDistribution
-export Abstract2MPrecipType
+
 export KK2000Type
 export B1994Type
 export TC1980Type
 export LD2004Type
 export SB2006Type
-export AbstractTerminalVelocityType
+
 export Blk1MVelType
 export SB2006VelType
 export Chen2022Type
-export AbstractAerosolType
+
 export ArizonaTestDustType
 export DesertDustType
 export KaoliniteType
 export IlliteType
+
 export CollisionEfficiency
 
 """
@@ -1019,6 +1024,7 @@ struct AirProperties{FT}
     "kinematic viscosity of air"
     ν_air::FT
 end
+Base.broadcastable(x::AirProperties) = tuple(x)
 
 function AirProperties(
     ::Type{FT},

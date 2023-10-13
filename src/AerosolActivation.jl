@@ -17,44 +17,36 @@ import ..CommonTypes as CT
 import ..Common as CO
 import ..AerosolModel as AM
 import ..Parameters as CMP
-const APS = CMP.AbstractCloudMicrophysicsParameters
 
-export mean_hygroscopicity_parameter
-export max_supersaturation
+const AAP = CMP.AbstractAerosolActivationParameters
+#const AAD = CT.AbstractAerosolDistribution
+const AIP = CT.AirProperties
+const TPS = TD.Parameters.ThermodynamicsParameters
 
-export N_activated_per_mode
-export M_activated_per_mode
-
-export total_N_activated
-export total_M_activated
-
-CT.AirProperties((; K_therm, D_vapor, ν_air)::CMP.CloudMicrophysicsParameters) =
-    CT.AirProperties(K_therm, D_vapor, ν_air)
+export mean_hygroscopicity_parameter,
+    max_supersaturation,
+    N_activated_per_mode,
+    M_activated_per_mode,
+    total_N_activated,
+    total_M_activated
 
 """
-    coeff_of_curvature(param_set, T)
+    coeff_of_curvature(ap, T)
 
-  - `param_set` - abstract set with Earth's parameters
+  - `ap` - a struct with aerosol activation parameters
   - `T` - air temperature
 
 Returns a curvature coefficient.
 """
-function coeff_of_curvature(param_set::APS, T::FT) where {FT <: Real}
-
-    _molmass_water::FT = CMP.molmass_water(param_set)
-    _gas_constant::FT = CMP.gas_constant(param_set)
-    _ρ_cloud_liq::FT = CMP.ρ_cloud_liq(param_set)
-    _surface_tension::FT = CMP.surface_tension_coeff(param_set)
-
-    return 2 * _surface_tension * _molmass_water / _ρ_cloud_liq /
-           _gas_constant / T
+function coeff_of_curvature(ap::AAP, T::FT) where {FT <: Real}
+    return FT(2) * ap.σ * ap.M_w / ap.ρ_w / ap.R / T
 end
 
 """
-    mean_hygroscopicity_parameter(param_set, ad)
+    mean_hygroscopicity_parameter(ap, ad)
 
-  - `param_set` - abstract set with Earth's parameters
-  - `ad` - aerosol distribution struct
+  - `ap` - a struct with aerosol activation parameters
+  - `ad` - a struct with aerosol distribution (B or κ based)
 
 Returns a tuple of hygroscopicity parameters
 (one tuple element for each aerosol size distribution mode).
@@ -64,15 +56,11 @@ or volume weighted kappa parameters (Petters and Kreidenweis 2007).
 Implemented via a dispatch based on aerosol distribution mode type.
 """
 function mean_hygroscopicity_parameter(
-    param_set::APS,
+    ap::AAP,
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_B}
     return ntuple(Val(AM.n_modes(ad))) do i
-        _molmass_water = CMP.molmass_water(param_set)
-        _ρ_cloud_liq = CMP.ρ_cloud_liq(param_set)
-
-        FT = eltype(param_set)
-
+        FT = eltype(ap)
         mode_i = ad.Modes[i]
 
         nom = FT(0)
@@ -89,18 +77,18 @@ function mean_hygroscopicity_parameter(
             den += mode_i.mass_mix_ratio[j] / mode_i.aerosol_density[j]
         end
 
-        nom / den * _molmass_water / _ρ_cloud_liq
+        nom / den * ap.M_w / ap.ρ_w
     end
 end
 function mean_hygroscopicity_parameter(
-    param_set::APS,
+    ap::AAP,
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_κ}
 
     return ntuple(Val(AM.n_modes(ad))) do i
-        FT = eltype(param_set)
-
+        FT = eltype(ap)
         mode_i = ad.Modes[i]
+
         _result = FT(0)
         @inbounds for j in 1:(AM.n_components(mode_i))
             _result += mode_i.vol_mix_ratio[j] * mode_i.kappa[j]
@@ -110,78 +98,69 @@ function mean_hygroscopicity_parameter(
 end
 
 """
-    critical_supersaturation(param_set, ad, T)
+    critical_supersaturation(ap, ad, T)
 
-  - `param_set` - abstract set with Earth's parameters
-  - `ad` - aerosol distribution struct
+  - `ap` - a set with aerosol activation parameters
+  - `ad` - a struct with aerosol distribution
   - `T` - air temperature
 
 Returns a tuple of critical supersaturations
 (one tuple element for each aerosol size distribution mode).
 """
 function critical_supersaturation(
-    param_set::APS,
+    ap::AAP,
     ad::CT.AbstractAerosolDistribution,
     T::FT,
 ) where {FT <: Real}
-    A::FT = coeff_of_curvature(param_set, T)
-    hygro = mean_hygroscopicity_parameter(param_set, ad)
-    critical_supersaturation(param_set, ad, T, A, hygro)
-end
-function critical_supersaturation(
-    param_set::APS,
-    ad::CT.AbstractAerosolDistribution,
-    T::FT,
-    A,
-    hygro,
-) where {FT <: Real}
+    A::FT = coeff_of_curvature(ap, T)
+    hygro = mean_hygroscopicity_parameter(ap, ad)
+
     return ntuple(Val(AM.n_modes(ad))) do i
         2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^FT(3 / 2)
     end
 end
 
 """
-    max_supersaturation(param_set, ad, T, p, w, q)
+    max_supersaturation(ap, ad, aip, tps, T, p, w, q)
 
-  - `param_set` - abstract set with Earth's parameters
-  - `ad` - aerosol distribution struct
-  - `T` - air temperature
-  - `p` - air pressure
-  - `w` - vertical velocity
-  - `q` - phase partition
+  - `ap`  - a struct with aerosol activation parameters
+  - `ad`  - a struct with aerosol distribution
+  - `aip` - a struct with air parameters
+  - `tps` - a struct with thermodynamics parameters
+  - `T`   - air temperature
+  - `p`   - air pressure
+  - `w`   - vertical velocity
+  - `q`   - phase partition
 
 Returns the maximum supersaturation.
 """
 function max_supersaturation(
-    param_set::APS,
+    ap::AAP,
     ad::CT.AbstractAerosolDistribution,
+    aip::AIP,
+    tps::TPS,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-    air_props = CT.AirProperties(param_set)
-    thermo_params = CMP.thermodynamics_params(param_set)
-    _grav::FT = CMP.grav(param_set)
-    _ρ_cloud_liq::FT = CMP.ρ_cloud_liq(param_set)
+    ϵ::FT = 1 / TD.Parameters.molmass_ratio(tps)
+    R_m::FT = TD.gas_constant_air(tps, q)
+    cp_m::FT = TD.cp_m(tps, q)
 
-    _ϵ::FT = 1 / CMP.molmass_ratio(param_set)
-    R_m::FT = TD.gas_constant_air(thermo_params, q)
-    cp_m::FT = TD.cp_m(thermo_params, q)
-
-    L::FT = TD.latent_heat_vapor(thermo_params, T)
-    p_vs::FT = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
-    G::FT = CO.G_func(air_props, thermo_params, T, TD.Liquid()) / _ρ_cloud_liq
+    L::FT = TD.latent_heat_vapor(tps, T)
+    p_vs::FT = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    G::FT = CO.G_func(aip, tps, T, TD.Liquid()) / ap.ρ_w
 
     # eq 11, 12 in Razzak et al 1998
     # but following eq 10 from Rogers 1975
-    α::FT = L * _grav * _ϵ / R_m / cp_m / T^2 - _grav / R_m / T
-    γ::FT = R_m * T / _ϵ / p_vs + _ϵ * L^2 / cp_m / T / p
+    α::FT = L * ap.g * ϵ / R_m / cp_m / T^2 - ap.g / R_m / T
+    γ::FT = R_m * T / ϵ / p_vs + ϵ * L^2 / cp_m / T / p
 
-    A::FT = coeff_of_curvature(param_set, T)
+    A::FT = coeff_of_curvature(ap, T)
     ζ::FT = 2 * A / 3 * sqrt(α * w / G)
 
-    Sm = critical_supersaturation(param_set, ad, T)
+    Sm = critical_supersaturation(ap, ad, T)
 
     tmp::FT = FT(0)
     @inbounds for i in 1:AM.n_modes(ad)
@@ -190,8 +169,7 @@ function max_supersaturation(
 
         f::FT = 0.5 * exp(2.5 * (log(mode_i.stdev))^2)
         g::FT = 1 + 0.25 * log(mode_i.stdev)
-        η::FT =
-            (α * w / G)^FT(3 / 2) / (FT(2 * pi) * _ρ_cloud_liq * γ * mode_i.N)
+        η::FT = (α * w / G)^FT(3 / 2) / (FT(2 * pi) * ap.ρ_w * γ * mode_i.N)
 
         tmp +=
             1 / (Sm[i])^2 *
@@ -202,41 +180,33 @@ function max_supersaturation(
 end
 
 """
-    N_activated_per_mode(param_set, ad, T, p, w, q)
+    N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)
 
-  - `param_set` - abstract set with Earth's parameters
-  - `ad` - aerosol distribution struct
-  - `T` - air temperature
-  - `p` - air pressure
-  - `w` - vertical velocity
-  - `q` - phase partition
+  - `ap`  - a struct with aerosol activation parameters
+  - `ad`  - aerosol distribution struct
+  - `aip` - a struct with air parameters
+  - `tps` - a struct with thermodynamics parameters
+  - `T`   - air temperature
+  - `p`   - air pressure
+  - `w`   - vertical velocity
+  - `q`   - phase partition
 
 Returns the number of activated aerosol particles
 in each aerosol size distribution mode.
 """
 function N_activated_per_mode(
-    param_set::APS,
+    ap::AAP,
     ad::CT.AbstractAerosolDistribution,
+    aip::AIP,
+    tps::TPS,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-    smax::FT = max_supersaturation(param_set, ad, T, p, w, q)
-    sm = critical_supersaturation(param_set, ad, T)
-    N_activated_per_mode(param_set, ad, T, p, w, q, smax, sm)
-end
+    smax::FT = max_supersaturation(ap, ad, aip, tps, T, p, w, q)
+    sm = critical_supersaturation(ap, ad, T)
 
-function N_activated_per_mode(
-    param_set::APS,
-    ad::CT.AbstractAerosolDistribution,
-    T::FT,
-    p::FT,
-    w::FT,
-    q::TD.PhasePartition{FT},
-    smax,
-    sm,
-) where {FT <: Real}
     return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
@@ -247,10 +217,12 @@ function N_activated_per_mode(
 end
 
 """
-    M_activated_per_mode(param_set, ad, T, p, w, q)
+    M_activated_per_mode(ap, ad, aip, tps, T, p, w, q)
 
-  - `param_set` - abstract set with Earth's parameters
-  - `ad` - aerosol distribution struct
+  - `ap`  - a struct with aerosol activation parameters
+  - `ad`  - a struct with aerosol distribution parameters
+  - `aip` - a struct with air parameters
+  - `tps` - a struct with thermodynamics parameters
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
@@ -260,28 +232,18 @@ Returns the mass of activated aerosol particles
 per mode of the aerosol size distribution.
 """
 function M_activated_per_mode(
-    param_set::APS,
+    ap::AAP,
     ad::CT.AbstractAerosolDistribution,
+    aip::AIP,
+    tps::TPS,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-    smax = max_supersaturation(param_set, ad, T, p, w, q)
-    sm = critical_supersaturation(param_set, ad, T)
-    M_activated_per_mode(param_set, ad, T, p, w, q, smax, sm)
-end
+    smax::FT = max_supersaturation(ap, ad, aip, tps, T, p, w, q)
+    sm = critical_supersaturation(ap, ad, T)
 
-function M_activated_per_mode(
-    param_set::APS,
-    ad::CT.AbstractAerosolDistribution,
-    T::FT,
-    p::FT,
-    w::FT,
-    q::TD.PhasePartition{FT},
-    smax,
-    sm,
-) where {FT <: Real}
     return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.Modes[i]
@@ -299,10 +261,12 @@ function M_activated_per_mode(
 end
 
 """
-    total_N_activated(param_set, ad, T, p, w, q)
+    total_N_activated(ap, ad, aip, tps, T, p, w, q)
 
-  - `param_set` - abstract set with Earth's parameters
+  - `ap` - a struct with aerosol activation parameters
   - `ad` - aerosol distribution struct
+  - `aip` - a struct with air properties
+  - `tps` - a struct with thermodynamics parameters
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
@@ -311,23 +275,25 @@ end
 Returns the total number of activated aerosol particles.
 """
 function total_N_activated(
-    param_set::APS,
+    ap::AAP,
     ad::CT.AbstractAerosolDistribution,
+    aip::AIP,
+    tps::TPS,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
-    return sum(N_activated_per_mode(param_set, ad, T, p, w, q))
-
+    return sum(N_activated_per_mode(ap, ad, aip, tps, T, p, w, q))
 end
 
 """
-    total_M_activated(param_set, ad, T, p, w, q)
+    total_M_activated(ap, ad, aip, tps, T, p, w, q)
 
-  - `param_set` - abstract set with Earth's parameters
+  - `ap` - a struct with aerosol activation parameters
   - `ad` - aerosol distribution struct
+  - `aip` - a struct with air properties
+  - `tps` - a struct with thermodynamics parameters
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
@@ -336,16 +302,16 @@ end
 Returns the total mass of activated aerosol particles.
 """
 function total_M_activated(
-    param_set::APS,
+    ap::AAP,
     ad::CT.AbstractAerosolDistribution,
+    aip::AIP,
+    tps::TPS,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
 ) where {FT <: Real}
-
-    return sum(M_activated_per_mode(param_set, ad, T, p, w, q))
-
+    return sum(M_activated_per_mode(ap, ad, aip, tps, T, p, w, q))
 end
 
 end # module AerosolActivation.jl

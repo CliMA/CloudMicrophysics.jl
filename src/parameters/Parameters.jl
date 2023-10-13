@@ -10,10 +10,30 @@ const TDPS = TD.Parameters.ThermodynamicsParameters
 abstract type AbstractCloudMicrophysicsParameters end
 Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = tuple(ps)
 
+"""
+    AbstractAerosolProperties
+
+The top-level super-type for all aerosol properties
+"""
+abstract type AbstractAerosolProperties end
+Base.broadcastable(x::AbstractAerosolProperties) = tuple(x)
+
+"""
+    AbstractAerosolActivationParameters
+
+The top-level super-type for all aerosol activation parameters
+"""
+abstract type AbstractAerosolActivationParameters{T} end
+Base.eltype(::AbstractAerosolActivationParameters{T}) where {T} = T
+Base.broadcastable(x::AbstractAerosolActivationParameters) = tuple(x)
+
 export CloudMicrophysicsParameters0M
 export CloudMicrophysicsParametersP3
 export H2SO4SolutionParameters
 
+include("aerosol_activation.jl")
+include("aerosol_seasalt.jl")
+include("aerosol_sulfate.jl")
 include("cmp_0m.jl")
 include("cmp_p3.jl")
 include("modal_nucleation.jl")

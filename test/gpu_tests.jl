@@ -46,7 +46,9 @@ const ArrayType = CuArray
 @info "GPU Tests" backend ArrayType
 
 @kernel function aerosol_activation_kernel!(
-    prs,
+    ap,
+    air_props,
+    tps,
     output::AbstractArray{FT},
     r,
     stdev,
@@ -60,17 +62,16 @@ const ArrayType = CuArray
 ) where {FT}
 
     i = @index(Group, Linear)
-    thermo_params = CMP.thermodynamics_params(prs)
     # atmospheric conditions (taken from aerosol activation tests)
     T = FT(294)      # air temperature K
     p = FT(1e5)    # air pressure Pa
     w = FT(0.5)         # vertical velocity m/s
-    p_vs = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
-    q_vs = 1 / (1 - CMP.molmass_ratio(prs) * (p_vs - p) / p_vs)
+    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
     # water vapor specific humidity (saturated)
     q = TD.PhasePartition(q_vs)
 
-    args = (T, p, w, q)
+    args = (air_props, tps, T, p, w, q)
 
     @inbounds begin
         mode_B = AM.Mode_B(
@@ -99,14 +100,14 @@ const ArrayType = CuArray
         arsl_dst_B = AM.AerosolDistribution((mode_B,))
         arsl_dst_κ = AM.AerosolDistribution((mode_κ,))
 
-        output[1, i] = AA.mean_hygroscopicity_parameter(prs, arsl_dst_B)[1]
-        output[2, i] = AA.mean_hygroscopicity_parameter(prs, arsl_dst_κ)[1]
+        output[1, i] = AA.mean_hygroscopicity_parameter(ap, arsl_dst_B)[1]
+        output[2, i] = AA.mean_hygroscopicity_parameter(ap, arsl_dst_κ)[1]
 
-        output[3, i] = AA.total_N_activated(prs, arsl_dst_B, args...)
-        output[4, i] = AA.total_N_activated(prs, arsl_dst_κ, args...)
+        output[3, i] = AA.total_N_activated(ap, arsl_dst_B, args...)
+        output[4, i] = AA.total_N_activated(ap, arsl_dst_κ, args...)
 
-        output[5, i] = AA.total_M_activated(prs, arsl_dst_B, args...)
-        output[6, i] = AA.total_M_activated(prs, arsl_dst_κ, args...)
+        output[5, i] = AA.total_M_activated(ap, arsl_dst_B, args...)
+        output[6, i] = AA.total_M_activated(ap, arsl_dst_κ, args...)
     end
 end
 
@@ -707,6 +708,8 @@ function test_gpu(FT)
 
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
+    ap = CMP.AerosolActivationParameters(FT)
+
     @testset "Aerosol activation kernels" begin
         dims = (6, 2)
         (; output, ndrange) = setup_output(dims, FT)
@@ -722,7 +725,23 @@ function test_gpu(FT)
         κ = ArrayType([FT(0.53), FT(1.12)])
 
         kernel! = aerosol_activation_kernel!(backend, work_groups)
-        kernel!(prs, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ, ; ndrange)
+        kernel!(
+            ap,
+            air_props,
+            thermo_params,
+            output,
+            r,
+            stdev,
+            N,
+            ϵ,
+            ϕ,
+            M,
+            ν,
+            ρ,
+            κ,
+            ;
+            ndrange,
+        )
 
         # test if all aerosol activation output is positive
         @test all(Array(output)[:, :] .>= FT(0))
