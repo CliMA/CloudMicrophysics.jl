@@ -57,7 +57,8 @@ function benchmark_test(FT)
     sb2006 = CMT.SB2006Type()
     sb2006vel = CMT.SB2006VelType()
     ch2022 = CMT.Chen2022Type(FT)
-    dust = CMT.DesertDustType()
+    desert_dust = CMP.DesertDust(FT)
+    ip = CMP.IceNucleationParameters(FT)
     ce = CMT.CollisionEfficiency(FT)
     air_props = CMT.AirProperties(FT)
     thermo_params = CMP.thermodynamics_params(prs)
@@ -133,11 +134,11 @@ function benchmark_test(FT)
     # ice nucleation
     bench_press(
         CMI_het.dust_activated_number_fraction,
-        (prs, S_ice, T_air_2, dust),
+        (desert_dust, ip, S_ice, T_air_2),
         50,
     )
-    bench_press(CMI_het.ABIFM_J, (prs, dust, Delta_a_w), 230)
-    bench_press(CMI_hom.homogeneous_J, (prs, Delta_a_w), 230)
+    bench_press(CMI_het.ABIFM_J, (desert_dust, ip, Delta_a_w), 230)
+    bench_press(CMI_hom.homogeneous_J, (ip, Delta_a_w), 230)
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (liquid,), 10)

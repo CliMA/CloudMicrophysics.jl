@@ -27,11 +27,11 @@ function get_initial_condition(
     x_sulph,
 )
 
-    thermo_params = CMP.thermodynamics_params(prs)
+    tps = CMP.thermodynamics_params(prs)
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
-    R_a = TD.gas_constant_air(thermo_params, q)
+    R_a = TD.gas_constant_air(tps, q)
     R_v = CMP.R_v(prs)
-    e_sl = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+    e_sl = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
     e = q_vap * p_a * R_v / R_a
     S_liq = e / e_sl
 
@@ -51,8 +51,9 @@ function Tully_et_al_2023(FT)
     # Boiler plate code to have access to model parameters and constants
     toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
     prs = cloud_microphysics_parameters(toml_dict)
-    thermo_params = CMP.thermodynamics_params(prs)
-    air_props = CMT.AirProperties(FT)
+    tps = CMP.thermodynamics_params(prs)
+    aps = CMT.AirProperties(FT)
+    ip = CMP.IceNucleationParameters(FT)
     # Initial conditions for 1st period
     N_aerosol = FT(2000 * 1e3)
     N_droplets = FT(0)
@@ -78,19 +79,20 @@ function Tully_et_al_2023(FT)
     w = FT(3.5 * 1e-2)                         # updraft speed
     α_m = FT(0.5)                              # accomodation coefficient
     const_dt = 0.1                             # model timestep
-    aerosol_type = CMT.DesertDustType()        # aerosol type
+    aerosol = CMP.DesertDust(FT)               # aerosol type
     ice_nucleation_modes = ["DustDeposition"]  # switch on deposition on dust
     growth_modes = ["Deposition"]              # switch on deposition growth
     droplet_size_distribution = ["Monodisperse"]
     p = (;
         prs,
-        air_props,
-        thermo_params,
+        aps,
+        tps,
+        ip,
         const_dt,
         r_nuc,
         w,
         α_m,
-        aerosol_type,
+        aerosol,
         ice_nucleation_modes,
         growth_modes,
         droplet_size_distribution,
@@ -160,8 +162,8 @@ function Tully_et_al_2023(FT)
     MK.ylims!(ax3, 3, 2e3)
 
     ξ(T) =
-        TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid()) /
-        TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
+        TD.saturation_vapor_pressure(tps, T, TD.Liquid()) /
+        TD.saturation_vapor_pressure(tps, T, TD.Ice())
     S_i(T, S_liq) = ξ(T) * S_liq - 1
 
     sol = [sol1, sol2, sol3]

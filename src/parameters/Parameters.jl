@@ -8,6 +8,7 @@ const TD = Thermodynamics
 const TDPS = TD.Parameters.ThermodynamicsParameters
 
 abstract type AbstractCloudMicrophysicsParameters end
+#Base.eltype(::AbstractCloudMicrophysicsParameters{T}) where {T} = T
 Base.broadcastable(ps::AbstractCloudMicrophysicsParameters) = tuple(ps)
 
 """
@@ -38,6 +39,11 @@ include("cmp_0m.jl")
 include("cmp_p3.jl")
 include("modal_nucleation.jl")
 include("H2SO4_solution.jl")
+include("aerosol_arizona_test_dust.jl")
+include("aerosol_desert_dust.jl")
+include("aerosol_illite.jl")
+include("aerosol_kaolinite.jl")
+include("ice_nucleation.jl")
 
 # TODO: add doc strings
 # Cloud microphysics parameters

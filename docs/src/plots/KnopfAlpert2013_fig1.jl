@@ -15,13 +15,14 @@ toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 const prs = cloud_microphysics_parameters(toml_dict)
 const tps = CM.Parameters.thermodynamics_params(prs)
 const H2SO4_prs = CM.Parameters.H2SO4SolutionParameters(FT)
+const ip = CM.Parameters.IceNucleationParameters(FT)
+const kaolinite = CM.Parameters.Kaolinite(FT) # dust type
 
 # Initializing
 T_range = range(210, stop = 232, length = 100)  # air temperature
 x = 0.1                                         # wt% sulphuric acid in droplets
-dust_type = CT.KaoliniteType()                  # dust type
 Δa_w = [CO.a_w_xT(H2SO4_prs, tps, x, T) - CO.a_w_ice(tps, T) for T in T_range]    # difference in solution and ice water activity
-J = @. IN.ABIFM_J(prs, (dust_type,), Δa_w)      # J in SI units
+J = @. IN.ABIFM_J(kaolinite, ip, Δa_w)      # J in SI units
 log10J_converted = @. log10(J * 1e-4)           # converts J into cm^-2 s^-1 and takes log
 
 # Knopf and Alpert 2013 Figure 4A

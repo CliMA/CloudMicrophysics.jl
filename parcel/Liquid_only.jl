@@ -13,8 +13,9 @@ include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
 FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 prs = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(prs)
-air_props = CMT.AirProperties(FT)
+tps = CMP.thermodynamics_params(prs)
+aps = CMT.AirProperties(FT)
+ip = CMP.IceNucleationParameters(FT)
 
 # Constants
 ρₗ = FT(CMP.ρ_cloud_liq(prs))
@@ -30,7 +31,7 @@ p₀ = FT(800 * 1e2)
 T₀ = FT(273.15 + 7.0)
 x_sulph = FT(0)
 
-eₛ = TD.saturation_vapor_pressure(thermo_params, T₀, TD.Liquid())
+eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 e = eₛ
 ϵ = R_d / R_v
 
@@ -45,10 +46,10 @@ qᵢ = FT(0)
 
 # Moisture dependent initial conditions
 q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-ts = TD.PhaseNonEquil_pTq(thermo_params, p₀, T₀, q)
-ρₐ = TD.air_density(thermo_params, ts)
+ts = TD.PhaseNonEquil_pTq(tps, p₀, T₀, q)
+ρₐ = TD.air_density(tps, ts)
 
-Rₐ = TD.gas_constant_air(thermo_params, q)
+Rₐ = TD.gas_constant_air(tps, q)
 Sₗ = FT(e / eₛ)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
 
@@ -58,7 +59,7 @@ w = FT(10)                                 # updraft speed
 α_m = FT(0.5)                              # accomodation coefficient
 const_dt = FT(0.5)                         # model timestep
 t_max = FT(20)
-aerosol_type = []
+aerosol = []
 ice_nucleation_modes = []                  # no freezing
 growth_modes = ["Condensation"]          # switch on condensation
 droplet_size_distribution_list = [["Monodisperse"], ["Gamma"]]
@@ -85,13 +86,14 @@ MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 for droplet_size_distribution in droplet_size_distribution_list
     p = (;
         prs,
-        air_props,
-        thermo_params,
+        aps,
+        tps,
+        ip,
         const_dt,
         r_nuc,
         w,
         α_m,
-        aerosol_type,
+        aerosol,
         ice_nucleation_modes,
         growth_modes,
         droplet_size_distribution,
