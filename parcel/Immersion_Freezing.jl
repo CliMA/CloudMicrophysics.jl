@@ -13,8 +13,9 @@ include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
 FT = Float64
 toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 prs = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(prs)
-air_props = CMT.AirProperties(FT)
+tps = CMP.thermodynamics_params(prs)
+aps = CMT.AirProperties(FT)
+ip = CMP.IceNucleationParameters(FT)
 
 # Constants
 ρₗ = FT(CMP.ρ_cloud_liq(prs))
@@ -35,10 +36,10 @@ x_sulph = FT(0.01)
 
 # Moisture dependent initial conditions
 q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-ts = TD.PhaseNonEquil_pTq(thermo_params, p₀, T₀, q)
-ρₐ = TD.air_density(thermo_params, ts)
-Rₐ = TD.gas_constant_air(thermo_params, q)
-eₛ = TD.saturation_vapor_pressure(thermo_params, T₀, TD.Liquid())
+ts = TD.PhaseNonEquil_pTq(tps, p₀, T₀, q)
+ρₐ = TD.air_density(tps, ts)
+Rₐ = TD.gas_constant_air(tps, q)
+eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 e = qᵥ * p₀ * R_v / Rₐ
 
 Sₗ = FT(e / eₛ)
@@ -50,7 +51,7 @@ w = FT(0.7)                                # updraft speed
 α_m = FT(0.5)                              # accomodation coefficient
 const_dt = FT(1)                           # model timestep
 t_max = FT(1200)
-aerosol_type = CMT.IlliteType()
+aerosol = CMP.Illite(FT)
 ice_nucleation_modes = ["ImmersionFreezing"]
 growth_modes = ["Condensation", "Deposition"]
 droplet_size_distribution_list = [["Monodisperse"], ["Gamma"]]
@@ -73,13 +74,14 @@ MK.ylims!(ax6, 1e-6, 1)
 for droplet_size_distribution in droplet_size_distribution_list
     p = (;
         prs,
-        air_props,
-        thermo_params,
+        aps,
+        tps,
+        ip,
         const_dt,
         r_nuc,
         w,
         α_m,
-        aerosol_type,
+        aerosol,
         ice_nucleation_modes,
         growth_modes,
         droplet_size_distribution,
@@ -91,8 +93,8 @@ for droplet_size_distribution in droplet_size_distribution_list
 
     # Plot results
     ξ(T) =
-        TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid()) /
-        TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
+        TD.saturation_vapor_pressure(tps, T, TD.Liquid()) /
+        TD.saturation_vapor_pressure(tps, T, TD.Ice())
     S_i(T, S_liq) = ξ(T) * S_liq - 1
 
     MK.lines!(ax1, sol.t / 60, S_i.(sol[3, :], sol[1, :]), label = DSD)

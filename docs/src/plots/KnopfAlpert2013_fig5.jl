@@ -16,6 +16,8 @@ toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
 prs = cloud_microphysics_parameters(toml_dict)
 tps = CMP.thermodynamics_params(prs)
 H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
+ip = CMP.IceNucleationParameters(FT)
+illite = CMP.Illite(FT)    # dust type
 
 # Knopf and Alpert 2013 Figure 5A: Cirrus
 # https://doi.org/10.1039/C3FD00035D
@@ -41,7 +43,6 @@ KA13_fig5A_J = [
 ]
 
 # Our parameterization
-dust_type = CMT.IlliteType()    # dust type
 T_range = range(228.2, stop = 229.6, length = 100)  # air temperature
 T_dew = FT(228.0)               # dew point temperature
 x_sulph = FT(0)                 # sulphuric acid concentration in droplets
@@ -53,7 +54,7 @@ a_sol = [                       # water activity of solution droplet at equilibr
 a_ice = [CMO.a_w_ice(tps, T) for T in T_range]
 
 Δa_w = @. max(abs(a_sol - a_ice), FT(0.0))
-J_ABIFM = @. CMI.ABIFM_J(prs, (dust_type,), Δa_w) * 1e-4 # converted from SI units to cm^-2 s^-1
+J_ABIFM = @. CMI.ABIFM_J(illite, ip, Δa_w) * 1e-4 # converted from SI units to cm^-2 s^-1
 
 # Plot results
 fig = MK.Figure(resolution = (800, 600))

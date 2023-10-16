@@ -20,6 +20,11 @@ function test_heterogeneous_ice_nucleation(FT)
     prs = cloud_microphysics_parameters(toml_dict)
     tps = CM.Parameters.thermodynamics_params(prs)
     H2SO4_prs = CM.Parameters.H2SO4SolutionParameters(FT)
+    ip = CM.Parameters.IceNucleationParameters(FT)
+    ATD = CM.Parameters.ArizonaTestDust(FT)
+    desert_dust = CM.Parameters.DesertDust(FT)
+    illite = CM.Parameters.Illite(FT)
+    kaolinite = CM.Parameters.Kaolinite(FT)
 
     TT.@testset "dust_activation" begin
 
@@ -31,50 +36,50 @@ function test_heterogeneous_ice_nucleation(FT)
         Si_too_hgh = FT(1.5)
 
         # No activation below critical supersaturation
-        for dust in [ArizonaTestDust, DesertDust]
+        for dust in [ATD, desert_dust]
             for T in [T_warm, T_cold]
                 TT.@test CMI_het.dust_activated_number_fraction(
-                    prs,
+                    dust,
+                    ip,
                     Si_low,
                     T,
-                    dust,
                 ) == FT(0)
             end
         end
 
         # Activate more in cold temperatures and higher supersaturations
-        for dust in [ArizonaTestDust, DesertDust]
+        for dust in [ATD, desert_dust]
             TT.@test CMI_het.dust_activated_number_fraction(
-                prs,
+                dust,
+                ip,
                 Si_hgh,
                 T_warm,
-                dust,
             ) > CMI_het.dust_activated_number_fraction(
-                prs,
+                dust,
+                ip,
                 Si_med,
                 T_warm,
-                dust,
             )
             TT.@test CMI_het.dust_activated_number_fraction(
-                prs,
+                dust,
+                ip,
                 Si_med,
                 T_cold,
-                dust,
             ) > CMI_het.dust_activated_number_fraction(
-                prs,
+                dust,
+                ip,
                 Si_med,
                 T_warm,
-                dust,
             )
         end
 
-        for dust in [ArizonaTestDust, DesertDust]
+        for dust in [ATD, desert_dust]
             for T in [T_warm, T_cold]
                 TT.@test CMI_het.dust_activated_number_fraction(
-                    prs,
+                    dust,
+                    ip,
                     Si_too_hgh,
                     T,
-                    dust,
                 ) == FT(0)
             end
         end
@@ -92,27 +97,26 @@ function test_heterogeneous_ice_nucleation(FT)
         e_cold = FT(544)
 
         # higher nucleation rate at colder temperatures
-        for dust in
-            [CMT.IlliteType(), CMT.KaoliniteType(), CMT.DesertDustType()]
+        for dust in [illite, kaolinite, desert_dust]
             TT.@test CMI_het.ABIFM_J(
-                prs,
                 dust,
+                ip,
                 CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_cold_1) -
                 CO.a_w_ice(tps, T_cold_1),
             ) > CMI_het.ABIFM_J(
-                prs,
                 dust,
+                ip,
                 CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_warm_1) -
                 CO.a_w_ice(tps, T_warm_1),
             )
 
             TT.@test CMI_het.ABIFM_J(
-                prs,
                 dust,
+                ip,
                 CO.a_w_eT(tps, e_cold, T_cold_2) - CO.a_w_ice(tps, T_cold_2),
             ) > CMI_het.ABIFM_J(
-                prs,
                 dust,
+                ip,
                 CO.a_w_eT(tps, e_warm, T_warm_2) - CO.a_w_ice(tps, T_warm_2),
             )
         end

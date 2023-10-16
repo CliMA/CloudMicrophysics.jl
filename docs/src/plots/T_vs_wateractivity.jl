@@ -6,7 +6,6 @@ import CLIMAParameters as CP
 
 const CMT = CM.CommonTypes
 const CMO = CM.Common
-const CMI = CM.HetIceNucleation
 const CMP = CM.Parameters
 
 include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))

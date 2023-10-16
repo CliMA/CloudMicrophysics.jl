@@ -15,7 +15,7 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function parcel_model(dY, Y, p, t)
 
     # Get simulation parameters
-    (; prs, air_props, thermo_params, const_dt, r_nuc, w, α_m, aerosol_type) = p
+    (; prs, aps, tps, ip, const_dt, r_nuc, w, α_m, aerosol) = p
     (; ice_nucleation_modes, growth_modes, droplet_size_distribution) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
@@ -43,22 +43,21 @@ function parcel_model(dY, Y, p, t)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     # Get thermodynamic parameters, phase partition and create thermo state.
-    thermo_params = CMP.thermodynamics_params(prs)
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
-    ts = TD.PhaseNonEquil_pTq(thermo_params, p_a, T, q)
+    ts = TD.PhaseNonEquil_pTq(tps, p_a, T, q)
 
     # Saturation ratio over ice
-    e_si = TD.saturation_vapor_pressure(thermo_params, T, TD.Ice())
-    e_sl = TD.saturation_vapor_pressure(thermo_params, T, TD.Liquid())
+    e_si = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+    e_sl = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
     ξ = e_sl / e_si
     S_i = ξ * S_liq
 
     # Constants and variables that depend on the moisture content
-    R_a = TD.gas_constant_air(thermo_params, q)
-    cp_a = TD.cp_m(thermo_params, q)
-    L_subl = TD.latent_heat_sublim(thermo_params, T)
-    L_vap = TD.latent_heat_vapor(thermo_params, T)
-    ρ_air = TD.air_density(thermo_params, ts)
+    R_a = TD.gas_constant_air(tps, q)
+    cp_a = TD.cp_m(tps, q)
+    L_subl = TD.latent_heat_sublim(tps, T)
+    L_vap = TD.latent_heat_vapor(tps, T)
+    ρ_air = TD.air_density(tps, ts)
     e = q_vap * p_a * R_v / R_a
 
     # Adiabatic parcel coefficients
@@ -75,10 +74,10 @@ function parcel_model(dY, Y, p, t)
     dqi_dt_new_depo = FT(0)
     if "DustDeposition" in ice_nucleation_modes
         AF = CMI_het.dust_activated_number_fraction(
-            prs,
+            aerosol,
+            ip,
             S_i,
             T,
-            aerosol_type,
         )
         dN_act_dt_depo = max(FT(0), AF * N_aer - N_ice) / const_dt
         dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * π * r_nuc^3 * ρ_ice / ρ_air
@@ -88,9 +87,9 @@ function parcel_model(dY, Y, p, t)
     dqi_dt_new_immers = FT(0)
     if "ImmersionFreezing" in ice_nucleation_modes
         Δa_w = T > FT(185) && T < FT(235) ?
-            CMO.a_w_xT(H2SO4_prs, thermo_params, x_sulph, T) - CMO.a_w_ice(thermo_params, T) :
-            CMO.a_w_eT(thermo_params, e, T) - CMO.a_w_ice(thermo_params, T)
-        J_immersion = CMI_het.ABIFM_J(prs, aerosol_type, Δa_w)
+            CMO.a_w_xT(H2SO4_prs, tps, x_sulph, T) - CMO.a_w_ice(tps, T) :
+            CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
+        J_immersion = CMI_het.ABIFM_J(aerosol, ip, Δa_w)
         if "Monodisperse" in droplet_size_distribution && "ImmersionFreezing" in ice_nucleation_modes
             r_l = cbrt(q_liq / N_liq / (4 / 3 * π) / ρ_liq * ρ_air)
             A_aer = 4 * π * r_l^2
@@ -110,12 +109,12 @@ function parcel_model(dY, Y, p, t)
     dN_ice_dt = dN_act_dt_depo + dN_act_dt_immersion
     dN_aer_dt = -dN_act_dt_depo
     dN_liq_dt = -dN_act_dt_immersion
-    
+
     # Growth
     dqi_dt_depo = FT(0)
     if "Deposition" in growth_modes && N_ice > 0
         # Deposition on existing crystals (assuming all are the same...)
-        G_i = CMO.G_func(air_props, thermo_params, T, TD.Ice())
+        G_i = CMO.G_func(aps, tps, T, TD.Ice())
         r_i = cbrt(q_ice / N_ice / (4 / 3 * π) / ρ_ice * ρ_air)
         C_i = r_i
         dqi_dt_depo = 4 * π / ρ_air * (S_i - 1) * G_i * r_i * N_ice
@@ -126,12 +125,12 @@ function parcel_model(dY, Y, p, t)
     if "Condensation" in growth_modes && N_liq > 0
         if "Monodisperse" in droplet_size_distribution
         # Condensation on existing droplets assuming all are the same
-            G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
+            G_l = CMO.G_func(aps, tps, T, TD.Liquid())
             r_l = cbrt(q_liq / N_liq / (4 / 3 * π) / ρ_liq * ρ_air)
             dql_dt_cond = 4 * π / ρ_air * (S_liq - 1) * G_l * r_l * N_liq
         elseif "Gamma" in droplet_size_distribution
         # Condensation on existing droplets assuming n(r) = A r exp(-λr)
-            G_l = CMO.G_func(air_props, thermo_params, T, TD.Liquid())
+            G_l = CMO.G_func(aps, tps, T, TD.Liquid())
             λ = cbrt(32 * π * N_liq / q_liq * ρ_liq / ρ_air)
             #A = N_liq* λ^2
             r_l = 2 / λ
@@ -190,12 +189,17 @@ Initial condition contains (all in base SI units):
 
 The named tuple p should contain:
  - prs - a struct with free parameters for CloudMicrophysics package,
+ - aps - a struct with air parameters
+ - tps - a struct with thermodynamics parameters
+ - aerosol - a struct with aerosol parameters
+ - ip - a struct with ice nucleation parameters
  - const_dt - simulation timestep,
  - r_nuc - assumed radius of newly nucleated ice crystals,
  - w - vertical velocity,
  - α_m - accomodation coefficient
  - ice_nucleation_modes - a vector with enabled ice nucleation paths. Possible options: ("DustDeposition",)
  - growth_modes - a vector with enabled growth modes. Possible options: ("Condensation", "Deposition")
+ - droplet_size_distribution - a vector with assumed droplet size distribution. Possible options: ("Monodisperse", "Gamma")
 """
 function run_parcel(IC, t_0, t_end, p)
 

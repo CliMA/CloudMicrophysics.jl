@@ -25,9 +25,6 @@ import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Nucleation as MN
 import CloudMicrophysics.P3Scheme as P3
 
-const kaolinite = CMT.KaoliniteType()
-const illite = CMT.IlliteType()
-
 const work_groups = (1,)
 
 ClimaComms.device() isa ClimaComms.CUDADevice || error("No GPU found")
@@ -525,21 +522,23 @@ end
 end
 
 @kernel function IceNucleation_ABIFM_J_kernel!(
-    prs,
+    ip,
     output::AbstractArray{FT},
+    kaolinite,
+    illite,
     Delta_a_w,
 ) where {FT}
 
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_het.ABIFM_J(prs, kaolinite, Delta_a_w[1])
-        output[2] = CMI_het.ABIFM_J(prs, illite, Delta_a_w[2])
+        output[1] = CMI_het.ABIFM_J(kaolinite, ip, Delta_a_w[1])
+        output[2] = CMI_het.ABIFM_J(illite, ip, Delta_a_w[2])
     end
 end
 
 @kernel function IceNucleation_homogeneous_J_kernel!(
-    prs,
+    ip,
     output::AbstractArray{FT},
     Delta_a_w,
 ) where {FT}
@@ -547,7 +546,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_hom.homogeneous_J(prs, Delta_a_w[1])
+        output[1] = CMI_hom.homogeneous_J(ip, Delta_a_w[1])
     end
 end
 
@@ -709,6 +708,9 @@ function test_gpu(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     ap = CMP.AerosolActivationParameters(FT)
+    ip = CMP.IceNucleationParameters(FT)
+    illite = CMP.Illite(FT)
+    kaolinite = CMP.Kaolinite(FT)
 
     @testset "Aerosol activation kernels" begin
         dims = (6, 2)
@@ -991,7 +993,7 @@ function test_gpu(FT)
         Delta_a_w = ArrayType([FT(0.16), FT(0.15)])
 
         kernel! = IceNucleation_ABIFM_J_kernel!(backend, work_groups)
-        kernel!(prs, output, Delta_a_w; ndrange)
+        kernel!(ip, output, kaolinite, illite, Delta_a_w; ndrange)
 
         # test if ABIFM_J is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(153.65772539109)
@@ -1005,7 +1007,7 @@ function test_gpu(FT)
         Delta_a_w = ArrayType([FT(0.2907389666103033)])
 
         kernel! = IceNucleation_homogeneous_J_kernel!(backend, work_groups)
-        kernel!(prs, output, Delta_a_w; ndrange)
+        kernel!(ip, output, Delta_a_w; ndrange)
 
         # test homogeneous_J is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(2.66194650334444e12)
