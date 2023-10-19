@@ -3,11 +3,8 @@ Parameterization for heterogenous ice nucleation.
 """
 module HetIceNucleation
 
-import ..CommonTypes as CT
 import ..Parameters as CMP
 import Thermodynamics as TD
-
-const APS = CMP.AbstractCloudMicrophysicsParameters
 
 export dust_activated_number_fraction
 export ABIFM_J
@@ -27,10 +24,10 @@ excluding those where a was not measured)
 """
 function dust_activated_number_fraction(
     dust::Union{CMP.DesertDust, CMP.ArizonaTestDust},
-    ip::APS,
+    ip::CMP.Mohler2006,
     Si::FT,
     T::FT,
-) where {FT <: Real}
+) where {FT}
 
     if Si > ip.Sᵢ_max
         @warn "Supersaturation exceeds the allowed value."
@@ -47,7 +44,6 @@ end
     ABIFM_J(dust, ip, Δa_w)
 
  - `dust` - a struct with dust parameters
- - `ip` - a struct with ice nucleation parameters
  - `Δa_w` - change in water activity [unitless].
 
 Returns the immersion freezing nucleation rate coefficient, `J`, in m^-2 s^-1
@@ -57,9 +53,8 @@ see DOI: 10.1039/C3FD00035D
 """
 function ABIFM_J(
     dust::Union{CMP.DesertDust, CMP.Illite, CMP.Kaolinite},
-    prs::APS,
     Δa_w::FT,
-) where {FT <: Real}
+) where {FT}
 
     logJ::FT = dust.m * Δa_w + dust.c
 
@@ -73,11 +68,8 @@ Parameterization for homogeneous ice nucleation
 """
 module HomIceNucleation
 
-import ..CommonTypes as CT
 import ..Parameters as CMP
 import Thermodynamics as TD
-
-const APS = CMP.AbstractCloudMicrophysicsParameters
 
 export homogeneous_J
 
@@ -91,7 +83,7 @@ Returns the homogeneous freezing nucleation rate coefficient,
 `J`, in m^-3 s^-1 for sulphuric acid solutions.
 Parameterization based on Koop 2000, DOI: 10.1038/35020537.
 """
-function homogeneous_J(ip::APS, Δa_w::FT) where {FT <: Real}
+function homogeneous_J(ip::CMP.Koop2000, Δa_w::FT) where {FT}
 
     @assert Δa_w > ip.Δa_w_min
     @assert Δa_w < ip.Δa_w_max

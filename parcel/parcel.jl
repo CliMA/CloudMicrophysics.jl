@@ -1,12 +1,9 @@
 import Thermodynamics as TD
 import CloudMicrophysics as CM
 
-import CloudMicrophysics.CommonTypes as CMT
 import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
 import CloudMicrophysics.Parameters as CMP
-
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 #! format: off
 """
@@ -15,7 +12,7 @@ include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 function parcel_model(dY, Y, p, t)
 
     # Get simulation parameters
-    (; prs, aps, tps, ip, const_dt, r_nuc, w, α_m, aerosol) = p
+    (; aps, wps, tps, ip, const_dt, r_nuc, w, α_m, aerosol) = p
     (; ice_nucleation_modes, growth_modes, droplet_size_distribution) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
@@ -36,10 +33,10 @@ function parcel_model(dY, Y, p, t)
     x_sulph = Y[10]   # percent mass sulphuric acid
 
     # Constants
-    R_v = CMP.R_v(prs)
-    grav = CMP.grav(prs)
-    ρ_ice = CMP.ρ_cloud_ice(prs)
-    ρ_liq = CMP.ρ_cloud_liq(prs)
+    R_v = TD.Parameters.R_v(tps)
+    grav = TD.Parameters.grav(tps)
+    ρ_ice = wps.ρi
+    ρ_liq = wps.ρw
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     # Get thermodynamic parameters, phase partition and create thermo state.
@@ -75,7 +72,7 @@ function parcel_model(dY, Y, p, t)
     if "DustDeposition" in ice_nucleation_modes
         AF = CMI_het.dust_activated_number_fraction(
             aerosol,
-            ip,
+            ip.deposition,
             S_i,
             T,
         )
@@ -89,7 +86,7 @@ function parcel_model(dY, Y, p, t)
         Δa_w = T > FT(185) && T < FT(235) ?
             CMO.a_w_xT(H2SO4_prs, tps, x_sulph, T) - CMO.a_w_ice(tps, T) :
             CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
-        J_immersion = CMI_het.ABIFM_J(aerosol, ip, Δa_w)
+        J_immersion = CMI_het.ABIFM_J(aerosol, Δa_w)
         if "Monodisperse" in droplet_size_distribution && "ImmersionFreezing" in ice_nucleation_modes
             r_l = cbrt(q_liq / N_liq / (4 / 3 * π) / ρ_liq * ρ_air)
             A_aer = 4 * π * r_l^2
@@ -188,7 +185,7 @@ Initial condition contains (all in base SI units):
  - x_sulph - sulphuric acid concentration
 
 The named tuple p should contain:
- - prs - a struct with free parameters for CloudMicrophysics package,
+ - wps - a struct with water parameters
  - aps - a struct with air parameters
  - tps - a struct with thermodynamics parameters
  - aerosol - a struct with aerosol parameters

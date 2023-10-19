@@ -1,36 +1,41 @@
+export H2SO4SolutionParameters
+
 """
     H2SO4SolutionParameters{FT}
 
 Parameters for water activity of H2SO4 solutions
+from Luo et al 1995. DOI: 10.1029/94GL02988
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct H2SO4SolutionParameters{FT} <: AbstractCloudMicrophysicsParameters
+struct H2SO4SolutionParameters{FT} <: ParametersType{FT}
     "max temperature for which the parameterization is valid [K]"
     T_max::FT
     "min temperature for which the parameterization is valid [K]"
     T_min::FT
-    "coefficient [-], see Luo et al 1995. DOI: 10.1029/94GL02988"
+    "coefficient [-]"
     w_2::FT
-    "coefficient [-], see Luo et al 1995. DOI: 10.1029/94GL02988"
+    "coefficient [-]"
     c1::FT
-    "coefficient [-], see Luo et al 1995. DOI: 10.1029/94GL02988"
+    "coefficient [-]"
     c2::FT
-    "coefficient [-], see Luo et al 1995. DOI: 10.1029/94GL02988"
+    "coefficient [-]"
     c3::FT
-    "coefficient [-], see Luo et al 1995. DOI: 10.1029/94GL02988"
+    "coefficient [-]"
     c4::FT
-    "coefficient [-], see Luo et al 1995. DOI: 10.1029/94GL02988"
+    "coefficient [-]"
     c5::FT
-    "coefficient [-], see Luo et al 1995. DOI: 10.1029/94GL02988"
+    "coefficient [-]"
     c6::FT
-    "coefficient [-], see Luo et al 1995. DOI: 10.1029/94GL02988"
+    "coefficient [-]"
     c7::FT
 end
 
-function H2SO4SolutionParameters(::Type{FT}) where {FT}
-    toml_dict = CP.create_toml_dict(FT)
+function H2SO4SolutionParameters(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
     (; data) = toml_dict
     return H2SO4SolutionParameters(
         FT(data["p_over_sulphuric_acid_solution_T_max"]["value"]),

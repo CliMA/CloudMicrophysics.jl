@@ -9,9 +9,7 @@ import Thermodynamics as TD
 const TPS = TD.Parameters.ThermodynamicsParameters
 
 import ..Parameters as CMP
-const APS = CMP.AbstractCloudMicrophysicsParameters
-
-import ..CommonTypes as CT
+const HPS = CMP.H2SO4SolutionParameters
 
 export G_func
 export H2SO4_soln_saturation_vapor_pressure
@@ -22,22 +20,22 @@ export Chen2022_vel_add
 export Chen2022_vel_coeffs
 
 """
-    G_func(air_props, thermo_params, T, Liquid())
-    G_func(air_props, thermo_params, T, Ice())
+    G_func(air_props, tps, T, Liquid())
+    G_func(air_props, tps, T, Ice())
 
  - `air_props` - struct with air parameters
- - `thermo_params` - struct with thermodynamics parameters
+ - `tps` - struct with thermodynamics parameters
  - `T` - air temperature
  - `Liquid()`, `Ice()` - liquid or ice phase to dispatch over.
 
 Utility function combining thermal conductivity and vapor diffusivity effects.
 """
 function G_func(
-    (; K_therm, D_vapor)::CT.AirProperties,
+    (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TPS,
     T::FT,
     ::TD.Liquid,
-) where {FT <: Real}
+) where {FT}
     R_v = TD.Parameters.R_v(tps)
     L = TD.latent_heat_vapor(tps, T)
     p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
@@ -46,11 +44,11 @@ function G_func(
            (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
 end
 function G_func(
-    (; K_therm, D_vapor)::CT.AirProperties,
+    (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TPS,
     T::FT,
     ::TD.Ice,
-) where {FT <: Real}
+) where {FT}
     R_v = TD.Parameters.R_v(tps)
     L = TD.latent_heat_sublim(tps, T)
     p_vs = TD.saturation_vapor_pressure(tps, T, TD.Ice())
@@ -75,7 +73,7 @@ Returns the value of the logistic function for smooth transitioning at threshold
 a normalized curve changing from 0 to 1 while x varies from 0 to Inf (for positive k). For
 x < 0 the value at x = 0 (zero) is returned. For x_0 = 0 H(x) is returned.
 """
-function logistic_function(x::FT, x_0::FT, k::FT) where {FT <: AbstractFloat}
+function logistic_function(x::FT, x_0::FT, k::FT) where {FT}
 
     @assert k > 0
     @assert x_0 >= 0
@@ -101,11 +99,7 @@ Returns the value of the indefinite integral of the logistic function, for smoot
 of piecewise linear profiles at thresholds. This curve smoothly transition from y = 0
 for 0 < x < x_0 to y = x - x_0 for x_0 < x.
 """
-function logistic_function_integral(
-    x::FT,
-    x_0::FT,
-    k::FT,
-) where {FT <: AbstractFloat}
+function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT}
     @assert k > 0
     @assert x_0 >= 0
     x = max(0, x)
@@ -148,7 +142,7 @@ function H2SO4_soln_saturation_vapor_pressure(
     )::CMP.H2SO4SolutionParameters{FT},
     x::FT,
     T::FT,
-) where {FT <: Real}
+) where {FT}
 
     @assert T < T_max
     @assert T > T_min
@@ -173,7 +167,7 @@ end
 Returns water activity of H2SO4 containing droplet.
 `x` is, for example, 0.1 if droplets are 10 percent sulphuric acid by weight.
 """
-function a_w_xT(H2SO4_prs::APS, tps::TPS, x::FT, T::FT) where {FT <: Real}
+function a_w_xT(H2SO4_prs::HPS, tps::TPS, x::FT, T::FT) where {FT}
 
     p_sol = H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x, T)
     p_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
@@ -191,7 +185,7 @@ end
 Returns water activity of pure water droplet.
 Valid when droplet is in equilibrium with surroundings.
 """
-function a_w_eT(tps::TPS, e::FT, T::FT) where {FT <: Real}
+function a_w_eT(tps::TPS, e::FT, T::FT) where {FT}
     # RH
     return e / TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 end
@@ -204,7 +198,7 @@ end
 
 Returns water activity of ice.
 """
-function a_w_ice(tps::TPS, T::FT) where {FT <: Real}
+function a_w_ice(tps::TPS, T::FT) where {FT}
 
     return TD.saturation_vapor_pressure(tps, T, TD.Ice()) /
            TD.saturation_vapor_pressure(tps, T, TD.Liquid())
@@ -213,7 +207,6 @@ end
 """
     Chen2022_vel_coeffs(precip_type, velo_scheme, ρ)
 
- - precip_type - type for ice, rain or snow (contains free parameters)
  - velo_scheme - type for terminal velocity scheme (contains free parameters)
  - ρ - air density
 
@@ -221,12 +214,11 @@ Returns the coefficients from Appendix B in Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
 """
 function Chen2022_vel_coeffs(
-    ::CT.RainType,
-    velo_scheme::CT.Chen2022Type,
+    velo_scheme::CMP.Chen2022VelTypeRain,
     ρ::FT,
-) where {FT <: Real}
+) where {FT}
 
-    (; ρ0, a1, a2, a3, a3_pow, b1, b2, b3, b_ρ, c1, c2, c3) = velo_scheme.rain
+    (; ρ0, a1, a2, a3, a3_pow, b1, b2, b3, b_ρ, c1, c2, c3) = velo_scheme
 
     q = exp(ρ0 * ρ)
     ai = (a1 * q, a2 * q, a3 * q * ρ^a3_pow)
@@ -240,11 +232,10 @@ function Chen2022_vel_coeffs(
     return (aiu, bi, ciu)
 end
 function Chen2022_vel_coeffs(
-    ::Union{CT.IceType, CT.SnowType},
-    velo_scheme::CT.Chen2022Type,
+    velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
     ρ::FT,
-) where {FT <: AbstractFloat}
-    (; As, Bs, Cs, Es, Fs, Gs) = velo_scheme.snowice
+) where {FT}
+    (; As, Bs, Cs, Es, Fs, Gs) = velo_scheme
 
     ai = (Es * ρ^As, Fs * ρ^As)
     bi = (Bs + ρ * Cs, Bs + ρ * Cs)
@@ -267,7 +258,7 @@ Returns the addends of the bulk fall speed of rain or ice particles
 following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
 We are assuming exponential size distribution and hence μ=0.
 """
-function Chen2022_vel_add(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT <: Real}
+function Chen2022_vel_add(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT}
     μ = 0 # Exponential instead of gamma distribution
     δ = FT(μ + k + 1)
     return a * λ^δ * SF.gamma(b + δ) / (λ + c)^(b + δ) / SF.gamma(δ)

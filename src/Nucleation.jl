@@ -43,7 +43,7 @@ end
  - `nh3_conc` - Concentration of nh3 (1/m³)
  - `negative_ion_conc` - Concentration of negative ions (1/m³)
  - `temp` - Temperature (K)
- - `params` - NamedTuple parameter set obtained from CLIMAParameters. 
+ - `params` - NamedTuple parameter set obtained from CLIMAParameters.
 Calculates the rate of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation for a single timestep (1/m³/s).
 The particle formation rate is parameterized using data from the CLOUD experiment, through neutral and ion-induced channels.
 This is an implementation of Dunne et al 1016 doi:10.1126/science.aaf2649 Appendix 8-10
@@ -97,7 +97,7 @@ end
  - `OH_conc` - Concentration of OH (1/m³)
  - `temp` - Temperature (K)
  - `condensation_sink` - Condensation sink (1/s)
- - `params`  - NamedTuple parameter set obtained from CLIMAParameters. 
+ - `params`  - NamedTuple parameter set obtained from CLIMAParameters.
 
 Returns nucleation rate of pure biogenic particles (1/m³/s)
 The parameterization is an implementation of Kirkby at al 2016 doi.org/10.1038/nature17953
@@ -161,7 +161,7 @@ end
 - `OH_conc` - Concentration of OH (1/m³)
 - `temp` - Temperature (K)
 - `condensation_sink` - Condensation sink (1/s)
-- `params` - NamedTuple parameter set obtained from CLIMAParameters. 
+- `params` - NamedTuple parameter set obtained from CLIMAParameters.
 
 Returns nucleation rate of sulfuric acid and oxidized organic molecules (1/m³/s).
 This is an implementation of Riccobono et al 2014 (https://doi.org/10.1126/science.1243527)

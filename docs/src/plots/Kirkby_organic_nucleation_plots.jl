@@ -1,12 +1,11 @@
 using Plots
 
 import CLIMAParameters as CP
-import CloudMicrophysics as CM
-import CloudMicrophysics.Parameters.OrganicNucleationParameters
+import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Nucleation as Nucleation
 
 FT = Float64
-params = OrganicNucleationParameters(FT)
+params = CMP.OrganicNucleationParameters(FT)
 
 HOM_concentrations = 10 .^ (6:0.125:8.7)
 

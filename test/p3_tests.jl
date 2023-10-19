@@ -3,15 +3,11 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
-
 @info "P3 Scheme Tests"
 
 function test_p3_thresholds(FT)
 
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-    p3 = CMP.CloudMicrophysicsParametersP3(FT)
+    p3 = CMP.ParametersP3(FT)
 
     TT.@testset "thresholds (nonlinear solver function)" begin
 

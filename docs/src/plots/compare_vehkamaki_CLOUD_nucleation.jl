@@ -2,11 +2,11 @@ using Plots
 
 import CLIMAParameters as CP
 import CloudMicrophysics as CM
-import CloudMicrophysics.Parameters.H2S04NucleationParameters
+import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Nucleation as Nucleation
 
 FT = Float64
-params = H2S04NucleationParameters(FT)
+params = CMP.H2S04NucleationParameters(FT)
 
 """
     vehkamaki_nucleation_timestep(rh, temp, so4)
@@ -16,7 +16,7 @@ params = H2S04NucleationParameters(FT)
  - `so4` - Total gas phase concentration of sulfuric acid (m⁻³)
 
 Calculates the rate of binary H2SO4-H2O nucleation for a single timestep under the given conditions.
-The parameterization is valid for the temperature range 230.15–300.15 K, 
+The parameterization is valid for the temperature range 230.15–300.15 K,
 relative humidities 0.01–100% and total sulfuric acid concentrations 1e10-1e17 m⁻³.
 
 All newly formed particles will be placed into the Aitken mode.

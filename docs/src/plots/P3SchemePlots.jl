@@ -6,11 +6,8 @@ import CloudMicrophysics.P3Scheme as P3
 
 FT = Float64
 
-const PSP3 = CMP.CloudMicrophysicsParametersP3
-include(joinpath("..", "..", "test", "create_parameters.jl"))
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-prs = cloud_microphysics_parameters(toml_dict)
-p3 = CMP.CloudMicrophysicsParametersP3(prs)
+const PSP3 = CMP.ParametersP3
+p3 = CMP.ParametersP3(FT)
 
 """
     mass_(p3, D, ρ, F_r)

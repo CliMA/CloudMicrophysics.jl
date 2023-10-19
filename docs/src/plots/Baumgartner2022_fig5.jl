@@ -1,20 +1,15 @@
 import RootSolvers as RS
 import CairoMakie as MK
 
-import Thermodynamics as TD
 import CloudMicrophysics as CM
+import Thermodynamics as TD
 import CLIMAParameters as CP
 
-const CMT = CM.CommonTypes
 const CMO = CM.Common
 const CMP = CM.Parameters
 
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
-# Boiler plate code to have access to model parameters and constants
 FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-cmp = cloud_microphysics_parameters(toml_dict)
-thp = CMP.thermodynamics_params(cmp)
+tps = CMP.ThermodynamicsParameters(FT)
 H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
 # Baumgartner at al 2022 Figure 5
@@ -26,9 +21,9 @@ BG2022_fig5_aw = [0.7930, 0.8129, 0.8416, 0.8679, 0.89781, 0.928486, 0.95039]
 
 T_range = range(190, stop = 234, length = 100)
 # sat vap pressure over pure liq water using TD package
-p_sat_liq = [TD.saturation_vapor_pressure(thp, T, TD.Liquid()) for T in T_range]
+p_sat_liq = [TD.saturation_vapor_pressure(tps, T, TD.Liquid()) for T in T_range]
 # sat vap pressure over ice using TD package
-p_sat_ice = [TD.saturation_vapor_pressure(thp, T, TD.Ice()) for T in T_range]
+p_sat_ice = [TD.saturation_vapor_pressure(tps, T, TD.Ice()) for T in T_range]
 a_w_ice = p_sat_ice ./ p_sat_liq
 
 radius = 1.0e-4                             # cm

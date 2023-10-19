@@ -1,13 +1,15 @@
+export AerosolActivationParameters
+
 """
     AerosolActivationParameters{FT}
 
-Parameters for aerosol activation
+Parameters for Abdul-Razzak and Ghan 2000 aerosol activation scheme
+DOI: 10.1029/1999JD901161
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AerosolActivationParameters{FT} <:
-       AbstractAerosolActivationParameters{FT}
+struct AerosolActivationParameters{FT} <: ParametersType{FT}
     "molar mass of water [kg/mol]"
     M_w::FT
     "gas constant [J/mol/K]"
@@ -20,8 +22,10 @@ struct AerosolActivationParameters{FT} <:
     g::FT
 end
 
-function AerosolActivationParameters(::Type{FT}) where {FT}
-    toml_dict = CP.create_toml_dict(FT)
+function AerosolActivationParameters(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
     (; data) = toml_dict
     return AerosolActivationParameters(
         FT(data["molar_mass_water"]["value"]),

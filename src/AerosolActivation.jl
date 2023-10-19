@@ -12,16 +12,11 @@ module AerosolActivation
 import SpecialFunctions as SF
 
 import Thermodynamics as TD
+import Thermodynamics.Parameters as TDP
 
-import ..CommonTypes as CT
 import ..Common as CO
 import ..AerosolModel as AM
 import ..Parameters as CMP
-
-const AAP = CMP.AbstractAerosolActivationParameters
-#const AAD = CT.AbstractAerosolDistribution
-const AIP = CT.AirProperties
-const TPS = TD.Parameters.ThermodynamicsParameters
 
 export mean_hygroscopicity_parameter,
     max_supersaturation,
@@ -38,7 +33,10 @@ export mean_hygroscopicity_parameter,
 
 Returns a curvature coefficient.
 """
-function coeff_of_curvature(ap::AAP, T::FT) where {FT <: Real}
+function coeff_of_curvature(
+    ap::CMP.AerosolActivationParameters,
+    T::FT,
+) where {FT}
     return FT(2) * ap.σ * ap.M_w / ap.ρ_w / ap.R / T
 end
 
@@ -56,7 +54,7 @@ or volume weighted kappa parameters (Petters and Kreidenweis 2007).
 Implemented via a dispatch based on aerosol distribution mode type.
 """
 function mean_hygroscopicity_parameter(
-    ap::AAP,
+    ap::CMP.AerosolActivationParameters,
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_B}
     return ntuple(Val(AM.n_modes(ad))) do i
@@ -81,7 +79,7 @@ function mean_hygroscopicity_parameter(
     end
 end
 function mean_hygroscopicity_parameter(
-    ap::AAP,
+    ap::CMP.AerosolActivationParameters,
     ad::AM.AerosolDistribution{NTuple{N, T}},
 ) where {N, T <: AM.Mode_κ}
 
@@ -89,11 +87,11 @@ function mean_hygroscopicity_parameter(
         FT = eltype(ap)
         mode_i = ad.Modes[i]
 
-        _result = FT(0)
+        result = FT(0)
         @inbounds for j in 1:(AM.n_components(mode_i))
-            _result += mode_i.vol_mix_ratio[j] * mode_i.kappa[j]
+            result += mode_i.vol_mix_ratio[j] * mode_i.kappa[j]
         end
-        _result
+        result
     end
 end
 
@@ -108,10 +106,10 @@ Returns a tuple of critical supersaturations
 (one tuple element for each aerosol size distribution mode).
 """
 function critical_supersaturation(
-    ap::AAP,
-    ad::CT.AbstractAerosolDistribution,
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
     T::FT,
-) where {FT <: Real}
+) where {FT}
     A::FT = coeff_of_curvature(ap, T)
     hygro = mean_hygroscopicity_parameter(ap, ad)
 
@@ -135,15 +133,15 @@ end
 Returns the maximum supersaturation.
 """
 function max_supersaturation(
-    ap::AAP,
-    ad::CT.AbstractAerosolDistribution,
-    aip::AIP,
-    tps::TPS,
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT}
     ϵ::FT = 1 / TD.Parameters.molmass_ratio(tps)
     R_m::FT = TD.gas_constant_air(tps, q)
     cp_m::FT = TD.cp_m(tps, q)
@@ -195,15 +193,15 @@ Returns the number of activated aerosol particles
 in each aerosol size distribution mode.
 """
 function N_activated_per_mode(
-    ap::AAP,
-    ad::CT.AbstractAerosolDistribution,
-    aip::AIP,
-    tps::TPS,
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT}
     smax::FT = max_supersaturation(ap, ad, aip, tps, T, p, w, q)
     sm = critical_supersaturation(ap, ad, T)
 
@@ -232,15 +230,15 @@ Returns the mass of activated aerosol particles
 per mode of the aerosol size distribution.
 """
 function M_activated_per_mode(
-    ap::AAP,
-    ad::CT.AbstractAerosolDistribution,
-    aip::AIP,
-    tps::TPS,
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT}
     smax::FT = max_supersaturation(ap, ad, aip, tps, T, p, w, q)
     sm = critical_supersaturation(ap, ad, T)
 
@@ -275,15 +273,15 @@ end
 Returns the total number of activated aerosol particles.
 """
 function total_N_activated(
-    ap::AAP,
-    ad::CT.AbstractAerosolDistribution,
-    aip::AIP,
-    tps::TPS,
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT}
     return sum(N_activated_per_mode(ap, ad, aip, tps, T, p, w, q))
 end
 
@@ -302,15 +300,15 @@ end
 Returns the total mass of activated aerosol particles.
 """
 function total_M_activated(
-    ap::AAP,
-    ad::CT.AbstractAerosolDistribution,
-    aip::AIP,
-    tps::TPS,
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
     T::FT,
     p::FT,
     w::FT,
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
+) where {FT}
     return sum(M_activated_per_mode(ap, ad, aip, tps, T, p, w, q))
 end
 

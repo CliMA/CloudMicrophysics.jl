@@ -1,12 +1,7 @@
 module PrecipitationSusceptibility
 
 import ..Microphysics2M as CM2
-
-import ..CommonTypes as CT
-
 import ..Parameters as CMP
-
-const APS = CMP.AbstractCloudMicrophysicsParameters
 
 using ForwardDiff
 
@@ -28,7 +23,6 @@ end
 """
     precipitation_susceptibility_autoconversion(param_set, scheme, q_liq, q_rai, ρ, N_liq)
 
-- `param_set` - abstract set with Earth parameters
 - `scheme` - type for 2-moment rain autoconversion parameterization
 - `q_liq` - cloud water specific humidity
 - `q_rai` - rain water specific humidity
@@ -40,14 +34,14 @@ object, using automatic differentiation.
 Works for any 2-moment scheme, as long as autoconversion is defined for it.
 """
 function precipitation_susceptibility_autoconversion(
-    scheme::CT.AutoconversionSB2006{FT},
+    scheme::CMP.SB2006{FT},
     q_liq::FT,
     q_rai::FT,
     ρ::FT,
     N_liq::FT,
 ) where {FT}
     grad = ForwardDiff.gradient(
-        x -> log(CM2.autoconversion(scheme, exp.(x)...).dq_rai_dt),
+        x -> log(CM2.autoconversion(scheme.acnv, exp.(x)...).dq_rai_dt),
         log.(abs.([q_liq, q_rai, ρ, N_liq])),
     )
     return precip_susceptibility_rates(
@@ -61,7 +55,6 @@ end
 """
     precipitation_susceptibility_accretion(param_set, scheme, q_liq, q_rai, ρ, N_liq)
 
-- `param_set` - abstract set with Earth parameters
 - `scheme` - type for 2-moment rain autoconversion parameterization
 - `q_liq` - cloud water specific humidity
 - `q_rai` - rain water specific humidity
@@ -73,12 +66,12 @@ object, using automatic differentiation.
 Works for any 2-moment scheme, as long as accretion is defined for it.
 """
 function precipitation_susceptibility_accretion(
-    scheme::CT.AccretionSB2006{FT},
+    scheme::CMP.SB2006{FT},
     q_liq::FT,
     q_rai::FT,
     ρ::FT,
     N_liq::FT,
-) where {FT <: Real}
+) where {FT}
 
     grad = ForwardDiff.gradient(
         x -> log(CM2.accretion(scheme, exp.(x)...).dq_rai_dt),

@@ -1,18 +1,12 @@
 using CairoMakie
 CairoMakie.activate!(type = "svg")
 
-import CloudMicrophysics as CM
-import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.PrecipitationSusceptibility as CMPS
-
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 const FT = Float64
 
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-
-autoconversion_scheme = CMT.AutoconversionSB2006(FT)
-accretion_scheme = CMT.AccretionSB2006(FT)
+scheme = CMP.SB2006(FT)
 
 q_tot = FT(0.5e-3)
 
@@ -27,7 +21,7 @@ N_liq = FT(1e8)
 
 aut_rates =
     CMPS.precipitation_susceptibility_autoconversion.(
-        Ref(autoconversion_scheme),
+        Ref(scheme),
         q_liq,
         q_rai,
         Ref(ρ),
@@ -36,7 +30,7 @@ aut_rates =
 
 acc_rates =
     CMPS.precipitation_susceptibility_accretion.(
-        Ref(accretion_scheme),
+        Ref(scheme),
         q_liq,
         q_rai,
         Ref(ρ),

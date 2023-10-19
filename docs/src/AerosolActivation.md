@@ -270,16 +270,11 @@ const PL = Plots
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CMP = CloudMicrophysics.Parameters
-const CMT = CloudMicrophysics.CommonTypes
-const CP =  CLIMAParameters
 const TD = Thermodynamics
 
-include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
 FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-const param_set = cloud_microphysics_parameters(toml_dict)
-tps = CMP.thermodynamics_params(param_set)
-aip = CMT.AirProperties(FT)
+tps = CMP.ThermodynamicsParameters(FT)
+aip = CMP.AirProperties(FT)
 ap = CMP.AerosolActivationParameters(FT)
 
 # Atmospheric conditions
@@ -302,7 +297,7 @@ stdev = 2.0         # -
 N_1 = 100.0 * 1e6   # 1/m3
 
 # Sulfate - universal parameters
-sulfate = CMP.SulfateParameters(FT)
+sulfate = CMP.Sulfate(FT)
 
 n_components_1 = 1
 mass_fractions_1 = (1.0,)

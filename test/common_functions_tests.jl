@@ -2,11 +2,7 @@ import Test as TT
 
 import CloudMicrophysics as CM
 import CloudMicrophysics.Common as CO
-
-import Thermodynamics as TD
-import CLIMAParameters as CP
-
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
+import CloudMicrophysics.Parameters as CMP
 
 @info "Common Functions Tests"
 
@@ -88,10 +84,8 @@ function test_H2SO4_soln_saturation_vapor_pressure(FT)
 end
 
 function test_a_w_xT(FT)
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-    tps = CMP.thermodynamics_params(prs)
 
+    tps = CMP.ThermodynamicsParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     TT.@testset "a_w_xT" begin
@@ -116,9 +110,8 @@ function test_a_w_xT(FT)
 end
 
 function test_a_w_eT(FT)
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-    tps = CMP.thermodynamics_params(prs)
+
+    tps = CMP.ThermodynamicsParameters(FT)
 
     TT.@testset "a_w_eT" begin
 
@@ -138,9 +131,8 @@ function test_a_w_eT(FT)
 end
 
 function test_a_w_ice(FT)
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-    tps = CMP.thermodynamics_params(prs)
+
+    tps = CMP.ThermodynamicsParameters(FT)
 
     TT.@testset "a_w_ice" begin
 

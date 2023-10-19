@@ -14,7 +14,7 @@ import RootSolvers as RS
 import CLIMAParameters as CP
 import ..Parameters as CMP
 
-const PSP3 = CMP.CloudMicrophysicsParametersP3
+const PSP3 = CMP.ParametersP3
 
 export thresholds
 

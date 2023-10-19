@@ -8,10 +8,7 @@ module MicrophysicsNonEq
 
 import Thermodynamics as TD
 
-import ..CommonTypes as CT
 import ..Parameters as CMP
-
-const APS = CMP.AbstractCloudMicrophysicsParameters
 
 export τ_relax
 export conv_q_vap_to_q_liq_ice
@@ -26,8 +23,8 @@ Returns the relaxation timescale for condensation and evaporation of
 cloud liquid water or the relaxation timescale for sublimation and
 deposition of cloud ice.
 """
-τ_relax(p::CT.LiquidType) = p.τ_relax
-τ_relax(p::CT.IceType) = p.τ_relax
+τ_relax(p::CMP.CloudLiquid) = p.τ_relax
+τ_relax(p::CMP.CloudIce) = p.τ_relax
 
 """
     conv_q_vap_to_q_liq_ice(liquid, q_sat, q)
@@ -43,18 +40,18 @@ The tendency is obtained assuming a relaxation to equilibrium with
 a constant timescale.
 """
 function conv_q_vap_to_q_liq_ice(
-    liquid::CT.LiquidType,
+    (; τ_relax)::CMP.CloudLiquid{FT},
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
-    return (q_sat.liq - q.liq) / liquid.τ_relax
+) where {FT}
+    return (q_sat.liq - q.liq) / τ_relax
 end
 function conv_q_vap_to_q_liq_ice(
-    ice::CT.IceType,
+    (; τ_relax)::CMP.CloudIce{FT},
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
-) where {FT <: Real}
-    return (q_sat.ice - q.ice) / ice.τ_relax
+) where {FT}
+    return (q_sat.ice - q.ice) / τ_relax
 end
 
 end #module MicrophysicsNonEq.jl

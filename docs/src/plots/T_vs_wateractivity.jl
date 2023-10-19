@@ -4,16 +4,11 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
-const CMT = CM.CommonTypes
 const CMO = CM.Common
 const CMP = CM.Parameters
 
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
-# Boiler plate code to have access to model parameters and constants
 FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-prs = cloud_microphysics_parameters(toml_dict)
-tps = CMP.thermodynamics_params(prs)
+tps = CMP.ThermodynamicsParameters(FT)
 H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
 T_range = range(190, stop = 234, length = 100)
