@@ -165,7 +165,7 @@ For a gamma distribution of droplets ``n(r) = A \; r \; exp(-\lambda r)``,
 ``\bar{r} = \frac{2}{\lambda}``
 where ``\lambda = \left(\frac{32 \pi N_{tot} \rho_l}{q_l \rho_a}\right)^{1/3}``.
 
-## Deposition on dust particles
+## Deposition nucleation on dust particles
 
 Similarly, for a case of a spherical ice particle growing through water vapor deposition
 ```math
@@ -197,7 +197,7 @@ where:
 - ``N_{act}`` is the number of activated ice particles.
 
 ``N_{act}`` can be computed for example from
-  [activated fraction](https://clima.github.io/CloudMicrophysics.jl/previews/PR103/IceNucleation/#Activated-fraction-for-deposition-freezing-on-dust) ``f_i``
+  [activated fraction](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/#Activated-fraction-for-deposition-freezing-on-dust) ``f_i``
 ```math
 \begin{equation}
   N_{act} = N_{aer} f_i
@@ -212,17 +212,35 @@ Following the water activity based immersion freezing model (ABIFM), the ABIFM d
   per second via immersion freezing can then be calculating using
 ```math
 \begin{equation}
-  P_{ice} = [\frac{dN_i}{dt}]_{immer} = J_{immer}A(N_{liq})
+  P_{ice} = \left[ \frac{dN_i}{dt} \right]_{immer} = J_{immer}A(N_{liq})
   \label{eq:ABIFM_P_ice}
 \end{equation}
 ```
 where ``N_{liq}`` is total number of ice nuclei containing droplets and 
   ``A`` is surface area of those droplets.
 
+## Homogeneous Freezing
+Homogeneous freezing follows the water-activity based model described in the
+  [Ice Nucleation](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/) section which gives a nucleation rate coefficient of
+  units ``cm^{-3}s^{-1}``.
+The ice production rate from homogeneous freezing can then be determined:
+```math
+\begin{equation}
+  P_{ice} = \left[ \frac{dN_i}{dt} \right]_{hom} = J_{hom}V(N_{liq})
+  \label{eq:hom_P_ice}
+\end{equation}
+```
+where ``N_{liq}`` is total number of ice nuclei containing droplets and 
+  ``V`` is the volume of those droplets.
+
 ## Example figures
 
-Here we show example simulation results from the adiabatic parcel
-  model with deposition freezing on dust.
+Here we show various example simulation results from the adiabatic parcel
+  model. This includes examples with deposition nucleation on dust,
+  liquid processes only, immersion freezing with condensation and deposition growth,
+  and homogeneous freezing with deposition growth.
+  
+We start with deposition freezing on dust.
 The model is run three times for 30 minutes simulation time,
   (shown by three different colors on the plot).
 Between each run the water vapor specific humidity is changed,
@@ -254,3 +272,16 @@ The plots below are the results of the adiabatic parcel model
 include("../../parcel/Immersion_Freezing.jl")
 ```
 ![](immersion_freezing.svg)
+
+The following plots show the parcel model running with homogeneous freezing and 
+  depositional growth assuming a lognormal distribution of aerosols. 
+  It is compared against [Jensen2022](@cite). Note that running with the initial
+  conditions described in [Jensen2022](@cite) results in a ``\Delta a_w`` smaller
+  than the minimum valid value for the ``J_{hom}`` parameterization. We have forced
+  the ``\Delta a_w`` to be equal to the minimum valid value in this example only
+  for demonstrative purposes.
+
+```@example
+include("../../parcel/Jensen_et_al_2022.jl")
+```
+![](Jensen_et_al_2022.svg)
