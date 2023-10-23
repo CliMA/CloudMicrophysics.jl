@@ -1,25 +1,18 @@
 import Test as TT
 
 import CloudMicrophysics as CM
-import CLIMAParameters as CP
 import Thermodynamics as TD
 
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.CommonTypes as CMT
-
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 @info "Aerosol Activation Tests"
 
 function test_aerosol_activation(FT)
 
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-    tps = CMP.thermodynamics_params(prs)
-
-    aip = CMT.AirProperties(FT)
+    tps = CMP.ThermodynamicsParameters(FT)
+    aip = CMP.AirProperties(FT)
     ap = CMP.AerosolActivationParameters(FT)
 
     # Atmospheric conditions
@@ -52,9 +45,9 @@ function test_aerosol_activation(FT)
 
     # TODO - what κ values we should use?
     # Sea Salt - universal parameters
-    seasalt = CMP.SeasaltParameters(FT)
+    seasalt = CMP.Seasalt(FT)
     # Sulfate - universal parameters
-    sulfate = CMP.SulfateParameters(FT)
+    sulfate = CMP.Sulfate(FT)
 
     # Aerosol size distribution modes
     accum_seasalt_B = AM.Mode_B(

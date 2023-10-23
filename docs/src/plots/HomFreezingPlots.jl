@@ -8,13 +8,10 @@ const CMO = CM.Common
 const CMI = CM.HomIceNucleation
 const CMP = CM.Parameters
 
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-const prs = cloud_microphysics_parameters(toml_dict)
-const tps = CM.Parameters.thermodynamics_params(prs)
-const H2SO4_prs = CM.Parameters.H2SO4SolutionParameters(FT)
-const ip = CM.Parameters.IceNucleationParameters(FT)
+const tps = CMP.ThermodynamicsParameters(FT)
+const H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
+const ip = CMP.IceNucleationParameters(FT)
 
 # Initializing
 T_range = range(229.0, stop = 234.5, length = 50)  # air temperature
@@ -34,16 +31,16 @@ x_sulph = Vector{FT}([0.03, 0.04, 0.06])           # wt% sulphuric acid in dropl
     T in T_range
 ]
 
-J1 = @. CMI.homogeneous_J(ip, Δa1)
-J2 = @. CMI.homogeneous_J(ip, Δa2)
-J3 = @. CMI.homogeneous_J(ip, Δa3)
+J1 = @. CMI.homogeneous_J(ip.homogeneous, Δa1)
+J2 = @. CMI.homogeneous_J(ip.homogeneous, Δa2)
+J3 = @. CMI.homogeneous_J(ip.homogeneous, Δa3)
 
 log10J_1 = @. log10(J1)
 log10J_2 = @. log10(J2)
 log10J_3 = @. log10(J3)
 
 Δa_range = range(0.27, stop = 0.32, length = 50)
-J_given_Δa = @. CMI.homogeneous_J(ip, Δa_range)
+J_given_Δa = @. CMI.homogeneous_J(ip.homogeneous, Δa_range)
 
 #! format: off
 # Spichtinger et al 2023

@@ -1,12 +1,11 @@
 using Plots
 
 import CLIMAParameters as CP
-import CloudMicrophysics as CM
 import CloudMicrophysics.Nucleation as Nucleation
-import CloudMicrophysics.Parameters.MixedNucleationParameters
+import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
-params = MixedNucleationParameters(FT)
+params = CMP.MixedNucleationParameters(FT)
 
 # Units: 1/m³
 bioOxOrg_concentrations = 10 .^ (5.8:0.125:8.5)

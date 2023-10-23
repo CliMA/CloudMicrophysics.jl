@@ -35,21 +35,17 @@ import CloudMicrophysics
 import CLIMAParameters
 
 const PL = Plots
-const CMT = CloudMicrophysics.CommonTypes
 const CM1 = CloudMicrophysics.Microphysics1M
 const CM2 = CloudMicrophysics.Microphysics2M
 const CP = CLIMAParameters
+const CMP = CloudMicrophysics.Parameters
 
-include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
 FT = Float64
 
-const rain = CMT.RainType(FT)
-
-param_set=[]
-rain_acnv_1m = []
-acnv_B1994 = []
-acnv_TC1980 = []
-acnv_LD2004 = []
+rain = []
+B1994 = []
+TC1980 = []
+LD2004 = []
 
 k_thrshld_stpnss_values = [5.0, 2.0, 12.0]
 for i in 1:3
@@ -62,32 +58,28 @@ for i in 1:3
     end
     toml_dict = CP.create_toml_dict(FT; override_file, dict_type="alias")
     isfile(override_file) && rm(override_file; force=true)
-    push!(param_set, cloud_microphysics_parameters(toml_dict))
-    push!(rain_acnv_1m, CMT.Autoconversion1M(FT, rain, toml_dict))
-    push!(acnv_B1994, CMT.AutoconversionB1994(FT, toml_dict))
-    push!(acnv_TC1980, CMT.AutoconversionTC1980(FT, toml_dict))
-    push!(acnv_LD2004, CMT.AutoconversionLD2004(FT, toml_dict))
-end
 
-const B1994  = CMT.B1994Type()
-const TC1980 = CMT.TC1980Type()
-const LD2004 = CMT.LD2004Type()
+    push!(rain, CMP.Rain(FT, toml_dict))
+    push!(B1994, CMP.B1994(FT, toml_dict))
+    push!(TC1980, CMP.TC1980(FT, toml_dict))
+    push!(LD2004, CMP.LD2004(FT, toml_dict))
+end
 
 # example values
 q_liq_range  = range(1e-8, stop=1.5e-3, length=1000)
 N_d_range = range(1e7, stop=1e9, length=1000)
 ρ_air = 1.0 # kg m^-3
 
-q_liq_K1969 = [CM1.conv_q_liq_to_q_rai(rain_acnv_1m[1], q_liq) for q_liq in q_liq_range]
-q_liq_K1969_s = [CM1.conv_q_liq_to_q_rai(rain_acnv_1m[1], q_liq, smooth_transition = true) for q_liq in q_liq_range]
+q_liq_K1969 = [CM1.conv_q_liq_to_q_rai(rain[1].acnv1M, q_liq) for q_liq in q_liq_range]
+q_liq_K1969_s = [CM1.conv_q_liq_to_q_rai(rain[1].acnv1M, q_liq, smooth_transition = true) for q_liq in q_liq_range]
 
-q_liq_TC1980 = [CM2.conv_q_liq_to_q_rai(acnv_TC1980[2], q_liq, ρ_air) for q_liq in q_liq_range]
-q_liq_TC1980_s = [CM2.conv_q_liq_to_q_rai(acnv_TC1980[2], q_liq, ρ_air, smooth_transition = true) for q_liq in q_liq_range]
-q_liq_LD2004 = [CM2.conv_q_liq_to_q_rai(acnv_LD2004[2], q_liq, ρ_air) for q_liq in q_liq_range]
-q_liq_LD2004_s = [CM2.conv_q_liq_to_q_rai(acnv_LD2004[2], q_liq, ρ_air, smooth_transition = true) for q_liq in q_liq_range]
+q_liq_TC1980 = [CM2.conv_q_liq_to_q_rai(TC1980[2], q_liq, ρ_air) for q_liq in q_liq_range]
+q_liq_TC1980_s = [CM2.conv_q_liq_to_q_rai(TC1980[2], q_liq, ρ_air, smooth_transition = true) for q_liq in q_liq_range]
+q_liq_LD2004 = [CM2.conv_q_liq_to_q_rai(LD2004[2], q_liq, ρ_air) for q_liq in q_liq_range]
+q_liq_LD2004_s = [CM2.conv_q_liq_to_q_rai(LD2004[2], q_liq, ρ_air, smooth_transition = true) for q_liq in q_liq_range]
 
-N_d_B1994 = [CM2.conv_q_liq_to_q_rai(acnv_B1994[3], 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
-N_d_B1994_s = [CM2.conv_q_liq_to_q_rai(acnv_B1994[3], 5e-4, ρ_air, N_d = N_d, smooth_transition = true) for N_d in N_d_range]
+N_d_B1994 = [CM2.conv_q_liq_to_q_rai(B1994[3], 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_B1994_s = [CM2.conv_q_liq_to_q_rai(B1994[3], 5e-4, ρ_air, N_d = N_d, smooth_transition = true) for N_d in N_d_range]
 
 
 PL.plot(q_liq_range * 1e3, q_liq_K1969,

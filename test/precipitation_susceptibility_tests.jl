@@ -1,15 +1,7 @@
 import Test as TT
 
-import CloudMicrophysics as CM
-import CLIMAParameters as CP
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.CommonTypes as CMT
-import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.PrecipitationSusceptibility as CMPS
-
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
-
-const APS = CMP.AbstractCloudMicrophysicsParameters
 
 FT = Float64
 
@@ -19,7 +11,7 @@ Logarithmic derivative of universal function for autoconversion as described
     from SB2006.
 """
 d_ln_phi_au_d_ln_τ(
-    (; A, a, b)::CMT.AutoconversionSB2006{FT},
+    (; A, a, b)::CMP.AcnvSB2006{FT},
     τ::FT,
 ) where {FT <: AbstractFloat} =
     -(
@@ -34,17 +26,13 @@ Logarithmic derivative of universal function for accretion as described
     in Glassmeier & Lohmann
 """
 d_ln_phi_acc_d_ln_τ(
-    (; τ0, c)::CMT.AccretionSB2006,
+    (; τ0, c)::CMP.AccrSB2006{FT},
     τ::FT,
 ) where {FT <: AbstractFloat} = (c * τ0) / (τ + τ0)
 
 
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-prs = cloud_microphysics_parameters(toml_dict)
-
 TT.@testset "precipitation_susceptibility_SB2006" begin
-    acnv_sb2006 = CMT.AutoconversionSB2006(FT)
-    accretion_sb2006 = CMT.AccretionSB2006(FT)
+    sb2006 = CMP.SB2006(FT)
 
     q_liq = FT(0.5e-3)
     N_liq = FT(1e8)
@@ -54,7 +42,7 @@ TT.@testset "precipitation_susceptibility_SB2006" begin
     τ = FT(1) - q_liq / (q_liq + q_rai)
 
     aut_rates = CMPS.precipitation_susceptibility_autoconversion(
-        acnv_sb2006,
+        sb2006,
         q_liq,
         q_rai,
         ρ,
@@ -62,7 +50,7 @@ TT.@testset "precipitation_susceptibility_SB2006" begin
     )
 
     acc_rates = CMPS.precipitation_susceptibility_accretion(
-        accretion_sb2006,
+        sb2006,
         q_liq,
         q_rai,
         ρ,
@@ -71,12 +59,12 @@ TT.@testset "precipitation_susceptibility_SB2006" begin
 
     TT.@test aut_rates.d_ln_pp_d_ln_N_liq ≈ -2
     TT.@test aut_rates.d_ln_pp_d_ln_q_liq ≈
-             4 - (1 - τ) * d_ln_phi_au_d_ln_τ(acnv_sb2006, τ)
+             4 - (1 - τ) * d_ln_phi_au_d_ln_τ(sb2006.acnv, τ)
     TT.@test aut_rates.d_ln_pp_d_ln_q_rai ≈
-             (1 - τ) * d_ln_phi_au_d_ln_τ(acnv_sb2006, τ)
+             (1 - τ) * d_ln_phi_au_d_ln_τ(sb2006.acnv, τ)
 
     TT.@test acc_rates.d_ln_pp_d_ln_q_liq ≈
-             1 - (1 - τ) * d_ln_phi_acc_d_ln_τ(accretion_sb2006, τ)
+             1 - (1 - τ) * d_ln_phi_acc_d_ln_τ(sb2006.accr, τ)
     TT.@test acc_rates.d_ln_pp_d_ln_q_rai ≈
-             1 + (1 - τ) * d_ln_phi_acc_d_ln_τ(accretion_sb2006, τ)
+             1 + (1 - τ) * d_ln_phi_acc_d_ln_τ(sb2006.accr, τ)
 end

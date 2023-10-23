@@ -9,15 +9,12 @@ const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
 const CP = CLIMAParameters
 const CMP = CloudMicrophysics.Parameters
-const CMT = CloudMicrophysics.CommonTypes
 const TD = Thermodynamics
 
-include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
 FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-const param_set = cloud_microphysics_parameters(toml_dict)
-tps = CMP.thermodynamics_params(param_set)
-aip = CMT.AirProperties(FT)
+
+tps = CMP.ThermodynamicsParameters(FT)
+aip = CMP.AirProperties(FT)
 ap = CMP.AerosolActivationParameters(FT)
 
 include("plots/ARGdata.jl")
@@ -35,7 +32,7 @@ q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
 q = TD.PhasePartition(q_vs, 0.0, 0.0)
 
 # Sulfate
-sulfate = CMP.SulfateParameters(FT)
+sulfate = CMP.Sulfate(FT)
 
 # Insoluble material from ARG2000
 ϵ_insol = 0.0         # solubility of insol

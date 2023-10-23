@@ -1,14 +1,16 @@
+export H2S04NucleationParameters,
+    OrganicNucleationParameters, MixedNucleationParameters
+
 """
     H2S04NucleationParameters{FT}
 
-Parameters for pure sulfuric acid nucleation
+Parameters for pure sulfuric acid nucleation from Dunne et al 1016
+DOI:10.1126/science.aaf2649
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-
-Base.@kwdef struct H2S04NucleationParameters{FT} <:
-                   AbstractCloudMicrophysicsParameters
+Base.@kwdef struct H2S04NucleationParameters{FT} <: ParametersType{FT}
     p_b_n::FT
     p_b_i::FT
     u_b_n::FT
@@ -34,14 +36,13 @@ end
 """
 OrganicNucleationParameters{FT}
 
-Parameters for pure organic nucleation
+Parameters for pure organic nucleation from Kirkby 2016
+DOI: 10.1038/nature17953
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-
-Base.@kwdef struct OrganicNucleationParameters{FT} <:
-                   AbstractCloudMicrophysicsParameters
+Base.@kwdef struct OrganicNucleationParameters{FT} <: ParametersType{FT}
     a_1::FT
     a_2::FT
     a_3::FT
@@ -58,13 +59,13 @@ end
 """
 MixedNucleationParameters{FT}
 
-Parameters for mixed organic and sulfuric acid nucleation
+Parameters for mixed organic and sulfuric acid nucleation from Riccobono et al 2014
+DOI:10.1126/science.1243527
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct MixedNucleationParameters{FT} <:
-                   AbstractCloudMicrophysicsParameters
+Base.@kwdef struct MixedNucleationParameters{FT} <: ParametersType{FT}
     k_H2SO4org::FT
     k_MTOH::FT
     exp_MTOH::FT
@@ -75,8 +76,10 @@ for var in [
     :OrganicNucleationParameters,
     :MixedNucleationParameters,
 ]
-    @eval function $var(::Type{FT}) where {FT}
-        toml_dict = CP.create_toml_dict(FT)
+    @eval function $var(
+        ::Type{FT},
+        toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+    ) where {FT}
         aliases = string.(fieldnames($var))
         pairs = CP.get_parameter_values!(toml_dict, aliases)
         return $var{FT}(; pairs...)

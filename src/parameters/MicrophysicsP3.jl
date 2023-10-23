@@ -1,12 +1,15 @@
-"""
-    CloudMicrophysicsParametersP3{FT}
+export ParametersP3
 
-Parameters for P3 bulk microphysics scheme
+"""
+    ParametersP3{FT}
+
+Parameters for P3 bulk microphysics scheme from
+Morrison and Milbrandt 2015 doi: 10.1175/JAS-D-14-0065.1
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct CloudMicrophysicsParametersP3{FT} <: AbstractCloudMicrophysicsParameters
+struct ParametersP3{FT} <: ParametersType{FT}
     "Coefficient in mass(size) relation [g/μm^β_va]"
     α_va::FT
     "Coefficient in mass(size) relation [-]"
@@ -21,19 +24,12 @@ struct CloudMicrophysicsParametersP3{FT} <: AbstractCloudMicrophysicsParameters
     σ::FT
 end
 
-CloudMicrophysicsParametersP3(param_set) = CloudMicrophysicsParametersP3(
-    param_set.α_va_BF1995,
-    param_set.β_va_BF1995,
-    param_set.ρ_cloud_ice,
-    param_set.ρ_cloud_liq,
-    param_set.γ_M1996,
-    param_set.σ_M1996,
-)
-
-function CloudMicrophysicsParametersP3(::Type{FT}) where {FT}
-    toml_dict = CP.create_toml_dict(FT)
+function ParametersP3(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
     (; data) = toml_dict
-    return CloudMicrophysicsParametersP3(
+    return ParametersP3(
         FT(data["BF1995_mass_coeff_alpha"]["value"]),
         FT(data["BF1995_mass_exponent_beta"]["value"]),
         FT(data["density_ice_water"]["value"]),

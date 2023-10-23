@@ -3,14 +3,9 @@ using KernelAbstractions
 using ClimaComms
 
 # Needed for parameters
-import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import CLIMAParameters as CP
 import Thermodynamics as TD
-import CloudMicrophysics.Parameters.H2S04NucleationParameters
-import CloudMicrophysics.Parameters.MixedNucleationParameters
-import CloudMicrophysics.Parameters.OrganicNucleationParameters
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 # Modules to test
 import CloudMicrophysics.AerosolModel as AM
@@ -18,7 +13,6 @@ import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.HetIceNucleation as CMI_het
 import CloudMicrophysics.HomIceNucleation as CMI_hom
 import CloudMicrophysics.Common as CO
-import CloudMicrophysics.CommonTypes as CMT
 import CloudMicrophysics.Microphysics0M as CM0
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2
@@ -44,7 +38,7 @@ const ArrayType = CuArray
 
 @kernel function aerosol_activation_kernel!(
     ap,
-    air_props,
+    aps,
     tps,
     output::AbstractArray{FT},
     r,
@@ -68,7 +62,7 @@ const ArrayType = CuArray
     # water vapor specific humidity (saturated)
     q = TD.PhasePartition(q_vs)
 
-    args = (air_props, tps, T, p, w, q)
+    args = (aps, tps, T, p, w, q)
 
     @inbounds begin
         mode_B = AM.Mode_B(
@@ -109,7 +103,7 @@ const ArrayType = CuArray
 end
 
 @kernel function test_0_moment_micro_kernel!(
-    prs,
+    p0m,
     output::AbstractArray{FT},
     liquid_frac,
     qc,
@@ -123,12 +117,8 @@ end
         qi = (1 - liquid_frac[i]) * qc[i]
         q = TD.PhasePartition(FT(qt[i]), ql, qi)
 
-        output[1, i] = CM0.remove_precipitation(prs, q)
-
-        _τ_precip = CMP.τ_precip(prs)
-        _qc_0 = CMP.qc_0(prs)
-
-        output[2, i] = -max(0, ql + qi - _qc_0) / _τ_precip
+        output[1, i] = CM0.remove_precipitation(p0m, q)
+        output[2, i] = -max(0, ql + qi - p0m.qc_0) / p0m.τ_precip
     end
 end
 
@@ -138,8 +128,7 @@ end
     ice,
     snow,
     ce,
-    rain_blk1mvel,
-    snow_blk1mvel,
+    blk1mvel,
     output::AbstractArray{FT},
     ρ,
     qt,
@@ -152,28 +141,39 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = CM1.accretion(ce, liquid, rain, ql[i], qr[i], ρ[i])
-        output[2, i] = CM1.accretion(ce, ice, snow, qi[i], qs[i], ρ[i])
-        output[3, i] = CM1.accretion(ce, liquid, snow, ql[i], qs[i], ρ[i])
-        output[4, i] = CM1.accretion(ce, ice, rain, qi[i], qr[i], ρ[i])
-        output[5, i] =
-            CM1.accretion_rain_sink(rain, ice, ce, qi[i], qr[i], ρ[i])
-        output[6, i] = CM1.accretion_snow_rain(
+        output[1, i] =
+            CM1.accretion(liquid, rain, blk1mvel.rain, ce, ql[i], qr[i], ρ[i])
+        output[2, i] =
+            CM1.accretion(ice, snow, blk1mvel.snow, ce, qi[i], qs[i], ρ[i])
+        output[3, i] =
+            CM1.accretion(liquid, snow, blk1mvel.snow, ce, ql[i], qs[i], ρ[i])
+        output[4, i] =
+            CM1.accretion(ice, rain, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
+        output[5, i] = CM1.accretion_rain_sink(
+            rain,
+            ice,
+            blk1mvel.rain,
             ce,
+            qi[i],
+            qr[i],
+            ρ[i],
+        )
+        output[6, i] = CM1.accretion_snow_rain(
             snow,
             rain,
-            snow_blk1mvel,
-            rain_blk1mvel,
+            blk1mvel.snow,
+            blk1mvel.rain,
+            ce,
             qs[i],
             qr[i],
             ρ[i],
         )
         output[7, i] = CM1.accretion_snow_rain(
-            ce,
             rain,
             snow,
-            rain_blk1mvel,
-            snow_blk1mvel,
+            blk1mvel.rain,
+            blk1mvel.snow,
+            ce,
             qr[i],
             qs[i],
             ρ[i],
@@ -183,8 +183,9 @@ end
 
 @kernel function test_1_moment_micro_snow_melt_kernel!(
     snow,
-    air_props,
-    thermo_params,
+    blk1mvel,
+    aps,
+    tps,
     output::AbstractArray{FT},
     ρ,
     T,
@@ -195,17 +196,16 @@ end
 
     @inbounds begin
         output[i] =
-            CM1.snow_melt(snow, air_props, thermo_params, qs[i], ρ[i], T[i])
+            CM1.snow_melt(snow, blk1mvel.snow, aps, tps, qs[i], ρ[i], T[i])
     end
 end
 
 @kernel function test_2_moment_acnv_kernel!(
-    prs,
-    acnvKK2000,
-    acnvB1994,
-    acnvTC1980,
-    acnvLD2004,
-    acnvVarT,
+    KK2000,
+    B1994,
+    TC1980,
+    LD2004,
+    VarTSc,
     output::AbstractArray{FT},
     ql,
     ρ,
@@ -215,23 +215,18 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] =
-            CM2.conv_q_liq_to_q_rai(acnvVarT, ql[i], ρ[i], N_d = Nd[i])
-        output[2, i] =
-            CM2.conv_q_liq_to_q_rai(acnvLD2004, ql[i], ρ[i], N_d = Nd[i])
-        output[3, i] =
-            CM2.conv_q_liq_to_q_rai(acnvTC1980, ql[i], ρ[i], N_d = Nd[i])
-        output[4, i] =
-            CM2.conv_q_liq_to_q_rai(acnvB1994, ql[i], ρ[i], N_d = Nd[i])
-        output[5, i] =
-            CM2.conv_q_liq_to_q_rai(acnvKK2000, ql[i], ρ[i], N_d = Nd[i])
+        output[1, i] = CM2.conv_q_liq_to_q_rai(VarTSc, ql[i], ρ[i], N_d = Nd[i])
+        output[2, i] = CM2.conv_q_liq_to_q_rai(LD2004, ql[i], ρ[i], N_d = Nd[i])
+        output[3, i] = CM2.conv_q_liq_to_q_rai(TC1980, ql[i], ρ[i], N_d = Nd[i])
+        output[4, i] = CM2.conv_q_liq_to_q_rai(B1994, ql[i], ρ[i], N_d = Nd[i])
+        output[5, i] = CM2.conv_q_liq_to_q_rai(KK2000, ql[i], ρ[i], N_d = Nd[i])
     end
 end
 
 @kernel function test_2_moment_accr_kernel!(
-    accKK2000,
-    accB1994,
-    accTC1980,
+    KK2000,
+    B1994,
+    TC1980,
     output::AbstractArray{FT},
     ql,
     qr,
@@ -241,22 +236,17 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = CM2.accretion(accKK2000, ql[i], qr[i], ρ[i])
-        output[2, i] = CM2.accretion(accB1994, ql[i], qr[i], ρ[i])
-        output[3, i] = CM2.accretion(accTC1980, ql[i], qr[i])
+        output[1, i] = CM2.accretion(KK2000, ql[i], qr[i], ρ[i])
+        output[2, i] = CM2.accretion(B1994, ql[i], qr[i], ρ[i])
+        output[3, i] = CM2.accretion(TC1980, ql[i], qr[i])
     end
 end
 
 @kernel function test_2_moment_SB2006_kernel!(
-    rain,
-    air_props,
-    thermo_params,
-    acnvSB2006,
-    accrSB2006,
-    scSB2006,
-    brkSB2006,
-    tvSB2006,
-    evpSB2006,
+    aps,
+    tps,
+    SB2006,
+    SB2006Vel,
     output::AbstractArray{FT},
     qt,
     ql,
@@ -274,7 +264,7 @@ end
 
         output[1, i] =
             CM2.autoconversion_and_liquid_self_collection(
-                acnvSB2006,
+                SB2006,
                 ql[i],
                 qr[i],
                 ρ[i],
@@ -282,7 +272,7 @@ end
             ).au.dq_liq_dt
         output[2, i] =
             CM2.autoconversion_and_liquid_self_collection(
-                acnvSB2006,
+                SB2006,
                 ql[i],
                 qr[i],
                 ρ[i],
@@ -290,7 +280,7 @@ end
             ).au.dN_liq_dt
         output[3, i] =
             CM2.autoconversion_and_liquid_self_collection(
-                acnvSB2006,
+                SB2006,
                 ql[i],
                 qr[i],
                 ρ[i],
@@ -298,7 +288,7 @@ end
             ).au.dq_rai_dt
         output[4, i] =
             CM2.autoconversion_and_liquid_self_collection(
-                acnvSB2006,
+                SB2006,
                 ql[i],
                 qr[i],
                 ρ[i],
@@ -307,67 +297,37 @@ end
 
         output[5, i] =
             CM2.autoconversion_and_liquid_self_collection(
-                acnvSB2006,
+                SB2006,
                 ql[i],
                 qr[i],
                 ρ[i],
                 Nl[i],
             ).sc
         output[6, i] =
-            CM2.accretion(accrSB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_liq_dt
+            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_liq_dt
         output[7, i] =
-            CM2.accretion(accrSB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_liq_dt
+            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_liq_dt
         output[8, i] =
-            CM2.accretion(accrSB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_rai_dt
+            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_rai_dt
         output[9, i] =
-            CM2.accretion(accrSB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_rai_dt
+            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_rai_dt
         output[10, i] =
-            CM2.rain_self_collection_and_breakup(
-                scSB2006,
-                brkSB2006,
-                tvSB2006,
-                qr[i],
-                ρ[i],
-                Nr[i],
-            ).sc
+            CM2.rain_self_collection_and_breakup(SB2006, qr[i], ρ[i], Nr[i]).sc
         output[11, i] =
-            CM2.rain_self_collection_and_breakup(
-                scSB2006,
-                brkSB2006,
-                tvSB2006,
-                qr[i],
-                ρ[i],
-                Nr[i],
-            ).br
+            CM2.rain_self_collection_and_breakup(SB2006, qr[i], ρ[i], Nr[i]).br
         output[12, i] =
-            CM2.rain_terminal_velocity(rain, tvSB2006, qr[i], ρ[i], Nr[i])[1]
+            CM2.rain_terminal_velocity(SB2006, SB2006Vel, qr[i], ρ[i], Nr[i])[1]
         output[13, i] =
-            CM2.rain_terminal_velocity(rain, tvSB2006, qr[i], ρ[i], Nr[i])[2]
-        output[14, i] = CM2.rain_evaporation(
-            evpSB2006,
-            air_props,
-            thermo_params,
-            q,
-            qr[i],
-            ρ[i],
-            Nr[i],
-            T[i],
-        )[1]
-        output[15, i] = CM2.rain_evaporation(
-            evpSB2006,
-            air_props,
-            thermo_params,
-            q,
-            qr[i],
-            ρ[i],
-            Nr[i],
-            T[i],
-        )[2]
+            CM2.rain_terminal_velocity(SB2006, SB2006Vel, qr[i], ρ[i], Nr[i])[2]
+        output[14, i] =
+            CM2.rain_evaporation(SB2006, aps, tps, q, qr[i], ρ[i], Nr[i], T[i])[1]
+        output[15, i] =
+            CM2.rain_evaporation(SB2006, aps, tps, q, qr[i], ρ[i], Nr[i], T[i])[2]
     end
 end
 
 @kernel function h2so4_nucleation_kernel!(
-    prs,
+    h2so4_nuc,
     output::AbstractArray{FT},
     h2so4_conc,
     nh3_conc,
@@ -384,14 +344,14 @@ end
                 nh3_conc[i],
                 negative_ion_conc[i],
                 temp[i],
-                prs,
+                h2so4_nuc,
             ),
         )
     end
 end
 
 @kernel function organic_nucleation_kernel!(
-    prs,
+    org_nuc,
     output::AbstractArray{FT},
     negative_ion_conc,
     monoterpene_conc,
@@ -411,13 +371,13 @@ end
             OH_conc[i],
             temp[i],
             condensation_sink[i],
-            prs,
+            org_nuc,
         )
     end
 end
 
 @kernel function organic_and_h2so4_nucleation_kernel!(
-    prs,
+    mix_nuc,
     output::AbstractArray{FT},
     h2so4_conc,
     monoterpene_conc,
@@ -435,7 +395,7 @@ end
             OH_conc[i],
             temp[i],
             condensation_sink[i],
-            prs,
+            mix_nuc,
         )
     end
 end
@@ -522,7 +482,6 @@ end
 end
 
 @kernel function IceNucleation_ABIFM_J_kernel!(
-    ip,
     output::AbstractArray{FT},
     kaolinite,
     illite,
@@ -532,8 +491,8 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_het.ABIFM_J(kaolinite, ip, Delta_a_w[1])
-        output[2] = CMI_het.ABIFM_J(illite, ip, Delta_a_w[2])
+        output[1] = CMI_het.ABIFM_J(kaolinite, Delta_a_w[1])
+        output[2] = CMI_het.ABIFM_J(illite, Delta_a_w[2])
     end
 end
 
@@ -546,110 +505,12 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_hom.homogeneous_J(ip, Delta_a_w[1])
-    end
-end
-
-@kernel function h2so4_nucleation_kernel!(
-    prs,
-    output::AbstractArray{FT},
-    h2so4_conc,
-    nh3_conc,
-    negative_ion_conc,
-    temp,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = sum(
-            MN.h2so4_nucleation_rate(
-                h2so4_conc[i],
-                nh3_conc[i],
-                negative_ion_conc[i],
-                temp[i],
-                prs,
-            ),
-        )
-    end
-end
-
-@kernel function organic_nucleation_kernel!(
-    prs,
-    output::AbstractArray{FT},
-    negative_ion_conc,
-    monoterpene_conc,
-    O3_conc,
-    OH_conc,
-    temp,
-    condensation_sink,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = MN.organic_nucleation_rate(
-            negative_ion_conc[i],
-            monoterpene_conc[i],
-            O3_conc[i],
-            OH_conc[i],
-            temp[i],
-            condensation_sink[i],
-            prs,
-        )
-    end
-end
-
-@kernel function organic_and_h2so4_nucleation_kernel!(
-    prs,
-    output::AbstractArray{FT},
-    h2so4_conc,
-    monoterpene_conc,
-    OH_conc,
-    temp,
-    condensation_sink,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = MN.organic_and_h2so4_nucleation_rate(
-            h2so4_conc[i],
-            monoterpene_conc[i],
-            OH_conc[i],
-            temp[i],
-            condensation_sink[i],
-            prs,
-        )
-    end
-end
-
-@kernel function apparent_nucleation_rate_kernel!(
-    output::AbstractArray{FT},
-    output_diam,
-    nucleation_rate,
-    condensation_growth_rate,
-    coag_sink,
-    coag_sink_input_diam,
-    input_diam,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = MN.apparent_nucleation_rate(
-            output_diam[i],
-            nucleation_rate[i],
-            condensation_growth_rate[i],
-            coag_sink[i],
-            coag_sink_input_diam[i],
-            input_diam[i],
-        )
+        output[1] = CMI_hom.homogeneous_J(ip.homogeneous, Delta_a_w[1])
     end
 end
 
 @kernel function P3_scheme_kernel!(
-    prs,
+    p3,
     output::AbstractArray{FT},
     F_r,
     ρ_r,
@@ -658,8 +519,8 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = P3.thresholds(prs, ρ_r[i], F_r[i])[1]
-        output[2, i] = P3.thresholds(prs, ρ_r[i], F_r[i])[2]
+        output[1, i] = P3.thresholds(p3, ρ_r[i], F_r[i])[1]
+        output[2, i] = P3.thresholds(p3, ρ_r[i], F_r[i])[2]
     end
 end
 
@@ -674,43 +535,49 @@ function setup_output(dims, FT)
 end
 
 function test_gpu(FT)
-    prs = cloud_microphysics_parameters(
-        CP.create_toml_dict(FT; dict_type = "alias"),
-    )
-    thermo_params = CMP.thermodynamics_params(prs)
 
-    liquid = CMT.LiquidType(FT)
-    ice = CMT.IceType(FT)
-    rain = CMT.RainType(FT)
-    snow = CMT.SnowType(FT)
+    # thermodynamics and air properties
+    aps = CMP.AirProperties(FT)
+    tps = CMP.ThermodynamicsParameters(FT)
 
-    ce = CMT.CollisionEfficiency(FT)
-    p3_prs = CMP.CloudMicrophysicsParametersP3(FT)
-    air_props = CMT.AirProperties(FT)
-    rain_blk1mvel = CMT.Blk1MVelType(FT, rain)
-    snow_blk1mvel = CMT.Blk1MVelType(FT, snow)
-
-    acnvSB2006 = CMT.AutoconversionSB2006(FT)
-    accrSB2006 = CMT.AccretionSB2006(FT)
-    scSB2006 = CMT.SelfCollectionSB2006(FT)
-    brkSB2006 = CMT.BreakupSB2006(FT)
-    tvSB2006 = CMT.TerminalVelocitySB2006(FT)
-    evpSB2006 = CMT.EvaporationSB2006(FT)
-    acnvKK2000 = CMT.AutoconversionKK2000(FT)
-    acnvB1994 = CMT.AutoconversionB1994(FT)
-    acnvTC1980 = CMT.AutoconversionTC1980(FT)
-    acnvLD2004 = CMT.AutoconversionLD2004(FT)
-    acnvVarT = CMT.AutoconversionVarTimescale(FT)
-    accKK2000 = CMT.AccretionKK2000(FT)
-    accB1994 = CMT.AccretionB1994(FT)
-    accTC1980 = CMT.AccretionTC1980(FT)
-
-    H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
-
+    # aerosol activation
     ap = CMP.AerosolActivationParameters(FT)
-    ip = CMP.IceNucleationParameters(FT)
+
+    # 0-moment microphysocs
+    p0m = CMP.Parameters0M(FT)
+
+    # 1-momeny microphysics
+    liquid = CMP.CloudLiquid(FT)
+    ice = CMP.CloudIce(FT)
+    rain = CMP.Rain(FT)
+    snow = CMP.Snow(FT)
+    ce = CMP.CollisionEff(FT)
+
+    # Terminal velocity
+    blk1mvel = CMP.Blk1MVelType(FT)
+    SB2006Vel = CMP.SB2006VelType(FT)
+
+    # 2-moment microphysics
+    SB2006 = CMP.SB2006(FT)
+    KK2000 = CMP.KK2000(FT)
+    B1994 = CMP.B1994(FT)
+    TC1980 = CMP.TC1980(FT)
+    LD2004 = CMP.LD2004(FT)
+    VarTSc = CMP.VarTimescaleAcnv(FT)
+
+    # p3 microphysics
+    p3 = CMP.ParametersP3(FT)
+
+    # aerosol nucleation
+    mix_nuc = CMP.MixedNucleationParameters(FT)
+    h2so4_nuc = CMP.H2S04NucleationParameters(FT)
+    org_nuc = CMP.OrganicNucleationParameters(FT)
+
+    # ice nucleation
+    H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     illite = CMP.Illite(FT)
     kaolinite = CMP.Kaolinite(FT)
+    ip = CMP.IceNucleationParameters(FT)
 
     @testset "Aerosol activation kernels" begin
         dims = (6, 2)
@@ -727,23 +594,7 @@ function test_gpu(FT)
         κ = ArrayType([FT(0.53), FT(1.12)])
 
         kernel! = aerosol_activation_kernel!(backend, work_groups)
-        kernel!(
-            ap,
-            air_props,
-            thermo_params,
-            output,
-            r,
-            stdev,
-            N,
-            ϵ,
-            ϕ,
-            M,
-            ν,
-            ρ,
-            κ,
-            ;
-            ndrange,
-        )
+        kernel!(ap, aps, tps, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ, ; ndrange)
 
         # test if all aerosol activation output is positive
         @test all(Array(output)[:, :] .>= FT(0))
@@ -769,7 +620,7 @@ function test_gpu(FT)
         qc = ArrayType([FT(3e-3), FT(4e-3), FT(5e-3)])
 
         kernel! = test_0_moment_micro_kernel!(backend, work_groups)
-        kernel!(prs, output, liquid_frac, qc, qt, ; ndrange)
+        kernel!(p0m, output, liquid_frac, qc, qt, ; ndrange)
 
         # test 0-moment rain removal is callable and returns a reasonable value
         @test all(isequal(Array(output)[1, :], Array(output)[2, :]))
@@ -793,8 +644,7 @@ function test_gpu(FT)
             ice,
             snow,
             ce,
-            rain_blk1mvel,
-            snow_blk1mvel,
+            blk1mvel,
             output,
             ρ,
             qt,
@@ -823,7 +673,7 @@ function test_gpu(FT)
         qs = ArrayType([FT(1e-4), FT(0), FT(1e-4)])
 
         kernel! = test_1_moment_micro_snow_melt_kernel!(backend, work_groups)
-        kernel!(snow, air_props, thermo_params, output, ρ, T, qs, ; ndrange)
+        kernel!(snow, blk1mvel, aps, tps, output, ρ, T, qs, ; ndrange)
 
         # test if 1-moment snow melt is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(9.518235437405256e-6)
@@ -842,12 +692,11 @@ function test_gpu(FT)
 
         kernel! = test_2_moment_acnv_kernel!(backend, work_groups)
         kernel!(
-            prs,
-            acnvKK2000,
-            acnvB1994,
-            acnvTC1980,
-            acnvLD2004,
-            acnvVarT,
+            KK2000,
+            B1994,
+            TC1980,
+            LD2004,
+            VarTSc,
             output,
             ql,
             ρ,
@@ -869,16 +718,7 @@ function test_gpu(FT)
         ρ = ArrayType([FT(1.2)])
 
         kernel! = test_2_moment_accr_kernel!(backend, work_groups)
-        kernel!(
-            accKK2000,
-            accB1994,
-            accTC1980,
-            output,
-            ql,
-            qr,
-            ρ,
-            ndrange = ndrange,
-        )
+        kernel!(KK2000, B1994, TC1980, output, ql, qr, ρ, ndrange = ndrange)
 
         @test isapprox(Array(output)[1], FT(6.6548664e-6), rtol = 1e-6)
         @test Array(output)[2] ≈ FT(7.2e-6)
@@ -897,15 +737,10 @@ function test_gpu(FT)
 
         kernel! = test_2_moment_SB2006_kernel!(backend, work_groups)
         kernel!(
-            rain,
-            air_props,
-            thermo_params,
-            acnvSB2006,
-            accrSB2006,
-            scSB2006,
-            brkSB2006,
-            tvSB2006,
-            evpSB2006,
+            aps,
+            tps,
+            SB2006,
+            SB2006Vel,
             output,
             qt,
             ql,
@@ -957,7 +792,7 @@ function test_gpu(FT)
         x_sulph = ArrayType([FT(0.1)])
 
         kernel! = Common_a_w_xT_kernel!(backend, work_groups)
-        kernel!(H2SO4_prs, thermo_params, output, x_sulph, T; ndrange)
+        kernel!(H2SO4_prs, tps, output, x_sulph, T; ndrange)
 
         # test if a_w_xT is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.92824538441)
@@ -969,7 +804,7 @@ function test_gpu(FT)
         e = ArrayType([FT(1001)])
 
         kernel! = Common_a_w_eT_kernel!(backend, work_groups)
-        kernel!(thermo_params, output, e, T; ndrange)
+        kernel!(tps, output, e, T; ndrange)
 
         # test if a_w_eT is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.880978146)
@@ -980,7 +815,7 @@ function test_gpu(FT)
         T = ArrayType([FT(230)])
 
         kernel! = Common_a_w_ice_kernel!(backend, work_groups)
-        kernel!(thermo_params, output, T; ndrange)
+        kernel!(tps, output, T; ndrange)
 
         # test if a_w_ice is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(0.653191723)
@@ -993,7 +828,7 @@ function test_gpu(FT)
         Delta_a_w = ArrayType([FT(0.16), FT(0.15)])
 
         kernel! = IceNucleation_ABIFM_J_kernel!(backend, work_groups)
-        kernel!(ip, output, kaolinite, illite, Delta_a_w; ndrange)
+        kernel!(output, kaolinite, illite, Delta_a_w; ndrange)
 
         # test if ABIFM_J is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(153.65772539109)
@@ -1025,7 +860,7 @@ function test_gpu(FT)
 
         kernel! = h2so4_nucleation_kernel!(backend, work_groups)
         kernel!(
-            H2S04NucleationParameters(FT),
+            h2so4_nuc,
             output,
             h2so4_conc,
             nh3_conc,
@@ -1047,7 +882,7 @@ function test_gpu(FT)
 
         kernel! = organic_nucleation_kernel!(backend, work_groups)
         kernel!(
-            OrganicNucleationParameters(FT),
+            org_nuc,
             output,
             negative_ion_conc,
             monoterpene_conc,
@@ -1070,7 +905,7 @@ function test_gpu(FT)
 
         kernel! = organic_and_h2so4_nucleation_kernel!(backend, work_groups)
         kernel!(
-            MixedNucleationParameters(FT),
+            mix_nuc,
             output,
             h2so4_conc,
             monoterpene_conc,
@@ -1113,7 +948,7 @@ function test_gpu(FT)
         ρ_r = ArrayType([FT(400), FT(800)])
 
         kernel! = P3_scheme_kernel!(backend, work_groups)
-        kernel!(p3_prs, output, F_r, ρ_r; ndrange)
+        kernel!(p3, output, F_r, ρ_r; ndrange)
 
         # test if all output is positive...
         @test all(Array(output) .> FT(0))

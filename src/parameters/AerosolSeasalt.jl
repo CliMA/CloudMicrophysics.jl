@@ -1,12 +1,14 @@
+export Seasalt
+
 """
-    SeasaltParameters{FT}
+    Seasalt{FT}
 
 Parameters for seasalt
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SeasaltParameters{FT} <: AbstractAerosolProperties
+struct Seasalt{FT} <: AerosolType{FT}
     "molar mass [kg/mol]"
     M::FT
     "density [kg/m3]"
@@ -20,12 +22,13 @@ struct SeasaltParameters{FT} <: AbstractAerosolProperties
     "hygroscopicity parameter [-]"
     κ::FT
 end
-Base.broadcastable(x::SeasaltParameters) = tuple(x)
 
-function SeasaltParameters(::Type{FT}) where {FT}
-    toml_dict = CP.create_toml_dict(FT)
+function Seasalt(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
     (; data) = toml_dict
-    return SeasaltParameters(
+    return Seasalt(
         FT(data["seasalt_aerosol_molar_mass"]["value"]),
         FT(data["seasalt_aerosol_density"]["value"]),
         FT(data["seasalt_aerosol_osmotic_coefficient"]["value"]),

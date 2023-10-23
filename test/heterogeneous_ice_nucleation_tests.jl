@@ -4,27 +4,23 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CLIMAParameters as CP
 
-import CloudMicrophysics.CommonTypes as CMT
 import CloudMicrophysics.Common as CO
+import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.HetIceNucleation as CMI_het
-const ArizonaTestDust = CMT.ArizonaTestDustType()
-const DesertDust = CMT.DesertDustType()
-
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 @info "Heterogeneous Ice Nucleation Tests"
 
 function test_heterogeneous_ice_nucleation(FT)
 
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-    tps = CM.Parameters.thermodynamics_params(prs)
-    H2SO4_prs = CM.Parameters.H2SO4SolutionParameters(FT)
-    ip = CM.Parameters.IceNucleationParameters(FT)
-    ATD = CM.Parameters.ArizonaTestDust(FT)
-    desert_dust = CM.Parameters.DesertDust(FT)
-    illite = CM.Parameters.Illite(FT)
-    kaolinite = CM.Parameters.Kaolinite(FT)
+    # parameters for parameterizations
+    tps = CMP.ThermodynamicsParameters(FT)
+    H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
+    ip = CMP.IceNucleationParameters(FT)
+    # more parameters for aerosol properties
+    ATD = CMP.ArizonaTestDust(FT)
+    desert_dust = CMP.DesertDust(FT)
+    illite = CMP.Illite(FT)
+    kaolinite = CMP.Kaolinite(FT)
 
     TT.@testset "dust_activation" begin
 
@@ -40,7 +36,7 @@ function test_heterogeneous_ice_nucleation(FT)
             for T in [T_warm, T_cold]
                 TT.@test CMI_het.dust_activated_number_fraction(
                     dust,
-                    ip,
+                    ip.deposition,
                     Si_low,
                     T,
                 ) == FT(0)
@@ -51,23 +47,23 @@ function test_heterogeneous_ice_nucleation(FT)
         for dust in [ATD, desert_dust]
             TT.@test CMI_het.dust_activated_number_fraction(
                 dust,
-                ip,
+                ip.deposition,
                 Si_hgh,
                 T_warm,
             ) > CMI_het.dust_activated_number_fraction(
                 dust,
-                ip,
+                ip.deposition,
                 Si_med,
                 T_warm,
             )
             TT.@test CMI_het.dust_activated_number_fraction(
                 dust,
-                ip,
+                ip.deposition,
                 Si_med,
                 T_cold,
             ) > CMI_het.dust_activated_number_fraction(
                 dust,
-                ip,
+                ip.deposition,
                 Si_med,
                 T_warm,
             )
@@ -77,7 +73,7 @@ function test_heterogeneous_ice_nucleation(FT)
             for T in [T_warm, T_cold]
                 TT.@test CMI_het.dust_activated_number_fraction(
                     dust,
-                    ip,
+                    ip.deposition,
                     Si_too_hgh,
                     T,
                 ) == FT(0)
@@ -100,23 +96,19 @@ function test_heterogeneous_ice_nucleation(FT)
         for dust in [illite, kaolinite, desert_dust]
             TT.@test CMI_het.ABIFM_J(
                 dust,
-                ip,
                 CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_cold_1) -
                 CO.a_w_ice(tps, T_cold_1),
             ) > CMI_het.ABIFM_J(
                 dust,
-                ip,
                 CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_warm_1) -
                 CO.a_w_ice(tps, T_warm_1),
             )
 
             TT.@test CMI_het.ABIFM_J(
                 dust,
-                ip,
                 CO.a_w_eT(tps, e_cold, T_cold_2) - CO.a_w_ice(tps, T_cold_2),
             ) > CMI_het.ABIFM_J(
                 dust,
-                ip,
                 CO.a_w_eT(tps, e_warm, T_warm_2) - CO.a_w_ice(tps, T_warm_2),
             )
         end

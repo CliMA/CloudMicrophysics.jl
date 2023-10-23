@@ -8,8 +8,7 @@
 """
 module AerosolModel
 
-import ..CommonTypes
-const CT = CommonTypes
+import ..Parameters as CMP
 
 export Mode_B
 export Mode_κ
@@ -130,7 +129,7 @@ or of type Mode_κ (Petters and Kreidenweis 2007).
 
     AerosolDistribution(Modes::T)
 """
-struct AerosolDistribution{T} <: CT.AbstractAerosolDistribution{T}
+struct AerosolDistribution{T} <: CMP.AerosolDistributionType
 
     "tuple with all aerosol size distribution modes"
     Modes::T
@@ -141,7 +140,6 @@ struct AerosolDistribution{T} <: CT.AbstractAerosolDistribution{T}
 
 end
 Base.broadcastable(x::AerosolDistribution) = tuple(x)
-
 n_modes(::AerosolDistribution{NTuple{N, T}}) where {N, T} = N
 
 end

@@ -2,21 +2,18 @@ import Test as TT
 
 import Thermodynamics as TD
 
-import CloudMicrophysics.CommonTypes as CMT
+import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.MicrophysicsNonEq as CMNe
 
-@info "Nonequil microphysics tests"
-
+@info "Non-equilibrium Microphysics Tests"
 function test_microphysics_noneq(FT)
 
-    liquid = CMT.LiquidType(FT)
-    ice = CMT.IceType(FT)
+    ice = CMP.CloudIce(FT)
+    liquid = CMP.CloudLiquid(FT)
 
     TT.@testset "τ_relax" begin
-
         TT.@test CMNe.τ_relax(liquid) ≈ FT(10)
         TT.@test CMNe.τ_relax(ice) ≈ FT(10)
-
     end
 
     TT.@testset "CloudLiquidCondEvap" begin
@@ -56,8 +53,5 @@ function test_microphysics_noneq(FT)
     end
 end
 
-println("Testing Float64")
-test_microphysics_noneq(Float64)
-
-println("Testing Float32")
 test_microphysics_noneq(Float32)
+test_microphysics_noneq(Float64)

@@ -6,9 +6,7 @@ import CloudMicrophysics.Parameters.MixedNucleationParameters
 import CloudMicrophysics.Parameters.H2S04NucleationParameters
 import CloudMicrophysics.Parameters.OrganicNucleationParameters
 
-
 FT = Float64
-toml_dict = CP.create_toml_dict(FT)
 mixed_nuc_params = MixedNucleationParameters(FT)
 h2s04_nuc_params = H2S04NucleationParameters(FT)
 organic_nuc_params = OrganicNucleationParameters(FT)

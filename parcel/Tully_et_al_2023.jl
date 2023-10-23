@@ -3,10 +3,7 @@ import CairoMakie as MK
 
 import Thermodynamics as TD
 import CloudMicrophysics as CM
-import CloudMicrophysics.CommonTypes as CMT
 import CLIMAParameters as CP
-# boilerplate code to get free parameter values
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
@@ -15,7 +12,7 @@ include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
     Wrapper for initial condition
 """
 function get_initial_condition(
-    prs,
+    tps,
     p_a,
     T,
     q_vap,
@@ -26,11 +23,9 @@ function get_initial_condition(
     N_ice,
     x_sulph,
 )
-
-    tps = CMP.thermodynamics_params(prs)
     q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
     R_a = TD.gas_constant_air(tps, q)
-    R_v = CMP.R_v(prs)
+    R_v = TD.Parameters.R_v(tps)
     e_sl = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
     e = q_vap * p_a * R_v / R_a
     S_liq = e / e_sl
@@ -48,11 +43,10 @@ end
 """
 function Tully_et_al_2023(FT)
 
-    # Boiler plate code to have access to model parameters and constants
-    toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-    prs = cloud_microphysics_parameters(toml_dict)
-    tps = CMP.thermodynamics_params(prs)
-    aps = CMT.AirProperties(FT)
+    # get free parameters
+    tps = CMP.ThermodynamicsParameters(FT)
+    aps = CMP.AirProperties(FT)
+    wps = CMP.WaterProperties(FT)
     ip = CMP.IceNucleationParameters(FT)
     # Initial conditions for 1st period
     N_aerosol = FT(2000 * 1e3)
@@ -84,7 +78,7 @@ function Tully_et_al_2023(FT)
     growth_modes = ["Deposition"]              # switch on deposition growth
     droplet_size_distribution = ["Monodisperse"]
     p = (;
-        prs,
+        wps,
         aps,
         tps,
         ip,
@@ -100,7 +94,7 @@ function Tully_et_al_2023(FT)
 
     # Simulation 1
     IC1 = get_initial_condition(
-        prs,
+        tps,
         p_0,
         T_0,
         q_vap_0,
@@ -117,7 +111,7 @@ function Tully_et_al_2023(FT)
     # (alternatively set T and take q_vap from the previous simulation)
     #IC2 = get_initial_condition(sol1[2, end], sol1[3, end], T2, sol1[5, end], 0.0, sol1[6, end], sol1[7, end])
     IC2 = get_initial_condition(
-        prs,
+        tps,
         sol1[2, end],
         #sol1[3, end],
         T2,
@@ -135,7 +129,7 @@ function Tully_et_al_2023(FT)
     # (alternatively set T and take q_vap from the previous simulation)
     #IC3 = get_initial_condition(sol2[2, end], sol2[3, end], T3, sol2[5, end], 0.0, sol2[6, end], sol2[7, end])
     IC3 = get_initial_condition(
-        prs,
+        tps,
         sol2[2, end],
         #sol2[3, end],
         T3,

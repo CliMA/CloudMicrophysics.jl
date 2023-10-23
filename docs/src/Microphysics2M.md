@@ -641,39 +641,27 @@ CairoMakie.activate!(type = "svg")
 import CloudMicrophysics
 import CLIMAParameters
 
-const CMT = CloudMicrophysics.CommonTypes
 const CM1 = CloudMicrophysics.Microphysics1M
 const CM2 = CloudMicrophysics.Microphysics2M
-const CP = CLIMAParameters
 const CMP = CloudMicrophysics.Parameters
 
-include(joinpath(pkgdir(CloudMicrophysics), "test", "create_parameters.jl"))
 FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-const param_set = cloud_microphysics_parameters(toml_dict)
-thermo_params = CMP.thermodynamics_params(param_set)
 
-const liquid = CMT.LiquidType(FT)
-const rain = CMT.RainType(FT)
+const tps = CMP.ThermodynamicsParameters(FT)
+const aps = CMP.AirProperties(FT)
 
-const KK2000 = CMT.KK2000Type()
-const B1994  = CMT.B1994Type()
-const TC1980 = CMT.TC1980Type()
-const LD2004 = CMT.LD2004Type()
-const SB2006 = CMT.SB2006Type()
-const acnv_SB2006 = CMT.AutoconversionSB2006(FT)
-const acnv_KK2000 = CMT.AutoconversionKK2000(FT)
-const acnv_B1994 = CMT.AutoconversionB1994(FT)
-const acnv_TC1980 = CMT.AutoconversionTC1980(FT)
-const acnv_LD2004 = CMT.AutoconversionLD2004(FT)
-const acnv_TSc = CMT.AutoconversionVarTimescale(FT)
-const rain_acnv_1m = CMT.Autoconversion1M(FT, rain)
-const accretion_KK2000 = CMT.AccretionKK2000(FT)
-const accretion_B1994 = CMT.AccretionB1994(FT)
-const accretion_TC1980 = CMT.AccretionTC1980(FT)
-const accretion_SB2006 = CMT.AccretionSB2006(FT)
-const ce = CMT.CollisionEfficiency(FT)
+const KK2000 = CMP.KK2000(FT)
+const B1994 = CMP.B1994(FT)
+const TC1980 = CMP.TC1980(FT)
+const LD2004 = CMP.LD2004(FT)
+const VarTSc = CMP.VarTimescaleAcnv(FT)
+const SB2006 = CMP.SB2006(FT)
 
+const ce = CMP.CollisionEff(FT)
+
+const liquid = CMP.CloudLiquid(FT)
+const rain = CMP.Rain(FT)
+const blk1mvel = CMP.Blk1MVelType(FT)
 
 include(joinpath(pkgdir(CloudMicrophysics), "docs", "src", "plots", "Wooddata.jl"))
 
@@ -685,32 +673,32 @@ q_liq = 5e-4
 q_rai = 5e-4
 ρ_air = 1.0 # kg m^-3
 
-q_liq_KK2000 = [CM2.conv_q_liq_to_q_rai(acnv_KK2000, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
-q_liq_B1994 = [CM2.conv_q_liq_to_q_rai(acnv_B1994, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
-q_liq_TC1980 = [CM2.conv_q_liq_to_q_rai(acnv_TC1980, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
-q_liq_LD2004 = [CM2.conv_q_liq_to_q_rai(acnv_LD2004, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
-q_liq_VarTimeScaleAcnv = [CM2.conv_q_liq_to_q_rai(acnv_TSc, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
-q_liq_SB2006 = [CM2.autoconversion(acnv_SB2006, q_liq, q_rai, ρ_air, 1e8).dq_rai_dt for q_liq in q_liq_range]
-q_liq_K1969 = [CM1.conv_q_liq_to_q_rai(rain_acnv_1m, q_liq) for q_liq in q_liq_range]
+q_liq_KK2000 = [CM2.conv_q_liq_to_q_rai(KK2000, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_B1994 = [CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_TC1980 = [CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_LD2004 = [CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_VarTimeScaleAcnv = [CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_SB2006 = [CM2.autoconversion(SB2006.acnv, q_liq, q_rai, ρ_air, 1e8).dq_rai_dt for q_liq in q_liq_range]
+q_liq_K1969 = [CM1.conv_q_liq_to_q_rai(rain.acnv1M, q_liq) for q_liq in q_liq_range]
 
-N_d_KK2000 = [CM2.conv_q_liq_to_q_rai(acnv_KK2000, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
-N_d_B1994 = [CM2.conv_q_liq_to_q_rai(acnv_B1994, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
-N_d_TC1980 = [CM2.conv_q_liq_to_q_rai(acnv_TC1980, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
-N_d_LD2004 = [CM2.conv_q_liq_to_q_rai(acnv_LD2004, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
-N_d_VarTimeScaleAcnv = [CM2.conv_q_liq_to_q_rai(acnv_TSc, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
-N_d_SB2006 = [CM2.autoconversion(acnv_SB2006, q_liq, q_rai, ρ_air, N_d).dq_rai_dt for N_d in N_d_range]
+N_d_KK2000 = [CM2.conv_q_liq_to_q_rai(KK2000, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_B1994 = [CM2.conv_q_liq_to_q_rai(B1994, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_TC1980 = [CM2.conv_q_liq_to_q_rai(TC1980, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_LD2004 = [CM2.conv_q_liq_to_q_rai(LD2004, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_VarTimeScaleAcnv = [CM2.conv_q_liq_to_q_rai(VarTSc, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_SB2006 = [CM2.autoconversion(SB2006.acnv, q_liq, q_rai, ρ_air, N_d).dq_rai_dt for N_d in N_d_range]
 
-accKK2000_q_liq = [CM2.accretion(accretion_KK2000, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
-accB1994_q_liq = [CM2.accretion(accretion_B1994, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
-accTC1980_q_liq = [CM2.accretion(accretion_TC1980, q_liq, q_rai) for q_liq in q_liq_range]
-accSB2006_q_liq = [CM2.accretion(accretion_SB2006, q_liq, q_rai, ρ_air, 1e8).dq_rai_dt for q_liq in q_liq_range]
-accK1969_q_liq = [CM1.accretion(ce, liquid, rain, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
+accKK2000_q_liq = [CM2.accretion(KK2000, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
+accB1994_q_liq = [CM2.accretion(B1994, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
+accTC1980_q_liq = [CM2.accretion(TC1980, q_liq, q_rai) for q_liq in q_liq_range]
+accSB2006_q_liq = [CM2.accretion(SB2006, q_liq, q_rai, ρ_air, 1e8).dq_rai_dt for q_liq in q_liq_range]
+accK1969_q_liq = [CM1.accretion(liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
 
-accKK2000_q_rai = [CM2.accretion(accretion_KK2000, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
-accB1994_q_rai = [CM2.accretion(accretion_B1994, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
-accTC1980_q_rai = [CM2.accretion(accretion_TC1980, q_liq, q_rai) for q_rai in q_rai_range]
-accSB2006_q_rai = [CM2.accretion(accretion_SB2006, q_liq, q_rai, ρ_air, 1e8).dq_rai_dt for q_rai in q_rai_range]
-accK1969_q_rai = [CM1.accretion(ce, liquid, rain, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
+accKK2000_q_rai = [CM2.accretion(KK2000, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
+accB1994_q_rai = [CM2.accretion(B1994, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
+accTC1980_q_rai = [CM2.accretion(TC1980, q_liq, q_rai) for q_rai in q_rai_range]
+accSB2006_q_rai = [CM2.accretion(SB2006, q_liq, q_rai, ρ_air, 1e8).dq_rai_dt for q_rai in q_rai_range]
+accK1969_q_rai = [CM1.accretion(liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
 
 fig = Figure()
 

@@ -2,25 +2,23 @@ import OrdinaryDiffEq as ODE
 import CairoMakie as MK
 import Thermodynamics as TD
 import CloudMicrophysics as CM
-import CloudMicrophysics.CommonTypes as CMT
 import CLIMAParameters as CP
 
-# boilerplate code to get free parameter values
-include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
-# Boiler plate code to have access to model parameters and constants
+
 FT = Float64
-toml_dict = CP.create_toml_dict(FT; dict_type = "alias")
-prs = cloud_microphysics_parameters(toml_dict)
-tps = CMP.thermodynamics_params(prs)
-aps = CMT.AirProperties(FT)
+
+# Get free parameters
+tps = CMP.ThermodynamicsParameters(FT)
+wps = CMP.WaterProperties(FT)
+aps = CMP.AirProperties(FT)
 ip = CMP.IceNucleationParameters(FT)
 
 # Constants
-ρₗ = FT(CMP.ρ_cloud_liq(prs))
-R_v = FT(CMP.R_v(prs))
-R_d = FT(CMP.R_d(prs))
+ρₗ = wps.ρw
+R_v = TD.Parameters.R_v(tps)
+R_d = TD.Parameters.R_d(tps)
 
 # Initial conditions
 Nₐ = FT(0)
@@ -85,7 +83,7 @@ MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
 for droplet_size_distribution in droplet_size_distribution_list
     p = (;
-        prs,
+        wps,
         aps,
         tps,
         ip,

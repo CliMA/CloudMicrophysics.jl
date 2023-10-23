@@ -1,12 +1,14 @@
+export Parameters0M
+
 """
-    CloudMicrophysicsParameters0M{FT}
+    Parameters0M{FT}
 
 Parameters for zero-moment bulk microphysics scheme
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct CloudMicrophysicsParameters0M{FT} <: AbstractCloudMicrophysicsParameters
+struct Parameters0M{FT} <: ParametersType{FT}
     "precipitation timescale [s]"
     τ_precip::FT
     "specific humidity precipitation threshold [-]"
@@ -15,16 +17,12 @@ struct CloudMicrophysicsParameters0M{FT} <: AbstractCloudMicrophysicsParameters
     S_0::FT
 end
 
-CloudMicrophysicsParameters0M(param_set) = CloudMicrophysicsParameters0M(
-    param_set.τ_precip,
-    param_set.qc_0,
-    param_set.S_0,
-)
-
-function CloudMicrophysicsParameters0M(::Type{FT}) where {FT}
-    toml_dict = CP.create_toml_dict(FT)
+function Parameters0M(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
     (; data) = toml_dict
-    return CloudMicrophysicsParameters0M(
+    return Parameters0M(
         FT(data["precipitation_timescale"]["value"]),
         FT(data["specific_humidity_precipitation_threshold"]["value"]),
         FT(data["supersaturation_precipitation_threshold"]["value"]),

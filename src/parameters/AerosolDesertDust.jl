@@ -1,12 +1,16 @@
+export DesertDust
+
 """
     DesertDust{FT}
 
 Parameters for desert dust
+from Knopf and Alpert 2013 DOI: 10.1039/C3FD00035D
+and from Mohler et al, 2006 DOI: 10.5194/acp-6-3007-2006
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct DesertDust{FT} <: AbstractAerosolProperties
+struct DesertDust{FT} <: AerosolType{FT}
     "S₀ for T > T_thr [-]"
     S₀_warm::FT
     "S₀ for T < T_thr [-]"
@@ -20,10 +24,11 @@ struct DesertDust{FT} <: AbstractAerosolProperties
     "c coefficient for immersion freezing J [-]"
     c::FT
 end
-Base.broadcastable(x::DesertDust) = tuple(x)
 
-function DesertDust(::Type{FT}) where {FT}
-    toml_dict = CP.create_toml_dict(FT)
+function DesertDust(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
     (; data) = toml_dict
     return DesertDust(
         FT(data["Mohler2006_S0_warm_DesertDust"]["value"]),

@@ -1,12 +1,14 @@
+export Sulfate
+
 """
-    SulfateParameters{FT}
+    Sulfate{FT}
 
 Parameters for sulfate aerosol
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SulfateParameters{FT} <: AbstractAerosolProperties
+struct Sulfate{FT} <: AerosolType{FT}
     "molar mass [kg/mol]"
     M::FT
     "density [kg/m3]"
@@ -20,12 +22,13 @@ struct SulfateParameters{FT} <: AbstractAerosolProperties
     "hygroscopicity parameter [-]"
     κ::FT
 end
-Base.broadcastable(x::SulfateParameters) = tuple(x)
 
-function SulfateParameters(::Type{FT}) where {FT}
-    toml_dict = CP.create_toml_dict(FT)
+function Sulfate(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
     (; data) = toml_dict
-    return SulfateParameters(
+    return Sulfate(
         FT(data["sulfate_aerosol_molar_mass"]["value"]),
         FT(data["sulfate_aerosol_density"]["value"]),
         FT(data["sulfate_aerosol_osmotic_coefficient"]["value"]),
