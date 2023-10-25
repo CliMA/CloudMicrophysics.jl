@@ -13,11 +13,11 @@ A structure containing the logarithmic derivatives of the production of
 precipitation with respect to the specific humidities and number
 densities of liquid and rain water.
 """
-Base.@kwdef struct precip_susceptibility_rates{FT}
-    d_ln_pp_d_ln_q_liq::FT
-    d_ln_pp_d_ln_q_rai::FT
-    d_ln_pp_d_ln_N_liq::FT
-    d_ln_pp_d_ln_N_rai::FT
+@kwdef struct precip_susceptibility_rates{FT}
+    d_ln_pp_d_ln_q_liq::FT = FT(0)
+    d_ln_pp_d_ln_q_rai::FT = FT(0)
+    d_ln_pp_d_ln_N_liq::FT = FT(0)
+    d_ln_pp_d_ln_N_rai::FT = FT(0)
 end
 
 """
