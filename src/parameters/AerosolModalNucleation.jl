@@ -10,7 +10,7 @@ DOI:10.1126/science.aaf2649
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct H2S04NucleationParameters{FT} <: ParametersType{FT}
+struct H2S04NucleationParameters{FT} <: ParametersType{FT}
     p_b_n::FT
     p_b_i::FT
     u_b_n::FT
@@ -33,6 +33,35 @@ Base.@kwdef struct H2S04NucleationParameters{FT} <: ParametersType{FT}
     a_i::FT
 end
 
+function H2S04NucleationParameters(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
+    (; data) = toml_dict
+    return H2S04NucleationParameters(
+        FT(data["mam3_nucleation_p_b_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_p_b_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_u_b_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_u_b_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_v_b_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_v_b_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_w_b_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_w_b_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_p_t_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_p_t_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_u_t_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_u_t_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_v_t_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_v_t_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_w_t_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_w_t_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_p_A_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_p_A_i_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_a_n_neutral"]["value"]),
+        FT(data["mam3_nucleation_a_i_ion_induced"]["value"]),
+    )
+end
+
 """
 OrganicNucleationParameters{FT}
 
@@ -42,7 +71,7 @@ DOI: 10.1038/nature17953
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct OrganicNucleationParameters{FT} <: ParametersType{FT}
+struct OrganicNucleationParameters{FT} <: ParametersType{FT}
     a_1::FT
     a_2::FT
     a_3::FT
@@ -56,6 +85,26 @@ Base.@kwdef struct OrganicNucleationParameters{FT} <: ParametersType{FT}
     exp_MTOH::FT
 end
 
+function OrganicNucleationParameters(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
+    (; data) = toml_dict
+    return OrganicNucleationParameters(
+        FT(data["mam3_nucleation_a_1_neutral"]["value"]),
+        FT(data["mam3_nucleation_a_2_neutral"]["value"]),
+        FT(data["mam3_nucleation_a_3_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_a_4_ion_induced"]["value"]),
+        FT(data["mam3_nucleation_a_5"]["value"]),
+        FT(data["mam3_nucleation_Y_MTO3_percent"]["value"]),
+        FT(data["mam3_nucleation_Y_MTOH_percent"]["value"]),
+        FT(data["mam3_nucleation_k_MTO3_organic_factor"]["value"]),
+        FT(data["mam3_nucleation_k_MTOH_organic_factor"]["value"]),
+        FT(data["mam3_nucleation_exp_MTO3_organic_factor"]["value"]),
+        FT(data["mam3_nucleation_exp_MTOH_organic_factor"]["value"]),
+    )
+end
+
 """
 MixedNucleationParameters{FT}
 
@@ -65,23 +114,22 @@ DOI:10.1126/science.1243527
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct MixedNucleationParameters{FT} <: ParametersType{FT}
+struct MixedNucleationParameters{FT} <: ParametersType{FT}
     k_H2SO4org::FT
     k_MTOH::FT
     exp_MTOH::FT
 end
 
-for var in [
-    :H2S04NucleationParameters,
-    :OrganicNucleationParameters,
-    :MixedNucleationParameters,
-]
-    @eval function $var(
-        ::Type{FT},
-        toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-    ) where {FT}
-        aliases = string.(fieldnames($var))
-        pairs = CP.get_parameter_values!(toml_dict, aliases)
-        return $var{FT}(; pairs...)
-    end
+function MixedNucleationParameters(
+    ::Type{FT},
+    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
+) where {FT}
+    (; data) = toml_dict
+    return MixedNucleationParameters(
+        FT(
+            data["mam3_nucleation_k_H2SO4_mixed_organic_sulfuric_acid_factor"]["value"],
+        ),
+        FT(data["mam3_nucleation_k_MTOH_organic_factor"]["value"]),
+        FT(data["mam3_nucleation_exp_MTOH_organic_factor"]["value"]),
+    )
 end

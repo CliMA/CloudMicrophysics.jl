@@ -43,7 +43,8 @@ struct Mode_B{NCOMP, T, FT}
     "tuple of aerosol densities for all components in this mode"
     aerosol_density::T
 end
-@inline Mode_B(
+
+function Mode_B(
     r_dry::FT,
     stdev::FT,
     N::FT,
@@ -54,21 +55,22 @@ end
     dissoc::T,
     aerosol_density::T,
     NCOMP::Int,
-) where {T, FT} = Mode_B{NCOMP, T, FT}(
-    r_dry,
-    stdev,
-    N,
-    mass_mix_ratio,
-    soluble_mass_frac,
-    osmotic_coeff,
-    molar_mass,
-    dissoc,
-    aerosol_density,
-)
+) where {T, FT}
+    return Mode_B{NCOMP, T, FT}(
+        r_dry,
+        stdev,
+        N,
+        mass_mix_ratio,
+        soluble_mass_frac,
+        osmotic_coeff,
+        molar_mass,
+        dissoc,
+        aerosol_density,
+    )
+end
 
 """ number of components in the mode """
 n_components(::Mode_B{NCOMP}) where {NCOMP} = NCOMP
-
 
 """
     Mode_κ
@@ -96,7 +98,8 @@ struct Mode_κ{NCOMP, T, FT}
     "tuple of kappa-kohler values for all components in this mode"
     kappa::T
 end
-@inline Mode_κ(
+
+function Mode_κ(
     r_dry::FT,
     stdev::FT,
     N::FT,
@@ -105,15 +108,17 @@ end
     molar_mass::T,
     kappa::T,
     NCOMP::Int,
-) where {T, FT} = Mode_κ{NCOMP, T, FT}(
-    r_dry,
-    stdev,
-    N,
-    vol_mix_ratio,
-    mass_mix_ratio,
-    molar_mass,
-    kappa,
-)
+) where {T, FT}
+    return Mode_κ{NCOMP, T, FT}(
+        r_dry,
+        stdev,
+        N,
+        vol_mix_ratio,
+        mass_mix_ratio,
+        molar_mass,
+        kappa,
+    )
+end
 
 """ number of components in the mode """
 n_components(::Mode_κ{NCOMP}) where {NCOMP} = NCOMP
@@ -134,10 +139,9 @@ struct AerosolDistribution{T} <: CMP.AerosolDistributionType
     "tuple with all aerosol size distribution modes"
     Modes::T
 
-    function AerosolDistribution(Modes::NTuple{N, T}) where {N, T}
-        return new{typeof(Modes)}(Modes)
-    end
-
+end
+function AerosolDistribution(Modes::NTuple{N, T}) where {N, T}
+    return AerosolDistribution{typeof(Modes)}(Modes)
 end
 Base.broadcastable(x::AerosolDistribution) = tuple(x)
 n_modes(::AerosolDistribution{NTuple{N, T}}) where {N, T} = N
