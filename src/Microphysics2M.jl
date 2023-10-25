@@ -31,15 +31,15 @@ export autoconversion,
 A structure containing the rates of change of the specific humidities and number
 densities of liquid and rain water.
 """
-Base.@kwdef struct LiqRaiRates{FT}
+@kwdef struct LiqRaiRates{FT}
     "Rate of change of the liquid water specific humidity"
-    dq_liq_dt::FT
+    dq_liq_dt::FT = FT(0)
     "Rate of change of the liquid water number density"
-    dN_liq_dt::FT
+    dN_liq_dt::FT = FT(0)
     "Rate of change of the rain water specific humidity"
-    dq_rai_dt::FT
+    dq_rai_dt::FT = FT(0)
     "Rate of change of the rain water number density"
-    dN_rai_dt::FT
+    dN_rai_dt::FT = FT(0)
 end
 
 # Double-moment bulk microphysics autoconversion, accretion, self-collection, breakup,
@@ -95,12 +95,7 @@ function autoconversion(
 ) where {FT}
 
     if q_liq < eps(FT)
-        return LiqRaiRates(
-            dq_liq_dt = FT(0),
-            dN_liq_dt = FT(0),
-            dq_rai_dt = FT(0),
-            dN_rai_dt = FT(0),
-        )
+        return LiqRaiRates{FT}()
     end
 
     (; kcc, νc, x_star, ρ0, A, a, b) = acnv
@@ -144,12 +139,7 @@ collisions between raindrops and cloud droplets (accretion) for `scheme == SB200
 function accretion((; accr)::CMP.SB2006{FT}, q_liq, q_rai, ρ, N_liq) where {FT}
 
     if q_liq < eps(FT) || q_rai < eps(FT)
-        return LiqRaiRates(
-            dq_liq_dt = zero(q_liq),
-            dN_liq_dt = zero(N_liq),
-            dq_rai_dt = zero(q_rai),
-            dN_rai_dt = zero(N_liq),
-        )
+        return LiqRaiRates{FT}()
     end
 
     (; kcr, τ0, ρ0, c) = accr
