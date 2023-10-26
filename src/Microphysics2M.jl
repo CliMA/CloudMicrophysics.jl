@@ -31,7 +31,7 @@ export autoconversion,
 A structure containing the rates of change of the specific humidities and number
 densities of liquid and rain water.
 """
-@kwdef struct LiqRaiRates{FT}
+Base.@kwdef struct LiqRaiRates{FT}
     "Rate of change of the liquid water specific humidity"
     dq_liq_dt::FT = FT(0)
     "Rate of change of the liquid water number density"
