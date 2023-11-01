@@ -278,7 +278,7 @@ struct VarTimescaleAcnv{FT} <: Precipitation2MType{FT}
 end
 
 function VarTimescaleAcnv(
-    ::Type{FT};
+    ::Type{FT},
     toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
 ) where {FT}
     (; data) = toml_dict
