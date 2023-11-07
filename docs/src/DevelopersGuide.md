@@ -29,8 +29,7 @@ After creating a PR on GitHub, you will find that every following commit & push 
   See the [Tests](https://clima.github.io/CloudMicrophysics.jl/dev/DevelopersGuide/#Tests)
   section below for debugging tips.
 - `CloudMicrophysics.jl` has a small set of tests that are run on the GPUs using `buildkite`.
-  They are triggered automatically when trying to merge a PR,
-  or manually by commenting `bors try` on your PR.
+  They are triggered automatically when trying to merge a PR.
   If the GPU tests fail, check first for use of any "out of place" functions
   (for example, `@warn` will not work on GPU).
 - The `Documentation / docbuild` builds the documentation.
@@ -59,13 +58,12 @@ In case of doubt, see Git tutorials on how to squash and rebase
   or reach out to other developers in our team.
 The first couple of times it pays off to create a "backup branch" before starting your rebase,
   and then comparing afterwards if the rebased and backup branches are identical.
-If the main branch has been updated after your branch was created, 
-you will need to rebase onto the main branch. To do this, 
-run git rebase origin/main and solve any conflicts manually. 
+If the main branch has been updated after your branch was created,
+you will need to rebase onto the main branch. To do this,
+run git rebase origin/main and solve any conflicts manually.
 This is done more easily if you only have one commit.
-
-We (still) use `bors` bot to manage PR queues.
-To merge your PR into the `main` branch, comment `bors r+` and wait for all checks to pass.
+You can merge the PR if all the tests are passing
+  and the PR branch is up to date with the main branch.
 
 The easiest way to use the new additions in the `main` branch of `CloudMicrophysics.jl`
   from another package is to do a package release.
