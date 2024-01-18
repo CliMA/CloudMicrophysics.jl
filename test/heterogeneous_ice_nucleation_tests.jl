@@ -13,7 +13,7 @@ import CloudMicrophysics.HetIceNucleation as CMI_het
 function test_heterogeneous_ice_nucleation(FT)
 
     # parameters for parameterizations
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     ip = CMP.IceNucleationParameters(FT)
     # more parameters for aerosol properties

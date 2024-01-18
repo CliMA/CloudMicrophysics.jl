@@ -67,7 +67,7 @@ function benchmark_test(FT)
     organ_nuc = CMP.OrganicNucleationParameters(FT)
     # air and thermodunamics parameters
     aps = CMP.AirProperties(FT)
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
 
     ρ_air = FT(1.2)
     T_air = FT(280)

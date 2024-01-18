@@ -1,5 +1,7 @@
-import CloudMicrophysics as CM
 import CairoMakie as MK
+
+import Thermodynamics as TD
+import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
@@ -25,7 +27,7 @@ N_ice = 0
 T_initial = FT(256)         # initial temperature, K
 cooling_rate = FT(0.5 / 60) # prescribed cooling rate K s^-1
 aerosol = CMP.Illite(FT)    # aerosol free parameters
-tps = CMP.ThermodynamicsParameters(FT) # thermodynamics free parameters
+tps = TD.Parameters.ThermodynamicsParameters(FT) # thermodynamics free parameters
 t_0 = 0
 t_end = 3310
 dt = 10

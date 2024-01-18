@@ -41,8 +41,7 @@ using Aqua
         Aqua.test_stale_deps(CloudMicrophysics)
         Aqua.test_deps_compat(CloudMicrophysics)
         Aqua.test_project_extras(CloudMicrophysics)
-        Aqua.test_project_toml_formatting(CloudMicrophysics)
-        Aqua.test_piracy(CloudMicrophysics)
+        Aqua.test_piracies(CloudMicrophysics)
     end
 
 end

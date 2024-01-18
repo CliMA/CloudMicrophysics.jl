@@ -2,6 +2,9 @@ import CairoMakie as MK
 import Dierckx as DX
 import Random as RD
 import Distributions as DS
+
+import CLIMAParameters
+import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CMO
@@ -85,7 +88,7 @@ A_sum = similar(T)
 compute_Asum!(A_sum, Aj_sorted, T)
 
 # Compute the immersion freezing rate from CloudMicrophysics
-tps = CMP.ThermodynamicsParameters(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
 aerosol = CMP.Illite(FT)
 Δa = @. FT(1) - CMO.a_w_ice(tps, T)
 J_immer = @. CMI_het.ABIFM_J(aerosol, Δa) # m^-2 s^-1

@@ -12,9 +12,6 @@ import CLIMAParameters as CP
 # Super-types (dispatch, broadcasting, etc...)
 include("AbstractTypes.jl")
 
-# Thermodynamics.jl parameters
-include("Thermodynamics.jl")
-
 # Parameters for moist air and water
 include("AirProperties.jl")
 include("WaterProperties.jl")

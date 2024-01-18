@@ -122,7 +122,6 @@ Parameters.TerminalVelocityType
 Parameters.Precipitation2MType
 Parameters.AirProperties
 Parameters.WaterProperties
-Parameters.ThermodynamicsParameters
 Parameters.ArizonaTestDust
 Parameters.DesertDust
 Parameters.Illite

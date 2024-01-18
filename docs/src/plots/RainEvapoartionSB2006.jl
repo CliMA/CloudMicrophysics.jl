@@ -12,7 +12,7 @@ import CloudMicrophysics.Microphysics2M as CM2
 
 FT = Float64
 
-const tps = CMP.ThermodynamicsParameters(FT)
+const tps = TD.Parameters.ThermodynamicsParameters(FT)
 const aps = CMP.AirProperties(FT)
 const SB2006 = CMP.SB2006(FT)
 

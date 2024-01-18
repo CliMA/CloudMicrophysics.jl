@@ -538,7 +538,7 @@ function test_gpu(FT)
 
     # thermodynamics and air properties
     aps = CMP.AirProperties(FT)
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
 
     # aerosol activation
     ap = CMP.AerosolActivationParameters(FT)
