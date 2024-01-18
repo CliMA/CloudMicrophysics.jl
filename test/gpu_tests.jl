@@ -25,7 +25,6 @@ ClimaComms.device() isa ClimaComms.CUDADevice || error("No GPU found")
 
 # Set up GPU
 using CUDA
-using CUDA.CUDAKernels
 const backend = CUDABackend()
 CUDA.allowscalar(false)
 const ArrayType = CuArray

@@ -9,3 +9,6 @@ KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 RootSolvers = "7181ea78-2dcb-4de3-ab41-2b8ab5a31e74"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
+
+[compat]
+KernelAbstractions = "0.9"
