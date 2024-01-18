@@ -9,7 +9,7 @@ const CMI = CM.HomIceNucleation
 const CMP = CM.Parameters
 
 FT = Float64
-const tps = CMP.ThermodynamicsParameters(FT)
+const tps = TD.Parameters.ThermodynamicsParameters(FT)
 const H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 const ip = CMP.IceNucleationParameters(FT)
 

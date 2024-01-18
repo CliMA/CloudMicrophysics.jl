@@ -10,7 +10,7 @@ include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
 FT = Float64
 
 # Get free parameters
-tps = CMP.ThermodynamicsParameters(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
 aps = CMP.AirProperties(FT)
 ip = CMP.IceNucleationParameters(FT)

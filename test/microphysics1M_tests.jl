@@ -13,7 +13,7 @@ import CloudMicrophysics.Microphysics1M as CM1
 
 function test_microphysics1M(FT)
 
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
     aps = CMP.AirProperties(FT)
 
     rain = CMP.Rain(FT)

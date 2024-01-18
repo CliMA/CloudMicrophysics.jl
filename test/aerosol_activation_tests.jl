@@ -11,7 +11,7 @@ import CloudMicrophysics.Parameters as CMP
 
 function test_aerosol_activation(FT)
 
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
     aip = CMP.AirProperties(FT)
     ap = CMP.AerosolActivationParameters(FT)
 

@@ -13,7 +13,7 @@ const TD = Thermodynamics
 
 FT = Float64
 
-tps = CMP.ThermodynamicsParameters(FT)
+tps = Thermodynamics.Parameters.ThermodynamicsParameters(FT)
 aip = CMP.AirProperties(FT)
 ap = CMP.AerosolActivationParameters(FT)
 
