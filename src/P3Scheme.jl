@@ -10,13 +10,15 @@ Note: Particle size is defined as its maximum length (i.e. max dimesion).
 """
 module P3Scheme
 
+import Integrals as IN
 import RootSolvers as RS
 import CLIMAParameters as CP
-import ..Parameters as CMP
+import CloudMicrophysics.Parameters as CMP
+
 
 const PSP3 = CMP.ParametersP3
 
-export thresholds
+export thresholds, P3_mass, distribution_parameter_solver
 
 """
     α_va_si(p3)
@@ -145,6 +147,142 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
         D_gr = D_gr_helper(p3, ρ_g),
         ρ_g,
         ρ_d,
+    )
+end
+
+"""
+    mass_(p3, D, ρ, F_r)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension [m]
+ - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
+ - F_r - rime mass fraction [q_rim/q_i]
+
+Returns mass as a function of size for differen particle regimes [kg]
+"""
+# for spherical ice (small ice or completely rimed ice)
+mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
+# for large nonspherical ice (used for unrimed and dense types)
+mass_nl(p3::PSP3, D::FT) where {FT <: Real} = P3.α_va_si(p3) * D^p3.β_va
+# for partially rimed ice
+mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} = P3.α_va_si(p3) / (1 - F_r) * D^p3.β_va
+
+"""
+    P3_mass(p3, D, F_r, th)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Returns mass(D) regime, used to create figures for the docs page.
+"""
+function P3_mass(
+    p3::PSP3,
+    D::FT,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT <: Real}
+    if P3.D_th_helper(p3) > D
+        return mass_s(D, p3.ρ_i)          # small spherical ice
+    end
+    if F_r == 0
+        return mass_nl(p3, D)             # large nonspherical unrimed ice
+    end
+    if th.D_gr > D >= P3.D_th_helper(p3)
+        return mass_nl(p3, D)             # dense nonspherical ice
+    end
+    if th.D_cr > D >= th.D_gr
+        return mass_s(D, th.ρ_g)          # graupel
+    end
+    if D >= th.D_cr
+        return mass_r(p3, D, F_r)         # partially rimed ice
+    end
+end
+
+
+"""
+    N′(D, p)
+    
+ - D - maximum particle dimension
+ - p - a tuple containing N_0, λ, μ (intrcept, slope, and shape parameters for N′ respectively)
+ 
+ Returns the value of N′ 
+ Eq. 2 in Morrison and Milbrandt (2015).   
+"""
+N′(D, p) = p.N_0 * D ^ (p.μ) * exp(-p.λ * D)
+
+"""
+    μ(λ)
+
+ - λ - slope parameter for gamma distribution of N′
+
+ Returns the slope parameter (μ) corresponding to the given λ value
+ Eq. 3 in Morrison and Milbrandt (2015).
+"""
+μ(λ) = 0.00191λ^(0.8) - 2
+
+"""
+    N_helper(N_0, λ)
+
+ - N_0 - intercept parameter of N′ gamma distribution
+ - λ - slope parameter of N′ gamma distribution 
+
+Returns the prognostic number mixing ratio 
+Eq. 4 in Morrison and Milbrandt (2015).
+"""
+function N_helper(N_0::FT, λ::FT) where {FT}
+    μ = 0.00191λ^(0.8) - 2
+    problem = IN.IntegralProblem(N′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ(λ)))
+    sol = IN.solve(problem, IN.HCubatureJL(), reltol = 1e-3, abstol = 1e-3)
+    return FT(sol.u)
+end
+
+"""
+    q_helper(N_0, λ)
+
+ - p3 - a struct with P3 scheme parameters
+ - N_0 - intercept parameter of N′ gamma distribution
+ - λ - slope parameter of N′ gamma distribution 
+ - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+
+Returns the prognostic mass mixing ratio
+Eq. 5 in Morrison and Milbrandt (2015).
+"""
+function q_helper(p3::PSP3{FT}, N_0::FT, λ::FT, F_r::FT, ρ_r::FT) where {FT}
+    μ = 0.00191λ^(0.8) - 2
+    th = thresholds(p3, ρ_r, F_r)
+    q′(D, p) = P3_mass(p3, D, F_r, th) * N′(D, p)
+    problem = IN.IntegralProblem(q′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ(λ)))
+    sol = IN.solve(problem, IN.HCubatureJL(), reltol = 1e-3, abstol = 1e-3)
+    return FT(sol.u)
+end
+
+"""
+    distrbution_parameter_solver()
+
+ - p3 - a struct with P3 scheme parameters
+ - q - mass mixing ratio 
+ - N - number mixing ratio 
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (q_rim/q_i)
+
+Solves the nonlinear system consisting of N_0 and λ
+for a given number mixing ratio (N) and mass mixing ratio (q).
+    Returns a named tuple containing:
+     - N_0 - size distribution parameter related to N and q
+     - λ - size distribution parameter related to N and q [m^-1]
+"""
+function distribution_parameter_solver(p3::pSP3{FT}, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+
+    shape_problem(λ) = q - N * q_helper(p3, FT(1), λ, F_r, ρ_r)/N_helper(FT(1), λ)
+
+    λ = RS.find_zero(shape_problem, RS.SecantMethod(FT(0), FT(1000)), RS.CompactSolution(),).root 
+
+    return(;
+        λ = λ,
+        N_0 = N/N_helper(FT(1), λ)
     )
 end
 
