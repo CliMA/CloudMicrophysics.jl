@@ -90,9 +90,9 @@ function p3_mass_plot()
     sol_8 = P3.thresholds(p3, 400.0, 0.8)
 
     #! format: off
-    fig1_a_0 = Plt.lines!(ax1_a, D_range * 1e3, [P3.P3_mass(p3, D, 0.0       ) for D in D_range], color = cl[1], linewidth = lw)
-    fig1_a_5 = Plt.lines!(ax1_a, D_range * 1e3, [P3.P3_mass(p3, D, 0.5, sol_5) for D in D_range], color = cl[2], linewidth = lw)
-    fig1_a_8 = Plt.lines!(ax1_a, D_range * 1e3, [P3.P3_mass(p3, D, 0.8, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig1_a_0 = Plt.lines!(ax1_a, D_range * 1e3, [P3.p3_mass(p3, D, 0.0       ) for D in D_range], color = cl[1], linewidth = lw)
+    fig1_a_5 = Plt.lines!(ax1_a, D_range * 1e3, [P3.p3_mass(p3, D, 0.5, sol_5) for D in D_range], color = cl[2], linewidth = lw)
+    fig1_a_8 = Plt.lines!(ax1_a, D_range * 1e3, [P3.p3_mass(p3, D, 0.8, sol_8) for D in D_range], color = cl[3], linewidth = lw)
 
     d_tha  = Plt.vlines!(ax1_a, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
     d_cr_5 = Plt.vlines!(ax1_a, sol_5[1]           * 1e3, linestyle = :dot,  color = cl[2], linewidth = lw)
@@ -130,9 +130,9 @@ function p3_mass_plot()
     sol_8 = P3.thresholds(p3, 800.0, 0.95)
 
     #! format: off
-    fig1_b200 = Plt.lines!(ax1_b, D_range * 1e3, [P3.P3_mass(p3, D, 0.95, sol_2) for D in D_range], color = cl[1], linewidth = lw)
-    fig1_b400 = Plt.lines!(ax1_b, D_range * 1e3, [P3.P3_mass(p3, D, 0.95, sol_4) for D in D_range], color = cl[2], linewidth = lw)
-    fig1_b800 = Plt.lines!(ax1_b, D_range * 1e3, [P3.P3_mass(p3, D, 0.95, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig1_b200 = Plt.lines!(ax1_b, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_2) for D in D_range], color = cl[1], linewidth = lw)
+    fig1_b400 = Plt.lines!(ax1_b, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_4) for D in D_range], color = cl[2], linewidth = lw)
+    fig1_b800 = Plt.lines!(ax1_b, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_8) for D in D_range], color = cl[3], linewidth = lw)
 
     d_thb    = Plt.vlines!(ax1_b, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
     d_cr_200 = Plt.vlines!(ax1_b, sol_2[1] * 1e3,           linestyle = :dot,  color = cl[1], linewidth = lw)

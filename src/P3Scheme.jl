@@ -18,7 +18,7 @@ import CloudMicrophysics.Parameters as CMP
 
 const PSP3 = CMP.ParametersP3
 
-export thresholds, P3_mass, distribution_parameter_solver
+export thresholds, p3_mass, distribution_parameter_solver
 
 """
     α_va_si(p3)
@@ -163,12 +163,12 @@ Returns mass as a function of size for differen particle regimes [kg]
 # for spherical ice (small ice or completely rimed ice)
 mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
 # for large nonspherical ice (used for unrimed and dense types)
-mass_nl(p3::PSP3, D::FT) where {FT <: Real} = P3.α_va_si(p3) * D^p3.β_va
+mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
 # for partially rimed ice
-mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} = P3.α_va_si(p3) / (1 - F_r) * D^p3.β_va
+mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} = α_va_si(p3) / (1 - F_r) * D^p3.β_va
 
 """
-    P3_mass(p3, D, F_r, th)
+    p3_mass(p3, D, F_r, th)
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
@@ -177,19 +177,19 @@ mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} = P3.α_va_si(p3) / (1 - F_r
 
 Returns mass(D) regime, used to create figures for the docs page.
 """
-function P3_mass(
+function p3_mass(
     p3::PSP3,
     D::FT,
     F_r::FT,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT <: Real}
-    if P3.D_th_helper(p3) > D
+    if D_th_helper(p3) > D
         return mass_s(D, p3.ρ_i)          # small spherical ice
     end
     if F_r == 0
         return mass_nl(p3, D)             # large nonspherical unrimed ice
     end
-    if th.D_gr > D >= P3.D_th_helper(p3)
+    if th.D_gr > D >= D_th_helper(p3)
         return mass_nl(p3, D)             # dense nonspherical ice
     end
     if th.D_cr > D >= th.D_gr
@@ -253,7 +253,7 @@ Eq. 5 in Morrison and Milbrandt (2015).
 function q_helper(p3::PSP3{FT}, N_0::FT, λ::FT, F_r::FT, ρ_r::FT) where {FT}
     μ = 0.00191λ^(0.8) - 2
     th = thresholds(p3, ρ_r, F_r)
-    q′(D, p) = P3_mass(p3, D, F_r, th) * N′(D, p)
+    q′(D, p) = p3_mass(p3, D, F_r, th) * N′(D, p)
     problem = IN.IntegralProblem(q′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ(λ)))
     sol = IN.solve(problem, IN.HCubatureJL(), reltol = 1e-3, abstol = 1e-3)
     return FT(sol.u)
@@ -274,7 +274,7 @@ for a given number mixing ratio (N) and mass mixing ratio (q).
      - N_0 - size distribution parameter related to N and q
      - λ - size distribution parameter related to N and q [m^-1]
 """
-function distribution_parameter_solver(p3::pSP3{FT}, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+function distribution_parameter_solver(p3::PSP3{FT}, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
 
     shape_problem(λ) = q - N * q_helper(p3, FT(1), λ, F_r, ρ_r)/N_helper(FT(1), λ)
 
