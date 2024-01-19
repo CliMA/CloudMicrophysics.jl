@@ -213,14 +213,14 @@ end
 N′(D, p) = p.N_0 * D ^ (p.μ) * exp(-p.λ * D)
 
 """
-    μ(λ)
+    μ_calc(λ)
 
  - λ - slope parameter for gamma distribution of N′
 
  Returns the slope parameter (μ) corresponding to the given λ value
  Eq. 3 in Morrison and Milbrandt (2015).
 """
-μ(λ) = 0.00191λ^(0.8) - 2
+μ_calc(λ) = 0.00191 * λ^(0.8) - 2
 
 """
     N_helper(N_0, λ)
@@ -232,8 +232,7 @@ Returns the prognostic number mixing ratio
 Eq. 4 in Morrison and Milbrandt (2015).
 """
 function N_helper(N_0::FT, λ::FT) where {FT}
-    μ = 0.00191λ^(0.8) - 2
-    problem = IN.IntegralProblem(N′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ(λ)))
+    problem = IN.IntegralProblem(N′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ_calc(λ)))
     sol = IN.solve(problem, IN.HCubatureJL(), reltol = 1e-3, abstol = 1e-3)
     return FT(sol.u)
 end
@@ -251,10 +250,9 @@ Returns the prognostic mass mixing ratio
 Eq. 5 in Morrison and Milbrandt (2015).
 """
 function q_helper(p3::PSP3{FT}, N_0::FT, λ::FT, F_r::FT, ρ_r::FT) where {FT}
-    μ = 0.00191λ^(0.8) - 2
     th = thresholds(p3, ρ_r, F_r)
     q′(D, p) = p3_mass(p3, D, F_r, th) * N′(D, p)
-    problem = IN.IntegralProblem(q′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ(λ)))
+    problem = IN.IntegralProblem(q′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ_calc(λ)))
     sol = IN.solve(problem, IN.HCubatureJL(), reltol = 1e-3, abstol = 1e-3)
     return FT(sol.u)
 end
