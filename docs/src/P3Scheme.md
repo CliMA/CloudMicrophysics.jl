@@ -20,43 +20,6 @@ The prognostic variables are:
 !!! note
     TODO - At some point we should switch to specific humidities...
 
-## Assumed particle size distribution (PSD)
-
-Following [MorrisonMilbrandt2015](@cite), the scheme assumes a
- gamma distribution for the concentration of particles per unit volume
- based on particle size measurements obtained by [Heymsfield2003](@cite)
- in tropical and midlatitude ice clouds and implemented by
- [MorrisonGrabowski2008](@cite):
-
-```math
-N'(D) = N_{0} D^\mu \, e^{-\lambda \, D}
-```
-where:
- - ``N'`` is the number concentration in ``m^{-4}``
- - ``D`` is the maximum particle dimension in ``m``,
- - ``N_0`` is the intercept parameter in ``m^{-4}``,
- - ``\mu`` is the shape parameter (dimensionless),
- - ``\lambda`` is the slope parameter in ``m^{-1}``.
-
-We assume ``\mu \ = 0.00191 \; \lambda \ ^{0.8} - 2``.
-Following [MorrisonGrabowski2008](@cite) we limit ``\mu \ \in (0,6)``.
-A negative ``\mu`` can occur only for very small mean particle sizes``\frac{1}{\lambda} < ~0.17 mm``.
-``N_0`` and ``\lambda`` can be found using different moments of the PSD,
-namely the total number concentration ``N`` and mass mixing ratio ``q``, where
-
-```math
-N = \int_{0}^{\infty} \! N'(D) \mathrm{d}D
-```
-
-```math
-q = \int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D
-```
-
-For liquid droplets, these equations are solved without issue, but for ice, the third moment of the size distribution listed above (i.e. ``\int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D``) varies as the mass relation varies across the PSD (see below for the mass regime documentation). On the other hand, the first moment of the PSD, the number concentration, does not vary across the PSD and yields ``N = \frac{N_0}{\lambda}``.
-
-!!! note
-    TODO - The scheme uses a mean particle size value ``D_m`` for each time step to determine which mass relation to employ. In other words, ``N_0`` and ``\lambda`` must be calculated for the five different mass relations below to accommodate ranges of ``D_m`` corresponding to each mass relation. For mean particle sizes that employ the mass relations characterized by graupel and by partially rimed ice, the mass relations are time-dependent due to the presence of ``\rho_g`` and ``F_r``. This complicates the scheme's use of the PSD, and as a result, writing analytical formulas for the PSD parameters is challenging.
-
 ## Assumed particle mass relationships
 
 The mass ``m`` of particles as a function of maximum particle dimension ``D``
@@ -91,10 +54,6 @@ The remaining thresholds: ``D_{gr}``, ``D_{cr}``, as well as the
 where
  - ``F_r = \frac{q_{rim}}{q_{ice}}`` is the rime mass fraction,
  - ``\rho_{r} = \frac{q_{rim}}{B_{rim}}`` is the predicted rime density.
-The system is solved using [`NonlinearSolve.jl`](https://docs.sciml.ai/NonlinearSolve/stable/).
-
-!!! note
-    TODO - The use of NonlinearSolve.jl is not ideal because of its runtime and memory allocation requirements. Currently, there is also a look-up table NetCDF file which could be used to look up values of the quantities which form the nonlinear system. However, the look-up table is not GPU-compatible and would require too much memory in an Earth System Model. The current approach may be of use for testing and for visualization of the system, but other options, such as using RootSolvers.jl or using a simpler fit that approximates the solver output, are more suitable long term solutions which do not require outside packages which employ auto-differentiation or use memory, both of which do not suit the needs of CliMA.
 
 ## Assumed particle projected area relationships
 
@@ -116,7 +75,63 @@ where all variables from the m(D) regime are as defined above, and:
  - ``\sigma = 1.88`` (dimensionless), both from the aggregates of side planes, columns, bullets, and planar polycrystals in [Mitchell1996](@cite).
 
 !!! note
-    TODO - As mentioned in [issue #151](https://github.com/CliMA/CloudMicrophysics.jl/issues/151), the units of ``\gamma`` and ``\sigma`` are not immediately clear from [Mitchell1996](@cite) and [MorrisonMilbrandt2015](@cite). To resolve this issue, it may be useful to contact the authors of the paper, or, examine the representative figures below to check units. It has occured to me that the units of ``D`` are probably m and that the units of ``A`` are probably m2. I have assumed these dimensions for the time being. Another likely scenario would be if ``D`` had units of mm, in which case we would have ``\gamma = 0.2285 \; 10^{3 \sigma}`` to correct for units. However, the plots of area versus particle dimension look outlandish in this case.
+    TODO - Check units, see in [issue #151](https://github.com/CliMA/CloudMicrophysics.jl/issues/151)
+
+## Assumed particle size distribution (PSD)
+
+Following [MorrisonMilbrandt2015](@cite), the scheme assumes a
+ gamma distribution for the concentration of ice particles per unit volume
+ based on particle size measurements obtained by [Heymsfield2003](@cite)
+ in tropical and midlatitude ice clouds and implemented by
+ [MorrisonGrabowski2008](@cite):
+
+```math
+N'(D) = N_{0} D^\mu \, e^{-\lambda \, D}
+```
+where:
+ - ``N'`` is the number concentration in ``m^{-4}``
+ - ``D`` is the maximum particle dimension in ``m``,
+ - ``N_0`` is the intercept parameter in ``m^{-4}``,
+ - ``\mu`` is the shape parameter (dimensionless),
+ - ``\lambda`` is the slope parameter in ``m^{-1}``.
+
+We assume ``\mu \ = 0.00191 \; \lambda \ ^{0.8} - 2``.
+Following [MorrisonGrabowski2008](@cite) we limit ``\mu \ \in (0,6)``.
+A negative ``\mu`` can occur only for very small mean particle sizes``\frac{1}{\lambda} < ~0.17 mm``.
+
+The model predicted ice number concentration and ice mass density are defined as
+```math
+N_{ice} = \int_{0}^{\infty} \! N'(D) \mathrm{d}D
+```
+```math
+q_{ice} = \int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D
+```
+
+## Calculating shape parameters
+
+As a next step we need to find the mapping between
+  predicted moments of the size distribution ``N_{ice}`` and ``q_{ice}``
+  and the shape parameters ``\lambda`` and ``N_0``.
+Solving for ``N_{ice}`` is relatively straightforward:
+```math
+N_{ice} = \int_{0}^{\infty} \! N'(D) \mathrm{d}D = \int_{0}^{\infty} \! N_{0} D^\mu \, e^{-\lambda \, D} \mathrm{d}D = N_{0} (\lambda \,^{-(\mu \, + 1)} \Gamma \,(1 + \mu \,))
+```
+
+``q_{ice}`` depends on the variable mass-size relation ``m(D)`` defined above.
+We solve for ``q_{ice}`` in a piece-wise fashion defined by the same thresholds as ``m(D)``.
+As a result ``q\_{ice}`` can be expressed as a sum of inclomplete gamma functions.
+  and the shape parameters are found using iterative solver.
+
+|      condition(s)                            |    ``q_{ice} = \int \! m(D) N'(D) \mathrm{d}D``                                          |         gamma representation          |
+|:---------------------------------------------|:-----------------------------------------------------------------------------------------|:---------------------------------------------|
+| ``D < D_{th}``                               | ``\int_{0}^{D_{th}} \! \frac{\pi}{6} \rho_i \ D^3 N'(D) \mathrm{d}D``                    | ``\frac{\pi}{6} \rho_i N_0 \lambda \,^{-(\mu \, + 4)} (\Gamma \,(\mu \, + 4) - \Gamma \,(\mu \, + 4, \lambda \,D_{th}))``|
+| ``q_{rim} = 0`` and ``D > D_{th}``           | ``\int_{D_{th}}^{\infty} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1) + \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}) - (\mu \, + \beta_{va} \,)\Gamma \,(\mu \, + \beta_{va} \,))`` |
+| ``q_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\int_{D_{th}}^{D_{gr}} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}) - \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{gr}))`` |
+| ``q_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\int_{D_{gr}}^{D_{cr}} \! \frac{\pi}{6} \rho_g \ D^3 N'(D) \mathrm{d}D``               | ``\frac{\pi}{6} \rho_g N_0 \lambda \,^{-(\mu \, + 4)} (\Gamma \,(\mu \, + 4, \lambda \,D_{gr}) - \Gamma \,(\mu \, + 4, \lambda \,D_{cr}))`` |
+| ``q_{rim} > 0`` and ``D > D_{cr}``           | ``\int_{D_{cr}}^{\infty} \! \frac{\alpha_{va}}{1-F_r} D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\frac{\alpha_{va}}{1-F_r} N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1) + \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{cr}) - (\mu \, + \beta_{va} \,)\Gamma \,(\mu \, + \beta_{va} \,))``  |
+
+where ``\Gamma \,(a, z) = \int_{z}^{\infty} \! t^{a - 1} e^{-t} \mathrm{d}D``
+  and ``\Gamma \,(a) = \Gamma \,(a, 0)`` for simplicity.
 
 ## Example figures
 

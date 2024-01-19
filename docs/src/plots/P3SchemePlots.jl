@@ -9,22 +9,7 @@ FT = Float64
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
 
-"""
-    mass_(p3, D, ρ, F_r)
 
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension [m]
- - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
- - F_r - rime mass fraction [q_rim/q_i]
-
-Returns mass as a function of size for differen particle regimes [kg]
-"""
-# for spherical ice (small ice or completely rimed ice)
-mass_s(D::FT, ρ::FT) = FT(π) / 6 * ρ * D^3
-# for large nonspherical ice (used for unrimed and dense types)
-mass_nl(p3::PSP3, D::FT) = P3.α_va_si(p3) * D^p3.β_va
-# for partially rimed ice
-mass_r(p3::PSP3, D::FT, F_r::FT) = P3.α_va_si(p3) / (1 - F_r) * D^p3.β_va
 
 """
     A_(p3, D)
@@ -40,38 +25,6 @@ A_s(D::FT) = FT(π) / 4 * D^2
 A_ns(p3::PSP3, D::FT) = p3.γ * D^p3.σ
 # partially rimed ice
 A_r(p3::PSP3, F_r::FT, D::FT) = F_r * A_s(D) + (1 - F_r) * A_ns(p3, D)
-"""
-    mass(p3, D, F_r, th)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
- - F_r - rime mass fraction (q_rim/q_i)
- - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
-Returns mass(D) regime, used to create figures for the docs page.
-"""
-function mass(
-    p3::PSP3,
-    D::FT,
-    F_r::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT <: Real}
-    if P3.D_th_helper(p3) > D
-        return mass_s(D, p3.ρ_i)          # small spherical ice
-    end
-    if F_r == 0
-        return mass_nl(p3, D)             # large nonspherical unrimed ice
-    end
-    if th.D_gr > D >= P3.D_th_helper(p3)
-        return mass_nl(p3, D)             # dense nonspherical ice
-    end
-    if th.D_cr > D >= th.D_gr
-        return mass_s(D, th.ρ_g)          # graupel
-    end
-    if D >= th.D_cr
-        return mass_r(p3, D, F_r)         # partially rimed ice
-    end
-end
 
 """
     area(p3, D, F_r, th)
@@ -137,9 +90,9 @@ function p3_mass_plot()
     sol_8 = P3.thresholds(p3, 400.0, 0.8)
 
     #! format: off
-    fig1_a_0 = Plt.lines!(ax1_a, D_range * 1e3, [mass(p3, D, 0.0       ) for D in D_range], color = cl[1], linewidth = lw)
-    fig1_a_5 = Plt.lines!(ax1_a, D_range * 1e3, [mass(p3, D, 0.5, sol_5) for D in D_range], color = cl[2], linewidth = lw)
-    fig1_a_8 = Plt.lines!(ax1_a, D_range * 1e3, [mass(p3, D, 0.8, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig1_a_0 = Plt.lines!(ax1_a, D_range * 1e3, [P3.p3_mass(p3, D, 0.0       ) for D in D_range], color = cl[1], linewidth = lw)
+    fig1_a_5 = Plt.lines!(ax1_a, D_range * 1e3, [P3.p3_mass(p3, D, 0.5, sol_5) for D in D_range], color = cl[2], linewidth = lw)
+    fig1_a_8 = Plt.lines!(ax1_a, D_range * 1e3, [P3.p3_mass(p3, D, 0.8, sol_8) for D in D_range], color = cl[3], linewidth = lw)
 
     d_tha  = Plt.vlines!(ax1_a, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
     d_cr_5 = Plt.vlines!(ax1_a, sol_5[1]           * 1e3, linestyle = :dot,  color = cl[2], linewidth = lw)
@@ -177,9 +130,9 @@ function p3_mass_plot()
     sol_8 = P3.thresholds(p3, 800.0, 0.95)
 
     #! format: off
-    fig1_b200 = Plt.lines!(ax1_b, D_range * 1e3, [mass(p3, D, 0.95, sol_2) for D in D_range], color = cl[1], linewidth = lw)
-    fig1_b400 = Plt.lines!(ax1_b, D_range * 1e3, [mass(p3, D, 0.95, sol_4) for D in D_range], color = cl[2], linewidth = lw)
-    fig1_b800 = Plt.lines!(ax1_b, D_range * 1e3, [mass(p3, D, 0.95, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig1_b200 = Plt.lines!(ax1_b, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_2) for D in D_range], color = cl[1], linewidth = lw)
+    fig1_b400 = Plt.lines!(ax1_b, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_4) for D in D_range], color = cl[2], linewidth = lw)
+    fig1_b800 = Plt.lines!(ax1_b, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_8) for D in D_range], color = cl[3], linewidth = lw)
 
     d_thb    = Plt.vlines!(ax1_b, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
     d_cr_200 = Plt.vlines!(ax1_b, sol_2[1] * 1e3,           linestyle = :dot,  color = cl[1], linewidth = lw)
