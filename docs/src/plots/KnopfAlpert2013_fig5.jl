@@ -1,14 +1,14 @@
 import CairoMakie as MK
 
+import CLIMAParameters
 import Thermodynamics as TD
 import CloudMicrophysics as CM
-
-const CMO = CM.Common
-const CMI = CM.HetIceNucleation
-const CMP = CM.Parameters
+import CloudMicrophysics.Common as CMO
+import CloudMicrophysics.HetIceNucleation as CMI
+import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
-tps = CMP.ThermodynamicsParameters(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
 H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 illite = CMP.Illite(FT)    # dust type
 

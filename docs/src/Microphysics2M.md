@@ -638,16 +638,16 @@ and the default free parameter values are:
 using CairoMakie
 CairoMakie.activate!(type = "svg")
 
-import CloudMicrophysics
 import CLIMAParameters
-
-const CM1 = CloudMicrophysics.Microphysics1M
-const CM2 = CloudMicrophysics.Microphysics2M
-const CMP = CloudMicrophysics.Parameters
+import Thermodynamics as TD
+import CloudMicrophysics
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
 
-const tps = CMP.ThermodynamicsParameters(FT)
+const tps = TD.Parameters.ThermodynamicsParameters(FT)
 const aps = CMP.AirProperties(FT)
 
 const KK2000 = CMP.KK2000(FT)

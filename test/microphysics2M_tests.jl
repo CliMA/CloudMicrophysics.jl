@@ -24,7 +24,7 @@ function test_microphysics2M(FT)
 
     # Thermodynamics and air properties parameters
     aps = CMP.AirProperties(FT)
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
 
     # Terminal velocity parameters
     SB2006Vel = CMP.SB2006VelType(FT)

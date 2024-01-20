@@ -56,7 +56,7 @@ for i in 1:3
         println(io, "value = " * string(k_thrshld_stpnss_values[i]))
         println(io, "type = \"float\"")
     end
-    toml_dict = CP.create_toml_dict(FT; override_file, dict_type="alias")
+    toml_dict = CP.create_toml_dict(FT; override_file)
     isfile(override_file) && rm(override_file; force=true)
 
     push!(rain, CMP.Rain(FT, toml_dict))

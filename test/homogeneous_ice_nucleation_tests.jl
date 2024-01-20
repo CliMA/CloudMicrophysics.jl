@@ -12,7 +12,7 @@ import CloudMicrophysics.HomIceNucleation as CMH
 
 function test_homogeneous_J(FT)
 
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     ip = CMP.IceNucleationParameters(FT)
 

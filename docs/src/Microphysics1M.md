@@ -765,7 +765,7 @@ const CMP = CloudMicrophysics.Parameters
 
 FT = Float64
 
-const tps = CMP.ThermodynamicsParameters(FT)
+const tps = Thermodynamics.Parameters.ThermodynamicsParameters(FT)
 const aps = CMP.AirProperties(FT)
 const liquid = CMP.CloudLiquid(FT)
 const ice = CMP.CloudIce(FT)

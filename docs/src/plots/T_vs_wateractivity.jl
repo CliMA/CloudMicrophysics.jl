@@ -8,7 +8,7 @@ const CMO = CM.Common
 const CMP = CM.Parameters
 
 FT = Float64
-tps = CMP.ThermodynamicsParameters(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
 H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
 T_range = range(190, stop = 234, length = 100)

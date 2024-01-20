@@ -9,7 +9,7 @@ const CMO = CM.Common
 const CMP = CM.Parameters
 
 FT = Float64
-tps = CMP.ThermodynamicsParameters(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
 H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
 # Baumgartner at al 2022 Figure 5

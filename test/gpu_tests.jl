@@ -25,7 +25,6 @@ ClimaComms.device() isa ClimaComms.CUDADevice || error("No GPU found")
 
 # Set up GPU
 using CUDA
-using CUDA.CUDAKernels
 const backend = CUDABackend()
 CUDA.allowscalar(false)
 const ArrayType = CuArray
@@ -538,7 +537,7 @@ function test_gpu(FT)
 
     # thermodynamics and air properties
     aps = CMP.AirProperties(FT)
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
 
     # aerosol activation
     ap = CMP.AerosolActivationParameters(FT)

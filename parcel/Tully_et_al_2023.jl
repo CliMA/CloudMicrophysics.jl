@@ -44,7 +44,7 @@ end
 function Tully_et_al_2023(FT)
 
     # get free parameters
-    tps = CMP.ThermodynamicsParameters(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
     aps = CMP.AirProperties(FT)
     wps = CMP.WaterProperties(FT)
     ip = CMP.IceNucleationParameters(FT)
