@@ -48,11 +48,10 @@ end
 
 Returns the expected lambda to be compared to the non linear solver
 """
-function λ_expected(q_i::FT, n_0::FT) where{FT}
+function λ_expected(q_i::FT, n_0::FT, ρ_i ::FT) where{FT}
     m_e = FT(3)
     r_0 = FT(1e-5)
     ρ = FT(1)       # density of air 
-    ρ_i = FT(917)   # kg/m^3
     m_0 = FT(4/3 * π * ρ_i * r_0^3)
     X_m = FT(1)
     Δ_m = FT(0)
@@ -61,11 +60,11 @@ function λ_expected(q_i::FT, n_0::FT) where{FT}
 
 end
 
-function test_1M(q_i, n_0, ρ_w)
-    shape_problem(λ) = q_i - 4/3 * ρ_w * n_0 * (6* λ^(-4))
+function test_1M(q_i, n_0, ρ_i)
+    shape_problem(λ) = q_i - 4/3 * π * ρ_i * n_0 * (6* λ^(-4))
     λ = RS.find_zero(shape_problem, RS.SecantMethod(FT(1000), FT(100000)), RS.CompactSolution(), RS.RelativeSolutionTolerance(1e-3), 10,).root 
 
-    println("True λ = ", λ_expected(q_i, n_0))  
+    println("True λ = ", λ_expected(q_i, n_0, ρ_i))  
     println("Modeled λ = ", λ)
 end
 
@@ -78,6 +77,7 @@ end
 q_i = FT(1e-6)
 n_0 = FT(16 * 1e6)
 ρ_w = FT(1e3)
+ρ_i = FT(917)   # kg/m^3
 
 N = FT(1e8)
 q = FT(1e-3)
@@ -107,5 +107,5 @@ F_r = q_r/q_i
 #println("n_0 entered = ", n_0)
 #println("λ expected = ", λ_ex)
 
-test_1M(q_i, n_0, ρ_w)
+test_1M(q_i, n_0, ρ_i)
 #test_solver(p3, q_calculated1, N, ρ_r, F_r)
