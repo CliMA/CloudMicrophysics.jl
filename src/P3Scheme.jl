@@ -312,7 +312,7 @@ function distribution_parameter_solver(p3::PSP3{FT}, q::FT, N::FT, ρ_r::FT, F_r
     
     shape_problem(λ) = q - q_gamma(p3, F_r, N_0_helper(N, λ, μ_calc(λ)), λ, μ_calc(λ), th)  
 
-    λ = RS.find_zero(shape_problem, RS.SecantMethod(FT(1), FT(1e10)), RS.CompactSolution(), RS.RelativeSolutionTolerance(1e-3), 10,).root 
+    λ = RS.find_zero(shape_problem, RS.SecantMethod(FT(100), FT(5000)), RS.CompactSolution(), RS.RelativeSolutionTolerance(1e-3), 10,).root 
 
     return(;
         λ = λ,
