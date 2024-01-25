@@ -11,9 +11,9 @@ $(DocStringExtensions.FIELDS)
 """
 struct Illite{FT} <: AerosolType{FT}
     "m coefficient for immersion freezing J [-]"
-    m::FT
+    ABIFM_m::FT
     "c coefficient for immersion freezing J [-]"
-    c::FT
+    ABIFM_c::FT
 end
 
 function Illite(
