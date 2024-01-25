@@ -235,15 +235,18 @@ end
 """
 # small, spherical ice or graupel (completely rimed, spherical)
 function q_s(ρ::FT, N_0::FT, λ::FT, μ::FT, D_min::FT, D_max::FT) where {FT} 
-    return (π/6 * ρ * N_0) * λ^(-1 * (μ + 4)) * (SF.gamma(μ + 4, λ*D_min) - SF.gamma(μ + 4, λ*D_max)) 
+    x = μ + 3
+    return (π/6 * ρ * N_0) * λ^(-1 * (x + 1)) * (SF.gamma(x + 1, λ*D_min) - SF.gamma(x + 1, λ*D_max)) 
 end
 # dense, non-spherical ice
 function q_n(p3::PSP3, N_0::FT, λ::FT, μ::FT, D_min::FT, D_max::FT) where {FT} 
-    return (p3.α_va * N_0) * (λ)^(-1 * (μ + p3.β_va + 1)) * (SF.gamma(μ + p3.β_va + 1, λ*D_min) - SF.gamma(μ + p3.β_va + 1, λ*D_max))
+    x = μ + p3.β_va
+    return (p3.α_va * N_0) * (λ)^(-1 * (x + 1)) * (SF.gamma(x + 1, λ*D_min) - SF.gamma(x + 1, λ*D_max))
 end
-# partially rimed ice or large unrimed ice
+# partially rimed ice or large unrimed ice (upper bound on D is infinity)
 function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, μ::FT, D_min::FT) where{FT} 
-    return (p3.α_va * N_0 /(1 - F_r)) * (λ)^(-1 * (μ + p3.β_va + 1)) * (SF.gamma(μ + p3.β_va + 1) + (SF.gamma(μ + p3.β_va + 1, λ*D_min) - (μ + p3.β_va)*SF.gamma(μ + p3.β_va)))
+    x = μ + p3.β_va
+    return (p3.α_va * N_0 /(1 - F_r)) * (λ)^(-1 * (x + 1)) * (SF.gamma(x + 1) + SF.gamma(x + 1, λ*D_min) - (x)*SF.gamma(x))
 end
 
 """
@@ -312,7 +315,7 @@ function distribution_parameter_solver(p3::PSP3{FT}, q::FT, N::FT, ρ_r::FT, F_r
     
     shape_problem(λ) = q - q_gamma(p3, F_r, N_0_helper(N, λ, μ_calc(λ)), λ, μ_calc(λ), th)  
 
-    λ = RS.find_zero(shape_problem, RS.SecantMethod(FT(100), FT(5000)), RS.CompactSolution(), RS.RelativeSolutionTolerance(1e-3), 10,).root 
+    λ = RS.find_zero(shape_problem, RS.SecantMethod(FT(100), FT(50000)), RS.CompactSolution(), RS.RelativeSolutionTolerance(1e-3), 10,).root 
 
     return(;
         λ = λ,
