@@ -135,7 +135,7 @@ include("plots/P3SchemePlots.jl")
 
 Solving  for the shape parameters of the ``N'`` distribution proves to be difficult for ice particles. We solve the non-linear system from ``N`` and ``q`` for ``N_0`` and ``\lambda`` through the use of incomplete gamma functions. 
 
-Starting with the function for ``N``: 
+Solving the function for ``N`` is relatively straightforward.
 
 ```math 
 N = \int_{0}^{\infty} \! N'(D) \mathrm{d}D = \int_{0}^{\infty} \! N_{0} D^\mu \, e^{-\lambda \, D} \mathrm{d}D = N_{0} (\lambda \,^{-(\mu \, + 1)} \Gamma \,(1 + \mu \,))
@@ -150,6 +150,8 @@ Calculating ``q`` in terms of incomplete gamma functions proves to be increasing
 | ``q_{rim} > 0`` and ``D_{gr} > D > D_{th}`` | ``\int_{D_{th}}^{D_{gr}} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}) - \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{gr}))`` |
 | ``q_{rim} > 0`` and ``D_{cr} > D > D_{gr}`` | ``\int_{D_{cr}}^{D_{gr}} \! \frac{\pi}{6} \rho_g \ D^3 N'(D) \mathrm{d}D`` | ``\frac{\pi}{6} \rho_g N_0 \lambda \,^{-(\mu \, + 4)} (\Gamma \,(\mu \, + 4, \lambda \,D_{gr}) - \Gamma \,(\mu \, + 4, \lambda \,D_{cr}))`` |
 | ``q_{rim} > 0`` and ``D > D_{cr}`` | ``\int_{D_{cr}}^{\infty} \! \frac{\alpha_{va}}{1-F_r} D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\frac{\alpha_{va}}{1-F_r} N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1) + \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{cr}) - (\mu \, + \beta_{va} \,)\Gamma \,(\mu \, + \beta_{va} \,))``  |
+
+where ``\Gamma \,(a, z) = \int_{z}^{\infty} \! t^{a - 1} e^{-t} \mathrm{d}D`` and ``\Gamma \,(a) = \Gamma \,(a, 0)`` for simplicity.
 
 Therefore, for any ``q_{rim}`` we are able to piece together a total ``q`` value across the PSD using these incomplete gamma functions. 
 
