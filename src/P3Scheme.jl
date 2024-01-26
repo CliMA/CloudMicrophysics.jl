@@ -11,12 +11,12 @@ Note: Particle size is defined as its maximum length (i.e. max dimesion).
 module P3Scheme
 
 import RootSolvers as RS
-import CLIMAParameters as CP
-import ..Parameters as CMP
+import SpecialFunctions as SF
 
+import CloudMicrophysics.Parameters as CMP
 const PSP3 = CMP.ParametersP3
 
-export thresholds
+export thresholds, p3_mass
 
 """
     α_va_si(p3)
@@ -146,6 +146,57 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
         ρ_g,
         ρ_d,
     )
+end
+
+"""
+    mass_(p3, D, ρ, F_r)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension [m]
+ - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
+ - F_r - rime mass fraction [q_rim/q_i]
+
+Returns mass as a function of size for differen particle regimes [kg]
+"""
+# for spherical ice (small ice or completely rimed ice)
+mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
+# for large nonspherical ice (used for unrimed and dense types)
+mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
+# for partially rimed ice
+mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
+    α_va_si(p3) / (1 - F_r) * D^p3.β_va
+
+"""
+    p3_mass(p3, D, F_r, th)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Returns mass(D) regime, used to create figures for the docs page.
+"""
+function p3_mass(
+    p3::PSP3,
+    D::FT,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT <: Real}
+    if D_th_helper(p3) > D
+        return mass_s(D, p3.ρ_i)          # small spherical ice
+    end
+    if F_r == 0
+        return mass_nl(p3, D)             # large nonspherical unrimed ice
+    end
+    if th.D_gr > D >= D_th_helper(p3)
+        return mass_nl(p3, D)             # dense nonspherical ice
+    end
+    if th.D_cr > D >= th.D_gr
+        return mass_s(D, th.ρ_g)          # graupel
+    end
+    if D >= th.D_cr
+        return mass_r(p3, D, F_r)         # partially rimed ice
+    end
 end
 
 end
