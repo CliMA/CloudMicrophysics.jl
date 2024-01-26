@@ -62,7 +62,7 @@ function test_p3_thresholds(FT)
         end
 
         # Check that the P3 scheme solution matches the published values
-        function diff(ρ_r, F_r, el, gold, rtol = 2e-2)
+        function diff(ρ_r, F_r, el, gold, rtol=2e-2)
             TT.@test P3.thresholds(p3, ρ_r, F_r)[el] * 1e3 ≈ gold rtol = rtol
         end
         # D_cr and D_gr vs Fig. 1a Morrison and Milbrandt 2015
@@ -84,8 +84,45 @@ function test_p3_thresholds(FT)
     end
 end
 
+function test_p3_shapeSolver(FT)
+
+    p3 = CMP.ParametersP3(FT)
+
+    TT.@testset "shape parameters (nonlinear solver function)" begin
+
+        # initialize test values: 
+        N_test = (FT(1e8))                             # N values
+        λ_test = (FT(20000), FT(25000))                # test λ values in range 
+        ρ_r_test = (FT(200)) #, FT(400), FT(800))       # representative ρ_r values
+        F_r_test = (FT(0.5)) #, FT(0.8), FT(0.95))     # representative F_r values
+
+
+        # check that the shape solution solves to give correct values 
+        for N in N_test
+            for λ_ex in λ_test
+                for ρ_r in ρ_r_test
+                    for F_r in F_r_test
+                        μ_ex = P3.μ_calc(λ_ex)                  # corresponding μ
+                        n_0_ex = P3.N_0_helper(FT(N), FT(λ_ex), FT(μ_ex))   # corresponding n_0
+                        q_calc = P3.q_gamma(p3, F_r, n_0_ex, log(λ_ex), μ_ex, th)
+                        (λ, N_0) = P3.distrbution_parameter_solver(p3, q_calc, N, ρ_r, F_r)
+
+                        # compare the solved values with the values plugged in
+                        TT.@test λ ≈ λ_ex atol = eps(FT)
+                        TT.@test N_0 ≈ n_0_ex atol = eps(FT)
+                    end
+                end
+            end
+        end
+
+    end
+
+end
+
 println("Testing Float32")
 test_p3_thresholds(Float32)
+# test_p3_shapeSolver(Float32)
 
 println("Testing Float64")
 test_p3_thresholds(Float64)
+test_p3_shapeSolver(Float64)

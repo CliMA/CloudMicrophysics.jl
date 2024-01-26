@@ -144,3 +144,8 @@ test_1M(q_i, n_0, ρ_i)
 println(" ")
 println("Tetsing P3")
 test_solver(p3, q_calculated1, N, ρ_r, F_r)
+
+
+println("λ_ex = ", λ_ex)
+println("n_0 expected = ", n_0_ex)
+println("q_calc = ", q_calculated1)
