@@ -121,6 +121,7 @@ q_calculated1 = P3.q_gamma(p3, F_r, n_0_ex, log(λ_ex), μ_ex, th)
 
 println(" ")
 println("λ_ex = ", λ_ex)
+println("n_0 expected = ", n_0_ex)
 println("q_calc = ", q_calculated1)
 
 #N = n_0/λ_ex
@@ -136,6 +137,7 @@ println("q_calc = ", q_calculated1)
 
 #println("n_0 entered = ", n_0)
 #println("λ expected = ", λ_ex)
+
 println("testing 1M")
 test_1M(q_i, n_0, ρ_i)
 
