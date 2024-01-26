@@ -84,6 +84,70 @@ function test_p3_thresholds(FT)
     end
 end
 
+function test_p3_mass(FT)
+
+    p3 = CMP.ParametersP3(FT)
+
+    TT.@testset "p3 mass_ functions" begin
+
+        # Initialize test values
+        Ds = (FT(1e-5), FT(1e-4), FT(1e-3))
+        ρs = (FT(400), FT(600), FT(800))
+        F_rs = (FT(0.0), FT(0.5), FT(0.8))
+
+        # Test to see that the mass_ functions give positive, not NaN values
+        for D in Ds
+            for ρ in ρs
+                for F_r in F_rs
+                    TT.@test P3.mass_s(D, ρ) >= 0
+                    TT.@test P3.mass_nl(p3, D) >= 0
+                    TT.@test P3.mass_r(p3, D, F_r) >= 0
+                end
+            end
+        end
+    end
+
+    # Test to see that p3_mass gives correct mass 
+    TT.@testset "p3_mass() accurate values" begin
+
+        # Initialize test values
+        Ds = (FT(1e-5), FT(1e-4), FT(1e-3))
+        ρs = (FT(400), FT(600), FT(800))
+        F_rs = (FT(0.0), FT(0.5), FT(0.8))
+        eps = FT(1e-3)
+
+        for ρ in ρs
+            for F_r in F_rs
+                D_th = P3.D_th_helper(p3)
+                D1 = D_th / 2
+
+                if (F_r > 0)
+                    th = P3.thresholds(p3, ρ, F_r)
+
+                    D2 = (th.D_gr + D_th) / 2
+                    D3 = (th.D_cr + th.D_gr) / 2
+                    D4 = th.D_cr + eps
+
+                    TT.@test P3.p3_mass(p3, D1, F_r, th) ==
+                             P3.mass_s(D1, p3.ρ_i)
+                    TT.@test P3.p3_mass(p3, D2, F_r, th) == P3.mass_nl(p3, D2)
+                    TT.@test P3.p3_mass(p3, D3, F_r, th) ==
+                             P3.mass_s(D3, th.ρ_g)
+                    TT.@test P3.p3_mass(p3, D4, F_r, th) ==
+                             P3.mass_r(p3, D4, F_r)
+                else
+                    D2 = D1 + eps
+                    TT.@test P3.p3_mass(p3, D1, F_r, ()) ==
+                             P3.mass_s(D1, p3.ρ_i)
+                    TT.@test P3.p3_mass(p3, D2, F_r, ()) == P3.mass_nl(p3, D2)
+                end
+
+            end
+        end
+    end
+
+end
+
 function test_p3_shapeSolver(FT)
 
     p3 = CMP.ParametersP3(FT)
@@ -121,8 +185,10 @@ end
 
 println("Testing Float32")
 test_p3_thresholds(Float32)
+test_p3_mass(Float32)
 test_p3_shapeSolver(Float32)
 
 println("Testing Float64")
 test_p3_thresholds(Float64)
+test_p3_mass(Float64)
 test_p3_shapeSolver(Float64)
