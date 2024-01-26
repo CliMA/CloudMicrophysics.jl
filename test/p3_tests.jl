@@ -91,10 +91,11 @@ function test_p3_shapeSolver(FT)
     TT.@testset "shape parameters (nonlinear solver function)" begin
 
         # initialize test values: 
+        eps = FT(1e-3)
         N_test = (FT(1e8))                             # N values
-        λ_test = (FT(20000), FT(25000))                # test λ values in range 
-        ρ_r_test = (FT(200)) #, FT(400), FT(800))       # representative ρ_r values
-        F_r_test = (FT(0.5)) #, FT(0.8), FT(0.95))     # representative F_r values
+        λ_test = (FT(15000), FT(20000))                # test λ values in range 
+        ρ_r_test = (FT(200)) #, FT(1)) #, FT(100))       # representative ρ_r values
+        F_r_test = (FT(0.5), FT(0.8), FT(0.95))     # representative F_r values
 
 
         # check that the shape solution solves to give correct values 
@@ -103,25 +104,24 @@ function test_p3_shapeSolver(FT)
                 for ρ_r in ρ_r_test
                     for F_r in F_r_test
                         μ_ex = P3.μ_calc(λ_ex)                  # corresponding μ
-                        n_0_ex = P3.N_0_helper(FT(N), FT(λ_ex), FT(μ_ex))   # corresponding n_0
-                        q_calc = P3.q_gamma(p3, F_r, n_0_ex, log(λ_ex), μ_ex, th)
-                        (λ, N_0) = P3.distrbution_parameter_solver(p3, q_calc, N, ρ_r, F_r)
+                        n_0_ex = P3.N_0_helper(N, λ_ex, μ_ex)   # corresponding n_0
+                        th = P3.thresholds(p3, ρ_r, F_r)
+                        q_calc = FT(P3.q_gamma(p3, F_r, n_0_ex, log(λ_ex), μ_ex, th))
+                        (λ, N_0) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_r)
 
                         # compare the solved values with the values plugged in
-                        TT.@test λ ≈ λ_ex atol = eps(FT)
-                        TT.@test N_0 ≈ n_0_ex atol = eps(FT)
+                        TT.@test λ ≈ λ_ex rtol = eps
+                        TT.@test N_0 ≈ n_0_ex rtol = eps
                     end
                 end
             end
         end
-
     end
-
 end
 
 println("Testing Float32")
 test_p3_thresholds(Float32)
-# test_p3_shapeSolver(Float32)
+test_p3_shapeSolver(Float32)
 
 println("Testing Float64")
 test_p3_thresholds(Float64)

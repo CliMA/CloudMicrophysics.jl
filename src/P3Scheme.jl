@@ -216,7 +216,7 @@ function μ_calc(λ::FT) where {FT}
     elseif μ > 6
         μ = FT(6)
     end
-    return μ
+    return FT(μ)
 end
 
 """
@@ -239,23 +239,23 @@ end
 # q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
 function q_s(ρ::FT, N_0::FT, λ::FT, μ::FT, D_min::FT, D_max::FT) where {FT}
     x = μ + 3
-    return (π/6 * ρ * N_0) * λ^(-1 * (x + 1)) * (SF.gamma(x + 1, λ*D_min) - SF.gamma(x + 1, λ*D_max))
+    return (π/6 * ρ * N_0) * λ^(-1 * (x + 1)) * (FT(SF.gamma(x + 1, λ*D_min)) - FT(SF.gamma(x + 1, λ*D_max)))
 end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, N_0::FT, λ::FT, μ::FT, D_min::FT) where {FT}
     x = μ + p3.β_va
-    return (p3.α_va * N_0) * (λ)^(-1 * (x + 1)) * (SF.gamma(x + 1) + SF.gamma(x + 1, λ*D_min)- (x)*SF.gamma(x))
+    return (p3.α_va * N_0) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1)) + FT(SF.gamma(x + 1, λ*D_min))- (x)*FT(SF.gamma(x)))
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, N_0::FT, λ::FT, μ::FT, D_min::FT, D_max::FT) where {FT}
     x = μ + p3.β_va
-    return (p3.α_va * N_0) * (λ)^(-1 * (x + 1)) * (SF.gamma(x + 1, λ*D_min) - SF.gamma(x + 1, λ*D_max))
+    return (p3.α_va * N_0) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1, λ*D_min)) - FT(SF.gamma(x + 1, λ*D_max)))
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, μ::FT, D_min::FT) where{FT}
     x = μ + p3.β_va
-    return (p3.α_va * N_0 /(1 - F_r)) * (λ)^(-1 * (x + 1)) * (SF.gamma(x + 1) + SF.gamma(x + 1, λ*D_min) - (x)*SF.gamma(x))
+    return (p3.α_va * N_0 /(1 - F_r)) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1)) + FT(SF.gamma(x + 1, λ*D_min)) - (x)*FT(SF.gamma(x)))
 end
 
 """
@@ -289,12 +289,12 @@ function q_gamma(p3::PSP3, F_r::FT, N_0::FT, x::FT, μ::FT, th = (; D_cr = FT(0)
     println("    q_r = ", q_r(p3, F_r, N_0, λ, μ, th.D_cr))
 
     if F_r == 0
-        return q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) + q_rz(p3, N_0, λ, μ, D_th)
+        return FT(q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) + q_rz(p3, N_0, λ, μ, D_th))
     else
-        return q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) +
+        return FT(q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) +
                q_n(p3, N_0, λ, μ, D_th, th.D_gr) +
                q_s(th.ρ_g, N_0, λ, μ, th.D_gr, th.D_cr) +
-               q_r(p3, F_r, N_0, λ, μ, th.D_cr)
+               q_r(p3, F_r, N_0, λ, μ, th.D_cr))
     end
 end
 
@@ -312,7 +312,7 @@ N′(D, p) = p.N_0 * D ^ (p.μ) * exp(-p.λ * D)
 """
 """
 function N_0_helper(N::FT, λ::FT, μ::FT) where{FT}
-    return N/(λ^(-1 - μ) * SF.gamma(1 + μ))
+    return N/(λ^(-1 - μ) * FT(SF.gamma(1 + μ)))
 end
 
 """
