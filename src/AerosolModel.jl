@@ -130,7 +130,7 @@ Represents the sizes and types of particles in one size distribution mode.
 The mode is assumed to be made up of internally mixed components
 and follow a lognormal size distribution.
 """
-struct Mode_INP{NCOMP, T, FT}
+struct Mode_INP{NCOMP, FT}
     "geometric mean dry radius"
     r_dry::FT
     "geometric standard deviation"
@@ -138,21 +138,21 @@ struct Mode_INP{NCOMP, T, FT}
     "total number concentration"
     N::FT
     "aerosol type"
-    aerosol_type::AerosolType{FT}
+    aerosol_type::CMP.AerosolType{FT}
 end
 
 function Mode_INP(
     r_dry::FT,
     stdev::FT,
     N::FT,
-    aerosol_type::AerosolType{FT}
+    aerosol_type::CMP.AerosolType{FT},
     NCOMP::Int,
-) where {T, FT}
-    return Mode_INP{NCOMP, T, FT}(
+) where {FT}
+    return Mode_INP{NCOMP, FT}(
         r_dry,
         stdev,
         N,
-        aerosol_type::AerosolType{FT}
+        aerosol_type::CMP.AerosolType{FT}
     )
 end
 
