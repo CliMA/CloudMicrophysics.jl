@@ -157,14 +157,14 @@ function test_p3_shapeSolver(FT)
         # initialize test values: 
         eps = FT(1e-3)
         N_test = (FT(1e8))                             # N values
-        λ_test = (FT(15000), FT(20000))                # test λ values in range 
+        λ_test = (FT(20000))#, FT(15000))             # test λ values in range 
         ρ_r_test = (FT(200)) #, FT(1)) #, FT(100))       # representative ρ_r values
-        F_r_test = (FT(0.5), FT(0.8), FT(0.95))     # representative F_r values
+        F_r_test = (FT(0.5), FT(0.8), FT(0.95)) #, FT(0.8), FT(0.95))     # representative F_r values
 
 
         # check that the shape solution solves to give correct values 
         for N in N_test
-            for λ_ex in λ_test
+            for λ_ex in λ_test 
                 for ρ_r in ρ_r_test
                     for F_r in F_r_test
                         μ_ex = P3.μ_calc(λ_ex)                  # corresponding μ

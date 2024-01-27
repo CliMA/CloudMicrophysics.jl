@@ -244,18 +244,18 @@ end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, N_0::FT, λ::FT, μ::FT, D_min::FT) where {FT}
     x = μ + p3.β_va
-    return (p3.α_va * N_0) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1)) + FT(SF.gamma(x + 1, λ*D_min))- (x)*FT(SF.gamma(x)))
+    return (α_va_si(p3) * N_0) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1)) + FT(SF.gamma(x + 1, λ*D_min))- (x)*FT(SF.gamma(x)))
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, N_0::FT, λ::FT, μ::FT, D_min::FT, D_max::FT) where {FT}
     x = μ + p3.β_va
-    return (p3.α_va * N_0) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1, λ*D_min)) - FT(SF.gamma(x + 1, λ*D_max)))
+    return (α_va_si(p3) * N_0) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1, λ*D_min)) - FT(SF.gamma(x + 1, λ*D_max)))
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, μ::FT, D_min::FT) where{FT}
     x = μ + p3.β_va
-    return (p3.α_va * N_0 /(1 - F_r)) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1)) + FT(SF.gamma(x + 1, λ*D_min)) - (x)*FT(SF.gamma(x)))
+    return (α_va_si(p3) * N_0 /(1 - F_r)) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1)) + FT(SF.gamma(x + 1, λ*D_min)) - (x)*FT(SF.gamma(x)))
 end
 
 """
