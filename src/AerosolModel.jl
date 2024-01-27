@@ -124,6 +124,42 @@ end
 n_components(::Mode_κ{NCOMP}) where {NCOMP} = NCOMP
 
 """
+    Mode_INP
+
+Represents the sizes and types of particles in one size distribution mode.
+The mode is assumed to be made up of internally mixed components
+and follow a lognormal size distribution.
+"""
+struct Mode_INP{NCOMP, T, FT}
+    "geometric mean dry radius"
+    r_dry::FT
+    "geometric standard deviation"
+    stdev::FT
+    "total number concentration"
+    N::FT
+    "aerosol type"
+    aerosol_type::AerosolType{FT}
+end
+
+function Mode_INP(
+    r_dry::FT,
+    stdev::FT,
+    N::FT,
+    aerosol_type::AerosolType{FT}
+    NCOMP::Int,
+) where {T, FT}
+    return Mode_INP{NCOMP, T, FT}(
+        r_dry,
+        stdev,
+        N,
+        aerosol_type::AerosolType{FT}
+    )
+end
+
+""" number of components in the mode """
+n_components(::Mode_INP{NCOMP}) where {NCOMP} = NCOMP
+
+"""
     AerosolDistribution
 
 Represents the aerosol size distribution as a tuple with different modes.
