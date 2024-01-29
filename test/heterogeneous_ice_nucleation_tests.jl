@@ -21,6 +21,8 @@ function test_heterogeneous_ice_nucleation(FT)
     desert_dust = CMP.DesertDust(FT)
     illite = CMP.Illite(FT)
     kaolinite = CMP.Kaolinite(FT)
+    feldspar = CMP.Feldspar(FT)
+    ferrihydrite = CMP.Ferrihydrite(FT)
 
     TT.@testset "dust_activation" begin
 
@@ -78,6 +80,39 @@ function test_heterogeneous_ice_nucleation(FT)
                     T,
                 ) == FT(0)
             end
+        end
+    end
+
+    TT.@testset "Deposition Nucleation J" begin
+
+        T_warm_1 = FT(229.2)
+        T_cold_1 = FT(228.8)
+        x_sulph = FT(0.1)
+
+        T_warm_2 = FT(285)
+        T_cold_2 = FT(251)
+        e_warm = FT(1088)
+        e_cold = FT(544)
+
+        # higher nucleation rate at colder temperatures
+        for dust in [feldspar, ferrihydrite, kaolinite]
+            TT.@test CMI_het.deposition_J(
+                dust,
+                CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_cold_1) -
+                CO.a_w_ice(tps, T_cold_1),
+            ) > CMI_het.deposition_J(
+                dust,
+                CO.a_w_xT(H2SO4_prs, tps, x_sulph, T_warm_1) -
+                CO.a_w_ice(tps, T_warm_1),
+            )
+
+            TT.@test CMI_het.deposition_J(
+                dust,
+                CO.a_w_eT(tps, e_cold, T_cold_2) - CO.a_w_ice(tps, T_cold_2),
+            ) > CMI_het.deposition_J(
+                dust,
+                CO.a_w_eT(tps, e_warm, T_warm_2) - CO.a_w_ice(tps, T_warm_2),
+            )
         end
     end
 

@@ -480,6 +480,23 @@ end
     end
 end
 
+@kernel function IceNucleation_deposition_J_kernel!(
+    output::AbstractArray{FT},
+    kaolinite,
+    feldspar,
+    ferrihydrite,
+    Delta_a_w,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] = CMI_het.deposition_J(kaolinite, Delta_a_w[1])
+        output[2] = CMI_het.deposition_J(feldspar, Delta_a_w[2])
+        output[3] = CMI_het.deposition_J(ferrihydrite, Delta_a_w[3])
+    end
+end
+
 @kernel function IceNucleation_ABIFM_J_kernel!(
     output::AbstractArray{FT},
     kaolinite,
@@ -576,6 +593,8 @@ function test_gpu(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     illite = CMP.Illite(FT)
     kaolinite = CMP.Kaolinite(FT)
+    feldspar = CMP.Feldspar(FT)
+    ferrihydrite = CMP.Ferrihydrite(FT)
     ip = CMP.IceNucleationParameters(FT)
 
     @testset "Aerosol activation kernels" begin
@@ -821,6 +840,19 @@ function test_gpu(FT)
     end
 
     @testset "Ice Nucleation kernels" begin
+        dims = (1, 3)
+        (; output, ndrange) = setup_output(dims, FT)
+
+        Delta_a_w = ArrayType([FT(0.16), FT(0.15), FT(0.15)])
+
+        kernel! = IceNucleation_deposition_J_kernel!(backend, work_groups)
+        kernel!(output, kaolinite, feldspar, ferrihydrite, Delta_a_w; ndrange)
+
+        # test if deposition_J is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(1.5390757663075784e6)
+        @test Array(output)[2] ≈ FT(5.693312205851678e6)
+        @test Array(output)[3] ≈ FT(802555.3607426438)
+
         dims = (1, 2)
         (; output, ndrange) = setup_output(dims, FT)
 

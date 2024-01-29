@@ -86,6 +86,7 @@ AerosolActivation.total_M_activated
 ```@docs
 HetIceNucleation
 HetIceNucleation.dust_activated_number_fraction
+HetIceNucleation.deposition_J
 HetIceNucleation.ABIFM_J
 ```
 
@@ -127,6 +128,8 @@ Parameters.ArizonaTestDust
 Parameters.DesertDust
 Parameters.Illite
 Parameters.Kaolinite
+Parameters.Feldspar
+Parameters.Ferrihydrite
 Parameters.Seasalt
 Parameters.Sulfate
 Parameters.AerosolActivationParameters
