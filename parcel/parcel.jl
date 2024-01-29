@@ -53,6 +53,7 @@ function parcel_model(dY, Y, p, t)
     R_a = TD.gas_constant_air(tps, q)
     cp_a = TD.cp_m(tps, q)
     L_subl = TD.latent_heat_sublim(tps, T)
+    L_fus = TD.latent_heat_fusion(tps, T)
     L_vap = TD.latent_heat_vapor(tps, T)
     ρ_air = TD.air_density(tps, ts)
     e = q_vap * p_a * R_v / R_a
@@ -62,6 +63,7 @@ function parcel_model(dY, Y, p, t)
     a2 = 1 / q_vap
     a3 = L_vap^2 / R_v / T^2 / cp_a
     a4 = L_vap * L_subl / R_v / T^2 / cp_a
+    a5 = L_vap * L_fus / R_v / cp_a / (T^2)
 
     # TODO - we should zero out all tendencies and augemnt them
     # TODO - add immersion, homogeneous, ...
@@ -135,12 +137,16 @@ function parcel_model(dY, Y, p, t)
         end
     end
 
+    dq_liq_dt_vap_to_liq = dql_dt_cond        # from liq-vap transitions
+    dq_ice_dt_vap_to_ice = dqi_dt_new_depo + dqi_dt_depo        # from ice-vap transitions
+    dq_ice_dt_liq_to_ice = dqi_dt_new_immers   # from ice-liq transitions
+
     # Update the tendecies
-    dq_ice_dt = dqi_dt_new_depo + dqi_dt_depo + dqi_dt_new_immers
-    dq_liq_dt = dql_dt_cond - dqi_dt_new_immers
-    dS_l_dt = a1 * w * S_liq - (a2 + a3) * S_liq * dq_liq_dt - (a2 + a4) * S_liq * dq_ice_dt
+    dq_ice_dt = dq_ice_dt_vap_to_ice + dq_ice_dt_liq_to_ice
+    dq_liq_dt = dq_liq_dt_vap_to_liq - dq_ice_dt_liq_to_ice
+    dS_l_dt = a1 * w * S_liq - (a2 + a3) * S_liq * dq_liq_dt_vap_to_liq - (a2 + a4) * S_liq * dq_ice_dt_vap_to_ice - a5 * S_liq * dq_ice_dt_liq_to_ice
     dp_a_dt = -p_a * grav / R_a / T * w
-    dT_dt = -grav / cp_a * w + L_vap / cp_a * dq_liq_dt + L_subl / cp_a * dq_ice_dt
+    dT_dt = -grav / cp_a * w + L_vap / cp_a * dq_liq_dt_vap_to_liq + L_fus / cp_a * dq_ice_dt_liq_to_ice + L_subl / cp_a * dq_ice_dt_vap_to_ice
     dq_vap_dt = -dq_ice_dt - dq_liq_dt
 
     # Set tendencies
