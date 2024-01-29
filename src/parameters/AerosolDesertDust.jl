@@ -20,9 +20,9 @@ struct DesertDust{FT} <: AerosolType{FT}
     "a for T < T_thr [-]"
     a_cold::FT
     "m coefficient for immersion freezing J [-]"
-    m::FT
+    ABIFM_m::FT
     "c coefficient for immersion freezing J [-]"
-    c::FT
+    ABIFM_c::FT
 end
 
 function DesertDust(

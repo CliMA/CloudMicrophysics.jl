@@ -7,6 +7,7 @@ import ..Parameters as CMP
 import Thermodynamics as TD
 
 export dust_activated_number_fraction
+export deposition_J
 export ABIFM_J
 
 """
@@ -41,7 +42,28 @@ function dust_activated_number_fraction(
 end
 
 """
-    ABIFM_J(dust, ip, Δa_w)
+    deposition_J(dust, Δa_w)
+
+ - `dust` - a struct with dust parameters
+ - `Δa_w` - change in water activity [unitless].
+
+Returns the deposition nucleation rate coefficient, `J`, in m^-2 s^-1
+for different minerals in liquid droplets.
+The free parameters `m` and `c` are derived from China et al (2017)
+see DOI: 10.1002/2016JD025817
+"""
+function deposition_J(
+    dust::Union{CMP.Ferrihydrite, CMP.Feldspar, CMP.Kaolinite},
+    Δa_w::FT,
+) where {FT}
+
+    logJ::FT = dust.deposition_m * Δa_w + dust.deposition_c
+
+    return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
+end
+
+"""
+    ABIFM_J(dust, Δa_w)
 
  - `dust` - a struct with dust parameters
  - `Δa_w` - change in water activity [unitless].
@@ -56,7 +78,7 @@ function ABIFM_J(
     Δa_w::FT,
 ) where {FT}
 
-    logJ::FT = dust.m * Δa_w + dust.c
+    logJ::FT = dust.ABIFM_m * Δa_w + dust.ABIFM_c
 
     return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
 end

@@ -59,6 +59,7 @@ function benchmark_test(FT)
     ap = CMP.AerosolActivationParameters(FT)
     # ice nucleation
     desert_dust = CMP.DesertDust(FT)
+    kaolinite = CMP.Kaolinite(FT)
     ip = CMP.IceNucleationParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     # aerosol nucleation parameters
@@ -136,6 +137,7 @@ function benchmark_test(FT)
         (desert_dust, ip.deposition, S_ice, T_air_2),
         50,
     )
+    bench_press(CMI_het.deposition_J, (kaolinite, Delta_a_w), 230)
     bench_press(CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 230)
     bench_press(CMI_hom.homogeneous_J, (ip.homogeneous, Delta_a_w), 230)
 

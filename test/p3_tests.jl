@@ -33,8 +33,8 @@ function test_p3_thresholds(FT)
             )
         end
 
-        for _F_r in (FT(0), FT(-1))
-            TT.@test_throws AssertionError("F_r > FT(0)") P3.thresholds(
+        for _F_r in (FT(-1 * eps(FT)), FT(-1))
+            TT.@test_throws AssertionError("F_r >= FT(0)") P3.thresholds(
                 p3,
                 ρ_r,
                 _F_r,
@@ -120,10 +120,9 @@ function test_p3_mass(FT)
             for F_r in F_rs
                 D_th = P3.D_th_helper(p3)
                 D1 = D_th / 2
+                th = P3.thresholds(p3, ρ, F_r)
 
                 if (F_r > 0)
-                    th = P3.thresholds(p3, ρ, F_r)
-
                     D2 = (th.D_gr + D_th) / 2
                     D3 = (th.D_cr + th.D_gr) / 2
                     D4 = th.D_cr + eps
@@ -137,9 +136,9 @@ function test_p3_mass(FT)
                              P3.mass_r(p3, D4, F_r)
                 else
                     D2 = D1 + eps
-                    TT.@test P3.p3_mass(p3, D1, F_r, ()) ==
+                    TT.@test P3.p3_mass(p3, D1, F_r, th) ==
                              P3.mass_s(D1, p3.ρ_i)
-                    TT.@test P3.p3_mass(p3, D2, F_r, ()) == P3.mass_nl(p3, D2)
+                    TT.@test P3.p3_mass(p3, D2, F_r, th) == P3.mass_nl(p3, D2)
                 end
 
             end
