@@ -120,32 +120,39 @@ Returns a named tuple containing:
 """
 function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
 
-    @assert ρ_r > FT(0)   # rime density must be positive ...
-    @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
-    @assert F_r > FT(0)   # rime mass fraction must be positive ...
+    @assert F_r >= FT(0)   # rime mass fraction must be positive ...
     @assert F_r < FT(1)   # ... and there must always be some unrimed part
 
-    P3_problem(ρ_d) =
-        ρ_d - ρ_d_helper(
-            p3,
-            D_cr_helper(p3, F_r, ρ_g_helper(ρ_r, F_r, ρ_d)),
-            D_gr_helper(p3, ρ_g_helper(ρ_r, F_r, ρ_d)),
+    if F_r == 0
+
+        return (; D_cr = 0, D_gr = 0, ρ_g = 0, ρ_d = 0)
+
+    else
+        @assert ρ_r > FT(0)   # rime density must be positive ...
+        @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
+
+        P3_problem(ρ_d) =
+            ρ_d - ρ_d_helper(
+                p3,
+                D_cr_helper(p3, F_r, ρ_g_helper(ρ_r, F_r, ρ_d)),
+                D_gr_helper(p3, ρ_g_helper(ρ_r, F_r, ρ_d)),
+            )
+
+        ρ_d =
+            RS.find_zero(
+                P3_problem,
+                RS.SecantMethod(FT(0), FT(1000)),
+                RS.CompactSolution(),
+            ).root
+        ρ_g = ρ_g_helper(ρ_r, F_r, ρ_d)
+
+        return (;
+            D_cr = D_cr_helper(p3, F_r, ρ_g),
+            D_gr = D_gr_helper(p3, ρ_g),
+            ρ_g,
+            ρ_d,
         )
-
-    ρ_d =
-        RS.find_zero(
-            P3_problem,
-            RS.SecantMethod(FT(0), FT(1000)),
-            RS.CompactSolution(),
-        ).root
-    ρ_g = ρ_g_helper(ρ_r, F_r, ρ_d)
-
-    return (;
-        D_cr = D_cr_helper(p3, F_r, ρ_g),
-        D_gr = D_gr_helper(p3, ρ_g),
-        ρ_g,
-        ρ_d,
-    )
+    end
 end
 
 """
