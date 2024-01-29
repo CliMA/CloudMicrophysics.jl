@@ -283,17 +283,17 @@ function q_gamma(p3::PSP3, F_r::FT, N_0::FT, x::FT, μ::FT, th = (; D_cr = FT(0)
 
     λ = exp(x)
 
-    println(" ")
+    #= println(" ")
     println("x = ", x)
     println("λ = ", λ)
     println("Fr = ", F_r," N0 = ", N_0, " x =  ", x," μ =  ", μ, " th =  ", th)
 
     println("q = sum of:")
     println("    q_s = ", q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th))
-    println("    q_rz = ", q_rz(p3, N_0, λ, μ, D_th))
-    println("    q_n = ", q_n(p3, N_0, λ, μ, D_th, th.D_gr))
-    println("    q_s 2 = ", q_s(th.ρ_g, N_0, λ, μ, th.D_gr, th.D_cr))
-    println("    q_r = ", q_r(p3, F_r, N_0, λ, μ, th.D_cr))
+    println("    q_rz = ", q_rz(p3, N_0, λ, μ, D_th)) =#
+    #println("    q_n = ", q_n(p3, N_0, λ, μ, D_th, th.D_gr))
+    #println("    q_s 2 = ", q_s(th.ρ_g, N_0, λ, μ, th.D_gr, th.D_cr))
+    #println("    q_r = ", q_r(p3, F_r, N_0, λ, μ, th.D_cr)) 
 
     if F_r == 0
         return FT(q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) + q_rz(p3, N_0, λ, μ, D_th))
@@ -336,6 +336,7 @@ for a given number mixing ratio (N) and mass mixing ratio (q).
     Returns a named tuple containing:
      - N_0 - size distribution parameter related to N and q
      - λ - size distribution parameter related to N and q [m^-1]
+     - converged - boolean corresponding to whether the root solver converged
 """
 function distribution_parameter_solver(p3::PSP3{FT}, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
 
@@ -351,17 +352,22 @@ function distribution_parameter_solver(p3::PSP3{FT}, q::FT, N::FT, ρ_r::FT, F_r
         th
     )
 
-    x = RS.find_zero(
+    solution = RS.find_zero(
         shape_problem,
         RS.SecantMethod(FT(log(20000)), FT(log(50000))),
         RS.CompactSolution(),
         RS.RelativeSolutionTolerance(eps(FT)),
-        #10,
-    ).root
+        10,
+    )
+
+    x = solution.root
+
+    converged = solution.converged
 
     return(;
         λ = exp(x),
-        N_0 = N_0_helper(N, exp(x), μ_calc(exp(x)))
+        N_0 = N_0_helper(N, exp(x), μ_calc(exp(x))), 
+        converged = converged
     )
 end
 
