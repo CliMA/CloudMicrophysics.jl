@@ -47,6 +47,25 @@ Both parameters are dependent on aerosol properties and temperature.
     freezing occurs in a different ice nucleation mode
     (either a second deposition or other condensation type mode).
 
+## Water Activity Based Deposition Nucleation
+The water activity based deposition nucleation model is analagous to ABIFM
+  for immersion freezing (see [ABIFM for Sulphuric Acid Containing Droplets](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/#ABIFM-for-Sulphuric-Acid-Containing-Droplets)
+  section below). It calculates a nucleation rate coefficient, ``J``, which
+  describes the number of ice nuclei formed per unit area of INP per unit time
+  dependent on the water activity criterion, ``\Delta  a_w``, and aerosol type.
+  The form of this empirical parameterization is taken from [KnopfAlpert2013](@cite).
+  Currently, we have parameters for kaolinite, feldspar, and ferrihydrite derived
+  from [China2017](@cite) and [Alpert2022](@cite).
+
+```math
+\begin{equation}
+  log_{10}J_{deposition} = m \Delta a_w + c
+\end{equation}
+```
+where ``J`` is in units of ``cm^{-2}s^{-1}``. Note that our source code returns
+  ``J`` in SI units. ``m`` and ``c`` are aerosol dependent coefficients. They will
+  have different values than those for ABIFM.
+
 ## ABIFM for Sulphuric Acid Containing Droplets
 Water Activity-Based Immersion Freezing Model (ABFIM)
   is a method of parameterizing immersion freezing inspired by the time-dependent
@@ -66,7 +85,8 @@ Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
 \end{equation}
 ```
 A parameterization for ``\Delta a_w`` can be found in `Common.jl`. More information on
-  it can be found in the `Water Activity` section.
+  it can be found in the `Water Activity` section. ``m`` and ``c`` here are different
+  from the ``m`` and ``c`` parameters for deposition nucleation.
 
 !!! note
 
