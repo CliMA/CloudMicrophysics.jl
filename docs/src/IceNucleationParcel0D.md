@@ -198,18 +198,32 @@ where:
 
 ## Deposition Nucleation on dust particles
 There are multiple ways of running deposition nucleation in the parcel.
-  `"MohlerAF_Deposition"` will trigger an activated fraction approach from [Mohler2006](@cite).
-  `"MohlerRate_Deposition"` will trigger a nucleation rate approach from [Mohler2006](@cite).
+  `"MohlerAF_Deposition"` will trigger an activated fraction approach
+  from [Mohler2006](@cite). `"MohlerRate_Deposition"` will trigger a
+  nucleation rate approach from [Mohler2006](@cite). For both approaches,
+  there is no nucleation if saturation over ice exceeds 1.35 as conditions
+  above this value will result in nucleation in a different mode.
+  `"ActivityBasedDeposition"` will trigger a water activity based approach
+  from [Alpert2022](@cite). In this approach, ice production rate ``P_{ice, depo}``
+  is calculated from 
+```math
+\begin{equation}
+  P_{ice, depo} = \left[ \frac{dN_i}{dt} \right]_{depo} = J_{depo}\;A_{aero}\;N_{aero}
+  \label{eq:ActivityBasedDeposition_P_ice}
+\end{equation}
+```
+where ``N_{areo}`` is total number of unactiviated ice nucleating particles and
+  ``A_{aero}`` is surface area of those INP.
 The deposition nucleation methods are parameterized as described in
   [Ice Nucleation](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/).
 
 ## Immersion Freezing
 Following the water activity based immersion freezing model (ABIFM), the ABIFM derived
-  nucleation rate coefficient, ``J_{immer}``, can be determined. The ice production rate,``P_{ice}``,
+  nucleation rate coefficient, ``J_{immer}``, can be determined. The ice production rate,``P_{ice, immer}``,
   per second via immersion freezing can then be calculating using
 ```math
 \begin{equation}
-  P_{ice} = \left[ \frac{dN_i}{dt} \right]_{immer} = J_{immer}A(N_{liq})
+  P_{ice, immer} = \left[ \frac{dN_i}{dt} \right]_{immer} = J_{immer}A(N_{liq})
   \label{eq:ABIFM_P_ice}
 \end{equation}
 ```
@@ -223,7 +237,7 @@ Homogeneous freezing follows the water-activity based model described in the
 The ice production rate from homogeneous freezing can then be determined:
 ```math
 \begin{equation}
-  P_{ice} = \left[ \frac{dN_i}{dt} \right]_{hom} = J_{hom}V(N_{liq})
+  P_{ice, hom} = \left[ \frac{dN_i}{dt} \right]_{hom} = J_{hom}V(N_{liq})
   \label{eq:hom_P_ice}
 \end{equation}
 ```
@@ -245,7 +259,7 @@ Between each run the water vapor specific humidity is changed,
   of the previous run.
 The prescribed vertical velocity is equal to 3.5 cm/s.
 Supersaturation is plotted for both liquid (solid lines) and ice (dashed lines).
-The pale blue line uses the `"MohlerRate_Deposition"`approach. 
+The pale blue line uses the `"MohlerRate_Deposition"` approach. 
   We only run it for the first GCM timestep because the rate approach requires
   the change in ice saturation over time. With the discontinuous jump in saturation,
   the parameterization is unable to determine a proper nucleation rate. When we force
@@ -257,6 +271,18 @@ The pale blue line uses the `"MohlerRate_Deposition"`approach.
 include("../../parcel/Tully_et_al_2023.jl")
 ```
 ![](cirrus_box.svg)
+
+The water activity based parameterization for deposition nucleation shows
+  similar outcomes when compared to the `"MohlerRate_Deposition"` approach.
+  Here, we run the parcel for 100 secs for all available aerosol types. The
+  solid lines correspond to the `"MohlerRate_Deposition"` approach while the
+  dashed lines correspond to `"ActivityBasedDeposition"`. Note that there
+  is no common aerosol type between the two parameterizations.
+
+```@example
+include("../../parcel/Deposition_Nucleation.jl")
+```
+![](deposition_nucleation.svg)
 
 In the plots below, the parcel model is ran with only condensation (no ice or freezing)
   assuming either a monodisperse or a gamma distribution of droplets.
