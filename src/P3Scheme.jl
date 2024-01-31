@@ -318,7 +318,7 @@ function q_gamma(
 end
 
 """
-    distrbution_parameter_solver()
+    distrbution_parameter_solver(p3, q, N, ρ_r, F_r)
 
  - p3 - a struct with P3 scheme parameters
  - q - mass mixing ratio
@@ -356,4 +356,21 @@ function distribution_parameter_solver(
         ).root
 
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
+end
+
+# convert_units(N, FT(3), p3, exp(x)),
+"""
+    convert_units(N, x) 
+
+- N - value to be converted (either N or N_0 as defined by p3 scheme)
+- x - number of powers to convert by (e.x. to go from m to mm x = 3, to go from mm to m x = -3)
+- p3 - a struct containing p3 scheme parameters 
+- λ - slope size distribution parameter
+
+Returns converted N
+"""
+function convert_units(N::FT, x::FT, p3::PSP3, λ::FT)
+    return N * (10 ^ (x * (-4 - DSD_μ(p3, λ))))
+end
+
 end
