@@ -22,6 +22,14 @@ struct ParametersP3{FT} <: ParametersType{FT}
     γ::FT
     "Coefficient in area(size) for ice side plane, column, bullet, and planar polycrystal aggregates from Mitchell 1996 [-]"
     σ::FT
+    "Coefficient for shape parameter mu for ice. See eq 3 in Morrison and Milbrandt 2015. Units: [m^0.8]"
+    a::FT
+    "Coefficient for shape parameter mu for ice. See eq 3 in Morrison and Milbrandt 2015. Units: [-]"
+    b::FT
+    "Coefficient for shape parameter mu for ice. See eq 3 in Morrison and Milbrandt 2015. Units: [-]"
+    c::FT
+    "Limiter for shape parameter mu for ice. See eq 3 in Morrison and Milbrandt 2015. Units: [-]"
+    μ_max::FT
 end
 
 function ParametersP3(
@@ -36,5 +44,9 @@ function ParametersP3(
         FT(data["density_liquid_water"]["value"]),
         FT(data["M1996_area_coeff_gamma"]["value"]),
         FT(data["M1996_area_exponent_sigma"]["value"]),
+        FT(data["Heymsfield_mu_coeff1"]["value"]),
+        FT(data["Heymsfield_mu_coeff2"]["value"]),
+        FT(data["Heymsfield_mu_coeff3"]["value"]),
+        FT(data["Heymsfield_mu_cutoff"]["value"]),
     )
 end
