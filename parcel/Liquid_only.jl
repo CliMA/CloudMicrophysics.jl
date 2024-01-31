@@ -36,7 +36,7 @@ e = eₛ
 # mass per volume for dry air, vapor and liquid
 md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
-ml_v = Nₗ * 4 / 3 * π * ρₗ * r₀^3
+ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
 
 qᵥ = mv_v / (md_v + mv_v + ml_v)
 qₗ = ml_v / (md_v + mv_v + ml_v)
@@ -110,10 +110,10 @@ for droplet_size_distribution in droplet_size_distribution_list
     sol_Nₗ = sol[8, :]
     sol_qₗ = sol[5, :]
     if DSD == "Monodisperse"
-        rₗ = cbrt.(sol_qₗ ./ sol_Nₗ ./ (4 / 3 * π) / ρₗ * ρₐ)
+        rₗ = cbrt.(sol_qₗ ./ sol_Nₗ ./ (4 / 3 * FT(π)) / ρₗ * ρₐ)
     end
     if DSD == "Gamma"
-        λ = cbrt.(32 .* π .* sol_Nₗ ./ sol_qₗ * ρₗ / ρₐ)
+        λ = cbrt.(32 .* FT(π) .* sol_Nₗ ./ sol_qₗ * ρₗ / ρₐ)
         rₗ = 2 ./ λ
     end
     MK.lines!(ax5, sol.t, rₗ * 1e6)

@@ -26,7 +26,7 @@ r₀ = FT(1e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(251)
 qᵥ = FT(8.1e-4)
-qₗ = Nₗ * 4 / 3 * π * r₀^3 * ρₗ / 1.2 # 1.2 should be ρₐ
+qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / 1.2 # 1.2 should be ρₐ
 qᵢ = FT(0)
 x_sulph = FT(0.01)
 
@@ -102,10 +102,10 @@ for droplet_size_distribution in droplet_size_distribution_list
     sol_Nᵢ = sol[9, :]
     sol_qₗ = sol[5, :]
     if DSD == "Monodisperse"
-        rₗ = cbrt.(sol_qₗ ./ sol_Nₗ ./ (4 / 3 * π) / ρₗ * ρₐ)
+        rₗ = cbrt.(sol_qₗ ./ sol_Nₗ ./ (4 / 3 * FT(π)) / ρₗ * ρₐ)
     end
     if DSD == "Gamma"
-        λ = cbrt.(32 .* π .* sol_Nₗ ./ sol_qₗ * ρₗ / ρₐ)
+        λ = cbrt.(32 .* FT(π) .* sol_Nₗ ./ sol_qₗ * ρₗ / ρₐ)
         rₗ = 2 ./ λ
     end
     MK.lines!(ax5, sol.t / 60, sol_Nₗ)
