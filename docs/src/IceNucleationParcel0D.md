@@ -55,13 +55,15 @@ where:
 From the moist adiabatic assumption
 ```math
 \begin{equation}
-\frac{dT}{dt} = \frac{R_a T}{c_p p} \frac{dp}{dt} + \frac{L_v}{c_p} \frac{dq_l}{dt} + \frac{L_s}{c_p} \frac{d q_i}{dt}
+\frac{dT}{dt} = \frac{R_a T}{c_p p} \frac{dp}{dt} + \frac{L_v}{c_p} \frac{dq_{l,vap}}{dt} + \frac{L_s}{c_p} \frac{d q_{i,subl}}{dt} + \frac{L_f}{c_p} \frac{d q_{i,fus}}{dt}
 \end{equation}
 ```
 where:
-- ``q_l`` is the cloud liquid water specific humidity,
-- ``q_i`` is the cloud ice specific humidity,
-- ``L_s`` is the latent heat of sublimation.
+- ``q_{l,vap}`` is the cloud liquid water specific humidity from vaporization/condensation,
+- ``q_{i,subl}`` is the cloud ice specific humidity from sublimation/deposition,
+- ``q_{i,fus}`` is the cloud ice specific humidity from melting/freezing,
+- ``L_s`` is the latent heat of sublimation,
+- ``L_f`` is the latent heat of fusion.
 
 From hydrostatic balance and assuming constant vertical velocity:
 ```math
@@ -73,11 +75,11 @@ where:
 - ``g`` is the gravitational acceleration
 - ``w`` is the constant vertical velocity.
 
-Accounting for conservation of water, i.e. ``\frac{dq_v}{dt} + \frac{dq_l}{dt} + \frac{dq_i}{dt} = 0``,
+Accounting for conservation of water, i.e. ``\frac{dq_v}{dt} = - \frac{dq_{l,vap}}{dt} - \frac{dq_{i,subl}}{dt}``,
 and rearranging the terms
 ```math
 \begin{equation}
-\frac{dS_l}{dt} = a_1 w S_l - \left(a_2 + a_3 \right) S_l \frac{dq_l}{dt} - \left(a_2 + a_4\right) S_l \frac{dq_i}{dt}
+\frac{dS_l}{dt} = a_1 w S_l - \left(a_2 + a_3 \right)S_l  \frac{dq_{l,vap}}{dt} - \left(a_2 + a_4 \right) S_l \frac{dq_{i,subl}}{dt} - a_5 S_l \frac{dq_{i,fus}}{dt}
 \end{equation}
 ```
 where:
@@ -99,6 +101,11 @@ a_3 = \frac{L_v^2}{R_v T^2 c_p}
 ```math
 \begin{equation}
 a_4 = \frac{L_v L_s}{R_v T^2 c_p}
+\end{equation}
+```
+```math
+\begin{equation}
+a_5 = \frac{L_v L_f}{R_v T^2 c_p}
 \end{equation}
 ```
 

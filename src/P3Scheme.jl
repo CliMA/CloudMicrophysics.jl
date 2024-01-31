@@ -1,8 +1,9 @@
 """
 Predicted particle properties scheme (P3) for ice, which includes:
  - threshold solver
+ - shape parameters solver
  - m(D) regime
- - TODO
+ - a(D) regime
 
 Implementation of Morrison and Milbrandt 2015 doi: 10.1175/JAS-D-14-0065.1
 
@@ -10,12 +11,11 @@ Note: Particle size is defined as its maximum length (i.e. max dimesion).
 """
 module P3Scheme
 
-import Integrals as IN
+import SpecialFunctions as SF
+
 import RootSolvers as RS
 import CLIMAParameters as CP
 import CloudMicrophysics.Parameters as CMP
-import SpecialFunctions as SF
-
 
 const PSP3 = CMP.ParametersP3
 
@@ -33,7 +33,7 @@ From measurements of mass grown by vapor diffusion and aggregation
 in midlatitude cirrus by Brown and Francis (1995)
 doi: 10.1175/1520-0426(1995)012<0410:IMOTIW>2.0.CO;2
 """
-α_va_si(p3::PSP3{FT}) where {FT} = FT(p3.α_va * 10^(6 * p3.β_va - 3))
+α_va_si(p3::PSP3{FT}) where {FT} = p3.α_va * 10^(6 * p3.β_va - 3)
 
 """
     D_th_helper(p3)
@@ -43,7 +43,8 @@ doi: 10.1175/1520-0426(1995)012<0410:IMOTIW>2.0.CO;2
 Returns the critical size separating spherical and nonspherical ice, in meters.
 Eq. 8 in Morrison and Milbrandt (2015).
 """
-D_th_helper(p3::PSP3) = (π * p3.ρ_i / 6 / α_va_si(p3))^(1 / (p3.β_va - 3))
+D_th_helper(p3::PSP3{FT}) where {FT} =
+    (FT(π) * p3.ρ_i / 6 / α_va_si(p3))^(1 / (p3.β_va - 3))
 
 """
     D_cr_helper(p3, F_r, ρ_g)
@@ -57,7 +58,7 @@ Eq. 14 in Morrison and Milbrandt (2015).
 """
 function D_cr_helper(p3::PSP3{FT}, F_r::FT, ρ_g::FT) where {FT}
     α_va = α_va_si(p3)
-    return (1 / (1 - F_r) * 6 * α_va / π / ρ_g)^(1 / (3 - p3.β_va))
+    return (1 / (1 - F_r) * 6 * α_va / FT(π) / ρ_g)^(1 / (3 - p3.β_va))
 end
 
 """
@@ -71,7 +72,7 @@ Eq. 15 in Morrison and Milbrandt (2015).
 """
 function D_gr_helper(p3::PSP3{FT}, ρ_g::FT) where {FT}
     α_va = α_va_si(p3)
-    return (6 * α_va / π / ρ_g)^(1 / (3 - p3.β_va))
+    return (6 * α_va / FT(π) / ρ_g)^(1 / (3 - p3.β_va))
 end
 
 """
@@ -84,8 +85,7 @@ end
 Returns the density of total (deposition + rime) ice mass for graupel, in kg/m3
 Eq. 16 in Morrison and Milbrandt (2015).
 """
-ρ_g_helper(ρ_r::FT, F_r::FT, ρ_d::FT) where {FT} =
-    FT(F_r * ρ_r + (1 - F_r) * ρ_d)
+ρ_g_helper(ρ_r::FT, F_r::FT, ρ_d::FT) where {FT} = F_r * ρ_r + (1 - F_r) * ρ_d
 
 """
     ρ_d_helper(p3, D_cr, D_gr)
@@ -99,11 +99,9 @@ Eq. 17 in Morrison and Milbrandt (2015).
 """
 function ρ_d_helper(p3::PSP3{FT}, D_cr::FT, D_gr::FT) where {FT}
     α_va = α_va_si(p3)
-    β_m2 = p3.β_va - FT(2)
-    return FT(
-        6 * α_va * (D_cr^β_m2 - D_gr^β_m2) / π / β_m2 /
-        max(D_cr - D_gr, eps(FT)),
-    )
+    β_m2 = p3.β_va - 2
+    return 6 * α_va * (D_cr^β_m2 - D_gr^β_m2) / FT(π) / β_m2 /
+           max(D_cr - D_gr, eps(FT))
 end
 
 """
@@ -124,16 +122,14 @@ Returns a named tuple containing:
 function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
 
     @assert F_r >= FT(0)   # rime mass fraction must be positive ...
-    @assert F_r < FT(1)   # ... and there must always be some unrimed part
+    @assert F_r < FT(1)    # ... and there must always be some unrimed part
 
-    if F_r == 0
-        
-        return()
-
+    if F_r == FT(0)
+        return (; D_cr = 0, D_gr = 0, ρ_g = 0, ρ_d = 0)
     else
         @assert ρ_r > FT(0)   # rime density must be positive ...
         @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
-        
+
         P3_problem(ρ_d) =
             ρ_d - ρ_d_helper(
                 p3,
@@ -206,6 +202,160 @@ function p3_mass(
     if D >= th.D_cr
         return mass_r(p3, D, F_r)         # partially rimed ice
     end
+
+    # TODO - would something like this be better?
+    #return ifelse(D_th_helper(p3) > D, mass_s(D, p3.ρ_i),
+    #       ifelse(F_r == 0, mass_nl(p3, D),
+    #       ifelse(th.D_gr > D >= D_th_helper(p3), mass_nl(p3, D),
+    #       ifelse(th.D_cr > D >= th.D_gr, mass_s(D, th.ρ_g),
+    #           mass_r(p3, D, F_r)))))
+
+end
+
+# Some wrappers to cast types from SF.gamma
+# (which returns Float64 even when the input is Float32)
+Γ(a::FT, z::FT) where {FT <: Real} = FT(SF.gamma(a, z))
+Γ(a::FT) where {FT <: Real} = FT(SF.gamma(a))
+
+"""
+    DSD_μ(p3, λ)
+
+ - p3 - a struct with P3 scheme parameters
+ - λ - slope parameter for gamma distribution of N′ [1/m]
+
+Returns the shape parameter μ for a given λ value
+Eq. 3 in Morrison and Milbrandt (2015).
+"""
+function DSD_μ(p3::PSP3, λ::FT) where {FT}
+    @assert λ > FT(0)
+    return min(p3.μ_max, max(FT(0), p3.a * λ^p3.b - p3.c))
+end
+
+"""
+    DSD_N₀(p3, N, λ)
+ - p3 - a struct with P3 scheme parameters
+ - N - total ice number concentration [1/m3]
+ - λ - slope parameter [1/m]
+
+Returns the shape parameter N₀ from Eq. 2 in Morrison and Milbrandt (2015).
+"""
+function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT}
+    μ = DSD_μ(p3, λ)
+    return N / Γ(1 + μ) * λ^(1 + μ)
+end
+
+"""
+    q_(p3, ρ, F_r, N_0, λ, μ, D_min, D_max)
+
+ - p3 - a struct with P3 scheme parameters
+ - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m^3]
+ - F_r - rime mass fraction [q_rim/q_i]
+ - N_0 - intercept parameter of N′ gamma distribution
+ - λ - slope parameter of N′ gamma distribution
+ - D_min - minimum bound for regime
+ - D_max - maximum bound for regime (if not specified, then infinity)
+
+ Returns ice mass density for a given m(D) regime
+"""
+# small, spherical ice or graupel (completely rimed, spherical)
+# D_min = 0, D_max = D_th, ρ = ρᵢ
+# or
+# q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
+function q_s(p3::PSP3, ρ::FT, N_0::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
+    x = DSD_μ(p3, λ) + 4
+    return FT(π) / 6 * ρ * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+end
+# q_rim = 0 and D_min = D_th, D_max = inf
+function q_rz(p3::PSP3, N_0::FT, λ::FT, D_min::FT) where {FT}
+    x = DSD_μ(p3, λ) + p3.β_va + 1
+    return p3.α_va * N_0 / λ^x * (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+end
+# q_rim > 0 and D_min = D_th and D_max = D_gr
+function q_n(p3::PSP3, N_0::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
+    x = DSD_μ(p3, λ) + p3.β_va + 1
+    return p3.α_va * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+end
+# partially rimed ice or large unrimed ice (upper bound on D is infinity)
+# q_rim > 0 and D_min = D_cr, D_max = inf
+function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, D_min::FT) where {FT}
+    x = DSD_μ(p3, λ) + p3.β_va + 1
+    return p3.α_va * N_0 / (1 - F_r) / λ^x *
+           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+end
+
+"""
+    q_gamma(p3, F_r, N, λ, th)
+
+ - p3 - a struct with P3 scheme parameters
+ - F_r - rime mass fraction [q_rim/q_i]
+ - N - ice number concentration [1/m3]
+ - log_λ - logarithm of the slope parameter of N′ gamma distribution
+ - th - thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Returns ice mass density for all values of D (sum over all regimes).
+Eq. 5 in Morrison and Milbrandt (2015).
+"""
+function q_gamma(
+    p3::PSP3,
+    F_r::FT,
+    N::FT,
+    log_λ::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT}
+
+    D_th = D_th_helper(p3)
+    λ = exp(log_λ)
+    N_0 = DSD_N₀(p3, N, λ)
+
+    return ifelse(
+        F_r == FT(0),
+        q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) + q_rz(p3, N_0, λ, D_th),
+        q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) +
+        q_n(p3, N_0, λ, D_th, th.D_gr) +
+        q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr) +
+        q_r(p3, F_r, N_0, λ, th.D_cr),
+    )
+end
+
+"""
+    distrbution_parameter_solver()
+
+ - p3 - a struct with P3 scheme parameters
+ - q - mass mixing ratio
+ - N - number mixing ratio
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (q_rim/q_i)
+
+Solves the nonlinear system consisting of N_0 and λ for P3 prognostic variables
+Returns a named tuple containing:
+ - N_0 - intercept size distribution parameter [1/m4]
+ - λ - slope size distribution parameter [1/m]
+"""
+function distribution_parameter_solver(
+    p3::PSP3{FT},
+    q::FT,
+    N::FT,
+    ρ_r::FT,
+    F_r::FT,
+) where {FT}
+
+    # Get the thresholds for different particles regimes
+    th = thresholds(p3, ρ_r, F_r)
+
+    # To ensure that λ is positive solve for x such that λ = exp(x)
+    shape_problem(x) = q - q_gamma(p3, F_r, N, x, th)
+
+    # Find slope parameter
+    x =
+        RS.find_zero(
+            shape_problem,
+            RS.SecantMethod(FT(log(20000)), FT(log(50000))),
+            RS.CompactSolution(),
+            RS.RelativeSolutionTolerance(eps(FT)),
+            10,
+        ).root
+
+    return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
 end
 
 """
@@ -278,31 +428,26 @@ end
  Returns prognostic mass mixing ratio for all values of D
     Eq. 5 in Morrison and Milbrandt (2015).
 """
-function q_gamma(p3::PSP3, F_r::FT, N_0::FT, x::FT, μ::FT, th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0))) where{FT}
+function q_gamma(
+    p3::PSP3,
+    F_r::FT,
+    N::FT,
+    log_λ::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT}
+
     D_th = D_th_helper(p3)
+    λ = exp(log_λ)
+    N_0 = DSD_N₀(p3, N, λ)
 
-    λ = exp(x)
-
-    println(" ")
-    println("x = ", x)
-    println("λ = ", λ)
-    println("Fr = ", F_r," N0 = ", N_0, " x =  ", x," μ =  ", μ, " th =  ", th)
-
-    println("q = sum of:")
-    println("    q_s = ", q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th))
-    println("    q_rz = ", q_rz(p3, N_0, λ, μ, D_th))
-    println("    q_n = ", q_n(p3, N_0, λ, μ, D_th, th.D_gr))
-    println("    q_s 2 = ", q_s(th.ρ_g, N_0, λ, μ, th.D_gr, th.D_cr))
-    println("    q_r = ", q_r(p3, F_r, N_0, λ, μ, th.D_cr))
-
-    if F_r == 0
-        return FT(q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) + q_rz(p3, N_0, λ, μ, D_th))
-    else
-        return FT(q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) +
-               q_n(p3, N_0, λ, μ, D_th, th.D_gr) +
-               q_s(th.ρ_g, N_0, λ, μ, th.D_gr, th.D_cr) +
-               q_r(p3, F_r, N_0, λ, μ, th.D_cr))
-    end
+    return ifelse(
+        F_r == FT(0),
+        q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) + q_rz(p3, N_0, λ, D_th),
+        q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) +
+        q_n(p3, N_0, λ, D_th, th.D_gr) +
+        q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr) +
+        q_r(p3, F_r, N_0, λ, th.D_cr),
+    )
 end
 
 """
