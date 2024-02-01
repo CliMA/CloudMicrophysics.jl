@@ -13,10 +13,10 @@ const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
 
 function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ::FT, p3::PSP3) 
-    μ = P3.μ_calc(λ) 
-    N_0 = P3.N_0_helper(N, λ, μ)
+    μ = P3.DSD_μ(p3, λ) 
+    N_0 = P3.DSD_N₀(p3, N, λ)
     th = P3.thresholds(p3, ρ_r, F_r)
-    q_calc = FT(P3.q_gamma(p3, F_r, N_0, log(λ), μ, th))
+    q_calc = FT(P3.q_gamma(p3, F_r, N_0, log(λ), th))
     (λ_calculated, ) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_r)
     return abs(λ - λ_calculated)
 end
@@ -50,7 +50,7 @@ function constant_Fr_ρr(F_r::FT, ρ_r::FT, λ_min::FT, λ_max::FT)
 
     println(λ_diff(F_r, ρ_r, N, FT(λ_min), p3))
 
-    Plt.save("LambdaTesting.svg", fig1)
+    Plt.save("LambdaTesting1.svg", fig1)
 
 end
 
@@ -159,7 +159,7 @@ end
 
 F_r = FT(0.8)
 ρ_r = FT(400)
-λ_min = FT(0)
+λ_min = eps(FT)
 λ_max = FT(100000)
 
 plot_gaps(F_r, ρ_r, λ_min, λ_max, p3)
