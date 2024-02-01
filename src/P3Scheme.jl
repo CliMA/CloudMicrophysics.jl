@@ -308,8 +308,8 @@ function q_gamma(
     λ = exp(log_λ)
     N_0 = DSD_N₀(p3, N, λ)
 
-    println(" ")
-    println(" λ = ", λ)
+    #= println(" ")
+    println(" λ = ", λ) =#
 
     #= println("q is a sum of: ")
     println("   q_s  : ", q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th))
@@ -317,14 +317,14 @@ function q_gamma(
     println("   q_s2 : ", q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr))
     println("   q_r  : ", q_r(p3, F_r, N_0, λ, th.D_cr))
     println("   q_rz : ", q_rz(p3, N_0, λ, D_th))  =#
-    if F_r == FT(0) 
+    #= if F_r == FT(0) 
         println(" q = ",  q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) + q_rz(p3, N_0, λ, D_th))
     else
         println(" q = ", q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) +
         q_n(p3, N_0, λ, D_th, th.D_gr) +
         q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr) +
         q_r(p3, F_r, N_0, λ, th.D_cr))
-    end
+    end =#
 
     return ifelse(
         F_r == FT(0),
@@ -358,11 +358,13 @@ function distribution_parameter_solver(
     F_r::FT,
 ) where {FT}
 
+    N̂ = FT(1e30)        # normalizing the N_0 solving to fit in Float 32
+
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
-    shape_problem(x) = q - q_gamma(p3, F_r, convert_units(N, FT(0), p3, exp(x)), x, th)
+    shape_problem(x) = q/N̂ - q_gamma(p3, F_r, N/N̂, x, th)
 
     # Find slope parameter
     x =
@@ -371,27 +373,10 @@ function distribution_parameter_solver(
             RS.SecantMethod(FT(log(20000)), FT(log(50000))),
             RS.CompactSolution(),
             RS.RelativeSolutionTolerance(eps(FT)),
-            #10,
+            10,
         ).root
 
-    println(" ")
-
-    return (; λ = exp(x), N_0 = convert_units(DSD_N₀(p3, N, exp(x)), FT(0), p3, exp(x)))
-end
-
-
-"""
-    convert_units(N, x) 
-
-- N - value to be converted (either N or N_0 as defined by p3 scheme)
-- x - number of powers to convert by (e.x. to go from m to mm x = 3, to go from mm to m x = -3)
-- p3 - a struct containing p3 scheme parameters 
-- λ - slope size distribution parameter
-
-Returns converted N
-"""
-function convert_units(N::FT, x::FT, p3::PSP3, λ::FT) where{FT}
-    return N * (10 ^ (x * (-4 - DSD_μ(p3, λ))))
+    return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
 end
 
 end
