@@ -13,45 +13,12 @@ const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
 
 function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ::FT, p3::PSP3) 
-    μ = P3.DSD_μ(p3, λ) 
+    # μ = P3.DSD_μ(p3, λ) 
     N_0 = P3.DSD_N₀(p3, N, λ)
     th = P3.thresholds(p3, ρ_r, F_r)
     q_calc = FT(P3.q_gamma(p3, F_r, N_0, log(λ), th))
     (λ_calculated, ) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_r)
     return abs(λ - λ_calculated)
-end
-
-function constant_Fr_ρr(F_r::FT, ρ_r::FT, λ_min::FT, λ_max::FT)
-    # lambda from 10 to 1e5 
-    λ_range = range(λ_min, stop = λ_max, length = Int(abs((λ_min - λ_max)/100)))
-    N = FT(1e8)
-    lw = 3
-
-    fig1 = Plt.Figure()
-    ax1 = Plt.Axis(
-        fig1[1, 1],
-        title = Plt.L"λ errors in shape solver",
-        xlabel = Plt.L"λ",
-        ylabel = Plt.L"error",
-        #xscale = Plt.log10,
-        # yscale = Plt.log10,
-        xminorticksvisible = true,
-        #xminorticks = Plt.IntervalsBetween(5),
-        yminorticksvisible = true,
-        yminorticks = Plt.IntervalsBetween(10),
-        #yticks = [1e-11, 1e-10, 1e-9, 1e-8],
-        #aspect = 1.75,
-        #limits = ((0.02, 10.0), nothing),
-    )
-
-    # for each lambda calculate the error given F_r and ρ_r 
-    # fig1_0 = Plt.lines!(ax1, λ_range, [(first(P3.distribution_parameter_solver(p3, FT(P3.q_gamma(p3, F_r, P3.N_0_helper(N, λ, P3.μ_calc(λ)), log(λ), P3.μ_calc(λ), th)), N, ρ_r, F_r)) - λ) for λ in λ_range])
-    fig1_0 = Plt.lines!(λ_range, [λ_diff(F_r, ρ_r, N, λ, p3) for λ in λ_range], linewidth = lw)
-
-    println(λ_diff(F_r, ρ_r, N, FT(λ_min), p3))
-
-    Plt.save("LambdaTesting1.svg", fig1)
-
 end
 
 function find_gaps_in_solver(F_r::FT, ρ_r::FT, λ_min::FT, λ_max::FT, p3::PSP3)
@@ -69,7 +36,7 @@ function find_gaps_in_solver(F_r::FT, ρ_r::FT, λ_min::FT, λ_max::FT, p3::PSP3
         next = λ_diff(F_r, ρ_r, N, λ, p3)
         p = isequal(prev, NaN)
         n = isequal(next, NaN)
-        # println("λ = ", λ, " diff = ", next)
+        #println("λ = ", λ, " diff = ", next)
         if n > p
             # println("min = ", λ)
             append!(xs, λ)
