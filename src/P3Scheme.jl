@@ -340,11 +340,13 @@ function distribution_parameter_solver(
     F_r::FT,
 ) where {FT}
 
+    N̂ = FT(1e30)
+
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
-    shape_problem(x) = q - q_gamma(p3, F_r, N, x, th)
+    shape_problem(x) = q/N̂ - q_gamma(p3, F_r, N/N̂, x, th)
 
     # Find slope parameter
     x =
