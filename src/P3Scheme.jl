@@ -20,7 +20,6 @@ import CloudMicrophysics.Parameters as CMP
 const PSP3 = CMP.ParametersP3
 
 export thresholds, p3_mass, distribution_parameter_solver
-export thresholds, p3_mass, distribution_parameter_solver
 
 """
     α_va_si(p3)
@@ -126,7 +125,7 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
     @assert F_r < FT(1)    # ... and there must always be some unrimed part
 
     if F_r == FT(0)
-        return (; D_cr = 0, D_gr = 0, ρ_g = 0, ρ_d = 0)
+        return (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0))
     else
         @assert ρ_r > FT(0)   # rime density must be positive ...
         @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
@@ -170,7 +169,8 @@ mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
 # for large nonspherical ice (used for unrimed and dense types)
 mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
 # for partially rimed ice
-mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} = α_va_si(p3) / (1 - F_r) * D^p3.β_va
+mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
+    α_va_si(p3) / (1 - F_r) * D^p3.β_va
 
 """
     p3_mass(p3, D, F_r, th)
@@ -359,205 +359,6 @@ function distribution_parameter_solver(
         ).root
 
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
-end
-
-"""
-    μ_calc(λ)
-
- - λ - slope parameter for gamma distribution of N′
-
- Returns the shape parameter (μ) corresponding to the given λ value
- Eq. 3 in Morrison and Milbrandt (2015).
-"""
-function μ_calc(λ::FT) where {FT}
-    μ = 0.00191 * max(FT(0), λ)^(0.8) - 2
-    if μ < 0
-        μ = FT(0)
-    elseif μ > 6
-        μ = FT(6)
-    end
-    return FT(μ)
-end
-
-"""
-    q_(p3, ρ, F_r, N_0, λ, μ, D_min, D_max)
-
- - p3 - a struct with P3 scheme parameters
- - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m^3]
- - F_r - rime mass fraction [q_rim/q_i]
- - N_0 - intercept parameter of N′ gamma distribution
- - λ - slope parameter of N′ gamma distribution
- - μ - shape parameter of N′ gamma distribution
- - D_min - minimum bound for regime
- - D_max - maximum bound for regime (if not specified, then infinity)
-
- Returns the prognostic mass mixing ratio for a given regime
-"""
-# small, spherical ice or graupel (completely rimed, spherical)
-# D_min = 0, D_max = D_th, ρ = ρᵢ
-# or
-# q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
-function q_s(ρ::FT, N_0::FT, λ::FT, μ::FT, D_min::FT, D_max::FT) where {FT}
-    x = μ + 3
-    return (π/6 * ρ * N_0) * λ^(-1 * (x + 1)) * (FT(SF.gamma(x + 1, λ*D_min)) - FT(SF.gamma(x + 1, λ*D_max)))
-end
-# q_rim = 0 and D_min = D_th, D_max = inf
-function q_rz(p3::PSP3, N_0::FT, λ::FT, μ::FT, D_min::FT) where {FT}
-    x = μ + p3.β_va
-    return (α_va_si(p3) * N_0) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1)) + FT(SF.gamma(x + 1, λ*D_min))- (x)*FT(SF.gamma(x)))
-end
-# q_rim > 0 and D_min = D_th and D_max = D_gr
-function q_n(p3::PSP3, N_0::FT, λ::FT, μ::FT, D_min::FT, D_max::FT) where {FT}
-    x = μ + p3.β_va
-    return (α_va_si(p3) * N_0) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1, λ*D_min)) - FT(SF.gamma(x + 1, λ*D_max)))
-end
-# partially rimed ice or large unrimed ice (upper bound on D is infinity)
-# q_rim > 0 and D_min = D_cr, D_max = inf
-function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, μ::FT, D_min::FT) where{FT}
-    x = μ + p3.β_va
-    return (α_va_si(p3) * N_0 /(1 - F_r)) * (λ)^(-1 * (x + 1)) * (FT(SF.gamma(x + 1)) + FT(SF.gamma(x + 1, λ*D_min)) - (x)*FT(SF.gamma(x)))
-end
-
-"""
-    q_gamma(p3, F_r, N_0, λ, μ, th)
-
- - p3 - a struct with P3 scheme parameters
- - F_r - rime mass fraction [q_rim/q_i]
- - N_0 - intercept parameter of N′ gamma distribution
- - λ - slope parameter of N′ gamma distribution
- - μ - shape parameter of N′ gamma distribution
- - th - thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
- Returns prognostic mass mixing ratio for all values of D
-    Eq. 5 in Morrison and Milbrandt (2015).
-"""
-function q_gamma(p3::PSP3, F_r::FT, N_0::FT, x::FT, μ::FT, th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0))) where{FT}
-    D_th = D_th_helper(p3)
-
-    λ = exp(x)
-
-    #= println(" ")
-    println("x = ", x)
-    println("λ = ", λ)
-    println("Fr = ", F_r," N0 = ", N_0, " x =  ", x," μ =  ", μ, " th =  ", th)
-
-    println("q = sum of:")
-    println("    q_s = ", q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th))
-    println("    q_rz = ", q_rz(p3, N_0, λ, μ, D_th)) =#
-    #println("    q_n = ", q_n(p3, N_0, λ, μ, D_th, th.D_gr))
-    #println("    q_s 2 = ", q_s(th.ρ_g, N_0, λ, μ, th.D_gr, th.D_cr))
-    #println("    q_r = ", q_r(p3, F_r, N_0, λ, μ, th.D_cr)) 
-
-    if F_r == 0
-        return FT(q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) + q_rz(p3, N_0, λ, μ, D_th))
-    else
-        return FT(q_s(p3.ρ_i, N_0, λ, μ, FT(0), D_th) +
-               q_n(p3, N_0, λ, μ, D_th, th.D_gr) +
-               q_s(th.ρ_g, N_0, λ, μ, th.D_gr, th.D_cr) +
-               q_r(p3, F_r, N_0, λ, μ, th.D_cr))
-    end
-end
-
-"""
-    N′(D, p)
-
- - D - maximum particle dimension
- - p - a tuple containing N_0, λ, μ (intrcept, slope, and shape parameters for N′ respectively)
-
- Returns the value of N′
- Eq. 2 in Morrison and Milbrandt (2015).
-"""
-N′(D, p) = p.N_0 * D ^ (p.μ) * exp(-p.λ * D)
-
-"""
-"""
-function N_0_helper(N::FT, λ::FT, μ::FT) where{FT}
-    return N/(λ^(-1 - μ) * FT(SF.gamma(1 + μ)))
-end
-
-"""
-    distrbution_parameter_solver()
-
- - p3 - a struct with P3 scheme parameters
- - q - mass mixing ratio
- - N - number mixing ratio
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (q_rim/q_i)
-
-Solves the nonlinear system consisting of N_0 and λ
-for a given number mixing ratio (N) and mass mixing ratio (q).
-    Returns a named tuple containing:
-     - N_0 - size distribution parameter related to N and q
-     - λ - size distribution parameter related to N and q [m^-1]
-     - converged - boolean corresponding to whether the root solver converged
-"""
-function distribution_parameter_solver(p3::PSP3{FT}, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
-
-    th = thresholds(p3, ρ_r, F_r)
-
-    #λ = exp(x)
-    shape_problem(x) = q - q_gamma(
-        p3,
-        F_r,
-        N_0_helper(N, exp(x), μ_calc(exp(x))),
-        x,
-        μ_calc(exp(x)),
-        th
-    )
-
-    solution = RS.find_zero(
-        shape_problem,
-        RS.SecantMethod(FT(log(20000)), FT(log(50000))),
-        RS.CompactSolution(),
-        RS.RelativeSolutionTolerance(eps(FT)),
-        10,
-    )
-
-    x = solution.root
-
-    converged = solution.converged
-
-    return(;
-        λ = exp(x),
-        N_0 = N_0_helper(N, exp(x), μ_calc(exp(x))), 
-        converged = converged
-    )
-end
-
-
-"""
-    N_helper(N_0, λ)
-
- - N_0 - intercept parameter of N′ gamma distribution
- - λ - slope parameter of N′ gamma distribution
-
-Returns the prognostic number mixing ratio
-Eq. 4 in Morrison and Milbrandt (2015).
-"""
-function N_helper(N_0::FT, λ::FT) where {FT}
-    problem = IN.IntegralProblem(N′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ_calc(λ)))
-    sol = IN.solve(problem, IN.HCubatureJL(), reltol = 1e-10, abstol = 1e-10)
-    return FT(sol.u)
-end
-
-"""
-    q_helper(N_0, λ)
-
- - p3 - a struct with P3 scheme parameters
- - N_0 - intercept parameter of N′ gamma distribution
- - λ - slope parameter of N′ gamma distribution
- - F_r - rime mass fraction (q_rim/q_i)
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
-
-Returns the prognostic mass mixing ratio
-Eq. 5 in Morrison and Milbrandt (2015).
-"""
-function q_helper(p3::PSP3{FT}, N_0::FT, λ::FT, F_r::FT, ρ_r::FT) where {FT}
-    th = thresholds(p3, ρ_r, F_r)
-    q′(D, p) = p3_mass(p3, D, F_r, th) * N′(D, p)
-    problem = IN.IntegralProblem(q′, 0, Inf, (N_0 = N_0, λ = λ, μ = μ_calc(λ)))
-    sol = IN.solve(problem, IN.HCubatureJL(), reltol = 1e-10, abstol = 1e-10)
-    return FT(sol.u)
 end
 
 end
