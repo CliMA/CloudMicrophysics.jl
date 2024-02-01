@@ -303,9 +303,28 @@ function q_gamma(
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT}
 
+
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
     N_0 = DSD_N₀(p3, N, λ)
+
+    println(" ")
+    println(" λ = ", λ)
+
+    #= println("q is a sum of: ")
+    println("   q_s  : ", q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th))
+    println("   q_n  : ", q_n(p3, N_0, λ, D_th, th.D_gr))
+    println("   q_s2 : ", q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr))
+    println("   q_r  : ", q_r(p3, F_r, N_0, λ, th.D_cr))
+    println("   q_rz : ", q_rz(p3, N_0, λ, D_th))  =#
+    if F_r == FT(0) 
+        println(" q = ",  q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) + q_rz(p3, N_0, λ, D_th))
+    else
+        println(" q = ", q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) +
+        q_n(p3, N_0, λ, D_th, th.D_gr) +
+        q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr) +
+        q_r(p3, F_r, N_0, λ, th.D_cr))
+    end
 
     return ifelse(
         F_r == FT(0),
@@ -343,7 +362,7 @@ function distribution_parameter_solver(
     th = thresholds(p3, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
-    shape_problem(x) = q - q_gamma(p3, F_r, N, x, th)
+    shape_problem(x) = q - q_gamma(p3, F_r, convert_units(N, FT(0), p3, exp(x)), x, th)
 
     # Find slope parameter
     x =
@@ -352,13 +371,15 @@ function distribution_parameter_solver(
             RS.SecantMethod(FT(log(20000)), FT(log(50000))),
             RS.CompactSolution(),
             RS.RelativeSolutionTolerance(eps(FT)),
-            10,
+            #10,
         ).root
 
-    return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
+    println(" ")
+
+    return (; λ = exp(x), N_0 = convert_units(DSD_N₀(p3, N, exp(x)), FT(0), p3, exp(x)))
 end
 
-# convert_units(N, FT(3), p3, exp(x)),
+
 """
     convert_units(N, x) 
 
@@ -369,7 +390,7 @@ end
 
 Returns converted N
 """
-function convert_units(N::FT, x::FT, p3::PSP3, λ::FT)
+function convert_units(N::FT, x::FT, p3::PSP3, λ::FT) where{FT}
     return N * (10 ^ (x * (-4 - DSD_μ(p3, λ))))
 end
 
