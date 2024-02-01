@@ -36,11 +36,11 @@ function test_homogeneous_J(FT)
         )
 
         # If Δa_w out of range
-        TT.@test_throws AssertionError("Δa_w > ip.Δa_w_min") CMH.homogeneous_J(
+        TT.@test_throws AssertionError("Δa_w >= ip.Δa_w_min") CMH.homogeneous_J(
             ip.homogeneous,
             Δa_w_too_small,
         )
-        TT.@test_throws AssertionError("Δa_w < ip.Δa_w_max") CMH.homogeneous_J(
+        TT.@test_throws AssertionError("Δa_w <= ip.Δa_w_max") CMH.homogeneous_J(
             ip.homogeneous,
             Δa_w_too_large,
         )

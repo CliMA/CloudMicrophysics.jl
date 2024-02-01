@@ -9,8 +9,6 @@ FT = Float64
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
 
-
-
 """
     A_(p3, D)
 
