@@ -18,8 +18,7 @@ In the PR you can describe which parts of the relevant issue are solved and what
 After creating a PR on GitHub, you will find that every following commit & push you make
   will go through continuous integration (CI) checks:
 
-- The, `ci / ci 1.8.1 ` runs the tests on Ubuntu, Windows and OSX machines
-  using GitHub Actions.
+- The, `ci` runs the tests on Ubuntu, Windows and OSX machines using GitHub Actions.
   The tests include some unit tests and very simple performance tests.
   It may happen that the tests pass on your local machine,
   but fail on one of the machines provided in the cloud for the CI.
@@ -50,7 +49,7 @@ After creating a PR on GitHub, you will find that every following commit & push 
   We strive to keep the test coverage high, but this test is not strictly required to pass before merging a PR.
 
 Once the PR is opened, you can request reviewers to look over and approve your work.
-To keep things tidy, we want PRs to have very few (ideally only one) commit
+To keep things tidy, we want PRs to have few (ideally only one) commit
   before merging to the main branch.
 You can squash and rebase multiple commits into one
   in your favorite editor (VS Code, Vim etc).
@@ -83,11 +82,11 @@ See [Pkg.jl docs](https://pkgdocs.julialang.org/v1/managing-packages/#Adding-reg
   in different modules depending on which aspect of aerosol and cloud microphysics
   they address.
 When adding a new function, decide if a new module is required, or add to the existing one.
-  If the added function will be used in other modules, export the function. Avoid exporting
-  functions that are only used within the module it is defined in or functions that have the
-  same name as a function already in the API.
-Avoid shortening words or phrases when naming new functions. The name of the function
-  should be self-explanatory yet brief.
+If the added function will be used in other modules, export the function.
+Avoid exporting functions that are only used within the module it is defined in
+  or functions that have the same name as a function already in the API.
+Avoid shortening words or phrases when naming new functions.
+The name of the function should be self-explanatory yet brief.
 All functions should have docstrings describing the API, as well as
   documentation focusing on the scientific aspects of what they do.
 All functions should have their own unit, performance and GPU tests.
@@ -121,7 +120,8 @@ Examples can be found in the source files.
 Be sure to add the function to `API.md` in the docs folder.
 Missing docstrings and functions in the API cause the documentation build to break.
 
-To build and work the documentation locally, you can use [LiveServer.jl](https://github.com/tlienart/LiveServer.jl#serve-docs). This will compile the documentation to a local server that is updated whenever you make changes.
+To build and work the documentation locally, you can use [LiveServer.jl](https://github.com/tlienart/LiveServer.jl#serve-docs).
+This will compile the documentation to a local server that is updated whenever you make changes.
 Alternatively, you can save the documentation to a static webpage: `julia --project=docs docs/make.jl`.
 The index page will be saved in `docs/build` folder.
 
@@ -133,10 +133,8 @@ Unit tests aim to ensure that parameterizations make physical sense.
 They can be found in the `test` folder under files named after corresponding source files.
 If you create a new function, please also create a new test that checks it.
 If creating a new file for unit tests, make sure you import `Test` and any other necessary libraries.
-There is some boilerplate code needed to create the set with free parameters
+There is some boilerplate code needed to create the sets with free parameters
   based on the default `toml` file from [CLIMAParameters](https://github.com/CliMA/CLIMAParameters.jl).
-  This would be the `include(joinpath(pkgdir(CM), "test", "create_parameters.jl"))` line found in
-  the existing unit tests.
 
 Some possible tests include checking if the returned values agree with values
   in the literature, if something is smaller/greater at warmer/cooler

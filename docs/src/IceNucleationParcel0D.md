@@ -124,7 +124,7 @@ The crux of the problem is modeling the ``\frac{dq_l}{dt}`` and ``\frac{dq_i}{dt
 ## Condensation
 
 The diffusional growth of individual cloud droplet is described by
-([see discussion](https://clima.github.io/CloudMicrophysics.jl/previews/PR103/Microphysics1M/#Snow-autoconversion)),
+([see discussion](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-autoconversion)),
 ```math
 \begin{equation}
   r_l \frac{dr_l}{dt} = \frac{1}{\rho_l} \, (S_l - 1) \, G_l(T)
@@ -216,7 +216,7 @@ Following the water activity based immersion freezing model (ABIFM), the ABIFM d
   \label{eq:ABIFM_P_ice}
 \end{equation}
 ```
-where ``N_{liq}`` is total number of ice nuclei containing droplets and 
+where ``N_{liq}`` is total number of ice nuclei containing droplets and
   ``A`` is surface area of those droplets.
 
 ## Homogeneous Freezing
@@ -230,7 +230,7 @@ The ice production rate from homogeneous freezing can then be determined:
   \label{eq:hom_P_ice}
 \end{equation}
 ```
-where ``N_{liq}`` is total number of ice nuclei containing droplets and 
+where ``N_{liq}`` is total number of ice nuclei containing droplets and
   ``V`` is the volume of those droplets.
 
 ## Example figures
@@ -239,7 +239,7 @@ Here we show various example simulation results from the adiabatic parcel
   model. This includes examples with deposition nucleation on dust,
   liquid processes only, immersion freezing with condensation and deposition growth,
   and homogeneous freezing with deposition growth.
-  
+
 We start with deposition freezing on dust.
 The model is run three times for 30 minutes simulation time,
   (shown by three different colors on the plot).
@@ -273,8 +273,8 @@ include("../../parcel/Immersion_Freezing.jl")
 ```
 ![](immersion_freezing.svg)
 
-The following plots show the parcel model running with homogeneous freezing and 
-  depositional growth assuming a lognormal distribution of aerosols. 
+The following plots show the parcel model running with homogeneous freezing and
+  depositional growth assuming a lognormal distribution of aerosols.
   It is compared against [Jensen2022](@cite). Note that running with the initial
   conditions described in [Jensen2022](@cite) results in a ``\Delta a_w`` smaller
   than the minimum valid value for the ``J_{hom}`` parameterization. We have forced
