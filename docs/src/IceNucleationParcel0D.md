@@ -121,7 +121,7 @@ where ``\xi = \frac{e_{sl}}{e_{si}}`` is the ratio of saturation vapor pressure 
 The crux of the problem is modeling the ``\frac{dq_l}{dt}`` and ``\frac{dq_i}{dt}``
   for different homogeneous and heterogeneous ice nucleation paths.
 
-## Condensation
+## Condensation growth
 
 The diffusional growth of individual cloud droplet is described by
 ([see discussion](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-autoconversion)),
@@ -165,7 +165,7 @@ For a gamma distribution of droplets ``n(r) = A \; r \; exp(-\lambda r)``,
 ``\bar{r} = \frac{2}{\lambda}``
 where ``\lambda = \left(\frac{32 \pi N_{tot} \rho_l}{q_l \rho_a}\right)^{1/3}``.
 
-## Deposition nucleation on dust particles
+## Deposition growth
 
 Similarly, for a case of a spherical ice particle growing through water vapor deposition
 ```math
@@ -196,15 +196,12 @@ It follows that
 where:
 - ``N_{act}`` is the number of activated ice particles.
 
-``N_{act}`` can be computed for example from
-  [activated fraction](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/#Activated-fraction-for-deposition-freezing-on-dust) ``f_i``
-```math
-\begin{equation}
-  N_{act} = N_{aer} f_i
-\end{equation}
-```
-where:
-- ``N_{aer}`` is the number of available dust aerosol particles.
+## Deposition Nucleation on dust particles
+There are multiple ways of running deposition nucleation in the parcel.
+  `"MohlerAF_Deposition"` will trigger an activated fraction approach from [Mohler2006](@cite).
+  `"MohlerRate_Deposition"` will trigger a nucleation rate approach from [Mohler2006](@cite).
+The deposition nucleation methods are parameterized as described in
+  [Ice Nucleation](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/).
 
 ## Immersion Freezing
 Following the water activity based immersion freezing model (ABIFM), the ABIFM derived
@@ -241,13 +238,20 @@ Here we show various example simulation results from the adiabatic parcel
   and homogeneous freezing with deposition growth.
 
 We start with deposition freezing on dust.
-The model is run three times for 30 minutes simulation time,
-  (shown by three different colors on the plot).
+The model is run three times using the `"MohlerAF_Deposition"` approach 
+  for 30 minutes simulation time, (shown by three different colors on the plot).
 Between each run the water vapor specific humidity is changed,
   while keeping all other state variables the same as at the last time step
   of the previous run.
 The prescribed vertical velocity is equal to 3.5 cm/s.
 Supersaturation is plotted for both liquid (solid lines) and ice (dashed lines).
+The pale blue line uses the `"MohlerRate_Deposition"`approach. 
+  We only run it for the first GCM timestep because the rate approach requires
+  the change in ice saturation over time. With the discontinuous jump in saturation,
+  the parameterization is unable to determine a proper nucleation rate. When we force
+  the initial ice crystal number concentration for this simulation to match
+  that in the `"MohlerAF_Deposition"` approach, we obtain the same results as
+  in the `"MohlerAF_Deposition"` approach for the first GCM timestep.
 
 ```@example
 include("../../parcel/Tully_et_al_2023.jl")

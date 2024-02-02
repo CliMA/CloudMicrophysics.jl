@@ -87,6 +87,7 @@ AerosolActivation.total_M_activated
 ```@docs
 HetIceNucleation
 HetIceNucleation.dust_activated_number_fraction
+HetIceNucleation.MohlerDepositionRate
 HetIceNucleation.deposition_J
 HetIceNucleation.ABIFM_J
 ```

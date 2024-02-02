@@ -88,6 +88,7 @@ function benchmark_test(FT)
     T_air_2 = FT(250)
     T_air_cold = FT(230)
     S_ice = FT(1.2)
+    dSi_dt = FT(0.05)
 
     w_air = FT(0.5)
     p_air = FT(1e5)
@@ -136,6 +137,11 @@ function benchmark_test(FT)
         CMI_het.dust_activated_number_fraction,
         (desert_dust, ip.deposition, S_ice, T_air_2),
         50,
+    )
+    bench_press(
+        CMI_het.MohlerDepositionRate,
+        (desert_dust, ip.deposition, S_ice, T_air_2, dSi_dt, N_aer),
+        80,
     )
     bench_press(CMI_het.deposition_J, (kaolinite, Delta_a_w), 230)
     bench_press(CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 230)

@@ -74,76 +74,12 @@ function Tully_et_al_2023(FT)
     α_m = FT(0.5)                              # accomodation coefficient
     const_dt = 0.1                             # model timestep
     aerosol = CMP.DesertDust(FT)               # aerosol type
-    ice_nucleation_modes = ["DustDeposition"]  # switch on deposition on dust
+    ice_nucleation_modes_list =                # ice nucleation modes
+        [["MohlerAF_Deposition"], ["MohlerRate_Deposition"]]
     growth_modes = ["Deposition"]              # switch on deposition growth
     droplet_size_distribution = ["Monodisperse"]
-    p = (;
-        wps,
-        aps,
-        tps,
-        ip,
-        const_dt,
-        r_nuc,
-        w,
-        α_m,
-        aerosol,
-        ice_nucleation_modes,
-        growth_modes,
-        droplet_size_distribution,
-    )
 
-    # Simulation 1
-    IC1 = get_initial_condition(
-        tps,
-        p_0,
-        T_0,
-        q_vap_0,
-        q_liq_0,
-        q_ice_0,
-        N_aerosol,
-        N_droplets,
-        N_0,
-        x_sulph,
-    )
-    sol1 = run_parcel(IC1, 0, t_max, p)
-
-    # Simulation 2
-    # (alternatively set T and take q_vap from the previous simulation)
-    #IC2 = get_initial_condition(sol1[2, end], sol1[3, end], T2, sol1[5, end], 0.0, sol1[6, end], sol1[7, end])
-    IC2 = get_initial_condition(
-        tps,
-        sol1[2, end],
-        #sol1[3, end],
-        T2,
-        q_vap2,
-        q_liq_0,
-        sol1[6, end],
-        sol1[7, end],
-        sol1[8, end],
-        sol1[9, end],
-        x_sulph,
-    )
-    sol2 = run_parcel(IC2, sol1.t[end], sol1.t[end] + t_max, p)
-
-    # Simulation 3
-    # (alternatively set T and take q_vap from the previous simulation)
-    #IC3 = get_initial_condition(sol2[2, end], sol2[3, end], T3, sol2[5, end], 0.0, sol2[6, end], sol2[7, end])
-    IC3 = get_initial_condition(
-        tps,
-        sol2[2, end],
-        #sol2[3, end],
-        T3,
-        q_vap3,
-        q_liq_0,
-        sol2[6, end],
-        sol2[7, end],
-        sol2[8, end],
-        sol2[9, end],
-        x_sulph,
-    )
-    sol3 = run_parcel(IC3, sol2.t[end], sol2.t[end] + t_max, p)
-
-    # Plot results
+    # Plots
     fig = MK.Figure(resolution = (800, 600))
     ax1 = MK.Axis(fig[1, 1], ylabel = "Supersaturation [-]")
     ax2 = MK.Axis(fig[1, 2], ylabel = "Temperature [K]")
@@ -160,23 +96,110 @@ function Tully_et_al_2023(FT)
         TD.saturation_vapor_pressure(tps, T, TD.Ice())
     S_i(T, S_liq) = ξ(T) * S_liq - 1
 
-    sol = [sol1, sol2, sol3]
-    clr = ["blue", "orange", "green"]
-    for it in [1, 2, 3]
-        MK.lines!(ax1, sol[it].t * w, sol[it][1, :] .- 1, color = clr[it])
-        MK.lines!(ax2, sol[it].t * w, sol[it][3, :], color = clr[it])
-        MK.lines!(ax3, sol[it].t * w, sol[it][9, :] * 1e-3, color = clr[it])
-        MK.lines!(ax4, sol[it].t * w, sol[it][7, :] * 1e-3, color = clr[it])
-        MK.lines!(ax5, sol[it].t * w, sol[it][4, :] * 1e3, color = clr[it])
-        MK.lines!(ax6, sol[it].t * w, sol[it][6, :] * 1e3, color = clr[it])
-
-        MK.lines!(
-            ax1,
-            sol[it].t * w,
-            S_i.(sol[it][3, :], sol[it][1, :]),
-            linestyle = :dash,
-            color = clr[it],
+    for ice_nucleation_modes in ice_nucleation_modes_list
+        p = (;
+            wps,
+            aps,
+            tps,
+            ip,
+            const_dt,
+            r_nuc,
+            w,
+            α_m,
+            aerosol,
+            ice_nucleation_modes,
+            growth_modes,
+            droplet_size_distribution,
         )
+
+        # Simulation 1
+        IC1 = get_initial_condition(
+            tps,
+            p_0,
+            T_0,
+            q_vap_0,
+            q_liq_0,
+            q_ice_0,
+            N_aerosol,
+            N_droplets,
+            N_0,
+            x_sulph,
+        )
+        sol1 = run_parcel(IC1, 0, t_max, p)
+        if ice_nucleation_modes == ["MohlerAF_Deposition"]
+            # Simulation 2
+            # (alternatively set T and take q_vap from the previous simulation)
+            #IC2 = get_initial_condition(sol1[2, end], sol1[3, end], T2, sol1[5, end], 0.0, sol1[6, end], sol1[7, end])
+            IC2 = get_initial_condition(
+                tps,
+                sol1[2, end],
+                #sol1[3, end],
+                T2,
+                q_vap2,
+                q_liq_0,
+                sol1[6, end],
+                sol1[7, end],
+                sol1[8, end],
+                sol1[9, end],
+                x_sulph,
+            )
+            sol2 = run_parcel(IC2, sol1.t[end], sol1.t[end] + t_max, p)
+
+            # Simulation 3
+            # (alternatively set T and take q_vap from the previous simulation)
+            #IC3 = get_initial_condition(sol2[2, end], sol2[3, end], T3, sol2[5, end], 0.0, sol2[6, end], sol2[7, end])
+            IC3 = get_initial_condition(
+                tps,
+                sol2[2, end],
+                #sol2[3, end],
+                T3,
+                q_vap3,
+                q_liq_0,
+                sol2[6, end],
+                sol2[7, end],
+                sol2[8, end],
+                sol2[9, end],
+                x_sulph,
+            )
+            sol3 = run_parcel(IC3, sol2.t[end], sol2.t[end] + t_max, p)
+
+            # Plot results
+            sol = [sol1, sol2, sol3]
+            clr = ["blue", "orange", "green"]
+            #! format: off
+            for it in [1, 2, 3]
+                MK.lines!(ax1, sol[it].t * w, sol[it][1, :] .- 1, color = clr[it])
+                MK.lines!(ax2, sol[it].t * w, sol[it][3, :], color = clr[it])
+                MK.lines!(ax3, sol[it].t * w, sol[it][9, :] * 1e-3, color = clr[it])
+                MK.lines!(ax4, sol[it].t * w, sol[it][7, :] * 1e-3, color = clr[it])
+                MK.lines!(ax5, sol[it].t * w, sol[it][4, :] * 1e3, color = clr[it])
+                MK.lines!(ax6, sol[it].t * w, sol[it][6, :] * 1e3, color = clr[it])
+                MK.lines!(
+                    ax1,
+                    sol[it].t * w,
+                    S_i.(sol[it][3, :], sol[it][1, :]),
+                    linestyle = :dash,
+                    color = clr[it],
+                )
+            end
+            #! format: on
+
+        elseif ice_nucleation_modes == ["MohlerRate_Deposition"]
+            MK.lines!(ax1, sol1.t * w, sol1[1, :] .- 1, color = :lightblue)
+            MK.lines!(ax2, sol1.t * w, sol1[3, :], color = :lightblue)
+            MK.lines!(ax3, sol1.t * w, sol1[9, :] * 1e-3, color = :lightblue)
+            MK.lines!(ax4, sol1.t * w, sol1[7, :] * 1e-3, color = :lightblue)
+            MK.lines!(ax5, sol1.t * w, sol1[4, :] * 1e3, color = :lightblue)
+            MK.lines!(ax6, sol1.t * w, sol1[6, :] * 1e3, color = :lightblue)
+
+            MK.lines!(
+                ax1,
+                sol1.t * w,
+                S_i.(sol1[3, :], sol1[1, :]),
+                linestyle = :dash,
+                color = :lightblue,
+            )
+        end
     end
     MK.save("cirrus_box.svg", fig)
 end
