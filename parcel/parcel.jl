@@ -107,6 +107,11 @@ function parcel_model(dY, Y, p, t)
             dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * FT(π) * r_nuc^3 * ρ_ice / ρ_air
         end
     end
+    if "P3_Deposition" in ice_nucleation_modes
+        Nᵢ_depo = CMI_het.P3_deposition_N_i(ip.p3, T)
+        dN_act_dt_depo = max(FT(0), (Nᵢ_depo - N_ice) / const_dt)
+        dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * FT(π) * r_nuc^3 * ρ_ice / ρ_air
+    end
 
     dN_act_dt_immersion = FT(0)
     dqi_dt_new_immers = FT(0)
@@ -124,6 +129,19 @@ function parcel_model(dY, Y, p, t)
         end
         A_l = 4 * FT(π) * r_l^2
         dN_act_dt_immersion = max(FT(0), J_immersion * N_liq * A_l)
+        dqi_dt_new_immers = dN_act_dt_immersion * 4 / 3 * FT(π) * r_l^3 * ρ_ice / ρ_air
+    end
+    if "P3_het" in ice_nucleation_modes
+        if "Monodisperse" in droplet_size_distribution
+            r_l = cbrt(q_liq / N_liq / (4 / 3 * FT(π)) / ρ_liq * ρ_air)
+        elseif "Gamma" in droplet_size_distribution
+            λ = cbrt(32 * FT(π) * N_liq / q_liq * ρ_liq / ρ_air)
+            #A = N_liq* λ^2
+            r_l = 2 / λ
+        end
+        V_l = FT(4 / 3 * π * r_l^3)
+        Nᵢ_het = CMI_het.P3_het_N_i(ip.p3, T, N_liq, V_l, const_dt)
+        dN_act_dt_immersion = max(FT(0), (Nᵢ_het - N_ice) / const_dt)
         dqi_dt_new_immers = dN_act_dt_immersion * 4 / 3 * FT(π) * r_l^3 * ρ_ice / ρ_air
     end
 
@@ -158,6 +176,23 @@ function parcel_model(dY, Y, p, t)
             r_aero = r_nuc * exp(σ)
             dqi_dt_new_hom = dN_act_dt_hom * 4 / 3 * FT(π) * r_aero^3 * ρ_ice / ρ_air
         end
+    end
+    if "P3_hom" in ice_nucleation_modes
+        if "Monodisperse" in droplet_size_distribution
+            r_l = cbrt(q_liq / N_liq / (4 / 3 * FT(π)) / ρ_liq * ρ_air)
+        elseif "Gamma" in droplet_size_distribution
+            λ = cbrt(32 * FT(π) * N_liq / q_liq * ρ_liq / ρ_air)
+            #A = N_liq* λ^2
+            r_l = 2 / λ
+        elseif "Lognormal" in droplet_size_distribution
+            r_l = R_mode_liq * exp(σ)
+        end
+        if T < FT(233.15) && N_liq > FT(0)
+            dN_act_dt_hom = N_liq / const_dt
+        else
+            dN_act_dt_hom = FT(0)
+        end
+        dqi_dt_new_hom = dN_act_dt_hom * 4 / 3 * FT(π) * r_l^3 * ρ_ice / ρ_air
     end
 
     dN_ice_dt = dN_act_dt_depo + dN_act_dt_immersion + dN_act_dt_hom
@@ -306,12 +341,25 @@ function run_parcel(IC, t_0, t_end, p)
         print("\n    Water activity based deposition nucleation ")
         print("(Note that this mode only runs for monodisperse size distributions.) ")
     end
+    if "P3_Deposition" in ice_nucleation_modes
+        print("\n    P3 deposition nucleation ")
+        timestepper = ODE.Euler()
+    end
     if "ImmersionFreezing" in ice_nucleation_modes
-        print("\n    Immersion freezing ")
+        print("\n    Immersion freezing (ABIFM) ")
         print("(Note that this mode only runs for monodisperse and gamma size distributions.) ")
     end
+    if "P3_het" in ice_nucleation_modes
+        print("\n    P3 heterogeneous freezing ")
+        print("(Note that this mode only runs for monodisperse and gamma size distributions.) ")
+        timestepper = ODE.Euler()
+    end
     if "HomogeneousFreezing" in ice_nucleation_modes
-        print("\n    Homogeneous freezing ")
+        print("\n    Water activity based homogeneous freezing ")
+    end
+    if "P3_hom" in ice_nucleation_modes
+        print("\n    P3 homogeneous freezing ")
+        timestepper = ODE.Euler()
     end
     print("\n")
 
@@ -338,8 +386,14 @@ function run_parcel(IC, t_0, t_end, p)
     if "Lognormal" in droplet_size_distribution
         print("\n    Lognormal size distribution")
     end
-    if "MohlerAF_Deposition" in ice_nucleation_modes || "MohlerRate_Deposition" in ice_nucleation_modes || "ActivityBasedDeposition" in ice_nucleation_modes
-        print("\nWARNING: Multiple deposition nucleation parameterizations chosen to run in one simulation. Parcel will only run MohlerAF_Deposition for now.")
+    if "MohlerAF_Deposition" in ice_nucleation_modes ||
+        "MohlerRate_Deposition" in ice_nucleation_modes ||
+        "ActivityBasedDeposition" in ice_nucleation_modes ||
+        "P3_Deposition" in ice_nucleation_modes
+        print("\nWARNING: Multiple deposition nucleation parameterizations chosen to run in one simulation. Parcel can only properly handle one for now.")
+    end
+    if "P3_het" in ice_nucleation_modes
+        print("\nWARNING: Assuming P3_het parameterization is a parameterization for immeresion freezing.")
     end
     println(" ")
 

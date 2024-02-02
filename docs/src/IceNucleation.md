@@ -63,7 +63,7 @@ Limited experimental values for the free parameters ``a`` and ``S_0`` can be fou
     freezing occurs in a different ice nucleation mode
     (either a second deposition or other condensation type mode).
 
-## Water Activity Based Deposition Nucleation
+### Water Activity Based Deposition Nucleation
 The water activity based deposition nucleation model is analagous to ABIFM
   for immersion freezing (see [ABIFM for Sulphuric Acid Containing Droplets](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/#ABIFM-for-Sulphuric-Acid-Containing-Droplets)
   section below). It calculates a nucleation rate coefficient, ``J``, which
@@ -94,7 +94,22 @@ include("plots/activity_based_deposition.jl")
 ![](water_activity_depo_nuc.svg)
 
 
-## ABIFM for Sulphuric Acid Containing Droplets
+### Cooper (1986) Ice Crystal Number
+The P3 scheme as described in [MorrisonMilbrandt2015](@cite) follows
+  the implementation of [Thompson2004](@cite) where a parameterization from
+  Cooper 1986 was used. Number of ice crystals formed is derived from
+  ambient temperature.
+```math
+\begin{equation}
+  N_i = 0.005 exp[0.304(T_0 - T)]
+\end{equation}
+```
+Where ``T_0 = 273.15K`` and ``T`` is the ambient temperature.
+Because the parameterization is prone to overpredict at low temperatures,
+  ``N_i = N_i(T = 233K)`` for all values of ``N_i`` at which ``T < 233K``.
+
+## Immersion Freezing
+### ABIFM for Sulphuric Acid Containing Droplets
 Water Activity-Based Immersion Freezing Model (ABFIM)
   is a method of parameterizing immersion freezing inspired by the time-dependent
   classical nucleation theory (CNT). More on CNT can be found in [Karthika2016](@cite).
@@ -169,7 +184,23 @@ It is also important to note that this plot is reflective of cirrus clouds
   and shows only a very small temperature range. The two curves are slightly
   off because of small differences in parameterizations for vapor pressures.
 
-## Homogeneous Freezing for Sulphuric Acid Containing Droplets
+### Bigg (1953) Volume and Time Dependent Heterogeneous Freezing
+Heterogeneous freezing in the P3 scheme as described in [MorrisonMilbrandt2015](@cite)
+  follows the parameterization from [Bigg1953](@cite) with parameters from 
+  [BarklieGokhale1959](@cite). The number of ice nucleated in a timestep via
+  heterogeneous freezing is determined by
+```math
+\begin{equation}
+  N_{ice} = N_{liq} \left[ 1 - exp(-B V_{l} \Delta t exp(aT_s)) \right]
+\end{equation}
+```
+where `a` and `B` are parameters taken from [BarklieGokhale1959](@cite) for
+  rainwater as 0.65 and 2e-4 respectively. `T_s` is the difference between
+  273.15K and ambient temperature. `V_l` is the volume of droplets to be
+  frozen and `\Delta t` is timestep in which freezing occurs.
+
+## Homogeneous Freezing
+### Homogeneous Freezing for Sulphuric Acid Containing Droplets
 Homogeneous freezing occurs when supercooled liquid droplets freeze on their own.
   Closly based off [Koop2000](@cite), this parameterization determines a homoegneous nucleation
   rate coefficient, ``J_{hom}``, using water activity. The change in water activity,
@@ -185,7 +216,7 @@ The nucleation rate coefficient is determined with the cubic function from [Koop
 ```
 This parameterization is valid only when ``0.26 < \Delta a_w < 0.36`` and ``185K < T < 235K``.
 
-### Homogeneous Ice Nucleation Rate Coefficient
+### Homogeneous Freezing Example Figures
 Here is a comparison of our parameterization of ``J_{hom}`` compared to Koop 2000 as
   plotted in figure 1 of [Spichtinger2023](@cite). Our parameterization differs in the calculation
   of ``\Delta a_w``. We define water activity to be a ratio of saturated vapor pressures whereas

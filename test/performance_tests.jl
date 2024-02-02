@@ -68,7 +68,7 @@ function benchmark_test(FT)
     mixed_nuc = CMP.MixedNucleationParameters(FT)
     h2so4_nuc = CMP.H2S04NucleationParameters(FT)
     organ_nuc = CMP.OrganicNucleationParameters(FT)
-    # air and thermodunamics parameters
+    # air and thermodynamics parameters
     aps = CMP.AirProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
 
@@ -113,6 +113,9 @@ function benchmark_test(FT)
 
     x_sulph = FT(0.1)
     Delta_a_w = FT(0.27)
+    r_liq = FT(1e-6)
+    V_liq = FT(4 / 3 * π * r_liq^3)
+    Δt = FT(25)
 
     INPC = FT(1e5)
 
@@ -148,11 +151,13 @@ function benchmark_test(FT)
         80,
     )
     bench_press(CMI_het.deposition_J, (kaolinite, Delta_a_w), 230)
+    bench_press(CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
     bench_press(CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 230)
+    bench_press(CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
     bench_press(
         CMI_het.INP_concentration_frequency,
         (ip_frostenberg, INPC, T_air_cold),
-        110,
+        150,
     )
     bench_press(CMI_hom.homogeneous_J, (ip.homogeneous, Delta_a_w), 230)
 

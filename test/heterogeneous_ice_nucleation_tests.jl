@@ -146,6 +146,22 @@ function test_heterogeneous_ice_nucleation(FT)
         end
     end
 
+    TT.@testset "P3 Deposition Nᵢ" begin
+
+        T_warm = FT(235)
+        T_cold = FT(234)
+
+        T_too_cold = FT(232)
+
+        # higher ice concentration at colder temperatures
+        TT.@test CMI_het.P3_deposition_N_i(ip.p3, T_cold) >
+                 CMI_het.P3_deposition_N_i(ip.p3, T_warm)
+
+        # if colder than threshold T, use threshold T
+        TT.@test CMI_het.P3_deposition_N_i(ip.p3, T_too_cold) ==
+                 CMI_het.P3_deposition_N_i(ip.p3, ip.p3.T_dep_thres)
+    end
+
     TT.@testset "ABIFM J" begin
 
         T_warm_1 = FT(229.2)
@@ -177,6 +193,20 @@ function test_heterogeneous_ice_nucleation(FT)
                 CO.a_w_eT(tps, e_warm, T_warm_2) - CO.a_w_ice(tps, T_warm_2),
             )
         end
+    end
+
+    TT.@testset "P3 Heterogeneous Nᵢ" begin
+
+        T_warm = FT(235)
+        T_cold = FT(234)
+        N_liq = FT(2e5)
+        r_l = FT(2e-5)
+        V_l = FT(4 / 3 * FT(π) * r_l^3)
+        Δt = FT(0.1)
+
+        # higher ice concentration at colder temperatures
+        TT.@test CMI_het.P3_het_N_i(ip.p3, T_cold, N_liq, V_l, Δt) >
+                 CMI_het.P3_het_N_i(ip.p3, T_warm, N_liq, V_l, Δt)
     end
 
     TT.@testset "Frostenberg" begin
