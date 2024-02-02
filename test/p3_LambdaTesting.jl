@@ -12,14 +12,15 @@ FT = Float64
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
 
-function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ::FT, p3::PSP3) 
-    μ = P3.DSD_μ(p3, λ) 
-    N_0 = P3.DSD_N₀(p3, N, λ)
+function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3) 
+    # Find the P3 scheme  thresholds
     th = P3.thresholds(p3, ρ_r, F_r)
-    x = log(λ)
-    q_calc = FT(P3.q_gamma(p3, F_r, N_0, x, th))
+    # Convert λ to ensure it remains positive
+    x = log(λ_ex)
+    # Compute mass density based on input shape parameters
+    q_calc = P3.q_gamma(p3, F_r, N, x, th)  
     (λ_calculated, ) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_r)
-    return abs(λ - λ_calculated)
+    return abs(λ_ex - λ_calculated)
 end
 
 function find_gaps_in_solver(F_r::FT, ρ_r::FT, λ_min::FT, λ_max::FT, p3::PSP3)
@@ -34,8 +35,6 @@ function find_gaps_in_solver(F_r::FT, ρ_r::FT, λ_min::FT, λ_max::FT, p3::PSP3
     ysρr = Vector{FT}()
 
     for λ in λ_range 
-        println(λ)
-        println("")
         next = λ_diff(F_r, ρ_r, N, λ, p3)
         p = isequal(prev, NaN)
         n = isequal(next, NaN)
@@ -84,7 +83,7 @@ function plot_gaps(F_r_input::FT, ρ_r::FT, λ_min::FT, λ_max::FT, p3::PSP3)
     Plt.ylims!(low = 0) 
     Plt.ylims!(high = 1)
 
-    F_rs = range(FT(0), stop = FT(1-eps(FT)), length = 1000)
+    F_rs = range(FT(0.5), stop = FT(1-eps(FT)), length = 1000)
     for F_r in F_rs
 
         (xs, ysFr, ysρr) = find_gaps_in_solver(F_r, ρ_r, λ_min, λ_max, p3)

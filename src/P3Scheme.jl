@@ -308,10 +308,6 @@ function q_gamma(
     λ = exp(log_λ)
     N_0 = DSD_N₀(p3, N, λ)
 
-    println("log λ = ", log_λ)
-    println("λ = ", λ)
-    println(" ")
-
     return ifelse(
         F_r == FT(0),
         q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) + q_rz(p3, N_0, λ, D_th),
