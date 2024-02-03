@@ -1,38 +1,56 @@
 # CloudMicrophysics.jl
 
-The CloudMicrophysics.jl is a library of bulk cloud microphysics and aerosol schemes.
+The `CloudMicrophysics.jl` is a library of bulk cloud microphysics and aerosol schemes:
+  -  `library` means that `CloudMicrophysics.jl` provides a variety of parameterizations
+     that can be used to define tendencies in different numerical models.
+  - `cloud microphysics and aerosol schemes` mean that the parameterizations represent
+     small-scale processes leading to the formation of clouds on aerosol particles and
+     the formation of precipitation.
+  - `bulk schemes` mean that the schemes parameterize behavior of populations
+     of particles (aerosol, cloud and precipitation), instead of tracking the evolution
+     of individual cloud droplets or ice crystals. Bulk schemes typically consider different
+     somewhat arbitrary water categories such as cloud water, cloud ice, rain and snow.
+     They predict total mass and (optionally) number concentration of particles in each category.
 
-The goal of a cloud microphysics scheme is to represent the micro-scale processes
-  leading to the formation of clouds and precipitation.
-Bulk microphysics schemes represent overall properties of cloud and precipitation particles,
-  instead of solving for the evolution of individual cloud droplets or ice crystals.
-Bulk schemes typically consider different somewhat arbitrary water categories
-  such as cloud water, cloud ice, rain and snow.
-They then predict total mass and (optionally) number concentration of particles in each category.
-A scheme that predicts the total mass of particles per category is called 1-moment,
-  because the total mass of particles is proportional to the 3rd moment of the particle size distribution.
-A scheme that predicts the total mass and number concentration of particles per category is called 2-moment,
-  because the predicted quantities are proportional to the 3rd and 0th moment of the particle size distribution.
-Aerosol particles serve as nuclei for forming cloud droplets and ice crystals.
-Additional schemes are needed to predict how many cloud droplets or ice crystals
-  form for a given population of aerosol particles, when using a 2-moment microphysics scheme.
+## Features
 
-So far CloudMicrophysics.jl includes:
-  - 0-moment scheme that instantly removes the precipitable cloud condensate,
-  - 1-moment scheme for warm rain and mixed-phase clouds (cloud water and ice, ran and snow (aggregate)),
-  - 2-moment scheme for warm rain clouds (cloud water and rain),
-  - collection of different 2-moment autoconversion and accretion functions,
-  - experimental non-equilibrium cloud formation scheme,
-  - a collection of logistic functions for smooth transitions at thresholds,
-  - aerosol activation scheme,
-  - ice nucleation scheme through water vapor deposition on dust aerosol.
+`CloudMicrophysics.jl` is designed to allow data driven parameter calibrations.
+All free parameters are passed as inputs to the functions and can be easily overwritten by the user.
+The package is tested on Unix, OSX and Windows.
+The package can be used on both CPUs and GPUs.
 
-This documentation provides some use examples for different available schemes,
-  along with derivation notes and links to the literature.
-The CI tests include unit tests and some very simple performance benchmarks and GPU tests.
+Available parameterizations:
+ - 0-moment scheme that instantly removes the precipitable cloud condensate,
+ - [1-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Glossary/#1-moment-scheme)
+   for warm rain and mixed-phase clouds (cloud water and ice, ran and snow (aggregate)),
+ - [2-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Glossary/#2-moment-scheme)
+   for warm rain clouds (cloud water and rain),
+ - collection of different 2-moment autoconversion and accretion functions,
+ - experimental non-equilibrium cloud formation scheme,
+ - a collection of logistic functions for smooth transitions at thresholds,
+ - [aerosol activation scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Glossary/#aerosol-activation-scheme)
+ - [ice nucleation scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Glossary/#ice-nucleation-scheme)
+   via water vapor deposition on dust aerosol, heterogeneous and homogeneous freezing of droplets.
 
-## Authors
+## Documentation outline
 
-`CloudMicrophysics.jl` is being developed by the
-  [Climate Modeling Alliance](https://clima.caltech.edu/).
+  - `Parameterizations` provide notes on the derivations and assumptions behind each of the implemented schemes.
+     The scripts that generate different plots in the documentation are stored in `docs/src/plots` folder,
+     and can serve as usage examples of the schemes.
+  - `How to guides` provide simple examples on how to get started using the package.
+  - `Models` discuss two 0-dimensional models that are build using the package and are focused on
+     testing different ice nucleation schemes.
+  - `API` provides package interface documentation.
+  - `Developer's Guide ` offers some hints for beginner contributors.
+  - `Glossary` explains some basic terminology.
+  - `References` provide links to the publications on which we based our implementations.
+
+## Contributing and license
+
+`CloudMicrophysics.jl` is developed by the [Climate Modeling Alliance](https://clima.caltech.edu/) and
+is released under the Apache License Version 2.0. Please check
+[contributing](https://github.com/CliMA/CloudMicrophysics.jl?tab=readme-ov-file#contributing)
+section if you would like to contribute to the project and are looking for ideas.
+Please open an issue or reach out to us if you have any questions or comments.
+
 ![Clima logo](assets/Clima_logo.png)
