@@ -1,6 +1,6 @@
 # CloudMicrophysics.jl
 A package containing a library of cloud microphysics and aerosol parameterizations.
-See [our documentation](docs-dev-url) for the list of available schemes.
+See [our documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) for the list of available schemes.
 
 |||
 |---------------------:|:----------------------------------------------|
