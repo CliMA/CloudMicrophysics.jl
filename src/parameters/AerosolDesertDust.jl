@@ -35,7 +35,7 @@ function DesertDust(
         FT(data["Mohler2006_S0_cold_DesertDust"]["value"]),
         FT(data["Mohler2006_a_warm_DesertDust"]["value"]),
         FT(data["Mohler2006_a_cold_DesertDust"]["value"]),
-        FT(data["KnopfAlpert2013_J_ABIFM_m_DesertDust"]["value"]),
-        FT(data["KnopfAlpert2013_J_ABIFM_c_DesertDust"]["value"]),
+        FT(data["AlpertKnopf2016_J_ABIFM_m_DesertDust"]["value"]),
+        FT(data["AlpertKnopf2016_J_ABIFM_c_DesertDust"]["value"]),
     )
 end
