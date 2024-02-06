@@ -265,8 +265,10 @@ function buckets(λ_min::FT, λ_max::FT, F_r_min::FT, F_r_max::FT, p3::PSP3, ρ_
                     E[i, j] = FT(1)
                 elseif er <= FT(1) 
                     E[i, j] = FT(2)
-                else 
+                elseif er <= FT(1e10) 
                     E[i, j] = FT(3)
+                else 
+                    E[i, j] = FT(4)
                 end
             else 
                 if er <= min_error
@@ -275,8 +277,10 @@ function buckets(λ_min::FT, λ_max::FT, F_r_min::FT, F_r_max::FT, p3::PSP3, ρ_
                     E[i, j] = FT(1.5)
                 elseif er <= FT(1) 
                     E[i, j] = FT(2.5)
-                else 
+                elseif er <= FT(1e10) 
                     E[i, j] = FT(3.5)
+                else 
+                    E[i, j] = FT(4.5)
                 end
             end
         end
@@ -297,7 +301,7 @@ function plot_buckets(λ_min::FT, λ_max::FT, F_r_min::FT, F_r_max::FT, ρ_r_min
         (λs, F_rs, E) = buckets(λ_min, λ_max, F_r_min, F_r_max, p3, ρ_r, N, λSteps, F_rSteps)
 
         Plt.heatmap!(λs, F_rs, E)
-        Plt.Colorbar(f[i, 2], limits = (0, 3.5), colormap = :viridis, flipaxis = false)
+        Plt.Colorbar(f[i, 2], limits = (0, 4.5), colormap = :viridis, flipaxis = false)
 
         # Plt.Colorbar(f[1, 2], label = "error", limits = FT.(range_val))
     end
@@ -320,16 +324,18 @@ F_r_max = FT(1-eps(FT))
 
 #constant_Fr_ρr(FT(0.8), FT(400), FT(0), FT(2000))
 
-#plot_all_gaps(λ_min, λ_max, F_r_min, F_r_max, ρ_r_min, ρ_r_max, p3, 200, 200, 10)
 
 #plot_relerrors(λ_min, λ_max, p3, 200, 200, 1)
 
-F = FT(0.34) 
-ρ = FT(650)
-λ = FT(35000)
-N = FT(1e8) 
+F = FT(0.5) 
+ρ = FT(100)
+λ = FT(26002)
+N = FT(1e12) 
 
-#diff = λ_diff(F, ρ, N, λ, p3)
+diff = λ_diff(F, ρ, N, λ, p3)
+println(diff) 
 
 #println(λ_diff(FT(0.5), FT(400), FT(1e8), FT(15000), p3))
-plot_buckets(λ_min, λ_max, F_r_min, F_r_max, ρ_r_min, ρ_r_max, p3, 250, 250, 9)
+# plot_all_gaps(λ_min, λ_max, F_r_min, F_r_max, ρ_r_min, ρ_r_max, p3, 250, 250, 9)
+
+plot_buckets(λ_min, λ_max, F_r_min, F_r_max, ρ_r_min, ρ_r_max, p3, 500, 500, 9)
