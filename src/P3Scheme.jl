@@ -228,7 +228,7 @@ Returns the shape parameter μ for a given λ value
 Eq. 3 in Morrison and Milbrandt (2015).
 """
 function DSD_μ(p3::PSP3, λ::FT) where {FT}
-    @assert λ > FT(0)
+    # @assert λ > FT(0)
     return min(p3.μ_max, max(FT(0), p3.a * λ^p3.b - p3.c))
 end
 
@@ -306,6 +306,7 @@ function q_gamma(
 
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
+    # println(" log λ = ", log_λ, ", λ = ", λ)
     N_0 = DSD_N₀(p3, N, λ)
 
     return ifelse(
@@ -340,25 +341,35 @@ function distribution_parameter_solver(
     F_r::FT,
 ) where {FT}
 
-    N̂ = FT(1e30)
+    N̂ = FT(1e20)
 
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
     shape_problem(x) = q/N̂ - q_gamma(p3, F_r, N/N̂, x, th)
-
+    
     # Find slope parameter
-    x =
+    sol =
         RS.find_zero(
             shape_problem,
-            RS.SecantMethod(FT(log(20000)), FT(log(50000))),
+            RS.SecantMethod(FT(log(4 * 1e4)), FT(log(5 * 1e4))),
+            RS.CompactSolution(),
+            RS.RelativeSolutionTolerance(eps(FT)),
+            10,
+        )
+    x=sol.root
+    converge = sol.converged
+    #= x =
+        RS.find_zero(
+            shape_problem,
+            RS.SecantMethod(FT(log(4 * 1e4)), FT(log(5 * 1e4))),
             RS.CompactSolution(),
             RS.RelativeSolutionTolerance(eps(FT)),
             10,
         ).root
-
-    return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
+ =#
+    return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)), converged = converge)
 end
 
 end
