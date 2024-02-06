@@ -20,7 +20,8 @@ end
 include(joinpath(pkgdir(CM), "box", "box.jl"))
 
 # initial conditions following KA16 figure 4 (Cr1 case)
-A_droplet = FT(1e-5) * 1e-4 # INP surface area, m^2
+A_aero = FT(1e-5) * 1e-4 # INP surface area, m^2
+r_aero = sqrt(A_droplet / 4 / FT(π))
 σg = 10
 N₀ = 1000
 N_ice = 0
@@ -43,14 +44,15 @@ Aj_sorted = zeros(N₀)
 Aj_sorted = sort(Aj_unsorted, rev = true)
 
 # initial condition for the ODE problem
-IC = [T_initial, A_sum, FT(N₀), FT(N_ice)]
+IC_const = [T_initial, r_l, FT(N₀), FT(N_ice)]
+IC_var = [T_initial, A_sum, FT(N₀), FT(N_ice)]
 # additional model parameters
-p_def = (; tps, A_droplet, aerosol, cooling_rate, N₀)
+p_def = (; tps, A_aero, aerosol, cooling_rate, N₀)
 
 # run the box model without and with distribution sampling
-sol_cst = run_box(IC, t_0, t_end, (p_def..., const_dt = dt, flag = false))
+sol_cst = run_box(IC_const, t_0, t_end, (p_def..., const_dt = dt, flag = false))
 sol_var = run_box(
-    IC,
+    IC_var,
     t_0,
     t_end,
     (p_def..., const_dt = dt, flag = true, Aj_sorted = Aj_sorted),

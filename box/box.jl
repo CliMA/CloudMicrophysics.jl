@@ -11,12 +11,13 @@ import CloudMicrophysics.HetIceNucleation as CMI_het
 function box_model(dY, Y, p, t)
 
     # Get simulation parameters
-    (; tps, A_droplet, aerosol, cooling_rate) = p
+    (; tps, aerosol, cooling_rate) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
 
     # Our state vector
     T = Y[1]          # temperature
+    r_aero = Y[2]     # INP radius
     N_liq = Y[3]      # number concentration of existing water droplets
     N_ice = Y[4]      # number concentration of activated ice crystals
 
@@ -28,7 +29,7 @@ function box_model(dY, Y, p, t)
     dN_ice_dt = FT(0)
     dN_liq_dt = FT(0)
     if N_liq > 0
-        dN_ice_dt = J_immer * N_liq * A_droplet
+        dN_ice_dt = J_immer * N_liq * 4 * FT(π) * r_aero^2
         dN_liq_dt = -dN_ice_dt
     end
 
@@ -45,7 +46,7 @@ end
 function box_model_with_probability(dY, Y, p, t)
 
     # Get simulation parameters
-    (; tps, const_dt, A_droplet, aerosol, cooling_rate, Aj_sorted, N₀) = p
+    (; tps, const_dt, A_aero, aerosol, cooling_rate, Aj_sorted, N₀) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
 
@@ -88,7 +89,7 @@ function box_model_with_probability(dY, Y, p, t)
     # Set tendencies
     dY[1] = dT_dt          # temperature
     dY[2] = dAj_dt         # total Aj
-    dY[3] = dN_liq_dt      # mumber concentration of droplets
+    dY[3] = dN_liq_dt      # number concentration of droplets
     dY[4] = dN_ice_dt      # number concentration of ice activated particles
 
 end
