@@ -125,7 +125,7 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
     @assert F_r < FT(1)    # ... and there must always be some unrimed part
 
     if F_r == FT(0)
-        return (; D_cr = 0, D_gr = 0, ρ_g = 0, ρ_d = 0)
+        return (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0))
     else
         @assert ρ_r > FT(0)   # rime density must be positive ...
         @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
@@ -344,7 +344,9 @@ function distribution_parameter_solver(
     th = thresholds(p3, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
-    shape_problem(x) = q - q_gamma(p3, F_r, N, x, th)
+    # We divide by N̂ to deal with large N₀ values for Float32
+    N̂ = FT(1e30)
+    shape_problem(x) = q / N̂ - q_gamma(p3, F_r, N / N̂, x, th)
 
     # Find slope parameter
     x =
