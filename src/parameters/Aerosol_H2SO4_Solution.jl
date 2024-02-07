@@ -9,7 +9,7 @@ from Luo et al 1995. DOI: 10.1029/94GL02988
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct H2SO4SolutionParameters{FT} <: ParametersType{FT}
+Base.@kwdef struct H2SO4SolutionParameters{FT}
     "max temperature for which the parameterization is valid [K]"
     T_max::FT
     "min temperature for which the parameterization is valid [K]"
@@ -32,21 +32,23 @@ struct H2SO4SolutionParameters{FT} <: ParametersType{FT}
     c7::FT
 end
 
-function H2SO4SolutionParameters(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return H2SO4SolutionParameters(
-        FT(data["p_over_sulphuric_acid_solution_T_max"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_T_min"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_w_2"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_c1"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_c2"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_c3"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_c4"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_c5"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_c6"]["value"]),
-        FT(data["p_over_sulphuric_acid_solution_c7"]["value"]),
+H2SO4SolutionParameters(::Type{FT}) where {FT <: AbstractFloat} =
+    H2SO4SolutionParameters(CP.create_toml_dict(FT))
+
+function H2SO4SolutionParameters(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :p_over_sulphuric_acid_solution_T_max => :T_max,
+        :p_over_sulphuric_acid_solution_T_min => :T_min,
+        :p_over_sulphuric_acid_solution_w_2 => :w_2,
+        :p_over_sulphuric_acid_solution_c1 => :c1,
+        :p_over_sulphuric_acid_solution_c2 => :c2,
+        :p_over_sulphuric_acid_solution_c3 => :c3,
+        :p_over_sulphuric_acid_solution_c4 => :c4,
+        :p_over_sulphuric_acid_solution_c5 => :c5,
+        :p_over_sulphuric_acid_solution_c6 => :c6,
+        :p_over_sulphuric_acid_solution_c7 => :c7,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return H2SO4SolutionParameters{FT}(; parameters...)
 end

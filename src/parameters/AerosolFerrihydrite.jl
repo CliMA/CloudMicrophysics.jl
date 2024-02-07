@@ -9,20 +9,22 @@ DOI: 10.1039/D1EA00077B
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Ferrihydrite{FT} <: AerosolType{FT}
+Base.@kwdef struct Ferrihydrite{FT} <: AerosolType{FT}
     "m coefficient for deposition nucleation J [-]"
     deposition_m::FT
     "c coefficient for deposition nucleation J [-]"
     deposition_c::FT
 end
 
-function Ferrihydrite(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return Ferrihydrite(
-        FT(data["Alpert2022_J_deposition_m_Ferrihydrite"]["value"]),
-        FT(data["Alpert2022_J_deposition_c_Ferrihydrite"]["value"]),
+Ferrihydrite(::Type{FT}) where {FT <: AbstractFloat} =
+    Ferrihydrite(CP.create_toml_dict(FT))
+
+function Ferrihydrite(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :Alpert2022_J_deposition_m_Ferrihydrite => :deposition_m,
+        :Alpert2022_J_deposition_c_Ferrihydrite => :deposition_c,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return Ferrihydrite{FT}(; parameters...)
 end

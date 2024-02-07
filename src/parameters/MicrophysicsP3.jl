@@ -9,7 +9,7 @@ Morrison and Milbrandt 2015 doi: 10.1175/JAS-D-14-0065.1
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct ParametersP3{FT} <: ParametersType{FT}
+Base.@kwdef struct ParametersP3{FT} <: ParametersType{FT}
     "Coefficient in mass(size) relation [g/μm^β_va]"
     α_va::FT
     "Coefficient in mass(size) relation [-]"
@@ -32,21 +32,23 @@ struct ParametersP3{FT} <: ParametersType{FT}
     μ_max::FT
 end
 
-function ParametersP3(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return ParametersP3(
-        FT(data["BF1995_mass_coeff_alpha"]["value"]),
-        FT(data["BF1995_mass_exponent_beta"]["value"]),
-        FT(data["density_ice_water"]["value"]),
-        FT(data["density_liquid_water"]["value"]),
-        FT(data["M1996_area_coeff_gamma"]["value"]),
-        FT(data["M1996_area_exponent_sigma"]["value"]),
-        FT(data["Heymsfield_mu_coeff1"]["value"]),
-        FT(data["Heymsfield_mu_coeff2"]["value"]),
-        FT(data["Heymsfield_mu_coeff3"]["value"]),
-        FT(data["Heymsfield_mu_cutoff"]["value"]),
+ParametersP3(::Type{FT}) where {FT <: AbstractFloat} =
+    ParametersP3(CP.create_toml_dict(FT))
+
+function ParametersP3(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :BF1995_mass_coeff_alpha => :α_va,
+        :BF1995_mass_exponent_beta => :β_va,
+        :density_ice_water => :ρ_i,
+        :density_liquid_water => :ρ_l,
+        :M1996_area_coeff_gamma => :γ,
+        :M1996_area_exponent_sigma => :σ,
+        :Heymsfield_mu_coeff1 => :a,
+        :Heymsfield_mu_coeff2 => :b,
+        :Heymsfield_mu_coeff3 => :c,
+        :Heymsfield_mu_cutoff => :μ_max,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return ParametersP3{FT}(; parameters...)
 end

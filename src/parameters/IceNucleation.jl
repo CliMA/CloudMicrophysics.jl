@@ -9,22 +9,21 @@ DOI: 10.5194/acp-6-3007-2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Mohler2006{FT} <: ParametersType{FT}
+Base.@kwdef struct Mohler2006{FT} <: ParametersType{FT}
     "max allowed supersaturation [-]"
     Sᵢ_max::FT
     "threshold temperature [K]"
     T_thr::FT
 end
 
-function Mohler2006(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return Mohler2006(
-        FT(data["Mohler2006_maximum_allowed_Si"]["value"]),
-        FT(data["Mohler2006_threshold_T"]["value"]),
+function Mohler2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :Mohler2006_maximum_allowed_Si => :Sᵢ_max,
+        :Mohler2006_threshold_T => :T_thr,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return Mohler2006{FT}(; parameters...)
 end
 
 """
@@ -36,7 +35,7 @@ DOI: 10.1038/35020537
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Koop2000{FT} <: ParametersType{FT}
+Base.@kwdef struct Koop2000{FT} <: ParametersType{FT}
     "min Δaw [-]"
     Δa_w_min::FT
     "max Δaw [-]"
@@ -51,19 +50,18 @@ struct Koop2000{FT} <: ParametersType{FT}
     c₄::FT
 end
 
-function Koop2000(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return Koop2000(
-        FT(data["Koop2000_min_delta_aw"]["value"]),
-        FT(data["Koop2000_max_delta_aw"]["value"]),
-        FT(data["Koop2000_J_hom_coeff1"]["value"]),
-        FT(data["Koop2000_J_hom_coeff2"]["value"]),
-        FT(data["Koop2000_J_hom_coeff3"]["value"]),
-        FT(data["Koop2000_J_hom_coeff4"]["value"]),
+function Koop2000(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :Koop2000_min_delta_aw => :Δa_w_min,
+        :Koop2000_max_delta_aw => :Δa_w_max,
+        :Koop2000_J_hom_coeff1 => :c₁,
+        :Koop2000_J_hom_coeff2 => :c₂,
+        :Koop2000_J_hom_coeff3 => :c₃,
+        :Koop2000_J_hom_coeff4 => :c₄,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return Koop2000{FT}(; parameters...)
 end
 
 """
@@ -83,10 +81,9 @@ function IceNucleationParameters(
     ::Type{FT},
     toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
 ) where {FT}
-    deposition = Mohler2006(FT, toml_dict)
-    homogeneous = Koop2000(FT, toml_dict)
-    return IceNucleationParameters{FT, typeof(deposition), typeof(homogeneous)}(
-        deposition,
-        homogeneous,
-    )
+    deposition = Mohler2006(toml_dict)
+    homogeneous = Koop2000(toml_dict)
+    DEP = typeof(deposition)
+    HOM = typeof(homogeneous)
+    return IceNucleationParameters{FT, DEP, HOM}(deposition, homogeneous)
 end
