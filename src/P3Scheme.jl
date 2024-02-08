@@ -269,7 +269,7 @@ end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, N_0::FT, λ::FT, D_min::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return α_va_si(p3) * N_0 / λ^x * (Γ(x, λ * D_min)) #Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return α_va_si(p3) * N_0 / λ^x * (Γ(x, λ * D_min))
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, N_0::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
@@ -280,8 +280,7 @@ end
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, D_min::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return α_va_si(p3) * N_0 / (1 - F_r) / λ^x *
-           (Γ(x, λ * D_min)) #Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return α_va_si(p3) * N_0 / (1 - F_r) / λ^x * (Γ(x, λ * D_min))
 end
 
 """
@@ -369,7 +368,9 @@ function distribution_parameter_solver(
     th = thresholds(p3, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
-    shape_problem(x) = q/N̂ - q_gamma(p3, F_r, N/N̂, x, th)
+    # We divide by N̂ to deal with large N₀ values for Float32
+    N̂ = FT(1e30)
+    shape_problem(x) = q / N̂ - q_gamma(p3, F_r, N / N̂, x, th)
 
     # Get intial guess for solver 
     (min, max) = get_bounds(N, q, F_r, p3, th)

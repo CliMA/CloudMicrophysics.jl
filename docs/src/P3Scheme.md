@@ -91,7 +91,7 @@ N'(D) = N_{0} D^\mu \, e^{-\lambda \, D}
 where:
  - ``N'`` is the number concentration in ``m^{-4}``
  - ``D`` is the maximum particle dimension in ``m``,
- - ``N_0`` is the intercept parameter in ``m^{-4}``,
+ - ``N_0`` is the intercept parameter in ``m^{-5 - \mu }``,
  - ``\mu`` is the shape parameter (dimensionless),
  - ``\lambda`` is the slope parameter in ``m^{-1}``.
 

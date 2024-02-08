@@ -1,5 +1,6 @@
 # CloudMicrophysics.jl
 A package containing a library of cloud microphysics and aerosol parameterizations.
+See [our documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) for the list of available schemes.
 
 |||
 |---------------------:|:----------------------------------------------|
@@ -72,38 +73,36 @@ See the [Pkg docs](https://docs.julialang.org/en/v1/stdlib/Pkg/)
 
 ## Contributing
 
-The CloudMicrophysics.jl package is being actively developed
+CloudMicrophysics.jl is being actively developed
   and welcomes contributions and feedback.
 There is a variety of projects big and small that are available to take up as
   fun research projects for interested students and other contributors.
 Below is a list of possible examples,
   but other suggestions and ideas are always welcome!
 
-- The CloudMicrophysics.jl package should be tested against a high-resolution model.
+- CloudMicrophysics.jl should be tested against a high-resolution model.
   We have chosen [PySDM](https://github.com/atmos-cloud-sim-uj/PySDM)
   as our high-resolution benchmark.
   PySDM is a package for simulating the dynamics of population of particles
   and is based on the [Super-Droplet algorithm](https://doi.org/10.1002/qj.441).
   Possible tasks in this project would include testing the aerosol activation parameterization
-  against PySDM in an adiabatic parcel setup, or testing the 1-moment
-  microphysics parameterization against PySDM in an already implemented
+  against PySDM in adiabatic parcel setup, or testing the 1-moment
+  microphysics parameterization against PySDM in an
   [1-dimensional](https://github.com/CliMA/Kinematic1D.jl) or
-  2-dimensional prescribed flow setup.
+  2-dimensional prescribed flow setups.
   This could be extended further into a calibration exercise using the
   [EnsembleKalmanProcesses.jl](https://github.com/CliMA/EnsembleKalmanProcesses.jl) package.
   An example pipeline can be seen in the
   [EKP.jl docs](https://clima.github.io/EnsembleKalmanProcesses.jl/dev/examples/Cloudy_example/)
   where [Cloudy.jl](https://github.com/CliMA/Cloudy.jl) parameters are calibrated.
 
+- The CloudMicrophysics.jl package should be tested against observations.
+  We are focusing on the ice-free precipitation first. The tests include
+  comparisons against [CFODDs](https://doi.org/10.1175/JAS-D-20-0321.1) and
+  against [Stratocumulus LWP(N) patterns](https://doi.org/10.5194/acp-19-10191-2019).
+
 - Adding an aerosol model and coupling it with the aerosol activation
   parameterization.
-  [MAM4](https://doi.org/10.5194/gmd-9-505-2016) could be the aerosol model to implement.
+  [MAM4](https://doi.org/10.5194/gmd-9-505-2016) could be the aerosol model to implement,
+  but we are also searching for some simpler alternatives first.
   This is a big project and an opportunity for a more long term contribution.
-
-- Adding the [P3 scheme](https://doi.org/10.1175/JAS-D-14-0065.1) for ice phase microphysics.
-
-- Adding more accurate fall speed parameterization based on
-  [Chen et. al. 2022](https://doi.org/10.1016/j.atmosres.2022.106171).
-
-- Adding precipitation susceptibility tests based on
-  [Glassmeier and Lohmann 2016](https://doi.org/10.1175/JAS-D-16-0008.1).
