@@ -269,19 +269,19 @@ end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, N_0::FT, λ::FT, D_min::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return p3.α_va * N_0 / λ^x * (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return α_va_si(p3) * N_0 / λ^x * (Γ(x, λ * D_min)) #Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, N_0::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return p3.α_va * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return α_va_si(p3) * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, D_min::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return p3.α_va * N_0 / (1 - F_r) / λ^x *
-           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return α_va_si(p3) * N_0 / (1 - F_r) / λ^x *
+           (Γ(x, λ * D_min)) #Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
 end
 
 """
@@ -306,8 +306,6 @@ function q_gamma(
 
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
-    #= println(" log λ = ", log_λ, ", λ = ", λ)
-    println("F_r = ", F_r) =#
     N_0 = DSD_N₀(p3, N, λ)
 
     return ifelse(
@@ -318,6 +316,29 @@ function q_gamma(
         q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr) +
         q_r(p3, F_r, N_0, λ, th.D_cr),
     )
+end
+
+"""
+    get_bounds()
+
+"""
+function get_bounds(N::FT, q::FT, F_r::FT, p3::PSP3, th) where{FT}
+    leftpt = FT(1)
+    rightpt = FT(1e4)
+    radius = FT(1)
+    println("")
+    println("q = ", q, " F_r = ", F_r, " ρ_g = ", th.ρ_g, " D_cr = ", th.D_cr, " D_gr = ", th.D_gr)
+    q_left = q_gamma(p3, F_r, N, log(leftpt), th)
+    q_right = q_gamma(p3, F_r, N, log(rightpt), th)
+    println("q_l = ", q_left)
+    println("q_r = ", q_right)
+    # linear approximation of log(q_gamma(log(λ))) 
+    guess = (q/q_left)^(log(rightpt) - log(leftpt)/(log(q_right) - log(q_left)))
+    println("guess = ", guess)
+    max = log(guess) + radius
+    min = log(guess) - radius
+    println("q = ", q, " min = ", exp(min), " max = ", exp(max))
+    return (min = min, max = max)
 end
 
 """
@@ -344,20 +365,21 @@ function distribution_parameter_solver(
 
     N̂ = FT(1e20)
 
-    min = 2.0 * 1e4 
-    max = 2.5 * 1e4
-
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
     shape_problem(x) = q/N̂ - q_gamma(p3, F_r, N/N̂, x, th)
-    
+
+    # Get intial guess for solver 
+    (min, max) = get_bounds(N, q, F_r, p3, th)
+    min = log(20000)
+    max = log(50000)
     # Find slope parameter
     sol =
         RS.find_zero(
             shape_problem,
-            RS.SecantMethod(FT(log(min)), FT(log(max))),
+            RS.SecantMethod(FT(min), FT(max)),
             RS.CompactSolution(),
             RS.RelativeSolutionTolerance(eps(FT)),
             10,
