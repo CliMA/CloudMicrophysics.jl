@@ -2,7 +2,6 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CLIMAParameters as CP
-import Integrals as IN
 import SpecialFunctions as SF
 import RootSolvers as RS
 import CairoMakie as Plt
@@ -18,7 +17,11 @@ function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3)
     # Convert λ to ensure it remains positive
     x = log(λ_ex)
     # Compute mass density based on input shape parameters
-    q_calc = P3.q_gamma(p3, F_r, N, x, th)  
+    q_calc = P3.q_gamma(p3, F_r, N, x, th)
+    if q_calc > 1
+        println("q_calc = ", q_calc)
+        println("λ = ", λ_ex) 
+    end
     (λ_calculated, N_0, converged) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_r,)
     return (diff = abs(λ_ex - λ_calculated), converged = converged)
 end
@@ -314,9 +317,9 @@ end
 F_r = FT(0.4)
 ρ_r = FT(400)
 λ_min = FT(1)       # anything above 400 giving errors that λ <= FT(0)
-λ_max = FT(1e5)
+λ_max = FT(1e6)
 F_r_min = FT(0.0)
-F_r_max = FT(1-eps(FT))
+F_r_max = FT(0.0)
 ρ_r_min = FT(100)
 ρ_r_max = FT(900)
 
@@ -330,12 +333,13 @@ F_r_max = FT(1-eps(FT))
 F = FT(0.5) 
 ρ = FT(100)
 λ = FT(26002)
-N = FT(1e12) 
+N = FT(1e8) 
 
-diff = λ_diff(F, ρ, N, λ, p3)
-println(diff) 
+#diff = λ_diff(F, ρ, N, λ, p3)
+#println(diff) 
 
 #println(λ_diff(FT(0.5), FT(400), FT(1e8), FT(15000), p3))
 # plot_all_gaps(λ_min, λ_max, F_r_min, F_r_max, ρ_r_min, ρ_r_max, p3, 250, 250, 9)
 
-plot_buckets(λ_min, λ_max, F_r_min, F_r_max, ρ_r_min, ρ_r_max, p3, 500, 500, 9)
+# plot_buckets(λ_min, λ_max, F_r_min, F_r_max, ρ_r_min, ρ_r_max, p3, 100, 100, 2)
+λ_diff(FT(0), FT(1), N, FT(2000), p3) 
