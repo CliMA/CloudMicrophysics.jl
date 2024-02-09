@@ -8,7 +8,7 @@ Khairoutdinov and Kogan (2000) autoconversion parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AcnvKK2000{FT} <: ParametersType{FT}
+Base.@kwdef struct AcnvKK2000{FT} <: ParametersType{FT}
     "Autoconversion coefficient A"
     A::FT
     "Autoconversion coefficient a"
@@ -19,6 +19,18 @@ struct AcnvKK2000{FT} <: ParametersType{FT}
     c::FT
 end
 
+function AcnvKK2000(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :KK2000_auctoconversion_coeff_A => :A,
+        :KK2000_auctoconversion_coeff_a => :a,
+        :KK2000_auctoconversion_coeff_b => :b,
+        :KK2000_auctoconversion_coeff_c => :c,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return AcnvKK2000{FT}(; parameters...)
+end
+
 """
     AccrKK2000
 
@@ -27,13 +39,24 @@ Khairoutdinov and Kogan (2000) accretion parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AccrKK2000{FT} <: ParametersType{FT}
+Base.@kwdef struct AccrKK2000{FT} <: ParametersType{FT}
     "Accretion coefficient A"
     A::FT
     "Accretion coefficient a"
     a::FT
     "Accretion coefficient b"
     b::FT
+end
+
+function AccrKK2000(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :KK2000_accretion_coeff_A => :A,
+        :KK2000_accretion_coeff_a => :a,
+        :KK2000_accretion_coeff_b => :b,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return AccrKK2000{FT}(; parameters...)
 end
 
 """
@@ -58,18 +81,8 @@ function KK2000(
     ::Type{FT},
     toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
 ) where {FT}
-    (; data) = toml_dict
-    acnv = AcnvKK2000(
-        FT(data["KK2000_auctoconversion_coeff_A"]["value"]),
-        FT(data["KK2000_auctoconversion_coeff_a"]["value"]),
-        FT(data["KK2000_auctoconversion_coeff_b"]["value"]),
-        FT(data["KK2000_auctoconversion_coeff_c"]["value"]),
-    )
-    accr = AccrKK2000(
-        FT(data["KK2000_accretion_coeff_A"]["value"]),
-        FT(data["KK2000_accretion_coeff_a"]["value"]),
-        FT(data["KK2000_accretion_coeff_b"]["value"]),
-    )
+    acnv = AcnvKK2000(toml_dict)
+    accr = AccrKK2000(toml_dict)
     return KK2000{FT, typeof(acnv), typeof(accr)}(acnv, accr)
 end
 
@@ -81,7 +94,7 @@ Beheng (1994) autoconversion parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AcnvB1994{FT} <: ParametersType{FT}
+Base.@kwdef struct AcnvB1994{FT} <: ParametersType{FT}
     "Autoconversion coeff C"
     C::FT
     "Autoconversion coeff a"
@@ -100,6 +113,22 @@ struct AcnvB1994{FT} <: ParametersType{FT}
     k::FT
 end
 
+function AcnvB1994(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :B1994_auctoconversion_coeff_C => :C,
+        :B1994_auctoconversion_coeff_a => :a,
+        :B1994_auctoconversion_coeff_b => :b,
+        :B1994_auctoconversion_coeff_c => :c,
+        :B1994_auctoconversion_coeff_N_0 => :N_0,
+        :B1994_auctoconversion_coeff_d_low => :d_low,
+        :B1994_auctoconversion_coeff_d_high => :d_high,
+        :threshold_smooth_transition_steepness => :k,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return AcnvB1994{FT}(; parameters...)
+end
+
 """
     AccrB1994
 
@@ -111,6 +140,16 @@ $(DocStringExtensions.FIELDS)
 struct AccrB1994{FT} <: ParametersType{FT}
     "Accretion coefficient A"
     A::FT
+end
+
+function AccrB1994(toml_dict::CP.AbstractTOMLDict)
+    (; B1994_accretion_coeff_A) = CP.get_parameter_values(
+        toml_dict,
+        "B1994_accretion_coeff_A",
+        "CloudMicrophysics",
+    )
+    FT = CP.float_type(toml_dict)
+    return AccrB1994{FT}(B1994_accretion_coeff_A)
 end
 
 """
@@ -129,24 +168,12 @@ struct B1994{FT, AV, AR} <: Precipitation2MType{FT}
     accr::AR
 end
 
-function B1994(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
+B1994(::Type{FT}) where {FT <: AbstractFloat} = B1994(CP.create_toml_dict(FT))
 
-    acnv = AcnvB1994(
-        FT(data["B1994_auctoconversion_coeff_C"]["value"]),
-        FT(data["B1994_auctoconversion_coeff_a"]["value"]),
-        FT(data["B1994_auctoconversion_coeff_b"]["value"]),
-        FT(data["B1994_auctoconversion_coeff_c"]["value"]),
-        FT(data["B1994_auctoconversion_coeff_N_0"]["value"]),
-        FT(data["B1994_auctoconversion_coeff_d_low"]["value"]), # typo aucto => auto
-        FT(data["B1994_auctoconversion_coeff_d_high"]["value"]), # type aucto => auto
-        FT(data["threshold_smooth_transition_steepness"]["value"]),
-    )
-    accr = AccrB1994(FT(data["B1994_accretion_coeff_A"]["value"]))
-
+function B1994(toml_dict::CP.AbstractTOMLDict)
+    acnv = AcnvB1994(toml_dict)
+    accr = AccrB1994(toml_dict)
+    FT = CP.float_type(toml_dict)
     return B1994{FT, typeof(acnv), typeof(accr)}(acnv, accr)
 end
 
@@ -158,7 +185,7 @@ Tripoli and Cotton (1980) autoconversion parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AcnvTC1980{FT} <: ParametersType{FT}
+Base.@kwdef struct AcnvTC1980{FT} <: ParametersType{FT}
     "Autoconversion coefficient a"
     a::FT
     "Autoconversion coefficient b"
@@ -175,6 +202,23 @@ struct AcnvTC1980{FT} <: ParametersType{FT}
     k::FT
 end
 
+function AcnvTC1980(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :TC1980_autoconversion_coeff_a => :a,
+        :TC1980_autoconversion_coeff_b => :b,
+        :TC1980_autoconversion_coeff_D => :D,
+        :TC1980_autoconversion_coeff_r_0 => :r_0,
+        :TC1980_autoconversion_coeff_me_liq => :me_liq,
+        :threshold_smooth_transition_steepness => :k,
+        :density_liquid_water => :m0_liq_coeff,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    m0_liq_coeff = 4 / 3 * π * parameters.m0_liq_coeff
+
+    FT = CP.float_type(td)
+    return AcnvTC1980{FT}(; parameters..., m0_liq_coeff)
+end
+
 """
     AccrTC1980
 
@@ -186,6 +230,16 @@ $(DocStringExtensions.FIELDS)
 struct AccrTC1980{FT} <: ParametersType{FT}
     "Accretion coefficient A"
     A::FT
+end
+
+function AccrTC1980(toml_dict::CP.AbstractTOMLDict)
+    (; TC1980_accretion_coeff_A) = CP.get_parameter_values(
+        toml_dict,
+        "TC1980_accretion_coeff_A",
+        "CloudMicrophysics",
+    )
+    FT = CP.float_type(toml_dict)
+    return AccrTC1980{FT}(TC1980_accretion_coeff_A)
 end
 
 """
@@ -206,23 +260,12 @@ struct TC1980{FT, AV, AR} <: Precipitation2MType{FT}
     accr::AR
 end
 
-function TC1980(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    ρ_cloud_liq = FT(data["density_liquid_water"]["value"])
-    acnv = AcnvTC1980(
-        FT(data["TC1980_autoconversion_coeff_a"]["value"]),
-        FT(data["TC1980_autoconversion_coeff_b"]["value"]),
-        FT(data["TC1980_autoconversion_coeff_D"]["value"]),
-        FT(data["TC1980_autoconversion_coeff_r_0"]["value"]),
-        FT(data["TC1980_autoconversion_coeff_me_liq"]["value"]),
-        FT(4 / 3) * π * ρ_cloud_liq,
-        FT(data["threshold_smooth_transition_steepness"]["value"]),
-    )
-    accr = AccrTC1980(FT(data["TC1980_accretion_coeff_A"]["value"]))
+TC1980(::Type{FT}) where {FT <: AbstractFloat} = TC1980(CP.create_toml_dict(FT))
 
+function TC1980(toml_dict::CP.AbstractTOMLDict)
+    acnv = AcnvTC1980(toml_dict)
+    accr = AccrTC1980(toml_dict)
+    FT = CP.float_type(toml_dict)
     return TC1980{FT, typeof(acnv), typeof(accr)}(acnv, accr)
 end
 
@@ -237,7 +280,7 @@ DOI: 10.1175/1520-0469(2004)061<1539:POTAPI>2.0.CO;2
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct LD2004{FT} <: Precipitation2MType{FT}
+Base.@kwdef struct LD2004{FT} <: Precipitation2MType{FT}
     "Autoconversion coefficient R_6C_0"
     R_6C_0::FT
     "Autoconversion coefficient E_0"
@@ -248,17 +291,18 @@ struct LD2004{FT} <: Precipitation2MType{FT}
     k::FT
 end
 
-function LD2004(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return LD2004(
-        FT(data["LD2004_R_6C_coeff"]["value"]),
-        FT(data["LD2004_E_0_coeff"]["value"]),
-        FT(data["density_liquid_water"]["value"]),
-        FT(data["threshold_smooth_transition_steepness"]["value"]),
+LD2004(::Type{FT}) where {FT <: AbstractFloat} = LD2004(CP.create_toml_dict(FT))
+
+function LD2004(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :LD2004_R_6C_coeff => :R_6C_0,
+        :LD2004_E_0_coeff => :E_0,
+        :density_liquid_water => :ρ_w,
+        :threshold_smooth_transition_steepness => :k,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return LD2004{FT}(; parameters...)
 end
 
 """
@@ -270,22 +314,24 @@ The type for 2-moment precipitation formation based on the
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct VarTimescaleAcnv{FT} <: Precipitation2MType{FT}
+Base.@kwdef struct VarTimescaleAcnv{FT} <: Precipitation2MType{FT}
     "Timescale [s]"
     τ::FT
     "Powerlaw coefficient [-]"
     α::FT
 end
 
-function VarTimescaleAcnv(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return VarTimescaleAcnv(
-        FT(data["rain_autoconversion_timescale"]["value"]),
-        FT(data["Variable_time_scale_autoconversion_coeff_alpha"]["value"]),
+VarTimescaleAcnv(::Type{FT}) where {FT <: AbstractFloat} =
+    VarTimescaleAcnv(CP.create_toml_dict(FT))
+
+function VarTimescaleAcnv(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :rain_autoconversion_timescale => :τ,
+        :Variable_time_scale_autoconversion_coeff_alpha => :α,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return VarTimescaleAcnv{FT}(; parameters...)
 end
 
 """
@@ -296,7 +342,7 @@ Rain size distribution parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct ParticlePDF_SB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct ParticlePDF_SB2006{FT} <: ParametersType{FT}
     "Raindrop minimal mass"
     xr_min::FT
     "Raindrop maximum mass"
@@ -315,6 +361,22 @@ struct ParticlePDF_SB2006{FT} <: ParametersType{FT}
     ρ0::FT
 end
 
+function ParticlePDF_SB2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_raindrops_min_mass => :xr_min,
+        :SB2006_raindrops_max_mass => :xr_max,
+        :SB2006_raindrops_size_distribution_coeff_N0_min => :N0_min,
+        :SB2006_raindrops_size_distribution_coeff_N0_max => :N0_max,
+        :SB2006_raindrops_size_distribution_coeff_lambda_min => :λ_min,
+        :SB2006_raindrops_size_distribution_coeff_lambda_max => :λ_max,
+        :density_liquid_water => :ρw,
+        :SB2006_reference_air_density => :ρ0,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return ParticlePDF_SB2006{FT}(; parameters...)
+end
+
 """
     AcnvSB2006
 
@@ -323,7 +385,7 @@ Autoconversion parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AcnvSB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct AcnvSB2006{FT} <: ParametersType{FT}
     "Collection kernel coefficient"
     kcc::FT
     "Cloud gamma distribution coefficient"
@@ -340,6 +402,22 @@ struct AcnvSB2006{FT} <: ParametersType{FT}
     b::FT
 end
 
+function AcnvSB2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_collection_kernel_coeff_kcc => :kcc,
+        :SB2006_cloud_gamma_distribution_parameter => :νc,
+        :SB2006_raindrops_min_mass => :x_star,
+        :SB2006_reference_air_density => :ρ0,
+        :SB2006_autoconversion_correcting_function_coeff_A => :A,
+        :SB2006_autoconversion_correcting_function_coeff_a => :a,
+        :SB2006_autoconversion_correcting_function_coeff_b => :b,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return AcnvSB2006{FT}(; parameters...)
+end
+
+
 """
     AccrSB2006
 
@@ -348,7 +426,7 @@ Accretion parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AccrSB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct AccrSB2006{FT} <: ParametersType{FT}
     "Collection kernel coefficient Kcr"
     kcr::FT
     "Accretion correcting function coefficient τ_0"
@@ -359,6 +437,18 @@ struct AccrSB2006{FT} <: ParametersType{FT}
     c::FT
 end
 
+function AccrSB2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_collection_kernel_coeff_kcr => :kcr,
+        :SB2006_accretion_correcting_function_coeff_tau0 => :τ0,
+        :SB2006_reference_air_density => :ρ0,
+        :SB2006_accretion_correcting_function_coeff_c => :c,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return AccrSB2006{FT}(; parameters...)
+end
+
 """
     SelfColSB2006
 
@@ -367,13 +457,24 @@ Rain selfcollection parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SelfColSB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct SelfColSB2006{FT} <: ParametersType{FT}
     "Collection kernel coefficient krr"
     krr::FT
     "Collection kernel coefficient kappa rr"
     κrr::FT
     "Raindrop self collection coefficient d"
     d::FT
+end
+
+function SelfColSB2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_collection_kernel_coeff_krr => :krr,
+        :SB2006_collection_kernel_coeff_kapparr => :κrr,
+        Symbol("SB2006_raindrops_self-collection_coeff_d") => :d,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return SelfColSB2006{FT}(; parameters...)
 end
 
 """
@@ -384,7 +485,7 @@ Rain breakup parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct BreakupSB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct BreakupSB2006{FT} <: ParametersType{FT}
     "Raindrop equilibrium mean diamater"
     Deq::FT
     "Raindrop breakup mean diamater threshold"
@@ -395,6 +496,18 @@ struct BreakupSB2006{FT} <: ParametersType{FT}
     κbr::FT
 end
 
+function BreakupSB2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_raindrops_equlibrium_mean_diameter => :Deq,
+        :SB2006_raindrops_breakup_mean_diameter_threshold => :Dr_th,
+        :SB2006_raindrops_breakup_coeff_kbr => :kbr,
+        :SB2006_raindrops_breakup_coeff_kappabr => :κbr,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return BreakupSB2006{FT}(; parameters...)
+end
+
 """
     EvaporationSB2006
 
@@ -403,7 +516,7 @@ Rain evaporation parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct EvaporationSB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct EvaporationSB2006{FT} <: ParametersType{FT}
     "Ventillation coefficient a"
     av::FT
     "Ventillation coefficient b"
@@ -414,6 +527,19 @@ struct EvaporationSB2006{FT} <: ParametersType{FT}
     β::FT
     "Reference air density [kg/m3]"
     ρ0::FT
+end
+
+function EvaporationSB2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_ventilation_factor_coeff_av => :av,
+        :SB2006_ventilation_factor_coeff_bv => :bv,
+        :SB2006_rain_evaportation_coeff_alpha => :α,
+        :SB2006_rain_evaportation_coeff_beta => :β,
+        :SB2006_reference_air_density => :ρ0,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return EvaporationSB2006{FT}(; parameters...)
 end
 
 """
@@ -442,73 +568,21 @@ struct SB2006{FT, PD, AV, AR, SC, BR, EV} <: Precipitation2MType{FT}
     evap::EV
 end
 
-function SB2006(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
+SB2006(::Type{FT}) where {FT <: AbstractFloat} = SB2006(CP.create_toml_dict(FT))
 
-    pdf = ParticlePDF_SB2006(
-        FT(data["SB2006_raindrops_min_mass"]["value"]),
-        FT(data["SB2006_raindrops_max_mass"]["value"]),
-        FT(data["SB2006_raindrops_size_distribution_coeff_N0_min"]["value"]),
-        FT(data["SB2006_raindrops_size_distribution_coeff_N0_max"]["value"]),
-        FT(
-            data["SB2006_raindrops_size_distribution_coeff_lambda_min"]["value"],
-        ),
-        FT(
-            data["SB2006_raindrops_size_distribution_coeff_lambda_max"]["value"],
-        ),
-        FT(data["density_liquid_water"]["value"]),
-        FT(data["SB2006_reference_air_density"]["value"]),
-    )
-    acnv = AcnvSB2006(
-        FT(data["SB2006_collection_kernel_coeff_kcc"]["value"]),
-        FT(data["SB2006_cloud_gamma_distribution_parameter"]["value"]),
-        FT(data["SB2006_raindrops_min_mass"]["value"]),
-        FT(data["SB2006_reference_air_density"]["value"]),
-        FT(data["SB2006_autoconversion_correcting_function_coeff_A"]["value"]),
-        FT(data["SB2006_autoconversion_correcting_function_coeff_a"]["value"]),
-        FT(data["SB2006_autoconversion_correcting_function_coeff_b"]["value"]),
-    )
-    accr = AccrSB2006(
-        FT(data["SB2006_collection_kernel_coeff_kcr"]["value"]),
-        FT(data["SB2006_accretion_correcting_function_coeff_tau0"]["value"]),
-        FT(data["SB2006_reference_air_density"]["value"]),
-        FT(data["SB2006_accretion_correcting_function_coeff_c"]["value"]),
-    )
-    self = SelfColSB2006(
-        FT(data["SB2006_collection_kernel_coeff_krr"]["value"]),
-        FT(data["SB2006_collection_kernel_coeff_kapparr"]["value"]),
-        FT(data["SB2006_raindrops_self-collection_coeff_d"]["value"]),
-    )
-    brek = BreakupSB2006(
-        FT(data["SB2006_raindrops_equlibrium_mean_diameter"]["value"]),
-        FT(data["SB2006_raindrops_breakup_mean_diameter_threshold"]["value"]),
-        FT(data["SB2006_raindrops_breakup_coeff_kbr"]["value"]),
-        FT(data["SB2006_raindrops_breakup_coeff_kappabr"]["value"]),
-    )
-    evap = EvaporationSB2006(
-        FT(data["SB2006_ventilation_factor_coeff_av"]["value"]),
-        FT(data["SB2006_ventilation_factor_coeff_bv"]["value"]),
-        FT(data["SB2006_rain_evaportation_coeff_alpha"]["value"]),
-        FT(data["SB2006_rain_evaportation_coeff_beta"]["value"]),
-        FT(data["SB2006_reference_air_density"]["value"]),
-    )
-    return SB2006{
-        FT,
-        typeof(pdf),
-        typeof(acnv),
-        typeof(accr),
-        typeof(self),
-        typeof(brek),
-        typeof(evap),
-    }(
-        pdf,
-        acnv,
-        accr,
-        self,
-        brek,
-        evap,
-    )
+function SB2006(toml_dict::CP.AbstractTOMLDict)
+    pdf = ParticlePDF_SB2006(toml_dict)
+    acnv = AcnvSB2006(toml_dict)
+    accr = AccrSB2006(toml_dict)
+    self = SelfColSB2006(toml_dict)
+    brek = BreakupSB2006(toml_dict)
+    evap = EvaporationSB2006(toml_dict)
+    FT = CP.float_type(toml_dict)
+    PD = typeof(pdf)
+    AN = typeof(acnv)
+    AR = typeof(accr)
+    SE = typeof(self)
+    BR = typeof(brek)
+    EV = typeof(evap)
+    return SB2006{FT, PD, AN, AR, SE, BR, EV}(pdf, acnv, accr, self, brek, evap)
 end

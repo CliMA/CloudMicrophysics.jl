@@ -9,7 +9,7 @@ DOI: 10.1029/1999JD901161
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AerosolActivationParameters{FT} <: ParametersType{FT}
+Base.@kwdef struct AerosolActivationParameters{FT} <: ParametersType{FT}
     "molar mass of water [kg/mol]"
     M_w::FT
     "gas constant [J/mol/K]"
@@ -22,16 +22,18 @@ struct AerosolActivationParameters{FT} <: ParametersType{FT}
     g::FT
 end
 
-function AerosolActivationParameters(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return AerosolActivationParameters(
-        FT(data["molar_mass_water"]["value"]),
-        FT(data["gas_constant"]["value"]),
-        FT(data["density_liquid_water"]["value"]),
-        FT(data["surface_tension_water"]["value"]),
-        FT(data["gravitational_acceleration"]["value"]),
+AerosolActivationParameters(::Type{FT}) where {FT <: AbstractFloat} =
+    AerosolActivationParameters(CP.create_toml_dict(FT))
+
+function AerosolActivationParameters(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :molar_mass_water => :M_w,
+        :gas_constant => :R,
+        :density_liquid_water => :ρ_w,
+        :surface_tension_water => :σ,
+        :gravitational_acceleration => :g,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return AerosolActivationParameters{FT}(; parameters...)
 end

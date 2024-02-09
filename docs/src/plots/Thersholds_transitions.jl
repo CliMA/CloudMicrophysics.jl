@@ -27,10 +27,10 @@ for i in 1:3
     toml_dict = CP.create_toml_dict(FT; override_file)
     isfile(override_file) && rm(override_file; force = true)
 
-    push!(rain, CMP.Rain(FT, toml_dict))
-    push!(B1994, CMP.B1994(FT, toml_dict))
-    push!(TC1980, CMP.TC1980(FT, toml_dict))
-    push!(LD2004, CMP.LD2004(FT, toml_dict))
+    push!(rain, CMP.Rain(toml_dict))
+    push!(B1994, CMP.B1994(toml_dict))
+    push!(TC1980, CMP.TC1980(toml_dict))
+    push!(LD2004, CMP.LD2004(toml_dict))
 end
 
 # example values
