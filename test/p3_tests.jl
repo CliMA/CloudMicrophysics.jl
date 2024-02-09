@@ -62,7 +62,7 @@ function test_p3_thresholds(FT)
         end
 
         # Check that the P3 scheme solution matches the published values
-        function diff(ρ_r, F_r, el, gold, rtol=2e-2)
+        function diff(ρ_r, F_r, el, gold, rtol = 2e-2)
             TT.@test P3.thresholds(p3, ρ_r, F_r)[el] * 1e3 ≈ gold rtol = rtol
         end
         # D_cr and D_gr vs Fig. 1a Morrison and Milbrandt 2015
@@ -202,7 +202,7 @@ test_p3_thresholds(Float32)
 test_p3_mass(Float32)
 #TODO - only works for Float64 now. We should switch the units inside the solver
 # from SI base to something more managable
-#test_p3_shape_solver(Float32)
+test_p3_shape_solver(Float32)
 
 println("Testing Float64")
 test_p3_thresholds(Float64)

@@ -307,7 +307,7 @@ function q_gamma(
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
     N_0 = DSD_N₀(p3, N, λ)
-    
+
     return ifelse(
         F_r == FT(0),
         q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) + q_rz(p3, N_0, λ, D_th),
@@ -319,10 +319,24 @@ function q_gamma(
 end
 
 """
-    get_bounds()
+    get_bounds(N, q, F_r, p3, th)
 
+ - N - ice number concentration [1/m3]
+ - q - mass mixing ratio
+ - F_r -rime mass fraction [q_rim/q_i]
+ - p3 - a struct with P3 scheme parameters
+ - th -  thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+ Returns estimated guess for λ from q to be used in distribution_parameter_solver()
 """
-function get_bounds(N::FT, q::FT, F_r::FT, p3::PSP3, th) where{FT}
+function get_bounds(
+    N::FT,
+    q::FT,
+    F_r::FT,
+    p3::PSP3,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT}
+
     leftpt = FT(1)
     rightpt = FT(1e6)
     radius = FT(0.8)
@@ -330,16 +344,19 @@ function get_bounds(N::FT, q::FT, F_r::FT, p3::PSP3, th) where{FT}
     q_left = q_gamma(p3, F_r, N, log(leftpt), th)
     q_right = q_gamma(p3, F_r, N, log(rightpt), th)
 
-    guess = (q/q_left)^((log(rightpt) - log(leftpt))/(log(q_right) - log(q_left)))
+    guess =
+        (
+            q / q_left
+        )^((log(rightpt) - log(leftpt)) / (log(q_right) - log(q_left)))
 
     max = log(guess * exp(radius))
     min = log(guess)
 
-    if guess < FT(2.5 * 1e4)
+    if guess < FT(2.5 * 1e4) || isequal(guess, NaN)
         min = log(FT(20000))
         max = log(FT(50000))
     end
-    return (min = min, max = max)
+    return (min = FT(min), max = FT(max))
 end
 
 """
@@ -374,18 +391,16 @@ function distribution_parameter_solver(
 
     # Get intial guess for solver 
     (min, max) = get_bounds(N, q, F_r, p3, th)
-    #min = log(20000)
-    #max = log(50000)
+
     # Find slope parameter
-    sol =
-        RS.find_zero(
-            shape_problem,
-            RS.SecantMethod(FT(min), FT(max)),
-            RS.CompactSolution(),
-            RS.RelativeSolutionTolerance(eps(FT)),
-            10,
-        )
-    x=sol.root
+    sol = RS.find_zero(
+        shape_problem,
+        RS.SecantMethod(FT(min), FT(max)),
+        RS.CompactSolution(),
+        RS.RelativeSolutionTolerance(eps(FT)),
+        10,
+    )
+    x = sol.root
     converge = sol.converged
     #= x =
         RS.find_zero(
@@ -395,7 +410,7 @@ function distribution_parameter_solver(
             RS.RelativeSolutionTolerance(eps(FT)),
             10,
         ).root
- =#
+    =#
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)), converged = converge)
 end
 
