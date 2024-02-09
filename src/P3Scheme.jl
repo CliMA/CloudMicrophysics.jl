@@ -228,6 +228,7 @@ Returns the shape parameter μ for a given λ value
 Eq. 3 in Morrison and Milbrandt (2015).
 """
 function DSD_μ(p3::PSP3, λ::FT) where {FT}
+    #println("λ = ", λ)
     #@assert λ > FT(0)
     return min(p3.μ_max, max(FT(0), p3.a * λ^p3.b - p3.c))
 end
@@ -306,7 +307,7 @@ function q_gamma(
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
     N_0 = DSD_N₀(p3, N, λ)
-
+    
     return ifelse(
         F_r == FT(0),
         q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) + q_rz(p3, N_0, λ, D_th),
@@ -323,20 +324,21 @@ end
 """
 function get_bounds(N::FT, q::FT, F_r::FT, p3::PSP3, th) where{FT}
     leftpt = FT(1)
-    rightpt = FT(1e4)
-    radius = FT(1)
-    println("")
-    println("q = ", q, " F_r = ", F_r, " ρ_g = ", th.ρ_g, " D_cr = ", th.D_cr, " D_gr = ", th.D_gr)
+    rightpt = FT(1e6)
+    radius = FT(0.8)
+
     q_left = q_gamma(p3, F_r, N, log(leftpt), th)
     q_right = q_gamma(p3, F_r, N, log(rightpt), th)
-    println("q_l = ", q_left)
-    println("q_r = ", q_right)
-    # linear approximation of log(q_gamma(log(λ))) 
-    guess = (q/q_left)^(log(rightpt) - log(leftpt)/(log(q_right) - log(q_left)))
-    println("guess = ", guess)
-    max = log(guess) + radius
-    min = log(guess) - radius
-    println("q = ", q, " min = ", exp(min), " max = ", exp(max))
+
+    guess = (q/q_left)^((log(rightpt) - log(leftpt))/(log(q_right) - log(q_left)))
+
+    max = log(guess * exp(radius))
+    min = log(guess)
+
+    if guess < FT(2.5 * 1e4)
+        min = log(FT(20000))
+        max = log(FT(50000))
+    end
     return (min = min, max = max)
 end
 
@@ -362,20 +364,18 @@ function distribution_parameter_solver(
     F_r::FT,
 ) where {FT}
 
-    N̂ = FT(1e20)
-
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
     # We divide by N̂ to deal with large N₀ values for Float32
-    N̂ = FT(1e30)
+    N̂ = FT(1e20)
     shape_problem(x) = q / N̂ - q_gamma(p3, F_r, N / N̂, x, th)
 
     # Get intial guess for solver 
     (min, max) = get_bounds(N, q, F_r, p3, th)
-    min = log(20000)
-    max = log(50000)
+    #min = log(20000)
+    #max = log(50000)
     # Find slope parameter
     sol =
         RS.find_zero(
