@@ -63,6 +63,7 @@ function benchmark_test(FT)
     kaolinite = CMP.Kaolinite(FT)
     ip = CMP.IceNucleationParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
+    ip_frostenberg = CMP.Frostenberg2023(FT)
     # aerosol nucleation parameters
     mixed_nuc = CMP.MixedNucleationParameters(FT)
     h2so4_nuc = CMP.H2S04NucleationParameters(FT)
@@ -113,6 +114,8 @@ function benchmark_test(FT)
     x_sulph = FT(0.1)
     Delta_a_w = FT(0.27)
 
+    INPC = FT(1e5)
+
     # P3 scheme
     bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 2048, 80)
 
@@ -146,6 +149,11 @@ function benchmark_test(FT)
     )
     bench_press(CMI_het.deposition_J, (kaolinite, Delta_a_w), 230)
     bench_press(CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 230)
+    bench_press(
+        CMI_het.INP_concentration_frequency,
+        (ip_frostenberg, INPC, T_air_cold),
+        110,
+    )
     bench_press(CMI_hom.homogeneous_J, (ip.homogeneous, Delta_a_w), 230)
 
     # non-equilibrium

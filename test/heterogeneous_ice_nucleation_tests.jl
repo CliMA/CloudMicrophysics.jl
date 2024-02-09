@@ -16,6 +16,7 @@ function test_heterogeneous_ice_nucleation(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     ip = CMP.IceNucleationParameters(FT)
+    ip_frostenberg = CMP.Frostenberg2023(FT)
     # more parameters for aerosol properties
     ATD = CMP.ArizonaTestDust(FT)
     desert_dust = CMP.DesertDust(FT)
@@ -175,6 +176,21 @@ function test_heterogeneous_ice_nucleation(FT)
                 dust,
                 CO.a_w_eT(tps, e_warm, T_warm_2) - CO.a_w_ice(tps, T_warm_2),
             )
+        end
+    end
+
+    TT.@testset "Frostenberg" begin
+
+        temperatures = FT.([233, 257])
+        INPCs = FT.([220000, 9])
+        frequencies = FT.([0.26, 0.08])
+
+        for (T, INPC, frequency) in zip(temperatures, INPCs, frequencies)
+            TT.@test CMI_het.INP_concentration_frequency(
+                ip_frostenberg,
+                INPC,
+                T,
+            ) ≈ frequency rtol = 0.1
         end
     end
 end

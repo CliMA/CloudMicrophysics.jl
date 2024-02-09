@@ -90,6 +90,7 @@ HetIceNucleation.dust_activated_number_fraction
 HetIceNucleation.MohlerDepositionRate
 HetIceNucleation.deposition_J
 HetIceNucleation.ABIFM_J
+HetIceNucleation.INP_concentration_frequency
 ```
 
 # Homogeneous ice nucleation
@@ -136,6 +137,7 @@ Parameters.Seasalt
 Parameters.Sulfate
 Parameters.AerosolActivationParameters
 Parameters.IceNucleationParameters
+Parameters.Frostenberg2023
 Parameters.H2SO4SolutionParameters
 Parameters.Mohler2006
 Parameters.Koop2000
