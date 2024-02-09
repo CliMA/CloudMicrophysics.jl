@@ -228,7 +228,6 @@ Returns the shape parameter μ for a given λ value
 Eq. 3 in Morrison and Milbrandt (2015).
 """
 function DSD_μ(p3::PSP3, λ::FT) where {FT}
-    #println("λ = ", λ)
     #@assert λ > FT(0)
     return min(p3.μ_max, max(FT(0), p3.a * λ^p3.b - p3.c))
 end
@@ -345,9 +344,7 @@ function get_bounds(
     q_right = q_gamma(p3, F_r, N, log(rightpt), th)
 
     guess =
-        (
-            q / q_left
-        )^((log(rightpt) - log(leftpt)) / (log(q_right) - log(q_left)))
+        (q / q_left)^((log(rightpt) - log(leftpt)) / (log(q_right) - log(q_left)))
 
     max = log(guess * exp(radius))
     min = log(guess)
@@ -402,7 +399,8 @@ function distribution_parameter_solver(
     )
     x = sol.root
     converge = sol.converged
-    #= x =
+    #= TO DO: switch back to this once testing is done and converged is not needed as a return 
+    x =
         RS.find_zero(
             shape_problem,
             RS.SecantMethod(FT(log(4 * 1e4)), FT(log(5 * 1e4))),
