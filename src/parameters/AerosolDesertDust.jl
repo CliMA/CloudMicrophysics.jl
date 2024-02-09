@@ -10,7 +10,7 @@ and from Mohler et al, 2006 DOI: 10.5194/acp-6-3007-2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct DesertDust{FT} <: AerosolType{FT}
+Base.@kwdef struct DesertDust{FT} <: AerosolType{FT}
     "S₀ for T > T_thr [-]"
     S₀_warm::FT
     "S₀ for T < T_thr [-]"
@@ -25,17 +25,19 @@ struct DesertDust{FT} <: AerosolType{FT}
     ABIFM_c::FT
 end
 
-function DesertDust(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return DesertDust(
-        FT(data["Mohler2006_S0_warm_DesertDust"]["value"]),
-        FT(data["Mohler2006_S0_cold_DesertDust"]["value"]),
-        FT(data["Mohler2006_a_warm_DesertDust"]["value"]),
-        FT(data["Mohler2006_a_cold_DesertDust"]["value"]),
-        FT(data["AlpertKnopf2016_J_ABIFM_m_DesertDust"]["value"]),
-        FT(data["AlpertKnopf2016_J_ABIFM_c_DesertDust"]["value"]),
+DesertDust(::Type{FT}) where {FT <: AbstractFloat} =
+    DesertDust(CP.create_toml_dict(FT))
+
+function DesertDust(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :Mohler2006_S0_warm_DesertDust => :S₀_warm,
+        :Mohler2006_S0_cold_DesertDust => :S₀_cold,
+        :Mohler2006_a_warm_DesertDust => :a_warm,
+        :Mohler2006_a_cold_DesertDust => :a_cold,
+        :AlpertKnopf2016_J_ABIFM_m_DesertDust => :ABIFM_m,
+        :AlpertKnopf2016_J_ABIFM_c_DesertDust => :ABIFM_c,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return DesertDust{FT}(; parameters...)
 end

@@ -8,7 +8,7 @@ Parameters with air properties.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct AirProperties{FT} <: ParametersType{FT}
+Base.@kwdef struct AirProperties{FT} <: ParametersType{FT}
     "thermal conductivity of air [w/m/K]"
     K_therm::FT
     "diffusivity of water vapor [m2/s]"
@@ -17,14 +17,16 @@ struct AirProperties{FT} <: ParametersType{FT}
     ν_air::FT
 end
 
-function AirProperties(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return AirProperties(
-        FT(data["thermal_conductivity_of_air"]["value"]),
-        FT(data["diffusivity_of_water_vapor"]["value"]),
-        FT(data["kinematic_viscosity_of_air"]["value"]),
+AirProperties(::Type{FT}) where {FT <: AbstractFloat} =
+    AirProperties(CP.create_toml_dict(FT))
+
+function AirProperties(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :thermal_conductivity_of_air => :K_therm,
+        :diffusivity_of_water_vapor => :D_vapor,
+        :kinematic_viscosity_of_air => :ν_air,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return AirProperties{FT}(; parameters...)
 end

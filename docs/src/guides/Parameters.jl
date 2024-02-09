@@ -39,7 +39,7 @@ open(override_file, "w") do io
 end
 toml_dict = CP.create_toml_dict(FT; override_file)
 isfile(override_file) && rm(override_file; force = true)
-const overwrite = CMP.Rain(FT, toml_dict)
+const overwrite = CMP.Rain(toml_dict)
 
 nothing #hide
 
@@ -51,7 +51,7 @@ override_file = Dict(
         Dict("value" => 13, "type" => "float"),
 )
 toml_dict2 = CP.create_toml_dict(FT; override_file)
-const overwrite2 = CMP.Rain(FT, toml_dict2)
+const overwrite2 = CMP.Rain(toml_dict2)
 
 nothing #hide
 

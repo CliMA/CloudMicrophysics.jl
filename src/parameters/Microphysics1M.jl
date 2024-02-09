@@ -8,7 +8,7 @@ A struct with snow size distribution parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct ParticlePDFSnow{FT} <: ParametersType{FT}
+Base.@kwdef struct ParticlePDFSnow{FT} <: ParametersType{FT}
     "snow size distribution coefficient [1/m4]"
     μ::FT
     "snow size distribution coefficient [-]"
@@ -38,7 +38,7 @@ m(r) = m0 χm (r/r0)^(me + Δm)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct ParticleMass{FT} <: ParametersType{FT}
+Base.@kwdef struct ParticleMass{FT} <: ParametersType{FT}
     "particle length scale [m]"
     r0::FT
     "mass size relation coefficient [kg]"
@@ -62,7 +62,7 @@ a(r) = a0 χa (r/r0)^(ae + Δa)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct ParticleArea{FT} <: ParametersType{FT}
+Base.@kwdef struct ParticleArea{FT} <: ParametersType{FT}
     "cross section size relation coefficient [m2]"
     a0::FT
     "cross section size relation coefficient [-]"
@@ -118,12 +118,15 @@ struct CloudLiquid{FT} <: CloudCondensateType{FT}
     τ_relax::FT
 end
 
-function CloudLiquid(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return CloudLiquid(FT(data["condensation_evaporation_timescale"]["value"]))
+CloudLiquid(::Type{FT}) where {FT <: AbstractFloat} =
+    CloudLiquid(CP.create_toml_dict(FT))
+
+function CloudLiquid(toml_dict::CP.AbstractTOMLDict)
+    name_map = (; :condensation_evaporation_timescale => :τ_relax)
+    (; τ_relax) =
+        CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    FT = CP.float_type(toml_dict)
+    return CloudLiquid{FT}(τ_relax)
 end
 
 """
@@ -147,31 +150,39 @@ struct CloudIce{FT, PD, MS} <: CloudCondensateType{FT}
     τ_relax::FT
 end
 
-function CloudIce(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
+CloudIce(::Type{FT}) where {FT <: AbstractFloat} =
+    CloudIce(CP.create_toml_dict(FT))
 
-    n0 = FT(data["cloud_ice_size_distribution_coefficient_n0"]["value"])
-    pdf = ParticlePDFIceRain(n0)
-
-    ρi = FT(data["density_ice_water"]["value"])
-    r0 = FT(data["cloud_ice_crystals_length_scale"]["value"])
-
-    me = FT(data["cloud_ice_mass_size_relation_coefficient_me"]["value"])
-    m0 = FT(4 / 3) * π * ρi * r0^me
-    Δm = FT(data["cloud_ice_mass_size_relation_coefficient_delm"]["value"])
-    χm = FT(data["cloud_ice_mass_size_relation_coefficient_chim"]["value"])
-    mass = ParticleMass(r0, m0, me, Δm, χm)
-
-    return CloudIce{FT, typeof(pdf), typeof(mass)}(
-        pdf,
-        mass,
-        r0,
-        FT(data["ice_snow_threshold_radius"]["value"]),
-        FT(data["sublimation_deposition_timescale"]["value"]),
+function CloudIce(toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT))
+    name_map = (;
+        :density_ice_water => :ρi,
+        :cloud_ice_crystals_length_scale => :r0,
+        :cloud_ice_size_distribution_coefficient_n0 => :n0,
+        :cloud_ice_mass_size_relation_coefficient_me => :me,
+        :ice_snow_threshold_radius => :r_ice_snow,
+        :sublimation_deposition_timescale => :τ_relax,
     )
+    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    mass = ParticleMass(CloudIce, toml_dict)
+    pdf = ParticlePDFIceRain(p.n0)
+    FT = CP.float_type(toml_dict)
+    P = typeof(pdf)
+    M = typeof(mass)
+    return CloudIce{FT, P, M}(pdf, mass, p.r0, p.r_ice_snow, p.τ_relax)
+end
+
+function ParticleMass(::Type{CloudIce}, td::CP.AbstractTOMLDict)
+    name_map = (;
+        :density_ice_water => :ρi,
+        :cloud_ice_crystals_length_scale => :r0,
+        :cloud_ice_mass_size_relation_coefficient_me => :me,
+        :cloud_ice_mass_size_relation_coefficient_delm => :Δm,
+        :cloud_ice_mass_size_relation_coefficient_chim => :χm,
+    )
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    m0 = 4 / 3 * π * p.ρi * p.r0^p.me
+    FT = CP.float_type(td)
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
 end
 
 """
@@ -197,56 +208,64 @@ struct Rain{FT, PD, MS, AR, VT, AC} <: PrecipitationType{FT}
     r0::FT
 end
 
-function Rain(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
+Rain(::Type{FT}) where {FT <: AbstractFloat} = Rain(CP.create_toml_dict(FT))
 
-    ρ = FT(data["density_liquid_water"]["value"])
-    r0 = FT(data["rain_drop_length_scale"]["value"])
-
-    n0 = FT(data["rain_drop_size_distribution_coefficient_n0"]["value"])
-    pdf = ParticlePDFIceRain(n0)
-
-    me = FT(data["rain_mass_size_relation_coefficient_me"]["value"])
-    m0 = FT(4 / 3) * π * ρ * r0^me
-    Δm = FT(data["rain_mass_size_relation_coefficient_delm"]["value"])
-    χm = FT(data["rain_mass_size_relation_coefficient_chim"]["value"])
-    mass = ParticleMass(r0, m0, me, Δm, χm)
-
-    ae = FT(data["rain_cross_section_size_relation_coefficient_ae"]["value"])
-    Δa = FT(data["rain_cross_section_size_relation_coefficient_dela"]["value"]) # typo in .toml file
-    χa = FT(data["rain_cross_section_size_relation_coefficient_chia"]["value"])
-    a0 = FT(π) * r0^ae
-    area = ParticleArea(a0, ae, Δa, χa)
-
-    a = FT(data["rain_ventillation_coefficient_a"]["value"])
-    b = FT(data["rain_ventillation_coefficient_b"]["value"])
-    vent = Ventilation(a, b)
-
-    τ = FT(data["rain_autoconversion_timescale"]["value"])
-    q_threshold = FT(
-        data["cloud_liquid_water_specific_humidity_autoconversion_threshold"]["value"],
+function Rain(toml_dict::CP.AbstractTOMLDict)
+    name_map = (;
+        :density_liquid_water => :ρ,
+        :rain_drop_length_scale => :r0,
+        :rain_drop_size_distribution_coefficient_n0 => :n0,
+        :rain_mass_size_relation_coefficient_me => :me,
+        :rain_cross_section_size_relation_coefficient_ae => :ae,
+        :rain_autoconversion_timescale => :τ,
+        :cloud_liquid_water_specific_humidity_autoconversion_threshold =>
+            :q_threshold,
+        :threshold_smooth_transition_steepness => :k,
+        :rain_ventillation_coefficient_a => :a,
+        :rain_ventillation_coefficient_b => :b,
     )
-    k = FT(data["threshold_smooth_transition_steepness"]["value"])
-    acnv1M = Acnv1M(τ, q_threshold, k)
+    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
 
-    return Rain{
-        FT,
-        typeof(pdf),
-        typeof(mass),
-        typeof(area),
-        typeof(vent),
-        typeof(acnv1M),
-    }(
-        pdf,
-        mass,
-        area,
-        vent,
-        acnv1M,
-        r0,
+    mass = ParticleMass(Rain, toml_dict)
+    area = ParticleArea(Rain, toml_dict)
+    pdf = ParticlePDFIceRain(p.n0)
+    vent = Ventilation(p.a, p.b)
+    acnv1M = Acnv1M(p.τ, p.q_threshold, p.k)
+
+    FT = CP.float_type(toml_dict)
+    P = typeof(pdf)
+    M = typeof(mass)
+    A = typeof(area)
+    V = typeof(vent)
+    AC = typeof(acnv1M)
+    return Rain{FT, P, M, A, V, AC}(pdf, mass, area, vent, acnv1M, p.r0)
+end
+
+function ParticleMass(::Type{Rain}, td::CP.AbstractTOMLDict)
+    name_map = (;
+        :density_liquid_water => :ρ,
+        :rain_drop_length_scale => :r0,
+        :rain_mass_size_relation_coefficient_me => :me,
+        :rain_mass_size_relation_coefficient_delm => :Δm,
+        :rain_mass_size_relation_coefficient_chim => :χm,
     )
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    m0 = 4 / 3 * π * p.ρ * p.r0^p.me
+    FT = CP.float_type(td)
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
+end
+
+function ParticleArea(::Type{Rain}, td::CP.AbstractTOMLDict)
+    name_map = (;
+        :rain_drop_length_scale => :r0,
+        :rain_cross_section_size_relation_coefficient_ae => :ae,
+        :rain_cross_section_size_relation_coefficient_dela => :Δa,
+        :rain_cross_section_size_relation_coefficient_chia => :χa,
+    )
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    a0 = π * p.r0^p.ae
+    FT = CP.float_type(td)
+    return ParticleArea{FT}(; a0, p.ae, p.Δa, p.χa)
 end
 
 """
@@ -276,42 +295,30 @@ struct Snow{FT, PD, MS, AR, VT, AC} <: PrecipitationType{FT}
     ρᵢ::FT
 end
 
-function Snow(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
+Snow(::Type{FT}) where {FT <: AbstractFloat} = Snow(CP.create_toml_dict(FT))
 
-    r0 = FT(data["snow_flake_length_scale"]["value"])
-    ρi = FT(data["density_ice_water"]["value"])
-
-    μ = FT(data["snow_flake_size_distribution_coefficient_mu"]["value"])
-    ν = FT(data["snow_flake_size_distribution_coefficient_nu"]["value"])
-    pdf = ParticlePDFSnow(μ, ν)
-
-    me = FT(data["snow_mass_size_relation_coefficient_me"]["value"])
-    m0 = FT(1e-1) * r0^me
-    Δm = FT(data["snow_mass_size_relation_coefficient_delm"]["value"])
-    χm = FT(data["snow_mass_size_relation_coefficient_chim"]["value"])
-    mass = ParticleMass(r0, m0, me, Δm, χm)
-
-    ae = FT(data["snow_cross_section_size_relation_coefficient"]["value"])
-    Δa = FT(data["snow_cross_section_size_relation_coefficient_dela"]["value"]) # typo in .toml file
-    χa = FT(data["snow_cross_section_size_relation_coefficient_chia"]["value"])
-    a0 = FT(0.3) * π * r0^ae
-    area = ParticleArea(a0, ae, Δa, χa)
-
-    a = FT(data["snow_ventillation_coefficient_a"]["value"])
-    b = FT(data["snow_ventillation_coefficient_b"]["value"])
-    vent = Ventilation(a, b)
-
-    τ = FT(data["snow_autoconversion_timescale"]["value"])
-    q_threshold = FT(
-        data["cloud_ice_specific_humidity_autoconversion_threshold"]["value"],
+function Snow(toml_dict::CP.AbstractTOMLDict)
+    name_map = (;
+        :cloud_ice_crystals_length_scale => :r0,
+        :density_ice_water => :ρi,
+        :snow_autoconversion_timescale => :τ,
+        :cloud_ice_specific_humidity_autoconversion_threshold =>
+            :q_threshold,
+        :threshold_smooth_transition_steepness => :k,
+        :temperature_water_freeze => :T_freeze,
+        :snow_flake_size_distribution_coefficient_mu => :μ,
+        :snow_flake_size_distribution_coefficient_nu => :ν,
+        :snow_ventillation_coefficient_a => :a,
+        :snow_ventillation_coefficient_b => :b,
     )
-    k = FT(data["threshold_smooth_transition_steepness"]["value"])
-    acnv1M = Acnv1M(τ, q_threshold, k)
+    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
 
+    mass = ParticleMass(Snow, toml_dict)
+    area = ParticleArea(Snow, toml_dict)
+    pdf = ParticlePDFSnow(p.μ, p.ν)
+    vent = Ventilation(p.a, p.b)
+    acnv1M = Acnv1M(p.τ, p.q_threshold, p.k)
+    FT = CP.float_type(toml_dict)
     return Snow{
         FT,
         typeof(pdf),
@@ -325,10 +332,37 @@ function Snow(
         area,
         vent,
         acnv1M,
-        r0,
-        FT(data["temperature_water_freeze"]["value"]),
-        ρi,
+        p.r0,
+        p.T_freeze,
+        p.ρi,
     )
+end
+
+function ParticleMass(::Type{Snow}, td::CP.AbstractTOMLDict)
+    name_map = (;
+        :density_liquid_water => :ρ,
+        :snow_flake_length_scale => :r0,
+        :snow_mass_size_relation_coefficient_me => :me,
+        :snow_mass_size_relation_coefficient_delm => :Δm,
+        :snow_mass_size_relation_coefficient_chim => :χm,
+    )
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    m0 = 1e-1 * p.r0^p.me
+    FT = CP.float_type(td)
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
+end
+
+function ParticleArea(::Type{Snow}, toml_dict::CP.AbstractTOMLDict)
+    name_map = (;
+        :snow_flake_length_scale => :r0,
+        :snow_cross_section_size_relation_coefficient => :ae,
+        :snow_cross_section_size_relation_coefficient_dela => :Δa,
+        :snow_cross_section_size_relation_coefficient_chia => :χa,
+    )
+    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    a0 = 0.3 * π * p.r0^p.ae
+    FT = CP.float_type(toml_dict)
+    return ParticleArea{FT}(; a0, p.ae, p.Δa, p.χa)
 end
 
 """
@@ -339,7 +373,7 @@ Collision efficiency parameters for the 1-moment scheme
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct CollisionEff{FT} <: ParametersType{FT}
+Base.@kwdef struct CollisionEff{FT} <: ParametersType{FT}
     "cloud liquid-rain collision efficiency [-]"
     e_liq_rai::FT
     "cloud liquid-snow collision efficiency [-]"
@@ -352,16 +386,18 @@ struct CollisionEff{FT} <: ParametersType{FT}
     e_rai_sno::FT
 end
 
-function CollisionEff(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return CollisionEff(
-        FT(data["cloud_liquid_rain_collision_efficiency"]["value"]),
-        FT(data["cloud_liquid_snow_collision_efficiency"]["value"]),
-        FT(data["cloud_ice_rain_collision_efficiency"]["value"]),
-        FT(data["cloud_ice_snow_collision_efficiency"]["value"]),
-        FT(data["rain_snow_collision_efficiency"]["value"]),
+CollisionEff(::Type{FT}) where {FT <: AbstractFloat} =
+    CollisionEff(CP.create_toml_dict(FT))
+
+function CollisionEff(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :cloud_liquid_rain_collision_efficiency => :e_liq_rai,
+        :cloud_liquid_snow_collision_efficiency => :e_liq_sno,
+        :cloud_ice_rain_collision_efficiency => :e_ice_rai,
+        :cloud_ice_snow_collision_efficiency => :e_ice_sno,
+        :rain_snow_collision_efficiency => :e_rai_sno,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return CollisionEff{FT}(; parameters...)
 end

@@ -8,7 +8,7 @@ Parameters for seasalt
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Seasalt{FT} <: AerosolType{FT}
+Base.@kwdef struct Seasalt{FT} <: AerosolType{FT}
     "molar mass [kg/mol]"
     M::FT
     "density [kg/m3]"
@@ -23,17 +23,19 @@ struct Seasalt{FT} <: AerosolType{FT}
     κ::FT
 end
 
-function Seasalt(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return Seasalt(
-        FT(data["seasalt_aerosol_molar_mass"]["value"]),
-        FT(data["seasalt_aerosol_density"]["value"]),
-        FT(data["seasalt_aerosol_osmotic_coefficient"]["value"]),
-        FT(data["seasalt_aerosol_ion_number"]["value"]),
-        FT(data["seasalt_aerosol_water_soluble_mass_fraction"]["value"]),
-        FT(data["seasalt_aerosol_kappa"]["value"]),
+Seasalt(::Type{FT}) where {FT <: AbstractFloat} =
+    Seasalt(CP.create_toml_dict(FT))
+
+function Seasalt(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :seasalt_aerosol_molar_mass => :M,
+        :seasalt_aerosol_density => :ρ,
+        :seasalt_aerosol_osmotic_coefficient => :ϕ,
+        :seasalt_aerosol_ion_number => :ν,
+        :seasalt_aerosol_water_soluble_mass_fraction => :ϵ,
+        :seasalt_aerosol_kappa => :κ,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return Seasalt{FT}(; parameters...)
 end

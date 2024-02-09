@@ -9,7 +9,7 @@ for rain
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Blk1MVelTypeRain{FT} <: ParametersType{FT}
+Base.@kwdef struct Blk1MVelTypeRain{FT} <: ParametersType{FT}
     "particle length scale [m]"
     r0::FT
     "rain terminal velocity size relation coefficient [-]"
@@ -26,26 +26,19 @@ struct Blk1MVelTypeRain{FT} <: ParametersType{FT}
     grav::FT
 end
 
-function Blk1MVelTypeRain(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return Blk1MVelTypeRain(
-        FT(data["snow_flake_length_scale"]["value"]),
-        FT(
-            data["rain_terminal_velocity_size_relation_coefficient_ve"]["value"],
-        ),
-        FT(
-            data["rain_terminal_velocity_size_relation_coefficient_delv"]["value"],
-        ),
-        FT(
-            data["rain_terminal_velocity_size_relation_coefficient_chiv"]["value"],
-        ),
-        FT(data["density_liquid_water"]["value"]),
-        FT(data["rain_drop_drag_coefficient"]["value"]),
-        FT(data["gravitational_acceleration"]["value"]),
+function Blk1MVelTypeRain(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :snow_flake_length_scale => :r0,
+        :rain_terminal_velocity_size_relation_coefficient_ve => :ve,
+        :rain_terminal_velocity_size_relation_coefficient_delv => :Δv,
+        :rain_terminal_velocity_size_relation_coefficient_chiv => :χv,
+        :density_liquid_water => :ρw,
+        :rain_drop_drag_coefficient => :C_drag,
+        :gravitational_acceleration => :grav,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return Blk1MVelTypeRain{FT}(; parameters...)
 end
 
 """
@@ -57,7 +50,7 @@ for snow
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Blk1MVelTypeSnow{FT} <: ParametersType{FT}
+Base.@kwdef struct Blk1MVelTypeSnow{FT} <: ParametersType{FT}
     "particle length scale [m]"
     r0::FT
     "snow terminal velocity size relation coefficient [-]"
@@ -70,24 +63,18 @@ struct Blk1MVelTypeSnow{FT} <: ParametersType{FT}
     v0::FT
 end
 
-function Blk1MVelTypeSnow(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    r0 = FT(data["snow_flake_length_scale"]["value"])
-    ve = FT(data["snow_terminal_velocity_size_relation_coefficient"]["value"])
-    return Blk1MVelTypeSnow(
-        r0,
-        ve,
-        FT(
-            data["snow_terminal_velocity_size_relation_coefficient_delv"]["value"],
-        ),
-        FT(
-            data["snow_terminal_velocity_size_relation_coefficient_chiv"]["value"],
-        ),
-        FT(2^(9 / 4)) * r0^ve,
+function Blk1MVelTypeSnow(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :snow_flake_length_scale => :r0,
+        :snow_terminal_velocity_size_relation_coefficient => :ve,
+        :snow_terminal_velocity_size_relation_coefficient_delv => :Δv,
+        :snow_terminal_velocity_size_relation_coefficient_chiv => :χv,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+
+    v0 = 2^(9 / 4) * parameters.r0^parameters.ve
+    FT = CP.float_type(td)
+    return Blk1MVelTypeSnow{FT}(; parameters..., v0)
 end
 
 """
@@ -108,8 +95,8 @@ function Blk1MVelType(
     ::Type{FT},
     toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
 ) where {FT}
-    rain = Blk1MVelTypeRain(FT, toml_dict)
-    snow = Blk1MVelTypeSnow(FT, toml_dict)
+    rain = Blk1MVelTypeRain(toml_dict)
+    snow = Blk1MVelTypeSnow(toml_dict)
     return Blk1MVelType{FT, typeof(rain), typeof(snow)}(rain, snow)
 end
 
@@ -123,24 +110,26 @@ The type for precipitation terminal velocity from Seifert and Beheng 2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SB2006VelType{FT} <: TerminalVelocityType{FT}
+Base.@kwdef struct SB2006VelType{FT} <: TerminalVelocityType{FT}
     ρ0::FT
     aR::FT
     bR::FT
     cR::FT
 end
 
-function SB2006VelType(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    return SB2006VelType(
-        FT(data["SB2006_reference_air_density"]["value"]),
-        FT(data["SB2006_raindrops_terminal_velocity_coeff_aR"]["value"]),
-        FT(data["SB2006_raindrops_terminal_velocity_coeff_bR"]["value"]),
-        FT(data["SB2006_raindrops_terminal_velocity_coeff_cR"]["value"]),
+SB2006VelType(::Type{FT}) where {FT <: AbstractFloat} =
+    SB2006VelType(CP.create_toml_dict(FT))
+
+function SB2006VelType(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_reference_air_density => :ρ0,
+        :SB2006_raindrops_terminal_velocity_coeff_aR => :aR,
+        :SB2006_raindrops_terminal_velocity_coeff_bR => :bR,
+        :SB2006_raindrops_terminal_velocity_coeff_cR => :cR,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return SB2006VelType{FT}(; parameters...)
 end
 
 """
@@ -164,51 +153,40 @@ struct Chen2022VelTypeSnowIce{FT} <: ParametersType{FT}
     ρᵢ::FT
 end
 
-function Chen2022VelTypeSnowIce(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    A = (
-        FT(data["Chen2022_table_B3_As_coeff_1"]["value"]),
-        FT(data["Chen2022_table_B3_As_coeff_2"]["value"]),
-        FT(data["Chen2022_table_B3_As_coeff_3"]["value"]),
+function Chen2022VelTypeSnowIce(toml_dict::CP.AbstractTOMLDict)
+    # TODO: These should be array parameters.
+    name_map = (;
+        :Chen2022_table_B3_As_coeff_1 => :A1,
+        :Chen2022_table_B3_As_coeff_2 => :A2,
+        :Chen2022_table_B3_As_coeff_3 => :A3,
+        :Chen2022_table_B3_Bs_coeff_1 => :B1,
+        :Chen2022_table_B3_Bs_coeff_2 => :B2,
+        :Chen2022_table_B3_Bs_coeff_3 => :B3,
+        :Chen2022_table_B3_Cs_coeff_1 => :C1,
+        :Chen2022_table_B3_Cs_coeff_2 => :C2,
+        :Chen2022_table_B3_Cs_coeff_3 => :C3,
+        :Chen2022_table_B3_Cs_coeff_4 => :C4,
+        :Chen2022_table_B3_Es_coeff_1 => :E1,
+        :Chen2022_table_B3_Es_coeff_2 => :E2,
+        :Chen2022_table_B3_Es_coeff_3 => :E3,
+        :Chen2022_table_B3_Fs_coeff_1 => :F1,
+        :Chen2022_table_B3_Fs_coeff_2 => :F2,
+        :Chen2022_table_B3_Fs_coeff_3 => :F3,
+        :Chen2022_table_B3_Gs_coeff_1 => :G1,
+        :Chen2022_table_B3_Gs_coeff_2 => :G2,
+        :Chen2022_table_B3_Gs_coeff_3 => :G3,
+        :density_ice_water => :ρᵢ,
     )
-    B = (
-        FT(data["Chen2022_table_B3_Bs_coeff_1"]["value"]),
-        FT(data["Chen2022_table_B3_Bs_coeff_2"]["value"]),
-        FT(data["Chen2022_table_B3_Bs_coeff_3"]["value"]),
-    )
-    C = (
-        FT(data["Chen2022_table_B3_Cs_coeff_1"]["value"]),
-        FT(data["Chen2022_table_B3_Cs_coeff_2"]["value"]),
-        FT(data["Chen2022_table_B3_Cs_coeff_3"]["value"]),
-        FT(data["Chen2022_table_B3_Cs_coeff_4"]["value"]),
-    )
-    E = (
-        FT(data["Chen2022_table_B3_Es_coeff_1"]["value"]),
-        FT(data["Chen2022_table_B3_Es_coeff_2"]["value"]),
-        FT(data["Chen2022_table_B3_Es_coeff_3"]["value"]),
-    )
-    F = (
-        FT(data["Chen2022_table_B3_Fs_coeff_1"]["value"]),
-        FT(data["Chen2022_table_B3_Fs_coeff_2"]["value"]),
-        FT(data["Chen2022_table_B3_Fs_coeff_3"]["value"]),
-    )
-    G = (
-        FT(data["Chen2022_table_B3_Gs_coeff_1"]["value"]),
-        FT(data["Chen2022_table_B3_Gs_coeff_2"]["value"]),
-        FT(data["Chen2022_table_B3_Gs_coeff_3"]["value"]),
-    )
-    ρᵢ = FT(data["density_ice_water"]["value"])
-    return Chen2022VelTypeSnowIce(
-        A[1] * (log(ρᵢ))^2 − A[2] * log(ρᵢ) - A[3],
-        FT(1) / (B[1] + B[2] * log(ρᵢ) + B[3] / sqrt(ρᵢ)),
-        C[1] + C[2] * exp(C[3] * ρᵢ) + C[4] * sqrt(ρᵢ),
-        E[1] - E[2] * (log(ρᵢ))^2 + E[3] * sqrt(ρᵢ),
-        -exp(F[1] - F[2] * (log(ρᵢ))^2 + F[3] * log(ρᵢ)),
-        FT(1) / (G[1] + G[2] / (log(ρᵢ)) - G[3] * log(ρᵢ) / ρᵢ),
-        ρᵢ,
+    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    FT = CP.float_type(toml_dict)
+    return Chen2022VelTypeSnowIce{FT}(
+        p.A1 * (log(p.ρᵢ))^2 − p.A2 * log(p.ρᵢ) - p.A3,
+        FT(1) / (p.B1 + p.B2 * log(p.ρᵢ) + p.B3 / sqrt(p.ρᵢ)),
+        p.C1 + p.C2 * exp(p.C3 * p.ρᵢ) + p.C4 * sqrt(p.ρᵢ),
+        p.E1 - p.E2 * (log(p.ρᵢ))^2 + p.E3 * sqrt(p.ρᵢ),
+        -exp(p.F1 - p.F2 * (log(p.ρᵢ))^2 + p.F3 * log(p.ρᵢ)),
+        FT(1) / (p.G1 + p.G2 / (log(p.ρᵢ)) - p.G3 * log(p.ρᵢ) / p.ρᵢ),
+        p.ρᵢ,
     )
 end
 
@@ -222,7 +200,7 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Chen2022VelTypeRain{FT} <: ParametersType{FT}
+Base.@kwdef struct Chen2022VelTypeRain{FT} <: ParametersType{FT}
     ρ0::FT
     a1::FT
     a2::FT
@@ -237,39 +215,27 @@ struct Chen2022VelTypeRain{FT} <: ParametersType{FT}
     c3::FT
 end
 
-function Chen2022VelTypeRain(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
-    (; data) = toml_dict
-    ρ0 = FT(data["Chen2022_table_B1_q_coeff"]["value"])
-    a1 = FT(data["Chen2022_table_B1_a1_coeff"]["value"])
-    a2 = FT(data["Chen2022_table_B1_a2_coeff"]["value"])
-    a3 = FT(data["Chen2022_table_B1_a3_coeff"]["value"])
-    a3_pow = FT(data["Chen2022_table_B1_a3_pow_coeff"]["value"])
+Chen2022VelTypeRain(::Type{FT}) where {FT <: AbstractFloat} =
+    Chen2022VelTypeRain(CP.create_toml_dict(FT))
 
-    b1 = FT(data["Chen2022_table_B1_b1_coeff"]["value"])
-    b2 = FT(data["Chen2022_table_B1_b2_coeff"]["value"])
-    b3 = FT(data["Chen2022_table_B1_b3_coeff"]["value"])
-    b_ρ = FT(data["Chen2022_table_B1_b_rho_coeff"]["value"])
-
-    c1 = FT(data["Chen2022_table_B1_c1_coeff"]["value"])
-    c2 = FT(data["Chen2022_table_B1_c2_coeff"]["value"])
-    c3 = FT(data["Chen2022_table_B1_c3_coeff"]["value"])
-    return Chen2022VelTypeRain(
-        ρ0,
-        a1,
-        a2,
-        a3,
-        a3_pow,
-        b1,
-        b2,
-        b3,
-        b_ρ,
-        c1,
-        c2,
-        c3,
+function Chen2022VelTypeRain(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :Chen2022_table_B1_q_coeff => :ρ0,
+        :Chen2022_table_B1_a1_coeff => :a1,
+        :Chen2022_table_B1_a2_coeff => :a2,
+        :Chen2022_table_B1_a3_coeff => :a3,
+        :Chen2022_table_B1_a3_pow_coeff => :a3_pow,
+        :Chen2022_table_B1_b1_coeff => :b1,
+        :Chen2022_table_B1_b2_coeff => :b2,
+        :Chen2022_table_B1_b3_coeff => :b3,
+        :Chen2022_table_B1_b_rho_coeff => :b_ρ,
+        :Chen2022_table_B1_c1_coeff => :c1,
+        :Chen2022_table_B1_c2_coeff => :c2,
+        :Chen2022_table_B1_c3_coeff => :c3,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return Chen2022VelTypeRain{FT}(; parameters...)
 end
 
 """
@@ -291,7 +257,7 @@ function Chen2022VelType(
     ::Type{FT},
     toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
 ) where {FT}
-    rain = Chen2022VelTypeRain(FT, toml_dict)
-    snow_ice = Chen2022VelTypeSnowIce(FT, toml_dict)
+    rain = Chen2022VelTypeRain(toml_dict)
+    snow_ice = Chen2022VelTypeSnowIce(toml_dict)
     return Chen2022VelType{FT, typeof(rain), typeof(snow_ice)}(rain, snow_ice)
 end
