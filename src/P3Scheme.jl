@@ -330,6 +330,7 @@ end
 """
 function get_bounds(
     N::FT,
+    N̂::FT,
     q::FT,
     F_r::FT,
     p3::PSP3,
@@ -340,8 +341,8 @@ function get_bounds(
     rightpt = FT(1e6)
     radius = FT(0.8)
 
-    q_left = q_gamma(p3, F_r, N, log(leftpt), th)
-    q_right = q_gamma(p3, F_r, N, log(rightpt), th)
+    q_left = q_gamma(p3, F_r, N/N̂, log(leftpt), th)
+    q_right = q_gamma(p3, F_r, N/N̂, log(rightpt), th)
 
     guess =
         (q / q_left)^((log(rightpt) - log(leftpt)) / (log(q_right) - log(q_left)))
@@ -349,7 +350,7 @@ function get_bounds(
     max = log(guess * exp(radius))
     min = log(guess)
 
-    if guess < FT(2.5 * 1e4) || isequal(guess, NaN)
+    if guess < FT(2.5 * 1e4) #|| isequal(guess, NaN)
         min = log(FT(20000))
         max = log(FT(50000))
     end
@@ -387,14 +388,14 @@ function distribution_parameter_solver(
     shape_problem(x) = q / N̂ - q_gamma(p3, F_r, N / N̂, x, th)
 
     # Get intial guess for solver 
-    (min, max) = get_bounds(N, q, F_r, p3, th)
+    (min, max) = get_bounds(N, N̂, q, F_r, p3, th)
 
     # Find slope parameter
     sol = RS.find_zero(
         shape_problem,
         RS.SecantMethod(FT(min), FT(max)),
         RS.CompactSolution(),
-        RS.RelativeSolutionTolerance(eps(FT)),
+        RS.RelativeSolutionTolerance(eps(FT)),                                                                                                                                                                                                                                                                                                                                                                  
         10,
     )
     x = sol.root
