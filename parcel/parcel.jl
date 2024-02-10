@@ -75,14 +75,28 @@ function parcel_model(dY, Y, p, t)
 
     dN_act_dt_depo = FT(0)
     dqi_dt_new_depo = FT(0)
-    if "DustDeposition" in ice_nucleation_modes
-        AF = CMI_het.dust_activated_number_fraction(
-            aerosol,
-            ip.deposition,
-            S_i,
-            T,
-        )
+    if "MohlerAF_Deposition" in ice_nucleation_modes
+        if S_i > ip.deposition.Sᵢ_max
+            println("Supersaturation exceeds the allowed value. No dust will be activated.")
+            AF = FT(0)
+        else
+            AF = CMI_het.dust_activated_number_fraction(
+                aerosol,
+                ip.deposition,
+                S_i,
+                T,
+            )
+        end
         dN_act_dt_depo = max(FT(0), AF * N_aer - N_ice) / const_dt
+        dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * FT(π) * r_nuc^3 * ρ_ice / ρ_air
+    end
+    if "MohlerRate_Deposition" in ice_nucleation_modes
+        if S_i > ip.deposition.Sᵢ_max
+            println("Supersaturation exceeds the allowed value. No dust will be activated.")
+            dN_act_dt_depo = FT(0)
+        else
+            dN_act_dt_depo = CMI_het.MohlerDepositionRate(aerosol, ip.deposition, S_i, T, (dY[1] * ξ), N_aer)
+        end
         dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * FT(π) * r_nuc^3 * ρ_ice / ρ_air
     end
 
@@ -264,12 +278,18 @@ function run_parcel(IC, t_0, t_end, p)
     #! format: off
     FT = eltype(IC)
     (; const_dt, ice_nucleation_modes, growth_modes, droplet_size_distribution) = p
+    timestepper = ODE.Tsit5()
 
     println(" ")
     println("Running parcel model with: ")
     print("Ice nucleation modes: ")
-    if "DustDeposition" in ice_nucleation_modes
-        print("Deposition on dust particles ")
+    if "MohlerAF_Deposition" in ice_nucleation_modes
+        print("Deposition on dust particles using AF ")
+        timestepper = ODE.Euler()
+    end
+    if "MohlerRate_Deposition" in ice_nucleation_modes
+        print("Deposition nucleation based on rate eqn in Mohler 2006 ")
+        timestepper = ODE.Euler()
     end
     if "ImmersionFreezing" in ice_nucleation_modes
         print("Immersion freezing ")
@@ -306,7 +326,7 @@ function run_parcel(IC, t_0, t_end, p)
     problem = ODE.ODEProblem(parcel_model, IC, (FT(t_0), FT(t_end)), p)
     sol = ODE.solve(
         problem,
-        ODE.Euler(),
+        timestepper,
         dt = const_dt,
         reltol = 10 * eps(FT),
         abstol = 10 * eps(FT),

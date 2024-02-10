@@ -22,28 +22,41 @@ The parameterization for deposition on dust particles is an implementation of
     freezing modes.
 
 ## Activated fraction for deposition freezing on dust
-The parameterization models the activated fraction
-  as an empirical function of ice saturation ratio,
-  see eq. (3) in [Mohler2006](@cite).
+There are 2 parameterizations from [Mohler2006](@cite) available: one
+  which calculates the activated fraction and one which calculates nucleation
+  rate. 
+The activated fraction parameterization follows eq. (3) in the paper.
 ```math
 \begin{equation}
 f_i(S_i) = exp[a(S_i - S_0)] - 1
 \end{equation}
 ```
-where:
+where 
   - ``f_i`` is the activated fraction
-      (the ratio of aerosol particles acting as ice nuclei to the total number of aerosol particles),
+     (the ratio of aerosol particles acting as ice nuclei to the total number of aerosol particles),
+  - ``a`` is a scaling parameter dependent on aerosol properties and temperature,
+  - ``S_i`` is the ice saturation ratio,
+  - ``S_0`` is an empirically derived threshold ice saturation ratio.
+The other parameterization models the nucleation rate of ice
+  as an empirical function of ice saturation ratio,
+  see eq. (5) in [Mohler2006](@cite).
+```math
+\begin{equation}
+\frac{dn_{ice}}{dt} = N_{aer} a \frac{dS_i}{dt}
+\end{equation}
+```
+where:
+  - ``N_{aer}`` is the number of available aerosol/ice nuclei,
+  - ``a`` is a scaling parameter dependent on aerosol properties and temperature,
   - ``S_i`` is the ice saturation ratio
-      (the ratio of water vapor partial pressure and the water vapor partial pressure at saturation over ice),
-  - ``S_0`` is the threshold ice saturation ratio,
-  - ``a`` is a scaling parameter dependent on aerosol properties and temperature.
+    (the ratio of water vapor partial pressure and the water vapor partial pressure at saturation over ice).
 
-Limited experimental values for the free parameters ``S_0`` and ``a`` can be found in [Mohler2006](@cite).
-Both parameters are dependent on aerosol properties and temperature.
+Limited experimental values for the free parameters ``a`` and ``S_0`` can be found in [Mohler2006](@cite). These
+  free parameters are strongly dependent on aerosol properties and temperature.
 
 !!! note
 
-    For a ``f_i`` values above 0.08 or ``S_i`` between 1.35 and 1.5,
+    For ``f_i`` values above 0.08 or ``S_i`` between 1.35 and 1.5,
     freezing occurs in a different ice nucleation mode
     (either a second deposition or other condensation type mode).
 
@@ -97,10 +110,10 @@ Once ``J_{ABIFM}`` is calculated, it can be used to determine the ice production
 per second via immersion freezing.
 ```math
 \begin{equation}
-  P_{ice} = J_{ABIFM}A(N_{tot} - N_{ice})
+  P_{ice} = J_{ABIFM}A(N_{aer} - N_{ice})
 \end{equation}
 ```
-where ``A`` is surface area of an individual ice nuclei, ``N_{tot}`` is total number
+where ``A`` is surface area of an individual ice nuclei, ``N_{aer}`` is total number
   of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system.
 
 ### ABIFM Example Figures

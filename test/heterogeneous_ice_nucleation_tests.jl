@@ -32,18 +32,9 @@ function test_heterogeneous_ice_nucleation(FT)
         Si_med = FT(1.2)
         Si_hgh = FT(1.34)
         Si_too_hgh = FT(1.5)
-
-        # No activation below critical supersaturation
-        for dust in [ATD, desert_dust]
-            for T in [T_warm, T_cold]
-                TT.@test CMI_het.dust_activated_number_fraction(
-                    dust,
-                    ip.deposition,
-                    Si_low,
-                    T,
-                ) == FT(0)
-            end
-        end
+        dSi_dt = FT(0.05)
+        dSi_dt_negative = FT(-0.3)
+        N_aer = FT(3000)
 
         # Activate more in cold temperatures and higher supersaturations
         for dust in [ATD, desert_dust]
@@ -69,15 +60,53 @@ function test_heterogeneous_ice_nucleation(FT)
                 Si_med,
                 T_warm,
             )
+            TT.@test CMI_het.MohlerDepositionRate(
+                dust,
+                ip.deposition,
+                Si_med,
+                T_cold,
+                dSi_dt,
+                N_aer,
+            ) > CMI_het.MohlerDepositionRate(
+                dust,
+                ip.deposition,
+                Si_med,
+                T_warm,
+                dSi_dt,
+                N_aer,
+            )
         end
 
+        # no activation if saturation exceeds allowed value
         for dust in [ATD, desert_dust]
             for T in [T_warm, T_cold]
-                TT.@test CMI_het.dust_activated_number_fraction(
+                TT.@test_throws AssertionError("Si < ip.Sᵢ_max") CMI_het.dust_activated_number_fraction(
                     dust,
                     ip.deposition,
                     Si_too_hgh,
                     T,
+                )
+                TT.@test_throws AssertionError("Si < ip.Sᵢ_max") CMI_het.MohlerDepositionRate(
+                    dust,
+                    ip.deposition,
+                    Si_too_hgh,
+                    T,
+                    dSi_dt,
+                    N_aer,
+                )
+            end
+        end
+
+        # no activation if dSi_dt is negative
+        for dust in [ATD, desert_dust]
+            for T in [T_warm, T_cold]
+                TT.@test CMI_het.MohlerDepositionRate(
+                    dust,
+                    ip.deposition,
+                    Si_low,
+                    T,
+                    dSi_dt_negative,
+                    N_aer,
                 ) == FT(0)
             end
         end

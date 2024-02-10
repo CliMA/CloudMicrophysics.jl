@@ -480,6 +480,62 @@ end
     end
 end
 
+@kernel function IceNucleation_dust_activated_number_fraction_kernel!(
+    output::AbstractArray{FT},
+    desert_dust,
+    arizona_test_dust,
+    ip,
+    S_i,
+    T,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] =
+            CMI_het.dust_activated_number_fraction(desert_dust, ip, S_i, T)
+        output[2] = CMI_het.dust_activated_number_fraction(
+            arizona_test_dust,
+            ip,
+            S_i,
+            T,
+        )
+    end
+end
+
+@kernel function IceNucleation_MohlerDepositionRate_kernel!(
+    output::AbstractArray{FT},
+    desert_dust,
+    arizona_test_dust,
+    ip,
+    S_i,
+    T,
+    dSi_dt,
+    N_aero,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] = CMI_het.MohlerDepositionRate(
+            desert_dust,
+            ip,
+            S_i,
+            T,
+            dSi_dt,
+            N_aero,
+        )
+        output[2] = CMI_het.MohlerDepositionRate(
+            arizona_test_dust,
+            ip,
+            S_i,
+            T,
+            dSi_dt,
+            N_aero,
+        )
+    end
+end
+
 @kernel function IceNucleation_deposition_J_kernel!(
     output::AbstractArray{FT},
     kaolinite,
@@ -591,6 +647,8 @@ function test_gpu(FT)
 
     # ice nucleation
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
+    desert_dust = CMP.DesertDust(FT)
+    arizona_test_dust = CMP.ArizonaTestDust(FT)
     illite = CMP.Illite(FT)
     kaolinite = CMP.Kaolinite(FT)
     feldspar = CMP.Feldspar(FT)
@@ -840,6 +898,54 @@ function test_gpu(FT)
     end
 
     @testset "Ice Nucleation kernels" begin
+        dims = (1, 2)
+        (; output, ndrange) = setup_output(dims, FT)
+
+        T = FT(240)
+        S_i = FT(1.2)
+
+        kernel! = IceNucleation_dust_activated_number_fraction_kernel!(
+            backend,
+            work_groups,
+        )
+        kernel!(
+            output,
+            desert_dust,
+            arizona_test_dust,
+            ip.deposition,
+            S_i,
+            T;
+            ndrange,
+        )
+
+        # test if dust_activated_number_fraction is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(0.0129835639)
+        @test Array(output)[2] ≈ FT(1.2233164999)
+
+        dims = (1, 2)
+        (; output, ndrange) = setup_output(dims, FT)
+
+        dSi_dt = FT(0.03)
+        N_aero = FT(3000)
+
+        kernel! =
+            IceNucleation_MohlerDepositionRate_kernel!(backend, work_groups)
+        kernel!(
+            output,
+            desert_dust,
+            arizona_test_dust,
+            ip.deposition,
+            S_i,
+            T,
+            dSi_dt,
+            N_aero;
+            ndrange,
+        )
+
+        # test if MohlerDepositionRate is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(38.6999999999)
+        @test Array(output)[2] ≈ FT(423)
+
         dims = (1, 3)
         (; output, ndrange) = setup_output(dims, FT)
 

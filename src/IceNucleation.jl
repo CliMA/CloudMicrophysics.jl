@@ -7,6 +7,7 @@ import ..Parameters as CMP
 import Thermodynamics as TD
 
 export dust_activated_number_fraction
+export MohlerDepositionRate
 export deposition_J
 export ABIFM_J
 
@@ -30,15 +31,39 @@ function dust_activated_number_fraction(
     T::FT,
 ) where {FT}
 
-    if Si > ip.Sᵢ_max
-        @warn "Supersaturation exceeds the allowed value."
-        @warn "No dust particles will be activated"
-        return FT(0)
-    else
-        S₀::FT = T > ip.T_thr ? dust.S₀_warm : dust.S₀_cold
-        a::FT = T > ip.T_thr ? dust.a_warm : dust.a_cold
-        return max(0, exp(a * (Si - S₀)) - 1)
-    end
+    @assert Si < ip.Sᵢ_max
+
+    S₀::FT = T > ip.T_thr ? dust.S₀_warm : dust.S₀_cold
+    a::FT = T > ip.T_thr ? dust.a_warm : dust.a_cold
+    return max(0, exp(a * (Si - S₀)) - 1)
+end
+
+"""
+    MohlerDepositionRate(dust, ip, S_i, T, dSi_dt, N_aer)
+
+ - `dust` - a struct with dust parameters
+ - `ip` - a struct with ice nucleation parameters
+ - `Si` - ice saturation
+ - `T` - ambient temperature
+ - `dSi_dt` - change in ice saturation over time
+ - `N_aer` - number of unactivated aerosols
+
+Returns the ice nucleation rate from deposition.
+From Mohler et al 2006 equation 5.
+"""
+function MohlerDepositionRate(
+    dust::Union{CMP.DesertDust, CMP.ArizonaTestDust},
+    ip::CMP.Mohler2006,
+    Si::FT,
+    T::FT,
+    dSi_dt::FT,
+    N_aer::FT,
+) where {FT}
+
+    @assert Si < ip.Sᵢ_max
+
+    a::FT = T > ip.T_thr ? dust.a_warm : dust.a_cold
+    return max(0, N_aer * a * dSi_dt)
 end
 
 """
