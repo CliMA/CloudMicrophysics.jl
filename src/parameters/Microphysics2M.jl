@@ -21,10 +21,10 @@ end
 
 function AcnvKK2000(td::CP.AbstractTOMLDict)
     name_map = (;
-        :KK2000_auctoconversion_coeff_A => :A,
-        :KK2000_auctoconversion_coeff_a => :a,
-        :KK2000_auctoconversion_coeff_b => :b,
-        :KK2000_auctoconversion_coeff_c => :c,
+        :KK2000_autoconversion_coeff_A => :A,
+        :KK2000_autoconversion_coeff_a => :a,
+        :KK2000_autoconversion_coeff_b => :b,
+        :KK2000_autoconversion_coeff_c => :c,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
@@ -115,13 +115,13 @@ end
 
 function AcnvB1994(td::CP.AbstractTOMLDict)
     name_map = (;
-        :B1994_auctoconversion_coeff_C => :C,
-        :B1994_auctoconversion_coeff_a => :a,
-        :B1994_auctoconversion_coeff_b => :b,
-        :B1994_auctoconversion_coeff_c => :c,
-        :B1994_auctoconversion_coeff_N_0 => :N_0,
-        :B1994_auctoconversion_coeff_d_low => :d_low,
-        :B1994_auctoconversion_coeff_d_high => :d_high,
+        :B1994_autoconversion_coeff_C => :C,
+        :B1994_autoconversion_coeff_a => :a,
+        :B1994_autoconversion_coeff_b => :b,
+        :B1994_autoconversion_coeff_c => :c,
+        :B1994_autoconversion_coeff_N_0 => :N_0,
+        :B1994_autoconversion_coeff_d_low => :d_low,
+        :B1994_autoconversion_coeff_d_high => :d_high,
         :threshold_smooth_transition_steepness => :k,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
