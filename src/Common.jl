@@ -218,12 +218,12 @@ function Chen2022_vel_coeffs(
     ρ::FT,
 ) where {FT}
 
-    (; ρ0, a1, a2, a3, a3_pow, b1, b2, b3, b_ρ, c1, c2, c3) = velo_scheme
+    (; ρ0, a, a3_pow, b, b_ρ, c) = velo_scheme
 
     q = exp(ρ0 * ρ)
-    ai = (a1 * q, a2 * q, a3 * q * ρ^a3_pow)
-    bi = (b1 - b_ρ * ρ, b2 - b_ρ * ρ, b3 - b_ρ * ρ)
-    ci = (c1, c2, c3)
+    ai = (a[1] * q, a[2] * q, a[3] * q * ρ^a3_pow)
+    bi = (b[1] - b_ρ * ρ, b[2] - b_ρ * ρ, b[3] - b_ρ * ρ)
+    ci = (c[1], c[2], c[3])
 
     # unit conversions
     aiu = ai .* 1000 .^ bi

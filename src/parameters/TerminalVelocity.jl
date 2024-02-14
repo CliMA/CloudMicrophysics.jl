@@ -156,36 +156,23 @@ end
 function Chen2022VelTypeSnowIce(toml_dict::CP.AbstractTOMLDict)
     # TODO: These should be array parameters.
     name_map = (;
-        :Chen2022_table_B3_As_coeff_1 => :A1,
-        :Chen2022_table_B3_As_coeff_2 => :A2,
-        :Chen2022_table_B3_As_coeff_3 => :A3,
-        :Chen2022_table_B3_Bs_coeff_1 => :B1,
-        :Chen2022_table_B3_Bs_coeff_2 => :B2,
-        :Chen2022_table_B3_Bs_coeff_3 => :B3,
-        :Chen2022_table_B3_Cs_coeff_1 => :C1,
-        :Chen2022_table_B3_Cs_coeff_2 => :C2,
-        :Chen2022_table_B3_Cs_coeff_3 => :C3,
-        :Chen2022_table_B3_Cs_coeff_4 => :C4,
-        :Chen2022_table_B3_Es_coeff_1 => :E1,
-        :Chen2022_table_B3_Es_coeff_2 => :E2,
-        :Chen2022_table_B3_Es_coeff_3 => :E3,
-        :Chen2022_table_B3_Fs_coeff_1 => :F1,
-        :Chen2022_table_B3_Fs_coeff_2 => :F2,
-        :Chen2022_table_B3_Fs_coeff_3 => :F3,
-        :Chen2022_table_B3_Gs_coeff_1 => :G1,
-        :Chen2022_table_B3_Gs_coeff_2 => :G2,
-        :Chen2022_table_B3_Gs_coeff_3 => :G3,
+        :Chen2022_table_B3_As => :As,
+        :Chen2022_table_B3_Bs => :Bs,
+        :Chen2022_table_B3_Cs => :Cs,
+        :Chen2022_table_B3_Es => :Es,
+        :Chen2022_table_B3_Fs => :Fs,
+        :Chen2022_table_B3_Gs => :Gs,
         :density_ice_water => :ρᵢ,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
     return Chen2022VelTypeSnowIce{FT}(
-        p.A1 * (log(p.ρᵢ))^2 − p.A2 * log(p.ρᵢ) - p.A3,
-        FT(1) / (p.B1 + p.B2 * log(p.ρᵢ) + p.B3 / sqrt(p.ρᵢ)),
-        p.C1 + p.C2 * exp(p.C3 * p.ρᵢ) + p.C4 * sqrt(p.ρᵢ),
-        p.E1 - p.E2 * (log(p.ρᵢ))^2 + p.E3 * sqrt(p.ρᵢ),
-        -exp(p.F1 - p.F2 * (log(p.ρᵢ))^2 + p.F3 * log(p.ρᵢ)),
-        FT(1) / (p.G1 + p.G2 / (log(p.ρᵢ)) - p.G3 * log(p.ρᵢ) / p.ρᵢ),
+        p.As[2] * (log(p.ρᵢ))^2 − p.As[3] * log(p.ρᵢ) + p.As[1],
+        FT(1) / (p.Bs[1] + p.Bs[2] * log(p.ρᵢ) + p.Bs[3] / sqrt(p.ρᵢ)),
+        p.Cs[1] + p.Cs[2] * exp(p.Cs[3] * p.ρᵢ) + p.Cs[4] * sqrt(p.ρᵢ),
+        p.Es[1] - p.Es[2] * (log(p.ρᵢ))^2 + p.Es[3] * sqrt(p.ρᵢ),
+        -exp(p.Fs[1] - p.Fs[2] * (log(p.ρᵢ))^2 + p.Fs[3] * log(p.ρᵢ)),
+        FT(1) / (p.Gs[1] + p.Gs[2] / (log(p.ρᵢ)) - p.Gs[3] * log(p.ρᵢ) / p.ρᵢ),
         p.ρᵢ,
     )
 end
@@ -200,19 +187,13 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeRain{FT} <: ParametersType{FT}
+Base.@kwdef struct Chen2022VelTypeRain{FT, N} <: ParametersType{FT}
     ρ0::FT
-    a1::FT
-    a2::FT
-    a3::FT
+    a::NTuple{N, FT}
     a3_pow::FT
-    b1::FT
-    b2::FT
-    b3::FT
+    b::NTuple{N, FT}
     b_ρ::FT
-    c1::FT
-    c2::FT
-    c3::FT
+    c::NTuple{N, FT}
 end
 
 Chen2022VelTypeRain(::Type{FT}) where {FT <: AbstractFloat} =
@@ -221,21 +202,17 @@ Chen2022VelTypeRain(::Type{FT}) where {FT <: AbstractFloat} =
 function Chen2022VelTypeRain(td::CP.AbstractTOMLDict)
     name_map = (;
         :Chen2022_table_B1_q_coeff => :ρ0,
-        :Chen2022_table_B1_a1_coeff => :a1,
-        :Chen2022_table_B1_a2_coeff => :a2,
-        :Chen2022_table_B1_a3_coeff => :a3,
+        :Chen2022_table_B1_ai => :a,
         :Chen2022_table_B1_a3_pow_coeff => :a3_pow,
-        :Chen2022_table_B1_b1_coeff => :b1,
-        :Chen2022_table_B1_b2_coeff => :b2,
-        :Chen2022_table_B1_b3_coeff => :b3,
+        :Chen2022_table_B1_bi => :b,
         :Chen2022_table_B1_b_rho_coeff => :b_ρ,
-        :Chen2022_table_B1_c1_coeff => :c1,
-        :Chen2022_table_B1_c2_coeff => :c2,
-        :Chen2022_table_B1_c3_coeff => :c3,
+        :Chen2022_table_B1_ci => :c,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    # hack!
+    parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
     FT = CP.float_type(td)
-    return Chen2022VelTypeRain{FT}(; parameters...)
+    return Chen2022VelTypeRain{FT, 3}(; parameters...)
 end
 
 """

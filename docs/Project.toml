@@ -16,6 +16,6 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
 [compat]
-CLIMAParameters = "0.8"
+CLIMAParameters = "0.9"
 Documenter = "1.1"
 DocumenterCitations = "1.2"
