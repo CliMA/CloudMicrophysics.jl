@@ -12,7 +12,7 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
-CLIMAParameters = "0.8.6"
+CLIMAParameters = "0.8.6, 0.9"
 DocStringExtensions = "0.8, 0.9"
 ForwardDiff = "0.10"
 RootSolvers = "0.3, 0.4"
