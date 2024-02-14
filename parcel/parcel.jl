@@ -76,7 +76,7 @@ function parcel_model(dY, Y, p, t)
     dN_act_dt_depo = FT(0)
     dqi_dt_new_depo = FT(0)
     if "MohlerAF_Deposition" in ice_nucleation_modes
-        if S_i > ip.deposition.Sᵢ_max
+        if S_i >= ip.deposition.Sᵢ_max
             println("Supersaturation exceeds the allowed value. No dust will be activated.")
             AF = FT(0)
         else
@@ -89,15 +89,23 @@ function parcel_model(dY, Y, p, t)
         end
         dN_act_dt_depo = max(FT(0), AF * N_aer - N_ice) / const_dt
         dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * FT(π) * r_nuc^3 * ρ_ice / ρ_air
-    end
-    if "MohlerRate_Deposition" in ice_nucleation_modes
-        if S_i > ip.deposition.Sᵢ_max
+    elseif "MohlerRate_Deposition" in ice_nucleation_modes
+        if S_i >= ip.deposition.Sᵢ_max
             println("Supersaturation exceeds the allowed value. No dust will be activated.")
             dN_act_dt_depo = FT(0)
         else
             dN_act_dt_depo = CMI_het.MohlerDepositionRate(aerosol, ip.deposition, S_i, T, (dY[1] * ξ), N_aer)
         end
         dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * FT(π) * r_nuc^3 * ρ_ice / ρ_air
+    end
+    if "ActivityBasedDeposition" in ice_nucleation_modes
+        Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
+        J_deposition = CMI_het.deposition_J(aerosol, Δa_w)
+        if "Monodisperse" in droplet_size_distribution
+            A_aer = 4 * FT(π) * r_nuc^2
+            dN_act_dt_depo = max(FT(0), J_deposition * N_aer * A_aer)
+            dqi_dt_new_depo = dN_act_dt_depo * 4 / 3 * FT(π) * r_nuc^3 * ρ_ice / ρ_air
+        end
     end
 
     dN_act_dt_immersion = FT(0)
@@ -114,8 +122,8 @@ function parcel_model(dY, Y, p, t)
             #A = N_liq* λ^2
             r_l = 2 / λ
         end
-        A_aer = 4 * FT(π) * r_l^2
-        dN_act_dt_immersion = max(FT(0), J_immersion * N_liq * A_aer)
+        A_l = 4 * FT(π) * r_l^2
+        dN_act_dt_immersion = max(FT(0), J_immersion * N_liq * A_l)
         dqi_dt_new_immers = dN_act_dt_immersion * 4 / 3 * FT(π) * r_l^3 * ρ_ice / ρ_air
     end
 
@@ -282,42 +290,56 @@ function run_parcel(IC, t_0, t_end, p)
 
     println(" ")
     println("Running parcel model with: ")
+
     print("Ice nucleation modes: ")
     if "MohlerAF_Deposition" in ice_nucleation_modes
-        print("Deposition on dust particles using AF ")
+        print("\n    Deposition on dust particles using AF ")
+        print("(Note that this mode only runs for monodisperse size distributions.) ")
         timestepper = ODE.Euler()
     end
     if "MohlerRate_Deposition" in ice_nucleation_modes
-        print("Deposition nucleation based on rate eqn in Mohler 2006 ")
+        print("\n    Deposition nucleation based on rate eqn in Mohler 2006 ")
+        print("(Note that this mode only runs for monodisperse size distributions.) ")
         timestepper = ODE.Euler()
     end
+    if "ActivityBasedDeposition" in ice_nucleation_modes
+        print("\n    Water activity based deposition nucleation ")
+        print("(Note that this mode only runs for monodisperse size distributions.) ")
+    end
     if "ImmersionFreezing" in ice_nucleation_modes
-        print("Immersion freezing ")
+        print("\n    Immersion freezing ")
+        print("(Note that this mode only runs for monodisperse and gamma size distributions.) ")
     end
     if "HomogeneousFreezing" in ice_nucleation_modes
-        print("Homogeneous freezing ")
+        print("\n    Homogeneous freezing ")
     end
     print("\n")
+
     print("Growth modes: ")
     if "Condensation" in growth_modes
-        print("Condensation on liquid droplets",)
+        print("\n    Condensation on liquid droplets",)
+        print("(Note that this mode only runs for monodisperse and gamma size distributions.) ")
     end
     if "Condensation_DSD" in growth_modes
-        print("Condensation on liquid droplets")
+        print("\n    Condensation on liquid droplets")
     end
     if "Deposition" in growth_modes
-        print("Deposition on ice crystals")
+        print("\n    Deposition on ice crystals")
     end
     print("\n")
+
     print("Size distribution modes: ")
     if "Monodisperse" in droplet_size_distribution
-        print("Monodisperse size distribution")
+        print("\n    Monodisperse size distribution")
     end
     if "Gamma" in droplet_size_distribution
-        print("Gamma size distribution")
+        print("\n    Gamma size distribution")
     end
     if "Lognormal" in droplet_size_distribution
-        print("Lognormal size distribution")
+        print("\n    Lognormal size distribution")
+    end
+    if "MohlerAF_Deposition" in ice_nucleation_modes || "MohlerRate_Deposition" in ice_nucleation_modes || "ActivityBasedDeposition" in ice_nucleation_modes
+        print("\nWARNING: Multiple deposition nucleation parameterizations chosen to run in one simulation. Parcel will only run MohlerAF_Deposition for now.")
     end
     println(" ")
 

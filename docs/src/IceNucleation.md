@@ -79,6 +79,18 @@ where ``J`` is in units of ``cm^{-2}s^{-1}``. Note that our source code returns
   ``J`` in SI units. ``m`` and ``c`` are aerosol dependent coefficients. They will
   have different values than those for ABIFM.
 
+### Water activity based deposition nucleation plot
+The following plot shows ``J`` as a function of ``\Delta a_w`` as compared to
+  figure 6 in Alpert et al 2013 and figure S5 in supplementary material of China et al 2017. Intent of this
+  plot is to prove that ``J`` is correctly parameterized as a function
+  of ``\Delta a_w``, with no implications of whether ``\Delta a_w`` is properly
+  parameterized. For more on water activity, please see above section.
+```@example
+include("plots/activity_based_deposition.jl")
+```
+![](water_activity_depo_nuc.svg)
+
+
 ## ABIFM for Sulphuric Acid Containing Droplets
 Water Activity-Based Immersion Freezing Model (ABFIM)
   is a method of parameterizing immersion freezing inspired by the time-dependent
