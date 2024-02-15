@@ -1,6 +1,6 @@
 import Test as TT
 
-import CLIMAParameters
+import CLIMAParameters as CP
 import CloudMicrophysics as CM
 import Thermodynamics as TD
 
@@ -14,7 +14,13 @@ function test_aerosol_activation(FT)
 
     tps = TD.Parameters.ThermodynamicsParameters(FT)
     aip = CMP.AirProperties(FT)
-    ap = CMP.AerosolActivationParameters(FT)
+    #default ARG2000 parameter values
+    ap_default = CMP.AerosolActivationParameters(FT)
+    # calibrated values based on PySDM
+    override_file =
+        joinpath(pkgdir(CM), "src", "parameters", "toml", "ARG2000.toml")
+    toml_dict = CP.create_toml_dict(FT; override_file)
+    ap_calibrated = CMP.AerosolActivationParameters(toml_dict)
 
     # Atmospheric conditions
     T = FT(294)    # air temperature K
@@ -132,124 +138,142 @@ function test_aerosol_activation(FT)
     TT.@testset "callable and positive" begin
 
         for AM_t in (AM_3_B, AM_3_κ)
-            TT.@test all(AA.mean_hygroscopicity_parameter(ap, AM_t) .> 0.0)
-            TT.@test AA.max_supersaturation(ap, AM_t, aip, tps, T, p, w, q) >
-                     0.0
-            TT.@test all(
-                AA.N_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q) .> 0.0,
-            )
-            TT.@test all(
-                AA.M_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q) .> 0.0,
-            )
-            TT.@test AA.total_N_activated(ap, AM_t, aip, tps, T, p, w, q) > 0.0
-            TT.@test AA.total_M_activated(ap, AM_t, aip, tps, T, p, w, q) > 0.0
+            for ap in (ap_default, ap_calibrated)
+                TT.@test all(AA.mean_hygroscopicity_parameter(ap, AM_t) .> 0.0)
+                TT.@test AA.max_supersaturation(
+                    ap,
+                    AM_t,
+                    aip,
+                    tps,
+                    T,
+                    p,
+                    w,
+                    q,
+                ) > 0.0
+                TT.@test all(
+                    AA.N_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q) .>
+                    0.0,
+                )
+                TT.@test all(
+                    AA.M_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q) .>
+                    0.0,
+                )
+                TT.@test AA.total_N_activated(ap, AM_t, aip, tps, T, p, w, q) >
+                         0.0
+                TT.@test AA.total_M_activated(ap, AM_t, aip, tps, T, p, w, q) >
+                         0.0
+            end
         end
     end
 
     TT.@testset "same mean hygroscopicity for the same aerosol" begin
+        for ap in (ap_default, ap_calibrated)
 
-        TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_B)[1] ==
-                 AA.mean_hygroscopicity_parameter(ap, AM_1_B)[1]
+            TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_B)[1] ==
+                     AA.mean_hygroscopicity_parameter(ap, AM_1_B)[1]
 
-        TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_B)[2] ==
-                 AA.mean_hygroscopicity_parameter(ap, AM_1_B)[1]
+            TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_B)[2] ==
+                     AA.mean_hygroscopicity_parameter(ap, AM_1_B)[1]
 
-        TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[1] ==
-                 AA.mean_hygroscopicity_parameter(ap, AM_1_κ)[1]
+            TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[1] ==
+                     AA.mean_hygroscopicity_parameter(ap, AM_1_κ)[1]
 
-        TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[2] ==
-                 AA.mean_hygroscopicity_parameter(ap, AM_1_κ)[1]
-
+            TT.@test AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[2] ==
+                     AA.mean_hygroscopicity_parameter(ap, AM_1_κ)[1]
+        end
     end
 
     TT.@testset "B and kappa hygroscopicities are equivalent" begin
-
-        TT.@test all(
-            isapprox(
-                AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[2],
-                AA.mean_hygroscopicity_parameter(ap, AM_3_B)[2],
-                rtol = 0.1,
-            ),
-        )
+        for ap in (ap_default, ap_calibrated)
+            TT.@test all(
+                isapprox(
+                    AA.mean_hygroscopicity_parameter(ap, AM_3_κ)[2],
+                    AA.mean_hygroscopicity_parameter(ap, AM_3_B)[2],
+                    rtol = 0.1,
+                ),
+            )
+        end
     end
 
     TT.@testset "order of modes does not matter" begin
+        for ap in (ap_default, ap_calibrated)
+            TT.@test AA.total_N_activated(ap, AM_3_B, aip, tps, T, p, w, q) ==
+                     AA.total_N_activated(ap, AM_2_B, aip, tps, T, p, w, q)
+            TT.@test AA.total_M_activated(ap, AM_3_B, aip, tps, T, p, w, q) ==
+                     AA.total_M_activated(ap, AM_2_B, aip, tps, T, p, w, q)
 
-        TT.@test AA.total_N_activated(ap, AM_3_B, aip, tps, T, p, w, q) ==
-                 AA.total_N_activated(ap, AM_2_B, aip, tps, T, p, w, q)
-        TT.@test AA.total_M_activated(ap, AM_3_B, aip, tps, T, p, w, q) ==
-                 AA.total_M_activated(ap, AM_2_B, aip, tps, T, p, w, q)
-
-        TT.@test AA.total_N_activated(ap, AM_3_κ, aip, tps, T, p, w, q) ==
-                 AA.total_N_activated(ap, AM_2_κ, aip, tps, T, p, w, q)
-        TT.@test AA.total_M_activated(ap, AM_3_κ, aip, tps, T, p, w, q) ==
-                 AA.total_M_activated(ap, AM_2_κ, aip, tps, T, p, w, q)
+            TT.@test AA.total_N_activated(ap, AM_3_κ, aip, tps, T, p, w, q) ==
+                     AA.total_N_activated(ap, AM_2_κ, aip, tps, T, p, w, q)
+            TT.@test AA.total_M_activated(ap, AM_3_κ, aip, tps, T, p, w, q) ==
+                     AA.total_M_activated(ap, AM_2_κ, aip, tps, T, p, w, q)
+        end
     end
 
     TT.@testset "Abdul-Razzak and Ghan 2000 Fig 1" begin
+        for ap in (ap_default,)
 
-        # data read from Fig 1 in Abdul-Razzak and Ghan 2000
-        # using https://automeris.io/WebPlotDigitizer/
-        N_2_obs = [
-            FT(18.74716810149539),
-            FT(110.41572270049846),
-            FT(416.00589034889026),
-            FT(918.1014952424102),
-            FT(1914.816492976891),
-            FT(4919.913910285455),
-        ]
-        N_act_obs = [
-            FT(0.7926937018577255),
-            FT(0.7161078386950611),
-            FT(0.5953670140462167),
-            FT(0.4850589034888989),
-            FT(0.34446080652469424),
-            FT(0.162630267331219),
-        ]
+            # data read from Fig 1 in Abdul-Razzak and Ghan 2000
+            # using https://automeris.io/WebPlotDigitizer/
+            N_2_obs = [
+                FT(18.74716810149539),
+                FT(110.41572270049846),
+                FT(416.00589034889026),
+                FT(918.1014952424102),
+                FT(1914.816492976891),
+                FT(4919.913910285455),
+            ]
+            N_act_obs = [
+                FT(0.7926937018577255),
+                FT(0.7161078386950611),
+                FT(0.5953670140462167),
+                FT(0.4850589034888989),
+                FT(0.34446080652469424),
+                FT(0.162630267331219),
+            ]
 
-        N_act_frac_B = Vector{FT}(undef, 6)
-        N_act_frac_κ = Vector{FT}(undef, 6)
+            N_act_frac_B = Vector{FT}(undef, 6)
+            N_act_frac_κ = Vector{FT}(undef, 6)
 
-        it = 1
-        for N_2_paper in N_2_obs
-            paper_mode_2_B = AM.Mode_B(
-                r_dry_paper,
-                stdev_paper,
-                N_2_paper * FT(1e6),
-                (FT(1.0),),
-                (sulfate.ϵ,),
-                (sulfate.ϕ,),
-                (sulfate.M,),
-                (sulfate.ν,),
-                (sulfate.ρ,),
-                1,
-            )
-            paper_mode_2_κ = AM.Mode_κ(
-                r_dry_paper,
-                stdev_paper,
-                N_2_paper * FT(1e6),
-                (FT(1.0),),
-                (FT(1.0),),
-                (sulfate.M,),
-                (sulfate.κ,),
-                1,
-            )
+            it = 1
+            for N_2_paper in N_2_obs
+                paper_mode_2_B = AM.Mode_B(
+                    r_dry_paper,
+                    stdev_paper,
+                    N_2_paper * FT(1e6),
+                    (FT(1.0),),
+                    (sulfate.ϵ,),
+                    (sulfate.ϕ,),
+                    (sulfate.M,),
+                    (sulfate.ν,),
+                    (sulfate.ρ,),
+                    1,
+                )
+                paper_mode_2_κ = AM.Mode_κ(
+                    r_dry_paper,
+                    stdev_paper,
+                    N_2_paper * FT(1e6),
+                    (FT(1.0),),
+                    (FT(1.0),),
+                    (sulfate.M,),
+                    (sulfate.κ,),
+                    1,
+                )
 
-            AD_B = AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
-            AD_κ = AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
+                AD_B = AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
+                AD_κ = AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
 
-            N_act_frac_B[it] =
-                AA.N_activated_per_mode(ap, AD_B, aip, tps, T, p, w, q)[1] /
-                N_1_paper
-            N_act_frac_κ[it] =
-                AA.N_activated_per_mode(ap, AD_κ, aip, tps, T, p, w, q)[1] /
-                N_1_paper
-            it += 1
+                N_act_frac_B[it] =
+                    AA.N_activated_per_mode(ap, AD_B, aip, tps, T, p, w, q)[1] /
+                    N_1_paper
+                N_act_frac_κ[it] =
+                    AA.N_activated_per_mode(ap, AD_κ, aip, tps, T, p, w, q)[1] /
+                    N_1_paper
+                it += 1
+            end
+
+            TT.@test all(isapprox(N_act_frac_B, N_act_obs, rtol = 0.05))
+            TT.@test all(isapprox(N_act_frac_κ, N_act_obs, rtol = 0.1))
         end
-
-        TT.@test all(isapprox(N_act_frac_B, N_act_obs, rtol = 0.05))
-        TT.@test all(isapprox(N_act_frac_κ, N_act_obs, rtol = 0.1))
-
     end
 end
 
