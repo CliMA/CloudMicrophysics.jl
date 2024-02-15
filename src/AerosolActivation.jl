@@ -165,13 +165,13 @@ function max_supersaturation(
 
         mode_i = ad.Modes[i]
 
-        f::FT = 0.5 * exp(2.5 * (log(mode_i.stdev))^2)
-        g::FT = 1 + 0.25 * log(mode_i.stdev)
+        f::FT = ap.f1 * exp(ap.f2 * (log(mode_i.stdev))^2)
+        g::FT = ap.g1 + ap.g2 * log(mode_i.stdev)
         η::FT = (α * w / G)^FT(3 / 2) / (FT(2 * pi) * ap.ρ_w * γ * mode_i.N)
 
         tmp +=
             1 / (Sm[i])^2 *
-            (f * (ζ / η)^FT(3 / 2) + g * (Sm[i]^2 / (η + 3 * ζ))^FT(3 / 4))
+            (f * (ζ / η)^ap.p1 + g * (Sm[i]^2 / (η + 3 * ζ))^ap.p2)
     end
 
     return FT(1) / sqrt(tmp)
