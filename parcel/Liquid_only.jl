@@ -7,7 +7,7 @@ import CLIMAParameters as CP
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
 
-FT = Float64
+FT = Float32
 
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)

@@ -9,7 +9,7 @@ import CloudMicrophysics.Parameters as CMP
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
 
-FT = Float64
+FT = Float32
 
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -42,7 +42,7 @@ x_sulph = FT(0)
 # saturation and partial pressure
 eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 qᵥ = ϵₘ / (ϵₘ - 1 + 1 / cᵥ₀)
-qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / 1.2
+qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)
 qᵢ = FT(0)
 q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 R_a = TD.gas_constant_air(tps, q)

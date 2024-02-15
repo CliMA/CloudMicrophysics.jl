@@ -6,7 +6,7 @@ import CLIMAParameters as CP
 
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
-FT = Float64
+FT = Float32
 # get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
 aps = CMP.AirProperties(FT)
@@ -26,7 +26,7 @@ r₀ = FT(1e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(251)
 qᵥ = FT(8.1e-4)
-qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / 1.2 # 1.2 should be ρₐ
+qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2) # 1.2 should be ρₐ
 qᵢ = FT(0)
 x_sulph = FT(0.01)
 
