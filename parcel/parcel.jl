@@ -36,7 +36,7 @@ function parcel_model(dY, Y, p, t)
     N_aer = Y[7]      # number concentration of interstitial aerosol
     N_liq = Y[8]      # number concentration of existing water droplets
     N_ice = Y[9]      # number concentration of activated ice crystals
-    x_sulph = Y[10]   # percent mass sulphuric acid    
+    x_sulph = Y[10]   # percent mass sulphuric acid
 
     # Constants
     R_v = TD.Parameters.R_v(tps)
@@ -350,8 +350,8 @@ function run_parcel(IC, t_0, t_end, p)
         problem,
         timestepper,
         dt = const_dt,
-        reltol = 10 * eps(FT),
-        abstol = 10 * eps(FT),
+        reltol = 100 * eps(FT),
+        abstol = 100 * eps(FT),
     )
     return sol
 end

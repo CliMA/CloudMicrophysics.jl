@@ -203,4 +203,4 @@ function Tully_et_al_2023(FT)
     end
     MK.save("cirrus_box.svg", fig)
 end
-Tully_et_al_2023(Float64)
+Tully_et_al_2023(Float32)
