@@ -78,14 +78,15 @@ struct IceNucleationParameters{FT, DEP, HOM} <: ParametersType{FT}
     homogeneous::HOM
 end
 
-function IceNucleationParameters(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
+IceNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
+    IceNucleationParameters(CP.create_toml_dict(FT))
+
+function IceNucleationParameters(toml_dict::CP.AbstractTOMLDict)
     deposition = Mohler2006(toml_dict)
     homogeneous = Koop2000(toml_dict)
     DEP = typeof(deposition)
     HOM = typeof(homogeneous)
+    FT = CP.float_type(toml_dict)
     return IceNucleationParameters{FT, DEP, HOM}(deposition, homogeneous)
 end
 

@@ -91,12 +91,13 @@ struct Blk1MVelType{FT, R, S} <: TerminalVelocityType{FT}
     snow::S
 end
 
-function Blk1MVelType(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
+Blk1MVelType(::Type{FT}) where {FT <: AbstractFloat} =
+    Blk1MVelType(CP.create_toml_dict(FT))
+
+function Blk1MVelType(toml_dict::CP.AbstractTOMLDict)
     rain = Blk1MVelTypeRain(toml_dict)
     snow = Blk1MVelTypeSnow(toml_dict)
+    FT = CP.float_type(toml_dict)
     return Blk1MVelType{FT, typeof(rain), typeof(snow)}(rain, snow)
 end
 
@@ -230,11 +231,12 @@ struct Chen2022VelType{FT, R, SI} <: TerminalVelocityType{FT}
     snow_ice::SI
 end
 
-function Chen2022VelType(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
+Chen2022VelType(::Type{FT}) where {FT <: AbstractFloat} =
+    Chen2022VelType(CP.create_toml_dict(FT))
+
+function Chen2022VelType(toml_dict::CP.AbstractTOMLDict)
     rain = Chen2022VelTypeRain(toml_dict)
     snow_ice = Chen2022VelTypeSnowIce(toml_dict)
+    FT = CP.float_type(toml_dict)
     return Chen2022VelType{FT, typeof(rain), typeof(snow_ice)}(rain, snow_ice)
 end
