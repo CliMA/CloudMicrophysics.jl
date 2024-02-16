@@ -568,6 +568,20 @@ end
     end
 end
 
+@kernel function IceNucleation_INPC_frequency_kernel!(
+    output::AbstractArray{FT},
+    ip_frostenberg,
+    INPC,
+    T,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] = CMI_het.INP_concentration_frequency(ip_frostenberg, INPC, T)
+    end
+end
+
 @kernel function IceNucleation_homogeneous_J_kernel!(
     ip,
     output::AbstractArray{FT},
@@ -654,6 +668,7 @@ function test_gpu(FT)
     feldspar = CMP.Feldspar(FT)
     ferrihydrite = CMP.Ferrihydrite(FT)
     ip = CMP.IceNucleationParameters(FT)
+    ip_frostenberg = CMP.Frostenberg2023(FT)
 
     @testset "Aerosol activation kernels" begin
         dims = (6, 2)
@@ -970,6 +985,18 @@ function test_gpu(FT)
         # test if ABIFM_J is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(153.65772539109)
         @test Array(output)[2] ≈ FT(31.870032033791)
+
+        dims = (1, 1)
+        (; output, ndrange) = setup_output(dims, FT)
+
+        T = FT(233)
+        INPC = FT(220000)
+
+        kernel! = IceNucleation_INPC_frequency_kernel!(backend, work_groups)
+        kernel!(output, ip_frostenberg, INPC, T; ndrange)
+
+        # test INPC_frequency is callable and returns a reasonable value
+        @test Array(output)[1] ≈ FT(0.26) rtol = 0.1
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)

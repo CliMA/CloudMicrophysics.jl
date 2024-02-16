@@ -6,7 +6,9 @@ The `IceNucleation.jl` module includes:
   - the parameterization of activation of dust aerosol particles into ice crystals
     via deposition of water vapor,
   - water activity based parameterization of immersion freezing,
-  - water activity based parameterization of homogeneous freezing.
+  - water activity based parameterization of homogeneous freezing,
+  - parametrization of temperature-dependent aerosol-independent ice nucleating particles concentration for immersion freezing.
+
 The parameterization for deposition on dust particles is an implementation of
   the empirical formulae from [Mohler2006](@cite)
   and is valid for two types of dust particles:
@@ -14,6 +16,7 @@ The parameterization for deposition on dust particles is an implementation of
   The parameterization for immersion freezing is an implementation of [KnopfAlpert2013](@cite)
   and is valid for droplets containing sulphuric acid.
   The parameterization for homogeneous freezing is an implementation of [Koop2000](@cite).
+  The parametrization for ice nucleating particles concentration for immersion freezing is an implementation of [Frostenberg2023](@cite).
 
 !!! note
 
@@ -208,3 +211,37 @@ Multiple sulphuric acid concentrations, ``x``,
     The current parameterization in CloudMicrophysics.jl is not valid for \Delta a_w
     values that are obtained from pure water droplets. Though CliMA lines look far
     from the Spichtinger 2023 line, the lines seem to move closer as x approaches 0.
+
+
+## INP Concentration Frequency
+
+With this parametrization, the concentration of ice nucleating particles (INPs) is found based on the relative frequency distribution, which depends on the temperature, but does not depend on aerosol types. It is based on [Frostenberg2023](@cite) and is derived from measurements, for marine
+data sets. It is a lognormal distribution, described by
+
+```math
+\begin{equation}
+  D(\mu, \sigma^2) = \frac{1}{\sqrt{2 \pi} \sigma} exp \left(- \frac{[ln(a \cdot INPC) - \mu(T)]^2}{2 \sigma^2} \right),
+\end{equation}
+```
+where ``T`` is the temperature in degrees Celsius, ``INPC`` is the INP concentration in m``^{-3}`` and the temperature-dependent mean ``\mu(T)`` is given by
+```math
+\begin{equation}
+  \mu(T) = ln(-(b \cdot T)^9 \times 10^{-9})
+\end{equation}
+```
+ ``\sigma^2`` is the variance, ``a`` and ``b`` are coefficients. The parameters defined in [Frostenberg2023](@cite) for marine data sets are ``\sigma=1.37``, ``a=1`` m``^3``, ``b=1``/C.
+
+!!! note
+
+    Our implementation uses base SI units and takes ``T`` in Kelvin.
+
+The following plot shows the relative frequency distribution for INPCs, as a function of temperature (the same as figure 1 in [Frostenberg2023](@cite)). 
+
+```@example
+include("plots/Frostenberg_fig1.jl")
+```
+![](Frostenberg_fig1.svg)
+
+The following plot shows the relative frequency distribution for INPCs at the temperature ``T=-16 C``.
+
+![](Frostenberg_fig1_T16.svg)

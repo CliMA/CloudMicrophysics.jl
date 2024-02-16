@@ -1,4 +1,5 @@
 export IceNucleationParameters
+export Frostenberg2023
 
 """
     Mohler2006{FT}
@@ -86,4 +87,37 @@ function IceNucleationParameters(
     DEP = typeof(deposition)
     HOM = typeof(homogeneous)
     return IceNucleationParameters{FT, DEP, HOM}(deposition, homogeneous)
+end
+
+
+"""
+    Frostenberg2023{FT}
+
+Parameters for frequency distribution of INP concentration
+DOI: 10.5194/acp-23-10883-2023
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+Base.@kwdef struct Frostenberg2023{FT} <: ParametersType{FT}
+    "standard deviation"
+    σ::FT
+    "coefficient"
+    a::FT
+    "coefficient"
+    b::FT
+end
+
+Frostenberg2023(::Type{FT}) where {FT <: AbstractFloat} =
+    Frostenberg2023(CP.create_toml_dict(FT))
+
+function Frostenberg2023(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :Frostenberg2023_standard_deviation => :σ,
+        :Frostenberg2023_a_coefficient => :a,
+        :Frostenberg2023_b_coefficient => :b,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return Frostenberg2023{FT}(; parameters...)
 end
