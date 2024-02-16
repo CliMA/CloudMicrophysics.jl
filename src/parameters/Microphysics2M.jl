@@ -77,12 +77,13 @@ struct KK2000{FT, AV, AR} <: Precipitation2MType{FT}
     accr::AR
 end
 
-function KK2000(
-    ::Type{FT},
-    toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT),
-) where {FT}
+KK2000(::Type{FT}) where {FT <: AbstractFloat} = KK2000(CP.create_toml_dict(FT))
+
+
+function KK2000(toml_dict::CP.AbstractTOMLDict)
     acnv = AcnvKK2000(toml_dict)
     accr = AccrKK2000(toml_dict)
+    FT = CP.float_type(toml_dict)
     return KK2000{FT, typeof(acnv), typeof(accr)}(acnv, accr)
 end
 
