@@ -315,3 +315,21 @@ The following plots show the parcel model running with homogeneous freezing and
 include("../../parcel/Jensen_et_al_2022.jl")
 ```
 ![](Jensen_et_al_2022.svg)
+
+## P3 Ice Nucleation Parameterizations
+The parcel also includes ice nucleation parameterizations used in
+  the P3 scheme as described in [MorrisonMilbrandt2015](@cite). 
+  Deposition nucleation is based on the ice crystal number parameterization
+  from Cooper (1986). The heterogeneous freezing parameterization, which
+  follows Bigg(1953) with parameters from Barklie aand Gokhale (1959), is
+  treated as immersion freezing in the parcel. Homogeneous freezing happens
+  instantaneously at 233.15K.
+Shown below are three separate parcel simulations for deposition nucleation,
+  immersion freezing, and homogeneous freezing. Note that initial temperature
+  varies for each run. The deposition nucleation run does not conserve
+  INP number, while the other two freezing modes do. Updraft velocity is
+  set to 0.5 m/s.
+```@example
+include("../../parcel/P3_ice_nuc.jl")
+```
+![](P3_ice_nuc.svg)

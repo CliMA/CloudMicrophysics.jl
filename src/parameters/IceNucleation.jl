@@ -66,16 +66,55 @@ function Koop2000(td::CP.AbstractTOMLDict)
 end
 
 """
-    IceNucleationParameters{FT, DEP, HOM}
+    MorrisonMilbrandt2014{FT}
+
+Parameters for ice nucleation from  Morrison & Milbrandt 2014
+DOI: 10.1175/JAS-D-14-0065.1
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+Base.@kwdef struct MorrisonMilbrandt2014{FT} <: ParametersType{FT}
+    "Cutoff temperature for deposition nucleation [K]"
+    T_dep_thres::FT
+    "coefficient [-]"
+    c₁::FT
+    "coefficient [-]"
+    c₂::FT
+    "T₀"
+    T₀::FT
+    "heterogeneous freezing parameter a [°C^-1]"
+    het_a::FT
+    "heterogeneous freezing parameter B [cm^-3 s^-1]"
+    het_B::FT
+end
+
+function MorrisonMilbrandt2014(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :temperature_homogenous_nucleation => :T_dep_thres,
+        :Thompson2004_c1_Cooper => :c₁,
+        :Thompson2004_c2_Cooper => :c₂,
+        :temperature_water_freeze => :T₀,
+        :BarklieGokhale1959_a_parameter => :het_a,
+        :BarklieGokhale1959_B_parameter => :het_B,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return MorrisonMilbrandt2014{FT}(; parameters...)
+end
+
+"""
+    IceNucleationParameters{FT, DEP, HOM, P3_type}
 
 Parameters for ice nucleation
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct IceNucleationParameters{FT, DEP, HOM} <: ParametersType{FT}
+struct IceNucleationParameters{FT, DEP, HOM, P3_type} <: ParametersType{FT}
     deposition::DEP
     homogeneous::HOM
+    p3::P3_type
 end
 
 IceNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
@@ -84,10 +123,16 @@ IceNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
 function IceNucleationParameters(toml_dict::CP.AbstractTOMLDict)
     deposition = Mohler2006(toml_dict)
     homogeneous = Koop2000(toml_dict)
+    p3 = MorrisonMilbrandt2014(toml_dict)
     DEP = typeof(deposition)
     HOM = typeof(homogeneous)
+    P3_type = typeof(p3)
     FT = CP.float_type(toml_dict)
-    return IceNucleationParameters{FT, DEP, HOM}(deposition, homogeneous)
+    return IceNucleationParameters{FT, DEP, HOM, P3_type}(
+        deposition,
+        homogeneous,
+        p3,
+    )
 end
 
 

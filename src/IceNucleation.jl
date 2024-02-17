@@ -10,6 +10,8 @@ export dust_activated_number_fraction
 export MohlerDepositionRate
 export deposition_J
 export ABIFM_J
+export P3_deposition_N_i
+export P3_het_N_i
 export INP_concentration_frequency
 
 """
@@ -107,6 +109,59 @@ function ABIFM_J(
     logJ::FT = dust.ABIFM_m * Δa_w + dust.ABIFM_c
 
     return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
+end
+
+"""
+    P3_deposition_N_i(ip, T)
+
+ - `ip` - a struct with ice nucleation parameters,
+ - `T` - air temperature [K].
+
+Returns the number of ice nucleated via deposition nucleation with units of m^-3.
+From Thompson et al 2004 eqn 2 as used in Morrison & Milbrandt 2015.
+"""
+function P3_deposition_N_i(ip::CMP.MorrisonMilbrandt2014, T::FT) where {FT}
+
+    T₀ = ip.T₀                  # 0°C
+    T_thres = ip.T_dep_thres    # cutoff temperature
+
+    Nᵢ = ifelse(
+        T < T_thres,
+        max(FT(0), FT(ip.c₁ * exp(ip.c₂ * (T₀ - T_thres)))),
+        max(FT(0), FT(ip.c₁ * exp(ip.c₂ * (T₀ - T)))),
+    )
+    return Nᵢ * 1e3  # converts L^-1 to m^-3
+end
+
+"""
+    P3_het_N_i(ip, T, N_l, B, V_l, a, Δt)
+
+ - `ip` - a struct with ice nucleation parameters,
+ - `T` - air temperature [K],
+ - `N_l` - number of droplets [m^-3],
+ - `B` - water-type dependent parameter [cm^-3 s^-1],
+ - `V_l` - volume of droplets to be frozen [m^3],
+ - `a` - empirical parameter [C^-1],
+ - `Δt` - timestep.
+
+Returns the number of ice nucleated within Δt via heterogeneous freezing
+with units of m^-3. From Pruppacher & Klett 1997 eqn (9-51) as used in
+Morrison & Milbrandt 2015.
+"""
+function P3_het_N_i(
+    ip::CMP.MorrisonMilbrandt2014,
+    T::FT,
+    N_l::FT,
+    V_l::FT,
+    Δt::FT,
+) where {FT}
+
+    a = ip.het_a                # (celcius)^-1
+    B = ip.het_B                # cm^-3 s^-1 for rain water
+    V_l_converted = V_l * 1e6   # converted from m^3 to cm^3
+    Tₛ = ip.T₀ - T
+
+    return N_l * (1 - exp(-B * V_l_converted * Δt * exp(a * Tₛ)))
 end
 
 """

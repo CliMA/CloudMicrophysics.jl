@@ -90,6 +90,8 @@ HetIceNucleation.dust_activated_number_fraction
 HetIceNucleation.MohlerDepositionRate
 HetIceNucleation.deposition_J
 HetIceNucleation.ABIFM_J
+HetIceNucleation.P3_deposition_N_i
+HetIceNucleation.P3_het_N_i
 HetIceNucleation.INP_concentration_frequency
 ```
 

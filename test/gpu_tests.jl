@@ -568,6 +568,35 @@ end
     end
 end
 
+@kernel function IceNucleation_P3_deposition_N_i_kernel!(
+    output::AbstractArray{FT},
+    ip,
+    T,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] = CMI_het.P3_deposition_N_i(ip, T[1])
+    end
+end
+
+@kernel function IceNucleation_P3_het_N_i_kernel!(
+    output::AbstractArray{FT},
+    ip,
+    T,
+    N_l,
+    V_l,
+    Δt,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] = CMI_het.P3_het_N_i(ip, T[1], N_l[1], V_l[1], Δt[1])
+    end
+end
+
 @kernel function IceNucleation_INPC_frequency_kernel!(
     output::AbstractArray{FT},
     ip_frostenberg,
@@ -985,6 +1014,32 @@ function test_gpu(FT)
         # test if ABIFM_J is callable and returns reasonable values
         @test Array(output)[1] ≈ FT(153.65772539109)
         @test Array(output)[2] ≈ FT(31.870032033791)
+
+        dims = (1, 1)
+        (; output, ndrange) = setup_output(dims, FT)
+
+        ip_P3 = ip.p3
+        T = ArrayType([FT(240)])
+
+        kernel! = IceNucleation_P3_deposition_N_i_kernel!(backend, work_groups)
+        kernel!(output, ip_P3, T; ndrange)
+
+        # test if P3_deposition_N_i is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(119018.93920746)
+
+        dims = (1, 1)
+        (; output, ndrange) = setup_output(dims, FT)
+
+        T = ArrayType([FT(240)])
+        N_l = ArrayType([FT(2000)])
+        V_l = ArrayType([FT(3e-18)])
+        Δt = ArrayType([FT(0.1)])
+
+        kernel! = IceNucleation_P3_het_N_i_kernel!(backend, work_groups)
+        kernel!(output, ip_P3, T, N_l, V_l, Δt; ndrange)
+
+        # test if P3_het_N_i is callable and returns reasonable values
+        @test Array(output)[1] ≈ FT(0.0002736160475969029)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
