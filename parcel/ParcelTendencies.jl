@@ -81,7 +81,7 @@ end
 
 function immersion_freezing(params::ABIFM, PSD, state)
     (; T, xS, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
-    (; H₂SO₄ps, tps, aerosol) = params
+    (; H₂SO₄ps, tps, aerosol, A_aer) = params
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
@@ -95,7 +95,7 @@ function immersion_freezing(params::ABIFM, PSD, state)
         CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
 
     J = CMI_het.ABIFM_J(aerosol, Δa_w)
-    return max(FT(0), J * Nₗ * PSD.Aₗ)
+    return max(FT(0), J * Nₗ * A_aer)
 end
 
 function immersion_freezing(params::P3_het, PSD, state)

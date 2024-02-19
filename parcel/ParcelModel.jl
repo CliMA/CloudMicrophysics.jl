@@ -22,6 +22,7 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     const_dt = 1
     w = FT(1)
     r_nuc = FT(0.5 * 1.e-4 * 1e-6)
+    A_aer = FT(1e-9)
 end
 
 """
@@ -175,6 +176,7 @@ The parcel parameters struct comes with default values that can be overwritten:
  - const_dt - model timestep [s]. Parcel model is using a simple Euler timestepper. Default value is 1 s
  - w - parcel vertical velocity [m/s]. Default value is 1 m/s
  - r_nuc - assumed size of nucleating ice crystals. Default value is 5e-11 [m]
+ - A_aer - assumed surface area of ice nucleating aerosol. Default value assumes radius of 5e-11 [m]
 """
 function run_parcel(IC, t_0, t_end, pp)
 
@@ -211,7 +213,7 @@ function run_parcel(IC, t_0, t_end, pp)
     if pp.heterogeneous == "None"
         imm_params = Empty{FT}()
     elseif pp.heterogeneous == "ABIFM"
-        imm_params = ABIFM{FT}(pp.H₂SO₄ps, pp.tps, pp.aerosol)
+        imm_params = ABIFM{FT}(pp.H₂SO₄ps, pp.tps, pp.aerosol, pp.A_aer)
     elseif pp.heterogeneous == "P3_het"
         imm_params = P3_het{FT}(pp.ips, pp.const_dt)
     else

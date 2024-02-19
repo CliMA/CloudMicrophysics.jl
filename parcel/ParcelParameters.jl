@@ -31,6 +31,7 @@ struct ABIFM{FT} <: CMP.ParametersType{FT}
     H₂SO₄ps::CMP.H2SO4SolutionParameters{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     aerosol::CMP.AerosolType{FT}
+    A_aer::FT
 end
 
 struct P3_het{FT} <: CMP.ParametersType{FT}
