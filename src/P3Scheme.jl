@@ -12,14 +12,16 @@ Note: Particle size is defined as its maximum length (i.e. max dimesion).
 module P3Scheme
 
 import SpecialFunctions as SF
-
+import QuadGK as QGK
 import RootSolvers as RS
+
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Common as CO
 
 const PSP3 = CMP.ParametersP3
 
-export thresholds, p3_mass, distribution_parameter_solver
+export thresholds, distribution_parameter_solver
 
 """
     α_va_si(p3)
@@ -154,65 +156,6 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
     end
 end
 
-"""
-    mass_(p3, D, ρ, F_r)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension [m]
- - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
- - F_r - rime mass fraction [q_rim/q_i]
-
-Returns mass as a function of size for differen particle regimes [kg]
-"""
-# for spherical ice (small ice or completely rimed ice)
-mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
-# for large nonspherical ice (used for unrimed and dense types)
-mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
-# for partially rimed ice
-mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
-    α_va_si(p3) / (1 - F_r) * D^p3.β_va
-
-"""
-    p3_mass(p3, D, F_r, th)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
- - F_r - rime mass fraction (q_rim/q_i)
- - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
-Returns mass(D) regime, used to create figures for the docs page.
-"""
-function p3_mass(
-    p3::PSP3,
-    D::FT,
-    F_r::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT <: Real}
-    if D_th_helper(p3) > D
-        return mass_s(D, p3.ρ_i)          # small spherical ice
-    end
-    if F_r == 0
-        return mass_nl(p3, D)             # large nonspherical unrimed ice
-    end
-    if th.D_gr > D >= D_th_helper(p3)
-        return mass_nl(p3, D)             # dense nonspherical ice
-    end
-    if th.D_cr > D >= th.D_gr
-        return mass_s(D, th.ρ_g)          # graupel
-    end
-    if D >= th.D_cr
-        return mass_r(p3, D, F_r)         # partially rimed ice
-    end
-
-    # TODO - would something like this be better?
-    #return ifelse(D_th_helper(p3) > D, mass_s(D, p3.ρ_i),
-    #       ifelse(F_r == 0, mass_nl(p3, D),
-    #       ifelse(th.D_gr > D >= D_th_helper(p3), mass_nl(p3, D),
-    #       ifelse(th.D_cr > D >= th.D_gr, mass_s(D, th.ρ_g),
-    #           mass_r(p3, D, F_r)))))
-
-end
-
 # Some wrappers to cast types from SF.gamma
 # (which returns Float64 even when the input is Float32)
 Γ(a::FT, z::FT) where {FT <: Real} = FT(SF.gamma(a, z))
@@ -255,7 +198,7 @@ function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     # Return approximation between them
     μ = (p3.μ_max / (q_over_N_max - q_over_N_min)) * (log(q / N) - q_over_N_min)
 
-    # Clip approximation between 0 and 6 
+    # Clip approximation between 0 and 6
     return min(p3.μ_max, max(FT(0), μ))
 end
 
@@ -289,6 +232,54 @@ function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT}
 end
 
 """
+    ∫_Γ(x₀, x_end, c1, c2, c3)
+
+ - x₀ - lower bound
+ - x_end - upper bound
+ - c1, c2, c3 - respective constants
+
+f(D, c1, c2, c3) = c1 * D ^ (c2) * exp(-c3 * D)
+
+Integrates f(D, c1, c2, c3) dD from x₀ to x_end
+"""
+function ∫_Γ(x₀::FT, x_end::FT, c1::FT, c2::FT, c3::FT) where {FT}
+    if x_end == Inf
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2, x₀ * c3))
+    elseif x₀ == 0
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, x_end * c3))
+    else
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2, x₀ * c3) - Γ(1 + c2, x_end * c3))
+    end
+end
+
+"""
+    ∫_Γ(x₀, xₘ, x_end, c1, c2, c3, c4, c5, c6)
+
+ - x₀ - lower bound
+ - xₘ - switch point
+ - x_end - upper bound
+ - c1, c2, c3 - respective constants for the first part of the integral
+ - c4, c5, c6 - respective constants for the second part of the integral
+
+f(D, c1, c2, c3) = c1 * D ^ (c2) * exp(-c3 * D)
+
+Integrates f(D, c1, c2, c3) dD from x₀ to xₘ and f(D, c4, c5, c6) dD from xₘ to x_end
+"""
+function ∫_Γ(
+    x₀::FT,
+    xₘ::FT,
+    x_end::FT,
+    c1::FT,
+    c2::FT,
+    c3::FT,
+    c4::FT,
+    c5::FT,
+    c6::FT,
+) where {FT}
+    return ∫_Γ(x₀, xₘ, c1, c2, c3) + ∫_Γ(xₘ, x_end, c4, c5, c6)
+end
+
+"""
     q_(p3, ρ, F_r, λ, μ, D_min, D_max)
 
  - p3 - a struct with P3 scheme parameters
@@ -306,25 +297,20 @@ end
 # or
 # q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
 function q_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    x = μ + 4
-    return FT(π) / 6 * ρ / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return ∫_Γ(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
 end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / λ^x * (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return ∫_Γ(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return ∫_Γ(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / (1 - F_r) / λ^x *
-           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return ∫_Γ(D_min, FT(Inf), α_va_si(p3) / (1 - F_r), μ + p3.β_va, λ)
 end
 
 """
@@ -435,13 +421,13 @@ function distribution_parameter_solver(
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
 
-    # Get μ given q and N 
+    # Get μ given q and N
     μ = DSD_μ_approx(p3, q, N, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
     shape_problem(x) = q / N - q_over_N_gamma(p3, F_r, x, μ, th)
 
-    # Get intial guess for solver 
+    # Get intial guess for solver
     (; min, max) = get_bounds(N, q, μ, F_r, p3, th)
 
     # Find slope parameter
@@ -451,10 +437,234 @@ function distribution_parameter_solver(
             RS.SecantMethod(min, max),
             RS.CompactSolution(),
             RS.RelativeSolutionTolerance(eps(FT)),
-            10,
+            5,
         ).root
 
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
+end
+
+"""
+    terminal_velocity(p3, Chen2022, q, N, ρ_r, F_r, ρ_a)
+
+ - p3 - a struct with P3 scheme parameters
+ - Chen2022 - a struch with terminal velocity parameters as in Chen(2022)
+ - q - mass mixing ratio
+ - N - number mixing ratio
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_a - density of air
+
+ Returns the mass and number weighted fall speeds
+ Eq C10 of Morrison and Milbrandt (2015)
+"""
+function terminal_velocity(
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelTypeSnowIce,
+    q::FT,
+    N::FT,
+    ρ_r::FT,
+    F_r::FT,
+    ρ_a::FT,
+) where {FT}
+    # Get the pree parameters for terminal velocities of small
+    # and large particles
+    small = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
+    large = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+    get_p(prs, it) = (prs[1][it], prs[2][it], prs[3][it])
+
+    # Get the thresholds for different particles regimes
+    (; D_cr, D_gr, ρ_g, ρ_d) = thresholds(p3, ρ_r, F_r)
+    D_th = D_th_helper(p3)
+    D_ct = FT(0.000625) # TODO add to ClimaParams
+
+    # Get the shape parameters of the particle size distribution
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    μ = DSD_μ(p3, λ)
+
+    # TODO: Change when each value used depending on type of particle
+    # TODO: or keep fixed and add to ClimaParams...?
+    κ = FT(-1 / 6) #FT(1/3)
+    # Redefine α_va to be in si units
+    α_va = α_va_si(p3)
+
+    aₛ(a) = a * N_0
+    bₛ(b) = b + μ
+    cₛ(c) = c + λ
+
+    aₛ_m(a) = aₛ(a) * FT(π) / 6 * p3.ρ_i
+    bₛ_m(b) = bₛ(b) + 3
+
+    spheres_n(a, b, c) = (aₛ(a), bₛ(b), cₛ(c))
+    spheres_m(a, b, c) = (aₛ_m(a), bₛ_m(b), cₛ(c))
+
+    aₙₛ(a) = aₛ(a) * (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ
+    bₙₛ(b) = bₛ(b) + κ * (3 * p3.σ - 2 * p3.β_va)
+
+    aₙₛ_m(a) = aₙₛ(a) * α_va
+    bₙₛ_m(b) = bₙₛ(b) + p3.β_va
+
+    non_spheres_n(a, b, c) = (aₙₛ(a), bₙₛ(b), cₛ(c))
+    non_spheres_m(a, b, c) = (aₙₛ_m(a), bₙₛ_m(b), cₛ(c))
+
+    aᵣₛ(a) = aₛ(a) * (p3.ρ_i / ρ_g)^(2 * κ)
+    aᵣₛ_m(a) = aᵣₛ(a) * FT(π) / 6 * ρ_g
+
+    rimed_n(a, b, c) = (aᵣₛ(a), bₛ(b), cₛ(c))
+    rimed_m(a, b, c) = (aᵣₛ_m(a), bₛ_m(b), cₛ(c))
+
+    v_n_D_cr(D, a, b, c) =
+        a *
+        N_0 *
+        D^(b + μ) *
+        exp((-c - λ) * D) *
+        (
+            16 * p3.ρ_i^2 * (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+        )^κ
+    v_m_D_cr(D, a, b, c) = v_n_D_cr(D, a, b, c) * (α_va / (1 - F_r) * D^p3.β_va)
+
+    v_m = 0
+    v_n = 0
+    for i in 1:2
+        if F_r == 0
+            v_m += ∫_Γ(FT(0), D_th, spheres_m(get_p(small, i)...)...)
+            v_n += ∫_Γ(FT(0), D_th, spheres_n(get_p(small, i)...)...)
+
+            v_m += ∫_Γ(
+                D_th,
+                D_ct,
+                Inf,
+                non_spheres_m(get_p(small, i)...)...,
+                non_spheres_m(get_p(large, i)...)...,
+            )
+            v_n += ∫_Γ(
+                D_th,
+                D_ct,
+                Inf,
+                non_spheres_n(get_p(small, i)...)...,
+                non_spheres_n(get_p(large, i)...)...,
+            )
+        else
+            # Velocity coefficients for small particles
+            v_m += ∫_Γ(FT(0), D_th, spheres_m(get_p(small, i)...)...)
+            v_n += ∫_Γ(FT(0), D_th, spheres_n(get_p(small, i)...)...)
+            is_large = false
+
+            # D_th to D_gr
+            if !is_large && D_gr > D_ct
+                v_m += ∫_Γ(
+                    D_th,
+                    D_ct,
+                    D_gr,
+                    non_spheres_m(get_p(small, i)...)...,
+                    non_spheres_m(get_p(large, i)...)...,
+                )
+                v_n += ∫_Γ(
+                    D_th,
+                    D_ct,
+                    D_gr,
+                    non_spheres_n(get_p(small, i)...)...,
+                    non_spheres_n(get_p(large, i)...)...,
+                )
+                # Switch to large particles
+                is_large = true
+            else
+                v_m += ∫_Γ(D_th, D_gr, non_spheres_m(get_p(small, i)...)...)
+                v_n += ∫_Γ(D_th, D_gr, non_spheres_n(get_p(small, i)...)...)
+            end
+
+            # D_gr to D_cr
+            if !is_large && D_cr > D_ct
+                v_m += ∫_Γ(
+                    D_gr,
+                    D_ct,
+                    D_cr,
+                    rimed_m(get_p(small, i)...)...,
+                    rimed_m(get_p(large, i)...)...,
+                )
+                v_n += ∫_Γ(
+                    D_gr,
+                    D_ct,
+                    D_cr,
+                    rimed_n(get_p(small, i)...)...,
+                    rimed_n(get_p(large, i)...)...,
+                )
+                # Switch to large particles
+                is_large = true
+            elseif is_large
+                v_m += ∫_Γ(D_gr, D_cr, rimed_m(get_p(large, i)...)...)
+                v_n += ∫_Γ(D_gr, D_cr, rimed_n(get_p(large, i)...)...)
+            else
+                v_m += ∫_Γ(D_gr, D_cr, rimed_m(get_p(small, i)...)...)
+                v_n += ∫_Γ(D_gr, D_cr, rimed_n(get_p(small, i)...)...)
+            end
+
+            # D_cr to Infinity
+            if !is_large
+                (Im, em) =
+                    QGK.quadgk(D -> v_m_D_cr(D, get_p(small, i)...), D_cr, D_ct)
+                (In, en) =
+                    QGK.quadgk(D -> v_n_D_cr(D, get_p(small, i)...), D_cr, D_ct)
+                v_m += Im
+                v_n += In
+
+                # Switch to large particles
+                (Im, em) =
+                    QGK.quadgk(D -> v_m_D_cr(D, get_p(large, i)...), D_ct, Inf)
+                (In, en) =
+                    QGK.quadgk(D -> v_n_D_cr(D, get_p(large, i)...), D_ct, Inf)
+                v_m += Im
+                v_n += In
+            else
+                # TODO - check if it should be large or small
+                (Im, em) =
+                    QGK.quadgk(D -> v_m_D_cr(D, get_p(large, i)...), D_cr, Inf)
+                (In, en) =
+                    QGK.quadgk(D -> v_n_D_cr(D, get_p(large, i)...), D_cr, Inf)
+                v_m += Im
+                v_n += In
+            end
+        end
+    end
+    return (v_n / N, v_m / q)
+end
+
+"""
+    D_m (p3, q, N, ρ_r, F_r)
+
+ - p3 - a struct with P3 scheme parameters
+ - q - mass mixing ratio
+ - N - number mixing ratio
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (q_rim/q_i)
+
+ Return the mass weighted mean particle size [m]
+"""
+function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+    # Get the thresholds for different particles regimes
+    th = thresholds(p3, ρ_r, F_r)
+    D_th = D_th_helper(p3)
+
+    # Get the shape parameters
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    μ = DSD_μ(p3, λ)
+
+    # Redefine α_va to be in si units
+    α_va = α_va_si(p3)
+
+    # Calculate numerator
+    n = 0
+    if F_r == 0
+        n += ∫_Γ(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n += ∫_Γ(D_th, Inf, α_va * N_0, μ + p3.β_va + 1, λ)
+    else
+        n += ∫_Γ(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n += ∫_Γ(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
+        n += ∫_Γ(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
+        n += ∫_Γ(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
+    end
+    # Normalize by q
+    return n / q
 end
 
 end

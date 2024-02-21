@@ -18,6 +18,7 @@ export a_w_eT
 export a_w_ice
 export Chen2022_vel_add
 export Chen2022_vel_coeffs_small
+export Chen2022_vel_coeffs_large
 
 """
     G_func(air_props, tps, T, Liquid())
