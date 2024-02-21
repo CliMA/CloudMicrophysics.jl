@@ -408,4 +408,69 @@ function distribution_parameter_solver(
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
 end
 
+"""
+    integrate(a, b, c1, c2, c3)
+
+ - a - lower bound 
+ - b - upper bound 
+ - c1, c2, c3 - respective constants 
+
+ Integrates the function c1 * D ^ (c2) * exp(-c3 * D) dD from a to b 
+    Returns the result
+"""
+function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where{FT}
+    if b == Inf
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3))
+    elseif a == 0 
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, b * c3))
+    else 
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3) - Γ(1 + c2, b * c3))
+    end
+end
+
+"""
+"""
+function terminal_velocity_mass(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where{FT}
+
+    # Get the thresholds for different particles regimes
+    th = thresholds(p3, ρ_r, F_r)
+    D_th = D_th_helper(p3)
+
+    # Get the shape parameters
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    μ = DSD_μ(p3, λ)
+
+    # Get the ai, bi, ci constants for velocity calculations
+    
+
+    # Redefine α_va to be in si units
+    α_va = α_va_si(p3)
+
+    # STILL NEED TO BE SUMMED OVER RESPECTIVE ai bi and ci 
+    if F_r == 0 
+        term1 = integrate(0, D_th, π / 6 * p3.ρ_i * ai * N_0, bi + μ + 3, ci + λ)
+        term2 = integrate(D_th, Inf, α_va * ai * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi + p3.β_va + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci + λ)
+    else 
+        term1 = integrate(0, D_th, π / 6 * p3.ρ_i * ai * N_0, bi + μ + 3, ci + λ)
+        term2 = integrate(D_th, th.D_gr, α_va * ai * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi + p3.β_va + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci + λ)
+        term3 = integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * ai * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi + 3 + μ, ci + λ)
+        term4 = (
+            integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai * N_0 * (p3.γ * (1-F_r)) ^ (3 * κ), bi + p3.β_va + μ + κ(3 * p3.σ), ci + λ) + 
+            integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai * N_0 * (p3.γ ^ 2 * π * F_r * 3/4 * (1-F_r)^2) ^ κ, bi + p3.β_va + μ + κ(2 + 2 * p3.σ), ci + λ) + 
+            integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai * N_0 * (p3.γ * π ^ 2 * F_r ^ 2 * 3/16 * (1-F_r)) ^ κ, bi + p3.β_va + μ + κ(4 + p3.σ), ci + λ) + 
+            integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai * N_0 * (F_r^3 * π^3 / 64) ^ κ, bi + p3.β_va + μ + κ(6), ci + λ)
+        )
+    end
+
+    # Get total sums (top) 
+    return top / q
+
+end
+
+"""
+"""
+function terminal_velocity_number(p3::PSP3, N::FT, F_r::FT, ρ_r::FT)
+
+end
+
 end
