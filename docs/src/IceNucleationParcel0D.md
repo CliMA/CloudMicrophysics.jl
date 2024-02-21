@@ -205,7 +205,7 @@ There are multiple ways of running deposition nucleation in the parcel.
   above this value will result in nucleation in a different mode.
   `"ActivityBasedDeposition"` will trigger a water activity based approach
   from [Alpert2022](@cite). In this approach, ice production rate ``P_{ice, depo}``
-  is calculated from 
+  is calculated from
 ```math
 \begin{equation}
   P_{ice, depo} = \left[ \frac{dN_i}{dt} \right]_{depo} = J_{depo}\;A_{aero}\;N_{aero}
@@ -252,14 +252,14 @@ Here we show various example simulation results from the adiabatic parcel
   and homogeneous freezing with deposition growth.
 
 We start with deposition freezing on dust.
-The model is run three times using the `"MohlerAF_Deposition"` approach 
+The model is run three times using the `"MohlerAF_Deposition"` approach
   for 30 minutes simulation time, (shown by three different colors on the plot).
 Between each run the water vapor specific humidity is changed,
   while keeping all other state variables the same as at the last time step
   of the previous run.
 The prescribed vertical velocity is equal to 3.5 cm/s.
 Supersaturation is plotted for both liquid (solid lines) and ice (dashed lines).
-The pale blue line uses the `"MohlerRate_Deposition"` approach. 
+The pale blue line uses the `"MohlerRate_Deposition"` approach.
   We only run it for the first GCM timestep because the rate approach requires
   the change in ice saturation over time. With the discontinuous jump in saturation,
   the parameterization is unable to determine a proper nucleation rate. When we force
@@ -268,7 +268,7 @@ The pale blue line uses the `"MohlerRate_Deposition"` approach.
   in the `"MohlerAF_Deposition"` approach for the first GCM timestep.
 
 ```@example
-include("../../parcel/Tully_et_al_2023.jl")
+include("../../parcel/Example_Tully_et_al_2023.jl")
 ```
 ![](cirrus_box.svg)
 
@@ -280,7 +280,7 @@ The water activity based parameterization for deposition nucleation shows
   is no common aerosol type between the two parameterizations.
 
 ```@example
-include("../../parcel/Deposition_Nucleation.jl")
+include("../../parcel/Example_Deposition_Nucleation.jl")
 ```
 ![](deposition_nucleation.svg)
 
@@ -289,7 +289,7 @@ In the plots below, the parcel model is ran with only condensation (no ice or fr
 It is compared to [Rogers1975](@cite).
 
 ```@example
-include("../../parcel/Liquid_only.jl")
+include("../../parcel/Example_Liquid_only.jl")
 ```
 ![](liquid_only_parcel.svg)
 
@@ -299,7 +299,7 @@ The plots below are the results of the adiabatic parcel model
   yet been validated against literature.
 
 ```@example
-include("../../parcel/Immersion_Freezing.jl")
+include("../../parcel/Example_Immersion_Freezing.jl")
 ```
 ![](immersion_freezing.svg)
 
@@ -312,13 +312,13 @@ The following plots show the parcel model running with homogeneous freezing and
   for demonstrative purposes.
 
 ```@example
-include("../../parcel/Jensen_et_al_2022.jl")
+include("../../parcel/Example_Jensen_et_al_2022.jl")
 ```
 ![](Jensen_et_al_2022.svg)
 
 ## P3 Ice Nucleation Parameterizations
 The parcel also includes ice nucleation parameterizations used in
-  the P3 scheme as described in [MorrisonMilbrandt2015](@cite). 
+  the P3 scheme as described in [MorrisonMilbrandt2015](@cite).
   Deposition nucleation is based on the ice crystal number parameterization
   from Cooper (1986). The heterogeneous freezing parameterization, which
   follows Bigg(1953) with parameters from Barklie aand Gokhale (1959), is
@@ -330,6 +330,6 @@ Shown below are three separate parcel simulations for deposition nucleation,
   INP number, while the other two freezing modes do. Updraft velocity is
   set to 0.5 m/s.
 ```@example
-include("../../parcel/P3_ice_nuc.jl")
+include("../../parcel/Example_P3_ice_nuc.jl")
 ```
 ![](P3_ice_nuc.svg)

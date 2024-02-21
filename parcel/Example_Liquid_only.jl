@@ -2,21 +2,19 @@ import OrdinaryDiffEq as ODE
 import CairoMakie as MK
 import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters as CMP
 import CLIMAParameters as CP
 
-# definition of the ODE problem for parcel model
-include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
+include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 FT = Float32
 
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
-aps = CMP.AirProperties(FT)
-ip = CMP.IceNucleationParameters(FT)
-
 # Constants
 ρₗ = wps.ρw
+ρᵢ = wps.ρi
 R_v = TD.Parameters.R_v(tps)
 R_d = TD.Parameters.R_d(tps)
 
@@ -28,39 +26,22 @@ r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(273.15 + 7.0)
 x_sulph = FT(0)
-
-eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
-e = eₛ
-ϵ = R_d / R_v
-
-# mass per volume for dry air, vapor and liquid
+e = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+Sₗ = FT(1)
 md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
 ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
-
 qᵥ = mv_v / (md_v + mv_v + ml_v)
 qₗ = ml_v / (md_v + mv_v + ml_v)
 qᵢ = FT(0)
-
-# Moisture dependent initial conditions
-q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-ts = TD.PhaseNonEquil_pTq(tps, p₀, T₀, q)
-ρₐ = TD.air_density(tps, ts)
-
-Rₐ = TD.gas_constant_air(tps, q)
-Sₗ = FT(e / eₛ)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
 
 # Simulation parameters passed into ODE solver
-r_nuc = FT(0.5 * 1.e-4 * 1e-6)             # assumed size of nucleated particles
 w = FT(10)                                 # updraft speed
-α_m = FT(0.5)                              # accomodation coefficient
 const_dt = FT(0.5)                         # model timestep
 t_max = FT(20)
-aerosol = []
-ice_nucleation_modes = []                  # no freezing
-growth_modes = ["Condensation"]          # switch on condensation
-droplet_size_distribution_list = [["Monodisperse"], ["Gamma"]]
+size_distribution_list = ["Monodisperse", "Gamma"]
+condensation_growth = "Condensation"
 
 # Data from Rogers(1975) Figure 1
 # https://www.tandfonline.com/doi/abs/10.1080/00046973.1975.9648397
@@ -71,35 +52,25 @@ Rogers_time_radius = [0.561, 2, 3.99, 10.7, 14.9, 19.9]
 Rogers_radius = [8.0, 8.08, 8.26, 8.91, 9.26, 9.68]
 #! format: on
 
-fig = MK.Figure(resolution = (800, 600))
+# Setup the plots
+fig = MK.Figure(size = (800, 600))
 ax1 = MK.Axis(fig[1, 1], ylabel = "Supersaturation [%]")
 ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
 ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
 ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
-
 MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
-for droplet_size_distribution in droplet_size_distribution_list
-    p = (;
-        wps,
-        aps,
-        tps,
-        ip,
-        const_dt,
-        r_nuc,
-        w,
-        α_m,
-        aerosol,
-        ice_nucleation_modes,
-        growth_modes,
-        droplet_size_distribution,
+for DSD in size_distribution_list
+    local params = parcel_params{FT}(
+        size_distribution = DSD,
+        condensation_growth = condensation_growth,
+        const_dt = const_dt,
+        w = w,
     )
     # solve ODE
-    sol = run_parcel(IC, FT(0), t_max, p)
-
-    DSD = droplet_size_distribution[1]
+    local sol = run_parcel(IC, FT(0), t_max, params)
 
     # Plot results
     MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = DSD)
@@ -108,18 +79,26 @@ for droplet_size_distribution in droplet_size_distribution_list
     MK.lines!(ax4, sol.t, sol[5, :] * 1e3)
 
     sol_Nₗ = sol[8, :]
+    sol_Nᵢ = sol[9, :]
+    # Compute the current air density
+    sol_T = sol[3, :]
+    sol_p = sol[2, :]
+    sol_qᵥ = sol[4, :]
     sol_qₗ = sol[5, :]
-    if DSD == "Monodisperse"
-        rₗ = cbrt.(sol_qₗ ./ sol_Nₗ ./ (4 / 3 * FT(π)) / ρₗ * ρₐ)
-    end
-    if DSD == "Gamma"
-        λ = cbrt.(32 .* FT(π) .* sol_Nₗ ./ sol_qₗ * ρₗ / ρₐ)
-        rₗ = 2 ./ λ
+    sol_qᵢ = sol[6, :]
+    local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
+    local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
+    local ρₐ = TD.air_density.(tps, ts)
+    # Compute the mean particle size based on the distribution
+    distr = sol.prob.p.distr
+    moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ, sol_qᵢ, Nᵢ, ρᵢ)
+    local rₗ = similar(sol_T)
+    for it in range(1, length(sol_T))
+        rₗ[it] = moms[it].rₗ
     end
     MK.lines!(ax5, sol.t, rₗ * 1e6)
 end
 
-#fig[3, 2] = MK.Legend(fig, ax1, framevisible = false)
 MK.axislegend(
     ax1,
     framevisible = false,
