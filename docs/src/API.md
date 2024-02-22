@@ -58,7 +58,6 @@ Microphysics2M.conv_q_liq_to_q_rai
 ```@docs
 P3Scheme
 P3Scheme.thresholds
-P3Scheme.p3_mass
 P3Scheme.distribution_parameter_solver
 ```
 
