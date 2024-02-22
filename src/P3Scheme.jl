@@ -19,7 +19,7 @@ import CloudMicrophysics.Parameters as CMP
 
 const PSP3 = CMP.ParametersP3
 
-export thresholds, p3_mass, distribution_parameter_solver
+export thresholds, distribution_parameter_solver
 
 """
     α_va_si(p3)
@@ -152,65 +152,6 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
             ρ_d,
         )
     end
-end
-
-"""
-    mass_(p3, D, ρ, F_r)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension [m]
- - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
- - F_r - rime mass fraction [q_rim/q_i]
-
-Returns mass as a function of size for differen particle regimes [kg]
-"""
-# for spherical ice (small ice or completely rimed ice)
-mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
-# for large nonspherical ice (used for unrimed and dense types)
-mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
-# for partially rimed ice
-mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
-    α_va_si(p3) / (1 - F_r) * D^p3.β_va
-
-"""
-    p3_mass(p3, D, F_r, th)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
- - F_r - rime mass fraction (q_rim/q_i)
- - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
-Returns mass(D) regime, used to create figures for the docs page.
-"""
-function p3_mass(
-    p3::PSP3,
-    D::FT,
-    F_r::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT <: Real}
-    if D_th_helper(p3) > D
-        return mass_s(D, p3.ρ_i)          # small spherical ice
-    end
-    if F_r == 0
-        return mass_nl(p3, D)             # large nonspherical unrimed ice
-    end
-    if th.D_gr > D >= D_th_helper(p3)
-        return mass_nl(p3, D)             # dense nonspherical ice
-    end
-    if th.D_cr > D >= th.D_gr
-        return mass_s(D, th.ρ_g)          # graupel
-    end
-    if D >= th.D_cr
-        return mass_r(p3, D, F_r)         # partially rimed ice
-    end
-
-    # TODO - would something like this be better?
-    #return ifelse(D_th_helper(p3) > D, mass_s(D, p3.ρ_i),
-    #       ifelse(F_r == 0, mass_nl(p3, D),
-    #       ifelse(th.D_gr > D >= D_th_helper(p3), mass_nl(p3, D),
-    #       ifelse(th.D_cr > D >= th.D_gr, mass_s(D, th.ρ_g),
-    #           mass_r(p3, D, F_r)))))
-
 end
 
 # Some wrappers to cast types from SF.gamma
@@ -432,9 +373,18 @@ function distribution_parameter_solver(
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
 end
 
-#= """
 """
-function terminal_velocity_mass(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where{FT}
+    terminal_velocity_mass(p3, Chen2022, q, N, ρ_r, F_r)
+
+ - p3 - 
+ - Chen 2022 - 
+ - q - 
+ - N - 
+ - ρ_r - 
+ - F_r - 
+
+"""
+function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, q::FT, N::FT, ρ_r::FT, F_r::FT) where{FT}
 
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
@@ -444,37 +394,41 @@ function terminal_velocity_mass(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
 
-    # Get the ai, bi, ci constants for velocity calculations
-    
+    # Get the ai, bi, ci constants (in si units) for velocity calculations
+    (; As, Bs, Cs, Es, Fs, Gs) = Chen2022.snow_ice
+
+    bi = [Bs + ρ * Cs, Bs + ρ * Cs]
+    ai = [Es * ρ^As * 10^(3 * bi[1]), Fs * ρ^As * 10^(3 * bi[2])]
+    ci = [0, Gs * 10^3]
 
     # Redefine α_va to be in si units
     α_va = α_va_si(p3)
 
-    # STILL NEED TO BE SUMMED OVER RESPECTIVE ai bi and ci 
-    if F_r == 0 
-        term1 = integrate(0, D_th, π / 6 * p3.ρ_i * ai * N_0, bi + μ + 3, ci + λ)
-        term2 = integrate(D_th, Inf, α_va * ai * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi + p3.β_va + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci + λ)
-    else 
-        term1 = integrate(0, D_th, π / 6 * p3.ρ_i * ai * N_0, bi + μ + 3, ci + λ)
-        term2 = integrate(D_th, th.D_gr, α_va * ai * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi + p3.β_va + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci + λ)
-        term3 = integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * ai * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi + 3 + μ, ci + λ)
-        term4 = (
-            integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai * N_0 * (p3.γ * (1-F_r)) ^ (3 * κ), bi + p3.β_va + μ + κ(3 * p3.σ), ci + λ) + 
-            integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai * N_0 * (p3.γ ^ 2 * π * F_r * 3/4 * (1-F_r)^2) ^ κ, bi + p3.β_va + μ + κ(2 + 2 * p3.σ), ci + λ) + 
-            integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai * N_0 * (p3.γ * π ^ 2 * F_r ^ 2 * 3/16 * (1-F_r)) ^ κ, bi + p3.β_va + μ + κ(4 + p3.σ), ci + λ) + 
-            integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai * N_0 * (F_r^3 * π^3 / 64) ^ κ, bi + p3.β_va + μ + κ(6), ci + λ)
-        )
+    v = 0
+    for i in 1:2
+        if F_r == 0 
+            v += integrate(0, D_th, π / 6 * p3.ρ_i * ai[i] * N_0, bi[i] + μ + 3, ci[i] + λ)
+            v += integrate(D_th, Inf, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + p3.β_va + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+        else 
+            v += integrate(0, D_th, π / 6 * p3.ρ_i * ai[i] * N_0, bi[i] + μ + 3, ci[i] + λ)
+            v += integrate(D_th, D_gr, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + p3.β_va + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+            v += integrate(D_gr, D_cr, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + 3 + μ, ci[i] + λ)
+            v += (
+                integrate(D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ * (1-F_r)) ^ (3 * κ), bi[i] + p3.β_va + μ + κ(3 * p3.σ), ci[i] + λ) + 
+                integrate(D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ ^ 2 * π * F_r * 3/4 * (1-F_r)^2) ^ κ, bi[i] + p3.β_va + μ + κ(2 + 2 * p3.σ), ci[i] + λ) + 
+                integrate(D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ * π ^ 2 * F_r ^ 2 * 3/16 * (1-F_r)) ^ κ, bi[i] + p3.β_va + μ + κ(4 + p3.σ), ci[i] + λ) + 
+                integrate(D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (F_r^3 * π^3 / 64) ^ κ, bi[i] + p3.β_va + μ + κ(6), ci[i] + λ)
+            )
+        end
     end
 
-    # Get total sums (top) 
-    return top / q
-
+    return v / q
 end
 
 """
 """
-function terminal_velocity_number(p3::PSP3, N::FT, F_r::FT, ρ_r::FT)
+function terminal_velocity_number(p3::PSP3, N::FT, F_r::FT, ρ_r::FT) where{FT}
 
-end =#
+end
 
 end
