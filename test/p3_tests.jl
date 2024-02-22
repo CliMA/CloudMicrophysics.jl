@@ -157,11 +157,11 @@ function test_p3_shape_solver(FT)
     TT.@testset "shape parameters (nonlinear solver function)" begin
 
         # initialize test values:
-        ep = 1e3 * eps(FT)
-        N_test = (FT(1e8))                             # N values
+        ep = 1e4 * eps(FT)
+        N_test = (FT(1e7), FT(1e8), FT(1e9), FT(1e10))                             # N values
         λ_test = (FT(15000), FT(20000))                # test λ values in range
-        ρ_r_test = (FT(200)) #, FT(1)) #, FT(100))     # representative ρ_r values
-        F_r_test = (FT(0.5), FT(0.8), FT(0.95))        # representative F_r values
+        ρ_r_test = (FT(200), FT(400), FT(600), FT(800))    # representative ρ_r values
+        F_r_test = (FT(0), FT(0.5), FT(0.8), FT(0.95))        # representative F_r values
 
         # check that the shape solution solves to give correct values
         for N in N_test

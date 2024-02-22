@@ -228,7 +228,7 @@ Returns the shape parameter μ for a given λ value
 Eq. 3 in Morrison and Milbrandt (2015).
 """
 function DSD_μ(p3::PSP3, λ::FT) where {FT}
-    @assert λ > FT(0)
+    #@assert λ > FT(0)
     return min(p3.μ_max, max(FT(0), p3.a * λ^p3.b - p3.c))
 end
 
@@ -269,7 +269,8 @@ end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, N_0::FT, λ::FT, D_min::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return α_va_si(p3) * N_0 / λ^x * (Γ(x, λ * D_min))
+    return α_va_si(p3) * N_0 / λ^x *
+           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, N_0::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
@@ -280,7 +281,8 @@ end
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, D_min::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return α_va_si(p3) * N_0 / (1 - F_r) / λ^x * (Γ(x, λ * D_min))
+    return α_va_si(p3) * N_0 / (1 - F_r) / λ^x *
+           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
 end
 
 """
@@ -318,6 +320,49 @@ function q_gamma(
 end
 
 """
+    get_bounds(N, N̂, q, F_r, p3, th)
+
+ - N - ice number concentration [1/m3]
+ - N̂ - normalization as set in distribution_parameter_solver()
+ - q - mass mixing ratio
+ - F_r -rime mass fraction [q_rim/q_i]
+ - p3 - a struct with P3 scheme parameters
+ - th -  thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+ Returns estimated guess for λ from q to be used in distribution_parameter_solver()
+"""
+function get_bounds(
+    N::FT,
+    N̂::FT,
+    q::FT,
+    F_r::FT,
+    p3::PSP3,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT}
+
+    left = FT(1e2)
+    right = FT(1e6)
+    radius = FT(0.8)
+
+    ql = q_gamma(p3, F_r, N / N̂, log(left), th)
+    qr = q_gamma(p3, F_r, N / N̂, log(right), th)
+
+    guess =
+        left * (q / (N̂ * ql))^((log(right) - log(left)) / (log(qr) - log(ql)))
+
+    max = log(guess * exp(radius))
+    min = log(guess)
+
+    # Use constant bounds for small λ
+    if guess < FT(2.5 * 1e4) || isequal(guess, NaN)
+        min = log(FT(20000))
+        max = log(FT(50000))
+    end
+
+    return (; min, max)
+end
+
+"""
     distrbution_parameter_solver()
 
  - p3 - a struct with P3 scheme parameters
@@ -344,14 +389,17 @@ function distribution_parameter_solver(
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
     # We divide by N̂ to deal with large N₀ values for Float32
-    N̂ = FT(1e30)
+    N̂ = FT(1e20)
     shape_problem(x) = q / N̂ - q_gamma(p3, F_r, N / N̂, x, th)
+
+    # Get intial guess for solver 
+    (; min, max) = get_bounds(N, N̂, q, F_r, p3, th)
 
     # Find slope parameter
     x =
         RS.find_zero(
             shape_problem,
-            RS.SecantMethod(FT(log(20000)), FT(log(50000))),
+            RS.SecantMethod(min, max),
             RS.CompactSolution(),
             RS.RelativeSolutionTolerance(eps(FT)),
             10,
