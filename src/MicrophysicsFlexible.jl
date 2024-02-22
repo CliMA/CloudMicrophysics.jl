@@ -46,10 +46,12 @@ Base.@kwdef mutable struct CLSetup{FT}
     kernel_limit::FT = FT(500)
     "Coalescence data"
     coal_data = nothing
+    "Sedimentation rate parameters"
+    vel::Vector{Tuple{FT,FT}} = [(FT(2.0), FT(1.0 / 6))]
 end
 
 """
-    coalescence(CLSetup)
+    coalescence(clinfo)
 
  - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
  TODO: currently implemented only for analytical coalescence style
@@ -80,7 +82,7 @@ function coalescence(clinfo::CLSetup{FT}) where {FT}
 end
 
 """
-    condensation(CLSetup)
+    condensation(clinfo, aps, tps, q, ρ, T)
 
  - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
  - `aps` - air properties
@@ -107,6 +109,16 @@ function condensation(
         CPD.update_dist_from_moments!(dist, clinfo.mom[ind_rng])
     end
     return CL.Condensation.get_cond_evap(S, (; ξ=ξ, pdists=clinfo.pdists))
+end
+
+"""
+    sedimentation(clinfo)
+
+ - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
+Returns the integrated fall speeds corresponding to the rate of change of prognostic moments
+"""
+function sedimentation(clinfo::CLSetup{FT}) where {FT}
+    return CL.Sedimentation.get_sedimentation_flux((; pdists=clinfo.pdists, vel=clinfo.vel))
 end
 
 

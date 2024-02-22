@@ -62,6 +62,10 @@ function test_microphysics_flexible(FT)
         TT.@test cond_evap[clinfo.NProgMoms[1]+1] == FT(0)
         # increase cloud mass density
         TT.@test cond_evap[2] > FT(0)
+
+        # Test sedimentation 
+        sed_int = CMF.sedimentation(clinfo)
+        TT.@test all(sed_int .< FT(0))
     end
 end
 
