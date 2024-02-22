@@ -219,6 +219,26 @@ end
 Γ(a::FT) where {FT <: Real} = FT(SF.gamma(a))
 
 """
+    integrate(a, b, c1, c2, c3)
+
+ - a - lower bound 
+ - b - upper bound 
+ - c1, c2, c3 - respective constants 
+
+ Integrates the function c1 * D ^ (c2) * exp(-c3 * D) dD from a to b 
+    Returns the result
+"""
+function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where{FT}
+    if b == Inf
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3))
+    elseif a == 0 
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, b * c3))
+    else 
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3) - Γ(1 + c2, b * c3))
+    end
+end
+
+"""
     DSD_μ(p3, λ)
 
  - p3 - a struct with P3 scheme parameters
@@ -264,25 +284,29 @@ end
 # q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
 function q_s(p3::PSP3, ρ::FT, N_0::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
     x = DSD_μ(p3, λ) + 4
-    return FT(π) / 6 * ρ * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return integrate(D_min, D_max, FT(π) / 6 * ρ * N_0, DSD_μ(p3, λ) + 3, λ)
+    #return FT(π) / 6 * ρ * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
 end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, N_0::FT, λ::FT, D_min::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return α_va_si(p3) * N_0 / λ^x *
-           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return integrate(D_min, FT(Inf), α_va_si(p3) * N_0, DSD_μ(p3, λ) + p3.β_va, λ)
+    #return α_va_si(p3) * N_0 / λ^x *
+    #       (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, N_0::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return α_va_si(p3) * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return integrate(D_min, D_max, α_va_si(p3) * N_0, DSD_μ(p3, λ) + p3.β_va, λ)
+    #return α_va_si(p3) * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, D_min::FT) where {FT}
     x = DSD_μ(p3, λ) + p3.β_va + 1
-    return α_va_si(p3) * N_0 / (1 - F_r) / λ^x *
-           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return integrate(D_min, FT(Inf), α_va_si(p3) * N_0 / (1 - F_r), DSD_μ(p3, λ) + p3.β_va, λ)
+    #return α_va_si(p3) * N_0 / (1 - F_r) / λ^x *
+    #       (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
 end
 
 """
@@ -408,27 +432,7 @@ function distribution_parameter_solver(
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
 end
 
-"""
-    integrate(a, b, c1, c2, c3)
-
- - a - lower bound 
- - b - upper bound 
- - c1, c2, c3 - respective constants 
-
- Integrates the function c1 * D ^ (c2) * exp(-c3 * D) dD from a to b 
-    Returns the result
-"""
-function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where{FT}
-    if b == Inf
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3))
-    elseif a == 0 
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, b * c3))
-    else 
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3) - Γ(1 + c2, b * c3))
-    end
-end
-
-"""
+#= """
 """
 function terminal_velocity_mass(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where{FT}
 
@@ -471,6 +475,6 @@ end
 """
 function terminal_velocity_number(p3::PSP3, N::FT, F_r::FT, ρ_r::FT)
 
-end
+end =#
 
 end
