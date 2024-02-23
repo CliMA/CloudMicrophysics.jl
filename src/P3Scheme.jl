@@ -488,4 +488,44 @@ function terminal_velocity_number(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce
     return v / N
 end
 
+"""
+    D_m (p3, q, N, ρ_r, F_r) 
+
+ - p3 - a struct with P3 scheme parameters 
+ - q - mass mixing ratio 
+ - N - number mixing ratio 
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (q_rim/q_i) 
+
+ Return the mass weighted mean particle size [m]
+"""
+function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+    # Get the thresholds for different particles regimes
+    th = thresholds(p3, ρ_r, F_r)
+    D_th = D_th_helper(p3)
+
+    # Get the shape parameters
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    μ = DSD_μ(p3, λ)
+
+    # Redefine α_va to be in si units
+    α_va = α_va_si(p3)
+
+    # Calculate numerator 
+    n = 0 
+    if F_r == 0 
+        n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n += integrate(D_th, Inf, α_va * N_0, μ + p3.β_va + 1, λ)
+    else 
+        n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ) 
+        n += integrate(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
+        n += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ) 
+        n += integrate(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
+    end
+
+    # Normalize by q
+    return n/q
+
+end
+
 end
