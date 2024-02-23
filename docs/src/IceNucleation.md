@@ -27,14 +27,14 @@ The parameterization for deposition on dust particles is an implementation of
 ## Activated fraction for deposition freezing on dust
 There are 2 parameterizations from [Mohler2006](@cite) available: one
   which calculates the activated fraction and one which calculates nucleation
-  rate. 
+  rate.
 The activated fraction parameterization follows eq. (3) in the paper.
 ```math
 \begin{equation}
 f_i(S_i) = exp[a(S_i - S_0)] - 1
 \end{equation}
 ```
-where 
+where
   - ``f_i`` is the activated fraction
      (the ratio of aerosol particles acting as ice nuclei to the total number of aerosol particles),
   - ``a`` is a scaling parameter dependent on aerosol properties and temperature,
@@ -186,7 +186,7 @@ It is also important to note that this plot is reflective of cirrus clouds
 
 ### Bigg (1953) Volume and Time Dependent Heterogeneous Freezing
 Heterogeneous freezing in the P3 scheme as described in [MorrisonMilbrandt2015](@cite)
-  follows the parameterization from [Bigg1953](@cite) with parameters from 
+  follows the parameterization from [Bigg1953](@cite) with parameters from
   [BarklieGokhale1959](@cite). The number of ice nucleated in a timestep via
   heterogeneous freezing is determined by
 ```math
@@ -246,27 +246,35 @@ Multiple sulphuric acid concentrations, ``x``,
 
 ## INP Concentration Frequency
 
-With this parametrization, the concentration of ice nucleating particles (INPs) is found based on the relative frequency distribution, which depends on the temperature, but does not depend on aerosol types. It is based on [Frostenberg2023](@cite) and is derived from measurements, for marine
-data sets. It is a lognormal distribution, described by
-
+With this parametrization, the concentration of ice nucleating particles (INPs)
+  is found based on the relative frequency distribution, which depends on the temperature,
+  but does not depend on aerosol types.
+It is based on [Frostenberg2023](@cite) and is derived from measurements, for marine data sets.
+It is a lognormal distribution, described by
 ```math
 \begin{equation}
   D(\mu, \sigma^2) = \frac{1}{\sqrt{2 \pi} \sigma} exp \left(- \frac{[ln(a \cdot INPC) - \mu(T)]^2}{2 \sigma^2} \right),
 \end{equation}
 ```
-where ``T`` is the temperature in degrees Celsius, ``INPC`` is the INP concentration in m``^{-3}`` and the temperature-dependent mean ``\mu(T)`` is given by
+where ``T`` is the temperature in degrees Celsius,
+``INPC`` is the INP concentration in m``^{-3}``
+and the temperature-dependent mean ``\mu(T)`` is given by
 ```math
 \begin{equation}
   \mu(T) = ln(-(b \cdot T)^9 \times 10^{-9})
 \end{equation}
 ```
- ``\sigma^2`` is the variance, ``a`` and ``b`` are coefficients. The parameters defined in [Frostenberg2023](@cite) for marine data sets are ``\sigma=1.37``, ``a=1`` m``^3``, ``b=1``/C.
+ ``\sigma^2`` is the variance,
+``a`` and ``b`` are coefficients.
+The parameters defined in [Frostenberg2023](@cite) for marine data sets are
+``\sigma=1.37``, ``a=1`` m``^3``, ``b=1``/C.
 
 !!! note
 
     Our implementation uses base SI units and takes ``T`` in Kelvin.
 
-The following plot shows the relative frequency distribution for INPCs, as a function of temperature (the same as figure 1 in [Frostenberg2023](@cite)). 
+The following plot shows the relative frequency distribution for INPCs,
+as a function of temperature (the same as figure 1 in [Frostenberg2023](@cite)).
 
 ```@example
 include("plots/Frostenberg_fig1.jl")
@@ -276,3 +284,59 @@ include("plots/Frostenberg_fig1.jl")
 The following plot shows the relative frequency distribution for INPCs at the temperature ``T=-16 C``.
 
 ![](Frostenberg_fig1_T16.svg)
+
+
+Some notes on the SDE formulation
+
+```math
+\begin{equation}
+  dx = - \gamma \; x \; dt + g dW
+\end{equation}
+```
+
+```math
+\begin{equation}
+  dW = {\bf{N}}(0, dt^2)
+\end{equation}
+```
+where ``\bf{N}`` is the lognormal distribution.
+
+```math
+\begin{equation}
+  x(t) = x_0 \; e^{-\gamma t} + g \; \int_0^t e^{\gamma(s-t)} dW
+\end{equation}
+```
+where ``1/\gamma`` is the assumed timescale of the process.
+```math
+\begin{equation}
+  {\bf{V}}(x) = g^2 \int_0^t e^{2\gamma(s-t)} ds = \frac{g^2}{2\gamma}(1 - e^{-2\gamma t})
+\end{equation}
+```
+where ``\bf{V}`` is the variance.
+Now we have to map this notation onto our problem.
+
+```math
+\begin{equation}
+  ln(INPC) = dx = -\gamma (x - \mu(T)) dt + g dW
+\end{equation}
+```
+
+```math
+\begin{equation}
+  x(t) = x e^{-\gamma t} + \mu(T) (1 - e^{-\gamma t}) + g \int_0^t e^{-\gamma (t-s)} dW
+\end{equation}
+```
+
+```math
+\begin{equation}
+  x(t) = {\bf{N}}(x_0 e^{-\gamma t} + (1-e^{-\gamma t}) \mu(T), \frac{g^2}{2\gamma} (1-e^{-2\gamma t}))
+\end{equation}
+```
+If ``\gamma >> 1``, then
+```math
+\begin{equation}
+  x(t) = {\bf{N}}(\mu(T), \frac{g^2}{2\gamma})
+\end{equation}
+```
+Hence ``g = \sigma * \sqrt{2 \gamma}``.
+
