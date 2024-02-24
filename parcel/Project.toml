@@ -1,15 +1,9 @@
 [deps]
 CLIMAParameters = "6eacf6c3-8458-43b9-ae03-caf5306d3d53"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-CUDAKernels = "72cfdca4-0801-4ab0-bf6a-d52aa10adc57"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 CloudMicrophysics = "6a9e3e04-43cd-43ba-94b9-e8782df3c71b"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 OrdinaryDiffEq = "1dea7af3-3e70-54e6-95c3-0bf5283fa5ed"
 RootSolvers = "7181ea78-2dcb-4de3-ab41-2b8ab5a31e74"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
-
-[compat]
-CLIMAParameters = "0.9"
