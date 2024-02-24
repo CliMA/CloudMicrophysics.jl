@@ -13,6 +13,7 @@ export ABIFM_J
 export P3_deposition_N_i
 export P3_het_N_i
 export INP_concentration_frequency
+export INP_concentration_mean
 
 """
     dust_activated_number_fraction(dust, ip, Si, T)
@@ -165,7 +166,7 @@ function P3_het_N_i(
 end
 
 """
-    INP_concentration_frequency(INPC,T)
+    INP_concentration_frequency(params,INPC,T)
 
  - `params` - a struct with INPC(T) distribution parameters
  - `INPC` - concentration of ice nucleating particles [m^-3]
@@ -181,12 +182,26 @@ function INP_concentration_frequency(
     T::FT,
 ) where {FT}
 
-    T_celsius = T - 273.15
-    (; σ, a, b) = params
+    μ = INP_concentration_mean(T)
 
-    μ = log(-(b * T_celsius)^9 * 10^(-9))
+    return 1 / (sqrt(2 * FT(π)) * params.σ) *
+           exp(-(log(INPC) - μ)^2 / (2 * params.σ^2))
+end
 
-    return 1 / (sqrt(2 * FT(π)) * σ) * exp(-(log(a * INPC) - μ)^2 / (2 * σ^2))
+
+"""
+    INP_concentration_mean(T)
+
+ - `T` - air temperature [K]
+
+Returns the logarithm of mean INP concentration (in m^-3), depending on the temperature.
+Based on the function μ(T) in Frostenberg et al., 2023. See DOI: 10.5194/acp-23-10883-2023
+"""
+function INP_concentration_mean(T::FT) where {FT}
+
+    T_celsius = T - FT(273.15)
+
+    return log(-(T_celsius)^9 * 10^(-9))
 end
 
 end # end module
