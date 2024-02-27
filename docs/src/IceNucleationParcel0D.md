@@ -223,12 +223,12 @@ Following the water activity based immersion freezing model (ABIFM), the ABIFM d
   per second via immersion freezing can then be calculating using
 ```math
 \begin{equation}
-  P_{ice, immer} = \left[ \frac{dN_i}{dt} \right]_{immer} = J_{immer}A(N_{liq})
+  P_{ice, immer} = \left[ \frac{dN_i}{dt} \right]_{immer} = J_{immer}\;A_{aero}(N_{liq})
   \label{eq:ABIFM_P_ice}
 \end{equation}
 ```
 where ``N_{liq}`` is total number of ice nuclei containing droplets and
-  ``A`` is surface area of those droplets.
+  ``A_{aero}`` is surface area of the ice nucleating particle.
 
 ## Homogeneous Freezing
 Homogeneous freezing follows the water-activity based model described in the
@@ -296,7 +296,8 @@ include("../../parcel/Example_Liquid_only.jl")
 The plots below are the results of the adiabatic parcel model
   with immersion freezing, condensation growth, and deposition growth for
   both a monodisperse and gamma size distribution. Note that this has not
-  yet been validated against literature.
+  yet been validated against literature. Results are very sensitive to 
+  initial conditions.
 
 ```@example
 include("../../parcel/Example_Immersion_Freezing.jl")

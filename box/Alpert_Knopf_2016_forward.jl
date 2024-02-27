@@ -20,7 +20,7 @@ end
 include(joinpath(pkgdir(CM), "box", "box.jl"))
 
 # initial conditions following KA16 figure 4 (Cr1 case)
-A_droplet = FT(1e-5) * 1e-4 # INP surface area, m^2
+A_aero = FT(1e-5) * 1e-4 # INP surface area, m^2
 σg = 10
 N₀ = 1000
 N_ice = 0
@@ -31,10 +31,10 @@ tps = TD.Parameters.ThermodynamicsParameters(FT) # thermodynamics free parameter
 t_0 = 0
 t_end = 3310
 dt = 10
-A_sum = N₀ * A_droplet # Total surface area m^2 when all droplets are equal
+A_sum = N₀ * A_aero # Total surface area m^2 when all droplets are equal
 
 # A vector with surface areas sampled from a lognormal distribution and sorted
-A_distr = RD.rand(DS.LogNormal(log(A_droplet), log(σg)), N₀)
+A_distr = RD.rand(DS.LogNormal(log(A_aero), log(σg)), N₀)
 Aj_unsorted = zeros(N₀)
 for it in range(start = 1, stop = N₀, step = 1)
     Aj_unsorted[it] = A_distr[it]
@@ -45,7 +45,7 @@ Aj_sorted = sort(Aj_unsorted, rev = true)
 # initial condition for the ODE problem
 IC = [T_initial, A_sum, FT(N₀), FT(N_ice)]
 # additional model parameters
-p_def = (; tps, A_droplet, aerosol, cooling_rate, N₀)
+p_def = (; tps, A_aero, aerosol, cooling_rate, N₀)
 
 # run the box model without and with distribution sampling
 sol_cst = run_box(IC, t_0, t_end, (p_def..., const_dt = dt, flag = false))
@@ -80,7 +80,7 @@ MK.lines!(ax2, sol_cst[1, :],          ff_cst,               color = :orange, li
 MK.lines!(ax2, sol_var[1, :],          ff_var,               color = :green3, linewidth = 3, label = "variable A")
 
 idx = (sol_cst[3, :] .> 0)
-MK.lines!(ax3, sol_cst[1, idx], sol_cst[3, idx] .* A_droplet .* 1e4, color = :orange, linewidth = 3, label = "const A")
+MK.lines!(ax3, sol_cst[1, idx], sol_cst[3, idx] .* A_aero .* 1e4, color = :orange, linewidth = 3, label = "const A")
 idx = (sol_var[2, :] .> 0)
 MK.lines!(ax3, sol_var[1, idx], sol_var[2, idx] .* 1e4,              color = :green3, linewidth = 3, label = "variable A")
 MK.ylims!(ax3, 0.75e-6, 2e-1)
