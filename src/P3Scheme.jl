@@ -272,7 +272,22 @@ function q_gamma(
 
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
+    λ = max(10, λ)
     N_0 = DSD_N₀(p3, N, λ)
+    
+
+    println("λ = ", λ)
+    println("N_0 = ", N_0)
+    #println("qs : ")
+    println("    qs = ", q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th))
+    #println("    qrz = ", q_rz(p3, N_0, λ, D_th))
+    println("    qn = ", q_n(p3, N_0, λ, D_th, th.D_gr))
+    println("    qs = ", q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr))
+    println("    qr = ", q_r(p3, F_r, N_0, λ, th.D_cr))
+    println("q_gamma = ", q_s(p3, p3.ρ_i, N_0, λ, FT(0), D_th) +
+    q_n(p3, N_0, λ, D_th, th.D_gr) +
+    q_s(p3, th.ρ_g, N_0, λ, th.D_gr, th.D_cr) +
+    q_r(p3, F_r, N_0, λ, th.D_cr))
 
     return ifelse(
         F_r == FT(0),
@@ -354,8 +369,9 @@ function distribution_parameter_solver(
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
     # We divide by N̂ to deal with large N₀ values for Float32
-    N̂ = FT(1e20)
+    N̂ = FT(1) #FT(1e20)
     shape_problem(x) = q / N̂ - q_gamma(p3, F_r, N / N̂, x, th)
+    println("q/N̂ = ", q/N̂)
 
     # Get intial guess for solver 
     (; min, max) = get_bounds(N, N̂, q, F_r, p3, th)
@@ -367,7 +383,7 @@ function distribution_parameter_solver(
             RS.SecantMethod(min, max),
             RS.CompactSolution(),
             RS.RelativeSolutionTolerance(eps(FT)),
-            10,
+            5,
         ).root
 
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
@@ -499,14 +515,18 @@ end
 
  Return the mass weighted mean particle size [m]
 """
-function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+function D_m(p3::PSP3, log_q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
 
+    q = exp(log_q)
     # Get the shape parameters
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
+    #println("thresholds = ", th)
+    println("λ = ", λ)
+    println("N_0 = ", N_0)
 
     # Redefine α_va to be in si units
     α_va = α_va_si(p3)
@@ -523,6 +543,12 @@ function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
         n += integrate(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
     end
 
+    if n/q > 1e16
+        #println("Dₘ = ", n/q, " q = ", q, " N = ", N, " λ = ", λ, " N0 = ", N_0, " F_r = ", F_r, " ρ_r = ", ρ_r)
+        n = 0
+    end
+
+    #println("Dₘ = ", n/q)
     # Normalize by q
     return n/q
 
