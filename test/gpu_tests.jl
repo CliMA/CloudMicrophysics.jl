@@ -214,11 +214,11 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = CM2.conv_q_liq_to_q_rai(VarTSc, ql[i], ρ[i], N_d = Nd[i])
-        output[2, i] = CM2.conv_q_liq_to_q_rai(LD2004, ql[i], ρ[i], N_d = Nd[i])
-        output[3, i] = CM2.conv_q_liq_to_q_rai(TC1980, ql[i], ρ[i], N_d = Nd[i])
-        output[4, i] = CM2.conv_q_liq_to_q_rai(B1994, ql[i], ρ[i], N_d = Nd[i])
-        output[5, i] = CM2.conv_q_liq_to_q_rai(KK2000, ql[i], ρ[i], N_d = Nd[i])
+        output[1, i] = CM2.conv_q_liq_to_q_rai(VarTSc, ql[i], ρ[i], Nd[i])
+        output[2, i] = CM2.conv_q_liq_to_q_rai(LD2004, ql[i], ρ[i], Nd[i])
+        output[3, i] = CM2.conv_q_liq_to_q_rai(TC1980, ql[i], ρ[i], Nd[i])
+        output[4, i] = CM2.conv_q_liq_to_q_rai(B1994, ql[i], ρ[i], Nd[i])
+        output[5, i] = CM2.conv_q_liq_to_q_rai(KK2000, ql[i], ρ[i], Nd[i])
     end
 end
 

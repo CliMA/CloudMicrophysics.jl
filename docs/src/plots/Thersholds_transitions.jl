@@ -37,36 +37,37 @@ end
 q_liq_range = range(1e-8, stop = 1.5e-3, length = 1000)
 N_d_range = range(1e7, stop = 1e9, length = 1000)
 ρ_air = 1.0 # kg m^-3
+N_d = 1e8
 
 q_liq_K1969 =
     [CM1.conv_q_liq_to_q_rai(rain[1].acnv1M, q_liq) for q_liq in q_liq_range]
 q_liq_K1969_s = [
-    CM1.conv_q_liq_to_q_rai(rain[1].acnv1M, q_liq, smooth_transition = true) for q_liq in q_liq_range
+    CM1.conv_q_liq_to_q_rai(rain[1].acnv1M, q_liq, true) for
+    q_liq in q_liq_range
 ]
 
-q_liq_TC1980 =
-    [CM2.conv_q_liq_to_q_rai(TC1980[2], q_liq, ρ_air) for q_liq in q_liq_range]
+q_liq_TC1980 = [
+    CM2.conv_q_liq_to_q_rai(TC1980[2], q_liq, ρ_air, N_d) for
+    q_liq in q_liq_range
+]
 q_liq_TC1980_s = [
-    CM2.conv_q_liq_to_q_rai(TC1980[2], q_liq, ρ_air, smooth_transition = true) for q_liq in q_liq_range
+    CM2.conv_q_liq_to_q_rai(TC1980[2], q_liq, ρ_air, N_d, true) for
+    q_liq in q_liq_range
 ]
-q_liq_LD2004 =
-    [CM2.conv_q_liq_to_q_rai(LD2004[2], q_liq, ρ_air) for q_liq in q_liq_range]
+q_liq_LD2004 = [
+    CM2.conv_q_liq_to_q_rai(LD2004[2], q_liq, ρ_air, N_d) for
+    q_liq in q_liq_range
+]
 q_liq_LD2004_s = [
-    CM2.conv_q_liq_to_q_rai(LD2004[2], q_liq, ρ_air, smooth_transition = true) for q_liq in q_liq_range
+    CM2.conv_q_liq_to_q_rai(LD2004[2], q_liq, ρ_air, N_d, true) for
+    q_liq in q_liq_range
 ]
 
-N_d_B1994 = [
-    CM2.conv_q_liq_to_q_rai(B1994[3], 5e-4, ρ_air, N_d = N_d) for
-    N_d in N_d_range
-]
+N_d_B1994 =
+    [CM2.conv_q_liq_to_q_rai(B1994[3], 5e-4, ρ_air, N_d) for N_d in N_d_range]
 N_d_B1994_s = [
-    CM2.conv_q_liq_to_q_rai(
-        B1994[3],
-        5e-4,
-        ρ_air,
-        N_d = N_d,
-        smooth_transition = true,
-    ) for N_d in N_d_range
+    CM2.conv_q_liq_to_q_rai(B1994[3], 5e-4, ρ_air, N_d, true) for
+    N_d in N_d_range
 ]
 
 PL.plot(

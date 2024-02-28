@@ -36,50 +36,40 @@ q_rai_range = range(1e-8, stop = 1e-3, length = 1000)
 N_d_range = range(1e7, stop = 1e9, length = 1000)
 q_liq = 5e-4
 q_rai = 5e-4
+N_d = 1e8
 ρ_air = 1.0 # kg m^-3
 
 q_liq_KK2000 = [
-    CM2.conv_q_liq_to_q_rai(KK2000, q_liq, ρ_air, N_d = 1e8) for
-    q_liq in q_liq_range
+    CM2.conv_q_liq_to_q_rai(KK2000, q_liq, ρ_air, N_d) for q_liq in q_liq_range
 ]
-q_liq_B1994 = [
-    CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ_air, N_d = 1e8) for
-    q_liq in q_liq_range
-]
+q_liq_B1994 =
+    [CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ_air, N_d) for q_liq in q_liq_range]
 q_liq_TC1980 = [
-    CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ_air, N_d = 1e8) for
-    q_liq in q_liq_range
+    CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ_air, N_d) for q_liq in q_liq_range
 ]
 q_liq_LD2004 = [
-    CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ_air, N_d = 1e8) for
-    q_liq in q_liq_range
+    CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ_air, N_d) for q_liq in q_liq_range
 ]
 q_liq_VarTimeScaleAcnv = [
-    CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ_air, N_d = 1e8) for
-    q_liq in q_liq_range
+    CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ_air, N_d) for q_liq in q_liq_range
 ]
 q_liq_SB2006 = [
-    CM2.autoconversion(SB2006.acnv, q_liq, q_rai, ρ_air, 1e8).dq_rai_dt for
+    CM2.autoconversion(SB2006.acnv, q_liq, q_rai, ρ_air, N_d).dq_rai_dt for
     q_liq in q_liq_range
 ]
 q_liq_K1969 =
     [CM1.conv_q_liq_to_q_rai(rain.acnv1M, q_liq) for q_liq in q_liq_range]
 
-N_d_KK2000 = [
-    CM2.conv_q_liq_to_q_rai(KK2000, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range
-]
-N_d_B1994 = [
-    CM2.conv_q_liq_to_q_rai(B1994, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range
-]
-N_d_TC1980 = [
-    CM2.conv_q_liq_to_q_rai(TC1980, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range
-]
-N_d_LD2004 = [
-    CM2.conv_q_liq_to_q_rai(LD2004, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range
-]
-N_d_VarTimeScaleAcnv = [
-    CM2.conv_q_liq_to_q_rai(VarTSc, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range
-]
+N_d_KK2000 =
+    [CM2.conv_q_liq_to_q_rai(KK2000, q_liq, ρ_air, N_d) for N_d in N_d_range]
+N_d_B1994 =
+    [CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ_air, N_d) for N_d in N_d_range]
+N_d_TC1980 =
+    [CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ_air, N_d) for N_d in N_d_range]
+N_d_LD2004 =
+    [CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ_air, N_d) for N_d in N_d_range]
+N_d_VarTimeScaleAcnv =
+    [CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ_air, N_d) for N_d in N_d_range]
 N_d_SB2006 = [
     CM2.autoconversion(SB2006.acnv, q_liq, q_rai, ρ_air, N_d).dq_rai_dt for
     N_d in N_d_range

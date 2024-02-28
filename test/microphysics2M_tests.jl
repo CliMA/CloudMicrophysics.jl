@@ -37,21 +37,22 @@ function test_microphysics2M(FT)
         # no reference data available - checking if callable and not NaN
         q_liq = FT(0.5e-3)
         q_rai = FT(1e-6)
+        N_d = FT(1e8)
 
         TT.@test CM2.accretion(KK2000, q_liq, q_rai, ρ) != NaN
         TT.@test CM2.accretion(B1994, q_liq, q_rai, ρ) != NaN
         TT.@test CM2.accretion(TC1980, q_liq, q_rai) != NaN
-        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ) != NaN
+        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, N_d) != NaN
 
         # output should be zero if either q_liq or q_rai are zero
         q_liq = FT(0)
         q_rai = FT(1e-6)
 
-        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(KK2000, q_liq, ρ) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, N_d) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(KK2000, q_liq, ρ, N_d) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ, N_d) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ, N_d) == FT(0)
+        TT.@test CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ, N_d) == FT(0)
         TT.@test CM2.accretion(KK2000, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(B1994, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(TC1980, q_liq, q_rai) == FT(0)
@@ -62,45 +63,20 @@ function test_microphysics2M(FT)
         TT.@test CM2.accretion(B1994, q_liq, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(TC1980, q_liq, q_rai) == FT(0)
 
-        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, N_d = FT(1e8)) >
-                 CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, N_d = FT(1e9))
+        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, N_d) >
+                 CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, 10 * N_d)
 
         # far from threshold points, autoconversion with and without smooth transition should
         # be approximately equal
         q_liq = FT(0.5e-3)
-        TT.@test CM2.conv_q_liq_to_q_rai(
-            B1994,
-            q_liq,
-            ρ,
-            smooth_transition = true,
-        ) ≈ CM2.conv_q_liq_to_q_rai(
-            B1994,
-            q_liq,
-            ρ,
-            smooth_transition = false,
-        ) rtol = 0.2
-        TT.@test CM2.conv_q_liq_to_q_rai(
-            TC1980,
-            q_liq,
-            ρ,
-            smooth_transition = true,
-        ) ≈ CM2.conv_q_liq_to_q_rai(
-            TC1980,
-            q_liq,
-            ρ,
-            smooth_transition = false,
-        ) rtol = 0.2
-        TT.@test CM2.conv_q_liq_to_q_rai(
-            LD2004,
-            q_liq,
-            ρ,
-            smooth_transition = true,
-        ) ≈ CM2.conv_q_liq_to_q_rai(
-            LD2004,
-            q_liq,
-            ρ,
-            smooth_transition = false,
-        ) rtol = 0.2
+        TT.@test CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ, N_d, true) ≈
+                 CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ, N_d, false) rtol = 0.2
+        TT.@test CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ, N_d, true) ≈
+                 CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ, N_d, false) rtol =
+            0.2
+        TT.@test CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ, N_d, true) ≈
+                 CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ, N_d, false) rtol =
+            0.2
 
     end
 
@@ -108,10 +84,11 @@ function test_microphysics2M(FT)
 
         ρ = FT(1)
         q_liq = FT(0.5e-3)
+        N_d = FT(1e8)
 
         # compare with Wood 2005 Fig 1 panel a
         function compare(scheme, input, output; eps = 0.1)
-            TT.@test CM2.conv_q_liq_to_q_rai(scheme, input * FT(1e-3), ρ) ≈
+            TT.@test CM2.conv_q_liq_to_q_rai(scheme, input * FT(1e-3), ρ, N_d) ≈
                      output atol = eps * output
         end
         compare(KK2000, FT(0.03138461538461537), FT(2.636846054348105e-12))
@@ -138,8 +115,8 @@ function test_microphysics2M(FT)
             TT.@test CM2.conv_q_liq_to_q_rai(
                 scheme,
                 q_liq,
-                N_d = input * FT(1e6),
                 ρ,
+                input * FT(1e6),
             ) ≈ output atol = eps * output
         end
         compare_Nd(KK2000, FT(16.13564081404141), FT(6.457285532394289e-8))
