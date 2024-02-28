@@ -208,7 +208,7 @@ Returns the q_rai tendency due to collisions between cloud droplets
 """
 conv_q_liq_to_q_rai(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
-    q_liq::FT;
+    q_liq::FT,
     smooth_transition::Bool = false,
 ) where {FT} =
     smooth_transition ?
@@ -229,7 +229,7 @@ simulations where there is no supersaturation
 """
 conv_q_ice_to_q_sno_no_supersat(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
-    q_ice::FT;
+    q_ice::FT,
     smooth_transition::Bool = false,
 ) where {FT} =
     smooth_transition ?

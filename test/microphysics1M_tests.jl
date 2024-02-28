@@ -112,21 +112,15 @@ function test_microphysics1M(FT)
         q_liq_small = FT(0.5) * q_liq_threshold
         TT.@test CM1.conv_q_liq_to_q_rai(rain.acnv1M, q_liq_small) == FT(0)
 
-        TT.@test CM1.conv_q_liq_to_q_rai(
-            rain.acnv1M,
-            q_liq_small,
-            smooth_transition = true,
-        ) ≈ FT(0.0) atol = 0.15 * q_liq_threshold / τ_acnv_rai
+        TT.@test CM1.conv_q_liq_to_q_rai(rain.acnv1M, q_liq_small, true) ≈
+                 FT(0.0) atol = 0.15 * q_liq_threshold / τ_acnv_rai
 
         q_liq_big = FT(1.5) * q_liq_threshold
         TT.@test CM1.conv_q_liq_to_q_rai(rain.acnv1M, q_liq_big) ≈
                  FT(0.5) * q_liq_threshold / τ_acnv_rai
 
-        TT.@test CM1.conv_q_liq_to_q_rai(
-            rain.acnv1M,
-            q_liq_big,
-            smooth_transition = true,
-        ) ≈ FT(0.5) * q_liq_threshold / τ_acnv_rai atol =
+        TT.@test CM1.conv_q_liq_to_q_rai(rain.acnv1M, q_liq_big, true) ≈
+                 FT(0.5) * q_liq_threshold / τ_acnv_rai atol =
             FT(0.15) * q_liq_threshold / τ_acnv_rai
 
     end
@@ -145,7 +139,7 @@ function test_microphysics1M(FT)
         TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(
             snow.acnv1M,
             q_ice_small,
-            smooth_transition = true,
+            true,
         ) ≈ FT(0.0) atol = FT(0.15) * q_ice_threshold / τ_acnv_sno
 
         q_ice_big = FT(1.5) * q_ice_threshold
@@ -155,9 +149,17 @@ function test_microphysics1M(FT)
         TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(
             snow.acnv1M,
             q_ice_big,
-            smooth_transition = true,
+            true,
         ) ≈ FT(0.5) * q_ice_threshold / τ_acnv_sno atol =
             FT(0.15) * q_ice_threshold / τ_acnv_sno
+
+        TT.@test CM1.conv_q_ice_to_q_sno_no_supersat(snow.acnv1M, q_ice_big) ==
+                 CM1.conv_q_ice_to_q_sno_no_supersat(
+            snow.acnv1M,
+            q_ice_big,
+            false,
+        )
+
     end
 
     TT.@testset "SnowAutoconversion" begin

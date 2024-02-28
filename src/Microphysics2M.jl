@@ -455,7 +455,7 @@ end
 # - variable timescale autoconversion Azimi (2023)
 
 """
-    conv_q_liq_to_q_rai(acnv, q_liq, ρ; N_d, smooth_transition)
+    conv_q_liq_to_q_rai(acnv, q_liq, ρ, N_d; smooth_transition)
 
  - `acnv` - 2-moment rain autoconversion parameterization
  - `q_liq` - cloud water specific humidity
@@ -469,19 +469,12 @@ Returns the q_rai tendency due to collisions between cloud droplets
  - Tripoli and Cotton (1980) for `scheme == TC1980Type`
  - Liu and Daum (2004) for `scheme ==LD2004Type`
 
-`N_d` is an optional argument with the default value of 100 cm-3
-
 The `Beheng1994Type`, `TC1980Type` and `LD2004Type` of schemes
 additionally accept `smooth_transition` flag that
 smoothes their thershold behaviour if set to `true`.
 The default value is `false`.
 """
-function conv_q_liq_to_q_rai(
-    (; acnv)::CMP.KK2000{FT},
-    q_liq,
-    ρ;
-    N_d = FT(1e8),
-) where {FT}
+function conv_q_liq_to_q_rai((; acnv)::CMP.KK2000{FT}, q_liq, ρ, N_d) where {FT}
     q_liq = max(0, q_liq)
     (; A, a, b, c) = acnv
     return A * q_liq^a * N_d^b * ρ^c
@@ -489,8 +482,8 @@ end
 function conv_q_liq_to_q_rai(
     (; acnv)::CMP.B1994{FT},
     q_liq,
-    ρ;
-    N_d = FT(1e8),
+    ρ,
+    N_d,
     smooth_transition = false,
 ) where {FT}
     q_liq = max(0, q_liq)
@@ -508,8 +501,8 @@ end
 function conv_q_liq_to_q_rai(
     (; acnv)::CMP.TC1980{FT},
     q_liq,
-    ρ;
-    N_d = FT(1e8),
+    ρ,
+    N_d,
     smooth_transition = false,
 ) where {FT}
     #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
@@ -524,8 +517,8 @@ end
 function conv_q_liq_to_q_rai(
     (; ρ_w, R_6C_0, E_0, k)::CMP.LD2004{FT},
     q_liq,
-    ρ;
-    N_d = FT(1e8),
+    ρ,
+    N_d,
     smooth_transition = false,
 ) where {FT}
     if q_liq <= eps(FT)
@@ -551,8 +544,8 @@ end
 function conv_q_liq_to_q_rai(
     (; τ, α)::CMP.VarTimescaleAcnv{FT},
     q_liq::FT,
-    ρ::FT;
-    N_d::FT = FT(1e8),
+    ρ::FT,
+    N_d::FT,
 ) where {FT}
     return max(0, q_liq) / (τ * (N_d / 1e8)^α)
 end
