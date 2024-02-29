@@ -41,16 +41,19 @@ end
 
 struct Frostenberg_random{FT} <: CMP.ParametersType{FT}
     ip::CMP.ParametersType{FT}
-    drawing_interval::FT
+    sampling_interval::FT
+    const_dt::FT
 end
 
 struct Frostenberg_stochastic{FT} <: CMP.ParametersType{FT}
     ip::CMP.ParametersType{FT}
     γ::FT
+    const_dt::FT
 end
 
 struct Frostenberg_mean{FT} <: CMP.ParametersType{FT}
     ip::CMP.ParametersType{FT}
+    const_dt::FT
 end
 
 struct ABHOM{FT} <: CMP.ParametersType{FT}

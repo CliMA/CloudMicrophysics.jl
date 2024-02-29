@@ -109,9 +109,9 @@ end
 
 function immersion_freezing(params::Frostenberg_random, PSD, state)
     FT = eltype(state)
-    (; ip, drawing_interval) = params
+    (; ip, sampling_interval, const_dt) = params
     (; T, Nₗ, Nᵢ, t) = state
-    if mod(t, drawing_interval) == 0
+    if mod(t, sampling_interval) == 0
         μ = CMI_het.INP_concentration_mean(T)
         INPC = exp(rand(DS.Normal(μ, ip.σ)))
     else
@@ -122,22 +122,37 @@ end
 
 function immersion_freezing(params::Frostenberg_mean, PSD, state)
     FT = eltype(state)
-    (; ip) = params
+    (; ip, const_dt) = params
     (; T, Nₗ, Nᵢ) = state
     INPC = exp(CMI_het.INP_concentration_mean(T))
     return min(Nₗ, max(FT(0), INPC - Nᵢ)) / const_dt
 end
 
-function immersion_freezing(params::Frostenberg_stochastic, PSD, state)
+function INPC_model(params, state)
     FT = eltype(state)
-    (; ip, γ) = params
-    (; T, Nₗ, Nᵢ, t) = state
+    return FT(0)
+end
+
+function INPC_model(params::Frostenberg_stochastic, state)
+    FT = eltype(state)
+    (; ip, γ, const_dt) = params
+    (; T, ln_INPC, t) = state
+
     μ = CMI_het.INP_concentration_mean(T)
     g = ip.σ * sqrt(2 * γ)
-    mean = (1 - exp(-γ * t)) * μ
-    st_dev = sqrt(g^2 / (2 * γ) * (1 - exp(-2 * γ * t)))
-    INPC = exp(rand(DS.Normal(mean, st_dev)))
-    return min(Nₗ, max(FT(0), INPC - Nᵢ)) / const_dt
+
+    dln_INPC =
+        -γ * (ln_INPC - μ) * const_dt +
+        g * sqrt(const_dt) * rand(DS.Normal(0, 1))
+
+    return dln_INPC / const_dt
+end
+
+function immersion_freezing(params::Frostenberg_stochastic, PSD, state)
+    FT = eltype(state)
+    (; ip, γ, const_dt) = params
+    (; T, Nₗ, Nᵢ, ln_INPC, t) = state
+    return min(Nₗ, max(FT(0), exp(ln_INPC) - Nᵢ)) / const_dt
 end
 
 function homogeneous_freezing(::Empty, PSD, state)

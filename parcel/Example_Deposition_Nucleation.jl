@@ -21,6 +21,7 @@ qᵥ = FT(3.3e-4)
 qₗ = FT(0)
 qᵢ = FT(0)
 x_sulph = FT(0)
+ln_INPC = FT(0)
 
 # Moisture dependent initial conditions
 q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
@@ -32,7 +33,7 @@ eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 e = eᵥ(qᵥ, p₀, Rₐ, Rᵥ)
 
 Sₗ = FT(e / eₛ)
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph, ln_INPC]
 
 # Simulation parameters passed into ODE solver
 r_nuc = FT(1.25e-6)                     # assumed size of nucleated particles

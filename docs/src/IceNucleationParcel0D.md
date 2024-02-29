@@ -296,7 +296,7 @@ include("../../parcel/Example_Liquid_only.jl")
 The plots below are the results of the adiabatic parcel model
   with immersion freezing, condensation growth, and deposition growth for
   both a monodisperse and gamma size distribution. Note that this has not
-  yet been validated against literature. Results are very sensitive to 
+  yet been validated against literature. Results are very sensitive to
   initial conditions.
 
 ```@example
@@ -338,77 +338,59 @@ include("../../parcel/Example_P3_ice_nuc.jl")
 
 ## Immersion Freezing Parametrization based on Frostenberg et al. 2023
 
-The parcel model also includes the parametrization of immersion freezing based on [Frostenberg2023](@cite).
-The concentration of ice nucleating particles (INPs) is randomly selected based on a lognormal relative frequency distribution, depending only on the temperature. If the random INP concentration exceeds the existing concentration of ice crystals, new ice crystals are created, such that their total concentration is equal to the new INP concentration.
+Here we show the parcel model results when using the parametrization of immersion freezing
+  based on [Frostenberg2023](@cite).
+The concentration of ice nucleating particles (INPC) depends only on air temperature,
+  and is based on a lognormal relative frequency distribution.
+New ice crystals are created if the INPC exceeds the existing concentration of ice crystals,
+  provided there are sufficient numbers of cloud liquid droplets to freeze.
 
 Three different implementations of this parametrization are used in the parcel model:
-- **Frostenberg_mean**, in which the concentration of INPs is equal to its mean value defined in [Frostenberg2023](@cite) for a given temperature,
-- **Frostenberg_random**, in which the concentration of INPs is drawn randomly from the distribution defined in [Frostenberg2023](@cite). The time between draws is set by the *drawing_interval* parameter,
-- **Frostenberg_stochastic**, in which the freezing is treated as a stochastic process, with mean defined in [Frostenberg2023](@cite) and Wiener noise. The timescale of the process is set by the `\gamma` parameter. 
+- `mean` - in which INPC is equal to its mean value defined in [Frostenberg2023](@cite).
+- `random` - in which INPC is sampled randomly from the distribution defined in [Frostenberg2023](@cite).
+  The number of model time steps between sampling is set by `sampling_interval`.
+- `stochastic` - in which INPC is solved for as a stochastic process,
+  with the mean and standard deviation defined in [Frostenberg2023](@cite).
+  The inverse timescale of the process is set by ``\gamma``.
 
-
-The stochastic implementation is based on the equation for a stochastic process $x$ with Gaussian random noise:
-
+The stochastic implementation is based on the equation for a generic
+  stochastic process ``x`` with Gaussian random noise (i.e. Wiener process):
 ```math
 \begin{equation}
-  dx = - \gamma \; x \; dt + g dW
+  dx = - \gamma \; x \; dt + g dW; \;\;\;\;\;\;\;   dW = {\bf{N}}(0, dt^2),
 \end{equation}
 ```
-
-```math
-\begin{equation}
-  dW = {\bf{N}}(0, dt^2)
-\end{equation}
-```
-where ``\bf{N}`` is the lognormal distribution.
-
+where ``\bf{N}`` is the normal distribution.
+For constant ``\gamma`` and ``g``, ``x`` has solution
 ```math
 \begin{equation}
   x(t) = x_0 \; e^{-\gamma t} + g \; \int_0^t e^{\gamma(s-t)} dW
 \end{equation}
 ```
 where ``1/\gamma`` is the assumed timescale of the process.
+We can calculate the variance ``\bf{V}`` as,
 ```math
 \begin{equation}
-  {\bf{V}}(x) = g^2 \int_0^t e^{2\gamma(s-t)} ds = \frac{g^2}{2\gamma}(1 - e^{-2\gamma t})
-\end{equation}
-```
-where ``\bf{V}`` is the variance.
-We map this notation onto our problem:
-
-```math
-\begin{equation}
-  x = ln(INPC)
+  {\bf{V}}(t) = g^2 \int_0^t e^{2\gamma(s-t)} ds = \frac{g^2}{2\gamma}(1 - e^{-2\gamma t}).
 \end{equation}
 ```
 
+We use this process to model ``x=\log(\text{INPC})``,
+  which tends toward the mean ``\mu(T)``.
+If we denote ``\tau = 1 / \gamma`` as the process timescale and
+  ``\sigma = g / \sqrt{2 / \gamma}`` as the process uncertainty,
+  then
 ```math
 \begin{equation}
-  dx = -\gamma (x - \mu(T)) dt + g dW
+  \frac{d\log(\text{INPC})}{dt} = - \frac{\log(\text{INPC}) - μ}{\tau} + \sigma \sqrt{\frac{2}{\tau \; dt}} \; {\bf{N}}(0, 1))
 \end{equation}
 ```
 
-```math
-\begin{equation}
-  x(t) = x e^{-\gamma t} + \mu(T) (1 - e^{-\gamma t}) + g \int_0^t e^{-\gamma (t-s)} dW
-\end{equation}
-```
-
-```math
-\begin{equation}
-  x(t) = {\bf{N}}(x_0 e^{-\gamma t} + (1-e^{-\gamma t}) \mu(T), \frac{g^2}{2\gamma} (1-e^{-2\gamma t}))
-\end{equation}
-```
-If ``\gamma >> 1``, then
-```math
-\begin{equation}
-  x(t) = {\bf{N}}(\mu(T), \frac{g^2}{2\gamma})
-\end{equation}
-```
-Hence ``g = \sigma * \sqrt{2 \gamma}``.
-
-
-The following plot shows resuls of the parcel model with Frostenberg_mean parametrization, Frostenberg_random parametrization with different drawing intervals `t_d` and Frostenberg_stochastic parametrization with different time scales `\gamma`. The timestep of the model is 1 s.
+The following plot shows resuls of the parcel model with the `mean` (black line),
+  `random` (dotted lines) and `stochastic` (solid lines) parameterization options.
+We show results for two sampling intervals ``\Delta t`` (random),
+  two process time scales ``\tau`` (stochastic),
+  and two model time steps `dt`.
 
 ```@example
 include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl")

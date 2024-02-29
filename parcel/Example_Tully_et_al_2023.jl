@@ -13,24 +13,25 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 """
 function get_initial_condition(
     tps,
-    p_a,
+    p_air,
     T,
-    q_vap,
-    q_liq,
-    q_ice,
-    N_aer,
-    N_liq,
-    N_ice,
+    qᵥ,
+    qₗ,
+    qᵢ,
+    Nₐ,
+    Nₗ,
+    Nᵢ,
     x_sulph,
+    ln_INPC,
 )
-    q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     R_a = TD.gas_constant_air(tps, q)
     R_v = TD.Parameters.R_v(tps)
     e_sl = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-    e = eᵥ(q_vap, p_a, R_a, R_v)
-    S_liq = e / e_sl
+    e = eᵥ(qᵥ, p_air, R_a, R_v)
+    Sₗ = e / e_sl
 
-    return [S_liq, p_a, T, q_vap, q_liq, q_ice, N_aer, N_liq, N_ice, x_sulph]
+    return [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph, ln_INPC]
 end
 
 """
@@ -55,6 +56,7 @@ function Tully_et_al_2023(FT)
     q_liq_0 = FT(0)
     q_ice_0 = FT(0)
     x_sulph = FT(0)
+    ln_INPC = FT(0)
     # Initial conditions for the 2nd period
     T2 = FT(229.25)
     q_vap2 = FT(3.3e-4)
@@ -106,6 +108,7 @@ function Tully_et_al_2023(FT)
             N_droplets,
             N_0,
             x_sulph,
+            ln_INPC,
         )
         sol1 = run_parcel(IC1, 0, t_max, params)
         if mode == "MohlerAF"
@@ -124,6 +127,7 @@ function Tully_et_al_2023(FT)
                 sol1[8, end],
                 sol1[9, end],
                 x_sulph,
+                ln_INPC,
             )
             sol2 = run_parcel(IC2, sol1.t[end], sol1.t[end] + t_max, params)
 
@@ -142,6 +146,7 @@ function Tully_et_al_2023(FT)
                 sol2[8, end],
                 sol2[9, end],
                 x_sulph,
+                ln_INPC,
             )
             sol3 = run_parcel(IC3, sol2.t[end], sol2.t[end] + t_max, params)
 
