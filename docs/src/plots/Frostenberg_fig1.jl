@@ -2,7 +2,7 @@ import Plots as PL
 
 import CloudMicrophysics as CM
 import CloudMicrophysics.HetIceNucleation as IN
-import CLIMAParameters as CP
+import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 
 FT = Float32

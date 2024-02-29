@@ -1,6 +1,6 @@
 import CairoMakie as MK
 
-import CLIMAParameters
+import ClimaParams
 import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CloudMicrophysics.Common as CMO

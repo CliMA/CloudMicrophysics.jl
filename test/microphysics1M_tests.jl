@@ -2,7 +2,7 @@ import Test as TT
 
 import Thermodynamics as TD
 import CloudMicrophysics as CM
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 import Thermodynamics.Parameters as TDP
 import CloudMicrophysics.Parameters as CMP

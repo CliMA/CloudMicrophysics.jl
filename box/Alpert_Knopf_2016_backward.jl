@@ -3,7 +3,7 @@ import Dierckx as DX
 import Random as RD
 import Distributions as DS
 
-import CLIMAParameters
+import ClimaParams
 import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP

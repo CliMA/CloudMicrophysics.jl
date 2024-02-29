@@ -1,5 +1,5 @@
 using Test
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters.MixedNucleationParameters

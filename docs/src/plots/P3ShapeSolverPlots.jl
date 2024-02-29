@@ -1,6 +1,6 @@
 import CairoMakie as Plt
 import CloudMicrophysics as CM
-import CLIMAParameters as CP
+import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.P3Scheme as P3
 
