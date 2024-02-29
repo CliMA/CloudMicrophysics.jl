@@ -10,7 +10,7 @@ The microphysics variables are expressed as specific humidities [kg/kg] and numb
   - `N_liq` - cloud droplets number density,
   - `N_rai` - raindrops number density.
 The default values of free parameters are defined in
-  [CLIMAParameters](https://github.com/CliMA/CLIMAParameters.jl)
+  [ClimaParams](https://github.com/CliMA/ClimaParams.jl)
   and can be overwritten using the `toml` files.
 
 ## The Seifert and Beheng (2006) parametrization

@@ -1,7 +1,7 @@
 import Plots
 
 import CloudMicrophysics
-import CLIMAParameters
+import ClimaParams
 import Thermodynamics
 
 const PL = Plots

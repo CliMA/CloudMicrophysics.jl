@@ -90,9 +90,9 @@ The name of the function should be self-explanatory yet brief.
 All functions should have docstrings describing the API, as well as
   documentation focusing on the scientific aspects of what they do.
 All functions should have their own unit, performance and GPU tests.
-All free parameters should be stored in [CLIMAParameters](https://github.com/CliMA/CLIMAParameters.jl).
+All free parameters should be stored in [ClimaParams](https://github.com/CliMA/ClimaParams.jl).
 It is usually faster to prototype defining the free parameters locally,
-  and move them to `CLIMAParameters` at a last step.
+  and move them to `ClimaParams` at a last step.
 
 Other files that may require editing after you make a new function are:
  - `CloudMicrophysics.jl` (found in `src` folder) if you need to include a new source file,
@@ -134,7 +134,7 @@ They can be found in the `test` folder under files named after corresponding sou
 If you create a new function, please also create a new test that checks it.
 If creating a new file for unit tests, make sure you import `Test` and any other necessary libraries.
 There is some boilerplate code needed to create the sets with free parameters
-  based on the default `toml` file from [CLIMAParameters](https://github.com/CliMA/CLIMAParameters.jl).
+  based on the default `toml` file from [ClimaParams](https://github.com/CliMA/ClimaParams.jl).
 
 Some possible tests include checking if the returned values agree with values
   in the literature, if something is smaller/greater at warmer/cooler

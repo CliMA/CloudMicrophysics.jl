@@ -26,7 +26,7 @@ See [our documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) for t
 CloudMicrophysics.jl is a Julia registered package.
 It depends on a couple of standard Julia packages as well as
   the [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl) and
-  [CLIMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl)
+  [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl)
   (two Julia packages developed at [CliMA](https://github.com/CliMA)).
 See the [Project.toml](https://github.com/CliMA/CloudMicrophysics.jl/blob/main/Project.toml)
   for a full list of CloudMicrophysics.jl's dependencies.

@@ -125,13 +125,33 @@ As a result ``q\_{ice}`` can be expressed as a sum of inclomplete gamma function
 |      condition(s)                            |    ``q_{ice} = \int \! m(D) N'(D) \mathrm{d}D``                                          |         gamma representation          |
 |:---------------------------------------------|:-----------------------------------------------------------------------------------------|:---------------------------------------------|
 | ``D < D_{th}``                               | ``\int_{0}^{D_{th}} \! \frac{\pi}{6} \rho_i \ D^3 N'(D) \mathrm{d}D``                    | ``\frac{\pi}{6} \rho_i N_0 \lambda \,^{-(\mu \, + 4)} (\Gamma \,(\mu \, + 4) - \Gamma \,(\mu \, + 4, \lambda \,D_{th}))``|
-| ``q_{rim} = 0`` and ``D > D_{th}``           | ``\int_{D_{th}}^{\infty} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1) + \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}) - (\mu \, + \beta_{va} \,)\Gamma \,(\mu \, + \beta_{va} \,))`` |
+| ``q_{rim} = 0`` and ``D > D_{th}``           | ``\int_{D_{th}}^{\infty} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}))`` |
 | ``q_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\int_{D_{th}}^{D_{gr}} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}) - \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{gr}))`` |
 | ``q_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\int_{D_{gr}}^{D_{cr}} \! \frac{\pi}{6} \rho_g \ D^3 N'(D) \mathrm{d}D``               | ``\frac{\pi}{6} \rho_g N_0 \lambda \,^{-(\mu \, + 4)} (\Gamma \,(\mu \, + 4, \lambda \,D_{gr}) - \Gamma \,(\mu \, + 4, \lambda \,D_{cr}))`` |
-| ``q_{rim} > 0`` and ``D > D_{cr}``           | ``\int_{D_{cr}}^{\infty} \! \frac{\alpha_{va}}{1-F_r} D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\frac{\alpha_{va}}{1-F_r} N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1) + \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{cr}) - (\mu \, + \beta_{va} \,)\Gamma \,(\mu \, + \beta_{va} \,))``  |
+| ``q_{rim} > 0`` and ``D > D_{cr}``           | ``\int_{D_{cr}}^{\infty} \! \frac{\alpha_{va}}{1-F_r} D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\frac{\alpha_{va}}{1-F_r} N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{cr}))``  |
 
 where ``\Gamma \,(a, z) = \int_{z}^{\infty} \! t^{a - 1} e^{-t} \mathrm{d}D``
   and ``\Gamma \,(a) = \Gamma \,(a, 0)`` for simplicity.
+
+An initial guess for the non-linear solver is found by approximating the gamma functions as a simple power function. 
+
+```@example
+include("plots/P3ShapeSolverPlots.jl")
+```
+![](SolverInitialGuess.svg)
+
+This equation is given by ``(log(q_{approx}) - log(q1)) = slope (log(\lambda) - log(p1))``. Solving for ``q_{approx}`` we get `` q_{approx} = q_1 \frac{\lambda}{p_1} ^{slope}`` where `` slope = \frac{log(q1) - log(q2)}{log(p1) - log(p2)}``, ``p1`` and ``p2`` are defining ``\lambda`` values of the estimated line (we use p1 = 1e2, p2 = 1e6), ``q1 = q(p1)`` and ``q2 = q(p2)`` are the corresponding calculated q values for the given ``F_r`` and ``\rho_r`` values. 
+
+We use this approximation to calculate a ``\lambda_{guess}`` value which will set our initial guess. Solving for ``\lambda`` in the power function we get ``\lambda_{guess} = p1 (\frac{q}{q1})^{(\frac{log(q1)-log(q2)}{log(p1)-log(p2)})}``. Thus, given any q we can calculate a ``\lambda`` around which to expect the true solved ``\lambda`` value. 
+
+For small values of ``\lambda_{guess}`` it was found to be more efficient to use constant initial guesses. 
+
+Using this approach we get the following relative errors in our solved ``\lambda`` vs the expected ``lambda`` within the solver. 
+
+```@example
+include("plots/P3LambdaErrorPlots.jl")
+```
+![](P3LambdaHeatmap.svg)
 
 ## Example figures
 

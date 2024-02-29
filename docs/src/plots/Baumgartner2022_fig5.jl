@@ -3,7 +3,7 @@ import CairoMakie as MK
 
 import CloudMicrophysics as CM
 import Thermodynamics as TD
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 const CMO = CM.Common
 const CMP = CM.Parameters

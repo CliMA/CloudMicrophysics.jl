@@ -1,7 +1,7 @@
 import Test as TT
 import BenchmarkTools as BT
 
-import CLIMAParameters
+import ClimaParams
 import Thermodynamics as TD
 
 import CloudMicrophysics.Common as CO

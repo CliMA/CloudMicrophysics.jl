@@ -3,10 +3,10 @@ import CairoMakie as MK
 
 import Thermodynamics as TD
 import CloudMicrophysics as CM
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 # definition of the ODE problem for parcel model
-include(joinpath(pkgdir(CM), "parcel", "parcel.jl"))
+include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 """
     Wrapper for initial condition
@@ -27,7 +27,7 @@ function get_initial_condition(
     R_a = TD.gas_constant_air(tps, q)
     R_v = TD.Parameters.R_v(tps)
     e_sl = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-    e = q_vap * p_a * R_v / R_a
+    e = eᵥ(q_vap, p_a, R_a, R_v)
     S_liq = e / e_sl
 
     return [S_liq, p_a, T, q_vap, q_liq, q_ice, N_aer, N_liq, N_ice, x_sulph]
@@ -45,9 +45,6 @@ function Tully_et_al_2023(FT)
 
     # get free parameters
     tps = TD.Parameters.ThermodynamicsParameters(FT)
-    aps = CMP.AirProperties(FT)
-    wps = CMP.WaterProperties(FT)
-    ip = CMP.IceNucleationParameters(FT)
     # Initial conditions for 1st period
     N_aerosol = FT(2000 * 1e3)
     N_droplets = FT(0)
@@ -69,49 +66,34 @@ function Tully_et_al_2023(FT)
     t_max = 30 * 60
 
     # Simulation parameters passed into ODE solver
-    r_nuc = FT(0.5 * 1.e-4 * 1e-6)             # assumed size of nucleated particles
-    w = FT(3.5 * 1e-2)                         # updraft speed
-    α_m = FT(0.5)                              # accomodation coefficient
-    const_dt = 0.1                             # model timestep
-    aerosol = CMP.DesertDust(FT)               # aerosol type
-    ice_nucleation_modes_list =                # ice nucleation modes
-        [["MohlerAF_Deposition"], ["MohlerRate_Deposition"]]
-    growth_modes = ["Deposition"]              # switch on deposition growth
-    droplet_size_distribution = ["Monodisperse"]
+    r_nuc = FT(0.5 * 1.e-4 * 1e-6)                    # assumed size of nucleated particles
+    w = FT(3.5 * 1e-2)                                # updraft speed
+    const_dt = 0.1                                    # model timestep
+    aerosol = CMP.DesertDust(FT)                      # aerosol type
+    ice_nucleation_modes = ["MohlerAF", "MohlerRate"] # ice nucleation modes
+    deposition_growth = "Deposition"                  # switch on deposition growth
+    size_distribution = "Monodisperse"
 
     # Plots
-    fig = MK.Figure(resolution = (800, 600))
+    fig = MK.Figure(size = (800, 600))
     ax1 = MK.Axis(fig[1, 1], ylabel = "Supersaturation [-]")
     ax2 = MK.Axis(fig[1, 2], ylabel = "Temperature [K]")
     ax3 = MK.Axis(fig[2, 1], ylabel = "N act [1/dm3]", yscale = log10)
     ax4 = MK.Axis(fig[2, 2], ylabel = "N areo [1/dm3]")
     ax5 = MK.Axis(fig[3, 1], ylabel = "q_vap [g/kg]", xlabel = "Height [m]")
     ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]", xlabel = "Height [m]")
-
-    #MK.ylims!(ax1, 1.0, 1.5)
     MK.ylims!(ax3, 3, 2e3)
 
-    ξ(T) =
-        TD.saturation_vapor_pressure(tps, T, TD.Liquid()) /
-        TD.saturation_vapor_pressure(tps, T, TD.Ice())
-    S_i(T, S_liq) = ξ(T) * S_liq - 1
-
-    for ice_nucleation_modes in ice_nucleation_modes_list
-        p = (;
-            wps,
-            aps,
-            tps,
-            ip,
-            const_dt,
-            r_nuc,
-            w,
-            α_m,
-            aerosol,
-            ice_nucleation_modes,
-            growth_modes,
-            droplet_size_distribution,
+    for mode in ice_nucleation_modes
+        params = parcel_params{FT}(
+            const_dt = const_dt,
+            r_nuc = r_nuc,
+            w = w,
+            aerosol = aerosol,
+            deposition = mode,
+            deposition_growth = deposition_growth,
+            size_distribution = size_distribution,
         )
-
         # Simulation 1
         IC1 = get_initial_condition(
             tps,
@@ -125,8 +107,8 @@ function Tully_et_al_2023(FT)
             N_0,
             x_sulph,
         )
-        sol1 = run_parcel(IC1, 0, t_max, p)
-        if ice_nucleation_modes == ["MohlerAF_Deposition"]
+        sol1 = run_parcel(IC1, 0, t_max, params)
+        if mode == "MohlerAF"
             # Simulation 2
             # (alternatively set T and take q_vap from the previous simulation)
             #IC2 = get_initial_condition(sol1[2, end], sol1[3, end], T2, sol1[5, end], 0.0, sol1[6, end], sol1[7, end])
@@ -143,7 +125,7 @@ function Tully_et_al_2023(FT)
                 sol1[9, end],
                 x_sulph,
             )
-            sol2 = run_parcel(IC2, sol1.t[end], sol1.t[end] + t_max, p)
+            sol2 = run_parcel(IC2, sol1.t[end], sol1.t[end] + t_max, params)
 
             # Simulation 3
             # (alternatively set T and take q_vap from the previous simulation)
@@ -161,7 +143,7 @@ function Tully_et_al_2023(FT)
                 sol2[9, end],
                 x_sulph,
             )
-            sol3 = run_parcel(IC3, sol2.t[end], sol2.t[end] + t_max, p)
+            sol3 = run_parcel(IC3, sol2.t[end], sol2.t[end] + t_max, params)
 
             # Plot results
             sol = [sol1, sol2, sol3]
@@ -177,14 +159,14 @@ function Tully_et_al_2023(FT)
                 MK.lines!(
                     ax1,
                     sol[it].t * w,
-                    S_i.(sol[it][3, :], sol[it][1, :]),
+                    S_i.(tps, sol[it][3, :], sol[it][1, :]) .- 1,
                     linestyle = :dash,
                     color = clr[it],
                 )
             end
             #! format: on
 
-        elseif ice_nucleation_modes == ["MohlerRate_Deposition"]
+        elseif mode == "MohlerRate"
             MK.lines!(ax1, sol1.t * w, sol1[1, :] .- 1, color = :lightblue)
             MK.lines!(ax2, sol1.t * w, sol1[3, :], color = :lightblue)
             MK.lines!(ax3, sol1.t * w, sol1[9, :] * 1e-3, color = :lightblue)
@@ -195,7 +177,7 @@ function Tully_et_al_2023(FT)
             MK.lines!(
                 ax1,
                 sol1.t * w,
-                S_i.(sol1[3, :], sol1[1, :]),
+                S_i.(tps, sol1[3, :], sol1[1, :]) .- 1,
                 linestyle = :dash,
                 color = :lightblue,
             )
