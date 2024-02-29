@@ -3,7 +3,7 @@ import CairoMakie as MK
 
 import Thermodynamics as TD
 import CloudMicrophysics as CM
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))

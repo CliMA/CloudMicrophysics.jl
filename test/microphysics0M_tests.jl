@@ -1,6 +1,6 @@
 import Test as TT
 
-import CLIMAParameters
+import ClimaParams
 import Thermodynamics as TD
 
 import CloudMicrophysics.Parameters as CMP

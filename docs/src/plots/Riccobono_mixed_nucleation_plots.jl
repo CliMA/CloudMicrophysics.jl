@@ -1,6 +1,6 @@
 using Plots
 
-import CLIMAParameters as CP
+import ClimaParams as CP
 import CloudMicrophysics.Nucleation as Nucleation
 import CloudMicrophysics.Parameters as CMP
 

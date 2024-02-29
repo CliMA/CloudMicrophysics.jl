@@ -11,7 +11,7 @@ The cloud microphysics variables are expressed as specific humidities:
   - `q_ice` - cloud ice specific humidity,
 
 Parameters used in the parameterization are defined in
-  [CLIMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) package.
+  [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package.
 They consist of:
 
 |    symbol                  |         definition                                        | units                    | default value          | reference |

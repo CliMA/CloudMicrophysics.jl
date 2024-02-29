@@ -8,12 +8,12 @@
 # `CloudMicrophysics.jl` is designed to allow easy parameter calibrations.
 # As a result, free parameters are not hard-coded in the source code but are instead
 # passed as arguments to functions. The default values are stored in a separate
-# repository [CLIMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) in a `toml` file.
+# repository [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) in a `toml` file.
 
-# We start by importing the `CLIMAParameters` package and the needed
+# We start by importing the `ClimaParams` package and the needed
 # `CloudMicrophysics.jl` modules. We define the precision type.
 
-import CLIMAParameters as CP
+import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2

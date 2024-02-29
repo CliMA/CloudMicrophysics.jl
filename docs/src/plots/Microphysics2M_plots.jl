@@ -1,7 +1,7 @@
 using CairoMakie
 CairoMakie.activate!(type = "svg")
 
-import CLIMAParameters
+import ClimaParams
 import Thermodynamics as TD
 import CloudMicrophysics
 import CloudMicrophysics.Microphysics1M as CM1

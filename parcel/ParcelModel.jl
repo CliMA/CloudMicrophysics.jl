@@ -172,7 +172,7 @@ The parcel parameters struct comes with default values that can be overwritten:
  - deposition_growth - string with deposition/sublimation options for ice crystals ["None" (default), "Deposition"]
  - size_distribution - string with cloud droplet and ice crystal size disribution choice ["Monodisperse" (default), "Gamma"]
  - aerosol - a struct with aerosol parameters required by the nucleation parameterizations, see CloudMicrophysics documentation for all the options. The default is an Empty struct.
- - wps, aps, tps, ips, H₂SO₄ps - structs with additional free parameters needed by the parameterizations. By default we use the values stored in ClimaParameters.jl. See CloudMicrophysics docs for more details.
+ - wps, aps, tps, ips, H₂SO₄ps - structs with additional free parameters needed by the parameterizations. By default we use the values stored in ClimaParams.jl. See CloudMicrophysics docs for more details.
  - const_dt - model timestep [s]. Parcel model is using a simple Euler timestepper. Default value is 1 s
  - w - parcel vertical velocity [m/s]. Default value is 1 m/s
  - r_nuc - assumed size of nucleating ice crystals. Default value is 5e-11 [m]

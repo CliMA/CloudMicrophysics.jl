@@ -4,7 +4,7 @@ using ClimaComms
 
 # Needed for parameters
 import CloudMicrophysics.Parameters as CMP
-import CLIMAParameters as CP
+import ClimaParams as CP
 import Thermodynamics as TD
 
 # Modules to test

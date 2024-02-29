@@ -1,13 +1,13 @@
 import Plots
 
 import CloudMicrophysics
-import CLIMAParameters
+import ClimaParams
 import Thermodynamics
 
 const PL = Plots
 const AM = CloudMicrophysics.AerosolModel
 const AA = CloudMicrophysics.AerosolActivation
-const CP = CLIMAParameters
+const CP = ClimaParams
 const CMP = CloudMicrophysics.Parameters
 const TD = Thermodynamics
 
