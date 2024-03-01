@@ -5,9 +5,15 @@ Flexible N-moment microphysics representation, including:
   - Power-series representation of fall-speed 
   - Power-series representation of condensational growth
   TODO: no representation of ventilation effects
+  TODO: conversion back to N_rai, N_liq, q_rai, q_liq
 """
 module MicrophysicsFlexible
 
+"""
+A structure containing the subdistributions, their moments, and additional
+dynamical parameters corresponding to rates of collision, sedimentation, and
+condensation/evaporation
+"""
 mutable struct CLSetup{FT}
     "Subdistributions of the hydrometeor size distribution; defaults to
     exponential cloud mode and gamma rain mode"
@@ -30,10 +36,35 @@ mutable struct CLSetup{FT}
     vel::Vector{Tuple{FT, FT}}
 end
 
+"""
+    coalescence(clinfo)
+
+ - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
+ TODO: currently implemented only for analytical coalescence style
+
+Returns a vector of moment tendencies due to collisional coalescence
+"""
 function coalescence end
 
+"""
+    condensation(clinfo, aps, tps, q, ρ, T)
+
+ - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
+ - `aps` - air properties
+ - `tps` - thermodynamics parameters
+ - `q` - phase partition
+ - `ρ` - air density
+ - `T` - air temperature
+Returns a vector of moment tendencies due to condensation/evaporation
+"""
 function condensation end
 
+"""
+    sedimentation(clinfo)
+
+ - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
+Returns the integrated fall speeds corresponding to the rate of change of prognostic moments
+"""
 function sedimentation end
 
 end

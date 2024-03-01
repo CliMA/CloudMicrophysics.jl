@@ -53,6 +53,15 @@ Microphysics2M.rain_evaporation
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
+# Flexible N-moment precipitation microphysics
+```@docs
+MicrophysicsFlexible
+MicrophysicsFlexible.CLSetup
+MicrophysicsFlexible.coalescence
+MicrophysicsFlexible.condensation
+MicrophysicsFlexible.sedimentation
+```
+
 # P3 scheme
 
 ```@docs
