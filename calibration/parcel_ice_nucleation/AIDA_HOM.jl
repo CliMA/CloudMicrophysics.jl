@@ -17,6 +17,7 @@ include(joinpath(
     pkgdir(CM),
     "calibration",
     "parcel_ice_nucleation",
-    "AIDA Chamber Data/homogeneous freezing/IN05_17/in05_17_aida.edf"
+    "AIDA_Chamber_Data/homogeneous_freezing/IN05_17/in05_17_aida.edf"
 ))
 
+include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
