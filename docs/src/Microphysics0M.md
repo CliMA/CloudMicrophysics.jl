@@ -12,7 +12,7 @@ The ``q_{tot}`` (total water specific humidity) sink due to precipitation
 The threshold for removing excess ``q_{tot}`` is defined either by the
   condensate specific humidity or supersaturation.
 The thresholds and the relaxation timescale are defined in
-  `CLIMAParameters.jl`.
+  `ClimaParams.jl`.
 
 !!! note
 

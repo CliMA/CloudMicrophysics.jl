@@ -4,7 +4,7 @@ import SpecialFunctions as SF
 
 import Thermodynamics as TD
 import CloudMicrophysics as CM
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO

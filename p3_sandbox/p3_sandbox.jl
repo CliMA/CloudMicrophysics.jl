@@ -1,6 +1,6 @@
 import OrdinaryDiffEq as ODE
 
-import CLIMAParameters
+import ClimaParams
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.HetIceNucleation as CMI_het

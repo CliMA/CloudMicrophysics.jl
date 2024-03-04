@@ -11,7 +11,7 @@ import CloudMicrophysics.HetIceNucleation as CMI_het
 function box_model(dY, Y, p, t)
 
     # Get simulation parameters
-    (; tps, A_droplet, aerosol, cooling_rate) = p
+    (; tps, A_aero, aerosol, cooling_rate) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
 
@@ -28,7 +28,7 @@ function box_model(dY, Y, p, t)
     dN_ice_dt = FT(0)
     dN_liq_dt = FT(0)
     if N_liq > 0
-        dN_ice_dt = J_immer * N_liq * A_droplet
+        dN_ice_dt = J_immer * N_liq * A_aero
         dN_liq_dt = -dN_ice_dt
     end
 
@@ -45,7 +45,7 @@ end
 function box_model_with_probability(dY, Y, p, t)
 
     # Get simulation parameters
-    (; tps, const_dt, A_droplet, aerosol, cooling_rate, Aj_sorted, N₀) = p
+    (; tps, const_dt, A_aero, aerosol, cooling_rate, Aj_sorted, N₀) = p
     # Numerical precision used in the simulation
     FT = eltype(Y)
 
@@ -116,7 +116,7 @@ The named tuple p should contain:
  - const_dt - simulation timestep,
  - aerosol - insoluble aerosol parameters
  - cooling_rate - cooling rate
- - A_droplet - assumed surface area for freezing (when assuming constant A)
+ - A_aero - assumed surface area for freezing (when assuming constant A)
  - Aj_sorted - a vector with available surface area (when variable)
  - N₀ - initial number of liquid droplets
 """

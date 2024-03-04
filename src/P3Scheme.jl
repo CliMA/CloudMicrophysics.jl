@@ -14,7 +14,7 @@ module P3Scheme
 import SpecialFunctions as SF
 
 import RootSolvers as RS
-import CLIMAParameters as CP
+import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 
 const PSP3 = CMP.ParametersP3

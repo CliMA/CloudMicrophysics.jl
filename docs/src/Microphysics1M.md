@@ -21,7 +21,7 @@ Particles are assumed to follow power-law relationships involving the mass(radiu
 denoted by ``m(r)``, the cross section(radius), denoted by ``a(r)``, and the
 terminal velocity(radius), denoted by ``v_{term}(r)``, respectively.
 The coefficients are defined in the
-  [CLIMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) package
+  [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package
   and are shown in the table below.
 For rain and ice they correspond to spherical liquid water drops
   and ice particles, respectively.
@@ -226,7 +226,7 @@ where:
    and is equal to ``1 \, kg/m^3``
 
 The coefficients are defined in
-  [CLIMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl)
+  [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl)
 package and are shown in the table below.
 
 |    symbol       |         definition                           | units              | default value                             | reference  |
@@ -275,7 +275,7 @@ Parameterized processes include:
     do not sediment).
 
 Parameters used in the parameterization are defined in
-  [CLIMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) package.
+  [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package.
 They consist of:
 
 |    symbol                  |         definition                                        | units                    | default value          | reference |

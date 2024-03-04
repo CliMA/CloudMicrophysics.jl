@@ -27,7 +27,7 @@ to a state with precipitable water removed.
 The threshold for when to remove `q_tot` is defined either by the
 condensate specific humidity or supersaturation.
 The thresholds and the relaxation timescale are defined in
-CLIMAParameters.
+ClimaParams.
 """
 remove_precipitation(
     (; τ_precip, qc_0)::CMP.Parameters0M,
