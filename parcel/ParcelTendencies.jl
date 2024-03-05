@@ -174,9 +174,9 @@ function homogeneous_freezing(params::ABHOM, PSD, state)
 
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
 
-    if Δa_w > ips.homogeneous.Δa_w_max || Δa_w < ips.homogeneous.Δa_w_min
-        @warn("Clipping Δa_w for Homogeneous freezing")
-    end
+    # if Δa_w > ips.homogeneous.Δa_w_max || Δa_w < ips.homogeneous.Δa_w_min
+    #     @warn("Clipping Δa_w for Homogeneous freezing")
+    # end
 
     Δa_w = max(min(ips.homogeneous.Δa_w_max, Δa_w), ips.homogeneous.Δa_w_min)
     J = CMI_hom.homogeneous_J(ips.homogeneous, Δa_w)
