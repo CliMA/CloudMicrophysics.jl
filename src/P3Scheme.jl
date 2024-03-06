@@ -267,40 +267,20 @@ end
 # or
 # q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
 function q_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    x = μ + 4
-    return integrate(D_min, D_max, FT(π) / 6 * ρ * N_0, DSD_μ(p3, λ) + 3, λ)
-    #return FT(π) / 6 * ρ / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return integrate(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
 end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / λ^x * (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
-function q_rz(p3::PSP3, N_0::FT, λ::FT, D_min::FT) where {FT}
-    x = DSD_μ(p3, λ) + p3.β_va + 1
-    return integrate(D_min, FT(Inf), α_va_si(p3) * N_0, DSD_μ(p3, λ) + p3.β_va, λ)
-    #return α_va_si(p3) * N_0 / λ^x *
-    #       (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return integrate(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
-function q_n(p3::PSP3, N_0::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    x = DSD_μ(p3, λ) + p3.β_va + 1
-    return integrate(D_min, D_max, α_va_si(p3) * N_0, DSD_μ(p3, λ) + p3.β_va, λ)
-    #return α_va_si(p3) * N_0 / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return integrate(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / (1 - F_r) / λ^x *
-           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
-function q_r(p3::PSP3, F_r::FT, N_0::FT, λ::FT, D_min::FT) where {FT}
-    x = DSD_μ(p3, λ) + p3.β_va + 1
-    return integrate(D_min, FT(Inf), α_va_si(p3) * N_0 / (1 - F_r), DSD_μ(p3, λ) + p3.β_va, λ)
-    #return α_va_si(p3) * N_0 / (1 - F_r) / λ^x *
-    #       (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return integrate(D_min, FT(Inf), α_va_si(p3) / (1 - F_r), μ + p3.β_va, λ)
 end
 
 """
@@ -568,9 +548,6 @@ function D_m(p3::PSP3, log_q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     # Get the shape parameters
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
-    #println("thresholds = ", th)
-    println("λ = ", λ)
-    println("N_0 = ", N_0)
 
     # Redefine α_va to be in si units
     α_va = α_va_si(p3)
@@ -586,13 +563,7 @@ function D_m(p3::PSP3, log_q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
         n += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ) 
         n += integrate(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
     end
-
-    if n/q > 1e16
-        #println("Dₘ = ", n/q, " q = ", q, " N = ", N, " λ = ", λ, " N0 = ", N_0, " F_r = ", F_r, " ρ_r = ", ρ_r)
-        n = 0
-    end
-
-    #println("Dₘ = ", n/q)
+    
     # Normalize by q
     return n/q
 

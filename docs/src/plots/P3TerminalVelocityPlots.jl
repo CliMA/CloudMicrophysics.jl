@@ -169,8 +169,8 @@ function figure_2()
 end
 
 println("start") 
-#figure_2()
-#println("done")
+figure_2()
+println("done")
 #println(P3.D_th_helper(p3))
 #println(P3.thresholds(p3, FT(500), FT(0.5)))
 #println("")
@@ -180,11 +180,10 @@ println("start")
 import RootSolvers as RS
 ρ_r = FT(500) 
 F_r = FT(0.8)
-N = FT(1e6) 
+N = FT(1e8) 
 Dₘ = 0.006
 println("started")
-x = q <= 0 ? FT(0) : log(q)
-shape_problem(x) = Dₘ - P3.D_m(p3, x, N, ρ_r, F_r)
+shape_problem(x) = Dₘ - P3.D_m(p3, exp(x), N, ρ_r, F_r)
 x =
         RS.find_zero(
             shape_problem,
@@ -195,44 +194,3 @@ x =
         ).root
 
 println("q_solved = ", exp(x)) 
-
-function plotDvsq() 
-    n = 100
-    log10qs = range(FT(-4), stop = FT(0), length = n)
-    qs = [FT(10^q) for q in log10qs]
-
-    F_r = range(FT(0), stop = 0.9, length = n)
-
-    N = FT(2 * 1e7)
-    ρ_r = FT(700)
-
-    Dms = zeros(n, n) 
-    for i in 1:n 
-        for j in 1:n 
-            Dms[i, j] = P3.D_m(p3, qs[i], N, ρ_r, F_r[j])
-        end
-    end
-
-    println(log10qs)
-    println(qs) 
-    println(Dms)
-
-    min = 0 
-    max = 0.006
-
-    f = Plt.Figure()
-    Plt.Axis(f[1, 1], xlabel = "F_r", ylabel = "log10(q)", title = "D_m") 
-    Plt.heatmap!(F_r, log10qs, Dms, colormap = Plt.reverse(Plt.cgrad(:Spectral)), colorrange = (min, max))
-    Plt.Colorbar(
-        f[2, 1], 
-        limits = (min, max), 
-        colormap = Plt.reverse(Plt.cgrad(:Spectral)),
-        flipaxis = true,
-        vertical = false, 
-    )
-
-    Plt.save("testFigure.svg", f)
-
-end
-
-#plotDvsq()
