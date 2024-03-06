@@ -539,12 +539,11 @@ end
 
  Return the mass weighted mean particle size [m]
 """
-function D_m(p3::PSP3, log_q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
 
-    q = exp(log_q)
     # Get the shape parameters
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
