@@ -37,7 +37,7 @@ function CLSetup{FT}(;
         FT(9.44e-3),
         FT(5.78e-3),
     ),
-    mass_thresholds::Vector{FT} = [10.0, Inf],
+    mass_thresholds::Vector{FT} = [FT(10.0), FT(Inf)],
     kernel_order::Int = 1,
     kernel_limit::FT = FT(500),
     coal_data = nothing,
@@ -98,20 +98,17 @@ end
  - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
  - `aps` - air properties
  - `tps` - thermodynamics parameters
- - `q` - phase partition
- - `ρ` - air density
  - `T` - air temperature
+ - `S` - saturation ratio (supersaturation = S - 1)
 Returns a vector of moment tendencies due to condensation/evaporation
 """
 function condensation(
     clinfo::CLSetup{FT},
     aps::CMP.AirProperties{FT},
     tps::TDP.ThermodynamicsParameters{FT},
-    q::TD.PhasePartition{FT},
-    ρ::FT,
     T::FT,
+    S::FT,
 ) where {FT}
-    S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
     ξ = CO.G_func(aps, tps, T, TD.Liquid())
 
     # first, update the particle distributions
@@ -119,7 +116,10 @@ function condensation(
         ind_rng = CL.get_dist_moments_ind_range(clinfo.NProgMoms, i)
         CPD.update_dist_from_moments!(dist, clinfo.mom[ind_rng])
     end
-    return CL.Condensation.get_cond_evap(S, (; ξ = ξ, pdists = clinfo.pdists))
+    return CL.Condensation.get_cond_evap(
+        S - 1,
+        (; ξ = ξ, pdists = clinfo.pdists),
+    )
 end
 
 """
