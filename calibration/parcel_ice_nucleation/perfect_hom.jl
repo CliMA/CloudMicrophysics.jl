@@ -37,7 +37,7 @@ R_v = TD.Parameters.R_v(tps)
 ϵₘ = R_d / R_v
 qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
 C_l = FT(qₗ / ((1 - qₗ) * ϵₘ + qₗ))  # concentration/mol fraction of liquid
-C_v = FT(357.096 * 1e-6 - C_l)     # concentration/mol fraction of vapor
+C_v = FT(46.0757 * 1e-6 - C_l)     # concentration/mol fraction of vapor
 qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
 qᵢ = FT(0)
 x_sulph = FT(0)
@@ -51,7 +51,8 @@ IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
 
 w = FT(1.2)
 const_dt = FT(1)
-t_max = FT(650)
+#t_max = FT(650)
+t_max = FT(5)
 homogeneous = "ABHOM"
 condensation_growth = "Condensation"
 deposition_growth = "Deposition"
@@ -153,8 +154,8 @@ prior_coeff4 = EKP.constrained_gaussian(
 prior = EKP.combine_distributions([prior_coeff1, prior_coeff2, prior_coeff3, prior_coeff4])
 
 # Generate initial ensember and set up EKI
-N_ensemble = 10     # runs N_ensemble trials per iteration
-N_iterations = 10   # number of iterations the inverse problem goes through
+N_ensemble = 2     # runs N_ensemble trials per iteration
+N_iterations = 3   # number of iterations the inverse problem goes through
 initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
 EKI_obj = EKP.EnsembleKalmanProcess(
     initial_ensemble,
@@ -177,7 +178,7 @@ end
 
 # Plotting ICNC w true params, the initial ensemble, and the final ensemble
 fig = MK.Figure(size = (800, 600))
-ax1 = MK.(
+ax1 = MK.Axis(
     fig[1, 1],
     ylabel = "Koop2000 Coeff1 [-]",
     xlabel = "iteration number",
@@ -208,11 +209,11 @@ for iter in iterations
     mean_coeff1[iter] =
         Distributions.mean(ϕ_n_values[iter][1, i] for i in 1:N_ensemble)
     mean_coeff2[iter] =
-        Distributions.mean(ϕ_n_values[iter][2, j] for j in 1:N_ensemble)
+        Distributions.mean(ϕ_n_values[iter][2, i] for i in 1:N_ensemble)
     mean_coeff3[iter] =
-        Distributions.mean(ϕ_n_values[iter][3, k] for k in 1:N_ensemble)
+        Distributions.mean(ϕ_n_values[iter][3, i] for i in 1:N_ensemble)
     mean_coeff4[iter] =
-        Distributions.mean(ϕ_n_values[iter][4, l] for l in 1:N_ensemble)
+        Distributions.mean(ϕ_n_values[iter][4, i] for i in 1:N_ensemble)
 end
 
 MK.lines!(
@@ -273,7 +274,7 @@ MK.axislegend(ax2, framevisible = true, labelsize = 12)
 MK.axislegend(ax3, framevisible = true, labelsize = 12)
 MK.axislegend(ax4, framevisible = true, labelsize = 12)
 
-MK.save("calibration_default_IN.svg", fig)
+MK.save("perfect_calibration_hom.svg", fig)
 
 # Check if the calibrated coefficients are similar to the known default values
 coeff1_ekp = round(
