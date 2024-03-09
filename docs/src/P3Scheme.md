@@ -119,7 +119,7 @@ N_{ice} = \int_{0}^{\infty} \! N'(D) \mathrm{d}D = \int_{0}^{\infty} \! N_{0} D^
 
 ``q_{ice}`` depends on the variable mass-size relation ``m(D)`` defined above.
 We solve for ``q_{ice}`` in a piece-wise fashion defined by the same thresholds as ``m(D)``.
-As a result ``q\_{ice}`` can be expressed as a sum of inclomplete gamma functions.
+As a result ``q_{ice}`` can be expressed as a sum of inclomplete gamma functions.
   and the shape parameters are found using iterative solver.
 
 |      condition(s)                            |    ``q_{ice} = \int \! m(D) N'(D) \mathrm{d}D``                                          |         gamma representation          |
@@ -133,18 +133,29 @@ As a result ``q\_{ice}`` can be expressed as a sum of inclomplete gamma function
 where ``\Gamma \,(a, z) = \int_{z}^{\infty} \! t^{a - 1} e^{-t} \mathrm{d}D``
   and ``\Gamma \,(a) = \Gamma \,(a, 0)`` for simplicity.
 
-An initial guess for the non-linear solver is found by approximating the gamma functions as a simple power function. 
+Within our solver, we approximate ``\mu`` from q/N and keep it constant throughout the solving step. We approximate ``\mu`` by an exponential function given by the q/N points corresponding to ``\mu = 6`` and ``\mu = 0``. This is shown below as well as how this affects the solvers ``\lambda`` solutions.
+
+```@example
+include("plots/P3LambdaErrorPlots.jl")
+```
+![](MuApprox.svg)
+
+An initial guess for the non-linear solver is found by approximating the gamma functions as a simple linear function from log(q\N) to log(``\lambda``). 
 
 ```@example
 include("plots/P3ShapeSolverPlots.jl")
 ```
 ![](SolverInitialGuess.svg)
 
-This equation is given by ``(log(q_{approx}) - log(q1)) = slope (log(\lambda) - log(p1))``. Solving for ``q_{approx}`` we get `` q_{approx} = q_1 \frac{\lambda}{p_1} ^{slope}`` where `` slope = \frac{log(q1) - log(q2)}{log(p1) - log(p2)}``, ``p1`` and ``p2`` are defining ``\lambda`` values of the estimated line (we use p1 = 1e2, p2 = 1e6), ``q1 = q(p1)`` and ``q2 = q(p2)`` are the corresponding calculated q values for the given ``F_r`` and ``\rho_r`` values. 
+Let ``x = log(q/N)`` and ``y = log(\lambda)``. This equation is given by ``(x - x_1) = slope (y - y_1)`` where `` slope = \frac{x_1 - x_2}{y_1 - y_2}``, ``y_1`` and ``y_2`` are defining ``log(\lambda)`` values of the estimated line decided off of the ``q/N`` value (described below).
 
-We use this approximation to calculate a ``\lambda_{guess}`` value which will set our initial guess. Solving for ``\lambda`` in the power function we get ``\lambda_{guess} = p1 (\frac{q}{q1})^{(\frac{log(q1)-log(q2)}{log(p1)-log(p2)})}``. Thus, given any q we can calculate a ``\lambda`` around which to expect the true solved ``\lambda`` value. 
+|             q/N                |         ``y_1``        |      ``y_2``         |
+|:-------------------------------|:-----------------------|:---------------------|
+|        ``q/N >= 10^-8``        |         ``1``          |     ``6 * 10^3``     |
+|   ``2 * 10^9 <= q/N < 10^-8``  |     ``6 * 10^3``       |     ``3 * 10^4``     |
+|        ``q/N < 2 * 10^9``      |     ``4 * 10^4``       |       ``10^6``       |
 
-For small values of ``\lambda_{guess}`` it was found to be more efficient to use constant initial guesses. 
+We use this approximation to calculate a ``\lambda_{guess}`` value which will set our initial guess. Solving for ``\lambda`` in the power function we get ``\lambda_{guess} = \lambda _1 (\frac{q}{q_1})^{(\frac{y_1 - y_2}{x_1 - x_2})}``. Thus, given any q we can calculate a ``\lambda`` around which to expect the true solved ``\lambda`` value. 
 
 Using this approach we get the following relative errors in our solved ``\lambda`` vs the expected ``lambda`` within the solver. 
 

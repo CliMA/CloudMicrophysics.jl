@@ -13,44 +13,74 @@ function guess_value(λ::FT, p1::FT, p2::FT, q1::FT, q2::FT)
     return q1 * (λ / p1)^((log(q1) - log(q2)) / (log(p1) - log(p2)))
 end
 
-function lambda_guess_plot(F_r::FT, ρ_r::FT) where {FT}
-    N = FT(1e8)
+function lambda_guess_plot()
+    N = FT(1e6)
 
-    λs = FT(1e2):FT(1e2):FT(1e6 + 1)
-    th = P3.thresholds(p3, ρ_r, F_r)
-    qs = [P3.q_gamma(p3, F_r, N, log(λ), th) for λ in λs]
-
-    guesses = [guess_value(λ, λs[1], last(λs), qs[1], last(qs)) for λ in λs]
+    F_r_s = [FT(0.0), FT(0.5), FT(0.8)]
+    ρ_r_s = [FT(200), FT(400), FT(800)]
 
     f = Plt.Figure()
-    Plt.Axis(
-        f[1, 1],
-        xscale = log,
-        yscale = log,
-        xticks = [10^2, 10^3, 10^4, 10^5, 10^6],
-        yticks = [10^3, 1, 10^-3, 10^-6],
-        xlabel = "λ",
-        ylabel = "q",
-        title = "q vs λ",
-        height = 300,
-        width = 400,
-    )
 
-    l1 = Plt.lines!(λs, qs, linewidth = 3, color = "Black", label = "q")
-    l2 = Plt.lines!(
-        λs,
-        guesses,
-        linewidth = 2,
-        linestyle = :dash,
-        color = "Red",
-        label = "q_approximated",
-    )
+    for i in 1:length(F_r_s)
+        for j in 1:length(ρ_r_s)
+            F_r = F_r_s[i]
+            ρ_r = ρ_r_s[j]
 
-    Plt.axislegend("Legend", position = :lb)
+            Plt.Axis(
+                f[i, j],
+                xlabel = "log(q/N)",
+                ylabel = "log(λ)",
+                title = string("λ vs q/N for F_r = ", F_r, " and ρ_r = ", ρ_r),
+                height = 300,
+                width = 400,
+            )
+
+
+            logλs = FT(1):FT(0.01):FT(6)
+            λs = [10^logλ for logλ in logλs]
+            th = P3.thresholds(p3, ρ_r, F_r)
+            qs = [
+                P3.q_over_N_gamma(p3, F_r, log(λ), P3.DSD_μ(p3, λ), th) for
+                λ in λs
+            ]
+            guesses = [FT(0) for λ in λs]
+
+            for i in 1:length(λs)
+                (min,) = P3.get_bounds(
+                    N,
+                    qs[i] * N,
+                    P3.DSD_μ_approx(p3, qs[i] * N, N, ρ_r, F_r),
+                    F_r,
+                    p3,
+                    th,
+                )
+                guesses[i] = exp(min)
+            end
+
+
+            Plt.lines!(
+                log10.(qs),
+                log10.(λs),
+                linewidth = 3,
+                color = "Black",
+                label = "true",
+            )
+            Plt.lines!(
+                log10.(qs),
+                log10.(guesses),
+                linewidth = 2,
+                linestyle = :dash,
+                color = "Red",
+                label = "approximated",
+            )
+
+            Plt.axislegend("Legend", position = :lb)
+        end
+    end
 
     Plt.resize_to_layout!(f)
     Plt.save("SolverInitialGuess.svg", f)
 
 end
 
-lambda_guess_plot(FT(0.5), FT(200))
+lambda_guess_plot()
