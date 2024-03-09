@@ -8,12 +8,12 @@
 # `CloudMicrophysics.jl` is designed to allow easy parameter calibrations.
 # As a result, free parameters are not hard-coded in the source code but are instead
 # passed as arguments to functions. The default values are stored in a separate
-# repository [CLIMAParameters.jl](https://github.com/CliMA/CLIMAParameters.jl) in a `toml` file.
+# repository [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) in a `toml` file.
 
-# We start by importing the `CLIMAParameters` package and the needed
+# We start by importing the `ClimaParams` package and the needed
 # `CloudMicrophysics.jl` modules. We define the precision type.
 
-import CLIMAParameters as CP
+import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2
@@ -94,9 +94,9 @@ const LD2004 = CMP.LD2004(FT)  # Liu and Daum (2004)
 qₗ = FT(1e-3)
 ρₐ = FT(1)
 N = FT(1e8)
-KK2000_rate = CM2.conv_q_liq_to_q_rai(KK2000, qₗ, ρₐ, N_d = N)
-TC1980_rate = CM2.conv_q_liq_to_q_rai(TC1980, qₗ, ρₐ, N_d = N)
-LD2004_rate = CM2.conv_q_liq_to_q_rai(LD2004, qₗ, ρₐ, N_d = N)
-B1994_rate = CM2.conv_q_liq_to_q_rai(B1994, qₗ, ρₐ, N_d = N)
+KK2000_rate = CM2.conv_q_liq_to_q_rai(KK2000, qₗ, ρₐ, N)
+TC1980_rate = CM2.conv_q_liq_to_q_rai(TC1980, qₗ, ρₐ, N)
+LD2004_rate = CM2.conv_q_liq_to_q_rai(LD2004, qₗ, ρₐ, N)
+B1994_rate = CM2.conv_q_liq_to_q_rai(B1994, qₗ, ρₐ, N)
 
 @info("Autoconversion: ", KK2000_rate, B1994_rate, TC1980_rate, LD2004_rate)

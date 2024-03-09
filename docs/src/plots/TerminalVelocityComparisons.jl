@@ -1,6 +1,6 @@
 import Plots as PL
 
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 FT = Float64
 

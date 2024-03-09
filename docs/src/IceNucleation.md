@@ -243,6 +243,34 @@ Multiple sulphuric acid concentrations, ``x``,
     values that are obtained from pure water droplets. Though CliMA lines look far
     from the Spichtinger 2023 line, the lines seem to move closer as x approaches 0.
 
+## Water Activity Based vs P3 Ice Nucleation Parameterizations
+The water activity based models are compared with P3 ice nucleation parameterizations as described
+  in [MorrisonMilbrandt2015](@cite) using an adiabatic parcel model with depositional growth. The
+  first row of plots shows deposition nucleation; the second row shows heterogeneous freezing; the
+  last row shows homogeneous freezing.
+
+```@example
+include("../../parcel/Example_P3_vs_activitybased.jl")
+```
+![](P3_vs_activitybased.svg)
+
+For the activity based deposition ice nucleation model (ABDINM):
+ - Green corresponds to feldspar,
+ - Orange corresponds to ferrihydrite,
+ - Magenta corresponds to kaolinite.
+We note that the P3 deposition parameterization shows a significantly greater ICNC at all times in
+  the simulation. This is expected because the parameterization does not account for the number of
+  available INP.
+
+For the activity based immersion freezing model (ABIFM):
+ - Green corresponds to desert dust,
+ - Orange corresponds to illite,
+ - Magenta corresponds to kaolinite.
+The P3 heterogeneous parameterization also shows much more ICNC than any of the ABIFM runs. It
+  should be noted that the P3 parameterization does not distinguish between immersion freezing,
+  contact freezing, etc. 
+
+The P3 scheme allows homogeneous freezing to freeze all droplets at temperatures equal to or less than 233.15K. No homogeneous freezing occurs at warmer temperatures.
 
 ## INP Concentration Frequency
 

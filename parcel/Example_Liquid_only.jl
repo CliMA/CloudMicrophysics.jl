@@ -3,7 +3,7 @@ import CairoMakie as MK
 import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 

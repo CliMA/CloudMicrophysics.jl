@@ -137,7 +137,7 @@ function homogeneous_freezing(params::P3_hom, PSD, state)
     FT = eltype(state)
     (; Nₗ, T) = state
     (; const_dt) = params
-    #TODO - use CLIMAParameters
+    #TODO - use ClimaParams
     return T < FT(233.15) && Nₗ > FT(0) ? Nₗ / const_dt : FT(0)
 end
 

@@ -7,7 +7,7 @@ module Parameters
 
 using DocStringExtensions
 
-import CLIMAParameters as CP
+import ClimaParams as CP
 
 # Super-types (dispatch, broadcasting, etc...)
 include("AbstractTypes.jl")

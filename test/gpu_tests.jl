@@ -4,7 +4,7 @@ using ClimaComms
 
 # Needed for parameters
 import CloudMicrophysics.Parameters as CMP
-import CLIMAParameters as CP
+import ClimaParams as CP
 import Thermodynamics as TD
 
 # Modules to test
@@ -121,6 +121,24 @@ end
     end
 end
 
+@kernel function test_1_moment_micro_smooth_transition_kernel!(
+    acnv1M,
+    output::AbstractArray{FT},
+    ql,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    output[1, 1] = FT(-99999.99)
+    output[1, 2] = FT(-99999.99)
+    output[2, 1] = FT(-99999.99)
+    output[2, 2] = FT(-99999.99)
+    @inbounds begin
+        output[1, i] = CM1.conv_q_liq_to_q_rai(acnv1M, ql[i], false)
+        output[2, i] = CM1.conv_q_liq_to_q_rai(acnv1M, ql[i], false)
+    end
+end
+
 @kernel function test_1_moment_micro_accretion_kernel!(
     liquid,
     rain,
@@ -214,11 +232,11 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = CM2.conv_q_liq_to_q_rai(VarTSc, ql[i], ρ[i], N_d = Nd[i])
-        output[2, i] = CM2.conv_q_liq_to_q_rai(LD2004, ql[i], ρ[i], N_d = Nd[i])
-        output[3, i] = CM2.conv_q_liq_to_q_rai(TC1980, ql[i], ρ[i], N_d = Nd[i])
-        output[4, i] = CM2.conv_q_liq_to_q_rai(B1994, ql[i], ρ[i], N_d = Nd[i])
-        output[5, i] = CM2.conv_q_liq_to_q_rai(KK2000, ql[i], ρ[i], N_d = Nd[i])
+        output[1, i] = CM2.conv_q_liq_to_q_rai(VarTSc, ql[i], ρ[i], Nd[i])
+        output[2, i] = CM2.conv_q_liq_to_q_rai(LD2004, ql[i], ρ[i], Nd[i])
+        output[3, i] = CM2.conv_q_liq_to_q_rai(TC1980, ql[i], ρ[i], Nd[i])
+        output[4, i] = CM2.conv_q_liq_to_q_rai(B1994, ql[i], ρ[i], Nd[i])
+        output[5, i] = CM2.conv_q_liq_to_q_rai(KK2000, ql[i], ρ[i], Nd[i])
     end
 end
 
@@ -747,6 +765,19 @@ function test_gpu(FT)
     end
 
     @testset "1-moment microphysics kernels" begin
+        dims = (2, 2)
+        (; output, ndrange) = setup_output(dims, FT)
+        ql = ArrayType([FT(1e-3), FT(5e-4)])
+
+        kernel! =
+            test_1_moment_micro_smooth_transition_kernel!(backend, work_groups)
+        kernel!(rain.acnv1M, output, ql; ndrange)
+
+        # Sanity checks for the GPU KernelAbstractions workflow
+        # See https://github.com/CliMA/SurfaceFluxes.jl/issues/142
+        @test !any(isequal(Array(output), FT(-99999.99)))
+        @test all(isequal(Array(output)[1, :], Array(output)[2, :]))
+
         dims = (7, 2)
         (; output, ndrange) = setup_output(dims, FT)
 

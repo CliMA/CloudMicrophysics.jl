@@ -2,7 +2,7 @@ import OrdinaryDiffEq as ODE
 import CairoMakie as MK
 import Thermodynamics as TD
 import CloudMicrophysics as CM
-import CLIMAParameters as CP
+import ClimaParams as CP
 import Distributions as DS
 import CloudMicrophysics.Parameters as CMP
 
