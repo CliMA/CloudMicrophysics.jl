@@ -2,6 +2,9 @@ import CSV
 import DataFrames as DF
 using DataFramesMeta
 
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
+
 function get_num_modes(df::DataFrame)
     i = 1
     while true
@@ -66,6 +69,67 @@ function preprocess_aerosol_data(X::DataFrame)
     end
     X = DF.transform(X, :velocity => ByRow(log) => :velocity)
     return X
+end
+
+function get_ARG_act_frac(data_row::NamedTuple)
+
+    FT = Float32
+    aip = CMP.AirProperties(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    ap = CMP.AerosolActivationParameters(FT)
+
+    num_modes = get_num_modes(data_row)
+    @assert num_modes > 0
+    mode_Ns = []
+    mode_means = []
+    mode_stdevs = []
+    mode_kappas = []
+    w = data_row.velocity
+    T = data_row.initial_temperature
+    p = data_row.initial_pressure
+    for i in 1:num_modes
+        push!(mode_Ns, data_row[Symbol("mode_$(i)_N")])
+        push!(mode_means, data_row[Symbol("mode_$(i)_mean")])
+        push!(mode_stdevs, data_row[Symbol("mode_$(i)_stdev")])
+        push!(mode_kappas, data_row[Symbol("mode_$(i)_kappa")])
+    end
+    ad = AM.AerosolDistribution(
+        Tuple(
+            AM.Mode_κ(
+                mode_means[i],
+                mode_stdevs[i],
+                mode_Ns[i],
+                FT(1),
+                FT(1),
+                FT(0),
+                FT(mode_kappas[i]),
+                1,
+            ) for i in 1:num_modes
+        ),
+    )
+    pv0 = TD.saturation_vapor_pressure(tps, FT(T), TD.Liquid())
+    vapor_mix_ratio = pv0 / TD.Parameters.molmass_ratio(tps) / (p - pv0)
+    q_vap = vapor_mix_ratio / (vapor_mix_ratio + 1)
+    q = TD.PhasePartition(FT(q_vap), FT(0), FT(0))
+
+    return collect(
+        AA.N_activated_per_mode(ap, ad, aip, tps, FT(T), FT(p), FT(w), q),
+    ) ./ mode_Ns
+end
+
+function get_ARG_act_frac(X::DataFrame)
+    return transpose(hcat(get_ARG_act_frac.(NamedTuple.(eachrow(X)))...))
+end
+
+function preprocess_aerosol_data_with_ARG_act_frac(X::DataFrame)
+    num_modes = get_num_modes(X)
+    X = DF.transform(
+        X,
+        AsTable(All()) =>
+            ByRow(x -> get_ARG_act_frac(x)) =>
+                [Symbol("mode_$(i)_ARG_act_frac") for i in 1:num_modes],
+    )
+    return preprocess_aerosol_data(X)
 end
 
 function target_transform(act_frac)
