@@ -44,7 +44,6 @@ function test_microphysics_flexible(FT)
         TT.@test length(clinfo.NProgMoms) == 2
 
         # Test coalescence
-        clinfo.mom = [100.0, 10.0, 1.0, 10.0, 20.0]
         TT.@test isnothing(clinfo.coal_data)
         dmom = CMF.coalescence(clinfo)
         TT.@test ~isnothing(clinfo.coal_data)

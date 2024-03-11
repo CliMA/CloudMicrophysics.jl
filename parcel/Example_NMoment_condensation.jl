@@ -121,10 +121,10 @@ R_d = TD.Parameters.R_d(tps)
 
 # Initial conditions
 dist_init = [
-    CPD.ExponentialPrimitiveParticleDistribution(FT(100 * 1e6), FT(1e5*1e-18)), # 100/cm^3; 10^5 µm^3
-    CPD.GammaPrimitiveParticleDistribution(FT(1 * 1e6), FT(1e6*1e-18), FT(1)),   # 1/cm^3; 10^6 µm^3; k=1
+    CPD.ExponentialPrimitiveParticleDistribution(FT(100 * 1e6), FT(1e5*1e-18*1e3)), # 100/cm^3; 10^5 µm^3
+    CPD.GammaPrimitiveParticleDistribution(FT(1 * 1e6), FT(1e6*1e-18*1e3), FT(1)),   # 1/cm^3; 10^6 µm^3; k=1
 ]
-moments_init = FT.([100.0 * 1e6, 1e-5, 10.0 * 1e6, 1e-6, 2e-18])
+moments_init = FT.([100.0 * 1e6, 1e-2, 1.0 * 1e6, 1e-3, 2e-12])
 p₀ = FT(800 * 1e2)
 T₀ = FT(273.15 + 7.0)
 e = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())

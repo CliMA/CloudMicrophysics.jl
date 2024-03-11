@@ -27,21 +27,21 @@ condensation/evaporation
 """
 function CLSetup{FT}(;
     pdists::Vector{<:CPD.PrimitiveParticleDistribution{FT}} = Vector([
-        CPD.ExponentialPrimitiveParticleDistribution(FT(0), FT(1.0)),
-        CPD.GammaPrimitiveParticleDistribution(FT(0), FT(1.0), FT(1.0)),
+        CPD.ExponentialPrimitiveParticleDistribution(FT(100 * 1e6), FT(1e5*1e-18*1e3)), # 100/cm^3; 10^5 µm^3 = 1e-10 kg
+        CPD.GammaPrimitiveParticleDistribution(FT(1 * 1e6), FT(1e6*1e-18*1e3), FT(1)),   # 1/cm^3; 10^6 µm^3 = 1e-9 kg; k=1
     ]),
-    mom::Vector{FT} = [FT(0) for i in 1:5],
+    mom::Vector{FT} = FT.([100.0 * 1e6, 1e-2, 1.0 * 1e6, 1e-3, 2e-12]),
     NProgMoms::Vector{Int} = [Integer(CPD.nparams(dist)) for dist in pdists],
     KernelFunc::CLK.KernelFunction{FT} = CLK.LongKernelFunction(
-        FT(0.5236),
-        FT(9.44e-3),
-        FT(5.78e-3),
+        FT(5.236e-10),  # 5.236e-10 kg;  
+        FT(9.44e9),     # 9.44e9 m^3/kg^2/s;
+        FT(5.78),       # 5.78 m^3/kg/s
     ),
-    mass_thresholds::Vector{FT} = [FT(10.0), FT(Inf)],
+    mass_thresholds::Vector{FT} = [FT(1e-5), FT(Inf)],  # TODO: ~100µm Diam
     kernel_order::Int = 1,
-    kernel_limit::FT = FT(500),
+    kernel_limit::FT = FT(1 * 1e-9 * 1e3),   # ~1mm Diam ~ 1 mm^3 volume
     coal_data = nothing,
-    vel::Vector{Tuple{FT, FT}} = [(FT(2.0), FT(1.0 / 6))],
+    vel::Vector{Tuple{FT, FT}} = [(FT(50.0), FT(1.0 / 6))], # 50 m/s/kg^(1/6)
 ) where {FT <: AbstractFloat}
 
     CLSetup{FT}(
