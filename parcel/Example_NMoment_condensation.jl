@@ -34,7 +34,7 @@ function parcel_model_cloudy(dY, Y, p, t)
     q = TD.PhasePartition(qᵥ, FT(0), FT(0))  # use dry air density to compute ql
     ts = TD.PhaseNonEquil_pTq(tps, p_air, T, q)
     ρ_air = TD.air_density(tps, ts)
-    
+
     qᵢ = FT(0.0)
     qₗ = CPD.get_standard_N_q(clinfo.pdists).M_liq * ρₗ / ρ_air
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
@@ -66,14 +66,11 @@ function parcel_model_cloudy(dY, Y, p, t)
     dqₗ_dt = dqₗ_dt_v2l
     dqᵥ_dt = -dqₗ_dt
 
-    dSₗ_dt =
-        a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l
+    dSₗ_dt = a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l
 
     dp_air_dt = -p_air * grav / R_air / T * w
 
-    dT_dt =
-        -grav / cp_air * w +
-        L_vap / cp_air * dqₗ_dt_v2l
+    dT_dt = -grav / cp_air * w + L_vap / cp_air * dqₗ_dt_v2l
 
     # Set tendencies
     dY[1] = dSₗ_dt      # saturation ratio over liquid water
@@ -91,15 +88,10 @@ function run_parcel_cloudy(Yinit, clinfo, t_0, t_end, pp)
     println("Condensation growth only ")
 
     # Parameters for the ODE solver
-    p = (
-        wps = pp.wps, 
-        aps = pp.aps,
-        tps = pp.tps, 
-        w = pp.w, 
-        clinfo = clinfo
-    )
+    p = (wps = pp.wps, aps = pp.aps, tps = pp.tps, w = pp.w, clinfo = clinfo)
 
-    problem = ODE.ODEProblem(parcel_model_cloudy, Yinit, (FT(t_0), FT(t_end)), p)
+    problem =
+        ODE.ODEProblem(parcel_model_cloudy, Yinit, (FT(t_0), FT(t_end)), p)
     return ODE.solve(
         problem,
         ODE.Euler(),
@@ -121,8 +113,15 @@ R_d = TD.Parameters.R_d(tps)
 
 # Initial conditions
 dist_init = [
-    CPD.ExponentialPrimitiveParticleDistribution(FT(100 * 1e6), FT(1e5*1e-18*1e3)), # 100/cm^3; 10^5 µm^3
-    CPD.GammaPrimitiveParticleDistribution(FT(1 * 1e6), FT(1e6*1e-18*1e3), FT(1)),   # 1/cm^3; 10^6 µm^3; k=1
+    CPD.ExponentialPrimitiveParticleDistribution(
+        FT(100 * 1e6),
+        FT(1e5 * 1e-18 * 1e3),
+    ), # 100/cm^3; 10^5 µm^3
+    CPD.GammaPrimitiveParticleDistribution(
+        FT(1 * 1e6),
+        FT(1e6 * 1e-18 * 1e3),
+        FT(1),
+    ),   # 1/cm^3; 10^6 µm^3; k=1
 ]
 moments_init = FT.([100.0 * 1e6, 1e-2, 1.0 * 1e6, 1e-3, 2e-12])
 p₀ = FT(800 * 1e2)
@@ -140,20 +139,17 @@ qᵢ = FT(0)
 w = FT(10)                                  # updraft speed
 const_dt = FT(0.5)                         # model timestep
 t_max = FT(20)
-clinfo = CMF.CLSetup{FT}(
-    pdists = dist_init,
-    mom = moments_init
-)
+clinfo = CMF.CLSetup{FT}(pdists = dist_init, mom = moments_init)
 
 Y0 = [Sₗ, p₀, T₀, qᵥ, moments_init...]
-dY = zeros(FT,9)
+dY = zeros(FT, 9)
 p = (
     wps = wps,
     aps = aps,
-    tps = tps, 
-    w = w, 
-    clinfo = clinfo, 
-    const_dt = const_dt
+    tps = tps,
+    w = w,
+    clinfo = clinfo,
+    const_dt = const_dt,
 )
 
 # Setup the plots
@@ -175,7 +171,7 @@ MK.lines!(ax3, sol.t, sol[4, :] * 1e3)
 ρ_air = sol[2, :] / R_v ./ sol[3, :]
 M_l = sol[6, :] + sol[8, :]  # kg / m^3 air
 N_l = sol[5, :] + sol[7, :]  # number / m^3 air
-r_l = (M_l ./ N_l / ρₗ / 4 / π * 3).^(1/3) * 1e6 
+r_l = (M_l ./ N_l / ρₗ / 4 / π * 3) .^ (1 / 3) * 1e6
 MK.lines!(ax4, sol.t, M_l ./ ρ_air * 1e3)
 MK.lines!(ax5, sol.t, r_l)
 

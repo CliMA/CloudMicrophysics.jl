@@ -27,8 +27,15 @@ condensation/evaporation
 """
 function CLSetup{FT}(;
     pdists::Vector{<:CPD.PrimitiveParticleDistribution{FT}} = Vector([
-        CPD.ExponentialPrimitiveParticleDistribution(FT(100 * 1e6), FT(1e5*1e-18*1e3)), # 100/cm^3; 10^5 µm^3 = 1e-10 kg
-        CPD.GammaPrimitiveParticleDistribution(FT(1 * 1e6), FT(1e6*1e-18*1e3), FT(1)),   # 1/cm^3; 10^6 µm^3 = 1e-9 kg; k=1
+        CPD.ExponentialPrimitiveParticleDistribution(
+            FT(100 * 1e6),
+            FT(1e5 * 1e-18 * 1e3),
+        ), # 100/cm^3; 10^5 µm^3 = 1e-10 kg
+        CPD.GammaPrimitiveParticleDistribution(
+            FT(1 * 1e6),
+            FT(1e6 * 1e-18 * 1e3),
+            FT(1),
+        ),   # 1/cm^3; 10^6 µm^3 = 1e-9 kg; k=1
     ]),
     mom::Vector{FT} = FT.([100.0 * 1e6, 1e-2, 1.0 * 1e6, 1e-3, 2e-12]),
     NProgMoms::Vector{Int} = [Integer(CPD.nparams(dist)) for dist in pdists],
