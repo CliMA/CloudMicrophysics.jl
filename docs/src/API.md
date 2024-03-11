@@ -59,7 +59,7 @@ MicrophysicsFlexible
 MicrophysicsFlexible.CLSetup
 MicrophysicsFlexible.coalescence
 MicrophysicsFlexible.condensation
-MicrophysicsFlexible.sedimentation
+MicrophysicsFlexible.weighted_vt
 ```
 
 # P3 scheme

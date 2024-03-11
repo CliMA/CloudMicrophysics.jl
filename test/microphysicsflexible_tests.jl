@@ -52,11 +52,9 @@ function test_microphysics_flexible(FT)
         TT.@test all(dmom[(end - 1):end] .> FT(0))
 
         # Test evaporation
-        ρ = FT(1.1)
         T = FT(288.15)
-        q_tot = FT(1e-3)
-        q = TD.PhasePartition(q_tot)
-        cond_evap = CMF.condensation(clinfo, aps, tps, q, ρ, T)
+        S = 0.99
+        cond_evap = CMF.condensation(clinfo, aps, tps, T, S)
         # conserve number density
         TT.@test cond_evap[1] == FT(0)
         TT.@test cond_evap[clinfo.NProgMoms[1] + 1] == FT(0)
@@ -65,9 +63,8 @@ function test_microphysics_flexible(FT)
         TT.@test cond_evap[clinfo.NProgMoms[1] + 2] < FT(0)
 
         # Test condensation 
-        q_tot = FT(2e-2)
-        q = TD.PhasePartition(q_tot)
-        cond_evap = CMF.condensation(clinfo, aps, tps, q, ρ, T)
+        S = 1.01
+        cond_evap = CMF.condensation(clinfo, aps, tps, T, S)
         # conserve number density
         TT.@test cond_evap[1] == FT(0)
         TT.@test cond_evap[clinfo.NProgMoms[1] + 1] == FT(0)
@@ -75,8 +72,8 @@ function test_microphysics_flexible(FT)
         TT.@test cond_evap[2] > FT(0)
 
         # Test sedimentation 
-        sed_int = CMF.sedimentation(clinfo)
-        TT.@test all(sed_int .< FT(0))
+        weighted_vt = CMF.weighted_vt(clinfo)
+        TT.@test all(weighted_vt .> FT(0))
     end
 end
 

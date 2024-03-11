@@ -60,11 +60,11 @@ Returns a vector of moment tendencies due to condensation/evaporation
 function condensation end
 
 """
-    sedimentation(clinfo)
+    weighted_vt(clinfo)
 
  - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
 Returns the integrated fall speeds corresponding to the rate of change of prognostic moments
 """
-function sedimentation end
+function weighted_vt end
 
 end

@@ -14,7 +14,7 @@ import Thermodynamics.Parameters as TDP
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.MicrophysicsFlexible:
-    CLSetup, coalescence, condensation, sedimentation
+    CLSetup, coalescence, condensation, weighted_vt
 
 import Cloudy as CL
 import Cloudy.ParticleDistributions as CPD
@@ -123,16 +123,17 @@ function condensation(
 end
 
 """
-    sedimentation(clinfo)
+    weighted_vt(clinfo)
 
  - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
 Returns the integrated fall speeds corresponding to the rate of change of prognostic moments
 """
-function sedimentation(clinfo::CLSetup{FT}) where {FT}
-    return CL.Sedimentation.get_sedimentation_flux((;
+function weighted_vt(clinfo::CLSetup{FT}) where {FT}
+    sed_flux = CL.Sedimentation.get_sedimentation_flux((;
         pdists = clinfo.pdists,
         vel = clinfo.vel,
     ))
+    return -sed_flux ./ clinfo.mom
 end
 
 
