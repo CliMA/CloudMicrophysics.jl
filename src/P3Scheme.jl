@@ -201,26 +201,6 @@ function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
 end
 
 """
-    integrate(a, b, c1, c2, c3)
-
- - a - lower bound 
- - b - upper bound 
- - c1, c2, c3 - respective constants 
-
- Integrates the function c1 * D ^ (c2) * exp(-c3 * D) dD from a to b 
-    Returns the result
-"""
-function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where{FT}
-    if b == Inf
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3))
-    elseif a == 0 
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, b * c3))
-    else 
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3) - Γ(1 + c2, b * c3))
-    end
-end
-
-"""
     DSD_μ(p3, λ)
 
 - p3 - a struct with P3 scheme parameters
@@ -247,6 +227,51 @@ Returns the shape parameter N₀ from Eq. 2 in Morrison and Milbrandt (2015).
 function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT}
     μ = DSD_μ(p3, λ)
     return N / Γ(1 + μ) * λ^(1 + μ)
+end
+
+"""
+    integrate(a, b, c1, c2, c3)
+
+ - a - lower bound 
+ - b - upper bound 
+ - c1, c2, c3 - respective constants 
+
+ Integrates the function c1 * D ^ (c2) * exp(-c3 * D) dD from a to b 
+    Returns the result
+"""
+function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where{FT}
+    if b == Inf
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3))
+    elseif a == 0 
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, b * c3))
+    else 
+        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3) - Γ(1 + c2, b * c3))
+    end
+end
+
+"""
+    get_coeffs(p3, th) 
+
+ - p3 - a struct with P3 scheme parameters
+ - th - thresholds tuple as returned by thresholds()
+ - F_r - rime mass fraction [q_rim/q_i]
+
+Returns the coefficients for m(D), a(D), and the respective powers of D 
+    Where the indices are as follows: 
+        1 - small, spherical ice 
+        2 - large, unrimed ice 
+        3 - dense, nonspherical ice 
+        4 - graupel 
+        5 - partially rimed ice 
+        6 - second half of partially rimed ice (only for a)
+"""
+function get_coeffs(p3::PSP3, th, F_r::FT) where{FT}
+    α_va = α_va_si(p3)
+    m = [π / 6 * p3.ρ_i, α_va, α_va, π / 6 * th.ρ_g, α_va / (1- F_r)]
+    m_power = [FT(3), p3.β_va, p3.β_va, 3, p3.β_va]
+    a = [π/4, p3.γ, p3.γ, π/4, F_r * π/4, (1 - F_r) * p3.γ] 
+    a_power = [FT(2), p3.σ, p3.σ, FT(2), FT(2), p3.σ]
+    return (; m, m_power, a, a_power)
 end
 
 """
@@ -411,6 +436,18 @@ function distribution_parameter_solver(
         ).root
 
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
+end
+
+"""
+    ϕ_coeff(m, a) 
+
+ - m - coefficient of mass
+ - a - coefficient of mass 
+
+ Returns the coefficient of aspect ratio (ignoring powers of D)
+"""
+function ϕ_coeff(p3::PSP3, m::FT, a::FT) where{FT}
+    return 16 * p3.ρ_i ^ 2 * a ^ 3 / (9 * π^2 * m^2)
 end
 
 """
