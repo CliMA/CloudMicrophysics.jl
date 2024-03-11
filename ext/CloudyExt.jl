@@ -44,11 +44,12 @@ function CLSetup{FT}(;
         FT(9.44e9),     # 9.44e9 m^3/kg^2/s;
         FT(5.78),       # 5.78 m^3/kg/s
     ),
-    mass_thresholds::Vector{FT} = [FT(1e-5), FT(Inf)],  # TODO: ~100µm Diam
+    mass_thresholds::Vector{FT} = [FT(1e-9), FT(Inf)],
     kernel_order::Int = 1,
     kernel_limit::FT = FT(1 * 1e-9 * 1e3),   # ~1mm Diam ~ 1 mm^3 volume
     coal_data = nothing,
-    vel::Vector{Tuple{FT, FT}} = [(FT(50.0), FT(1.0 / 6))], # 50 m/s/kg^(1/6)
+    vel::Vector{Tuple{FT, FT}} = [(FT(50.0), FT(1.0 / 6))], # 50 m/s/kg^(1/6),
+    norms::Vector{FT} = [1e6, 1e-9], # 1e6 / m^3; 1e-9 kg
 ) where {FT <: AbstractFloat}
 
     CLSetup{FT}(
@@ -61,6 +62,7 @@ function CLSetup{FT}(;
         kernel_limit,
         coal_data,
         vel,
+        norms,
     )
 end
 
@@ -83,20 +85,24 @@ function coalescence(clinfo::CLSetup{FT}) where {FT}
             CL.EquationTypes.AnalyticalCoalStyle(),
             kernel_tensor,
             clinfo.NProgMoms,
+            norms = clinfo.norms,
             dist_thresholds = clinfo.mass_thresholds,
         )
     end
+    mom_norms =
+        CL.get_moments_normalizing_factors(clinfo.NProgMoms, clinfo.norms)
+    mom_normalized = clinfo.mom ./ mom_norms
     # first, update the particle distributions
     for (i, dist) in enumerate(clinfo.pdists)
         ind_rng = CL.get_dist_moments_ind_range(clinfo.NProgMoms, i)
-        CPD.update_dist_from_moments!(dist, clinfo.mom[ind_rng])
+        CPD.update_dist_from_moments!(dist, mom_normalized[ind_rng]) #clinfo.mom[ind_rng])
     end
     CL.Coalescence.update_coal_ints!(
         CL.EquationTypes.AnalyticalCoalStyle(),
         clinfo.pdists,
         clinfo.coal_data,
     )
-    return clinfo.coal_data.coal_ints
+    return clinfo.coal_data.coal_ints .* mom_norms
 end
 
 """
@@ -118,15 +124,18 @@ function condensation(
 ) where {FT}
     ξ = CO.G_func(aps, tps, T, TD.Liquid())
 
+    mom_norms =
+        CL.get_moments_normalizing_factors(clinfo.NProgMoms, clinfo.norms)
+    mom_normalized = clinfo.mom ./ mom_norms
     # first, update the particle distributions
     for (i, dist) in enumerate(clinfo.pdists)
         ind_rng = CL.get_dist_moments_ind_range(clinfo.NProgMoms, i)
-        CPD.update_dist_from_moments!(dist, clinfo.mom[ind_rng])
+        CPD.update_dist_from_moments!(dist, mom_normalized[ind_rng])
     end
     return CL.Condensation.get_cond_evap(
         S - 1,
         (; ξ = ξ, pdists = clinfo.pdists),
-    )
+    ) .* mom_norms
 end
 
 """
@@ -136,10 +145,12 @@ end
 Returns the integrated fall speeds corresponding to the rate of change of prognostic moments
 """
 function weighted_vt(clinfo::CLSetup{FT}) where {FT}
-    sed_flux = CL.Sedimentation.get_sedimentation_flux((;
-        pdists = clinfo.pdists,
-        vel = clinfo.vel,
-    ))
+    for (i, dist) in enumerate(clinfo.pdists)
+        ind_rng = CL.get_dist_moments_ind_range(clinfo.NProgMoms, i)
+        CPD.update_dist_from_moments!(dist, clinfo.mom[ind_rng])
+    end
+    sed_flux =
+        CL.Sedimentation.get_sedimentation_flux(clinfo.pdists, clinfo.vel)
     return -sed_flux ./ clinfo.mom
 end
 

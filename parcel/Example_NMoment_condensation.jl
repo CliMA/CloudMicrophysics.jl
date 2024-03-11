@@ -136,7 +136,7 @@ qₗ = ml_v / (md_v + mv_v + ml_v)
 qᵢ = FT(0)
 
 # Simulation parameters passed into ODE solver
-w = FT(10)                                  # updraft speed
+w = FT(1)                                  # updraft speed
 const_dt = FT(0.5)                         # model timestep
 t_max = FT(20)
 clinfo = CMF.CLSetup{FT}(pdists = dist_init, mom = moments_init)

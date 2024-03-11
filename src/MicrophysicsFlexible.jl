@@ -34,6 +34,8 @@ mutable struct CLSetup{FT}
     coal_data::Any
     "Sedimentation rate parameters"
     vel::Vector{Tuple{FT, FT}}
+    "Normalizing factors for number density and particle mass"
+    norms::Vector{FT}
 end
 
 """
