@@ -147,14 +147,87 @@ function test_a_w_ice(FT)
     end
 end
 
+function test_Chen_coefficients(FT)
+    ρ = FT(1.2)
+    Ch2022 = CMP.Chen2022VelType(FT)
+
+    TT.@testset "Chen terminal velocity rain (B1)" begin
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(Ch2022.rain, ρ)
+
+        TT.@test all(
+            isapprox.(
+                aiu,
+                [
+                    FT(286768.02047954104),
+                    FT(-1.6916433443360287e6),
+                    FT(9843.240767655458),
+                ],
+                rtol = eps(FT),
+            ),
+        )
+        TT.@test all(
+            isapprox.(
+                bi,
+                [FT(2.249342), FT(2.249342), FT(1.098942)],
+                rtol = eps(FT),
+            ),
+        )
+        TT.@test all(
+            isapprox.(ciu, [FT(0), FT(184.325), FT(184.325)], rtol = eps(FT)),
+        )
+    end
+
+    TT.@testset "Chen terminal velocity small ice (B2)" begin
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(Ch2022.snow_ice, ρ)
+
+        TT.@test all(
+            isapprox.(
+                aiu,
+                [380.9523818928577, -378.94964461870484],
+                rtol = eps(FT),
+            ),
+        )
+        TT.@test all(
+            isapprox.(
+                bi,
+                [0.7065511618279822, 0.7065511618279822],
+                rtol = eps(FT),
+            ),
+        )
+        TT.@test all(isapprox.(ciu, [0.0, 5194.870484289714], rtol = eps(FT)))
+    end
+
+    TT.@testset "Chen terminal velocity large ice (B4)" begin
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_large(Ch2022.snow_ice, ρ)
+
+        TT.@test all(
+            isapprox.(
+                aiu,
+                [144.32735209844674, -0.9732523067775996],
+                rtol = eps(FT),
+            ),
+        )
+        TT.@test all(
+            isapprox.(
+                bi,
+                [0.5375612365666844, 0.020917783512726773],
+                rtol = eps(FT),
+            ),
+        )
+        TT.@test all(isapprox.(ciu, [0.0, 86.47212246687042], rtol = eps(FT)))
+    end
+end
+
 println("Testing Float64")
 test_H2SO4_soln_saturation_vapor_pressure(Float64)
 test_a_w_xT(Float64)
 test_a_w_eT(Float64)
 test_a_w_ice(Float64)
+test_Chen_coefficients(Float64)
 
 println("Testing Float32")
 test_H2SO4_soln_saturation_vapor_pressure(Float32)
 test_a_w_xT(Float32)
 test_a_w_eT(Float32)
 test_a_w_ice(Float32)
+#test_Chen_coefficients(Float32)

@@ -34,7 +34,7 @@ function rain_terminal_velocity_individual_Chen(
     ρ::FT,
     D_r::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs(velo_scheme, ρ)
+    ai, bi, ci = CMO.Chen2022_vel_coeffs_small(velo_scheme, ρ)
     D_r = D_r * 1000 #D_r is in mm in the paper --> multiply D_r by 1000
 
     v = 0
