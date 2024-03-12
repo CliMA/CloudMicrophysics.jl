@@ -358,7 +358,7 @@ function rain_terminal_velocity(
         return (FT(0), FT(0))
     end
     # coefficients from Table B1 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρ)
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
     # size distribution parameter
     λ = raindrops_limited_vars(pdf, q_rai, ρ, N_rai).λr
 

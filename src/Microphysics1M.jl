@@ -143,7 +143,7 @@ function terminal_velocity(
     fall_w = FT(0)
     if q > FT(0)
         # coefficients from Table B1 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
         # size distribution parameter
         λ::FT = lambda(pdf, mass, q, ρ)
         # eq 20 from Chen et al 2022
@@ -172,7 +172,7 @@ function terminal_velocity(
         aec = ae + Δa
 
         # coefficients from Appendix B from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
         ρᵢ = vel.ρᵢ
         κ = FT(-1 / 3) #oblate
         k = 3 # mass weighted
