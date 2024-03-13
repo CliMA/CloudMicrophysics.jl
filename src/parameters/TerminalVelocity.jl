@@ -150,6 +150,13 @@ struct Chen2022VelTypeSnowIce{FT} <: ParametersType{FT}
     Es::FT
     Fs::FT
     Gs::FT
+    Al::FT
+    Bl::FT
+    Cl::FT
+    El::FT
+    Fl::FT
+    Gl::FT
+    Hl::FT
     "density of cloud ice [kg/m3]"
     ρᵢ::FT
 end
@@ -163,6 +170,13 @@ function Chen2022VelTypeSnowIce(toml_dict::CP.AbstractTOMLDict)
         :Chen2022_table_B3_Es => :Es,
         :Chen2022_table_B3_Fs => :Fs,
         :Chen2022_table_B3_Gs => :Gs,
+        :Chen2022_table_B5_Al => :Al,
+        :Chen2022_table_B5_Bl => :Bl,
+        :Chen2022_table_B5_Cl => :Cl,
+        :Chen2022_table_B5_El => :El,
+        :Chen2022_table_B5_Fl => :Fl,
+        :Chen2022_table_B5_Gl => :Gl,
+        :Chen2022_table_B5_Hl => :Hl,
         :density_ice_water => :ρᵢ,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
@@ -174,6 +188,15 @@ function Chen2022VelTypeSnowIce(toml_dict::CP.AbstractTOMLDict)
         p.Es[1] - p.Es[2] * (log(p.ρᵢ))^2 + p.Es[3] * sqrt(p.ρᵢ),
         -exp(p.Fs[1] - p.Fs[2] * (log(p.ρᵢ))^2 + p.Fs[3] * log(p.ρᵢ)),
         FT(1) / (p.Gs[1] + p.Gs[2] / (log(p.ρᵢ)) - p.Gs[3] * log(p.ρᵢ) / p.ρᵢ),
+        p.Al[1] + p.Al[2] * log(p.ρᵢ) + p.Al[3] * (p.ρᵢ)^(-3 / 2),
+        exp(p.Bl[1] + p.Bl[2] * log(p.ρᵢ)^2 + p.Bl[3] * log(p.ρᵢ)),
+        exp(p.Cl[1] + p.Cl[2] / log(p.ρᵢ) + p.Cl[3] / p.ρᵢ),
+        p.El[1] + p.El[2] * log(p.ρᵢ) * sqrt(p.ρᵢ) + p.El[3] * sqrt(p.ρᵢ),
+        p.Fl[1] + p.Fl[2] * log(p.ρᵢ) + p.Fl[3] * exp(-p.ρᵢ),
+        (
+            p.Gl[1] + p.Gl[2] * log(p.ρᵢ) * sqrt(p.ρᵢ) + p.Gl[3] / sqrt(p.ρᵢ)
+        )^(-1),
+        p.Hl[1] + p.Hl[2] * (p.ρᵢ)^(5 / 2) - p.Hl[3] * exp(-p.ρᵢ),
         p.ρᵢ,
     )
 end

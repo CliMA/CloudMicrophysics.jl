@@ -122,7 +122,8 @@ Common.a_w_xT
 Common.a_w_eT
 Common.a_w_ice
 Common.Chen2022_vel_add
-Common.Chen2022_vel_coeffs
+Common.Chen2022_vel_coeffs_small
+Common.Chen2022_vel_coeffs_large
 ```
 
 # Parameters
