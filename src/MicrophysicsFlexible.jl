@@ -65,7 +65,8 @@ function condensation end
     weighted_vt(clinfo)
 
  - `clinfo` - kwarg structure containing pdists, moments, and coalescence parameters
-Returns the integrated fall speeds corresponding to the rate of change of prognostic moments
+Returns the moment-weighted terminal velocities corresponding to the rate of change of 
+prognostic moments
 """
 function weighted_vt end
 

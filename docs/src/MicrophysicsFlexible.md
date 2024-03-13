@@ -1,6 +1,6 @@
 # Microphysics Flexible
 
-The `MicrophysicsFlexible.jl` module relies on the extension defined in `ext/CloudyExt.jl`, based on a flexible N-moment microphysics scheme built in the external package `Cloudy.jl`. This option currently handles warm-rain processes including coalescence, condensation/evaporation, and sedimentation (terminal velocity). Unlike typical moment-based schemes which distinguish between categories such as rain and cloud, and which determine rates of conversion between categories (the canonical autoconversion, accretion, and self-collection), this option gives the user the flexibility to define as many or as few moments as they please, with these coalescence-based processes being solved directly without relying on conversion rates. Likewise, the rate of condensation/evaporation is defined through the rate of diffusion of water vapor to/from the surface of droplets defined by the subdistributions which underpin the method. The user has not only the flexibility to specify the number of moments (and therefore the complexity/accuracy) to use, but also the assumed size distributions corresponding to these moments. For instance, one might define a 5-moment implementation using an Exponential mode for smaller cloud droplets, plus a Gamma mode for larger rain droplets. Or, more creatively, perhaps a 12-moment implementation comprised of four Gamma modes.
+The `MicrophysicsFlexible.jl` module relies on the extension defined in `ext/CloudyExt.jl`, based on a flexible N-moment microphysics scheme built in the external package [Cloudy.jl](https://github.com/CliMA/Cloudy.jl). This option currently handles warm-rain processes including coalescence, condensation/evaporation, and sedimentation (terminal velocity). Unlike typical moment-based schemes which distinguish between categories such as rain and cloud, and which determine rates of conversion between categories (the canonical autoconversion, accretion, and self-collection), this option gives the user the flexibility to define as many or as few moments as they please, with these coalescence-based processes being solved directly without relying on conversion rates. Likewise, the rate of condensation/evaporation is defined through the rate of diffusion of water vapor to/from the surface of droplets defined by the subdistributions which underpin the method. The user has not only the flexibility to specify the number of moments (and therefore the complexity/accuracy) to use, but also the assumed size distributions corresponding to these moments. For instance, one might define a 5-moment implementation using an Exponential mode for smaller cloud droplets, plus a Gamma mode for larger rain droplets. Or, more creatively, perhaps a 12-moment implementation comprised of four Gamma modes.
 
 Options for dynamics and size distributions are under continuous development in the `Cloudy.jl` package, thus only the default and suggested use cases are described in detail here.
 
@@ -25,15 +25,17 @@ from the Julia REPL. Upon recognizing that `Cloudy.jl` is being loaded, the exte
 ## Setting up a system
 All the details from the number of moments and type of subdistributions, to the parameterizations of coalescence, condensation, and sedimentation are defined through the `CLSetup` (CLoudySetup) mutable struct. This struct is mutable specifically because certain of its components, such as backend-computed coalescence tendencies, are updated prior to being passed to the timestepper. The components of a `CLSetup` object and their defaults are further described below.
 
-|   component         |   description                            |   default                  |
-|---------------------|------------------------------------------|----------------------------|
-| ``pdists``          | Vector of subdistributions corresponding | ``[Exponential, Gamma]``   |
-|                     | to the moments                           |                            |
-| ``mom``             | Prognostic moments, in the same order as | ``[0, 0, 0, 0, 0]``        |
-|                     | the corresponding subdistributions       |                            |
-| ``KernelFunc``      | Form of the coalescence kernel function  | ``LongKernelFunction``     |
-| ``mass_thresholds`` | Particle size thresholds for coalescence | ``[10.0, Inf]``            |
-|                     | integration                              |                            |
-| ``kernel order``    | Polynomial order for the approx. kernel  | ``1``                      |
-| ``kernel_limit``    | Size threshold for approx. kernel        | ``500``                    |
-| ``vel``             | Power-series coefficients for velocity   | ``[2.0, 1/6]``             |
+|   component         |   description                              |   default                  |
+|---------------------|--------------------------------------------|----------------------------|
+| ``pdists``          | Vector of subdistributions corresponding   | ``[Exponential, Gamma]``   |
+|                     | to the moments                             |                            |
+| ``mom``             | Prognostic mass moments, in the same order |``[1e8 / m^3, 1e-2 kg/m^3,``|
+|                     | as the corresponding subdistributions;     |``1e6/m^3, 1e-3 kg/m^3,``   |
+|                     | first 2 for Exp, next 3 for Gamma          |``2e-12 kg^2/m^3]``         |
+| ``KernelFunc``      | Form of the coalescence kernel function    | ``LongKernelFunction``     |
+| ``mass_thresholds`` | Particle size thresholds for coalescence   | ``[10.0, Inf]``            |
+|                     | integration                                |                            |
+| ``kernel order``    | Polynomial order for the approx. kernel    | ``1``                      |
+| ``kernel_limit``    | Size threshold for approx. kernel          | ``500``                    |
+| ``vel``             | Power-series coefficients for velocity     | ``[2.0, 1/6]``             |
+| ``norms``           | Normalizing number density & mass          | ``[1e6/m^3, 1e-9 kg]``     |
