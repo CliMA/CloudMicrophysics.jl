@@ -16,6 +16,7 @@ import SpecialFunctions as SF
 import RootSolvers as RS
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Common as CO
 
 const PSP3 = CMP.ParametersP3
 
@@ -469,23 +470,16 @@ function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, 
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
-
-    if th.D_gr > 0.000625 || th.D_cr > 0.000625
-        println(th)
-    end
+    cutoff = FT(0.000625) # TO be added to the struct
 
     # Get the shape parameters
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
 
     # Get the ai, bi, ci constants (in si units) for velocity calculations
-    (; As, Bs, Cs, Es, Fs, Gs) = Chen2022
+    (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
 
-    bi = [Bs + ρ_a * Cs, Bs + ρ_a * Cs]
-    ai = [Es * ρ_a^As * 10^(3 * bi[1]), Fs * ρ_a^As * 10^(3 * bi[2])]
-    ci = [0, Gs * 10^3]
-
-    κ = FT(1/3)
+    κ = FT(-1/6) #FT(1/3)
 
     # Redefine α_va to be in si units
     α_va = α_va_si(p3)
@@ -495,19 +489,55 @@ function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, 
     for i in 1:2
         if F_r == 0 
             v += integrate(FT(0), D_th, π / 6 * p3.ρ_i * ai[i] * N_0, bi[i] + μ + 3, ci[i] + λ)
-            v += integrate(D_th, Inf, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+            v += integrate(D_th, cutoff, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+            
+            # Get velocity coefficients for large particles
+            (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+            v += integrate(cutoff, Inf, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
         else 
+            large = false
             v += integrate(FT(0), D_th, π / 6 * p3.ρ_i * ai[i] * N_0, bi[i] + μ + 3, ci[i] + λ)
-            v += integrate(D_th, th.D_gr, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-            v += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ + 3, ci[i] + λ)
-            # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
-            v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
-            #= v += (
-                integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ * (1-F_r)) ^ (3 * κ), bi[i] + p3.β_va + μ + κ*(3 * p3.σ), ci[i] + λ) + 
-                integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ ^ 2 * π * F_r * 3/4 * (1-F_r)^2) ^ κ, bi[i] + p3.β_va + μ + κ*(2 + 2 * p3.σ), ci[i] + λ) + 
-                integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ * π ^ 2 * F_r ^ 2 * 3/16 * (1-F_r)) ^ κ, bi[i] + p3.β_va + μ + κ*(4 + p3.σ), ci[i] + λ) + 
-                integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (F_r^3 * π^3 / 64) ^ κ, bi[i] + p3.β_va + μ + 6 * κ, ci[i] + λ)
-            ) =#
+            
+            # D_th to D_gr
+            if !large && th.D_gr > cutoff 
+                v += integrate(D_th, cutoff, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+                
+                # large particles 
+                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+                large = true 
+
+                v += integrate(cutoff, th.D_gr, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+            else
+                v += integrate(D_th, th.D_gr, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+            end
+
+            # D_gr to D_cr
+            if !large && th.D_cr > cutoff 
+                v += integrate(th.D_gr, cutoff, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ + 3, ci[i] + λ)
+                    
+                # large particles 
+                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+                large = true 
+
+                v += integrate(cutoff, th.D_cr, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ + 3, ci[i] + λ)
+            else 
+                v += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ + 3, ci[i] + λ)
+            end
+            
+            # D_cr to Infinity
+            if !large
+                # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
+                v += integrate(th.D_cr, cutoff, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+                    
+                # large particles 
+                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+                large = true
+
+                v += integrate(cutoff, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+            else 
+                # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
+                v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+            end
         end
     end
 

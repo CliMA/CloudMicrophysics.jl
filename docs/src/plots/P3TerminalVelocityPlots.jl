@@ -206,3 +206,10 @@ x =
         ).root
 
 println("q_solved = ", exp(x)) 
+
+Chen2022 = CMP.Chen2022VelType(FT)
+q = FT(0.0008)
+N = FT(1e6)
+ρ_r = FT(900)
+F_r = FT(0.99)
+P3.terminal_velocity_mass(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, FT(1.293))
