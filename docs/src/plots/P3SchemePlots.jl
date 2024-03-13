@@ -59,14 +59,6 @@ function p3_mass(
     if D >= th.D_cr
         return mass_r(p3, D, F_r)         # partially rimed ice
     end
-
-    # TODO - would something like this be better?
-    #return ifelse(D_th_helper(p3) > D, mass_s(D, p3.ρ_i),
-    #       ifelse(F_r == 0, mass_nl(p3, D),
-    #       ifelse(th.D_gr > D >= D_th_helper(p3), mass_nl(p3, D),
-    #       ifelse(th.D_cr > D >= th.D_gr, mass_s(D, th.ρ_g),
-    #           mass_r(p3, D, F_r)))))
-
 end
 
 """

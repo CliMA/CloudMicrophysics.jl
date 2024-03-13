@@ -470,6 +470,10 @@ function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, 
     th = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
 
+    if th.D_gr > 0.000625 || th.D_cr > 0.000625
+        println(th)
+    end
+
     # Get the shape parameters
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
@@ -491,17 +495,19 @@ function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, 
     for i in 1:2
         if F_r == 0 
             v += integrate(FT(0), D_th, π / 6 * p3.ρ_i * ai[i] * N_0, bi[i] + μ + 3, ci[i] + λ)
-            v += integrate(D_th, Inf, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + p3.β_va + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+            v += integrate(D_th, Inf, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
         else 
             v += integrate(FT(0), D_th, π / 6 * p3.ρ_i * ai[i] * N_0, bi[i] + μ + 3, ci[i] + λ)
-            v += integrate(D_th, th.D_gr, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + p3.β_va + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-            v += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + 3 + μ, ci[i] + λ)
-            v += (
+            v += integrate(D_th, th.D_gr, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
+            v += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ + 3, ci[i] + λ)
+            # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
+            v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+            #= v += (
                 integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ * (1-F_r)) ^ (3 * κ), bi[i] + p3.β_va + μ + κ*(3 * p3.σ), ci[i] + λ) + 
                 integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ ^ 2 * π * F_r * 3/4 * (1-F_r)^2) ^ κ, bi[i] + p3.β_va + μ + κ*(2 + 2 * p3.σ), ci[i] + λ) + 
                 integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (p3.γ * π ^ 2 * F_r ^ 2 * 3/16 * (1-F_r)) ^ κ, bi[i] + p3.β_va + μ + κ*(4 + p3.σ), ci[i] + λ) + 
                 integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (F_r^3 * π^3 / 64) ^ κ, bi[i] + p3.β_va + μ + 6 * κ, ci[i] + λ)
-            )
+            ) =#
         end
     end
 
