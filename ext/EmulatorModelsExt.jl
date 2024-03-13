@@ -9,6 +9,22 @@ import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.Parameters as CMP
 
+"""
+    N_activated_per_mode(machine, ap, ad, aip, tps, T, p, w, q)
+
+  - `machine` - ML model
+  - `ap`  - a struct with aerosol activation parameters
+  - `ad`  - aerosol distribution struct
+  - `aip` - a struct with air parameters
+  - `tps` - a struct with thermodynamics parameters
+  - `T`   - air temperature
+  - `p`   - air pressure
+  - `w`   - vertical velocity
+  - `q`   - phase partition
+
+Returns the number of activated aerosol particles
+in each aerosol size distribution mode by using a trained emulator.
+"""
 function AA.N_activated_per_mode(
     machine::MLJ.Machine,
     ap::CMP.AerosolActivationParameters,

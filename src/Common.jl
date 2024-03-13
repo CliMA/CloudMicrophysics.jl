@@ -17,7 +17,7 @@ export a_w_xT
 export a_w_eT
 export a_w_ice
 export Chen2022_vel_add
-export Chen2022_vel_coeffs
+export Chen2022_vel_coeffs_small
 
 """
     G_func(air_props, tps, T, Liquid())
@@ -205,7 +205,7 @@ function a_w_ice(tps::TPS, T::FT) where {FT}
 end
 
 """
-    Chen2022_vel_coeffs(precip_type, velo_scheme, ρ)
+    Chen2022_vel_coeffs_small(precip_type, velo_scheme, ρ)
 
  - velo_scheme - type for terminal velocity scheme (contains free parameters)
  - ρ - air density
@@ -213,7 +213,7 @@ end
 Returns the coefficients from Appendix B in Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
 """
-function Chen2022_vel_coeffs(
+function Chen2022_vel_coeffs_small(
     velo_scheme::CMP.Chen2022VelTypeRain,
     ρ::FT,
 ) where {FT}
@@ -231,7 +231,7 @@ function Chen2022_vel_coeffs(
 
     return (aiu, bi, ciu)
 end
-function Chen2022_vel_coeffs(
+function Chen2022_vel_coeffs_small(
     velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
     ρ::FT,
 ) where {FT}
@@ -240,6 +240,22 @@ function Chen2022_vel_coeffs(
     ai = (Es * ρ^As, Fs * ρ^As)
     bi = (Bs + ρ * Cs, Bs + ρ * Cs)
     ci = (FT(0), Gs)
+    # unit conversions
+    aiu = ai .* 1000 .^ bi
+    ciu = ci .* 1000
+
+    return (aiu, bi, ciu)
+end
+
+function Chen2022_vel_coeffs_large(
+    velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
+    ρ::FT,
+) where {FT}
+    (; Al, Bl, Cl, El, Fl, Gl, Hl) = velo_scheme
+
+    ai = (Bl * ρ^Al, El * ρ^Al * exp(Hl * ρ))
+    bi = (Cl, Fl)
+    ci = (FT(0), Gl)
     # unit conversions
     aiu = ai .* 1000 .^ bi
     ciu = ci .* 1000
