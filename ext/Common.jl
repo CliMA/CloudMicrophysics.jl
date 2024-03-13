@@ -4,6 +4,7 @@ using DataFramesMeta
 
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
+import Thermodynamics.Parameters as TDP
 
 function get_num_modes(df::DataFrame)
     i = 1
@@ -71,12 +72,13 @@ function preprocess_aerosol_data(X::DataFrame)
     return X
 end
 
-function get_ARG_act_frac(data_row::NamedTuple)
-
-    FT = Float32
-    aip = CMP.AirProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
-    ap = CMP.AerosolActivationParameters(FT)
+function get_ARG_act_frac(
+    data_row::NamedTuple,
+    ap::CMP.AerosolActivationParameters,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
+    FT::DataType,
+)
 
     num_modes = get_num_modes(data_row)
     @assert num_modes > 0
@@ -117,16 +119,31 @@ function get_ARG_act_frac(data_row::NamedTuple)
     ) ./ mode_Ns
 end
 
-function get_ARG_act_frac(X::DataFrame)
-    return transpose(hcat(get_ARG_act_frac.(NamedTuple.(eachrow(X)))...))
+function get_ARG_act_frac(
+    X::DataFrame,
+    ap::CMP.AerosolActivationParameters,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
+    FT::DataType,
+)
+    return transpose(
+        hcat(get_ARG_act_frac.(NamedTuple.(eachrow(X)), ap, aip, tps, FT)...),
+    )
 end
 
-function preprocess_aerosol_data_with_ARG_act_frac(X::DataFrame)
+function preprocess_aerosol_data_with_ARG_act_frac(
+    X::DataFrame,
+    ap::CMP.AerosolActivationParameters,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
+    FT::DataType,
+)
+    f(y) = get_ARG_act_frac(y, ap, aip, tps, FT)
     num_modes = get_num_modes(X)
     X = DF.transform(
         X,
         AsTable(All()) =>
-            ByRow(x -> get_ARG_act_frac(x)) =>
+            ByRow(x -> f(x)) =>
                 [Symbol("mode_$(i)_ARG_act_frac") for i in 1:num_modes],
     )
     return preprocess_aerosol_data(X)

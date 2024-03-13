@@ -156,6 +156,13 @@ end
 # Load aerosol data reading and preprocessing functions
 include(joinpath(pkgdir(CM), "ext", "Common.jl"))
 
+function preprocess_aerosol_data_with_ARG_act_frac_FT32(x::DataFrame)
+    aip = CMP.AirProperties(Float32)
+    tps = TD.Parameters.ThermodynamicsParameters(Float32)
+    ap = CMP.AerosolActivationParameters(Float32)
+    return preprocess_aerosol_data_with_ARG_act_frac(x, ap, aip, tps, Float32)
+end
+
 # Get the ML model
 function get_2modal_model_FT32(;
     ml_model = "NN",
@@ -165,7 +172,7 @@ function get_2modal_model_FT32(;
     FT = Float32
 
     # If the ML model already exists load it in.
-    # If it does not exist, train a NN
+    # If it does not exist, train
     fpath = joinpath(pkgdir(CM), "test")
     if isfile(joinpath(fpath, machine_name))
         # Read-in the saved ML model
@@ -192,7 +199,8 @@ function get_2modal_model_FT32(;
 
         # Define the training pipeline
         if with_ARG_act_frac
-            _preprocess_aerosol_data = preprocess_aerosol_data_with_ARG_act_frac
+            _preprocess_aerosol_data =
+                preprocess_aerosol_data_with_ARG_act_frac_FT32
         else
             _preprocess_aerosol_data = preprocess_aerosol_data
         end
@@ -272,7 +280,13 @@ function get_2modal_model_FT32(;
     end
 end
 
-function test_emulator(FT)
+function test_emulator(
+    FT;
+    ml_model = "NN",
+    with_ARG_act_frac = false,
+    machine_name = "2modal_nn_machine_naive.jls",
+    rtols = [1e-4, 1e-3],
+)
 
     aip = CMP.AirProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -300,63 +314,59 @@ function test_emulator(FT)
     crs = AM.Mode_κ(r2, σ2, N2, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,), 1)
     ad = AM.AerosolDistribution((crs, acc))
 
-    # NN
     # Get the ML model
-    mach_NN = get_2modal_model_FT32(
-        ml_model = "NN",
-        machine_name = "2modal_nn_machine_naive.jls",
+    mach = get_2modal_model_FT32(
+        ml_model = ml_model,
+        with_ARG_act_frac = with_ARG_act_frac,
+        machine_name = machine_name,
     )
 
-    TT.@test AA.N_activated_per_mode(mach_NN, ap, ad, aip, tps, T, p, w, q)[1] ≈
+    TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q)[1] ≈
              AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
-        1e-4
-    TT.@test AA.N_activated_per_mode(mach_NN, ap, ad, aip, tps, T, p, w, q)[2] ≈
+        rtols[1]
+    TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q)[2] ≈
              AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
-        1e-3
-
-    # GP
-    # Get the ML model
-    mach_GP = get_2modal_model_FT32(
-        ml_model = "GP",
-        machine_name = "2modal_gp_machine_naive.jls",
-    )
-
-    TT.@test AA.N_activated_per_mode(mach_GP, ap, ad, aip, tps, T, p, w, q)[1] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
-        1e-2
-    TT.@test AA.N_activated_per_mode(mach_GP, ap, ad, aip, tps, T, p, w, q)[2] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
-        5e-2
-
-    # ET
-    # Get the ML model
-    mach_ET = get_2modal_model_FT32(
-        ml_model = "ET",
-        machine_name = "2modal_et_machine_naive.jls",
-    )
-
-    TT.@test AA.N_activated_per_mode(mach_ET, ap, ad, aip, tps, T, p, w, q)[1] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
-        5e-3
-    TT.@test AA.N_activated_per_mode(mach_ET, ap, ad, aip, tps, T, p, w, q)[2] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
-        5e-3
-
-    # NN with ARG act frac
-    # Get the ML model
-    mach_NN = get_2modal_model_FT32(
-        ml_model = "NN",
-        with_ARG_act_frac = true,
-        machine_name = "2modal_nn_machine_naive_with_ARG_act_frac.jls",
-    )
-
-    TT.@test AA.N_activated_per_mode(mach_NN, ap, ad, aip, tps, T, p, w, q)[1] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
-        1e-4
-    TT.@test AA.N_activated_per_mode(mach_NN, ap, ad, aip, tps, T, p, w, q)[2] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
-        1e-3
+        rtols[2]
 end
 
 @info "Aerosol activation test"
-test_emulator(Float32)
+
+TT.@testset "Neural Network" begin
+    test_emulator(
+        Float32,
+        ml_model = "NN",
+        with_ARG_act_frac = false,
+        machine_name = "2modal_nn_machine_naive.jls",
+        rtols = [1e-4, 1e-3],
+    )
+end
+
+TT.@testset "Gaussian Processes" begin
+    test_emulator(
+        Float32,
+        ml_model = "GP",
+        with_ARG_act_frac = false,
+        machine_name = "2modal_gp_machine_naive.jls",
+        rtols = [1e-2, 5e-2],
+    )
+end
+
+TT.@testset "Evo Trees" begin
+    test_emulator(
+        Float32,
+        ml_model = "ET",
+        with_ARG_act_frac = false,
+        machine_name = "2modal_et_machine_naive.jls",
+        rtols = [5e-3, 5e-3],
+    )
+end
+
+TT.@testset "Neural Network with ARG-informed data" begin
+    test_emulator(
+        Float32,
+        ml_model = "NN",
+        with_ARG_act_frac = true,
+        machine_name = "2modal_nn_machine_naive_with_ARG_act_frac.jls",
+        rtols = [1e-4, 1e-3],
+    )
+end
