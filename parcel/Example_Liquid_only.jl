@@ -26,6 +26,7 @@ r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(273.15 + 7.0)
 x_sulph = FT(0)
+ln_INPC = FT(0)
 e = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 Sₗ = FT(1)
 md_v = (p₀ - e) / R_d / T₀
@@ -34,7 +35,7 @@ ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
 qᵥ = mv_v / (md_v + mv_v + ml_v)
 qₗ = ml_v / (md_v + mv_v + ml_v)
 qᵢ = FT(0)
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph, ln_INPC]
 
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed

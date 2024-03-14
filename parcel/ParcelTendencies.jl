@@ -3,6 +3,7 @@ import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
 import CloudMicrophysics.HomIceNucleation as CMI_hom
 import CloudMicrophysics.Parameters as CMP
+import Distributions as DS
 
 function deposition_nucleation(::Empty, state, dY)
     FT = eltype(state)
@@ -104,6 +105,54 @@ function immersion_freezing(params::P3_het, PSD, state)
     (; T, Nₗ, Nᵢ) = state
     Nᵢ_het = CMI_het.P3_het_N_i(ips.p3, T, Nₗ, PSD.Vₗ, const_dt)
     return max(FT(0), (Nᵢ_het - Nᵢ) / const_dt)
+end
+
+function immersion_freezing(params::Frostenberg_random, PSD, state)
+    FT = eltype(state)
+    (; ip, sampling_interval, const_dt) = params
+    (; T, Nₗ, Nᵢ, t) = state
+    if mod(t, sampling_interval) == 0
+        μ = CMI_het.INP_concentration_mean(T)
+        INPC = exp(rand(DS.Normal(μ, ip.σ)))
+    else
+        INPC = 0
+    end
+    return min(Nₗ, max(FT(0), INPC - Nᵢ)) / const_dt
+end
+
+function immersion_freezing(params::Frostenberg_mean, PSD, state)
+    FT = eltype(state)
+    (; ip, const_dt) = params
+    (; T, Nₗ, Nᵢ) = state
+    INPC = exp(CMI_het.INP_concentration_mean(T))
+    return min(Nₗ, max(FT(0), INPC - Nᵢ)) / const_dt
+end
+
+function INPC_model(params, state)
+    FT = eltype(state)
+    return FT(0)
+end
+
+function INPC_model(params::Frostenberg_stochastic, state)
+    FT = eltype(state)
+    (; ip, γ, const_dt) = params
+    (; T, ln_INPC, t) = state
+
+    μ = CMI_het.INP_concentration_mean(T)
+    g = ip.σ * sqrt(2 * γ)
+
+    dln_INPC =
+        -γ * (ln_INPC - μ) * const_dt +
+        g * sqrt(const_dt) * rand(DS.Normal(0, 1))
+
+    return dln_INPC / const_dt
+end
+
+function immersion_freezing(params::Frostenberg_stochastic, PSD, state)
+    FT = eltype(state)
+    (; ip, γ, const_dt) = params
+    (; T, Nₗ, Nᵢ, ln_INPC, t) = state
+    return min(Nₗ, max(FT(0), exp(ln_INPC) - Nᵢ)) / const_dt
 end
 
 function homogeneous_freezing(::Empty, PSD, state)
