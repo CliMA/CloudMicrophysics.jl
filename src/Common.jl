@@ -264,6 +264,31 @@ function Chen2022_vel_coeffs_large(
 end
 
 """
+    Chen2022_vel_coeffs_large(velo_scheme, ρ)
+
+ - velo_scheme - type for terminal velocity scheme (contains free parameters)
+ - ρ - air density
+
+Returns the coefficients from Appendix B (table B4 for large particles) in Chen et al 2022
+DOI: 10.1016/j.atmosres.2022.106171
+"""
+function Chen2022_vel_coeffs_large(
+    velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
+    ρ::FT,
+) where {FT}
+    (; Al, Bl, Cl, El, Fl, Gl, Hl) = velo_scheme
+
+    ai = (Bl * ρ^Al, El * ρ^Al * exp(Hl * ρ))
+    bi = (Cl, Fl)
+    ci = (FT(0), Gl)
+    # unit conversions
+    aiu = ai .* 1000 .^ bi
+    ciu = ci .* 1000
+
+    return (aiu, bi, ciu)
+end
+
+"""
     Chen2022_vel_add(a, b, c, λ, k)
 
  - a, b, c, - free parameters defined in Chen etl al 2022

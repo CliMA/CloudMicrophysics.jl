@@ -53,6 +53,15 @@ Microphysics2M.rain_evaporation
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
+# Flexible N-moment precipitation microphysics
+```@docs
+MicrophysicsFlexible
+MicrophysicsFlexible.CLSetup
+MicrophysicsFlexible.coalescence
+MicrophysicsFlexible.condensation
+MicrophysicsFlexible.weighted_vt
+```
+
 # P3 scheme
 
 ```@docs
@@ -113,6 +122,7 @@ Common.a_w_eT
 Common.a_w_ice
 Common.Chen2022_vel_add
 Common.Chen2022_vel_coeffs_small
+Common.Chen2022_vel_coeffs_large
 ```
 
 # Parameters

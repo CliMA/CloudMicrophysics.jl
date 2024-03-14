@@ -3,6 +3,7 @@ import Plots
 import Thermodynamics
 import CloudMicrophysics
 import ClimaParams
+import CloudMicrophysics.Common as CO
 
 const PL = Plots
 const CM1 = CloudMicrophysics.Microphysics1M
@@ -67,6 +68,26 @@ function rain_evap_empirical(
     return DT(1) / (DT(1) - q.tot) * S * F * G
 end
 
+function terminal_velocity_chen_large(
+    (; pdf, mass)::CMP.CloudIce{FT},
+    vel::CMP.Chen2022VelTypeSnowIce{FT},
+    ρ::FT,
+    q::FT,
+) where {FT}
+    fall_w = FT(0)
+    if q > FT(0)
+        # coefficients from Table B1 from Chen et. al. 2022
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_large(vel, ρ)
+        # size distribution parameter
+        λ::FT = CM1.lambda(pdf, mass, q, ρ)
+        # eq 20 from Chen et al 2022
+        fall_w = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 3))
+        # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
+        fall_w = max(FT(0), fall_w)
+    end
+    return fall_w
+end
+
 # example values
 q_liq_range = range(1e-8, stop = 5e-3, length = 100)
 q_ice_range = range(1e-8, stop = 5e-3, length = 100)
@@ -117,6 +138,17 @@ PL.plot!(
     linewidth = 3,
     label = "Ice-Chen",
     color = :pink,
+    linestyle = :dot,
+)
+PL.plot!(
+    q_ice_range * 1e3,
+    [
+        terminal_velocity_chen_large(ice, Chen2022.snow_ice, ρ_air, q_ice) for
+        q_ice in q_ice_range
+    ],
+    linewidth = 3,
+    label = "Ice-Chen-Large",
+    color = :lightpink1,
     linestyle = :dot,
 )
 PL.plot!(

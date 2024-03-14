@@ -111,6 +111,35 @@ function ice_terminal_velocity_individual_Chen(
 end
 
 """
+    ice_terminal_velocity_large_individual_Chen(velo_scheme, ρ, D_r)
+
+ - `velo_scheme` - set with free parameters
+ - `ρ` - air density
+ - `D_r` - diameter of the raindrops
+
+Returns the fall velocity of a large ice particle (D > 0.625mm) from Chen et al 2022
+"""
+function ice_terminal_velocity_large_individual_Chen(
+    velo_scheme::CMP.Chen2022VelTypeSnowIce,
+    ρ::FT,
+    D_r::FT, #in m
+) where {FT <: Real}
+
+    (; Al, Bl, Cl, El, Fl, Gl, Hl) = velo_scheme
+
+    ai = (Bl * ρ^Al, El * ρ^Al * exp(Hl * ρ))
+    bi = (Cl, Fl)
+    ci = (FT(0), Gl)
+
+    D_r = D_r * 1000 #D_r is in mm in the paper --> multiply D_r by 1000
+    v = 0
+    for i in 1:2
+        v += (ai[i] * (D_r)^(bi[i]) * exp(-D_r * ci[i]))
+    end
+    return v
+end
+
+"""
     snow_terminal_velocity_individual_Chen(precip, velo_scheme, ρ, D_r)
 
  - `precip`, `velo_scheme` - structs with free parameters
@@ -188,6 +217,7 @@ M1_rain = [terminal_velocity_individual_1M(Blk1MVel.rain, ρ_air, D_r) for D_r i
 Ch_snow = [snow_terminal_velocity_individual_Chen(snow, Chen2022.snow_ice, ρ_air, D_r) for D_r in D_r_range]
 M1_snow = [terminal_velocity_individual_1M(Blk1MVel.snow, ρ_air, D_r) for  D_r in D_r_range]
 Ch_ice = [ice_terminal_velocity_individual_Chen(Chen2022.snow_ice, ρ_air, D_r) for  D_r in D_r_range]
+Ch_ice_large = [ice_terminal_velocity_large_individual_Chen(Chen2022.snow_ice, ρ_air, D_r) for  D_r in D_r_range]
 
 Aspect_Ratio = [aspect_ratio_snow_1M(snow, D_r) for  D_r in D_r_ar_range]
 
@@ -215,6 +245,7 @@ p1 = PL.plot!(D_r_range * 1e3, M1_rain, linewidth = 3, xlabel = "D [mm]", ylabel
 p1 = PL.plot!(D_r_range * 1e3, Ch_snow, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label = "Snow-Chen",       color = :red,   linestyle = :dot)
 p1 = PL.plot!(D_r_range * 1e3, M1_snow, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label = "Snow-default-1M", color = :red)
 p1 = PL.plot!(D_r_range * 1e3, Ch_ice, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]",  label = "Ice-Chen",        color = :pink,  linestyle = :dot)
+p1 = PL.plot!(D_r_range * 1e3, Ch_ice_large, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label = "Ice-large-Chen", color = :lightpink, linestyle = :dot)
 # snow aspect ratio plot
 p2 = PL.plot(D_r_ar_range * 1e3,  Aspect_Ratio, linewidth = 3, xlabel = "D [mm]", ylabel = "aspect ratio", label = "Aspect Ratio", color = :red)
 # save plot

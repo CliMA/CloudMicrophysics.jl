@@ -149,6 +149,7 @@ end
 
 function test_Chen_coefficients(FT)
     ρ = FT(1.2)
+    tol = 10 * eps(FT)
     Ch2022 = CMP.Chen2022VelType(FT)
 
     TT.@testset "Chen terminal velocity rain (B1)" begin
@@ -162,18 +163,18 @@ function test_Chen_coefficients(FT)
                     FT(-1.6916433443360287e6),
                     FT(9843.240767655458),
                 ],
-                rtol = eps(FT),
+                rtol = tol,
             ),
         )
         TT.@test all(
             isapprox.(
                 bi,
                 [FT(2.249342), FT(2.249342), FT(1.098942)],
-                rtol = eps(FT),
+                rtol = tol,
             ),
         )
         TT.@test all(
-            isapprox.(ciu, [FT(0), FT(184.325), FT(184.325)], rtol = eps(FT)),
+            isapprox.(ciu, [FT(0), FT(184.325), FT(184.325)], rtol = tol),
         )
     end
 
@@ -184,17 +185,13 @@ function test_Chen_coefficients(FT)
             isapprox.(
                 aiu,
                 [380.9523818928577, -378.94964461870484],
-                rtol = eps(FT),
+                rtol = tol,
             ),
         )
         TT.@test all(
-            isapprox.(
-                bi,
-                [0.7065511618279822, 0.7065511618279822],
-                rtol = eps(FT),
-            ),
+            isapprox.(bi, [0.7065511618279822, 0.7065511618279822], rtol = tol),
         )
-        TT.@test all(isapprox.(ciu, [0.0, 5194.870484289714], rtol = eps(FT)))
+        TT.@test all(isapprox.(ciu, [0.0, 5194.870484289714], rtol = tol))
     end
 
     TT.@testset "Chen terminal velocity large ice (B4)" begin
@@ -204,17 +201,17 @@ function test_Chen_coefficients(FT)
             isapprox.(
                 aiu,
                 [144.32735209844674, -0.9732523067775996],
-                rtol = eps(FT),
+                rtol = tol,
             ),
         )
         TT.@test all(
             isapprox.(
                 bi,
                 [0.5375612365666844, 0.020917783512726773],
-                rtol = eps(FT),
+                rtol = tol,
             ),
         )
-        TT.@test all(isapprox.(ciu, [0.0, 86.47212246687042], rtol = eps(FT)))
+        TT.@test all(isapprox.(ciu, [0.0, 86.47212246687042], rtol = tol))
     end
 end
 
@@ -230,4 +227,4 @@ test_H2SO4_soln_saturation_vapor_pressure(Float32)
 test_a_w_xT(Float32)
 test_a_w_eT(Float32)
 test_a_w_ice(Float32)
-#test_Chen_coefficients(Float32)
+test_Chen_coefficients(Float32)
