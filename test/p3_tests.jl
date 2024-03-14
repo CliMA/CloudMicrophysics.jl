@@ -138,20 +138,33 @@ end
 function test_velocities(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
     p3 = CMP.ParametersP3(FT)
-    q = FT(0.22) 
+    q = FT(0.22)
     N = FT(1e6)
-    ρ_a = FT(1.2) 
+    ρ_a = FT(1.2)
     ρ_rs = [FT(200), FT(400), FT(600), FT(800)]
     F_rs = [FT(0.2), FT(0.4), FT(0.6), FT(0.8)]
 
     TT.@testset "Mass-weighted terminal velocities" begin
-        paper_vals = [[1.5, 1.5, 1.5, 1.5], [1.5, 2.5, 2.5, 2.5], [2.5, 2.5, 2.5, 2.5], [2.5, 3.5, 3.5, 3.5]]
+        paper_vals = [
+            [1.5, 1.5, 1.5, 1.5],
+            [1.5, 2.5, 2.5, 2.5],
+            [2.5, 2.5, 2.5, 2.5],
+            [2.5, 3.5, 3.5, 3.5],
+        ]
         for i in 1:length(ρ_rs)
-            for j in 1:length(F_rs) 
+            for j in 1:length(F_rs)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
-                calculated_vel = P3.terminal_velocity_mass(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, ρ_a)
+                calculated_vel = P3.terminal_velocity_mass(
+                    p3,
+                    Chen2022.snow_ice,
+                    q,
+                    N,
+                    ρ_r,
+                    F_r,
+                    ρ_a,
+                )
 
                 TT.@test calculated_vel > 0
                 TT.@test paper_vals[i][j] ≈ calculated_vel atol = 3.14
@@ -160,10 +173,15 @@ function test_velocities(FT)
         end
     end
 
-    TT.@testset "Mass-weighted mean diameters" begin 
-        paper_vals = [[5, 5, 5, 5], [4.5, 4.5, 4.5, 4.5], [3.5, 3.5, 3.5, 3.5], [3.5, 2.5, 2.5, 2.5]]
+    TT.@testset "Mass-weighted mean diameters" begin
+        paper_vals = [
+            [5, 5, 5, 5],
+            [4.5, 4.5, 4.5, 4.5],
+            [3.5, 3.5, 3.5, 3.5],
+            [3.5, 2.5, 2.5, 2.5],
+        ]
         for i in 1:length(ρ_rs)
-            for j in 1:length(F_rs) 
+            for j in 1:length(F_rs)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
@@ -177,7 +195,7 @@ function test_velocities(FT)
     end
 end
 
-function test_neg_vel(FT) 
+function test_neg_vel(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
     p3 = CMP.ParametersP3(FT)
     q = FT(0.0008)
@@ -186,7 +204,15 @@ function test_neg_vel(FT)
     F_r = FT(0.99)
 
     # Check for negative velocity
-    TT.@test P3.terminal_velocity_mass(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, FT(1.2)) > 0
+    TT.@test P3.terminal_velocity_mass(
+        p3,
+        Chen2022.snow_ice,
+        q,
+        N,
+        ρ_r,
+        F_r,
+        FT(1.2),
+    ) > 0
 end
 
 println("Testing Float32")

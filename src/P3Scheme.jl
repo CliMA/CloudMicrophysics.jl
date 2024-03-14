@@ -241,13 +241,13 @@ end
  Integrates the function c1 * D ^ (c2) * exp(-c3 * D) dD from a to b 
     Returns the result
 """
-function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where{FT}
+function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where {FT}
     if b == Inf
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3))
-    elseif a == 0 
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, b * c3))
-    else 
-        return c1 * c3 ^ (-c2 - 1) * (Γ(1 + c2, a * c3) - Γ(1 + c2, b * c3))
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2, a * c3))
+    elseif a == 0
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, b * c3))
+    else
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2, a * c3) - Γ(1 + c2, b * c3))
     end
 end
 
@@ -267,11 +267,11 @@ Returns the coefficients for m(D), a(D), and the respective powers of D
         5 - partially rimed ice 
         6 - second half of partially rimed ice (only for a)
 """
-function get_coeffs(p3::PSP3, th, F_r::FT) where{FT}
+function get_coeffs(p3::PSP3, th, F_r::FT) where {FT}
     α_va = α_va_si(p3)
-    m = [π / 6 * p3.ρ_i, α_va, α_va, π / 6 * th.ρ_g, α_va / (1- F_r)]
+    m = [π / 6 * p3.ρ_i, α_va, α_va, π / 6 * th.ρ_g, α_va / (1 - F_r)]
     m_power = [FT(3), p3.β_va, p3.β_va, 3, p3.β_va]
-    a = [π/4, p3.γ, p3.γ, π/4, F_r * π/4, (1 - F_r) * p3.γ] 
+    a = [π / 4, p3.γ, p3.γ, π / 4, F_r * π / 4, (1 - F_r) * p3.γ]
     a_power = [FT(2), p3.σ, p3.σ, FT(2), FT(2), p3.σ]
     return (; m, m_power, a, a_power)
 end
@@ -448,8 +448,8 @@ end
 
  Returns the coefficient of aspect ratio (ignoring powers of D)
 """
-function ϕ_coeff(p3::PSP3, m::FT, a::FT) where{FT}
-    return 16 * p3.ρ_i ^ 2 * a ^ 3 / (9 * π^2 * m^2)
+function ϕ_coeff(p3::PSP3, m::FT, a::FT) where {FT}
+    return 16 * p3.ρ_i^2 * a^3 / (9 * π^2 * m^2)
 end
 
 """
@@ -466,7 +466,15 @@ end
  Returns the mass (total)-weighted fall speed
  Eq C10 of Morrison and Milbrandt (2015)
 """
-function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, q::FT, N::FT, ρ_r::FT, F_r::FT, ρ_a::FT) where{FT}
+function terminal_velocity_mass(
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelTypeSnowIce,
+    q::FT,
+    N::FT,
+    ρ_r::FT,
+    F_r::FT,
+    ρ_a::FT,
+) where {FT}
 
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
@@ -480,66 +488,192 @@ function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, 
     # Get the ai, bi, ci constants (in si units) for velocity calculations
     (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
 
-    κ = FT(-1/6) #FT(1/3)
+    κ = FT(-1 / 6) #FT(1/3)
 
     # Redefine α_va to be in si units
     α_va = α_va_si(p3)
 
     v = 0
     for i in 1:2
-        if F_r == 0 
-            v += integrate(FT(0), D_th, π / 6 * p3.ρ_i * ai[i] * N_0, bi[i] + μ + 3, ci[i] + λ)
-            v += integrate(D_th, cutoff, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-            
+        if F_r == 0
+            v += integrate(
+                FT(0),
+                D_th,
+                π / 6 * p3.ρ_i * ai[i] * N_0,
+                bi[i] + μ + 3,
+                ci[i] + λ,
+            )
+            v += integrate(
+                D_th,
+                cutoff,
+                α_va *
+                ai[i] *
+                N_0 *
+                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                ci[i] + λ,
+            )
+
             # Get velocity coefficients for large particles
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
-            v += integrate(cutoff, Inf, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-        else 
+            v += integrate(
+                cutoff,
+                Inf,
+                α_va *
+                ai[i] *
+                N_0 *
+                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                ci[i] + λ,
+            )
+        else
             large = false
-            v += integrate(FT(0), D_th, π / 6 * p3.ρ_i * ai[i] * N_0, bi[i] + μ + 3, ci[i] + λ)
-            
+            v += integrate(
+                FT(0),
+                D_th,
+                π / 6 * p3.ρ_i * ai[i] * N_0,
+                bi[i] + μ + 3,
+                ci[i] + λ,
+            )
+
             # D_th to D_gr
-            if !large && th.D_gr > cutoff 
-                v += integrate(D_th, cutoff, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-                
-                # large particles 
-                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
-                large = true 
+            if !large && th.D_gr > cutoff
+                v += integrate(
+                    D_th,
+                    cutoff,
+                    α_va *
+                    ai[i] *
+                    N_0 *
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                    ci[i] + λ,
+                )
 
-                v += integrate(cutoff, th.D_gr, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-            else
-                v += integrate(D_th, th.D_gr, α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-            end
-
-            # D_gr to D_cr
-            if !large && th.D_cr > cutoff 
-                v += integrate(th.D_gr, cutoff, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ + 3, ci[i] + λ)
-                    
-                # large particles 
-                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
-                large = true 
-
-                v += integrate(cutoff, th.D_cr, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ + 3, ci[i] + λ)
-            else 
-                v += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ + 3, ci[i] + λ)
-            end
-            
-            # D_cr to Infinity
-            if !large
-                (I, e) = QGK.quadgk(D -> (16 * p3.ρ_i^2 * (F_r * π/4 * D^2 + (1-F_r) * p3.γ*D ^ p3.σ)^3 / (9 * π * (α_va/ (1 - F_r) * D ^ p3.β_va)^2)) ^ κ * ai[i] * D^(bi[i]) * exp(- ci[i] * D) * (α_va/ (1 - F_r) * D ^ p3.β_va) * N_0 * D^μ * exp(-λ*D), th.D_cr, cutoff)
-                v += I
-                # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
-                #v += integrate(th.D_cr, cutoff, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
-                    
                 # large particles 
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
-                (I, e) = QGK.quadgk(D -> (16 * p3.ρ_i^2 * (F_r * π/4 * D^2 + (1-F_r) * p3.γ*D ^ p3.σ)^3 / (9 * π * (α_va/ (1 - F_r) * D ^ p3.β_va)^2)) ^ κ * ai[i] * D^(bi[i]) * exp(- ci[i] * D) * (α_va/ (1 - F_r) * D ^ p3.β_va) * N_0 * D^μ * exp(-λ*D), cutoff, Inf)
+                v += integrate(
+                    cutoff,
+                    th.D_gr,
+                    α_va *
+                    ai[i] *
+                    N_0 *
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                    ci[i] + λ,
+                )
+            else
+                v += integrate(
+                    D_th,
+                    th.D_gr,
+                    α_va *
+                    ai[i] *
+                    N_0 *
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                    ci[i] + λ,
+                )
+            end
+
+            # D_gr to D_cr
+            if !large && th.D_cr > cutoff
+                v += integrate(
+                    th.D_gr,
+                    cutoff,
+                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    bi[i] + μ + 3,
+                    ci[i] + λ,
+                )
+
+                # large particles 
+                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+                large = true
+
+                v += integrate(
+                    cutoff,
+                    th.D_cr,
+                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    bi[i] + μ + 3,
+                    ci[i] + λ,
+                )
+            else
+                v += integrate(
+                    th.D_gr,
+                    th.D_cr,
+                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    bi[i] + μ + 3,
+                    ci[i] + λ,
+                )
+            end
+
+            # D_cr to Infinity
+            if !large
+                (I, e) = QGK.quadgk(
+                    D ->
+                        (
+                            16 *
+                            p3.ρ_i^2 *
+                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+                        )^κ *
+                        ai[i] *
+                        D^(bi[i]) *
+                        exp(-ci[i] * D) *
+                        (α_va / (1 - F_r) * D^p3.β_va) *
+                        N_0 *
+                        D^μ *
+                        exp(-λ * D),
+                    th.D_cr,
+                    cutoff,
+                )
+                v += I
+                # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
+                #v += integrate(th.D_cr, cutoff, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+
+                # large particles 
+                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+                large = true
+
+                (I, e) = QGK.quadgk(
+                    D ->
+                        (
+                            16 *
+                            p3.ρ_i^2 *
+                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+                        )^κ *
+                        ai[i] *
+                        D^(bi[i]) *
+                        exp(-ci[i] * D) *
+                        (α_va / (1 - F_r) * D^p3.β_va) *
+                        N_0 *
+                        D^μ *
+                        exp(-λ * D),
+                    cutoff,
+                    Inf,
+                )
                 v += I
                 #v += integrate(cutoff, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
-            else 
-                (I, e) = QGK.quadgk(D -> (16 * p3.ρ_i^2 * (F_r * π/4 * D^2 + (1-F_r) * p3.γ*D ^ p3.σ)^3 / (9 * π * (α_va/ (1 - F_r) * D ^ p3.β_va)^2)) ^ κ * ai[i] * D^(bi[i]) * exp(- ci[i] * D) * (α_va/ (1 - F_r) * D ^ p3.β_va) * N_0 * D^μ * exp(-λ*D), th.D_cr, Inf)
+            else
+                (I, e) = QGK.quadgk(
+                    D ->
+                        (
+                            16 *
+                            p3.ρ_i^2 *
+                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+                        )^κ *
+                        ai[i] *
+                        D^(bi[i]) *
+                        exp(-ci[i] * D) *
+                        (α_va / (1 - F_r) * D^p3.β_va) *
+                        N_0 *
+                        D^μ *
+                        exp(-λ * D),
+                    th.D_cr,
+                    Inf,
+                )
                 v += I
                 # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
                 #v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
@@ -576,19 +710,19 @@ function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     α_va = α_va_si(p3)
 
     # Calculate numerator 
-    n = 0 
-    if F_r == 0 
+    n = 0
+    if F_r == 0
         n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
         n += integrate(D_th, Inf, α_va * N_0, μ + p3.β_va + 1, λ)
-    else 
-        n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ) 
+    else
+        n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
         n += integrate(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
-        n += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ) 
+        n += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
         n += integrate(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
     end
-    
+
     # Normalize by q
-    return n/q
+    return n / q
 
 end
 
