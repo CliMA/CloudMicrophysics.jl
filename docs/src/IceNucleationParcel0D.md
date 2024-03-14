@@ -353,46 +353,56 @@ Three different implementations of this parametrization are used in the parcel m
   with the mean and standard deviation defined in [Frostenberg2023](@cite).
   The inverse timescale of the process is set by ``\gamma``.
 
-The stochastic implementation is based on the equation for a generic
-  stochastic process ``x`` with Gaussian random noise (i.e. Wiener process):
+The stochastic implementation is based on the [Ornstein-Uhlenbeck process](https://en.wikipedia.org/wiki/Ornstein–Uhlenbeck_process), 
+in which the variable ``x`` is a mean-reverting process perturbed by Gaussian random noise (i.e. increments of the Wiener process ``W``):
 ```math
 \begin{equation}
-  dx = - \gamma \; x \; dt + g dW; \;\;\;\;\;\;\;   dW = {\bf{N}}(0, dt^2),
+  dx = - \gamma(x - \mu)dt + \sqrt{2\gamma} \sigma dW; \quad\quad   dW \sim N(0, dt),
 \end{equation}
 ```
-where ``\bf{N}`` is the normal distribution.
-For constant ``\gamma`` and ``g``, ``x`` has solution
+where ``N`` is a zero-mean normal distribution with variance ``dt``.
+For constant ``\gamma`` and ``\sigma``, and given some initial condition ``x(0)=x_0``, ``x`` has the analytical solution:
 ```math
 \begin{equation}
-  x(t) = x_0 \; e^{-\gamma t} + g \; \int_0^t e^{\gamma(s-t)} dW
+  x(t) = 
+      x_0 e^{-\gamma t} + \mu (1 - e^{-\gamma t})
+    + \sqrt{2\gamma} \sigma \int_0^t e^{-\gamma(t-s)} dW,
 \end{equation}
 ```
-where ``1/\gamma`` is the assumed timescale of the process.
-We can calculate the variance ``\bf{V}`` as,
+where ``\tau \equiv 1 / \gamma`` is the assumed timescale of the process. The process mean is ``x_0 e^{-\gamma t} + \mu (1 - e^{-\gamma t})``. We can calculate the variance ``\mathbb{V}(t)`` as,
 ```math
 \begin{equation}
-  {\bf{V}}(t) = g^2 \int_0^t e^{2\gamma(s-t)} ds = \frac{g^2}{2\gamma}(1 - e^{-2\gamma t}).
-\end{equation}
-```
-
-We use this process to model ``x=\log(\text{INPC})``,
-  which tends toward the mean ``\mu(T)``.
-If we denote ``\tau = 1 / \gamma`` as the process timescale and
-  ``\sigma = g / \sqrt{2 / \gamma}`` as the process uncertainty,
-  then
-```math
-\begin{equation}
-  \frac{d\log(\text{INPC})}{dt} = - \frac{\log(\text{INPC}) - μ}{\tau} + \sigma \sqrt{\frac{2}{\tau \; dt}} \; {\bf{N}}(0, 1))
+  \mathbb{V}(t) 
+  = 2\gamma \sigma^2 \int_0^t e^{-2\gamma(t-s)} ds 
+  = \frac{g^2}{2\gamma} \left( 1 - e^{-2\gamma t} \right).
 \end{equation}
 ```
 
-The following plot shows resuls of the parcel model with the `mean` (black line),
-  `random` (dotted lines) and `stochastic` (solid lines) parameterization options.
-We show results for two sampling intervals ``\Delta t`` (random),
-  two process time scales ``\tau`` (stochastic),
-  and two model time steps `dt`.
+We use this process to model ``x=\log(\text{INPC})``, which tends toward a temperature-dependent mean value ``\mu(T)``.
+The equation for ``\log(\text{INPC})`` is then,
+```math
+\begin{equation}
+  d\log(\text{INPC}) = 
+    - \frac{\log(\text{INPC}) - μ}{\tau} dt
+    + \sigma \sqrt{\frac{2}{\tau}} dW
+\end{equation}
+```
+
+This equation is currently implemented with the simple [Euler-Maruyama method](https://en.wikipedia.org/wiki/Euler–Maruyama_method), which is the stochastic analog of the forward Euler method for (deterministic) ordinary differential equations, so that
+```math
+\begin{equation}
+  \log(\text{INPC})_{t+dt} = \log(\text{INPC})_{t}
+    - \gamma\left(\log(\text{INPC})_t - μ(T_t)\right) dt
+    + \sigma \sqrt{2\gamma dt} z_t
+\end{equation}
+```
+where ``z_t \sim N(0,1)`` is a standard normal random variable.
+
+The following plot shows resuls of the parcel model with the `mean` (black line), `random` (dotted lines) and `stochastic` (solid lines) parameterization options.
+We show results for two sampling intervals ``\Delta t`` (random), two process time scales ``\tau`` (stochastic), and two model time steps `dt`.
 
 ```@example
-include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl")
+using Suppressor: @suppress # hide
+@suppress include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl") # hide
 ```
 ![](frostenberg_immersion_freezing.svg)
