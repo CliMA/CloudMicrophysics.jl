@@ -12,8 +12,9 @@ Note: Particle size is defined as its maximum length (i.e. max dimesion).
 module P3Scheme
 
 import SpecialFunctions as SF
-
+import QuadGK as QGK
 import RootSolvers as RS
+
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
@@ -484,7 +485,6 @@ function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, 
     # Redefine α_va to be in si units
     α_va = α_va_si(p3)
 
-    # TODO Update the velocity to use a different formulation for D > 0.625 mm 
     v = 0
     for i in 1:2
         if F_r == 0 
@@ -526,17 +526,23 @@ function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, 
             
             # D_cr to Infinity
             if !large
+                (I, e) = QGK.quadgk(D -> (16 * p3.ρ_i^2 * (F_r * π/4 * D^2 + (1-F_r) * p3.γ*D ^ p3.σ)^3 / (9 * π * (α_va/ (1 - F_r) * D ^ p3.β_va)^2)) ^ κ * ai[i] * D^(bi[i]) * exp(- ci[i] * D) * (α_va/ (1 - F_r) * D ^ p3.β_va) * N_0 * D^μ * exp(-λ*D), th.D_cr, cutoff)
+                v += I
                 # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
-                v += integrate(th.D_cr, cutoff, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+                #v += integrate(th.D_cr, cutoff, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
                     
                 # large particles 
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
-                v += integrate(cutoff, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+                (I, e) = QGK.quadgk(D -> (16 * p3.ρ_i^2 * (F_r * π/4 * D^2 + (1-F_r) * p3.γ*D ^ p3.σ)^3 / (9 * π * (α_va/ (1 - F_r) * D ^ p3.β_va)^2)) ^ κ * ai[i] * D^(bi[i]) * exp(- ci[i] * D) * (α_va/ (1 - F_r) * D ^ p3.β_va) * N_0 * D^μ * exp(-λ*D), cutoff, Inf)
+                v += I
+                #v += integrate(cutoff, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
             else 
+                (I, e) = QGK.quadgk(D -> (16 * p3.ρ_i^2 * (F_r * π/4 * D^2 + (1-F_r) * p3.γ*D ^ p3.σ)^3 / (9 * π * (α_va/ (1 - F_r) * D ^ p3.β_va)^2)) ^ κ * ai[i] * D^(bi[i]) * exp(- ci[i] * D) * (α_va/ (1 - F_r) * D ^ p3.β_va) * N_0 * D^μ * exp(-λ*D), th.D_cr, Inf)
+                v += I
                 # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
-                v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+                #v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
             end
         end
     end
@@ -544,62 +550,7 @@ function terminal_velocity_mass(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, 
     return v / q
 end
 
-"""
-    terminal_velocity_number(p3, Chen2022, q, N, ρ_r, F_r)
-
- - p3 - a struct with P3 scheme parameters
- - Chen 2022 - a struch with terminal velocity parameters as in Chen(2022)
- - q - mass mixing ratio
- - N - number mixing ratio
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (q_rim/q_i)
- - ρ_a - density of air 
-
- Returns the number (total)-weighted fall speed
- Eq C11 of Morrison and Milbrandt (2015)
-"""
-function terminal_velocity_number(p3::PSP3, Chen2022::CMP.Chen2022VelTypeSnowIce, q::FT, N::FT, ρ_r::FT, F_r::FT, ρ_a::FT) where{FT}
-    # Get the thresholds for different particles regimes
-    th = thresholds(p3, ρ_r, F_r)
-    D_th = D_th_helper(p3)
-
-    # Get the shape parameters
-    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
-    μ = DSD_μ(p3, λ)
-
-    # Get the ai, bi, ci constants (in si units) for velocity calculations
-    (; As, Bs, Cs, Es, Fs, Gs) = Chen2022
-
-    bi = [Bs + ρ_a * Cs, Bs + ρ_a * Cs]
-    ai = [Es * ρ_a^As * 10^(3 * bi[1]), Fs * ρ_a^As * 10^(3 * bi[2])]
-    ci = [0, Gs * 10^3]
-
-    κ = FT(1/3)
-
-    # Redefine α_va to be in si units
-    α_va = α_va_si(p3)
-
-    # TODO Update the velocity to use a different formulation for D > 0.625 mm 
-    v = 0
-    for i in 1:2
-        if F_r == 0 
-            v += integrate(FT(0), D_th, ai[i] * N_0, bi[i] + μ, ci[i] + λ)
-            v += integrate(D_th, Inf, ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-        else 
-            v += integrate(FT(0), D_th, ai[i] * N_0, bi[i] + μ, ci[i] + λ)
-            v += integrate(D_th, th.D_gr, ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * p3.γ^3/(9 * π * α_va ^ 2)) ^ κ, bi[i] + μ + κ * (3 * p3.σ - 2 * p3.β_va), ci[i] + λ)
-            v += integrate(th.D_gr, th.D_cr, ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ), bi[i] + μ, ci[i] + λ)
-            v += (
-                integrate(th.D_cr, Inf, ai[i] * N_0 * (p3.γ * (1-F_r)) ^ (3 * κ), bi[i] + μ + κ*(3 * p3.σ), ci[i] + λ) + 
-                integrate(th.D_cr, Inf, ai[i] * N_0 * (p3.γ ^ 2 * π * F_r * 3/4 * (1-F_r)^2) ^ κ, bi[i] + μ + κ*(2 + 2 * p3.σ), ci[i] + λ) + 
-                integrate(th.D_cr, Inf, ai[i] * N_0 * (p3.γ * π ^ 2 * F_r ^ 2 * 3/16 * (1-F_r)) ^ κ, bi[i] + μ + κ*(4 + p3.σ), ci[i] + λ) + 
-                integrate(th.D_cr, Inf, ai[i] * N_0 * (F_r^3 * π^3 / 64) ^ κ, bi[i] + μ + 6 * κ, ci[i] + λ)
-            )
-        end
-    end
-
-    return v / N
-end
+# TODO: add accurate number weighted velocity function that mimics the mass weighted one
 
 """
     D_m (p3, q, N, ρ_r, F_r) 

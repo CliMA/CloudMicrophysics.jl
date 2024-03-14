@@ -247,22 +247,6 @@ function Chen2022_vel_coeffs_small(
     return (aiu, bi, ciu)
 end
 
-function Chen2022_vel_coeffs_large(
-    velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
-    ρ::FT,
-) where {FT}
-    (; Al, Bl, Cl, El, Fl, Gl, Hl) = velo_scheme
-
-    ai = (Bl * ρ^Al, El * ρ^Al * exp(Hl * ρ))
-    bi = (Cl, Fl)
-    ci = (FT(0), Gl)
-    # unit conversions
-    aiu = ai .* 1000 .^ bi
-    ciu = ci .* 1000
-
-    return (aiu, bi, ciu)
-end
-
 """
     Chen2022_vel_coeffs_large(velo_scheme, ρ)
 

@@ -135,6 +135,60 @@ function test_p3_shape_solver(FT)
     end
 end
 
+function test_velocities(FT)
+    Chen2022 = CMP.Chen2022VelType(FT)
+    p3 = CMP.ParametersP3(FT)
+    q = FT(0.22) 
+    N = FT(1e6)
+    ρ_a = FT(1.2) 
+    ρ_rs = [FT(200), FT(400), FT(600), FT(800)]
+    F_rs = [FT(0.2), FT(0.4), FT(0.6), FT(0.8)]
+
+    TT.@testset "Mass-weighted terminal velocities" begin
+        paper_vals = [[1.5, 1.5, 1.5, 1.5], [1.5, 2.5, 2.5, 2.5], [2.5, 2.5, 2.5, 2.5], [2.5, 3.5, 3.5, 3.5]]
+        for i in 1:length(ρ_rs)
+            for j in 1:length(F_rs) 
+                ρ_r = ρ_rs[i]
+                F_r = F_rs[j]
+
+                calculated_vel = P3.terminal_velocity_mass(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, ρ_a)
+
+                TT.@test calculated_vel > 0
+                TT.@test paper_vals[i][j] ≈ calculated_vel atol = 3.14
+
+            end
+        end
+    end
+
+    TT.@testset "Mass-weighted mean diameters" begin 
+        paper_vals = [[5, 5, 5, 5], [4.5, 4.5, 4.5, 4.5], [3.5, 3.5, 3.5, 3.5], [3.5, 2.5, 2.5, 2.5]]
+        for i in 1:length(ρ_rs)
+            for j in 1:length(F_rs) 
+                ρ_r = ρ_rs[i]
+                F_r = F_rs[j]
+
+                calculated_dm = P3.D_m(p3, q, N, ρ_r, F_r) * 1e3
+
+                TT.@test calculated_dm > 0
+                TT.@test paper_vals[i][j] ≈ calculated_dm atol = 3.14
+
+            end
+        end
+    end
+end
+
+function test_neg_vel(FT) 
+    Chen2022 = CMP.Chen2022VelType(FT)
+    p3 = CMP.ParametersP3(FT)
+    q = FT(0.0008)
+    N = FT(1e6)
+    ρ_r = FT(900)
+    F_r = FT(0.99)
+
+    # Check for negative velocity
+    TT.@test P3.terminal_velocity_mass(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, FT(1.2)) > 0
+end
+
 println("Testing Float32")
 test_p3_thresholds(Float32)
 #TODO - only works for Float64 now. We should switch the units inside the solver
@@ -144,3 +198,5 @@ test_p3_thresholds(Float32)
 println("Testing Float64")
 test_p3_thresholds(Float64)
 test_p3_shape_solver(Float64)
+test_velocities(Float64)
+test_neg_vel(Float64) # expected to fail 
