@@ -12,14 +12,16 @@ Note: Particle size is defined as its maximum length (i.e. max dimesion).
 module P3Scheme
 
 import SpecialFunctions as SF
-
+import QuadGK as QGK
 import RootSolvers as RS
+
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Common as CO
 
 const PSP3 = CMP.ParametersP3
 
-export thresholds, p3_mass, distribution_parameter_solver
+export thresholds, distribution_parameter_solver
 
 """
     α_va_si(p3)
@@ -154,65 +156,6 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
     end
 end
 
-"""
-    mass_(p3, D, ρ, F_r)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension [m]
- - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
- - F_r - rime mass fraction [q_rim/q_i]
-
-Returns mass as a function of size for differen particle regimes [kg]
-"""
-# for spherical ice (small ice or completely rimed ice)
-mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
-# for large nonspherical ice (used for unrimed and dense types)
-mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
-# for partially rimed ice
-mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
-    α_va_si(p3) / (1 - F_r) * D^p3.β_va
-
-"""
-    p3_mass(p3, D, F_r, th)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
- - F_r - rime mass fraction (q_rim/q_i)
- - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
-Returns mass(D) regime, used to create figures for the docs page.
-"""
-function p3_mass(
-    p3::PSP3,
-    D::FT,
-    F_r::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT <: Real}
-    if D_th_helper(p3) > D
-        return mass_s(D, p3.ρ_i)          # small spherical ice
-    end
-    if F_r == 0
-        return mass_nl(p3, D)             # large nonspherical unrimed ice
-    end
-    if th.D_gr > D >= D_th_helper(p3)
-        return mass_nl(p3, D)             # dense nonspherical ice
-    end
-    if th.D_cr > D >= th.D_gr
-        return mass_s(D, th.ρ_g)          # graupel
-    end
-    if D >= th.D_cr
-        return mass_r(p3, D, F_r)         # partially rimed ice
-    end
-
-    # TODO - would something like this be better?
-    #return ifelse(D_th_helper(p3) > D, mass_s(D, p3.ρ_i),
-    #       ifelse(F_r == 0, mass_nl(p3, D),
-    #       ifelse(th.D_gr > D >= D_th_helper(p3), mass_nl(p3, D),
-    #       ifelse(th.D_cr > D >= th.D_gr, mass_s(D, th.ρ_g),
-    #           mass_r(p3, D, F_r)))))
-
-end
-
 # Some wrappers to cast types from SF.gamma
 # (which returns Float64 even when the input is Float32)
 Γ(a::FT, z::FT) where {FT <: Real} = FT(SF.gamma(a, z))
@@ -289,6 +232,51 @@ function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT}
 end
 
 """
+    integrate(a, b, c1, c2, c3)
+
+ - a - lower bound 
+ - b - upper bound 
+ - c1, c2, c3 - respective constants 
+
+ Integrates the function c1 * D ^ (c2) * exp(-c3 * D) dD from a to b 
+    Returns the result
+"""
+function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where {FT}
+    if b == Inf
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2, a * c3))
+    elseif a == 0
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, b * c3))
+    else
+        return c1 * c3^(-c2 - 1) * (Γ(1 + c2, a * c3) - Γ(1 + c2, b * c3))
+    end
+end
+
+"""
+    get_coeffs(p3, th) 
+
+ - p3 - a struct with P3 scheme parameters
+ - th - thresholds tuple as returned by thresholds()
+ - F_r - rime mass fraction [q_rim/q_i]
+
+Returns the coefficients for m(D), a(D), and the respective powers of D 
+    Where the indices are as follows: 
+        1 - small, spherical ice 
+        2 - large, unrimed ice 
+        3 - dense, nonspherical ice 
+        4 - graupel 
+        5 - partially rimed ice 
+        6 - second half of partially rimed ice (only for a)
+"""
+function get_coeffs(p3::PSP3, th, F_r::FT) where {FT}
+    α_va = α_va_si(p3)
+    m = [π / 6 * p3.ρ_i, α_va, α_va, π / 6 * th.ρ_g, α_va / (1 - F_r)]
+    m_power = [FT(3), p3.β_va, p3.β_va, 3, p3.β_va]
+    a = [π / 4, p3.γ, p3.γ, π / 4, F_r * π / 4, (1 - F_r) * p3.γ]
+    a_power = [FT(2), p3.σ, p3.σ, FT(2), FT(2), p3.σ]
+    return (; m, m_power, a, a_power)
+end
+
+"""
     q_(p3, ρ, F_r, λ, μ, D_min, D_max)
 
  - p3 - a struct with P3 scheme parameters
@@ -306,25 +294,20 @@ end
 # or
 # q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
 function q_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    x = μ + 4
-    return FT(π) / 6 * ρ / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return integrate(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
 end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / λ^x * (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return integrate(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / λ^x * (Γ(x, λ * D_min) - Γ(x, λ * D_max))
+    return integrate(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
-    x = μ + p3.β_va + 1
-    return α_va_si(p3) / (1 - F_r) / λ^x *
-           (Γ(x) + Γ(x, λ * D_min) - (x - 1) * Γ(x - 1))
+    return integrate(D_min, FT(Inf), α_va_si(p3) / (1 - F_r), μ + p3.β_va, λ)
 end
 
 """
@@ -451,10 +434,284 @@ function distribution_parameter_solver(
             RS.SecantMethod(min, max),
             RS.CompactSolution(),
             RS.RelativeSolutionTolerance(eps(FT)),
-            10,
+            5,
         ).root
 
     return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
+end
+
+"""
+    terminal_velocity_mass(p3, Chen2022, q, N, ρ_r, F_r)
+
+ - p3 - a struct with P3 scheme parameters
+ - Chen 2022 - a struch with terminal velocity parameters as in Chen(2022)
+ - q - mass mixing ratio
+ - N - number mixing ratio
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_a - density of air 
+
+ Returns the mass (total)-weighted fall speed
+ Eq C10 of Morrison and Milbrandt (2015)
+"""
+function terminal_velocity_mass(
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelTypeSnowIce,
+    q::FT,
+    N::FT,
+    ρ_r::FT,
+    F_r::FT,
+    ρ_a::FT,
+) where {FT}
+
+    # Get the thresholds for different particles regimes
+    th = thresholds(p3, ρ_r, F_r)
+    D_th = D_th_helper(p3)
+    cutoff = FT(0.000625) # TO be added to the struct
+
+    # Get the shape parameters
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    μ = DSD_μ(p3, λ)
+
+    # Get the ai, bi, ci constants (in si units) for velocity calculations
+    (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
+
+    κ = FT(-1 / 6) #FT(1/3)
+
+    # Redefine α_va to be in si units
+    α_va = α_va_si(p3)
+
+    v = 0
+    for i in 1:2
+        if F_r == 0
+            v += integrate(
+                FT(0),
+                D_th,
+                π / 6 * p3.ρ_i * ai[i] * N_0,
+                bi[i] + μ + 3,
+                ci[i] + λ,
+            )
+            v += integrate(
+                D_th,
+                cutoff,
+                α_va *
+                ai[i] *
+                N_0 *
+                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                ci[i] + λ,
+            )
+
+            # Get velocity coefficients for large particles
+            (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+            v += integrate(
+                cutoff,
+                Inf,
+                α_va *
+                ai[i] *
+                N_0 *
+                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                ci[i] + λ,
+            )
+        else
+            large = false
+            v += integrate(
+                FT(0),
+                D_th,
+                π / 6 * p3.ρ_i * ai[i] * N_0,
+                bi[i] + μ + 3,
+                ci[i] + λ,
+            )
+
+            # D_th to D_gr
+            if !large && th.D_gr > cutoff
+                v += integrate(
+                    D_th,
+                    cutoff,
+                    α_va *
+                    ai[i] *
+                    N_0 *
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                    ci[i] + λ,
+                )
+
+                # large particles 
+                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+                large = true
+
+                v += integrate(
+                    cutoff,
+                    th.D_gr,
+                    α_va *
+                    ai[i] *
+                    N_0 *
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                    ci[i] + λ,
+                )
+            else
+                v += integrate(
+                    D_th,
+                    th.D_gr,
+                    α_va *
+                    ai[i] *
+                    N_0 *
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
+                    ci[i] + λ,
+                )
+            end
+
+            # D_gr to D_cr
+            if !large && th.D_cr > cutoff
+                v += integrate(
+                    th.D_gr,
+                    cutoff,
+                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    bi[i] + μ + 3,
+                    ci[i] + λ,
+                )
+
+                # large particles 
+                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+                large = true
+
+                v += integrate(
+                    cutoff,
+                    th.D_cr,
+                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    bi[i] + μ + 3,
+                    ci[i] + λ,
+                )
+            else
+                v += integrate(
+                    th.D_gr,
+                    th.D_cr,
+                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    bi[i] + μ + 3,
+                    ci[i] + λ,
+                )
+            end
+
+            # D_cr to Infinity
+            if !large
+                (I, e) = QGK.quadgk(
+                    D ->
+                        (
+                            16 *
+                            p3.ρ_i^2 *
+                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+                        )^κ *
+                        ai[i] *
+                        D^(bi[i]) *
+                        exp(-ci[i] * D) *
+                        (α_va / (1 - F_r) * D^p3.β_va) *
+                        N_0 *
+                        D^μ *
+                        exp(-λ * D),
+                    th.D_cr,
+                    cutoff,
+                )
+                v += I
+                # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
+                #v += integrate(th.D_cr, cutoff, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+
+                # large particles 
+                (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+                large = true
+
+                (I, e) = QGK.quadgk(
+                    D ->
+                        (
+                            16 *
+                            p3.ρ_i^2 *
+                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+                        )^κ *
+                        ai[i] *
+                        D^(bi[i]) *
+                        exp(-ci[i] * D) *
+                        (α_va / (1 - F_r) * D^p3.β_va) *
+                        N_0 *
+                        D^μ *
+                        exp(-λ * D),
+                    cutoff,
+                    Inf,
+                )
+                v += I
+                #v += integrate(cutoff, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+            else
+                (I, e) = QGK.quadgk(
+                    D ->
+                        (
+                            16 *
+                            p3.ρ_i^2 *
+                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+                        )^κ *
+                        ai[i] *
+                        D^(bi[i]) *
+                        exp(-ci[i] * D) *
+                        (α_va / (1 - F_r) * D^p3.β_va) *
+                        N_0 *
+                        D^μ *
+                        exp(-λ * D),
+                    th.D_cr,
+                    Inf,
+                )
+                v += I
+                # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
+                #v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
+            end
+        end
+    end
+
+    return v / q
+end
+
+# TODO: add accurate number weighted velocity function that mimics the mass weighted one
+
+"""
+    D_m (p3, q, N, ρ_r, F_r) 
+
+ - p3 - a struct with P3 scheme parameters 
+ - q - mass mixing ratio 
+ - N - number mixing ratio 
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (q_rim/q_i) 
+
+ Return the mass weighted mean particle size [m]
+"""
+function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+    # Get the thresholds for different particles regimes
+    th = thresholds(p3, ρ_r, F_r)
+    D_th = D_th_helper(p3)
+
+    # Get the shape parameters
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    μ = DSD_μ(p3, λ)
+
+    # Redefine α_va to be in si units
+    α_va = α_va_si(p3)
+
+    # Calculate numerator 
+    n = 0
+    if F_r == 0
+        n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n += integrate(D_th, Inf, α_va * N_0, μ + p3.β_va + 1, λ)
+    else
+        n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n += integrate(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
+        n += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
+        n += integrate(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
+    end
+
+    # Normalize by q
+    return n / q
+
 end
 
 end
