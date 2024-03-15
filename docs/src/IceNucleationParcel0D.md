@@ -369,7 +369,7 @@ For constant ``\gamma`` and ``\sigma``, and given some initial ``x(0)=x_0``, ``x
     + \sqrt{2\gamma} \sigma \int_0^t e^{-\gamma(t-s)} dW,
 \end{equation}
 ```
-where ``\tau \equiv \tfrac{1, \gamma}`` is the assumed timescale of the process.
+where ``\tau \equiv 1 / \gamma`` is the assumed timescale of the process.
 We can calculate the variance ``\mathbb{V}(t) = \langle x_t^2 \rangle`` as,
 ```math
 \begin{equation}
