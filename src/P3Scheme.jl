@@ -441,18 +441,6 @@ function distribution_parameter_solver(
 end
 
 """
-    ϕ_coeff(m, a) 
-
- - m - coefficient of mass
- - a - coefficient of mass 
-
- Returns the coefficient of aspect ratio (ignoring powers of D)
-"""
-function ϕ_coeff(p3::PSP3, m::FT, a::FT) where {FT}
-    return 16 * p3.ρ_i^2 * a^3 / (9 * π^2 * m^2)
-end
-
-"""
     terminal_velocity_mass(p3, Chen2022, q, N, ρ_r, F_r)
 
  - p3 - a struct with P3 scheme parameters
