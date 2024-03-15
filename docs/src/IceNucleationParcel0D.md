@@ -370,7 +370,7 @@ For constant ``\gamma`` and ``\sigma``, and given some initial ``x(0)=x_0``, ``x
 \end{equation}
 ```
 where ``\tau \equiv 1 / \gamma`` is the assumed timescale of the process.
-We can calculate the variance ``\mathbb{V}(t) = \langle x_t^2 \rangle`` as,
+We can calculate the variance ``\mathbb{V}(t)`` as,
 ```math
 \begin{equation}
   \mathbb{V}(t) 
