@@ -6,9 +6,10 @@ import MLJFlux
 import GaussianProcesses
 import StatsBase
 
-Standardizer = MLJ.@load Standardizer pkg = MLJModels
-NeuralNetworkRegressor = MLJ.@load NeuralNetworkRegressor pkg = MLJFlux
-EvoTreeRegressor = MLJ.@load EvoTreeRegressor pkg = EvoTrees
+Standardizer = MLJ.@load Standardizer pkg = MLJModels verbosity = 0
+NeuralNetworkRegressor =
+    MLJ.@load NeuralNetworkRegressor pkg = MLJFlux verbosity = 0
+EvoTreeRegressor = MLJ.@load EvoTreeRegressor pkg = EvoTrees verbosity = 0
 
 # Get the testing package
 import Test as TT
@@ -341,32 +342,34 @@ TT.@testset "Neural Network" begin
     )
 end
 
-TT.@testset "Gaussian Processes" begin
-    test_emulator(
-        Float32,
-        ml_model = "GP",
-        with_ARG_act_frac = false,
-        machine_name = "2modal_gp_machine_naive.jls",
-        rtols = [1e-2, 5e-2],
-    )
-end
+if haskey(ENV, "BUILDKITE_COMMIT")
+    TT.@testset "Gaussian Processes" begin
+        test_emulator(
+            Float32,
+            ml_model = "GP",
+            with_ARG_act_frac = false,
+            machine_name = "2modal_gp_machine_naive.jls",
+            rtols = [1e-2, 5e-2],
+        )
+    end
 
-TT.@testset "Evo Trees" begin
-    test_emulator(
-        Float32,
-        ml_model = "ET",
-        with_ARG_act_frac = false,
-        machine_name = "2modal_et_machine_naive.jls",
-        rtols = [5e-3, 5e-3],
-    )
-end
+    TT.@testset "Evo Trees" begin
+        test_emulator(
+            Float32,
+            ml_model = "ET",
+            with_ARG_act_frac = false,
+            machine_name = "2modal_et_machine_naive.jls",
+            rtols = [5e-3, 5e-3],
+        )
+    end
 
-TT.@testset "Neural Network with ARG-informed data" begin
-    test_emulator(
-        Float32,
-        ml_model = "NN",
-        with_ARG_act_frac = true,
-        machine_name = "2modal_nn_machine_naive_with_ARG_act_frac.jls",
-        rtols = [1e-4, 1e-3],
-    )
+    TT.@testset "Neural Network with ARG-informed data" begin
+        test_emulator(
+            Float32,
+            ml_model = "NN",
+            with_ARG_act_frac = true,
+            machine_name = "2modal_nn_machine_naive_with_ARG_act_frac.jls",
+            rtols = [1e-4, 1e-3],
+        )
+    end
 end
