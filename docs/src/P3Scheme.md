@@ -1,15 +1,15 @@
 # P3 Scheme
 
 The `P3Scheme.jl` module implements the predicted particle properties
- (P3) scheme for ice-phase microphysics developed by [MorrisonMilbrandt2015](@cite)
+ (P3) scheme for ice-phase microphysics developed by [MorrisonMilbrandt2015](@cite).
 The P3 scheme is a 2-moment, bulk scheme involving a
  single ice-phase category with 4 degrees of freedom: total mass,
  rime mass, rime volume, and number mixing ratios.
 Traditionally, cloud ice microphysics schemes use various predefined
  categories (such as ice, graupel, or hail) to represent ice modes, but the P3 scheme sidesteps the
  problem of prescribing transitions between ice categories by adopting
- a single ice category and evolving its properties. This simplification
- aids in attempts to constrain the scheme's free parameters.
+ a single ice category and evolving its properties.
+This simplification aids in attempts to constrain the scheme's free parameters.
 
 The prognostic variables are:
  - ``N_{ice}`` - number concentration 1/m3
@@ -20,26 +20,29 @@ The prognostic variables are:
 !!! note
     TODO - At some point we should switch to specific humidities...
 
-## Assumed particle mass relationships
+## Assumed particle size relationships
 
-The mass ``m`` of particles as a function of maximum particle dimension ``D``
- is a piecewise function with variable thresholds described
- by the following table.
+The mass ``m`` and projected area ``A`` of particles
+  as a function of maximum particle dimension ``D``
+  are piecewise functions with variable thresholds described
+  by the following table.
 
-| particle properties                  |      condition(s)                            |    m(D) relation                             |
-|:-------------------------------------|:---------------------------------------------|:---------------------------------------------|
-|small, spherical ice                  | ``D < D_{th}``                               | ``\frac{\pi}{6} \rho_i \ D^3``               |
-|large, unrimed ice                    | ``q_{rim} = 0`` and ``D > D_{th}``           | ``\alpha_{va} \ D^{\beta_{va}}``             |
-|dense nonspherical ice                | ``q_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\alpha_{va} \ D^{\beta_{va}}``             |
-|graupel (completely rimed, spherical) | ``q_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\frac{\pi}{6} \rho_g \ D^3``               |
-|partially rimed ice                   | ``q_{rim} > 0`` and ``D > D_{cr}``           | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` |
+| particle properties                  |      condition(s)                            |    m(D) relation                             |    A(D) relation                                           |
+|:-------------------------------------|:---------------------------------------------|:---------------------------------------------|:-----------------------------------------------------------|
+|small, spherical ice                  | ``D < D_{th}``                               | ``\frac{\pi}{6} \rho_i \ D^3``               | ``\frac{\pi}{4} D^2``                                      |
+|large, unrimed ice                    | ``q_{rim} = 0`` and ``D > D_{th}``           | ``\alpha_{va} \ D^{\beta_{va}}``             | ``\gamma \ D^{\sigma}``                                    |
+|dense nonspherical ice                | ``q_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\alpha_{va} \ D^{\beta_{va}}``             | ``\gamma \ D^{\sigma}``                                    |
+|graupel (completely rimed, spherical) | ``q_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\frac{\pi}{6} \rho_g \ D^3``               | ``\frac{\pi}{4} D^2``                                      |
+|partially rimed ice                   | ``q_{rim} > 0`` and ``D > D_{cr}``           | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
 
 where:
  - ``D_{th}``, ``D_{gr}``, ``D_{cr}`` are particle size thresholds in ``m``,
  - ``\rho_i`` is cloud ice density in ``kg m^{-3}``,
  - ``\beta_{va} = 1.9`` is a dimensionless parameter from [BrownFrancis1995](@cite) (based on measurements of vapor diffusion and aggregation in midlatitude cirrus),
- - ``\alpha_{va} = 7.38 \; 10^{-11} \; 10^{6 \beta_{va} - 3}`` in ``kg m^{-β_{va}}`` is a parameter modified for units from [BrownFrancis1995](@cite) in base SI units (also based on measurements of vapor diffusion and aggregation in midlatitude cirrus),
- - ``\rho_g`` is the bulk density of graupel in ``kg m^{-3}``.
+ - ``\alpha_{va} = 7.38 \; 10^{-11} \; 10^{6 \beta_{va} - 3}`` in ``kg \; m^{-β_{va}}`` is a parameter modified for units from [BrownFrancis1995](@cite) in base SI units (also based on measurements of vapor diffusion and aggregation in midlatitude cirrus),
+ - ``\rho_g`` is the bulk density of graupel in ``kg \; m^{-3}``
+ - ``\gamma = 0.2285`` (``m^{2 - \sigma}``) where
+ - ``\sigma = 1.88`` (dimensionless), both from the aggregates of side planes, columns, bullets, and planar polycrystals in [Mitchell1996](@cite).
 
 The first threshold is solely determined by the free parameters:
   ``D_{th} = (\frac{\pi \rho_i}{6\alpha_{va}})^{\frac{1}{\beta_{va} - 3}}``.
@@ -55,29 +58,16 @@ where
  - ``F_r = \frac{q_{rim}}{q_{ice}}`` is the rime mass fraction,
  - ``\rho_{r} = \frac{q_{rim}}{B_{rim}}`` is the predicted rime density.
 
-## Assumed particle projected area relationships
-
-The projected area ``A`` of particles as a function of maximum particle dimension ``D``
- is another piecewise function with variable breakpoints described
- by the following table. The mean particle dimension ``D_m``, a predicted property,
- determines which portion of the piecewise function to use for each time step.
-
-| particle properties                 |      condition(s)                           |    A(D) relation                                           |
-|:------------------------------------|:--------------------------------------------|:-----------------------------------------------------------|
-|small, spherical ice                 | ``D < D_{th}``                              | ``\frac{\pi}{4} D^2``                                      |
-|large, unrimed ice                   | ``q_{rim} = 0`` and ``D > D_{th}``          | ``\gamma \ D^{\sigma}``                                    |
-|dense nonspherical ice               | ``q_{rim} > 0`` and ``D_{gr} > D > D_{th}`` | ``\gamma \ D^{\sigma}``                                    |
-|graupel (completely rimed, spherical)| ``q_{rim} > 0`` and ``D_{cr} > D > D_{gr}`` | ``\frac{\pi}{4} D^2``                                      |
-|partially rimed ice                  | ``q_{rim} > 0`` and ``D > D_{cr}``          | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
-
-where all variables from the m(D) regime are as defined above, and:
- - ``\gamma = 0.2285`` (``m^{2 - \sigma}``) where
- - ``\sigma = 1.88`` (dimensionless), both from the aggregates of side planes, columns, bullets, and planar polycrystals in [Mitchell1996](@cite).
-
 !!! note
     TODO - Check units, see in [issue #151](https://github.com/CliMA/CloudMicrophysics.jl/issues/151)
 
-## Assumed particle size distribution (PSD)
+Below we show the m(D) and a(D) regimes replicating Figures 1 (a) and (b) from [MorrisonMilbrandt2015](@cite).
+```@example
+include("plots/P3SchemePlots.jl")
+```
+![](P3Scheme_relations.svg)
+
+## Assumed particle size distribution
 
 Following [MorrisonMilbrandt2015](@cite), the scheme assumes a
  gamma distribution for the concentration of ice particles per unit volume
@@ -119,7 +109,7 @@ N_{ice} = \int_{0}^{\infty} \! N'(D) \mathrm{d}D = \int_{0}^{\infty} \! N_{0} D^
 
 ``q_{ice}`` depends on the variable mass-size relation ``m(D)`` defined above.
 We solve for ``q_{ice}`` in a piece-wise fashion defined by the same thresholds as ``m(D)``.
-As a result ``q_{ice}`` can be expressed as a sum of inclomplete gamma functions.
+As a result ``q_{ice}`` can be expressed as a sum of inclomplete gamma functions,
   and the shape parameters are found using iterative solver.
 
 |      condition(s)                            |    ``q_{ice} = \int \! m(D) N'(D) \mathrm{d}D``                                          |         gamma representation          |
@@ -133,21 +123,21 @@ As a result ``q_{ice}`` can be expressed as a sum of inclomplete gamma functions
 where ``\Gamma \,(a, z) = \int_{z}^{\infty} \! t^{a - 1} e^{-t} \mathrm{d}D``
   and ``\Gamma \,(a) = \Gamma \,(a, 0)`` for simplicity.
 
-Within our solver, we approximate ``\mu`` from q/N and keep it constant throughout the solving step. We approximate ``\mu`` by an exponential function given by the q/N points corresponding to ``\mu = 6`` and ``\mu = 0``. This is shown below as well as how this affects the solvers ``\lambda`` solutions.
+In our solver, we approximate ``\mu`` from ``q/N`` and keep it constant throughout the solving step.
+We approximate ``\mu`` by an exponential function given by the ``q/N`` points
+  corresponding to ``\mu = 6`` and ``\mu = 0``.
+This is shown below as well as how this affects the solvers ``\lambda`` solutions.
 
 ```@example
 include("plots/P3LambdaErrorPlots.jl")
 ```
 ![](MuApprox.svg)
 
-An initial guess for the non-linear solver is found by approximating the gamma functions as a simple linear function from log(q\N) to log(``\lambda``). 
-
-```@example
-include("plots/P3ShapeSolverPlots.jl")
-```
-![](SolverInitialGuess.svg)
-
-Let ``x = log(q/N)`` and ``y = log(\lambda)``. This equation is given by ``(x - x_1) = slope (y - y_1)`` where `` slope = \frac{x_1 - x_2}{y_1 - y_2}``, ``y_1`` and ``y_2`` are defining ``log(\lambda)`` values of the estimated line decided off of the ``q/N`` value (described below).
+An initial guess for the non-linear solver is found by approximating the gamma functions
+  as a simple linear function from ``x = \log{(q/N)}`` to ``y = \log{(\lambda)}``.
+The equation is given by ``(x - x_1) = A \; (y - y_1)`` where
+  ``A = \frac{x_1 - x_2}{y_1 - y_2}``.
+``y_1`` and ``y_2`` define ``log(\lambda)`` values for three ``q/N`` ranges
 
 |             q/N                |         ``y_1``        |      ``y_2``         |
 |:-------------------------------|:-----------------------|:---------------------|
@@ -155,23 +145,17 @@ Let ``x = log(q/N)`` and ``y = log(\lambda)``. This equation is given by ``(x - 
 |   ``2 * 10^9 <= q/N < 10^-8``  |     ``6 * 10^3``       |     ``3 * 10^4``     |
 |        ``q/N < 2 * 10^9``      |     ``4 * 10^4``       |       ``10^6``       |
 
-We use this approximation to calculate a ``\lambda_{guess}`` value which will set our initial guess. Solving for ``\lambda`` in the power function we get ``\lambda_{guess} = \lambda _1 (\frac{q}{q_1})^{(\frac{y_1 - y_2}{x_1 - x_2})}``. Thus, given any q we can calculate a ``\lambda`` around which to expect the true solved ``\lambda`` value. 
+We use this approximation to calculate initial guess for the shape parameter
+  ``\lambda_g = \lambda_1 (\frac{q}{q_1})^{(\frac{y_1 - y_2}{x_1 - x_2})}``.
 
-Using this approach we get the following relative errors in our solved ``\lambda`` vs the expected ``lambda`` within the solver. 
+```@example
+include("plots/P3ShapeSolverPlots.jl")
+```
+![](SolverInitialGuess.svg)
+
+Using this approach we get the following relative errors for ``\lambda``
 
 ```@example
 include("plots/P3LambdaErrorPlots.jl")
 ```
-![](P3LambdaHeatmap.svg)
-
-## Example figures
-
-Below we show the m(D) regime, replicating Figures 1 (a) and (b) from [MorrisonMilbrandt2015](@cite).
-We also show a(D).
-```@example
-include("plots/P3SchemePlots.jl")
-```
-![](MorrisonandMilbrandtFig1a.svg)
-![](MorrisonandMilbrandtFig1b.svg)
-![](P3Scheme_Area_1.svg)
-![](P3Scheme_Area_2.svg)
+![](P3LambdaHeatmap.png)
