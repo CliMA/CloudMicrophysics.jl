@@ -393,6 +393,7 @@ The following plot shows resuls of the parcel model with the `mean` (black line)
 We show results for two sampling intervals ``\Delta t`` (random), two process time scales ``\tau`` (stochastic), and two model time steps `dt`.
 
 ```@example
-include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl");
+include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl")
+nothing # hide
 ```
 ![](frostenberg_immersion_freezing.svg)
