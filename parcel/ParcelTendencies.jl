@@ -81,8 +81,9 @@ function immersion_freezing(::Empty, PSD, state)
 end
 
 function immersion_freezing(params::ABIFM, PSD, state)
-    (; T, xS, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
+    (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
     (; H₂SO₄ps, tps, aerosol, A_aer) = params
+    FT = eltype(state)
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
@@ -90,6 +91,7 @@ function immersion_freezing(params::ABIFM, PSD, state)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
     # TODO - get rif of a_w_x option
+    xS = FT(0) # not modeling droplet chemical composition
     Δa_w =
         T > FT(185) && T < FT(235) ?
         CMO.a_w_xT(H₂SO₄ps, tps, xS, T) - CMO.a_w_ice(tps, T) :

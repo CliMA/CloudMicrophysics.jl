@@ -54,8 +54,7 @@ function parcel_model(dY, Y, p, t)
         Nₐ = clip!(Y[7]),
         Nₗ = clip!(Y[8]),
         Nᵢ = clip!(Y[9]),
-        xS = Y[10],        # TODO - to be deleted
-        ln_INPC = Y[11],   # needed only in stochastic Frostenberg
+        ln_INPC = Y[10],   # needed only in stochastic Frostenberg
         t = t,
     )
 
@@ -145,8 +144,7 @@ function parcel_model(dY, Y, p, t)
     dY[7] = dNₐ_dt      # number concentration of interstitial aerosol
     dY[8] = dNₗ_dt      # mumber concentration of droplets
     dY[9] = dNᵢ_dt      # number concentration of activated particles
-    dY[10] = FT(0)      # sulphuric acid concentration
-    dY[11] = dln_INPC_imm
+    dY[10] = dln_INPC_imm
 end
 
 """
@@ -155,7 +153,7 @@ end
 Returns the solution of an ODE probelm defined by the parcel model.
 
 Inputs:
- - IC - Vector with initial conditions: [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, xS]
+ - IC - Vector with initial conditions: [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln(INPC)]
  - t_0 - simulation start time
  - t_end - simulation end time
  - pp - struct with parcel simulation parameters
@@ -170,7 +168,7 @@ Parcel state vector (all variables are in base SI units):
  - Nₐ    - number concentration of interstitial aerosol
  - Nₗ    - number concentration of existing water droplets
  - Nᵢ    - concentration of activated ice crystals
- - xS    - percent mass sulphuric acid
+ - ln(INPC) - logarithm of ice nucleation particles for the stochastic het. freezing option
  - t     - time in seconds since the beginning of the simulation
 
 The parcel parameters struct comes with default values that can be overwritten:
