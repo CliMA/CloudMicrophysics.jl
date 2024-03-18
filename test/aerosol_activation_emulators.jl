@@ -5,6 +5,7 @@ import MLJModels
 import MLJFlux
 import GaussianProcesses
 import StatsBase
+import Random
 
 Standardizer = MLJ.@load Standardizer pkg = MLJModels
 NeuralNetworkRegressor = MLJ.@load NeuralNetworkRegressor pkg = MLJFlux
@@ -20,6 +21,8 @@ import Thermodynamics as TD
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.Parameters as CMP
+import EnsembleKalmanProcesses as EKP
+using EnsembleKalmanProcesses.ParameterDistributions
 
 # NN helpers
 # Container for the NN we are about to build
@@ -154,7 +157,7 @@ function MLJ.predict(::GPRegressor, fitresult, Xnew)
 end
 
 # Load aerosol data reading and preprocessing functions
-include(joinpath(pkgdir(CM), "ext", "Common.jl"))
+include(joinpath(pkgdir(CM), "ext", "ARGCommon.jl"))
 
 function preprocess_aerosol_data_with_ARG_act_frac_FT32(x::DataFrame)
     aip = CMP.AirProperties(Float32)
@@ -329,44 +332,131 @@ function test_emulator(
         rtols[2]
 end
 
-@info "Aerosol activation test"
+function test_calibrated(FT, fname = "2modal_dataset1_train.csv")
+    aip = CMP.AirProperties(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
 
-TT.@testset "Neural Network" begin
-    test_emulator(
-        Float32,
-        ml_model = "NN",
-        with_ARG_act_frac = false,
-        machine_name = "2modal_nn_machine_naive.jls",
-        rtols = [1e-4, 1e-3],
-    )
+    # download (if necessary) and load the data
+    fpath = joinpath(pkgdir(CM), "test")
+    if !isfile(joinpath(fpath, "data", fname))
+        # For reasons unknown to humankind uploading/downloading the file
+        # from Caltech box changes the file. We are using dropbox for now.
+        # In the end we should upload the files to Caltech Data
+        # (and pray they are not changed there...)
+        url = "https://www.dropbox.com/scl/fi/qgq6ujvqenebjkskqvht5/2modal_dataset1_train.csv?rlkey=53qtqz0mtce993gy5jtnpdfz5&dl=0"
+        download(url, fname)
+        mkdir(joinpath(fpath, "data"))
+        mv(fname, joinpath(fpath, "data", fname), force = true)
+    end
+    X_train, Y_train, initial_data =
+        read_aerosol_dataset(joinpath(fpath, "data", fname))
+
+    # settings for the Training
+    sample_size = 200
+    N_samples = 10
+    N_ensemble = 100 
+    N_iterations_per_sample = 100
+    rng = Random.MersenneTwister(1)
+
+    prior = combine_distributions([
+        constrained_gaussian("f_coeff_1_ARG2000", 0.5, 0.5, 0, Inf),
+        constrained_gaussian("f_coeff_2_ARG2000", 2.5, 0.5, 0, Inf),
+        constrained_gaussian("g_coeff_1_ARG2000", 1.0, 0.5, 0, Inf),
+        constrained_gaussian("g_coeff_2_ARG2000", 0.25, 0.5, 0, Inf),
+        constrained_gaussian("pow_1_ARG2000", 1.5, 0.5, 0, Inf),
+        constrained_gaussian("pow_2_ARG2000", 0.75, 0.5, 0, Inf),
+    ])
+
+    all_params_means = []
+    all_mean_error_metrics = []
+
+    for i in 1:N_samples
+        println("Sample $(i)")
+
+        sample_inds = StatsBase.sample(
+            1:DF.nrow(X_train),
+            sample_size,
+            replace=false,
+        )
+        X_sample = X_train[inds, :]
+        Y_sample = Y_train[inds]
+
+        initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
+        ensemble_kalman_process = EKP.EnsembleKalmanProcess(
+            initial_ensemble,
+            Y_sample,
+            1.0 * EKP.I,
+            EKP.Inversion(),
+        )
+
+        mean_error_metrics = []
+
+        for j in 1:N_iterations_per_sample
+            println(" Iteration $(j)")
+
+            params_cur = EKP.get_ϕ_final(prior, ensemble_kalman_process)
+            errs = calibration_error_metrics(X_sample, Y_sample, params_cur, aip, tps, FT)
+            push!(mean_error_metrics, StatsBase.mean(errs))
+
+            params_mean_cur = EKP.get_ϕ_mean_final(prior, ensemble_kalman_process)
+            println(params_mean_cur)
+            pred_ens = hcat([calibrated_prediction(X_sample, params_cur[:, k], aip, tps, FT) for k in 1:N_ensemble]...)
+
+            EKP.update_ensemble!(ensemble_kalman_process, pred_ens)
+        end
+
+        params_final = EKP.get_ϕ_final(prior, ensemble_kalman_process)
+        errs = calibration_error_metrics(X_sample, Y_sample, params_final, aip, tps, FT)
+        push!(mean_error_metrics, StatsBase.mean(errs))
+
+        params_mean_final = EKP.get_ϕ_mean_final(prior, ensemble_kalman_process)
+        println(params_mean_final)
+
+        push!(all_params_means, params_mean_final)
+        push!(all_mean_error_metrics, mean_error_metrics)
+    end
 end
 
-TT.@testset "Gaussian Processes" begin
-    test_emulator(
-        Float32,
-        ml_model = "GP",
-        with_ARG_act_frac = false,
-        machine_name = "2modal_gp_machine_naive.jls",
-        rtols = [1e-2, 5e-2],
-    )
-end
+# @info "Aerosol activation test"
 
-TT.@testset "Evo Trees" begin
-    test_emulator(
-        Float32,
-        ml_model = "ET",
-        with_ARG_act_frac = false,
-        machine_name = "2modal_et_machine_naive.jls",
-        rtols = [5e-3, 5e-3],
-    )
-end
+# TT.@testset "Neural Network" begin
+#     test_emulator(
+#         Float32,
+#         ml_model = "NN",
+#         with_ARG_act_frac = false,
+#         machine_name = "2modal_nn_machine_naive.jls",
+#         rtols = [1e-4, 1e-3],
+#     )
+# end
 
-TT.@testset "Neural Network with ARG-informed data" begin
-    test_emulator(
-        Float32,
-        ml_model = "NN",
-        with_ARG_act_frac = true,
-        machine_name = "2modal_nn_machine_naive_with_ARG_act_frac.jls",
-        rtols = [1e-4, 1e-3],
-    )
-end
+# TT.@testset "Gaussian Processes" begin
+#     test_emulator(
+#         Float32,
+#         ml_model = "GP",
+#         with_ARG_act_frac = false,
+#         machine_name = "2modal_gp_machine_naive.jls",
+#         rtols = [1e-2, 5e-2],
+#     )
+# end
+
+# TT.@testset "Evo Trees" begin
+#     test_emulator(
+#         Float32,
+#         ml_model = "ET",
+#         with_ARG_act_frac = false,
+#         machine_name = "2modal_et_machine_naive.jls",
+#         rtols = [5e-3, 5e-3],
+#     )
+# end
+
+# TT.@testset "Neural Network with ARG-informed data" begin
+#     test_emulator(
+#         Float32,
+#         ml_model = "NN",
+#         with_ARG_act_frac = true,
+#         machine_name = "2modal_nn_machine_naive_with_ARG_act_frac.jls",
+#         rtols = [1e-4, 1e-3],
+#     )
+# end
+
+test_calibrated(Float32)

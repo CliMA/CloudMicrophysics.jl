@@ -18,13 +18,14 @@ MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
 
 [extensions]
 CloudyExt = "Cloudy"
-EmulatorModelsExt = ["DataFrames", "MLJ"]
+EmulatorModelsExt = ["DataFrames", "MLJ", "EnsembleKalmanProcesses"]
 
 [compat]
 ClimaParams = "0.10"
 Cloudy = "0.4"
 DataFrames = "1.6"
 DocStringExtensions = "0.8, 0.9"
+EnsembleKalmanProcesses = "1.1.15"
 ForwardDiff = "0.10"
 MLJ = "0.20"
 RootSolvers = "0.3, 0.4"
