@@ -21,7 +21,6 @@ Nₗ = FT(300 * 1e6)
 Nᵢ = FT(0)
 T₀ = FT(190)
 cᵥ₀ = FT(5 * 1e-6)
-x_sulph = FT(0)
 ln_INPC = FT(0)
 
 # Constants
@@ -42,7 +41,7 @@ Sᵢ = FT(1.55)
 Sₗ = Sᵢ / ξ(tps, T₀)
 e = Sₗ * eₛ
 p₀ = e / cᵥ₀
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph, ln_INPC]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 
 # Simulation parameters passed into ODE solver
 w = FT(1)           # updraft speed

@@ -11,19 +11,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 """
     Wrapper for initial condition
 """
-function get_initial_condition(
-    tps,
-    p_air,
-    T,
-    qᵥ,
-    qₗ,
-    qᵢ,
-    Nₐ,
-    Nₗ,
-    Nᵢ,
-    x_sulph,
-    ln_INPC,
-)
+function get_initial_condition(tps, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC)
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     R_a = TD.gas_constant_air(tps, q)
     R_v = TD.Parameters.R_v(tps)
@@ -31,7 +19,7 @@ function get_initial_condition(
     e = eᵥ(qᵥ, p_air, R_a, R_v)
     Sₗ = e / e_sl
 
-    return [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph, ln_INPC]
+    return [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 end
 
 """
@@ -55,7 +43,6 @@ function Tully_et_al_2023(FT)
     q_vap_0 = FT(3.3e-4)
     q_liq_0 = FT(0)
     q_ice_0 = FT(0)
-    x_sulph = FT(0)
     ln_INPC = FT(0)
     # Initial conditions for the 2nd period
     T2 = FT(229.25)
@@ -107,7 +94,6 @@ function Tully_et_al_2023(FT)
             N_aerosol,
             N_droplets,
             N_0,
-            x_sulph,
             ln_INPC,
         )
         sol1 = run_parcel(IC1, 0, t_max, params)
@@ -126,7 +112,6 @@ function Tully_et_al_2023(FT)
                 sol1[7, end],
                 sol1[8, end],
                 sol1[9, end],
-                x_sulph,
                 ln_INPC,
             )
             sol2 = run_parcel(IC2, sol1.t[end], sol1.t[end] + t_max, params)
@@ -145,7 +130,6 @@ function Tully_et_al_2023(FT)
                 sol2[7, end],
                 sol2[8, end],
                 sol2[9, end],
-                x_sulph,
                 ln_INPC,
             )
             sol3 = run_parcel(IC3, sol2.t[end], sol2.t[end] + t_max, params)

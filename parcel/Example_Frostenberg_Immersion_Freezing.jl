@@ -27,7 +27,6 @@ T₀ = FT(251)
 qᵥ = FT(8.1e-4)
 qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2) # ρₐ ~ 1.2
 qᵢ = FT(0)
-x_sulph = FT(0.01)
 ln_INPC₀ = FT(CMI_het.INP_concentration_mean(T₀))
 
 # Moisture dependent initial conditions
@@ -37,7 +36,7 @@ Rₐ = TD.gas_constant_air(tps, q)
 eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 e = eᵥ(qᵥ, p₀, Rₐ, R_v)
 Sₗ = FT(e / eₛ)
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph, ln_INPC₀]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC₀]
 
 # Simulation parameters passed into ODE solver
 w = FT(0.7)
@@ -178,7 +177,7 @@ end
 for (sol, t, ll, cl) in zip(results_stoch, time_stoch, labels_stoch, colors)
     ls = :solid
     plot_results(sol, t, ll, cl, ls)
-    MK.lines!(ax7, sol[3, :], exp.(sol[11, :]), linestyle = ls, color = cl)
+    MK.lines!(ax7, sol[3, :], exp.(sol[10, :]), linestyle = ls, color = cl)
 end
 for (sol, t, ll, cl) in zip(results_random, time_random, labels_random, colors)
     ls = :dot
