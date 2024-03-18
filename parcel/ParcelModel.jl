@@ -66,6 +66,11 @@ function parcel_model(dY, Y, p, t)
 
     # Get the state values
     (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, t) = state
+    println("-------------- new iteration -----------")
+    println("Nₗ = ", Nₗ)
+    println("Nᵢ = ", Nᵢ)
+    println("qᵥ = ", qᵥ)
+    println("Sᵢ = ", S_i(tps, T, Sₗ))
     # Get thermodynamic parameters, phase partition and create thermo state.
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     ts = TD.PhaseNonEquil_pTq(tps, p_air, T, q)
@@ -102,6 +107,8 @@ function parcel_model(dY, Y, p, t)
     # Homogeneous ice nucleation
     dNᵢ_dt_hom = homogeneous_freezing(hom_params, PSD, state)
     dqᵢ_dt_hom = dNᵢ_dt_hom * PSD.Vₗ * ρᵢ / ρ_air
+    println("dNᵢ_dt_hom = ", dNᵢ_dt_hom)
+    println("dqᵢ_dt_hom = ", dqᵢ_dt_hom)
 
     # Condensation/evaporation
     dqₗ_dt_ce = condensation(ce_params, PSD, state, ρ_air)
@@ -192,8 +199,8 @@ function run_parcel(IC, t_0, t_end, pp)
 
     FT = eltype(IC)
 
-    println(" ")
-    println("Size distribution: ", pp.size_distribution)
+    # println(" ")
+    # println("Size distribution: ", pp.size_distribution)
     if pp.size_distribution == "Monodisperse"
         distr = Monodisperse{FT}()
     elseif pp.size_distribution == "Gamma"
@@ -202,9 +209,9 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized size distribution")
     end
 
-    println("Aerosol :", chop(string(typeof(pp.aerosol)), head = 29, tail = 9))
+    # println("Aerosol :", chop(string(typeof(pp.aerosol)), head = 29, tail = 9))
 
-    println("Deposition: ", pp.deposition)
+    # println("Deposition: ", pp.deposition)
     if pp.deposition == "None"
         dep_params = Empty{FT}()
     elseif pp.deposition == "MohlerAF"
@@ -219,7 +226,7 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized deposition mode")
     end
 
-    println("Heterogeneous: ", pp.heterogeneous)
+    #println("Heterogeneous: ", pp.heterogeneous)
     if pp.heterogeneous == "None"
         imm_params = Empty{FT}()
     elseif pp.heterogeneous == "ABIFM"
@@ -237,18 +244,18 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized heterogeneous mode")
     end
 
-    println("Homogeneous: ", pp.homogeneous)
+    #println("Homogeneous: ", pp.homogeneous)
     if pp.homogeneous == "None"
         hom_params = Empty{FT}()
     elseif pp.homogeneous == "ABHOM"
-        hom_params = ABHOM{FT}(pp.tps, pp.ips)
+        hom_params = ABHOM{FT}(pp.tps, pp.ips, pp.const_dt)
     elseif pp.homogeneous == "P3_hom"
         hom_params = P3_hom{FT}(pp.const_dt)
     else
         throw("Unrecognized homogeneous mode")
     end
 
-    println("Condensation growth: ", pp.condensation_growth)
+    #println("Condensation growth: ", pp.condensation_growth)
     if pp.condensation_growth == "None"
         ce_params = Empty{FT}()
     elseif pp.condensation_growth == "Condensation"
@@ -257,7 +264,7 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized condensation growth mode")
     end
 
-    println("Deposition growth: ", pp.deposition_growth)
+    #println("Deposition growth: ", pp.deposition_growth)
     if pp.deposition_growth == "None"
         ds_params = Empty{FT}()
     elseif pp.deposition_growth == "Deposition"
@@ -265,7 +272,7 @@ function run_parcel(IC, t_0, t_end, pp)
     else
         throw("Unrecognized deposition growth mode")
     end
-    println(" ")
+    #println(" ")
 
     # Parameters for the ODE solver
     p = (

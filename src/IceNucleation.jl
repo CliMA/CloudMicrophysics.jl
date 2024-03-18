@@ -228,12 +228,24 @@ Parameterization based on Koop 2000, DOI: 10.1038/35020537.
 """
 function homogeneous_J(ip::CMP.Koop2000, Δa_w::FT) where {FT}
 
-    @assert Δa_w >= ip.Δa_w_min
-    @assert Δa_w <= ip.Δa_w_max
+    # @assert Δa_w >= ip.Δa_w_min
+    # @assert Δa_w <= ip.Δa_w_max
 
-    logJ::FT = ip.c₁ + ip.c₂ * Δa_w - ip.c₃ * Δa_w^2 + ip.c₄ * Δa_w^3
+    logJ = FT(0)
 
-    return FT(10)^(logJ) * 1e6
+    if Δa_w < ip.Δa_w_min
+        return FT(0)
+    elseif Δa_w > ip.Δa_w_max
+        Δa_w = ip.Δa_w_max
+        logJ = ip.c₁ + ip.c₂ * Δa_w - ip.c₃ * Δa_w^2 + ip.c₄ * Δa_w^3
+        return FT(10)^(logJ) * 1e6
+    else
+        logJ = ip.c₁ + ip.c₂ * Δa_w - ip.c₃ * Δa_w^2 + ip.c₄ * Δa_w^3
+        return FT(10)^(logJ) * 1e6
+    end
+    logJ = min(logJ, 19)
+
+    #return FT(10)^(logJ) * 1e6
 end
 
 end # end module

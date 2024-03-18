@@ -28,7 +28,7 @@ wps = CMP.WaterProperties(FT)
 Nₐ = FT(0)
 Nₗ = FT(8e6)
 Nᵢ = FT(0)
-r₀ = FT(0.5e-6)                 # TODO - fix initial conditions to ACI experiments
+r₀ = FT(0.5e-6)                 # droplets maybe bigger?
 p₀ = FT(987.018 * 1e2)
 T₀ = FT(212.978)
 
@@ -48,13 +48,15 @@ eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 e = eᵥ(qᵥ, p₀, Rₐ, R_v)
 Sₗ = FT(e / eₛ)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
+Sᵢ = ξ(tps, T₀) * Sₗ
+@info(IC, Sᵢ)
 
 w = FT(0.4)
 const_dt = FT(1)
 t_max = FT(500)
 aerosol = CMP.Kaolinite(FT)
 heterogeneous = "ABIFM"
-# condensation_growth = "Condensation"
+condensation_growth = "Condensation"
 deposition_growth = "Deposition"
 size_distribution = "Monodisperse"
 
@@ -62,7 +64,7 @@ params = (;
     const_dt,
     w,
     heterogeneous,
-    # condensation_growth,
+    condensation_growth,
     deposition_growth,
     size_distribution,
 )
@@ -70,7 +72,7 @@ params = (;
 # Define model which wraps around parcel and overwrites calibrated parameters
 function run_model(p, coefficients)
     # grabbing parameters
-    ABIFM_m_calibrated, ABIFM_m_calibrated = coefficients
+    ABIFM_m_calibrated, ABIFM_c_calibrated = coefficients
     (; const_dt, w) = p
     (; heterogeneous, deposition_growth) = p
     (; size_distribution) = p
@@ -80,7 +82,7 @@ function run_model(p, coefficients)
         "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
             Dict("value" => ABIFM_m_calibrated, "type" => "float"),
         "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
-            Dict("value" => ABIFM_m_calibrated, "type" => "float"),
+            Dict("value" => ABIFM_c_calibrated, "type" => "float"),
     )
     kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
     overwrite = CMP.Kaolinite(kaolinite_calibrated)
@@ -91,15 +93,14 @@ function run_model(p, coefficients)
         w = w,
         aerosol = overwrite,
         heterogeneous = heterogeneous,
-        # condensation_growth = condensation_growth,
+        condensation_growth = condensation_growth,
         deposition_growth = deposition_growth,
         size_distribution = size_distribution,
     )
 
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
-    @info(sol[9, :])
-    return (sol[9, :]) * 1e6 # ICNC
+    return (sol[9, :]) # ICNC
 end
 
 # Creating noisy pseudo-observations

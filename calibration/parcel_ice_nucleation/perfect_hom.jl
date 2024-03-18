@@ -28,16 +28,17 @@ wps = CMP.WaterProperties(FT)
 Nₐ = FT(0)
 Nₗ = FT(3.6 * 1e8)
 Nᵢ = FT(0)
-r₀ = FT(200 * 1e-9)
+r₀ = FT(2 * 1e-6)
 p₀ = FT(997.345 * 1e2)
-T₀ = FT(243.134)
+#T₀ = FT(243.134)
+T₀ = FT(236.5)
 
 R_d = TD.Parameters.R_d(tps)
 R_v = TD.Parameters.R_v(tps)
 ϵₘ = R_d / R_v
 qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
 C_l = FT(qₗ / ((1 - qₗ) * ϵₘ + qₗ))  # concentration/mol fraction of liquid
-C_v = FT(46.0757 * 1e-6 - C_l)     # concentration/mol fraction of vapor
+C_v = FT(46.0757 * 1e-6 - C_l) + 2.2e-4     # concentration/mol fraction of vapor
 qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
 qᵢ = FT(0)
 x_sulph = FT(0)
@@ -47,12 +48,14 @@ Rₐ = TD.gas_constant_air(tps, q)
 eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 e = eᵥ(qᵥ, p₀, Rₐ, R_v)
 Sₗ = FT(e / eₛ)
+Sᵢ = Sₗ * ξ(tps, T₀)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
+@info(IC, Sᵢ)
 
-w = FT(1.2)
-const_dt = FT(1)
+w = FT(0.5)
+const_dt = FT(0.1)
 #t_max = FT(650)
-t_max = FT(5)
+t_max = FT(120)
 homogeneous = "ABHOM"
 condensation_growth = "Condensation"
 deposition_growth = "Deposition"
@@ -102,8 +105,12 @@ function run_model(p, coefficients)
 
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
+    @info(sol[9,:])
     return sol[9, :] # ICNC
+    #return sol
 end
+
+#sol_testing = run_model(params, [-906.7, 8502, 26924, 29180])
 
 # Creating noisy pseudo-observations
 observation_data_names = ["coeff1", "coeff2", "coeff3", "coeff4"]
@@ -119,10 +126,10 @@ y_truth = G_truth .+ rand(noise_dist)
 
 # Define prior distributions for the coefficients
 # stats = [mean, std dev, lower bound, upper bound]
-coeff1_stats = [FT(-900), FT(1), -Inf, Inf]
-coeff2_stats = [FT(8000), FT(1), -Inf, Inf]
-coeff3_stats = [FT(26000), FT(1), -Inf, Inf]
-coeff4_stats = [FT(29000), FT(1), -Inf, Inf]
+coeff1_stats = [FT(-900), FT(1), -910, -850]
+coeff2_stats = [FT(8500), FT(1), 8450, 8550]
+coeff3_stats = [FT(26000), FT(1), 25900, 27000]
+coeff4_stats = [FT(29000), FT(1), 28900, 29200]
 prior_coeff1 = EKP.constrained_gaussian(
     observation_data_names[1],
     coeff1_stats[1],
@@ -153,7 +160,7 @@ prior_coeff4 = EKP.constrained_gaussian(
 )
 prior = EKP.combine_distributions([prior_coeff1, prior_coeff2, prior_coeff3, prior_coeff4])
 
-# Generate initial ensember and set up EKI
+# # Generate initial ensember and set up EKI
 N_ensemble = 2     # runs N_ensemble trials per iteration
 N_iterations = 3   # number of iterations the inverse problem goes through
 initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
@@ -197,6 +204,21 @@ ax4 = MK.Axis(
     fig[2, 2],
     ylabel = "Koop2000 Coeff4 [-]",
     xlabel = "iteration number",
+)
+ax5 = MK.Axis(
+    fig[3, 1],
+    ylabel = "Temperature [K]",
+    xlabel = "time",
+)
+ax6 = MK.Axis(
+    fig[3, 2],
+    ylabel = "Ice Saturation [-]",
+    xlabel = "time",
+)
+ax7 = MK.Axis(
+    fig[4, 1],
+    ylabel = "ICNC [m^-3]",
+    xlabel = "time",
 )
 
 iterations = collect(1:N_iterations)
@@ -268,6 +290,10 @@ MK.lines!(
     zeros(length(mean_coeff4)) .+ coeff_true[4],
     label = "default value",
 )
+
+# MK.lines!(ax5, sol_testing.t, sol_testing[3,:])
+# MK.lines!(ax6, sol_testing.t, S_i.(tps, sol_testing[3,:], sol_testing[1,:]))
+# MK.lines!(ax7, sol_testing.t, sol_testing[9,:])
 
 MK.axislegend(ax1, framevisible = true, labelsize = 12)
 MK.axislegend(ax2, framevisible = true, labelsize = 12)
