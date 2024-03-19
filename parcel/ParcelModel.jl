@@ -210,9 +210,9 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.deposition == "MohlerAF"
         dep_params = MohlerAF{FT}(pp.ips, pp.aerosol, pp.tps, pp.const_dt)
     elseif pp.deposition == "MohlerRate"
-        dep_params = MohlerRate{FT}(pp.ips, pp.aerosol, pp.tps)
+        dep_params = MohlerRate{FT}(pp.ips, pp.aerosol, pp.tps, pp.const_dt)
     elseif pp.deposition == "ABDINM"
-        dep_params = ABDINM{FT}(pp.tps, pp.aerosol, pp.r_nuc)
+        dep_params = ABDINM{FT}(pp.tps, pp.aerosol, pp.r_nuc, pp.const_dt)
     elseif pp.deposition == "P3_dep"
         dep_params = P3_dep{FT}(pp.ips, pp.const_dt)
     else
@@ -223,7 +223,7 @@ function run_parcel(IC, t_0, t_end, pp)
     if pp.heterogeneous == "None"
         imm_params = Empty{FT}()
     elseif pp.heterogeneous == "ABIFM"
-        imm_params = ABIFM{FT}(pp.H₂SO₄ps, pp.tps, pp.aerosol, pp.A_aer)
+        imm_params = ABIFM{FT}(pp.tps, pp.aerosol, pp.A_aer, pp.const_dt)
     elseif pp.heterogeneous == "P3_het"
         imm_params = P3_het{FT}(pp.ips, pp.const_dt)
     elseif pp.heterogeneous == "Frostenberg_random"
@@ -241,7 +241,7 @@ function run_parcel(IC, t_0, t_end, pp)
     if pp.homogeneous == "None"
         hom_params = Empty{FT}()
     elseif pp.homogeneous == "ABHOM"
-        hom_params = ABHOM{FT}(pp.tps, pp.ips)
+        hom_params = ABHOM{FT}(pp.tps, pp.ips, pp.const_dt)
     elseif pp.homogeneous == "P3_hom"
         hom_params = P3_hom{FT}(pp.const_dt)
     else
