@@ -164,6 +164,7 @@ function homogeneous_freezing(params::ABHOM, PSD, state)
     FT = eltype(state)
     (; tps, ips, const_dt) = params
     (; T, p_air, qᵥ, qₗ, qᵢ, Nₐ, Nₗ) = state
+    println("qᵥ = ", qᵥ)
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
@@ -171,7 +172,9 @@ function homogeneous_freezing(params::ABHOM, PSD, state)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
-
+    println("Δa_w = ", Δa_w)
+    println("a_sol = ", CMO.a_w_eT(tps, e, T))
+    println("a_ice = ", CMO.a_w_ice(tps, T))
     if Δa_w < ips.homogeneous.Δa_w_min
         @warn(
             "Δa_w for Homogeneous freezing less than minimum. No freezing will occur."
@@ -183,6 +186,8 @@ function homogeneous_freezing(params::ABHOM, PSD, state)
     end
 
     J = CMI_hom.homogeneous_J(ips.homogeneous, Δa_w)
+    println("J = ", J)
+    println("PSD.Vₗ = ", PSD.Vₗ)
 
     return min(max(FT(0), J * Nₗ * PSD.Vₗ), Nₗ / const_dt)
 end

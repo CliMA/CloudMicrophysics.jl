@@ -187,6 +187,9 @@ Valid when droplet is in equilibrium with surroundings.
 """
 function a_w_eT(tps::TPS, e::FT, T::FT) where {FT}
     # RH
+    println("T = ", T)
+    println("e = ", e)
+    println("p_sat = ", TD.saturation_vapor_pressure(tps, T, TD.Liquid()))
     return e / TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 end
 
@@ -199,7 +202,6 @@ end
 Returns water activity of ice.
 """
 function a_w_ice(tps::TPS, T::FT) where {FT}
-
     return TD.saturation_vapor_pressure(tps, T, TD.Ice()) /
            TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 end
