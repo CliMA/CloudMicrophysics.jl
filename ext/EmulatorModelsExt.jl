@@ -68,7 +68,9 @@ end
     - `ekp_params` - parameters from the trained Ensemble Kalman Process
 Returns a calibrated set of aerosol activation parameters
 """
-function AA.CalibratedAerosolActivationParameters(ekp_params::Array{FT}) where {FT <: Real}
+function AA.CalibratedAerosolActivationParameters(
+    ekp_params::Array{FT},
+) where {FT <: Real}
     default_param_set = CMP.AerosolActivationParameters(FT)
     (f1, f2, g1, g2, p1, p2) = FT.(ekp_params)
     cur_values = (;
@@ -77,10 +79,7 @@ function AA.CalibratedAerosolActivationParameters(ekp_params::Array{FT}) where {
             name in fieldnames(typeof(default_param_set))
         )...
     )
-    overridden_values = merge(
-        cur_values,
-        (; f1, f2, g1, g2, p1, p2),
-    )
+    overridden_values = merge(cur_values, (; f1, f2, g1, g2, p1, p2))
     return CMP.AerosolActivationParameters{FT}(; overridden_values...)
 end
 

@@ -159,10 +159,10 @@ function inverse_target_transform(transformed_act_frac)
 end
 
 function calibration_error_metrics(X, Y, ensemble, aip, tps, FT)
-    N_ensemble = length(ensemble[1,:])
+    N_ensemble = length(ensemble[1, :])
     rmse = zeros(N_ensemble)
     for i in 1:N_ensemble
-        pred = calibrated_prediction(X, ensemble[:,i], aip, tps, FT)
+        pred = calibrated_prediction(X, ensemble[:, i], aip, tps, FT)
         rmse[i] = StatsBase.mean(sqrt.((pred .- Y) .^ 2))
     end
     return rmse
@@ -170,5 +170,5 @@ end
 
 function calibrated_prediction(X, ensemble, aip, tps, FT)
     param_set = AA.CalibratedAerosolActivationParameters(ensemble)
-    return get_ARG_act_frac(X, param_set, aip, tps, FT)[:,1]
+    return get_ARG_act_frac(X, param_set, aip, tps, FT)[:, 1]
 end

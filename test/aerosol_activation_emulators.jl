@@ -283,6 +283,109 @@ function get_2modal_model_FT32(;
     end
 end
 
+function calibrate_ARG(
+    FT;
+    fname = "2modal_dataset1_train.csv",
+    sample_size = 500,
+    N_samples = 1,
+    N_ensemble = 10,
+    N_iterations_per_sample = 20,
+)
+    aip = CMP.AirProperties(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+
+    # download (if necessary) and load the data
+    fpath = joinpath(pkgdir(CM), "test")
+    if !isfile(joinpath(fpath, "data", fname))
+        # see above note on downloading from dropbox
+        url = "https://www.dropbox.com/scl/fi/qgq6ujvqenebjkskqvht5/2modal_dataset1_train.csv?rlkey=53qtqz0mtce993gy5jtnpdfz5&dl=0"
+        download(url, fname)
+        mkdir(joinpath(fpath, "data"))
+        mv(fname, joinpath(fpath, "data", fname), force = true)
+    end
+    X_train, Y_train, initial_data =
+        read_aerosol_dataset(joinpath(fpath, "data", fname))
+
+    rng = Random.MersenneTwister(1)
+
+    prior = combine_distributions([
+        constrained_gaussian("f_coeff_1_ARG2000", 0.5, 0.5, 0, Inf),
+        constrained_gaussian("f_coeff_2_ARG2000", 2.5, 0.5, 0, Inf),
+        constrained_gaussian("g_coeff_1_ARG2000", 1.0, 0.5, 0, Inf),
+        constrained_gaussian("g_coeff_2_ARG2000", 0.25, 0.5, 0, Inf),
+        constrained_gaussian("pow_1_ARG2000", 1.5, 0.5, 0, Inf),
+        constrained_gaussian("pow_2_ARG2000", 0.75, 0.5, 0, Inf),
+    ])
+
+    all_params_means = []
+    all_mean_error_metrics = []
+
+    for i in 1:N_samples
+        sample_inds =
+            StatsBase.sample(1:DF.nrow(X_train), sample_size, replace = false)
+        X_sample = X_train[sample_inds, :]
+        Y_sample = Y_train[sample_inds]
+
+        initial_ensemble =
+            EKP.construct_initial_ensemble(rng, prior, N_ensemble)
+        ensemble_kalman_process = EKP.EnsembleKalmanProcess(
+            initial_ensemble,
+            Y_sample,
+            1.0 * EKP.I,
+            EKP.Inversion(),
+        )
+
+        mean_error_metrics = []
+
+        for j in 1:N_iterations_per_sample
+            params_cur = EKP.get_ϕ_final(prior, ensemble_kalman_process)
+            errs = calibration_error_metrics(
+                X_sample,
+                Y_sample,
+                params_cur,
+                aip,
+                tps,
+                FT,
+            )
+            push!(mean_error_metrics, StatsBase.mean(errs))
+
+            params_mean_cur =
+                EKP.get_ϕ_mean_final(prior, ensemble_kalman_process)
+            pred_ens = hcat(
+                [
+                    calibrated_prediction(
+                        X_sample,
+                        params_cur[:, k],
+                        aip,
+                        tps,
+                        FT,
+                    ) for k in 1:N_ensemble
+                ]...,
+            )
+
+            EKP.update_ensemble!(ensemble_kalman_process, pred_ens)
+        end
+
+        params_final = EKP.get_ϕ_final(prior, ensemble_kalman_process)
+        errs = calibration_error_metrics(
+            X_sample,
+            Y_sample,
+            params_final,
+            aip,
+            tps,
+            FT,
+        )
+        push!(mean_error_metrics, StatsBase.mean(errs))
+
+        params_mean_final = EKP.get_ϕ_mean_final(prior, ensemble_kalman_process)
+        push!(all_params_means, params_mean_final)
+        push!(all_mean_error_metrics, mean_error_metrics)
+    end
+    final_params_means = StatsBase.mean(all_params_means)
+
+    return final_params_means, all_mean_error_metrics
+end
+
 function test_emulator(
     FT;
     ml_model = "NN",
@@ -319,14 +422,14 @@ function test_emulator(
     ad = AM.AerosolDistribution((crs, acc))
 
     if ml_model == "calibrated"
-        calib_params, errs = calibrate_ARG(FT, N_samples=N_samples_calib)
+        calib_params, errs = calibrate_ARG(FT, N_samples = N_samples_calib)
         ap_calib = AA.CalibratedAerosolActivationParameters(calib_params)
 
         TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[1] ≈
-                    AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
+                 AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
             rtols[1]
         TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[2] ≈
-                AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
+                 AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
             rtols[2]
         for n in 1:N_samples_calib
             TT.@test errs[n][end] < rtols[3]
@@ -340,134 +443,61 @@ function test_emulator(
         )
 
         TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q)[1] ≈
-                AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
+                 AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
             rtols[1]
         TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q)[2] ≈
-                AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
+                 AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
             rtols[2]
     end
 end
 
-function calibrate_ARG(FT; fname = "2modal_dataset1_train.csv", sample_size = 500, N_samples = 1, N_ensemble = 10, N_iterations_per_sample = 20)
-    aip = CMP.AirProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+@info "Aerosol activation test"
 
-    # download (if necessary) and load the data
-    fpath = joinpath(pkgdir(CM), "test")
-    if !isfile(joinpath(fpath, "data", fname))
-        # see above note on downloading from dropbox
-        url = "https://www.dropbox.com/scl/fi/qgq6ujvqenebjkskqvht5/2modal_dataset1_train.csv?rlkey=53qtqz0mtce993gy5jtnpdfz5&dl=0"
-        download(url, fname)
-        mkdir(joinpath(fpath, "data"))
-        mv(fname, joinpath(fpath, "data", fname), force = true)
-    end
-    X_train, Y_train, initial_data =
-        read_aerosol_dataset(joinpath(fpath, "data", fname))
-
-    rng = Random.MersenneTwister(1)
-
-    prior = combine_distributions([
-        constrained_gaussian("f_coeff_1_ARG2000", 0.5, 0.5, 0, Inf),
-        constrained_gaussian("f_coeff_2_ARG2000", 2.5, 0.5, 0, Inf),
-        constrained_gaussian("g_coeff_1_ARG2000", 1.0, 0.5, 0, Inf),
-        constrained_gaussian("g_coeff_2_ARG2000", 0.25, 0.5, 0, Inf),
-        constrained_gaussian("pow_1_ARG2000", 1.5, 0.5, 0, Inf),
-        constrained_gaussian("pow_2_ARG2000", 0.75, 0.5, 0, Inf),
-    ])
-
-    all_params_means = []
-    all_mean_error_metrics = []
-
-    for i in 1:N_samples
-        sample_inds = StatsBase.sample(
-            1:DF.nrow(X_train),
-            sample_size,
-            replace=false,
-        )
-        X_sample = X_train[sample_inds, :]
-        Y_sample = Y_train[sample_inds]
-
-        initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
-        ensemble_kalman_process = EKP.EnsembleKalmanProcess(
-            initial_ensemble,
-            Y_sample,
-            1.0 * EKP.I,
-            EKP.Inversion(),
-        )
-
-        mean_error_metrics = []
-
-        for j in 1:N_iterations_per_sample
-            params_cur = EKP.get_ϕ_final(prior, ensemble_kalman_process)
-            errs = calibration_error_metrics(X_sample, Y_sample, params_cur, aip, tps, FT)
-            push!(mean_error_metrics, StatsBase.mean(errs))
-
-            params_mean_cur = EKP.get_ϕ_mean_final(prior, ensemble_kalman_process)
-            pred_ens = hcat([calibrated_prediction(X_sample, params_cur[:, k], aip, tps, FT) for k in 1:N_ensemble]...)
-
-            EKP.update_ensemble!(ensemble_kalman_process, pred_ens)
-        end
-
-        params_final = EKP.get_ϕ_final(prior, ensemble_kalman_process)
-        errs = calibration_error_metrics(X_sample, Y_sample, params_final, aip, tps, FT)
-        push!(mean_error_metrics, StatsBase.mean(errs))
-
-        params_mean_final = EKP.get_ϕ_mean_final(prior, ensemble_kalman_process)
-        push!(all_params_means, params_mean_final)
-        push!(all_mean_error_metrics, mean_error_metrics)
-    end
-    final_params_means = StatsBase.mean(all_params_means)
-
-    return final_params_means, all_mean_error_metrics
+TT.@testset "Neural Network" begin
+    test_emulator(
+        Float32,
+        ml_model = "NN",
+        with_ARG_act_frac = false,
+        machine_name = "2modal_nn_machine_naive.jls",
+        rtols = [1e-4, 1e-3],
+    )
 end
 
-# @info "Aerosol activation test"
+TT.@testset "Gaussian Processes" begin
+    test_emulator(
+        Float32,
+        ml_model = "GP",
+        with_ARG_act_frac = false,
+        machine_name = "2modal_gp_machine_naive.jls",
+        rtols = [1e-2, 5e-2],
+    )
+end
 
-# TT.@testset "Neural Network" begin
-#     test_emulator(
-#         Float32,
-#         ml_model = "NN",
-#         with_ARG_act_frac = false,
-#         machine_name = "2modal_nn_machine_naive.jls",
-#         rtols = [1e-4, 1e-3],
-#     )
-# end
+TT.@testset "Evo Trees" begin
+    test_emulator(
+        Float32,
+        ml_model = "ET",
+        with_ARG_act_frac = false,
+        machine_name = "2modal_et_machine_naive.jls",
+        rtols = [5e-3, 5e-3],
+    )
+end
 
-# TT.@testset "Gaussian Processes" begin
-#     test_emulator(
-#         Float32,
-#         ml_model = "GP",
-#         with_ARG_act_frac = false,
-#         machine_name = "2modal_gp_machine_naive.jls",
-#         rtols = [1e-2, 5e-2],
-#     )
-# end
-
-# TT.@testset "Evo Trees" begin
-#     test_emulator(
-#         Float32,
-#         ml_model = "ET",
-#         with_ARG_act_frac = false,
-#         machine_name = "2modal_et_machine_naive.jls",
-#         rtols = [5e-3, 5e-3],
-#     )
-# end
-
-# TT.@testset "Neural Network with ARG-informed data" begin
-#     test_emulator(
-#         Float32,
-#         ml_model = "NN",
-#         with_ARG_act_frac = true,
-#         machine_name = "2modal_nn_machine_naive_with_ARG_act_frac.jls",
-#         rtols = [1e-4, 1e-3],
-#     )
-# end
+TT.@testset "Neural Network with ARG-informed data" begin
+    test_emulator(
+        Float32,
+        ml_model = "NN",
+        with_ARG_act_frac = true,
+        machine_name = "2modal_nn_machine_naive_with_ARG_act_frac.jls",
+        rtols = [1e-4, 1e-3],
+    )
+end
 
 TT.@testset "Calibrated ARG" begin
     test_emulator(
         Float32,
         ml_model = "calibrated",
         N_samples_calib = 5,
-        rtols = [1e-4, 1e-3, 0.26]
-        )
+        rtols = [1e-4, 1e-3, 0.26],
+    )
 end
