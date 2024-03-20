@@ -1,7 +1,7 @@
 agents:
   queue: new-central
   slurm_mem: 8G
-  modules: climacommon/2024_03_07
+  modules: climacommon/2024_03_18
 
 env:
   OPENBLAS_NUM_THREADS: 1
@@ -26,3 +26,13 @@ steps:
     key: "cpu_unittests"
     command:
       - "julia --project=test --color=yes test/aerosol_activation_emulators.jl"
+ 
+  - wait
+
+  - label: ":envelope: Slack report"
+    command: |
+      if [ $$(buildkite-agent step get "outcome" --step "cpu_unittests") == "passed" ]; then
+        slack-message -c "#microphysics-dev" -x "CloudMicrophysics buildkite-longruns success"
+      else
+        slack-message -c "#microphysics-dev" -x "CloudMicrophysics buildkite-longruns failure"
+      fi

@@ -54,8 +54,7 @@ function parcel_model(dY, Y, p, t)
         Nₐ = clip!(Y[7]),
         Nₗ = clip!(Y[8]),
         Nᵢ = clip!(Y[9]),
-        xS = Y[10],        # TODO - to be deleted
-        ln_INPC = Y[11],   # needed only in stochastic Frostenberg
+        ln_INPC = Y[10],   # needed only in stochastic Frostenberg
         t = t,
     )
 
@@ -145,8 +144,7 @@ function parcel_model(dY, Y, p, t)
     dY[7] = dNₐ_dt      # number concentration of interstitial aerosol
     dY[8] = dNₗ_dt      # mumber concentration of droplets
     dY[9] = dNᵢ_dt      # number concentration of activated particles
-    dY[10] = FT(0)      # sulphuric acid concentration
-    dY[11] = dln_INPC_imm
+    dY[10] = dln_INPC_imm
 end
 
 """
@@ -155,7 +153,7 @@ end
 Returns the solution of an ODE probelm defined by the parcel model.
 
 Inputs:
- - IC - Vector with initial conditions: [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, xS]
+ - IC - Vector with initial conditions: [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln(INPC)]
  - t_0 - simulation start time
  - t_end - simulation end time
  - pp - struct with parcel simulation parameters
@@ -170,7 +168,7 @@ Parcel state vector (all variables are in base SI units):
  - Nₐ    - number concentration of interstitial aerosol
  - Nₗ    - number concentration of existing water droplets
  - Nᵢ    - concentration of activated ice crystals
- - xS    - percent mass sulphuric acid
+ - ln(INPC) - logarithm of ice nucleation particles for the stochastic het. freezing option
  - t     - time in seconds since the beginning of the simulation
 
 The parcel parameters struct comes with default values that can be overwritten:
@@ -212,9 +210,9 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.deposition == "MohlerAF"
         dep_params = MohlerAF{FT}(pp.ips, pp.aerosol, pp.tps, pp.const_dt)
     elseif pp.deposition == "MohlerRate"
-        dep_params = MohlerRate{FT}(pp.ips, pp.aerosol, pp.tps)
+        dep_params = MohlerRate{FT}(pp.ips, pp.aerosol, pp.tps, pp.const_dt)
     elseif pp.deposition == "ABDINM"
-        dep_params = ABDINM{FT}(pp.tps, pp.aerosol, pp.r_nuc)
+        dep_params = ABDINM{FT}(pp.tps, pp.aerosol, pp.r_nuc, pp.const_dt)
     elseif pp.deposition == "P3_dep"
         dep_params = P3_dep{FT}(pp.ips, pp.const_dt)
     else
@@ -225,7 +223,7 @@ function run_parcel(IC, t_0, t_end, pp)
     if pp.heterogeneous == "None"
         imm_params = Empty{FT}()
     elseif pp.heterogeneous == "ABIFM"
-        imm_params = ABIFM{FT}(pp.H₂SO₄ps, pp.tps, pp.aerosol, pp.A_aer)
+        imm_params = ABIFM{FT}(pp.tps, pp.aerosol, pp.A_aer, pp.const_dt)
     elseif pp.heterogeneous == "P3_het"
         imm_params = P3_het{FT}(pp.ips, pp.const_dt)
     elseif pp.heterogeneous == "Frostenberg_random"
@@ -243,7 +241,7 @@ function run_parcel(IC, t_0, t_end, pp)
     if pp.homogeneous == "None"
         hom_params = Empty{FT}()
     elseif pp.homogeneous == "ABHOM"
-        hom_params = ABHOM{FT}(pp.tps, pp.ips)
+        hom_params = ABHOM{FT}(pp.tps, pp.ips, pp.const_dt)
     elseif pp.homogeneous == "P3_hom"
         hom_params = P3_hom{FT}(pp.const_dt)
     else
