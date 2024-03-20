@@ -10,7 +10,6 @@ import ClimaParams as CP
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.Parameters.AerosolActivation as CMPAA
 
 """
     N_activated_per_mode(machine, ap, ad, aip, tps, T, p, w, q)
@@ -64,17 +63,14 @@ function AA.N_activated_per_mode(
 end
 
 """
-    AerosolActivationParameters(ekp_params)
+    CalibratedAerosolActivationParameters(ekp_params)
 
     - `ekp_params` - parameters from the trained Ensemble Kalman Process
 Returns a calibrated set of aerosol activation parameters
 """
-CMPAA.AerosolActivationParameters(::Type{FT}, ekp_params::NamedTuple) where {FT <: AbstractFloat} =
-    AerosolActivationParameters(FT, ekp_params, CP.create_toml_dict(FT))
-
-function CMPAA.AerosolActivationParameters(FT, ekp_params::NamedTuple)
+function AA.CalibratedAerosolActivationParameters(ekp_params::Array{FT}) where {FT <: Real}
     default_param_set = CMP.AerosolActivationParameters(FT)
-    (ARG2000_f_coeff_1, ARG2000_f_coeff_2, ARG2000_g_coeff_1, ARG2000_g_coeff_2, ARG2000_pow_1, ARG2000_pow_2) = FT.(ekp_params)
+    (f1, f2, g1, g2, p1, p2) = FT.(ekp_params)
     cur_values = (;
         (
             name => getfield(default_param_set, name) for
@@ -83,7 +79,7 @@ function CMPAA.AerosolActivationParameters(FT, ekp_params::NamedTuple)
     )
     overridden_values = merge(
         cur_values,
-        (; ARG2000_f_coeff_1, ARG2000_f_coeff_2, ARG2000_g_coeff_1, ARG2000_g_coeff_2, ARG2000_pow_1, ARG2000_pow_2),
+        (; f1, f2, g1, g2, p1, p2),
     )
     return CMP.AerosolActivationParameters{FT}(; overridden_values...)
 end

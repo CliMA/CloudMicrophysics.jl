@@ -163,12 +163,12 @@ function calibration_error_metrics(X, Y, ensemble, aip, tps, FT)
     rmse = zeros(N_ensemble)
     for i in 1:N_ensemble
         pred = calibrated_prediction(X, ensemble[:,i], aip, tps, FT)
-        rmse[i] = sqrt.((pred .- Y) .^ 2)
+        rmse[i] = StatsBase.mean(sqrt.((pred .- Y) .^ 2))
     end
-    return [StatsBase.mean(d) for d in rmse]
+    return rmse
 end
 
 function calibrated_prediction(X, ensemble, aip, tps, FT)
-    param_set = AA.AerosolActivationParameters(FT, ensemble[:,i])
-    return get_ARG_act_frac(X, param_set, aip, tps, FT)
+    param_set = AA.CalibratedAerosolActivationParameters(ensemble)
+    return get_ARG_act_frac(X, param_set, aip, tps, FT)[:,1]
 end

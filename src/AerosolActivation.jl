@@ -23,7 +23,8 @@ export mean_hygroscopicity_parameter,
     N_activated_per_mode,
     M_activated_per_mode,
     total_N_activated,
-    total_M_activated
+    total_M_activated,
+    CalibratedAerosolActivationParameters
 
 """
     coeff_of_curvature(ap, T)
@@ -311,5 +312,13 @@ function total_M_activated(
 ) where {FT}
     return sum(M_activated_per_mode(ap, ad, aip, tps, T, p, w, q))
 end
+
+
+"""
+    CalibratedAerosolActivationParameters
+
+Returns a calibrated set of aerosol activation parameters (src in EmulatorModelsExt)
+"""
+function CalibratedAerosolActivationParameters end
 
 end # module AerosolActivation.jl
