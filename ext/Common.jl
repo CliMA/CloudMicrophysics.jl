@@ -169,6 +169,6 @@ function calibration_error_metrics(X, Y, ensemble, aip, tps, FT)
 end
 
 function calibrated_prediction(X, ensemble, aip, tps, FT)
-    param_set = AA.CalibratedAerosolActivationParameters(ensemble)
+    param_set = CMP.AerosolActivationParameters(ensemble)
     return get_ARG_act_frac(X, param_set, aip, tps, FT)[:, 1]
 end

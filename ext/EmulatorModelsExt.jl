@@ -63,12 +63,12 @@ function AA.N_activated_per_mode(
 end
 
 """
-    CalibratedAerosolActivationParameters(ekp_params)
+    AerosolActivationParameters(ekp_params)
 
     - `ekp_params` - parameters from the trained Ensemble Kalman Process
 Returns a calibrated set of aerosol activation parameters
 """
-function AA.CalibratedAerosolActivationParameters(
+function CMP.AerosolActivationParameters(
     ekp_params::Array{FT},
 ) where {FT <: Real}
     default_param_set = CMP.AerosolActivationParameters(FT)
