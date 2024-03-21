@@ -27,4 +27,4 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
 KernelAbstractions = "0.9"
-Optim = "429524aa-4258-5aef-a3af-852621145aeb"
+Optim = "<1.9.3"
