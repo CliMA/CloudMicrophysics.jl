@@ -1,3 +1,4 @@
+import MLJ
 import StatsBase
 import Random
 import EnsembleKalmanProcesses as EKP
