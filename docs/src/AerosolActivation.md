@@ -279,7 +279,9 @@ make_ARG_figX(5)
 ![](Abdul-Razzak_and_Ghan_fig_4.svg)
 ![](Abdul-Razzak_and_Ghan_fig_5.svg)
 
-## Aerosol activation prediction with ML emulators
+## Aerosol activation prediction with ML emulators and EKP calibration
 The CloudMicrophysics package offers an advanced feature for predicting the aerosol activation fraction using machine-learned emulators. Users have access to a function that utilizes pre-trained models for the prediction of activation fraction. Additionally, the package includes tools for training machine learning models, tailored to specific datasets or needs. The training process can benefit from incorporating the ARG activation equation, enhancing the relevance of training data. Emulator training, covering neural networks, Gaussian processes, and EvoTrees, is showcased in `test/aerosol_activation_emulators.jl`.
 
-Using ML emulators for predicting aerosol activation is provided through an extension to the main package. This extension will be loaded with `CloudMicrophysics.jl` if both `MLJ.jl` and  `DataFrames.jl` are loaded by the user as well.
+In addition, we provide functionality and a demonstration for re-training the free parameters of the traditional ARG activation scheme using Ensemble Kalman Processes. This functionality is showcased in `test/aerosol_activation_calibration.jl`.
+
+Using ML emulators or calibration with Ensemble Kalman Processes for predicting aerosol activation is provided through an extension to the main package. This extension will be loaded with `CloudMicrophysics.jl` if both `MLJ.jl`, `DataFrames.jl`, and `EnsembleKalmanProcesses.jl` are loaded by the user as well.

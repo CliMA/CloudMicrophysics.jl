@@ -2,9 +2,11 @@ module EmulatorModelsExt
 
 import MLJ
 import DataFrames as DF
+import EnsembleKalmanProcesses as EKP
 
 import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
+import ClimaParams as CP
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.Parameters as CMP
@@ -58,6 +60,27 @@ function AA.N_activated_per_mode(
         X = DF.DataFrame([merge(reduce(merge, per_mode_data), additional_data)])
         max(FT(0), min(FT(1), MLJ.predict(machine, X)[1])) * ad.Modes[i].N
     end
+end
+
+"""
+    AerosolActivationParameters(ekp_params)
+
+    - `ekp_params` - parameters from the trained Ensemble Kalman Process
+Returns a calibrated set of aerosol activation parameters
+"""
+function CMP.AerosolActivationParameters(
+    ekp_params::Array{FT},
+) where {FT <: Real}
+    default_param_set = CMP.AerosolActivationParameters(FT)
+    (f1, f2, g1, g2, p1, p2) = FT.(ekp_params)
+    cur_values = (;
+        (
+            name => getfield(default_param_set, name) for
+            name in fieldnames(typeof(default_param_set))
+        )...
+    )
+    overridden_values = merge(cur_values, (; f1, f2, g1, g2, p1, p2))
+    return CMP.AerosolActivationParameters{FT}(; overridden_values...)
 end
 
 end # module
