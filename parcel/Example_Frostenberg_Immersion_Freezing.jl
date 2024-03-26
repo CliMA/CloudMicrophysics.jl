@@ -137,18 +137,20 @@ end
 
 # Plotting
 fig = MK.Figure(size = (1200, 900))
-ax1 = MK.Axis(fig[1, 1], ylabel = "Ice Supersaturation [-]")
-ax2 = MK.Axis(fig[1, 2], ylabel = "T [K]")
-ax3 = MK.Axis(fig[2, 1], ylabel = "q_ice [g/kg]")
-ax4 = MK.Axis(fig[2, 2], ylabel = "q_liq [g/kg]")
-ax5 = MK.Axis(fig[3, 1], xlabel = "Time [min]", ylabel = "N_ice [1/cm3]")
-ax6 = MK.Axis(fig[3, 2], xlabel = "Time [min]", ylabel = "N_liq [1/cm3]")
-ax7 = MK.Axis(
-    fig[4, 1:2],
-    xlabel = "T [K]",
-    ylabel = "INPC [1/m3]",
-    yscale = log10,
-)
+kwargs = (; xgridvisible = false, ygridvisible = false,)
+ax1 = MK.Axis(fig[1, 1]; ylabel = "Ice Supersaturation [-]", kwargs...)
+ax2 = MK.Axis(fig[1, 2]; ylabel = "T [K]", kwargs...)
+ax3 = MK.Axis(fig[2, 1]; ylabel = "q_ice [g/kg]", kwargs...)
+ax4 = MK.Axis(fig[2, 2]; ylabel = "q_liq [g/kg]", kwargs...)
+ax5 = MK.Axis(fig[3, 1]; xlabel = "Time [min]", ylabel = "N_ice [1/cm3]", kwargs...)
+ax6 = MK.Axis(fig[3, 2]; xlabel = "Time [min]", ylabel = "N_liq [1/cm3]", kwargs...)
+MK.xlims!.(fig.content, 0, t_max / 60)
+ax7 = MK.Axis(fig[4, 1:2]; xlabel = "T [K]", ylabel = "INPC [1/m3]", yscale = log10, kwargs...)
+# top axis with time
+ax7_top = MK.Axis(fig[4, 1:2]; xaxisposition = :top, xlabel = "Time [min]", kwargs...)
+MK.hidespines!(ax7_top)
+MK.hideydecorations!(ax7_top)
+MK.xlims!(ax7_top, t_max / 60, 0)
 
 colors = [:red, :green, :orange, :limegreen]
 colors_mean = [:black, :gray]
@@ -194,5 +196,6 @@ for (sol, t, ll, cl) in zip(results_mean, time_mean, labels_mean, colors_mean)
         color = cl,
     )
 end
+MK.xlims!(ax7, extrema(results_mean[2][3, :]))
 fig[1:2, 3] = MK.Legend(fig, ax6, framevisible = false)
 MK.save("frostenberg_immersion_freezing.svg", fig)
