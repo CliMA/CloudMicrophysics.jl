@@ -165,7 +165,6 @@ end
 TT.@testset "Calibrated ARG" begin
     test_emulator(
         Float32,
-        ml_model = "calibrated",
         N_samples_calib = 5,
         rtols = [1e-4, 1e-3, 0.26],
     )
