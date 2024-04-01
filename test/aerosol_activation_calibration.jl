@@ -163,9 +163,5 @@ end
 @info "Aerosol activation test"
 
 TT.@testset "Calibrated ARG" begin
-    test_emulator(
-        Float32,
-        N_samples_calib = 5,
-        rtols = [1e-4, 1e-3, 0.26],
-    )
+    test_emulator(Float32, N_samples_calib = 5, rtols = [1e-4, 1e-3, 0.26])
 end
