@@ -192,8 +192,7 @@ function run_parcel(IC, t_0, t_end, pp)
 
     FT = eltype(IC)
 
-    println(" ")
-    println("Size distribution: ", pp.size_distribution)
+    info = "\nSize distribution: $(pp.size_distribution)\n"
     if pp.size_distribution == "Monodisperse"
         distr = Monodisperse{FT}()
     elseif pp.size_distribution == "Gamma"
@@ -202,9 +201,9 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized size distribution")
     end
 
-    println("Aerosol :", chop(string(typeof(pp.aerosol)), head = 29, tail = 9))
+    info *= "Aerosol: $(chop( string(typeof(pp.aerosol)), head = 29, tail = 9))\n"
 
-    println("Deposition: ", pp.deposition)
+    info *= "Deposition: $(pp.deposition)\n"
     if pp.deposition == "None"
         dep_params = Empty{FT}()
     elseif pp.deposition == "MohlerAF"
@@ -219,7 +218,7 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized deposition mode")
     end
 
-    println("Heterogeneous: ", pp.heterogeneous)
+    info *= "Heterogeneous: $(pp.heterogeneous)\n"
     if pp.heterogeneous == "None"
         imm_params = Empty{FT}()
     elseif pp.heterogeneous == "ABIFM"
@@ -237,7 +236,7 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized heterogeneous mode")
     end
 
-    println("Homogeneous: ", pp.homogeneous)
+    info *= "Homogeneous: $(pp.homogeneous)\n"
     if pp.homogeneous == "None"
         hom_params = Empty{FT}()
     elseif pp.homogeneous == "ABHOM"
@@ -248,7 +247,7 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized homogeneous mode")
     end
 
-    println("Condensation growth: ", pp.condensation_growth)
+    info *= "Condensation growth: $(pp.condensation_growth)\n"
     if pp.condensation_growth == "None"
         ce_params = Empty{FT}()
     elseif pp.condensation_growth == "Condensation"
@@ -257,7 +256,7 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized condensation growth mode")
     end
 
-    println("Deposition growth: ", pp.deposition_growth)
+    info *= "Deposition growth: $(pp.deposition_growth)\n"
     if pp.deposition_growth == "None"
         ds_params = Empty{FT}()
     elseif pp.deposition_growth == "Deposition"
@@ -265,7 +264,7 @@ function run_parcel(IC, t_0, t_end, pp)
     else
         throw("Unrecognized deposition growth mode")
     end
-    println(" ")
+    @info info
 
     # Parameters for the ODE solver
     p = (

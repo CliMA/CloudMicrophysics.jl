@@ -141,9 +141,7 @@ function INPC_model(params::Frostenberg_stochastic, state)
     μ = CMI_het.INP_concentration_mean(T)
     g = ip.σ * sqrt(2 * γ)
 
-    dln_INPC =
-        -γ * (ln_INPC - μ) * const_dt +
-        g * sqrt(const_dt) * rand(DS.Normal(0, 1))
+    dln_INPC = -γ * (ln_INPC - μ) * const_dt + g * sqrt(const_dt) * randn()
 
     return dln_INPC / const_dt
 end
