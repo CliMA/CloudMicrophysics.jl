@@ -120,7 +120,6 @@ end
 
 function test_emulator(
     FT;
-    ml_model = "NN",
     rtols = [1e-4, 1e-3, 0.26],
     N_samples_calib = 2,
 )
@@ -151,19 +150,17 @@ function test_emulator(
     crs = AM.Mode_κ(r2, σ2, N2, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,), 1)
     ad = AM.AerosolDistribution((crs, acc))
 
-    if ml_model == "calibrated"
-        calib_params, errs = calibrate_ARG(FT, N_samples = N_samples_calib)
-        ap_calib = CMP.AerosolActivationParameters(calib_params)
+    calib_params, errs = calibrate_ARG(FT, N_samples = N_samples_calib)
+    ap_calib = CMP.AerosolActivationParameters(calib_params)
 
-        TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[1] ≈
-                 AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
-            rtols[1]
-        TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[2] ≈
-                 AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
-            rtols[2]
-        for n in 1:N_samples_calib
-            TT.@test errs[n][end] < rtols[3]
-        end
+    TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[1] ≈
+                AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
+        rtols[1]
+    TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[2] ≈
+                AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
+        rtols[2]
+    for n in 1:N_samples_calib
+        TT.@test errs[n][end] < rtols[3]
     end
 end
 
