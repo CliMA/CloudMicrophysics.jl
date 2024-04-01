@@ -118,11 +118,7 @@ function calibrate_ARG(
     return final_params_means, all_mean_error_metrics
 end
 
-function test_emulator(
-    FT;
-    rtols = [1e-4, 1e-3, 0.26],
-    N_samples_calib = 2,
-)
+function test_emulator(FT; rtols = [1e-4, 1e-3, 0.26], N_samples_calib = 2)
 
     aip = CMP.AirProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -154,10 +150,10 @@ function test_emulator(
     ap_calib = CMP.AerosolActivationParameters(calib_params)
 
     TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[1] ≈
-                AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
+             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
         rtols[1]
     TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[2] ≈
-                AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
+             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
         rtols[2]
     for n in 1:N_samples_calib
         TT.@test errs[n][end] < rtols[3]
