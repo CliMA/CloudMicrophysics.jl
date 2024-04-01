@@ -21,6 +21,11 @@
 !docs/src/assets/*.svg
 docs/build/
 docs/site/
+# ignore output from Literate.jl
+docs/src/guides/literated/
 
 # Deps
 Manifest.toml
+
+# Settings
+.vscode/
