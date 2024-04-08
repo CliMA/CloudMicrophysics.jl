@@ -467,14 +467,11 @@ function terminal_velocity_mass(
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
-    cutoff = FT(0.000625) # TO be added to the struct
+    cutoff = FT(0.000625) # TODO add to the struct
 
     # Get the shape parameters
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
-
-    # Get the ai, bi, ci constants (in si units) for velocity calculations
-    (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
 
     κ = FT(-1 / 6) #FT(1/3)
 
@@ -484,6 +481,8 @@ function terminal_velocity_mass(
     v = 0
     for i in 1:2
         if F_r == 0
+            # Velocity coefficients for small particles
+            (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a) 
             v += integrate(
                 FT(0),
                 D_th,
@@ -515,7 +514,10 @@ function terminal_velocity_mass(
                 ci[i] + λ,
             )
         else
+            # Velocity coefficients for small particles
+            (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
             large = false
+
             v += integrate(
                 FT(0),
                 D_th,
@@ -536,6 +538,7 @@ function terminal_velocity_mass(
                     bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
                     ci[i] + λ,
                 )
+                #= println("D_th to cutoff") =#
 
                 # large particles 
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
@@ -551,6 +554,7 @@ function terminal_velocity_mass(
                     bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
                     ci[i] + λ,
                 )
+                #= println("large, cutoff to D_gr") =#
             else
                 v += integrate(
                     D_th,
@@ -562,6 +566,7 @@ function terminal_velocity_mass(
                     bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
                     ci[i] + λ,
                 )
+                #= println("D_th to D_gr") =#
             end
 
             # D_gr to D_cr
@@ -573,6 +578,7 @@ function terminal_velocity_mass(
                     bi[i] + μ + 3,
                     ci[i] + λ,
                 )
+                #= println("D_gr to cutoff") =#
 
                 # large particles 
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
@@ -585,6 +591,7 @@ function terminal_velocity_mass(
                     bi[i] + μ + 3,
                     ci[i] + λ,
                 )
+                #= println("large, cutoff to D_cr") =#
             else
                 v += integrate(
                     th.D_gr,
@@ -593,6 +600,7 @@ function terminal_velocity_mass(
                     bi[i] + μ + 3,
                     ci[i] + λ,
                 )
+                #= printlln("D_gr to D_cr") =#
             end
 
             # D_cr to Infinity
@@ -616,6 +624,8 @@ function terminal_velocity_mass(
                     cutoff,
                 )
                 v += I
+                #= println("D_cr to cutoff") =#
+
                 # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
                 #v += integrate(th.D_cr, cutoff, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
 
@@ -642,6 +652,7 @@ function terminal_velocity_mass(
                     Inf,
                 )
                 v += I
+                #= println("large, cutoff to Infinity") =#
                 #v += integrate(cutoff, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
             else
                 (I, e) = QGK.quadgk(
@@ -663,6 +674,7 @@ function terminal_velocity_mass(
                     Inf,
                 )
                 v += I
+                #= println("D_cr to Infinity") =#
                 # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
                 #v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
             end

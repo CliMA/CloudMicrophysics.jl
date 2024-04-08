@@ -42,7 +42,7 @@ end
 function figure_2()
     Chen2022 = CMP.Chen2022VelType(FT)
     # density of air in kg/m^3
-    ρ_a = FT(1.293)
+    ρ_a = FT(1.2) #FT(1.293)
 
     f = Plt.Figure()
     xres = 100
@@ -269,16 +269,16 @@ function figure_2()
     Plt.save("MorrisonandMilbrandtFig2.svg", f)
 end
 
-println("start")
+#println("start")
 figure_2()
-println("done")
+#println("done")
 #println(P3.D_th_helper(p3))
 #println(P3.thresholds(p3, FT(500), FT(0.5)))
 #println("")
 #println("small = ", P3.q_gamma(p3, FT(0.5), FT(1e7), FT(log(4.9 * 10^2)), P3.thresholds(p3, FT(500), FT(0.5))))
 
 
-import RootSolvers as RS
+#= import RootSolvers as RS
 ρ_r = FT(500)
 F_r = FT(0.8)
 N = FT(1e8)
@@ -294,11 +294,22 @@ x =
         5,
     ).root
 
-println("q_solved = ", exp(x))
+println("q_solved = ", exp(x)) =#
 
 Chen2022 = CMP.Chen2022VelType(FT)
 q = FT(0.0008)
 N = FT(1e6)
-ρ_r = FT(900)
-F_r = FT(0.99)
-P3.terminal_velocity_mass(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, FT(1.293))
+ρ_r = FT(950)
+F_r = FT(0.95)
+
+(λ, N_0) = P3.distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+println("λ = ", λ, " N_0 = ", N_0)
+
+D_m = P3.D_m(p3, q, N, ρ_r, F_r) 
+println("D_m = ", D_m)
+
+println(P3.D_th_helper(p3)) 
+
+println(P3.thresholds(p3, ρ_r, F_r))
+
+P3.terminal_velocity_mass(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, FT(1.2)) #FT(1.293))
