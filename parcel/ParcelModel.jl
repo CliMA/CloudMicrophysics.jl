@@ -23,6 +23,9 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     w = FT(1)
     r_nuc = FT(0.5 * 1.e-4 * 1e-6)
     A_aer = FT(1e-9)
+    sampling_interval = FT(1)
+    γ = FT(1)
+    ip = CMP.Frostenberg2023(FT)
 end
 
 """
@@ -51,7 +54,8 @@ function parcel_model(dY, Y, p, t)
         Nₐ = clip!(Y[7]),
         Nₗ = clip!(Y[8]),
         Nᵢ = clip!(Y[9]),
-        xS = Y[10],
+        ln_INPC = Y[10],   # needed only in stochastic Frostenberg
+        t = t,
     )
 
     # Constants
@@ -61,7 +65,7 @@ function parcel_model(dY, Y, p, t)
     ρₗ = wps.ρw
 
     # Get the state values
-    (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ) = state
+    (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, t) = state
     # Get thermodynamic parameters, phase partition and create thermo state.
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     ts = TD.PhaseNonEquil_pTq(tps, p_air, T, q)
@@ -90,6 +94,8 @@ function parcel_model(dY, Y, p, t)
     dqᵢ_dt_dep = dNᵢ_dt_dep * 4 / 3 * FT(π) * r_nuc^3 * ρᵢ / ρ_air
 
     # Heterogeneous ice nucleation
+    #@info(imm_params)
+    dln_INPC_imm = INPC_model(imm_params, state)
     dNᵢ_dt_imm = immersion_freezing(imm_params, PSD, state)
     dqᵢ_dt_imm = dNᵢ_dt_imm * PSD.Vₗ * ρᵢ / ρ_air
 
@@ -138,7 +144,7 @@ function parcel_model(dY, Y, p, t)
     dY[7] = dNₐ_dt      # number concentration of interstitial aerosol
     dY[8] = dNₗ_dt      # mumber concentration of droplets
     dY[9] = dNᵢ_dt      # number concentration of activated particles
-    dY[10] = FT(0)      # sulphuric acid concentration
+    dY[10] = dln_INPC_imm
 end
 
 """
@@ -147,7 +153,7 @@ end
 Returns the solution of an ODE probelm defined by the parcel model.
 
 Inputs:
- - IC - Vector with initial conditions: [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, xS]
+ - IC - Vector with initial conditions: [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln(INPC)]
  - t_0 - simulation start time
  - t_end - simulation end time
  - pp - struct with parcel simulation parameters
@@ -162,7 +168,8 @@ Parcel state vector (all variables are in base SI units):
  - Nₐ    - number concentration of interstitial aerosol
  - Nₗ    - number concentration of existing water droplets
  - Nᵢ    - concentration of activated ice crystals
- - xS    - percent mass sulphuric acid
+ - ln(INPC) - logarithm of ice nucleation particles for the stochastic het. freezing option
+ - t     - time in seconds since the beginning of the simulation
 
 The parcel parameters struct comes with default values that can be overwritten:
  - deposition - string with deposition ice nucleation parameterization choice ["None" (default), "MohlerAF", "MohlerRate", "ActivityBased", "P3_dep"]
@@ -177,13 +184,15 @@ The parcel parameters struct comes with default values that can be overwritten:
  - w - parcel vertical velocity [m/s]. Default value is 1 m/s
  - r_nuc - assumed size of nucleating ice crystals. Default value is 5e-11 [m]
  - A_aer - assumed surface area of ice nucleating aerosol. Default value assumes radius of 5e-11 [m]
+ - ip - parameters of INPC frequency distribution for Frostenberg parametrization of immerison freezing
+ - sampling_interval - number of time steps between random draws in Frostenberg_random parametrization of immerison freezing
+ - γ - inverse timescale for the stochastic process in Frostenberg_stochastic parametrization of immerison freezing
 """
 function run_parcel(IC, t_0, t_end, pp)
 
     FT = eltype(IC)
 
-    println(" ")
-    println("Size distribution: ", pp.size_distribution)
+    info = "\nSize distribution: $(pp.size_distribution)\n"
     if pp.size_distribution == "Monodisperse"
         distr = Monodisperse{FT}()
     elseif pp.size_distribution == "Gamma"
@@ -192,46 +201,53 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized size distribution")
     end
 
-    println("Aerosol :", chop(string(typeof(pp.aerosol)), head = 29, tail = 9))
+    info *= "Aerosol: $(chop( string(typeof(pp.aerosol)), head = 29, tail = 9))\n"
 
-    println("Deposition: ", pp.deposition)
+    info *= "Deposition: $(pp.deposition)\n"
     if pp.deposition == "None"
         dep_params = Empty{FT}()
     elseif pp.deposition == "MohlerAF"
         dep_params = MohlerAF{FT}(pp.ips, pp.aerosol, pp.tps, pp.const_dt)
     elseif pp.deposition == "MohlerRate"
-        dep_params = MohlerRate{FT}(pp.ips, pp.aerosol, pp.tps)
+        dep_params = MohlerRate{FT}(pp.ips, pp.aerosol, pp.tps, pp.const_dt)
     elseif pp.deposition == "ABDINM"
-        dep_params = ABDINM{FT}(pp.tps, pp.aerosol, pp.r_nuc)
+        dep_params = ABDINM{FT}(pp.tps, pp.aerosol, pp.r_nuc, pp.const_dt)
     elseif pp.deposition == "P3_dep"
         dep_params = P3_dep{FT}(pp.ips, pp.const_dt)
     else
         throw("Unrecognized deposition mode")
     end
 
-    println("Heterogeneous: ", pp.heterogeneous)
+    info *= "Heterogeneous: $(pp.heterogeneous)\n"
     if pp.heterogeneous == "None"
         imm_params = Empty{FT}()
     elseif pp.heterogeneous == "ABIFM"
-        imm_params = ABIFM{FT}(pp.H₂SO₄ps, pp.tps, pp.aerosol, pp.A_aer)
+        imm_params = ABIFM{FT}(pp.tps, pp.aerosol, pp.A_aer, pp.const_dt)
     elseif pp.heterogeneous == "P3_het"
         imm_params = P3_het{FT}(pp.ips, pp.const_dt)
+    elseif pp.heterogeneous == "Frostenberg_random"
+        imm_params =
+            Frostenberg_random{FT}(pp.ip, pp.sampling_interval, pp.const_dt)
+    elseif pp.heterogeneous == "Frostenberg_mean"
+        imm_params = Frostenberg_mean{FT}(pp.ip, pp.const_dt)
+    elseif pp.heterogeneous == "Frostenberg_stochastic"
+        imm_params = Frostenberg_stochastic{FT}(pp.ip, pp.γ, pp.const_dt)
     else
         throw("Unrecognized heterogeneous mode")
     end
 
-    println("Homogeneous: ", pp.homogeneous)
+    info *= "Homogeneous: $(pp.homogeneous)\n"
     if pp.homogeneous == "None"
         hom_params = Empty{FT}()
     elseif pp.homogeneous == "ABHOM"
-        hom_params = ABHOM{FT}(pp.tps, pp.ips)
+        hom_params = ABHOM{FT}(pp.tps, pp.ips, pp.const_dt)
     elseif pp.homogeneous == "P3_hom"
         hom_params = P3_hom{FT}(pp.const_dt)
     else
         throw("Unrecognized homogeneous mode")
     end
 
-    println("Condensation growth: ", pp.condensation_growth)
+    info *= "Condensation growth: $(pp.condensation_growth)\n"
     if pp.condensation_growth == "None"
         ce_params = Empty{FT}()
     elseif pp.condensation_growth == "Condensation"
@@ -240,7 +256,7 @@ function run_parcel(IC, t_0, t_end, pp)
         throw("Unrecognized condensation growth mode")
     end
 
-    println("Deposition growth: ", pp.deposition_growth)
+    info *= "Deposition growth: $(pp.deposition_growth)\n"
     if pp.deposition_growth == "None"
         ds_params = Empty{FT}()
     elseif pp.deposition_growth == "Deposition"
@@ -248,7 +264,7 @@ function run_parcel(IC, t_0, t_end, pp)
     else
         throw("Unrecognized deposition growth mode")
     end
-    println(" ")
+    @info info
 
     # Parameters for the ODE solver
     p = (

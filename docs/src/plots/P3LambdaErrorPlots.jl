@@ -4,7 +4,7 @@ import CloudMicrophysics.Parameters as CMP
 import ClimaParams as CP
 import SpecialFunctions as SF
 import RootSolvers as RS
-import CairoMakie as Plt
+import CairoMakie as CMK
 
 FT = Float64
 
@@ -37,12 +37,11 @@ function get_errors(
     λSteps::Int,
     F_rSteps::Int,
 ) where {FT}
+
     logλs = range(FT(log10_λ_min), stop = log10_λ_max, length = λSteps)
     λs = [10^logλ for logλ in logλs]
     F_rs = range(F_r_min, stop = F_r_max, length = F_rSteps)
     E = zeros(λSteps, F_rSteps)
-    min = Inf
-    max = -Inf
 
     for i in 1:λSteps
         for j in 1:F_rSteps
@@ -50,21 +49,15 @@ function get_errors(
             F_r = F_rs[j]
 
             er = log(λ_diff(F_r, ρ_r, N, λ, p3) / λ)
-
+            er = er == Inf ? 9999.99 : er
+            er = er == -Inf ? -9999.99 : er
             E[i, j] = er
-
-            if er > max && er < Inf
-                max = er
-            end
-            if er < min && er > -Inf
-                min = er
-            end
-
         end
     end
-    return (; λs, F_rs, E, min, max)
+    return (; λs, F_rs, E)
 end
 
+#! format: off
 function plot_relerrors(
     N::FT,
     log10_λ_min::FT,
@@ -81,56 +74,18 @@ function plot_relerrors(
 
     ρ_rs = range(ρ_r_min, stop = ρ_r_max, length = numPlots)
 
-    f = Plt.Figure()
-
+    f = CMK.Figure()
     x = 1
     y = 1
     for i in 1:numPlots
+        i = 1
 
         ρ = ρ_rs[i]
+        (λs, F_rs, E) = get_errors(p3, log10_λ_min, log10_λ_max, F_r_min, F_r_max, ρ, N, λSteps, F_rSteps)
 
-        Plt.Axis(
-            f[x, y],
-            xlabel = "λ",
-            ylabel = "F_r",
-            title = string(
-                "log(relative error calculated λ) for ρ_r = ",
-                string(ρ),
-            ),
-            width = 400,
-            height = 300,
-            xscale = log10,
-        )
-
-        (λs, F_rs, E, min, max) = get_errors(
-            p3,
-            log10_λ_min,
-            log10_λ_max,
-            F_r_min,
-            F_r_max,
-            ρ,
-            N,
-            λSteps,
-            F_rSteps,
-        )
-
-        Plt.Colorbar(
-            f[x, y + 1],
-            limits = (-10, 0),
-            colormap = :viridis,
-            flipaxis = false,
-            highclip = :red,
-            lowclip = :indigo,
-        )
-        Plt.heatmap!(
-            λs,
-            F_rs,
-            E,
-            colorrange = (-10, 0),
-            highclip = :red,
-            lowclip = :indigo,
-        )
-
+        CMK.Axis(f[x, y], xlabel = "λ", ylabel = "F_r", title = string("log(relative error calculated λ) for ρ_r = ", string(ρ)), width = 400, height = 300, xscale = log10)
+        hm = CMK.heatmap!(λs, F_rs, E, colormap = CMK.cgrad(:viridis, 20, categorical=true),  colorrange = (-10, 0), highclip = :red, lowclip = :indigo)
+        CMK.Colorbar(f[x, y + 1], hm)
 
         y = y + 2
         if (y > 6)
@@ -138,16 +93,16 @@ function plot_relerrors(
             y = 1
         end
     end
-
-    Plt.resize_to_layout!(f)
-    Plt.save("P3LambdaHeatmap.svg", f)
+    CMK.resize_to_layout!(f)
+    CMK.save("P3LambdaHeatmap.png", f)
 end
+#! format: on
 
 function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
 
-    f = Plt.Figure()
+    f = CMK.Figure(size = (800, 500))
 
-    ax1 = Plt.Axis(
+    ax1 = CMK.Axis(
         f[1, 1],
         xlabel = "q/N",
         ylabel = "μ",
@@ -157,7 +112,7 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
         xscale = log10,
     )
 
-    ax2 = Plt.Axis(
+    ax2 = CMK.Axis(
         f[1, 2],
         xlabel = "λ",
         ylabel = "μ",
@@ -167,7 +122,7 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
         xscale = log10,
     )
 
-    ax3 = Plt.Axis(
+    ax3 = CMK.Axis(
         f[1, 3],
         xlabel = "λ",
         ylabel = "q/N",
@@ -178,8 +133,8 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
         yscale = log10,
     )
 
-    Plt.linkxaxes!(ax2, ax3)
-    Plt.linkyaxes!(ax1, ax2)
+    CMK.linkxaxes!(ax2, ax3)
+    CMK.linkyaxes!(ax1, ax2)
 
     numpts = 100
 
@@ -203,26 +158,26 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
     end
 
     # Plot
-    Plt.lines!(ax3, λs, qs, label = "true distribution")
-    Plt.lines!(ax3, λ_solved, qs, label = "approximated")
+    CMK.lines!(ax3, λs, qs, label = "true distribution")
+    CMK.lines!(ax3, λ_solved, qs, label = "approximated")
 
-    Plt.lines!(ax1, qs, μs, label = "true distribution")
-    Plt.lines!(ax1, qs, μs_approx, label = "approximated")
-    Plt.lines!(ax2, λs, μs, label = "true distribution")
-    Plt.lines!(ax2, λ_solved, μs_approx, label = "approximated")
+    CMK.lines!(ax1, qs, μs, label = "true distribution")
+    CMK.lines!(ax1, qs, μs_approx, label = "approximated")
+    CMK.lines!(ax2, λs, μs, label = "true distribution")
+    CMK.lines!(ax2, λ_solved, μs_approx, label = "approximated")
 
-    Plt.axislegend(ax1, position = :lb)
-    Plt.axislegend(ax2, position = :lt)
-    Plt.axislegend(ax3, position = :lb)
+    CMK.axislegend(ax1, position = :lb)
+    CMK.axislegend(ax2, position = :lt)
+    CMK.axislegend(ax3, position = :lb)
 
-    Plt.resize_to_layout!(f)
-    Plt.save("MuApprox.svg", f)
+    CMK.resize_to_layout!(f)
+    CMK.save("MuApprox.svg", f)
 
 end
 
 # Define variables for heatmap relative error plots:
 
-log10_λ_min = FT(1)
+log10_λ_min = FT(2)
 log10_λ_max = FT(6)
 F_r_min = FT(0)
 F_r_max = FT(0.9)
@@ -230,8 +185,8 @@ F_r_max = FT(0.9)
 ρ_r_max = FT(900)
 N = FT(1e8)
 
-λ_Steps = 100
-F_r_Steps = 100
+λ_Steps = 40
+F_r_Steps = 40
 NumPlots = 9
 
 plot_relerrors(
