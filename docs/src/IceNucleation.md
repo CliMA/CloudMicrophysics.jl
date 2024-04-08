@@ -243,6 +243,14 @@ Multiple sulphuric acid concentrations, ``x``,
     values that are obtained from pure water droplets. Though CliMA lines look far
     from the Spichtinger 2023 line, the lines seem to move closer as x approaches 0.
 
+### Linear fit homogeneous freezing
+To avoid complications in extrapolating the Koop 2000 parameterization outside of the valide temperature range, a linear fit was created.
+
+```@example
+include("plots/linear_HOM_J.jl")
+```
+![](linear_HOM_J.svg)
+
 ## Water Activity Based vs P3 Ice Nucleation Parameterizations
 The water activity based models are compared with P3 ice nucleation parameterizations as described
   in [MorrisonMilbrandt2015](@cite) using an adiabatic parcel model with depositional growth. The

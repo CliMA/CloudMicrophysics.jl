@@ -214,10 +214,11 @@ module HomIceNucleation
 import ..Parameters as CMP
 import Thermodynamics as TD
 
-export homogeneous_J
+export homogeneous_J_cubic
+export homogeneous_J_linear
 
 """
-    homogeneous_J(ip, Δa_w)
+    homogeneous_J_cubic(ip, Δa_w)
 
  - `ip` - a struct with ice nucleation parameters
  - `Δa_w` - change in water activity [-].
@@ -226,12 +227,29 @@ Returns the homogeneous freezing nucleation rate coefficient,
 `J`, in m^-3 s^-1 for sulphuric acid solutions.
 Parameterization based on Koop 2000, DOI: 10.1038/35020537.
 """
-function homogeneous_J(ip::CMP.Koop2000, Δa_w::FT) where {FT}
+function homogeneous_J_cubic(ip::CMP.Koop2000, Δa_w::FT) where {FT}
 
     @assert Δa_w >= ip.Δa_w_min
     @assert Δa_w <= ip.Δa_w_max
 
     logJ::FT = ip.c₁ + ip.c₂ * Δa_w - ip.c₃ * Δa_w^2 + ip.c₄ * Δa_w^3
+
+    return FT(10)^(logJ) * 1e6
+end
+
+"""
+    homogeneous_J_linear(ip, Δa_w)
+
+ - `ip` - a struct with ice nucleation parameters
+ - `Δa_w` - change in water activity [-].
+
+Returns the homogeneous freezing nucleation rate coefficient,
+`J`, in m^-3 s^-1 for sulphuric acid solutions.
+Parameterization derived from a linear fit of the Koop 2000 parameterization, DOI: 10.1038/35020537.
+"""
+function homogeneous_J_linear(ip::CMP.Koop2000, Δa_w::FT) where {FT}
+
+    logJ::FT = ip.linear_c₂ * Δa_w + ip.linear_c₁
 
     return FT(10)^(logJ) * 1e6
 end
