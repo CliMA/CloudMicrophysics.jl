@@ -269,47 +269,4 @@ function figure_2()
     Plt.save("MorrisonandMilbrandtFig2.svg", f)
 end
 
-#println("start")
 figure_2()
-#println("done")
-#println(P3.D_th_helper(p3))
-#println(P3.thresholds(p3, FT(500), FT(0.5)))
-#println("")
-#println("small = ", P3.q_gamma(p3, FT(0.5), FT(1e7), FT(log(4.9 * 10^2)), P3.thresholds(p3, FT(500), FT(0.5))))
-
-
-#= import RootSolvers as RS
-ρ_r = FT(500)
-F_r = FT(0.8)
-N = FT(1e8)
-Dₘ = 0.006
-println("started")
-shape_problem(x) = Dₘ - P3.D_m(p3, exp(x), N, ρ_r, F_r)
-x =
-    RS.find_zero(
-        shape_problem,
-        RS.SecantMethod(log(0.01), log(0.015)),
-        RS.CompactSolution(),
-        RS.RelativeSolutionTolerance(eps(FT)),
-        5,
-    ).root
-
-println("q_solved = ", exp(x)) =#
-
-Chen2022 = CMP.Chen2022VelType(FT)
-q = FT(0.0008)
-N = FT(1e6)
-ρ_r = FT(950)
-F_r = FT(0.95)
-
-(λ, N_0) = P3.distribution_parameter_solver(p3, q, N, ρ_r, F_r)
-println("λ = ", λ, " N_0 = ", N_0)
-
-D_m = P3.D_m(p3, q, N, ρ_r, F_r) 
-println("D_m = ", D_m)
-
-println(P3.D_th_helper(p3)) 
-
-println(P3.thresholds(p3, ρ_r, F_r))
-
-P3.terminal_velocity_mass(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, FT(1.2)) #FT(1.293))
