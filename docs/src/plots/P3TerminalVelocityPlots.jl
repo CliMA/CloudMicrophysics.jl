@@ -269,4 +269,5 @@ function figure_2()
     Plt.save("MorrisonandMilbrandtFig2.svg", f)
 end
 
+# Terminal Velocity figure
 figure_2()
