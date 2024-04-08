@@ -30,7 +30,7 @@ T₀_hom = FT(236.5)
 qᵥ = FT(8.3e-4)
 qₗ = FT(Nₗ * 4 / 3 * π * rₗ^3 * ρₗ / 1.2)
 qᵢ = FT(0)
-x_sulph = FT(0)
+ln_INPC = FT(0)
 
 # Moisture dependent initial conditions
 q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
@@ -49,9 +49,9 @@ e = eᵥ(qᵥ, p₀, Rₐ, R_v)
 Sₗ_dep = FT(e / eₛ_dep)
 Sₗ_het = FT(e / eₛ_het)
 Sₗ_hom = FT(e / eₛ_hom)
-IC_dep = [Sₗ_dep, p₀, T₀_dep, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
-IC_het = [Sₗ_het, p₀, T₀_het, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
-IC_hom = [Sₗ_hom, p₀, T₀_hom, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
+IC_dep = [Sₗ_dep, p₀, T₀_dep, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+IC_het = [Sₗ_het, p₀, T₀_het, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+IC_hom = [Sₗ_hom, p₀, T₀_hom, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 
 # Simulation parameters passed into ODE solver
 r_nuc = FT(1.25e-6)                     # assumed size of nucleated particles
@@ -164,7 +164,7 @@ for heterogeneous in heterogeneous_modes
             if aerosol == CMP.DesertDust(FT)
                 line_color = :green
                 MK.lines!(ax4, sol.t, S_i.(tps, sol[3, :], (sol[1, :])), label = heterogeneous, color = line_color) # saturation
-                MK.lines!(ax5, sol.t, sol[9, :] .* 1e-6, color = line_color)                                        # ICNC 
+                MK.lines!(ax5, sol.t, sol[9, :] .* 1e-6, color = line_color)                                        # ICNC
                 MK.lines!(ax6, sol.t, sol[3, :], color = line_color)                                                # Temperature
             elseif aerosol == CMP.Illite(FT)
                 line_color = :orange

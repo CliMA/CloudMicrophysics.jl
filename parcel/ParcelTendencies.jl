@@ -3,6 +3,7 @@ import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
 import CloudMicrophysics.HomIceNucleation as CMI_hom
 import CloudMicrophysics.Parameters as CMP
+import Distributions as DS
 
 function deposition_nucleation(::Empty, state, dY)
     FT = eltype(state)
@@ -30,30 +31,33 @@ function deposition_nucleation(params::MohlerAF, state, dY)
 end
 
 function deposition_nucleation(params::MohlerRate, state, dY)
-    (; ips, aerosol, tps) = params
+    (; ips, aerosol, tps, const_dt) = params
     (; T, Nₐ, Sₗ) = state
+    FT = eltype(state)
     Sᵢ = ξ(tps, T) * Sₗ
     dSᵢdt = ξ(tps, T) * dY[1]
 
     if Sᵢ >= ips.deposition.Sᵢ_max
         @warn("Supersaturation exceeds Sᵢ_max. No dust will be activated.")
+        dNi_dt = FT(0)
+    else
+        dNi_dt = CMI_het.MohlerDepositionRate(
+            aerosol,
+            ips.deposition,
+            Sᵢ,
+            T,
+            dSᵢdt,
+            Nₐ,
+        )
     end
 
-    return Sᵢ >= ips.deposition.Sᵢ_max ? FT(0) :
-           CMI_het.MohlerDepositionRate(
-        aerosol,
-        ips.deposition,
-        Sᵢ,
-        T,
-        dSᵢdt,
-        Nₐ,
-    )
+    return min(max(dNi_dt, FT(0)), Nₐ / const_dt)
 end
 
 function deposition_nucleation(params::ABDINM, state, dY)
     FT = eltype(state)
-    (; tps, aerosol, r_nuc) = params
-    (; T, p_air, qᵥ, qₗ, qᵢ) = state
+    (; tps, aerosol, r_nuc, const_dt) = params
+    (; T, p_air, qᵥ, qₗ, qᵢ, Nₐ) = state
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
@@ -63,15 +67,15 @@ function deposition_nucleation(params::ABDINM, state, dY)
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
     J = CMI_het.deposition_J(aerosol, Δa_w)
     A = 4 * FT(π) * r_nuc^2
-    return max(FT(0), J * Nₐ * A)
+    return min(max(FT(0), J * Nₐ * A), Nₐ / const_dt)
 end
 
 function deposition_nucleation(params::P3_dep, state, dY)
     FT = eltype(state)
     (; ips, const_dt) = params
-    (; T, Nᵢ) = state
+    (; T, Nᵢ, Nₐ) = state
     Nᵢ_depo = CMI_het.P3_deposition_N_i(ips.p3, T)
-    return max(FT(0), (Nᵢ_depo - Nᵢ) / const_dt)
+    return min(max(FT(0), (Nᵢ_depo - Nᵢ) / const_dt), Nₐ / const_dt)
 end
 
 function immersion_freezing(::Empty, PSD, state)
@@ -80,22 +84,19 @@ function immersion_freezing(::Empty, PSD, state)
 end
 
 function immersion_freezing(params::ABIFM, PSD, state)
-    (; T, xS, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
-    (; H₂SO₄ps, tps, aerosol, A_aer) = params
+    (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
+    (; tps, aerosol, A_aer, const_dt) = params
+    FT = eltype(state)
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
     R_air = TD.gas_constant_air(tps, q)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
-    # TODO - get rif of a_w_x option
-    Δa_w =
-        T > FT(185) && T < FT(235) ?
-        CMO.a_w_xT(H₂SO₄ps, tps, xS, T) - CMO.a_w_ice(tps, T) :
-        CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
+    Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
 
     J = CMI_het.ABIFM_J(aerosol, Δa_w)
-    return max(FT(0), J * Nₗ * A_aer)
+    return min((J * Nₗ * A_aer), (Nₗ / const_dt))
 end
 
 function immersion_freezing(params::P3_het, PSD, state)
@@ -103,7 +104,53 @@ function immersion_freezing(params::P3_het, PSD, state)
     (; const_dt, ips) = params
     (; T, Nₗ, Nᵢ) = state
     Nᵢ_het = CMI_het.P3_het_N_i(ips.p3, T, Nₗ, PSD.Vₗ, const_dt)
-    return max(FT(0), (Nᵢ_het - Nᵢ) / const_dt)
+    return min(max(FT(0), (Nᵢ_het - Nᵢ) / const_dt), (Nₗ / const_dt))
+end
+
+function immersion_freezing(params::Frostenberg_random, PSD, state)
+    FT = eltype(state)
+    (; ip, sampling_interval, const_dt) = params
+    (; T, Nₗ, Nᵢ, t) = state
+    if mod(t, sampling_interval) == 0
+        μ = CMI_het.INP_concentration_mean(T)
+        INPC = exp(rand(DS.Normal(μ, ip.σ)))
+    else
+        INPC = 0
+    end
+    return min(Nₗ, max(FT(0), INPC - Nᵢ)) / const_dt
+end
+
+function immersion_freezing(params::Frostenberg_mean, PSD, state)
+    FT = eltype(state)
+    (; ip, const_dt) = params
+    (; T, Nₗ, Nᵢ) = state
+    INPC = exp(CMI_het.INP_concentration_mean(T))
+    return min(Nₗ, max(FT(0), INPC - Nᵢ)) / const_dt
+end
+
+function INPC_model(params, state)
+    FT = eltype(state)
+    return FT(0)
+end
+
+function INPC_model(params::Frostenberg_stochastic, state)
+    FT = eltype(state)
+    (; ip, γ, const_dt) = params
+    (; T, ln_INPC, t) = state
+
+    μ = CMI_het.INP_concentration_mean(T)
+    g = ip.σ * sqrt(2 * γ)
+
+    dln_INPC = -γ * (ln_INPC - μ) * const_dt + g * sqrt(const_dt) * randn()
+
+    return dln_INPC / const_dt
+end
+
+function immersion_freezing(params::Frostenberg_stochastic, PSD, state)
+    FT = eltype(state)
+    (; ip, γ, const_dt) = params
+    (; T, Nₗ, Nᵢ, ln_INPC, t) = state
+    return min(Nₗ, max(FT(0), exp(ln_INPC) - Nᵢ)) / const_dt
 end
 
 function homogeneous_freezing(::Empty, PSD, state)
@@ -113,8 +160,8 @@ end
 
 function homogeneous_freezing(params::ABHOM, PSD, state)
     FT = eltype(state)
-    (; tps, ips) = params
-    (; T, p_air, qᵥ, qₗ, qᵢ, Nₐ, Nₗ) = state
+    (; tps, ips, const_dt) = params
+    (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
@@ -123,14 +170,19 @@ function homogeneous_freezing(params::ABHOM, PSD, state)
 
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
 
-    if Δa_w > ips.homogeneous.Δa_w_max || Δa_w < ips.homogeneous.Δa_w_min
-        @warn("Clipping Δa_w for Homogeneous freezing")
+    if Δa_w < ips.homogeneous.Δa_w_min
+        @warn(
+            "Δa_w for Homogeneous freezing less than minimum. No freezing will occur."
+        )
+        return FT(0)
+    elseif Δa_w > ips.homogeneous.Δa_w_max
+        @warn("Clipping Δa_w to max Δa_w for Homogeneous freezing.")
+        Δa_w = ips.homogeneous.Δa_w_max
     end
 
-    Δa_w = max(min(ips.homogeneous.Δa_w_max, Δa_w), ips.homogeneous.Δa_w_min)
     J = CMI_hom.homogeneous_J(ips.homogeneous, Δa_w)
 
-    return max(FT(0), J * Nₗ * PSD.Vₗ)
+    return min(max(FT(0), J * Nₗ * PSD.Vₗ), Nₗ / const_dt)
 end
 
 function homogeneous_freezing(params::P3_hom, PSD, state)
@@ -147,6 +199,7 @@ function condensation(::Empty, PSD, state, ρ_air)
 end
 
 function condensation(params::CondParams, PSD, state, ρ_air)
+    FT = eltype(state)
     (; aps, tps) = params
     (; Sₗ, T, Nₗ) = state
     Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())

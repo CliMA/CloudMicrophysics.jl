@@ -20,7 +20,7 @@ p₀ = FT(20000)
 qᵥ = FT(8.3e-4)
 qₗ = FT(Nₗ * 4 / 3 * π * rₗ^3 * wps.ρw / 1.2)
 qᵢ = FT(0)
-x_sulph = FT(0)
+ln_INPC = FT(0)
 
 # Moisture dependent initial conditions
 q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
@@ -60,7 +60,7 @@ for it in [1, 2, 3]
     local ρₐ = TD.air_density(tps, ts)
     local eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
     local Sₗ = FT(e / eₛ)
-    local IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
+    local IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 
     #! format: off
     if mode == "P3_dep"

@@ -23,7 +23,7 @@ T₀ = FT(251)
 qᵥ = FT(8.1e-4)
 qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2) # 1.2 should be ρₐ
 qᵢ = FT(0)
-x_sulph = FT(0)
+ln_INPC = FT(0)
 
 # Moisture dependent initial conditions
 q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
@@ -32,7 +32,7 @@ Rₐ = TD.gas_constant_air(tps, q)
 eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 e = eᵥ(qᵥ, p₀, Rₐ, R_v)
 Sₗ = FT(e / eₛ)
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, x_sulph]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 
 # Simulation parameters passed into ODE solver
 w = FT(0.4)                                # updraft speed

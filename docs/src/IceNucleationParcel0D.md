@@ -296,7 +296,7 @@ include("../../parcel/Example_Liquid_only.jl")
 The plots below are the results of the adiabatic parcel model
   with immersion freezing, condensation growth, and deposition growth for
   both a monodisperse and gamma size distribution. Note that this has not
-  yet been validated against literature. Results are very sensitive to 
+  yet been validated against literature. Results are very sensitive to
   initial conditions.
 
 ```@example
@@ -334,3 +334,75 @@ Shown below are three separate parcel simulations for deposition nucleation,
 include("../../parcel/Example_P3_ice_nuc.jl")
 ```
 ![](P3_ice_nuc.svg)
+
+
+## Immersion Freezing Parametrization based on Frostenberg et al. 2023
+
+Here we show the parcel model results when using the parametrization of immersion freezing
+  based on [Frostenberg2023](@cite).
+The concentration of ice nucleating particles (INPC) depends only on air temperature,
+  and is based on a lognormal relative frequency distribution.
+New ice crystals are created if the INPC exceeds the existing concentration of ice crystals,
+  provided there are sufficient numbers of cloud liquid droplets to freeze.
+
+Three different implementations of this parametrization are used in the parcel model:
+- `mean` - in which INPC is equal to its mean value defined in [Frostenberg2023](@cite).
+- `random` - in which INPC is sampled randomly from the distribution defined in [Frostenberg2023](@cite).
+  The number of model time steps between sampling is set by `sampling_interval`.
+- `stochastic` - in which INPC is solved for as a stochastic process,
+  with the mean and standard deviation defined in [Frostenberg2023](@cite).
+  The inverse timescale of the process is set by ``\gamma``.
+
+The stochastic implementation is based on the [Ornstein-Uhlenbeck process](https://en.wikipedia.org/wiki/Ornstein–Uhlenbeck_process), 
+in which the variable ``x`` is a mean-reverting process perturbed by Gaussian random noise (i.e. increments of the Wiener process ``W``):
+```math
+\begin{equation}
+  dx = - \gamma(x - \mu)dt + \sqrt{2\gamma} \sigma dW; \quad\quad   dW \sim N(0, dt),
+\end{equation}
+```
+where ``N`` is a zero-mean normal distribution with variance ``dt``.
+For constant ``\gamma`` and ``\sigma``, and given some initial condition ``x(0)=x_0``, ``x`` has the analytical solution:
+```math
+\begin{equation}
+  x(t) = 
+      x_0 e^{-\gamma t} + \mu (1 - e^{-\gamma t})
+    + \sqrt{2\gamma} \sigma \int_0^t e^{-\gamma(t-s)} dW,
+\end{equation}
+```
+where ``\tau \equiv 1 / \gamma`` is the assumed timescale of the process. The process mean is ``x_0 e^{-\gamma t} + \mu (1 - e^{-\gamma t})``. We can calculate the variance ``\mathbb{V}(t)`` as,
+```math
+\begin{equation}
+  \mathbb{V}(t) 
+  = 2\gamma \sigma^2 \int_0^t e^{-2\gamma(t-s)} ds 
+  = \frac{g^2}{2\gamma} \left( 1 - e^{-2\gamma t} \right).
+\end{equation}
+```
+
+We use this process to model ``x=\log(\text{INPC})``, which tends toward a temperature-dependent mean value ``\mu(T)``.
+The equation for ``\log(\text{INPC})`` is then,
+```math
+\begin{equation}
+  d\log(\text{INPC}) = 
+    - \frac{\log(\text{INPC}) - μ}{\tau} dt
+    + \sigma \sqrt{\frac{2}{\tau}} dW
+\end{equation}
+```
+
+This equation is currently implemented with the simple [Euler-Maruyama method](https://en.wikipedia.org/wiki/Euler–Maruyama_method), which is the stochastic analog of the forward Euler method for (deterministic) ordinary differential equations, so that
+```math
+\begin{equation}
+  \log(\text{INPC})_{t+dt} = \log(\text{INPC})_{t}
+    - \gamma\left(\log(\text{INPC})_t - μ(T_t)\right) dt
+    + \sigma \sqrt{2\gamma dt} z_t
+\end{equation}
+```
+where ``z_t \sim N(0,1)`` is a standard normal random variable.
+
+The following plot shows resuls of the parcel model with the `mean` (black line), `random` (dotted lines) and `stochastic` (solid lines) parameterization options.
+We show results for two sampling intervals ``\Delta t`` (random), two process time scales ``\tau`` (stochastic), and two model time steps `dt`.
+
+```@example
+using Suppressor: @suppress # hide
+@suppress include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl") # hide
+```
+![](frostenberg_immersion_freezing.svg)

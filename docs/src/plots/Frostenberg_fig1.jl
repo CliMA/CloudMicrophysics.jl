@@ -8,20 +8,19 @@ import CloudMicrophysics.Parameters as CMP
 FT = Float32
 ip = CMP.Frostenberg2023(FT)
 
-T_range_celsius = range(-40, stop = -2, length = 500)  # air temperature [°C]
-T_range_kelvin = T_range_celsius .+ 273.15  # air temperature [K]
+T_range = range(233, stop = 271, length = 500) # air temperature [K]
 INPC_range = 10.0 .^ (range(-5, stop = 7, length = 500)) #ice nucleating particle concentration
 
 frequency = [
     IN.INP_concentration_frequency(ip, INPC, T) > 0.015 ?
     IN.INP_concentration_frequency(ip, INPC, T) : missing for
-    INPC in INPC_range, T in T_range_kelvin
+    INPC in INPC_range, T in T_range
 ]
-mu = [exp(log(-(ip.b * T)^9 * 10^(-9))) for T in T_range_celsius]
+mu = [exp(IN.INP_concentration_mean(T)) for T in T_range]
 
 
 PL.contourf(
-    T_range_kelvin,
+    T_range,
     INPC_range,
     frequency,
     xlabel = "T [K]",
@@ -35,7 +34,7 @@ PL.contourf(
 )
 
 PL.plot!(
-    T_range_kelvin,
+    T_range,
     mu,
     label = "median INPC",
     legend = :topright,

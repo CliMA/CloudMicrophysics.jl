@@ -1,4 +1,4 @@
-import CairoMakie as Plt
+import CairoMakie as CMK
 import CloudMicrophysics as CM
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
@@ -111,31 +111,23 @@ function area(
 
 end
 
-# Plot Fig. 1a and 1b from Morrison and Milbrandt 2015.
-function p3_mass_plot()
-
-    D_range = range(3e-5, stop = 1e-2, length = Int(1e4))
-    logocolors = Plt.Colors.JULIA_LOGO_COLORS
-    cl = [logocolors.blue, logocolors.green, logocolors.red, logocolors.purple]
-    lw = 3
-
-    fig1_a = Plt.Figure()
-    ax1_a = Plt.Axis(
-        fig1_a[1:7, 1:8],
-        title = Plt.L"m(D) regime for $ρ_r = 400 kg m^{-3}$",
-        xlabel = Plt.L"$D$ (mm)",
-        ylabel = Plt.L"$m$ (kg)",
-        xscale = Plt.log10,
-        yscale = Plt.log10,
+function define_axis(fig, row_range, col_range, title, ylabel, yticks, aspect)
+    return CMK.Axis(
+        fig[row_range, col_range],
+        title = title,
+        xlabel = CMK.L"$D$ (mm)",
+        ylabel = ylabel,
+        xscale = CMK.log10,
+        yscale = CMK.log10,
         xminorticksvisible = true,
-        xminorticks = Plt.IntervalsBetween(5),
+        xminorticks = CMK.IntervalsBetween(5),
         yminorticksvisible = true,
-        yminorticks = Plt.IntervalsBetween(3),
+        yminorticks = CMK.IntervalsBetween(3),
         xticks = [0.01, 0.1, 1, 10],
-        aspect = 1.75,
+        yticks = yticks,
+        aspect = aspect,
         limits = ((0.02, 10.0), nothing),
     )
-
     sol_5 = P3.thresholds(p3, 400.0, 0.5)
     sol_8 = P3.thresholds(p3, 400.0, 0.8)
 
@@ -201,91 +193,79 @@ function p3_mass_plot()
     Plt.save("MorrisonandMilbrandtFig1b.svg", fig1_b)
 end
 
-# Plot area(size) for different regimes for the documentation.
-function p3_area_plot()
+#! format: off
+function p3_relations_plot()
 
     D_range = range(3e-5, stop = 1e-2, length = Int(1e4))
-    logocolors = Plt.Colors.JULIA_LOGO_COLORS
+    logocolors = CMK.Colors.JULIA_LOGO_COLORS
     cl = [logocolors.blue, logocolors.green, logocolors.red, logocolors.purple]
     lw = 3
 
-    fig = Plt.Figure()
-    ax = Plt.Axis(
-        fig[1:7, 1:8],
-        title = Plt.L"A(D) regime for $ρ_r = 400 kg m^{-3}$",
-        xlabel = Plt.L"$D$ (mm)",
-        ylabel = Plt.L"$A$ ($m^2$)",
-        xscale = Plt.log10,
-        yscale = Plt.log10,
-        xminorticksvisible = true,
-        xminorticks = Plt.IntervalsBetween(5),
-        yminorticksvisible = true,
-        yminorticks = Plt.IntervalsBetween(3),
-        xticks = [0.01, 0.1, 1, 10],
-        aspect = 1.75,
-        limits = ((0.02, 10.0), nothing),
-    )
-    sol_5 = P3.thresholds(p3, 400.0, 0.5)
-    sol_8 = P3.thresholds(p3, 400.0, 0.8)
+    fig = CMK.Figure(size=(1400, 900))
 
-    #! format: off
-    fig_0 = Plt.lines!(ax, D_range * 1e3, [area(p3, D, 0.0       ) for D in D_range], color = cl[1], linewidth = lw)
-    fig_5 = Plt.lines!(ax, D_range * 1e3, [area(p3, D, 0.5, sol_5) for D in D_range], color = cl[2], linewidth = lw)
-    fig_8 = Plt.lines!(ax, D_range * 1e3, [area(p3, D, 0.8, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    # define plot axis
+    #[row, column]
+    ax1 = define_axis(fig, 1:7,  1:9,   CMK.L"m(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.9)
+    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"m(D) regime for $F_r = 0.95$",          CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.8)
+    ax2 = define_axis(fig, 8:15, 1:9,   CMK.L"A(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.7)
+    ax4 = define_axis(fig, 8:15, 10:18, CMK.L"A(D) regime for $F_r = 0.95$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.6)
 
-    d_th =   Plt.vlines!(ax, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
-    d_cr_5 = Plt.vlines!(ax, sol_5[1] * 1e3,           linestyle = :dot,  color = cl[2], linewidth = lw)
-    d_cr_8 = Plt.vlines!(ax, sol_8[1] * 1e3,           linestyle = :dot,  color = cl[3], linewidth = lw)
-    d_gr_5 = Plt.vlines!(ax, sol_5[2] * 1e3,           linestyle = :dash, color = cl[2], linewidth = lw)
-    d_gr_8 = Plt.vlines!(ax, sol_8[2] * 1e3,           linestyle = :dash, color = cl[3], linewidth = lw)
+    # Get thresholds
+    sol4_5 = P3.thresholds(p3, 400.0, 0.5)
+    sol4_8 = P3.thresholds(p3, 400.0, 0.8)
+    # m(D)
+    fig1_0 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.0        ) for D in D_range], color = cl[1], linewidth = lw)
+    fig1_5 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.5, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
+    fig1_8 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.8, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
+    # a(D)
+    fig2_0 = CMK.lines!(ax2, D_range * 1e3, [area(p3, D, 0.0        ) for D in D_range], color = cl[1], linewidth = lw)
+    fig2_5 = CMK.lines!(ax2, D_range * 1e3, [area(p3, D, 0.5, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
+    fig2_8 = CMK.lines!(ax2, D_range * 1e3, [area(p3, D, 0.8, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
+    # plot verical lines
+    for ax in [ax1, ax2]
+        global d_tha  = CMK.vlines!(ax, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
+        global d_cr_5 = CMK.vlines!(ax, sol4_5[1]          * 1e3, linestyle = :dot,  color = cl[2], linewidth = lw)
+        global d_cr_8 = CMK.vlines!(ax, sol4_8[1]          * 1e3, linestyle = :dot,  color = cl[3], linewidth = lw)
+        global d_gr_5 = CMK.vlines!(ax, sol4_5[2]          * 1e3, linestyle = :dash, color = cl[2], linewidth = lw)
+        global d_gr_8 = CMK.vlines!(ax, sol4_8[2]          * 1e3, linestyle = :dash, color = cl[3], linewidth = lw)
+    end
 
-    leg     = Plt.Legend(fig[8:9, 1], [fig_0, fig_5, fig_8], [Plt.L"$F_{r} = 0.0$", Plt.L"$F_{r} = 0.5$", Plt.L"$F_{r} = 0.8$"], framevisible = false)
-    leg_dth = Plt.Legend(fig[8:9, 3], [d_th],                [Plt.L"$D_{th}$"], framevisible = false)
-    leg_dcr = Plt.Legend(fig[8:9, 7], [d_cr_5, d_cr_8],      [Plt.L"$D_{cr}$ for $F_{r} = 0.5$", Plt.L"$D_{cr}$ for $F_{r} = 0.8$"], framevisible = false)
-    leg_dgr = Plt.Legend(fig[8:9, 5], [d_gr_5, d_gr_8],      [Plt.L"$D_{gr}$ for $F_{r} = 0.5$", Plt.L"$D_{gr}$ for $F_{r} = 0.8$"], framevisible = false)
-    #! format:on
-    Plt.save("P3Scheme_Area_1.svg", fig)
-
-    fig = Plt.Figure()
-    ax = Plt.Axis(
-        fig[1:10, 1:11],
-        title = Plt.L"A(D) regime for $F_r = 0.95$",
-        xlabel = Plt.L"$D$ (mm)",
-        ylabel = Plt.L"$A$ ($m^2$)",
-        xscale = Plt.log10,
-        yscale = Plt.log10,
-        yminorticksvisible = true,
-        yminorticks = Plt.IntervalsBetween(3),
-        xminorticksvisible = true,
-        xminorticks = Plt.IntervalsBetween(5),
-        xticks = [0.01, 0.1, 1, 10],
-        aspect = 1.67,
-        limits = ((0.02, 10.0), nothing),
-    )
+    # get thresholds
     sol_2 = P3.thresholds(p3, 200.0, 0.95)
     sol_4 = P3.thresholds(p3, 400.0, 0.95)
     sol_8 = P3.thresholds(p3, 800.0, 0.95)
+    # m(D)
+    fig3_200 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_2) for D in D_range], color = cl[1], linewidth = lw)
+    fig3_400 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_4) for D in D_range], color = cl[2], linewidth = lw)
+    fig3_800 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    # a(D)
+    fig3_200 = CMK.lines!(ax4, D_range * 1e3, [area(p3, D, 0.5, sol_2) for D in D_range], color = cl[1], linewidth = lw)
+    fig3_400 = CMK.lines!(ax4, D_range * 1e3, [area(p3, D, 0.5, sol_4) for D in D_range], color = cl[2], linewidth = lw)
+    fig3_800 = CMK.lines!(ax4, D_range * 1e3, [area(p3, D, 0.5, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    # plot verical lines
+    for ax in [ax3, ax4]
+        global d_thb    = CMK.vlines!(ax, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
+        global d_cr_200 = CMK.vlines!(ax, sol_2[1] * 1e3,           linestyle = :dot,  color = cl[1], linewidth = lw)
+        global d_cr_400 = CMK.vlines!(ax, sol_4[1] * 1e3,           linestyle = :dot,  color = cl[2], linewidth = lw)
+        global d_cr_800 = CMK.vlines!(ax, sol_8[1] * 1e3,           linestyle = :dot,  color = cl[3], linewidth = lw)
+        global d_gr_200 = CMK.vlines!(ax, sol_2[2] * 1e3,           linestyle = :dash, color = cl[1], linewidth = lw)
+        global d_gr_400 = CMK.vlines!(ax, sol_4[2] * 1e3,           linestyle = :dash, color = cl[2], linewidth = lw)
+        global d_gr_800 = CMK.vlines!(ax, sol_8[2] * 1e3,           linestyle = :dash, color = cl[3], linewidth = lw)
+    end
+    # add legend
+    CMK.Legend(fig[16:17, 1], [fig1_0, fig1_5, fig1_8], [CMK.L"$F_{r} = 0.0$", CMK.L"$F_{r} = 0.5$", CMK.L"$F_{r} = 0.8$"], framevisible = false)
+    CMK.Legend(fig[16:17, 3], [d_tha], [CMK.L"$D_{th}$"], framevisible = false)
+    CMK.Legend(fig[16:17, 7], [d_cr_5, d_cr_8], [CMK.L"$D_{cr}$ for $F_{r} = 0.5$", CMK.L"$D_{cr}$ for $F_{r} = 0.8$"], framevisible = false)
+    CMK.Legend(fig[16:17, 5], [d_gr_5, d_gr_8], [CMK.L"$D_{gr}$ for $F_{r} = 0.5$", CMK.L"$D_{gr}$ for $F_{r} = 0.8$"], framevisible = false)
 
-    #! format: off
-    fig200 = Plt.lines!(ax, D_range * 1e3, [area(p3, D, 0.5, sol_2) for D in D_range], color = cl[1], linewidth = lw)
-    fig400 = Plt.lines!(ax, D_range * 1e3, [area(p3, D, 0.5, sol_4) for D in D_range], color = cl[2], linewidth = lw)
-    fig800 = Plt.lines!(ax, D_range * 1e3, [area(p3, D, 0.5, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    CMK.Legend(fig[16:17, 13], [fig3_200, fig3_400, fig3_800],    [CMK.L"$\rho_{r} = 200.0 kg m^{-3}$", CMK.L"$\rho_{r} = 400.0 kg m^{-3}$", CMK.L"$\rho_{r} = 800.0 kg m^{-3}$",], framevisible = false)
+    CMK.Legend(fig[16:17, 14], [d_thb],                           [CMK.L"$D_{th}$"], framevisible = false)
+    CMK.Legend(fig[16:17, 17], [d_cr_200, d_cr_400, d_cr_800],    [CMK.L"$D_{cr}$ for $\rho_{r} = 200.0 kg m^{-3}$", CMK.L"$D_{cr}$ for $\rho_{r} = 400.0 kg m^{-3}$", CMK.L"$D_{cr}$ for $\rho_{r} = 800.0 kg m^{-3}$",], framevisible = false)
+    CMK.Legend(fig[16:17, 16], [d_gr_200, d_gr_400, d_gr_800],    [CMK.L"$D_{gr}$ for $\rho_{r} = 200.0 kg m^{-3}$", CMK.L"$D_{gr}$ for $\rho_{r} = 400.0 kg m^{-3}$", CMK.L"$D_{gr}$ for $\rho_{r} = 800.0 kg m^{-3}$",], framevisible = false)
 
-    d_thb    = Plt.vlines!(ax, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
-    d_cr_200 = Plt.vlines!(ax, sol_2[1] * 1e3,           linestyle = :dot,  color = cl[1], linewidth = lw)
-    d_cr_400 = Plt.vlines!(ax, sol_4[1] * 1e3,           linestyle = :dot,  color = cl[2], linewidth = lw)
-    d_cr_800 = Plt.vlines!(ax, sol_8[1] * 1e3,           linestyle = :dot,  color = cl[3], linewidth = lw)
-    d_gr_200 = Plt.vlines!(ax, sol_2[2] * 1e3,           linestyle = :dash, color = cl[1], linewidth = lw)
-    d_gr_400 = Plt.vlines!(ax, sol_4[2] * 1e3,           linestyle = :dash, color = cl[2], linewidth = lw)
-    d_gr_800 = Plt.vlines!(ax, sol_8[2] * 1e3,           linestyle = :dash, color = cl[3], linewidth = lw)
-
-    leg1_b     = Plt.Legend(fig[11:12, 3], [fig200, fig400, fig800],       [Plt.L"$\rho_{r} = 200.0 kg m^{-3}$", Plt.L"$\rho_{r} = 400.0 kg m^{-3}$", Plt.L"$\rho_{r} = 800.0 kg m^{-3}$",], framevisible = false)
-    leg1_b_dth = Plt.Legend(fig[11:12, 4], [d_thb],                        [Plt.L"$D_{th}$"], framevisible = false)
-    leg1_b_dcr = Plt.Legend(fig[11:12, 7], [d_cr_200, d_cr_400, d_cr_800], [Plt.L"$D_{cr}$ for $\rho_{r} = 200.0 kg m^{-3}$", Plt.L"$D_{cr}$ for $\rho_{r} = 400.0 kg m^{-3}$", Plt.L"$D_{cr}$ for $\rho_{r} = 800.0 kg m^{-3}$",], framevisible = false)
-    leg1_b_dgr = Plt.Legend(fig[11:12, 5], [d_gr_200, d_gr_400, d_gr_800], [Plt.L"$D_{gr}$ for $\rho_{r} = 200.0 kg m^{-3}$", Plt.L"$D_{gr}$ for $\rho_{r} = 400.0 kg m^{-3}$", Plt.L"$D_{gr}$ for $\rho_{r} = 800.0 kg m^{-3}$",], framevisible = false)
-    #! format: on
-    Plt.save("P3Scheme_Area_2.svg", fig)
+    CMK.resize_to_layout!(fig)
+    CMK.save("P3Scheme_relations.svg", fig)
 end
+#! format: on
 
-p3_mass_plot()
-p3_area_plot()
+p3_relations_plot()
