@@ -70,34 +70,6 @@ function figure_2()
     (F_rl, ρ_rl, V_ml, D_ml) =
         get_values(p3, Chen2022.snow_ice, q_l, N_l, ρ_a, xres, yres)
 
-    println(
-        "small q = ",
-        q_s,
-        ": min: ",
-        minimum(d for d in D_ms if !isnan(d)),
-        " max: ",
-        maximum(d for d in D_ms if !isnan(d)),
-    )
-    println(
-        "medium q = ",
-        q_m,
-        ": min: ",
-        minimum(d for d in D_mm if !isnan(d)),
-        " max: ",
-        maximum(d for d in D_mm if !isnan(d)),
-    )
-    println(
-        "large q = ",
-        q_l,
-        ": min: ",
-        minimum(d for d in D_ml if !isnan(d)),
-        " max: ",
-        maximum(d for d in D_ml if !isnan(d)),
-    )
-
-    points = [0, 0.1, 0.2, 0.5, 1, 2, 3, 4, 5, 7.5, 10]
-    labels = string.(points)
-
     ax1 = Plt.Axis(
         f[1, 1],
         xlabel = "F_r",
@@ -115,11 +87,18 @@ function figure_2()
         ρ_rs,
         V_ms,
         colormap = Plt.reverse(Plt.cgrad(:Spectral)),
-        colorrange = (min, max),
-        levels = points,
-        extendhigh = :darkred,
     )
     Plt.contour!(F_rs, ρ_rs, D_ms, color = :black, labels = true, levels = 3)
+    Plt.Colorbar(
+        f[2, 1],
+        limits = (
+            minimum(v for v in V_ms if !isnan(v)),
+            maximum(v for v in V_ms if !isnan(v)),
+        ),
+        colormap = Plt.reverse(Plt.cgrad(:Spectral)),
+        flipaxis = true,
+        vertical = false,
+    )
 
     ax2 = Plt.Axis(
         f[1, 2],
@@ -138,11 +117,18 @@ function figure_2()
         ρ_rm,
         V_mm,
         colormap = Plt.reverse(Plt.cgrad(:Spectral)),
-        colorrange = (min, max),
-        levels = points,
-        extendhigh = :darkred,
     )
     Plt.contour!(F_rm, ρ_rm, D_mm, color = :black, labels = true, levels = 3)
+    Plt.Colorbar(
+        f[2, 2],
+        limits = (
+            minimum(v for v in V_mm if !isnan(v)),
+            maximum(v for v in V_mm if !isnan(v)),
+        ),
+        colormap = Plt.reverse(Plt.cgrad(:Spectral)),
+        flipaxis = true,
+        vertical = false,
+    )
 
     ax3 = Plt.Axis(
         f[1, 3],
@@ -161,29 +147,25 @@ function figure_2()
         ρ_rl,
         V_ml,
         colormap = Plt.reverse(Plt.cgrad(:Spectral)),
-        colorrange = (min, max),
-        levels = points,
-        extendhigh = :darkred,
     )
     Plt.contour!(F_rl, ρ_rl, D_ml, color = :black, labels = true, levels = 3)
-
     Plt.Colorbar(
-        f[2, 2],
-        limits = (min, max),
-        colormap = Plt.reverse(
-            Plt.cgrad(:Spectral, length(points), categorical = true),
+        f[2, 3],
+        limits = (
+            minimum(v for v in V_ml if !isnan(v)),
+            maximum(v for v in V_ml if !isnan(v)),
         ),
+        colormap = Plt.reverse(Plt.cgrad(:Spectral)),
         flipaxis = true,
         vertical = false,
-        ticks = (points, labels),
-        highclip = :darkred,
     )
 
     Plt.linkxaxes!(ax1, ax2)
     Plt.linkxaxes!(ax2, ax3)
     Plt.linkyaxes!(ax1, ax2)
     Plt.linkyaxes!(ax2, ax3)
-    # Attempt to plot D_m for clearer information than the contour plots and debugging 
+
+    # Plot D_m as second row of comparisons
 
     ax4 = Plt.Axis(
         f[3, 1],

@@ -252,31 +252,6 @@ function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where {FT}
 end
 
 """
-    get_coeffs(p3, th) 
-
- - p3 - a struct with P3 scheme parameters
- - th - thresholds tuple as returned by thresholds()
- - F_r - rime mass fraction [q_rim/q_i]
-
-Returns the coefficients for m(D), a(D), and the respective powers of D 
-    Where the indices are as follows: 
-        1 - small, spherical ice 
-        2 - large, unrimed ice 
-        3 - dense, nonspherical ice 
-        4 - graupel 
-        5 - partially rimed ice 
-        6 - second half of partially rimed ice (only for a)
-"""
-function get_coeffs(p3::PSP3, th, F_r::FT) where {FT}
-    α_va = α_va_si(p3)
-    m = [π / 6 * p3.ρ_i, α_va, α_va, π / 6 * th.ρ_g, α_va / (1 - F_r)]
-    m_power = [FT(3), p3.β_va, p3.β_va, 3, p3.β_va]
-    a = [π / 4, p3.γ, p3.γ, π / 4, F_r * π / 4, (1 - F_r) * p3.γ]
-    a_power = [FT(2), p3.σ, p3.σ, FT(2), FT(2), p3.σ]
-    return (; m, m_power, a, a_power)
-end
-
-"""
     q_(p3, ρ, F_r, λ, μ, D_min, D_max)
 
  - p3 - a struct with P3 scheme parameters
@@ -473,6 +448,7 @@ function terminal_velocity_mass(
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
 
+    # TO DO: Change when each value used depending on type of particle
     κ = FT(-1 / 6) #FT(1/3)
 
     # Redefine α_va to be in si units
@@ -482,11 +458,11 @@ function terminal_velocity_mass(
     for i in 1:2
         if F_r == 0
             # Velocity coefficients for small particles
-            (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a) 
+            (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
             v += integrate(
                 FT(0),
                 D_th,
-                π / 6 * p3.ρ_i * ai[i] * N_0,
+                FT(π) / 6 * p3.ρ_i * ai[i] * N_0,
                 bi[i] + μ + 3,
                 ci[i] + λ,
             )
@@ -496,7 +472,7 @@ function terminal_velocity_mass(
                 α_va *
                 ai[i] *
                 N_0 *
-                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
                 bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
                 ci[i] + λ,
             )
@@ -509,7 +485,7 @@ function terminal_velocity_mass(
                 α_va *
                 ai[i] *
                 N_0 *
-                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
                 bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
                 ci[i] + λ,
             )
@@ -521,7 +497,7 @@ function terminal_velocity_mass(
             v += integrate(
                 FT(0),
                 D_th,
-                π / 6 * p3.ρ_i * ai[i] * N_0,
+                FT(π) / 6 * p3.ρ_i * ai[i] * N_0,
                 bi[i] + μ + 3,
                 ci[i] + λ,
             )
@@ -534,13 +510,12 @@ function terminal_velocity_mass(
                     α_va *
                     ai[i] *
                     N_0 *
-                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
                     bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
                     ci[i] + λ,
                 )
-                #= println("D_th to cutoff") =#
 
-                # large particles 
+                # Switch to large particles
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
@@ -550,11 +525,10 @@ function terminal_velocity_mass(
                     α_va *
                     ai[i] *
                     N_0 *
-                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
                     bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
                     ci[i] + λ,
                 )
-                #= println("large, cutoff to D_gr") =#
             else
                 v += integrate(
                     D_th,
@@ -562,11 +536,10 @@ function terminal_velocity_mass(
                     α_va *
                     ai[i] *
                     N_0 *
-                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * π * α_va^2))^κ,
+                    (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
                     bi[i] + μ + p3.β_va + κ * (3 * p3.σ - 2 * p3.β_va),
                     ci[i] + λ,
                 )
-                #= println("D_th to D_gr") =#
             end
 
             # D_gr to D_cr
@@ -574,33 +547,42 @@ function terminal_velocity_mass(
                 v += integrate(
                     th.D_gr,
                     cutoff,
-                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    FT(π) / 6 *
+                    th.ρ_g *
+                    ai[i] *
+                    N_0 *
+                    (p3.ρ_i / th.ρ_g)^(2 * κ),
                     bi[i] + μ + 3,
                     ci[i] + λ,
                 )
-                #= println("D_gr to cutoff") =#
 
-                # large particles 
+                # Switch to large particles
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
                 v += integrate(
                     cutoff,
                     th.D_cr,
-                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    FT(π) / 6 *
+                    th.ρ_g *
+                    ai[i] *
+                    N_0 *
+                    (p3.ρ_i / th.ρ_g)^(2 * κ),
                     bi[i] + μ + 3,
                     ci[i] + λ,
                 )
-                #= println("large, cutoff to D_cr") =#
             else
                 v += integrate(
                     th.D_gr,
                     th.D_cr,
-                    π / 6 * th.ρ_g * ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    FT(π) / 6 *
+                    th.ρ_g *
+                    ai[i] *
+                    N_0 *
+                    (p3.ρ_i / th.ρ_g)^(2 * κ),
                     bi[i] + μ + 3,
                     ci[i] + λ,
                 )
-                #= printlln("D_gr to D_cr") =#
             end
 
             # D_cr to Infinity
@@ -624,12 +606,8 @@ function terminal_velocity_mass(
                     cutoff,
                 )
                 v += I
-                #= println("D_cr to cutoff") =#
 
-                # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
-                #v += integrate(th.D_cr, cutoff, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
-
-                # large particles 
+                # Switch to large particles
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
@@ -652,8 +630,6 @@ function terminal_velocity_mass(
                     Inf,
                 )
                 v += I
-                #= println("large, cutoff to Infinity") =#
-                #v += integrate(cutoff, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
             else
                 (I, e) = QGK.quadgk(
                     D ->
@@ -674,9 +650,6 @@ function terminal_velocity_mass(
                     Inf,
                 )
                 v += I
-                #= println("D_cr to Infinity") =#
-                # approximating sigma as 2 (for closed form integration) (this overestimates A LOT)
-                #v += integrate(th.D_cr, Inf, 1/(1 - F_r) * α_va * ai[i] * N_0 * (16 * p3.ρ_i ^ 2 * (F_r * π / 4 + (1 - F_r) * p3.γ)^3 / (9 * π * (1/(1 - F_r) * α_va) ^ 2)) ^ (κ), bi[i] + μ + p3.β_va + κ*(6 - 2 * p3.β_va), ci[i] + λ)
             end
         end
     end
