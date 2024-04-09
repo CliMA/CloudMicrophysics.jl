@@ -263,6 +263,13 @@ In other derivations cloud ice, similar to cloud liquid water,
 
      - Do we want to test different size distributions?
 
+Here we plot the Marshall-Palmer particle size distribution for 4 different values for the rain specific humidity (q_rai).
+
+```@example
+include("plots/MarshallPalmer_distribution.jl")
+```
+![](MarshallPalmer_distribution.svg)
+
 ## Parameterized processes
 
 Parameterized processes include:
@@ -749,6 +756,34 @@ If ``T > T_{freeze}``:
     \right)
 \end{equation}
 ```
+
+## Rain radar reflectivity
+
+The rain radar reflectivity factor (``Z``) is used to measure the power returned by a radar signal when it encounters rain particles, and it is defined as the sixth moment of the rain particles distribution:
+```math
+\begin{equation}
+Z = {\int_0^\infty r^{6} \, n(r) \, dr}.
+\label{eq:Z}
+\end{equation}
+```
+Integrating over the assumed Marshall-Palmer distribution (eq. 6) leads to
+```math
+\begin{equation}
+Z = {\frac{6! \, n_{0}^{rai}}{\lambda^7}},
+\end{equation}
+```
+where:
+ - ``n_{0}^{rai}`` - rain drop size distribution parameter,
+ - ``\lambda`` - as defined in eq. 7
+
+By dividing ``Z`` with the equivalent return of a ``1 mm`` drop in a volume of a meter cube (``Z_0``) and applying the decimal logarithm to the result, we obtains the logarithmic rain radar reflectivity ``L_Z``, which is the variable that is commonly used to refer to the radar reflectivity values: 
+```math
+\begin{equation}
+L_Z = {10 \, \log_{10}(\frac{Z}{Z_0})}.
+\end{equation}
+```
+The resulting logarithmic dimensionless unit is decibel relative to ``Z``, or ``dBZ``.
+
 ## Example figures
 
 ```@example
