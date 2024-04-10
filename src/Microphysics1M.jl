@@ -117,7 +117,7 @@ function radar_reflectivity(
     λ = lambda(pdf, mass, q, ρ)
     Z₀ = 1e-18
 
-    return (720 * n0 / λ^7) * Z₀
+    return 10 * log10((720 * n0 / λ^7) /  Z₀)
 end
 
 """
