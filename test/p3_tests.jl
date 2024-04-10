@@ -173,6 +173,35 @@ function test_velocities(FT)
         end
     end
 
+    TT.@testset "Number-weighted terminal velocities" begin 
+        expected_vals = [
+            [1.52, 1.46, 1.41, 1.36, 1.24],
+            [1.52, 1.47, 1.44, 1.42, 1.35],
+            [1.52, 1.47, 1.45, 1.44, 1.42],
+            [1.52, 1.47, 1.45, 1.45, 1.45],
+        ]
+        for i in 1:length(ρ_rs)
+            for j in 1:length(F_rs)
+                ρ_r = ρ_rs[i]
+                F_r = F_rs[j]
+
+                calculated_vel = P3.terminal_velocity_number(
+                    p3,
+                    Chen2022.snow_ice,
+                    q,
+                    N,
+                    ρ_r,
+                    F_r,
+                    ρ_a,
+                )
+
+                TT.@test calculated_vel > 0
+                TT.@test expected_vals[i][j] ≈ calculated_vel atol = 0.1
+
+            end
+        end
+    end
+
     TT.@testset "Mass-weighted mean diameters" begin
         paper_vals = [
             [5, 5, 5, 5, 5],
