@@ -174,7 +174,7 @@ function benchmark_test(FT)
         350,
     )
     bench_press(CM1.radar_reflectivity, (rain, q_rai, ρ_air), 0)
-    
+
     # 2-moment
     bench_press(
         CM2.autoconversion_and_liquid_self_collection,
