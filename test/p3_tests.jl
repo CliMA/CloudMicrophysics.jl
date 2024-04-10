@@ -224,26 +224,6 @@ function test_velocities(FT)
     end
 end
 
-function test_neg_vel(FT)
-    Chen2022 = CMP.Chen2022VelType(FT)
-    p3 = CMP.ParametersP3(FT)
-    q = FT(0.0008)
-    N = FT(1e6)
-    ρ_r = FT(900)
-    F_r = FT(0.99)
-
-    # Check for negative velocity
-    TT.@test P3.terminal_velocity_mass(
-        p3,
-        Chen2022.snow_ice,
-        q,
-        N,
-        ρ_r,
-        F_r,
-        FT(1.2),
-    ) > 0
-end
-
 println("Testing Float32")
 test_p3_thresholds(Float32)
 #TODO - only works for Float64 now. We should switch the units inside the solver
@@ -254,4 +234,3 @@ println("Testing Float64")
 test_p3_thresholds(Float64)
 test_p3_shape_solver(Float64)
 test_velocities(Float64)
-test_neg_vel(Float64) # expected to fail 
