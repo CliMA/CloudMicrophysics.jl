@@ -57,9 +57,10 @@ function test_microphysics1M(FT)
         # some example values
         ρ_air = FT(1.006641)
         q_rai = FT(0.0001475997)
-        
-        TT.@test CM1.radar_reflectivity(rain, q_rai, ρ_air) ≈ FT(-22.45569) rtol = 2
-        
+
+        TT.@test CM1.radar_reflectivity(rain, q_rai, ρ_air) ≈ FT(-22.45569) rtol =
+            2
+
     end
 
     TT.@testset "1M_microphysics - Chen 2022 rain terminal velocity" begin
