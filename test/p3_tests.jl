@@ -173,7 +173,7 @@ function test_velocities(FT)
         end
     end
 
-    TT.@testset "Number-weighted terminal velocities" begin 
+    TT.@testset "Number-weighted terminal velocities" begin
         expected_vals = [
             [1.52, 1.46, 1.41, 1.36, 1.24],
             [1.52, 1.47, 1.44, 1.42, 1.35],

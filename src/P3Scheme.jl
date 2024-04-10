@@ -701,19 +701,11 @@ function terminal_velocity_number(
         if F_r == 0
             # Velocity coefficients for small particles
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
-            v += integrate(
-                FT(0),
-                D_th,
-                ai[i] * N_0,
-                bi[i] + μ,
-                ci[i] + λ,
-            )
+            v += integrate(FT(0), D_th, ai[i] * N_0, bi[i] + μ, ci[i] + λ)
             v += integrate(
                 D_th,
                 cutoff,
-                ai[i] *
-                N_0 *
-                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
+                ai[i] * N_0 * (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
                 bi[i] + μ + κ * (3 * p3.σ - 2 * p3.β_va),
                 ci[i] + λ,
             )
@@ -723,9 +715,7 @@ function terminal_velocity_number(
             v += integrate(
                 cutoff,
                 Inf,
-                ai[i] *
-                N_0 *
-                (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
+                ai[i] * N_0 * (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
                 bi[i] + μ + κ * (3 * p3.σ - 2 * p3.β_va),
                 ci[i] + λ,
             )
@@ -734,13 +724,7 @@ function terminal_velocity_number(
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
             large = false
 
-            v += integrate(
-                FT(0),
-                D_th,
-                ai[i] * N_0,
-                bi[i] + μ,
-                ci[i] + λ,
-            )
+            v += integrate(FT(0), D_th, ai[i] * N_0, bi[i] + μ, ci[i] + λ)
 
             # D_th to D_gr
             if !large && th.D_gr > cutoff
@@ -784,9 +768,7 @@ function terminal_velocity_number(
                 v += integrate(
                     th.D_gr,
                     cutoff,
-                    ai[i] *
-                    N_0 *
-                    (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
                     bi[i] + μ,
                     ci[i] + λ,
                 )
@@ -798,9 +780,7 @@ function terminal_velocity_number(
                 v += integrate(
                     cutoff,
                     th.D_cr,
-                    ai[i] *
-                    N_0 *
-                    (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
                     bi[i] + μ,
                     ci[i] + λ,
                 )
@@ -808,9 +788,7 @@ function terminal_velocity_number(
                 v += integrate(
                     th.D_gr,
                     th.D_cr,
-                    ai[i] *
-                    N_0 *
-                    (p3.ρ_i / th.ρ_g)^(2 * κ),
+                    ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
                     bi[i] + μ,
                     ci[i] + λ,
                 )
