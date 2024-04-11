@@ -27,7 +27,7 @@ steps:
     command:
       - "julia --project=test --color=yes test/aerosol_activation_emulators.jl"
  
-  - wait
+  - wait: ~
     continue_on_failure: true
 
   - label: ":envelope: Slack report"
