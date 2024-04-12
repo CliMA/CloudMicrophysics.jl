@@ -232,7 +232,7 @@ function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT}
 end
 
 """
-    integrate(a, b, c1, c2, c3)
+    integrate_to_gamma(a, b, c1, c2, c3)
 
  - a - lower bound 
  - b - upper bound 
@@ -241,7 +241,7 @@ end
  Integrates the function c1 * D ^ (c2) * exp(-c3 * D) dD from a to b 
     Returns the result
 """
-function integrate(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where {FT}
+function integrate_to_gamma(a::FT, b::FT, c1::FT, c2::FT, c3::FT) where {FT}
     if b == Inf
         return c1 * c3^(-c2 - 1) * (Γ(1 + c2, a * c3))
     elseif a == 0
@@ -269,20 +269,26 @@ end
 # or
 # q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
 function q_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    return integrate(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
+    return integrate_to_gamma(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
 end
 # q_rim = 0 and D_min = D_th, D_max = inf
 function q_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
-    return integrate(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
+    return integrate_to_gamma(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
 function q_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    return integrate(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
+    return integrate_to_gamma(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
 function q_r(p3::PSP3, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
-    return integrate(D_min, FT(Inf), α_va_si(p3) / (1 - F_r), μ + p3.β_va, λ)
+    return integrate_to_gamma(
+        D_min,
+        FT(Inf),
+        α_va_si(p3) / (1 - F_r),
+        μ + p3.β_va,
+        λ,
+    )
 end
 
 """
@@ -459,14 +465,14 @@ function terminal_velocity_mass(
         if F_r == 0
             # Velocity coefficients for small particles
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
-            v += integrate(
+            v += integrate_to_gamma(
                 FT(0),
                 D_th,
                 FT(π) / 6 * p3.ρ_i * ai[i] * N_0,
                 bi[i] + μ + 3,
                 ci[i] + λ,
             )
-            v += integrate(
+            v += integrate_to_gamma(
                 D_th,
                 cutoff,
                 α_va *
@@ -479,7 +485,7 @@ function terminal_velocity_mass(
 
             # Get velocity coefficients for large particles
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
-            v += integrate(
+            v += integrate_to_gamma(
                 cutoff,
                 Inf,
                 α_va *
@@ -494,7 +500,7 @@ function terminal_velocity_mass(
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
             large = false
 
-            v += integrate(
+            v += integrate_to_gamma(
                 FT(0),
                 D_th,
                 FT(π) / 6 * p3.ρ_i * ai[i] * N_0,
@@ -504,7 +510,7 @@ function terminal_velocity_mass(
 
             # D_th to D_gr
             if !large && th.D_gr > cutoff
-                v += integrate(
+                v += integrate_to_gamma(
                     D_th,
                     cutoff,
                     α_va *
@@ -519,7 +525,7 @@ function terminal_velocity_mass(
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
-                v += integrate(
+                v += integrate_to_gamma(
                     cutoff,
                     th.D_gr,
                     α_va *
@@ -530,7 +536,7 @@ function terminal_velocity_mass(
                     ci[i] + λ,
                 )
             else
-                v += integrate(
+                v += integrate_to_gamma(
                     D_th,
                     th.D_gr,
                     α_va *
@@ -544,7 +550,7 @@ function terminal_velocity_mass(
 
             # D_gr to D_cr
             if !large && th.D_cr > cutoff
-                v += integrate(
+                v += integrate_to_gamma(
                     th.D_gr,
                     cutoff,
                     FT(π) / 6 *
@@ -560,7 +566,7 @@ function terminal_velocity_mass(
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
-                v += integrate(
+                v += integrate_to_gamma(
                     cutoff,
                     th.D_cr,
                     FT(π) / 6 *
@@ -572,7 +578,7 @@ function terminal_velocity_mass(
                     ci[i] + λ,
                 )
             else
-                v += integrate(
+                v += integrate_to_gamma(
                     th.D_gr,
                     th.D_cr,
                     FT(π) / 6 *
@@ -586,69 +592,32 @@ function terminal_velocity_mass(
             end
 
             # D_cr to Infinity
+            v_m_D_cr(D) =
+                (
+                    16 *
+                    p3.ρ_i^2 *
+                    (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+                    (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+                )^κ *
+                ai[i] *
+                D^(bi[i]) *
+                exp(-ci[i] * D) *
+                (α_va / (1 - F_r) * D^p3.β_va) *
+                N_0 *
+                D^μ *
+                exp(-λ * D)
             if !large
-                (I, e) = QGK.quadgk(
-                    D ->
-                        (
-                            16 *
-                            p3.ρ_i^2 *
-                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
-                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
-                        )^κ *
-                        ai[i] *
-                        D^(bi[i]) *
-                        exp(-ci[i] * D) *
-                        (α_va / (1 - F_r) * D^p3.β_va) *
-                        N_0 *
-                        D^μ *
-                        exp(-λ * D),
-                    th.D_cr,
-                    cutoff,
-                )
+                (I, e) = QGK.quadgk(D -> v_m_D_cr(D), th.D_cr, cutoff)
                 v += I
 
                 # Switch to large particles
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
-                (I, e) = QGK.quadgk(
-                    D ->
-                        (
-                            16 *
-                            p3.ρ_i^2 *
-                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
-                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
-                        )^κ *
-                        ai[i] *
-                        D^(bi[i]) *
-                        exp(-ci[i] * D) *
-                        (α_va / (1 - F_r) * D^p3.β_va) *
-                        N_0 *
-                        D^μ *
-                        exp(-λ * D),
-                    cutoff,
-                    Inf,
-                )
+                (I, e) = QGK.quadgk(D -> v_m_D_cr(D), cutoff, Inf)
                 v += I
             else
-                (I, e) = QGK.quadgk(
-                    D ->
-                        (
-                            16 *
-                            p3.ρ_i^2 *
-                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
-                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
-                        )^κ *
-                        ai[i] *
-                        D^(bi[i]) *
-                        exp(-ci[i] * D) *
-                        (α_va / (1 - F_r) * D^p3.β_va) *
-                        N_0 *
-                        D^μ *
-                        exp(-λ * D),
-                    th.D_cr,
-                    Inf,
-                )
+                (I, e) = QGK.quadgk(D -> v_m_D_cr(D), th.D_cr, Inf)
                 v += I
             end
         end
@@ -701,8 +670,14 @@ function terminal_velocity_number(
         if F_r == 0
             # Velocity coefficients for small particles
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
-            v += integrate(FT(0), D_th, ai[i] * N_0, bi[i] + μ, ci[i] + λ)
-            v += integrate(
+            v += integrate_to_gamma(
+                FT(0),
+                D_th,
+                ai[i] * N_0,
+                bi[i] + μ,
+                ci[i] + λ,
+            )
+            v += integrate_to_gamma(
                 D_th,
                 cutoff,
                 ai[i] * N_0 * (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
@@ -712,7 +687,7 @@ function terminal_velocity_number(
 
             # Get velocity coefficients for large particles
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
-            v += integrate(
+            v += integrate_to_gamma(
                 cutoff,
                 Inf,
                 ai[i] * N_0 * (16 * p3.ρ_i^2 * p3.γ^3 / (9 * FT(π) * α_va^2))^κ,
@@ -724,11 +699,17 @@ function terminal_velocity_number(
             (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
             large = false
 
-            v += integrate(FT(0), D_th, ai[i] * N_0, bi[i] + μ, ci[i] + λ)
+            v += integrate_to_gamma(
+                FT(0),
+                D_th,
+                ai[i] * N_0,
+                bi[i] + μ,
+                ci[i] + λ,
+            )
 
             # D_th to D_gr
             if !large && th.D_gr > cutoff
-                v += integrate(
+                v += integrate_to_gamma(
                     D_th,
                     cutoff,
                     ai[i] *
@@ -742,7 +723,7 @@ function terminal_velocity_number(
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
-                v += integrate(
+                v += integrate_to_gamma(
                     cutoff,
                     th.D_gr,
                     ai[i] *
@@ -752,7 +733,7 @@ function terminal_velocity_number(
                     ci[i] + λ,
                 )
             else
-                v += integrate(
+                v += integrate_to_gamma(
                     D_th,
                     th.D_gr,
                     ai[i] *
@@ -765,7 +746,7 @@ function terminal_velocity_number(
 
             # D_gr to D_cr
             if !large && th.D_cr > cutoff
-                v += integrate(
+                v += integrate_to_gamma(
                     th.D_gr,
                     cutoff,
                     ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
@@ -777,7 +758,7 @@ function terminal_velocity_number(
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
-                v += integrate(
+                v += integrate_to_gamma(
                     cutoff,
                     th.D_cr,
                     ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
@@ -785,7 +766,7 @@ function terminal_velocity_number(
                     ci[i] + λ,
                 )
             else
-                v += integrate(
+                v += integrate_to_gamma(
                     th.D_gr,
                     th.D_cr,
                     ai[i] * N_0 * (p3.ρ_i / th.ρ_g)^(2 * κ),
@@ -795,66 +776,31 @@ function terminal_velocity_number(
             end
 
             # D_cr to Infinity
+            v_n_D_cr(D) =
+                (
+                    16 *
+                    p3.ρ_i^2 *
+                    (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
+                    (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
+                )^κ *
+                ai[i] *
+                D^(bi[i]) *
+                exp(-ci[i] * D) *
+                N_0 *
+                D^μ *
+                exp(-λ * D)
             if !large
-                (I, e) = QGK.quadgk(
-                    D ->
-                        (
-                            16 *
-                            p3.ρ_i^2 *
-                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
-                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
-                        )^κ *
-                        ai[i] *
-                        D^(bi[i]) *
-                        exp(-ci[i] * D) *
-                        N_0 *
-                        D^μ *
-                        exp(-λ * D),
-                    th.D_cr,
-                    cutoff,
-                )
+                (I, e) = QGK.quadgk(D -> v_n_D_cr(D), th.D_cr, cutoff)
                 v += I
 
                 # Switch to large particles
                 (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
                 large = true
 
-                (I, e) = QGK.quadgk(
-                    D ->
-                        (
-                            16 *
-                            p3.ρ_i^2 *
-                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
-                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
-                        )^κ *
-                        ai[i] *
-                        D^(bi[i]) *
-                        exp(-ci[i] * D) *
-                        N_0 *
-                        D^μ *
-                        exp(-λ * D),
-                    cutoff,
-                    Inf,
-                )
+                (I, e) = QGK.quadgk(D -> v_n_D_cr(D), cutoff, Inf)
                 v += I
             else
-                (I, e) = QGK.quadgk(
-                    D ->
-                        (
-                            16 *
-                            p3.ρ_i^2 *
-                            (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
-                            (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
-                        )^κ *
-                        ai[i] *
-                        D^(bi[i]) *
-                        exp(-ci[i] * D) *
-                        N_0 *
-                        D^μ *
-                        exp(-λ * D),
-                    th.D_cr,
-                    Inf,
-                )
+                (I, e) = QGK.quadgk(D -> v_n_D_cr(D), th.D_cr, Inf)
                 v += I
             end
         end
@@ -891,13 +837,20 @@ function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     # Calculate numerator 
     n = 0
     if F_r == 0
-        n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
-        n += integrate(D_th, Inf, α_va * N_0, μ + p3.β_va + 1, λ)
+        n += integrate_to_gamma(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n += integrate_to_gamma(D_th, Inf, α_va * N_0, μ + p3.β_va + 1, λ)
     else
-        n += integrate(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
-        n += integrate(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
-        n += integrate(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
-        n += integrate(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
+        n += integrate_to_gamma(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n += integrate_to_gamma(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
+        n +=
+            integrate_to_gamma(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
+        n += integrate_to_gamma(
+            th.D_cr,
+            Inf,
+            α_va / (1 - F_r) * N_0,
+            μ + p3.β_va + 1,
+            λ,
+        )
     end
 
     # Normalize by q

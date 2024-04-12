@@ -46,17 +46,13 @@ function p3_mass(
     D_th = P3.D_th_helper(p3)
     if D_th > D
         return mass_s(D, p3.ρ_i)          # small spherical ice
-    end
-    if F_r == 0
+    else if F_r == 0
         return mass_nl(p3, D)             # large nonspherical unrimed ice
-    end
-    if th.D_gr > D >= D_th
+    else if th.D_gr > D >= D_th
         return mass_nl(p3, D)             # dense nonspherical ice
-    end
-    if th.D_cr > D >= th.D_gr
+    else if th.D_cr > D >= th.D_gr
         return mass_s(D, th.ρ_g)          # graupel
-    end
-    if D >= th.D_cr
+    else if D >= th.D_cr
         return mass_r(p3, D, F_r)         # partially rimed ice
     end
 end
