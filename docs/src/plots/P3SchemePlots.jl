@@ -46,13 +46,13 @@ function p3_mass(
     D_th = P3.D_th_helper(p3)
     if D_th > D
         return mass_s(D, p3.ρ_i)          # small spherical ice
-    else if F_r == 0
+    elseif F_r == 0
         return mass_nl(p3, D)             # large nonspherical unrimed ice
-    else if th.D_gr > D >= D_th
+    elseif th.D_gr > D >= D_th
         return mass_nl(p3, D)             # dense nonspherical ice
-    else if th.D_cr > D >= th.D_gr
+    elseif th.D_cr > D >= th.D_gr
         return mass_s(D, th.ρ_g)          # graupel
-    else if D >= th.D_cr
+    elseif D >= th.D_cr
         return mass_r(p3, D, F_r)         # partially rimed ice
     end
 end
@@ -91,17 +91,13 @@ function area(
     # Area regime:
     if P3.D_th_helper(p3) > D
         return A_s(D)                      # small spherical ice
-    end
-    if F_r == 0
+    elseif F_r == 0
         return A_ns(p3, D)                 # large nonspherical unrimed ice
-    end
-    if th.D_gr > D >= P3.D_th_helper(p3)
+    elseif th.D_gr > D >= P3.D_th_helper(p3)
         return A_ns(p3, D)                 # dense nonspherical ice
-    end
-    if th.D_cr > D >= th.D_gr
+    elseif th.D_cr > D >= th.D_gr
         return A_s(D)                      # graupel
-    end
-    if D >= th.D_cr
+    elseif D >= th.D_cr
         return A_r(p3, F_r, D)             # partially rimed ice
     end
 
