@@ -25,6 +25,7 @@ Microphysics1M
 Microphysics1M.get_v0
 Microphysics1M.get_n0
 Microphysics1M.lambda
+Microphysics1M.radar_reflectivity
 Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_liq_to_q_rai
 Microphysics1M.conv_q_ice_to_q_sno_no_supersat

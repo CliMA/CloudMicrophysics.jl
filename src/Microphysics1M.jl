@@ -97,6 +97,29 @@ function lambda(
     )^FT(1 / (me + Δm + 1)) : FT(0)
 end
 
+""" 
+    radar_reflectivity(precip, q, ρ)
+
+    - `precip` - struct with rain free parameters
+    - `q` - specific humidity of rain
+    - `ρ` - air density
+
+Returns radar reflectivity from the assumed rain particle size distribuion 
+normalized by the reflectivty of 1 millimiter drop in a volume of one meter cube
+"""
+function radar_reflectivity(
+    (; pdf, mass)::CMP.Rain{FT},
+    q::FT,
+    ρ::FT,
+) where {FT}
+
+    n0 = get_n0(pdf)
+    λ = lambda(pdf, mass, q, ρ)
+    Z₀ = FT(1e-18)
+
+    return 10 * log10((720 * n0 / λ^7) / Z₀)
+end
+
 """
     terminal_velocity(precip, vel, ρ, q)
 
