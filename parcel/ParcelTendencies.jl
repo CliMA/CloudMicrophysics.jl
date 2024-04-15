@@ -180,7 +180,7 @@ function homogeneous_freezing(params::ABHOM, PSD, state)
         Δa_w = ips.homogeneous.Δa_w_max
     end
 
-    J = CMI_hom.homogeneous_J(ips.homogeneous, Δa_w)
+    J = CMI_hom.homogeneous_J_cubic(ips.homogeneous, Δa_w)
 
     return min(max(FT(0), J * Nₗ * PSD.Vₗ), Nₗ / const_dt)
 end

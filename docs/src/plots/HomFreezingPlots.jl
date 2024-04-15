@@ -31,16 +31,16 @@ x_sulph = Vector{FT}([0.03, 0.04, 0.06])           # wt% sulphuric acid in dropl
     T in T_range
 ]
 
-J1 = @. CMI.homogeneous_J(ip.homogeneous, Δa1)
-J2 = @. CMI.homogeneous_J(ip.homogeneous, Δa2)
-J3 = @. CMI.homogeneous_J(ip.homogeneous, Δa3)
+J1 = @. CMI.homogeneous_J_cubic(ip.homogeneous, Δa1)
+J2 = @. CMI.homogeneous_J_cubic(ip.homogeneous, Δa2)
+J3 = @. CMI.homogeneous_J_cubic(ip.homogeneous, Δa3)
 
 log10J_1 = @. log10(J1)
 log10J_2 = @. log10(J2)
 log10J_3 = @. log10(J3)
 
 Δa_range = range(0.27, stop = 0.32, length = 50)
-J_given_Δa = @. CMI.homogeneous_J(ip.homogeneous, Δa_range)
+J_given_Δa = @. CMI.homogeneous_J_cubic(ip.homogeneous, Δa_range)
 
 #! format: off
 # Spichtinger et al 2023

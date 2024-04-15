@@ -629,7 +629,7 @@ end
     end
 end
 
-@kernel function IceNucleation_homogeneous_J_kernel!(
+@kernel function IceNucleation_homogeneous_J_cubic_kernel!(
     ip,
     output::AbstractArray{FT},
     Delta_a_w,
@@ -638,7 +638,20 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1] = CMI_hom.homogeneous_J(ip.homogeneous, Delta_a_w[1])
+        output[1] = CMI_hom.homogeneous_J_cubic(ip.homogeneous, Delta_a_w[1])
+    end
+end
+
+@kernel function IceNucleation_homogeneous_J_linear_kernel!(
+    ip,
+    output::AbstractArray{FT},
+    Delta_a_w,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1] = CMI_hom.homogeneous_J_linear(ip.homogeneous, Delta_a_w[1])
     end
 end
 
@@ -1088,14 +1101,21 @@ function test_gpu(FT)
         (; output, ndrange) = setup_output(dims, FT)
 
         T = ArrayType([FT(220)])
-        x_sulph = ArrayType([FT(0.15)])
         Delta_a_w = ArrayType([FT(0.2907389666103033)])
 
-        kernel! = IceNucleation_homogeneous_J_kernel!(backend, work_groups)
+        kernel! =
+            IceNucleation_homogeneous_J_cubic_kernel!(backend, work_groups)
         kernel!(ip, output, Delta_a_w; ndrange)
 
-        # test homogeneous_J is callable and returns a reasonable value
+        # test homogeneous_J_cubic is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(2.66194650334444e12)
+
+        kernel! =
+            IceNucleation_homogeneous_J_linear_kernel!(backend, work_groups)
+        kernel!(ip, output, Delta_a_w; ndrange)
+
+        # test homogeneous_J_linear is callable and returns a reasonable value
+        @test Array(output)[1] ≈ FT(7.156568123338207e11)
     end
 
     @testset "Modal nucleation kernels" begin
