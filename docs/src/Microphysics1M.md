@@ -290,7 +290,7 @@ where:
  - ``n_{0}^{rai}`` - rain drop size distribution parameter,
  - ``\lambda`` - as defined in eq. 7
 
-By dividing ``Z`` with the equivalent return of a ``1 mm`` drop in a volume of a meter cube (``Z_0``) and applying the decimal logarithm to the result, we obtains the logarithmic rain radar reflectivity ``L_Z``, which is the variable that is commonly used to refer to the radar reflectivity values: 
+By dividing ``Z`` with the equivalent return of a ``1 mm`` drop in a volume of a meter cube (``Z_0``) and applying the decimal logarithm to the result, we obtain the logarithmic rain radar reflectivity ``L_Z``, which is the variable that is commonly used to refer to the radar reflectivity values: 
 ```math
 \begin{equation}
 L_Z = {10 \, \log_{10}(\frac{Z}{Z_0})}.

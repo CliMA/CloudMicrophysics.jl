@@ -173,11 +173,7 @@ function benchmark_test(FT)
         (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air),
         350,
     )
-    bench_press(
-        CM1.radar_reflectivity, 
-        (rain, q_rai, ρ_air), 
-        250,
-    )
+    bench_press(CM1.radar_reflectivity, (rain, q_rai, ρ_air), 250)
 
     # 2-moment
     bench_press(
@@ -204,6 +200,36 @@ function benchmark_test(FT)
         CM2.rain_terminal_velocity,
         (sb2006, ch2022.rain, q_rai, ρ_air, N_rai),
         1700,
+    )
+    bench_press(
+        CM2.radar_reflectivity,
+        (
+            sb2006.acnv,
+            FT(-2 / 3),
+            FT(1 / 3),
+            q_liq,
+            q_rai,
+            N_liq,
+            N_rai,
+            FT(1e-3),
+            FT(1),
+        ),
+        500,
+    )
+    bench_press(
+        CM2.effective_radius,
+        (
+            sb2006.acnv,
+            FT(-2 / 3),
+            FT(1 / 3),
+            q_liq,
+            q_rai,
+            N_liq,
+            N_rai,
+            FT(1),
+            FT(1000),
+        ),
+        500,
     )
     # Homogeneous Nucleation
     bench_press(HN.h2so4_nucleation_rate, (1e12, 1.0, 1.0, 208, h2so4_nuc), 470)
