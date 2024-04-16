@@ -494,7 +494,7 @@ function radar_reflectivity(
         (Br == 0) ? 0 :
         10 * (log10(2160 * Ar / (Br^7 * C^2 * Z₀)) + log10(1e-9))
 
-    return ((N_liq + N_rai) == 0) ? 0 :
+    return ((N_liq + N_rai) == 0) ? -200 :
            ((Zc * N_liq + Zr * N_rai) / (N_liq + N_rai))
 end
 
