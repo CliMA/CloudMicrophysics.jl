@@ -64,7 +64,7 @@ where ``D`` is the drop diameter which is proportional to ``x^{1/3}``.
 Through this proportionality relation, we can express the raindrops exponential distribution as a gamma distribution function
 ```math
 \begin{align}
-    f_c(x)=A_rx^\nu_r e^{-B_rx^{\frac{1}{3}}},
+    f_r(x)=A_rx^\nu_r e^{-B_rx^{\frac{1}{3}}},
 \end{align}
 ```
 where ``\nu_r=-\frac{2}{3}``, and ``\mu_r=\frac{1}{3}``.
