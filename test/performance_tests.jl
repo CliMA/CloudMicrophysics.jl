@@ -159,7 +159,8 @@ function benchmark_test(FT)
         (ip_frostenberg, INPC, T_air_cold),
         150,
     )
-    bench_press(CMI_hom.homogeneous_J, (ip.homogeneous, Delta_a_w), 230)
+    bench_press(CMI_hom.homogeneous_J_cubic, (ip.homogeneous, Delta_a_w), 230)
+    bench_press(CMI_hom.homogeneous_J_linear, (ip.homogeneous, Delta_a_w), 230)
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (liquid,), 10)

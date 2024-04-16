@@ -111,7 +111,8 @@ HetIceNucleation.INP_concentration_mean
 # Homogeneous ice nucleation
 ```@docs
 HomIceNucleation
-HomIceNucleation.homogeneous_J
+HomIceNucleation.homogeneous_J_cubic
+HomIceNucleation.homogeneous_J_linear
 ```
 
 # Common utility functions

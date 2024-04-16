@@ -57,7 +57,7 @@ end
 function deposition_nucleation(params::ABDINM, state, dY)
     FT = eltype(state)
     (; tps, aerosol, r_nuc, const_dt) = params
-    (; T, p_air, qᵥ, qₗ, qᵢ) = state
+    (; T, p_air, qᵥ, qₗ, qᵢ, Nₐ) = state
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
@@ -73,7 +73,7 @@ end
 function deposition_nucleation(params::P3_dep, state, dY)
     FT = eltype(state)
     (; ips, const_dt) = params
-    (; T, Nᵢ) = state
+    (; T, Nᵢ, Nₐ) = state
     Nᵢ_depo = CMI_het.P3_deposition_N_i(ips.p3, T)
     return min(max(FT(0), (Nᵢ_depo - Nᵢ) / const_dt), Nₐ / const_dt)
 end
@@ -161,7 +161,7 @@ end
 function homogeneous_freezing(params::ABHOM, PSD, state)
     FT = eltype(state)
     (; tps, ips, const_dt) = params
-    (; T, p_air, qᵥ, qₗ, qᵢ, Nₐ, Nₗ) = state
+    (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
@@ -180,7 +180,7 @@ function homogeneous_freezing(params::ABHOM, PSD, state)
         Δa_w = ips.homogeneous.Δa_w_max
     end
 
-    J = CMI_hom.homogeneous_J(ips.homogeneous, Δa_w)
+    J = CMI_hom.homogeneous_J_cubic(ips.homogeneous, Δa_w)
 
     return min(max(FT(0), J * Nₗ * PSD.Vₗ), Nₗ / const_dt)
 end
@@ -199,6 +199,7 @@ function condensation(::Empty, PSD, state, ρ_air)
 end
 
 function condensation(params::CondParams, PSD, state, ρ_air)
+    FT = eltype(state)
     (; aps, tps) = params
     (; Sₗ, T, Nₗ) = state
     Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
