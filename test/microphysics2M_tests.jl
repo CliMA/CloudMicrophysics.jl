@@ -486,6 +486,67 @@ function test_microphysics2M(FT)
             T,
         )[2] ≈ 0 atol = eps(FT)
     end
+
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 effective radius" begin
+        #setup 
+        ρ_air = FT(1)
+        ρ_w = FT(1000)
+        q_liq = FT(3.654e-4)
+        N_liq = FT(22886304)
+        q_rai = FT(1.563e-4)
+        N_rai = FT(6813825)
+
+        νr = FT(-2 / 3)
+        μr = FT(1 / 3)
+
+        #action
+        reff = CM2.effective_radius(
+            SB2006.acnv,
+            νr,
+            μr,
+            q_liq,
+            q_rai,
+            N_liq,
+            N_rai,
+            ρ_air,
+            ρ_w,
+        )
+
+        #test
+        TT.@test reff ≈ FT(1.7610863258663537e-5) atol = 3.5e-6
+        TT.@test reff ≈ FT(1.7065506703493487e-5) atol = 3.5e-6
+
+    end
+
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 radar reflectivity" begin
+        #setup 
+        ρ_air = FT(1e-3)
+        ρ_w = FT(1)
+        q_liq = FT(3.654e-4)
+        N_liq = FT(22886304 * 1e-9)
+        q_rai = FT(1.563e-4)
+        N_rai = FT(6813825 * 1e-9)
+
+        νr = FT(-2 / 3)
+        μr = FT(1 / 3)
+
+        #action
+        rr = CM2.radar_reflectivity(
+            SB2006.acnv,
+            νr,
+            μr,
+            q_liq,
+            q_rai,
+            N_liq,
+            N_rai,
+            ρ_air,
+            ρ_w,
+        )
+
+        TT.@test rr ≈ FT(-32.86711561482243) atol = 10
+        TT.@test rr ≈ FT(-22.96183760352217) atol = 10
+
+    end
 end
 
 println("Testing Float64")

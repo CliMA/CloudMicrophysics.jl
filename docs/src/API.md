@@ -51,6 +51,8 @@ Microphysics2M.rain_breakup
 Microphysics2M.rain_self_collection_and_breakup
 Microphysics2M.rain_terminal_velocity
 Microphysics2M.rain_evaporation
+Microphysics2M.radar_reflectivity
+Microphysics2M.effective_radius
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
@@ -109,7 +111,8 @@ HetIceNucleation.INP_concentration_mean
 # Homogeneous ice nucleation
 ```@docs
 HomIceNucleation
-HomIceNucleation.homogeneous_J
+HomIceNucleation.homogeneous_J_cubic
+HomIceNucleation.homogeneous_J_linear
 ```
 
 # Common utility functions

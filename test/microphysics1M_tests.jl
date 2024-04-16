@@ -55,14 +55,16 @@ function test_microphysics1M(FT)
     TT.@testset "1M_microphysics RadarReflectivity" begin
 
         # some example values
-        ρ_air = FT(1.0066405993926746)
-        q_rai = FT(0.00018261331850998665)
+        ρ_air = FT(1)
+        q_rai = FT(0.18e-3)
 
-        TT.@test CM1.radar_reflectivity(rain, q_rai, ρ_air) ≈ FT(12.165348140278356) atol = 0.2
+        TT.@test CM1.radar_reflectivity(rain, q_rai, ρ_air) ≈ FT(12.17) atol =
+            0.2
 
-        q_rai = FT(8.870788051359833e-05)
+        q_rai = FT(0.89e-4)
 
-        TT.@test CM1.radar_reflectivity(rain, q_rai, ρ_air) ≈ FT(6.677868837680471) atol = 0.2
+        TT.@test CM1.radar_reflectivity(rain, q_rai, ρ_air) ≈ FT(6.68) atol =
+            0.2
 
     end
 

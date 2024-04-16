@@ -49,6 +49,10 @@ Base.@kwdef struct Koop2000{FT} <: ParametersType{FT}
     c₃::FT
     "coefficient [-]"
     c₄::FT
+    "coefficient [-]"
+    linear_c₁::FT
+    "coefficient [-]"
+    linear_c₂::FT
 end
 
 function Koop2000(td::CP.AbstractTOMLDict)
@@ -59,6 +63,8 @@ function Koop2000(td::CP.AbstractTOMLDict)
         :Koop2000_J_hom_coeff2 => :c₂,
         :Koop2000_J_hom_coeff3 => :c₃,
         :Koop2000_J_hom_coeff4 => :c₄,
+        :Linear_J_hom_coeff1 => :linear_c₁,
+        :Linear_J_hom_coeff2 => :linear_c₂,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)

@@ -2,8 +2,10 @@ using ClimaParams
 
 include("performance_tests.jl")
 include("aerosol_activation_tests.jl")
+include("aerosol_activation_calibration.jl")
 include("heterogeneous_ice_nucleation_tests.jl")
 include("homogeneous_ice_nucleation_tests.jl")
+include("ice_nucleation_calibration.jl")
 include("microphysics0M_tests.jl")
 include("microphysics1M_tests.jl")
 include("microphysics2M_tests.jl")
