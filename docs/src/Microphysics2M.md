@@ -68,7 +68,7 @@ Through this proportionality relation, we can express the raindrops exponential 
 where ``\nu_r=-\frac{2}{3}``, and ``\mu_r=\frac{1}{3}``.
 In this case, 
  - ``A_r=\frac{\mu_r \, N_{rai}}{\Gamma(\frac{\nu_r+1}{\mu_r})}B_r^{\frac{\nu_r+1}{\mu_r}}``,
- - ``B_r=\left(\frac{\Gamma(\frac{\nu_r+1}{\mu_r})}{\Gamma(\frac{\nu_r+2}{\mu_r})}x_r\right)``,
+ - ``B_r=\left(\frac{\Gamma(\frac{\nu_r+1}{\mu_r})}{\Gamma(\frac{\nu_r+2}{\mu_r})}x_r\right)^{(-\mu_r)}``,
  - ``x_r=\frac{L_r}{N_{rai}}`` - averaged mass of rain particles,
  - ``L_r = \rho_w q_{rai}`` - rain water content.
 
