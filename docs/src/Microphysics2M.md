@@ -50,7 +50,7 @@ Here,
  - ``A_c=\frac{N_{liq} \, B_c^{\nu_c+1}}{\Gamma(\nu_c+1)}``,
  - ``B_c=\left(\frac{\Gamma(\nu_c+1)}{\Gamma(\nu_c+2)}x_c\right)^{-1}``,
  - ``x_c=\frac{L_c}{N_{liq}}`` - averaged mass of cloud particles,
- - ``L_c = \rho_w * q_{liq}`` - cloud liquid water content.
+ - ``L_c = \rho_w q_{liq}`` - cloud liquid water content.
 
 The raindrops exponential distribution is expressed as
 ```math
@@ -70,7 +70,7 @@ In this case,
  - ``A_r=\frac{\mu_r \, N_{rai}}{\Gamma(\frac{\nu_r+1}{\mu_r})}B_r^{\frac{\nu_r+1}{\mu_r}}``,
  - ``B_r=\left(\frac{\Gamma(\frac{\nu_r+1}{\mu_r})}{\Gamma(\frac{\nu_r+2}{\mu_r})}x_r\right)``,
  - ``x_r=\frac{L_r}{N_{rai}}`` - averaged mass of rain particles,
- - ``L_r = \rho_w * q_{rai}`` - rain water content.
+ - ``L_r = \rho_w q_{rai}`` - rain water content.
 
 !!! note
     In the derivation of the parametrization, it is assumed that the cloud droplet distribution ``f_c(x)`` does not contain a significant number of droplets with masses almost equal or larger than ``x^*``. This is reffered to as the undeveloped cloud droplet spectrum assumption. Similarly the raindrop distribution does not contain a significant number of rain drops with masses almost equal or smaller than ``x^*``. These assumptions allow us to simplify the calculation of moments of the distributions by integrating from zero to infinity.
@@ -385,7 +385,7 @@ include("plots/RainEvapoartionSB2006.jl")
 
 ### Radar reflectivity 
 
-The radar reflectivity factor (``Z``) is used to measure the power returned by a radar signal when it encounters atmospheric particles (cloud and rain droplets), and it is defined as the sixth moment of the particles distributions. 
+The radar reflectivity factor (``Z``) is used to measure the power returned by a radar signal when it encounters atmospheric particles (cloud and rain droplets), and it is defined as the sixth moment of the particles distributions (``n(r)``) :
 ```math
 \begin{equation}
 Z = {\int_0^\infty r^{6} \, n(r) \, dr}.
@@ -393,25 +393,27 @@ Z = {\int_0^\infty r^{6} \, n(r) \, dr}.
 \end{equation}
 ```
 To take into consideration the effect of both cloud and rain droplets, we integrate separately over the two dstributions defined in equations (2) and (3).
+
 For cloud droplets, integrating over the assumed Gamma distribution (eq. 6) leads to
 ```math
 \begin{equation}
-Z_c = \frac{24 \, A_c}{B_c^{5} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}},
+Z_c = \frac{24 \, A_c}{(B_c)^{5} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}},
 \end{equation}
 ```
 where ``\rho_w`` is the liquid water density. 
 By performing an analogous integration for the rain droplets exponential distribution, we obtain
 ```math
 \begin{equation}
-Z_r = 3 \, \frac{6! \, A_r}{B_r^{7} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}}.
+Z_r = 3 \, \frac{6! \, A_r}{(B_r)^{7} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}}.
 \end{equation}
 ```
 
-To obtain the logarithmic radar reflectivity ``L_Z``, which is commonly used to refer to the radar reflectivity values, we divide both ``Z_c`` and ``Z_r`` with the equivalent return of a ``1 mm`` drop in a volume of a meter cube (``Z_0``), apply the decimal logarithm to the result, and multiply the result by ``10``. 
+To obtain the logarithmic radar reflectivity ``L_z``, which is commonly used to refer to the radar reflectivity values, we divide both ``Z_c`` and ``Z_r`` with the equivalent return of a ``1 mm`` drop in a volume of a meter cube (``Z_0``), apply the decimal logarithm to the result, and multiply the result by ``10``. 
+
 For example, for the cloud droplets radar reflectivity we have:
 ```math
 \begin{equation}
-L_Z_c = 10 \, \log_{10}(\frac{Z_c}{Z_0}).
+L_{Z_c} = 10 \log_{10}(\frac{Z_c}{Z_0}).
 \end{equation}
 ```
 The resulting logarithmic dimensionless unit is decibel relative to ``Z``, or ``dBZ``.
@@ -419,13 +421,13 @@ The resulting logarithmic dimensionless unit is decibel relative to ``Z``, or ``
 Lastly, the weighted average of ``Z_c`` and ``Z_r`` over their number densities (``N_{liq}`` and ``N_{rai}``) allows us to obtain the final value for ``L_z``
 ```math
 \begin{equation}
-L_Z = \frac{L_Z_c \, N_{liq} + L_Z_r \, N_{rai}}{N_{liq} + N_{rai}}.
+L_z = \frac{L_{Z_c} N_{liq} + L_{Z_r} N_{rai}}{N_{liq} + N_{rai}}.
 \end{equation}
 ```
 
 ### Effective radius
 
-The effective radius of hydrometeors (``r_{eff}``) is the weighted average of their size distribution, and it is defined as the ratio of the third to the second moment of a droplet size distribution (``n(r)``):
+The effective radius of hydrometeors (``r_{eff}``) is the weighted average of their size distribution, and it is defined as the ratio of the third to the second moment of a droplet size distribution (``n(r)``) :
 ```math
 \begin{equation}
 r_{eff} = \frac{{\int_0^\infty r^{3} \, n(r) \, dr}}{{\int_0^\infty r^{2} \, n(r) \, dr}}.
