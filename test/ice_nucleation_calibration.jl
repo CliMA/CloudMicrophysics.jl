@@ -25,3 +25,7 @@ end
 TT.@testset "Perfect model calibration on ABIFM" begin
     test_J_calibration(Float64, "ABIFM")
 end
+
+TT.@testset "Perfect model calibration on ABHOM" begin
+    test_J_calibration(Float64, "ABHOM")
+end
