@@ -46,13 +46,11 @@ The cloud droplets Gamma distribution function is described by
     f_c(x)=A_cx^\nu_c e^{-B_cx},\quad \nu_c=\text{2.0}.
 \end{align}
 ```
-Here 
-```math
-\begin{align}
-    A_c=\frac{N_{liq} \, B_c^{\nu_c+1}}{\Gamma(\nu_c+1)},\quad B_c=\left(\frac{\Gamma(\nu_c+1)}{\Gamma(\nu_c+2)}x_c\right)^{-1},\quad x_c=\frac{L_c}{N_{liq}};
-\end{align}
-```
-where ``L_c = \rho_w * q_{liq}`` is the cloud liquid water content.
+Here,
+ - ``A_c=\frac{N_{liq} \, B_c^{\nu_c+1}}{\Gamma(\nu_c+1)}``,
+ - ``B_c=\left(\frac{\Gamma(\nu_c+1)}{\Gamma(\nu_c+2)}x_c\right)^{-1}``,
+ - ``x_c=\frac{L_c}{N_{liq}}`` - averaged mass of cloud particles,
+ - ``L_c = \rho_w * q_{liq}`` - cloud liquid water content.
 
 The raindrops exponential distribution is expressed as
 ```math
@@ -64,17 +62,16 @@ where ``D`` is the drop diameter which is proportional to ``x^{1/3}``.
 Through this proportionality relation, we can express the raindrops exponential distribution as a gamma distribution function
 ```math
 \begin{align}
-    f_r(x)=A_rx^\nu_r e^{-B_rx^{\frac{1}{3}}},
+    f_r(x)=A_rx^\nu_r e^{-B_rx^{\mu_r}},
 \end{align}
 ```
 where ``\nu_r=-\frac{2}{3}``, and ``\mu_r=\frac{1}{3}``.
 In this case, 
-```math
-\begin{align}
-    A_c=\frac{\mu_r \, N_{rai}}{\Gamma(\frac{\nu_r+1}{\mu_r})}B_r^{\frac{\nu_r+1}{\mu_r}},\quad B_c=\left(\frac{\Gamma(\frac{\nu_r+1}{\mu_r})}{\Gamma(\frac{\nu_r+2}{\mu_r})}x_r\right),\quad x_r=\frac{L_r}{N_{rai}}.
-\end{align}
-```
-``L_r = \rho_w * q_{rai}`` is the rain water content.
+ - ``A_r=\frac{\mu_r \, N_{rai}}{\Gamma(\frac{\nu_r+1}{\mu_r})}B_r^{\frac{\nu_r+1}{\mu_r}}``,
+ - ``B_r=\left(\frac{\Gamma(\frac{\nu_r+1}{\mu_r})}{\Gamma(\frac{\nu_r+2}{\mu_r})}x_r\right)``,
+ - ``x_r=\frac{L_r}{N_{rai}}`` - averaged mass of rain particles,
+ - ``L_r = \rho_w * q_{rai}`` - rain water content.
+
 !!! note
     In the derivation of the parametrization, it is assumed that the cloud droplet distribution ``f_c(x)`` does not contain a significant number of droplets with masses almost equal or larger than ``x^*``. This is reffered to as the undeveloped cloud droplet spectrum assumption. Similarly the raindrop distribution does not contain a significant number of rain drops with masses almost equal or smaller than ``x^*``. These assumptions allow us to simplify the calculation of moments of the distributions by integrating from zero to infinity.
 
@@ -395,17 +392,18 @@ Z = {\int_0^\infty r^{6} \, n(r) \, dr}.
 \label{eq:Z}
 \end{equation}
 ```
-To take into consideration the effect of both cloud and rain droplets, we integrate separately over the two dstributioons defined in equations (2) and (3).
+To take into consideration the effect of both cloud and rain droplets, we integrate separately over the two dstributions defined in equations (2) and (3).
 For cloud droplets, integrating over the assumed Gamma distribution (eq. 6) leads to
 ```math
 \begin{equation}
-Z_c = \frac{24 \, A}{B^{5} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}},
+Z_c = \frac{24 \, A_c}{B_c^{5} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}},
 \end{equation}
 ```
-where ``\rho_w`` is the liquid water density. By computing an analogous integration for the rain droplets exponential distribution, we obtain
+where ``\rho_w`` is the liquid water density. 
+By performing an analogous integration for the rain droplets exponential distribution, we obtain
 ```math
 \begin{equation}
-Z_r = 3 \, \frac{6! \, A}{B^{7} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}}.
+Z_r = 3 \, \frac{6! \, A_r}{B_r^{7} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}}.
 \end{equation}
 ```
 
@@ -427,7 +425,7 @@ L_Z = \frac{L_Z_c \, N_{liq} + L_Z_r \, N_{rai}}{N_{liq} + N_{rai}}.
 
 ### Effective radius
 
-The effective radius (``r_{eff}``) of hydrometeors the weighted average of their size distribution, and it is defined as the ratio of the third to the second moment of a droplet size distribution (``n(r)``):
+The effective radius of hydrometeors (``r_{eff}``) is the weighted average of their size distribution, and it is defined as the ratio of the third to the second moment of a droplet size distribution (``n(r)``):
 ```math
 \begin{equation}
 r_{eff} = \frac{{\int_0^\infty r^{3} \, n(r) \, dr}}{{\int_0^\infty r^{2} \, n(r) \, dr}}.
@@ -439,18 +437,18 @@ We separately compute the effective radius of cloud and rain droplets using the 
 Computing the effective radius using the cloud droplet gamma distribution of eq.(2) leads to
 ```math
 \begin{equation}
-r_{eff}^c = \frac{6}{(\frac{4}{3} \, B \, \pi \, \rho_w)^{\frac{1}{3}} \, \Gamma \left(\frac{11}{3}\right)},
+r_{eff}^c = \frac{6}{(\frac{4}{3} \, B_c \, \pi \, \rho_w)^{\frac{1}{3}} \, \Gamma \left(\frac{11}{3}\right)},
 \end{equation}
 ```
 where ``\Gamma \,(x) = \int_{0}^{\infty} \! t^{x - 1} e^{-t} \mathrm{d}t`` is the gamma function.
 Analogously, in the case of the raindrops exponential distribution we have
 ```math
 \begin{equation}
-r_{eff}^r = \frac{3}{B \, (\frac{4}{3} \, \pi \, \rho_w)^{\frac{1}{3}}},
+r_{eff}^r = \frac{3}{B_r \, (\frac{4}{3} \, \pi \, \rho_w)^{\frac{1}{3}}},
 \end{equation}
 ```
 
-After computing the weighted average of ``r_{eff}^c`` and ``r_{eff}^r`` over their number densities (``N_{liq}`` and ``N_{rai}``) we obtain the final - rain and cloud - effective radius:
+After computing the weighted average of ``r_{eff}^c`` and ``r_{eff}^r`` over their number densities (``N_{liq}`` and ``N_{rai}``), we obtain the final - rain and cloud - effective radius:
 ```math
 \begin{equation}
 r_{eff} = \frac{r_{eff}^c \, N_{liq} + r_{eff}^r \, N_{rai}}{N_{liq} + N_{rai}}.

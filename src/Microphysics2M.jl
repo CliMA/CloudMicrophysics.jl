@@ -482,18 +482,22 @@ function radar_reflectivity(
     C = FT((4 / 3) * π * ρ_w)
     Z₀ = FT(1e-18)
 
-    Bc = (xc == 0) ? 0 : (SF.gamma(νc + 1) *
-            xc / SF.gamma(νc + 2))^(-1)
-    Br = (xr == 0) ? 0 : (SF.gamma((νr + 1) / μr) *
-            xr / SF.gamma((νr + 2) / μr))^(-μr) 
+    Bc = (xc == 0) ? 0 : (SF.gamma(νc + 1) * xc / SF.gamma(νc + 2))^(-1)
+    Br =
+        (xr == 0) ? 0 :
+        (SF.gamma((νr + 1) / μr) * xr / SF.gamma((νr + 2) / μr))^(-μr)
     Ac = (N_liq * Bc^(νc + 1)) / SF.gamma(νc + 1)
-    Ar = (μr * N_rai * Br^((νr + 1) / μr)) /
-            SF.gamma((νr + 1) / μr)     
+    Ar = (μr * N_rai * Br^((νr + 1) / μr)) / SF.gamma((νr + 1) / μr)
 
-    Zc = (Bc == 0) ? 0 : 10 * (log10(24 * Ac / (Bc^5 * C^2 * Z₀)) + log10(1e-9))
-    Zr = (Br == 0) ? 0 : 10 * (log10(2160 * Ar / (Br^7 * C^2 * Z₀)) + log10(1e-9))
+    Zr =
+        (Br == 0) ? 0 :
+        10 * (log10(2160 * Ar / (Br^7 * C^2 * Z₀)) + log10(1e-9))
+    Zr =
+        (Br == 0) ? 0 :
+        10 * (log10(2160 * Ar / (Br^7 * C^2 * Z₀)) + log10(1e-9))
 
-    return ((N_liq + N_rai) == 0) ? 0 : ((Zc * N_liq + Zr * N_rai) / (N_liq + N_rai))
+    return ((N_liq + N_rai) == 0) ? 0 :
+           ((Zc * N_liq + Zr * N_rai) / (N_liq + N_rai))
 end
 
 """ 
@@ -530,15 +534,16 @@ function effective_radius(
     xr = (N_rai == 0) ? 0 : ((q_rai * ρ_air) / N_rai)
     C = FT((4 / 3) * π * ρ_w)
 
-    Bc = (xc == 0) ? 0 : (SF.gamma(νc + 1) *
-            xc / SF.gamma(νc + 2))^(-1)
-    Br = (xr == 0) ? 0 : ((SF.gamma((νr + 1) / μr) *
-            xr / SF.gamma((νr + 2) / μr))^(-μr))
+    Bc = (xc == 0) ? 0 : (SF.gamma(νc + 1) * xc / SF.gamma(νc + 2))^(-1)
+    Br =
+        (xr == 0) ? 0 :
+        ((SF.gamma((νr + 1) / μr) * xr / SF.gamma((νr + 2) / μr))^(-μr))
 
-    reff_c = (Bc == 0) ? 0 : (6 / ((Bc * C)^(1/3) * SF.gamma(11/3)))
-    reff_r = (Br == 0) ? 0 : (3 / (Br * C^(1/3)))
+    reff_c = (Bc == 0) ? 0 : (6 / ((Bc * C)^(1 / 3) * SF.gamma(11 / 3)))
+    reff_r = (Br == 0) ? 0 : (3 / (Br * C^(1 / 3)))
 
-    return ((N_liq + N_rai) == 0) ? 0 : ((reff_c * N_liq + reff_r * N_rai) / (N_liq + N_rai))
+    return ((N_liq + N_rai) == 0) ? 0 :
+           ((reff_c * N_liq + reff_r * N_rai) / (N_liq + N_rai))
 end
 
 # Additional double moment autoconversion and accretion parametrizations:
