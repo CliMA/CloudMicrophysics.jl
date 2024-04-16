@@ -489,9 +489,7 @@ function radar_reflectivity(
     Ac = (N_liq * Bc^(νc + 1)) / SF.gamma(νc + 1)
     Ar = (μr * N_rai * Br^((νr + 1) / μr)) / SF.gamma((νr + 1) / μr)
 
-    Zc = 
-        (Bc == 0) ? 0 : 
-        10 * (log10(24 * Ac / (Bc^5 * C^2 * Z₀)) + log10(1e-9))
+    Zc = (Bc == 0) ? 0 : 10 * (log10(24 * Ac / (Bc^5 * C^2 * Z₀)) + log10(1e-9))
     Zr =
         (Br == 0) ? 0 :
         10 * (log10(2160 * Ar / (Br^7 * C^2 * Z₀)) + log10(1e-9))
