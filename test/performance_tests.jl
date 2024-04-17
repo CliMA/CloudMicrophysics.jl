@@ -204,32 +204,12 @@ function benchmark_test(FT)
     )
     bench_press(
         CM2.radar_reflectivity,
-        (
-            sb2006.acnv,
-            FT(-2 / 3),
-            FT(1 / 3),
-            q_liq,
-            q_rai,
-            N_liq,
-            N_rai,
-            FT(1e-3),
-            FT(1),
-        ),
+        (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1e-3), FT(1)),
         500,
     )
     bench_press(
         CM2.effective_radius,
-        (
-            sb2006.acnv,
-            FT(-2 / 3),
-            FT(1 / 3),
-            q_liq,
-            q_rai,
-            N_liq,
-            N_rai,
-            FT(1),
-            FT(1000),
-        ),
+        (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
         500,
     )
     # Homogeneous Nucleation

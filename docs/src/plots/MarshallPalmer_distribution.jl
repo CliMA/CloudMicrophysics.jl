@@ -6,10 +6,7 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import ClimaParams as CP
 
-<<<<<<< HEAD
-=======
 import Thermodynamics.Parameters as TDP
->>>>>>> 62327bb (Adding radar reflectivity to 1moment scheme)
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Microphysics1M as CM1
@@ -21,20 +18,12 @@ function Marshall_Palmer_distribution(
     q::FT,
     ρ::FT,
     r::FT,
-<<<<<<< HEAD
-)where{FT}
-=======
 ) where {FT}
->>>>>>> 62327bb (Adding radar reflectivity to 1moment scheme)
 
     n₀::FT = CM1.get_n0(pdf)
     λ = CM1.lambda(pdf, mass, q, ρ)
     # distribution
-<<<<<<< HEAD
-    n_r = n₀ * exp(-λ*r)
-=======
     n_r = n₀ * exp(-λ * r)
->>>>>>> 62327bb (Adding radar reflectivity to 1moment scheme)
 
     return n_r
 end
