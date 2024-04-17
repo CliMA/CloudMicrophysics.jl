@@ -5,6 +5,7 @@ import MLJModels
 import MLJFlux
 import GaussianProcesses
 import StatsBase
+import DataFrames
 
 Standardizer = MLJ.@load Standardizer pkg = MLJModels
 NeuralNetworkRegressor = MLJ.@load NeuralNetworkRegressor pkg = MLJFlux

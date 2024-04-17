@@ -2,7 +2,6 @@ module EmulatorModelsExt
 
 import MLJ
 import DataFrames as DF
-import EnsembleKalmanProcesses as EKP
 
 import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
