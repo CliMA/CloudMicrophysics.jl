@@ -448,11 +448,10 @@ function rain_evaporation(
 end
 
 """ 
-    radar_reflectivity(struct, struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
+    radar_reflectivity(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
 
     - `struct` - type for 2-moment rain autoconversion parameterization
-    - `νr` - rain gamma distribution mass coefficient
-    - `μr` -  rain gamma distribution exponential coefficient 
+    - `q_liq` - cloud water specific humidity 
     - `q_rai` - rain water specific humidity
     - `N_liq` - cloud droplet number density 
     - `N_rai` - rain droplet number density 
@@ -465,8 +464,6 @@ one meter cube
 """
 function radar_reflectivity(
     acnv::CMP.AcnvSB2006{FT},
-    νr::FT,
-    μr::FT,
     q_liq::FT,
     q_rai::FT,
     N_liq::FT,
@@ -475,7 +472,15 @@ function radar_reflectivity(
     ρ_w::FT,
 ) where {FT}
 
+    # we assume a cloud droplets gamma distribution,
+    # where the parameters are νc=2 and μc=1
     (; νc) = acnv
+
+    # we assume a raindrops exponential distribution
+    # which can be seen as a gamma distribution with
+    # parameters νr=-2/3 and μr=1/3
+    νr = FT(-2 / 3)
+    μr = FT(1 / 3)
 
     xc = (N_liq == 0) ? 0 : ((q_liq * ρ_air) / N_liq)
     xr = (N_rai == 0) ? 0 : ((q_rai * ρ_air) / N_rai)
@@ -499,11 +504,9 @@ function radar_reflectivity(
 end
 
 """ 
-    effective_radius(struct, struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
+    effective_radius(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
 
     - `struct` - type for 2-moment rain autoconversion parameterization
-    - `νr` - rain gamma distribution mass coefficient
-    - `μr` -  rain gamma distribution exponential coefficient 
     - `q_liq` - cloud water specific humidity 
     - `q_rai` - rain water specific humidity
     - `N_liq` - cloud droplet number density 
@@ -516,8 +519,6 @@ distribuions
 """
 function effective_radius(
     acnv::CMP.AcnvSB2006{FT},
-    νr::FT,
-    μr::FT,
     q_liq::FT,
     q_rai::FT,
     N_liq::FT,
@@ -526,7 +527,15 @@ function effective_radius(
     ρ_w::FT,
 ) where {FT}
 
+    # we assume a cloud droplets gamma distribution,
+    # where the parameters are νc=2 and μc=1
     (; νc) = acnv
+
+    # we assume a raindrops exponential distribution
+    # which can be seen as a gamma distribution with
+    # parameters νr=-2/3 and μr=1/3
+    νr = FT(-2 / 3)
+    μr = FT(1 / 3)
 
     xc = (N_liq == 0) ? 0 : ((q_liq * ρ_air) / N_liq)
     xr = (N_rai == 0) ? 0 : ((q_rai * ρ_air) / N_rai)
