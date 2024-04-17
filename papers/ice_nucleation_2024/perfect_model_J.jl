@@ -75,6 +75,33 @@ function run_model(p, coefficients, IN_mode, FT, IC)
         # solve ODE
         local sol = run_parcel(IC, FT(0), t_max, params)
         return sol[9, :] # ICNC
+
+    elseif IN_mode == "ABHOM"
+        (; homogeneous) = p
+
+        # overwriting
+        override_file = Dict(
+            "Linear_J_hom_coeff2" =>
+                Dict("value" => m_calibrated, "type" => "float"),
+            "Linear_J_hom_coeff1" =>
+                Dict("value" => c_calibrated, "type" => "float"),
+        )
+        ip_calibrated = CP.create_toml_dict(FT; override_file)
+        overwrite = CMP.IceNucleationParameters(ip_calibrated)
+
+        # run parcel with new coefficients
+        local params = parcel_params{FT}(
+            const_dt = const_dt,
+            w = w,
+            homogeneous = homogeneous,
+            deposition_growth = deposition_growth,
+            size_distribution = size_distribution,
+            ips = overwrite,
+        )
+
+        # solve ODE
+        local sol = run_parcel(IC, FT(0), t_max, params)
+        return sol[9, :] # ICNC
     end
 end
 
@@ -90,6 +117,9 @@ function create_prior(FT, IN_mode)
     elseif IN_mode == "ABIFM"
         m_stats = [FT(50), FT(1), FT(0), Inf]
         c_stats = [FT(-7), FT(1), -Inf, Inf]
+    elseif IN_mode == "ABHOM"
+        m_stats = [FT(260), FT(1), FT(0), Inf]
+        c_stats = [FT(-70), FT(1), -Inf, Inf]
     end
 
     m_prior = EKP.constrained_gaussian(
@@ -125,7 +155,6 @@ function calibrate_J_parameters(FT, IN_mode)
     R_v = TD.Parameters.R_v(tps)
     ϵₘ = R_d / R_v
 
-    w = FT(0.4)
     const_dt = FT(1)
 
     # Create prior
@@ -149,6 +178,7 @@ function calibrate_J_parameters(FT, IN_mode)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         e = eᵥ(qᵥ, p₀, Rₐ, R_v)
         Sₗ = FT(e / eₛ)
+        w = FT(0.4)
         IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 
         dep_nucleation = "ABDINM"
@@ -184,6 +214,7 @@ function calibrate_J_parameters(FT, IN_mode)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         e = eᵥ(qᵥ, p₀, Rₐ, R_v)
         Sₗ = FT(e / eₛ)
+        w = FT(0.4)
         IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
         Sᵢ = ξ(tps, T₀) * Sₗ
 
@@ -202,6 +233,43 @@ function calibrate_J_parameters(FT, IN_mode)
         )
 
         coeff_true = [FT(54.58834), FT(-10.54758)]
+
+    elseif IN_mode == "ABHOM"
+        Nₐ = FT(0)
+        # Nₗ = FT(360 * 1e6)
+        Nₗ = FT(300 * 1e6)
+        Nᵢ = FT(0)
+        #r₀ = FT(2e-7)                 # droplets maybe bigger?
+        r₀ = FT(25 * 1e-9)
+        #p₀ = FT(987.345 * 1e2)
+        p₀ = FT(9712.183)
+        # T₀ = FT(243.134)
+        T₀ = FT(190)
+
+        qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
+        C_l = FT(qₗ / ((1 - qₗ) * ϵₘ + qₗ))  # concentration/mol fraction of liquid
+        #C_v = FT(357.096 * 1e-6 - C_l)     # concentration/mol fraction of vapor
+        C_v = FT(5 * 1e-6)
+        qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
+        qᵢ = FT(0)
+
+        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+        Rₐ = TD.gas_constant_air(tps, q)
+        eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+        e = eᵥ(qᵥ, p₀, Rₐ, R_v)
+        Sₗ = FT(e / eₛ)
+        w = FT(1)
+        IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+        Sᵢ = ξ(tps, T₀) * Sₗ
+
+        homogeneous = "ABHOM"
+        deposition_growth = "Deposition"
+        size_distribution = "Monodisperse"
+
+        params =
+            (; const_dt, w, homogeneous, deposition_growth, size_distribution)
+
+        coeff_true = [FT(255.927125), FT(-68.553283)]
     end
 
     n_samples = 10
