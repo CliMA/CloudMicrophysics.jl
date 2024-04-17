@@ -1,5 +1,6 @@
 import Test as TT
 import BenchmarkTools as BT
+import JET
 
 import ClimaParams
 import Thermodynamics as TD
@@ -38,6 +39,10 @@ function bench_press(
     TT.@test BT.minimum(trail).time < min_run_time
     TT.@test trail.memory <= min_memory
     TT.@test trail.allocs <= min_allocs
+
+    # Test that foo is free from optimization failures
+    # and unresolved method dispatches
+    JET.@test_opt(foo(args...))
 end
 
 function benchmark_test(FT)
