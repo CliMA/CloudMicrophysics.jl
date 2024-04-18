@@ -447,6 +447,112 @@ function rain_evaporation(
     return (evap_rate_0, evap_rate_1)
 end
 
+""" 
+    radar_reflectivity(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
+
+    - `struct` - type for 2-moment rain autoconversion parameterization
+    - `q_liq` - cloud water specific humidity 
+    - `q_rai` - rain water specific humidity
+    - `N_liq` - cloud droplet number density 
+    - `N_rai` - rain droplet number density 
+    - `ρ_air` - air density
+    - `ρ_w` - water density
+
+Returns logarithmic radar reflectivity from the assumed cloud and rain particle 
+size distribuions normalized by the reflectivty of 1 millimiter drop in a volume of
+one meter cube
+"""
+function radar_reflectivity(
+    acnv::CMP.AcnvSB2006{FT},
+    q_liq::FT,
+    q_rai::FT,
+    N_liq::FT,
+    N_rai::FT,
+    ρ_air::FT,
+    ρ_w::FT,
+) where {FT}
+
+    # we assume a cloud droplets gamma distribution,
+    # where the parameters are νc=2 and μc=1
+    (; νc) = acnv
+
+    # we assume a raindrops exponential distribution
+    # which can be seen as a gamma distribution with
+    # parameters νr=-2/3 and μr=1/3
+    νr = FT(-2 / 3)
+    μr = FT(1 / 3)
+
+    xc = (N_liq == 0) ? 0 : ((q_liq * ρ_air) / N_liq)
+    xr = (N_rai == 0) ? 0 : ((q_rai * ρ_air) / N_rai)
+    C = FT((4 / 3) * π * ρ_w)
+    Z₀ = FT(1e-18)
+
+    Bc = (xc == 0) ? 0 : (SF.gamma(νc + 1) * xc / SF.gamma(νc + 2))^(-1)
+    Br =
+        (xr == 0) ? 0 :
+        (SF.gamma((νr + 1) / μr) * xr / SF.gamma((νr + 2) / μr))^(-μr)
+    Ac = (N_liq * Bc^(νc + 1)) / SF.gamma(νc + 1)
+    Ar = (μr * N_rai * Br^((νr + 1) / μr)) / SF.gamma((νr + 1) / μr)
+
+    Zc = (Bc == 0) ? 0 : 10 * (log10(24 * Ac / (Bc^5 * C^2 * Z₀)) + log10(1e-9))
+    Zr =
+        (Br == 0) ? 0 :
+        10 * (log10(2160 * Ar / (Br^7 * C^2 * Z₀)) + log10(1e-9))
+
+    return ((N_liq + N_rai) == 0) ? -200 :
+           ((Zc * N_liq + Zr * N_rai) / (N_liq + N_rai))
+end
+
+""" 
+    effective_radius(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
+
+    - `struct` - type for 2-moment rain autoconversion parameterization
+    - `q_liq` - cloud water specific humidity 
+    - `q_rai` - rain water specific humidity
+    - `N_liq` - cloud droplet number density 
+    - `N_rai` - rain droplet number density 
+    - `ρ_air` - air density
+    - `ρ_w` - water density
+
+Returns effective radius from the assumed cloud and rain particle size 
+distribuions
+"""
+function effective_radius(
+    acnv::CMP.AcnvSB2006{FT},
+    q_liq::FT,
+    q_rai::FT,
+    N_liq::FT,
+    N_rai::FT,
+    ρ_air::FT,
+    ρ_w::FT,
+) where {FT}
+
+    # we assume a cloud droplets gamma distribution,
+    # where the parameters are νc=2 and μc=1
+    (; νc) = acnv
+
+    # we assume a raindrops exponential distribution
+    # which can be seen as a gamma distribution with
+    # parameters νr=-2/3 and μr=1/3
+    νr = FT(-2 / 3)
+    μr = FT(1 / 3)
+
+    xc = (N_liq == 0) ? 0 : ((q_liq * ρ_air) / N_liq)
+    xr = (N_rai == 0) ? 0 : ((q_rai * ρ_air) / N_rai)
+    C = FT((4 / 3) * π * ρ_w)
+
+    Bc = (xc == 0) ? 0 : (SF.gamma(νc + 1) * xc / SF.gamma(νc + 2))^(-1)
+    Br =
+        (xr == 0) ? 0 :
+        ((SF.gamma((νr + 1) / μr) * xr / SF.gamma((νr + 2) / μr))^(-μr))
+
+    reff_c = (Bc == 0) ? 0 : (6 / ((Bc * C)^(1 / 3) * SF.gamma(11 / 3)))
+    reff_r = (Br == 0) ? 0 : (3 / (Br * C^(1 / 3)))
+
+    return ((N_liq + N_rai) == 0) ? 0 :
+           ((reff_c * N_liq + reff_r * N_rai) / (N_liq + N_rai))
+end
+
 # Additional double moment autoconversion and accretion parametrizations:
 # - Khairoutdinov and Kogan (2000)
 # - Beheng (1994)

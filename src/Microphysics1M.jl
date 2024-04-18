@@ -104,7 +104,7 @@ end
     - `q` - specific humidity of rain
     - `ρ` - air density
 
-Returns radar reflectivity from the assumed rain particle size distribuion 
+Returns logarithmic radar reflectivity from the assumed rain particle size distribution 
 normalized by the reflectivty of 1 millimiter drop in a volume of one meter cube
 """
 function radar_reflectivity(
