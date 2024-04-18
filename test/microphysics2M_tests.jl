@@ -487,14 +487,38 @@ function test_microphysics2M(FT)
         )[2] ≈ 0 atol = eps(FT)
     end
 
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 radar reflectivity" begin
+        #setup 
+        ρ_air = FT(1)
+        ρ_w = FT(1000)
+        q_liq = FT(2.128e-4)
+        N_liq = FT(15053529)
+        q_rai = FT(1.573e-4)
+        N_rai = FT(510859)
+
+        #action
+        rr = CM2.radar_reflectivity(
+            SB2006.acnv,
+            q_liq,
+            q_rai,
+            N_liq,
+            N_rai,
+            ρ_air,
+            ρ_w,
+        )
+
+        TT.@test rr ≈ FT(-13) atol = 2
+
+    end
+
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 effective radius" begin
         #setup 
         ρ_air = FT(1)
         ρ_w = FT(1000)
-        q_liq = FT(3.654e-4)
-        N_liq = FT(22886304)
-        q_rai = FT(1.563e-4)
-        N_rai = FT(6813825)
+        q_liq = FT(2.128e-4)
+        N_liq = FT(15053529)
+        q_rai = FT(1.573e-4)
+        N_rai = FT(510859)
 
         #action
         reff = CM2.effective_radius(
@@ -508,23 +532,21 @@ function test_microphysics2M(FT)
         )
 
         #test
-        TT.@test reff ≈ FT(1.76109e-5) atol = 3.5e-6
-        TT.@test reff ≈ FT(1.70655e-5) atol = 3.5e-6
+        TT.@test reff ≈ FT(2.664e-05) atol = 8e-6
 
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 radar reflectivity" begin
+    TT.@testset "2M_microphysics - '1/3' power law from Liu and Hallett (1997)" begin
         #setup 
-        ρ_air = FT(1e-3)
-        ρ_w = FT(1)
-        q_liq = FT(3.654e-4)
-        N_liq = FT(22886304 * 1e-9)
-        q_rai = FT(1.563e-4)
-        N_rai = FT(6813825 * 1e-9)
+        ρ_air = FT(1)
+        ρ_w = FT(1000)
+        q_liq = FT(2.128e-4)
+        N_liq = FT(15053529)
+        q_rai = FT(1.573e-4)
+        N_rai = FT(510859)
 
         #action
-        rr = CM2.radar_reflectivity(
-            SB2006.acnv,
+        reff = CM2.effective_radius_Liu_Hallet_97(
             q_liq,
             q_rai,
             N_liq,
@@ -533,8 +555,8 @@ function test_microphysics2M(FT)
             ρ_w,
         )
 
-        TT.@test rr ≈ FT(-33) atol = 10
-        TT.@test rr ≈ FT(-23) atol = 10
+        #test
+        TT.@test reff ≈ FT(2.664e-05) atol = 8e-6
 
     end
 end

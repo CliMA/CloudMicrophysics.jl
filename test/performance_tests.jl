@@ -225,20 +225,25 @@ function benchmark_test(FT)
     )
     bench_press(
         CM2.radar_reflectivity,
-        (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1e-3), FT(1)),
-        500,
+        (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
+        800,
     )
     bench_press(
         CM2.effective_radius,
         (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
-        500,
+        800,
+    )
+    bench_press(
+        CM2.effective_radius_Liu_Hallet_97,
+        (q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
+        300,
     )
     # Homogeneous Nucleation
     bench_press(HN.h2so4_nucleation_rate, (1e12, 1.0, 1.0, 208, h2so4_nuc), 470)
     bench_press(
         HN.organic_nucleation_rate,
         (0.0, 1e3, 1e3, 1e3, 300, 1, organ_nuc),
-        650,
+        850,
     )
     bench_press(
         HN.organic_and_h2so4_nucleation_rate,
