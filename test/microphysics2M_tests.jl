@@ -8,7 +8,7 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CMC
 import CloudMicrophysics.Microphysics2M as CM2
 
-@info "Microphysics Tests"
+@info "Microphysics 2M Tests"
 
 function test_microphysics2M(FT)
 
