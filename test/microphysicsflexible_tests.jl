@@ -6,7 +6,7 @@ import CloudMicrophysics.MicrophysicsFlexible as CMF
 import Cloudy.ParticleDistributions as CPD
 import Cloudy.KernelFunctions as CPK
 
-@info "Microphysics Tests"
+@info "MicrophysicsFlexible Tests"
 
 function test_microphysics_flexible(FT)
     # Thermodynamics and air properties parameters
