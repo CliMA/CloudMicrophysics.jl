@@ -482,25 +482,31 @@ function radar_reflectivity(
     νr = FT(-2 / 3)
     μr = FT(1 / 3)
 
-    xc = (N_liq == 0) ? 0 : ((q_liq * ρ_air) / N_liq)
-    xr = (N_rai == 0) ? 0 : ((q_rai * ρ_air) / N_rai)
-    C = FT((4 / 3) * π * ρ_w)
+    #change of units for better accuracy
+    ρ_air *= FT(1e-3)
+    ρ_w *= FT(1e-3)
+    N_liq *= FT(1e-9)
+    N_rai *= FT(1e-9)
+
+    xc = (N_liq == 0) ? FT(0) : ((q_liq * ρ_air) / N_liq)
+    xr = (N_rai == 0) ? FT(0) : ((q_rai * ρ_air) / N_rai)
+    C = FT(4 / 3 * π * ρ_w)
     Z₀ = FT(1e-18)
 
-    Bc = (xc == 0) ? 0 : (SF.gamma(νc + 1) * xc / SF.gamma(νc + 2))^(-1)
+    Bc =
+        (xc == 0) ? FT(0) :
+        (SF.gamma(FT(νc + 1)) * xc / SF.gamma(FT(νc + 2)))^FT(-1)
     Br =
-        (xr == 0) ? 0 :
-        (SF.gamma((νr + 1) / μr) * xr / SF.gamma((νr + 2) / μr))^(-μr)
-    Ac = (N_liq * Bc^(νc + 1)) / SF.gamma(νc + 1)
-    Ar = (μr * N_rai * Br^((νr + 1) / μr)) / SF.gamma((νr + 1) / μr)
+        (xr == 0) ? FT(0) :
+        (SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr)
+    Ac = (N_liq * Bc^(FT(νc + 1))) / SF.gamma(FT(νc + 1))
+    Ar = (μr * N_rai * Br^(FT(νr + 1) / μr)) / SF.gamma(FT(νr + 1) / μr)
 
-    Zc = (Bc == 0) ? 0 : 10 * (log10(24 * Ac / (Bc^5 * C^2 * Z₀)) + log10(1e-9))
-    Zr =
-        (Br == 0) ? 0 :
-        10 * (log10(2160 * Ar / (Br^7 * C^2 * Z₀)) + log10(1e-9))
+    Zc = (Bc == 0) ? FT(0) : (FT(24) * Ac / (Bc^FT(5) * C^FT(2)))
+    Zr = (Br == 0) ? FT(0) : (FT(2160) * Ar / (Br^FT(7) * C^FT(2)))
 
-    return ((N_liq + N_rai) == 0) ? -200 :
-           ((Zc * N_liq + Zr * N_rai) / (N_liq + N_rai))
+    return ((Zc + Zr) == 0) ? FT(-200) :
+           FT(10) * (log10((Zc + Zr) / Z₀) + log10(FT(1e-9)))
 end
 
 """ 
@@ -514,8 +520,8 @@ end
     - `ρ_air` - air density
     - `ρ_w` - water density
 
-Returns effective radius from the assumed cloud and rain particle size 
-distribuions
+Returns effective radius using the 2-moment scheme 
+cloud and rain particle size distributions
 """
 function effective_radius(
     acnv::CMP.AcnvSB2006{FT},
@@ -537,20 +543,67 @@ function effective_radius(
     νr = FT(-2 / 3)
     μr = FT(1 / 3)
 
-    xc = (N_liq == 0) ? 0 : ((q_liq * ρ_air) / N_liq)
-    xr = (N_rai == 0) ? 0 : ((q_rai * ρ_air) / N_rai)
+    #change of units for better accuracy
+    ρ_air *= FT(1e-3)
+    ρ_w *= FT(1e-3)
+    N_liq *= FT(1e-9)
+    N_rai *= FT(1e-9)
+
+    xc = (N_liq == 0) ? FT(0) : ((q_liq * ρ_air) / N_liq)
+    xr = (N_rai == 0) ? FT(0) : ((q_rai * ρ_air) / N_rai)
     C = FT((4 / 3) * π * ρ_w)
 
-    Bc = (xc == 0) ? 0 : (SF.gamma(νc + 1) * xc / SF.gamma(νc + 2))^(-1)
+    Bc =
+        (xc == 0) ? FT(0) :
+        (SF.gamma(FT(νc + 1)) * xc / SF.gamma(FT(νc + 2)))^(-1)
     Br =
-        (xr == 0) ? 0 :
-        ((SF.gamma((νr + 1) / μr) * xr / SF.gamma((νr + 2) / μr))^(-μr))
+        (xr == 0) ? FT(0) :
+        ((SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr))
+    Ac = (N_liq * Bc^(FT(νc + 1))) / SF.gamma(FT(νc + 1))
+    Ar = (μr * N_rai * Br^(FT(νr + 1) / μr)) / SF.gamma(FT(νr + 1) / μr)
 
-    reff_c = (Bc == 0) ? 0 : (6 / ((Bc * C)^(1 / 3) * SF.gamma(11 / 3)))
-    reff_r = (Br == 0) ? 0 : (3 / (Br * C^(1 / 3)))
+    cloud_3moment = (Bc == 0) ? FT(0) : (FT(6) * Ac * C^3 / (Bc * C)^FT(4))
+    cloud_2moment =
+        (Bc == 0) ? FT(0) :
+        (Ac * SF.gamma(FT(11 / 3)) / (Bc^FT(11 / 3) * C^FT(2 / 3)))
+    rain_3moment = (Br == 0) ? FT(0) : (FT(24) * Ar / (Br^FT(4) * C))
+    rain_2moment = (Br == 0) ? FT(0) : (FT(6) * Ar / (Br^3 * C^FT(2 / 3)))
 
-    return ((N_liq + N_rai) == 0) ? 0 :
-           ((reff_c * N_liq + reff_r * N_rai) / (N_liq + N_rai))
+    return ((cloud_2moment + rain_2moment) == 0) ? FT(0) :
+           ((cloud_3moment + rain_3moment) / (cloud_2moment + rain_2moment)) *
+           FT(1e-3)
+end
+
+""" 
+    effective_radius_Liu_Hallet_97(q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
+
+    - `q_liq` - cloud water specific humidity 
+    - `q_rai` - rain water specific humidity
+    - `N_liq` - cloud droplet number density 
+    - `N_rai` - rain droplet number density 
+    - `ρ_air` - air density
+    - `ρ_w` - water density
+
+Returns effective radius using the "1/3" power law from Liu and Hallett (1997)
+"""
+function effective_radius_Liu_Hallet_97(
+    q_liq::FT,
+    q_rai::FT,
+    N_liq::FT,
+    N_rai::FT,
+    ρ_air::FT,
+    ρ_w::FT,
+) where {FT}
+
+    k = FT(0.8)
+    r_vol =
+        ((N_liq + N_rai) == 0) ? FT(0) :
+        (
+            (FT(3) * (q_liq + q_rai) * ρ_air) /
+            (FT(4) * π * ρ_w * (N_liq + N_rai))
+        )^FT(1 / 3)
+
+    return r_vol / k^FT(1 / 3)
 end
 
 # Additional double moment autoconversion and accretion parametrizations:
