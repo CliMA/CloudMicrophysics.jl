@@ -73,6 +73,11 @@ struct CondParams{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
 end
 
+struct NonEqCondParams{ft} <: CMP.ParametersType{FT}
+    aps::CMP.ParametersType{FT}
+    tps::TDP.ThermodynamicsParameters{FT}
+end
+
 struct DepParams{FT} <: CMP.ParametersType{FT}
     aps::CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}

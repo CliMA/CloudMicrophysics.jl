@@ -3,6 +3,7 @@ import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
 import CloudMicrophysics.HomIceNucleation as CMI_hom
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.MicrophysicsNonEq as MNE
 import Distributions as DS
 
 function deposition_nucleation(::Empty, state, dY)
@@ -194,6 +195,20 @@ function condensation(params::CondParams, PSD_liq, state, ρ_air)
     Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
     return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD_liq.r * Nₗ
 end
+
+function condensation(params::NonEqCondParams, PSD, state, ρ_air)
+
+    # but these params don't take into account
+    # qsat and tau relax which confuses me
+    (; aps, tps) = params
+    (; Sₗ, T, Nₗ) = state
+
+    # do I need to create a cloud liquid type?
+    MNE.τ_relax(liquid)
+
+    # just return something like this???
+    # is q sat just Sl? but thats not a rel humid?
+    return MNE.conv_q_vap_to_q_liq_ice((; τ_relax),q_sat,q)
 
 function deposition(::Empty, PSD_ice, state, ρ_air)
     FT = eltype(state)
