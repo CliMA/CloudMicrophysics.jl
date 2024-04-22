@@ -188,3 +188,38 @@ They can be compared with Figure 2 from [MorrisonMilbrandt2015](@cite).
 include("plots/P3TerminalVelocityPlots.jl")
 ```
 ![](MorrisonandMilbrandtFig2.svg)
+
+## Collisions
+
+Collisions are calculated through the following equation: 
+
+```math 
+\frac{dq_c}{dt} = \int_{0}^{\infty} \! \int_{0}^{\infty} \! \frac{E_ci}{\rho} N'_i(D_p) N'_c(D_c) A(D_i, D_c) m_{collected}(D_{collected}) |V_i(D_i) - V_c(D_c)| \mathrm{d}D_i \mathrm{d}D_c
+```
+ where the values are defined as follows: 
+  - subscript ``i`` - ice particles (either cloud ice or precipitating ice)
+  - subscript ``c`` - corresponding colliding species
+  - subscript ``collected`` - whichever species is being collected by the collisions 
+  - ``E_ci`` - collision efficiency between particles
+  - ``N'_x`` - distribution of particles of x type
+  - ``A`` - collision kernel between ice and colliding species 
+  - ``m_x(D)`` - mass of given species x at diameter D
+  - ``V_x(D)`` - Chen terminal velocity of given species x at diameter D 
+
+  In our parametrization we take ``E_ci = 1`` and ``A(D_i, D_c) = \pi \frac{(D_i + D_c)^2}{4}``. We also assume that if the temperature is above freezing then ice particles get collected, otherwise the colliding species is collected by the ice.  
+  
+  Furthermore, the distributions of non-ice species are taken to be of the following forms: 
+  - cloud water: ``N_0 D^8 e^{-\lambda D^3}``
+  - rain : ``N_0 e^{-\lambda D}``
+
+  ``N_0`` and ``\lambda`` can be solved for respectively in each scheme through setting: 
+  - ``N_c = \int_{0}^{\infty} N'_c(D) \mathrm{d}D`` 
+  - ``q_c = \int_{0}^{\infty} m_c(D) N'_c(D) \mathrm{d}D``
+  where ``m_c(D)`` is the mass of particle of size D. Rain and cloud water particles are assumed to be spherical therefore, ``m_c(D) = \pi \rho_w \frac{D^3}{6}`` for both (``\rho_w`` = density of water). 
+
+Collision rate comparisons between the P3 Scheme and the 1M microphysics scheme are shown below: 
+
+```@example
+include("plots/P3TendenciesSandbox.jl")
+```
+![](CollisionComparisons.svg)

@@ -205,6 +205,98 @@ function test_velocities(FT)
     end
 end
 
+function test_tendencies(FT)
+
+    p3 = CMP.ParametersP3(FT)
+    Chen2022 = CMP.Chen2022VelType(FT)
+
+    TT.@testset "Collision Tendencies Smoke Test" begin
+        N = FT(1e8)
+        ρ_a = FT(1.2)
+        ρ_r = FT(500)
+        F_r = FT(0.5)
+        T_warm = FT(300)
+        T_cold = FT(200)
+
+        qs = range(0.001, stop = 0.005, length = 5)
+        q_const = FT(0.05)
+
+        cloud_expected_warm =
+            [5.78e-5, 0.00019256, 0.00039239, 0.00065184, 0.00096698]
+        cloud_expected_cold =
+            [0.0016687, 0.0026921, 0.0035912, 0.0044255, 0.00522]
+        rain_expected_warm = [0.0003392, 0.000713, 0.001103, 0.001506, 0.00192]
+        rain_expected_cold = [0.2905, 0.2982, 0.3033, 0.3072, 0.3104]
+
+        for i in axes(qs, 1)
+            cloud_warm = P3.ice_collisions(
+                "cloud",
+                p3,
+                Chen2022,
+                qs[i],
+                N,
+                q_const,
+                N,
+                ρ_a,
+                F_r,
+                ρ_r,
+                T_warm,
+            )
+            cloud_cold = P3.ice_collisions(
+                "cloud",
+                p3,
+                Chen2022,
+                qs[i],
+                N,
+                q_const,
+                N,
+                ρ_a,
+                F_r,
+                ρ_r,
+                T_cold,
+            )
+
+            TT.@test cloud_warm >= 0
+            TT.@test cloud_warm ≈ cloud_expected_warm[i] rtol = 1e-3
+            TT.@test cloud_cold >= 0
+            TT.@test cloud_cold ≈ cloud_expected_cold[i] rtol = 1e-3
+
+            rain_warm = P3.ice_collisions(
+                "rain",
+                p3,
+                Chen2022,
+                qs[i],
+                N,
+                q_const,
+                N,
+                ρ_a,
+                F_r,
+                ρ_r,
+                T_warm,
+            )
+            rain_cold = P3.ice_collisions(
+                "rain",
+                p3,
+                Chen2022,
+                qs[i],
+                N,
+                q_const,
+                N,
+                ρ_a,
+                F_r,
+                ρ_r,
+                T_cold,
+            )
+
+            TT.@test rain_warm >= 0
+            TT.@test rain_warm ≈ rain_expected_warm[i] rtol = 1e-3
+            TT.@test rain_cold >= 0
+            TT.@test rain_cold ≈ rain_expected_cold[i] rtol = 1e-3
+        end
+    end
+
+end
+
 println("Testing Float32")
 test_p3_thresholds(Float32)
 #TODO - only works for Float64 now. We should switch the units inside the solver
@@ -215,3 +307,4 @@ println("Testing Float64")
 test_p3_thresholds(Float64)
 test_p3_shape_solver(Float64)
 test_velocities(Float64)
+test_tendencies(Float64)
