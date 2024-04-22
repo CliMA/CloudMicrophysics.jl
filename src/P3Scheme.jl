@@ -14,6 +14,7 @@ module P3Scheme
 import SpecialFunctions as SF
 import QuadGK as QGK
 import RootSolvers as RS
+import HCubature as HC
 
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
@@ -153,6 +154,103 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
             ρ_g,
             ρ_d,
         )
+    end
+end
+
+"""
+    mass_(p3, D, ρ, F_r)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension [m]
+ - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
+ - F_r - rime mass fraction [q_rim/q_i]
+
+Returns mass as a function of size for differen particle regimes [kg]
+"""
+# for spherical ice (small ice or completely rimed ice)
+mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
+# for large nonspherical ice (used for unrimed and dense types)
+mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
+# for partially rimed ice
+mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
+    α_va_si(p3) / (1 - F_r) * D^p3.β_va
+
+"""
+    p3_mass(p3, D, F_r, th)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Returns mass(D) regime, used to create figures for the docs page.
+"""
+function p3_mass(
+    p3::PSP3,
+    D::FT,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT <: Real}
+    D_th = D_th_helper(p3)
+    if D_th > D
+        return mass_s(D, p3.ρ_i)          # small spherical ice
+    elseif F_r == 0
+        return mass_nl(p3, D)             # large nonspherical unrimed ice
+    elseif th.D_gr > D >= D_th
+        return mass_nl(p3, D)             # dense nonspherical ice
+    elseif th.D_cr > D >= th.D_gr
+        return mass_s(D, th.ρ_g)          # graupel
+    elseif D >= th.D_cr
+        return mass_r(p3, D, F_r)         # partially rimed ice
+    end
+end
+
+"""
+    A_(p3, D)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension
+
+Returns particle projected area as a function of size for different particle regimes
+"""
+# for spherical particles
+A_s(D::FT) where {FT <: Real} = FT(π) / 4 * D^2
+# for nonspherical particles
+A_ns(p3::PSP3, D::FT) where {FT <: Real} = p3.γ * D^p3.σ
+# partially rimed ice
+A_r(p3::PSP3, F_r::FT, D::FT) where {FT <: Real} =
+    F_r * A_s(D) + (1 - F_r) * A_ns(p3, D)
+
+"""
+    p3_area(p3, D, F_r, th)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Returns area(D), used to create figures for the documentation.
+"""
+function p3_area(
+    p3::PSP3,
+    D::FT,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT <: Real}
+    # Area regime:
+    if D_th_helper(p3) > D
+        return A_s(D)                      # small spherical ice
+    elseif F_r == 0
+        return A_ns(p3, D)                 # large nonspherical unrimed ice
+    elseif th.D_gr > D >= D_th_helper(p3)
+        return A_ns(p3, D)                 # dense nonspherical ice
+    elseif th.D_cr > D >= th.D_gr
+        return A_s(D)                      # graupel
+    elseif D >= th.D_cr
+        return A_r(p3, F_r, D)             # partially rimed ice
+    else
+        println(D)
+        throw("D not in range")
     end
 end
 
@@ -665,6 +763,364 @@ function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     end
     # Normalize by q
     return n / q
+end
+
+"""
+    get_rain_parameters(q, N) 
+
+ - q - mass mixing ratio of rain
+ - N - number mixing ratio of rain 
+
+ returns the parameters λ and N_0 where N' = N_0 * exp(-λ  * D)
+"""
+function get_rain_parameters(q::FT, N::FT) where {FT}
+    ρ_w = FT(1000)
+    λ = (π * ρ_w * N / q)^(1 / 3)
+    N_0 = N * λ
+    return (λ, N_0)
+end
+
+"""
+    get_cloud_parameters(q, N) 
+
+ - q - mass mixing ratio of rain
+ - N - number mixing ratio of rain 
+
+ returns the parameters λ and N_0 where N' = N_0 * D ^ 8 * exp(-λ  * D ^ 3)
+"""
+function get_cloud_parameters(q::FT, N::FT) where {FT}
+    ρ_w = FT(1000)
+    λ = π * ρ_w * N / (2 * q)
+    N_0 = 3 / 2 * N * λ^3
+    return (λ, N_0)
+end
+
+"""
+    N′_rain(D, q, N)
+
+ - D - diameter of particle 
+ - q - mass mixing ratio
+ - N - number mixing ratio 
+
+ Returns the distribution of rain particles (assumed to be of the form 
+ N'(D) = N0 * exp(-λD)) at given D 
+"""
+function N′rain(D::FT, q::FT, N::FT) where {FT}
+    (λ, N_0) = get_rain_parameters(q, N)
+    return N_0 * exp(-λ * D)
+end
+
+"""
+    N′_cloud(D, q, N)
+
+ - D - diameter of particle 
+ - q - mass mixing ratio
+ - N - number mixing ratio 
+
+ Returns the distribution of cloud particles (assumed to be of the form 
+ N'(D) = N0 * D ^ 8 * exp(-λ D ^ 3)) at given D 
+"""
+function N′cloud(D::FT, q::FT, N::FT) where {FT}
+    (λ, N_0) = get_cloud_parameters(q, N)
+    return N_0 * D^8 * exp(-λ * D^3)
+end
+
+"""
+    N′_ice(D, p3, λ, N0)
+
+ - D - diameter of particle 
+ - p3 - a struct containing P3 scheme parameters
+ - λ - shape parameter of distribution 
+ - N0 - shape parameter of distribution
+
+ Returns the distribution of ice particles (assumed to be of the form 
+ N'(D) = N0 * D ^ μ * exp(-λD)) at given D 
+"""
+function N′ice(D::FT, p3::PSP3, λ::FT, N_0::FT) where {FT}
+    return N_0 * D^DSD_μ(p3, λ) * exp(-λ * D)
+end
+
+"""
+    ϕ_ice(p3, D, F_r, th) 
+
+ - p3 - a struct containing P3 Scheme parameters 
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+ Returns the ϕ calculation for an ice particle in the P3 Scheme with given 
+ maximum particle dimension
+"""
+function ϕ_ice(
+    D::FT,
+    p3::PSP3,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT}
+    return 16 * p3.ρ_i^2 * (p3_area(p3, D, F_r, th))^3 /
+           (9 * π * (p3_mass(p3, D, F_r, th))^2)
+end
+
+"""
+    velocity_chen(p3, Chen2022, ρ_a, D, F_r, th)
+
+ - p3 - a struct containing P3 Scheme parameters
+ - Chen2022 - a struct with terminal velocity parameters as in Chen(2022)
+ - ρ_a - density of air  
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+ Returns the terminal velocity of ice at given particle dimension using P3 
+ distributions and Chen 2022 parametrizations
+"""
+function velocity_chen(
+    D::FT,
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelTypeSnowIce,
+    ρ_a::FT,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT}
+    if D <= FT(0.000625)
+        (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
+    else
+        (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
+    end
+
+    κ = FT(-1 / 6)
+
+    v = 0
+    for i in 1:2
+        v += ai[i] * D^(bi[i]) * exp(-ci[i] * D)
+    end
+
+    return ϕ_ice(D, p3, F_r, th)^κ * v
+end
+
+"""
+    velocity_chen(p3, Chen2022, ρ_a, D)
+
+ - Chen2022 - a struct with terminal velocity parameters as in Chen(2022)
+ - ρ_a - density of air  
+ - D - maximum particle dimension
+ 
+ Returns the terminal velocity of rain given Chen 2022 velocity parametrizations
+"""
+function velocity_chen(
+    D::FT,
+    Chen2022::CMP.Chen2022VelTypeRain,
+    ρ_a::FT,
+) where {FT}
+    (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
+
+    v = 0
+    for i in 1:3
+        v += ai[i] * D^(bi[i]) * exp(-ci[i] * D)
+    end
+
+    return v
+end
+
+"""
+    integration_bounds(p3, tolerance, λ, N_0, Nᵢ, qᵣ, Nᵣ)
+
+ - p3 - a struct containing P3 Scheme parameters 
+ - tolerance - tolerance to which distributions need to be evaluated to
+ - λ - shape parameter of ice distribution
+ - N_0 - intercept size distribution of ice 
+ - Nᵢ - number mixing ratio of ice
+ - q - mass mizing ratio of colliding species
+ - N - number mixing ratio of colliding species
+
+ Returns the bounds over which to integrate rain, cloud, and ice distributions to ensure 
+ coverage or more than (1 - tolerance) of each distribution
+"""
+function integration_bounds(
+    type::String,
+    p3::PSP3,
+    tolerance::FT,
+    λ::FT,
+    N_0::FT,
+    Nᵢ::FT,
+    q::FT,
+    N::FT,
+) where {FT}
+    if type == "rain"
+        rain_λ, = get_rain_parameters(q, N)
+        colliding_x = -1 / rain_λ * log(tolerance)
+    elseif type == "cloud"
+        cloud_λ, = get_cloud_parameters(q, N)
+        cloud_problem(x) =
+            tolerance -
+            exp(-exp(x)^3 * cloud_λ) *
+            (1 + exp(x)^3 * cloud_λ + 1 / 2 * exp(x)^6 * cloud_λ^2)
+        guess =
+            log(0.5) +
+            (log(0.00025) - log(0.5)) / (log(1e12) - log(1e2)) *
+            (log(cloud_λ) - log(10^2))
+        log_cloud_x =
+            RS.find_zero(
+                cloud_problem,
+                RS.NewtonsMethodAD(guess),
+                RS.CompactSolution(),
+                RS.RelativeSolutionTolerance(eps(FT)),
+                5,
+            ).root
+        colliding_x = exp(log_cloud_x)
+    end
+
+    ice_problem(x) =
+        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
+    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
+    log_ice_x =
+        RS.find_zero(
+            ice_problem,
+            RS.SecantMethod(guess - 1, guess),
+            RS.CompactSolution(),
+            RS.RelativeSolutionTolerance(eps(FT)),
+            5,
+        ).root
+
+    return (2 * colliding_x, 2 * exp(log_ice_x))
+end
+
+"""
+    a(D1, D2) 
+
+ - D1 - maximum dimension of first particle 
+ - D2 - maximum dimension of second particle 
+
+ Returns the collision kernel (assumed to be of the form π(r1 + r2)^2) for the 
+ two colliding particles
+"""
+function a(D1::FT, D2::FT) where {FT}
+    # TODO make this more accurate for non-spherical particles 
+    return π * (D1 / 2 + D2 / 2)^2
+end
+
+"""
+    N′colliding(type, D, q, N)
+
+ - type - defines what is colliding with ice ("rain" or "cloud")
+ - D - maximum dimension 
+ - q - mass mixing ratio 
+ - N - number mixing ratio 
+
+ Returns the corresponding distribution of particles depending on type
+"""
+function N′colliding(type::String, D::FT, q::FT, N::FT) where {FT}
+    if type == "rain"
+        return N′rain(D, q, N)
+    elseif type == "cloud"
+        return N′cloud(D, q, N)
+    else
+        throw("Undefined Type of Collisions")
+    end
+end
+
+"""
+    vel_diff(type, D, Dᵢ, p3, Chen2022, ρ_a, F_r, th)
+
+ - type - defines what is colliding with ice ("rain" or "cloud")
+ - D - maximum dimension of colliding particle 
+ - Dᵢ - maximum dimension of ice particle 
+ - p3 - a struct containing P3 parameters
+ - Chen2022 - a struct containing Chen 2022 velocity parameters 
+ - ρ_a - density of air 
+ - F_r - rime mass fraction (q_rim/ q_i)
+ - th - thresholds as calculated by thresholds()
+
+ Returns the corresponding velocity difference of colliding particles depending on type
+"""
+function vel_diff(
+    type::String,
+    D::FT,
+    Dᵢ::FT,
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelType,
+    ρ_a::FT,
+    F_r::FT,
+    th,
+) where {FT}
+    if type == "rain"
+        return abs(
+            velocity_chen(Dᵢ, p3, Chen2022.snow_ice, ρ_a, F_r, th) -
+            velocity_chen(D, Chen2022.rain, ρ_a),
+        )
+    elseif type == "cloud"
+        return abs(velocity_chen(Dᵢ, p3, Chen2022.snow_ice, ρ_a, F_r, th))
+    end
+end
+
+"""
+    ice_collisions(type, p3, Chen2022, ρ_a, F_r, qᵣ, qᵢ, Nᵣ, Nᵢ, ρ, ρ_r, E_ri)
+
+ - type - defines what is colliding with the ice ("cloud" or "rain")
+ - p3 - a struct with P3 scheme parameters 
+ - Chen2022 - a struct with terminal velocity parameters as in Chen (2022) 
+ - qᵢ - mass mixing ratio of ice 
+ - Nᵢ - number mixing ratio of ice 
+ - q_c - mass mixing ratio of colliding species 
+ - N_c - number mixing ratio of colliding species
+ - ρ_a - density of air 
+ - F_r - rime mass fraction (q_rim/ q_i) 
+ - ρ_r - rime density (q_rim/B_rim) 
+ - T - temperature (in K)
+ - E_ci - collision efficiency between ice and colliding species 
+
+ Returns the rate of collisions between cloud ice and rain 
+ Equivalent to the measure of QRCOL in Morrison and Mildbrandt (2015)
+"""
+function ice_collisions(
+    type::String,
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelType,
+    qᵢ::FT,
+    Nᵢ::FT,
+    q_c::FT,
+    N_c::FT,
+    ρ_a::FT,
+    F_r::FT,
+    ρ_r::FT,
+    T::FT,
+    E_ci = FT(1),
+) where {FT}
+    ρ_w = FT(1000)      # TO DO: add this as density_liquid_water from ClimaParams
+    th = thresholds(p3, ρ_r, F_r)
+    (λ, N_0) = distribution_parameter_solver(p3, qᵢ, Nᵢ, ρ_r, F_r)
+    (colliding_bound, ice_bound) =
+        integration_bounds(type, p3, eps(FT), λ, N_0, Nᵢ, q_c, N_c)
+
+    if T > 273.15
+        f_warm(D_c, Dᵢ) =
+            E_ci / ρ_a *
+            N′colliding(type, D_c, q_c, N_c) *
+            N′ice(Dᵢ, p3, λ, N_0) *
+            a(D_c, Dᵢ) *
+            p3_mass(p3, Dᵢ, F_r, th) *
+            vel_diff(type, D_c, Dᵢ, p3, Chen2022, ρ_a, F_r, th)
+        (dqdt, error) = HC.hcubature(
+            d -> f_warm(d[1], d[2]),
+            (FT(0), FT(0)),
+            (colliding_bound, ice_bound),
+        )
+    else
+        f_cold(D_c, Dᵢ) =
+            E_ci / ρ_a *
+            N′colliding(type, D_c, q_c, N_c) *
+            N′ice(Dᵢ, p3, λ, N_0) *
+            a(D_c, Dᵢ) *
+            mass_s(D_c, ρ_w) *
+            vel_diff(type, D_c, Dᵢ, p3, Chen2022, ρ_a, F_r, th)
+        (dqdt, error) = HC.hcubature(
+            d -> f_cold(d[1], d[2]),
+            (FT(0), FT(0)),
+            (colliding_bound, ice_bound),
+        )
+    end
+
+    return dqdt
 end
 
 end
