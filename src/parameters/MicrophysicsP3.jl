@@ -30,6 +30,12 @@ Base.@kwdef struct ParametersP3{FT} <: ParametersType{FT}
     c::FT
     "Limiter for shape parameter mu for ice. See eq 3 in Morrison and Milbrandt 2015. Units: [-]"
     μ_max::FT
+    "Water freeze temperature [K]"
+    T_freeze::FT
+    "ventillation factor a"
+    vent_a::FT
+    "ventillation factor b"
+    vent_b::FT
 end
 
 ParametersP3(::Type{FT}) where {FT <: AbstractFloat} =
@@ -47,6 +53,9 @@ function ParametersP3(td::CP.AbstractTOMLDict)
         :Heymsfield_mu_coeff2 => :b,
         :Heymsfield_mu_coeff3 => :c,
         :Heymsfield_mu_cutoff => :μ_max,
+        :temperature_water_freeze => :T_freeze,
+        :p3_ventillation_a => :vent_a,
+        :p3_ventiallation_b => :vent_b,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)

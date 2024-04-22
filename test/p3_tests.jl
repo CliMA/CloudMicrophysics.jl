@@ -3,6 +3,9 @@ import ClimaParams
 import CloudMicrophysics as CM
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.TerminalVelocity as TV
+
+import QuadGK as QGK
 
 @info "P3 Scheme Tests"
 
@@ -82,6 +85,40 @@ function test_p3_thresholds(FT)
             diff(ρ_r_good[val], F_r_good[3], 1, D_cr_fig_1b_ref[val])
             diff(ρ_r_good[val], F_r_good[3], 2, D_gr_fig_1b_ref[val])
         end
+    end
+
+    TT.@testset "mass and area tests" begin
+        # values 
+        ρ_r = FT(500)
+        F_r = FT(0.5)
+
+        # get thresholds 
+        D_th = P3.D_th_helper(p3)
+        th = P3.thresholds(p3, ρ_r, F_r)
+        (; D_gr, D_cr) = th
+
+        # define in between values
+        D_1 = D_th / 2
+        D_2 = (D_th + D_gr) / 2
+        D_3 = (D_gr + D_cr) / 2
+
+        # test area 
+        TT.@test P3.p3_area(p3, D_1, F_r, th) == P3.A_s(D_1)
+        TT.@test P3.p3_area(p3, D_2, F_r, th) == P3.A_ns(p3, D_2)
+        TT.@test P3.p3_area(p3, D_3, F_r, th) == P3.A_s(D_3)
+        TT.@test P3.p3_area(p3, D_cr, F_r, th) == P3.A_r(p3, F_r, D_cr)
+
+        # test mass 
+        TT.@test P3.p3_mass(p3, D_1, F_r, th) == P3.mass_s(D_1, p3.ρ_i)
+        TT.@test P3.p3_mass(p3, D_2, F_r, th) == P3.mass_nl(p3, D_2)
+        TT.@test P3.p3_mass(p3, D_3, F_r, th) == P3.mass_s(D_3, th.ρ_g)
+        TT.@test P3.p3_mass(p3, D_cr, F_r, th) == P3.mass_r(p3, D_cr, F_r)
+
+        # test F_r = 0 and D > D_th
+        F_r = FT(0)
+        TT.@test P3.p3_area(p3, D_2, F_r, th) == P3.A_ns(p3, D_2)
+        TT.@test P3.p3_mass(p3, D_2, F_r, th) == P3.mass_nl(p3, D_2)
+
     end
 end
 
@@ -205,6 +242,68 @@ function test_velocities(FT)
     end
 end
 
+function test_integrals(FT)
+    p3 = CMP.ParametersP3(FT)
+    Chen2022 = CMP.Chen2022VelType(FT)
+
+    N = FT(1e8)
+    qs = range(0.001, stop = 0.005, length = 5)
+    ρ_r = FT(500)
+    F_rs = [FT(0), FT(0.5)]
+    ρ_a = FT(1.2)
+    tolerance = eps(FT)
+
+    TT.@testset "Gamma vs Integral Comparison" begin
+        for F_r in F_rs
+            for i in axes(qs, 1)
+                q = qs[i]
+
+                # Velocity comparisons
+                vel_N, vel_m = P3.terminal_velocity(
+                    p3,
+                    Chen2022.snow_ice,
+                    q,
+                    N,
+                    ρ_r,
+                    F_r,
+                    ρ_a,
+                )
+
+                λ, N_0 = P3.distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+                th = P3.thresholds(p3, ρ_r, F_r)
+                ice_bound = P3.get_ice_bound(p3, λ, tolerance)
+                vel(d) = TV.velocity_chen(
+                    d,
+                    Chen2022.snow_ice,
+                    ρ_a,
+                    P3.p3_mass(p3, d, F_r, th),
+                    P3.p3_area(p3, d, F_r, th),
+                    p3.ρ_i,
+                )
+                f(d) = vel(d) * P3.N′ice(p3, d, λ, N_0)
+
+                qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), 2 * ice_bound)
+                qgk_vel_m, = QGK.quadgk(
+                    d -> f(d) * P3.p3_mass(p3, d, F_r, th) / q,
+                    FT(0),
+                    2 * ice_bound,
+                )
+
+                TT.@test vel_N ≈ qgk_vel_N rtol = 1e-7
+                TT.@test vel_m ≈ qgk_vel_m rtol = 1e-7
+
+                # Dₘ comparisons 
+                D_m = P3.D_m(p3, q, N, ρ_r, F_r)
+                f_d(d) =
+                    d * P3.p3_mass(p3, d, F_r, th) * P3.N′ice(p3, d, λ, N_0)
+                qgk_D_m, = QGK.quadgk(d -> f_d(d) / q, FT(0), 2 * ice_bound)
+
+                TT.@test D_m ≈ qgk_D_m rtol = 1e-8
+            end
+        end
+    end
+end
+
 println("Testing Float32")
 test_p3_thresholds(Float32)
 #TODO - only works for Float64 now. We should switch the units inside the solver
@@ -215,3 +314,4 @@ println("Testing Float64")
 test_p3_thresholds(Float64)
 test_p3_shape_solver(Float64)
 test_velocities(Float64)
+test_integrals(Float64)

@@ -65,6 +65,12 @@ P3Scheme.thresholds
 P3Scheme.distribution_parameter_solver
 ```
 
+# Terminal Velocity
+```@docs 
+TerminalVelocity 
+TerminalVelocity.velocity_chen
+```
+
 # Aerosol model
 
 ```@docs
