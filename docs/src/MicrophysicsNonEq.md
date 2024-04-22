@@ -1,7 +1,7 @@
 # Microphysics NonEquilibrium
 
 The `MicrophysicsNonEq.jl` module describes a bulk parameterization of
-  diffusion of water vapour on cloud droplets and cloud ice crystals
+  diffusion of water vapor on cloud droplets and cloud ice crystals
   modeled as a relaxation to equilibrium.
 
 The cloud microphysics variables are expressed as specific humidities:
@@ -14,48 +14,81 @@ Parameters used in the parameterization are defined in
   [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package.
 They consist of:
 
-|    symbol                  |         definition                                        | units                    | default value          | reference |
-|----------------------------|-----------------------------------------------------------|--------------------------|------------------------|-----------|
-|``\tau_{cond\_evap}``       | cloud water condensation/evaporation timescale            | ``s``                    | ``10``                 |           |
-|``\tau_{dep\_sub}``         | cloud ice deposition/sublimation timescale                | ``s``                    | ``10``                 |           |
+|    symbol  |         definition                             | units | default value |
+|------------|------------------------------------------------|-------|---------------|
+|``\tau_{l}``| cloud water condensation/evaporation timescale | ``s`` | ``10``        |
+|``\tau_{i}``| cloud ice deposition/sublimation timescale     | ``s`` | ``10``        |
 
+## Simple condensation/evaporation and deposition/sublimation
 
-## Cloud water condensation/evaporation
-
-Condensation and evaporation of cloud liquid water is parameterized
+Condensation/evaporation of cloud liquid water and
+deposition/sublimation of cloud ice are parameterized
   as a relaxation to equilibrium value at the current time step.
+The equilibrium value is obtained based on a prescribed phase partition function
+  that divides the available excess water vapor between liquid and ice
+  (based on temperature).
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{liq}}{dt} \right|_{cond, evap} =
-    \frac{q^{eq}_{liq} - q_{liq}}{\tau_{cond\_evap}}
+  \left. \frac{d \, q_{liq}}{dt} \right|_{cond, evap} = \frac{q^{eq}_{liq} - q_{liq}}{\tau_{l}}; \;\;\;\;\;\;\;
+  \left. \frac{d \, q_{ice}}{dt} \right|_{dep, sub}   = \frac{q^{eq}_{ice} - q_{ice}}{\tau_{i}}
 \end{equation}
 ```
 where:
- - ``q^{eq}_{liq}`` - liquid water specific humidity in equilibrium,
- - ``q_{liq}`` - liquid water specific humidity,
- - ``\tau_{cond\_evap}`` - relaxation timescale.
-
-## Cloud ice deposition/sublimation
-
-Deposition and sublimation of cloud ice is parameterized as
-  a relaxation to equilibrium value at the current time step.
-```math
-\begin{equation}
-  \left. \frac{d \, q_{ice}}{dt} \right|_{dep, sub} =
-    \frac{q^{eq}_{ice} - q_{ice}}{\tau_{dep\_sub}}
-\end{equation}
-```
-where:
- - ``q^{eq}_{ice}`` - ice specific humidity in equilibrium,
- - ``q_{ice}`` - ice specific humidity,
- - ``\tau_{dep\_sub}`` - relaxation timescale.
+ - ``q^{eq}_{liq}, q^{eq}_{ice}`` - liquid and water specific humidity in equilibrium at current temperature and
+   assuming some phase partition function based on temperature
+ - ``q_{liq}, q_{ice}`` - current liquid water and ice specific humidity,
+ - ``\tau_{l}, \tau_{i}`` - relaxation timescales.
 
 !!! note
-    Both ``\tau_{cond\_evap}`` and ``\tau_{dep\_sub}`` are
-    assumed constant here.
+    Both ``\tau_{l}`` and ``\tau_{i}`` are assumed to be constant.
     It would be great to make the relaxation time a function of
     available condensation nuclei, turbulence intensity, etc.
     See works by [prof Raymond Shaw](https://www.mtu.edu/physics/department/faculty/shaw/)
     for hints.
     In particular, [Desai2019](@cite).
 
+## Condensation/evaporation and deposition/sublimation from Morrison and Grabowski 2008
+
+Condensation/evaporation and deposition/sublimation rates are based on
+  the difference between the water vapor specific humidity and saturation
+  vapor specific humidity over liquid and ice at the current temperature.
+The process is modeled as a relaxation with a constant timescale.
+This formulation is derived from [MorrisonGrabowski2008_supersat](@cite)
+  and [MorrisonMilbrandt2015](@cite), but without imposing exponential time integrators.
+
+!!! note
+    The [MorrisonGrabowski2008_supersat](@cite) and [MorrisonMilbrandt2015](@cite)
+    papers use mass mixing ratios, not specific humidities.
+    Additionally, in their formulations they consider two different categories for liquid:
+    cloud water and rain. For now we only consider cloud water and use a single relaxation timescale
+    ``\tau_l`` (liquid) rather than separate ``\tau_c`` (cloud) and ``\tau_r`` (rain) values.
+
+```math
+\begin{equation}
+   \left. \frac{d \, q_{liq}}{dt} \right|_{cond, evap} = \frac{q_{vap} - q_{sl}}{\tau_l \Gamma_l}; \;\;\;\;\;\;\;
+   \left. \frac{d \, q_{ice}}{dt} \right|_{dep, sub}   = \frac{q_{vap} - q_{si}}{\tau_i \Gamma_i}
+\end{equation}
+```
+where:
+- ``q_{vap}`` is the water vapor specific humidity
+- ``q_{sl}``, ``q_{si}`` is the saturation specific humidity over liquid and ice
+- ``\tau_l``, ``\tau_i`` is the liquid and ice relaxation timescale
+- ``\Gamma_l``, ``\Gamma_i`` is a psychometric correction due to latent heating/cooling:
+
+```math
+\begin{equation}
+    \Gamma_l = 1 + \frac{L_{v}}{c_p} \frac{dq_{sl}}{dT}; \;\;\;\;\;\;\;\;
+    \Gamma_i = 1 + \frac{L_{s}}{c_p} \frac{dq_{si}}{dT}
+\end{equation}
+```
+```math
+\begin{equation}
+    \frac{dq_{sl}}{dT} = q_{sl} \left(\frac{L_v}{R_v  T^2} - \frac{1}{T} \right); \;\;\;\;\;\;\;\;\;\;
+    \frac{dq_{si}}{dT} = q_{si} \left(\frac{L_s}{R_v  T^2} - \frac{1}{T} \right)
+\end{equation}
+```
+where:
+- ``T`` is the temperature,
+- ``c_p`` is the specific heat of air at constant pressure,
+- ``R_v`` is the gas constant of water vapor,
+- ``L_v`` and ``L_s`` is the latent heat of vaporization and sublimation.

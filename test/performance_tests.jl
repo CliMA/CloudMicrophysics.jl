@@ -64,6 +64,7 @@ function benchmark_test(FT)
     p0m = CMP.Parameters0M(FT)
     # 1-moment microphysics
     liquid = CMP.CloudLiquid(FT)
+    ice = CMP.CloudIce(FT)
     rain = CMP.Rain(FT)
     ce = CMP.CollisionEff(FT)
     # 2-moment microphysics
@@ -230,6 +231,20 @@ function benchmark_test(FT)
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (liquid,), 10)
+    bench_press(
+        CMN.conv_q_vap_to_q_liq_ice,
+        (
+            ice,
+            TD.PhasePartition(FT(0), FT(0), FT(0.002)),
+            TD.PhasePartition(FT(0), FT(0), FT(0.001)),
+        ),
+        10,
+    )
+    bench_press(
+        CMN.conv_q_vap_to_q_liq_ice_MM2015,
+        (liquid, tps, TD.PhasePartition(FT(0.00145)), FT(0.8), FT(263)),
+        60,
+    )
 
     # 0-moment
     bench_press(CM0.remove_precipitation, (p0m, q), 12)

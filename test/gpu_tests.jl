@@ -17,6 +17,7 @@ import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Microphysics0M as CM0
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.MicrophysicsNonEq as CMN
 import CloudMicrophysics.Nucleation as MN
 import CloudMicrophysics.P3Scheme as P3
 
@@ -97,6 +98,36 @@ const ArrayType = CuArray
 
         output[5, i] = AA.total_M_activated(ap, arsl_dst_B, args...)
         output[6, i] = AA.total_M_activated(ap, arsl_dst_κ, args...)
+    end
+end
+
+@kernel function test_noneq_micro_kernel!(
+    liquid,
+    ice,
+    tps,
+    output::AbstractArray{FT},
+    ρ,
+    T,
+    qᵥ_sl,
+    qᵢ,
+    qᵢ_s,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1, i] = CMN.conv_q_vap_to_q_liq_ice_MM2015(
+            liquid,
+            tps,
+            TD.PhasePartition(qᵥ_sl[i]),
+            ρ[i],
+            T[i],
+        )
+        output[2, i] = CMN.conv_q_vap_to_q_liq_ice(
+            ice,
+            TD.PhasePartition(FT(0), FT(0), qᵢ_s[i]),
+            TD.PhasePartition(FT(0), FT(0), qᵢ[i]),
+        )
     end
 end
 
@@ -778,6 +809,24 @@ function test_gpu(FT)
         @test all(
             isapprox(Array(output)[5, :], Array(output)[6, :], rtol = 1e-5),
         )
+    end
+
+    @testset "non-equilibrium microphysics kernels" begin
+        dims = (2, 1)
+        (; output, ndrange) = setup_output(dims, FT)
+
+        ρ = ArrayType([FT(0.8)])
+        T = ArrayType([FT(263)])
+        qᵥ_sl = ArrayType([FT(0.0035)])
+        qᵢ = ArrayType([FT(0.003)])
+        qᵢ_s = ArrayType([FT(0.002)])
+
+        kernel! = test_noneq_micro_kernel!(backend, work_groups)
+        kernel!(liquid, ice, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s, ; ndrange)
+
+        # test that nonequilibrium cloud formation is callable and returns a reasonable value
+        @test Array(output)[1] ≈ FT(9.043587231238157e-5)
+        @test Array(output)[2] ≈ FT(-1e-4)
     end
 
     @testset "0-moment microphysics kernels" begin
