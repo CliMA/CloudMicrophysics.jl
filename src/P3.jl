@@ -14,7 +14,11 @@ import HCubature as HC
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
-import CloudMicrophysics.TerminalVelocity as TV
+import CloudMicrophysics.HetIceNucleation as CM_HetIce
+import CloudMicrophysics.Microphysics2M as CM2
+
+import Thermodynamics as TD
+import Thermodynamics.Parameters as TDP
 
 const PSP3 = CMP.ParametersP3
 

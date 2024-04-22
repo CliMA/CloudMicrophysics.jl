@@ -66,12 +66,7 @@ Microphysics2M.conv_q_liq_to_q_rai
 P3Scheme
 P3Scheme.thresholds
 P3Scheme.distribution_parameter_solver
-```
-
-# Terminal Velocity
-```@docs
-TerminalVelocity
-TerminalVelocity.velocity_chen
+P3Scheme.ice_terminal_velocity
 ```
 
 # Aerosol model
