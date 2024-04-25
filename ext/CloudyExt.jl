@@ -131,7 +131,7 @@ function condensation(
     return CL.Condensation.get_cond_evap(
         S - 1,
         (; ξ = ξ, pdists = clinfo.pdists),
-    ) * (4 * pi / 3)^(2/3) / (1000.0 ^ (1/3)) # TODO: correct this scaling in Cloudy.jl
+    ) * (4 * pi / 3)^(2 / 3) / (1000.0^(1 / 3)) # TODO: correct this scaling in Cloudy.jl
 end
 
 """

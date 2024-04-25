@@ -106,22 +106,13 @@ function init_conditions(ρₗ, type::String)
     N = 200 * 1e6
     m₀ = FT(4 / 3 * FT(π) * r₀^3 * ρₗ)
     if type == "monodisperse"
-        dist_init = [
-            CPD.MonodispersePrimitiveParticleDistribution(
-                N,
-                m₀
-            )
-        ]
-        moments_init = [N, N*m₀]
+        dist_init = [CPD.MonodispersePrimitiveParticleDistribution(N, m₀)]
+        moments_init = [N, N * m₀]
         ml_v = moments_init[2]
     elseif type == "gamma"
         k = FT(2)
         θ = m₀ / k
-        dist_init = [CPD.GammaPrimitiveParticleDistribution(
-            N,
-            θ,
-            k
-        )]
+        dist_init = [CPD.GammaPrimitiveParticleDistribution(N, θ, k)]
         moments_init = CPD.get_moments(dist_init[1])
         ml_v = moments_init[2]
     elseif type == "mixture"
@@ -129,15 +120,8 @@ function init_conditions(ρₗ, type::String)
         M1 = [N * m₀ / 2, N * m₀ / 2]
         k = FT(2)
         dist_init = [
-            CPD.ExponentialPrimitiveParticleDistribution(
-                M0[1],
-                M1[1] / M0[1]
-            )
-            CPD.GammaPrimitiveParticleDistribution(
-                M0[2],
-                M1[2] / M0[2] / k,
-                k
-            )   
+            CPD.ExponentialPrimitiveParticleDistribution(M0[1], M1[1] / M0[1])
+            CPD.GammaPrimitiveParticleDistribution(M0[2], M1[2] / M0[2] / k, k)
         ]
         moments_init = vcat(CPD.get_moments.(dist_init)...)
         ml_v = moments_init[2] + moments_init[4]
@@ -199,7 +183,12 @@ ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
 ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
 ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
-ax6 = MK.Axis(fig[3, 2], xlabel = "radius [μm]", ylabel = "dm / d(ln r) [kg / m^3]", xscale=log10)
+ax6 = MK.Axis(
+    fig[3, 2],
+    xlabel = "radius [μm]",
+    ylabel = "dm / d(ln r) [kg / m^3]",
+    xscale = log10,
+)
 MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
@@ -214,10 +203,17 @@ for j in 1:length(size_distribution_list)
     qₗ = ml_v / (md_v + mv_v + ml_v)
 
     clinfo = CMF.CLSetup{FT}(pdists = dist_init, mom = moments_init)
-    
+
     (r, y) = get_spectrum(clinfo, moments_init)
     if DSD != "monodisperse"
-        MK.lines!(ax6, r, y, color=MK.Cycled(j+1), linestyle=:dash, label = "init")
+        MK.lines!(
+            ax6,
+            r,
+            y,
+            color = MK.Cycled(j + 1),
+            linestyle = :dash,
+            label = "init",
+        )
     end
 
 
@@ -249,7 +245,7 @@ for j in 1:length(size_distribution_list)
     MK.lines!(ax4, sol.t, M_l ./ ρ_air * 1e3)
     MK.lines!(ax5, sol.t, r_l)
     if DSD != "monodisperse"
-        MK.lines!(ax6, r, y, color=MK.Cycled(j+1), label = "final")
+        MK.lines!(ax6, r, y, color = MK.Cycled(j + 1), label = "final")
     end
 end
 
