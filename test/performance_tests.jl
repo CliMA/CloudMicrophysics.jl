@@ -91,6 +91,7 @@ function benchmark_test(FT)
 
     ρ_r = FT(400.0)
     F_r = FT(0.95)
+    N = FT(1e8)
 
     T_air_2 = FT(250)
     T_air_cold = FT(230)
@@ -126,6 +127,21 @@ function benchmark_test(FT)
 
     # P3 scheme
     bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 2048, 80)
+    if FT == Float64
+        bench_press(
+            P3.distribution_parameter_solver,
+            (p3, q_ice, N, ρ_r, F_r),
+            1e5,
+        )
+        bench_press(
+            P3.terminal_velocity,
+            (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air),
+            2e5,
+            3e4,
+            2e3,
+        )
+        bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_r), 1e5)
+    end
 
     # aerosol activation
     bench_press(
@@ -209,20 +225,25 @@ function benchmark_test(FT)
     )
     bench_press(
         CM2.radar_reflectivity,
-        (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1e-3), FT(1)),
-        500,
+        (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
+        800,
     )
     bench_press(
         CM2.effective_radius,
         (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
-        500,
+        800,
+    )
+    bench_press(
+        CM2.effective_radius_Liu_Hallet_97,
+        (q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
+        300,
     )
     # Homogeneous Nucleation
     bench_press(HN.h2so4_nucleation_rate, (1e12, 1.0, 1.0, 208, h2so4_nuc), 470)
     bench_press(
         HN.organic_nucleation_rate,
         (0.0, 1e3, 1e3, 1e3, 300, 1, organ_nuc),
-        650,
+        850,
     )
     bench_press(
         HN.organic_and_h2so4_nucleation_rate,

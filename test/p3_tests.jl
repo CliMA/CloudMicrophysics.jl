@@ -85,71 +85,6 @@ function test_p3_thresholds(FT)
     end
 end
 
-function test_p3_mass(FT)
-
-    p3 = CMP.ParametersP3(FT)
-
-    TT.@testset "p3 mass_ functions" begin
-
-        # Initialize test values
-        Ds = (FT(1e-5), FT(1e-4), FT(1e-3))
-        ρs = (FT(400), FT(600), FT(800))
-        F_rs = (FT(0.0), FT(0.5), FT(0.8))
-
-        # Test to see that the mass_ functions give positive, not NaN values
-        for D in Ds
-            for ρ in ρs
-                for F_r in F_rs
-                    TT.@test P3.mass_s(D, ρ) >= 0
-                    TT.@test P3.mass_nl(p3, D) >= 0
-                    TT.@test P3.mass_r(p3, D, F_r) >= 0
-                end
-            end
-        end
-    end
-
-    # Test to see that p3_mass gives correct mass
-    TT.@testset "p3_mass() accurate values" begin
-
-        # Initialize test values
-        Ds = (FT(1e-5), FT(1e-4), FT(1e-3))
-        ρs = (FT(400), FT(600), FT(800))
-        F_rs = (FT(0.0), FT(0.5), FT(0.8))
-        eps = FT(1e-3) #TODO - this is very large for eps
-
-        for ρ in ρs
-            for F_r in F_rs
-                D_th = P3.D_th_helper(p3)
-                D1 = D_th / 2
-                th = P3.thresholds(p3, ρ, F_r)
-
-                if (F_r > 0)
-                    th = P3.thresholds(p3, ρ, F_r)
-
-                    D2 = (th.D_gr + D_th) / 2
-                    D3 = (th.D_cr + th.D_gr) / 2
-                    D4 = th.D_cr + eps
-
-                    TT.@test P3.p3_mass(p3, D1, F_r, th) ==
-                             P3.mass_s(D1, p3.ρ_i)
-                    TT.@test P3.p3_mass(p3, D2, F_r, th) == P3.mass_nl(p3, D2)
-                    TT.@test P3.p3_mass(p3, D3, F_r, th) ==
-                             P3.mass_s(D3, th.ρ_g)
-                    TT.@test P3.p3_mass(p3, D4, F_r, th) ==
-                             P3.mass_r(p3, D4, F_r)
-                else
-                    D2 = D1 + eps
-                    TT.@test P3.p3_mass(p3, D1, F_r, th) ==
-                             P3.mass_s(D1, p3.ρ_i)
-                    TT.@test P3.p3_mass(p3, D2, F_r, th) == P3.mass_nl(p3, D2)
-                end
-
-            end
-        end
-    end
-
-end
-
 function test_p3_shape_solver(FT)
 
     p3 = CMP.ParametersP3(FT)
@@ -200,14 +135,83 @@ function test_p3_shape_solver(FT)
     end
 end
 
+function test_velocities(FT)
+    Chen2022 = CMP.Chen2022VelType(FT)
+    p3 = CMP.ParametersP3(FT)
+    q = FT(0.22)
+    N = FT(1e6)
+    ρ_a = FT(1.2)
+    ρ_rs = [FT(200), FT(400), FT(600), FT(800)]
+    F_rs = [FT(0), FT(0.2), FT(0.4), FT(0.6), FT(0.8)]
+
+    TT.@testset "Mass and number weighted terminal velocities" begin
+        paper_vals = [
+            [1.5, 1.5, 1.5, 1.5, 1.5],
+            [1.5, 1.5, 2.5, 2.5, 2.5],
+            [1.5, 2.5, 2.5, 2.5, 2.5],
+            [1.5, 2.5, 3.5, 3.5, 3.5],
+        ]
+        expected_vals = [
+            [1.52, 1.46, 1.41, 1.36, 1.24],
+            [1.52, 1.47, 1.44, 1.42, 1.35],
+            [1.52, 1.47, 1.45, 1.44, 1.42],
+            [1.52, 1.47, 1.45, 1.45, 1.45],
+        ]
+        for i in 1:length(ρ_rs)
+            for j in 1:length(F_rs)
+                ρ_r = ρ_rs[i]
+                F_r = F_rs[j]
+
+                calculated_vel = P3.terminal_velocity(
+                    p3,
+                    Chen2022.snow_ice,
+                    q,
+                    N,
+                    ρ_r,
+                    F_r,
+                    ρ_a,
+                )
+
+                # number weighted
+                TT.@test calculated_vel[2] > 0
+                TT.@test expected_vals[i][j] ≈ calculated_vel[1] atol = 0.1
+
+                # mass weighted
+                TT.@test calculated_vel[1] > 0
+                TT.@test paper_vals[i][j] ≈ calculated_vel[2] atol = 3.14
+            end
+        end
+    end
+
+    TT.@testset "Mass-weighted mean diameters" begin
+        paper_vals = [
+            [5, 5, 5, 5, 5],
+            [4.5, 4.5, 4.5, 4.5, 4.5],
+            [3.5, 3.5, 3.5, 3.5, 3.5],
+            [3.5, 3.5, 2.5, 2.5, 2.5],
+        ]
+        for i in 1:length(ρ_rs)
+            for j in 1:length(F_rs)
+                ρ_r = ρ_rs[i]
+                F_r = F_rs[j]
+
+                calculated_dm = P3.D_m(p3, q, N, ρ_r, F_r) * 1e3
+
+                TT.@test calculated_dm > 0
+                TT.@test paper_vals[i][j] ≈ calculated_dm atol = 3.14
+
+            end
+        end
+    end
+end
+
 println("Testing Float32")
 test_p3_thresholds(Float32)
-test_p3_mass(Float32)
 #TODO - only works for Float64 now. We should switch the units inside the solver
 # from SI base to something more managable
 #test_p3_shape_solver(Float32)
 
 println("Testing Float64")
 test_p3_thresholds(Float64)
-test_p3_mass(Float64)
 test_p3_shape_solver(Float64)
+test_velocities(Float64)

@@ -53,6 +53,7 @@ Microphysics2M.rain_terminal_velocity
 Microphysics2M.rain_evaporation
 Microphysics2M.radar_reflectivity
 Microphysics2M.effective_radius
+Microphysics2M.effective_radius_Liu_Hallet_97
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
@@ -70,7 +71,6 @@ MicrophysicsFlexible.weighted_vt
 ```@docs
 P3Scheme
 P3Scheme.thresholds
-P3Scheme.p3_mass
 P3Scheme.distribution_parameter_solver
 ```
 

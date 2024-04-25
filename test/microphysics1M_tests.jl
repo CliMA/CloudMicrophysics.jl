@@ -9,7 +9,7 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CMC
 import CloudMicrophysics.Microphysics1M as CM1
 
-@info "Microphysics Tests"
+@info "Microphysics 1M Tests"
 
 function test_microphysics1M(FT)
 

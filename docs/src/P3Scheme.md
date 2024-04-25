@@ -159,3 +159,32 @@ Using this approach we get the following relative errors for ``\lambda``
 include("plots/P3LambdaErrorPlots.jl")
 ```
 ![](P3LambdaHeatmap.png)
+
+## Terminal Velocity
+
+We use the [Chen2022](@cite) velocity parametrization:
+```math
+V(D) = \phi^{\kappa} \sum_{i=1}^{j} \; a_i D^{b_i} e^{-c_i \; D}
+```
+where ``\phi = (16 \rho_{ice}^2 A(D)^3) / (9 \pi m(D)^2)`` is the aspect ratio,
+and ``\kappa``, ``a_i``, ``b_i`` and ``c_i`` are the free parameters.
+
+The mass-weighted fall speed (``V_m``) and the number-weighted fall speed (``V_n``) are calculated as
+```math
+V_m = \frac{\int_{0}^{\infty} \! V(D) m(D) N'(D) \mathrm{d}D}{\int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D}
+```
+```math
+V_n = \frac{\int_{0}^{\infty} \! V(D) N'(D) \mathrm{d}D}{\int_{0}^{\infty} \! N'(D) \mathrm{d}D}
+```
+
+We also plot the mass-weighted mean particle size ``D_m`` which is given by:
+```math
+D_m = \frac{\int_{0}^{\infty} \! D m(D) N'(D) \mathrm{d}D}{\int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D}
+```
+
+Below w show these relationships for small, medium, and large ``D_m``
+They can be compared with Figure 2 from [MorrisonMilbrandt2015](@cite).
+```@example
+include("plots/P3TerminalVelocityPlots.jl")
+```
+![](MorrisonandMilbrandtFig2.svg)
