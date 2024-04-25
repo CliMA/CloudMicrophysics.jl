@@ -49,7 +49,7 @@ function CLSetup{FT}(;
     kernel_limit::FT = FT(1 * 1e-9 * 1e3),   # ~1mm Diam ~ 1 mm^3 volume
     coal_data = nothing,
     vel::Vector{Tuple{FT, FT}} = [(FT(50.0), FT(1.0 / 6))], # 50 m/s/kg^(1/6),
-    norms::Vector{FT} = [1e6, 1e-9], # 1e6 / m^3; 1e-9 kg
+    norms::Vector{FT} = [1e0, 1e0], # 1e6 / m^3; 1e-9 kg / m^3
 ) where {FT <: AbstractFloat}
 
     CLSetup{FT}(
@@ -123,19 +123,15 @@ function condensation(
     S::FT,
 ) where {FT}
     ξ = CO.G_func(aps, tps, T, TD.Liquid())
-
-    mom_norms =
-        CL.get_moments_normalizing_factors(clinfo.NProgMoms, clinfo.norms)
-    mom_normalized = clinfo.mom ./ mom_norms
     # first, update the particle distributions
     for (i, dist) in enumerate(clinfo.pdists)
         ind_rng = CL.get_dist_moments_ind_range(clinfo.NProgMoms, i)
-        CPD.update_dist_from_moments!(dist, mom_normalized[ind_rng])
+        CPD.update_dist_from_moments!(dist, clinfo.mom[ind_rng])
     end
     return CL.Condensation.get_cond_evap(
         S - 1,
         (; ξ = ξ, pdists = clinfo.pdists),
-    ) .* mom_norms
+    ) * (4 * pi / 3)^(2/3) / (1000.0 ^ (1/3)) # TODO: correct this scaling in Cloudy.jl
 end
 
 """

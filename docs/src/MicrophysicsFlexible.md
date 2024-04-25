@@ -39,3 +39,18 @@ All the details from the number of moments and type of subdistributions, to the 
 | ``kernel_limit``    | Size threshold for approx. kernel          | ``500``                    |
 | ``vel``             | Power-series coefficients for velocity     | ``[2.0, 1/6]``             |
 | ``norms``           | Normalizing number density & mass          | ``[1e6/m^3, 1e-9 kg]``     |
+
+# Examples
+
+## Condensation in a parcel
+We demonstrate the capabilities and accuracy of this flexible microphysics method in a simple liquid-phase adiabatic parcel in `parcel/Example_NMoment_condensation.jl`, which is modeled after the analogous `parcel/Example_Liquid_only.jl`. Specifically, three different initial particle distributions with equivalent liquid water mass are specified and compared against the canonical solution of Rogers 1975:
+  - `Monodisperse`, with 200/cm$^3$ particles and a fixed size of 8$\mu$m
+  - `Gamma` distribution, with the same concentration and mean mass, and a shape parameter $k = 2$
+  - A `Mixture` of a smaller `Exponential` and a larger `Gamma` distribution, with 90% of the concentration and 50% of the mass in the smaller mode, and the remainder in the larger mode.
+
+Condensation in `Cloudy.jl` proceeds by largely the same mathematical equation as in `CloudMicrophysics.jl`, the the results are expected to be similar. We demonstrate the evolution of the adiabatic parcel as well as the latter two size distributions.
+
+```@example
+include("../../parcel/Example_NMoment_condensation.jl")
+```
+![](cloudy_parcel.svg)
