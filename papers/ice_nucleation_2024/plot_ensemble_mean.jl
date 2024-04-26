@@ -3,76 +3,68 @@ import CloudMicrophysics as CM
 
 # Float32 does not work because inconsistent types using EKP
 FT = Float64
-include(
-    joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "perfect_model_J.jl"),
-)
+include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
 
-ABDINM_output = calibrate_J_parameters(FT, "ABDINM")
-ABIFM_output = calibrate_J_parameters(FT, "ABIFM")
-ABHOM_output = calibrate_J_parameters(FT, "ABHOM")
-iterations = collect(1:size(ABHOM_output[5])[1])
+IN_mode_list = ["ABDINM", "ABIFM", "ABHOM"]
 
-ABDINM_calibrated_parameters = [ABDINM_output[1], ABDINM_output[2]]
-ABDINM_coeff_true = [ABDINM_output[3], ABDINM_output[4]]
-ABIFM_calibrated_parameters = [ABIFM_output[1], ABIFM_output[2]]
-ABIFM_coeff_true = [ABIFM_output[3], ABIFM_output[4]]
-ABHOM_calibrated_parameters = [ABHOM_output[1], ABHOM_output[2]]
-ABHOM_coeff_true = [ABHOM_output[3], ABHOM_output[4]]
-
-# ensemble_means(ϕ_n_values, N_iterations, ensembles)
-ABDINM_ensemble_means = ensemble_means(
-    ABDINM_output[5],
-    size(ABDINM_output[5])[1],
-    size(ABDINM_output[5][1])[2],
-)
-ABIFM_ensemble_means = ensemble_means(
-    ABIFM_output[5],
-    size(ABIFM_output[5])[1],
-    size(ABIFM_output[5][1])[2],
-)
-ABHOM_ensemble_means = ensemble_means(
-    ABHOM_output[5],
-    size(ABHOM_output[5])[1],
-    size(ABHOM_output[5][1])[2],
-)
-
-# Plotting calibrated parameters per iteration
 #! format: off
-ABDINM_fig = MK.Figure(size = (800, 600))
-ax1 = MK.Axis(ABDINM_fig[1, 1], ylabel = "m coefficient [-]", xlabel = "iteration number", title = "ABDINM")
-ax2 = MK.Axis(ABDINM_fig[2, 1], ylabel = "c coefficient [-]", xlabel = "iteration number")
+for IN_mode in IN_mode_list
+    params = perf_model_params(FT, IN_mode)
+    IC = perf_model_IC(FT, IN_mode)
 
-MK.lines!(ax1, iterations, ABDINM_ensemble_means[1],                                    label = "ensemble mean", color = :orange)
-MK.lines!(ax1, iterations, zeros(length(ABDINM_ensemble_means[1])) .+ ABDINM_output[3], label = "default value")
-MK.lines!(ax2, iterations, ABDINM_ensemble_means[2],                                    label = "ensemble mean", color = :orange)
-MK.lines!(ax2, iterations, zeros(length(ABDINM_ensemble_means[1])) .+ ABDINM_output[4], label = "default value")
+    pseudo_data = perf_model_pseudo_data(FT, IN_mode, params, IC)
+    Γ = pseudo_data[2]
+    y_truth = pseudo_data[1]
+    coeff_true = pseudo_data[3]
 
-ABIFM_fig = MK.Figure(size = (800, 600))
-ax3 = MK.Axis(ABIFM_fig[1, 1], ylabel = "m coefficient [-]", xlabel = "iteration number", title = "ABIFM")
-ax4 = MK.Axis(ABIFM_fig[2, 1], ylabel = "c coefficient [-]", xlabel = "iteration number")
+    output = calibrate_J_parameters(
+        FT,
+        IN_mode,
+        params,
+        IC,
+        y_truth,
+        Γ,
+        perfect_model = true,
+    )
 
-MK.lines!(ax3, iterations, ABIFM_ensemble_means[1],                                   label = "ensemble mean", color = :orange)
-MK.lines!(ax3, iterations, zeros(length(ABIFM_ensemble_means[1])) .+ ABIFM_output[3], label = "default value")
-MK.lines!(ax4, iterations, ABIFM_ensemble_means[2],                                   label = "ensemble mean", color = :orange)
-MK.lines!(ax4, iterations, zeros(length(ABIFM_ensemble_means[1])) .+ ABIFM_output[4], label = "default value")
+    iterations = collect(1:size(output[3])[1])
+    calibrated_parameters = [output[1], output[2]]
+    m_mean = []
+    m_mean = ensemble_means(
+        output[3],
+        size(output[3])[1],
+        size(output[3][1])[2],
+    )[1]
+    c_mean = []
+    c_mean = ensemble_means(
+        output[3],
+        size(output[3])[1],
+        size(output[3][1])[2],
+    )[2]
 
-ABHOM_fig = MK.Figure(size = (800, 600))
-ax5 = MK.Axis(ABHOM_fig[1, 1], ylabel = "m coefficient [-]", xlabel = "iteration number", title = "ABHOM")
-ax6 = MK.Axis(ABHOM_fig[2, 1], ylabel = "c coefficient [-]", xlabel = "iteration number")
+    # Plotting calibrated parameters per iteration
+    fig = MK.Figure(size = (800, 600))
+    ax1 = MK.Axis(fig[1, 1], ylabel = "m coefficient [-]", xlabel = "iteration number", title = IN_mode)
+    ax2 = MK.Axis(fig[2, 1], ylabel = "c coefficient [-]", xlabel = "iteration number")
+    
+    MK.lines!(ax1, iterations, m_mean,                                 label = "ensemble mean", color = :orange)
+    MK.lines!(ax1, iterations, zeros(length(m_mean)) .+ coeff_true[1], label = "default value")
+    MK.lines!(ax2, iterations, c_mean,                                 label = "ensemble mean", color = :orange)
+    MK.lines!(ax2, iterations, zeros(length(c_mean)) .+ coeff_true[2], label = "default value")
+    
+    MK.axislegend(ax1, framevisible = true, labelsize = 12, position = :rc)
+    MK.axislegend(ax2, framevisible = true, labelsize = 12)
 
-MK.lines!(ax5, iterations, ABHOM_ensemble_means[1],                                   label = "ensemble mean", color = :orange)
-MK.lines!(ax5, iterations, zeros(length(ABHOM_ensemble_means[1])) .+ ABHOM_output[3], label = "default value")
-MK.lines!(ax6, iterations, ABHOM_ensemble_means[2],                                   label = "ensemble mean", color = :orange)
-MK.lines!(ax6, iterations, zeros(length(ABHOM_ensemble_means[1])) .+ ABHOM_output[4], label = "default value")
+    if IN_mode == "ABDINM"
+        mode_label = "dep"
+    elseif IN_mode == "ABIFM"
+        mode_label = "imm"
+    elseif IN_mode == "ABHOM"
+        mode_label = "hom"
+    end
+
+    plot_name = "perfect_calibration_$mode_label.svg"
+    MK.save(plot_name, fig)
+
+end
 #! format: on
-
-MK.axislegend(ax1, framevisible = true, labelsize = 12, position = :rc)
-MK.axislegend(ax2, framevisible = true, labelsize = 12)
-MK.axislegend(ax3, framevisible = true, labelsize = 12, position = :rc)
-MK.axislegend(ax4, framevisible = true, labelsize = 12)
-MK.axislegend(ax5, framevisible = true, labelsize = 12, position = :rc)
-MK.axislegend(ax6, framevisible = true, labelsize = 12)
-
-MK.save("perfect_calibration_dep.svg", ABDINM_fig)
-MK.save("perfect_calibration_imm.svg", ABIFM_fig)
-MK.save("perfect_calibration_hom.svg", ABHOM_fig)
