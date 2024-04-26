@@ -91,7 +91,18 @@ for DSD in size_distribution_list
     local ρₐ = TD.air_density.(tps, ts)
     # Compute the mean particle size based on the distribution
     distr = sol.prob.p.distr
-    moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ, sol_qᵢ, Nᵢ, ρᵢ)
+    moms =
+        distribution_moments.(
+            distr,
+            sol_qₗ,
+            sol_Nₗ,
+            ρₗ,
+            ρₐ,
+            sol_qᵢ,
+            Nᵢ,
+            ρᵢ,
+            nothing,
+        )
     local rₗ = similar(sol_T)
     for it in range(1, length(sol_T))
         rₗ[it] = moms[it].rₗ

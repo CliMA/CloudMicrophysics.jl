@@ -13,6 +13,7 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     condensation_growth = "None"
     deposition_growth = "None"
     size_distribution = "Monodisperse"
+    distribution_parameters = "None"
     aerosol = Empty{FT}()
     wps = CMP.WaterProperties(FT)
     aps = CMP.AirProperties(FT)
@@ -42,7 +43,8 @@ function parcel_model(dY, Y, p, t)
     FT = eltype(Y)
     # Simulation parameters
     (; wps, tps, r_nuc, w) = p
-    (; distr, dep_params, imm_params, hom_params, ce_params, ds_params) = p
+    (; distr, distr_params) = p
+    (; dep_params, imm_params, hom_params, ce_params, ds_params) = p
     # Y values stored in a named tuple for ease of use
     state = (
         Sₗ = Y[1],
@@ -86,7 +88,8 @@ function parcel_model(dY, Y, p, t)
     a5 = L_vap * L_fus / Rᵥ / cp_air / (T^2)
 
     # Mean radius, area and volume of liquid droplets and ice crystals
-    PSD = distribution_moments(distr, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρᵢ)
+    PSD =
+        distribution_moments(distr, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρᵢ, distr_params)
 
     # Deposition ice nucleation
     # (All deposition parameterizations assume monodisperse aerosol size distr)
@@ -195,8 +198,13 @@ function run_parcel(IC, t_0, t_end, pp)
     info = "\nSize distribution: $(pp.size_distribution)\n"
     if pp.size_distribution == "Monodisperse"
         distr = Monodisperse{FT}()
+        distr_params = nothing
     elseif pp.size_distribution == "Gamma"
         distr = Gamma{FT}()
+        distr_params = nothing
+    elseif pp.size_distribution == "Lognormal"
+        distr = Lognormal{FT}()
+        distr_params = pp.distribution_parameters
     else
         throw("Unrecognized size distribution")
     end
@@ -269,6 +277,7 @@ function run_parcel(IC, t_0, t_end, pp)
     # Parameters for the ODE solver
     p = (
         distr = distr,
+        distr_params = distr_params,
         dep_params = dep_params,
         imm_params = imm_params,
         hom_params = hom_params,

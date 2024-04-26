@@ -4,8 +4,11 @@ struct Monodisperse{FT} <: CMP.ParametersType{FT} end
 
 struct Gamma{FT} <: CMP.ParametersType{FT} end
 
+struct Lognormal{FT} <: CMP.ParametersType{FT} end
+
+#! format: off
 # Size distributiom moments
-function distribution_moments(::Monodisperse, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρᵢ)
+function distribution_moments(::Monodisperse, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρᵢ, distr_params)
     FT = typeof(qₗ)
     # liquid droplet
     if Nₗ == FT(0)
@@ -26,7 +29,7 @@ function distribution_moments(::Monodisperse, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, N
     return (; rₗ, Aₗ, Vₗ, rᵢ)
 end
 
-function distribution_moments(::Gamma, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρᵢ)
+function distribution_moments(::Gamma, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρᵢ, distr_params)
     #integral(n(r)) = 1/λ^2
     #integral(r*n(r)) = 2/λ^3
     #<r> = 2/λ
@@ -54,3 +57,27 @@ function distribution_moments(::Gamma, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρ
     end
     return (; rₗ, Aₗ, Vₗ, rᵢ)
 end
+
+function distribution_moments(::Lognormal, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρᵢ, distr_params)
+    (; σ_g) = distr_params
+    # liquid droplets
+    if Nₗ == FT(0)
+        rₗ = FT(0)
+        Aₗ = FT(0)
+        Vₗ = FT(0)
+    else
+        r_median = cbrt(3 / 4 / FT(π) / Nₗ * qₗ / ρₗ * ρ_air / exp(9 / 2 * (log(σ_g))^2))
+        rₗ = r_median * exp(0.5 * (log(σ_g))^2)
+        Aₗ = 4 * FT(π) * r_median^2 * exp(2 * (log(σ_g))^2)
+        Vₗ = 4 / 3 * FT(π) * r_median^3 * exp(9 / 2 * (log(σ_g))^2)
+    end
+    # ice crystals; note this is gamma distribution
+    if Nᵢ == FT(0)
+        rᵢ = FT(0)
+    else
+        λᵢ = cbrt(32 * FT(π) * Nᵢ / qᵢ * ρᵢ / ρ_air)
+        rᵢ = 2 / λᵢ
+    end
+    return (; rₗ, Aₗ, Vₗ, rᵢ)
+end
+#! format: on

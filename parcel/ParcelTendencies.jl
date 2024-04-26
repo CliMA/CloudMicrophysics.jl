@@ -190,9 +190,10 @@ end
 function condensation(params::CondParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; aps, tps) = params
-    (; Sₗ, T, Nₗ) = state
+    (; Sₗ, T, Nₗ, qₗ) = state
     Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
-    return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD.rₗ * Nₗ
+    return Nₗ > FT(0) && qₗ > FT(0) ?
+           4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD.rₗ * Nₗ : FT(0)
 end
 
 function deposition(::Empty, PSD, state, ρ_air)
@@ -202,9 +203,10 @@ end
 
 function deposition(params::DepParams, PSD, state, ρ_air)
     (; aps, tps) = params
-    (; T, Sₗ, Nᵢ) = state
+    (; T, Sₗ, Nᵢ, qᵢ) = state
     FT = eltype(state)
     Sᵢ = ξ(tps, T) * Sₗ
     Gᵢ = CMO.G_func(aps, tps, T, TD.Ice())
-    return 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD.rᵢ * Nᵢ
+    return Nᵢ > FT(0) && qᵢ > FT(0) ?
+        4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD.rᵢ * Nᵢ : FT(0)
 end
