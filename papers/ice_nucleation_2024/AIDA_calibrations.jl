@@ -175,7 +175,7 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     # MK.lines!(
     #     ax_compare,
     #     parcel_default.t .+ (moving_average_n / 2),
-    #     parcel_default[9, :]./  (IC[7] + IC[8] + IC[9]),       # IC[8] if starting with droplets (no aerosol activation)
+    #     parcel_default[9, :]./  (IC[7] + IC[8] + IC[9]),
     #     label = "CM.jl Parcel (Pre-Calib)",
     #     linewidth = 2.5,
     #     color =:orangered,
@@ -183,7 +183,7 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     MK.lines!(
         ax_compare,
         parcel.t .+ (moving_average_n / 2),
-        parcel[9, :]./ (IC[7] + IC[8] + IC[9]),               # IC[8] if starting with droplets (no aerosol activation)
+        parcel[9, :]./ (IC[7] + IC[8] + IC[9]),
         label = "CM.jl Parcel (Calibrated)",
         linewidth = 2.5,
         color =:orange,

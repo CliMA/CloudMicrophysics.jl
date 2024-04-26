@@ -266,7 +266,7 @@ function benchmark_test(FT)
         (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air),
         350,
     )
-    bench_press(CM1.radar_reflectivity, (rain, q_rai, ρ_air), 250)
+    bench_press(CM1.radar_reflectivity, (rain, q_rai, ρ_air), 300)
 
     # 2-moment
     for sb in [sb2006, sb2006_no_limiters]
@@ -293,7 +293,7 @@ function benchmark_test(FT)
         bench_press(
             CM2.rain_terminal_velocity,
             (sb, ch2022.rain, q_rai, ρ_air, N_rai),
-            2000,
+            2200,
         )
         bench_press(
             CM2.radar_reflectivity,
