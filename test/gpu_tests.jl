@@ -1,6 +1,7 @@
 using Test
 using KernelAbstractions
 using ClimaComms
+ClimaComms.@import_required_backends
 
 # Needed for parameters
 import CloudMicrophysics.Parameters as CMP
