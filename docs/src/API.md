@@ -176,7 +176,8 @@ Parameters.AccrTC1980
 Parameters.LD2004
 Parameters.VarTimescaleAcnv
 Parameters.SB2006
-Parameters.ParticlePDF_SB2006
+Parameters.RainParticlePDF_SB2006
+Parameters.CloudParticlePDF_SB2006
 Parameters.AcnvSB2006
 Parameters.AccrSB2006
 Parameters.SelfColSB2006

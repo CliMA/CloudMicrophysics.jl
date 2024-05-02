@@ -62,7 +62,7 @@ where ``D`` is the drop diameter which is proportional to ``x^{1/3}``.
 Through this proportionality relation, we can express the raindrops exponential distribution as a gamma distribution function
 ```math
 \begin{align}
-    f_r(x)=A_rx^\nu_r e^{-B_rx^{\mu_r}},
+    f_r(x)=A_rx^{-\nu_r}_r e^{-B_rx^{\mu_r}},
 \end{align}
 ```
 where ``\nu_r=-\frac{2}{3}``, and ``\mu_r=\frac{1}{3}``.
@@ -103,7 +103,7 @@ where:
 The function ``\phi_{acnv}(\tau)`` is used to correct the autoconversion rate for the undeveloped cloud droplet spectrum and the early stage rain evolution assumptions. This is a universal function which is obtained by fitting to numerical results of the SCE:
 ```math
 \begin{equation}
-  \phi_{acnv}(\tau) = A \tau^b(1-\tau^b)^c,
+  \phi_{acnv}(\tau) = A \tau^a(1-\tau^a)^b,
 \end{equation}
 ```
 where
@@ -116,7 +116,7 @@ The default free parameter values are:
 |``\nu``     | ``2``                                             |
 |``A``       | ``400``                                           |
 |``a``       | ``0.7``                                           |
-|``c``       | ``3``                                             |
+|``b``       | ``3``                                             |
 
 The rate of change of raindrops number density is
 ``` math
