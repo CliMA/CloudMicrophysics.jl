@@ -448,7 +448,7 @@ function rain_evaporation(
 end
 
 """ 
-    radar_reflectivity(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
+    radar_reflectivity(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w, τ_q, τ_N)
 
     - `struct` - type for 2-moment rain autoconversion parameterization
     - `q_liq` - cloud water specific humidity 
@@ -457,6 +457,8 @@ end
     - `N_rai` - rain droplet number density 
     - `ρ_air` - air density
     - `ρ_w` - water density
+    - `τ_q` - threshold for minimum specific humidity value
+    - `τ_N` - threshold for minimum number density value
 
 Returns logarithmic radar reflectivity from the assumed cloud and rain particle 
 size distribuions normalized by the reflectivty of 1 millimiter drop in a volume of
@@ -470,6 +472,8 @@ function radar_reflectivity(
     N_rai::FT,
     ρ_air::FT,
     ρ_w::FT,
+    τ_q::FT,
+    τ_N::FT,
 ) where {FT}
 
     # we assume a cloud droplets gamma distribution,
@@ -482,14 +486,16 @@ function radar_reflectivity(
     νr = FT(-2 / 3)
     μr = FT(1 / 3)
 
-    #change of units for better accuracy
-    ρ_air *= FT(1e-3)
-    ρ_w *= FT(1e-3)
+    # change of units for N_liq and N_rai
+    # from m^-3 to mm^-3
     N_liq *= FT(1e-9)
     N_rai *= FT(1e-9)
 
-    xc = (N_liq == 0) ? FT(0) : ((q_liq * ρ_air) / N_liq)
-    xr = (N_rai == 0) ? FT(0) : ((q_rai * ρ_air) / N_rai)
+    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
+    q_rai = (q_rai < τ_q) ? FT(0) : q_rai
+
+    xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
+    xr = (N_rai < τ_N) ? FT(0) : ((q_rai * ρ_air) / N_rai)
     C = FT(4 / 3 * π * ρ_w)
     Z₀ = FT(1e-18)
 
@@ -505,12 +511,12 @@ function radar_reflectivity(
     Zc = (Bc == 0) ? FT(0) : (FT(24) * Ac / (Bc^FT(5) * C^FT(2)))
     Zr = (Br == 0) ? FT(0) : (FT(2160) * Ar / (Br^FT(7) * C^FT(2)))
 
-    return ((Zc + Zr) == 0) ? FT(-200) :
+    return ((Zc + Zr) == 0) ? FT(-135) :
            FT(10) * (log10((Zc + Zr) / Z₀) + log10(FT(1e-9)))
 end
 
 """ 
-    effective_radius(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
+    effective_radius(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w, τ_q, τ_N)
 
     - `struct` - type for 2-moment rain autoconversion parameterization
     - `q_liq` - cloud water specific humidity 
@@ -519,6 +525,8 @@ end
     - `N_rai` - rain droplet number density 
     - `ρ_air` - air density
     - `ρ_w` - water density
+    - `τ_q` - threshold for minimum specific humidity value
+    - `τ_N` - threshold for minimum number density value
 
 Returns effective radius using the 2-moment scheme 
 cloud and rain particle size distributions
@@ -531,6 +539,8 @@ function effective_radius(
     N_rai::FT,
     ρ_air::FT,
     ρ_w::FT,
+    τ_q::FT,
+    τ_N::FT,
 ) where {FT}
 
     # we assume a cloud droplets gamma distribution,
@@ -543,14 +553,16 @@ function effective_radius(
     νr = FT(-2 / 3)
     μr = FT(1 / 3)
 
-    #change of units for better accuracy
-    ρ_air *= FT(1e-3)
-    ρ_w *= FT(1e-3)
+    # change of units for N_liq and N_rai
+    # from m^-3 to mm^-3
     N_liq *= FT(1e-9)
     N_rai *= FT(1e-9)
 
-    xc = (N_liq == 0) ? FT(0) : ((q_liq * ρ_air) / N_liq)
-    xr = (N_rai == 0) ? FT(0) : ((q_rai * ρ_air) / N_rai)
+    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
+    q_rai = (q_rai < τ_q) ? FT(0) : q_rai
+
+    xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
+    xr = (N_rai < τ_N) ? FT(0) : ((q_rai * ρ_air) / N_rai)
     C = FT((4 / 3) * π * ρ_w)
 
     Bc =
