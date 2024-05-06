@@ -5,13 +5,14 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import ClimaParams as CP
 
-include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
-
 FT = Float32
+
+include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
+liquid = CMP.CloudLiquid(FT)
 # Constants
 ρₗ = wps.ρw
 ρᵢ = wps.ρi
@@ -41,7 +42,7 @@ w = FT(10)                                 # updraft speed
 const_dt = FT(0.5)                         # model timestep
 t_max = FT(20)
 size_distribution_list = ["Monodisperse", "Gamma"]
-condensation_growth = "Condensation"
+condensation_growth = "NonEq_Condensation"
 
 # Data from Rogers(1975) Figure 1
 # https://www.tandfonline.com/doi/abs/10.1080/00046973.1975.9648397
@@ -68,6 +69,7 @@ for DSD in size_distribution_list
         condensation_growth = condensation_growth,
         const_dt = const_dt,
         w = w,
+        liquid = liquid
     )
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
@@ -108,4 +110,4 @@ MK.axislegend(
     position = :rb,
 )
 
-MK.save("liquid_only_parcel.svg", fig)
+MK.save("liquid_noneq_parcel.svg", fig)

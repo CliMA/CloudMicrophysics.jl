@@ -197,18 +197,22 @@ function condensation(params::CondParams, PSD_liq, state, ρ_air)
 end
 
 function condensation(params::NonEqCondParams, PSD, state, ρ_air)
+    # DOING THIS JUST FOR LIQUID RN.
 
-    # but these params don't take into account
-    # qsat and tau relax which confuses me
-    (; aps, tps) = params
-    (; Sₗ, T, Nₗ) = state
+    FT = eltype(state)
+    (; aps, tps, liquid) = params
 
-    # do I need to create a cloud liquid type?
-    MNE.τ_relax(liquid)
+    # currently not using T  but I guess would additional
+    # later for incorporating ice?
+    # also we don't have Si so idk...
+    (; Sₗ, T, qₗ) = state
 
-    # just return something like this???
-    # is q sat just Sl? but thats not a rel humid?
-    return MNE.conv_q_vap_to_q_liq_ice((; τ_relax),q_sat,q)
+    # think more carefully about how to create this phase partition --
+    # right now assuming this is total
+    q_sat = TD.PhasePartition(FT(0), qₗ/Sₗ, FT(0))
+
+    return MNE.conv_q_vap_to_q_liq_ice(liquid,q_sat,TD.PhasePartition(FT(0),qₗ,FT(0)))
+end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)
     FT = eltype(state)

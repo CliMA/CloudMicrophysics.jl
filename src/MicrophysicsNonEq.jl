@@ -54,4 +54,12 @@ function conv_q_vap_to_q_liq_ice(
     return (q_sat.ice - q.ice) / τ_relax
 end
 
+function conv_q_vap_to_q_liq_ice_Jordan(
+    (; τ_relax)::CMP.CloudLiquid{FT},
+    q_sat::TD.PhasePartition{FT},
+    q::TD.PhasePartition{FT},
+) where {FT}
+    return (q_sat.liq - q.liq) / τ_relax
+end
+
 end #module MicrophysicsNonEq.jl

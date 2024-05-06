@@ -19,6 +19,7 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     aps = CMP.AirProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
     ips = CMP.IceNucleationParameters(FT)
+    liquid = CMP.CloudLiquid(FT)
     H₂SO₄ps = CMP.H2SO4SolutionParameters(FT)
     const_dt = 1
     w = FT(1)
@@ -266,7 +267,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.condensation_growth == "Condensation"
         ce_params = CondParams{FT}(pp.aps, pp.tps)
     elseif pp.condensation_growth == "NonEq_Condensation"
-        ce_params = NonEqCondParams{FT}(pp.aps, pp.tps)
+        ce_params = NonEqCondParams{FT}(pp.aps, pp.tps, pp.liquid)
     else
         throw("Unrecognized condensation growth mode")
     end
