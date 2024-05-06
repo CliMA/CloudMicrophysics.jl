@@ -37,7 +37,6 @@ N_1 = 100.0 * 1e6   # 1/m3
 # Sulfate - universal parameters
 sulfate = CMP.Sulfate(FT)
 
-n_components_1 = 1
 mass_fractions_1 = (1.0,)
 paper_mode_1_B = AM.Mode_B(
     r_dry,
@@ -49,7 +48,6 @@ paper_mode_1_B = AM.Mode_B(
     (sulfate.M,),
     (sulfate.ν,),
     (sulfate.ρ,),
-    n_components_1,
 )
 
 N_2_range = range(0, stop = 5000 * 1e6, length = 100)
@@ -57,7 +55,6 @@ N_act_frac_B = Vector{Float64}(undef, 100)
 
 it = 1
 for N_2 in N_2_range
-    n_components_2 = 1
     mass_fractions_2 = (1.0,)
     paper_mode_2_B = AM.Mode_B(
         r_dry,
@@ -69,7 +66,6 @@ for N_2 in N_2_range
         (sulfate.M,),
         (sulfate.ν,),
         (sulfate.ρ,),
-        n_components_2,
     )
     AD_B = AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
     N_act_frac_B[it] =

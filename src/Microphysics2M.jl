@@ -396,7 +396,7 @@ end
  - `N_rai` - raindrops number density
  - `T` - air temperature
 
-Returns a tupple containing the tendency of raindrops number density and rain water
+Returns a named tuple containing the tendency of raindrops number density and rain water
 specific humidity due to rain rain_evaporation, assuming a power law velocity relation for
 fall velocity of individual drops and an exponential size distribution, for `scheme == SB2006Type`
 """
@@ -444,23 +444,23 @@ function rain_evaporation(
         evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
     end
 
-    return (evap_rate_0, evap_rate_1)
+    return (; evap_rate_0, evap_rate_1)
 end
 
-""" 
+"""
     radar_reflectivity(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w, τ_q, τ_N)
 
     - `struct` - type for 2-moment rain autoconversion parameterization
-    - `q_liq` - cloud water specific humidity 
+    - `q_liq` - cloud water specific humidity
     - `q_rai` - rain water specific humidity
-    - `N_liq` - cloud droplet number density 
-    - `N_rai` - rain droplet number density 
+    - `N_liq` - cloud droplet number density
+    - `N_rai` - rain droplet number density
     - `ρ_air` - air density
     - `ρ_w` - water density
     - `τ_q` - threshold for minimum specific humidity value
     - `τ_N` - threshold for minimum number density value
 
-Returns logarithmic radar reflectivity from the assumed cloud and rain particle 
+Returns logarithmic radar reflectivity from the assumed cloud and rain particle
 size distribuions normalized by the reflectivty of 1 millimiter drop in a volume of
 one meter cube
 """
@@ -515,20 +515,20 @@ function radar_reflectivity(
            FT(10) * (log10((Zc + Zr) / Z₀) + log10(FT(1e-9)))
 end
 
-""" 
+"""
     effective_radius(struct, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w, τ_q, τ_N)
 
     - `struct` - type for 2-moment rain autoconversion parameterization
-    - `q_liq` - cloud water specific humidity 
+    - `q_liq` - cloud water specific humidity
     - `q_rai` - rain water specific humidity
-    - `N_liq` - cloud droplet number density 
-    - `N_rai` - rain droplet number density 
+    - `N_liq` - cloud droplet number density
+    - `N_rai` - rain droplet number density
     - `ρ_air` - air density
     - `ρ_w` - water density
     - `τ_q` - threshold for minimum specific humidity value
     - `τ_N` - threshold for minimum number density value
 
-Returns effective radius using the 2-moment scheme 
+Returns effective radius using the 2-moment scheme
 cloud and rain particle size distributions
 """
 function effective_radius(
@@ -586,13 +586,13 @@ function effective_radius(
            FT(1e-3)
 end
 
-""" 
+"""
     effective_radius_Liu_Hallet_97(q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
 
-    - `q_liq` - cloud water specific humidity 
+    - `q_liq` - cloud water specific humidity
     - `q_rai` - rain water specific humidity
-    - `N_liq` - cloud droplet number density 
-    - `N_rai` - rain droplet number density 
+    - `N_liq` - cloud droplet number density
+    - `N_rai` - rain droplet number density
     - `ρ_air` - air density
     - `ρ_w` - water density
 
