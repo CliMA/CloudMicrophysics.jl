@@ -54,12 +54,33 @@ function conv_q_vap_to_q_liq_ice(
     return (q_sat.ice - q.ice) / τ_relax
 end
 
-function conv_q_vap_to_q_liq_ice_Jordan(
-    (; τ_relax)::CMP.CloudLiquid{FT},
+function conv_q_vap_to_q_liq_ice(
+    (; τₗ)::CMP.CloudLiquid{FT},
+    (; τᵢ)::CMP.CloudIce{FT},
+    T:: # temperature
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
 ) where {FT}
-    return (q_sat.liq - q.liq) / τ_relax
+
+    # implementing this -- first the simplest form that drops the
+    # derivatives
+
+    cp_air = TD.cp_m(tps, q)
+    L_subl = TD.latent_heat_sublim(tps, T)
+
+    τ = τₗ + (1 + (L_subl/cp_air))*τᵢ^(-1)
+
+    # i dont really understand how
+    # to do the q sat part of this either
+
+    # replace this w QCCONN -- see what Jordan did in his milbrandt code
+    # so essentially I am creating something for how the rate has changed --
+
+    # beware that this version is mixing ratio not specific humidity
+    # so may need to convert back to that soon
+
+
+    return (q_sat.ice - q.ice) / τ # is that the way to implement??
 end
 
 end #module MicrophysicsNonEq.jl
