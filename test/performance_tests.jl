@@ -225,12 +225,32 @@ function benchmark_test(FT)
     )
     bench_press(
         CM2.radar_reflectivity,
-        (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
+        (
+            sb2006.acnv,
+            q_liq,
+            q_rai,
+            N_liq,
+            N_rai,
+            FT(1),
+            FT(1000),
+            FT(1e-12),
+            FT(1e-18),
+        ),
         800,
     )
     bench_press(
         CM2.effective_radius,
-        (sb2006.acnv, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
+        (
+            sb2006.acnv,
+            q_liq,
+            q_rai,
+            N_liq,
+            N_rai,
+            FT(1),
+            FT(1000),
+            FT(1e-12),
+            FT(1e-18),
+        ),
         800,
     )
     bench_press(

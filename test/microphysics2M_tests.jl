@@ -495,6 +495,8 @@ function test_microphysics2M(FT)
         N_liq = FT(15053529)
         q_rai = FT(1.573e-4)
         N_rai = FT(510859)
+        τ_q = FT(1e-12)
+        τ_N = FT(1e-18)
 
         #action
         rr = CM2.radar_reflectivity(
@@ -505,6 +507,8 @@ function test_microphysics2M(FT)
             N_rai,
             ρ_air,
             ρ_w,
+            τ_q,
+            τ_N,
         )
 
         TT.@test rr ≈ FT(-13) atol = 2
@@ -519,6 +523,8 @@ function test_microphysics2M(FT)
         N_liq = FT(15053529)
         q_rai = FT(1.573e-4)
         N_rai = FT(510859)
+        τ_q = FT(1e-12)
+        τ_N = FT(1e-18)
 
         #action
         reff = CM2.effective_radius(
@@ -529,6 +535,8 @@ function test_microphysics2M(FT)
             N_rai,
             ρ_air,
             ρ_w,
+            τ_q,
+            τ_N,
         )
 
         #test
