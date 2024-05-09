@@ -59,7 +59,7 @@ function mean_hygroscopicity_parameter(
 ) where {N, T <: AM.Mode_B}
     return ntuple(Val(AM.n_modes(ad))) do i
         FT = eltype(ap)
-        mode_i = ad.Modes[i]
+        mode_i = ad.modes[i]
 
         nom = FT(0)
         @inbounds for j in 1:(AM.n_components(mode_i))
@@ -85,7 +85,7 @@ function mean_hygroscopicity_parameter(
 
     return ntuple(Val(AM.n_modes(ad))) do i
         FT = eltype(ap)
-        mode_i = ad.Modes[i]
+        mode_i = ad.modes[i]
 
         result = FT(0)
         @inbounds for j in 1:(AM.n_components(mode_i))
@@ -114,7 +114,7 @@ function critical_supersaturation(
     hygro = mean_hygroscopicity_parameter(ap, ad)
 
     return ntuple(Val(AM.n_modes(ad))) do i
-        2 / sqrt(hygro[i]) * (A / 3 / ad.Modes[i].r_dry)^FT(3 / 2)
+        2 / sqrt(hygro[i]) * (A / 3 / ad.modes[i].r_dry)^FT(3 / 2)
     end
 end
 
@@ -163,7 +163,7 @@ function max_supersaturation(
     tmp::FT = FT(0)
     @inbounds for i in 1:AM.n_modes(ad)
 
-        mode_i = ad.Modes[i]
+        mode_i = ad.modes[i]
 
         f::FT = ap.f1 * exp(ap.f2 * (log(mode_i.stdev))^2)
         g::FT = ap.g1 + ap.g2 * log(mode_i.stdev)
@@ -207,7 +207,7 @@ function N_activated_per_mode(
 
     return ntuple(Val(AM.n_modes(ad))) do i
 
-        mode_i = ad.Modes[i]
+        mode_i = ad.modes[i]
         u_i::FT = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
 
         mode_i.N * (1 / 2) * (1 - SF.erf(u_i))
@@ -244,7 +244,7 @@ function M_activated_per_mode(
 
     return ntuple(Val(AM.n_modes(ad))) do i
 
-        mode_i = ad.Modes[i]
+        mode_i = ad.modes[i]
 
         avg_molar_mass_i = FT(0)
         @inbounds for j in 1:(AM.n_components(mode_i))

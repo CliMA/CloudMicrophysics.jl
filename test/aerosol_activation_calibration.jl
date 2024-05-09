@@ -142,9 +142,9 @@ function test_emulator(FT; rtols = [1e-4, 1e-3, 0.26], N_samples_calib = 2)
     r2 = FT(1.5 * 1e-6)   # m
     σ2 = FT(2.1)          # -
     N2 = FT(1e6)          # 1/m3
-    acc = AM.Mode_κ(r1, σ1, N1, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,), 1)
-    crs = AM.Mode_κ(r2, σ2, N2, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,), 1)
-    ad = AM.AerosolDistribution((crs, acc))
+    acc = AM.Mode_κ(r1, σ1, N1, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,))
+    crs = AM.Mode_κ(r2, σ2, N2, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,))
+    ad = AM.AerosolDistribution(crs, acc)
 
     calib_params, errs = calibrate_ARG(FT, N_samples = N_samples_calib)
     ap_calib = CMP.AerosolActivationParameters(calib_params)

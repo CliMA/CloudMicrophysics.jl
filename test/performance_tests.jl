@@ -113,7 +113,6 @@ function benchmark_test(FT)
         (FT(1),),
         (M_seasalt,),
         (κ_seasalt,),
-        1,
     )
     aer_distr = AM.AerosolDistribution((seasalt_mode,))
 
