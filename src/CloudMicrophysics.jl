@@ -21,6 +21,5 @@ include("AerosolActivation.jl")
 include("Nucleation.jl")
 include("IceNucleation.jl")
 include("PrecipitationSusceptibility.jl")
-include("MicrophysicsFlexible.jl")
 
 end # module

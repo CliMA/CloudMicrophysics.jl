@@ -57,15 +57,6 @@ Microphysics2M.effective_radius_Liu_Hallet_97
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
-# Flexible N-moment precipitation microphysics
-```@docs
-MicrophysicsFlexible
-MicrophysicsFlexible.CLSetup
-MicrophysicsFlexible.coalescence
-MicrophysicsFlexible.condensation
-MicrophysicsFlexible.weighted_vt
-```
-
 # P3 scheme
 
 ```@docs
