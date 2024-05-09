@@ -462,9 +462,9 @@ function test_microphysics2M(FT)
         evap1 = 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ
 
         #test
-        TT.@test evap isa Tuple
-        TT.@test evap[1] ≈ (evap0 - 2.5) rtol = 1e-4
-        TT.@test evap[2] ≈ evap1 rtol = 1e-5
+        TT.@test evap isa NamedTuple
+        TT.@test evap.evap_rate_0 ≈ (evap0 - 2.5) rtol = 1e-4
+        TT.@test evap.evap_rate_1 ≈ evap1 rtol = 1e-5
         TT.@test CM2.rain_evaporation(
             SB2006,
             aps,
@@ -474,7 +474,7 @@ function test_microphysics2M(FT)
             ρ,
             N_rai,
             T,
-        )[1] ≈ 0 atol = eps(FT)
+        ).evap_rate_0 ≈ 0 atol = eps(FT)
         TT.@test CM2.rain_evaporation(
             SB2006,
             aps,
@@ -484,11 +484,11 @@ function test_microphysics2M(FT)
             ρ,
             N_rai,
             T,
-        )[2] ≈ 0 atol = eps(FT)
+        ).evap_rate_1 ≈ 0 atol = eps(FT)
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 radar reflectivity" begin
-        #setup 
+        #setup
         ρ_air = FT(1)
         ρ_w = FT(1000)
         q_liq = FT(2.128e-4)
@@ -516,7 +516,7 @@ function test_microphysics2M(FT)
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 effective radius" begin
-        #setup 
+        #setup
         ρ_air = FT(1)
         ρ_w = FT(1000)
         q_liq = FT(2.128e-4)
@@ -545,7 +545,7 @@ function test_microphysics2M(FT)
     end
 
     TT.@testset "2M_microphysics - '1/3' power law from Liu and Hallett (1997)" begin
-        #setup 
+        #setup
         ρ_air = FT(1)
         ρ_w = FT(1000)
         q_liq = FT(2.128e-4)

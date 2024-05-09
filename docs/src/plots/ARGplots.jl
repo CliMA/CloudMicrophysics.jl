@@ -69,7 +69,6 @@ function make_ARG_figX(X)
         if X in (1, 4)
             vol_mixing_ratios_1 = (1.0,)
             mass_mixing_ratios_1 = (1.0,)
-            n_components_1 = 1
             if v_B
                 paper_mode_1 = AM.Mode_B(
                     r_dry_1,
@@ -81,7 +80,6 @@ function make_ARG_figX(X)
                     (sulfate.M,),
                     (sulfate.ν,),
                     (sulfate.ρ,),
-                    n_components_1,
                 )
             else
                 paper_mode_1 = AM.Mode_κ(
@@ -92,7 +90,6 @@ function make_ARG_figX(X)
                     mass_mixing_ratios_1,
                     (sulfate.M,),
                     (sulfate.κ,),
-                    n_components_1,
                 )
             end
         end
@@ -100,7 +97,6 @@ function make_ARG_figX(X)
         if X in (2, 3, 5)
             vol_mixing_ratios_1 = (1.0, 0.0)
             mass_mixing_ratios_1 = (1.0, 0.0)
-            n_components_1 = 2
             if v_B
                 paper_mode_1 = AM.Mode_B(
                     r_dry_1,
@@ -112,7 +108,6 @@ function make_ARG_figX(X)
                     (sulfate.M, M_insol),
                     (sulfate.ν, ν_insol),
                     (sulfate.ρ, ρ_insol),
-                    n_components_1,
                 )
             else
                 paper_mode_1 = AM.Mode_κ(
@@ -123,7 +118,6 @@ function make_ARG_figX(X)
                     mass_mixing_ratios_1,
                     (sulfate.M, M_insol),
                     (sulfate.κ, κ_insol),
-                    n_components_1,
                 )
             end
         end
@@ -139,7 +133,6 @@ function make_ARG_figX(X)
             w = 0.5                                         # vertical velocity, m/s
             r_dry_2 = 0.05 * 1e-6                           # um
             N_2 = range(100, stop = 5000, length = len) * 1e6   # 1/m3
-            n_components_2 = 1                              # 1 mode
             mass_mixing_ratios_2 = (1.0,)                   # all sulfate
             vol_mixing_ratios_2 = (1.0,)                    # all sulfate
 
@@ -155,7 +148,6 @@ function make_ARG_figX(X)
                         (sulfate.M,),
                         (sulfate.ν,),
                         (sulfate.ρ,),
-                        n_components_2,
                     )
                 else
                     paper_mode_2 = AM.Mode_κ(
@@ -166,7 +158,6 @@ function make_ARG_figX(X)
                         mass_mixing_ratios_2,
                         (sulfate.M,),
                         (sulfate.κ,),
-                        n_components_2,
                     )
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
@@ -195,7 +186,6 @@ function make_ARG_figX(X)
             w = 0.5                                         # vertical velocity, m/s
             r_dry_2 = 0.05 * 1e-6                           # um
             N_2 = range(100, stop = 5000, length = len) * 1e6   # 1/m3
-            n_components_2 = 2                              # 2 modes
             mass_mixing_ratios_2 = (0.1, 0.9)                # 10% sulfate, 90% insoluble
             vol_mixing_ratios_2 = mass2vol(mass_mixing_ratios_2)
 
@@ -211,7 +201,6 @@ function make_ARG_figX(X)
                         (sulfate.M, M_insol),
                         (sulfate.ν, ν_insol),
                         (sulfate.ρ, ρ_insol),
-                        n_components_2,
                     )
                 else
                     paper_mode_2 = AM.Mode_κ(
@@ -222,7 +211,6 @@ function make_ARG_figX(X)
                         mass_mixing_ratios_2,
                         (sulfate.M, M_insol),
                         (sulfate.κ, κ_insol),
-                        n_components_2,
                     )
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
@@ -251,7 +239,6 @@ function make_ARG_figX(X)
             w = 0.5                                     # vertical velocity, m/s
             r_dry_2 = 0.05 * 1e-6                       # um
             N_2 = 100 * 1e6                             # 1/m3
-            n_components_2 = 2                          # 2 modes
             # ranging from 10% to 100% sulfate, 90% to 0% insoluble
             xvar = range(0.1, stop = 1, length = len)
             mass_mixing_ratios_2 = [(i, 1 - i) for i in xvar]
@@ -269,7 +256,6 @@ function make_ARG_figX(X)
                         (sulfate.M, M_insol),
                         (sulfate.ν, ν_insol),
                         (sulfate.ρ, ρ_insol),
-                        n_components_2,
                     )
                 else
                     paper_mode_2 = AM.Mode_κ(
@@ -280,7 +266,6 @@ function make_ARG_figX(X)
                         mmr2i,
                         (sulfate.M, M_insol),
                         (sulfate.κ, κ_insol),
-                        n_components_2,
                     )
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
@@ -308,7 +293,6 @@ function make_ARG_figX(X)
             w = 0.5                                     # vertical velocity, m/s
             r_dry_2 = range(0.01, stop = 0.5, length = len) * 1e-6 # um
             N_2 = 100 * 1e6                             # 1/m3
-            n_components_2 = 1                          # 1 mode
             mass_mixing_ratios_2 = (1.0,)               # all sulfate
             vol_mixing_ratios_2 = mass2vol(mass_mixing_ratios_2)
 
@@ -324,7 +308,6 @@ function make_ARG_figX(X)
                         (sulfate.M,),
                         (sulfate.ν,),
                         (sulfate.ρ,),
-                        n_components_2,
                     )
                 else
                     paper_mode_2 = AM.Mode_κ(
@@ -335,7 +318,6 @@ function make_ARG_figX(X)
                         mass_mixing_ratios_2,
                         (sulfate.M,),
                         (sulfate.κ,),
-                        n_components_2,
                     )
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
@@ -364,7 +346,6 @@ function make_ARG_figX(X)
             w = range(0.01, stop = 5, length = len)     # vertical velocity, m/s
             r_dry_2 = 0.05 * 1e-6                       # um
             N_2 = 100 * 1e6                             # 1/m3
-            n_components_2 = 2                          # 2 modes
             mass_mixing_ratios_2 = (0.1, 0.9)           # 10% sulfate, 90% insoluble
             vol_mixing_ratios_2 = mass2vol(mass_mixing_ratios_2)
 
@@ -379,7 +360,6 @@ function make_ARG_figX(X)
                     (sulfate.M, M_insol),
                     (sulfate.ν, ν_insol),
                     (sulfate.ρ, ρ_insol),
-                    n_components_2,
                 )
             else
                 paper_mode_2 = AM.Mode_κ(
@@ -390,7 +370,6 @@ function make_ARG_figX(X)
                     mass_mixing_ratios_2,
                     (sulfate.M, M_insol),
                     (sulfate.κ, κ_insol),
-                    n_components_2,
                 )
             end
             AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))

@@ -23,7 +23,7 @@ and follow a lognormal size distribution.
 The chemical composition of aerosol particles in this mode
 is described using the parameters from Abdul-Razzak and Ghan 2000.
 """
-struct Mode_B{NCOMP, T, FT}
+struct Mode_B{T, FT}
     "geometric mean dry radius"
     r_dry::FT
     "geometric standard deviation"
@@ -54,9 +54,8 @@ function Mode_B(
     molar_mass::T,
     dissoc::T,
     aerosol_density::T,
-    NCOMP::Int,
 ) where {T, FT}
-    return Mode_B{NCOMP, T, FT}(
+    return Mode_B{T, FT}(
         r_dry,
         stdev,
         N,
@@ -70,7 +69,8 @@ function Mode_B(
 end
 
 """ number of components in the mode """
-n_components(::Mode_B{NCOMP}) where {NCOMP} = NCOMP
+n_components(::Mode_B{T}) where {T <: Tuple} = fieldcount(T)
+n_components(::Mode_B{T}) where {T <: Real} = 1
 
 """
     Mode_κ
@@ -82,7 +82,7 @@ and follow a lognormal size distribution.
 The chemical composition of aerosol particles in this mode
 is described using the parameters from Petters and Kreidenweis 2007.
 """
-struct Mode_κ{NCOMP, T, FT}
+struct Mode_κ{T, FT}
     "geometric mean dry radius"
     r_dry::FT
     "geometric standard deviation"
@@ -107,9 +107,8 @@ function Mode_κ(
     mass_mix_ratio::T,
     molar_mass::T,
     kappa::T,
-    NCOMP::Int,
 ) where {T, FT}
-    return Mode_κ{NCOMP, T, FT}(
+    return Mode_κ{T, FT}(
         r_dry,
         stdev,
         N,
@@ -121,7 +120,8 @@ function Mode_κ(
 end
 
 """ number of components in the mode """
-n_components(::Mode_κ{NCOMP}) where {NCOMP} = NCOMP
+n_components(::Mode_κ{T}) where {T <: Tuple} = fieldcount(T)
+n_components(::Mode_κ{T}) where {T <: Real} = 1
 
 """
     AerosolDistribution
@@ -132,18 +132,18 @@ or of type Mode_κ (Petters and Kreidenweis 2007).
 
 # Constructors
 
-    AerosolDistribution(Modes::T)
+    AerosolDistribution(modes::T)
 """
 struct AerosolDistribution{T} <: CMP.AerosolDistributionType
 
     "tuple with all aerosol size distribution modes"
-    Modes::T
+    modes::T
 
 end
-function AerosolDistribution(Modes::NTuple{N, T}) where {N, T}
-    return AerosolDistribution{typeof(Modes)}(Modes)
-end
+AerosolDistribution(modes::Union{Mode_κ, Mode_B}...) =
+    AerosolDistribution{typeof(modes)}(modes)
+
 Base.broadcastable(x::AerosolDistribution) = tuple(x)
-n_modes(::AerosolDistribution{NTuple{N, T}}) where {N, T} = N
+n_modes(d::AerosolDistribution) = length(d.modes)
 
 end

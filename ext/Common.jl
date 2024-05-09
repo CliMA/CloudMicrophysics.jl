@@ -35,7 +35,6 @@ function read_aerosol_dataset(
     df = filter(row -> row.S_max > 0 && row.S_max < 0.2, initial_data)
     selected_columns_X = []
     num_modes = get_num_modes(df)
-    @info(num_modes)
     for i in 1:num_modes
         append!(
             selected_columns_X,
@@ -97,7 +96,7 @@ function get_ARG_act_frac(
         push!(mode_kappas, data_row[Symbol("mode_$(i)_kappa")])
     end
     ad = AM.AerosolDistribution(
-        Tuple(
+        (
             AM.Mode_κ(
                 mode_means[i],
                 mode_stdevs[i],
@@ -106,9 +105,8 @@ function get_ARG_act_frac(
                 FT(1),
                 FT(0),
                 FT(mode_kappas[i]),
-                1,
             ) for i in 1:num_modes
-        ),
+        )...,
     )
     pv0 = TD.saturation_vapor_pressure(tps, FT(T), TD.Liquid())
     vapor_mix_ratio = pv0 / TD.Parameters.molmass_ratio(tps) / (p - pv0)

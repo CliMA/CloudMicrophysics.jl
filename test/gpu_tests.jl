@@ -75,7 +75,6 @@ const ArrayType = CuArray
             (M[i],),
             (ν[i],),
             (ρ[i],),
-            1,
         )
         mode_κ = AM.Mode_κ(
             r[i],
@@ -85,7 +84,6 @@ const ArrayType = CuArray
             (FT(1.0),),
             (M[i],),
             (κ[i],),
-            1,
         )
 
         arsl_dst_B = AM.AerosolDistribution((mode_B,))
@@ -338,9 +336,27 @@ end
         output[13, i] =
             CM2.rain_terminal_velocity(SB2006, SB2006Vel, qr[i], ρ[i], Nr[i])[2]
         output[14, i] =
-            CM2.rain_evaporation(SB2006, aps, tps, q, qr[i], ρ[i], Nr[i], T[i])[1]
+            CM2.rain_evaporation(
+                SB2006,
+                aps,
+                tps,
+                q,
+                qr[i],
+                ρ[i],
+                Nr[i],
+                T[i],
+            ).evap_rate_0
         output[15, i] =
-            CM2.rain_evaporation(SB2006, aps, tps, q, qr[i], ρ[i], Nr[i], T[i])[2]
+            CM2.rain_evaporation(
+                SB2006,
+                aps,
+                tps,
+                q,
+                qr[i],
+                ρ[i],
+                Nr[i],
+                T[i],
+            ).evap_rate_1
     end
 end
 

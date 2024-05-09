@@ -67,7 +67,6 @@ function test_aerosol_activation(FT)
         (seasalt.M,),
         (seasalt.ν,),
         (seasalt.ρ,),
-        1,
     )
     accum_seasalt_κ = AM.Mode_κ(
         r_dry_accum,
@@ -77,7 +76,6 @@ function test_aerosol_activation(FT)
         (FT(1.0),),
         (seasalt.M,),
         (seasalt.κ,),
-        1,
     )
 
     coarse_seasalt_B = AM.Mode_B(
@@ -90,7 +88,6 @@ function test_aerosol_activation(FT)
         (seasalt.M,),
         (seasalt.ν,),
         (seasalt.ρ,),
-        1,
     )
     coarse_seasalt_κ = AM.Mode_κ(
         r_dry_coarse,
@@ -100,7 +97,6 @@ function test_aerosol_activation(FT)
         (FT(1.0),),
         (seasalt.M,),
         (seasalt.κ,),
-        1,
     )
 
     paper_mode_1_B = AM.Mode_B(
@@ -113,7 +109,6 @@ function test_aerosol_activation(FT)
         (sulfate.M,),
         (sulfate.ν,),
         (sulfate.ρ,),
-        1,
     )
     paper_mode_1_κ = AM.Mode_κ(
         r_dry_paper,
@@ -123,7 +118,6 @@ function test_aerosol_activation(FT)
         (FT(1.0),),
         (sulfate.M,),
         (sulfate.κ,),
-        1,
     )
 
     # Aerosol size distributions
@@ -246,7 +240,6 @@ function test_aerosol_activation(FT)
                     (sulfate.M,),
                     (sulfate.ν,),
                     (sulfate.ρ,),
-                    1,
                 )
                 paper_mode_2_κ = AM.Mode_κ(
                     r_dry_paper,
@@ -256,7 +249,6 @@ function test_aerosol_activation(FT)
                     (FT(1.0),),
                     (sulfate.M,),
                     (sulfate.κ,),
-                    1,
                 )
 
                 AD_B = AM.AerosolDistribution((paper_mode_1_B, paper_mode_2_B))
