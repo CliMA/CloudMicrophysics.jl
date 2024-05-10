@@ -44,30 +44,6 @@ struct Mode_B{T, FT}
     aerosol_density::T
 end
 
-function Mode_B(
-    r_dry::FT,
-    stdev::FT,
-    N::FT,
-    mass_mix_ratio::T,
-    soluble_mass_frac::T,
-    osmotic_coeff::T,
-    molar_mass::T,
-    dissoc::T,
-    aerosol_density::T,
-) where {T, FT}
-    return Mode_B{T, FT}(
-        r_dry,
-        stdev,
-        N,
-        mass_mix_ratio,
-        soluble_mass_frac,
-        osmotic_coeff,
-        molar_mass,
-        dissoc,
-        aerosol_density,
-    )
-end
-
 """ number of components in the mode """
 n_components(::Mode_B{T}) where {T <: Tuple} = fieldcount(T)
 n_components(::Mode_B{T}) where {T <: Real} = 1
@@ -97,26 +73,6 @@ struct Mode_κ{T, FT}
     molar_mass::T
     "tuple of kappa-kohler values for all components in this mode"
     kappa::T
-end
-
-function Mode_κ(
-    r_dry::FT,
-    stdev::FT,
-    N::FT,
-    vol_mix_ratio::T,
-    mass_mix_ratio::T,
-    molar_mass::T,
-    kappa::T,
-) where {T, FT}
-    return Mode_κ{T, FT}(
-        r_dry,
-        stdev,
-        N,
-        vol_mix_ratio,
-        mass_mix_ratio,
-        molar_mass,
-        kappa,
-    )
 end
 
 """ number of components in the mode """
