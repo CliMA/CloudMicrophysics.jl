@@ -30,7 +30,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
-ClimaParams = "0.10.5"
+ClimaParams = "0.10.6"
 EnsembleKalmanProcesses = "1.1.5"
 KernelAbstractions = "0.9"
 Optim = "<1.9.3"

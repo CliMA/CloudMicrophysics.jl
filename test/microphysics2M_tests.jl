@@ -150,8 +150,8 @@ function test_microphysics2M(FT)
         for Nr in N_rai
             for qr in q_rai
                 #action
-                λ = CM2.raindrops_limited_vars(SB2006.pdf, qr, ρ, Nr).λr
-                xr = CM2.raindrops_limited_vars(SB2006.pdf, qr, ρ, Nr).xr
+                λ = CM2.raindrops_limited_vars(SB2006.pdf_r, qr, ρ, Nr).λr
+                xr = CM2.raindrops_limited_vars(SB2006.pdf_r, qr, ρ, Nr).xr
 
                 #test
                 TT.@test λ_min <= λ <= λ_max
@@ -296,20 +296,20 @@ function test_microphysics2M(FT)
 
         #action
         sc_rai =
-            CM2.rain_self_collection(SB2006.pdf, SB2006.self, q_rai, ρ, N_rai)
+            CM2.rain_self_collection(SB2006.pdf_r, SB2006.self, q_rai, ρ, N_rai)
         br_rai =
-            CM2.rain_breakup(SB2006.pdf, SB2006.brek, q_rai, ρ, N_rai, sc_rai)
+            CM2.rain_breakup(SB2006.pdf_r, SB2006.brek, q_rai, ρ, N_rai, sc_rai)
         sc_br_rai =
             CM2.rain_self_collection_and_breakup(SB2006, q_rai, ρ, N_rai)
 
         λr =
-            CM2.raindrops_limited_vars(SB2006.pdf, q_rai, ρ, N_rai).λr *
+            CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).λr *
             FT(6 / π / 1000)^FT(1 / 3)
         dNrdt_sc = -krr * N_rai * ρ * q_rai * (1 + κrr / λr)^-5 * sqrt(ρ0 / ρ)
 
         Dr =
             (
-                CM2.raindrops_limited_vars(SB2006.pdf, q_rai, ρ, N_rai).xr /
+                CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).xr /
                 1000 / FT(π) * 6
             )^FT(1 / 3)
         ΔDr = Dr - Deq
@@ -322,7 +322,7 @@ function test_microphysics2M(FT)
         #test
         TT.@test sc_rai ≈ dNrdt_sc rtol = 1e-6
         TT.@test CM2.rain_self_collection(
-            SB2006.pdf,
+            SB2006.pdf_r,
             SB2006.self,
             FT(0),
             ρ,
@@ -338,9 +338,9 @@ function test_microphysics2M(FT)
 
         #action
         sc_rai =
-            CM2.rain_self_collection(SB2006.pdf, SB2006.self, q_rai, ρ, N_rai)
+            CM2.rain_self_collection(SB2006.pdf_r, SB2006.self, q_rai, ρ, N_rai)
         br_rai =
-            CM2.rain_breakup(SB2006.pdf, SB2006.brek, q_rai, ρ, N_rai, sc_rai)
+            CM2.rain_breakup(SB2006.pdf_r, SB2006.brek, q_rai, ρ, N_rai, sc_rai)
         sc_br_rai =
             CM2.rain_self_collection_and_breakup(SB2006, q_rai, ρ, N_rai)
 
@@ -365,7 +365,7 @@ function test_microphysics2M(FT)
         #action
         vt_rai = CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rai, ρ, N_rai)
 
-        λr = CM2.raindrops_limited_vars(SB2006.pdf, q_rai, ρ, N_rai).λr
+        λr = CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).λr
         vt0 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
         vt1 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^4))
 
@@ -447,7 +447,7 @@ function test_microphysics2M(FT)
         G = CMC.G_func(aps, tps, T, TD.Liquid())
         S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
 
-        xr = CM2.raindrops_limited_vars(SB2006.pdf, q_rai, ρ, N_rai).xr
+        xr = CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).xr
         Dr = FT(6 / π / 1000.0)^FT(1 / 3) * xr^FT(1 / 3)
         N_Re = α * xr^β * sqrt(ρ0 / ρ) * Dr / ν_air
 
@@ -500,7 +500,7 @@ function test_microphysics2M(FT)
 
         #action
         rr = CM2.radar_reflectivity(
-            SB2006.acnv,
+            SB2006,
             q_liq,
             q_rai,
             N_liq,
@@ -528,7 +528,7 @@ function test_microphysics2M(FT)
 
         #action
         reff = CM2.effective_radius(
-            SB2006.acnv,
+            SB2006,
             q_liq,
             q_rai,
             N_liq,

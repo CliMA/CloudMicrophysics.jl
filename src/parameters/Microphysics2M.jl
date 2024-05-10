@@ -336,14 +336,18 @@ function VarTimescaleAcnv(td::CP.AbstractTOMLDict)
 end
 
 """
-    ParticlePDF_SB2006
+    RainParticlePDF_SB2006
 
 Rain size distribution parameters from SB2006
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct ParticlePDF_SB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct RainParticlePDF_SB2006{FT} <: ParametersType{FT}
+    "Raindrop size distribution coefficient νr"
+    νr::FT
+    "Raindrop size distribution coefficient μr"
+    μr::FT
     "Raindrop minimal mass"
     xr_min::FT
     "Raindrop maximum mass"
@@ -362,8 +366,10 @@ Base.@kwdef struct ParticlePDF_SB2006{FT} <: ParametersType{FT}
     ρ0::FT
 end
 
-function ParticlePDF_SB2006(td::CP.AbstractTOMLDict)
+function RainParticlePDF_SB2006(td::CP.AbstractTOMLDict)
     name_map = (;
+        :SB2006_rain_distribution_coeff_nu => :νr,
+        :SB2006_rain_distribution_coeff_mu => :μr,
         :SB2006_raindrops_min_mass => :xr_min,
         :SB2006_raindrops_max_mass => :xr_max,
         :SB2006_raindrops_size_distribution_coeff_N0_min => :N0_min,
@@ -375,7 +381,32 @@ function ParticlePDF_SB2006(td::CP.AbstractTOMLDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
-    return ParticlePDF_SB2006{FT}(; parameters...)
+    return RainParticlePDF_SB2006{FT}(; parameters...)
+end
+
+"""
+    CloudParticlePDF_SB2006
+
+Cloud droplets size distribution parameters from SB2006
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+Base.@kwdef struct CloudParticlePDF_SB2006{FT} <: ParametersType{FT}
+    "Cloud droplet size distribution coefficient νc"
+    νc::FT
+    "Cloud droplet size distribution coefficient μc"
+    μc::FT
+end
+
+function CloudParticlePDF_SB2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_cloud_gamma_distribution_parameter => :νc,
+        :SB2006_cloud_gamma_distribution_coeff_mu => :μc,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return CloudParticlePDF_SB2006{FT}(; parameters...)
 end
 
 """
@@ -554,9 +585,11 @@ DOI: 10.1007/s00703-005-0112-4
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SB2006{FT, PD, AV, AR, SC, BR, EV} <: Precipitation2MType{FT}
+struct SB2006{FT, PDc, PDr, AV, AR, SC, BR, EV} <: Precipitation2MType{FT}
+    "Cloud particle size distribution parameters"
+    pdf_c::PDc
     "Rain particle size distribution parameters"
-    pdf::PD
+    pdf_r::PDr
     "Autoconversion parameters"
     acnv::AV
     "Accretion parameters"
@@ -572,18 +605,28 @@ end
 SB2006(::Type{FT}) where {FT <: AbstractFloat} = SB2006(CP.create_toml_dict(FT))
 
 function SB2006(toml_dict::CP.AbstractTOMLDict)
-    pdf = ParticlePDF_SB2006(toml_dict)
+    pdf_c = CloudParticlePDF_SB2006(toml_dict)
+    pdf_r = RainParticlePDF_SB2006(toml_dict)
     acnv = AcnvSB2006(toml_dict)
     accr = AccrSB2006(toml_dict)
     self = SelfColSB2006(toml_dict)
     brek = BreakupSB2006(toml_dict)
     evap = EvaporationSB2006(toml_dict)
     FT = CP.float_type(toml_dict)
-    PD = typeof(pdf)
+    PDc = typeof(pdf_c)
+    PDr = typeof(pdf_r)
     AN = typeof(acnv)
     AR = typeof(accr)
     SE = typeof(self)
     BR = typeof(brek)
     EV = typeof(evap)
-    return SB2006{FT, PD, AN, AR, SE, BR, EV}(pdf, acnv, accr, self, brek, evap)
+    return SB2006{FT, PDc, PDr, AN, AR, SE, BR, EV}(
+        pdf_c,
+        pdf_r,
+        acnv,
+        accr,
+        self,
+        brek,
+        evap,
+    )
 end
