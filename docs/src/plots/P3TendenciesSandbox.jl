@@ -4,6 +4,7 @@ import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CairoMakie as Plt
 import CloudMicrophysics.Microphysics1M as CM1
+import Thermodynamics as TD
 
 import Plots as PL
 
@@ -31,7 +32,7 @@ end
 
 qᵢ = FT(0.001)
 qᵣ = FT(0.1)
-q_c = FT(0.0005)
+q_c = FT(0.005)
 Nᵢ = FT(1e8)
 Nᵣ = FT(1e8)
 N_c = FT(1e8)
@@ -41,7 +42,7 @@ F_r = FT(0.5)
 T = FT(300)
 ρ = ρ_a
 
-q_rain_range = range(1e-8, stop = 0.005, length = 15)
+q_rain_range = range(1e-8, stop = 0.005, length = 100)
 q_snow_range = q_rain_range
 n_0_rain = 16 * 1e6
 n_0_ice = 2 * 1e7
@@ -90,7 +91,7 @@ PL.plot!(
             p3,
             Chen2022,
             q,
-            N_c,
+            Nᵢ,
             q_c,
             N_c,
             ρ_a,
@@ -120,3 +121,96 @@ PL.plot!(
 )
 
 PL.savefig("CollisionComparisons.svg")
+
+const tps = TD.Parameters.ThermodynamicsParameters(FT)
+const aps = CMP.AirProperties(FT)
+
+# 1 Moment Parameters to match graph
+T, p = 273.15 + 15, 90000.0
+ϵ = 1.0 / TD.Parameters.molmass_ratio(tps)
+p_sat = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.0))
+q_tot = 15e-3
+q_vap = 0.15 * q_sat
+q_liq = 0.0
+q_ice = q_tot - q_vap - q_liq
+q = TD.PhasePartition(q_tot, q_liq, q_ice)
+R = TD.gas_constant_air(tps, q)
+ρ = p / R / T
+T = 273.15
+
+PL.plot(
+    q_snow_range * 1e3,
+    [
+        CM1.snow_melt(snow, Blk1MVel.snow, aps, tps, q_sno, ρ, T + 2) for
+        q_sno in q_snow_range
+    ],
+    xlabel = "q_snow [g/kg]",
+    linewidth = 3,
+    ylabel = "snow melt rate [1/s]",
+    label = "1M: T=2C",
+    color = :blue,
+)
+PL.plot!(
+    q_snow_range * 1e3,
+    [
+        CM1.snow_melt(snow, Blk1MVel.snow, aps, tps, q_sno, ρ, T + 4) for
+        q_sno in q_snow_range
+    ],
+    xlabel = "q_snow [g/kg]",
+    linewidth = 3,
+    label = "1M: T=4C",
+    color = :red,
+)
+PL.plot!(
+    q_snow_range * 1e3,
+    [
+        CM1.snow_melt(snow, Blk1MVel.snow, aps, tps, q_sno, ρ, T + 6) for
+        q_sno in q_snow_range
+    ],
+    xlabel = "q_snow [g/kg]",
+    linewidth = 3,
+    label = "1M: T=6C",
+    color = :green,
+)
+
+PL.plot!(
+    q_snow_range * 1e3,
+    [
+        P3.p3_melt(p3, Chen2022, aps, tps, q_sno, Nᵢ, T + 2, ρ_a, F_r, ρ_r) for
+        q_sno in q_snow_range
+    ],
+    xlabel = "q_snow [g/kg]",
+    linewidth = 3,
+    label = "P3: T=2C",
+    linestyle = :dash,
+    color = :blue,
+)
+
+PL.plot!(
+    q_snow_range * 1e3,
+    [
+        P3.p3_melt(p3, Chen2022, aps, tps, q_sno, Nᵢ, T + 4, ρ_a, F_r, ρ_r) for
+        q_sno in q_snow_range
+    ],
+    xlabel = "q_snow [g/kg]",
+    linewidth = 3,
+    label = "P3: T=4C",
+    linestyle = :dash,
+    color = :red,
+)
+
+PL.plot!(
+    q_snow_range * 1e3,
+    [
+        P3.p3_melt(p3, Chen2022, aps, tps, q_sno, Nᵢ, T + 6, ρ_a, F_r, ρ_r) for
+        q_sno in q_snow_range
+    ],
+    xlabel = "q_snow [g/kg]",
+    linewidth = 3,
+    label = "P3: T=6C",
+    linestyle = :dash,
+    color = :green,
+)
+
+PL.savefig("MeltRateComparisons.svg")
