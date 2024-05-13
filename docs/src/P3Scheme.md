@@ -223,3 +223,35 @@ Collision rate comparisons between the P3 Scheme and the 1M microphysics scheme 
 include("plots/P3TendenciesSandbox.jl")
 ```
 ![](CollisionComparisons.svg)
+
+## Melting 
+
+Melting rates are calculated through the following equation: 
+
+```math 
+\frac{dq}{dt} = \frac{1}{2 \rho_a} \int_{0}^{\infty} \! \frac{dm(D)}{dt} N'(D) \mathrm{d}D
+```
+
+where: 
+- ``\frac{dm(D)}{dt} = \frac{dm(D)}{dD} \frac{dD}{dt}``
+- ``m(D)`` - mass of ice particle with maximum dimension D
+- ``\frac{dD}{dt} = \frac{4}{D \rho_w} \frac{K_{thermo}}{L_f} (T - T_{freeze}) F(D)``
+- ``F(D) = a + b N_{sc}^{\frac{1}{3}} N_{Re}(D)^{\frac{1}{2}}`` - ventilation factor
+- ``N_{sc} = \frac{v_{air}}{D_{vapor}}`` - Schmidt number
+- ``N_{Re}(D) = \frac{D V_{term}(D)}{v_{air}}`` - Reynolds number
+- ``V_{term}(D)`` - terminal velocity of ice particle with maximum dimension D
+
+with constant values: 
+- ``\rho_a`` - density of air (1.2 kg / m^3)
+- ``\rho_w`` - density of water (1000 kg / m^3)
+- ``K_{thermo}`` - thermal conductivity of air 
+- ``L_f`` - latent heat of freezing
+- ``T_{freeze}`` - freezing temperature (273.15 K)
+- ``v_{air}`` -  kinematic viscosity of air
+- ``D_{vapor}`` - diffusivity of water
+- ``a`` - 0.78 
+- ``b`` - 0.308
+
+Melting rate comparisons between the P3 Scheme and the 1M Microphysics scheme are shown below: 
+
+![MeltRateComparisons.svg]

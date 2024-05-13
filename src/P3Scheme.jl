@@ -16,6 +16,9 @@ import QuadGK as QGK
 import RootSolvers as RS
 import HCubature as HC
 
+import Thermodynamics as TD
+import Thermodynamics.Parameters as TDP
+
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
@@ -249,7 +252,6 @@ function p3_area(
     elseif D >= th.D_cr
         return A_r(p3, F_r, D)             # partially rimed ice
     else
-        println(D)
         throw("D not in range")
     end
 end
@@ -786,12 +788,13 @@ end
  - q - mass mixing ratio of rain
  - N - number mixing ratio of rain 
 
- returns the parameters λ and N_0 where N' = N_0 * D ^ 8 * exp(-λ  * D ^ 3)
+ returns the parameters λ and N_0 where N' = N_0 * D ^ 8 * exp(-λ ^3  * D ^ 3)
 """
 function get_cloud_parameters(q::FT, N::FT) where {FT}
     ρ_w = FT(1000)
-    λ = π * ρ_w * N / (2 * q)
-    N_0 = 3 / 2 * N * λ^3
+    ρ_a = FT(1.2)
+    λ = (π * ρ_w * N / (2 * q * ρ_a))^(1/3)
+    N_0 = 3 / 2 * N * λ^9
     return (λ, N_0)
 end
 
@@ -822,7 +825,7 @@ end
 """
 function N′cloud(D::FT, q::FT, N::FT) where {FT}
     (λ, N_0) = get_cloud_parameters(q, N)
-    return N_0 * D^8 * exp(-λ * D^3)
+    return N_0 * D^8 * exp(-λ^3 * D^3)
 end
 
 """
@@ -922,6 +925,22 @@ function velocity_chen(
     return v
 end
 
+function get_ice_bound(p3, λ::FT, tolerance::FT)  where{FT}
+    ice_problem(x) =
+        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
+    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
+    log_ice_x =
+        RS.find_zero(
+            ice_problem,
+            RS.SecantMethod(guess - 1, guess),
+            RS.CompactSolution(),
+            RS.RelativeSolutionTolerance(eps(FT)),
+            5,
+        ).root
+
+    return exp(log_ice_x)
+end
+
 """
     integration_bounds(p3, tolerance, λ, N_0, Nᵢ, qᵣ, Nᵣ)
 
@@ -953,12 +972,12 @@ function integration_bounds(
         cloud_λ, = get_cloud_parameters(q, N)
         cloud_problem(x) =
             tolerance -
-            exp(-exp(x)^3 * cloud_λ) *
-            (1 + exp(x)^3 * cloud_λ + 1 / 2 * exp(x)^6 * cloud_λ^2)
+            exp(-exp(x)^3 * cloud_λ^3) *
+            (1 + exp(x)^3 * cloud_λ^3 + 1 / 2 * exp(x)^6 * cloud_λ^6)
         guess =
             log(0.5) +
             (log(0.00025) - log(0.5)) / (log(1e12) - log(1e2)) *
-            (log(cloud_λ) - log(10^2))
+            (log(cloud_λ^3) - log(10^2))
         log_cloud_x =
             RS.find_zero(
                 cloud_problem,
@@ -969,7 +988,7 @@ function integration_bounds(
             ).root
         colliding_x = exp(log_cloud_x)
     end
-
+#= 
     ice_problem(x) =
         tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
     guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
@@ -981,8 +1000,9 @@ function integration_bounds(
             RS.RelativeSolutionTolerance(eps(FT)),
             5,
         ).root
-
-    return (2 * colliding_x, 2 * exp(log_ice_x))
+ =#
+    ice_bound = get_ice_bound(p3, λ, tolerance)
+    return (2 * colliding_x, 2 * ice_bound)
 end
 
 """
@@ -1119,6 +1139,78 @@ function ice_collisions(
             (colliding_bound, ice_bound),
         )
     end
+
+    return dqdt
+end
+
+"""
+    dmdt_mass(p3, D, F_r, th) 
+
+ - p3 - a struct containing p3 parameters 
+ - D - maximum dimension of the particle 
+ - F_r - rime mass fraction (q_rim/ q_i) 
+ - th - thresholds as calculated by thresholds()
+
+Returns the value equivalent to dm(D)/dt * 4 / D for each P3 regime
+    4 / D comes from dD/dt
+"""
+function dmdt_mass(p3, D, F_r, th) 
+    D_th = D_th_helper(p3)
+    if D_th > D
+        return 2 * π * p3.ρ_i * D 
+    elseif F_r == 0
+        return 4 * α_va_si(p3) * p3.β_va * D^(p3.β_va - 2)  
+    elseif th.D_gr > D >= D_th
+        return 4 * α_va_si(p3) * p3.β_va * D^(p3.β_va - 2)   
+    elseif th.D_cr > D >= th.D_gr
+        return 2 * π * th.ρ_g * D    
+    elseif D >= th.D_cr
+        return 4 * α_va_si(p3)/(1 - F_r) * p3.β_va * D^(p3.β_va - 2)   
+    end
+end
+
+"""
+    p3_melt(p3, Chen2022, aps, tps, q, N, ρ, T, ρ_a, F_r, ρ_r)
+
+ - p3 - a struct containing p3 parameters 
+ - Chen2022 - struct containing Chen 2022 velocity parameters 
+ - aps - air properties
+ - tps - thermodynamics parameters
+ - q - mass mixing ratio of ice 
+ - N - number mixing ratio of ice 
+ - T - temperature (K) 
+ - ρ_a - air density
+ - F_r - rime mass fraction (q_rim/ q_i)
+ - ρ_r - rime density (q_rim/B_rim) 
+
+ Returns the calculated melting rate of ice
+ Equivalent to the measure of QIMLT in Morrison and Mildbrandt (2015) 
+"""
+function p3_melt(p3::PSP3, Chen2022::CMP.Chen2022VelType, aps::CMP.AirProperties{FT}, tps::TDP.ThermodynamicsParameters{FT}, q::FT, N::FT, T::FT, ρ_a::FT, F_r::FT, ρ_r::FT,) where{FT}
+    # Get constants
+    (; ν_air, D_vapor, K_therm) = aps
+    a = FT(0.78)  
+    b = FT(0.308)
+    L_f = TD.latent_heat_fusion(tps, T) 
+    T_freeze = FT(273.15)
+    N_sc = ν_air / D_vapor 
+    ρ_w = FT(1000)
+
+    # Get distribution values  
+    th = thresholds(p3, ρ_r, F_r)
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+
+    # Get bound 
+    ice_bound = get_ice_bound(p3, λ, eps(FT))
+    
+    # Define function pieces
+    N_re(D) = D * velocity_chen(D, p3, Chen2022.snow_ice, ρ_a, F_r, th) / ν_air
+    F(D) = a + b * N_sc^(1/3) * N_re(D)^(1/2)
+    dmdt(D) = dmdt_mass(p3, D, F_r, th) / ρ_w * K_therm / L_f * (T - T_freeze) * F(D)
+    f(D) = 1 / (2 * ρ_a) * dmdt(D) * N′ice(D, p3, λ, N_0)
+
+    # Integrate 
+    (dqdt, error) = QGK.quadgk(d -> f(d), FT(0), 2 * ice_bound)
 
     return dqdt
 end

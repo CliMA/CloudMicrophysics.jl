@@ -3,6 +3,7 @@ import ClimaParams
 import CloudMicrophysics as CM
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
+import Thermodynamics as TD
 
 @info "P3 Scheme Tests"
 
@@ -209,6 +210,8 @@ function test_tendencies(FT)
 
     p3 = CMP.ParametersP3(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    aps = CMP.AirProperties(FT)
 
     TT.@testset "Collision Tendencies Smoke Test" begin
         N = FT(1e8)
@@ -222,9 +225,9 @@ function test_tendencies(FT)
         q_const = FT(0.05)
 
         cloud_expected_warm =
-            [5.78e-5, 0.00019256, 0.00039239, 0.00065184, 0.00096698]
+            [6.301e-5, 0.0002086, 0.0004235, 0.0007016, 0.001039]
         cloud_expected_cold =
-            [0.0016687, 0.0026921, 0.0035912, 0.0044255, 0.00522]
+            [0.002203, 0.003536, 0.004701, 0.005779, 0.006802]
         rain_expected_warm = [0.0003392, 0.000713, 0.001103, 0.001506, 0.00192]
         rain_expected_cold = [0.2905, 0.2982, 0.3033, 0.3072, 0.3104]
 
@@ -292,6 +295,25 @@ function test_tendencies(FT)
             TT.@test rain_warm ≈ rain_expected_warm[i] rtol = 1e-3
             TT.@test rain_cold >= 0
             TT.@test rain_cold ≈ rain_expected_cold[i] rtol = 1e-3
+        end
+    end
+
+    TT.@testset "Melting Tendencies Smoke Test" begin
+        N = FT(1e8)
+        ρ_a = FT(1.2)
+        ρ_r = FT(500)
+        F_r = FT(0.5)
+        T_freeze = FT(273.15)
+
+        qs = range(0.001, stop = 0.005, length = 5)
+
+        expected_melt = [0.0006982, 0.0009034, 0.001054, 0.001177, 0.001283]
+
+        for i in axes(qs, 1)
+            rate = P3.p3_melt(p3, Chen2022, aps, tps, qs[i], N, T_freeze + 2, ρ_a, F_r, ρ_r) 
+
+            TT.@test rate >= 0 
+            TT.@test rate ≈ expected_melt[i] rtol = 1e-3
         end
     end
 
