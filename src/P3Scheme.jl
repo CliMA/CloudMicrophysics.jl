@@ -22,6 +22,7 @@ import Thermodynamics.Parameters as TDP
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
+import CloudMicrophysics as CM
 
 const PSP3 = CMP.ParametersP3
 
@@ -925,7 +926,7 @@ function velocity_chen(
     return v
 end
 
-function get_ice_bound(p3, λ::FT, tolerance::FT) where {FT}
+function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
     ice_problem(x) =
         tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
     guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
@@ -939,6 +940,34 @@ function get_ice_bound(p3, λ::FT, tolerance::FT) where {FT}
         ).root
 
     return exp(log_ice_x)
+end
+
+function get_rain_bound(q::FT, N::FT, tolerance::FT) where {FT}
+    rain_λ, = get_rain_parameters(q, N)
+    colliding_x = -1 / rain_λ * log(tolerance)
+    return colliding_x
+end
+
+function get_cloud_bound(q::FT, N::FT, tolerance::FT) where {FT}
+    cloud_λ, = get_cloud_parameters(q, N)
+    cloud_problem(x) =
+        tolerance -
+        exp(-exp(x)^3 * cloud_λ^3) *
+        (1 + exp(x)^3 * cloud_λ^3 + 1 / 2 * exp(x)^6 * cloud_λ^6)
+    guess =
+        log(0.5) +
+        (log(0.00025) - log(0.5)) / (log(1e12) - log(1e2)) *
+        (log(cloud_λ^3) - log(10^2))
+    log_cloud_x =
+        RS.find_zero(
+            cloud_problem,
+            RS.NewtonsMethodAD(guess),
+            RS.CompactSolution(),
+            RS.RelativeSolutionTolerance(eps(FT)),
+            5,
+        ).root
+    colliding_x = exp(log_cloud_x)
+    return colliding_x
 end
 
 """
@@ -966,41 +995,10 @@ function integration_bounds(
     N::FT,
 ) where {FT}
     if type == "rain"
-        rain_λ, = get_rain_parameters(q, N)
-        colliding_x = -1 / rain_λ * log(tolerance)
+        colliding_x = get_rain_bound(q, N, tolerance)
     elseif type == "cloud"
-        cloud_λ, = get_cloud_parameters(q, N)
-        cloud_problem(x) =
-            tolerance -
-            exp(-exp(x)^3 * cloud_λ^3) *
-            (1 + exp(x)^3 * cloud_λ^3 + 1 / 2 * exp(x)^6 * cloud_λ^6)
-        guess =
-            log(0.5) +
-            (log(0.00025) - log(0.5)) / (log(1e12) - log(1e2)) *
-            (log(cloud_λ^3) - log(10^2))
-        log_cloud_x =
-            RS.find_zero(
-                cloud_problem,
-                RS.NewtonsMethodAD(guess),
-                RS.CompactSolution(),
-                RS.RelativeSolutionTolerance(eps(FT)),
-                5,
-            ).root
-        colliding_x = exp(log_cloud_x)
+        colliding_x = get_cloud_bound(q, N, tolerance)
     end
-    #= 
-        ice_problem(x) =
-            tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
-        guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
-        log_ice_x =
-            RS.find_zero(
-                ice_problem,
-                RS.SecantMethod(guess - 1, guess),
-                RS.CompactSolution(),
-                RS.RelativeSolutionTolerance(eps(FT)),
-                5,
-            ).root
-     =#
     ice_bound = get_ice_bound(p3, λ, tolerance)
     return (2 * colliding_x, 2 * ice_bound)
 end
@@ -1225,6 +1223,56 @@ function p3_melt(
     (dqdt, error) = QGK.quadgk(d -> f(d), FT(0), 2 * ice_bound)
 
     return dqdt
+end
+
+"""
+    p3_het_freezing(type, mass, tps, q, N, T, ρ_a, qᵥ, aero_type)
+
+ - mass - true if calculating change in mass, false for change in number
+ - tps - thermodynamics parameters
+ - q - mass mixing ratio of rain
+ - N - number mixing ratio of rain
+ - T - temperature in K 
+ - ρ_a - density of air 
+ - qᵥ - mixing ratio of water vapor 
+ - aero_type - type of aerosols present 
+
+ Returns the rate of hetergoeneous freezing within rain or cloud water 
+    If mass false corresponds to NRHET in Morrison and Mildbrandt (2015)
+    If mass true corresponds to QRHET in Morrison and Mildbrandt (2015)
+"""
+function p3_rain_het_freezing(
+    mass::Bool,
+    tps::TDP.ThermodynamicsParameters{FT},
+    q::FT,
+    N::FT,
+    T::FT,
+    ρ_a::FT,
+    qᵥ::FT,
+    aero_type,
+) where {FT}
+    ρ_w = FT(1000)
+
+    Rₐ = TD.gas_constant_air(tps, TD.PhasePartition(qᵥ))
+    R_v = TD.Parameters.R_v(tps)
+    e = qᵥ * ρ_a * R_v / Rₐ
+
+    a_w = CO.a_w_eT(tps, e, T)
+    a_w_ice = CO.a_w_ice(tps, T)
+    Δa_w = a_w - a_w_ice
+    J_immersion = CM.HetIceNucleation.ABIFM_J(aero_type, Δa_w)
+
+    bound = get_rain_bound(q, N, eps(FT))
+    if mass
+        f_rain_mass(D) =
+            J_immersion * N′rain(D, q, N) * mass_s(D, ρ_w) * π * D^2
+        dqdt, = QGK.quadgk(d -> f_rain_mass(d), FT(0), 2 * bound)
+        return dqdt
+    else
+        f_rain(D) = J_immersion * N′rain(D, q, N) * π * D^2
+        dNdt, = QGK.quadgk(d -> f_rain(d), FT(0), 2 * bound)
+        return dNdt
+    end
 end
 
 end

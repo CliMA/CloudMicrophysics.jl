@@ -254,4 +254,27 @@ with constant values:
 
 Melting rate comparisons between the P3 Scheme and the 1M Microphysics scheme are shown below: 
 
-![MeltRateComparisons.svg]
+![](MeltRateComparisons.svg)
+
+## Heterogeneous Freezing 
+
+Heterogeneous freezing rates are calculated using the ABIFM parametrization defined in the Ice Nucleation folder. Specifically, we use the following equation (taking into account the distribution of rain particles): 
+
+```math 
+\frac{dN}{dt} = \int_{0}^{\infty} \! J_{ABIFM} A(D) N'(D) \mathrm{d}D
+
+\frac{dq}{dt} = \int_{0}^{\infty} \! J_{ABIFM} A(D) N'(D) m(D) \mathrm{d}D
+```
+
+where 
+- ``J_{ABIFM}`` - calculated heterogeneous nucleation rate 
+- ``A(D)`` - surface area of a particle with maximum dimension D (``\pi D^2`` in the case of spherical rain particles)
+- ``N'(D)`` - number distribution of rain particles 
+- ``m(D)`` - corresponding mass of a rain particle with dimension D 
+
+The change in number concentration and mass due to heterogeneous freezing are shown below for 249K, 250K, and 251K. 
+
+![](FreezeRateComparisons.svg)
+
+![](MassFreezeRateComparisons.svg)
+

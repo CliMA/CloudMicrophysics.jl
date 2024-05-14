@@ -327,6 +327,50 @@ function test_tendencies(FT)
         end
     end
 
+    TT.@testset "Heterogeneous Freezing Smoke Test" begin
+        T = FT(250)
+        N = FT(1e8)
+        ρ_a = FT(1.2)
+        qᵥ = FT(8.1e-4)
+        aero_type = CMP.Illite(FT)
+
+        qs = range(0.001, stop = 0.005, length = 5)
+
+        expected_freeze_q =
+            [1.109e-61, 3.519e-61, 6.918e-61, 1.117e-60, 1.621e-60]
+        expected_freeze_N =
+            [1.109e-51, 1.760e-51, 2.306e-51, 2.794e-51, 3.242e-51]
+
+        for i in axes(qs, 1)
+            rate_mass = P3.p3_rain_het_freezing(
+                true,
+                tps,
+                qs[i],
+                N,
+                T,
+                ρ_a,
+                qᵥ,
+                aero_type,
+            )
+            rate_num = P3.p3_rain_het_freezing(
+                false,
+                tps,
+                qs[i],
+                N,
+                T,
+                ρ_a,
+                qᵥ,
+                aero_type,
+            )
+
+            TT.@test rate_mass >= 0
+            TT.@test rate_mass ≈ expected_freeze_q[i] rtol = 1e-3
+
+            TT.@test rate_num >= 0
+            TT.@test rate_num ≈ expected_freeze_N[i] rtol = 1e-3
+        end
+    end
+
 end
 
 println("Testing Float32")

@@ -23,13 +23,6 @@ const snow = CMP.Snow(FT)
 const Blk1MVel = CMP.Blk1MVelType(FT)
 const ce = CMP.CollisionEff(FT)
 
-# Get expected N from n_0 as provided in the 1M scheme and q 
-function getN(q, n_0)
-    ρ_w = FT(1000)
-    λ = (8 * n_0 * π * ρ_w / q)^(1 / 4)
-    return n_0 / λ
-end
-
 qᵢ = FT(0.001)
 qᵣ = FT(0.1)
 q_c = FT(0.005)
@@ -44,8 +37,6 @@ T = FT(300)
 
 q_rain_range = range(1e-8, stop = 0.005, length = 100)
 q_snow_range = q_rain_range
-n_0_rain = 16 * 1e6
-n_0_ice = 2 * 1e7
 
 PL.plot(
     q_rain_range * 1e3,
@@ -214,3 +205,78 @@ PL.plot!(
 )
 
 PL.savefig("MeltRateComparisons.svg")
+
+T = FT(250)
+qᵥ = FT(8.1e-4)
+aero_type = CMP.Illite(FT)
+mass = true
+
+PL.plot(
+    q_rain_range * 1e3,
+    [
+        P3.p3_rain_het_freezing(mass, tps, q, N_c, T - 1, ρ_a, qᵥ, aero_type)
+        for q in q_rain_range
+    ],
+    xlabel = "q_rain [g/ kg]",
+    linewidth = 3,
+    label = "249K",
+    title = "Δ Mass / Second",
+    yscale = :log10,
+)
+
+PL.plot!(
+    q_rain_range * 1e3,
+    [
+        P3.p3_rain_het_freezing(mass, tps, q, N_c, T, ρ_a, qᵥ, aero_type) for
+        q in q_rain_range
+    ],
+    linewidth = 3,
+    label = "250K",
+)
+
+PL.plot!(
+    q_rain_range * 1e3,
+    [
+        P3.p3_rain_het_freezing(mass, tps, q, N_c, T + 1, ρ_a, qᵥ, aero_type)
+        for q in q_rain_range
+    ],
+    linewidth = 3,
+    label = "251K",
+)
+
+PL.savefig("MassFreezeRateComparisons.svg")
+
+PL.plot(
+    q_rain_range * 1e3,
+    [
+        P3.p3_rain_het_freezing(!mass, tps, q, N_c, T - 1, ρ_a, qᵥ, aero_type)
+        for q in q_rain_range
+    ],
+    xlabel = "q_rain [g/ kg]",
+    linewidth = 3,
+    label = "249K",
+    title = "Δ Number Concentration / Second",
+    yscale = :log10,
+)
+
+PL.plot!(
+    q_rain_range * 1e3,
+    [
+        P3.p3_rain_het_freezing(!mass, tps, q, N_c, T, ρ_a, qᵥ, aero_type) for
+        q in q_rain_range
+    ],
+    linewidth = 3,
+    label = "250K",
+)
+
+PL.plot!(
+    q_rain_range * 1e3,
+    [
+        P3.p3_rain_het_freezing(!mass, tps, q, N_c, T + 1, ρ_a, qᵥ, aero_type)
+        for q in q_rain_range
+    ],
+    linewidth = 3,
+    label = "251K",
+)
+
+PL.savefig("FreezeRateComparisons.svg")
