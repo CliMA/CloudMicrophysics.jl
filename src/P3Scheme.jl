@@ -793,7 +793,7 @@ end
 function get_cloud_parameters(q::FT, N::FT) where {FT}
     ρ_w = FT(1000)
     ρ_a = FT(1.2)
-    λ = (π * ρ_w * N / (2 * q * ρ_a))^(1/3)
+    λ = (π * ρ_w * N / (2 * q * ρ_a))^(1 / 3)
     N_0 = 3 / 2 * N * λ^9
     return (λ, N_0)
 end
@@ -925,7 +925,7 @@ function velocity_chen(
     return v
 end
 
-function get_ice_bound(p3, λ::FT, tolerance::FT)  where{FT}
+function get_ice_bound(p3, λ::FT, tolerance::FT) where {FT}
     ice_problem(x) =
         tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
     guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
@@ -988,19 +988,19 @@ function integration_bounds(
             ).root
         colliding_x = exp(log_cloud_x)
     end
-#= 
-    ice_problem(x) =
-        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
-    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
-    log_ice_x =
-        RS.find_zero(
-            ice_problem,
-            RS.SecantMethod(guess - 1, guess),
-            RS.CompactSolution(),
-            RS.RelativeSolutionTolerance(eps(FT)),
-            5,
-        ).root
- =#
+    #= 
+        ice_problem(x) =
+            tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
+        guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
+        log_ice_x =
+            RS.find_zero(
+                ice_problem,
+                RS.SecantMethod(guess - 1, guess),
+                RS.CompactSolution(),
+                RS.RelativeSolutionTolerance(eps(FT)),
+                5,
+            ).root
+     =#
     ice_bound = get_ice_bound(p3, λ, tolerance)
     return (2 * colliding_x, 2 * ice_bound)
 end
@@ -1154,18 +1154,18 @@ end
 Returns the value equivalent to dm(D)/dt * 4 / D for each P3 regime
     4 / D comes from dD/dt
 """
-function dmdt_mass(p3, D, F_r, th) 
+function dmdt_mass(p3, D, F_r, th)
     D_th = D_th_helper(p3)
     if D_th > D
-        return 2 * π * p3.ρ_i * D 
+        return 2 * π * p3.ρ_i * D
     elseif F_r == 0
-        return 4 * α_va_si(p3) * p3.β_va * D^(p3.β_va - 2)  
+        return 4 * α_va_si(p3) * p3.β_va * D^(p3.β_va - 2)
     elseif th.D_gr > D >= D_th
-        return 4 * α_va_si(p3) * p3.β_va * D^(p3.β_va - 2)   
+        return 4 * α_va_si(p3) * p3.β_va * D^(p3.β_va - 2)
     elseif th.D_cr > D >= th.D_gr
-        return 2 * π * th.ρ_g * D    
+        return 2 * π * th.ρ_g * D
     elseif D >= th.D_cr
-        return 4 * α_va_si(p3)/(1 - F_r) * p3.β_va * D^(p3.β_va - 2)   
+        return 4 * α_va_si(p3) / (1 - F_r) * p3.β_va * D^(p3.β_va - 2)
     end
 end
 
@@ -1186,14 +1186,25 @@ end
  Returns the calculated melting rate of ice
  Equivalent to the measure of QIMLT in Morrison and Mildbrandt (2015) 
 """
-function p3_melt(p3::PSP3, Chen2022::CMP.Chen2022VelType, aps::CMP.AirProperties{FT}, tps::TDP.ThermodynamicsParameters{FT}, q::FT, N::FT, T::FT, ρ_a::FT, F_r::FT, ρ_r::FT,) where{FT}
+function p3_melt(
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelType,
+    aps::CMP.AirProperties{FT},
+    tps::TDP.ThermodynamicsParameters{FT},
+    q::FT,
+    N::FT,
+    T::FT,
+    ρ_a::FT,
+    F_r::FT,
+    ρ_r::FT,
+) where {FT}
     # Get constants
     (; ν_air, D_vapor, K_therm) = aps
-    a = FT(0.78)  
+    a = FT(0.78)
     b = FT(0.308)
-    L_f = TD.latent_heat_fusion(tps, T) 
+    L_f = TD.latent_heat_fusion(tps, T)
     T_freeze = FT(273.15)
-    N_sc = ν_air / D_vapor 
+    N_sc = ν_air / D_vapor
     ρ_w = FT(1000)
 
     # Get distribution values  
@@ -1202,11 +1213,12 @@ function p3_melt(p3::PSP3, Chen2022::CMP.Chen2022VelType, aps::CMP.AirProperties
 
     # Get bound 
     ice_bound = get_ice_bound(p3, λ, eps(FT))
-    
+
     # Define function pieces
     N_re(D) = D * velocity_chen(D, p3, Chen2022.snow_ice, ρ_a, F_r, th) / ν_air
-    F(D) = a + b * N_sc^(1/3) * N_re(D)^(1/2)
-    dmdt(D) = dmdt_mass(p3, D, F_r, th) / ρ_w * K_therm / L_f * (T - T_freeze) * F(D)
+    F(D) = a + b * N_sc^(1 / 3) * N_re(D)^(1 / 2)
+    dmdt(D) =
+        dmdt_mass(p3, D, F_r, th) / ρ_w * K_therm / L_f * (T - T_freeze) * F(D)
     f(D) = 1 / (2 * ρ_a) * dmdt(D) * N′ice(D, p3, λ, N_0)
 
     # Integrate 

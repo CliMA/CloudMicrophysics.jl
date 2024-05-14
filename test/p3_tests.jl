@@ -226,8 +226,7 @@ function test_tendencies(FT)
 
         cloud_expected_warm =
             [6.301e-5, 0.0002086, 0.0004235, 0.0007016, 0.001039]
-        cloud_expected_cold =
-            [0.002203, 0.003536, 0.004701, 0.005779, 0.006802]
+        cloud_expected_cold = [0.002203, 0.003536, 0.004701, 0.005779, 0.006802]
         rain_expected_warm = [0.0003392, 0.000713, 0.001103, 0.001506, 0.00192]
         rain_expected_cold = [0.2905, 0.2982, 0.3033, 0.3072, 0.3104]
 
@@ -310,9 +309,20 @@ function test_tendencies(FT)
         expected_melt = [0.0006982, 0.0009034, 0.001054, 0.001177, 0.001283]
 
         for i in axes(qs, 1)
-            rate = P3.p3_melt(p3, Chen2022, aps, tps, qs[i], N, T_freeze + 2, ρ_a, F_r, ρ_r) 
+            rate = P3.p3_melt(
+                p3,
+                Chen2022,
+                aps,
+                tps,
+                qs[i],
+                N,
+                T_freeze + 2,
+                ρ_a,
+                F_r,
+                ρ_r,
+            )
 
-            TT.@test rate >= 0 
+            TT.@test rate >= 0
             TT.@test rate ≈ expected_melt[i] rtol = 1e-3
         end
     end
