@@ -33,7 +33,7 @@ md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
 ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
 qᵥ = mv_v / (md_v + mv_v + ml_v)
-qₗ = ml_v / (md_v + mv_v + ml_v)
+qₗ = ml_v / (md_v + mv_v + ml_v) 
 qᵢ = FT(0)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 

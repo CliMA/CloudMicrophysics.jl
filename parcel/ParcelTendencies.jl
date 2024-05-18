@@ -202,29 +202,20 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     (; Sₗ, T, qₗ, qᵥ) = state
 
     FT = eltype(state)
-    (; aps, tps, liquid) = params
+    (; aps, tps, liquid, ice, const_dt) = params
 
-    cp_air = TD.cp_m(tps, q)
-    L_subl = TD.latent_heat_sublim(tps, T)
-
-
-    #q_sat = TD.Parameters.q_liq_sat #????
-    q_sat = TD.q_vap_saturation_generic(aps,T,TD.Liquid())
+    q_sat = TD.PhasePartition(TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid()))
 
     # the dumb option
-    #q_liq_sat = FT(5e-3)
-
+    #q_sat = FT(5e-3)
     #q_ice_sat = FT(2e-3)
 
-    # currently not using T  but I guess would additional
-    # later for incorporating ice?
-    # also we don't have Si so idk...
-    
+    # running it the simple version
+    #MNE.conv_q_vap_to_q_liq_ice(liquid,TD.PhasePartition(FT(0),q_sat,FT(0)),TD.PhasePartition(FT(0),qₗ,FT(0)))
 
-    # this is probably still wrong -- missing a pressure?
-    #q_sat = TD.PhasePartition(FT(0), qᵥ/Sₗ, FT(0))
+    MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, TD.PhasePartition(FT(0),qₗ,FT(0)), T, const_dt)
 
-    return MNE.conv_q_vap_to_q_liq_ice(liquid,q_sat,TD.PhasePartition(FT(0),qₗ,FT(0)))
+    return
 end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)

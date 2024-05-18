@@ -55,32 +55,39 @@ function conv_q_vap_to_q_liq_ice(
 end
 
 function conv_q_vap_to_q_liq_ice(
+    tps::TDP.ThermodynamicsParameters{FT},
     (; τₗ)::CMP.CloudLiquid{FT},
     (; τᵢ)::CMP.CloudIce{FT},
-    T:: # temperature
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
+    T:: FT, # temperature
+    const_dt:: FT,
 ) where {FT}
 
     # implementing this -- first the simplest form that drops the
-    # derivatives
+    # derivatives and sets A_c = 1
 
     cp_air = TD.cp_m(tps, q)
     L_subl = TD.latent_heat_sublim(tps, T)
 
-    τ = τₗ + (1 + (L_subl/cp_air))*τᵢ^(-1)
+    Γₗ = 1 + (L_subl/cp_air)
+    Γᵢ = Γₗ
 
-    # i dont really understand how
-    # to do the q sat part of this either
+    τ = τₗ + (1 + (L_subl/cp_air))*τᵢ^(-1) / Γᵢ
 
     # replace this w QCCONN -- see what Jordan did in his milbrandt code
-    # so essentially I am creating something for how the rate has changed --
+
+    A_c = 1
+    delta_0 =  q_sat # ??? this is maybe the part that scares me most
+    # and yeah also no clue what tau c is
+
+    # something like this -- need to get everything into the right format etc etc.
+    result = A_c * τ/(τᵢ * Γₗ) + (delta_0 - A_c*τ)*τ/(const_dt*τᵢ*Γₗ)(1-np.exp(-const_dt/τ))
 
     # beware that this version is mixing ratio not specific humidity
-    # so may need to convert back to that soon
+    # so may need to convert back to that at some point
 
-
-    return (q_sat.ice - q.ice) / τ # is that the way to implement??
+    return result
 end
 
 end #module MicrophysicsNonEq.jl
