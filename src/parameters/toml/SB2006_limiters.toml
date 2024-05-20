@@ -1,0 +1,8 @@
+[SB2006_raindrops_min_mass]
+value = 6.54e-11
+
+[SB2006_raindrops_size_distribution_coeff_N0_max]
+value = 2e10
+
+[SB2006_raindrops_size_distribution_coeff_lambda_max]
+value = 1e5
