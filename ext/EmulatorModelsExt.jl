@@ -45,9 +45,9 @@ function AA.N_activated_per_mode(
         modes_perm[[1, i]] = modes_perm[[i, 1]]
         per_mode_data = [
             (;
-                Symbol("mode_$(j)_N") => ad.Modes[modes_perm[j]].N,
-                Symbol("mode_$(j)_mean") => ad.Modes[modes_perm[j]].r_dry,
-                Symbol("mode_$(j)_stdev") => ad.Modes[modes_perm[j]].stdev,
+                Symbol("mode_$(j)_N") => ad.modes[modes_perm[j]].N,
+                Symbol("mode_$(j)_mean") => ad.modes[modes_perm[j]].r_dry,
+                Symbol("mode_$(j)_stdev") => ad.modes[modes_perm[j]].stdev,
                 Symbol("mode_$(j)_kappa") => hygro[modes_perm[j]],
             ) for j in 1:AM.n_modes(ad)
         ]
@@ -57,7 +57,7 @@ function AA.N_activated_per_mode(
             :initial_pressure => p,
         )
         X = DF.DataFrame([merge(reduce(merge, per_mode_data), additional_data)])
-        max(FT(0), min(FT(1), MLJ.predict(machine, X)[1])) * ad.Modes[i].N
+        max(FT(0), min(FT(1), MLJ.predict(machine, X)[1])) * ad.modes[i].N
     end
 end
 

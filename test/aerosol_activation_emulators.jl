@@ -311,8 +311,8 @@ function test_emulator(
     r2 = FT(1.5 * 1e-6)   # m
     σ2 = FT(2.1)          # -
     N2 = FT(1e6)          # 1/m3
-    acc = AM.Mode_κ(r1, σ1, N1, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,), 1)
-    crs = AM.Mode_κ(r2, σ2, N2, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,), 1)
+    acc = AM.Mode_κ(r1, σ1, N1, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,))
+    crs = AM.Mode_κ(r2, σ2, N2, (FT(1.0),), (FT(1.0),), (salt.M,), (salt.κ,))
     ad = AM.AerosolDistribution((crs, acc))
 
     # Get the ML model
