@@ -53,8 +53,9 @@ end
  - `ρ` - air density
  - `N_rai` raindrops number density
 
-Returns a named tupple containing the mean mass of raindrops, xr, and the rate parameter of the assumed
-size distribution of raindrops (based on drops diameter), λr, limited within prescribed ranges
+    Returns the mean mass of raindrops, xr, the rate parameter of the assumed size distribution
+    of raindrops (based on drops diameter), λr, limited within prescribed ranges, and the two 
+    rain distribution parameters, A and B.
 """
 function raindrops_limited_vars(
     pdf_r::CMP.RainParticlePDF_SB2006{FT},
@@ -62,7 +63,7 @@ function raindrops_limited_vars(
     ρ::FT,
     N_rai::FT,
 ) where {FT}
-    (; xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
+    (; νr, μr, xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
 
     L_rai = ρ * q_rai
     xr_0 = L_rai / N_rai
@@ -71,7 +72,12 @@ function raindrops_limited_vars(
     λr = max(λ_min, min(λ_max, (FT(π) * ρw * N0 / L_rai)^FT(1 / 4)))
     xr = max(xr_min, min(xr_max, L_rai * λr / N0))
 
-    return (; λr, xr)
+    Br =
+        (xr == 0) ? FT(0) :
+        (SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr)
+    Ar = μr * N_rai * Br^(FT(νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
+
+    return (; λr, xr, Ar, Br)
 end
 
 """
@@ -448,7 +454,7 @@ function rain_evaporation(
 end
 
 """ 
-    radar_reflectivity(structs, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w, τ_q, τ_N)
+    radar_reflectivity(structs, q_liq, q_rai, N_liq, N_rai, ρ_air, τ_q, τ_N)
 
     - `structs` - structs with SB2006 cloud droplets and raindrops 
                 size distributions parameters
@@ -457,7 +463,6 @@ end
     - `N_liq` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
-    - `ρ_w` - water density
     - `τ_q` - threshold for minimum specific humidity value
     - `τ_N` - threshold for minimum number density value
 
@@ -472,35 +477,30 @@ function radar_reflectivity(
     N_liq::FT,
     N_rai::FT,
     ρ_air::FT,
-    ρ_w::FT,
     τ_q::FT,
     τ_N::FT,
 ) where {FT}
 
     (; νc, μc) = pdf_c
-    (; νr, μr) = pdf_r
-
-    # change of units for N_liq and N_rai
-    # from m^-3 to mm^-3
-    N_liq *= FT(1e-9)
-    N_rai *= FT(1e-9)
-
-    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
-    q_rai = (q_rai < τ_q) ? FT(0) : q_rai
-
-    xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
-    xr = (N_rai < τ_N) ? FT(0) : ((q_rai * ρ_air) / N_rai)
-    C = FT(4 / 3 * π * ρ_w)
+    (; ρw) = pdf_r
+    C = FT(4 / 3 * π * ρw)
     Z₀ = FT(1e-18)
 
+    # change of units for N_liq 
+    # from m^-3 to mm^-3 for accuracy
+    N_liq *= FT(1e-9)
+    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
+
+    # computation rain parameters and change units 
+    # to have the same units that we have for clouds
+    Br = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Br * FT(1e-3)
+    Ar = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Ar * FT(1e-12)
+
+    xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
     Bc =
         (xc == 0) ? FT(0) :
         (SF.gamma(FT(νc + 1) / μc) * xc / SF.gamma(FT(νc + 2) / μc))^(-μc)
-    Br =
-        (xr == 0) ? FT(0) :
-        (SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr)
     Ac = μc * N_liq * Bc^(FT(νc + 1) / μc) / SF.gamma(FT(νc + 1) / μc)
-    Ar = μr * N_rai * Br^(FT(νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
 
     Zc = (Bc == 0) ? FT(0) : (FT(24) * Ac / (Bc^FT(5) * C^FT(2)))
     Zr = (Br == 0) ? FT(0) : (FT(2160) * Ar / (Br^FT(7) * C^FT(2)))
@@ -510,7 +510,7 @@ function radar_reflectivity(
 end
 
 """ 
-    effective_radius(structs, q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w, τ_q, τ_N)
+    effective_radius(structs, q_liq, q_rai, N_liq, N_rai, ρ_air, τ_q, τ_N)
 
     - `structs` - structs with SB2006 cloud droplets and raindrops 
                 size distribution parameters
@@ -519,7 +519,6 @@ end
     - `N_liq` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
-    - `ρ_w` - water density
     - `τ_q` - threshold for minimum specific humidity value
     - `τ_N` - threshold for minimum number density value
 
@@ -533,35 +532,29 @@ function effective_radius(
     N_liq::FT,
     N_rai::FT,
     ρ_air::FT,
-    ρ_w::FT,
     τ_q::FT,
     τ_N::FT,
 ) where {FT}
 
     (; νc, μc) = pdf_c
-    (; νr, μr) = pdf_r
+    (; ρw) = pdf_r
+    C = FT(4 / 3 * π * ρw)
 
-    # change of units for N_liq and N_rai
-    # from m^-3 to mm^-3
+    # change of units for N_liq 
+    # from m^-3 to mm^-3 for accuracy
     N_liq *= FT(1e-9)
-    N_rai *= FT(1e-9)
-
     q_liq = (q_liq < τ_q) ? FT(0) : q_liq
-    q_rai = (q_rai < τ_q) ? FT(0) : q_rai
+
+    # computation rain parameters and change units
+    # to have the same units that we have for clouds
+    Br = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Br * FT(1e-3)
+    Ar = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Ar * FT(1e-12)
 
     xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
-    xr = (N_rai < τ_N) ? FT(0) : ((q_rai * ρ_air) / N_rai)
-
-    C = FT((4 / 3) * π * ρ_w)
-
     Bc =
         (xc == 0) ? FT(0) :
         (SF.gamma(FT(νc + 1) / μc) * xc / SF.gamma(FT(νc + 2) / μc))^(-μc)
-    Br =
-        (xr == 0) ? FT(0) :
-        (SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr)
     Ac = μc * N_liq * Bc^(FT(νc + 1) / μc) / SF.gamma(FT(νc + 1) / μc)
-    Ar = μr * N_rai * Br^(FT(νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
 
     cloud_3moment = (Bc == 0) ? FT(0) : (FT(6) * Ac * C^3 / (Bc * C)^FT(4))
     cloud_2moment =

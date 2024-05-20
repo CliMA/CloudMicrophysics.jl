@@ -20,7 +20,15 @@ function test_microphysics2M(FT)
     VarTSc = CMP.VarTimescaleAcnv(FT)
 
     # Seifert and Beheng 2006 parameters
-    SB2006 = CMP.SB2006(FT)
+    override_file = joinpath(
+        pkgdir(CM),
+        "src",
+        "parameters",
+        "toml",
+        "SB2006_limiters.toml",
+    )
+    toml_dict = CP.create_toml_dict(FT; override_file)
+    SB2006 = CMP.SB2006(toml_dict)
 
     # Thermodynamics and air properties parameters
     aps = CMP.AirProperties(FT)
@@ -142,10 +150,7 @@ function test_microphysics2M(FT)
         N_rai = [FT(1e1), FT(1e3), FT(1e5)]
         ρ = FT(1)
 
-        xr_min = FT(2.6e-10)
-        xr_max = FT(5e-6)
-        λ_min = FT(1e3)
-        λ_max = FT(1e4)
+        (; xr_min, xr_max, λ_min, λ_max) = SB2006.pdf_r
 
         for Nr in N_rai
             for qr in q_rai
@@ -168,10 +173,7 @@ function test_microphysics2M(FT)
         N_liq = FT(1e8)
         q_rai = FT(1e-6)
 
-        kcc = FT(4.44e9)
-        xstar = FT(2.6e-10)
-        νc = FT(2.0)
-        ρ0 = FT(1.225)
+        (; kcc, x_star, νc, ρ0) = SB2006.acnv
 
         #action
         au = CM2.autoconversion(SB2006.acnv, q_liq, q_rai, ρ, N_liq)
@@ -186,17 +188,17 @@ function test_microphysics2M(FT)
 
         Lc = ρ * q_liq
         Lr = ρ * q_rai
-        xc = min(xstar, Lc / N_liq)
+        xc = min(x_star, Lc / N_liq)
         τ = 1 - Lc / (Lc + Lr)
         ϕ_au = 400 * τ^0.7 * (1 - τ^0.7)^3
         dqrdt_au =
-            kcc / 20 / xstar * (νc + 2) * (νc + 4) / (νc + 1)^2 *
+            kcc / 20 / x_star * (νc + 2) * (νc + 4) / (νc + 1)^2 *
             Lc^2 *
             xc^2 *
             (1 + ϕ_au / (1 - τ)^2) *
             (ρ0 / ρ) / ρ
         dqcdt_au = -dqrdt_au
-        dNcdt_au = 2 / xstar * ρ * dqcdt_au
+        dNcdt_au = 2 / x_star * ρ * dqcdt_au
         dNrdt_au = -0.5 * dNcdt_au
         dNcdt_sc = -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * Lc^2 - au.dN_liq_dt
 
@@ -246,8 +248,7 @@ function test_microphysics2M(FT)
         q_rai = FT(1e-6)
         N_rai = FT(1e4)
 
-        kcr = FT(5.25)
-        ρ0 = FT(1.225)
+        (; kcr, ρ0) = SB2006.accr
 
         #action
         ac = CM2.accretion(SB2006, q_liq, q_rai, ρ, N_liq)
@@ -286,13 +287,9 @@ function test_microphysics2M(FT)
         q_rai = FT(1e-6)
         N_rai = FT(1e4)
 
-        krr = FT(7.12)
-        κrr = FT(60.7)
-        Deq = FT(9e-4)
-        Dr_th = FT(3.5e-4)
-        kbr = FT(1000)
-        κbr = FT(2300)
-        ρ0 = FT(1.225)
+        (; krr, κrr) = SB2006.self
+        (; Deq, kbr, κbr) = SB2006.brek
+        ρ0 = SB2006.pdf_r.ρ0
 
         #action
         sc_rai =
@@ -357,10 +354,7 @@ function test_microphysics2M(FT)
         q_rai = FT(1e-6)
         N_rai = FT(1e4)
 
-        ρ0 = FT(1.225)
-        aR = FT(9.65)
-        bR = FT(10.3)
-        cR = FT(600)
+        (; ρ0, aR, bR, cR) = SB2006Vel
 
         #action
         vt_rai = CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rai, ρ, N_rai)
@@ -403,8 +397,8 @@ function test_microphysics2M(FT)
 
         #test
         TT.@test vt_rai isa Tuple
-        TT.@test vt_rai[1] ≈ 1.2591475834547752 rtol = 1e-6
-        TT.@test vt_rai[2] ≈ 4.552478635185714 rtol = 1e-6
+        TT.@test vt_rai[1] ≈ 1.0738503635546666 rtol = 1e-6
+        TT.@test vt_rai[2] ≈ 4.00592218028957 rtol = 1e-6
 
         TT.@test CM2.rain_terminal_velocity(
             SB2006,
@@ -434,12 +428,8 @@ function test_microphysics2M(FT)
         q_tot = FT(1e-3)
         q = TD.PhasePartition(q_tot)
 
-        av = FT(0.78)
-        bv = FT(0.308)
-        α = FT(159.0)
-        β = FT(0.266)
+        (; av, bv, α, β, ρ0) = SB2006.evap
         (; ν_air, D_vapor) = aps
-        ρ0 = FT(1.225)
 
         #action
         evap = CM2.rain_evaporation(SB2006, aps, tps, q, q_rai, ρ, N_rai, T)
@@ -451,8 +441,8 @@ function test_microphysics2M(FT)
         Dr = FT(6 / π / 1000.0)^FT(1 / 3) * xr^FT(1 / 3)
         N_Re = α * xr^β * sqrt(ρ0 / ρ) * Dr / ν_air
 
-        a_vent_0 = av * FT(0.1915222379058504)
-        b_vent_0 = bv * FT(0.2040123897555518)
+        a_vent_0 = av * FT(0.15344374450453543)
+        b_vent_0 = bv * FT(0.17380986321413017)
         Fv0 = a_vent_0 + b_vent_0 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
         a_vent_1 = av * FT(0.5503212081491045)
         b_vent_1 = bv * FT(0.5873135598802672)
@@ -463,7 +453,7 @@ function test_microphysics2M(FT)
 
         #test
         TT.@test evap isa NamedTuple
-        TT.@test evap.evap_rate_0 ≈ (evap0 - 2.5) rtol = 1e-4
+        TT.@test evap.evap_rate_0 ≈ evap0 rtol = 1e-4
         TT.@test evap.evap_rate_1 ≈ evap1 rtol = 1e-5
         TT.@test CM2.rain_evaporation(
             SB2006,
@@ -490,7 +480,6 @@ function test_microphysics2M(FT)
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 radar reflectivity" begin
         #setup
         ρ_air = FT(1)
-        ρ_w = FT(1000)
         q_liq = FT(2.128e-4)
         N_liq = FT(15053529)
         q_rai = FT(1.573e-4)
@@ -506,12 +495,11 @@ function test_microphysics2M(FT)
             N_liq,
             N_rai,
             ρ_air,
-            ρ_w,
             τ_q,
             τ_N,
         )
 
-        TT.@test rr ≈ FT(-13) atol = 2
+        TT.@test rr ≈ FT(-13) atol = FT(0.5)
 
     end
 
@@ -534,13 +522,12 @@ function test_microphysics2M(FT)
             N_liq,
             N_rai,
             ρ_air,
-            ρ_w,
             τ_q,
             τ_N,
         )
 
         #test
-        TT.@test reff ≈ FT(2.664e-05) atol = 8e-6
+        TT.@test reff ≈ FT(2.66e-05) atol = FT(3e-7)
 
     end
 
@@ -564,7 +551,7 @@ function test_microphysics2M(FT)
         )
 
         #test
-        TT.@test reff ≈ FT(2.664e-05) atol = 8e-6
+        TT.@test reff ≈ FT(2.66e-05) atol = FT(8e-6)
 
     end
 end
