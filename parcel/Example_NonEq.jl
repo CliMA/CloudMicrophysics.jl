@@ -13,6 +13,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 tps = TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
 liquid = CMP.CloudLiquid(FT)
+ice = CMP.CloudIce(FT)
 # Constants
 ρₗ = wps.ρw
 ρᵢ = wps.ρi
@@ -69,7 +70,8 @@ for DSD in size_distribution_list
         condensation_growth = condensation_growth,
         const_dt = const_dt,
         w = w,
-        liquid = liquid
+        liquid = liquid#,
+        #ice = ice
     )
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
@@ -110,4 +112,4 @@ MK.axislegend(
     position = :rb,
 )
 
-MK.save("liquid_noneq_parcel.svg", fig)
+MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/liquid_noneq_parcel_complex.svg", fig)

@@ -7,6 +7,7 @@
 module MicrophysicsNonEq
 
 import Thermodynamics as TD
+import Thermodynamics.Parameters as TDP
 
 import ..Parameters as CMP
 
@@ -56,8 +57,8 @@ end
 
 function conv_q_vap_to_q_liq_ice(
     tps::TDP.ThermodynamicsParameters{FT},
-    (; τₗ)::CMP.CloudLiquid{FT},
-    (; τᵢ)::CMP.CloudIce{FT},
+    liquid::CMP.CloudLiquid{FT},
+    ice::CMP.CloudIce{FT},
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
     T:: FT, # temperature
@@ -73,16 +74,18 @@ function conv_q_vap_to_q_liq_ice(
     Γₗ = 1 + (L_subl/cp_air)
     Γᵢ = Γₗ
 
-    τ = τₗ + (1 + (L_subl/cp_air))*τᵢ^(-1) / Γᵢ
+    τ = liquid.τ_relax + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ
 
     # replace this w QCCONN -- see what Jordan did in his milbrandt code
 
-    A_c = 1
-    delta_0 =  q_sat # ??? this is maybe the part that scares me most
+    A_c = FT(1)
+    delta_0 =  q_sat.liq # ??? this is maybe the part that scares me most
     # and yeah also no clue what tau c is
 
     # something like this -- need to get everything into the right format etc etc.
-    result = A_c * τ/(τᵢ * Γₗ) + (delta_0 - A_c*τ)*τ/(const_dt*τᵢ*Γₗ)(1-np.exp(-const_dt/τ))
+    #
+    result = A_c * τ/(ice.τ_relax * Γₗ) + (delta_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γₗ)*(FT(1) - exp( - const_dt/τ))
+    #result = FT(1)
 
     # beware that this version is mixing ratio not specific humidity
     # so may need to convert back to that at some point

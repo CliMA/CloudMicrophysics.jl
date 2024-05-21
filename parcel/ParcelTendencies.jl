@@ -199,23 +199,23 @@ end
 function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     # DOING THIS JUST FOR LIQUID RN.
 
-    (; Sₗ, T, qₗ, qᵥ) = state
-
     FT = eltype(state)
+    (; Sₗ, T, qₗ, qᵥ) = state
+    
     (; aps, tps, liquid, ice, const_dt) = params
 
-    q_sat = TD.PhasePartition(TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid()))
+    q_sat = TD.PhasePartition(FT(0), TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid()), FT(0))
 
     # the dumb option
-    #q_sat = FT(5e-3)
+    #q_sat = TD.PhasePartition(FT(0), FT(5e-3), FT(0))
     #q_ice_sat = FT(2e-3)
 
     # running it the simple version
-    #MNE.conv_q_vap_to_q_liq_ice(liquid,TD.PhasePartition(FT(0),q_sat,FT(0)),TD.PhasePartition(FT(0),qₗ,FT(0)))
+    #
+    #
 
-    MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, TD.PhasePartition(FT(0),qₗ,FT(0)), T, const_dt)
-
-    return
+    #MNE.conv_q_vap_to_q_liq_ice(liquid,q_sat,TD.PhasePartition(FT(0),qₗ,FT(0)))
+    return MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, TD.PhasePartition(FT(0),qₗ,FT(0)), T, const_dt)
 end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)
