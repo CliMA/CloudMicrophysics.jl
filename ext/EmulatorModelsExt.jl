@@ -62,6 +62,35 @@ function AA.N_activated_per_mode(
 end
 
 """
+    total_N_activated(machine, ap, ad, aip, tps, T, p, w, q)
+
+  - `machine` - ML model
+  - `ap` - a struct with aerosol activation parameters
+  - `ad` - aerosol distribution struct
+  - `aip` - a struct with air properties
+  - `tps` - a struct with thermodynamics parameters
+  - `T` - air temperature
+  - `p` - air pressure
+  - `w` - vertical velocity
+  - `q` - phase partition
+
+Returns the total number of activated aerosol particles by using a trained emulator.
+"""
+function AA.total_N_activated(
+    machine::MLJ.Machine,
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDP.ThermodynamicsParameters,
+    T::FT,
+    p::FT,
+    w::FT,
+    q::TD.PhasePartition{FT},
+) where {FT}
+    return sum(AA.N_activated_per_mode(machine, ap, ad, aip, tps, T, p, w, q))
+end
+
+"""
     AerosolActivationParameters(ekp_params)
 
     - `ekp_params` - parameters from the trained Ensemble Kalman Process

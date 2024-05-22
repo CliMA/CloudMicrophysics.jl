@@ -328,6 +328,9 @@ function test_emulator(
     TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q)[2] ≈
              AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
         rtols[2]
+    TT.@test AA.total_N_activated(mach, ap, ad, aip, tps, T, p, w, q) ≈
+             AA.total_N_activated(ap, ad, aip, tps, T, p, w, q) rtol = rtols[2]
+
 end
 
 @info "Aerosol activation test"
