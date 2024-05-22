@@ -2,7 +2,8 @@ import Test as TT
 import BenchmarkTools as BT
 import JET
 
-import ClimaParams
+import CloudMicrophysics as CM
+import ClimaParams as CP
 import Thermodynamics as TD
 
 import CloudMicrophysics.Common as CO
@@ -54,7 +55,15 @@ function benchmark_test(FT)
     rain = CMP.Rain(FT)
     ce = CMP.CollisionEff(FT)
     # 2-moment microphysics
-    sb2006 = CMP.SB2006(FT)
+    override_file = joinpath(
+        pkgdir(CM),
+        "src",
+        "parameters",
+        "toml",
+        "SB2006_limiters.toml",
+    )
+    toml_dict = CP.create_toml_dict(FT; override_file)
+    sb2006 = CMP.SB2006(toml_dict)
     # P3 scheme
     p3 = CMP.ParametersP3(FT)
     # terminal velocity
@@ -205,7 +214,7 @@ function benchmark_test(FT)
     bench_press(
         CM2.rain_self_collection_and_breakup,
         (sb2006, q_rai, ρ_air, N_rai),
-        820,
+        1200,
     )
     bench_press(
         CM2.rain_evaporation,
@@ -215,42 +224,22 @@ function benchmark_test(FT)
     bench_press(
         CM2.rain_terminal_velocity,
         (sb2006, sb2006vel, q_rai, ρ_air, N_rai),
-        300,
+        700,
     )
     bench_press(
         CM2.rain_terminal_velocity,
         (sb2006, ch2022.rain, q_rai, ρ_air, N_rai),
-        1700,
+        2000,
     )
     bench_press(
         CM2.radar_reflectivity,
-        (
-            sb2006,
-            q_liq,
-            q_rai,
-            N_liq,
-            N_rai,
-            FT(1),
-            FT(1000),
-            FT(1e-12),
-            FT(1e-18),
-        ),
-        800,
+        (sb2006, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1e-12), FT(1e-18)),
+        1200,
     )
     bench_press(
         CM2.effective_radius,
-        (
-            sb2006,
-            q_liq,
-            q_rai,
-            N_liq,
-            N_rai,
-            FT(1),
-            FT(1000),
-            FT(1e-12),
-            FT(1e-18),
-        ),
-        800,
+        (sb2006, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1e-12), FT(1e-18)),
+        1200,
     )
     bench_press(
         CM2.effective_radius_Liu_Hallet_97,

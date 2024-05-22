@@ -36,9 +36,9 @@ where ``x`` and ``y`` are drop masses and ``x^*`` is the mass threshold chosen t
 |``k_{cr}``     | ``5.25  \, m^3 \cdot kg \cdot s^{-1}``              |
 |``k_{rr}``     | ``7.12  \, m^3 \cdot kg \cdot s^{-1}``              |
 |``\kappa_{rr}``| ``60.7  \, m^3 \cdot kg \cdot s^{-1}``              |
-|``x^*``        | ``2.6 \times 10^{-10} \, kg``                       |
+|``x^*``        | ``6.54 \times 10^{-11} \, kg``                       |
 
-The default value of ``x^*=2.6\times 10^{-10} kg`` corresponds to the drop radius ``r^* \approx 40 \mu m``.
+The default value of ``x^*=6.54\times 10^{-11} kg`` corresponds to the drop radius ``r^* \approx 25 \mu m``.
 
 The cloud droplets Gamma distribution function is described by
 ```math
@@ -306,12 +306,12 @@ The default free parameter values are:
 |``a_R``                     | ``9.65 \, m \cdot s^{-1}``          |
 |``b_R``                     | ``10.3 \, m \cdot s^{-1}``          |
 |``c_R``                     | ``600 \, m^{-1}``                   |
-|``\overline{x}_{r,\, min}`` | ``2.6 \times 10^{-10} \, m``        |
+|``\overline{x}_{r,\, min}`` | ``6.54 \times 10^{-11} \, m``        |
 |``\overline{x}_{r,\, max}`` | ``5 \times 10^{-6}  \, m``          |
-|``N_{0,\, min}``            | ``2.5 \times 10^{5}  \, m^{-4}``    |
-|``N_{0,\, max}``            | ``2 \times 10^{7}  \, m^{-4}``      |
+|``N_{0,\, min}``            | ``3.5 \times 10^{5}  \, m^{-4}``    |
+|``N_{0,\, max}``            | ``2 \times 10^{10}  \, m^{-4}``      |
 |``\lambda_{min}``           | ``1 \times 10^{3}  \, m^{-1}``      |
-|``\lambda_{max}``           | ``1 \times 10^{4}  \, m^{-1}``      |
+|``\lambda_{max}``           | ``3.5 \times 10^{4}  \, m^{-1}``      |
 
 ### Rain evaporation
 
