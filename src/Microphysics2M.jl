@@ -486,16 +486,21 @@ function radar_reflectivity(
     C = FT(4 / 3 * π * ρw)
     Z₀ = FT(1e-18)
 
-    # change of units for N_liq 
+    # change of units for N_liq and τ_N
     # from m^-3 to mm^-3 for accuracy
     N_liq *= FT(1e-9)
-    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
+    τ_N *= FT(1e-9)
 
     # computation rain parameters and change units 
     # to have the same units that we have for clouds
-    Br = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Br * FT(1e-3)
-    Ar = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Ar * FT(1e-12)
+    Br =
+        (q_rai < τ_q || N_rai < τ_N) ? FT(0) :
+        raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Br * FT(1e-3)
+    Ar =
+        (q_rai < τ_q || N_rai < τ_N) ? FT(0) :
+        raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Ar * FT(1e-12)
 
+    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
     xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
     Bc =
         (xc == 0) ? FT(0) :
@@ -540,16 +545,21 @@ function effective_radius(
     (; ρw) = pdf_r
     C = FT(4 / 3 * π * ρw)
 
-    # change of units for N_liq 
+    # change of units for N_liq and τ_N 
     # from m^-3 to mm^-3 for accuracy
     N_liq *= FT(1e-9)
-    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
+    τ_N *= FT(1e-9)
 
     # computation rain parameters and change units
     # to have the same units that we have for clouds
-    Br = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Br * FT(1e-3)
-    Ar = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Ar * FT(1e-12)
+    Br =
+        (q_rai < τ_q || N_rai < τ_N) ? FT(0) :
+        raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Br * FT(1e-3)
+    Ar =
+        (q_rai < τ_q || N_rai < τ_N) ? FT(0) :
+        raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Ar * FT(1e-12)
 
+    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
     xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
     Bc =
         (xc == 0) ? FT(0) :

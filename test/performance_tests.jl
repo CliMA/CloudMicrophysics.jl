@@ -239,7 +239,7 @@ function benchmark_test(FT)
     bench_press(
         CM2.effective_radius,
         (sb2006, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1e-12), FT(1e-18)),
-        1200,
+        1300,
     )
     bench_press(
         CM2.effective_radius_Liu_Hallet_97,

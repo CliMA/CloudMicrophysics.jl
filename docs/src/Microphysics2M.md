@@ -311,7 +311,7 @@ The default free parameter values are:
 |``N_{0,\, min}``            | ``3.5 \times 10^{5}  \, m^{-4}``    |
 |``N_{0,\, max}``            | ``2 \times 10^{10}  \, m^{-4}``      |
 |``\lambda_{min}``           | ``1 \times 10^{3}  \, m^{-1}``      |
-|``\lambda_{max}``           | ``3.5 \times 10^{4}  \, m^{-1}``      |
+|``\lambda_{max}``           | ``4 \times 10^{4}  \, m^{-1}``      |
 
 ### Rain evaporation
 
