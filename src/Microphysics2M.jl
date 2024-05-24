@@ -46,19 +46,92 @@ end
 # mean terminal velocity of raindrops, and rain evaporation rates from Seifert and Beheng 2001
 
 """
-    raindrops_limited_vars(pdf_r, q_rai, ρ, N_rai)
+    pdf_cloud(pdf_c, qₗ, ρₐ, Nₗ)
+
+ - `pdf_c` - a struct with SB2006 cloud droplets size distribution parameters
+ - `qₗ` - cloud water specific humidity
+ - `ρₐ` - air density
+ - `Nₗ` cloud droplet number concentration
+
+    Returns the mean mass of cloud droplets xc [μg],
+    a multiplier needed to convert xc to base SI units χ [-],
+    and the two cloud droplet distribution parameters
+    Ac [m^-3, μg^-3] and Bc [μg^-1].
+"""
+function pdf_cloud(
+    pdf_c::CMP.CloudParticlePDF_SB2006{FT},
+    qₗ::FT,
+    ρₐ::FT,
+    Nₗ::FT,
+) where {FT}
+
+    (; νc, μc, ρw) = pdf_c
+    ϵ_N = FT(10)     # TODO - should it be a parameter
+
+    χ = 9 # convert mean droplet mass from kg to μg
+
+    if qₗ < eps(FT) || Nₗ < ϵ_N
+        return (
+            xc = FT(0),
+            Ac = FT(0),
+            Bc = FT(0),
+            Cc = FT(0),
+            Ec = FT(0),
+            ϕc = FT(0),
+            ψc = FT(0),
+        )
+    else
+        xc = qₗ * ρₐ / Nₗ * FT(10)^χ                                             # μg
+        Bc = (xc * SF.gamma((νc + 1) / μc) / SF.gamma((νc + 2) / μc))^(-μc)      # 1/μg
+        Ac = μc * Nₗ * Bc^((νc + 1) / μc) / SF.gamma((νc + 1) / μc)              # 1/m3 1/μg3
+
+        _Ac = Ac * FT(1e-9)         # 1/mm3 1/μg3
+        Cc = _Ac * ((FT(π) * ρw * FT(10)^(χ - 9)) / FT(2))^(νc + 1) / FT(3)^νc       # (1/mm3)^4
+        Ec = Bc * (FT(π / 6) * ρw * FT(10)^(χ - 9))^μc            # 1/mm3
+        ϕc = 3 * νc + 2
+        ψc = 3 * μc
+
+        return (; xc, χ, Ac, Bc, Cc, Ec, ϕc, ψc)
+    end
+end
+
+"""
+    pdf_rain(pdf_r, q_rai, ρ, N_rai)
 
  - `pdf_r` - a struct with SB2006 raindrops size distribution parameters
  - `q_rai` - rain water specific humidity
  - `ρ` - air density
- - `N_rai` raindrops number density
+ - `N_rai` rain drop number concentration
 
-    Returns the mean mass of raindrops, xr, the rate parameter of the assumed size distribution
-    of raindrops (based on drops diameter), λr, limited within prescribed ranges, and the two 
-    rain distribution parameters, A and B.
+    Returns the mean mass of rain drops xr [kg],
+    and the two rain drop mass distribution parameters A and B.
+    Also returns the rate parameter of the rain drop diameter distribution λr
+    (optionally limited within prescribed ranges).
 """
-function raindrops_limited_vars(
+function pdf_rain(
     pdf_r::CMP.RainParticlePDF_SB2006{FT},
+    qᵣ::FT,
+    ρₐ::FT,
+    Nᵣ::FT,
+) where {FT}
+    (; νr, μr, ρw) = pdf_r
+    ϵ_N = FT(10)            # TODO - should it be a parameter?
+
+    if qᵣ < eps(FT) || Nᵣ < ϵ_N
+        return (λr = FT(0), xr = FT(0), Ar = FT(0), Br = FT(0))
+    else
+        λr = (Nᵣ * FT(π) * ρw / ρₐ / qᵣ)^FT(1 / 3)
+        αr = Nᵣ * λr
+
+        xr = qᵣ * ρₐ / Nᵣ
+        Br = (xr * SF.gamma((νr + 1) / μr) / SF.gamma((νr + 2) / μr))^(-μr)
+        Ar = μr * Nᵣ * Br^((νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
+
+        return (; λr, αr, xr, Ar, Br)
+    end
+end
+function pdf_rain(
+    pdf_r::CMP.RainParticlePDF_SB2006_limited{FT},
     q_rai::FT,
     ρ::FT,
     N_rai::FT,
@@ -71,19 +144,20 @@ function raindrops_limited_vars(
     N0 = max(N0_min, min(N0_max, N_rai * (FT(π) * ρw / xr_hat)^FT(1 / 3)))
     λr = max(λ_min, min(λ_max, (FT(π) * ρw * N0 / L_rai)^FT(1 / 4)))
     xr = max(xr_min, min(xr_max, L_rai * λr / N0))
+    αr = N_rai * λr
 
     Br =
         (xr == 0) ? FT(0) :
         (SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr)
     Ar = μr * N_rai * Br^(FT(νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
 
-    return (; λr, xr, Ar, Br)
+    return (; λr, αr, xr, Ar, Br)
 end
 
 """
     autoconversion(scheme, q_liq, q_rai, ρ, N_liq)
 
- - `scheme` - type for 2-moment rain autoconversion parameterization
+ - `acnv`, `pdf_c` - structs with autoconversion and cloud size distribution parameters
  - `q_liq` - cloud water specific humidity
  - `q_rai` - rain water specific humidity
  - `ρ` - air density
@@ -94,6 +168,7 @@ collisions between cloud droplets (autoconversion) for `scheme == SB2006Type`
 """
 function autoconversion(
     acnv::CMP.AcnvSB2006{FT},
+    pdf_c::CMP.CloudParticlePDF_SB2006{FT},
     q_liq,
     q_rai,
     ρ,
@@ -104,7 +179,8 @@ function autoconversion(
         return LiqRaiRates{FT}()
     end
 
-    (; kcc, νc, x_star, ρ0, A, a, b) = acnv
+    (; kcc, x_star, ρ0, A, a, b) = acnv
+    (; νc) = pdf_c
 
     L_liq = ρ * q_liq
     x_liq = min(x_star, L_liq / N_liq)
@@ -181,6 +257,7 @@ that produce larger cloud droplets (self-collection) for `scheme == SB2006Type`
 """
 function liquid_self_collection(
     acnv::CMP.AcnvSB2006{FT},
+    pdf_c::CMP.CloudParticlePDF_SB2006{FT},
     q_liq::FT,
     ρ::FT,
     dN_liq_dt_au::FT,
@@ -189,7 +266,8 @@ function liquid_self_collection(
     if q_liq < eps(FT)
         return FT(0)
     end
-    (; kcc, ρ0, νc) = acnv
+    (; kcc, ρ0) = acnv
+    (; νc) = pdf_c
 
     L_liq = ρ * q_liq
 
@@ -212,15 +290,15 @@ Returns a named tupple containing a LiqRaiRates object for the autoconversion ra
 the liquid self-collection rate for `scheme == SB2006Type`
 """
 function autoconversion_and_liquid_self_collection(
-    (; acnv)::CMP.SB2006{FT},
+    (; acnv, pdf_c)::CMP.SB2006{FT},
     q_liq::FT,
     q_rai::FT,
     ρ::FT,
     N_liq::FT,
 ) where {FT}
 
-    au = autoconversion(acnv, q_liq, q_rai, ρ, N_liq)
-    sc = liquid_self_collection(acnv, q_liq, ρ, au.dN_liq_dt)
+    au = autoconversion(acnv, pdf_c, q_liq, q_rai, ρ, N_liq)
+    sc = liquid_self_collection(acnv, pdf_c, q_liq, ρ, au.dN_liq_dt)
 
     return (; au, sc)
 end
@@ -237,7 +315,10 @@ Returns the raindrops number density tendency due to collisions of raindrops
 that produce larger raindrops (self-collection) for `scheme == SB2006Type`
 """
 function rain_self_collection(
-    pdf::CMP.RainParticlePDF_SB2006{FT},
+    pdf::Union{
+        CMP.RainParticlePDF_SB2006{FT},
+        CMP.RainParticlePDF_SB2006_limited{FT},
+    },
     self::CMP.SelfColSB2006{FT},
     q_rai::FT,
     ρ::FT,
@@ -252,9 +333,10 @@ function rain_self_collection(
     (; ρ0, ρw) = pdf
 
     L_rai = ρ * q_rai
-    λr =
-        raindrops_limited_vars(pdf, q_rai, ρ, N_rai).λr *
-        (SF.gamma(FT(4)) / FT(π) / ρw)^FT(1 / 3)
+    #λr =
+    #    pdf_rain(pdf, q_rai, ρ, N_rai).λr *
+    #    (SF.gamma(FT(4)) / FT(π) / ρw)^FT(1 / 3)
+    λr = pdf_rain(pdf, q_rai, ρ, N_rai).Br
 
     dN_rai_dt_sc = -krr * N_rai * L_rai * sqrt(ρ0 / ρ) * (1 + κrr / λr)^d
 
@@ -274,7 +356,10 @@ Returns the raindrops number density tendency due to breakup of raindrops
 that produce smaller raindrops for `scheme == SB2006Type`
 """
 function rain_breakup(
-    pdf::CMP.RainParticlePDF_SB2006{FT},
+    pdf::Union{
+        CMP.RainParticlePDF_SB2006{FT},
+        CMP.RainParticlePDF_SB2006_limited{FT},
+    },
     brek::CMP.BreakupSB2006{FT},
     q_rai::FT,
     ρ::FT,
@@ -287,7 +372,7 @@ function rain_breakup(
     end
     (; Deq, Dr_th, kbr, κbr) = brek
     ρw = pdf.ρw
-    xr = raindrops_limited_vars(pdf, q_rai, ρ, N_rai).xr
+    xr = pdf_rain(pdf, q_rai, ρ, N_rai).xr
     Dr = (xr * 6 / FT(π) / ρw)^FT(1 / 3)
     ΔD = Dr - Deq
     phi_br =
@@ -300,7 +385,7 @@ end
 """
     rain_self_collection_and_breakup(SB2006, q_rai, ρ, N_rai)
 
- - `SB2006` - a struct with SB2006 parameters for raindrops size 
+ - `SB2006` - a struct with SB2006 parameters for raindrops size
     distribution, self collection, and breakup
  - `q_rai` - rain water specific humidity
  - `ρ` - air density
@@ -348,7 +433,7 @@ function rain_terminal_velocity(
     if q_rai < eps(FT)
         return (FT(0), FT(0))
     end
-    λr = raindrops_limited_vars(pdf_r, q_rai, ρ, N_rai).λr
+    λr = pdf_rain(pdf_r, q_rai, ρ, N_rai).λr
     vt0 = max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
     vt1 = max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^FT(4)))
     return (vt0, vt1)
@@ -366,7 +451,7 @@ function rain_terminal_velocity(
     # coefficients from Table B1 from Chen et. al. 2022
     aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
     # size distribution parameter
-    λ = raindrops_limited_vars(pdf_r, q_rai, ρ, N_rai).λr
+    λ = pdf_rain(pdf_r, q_rai, ρ, N_rai).λr
 
     # eq 20 from Chen et al 2022
     vt0 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 0))
@@ -429,7 +514,7 @@ function rain_evaporation(
         ρw = pdf_r.ρw
         G = CO.G_func(aps, tps, T, TD.Liquid())
 
-        xr = raindrops_limited_vars(pdf_r, q_rai, ρ, N_rai).xr
+        xr = pdf_rain(pdf_r, q_rai, ρ, N_rai).xr
         Dr = (FT(6) / FT(π) / ρw)^FT(1 / 3) * xr^FT(1 / 3)
 
         t_star = (FT(6) * x_star / xr)^FT(1 / 3)
@@ -453,18 +538,16 @@ function rain_evaporation(
     return (; evap_rate_0, evap_rate_1)
 end
 
-""" 
+"""
     radar_reflectivity(structs, q_liq, q_rai, N_liq, N_rai, ρ_air, τ_q, τ_N)
 
-    - `structs` - structs with SB2006 cloud droplets and raindrops 
+    - `structs` - structs with SB2006 cloud droplets and raindrops
                 size distributions parameters
-    - `q_liq` - cloud water specific humidity 
+    - `q_liq` - cloud water specific humidity
     - `q_rai` - rain water specific humidity
     - `N_liq` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
-    - `τ_q` - threshold for minimum specific humidity value
-    - `τ_N` - threshold for minimum number density value
 
 Returns logarithmic radar reflectivity from the assumed cloud and rain particle
 size distribuions normalized by the reflectivty of 1 millimiter drop in a volume of
@@ -477,50 +560,48 @@ function radar_reflectivity(
     N_liq::FT,
     N_rai::FT,
     ρ_air::FT,
-    τ_q::FT,
-    τ_N::FT,
 ) where {FT}
 
     (; νc, μc) = pdf_c
-    (; ρw) = pdf_r
+    (; νr, μr, ρw) = pdf_r
     C = FT(4 / 3 * π * ρw)
-    Z₀ = FT(1e-18)
+    log_10_Z₀ = -18
 
-    # change of units for N_liq 
-    # from m^-3 to mm^-3 for accuracy
-    N_liq *= FT(1e-9)
-    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
+    # rain size distribution parameters
+    Ar = pdf_rain(pdf_r, q_rai, ρ_air, N_rai).Ar
+    Br = pdf_rain(pdf_r, q_rai, ρ_air, N_rai).Br
 
-    # computation rain parameters and change units 
-    # to have the same units that we have for clouds
-    Br = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Br * FT(1e-3)
-    Ar = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Ar * FT(1e-12)
+    # cloud size distribution parameters (χ converts from μg to base SI)
+    Ac = pdf_cloud(pdf_c, q_liq, ρ_air, N_liq).Ac # 1/m3 1/μg3
+    Bc = pdf_cloud(pdf_c, q_liq, ρ_air, N_liq).Bc # 1/μg
+    χ = pdf_cloud(pdf_c, q_liq, ρ_air, N_liq).χ
 
-    xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
-    Bc =
-        (xc == 0) ? FT(0) :
-        (SF.gamma(FT(νc + 1) / μc) * xc / SF.gamma(FT(νc + 2) / μc))^(-μc)
-    Ac = μc * N_liq * Bc^(FT(νc + 1) / μc) / SF.gamma(FT(νc + 1) / μc)
+    Zc =
+        Bc == 0 ? FT(0) :
+        Ac *
+        C^(νc + 1) *
+        (Bc * C^μc)^(-(3 + νc) / μc) *
+        SF.gamma((3 + νc) / μc) / μc * FT(10)^(-2 * χ)
+    Zr =
+        Br == 0 ? FT(0) :
+        Ar *
+        C^(νr + 1) *
+        (Br * C^μr)^(-(3 + νr) / μr) *
+        SF.gamma((3 + νr) / μr) / μr
 
-    Zc = (Bc == 0) ? FT(0) : (FT(24) * Ac / (Bc^FT(5) * C^FT(2)))
-    Zr = (Br == 0) ? FT(0) : (FT(2160) * Ar / (Br^FT(7) * C^FT(2)))
-
-    return ((Zc + Zr) == 0) ? FT(-135) :
-           FT(10) * (log10((Zc + Zr) / Z₀) + log10(FT(1e-9)))
+    return Zc + Zr == 0 ? FT(-135) : 10 * (log10(Zc + Zr) - log_10_Z₀)
 end
 
-""" 
-    effective_radius(structs, q_liq, q_rai, N_liq, N_rai, ρ_air, τ_q, τ_N)
+"""
+    effective_radius(structs, q_liq, q_rai, N_liq, N_rai, ρ_air)
 
-    - `structs` - structs with SB2006 cloud droplets and raindrops 
+    - `structs` - structs with SB2006 cloud droplets and raindrops
                 size distribution parameters
-    - `q_liq` - cloud water specific humidity 
+    - `q_liq` - cloud water specific humidity
     - `q_rai` - rain water specific humidity
     - `N_liq` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
-    - `τ_q` - threshold for minimum specific humidity value
-    - `τ_N` - threshold for minimum number density value
 
 Returns effective radius using the 2-moment scheme
 cloud and rain particle size distributions
@@ -532,40 +613,48 @@ function effective_radius(
     N_liq::FT,
     N_rai::FT,
     ρ_air::FT,
-    τ_q::FT,
-    τ_N::FT,
 ) where {FT}
 
     (; νc, μc) = pdf_c
-    (; ρw) = pdf_r
+    (; νr, μr, ρw) = pdf_r
     C = FT(4 / 3 * π * ρw)
 
-    # change of units for N_liq 
-    # from m^-3 to mm^-3 for accuracy
-    N_liq *= FT(1e-9)
-    q_liq = (q_liq < τ_q) ? FT(0) : q_liq
+    # rain size distribution parameters
+    Ar = pdf_rain(pdf_r, q_rai, ρ_air, N_rai).Ar
+    Br = pdf_rain(pdf_r, q_rai, ρ_air, N_rai).Br
 
-    # computation rain parameters and change units
-    # to have the same units that we have for clouds
-    Br = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Br * FT(1e-3)
-    Ar = raindrops_limited_vars(pdf_r, q_rai, ρ_air, N_rai).Ar * FT(1e-12)
+    # cloud size distribution parameters (χ converts from μg to base SI)
+    Ac = pdf_cloud(pdf_c, q_liq, ρ_air, N_liq).Ac # 1/m3 1/μg3
+    Bc = pdf_cloud(pdf_c, q_liq, ρ_air, N_liq).Bc # 1/μg
+    χ = pdf_cloud(pdf_c, q_liq, ρ_air, N_liq).χ
 
-    xc = (N_liq < τ_N) ? FT(0) : ((q_liq * ρ_air) / N_liq)
-    Bc =
-        (xc == 0) ? FT(0) :
-        (SF.gamma(FT(νc + 1) / μc) * xc / SF.gamma(FT(νc + 2) / μc))^(-μc)
-    Ac = μc * N_liq * Bc^(FT(νc + 1) / μc) / SF.gamma(FT(νc + 1) / μc)
+    M3_c =
+        Bc == 0 ? FT(0) :
+        Ac *
+        C^(νc + 1) *
+        (Bc * C^μc)^(-(2 + νc) / μc) *
+        SF.gamma((2 + νc) / μc) / μc / FT(10)^χ
+    M3_r =
+        Br == 0 ? FT(0) :
+        Ar *
+        C^(νr + 1) *
+        (Br * C^μr)^(-(2 + νr) / μr) *
+        SF.gamma((2 + νr) / μr) / μr
 
-    cloud_3moment = (Bc == 0) ? FT(0) : (FT(6) * Ac * C^3 / (Bc * C)^FT(4))
-    cloud_2moment =
-        (Bc == 0) ? FT(0) :
-        (Ac * SF.gamma(FT(11 / 3)) / (Bc^FT(11 / 3) * C^FT(2 / 3)))
-    rain_3moment = (Br == 0) ? FT(0) : (FT(24) * Ar / (Br^FT(4) * C))
-    rain_2moment = (Br == 0) ? FT(0) : (FT(6) * Ar / (Br^3 * C^FT(2 / 3)))
+    M2_c =
+        Bc == 0 ? FT(0) :
+        Ac *
+        C^(νc + 1) *
+        (Bc * C^μc)^(-(5 + 3 * νc) / (3 * μc)) *
+        SF.gamma((5 + 3 * νc) / (3 * μc)) / μc / FT(10)^(χ * 2 / 3)
+    M2_r =
+        Br == 0 ? FT(0) :
+        Ar *
+        C^(νr + 1) *
+        (Br * C^μr)^(-(5 + 3 * νr) / (3 * μr)) *
+        SF.gamma((5 + 3 * νr) / (3 * μr)) / μr
 
-    return ((cloud_2moment + rain_2moment) == 0) ? FT(0) :
-           ((cloud_3moment + rain_3moment) / (cloud_2moment + rain_2moment)) *
-           FT(1e-3)
+    return M2_c + M2_r == 0 ? FT(0) : (M3_c + M3_r) / (M2_c + M2_r)
 end
 
 """

@@ -8,6 +8,9 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CMC
 import CloudMicrophysics.Microphysics2M as CM2
 
+import QuadGK as QGK
+import SpecialFunctions as SF
+
 @info "Microphysics 2M Tests"
 
 function test_microphysics2M(FT)
@@ -29,6 +32,7 @@ function test_microphysics2M(FT)
     )
     toml_dict = CP.create_toml_dict(FT; override_file)
     SB2006 = CMP.SB2006(toml_dict)
+    SB2006_no_limiters = CMP.SB2006(toml_dict, false)
 
     # Thermodynamics and air properties parameters
     aps = CMP.AirProperties(FT)
@@ -155,8 +159,8 @@ function test_microphysics2M(FT)
         for Nr in N_rai
             for qr in q_rai
                 #action
-                λ = CM2.raindrops_limited_vars(SB2006.pdf_r, qr, ρ, Nr).λr
-                xr = CM2.raindrops_limited_vars(SB2006.pdf_r, qr, ρ, Nr).xr
+                λ = CM2.pdf_rain(SB2006.pdf_r, qr, ρ, Nr).λr
+                xr = CM2.pdf_rain(SB2006.pdf_r, qr, ρ, Nr).xr
 
                 #test
                 TT.@test λ_min <= λ <= λ_max
@@ -173,71 +177,87 @@ function test_microphysics2M(FT)
         N_liq = FT(1e8)
         q_rai = FT(1e-6)
 
-        (; kcc, x_star, νc, ρ0) = SB2006.acnv
+        for SB in [SB2006, SB2006_no_limiters]
+            (; kcc, x_star, ρ0) = SB.acnv
+            (; νc) = SB.pdf_c
 
-        #action
-        au = CM2.autoconversion(SB2006.acnv, q_liq, q_rai, ρ, N_liq)
-        sc = CM2.liquid_self_collection(SB2006.acnv, q_liq, ρ, au.dN_liq_dt)
-        au_sc = CM2.autoconversion_and_liquid_self_collection(
-            SB2006,
-            q_liq,
-            q_rai,
-            ρ,
-            N_liq,
-        )
+            #action
+            au = CM2.autoconversion(SB.acnv, SB.pdf_c, q_liq, q_rai, ρ, N_liq)
+            sc = CM2.liquid_self_collection(
+                SB.acnv,
+                SB.pdf_c,
+                q_liq,
+                ρ,
+                au.dN_liq_dt,
+            )
+            au_sc = CM2.autoconversion_and_liquid_self_collection(
+                SB,
+                q_liq,
+                q_rai,
+                ρ,
+                N_liq,
+            )
 
-        Lc = ρ * q_liq
-        Lr = ρ * q_rai
-        xc = min(x_star, Lc / N_liq)
-        τ = 1 - Lc / (Lc + Lr)
-        ϕ_au = 400 * τ^0.7 * (1 - τ^0.7)^3
-        dqrdt_au =
-            kcc / 20 / x_star * (νc + 2) * (νc + 4) / (νc + 1)^2 *
-            Lc^2 *
-            xc^2 *
-            (1 + ϕ_au / (1 - τ)^2) *
-            (ρ0 / ρ) / ρ
-        dqcdt_au = -dqrdt_au
-        dNcdt_au = 2 / x_star * ρ * dqcdt_au
-        dNrdt_au = -0.5 * dNcdt_au
-        dNcdt_sc = -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * Lc^2 - au.dN_liq_dt
+            Lc = ρ * q_liq
+            Lr = ρ * q_rai
+            xc = min(x_star, Lc / N_liq)
+            τ = 1 - Lc / (Lc + Lr)
+            ϕ_au = 400 * τ^0.7 * (1 - τ^0.7)^3
+            dqrdt_au =
+                kcc / 20 / x_star * (νc + 2) * (νc + 4) / (νc + 1)^2 *
+                Lc^2 *
+                xc^2 *
+                (1 + ϕ_au / (1 - τ)^2) *
+                (ρ0 / ρ) / ρ
+            dqcdt_au = -dqrdt_au
+            dNcdt_au = 2 / x_star * ρ * dqcdt_au
+            dNrdt_au = -0.5 * dNcdt_au
+            dNcdt_sc =
+                -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * Lc^2 - au.dN_liq_dt
 
-        #test
-        TT.@test au isa CM2.LiqRaiRates
-        TT.@test au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
-        TT.@test au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
-        TT.@test au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
-        TT.@test au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
-        TT.@test sc ≈ dNcdt_sc rtol = 1e-6
-        TT.@test au_sc isa NamedTuple
-        TT.@test au_sc.au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
-        TT.@test au_sc.au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
-        TT.@test au_sc.au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
-        TT.@test au_sc.au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
-        TT.@test au_sc.sc ≈ dNcdt_sc rtol = 1e-6
+            #test
+            TT.@test au isa CM2.LiqRaiRates
+            TT.@test au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
+            TT.@test au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
+            TT.@test au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
+            TT.@test au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
+            TT.@test sc ≈ dNcdt_sc rtol = 1e-6
+            TT.@test au_sc isa NamedTuple
+            TT.@test au_sc.au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
+            TT.@test au_sc.au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
+            TT.@test au_sc.au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
+            TT.@test au_sc.au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
+            TT.@test au_sc.sc ≈ dNcdt_sc rtol = 1e-6
 
-        #action
-        au = CM2.autoconversion(SB2006.acnv, FT(0), FT(0), ρ, N_liq)
-        sc = CM2.liquid_self_collection(SB2006.acnv, FT(0), ρ, au.dN_liq_dt)
-        au_sc = CM2.autoconversion_and_liquid_self_collection(
-            SB2006,
-            FT(0),
-            FT(0),
-            ρ,
-            N_liq,
-        )
+            #action
+            au = CM2.autoconversion(SB.acnv, SB.pdf_c, FT(0), FT(0), ρ, N_liq)
+            sc = CM2.liquid_self_collection(
+                SB.acnv,
+                SB.pdf_c,
+                FT(0),
+                ρ,
+                au.dN_liq_dt,
+            )
+            au_sc = CM2.autoconversion_and_liquid_self_collection(
+                SB,
+                FT(0),
+                FT(0),
+                ρ,
+                N_liq,
+            )
 
-        #test
-        TT.@test au.dq_liq_dt ≈ FT(0) atol = eps(FT)
-        TT.@test au.dq_rai_dt ≈ FT(0) atol = eps(FT)
-        TT.@test au.dN_liq_dt ≈ FT(0) atol = eps(FT)
-        TT.@test au.dN_rai_dt ≈ FT(0) atol = eps(FT)
-        TT.@test sc ≈ FT(0) atol = eps(FT)
-        TT.@test au_sc.au.dq_liq_dt ≈ FT(0) atol = eps(FT)
-        TT.@test au_sc.au.dq_rai_dt ≈ FT(0) atol = eps(FT)
-        TT.@test au_sc.au.dN_liq_dt ≈ FT(0) atol = eps(FT)
-        TT.@test au_sc.au.dN_rai_dt ≈ FT(0) atol = eps(FT)
-        TT.@test au_sc.sc ≈ FT(0) atol = eps(FT)
+            #test
+            TT.@test au.dq_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au.dq_rai_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au.dN_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au.dN_rai_dt ≈ FT(0) atol = eps(FT)
+            TT.@test sc ≈ FT(0) atol = eps(FT)
+            TT.@test au_sc.au.dq_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au_sc.au.dq_rai_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au_sc.au.dN_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au_sc.au.dN_rai_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au_sc.sc ≈ FT(0) atol = eps(FT)
+        end
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 accretion" begin
@@ -248,37 +268,39 @@ function test_microphysics2M(FT)
         q_rai = FT(1e-6)
         N_rai = FT(1e4)
 
-        (; kcr, ρ0) = SB2006.accr
+        for SB in [SB2006, SB2006_no_limiters]
+            (; kcr, ρ0) = SB.accr
 
-        #action
-        ac = CM2.accretion(SB2006, q_liq, q_rai, ρ, N_liq)
+            #action
+            ac = CM2.accretion(SB, q_liq, q_rai, ρ, N_liq)
 
-        Lc = ρ * q_liq
-        Lr = ρ * q_rai
-        xc = Lc / N_liq
-        τ = 1 - Lc / (Lc + Lr)
-        ϕ_ac = (τ / (τ + 5e-5))^4
+            Lc = ρ * q_liq
+            Lr = ρ * q_rai
+            xc = Lc / N_liq
+            τ = 1 - Lc / (Lc + Lr)
+            ϕ_ac = (τ / (τ + 5e-5))^4
 
-        dqrdt_ac = kcr * Lc * Lr * ϕ_ac * sqrt(ρ0 / ρ) / ρ
-        dqcdt_ac = -dqrdt_ac
-        dNcdt_ac = 1 / xc * ρ * dqcdt_ac
-        dNrdt_ac = FT(0)
+            dqrdt_ac = kcr * Lc * Lr * ϕ_ac * sqrt(ρ0 / ρ) / ρ
+            dqcdt_ac = -dqrdt_ac
+            dNcdt_ac = 1 / xc * ρ * dqcdt_ac
+            dNrdt_ac = FT(0)
 
-        #test
-        TT.@test ac isa CM2.LiqRaiRates
-        TT.@test ac.dq_liq_dt ≈ dqcdt_ac rtol = FT(1e-6)
-        TT.@test ac.dq_rai_dt ≈ dqrdt_ac rtol = FT(1e-6)
-        TT.@test ac.dN_liq_dt ≈ dNcdt_ac rtol = FT(1e-6)
-        TT.@test ac.dN_rai_dt ≈ dNrdt_ac rtol = FT(1e-6)
+            #test
+            TT.@test ac isa CM2.LiqRaiRates
+            TT.@test ac.dq_liq_dt ≈ dqcdt_ac rtol = FT(1e-6)
+            TT.@test ac.dq_rai_dt ≈ dqrdt_ac rtol = FT(1e-6)
+            TT.@test ac.dN_liq_dt ≈ dNcdt_ac rtol = FT(1e-6)
+            TT.@test ac.dN_rai_dt ≈ dNrdt_ac rtol = FT(1e-6)
 
-        #action
-        ac = CM2.accretion(SB2006, FT(0), FT(0), ρ, N_liq)
+            #action
+            ac = CM2.accretion(SB, FT(0), FT(0), ρ, N_liq)
 
-        #test
-        TT.@test ac.dq_liq_dt ≈ FT(0) atol = eps(FT)
-        TT.@test ac.dq_rai_dt ≈ FT(0) atol = eps(FT)
-        TT.@test ac.dN_liq_dt ≈ FT(0) atol = eps(FT)
-        TT.@test ac.dN_rai_dt ≈ FT(0) atol = eps(FT)
+            #test
+            TT.@test ac.dq_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test ac.dq_rai_dt ≈ FT(0) atol = eps(FT)
+            TT.@test ac.dN_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test ac.dN_rai_dt ≈ FT(0) atol = eps(FT)
+        end
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain self-collection and breakup" begin
@@ -287,65 +309,68 @@ function test_microphysics2M(FT)
         q_rai = FT(1e-6)
         N_rai = FT(1e4)
 
-        (; krr, κrr) = SB2006.self
-        (; Deq, kbr, κbr) = SB2006.brek
-        ρ0 = SB2006.pdf_r.ρ0
+        for SB in [SB2006, SB2006_no_limiters]
+            (; krr, κrr) = SB.self
+            (; Deq, kbr, κbr) = SB.brek
+            ρ0 = SB.pdf_r.ρ0
 
-        #action
-        sc_rai =
-            CM2.rain_self_collection(SB2006.pdf_r, SB2006.self, q_rai, ρ, N_rai)
-        br_rai =
-            CM2.rain_breakup(SB2006.pdf_r, SB2006.brek, q_rai, ρ, N_rai, sc_rai)
-        sc_br_rai =
-            CM2.rain_self_collection_and_breakup(SB2006, q_rai, ρ, N_rai)
+            #action
+            sc_rai =
+                CM2.rain_self_collection(SB.pdf_r, SB.self, q_rai, ρ, N_rai)
+            br_rai =
+                CM2.rain_breakup(SB.pdf_r, SB.brek, q_rai, ρ, N_rai, sc_rai)
+            sc_br_rai =
+                CM2.rain_self_collection_and_breakup(SB, q_rai, ρ, N_rai)
 
-        λr =
-            CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).λr *
-            FT(6 / π / 1000)^FT(1 / 3)
-        dNrdt_sc = -krr * N_rai * ρ * q_rai * (1 + κrr / λr)^-5 * sqrt(ρ0 / ρ)
+            λr =
+                CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).λr *
+                FT(6 / π / 1000)^FT(1 / 3)
+            dNrdt_sc =
+                -krr * N_rai * ρ * q_rai * (1 + κrr / λr)^-5 * sqrt(ρ0 / ρ)
 
-        Dr =
-            (
-                CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).xr /
-                1000 / FT(π) * 6
-            )^FT(1 / 3)
-        ΔDr = Dr - Deq
-        ϕ_br =
-            Dr < 0.35e-3 ? FT(-1) :
-            ((Dr < 0.9e-3) ? kbr * ΔDr : 2 * (exp(κbr * ΔDr) - 1))
+            Dr =
+                (
+                    CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).xr / 1000 / FT(π) *
+                    6
+                )^FT(1 / 3)
+            ΔDr = Dr - Deq
+            ϕ_br =
+                Dr < 0.35e-3 ? FT(-1) :
+                ((Dr < 0.9e-3) ? kbr * ΔDr : 2 * (exp(κbr * ΔDr) - 1))
 
-        dNrdt_br = -(ϕ_br + 1) * sc_rai
+            dNrdt_br = -(ϕ_br + 1) * sc_rai
 
-        #test
-        TT.@test sc_rai ≈ dNrdt_sc rtol = 1e-6
-        TT.@test CM2.rain_self_collection(
-            SB2006.pdf_r,
-            SB2006.self,
-            FT(0),
-            ρ,
-            N_rai,
-        ) ≈ FT(0) atol = eps(FT)
-        TT.@test br_rai ≈ dNrdt_br rtol = 1e-6
-        TT.@test sc_br_rai isa NamedTuple
-        TT.@test sc_br_rai.sc ≈ dNrdt_sc rtol = 1e-6
-        TT.@test sc_br_rai.br ≈ dNrdt_br rtol = 1e-6
+            #test
+            TT.@test sc_rai ≈ dNrdt_sc rtol = 1e-6
+            TT.@test CM2.rain_self_collection(
+                SB.pdf_r,
+                SB.self,
+                FT(0),
+                ρ,
+                N_rai,
+            ) ≈ FT(0) atol = eps(FT)
+            TT.@test br_rai ≈ dNrdt_br rtol = 1e-6
+            TT.@test sc_br_rai isa NamedTuple
+            TT.@test sc_br_rai.sc ≈ dNrdt_sc rtol = 1e-6
+            TT.@test sc_br_rai.br ≈ dNrdt_br rtol = 1e-6
 
-        #setup
-        q_rai = FT(0)
+            #setup
+            q_rai = FT(0)
 
-        #action
-        sc_rai =
-            CM2.rain_self_collection(SB2006.pdf_r, SB2006.self, q_rai, ρ, N_rai)
-        br_rai =
-            CM2.rain_breakup(SB2006.pdf_r, SB2006.brek, q_rai, ρ, N_rai, sc_rai)
-        sc_br_rai =
-            CM2.rain_self_collection_and_breakup(SB2006, q_rai, ρ, N_rai)
+            #action
+            sc_rai =
+                CM2.rain_self_collection(SB.pdf_r, SB.self, q_rai, ρ, N_rai)
+            br_rai =
+                CM2.rain_breakup(SB.pdf_r, SB.brek, q_rai, ρ, N_rai, sc_rai)
+            sc_br_rai =
+                CM2.rain_self_collection_and_breakup(SB, q_rai, ρ, N_rai)
 
-        #test
-        TT.@test sc_rai ≈ FT(0) atol = eps(FT)
-        TT.@test br_rai ≈ FT(0) atol = eps(FT)
-        TT.@test sc_br_rai.sc ≈ FT(0) atol = eps(FT)
-        TT.@test sc_br_rai.br ≈ FT(0) atol = eps(FT)
+            #test
+            TT.@test sc_rai ≈ FT(0) atol = eps(FT)
+            TT.@test br_rai ≈ FT(0) atol = eps(FT)
+            TT.@test sc_br_rai.sc ≈ FT(0) atol = eps(FT)
+            TT.@test sc_br_rai.br ≈ FT(0) atol = eps(FT)
+        end
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity" begin
@@ -356,31 +381,34 @@ function test_microphysics2M(FT)
 
         (; ρ0, aR, bR, cR) = SB2006Vel
 
-        #action
-        vt_rai = CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rai, ρ, N_rai)
+        for SB in [SB2006, SB2006_no_limiters]
 
-        λr = CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).λr
-        vt0 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
-        vt1 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^4))
+            #action
+            vt_rai = CM2.rain_terminal_velocity(SB, SB2006Vel, q_rai, ρ, N_rai)
 
-        #test
-        TT.@test vt_rai isa Tuple
-        TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
-        TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
-        TT.@test CM2.rain_terminal_velocity(
-            SB2006,
-            SB2006Vel,
-            FT(0),
-            ρ,
-            N_rai,
-        )[1] ≈ 0 atol = eps(FT)
-        TT.@test CM2.rain_terminal_velocity(
-            SB2006,
-            SB2006Vel,
-            FT(0),
-            ρ,
-            N_rai,
-        )[2] ≈ 0 atol = eps(FT)
+            λr = CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).λr
+            vt0 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
+            vt1 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^4))
+
+            #test
+            TT.@test vt_rai isa Tuple
+            TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
+            TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
+            TT.@test CM2.rain_terminal_velocity(
+                SB,
+                SB2006Vel,
+                FT(0),
+                ρ,
+                N_rai,
+            )[1] ≈ 0 atol = eps(FT)
+            TT.@test CM2.rain_terminal_velocity(
+                SB,
+                SB2006Vel,
+                FT(0),
+                ρ,
+                N_rai,
+            )[2] ≈ 0 atol = eps(FT)
+        end
     end
 
     TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity" begin
@@ -389,34 +417,36 @@ function test_microphysics2M(FT)
         q_rai = FT(5e-4)
         N_rai = FT(1e4)
 
-        #action
-        vt_rai =
-            CM2.rain_terminal_velocity(SB2006, Chen2022Vel, q_rai, ρ, N_rai)
-        v_bigger =
-            CM2.rain_terminal_velocity(SB2006, Chen2022Vel, q_rai * 2, ρ, N_rai)
+        for SB in [SB2006, SB2006_no_limiters]
+            #action
+            vt_rai =
+                CM2.rain_terminal_velocity(SB, Chen2022Vel, q_rai, ρ, N_rai)
+            v_bigger =
+                CM2.rain_terminal_velocity(SB, Chen2022Vel, q_rai * 2, ρ, N_rai)
 
-        #test
-        TT.@test vt_rai isa Tuple
-        TT.@test vt_rai[1] ≈ 1.0738503635546666 rtol = 1e-6
-        TT.@test vt_rai[2] ≈ 4.00592218028957 rtol = 1e-6
+            #test
+            TT.@test vt_rai isa Tuple
+            TT.@test vt_rai[1] ≈ 1.0738503635546666 rtol = 1e-6
+            TT.@test vt_rai[2] ≈ 4.00592218028957 rtol = 1e-6
 
-        TT.@test CM2.rain_terminal_velocity(
-            SB2006,
-            Chen2022Vel,
-            FT(0),
-            ρ,
-            N_rai,
-        )[1] ≈ 0 atol = eps(FT)
-        TT.@test CM2.rain_terminal_velocity(
-            SB2006,
-            Chen2022Vel,
-            FT(0),
-            ρ,
-            N_rai,
-        )[2] ≈ 0 atol = eps(FT)
+            TT.@test CM2.rain_terminal_velocity(
+                SB,
+                Chen2022Vel,
+                FT(0),
+                ρ,
+                N_rai,
+            )[1] ≈ 0 atol = eps(FT)
+            TT.@test CM2.rain_terminal_velocity(
+                SB,
+                Chen2022Vel,
+                FT(0),
+                ρ,
+                N_rai,
+            )[2] ≈ 0 atol = eps(FT)
 
-        TT.@test v_bigger[1] > vt_rai[1]
-        TT.@test v_bigger[2] > vt_rai[2]
+            TT.@test v_bigger[1] > vt_rai[1]
+            TT.@test v_bigger[2] > vt_rai[2]
+        end
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain evaporation" begin
@@ -428,53 +458,56 @@ function test_microphysics2M(FT)
         q_tot = FT(1e-3)
         q = TD.PhasePartition(q_tot)
 
-        (; av, bv, α, β, ρ0) = SB2006.evap
-        (; ν_air, D_vapor) = aps
+        for SB in [SB2006, SB2006_no_limiters]
 
-        #action
-        evap = CM2.rain_evaporation(SB2006, aps, tps, q, q_rai, ρ, N_rai, T)
+            (; av, bv, α, β, ρ0) = SB.evap
+            (; ν_air, D_vapor) = aps
 
-        G = CMC.G_func(aps, tps, T, TD.Liquid())
-        S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
+            #action
+            evap = CM2.rain_evaporation(SB, aps, tps, q, q_rai, ρ, N_rai, T)
 
-        xr = CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).xr
-        Dr = FT(6 / π / 1000.0)^FT(1 / 3) * xr^FT(1 / 3)
-        N_Re = α * xr^β * sqrt(ρ0 / ρ) * Dr / ν_air
+            G = CMC.G_func(aps, tps, T, TD.Liquid())
+            S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
 
-        a_vent_0 = av * FT(0.15344374450453543)
-        b_vent_0 = bv * FT(0.17380986321413017)
-        Fv0 = a_vent_0 + b_vent_0 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
-        a_vent_1 = av * FT(0.5503212081491045)
-        b_vent_1 = bv * FT(0.5873135598802672)
-        Fv1 = a_vent_1 + b_vent_1 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
+            xr = CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).xr
+            Dr = FT(6 / π / 1000.0)^FT(1 / 3) * xr^FT(1 / 3)
+            N_Re = α * xr^β * sqrt(ρ0 / ρ) * Dr / ν_air
 
-        evap0 = 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr
-        evap1 = 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ
+            a_vent_0 = av * FT(0.15344374450453543)
+            b_vent_0 = bv * FT(0.17380986321413017)
+            Fv0 = a_vent_0 + b_vent_0 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
+            a_vent_1 = av * FT(0.5503212081491045)
+            b_vent_1 = bv * FT(0.5873135598802672)
+            Fv1 = a_vent_1 + b_vent_1 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
 
-        #test
-        TT.@test evap isa NamedTuple
-        TT.@test evap.evap_rate_0 ≈ evap0 rtol = 1e-4
-        TT.@test evap.evap_rate_1 ≈ evap1 rtol = 1e-5
-        TT.@test CM2.rain_evaporation(
-            SB2006,
-            aps,
-            tps,
-            q,
-            FT(0),
-            ρ,
-            N_rai,
-            T,
-        ).evap_rate_0 ≈ 0 atol = eps(FT)
-        TT.@test CM2.rain_evaporation(
-            SB2006,
-            aps,
-            tps,
-            q,
-            FT(0),
-            ρ,
-            N_rai,
-            T,
-        ).evap_rate_1 ≈ 0 atol = eps(FT)
+            evap0 = 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr
+            evap1 = 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ
+
+            #test
+            TT.@test evap isa NamedTuple
+            TT.@test evap.evap_rate_0 ≈ evap0 rtol = 1e-4
+            TT.@test evap.evap_rate_1 ≈ evap1 rtol = 1e-5
+            TT.@test CM2.rain_evaporation(
+                SB,
+                aps,
+                tps,
+                q,
+                FT(0),
+                ρ,
+                N_rai,
+                T,
+            ).evap_rate_0 ≈ 0 atol = eps(FT)
+            TT.@test CM2.rain_evaporation(
+                SB,
+                aps,
+                tps,
+                q,
+                FT(0),
+                ρ,
+                N_rai,
+                T,
+            ).evap_rate_1 ≈ 0 atol = eps(FT)
+        end
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 radar reflectivity" begin
@@ -484,23 +517,14 @@ function test_microphysics2M(FT)
         N_liq = FT(15053529)
         q_rai = FT(1.573e-4)
         N_rai = FT(510859)
-        τ_q = FT(1e-12)
-        τ_N = FT(1e-18)
 
-        #action
-        rr = CM2.radar_reflectivity(
-            SB2006,
-            q_liq,
-            q_rai,
-            N_liq,
-            N_rai,
-            ρ_air,
-            τ_q,
-            τ_N,
-        )
+        for SB in [SB2006, SB2006_no_limiters]
+            #action
+            rr = CM2.radar_reflectivity(SB, q_liq, q_rai, N_liq, N_rai, ρ_air)
 
-        TT.@test rr ≈ FT(-13) atol = FT(0.5)
-
+            # test
+            TT.@test rr ≈ FT(-13) atol = FT(0.5)
+        end
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 effective radius" begin
@@ -511,24 +535,14 @@ function test_microphysics2M(FT)
         N_liq = FT(15053529)
         q_rai = FT(1.573e-4)
         N_rai = FT(510859)
-        τ_q = FT(1e-12)
-        τ_N = FT(1e-18)
 
-        #action
-        reff = CM2.effective_radius(
-            SB2006,
-            q_liq,
-            q_rai,
-            N_liq,
-            N_rai,
-            ρ_air,
-            τ_q,
-            τ_N,
-        )
+        for SB in [SB2006, SB2006_no_limiters]
+            #action
+            reff = CM2.effective_radius(SB, q_liq, q_rai, N_liq, N_rai, ρ_air)
 
-        #test
-        TT.@test reff ≈ FT(2.66e-05) atol = FT(3e-7)
-
+            #test
+            TT.@test reff ≈ FT(2.66e-05) atol = FT(8e-6)
+        end
     end
 
     TT.@testset "2M_microphysics - '1/3' power law from Liu and Hallett (1997)" begin
@@ -552,6 +566,118 @@ function test_microphysics2M(FT)
 
         #test
         TT.@test reff ≈ FT(2.66e-05) atol = FT(8e-6)
+
+    end
+
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain distribution sanity checks" begin
+
+        # air and liquid water densities
+        ρₐ = FT(1.2)
+        ρₗ = SB2006.pdf_r.ρw
+
+        # example number concentration and specific humidity
+        Nᵣ = FT(5e5)
+        qᵣ = FT(5e-4)
+
+        # limited distribution parameters for rain
+        Ar_l = CM2.pdf_rain(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ).Ar
+        Br_l = CM2.pdf_rain(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ).Br
+        λr_l = CM2.pdf_rain(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ).λr
+        αr_l = CM2.pdf_rain(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ).αr
+        # not limited distribution parameters for rain
+        (; λr, αr, Ar, Br) = CM2.pdf_rain(SB2006_no_limiters.pdf_r, qᵣ, ρₐ, Nᵣ)
+
+        # mass of liquid droplet as a function of its diameter
+        m(D) = FT(π / 6) * ρₗ * D^3
+
+        # rain drop diameter distribution (eq.(3) from 2M docs)
+        f_D(D) = αr * exp(-λr * D)
+        # rain drop diameter distribution, but using SB2006 limiters
+        f_D_limited(D) = αr_l * exp(-λr_l * D)
+
+        # rain drop mass distribution (eq.(4) from 2M docs)
+        f_x(x) = Ar * x^(-2 / 3) * exp(-Br * x^(1 / 3))
+        # rain drop mass distribution, but using the SB2006 limiters
+        f_x_limited(x) = Ar_l * x^(-2 / 3) * exp(-Br_l * x^(1 / 3))
+
+        # integral bounds
+        D₀ = 1e-7
+        D∞ = 1e-2
+        m₀ = m(D₀)
+        m∞ = m(D∞)
+
+        # Sanity checks for number concentrations for rain
+        ND = QGK.quadgk(x -> f_D(x), D₀, D∞)[1]
+        Nx = QGK.quadgk(x -> f_x(x), m₀, m∞)[1]
+        ND_lim = QGK.quadgk(x -> f_D_limited(x), D₀, D∞)[1]
+        Nx_lim = QGK.quadgk(x -> f_x_limited(x), m₀, m∞)[1]
+        TT.@test ND ≈ Nᵣ rtol = FT(1e-2)
+        TT.@test Nx ≈ Nᵣ rtol = FT(1e-2)
+        TT.@test ND_lim ≈ Nᵣ rtol = FT(1e-2)
+        TT.@test Nx_lim ≈ Nᵣ rtol = FT(1e-2)
+
+        # Sanity checks for specific humidities for rain
+        qD = QGK.quadgk(x -> m(x) * f_D(x), D₀, D∞)[1] / ρₐ
+        qx = QGK.quadgk(x -> x * f_x(x), m₀, m∞)[1] / ρₐ
+        qD_lim = QGK.quadgk(x -> m(x) * f_D_limited(x), D₀, D∞)[1] / ρₐ
+        qx_lim = QGK.quadgk(x -> x * f_x_limited(x), m₀, m∞)[1] / ρₐ
+        TT.@test qD ≈ qᵣ atol = FT(1e-6)
+        TT.@test qx ≈ qᵣ atol = FT(1e-6)
+
+        # The mass integrals don't work with limiters 
+        TT.@test qx_lim ≈ qᵣ atol = FT(1e-6)
+        TT.@test qD_lim ≈ qx_lim atol = FT(1e-6)
+    end
+
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 cloud distribution sanity checks" begin
+
+        # example number concentration and specific humidity
+        Nₗ = FT(1e9)
+        qₗ = FT(1e-3)
+
+        # air and liquid water densities in μg/m3
+        ρₐ = FT(1.2)
+        ρₗ = SB2006.pdf_r.ρw
+
+        # distribution parameters for cloud, units: [Bc] = 1/μg, [Ac] = 1/m3 1/μg3
+        (; χ, Ac, Bc, Cc, Ec, ϕc, ψc) =
+            CM2.pdf_cloud(SB2006_no_limiters.pdf_c, qₗ, ρₐ, Nₗ)
+
+        # mass of liquid droplet as a function of its diameter in μg
+        m(D) = FT(π / 6) * ρₗ * FT(10)^χ * D^3
+
+        # cloud droplet mass distribution (eq.(2) from 2M docs)
+        f_x(x) = Ac * x^(2) * exp(-Bc * x^(1))
+
+        # cloud droplet diameter distribution (eq.(7) from 2M docs)
+        f_D(D) = Cc * D^ϕc * exp(-Ec * D^ψc)
+
+        # integral bounds
+        D₀ = 1e-8
+        D∞ = 1e-4
+        m₀ = m(D₀)
+        m∞ = m(D∞)
+
+        # Sanity checks specific humidity and number concentration with mass distribution
+        # Sanity checks for number concentrations for cloud
+        qx = QGK.quadgk(x -> x * f_x(x), m₀, m∞)[1] / (ρₐ * FT(10)^χ)
+        Nx = QGK.quadgk(x -> f_x(x), m₀, m∞)[1]
+        TT.@test qx ≈ qₗ rtol = FT(1e-6)
+        TT.@test Nx ≈ Nₗ rtol = FT(1e-6)
+
+        # mass of liquid droplets as a function of its diameter in mm and μg 
+        _m(D) = FT(π / 6) * ρₗ * FT(10)^(χ - 9) * D^3
+
+        # integral bounds in millimiters
+        _D₀ = 1e-8 * FT(1e3)
+        _D∞ = 1e-4 * FT(1e3)
+
+        # Sanity checks specific humidity and number concentration with diameter distribution
+        qD =
+            QGK.quadgk(x -> _m(x) * f_D(x), _D₀, _D∞)[1] / (ρₐ * FT(10)^(χ - 9))
+        ND = QGK.quadgk(x -> f_D(x), _D₀, _D∞)[1] * FT(1e9)
+        TT.@test ND ≈ Nₗ rtol = FT(1e-6)
+        TT.@test qD ≈ qₗ rtol = FT(1e-6)
 
     end
 end

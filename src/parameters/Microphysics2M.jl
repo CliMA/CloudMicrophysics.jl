@@ -336,14 +336,15 @@ function VarTimescaleAcnv(td::CP.AbstractTOMLDict)
 end
 
 """
-    RainParticlePDF_SB2006
+    RainParticlePDF_SB2006_limited
 
-Rain size distribution parameters from SB2006
+Rain size distribution parameters from SB2006 including the limiters
+on drop maximum mass and the size distribution coefficinets N0 and lambda
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct RainParticlePDF_SB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct RainParticlePDF_SB2006_limited{FT} <: ParametersType{FT}
     "Raindrop size distribution coefficient νr"
     νr::FT
     "Raindrop size distribution coefficient μr"
@@ -366,7 +367,7 @@ Base.@kwdef struct RainParticlePDF_SB2006{FT} <: ParametersType{FT}
     ρ0::FT
 end
 
-function RainParticlePDF_SB2006(td::CP.AbstractTOMLDict)
+function RainParticlePDF_SB2006_limited(td::CP.AbstractTOMLDict)
     name_map = (;
         :SB2006_rain_distribution_coeff_nu => :νr,
         :SB2006_rain_distribution_coeff_mu => :μr,
@@ -378,6 +379,40 @@ function RainParticlePDF_SB2006(td::CP.AbstractTOMLDict)
         :SB2006_raindrops_size_distribution_coeff_lambda_max => :λ_max,
         :density_liquid_water => :ρw,
         :SB2006_reference_air_density => :ρ0,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return RainParticlePDF_SB2006_limited{FT}(; parameters...)
+end
+
+"""
+    RainParticlePDF_SB2006
+
+Rain size distribution parameters from SB2006 but without the limiters
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+Base.@kwdef struct RainParticlePDF_SB2006{FT} <: ParametersType{FT}
+    "Raindrop size distribution coefficient νr"
+    νr::FT
+    "Raindrop size distribution coefficient μr"
+    μr::FT
+    "Cloud liquid water density [kg/m3]"
+    ρw::FT
+    "Reference air density [kg/m3]"
+    ρ0::FT
+    "Raindrop minimal mass"
+    xr_min::FT
+end
+
+function RainParticlePDF_SB2006(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :SB2006_rain_distribution_coeff_nu => :νr,
+        :SB2006_rain_distribution_coeff_mu => :μr,
+        :density_liquid_water => :ρw,
+        :SB2006_reference_air_density => :ρ0,
+        :SB2006_raindrops_min_mass => :xr_min,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
@@ -397,12 +432,15 @@ Base.@kwdef struct CloudParticlePDF_SB2006{FT} <: ParametersType{FT}
     νc::FT
     "Cloud droplet size distribution coefficient μc"
     μc::FT
+    "Cloud liquid water density [kg/m3]"
+    ρw::FT
 end
 
 function CloudParticlePDF_SB2006(td::CP.AbstractTOMLDict)
     name_map = (;
         :SB2006_cloud_gamma_distribution_parameter => :νc,
         :SB2006_cloud_gamma_distribution_coeff_mu => :μc,
+        :density_liquid_water => :ρw,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
@@ -420,8 +458,6 @@ $(DocStringExtensions.FIELDS)
 Base.@kwdef struct AcnvSB2006{FT} <: ParametersType{FT}
     "Collection kernel coefficient"
     kcc::FT
-    "Cloud gamma distribution coefficient"
-    νc::FT
     "Minimum mass of rain droplets"
     x_star::FT
     "Reference air density [kg/m3]"
@@ -437,7 +473,6 @@ end
 function AcnvSB2006(td::CP.AbstractTOMLDict)
     name_map = (;
         :SB2006_collection_kernel_coeff_kcc => :kcc,
-        :SB2006_cloud_gamma_distribution_parameter => :νc,
         :SB2006_raindrops_min_mass => :x_star,
         :SB2006_reference_air_density => :ρ0,
         :SB2006_autoconversion_correcting_function_coeff_A => :A,
@@ -578,7 +613,8 @@ end
     SB2006
 
 The type and parameters for 2-moment precipitation formation by
-Seifert and Beheng (2006)
+Seifert and Beheng (2006). The pdf_r type choses between running with or without
+limiters on raindrop size distribution parameters
 
 DOI: 10.1007/s00703-005-0112-4
 
@@ -602,11 +638,14 @@ struct SB2006{FT, PDc, PDr, AV, AR, SC, BR, EV} <: Precipitation2MType{FT}
     evap::EV
 end
 
-SB2006(::Type{FT}) where {FT <: AbstractFloat} = SB2006(CP.create_toml_dict(FT))
+SB2006(::Type{FT}, is_limited = true) where {FT <: AbstractFloat} =
+    SB2006(CP.create_toml_dict(FT), is_limited)
 
-function SB2006(toml_dict::CP.AbstractTOMLDict)
+function SB2006(toml_dict::CP.AbstractTOMLDict, is_limited = true)
     pdf_c = CloudParticlePDF_SB2006(toml_dict)
-    pdf_r = RainParticlePDF_SB2006(toml_dict)
+    pdf_r =
+        is_limited ? RainParticlePDF_SB2006_limited(toml_dict) :
+        RainParticlePDF_SB2006(toml_dict)
     acnv = AcnvSB2006(toml_dict)
     accr = AccrSB2006(toml_dict)
     self = SelfColSB2006(toml_dict)

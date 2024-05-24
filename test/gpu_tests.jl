@@ -722,6 +722,7 @@ function test_gpu(FT)
 
     # 2-moment microphysics
     SB2006 = CMP.SB2006(FT)
+    SB2006_no_limiters = CMP.SB2006(FT, false)
     KK2000 = CMP.KK2000(FT)
     B1994 = CMP.B1994(FT)
     TC1980 = CMP.TC1980(FT)
@@ -905,49 +906,74 @@ function test_gpu(FT)
         @test Array(output)[2] ≈ FT(7.2e-6)
         @test Array(output)[3] ≈ FT(4.7e-6)
 
-        dims = (15, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+        for SB in [SB2006, SB2006_no_limiters]
+            dims = (15, 1)
+            (; output, ndrange) = setup_output(dims, FT)
 
-        T = ArrayType([FT(290)])
-        qt = ArrayType([FT(7e-3)])
-        ql = ArrayType([FT(2e-3)])
-        qr = ArrayType([FT(5e-4)])
-        ρ = ArrayType([FT(1.2)])
-        Nl = ArrayType([FT(1e8)])
-        Nr = ArrayType([FT(1e7)])
+            T = ArrayType([FT(290)])
+            qt = ArrayType([FT(7e-3)])
+            ql = ArrayType([FT(2e-3)])
+            qr = ArrayType([FT(5e-4)])
+            ρ = ArrayType([FT(1.2)])
+            Nl = ArrayType([FT(1e8)])
+            Nr = ArrayType([FT(1e7)])
 
-        kernel! = test_2_moment_SB2006_kernel!(backend, work_groups)
-        kernel!(
-            aps,
-            tps,
-            SB2006,
-            SB2006Vel,
-            output,
-            qt,
-            ql,
-            qr,
-            Nl,
-            Nr,
-            ρ,
-            T,
-            ndrange = ndrange,
-        )
 
-        @test isapprox(Array(output)[1], FT(-4.083606e-7), rtol = 1e-6)
-        @test isapprox(Array(output)[2], FT(-3769.4827), rtol = 1e-6)
-        @test isapprox(Array(output)[3], FT(4.083606e-7), rtol = 1e-6)
-        @test isapprox(Array(output)[4], FT(1884.7413), rtol = 1e-6)
-        @test isapprox(Array(output)[5], FT(-31040.115), rtol = 1e-6)
-        @test isapprox(Array(output)[6], FT(-6.358926e-6), rtol = 1e-6)
-        @test isapprox(Array(output)[7], FT(-317946.28), rtol = 1e-6)
-        @test isapprox(Array(output)[8], FT(6.358926e-6), rtol = 1e-6)
-        @test isapprox(Array(output)[9], FT(0.0), rtol = 1e-6)
-        @test isapprox(Array(output)[10], FT(-21187.494), rtol = 1e-6)
-        @test isapprox(Array(output)[11], FT(14154.027), rtol = 1e-6)
-        @test isapprox(Array(output)[12], FT(0.9868878), rtol = 1e-6)
-        @test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
-        @test isapprox(Array(output)[14], FT(-243259.75126), rtol = 1e-6)
-        @test isapprox(Array(output)[15], FT(-0.0034601581), rtol = 1e-6)
+            kernel! = test_2_moment_SB2006_kernel!(backend, work_groups)
+            kernel!(
+                aps,
+                tps,
+                SB,
+                SB2006Vel,
+                output,
+                qt,
+                ql,
+                qr,
+                Nl,
+                Nr,
+                ρ,
+                T,
+                ndrange = ndrange,
+            )
+
+            @test isapprox(Array(output)[1], FT(-4.083606e-7), rtol = 1e-6)
+            @test isapprox(Array(output)[2], FT(-3769.4827), rtol = 1e-6)
+            @test isapprox(Array(output)[3], FT(4.083606e-7), rtol = 1e-6)
+            @test isapprox(Array(output)[4], FT(1884.7413), rtol = 1e-6)
+            @test isapprox(Array(output)[5], FT(-31040.115), rtol = 1e-6)
+            @test isapprox(Array(output)[6], FT(-6.358926e-6), rtol = 1e-6)
+            @test isapprox(Array(output)[7], FT(-317946.28), rtol = 1e-6)
+            @test isapprox(Array(output)[8], FT(6.358926e-6), rtol = 1e-6)
+            @test isapprox(Array(output)[9], FT(0.0), rtol = 1e-6)
+            if SB == SB2006
+                @test isapprox(Array(output)[10], FT(-21187.494), rtol = 1e-6)
+                @test isapprox(Array(output)[11], FT(14154.027), rtol = 1e-6)
+                @test isapprox(Array(output)[12], FT(0.9868878), rtol = 1e-6)
+                @test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
+                @test isapprox(
+                    Array(output)[14],
+                    FT(-243259.75126),
+                    rtol = 1e-6,
+                )
+                @test isapprox(
+                    Array(output)[15],
+                    FT(-0.0034601581),
+                    rtol = 1e-6,
+                )
+            end
+            if SB == SB2006_no_limiters
+                @test isapprox(Array(output)[10], FT(-40447.855), rtol = 1e-6)
+                @test isapprox(Array(output)[11], FT(0), rtol = 1e-6)
+                @test isapprox(Array(output)[12], FT(0), rtol = 1e-6)
+                @test isapprox(Array(output)[13], FT(0), rtol = 1e-6)
+                @test isapprox(Array(output)[14], FT(-52903.817), rtol = 1e-6)
+                @test isapprox(
+                    Array(output)[15],
+                    FT(-9.3601206e-5),
+                    rtol = 1e-6,
+                )
+            end
+        end
     end
 
     @testset "Common Kernels" begin

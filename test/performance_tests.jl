@@ -64,6 +64,8 @@ function benchmark_test(FT)
     )
     toml_dict = CP.create_toml_dict(FT; override_file)
     sb2006 = CMP.SB2006(toml_dict)
+    sb2006_no_limiters = CMP.SB2006(toml_dict, false)
+
     # P3 scheme
     p3 = CMP.ParametersP3(FT)
     # terminal velocity
@@ -206,44 +208,46 @@ function benchmark_test(FT)
     bench_press(CM1.radar_reflectivity, (rain, q_rai, ρ_air), 250)
 
     # 2-moment
-    bench_press(
-        CM2.autoconversion_and_liquid_self_collection,
-        (sb2006, q_liq, q_rai, ρ_air, N_liq),
-        250,
-    )
-    bench_press(
-        CM2.rain_self_collection_and_breakup,
-        (sb2006, q_rai, ρ_air, N_rai),
-        1200,
-    )
-    bench_press(
-        CM2.rain_evaporation,
-        (sb2006, aps, tps, q, q_rai, ρ_air, N_rai, T_air),
-        2000,
-    )
-    bench_press(
-        CM2.rain_terminal_velocity,
-        (sb2006, sb2006vel, q_rai, ρ_air, N_rai),
-        700,
-    )
-    bench_press(
-        CM2.rain_terminal_velocity,
-        (sb2006, ch2022.rain, q_rai, ρ_air, N_rai),
-        2000,
-    )
-    bench_press(
-        CM2.radar_reflectivity,
-        (sb2006, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1e-12), FT(1e-18)),
-        1200,
-    )
-    bench_press(
-        CM2.effective_radius,
-        (sb2006, q_liq, q_rai, N_liq, N_rai, FT(1), FT(1e-12), FT(1e-18)),
-        1200,
-    )
+    for sb in [sb2006, sb2006_no_limiters]
+        bench_press(
+            CM2.autoconversion_and_liquid_self_collection,
+            (sb, q_liq, q_rai, ρ_air, N_liq),
+            250,
+        )
+        bench_press(
+            CM2.rain_self_collection_and_breakup,
+            (sb, q_rai, ρ_air, N_rai),
+            1200,
+        )
+        bench_press(
+            CM2.rain_evaporation,
+            (sb, aps, tps, q, q_rai, ρ_air, N_rai, T_air),
+            2000,
+        )
+        bench_press(
+            CM2.rain_terminal_velocity,
+            (sb, sb2006vel, q_rai, ρ_air, N_rai),
+            700,
+        )
+        bench_press(
+            CM2.rain_terminal_velocity,
+            (sb, ch2022.rain, q_rai, ρ_air, N_rai),
+            2000,
+        )
+        bench_press(
+            CM2.radar_reflectivity,
+            (sb, q_liq, q_rai, N_liq, N_rai, ρ_air),
+            2000,
+        )
+        bench_press(
+            CM2.effective_radius,
+            (sb, q_liq, q_rai, N_liq, N_rai, ρ_air),
+            2000,
+        )
+    end
     bench_press(
         CM2.effective_radius_Liu_Hallet_97,
-        (q_liq, q_rai, N_liq, N_rai, FT(1), FT(1000)),
+        (q_liq, q_rai, N_liq, N_rai, ρ_air, FT(1000)),
         300,
     )
     # Homogeneous Nucleation

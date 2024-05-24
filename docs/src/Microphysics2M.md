@@ -40,40 +40,72 @@ where ``x`` and ``y`` are drop masses and ``x^*`` is the mass threshold chosen t
 
 The default value of ``x^*=6.54\times 10^{-11} kg`` corresponds to the drop radius ``r^* \approx 25 \mu m``.
 
-The cloud droplets Gamma distribution function is described by
-```math
-\begin{align}
-    f_c(x)=A_cx^\nu_c e^{-B_cx},\quad \nu_c=\text{2.0}.
-\end{align}
-```
-Here,
- - ``A_c=\frac{N_{liq} \, B_c^{\nu_c+1}}{\Gamma(\nu_c+1)}``,
- - ``B_c=\left(\frac{\Gamma(\nu_c+1)}{\Gamma(\nu_c+2)}x_c\right)^{-1}``,
- - ``x_c=\frac{L_c}{N_{liq}}`` - averaged mass of cloud particles,
- - ``L_c = \rho q_{liq}`` - cloud liquid water content.
+### Assumed size distributions
 
-The raindrops exponential distribution is expressed as
+The cloud droplet mass follows a Gamma distribution
 ```math
 \begin{align}
-    f_r(D)=\alpha e^{-\beta D},
+    f_c(x) = A_c x^{\nu_c} \exp\left(-B_c x^{\mu_c} \right), \quad \nu_c = 2, \;\; \mu_c=1.
 \end{align}
 ```
-where ``D`` is the drop diameter which is proportional to ``x^{1/3}``. 
-Through this proportionality relation, we can express the raindrops exponential distribution as a gamma distribution function
+
+The rain drop diameter ``D`` follows an exponential distribution
 ```math
 \begin{align}
-    f_r(x)=A_rx^{-\nu_r}_r e^{-B_rx^{\mu_r}},
+    f_r(D) = N_0 \exp\left(- \lambda D \right),
 \end{align}
 ```
-where ``\nu_r=-\frac{2}{3}``, and ``\mu_r=\frac{1}{3}``.
-In this case, 
- - ``A_r=\frac{\mu_r \, N_{rai}}{\Gamma(\frac{\nu_r+1}{\mu_r})}B_r^{\frac{\nu_r+1}{\mu_r}}``,
- - ``B_r=\left(\frac{\Gamma(\frac{\nu_r+1}{\mu_r})}{\Gamma(\frac{\nu_r+2}{\mu_r})}x_r\right)^{(-\mu_r)}``,
- - ``x_r=\frac{L_r}{N_{rai}}`` - averaged mass of rain particles,
- - ``L_r = \rho q_{rai}`` - rain water content.
+which is a special case of a Gamma distribution
+```math
+\begin{align}
+    f_r(x) = A_r x^{\nu_r} \exp\left(-B_r x^{\mu_r} \right), \quad \nu_r = -\frac{2}{3}, \;\; \mu_r=\frac{1}{3}.
+\end{align}
+```
+The free parameters can be found analytically by
+  integrating over the assumed mass distributions to find the prognostic variables
+```math
+\begin{align}
+    N = \int_0^\infty f(x) dx, \quad  q = \frac{1}{\rho_a} \int_0^\infty x \; f(x) dx
+\end{align}
+```
+where
+ - ``\rho_a`` is the air density,
+ - ``\overline{x} = \frac{\rho_a q}{N}`` is the mean droplet mass,
+ - ``B = \left(\overline{x} \; \frac{\Gamma\left(\frac{\nu+1}{\mu}\right)}{\Gamma\left(\frac{\nu+2}{\mu}\right)}\right)^{-\mu}``,
+ - ``A = \frac{\mu \, N \, }{\Gamma(\frac{\nu+1}{\mu})} \; B^{\frac{\nu+1}{\mu}}``.
+
+Similarily, for the exponential rain diameter distribution and assuming spherical rain drops
+```math
+\begin{align}
+    N = \int_0^\infty f(D) dD, \quad  q = \frac{\pi \rho_w}{6 \rho_a} \int_0^\infty D^3 \; f(D) dD
+\end{align}
+```
+where
+ - ``\rho_w`` is the density of water,
+ - ``\lambda = \left( \frac{\pi \; N_r \; \rho_w}{q_r \rho_a} \right)^{\frac{1}{3}}``,
+ - ``N_0 = \lambda \; N``.
+
+Lastly, when computing collision rates between the P3 scheme representation of snow and ice,
+  it is useful to convert the cloud droplet mass distribution to a diameter distribution.
+Again, assuming spherical droplets results in
+```math
+\begin{align}
+    f_c(D) = C_c D^{\phi_c} \exp\left(-E_c D^{\psi_c} \right),
+\end{align}
+```
+where
+ - ``C_c = \frac{A_c}{3^{\nu_c}} \; \left(\frac{\pi \rho_w}{2}\right)^{\nu_c + 1}``
+ - ``E_c = B_c \; \left(\frac{\pi \rho_w}{6}\right)^{\mu_c}``
+ - ``\phi_c = 3\nu_c + 2``
+ - ``\psi_c = 3\mu_c``.
 
 !!! note
-    In the derivation of the parametrization, it is assumed that the cloud droplet distribution ``f_c(x)`` does not contain a significant number of droplets with masses almost equal or larger than ``x^*``. This is reffered to as the undeveloped cloud droplet spectrum assumption. Similarly the raindrop distribution does not contain a significant number of rain drops with masses almost equal or smaller than ``x^*``. These assumptions allow us to simplify the calculation of moments of the distributions by integrating from zero to infinity.
+    In the derivation of the parametrization, it is assumed that the cloud droplet distribution
+    ``f_c(x)`` does not contain a significant number of droplets with masses almost equal
+    or larger than ``x^*``. This is reffered to as the undeveloped cloud droplet spectrum assumption.
+    Similarly the raindrop distribution does not contain a significant number of rain drops
+    with masses almost equal or smaller than ``x^*``. These assumptions allow us
+    to simplify the calculation of moments of the distributions by integrating from zero to infinity.
 
 ### Autoconversion
 
@@ -311,7 +343,7 @@ The default free parameter values are:
 |``N_{0,\, min}``            | ``3.5 \times 10^{5}  \, m^{-4}``    |
 |``N_{0,\, max}``            | ``2 \times 10^{10}  \, m^{-4}``      |
 |``\lambda_{min}``           | ``1 \times 10^{3}  \, m^{-1}``      |
-|``\lambda_{max}``           | ``3.5 \times 10^{4}  \, m^{-1}``      |
+|``\lambda_{max}``           | ``4 \times 10^{4}  \, m^{-1}``      |
 
 ### Rain evaporation
 
@@ -383,7 +415,7 @@ include("plots/RainEvapoartionSB2006.jl")
 ```
 ![](SB2006_rain_evaporation.svg)
 
-### Radar reflectivity 
+### Radar reflectivity
 
 The radar reflectivity factor (``Z``) is used to measure the power returned by a radar signal when it encounters atmospheric particles (cloud and rain droplets), and it is defined as the sixth moment of the particles distributions (``n(r)``) :
 ```math
@@ -392,23 +424,24 @@ Z = {\int_0^\infty r^{6} \, n(r) \, dr}.
 \label{eq:Z}
 \end{equation}
 ```
-To take into consideration the effect of both cloud and rain droplets, we integrate separately over the two distributions defined in equations (2) and (3).
+To take into consideration the effect of both cloud and rain droplets, we integrate separately over the two distributions defined in equations (2) and (4).
 
-For cloud droplets, integrating over the assumed Gamma distribution (eq. 6) leads to
+After defining ``C = \frac{4}{3} \pi \rho_w``, integrating over the assumed cloud droplets Gamma distribution (eq. 6) leads to
 ```math
 \begin{equation}
-Z_c = \frac{24 \, A_c}{(B_c)^{5} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}},
+Z_c = A_c C^{\nu_c+1} \frac{ (B_c C^{\mu_c})^{-\frac{3+\nu_c}{\mu_c}} \, \Gamma \left(\frac{3+\nu_c}{\mu_c}\right)}{\mu_c},
 \end{equation}
 ```
-where ``\rho_w`` is the liquid water density. 
+where ``\Gamma \,(x) = \int_{0}^{\infty} \! t^{x - 1} e^{-t} \mathrm{d}t`` is the gamma function.
+
 By performing an analogous integration for the rain droplets exponential distribution, we obtain
 ```math
 \begin{equation}
-Z_r = 3 \, \frac{6! \, A_r}{(B_r)^{7} \, (\frac{4}{3} \, \pi \, \rho_w)^{2}}.
+Z_r = A_r C^{\nu_r+1} \frac{ (B_r C^{\mu_r})^{-\frac{3+\nu_r}{\mu_r}} \, \Gamma \left(\frac{3+\nu_r}{\mu_r}\right)}{\mu_r},
 \end{equation}
 ```
 
-To obtain the logarithmic radar reflectivity ``L_z``, which is commonly used to refer to the radar reflectivity values, we sum ``Z_c`` and ``Z_r``, and we normalize the result with the equivalent return of a ``1 mm`` drop in a volume of a meter cube (``Z_0``). 
+To obtain the logarithmic radar reflectivity ``L_z``, which is commonly used to refer to the radar reflectivity values, we sum ``Z_c`` and ``Z_r``, and we normalize the result with the equivalent return of a ``1 mm`` drop in a volume of a meter cube (``Z_0``).
 Then, we apply the decimal logarithm, and multiply the result by ``10``:
 ```math
 \begin{equation}
@@ -427,23 +460,22 @@ r_{eff} = \frac{(M_{3}^c + M_{3}^r)}{M_{2}^c + M_{2}^r} = \frac{{\int_0^\infty r
 \label{eq:reff}
 \end{equation}
 ```
-By computing each integral, and calling ``C = \frac{4}{3} \pi \rho``, the numerator becomes
+By computing each integral, the numerator becomes
 ```math
 \begin{equation}
-M_{3}^c + M_{3}^r = \frac{6}{\frac{4}{3} \, \pi \, \rho_w} \, \left(\frac{A_c}{B_c^4} +  \frac{3 \, A_r}{B_r^4}\right).
+M_{3}^c + M_{3}^r = A_c C^{\nu_c+1} \frac{ (B_c C^{\mu_c})^{-\frac{2+\nu_c}{\mu_c}} \, \Gamma \left(\frac{2+\nu_c}{\mu_c}\right)}{\mu_c} + A_r C^{\nu_r+1} \frac{ (B_r C^{\mu_r})^{-\frac{2+\nu_r}{\mu_r}} \, \Gamma \left(\frac{2+\nu_r}{\mu_r}\right)}{\mu_r}.
 \end{equation}
 ```
-Analogously, at the denominator we have 
+Analogously, at the denominator we have
 ```math
 \begin{equation}
-M_{2}^c + M_{2}^r = \frac{6}{(\frac{4}{3} \, \pi \, \rho_w)^{\frac{2}{3}}} \, \left(\frac{A_c \, \Gamma(\frac{11}{3})}{(B_c)^{\frac{11}{3}}} + \frac{6 \, A_r}{B_r^3}\right),
+M_{2}^c + M_{2}^r = A_c C^{\nu_c+1} \frac{ (B_c C^{\mu_c})^{-\frac{5+3\nu_c}{3\mu_c}} \, \Gamma \left(\frac{5+3\nu_c}{3\mu_c}\right)}{\mu_c} + A_r C^{\nu_r+1} \frac{ (B_r C^{\mu_r})^{-\frac{5+3\nu_r}{3\mu_r}} \, \Gamma \left(\frac{5+3\nu_r}{3\mu_r}\right)}{\mu_r}.
 \end{equation}
 ```
-where ``\Gamma \,(x) = \int_{0}^{\infty} \! t^{x - 1} e^{-t} \mathrm{d}t`` is the gamma function.
 
 ### Effective radius - Liu and Hallett, 1997
 An additional option for the parametrization of the effective radius is obtained following [Liu1997](@cite).
-In this case 
+In this case
 ```math
 \begin{equation}
   r_{eff} = \frac{r_{vol}}{k^{\frac{1}{3}}},
@@ -451,7 +483,7 @@ In this case
 ```
 where:
   - ``r_{vol}`` represents the volume-averaged radius,
-  - ``k = 0.8``. 
+  - ``k = 0.8``.
 
 Where the volume-averaged radius is computed using
 ```math
@@ -461,7 +493,7 @@ Where the volume-averaged radius is computed using
 ```
 where:
   - ``L = \rho q``, is the liquid water content,
-  - ``N = N_{liq} + N_{rai}``. 
+  - ``N = N_{liq} + N_{rai}``.
 
 ## Additional 2-moment microphysics options
 
