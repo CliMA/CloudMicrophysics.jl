@@ -80,6 +80,169 @@ function raindrops_limited_vars(
     return (; λr, xr, Ar, Br)
 end
 
+
+
+"""
+    get_override_pdf_r()
+
+Returns the parameters for pdf_r given the override file 
+"""
+function get_override_pdf_r(FT)
+    # Seifert and Beheng 2006 parameters
+    override_file = joinpath(
+        pkgdir(CM),
+        "src",
+        "parameters",
+        "toml",
+        "SB2006_limiters.toml",
+    )
+    toml_dict = CP.create_toml_dict(FT; override_file)
+    SB2006 = CMP.SB2006(toml_dict)
+    return SB2006.pdf_r
+end
+
+"""
+    rain_d_vars(q_rai, ρ, N_rai)
+
+ - `q_rai` - rain water specific humidity
+ - `ρ` - air density
+ - `N_rai` raindrops number density
+
+ Returns the λ and N_0 parameters for the rain distribution in terms of D 
+"""
+function rain_d_vars(
+    pdf_r,
+    q_rai::FT,
+    ρ::FT,
+    N_rai::FT,
+) where{FT}
+    #pdf_r = get_override_pdf_r(FT)
+    (; Ar, Br) = raindrops_limited_vars(pdf_r, q_rai, ρ, N_rai) 
+    (; νr, μr, ρw) = pdf_r
+    
+    N_0 = Ar * (π * ρw / 6) ^ (νr) * π * ρw / 2
+    λ = Br * (π * ρw / 6) ^ (μr)
+
+    return (; λ, N_0)
+end
+
+"""
+    get_rain_parameters(q, N) 
+
+ - q - mass mixing ratio of rain
+ - N - number mixing ratio of rain 
+
+ returns the parameters λ and N_0 where N' = N_0 * exp(-λ  * D)
+"""
+function get_rain_parameters(q::FT, N::FT) where {FT} #MOVE TO 2M
+    ρ_l = FT(1000)
+    ρ_a = FT(1.2)
+    λ = (π * ρ_l * N / (q * ρ_a))^(1 / 3)
+    N_0 = N * λ
+    return (λ, N_0)
+end
+
+"""
+    N_rain(D, pdf_r, q_rai, ρ, N_rai)
+
+ - D - diameter of particle 
+ - pdr_f - a struct with SB2006 raindrops size distribution parameters
+ - q_rai - rain water specific humidity 
+ - ρ - air density 
+ - N_rai - rain number density
+
+ Returns the dsitribution of rain particles, assumed to be of the form 
+ N(D) = N_0 * exp(-λD) at given D
+"""
+function N_rain(
+    pdf_r,
+    D::FT, 
+    q_rai::FT, 
+    ρ::FT,
+    N_rai::FT,
+) where{FT}
+    (λ, N_0) = rain_d_vars(pdf_r, q_rai, ρ, N_rai)
+    return N_0 * exp(-λ * D)
+end
+
+""" 
+    cloud_d_vars(q_liq, ρ, N_liq, ρw)
+
+ - q_liq - cloud water specific humidity 
+ - ρ - density of air 
+ - N_liq - cloud water number density 
+ - ρw - density of water 
+
+ Returns the parameters for the cloud distribution in terms of D 
+    Assumed to be of the form N(D) = N_0 * D ^ 8 * exp(-λ^3 * D ^ 3))
+"""
+function cloud_d_vars(q_liq::FT, N_liq::FT, ρ::FT, ρw::FT,) where{FT} 
+    λ = (π * ρw * N_liq / (2 * q_liq * ρ))^(1 / 3)
+    N_0 = 3 / 2 * N_liq * λ^9
+    return (λ, N_0)
+end
+
+"""
+    N_cloud(D, q_liq, ρ, N_liq, ρw)
+
+- D - macimum dimension of particle 
+- q_liq - cloud water specific humidity 
+- ρ - density of air 
+- N_liq - cloud water number density 
+- ρw - density of water 
+
+Returns the distribution of cloud particles (assumed to be of the form 
+ N(D) = N_0 * D ^ 8 * exp(-λ^3 D ^ 3)) at given D 
+"""
+function N_cloud(
+    D::FT, 
+    q_liq::FT, 
+    ρ::FT,
+    N_liq::FT, 
+    ρw::FT, 
+) where{FT} 
+    (λ, N_0) = cloud_d_vars(q_liq, N_liq, ρw, ρ)
+    return N_0 * D^8 * exp(-λ^3 * D^3)
+end
+
+function particle_size_distribution(
+    pdf_r::CMP.RainParticlePDF_SB2006{FT},
+    D::FT, 
+    q_rai::FT, 
+    ρ::FT,
+    N_rai::FT,
+) where{FT}
+    (λ, N_0) = rain_d_vars(pdf_r, q_rai, ρ, N_rai)
+    return N_0 * exp(-λ * D)
+end
+
+function mass_integral(pdf_r, ρ::FT ,q_rai, N_rai) where{FT}
+    #= (;Ar, Br) = raindrops_limited_vars(
+        pdf_r,
+        q_rai,
+        ρ,
+        N_rai) =#
+    Br = (SF.gamma(1)/SF.gamma(4) * q_rai * ρ / N_rai) ^ (-1/3)
+    Ar = 1/3 * N_rai * Br
+    f(x) = x * Ar * x ^ (-2/3) * exp(-Br * x^(1/3))
+    integral = QGK.quadgk(x -> f(x), FT(0), Inf) #pdf_r.xr_min, pdf_r.xr_max)
+    return integral
+end
+
+function diameter_integral(pdf_r, q::FT, N) where{FT}
+    (l, N_0) = rain_d_vars(pdf_r, q, FT(1.2), N) 
+    f(d) = π/ 6 * d^3 * FT(1000) * N_0 * exp(-l * d)
+    integral = QGK.quadgk(x -> f(x), FT(0), -1 / l * log(eps(FT)))
+    return integral
+end
+
+function p3_integral(q, N::FT) where{FT}
+    (l, N_0) = get_rain_parameters(q / FT(1.2), N)
+    f(d) = π/ 6 * d^3 * FT(1000) * N_0 * exp(-l * d)
+    integral = QGK.quadgk(x -> f(x), FT(0), -1 / l * log(eps(FT)))
+    return integral
+end
+
 """
     autoconversion(scheme, q_liq, q_rai, ρ, N_liq)
 
