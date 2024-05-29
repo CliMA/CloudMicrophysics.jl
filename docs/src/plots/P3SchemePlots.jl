@@ -9,99 +9,7 @@ FT = Float64
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
 
-"""
-    mass_(p3, D, ρ, F_r)
 
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension [m]
- - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
- - F_r - rime mass fraction [q_rim/q_i]
-
-Returns mass as a function of size for differen particle regimes [kg]
-"""
-# for spherical ice (small ice or completely rimed ice)
-mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
-# for large nonspherical ice (used for unrimed and dense types)
-mass_nl(p3::PSP3, D::FT) where {FT <: Real} = P3.α_va_si(p3) * D^p3.β_va
-# for partially rimed ice
-mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
-    P3.α_va_si(p3) / (1 - F_r) * D^p3.β_va
-
-"""
-    p3_mass(p3, D, F_r, th)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
- - F_r - rime mass fraction (q_rim/q_i)
- - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
-Returns mass(D) regime, used to create figures for the docs page.
-"""
-function p3_mass(
-    p3::PSP3,
-    D::FT,
-    F_r::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT <: Real}
-    D_th = P3.D_th_helper(p3)
-    if D_th > D
-        return mass_s(D, p3.ρ_i)          # small spherical ice
-    elseif F_r == 0
-        return mass_nl(p3, D)             # large nonspherical unrimed ice
-    elseif th.D_gr > D >= D_th
-        return mass_nl(p3, D)             # dense nonspherical ice
-    elseif th.D_cr > D >= th.D_gr
-        return mass_s(D, th.ρ_g)          # graupel
-    elseif D >= th.D_cr
-        return mass_r(p3, D, F_r)         # partially rimed ice
-    end
-end
-
-"""
-    A_(p3, D)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
-
-Returns particle projected area as a function of size for different particle regimes
-"""
-# for spherical particles
-A_s(D::FT) = FT(π) / 4 * D^2
-# for nonspherical particles
-A_ns(p3::PSP3, D::FT) = p3.γ * D^p3.σ
-# partially rimed ice
-A_r(p3::PSP3, F_r::FT, D::FT) = F_r * A_s(D) + (1 - F_r) * A_ns(p3, D)
-
-"""
-    area(p3, D, F_r, th)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
- - F_r - rime mass fraction (q_rim/q_i)
- - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
-Returns area(D), used to create figures for the documentation.
-"""
-function area(
-    p3::PSP3,
-    D::FT,
-    F_r::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT <: Real}
-    # Area regime:
-    if P3.D_th_helper(p3) > D
-        return A_s(D)                      # small spherical ice
-    elseif F_r == 0
-        return A_ns(p3, D)                 # large nonspherical unrimed ice
-    elseif th.D_gr > D >= P3.D_th_helper(p3)
-        return A_ns(p3, D)                 # dense nonspherical ice
-    elseif th.D_cr > D >= th.D_gr
-        return A_s(D)                      # graupel
-    elseif D >= th.D_cr
-        return A_r(p3, F_r, D)             # partially rimed ice
-    end
-
-end
 
 function define_axis(fig, row_range, col_range, title, ylabel, yticks, aspect)
     return CMK.Axis(
@@ -143,13 +51,13 @@ function p3_relations_plot()
     sol4_5 = P3.thresholds(p3, 400.0, 0.5)
     sol4_8 = P3.thresholds(p3, 400.0, 0.8)
     # m(D)
-    fig1_0 = CMK.lines!(ax1, D_range * 1e3, [p3_mass(p3, D, 0.0        ) for D in D_range], color = cl[1], linewidth = lw)
-    fig1_5 = CMK.lines!(ax1, D_range * 1e3, [p3_mass(p3, D, 0.5, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
-    fig1_8 = CMK.lines!(ax1, D_range * 1e3, [p3_mass(p3, D, 0.8, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig1_0 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.0        ) for D in D_range], color = cl[1], linewidth = lw)
+    fig1_5 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.5, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
+    fig1_8 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.8, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
     # a(D)
-    fig2_0 = CMK.lines!(ax2, D_range * 1e3, [area(p3, D, 0.0        ) for D in D_range], color = cl[1], linewidth = lw)
-    fig2_5 = CMK.lines!(ax2, D_range * 1e3, [area(p3, D, 0.5, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
-    fig2_8 = CMK.lines!(ax2, D_range * 1e3, [area(p3, D, 0.8, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig2_0 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.0        ) for D in D_range], color = cl[1], linewidth = lw)
+    fig2_5 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.5, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
+    fig2_8 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.8, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
     # plot verical lines
     for ax in [ax1, ax2]
         global d_tha  = CMK.vlines!(ax, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
@@ -164,13 +72,13 @@ function p3_relations_plot()
     sol_4 = P3.thresholds(p3, 400.0, 0.95)
     sol_8 = P3.thresholds(p3, 800.0, 0.95)
     # m(D)
-    fig3_200 = CMK.lines!(ax3, D_range * 1e3, [p3_mass(p3, D, 0.95, sol_2) for D in D_range], color = cl[1], linewidth = lw)
-    fig3_400 = CMK.lines!(ax3, D_range * 1e3, [p3_mass(p3, D, 0.95, sol_4) for D in D_range], color = cl[2], linewidth = lw)
-    fig3_800 = CMK.lines!(ax3, D_range * 1e3, [p3_mass(p3, D, 0.95, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig3_200 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_2) for D in D_range], color = cl[1], linewidth = lw)
+    fig3_400 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_4) for D in D_range], color = cl[2], linewidth = lw)
+    fig3_800 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_8) for D in D_range], color = cl[3], linewidth = lw)
     # a(D)
-    fig3_200 = CMK.lines!(ax4, D_range * 1e3, [area(p3, D, 0.5, sol_2) for D in D_range], color = cl[1], linewidth = lw)
-    fig3_400 = CMK.lines!(ax4, D_range * 1e3, [area(p3, D, 0.5, sol_4) for D in D_range], color = cl[2], linewidth = lw)
-    fig3_800 = CMK.lines!(ax4, D_range * 1e3, [area(p3, D, 0.5, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig3_200 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, sol_2) for D in D_range], color = cl[1], linewidth = lw)
+    fig3_400 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, sol_4) for D in D_range], color = cl[2], linewidth = lw)
+    fig3_800 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, sol_8) for D in D_range], color = cl[3], linewidth = lw)
     # plot verical lines
     for ax in [ax3, ax4]
         global d_thb    = CMK.vlines!(ax, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)

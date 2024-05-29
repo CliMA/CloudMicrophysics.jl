@@ -14,10 +14,12 @@ module P3Scheme
 import SpecialFunctions as SF
 import QuadGK as QGK
 import RootSolvers as RS
+import HCubature as HC
 
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
+import CloudMicrophysics.TerminalVelocity as TV
 
 const PSP3 = CMP.ParametersP3
 
@@ -153,6 +155,102 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
             ρ_g,
             ρ_d,
         )
+    end
+end
+
+"""
+    mass_(p3, D, ρ, F_r)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension [m]
+ - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
+ - F_r - rime mass fraction [q_rim/q_i]
+
+Returns mass as a function of size for differen particle regimes [kg]
+"""
+# for spherical ice (small ice or completely rimed ice)
+mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
+# for large nonspherical ice (used for unrimed and dense types)
+mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
+# for partially rimed ice
+mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
+    α_va_si(p3) / (1 - F_r) * D^p3.β_va
+
+"""
+    p3_mass(p3, D, F_r, th)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Returns mass(D) regime, used to create figures for the docs page.
+"""
+function p3_mass(
+    p3::PSP3,
+    D::FT,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT <: Real}
+    D_th = D_th_helper(p3)
+    if D_th > D
+        return mass_s(D, p3.ρ_i)          # small spherical ice
+    elseif F_r == 0
+        return mass_nl(p3, D)             # large nonspherical unrimed ice
+    elseif th.D_gr > D >= D_th
+        return mass_nl(p3, D)             # dense nonspherical ice
+    elseif th.D_cr > D >= th.D_gr
+        return mass_s(D, th.ρ_g)          # graupel
+    elseif D >= th.D_cr
+        return mass_r(p3, D, F_r)         # partially rimed ice
+    end
+end
+
+"""
+    A_(p3, D)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension
+
+Returns particle projected area as a function of size for different particle regimes
+"""
+# for spherical particles
+A_s(D::FT) where {FT <: Real} = FT(π) / 4 * D^2
+# for nonspherical particles
+A_ns(p3::PSP3, D::FT) where {FT <: Real} = p3.γ * D^p3.σ
+# partially rimed ice
+A_r(p3::PSP3, F_r::FT, D::FT) where {FT <: Real} =
+    F_r * A_s(D) + (1 - F_r) * A_ns(p3, D)
+
+"""
+    p3_area(p3, D, F_r, th)
+
+ - p3 - a struct with P3 scheme parameters
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/q_i)
+ - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Returns area(D), used to create figures for the documentation.
+"""
+function p3_area(
+    p3::PSP3,
+    D::FT,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT <: Real}
+    # Area regime:
+    if D_th_helper(p3) > D
+        return A_s(D)                      # small spherical ice
+    elseif F_r == 0
+        return A_ns(p3, D)                 # large nonspherical unrimed ice
+    elseif th.D_gr > D >= D_th_helper(p3)
+        return A_ns(p3, D)                 # dense nonspherical ice
+    elseif th.D_cr > D >= th.D_gr
+        return A_s(D)                      # graupel
+    elseif D >= th.D_cr
+        return A_r(p3, F_r, D)             # partially rimed ice
+    else
+        throw("D not in range")
     end
 end
 
@@ -475,7 +573,7 @@ function terminal_velocity(
     # Get the thresholds for different particles regimes
     (; D_cr, D_gr, ρ_g, ρ_d) = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
-    D_ct = FT(0.000625) # TODO add to ClimaParams
+    D_ct = Chen2022.cutoff
 
     # Get the shape parameters of the particle size distribution
     (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
@@ -665,6 +763,51 @@ function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     end
     # Normalize by q
     return n / q
+end
+
+"""
+    N′ice(p3, D, λ, N0)
+
+ - p3 - a struct containing P3 scheme parameters
+ - D - diameter of particle 
+ - λ - shape parameter of distribution 
+ - N0 - shape parameter of distribution
+
+ Returns the distribution of ice particles (assumed to be of the form 
+ N'(D) = N0 * D ^ μ * exp(-λD)) at given D 
+"""
+function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT}
+    return N_0 * D^DSD_μ(p3, λ) * exp(-λ * D)
+end
+
+"""
+    get_ice_bounds(p3, λ, tolerance)
+
+ - p3 - a struct containing p3 parameters 
+ - λ - shape parameters of ice distribution 
+ - tolerance - tolerance for how much of the distribution we want to integrate over
+
+ Returns the bound on the distribution that would guarantee that 1-tolerance 
+ of the ice distribution is integrated over. This is calculated by setting 
+ N_0(1 - tolerance) = ∫ N'(D) dD from 0 to bound and solving for bound. 
+ This was further simplified to cancel out the N_0 from both sides. 
+ The guess was calculated through a linear approximation extrapolated from 
+ numerical solutions. 
+"""
+function get_ice_bound(p3, λ::FT, tolerance::FT) where {FT}
+    ice_problem(x) =
+        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
+    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
+    log_ice_x =
+        RS.find_zero(
+            ice_problem,
+            RS.SecantMethod(guess - 1, guess),
+            RS.CompactSolution(),
+            RS.RelativeSolutionTolerance(eps(FT)),
+            5,
+        ).root
+
+    return exp(log_ice_x)
 end
 
 end

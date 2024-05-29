@@ -157,6 +157,8 @@ struct Chen2022VelTypeSnowIce{FT} <: ParametersType{FT}
     Fl::FT
     Gl::FT
     Hl::FT
+    "cutoff for small vs large ice particle dimension [m]"
+    cutoff::FT
     "density of cloud ice [kg/m3]"
     ρᵢ::FT
 end
@@ -177,6 +179,7 @@ function Chen2022VelTypeSnowIce(toml_dict::CP.AbstractTOMLDict)
         :Chen2022_table_B5_Fl => :Fl,
         :Chen2022_table_B5_Gl => :Gl,
         :Chen2022_table_B5_Hl => :Hl,
+        :Chen2022_ice_cutoff => :cutoff,
         :density_ice_water => :ρᵢ,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
@@ -197,6 +200,7 @@ function Chen2022VelTypeSnowIce(toml_dict::CP.AbstractTOMLDict)
             p.Gl[1] + p.Gl[2] * log(p.ρᵢ) * sqrt(p.ρᵢ) + p.Gl[3] / sqrt(p.ρᵢ)
         )^(-1),
         p.Hl[1] + p.Hl[2] * (p.ρᵢ)^(5 / 2) - p.Hl[3] * exp(-p.ρᵢ),
+        p.cutoff,
         p.ρᵢ,
     )
 end
