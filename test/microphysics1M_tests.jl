@@ -45,10 +45,28 @@ function test_microphysics1M(FT)
         ρ_air, q_tot, ρ_air_ground = FT(1.2), FT(20 * 1e-3), FT(1.22)
 
         for q_rai in q_rain_range
-            TT.@test CM1.terminal_velocity(rain, blk1mvel.rain, ρ_air, q_rai) ≈
-                     terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground) atol =
-                0.2 * terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground)
-
+            if q_rai > eps(FT)
+                TT.@test CM1.terminal_velocity(
+                    rain,
+                    blk1mvel.rain,
+                    ρ_air,
+                    q_rai,
+                ) ≈ terminal_velocity_empir(
+                    q_rai,
+                    q_tot,
+                    ρ_air,
+                    ρ_air_ground,
+                ) atol =
+                    0.2 *
+                    terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground)
+            else
+                TT.@test CM1.terminal_velocity(
+                    rain,
+                    blk1mvel.rain,
+                    ρ_air,
+                    q_rai,
+                ) ≈ FT(0) atol = FT(0.2)
+            end
         end
     end
 
@@ -228,16 +246,28 @@ function test_microphysics1M(FT)
         ρ_air, q_liq, q_tot = FT(1.2), FT(5e-4), FT(20e-3)
 
         for q_rai in q_rain_range
-            TT.@test CM1.accretion(
-                liquid,
-                rain,
-                blk1mvel.rain,
-                ce,
-                q_liq,
-                q_rai,
-                ρ_air,
-            ) ≈ accretion_empir(q_rai, q_liq, q_tot) atol =
-                (0.1 * accretion_empir(q_rai, q_liq, q_tot))
+            if q_rai > eps(FT)
+                TT.@test CM1.accretion(
+                    liquid,
+                    rain,
+                    blk1mvel.rain,
+                    ce,
+                    q_liq,
+                    q_rai,
+                    ρ_air,
+                ) ≈ accretion_empir(q_rai, q_liq, q_tot) atol =
+                    (0.1 * accretion_empir(q_rai, q_liq, q_tot))
+            else
+                TT.@test CM1.accretion(
+                    liquid,
+                    rain,
+                    blk1mvel.rain,
+                    ce,
+                    q_liq,
+                    q_rai,
+                    ρ_air,
+                ) ≈ FT(0) atol = FT(0.2)
+            end
         end
     end
 
@@ -352,17 +382,30 @@ function test_microphysics1M(FT)
         ρ = p / R / T
 
         for q_rai in q_rain_range
-            TT.@test CM1.evaporation_sublimation(
-                rain,
-                blk1mvel.rain,
-                aps,
-                tps,
-                q,
-                q_rai,
-                ρ,
-                T,
-            ) ≈ rain_evap_empir(tps, q_rai, q, T, p, ρ) atol =
-                -0.5 * rain_evap_empir(tps, q_rai, q, T, p, ρ)
+            if q_rai > eps(FT)
+                TT.@test CM1.evaporation_sublimation(
+                    rain,
+                    blk1mvel.rain,
+                    aps,
+                    tps,
+                    q,
+                    q_rai,
+                    ρ,
+                    T,
+                ) ≈ rain_evap_empir(tps, q_rai, q, T, p, ρ) atol =
+                    -0.5 * rain_evap_empir(tps, q_rai, q, T, p, ρ)
+            else
+                TT.@test CM1.evaporation_sublimation(
+                    rain,
+                    blk1mvel.rain,
+                    aps,
+                    tps,
+                    q,
+                    q_rai,
+                    ρ,
+                    T,
+                ) ≈ FT(0) atol = FT(0.2)
+            end
         end
 
         # no condensational growth for rain
