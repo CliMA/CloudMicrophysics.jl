@@ -91,7 +91,7 @@ function lambda(
     # mass(size)
     (; r0, m0, me, Δm, χm) = mass
 
-    return q > FT(0) ?
+    return q > eps(FT) ?
            (
         χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
     )^FT(1 / (me + Δm + 1)) : FT(0)
@@ -113,11 +113,15 @@ function radar_reflectivity(
     ρ::FT,
 ) where {FT}
 
-    n0 = get_n0(pdf)
-    λ = lambda(pdf, mass, q, ρ)
-    Z₀ = FT(1e-18)
+    # change units for accuracy
+    n0 = get_n0(pdf) * FT(1e-12)
+    λ = lambda(pdf, mass, q, ρ) * FT(1e-3)
 
-    return 10 * log10((720 * n0 / λ^7) / Z₀)
+    Z = (λ == FT(0)) ? FT(0) : (720 * n0 / λ^7)
+    log_10_Z₀ = FT(-18)
+    log_Z = FT(10) * (log10(Z) - log_10_Z₀ - FT(9))
+
+    return max(FT(-430), log_Z)
 end
 
 """
@@ -140,7 +144,7 @@ function terminal_velocity(
     ρ::FT,
     q::FT,
 ) where {FT}
-    if q > FT(0)
+    if q > eps(FT)
         # terminal_velocity(size)
         (; χv, ve, Δv) = vel
         v0 = get_v0(vel, ρ)
@@ -164,7 +168,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > FT(0)
+    if q > eps(FT)
         # coefficients from Table B1 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
         # size distribution parameter
@@ -183,7 +187,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > FT(0)
+    if q > eps(FT)
 
         (; r0, m0, me, Δm, χm) = mass
         (; a0, ae, Δa, χa) = area
@@ -322,7 +326,7 @@ function accretion(
 ) where {FT}
 
     accr_rate = FT(0)
-    if (q_clo > FT(0) && q_pre > FT(0))
+    if (q_clo > eps(FT) && q_pre > eps(FT))
 
         n0::FT = get_n0(precip.pdf, q_pre, ρ)
         v0::FT = get_v0(vel, ρ)
@@ -479,7 +483,7 @@ function evaporation_sublimation(
     evap_subl_rate = FT(0)
     S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
 
-    if (q_rai > FT(0) && S < FT(0))
+    if (q_rai > eps(FT) && S < FT(0))
 
         (; ν_air, D_vapor) = aps
         G = CO.G_func(aps, tps, T, TD.Liquid())
@@ -515,7 +519,7 @@ function evaporation_sublimation(
     T::FT,
 ) where {FT}
     evap_subl_rate = FT(0)
-    if q_sno > FT(0)
+    if q_sno > eps(FT)
         (; ν_air, D_vapor) = aps
 
         S = TD.supersaturation(tps, q, ρ, T, TD.Ice())
