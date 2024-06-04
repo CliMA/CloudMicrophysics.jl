@@ -41,7 +41,8 @@ Microphysics1M.snow_melt
 ```@docs
 Microphysics2M
 Microphysics2M.LiqRaiRates
-Microphysics2M.raindrops_limited_vars
+Microphysics2M.pdf_cloud
+Microphysics2M.pdf_rain
 Microphysics2M.autoconversion
 Microphysics2M.accretion
 Microphysics2M.liquid_self_collection

@@ -30,7 +30,7 @@ function rain_evaporation_CPU(SB2006, aps, tps, q, q_rai, ρ, N_rai, T)
         x_star = SB2006.pdf_r.xr_min
         G = CO.G_func(aps, tps, T, TD.Liquid())
 
-        xr = CM2.raindrops_limited_vars(SB2006.pdf_r, q_rai, ρ, N_rai).xr
+        xr = CM2.pdf_rain(SB2006.pdf_r, q_rai, ρ, N_rai).xr
         Dr = (FT(6) / FT(π) / ρw)^FT(1 / 3) * xr^FT(1 / 3)
 
         t_star = (FT(6) * x_star / xr)^FT(1 / 3)

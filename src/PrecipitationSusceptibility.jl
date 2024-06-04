@@ -41,7 +41,9 @@ function precipitation_susceptibility_autoconversion(
     N_liq::FT,
 ) where {FT}
     grad = ForwardDiff.gradient(
-        x -> log(CM2.autoconversion(scheme.acnv, exp.(x)...).dq_rai_dt),
+        x -> log(
+            CM2.autoconversion(scheme.acnv, scheme.pdf_c, exp.(x)...).dq_rai_dt,
+        ),
         log.(abs.([q_liq, q_rai, ρ, N_liq])),
     )
     return precip_susceptibility_rates(
