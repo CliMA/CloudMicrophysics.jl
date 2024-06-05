@@ -73,6 +73,7 @@ function pdf_cloud(
     if qₗ < eps(FT) || Nₗ < ϵ_N
         return (
             xc = FT(0),
+            χ,
             Ac = FT(0),
             Bc = FT(0),
             Cc = FT(0),
@@ -539,7 +540,7 @@ function rain_evaporation(
 end
 
 """
-    radar_reflectivity(structs, q_liq, q_rai, N_liq, N_rai, ρ_air, τ_q, τ_N)
+    radar_reflectivity(structs, q_liq, q_rai, N_liq, N_rai, ρ_air)
 
     - `structs` - structs with SB2006 cloud droplets and raindrops
                 size distributions parameters
