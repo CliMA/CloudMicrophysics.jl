@@ -212,7 +212,7 @@ function benchmark_test(FT)
         bench_press(
             CM2.autoconversion_and_liquid_self_collection,
             (sb, q_liq, q_rai, ρ_air, N_liq),
-            250,
+            300,
         )
         bench_press(
             CM2.rain_self_collection_and_breakup,
