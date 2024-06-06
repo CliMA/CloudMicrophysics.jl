@@ -150,7 +150,7 @@ function test_microphysics2M(FT)
     # 2M_microphysics - Seifert and Beheng 2006 double moment scheme tests
     TT.@testset "limiting lambda_r and x_r - Seifert and Beheng 2006" begin
         #setup
-        q_rai = [FT(0), FT(1e-4), FT(1e-2)]
+        q_rai = [FT(1e-3), FT(1e-4), FT(1e-2)]
         N_rai = [FT(1e1), FT(1e3), FT(1e5)]
         ρ = FT(1)
 
@@ -524,6 +524,21 @@ function test_microphysics2M(FT)
 
             # test
             TT.@test rr ≈ FT(-13) atol = FT(0.5)
+        end
+
+        #setup
+        ρ_air = FT(1)
+        q_liq = FT(0)
+        N_liq = FT(0)
+        q_rai = FT(0)
+        N_rai = FT(0)
+
+        for SB in [SB2006, SB2006_no_limiters]
+            #action
+            rr = CM2.radar_reflectivity(SB, q_liq, q_rai, N_liq, N_rai, ρ_air)
+
+            # test
+            TT.@test rr ≈ FT(-150) atol = FT(0.5)
         end
     end
 

@@ -138,9 +138,10 @@ function pdf_rain(
     N_rai::FT,
 ) where {FT}
     (; νr, μr, xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
+    ϵ_N = FT(10)
 
     L_rai = ρ * q_rai
-    xr_0 = L_rai / N_rai
+    xr_0 = N_rai == 0 ? FT(0) : L_rai / N_rai
     xr_hat = max(xr_min, min(xr_max, xr_0))
     N0 = max(N0_min, min(N0_max, N_rai * (FT(π) * ρw / xr_hat)^FT(1 / 3)))
     λr = max(λ_min, min(λ_max, (FT(π) * ρw * N0 / L_rai)^FT(1 / 4)))
@@ -152,7 +153,11 @@ function pdf_rain(
         (SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr)
     Ar = μr * N_rai * Br^(FT(νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
 
-    return (; λr, αr, xr, Ar, Br)
+    if q_rai < eps(FT) || N_rai < ϵ_N
+        return (λr, αr, xr, Ar = FT(0), Br = FT(0))
+    else
+        return (; λr, αr, xr, Ar, Br)
+    end
 end
 
 """
@@ -334,10 +339,9 @@ function rain_self_collection(
     (; ρ0, ρw) = pdf
 
     L_rai = ρ * q_rai
-    #λr =
-    #    pdf_rain(pdf, q_rai, ρ, N_rai).λr *
-    #    (SF.gamma(FT(4)) / FT(π) / ρw)^FT(1 / 3)
-    λr = pdf_rain(pdf, q_rai, ρ, N_rai).Br
+    λr =
+        pdf_rain(pdf, q_rai, ρ, N_rai).λr *
+        (SF.gamma(FT(4)) / FT(π) / ρw)^FT(1 / 3)
 
     dN_rai_dt_sc = -krr * N_rai * L_rai * sqrt(ρ0 / ρ) * (1 + κrr / λr)^d
 
@@ -590,7 +594,7 @@ function radar_reflectivity(
         (Br * C^μr)^(-(3 + νr) / μr) *
         SF.gamma((3 + νr) / μr) / μr
 
-    return Zc + Zr == 0 ? FT(-135) : 10 * (log10(Zc + Zr) - log_10_Z₀)
+    return Zc + Zr == 0 ? FT(-150) : 10 * (log10(Zc + Zr) - log_10_Z₀)
 end
 
 """
