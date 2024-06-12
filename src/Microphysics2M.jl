@@ -66,11 +66,11 @@ function pdf_cloud(
 ) where {FT}
 
     (; νc, μc, ρw) = pdf_c
-    ϵ_N = FT(10)     # TODO - should it be a parameter
+    #ϵ_N = FT(10)     # TODO - should it be a parameter
 
     χ = 9 # convert mean droplet mass from kg to μg
 
-    if qₗ < eps(FT) || Nₗ < ϵ_N
+    if qₗ < eps(FT) || Nₗ < eps(FT)
         return (
             xc = FT(0),
             χ,
@@ -116,9 +116,9 @@ function pdf_rain(
     Nᵣ::FT,
 ) where {FT}
     (; νr, μr, ρw) = pdf_r
-    ϵ_N = FT(10)            # TODO - should it be a parameter?
+    #ϵ_N = FT(10)            # TODO - should it be a parameter?
 
-    if qᵣ < eps(FT) || Nᵣ < ϵ_N
+    if qᵣ < eps(FT) || Nᵣ < eps(FT)
         return (λr = FT(0), xr = FT(0), Ar = FT(0), Br = FT(0))
     else
         λr = (Nᵣ * FT(π) * ρw / ρₐ / qᵣ)^FT(1 / 3)
@@ -133,24 +133,24 @@ function pdf_rain(
 end
 function pdf_rain(
     pdf_r::CMP.RainParticlePDF_SB2006_limited{FT},
-    q_rai::FT,
-    ρ::FT,
-    N_rai::FT,
+    qᵣ::FT,
+    ρₐ::FT,
+    Nᵣ::FT,
 ) where {FT}
     (; νr, μr, xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
 
-    L_rai = ρ * q_rai
-    xr_0 = L_rai / N_rai
-    xr_hat = max(xr_min, min(xr_max, xr_0))
-    N0 = max(N0_min, min(N0_max, N_rai * (FT(π) * ρw / xr_hat)^FT(1 / 3)))
-    λr = max(λ_min, min(λ_max, (FT(π) * ρw * N0 / L_rai)^FT(1 / 4)))
-    xr = max(xr_min, min(xr_max, L_rai * λr / N0))
-    αr = N_rai * λr
+    qᵣ = qᵣ > FT(0) ? qᵣ : FT(0)
 
-    Br =
-        (xr == 0) ? FT(0) :
-        (SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr)
-    Ar = μr * N_rai * Br^(FT(νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
+    Lᵣ = ρₐ * qᵣ
+    xr_0 = Nᵣ > eps(FT) ? Lᵣ / Nᵣ : FT(0)
+    xr_hat = max(xr_min, min(xr_max, xr_0))
+    N0 = max(N0_min, min(N0_max, Nᵣ * (FT(π) * ρw / xr_hat)^FT(1 / 3)))
+    λr = max(λ_min, min(λ_max, (FT(π) * ρw * N0 / Lᵣ)^FT(1 / 4)))
+    xr = max(xr_min, min(xr_max, Lᵣ * λr / N0))
+    αr = Nᵣ * λr
+
+    Br = (SF.gamma(FT(νr + 1) / μr) * xr / SF.gamma(FT(νr + 2) / μr))^(-μr)
+    Ar = μr * Nᵣ * Br^(FT(νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
 
     return (; λr, αr, xr, Ar, Br)
 end
@@ -176,7 +176,7 @@ function autoconversion(
     N_liq,
 ) where {FT}
 
-    if q_liq < eps(FT)
+    if q_liq < eps(FT) || N_liq < eps(FT)
         return LiqRaiRates{FT}()
     end
 
@@ -221,7 +221,7 @@ collisions between raindrops and cloud droplets (accretion) for `scheme == SB200
 """
 function accretion((; accr)::CMP.SB2006{FT}, q_liq, q_rai, ρ, N_liq) where {FT}
 
-    if q_liq < eps(FT) || q_rai < eps(FT)
+    if q_liq < eps(FT) || q_rai < eps(FT) || N_liq < eps(FT)
         return LiqRaiRates{FT}()
     end
 
@@ -326,7 +326,7 @@ function rain_self_collection(
     N_rai::FT,
 ) where {FT}
 
-    if q_rai < eps(FT)
+    if q_rai < eps(FT) || N_rai < eps(FT)
         return FT(0)
     end
 
@@ -334,11 +334,7 @@ function rain_self_collection(
     (; ρ0, ρw) = pdf
 
     L_rai = ρ * q_rai
-    #λr =
-    #    pdf_rain(pdf, q_rai, ρ, N_rai).λr *
-    #    (SF.gamma(FT(4)) / FT(π) / ρw)^FT(1 / 3)
     λr = pdf_rain(pdf, q_rai, ρ, N_rai).Br
-
     dN_rai_dt_sc = -krr * N_rai * L_rai * sqrt(ρ0 / ρ) * (1 + κrr / λr)^d
 
     return dN_rai_dt_sc
@@ -368,7 +364,7 @@ function rain_breakup(
     dN_rai_dt_sc::FT,
 ) where {FT}
 
-    if q_rai < eps(FT)
+    if q_rai < eps(FT) || N_rai < eps(FT)
         return FT(0)
     end
     (; Deq, Dr_th, kbr, κbr) = brek
@@ -431,12 +427,15 @@ function rain_terminal_velocity(
     N_rai::FT,
 ) where {FT}
     # TODO: Input argument list needs to be redesigned
-    if q_rai < eps(FT)
-        return (FT(0), FT(0))
-    end
+
     λr = pdf_rain(pdf_r, q_rai, ρ, N_rai).λr
-    vt0 = max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
-    vt1 = max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^FT(4)))
+
+    vt0 =
+        N_rai < eps(FT) ? FT(0) :
+        max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
+    vt1 =
+        q_rai < eps(FT) ? FT(0) :
+        max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^FT(4)))
     return (vt0, vt1)
 end
 function rain_terminal_velocity(
@@ -446,9 +445,6 @@ function rain_terminal_velocity(
     ρ::FT,
     N_rai::FT,
 ) where {FT}
-    if q_rai < eps(FT)
-        return (FT(0), FT(0))
-    end
     # coefficients from Table B1 from Chen et. al. 2022
     aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
     # size distribution parameter
@@ -458,8 +454,8 @@ function rain_terminal_velocity(
     vt0 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 0))
     vt3 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 3))
 
-    vt0 = max(FT(0), vt0)
-    vt3 = max(FT(0), vt3)
+    vt0 = N_rai < eps(FT) ? FT(0) : max(FT(0), vt0)
+    vt3 = q_rai < eps(FT) ? FT(0) : max(FT(0), vt3)
     # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
     return (vt0, vt3)
 end
@@ -507,7 +503,7 @@ function rain_evaporation(
     evap_rate_1 = FT(0)
     S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
 
-    if (q_rai > FT(0) && S < FT(0))
+    if ((q_rai > eps(FT) || N_rai > eps(FT)) && S < FT(0))
 
         (; ν_air, D_vapor) = aps
         (; av, bv, α, β, ρ0) = evap
@@ -534,6 +530,9 @@ function rain_evaporation(
 
         evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv0 / xr)
         evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
+
+        evap_rate_0 = N_rai < eps(FT) ? FT(0) : evap_rate_0
+        evap_rate_1 = q_rai < eps(FT) ? FT(0) : evap_rate_1
     end
 
     return (; evap_rate_0, evap_rate_1)
@@ -578,19 +577,19 @@ function radar_reflectivity(
     χ = pdf_cloud(pdf_c, q_liq, ρ_air, N_liq).χ
 
     Zc =
-        Bc == 0 ? FT(0) :
+        Bc < eps(FT) ? FT(0) :
         Ac *
         C^(νc + 1) *
         (Bc * C^μc)^(-(3 + νc) / μc) *
         SF.gamma((3 + νc) / μc) / μc * FT(10)^(-2 * χ)
     Zr =
-        Br == 0 ? FT(0) :
+        Br < eps(FT) ? FT(0) :
         Ar *
         C^(νr + 1) *
         (Br * C^μr)^(-(3 + νr) / μr) *
         SF.gamma((3 + νr) / μr) / μr
 
-    return Zc + Zr == 0 ? FT(-135) : 10 * (log10(Zc + Zr) - log_10_Z₀)
+    return max(FT(-150), 10 * (log10(Zc + Zr) - log_10_Z₀))
 end
 
 """
@@ -655,7 +654,7 @@ function effective_radius(
         (Br * C^μr)^(-(5 + 3 * νr) / (3 * μr)) *
         SF.gamma((5 + 3 * νr) / (3 * μr)) / μr
 
-    return M2_c + M2_r == 0 ? FT(0) : (M3_c + M3_r) / (M2_c + M2_r)
+    return M2_c + M2_r <= eps(FT) ? FT(0) : (M3_c + M3_r) / (M2_c + M2_r)
 end
 
 """
@@ -681,7 +680,7 @@ function effective_radius_Liu_Hallet_97(
 
     k = FT(0.8)
     r_vol =
-        ((N_liq + N_rai) == 0) ? FT(0) :
+        ((N_liq + N_rai) < eps(FT)) ? FT(0) :
         (
             (FT(3) * (q_liq + q_rai) * ρ_air) /
             (FT(4) * π * ρ_w * (N_liq + N_rai))

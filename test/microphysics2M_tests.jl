@@ -150,8 +150,8 @@ function test_microphysics2M(FT)
     # 2M_microphysics - Seifert and Beheng 2006 double moment scheme tests
     TT.@testset "limiting lambda_r and x_r - Seifert and Beheng 2006" begin
         #setup
-        q_rai = [FT(0), FT(1e-4), FT(1e-2)]
-        N_rai = [FT(1e1), FT(1e3), FT(1e5)]
+        q_rai = [FT(0), FT(1e-3), FT(1e-4), FT(1e-2)]
+        N_rai = [FT(1e1), FT(1e1), FT(1e3), FT(1e5)]
         ρ = FT(1)
 
         (; xr_min, xr_max, λ_min, λ_max) = SB2006.pdf_r
@@ -162,7 +162,6 @@ function test_microphysics2M(FT)
                 λ = CM2.pdf_rain(SB2006.pdf_r, qr, ρ, Nr).λr
                 xr = CM2.pdf_rain(SB2006.pdf_r, qr, ρ, Nr).xr
 
-                #test
                 TT.@test λ_min <= λ <= λ_max
                 TT.@test xr_min <= xr <= xr_max
             end
@@ -322,9 +321,8 @@ function test_microphysics2M(FT)
             sc_br_rai =
                 CM2.rain_self_collection_and_breakup(SB, q_rai, ρ, N_rai)
 
-            λr =
-                CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).λr *
-                FT(6 / π / 1000)^FT(1 / 3)
+            λr = CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).Br
+
             dNrdt_sc =
                 -krr * N_rai * ρ * q_rai * (1 + κrr / λr)^-5 * sqrt(ρ0 / ρ)
 
@@ -394,12 +392,13 @@ function test_microphysics2M(FT)
             TT.@test vt_rai isa Tuple
             TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
             TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
+
             TT.@test CM2.rain_terminal_velocity(
                 SB,
                 SB2006Vel,
-                FT(0),
+                q_rai,
                 ρ,
-                N_rai,
+                FT(0),
             )[1] ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_terminal_velocity(
                 SB,
@@ -432,9 +431,9 @@ function test_microphysics2M(FT)
             TT.@test CM2.rain_terminal_velocity(
                 SB,
                 Chen2022Vel,
-                FT(0),
+                q_rai,
                 ρ,
-                N_rai,
+                FT(0),
             )[1] ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_terminal_velocity(
                 SB,
@@ -492,9 +491,9 @@ function test_microphysics2M(FT)
                 aps,
                 tps,
                 q,
-                FT(0),
+                q_rai,
                 ρ,
-                N_rai,
+                FT(0),
                 T,
             ).evap_rate_0 ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_evaporation(
@@ -510,38 +509,30 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 radar reflectivity" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 effective radius and reflectivity" begin
         #setup
-        ρ_air = FT(1)
-        q_liq = FT(2.128e-4)
-        N_liq = FT(15053529)
-        q_rai = FT(1.573e-4)
-        N_rai = FT(510859)
+        ρₐ = FT(1)
 
-        for SB in [SB2006, SB2006_no_limiters]
-            #action
-            rr = CM2.radar_reflectivity(SB, q_liq, q_rai, N_liq, N_rai, ρ_air)
+        q_liq = [FT(2.128e-4), FT(2.128e-20), FT(1.6e-12), FT(0), FT(1.037e-25)]
+        N_liq = [FT(15053529), FT(3), FT(5512), FT(0), FT(5.225e-12)]
+        q_rai = [FT(1.573e-4), FT(1.573e-4), FT(1.9e-15), FT(0), FT(2.448e-27)]
+        N_rai = [FT(510859), FT(510859), FT(0), FT(0), FT(5.136e-18)]
 
-            # test
-            TT.@test rr ≈ FT(-13) atol = FT(0.5)
-        end
-    end
+        # reference values
+        rr = [FT(-12.561951), FT(-12.579899), FT(-150), FT(-150), FT(-150)]
+        reff = [FT(2.319383e-5), FT(6.91594e-5), FT(0), FT(0), FT(0)]
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 effective radius" begin
-        #setup
-        ρ_air = FT(1)
-        ρ_w = FT(1000)
-        q_liq = FT(2.128e-4)
-        N_liq = FT(15053529)
-        q_rai = FT(1.573e-4)
-        N_rai = FT(510859)
+        for (qₗ, Nₗ, qᵣ, Nᵣ, rₑ, Z) in zip(q_liq, N_liq, q_rai, N_rai, reff, rr)
+            for SB in [SB2006, SB2006_no_limiters]
 
-        for SB in [SB2006, SB2006_no_limiters]
-            #action
-            reff = CM2.effective_radius(SB, q_liq, q_rai, N_liq, N_rai, ρ_air)
+                #action
+                Z_val = CM2.radar_reflectivity(SB, qₗ, qᵣ, Nₗ, Nᵣ, ρₐ)
+                rₑ_val = CM2.effective_radius(SB, qₗ, qᵣ, Nₗ, Nᵣ, ρₐ)
 
-            #test
-            TT.@test reff ≈ FT(2.66e-05) atol = FT(8e-6)
+                #test
+                TT.@test rₑ_val ≈ rₑ atol = FT(1e-6)
+                TT.@test Z_val ≈ Z atol = FT(1e-4)
+            end
         end
     end
 
@@ -624,7 +615,7 @@ function test_microphysics2M(FT)
         TT.@test qD ≈ qᵣ atol = FT(1e-6)
         TT.@test qx ≈ qᵣ atol = FT(1e-6)
 
-        # The mass integrals don't work with limiters 
+        # The mass integrals don't work with limiters
         TT.@test qx_lim ≈ qᵣ atol = FT(1e-6)
         TT.@test qD_lim ≈ qx_lim atol = FT(1e-6)
     end
@@ -665,7 +656,7 @@ function test_microphysics2M(FT)
         TT.@test qx ≈ qₗ rtol = FT(1e-6)
         TT.@test Nx ≈ Nₗ rtol = FT(1e-6)
 
-        # mass of liquid droplets as a function of its diameter in mm and μg 
+        # mass of liquid droplets as a function of its diameter in mm and μg
         _m(D) = FT(π / 6) * ρₗ * FT(10)^(χ - 9) * D^3
 
         # integral bounds in millimiters
