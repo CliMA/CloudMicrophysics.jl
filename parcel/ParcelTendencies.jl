@@ -204,18 +204,16 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     
     (; aps, tps, liquid, ice, const_dt) = params
 
-    q_sat = TD.PhasePartition(FT(0), TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid()), FT(0))
-
-    # the dumb option
+    # some floats these could be set to if needed
     #q_sat = TD.PhasePartition(FT(0), FT(5e-3), FT(0))
     #q_ice_sat = FT(2e-3)
 
-    # running it the simple version
-    #
-    #
+    # calculating liquid qsat ?? maybe eventually want to do both
+    q_sat = TD.PhasePartition(FT(0), TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid()), FT(0))
 
-    #MNE.conv_q_vap_to_q_liq_ice(liquid,q_sat,TD.PhasePartition(FT(0),qₗ,FT(0)))
-    return MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, TD.PhasePartition(FT(0),qₗ,FT(0)), T, const_dt)
+    Sₗ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, TD.PhasePartition(FT(0),qₗ,FT(0)), T, Sₗ, const_dt)
+
+    return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD.rₗ * Nₗ
 end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)

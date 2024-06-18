@@ -62,35 +62,36 @@ function conv_q_vap_to_q_liq_ice(
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
     T:: FT, # temperature
+    Sₗ::FT, # liquid saturation ratio
     const_dt:: FT,
 ) where {FT}
 
-    # implementing this -- first the simplest form that drops the
-    # derivatives and sets A_c = 1
+    # (might want to change the name of this function at some point)
+    # implementing this -- first the simplest form that
+    # uses the assumption that dqs/dT = 1 and sets A_c = 1
+    # and currently this is in specific humidity, but it technically should
+    # be converted to mixing ratio
+
+    dqsdT = FT(1)
+    A_c = FT(1) # i need to actually make this into something
 
     cp_air = TD.cp_m(tps, q)
     L_subl = TD.latent_heat_sublim(tps, T)
+    L_v = TD.latent_heat_vapor(tps,T)
 
-    Γₗ = 1 + (L_subl/cp_air)
-    Γᵢ = Γₗ
+    Γₗ = 1 + (L_v/cp_air)*dqsdT
+    Γᵢ = 1 + (L_subl/cp_air)*dqsdT
 
-    τ = liquid.τ_relax + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ
+    τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
 
-    # replace this w QCCONN -- see what Jordan did in his milbrandt code
+    # this does need to be mixing ratio instead
+    delta_0 =  (Sₗ-1)*q_sat.liq
 
-    A_c = FT(1)
-    delta_0 =  q_sat.liq # ??? this is maybe the part that scares me most
-    # and yeah also no clue what tau c is
+    # solving for new Sl after timestep delta t:
+    Sₗ = (1/q_sat.liq)(A_c * τ/(ice.τ_relax * Γₗ) + (delta_0 - A_c*τ)
+        *τ/(const_dt*ice.τ_relax*Γₗ)*(FT(1) - exp( - const_dt/τ))) + 1
 
-    # something like this -- need to get everything into the right format etc etc.
-    #
-    result = A_c * τ/(ice.τ_relax * Γₗ) + (delta_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γₗ)*(FT(1) - exp( - const_dt/τ))
-    #result = FT(1)
-
-    # beware that this version is mixing ratio not specific humidity
-    # so may need to convert back to that at some point
-
-    return result
+    return Sₗ
 end
 
 end #module MicrophysicsNonEq.jl
