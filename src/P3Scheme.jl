@@ -37,7 +37,7 @@ From measurements of mass grown by vapor diffusion and aggregation
 in midlatitude cirrus by Brown and Francis (1995)
 doi: 10.1175/1520-0426(1995)012<0410:IMOTIW>2.0.CO;2
 """
-α_va_si(p3::PSP3{FT}) where {FT} = p3.α_va * 10^(6 * p3.β_va - 3)
+α_va_si(p3::PSP3{FT <: Real}) where {FT <: Real} = p3.α_va * 10^(6 * p3.β_va - 3)
 
 """
     D_th_helper(p3)
@@ -47,7 +47,7 @@ doi: 10.1175/1520-0426(1995)012<0410:IMOTIW>2.0.CO;2
 Returns the critical size separating spherical and nonspherical ice, in meters.
 Eq. 8 in Morrison and Milbrandt (2015).
 """
-D_th_helper(p3::PSP3{FT}) where {FT} =
+D_th_helper(p3::PSP3{FT <: Real}) where {FT <: Real} =
     (FT(π) * p3.ρ_i / 6 / α_va_si(p3))^(1 / (p3.β_va - 3))
 
 """
@@ -60,7 +60,7 @@ D_th_helper(p3::PSP3{FT}) where {FT} =
 Returns the size of equal mass for graupel and partially rimed ice, in meters.
 Eq. 14 in Morrison and Milbrandt (2015).
 """
-function D_cr_helper(p3::PSP3{FT}, F_r::FT, ρ_g::FT) where {FT}
+function D_cr_helper(p3::PSP3{FT <: Real}, F_r::FT, ρ_g::FT) where {FT <: Real}
     α_va = α_va_si(p3)
     return (1 / (1 - F_r) * 6 * α_va / FT(π) / ρ_g)^(1 / (3 - p3.β_va))
 end
@@ -74,7 +74,7 @@ end
 Returns the size of equal mass for graupel and unrimed ice, in meters.
 Eq. 15 in Morrison and Milbrandt (2015).
 """
-function D_gr_helper(p3::PSP3{FT}, ρ_g::FT) where {FT}
+function D_gr_helper(p3::PSP3{FT <: Real}, ρ_g::FT) where {FT <: Real}
     α_va = α_va_si(p3)
     return (6 * α_va / FT(π) / ρ_g)^(1 / (3 - p3.β_va))
 end
@@ -89,7 +89,7 @@ end
 Returns the density of total (deposition + rime) ice mass for graupel, in kg/m3
 Eq. 16 in Morrison and Milbrandt (2015).
 """
-ρ_g_helper(ρ_r::FT, F_r::FT, ρ_d::FT) where {FT} = F_r * ρ_r + (1 - F_r) * ρ_d
+ρ_g_helper(ρ_r::FT, F_r::FT, ρ_d::FT) where {FT <: Real} = F_r * ρ_r + (1 - F_r) * ρ_d
 
 """
     ρ_d_helper(p3, D_cr, D_gr)
@@ -101,7 +101,7 @@ Eq. 16 in Morrison and Milbrandt (2015).
 Returns the density of unrimed ice mass, in kg/m3
 Eq. 17 in Morrison and Milbrandt (2015).
 """
-function ρ_d_helper(p3::PSP3{FT}, D_cr::FT, D_gr::FT) where {FT}
+function ρ_d_helper(p3::PSP3{FT <: Real}, D_cr::FT, D_gr::FT) where {FT <: Real}
     α_va = α_va_si(p3)
     β_m2 = p3.β_va - 2
     return 6 * α_va * (D_cr^β_m2 - D_gr^β_m2) / FT(π) / β_m2 /
@@ -123,7 +123,7 @@ Returns a named tuple containing:
  - ρ_g - is the effective density of a spherical graupel particle [kg/m3],
  - ρ_d - is the density of the unrimed portion of the particle [kg/m3],
 """
-function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
+function thresholds(p3::PSP3{FT <: Real}, ρ_r::FT, F_r::FT) where {FT <: Real}
 
     @assert F_r >= FT(0)   # rime mass fraction must be positive ...
     @assert F_r < FT(1)    # ... and there must always be some unrimed part
@@ -175,13 +175,16 @@ mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
 # for partially rimed ice
 mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
     α_va_si(p3) / (1 - F_r) * D^p3.β_va
+# for liquid
+m_liq(p3::PSP3, D::FT) where {FT <: Real} = (FT(π) / 6) * p3.ρ_l * D^3
 
 """
-    p3_mass(p3, D, F_r, th)
+    p3_mass(p3, D, F_r, F_liq, th)
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
  - F_r - rime mass fraction (q_rim/q_i)
+ - F_liq - liquid fraction (q_liq/q_i,tot)
  - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns mass(D) regime, used to create figures for the docs page.
@@ -190,19 +193,20 @@ function p3_mass(
     p3::PSP3,
     D::FT,
     F_r::FT,
+    F_liq::FT,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT <: Real}
     D_th = D_th_helper(p3)
     if D_th > D
-        return mass_s(D, p3.ρ_i)          # small spherical ice
+        return (1 - F_liq) * mass_s(D, p3.ρ_i) + F_liq * m_liq(p3, D)         # small spherical ice
     elseif F_r == 0
-        return mass_nl(p3, D)             # large nonspherical unrimed ice
+        return (1 - F_liq) * mass_nl(p3, D) + F_liq * m_liq(p3, D)            # large nonspherical unrimed ice
     elseif th.D_gr > D >= D_th
-        return mass_nl(p3, D)             # dense nonspherical ice
+        return (1 - F_liq) * mass_nl(p3, D) + F_liq * m_liq(p3, D)            # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
-        return mass_s(D, th.ρ_g)          # graupel
+        return (1 - F_liq) * mass_s(D, th.ρ_g) + F_liq * m_liq(p3, D)         # graupel
     elseif D >= th.D_cr
-        return mass_r(p3, D, F_r)         # partially rimed ice
+        return (1 - F_liq) * mass_r(p3, D, F_r) + F_liq * m_liq(p3, D)        # partially rimed ice
     end
 end
 
@@ -223,11 +227,12 @@ A_r(p3::PSP3, F_r::FT, D::FT) where {FT <: Real} =
     F_r * A_s(D) + (1 - F_r) * A_ns(p3, D)
 
 """
-    p3_area(p3, D, F_r, th)
+    p3_area(p3, D, F_r, F_liq, th)
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
  - F_r - rime mass fraction (q_rim/q_i)
+ - F_liq - liquid fraction (q_liq/q_i,tot)
  - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns area(D), used to create figures for the documentation.
@@ -236,19 +241,20 @@ function p3_area(
     p3::PSP3,
     D::FT,
     F_r::FT,
+    F_liq::FT,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT <: Real}
     # Area regime:
     if D_th_helper(p3) > D
-        return A_s(D)                      # small spherical ice
+        return A_s(D)                                         # small spherical ice
     elseif F_r == 0
-        return A_ns(p3, D)                 # large nonspherical unrimed ice
+        return (1 - F_liq) * A_ns(p3, D) + F_liq * A_s        # large nonspherical unrimed ice
     elseif th.D_gr > D >= D_th_helper(p3)
-        return A_ns(p3, D)                 # dense nonspherical ice
+        return (1 - F_liq) * A_ns(p3, D) + F_liq * A_s        # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
-        return A_s(D)                      # graupel
+        return A_s(D)                                         # graupel
     elseif D >= th.D_cr
-        return A_r(p3, F_r, D)             # partially rimed ice
+        return (1 - F_liq) * A_r(p3, F_r, D) + F_liq * A_s    # partially rimed ice
     else
         throw("D not in range")
     end
@@ -266,22 +272,23 @@ end
 
 Returns corresponding λ to given μ value
 """
-function μ_to_λ(p3::PSP3, μ::FT) where {FT}
+function μ_to_λ(p3::PSP3, μ::FT) where {FT <: Real}
     return ((μ + p3.c) / p3.a)^(1 / p3.b)
 end
 
 """
-    DSD_μ_approx(p3, q, N, ρ_r, F_r)
+    DSD_μ_approx(p3, q, N, ρ_r, F_r, F_liq)
 
  - p3 - a struct with P3 scheme parameters
  - q - mass mixing ratio
  - N - total ice number concentration [1/m3]
  - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
  - F_r - rime mass fraction (q_rim/q_i)
+ - F_liq - liquid fraction (q_liq/q_i,tot)
 
 Returns the approximated shape parameter μ for a given q and N value
 """
-function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT <: Real}
     # Get thresholds for given F_r, ρ_r
     th = thresholds(p3, ρ_r, F_r)
 
@@ -309,7 +316,7 @@ end
 Returns the shape parameter μ for a given λ value
 Eq. 3 in Morrison and Milbrandt (2015).
 """
-function DSD_μ(p3::PSP3, λ::FT) where {FT}
+function DSD_μ(p3::PSP3, λ::FT) where {FT <: Real}
     #@assert λ > FT(0)
     return min(p3.μ_max, max(FT(0), p3.a * λ^p3.b - p3.c))
 end
@@ -324,7 +331,7 @@ end
 
 Returns the shape parameter N₀ from Eq. 2 in Morrison and Milbrandt (2015).
 """
-function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT}
+function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT <: Real}
     μ = DSD_μ(p3, λ)
     return N / Γ(1 + μ) * λ^(1 + μ)
 end
@@ -340,7 +347,7 @@ f(D, c1, c2, c3) = c1 * D ^ (c2) * exp(-c3 * D)
 
 Integrates f(D, c1, c2, c3) dD from x₀ to x_end
 """
-function ∫_Γ(x₀::FT, x_end::FT, c1::FT, c2::FT, c3::FT) where {FT}
+function ∫_Γ(x₀::FT, x_end::FT, c1::FT, c2::FT, c3::FT) where {FT <: Real}
     if x_end == Inf
         return c1 * c3^(-c2 - 1) * (Γ(1 + c2, x₀ * c3))
     elseif x₀ == 0
@@ -373,16 +380,17 @@ function ∫_Γ(
     c4::FT,
     c5::FT,
     c6::FT,
-) where {FT}
+) where {FT <: Real}
     return ∫_Γ(x₀, xₘ, c1, c2, c3) + ∫_Γ(xₘ, x_end, c4, c5, c6)
 end
 
 """
-    q_(p3, ρ, F_r, λ, μ, D_min, D_max)
+    q_(p3, ρ, F_r, F_liq, λ, μ, D_min, D_max)
 
  - p3 - a struct with P3 scheme parameters
  - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m^3]
  - F_r - rime mass fraction [q_rim/q_i]
+ - F_liq - liquid fraction (q_liq/q_i,tot)
  - μ - shape parameter of N′ gamma distribution
  - λ - slope parameter of N′ gamma distribution
  - D_min - minimum bound for regime
@@ -394,28 +402,54 @@ end
 # D_min = 0, D_max = D_th, ρ = ρᵢ
 # or
 # q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
-function q_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    return ∫_Γ(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
+function q_s(
+    p3::PSP3,
+    F_liq::FT,
+    ρ::FT,
+    μ::FT,
+    λ::FT,
+    D_min::FT,
+    D_max::FT,
+) where {FT <: Real}
+    return ∫_Γ(D_min, D_max, (1 - F_liq) * FT(π) / 6 * ρ, μ + 3, λ)
 end
 # q_rim = 0 and D_min = D_th, D_max = inf
-function q_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
-    return ∫_Γ(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
+function q_rz(p3::PSP3, F_liq::FT, μ::FT, λ::FT, D_min::FT) where {FT <: Real}
+    return ∫_Γ(D_min, FT(Inf), (1 - F_liq) * α_va_si(p3), μ + p3.β_va, λ)
 end
 # q_rim > 0 and D_min = D_th and D_max = D_gr
-function q_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    return ∫_Γ(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
+function q_n(p3::PSP3, F_liq::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT <: Real}
+    return ∫_Γ(D_min, D_max, (1 - F_liq) * α_va_si(p3), μ + p3.β_va, λ)
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # q_rim > 0 and D_min = D_cr, D_max = inf
-function q_r(p3::PSP3, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
-    return ∫_Γ(D_min, FT(Inf), α_va_si(p3) / (1 - F_r), μ + p3.β_va, λ)
+function q_r(p3::PSP3, F_liq::FT, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT <: Real}
+    return ∫_Γ(
+        D_min,
+        FT(Inf),
+        (1 - F_liq) * α_va_si(p3) / (1 - F_r),
+        μ + p3.β_va,
+        λ,
+    )
+end
+# F_liq != 0 (liquid mass on mixed-phase particles for D in [D_min, D_max])
+function q_liq(
+    p3::PSP3,
+    F_liq::FT,
+    μ::FT,
+    λ::FT,
+    D_min::FT,
+    D_max::FT,
+) where {FT <: Real}
+    return ∫_Γ(D_min, D_max, F_liq * (FT(π) / 6) * p3.ρ_l, μ + 3, λ)
 end
 
 """
-    q_over_N_gamma(p3, F_r, λ, th)
+    q_over_N_gamma(p3, F_r, F_liq, λ, th)
 
  - p3 - a struct with P3 scheme parameters
  - F_r - rime mass fraction [q_rim/q_i]
+ - F_liq - liquid fraction (q_liq/q_i,tot)
  - log_λ - logarithm of the slope parameter of N′ gamma distribution
  - μ - shape parameter of N′ gamma distribution
  - th - thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
@@ -425,11 +459,12 @@ Eq. 5 in Morrison and Milbrandt (2015).
 """
 function q_over_N_gamma(
     p3::PSP3,
+    F_liq::FT,
     F_r::FT,
     log_λ::FT,
     μ::FT,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT}
+) where {FT <: Real}
 
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
@@ -437,12 +472,15 @@ function q_over_N_gamma(
 
     return ifelse(
         F_r == FT(0),
-        (q_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) + q_rz(p3, μ, λ, D_th)) / N,
         (
-            q_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) +
-            q_n(p3, μ, λ, D_th, th.D_gr) +
-            q_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
-            q_r(p3, F_r, μ, λ, th.D_cr)
+            q_s(p3, F_liq, p3.ρ_i, μ, λ, FT(0), D_th) +
+            q_rz(p3, F_liq, μ, λ, D_th)
+        ) / N,
+        (
+            q_s(p3, F_liq, p3.ρ_i, μ, λ, FT(0), D_th) +
+            q_n(p3, F_liq, μ, λ, D_th, th.D_gr) +
+            q_s(p3, F_liq, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
+            q_r(p3, F_liq, F_r, μ, λ, th.D_cr)
         ) / N,
     )
 end
@@ -453,6 +491,7 @@ end
  - N - ice number concentration [1/m3]
  - q - mass mixing ratio
  - μ - shape parameter of N′ gamma distribution
+ - F_liq - liquid fraction (q_liq/q_i,tot)
  - F_r -rime mass fraction [q_rim/q_i]
  - p3 - a struct with P3 scheme parameters
  - th -  thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
@@ -463,10 +502,11 @@ function get_bounds(
     N::FT,
     q::FT,
     μ::FT,
+    F_liq::FT,
     F_r::FT,
     p3::PSP3,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT}
+) where {FT <: Real}
     goal = q / N
 
     if goal >= 1e-8
@@ -483,8 +523,8 @@ function get_bounds(
         radius = FT(0.2)
     end
 
-    ql = q_over_N_gamma(p3, F_r, log(left), μ, th)
-    qr = q_over_N_gamma(p3, F_r, log(right), μ, th)
+    ql = q_over_N_gamma(p3, F_liq, F_r, log(left), μ, th)
+    qr = q_over_N_gamma(p3, F_liq, F_r, log(right), μ, th)
 
     guess =
         left * (goal / (ql))^((log(right) - log(left)) / (log(qr) - log(ql)))
@@ -502,6 +542,7 @@ end
  - q - mass mixing ratio
  - N - number mixing ratio
  - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_liq - liquid fraction (q_liq/q_i,tot)
  - F_r - rime mass fraction (q_rim/q_i)
 
 Solves the nonlinear system consisting of N_0 and λ for P3 prognostic variables
@@ -510,12 +551,13 @@ Returns a named tuple containing:
  - λ - slope size distribution parameter [1/m]
 """
 function distribution_parameter_solver(
-    p3::PSP3{FT},
+    p3::PSP3{FT <: Real},
     q::FT,
     N::FT,
     ρ_r::FT,
+    F_liq::FT,
     F_r::FT,
-) where {FT}
+) where {FT <: Real}
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
 
@@ -523,10 +565,10 @@ function distribution_parameter_solver(
     μ = DSD_μ_approx(p3, q, N, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
-    shape_problem(x) = q / N - q_over_N_gamma(p3, F_r, x, μ, th)
+    shape_problem(x) = q / N - q_over_N_gamma(p3, F_liq, F_r, x, μ, th)
 
     # Get intial guess for solver
-    (; min, max) = get_bounds(N, q, μ, F_r, p3, th)
+    (; min, max) = get_bounds(N, q, μ, F_liq, F_r, p3, th)
 
     # Find slope parameter
     x =
@@ -563,7 +605,7 @@ function terminal_velocity(
     ρ_r::FT,
     F_r::FT,
     ρ_a::FT,
-) where {FT}
+) where {FT <: Real}
     # Get the pree parameters for terminal velocities of small
     # and large particles
     small = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
@@ -576,7 +618,7 @@ function terminal_velocity(
     D_ct = Chen2022.cutoff
 
     # Get the shape parameters of the particle size distribution
-    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, 0, F_r) # F_liq=0 to maintain terminal vel of ice part
     μ = DSD_μ(p3, λ)
 
     # TODO: Change when each value used depending on type of particle
@@ -728,23 +770,126 @@ function terminal_velocity(
 end
 
 """
+    terminal_velocity(p3, Chen2022, q, N, ρ_r, F_liq, F_r, ρ_a)
+
+ - p3 - a struct with P3 scheme parameters
+ - Chen2022 - a struch with terminal velocity parameters as in Chen(2022)
+ - q - mass mixing ratio
+ - N - number mixing ratio
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_liq - liquid fraction (q_liq/q_i,tot)
+ - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_a - density of air
+
+ Returns the mass and number weighted fall speeds
+ Eq C10 of Morrison and Milbrandt (2015)
+ for the liquid part of mixed-phase particles
+ (For now using aspect ratio=1, κ=0 as in Microphysics2M,
+ assuming spherical rain drop size...
+ later we can change this, especially if we don't like how the
+ F_liq-weighted terminal velocity comes out)
+"""
+function terminal_velocity_liq(
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelTypeRain,
+    q::FT,
+    N::FT,
+    ρ_r::FT,
+    F_liq::FT,
+    F_r::FT,
+    ρ_a::FT,
+) where {FT <: Real}
+    # Get the pree parameters for terminal velocities of small particles
+    # (No large particles for rain?)
+    small = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
+    get_p(prs, it) = (prs[1][it], prs[2][it], prs[3][it])
+
+    # Get the shape parameters of the particle size distribution
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_liq, F_r)
+    μ = DSD_μ(p3, λ)
+    κ = 0
+
+    aₛ(a) = a * N_0
+    bₛ(b) = b + μ
+    cₛ(c) = c + λ
+
+    aₛ_m(a) = aₛ(a) * FT(π) / 6 * p3.ρ_l
+    bₛ_m(b) = bₛ(b) + 3
+
+    spheres_n(a, b, c) = (aₛ(a), bₛ(b), cₛ(c))
+    spheres_m(a, b, c) = (aₛ_m(a), bₛ_m(b), cₛ(c))
+
+    v_m = 0
+    v_n = 0
+
+    v(D, a, b, c) = a * D^b * e^(-c * D)
+
+    for i in 1:3
+        # TODO: fix bounds for quadgk integral
+        (Im, em) =
+            QGK.quadgk(D -> v(D, spheres_m(get_p(small, i)...)...), FT(0), Inf)
+        (In, en) =
+            QGK.quadgk(D -> v(D, spheres_m(get_p(small, i)...)...), FT(0), Inf)
+        v_m += Im
+        v_n += In
+    end
+    return (v_n / N, v_m / q)
+end
+
+"""
+    terminal_velocity_tot(p3, Chen2022, q, N, ρ_r, F_liq, F_r, ρ_a)
+
+ - p3 - a struct with P3 scheme parameters
+ - Chen2022 - a struct with terminal velocity parameters as in Chen(2022)
+            - pass (Chen2022VelTypeSnowIce, Chen2022VelTypeRain)
+ - q - mass mixing ratio
+ - N - number mixing ratio
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_liq - liquid fraction (q_liq/q_i,tot)
+ - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_a - density of air
+
+ Returns the mass and number weighted fall speeds
+ Eq C10 of Morrison and Milbrandt (2015)
+ for a mixed-phase particle
+"""
+function terminal_velocity_tot(
+    p3::PSP3,
+    Chen2022_ice::CMP.Chen2022VelTypeSnowIce,
+    Chen2022_rain::CMP.Chen2022VelTypeRain,
+    q::FT,
+    N::FT,
+    ρ_r::FT,
+    F_liq::FT,
+    F_r::FT,
+    ρ_a::FT,
+) where {FT <: Real}
+    return (1 - F_liq) *
+           terminal_velocity(p3, Chen2022_ice, q, N, ρ_r, F_r, ρ_a) +
+           F_liq *
+           terminal_velocity_liq(p3, Chen2022_rain, q, N, ρ_r, F_liq, F_r, ρ_a)
+end
+
+"""
     D_m (p3, q, N, ρ_r, F_r)
 
  - p3 - a struct with P3 scheme parameters
  - q - mass mixing ratio
  - N - number mixing ratio
  - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_liq - liquid fraction (q_liq/q_i,tot)
  - F_r - rime mass fraction (q_rim/q_i)
 
  Return the mass weighted mean particle size [m]
 """
-function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+### TODO: below (note for myself) ###
+function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT <: Real}
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
 
     # Get the shape parameters
-    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_liq, F_r)
     μ = DSD_μ(p3, λ)
 
     # Redefine α_va to be in si units
@@ -776,7 +921,7 @@ end
  Returns the distribution of ice particles (assumed to be of the form 
  N'(D) = N0 * D ^ μ * exp(-λD)) at given D 
 """
-function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT}
+function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT <: Real}
     return N_0 * D^DSD_μ(p3, λ) * exp(-λ * D)
 end
 
@@ -794,7 +939,7 @@ end
  The guess was calculated through a linear approximation extrapolated from 
  numerical solutions. 
 """
-function get_ice_bound(p3, λ::FT, tolerance::FT) where {FT}
+function get_ice_bound(p3, λ::FT, tolerance::FT) where {FT <: Real}
     ice_problem(x) =
         tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
     guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
