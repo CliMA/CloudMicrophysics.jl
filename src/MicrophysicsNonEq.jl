@@ -61,35 +61,54 @@ function conv_q_vap_to_q_liq_ice(
     ice::CMP.CloudIce{FT},
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
-    T:: FT, # temperature
+    T::FT, # temperature
     Sₗ::FT, # liquid saturation ratio
+    w::FT, # upwards velocity
+    p_air::FT, # air pressure
+    e::FT, # vapor pressure
+    ρ_air::FT, # air density
     const_dt:: FT,
 ) where {FT}
 
     # (might want to change the name of this function at some point)
+    # might also want to make turn these parameters into a struct or something
     # implementing this -- first the simplest form that
     # uses the assumption that dqs/dT = 1 and sets A_c = 1
     # and currently this is in specific humidity, but it technically should
     # be converted to mixing ratio
 
-    dqsdT = FT(1)
-    A_c = FT(1) # i need to actually make this into something
-
     cp_air = TD.cp_m(tps, q)
     L_subl = TD.latent_heat_sublim(tps, T)
-    L_v = TD.latent_heat_vapor(tps,T)
+    L_v = TD.latent_heat_vapor(tps, T)
+    g = TD.Parameters.grav(tps)
 
-    Γₗ = 1 + (L_v/cp_air)*dqsdT
-    Γᵢ = 1 + (L_subl/cp_air)*dqsdT
+    # need to calculate the internal energy now...
+    nonequilibrium_phase = TD.PhaseNonEquil(tps, e_int, ρ_air, q) # is this q correct?
+    λ = TD.liquid_fraction(tps, T, TD.Liquid(), q) # the phase type here is currently incorrect
+    L = TD.weighted_latent_heat(tps, T, λ)
+
+    dqsldt = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat,L)
+
+    dqsidT = FT(1) # i dont see anything in thermo to calculate this? might need to do myself
+
+    #A_c = FT(1) # i need to actually make this into something
+
+    A_c_WBF = - (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)*(1+(L_subl/cp_air)*dqsidT)
+    e_s = e/Sₗ # assuming this is ok but would like to double check
+    A_c_uplift = -(q_sat.liq * g * w * ρ_air)/(p-e_s) + dqsldT*w*g/c_p
+
+    A_c =  A_c_uplift + A_c_WBF
+
+    Γₗ = FT(1) + (L_v/cp_air)*dqsldT
+    Γᵢ = FT(1) + (L_subl/cp_air)*dqsidT
 
     τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
-
+       
     # this does need to be mixing ratio instead
-    delta_0 =  (Sₗ-1)*q_sat.liq
+    δ_0 = (Sₗ-1)*q_sat.liq
 
     # solving for new Sl after timestep delta t:
-    Sₗ = (1/q_sat.liq)(A_c * τ/(ice.τ_relax * Γₗ) + (delta_0 - A_c*τ)
-        *τ/(const_dt*ice.τ_relax*Γₗ)*(FT(1) - exp( - const_dt/τ))) + 1
+    Sₗ = (1/q_sat.liq)*(A_c * τ/(ice.τ_relax * Γₗ) + (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))) + 1
 
     return Sₗ
 end
