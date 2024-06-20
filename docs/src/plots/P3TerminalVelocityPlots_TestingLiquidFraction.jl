@@ -22,7 +22,7 @@ function get_values(
     ρ_a::FT,
     x_resolution::Int,
     y_resolution::Int,
-) where {FT}
+) where {FT <: Real}
     F_rs = range(FT(0), stop = FT(1 - eps(FT)), length = x_resolution)
     ρ_rs = range(FT(25), stop = FT(975), length = y_resolution)
 
