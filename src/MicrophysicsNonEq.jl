@@ -82,25 +82,28 @@ function conv_q_vap_to_q_liq_ice(
     L_v = TD.latent_heat_vapor(tps, T)
     g = TD.Parameters.grav(tps)
 
-    # need to calculate the internal energy now...
-    nonequilibrium_phase = TD.PhaseNonEquil(tps, e_int, ρ_air, q) # is this q correct?
-    λ = TD.liquid_fraction(tps, T, TD.Liquid(), q) # the phase type here is currently incorrect
+
+    # e_int = TD.internal_energy(tps,T)
+
+    nonequil_phase = TD.PhaseNonEquil # 
+    λ = TD.liquid_fraction(tps, T, nonequil_phase, q)
     L = TD.weighted_latent_heat(tps, T, λ)
 
-    dqsldt = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat,L)
+    dqsldT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.liq,L)
 
     dqsidT = FT(1) # i dont see anything in thermo to calculate this? might need to do myself
+    # ask Amy
+
+    Γₗ = FT(1) + (L_v/cp_air)*dqsldT
+    Γᵢ = FT(1) + (L_subl/cp_air)*dqsidT
 
     #A_c = FT(1) # i need to actually make this into something
 
     A_c_WBF = - (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)*(1+(L_subl/cp_air)*dqsidT)
     e_s = e/Sₗ # assuming this is ok but would like to double check
-    A_c_uplift = -(q_sat.liq * g * w * ρ_air)/(p-e_s) + dqsldT*w*g/c_p
+    A_c_uplift = -(q_sat.liq * g * w * ρ_air)/(p_air-e_s) + dqsldT*w*g/cp_air
 
     A_c =  A_c_uplift + A_c_WBF
-
-    Γₗ = FT(1) + (L_v/cp_air)*dqsldT
-    Γᵢ = FT(1) + (L_subl/cp_air)*dqsidT
 
     τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
        
