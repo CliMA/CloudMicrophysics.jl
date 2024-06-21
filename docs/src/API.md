@@ -93,6 +93,13 @@ AerosolActivation.total_N_activated
 AerosolActivation.total_M_activated
 ```
 
+# Artifact calling
+
+```@docs
+ArtifactCalling
+ArtifactCalling.AIDA_ice_nucleation
+```
+
 # Heterogeneous ice nucleation
 ```@docs
 HetIceNucleation

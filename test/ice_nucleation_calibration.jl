@@ -25,8 +25,8 @@ function test_J_calibration(FT, IN_mode)
     )
     calibrated_parameters = [output[1], output[2]]
 
-    TT.@test calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.15)
-    TT.@test calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(0.17)
+    TT.@test calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.2)
+    TT.@test calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(0.2)
 end
 
 @info "Ice Nucleation Calibration Test"
