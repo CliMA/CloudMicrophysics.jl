@@ -8,6 +8,7 @@ main
 
 v0.20.0
 ------
+- Added calling function to grab artifacts ([#413](https://github.com/CliMA/CloudMicrophysics.jl/pull/413))
 
 - API change:
   - return a named tuple in 2-moment microphysics rain evaporation

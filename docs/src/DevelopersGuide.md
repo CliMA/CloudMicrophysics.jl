@@ -81,6 +81,7 @@ See [Pkg.jl docs](https://pkgdocs.julialang.org/v1/managing-packages/#Adding-reg
 `CloudMicrophysics.jl` is a collection of point-wise functions grouped
   in different modules depending on which aspect of aerosol and cloud microphysics
   they address.
+### Functions
 When adding a new function, decide if a new module is required, or add to the existing one.
 If the added function will be used in other modules, export the function.
 Avoid exporting functions that are only used within the module it is defined in
@@ -90,10 +91,20 @@ The name of the function should be self-explanatory yet brief.
 All functions should have docstrings describing the API, as well as
   documentation focusing on the scientific aspects of what they do.
 All functions should have their own unit, performance and GPU tests.
+### Free Parameters
 All free parameters should be stored in [ClimaParams](https://github.com/CliMA/ClimaParams.jl).
 It is usually faster to prototype defining the free parameters locally,
   and move them to `ClimaParams` at a last step.
-
+### Artifacts
+Data used in calibrations and other scripts may be used in the form of artifacts.
+    `ClimaArtifactsHelper` is used in creating the artifacts. A copy of the data is
+    stored on the Caltech box. More information on the data and where it was sourced
+    from can be found in the `README.md` file within the artifact folder.
+An example can be found in the `papers > ice_nucleation_2024 > AIDA_data_artifact` folder.
+    If making a new artifact, copy the `create_AIDA_artifacts.jl` file and follow instructions
+    as needed. Remember to update the `Artifacts.toml` and `API.md` files as well.
+All artifacts should have a corresponding calling function.
+### Notable Files
 Other files that may require editing after you make a new function are:
  - `CloudMicrophysics.jl` (found in `src` folder) if you need to include a new source file,
  - `index.md` (found in `docs/src` folder) if you want to mention the new additions in the main documentation page,

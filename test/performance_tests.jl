@@ -6,6 +6,7 @@ import CloudMicrophysics as CM
 import ClimaParams as CP
 import Thermodynamics as TD
 
+import CloudMicrophysics.ArtifactCalling as AFC
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
@@ -29,11 +30,13 @@ function bench_press(
     min_allocs = 0.0,
 )
     println("Testing ", "$foo")
-    # Calling foo once before benchmarking
-    # to make sure compile time is not included in the benchmark
-    foo(args...)
+
+    # converts a string argument to tuple
+    args isa String && (args = (args,))
+
     # Benchmark foo
     trail = BT.@benchmark $foo($args...)
+
     show(stdout, MIME("text/plain"), trail)
     println("\n")
 
@@ -47,6 +50,15 @@ function bench_press(
 end
 
 function benchmark_test(FT)
+
+    # Artifact calling
+    bench_press(
+        AFC.AIDA_ice_nucleation,
+        ("in05_17_aida.edf"),
+        50000,
+        30000,
+        300,
+    )
 
     # 0-moment microphysics
     p0m = CMP.Parameters0M(FT)
