@@ -121,6 +121,49 @@ where ``\xi = \frac{e_{sl}}{e_{si}}`` is the ratio of saturation vapor pressure 
 The crux of the problem is modeling the ``\frac{dq_l}{dt}`` and ``\frac{dq_i}{dt}``
   for different homogeneous and heterogeneous ice nucleation paths.
 
+## Supported size distributions
+Currently, the parcel model supports monodisperse, gamma, and lognormal size distributions. For
+  monodisperse size distributions, the total mass is evenly distributed to all particles.
+```math
+\begin{equation}
+  n(r) = N_{tot} \delta(r-\bar{r})
+\end{equation}
+\begin{equation}
+  bar{r} = \left( \frac{3 \rho_a q_l}{4 \pi \rho_l N_{tot}} \right)^{1/3}
+\end{equation}
+```
+
+For a gamma distribution of droplets, a free parameter, ``\lambda``, must be constrained.
+  This can be done through relating the specific humidity and volume (assuming spherical
+  droplets and crystals). The mean of ``r^3`` is found by dividing the third moment, ``M_3``, by the
+  zeroth moment, ``M_0``. Once ``\lambda`` is found, we can use it to find the mean radius by
+  dividing the first moment, ``M_1``, by the zeroth moment, ``M_0``.
+
+```math
+\begin{equation}
+  n(r) = A \; r \; exp(-\lambda r)
+\end{equation}
+\begin{equation}
+  \bar{r} = \frac{M_1}{M_0} = \frac{2}{\lambda}
+\end{equation}
+```
+where ``\lambda = \left(\frac{32 \pi N_{tot} \rho_l}{q_l \rho_a}\right)^{1/3}``.
+
+A similar approach is used for the lognormal size distribution. We assume that the geometric
+  standard deviation, ``\sigma_g``, is measured so that the only parameter that needs to be constrained is the median radius, ``r_m``.
+
+```math
+\begin{equation}
+  n(r) = \frac{N_0}{\sqrt{2\pi}} \; \frac{1}{r \: ln(\sigma_g)} \; exp \left[ -frac{(ln(r)-ln(r_m))^2}{2 \: ln^2(\sigma_g)} \right]
+\end{equation}
+\begin{equation}
+  \bar{r^3} = \frac{\rho_a}{\rho_w}\frac{3}{4\pi}\frac{q}{N} = \frac{M_3}{M_0} = r_m^3 exp \left( \frac{9}{2} ln^2(\sigma_g)\right)
+\end{equation}
+\begin{equation}
+  \bar{r} = \frac{M_1}{M_0} = r_m exp \left( \frac{1}{2} ln^2(\sigma_g)\right)
+\end{equation}
+```
+
 ## Condensation growth
 
 The diffusional growth of individual cloud droplet is described by
@@ -158,12 +201,6 @@ where:
 - ``N_{tot}`` is the total number concentration of droplets per volume of air ``V``
 - ``\bar{r}`` is their mean radius
 - ``\rho_a`` is the density of air.
-
-For a monodisperse distribution of droplets ``n(r) = N_{tot} \delta(r-\bar{r})``,
-``\bar{r} = \left( \frac{3 \rho_a q_l}{4 \pi \rho_l N_{tot}} \right)^{1/3}``.
-For a gamma distribution of droplets ``n(r) = A \; r \; exp(-\lambda r)``,
-``\bar{r} = \frac{2}{\lambda}``
-where ``\lambda = \left(\frac{32 \pi N_{tot} \rho_l}{q_l \rho_a}\right)^{1/3}``.
 
 ## Deposition growth
 
