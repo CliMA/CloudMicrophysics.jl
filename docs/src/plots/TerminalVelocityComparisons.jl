@@ -15,9 +15,11 @@ const ice = CMP.CloudIce(FT)
 const snow = CMP.Snow(FT)
 
 const SB2006 = CMP.SB2006(FT)
+const SB2006_no_lim = CMP.SB2006(FT, false)
 
 const Chen2022 = CMP.Chen2022VelType(FT)
 const SB2006Vel = CMP.SB2006VelType(FT)
+const SB2006Vel_modified = CMP.SB2006VelType(FT, true)
 const Blk1MVel = CMP.Blk1MVelType(FT)
 
 """
@@ -35,7 +37,6 @@ function rain_terminal_velocity_individual_Chen(
     D_r::FT, #in m
 ) where {FT <: Real}
     ai, bi, ci = CMO.Chen2022_vel_coeffs_small(velo_scheme, ρ)
-    D_r = D_r * 1000 #D_r is in mm in the paper --> multiply D_r by 1000
 
     v = 0
     for i in 1:3
@@ -197,11 +198,17 @@ end
 
 ρ_air, ρ_air_ground = 1.2, 1.22
 q_liq, q_ice, q_tot = 5e-4, 5e-4, 20e-3
-N_rai = 1e7 #this value matters for the individual terminal velocity
+N_rai = 1e7 #this value matters for group terminal velocity
 q_rain_range = range(1e-8, stop = 5e-3, length = 100)
-D_r_range = range(1e-6, stop = 5e-3, length = 1000)
+D_r_range = range(1e-6, stop = 6e-3, length = 1000)
 N_d_range = range(1e6, stop = 1e9, length = 1000)
 D_r_ar_range = range(1e-6, stop = 6.25e-4, length = 1000)
+# random q and N values for plotting vt vs. mean radius
+q_rain_random = rand(10000) .* 5e-3
+N_rain_random = 10.0 .^ (1.0 .+ 6.0 .* rand(10000))
+r_mean =
+    ((ρ_air .* q_rain_random ./ N_rain_random) / 1000.0 * 3 / 4 / pi) .^
+    (1.0 / 3) .* 1e6
 
 #! format: off
 
@@ -210,6 +217,13 @@ Ch_rain_bN = [CM2.rain_terminal_velocity(SB2006, Chen2022.rain, q_rai, ρ_air, N
 SB_rain_bM = [CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rai, ρ_air, N_rai)[2] for q_rai in q_rain_range]
 Ch_rain_bM = [CM2.rain_terminal_velocity(SB2006, Chen2022.rain, q_rai, ρ_air, N_rai)[2] for q_rai in q_rain_range]
 M1_rain_bM = [CM1.terminal_velocity(rain, Blk1MVel.rain, ρ_air, q_rai) for q_rai in q_rain_range]
+# SB2006 terminal velocities for random combinations of q and N
+SB_rain_bN_rm = [CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rain_random[i], ρ_air, N_rain_random[i])[1] for i in 1:length(q_rain_random)]
+SB_rain_bM_rm = [CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rain_random[i], ρ_air, N_rain_random[i])[2] for i in 1:length(q_rain_random)]
+SB_rain_bN_rm_nolim = [CM2.rain_terminal_velocity(SB2006_no_lim, SB2006Vel, q_rain_random[i], ρ_air, N_rain_random[i])[1] for i in 1:length(q_rain_random)]
+SB_rain_bM_rm_nolim = [CM2.rain_terminal_velocity(SB2006_no_lim, SB2006Vel, q_rain_random[i], ρ_air, N_rain_random[i])[2] for i in 1:length(q_rain_random)]
+SB_rain_bN_rm_nolim_modified = [CM2.rain_terminal_velocity(SB2006_no_lim, SB2006Vel_modified, q_rain_random[i], ρ_air, N_rain_random[i])[1] for i in 1:length(q_rain_random)]
+SB_rain_bM_rm_nolim_modified = [CM2.rain_terminal_velocity(SB2006_no_lim, SB2006Vel_modified, q_rain_random[i], ρ_air, N_rain_random[i])[2] for i in 1:length(q_rain_random)]
 
 SB_rain = [rain_terminal_velocity_individual_SB(SB2006Vel, ρ_air, D_r) for D_r in D_r_range]
 Ch_rain = [rain_terminal_velocity_individual_Chen(Chen2022.rain, ρ_air, D_r) for D_r in D_r_range]
@@ -218,23 +232,39 @@ Ch_snow = [snow_terminal_velocity_individual_Chen(snow, Chen2022.snow_ice, ρ_ai
 M1_snow = [terminal_velocity_individual_1M(Blk1MVel.snow, ρ_air, D_r) for  D_r in D_r_range]
 Ch_ice = [ice_terminal_velocity_individual_Chen(Chen2022.snow_ice, ρ_air, D_r) for  D_r in D_r_range]
 Ch_ice_large = [ice_terminal_velocity_large_individual_Chen(Chen2022.snow_ice, ρ_air, D_r) for  D_r in D_r_range]
+D_Gunn_Kinzer = [0.0, 0.078, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2,
+    1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8,
+    4.0, 4.2, 4.4, 4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8] .* 1e-3
+u_Gunn_Kinzer = [0.0, 18.0, 27, 72, 117, 162, 206, 247, 287, 327, 367, 403, 464, 517,
+    565, 609, 649, 690, 727, 757, 782, 806, 826, 844, 860, 872, 883,
+    892, 898, 903, 907, 909, 912, 914, 916, 917] ./ 100
 
 Aspect_Ratio = [aspect_ratio_snow_1M(snow, D_r) for  D_r in D_r_ar_range]
 
 # 2 Moment Scheme Figures
 
 # single drop comparison
-p1 = PL.plot(D_r_range *1e3,  SB_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label  = "Rain-SB2006", color = :blue)
-p1 = PL.plot!(D_r_range * 1e3, Ch_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label = "Rain-Chen2022", color = :red)
-p1 = PL.plot!(D_r_range * 1e3, M1_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label = "Rain-1M", color = :green)
+p1 = PL.plot(D_r_range *1e3,  SB_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label  = "Rain-SB2006", color = 1)
+p1 = PL.plot!(D_r_range * 1e3, Ch_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label = "Rain-Chen2022", color = 2)
+p1 = PL.plot!(D_r_range * 1e3, M1_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", label = "Rain-1M", color = 3)
+p1 = PL.scatter!(D_Gunn_Kinzer * 1e3, u_Gunn_Kinzer, ms = 3, color = 4, label = "Gunn and Kinzer (1949)")
 # group velocity comparison
-p2 = PL.plot(q_rain_range * 1e3,  SB_rain_bN, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND]", linestyle = :dot, color = :blue)
-p2 = PL.plot!(q_rain_range * 1e3, Ch_rain_bN, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-Chen2022 [ND]", linestyle = :dot, color = :red)
-p2 = PL.plot!(q_rain_range * 1e3, SB_rain_bM, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M]", color = :blue)
-p2 = PL.plot!(q_rain_range * 1e3, Ch_rain_bM, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-Chen2022 [M]", color = :red)
-p2 = PL.plot!(q_rain_range * 1e3, M1_rain_bM, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-default-1M [M]", color = :green)
+p2 = PL.plot(q_rain_range * 1e3,  SB_rain_bN, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND]", linestyle = :dot, color = 1)
+p2 = PL.plot!(q_rain_range * 1e3, Ch_rain_bN, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-Chen2022 [ND]", linestyle = :dot, color = 2)
+p2 = PL.plot!(q_rain_range * 1e3, SB_rain_bM, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M]", color = 1)
+p2 = PL.plot!(q_rain_range * 1e3, Ch_rain_bM, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-Chen2022 [M]", color = 2)
+p2 = PL.plot!(q_rain_range * 1e3, M1_rain_bM, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-default-1M [M]", color = 3)
+# SB2006 group velocities vs. mean radius
+p3 = PL.scatter(r_mean, SB_rain_bN_rm, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND]")
+p3 = PL.scatter!(r_mean, SB_rain_bN_rm_nolim, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND], no lim")
+p3 = PL.scatter!(r_mean, SB_rain_bN_rm_nolim_modified, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND], modified, no lim")
+p3 = PL.plot!(xlim = [0, 600], ylim = [0, 3.0])
+p4 = PL.scatter(r_mean, SB_rain_bM_rm, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M]")
+p4 = PL.scatter!(r_mean, SB_rain_bM_rm_nolim, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M], no lim")
+p4 = PL.scatter!(r_mean, SB_rain_bM_rm_nolim_modified, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M], modified, no lim")
+p4 = PL.plot!(xlim = [0, 600], ylim = [0, 7.5])
 # save plot
-PL.plot(p1, p2, layout = (1, 2), size = (800, 500), dpi = 300)
+PL.plot(p1, p2, p3, p4, layout = (2, 2), size = (800, 800), dpi = 300)
 PL.savefig("2M_terminal_velocity_comparisons.svg")
 
 # 1 Moment Scheme Figures

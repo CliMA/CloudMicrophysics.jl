@@ -116,12 +116,13 @@ Base.@kwdef struct SB2006VelType{FT} <: TerminalVelocityType{FT}
     aR::FT
     bR::FT
     cR::FT
+    modified::Bool
 end
 
-SB2006VelType(::Type{FT}) where {FT <: AbstractFloat} =
-    SB2006VelType(CP.create_toml_dict(FT))
+SB2006VelType(::Type{FT}, modified = false) where {FT <: AbstractFloat} =
+    SB2006VelType(CP.create_toml_dict(FT), modified)
 
-function SB2006VelType(td::CP.AbstractTOMLDict)
+function SB2006VelType(td::CP.AbstractTOMLDict, modified = false)
     name_map = (;
         :SB2006_reference_air_density => :ρ0,
         :SB2006_raindrops_terminal_velocity_coeff_aR => :aR,
@@ -130,7 +131,7 @@ function SB2006VelType(td::CP.AbstractTOMLDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
-    return SB2006VelType{FT}(; parameters...)
+    return SB2006VelType{FT}(; parameters..., modified = modified)
 end
 
 """

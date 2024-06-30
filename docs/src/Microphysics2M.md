@@ -320,6 +320,7 @@ Evaluating the integral results in the following equation for terminal velocity:
 ```math
 \begin{equation}
   \overline{v}_{r,\, k} = \left(\frac{\rho_0}{\rho}\right)^{\frac{1}{2}}\left[a_R - b_R \left(1+\frac{c_R}{\lambda_r}\right)^{-(3k+1)}\right],
+\label{eq:sb_terminalvelocity}
 \end{equation}
 ```
 where ``\lambda_r`` is the raindrops size distribution parameter (based on diameter): ``\lambda_r = (\phi \rho_w/\overline{x}_r)^{1/3}``. To avoid numerical instabilities, especially when ``N_{rai} \rightarrow 0`` and ``q_{rai} \rightarrow 0``, ``\lambda_r`` is bounded. The limiting algorithm is as follows:
@@ -330,6 +331,17 @@ N_0 &= max \left(N_{0,\, min} , min \left(N_{0,\, max} , N_{rai}\left(\frac{\pi 
 \lambda_r &= max \left(\lambda_{min} , min \left(\lambda_{max} , \left(\frac{\pi \rho_w N_0}{\rho q_{rai}}\right)^{\frac{1}{4}}\right)\right).
 \end{align}
 ```
+
+When the limiting algorithm is not applied, the terminal velocity given by eq. (\ref{eq:sb_terminalvelocity}) can become negative for small mean radius values. This occurs because the equation for the individual particle's terminal velocity may predict negative values for small particles. To avoid negative terminal velocities (or a sudden transition to zero velocity if we return zero instead of negative values), we need to adjust the integration bounds. Specifically, the integrals should be evaluated from the radius at which the individual terminal velocity is zero to infinity. This adjustment leads to the following equation for the terminal velocity:
+
+```math
+\begin{align}
+  \overline{v}_{r,\, k} &= \frac{1}{M_r^k} \int_{r_c}^\infty x^k f_r(x) v(x) dx \nonumber\\ 
+  &= \left(\frac{\rho_0}{\rho}\right)^{\frac{1}{2}}\left[a_R \frac{\Gamma(3k+1, 2r_c\lambda_r)}{\Gamma(3k+1)} - b_R \frac{\Gamma(3k+1, 2r_c(\lambda_r + c_R))}{\Gamma(3k+1)} \left(1+\frac{c_R}{\lambda_r}\right)^{-(3k+1)}\right],
+\label{eq:sb_modifiedterminalvelocity}
+\end{align}
+```
+where ``r_c = -ln(a_R / b_R)/(2c_R)``.
 
 The default free parameter values are:
 
@@ -539,10 +551,10 @@ $\lambda$ is the size distribution parameter.
 $\overline{v_k}$ corresponds to the number-weighted mean terminal velocity when k = 0,
 and mass-weighted mean terminal velocity when k = 3.
 
-Below, we compare the individual terminal velocity formulas for [Chen2022](@cite) and [SeifertBeheng2006](@cite).
-We also compare bulk number weighted [ND] and mass weighted [MD]
-terminal velocities for both formulas integrated over the size distribution from [SeifertBeheng2006](@cite).
-We also show the mass weighted terminal velocity from the 1-moment scheme.
+Below, in the top-left panel we compare the individual terminal velocity formulas for Chen2022 [Chen2022](@cite), SB2006 [SeifertBeheng2006](@cite) and data from [Gunn1949](@cite).
+In the top-right panel, we compare bulk number weighted [ND] and mass weighted [M]
+terminal velocities for both formulas integrated over the size distribution from SB2006 [SeifertBeheng2006](@cite).
+We also show the mass weighted terminal velocity from the 1-moment scheme. In the bottom panels we compare number-weighted (left) and mass-weighted (right) terminal velocities for the original parameterization of SB2006 [SeifertBeheng2006](@cite) with and without limited distribution shape factor $\lambda_r$, as well as the modifed parameterzation given by eq. (\ref{eq:sb_modifiedterminalvelocity}). 
 ```@example
 include("plots/TerminalVelocityComparisons.jl")
 ```

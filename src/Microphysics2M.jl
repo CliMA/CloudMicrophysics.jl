@@ -421,7 +421,7 @@ Fall velocity of individual rain drops is parameterized:
 """
 function rain_terminal_velocity(
     (; pdf_r)::CMP.SB2006{FT},
-    (; ρ0, aR, bR, cR)::CMP.SB2006VelType{FT},
+    (; ρ0, aR, bR, cR, modified)::CMP.SB2006VelType{FT},
     q_rai::FT,
     ρ::FT,
     N_rai::FT,
@@ -430,12 +430,20 @@ function rain_terminal_velocity(
 
     λr = pdf_rain(pdf_r, q_rai, ρ, N_rai).λr
 
+    # Compute prefactors to integrate velocity of particles over a range of r with
+    # positive terminal velocity (v = aR - bR exp(-lambda D))
+    _rc = -1 / (2 * cR) * log(aR / bR)
+    _pa0 = modified ? SF.gamma(1, 2 * _rc * λr) : FT(1)
+    _pb0 = modified ? SF.gamma(1, 2 * _rc * (λr + cR)) : FT(1)
+    _pa1 = modified ? SF.gamma(4, 2 * _rc * λr) ./ FT(6) : FT(1)
+    _pb1 = modified ? SF.gamma(4, 2 * _rc * (λr + cR)) / FT(6) : FT(1)
+
     vt0 =
         N_rai < eps(FT) ? FT(0) :
-        max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
+        max(FT(0), sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR / λr)))
     vt1 =
         q_rai < eps(FT) ? FT(0) :
-        max(FT(0), sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^FT(4)))
+        max(FT(0), sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR / λr)^FT(4)))
     return (vt0, vt1)
 end
 function rain_terminal_velocity(

@@ -40,6 +40,7 @@ function test_microphysics2M(FT)
 
     # Terminal velocity parameters
     SB2006Vel = CMP.SB2006VelType(FT)
+    SB2006ModifiedVel = CMP.SB2006VelType(FT, true)
     Chen2022Vel = CMP.Chen2022VelTypeRain(FT)
 
     TT.@testset "2M_microphysics - unit tests" begin
@@ -403,6 +404,57 @@ function test_microphysics2M(FT)
             TT.@test CM2.rain_terminal_velocity(
                 SB,
                 SB2006Vel,
+                FT(0),
+                ρ,
+                N_rai,
+            )[2] ≈ 0 atol = eps(FT)
+        end
+    end
+
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 modified rain terminal velocity" begin
+        #setup
+        ρ = FT(1.1)
+        q_rai = FT(1e-6)
+        N_rai = FT(1e4)
+
+        (; ρ0, aR, bR, cR) = SB2006ModifiedVel
+
+        for SB in [SB2006, SB2006_no_limiters]
+
+            #action
+            vt_rai = CM2.rain_terminal_velocity(
+                SB,
+                SB2006ModifiedVel,
+                q_rai,
+                ρ,
+                N_rai,
+            )
+
+            λr = CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).λr
+            _rc = -1 / (2 * cR) * log(aR / bR)
+            _pa0 = SF.gamma(1, 2 * _rc * λr)
+            _pb0 = SF.gamma(1, 2 * _rc * (λr + cR))
+            _pa1 = SF.gamma(4, 2 * _rc * λr) ./ FT(6)
+            _pb1 = SF.gamma(4, 2 * _rc * (λr + cR)) / FT(6)
+            vt0 = max(0, sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR / λr)))
+            vt1 =
+                max(0, sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR / λr)^4))
+
+            #test
+            TT.@test vt_rai isa Tuple
+            TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
+            TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
+
+            TT.@test CM2.rain_terminal_velocity(
+                SB,
+                SB2006ModifiedVel,
+                q_rai,
+                ρ,
+                FT(0),
+            )[1] ≈ 0 atol = eps(FT)
+            TT.@test CM2.rain_terminal_velocity(
+                SB,
+                SB2006ModifiedVel,
                 FT(0),
                 ρ,
                 N_rai,
