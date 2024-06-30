@@ -437,7 +437,7 @@ function rain_terminal_velocity(
     _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
     _pa0::FT = modified ? _Γ_1(2 * _rc * λr) : FT(1)
     _pb0::FT = modified ? _Γ_1(2 * _rc * (λr + cR)) : FT(1)
-    _pa1::FT = modified ? _Γ_4(2 * _rc * λr) ./ FT(6) : FT(1)
+    _pa1::FT = modified ? _Γ_4(2 * _rc * λr) / FT(6) : FT(1)
     _pb1::FT = modified ? _Γ_4(2 * _rc * (λr + cR)) / FT(6) : FT(1)
 
     vt0 =

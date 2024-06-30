@@ -40,7 +40,7 @@ function test_microphysics2M(FT)
 
     # Terminal velocity parameters
     SB2006Vel = CMP.SB2006VelType(FT)
-    SB2006ModifiedVel = CMP.SB2006VelType(FT, true)
+    SB2006Vel_modified = CMP.SB2006VelType(FT, true)
     Chen2022Vel = CMP.Chen2022VelTypeRain(FT)
 
     TT.@testset "2M_microphysics - unit tests" begin
@@ -417,14 +417,14 @@ function test_microphysics2M(FT)
         q_rai = FT(1e-6)
         N_rai = FT(1e4)
 
-        (; ρ0, aR, bR, cR) = SB2006ModifiedVel
+        (; ρ0, aR, bR, cR) = SB2006Vel_modified
 
         for SB in [SB2006, SB2006_no_limiters]
 
             #action
             vt_rai = CM2.rain_terminal_velocity(
                 SB,
-                SB2006ModifiedVel,
+                SB2006Vel_modified,
                 q_rai,
                 ρ,
                 N_rai,
@@ -432,10 +432,12 @@ function test_microphysics2M(FT)
 
             λr = CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).λr
             _rc = -1 / (2 * cR) * log(aR / bR)
-            _pa0 = SF.gamma(1, 2 * _rc * λr)
-            _pb0 = SF.gamma(1, 2 * _rc * (λr + cR))
-            _pa1 = SF.gamma(4, 2 * _rc * λr) ./ FT(6)
-            _pb1 = SF.gamma(4, 2 * _rc * (λr + cR)) / FT(6)
+            _Γ_1(t) = exp(-t)
+            _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
+            _pa0 = modified ? _Γ_1(2 * _rc * λr) : FT(1)
+            _pb0 = modified ? _Γ_1(2 * _rc * (λr + cR)) : FT(1)
+            _pa1 = modified ? _Γ_4(2 * _rc * λr) / FT(6) : FT(1)
+            _pb1 = modified ? _Γ_4(2 * _rc * (λr + cR)) / FT(6) : FT(1)
             vt0 = max(0, sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR / λr)))
             vt1 =
                 max(0, sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR / λr)^4))
@@ -447,14 +449,14 @@ function test_microphysics2M(FT)
 
             TT.@test CM2.rain_terminal_velocity(
                 SB,
-                SB2006ModifiedVel,
+                SB2006Vel_modified,
                 q_rai,
                 ρ,
                 FT(0),
             )[1] ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_terminal_velocity(
                 SB,
-                SB2006ModifiedVel,
+                SB2006Vel_modified,
                 FT(0),
                 ρ,
                 N_rai,
