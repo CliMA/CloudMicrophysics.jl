@@ -19,7 +19,6 @@ const SB2006_no_lim = CMP.SB2006(FT, false)
 
 const Chen2022 = CMP.Chen2022VelType(FT)
 const SB2006Vel = CMP.SB2006VelType(FT)
-const SB2006Vel_modified = CMP.SB2006VelType(FT, true)
 const Blk1MVel = CMP.Blk1MVelType(FT)
 
 """
@@ -222,8 +221,6 @@ SB_rain_bN_rm = [CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rain_random[i],
 SB_rain_bM_rm = [CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rain_random[i], ρ_air, N_rain_random[i])[2] for i in 1:length(q_rain_random)]
 SB_rain_bN_rm_nolim = [CM2.rain_terminal_velocity(SB2006_no_lim, SB2006Vel, q_rain_random[i], ρ_air, N_rain_random[i])[1] for i in 1:length(q_rain_random)]
 SB_rain_bM_rm_nolim = [CM2.rain_terminal_velocity(SB2006_no_lim, SB2006Vel, q_rain_random[i], ρ_air, N_rain_random[i])[2] for i in 1:length(q_rain_random)]
-SB_rain_bN_rm_nolim_modified = [CM2.rain_terminal_velocity(SB2006_no_lim, SB2006Vel_modified, q_rain_random[i], ρ_air, N_rain_random[i])[1] for i in 1:length(q_rain_random)]
-SB_rain_bM_rm_nolim_modified = [CM2.rain_terminal_velocity(SB2006_no_lim, SB2006Vel_modified, q_rain_random[i], ρ_air, N_rain_random[i])[2] for i in 1:length(q_rain_random)]
 
 SB_rain = [rain_terminal_velocity_individual_SB(SB2006Vel, ρ_air, D_r) for D_r in D_r_range]
 Ch_rain = [rain_terminal_velocity_individual_Chen(Chen2022.rain, ρ_air, D_r) for D_r in D_r_range]
@@ -257,11 +254,9 @@ p2 = PL.plot!(q_rain_range * 1e3, M1_rain_bM, linewidth = 3, xlabel = "q_rain [g
 # SB2006 group velocities vs. mean radius
 p3 = PL.scatter(r_mean, SB_rain_bN_rm, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND]")
 p3 = PL.scatter!(r_mean, SB_rain_bN_rm_nolim, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND], no lim")
-p3 = PL.scatter!(r_mean, SB_rain_bN_rm_nolim_modified, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND], modified, no lim")
 p3 = PL.plot!(xlim = [0, 600], ylim = [0, 3.0])
 p4 = PL.scatter(r_mean, SB_rain_bM_rm, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M]")
 p4 = PL.scatter!(r_mean, SB_rain_bM_rm_nolim, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M], no lim")
-p4 = PL.scatter!(r_mean, SB_rain_bM_rm_nolim_modified, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M], modified, no lim")
 p4 = PL.plot!(xlim = [0, 600], ylim = [0, 7.5])
 # save plot
 PL.plot(p1, p2, p3, p4, layout = (2, 2), size = (800, 800), dpi = 300)

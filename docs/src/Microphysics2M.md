@@ -323,16 +323,7 @@ Evaluating the integral results in the following equation for terminal velocity:
 \label{eq:sb_terminalvelocity}
 \end{equation}
 ```
-where ``\lambda_r`` is the raindrops size distribution parameter (based on diameter): ``\lambda_r = (\phi \rho_w/\overline{x}_r)^{1/3}``. To avoid numerical instabilities, especially when ``N_{rai} \rightarrow 0`` and ``q_{rai} \rightarrow 0``, ``\lambda_r`` is bounded. The limiting algorithm is as follows:
-```math
-\begin{align}
-\widetilde{x}_r &= max \left(\overline{x}_{r,\, min} , min \left(\overline{x}_{r,\, max} , \frac{\rho q_{rai}}{N_{rai}}\right)\right),\\
-N_0 &= max \left(N_{0,\, min} , min \left(N_{0,\, max} , N_{rai}\left(\frac{\pi \rho_w}{\widetilde{x}_r}\right)^{\frac{1}{3}}\right)\right),\\
-\lambda_r &= max \left(\lambda_{min} , min \left(\lambda_{max} , \left(\frac{\pi \rho_w N_0}{\rho q_{rai}}\right)^{\frac{1}{4}}\right)\right).
-\end{align}
-```
-
-When the limiting algorithm is not applied, the terminal velocity given by eq. (\ref{eq:sb_terminalvelocity}) can become negative for small mean radius values. This occurs because the equation for the individual particle's terminal velocity may predict negative values for small particles. To avoid negative terminal velocities (or a sudden transition to zero velocity if we return zero instead of negative values), we need to adjust the integration bounds. Specifically, the integrals should be evaluated from the radius at which the individual terminal velocity is zero to infinity. This adjustment leads to the following equation for the terminal velocity:
+where ``\lambda_r`` is the raindrops size distribution parameter (based on diameter): ``\lambda_r = (\phi \rho_w/\overline{x}_r)^{1/3}``. The terminal velocity given by eq. (\ref{eq:sb_terminalvelocity}) can become negative for small mean radius values. This occurs because the equation for the individual particle's terminal velocity may predict negative values for small particles. To avoid negative terminal velocities (or a sudden transition to zero velocity if we return zero instead of negative values), we need to adjust the integration bounds. Specifically, the integrals should be evaluated from the radius at which the individual terminal velocity is zero to infinity. This adjustment leads to the following equation for the terminal velocity:
 
 ```math
 \begin{align}
@@ -342,6 +333,16 @@ When the limiting algorithm is not applied, the terminal velocity given by eq. (
 \end{align}
 ```
 where ``r_c = -ln(a_R / b_R)/(2c_R)``.
+
+
+To avoid numerical instabilities, especially when ``N_{rai} \rightarrow 0`` and ``q_{rai} \rightarrow 0``, ``\lambda_r`` can be bounded. The limiting algorithm is as follows:
+```math
+\begin{align}
+\widetilde{x}_r &= max \left(\overline{x}_{r,\, min} , min \left(\overline{x}_{r,\, max} , \frac{\rho q_{rai}}{N_{rai}}\right)\right),\\
+N_0 &= max \left(N_{0,\, min} , min \left(N_{0,\, max} , N_{rai}\left(\frac{\pi \rho_w}{\widetilde{x}_r}\right)^{\frac{1}{3}}\right)\right),\\
+\lambda_r &= max \left(\lambda_{min} , min \left(\lambda_{max} , \left(\frac{\pi \rho_w N_0}{\rho q_{rai}}\right)^{\frac{1}{4}}\right)\right).
+\end{align}
+```
 
 The default free parameter values are:
 
@@ -554,7 +555,7 @@ and mass-weighted mean terminal velocity when k = 3.
 Below, in the top-left panel we compare the individual terminal velocity formulas for Chen2022 [Chen2022](@cite), SB2006 [SeifertBeheng2006](@cite) and data from [Gunn1949](@cite).
 In the top-right panel, we compare bulk number weighted [ND] and mass weighted [M]
 terminal velocities for both formulas integrated over the size distribution from SB2006 [SeifertBeheng2006](@cite).
-We also show the mass weighted terminal velocity from the 1-moment scheme. In the bottom panels we compare number-weighted (left) and mass-weighted (right) terminal velocities for the original parameterization of SB2006 [SeifertBeheng2006](@cite) with and without limited distribution shape factor $\lambda_r$, as well as the modifed parameterzation given by eq. (\ref{eq:sb_modifiedterminalvelocity}). 
+We also show the mass weighted terminal velocity from the 1-moment scheme. In the bottom panels we compare number-weighted (left) and mass-weighted (right) terminal velocities for the parameterization of SB2006 [SeifertBeheng2006](@cite) (the adjusted equation (\ref{eq:sb_modifiedterminalvelocity})) with and without limited distribution shape factor $\lambda_r$. 
 ```@example
 include("plots/TerminalVelocityComparisons.jl")
 ```

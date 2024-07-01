@@ -421,7 +421,7 @@ Fall velocity of individual rain drops is parameterized:
 """
 function rain_terminal_velocity(
     (; pdf_r)::CMP.SB2006{FT},
-    (; ρ0, aR, bR, cR, modified)::CMP.SB2006VelType{FT},
+    (; ρ0, aR, bR, cR)::CMP.SB2006VelType{FT},
     q_rai::FT,
     ρ::FT,
     N_rai::FT,
@@ -435,10 +435,10 @@ function rain_terminal_velocity(
     _rc = -1 / (2 * cR) * log(aR / bR)
     _Γ_1(t) = exp(-t)
     _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
-    _pa0::FT = modified ? _Γ_1(2 * _rc * λr) : FT(1)
-    _pb0::FT = modified ? _Γ_1(2 * _rc * (λr + cR)) : FT(1)
-    _pa1::FT = modified ? _Γ_4(2 * _rc * λr) / FT(6) : FT(1)
-    _pb1::FT = modified ? _Γ_4(2 * _rc * (λr + cR)) / FT(6) : FT(1)
+    _pa0::FT = _Γ_1(2 * _rc * λr)
+    _pb0::FT = _Γ_1(2 * _rc * (λr + cR))
+    _pa1::FT = _Γ_4(2 * _rc * λr) / FT(6)
+    _pb1::FT = _Γ_4(2 * _rc * (λr + cR)) / FT(6)
 
     vt0 =
         N_rai < eps(FT) ? FT(0) :

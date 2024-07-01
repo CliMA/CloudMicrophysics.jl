@@ -83,7 +83,6 @@ function benchmark_test(FT)
     # terminal velocity
     blk1mvel = CMP.Blk1MVelType(FT)
     sb2006vel = CMP.SB2006VelType(FT)
-    sb2006vel_modified = CMP.SB2006VelType(FT, true)
     ch2022 = CMP.Chen2022VelType(FT)
     # aerosol activation
     ap = CMP.AerosolActivationParameters(FT)
@@ -240,11 +239,6 @@ function benchmark_test(FT)
         bench_press(
             CM2.rain_terminal_velocity,
             (sb, sb2006vel, q_rai, ρ_air, N_rai),
-            700,
-        )
-        bench_press(
-            CM2.rain_terminal_velocity,
-            (sb, sb2006vel_modified, q_rai, ρ_air, N_rai),
             1000,
         )
         bench_press(
