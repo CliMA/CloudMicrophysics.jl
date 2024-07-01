@@ -8,6 +8,40 @@ Predicted particle properties scheme (P3) for ice, which includes:
 Implementation of Morrison and Milbrandt 2015 doi: 10.1175/JAS-D-14-0065.1
 
 Note: Particle size is defined as its maximum length (i.e. max dimesion).
+
+Changes to accomodate for liquid fraction: shape params:
+    - added m_liq
+    - for p3_mass and p3_area, added a F_liq-weighted linear
+    average of the original regime and the liquid part (assumed
+    spherical for area)
+    - for mass mixing ratios in different regimes:
+        - modified each q_x such that q_xnew = (1 - F_liq) * q_x
+        - added q_liq (mass mixing ratio of liquid on mixed-phase particles)
+    - with nonzero F_liq, and with the new q_x formulations, the 
+    q_over_N_gamma helper function in the shape parameter solver now includes
+    for the mixing ratio q in the numerator q_liq as well as q_[insert regime]
+        - for F_liq = 0, q_new = q_old, which is what we want
+        - for nonzero F_liq, q_new = q_old + q_liq
+    - so, in theory, if we want the shape parameters for the ice cores we pass
+    F_liq = 0, even when it is nonzero, and if we want the shape parameters for the whole
+    particle, we pass F_liq
+    - ***with this approach, I'm unsure how to change the bounds we use for q_liq to
+    correspond to the different cases in q_over_N_gamma***
+    - ***I don't believe the μ given λ and vice versa need to be changed, but perhaps the
+    get_bounds function will need some fine tuning, assuming the bounds may change given
+    PSDs will be different under the liquid fraction regime***
+For terminal velocity:
+    - kept original terminal_velocity function with F_liq = 0 to
+    calculate terminal velocity of ice cores
+    - added/adding terminal_velocity_liq which uses Chen2022VelTypeRain
+    - added/adding terminal_velocity_tot which computes an F_liq-weighted
+    linear average of the terminal velocities of the ice core and liquid part
+QUESTION: In the ice core part of the terminal velocity, I am currently using the ice core
+PSD and the ice core mass (since the mass of the whole particle with F_liq=0 is the mass of the core).
+We can always use a different approach later, but I want to make sure I should be integrating over core
+size distribution for the original terminal velocity rather than the whole size distribution...
+
+##TODO: (NOTE TO SELF: NEED TO CHANGE D_M AT THE BOTTOM LATER)##
 """
 module P3Scheme
 
@@ -288,7 +322,7 @@ end
 
 Returns the approximated shape parameter μ for a given q and N value
 """
-function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
     # Get thresholds for given F_r, ρ_r
     th = thresholds(p3, ρ_r, F_r)
 
@@ -297,8 +331,8 @@ function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     λ_6 = μ_to_λ(p3, p3.μ_max)
 
     # Get corresponding q/N values at given F_r
-    q_over_N_min = log(q_over_N_gamma(p3, FT(0), F_r, log(λ_0), FT(0), th))
-    q_over_N_max = log(q_over_N_gamma(p3, FT(0), F_r, log(λ_6), p3.μ_max, th))
+    q_over_N_min = log(q_over_N_gamma(p3, F_liq, F_r, log(λ_0), FT(0), th))
+    q_over_N_max = log(q_over_N_gamma(p3, F_liq, F_r, log(λ_6), p3.μ_max, th))
 
     # Return approximation between them
     μ = (p3.μ_max / (q_over_N_max - q_over_N_min)) * (log(q / N) - q_over_N_min)
@@ -445,7 +479,7 @@ function q_liq(
 end
 
 """
-    q_over_N_gamma(p3, F_r, F_liq, λ, th)
+    q_over_N_gamma(p3, F_liq, F_r, λ, th)
 
  - p3 - a struct with P3 scheme parameters
  - F_r - rime mass fraction [q_rim/q_i]
@@ -474,13 +508,15 @@ function q_over_N_gamma(
         F_r == FT(0),
         (
             q_s(p3, F_liq, p3.ρ_i, μ, λ, FT(0), D_th) +
-            q_rz(p3, F_liq, μ, λ, D_th)
+            q_rz(p3, F_liq, μ, λ, D_th) + 
+            q_liq(p3, F_liq, μ, λ, FT(0), FT(Inf))
         ) / N,
         (
             q_s(p3, F_liq, p3.ρ_i, μ, λ, FT(0), D_th) +
             q_n(p3, F_liq, μ, λ, D_th, th.D_gr) +
             q_s(p3, F_liq, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
-            q_r(p3, F_liq, F_r, μ, λ, th.D_cr)
+            q_r(p3, F_liq, F_r, μ, λ, th.D_cr) +
+            q_liq(p3, F_liq, μ, λ, FT(0), FT(Inf))
         ) / N,
     )
 end
@@ -562,7 +598,7 @@ function distribution_parameter_solver(
     th = thresholds(p3, ρ_r, F_r)
 
     # Get μ given q and N
-    μ = DSD_μ_approx(p3, q, N, ρ_r, F_r)
+    μ = DSD_μ_approx(p3, q, N, ρ_r, F_r, F_liq)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
     shape_problem(x) = q / N - q_over_N_gamma(p3, F_liq, F_r, x, μ, th)
@@ -584,7 +620,7 @@ function distribution_parameter_solver(
 end
 
 """
-    terminal_velocity(p3, Chen2022, q, N, ρ_r, F_r, ρ_a)
+    terminal_velocity_(p3, Chen2022, q, N, ρ_r, F_r, ρ_a)
 
  - p3 - a struct with P3 scheme parameters
  - Chen2022 - a struch with terminal velocity parameters as in Chen(2022)
@@ -606,7 +642,7 @@ function terminal_velocity(
     F_r::FT,
     ρ_a::FT,
 ) where {FT}
-    # Get the pree parameters for terminal velocities of small
+    # Get the free parameters for terminal velocities of small
     # and large particles
     small = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
     large = CO.Chen2022_vel_coeffs_large(Chen2022, ρ_a)
@@ -770,7 +806,7 @@ function terminal_velocity(
 end
 
 """
-    terminal_velocity(p3, Chen2022, q, N, ρ_r, F_liq, F_r, ρ_a)
+    terminal_velocity_liq(p3, Chen2022, q, N, ρ_r, F_liq, F_r, ρ_a)
 
  - p3 - a struct with P3 scheme parameters
  - Chen2022 - a struch with terminal velocity parameters as in Chen(2022)
@@ -871,7 +907,7 @@ function terminal_velocity_tot(
 end
 
 """
-    D_m (p3, q, N, ρ_r, F_r)
+    D_m (p3, q, N, ρ_r, F_r, F_liq)
 
  - p3 - a struct with P3 scheme parameters
  - q - mass mixing ratio
@@ -883,7 +919,7 @@ end
  Return the mass weighted mean particle size [m]
 """
 ### TODO: below (note for myself) ###
-function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
