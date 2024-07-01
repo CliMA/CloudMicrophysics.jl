@@ -322,7 +322,14 @@ end
 
 Returns the approximated shape parameter μ for a given q and N value
 """
-function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
+function DSD_μ_approx(
+    p3::PSP3,
+    q::FT,
+    N::FT,
+    ρ_r::FT,
+    F_r::FT,
+    F_liq::FT,
+) where {FT}
     # Get thresholds for given F_r, ρ_r
     th = thresholds(p3, ρ_r, F_r)
 
@@ -508,7 +515,7 @@ function q_over_N_gamma(
         F_r == FT(0),
         (
             q_s(p3, F_liq, p3.ρ_i, μ, λ, FT(0), D_th) +
-            q_rz(p3, F_liq, μ, λ, D_th) + 
+            q_rz(p3, F_liq, μ, λ, D_th) +
             q_liq(p3, F_liq, μ, λ, FT(0), FT(Inf))
         ) / N,
         (
@@ -901,9 +908,20 @@ function terminal_velocity_tot(
     ρ_a::FT,
 ) where {FT}
     return (1 - F_liq) *
-           terminal_velocity(p3, Chen2022_ice, q, N, ρ_r, F_r, ρ_a) +
-           F_liq *
-           terminal_velocity_liq(p3, Chen2022_rain, q, N, ρ_r, F_liq, F_r, ρ_a)
+           terminal_velocity(p3, Chen2022_ice, q, N, ρ_r, F_r, ρ_a)[1] +
+           F_liq * terminal_velocity_liq(
+        p3,
+        Chen2022_rain,
+        q,
+        N,
+        ρ_r,
+        F_liq,
+        F_r,
+        ρ_a,
+    )[1],
+    (1 - F_liq) * terminal_velocity(p3, Chen2022_ice, q, N, ρ_r, F_r, ρ_a)[2] +
+    F_liq *
+    terminal_velocity_liq(p3, Chen2022_rain, q, N, ρ_r, F_liq, F_r, ρ_a)[2]
 end
 
 """
