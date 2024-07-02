@@ -865,7 +865,7 @@ function terminal_velocity_liq(
     v_m = 0
     v_n = 0
 
-    v(D, a, b, c) = a * D^b * e^(-c * D)
+    v(D, a, b, c) = a * D^b * exp(-c * D)
 
     for i in 1:3
         # TODO: fix bounds for quadgk integral

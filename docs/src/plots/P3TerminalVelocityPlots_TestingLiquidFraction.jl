@@ -46,7 +46,7 @@ function get_values(
                 ρ_a,
             )[2]
             # # get D_m in mm for plots
-            # D_m[i, j] = 1e3 * P3.D_m(p3, q, N, ρ_r, F_r)
+            D_m[i, j] = 1e3 * P3.D_m(p3, q, N, ρ_r, F_r, F_liq)
         end
     end
     return (; F_rs, ρ_rs, V_m, D_m)
@@ -77,7 +77,7 @@ function make_axis_bottom(fig, col, title)
 end
 
 #! format: off
-function figure_2()
+function figure_2(F_liq)
     Chen2022 = CMP.Chen2022VelType(FT)
     # density of air in kg/m^3
     ρ_a = FT(1.2) #FT(1.293)
@@ -91,12 +91,13 @@ function figure_2()
     q_l = FT(0.7)
     N_l = FT(1e6)
     # get V_m and D_m
-    F_liq = [FT(0), FT(0.33), FT(0.67), FT(1)]
     xres = 100
     yres = 100
-    (F_rs, ρ_rs, V_ms) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_s, N_s, F_liq[1], ρ_a, xres, yres)
-    (F_rm, ρ_rm, V_mm) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_m, N_m, F_liq[1], ρ_a, xres, yres)
-    (F_rl, ρ_rl, V_ml) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_l, N_l, F_liq[1], ρ_a, xres, yres)
+    #F_liq[1] = 0 ... replicating the original figures in the docs!
+    #for other F_liq velocity does not work
+    (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_s, N_s, F_liq, ρ_a, xres, yres)
+    (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_m, N_m, F_liq, ρ_a, xres, yres)
+    (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_l, N_l, F_liq, ρ_a, xres, yres)
 
     fig = Plt.Figure()
 
@@ -104,18 +105,18 @@ function figure_2()
 
     args = (color = :black, labels = true, levels = 3, linewidth = 1.5, labelsize = 18)
 
-    ax1 = make_axis_top(fig, 1, "Small Dₘ")
-    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms, levels = 0.402:0.001:0.413)
+    ax1 = make_axis_top(fig, 1, "Small Dₘ, F_liq = $F_liq")
+    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms, )#levels = 0.402:0.001:0.413)
     Plt.contour!(ax1, F_rs, ρ_rs, D_ms; args...)
     Plt.Colorbar(fig[2, 1], hm, vertical = false)
 
-    ax2 = make_axis_top(fig, 2, "Medium Dₘ")
-    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm, levels = 2:0.1:4)
+    ax2 = make_axis_top(fig, 2, "Medium Dₘ, F_liq = $F_liq")
+    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm, )#levels = 2:0.1:4)
     Plt.contour!(ax2, F_rm, ρ_rm, D_mm; args...)
     Plt.Colorbar(fig[2, 2], hm, vertical = false)
 
-    ax3 = make_axis_top(fig, 3, "Large Dₘ")
-    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml, levels = 2:0.2:5)
+    ax3 = make_axis_top(fig, 3, "Large Dₘ, F_liq = $F_liq")
+    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml,)# levels = 2:0.2:5)
     Plt.contour!(ax3, F_rl, ρ_rl, D_ml; args...)
     Plt.Colorbar(fig[2, 3], hm, vertical = false)
 
@@ -126,15 +127,15 @@ function figure_2()
 
     ## Plot D_m as second row of comparisons
 
-    ax4 = make_axis_bottom(fig, 1, "Small Dₘ vs F_r and ρ_r")
+    ax4 = make_axis_bottom(fig, 1, "Small Dₘ vs F_r and ρ_r, F_liq = $F_liq")
     hm = Plt.contourf!(ax4, F_rs, ρ_rs, D_ms)
     Plt.Colorbar(fig[4, 1], hm, vertical = false)
 
-    ax5 = make_axis_bottom(fig, 2, "Medium Dₘ vs F_r and ρ_r")
+    ax5 = make_axis_bottom(fig, 2, "Medium Dₘ vs F_r and ρ_r, F_liq = $F_liq")
     hm = Plt.contourf!(ax5, F_rm, ρ_rm, D_mm)
     Plt.Colorbar(fig[4, 2], hm, vertical = false)
 
-    ax6 = make_axis_bottom(fig, 3, "Large Dₘ vs F_r and ρ_r")
+    ax6 = make_axis_bottom(fig, 3, "Large Dₘ vs F_r and ρ_r, F_liq = $F_liq")
     hm = Plt.contourf!(ax6, F_rl, ρ_rl, D_ml)
     Plt.Colorbar(fig[4, 3], hm, vertical = false)
 
@@ -148,9 +149,12 @@ function figure_2()
 
     Plt.resize_to_layout!(fig)
     Plt.display(fig)
-    # Plt.save("MorrisonandMilbrandtFig2.svg", fig)
+    Plt.save("MorrisonandMilbrandtFig2_$(F_liq).svg", fig)
 end
 #! format: on
 
-# Terminal Velocity figure
-figure_2()
+# Terminal Velocity figures
+F_liq = [FT(0), FT(0.33), FT(0.67), FT(0.99)]
+for i in F_liq
+    figure_2(i)
+end

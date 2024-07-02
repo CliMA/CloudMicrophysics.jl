@@ -185,6 +185,11 @@ D_m = \frac{\int_{0}^{\infty} \! D m(D) N'(D) \mathrm{d}D}{\int_{0}^{\infty} \! 
 Below w show these relationships for small, medium, and large ``D_m``
 They can be compared with Figure 2 from [MorrisonMilbrandt2015](@cite).
 ```@example
-include("plots/P3TerminalVelocityPlots.jl")
+include("plots/P3TerminalVelocityPlots_TestingLiquidFraction.jl")
 ```
-![](MorrisonandMilbrandtFig2.svg)
+![](MorrisonandMilbrandtFig2_0.0.svg)
+![](MorrisonandMilbrandtFig2_0.33.svg)
+![](MorrisonandMilbrandtFig2_0.67.svg)
+![](MorrisonandMilbrandtFig2_0.99.svg)
+
+
