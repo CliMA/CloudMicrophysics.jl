@@ -8,6 +8,8 @@ main
 
 v0.20.0
 ------
+- Added modified terminal velocity without limiters for SB2006 ([#415](https://github.com/CliMA/CloudMicrophysics.jl/pull/415))
+
 - Add lognormal droplet distribution in parcel model ([#414](https://github.com/CliMA/CloudMicrophysics.jl/pull/414))
 
 - Added calling function to grab artifacts ([#413](https://github.com/CliMA/CloudMicrophysics.jl/pull/413))

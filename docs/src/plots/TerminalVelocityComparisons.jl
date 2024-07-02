@@ -252,12 +252,12 @@ p2 = PL.plot!(q_rain_range * 1e3, SB_rain_bM, linewidth = 3, xlabel = "q_rain [g
 p2 = PL.plot!(q_rain_range * 1e3, Ch_rain_bM, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-Chen2022 [M]", color = 2)
 p2 = PL.plot!(q_rain_range * 1e3, M1_rain_bM, linewidth = 3, xlabel = "q_rain [g/kg]", ylabel = "terminal velocity [m/s]", label = "Rain-default-1M [M]", color = 3)
 # SB2006 group velocities vs. mean radius
-p3 = PL.scatter(r_mean, SB_rain_bN_rm, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND]")
-p3 = PL.scatter!(r_mean, SB_rain_bN_rm_nolim, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND], no lim")
-p3 = PL.plot!(xlim = [0, 600], ylim = [0, 3.0])
-p4 = PL.scatter(r_mean, SB_rain_bM_rm, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M]")
-p4 = PL.scatter!(r_mean, SB_rain_bM_rm_nolim, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [μm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M], no lim")
-p4 = PL.plot!(xlim = [0, 600], ylim = [0, 7.5])
+p3 = PL.scatter(r_mean./1000, SB_rain_bN_rm, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [mm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND]")
+p3 = PL.scatter!(r_mean./1000, SB_rain_bN_rm_nolim, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [mm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [ND], no lim")
+p3 = PL.plot!(xlim = [0, 2], ylim = [0, 5.5])
+p4 = PL.scatter(r_mean./1000, SB_rain_bM_rm, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [mm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M]")
+p4 = PL.scatter!(r_mean./1000, SB_rain_bM_rm_nolim, ms = 1.0, markerstrokewidth=0, xlabel = "r_mean [mm]", ylabel = "terminal velocity [m/s]", label = "Rain-SB2006 [M], no lim")
+p4 = PL.plot!(xlim = [0, 2], ylim = [0, 10])
 # save plot
 PL.plot(p1, p2, p3, p4, layout = (2, 2), size = (800, 800), dpi = 300)
 PL.savefig("2M_terminal_velocity_comparisons.svg")
