@@ -8,6 +8,8 @@ main
 
 v0.20.0
 ------
+- Add lognormal droplet distribution in parcel model ([#414](https://github.com/CliMA/CloudMicrophysics.jl/pull/414))
+
 - Added calling function to grab artifacts ([#413](https://github.com/CliMA/CloudMicrophysics.jl/pull/413))
 
 - API change:

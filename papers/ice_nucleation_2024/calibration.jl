@@ -21,7 +21,7 @@ function run_model(p, coefficients, IN_mode, FT, IC)
     m_calibrated, c_calibrated = coefficients
     (; const_dt, w, t_max, deposition_growth, condensation_growth) = p
     (; dep_nucleation, heterogeneous, homogeneous) = p
-    (; size_distribution, distribution_parameters) = p
+    (; liq_size_distribution, liq_size_distribution) = p
 
     if IN_mode == "ABDINM"
         # overwriting
@@ -42,8 +42,8 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             deposition = dep_nucleation,
             condensation_growth = condensation_growth,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
-            distribution_parameters = distribution_parameters,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
         )
 
         # solve ODE
@@ -69,8 +69,8 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             heterogeneous = heterogeneous,
             condensation_growth = condensation_growth,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
-            distribution_parameters = distribution_parameters,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
         )
 
         # solve ODE
@@ -95,7 +95,8 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             homogeneous = homogeneous,
             condensation_growth = condensation_growth,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
             distribution_parameters = distribution_parameters,
             ips = overwrite,
         )
@@ -131,8 +132,8 @@ function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
             homogeneous = homogeneous,
             condensation_growth = condensation_growth,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
-            distribution_parameters = distribution_parameters,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
             ips = overwrite,
         )
 

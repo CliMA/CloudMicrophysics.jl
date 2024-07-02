@@ -81,7 +81,7 @@ function Tully_et_al_2023(FT)
             aerosol = aerosol,
             deposition = mode,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            liq_size_distribution = size_distribution,
         )
         # Simulation 1
         IC1 = get_initial_condition(

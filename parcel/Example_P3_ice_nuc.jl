@@ -70,7 +70,7 @@ for it in [1, 2, 3]
             w = w,
             deposition = mode,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            ice_size_distribution = size_distribution,
         )
     elseif mode == "P3_het"
         local params = parcel_params{FT}(
@@ -79,7 +79,7 @@ for it in [1, 2, 3]
             w = w,
             heterogeneous = mode,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            ice_size_distribution = size_distribution,
         )
     elseif mode == "P3_hom"
         local params = parcel_params{FT}(
@@ -88,7 +88,7 @@ for it in [1, 2, 3]
             w = w,
             homogeneous = mode,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            ice_size_distribution = size_distribution,
         )
     end
     # solve ODE

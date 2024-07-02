@@ -12,8 +12,8 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     homogeneous = "None"
     condensation_growth = "None"
     deposition_growth = "None"
-    size_distribution = "Monodisperse"
-    distribution_parameters = "None"
+    liq_size_distribution = "Monodisperse"
+    ice_size_distribution = "Monodisperse"
     aerosol = Empty{FT}()
     wps = CMP.WaterProperties(FT)
     aps = CMP.AirProperties(FT)
@@ -43,7 +43,7 @@ function parcel_model(dY, Y, p, t)
     FT = eltype(Y)
     # Simulation parameters
     (; wps, tps, r_nuc, w) = p
-    (; distr, distr_params) = p
+    (; liq_distr, ice_distr) = p
     (; dep_params, imm_params, hom_params, ce_params, ds_params) = p
     # Y values stored in a named tuple for ease of use
     state = (
@@ -88,9 +88,8 @@ function parcel_model(dY, Y, p, t)
     a5 = L_vap * L_fus / Rᵥ / cp_air / (T^2)
 
     # Mean radius, area and volume of liquid droplets and ice crystals
-    PSD =
-        distribution_moments(distr, qₗ, Nₗ, ρₗ, ρ_air, qᵢ, Nᵢ, ρᵢ, distr_params)
-
+    PSD_liq = distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air)
+    PSD_ice = distribution_moments(ice_distr, qᵢ, Nᵢ, ρᵢ, ρ_air)
     # Deposition ice nucleation
     # (All deposition parameterizations assume monodisperse aerosol size distr)
     dNᵢ_dt_dep = deposition_nucleation(dep_params, state, dY)
@@ -99,17 +98,17 @@ function parcel_model(dY, Y, p, t)
     # Heterogeneous ice nucleation
     #@info(imm_params)
     dln_INPC_imm = INPC_model(imm_params, state)
-    dNᵢ_dt_imm = immersion_freezing(imm_params, PSD, state)
-    dqᵢ_dt_imm = dNᵢ_dt_imm * PSD.Vₗ * ρᵢ / ρ_air
+    dNᵢ_dt_imm = immersion_freezing(imm_params, PSD_liq, state)
+    dqᵢ_dt_imm = dNᵢ_dt_imm * PSD_liq.V * ρᵢ / ρ_air
 
     # Homogeneous ice nucleation
-    dNᵢ_dt_hom = homogeneous_freezing(hom_params, PSD, state)
-    dqᵢ_dt_hom = dNᵢ_dt_hom * PSD.Vₗ * ρᵢ / ρ_air
+    dNᵢ_dt_hom = homogeneous_freezing(hom_params, PSD_liq, state)
+    dqᵢ_dt_hom = dNᵢ_dt_hom * PSD_liq.V * ρᵢ / ρ_air
 
     # Condensation/evaporation
-    dqₗ_dt_ce = condensation(ce_params, PSD, state, ρ_air)
+    dqₗ_dt_ce = condensation(ce_params, PSD_liq, state, ρ_air)
     # Deposition/sublimation
-    dqᵢ_dt_ds = deposition(ds_params, PSD, state, ρ_air)
+    dqᵢ_dt_ds = deposition(ds_params, PSD_ice, state, ρ_air)
 
     # number concentration and ...
     dNᵢ_dt = dNᵢ_dt_dep + dNᵢ_dt_imm + dNᵢ_dt_hom
@@ -195,16 +194,22 @@ function run_parcel(IC, t_0, t_end, pp)
 
     FT = eltype(IC)
 
-    info = "\nSize distribution: $(pp.size_distribution)\n"
-    if pp.size_distribution == "Monodisperse"
-        distr = Monodisperse{FT}()
-        distr_params = nothing
-    elseif pp.size_distribution == "Gamma"
-        distr = Gamma{FT}()
-        distr_params = nothing
-    elseif pp.size_distribution == "Lognormal"
-        distr = Lognormal{FT}()
-        distr_params = pp.distribution_parameters
+    info = "\nSize distribution (liq): $(pp.liq_size_distribution)\n"
+    if pp.liq_size_distribution == "Monodisperse"
+        liq_distr = Monodisperse{FT}()
+    elseif pp.liq_size_distribution == "Gamma"
+        liq_distr = Gamma{FT}()
+    elseif pp.liq_size_distribution == "Lognormal"
+        liq_distr = Lognormal{FT}(pp.σ_g)
+    else
+        throw("Unrecognized size distribution")
+    end
+
+    info *= "Size distribution (ice): $(pp.ice_size_distribution)\n"
+    if pp.ice_size_distribution == "Monodisperse"
+        ice_distr = Monodisperse{FT}()
+    elseif pp.ice_size_distribution == "Gamma"
+        ice_distr = Gamma{FT}()
     else
         throw("Unrecognized size distribution")
     end
@@ -276,8 +281,8 @@ function run_parcel(IC, t_0, t_end, pp)
 
     # Parameters for the ODE solver
     p = (
-        distr = distr,
-        distr_params = distr_params,
+        liq_distr = liq_distr,
+        ice_distr = ice_distr,
         dep_params = dep_params,
         imm_params = imm_params,
         hom_params = hom_params,

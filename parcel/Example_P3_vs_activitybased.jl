@@ -94,7 +94,7 @@ for deposition in deposition_modes
             aerosol = aerosol_none,
             deposition = deposition,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            liq_size_distribution = size_distribution,
         )
         # solve ODE
         local sol = run_parcel(IC_dep, FT(0), t_max, params)
@@ -111,7 +111,7 @@ for deposition in deposition_modes
                 aerosol = aerosol,
                 deposition = deposition,
                 deposition_growth = deposition_growth,
-                size_distribution = size_distribution,
+                liq_size_distribution = size_distribution,
             )
             # solve ODE
             local sol = run_parcel(IC_dep, FT(0), t_max, params)
@@ -139,7 +139,7 @@ for heterogeneous in heterogeneous_modes
             aerosol = aerosol_none,
             heterogeneous = heterogeneous,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            liq_size_distribution = size_distribution,
         )
         # solve ODE
         local sol = run_parcel(IC_het, FT(0), t_max, params)
@@ -156,7 +156,7 @@ for heterogeneous in heterogeneous_modes
                 aerosol = aerosol,
                 heterogeneous = heterogeneous,
                 deposition_growth = deposition_growth,
-                size_distribution = size_distribution,
+                liq_size_distribution = size_distribution,
             )
             # solve ODE
             local sol = run_parcel(IC_het, FT(0), t_max, params)
@@ -189,7 +189,7 @@ for homogeneous in homogeneous_modes
         aerosol = aerosol_none,
         homogeneous = homogeneous,
         deposition_growth = deposition_growth,
-        size_distribution = size_distribution,
+        liq_size_distribution = size_distribution,
     )
     # solve ODE
     local sol = run_parcel(IC_hom, FT(0), t_max, params)

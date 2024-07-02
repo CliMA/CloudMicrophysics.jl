@@ -63,7 +63,7 @@ for const_dt in const_dt_range
         heterogeneous = "Frostenberg_mean",
         condensation_growth = condensation_growth,
         deposition_growth = deposition_growth,
-        size_distribution = DSD,
+        liq_size_distribution = DSD,
     )
     # solve ODE
     sol = run_parcel(IC, FT(0), t_max, params)
@@ -88,7 +88,7 @@ for (const_dt, n_dt_range) in zip(const_dt_range, n_dt_range_12)
                 heterogeneous = "Frostenberg_random",
                 condensation_growth = condensation_growth,
                 deposition_growth = deposition_growth,
-                size_distribution = DSD,
+                liq_size_distribution = DSD,
                 sampling_interval = sampling_interval,
             )
             # solve ODE
@@ -121,7 +121,7 @@ for const_dt in const_dt_range
                 heterogeneous = "Frostenberg_stochastic",
                 condensation_growth = condensation_growth,
                 deposition_growth = deposition_growth,
-                size_distribution = DSD,
+                liq_size_distribution = DSD,
                 γ = γ,
             )
             # solve ODE
