@@ -429,16 +429,8 @@ function rain_terminal_velocity(
     # TODO: Input argument list needs to be redesigned
 
     λr = pdf_rain(pdf_r, q_rai, ρ, N_rai).λr
-
-    # Compute prefactors to integrate velocity of particles over a range of r with
-    # positive terminal velocity (v = aR - bR exp(-lambda D))
-    _rc = -1 / (2 * cR) * log(aR / bR)
-    _Γ_1(t) = exp(-t)
-    _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
-    _pa0::FT = _Γ_1(2 * _rc * λr)
-    _pb0::FT = _Γ_1(2 * _rc * (λr + cR))
-    _pa1::FT = _Γ_4(2 * _rc * λr) / FT(6)
-    _pb1::FT = _Γ_4(2 * _rc * (λr + cR)) / FT(6)
+    _pa0, _pb0, _pa1, _pb1 =
+        _sb_rain_terminal_velocity_helper(pdf_r, λr, aR, bR, cR)
 
     vt0 =
         N_rai < eps(FT) ? FT(0) :
@@ -468,6 +460,33 @@ function rain_terminal_velocity(
     vt3 = q_rai < eps(FT) ? FT(0) : max(FT(0), vt3)
     # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
     return (vt0, vt3)
+end
+function _sb_rain_terminal_velocity_helper(
+    pdf_r::CMP.RainParticlePDF_SB2006_limited{FT},
+    λr,
+    aR,
+    bR,
+    cR,
+) where {FT}
+    return (FT(1), FT(1), FT(1), FT(1))
+end
+function _sb_rain_terminal_velocity_helper(
+    pdf_r::CMP.RainParticlePDF_SB2006{FT},
+    λr,
+    aR,
+    bR,
+    cR,
+) where {FT}
+    # Integrate velocity of particles over a range of r with
+    # positive terminal velocity (v = aR - bR exp(-lambda D))
+    _rc = -1 / (2 * cR) * log(aR / bR)
+    _Γ_1(t) = exp(-t)
+    _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
+    _pa0::FT = _Γ_1(2 * _rc * λr)
+    _pb0::FT = _Γ_1(2 * _rc * (λr + cR))
+    _pa1::FT = _Γ_4(2 * _rc * λr) / FT(6)
+    _pb1::FT = _Γ_4(2 * _rc * (λr + cR)) / FT(6)
+    return (_pa0, _pb0, _pa1, _pb1)
 end
 
 """

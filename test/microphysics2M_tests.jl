@@ -371,7 +371,7 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity with limiters" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(1e-6)
@@ -379,43 +379,81 @@ function test_microphysics2M(FT)
 
         (; ρ0, aR, bR, cR) = SB2006Vel
 
-        for SB in [SB2006, SB2006_no_limiters]
+        #action
+        vt_rai = CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rai, ρ, N_rai)
 
-            #action
-            vt_rai = CM2.rain_terminal_velocity(SB, SB2006Vel, q_rai, ρ, N_rai)
+        λr = CM2.pdf_rain(SB2006.pdf_r, q_rai, ρ, N_rai).λr
+        vt0 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)))
+        vt1 = max(0, sqrt(ρ0 / ρ) * (aR - bR / (1 + cR / λr)^4))
 
-            λr = CM2.pdf_rain(SB.pdf_r, q_rai, ρ, N_rai).λr
-            _rc = -1 / (2 * cR) * log(aR / bR)
-            _Γ_1(t) = exp(-t)
-            _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
-            _pa0 = _Γ_1(2 * _rc * λr)
-            _pb0 = _Γ_1(2 * _rc * (λr + cR))
-            _pa1 = _Γ_4(2 * _rc * λr) / FT(6)
-            _pb1 = _Γ_4(2 * _rc * (λr + cR)) / FT(6)
-            vt0 = max(0, sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR / λr)))
-            vt1 =
-                max(0, sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR / λr)^4))
+        #test
+        TT.@test vt_rai isa Tuple
+        TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
+        TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
 
-            #test
-            TT.@test vt_rai isa Tuple
-            TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
-            TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
+        TT.@test CM2.rain_terminal_velocity(
+            SB2006,
+            SB2006Vel,
+            q_rai,
+            ρ,
+            FT(0),
+        )[1] ≈ 0 atol = eps(FT)
+        TT.@test CM2.rain_terminal_velocity(
+            SB2006,
+            SB2006Vel,
+            FT(0),
+            ρ,
+            N_rai,
+        )[2] ≈ 0 atol = eps(FT)
+    end
 
-            TT.@test CM2.rain_terminal_velocity(
-                SB,
-                SB2006Vel,
-                q_rai,
-                ρ,
-                FT(0),
-            )[1] ≈ 0 atol = eps(FT)
-            TT.@test CM2.rain_terminal_velocity(
-                SB,
-                SB2006Vel,
-                FT(0),
-                ρ,
-                N_rai,
-            )[2] ≈ 0 atol = eps(FT)
-        end
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 modified rain terminal velocity without limiters" begin
+        #setup
+        ρ = FT(1.1)
+        q_rai = FT(1e-6)
+        N_rai = FT(1e4)
+
+        (; ρ0, aR, bR, cR) = SB2006Vel
+
+        #action
+        vt_rai = CM2.rain_terminal_velocity(
+            SB2006_no_limiters,
+            SB2006Vel,
+            q_rai,
+            ρ,
+            N_rai,
+        )
+
+        λr = CM2.pdf_rain(SB2006_no_limiters.pdf_r, q_rai, ρ, N_rai).λr
+        _rc = -1 / (2 * cR) * log(aR / bR)
+        _Γ_1(t) = exp(-t)
+        _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
+        _pa0 = _Γ_1(2 * _rc * λr)
+        _pb0 = _Γ_1(2 * _rc * (λr + cR))
+        _pa1 = _Γ_4(2 * _rc * λr) / FT(6)
+        _pb1 = _Γ_4(2 * _rc * (λr + cR)) / FT(6)
+        vt0 = max(0, sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR / λr)))
+        vt1 = max(0, sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR / λr)^4))
+
+        #test
+        TT.@test vt_rai isa Tuple
+        TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
+        TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
+
+        TT.@test CM2.rain_terminal_velocity(
+            SB2006_no_limiters,
+            SB2006Vel,
+            q_rai,
+            ρ,
+            FT(0),
+        )[1] ≈ 0 atol = eps(FT)
+        TT.@test CM2.rain_terminal_velocity(
+            SB2006_no_limiters,
+            SB2006Vel,
+            FT(0),
+            ρ,
+            N_rai,
+        )[2] ≈ 0 atol = eps(FT)
     end
 
     TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity" begin

@@ -239,7 +239,7 @@ function benchmark_test(FT)
         bench_press(
             CM2.rain_terminal_velocity,
             (sb, sb2006vel, q_rai, ρ_air, N_rai),
-            1000,
+            700,
         )
         bench_press(
             CM2.rain_terminal_velocity,
