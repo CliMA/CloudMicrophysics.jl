@@ -21,7 +21,7 @@ function run_model(p, coefficients, IN_mode, FT, IC)
     m_calibrated, c_calibrated = coefficients
     (; const_dt, w, t_max, deposition_growth, condensation_growth) = p
     (; dep_nucleation, heterogeneous, homogeneous) = p
-    (; liq_size_distribution, liq_size_distribution) = p
+    (; liq_size_distribution, ice_size_distribution, σ_g) = p
 
     if IN_mode == "ABDINM"
         # overwriting
@@ -89,17 +89,31 @@ function run_model(p, coefficients, IN_mode, FT, IC)
         overwrite = CMP.IceNucleationParameters(ip_calibrated)
 
         # run parcel with new coefficients
-        local params = parcel_params{FT}(
-            const_dt = const_dt,
-            w = w,
-            homogeneous = homogeneous,
-            condensation_growth = condensation_growth,
-            deposition_growth = deposition_growth,
-            liq_size_distribution = liq_size_distribution,
-            ice_size_distribution = ice_size_distribution,
-            distribution_parameters = distribution_parameters,
-            ips = overwrite,
-        )
+        # TODO - need better way to call σ_g. Rename σ_g to σ_g_liq or something.
+        if liq_size_distribution == "Lognormal"
+            local params = parcel_params{FT}(
+                const_dt = const_dt,
+                w = w,
+                homogeneous = homogeneous,
+                condensation_growth = condensation_growth,
+                deposition_growth = deposition_growth,
+                liq_size_distribution = liq_size_distribution,
+                ice_size_distribution = ice_size_distribution,
+                σ_g = σ_g,
+                ips = overwrite,
+            )
+        else
+            local params = parcel_params{FT}(
+                const_dt = const_dt,
+                w = w,
+                homogeneous = homogeneous,
+                condensation_growth = condensation_growth,
+                deposition_growth = deposition_growth,
+                liq_size_distribution = liq_size_distribution,
+                ice_size_distribution = ice_size_distribution,
+                ips = overwrite,
+            )
+        end
 
         # solve ODE
         local sol = run_parcel(IC, FT(0), t_max, params)
@@ -110,7 +124,8 @@ end
 function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
     # grabbing parameters
     m_calibrated, c_calibrated = coefficients
-    (; const_dt, w, t_max, deposition_growth, size_distribution, distribution_parameters) = p
+    (; const_dt, w, t_max, deposition_growth) = p
+    (; liq_size_distribution, ice_size_distribution, σ_g) = p
     
     if IN_mode == "ABHOM"
         (; homogeneous, condensation_growth) = p
@@ -134,6 +149,7 @@ function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
             deposition_growth = deposition_growth,
             liq_size_distribution = liq_size_distribution,
             ice_size_distribution = ice_size_distribution,
+            σ_g = σ_g,
             ips = overwrite,
         )
 

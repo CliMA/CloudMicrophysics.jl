@@ -14,6 +14,7 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     deposition_growth = "None"
     liq_size_distribution = "Monodisperse"
     ice_size_distribution = "Monodisperse"
+    σ_g = FT(0)
     aerosol = Empty{FT}()
     wps = CMP.WaterProperties(FT)
     aps = CMP.AirProperties(FT)

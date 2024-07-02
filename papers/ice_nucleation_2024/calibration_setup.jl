@@ -140,14 +140,14 @@ function AIDA_IN05_params(FT, w, t_max)
     homogeneous = "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
-    size_distribution = "Lognormal"
+    liq_size_distribution = "Lognormal"
+    ice_size_distribution = "Gamma"
     σ_g = FT(2.3)
-    distribution_parameters = (; σ_g)
 
     params = (; const_dt, w, t_max,
-        condensation_growth, deposition_growth,     # growth
-        size_distribution, distribution_parameters, # size distribution
-        dep_nucleation, heterogeneous, homogeneous, # nucleation
+        condensation_growth, deposition_growth,             # growth
+        liq_size_distribution, ice_size_distribution, σ_g,  # size distribution
+        dep_nucleation, heterogeneous, homogeneous,         # nucleation
     )
     return params
 end
