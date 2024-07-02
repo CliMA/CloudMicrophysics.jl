@@ -62,7 +62,7 @@ for deposition in deposition_modes
                 aerosol = aerosol,
                 deposition = deposition,
                 deposition_growth = deposition_growth,
-                size_distribution = size_distribution,
+                ice_size_distribution = size_distribution,
             )
             # solve ODE
             local sol = run_parcel(IC, FT(0), t_max, params)
@@ -93,7 +93,7 @@ for deposition in deposition_modes
                 aerosol = aerosol,
                 deposition = deposition,
                 deposition_growth = deposition_growth,
-                size_distribution = size_distribution,
+                ice_size_distribution = size_distribution,
             )
             # solve ODE
             local sol = run_parcel(IC, FT(0), t_max, params)

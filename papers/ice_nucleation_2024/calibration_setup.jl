@@ -13,7 +13,8 @@ function perf_model_params(FT, IN_mode)
         homogeneous = "None"
         condensation_growth = "None"
         deposition_growth = "Deposition"
-        size_distribution = "Monodisperse"
+        liq_size_distribution = "Monodisperse"
+        ice_size_distribution = "Monodisperse"
     elseif IN_mode == "ABIFM"
         const_dt = FT(1)
         w = FT(0.4)
@@ -22,7 +23,8 @@ function perf_model_params(FT, IN_mode)
         homogeneous = "None"
         condensation_growth = "Condensation"
         deposition_growth = "Deposition"
-        size_distribution = "Monodisperse"
+        liq_size_distribution = "Monodisperse"
+        ice_size_distribution = "Monodisperse"
     elseif IN_mode == "ABHOM"
         const_dt = FT(1)
         w = FT(1)
@@ -31,12 +33,13 @@ function perf_model_params(FT, IN_mode)
         homogeneous = "ABHOM"
         condensation_growth = "None"
         deposition_growth = "Deposition"
-        size_distribution = "Monodisperse"
+        liq_size_distribution = "Monodisperse"
+        ice_size_distribution = "Monodisperse"
     end
     params = (; const_dt, w,
-        condensation_growth, deposition_growth,     # growth
-        size_distribution,                          # size distribution
-        dep_nucleation, heterogeneous, homogeneous, # nucleation
+        condensation_growth, deposition_growth,         # growth
+        liq_size_distribution, ice_size_distribution,   # size distribution
+        dep_nucleation, heterogeneous, homogeneous,     # nucleation
     )
     return params
 end

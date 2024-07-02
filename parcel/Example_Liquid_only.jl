@@ -40,7 +40,7 @@ IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 w = FT(10)                                 # updraft speed
 const_dt = FT(0.5)                         # model timestep
 t_max = FT(20)
-size_distribution_list = ["Monodisperse", "Gamma"]
+liq_size_distribution_list = ["Monodisperse", "Gamma"]
 condensation_growth = "Condensation"
 
 # Data from Rogers(1975) Figure 1
@@ -62,9 +62,9 @@ ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
 MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
-for DSD in size_distribution_list
+for DSD in liq_size_distribution_list
     local params = parcel_params{FT}(
-        size_distribution = DSD,
+        liq_size_distribution = DSD,
         condensation_growth = condensation_growth,
         const_dt = const_dt,
         w = w,
@@ -90,13 +90,13 @@ for DSD in size_distribution_list
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
     local ρₐ = TD.air_density.(tps, ts)
     # Compute the mean particle size based on the distribution
-    distr = sol.prob.p.distr
-    moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ, sol_qᵢ, Nᵢ, ρᵢ)
-    local rₗ = similar(sol_T)
+    distr = sol.prob.p.liq_distr
+    moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ)
+    local r = similar(sol_T)
     for it in range(1, length(sol_T))
-        rₗ[it] = moms[it].rₗ
+        r[it] = moms[it].r
     end
-    MK.lines!(ax5, sol.t, rₗ * 1e6)
+    MK.lines!(ax5, sol.t, r * 1e6)
 end
 
 MK.axislegend(

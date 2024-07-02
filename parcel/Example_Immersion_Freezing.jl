@@ -64,7 +64,8 @@ for DSD in size_distribution_list
         heterogeneous = heterogeneous,
         condensation_growth = condensation_growth,
         deposition_growth = deposition_growth,
-        size_distribution = DSD,
+        liq_size_distribution = DSD,
+        ice_size_distribution = DSD,
     )
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)

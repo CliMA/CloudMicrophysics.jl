@@ -19,7 +19,8 @@ include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup
 function run_model(p, coefficients, IN_mode, FT, IC)
     # grabbing parameters
     m_calibrated, c_calibrated = coefficients
-    (; const_dt, w, deposition_growth, size_distribution) = p
+    (; const_dt, w, deposition_growth) = p
+    (; liq_size_distribution, ice_size_distribution) = p
 
     t_max = FT(100)
 
@@ -43,7 +44,8 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             aerosol = overwrite,
             deposition = dep_nucleation,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
         )
 
         # solve ODE
@@ -71,7 +73,8 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             heterogeneous = heterogeneous,
             condensation_growth = condensation_growth,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
         )
 
         # solve ODE
@@ -97,7 +100,8 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             w = w,
             homogeneous = homogeneous,
             deposition_growth = deposition_growth,
-            size_distribution = size_distribution,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
             ips = overwrite,
         )
 
