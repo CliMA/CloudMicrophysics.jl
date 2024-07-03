@@ -91,7 +91,8 @@ function conv_q_vap_to_q_liq_ice(
 
     dqsldT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.liq,L)
 
-    dqsidT = FT(1) # i dont see anything in thermo to calculate this? might need to do myself
+    dqsidT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.ice,L) # just changing the phase? is that enough?
+    #FT(1) # i dont see anything in thermo to calculate this? might need to do myself
     # ask Amy
 
     Γₗ = FT(1) + (L_v/cp_air)*dqsldT
@@ -112,6 +113,8 @@ function conv_q_vap_to_q_liq_ice(
 
     # solving for new Sl after timestep delta t:
     Sₗ = (1/q_sat.liq)*(A_c * τ/(ice.τ_relax * Γₗ) + (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))) + 1
+
+    # a question -- is this Sl or total S?
 
     return Sₗ
 end

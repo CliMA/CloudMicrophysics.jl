@@ -26,7 +26,7 @@ Nₗ = FT(200 * 1e6)
 Nᵢ = FT(0)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
-T₀ = FT(273.15 + 7.0)
+T₀ = FT(200.15 + 7.0)
 ln_INPC = FT(0)
 e = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 Sₗ = FT(1)
@@ -61,6 +61,7 @@ ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
 ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
 ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
+ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]")
 MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
@@ -81,6 +82,7 @@ for DSD in size_distribution_list
     MK.lines!(ax2, sol.t, sol[3, :])
     MK.lines!(ax3, sol.t, sol[4, :] * 1e3)
     MK.lines!(ax4, sol.t, sol[5, :] * 1e3)
+    MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
 
     sol_Nₗ = sol[8, :]
     sol_Nᵢ = sol[9, :]
