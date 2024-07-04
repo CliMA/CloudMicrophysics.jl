@@ -560,7 +560,10 @@ function rain_evaporation(
         evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv0 / xr)
         evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
 
-        evap_rate_0 = N_rai < eps(FT) ? FT(0) : evap_rate_0
+        # When xr = 0 evap_rate_0 becomes NaN. We replace NaN with 0 which is the limit of 
+        # evap_rate_0 for xr -> 0.
+        evap_rate_0 =
+            N_rai < eps(FT) || xr / x_star < eps(FT) ? FT(0) : evap_rate_0
         evap_rate_1 = q_rai < eps(FT) ? FT(0) : evap_rate_1
     end
 
