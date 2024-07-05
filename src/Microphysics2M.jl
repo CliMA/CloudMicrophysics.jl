@@ -620,8 +620,9 @@ function radar_reflectivity(
         C^(νr + 1) *
         (Br * C^μr)^(-(3 + νr) / μr) *
         SF.gamma((3 + νr) / μr) / μr
+    Z = (Zc + Zr) < FT(0) ? FT(0) : (Zc + Zr)
 
-    return max(FT(-150), 10 * (log10(Zc + Zr) - log_10_Z₀))
+    return max(FT(-150), 10 * (log10(Z) - log_10_Z₀))
 end
 
 """
