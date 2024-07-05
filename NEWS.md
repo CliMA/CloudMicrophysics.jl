@@ -5,6 +5,7 @@ main
 ------
 <!--- # Add changes since the most recent release here --->
 
+- Bugfix; fixed the evaporation scheme of SB2006 to prevent returning NaN values when limiters are not applied. ([#420](https://github.com/CliMA/CloudMicrophysics.jl/pull/415))
 
 v0.20.0
 ------

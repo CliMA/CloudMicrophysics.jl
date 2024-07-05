@@ -553,6 +553,19 @@ function test_microphysics2M(FT)
                 T,
             ).evap_rate_1 ≈ 0 atol = eps(FT)
         end
+
+        # test limit case: xr = 0 for SB with no limiters
+        TT.@test CM2.rain_evaporation(
+            SB2006_no_limiters,
+            aps,
+            tps,
+            q,
+            FT(0),
+            ρ,
+            N_rai,
+            T,
+        ).evap_rate_0 ≈ 0 atol = eps(FT)
+
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 effective radius and reflectivity" begin
