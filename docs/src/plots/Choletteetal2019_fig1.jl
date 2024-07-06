@@ -72,7 +72,7 @@ function terminal_velocity_Dhelper_snowice(
             16 * p3.ρ_i^2 * (F_r * π / 4 * D^2 + (1 - F_r) * p3.γ * D^p3.σ)^3 /
             (9 * π * (α_va / (1 - F_r) * D^p3.β_va)^2)
         )^κ
-    
+
     v_snow_ice = 0
 
     v(a, b, c) = a * D^b * exp(-c * D)
@@ -132,7 +132,7 @@ function terminal_velocity_Dhelper_liq(
     v(D, a, b, c) = a * D^b * exp(-c * D)
     v_liq = 0
     for i in 1:3
-       v_liq += v(D, get_p(small, i)...)
+        v_liq += v(D, get_p(small, i)...)
     end
     return v_liq
 end
@@ -161,8 +161,14 @@ function terminal_velocity_Dhelper(
     F_r::FT,
     ρ_a::FT,
 ) where {FT}
-    return (1 - F_liq) *
-           terminal_velocity_Dhelper_snowice(p3, Chen2022_ice, D, ρ_r, F_r, ρ_a) +
+    return (1 - F_liq) * terminal_velocity_Dhelper_snowice(
+        p3,
+        Chen2022_ice,
+        D,
+        ρ_r,
+        F_r,
+        ρ_a,
+    ) +
            F_liq * terminal_velocity_Dhelper_liq(
         p3,
         Chen2022_rain,
@@ -181,27 +187,28 @@ function get_values(
     F_liq::FT,
     F_r::FT,
     ρ_a::FT,
-    res::Int) where {FT <: Real}
+    res::Int,
+) where {FT <: Real}
 
     # particle dimension from 0 to 1 cm
     D_ps = range(FT(0), stop = FT(0.01), length = res)
 
-    # try ρ_r = 900
+    # ρ_r = 900
     ρ_r = FT(900)
 
     V_m = zeros(res)
 
     for i in 1:res
-            V_m[i] = terminal_velocity_Dhelper(
-                p3,
-                Chen2022_ice,
-                Chen2022_rain,
-                D_ps[i],
-                ρ_r,
-                F_liq,
-                F_r,
-                ρ_a
-            )
+        V_m[i] = terminal_velocity_Dhelper(
+            p3,
+            Chen2022_ice,
+            Chen2022_rain,
+            D_ps[i],
+            ρ_r,
+            F_liq,
+            F_r,
+            ρ_a,
+        )
     end
     return (D_ps, V_m)
 end
@@ -209,10 +216,10 @@ end
 function fig1()
     Chen2022 = CMP.Chen2022VelType(FT)
     ρ_a = FT(1.2)
-    
+
     F_liqs = (FT(0), FT(0.33), FT(0.67), FT(1))
     F_rs = (FT(0), FT(1 - eps(FT)))
-    
+
     labels = ["F_liq = 0", "F_liq = 0.33", "F_liq = 0.67", "F_liq = 1"]
     colors = [:black, :blue, :red, :green]
     res = 50
@@ -220,25 +227,67 @@ function fig1()
     fig = Plt.Figure(size = (1200, 400))
 
     #F_r = 0
-    ax1 = Plt.Axis(fig[1:7, 1:9], title = "Fᵣ = 0", xlabel = "Dₚ (m)", ylabel = "V (m s⁻¹)")
-    
+    ax1 = Plt.Axis(
+        fig[1:7, 1:9],
+        title = "Fᵣ = 0",
+        xlabel = "Dₚ (m)",
+        ylabel = "V (m s⁻¹)",
+    )
+
     for i in 1:4
-        D_ps, V_0 = get_values(p3, Chen2022.snow_ice, Chen2022.rain, F_liqs[i], F_rs[1], ρ_a, res)
+        D_ps, V_0 = get_values(
+            p3,
+            Chen2022.snow_ice,
+            Chen2022.rain,
+            F_liqs[i],
+            F_rs[1],
+            ρ_a,
+            res,
+        )
         Plt.lines!(ax1, D_ps, V_0, color = colors[i], label = labels[i])
     end
 
     # F_r = 1
-    ax2 = Plt.Axis(fig[1:7, 10:18], title = "Fᵣ = 1", xlabel = "Dₚ (m)", ylabel = "V (m s⁻¹)")
+    ax2 = Plt.Axis(
+        fig[1:7, 10:18],
+        title = "Fᵣ = 1",
+        xlabel = "Dₚ (m)",
+        ylabel = "V (m s⁻¹)",
+    )
     for i in 1:4
-        D_ps, V_1 = get_values(p3, Chen2022.snow_ice, Chen2022.rain, F_liqs[i], F_rs[2], ρ_a, res)
+        D_ps, V_1 = get_values(
+            p3,
+            Chen2022.snow_ice,
+            Chen2022.rain,
+            F_liqs[i],
+            F_rs[2],
+            ρ_a,
+            res,
+        )
         Plt.lines!(ax2, D_ps, V_1, color = colors[i], label = labels[i])
     end
 
-    Plt.Legend(fig[4, 19:22], [Plt.LineElement(color=:black), Plt.LineElement(color=:blue), Plt.LineElement(color=:red), Plt.LineElement(color=:green)], labels, framevisible = false)
-    
+    Plt.Legend(
+        fig[4, 19:22],
+        [
+            Plt.LineElement(color = :black),
+            Plt.LineElement(color = :blue),
+            Plt.LineElement(color = :red),
+            Plt.LineElement(color = :green),
+        ],
+        labels,
+        framevisible = false,
+    )
+
     Plt.linkaxes!(ax1, ax2)
-    ax1.xticks = ([0, 0.002, 0.004, 0.006, 0.008, 0.01], string.([0, 0.002, 0.004, 0.006, 0.008, 0.01]))
-    ax2.xticks = ([0, 0.002, 0.004, 0.006, 0.008, 0.01], string.([0, 0.002, 0.004, 0.006, 0.008, 0.01]))
+    ax1.xticks = (
+        [0, 0.002, 0.004, 0.006, 0.008, 0.01],
+        string.([0, 0.002, 0.004, 0.006, 0.008, 0.01]),
+    )
+    ax2.xticks = (
+        [0, 0.002, 0.004, 0.006, 0.008, 0.01],
+        string.([0, 0.002, 0.004, 0.006, 0.008, 0.01]),
+    )
 
 
     Plt.resize_to_layout!(fig)

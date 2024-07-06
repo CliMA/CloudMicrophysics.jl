@@ -88,9 +88,11 @@ function test_p3_thresholds(FT)
     end
 
     TT.@testset "mass and area tests" begin
+        # test F_liq = 0
         # values 
         ρ_r = FT(500)
         F_r = FT(0.5)
+        F_liq = FT(0)
 
         # get thresholds 
         D_th = P3.D_th_helper(p3)
@@ -103,21 +105,59 @@ function test_p3_thresholds(FT)
         D_3 = (D_gr + D_cr) / 2
 
         # test area 
-        TT.@test P3.p3_area(p3, D_1, F_r, th) == P3.A_s(D_1)
-        TT.@test P3.p3_area(p3, D_2, F_r, th) == P3.A_ns(p3, D_2)
-        TT.@test P3.p3_area(p3, D_3, F_r, th) == P3.A_s(D_3)
-        TT.@test P3.p3_area(p3, D_cr, F_r, th) == P3.A_r(p3, F_r, D_cr)
+        TT.@test P3.p3_area(p3, D_1, F_r, F_liq, th) == P3.A_s(D_1)
+        TT.@test P3.p3_area(p3, D_2, F_r, F_liq, th) == P3.A_ns(p3, D_2)
+        TT.@test P3.p3_area(p3, D_3, F_r, F_liq, th) == P3.A_s(D_3)
+        TT.@test P3.p3_area(p3, D_cr, F_r, F_liq, th) == P3.A_r(p3, F_r, D_cr)
 
         # test mass 
-        TT.@test P3.p3_mass(p3, D_1, F_r, th) == P3.mass_s(D_1, p3.ρ_i)
-        TT.@test P3.p3_mass(p3, D_2, F_r, th) == P3.mass_nl(p3, D_2)
-        TT.@test P3.p3_mass(p3, D_3, F_r, th) == P3.mass_s(D_3, th.ρ_g)
-        TT.@test P3.p3_mass(p3, D_cr, F_r, th) == P3.mass_r(p3, D_cr, F_r)
+        TT.@test P3.p3_mass(p3, D_1, F_r, F_liq, th) == P3.mass_s(D_1, p3.ρ_i)
+        TT.@test P3.p3_mass(p3, D_2, F_r, F_liq, th) == P3.mass_nl(p3, D_2)
+        TT.@test P3.p3_mass(p3, D_3, F_r, F_liq, th) == P3.mass_s(D_3, th.ρ_g)
+        TT.@test P3.p3_mass(p3, D_cr, F_r, F_liq, th) ==
+                 P3.mass_r(p3, D_cr, F_r)
 
         # test F_r = 0 and D > D_th
         F_r = FT(0)
-        TT.@test P3.p3_area(p3, D_2, F_r, th) == P3.A_ns(p3, D_2)
-        TT.@test P3.p3_mass(p3, D_2, F_r, th) == P3.mass_nl(p3, D_2)
+        TT.@test P3.p3_area(p3, D_2, F_r, F_liq, th) == P3.A_ns(p3, D_2)
+        TT.@test P3.p3_mass(p3, D_2, F_r, F_liq, th) == P3.mass_nl(p3, D_2)
+
+        # test F_liq != 0
+        F_liq = FT(0.5)
+
+        # test area
+        TT.@test P3.p3_area(p3, D_1, F_r, F_liq, th) == P3.A_s(D_1)
+        TT.@test P3.p3_area(p3, D_2, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.A_ns(p3, D_2) + F_liq * P3.A_s(D_2)
+        #TT.@test P3.p3_area(p3, D_3, F_r, F_liq, th) == P3.A_s(D_3)
+        TT.@test P3.p3_area(p3, D_3, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.A_ns(p3, D_3) + F_liq * P3.A_s(D_3)
+        TT.@test P3.p3_area(p3, D_cr, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.A_r(p3, F_r, D_cr) + F_liq * P3.A_s(D_cr)
+
+        # test mass 
+        TT.@test P3.p3_mass(p3, D_1, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.mass_s(D_1, p3.ρ_i) +
+                 F_liq * P3.mass_liq(p3, D_1)
+        TT.@test P3.p3_mass(p3, D_2, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.mass_nl(p3, D_2) +
+                 F_liq * P3.mass_liq(p3, D_2)
+        TT.@test P3.p3_mass(p3, D_3, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.mass_nl(p3, D_3) +
+                 F_liq * P3.mass_liq(p3, D_3)
+        #TT.@test P3.p3_mass(p3, D_3, F_r, F_liq, th) == (1 - F_liq) * P3.mass_s(D_3, th.ρ_g) + F_liq * P3.mass_liq(p3, D_3)
+        TT.@test P3.p3_mass(p3, D_cr, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.mass_r(p3, D_cr, F_r) +
+                 F_liq * P3.mass_liq(p3, D_cr)
+
+        # test F_r = 0 and D > D_th
+        F_r = FT(0)
+        TT.@test P3.p3_area(p3, D_2, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.A_ns(p3, D_2) + F_liq * P3.A_s(D_2)
+        TT.@test P3.p3_mass(p3, D_2, F_r, F_liq, th) ==
+                 (1 - F_liq) * P3.mass_nl(p3, D_2) +
+                 F_liq * P3.mass_liq(p3, D_2)
+
 
     end
 end
@@ -134,36 +174,42 @@ function test_p3_shape_solver(FT)
         λ_test = (FT(1e1), FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))                # test λ values in range also do 15000, 20000
         ρ_r_test = (FT(200), FT(400), FT(600), FT(800))    # representative ρ_r values
         F_r_test = (FT(0), FT(0.5), FT(0.8), FT(0.95))        # representative F_r values
+        F_liq_test = (FT(0), FT(0.33), FT(0.67), FT(1))
 
         # check that the shape solution solves to give correct values
         for N in N_test
             for λ_ex in λ_test
                 for ρ_r in ρ_r_test
                     for F_r in F_r_test
-                        # Compute the shape parameters that correspond to the
-                        # input test values
-                        μ_ex = P3.DSD_μ(p3, λ_ex)
-                        N₀_ex = P3.DSD_N₀(p3, N, λ_ex)
-                        # Find the P3 scheme  thresholds
-                        th = P3.thresholds(p3, ρ_r, F_r)
-                        # Convert λ to ensure it remains positive
-                        x = log(λ_ex)
-                        # Compute mass density based on input shape parameters
-                        q_calc = N * P3.q_over_N_gamma(p3, F_r, x, μ_ex, th)
+                        for F_liq in F_liq_test
+                            # Compute the shape parameters that correspond to the
+                            # input test values
+                            μ_ex = P3.DSD_μ(p3, λ_ex)
+                            N₀_ex = P3.DSD_N₀(p3, N, λ_ex)
+                            # Find the P3 scheme  thresholds
+                            th = P3.thresholds(p3, ρ_r, F_r)
+                            # Convert λ to ensure it remains positive
+                            x = log(λ_ex)
+                            # Compute mass density based on input shape parameters
+                            q_calc =
+                                N *
+                                P3.q_over_N_gamma(p3, F_liq, F_r, x, μ_ex, th)
 
-                        if q_calc < FT(1)
-                            # Solve for shape parameters
-                            (λ, N₀) = P3.distribution_parameter_solver(
-                                p3,
-                                q_calc,
-                                N,
-                                ρ_r,
-                                F_r,
-                            )
+                            if q_calc < FT(1)
+                                # Solve for shape parameters
+                                (λ, N₀) = P3.distribution_parameter_solver(
+                                    p3,
+                                    q_calc,
+                                    N,
+                                    ρ_r,
+                                    F_liq,
+                                    F_r,
+                                )
 
-                            # Compare solved values with the input expected values
-                            TT.@test λ ≈ λ_ex rtol = ep
-                            TT.@test N₀ ≈ N₀_ex rtol = ep
+                                # Compare solved values with the input expected values
+                                TT.@test λ ≈ λ_ex rtol = ep
+                                TT.@test N₀ ≈ N₀_ex rtol = ep
+                            end
                         end
                     end
                 end
@@ -180,6 +226,7 @@ function test_velocities(FT)
     ρ_a = FT(1.2)
     ρ_rs = [FT(200), FT(400), FT(600), FT(800)]
     F_rs = [FT(0), FT(0.2), FT(0.4), FT(0.6), FT(0.8)]
+    F_liq = FT(0) # set F_liq = 0 to test against MM2015 values
 
     TT.@testset "Mass and number weighted terminal velocities" begin
         paper_vals = [
@@ -199,12 +246,14 @@ function test_velocities(FT)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
-                calculated_vel = P3.terminal_velocity(
+                calculated_vel = P3.terminal_velocity_tot(
                     p3,
                     Chen2022.snow_ice,
+                    Chen2022.rain,
                     q,
                     N,
                     ρ_r,
+                    F_liq,
                     F_r,
                     ρ_a,
                 )
@@ -220,6 +269,10 @@ function test_velocities(FT)
         end
     end
 
+    ## TODO: Test velocities with F_liq != 0 ##
+
+    # set F_liq = 0 to test against MM2015 values
+    F_liq = FT(0)
     TT.@testset "Mass-weighted mean diameters" begin
         paper_vals = [
             [5, 5, 5, 5, 5],
@@ -232,7 +285,7 @@ function test_velocities(FT)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
-                calculated_dm = P3.D_m(p3, q, N, ρ_r, F_r) * 1e3
+                calculated_dm = P3.D_m_tot(p3, q, N, ρ_r, F_r, F_liq) * 1e3
 
                 TT.@test calculated_dm > 0
                 TT.@test paper_vals[i][j] ≈ calculated_dm atol = 3.14
@@ -249,6 +302,8 @@ function test_integrals(FT)
     N = FT(1e8)
     qs = range(0.001, stop = 0.005, length = 5)
     ρ_r = FT(500)
+    # F_liq = 0 for now, then add F_liqs array
+    F_liq = FT(0)
     F_rs = [FT(0), FT(0.5)]
     ρ_a = FT(1.2)
     tolerance = eps(FT)
@@ -259,32 +314,38 @@ function test_integrals(FT)
                 q = qs[i]
 
                 # Velocity comparisons
-                vel_N, vel_m = P3.terminal_velocity(
+                vel_N, vel_m = P3.terminal_velocity_tot(
                     p3,
                     Chen2022.snow_ice,
+                    Chen2022.rain,
                     q,
                     N,
                     ρ_r,
+                    F_liq,
                     F_r,
                     ρ_a,
                 )
 
-                λ, N_0 = P3.distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+                λ, N_0 =
+                    P3.distribution_parameter_solver(p3, q, N, ρ_r, F_liq, F_r)
                 th = P3.thresholds(p3, ρ_r, F_r)
                 ice_bound = P3.get_ice_bound(p3, λ, tolerance)
                 vel(d) = TV.velocity_chen(
                     d,
                     Chen2022.snow_ice,
                     ρ_a,
-                    P3.p3_mass(p3, d, F_r, th),
-                    P3.p3_area(p3, d, F_r, th),
+                    P3.p3_mass(p3, d, F_r, F_liq, th),
+                    P3.p3_area(p3, d, F_r, F_liq, th),
                     p3.ρ_i,
                 )
-                f(d) = vel(d) * P3.N′ice(p3, d, λ, N_0)
+                vel_liq(d) = TV.velocity_chen(d, Chen2022.rain, ρ_a)
+                f(d) =
+                    ((1 - F_liq) * vel(d) + F_liq * vel_liq(d)) *
+                    P3.N′ice(p3, d, λ, N_0)
 
                 qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), 2 * ice_bound)
                 qgk_vel_m, = QGK.quadgk(
-                    d -> f(d) * P3.p3_mass(p3, d, F_r, th) / q,
+                    d -> f(d) * P3.p3_mass(p3, d, F_r, F_liq, th) / q,
                     FT(0),
                     2 * ice_bound,
                 )
@@ -293,9 +354,11 @@ function test_integrals(FT)
                 TT.@test vel_m ≈ qgk_vel_m rtol = 1e-7
 
                 # Dₘ comparisons 
-                D_m = P3.D_m(p3, q, N, ρ_r, F_r)
+                D_m = P3.D_m_tot(p3, q, N, ρ_r, F_r, F_liq)
                 f_d(d) =
-                    d * P3.p3_mass(p3, d, F_r, th) * P3.N′ice(p3, d, λ, N_0)
+                    d *
+                    P3.p3_mass(p3, d, F_r, F_liq, th) *
+                    P3.N′ice(p3, d, λ, N_0)
                 qgk_D_m, = QGK.quadgk(d -> f_d(d) / q, FT(0), 2 * ice_bound)
 
                 TT.@test D_m ≈ qgk_D_m rtol = 1e-8

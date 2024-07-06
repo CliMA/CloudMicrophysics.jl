@@ -10,7 +10,7 @@ Implementation of Morrison and Milbrandt 2015 doi: 10.1175/JAS-D-14-0065.1
 Note: Particle size is defined as its maximum length (i.e. max dimesion).
 
 Changes to accomodate for liquid fraction: shape params:
-    - added m_liq
+    - added mass_liq
     - for p3_mass and p3_area, added a F_liq-weighted linear
     average of the original regime and the liquid part (assumed
     spherical for area)
@@ -36,12 +36,6 @@ For terminal velocity:
     - added/adding terminal_velocity_liq which uses Chen2022VelTypeRain
     - added/adding terminal_velocity_tot which computes an F_liq-weighted
     linear average of the terminal velocities of the ice core and liquid part
-QUESTION: In the ice core part of the terminal velocity, I am currently using the ice core
-PSD and the ice core mass (since the mass of the whole particle with F_liq=0 is the mass of the core).
-We can always use a different approach later, but I want to make sure I should be integrating over core
-size distribution for the original terminal velocity rather than the whole size distribution...
-
-##TODO: (NOTE TO SELF: NEED TO CHANGE D_M AT THE BOTTOM LATER)##
 """
 module P3Scheme
 
@@ -210,7 +204,7 @@ mass_nl(p3::PSP3, D::FT) where {FT} = α_va_si(p3) * D^p3.β_va
 mass_r(p3::PSP3, D::FT, F_r::FT) where {FT} =
     α_va_si(p3) / (1 - F_r) * D^p3.β_va
 # for liquid
-m_liq(p3::PSP3, D::FT) where {FT} = (FT(π) / 6) * p3.ρ_l * D^3
+mass_liq(p3::PSP3, D::FT) where {FT} = (FT(π) / 6) * p3.ρ_l * D^3
 
 """
     p3_mass(p3, D, F_r, F_liq, th)
@@ -232,15 +226,15 @@ function p3_mass(
 ) where {FT}
     D_th = D_th_helper(p3)
     if D_th > D
-        return (1 - F_liq) * mass_s(D, p3.ρ_i) + F_liq * m_liq(p3, D)         # small spherical ice
+        return (1 - F_liq) * mass_s(D, p3.ρ_i) + F_liq * mass_liq(p3, D)         # small spherical ice
     elseif F_r == 0
-        return (1 - F_liq) * mass_nl(p3, D) + F_liq * m_liq(p3, D)            # large nonspherical unrimed ice
+        return (1 - F_liq) * mass_nl(p3, D) + F_liq * mass_liq(p3, D)            # large nonspherical unrimed ice
     elseif th.D_gr > D >= D_th
-        return (1 - F_liq) * mass_nl(p3, D) + F_liq * m_liq(p3, D)            # dense nonspherical ice
+        return (1 - F_liq) * mass_nl(p3, D) + F_liq * mass_liq(p3, D)            # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
-        return (1 - F_liq) * mass_s(D, th.ρ_g) + F_liq * m_liq(p3, D)         # graupel
+        return (1 - F_liq) * mass_s(D, th.ρ_g) + F_liq * mass_liq(p3, D)         # graupel
     elseif D >= th.D_cr
-        return (1 - F_liq) * mass_r(p3, D, F_r) + F_liq * m_liq(p3, D)        # partially rimed ice
+        return (1 - F_liq) * mass_r(p3, D, F_r) + F_liq * mass_liq(p3, D)        # partially rimed ice
     end
 end
 
@@ -282,13 +276,13 @@ function p3_area(
     if D_th_helper(p3) > D
         return A_s(D)                                         # small spherical ice
     elseif F_r == 0
-        return (1 - F_liq) * A_ns(p3, D) + F_liq * A_s        # large nonspherical unrimed ice
+        return (1 - F_liq) * A_ns(p3, D) + F_liq * A_s(D)        # large nonspherical unrimed ice
     elseif th.D_gr > D >= D_th_helper(p3)
-        return (1 - F_liq) * A_ns(p3, D) + F_liq * A_s        # dense nonspherical ice
+        return (1 - F_liq) * A_ns(p3, D) + F_liq * A_s(D)        # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
         return A_s(D)                                         # graupel
     elseif D >= th.D_cr
-        return (1 - F_liq) * A_r(p3, F_r, D) + F_liq * A_s    # partially rimed ice
+        return (1 - F_liq) * A_r(p3, F_r, D) + F_liq * A_s(D)    # partially rimed ice
     else
         throw("D not in range")
     end
@@ -936,7 +930,6 @@ end
 
  Return the mass weighted mean particle size [m]
 """
-### TODO: below (note for myself) ###
 function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
@@ -963,6 +956,46 @@ function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
     # Normalize by q
     return n / q
 end
+
+"""
+    D_m_liq (p3, q, N, ρ_r, F_r, F_liq)
+
+ - p3 - a struct with P3 scheme parameters
+ - q - mass mixing ratio
+ - N - number mixing ratio
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_liq - liquid fraction (q_liq/q_i,tot)
+ - F_r - rime mass fraction (q_rim/q_i)
+
+ Return the mass weighted mean particle size [m]
+"""
+function D_m_liq(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
+    # Get the shape parameters
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_liq, F_r)
+    μ = DSD_μ(p3, λ)
+    n(D) = F_liq * N_0 * p3.ρ_l * (FT(π) / 6) * D^(μ + 4) * exp(-λ * D)
+    (n, em) = QGK.quadgk(D -> n(D), FT(0), Inf)
+    # Normalize by q
+    return n / q
+end
+
+"""
+    D_m_tot(p3, q, N, ρ_r, F_r, F_liq)
+
+ - p3 - a struct with P3 scheme parameters
+ - q - mass mixing ratio
+ - N - number mixing ratio
+ - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
+ - F_liq - liquid fraction (q_liq/q_i,tot)
+ - F_r - rime mass fraction (q_rim/q_i)
+
+ Return the mass weighted mean particle size [m]
+"""
+function D_m_tot(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
+    return (1 - F_liq) * D_m(p3, q, N, ρ_r, F_r, F_liq) +
+           F_liq * D_m_liq(p3, q, N, ρ_r, F_r, F_liq)
+end
+
 
 """
     N′ice(p3, D, λ, N0)
