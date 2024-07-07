@@ -27,7 +27,7 @@ function test_chen_velocities(FT)
     TT.@testset "Chen 2022 - Ice" begin
         F_r = FT(0.5)
         ρ_r = FT(500)
-        F_liq = FT(0.5)
+        F_liq = FT(0)
         th = P3.thresholds(p3, ρ_r, F_r)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
@@ -45,7 +45,21 @@ function test_chen_velocities(FT)
             TT.@test vel >= 0
             TT.@test vel ≈ expected[i] rtol = 1e-3
         end
-
+        F_liq = FT(0.5)
+        expected = [0.08229, 0.4077, 0.7203, 1.0515, 1.3865]
+        for i in axes(Ds, 1)
+            D = Ds[i]
+            vel = TV.velocity_chen(
+                D,
+                Chen2022.snow_ice,
+                ρ_a,
+                P3.p3_mass(p3, D, F_r, F_liq, th),
+                P3.p3_area(p3, D, F_r, F_liq, th),
+                p3.ρ_i,
+            )
+            TT.@test vel >= 0
+            TT.@test vel ≈ expected[i] rtol = 1e-3
+        end
     end
 end
 
