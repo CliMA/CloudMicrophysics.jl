@@ -105,18 +105,22 @@ function figure_2(F_liq)
 
     args = (color = :black, labels = true, levels = 3, linewidth = 1.5, labelsize = 18)
 
+    # set the colorscale to be the same for all figures
+    crange_small = range(0, 0.6, length = 20)
+    crange_med_large = range(0, 9, length = 20)
+
     ax1 = make_axis_top(fig, 1, "Small Dₘ, F_liq = $F_liq")
-    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms, )#levels = 0.402:0.001:0.413)
+    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms, levels = crange_small, extendlow = :auto, extendhigh = :auto)
     Plt.contour!(ax1, F_rs, ρ_rs, D_ms; args...)
     Plt.Colorbar(fig[2, 1], hm, vertical = false)
 
     ax2 = make_axis_top(fig, 2, "Medium Dₘ, F_liq = $F_liq")
-    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm, )#levels = 2:0.1:4)
+    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm, levels = crange_med_large, extendlow = :auto, extendhigh = :auto)
     Plt.contour!(ax2, F_rm, ρ_rm, D_mm; args...)
     Plt.Colorbar(fig[2, 2], hm, vertical = false)
 
     ax3 = make_axis_top(fig, 3, "Large Dₘ, F_liq = $F_liq")
-    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml,)# levels = 2:0.2:5)
+    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml, levels = crange_med_large, extendlow = :auto, extendhigh = :auto)
     Plt.contour!(ax3, F_rl, ρ_rl, D_ml; args...)
     Plt.Colorbar(fig[2, 3], hm, vertical = false)
 
@@ -126,17 +130,19 @@ function figure_2(F_liq)
     Plt.linkyaxes!(ax2, ax3)
 
     ## Plot D_m as second row of comparisons
+    crange_small = range(0, 0.2, length = 20)
+    crange_med_large = range(0, 9, length = 20)
 
     ax4 = make_axis_bottom(fig, 1, "Small Dₘ vs F_r and ρ_r, F_liq = $F_liq")
-    hm = Plt.contourf!(ax4, F_rs, ρ_rs, D_ms)
+    hm = Plt.contourf!(ax4, F_rs, ρ_rs, D_ms, levels = crange_small, extendlow = :auto, extendhigh = :auto)
     Plt.Colorbar(fig[4, 1], hm, vertical = false)
 
     ax5 = make_axis_bottom(fig, 2, "Medium Dₘ vs F_r and ρ_r, F_liq = $F_liq")
-    hm = Plt.contourf!(ax5, F_rm, ρ_rm, D_mm)
+    hm = Plt.contourf!(ax5, F_rm, ρ_rm, D_mm, levels = crange_med_large, extendlow = :auto, extendhigh = :auto)
     Plt.Colorbar(fig[4, 2], hm, vertical = false)
 
     ax6 = make_axis_bottom(fig, 3, "Large Dₘ vs F_r and ρ_r, F_liq = $F_liq")
-    hm = Plt.contourf!(ax6, F_rl, ρ_rl, D_ml)
+    hm = Plt.contourf!(ax6, F_rl, ρ_rl, D_ml, levels = crange_med_large, extendlow = :auto, extendhigh = :auto)
     Plt.Colorbar(fig[4, 3], hm, vertical = false)
 
     Plt.linkxaxes!(ax1, ax4)
@@ -148,7 +154,6 @@ function figure_2(F_liq)
 
 
     Plt.resize_to_layout!(fig)
-    Plt.display(fig)
     Plt.save("MorrisonandMilbrandtFig2_$(F_liq).svg", fig)
 end
 #! format: on
