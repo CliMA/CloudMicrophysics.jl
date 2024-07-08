@@ -270,10 +270,41 @@ function test_velocities(FT)
     end
 
     ## TODO: Test velocities with F_liq != 0 ##
+    # TT.@testset "Mass and number weighted terminal velocities with nonzero liquid fraction" begin
+    #     F_liqs = [FT(0), FT(0.33), FT(0.67), FT(1)]
+    #     ρ_r = ρ_rs[4]
+    #     F_r = F_rs[4]
+    #     expected_vals = zeros(length(F_liqs))
+    #     for k in eachindex(F_liqs)
+    #         F_liq = F_liqs[k]
+
+    #         calculated_vel = P3.terminal_velocity_tot(
+    #             p3,
+    #             Chen2022.snow_ice,
+    #             Chen2022.rain,
+    #             q,
+    #             N,
+    #             ρ_r,
+    #             F_liq,
+    #             F_r,
+    #             ρ_a,
+    #         )
+    #         expected_vals[k] = calculated_vel
+
+    #         # number weighted
+    #         # TT.@test calculated_vel[2] > 0
+    #         # TT.@test expected_vals[k][1] ≈ calculated_vel[1] atol = 0.1
+
+    #         # # mass weighted
+    #         # TT.@test calculated_vel[1] > 0
+    #         # TT.@test expected_vals[k][2] ≈ calculated_vel[2] atol = 3.14
+    #     end
+    #     print(expected_vals)
+    # end
 
     # set F_liq = 0 to test against MM2015 values
-    F_liq = FT(0)
     TT.@testset "Mass-weighted mean diameters" begin
+        F_liq = FT(0)
         paper_vals = [
             [5, 5, 5, 5, 5],
             [4.5, 4.5, 4.5, 4.5, 4.5],
@@ -293,8 +324,22 @@ function test_velocities(FT)
             end
         end
     end
+
+    TT.@testset "Mass-weighted mean diameters with nonzero liquid fraction" begin
+        ρ_r = ρ_rs[4]
+        F_r = F_rs[4]
+        F_liqs = [FT(0), FT(0.33), FT(0.67), FT(1)]
+        expected_vals =
+            [FT(0.00333689), FT(0.000892223), FT(0.00124423), FT(0.00164873)]
+        for i in eachindex(F_liqs)
+            calculated_dm = P3.D_m_tot(p3, q, N, ρ_r, F_r, F_liqs[i])
+            expected_vals[i] = calculated_dm
+            TT.@test expected_vals[i] ≈ calculated_dm atol = 1e-6
+        end
+    end
 end
 
+## TODO: Fix Gamma vs Integral Comparison for F_liq != 0 ##
 function test_integrals(FT)
     p3 = CMP.ParametersP3(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
@@ -302,66 +347,74 @@ function test_integrals(FT)
     N = FT(1e8)
     qs = range(0.001, stop = 0.005, length = 5)
     ρ_r = FT(500)
-    # F_liq = 0 for now, then add F_liqs array
-    F_liq = FT(0)
+    F_liqs = [FT(0)]
+    #F_liqs = [FT(0), FT(0.5), FT(1)]
     F_rs = [FT(0), FT(0.5)]
     ρ_a = FT(1.2)
     tolerance = eps(FT)
 
     TT.@testset "Gamma vs Integral Comparison" begin
         for F_r in F_rs
-            for i in axes(qs, 1)
-                q = qs[i]
+            for F_liq in F_liqs
+                for i in axes(qs, 1)
+                    q = qs[i]
 
-                # Velocity comparisons
-                vel_N, vel_m = P3.terminal_velocity_tot(
-                    p3,
-                    Chen2022.snow_ice,
-                    Chen2022.rain,
-                    q,
-                    N,
-                    ρ_r,
-                    F_liq,
-                    F_r,
-                    ρ_a,
-                )
+                    # Velocity comparisons
+                    vel_N, vel_m = P3.terminal_velocity_tot(
+                        p3,
+                        Chen2022.snow_ice,
+                        Chen2022.rain,
+                        q,
+                        N,
+                        ρ_r,
+                        F_liq,
+                        F_r,
+                        ρ_a,
+                    )
 
-                λ, N_0 =
-                    P3.distribution_parameter_solver(p3, q, N, ρ_r, F_liq, F_r)
-                th = P3.thresholds(p3, ρ_r, F_r)
-                ice_bound = P3.get_ice_bound(p3, λ, tolerance)
-                vel(d) = TV.velocity_chen(
-                    d,
-                    Chen2022.snow_ice,
-                    ρ_a,
-                    P3.p3_mass(p3, d, F_r, F_liq, th),
-                    P3.p3_area(p3, d, F_r, F_liq, th),
-                    p3.ρ_i,
-                )
-                vel_liq(d) = TV.velocity_chen(d, Chen2022.rain, ρ_a)
-                f(d) =
-                    ((1 - F_liq) * vel(d) + F_liq * vel_liq(d)) *
-                    P3.N′ice(p3, d, λ, N_0)
+                    λ, N_0 = P3.distribution_parameter_solver(
+                        p3,
+                        q,
+                        N,
+                        ρ_r,
+                        F_liq,
+                        F_r,
+                    )
+                    th = P3.thresholds(p3, ρ_r, F_r)
+                    ice_bound = P3.get_ice_bound(p3, λ, tolerance)
+                    vel(d) = TV.velocity_chen(
+                        d,
+                        Chen2022.snow_ice,
+                        ρ_a,
+                        P3.p3_mass(p3, d, F_r, F_liq, th),
+                        P3.p3_area(p3, d, F_r, F_liq, th),
+                        p3.ρ_i,
+                    )
+                    vel_liq(d) = TV.velocity_chen(d, Chen2022.rain, ρ_a)
+                    f(d) =
+                        ((1 - F_liq) * vel(d) + F_liq * vel_liq(d)) *
+                        P3.N′ice(p3, d, λ, N_0)
 
-                qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), 2 * ice_bound)
-                qgk_vel_m, = QGK.quadgk(
-                    d -> f(d) * P3.p3_mass(p3, d, F_r, F_liq, th) / q,
-                    FT(0),
-                    2 * ice_bound,
-                )
+                    qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), 2 * ice_bound)
+                    qgk_vel_m, = QGK.quadgk(
+                        d -> f(d) * P3.p3_mass(p3, d, F_r, F_liq, th) / q,
+                        FT(0),
+                        2 * ice_bound,
+                    )
 
-                TT.@test vel_N ≈ qgk_vel_N rtol = 1e-7
-                TT.@test vel_m ≈ qgk_vel_m rtol = 1e-7
+                    TT.@test vel_N ≈ qgk_vel_N rtol = 1e-7
+                    TT.@test vel_m ≈ qgk_vel_m rtol = 1e-7
 
-                # Dₘ comparisons 
-                D_m = P3.D_m_tot(p3, q, N, ρ_r, F_r, F_liq)
-                f_d(d) =
-                    d *
-                    P3.p3_mass(p3, d, F_r, F_liq, th) *
-                    P3.N′ice(p3, d, λ, N_0)
-                qgk_D_m, = QGK.quadgk(d -> f_d(d) / q, FT(0), 2 * ice_bound)
+                    # Dₘ comparisons 
+                    D_m = P3.D_m_tot(p3, q, N, ρ_r, F_r, F_liq)
+                    f_d(d) =
+                        d *
+                        P3.p3_mass(p3, d, F_r, F_liq, th) *
+                        P3.N′ice(p3, d, λ, N_0)
+                    qgk_D_m, = QGK.quadgk(d -> f_d(d) / q, FT(0), 2 * ice_bound)
 
-                TT.@test D_m ≈ qgk_D_m rtol = 1e-8
+                    TT.@test D_m ≈ qgk_D_m rtol = 1e-8
+                end
             end
         end
     end

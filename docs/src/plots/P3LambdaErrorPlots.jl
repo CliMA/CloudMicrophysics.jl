@@ -23,7 +23,8 @@ function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3) where {FT}
     # Compute mass density based on input shape parameters
     q_calc = N * P3.q_over_N_gamma(p3, F_liq, F_r, x, μ, th)
 
-    (λ_calculated,) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_liq, F_r)
+    (λ_calculated,) =
+        P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_liq, F_r)
     return abs(λ_ex - λ_calculated)
 end
 

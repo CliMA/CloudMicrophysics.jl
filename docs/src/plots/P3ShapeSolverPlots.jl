@@ -41,8 +41,7 @@ function lambda_guess_plot()
             λs = [10^logλ for logλ in logλs]
             th = P3.thresholds(p3, ρ_r, F_r)
             qs = [
-                P3.q_over_N_gamma(p3, F_liq, F_r, log(λ), P3.DSD_μ(p3, λ), th) for
-                λ in λs
+                P3.q_over_N_gamma(p3, F_liq, F_r, log(λ), P3.DSD_μ(p3, λ), th) for λ in λs
             ]
             guesses = [FT(0) for λ in λs]
 
