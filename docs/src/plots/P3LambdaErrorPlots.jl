@@ -10,6 +10,7 @@ FT = Float64
 
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
+F_liq = FT(0)
 
 function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3) where {FT}
 
@@ -20,9 +21,9 @@ function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3) where {FT}
     # Convert λ to ensure it remains positive
     x = log(λ_ex)
     # Compute mass density based on input shape parameters
-    q_calc = N * P3.q_over_N_gamma(p3, F_r, x, μ, th)
+    q_calc = N * P3.q_over_N_gamma(p3, F_liq, F_r, x, μ, th)
 
-    (λ_calculated,) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_r)
+    (λ_calculated,) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_liq, F_r)
     return abs(λ_ex - λ_calculated)
 end
 
@@ -149,12 +150,12 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
     λ_solved = [FT(0) for λ in λs]
 
     for i in 1:numpts
-        q = P3.q_over_N_gamma(p3, F_r, log(λs[i]), μs[i], th)
+        q = P3.q_over_N_gamma(p3, F_liq, F_r, log(λs[i]), μs[i], th)
         qs[i] = q
         N = FT(1e6)
-        (L, N) = P3.distribution_parameter_solver(p3, q * N, N, ρ_r, F_r)
+        (L, N) = P3.distribution_parameter_solver(p3, q * N, N, ρ_r, F_liq, F_r)
         λ_solved[i] = L
-        μs_approx[i] = P3.DSD_μ_approx(p3, N * q, N, ρ_r, F_r)
+        μs_approx[i] = P3.DSD_μ_approx(p3, N * q, N, ρ_r, F_liq, F_r)
     end
 
     # Plot

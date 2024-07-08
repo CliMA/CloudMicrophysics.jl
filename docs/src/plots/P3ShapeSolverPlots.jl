@@ -8,6 +8,7 @@ FT = Float64
 
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
+F_liq = FT(0)
 
 function guess_value(λ::FT, p1::FT, p2::FT, q1::FT, q2::FT)
     return q1 * (λ / p1)^((log(q1) - log(q2)) / (log(p1) - log(p2)))
@@ -40,7 +41,7 @@ function lambda_guess_plot()
             λs = [10^logλ for logλ in logλs]
             th = P3.thresholds(p3, ρ_r, F_r)
             qs = [
-                P3.q_over_N_gamma(p3, F_r, log(λ), P3.DSD_μ(p3, λ), th) for
+                P3.q_over_N_gamma(p3, F_liq, F_r, log(λ), P3.DSD_μ(p3, λ), th) for
                 λ in λs
             ]
             guesses = [FT(0) for λ in λs]
@@ -49,7 +50,8 @@ function lambda_guess_plot()
                 (min,) = P3.get_bounds(
                     N,
                     qs[i] * N,
-                    P3.DSD_μ_approx(p3, qs[i] * N, N, ρ_r, F_r),
+                    P3.DSD_μ_approx(p3, qs[i] * N, N, ρ_r, F_r, F_liq),
+                    F_liq,
                     F_r,
                     p3,
                     th,

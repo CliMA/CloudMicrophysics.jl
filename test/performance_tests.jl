@@ -157,9 +157,9 @@ function benchmark_test(FT)
                 F_r,
                 ρ_air,
             ),
-            2e5,
-            3e4,
-            2e3,
+            3e5,
+            4e4,
+            3e3,
         )
         bench_press(P3.D_m, (p3, q_tot, N, ρ_r, F_liq, F_r), 1e5)
     end
