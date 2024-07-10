@@ -23,7 +23,7 @@ function ϕ_ice(mass::FT, area::FT, ρ_i::FT) where {FT}
 end
 
 """
-    velocity_chen(D, Chen2022, ρ_a, mass, area, ρ_i)
+    velocity_chen(p3, Chen2022, ρ_a, D, F_r, th)
 
  - D - maximum particle dimension
  - Chen2022 - a struct with terminal velocity parameters as in Chen(2022)
@@ -50,7 +50,10 @@ function velocity_chen(
 
     κ = FT(-1 / 6)
 
-    v = sum(@. sum(ai * D^bi * exp(-ci * D)))
+    v = 0
+    for i in 1:2
+        v += ai[i] * D^(bi[i]) * exp(-ci[i] * D)
+    end
 
     return ϕ_ice(mass, area, ρ_i)^κ * v
 end
@@ -71,7 +74,10 @@ function velocity_chen(
 ) where {FT}
     (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρ_a)
 
-    v = sum(@. sum(ai * D^bi * exp(-ci * D)))
+    v = 0
+    for i in 1:3
+        v += ai[i] * D^(bi[i]) * exp(-ci[i] * D)
+    end
 
     return v
 end
