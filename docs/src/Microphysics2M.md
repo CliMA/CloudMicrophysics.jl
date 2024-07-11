@@ -246,7 +246,7 @@ An approximation for rate of change of raindrops number density due to self-coll
 This yields,
 ```math
 \begin{equation}
-  \left. \frac{\partial N_{rai}}{\partial t} \right|_{sc} = -k_{rr} N_{rai} (q_{rai} \rho) \left(1+\frac{\kappa_{rr}}{\lambda_r} \right)^d \left(\frac{\rho_0}{\rho}\right)^{1/2},
+  \left. \frac{\partial N_{rai}}{\partial t} \right|_{sc} = -k_{rr} N_{rai} (q_{rai} \rho) \left(1+\frac{\kappa_{rr}}{B_r} \right)^d \left(\frac{\rho_0}{\rho}\right)^{1/2},
 \end{equation}
 ```
 where:
@@ -255,7 +255,7 @@ where:
   - ``\rho_0`` is the air density at surface conditions,
   - ``N_{rai}`` is the raindrops number density,
   - ``k_{rr}`` and ``\kappa_{rr}`` are the rain-rain collection kernel constants.
-  - ``\lambda_r`` is the raindrops size distribution parameter (based on drop mass): ``\lambda_r = \left(\frac{6}{\overline{x}_r}\right)^{1/3}``.
+  - ``B_r`` is the raindrops mass distribution parameter ``B_r = \left(\frac{6}{\overline{x}_r}\right)^{1/3}``.
 
 The default constant value is:
 
@@ -336,7 +336,7 @@ When the limiting algorithm is not applied, the terminal velocity given by eq. (
 
 ```math
 \begin{align}
-  \overline{v}_{r,\, k} &= \frac{1}{M_r^k} \int_{r_c}^\infty x^k f_r(x) v(x) dx \nonumber\\ 
+  \overline{v}_{r,\, k} &= \frac{1}{M_r^k} \int_{r_c}^\infty x^k f_r(x) v(x) dx \nonumber\\
   &= \left(\frac{\rho_0}{\rho}\right)^{\frac{1}{2}}\left[a_R \frac{\Gamma(3k+1, 2r_c\lambda_r)}{\Gamma(3k+1)} - b_R \frac{\Gamma(3k+1, 2r_c(\lambda_r + c_R))}{\Gamma(3k+1)} \left(1+\frac{c_R}{\lambda_r}\right)^{-(3k+1)}\right],
 \label{eq:SBModifiedTerminalVelocity}
 \end{align}
@@ -554,7 +554,7 @@ and mass-weighted mean terminal velocity when k = 3.
 Below, in the top-left panel we compare the individual terminal velocity formulas for Chen2022 [Chen2022](@cite), SB2006 [SeifertBeheng2006](@cite) and data from [Gunn1949](@cite).
 In the top-right panel, we compare bulk number weighted [ND] and mass weighted [M]
 terminal velocities for both formulas integrated over the size distribution from SB2006 [SeifertBeheng2006](@cite).
-We also show the mass weighted terminal velocity from the 1-moment scheme. In the bottom panels we compare number-weighted (left) and mass-weighted (right) terminal velocities for the original parameterization of SB2006 [SeifertBeheng2006](@cite) and the modifed parameterzation given by eq. (\ref{eq:SBModifiedTerminalVelocity}) without limiting distribution shape factor $\lambda_r$. 
+We also show the mass weighted terminal velocity from the 1-moment scheme. In the bottom panels we compare number-weighted (left) and mass-weighted (right) terminal velocities for the original parameterization of SB2006 [SeifertBeheng2006](@cite) and the modifed parameterzation given by eq. (\ref{eq:SBModifiedTerminalVelocity}) without limiting distribution shape factor $\lambda_r$.
 ```@example
 include("plots/TerminalVelocityComparisons.jl")
 ```
