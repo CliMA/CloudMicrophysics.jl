@@ -192,4 +192,21 @@ include("plots/P3TerminalVelocityPlots_WithLiqFrac.jl")
 ![](MorrisonandMilbrandtFig2_0.67.svg)
 ![](MorrisonandMilbrandtFig2_0.99.svg)
 
+## Liquid Fraction
+
+Will add things here to docs: for now see issue [#406](https://github.com/CliMA/CloudMicrophysics.jl/issues/406).
+
+Replicating Fig. 1 from [Choletteetal2019](@cite):
+
+```@example
+include("plots/Choletteetal2019_fig1.jl")
+```
+![](Choletteetal2019_fig1.svg)
+
+Visualizing mass-weighted terminal velocity as a function of $F_{liq}$, $F_{r}$ for small, medium, and large particles:
+
+```@example
+include("plots/P3Velocity_FliqFr.jl")
+```
+![](P3Velocity_FliqFr.svg)
 

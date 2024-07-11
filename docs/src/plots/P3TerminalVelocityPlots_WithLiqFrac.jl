@@ -93,8 +93,7 @@ function figure_2(F_liq)
     # get V_m and D_m
     xres = 100
     yres = 100
-    #F_liq[1] = 0 ... replicating the original figures in the docs!
-    #for other F_liq velocity does not work
+
     (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_s, N_s, F_liq, ρ_a, xres, yres)
     (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_m, N_m, F_liq, ρ_a, xres, yres)
     (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_l, N_l, F_liq, ρ_a, xres, yres)

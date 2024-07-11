@@ -468,6 +468,8 @@ function q_r(p3::PSP3, F_liq::FT, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
     )
 end
 # F_liq != 0 (liquid mass on mixed-phase particles for D in [D_min, D_max])
+## TODO: change integral so that we use HC Cubature? Will be easier after
+#       P3 Sink Terms PR is merged?
 function q_liq(
     p3::PSP3,
     F_liq::FT,
@@ -478,6 +480,22 @@ function q_liq(
 ) where {FT}
     return ∫_Γ(D_min, D_max, F_liq * (FT(π) / 6) * p3.ρ_l, μ + 3, λ)
 end
+
+# try with quadgk to see if that fixes errors?
+# function q_liq(
+#     p3::PSP3,
+#     F_liq::FT,
+#     μ::FT,
+#     λ::FT,
+#     D_min::FT,
+#     D_max::FT,
+# ) where {FT}
+#     tolerance = eps(FT)
+#     ice_bound = get_ice_bound(p3, λ, tolerance)
+#     q(D) = F_liq * mass_liq(p3, D) * D^μ * exp(-λ)
+#     q_liq, en = QGK.quadgk(D -> q(D), 0, 2 * ice_bound)
+#     return q_liq
+# end
 
 """
     q_over_N_gamma(p3, F_liq, F_r, λ, th)

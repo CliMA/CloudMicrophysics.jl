@@ -270,37 +270,38 @@ function test_velocities(FT)
     end
 
     ## TODO: Test velocities with F_liq != 0 ##
-    # TT.@testset "Mass and number weighted terminal velocities with nonzero liquid fraction" begin
-    #     F_liqs = [FT(0), FT(0.33), FT(0.67), FT(1)]
-    #     ρ_r = ρ_rs[4]
-    #     F_r = F_rs[4]
-    #     expected_vals = zeros(length(F_liqs))
-    #     for k in eachindex(F_liqs)
-    #         F_liq = F_liqs[k]
+    TT.@testset "Mass and number weighted terminal velocities with nonzero liquid fraction" begin
+        F_liqs = [FT(0.33), FT(0.67), FT(1)]
+        ρ_r = FT(600)
+        F_r = FT(0.5)
+        expected_n = [FT(0.969447), FT(0.4774898), FT(1.19167e-6)]
+        expected_m = [FT(7.163283), FT(6.323271), FT(5.416679)]
+        # F_liq = 1: [1.1916694495949566e-6, 5.416679316340711]
+        # F_liq = 0.33: [0.9694477199509187, 7.163283603564709]
+        # F_liq = 0.67: [0.47748979041733225, 6.323271364128597]
+        for i in eachindex(F_liqs)
+            F_liq = F_liqs[i]
+            calculated_n, calculated_m = P3.terminal_velocity_tot(
+                p3,
+                Chen2022.snow_ice,
+                Chen2022.rain,
+                q,
+                N,
+                ρ_r,
+                F_liq,
+                F_r,
+                ρ_a,
+            )
 
-    #         calculated_vel = P3.terminal_velocity_tot(
-    #             p3,
-    #             Chen2022.snow_ice,
-    #             Chen2022.rain,
-    #             q,
-    #             N,
-    #             ρ_r,
-    #             F_liq,
-    #             F_r,
-    #             ρ_a,
-    #         )
-    #         expected_vals[k] = calculated_vel
+            # number weighted
+            TT.@test calculated_n > 0
+            TT.@test expected_n[i] ≈ calculated_n atol = 1e-4
 
-    #         # number weighted
-    #         # TT.@test calculated_vel[2] > 0
-    #         # TT.@test expected_vals[k][1] ≈ calculated_vel[1] atol = 0.1
-
-    #         # # mass weighted
-    #         # TT.@test calculated_vel[1] > 0
-    #         # TT.@test expected_vals[k][2] ≈ calculated_vel[2] atol = 3.14
-    #     end
-    #     print(expected_vals)
-    # end
+            # mass weighted
+            TT.@test calculated_m > 0
+            TT.@test expected_m[i] ≈ calculated_m atol = 1e-3
+        end
+    end
 
     # set F_liq = 0 to test against MM2015 values
     TT.@testset "Mass-weighted mean diameters" begin
