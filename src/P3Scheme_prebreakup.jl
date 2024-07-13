@@ -18,18 +18,12 @@ Changes to accomodate for liquid fraction: shape params:
         - modified each q_x such that q_xnew = (1 - F_liq) * q_x
         - added q_liq (mass mixing ratio of liquid on mixed-phase particles)
     - with nonzero F_liq, and with the new q_x formulations, the 
-    q_over_N_gamma helper function in the shape parameter solver now includes
-    for the mixing ratio q in the numerator q_liq as well as q_[insert regime]
+    q_over_N_gamma helper function
         - for F_liq = 0, q_new = q_old, which is what we want
         - for nonzero F_liq, q_new = q_old + q_liq
     - so, in theory, if we want the shape parameters for the ice cores we pass
     F_liq = 0, even when it is nonzero, and if we want the shape parameters for the whole
     particle, we pass F_liq
-    - ***with this approach, I'm unsure how to change the bounds we use for q_liq to
-    correspond to the different cases in q_over_N_gamma***
-    - ***I don't believe the μ given λ and vice versa need to be changed, but perhaps the
-    get_bounds function will need some fine tuning, assuming the bounds may change given
-    PSDs will be different under the liquid fraction regime***
 For terminal velocity:
     - kept original terminal_velocity function with F_liq = 0 to
     calculate terminal velocity of ice cores
