@@ -12,6 +12,9 @@ import SpecialFunctions as SF
 
 import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
+import CloudMicrophysics as CM
+import ClimaParams as CP
+import RootSolvers as RS
 
 import ..Common as CO
 import ..Parameters as CMP
@@ -44,6 +47,28 @@ end
 
 # Double-moment bulk microphysics autoconversion, accretion, self-collection, breakup,
 # mean terminal velocity of raindrops, and rain evaporation rates from Seifert and Beheng 2001
+
+"""
+    get_override_pdf_r(FT, limiters)
+
+ - FT - Float type 
+ - limiters - boolean for limiters/no limiters
+
+Returns the parameters for pdf_r given the override file 
+"""
+function get_override_pdf_r(FT, limiters::Bool)
+    # Seifert and Beheng 2006 parameters
+    override_file = joinpath(
+        pkgdir(CM),
+        "src",
+        "parameters",
+        "toml",
+        "SB2006_limiters.toml",
+    )
+    toml_dict = CP.create_toml_dict(FT; override_file)
+    SB2006 = CMP.SB2006(toml_dict, limiters)
+    return SB2006.pdf_r
+end
 
 """
     pdf_cloud(pdf_c, qₗ, ρₐ, Nₗ)
@@ -153,6 +178,114 @@ function pdf_rain(
     Ar = μr * N_rai * Br^(FT(νr + 1) / μr) / SF.gamma(FT(νr + 1) / μr)
 
     return (; λr, αr, xr, Ar, Br)
+end
+
+"""
+    particle_size_distribution(pdf, D, q, ρ, N)
+ - pdf - struct containing size distribution parameters   
+ - D - maximum dimension of particle
+ - q - specific humidity of particles 
+ - ρ - density of air 
+ - N - number concentration of particles
+ Returns the respective distribution value for rain or cloud particles at given dimension
+ """
+function particle_size_distribution(
+    pdf_r::Union{
+        CMP.RainParticlePDF_SB2006{FT},
+        CMP.RainParticlePDF_SB2006_limited{FT},
+    },
+    D::FT,
+    q_rai::FT,
+    ρ::FT,
+    N_rai::FT,
+) where {FT}
+    #(λ, N_0) = rain_d_vars(pdf_r, q_rai, ρ, N_rai)
+    #return N_0 * exp(-λ * D)
+    (; αr, λr) = pdf_rain(pdf_r, q_rai, ρ, N_rai)
+    return αr * exp(-λr * D)
+end
+
+function particle_size_distribution(
+    pdf_c::CMP.CloudParticlePDF_SB2006{FT},
+    D::FT,
+    q_liq::FT,
+    ρ::FT,
+    N_liq::FT,
+) where {FT}
+    (; Cc, Ec, ϕc, ψc) = pdf_cloud(pdf_c, q_liq, ρ, N_liq)
+    # Convert values from mm to m 
+    Ec_m = Ec * 1e9
+    Cc_m = Cc * 1e36
+
+    return Cc_m * D^ϕc * exp(-Ec_m * D^ψc)
+end
+
+"""
+    get_distribution_bound(pdf_r, q, N, ρ_a, tolerance)
+ - pdf_r - struct containing size distribution parameters for rain
+ - q - mass mixing ratio of rain 
+ - N - number mixing ratio of rain 
+ - ρ_a - density of air
+ - tolerance - tolerance for integration error 
+ Returns the value such that N_0(1 - tolerance) = ∫ N'(D) dD from 0 to bound
+ solved analytically for rain distribution. 
+"""
+function get_distribution_bound(
+    pdf_r::Union{
+        CMP.RainParticlePDF_SB2006{FT},
+        CMP.RainParticlePDF_SB2006_limited{FT},
+    },
+    q::FT,
+    N::FT,
+    ρ_a::FT,
+    tolerance::FT,
+) where {FT}
+    (; λr) = pdf_rain(pdf_r, q, ρ_a, N)
+    return -1 / λr * log(tolerance)
+end
+
+"""
+    get_distribution_bound(pdf_c, q, N, ρ_a, ρ_l, tolerance)
+- pdf_c - struct containing size distribution parameters for clouds
+- q - mass mixing ratio of cloud water 
+- N - number mixing ratio of cloud_water 
+- ρ_a - density of air 
+- tolerance - tolerance for integration error 
+Returns the value such that 1- tolerance of the whole cloud distribution 
+is integrated over i.e, N_0(1 - tolerance) = ∫ N'(D) dD from 0 to bound
+further simplified by cancelling out N_0 from both sides. 
+The guess was calculated through a linear approximation of the bounds from 
+numerical solutions. 
+"""
+function get_distribution_bound(
+    pdf_c::CMP.CloudParticlePDF_SB2006{FT},
+    q::FT,
+    N::FT,
+    ρ_a::FT,
+    tolerance::FT,
+) where {FT}
+    pow = pdf_cloud(pdf_c, q, ρ_a, N).ψc
+    cloud_λ = pdf_cloud(pdf_c, q, ρ_a, N).Ec^(1 / pow) * 1e3 # converting to m
+    cloud_problem(x) =
+        tolerance -
+        exp(-exp(x)^pow * cloud_λ^pow) * (
+            1 +
+            exp(x)^pow * cloud_λ^pow +
+            1 / 2 * exp(x)^(2 * pow) * cloud_λ^(2 * pow)
+        )
+    guess =
+        log(0.5) +
+        (log(0.00025) - log(0.5)) / (log(1e12) - log(1e2)) *
+        (log(cloud_λ^3) - log(10^2))
+    log_cloud_x =
+        RS.find_zero(
+            cloud_problem,
+            RS.NewtonsMethodAD(guess),
+            RS.CompactSolution(),
+            RS.RelativeSolutionTolerance(eps(FT)),
+            5,
+        ).root
+    return FT(1e-3) * exp(log_cloud_x)
 end
 
 """

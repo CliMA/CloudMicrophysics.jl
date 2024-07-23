@@ -241,15 +241,14 @@ function test_velocities(FT)
             [1.52, 1.47, 1.45, 1.44, 1.42],
             [1.52, 1.47, 1.45, 1.45, 1.45],
         ]
-        for i in 1:length(ρ_rs)
-            for j in 1:length(F_rs)
+        for i in eachindex(ρ_rs)
+            for j in eachindex(F_rs)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
                 calculated_vel = P3.terminal_velocity_tot(
                     p3,
-                    Chen2022.snow_ice,
-                    Chen2022.rain,
+                    Chen2022,
                     q,
                     N,
                     ρ_r,
@@ -283,8 +282,7 @@ function test_velocities(FT)
             F_liq = F_liqs[i]
             calculated_n, calculated_m = P3.terminal_velocity_tot(
                 p3,
-                Chen2022.snow_ice,
-                Chen2022.rain,
+                Chen2022,
                 q,
                 N,
                 ρ_r,
@@ -340,6 +338,193 @@ function test_velocities(FT)
     end
 end
 
+function test_tendencies(FT)
+
+    limiters = true
+
+    p3 = CMP.ParametersP3(FT)
+    Chen2022 = CMP.Chen2022VelType(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    aps = CMP.AirProperties(FT)
+    pdf_r = CM2.get_override_pdf_r(FT, !limiters)
+    pdf_c = CMP.SB2006(FT).pdf_c
+
+    TT.@testset "Collision Tendencies Smoke Test" begin
+        N = FT(1e8)
+        ρ_a = FT(1.2)
+        ρ_r = FT(500)
+        F_r = FT(0.5)
+        T_warm = FT(300)
+        T_cold = FT(200)
+        F_liq = FT(0)
+
+        qs = range(0.001, stop = 0.005, length = 5)
+        q_const = FT(0.05)
+
+        cloud_expected_warm_previous =
+            [6.341e-5, 0.0002099, 0.0004258, 0.0007047, 0.001042]
+        cloud_expected_cold_previous =
+            [0.002196, 0.003525, 0.004687, 0.005761, 0.006781]
+        cloud_expected_warm =
+            [8.043e-27, 3.641e-26, 8.756e-26, 1.624e-25, 2.613e-25]
+        cloud_expected_cold =
+            [8.197e-33, 1.865e-32, 3.012e-32, 4.233e-32, 5.516e-32]
+        rain_expected_warm = [0.0004049, 0.0008522, 0.00132, 0.001804, 0.002301]
+        rain_expected_cold = [0.4176, 0.4289, 0.4367, 0.4427, 0.4477]
+
+        for i in axes(qs, 1)
+            cloud_warm = P3.ice_collisions(
+                pdf_c,
+                p3,
+                Chen2022,
+                qs[i],
+                N,
+                q_const,
+                N,
+                ρ_a,
+                F_r,
+                ρ_r,
+                F_liq,
+                T_warm,
+            )
+            cloud_cold = P3.ice_collisions(
+                pdf_c,
+                p3,
+                Chen2022,
+                qs[i],
+                N,
+                q_const,
+                N,
+                ρ_a,
+                F_r,
+                ρ_r,
+                F_liq,
+                T_cold,
+            )
+
+            TT.@test cloud_warm >= 0
+            TT.@test cloud_warm ≈ cloud_expected_warm[i] rtol = 1e-3
+            TT.@test cloud_cold >= 0
+            TT.@test cloud_cold ≈ cloud_expected_cold[i] rtol = 1e-3
+
+            rain_warm = P3.ice_collisions(
+                pdf_r,
+                p3,
+                Chen2022,
+                qs[i],
+                N,
+                q_const,
+                N,
+                ρ_a,
+                F_r,
+                ρ_r,
+                F_liq,
+                T_warm,
+            )
+            rain_cold = P3.ice_collisions(
+                pdf_r,
+                p3,
+                Chen2022,
+                qs[i],
+                N,
+                q_const,
+                N,
+                ρ_a,
+                F_r,
+                ρ_r,
+                F_liq,
+                T_cold,
+            )
+
+            TT.@test rain_warm >= 0
+            TT.@test rain_warm ≈ rain_expected_warm[i] rtol = 1e-3
+            TT.@test rain_cold >= 0
+            TT.@test rain_cold ≈ rain_expected_cold[i] rtol = 1e-3
+        end
+    end
+
+    TT.@testset "Melting Tendencies Smoke Test" begin
+        N = FT(1e8)
+        ρ_a = FT(1.2)
+        ρ_r = FT(500)
+        F_r = FT(0.5)
+        T_freeze = FT(273.15)
+        F_liq = FT(0)
+
+        qs = range(0.001, stop = 0.005, length = 5)
+
+        expected_melt = [0.0006982, 0.0009034, 0.001054, 0.001177, 0.001283]
+
+        for i in axes(qs, 1)
+            rate = P3.p3_melt(
+                p3,
+                Chen2022,
+                aps,
+                tps,
+                qs[i],
+                N,
+                T_freeze + 2,
+                ρ_a,
+                F_r,
+                ρ_r,
+                F_liq,
+            )
+
+            TT.@test rate >= 0
+            TT.@test rate ≈ expected_melt[i] rtol = 1e-3
+        end
+    end
+
+    TT.@testset "Heterogeneous Freezing Smoke Test" begin
+        T = FT(250)
+        N = FT(1e8)
+        ρ_a = FT(1.2)
+        qᵥ = FT(8.1e-4)
+        aero_type = CMP.Illite(FT)
+
+        qs = range(0.001, stop = 0.005, length = 5)
+
+        expected_freeze_q =
+            [2.036e-61, 6.463e-61, 1.270e-60, 2.052e-60, 2.976e-60]
+        expected_freeze_N =
+            [1.414e-51, 2.244e-51, 2.941e-51, 3.562e-51, 4.134e-51]
+
+        for i in axes(qs, 1)
+            rate_mass = P3.p3_rain_het_freezing(
+                true,
+                pdf_r,
+                p3,
+                tps,
+                qs[i],
+                N,
+                T,
+                ρ_a,
+                qᵥ,
+                aero_type,
+            )
+            rate_num = P3.p3_rain_het_freezing(
+                false,
+                pdf_r,
+                p3,
+                tps,
+                qs[i],
+                N,
+                T,
+                ρ_a,
+                qᵥ,
+                aero_type,
+            )
+
+            TT.@test rate_mass >= 0
+            TT.@test rate_mass ≈ expected_freeze_q[i] rtol = 1e-3
+
+            TT.@test rate_num >= 0
+            TT.@test rate_num ≈ expected_freeze_N[i] rtol = 1e-3
+        end
+    end
+
+end
+
 ## TODO: Fix Gamma vs Integral Comparison for F_liq != 0 ##
 function test_integrals(FT)
     p3 = CMP.ParametersP3(FT)
@@ -363,8 +548,7 @@ function test_integrals(FT)
                     # Velocity comparisons
                     vel_N, vel_m = P3.terminal_velocity_tot(
                         p3,
-                        Chen2022.snow_ice,
-                        Chen2022.rain,
+                        Chen2022,
                         q,
                         N,
                         ρ_r,

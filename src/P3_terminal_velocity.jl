@@ -256,7 +256,6 @@ end
 
  - p3 - a struct with P3 scheme parameters
  - Chen2022 - a struct with terminal velocity parameters as in Chen(2022)
-            - pass (Chen2022VelTypeSnowIce, Chen2022VelTypeRain)
  - q - mass mixing ratio
  - N - number mixing ratio
  - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
@@ -270,8 +269,7 @@ end
 """
 function terminal_velocity_tot(
     p3::PSP3,
-    Chen2022_ice::CMP.Chen2022VelTypeSnowIce,
-    Chen2022_rain::CMP.Chen2022VelTypeRain,
+    Chen2022::CMP.Chen2022VelType,
     q::FT,
     N::FT,
     ρ_r::FT,
@@ -280,10 +278,10 @@ function terminal_velocity_tot(
     ρ_a::FT,
 ) where {FT}
     return (1 - F_liq) *
-           terminal_velocity(p3, Chen2022_ice, q, N, ρ_r, F_r, ρ_a)[1] +
+           terminal_velocity(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, ρ_a)[1] +
            F_liq * terminal_velocity_liq(
         p3,
-        Chen2022_rain,
+        Chen2022.rain,
         q,
         N,
         ρ_r,
@@ -291,7 +289,95 @@ function terminal_velocity_tot(
         F_r,
         ρ_a,
     )[1],
-    (1 - F_liq) * terminal_velocity(p3, Chen2022_ice, q, N, ρ_r, F_r, ρ_a)[2] +
+    (1 - F_liq) *
+    terminal_velocity(p3, Chen2022.snow_ice, q, N, ρ_r, F_r, ρ_a)[2] +
     F_liq *
-    terminal_velocity_liq(p3, Chen2022_rain, q, N, ρ_r, F_liq, F_r, ρ_a)[2]
+    terminal_velocity_liq(p3, Chen2022.rain, q, N, ρ_r, F_liq, F_r, ρ_a)[2]
+end
+
+"""
+    velocity_chen_p3(p3, D, Chen2022, ρ_a, F_r, F_liq, th)
+
+ - p3 - p3 parameters
+ - Chen2022 - struct with terminal velocity parameters as in Chen(2022)
+ - ρ_a - density of air
+ - D - maximum particle dimension
+ - F_r - rime mass fraction (q_rim/ q_i)
+ - F_liq - liquid fraction (q_liq/q_i,tot)
+ - th - thresholds as calculated by thresholds()
+
+Returns the terminal velocity of a mixed-phase particle using the Chen 2022
+parametrizations by computing an F_liq-weighted average of solid and liquid
+phase terminal velocities.
+"""
+function velocity_chen_p3(
+    p3::PSP3,
+    D::FT,
+    Chen2022::CMP.Chen2022VelType,
+    ρ_a::FT,
+    F_r::FT,
+    F_liq::FT,
+    th,
+) where {FT}
+    v_i = TV.velocity_chen(
+        D,
+        Chen2022.snow_ice,
+        ρ_a,
+        p3_mass(p3, D, F_r, F_liq, th),
+        p3_area(p3, D, F_r, F_liq, th),
+        p3.ρ_i,
+    )
+    v_r = TV.velocity_chen(D, Chen2022.rain, ρ_a)
+    v = (1 - F_liq) * v_i + F_liq * v_r
+    return v
+end
+
+"""
+    vel_diff(type, D, Dᵢ, p3, Chen2022, ρ_a, F_r, F_liq, th)
+
+ - type - defines what is colliding with ice ("rain" or "cloud")
+ - D - maximum dimension of colliding particle 
+ - Dᵢ - maximum dimension of ice particle 
+ - p3 - a struct containing P3 parameters
+ - Chen2022 - a struct containing Chen 2022 velocity parameters 
+ - ρ_a - density of air 
+ - F_r - rime mass fraction (q_rim/ q_i)
+ - F_liq - liquid fraction (q_liq/q_i,tot)
+ - th - thresholds as calculated by thresholds()
+
+ Returns the corresponding velocity difference of colliding particles depending on type
+"""
+function vel_diff(
+    pdf_r::Union{
+        CMP.RainParticlePDF_SB2006{FT},
+        CMP.RainParticlePDF_SB2006_limited{FT},
+    },
+    D::FT,
+    Dᵢ::FT,
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelType,
+    ρ_a::FT,
+    F_r::FT,
+    F_liq::FT,
+    th,
+) where {FT}
+    return abs(
+        velocity_chen_p3(p3, D, Chen2022, ρ_a, F_r, F_liq, th) -
+        TV.velocity_chen(D, Chen2022.rain, ρ_a),
+    )
+end
+
+# velocity difference for cloud collisions
+function vel_diff(
+    pdf_c::CMP.CloudParticlePDF_SB2006{FT},
+    D::FT,
+    Dᵢ::FT,
+    p3::PSP3,
+    Chen2022::CMP.Chen2022VelType,
+    ρ_a::FT,
+    F_r::FT,
+    F_liq::FT,
+    th,
+) where {FT}
+    return abs(velocity_chen_p3(p3, D, Chen2022, ρ_a, F_r, F_liq, th))
 end

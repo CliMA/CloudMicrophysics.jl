@@ -14,8 +14,7 @@ p3 = CMP.ParametersP3(FT)
 
 function get_values(
     p3::PSP3,
-    Chen2022_ice::CMP.Chen2022VelTypeSnowIce,
-    Chen2022_rain::CMP.Chen2022VelTypeRain,
+    Chen2022::CMP.Chen2022VelType,
     q::FT,
     N::FT,
     F_liq::FT,
@@ -36,8 +35,7 @@ function get_values(
 
             V_m[i, j] = P3.terminal_velocity_tot(
                 p3,
-                Chen2022_ice,
-                Chen2022_rain,
+                Chen2022,
                 q,
                 N,
                 ρ_r,
@@ -94,9 +92,9 @@ function figure_2(F_liq)
     xres = 100
     yres = 100
 
-    (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_s, N_s, F_liq, ρ_a, xres, yres)
-    (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_m, N_m, F_liq, ρ_a, xres, yres)
-    (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, Chen2022.rain, q_l, N_l, F_liq, ρ_a, xres, yres)
+    (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022, q_s, N_s, F_liq, ρ_a, xres, yres)
+    (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022, q_m, N_m, F_liq, ρ_a, xres, yres)
+    (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022, q_l, N_l, F_liq, ρ_a, xres, yres)
 
     fig = Plt.Figure()
 

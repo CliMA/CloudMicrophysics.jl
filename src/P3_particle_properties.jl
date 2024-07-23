@@ -27,7 +27,7 @@ D_th_helper(p3::PSP3{FT}) where {FT} =
     D_cr_helper(p3, F_r, ρ_g)
 
  - p3 - a struct with P3 scheme parameters
- - F_r - rime mass fraction (q_rim/q_i) [-]
+ - F_r - rime mass fraction (q_rim/q_i,ice) [-]
  - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
 
 Returns the size of equal mass for graupel and partially rimed ice, in meters.
@@ -56,7 +56,7 @@ end
     ρ_g_helper(ρ_r, F_r, ρ_d)
 
  - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (q_rim/q_i) [-]
+ - F_r - rime mass fraction (q_rim/q_i,ice) [-]
  - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
 
 Returns the density of total (deposition + rime) ice mass for graupel, in kg/m3
@@ -86,7 +86,7 @@ end
 
  - p3 - a struct with P3 scheme parameters
  - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (q_rim/q_i) [-]
+ - F_r - rime mass fraction (q_rim/q_i,ice) [-]
 
 Solves the nonlinear system consisting of D_cr, D_gr, ρ_g, ρ_d
 for a given rime density and rime mass fraction.
@@ -137,7 +137,7 @@ end
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension [m]
  - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
- - F_r - rime mass fraction [q_rim/q_i]
+ - F_r - rime mass fraction (q_rim/q_i,ice)
 
 Returns mass as a function of size for differen particle regimes [kg]
 """
@@ -156,7 +156,7 @@ mass_liq(p3::PSP3, D::FT) where {FT} = (FT(π) / 6) * p3.ρ_l * D^3
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
- - F_r - rime mass fraction (q_rim/q_i)
+ - F_r - rime mass fraction (q_rim/q_i,ice)
  - F_liq - liquid fraction (q_liq/q_i,tot)
  - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
@@ -204,7 +204,7 @@ A_r(p3::PSP3, F_r::FT, D::FT) where {FT} =
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
- - F_r - rime mass fraction (q_rim/q_i)
+ - F_r - rime mass fraction (q_rim/q_i,ice)
  - F_liq - liquid fraction (q_liq/q_i,tot)
  - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 

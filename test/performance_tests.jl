@@ -146,17 +146,7 @@ function benchmark_test(FT)
         )
         bench_press(
             P3.terminal_velocity_tot,
-            (
-                p3,
-                ch2022.snow_ice,
-                ch2022.rain,
-                q_tot,
-                N,
-                ρ_r,
-                F_liq,
-                F_r,
-                ρ_air,
-            ),
+            (p3, ch2022, q_tot, N, ρ_r, F_liq, F_r, ρ_air),
             3e5,
             4e4,
             3e3,

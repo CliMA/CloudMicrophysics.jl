@@ -84,6 +84,40 @@ function get_ice_bound(p3, λ::FT, tolerance::FT) where {FT}
 end
 
 """
+    integration_bounds(pdf, p3, tolerance, λ, N_0, Nᵢ, qᵣ, Nᵣ)
+    
+    - pdf - TODO: figure out exactly what this is... guessing: 
+    - a struct that represents particle distribution functions for different particle types
+    - p3 - a struct containing P3 Scheme parameters 
+    - tolerance - tolerance to which distributions need to be evaluated to
+    - λ - shape parameter of ice distribution
+    - N_0 - intercept size distribution of ice 
+    - Nᵢ - number mixing ratio of ice
+    - q - mass mizing ratio of colliding species
+    - N - number mixing ratio of colliding species
+   
+    Returns the bounds over which to integrate rain, cloud, and ice distributions to ensure 
+    coverage or more than (1 - tolerance) of each distribution
+   """
+function integration_bounds(
+    pdf::Union{
+        CMP.RainParticlePDF_SB2006{FT},
+        CMP.RainParticlePDF_SB2006_limited{FT},
+        CMP.CloudParticlePDF_SB2006{FT},
+    },
+    p3::PSP3,
+    tolerance::FT,
+    λ::FT,
+    q::FT,
+    N::FT,
+    ρ_a::FT,
+) where {FT}
+    colliding_x = CM2.get_distribution_bound(pdf, q, N, ρ_a, tolerance)
+    ice_bound = get_ice_bound(p3, λ, tolerance)
+    return (2 * colliding_x, 2 * ice_bound)
+end
+
+"""
     q_(p3, ρ, F_r, F_liq, λ, μ, D_min, D_max)
 
  - p3 - a struct with P3 scheme parameters
@@ -134,6 +168,7 @@ end
 # F_liq != 0 (liquid mass on mixed-phase particles for D in [D_min, D_max])
 ## TODO: change integral so that we use HC Cubature? Will be easier after
 #       P3 Sink Terms PR is merged?
+# maybe try using integration_bounds?
 function q_liq(
     p3::PSP3,
     F_liq::FT,
@@ -145,7 +180,7 @@ function q_liq(
     return ∫_Γ(D_min, D_max, F_liq * (FT(π) / 6) * p3.ρ_l, μ + 3, λ)
 end
 
-# try with quadgk to see if that fixes errors?
+# attempt with quadgk to see if that fixes errors?
 # function q_liq(
 #     p3::PSP3,
 #     F_liq::FT,
