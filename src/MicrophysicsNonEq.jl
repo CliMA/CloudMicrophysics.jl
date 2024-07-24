@@ -70,6 +70,9 @@ function conv_q_vap_to_q_liq_ice(
     const_dt:: FT,
 ) where {FT}
 
+    # going to need to either change this function to have ice functionality or do something else?
+
+
     # (might want to change the name of this function at some point)
     # might also want to make turn these parameters into a struct or something
     # implementing this -- first the simplest form that
@@ -112,7 +115,9 @@ function conv_q_vap_to_q_liq_ice(
     δ_0 = (Sₗ-1)*q_sat.liq
 
     # solving for new Sl after timestep delta t:
-    Sₗ = (1/q_sat.liq)*(A_c * τ/(ice.τ_relax * Γₗ) + (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))) + 1
+    Sₗ = (1/q_sat.liq)*(A_c * τ/(liquid.τ_relax * Γₗ) + (δ_0 - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))) + 1
+
+    Sᵢ = (1/q_sat.ice)*(A_c * τ/(ice.τ_relax * Γᵢ) + (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) + (q_sat.liq + q_sat.ice)/(ice.τ_relax*Γᵢ)) + 1
 
     # a question -- is this Sl or total S?
 
