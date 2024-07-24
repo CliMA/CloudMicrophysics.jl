@@ -111,17 +111,22 @@ function conv_q_vap_to_q_liq_ice(
 
     τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
        
-    # this does need to be mixing ratio instead
-    δ_0 = (Sₗ-1)*q_sat.liq
+    # this does need to be mixing ratio instead -- double check this calc
+    δ_0ₗ = (Sₗ-1)*q_sat.liq
+    # just doing a quick hacky version of calculating S_i this way -- not entirely sure
+    # taken from parcel common
+    Sᵢ = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) / TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ 
+    
+    δ_0ᵢ = (Sᵢ-1)*q_sat.ice
 
     # solving for new Sl after timestep delta t:
-    Sₗ = (1/q_sat.liq)*(A_c * τ/(liquid.τ_relax * Γₗ) + (δ_0 - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))) + 1
+    Sₗ = (1/q_sat.liq)*(A_c * τ/(liquid.τ_relax * Γₗ) + (δ_0ₗ - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))) + 1
 
-    Sᵢ = (1/q_sat.ice)*(A_c * τ/(ice.τ_relax * Γᵢ) + (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) + (q_sat.liq + q_sat.ice)/(ice.τ_relax*Γᵢ)) + 1
+    Sᵢ = (1/q_sat.ice)*(A_c * τ/(ice.τ_relax * Γᵢ) + (δ_0ᵢ - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) + (q_sat.liq + q_sat.ice)/(ice.τ_relax*Γᵢ)) + 1
 
     # a question -- is this Sl or total S?
 
-    return Sₗ
+    return Sₗ, Sᵢ
 end
 
 end #module MicrophysicsNonEq.jl

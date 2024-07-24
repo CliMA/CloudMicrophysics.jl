@@ -221,7 +221,7 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
     #Sₗ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, TD.PhasePartition(FT(0),qₗ,FT(0)), T, Sₗ, w, p_air, e, ρ_air, const_dt)
-    Sₗ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt)
+    Sₗ, Sᵢ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt)
     Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
     return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD.rₗ * Nₗ
 end
@@ -242,7 +242,7 @@ end
 
 function deposition(params::NonEqDepParams,PSD, state, ρ_air)
     FT = eltype(state)
-    (; Sₗ, T, p_air, qₗ, qᵥ) = state
+    (; Sₗ, T, p_air, qₗ, qᵥ, Nᵢ) = state
     
     (; aps, tps, liquid, ice, w, const_dt) = params
 
@@ -263,7 +263,7 @@ function deposition(params::NonEqDepParams,PSD, state, ρ_air)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
     #Sₗ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, TD.PhasePartition(FT(0),qₗ,FT(0)), T, Sₗ, w, p_air, e, ρ_air, const_dt)
-    Sₗ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt)
-    Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
-    return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD.rₗ * Nₗ
+    Sₗ, Sᵢ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt)
+    Gᵢ = CMO.G_func(aps, tps, T, TD.Ice())
+    return 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD.rᵢ * Nᵢ
 end
