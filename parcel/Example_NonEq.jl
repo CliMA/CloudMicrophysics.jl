@@ -26,7 +26,7 @@ Nₗ = FT(200 * 1e6)
 Nᵢ = FT(0)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
-T₀ = FT(200.15 + 7.0)
+T₀ = FT(273.15 + 7.0)
 ln_INPC = FT(0)
 e = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 Sₗ = FT(1)
@@ -41,7 +41,7 @@ IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed
 const_dt = FT(0.5)                         # model timestep
-t_max = FT(20)
+t_max = FT(100)
 size_distribution_list = ["Monodisperse", "Gamma"]
 condensation_growth = "NonEq_Condensation"
 
@@ -62,6 +62,7 @@ ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
 ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
 ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]")
+ax7 = MK.Axis(fig[4, 1], ylabel = "Ice Supersaturation [-]")
 MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
@@ -83,6 +84,12 @@ for DSD in size_distribution_list
     MK.lines!(ax3, sol.t, sol[4, :] * 1e3)
     MK.lines!(ax4, sol.t, sol[5, :] * 1e3)
     MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
+    MK.lines!(
+        ax7,
+        sol.t / 60,
+        S_i.(tps, sol[3, :], sol[1, :]) .- 1,
+        label = DSD,
+    )
 
     sol_Nₗ = sol[8, :]
     sol_Nᵢ = sol[9, :]
@@ -114,4 +121,4 @@ MK.axislegend(
     position = :rb,
 )
 
-MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/liquid_noneq_parcel_complex.svg", fig)
+MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_temps/liquid_noneq_parcel.svg", fig)

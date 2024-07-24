@@ -268,7 +268,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.condensation_growth == "Condensation"
         ce_params = CondParams{FT}(pp.aps, pp.tps)
     elseif pp.condensation_growth == "NonEq_Condensation"
-        ce_params = NonEqCondParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.const_dt)
+        ce_params = NonEqCondParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
     else
         throw("Unrecognized condensation growth mode")
     end
