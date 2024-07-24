@@ -58,15 +58,14 @@ Rogers_radius = [8.0, 8.08, 8.26, 8.91, 9.26, 9.68]
 
 # Setup the plots
 fig = MK.Figure(size = (800, 600))
-ax1 = MK.Axis(fig[1, 1], ylabel = "Supersaturation [%]")
-ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
-ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
-ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
-ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
-ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]")
-ax7 = MK.Axis(fig[4, 1], ylabel = "Ice Supersaturation [-]")
-MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
-MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
+ax1 = MK.Axis(fig[1, 1], ylabel = "Liquid Supersaturation [%]")
+ax2 = MK.Axis(fig[2, 1], ylabel = "Temperature [K]")
+ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
+ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
+ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
+ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
+#MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
+#MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
 for DSD in size_distribution_list
     local params = parcel_params{FT}(
@@ -84,15 +83,16 @@ for DSD in size_distribution_list
     # Plot results
     MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = DSD)
     MK.lines!(ax2, sol.t, sol[3, :])
-    MK.lines!(ax3, sol.t, sol[4, :] * 1e3)
-    MK.lines!(ax4, sol.t, sol[5, :] * 1e3)
-    MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
+    MK.lines!(ax3, sol.t, sol[5, :] * 1e3)
     MK.lines!(
-        ax7,
-        sol.t / 60,
-        S_i.(tps, sol[3, :], sol[1, :]) .- 1,
+        ax4,
+        sol.t,
+        (S_i.(tps, sol[3, :], sol[1, :]) .- 1)* 100.0,
         label = DSD,
     )
+    MK.lines!(ax5, sol.t, sol[4, :] * 1e3)
+    MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
+
 
     sol_Nₗ = sol[8, :]
     sol_Nᵢ = sol[9, :]
@@ -102,6 +102,7 @@ for DSD in size_distribution_list
     sol_qᵥ = sol[4, :]
     sol_qₗ = sol[5, :]
     sol_qᵢ = sol[6, :]
+
     local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
     local ρₐ = TD.air_density.(tps, ts)
@@ -112,7 +113,7 @@ for DSD in size_distribution_list
     for it in range(1, length(sol_T))
         rₗ[it] = moms[it].rₗ
     end
-    MK.lines!(ax5, sol.t, rₗ * 1e6)
+    #MK.lines!(ax5, sol.t, rₗ * 1e6)
 end
 
 MK.axislegend(
