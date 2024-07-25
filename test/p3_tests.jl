@@ -195,17 +195,10 @@ function test_particle_terminal_velocities(FT)
         th = P3.thresholds(p3, ρ_r, F_r)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
-        expected = [0.08109, 0.3838, 0.5917, 0.8637, 1.148]
+        expected = [0.08109, 0.4115, 0.7912, 1.1550, 1.4871]
         for i in axes(Ds, 1)
             D = Ds[i]
-            vel = P3.ice_particle_terminal_velocity(
-                D,
-                Chen2022.snow_ice,
-                ρ_a,
-                P3.p3_mass(p3, D, F_r, th),
-                P3.p3_area(p3, D, F_r, th),
-                p3.ρ_i,
-            )
+            vel = P3.ice_particle_terminal_velocity(D, Chen2022.snow_ice, ρ_a)
             TT.@test vel >= 0
             TT.@test vel ≈ expected[i] rtol = 1e-3
         end
@@ -222,17 +215,17 @@ function test_bulk_terminal_velocities(FT)
     F_rs = [FT(0), FT(0.2), FT(0.4), FT(0.6), FT(0.8)]
 
     TT.@testset "Mass and number weighted terminal velocities" begin
-        paper_vals = [
-            [1.5, 1.5, 1.5, 1.5, 1.5],
-            [1.5, 1.5, 2.5, 2.5, 2.5],
-            [1.5, 2.5, 2.5, 2.5, 2.5],
-            [1.5, 2.5, 3.5, 3.5, 3.5],
+        reference_vals_m = [
+            [7.79, 7.27, 6.66, 5.94, 5.25],
+            [7.79, 7.26, 6.62, 5.83, 4.82],
+            [7.79, 7.25, 6.62, 5.81, 4.7],
+            [7.79, 7.25, 6.62, 5.81, 4.65],
         ]
-        expected_vals = [
-            [1.52, 1.46, 1.41, 1.36, 1.24],
-            [1.52, 1.47, 1.44, 1.42, 1.35],
-            [1.52, 1.47, 1.45, 1.44, 1.42],
-            [1.52, 1.47, 1.45, 1.45, 1.45],
+        reference_vals_n = [
+            [3.65, 3.37, 3.05, 2.64, 2.14],
+            [3.64, 3.37, 3.04, 2.62, 2.04],
+            [3.65, 3.37, 3.04, 2.62, 2.02],
+            [3.64, 3.37, 3.04, 2.61, 2.01],
         ]
         for i in 1:length(ρ_rs)
             for j in 1:length(F_rs)
@@ -250,12 +243,12 @@ function test_bulk_terminal_velocities(FT)
                 )
 
                 # number weighted
-                TT.@test calculated_vel[2] > 0
-                TT.@test expected_vals[i][j] ≈ calculated_vel[1] atol = 0.1
+                TT.@test calculated_vel[1] > 0
+                TT.@test reference_vals_n[i][j] ≈ calculated_vel[1] atol = 0.1
 
                 # mass weighted
-                TT.@test calculated_vel[1] > 0
-                TT.@test paper_vals[i][j] ≈ calculated_vel[2] atol = 3.14
+                TT.@test calculated_vel[2] > 0
+                TT.@test reference_vals_m[i][j] ≈ calculated_vel[2] atol = 0.1
             end
         end
     end
@@ -493,14 +486,8 @@ function test_integrals(FT)
                 λ, N_0 = P3.distribution_parameter_solver(p3, q, N, ρ_r, F_r)
                 th = P3.thresholds(p3, ρ_r, F_r)
                 ice_bound = P3.get_ice_bound(p3, λ, tolerance)
-                vel(d) = P3.ice_particle_terminal_velocity(
-                    d,
-                    Chen2022.snow_ice,
-                    ρ_a,
-                    P3.p3_mass(p3, d, F_r, th),
-                    P3.p3_area(p3, d, F_r, th),
-                    p3.ρ_i,
-                )
+                vel(d) =
+                    P3.ice_particle_terminal_velocity(d, Chen2022.snow_ice, ρ_a)
                 f(d) = vel(d) * P3.N′ice(p3, d, λ, N_0)
 
                 qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), 2 * ice_bound)
@@ -524,6 +511,7 @@ function test_integrals(FT)
         end
     end
 end
+
 
 println("Testing Float32")
 test_p3_thresholds(Float32)

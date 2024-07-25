@@ -54,7 +54,7 @@ function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT}
 end
 
 """
-    get_ice_bounds(p3, λ, tolerance)
+    get_ice_bound(p3, λ, tolerance)
 
  - p3 - a struct containing p3 parameters
  - λ - shape parameters of ice distribution
