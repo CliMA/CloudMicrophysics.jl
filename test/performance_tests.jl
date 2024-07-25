@@ -156,7 +156,7 @@ function benchmark_test(FT)
             1e5,
         )
         bench_press(
-            P3.terminal_velocity,
+            P3.ice_terminal_velocity,
             (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air),
             2e5,
             3e4,

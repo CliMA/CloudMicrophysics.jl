@@ -505,6 +505,28 @@ function rain_self_collection_and_breakup(
 end
 
 """
+    rain_particle_terminal_velocity(D, Chen2022, ρₐ)
+
+ - D - maximum particle dimension
+ - Chen2022 - a struct with terminal velocity parameters from Chen 2022
+ - ρₐ - air density
+
+Returns the terminal velocity of an individual rain drop as a function
+of its size (maximum dimension) following Chen 2022 velocity parametrization.
+Needed for numerical integrals in the P3 scheme.
+"""
+function rain_particle_terminal_velocity(
+    D::FT,
+    Chen2022::CMP.Chen2022VelTypeRain,
+    ρₐ::FT,
+) where {FT}
+    (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρₐ)
+
+    v = sum(@. sum(ai * D^bi * exp(-ci * D)))
+    return v
+end
+
+"""
     rain_terminal_velocity(SB2006, vel, q_rai, ρ, N_rai)
 
  - `SB2006` - a struct with SB2006 rain size distribution parameters
