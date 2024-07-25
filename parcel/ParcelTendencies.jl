@@ -161,12 +161,13 @@ end
 function homogeneous_freezing(params::ABHOM, PSD_liq, state)
     FT = eltype(state)
     (; tps, ips, const_dt) = params
-    (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
+    (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ, Sₗ) = state
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-    Rᵥ = TD.Parameters.R_v(tps)
-    R_air = TD.gas_constant_air(tps, q)
-    e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
+    # q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    # Rᵥ = TD.Parameters.R_v(tps)
+    # R_air = TD.gas_constant_air(tps, q)
+    # e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
+    e = Sₗ * TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
     J = CMI_hom.homogeneous_J_linear(ips.homogeneous, Δa_w)

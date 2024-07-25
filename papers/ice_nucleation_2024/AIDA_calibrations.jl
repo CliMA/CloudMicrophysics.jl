@@ -90,8 +90,8 @@ for (index, data_file_name) in enumerate(data_file_names)
     ## Calibrated coefficients.
     #  Did they converge?
     calibrated_coeffs_fig = MK.Figure(size = (600, 600), fontsize = 24)
-    ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$plot_name")
-    ax4 = MK.Axis(calibrated_coeffs_fig[2, 1], ylabel = "c coefficient [-]", xlabel = "iteration number")
+    ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]")#, title = "$plot_name")
+    ax4 = MK.Axis(calibrated_coeffs_fig[2, 1], ylabel = "c coefficient [-]", xlabel = "iteration #")
     MK.ylims!(ax3, 250, 260)
     MK.lines!(ax3, collect(1:n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)
     MK.lines!(ax4, collect(1:n_iterations), calibrated_ensemble_means[2], label = "ensemble mean", color = :orange, linewidth = 2.5)
@@ -99,14 +99,16 @@ for (index, data_file_name) in enumerate(data_file_names)
 
     ## Calibrated parcel simulations.
     #  Does the calibrated parcel give reasonable outputs?
-    calibrated_parcel_fig = MK.Figure(size = (800, 600), fontsize = 24)
+    calibrated_parcel_fig = MK.Figure(size = (1000, 800), fontsize = 20)
     ax_parcel_1 = MK.Axis(calibrated_parcel_fig[1, 1], ylabel = "saturation [-]", xlabel = "time [s]", title = "$plot_name")
     ax_parcel_2 = MK.Axis(calibrated_parcel_fig[2, 1], ylabel = "liq mixing ratio [g/kg]", xlabel = "time [s]")
     ax_parcel_3 = MK.Axis(calibrated_parcel_fig[1, 2], ylabel = "temperature [K]", xlabel = "time [s]")
     ax_parcel_4 = MK.Axis(calibrated_parcel_fig[2, 2], ylabel = "qᵢ [g/kg]", xlabel = "time [s]")
+    ax_parcel_5 = MK.Axis(calibrated_parcel_fig[3, 1], ylabel = "Nₗ [m^-3]", xlabel = "time [s]")
+    ax_parcel_6 = MK.Axis(calibrated_parcel_fig[3, 2], ylabel = "Nᵢ [m^-3]", xlabel = "time [s]")
     MK.lines!(ax_parcel_1, parcel.t .+ (moving_average_n / 2), parcel[1, :], label = "calibrated", color = :orange) # label = "liquid"
     MK.lines!(ax_parcel_1, parcel_default.t .+ (moving_average_n / 2), parcel_default[1, :], label = "default", color = :darkorange2)
-    #MK.lines!(ax_parcel_1, parcel.t, S_i.(tps, parcel[3, :], parcel[1, :]), label = "ice")
+    MK.lines!(ax_parcel_1, parcel.t .+ (moving_average_n / 2), S_i.(tps, parcel[3, :], parcel[1, :]), label = "ice", color = :green)
     MK.lines!(ax_parcel_2, parcel.t .+ (moving_average_n / 2), parcel[5, :], color = :orange)
     MK.lines!(ax_parcel_2, parcel_default.t .+ (moving_average_n / 2), parcel_default[5,:], color = :darkorange2)
     MK.lines!(ax_parcel_3, parcel.t .+ (moving_average_n / 2), parcel[3, :], color = :orange)
@@ -119,11 +121,15 @@ for (index, data_file_name) in enumerate(data_file_names)
     )
     MK.lines!(ax_parcel_4, parcel.t .+ (moving_average_n / 2), parcel[6, :], color = :orange)
     MK.lines!(ax_parcel_4, parcel_default.t .+ (moving_average_n / 2), parcel_default[6, :], color = :darkorange2)
+    MK.lines!(ax_parcel_5, parcel.t .+ (moving_average_n / 2), parcel[8, :], color = :orange)
+    MK.lines!(ax_parcel_5, parcel_default.t .+ (moving_average_n / 2), parcel_default[8, :], color = :darkorange2)
+    MK.lines!(ax_parcel_6, parcel.t .+ (moving_average_n / 2), parcel[9, :], color = :orange)
+    MK.lines!(ax_parcel_6, parcel_default.t .+ (moving_average_n / 2), parcel_default[9, :], color = :darkorange2)
     MK.save("$plot_name"*"_calibrated_parcel_fig.svg", calibrated_parcel_fig)
 
     ## Comparing AIDA data and calibrated parcel.
     #  Does calibrated parcel look like observations?
-    ICNC_comparison_fig = MK.Figure(size = (800, 600), fontsize = 24)
+    ICNC_comparison_fig = MK.Figure(size = (700, 600), fontsize = 24)
     ax_compare = MK.Axis(ICNC_comparison_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$plot_name")
     #MK.ylims!(ax_compare, 3, 5e8)
     MK.lines!(
@@ -161,5 +167,26 @@ for (index, data_file_name) in enumerate(data_file_names)
     )
     MK.axislegend(ax_compare, framevisible = false, labelsize = 20, position = :lt)
     MK.save("$plot_name"*"_ICNC_comparison_fig.svg", ICNC_comparison_fig)
+
+    ## Comparing logJ vs T plots with T-dependent paper.
+    @info("", parcel[11,:])
+    logJ_ccm = @. log10(parcel[11,:] * 1e-6)
+    # KoopLineT = collect(235:0.25:237.5)
+    # KoopLine_Δa = 
+    # KoopLine_logJ = 
+    logJvsT_fig = MK.Figure(size = (700, 600), fontsize = 24)
+    ax_logJ = MK.Axis(logJvsT_fig[1, 1], ylabel = "logJ [cm^-3 s^-1]", xlabel = "T [K]", title = "$plot_name")
+    #MK.ylims!(ax_logJ, 5, 10)
+    ax_logJ.xreversed = true
+    MK.scatter!(
+        ax_logJ,
+        parcel[3,:],
+        logJ_ccm,
+        label = "CM.jl Calibrated Parcel",
+        # linewidth = 2.5,
+        color =:orangered,
+    )
+    MK.save("$plot_name"*"_logJ_vs_T_fig.svg", logJvsT_fig)
+
     #! format: on
 end

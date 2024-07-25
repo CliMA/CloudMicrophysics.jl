@@ -215,7 +215,7 @@ function AIDA_IN05_IC(FT, data_file)
         e = eᵥ(qᵥ, p₀, Rₐ, R_v)
         Sₗ = FT(e / eₛ)
     end
-    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0), FT(0)]   #remove the last element, its J
 end
 
 

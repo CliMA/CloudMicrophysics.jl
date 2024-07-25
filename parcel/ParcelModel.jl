@@ -43,7 +43,7 @@ function parcel_model(dY, Y, p, t)
     # Numerical precision used in the simulation
     FT = eltype(Y)
     # Simulation parameters
-    (; wps, tps, r_nuc, w) = p
+    (; wps, tps, r_nuc, w, ips, const_dt) = p # remove "ips" and "const_dt"
     (; liq_distr, ice_distr) = p
     (; dep_params, imm_params, hom_params, ce_params, ds_params) = p
     # Y values stored in a named tuple for ease of use
@@ -58,6 +58,7 @@ function parcel_model(dY, Y, p, t)
         Nₗ = clip!(Y[8]),
         Nᵢ = clip!(Y[9]),
         ln_INPC = Y[10],   # needed only in stochastic Frostenberg
+        J = Y[11],
         t = t,
     )
 
@@ -105,6 +106,10 @@ function parcel_model(dY, Y, p, t)
     # Homogeneous ice nucleation
     dNᵢ_dt_hom = homogeneous_freezing(hom_params, PSD_liq, state)
     dqᵢ_dt_hom = dNᵢ_dt_hom * PSD_liq.V * ρᵢ / ρ_air
+    # e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
+    e = Sₗ * TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
+    raw_J = CMI_hom.homogeneous_J_linear(ips.homogeneous, Δa_w)
 
     # Condensation/evaporation
     dqₗ_dt_ce = condensation(ce_params, PSD_liq, state, ρ_air)
@@ -148,6 +153,7 @@ function parcel_model(dY, Y, p, t)
     dY[8] = dNₗ_dt      # mumber concentration of droplets
     dY[9] = dNᵢ_dt      # number concentration of activated particles
     dY[10] = dln_INPC_imm
+    dY[11] = (raw_J - Y[11])/const_dt
 end
 
 """
@@ -293,6 +299,8 @@ function run_parcel(IC, t_0, t_end, pp)
         tps = pp.tps,
         r_nuc = pp.r_nuc,
         w = pp.w,
+        ips = pp.ips,
+        const_dt = pp.const_dt,
     )
 
     problem = ODE.ODEProblem(parcel_model, IC, (FT(t_0), FT(t_end)), p)
