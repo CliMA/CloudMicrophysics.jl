@@ -21,7 +21,6 @@ function distribution_moments(::Monodisperse, q, N, ρ, ρ_air)
         A = 4 * FT(π) * r^2
         V = FT(4 / 3 * π) * r^3
     end
-    
     return (; r, A, V)
 end
 
