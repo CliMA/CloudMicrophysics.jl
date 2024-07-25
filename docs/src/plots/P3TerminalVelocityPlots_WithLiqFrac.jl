@@ -33,7 +33,7 @@ function get_values(
             F_r = F_rs[i]
             ρ_r = ρ_rs[j]
 
-            V_m[i, j] = P3.terminal_velocity(
+            V_m[i, j] = P3.ice_terminal_velocity(
                 p3,
                 Chen2022,
                 q,

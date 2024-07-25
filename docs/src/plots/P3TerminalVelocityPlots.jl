@@ -31,7 +31,7 @@ function get_values(
             ρ_r = ρ_rs[j]
 
             V_m[i, j] =
-                P3.terminal_velocity(p3, Chen2022, q, N, ρ_r, F_r, ρ_a)[2]
+                P3.ice_ice_terminal_velocity(p3, Chen2022, q, N, ρ_r, F_r, ρ_a)[2]
             # get D_m in mm for plots
             D_m[i, j] = 1e3 * P3.D_m(p3, q, N, ρ_r, F_r, FT(0)) # F_liq = 0
         end
