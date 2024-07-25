@@ -246,7 +246,7 @@ function test_velocities(FT)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
-                calculated_vel = P3.terminal_velocity_tot(
+                calculated_vel = P3.terminal_velocity(
                     p3,
                     Chen2022,
                     q,
@@ -280,7 +280,7 @@ function test_velocities(FT)
         # F_liq = 0.67: [0.47748979041733225, 6.323271364128597]
         for i in eachindex(F_liqs)
             F_liq = F_liqs[i]
-            calculated_n, calculated_m = P3.terminal_velocity_tot(
+            calculated_n, calculated_m = P3.terminal_velocity(
                 p3,
                 Chen2022,
                 q,
@@ -546,7 +546,7 @@ function test_integrals(FT)
                     q = qs[i]
 
                     # Velocity comparisons
-                    vel_N, vel_m = P3.terminal_velocity_tot(
+                    vel_N, vel_m = P3.terminal_velocity(
                         p3,
                         Chen2022,
                         q,

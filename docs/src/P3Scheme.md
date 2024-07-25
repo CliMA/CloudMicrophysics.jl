@@ -188,9 +188,6 @@ They can be compared with Figure 2 from [MorrisonMilbrandt2015](@cite).
 include("plots/P3TerminalVelocityPlots_WithLiqFrac.jl")
 ```
 ![](MorrisonandMilbrandtFig2_0.0.svg)
-![](MorrisonandMilbrandtFig2_0.33.svg)
-![](MorrisonandMilbrandtFig2_0.67.svg)
-![](MorrisonandMilbrandtFig2_0.99.svg)
 
 ## Collisions
 
@@ -301,7 +298,59 @@ The change in number concentration and mass due to heterogeneous freezing are sh
 
 ## Liquid Fraction
 
-Will add things here to docs: for now see issue [#406](https://github.com/CliMA/CloudMicrophysics.jl/issues/406).
+To allow for the modeling of mixed-phase particles with P3, a new prognostic variable can be introduced:
+  ``q_{liq}``, the mixing ratio of liquid on mixed-phase particles. As described in [Choletteetal2019](@cite),
+  this addition to the framework of P3 opens the door to tracking the gradual melting (and refreezing) of a
+  particle population with hydrometeor categories such as wet snow. Here, we describe the characteristics
+  of the scheme with the addition of ``q_{liq}``.
+
+Liquid fraction, analogous to ``F_r`` for rime, is defined ``F_{liq} = \frac{q_{liq}}{q_{ice}}``.
+  Importantly, the introduction of ``q_{liq}`` changes the formulation of ``F_r``: whereas above,
+  we have ``F_r = \frac{q_{rim}}{q_{ice}}``, we now need ``F_r = \frac{Q_{rim}}{q_{ice} - q_{liq}}``
+  since the total ice mass ``q_{ice} = q_{rim} + q_{dep} + q_{liq}`` now includes liquid mass.
+
+The addition of the liquid fraction does not change the thresholds ``D_{th}``, ``D_{gr}``, ``D_{cr}``,
+  since the threshold regime depends only on ice core properties.
+
+However, the assumed particle properties become ``F_{liq}``-weighted averages of particles' solid and liquid
+  components:
+
+```math
+m(D, F_{liq}) = (1 - F_liq) * m(D, F_{liq} = 0) + F_liq * m_{liq}(D)
+```
+```math
+A(D, F_{liq}) = (1 - F_liq) * A(D, F_{liq} = 0) + F_liq * A_{liq}(D)
+```
+
+where ``m_{liq}(D) = \frac{\pi}{6} \rho_liq * D^3`` and ``A_{liq}(D) = \frac{\pi}{4} D^2``.
+
+When calculating shape parameters and integrating over the particle size distribution (PSD), it is important to
+  keep in mind whether the desired moment of the PSD is tied only to ice (in which case we concern ourselves with the
+  ice core diameter ``D_{core}``) or to the whole mixed-phase particle (in which case we need ``D_p``).
+
+For the above particle properties and for terminal velocity, we use the PSD corresponding to the whole mixed-phase particle,
+  so our terminal velocity of a mixed-phase particle is:
+
+```math
+V(D_{p}, F_{liq}) = (1 - F_{liq}) * V_{ice}(D_{p}) + F_{liq} * V_{rain}(D_{p})
+```
+
+We continue to use the terminal velocity parameterizations from [Chen2022](@cite) for rain, which
+  is described [here](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics2M/#Terminal-Velocity).
+
+For process rates that apply without liquid fraction, we now need to consider whether they are concerned with
+  the ice core or the whole particle, in addition to whether they become sources
+  and sinks of different prognostic variables. With the addition of liquid fraction, too,
+  come new process rates.
+
+...
+
+To give an idea of how terminal velocity changes with nonzero liquid fraction,
+  the above plots for terminal velocity are modified with 
+
+![](MorrisonandMilbrandtFig2_0.33.svg)
+![](MorrisonandMilbrandtFig2_0.67.svg)
+![](MorrisonandMilbrandtFig2_0.99.svg)
 
 Replicating Fig. 1 from [Choletteetal2019](@cite):
 

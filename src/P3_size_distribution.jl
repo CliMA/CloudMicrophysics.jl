@@ -166,9 +166,6 @@ function q_r(p3::PSP3, F_liq::FT, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
     )
 end
 # F_liq != 0 (liquid mass on mixed-phase particles for D in [D_min, D_max])
-## TODO: change integral so that we use HC Cubature? Will be easier after
-#       P3 Sink Terms PR is merged?
-# maybe try using integration_bounds?
 function q_liq(
     p3::PSP3,
     F_liq::FT,
@@ -179,22 +176,6 @@ function q_liq(
 ) where {FT}
     return ∫_Γ(D_min, D_max, F_liq * (FT(π) / 6) * p3.ρ_l, μ + 3, λ)
 end
-
-# attempt with quadgk to see if that fixes errors?
-# function q_liq(
-#     p3::PSP3,
-#     F_liq::FT,
-#     μ::FT,
-#     λ::FT,
-#     D_min::FT,
-#     D_max::FT,
-# ) where {FT}
-#     tolerance = eps(FT)
-#     ice_bound = get_ice_bound(p3, λ, tolerance)
-#     q(D) = F_liq * mass_liq(p3, D) * D^μ * exp(-λ)
-#     q_liq, en = QGK.quadgk(D -> q(D), 0, 2 * ice_bound)
-#     return q_liq
-# end
 
 """
     q_over_N_gamma(p3, F_liq, F_r, λ, th)
@@ -399,56 +380,23 @@ function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
     # Redefine α_va to be in si units
     α_va = α_va_si(p3)
 
-    # Calculate numerator
-    n = 0
+    # Calculate numerator(s) -- non liquid and liquid parts
+    n_nl = 0
     if F_r == 0
-        n += ∫_Γ(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
-        n += ∫_Γ(D_th, Inf, α_va * N_0, μ + p3.β_va + 1, λ)
+        n_nl += ∫_Γ(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n_nl += ∫_Γ(D_th, Inf, α_va * N_0, μ + p3.β_va + 1, λ)
+        n_l = ∫_Γ(FT(0), Inf, N_0 * p3.ρ_l * (FT(π) / 6), μ + 4, λ)
     else
-        n += ∫_Γ(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
-        n += ∫_Γ(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
-        n += ∫_Γ(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
-        n += ∫_Γ(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
+        n_nl += ∫_Γ(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
+        n_nl += ∫_Γ(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
+        n_nl += ∫_Γ(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
+        n_nl += ∫_Γ(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
+        n_l = ∫_Γ(FT(0), Inf, N_0 * p3.ρ_l * (FT(π) / 6), μ + 4, λ)
     end
+
+    # F_liq-weighted average:
+    n = (1 - F_liq) * n_nl + F_liq * n_l
+
     # Normalize by q
     return n / q
-end
-
-"""
-    D_m_liq (p3, q, N, ρ_r, F_r, F_liq)
-
- - p3 - a struct with P3 scheme parameters
- - q - mass mixing ratio
- - N - number mixing ratio
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_liq - liquid fraction (q_liq/q_i,tot)
- - F_r - rime mass fraction (q_rim/q_i)
-
- Return the mass weighted mean particle size [m]
-"""
-function D_m_liq(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
-    # Get the shape parameters
-    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_liq, F_r)
-    μ = DSD_μ(p3, λ)
-    n(D) = F_liq * N_0 * p3.ρ_l * (FT(π) / 6) * D^(μ + 4) * exp(-λ * D)
-    (n, em) = QGK.quadgk(D -> n(D), FT(0), Inf)
-    # Normalize by q
-    return n / q
-end
-
-"""
-    D_m_tot(p3, q, N, ρ_r, F_r, F_liq)
-
- - p3 - a struct with P3 scheme parameters
- - q - mass mixing ratio
- - N - number mixing ratio
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_liq - liquid fraction (q_liq/q_i,tot)
- - F_r - rime mass fraction (q_rim/q_i)
-
- Return the mass weighted mean particle size [m]
-"""
-function D_m_tot(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT, F_liq::FT) where {FT}
-    return (1 - F_liq) * D_m(p3, q, N, ρ_r, F_r, F_liq) +
-           F_liq * D_m_liq(p3, q, N, ρ_r, F_r, F_liq)
 end

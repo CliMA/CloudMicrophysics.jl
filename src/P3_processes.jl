@@ -173,10 +173,15 @@ function p3_melt(
     N_sc = ν_air / D_vapor
     ρ_l = p3.ρ_l
 
+    # use non liquid mass
+    # and feed F_liq = 0 to shape solver
+    # to get ice core size distribution
+    q = (1 - F_liq) * q
+
     # Get distribution values
     D_th = D_th_helper(p3)
     th = thresholds(p3, ρ_r, F_r)
-    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_liq, F_r)
+    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, FT(0), F_r) # F_liq = 0
 
     # Get bound 
     ice_bound = get_ice_bound(p3, λ, eps(FT))
@@ -189,19 +194,20 @@ function p3_melt(
     end
 
     # Define function pieces
-    # TODO: add liquid fraction compat for terminal velocity below
     N_re(D) =           # TODO: What is this for non-spherical particles?
-        D * TV.velocity_chen(
+        D * mixed_phase_particle_velocity(
+            p3,
             D,
-            Chen2022.snow_ice,
+            Chen2022,
             ρ_a,
-            p3_mass(p3, D, F_r, F_liq, th),
-            p3_area(p3, D, F_r, F_liq, th),
-            p3.ρ_i,
+            F_r,
+            F_liq, # F_liq = nonzero because we want the real velocity
+            th,
         ) / ν_air
     F(D) = a + b * N_sc^(1 / 3) * N_re(D)^(1 / 2)
+    # F_liq = 0 for dmdt since we only care about the change in ice core mass
     dmdt(D) =
-        dmdD_mass(p3, D, F_r, F_liq, th) / ρ_l * K_therm / L_f *
+        dmdD_mass(p3, D, F_r, FT(0), th) / ρ_l * K_therm / L_f *
         (T - T_freeze) *
         F(D)
     f(D) = 1 / (2 * ρ_a) * dmdt(D) * N′ice(p3, D, λ, N_0)

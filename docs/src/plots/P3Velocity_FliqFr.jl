@@ -32,7 +32,7 @@ function get_values(
             F_r = F_rs[i]
             F_liq = F_liqs[j]
 
-            V_m[i, j] = P3.terminal_velocity_tot(
+            V_m[i, j] = P3.terminal_velocity(
                 p3,
                 Chen2022,
                 q,
@@ -131,6 +131,7 @@ function fig1()
     Plt.linkaxes!(ax1, ax2, ax3)
 
     Plt.resize_to_layout!(fig)
+    Plt.display(fig)
     Plt.save("P3Velocity_FliqFr.svg", fig)
 end
 

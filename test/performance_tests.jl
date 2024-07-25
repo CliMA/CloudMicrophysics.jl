@@ -145,7 +145,7 @@ function benchmark_test(FT)
             1e5,
         )
         bench_press(
-            P3.terminal_velocity_tot,
+            P3.terminal_velocity,
             (p3, ch2022, q_tot, N, ρ_r, F_liq, F_r, ρ_air),
             3e5,
             4e4,
