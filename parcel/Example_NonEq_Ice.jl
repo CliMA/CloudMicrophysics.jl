@@ -29,23 +29,23 @@ p₀ = FT(800 * 1e2)
 T₀ = FT(251)
 ln_INPC = FT(0)
 e = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
-Sₗ = FT(1)
+Sₗ = FT(1.14)
 md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
 ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
 mi_v = Nᵢ * 4 / 3 * FT(π) * ρᵢ * r₀^3
 qᵥ = mv_v / (md_v + mv_v + ml_v + mi_v)
-qₗ = ml_v / (md_v + mv_v + ml_v + mi_v) 
-qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v) 
+qₗ = ml_v / (md_v + mv_v + ml_v + mi_v)
+qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed
-const_dt = FT(0.5)                         # model timestep
-t_max = FT(100)
+const_dt = FT(0.001)                         # model timestep
+t_max = FT(20)
 size_distribution_list = ["Monodisperse", "Gamma"]
-condensation_growth = "NonEq_Condensation"
-deposition_growth = "NonEq_Deposition"
+condensation_growth = "NonEq_Condensation_Simple"
+deposition_growth = "NonEq_Deposition_Simple"
 
 # Data from Rogers(1975) Figure 1
 # https://www.tandfonline.com/doi/abs/10.1080/00046973.1975.9648397
@@ -125,4 +125,4 @@ MK.axislegend(
     position = :rb,
 )
 
-MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_temps/ice_noneq_parcel.svg", fig)
+MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_temps/ice_noneq_parcel_simple.svg", fig)

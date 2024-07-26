@@ -267,6 +267,8 @@ function run_parcel(IC, t_0, t_end, pp)
         ce_params = Empty{FT}()
     elseif pp.condensation_growth == "Condensation"
         ce_params = CondParams{FT}(pp.aps, pp.tps)
+    elseif pp.condensation_growth == "NonEq_Condensation_Simple"
+        ce_params = NonEqCondParamsSimple{FT}(pp.tps, pp.liquid)
     elseif pp.condensation_growth == "NonEq_Condensation"
         ce_params = NonEqCondParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
     else
@@ -278,6 +280,8 @@ function run_parcel(IC, t_0, t_end, pp)
         ds_params = Empty{FT}()
     elseif pp.deposition_growth == "Deposition"
         ds_params = DepParams{FT}(pp.aps, pp.tps)
+    elseif pp.deposition_growth == "NonEq_Deposition_Simple"
+        ds_params = NonEqDepParamsSimple{FT}(pp.tps, pp.ice)
     elseif pp.deposition_growth == "NonEq_Deposition"
         ds_params = NonEqDepParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
     else
