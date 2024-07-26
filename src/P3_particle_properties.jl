@@ -174,8 +174,8 @@ function p3_mass(
         return mass_nl(p3, D)             # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
         return mass_s(D, th.ρ_g)          # graupel
-    elseif D >= th.D_cr
-        return mass_r(p3, D, F_r)         # partially rimed ice
+    else #elseif D >= th.D_cr
+        mass_r(p3, D, F_r)                # partially rimed ice
     end
 end
 
