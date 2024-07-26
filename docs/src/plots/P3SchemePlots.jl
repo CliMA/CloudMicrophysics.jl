@@ -8,7 +8,8 @@ FT = Float64
 
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
-
+F_liq = FT(0) # preserving original P3
+# TODO: investigate for F_liq != 0
 
 
 function define_axis(fig, row_range, col_range, title, ylabel, yticks, aspect)
@@ -43,21 +44,21 @@ function p3_relations_plot()
     # define plot axis
     #[row, column]
     ax1 = define_axis(fig, 1:7,  1:9,   CMK.L"m(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.9)
-    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"m(D) regime for $F_r = 0.95$",          CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.8)
+    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"m(D) regime for $F_rim = 0.95$",          CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.8)
     ax2 = define_axis(fig, 8:15, 1:9,   CMK.L"A(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.7)
-    ax4 = define_axis(fig, 8:15, 10:18, CMK.L"A(D) regime for $F_r = 0.95$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.6)
+    ax4 = define_axis(fig, 8:15, 10:18, CMK.L"A(D) regime for $F_rim = 0.95$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.6)
 
     # Get thresholds
     sol4_5 = P3.thresholds(p3, 400.0, 0.5)
     sol4_8 = P3.thresholds(p3, 400.0, 0.8)
     # m(D)
-    fig1_0 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.0        ) for D in D_range], color = cl[1], linewidth = lw)
-    fig1_5 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.5, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
-    fig1_8 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.8, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig1_0 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.0, F_liq        ) for D in D_range], color = cl[1], linewidth = lw)
+    fig1_5 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.5, F_liq, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
+    fig1_8 = CMK.lines!(ax1, D_range * 1e3, [P3.p3_mass(p3, D, 0.8, F_liq, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
     # a(D)
-    fig2_0 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.0        ) for D in D_range], color = cl[1], linewidth = lw)
-    fig2_5 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.5, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
-    fig2_8 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.8, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig2_0 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.0, F_liq        ) for D in D_range], color = cl[1], linewidth = lw)
+    fig2_5 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.5, F_liq, sol4_5) for D in D_range], color = cl[2], linewidth = lw)
+    fig2_8 = CMK.lines!(ax2, D_range * 1e3, [P3.p3_area(p3, D, 0.8, F_liq, sol4_8) for D in D_range], color = cl[3], linewidth = lw)
     # plot verical lines
     for ax in [ax1, ax2]
         global d_tha  = CMK.vlines!(ax, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
@@ -72,13 +73,13 @@ function p3_relations_plot()
     sol_4 = P3.thresholds(p3, 400.0, 0.95)
     sol_8 = P3.thresholds(p3, 800.0, 0.95)
     # m(D)
-    fig3_200 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_2) for D in D_range], color = cl[1], linewidth = lw)
-    fig3_400 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_4) for D in D_range], color = cl[2], linewidth = lw)
-    fig3_800 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig3_200 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, F_liq, sol_2) for D in D_range], color = cl[1], linewidth = lw)
+    fig3_400 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, F_liq, sol_4) for D in D_range], color = cl[2], linewidth = lw)
+    fig3_800 = CMK.lines!(ax3, D_range * 1e3, [P3.p3_mass(p3, D, 0.95, F_liq, sol_8) for D in D_range], color = cl[3], linewidth = lw)
     # a(D)
-    fig3_200 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, sol_2) for D in D_range], color = cl[1], linewidth = lw)
-    fig3_400 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, sol_4) for D in D_range], color = cl[2], linewidth = lw)
-    fig3_800 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, sol_8) for D in D_range], color = cl[3], linewidth = lw)
+    fig3_200 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, F_liq, sol_2) for D in D_range], color = cl[1], linewidth = lw)
+    fig3_400 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, F_liq, sol_4) for D in D_range], color = cl[2], linewidth = lw)
+    fig3_800 = CMK.lines!(ax4, D_range * 1e3, [P3.p3_area(p3, D, 0.5, F_liq, sol_8) for D in D_range], color = cl[3], linewidth = lw)
     # plot verical lines
     for ax in [ax3, ax4]
         global d_thb    = CMK.vlines!(ax, P3.D_th_helper(p3) * 1e3, linestyle = :dash, color = cl[4], linewidth = lw)
