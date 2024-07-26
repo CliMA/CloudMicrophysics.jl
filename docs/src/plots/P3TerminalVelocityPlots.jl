@@ -91,17 +91,17 @@ function figure_2()
     args = (color = :black, labels = true, levels = 3, linewidth = 1.5, labelsize = 18)
 
     ax1 = make_axis_top(fig, 1, "Small Dₘ")
-    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms, levels = 0.402:0.001:0.413)
+    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms)
     Plt.contour!(ax1, F_rs, ρ_rs, D_ms; args...)
     Plt.Colorbar(fig[2, 1], hm, vertical = false)
 
     ax2 = make_axis_top(fig, 2, "Medium Dₘ")
-    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm, levels = 2:0.1:4)
+    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm)
     Plt.contour!(ax2, F_rm, ρ_rm, D_mm; args...)
     Plt.Colorbar(fig[2, 2], hm, vertical = false)
 
     ax3 = make_axis_top(fig, 3, "Large Dₘ")
-    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml, levels = 2:0.2:5)
+    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml)
     Plt.contour!(ax3, F_rl, ρ_rl, D_ml; args...)
     Plt.Colorbar(fig[2, 3], hm, vertical = false)
 
