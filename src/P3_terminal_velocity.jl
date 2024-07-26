@@ -1,9 +1,27 @@
 """
-    ice_particle_terminal_velocity(D, Chen2022, ρₐ)
+    ϕᵢ(mᵢ, aᵢ, ρᵢ)
+
+ - mᵢ - particle mass
+ - aᵢ - particle area
+ - ρᵢ - ice density
+
+Returns the aspect ratio (ϕ) for an ice particle with given mass, area, and ice density.
+"""
+function ϕᵢ(mᵢ::FT, aᵢ::FT, ρᵢ::FT) where {FT}
+    # TODO - add some notes on how we derived it
+    # TODO - should we make use of other P3 properties like rimed fraction and volume?
+    return 16 * ρᵢ^2 * aᵢ^3 / (9 * π * mᵢ^2)
+end
+
+"""
+    ice_particle_terminal_velocity(D, Chen2022, ρₐ, mᵢ, aᵢ, ρᵢ)
 
  - D - maximum particle dimension
  - Chen2022 - a struct with terminal velocity parameters from Chen 2022
  - ρₐ - air density
+ - mᵢ - particle mass
+ - aᵢ - particle area
+ - ρᵢ - ice density
 
 Returns the terminal velocity of a single ice particle as a function
 of its size (maximum dimension) using Chen 2022 parametrization.
@@ -13,14 +31,43 @@ function ice_particle_terminal_velocity(
     D::FT,
     Chen2022::CMP.Chen2022VelTypeSnowIce,
     ρₐ::FT,
+    mᵢ::FT,
+    aᵢ::FT,
+    ρᵢ::FT,
 ) where {FT}
     if D <= Chen2022.cutoff
         (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρₐ)
     else
         (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρₐ)
     end
-    return sum(@. sum(ai * D^bi * exp(-ci * D)))
+    v = sum(@. sum(ai * D^bi * exp(-ci * D)))
+
+    κ = FT(-1 / 6)
+    return ϕᵢ(mᵢ, aᵢ, ρᵢ)^κ * v
 end
+# """
+#     ice_particle_terminal_velocity(D, Chen2022, ρₐ)
+
+#  - D - maximum particle dimension
+#  - Chen2022 - a struct with terminal velocity parameters from Chen 2022
+#  - ρₐ - air density
+
+# Returns the terminal velocity of a single ice particle as a function
+# of its size (maximum dimension) using Chen 2022 parametrization.
+# Needed for numerical integrals in the P3 scheme.
+# """
+# function ice_particle_terminal_velocity(
+#     D::FT,
+#     Chen2022::CMP.Chen2022VelTypeSnowIce,
+#     ρₐ::FT,
+# ) where {FT}
+#     if D <= Chen2022.cutoff
+#         (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρₐ)
+#     else
+#         (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρₐ)
+#     end
+#     return sum(@. sum(ai * D^bi * exp(-ci * D)))
+# end
 
 """
    p3_particle_terminal_velocity(p3, D, Chen2022, ρ_a, F_liq)
@@ -35,15 +82,21 @@ parametrizations by computing an F_liq-weighted average of solid and liquid
 phase terminal velocities.
 """
 function p3_particle_terminal_velocity(
+    p3::PSP3,
     D::FT,
     Chen2022::CMP.Chen2022VelType,
     ρ_a::FT,
+    F_r::FT,
     F_liq::FT,
+    th,
 ) where {FT}
     v_i = ice_particle_terminal_velocity(
         D,
         Chen2022.snow_ice,
-        ρ_a
+        ρ_a,
+        p3_mass(p3, D, F_r, FT(0), th),
+        p3_area(p3, D, F_r, FT(0), th),
+        p3.ρ_i,
     )
     v_r = CM2.rain_particle_terminal_velocity(D, Chen2022.rain, ρ_a)
     v = (1 - F_liq) * v_i + F_liq * v_r
@@ -78,7 +131,7 @@ function velocity_difference(
 ) where {FT}
     # velocity difference for rain-ice collisions
     return abs(
-        p3_particle_terminal_velocity(Dᵢ, Chen2022, ρ_a, F_liq) -
+        p3_particle_terminal_velocity(p3, D, Chen2022, ρₐ, F_rim, F_liq, th) -
         CM2.rain_particle_terminal_velocity(Dₗ, Chen2022.rain, ρ_a),
     )
 end
@@ -90,7 +143,7 @@ function velocity_difference(
     ρ_a::FT,
 ) where {FT}
     # velocity difference for cloud-ice collisions
-    return abs(p3_particle_terminal_velocity(Dᵢ, Chen2022, ρ_a, F_liq))
+    return abs(p3_particle_terminal_velocity(p3, D, Chen2022, ρₐ, F_rim, F_liq, th))
 end
 
 """
@@ -131,7 +184,7 @@ function ice_terminal_velocity(
         D ->
             N′ice(p3, D, λ, N₀) *
             p3_mass(p3, D, F_rim, F_liq, th) *
-            p3_particle_terminal_velocity(D, Chen2022, ρₐ, F_liq),
+            p3_particle_terminal_velocity(p3, D, Chen2022, ρₐ, F_rim, F_liq, th),
         FT(0),
         D_max,
     )[1]
@@ -140,7 +193,7 @@ function ice_terminal_velocity(
     v_n = QGK.quadgk(
         D ->
             N′ice(p3, D, λ, N₀) *
-            p3_particle_terminal_velocity(D, Chen2022, ρₐ, F_liq),
+            p3_particle_terminal_velocity(p3, D, Chen2022, ρₐ, F_rim, F_liq, th),
         FT(0),
         D_max,
     )[1]

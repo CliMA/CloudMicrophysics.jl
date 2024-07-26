@@ -201,7 +201,7 @@ function figure_2()
 
 
     Plt.resize_to_layout!(fig)
-    Plt.save("MorrisonandMilbrandtFig2_with_F_liq).svg", fig)
+    Plt.save("MorrisonandMilbrandtFig2_with_F_liq.svg", fig)
 end
 
 figure_2()
