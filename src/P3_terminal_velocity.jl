@@ -31,7 +31,7 @@ end
  - p3 - a struct containing P3 parameters
  - Chen2022 - a struct containing Chen 2022 velocity parameters
  - ρ_a - density of air
- - F_r - rime mass fraction (q_rim/ q_i)
+ - F_r - rime mass fraction (L_rim/ L_ice)
  - th - P3 particle properties thresholds
 
 Returns the absolute value of the velocity difference between an ice particle and
@@ -73,10 +73,10 @@ end
 
  - p3 - a struct with P3 scheme parameters
  - Chen2022 - a struch with terminal velocity parameters as in Chen(2022)
- - q - mass mixing ratio
+ - L - mass mixing ratio
  - N - number mixing ratio
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (L_rim/q_ice)
  - ρ_a - density of air
 
 Returns the mass and number weighted fall speeds for ice following
@@ -85,7 +85,7 @@ eq C10 of Morrison and Milbrandt (2015).
 function ice_terminal_velocity(
     p3::PSP3,
     Chen2022::CMP.Chen2022VelTypeSnowIce,
-    q::FT,
+    L::FT,
     N::FT,
     ρ_r::FT,
     F_r::FT,
@@ -95,7 +95,7 @@ function ice_terminal_velocity(
     # get the particle properties thresholds
     th = thresholds(p3, ρ_r, F_r)
     # get the size distribution parameters
-    (λ, N₀) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    (λ, N₀) = distribution_parameter_solver(p3, L, N, ρ_r, F_r)
     # get the integral limit
     D_max = get_ice_bound(p3, λ, eps(FT))
 
@@ -117,5 +117,5 @@ function ice_terminal_velocity(
         FT(0),
         D_max,
     )[1]
-    return (v_n / N, v_m / q)
+    return (v_n / N, v_m / L)
 end

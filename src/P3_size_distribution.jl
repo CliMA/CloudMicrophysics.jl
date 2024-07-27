@@ -84,52 +84,52 @@ function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
 end
 
 """
-    q_(p3, ρ, F_r, λ, μ, D_min, D_max)
+    L_(p3, ρ, F_r, λ, μ, D_min, D_max)
 
  - p3 - a struct with P3 scheme parameters
  - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m^3]
- - F_r - rime mass fraction [q_rim/q_i]
+ - F_r - rime mass fraction [L_rim/L_ice]
  - μ - shape parameter of N′ gamma distribution
  - λ - slope parameter of N′ gamma distribution
  - D_min - minimum bound for regime
  - D_max - maximum bound for regime (if not specified, then infinity)
 
- Returns ice mass density for a given m(D) regime
+ Returns ice content for a given m(D) regime
 """
 # small, spherical ice or graupel (completely rimed, spherical)
 # D_min = 0, D_max = D_th, ρ = ρᵢ
 # or
-# q_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
-function q_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
+# L_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
+function L_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
     return ∫_Γ(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
 end
-# q_rim = 0 and D_min = D_th, D_max = inf
-function q_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
+# L_rim = 0 and D_min = D_th, D_max = inf
+function L_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
     return ∫_Γ(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
 end
-# q_rim > 0 and D_min = D_th and D_max = D_gr
-function q_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
+# L_rim > 0 and D_min = D_th and D_max = D_gr
+function L_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
     return ∫_Γ(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
-# q_rim > 0 and D_min = D_cr, D_max = inf
-function q_r(p3::PSP3, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
+# L_rim > 0 and D_min = D_cr, D_max = inf
+function L_r(p3::PSP3, F_r::FT, μ::FT, λ::FT, D_min::FT) where {FT}
     return ∫_Γ(D_min, FT(Inf), α_va_si(p3) / (1 - F_r), μ + p3.β_va, λ)
 end
 
 """
-    q_over_N_gamma(p3, F_r, λ, th)
+    L_over_N_gamma(p3, F_r, λ, th)
 
  - p3 - a struct with P3 scheme parameters
- - F_r - rime mass fraction [q_rim/q_i]
+ - F_r - rime mass fraction [L_rim/L_ice]
  - log_λ - logarithm of the slope parameter of N′ gamma distribution
  - μ - shape parameter of N′ gamma distribution
  - th - thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
-Returns q/N for all values of D (sum over all regimes).
+Returns L/N for all values of D (sum over all regimes).
 Eq. 5 in Morrison and Milbrandt (2015).
 """
-function q_over_N_gamma(
+function L_over_N_gamma(
     p3::PSP3,
     F_r::FT,
     log_λ::FT,
@@ -143,28 +143,28 @@ function q_over_N_gamma(
 
     return ifelse(
         F_r == FT(0),
-        (q_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) + q_rz(p3, μ, λ, D_th)) / N,
+        (L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) + L_rz(p3, μ, λ, D_th)) / N,
         (
-            q_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) +
-            q_n(p3, μ, λ, D_th, th.D_gr) +
-            q_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
-            q_r(p3, F_r, μ, λ, th.D_cr)
+            L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) +
+            L_n(p3, μ, λ, D_th, th.D_gr) +
+            L_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
+            L_r(p3, F_r, μ, λ, th.D_cr)
         ) / N,
     )
 end
 
 """
-    DSD_μ_approx(p3, q, N, ρ_r, F_r)
+    DSD_μ_approx(p3, L_ice, N, ρ_r, F_r)
 
  - p3 - a struct with P3 scheme parameters
- - q - mass mixing ratio
+ - L_ice - ice content [kg/m3]
  - N - total ice number concentration [1/m3]
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (L_rim/L_ice)
 
 Returns the approximated shape parameter μ for a given q and N value
 """
-function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+function DSD_μ_approx(p3::PSP3, L::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     # Get thresholds for given F_r, ρ_r
     th = thresholds(p3, ρ_r, F_r)
 
@@ -172,38 +172,38 @@ function DSD_μ_approx(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     λ_0 = μ_to_λ(p3, FT(0))
     λ_6 = μ_to_λ(p3, p3.μ_max)
 
-    # Get corresponding q/N values at given F_r
-    q_over_N_min = log(q_over_N_gamma(p3, F_r, log(λ_0), FT(0), th))
-    q_over_N_max = log(q_over_N_gamma(p3, F_r, log(λ_6), p3.μ_max, th))
+    # Get corresponding L/N values at given F_r
+    L_over_N_min = log(L_over_N_gamma(p3, F_r, log(λ_0), FT(0), th))
+    L_over_N_max = log(L_over_N_gamma(p3, F_r, log(λ_6), p3.μ_max, th))
 
     # Return approximation between them
-    μ = (p3.μ_max / (q_over_N_max - q_over_N_min)) * (log(q / N) - q_over_N_min)
+    μ = (p3.μ_max / (L_over_N_max - L_over_N_min)) * (log(L / N) - L_over_N_min)
 
     # Clip approximation between 0 and 6
     return min(p3.μ_max, max(FT(0), μ))
 end
 
 """
-    get_bounds(N, q, F_r, p3, th)
+    get_bounds(N, L, F_r, p3, th)
 
  - N - ice number concentration [1/m3]
- - q - mass mixing ratio
+ - L - ice content [kg/m3]
  - μ - shape parameter of N′ gamma distribution
- - F_r -rime mass fraction [q_rim/q_i]
+ - F_r -rime mass fraction [L_rim/L_ice]
  - p3 - a struct with P3 scheme parameters
  - th -  thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
- Returns estimated guess for λ from q to be used in distribution_parameter_solver()
+ Returns estimated guess for λ from L to be used in distribution_parameter_solver()
 """
 function get_bounds(
     N::FT,
-    q::FT,
+    L::FT,
     μ::FT,
     F_r::FT,
     p3::PSP3,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT}
-    goal = q / N
+    goal = L / N
 
     if goal >= 1e-8
         left = FT(1)
@@ -219,11 +219,11 @@ function get_bounds(
         radius = FT(0.2)
     end
 
-    ql = q_over_N_gamma(p3, F_r, log(left), μ, th)
-    qr = q_over_N_gamma(p3, F_r, log(right), μ, th)
+    Ll = L_over_N_gamma(p3, F_r, log(left), μ, th)
+    Lr = L_over_N_gamma(p3, F_r, log(right), μ, th)
 
     guess =
-        left * (goal / (ql))^((log(right) - log(left)) / (log(qr) - log(ql)))
+        left * (goal / (Ll))^((log(right) - log(left)) / (log(Lr) - log(Ll)))
 
     max = log(guess * exp(radius))
     min = log(guess)
@@ -235,10 +235,10 @@ end
     distrbution_parameter_solver()
 
  - p3 - a struct with P3 scheme parameters
- - q - mass mixing ratio
+ - L - mass mixing ratio
  - N - number mixing ratio
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (L_rim/L_ice)
 
 Solves the nonlinear system consisting of N_0 and λ for P3 prognostic variables
 Returns a named tuple containing:
@@ -247,7 +247,7 @@ Returns a named tuple containing:
 """
 function distribution_parameter_solver(
     p3::PSP3{FT},
-    q::FT,
+    L::FT,
     N::FT,
     ρ_r::FT,
     F_r::FT,
@@ -255,14 +255,14 @@ function distribution_parameter_solver(
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
 
-    # Get μ given q and N
-    μ = DSD_μ_approx(p3, q, N, ρ_r, F_r)
+    # Get μ given L and N
+    μ = DSD_μ_approx(p3, L, N, ρ_r, F_r)
 
     # To ensure that λ is positive solve for x such that λ = exp(x)
-    shape_problem(x) = q / N - q_over_N_gamma(p3, F_r, x, μ, th)
+    shape_problem(x) = L / N - L_over_N_gamma(p3, F_r, x, μ, th)
 
     # Get intial guess for solver
-    (; min, max) = get_bounds(N, q, μ, F_r, p3, th)
+    (; min, max) = get_bounds(N, L, μ, F_r, p3, th)
 
     # Find slope parameter
     x =
@@ -278,23 +278,23 @@ function distribution_parameter_solver(
 end
 
 """
-    D_m (p3, q, N, ρ_r, F_r)
+    D_m (p3, L, N, ρ_r, F_r)
 
  - p3 - a struct with P3 scheme parameters
- - q - mass mixing ratio
+ - L - mass mixing ratio
  - N - number mixing ratio
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (q_rim/q_i)
+ - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
+ - F_r - rime mass fraction (L_rim/L_ice)
 
  Return the mass weighted mean particle size [m]
 """
-function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
+function D_m(p3::PSP3, L::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     # Get the thresholds for different particles regimes
     th = thresholds(p3, ρ_r, F_r)
     D_th = D_th_helper(p3)
 
     # Get the shape parameters
-    (λ, N_0) = distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+    (λ, N_0) = distribution_parameter_solver(p3, L, N, ρ_r, F_r)
     μ = DSD_μ(p3, λ)
 
     # Redefine α_va to be in si units
@@ -311,6 +311,6 @@ function D_m(p3::PSP3, q::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
         n += ∫_Γ(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
         n += ∫_Γ(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
     end
-    # Normalize by q
-    return n / q
+    # Normalize by L
+    return n / L
 end

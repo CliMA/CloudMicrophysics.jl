@@ -20,9 +20,9 @@ function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3) where {FT}
     # Convert λ to ensure it remains positive
     x = log(λ_ex)
     # Compute mass density based on input shape parameters
-    q_calc = N * P3.q_over_N_gamma(p3, F_r, x, μ, th)
+    L_calc = N * P3.L_over_N_gamma(p3, F_r, x, μ, th)
 
-    (λ_calculated,) = P3.distribution_parameter_solver(p3, q_calc, N, ρ_r, F_r)
+    (λ_calculated,) = P3.distribution_parameter_solver(p3, L_calc, N, ρ_r, F_r)
     return abs(λ_ex - λ_calculated)
 end
 
@@ -104,9 +104,9 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
 
     ax1 = CMK.Axis(
         f[1, 1],
-        xlabel = "q/N",
+        xlabel = "L/N",
         ylabel = "μ",
-        title = string("μ vs q/N for F_r = ", F_r, " ρ_r = ", ρ_r),
+        title = string("μ vs L/N for F_r = ", F_r, " ρ_r = ", ρ_r),
         width = 400,
         height = 300,
         xscale = log10,
@@ -125,8 +125,8 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
     ax3 = CMK.Axis(
         f[1, 3],
         xlabel = "λ",
-        ylabel = "q/N",
-        title = string("q/N vs λ for F_r = ", F_r, " ρ_r = ", ρ_r),
+        ylabel = "L/N",
+        title = string("L/N vs λ for F_r = ", F_r, " ρ_r = ", ρ_r),
         width = 400,
         height = 300,
         xscale = log10,
@@ -145,24 +145,24 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
     μs = [P3.DSD_μ(p3, λ) for λ in λs]
 
     μs_approx = [FT(0) for λ in λs]
-    qs = [FT(0) for λ in λs]
+    Ls = [FT(0) for λ in λs]
     λ_solved = [FT(0) for λ in λs]
 
     for i in 1:numpts
-        q = P3.q_over_N_gamma(p3, F_r, log(λs[i]), μs[i], th)
-        qs[i] = q
+        L_over_N = P3.L_over_N_gamma(p3, F_r, log(λs[i]), μs[i], th)
+        Ls[i] = L_over_N
         N = FT(1e6)
-        (L, N) = P3.distribution_parameter_solver(p3, q * N, N, ρ_r, F_r)
+        (L, N) = P3.distribution_parameter_solver(p3, L_over_N * N, N, ρ_r, F_r)
         λ_solved[i] = L
-        μs_approx[i] = P3.DSD_μ_approx(p3, N * q, N, ρ_r, F_r)
+        μs_approx[i] = P3.DSD_μ_approx(p3, N * L_over_N, N, ρ_r, F_r)
     end
 
     # Plot
-    CMK.lines!(ax3, λs, qs, label = "true distribution")
-    CMK.lines!(ax3, λ_solved, qs, label = "approximated")
+    CMK.lines!(ax3, λs, Ls, label = "true distribution")
+    CMK.lines!(ax3, λ_solved, Ls, label = "approximated")
 
-    CMK.lines!(ax1, qs, μs, label = "true distribution")
-    CMK.lines!(ax1, qs, μs_approx, label = "approximated")
+    CMK.lines!(ax1, Ls, μs, label = "true distribution")
+    CMK.lines!(ax1, Ls, μs_approx, label = "approximated")
     CMK.lines!(ax2, λs, μs, label = "true distribution")
     CMK.lines!(ax2, λ_solved, μs_approx, label = "approximated")
 

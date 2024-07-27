@@ -9,8 +9,6 @@ FT = Float64
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
 
-
-
 function define_axis(fig, row_range, col_range, title, ylabel, yticks, aspect)
     return CMK.Axis(
         fig[row_range, col_range],
