@@ -26,7 +26,8 @@ function aerosol_activation(params::AeroAct, state, q)
     )
     all_ad = AM.AerosolDistribution((ad,))
 
-    return AA.total_N_activated(aap, all_ad, aps, tps, T, p_air, w, q) / const_dt
+    return AA.total_N_activated(aap, all_ad, aps, tps, T, p_air, w, q) /
+           const_dt
 end
 
 function deposition_nucleation(::Empty, state, dY)
