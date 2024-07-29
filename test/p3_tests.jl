@@ -150,13 +150,13 @@ function test_p3_shape_solver(FT)
                         # Convert λ to ensure it remains positive
                         x = log(λ_ex)
                         # Compute mass density based on input shape parameters
-                        q_calc = N * P3.q_over_N_gamma(p3, F_r, x, μ_ex, th)
+                        L_calc = N * P3.L_over_N_gamma(p3, F_r, x, μ_ex, th)
 
-                        if q_calc < FT(1)
+                        if L_calc < FT(1)
                             # Solve for shape parameters
                             (λ, N₀) = P3.distribution_parameter_solver(
                                 p3,
-                                q_calc,
+                                L_calc,
                                 N,
                                 ρ_r,
                                 F_r,
@@ -208,7 +208,7 @@ end
 function test_bulk_terminal_velocities(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
     p3 = CMP.ParametersP3(FT)
-    q = FT(0.22)
+    L = FT(0.22)
     N = FT(1e6)
     ρ_a = FT(1.2)
     ρ_rs = [FT(200), FT(400), FT(600), FT(800)]
@@ -235,7 +235,7 @@ function test_bulk_terminal_velocities(FT)
                 calculated_vel = P3.ice_terminal_velocity(
                     p3,
                     Chen2022.snow_ice,
-                    q,
+                    L,
                     N,
                     ρ_r,
                     F_r,
@@ -265,7 +265,7 @@ function test_bulk_terminal_velocities(FT)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
-                calculated_dm = P3.D_m(p3, q, N, ρ_r, F_r) * 1e3
+                calculated_dm = P3.D_m(p3, L, N, ρ_r, F_r) * 1e3
 
                 TT.@test calculated_dm > 0
                 TT.@test paper_vals[i][j] ≈ calculated_dm atol = 3.14
