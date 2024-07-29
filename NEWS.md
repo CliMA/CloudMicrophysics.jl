@@ -5,6 +5,8 @@ main
 ------
 <!--- # Add changes since the most recent release here --->
 
+- Add aerosol activation to parcel. ([#429](https://github.com/CliMA/CloudMicrophysics.jl/pull/429))
+
 - Bugfix; fixed the evaporation scheme of SB2006 to prevent returning NaN values when limiters are not applied. ([#420](https://github.com/CliMA/CloudMicrophysics.jl/pull/415))
 
 v0.20.0

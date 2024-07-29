@@ -164,6 +164,14 @@ A similar approach is used for the lognormal size distribution. We assume that t
 \end{equation}
 ```
 
+## Aerosol Activation
+Aerosol activation is described by ([see discussion](https://clima.github.io/CloudMicrophysics.jl/dev/AerosolActivation/#Number-and-mass-of-activated-particles)). It is inherently assumed that the aerosols have a lognormal size distribution. For simplicity, the parcel accepts
+one mode and one aerosol type at a time, therefore, internal mixing is not needed.
+
+!!! note
+    Maximum saturation used is not yet consistent with the
+    saturation evolving with the parcel.
+
 ## Condensation growth
 
 The diffusional growth of individual cloud droplet is described by
@@ -288,7 +296,15 @@ Here we show various example simulation results from the adiabatic parcel
   liquid processes only, immersion freezing with condensation and deposition growth,
   and homogeneous freezing with deposition growth.
 
-We start with deposition freezing on dust.
+First, we check that aerosol activation works reasonably within the parcel.
+
+```@example
+include("../../parcel/Example_AerosolActivation.jl")
+```
+![](Parcel_Aerosol_Activation.svg)
+
+The following examples show ice nucleation, starting with deposition
+  freezing on dust.
 The model is run three times using the `"MohlerAF_Deposition"` approach
   for 30 minutes simulation time, (shown by three different colors on the plot).
 Between each run the water vapor specific humidity is changed,
