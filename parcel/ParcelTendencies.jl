@@ -5,12 +5,36 @@ import CloudMicrophysics.HomIceNucleation as CMI_hom
 import CloudMicrophysics.Parameters as CMP
 import Distributions as DS
 
+function aerosol_activation(::Empty, state, q)
+    FT = eltype(state)
+    return FT(0)
+end
+
+function aerosol_activation(params::AeroAct, state, q)
+    (; aps, aap, aerosol, const_dt, tps, w, aero_σ_g, r_nuc) = params
+    (; T, p_air, Nₐ) = state
+    FT = eltype(state)
+
+    ad = AM.Mode_κ(
+        r_nuc,
+        aero_σ_g,
+        Nₐ,
+        (FT(1.0),),
+        (FT(1.0),),
+        (aerosol.M,),
+        (aerosol.κ,),
+    )
+    all_ad = AM.AerosolDistribution((ad,))
+
+    return AA.total_N_activated(aap, all_ad, aps, tps, T, p_air, w, q) / const_dt
+end
+
 function deposition_nucleation(::Empty, state, dY)
     FT = eltype(state)
     return FT(0)
 end
 
-function deposition_nucleation(params::MohlerAF, state, dY)
+function deposition_nucleation(params::MohlerAF, state)
     (; ips, aerosol, const_dt, tps) = params
     (; Sₗ, T, Nₐ, Nᵢ) = state
     Sᵢ = ξ(tps, T) * Sₗ
