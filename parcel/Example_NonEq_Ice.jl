@@ -5,7 +5,7 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import ClimaParams as CP
 
-FT = Float32
+FT = Float64
 
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
@@ -23,13 +23,14 @@ R_d = TD.Parameters.R_d(tps)
 # Initial conditions
 Nₐ = FT(0)
 Nₗ = FT(200 * 1e6)
-Nᵢ = FT(1)
+Nᵢ = FT(1e6)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(251)
 ln_INPC = FT(0)
-e = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
-Sₗ = FT(1.14)
+e_sat = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+Sₗ = FT(0.8)
+e = Sₗ*e_sat
 md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
 ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
@@ -38,14 +39,21 @@ qᵥ = mv_v / (md_v + mv_v + ml_v + mi_v)
 qₗ = ml_v / (md_v + mv_v + ml_v + mi_v)
 qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+simple = false
 
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed
-const_dt = FT(0.001)                         # model timestep
-t_max = FT(20)
+const_dt = FT(0.1)                         # model timestep
+t_max = FT(const_dt*3)
 size_distribution_list = ["Monodisperse", "Gamma"]
-condensation_growth = "NonEq_Condensation_Simple"
-deposition_growth = "NonEq_Deposition_Simple"
+
+if simple
+    condensation_growth = "NonEq_Condensation_Simple"
+    deposition_growth = "NonEq_Deposition_Simple"
+else
+    condensation_growth = "NonEq_Condensation"
+    deposition_growth = "NonEq_Deposition"
+end
 
 # Data from Rogers(1975) Figure 1
 # https://www.tandfonline.com/doi/abs/10.1080/00046973.1975.9648397
@@ -64,6 +72,8 @@ ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
 ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
 ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
+ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure rel error")
+ax8 = MK.Axis(fig[2, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure (from S)")
 #MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 #MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
@@ -103,6 +113,28 @@ for DSD in size_distribution_list
     sol_qₗ = sol[5, :]
     sol_qᵢ = sol[6, :]
 
+    # calculating the saturation vapor pressure from S:
+    #e_test = sol_qᵥ.*sol_p .* (R_v/(R_v+R_d))
+    q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
+    e_test = sol_qᵥ.*sol_p .* (TD.Parameters.R_v(tps)./TD.gas_constant_air.(tps, q))
+    #e_test = sol_qᵥ.*sol_p .* (TD.Parameters.R_v(tps)/(TD.Parameters.R_v(tps)+TD.Parameters.R_d(tps)))
+    e_sat_fromS = e_test ./ sol[1, :]
+
+    # calculating it from T:
+    e_sat_fromT = TD.saturation_vapor_pressure.(tps,sol_T,TD.Liquid())
+
+    rel_error = (e_sat_fromT .- e_sat_fromS) ./ (e_sat_fromT)
+
+    # plot them:
+    MK.lines!(ax7, sol.t, rel_error)
+    #MK.lines!(ax7, sol.t, e_sat_fromT, label="from T")
+    #MK.lines!(ax7, sol.t, e_sat_fromS, label="from S")
+
+    q_sat_fromS = sol_qᵥ .* sol[1, :] #- sol_qᵥ
+
+    MK.lines!(ax8, sol.t, q_sat_fromS)
+
+
     local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
     local ρₐ = TD.air_density.(tps, ts)
@@ -125,4 +157,17 @@ MK.axislegend(
     position = :rb,
 )
 
-MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_temps/ice_noneq_parcel_simple.svg", fig)
+#MK.axislegend(
+#    ax7,
+#    framevisible = false,
+#    labelsize = 12,
+#    orientation = :horizontal,
+#    nbanks = 2,
+#    position = :rb,
+#)
+
+if simple
+    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_simple_01.png", fig)
+else
+    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_50.png", fig)
+end
