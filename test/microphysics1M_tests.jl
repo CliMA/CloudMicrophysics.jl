@@ -45,28 +45,9 @@ function test_microphysics1M(FT)
         ρ_air, q_tot, ρ_air_ground = FT(1.2), FT(20 * 1e-3), FT(1.22)
 
         for q_rai in q_rain_range
-            if q_rai > eps(FT)
-                TT.@test CM1.terminal_velocity(
-                    rain,
-                    blk1mvel.rain,
-                    ρ_air,
-                    q_rai,
-                ) ≈ terminal_velocity_empir(
-                    q_rai,
-                    q_tot,
-                    ρ_air,
-                    ρ_air_ground,
-                ) atol =
-                    0.2 *
-                    terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground)
-            else
-                TT.@test CM1.terminal_velocity(
-                    rain,
-                    blk1mvel.rain,
-                    ρ_air,
-                    q_rai,
-                ) ≈ FT(0) atol = FT(0.2)
-            end
+            TT.@test CM1.terminal_velocity(rain, blk1mvel.rain, ρ_air, q_rai) ≈
+                     terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground) atol =
+                0.2 * terminal_velocity_empir(q_rai, q_tot, ρ_air, ρ_air_ground)
         end
     end
 

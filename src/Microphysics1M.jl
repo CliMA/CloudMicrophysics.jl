@@ -91,20 +91,20 @@ function lambda(
     # mass(size)
     (; r0, m0, me, Δm, χm) = mass
 
-    return q > eps(FT) ?
+    return q > FT(0) ?
            (
         χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
     )^FT(1 / (me + Δm + 1)) : FT(0)
 end
 
-""" 
+"""
     radar_reflectivity(precip, q, ρ)
 
     - `precip` - struct with rain free parameters
     - `q` - specific humidity of rain
     - `ρ` - air density
 
-Returns logarithmic radar reflectivity from the assumed rain particle size distribution 
+Returns logarithmic radar reflectivity from the assumed rain particle size distribution
 normalized by the reflectivty of 1 millimiter drop in a volume of one meter cube
 """
 function radar_reflectivity(
@@ -144,7 +144,7 @@ function terminal_velocity(
     ρ::FT,
     q::FT,
 ) where {FT}
-    if q > eps(FT)
+    if q > FT(0)
         # terminal_velocity(size)
         (; χv, ve, Δv) = vel
         v0 = get_v0(vel, ρ)
@@ -168,7 +168,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > eps(FT)
+    if q > FT(0)
         # coefficients from Table B1 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
         # size distribution parameter
@@ -187,7 +187,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > eps(FT)
+    if q > FT(0)
 
         (; r0, m0, me, Δm, χm) = mass
         (; a0, ae, Δa, χa) = area
@@ -326,7 +326,7 @@ function accretion(
 ) where {FT}
 
     accr_rate = FT(0)
-    if (q_clo > eps(FT) && q_pre > eps(FT))
+    if (q_clo > FT(0) && q_pre > FT(0))
 
         n0::FT = get_n0(precip.pdf, q_pre, ρ)
         v0::FT = get_v0(vel, ρ)
@@ -483,7 +483,7 @@ function evaporation_sublimation(
     evap_subl_rate = FT(0)
     S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
 
-    if (q_rai > eps(FT) && S < FT(0))
+    if (q_rai > FT(0) && S < FT(0))
 
         (; ν_air, D_vapor) = aps
         G = CO.G_func(aps, tps, T, TD.Liquid())
@@ -519,7 +519,7 @@ function evaporation_sublimation(
     T::FT,
 ) where {FT}
     evap_subl_rate = FT(0)
-    if q_sno > eps(FT)
+    if q_sno > FT(0)
         (; ν_air, D_vapor) = aps
 
         S = TD.supersaturation(tps, q, ρ, T, TD.Ice())

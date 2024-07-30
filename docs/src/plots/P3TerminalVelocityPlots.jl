@@ -13,7 +13,7 @@ p3 = CMP.ParametersP3(FT)
 function get_values(
     p3::PSP3,
     Chen2022::CMP.Chen2022VelTypeSnowIce,
-    q::FT,
+    L::FT,
     N::FT,
     ρ_a::FT,
     x_resolution::Int,
@@ -31,9 +31,9 @@ function get_values(
             ρ_r = ρ_rs[j]
 
             V_m[i, j] =
-                P3.terminal_velocity(p3, Chen2022, q, N, ρ_r, F_r, ρ_a)[2]
+                P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_r, ρ_a)[2]
             # get D_m in mm for plots
-            D_m[i, j] = 1e3 * P3.D_m(p3, q, N, ρ_r, F_r)
+            D_m[i, j] = 1e3 * P3.D_m(p3, L, N, ρ_r, F_r)
         end
     end
     return (; F_rs, ρ_rs, V_m, D_m)
@@ -69,20 +69,20 @@ function figure_2()
     # density of air in kg/m^3
     ρ_a = FT(1.2) #FT(1.293)
     # small D_m
-    q_s = FT(0.0008)
+    L_s = FT(0.0008)
     N_s = FT(1e6)
     # medium D_m
-    q_m = FT(0.22)
+    L_m = FT(0.22)
     N_m = FT(1e6)
     # large D_m
-    q_l = FT(0.7)
+    L_l = FT(0.7)
     N_l = FT(1e6)
     # get V_m and D_m
     xres = 100
     yres = 100
-    (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, q_s, N_s, ρ_a, xres, yres)
-    (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, q_m, N_m, ρ_a, xres, yres)
-    (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, q_l, N_l, ρ_a, xres, yres)
+    (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, L_s, N_s, ρ_a, xres, yres)
+    (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, L_m, N_m, ρ_a, xres, yres)
+    (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, L_l, N_l, ρ_a, xres, yres)
 
     fig = Plt.Figure()
 
@@ -91,17 +91,17 @@ function figure_2()
     args = (color = :black, labels = true, levels = 3, linewidth = 1.5, labelsize = 18)
 
     ax1 = make_axis_top(fig, 1, "Small Dₘ")
-    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms, levels = 0.402:0.001:0.413)
+    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms)
     Plt.contour!(ax1, F_rs, ρ_rs, D_ms; args...)
     Plt.Colorbar(fig[2, 1], hm, vertical = false)
 
     ax2 = make_axis_top(fig, 2, "Medium Dₘ")
-    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm, levels = 2:0.1:4)
+    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm)
     Plt.contour!(ax2, F_rm, ρ_rm, D_mm; args...)
     Plt.Colorbar(fig[2, 2], hm, vertical = false)
 
     ax3 = make_axis_top(fig, 3, "Large Dₘ")
-    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml, levels = 2:0.2:5)
+    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml)
     Plt.contour!(ax3, F_rl, ρ_rl, D_ml; args...)
     Plt.Colorbar(fig[2, 3], hm, vertical = false)
 

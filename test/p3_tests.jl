@@ -3,7 +3,8 @@ import ClimaParams
 import CloudMicrophysics as CM
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.TerminalVelocity as TV
+import CloudMicrophysics.Microphysics2M as CM2
+import Thermodynamics as TD
 
 import QuadGK as QGK
 
@@ -88,11 +89,11 @@ function test_p3_thresholds(FT)
     end
 
     TT.@testset "mass and area tests" begin
-        # values 
+        # values
         ρ_r = FT(500)
         F_r = FT(0.5)
 
-        # get thresholds 
+        # get thresholds
         D_th = P3.D_th_helper(p3)
         th = P3.thresholds(p3, ρ_r, F_r)
         (; D_gr, D_cr) = th
@@ -102,13 +103,13 @@ function test_p3_thresholds(FT)
         D_2 = (D_th + D_gr) / 2
         D_3 = (D_gr + D_cr) / 2
 
-        # test area 
+        # test area
         TT.@test P3.p3_area(p3, D_1, F_r, th) == P3.A_s(D_1)
         TT.@test P3.p3_area(p3, D_2, F_r, th) == P3.A_ns(p3, D_2)
         TT.@test P3.p3_area(p3, D_3, F_r, th) == P3.A_s(D_3)
         TT.@test P3.p3_area(p3, D_cr, F_r, th) == P3.A_r(p3, F_r, D_cr)
 
-        # test mass 
+        # test mass
         TT.@test P3.p3_mass(p3, D_1, F_r, th) == P3.mass_s(D_1, p3.ρ_i)
         TT.@test P3.p3_mass(p3, D_2, F_r, th) == P3.mass_nl(p3, D_2)
         TT.@test P3.p3_mass(p3, D_3, F_r, th) == P3.mass_s(D_3, th.ρ_g)
@@ -149,13 +150,13 @@ function test_p3_shape_solver(FT)
                         # Convert λ to ensure it remains positive
                         x = log(λ_ex)
                         # Compute mass density based on input shape parameters
-                        q_calc = N * P3.q_over_N_gamma(p3, F_r, x, μ_ex, th)
+                        L_calc = N * P3.L_over_N_gamma(p3, F_r, x, μ_ex, th)
 
-                        if q_calc < FT(1)
+                        if L_calc < FT(1)
                             # Solve for shape parameters
                             (λ, N₀) = P3.distribution_parameter_solver(
                                 p3,
-                                q_calc,
+                                L_calc,
                                 N,
                                 ρ_r,
                                 F_r,
@@ -172,37 +173,69 @@ function test_p3_shape_solver(FT)
     end
 end
 
-function test_velocities(FT)
+function test_particle_terminal_velocities(FT)
+
+    p3 = CMP.ParametersP3(FT)
+    Chen2022 = CMP.Chen2022VelType(FT)
+    ρ_a = FT(1.2)
+
+    TT.@testset "Chen 2022 - Rain" begin
+        Ds = range(FT(1e-6), stop = FT(1e-5), length = 5)
+        expected = [0.002508, 0.009156, 0.01632, 0.02377, 0.03144]
+        for i in axes(Ds, 1)
+            vel = CM2.rain_particle_terminal_velocity(Ds[i], Chen2022.rain, ρ_a)
+            TT.@test vel >= 0
+            TT.@test vel ≈ expected[i] rtol = 1e-3
+        end
+    end
+
+    TT.@testset "Chen 2022 - Ice" begin
+        F_r = FT(0.5)
+        ρ_r = FT(500)
+        th = P3.thresholds(p3, ρ_r, F_r)
+        # Allow for a D falling into every regime of the P3 Scheme
+        Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
+        expected = [0.08109, 0.4115, 0.7912, 1.1550, 1.4871]
+        for i in axes(Ds, 1)
+            D = Ds[i]
+            vel = P3.ice_particle_terminal_velocity(D, Chen2022.snow_ice, ρ_a)
+            TT.@test vel >= 0
+            TT.@test vel ≈ expected[i] rtol = 1e-3
+        end
+    end
+end
+
+function test_bulk_terminal_velocities(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
     p3 = CMP.ParametersP3(FT)
-    q = FT(0.22)
+    L = FT(0.22)
     N = FT(1e6)
     ρ_a = FT(1.2)
     ρ_rs = [FT(200), FT(400), FT(600), FT(800)]
     F_rs = [FT(0), FT(0.2), FT(0.4), FT(0.6), FT(0.8)]
 
     TT.@testset "Mass and number weighted terminal velocities" begin
-        paper_vals = [
-            [1.5, 1.5, 1.5, 1.5, 1.5],
-            [1.5, 1.5, 2.5, 2.5, 2.5],
-            [1.5, 2.5, 2.5, 2.5, 2.5],
-            [1.5, 2.5, 3.5, 3.5, 3.5],
+        reference_vals_m = [
+            [7.79, 7.27, 6.66, 5.94, 5.25],
+            [7.79, 7.26, 6.62, 5.83, 4.82],
+            [7.79, 7.25, 6.62, 5.81, 4.7],
+            [7.79, 7.25, 6.62, 5.81, 4.65],
         ]
-        expected_vals = [
-            [1.52, 1.46, 1.41, 1.36, 1.24],
-            [1.52, 1.47, 1.44, 1.42, 1.35],
-            [1.52, 1.47, 1.45, 1.44, 1.42],
-            [1.52, 1.47, 1.45, 1.45, 1.45],
+        reference_vals_n = [
+            [3.65, 3.37, 3.05, 2.64, 2.14],
+            [3.64, 3.37, 3.04, 2.62, 2.04],
+            [3.65, 3.37, 3.04, 2.62, 2.02],
+            [3.64, 3.37, 3.04, 2.61, 2.01],
         ]
         for i in 1:length(ρ_rs)
             for j in 1:length(F_rs)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
-                calculated_vel = P3.terminal_velocity(
+                calculated_vel = P3.ice_terminal_velocity(
                     p3,
                     Chen2022.snow_ice,
-                    q,
+                    L,
                     N,
                     ρ_r,
                     F_r,
@@ -210,12 +243,12 @@ function test_velocities(FT)
                 )
 
                 # number weighted
-                TT.@test calculated_vel[2] > 0
-                TT.@test expected_vals[i][j] ≈ calculated_vel[1] atol = 0.1
+                TT.@test calculated_vel[1] > 0
+                TT.@test reference_vals_n[i][j] ≈ calculated_vel[1] atol = 0.1
 
                 # mass weighted
-                TT.@test calculated_vel[1] > 0
-                TT.@test paper_vals[i][j] ≈ calculated_vel[2] atol = 3.14
+                TT.@test calculated_vel[2] > 0
+                TT.@test reference_vals_m[i][j] ≈ calculated_vel[2] atol = 0.1
             end
         end
     end
@@ -232,7 +265,7 @@ function test_velocities(FT)
                 ρ_r = ρ_rs[i]
                 F_r = F_rs[j]
 
-                calculated_dm = P3.D_m(p3, q, N, ρ_r, F_r) * 1e3
+                calculated_dm = P3.D_m(p3, L, N, ρ_r, F_r) * 1e3
 
                 TT.@test calculated_dm > 0
                 TT.@test paper_vals[i][j] ≈ calculated_dm atol = 3.14
@@ -241,6 +274,187 @@ function test_velocities(FT)
         end
     end
 end
+
+#function test_tendencies(FT)
+#
+#    tps = TD.Parameters.ThermodynamicsParameters(FT)
+#
+#    p3 = CMP.ParametersP3(FT)
+#    Chen2022 = CMP.Chen2022VelType(FT)
+#    aps = CMP.AirProperties(FT)
+#
+#    SB2006 = CMP.SB2006(FT, false) # no limiters
+#    pdf_r = SB2006.pdf_r
+#    pdf_c = SB2006.pdf_c
+#
+#    TT.@testset "Collision Tendencies Smoke Test" begin
+#        N = FT(1e8)
+#        ρ_a = FT(1.2)
+#        ρ_r = FT(500)
+#        F_r = FT(0.5)
+#        T_warm = FT(300)
+#        T_cold = FT(200)
+#
+#        qs = range(0.001, stop = 0.005, length = 5)
+#        q_const = FT(0.05)
+#
+#        cloud_expected_warm_previous =
+#            [6.341e-5, 0.0002099, 0.0004258, 0.0007047, 0.001042]
+#        cloud_expected_cold_previous =
+#            [0.002196, 0.003525, 0.004687, 0.005761, 0.006781]
+#        cloud_expected_warm =
+#            [8.043e-27, 3.641e-26, 8.773e-26, 1.63e-25, 2.625e-25]
+#        cloud_expected_cold =
+#            [8.197e-33, 1.865e-32, 3.012e-32, 4.233e-32, 5.523e-32]
+#        rain_expected_warm = [0.000402, 0.0008436, 0.001304, 0.001777, 0.00226]
+#        rain_expected_cold = [0.4156, 0.4260, 0.433, 0.4383, 0.4427]
+#
+#        for i in axes(qs, 1)
+#            cloud_warm = P3.ice_collisions(
+#                pdf_c,
+#                p3,
+#                Chen2022,
+#                qs[i],
+#                N,
+#                q_const,
+#                N,
+#                ρ_a,
+#                F_r,
+#                ρ_r,
+#                T_warm,
+#            )
+#            cloud_cold = P3.ice_collisions(
+#                pdf_c,
+#                p3,
+#                Chen2022,
+#                qs[i],
+#                N,
+#                q_const,
+#                N,
+#                ρ_a,
+#                F_r,
+#                ρ_r,
+#                T_cold,
+#            )
+#
+#            TT.@test cloud_warm >= 0
+#            TT.@test cloud_warm ≈ cloud_expected_warm[i] rtol = 1e-3
+#            TT.@test cloud_cold >= 0
+#            TT.@test cloud_cold ≈ cloud_expected_cold[i] rtol = 1e-3
+#
+#            rain_warm = P3.ice_collisions(
+#                pdf_r,
+#                p3,
+#                Chen2022,
+#                qs[i],
+#                N,
+#                q_const,
+#                N,
+#                ρ_a,
+#                F_r,
+#                ρ_r,
+#                T_warm,
+#            )
+#            rain_cold = P3.ice_collisions(
+#                pdf_r,
+#                p3,
+#                Chen2022,
+#                qs[i],
+#                N,
+#                q_const,
+#                N,
+#                ρ_a,
+#                F_r,
+#                ρ_r,
+#                T_cold,
+#            )
+#
+#            TT.@test rain_warm >= 0
+#            TT.@test rain_warm ≈ rain_expected_warm[i] rtol = 1e-3
+#            TT.@test rain_cold >= 0
+#            TT.@test rain_cold ≈ rain_expected_cold[i] rtol = 1e-3
+#        end
+#    end
+#
+#    TT.@testset "Melting Tendencies Smoke Test" begin
+#        N = FT(1e8)
+#        ρ_a = FT(1.2)
+#        ρ_r = FT(500)
+#        F_r = FT(0.5)
+#        T_freeze = FT(273.15)
+#
+#        qs = range(0.001, stop = 0.005, length = 5)
+#
+#        expected_melt = [0.0006982, 0.0009034, 0.001054, 0.001177, 0.001283]
+#
+#        for i in axes(qs, 1)
+#            rate = P3.p3_melt(
+#                p3,
+#                Chen2022,
+#                aps,
+#                tps,
+#                qs[i],
+#                N,
+#                T_freeze + 2,
+#                ρ_a,
+#                F_r,
+#                ρ_r,
+#            )
+#
+#            TT.@test rate >= 0
+#            TT.@test rate ≈ expected_melt[i] rtol = 1e-3
+#        end
+#    end
+#
+#    TT.@testset "Heterogeneous Freezing Smoke Test" begin
+#        T = FT(250)
+#        N = FT(1e8)
+#        ρ_a = FT(1.2)
+#        qᵥ = FT(8.1e-4)
+#        aero_type = CMP.Illite(FT)
+#
+#        qs = range(0.001, stop = 0.005, length = 5)
+#
+#        expected_freeze_q =
+#            [2.036e-61, 6.463e-61, 1.270e-60, 2.052e-60, 2.976e-60]
+#        expected_freeze_N =
+#            [1.414e-51, 2.244e-51, 2.941e-51, 3.562e-51, 4.134e-51]
+#
+#        for i in axes(qs, 1)
+#            rate_mass = P3.p3_rain_het_freezing(
+#                true,
+#                pdf_r,
+#                p3,
+#                tps,
+#                qs[i],
+#                N,
+#                T,
+#                ρ_a,
+#                qᵥ,
+#                aero_type,
+#            )
+#            rate_num = P3.p3_rain_het_freezing(
+#                false,
+#                pdf_r,
+#                p3,
+#                tps,
+#                qs[i],
+#                N,
+#                T,
+#                ρ_a,
+#                qᵥ,
+#                aero_type,
+#            )
+#
+#            TT.@test rate_mass >= 0
+#            TT.@test rate_mass ≈ expected_freeze_q[i] rtol = 1e-3
+#
+#            TT.@test rate_num >= 0
+#            TT.@test rate_num ≈ expected_freeze_N[i] rtol = 1e-3
+#        end
+#    end
+#
+#end
 
 function test_integrals(FT)
     p3 = CMP.ParametersP3(FT)
@@ -259,7 +473,7 @@ function test_integrals(FT)
                 q = qs[i]
 
                 # Velocity comparisons
-                vel_N, vel_m = P3.terminal_velocity(
+                vel_N, vel_m = P3.ice_terminal_velocity(
                     p3,
                     Chen2022.snow_ice,
                     q,
@@ -272,14 +486,8 @@ function test_integrals(FT)
                 λ, N_0 = P3.distribution_parameter_solver(p3, q, N, ρ_r, F_r)
                 th = P3.thresholds(p3, ρ_r, F_r)
                 ice_bound = P3.get_ice_bound(p3, λ, tolerance)
-                vel(d) = TV.velocity_chen(
-                    d,
-                    Chen2022.snow_ice,
-                    ρ_a,
-                    P3.p3_mass(p3, d, F_r, th),
-                    P3.p3_area(p3, d, F_r, th),
-                    p3.ρ_i,
-                )
+                vel(d) =
+                    P3.ice_particle_terminal_velocity(d, Chen2022.snow_ice, ρ_a)
                 f(d) = vel(d) * P3.N′ice(p3, d, λ, N_0)
 
                 qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), 2 * ice_bound)
@@ -292,7 +500,7 @@ function test_integrals(FT)
                 TT.@test vel_N ≈ qgk_vel_N rtol = 1e-7
                 TT.@test vel_m ≈ qgk_vel_m rtol = 1e-7
 
-                # Dₘ comparisons 
+                # Dₘ comparisons
                 D_m = P3.D_m(p3, q, N, ρ_r, F_r)
                 f_d(d) =
                     d * P3.p3_mass(p3, d, F_r, th) * P3.N′ice(p3, d, λ, N_0)
@@ -304,8 +512,10 @@ function test_integrals(FT)
     end
 end
 
+
 println("Testing Float32")
 test_p3_thresholds(Float32)
+test_particle_terminal_velocities(Float64)
 #TODO - only works for Float64 now. We should switch the units inside the solver
 # from SI base to something more managable
 #test_p3_shape_solver(Float32)
@@ -313,5 +523,7 @@ test_p3_thresholds(Float32)
 println("Testing Float64")
 test_p3_thresholds(Float64)
 test_p3_shape_solver(Float64)
-test_velocities(Float64)
+test_particle_terminal_velocities(Float64)
+test_bulk_terminal_velocities(Float64)
+#test_tendencies(Float64)
 test_integrals(Float64)

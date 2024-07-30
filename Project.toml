@@ -1,7 +1,7 @@
 name = "CloudMicrophysics"
 uuid = "6a9e3e04-43cd-43ba-94b9-e8782df3c71b"
 authors = ["Climate Modeling Alliance"]
-version = "0.21.0"
+version = "0.22.1"
 
 [deps]
 ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
@@ -26,8 +26,8 @@ ClimaParams = "0.10.6"
 DataFrames = "1.6"
 DocStringExtensions = "0.8, 0.9"
 ForwardDiff = "0.10"
-LazyArtifacts = "1"
 HCubature = "1.6"
+LazyArtifacts = "1"
 MLJ = "0.20"
 QuadGK = "2.9"
 RootSolvers = "0.3, 0.4"

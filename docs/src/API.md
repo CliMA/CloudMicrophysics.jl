@@ -41,8 +41,10 @@ Microphysics1M.snow_melt
 ```@docs
 Microphysics2M
 Microphysics2M.LiqRaiRates
-Microphysics2M.pdf_cloud
-Microphysics2M.pdf_rain
+Microphysics2M.pdf_cloud_parameters
+Microphysics2M.pdf_rain_parameters
+Microphysics2M.size_distribution
+Microphysics2M.get_size_distribution_bound
 Microphysics2M.autoconversion
 Microphysics2M.accretion
 Microphysics2M.liquid_self_collection
@@ -64,12 +66,7 @@ Microphysics2M.conv_q_liq_to_q_rai
 P3Scheme
 P3Scheme.thresholds
 P3Scheme.distribution_parameter_solver
-```
-
-# Terminal Velocity
-```@docs 
-TerminalVelocity 
-TerminalVelocity.velocity_chen
+P3Scheme.ice_terminal_velocity
 ```
 
 # Aerosol model
