@@ -8,6 +8,7 @@ function perf_model_params(FT, IN_mode)
     if IN_mode == "ABDINM"
         const_dt = FT(1)
         w = FT(0.4)
+        t_max = FT(100)
         dep_nucleation = "ABDINM"
         heterogeneous = "None"
         homogeneous = "None"
@@ -18,6 +19,7 @@ function perf_model_params(FT, IN_mode)
     elseif IN_mode == "ABIFM"
         const_dt = FT(1)
         w = FT(0.4)
+        t_max = FT(100)
         dep_nucleation = "None"
         heterogeneous = "ABIFM"
         homogeneous = "None"
@@ -28,6 +30,7 @@ function perf_model_params(FT, IN_mode)
     elseif IN_mode == "ABHOM"
         const_dt = FT(1)
         w = FT(1)
+        t_max = FT(100)
         dep_nucleation = "None"
         heterogeneous = "None"
         homogeneous = "ABHOM"
@@ -128,4 +131,92 @@ function perf_model_pseudo_data(FT, IN_mode, params, IC)
     y_truth = G_truth .+ rand(noise_dist)
     return [y_truth, Γ, coeff_true]
 end
+
+function AIDA_IN05_params(FT, w, t_max)
+    IN_mode = "ABHOM"
+    const_dt = FT(1)
+    dep_nucleation = "None"
+    heterogeneous = "None"
+    homogeneous = "ABHOM"
+    condensation_growth = "Condensation"
+    deposition_growth = "Deposition"
+    liq_size_distribution = "Lognormal"
+    ice_size_distribution = "Gamma"
+    σ_g = FT(2.3)
+
+    params = (; const_dt, w, t_max,
+        condensation_growth, deposition_growth,             # growth
+        liq_size_distribution, ice_size_distribution, σ_g,  # size distribution
+        dep_nucleation, heterogeneous, homogeneous,         # nucleation
+    )
+    return params
+end
+
+function AIDA_IN05_IC(FT, data_file)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    wps = CMP.WaterProperties(FT)
+
+    ρₗ = wps.ρw
+    ρᵢ = wps.ρi
+    R_d = TD.Parameters.R_d(tps)
+    R_v = TD.Parameters.R_v(tps)
+    ϵₘ = R_d / R_v
+
+    if data_file == "in05_17_aida.edf"
+    # starting at t = 205 s (to match moving average freezing onset)
+        Nₐ = FT(0)
+        Nₗ = FT(297.060 * 1e6)
+        Nᵢ = FT(1.49 * 1e6)
+        r₀ = FT(3.057e-6)
+        p₀ = FT(864.685 * 1e2)
+        T₀ = FT(236.883)
+        qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
+        qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
+        m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
+        m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+        e = FT(27.2137)
+        qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
+        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+        Rₐ = TD.gas_constant_air(tps, q)
+        eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+        Sₗ = FT(e / eₛ)
+    elseif data_file == "in05_18_aida.edf"
+        Nₐ = FT(0)
+        Nₗ = FT(275 * 1e6)
+        Nᵢ = FT(0)
+        r₀ = FT(1e-7)
+        p₀ = FT(996.472 * 1e2)
+        T₀ = FT(243.072)
+        qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
+        C_l = FT(qₗ / ((1 - qₗ) * ϵₘ + qₗ))  # concentration/mol fraction of liquid
+        C_v = FT(355.898 * 1e-6 - C_l)     # concentration/mol fraction of vapor
+        qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
+        qᵢ = FT(0)
+        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+        Rₐ = TD.gas_constant_air(tps, q)
+        eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+        e = eᵥ(qᵥ, p₀, Rₐ, R_v)
+        Sₗ = FT(e / eₛ)
+    elseif data_file == "in05_19_aida.edf"
+        Nₐ = FT(0)
+        Nₗ = FT(180 * 1e6)
+        Nᵢ = FT(0)
+        r₀ = FT(1e-7)
+        p₀ = FT(795.081 * 1e2)
+        T₀ = FT(242.807)
+        qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
+        C_l = FT(qₗ / ((1 - qₗ) * ϵₘ + qₗ))  # concentration/mol fraction of liquid
+        C_v = FT(432.364 * 1e-6 - C_l)
+        qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
+        qᵢ = FT(0)
+        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+        Rₐ = TD.gas_constant_air(tps, q)
+        eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+        e = eᵥ(qᵥ, p₀, Rₐ, R_v)
+        Sₗ = FT(e / eₛ)
+    end
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0), FT(0)]   #remove the last element, its J
+end
+
+
 #! format: on

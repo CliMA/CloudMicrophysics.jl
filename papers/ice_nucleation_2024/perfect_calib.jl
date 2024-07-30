@@ -66,5 +66,19 @@ for IN_mode in IN_mode_list
     plot_name = "perfect_calibration_$mode_label.svg"
     MK.save(plot_name, fig)
 
+    # Plotting calibrated parcel's ICNC if ABHOM
+    if IN_mode == "ABHOM"
+        fig2 = MK.Figure(size = (800, 600))
+        ax3 = MK.Axis(fig2[1, 1], ylabel = "ICNC [m^3]", xlabel = "time [s]", title = IN_mode)
+        
+        soln = run_calibrated_model(FT, IN_mode, calibrated_parameters, params, IC)
+        soln_dflt = run_calibrated_model(FT, IN_mode, [FT(255.927125), FT(-68.553283)], params, IC)
+
+        MK.lines!(ax3, soln.t, soln[9,:], label = "calibrated")
+        MK.lines!(ax3, soln_dflt.t, soln_dflt[9,:], label = "default", color = :orange)
+        plot_name = "perfect_calibration_ICNC_$mode_label.svg"
+        MK.save(plot_name, fig2)
+    end
+
 end
 #! format: on
