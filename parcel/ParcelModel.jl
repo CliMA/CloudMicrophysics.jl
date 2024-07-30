@@ -70,9 +70,20 @@ function parcel_model(dY, Y, p, t)
 
     # Get the state values
     (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, t) = state
+
     # Get thermodynamic parameters, phase partition and create thermo state.
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     ts = TD.PhaseNonEquil_pTq(tps, p_air, T, q)
+
+    #q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
+    e_test = qᵥ*p_air * (TD.Parameters.R_v(tps)/TD.gas_constant_air(tps, q))
+    #e_test = sol_qᵥ.*sol_p .* (TD.Parameters.R_v(tps)/(TD.Parameters.R_v(tps)+TD.Parameters.R_d(tps)))
+    e_sat_fromS = e_test / Sₗ
+
+    # calculating it from T:
+    e_sat_fromT = TD.saturation_vapor_pressure(tps,T,TD.Liquid())
+
+    @info("", e_sat_fromT, e_sat_fromS, T, Sₗ)
 
     # Constants and variables that depend on the moisture content
     R_air = TD.gas_constant_air(tps, q)
@@ -137,6 +148,8 @@ function parcel_model(dY, Y, p, t)
         L_vap / cp_air * dqₗ_dt_v2l +
         L_fus / cp_air * dqᵢ_dt_l2i +
         L_subl / cp_air * dqᵢ_dt_v2i
+
+    #@info("", dT_dt, dqᵥ_dt, dqₗ_dt, dqᵢ_dt, dNᵢ_dt, dNₐ_dt, dNₗ_dt, dSₗ_dt, PSD, dp_air_dt)
 
     # Set tendencies
     dY[1] = dSₗ_dt      # saturation ratio over liquid water

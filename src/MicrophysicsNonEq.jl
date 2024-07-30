@@ -68,10 +68,10 @@ function conv_q_vap_to_q_liq_ice(
     e::FT, # vapor pressure
     ρ_air::FT, # air density
     const_dt:: FT,
+    type::String,
 ) where {FT}
 
     # going to need to either change this function to have ice functionality or do something else?
-
 
     # (might want to change the name of this function at some point)
     # might also want to make turn these parameters into a struct or something
@@ -84,7 +84,6 @@ function conv_q_vap_to_q_liq_ice(
     L_subl = TD.latent_heat_sublim(tps, T)
     L_v = TD.latent_heat_vapor(tps, T)
     g = TD.Parameters.grav(tps)
-
 
     # e_int = TD.internal_energy(tps,T)
 
@@ -103,30 +102,63 @@ function conv_q_vap_to_q_liq_ice(
 
     #A_c = FT(1) # i need to actually make this into something
 
-    A_c_WBF = - (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)*(1+(L_subl/cp_air)*dqsidT)
+    A_c_WBF = - (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)*(1+(L_subl/cp_air)*dqsldT)
+    #A_c_WBF = 0
     e_s = e/Sₗ # assuming this is ok but would like to double check
     A_c_uplift = -(q_sat.liq * g * w * ρ_air)/(p_air-e_s) + dqsldT*w*g/cp_air
 
     A_c =  A_c_uplift + A_c_WBF
-
+    
     τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
-       
+    
     # this does need to be mixing ratio instead -- double check this calc
-    δ_0ₗ = (Sₗ-1)*q_sat.liq
+    #q.tot - q.liq -q.ice - q_sat.liq
+    δ_0 = (Sₗ-1)*q_sat.liq*12
     # just doing a quick hacky version of calculating S_i this way -- not entirely sure
     # taken from parcel common
     Sᵢ = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) / TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ 
     
-    δ_0ᵢ = (Sᵢ-1)*q_sat.ice
+    #δ_0ᵢ = (Sᵢ-1)*q_sat.ice
+
+    #@info("initial deltas",δ_0ₗ,δ_0ᵢ)
+
+    #@info("new deltas", δₗ, δᵢ)
+
+    e_si = e/Sᵢ
+
+    @info("",A_c_uplift, A_c_WBF, A_c, e_s, e_si, e)
+    @info("", ice.τ_relax, liquid.τ_relax)
+
+   
+
+    # DONT DO THIS -- CALCULATE DQDT INSTEAD.
+
+    if type == "condensation"
+        cond_rate = A_c * τ/(liquid.τ_relax * Γₗ) + (δ_0 - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
+        term1 = A_c * τ/(liquid.τ_relax * Γₗ)
+        term2 = (δ_0 - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
+        @info("",δ_0,cond_rate, term1, term2, q.tot-q_sat.liq)
+        return cond_rate
+    elseif type == "deposition"
+        dep_rate = A_c * τ/(ice.τ_relax * Γᵢ) + (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) + (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
+        term1 = A_c * τ/(ice.τ_relax * Γᵢ)
+        term2 = (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ))
+        term3 = (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
+        avg_δ = A_c * τ/ + (δ_0 - A_c*τ)*τ/(const_dt)*(FT(1) - exp(- const_dt/τ))
+        @info("",dep_rate, term1, term2, term3, avg_δ, q.tot-q_sat.ice, q_sat.ice)
+        @info("",dep_rate,δ_0 - A_c*τ, τ/(const_dt*ice.τ_relax*Γᵢ), (FT(1) - exp(- const_dt/τ)))
+        @info("", τ)
+        return dep_rate
+    end
 
     # solving for new Sl after timestep delta t:
-    Sₗ = (1/q_sat.liq)*(A_c * τ/(liquid.τ_relax * Γₗ) + (δ_0ₗ - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))) + 1
+    #Sₗ = (1/q_sat.liq)*() + 1
 
-    Sᵢ = (1/q_sat.ice)*(A_c * τ/(ice.τ_relax * Γᵢ) + (δ_0ᵢ - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) + (q_sat.liq + q_sat.ice)/(ice.τ_relax*Γᵢ)) + 1
+    #Sᵢ = (1/q_sat.ice)*() + 1
 
     # a question -- is this Sl or total S?
 
-    return Sₗ, Sᵢ
+    #return Sₗ, Sᵢ
 end
 
 end #module MicrophysicsNonEq.jl

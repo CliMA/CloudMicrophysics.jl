@@ -22,14 +22,14 @@ R_d = TD.Parameters.R_d(tps)
 
 # Initial conditions
 Nₐ = FT(0)
-Nₗ = FT(200 * 1e6)
-Nᵢ = FT(1e6)
+Nₗ = FT(0)#FT(200 * 1e2)
+Nᵢ = FT(0)#FT(1)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(251)
 ln_INPC = FT(0)
 e_sat = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
-Sₗ = FT(0.8)
+Sₗ = FT(0.6)
 e = Sₗ*e_sat
 md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
@@ -72,8 +72,8 @@ ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
 ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
 ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
-ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure rel error")
-ax8 = MK.Axis(fig[2, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure (from S)")
+#ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure rel error")
+#ax8 = MK.Axis(fig[2, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure (from S)")
 #MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 #MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
@@ -126,13 +126,13 @@ for DSD in size_distribution_list
     rel_error = (e_sat_fromT .- e_sat_fromS) ./ (e_sat_fromT)
 
     # plot them:
-    MK.lines!(ax7, sol.t, rel_error)
+    #MK.lines!(ax7, sol.t, rel_error)
     #MK.lines!(ax7, sol.t, e_sat_fromT, label="from T")
     #MK.lines!(ax7, sol.t, e_sat_fromS, label="from S")
 
     q_sat_fromS = sol_qᵥ .* sol[1, :] #- sol_qᵥ
 
-    MK.lines!(ax8, sol.t, q_sat_fromS)
+    #MK.lines!(ax8, sol.t, q_sat_fromS)
 
 
     local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
@@ -169,5 +169,5 @@ MK.axislegend(
 if simple
     MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_simple_01.png", fig)
 else
-    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_50.png", fig)
+    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_01.png", fig)
 end
