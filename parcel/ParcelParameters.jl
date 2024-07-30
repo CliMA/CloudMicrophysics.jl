@@ -3,6 +3,17 @@ import Thermodynamics.Parameters as TDP
 
 struct Empty{FT} <: CMP.ParametersType{FT} end
 
+struct AeroAct{FT} <: CMP.ParametersType{FT}
+    aps::CMP.ParametersType{FT}
+    aap::CMP.ParametersType{FT}
+    aerosol::CMP.AerosolType{FT}
+    tps::TDP.ThermodynamicsParameters{FT}
+    w::FT
+    const_dt::FT
+    aero_σ_g::FT
+    r_nuc::FT
+end
+
 struct MohlerAF{FT} <: CMP.ParametersType{FT}
     ips::CMP.ParametersType{FT}
     aerosol::CMP.AerosolType{FT}
