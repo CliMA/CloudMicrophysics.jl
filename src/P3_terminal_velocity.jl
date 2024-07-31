@@ -69,7 +69,7 @@ function velocity_difference(
 end
 
 """
-    ice_terminal_velocity_2(p3, Chen2022, q, N, ρ_r, F_r, ρ_a)
+    ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_r, ρ_a)
 
  - p3 - a struct with P3 scheme parameters
  - Chen2022 - a struch with terminal velocity parameters as in Chen(2022)
@@ -117,5 +117,8 @@ function ice_terminal_velocity(
         FT(0),
         D_max,
     )[1]
-    return (v_n / N, v_m / L)
+    return (
+        ifelse(N < eps(FT), FT(0), v_n / N),
+        ifelse(L < eps(FT), FT(0), v_m / L),
+    )
 end

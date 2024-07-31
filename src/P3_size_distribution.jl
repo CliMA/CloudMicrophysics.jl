@@ -80,7 +80,7 @@ function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
             5,
         ).root
 
-    return exp(log_ice_x)
+    return ifelse(λ < eps(FT), FT(0), exp(log_ice_x))
 end
 
 """
@@ -141,16 +141,18 @@ function L_over_N_gamma(
     λ = exp(log_λ)
     N = Γ(1 + μ) / (λ^(1 + μ))
 
-    return ifelse(
-        F_r == FT(0),
-        (L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) + L_rz(p3, μ, λ, D_th)) / N,
-        (
-            L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) +
-            L_n(p3, μ, λ, D_th, th.D_gr) +
-            L_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
-            L_r(p3, F_r, μ, λ, th.D_cr)
-        ) / N,
-    )
+    L = 0
+    if F_r == FT(0)
+        L += L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th)
+        L += L_rz(p3, μ, λ, D_th)
+    else
+        L += L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th)
+        L += L_n(p3, μ, λ, D_th, th.D_gr)
+        L += L_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr)
+        L += L_r(p3, F_r, μ, λ, th.D_cr)
+    end
+
+    return ifelse(N < eps(FT), FT(0), L / N)
 end
 
 """
@@ -177,7 +179,12 @@ function DSD_μ_approx(p3::PSP3, L::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
     L_over_N_max = log(L_over_N_gamma(p3, F_r, log(λ_6), p3.μ_max, th))
 
     # Return approximation between them
-    μ = (p3.μ_max / (L_over_N_max - L_over_N_min)) * (log(L / N) - L_over_N_min)
+    μ = ifelse(
+        N < eps(FT),
+        FT(0),
+        (p3.μ_max / (L_over_N_max - L_over_N_min)) *
+        (log(L / N) - L_over_N_min),
+    )
 
     # Clip approximation between 0 and 6
     return min(p3.μ_max, max(FT(0), μ))
@@ -203,7 +210,7 @@ function get_bounds(
     p3::PSP3,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT}
-    goal = L / N
+    goal = ifelse(N < eps(FT), FT(0), L / N)
 
     if goal >= 1e-8
         left = FT(1)
@@ -225,8 +232,8 @@ function get_bounds(
     guess =
         left * (goal / (Ll))^((log(right) - log(left)) / (log(Lr) - log(Ll)))
 
-    max = log(guess * exp(radius))
-    min = log(guess)
+    max = ifelse(goal < eps(FT), FT(0), log(guess * exp(radius)))
+    min = ifelse(goal < eps(FT), FT(0), log(guess))
 
     return (; min, max)
 end
@@ -274,7 +281,13 @@ function distribution_parameter_solver(
             5,
         ).root
 
-    return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
+    params = ifelse(
+        N < eps(FT),
+        (; λ = FT(0), N_0 = FT(0)),
+        (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x))),
+    )
+
+    return params
 end
 
 """
@@ -312,5 +325,5 @@ function D_m(p3::PSP3, L::FT, N::FT, ρ_r::FT, F_r::FT) where {FT}
         n += ∫_Γ(th.D_cr, Inf, α_va / (1 - F_r) * N_0, μ + p3.β_va + 1, λ)
     end
     # Normalize by L
-    return n / L
+    return ifelse(L < eps(FT), FT(0), n / L)
 end
