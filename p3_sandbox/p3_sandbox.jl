@@ -23,7 +23,7 @@ function p3_sandbox(dY, Y, p, t)
     qᵣ = Y[3]      # Rime mass mixing ratio
     Bᵣ = Y[4]      # Rime volume
 
-    F_r = qᵣ / qᵢ
+    F_rim = qᵣ / qᵢ
     ρ_r = ifelse(Bᵣ == 0, FT(0), qᵣ / Bᵣ)
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
@@ -38,7 +38,7 @@ function p3_sandbox(dY, Y, p, t)
     dNᵢ_dt = J_immersion * Nₗ * 4 * π * rₗ^2
     println("J = ", J_immersion)
 
-    sol = P3.thresholds(p3, ρ_r, F_r)
+    sol = P3.thresholds(p3, ρ_r, F_rim)
     println(" ")
     println("D_cr = ", sol.D_cr)
     println("D_gr = ", sol.D_gr)

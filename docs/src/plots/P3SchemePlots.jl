@@ -41,9 +41,9 @@ function p3_relations_plot()
     # define plot axis
     #[row, column]
     ax1 = define_axis(fig, 1:7,  1:9,   CMK.L"m(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.9)
-    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"m(D) regime for $F_r = 0.95$",          CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.8)
+    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"m(D) regime for $F_rim = 0.95$",          CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.8)
     ax2 = define_axis(fig, 8:15, 1:9,   CMK.L"A(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.7)
-    ax4 = define_axis(fig, 8:15, 10:18, CMK.L"A(D) regime for $F_r = 0.95$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.6)
+    ax4 = define_axis(fig, 8:15, 10:18, CMK.L"A(D) regime for $F_rim = 0.95$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.6)
 
     # Get thresholds
     sol4_5 = P3.thresholds(p3, 400.0, 0.5)
@@ -88,10 +88,10 @@ function p3_relations_plot()
         global d_gr_800 = CMK.vlines!(ax, sol_8[2] * 1e3,           linestyle = :dash, color = cl[3], linewidth = lw)
     end
     # add legend
-    CMK.Legend(fig[16:17, 1], [fig1_0, fig1_5, fig1_8], [CMK.L"$F_{r} = 0.0$", CMK.L"$F_{r} = 0.5$", CMK.L"$F_{r} = 0.8$"], framevisible = false)
+    CMK.Legend(fig[16:17, 1], [fig1_0, fig1_5, fig1_8], [CMK.L"$F_{rim} = 0.0$", CMK.L"$F_{rim} = 0.5$", CMK.L"$F_{rim} = 0.8$"], framevisible = false)
     CMK.Legend(fig[16:17, 3], [d_tha], [CMK.L"$D_{th}$"], framevisible = false)
-    CMK.Legend(fig[16:17, 7], [d_cr_5, d_cr_8], [CMK.L"$D_{cr}$ for $F_{r} = 0.5$", CMK.L"$D_{cr}$ for $F_{r} = 0.8$"], framevisible = false)
-    CMK.Legend(fig[16:17, 5], [d_gr_5, d_gr_8], [CMK.L"$D_{gr}$ for $F_{r} = 0.5$", CMK.L"$D_{gr}$ for $F_{r} = 0.8$"], framevisible = false)
+    CMK.Legend(fig[16:17, 7], [d_cr_5, d_cr_8], [CMK.L"$D_{cr}$ for $F_{rim} = 0.5$", CMK.L"$D_{cr}$ for $F_{rim} = 0.8$"], framevisible = false)
+    CMK.Legend(fig[16:17, 5], [d_gr_5, d_gr_8], [CMK.L"$D_{gr}$ for $F_{rim} = 0.5$", CMK.L"$D_{gr}$ for $F_{rim} = 0.8$"], framevisible = false)
 
     CMK.Legend(fig[16:17, 13], [fig3_200, fig3_400, fig3_800],    [CMK.L"$\rho_{r} = 200.0 kg m^{-3}$", CMK.L"$\rho_{r} = 400.0 kg m^{-3}$", CMK.L"$\rho_{r} = 800.0 kg m^{-3}$",], framevisible = false)
     CMK.Legend(fig[16:17, 14], [d_thb],                           [CMK.L"$D_{th}$"], framevisible = false)
