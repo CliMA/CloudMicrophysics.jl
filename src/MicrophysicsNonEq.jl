@@ -102,52 +102,53 @@ function conv_q_vap_to_q_liq_ice(
 
     #A_c = FT(1) # i need to actually make this into something
 
-    A_c_WBF = - (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)*(1+(L_subl/cp_air)*dqsldT)
+    A_c_WBF = (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)*(1+(L_subl/cp_air)*dqsldT)
     #A_c_WBF = 0
-    e_s = e/Sₗ # assuming this is ok but would like to double check
-    A_c_uplift = -(q_sat.liq * g * w * ρ_air)/(p_air-e_s) + dqsldT*w*g/cp_air
+    e_sl = e/Sₗ # assuming this is ok but would like to double check
+    Sᵢ = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) / TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ 
+    e_si = e/Sᵢ
 
-    A_c =  A_c_uplift + A_c_WBF
+    A_c_uplift_l = -(q_sat.liq * g * w * ρ_air)/(p_air-e_sl) + dqsldT*w*g/cp_air
+    A_c_uplift_i = -(q_sat.ice * g * w * ρ_air)/(p_air-e_si) + dqsidT*w*g/cp_air
+
+    A_c_l =  A_c_uplift_l - A_c_WBF
+    A_c_i = A_c_uplift_i + A_c_WBF
     
     τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
     
     # this does need to be mixing ratio instead -- double check this calc
     #q.tot - q.liq -q.ice - q_sat.liq
-    δ_0 = (Sₗ-1)*q_sat.liq*12
+    #δ_0 = (Sₗ-1)*q_sat.liq
+    q_v = q.tot - q.liq - q.ice
+    δ_0_l = q_v - q_sat.liq #(Sₗ-1)*q_sat.liq
+    δ_0_i = q_v - q_sat.ice #(Sₗ-1)*q_sat.liq
+
+    @info("", q_v, q_sat.liq, q_sat.ice, δ_0_l, δ_0_i)
     # just doing a quick hacky version of calculating S_i this way -- not entirely sure
     # taken from parcel common
-    Sᵢ = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) / TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ 
-    
-    #δ_0ᵢ = (Sᵢ-1)*q_sat.ice
 
-    #@info("initial deltas",δ_0ₗ,δ_0ᵢ)
 
-    #@info("new deltas", δₗ, δᵢ)
+    #@info("",A_c_uplift, A_c_WBF, A_c, e_s, e_si, e)
+    #@info("", ice.τ_relax, liquid.τ_relax)
 
-    e_si = e/Sᵢ
-
-    @info("",A_c_uplift, A_c_WBF, A_c, e_s, e_si, e)
-    @info("", ice.τ_relax, liquid.τ_relax)
-
-   
 
     # DONT DO THIS -- CALCULATE DQDT INSTEAD.
 
     if type == "condensation"
-        cond_rate = A_c * τ/(liquid.τ_relax * Γₗ) + (δ_0 - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
-        term1 = A_c * τ/(liquid.τ_relax * Γₗ)
-        term2 = (δ_0 - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
-        @info("",δ_0,cond_rate, term1, term2, q.tot-q_sat.liq)
+        cond_rate = A_c_l * τ/(liquid.τ_relax * Γₗ) + (δ_0_l - A_c_l*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
+        #term1 = A_c * τ/(liquid.τ_relax * Γₗ)
+        #term2 = (δ_0 - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
+        @info("",cond_rate)#, term1, term2, q.tot-q_sat.liq)
         return cond_rate
     elseif type == "deposition"
-        dep_rate = A_c * τ/(ice.τ_relax * Γᵢ) + (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) + (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
-        term1 = A_c * τ/(ice.τ_relax * Γᵢ)
-        term2 = (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ))
-        term3 = (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
-        avg_δ = A_c * τ/ + (δ_0 - A_c*τ)*τ/(const_dt)*(FT(1) - exp(- const_dt/τ))
-        @info("",dep_rate, term1, term2, term3, avg_δ, q.tot-q_sat.ice, q_sat.ice)
-        @info("",dep_rate,δ_0 - A_c*τ, τ/(const_dt*ice.τ_relax*Γᵢ), (FT(1) - exp(- const_dt/τ)))
-        @info("", τ)
+        dep_rate = A_c_i * τ/(ice.τ_relax * Γᵢ) + (δ_0_i - A_c_i*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) #+ (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
+        #term1 = A_c * τ/(ice.τ_relax * Γᵢ)
+        #term2 = (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ))
+        #term3 = (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
+        #avg_δ = A_c * τ/ + (δ_0 - A_c*τ)*τ/(const_dt)*(FT(1) - exp(- const_dt/τ))
+        #@info("",dep_rate, term1, term2, term3, avg_δ, q.tot-q_sat.ice, q_sat.ice)
+        @info("",dep_rate)# - A_c*τ, τ/(const_dt*ice.τ_relax*Γᵢ), (FT(1) - exp(- const_dt/τ)))
+        #@info("", τ)
         return dep_rate
     end
 

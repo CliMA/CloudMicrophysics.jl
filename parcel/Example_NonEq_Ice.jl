@@ -22,8 +22,8 @@ R_d = TD.Parameters.R_d(tps)
 
 # Initial conditions
 Nₐ = FT(0)
-Nₗ = FT(0)#FT(200 * 1e2)
-Nᵢ = FT(0)#FT(1)
+Nₗ = FT(200 * 1e6)
+Nᵢ = FT(1)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(251)
@@ -44,7 +44,7 @@ simple = false
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed
 const_dt = FT(0.1)                         # model timestep
-t_max = FT(const_dt*3)
+t_max = FT(100)#FT(const_dt*1)
 size_distribution_list = ["Monodisperse", "Gamma"]
 
 if simple

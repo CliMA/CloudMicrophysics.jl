@@ -83,7 +83,7 @@ function parcel_model(dY, Y, p, t)
     # calculating it from T:
     e_sat_fromT = TD.saturation_vapor_pressure(tps,T,TD.Liquid())
 
-    @info("", e_sat_fromT, e_sat_fromS, T, Sₗ)
+    #@info("", e_sat_fromT, e_sat_fromS, T, Sₗ)
 
     # Constants and variables that depend on the moisture content
     R_air = TD.gas_constant_air(tps, q)

@@ -228,13 +228,17 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     #q_ice_sat = FT(2e-3)
 
     #q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0)
-    q_sat_liq = Sₗ * qᵥ
+    #q_sat_liq = Sₗ * qᵥ
     #q_sat_liq = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid())
 
     # need to calculate Si now
-    Sᵢ = S_i(tps, T, Sₗ) # realizing this is probably not ideal
+    #Sᵢ = S_i(tps, T, Sₗ) # realizing this is probably not ideal
     #q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
-    q_sat_ice = Sᵢ * qᵥ
+    #q_sat_ice = Sᵢ * qᵥ
+
+    q_sat_liq = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid())
+    q_sat_ice = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Ice())
+    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
 
     #@info("before calculating", Sₗ,Sᵢ)
 
@@ -326,7 +330,7 @@ function deposition(params::NonEqDepParams,PSD, state, ρ_air)
     q_sat_ice = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Ice())
     q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
 
-    @info("",Sₗ,Sᵢ,q_sat_liq, q_sat_ice)
+    @info("",Sₗ,Sᵢ,qᵥ,q_sat_liq, q_sat_ice)
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     Rᵥ = TD.Parameters.R_v(tps)
