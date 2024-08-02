@@ -196,7 +196,7 @@ function condensation(params::CondParams, PSD_liq, state, ρ_air)
     return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD_liq.r * Nₗ
 end
 
-function condensation(params::NonEqCondParamsSimple, PSD, state, ρ_air)
+function condensation(params::NonEqCondParamsSimple_Anna, PSD, state, ρ_air)
 
     FT = eltype(state)
     (; Sₗ, T, qₗ, qᵥ, qᵢ) = state
@@ -210,10 +210,25 @@ function condensation(params::NonEqCondParamsSimple, PSD, state, ρ_air)
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
     new_q = MNE.conv_q_vap_to_q_liq_ice(liquid, q_sat, q)
-
-    #@info(" ",new_q, Sₗ, qᵥ, qₗ, q_sat_liq, TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid()))
     
     return new_q
+end
+
+function condensation(params::NonEqCondParamsSimple_Morrison, PSD, state, ρ_air)
+    FT = eltype(state)
+    (; T, qₗ, qᵥ, qᵢ) = state
+    
+    (; tps, liquid, ice) = params
+
+    q_sat_liq = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid())
+    q_sat_ice = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Ice())
+    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+
+    cond_rate, dep_rate = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T)
+    
+    return cond_rate
 end
 
 function condensation(params::NonEqCondParams, PSD, state, ρ_air)
@@ -223,31 +238,8 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     
     (; aps, tps, liquid, ice, w, const_dt) = params
 
-    # some floats these could be set to if needed
-    #q_sat = TD.PhasePartition(FT(0), FT(5e-3), FT(0))
-    #q_ice_sat = FT(2e-3)
-
-    #q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0)
-    #q_sat_liq = Sₗ * qᵥ
-    #q_sat_liq = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid())
-
-    # need to calculate Si now
-    #Sᵢ = S_i(tps, T, Sₗ) # realizing this is probably not ideal
-    #q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
-    #q_sat_ice = Sᵢ * qᵥ
-
     q_sat_liq = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid())
     q_sat_ice = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Ice())
-    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
-
-    #@info("before calculating", Sₗ,Sᵢ)
-
-    #@info(" ", Sₗ, Sᵢ, qᵥ, qₗ, q_sat_liq, q_sat_ice)
-
-    #q_sat_ice = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Ice())
-    # i dont think it makes sense to put anything as q_sat_tot ? theyre just different
-
-    # calculating liquid qsat ?? maybe eventually want to do both (probably do want to change this)
     q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
@@ -255,16 +247,9 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     R_air = TD.gas_constant_air(tps, q)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
-    #Sₗ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, TD.PhasePartition(FT(0),qₗ,FT(0)), T, Sₗ, w, p_air, e, ρ_air, const_dt)
-    #Sₗ, Sᵢ = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt)
-    #Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
-    
-    #@info("after calculating", Sₗ,Sᵢ)
+    dqₗ_dt_ce = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt, "condensation")
 
-    #@info(" ",new_q, Sₗ,Sᵢ, qᵥ, qₗ, q_sat_ice)
-
-    #return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD.rₗ * Nₗ
-    return MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt, "condensation")
+    return dqₗ_dt_ce
 end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)
@@ -281,7 +266,7 @@ function deposition(params::DepParams, PSD_ice, state, ρ_air)
     return 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD_ice.r * Nᵢ
 end
 
-function deposition(params::NonEqDepParamsSimple, PSD, state, ρ_air)
+function deposition(params::NonEqDepParamsSimple_Anna, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, Sₗ, qₗ, qᵥ, qᵢ) = state
     
@@ -305,6 +290,23 @@ function deposition(params::NonEqDepParamsSimple, PSD, state, ρ_air)
     return new_q
 end
 
+function deposition(params::NonEqDepParamsSimple_Morrison, PSD, state, ρ_air)
+    FT = eltype(state)
+    (; T, qₗ, qᵥ, qᵢ) = state
+    
+    (; tps, liquid, ice) = params
+
+    q_sat_liq = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid())
+    q_sat_ice = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Ice())
+    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+
+    cond_rate, dep_rate = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T)
+    
+    return dep_rate
+end
+
 function deposition(params::NonEqDepParams,PSD, state, ρ_air)
     FT = eltype(state)
     (; Sₗ, T, p_air, qₗ, qᵥ, qᵢ, Nᵢ) = state
@@ -321,8 +323,7 @@ function deposition(params::NonEqDepParams,PSD, state, ρ_air)
     # need to calculate Si now
     Sᵢ = S_i(tps, T, Sₗ) # realizing this is probably not ideal
     #q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
-    #q_sat_ice = qᵥ / Sᵢ 
-
+    #q_sat_ice = qᵥ / Sᵢ
     
     #@info("before calculating", Sₗ,Sᵢ)
 
@@ -344,5 +345,14 @@ function deposition(params::NonEqDepParams,PSD, state, ρ_air)
     #@info("after calculating", Sₗ,Sᵢ)#, qᵥ, qₗ, q_sat_ice)
 
     #return 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD.rᵢ * Nᵢ
-    return MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt, "deposition")
+    dqᵢ_dt_ds = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt, "deposition")
+
+    # limiter i need to add is so that it doesn't get negative ice
+
+    #if qᵢ + dep_rate < 0
+    #    return -qᵢ
+    #else
+    #    return dep_rate
+    #end
+    return dqᵢ_dt_ds
 end

@@ -23,7 +23,7 @@ R_d = TD.Parameters.R_d(tps)
 # Initial conditions
 Nₐ = FT(0)
 Nₗ = FT(200 * 1e6)
-Nᵢ = FT(1)
+Nᵢ = FT(1e3)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(251)
@@ -39,7 +39,7 @@ qᵥ = mv_v / (md_v + mv_v + ml_v + mi_v)
 qₗ = ml_v / (md_v + mv_v + ml_v + mi_v)
 qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
-simple = false
+simple = true
 
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed
@@ -48,8 +48,8 @@ t_max = FT(100)#FT(const_dt*1)
 size_distribution_list = ["Monodisperse", "Gamma"]
 
 if simple
-    condensation_growth = "NonEq_Condensation_Simple"
-    deposition_growth = "NonEq_Deposition_Simple"
+    condensation_growth = "NonEq_Condensation_Simple_Morrison"
+    deposition_growth = "NonEq_Deposition_Simple_Morrison"
 else
     condensation_growth = "NonEq_Condensation"
     deposition_growth = "NonEq_Deposition"
@@ -72,6 +72,7 @@ ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
 ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
 ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
+ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
 #ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure rel error")
 #ax8 = MK.Axis(fig[2, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure (from S)")
 #MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
@@ -134,6 +135,11 @@ for DSD in size_distribution_list
 
     #MK.lines!(ax8, sol.t, q_sat_fromS)
 
+    # calculating internal energy as a sanity check
+
+    int_energy = TD.internal_energy.(tps, sol_T, q)
+
+    MK.lines!(ax7, sol.t, int_energy)
 
     local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
@@ -167,7 +173,7 @@ MK.axislegend(
 #)
 
 if simple
-    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_simple_01.png", fig)
+    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_simple_morrison_01.png", fig)
 else
     MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_01.png", fig)
 end
