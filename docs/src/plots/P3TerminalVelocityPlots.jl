@@ -19,7 +19,7 @@ function get_values(
     x_resolution::Int,
     y_resolution::Int,
 ) where {FT}
-    F_rs = range(FT(0), stop = FT(1 - eps(FT)), length = x_resolution)
+    F_rims = range(FT(0), stop = FT(1 - eps(FT)), length = x_resolution)
     ρ_rs = range(FT(25), stop = FT(975), length = y_resolution)
 
     V_m = zeros(x_resolution, y_resolution)
@@ -27,22 +27,22 @@ function get_values(
 
     for i in 1:x_resolution
         for j in 1:y_resolution
-            F_r = F_rs[i]
+            F_rim = F_rims[i]
             ρ_r = ρ_rs[j]
 
             V_m[i, j] =
-                P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_r, ρ_a)[2]
+                P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_rim, ρ_a)[2]
             # get D_m in mm for plots
-            D_m[i, j] = 1e3 * P3.D_m(p3, L, N, ρ_r, F_r)
+            D_m[i, j] = 1e3 * P3.D_m(p3, L, N, ρ_r, F_rim)
         end
     end
-    return (; F_rs, ρ_rs, V_m, D_m)
+    return (; F_rims, ρ_rs, V_m, D_m)
 end
 
 function make_axis_top(fig, col, title)
     return Plt.Axis(
         fig[1, col],
-        xlabel = "F_r",
+        xlabel = "F_rim",
         ylabel = "ρ_r",
         title = title,
         width = 350,
@@ -57,7 +57,7 @@ function make_axis_bottom(fig, col, title)
         fig[3, col],
         height = 350,
         width = 350,
-        xlabel = "F_r",
+        xlabel = "F_rim",
         ylabel = "ρ_r",
         title = title,
     )
@@ -80,9 +80,9 @@ function figure_2()
     # get V_m and D_m
     xres = 100
     yres = 100
-    (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, L_s, N_s, ρ_a, xres, yres)
-    (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, L_m, N_m, ρ_a, xres, yres)
-    (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, L_l, N_l, ρ_a, xres, yres)
+    (F_rims, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, L_s, N_s, ρ_a, xres, yres)
+    (F_rimm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, L_m, N_m, ρ_a, xres, yres)
+    (F_riml, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, L_l, N_l, ρ_a, xres, yres)
 
     fig = Plt.Figure()
 
@@ -91,18 +91,18 @@ function figure_2()
     args = (color = :black, labels = true, levels = 3, linewidth = 1.5, labelsize = 18)
 
     ax1 = make_axis_top(fig, 1, "Small Dₘ")
-    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms)
-    Plt.contour!(ax1, F_rs, ρ_rs, D_ms; args...)
+    hm = Plt.contourf!(ax1, F_rims, ρ_rs, V_ms)
+    Plt.contour!(ax1, F_rims, ρ_rs, D_ms; args...)
     Plt.Colorbar(fig[2, 1], hm, vertical = false)
 
     ax2 = make_axis_top(fig, 2, "Medium Dₘ")
-    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm)
-    Plt.contour!(ax2, F_rm, ρ_rm, D_mm; args...)
+    hm = Plt.contourf!(ax2, F_rimm, ρ_rm, V_mm)
+    Plt.contour!(ax2, F_rimm, ρ_rm, D_mm; args...)
     Plt.Colorbar(fig[2, 2], hm, vertical = false)
 
     ax3 = make_axis_top(fig, 3, "Large Dₘ")
-    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml)
-    Plt.contour!(ax3, F_rl, ρ_rl, D_ml; args...)
+    hm = Plt.contourf!(ax3, F_riml, ρ_rl, V_ml)
+    Plt.contour!(ax3, F_riml, ρ_rl, D_ml; args...)
     Plt.Colorbar(fig[2, 3], hm, vertical = false)
 
     Plt.linkxaxes!(ax1, ax2)
@@ -112,16 +112,16 @@ function figure_2()
 
     ## Plot D_m as second row of comparisons
 
-    ax4 = make_axis_bottom(fig, 1, "Small Dₘ vs F_r and ρ_r")
-    hm = Plt.contourf!(ax4, F_rs, ρ_rs, D_ms)
+    ax4 = make_axis_bottom(fig, 1, "Small Dₘ vs F_rim and ρ_r")
+    hm = Plt.contourf!(ax4, F_rims, ρ_rs, D_ms)
     Plt.Colorbar(fig[4, 1], hm, vertical = false)
 
-    ax5 = make_axis_bottom(fig, 2, "Medium Dₘ vs F_r and ρ_r")
-    hm = Plt.contourf!(ax5, F_rm, ρ_rm, D_mm)
+    ax5 = make_axis_bottom(fig, 2, "Medium Dₘ vs F_rim and ρ_r")
+    hm = Plt.contourf!(ax5, F_rimm, ρ_rm, D_mm)
     Plt.Colorbar(fig[4, 2], hm, vertical = false)
 
-    ax6 = make_axis_bottom(fig, 3, "Large Dₘ vs F_r and ρ_r")
-    hm = Plt.contourf!(ax6, F_rl, ρ_rl, D_ml)
+    ax6 = make_axis_bottom(fig, 3, "Large Dₘ vs F_rim and ρ_r")
+    hm = Plt.contourf!(ax6, F_riml, ρ_rl, D_ml)
     Plt.Colorbar(fig[4, 3], hm, vertical = false)
 
     Plt.linkxaxes!(ax1, ax4)

@@ -23,7 +23,7 @@ function ice_particle_terminal_velocity(
 end
 
 """
-    velocity_difference(type, Dₗ, Dᵢ, p3, Chen2022, ρ_a, F_r, th)
+    velocity_difference(type, Dₗ, Dᵢ, p3, Chen2022, ρ_a, F_rim, th)
 
  - type - a struct containing the size distribution parameters of the particle colliding with ice
  - Dₗ - maximum dimension of the particle colliding with ice
@@ -31,7 +31,7 @@ end
  - p3 - a struct containing P3 parameters
  - Chen2022 - a struct containing Chen 2022 velocity parameters
  - ρ_a - density of air
- - F_r - rime mass fraction (L_rim/ L_ice)
+ - F_rim - rime mass fraction (L_rim/ L_ice)
  - th - P3 particle properties thresholds
 
 Returns the absolute value of the velocity difference between an ice particle and
@@ -69,14 +69,14 @@ function velocity_difference(
 end
 
 """
-    ice_terminal_velocity_2(p3, Chen2022, q, N, ρ_r, F_r, ρ_a)
+    ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_rim, ρ_a)
 
  - p3 - a struct with P3 scheme parameters
  - Chen2022 - a struch with terminal velocity parameters as in Chen(2022)
  - L - mass mixing ratio
  - N - number mixing ratio
  - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_r - rime mass fraction (L_rim/q_ice)
+ - F_rim - rime mass fraction (L_rim/q_ice)
  - ρ_a - density of air
 
 Returns the mass and number weighted fall speeds for ice following
@@ -88,34 +88,42 @@ function ice_terminal_velocity(
     L::FT,
     N::FT,
     ρ_r::FT,
-    F_r::FT,
+    F_rim::FT,
     ρₐ::FT,
 ) where {FT}
+    if L < eps(FT) || N < eps(FT)
+        return FT(0), FT(0)
+    else
+        # get the particle properties thresholds
+        th = thresholds(p3, ρ_r, F_rim)
+        # get the size distribution parameters
+        (λ, N₀) = distribution_parameter_solver(p3, L, N, ρ_r, F_rim)
+        D_max = get_ice_bound(p3, λ, eps(FT))
+        if D_max > FT(0.5)
+            μ = ifelse(DSD_μ(p3, λ) < 0.5, 1, DSD_μ(p3, λ))
+            v_m_mean = N * p3_mass(p3, (μ / λ), F_rim, th) * ice_particle_terminal_velocity((μ / λ), Chen2022, ρₐ)
+            v_n_mean = N * ice_particle_terminal_velocity((μ / λ), Chen2022, ρₐ)
+            return (v_n_mean / N), (v_m_mean / L)
+        end
+        # ∫N(D) m(D) v(D) dD
+        v_m = QGK.quadgk(
+            D ->
+                N′ice(p3, D, λ, N₀) *
+                p3_mass(p3, D, F_rim, th) *
+                ice_particle_terminal_velocity(D, Chen2022, ρₐ),
+            FT(0),
+            D_max,
+        )[1]
 
-    # get the particle properties thresholds
-    th = thresholds(p3, ρ_r, F_r)
-    # get the size distribution parameters
-    (λ, N₀) = distribution_parameter_solver(p3, L, N, ρ_r, F_r)
-    # get the integral limit
-    D_max = get_ice_bound(p3, λ, eps(FT))
-
-    # ∫N(D) m(D) v(D) dD
-    v_m = QGK.quadgk(
-        D ->
-            N′ice(p3, D, λ, N₀) *
-            p3_mass(p3, D, F_r, th) *
-            ice_particle_terminal_velocity(D, Chen2022, ρₐ),
-        FT(0),
-        D_max,
-    )[1]
-
-    # ∫N(D) v(D) dD
-    v_n = QGK.quadgk(
-        D ->
-            N′ice(p3, D, λ, N₀) *
-            ice_particle_terminal_velocity(D, Chen2022, ρₐ),
-        FT(0),
-        D_max,
-    )[1]
-    return (v_n / N, v_m / L)
+        # ∫N(D) v(D) dD
+        v_n = QGK.quadgk(
+            D ->
+                N′ice(p3, D, λ, N₀) *
+                ice_particle_terminal_velocity(D, Chen2022, ρₐ),
+            FT(0),
+            D_max,
+        )[1]
+        @show L, N, λ, (v_n / N), (v_m / L)
+        return (v_n / N), (v_m / L)
+    end
 end

@@ -11,18 +11,19 @@ FT = Float64
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
 
-function λ_diff(F_r::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3) where {FT}
+function λ_diff(F_rim::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3) where {FT}
 
     # Find the P3 scheme  thresholds
-    th = P3.thresholds(p3, ρ_r, F_r)
+    th = P3.thresholds(p3, ρ_r, F_rim)
     # Get μ corresponding to λ
     μ = P3.DSD_μ(p3, λ_ex)
     # Convert λ to ensure it remains positive
     x = log(λ_ex)
     # Compute mass density based on input shape parameters
-    L_calc = N * P3.L_over_N_gamma(p3, F_r, x, μ, th)
+    L_calc = N * P3.L_over_N_gamma(p3, F_rim, x, μ, th)
 
-    (λ_calculated,) = P3.distribution_parameter_solver(p3, L_calc, N, ρ_r, F_r)
+    (λ_calculated,) =
+        P3.distribution_parameter_solver(p3, L_calc, N, ρ_r, F_rim)
     return abs(λ_ex - λ_calculated)
 end
 
@@ -30,31 +31,31 @@ function get_errors(
     p3::PSP3,
     log10_λ_min::FT,
     log10_λ_max::FT,
-    F_r_min::FT,
-    F_r_max::FT,
+    F_rim_min::FT,
+    F_rim_max::FT,
     ρ_r::FT,
     N::FT,
     λSteps::Int,
-    F_rSteps::Int,
+    F_rimSteps::Int,
 ) where {FT}
 
     logλs = range(FT(log10_λ_min), stop = log10_λ_max, length = λSteps)
     λs = [10^logλ for logλ in logλs]
-    F_rs = range(F_r_min, stop = F_r_max, length = F_rSteps)
-    E = zeros(λSteps, F_rSteps)
+    F_rims = range(F_rim_min, stop = F_rim_max, length = F_rimSteps)
+    E = zeros(λSteps, F_rimSteps)
 
     for i in 1:λSteps
-        for j in 1:F_rSteps
+        for j in 1:F_rimSteps
             λ = λs[i]
-            F_r = F_rs[j]
+            F_rim = F_rims[j]
 
-            er = log(λ_diff(F_r, ρ_r, N, λ, p3) / λ)
+            er = log(λ_diff(F_rim, ρ_r, N, λ, p3) / λ)
             er = er == Inf ? 9999.99 : er
             er = er == -Inf ? -9999.99 : er
             E[i, j] = er
         end
     end
-    return (; λs, F_rs, E)
+    return (; λs, F_rims, E)
 end
 
 #! format: off
@@ -62,12 +63,12 @@ function plot_relerrors(
     N::FT,
     log10_λ_min::FT,
     log10_λ_max::FT,
-    F_r_min::FT,
-    F_r_max::FT,
+    F_rim_min::FT,
+    F_rim_max::FT,
     ρ_r_min::FT,
     ρ_r_max::FT,
     λSteps::Int,
-    F_rSteps::Int,
+    F_rimSteps::Int,
     numPlots::Int,
     p3::PSP3,
 ) where {FT}
@@ -81,10 +82,10 @@ function plot_relerrors(
         i = 1
 
         ρ = ρ_rs[i]
-        (λs, F_rs, E) = get_errors(p3, log10_λ_min, log10_λ_max, F_r_min, F_r_max, ρ, N, λSteps, F_rSteps)
+        (λs, F_rims, E) = get_errors(p3, log10_λ_min, log10_λ_max, F_rim_min, F_rim_max, ρ, N, λSteps, F_rimSteps)
 
-        CMK.Axis(f[x, y], xlabel = "λ", ylabel = "F_r", title = string("log(relative error calculated λ) for ρ_r = ", string(ρ)), width = 400, height = 300, xscale = log10)
-        hm = CMK.heatmap!(λs, F_rs, E, colormap = CMK.cgrad(:viridis, 20, categorical=true),  colorrange = (-10, 0), highclip = :red, lowclip = :indigo)
+        CMK.Axis(f[x, y], xlabel = "λ", ylabel = "F_rim", title = string("log(relative error calculated λ) for ρ_r = ", string(ρ)), width = 400, height = 300, xscale = log10)
+        hm = CMK.heatmap!(λs, F_rims, E, colormap = CMK.cgrad(:viridis, 20, categorical=true),  colorrange = (-10, 0), highclip = :red, lowclip = :indigo)
         CMK.Colorbar(f[x, y + 1], hm)
 
         y = y + 2
@@ -98,7 +99,7 @@ function plot_relerrors(
 end
 #! format: on
 
-function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
+function μ_approximation_effects(F_rim::FT, ρ_r::FT) where {FT}
 
     f = CMK.Figure(size = (800, 500))
 
@@ -106,7 +107,7 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
         f[1, 1],
         xlabel = "L/N",
         ylabel = "μ",
-        title = string("μ vs L/N for F_r = ", F_r, " ρ_r = ", ρ_r),
+        title = string("μ vs L/N for F_rim = ", F_rim, " ρ_r = ", ρ_r),
         width = 400,
         height = 300,
         xscale = log10,
@@ -116,7 +117,7 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
         f[1, 2],
         xlabel = "λ",
         ylabel = "μ",
-        title = string("μ vs λ for F_r = ", F_r, " ρ_r = ", ρ_r),
+        title = string("μ vs λ for F_rim = ", F_rim, " ρ_r = ", ρ_r),
         width = 400,
         height = 300,
         xscale = log10,
@@ -126,7 +127,7 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
         f[1, 3],
         xlabel = "λ",
         ylabel = "L/N",
-        title = string("L/N vs λ for F_r = ", F_r, " ρ_r = ", ρ_r),
+        title = string("L/N vs λ for F_rim = ", F_rim, " ρ_r = ", ρ_r),
         width = 400,
         height = 300,
         xscale = log10,
@@ -139,7 +140,7 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
     numpts = 100
 
     # Set up vectors
-    th = P3.thresholds(p3, ρ_r, F_r)
+    th = P3.thresholds(p3, ρ_r, F_rim)
     log_λs = range(FT(3.6), stop = FT(4.6), length = numpts)
     λs = [10^log_λ for log_λ in log_λs]
     μs = [P3.DSD_μ(p3, λ) for λ in λs]
@@ -149,12 +150,13 @@ function μ_approximation_effects(F_r::FT, ρ_r::FT) where {FT}
     λ_solved = [FT(0) for λ in λs]
 
     for i in 1:numpts
-        L_over_N = P3.L_over_N_gamma(p3, F_r, log(λs[i]), μs[i], th)
+        L_over_N = P3.L_over_N_gamma(p3, F_rim, log(λs[i]), μs[i], th)
         Ls[i] = L_over_N
         N = FT(1e6)
-        (L, N) = P3.distribution_parameter_solver(p3, L_over_N * N, N, ρ_r, F_r)
+        (L, N) =
+            P3.distribution_parameter_solver(p3, L_over_N * N, N, ρ_r, F_rim)
         λ_solved[i] = L
-        μs_approx[i] = P3.DSD_μ_approx(p3, N * L_over_N, N, ρ_r, F_r)
+        μs_approx[i] = P3.DSD_μ_approx(p3, N * L_over_N, N, ρ_r, F_rim)
     end
 
     # Plot
@@ -179,31 +181,31 @@ end
 
 log10_λ_min = FT(2)
 log10_λ_max = FT(6)
-F_r_min = FT(0)
-F_r_max = FT(0.9)
+F_rim_min = FT(0)
+F_rim_max = FT(0.9)
 ρ_r_min = FT(100)
 ρ_r_max = FT(900)
 N = FT(1e8)
 
 λ_Steps = 40
-F_r_Steps = 40
+F_rim_Steps = 40
 NumPlots = 9
 
 plot_relerrors(
     N,
     log10_λ_min,
     log10_λ_max,
-    F_r_min,
-    F_r_max,
+    F_rim_min,
+    F_rim_max,
     ρ_r_min,
     ρ_r_max,
     λ_Steps,
-    F_r_Steps,
+    F_rim_Steps,
     NumPlots,
     p3,
 )
 
-F_r = FT(0.5)
+F_rim = FT(0.5)
 ρ_r = FT(500)
 
-μ_approximation_effects(F_r, ρ_r)
+μ_approximation_effects(F_rim, ρ_r)
