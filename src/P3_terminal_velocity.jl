@@ -91,34 +91,39 @@ function ice_terminal_velocity(
     F_rim::FT,
     ρₐ::FT,
 ) where {FT}
+    if L < eps(FT) || N < eps(FT)
+        return FT(0), FT(0)
+    else
+        # get the particle properties thresholds
+        th = thresholds(p3, ρ_r, F_rim)
+        # get the size distribution parameters
+        (λ, N₀) = distribution_parameter_solver(p3, L, N, ρ_r, F_rim)
+        D_max = get_ice_bound(p3, λ, eps(FT))
+        if D_max > FT(0.5)
+            μ = ifelse(DSD_μ(p3, λ) < 0.5, 1, DSD_μ(p3, λ))
+            v_m_mean = N * p3_mass(p3, (μ / λ), F_rim, th) * ice_particle_terminal_velocity((μ / λ), Chen2022, ρₐ)
+            v_n_mean = N * ice_particle_terminal_velocity((μ / λ), Chen2022, ρₐ)
+            return (v_n_mean / N), (v_m_mean / L)
+        end
+        # ∫N(D) m(D) v(D) dD
+        v_m = QGK.quadgk(
+            D ->
+                N′ice(p3, D, λ, N₀) *
+                p3_mass(p3, D, F_rim, th) *
+                ice_particle_terminal_velocity(D, Chen2022, ρₐ),
+            FT(0),
+            D_max,
+        )[1]
 
-    # get the particle properties thresholds
-    th = thresholds(p3, ρ_r, F_rim)
-    # get the size distribution parameters
-    (λ, N₀) = distribution_parameter_solver(p3, L, N, ρ_r, F_rim)
-    # get the integral limit
-    D_max = get_ice_bound(p3, λ, eps(FT))
-
-    # ∫N(D) m(D) v(D) dD
-    v_m = QGK.quadgk(
-        D ->
-            N′ice(p3, D, λ, N₀) *
-            p3_mass(p3, D, F_rim, th) *
-            ice_particle_terminal_velocity(D, Chen2022, ρₐ),
-        FT(0),
-        D_max,
-    )[1]
-
-    # ∫N(D) v(D) dD
-    v_n = QGK.quadgk(
-        D ->
-            N′ice(p3, D, λ, N₀) *
-            ice_particle_terminal_velocity(D, Chen2022, ρₐ),
-        FT(0),
-        D_max,
-    )[1]
-    return (
-        ifelse(N < eps(FT), FT(0), v_n / N),
-        ifelse(L < eps(FT), FT(0), v_m / L),
-    )
+        # ∫N(D) v(D) dD
+        v_n = QGK.quadgk(
+            D ->
+                N′ice(p3, D, λ, N₀) *
+                ice_particle_terminal_velocity(D, Chen2022, ρₐ),
+            FT(0),
+            D_max,
+        )[1]
+        @show L, N, λ, (v_n / N), (v_m / L)
+        return (v_n / N), (v_m / L)
+    end
 end

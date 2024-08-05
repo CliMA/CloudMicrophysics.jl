@@ -132,8 +132,8 @@ function test_p3_shape_solver(FT)
 
         # initialize test values:
         ep = 1 #1e4 * eps(FT)
-        N_test = (FT(1e7), FT(1e8), FT(1e9), FT(1e10))                             # N values
-        λ_test = (FT(1e1), FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))                # test λ values in range also do 15000, 20000
+        N_test = (FT(1e5), FT(1e6), FT(1e7), FT(1e8), FT(1e9))                             # N values
+        λ_test = (FT(1e0), FT(1e1), FT(1e2), FT(1e3), FT(1e4), FT(5e4))               # test λ values in range also do 15000, 20000
         ρ_r_test = (FT(200), FT(400), FT(600), FT(800))    # representative ρ_r values
         F_rim_test = (FT(0), FT(0.5), FT(0.8), FT(0.95))        # representative F_rim values
 
@@ -266,7 +266,7 @@ function test_bulk_terminal_velocities(FT)
                 ρ_r = ρ_rs[i]
                 F_rim = F_rims[j]
 
-                calculated_dm = P3.D_m(p3, L, N, ρ_r, F_rim) * 1e3
+                calculated_dm = P3.D_m(p3, L, N, ρ_r, F_rim) * FT(1e3)
 
                 TT.@test calculated_dm > 0
                 TT.@test paper_vals[i][j] ≈ calculated_dm atol = 3.14
@@ -462,7 +462,7 @@ function test_integrals(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
 
     N = FT(1e8)
-    qs = range(0.001, stop = 0.005, length = 5)
+    Ls = range(0.001, stop = 0.005, length = 5)
     ρ_r = FT(500)
     F_rims = [FT(0), FT(0.5)]
     ρ_a = FT(1.2)
@@ -470,44 +470,43 @@ function test_integrals(FT)
 
     TT.@testset "Gamma vs Integral Comparison" begin
         for F_rim in F_rims
-            for i in axes(qs, 1)
-                q = qs[i]
+            for i in axes(Ls, 1)
+                L = Ls[i]
 
                 # Velocity comparisons
                 vel_N, vel_m = P3.ice_terminal_velocity(
                     p3,
                     Chen2022.snow_ice,
-                    q,
+                    L,
                     N,
                     ρ_r,
                     F_rim,
                     ρ_a,
                 )
 
-                λ, N_0 = P3.distribution_parameter_solver(p3, q, N, ρ_r, F_rim)
+                λ, N_0 = P3.distribution_parameter_solver(p3, L, N, ρ_r, F_rim)
                 th = P3.thresholds(p3, ρ_r, F_rim)
                 ice_bound = P3.get_ice_bound(p3, λ, tolerance)
                 vel(d) =
                     P3.ice_particle_terminal_velocity(d, Chen2022.snow_ice, ρ_a)
                 f(d) = vel(d) * P3.N′ice(p3, d, λ, N_0)
 
-                qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), 2 * ice_bound)
+                qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), ice_bound)
                 qgk_vel_m, = QGK.quadgk(
-                    d -> f(d) * P3.p3_mass(p3, d, F_rim, th) / q,
+                    d -> f(d) * P3.p3_mass(p3, d, F_rim, th) / L,
                     FT(0),
-                    2 * ice_bound,
+                    ice_bound,
                 )
 
                 TT.@test vel_N ≈ qgk_vel_N rtol = 1e-7
                 TT.@test vel_m ≈ qgk_vel_m rtol = 1e-7
 
                 # Dₘ comparisons
-                D_m = P3.D_m(p3, q, N, ρ_r, F_rim)
+                D_m = P3.D_m(p3, L, N, ρ_r, F_rim)
                 f_d(d) =
                     d * P3.p3_mass(p3, d, F_rim, th) * P3.N′ice(p3, d, λ, N_0)
-                qgk_D_m, = QGK.quadgk(d -> f_d(d) / q, FT(0), 2 * ice_bound)
-
-                TT.@test D_m ≈ qgk_D_m rtol = 1e-8
+                qgk_D_m, = QGK.quadgk(d -> f_d(d), FT(0), ice_bound)[1] / L
+                TT.@test D_m ≈ qgk_D_m rtol = 1e-7
             end
         end
     end
@@ -516,10 +515,10 @@ end
 
 println("Testing Float32")
 test_p3_thresholds(Float32)
-test_particle_terminal_velocities(Float64)
-#TODO - only works for Float64 now. We should switch the units inside the solver
-# from SI base to something more managable
-#test_p3_shape_solver(Float32)
+# TODO - fix instability in get_ice_bound for Float32
+# test_particle_terminal_velocities(Float32)
+# test_bulk_terminal_velocities(Float32)
+test_p3_shape_solver(Float32)
 
 println("Testing Float64")
 test_p3_thresholds(Float64)

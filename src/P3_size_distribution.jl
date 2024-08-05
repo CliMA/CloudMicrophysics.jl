@@ -19,7 +19,6 @@ Returns the shape parameter μ for a given λ value
 Eq. 3 in Morrison and Milbrandt (2015).
 """
 function DSD_μ(p3::PSP3, λ::FT) where {FT}
-    #@assert λ > FT(0)
     return min(p3.μ_max, max(FT(0), p3.a * λ^p3.b - p3.c))
 end
 
@@ -50,7 +49,7 @@ end
  N'(D) = N0 * D ^ μ * exp(-λD)) at given D
 """
 function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT}
-    return N_0 * D^DSD_μ(p3, λ) * exp(-λ * D)
+    return ifelse(D < eps(FT), FT(0), N_0 * D^DSD_μ(p3, λ) * exp(-λ * D))
 end
 
 """
@@ -68,19 +67,25 @@ end
  numerical solutions.
 """
 function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
-    ice_problem(x) =
-        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
-    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
-    log_ice_x =
-        RS.find_zero(
-            ice_problem,
-            RS.SecantMethod(guess - 1, guess),
-            RS.CompactSolution(),
-            RS.RelativeSolutionTolerance(eps(FT)),
-            5,
-        ).root
-
-    return ifelse(λ < eps(FT), FT(0), exp(log_ice_x))
+    if λ < FT(2)
+        return (5 \ λ)
+    else
+        ice_problem(x) =
+            tolerance - Γ(1 + DSD_μ(p3, λ), exp(x) * λ) / Γ(1 + DSD_μ(p3, λ))
+        low_guess = log(eps(FT))
+        high_guess = log(FT(4))
+        guess = log(FT(19) / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
+        guess = Base.min(high_guess, Base.max(low_guess, guess))
+        log_ice_x =
+            RS.find_zero(
+                ice_problem,
+                RS.SecantMethod(guess - 1, guess),
+                RS.CompactSolution(),
+                RS.RelativeSolutionTolerance(eps(FT)),
+                5,
+            ).root
+        return exp(log_ice_x)
+    end
 end
 
 """
@@ -136,23 +141,29 @@ function L_over_N_gamma(
     μ::FT,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT}
-
-    D_th = D_th_helper(p3)
-    λ = exp(log_λ)
-    N = Γ(1 + μ) / (λ^(1 + μ))
-
-    L = 0
-    if F_rim == FT(0)
-        L += L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th)
-        L += L_rz(p3, μ, λ, D_th)
+    if exp(log_λ) < eps(FT)
+        throw(AssertionError("(1 / λ) too large; un-physical PSD"))
     else
-        L += L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th)
-        L += L_n(p3, μ, λ, D_th, th.D_gr)
-        L += L_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr)
-        L += L_r(p3, F_rim, μ, λ, th.D_cr)
-    end
+        D_th = D_th_helper(p3)
+        λ = exp(log_λ)
+        N = Γ(1 + μ) / (λ^(1 + μ))
 
-    return ifelse(N == FT(0), FT(0), L / N)
+        L = 0
+        if F_rim == FT(0)
+            L += L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th)
+            L += L_rz(p3, μ, λ, D_th)
+        else
+            L += L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th)
+            L += L_n(p3, μ, λ, D_th, th.D_gr)
+            L += L_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr)
+            L += L_r(p3, F_rim, μ, λ, th.D_cr)
+        end
+        # if N = 0, return some form of "mean mass" based on
+        # mean D = 1 / λ
+        # TODO - come up with a better way to treat this case in the
+        # context of the general solver architecture
+        return ifelse(N < eps(FT), p3_mass(p3, (1 / λ), F_rim, th), L / N)
+    end
 end
 
 """
@@ -167,27 +178,30 @@ end
 Returns the approximated shape parameter μ for a given q and N value
 """
 function DSD_μ_approx(p3::PSP3, L::FT, N::FT, ρ_r::FT, F_rim::FT) where {FT}
-    # Get thresholds for given F_rim, ρ_r
-    th = thresholds(p3, ρ_r, F_rim)
+    if L < FT(0)
+        throw("negative mass")
+    elseif N < eps(FT)
+        return FT(0)
+    else
+        # Get thresholds for given F_rim, ρ_r
+        th = thresholds(p3, ρ_r, F_rim)
 
-    # Get min and max lambda values
-    λ_0 = μ_to_λ(p3, FT(0))
-    λ_6 = μ_to_λ(p3, p3.μ_max)
+        # Get min and max lambda values
+        λ_0 = μ_to_λ(p3, FT(0))
+        λ_6 = μ_to_λ(p3, p3.μ_max)
 
-    # Get corresponding L/N values at given F_rim
-    L_over_N_min = log(L_over_N_gamma(p3, F_rim, log(λ_0), FT(0), th))
-    L_over_N_max = log(L_over_N_gamma(p3, F_rim, log(λ_6), p3.μ_max, th))
+        # Get corresponding L/N values at given F_rim
+        L_over_N_min = L_over_N_gamma(p3, F_rim, log(λ_0), FT(0), th)
+        L_over_N_max = L_over_N_gamma(p3, F_rim, log(λ_6), p3.μ_max, th)
 
-    # Return approximation between them
-    μ = ifelse(
-        N < eps(FT),
-        FT(0),
-        (p3.μ_max / (L_over_N_max - L_over_N_min)) *
-        (log(L / N) - L_over_N_min),
-    )
+        # Return approximation between them
+        μ =
+            (p3.μ_max / (log(L_over_N_max) - log(L_over_N_min))) *
+            (log(L / N) - log(L_over_N_min))
 
-    # Clip approximation between 0 and 6
-    return min(p3.μ_max, max(FT(0), μ))
+        # Clip approximation between 0 and 6
+        return min(p3.μ_max, max(FT(0), μ))
+    end
 end
 
 """
@@ -210,30 +224,42 @@ function get_bounds(
     p3::PSP3,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT}
-    goal = ifelse(N < eps(FT), FT(0), L / N)
-    if goal >= 1e-8
-        left = FT(1)
-        right = FT(6 * 1e3)
-        radius = FT(0.2)
-    elseif goal >= 2 * 1e-9
-        left = FT(6 * 1e3)
-        right = FT(3 * 1e4)
-        radius = FT(-0.1)
+    if N < eps(FT) || L < eps(FT)
+        return (; min = FT(0), max = eps(FT))
+        # TODO - if N = 0, then set guess to something meaningful
+        # (i.e. set min, max = 0, eps(FT) to search for λ in this range)
+        # ALSO - if L = 0 -> return meaningful min, max
     else
-        left = FT(4 * 1e4)
-        right = FT(1e6)
-        radius = FT(0.2)
+        goal = ifelse(L < eps(FT), FT(0), L / N)
+        if goal >= 1e-8
+            left = FT(1)
+            right = FT(6 * 1e3)
+            radius = FT(0.2)
+        elseif goal >= 2 * 1e-9
+            left = FT(6 * 1e3)
+            right = FT(3 * 1e4)
+            radius = FT(-0.1)
+        else
+            left = FT(4 * 1e4)
+            right = FT(1e6)
+            radius = FT(0.2)
+        end
+
+        Ll = L_over_N_gamma(p3, F_rim, log(left), μ, th)
+        Lr = L_over_N_gamma(p3, F_rim, log(right), μ, th)
+
+        low_guess = eps(FT)
+        high_guess = FT(1e5)
+        guess =
+            left *
+            (goal / (Ll))^((log(right) - log(left)) / (log(Lr) - log(Ll)))
+        guess = Base.min(high_guess, Base.max(low_guess, guess))
+        
+        max = log(guess * exp(radius))
+        min = log(guess)
+
+        return (; min, max)
     end
-
-    Ll = L_over_N_gamma(p3, F_rim, log(left), μ, th)
-    Lr = L_over_N_gamma(p3, F_rim, log(right), μ, th)
-
-    guess =
-        left * (goal / (Ll))^((log(right) - log(left)) / (log(Lr) - log(Ll)))
-    max = log(guess * exp(radius))
-    min = log(guess)
-
-    return (; min, max)
 end
 
 """
@@ -280,7 +306,7 @@ function distribution_parameter_solver(
 
     params = ifelse(
         N < eps(FT),
-        (; λ = FT(0), N_0 = FT(0)),
+        (; λ = FT(1e4), N_0 = FT(0)),
         (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x))),
     )
 
