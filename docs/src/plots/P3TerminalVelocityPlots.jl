@@ -29,14 +29,42 @@ function get_values(
         for j in 1:y_resolution
             F_r = F_rs[i]
             ρ_r = ρ_rs[j]
+            aspect_ratio = true
 
             V_m[i, j] =
-                P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_r, ρ_a)[2]
+                P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_r, ρ_a, aspect_ratio)[2]
             # get D_m in mm for plots
             D_m[i, j] = 1e3 * P3.D_m(p3, L, N, ρ_r, F_r)
         end
     end
     return (; F_rs, ρ_rs, V_m, D_m)
+end
+
+function get_values_aspect(
+    p3::PSP3,
+    L::FT,
+    N::FT,
+    x_resolution::Int,
+    y_resolution::Int,
+) where {FT}
+    F_rs = range(FT(0), stop = FT(1 - eps(FT)), length = x_resolution)
+    ρ_rs = range(FT(25), stop = FT(975), length = y_resolution)
+
+    ϕᵢ = zeros(x_resolution, y_resolution)
+    D_m = zeros(x_resolution, y_resolution)
+
+    for i in 1:x_resolution
+        for j in 1:y_resolution
+            F_r = F_rs[i]
+            ρ_r = ρ_rs[j]
+            # get D_m in m for plots
+            th = P3.thresholds(p3, ρ_r, F_r)
+            D_m[i, j] = P3.D_m(p3, L, N, ρ_r, F_r)
+            ϕᵢ[i, j] = P3.ϕᵢ(P3.p3_mass(p3, D_m[i, j], F_r, th), P3.p3_area(p3, D_m[i, j], F_r, th), p3.ρ_i)
+            D_m[i, j] = 1e3 * D_m[i, j]
+        end
+    end
+    return (; F_rs, ρ_rs, ϕᵢ, D_m)
 end
 
 function make_axis_top(fig, col, title)
@@ -55,6 +83,16 @@ end
 function make_axis_bottom(fig, col, title)
     return Plt.Axis(
         fig[3, col],
+        height = 350,
+        width = 350,
+        xlabel = "F_r",
+        ylabel = "ρ_r",
+        title = title,
+    )
+end
+function make_axis_below_bottom(fig, col, title)
+    return Plt.Axis(
+        fig[5, col],
         height = 350,
         width = 350,
         xlabel = "F_r",
@@ -83,6 +121,9 @@ function figure_2()
     (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, L_s, N_s, ρ_a, xres, yres)
     (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, L_m, N_m, ρ_a, xres, yres)
     (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, L_l, N_l, ρ_a, xres, yres)
+    (F_rs, ρ_rs, ϕᵢs, D_ms) = get_values_aspect(p3, L_s, N_s, xres, yres)
+    (F_rm, ρ_rm, ϕᵢm, D_mm) = get_values_aspect(p3, L_m, N_m, xres, yres)
+    (F_rl, ρ_rl, ϕᵢl, D_ml) = get_values_aspect(p3, L_l, N_l, xres, yres)
 
     fig = Plt.Figure()
 
@@ -130,6 +171,28 @@ function figure_2()
     Plt.linkyaxes!(ax1, ax4)
     Plt.linkyaxes!(ax4, ax5)
     Plt.linkyaxes!(ax5, ax6)
+
+    ax7 = make_axis_below_bottom(fig, 1, "ϕᵢ vs F_r and ρ_r")
+    hm = Plt.contourf!(ax7, F_rs, ρ_rs, ϕᵢs)
+    Plt.contour!(ax7, F_rs, ρ_rs, D_ms; args...)
+    Plt.Colorbar(fig[6, 1], hm, vertical = false)
+
+    ax8 = make_axis_below_bottom(fig, 2, "ϕᵢ vs F_r and ρ_r")
+    hm = Plt.contourf!(ax8, F_rm, ρ_rm, ϕᵢm)
+    Plt.contour!(ax8, F_rm, ρ_rm, D_mm; args...)
+    Plt.Colorbar(fig[6, 2], hm, vertical = false)
+
+    ax9 = make_axis_below_bottom(fig, 3, "ϕᵢ vs F_r and ρ_r")
+    hm = Plt.contourf!(ax9, F_rl, ρ_rl, ϕᵢl)
+    Plt.contour!(ax9, F_rl, ρ_rl, D_ml; args...)
+    Plt.Colorbar(fig[6, 3], hm, vertical = false)
+
+    Plt.linkxaxes!(ax1, ax7)
+    Plt.linkxaxes!(ax7, ax8)
+    Plt.linkxaxes!(ax5, ax9)
+    Plt.linkyaxes!(ax1, ax7)
+    Plt.linkyaxes!(ax7, ax8)
+    Plt.linkyaxes!(ax8, ax9)
 
     Plt.resize_to_layout!(fig)
     Plt.save("MorrisonandMilbrandtFig2.svg", fig)
