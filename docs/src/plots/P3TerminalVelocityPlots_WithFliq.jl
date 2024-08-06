@@ -15,7 +15,7 @@ p3 = CMP.ParametersP3(FT)
 function get_values(
     p3::PSP3,
     Chen2022::CMP.Chen2022VelType,
-    q::FT,
+    L::FT,
     N::FT,
     F_liq::FT,
     ρ_a::FT,
@@ -27,6 +27,7 @@ function get_values(
 
     V_m = zeros(x_resolution, y_resolution)
     D_m = zeros(x_resolution, y_resolution)
+    aspect_ratio = false
 
     for i in 1:x_resolution
         for j in 1:y_resolution
@@ -36,15 +37,16 @@ function get_values(
             V_m[i, j] = P3.ice_terminal_velocity(
                 p3,
                 Chen2022,
-                q,
+                L,
                 N,
                 ρ_r,
                 F_rim,
                 F_liq,
                 ρ_a,
+                aspect_ratio,
             )[2]
             # get D_m in mm for plots
-            D_m[i, j] = 1e3 * P3.D_m(p3, q, N, ρ_r, F_rim, F_liq)
+            D_m[i, j] = 1e3 * P3.D_m(p3, L, N, ρ_r, F_rim, F_liq)
         end
     end
     return (; F_rims, ρ_rs, V_m, D_m)
@@ -96,35 +98,35 @@ function figure_2()
     # density of air in kg/m^3
     ρ_a = FT(1.2) #FT(1.293)
     # small D_m
-    q_s_0 = FT(0.0008)
-    q_s_33 = FT(0.00091)
-    q_s_67 = FT(0.00096)
+    L_s_0 = FT(0.0008)
+    L_s_33 = FT(0.00091)
+    L_s_67 = FT(0.00096)
     N_s = FT(1e6)
     # medium D_m
-    q_m_0 = FT(0.22)
-    q_m_33 = FT(0.555)
-    q_m_67 = FT(0.635)
+    L_m_0 = FT(0.22)
+    L_m_33 = FT(0.555)
+    L_m_67 = FT(0.635)
     N_m = FT(1e6)
     # large D_m
-    q_l_0 = FT(0.7)
-    q_l_33 = FT(2.6)
-    q_l_67 = FT(3)
+    L_l_0 = FT(0.7)
+    L_l_33 = FT(2.6)
+    L_l_67 = FT(3)
     N_l = FT(1e6)
     # get V_m and D_m
     xres = 100
     yres = 100
 
-    (F_rims_0, ρ_rs_0, V_ms_0, D_ms_0) = get_values(p3, Chen2022, q_s_0, N_s, FT(0), ρ_a, xres, yres)
-    (F_rimm_0, ρ_rm_0, V_mm_0, D_mm_0) = get_values(p3, Chen2022, q_m_0, N_m, FT(0), ρ_a, xres, yres)
-    (F_riml_0, ρ_rl_0, V_ml_0, D_ml_0) = get_values(p3, Chen2022, q_l_0, N_l, FT(0), ρ_a, xres, yres)
+    (F_rims_0, ρ_rs_0, V_ms_0, D_ms_0) = get_values(p3, Chen2022, L_s_0, N_s, FT(0), ρ_a, xres, yres)
+    (F_rimm_0, ρ_rm_0, V_mm_0, D_mm_0) = get_values(p3, Chen2022, L_m_0, N_m, FT(0), ρ_a, xres, yres)
+    (F_riml_0, ρ_rl_0, V_ml_0, D_ml_0) = get_values(p3, Chen2022, L_l_0, N_l, FT(0), ρ_a, xres, yres)
 
-    (F_rims_33, ρ_rs_33, V_ms_33, D_ms_33) = get_values(p3, Chen2022, q_s_33, N_s, FT(0.33), ρ_a, xres, yres)
-    (F_rimm_33, ρ_rm_33, V_mm_33, D_mm_33) = get_values(p3, Chen2022, q_m_33, N_m, FT(0.33), ρ_a, xres, yres)
-    (F_riml_33, ρ_rl_33, V_ml_33, D_ml_33) = get_values(p3, Chen2022, q_l_33, N_l, FT(0.33), ρ_a, xres, yres)
+    (F_rims_33, ρ_rs_33, V_ms_33, D_ms_33) = get_values(p3, Chen2022, L_s_33, N_s, FT(0.33), ρ_a, xres, yres)
+    (F_rimm_33, ρ_rm_33, V_mm_33, D_mm_33) = get_values(p3, Chen2022, L_m_33, N_m, FT(0.33), ρ_a, xres, yres)
+    (F_riml_33, ρ_rl_33, V_ml_33, D_ml_33) = get_values(p3, Chen2022, L_l_33, N_l, FT(0.33), ρ_a, xres, yres)
 
-    (F_rims_67, ρ_rs_67, V_ms_67, D_ms_67) = get_values(p3, Chen2022, q_s_67, N_s, FT(0.67), ρ_a, xres, yres)
-    (F_rimm_67, ρ_rm_67, V_mm_67, D_mm_67) = get_values(p3, Chen2022, q_m_67, N_m, FT(0.67), ρ_a, xres, yres)
-    (F_riml_67, ρ_rl_67, V_ml_67, D_ml_67) = get_values(p3, Chen2022, q_l_67, N_l, FT(0.67), ρ_a, xres, yres)
+    (F_rims_67, ρ_rs_67, V_ms_67, D_ms_67) = get_values(p3, Chen2022, L_s_67, N_s, FT(0.67), ρ_a, xres, yres)
+    (F_rimm_67, ρ_rm_67, V_mm_67, D_mm_67) = get_values(p3, Chen2022, L_m_67, N_m, FT(0.67), ρ_a, xres, yres)
+    (F_riml_67, ρ_rl_67, V_ml_67, D_ml_67) = get_values(p3, Chen2022, L_l_67, N_l, FT(0.67), ρ_a, xres, yres)
 
     fig = Plt.Figure()
 

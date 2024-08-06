@@ -27,7 +27,7 @@ D_th_helper(p3::PSP3{FT}) where {FT} =
     D_cr_helper(p3, F_rim, ρ_g)
 
  - p3 - a struct with P3 scheme parameters
- - F_rim - rime mass fraction (q_rim/q_i) [-]
+ - F_rim - rime mass fraction (L_rim/(L_i - L_liq)) [-]
  - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
 
 Returns the size of equal mass for graupel and partially rimed ice, in meters.
@@ -55,14 +55,15 @@ end
 """
     ρ_g_helper(ρ_r, F_rim, ρ_d)
 
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (q_rim/q_i) [-]
+ - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
+ - F_rim - rime mass fraction (L_rim/(L_i - L_liq)) [-]
  - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
 
 Returns the density of total (deposition + rime) ice mass for graupel, in kg/m3
 Eq. 16 in Morrison and Milbrandt (2015).
 """
-ρ_g_helper(ρ_r::FT, F_rim::FT, ρ_d::FT) where {FT} = F_rim * ρ_r + (1 - F_rim) * ρ_d
+ρ_g_helper(ρ_r::FT, F_rim::FT, ρ_d::FT) where {FT} =
+    F_rim * ρ_r + (1 - F_rim) * ρ_d
 
 """
     ρ_d_helper(p3, D_cr, D_gr)
@@ -85,8 +86,8 @@ end
     thresholds(p3, ρ_r, F_rim)
 
  - p3 - a struct with P3 scheme parameters
- - ρ_r - rime density (q_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (q_rim/q_i) [-]
+ - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
+ - F_rim - rime mass fraction (L_rim/(L_i - L_liq)) [-]
 
 Solves the nonlinear system consisting of D_cr, D_gr, ρ_g, ρ_d
 for a given rime density and rime mass fraction.
@@ -137,7 +138,7 @@ end
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension [m]
  - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
- - F_rim - rime mass fraction [q_rim/q_i]
+ - F_rim - rime mass fraction (L_rim/(L_i - L_liq)) [-]
 
 Returns mass as a function of size for differen particle regimes [kg]
 """
@@ -150,11 +151,12 @@ mass_r(p3::PSP3, D::FT, F_rim::FT) where {FT <: Real} =
     α_va_si(p3) / (1 - F_rim) * D^p3.β_va
 
 """
-    p3_mass(p3, D, F_rim, th)
+    p3_mass(p3, D, F_rim, F_liq, th)
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
- - F_rim - rime mass fraction (q_rim/q_i)
+ - F_rim - rime mass fraction (L_rim/(L_i - L_liq)) [-]
+ - F_liq - liquid fraction (L_liq/L_i,tot)
  - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns mass(D) regime, used to create figures for the docs page.
@@ -175,7 +177,7 @@ function p3_mass(
         return (1 - F_liq) * mass_nl(p3, D) + F_liq * mass_s(D, p3.ρ_l)            # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
         return (1 - F_liq) * mass_s(D, th.ρ_g) + F_liq * mass_s(D, p3.ρ_l)         # graupel
-    elseif D >= th.D_cr
+    else
         return (1 - F_liq) * mass_r(p3, D, F_rim) + F_liq * mass_s(D, p3.ρ_l)        # partially rimed ice
     end
 end
@@ -197,12 +199,12 @@ A_r(p3::PSP3, F_rim::FT, D::FT) where {FT <: Real} =
     F_rim * A_s(D) + (1 - F_rim) * A_ns(p3, D)
 
 """
-    p3_area(p3, D, F_rim, th)
+    p3_area(p3, D, F_rim, F_liq, th)
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
- - F_rim - rime mass fraction (q_rim/q_i)
- - F_liq - liquid fraction (q_liq/q_i,tot)
+ - F_rim - rime mass fraction (L_rim/(L_i - L_liq)) [-]
+ - F_liq - liquid fraction (L_liq/L_i,tot)
  - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns area(D), used to create figures for the documentation.

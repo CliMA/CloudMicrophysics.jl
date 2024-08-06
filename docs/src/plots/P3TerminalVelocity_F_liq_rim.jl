@@ -15,7 +15,7 @@ p3 = CMP.ParametersP3(FT)
 function get_values(
     p3::PSP3,
     Chen2022::CMP.Chen2022VelType,
-    q::FT,
+    L::FT,
     N::FT,
     ρ_a::FT,
     x_resolution::Int,
@@ -24,6 +24,7 @@ function get_values(
     F_rims = range(FT(0), stop = FT(1 - eps(FT)), length = x_resolution)
     F_liqs = range(FT(0), stop = FT(1), length = y_resolution)
     ρ_r = FT(900)
+    aspect_ratio = true
 
     V_m = zeros(x_resolution, y_resolution)
     D_m = zeros(x_resolution, y_resolution)
@@ -36,14 +37,15 @@ function get_values(
             V_m[i, j] = P3.ice_terminal_velocity(
                 p3,
                 Chen2022,
-                q,
+                L,
                 N,
                 ρ_r,
                 F_rim,
                 F_liq,
                 ρ_a,
+                aspect_ratio,
             )[2]
-            D_m[i, j] = 1e3 * P3.D_m(p3, q, N, ρ_r, F_rim, F_liq)
+            D_m[i, j] = 1e3 * P3.D_m(p3, L, N, ρ_r, F_rim, F_liq)
         end
     end
     return (; F_rims, F_liqs, V_m, D_m)
@@ -68,13 +70,13 @@ function fig1()
     ρ_a = FT(1.2)
 
     # small D_m
-    q_s = FT(0.0008)
+    L_s = FT(0.0008)
     N_s = FT(1e6)
     # medium D_m
-    q_m = FT(0.22)
+    L_m = FT(0.22)
     N_m = FT(1e6)
     # large D_m
-    q_l = FT(0.7)
+    L_l = FT(0.7)
     N_l = FT(1e6)
 
     crange_small = range(0.39, 0.6, 20)
@@ -85,11 +87,20 @@ function fig1()
     xres = 100
     yres = 100
 
-    (F_rims, F_liqs, V_ms, D_ms) = get_values(p3, Chen2022, q_s, N_s, ρ_a, xres, yres)
-    (F_rimm, F_liqm, V_mm, D_mm) = get_values(p3, Chen2022, q_m, N_m, ρ_a, xres, yres)
-    (F_riml, F_liql, V_ml, D_ml) = get_values(p3, Chen2022, q_l, N_l, ρ_a, xres, yres)
+    (F_rims, F_liqs, V_ms, D_ms) =
+        get_values(p3, Chen2022, L_s, N_s, ρ_a, xres, yres)
+    (F_rimm, F_liqm, V_mm, D_mm) =
+        get_values(p3, Chen2022, L_m, N_m, ρ_a, xres, yres)
+    (F_riml, F_liql, V_ml, D_ml) =
+        get_values(p3, Chen2022, L_l, N_l, ρ_a, xres, yres)
 
-    args = (color = :black, labels = true, levels = 3, linewidth = 1.5, labelsize = 18)
+    args = (
+        color = :black,
+        labels = true,
+        levels = 3,
+        linewidth = 1.5,
+        labelsize = 18,
+    )
 
 
     fig = Plt.Figure()
@@ -105,11 +116,7 @@ function fig1()
         extendlow = :auto,
         extendhigh = :auto,
     )
-    Plt.Colorbar(
-        fig[2, 1],
-        hm,
-        vertical = false,
-    )
+    Plt.Colorbar(fig[2, 1], hm, vertical = false)
     Plt.contour!(ax1, F_rims, F_liqs, D_ms; args...)
 
 
@@ -145,8 +152,8 @@ function fig1()
     Plt.linkaxes!(ax1, ax2, ax3)
 
     Plt.resize_to_layout!(fig)
-    Plt.display(fig)
-    #Plt.save("P3TerminalVelocity_F_liq_rim.svg", fig)
+    # Plt.display(fig)
+    Plt.save("P3TerminalVelocity_F_liq_rim.svg", fig)
 end
 
 fig1()

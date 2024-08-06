@@ -11,8 +11,8 @@ p3 = CMP.ParametersP3(FT)
 F_liq = FT(0) # preserving original P3
 # TODO: investigate for F_liq != 0
 
-function guess_value(λ::FT, p1::FT, p2::FT, q1::FT, q2::FT)
-    return q1 * (λ / p1)^((log(q1) - log(q2)) / (log(p1) - log(p2)))
+function guess_value(λ::FT, p1::FT, p2::FT, L1::FT, L2::FT)
+    return L1 * (λ / p1)^((log(L1) - log(L2)) / (log(p1) - log(p2)))
 end
 
 function lambda_guess_plot()
@@ -30,9 +30,9 @@ function lambda_guess_plot()
 
             Plt.Axis(
                 f[i, j],
-                xlabel = "log(q/N)",
+                xlabel = "log(L/N)",
                 ylabel = "log(λ)",
-                title = string("λ vs q/N for F_rim = ", F_rim, " and ρ_r = ", ρ_r),
+                title = string("λ vs L/N for F_rim = ", F_rim, " and ρ_r = ", ρ_r),
                 height = 300,
                 width = 400,
             )
@@ -41,8 +41,8 @@ function lambda_guess_plot()
             logλs = FT(1):FT(0.01):FT(6)
             λs = [10^logλ for logλ in logλs]
             th = P3.thresholds(p3, ρ_r, F_rim)
-            qs = [
-                P3.q_over_N_gamma(p3, F_rim, F_liq, log(λ), P3.DSD_μ(p3, λ), th) for
+            Ls = [
+                P3.L_over_N_gamma(p3, F_rim, F_liq, log(λ), P3.DSD_μ(p3, λ), th) for
                 λ in λs
             ]
             guesses = [FT(0) for λ in λs]
@@ -50,8 +50,8 @@ function lambda_guess_plot()
             for i in 1:length(λs)
                 (min,) = P3.get_bounds(
                     N,
-                    qs[i] * N,
-                    P3.DSD_μ_approx(p3, qs[i] * N, N, ρ_r, F_rim, F_liq),
+                    Ls[i] * N,
+                    P3.DSD_μ_approx(p3, Ls[i] * N, N, ρ_r, F_rim, F_liq),
                     F_rim,
                     F_liq,
                     p3,
@@ -62,14 +62,14 @@ function lambda_guess_plot()
 
 
             Plt.lines!(
-                log10.(qs),
+                log10.(Ls),
                 log10.(λs),
                 linewidth = 3,
                 color = "Black",
                 label = "true",
             )
             Plt.lines!(
-                log10.(qs),
+                log10.(Ls),
                 log10.(guesses),
                 linewidth = 2,
                 linestyle = :dash,

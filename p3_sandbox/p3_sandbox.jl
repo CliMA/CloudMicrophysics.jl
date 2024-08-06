@@ -25,7 +25,7 @@ function p3_sandbox(dY, Y, p, t)
 
     F_rim = qᵣ / qᵢ
     ρ_r = ifelse(Bᵣ == 0, FT(0), qᵣ / Bᵣ)
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    L = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
     Rₐ = TD.gas_constant_air(tps, TD.PhasePartition(qᵥ))
     R_v = TD.Parameters.R_v(tps)

@@ -114,6 +114,7 @@ function benchmark_test(FT)
 
     ρ_r = FT(400.0)
     F_rim = FT(0.95)
+    F_liq = FT(0.33)
     N = FT(1e8)
 
     T_air_2 = FT(250)
@@ -152,18 +153,18 @@ function benchmark_test(FT)
     if FT == Float64
         bench_press(
             P3.distribution_parameter_solver,
-            (p3, q_ice, N, ρ_r, F_rim),
+            (p3, q_ice, N, ρ_r, F_rim, F_liq),
             1e5,
         )
         # TODO
-        #bench_press(
+        # bench_press(
         #    P3.ice_terminal_velocity,
-        #    (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_rim, ρ_air),
+        #    (p3, ch2022, q_ice, N, ρ_r, F_rim, F_liq, ρ_air, false),
         #    2e5,
         #    3e4,
         #    2e3,
-        #)
-        bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_rim), 1e5)
+        # )
+        bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_rim, F_liq), 1e5)
     end
 
     # aerosol activation

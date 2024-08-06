@@ -15,8 +15,8 @@ F_liq = FT(0)
 
 function get_values(
     p3::PSP3,
-    Chen2022::CMP.Chen2022VelTypeSnowIce,
-    q::FT,
+    Chen2022::CMP.Chen2022VelType,
+    L::FT,
     N::FT,
     ρ_a::FT,
     x_resolution::Int,
@@ -27,16 +27,27 @@ function get_values(
 
     V_m = zeros(x_resolution, y_resolution)
     D_m = zeros(x_resolution, y_resolution)
+    aspect_ratio = false
+    F_liq = FT(0)
 
     for i in 1:x_resolution
         for j in 1:y_resolution
             F_rim = F_rims[i]
             ρ_r = ρ_rs[j]
 
-            V_m[i, j] =
-                P3.ice_terminal_velocity(p3, Chen2022, q, N, ρ_r, F_rim, ρ_a)[2]
+            V_m[i, j] = P3.ice_terminal_velocity(
+                p3,
+                Chen2022,
+                L,
+                N,
+                ρ_r,
+                F_rim,
+                F_liq,
+                ρ_a,
+                aspect_ratio,
+            )[2]
             # get D_m in mm for plots
-            D_m[i, j] = 1e3 * P3.D_m(p3, q, N, ρ_r, F_rim, F_liq)
+            D_m[i, j] = 1e3 * P3.D_m(p3, L, N, ρ_r, F_rim, F_liq)
         end
     end
     return (; F_rims, ρ_rs, V_m, D_m)
@@ -72,20 +83,20 @@ function figure_2()
     # density of air in kg/m^3
     ρ_a = FT(1.2) #FT(1.293)
     # small D_m
-    q_s = FT(0.0008)
+    L_s = FT(0.0008)
     N_s = FT(1e6)
     # medium D_m
-    q_m = FT(0.22)
+    L_m = FT(0.22)
     N_m = FT(1e6)
     # large D_m
-    q_l = FT(0.7)
+    L_l = FT(0.7)
     N_l = FT(1e6)
     # get V_m and D_m
     xres = 100
     yres = 100
-    (F_rims, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, q_s, N_s, ρ_a, xres, yres)
-    (F_rimm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, q_m, N_m, ρ_a, xres, yres)
-    (F_riml, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, q_l, N_l, ρ_a, xres, yres)
+    (F_rims, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022, L_s, N_s, ρ_a, xres, yres)
+    (F_rimm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022, L_m, N_m, ρ_a, xres, yres)
+    (F_riml, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022, L_l, N_l, ρ_a, xres, yres)
 
     fig = Plt.Figure()
 

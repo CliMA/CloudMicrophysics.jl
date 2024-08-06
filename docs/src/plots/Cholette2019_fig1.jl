@@ -30,9 +30,10 @@ function get_values(
     ρ_r = FT(900)
 
     V = zeros(res)
+    aspect_ratio = false
 
     for i in 1:res
-        V[i] = P3.mixed_phase_particle_velocity(
+        V[i] = P3.p3_particle_terminal_velocity(
             p3,
             D_ps[i],
             Chen2022,
@@ -40,6 +41,7 @@ function get_values(
             F_r,
             F_liq,
             th,
+            aspect_ratio,
         )
     end
     return (D_ps, V)
