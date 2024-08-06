@@ -58,15 +58,13 @@ end
 function conv_q_vap_to_q_liq_ice(
     tps::TDP.ThermodynamicsParameters{FT},
     liquid::CMP.CloudLiquid{FT},
-    ice::CMP.CloudIce{FT},
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
     T::FT
 ) where {FT}
-    # THE MORRISON & MILBRANDT VERSION WITHOUT THE THE INTEGRATOR
+    # condensation version
 
     cp_air = TD.cp_m(tps, q)
-    L_subl = TD.latent_heat_sublim(tps, T)
     L_v = TD.latent_heat_vapor(tps, T)
 
     nonequil_phase = TD.PhaseNonEquil
@@ -75,19 +73,40 @@ function conv_q_vap_to_q_liq_ice(
 
     # honestly both of these i dont like
     dqsldT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.liq,L)
+
+    Γₗ = FT(1) + (L_v/cp_air)*dqsldT
+    
+    q_v = q.tot - q.liq - q.ice
+    cond_rate = (q_v - q_sat.liq) / liquid.τ_relax*Γₗ
+
+    return cond_rate
+end
+
+function conv_q_vap_to_q_liq_ice(
+    tps::TDP.ThermodynamicsParameters{FT},
+    ice::CMP.CloudIce{FT},
+    q_sat::TD.PhasePartition{FT},
+    q::TD.PhasePartition{FT},
+    T::FT
+) where {FT}
+    # deposition version
+
+    cp_air = TD.cp_m(tps, q)
+    L_subl = TD.latent_heat_sublim(tps, T)
+
+    nonequil_phase = TD.PhaseNonEquil
+    λ = TD.liquid_fraction(tps, T, nonequil_phase, q)
+    L = TD.weighted_latent_heat(tps, T, λ)
+
     # oh lol this is probably still wrong -- probably need to think more abt it
     dqsidT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.ice,L)
 
-    Γₗ = FT(1) + (L_v/cp_air)*dqsldT
     Γᵢ = FT(1) + (L_subl/cp_air)*dqsidT
-
-    τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
     
     q_v = q.tot - q.liq - q.ice
-    cond_rate = (q_v - q_sat.liq) / τ*Γₗ
-    dep_rate = (q_v - q_sat.ice) / τ*Γᵢ
+    dep_rate = (q_v - q_sat.ice) / ice.τ_relax*Γᵢ
 
-    return cond_rate, dep_rate
+    return dep_rate
 end
 
 function conv_q_vap_to_q_liq_ice(
