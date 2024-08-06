@@ -233,6 +233,236 @@ It follows that
 where:
 - ``N_{act}`` is the number of activated ice particles.
 
+## Non-equilibrium condensation and deposition growth
+
+We consider three different formations of non-equilibirum condensation and deposition growth, all of which only depend on $q$, the values of $q$ at saturation of equilibrium, and a relaxation timescale $\tau$ dependent on whether or not the particle is liquid or ice. The third formulation is derived from the second, but includes an Euler time integrator from Morrison and Milbrandt ** CITE!
+
+### First simple version
+
+Here, condensation/evaporation and deposition/sublimation is computed by comparing the current liquid/ice specific humidity to that at equilibrium, divided by the relaxation timescale of liquid/ice respectively. The condensation/evaporation equation is:
+
+```math
+\begin{equation}
+    \left( \frac{d q_l}{dt} \right)_{cond} = \frac{q_l^{eq} - q_{l}}{\tau_l}
+\end{equation}
+```
+
+where
+- $q_l^{eq}$ is the liquid water specific humidity in equilibrium
+- $q_l$ is the liquid specific humidity
+- $\tau_l$ is the condensation relaxation timescale
+
+and the deposition/sublimation equation is:
+
+```math
+\begin{equation}
+    \left( \frac{d q_i}{dt} \right)_{dep} = \frac{q_i^{eq} - q_{i}}{\tau_i}
+\end{equation}
+```
+
+where
+- $q_i^{eq}$ is the ice specific humidity in equilibrium
+- $q_i$ is the ice specific humidity
+- $\tau_i$ is the deposition relaxation timescale
+
+### Second simple version
+In this case, we calculate condensation/evaporation and deposition/sublimation by comparing the water vapor specific humidity to that of liquid saturation or ice saturation, and dividing by the relaxation timescale of liquid/ice respectively. The condensation/evaporation equation is:
+
+```math
+\begin{equation}
+   \left( \frac{d q_l}{dt} \right) _{cond} = \frac{q_v - q_{sl}}{\tau \Gamma_l}
+\end{equation}
+```
+
+where
+- $q_v$ is the water specific humidity
+- $q_{sl}$ is the liquid saturation specific humidity
+- $\tau$ is the liquid relaxation timescale ** i think this shouldn't be c?
+- $\Gamma_l$ is a psychometric correction due to latent heating/cooling:
+
+```math
+\begin{equation}
+    \Gamma_l = 1 + \frac{L_{v}}{c_p} \frac{dq_{sl}}{dT}
+\end{equation}
+```
+
+** note: the M&M version uses mass mixing ratios, not specific humidities. also need to cite them and explain how this was derived by just not applying the time deriv.
+
+Similarly for deposition/sublimation:
+
+```math
+\begin{equation}
+   \left( \frac{d q_i}{dt} \right) _{dep} = \frac{q_v - q_{si}}{\tau \Gamma_i}
+\end{equation}
+```
+
+where
+- $q_v$ is the water specific humidity
+- $q_{si}$ is the liquid saturation specific humidity
+- $\tau_i$ is the ice relaxation timescale
+- $\Gamma_i$ is a psychometric correction due to latent heating/cooling:
+
+```math
+\begin{equation} % why this is a c? i dont know
+    \Gamma_i = 1 + \frac{L_{s}}{c_p} \frac{dq_{si}}{dT}
+\end{equation}
+```
+
+** note: im currently using the blanket $\tau$ here. does that even make sense?
+
+### Time integrated version
+
+Finally, we can calculate a time integrated version of our second formulation. We do this using an Euler method ** check
+
+In order to calculate the time derivative, following Morrison and Milbrandt, we assume that the condensation/evaporation and deposition/sublimation over the course of the timestep can be calculated using the average difference between the $q_v$ value and those of saturation. Ie, they write:
+
+```math
+\begin{equation}
+   \left( \frac{d q_l}{dt} \right) _{cond} = \frac{\bar{\delta_l}}{\tau_c \Gamma_l}
+\end{equation}
+```
+where $\delta_l$ is defined as
+```math
+\begin{equation}
+    \delta_l = q_v - q_{sl}
+\end{equation}
+```
+
+The same can be done for deposition/sublimation:
+
+```math
+\begin{equation}
+   \left( \frac{d q_i}{dt} \right) _{cond} = \frac{\bar{\delta_i}}{\tau_i \Gamma_i}
+\end{equation}
+```
+
+where
+
+```math
+\begin{equation}
+    \delta_i = q_v - q_{si}
+\end{equation}
+```
+
+$\tau$: ** unsure if this should be here right now
+```math
+\begin{equation}
+    \tau^{-1} = \tau_{l}^{-1} + \left( 1 + \frac{L_{s}}{c_p} \frac{dq_{sl}}{dT} \right) \frac{\tau_i^{-1}}{\Gamma_i}
+\end{equation}
+```
+
+
+where
+
+- $\tau_c$ is the time scale for cloud droplets
+- $\tau_r$ is the timescale for rain droplets
+- $\tau_i$ is the timescale for ice droplets
+- $L_s$ is the latent heat of sublimation
+- $c_p$ is the specific heat of air at constant pressure
+- $T$ is temperature
+
+
+In order to calculate the $\bar{\delta}$ values, we consider the derivatives of delta:
+
+```math
+\begin{equation}
+    \frac{d \delta}{dt} = \frac{dq_v}{dt} - \frac{dq_{s}}{dt}
+\end{equation}
+```
+
+where we write out the derivatives as:
+
+```math
+ \begin{equation}
+    \frac{d q_v}{dt} = \left( \frac{d q_v}{dt} \right )_{mixing} - \frac{\delta}{\tau_c \Gamma_l}
+ \end{equation}
+```
+
+** need to change these to what im actually using in the parcel and what I've changed from the M&M formulation
+
+```math
+\begin{equation}
+    \frac{d q_{sl}}{dt} = \frac{dq_{sl}}{dT} \frac{dT}{dt} + \frac{dq_{sl}}{dp} \frac{dp}{dt} = \frac{dq_{sl}}{dT} \frac{dT}{dt} + \frac{q_{sl} \rho_a g w}{p - e}
+\end{equation}
+```
+where $\rho_a$ is the air density, $p$ is the air pressure, and $e$ is the saturation vapor pressure. This makes sense given the assumptions that $\frac{dp}{dt} = -\rho_a gw$ from hydrostatic balance, and $q_s = \frac{e_s}{p-e_s}$  for water vapor, where $e_s$ is the saturation water vapor pressure. Then $\frac{d q_s}{dp} = - \frac{e_s}{(p-e_s)^2} = - \frac{q_s}{p-e_s}$ .
+
+and they write the change in temperature with time as:
+
+```math
+\begin{equation}
+    \frac{dT}{dt} = - \frac{g w}{c_p} + \left(\frac{dT}{dt} \right)_{mix} + \left( \frac{dT}{dt} \right)_{rad} + \frac{L_v}{c_p} \frac{\delta}{\tau \Gamma}
+\end{equation}
+```
+
+so
+
+```math
+\begin{equation}
+       \frac{d q_{sl}}{dt} = \frac{dq_{sl}}{dT} \left[- \frac{g w}{c_p} + \left(\frac{dT}{dt} \right)_{mix} + \left( \frac{dT}{dt} \right)_{rad} + \frac{L_v}{c_p} \frac{\delta}{\tau \Gamma} \right] + \frac{q_{sl} \rho_a g w}{p - e}
+\end{equation}
+```
+
+Putting these back into the $\delta$ equations and rearranging based on the definitions of $\Gamma_l$ and $\Gamma_i$, we get:
+
+```math
+\begin{equation}
+    \frac{d \delta_l}{dt} = \frac{- q_{sl} \rho_a g w}{p - e_{sl}} + \frac{gw}{c_p} \frac{dq_{sl}}{dT} - \frac{\delta_l}{\tau}
+\end{equation}
+```
+
+and
+
+```math
+\begin{equation}
+    \frac{ d \delta_i}{dt} = -\frac{q_{si} \rho_a g w}{p-e_{si}} + \frac{dq_{si}}{dT} \frac{gw}{c_p} - \frac{\delta_i}{\tau}
+\end{equation}
+```
+
+Next, to use an Euler integrator, we assume that the $\delta$s evolve in the form:
+
+```math
+\begin{equation}
+    \delta (t) = A_c \tau + (\delta_{t=0} - A_c \tau) e^{-t/\tau}
+\end{equation}
+```
+
+Then the $A_c$ values can be calculated based on the previous derivatives and by adding a term for the WBF process. *** need to try to explain where that term comes from although frankly i dont think its explained in their papers?
+
+Condensation Ac:
+```math
+\begin{equation}
+        A_c = - \frac{q_{sl} \rho g w}{p - e_s} + \frac{dq_{sl}}{dT} \frac{wg}{c_p} - \frac{(q_{sl} - q_{si})}{\tau_i \Gamma_i} \left( 1 + \frac{L_s}{c_p} \frac{dq_{sl}}{dT} \right)
+\end{equation}
+```
+
+Deposition Ac:
+
+```math
+\begin{equation}
+        A_{ci} = - \frac{q_{si} \rho g w}{p - e_s} + \frac{dq_{si}}{dT} \frac{wg}{c_p} + \frac{(q_{sl} - q_{si})}{\tau_i \Gamma_i} \left( 1 + \frac{L_s}{c_p} \frac{dq_{sl}}{dT} \right)
+\end{equation}
+```
+
+Finally, to get the values for condensation/evaporation and deposition/sublimation over the timestep, we calculate the time average of $\delta$ by dividing by $\Delta t$ (the timestep) and then by the relaxation time as described in the above equations.
+
+```math
+\begin{equation}
+    \left( \frac{d q_l}{dt} \right)_{cond} = \frac{A_c \tau}{\tau_i \Gamma_l} + (\delta_{t=0} - A_c \tau) \frac{\tau}{\Delta t \tau_i \Gamma_l} (1-e^{-\Delta t / \tau} )
+\end{equation}
+```
+
+```math
+\begin{equation}
+    \left( \frac{d q_{si}}{dt} \right)_{dep} = A_c \frac{\tau}{\tau_i \Gamma_i} + (\delta_{t=0} - A_c \tau) \frac{\tau}{\Delta t \tau_i \Gamma_i} (1-e^{-\Delta t / \tau} ) + \frac{(q_{sl} - q_{si})}{\tau_i \Gamma_i}
+\end{equation}
+```
+
+** then note here the difference between what I've done and what M&M did and why I was having problems.
+
+** also add a note saying what's going on with the incorrect initial conditions
+
+
 ## Deposition Nucleation on dust particles
 There are multiple ways of running deposition nucleation in the parcel.
   `"MohlerAF_Deposition"` will trigger an activated fraction approach
