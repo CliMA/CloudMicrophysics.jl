@@ -343,7 +343,7 @@ where
 \begin{equation}
     \delta_i = q_v - q_{si}
 \end{equation}
-``
+```
 
 In order to calculate the $\bar{\delta}$ values, we consider the derivatives of delta:
 
@@ -357,16 +357,28 @@ where we write out the derivatives as:
 
 ```math
  \begin{equation}
-    \frac{d q_v}{dt} = - \frac{\delta}{\tau_c \Gamma_l}
+    \left(\frac{d q_v}{dt} \right)_{cond} = - \frac{\delta_l}{\tau_l \Gamma_l}
  \end{equation}
 ```
 
 ```math
+ \begin{equation}
+    \left(\frac{d q_v}{dt} \right)_{dep} = - \frac{\delta_i}{\tau_i \Gamma_i}
+ \end{equation}
+```
+
+and we can write the derivation for the saturated specific humidity more generally for both liquid and ice as:
+
+```math
 \begin{equation}
-    \frac{d q_{sl}}{dt} = \frac{dq_{sl}}{dT} \frac{dT}{dt} + \frac{dq_{sl}}{dp} \frac{dp}{dt} = \frac{dq_{sl}}{dT} \frac{dT}{dt} + \frac{q_{sl} \rho_a g w}{p - e}
+    \frac{d q_{s}}{dt} = \frac{dq_{s}}{dT} \frac{dT}{dt} + \frac{dq_{s}}{dp} \frac{dp}{dt} = \frac{dq_{s}}{dT} \frac{dT}{dt} + \frac{q_{s} \rho_a g w}{p - e}
 \end{equation}
 ```
-where $\rho_a$ is the air density, $p$ is the air pressure, and $e$ is the saturation vapor pressure. This makes sense given the assumptions that $\frac{dp}{dt} = -\rho_a gw$ from hydrostatic balance, and $q_s = \frac{e_s}{p-e_s}$  for water vapor, where $e_s$ is the saturation water vapor pressure. Then $\frac{d q_s}{dp} = - \frac{e_s}{(p-e_s)^2} = - \frac{q_s}{p-e_s}$ .
+where
+- $\rho_a$ is the air density
+- $p$ is the air pressure
+- $e$ is the saturation vapor pressure
+- This makes sense given the assumptions that $\frac{dp}{dt} = -\rho_a gw$ from hydrostatic balance, and $q_s = \frac{e_s}{p-e_s}$  for water vapor, where $e_s$ is the saturation water vapor pressure. Then $\frac{d q_s}{dp} = - \frac{e_s}{(p-e_s)^2} = - \frac{q_s}{p-e_s}$ .
 
 and they write the change in temperature with time as:
 
@@ -375,26 +387,9 @@ and they write the change in temperature with time as:
     \frac{dT}{dt} = - \frac{g w}{c_p} + \frac{L_v}{c_p} \frac{\delta}{\tau \Gamma}
 \end{equation}
 ```
+with the correct $\delta$, $\tau$, and $\Gamma$ for water/ice respectively.
 
-** which tau should the above equation have actually??
-
-$\tau$: ** unsure if this should be here right now
-```math
-\begin{equation}
-    \tau^{-1} = \tau_{l}^{-1} + \left( 1 + \frac{L_{s}}{c_p} \frac{dq_{sl}}{dT} \right) \frac{\tau_i^{-1}}{\Gamma_i}
-\end{equation}
-```
-
-where
-
-- $\tau_c$ is the time scale for cloud droplets
-- $\tau_r$ is the timescale for rain droplets
-- $\tau_i$ is the timescale for ice droplets
-- $L_s$ is the latent heat of sublimation
-- $c_p$ is the specific heat of air at constant pressure
-- $T$ is temperature
-
-so
+Then
 
 ```math
 \begin{equation}
@@ -420,8 +415,23 @@ and
     \frac{ d \delta_i}{dt} = -\frac{q_{si} \rho_a g w}{p-e_{si}} + \frac{dq_{si}}{dT} \frac{gw}{c_p} - \frac{\delta_i}{\tau}
 \end{equation}
 ```
+where $\tau$ here is
 
-If we assume that changes in $\frac{dq_s}{dT}$ and $\tau$ are small in comparison to their magnitudes, then we can approximate them as constant and both equations are linear differential equations with a solution of the form:
+```math
+\begin{equation}
+    \tau = \left( \tau_{l}^{-1} + \left( 1 + \frac{L_{s}}{c_p} \frac{dq_{sl}}{dT} \right) \frac{\tau_i^{-1}}{\Gamma_i} \right)^{-1}
+\end{equation}
+```
+
+where
+
+- $\tau_l$ is the relaxation timescale for liquid droplets
+- $\tau_i$ is the relaxation timescale for ice droplets
+- $L_s$ is the latent heat of sublimation
+- $c_p$ is the specific heat of air at constant pressure
+- $T$ is temperature
+
+If we assume that changes in $\frac{dq_s}{dT}$ and $\tau$ are small in comparison to their magnitudes, then we can approximate them as constant and both $\delta$ equations are linear differential equations with a solution of the form:
 
 ```math
 \begin{equation}
@@ -469,6 +479,13 @@ Finally, to get the values for condensation/evaporation and deposition/sublimati
 
 !!! note2
     The initial conditions I'm using right now probably don't make a lot of sense bc the supersaturation values are increasing so quickly. Need to look into that. I also need to implement limiters, as right now it is possible to have negative amounts of ice or liquid present.
+
+The plots show the non-equilibrium formulation with the time integrator.
+
+```@example
+include("../../parcel/Example_NonEq_Ice.jl")
+```
+![](ice_noneq_parcel_morrison.svg)
 
 ## Deposition Nucleation on dust particles
 There are multiple ways of running deposition nucleation in the parcel.
