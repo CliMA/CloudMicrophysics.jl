@@ -124,7 +124,7 @@ end
  - F_r - rime mass fraction [L_rim/L_ice]
  - log_λ - logarithm of the slope parameter of N′ gamma distribution
  - μ - shape parameter of N′ gamma distribution
- - th - thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+ - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns L/N for all values of D (sum over all regimes).
 Eq. 5 in Morrison and Milbrandt (2015).
@@ -191,7 +191,7 @@ end
  - μ - shape parameter of N′ gamma distribution
  - F_r -rime mass fraction [L_rim/L_ice]
  - p3 - a struct with P3 scheme parameters
- - th -  thresholds() nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+ - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
  Returns estimated guess for λ from L to be used in distribution_parameter_solver()
 """

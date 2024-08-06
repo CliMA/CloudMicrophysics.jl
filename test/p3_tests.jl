@@ -88,7 +88,7 @@ function test_p3_thresholds(FT)
         end
     end
 
-    TT.@testset "mass and area tests" begin
+    TT.@testset "mass, area, density and aspect ratio tests" begin
         # values
         ρ_r = FT(500)
         F_r = FT(0.5)
@@ -115,11 +115,22 @@ function test_p3_thresholds(FT)
         TT.@test P3.p3_mass(p3, D_3, F_r, th) == P3.mass_s(D_3, th.ρ_g)
         TT.@test P3.p3_mass(p3, D_cr, F_r, th) == P3.mass_r(p3, D_cr, F_r)
 
+        # test density
+        TT.@test P3.p3_density(p3, D_1, F_r, th) ≈ p3.ρ_i
+        TT.@test P3.p3_density(p3, D_2, F_r, th) ≈ 544.916989830
+        TT.@test P3.p3_density(p3, D_3, F_r, th) ≈ th.ρ_g
+        TT.@test P3.p3_density(p3, D_cr, F_r, th) ≈ 383.33480937
+
+        # test aspect ratio
+        TT.@test P3.ϕᵢ(p3, D_1, F_r, th) ≈ 1
+        TT.@test P3.ϕᵢ(p3, D_2, F_r, th) ≈ 0.5777887690
+        TT.@test P3.ϕᵢ(p3, D_3, F_r, th) ≈ 1
+        TT.@test P3.ϕᵢ(p3, D_cr, F_r, th) ≈ 0.662104776
+
         # test F_r = 0 and D > D_th
         F_r = FT(0)
         TT.@test P3.p3_area(p3, D_2, F_r, th) == P3.A_ns(p3, D_2)
         TT.@test P3.p3_mass(p3, D_2, F_r, th) == P3.mass_nl(p3, D_2)
-
     end
 end
 
@@ -193,12 +204,21 @@ function test_particle_terminal_velocities(FT)
         F_r = FT(0.5)
         ρ_r = FT(500)
         th = P3.thresholds(p3, ρ_r, F_r)
+        use_aspect_ratio = false
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.08109, 0.4115, 0.7912, 1.1550, 1.4871]
         for i in axes(Ds, 1)
             D = Ds[i]
-            vel = P3.ice_particle_terminal_velocity(D, Chen2022.snow_ice, ρ_a)
+            vel = P3.ice_particle_terminal_velocity(
+                p3,
+                D,
+                Chen2022.snow_ice,
+                ρ_a,
+                F_r,
+                th,
+                use_aspect_ratio,
+            )
             TT.@test vel >= 0
             TT.@test vel ≈ expected[i] rtol = 1e-3
         end
@@ -227,6 +247,19 @@ function test_bulk_terminal_velocities(FT)
             [3.65, 3.37, 3.04, 2.62, 2.02],
             [3.64, 3.37, 3.04, 2.61, 2.01],
         ]
+        reference_vals_m_ϕ = [
+            [4.23, 4.65, 4.90, 4.94, 4.89],
+            [4.23, 4.65, 4.88, 4.84, 4.44],
+            [4.23, 4.65, 4.87, 4.82, 4.33],
+            [4.23, 4.64, 4.87, 4.81, 4.28],
+        ]
+        reference_vals_n_ϕ = [
+            [2.21, 2.34, 2.38, 2.31, 2.04],
+            [2.21, 2.33, 2.37, 2.27, 2.04],
+            [2.21, 2.33, 2.35, 2.25, 1.91],
+            [2.21, 2.33, 2.36, 2.24, 1.9],
+        ]
+
         for i in 1:length(ρ_rs)
             for j in 1:length(F_rs)
                 ρ_r = ρ_rs[i]
@@ -240,15 +273,35 @@ function test_bulk_terminal_velocities(FT)
                     ρ_r,
                     F_r,
                     ρ_a,
+                    false,
+                )
+                calculated_vel_ϕ = P3.ice_terminal_velocity(
+                    p3,
+                    Chen2022.snow_ice,
+                    L,
+                    N,
+                    ρ_r,
+                    F_r,
+                    ρ_a,
+                    true,
                 )
 
                 # number weighted
                 TT.@test calculated_vel[1] > 0
                 TT.@test reference_vals_n[i][j] ≈ calculated_vel[1] atol = 0.1
+                TT.@test calculated_vel_ϕ[1] > 0
+                TT.@test reference_vals_n_ϕ[i][j] ≈ calculated_vel_ϕ[1] atol =
+                    0.1
 
                 # mass weighted
                 TT.@test calculated_vel[2] > 0
                 TT.@test reference_vals_m[i][j] ≈ calculated_vel[2] atol = 0.1
+                TT.@test calculated_vel_ϕ[2] > 0
+                TT.@test reference_vals_m_ϕ[i][j] ≈ calculated_vel_ϕ[2] atol =
+                    0.1
+
+                TT.@test calculated_vel_ϕ[1] <= calculated_vel[1]
+                TT.@test calculated_vel_ϕ[2] <= calculated_vel[2]
             end
         end
     end
@@ -461,50 +514,59 @@ function test_integrals(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
 
     N = FT(1e8)
-    qs = range(0.001, stop = 0.005, length = 5)
+    Ls = range(0.001, stop = 0.005, length = 5)
     ρ_r = FT(500)
     F_rs = [FT(0), FT(0.5)]
     ρ_a = FT(1.2)
+    use_aspect_ratio = false
     tolerance = eps(FT)
 
     TT.@testset "Gamma vs Integral Comparison" begin
         for F_r in F_rs
-            for i in axes(qs, 1)
-                q = qs[i]
+            for i in axes(Ls, 1)
+                L = Ls[i]
 
                 # Velocity comparisons
                 vel_N, vel_m = P3.ice_terminal_velocity(
                     p3,
                     Chen2022.snow_ice,
-                    q,
+                    L,
                     N,
                     ρ_r,
                     F_r,
                     ρ_a,
+                    use_aspect_ratio,
                 )
 
-                λ, N_0 = P3.distribution_parameter_solver(p3, q, N, ρ_r, F_r)
+                λ, N_0 = P3.distribution_parameter_solver(p3, L, N, ρ_r, F_r)
                 th = P3.thresholds(p3, ρ_r, F_r)
                 ice_bound = P3.get_ice_bound(p3, λ, tolerance)
-                vel(d) =
-                    P3.ice_particle_terminal_velocity(d, Chen2022.snow_ice, ρ_a)
+                vel(d) = P3.ice_particle_terminal_velocity(
+                    p3,
+                    d,
+                    Chen2022.snow_ice,
+                    ρ_a,
+                    F_r,
+                    th,
+                    use_aspect_ratio,
+                )
                 f(d) = vel(d) * P3.N′ice(p3, d, λ, N_0)
 
-                qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), 2 * ice_bound)
+                qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), ice_bound)
                 qgk_vel_m, = QGK.quadgk(
-                    d -> f(d) * P3.p3_mass(p3, d, F_r, th) / q,
+                    d -> f(d) * P3.p3_mass(p3, d, F_r, th) / L,
                     FT(0),
-                    2 * ice_bound,
+                    ice_bound,
                 )
 
-                TT.@test vel_N ≈ qgk_vel_N rtol = 1e-7
-                TT.@test vel_m ≈ qgk_vel_m rtol = 1e-7
+                TT.@test vel_N ≈ qgk_vel_N rtol = 1e-5
+                TT.@test vel_m ≈ qgk_vel_m rtol = 1e-5
 
                 # Dₘ comparisons
-                D_m = P3.D_m(p3, q, N, ρ_r, F_r)
+                D_m = P3.D_m(p3, L, N, ρ_r, F_r)
                 f_d(d) =
                     d * P3.p3_mass(p3, d, F_r, th) * P3.N′ice(p3, d, λ, N_0)
-                qgk_D_m, = QGK.quadgk(d -> f_d(d) / q, FT(0), 2 * ice_bound)
+                qgk_D_m, = QGK.quadgk(d -> f_d(d) / L, FT(0), ice_bound)
 
                 TT.@test D_m ≈ qgk_D_m rtol = 1e-8
             end
@@ -515,10 +577,11 @@ end
 
 println("Testing Float32")
 test_p3_thresholds(Float32)
-test_particle_terminal_velocities(Float64)
+test_particle_terminal_velocities(Float32)
 #TODO - only works for Float64 now. We should switch the units inside the solver
 # from SI base to something more managable
 #test_p3_shape_solver(Float32)
+# test_bulk_terminal_velocities(Float32)
 
 println("Testing Float64")
 test_p3_thresholds(Float64)

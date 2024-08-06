@@ -68,6 +68,12 @@ where
     TODO - Check units, see in [issue #151](https://github.com/CliMA/CloudMicrophysics.jl/issues/151)
 
 Below we show the m(D) and a(D) regimes replicating Figures 1 (a) and (b) from [MorrisonMilbrandt2015](@cite).
+We also show the density as a function of D.
+Note that because graupel is completely filled with rime,
+  the density (``\rho_{g}``) is independent of ``D`` between ``D_{gr}`` and ``D_{cr}``.
+Following [MorrisonMilbrandt2015](@cite), for nonspherical particles
+  ``\rho_{ice}``is assumed to be equal to the mass of the particle
+  divided by the volume of a sphere with the same particle size
 ```@example
 include("plots/P3SchemePlots.jl")
 ```
@@ -115,7 +121,7 @@ N_{ice} = \int_{0}^{\infty} \! N'(D) \mathrm{d}D = \int_{0}^{\infty} \! N_{0} D^
 
 ``L_{ice}`` depends on the variable mass-size relation ``m(D)`` defined above.
 We solve for ``L_{ice}`` in a piece-wise fashion defined by the same thresholds as ``m(D)``.
-As a result ``L_{ice}`` can be expressed as a sum of inclomplete gamma functions,
+As a result ``L_{ice}`` can be expressed as a sum of incomplete gamma functions,
   and the shape parameters are found using iterative solver.
 
 |      condition(s)                            |    ``L_{ice} = \int \! m(D) N'(D) \mathrm{d}D``                                          |         gamma representation          |
@@ -175,6 +181,14 @@ V(D) = \phi^{\kappa} \sum_{i=1}^{j} \; a_i D^{b_i} e^{-c_i \; D}
 where ``\phi = (16 \rho_{ice}^2 A(D)^3) / (9 \pi m(D)^2)`` is the aspect ratio,
 and ``\kappa``, ``a_i``, ``b_i`` and ``c_i`` are the free parameters.
 
+Note that ``\phi = 1`` corresponds to spherical particles
+  (small spherical ice (``D < D_{th}``) and graupel (``D_{gr} < D < D_{cr}``)).
+The plot provided below helps to visualize the transitions between spherical and nonspherical regimes.
+```@example
+include("plots/P3AspectRatioPlot.jl")
+```
+![](P3Scheme_aspect_ratio.svg)
+
 The mass-weighted fall speed (``V_m``) and the number-weighted fall speed (``V_n``) are calculated as
 ```math
 V_m = \frac{\int_{0}^{\infty} \! V(D) m(D) N'(D) \mathrm{d}D}{\int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D}
@@ -188,9 +202,21 @@ We also plot the mass-weighted mean particle size ``D_m`` which is given by:
 D_m = \frac{\int_{0}^{\infty} \! D m(D) N'(D) \mathrm{d}D}{\int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D}
 ```
 
-Below w show these relationships for small, medium, and large ``D_m``
+Below we provide plots of these relationships for small, medium, and large ``D_m``:
+  the first row highlights the particle size regime,
+  the second displays ``D_m`` of the particles,
+  the third shows the aspect ratio ``\phi (D_m)``,
+  and the final row exhibits ``V_m``.
 They can be compared with Figure 2 from [MorrisonMilbrandt2015](@cite).
 ```@example
 include("plots/P3TerminalVelocityPlots.jl")
 ```
 ![](MorrisonandMilbrandtFig2.svg)
+
+## Acknowledgments
+
+Click on the P3 mascot duck to be taken to the repository
+  in which the authors of [MorrisonMilbrandt2015](@cite) and others
+  have implemented the P3 scheme in Fortran!
+
+[![P3 mascot](assets/p3_mascot.png)](https://github.com/P3-microphysics/P3-microphysics)

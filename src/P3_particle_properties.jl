@@ -132,6 +132,38 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_r::FT) where {FT}
 end
 
 """
+p3_density(p3, D, F_r, th)
+
+- p3 - a struct with P3 parameters
+- D - maximum particle dimension [m]
+- F_r - rime mass fraction (L_rim / L_ice) [-]
+- th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Returns the density of a particle based on where it falls in the particle-size-based properties
+regime. Following Morrison and Milbrandt (2015), the density of nonspherical particles is assumed to
+be the particle mass divided by the volume of a sphere with the same D.
+"""
+function p3_density(p3::PSP3, D::FT, F_r::FT, th) where {FT}
+    D_th = D_th_helper(p3)
+    if D_th > D
+        # small spherical ice
+        return p3.ρ_i
+    elseif F_r == 0
+        # large nonspherical unrimed ice
+        return (6 * α_va_si(p3)) / FT(π) * D^(p3.β_va - 3)
+    elseif th.D_gr > D >= D_th
+        # dense nonspherical ice
+        return (6 * α_va_si(p3)) / FT(π) * D^(p3.β_va - 3)
+    elseif th.D_cr > D >= th.D_gr
+        # graupel
+        return th.ρ_g
+    else #elseif D >= th.D_cr
+        # partially rimed ice
+        return (6 * α_va_si(p3)) / (FT(π) * (1 - F_r)) * D^(p3.β_va - 3)
+    end
+end
+
+"""
     mass_(p3, D, ρ, F_r)
 
  - p3 - a struct with P3 scheme parameters
@@ -155,7 +187,7 @@ mass_r(p3::PSP3, D::FT, F_r::FT) where {FT <: Real} =
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
  - F_r - rime mass fraction (L_rim/L_ice)
- - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+ - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns mass(D) regime, used to create figures for the docs page.
 """
@@ -175,7 +207,7 @@ function p3_mass(
     elseif th.D_cr > D >= th.D_gr
         return mass_s(D, th.ρ_g)          # graupel
     else #elseif D >= th.D_cr
-        mass_r(p3, D, F_r)                # partially rimed ice
+        return mass_r(p3, D, F_r)                # partially rimed ice
     end
 end
 
@@ -201,7 +233,7 @@ A_r(p3::PSP3, F_r::FT, D::FT) where {FT <: Real} =
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
  - F_r - rime mass fraction (L_rim/L_ice)
- - th - P3Scheme nonlinear solve output tuple (D_cr, D_gr, ρ_g, ρ_d)
+ - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns area(D), used to create figures for the documentation.
 """

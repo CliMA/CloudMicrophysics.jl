@@ -3,6 +3,7 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CairoMakie as Plt
+# import ColorSchemes as CLR
 
 const PSP3 = CMP.ParametersP3
 
@@ -24,24 +25,58 @@ function get_values(
 
     V_m = zeros(x_resolution, y_resolution)
     D_m = zeros(x_resolution, y_resolution)
+    D_m_regimes = zeros(x_resolution, y_resolution)
+    ϕᵢ = zeros(x_resolution, y_resolution)
 
     for i in 1:x_resolution
         for j in 1:y_resolution
             F_r = F_rs[i]
             ρ_r = ρ_rs[j]
+            aspect_ratio = true
+            th = P3.thresholds(p3, ρ_r, F_r)
 
-            V_m[i, j] =
-                P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_r, ρ_a)[2]
-            # get D_m in mm for plots
-            D_m[i, j] = 1e3 * P3.D_m(p3, L, N, ρ_r, F_r)
+            V_m[i, j] = P3.ice_terminal_velocity(
+                p3,
+                Chen2022,
+                L,
+                N,
+                ρ_r,
+                F_r,
+                ρ_a,
+                aspect_ratio,
+            )[2]
+
+            D_m[i, j] = P3.D_m(p3, L, N, ρ_r, F_r)
+            D_m_regimes[i, j] = D_m[i, j]
+            ϕᵢ[i, j] = P3.ϕᵢ(p3, D_m[i, j], F_r, th)
+
+            # plot the regimes
+            D_th = P3.D_th_helper(p3)
+            if D_th > D_m[i, j]
+                # small spherical ice
+                D_m_regimes[i, j] = 0
+            elseif F_r == 0
+                # large nonspherical unrimed ice
+                D_m_regimes[i, j] = 0
+            elseif th.D_gr > D_m[i, j] >= D_th
+                # dense nonspherical ice
+                D_m_regimes[i, j] = 1
+            elseif th.D_cr > D_m[i, j] >= th.D_gr
+                # graupel
+                D_m_regimes[i, j] = 2
+            else #elseif D >= th.D_cr
+                # partially rimed ice
+                D_m_regimes[i, j] = 3
+            end
         end
     end
-    return (; F_rs, ρ_rs, V_m, D_m)
+    D_m *= 1e3
+    return (; F_rs, ρ_rs, D_m_regimes, D_m, ϕᵢ, V_m)
 end
 
-function make_axis_top(fig, col, title)
+function make_axis(fig, row, col, title)
     return Plt.Axis(
-        fig[1, col],
+        fig[row, col],
         xlabel = "F_r",
         ylabel = "ρ_r",
         title = title,
@@ -52,18 +87,7 @@ function make_axis_top(fig, col, title)
         yticks = [200, 400, 600, 800],
     )
 end
-function make_axis_bottom(fig, col, title)
-    return Plt.Axis(
-        fig[3, col],
-        height = 350,
-        width = 350,
-        xlabel = "F_r",
-        ylabel = "ρ_r",
-        title = title,
-    )
-end
 
-#! format: off
 function figure_2()
     Chen2022 = CMP.Chen2022VelType(FT)
     # density of air in kg/m^3
@@ -77,59 +101,151 @@ function figure_2()
     # large D_m
     L_l = FT(0.7)
     N_l = FT(1e6)
+
+    # D_th
+    D_th = P3.D_th_helper(p3)
+
     # get V_m and D_m
     xres = 100
     yres = 100
-    (F_rs, ρ_rs, V_ms, D_ms) = get_values(p3, Chen2022.snow_ice, L_s, N_s, ρ_a, xres, yres)
-    (F_rm, ρ_rm, V_mm, D_mm) = get_values(p3, Chen2022.snow_ice, L_m, N_m, ρ_a, xres, yres)
-    (F_rl, ρ_rl, V_ml, D_ml) = get_values(p3, Chen2022.snow_ice, L_l, N_l, ρ_a, xres, yres)
+
+    (F_rs, ρ_rs, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s) =
+        get_values(p3, Chen2022.snow_ice, L_s, N_s, ρ_a, xres, yres)
+    (F_rm, ρ_rm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m) =
+        get_values(p3, Chen2022.snow_ice, L_m, N_m, ρ_a, xres, yres)
+    (F_rl, ρ_rl, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l) =
+        get_values(p3, Chen2022.snow_ice, L_l, N_l, ρ_a, xres, yres)
 
     fig = Plt.Figure()
 
     # Plot velocities as in Fig 2 in Morrison and Milbrandt 2015
 
-    args = (color = :black, labels = true, levels = 3, linewidth = 1.5, labelsize = 18)
+    contour_args = (
+        color = :black,
+        labels = true,
+        levels = 3,
+        linewidth = 1.5,
+        labelsize = 18,
+    )
 
-    ax1 = make_axis_top(fig, 1, "Small Dₘ")
-    hm = Plt.contourf!(ax1, F_rs, ρ_rs, V_ms)
-    Plt.contour!(ax1, F_rs, ρ_rs, D_ms; args...)
-    Plt.Colorbar(fig[2, 1], hm, vertical = false)
+    ax1 = make_axis(fig, 1, 1, "Particle regimes with small Dₘ")
+    hm = Plt.contourf!(
+        ax1,
+        F_rs,
+        ρ_rs,
+        D_m_regimes_s,
+        levels = 3,
+        colormap = Plt.cgrad(:PuBuGn_3, 3, categorical = true),
+    )
+    Plt.Colorbar(
+        fig[2, 1],
+        hm,
+        vertical = false,
+        label = "dense nonspherical ice (1), graupel (2), partially rimed ice (3)",
+        ticks = [1, 2, 3],
+        labelsize = 14,
+    )
 
-    ax2 = make_axis_top(fig, 2, "Medium Dₘ")
-    hm = Plt.contourf!(ax2, F_rm, ρ_rm, V_mm)
-    Plt.contour!(ax2, F_rm, ρ_rm, D_mm; args...)
-    Plt.Colorbar(fig[2, 2], hm, vertical = false)
+    ax2 = make_axis(fig, 1, 2, "Particle regimes with medium Dₘ")
+    hm = Plt.contourf!(
+        ax2,
+        F_rm,
+        ρ_rm,
+        D_m_regimes_m,
+        levels = 3,
+        colormap = Plt.cgrad(:PuBuGn_3, 3, categorical = true),
+    )
+    Plt.Colorbar(
+        fig[2, 2],
+        hm,
+        vertical = false,
+        label = "graupel (2), partially rimed ice (3)",
+        ticks = [1, 2, 3],
+        labelsize = 14,
+    )
 
-    ax3 = make_axis_top(fig, 3, "Large Dₘ")
-    hm = Plt.contourf!(ax3, F_rl, ρ_rl, V_ml)
-    Plt.contour!(ax3, F_rl, ρ_rl, D_ml; args...)
-    Plt.Colorbar(fig[2, 3], hm, vertical = false)
+    ax3 = make_axis(fig, 1, 3, "Particle regimes with large Dₘ")
+    hm = Plt.contourf!(
+        ax3,
+        F_rl,
+        ρ_rl,
+        D_m_regimes_l,
+        levels = 3,
+        colormap = Plt.cgrad(:PuBuGn_3, 3, categorical = true),
+    )
+    Plt.Colorbar(
+        fig[2, 3],
+        hm,
+        vertical = false,
+        label = "graupel (2), partially rimed ice (3)",
+        ticks = [1, 2, 3],
+        labelsize = 14,
+    )
+
+    ax4 = make_axis(fig, 3, 1, "Dₘ (mm) (L = 8e-4 kgm⁻³, N = 1e6 m⁻³)")
+    hm = Plt.contourf!(ax4, F_rs, ρ_rs, D_m_s)
+    Plt.Colorbar(fig[4, 1], hm, vertical = false)
+
+    ax5 = make_axis(fig, 3, 2, "Dₘ (mm) (L = 0.22 kgm⁻³, N = 1e6 m⁻³)")
+    hm = Plt.contourf!(ax5, F_rm, ρ_rm, D_m_m)
+    Plt.Colorbar(fig[4, 2], hm, vertical = false)
+
+    ax6 = make_axis(fig, 3, 3, "Dₘ (mm) (L = 0.7 kgm⁻³, N = 1e6 m⁻³)")
+    hm = Plt.contourf!(ax6, F_rl, ρ_rl, D_m_l)
+    Plt.Colorbar(fig[4, 3], hm, vertical = false)
+
+    ax7 = make_axis(fig, 5, 1, "ϕᵢ with small Dₘ")
+    hm = Plt.contourf!(ax7, F_rs, ρ_rs, ϕᵢ_s, levels = 20)
+    Plt.Colorbar(fig[6, 1], hm, vertical = false)
+    Plt.contour!(ax7, F_rs, ρ_rs, D_m_s, label = "D_m"; contour_args...)
+
+    ax8 = make_axis(fig, 5, 2, "ϕᵢ with medium Dₘ")
+    hm = Plt.contourf!(ax8, F_rm, ρ_rm, ϕᵢ_m)
+    Plt.Colorbar(fig[6, 2], hm, vertical = false)
+    Plt.contour!(ax8, F_rm, ρ_rm, D_m_m, label = "D_m"; contour_args...)
+
+    ax9 = make_axis(fig, 5, 3, "ϕᵢ with large Dₘ")
+    hm = Plt.contourf!(ax9, F_rl, ρ_rl, ϕᵢ_l)
+    Plt.Colorbar(fig[6, 3], hm, vertical = false)
+    Plt.contour!(ax9, F_rl, ρ_rl, D_m_l, label = "D_m"; contour_args...)
+
+    ax10 = make_axis(fig, 7, 1, "Vₘ with small Dₘ")
+    hm = Plt.contourf!(ax10, F_rs, ρ_rs, V_m_s)
+    Plt.contour!(ax10, F_rs, ρ_rs, D_m_s; contour_args...)
+    Plt.Colorbar(fig[8, 1], hm, vertical = false)
+
+    ax11 = make_axis(fig, 7, 2, "Vₘ with medium Dₘ")
+    hm = Plt.contourf!(ax11, F_rm, ρ_rm, V_m_m)
+    Plt.contour!(ax11, F_rm, ρ_rm, D_m_m; contour_args...)
+    Plt.Colorbar(fig[8, 2], hm, vertical = false)
+
+    ax12 = make_axis(fig, 7, 3, "Vₘ with large Dₘ")
+    hm = Plt.contourf!(ax12, F_rl, ρ_rl, V_m_l)
+    Plt.contour!(ax12, F_rl, ρ_rl, D_m_l; contour_args...)
+    Plt.Colorbar(fig[8, 3], hm, vertical = false)
 
     Plt.linkxaxes!(ax1, ax2)
     Plt.linkxaxes!(ax2, ax3)
     Plt.linkyaxes!(ax1, ax2)
     Plt.linkyaxes!(ax2, ax3)
-
-    ## Plot D_m as second row of comparisons
-
-    ax4 = make_axis_bottom(fig, 1, "Small Dₘ vs F_r and ρ_r")
-    hm = Plt.contourf!(ax4, F_rs, ρ_rs, D_ms)
-    Plt.Colorbar(fig[4, 1], hm, vertical = false)
-
-    ax5 = make_axis_bottom(fig, 2, "Medium Dₘ vs F_r and ρ_r")
-    hm = Plt.contourf!(ax5, F_rm, ρ_rm, D_mm)
-    Plt.Colorbar(fig[4, 2], hm, vertical = false)
-
-    ax6 = make_axis_bottom(fig, 3, "Large Dₘ vs F_r and ρ_r")
-    hm = Plt.contourf!(ax6, F_rl, ρ_rl, D_ml)
-    Plt.Colorbar(fig[4, 3], hm, vertical = false)
-
     Plt.linkxaxes!(ax1, ax4)
     Plt.linkxaxes!(ax4, ax5)
     Plt.linkxaxes!(ax5, ax6)
     Plt.linkyaxes!(ax1, ax4)
     Plt.linkyaxes!(ax4, ax5)
     Plt.linkyaxes!(ax5, ax6)
+    Plt.linkxaxes!(ax1, ax7)
+    Plt.linkxaxes!(ax7, ax8)
+    Plt.linkxaxes!(ax5, ax9)
+    Plt.linkyaxes!(ax1, ax7)
+    Plt.linkyaxes!(ax7, ax8)
+    Plt.linkyaxes!(ax8, ax9)
+    Plt.linkxaxes!(ax1, ax10)
+    Plt.linkxaxes!(ax10, ax11)
+    Plt.linkxaxes!(ax11, ax12)
+    Plt.linkyaxes!(ax1, ax10)
+    Plt.linkyaxes!(ax10, ax11)
+    Plt.linkyaxes!(ax11, ax12)
 
     Plt.resize_to_layout!(fig)
     Plt.save("MorrisonandMilbrandtFig2.svg", fig)
