@@ -235,7 +235,7 @@ where:
 
 ## Non-equilibrium condensation and deposition growth
 
-We consider three different formations of non-equilibirum condensation and deposition growth, all of which only depend on $q$, the values of $q$ at saturation of equilibrium, and a relaxation timescale $\tau$ dependent on whether or not the particle is liquid or ice. The third formulation is derived from the second, but includes an Euler time integrator from Morrison and Milbrandt ** CITE!
+We consider three different formations of non-equilibirum condensation and deposition growth, all of which only depend on $q$, the values of $q$ at saturation of equilibrium, and a relaxation timescale $\tau$ dependent on whether or not the particle is liquid or ice. The third formulation is derived from the second, but includes a time integrator.
 
 ### First simple version
 
@@ -266,11 +266,18 @@ where
 - $\tau_i$ is the deposition relaxation timescale
 
 ### Second simple version
-In this case, we calculate condensation/evaporation and deposition/sublimation by comparing the water vapor specific humidity to that of liquid saturation or ice saturation, and dividing by the relaxation timescale of liquid/ice respectively. The condensation/evaporation equation is:
+In this case, we calculate condensation/evaporation and deposition/sublimation by comparing the water vapor specific humidity to that of liquid saturation or ice saturation, and dividing by the relaxation timescale of liquid/ice respectively. This formulation is derived from [morrison_modeling_2008](@cite) and [MorrisonMilbrandt2015](@cite), and is simply their version without imposing time integration.
+
+!!! note
+    The [morrison_modeling_2008](@cite) and [MorrisonMilbrandt2015](@cite) papers use mass mixing ratios, not specific humidities, which is what we use in the parcel model. That difference shouldn't affect these formulations themselves so long as specific humidity is used throughout.
+    Addtionally, in their formulations they consider two different categories for liquid: cloud water and rain. Here, we consider them to be the same, and use a single relaxation timescale $\tau_l$ (liquid) rather than separate $\tau_c$ (cloud) and $\tau_r$ (rain) values.
+
+
+The condensation/evaporation equation is:
 
 ```math
 \begin{equation}
-   \left( \frac{d q_l}{dt} \right) _{cond} = \frac{q_v - q_{sl}}{\tau \Gamma_l}
+   \left( \frac{d q_l}{dt} \right) _{cond} = \frac{q_v - q_{sl}}{\tau_l \Gamma_l}
 \end{equation}
 ```
 
@@ -286,13 +293,11 @@ where
 \end{equation}
 ```
 
-** note: the M&M version uses mass mixing ratios, not specific humidities. also need to cite them and explain how this was derived by just not applying the time deriv.
-
 Similarly for deposition/sublimation:
 
 ```math
 \begin{equation}
-   \left( \frac{d q_i}{dt} \right) _{dep} = \frac{q_v - q_{si}}{\tau \Gamma_i}
+   \left( \frac{d q_i}{dt} \right) _{dep} = \frac{q_v - q_{si}}{\tau_i \Gamma_i}
 \end{equation}
 ```
 
@@ -303,22 +308,18 @@ where
 - $\Gamma_i$ is a psychometric correction due to latent heating/cooling:
 
 ```math
-\begin{equation} % why this is a c? i dont know
+\begin{equation}
     \Gamma_i = 1 + \frac{L_{s}}{c_p} \frac{dq_{si}}{dT}
 \end{equation}
 ```
 
-** note: im currently using the blanket $\tau$ here. does that even make sense?
-
 ### Time integrated version
 
-Finally, we can calculate a time integrated version of our second formulation. We do this using an Euler method ** check
-
-In order to calculate the time derivative, following Morrison and Milbrandt, we assume that the condensation/evaporation and deposition/sublimation over the course of the timestep can be calculated using the average difference between the $q_v$ value and those of saturation. Ie, they write:
+Finally, we can calculate a time integrated version of our second formulation. Following Morrison and Milbrandt, we assume that the condensation/evaporation and deposition/sublimation over the course of the timestep can be calculated using the average difference between the $q_v$ value and those of saturation. Ie, they write:
 
 ```math
 \begin{equation}
-   \left( \frac{d q_l}{dt} \right) _{cond} = \frac{\bar{\delta_l}}{\tau_c \Gamma_l}
+   \left( \frac{d q_l}{dt} \right) _{cond} = \frac{\bar{\delta_l}}{\tau_l \Gamma_l}
 \end{equation}
 ```
 where $\delta_l$ is defined as
@@ -342,25 +343,7 @@ where
 \begin{equation}
     \delta_i = q_v - q_{si}
 \end{equation}
-```
-
-$\tau$: ** unsure if this should be here right now
-```math
-\begin{equation}
-    \tau^{-1} = \tau_{l}^{-1} + \left( 1 + \frac{L_{s}}{c_p} \frac{dq_{sl}}{dT} \right) \frac{\tau_i^{-1}}{\Gamma_i}
-\end{equation}
-```
-
-
-where
-
-- $\tau_c$ is the time scale for cloud droplets
-- $\tau_r$ is the timescale for rain droplets
-- $\tau_i$ is the timescale for ice droplets
-- $L_s$ is the latent heat of sublimation
-- $c_p$ is the specific heat of air at constant pressure
-- $T$ is temperature
-
+``
 
 In order to calculate the $\bar{\delta}$ values, we consider the derivatives of delta:
 
@@ -374,11 +357,9 @@ where we write out the derivatives as:
 
 ```math
  \begin{equation}
-    \frac{d q_v}{dt} = \left( \frac{d q_v}{dt} \right )_{mixing} - \frac{\delta}{\tau_c \Gamma_l}
+    \frac{d q_v}{dt} = - \frac{\delta}{\tau_c \Gamma_l}
  \end{equation}
 ```
-
-** need to change these to what im actually using in the parcel and what I've changed from the M&M formulation
 
 ```math
 \begin{equation}
@@ -391,17 +372,38 @@ and they write the change in temperature with time as:
 
 ```math
 \begin{equation}
-    \frac{dT}{dt} = - \frac{g w}{c_p} + \left(\frac{dT}{dt} \right)_{mix} + \left( \frac{dT}{dt} \right)_{rad} + \frac{L_v}{c_p} \frac{\delta}{\tau \Gamma}
+    \frac{dT}{dt} = - \frac{g w}{c_p} + \frac{L_v}{c_p} \frac{\delta}{\tau \Gamma}
 \end{equation}
 ```
+
+** which tau should the above equation have actually??
+
+$\tau$: ** unsure if this should be here right now
+```math
+\begin{equation}
+    \tau^{-1} = \tau_{l}^{-1} + \left( 1 + \frac{L_{s}}{c_p} \frac{dq_{sl}}{dT} \right) \frac{\tau_i^{-1}}{\Gamma_i}
+\end{equation}
+```
+
+where
+
+- $\tau_c$ is the time scale for cloud droplets
+- $\tau_r$ is the timescale for rain droplets
+- $\tau_i$ is the timescale for ice droplets
+- $L_s$ is the latent heat of sublimation
+- $c_p$ is the specific heat of air at constant pressure
+- $T$ is temperature
 
 so
 
 ```math
 \begin{equation}
-       \frac{d q_{sl}}{dt} = \frac{dq_{sl}}{dT} \left[- \frac{g w}{c_p} + \left(\frac{dT}{dt} \right)_{mix} + \left( \frac{dT}{dt} \right)_{rad} + \frac{L_v}{c_p} \frac{\delta}{\tau \Gamma} \right] + \frac{q_{sl} \rho_a g w}{p - e}
+       \frac{d q_{sl}}{dt} = \frac{dq_{sl}}{dT} \left[- \frac{g w}{c_p} + \frac{L_v}{c_p} \frac{\delta}{\tau \Gamma} \right] + \frac{q_{sl} \rho_a g w}{p - e}
 \end{equation}
 ```
+
+!!! note
+    we neglect terms due to radiation and mixing (included in the [morrison_modeling_2008](@cite) and [MorrisonMilbrandt2015](@cite) versions) in the parcel case.
 
 Putting these back into the $\delta$ equations and rearranging based on the definitions of $\Gamma_l$ and $\Gamma_i$, we get:
 
@@ -419,7 +421,7 @@ and
 \end{equation}
 ```
 
-Next, to use an Euler integrator, we assume that the $\delta$s evolve in the form:
+If we assume that changes in $\frac{dq_s}{dT}$ and $\tau$ are small in comparison to their magnitudes, then we can approximate them as constant and both equations are linear differential equations with a solution of the form:
 
 ```math
 \begin{equation}
@@ -458,10 +460,15 @@ Finally, to get the values for condensation/evaporation and deposition/sublimati
 \end{equation}
 ```
 
-** then note here the difference between what I've done and what M&M did and why I was having problems.
+!!! note1
+    In [MorrisonMilbrandt2015](@cite), they actually don't calculate a separate $\delta_i$ and instead calculate the deposition/sublimation rate through a correction to the condensation/evaporation rate such that:
+    $$\left( \frac{d q_{si}}{dt} \right)_{dep} = A_c \frac{\tau}{\tau_i \Gamma_i} + (\delta_{t=0} - A_c \tau) \frac{\tau}{\Delta t \tau_i \Gamma_i} (1-e^{-\Delta t / \tau} ) + \frac{(q_{sl} - q_{si})}{\tau_i \Gamma_i}$$
+    However, I found when I used just that correction, I was getting constant ice growth, even when ice wasn't supersaturated. I think it's possible that the correction term they've added,
+    $$\frac{(q_{sl} - q_{si})}{\tau_i \Gamma_i}$$
+    isn't correct because it would need to also be integrated over time (ie, they are considering the average values of $q_{sl}$ and $q_{si}$everywhere else but here.)
 
-** also add a note saying what's going on with the incorrect initial conditions
-
+!!! note2
+    The initial conditions I'm using right now probably don't make a lot of sense bc the supersaturation values are increasing so quickly. Need to look into that. I also need to implement limiters, as right now it is possible to have negative amounts of ice or liquid present.
 
 ## Deposition Nucleation on dust particles
 There are multiple ways of running deposition nucleation in the parcel.
