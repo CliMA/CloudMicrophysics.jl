@@ -92,7 +92,7 @@ function conv_q_vap_to_q_liq_ice(
     liquid::CMP.CloudLiquid{FT},
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
-    T::FT
+    T::FT,
 ) where {FT}
     # condensation version
 
@@ -119,7 +119,7 @@ function conv_q_vap_to_q_liq_ice(
     ice::CMP.CloudIce{FT},
     q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
-    T::FT
+    T::FT,
 ) where {FT}
     # deposition version
 
@@ -173,10 +173,13 @@ function conv_q_vap_to_q_liq_ice(
     Γₗ = FT(1) + (L_v / cp_air) * dqsldT
     Γᵢ = FT(1) + (L_subl / cp_air) * dqsidT
 
-    A_c_WBF = (q_sat.liq - q_sat.ice) / (ice.τ_relax * Γᵢ) * (1 + (L_subl / cp_air) * dqsldT)
+    A_c_WBF =
+        (q_sat.liq - q_sat.ice) / (ice.τ_relax * Γᵢ) * (1 + (L_subl / cp_air) * dqsldT)
     #A_c_WBF = 0
     e_sl = e / Sₗ # assuming this is ok but would like to double check
-    Sᵢ = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) / TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ
+    Sᵢ =
+        TD.saturation_vapor_pressure(tps, T, TD.Liquid()) /
+        TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ
     e_si = e / Sᵢ
 
     A_c_uplift_l = -(q_sat.liq * g * w * ρ_air) / (p_air - e_sl) + dqsldT * w * g / cp_air
@@ -192,10 +195,16 @@ function conv_q_vap_to_q_liq_ice(
     δ_0_i = q_v - q_sat.ice #(Sₗ-1)*q_sat.liq
 
     if type == "condensation"
-        cond_rate = A_c_l * τ / (liquid.τ_relax * Γₗ) + (δ_0_l - A_c_l * τ) * τ / (const_dt * liquid.τ_relax * Γₗ) * (FT(1) - exp(-const_dt / τ))
+        cond_rate =
+            A_c_l * τ / (liquid.τ_relax * Γₗ) +
+            (δ_0_l - A_c_l * τ) * τ / (const_dt * liquid.τ_relax * Γₗ) *
+            (FT(1) - exp(-const_dt / τ))
         return cond_rate
     elseif type == "deposition"
-        dep_rate = A_c_i * τ / (ice.τ_relax * Γᵢ) + (δ_0_i - A_c_i * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) * (FT(1) - exp(-const_dt / τ)) #+ (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
+        dep_rate =
+            A_c_i * τ / (ice.τ_relax * Γᵢ) +
+            (δ_0_i - A_c_i * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
+            (FT(1) - exp(-const_dt / τ)) #+ (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
         return dep_rate
     end
 

@@ -128,8 +128,8 @@ function parcel_model(dY, Y, p, t)
     dqᵥ_dt = -dqᵢ_dt - dqₗ_dt
 
     dSₗ_dt =
-        a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l -
-        (a2 + a4) * Sₗ * dqᵢ_dt_v2i - a5 * Sₗ * dqᵢ_dt_l2i
+        a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l - (a2 + a4) * Sₗ * dqᵢ_dt_v2i -
+        a5 * Sₗ * dqᵢ_dt_l2i
 
     dp_air_dt = -p_air * grav / R_air / T * w
 
@@ -244,8 +244,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.heterogeneous == "P3_het"
         imm_params = P3_het{FT}(pp.ips, pp.const_dt)
     elseif pp.heterogeneous == "Frostenberg_random"
-        imm_params =
-            Frostenberg_random{FT}(pp.ip, pp.sampling_interval, pp.const_dt)
+        imm_params = Frostenberg_random{FT}(pp.ip, pp.sampling_interval, pp.const_dt)
     elseif pp.heterogeneous == "Frostenberg_mean"
         imm_params = Frostenberg_mean{FT}(pp.ip, pp.const_dt)
     elseif pp.heterogeneous == "Frostenberg_stochastic"
@@ -275,7 +274,8 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.condensation_growth == "NonEq_Condensation_Simple_Morrison"
         ce_params = NonEqCondParamsSimple_Morrison{FT}(pp.tps, pp.liquid, pp.ice)
     elseif pp.condensation_growth == "NonEq_Condensation"
-        ce_params = NonEqCondParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
+        ce_params =
+            NonEqCondParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
     else
         throw("Unrecognized condensation growth mode")
     end

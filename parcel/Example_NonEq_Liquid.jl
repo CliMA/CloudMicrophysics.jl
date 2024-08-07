@@ -34,7 +34,7 @@ md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
 ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
 qᵥ = mv_v / (md_v + mv_v + ml_v)
-qₗ = ml_v / (md_v + mv_v + ml_v) 
+qₗ = ml_v / (md_v + mv_v + ml_v)
 qᵢ = FT(0)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 
@@ -72,7 +72,7 @@ for DSD in size_distribution_list
         condensation_growth = condensation_growth,
         const_dt = const_dt,
         w = w,
-        liquid = liquid#,
+        liquid = liquid,#,
         #ice = ice
     )
     # solve ODE
@@ -82,12 +82,7 @@ for DSD in size_distribution_list
     MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = DSD)
     MK.lines!(ax2, sol.t, sol[3, :])
     MK.lines!(ax3, sol.t, sol[5, :] * 1e3)
-    MK.lines!(
-        ax4,
-        sol.t,
-        (S_i.(tps, sol[3, :], sol[1, :]) .- 1)* 100.0,
-        label = DSD,
-    )
+    MK.lines!(ax4, sol.t, (S_i.(tps, sol[3, :], sol[1, :]) .- 1) * 100.0, label = DSD)
     MK.lines!(ax5, sol.t, sol[4, :] * 1e3)
     MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
 
@@ -125,4 +120,7 @@ MK.axislegend(
     position = :rb,
 )
 
-MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_temps/liquid_noneq_parcel_simple.svg", fig)
+MK.save(
+    "/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_temps/liquid_noneq_parcel_simple.svg",
+    fig,
+)

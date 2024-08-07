@@ -30,7 +30,7 @@ T₀ = FT(251)
 ln_INPC = FT(0)
 e_sat = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 Sₗ = FT(1)
-e = Sₗ*e_sat
+e = Sₗ * e_sat
 md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
 ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
@@ -85,7 +85,7 @@ for DSD in size_distribution_list
         deposition_growth = deposition_growth,
         const_dt = const_dt,
         w = w,
-        liquid = liquid#,
+        liquid = liquid,#,
         #ice = ice
     )
     # solve ODE
@@ -95,12 +95,7 @@ for DSD in size_distribution_list
     MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = DSD)
     MK.lines!(ax2, sol.t, sol[3, :])
     MK.lines!(ax3, sol.t, sol[5, :] * 1e3)
-    MK.lines!(
-        ax4,
-        sol.t,
-        (S_i.(tps, sol[3, :], sol[1, :]) .- 1)* 100.0,
-        label = DSD,
-    )
+    MK.lines!(ax4, sol.t, (S_i.(tps, sol[3, :], sol[1, :]) .- 1) * 100.0, label = DSD)
     MK.lines!(ax5, sol.t, sol[4, :] * 1e3)
     MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
 
@@ -117,12 +112,12 @@ for DSD in size_distribution_list
     # calculating the saturation vapor pressure from S:
     #e_test = sol_qᵥ.*sol_p .* (R_v/(R_v+R_d))
     q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
-    e_test = sol_qᵥ.*sol_p .* (TD.Parameters.R_v(tps)./TD.gas_constant_air.(tps, q))
+    e_test = sol_qᵥ .* sol_p .* (TD.Parameters.R_v(tps) ./ TD.gas_constant_air.(tps, q))
     #e_test = sol_qᵥ.*sol_p .* (TD.Parameters.R_v(tps)/(TD.Parameters.R_v(tps)+TD.Parameters.R_d(tps)))
     e_sat_fromS = e_test ./ sol[1, :]
 
     # calculating it from T:
-    e_sat_fromT = TD.saturation_vapor_pressure.(tps,sol_T,TD.Liquid())
+    e_sat_fromT = TD.saturation_vapor_pressure.(tps, sol_T, TD.Liquid())
 
     rel_error = (e_sat_fromT .- e_sat_fromS) ./ (e_sat_fromT)
 
