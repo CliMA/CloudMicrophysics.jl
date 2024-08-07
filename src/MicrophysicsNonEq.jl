@@ -28,6 +28,8 @@ deposition of cloud ice.
 τ_relax(p::CMP.CloudIce) = p.τ_relax
 
 """
+first simple formulation:
+
     conv_q_vap_to_q_liq_ice(liquid, q_sat, q)
     conv_q_vap_to_q_liq_ice(ice, q_sat, q)
 
@@ -39,6 +41,36 @@ Returns the cloud water tendency due to condensation and evaporation
 or cloud ice tendency due to sublimation and vapor deposition.
 The tendency is obtained assuming a relaxation to equilibrium with
 a constant timescale.
+
+second simple formulation:
+
+    conv_q_vap_to_q_liq_ice(tps, liquid, q_sat, q, T)
+    conv_q_vap_to_q_liq_ice(tps, ice, q_sat, q, T)
+
+- `tps` - thermodynamics Parameters
+- `liquid` or `ice` - a type for cloud water or ice
+- `q_sat` - PhasePartition of water vapor specific humidity at saturation (different than above!!)
+- `q` - current PhasePartition
+- `T` - temperature in Kelvin
+
+third complex formulation
+
+    conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt, "condensation")
+    conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt, "deposition")
+
+- `tps` - thermodynamics Parameters
+- `liquid` - a type for cloud water
+- `ice` - a type for cloud ice
+- `q_sat` - PhasePartition of water vapor specific humidity at saturation
+- `q` - current PhasePartition
+- `T` - temperature in Kelvin
+- `w` - vertical uplift velocity
+- `p_air` - air pressure
+- `e` - water vapor pressure
+- `ρ_air` - air density
+- `const_dt` - length of time step
+- `"condensation"` or `"deposition"` - type of process to calculate and output
+
 """
 function conv_q_vap_to_q_liq_ice(
     (; τ_relax)::CMP.CloudLiquid{FT},
