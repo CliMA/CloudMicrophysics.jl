@@ -34,7 +34,7 @@ md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
 ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
 qᵥ = mv_v / (md_v + mv_v + ml_v)
-qₗ = FT(0) #ml_v / (md_v + mv_v + ml_v) 
+qₗ = ml_v / (md_v + mv_v + ml_v) 
 qᵢ = FT(0)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 
@@ -62,6 +62,7 @@ ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
 ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
 ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
+ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
 #MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 #MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
@@ -98,6 +99,10 @@ for DSD in size_distribution_list
     sol_qᵥ = sol[4, :]
     sol_qₗ = sol[5, :]
     sol_qᵢ = sol[6, :]
+
+    int_energy = TD.internal_energy.(tps, sol_T, q)
+    MK.lines!(ax7, sol.t, int_energy)
+
     local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
     local ρₐ = TD.air_density.(tps, ts)

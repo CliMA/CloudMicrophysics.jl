@@ -4,10 +4,8 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import ClimaParams as CP
-
-include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
-
 FT = Float32
+include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -59,6 +57,7 @@ ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
 ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
 ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
+ax6 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
 MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
 MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
@@ -86,9 +85,14 @@ for DSD in liq_size_distribution_list
     sol_qᵥ = sol[4, :]
     sol_qₗ = sol[5, :]
     sol_qᵢ = sol[6, :]
+
     local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
     local ρₐ = TD.air_density.(tps, ts)
+
+    int_energy = TD.internal_energy.(tps, sol_T, q)
+    MK.lines!(ax6, sol.t, int_energy)
+
     # Compute the mean particle size based on the distribution
     distr = sol.prob.p.liq_distr
     moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ)

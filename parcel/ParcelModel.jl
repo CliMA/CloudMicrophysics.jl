@@ -75,16 +75,6 @@ function parcel_model(dY, Y, p, t)
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     ts = TD.PhaseNonEquil_pTq(tps, p_air, T, q)
 
-    #q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
-    e_test = qᵥ*p_air * (TD.Parameters.R_v(tps)/TD.gas_constant_air(tps, q))
-    #e_test = sol_qᵥ.*sol_p .* (TD.Parameters.R_v(tps)/(TD.Parameters.R_v(tps)+TD.Parameters.R_d(tps)))
-    e_sat_fromS = e_test / Sₗ
-
-    # calculating it from T:
-    e_sat_fromT = TD.saturation_vapor_pressure(tps,T,TD.Liquid())
-
-    #@info("", e_sat_fromT, e_sat_fromS, T, Sₗ)
-
     # Constants and variables that depend on the moisture content
     R_air = TD.gas_constant_air(tps, q)
     cp_air = TD.cp_m(tps, q)
@@ -280,8 +270,10 @@ function run_parcel(IC, t_0, t_end, pp)
         ce_params = Empty{FT}()
     elseif pp.condensation_growth == "Condensation"
         ce_params = CondParams{FT}(pp.aps, pp.tps)
-    elseif pp.condensation_growth == "NonEq_Condensation_Simple"
-        ce_params = NonEqCondParamsSimple{FT}(pp.tps, pp.liquid)
+    elseif pp.condensation_growth == "NonEq_Condensation_Simple_Anna"
+        ce_params = NonEqCondParamsSimple_Anna{FT}(pp.tps, pp.liquid)
+    elseif pp.condensation_growth == "NonEq_Condensation_Simple_Morrison"
+        ce_params = NonEqCondParamsSimple_Morrison{FT}(pp.tps, pp.liquid, pp.ice)
     elseif pp.condensation_growth == "NonEq_Condensation"
         ce_params = NonEqCondParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
     else
@@ -293,8 +285,10 @@ function run_parcel(IC, t_0, t_end, pp)
         ds_params = Empty{FT}()
     elseif pp.deposition_growth == "Deposition"
         ds_params = DepParams{FT}(pp.aps, pp.tps)
-    elseif pp.deposition_growth == "NonEq_Deposition_Simple"
-        ds_params = NonEqDepParamsSimple{FT}(pp.tps, pp.ice)
+    elseif pp.deposition_growth == "NonEq_Deposition_Simple_Anna"
+        ds_params = NonEqDepParamsSimple_Anna{FT}(pp.tps, pp.ice)
+    elseif pp.deposition_growth == "NonEq_Deposition_Simple_Morrison"
+        ds_params = NonEqDepParamsSimple_Morrison{FT}(pp.tps, pp.liquid, pp.ice)
     elseif pp.deposition_growth == "NonEq_Deposition"
         ds_params = NonEqDepParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
     else

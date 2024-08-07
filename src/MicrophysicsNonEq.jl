@@ -125,36 +125,21 @@ function conv_q_vap_to_q_liq_ice(
     type::String,
 ) where {FT}
 
-    # going to need to either change this function to have ice functionality or do something else?
-
-    # (might want to change the name of this function at some point)
-    # might also want to make turn these parameters into a struct or something
-    # implementing this -- first the simplest form that
-    # uses the assumption that dqs/dT = 1 and sets A_c = 1
-    # and currently this is in specific humidity, but it technically should
-    # be converted to mixing ratio
-
     cp_air = TD.cp_m(tps, q)
     L_subl = TD.latent_heat_sublim(tps, T)
     L_v = TD.latent_heat_vapor(tps, T)
     g = TD.Parameters.grav(tps)
 
-    # e_int = TD.internal_energy(tps,T)
-
     nonequil_phase = TD.PhaseNonEquil # 
     λ = TD.liquid_fraction(tps, T, nonequil_phase, q)
     L = TD.weighted_latent_heat(tps, T, λ)
 
+    # a bit unsure that this is the correct way to calculate this
     dqsldT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.liq,L)
-
-    dqsidT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.ice,L) # just changing the phase? is that enough?
-    #FT(1) # i dont see anything in thermo to calculate this? might need to do myself
-    # ask Amy
+    dqsidT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.ice,L)
 
     Γₗ = FT(1) + (L_v/cp_air)*dqsldT
     Γᵢ = FT(1) + (L_subl/cp_air)*dqsidT
-
-    #A_c = FT(1) # i need to actually make this into something
 
     A_c_WBF = (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)*(1+(L_subl/cp_air)*dqsldT)
     #A_c_WBF = 0
@@ -169,51 +154,19 @@ function conv_q_vap_to_q_liq_ice(
     A_c_i = A_c_uplift_i + A_c_WBF
     
     τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
-    
-    # this does need to be mixing ratio instead -- double check this calc
-    #q.tot - q.liq -q.ice - q_sat.liq
-    #δ_0 = (Sₗ-1)*q_sat.liq
+
     q_v = q.tot - q.liq - q.ice
     δ_0_l = q_v - q_sat.liq #(Sₗ-1)*q_sat.liq
     δ_0_i = q_v - q_sat.ice #(Sₗ-1)*q_sat.liq
 
-    @info("", q_v, q_sat.liq, q_sat.ice, δ_0_l, δ_0_i)
-    # just doing a quick hacky version of calculating S_i this way -- not entirely sure
-    # taken from parcel common
-
-
-    #@info("",A_c_uplift, A_c_WBF, A_c, e_s, e_si, e)
-    #@info("", ice.τ_relax, liquid.τ_relax)
-
-
-    # DONT DO THIS -- CALCULATE DQDT INSTEAD.
-
     if type == "condensation"
         cond_rate = A_c_l * τ/(liquid.τ_relax * Γₗ) + (δ_0_l - A_c_l*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
-        #term1 = A_c * τ/(liquid.τ_relax * Γₗ)
-        #term2 = (δ_0 - A_c*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
-        @info("",cond_rate)#, term1, term2, q.tot-q_sat.liq)
         return cond_rate
     elseif type == "deposition"
         dep_rate = A_c_i * τ/(ice.τ_relax * Γᵢ) + (δ_0_i - A_c_i*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) #+ (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
-        #term1 = A_c * τ/(ice.τ_relax * Γᵢ)
-        #term2 = (δ_0 - A_c*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ))
-        #term3 = (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
-        #avg_δ = A_c * τ/ + (δ_0 - A_c*τ)*τ/(const_dt)*(FT(1) - exp(- const_dt/τ))
-        #@info("",dep_rate, term1, term2, term3, avg_δ, q.tot-q_sat.ice, q_sat.ice)
-        @info("",dep_rate)# - A_c*τ, τ/(const_dt*ice.τ_relax*Γᵢ), (FT(1) - exp(- const_dt/τ)))
-        #@info("", τ)
         return dep_rate
     end
 
-    # solving for new Sl after timestep delta t:
-    #Sₗ = (1/q_sat.liq)*() + 1
-
-    #Sᵢ = (1/q_sat.ice)*() + 1
-
-    # a question -- is this Sl or total S?
-
-    #return Sₗ, Sᵢ
 end
 
 end #module MicrophysicsNonEq.jl
