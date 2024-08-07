@@ -22,12 +22,7 @@ function deposition_nucleation(params::MohlerAF, state, dY)
 
     AF =
         Sᵢ >= ips.deposition.Sᵢ_max ? FT(0) :
-        AF = CMI_het.dust_activated_number_fraction(
-            aerosol,
-            ips.deposition,
-            Sᵢ,
-            T,
-        )
+        AF = CMI_het.dust_activated_number_fraction(aerosol, ips.deposition, Sᵢ, T)
     return max(FT(0), AF * Nₐ - Nᵢ) / const_dt
 end
 
@@ -42,14 +37,7 @@ function deposition_nucleation(params::MohlerRate, state, dY)
         @warn("Supersaturation exceeds Sᵢ_max. No dust will be activated.")
         dNi_dt = FT(0)
     else
-        dNi_dt = CMI_het.MohlerDepositionRate(
-            aerosol,
-            ips.deposition,
-            Sᵢ,
-            T,
-            dSᵢdt,
-            Nₐ,
-        )
+        dNi_dt = CMI_het.MohlerDepositionRate(aerosol, ips.deposition, Sᵢ, T, dSᵢdt, Nₐ)
     end
 
     return min(max(dNi_dt, FT(0)), Nₐ / const_dt)
@@ -252,7 +240,21 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     R_air = TD.gas_constant_air(tps, q)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
-    dqₗ_dt_ce = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt, "condensation")
+    dqₗ_dt_ce = MNE.conv_q_vap_to_q_liq_ice(
+        tps,
+        liquid,
+        ice,
+        q_sat,
+        q,
+        T,
+        Sₗ,
+        w,
+        p_air,
+        e,
+        ρ_air,
+        const_dt,
+        "condensation",
+    )
 
     return dqₗ_dt_ce
 end
@@ -323,7 +325,21 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     R_air = TD.gas_constant_air(tps, q)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
-    dqᵢ_dt_ds = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, ice, q_sat, q, T, Sₗ, w, p_air, e, ρ_air, const_dt, "deposition")
+    dqᵢ_dt_ds = MNE.conv_q_vap_to_q_liq_ice(
+        tps,
+        liquid,
+        ice,
+        q_sat,
+        q,
+        T,
+        Sₗ,
+        w,
+        p_air,
+        e,
+        ρ_air,
+        const_dt,
+        "deposition",
+    )
 
     return dqᵢ_dt_ds
 end
