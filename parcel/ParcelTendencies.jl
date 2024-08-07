@@ -231,7 +231,7 @@ function condensation(params::NonEqCondParamsSimple_Morrison, PSD, state, ρ_air
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
-    cond_rate, dep_rate = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, q_sat, q, T)
+    cond_rate = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, q_sat, q, T)
     
     return cond_rate
 end
@@ -310,7 +310,7 @@ end
 
 function deposition(params::NonEqDepParams,PSD, state, ρ_air)
     FT = eltype(state)
-    (; Sₗ, T, p_air, qₗ, qᵥ, qᵢ, Nᵢ) = state
+    (; Sₗ, T, p_air, qₗ, qᵥ, qᵢ) = state
     
     (; aps, tps, liquid, ice, w, const_dt) = params
 
