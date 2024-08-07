@@ -104,12 +104,12 @@ function conv_q_vap_to_q_liq_ice(
     L = TD.weighted_latent_heat(tps, T, λ)
 
     # honestly both of these i dont like
-    dqsldT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.liq,L)
+    dqsldT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.liq, L)
 
-    Γₗ = FT(1) + (L_v/cp_air)*dqsldT
-    
+    Γₗ = FT(1) + (L_v / cp_air) * dqsldT
+
     q_v = q.tot - q.liq - q.ice
-    cond_rate = (q_v - q_sat.liq) / liquid.τ_relax*Γₗ
+    cond_rate = (q_v - q_sat.liq) / liquid.τ_relax * Γₗ
 
     return cond_rate
 end
@@ -131,12 +131,12 @@ function conv_q_vap_to_q_liq_ice(
     L = TD.weighted_latent_heat(tps, T, λ)
 
     # oh lol this is probably still wrong -- probably need to think more abt it
-    dqsidT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.ice,L)
+    dqsidT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.ice, L)
 
-    Γᵢ = FT(1) + (L_subl/cp_air)*dqsidT
-    
+    Γᵢ = FT(1) + (L_subl / cp_air) * dqsidT
+
     q_v = q.tot - q.liq - q.ice
-    dep_rate = (q_v - q_sat.ice) / ice.τ_relax*Γᵢ
+    dep_rate = (q_v - q_sat.ice) / ice.τ_relax * Γᵢ
 
     return dep_rate
 end
@@ -153,7 +153,7 @@ function conv_q_vap_to_q_liq_ice(
     p_air::FT, # air pressure
     e::FT, # vapor pressure
     ρ_air::FT, # air density
-    const_dt:: FT,
+    const_dt::FT,
     type::String,
 ) where {FT}
 
@@ -167,35 +167,35 @@ function conv_q_vap_to_q_liq_ice(
     L = TD.weighted_latent_heat(tps, T, λ)
 
     # a bit unsure that this is the correct way to calculate this
-    dqsldT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.liq,L)
-    dqsidT = TD.∂q_vap_sat_∂T(tps,λ,T,q_sat.ice,L)
+    dqsldT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.liq, L)
+    dqsidT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.ice, L)
 
-    Γₗ = FT(1) + (L_v/cp_air)*dqsldT
-    Γᵢ = FT(1) + (L_subl/cp_air)*dqsidT
+    Γₗ = FT(1) + (L_v / cp_air) * dqsldT
+    Γᵢ = FT(1) + (L_subl / cp_air) * dqsidT
 
-    A_c_WBF = (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)*(1+(L_subl/cp_air)*dqsldT)
+    A_c_WBF = (q_sat.liq - q_sat.ice) / (ice.τ_relax * Γᵢ) * (1 + (L_subl / cp_air) * dqsldT)
     #A_c_WBF = 0
-    e_sl = e/Sₗ # assuming this is ok but would like to double check
-    Sᵢ = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) / TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ 
-    e_si = e/Sᵢ
+    e_sl = e / Sₗ # assuming this is ok but would like to double check
+    Sᵢ = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) / TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ
+    e_si = e / Sᵢ
 
-    A_c_uplift_l = -(q_sat.liq * g * w * ρ_air)/(p_air-e_sl) + dqsldT*w*g/cp_air
-    A_c_uplift_i = -(q_sat.ice * g * w * ρ_air)/(p_air-e_si) + dqsidT*w*g/cp_air
+    A_c_uplift_l = -(q_sat.liq * g * w * ρ_air) / (p_air - e_sl) + dqsldT * w * g / cp_air
+    A_c_uplift_i = -(q_sat.ice * g * w * ρ_air) / (p_air - e_si) + dqsidT * w * g / cp_air
 
-    A_c_l =  A_c_uplift_l - A_c_WBF
+    A_c_l = A_c_uplift_l - A_c_WBF
     A_c_i = A_c_uplift_i + A_c_WBF
-    
-    τ = (liquid.τ_relax^(-1) + (1 + (L_subl/cp_air))*ice.τ_relax^(-1) / Γᵢ)^(-1)
+
+    τ = (liquid.τ_relax^(-1) + (1 + (L_subl / cp_air)) * ice.τ_relax^(-1) / Γᵢ)^(-1)
 
     q_v = q.tot - q.liq - q.ice
     δ_0_l = q_v - q_sat.liq #(Sₗ-1)*q_sat.liq
     δ_0_i = q_v - q_sat.ice #(Sₗ-1)*q_sat.liq
 
     if type == "condensation"
-        cond_rate = A_c_l * τ/(liquid.τ_relax * Γₗ) + (δ_0_l - A_c_l*τ)*τ/(const_dt*liquid.τ_relax*Γₗ)*(FT(1) - exp(- const_dt/τ))
+        cond_rate = A_c_l * τ / (liquid.τ_relax * Γₗ) + (δ_0_l - A_c_l * τ) * τ / (const_dt * liquid.τ_relax * Γₗ) * (FT(1) - exp(-const_dt / τ))
         return cond_rate
     elseif type == "deposition"
-        dep_rate = A_c_i * τ/(ice.τ_relax * Γᵢ) + (δ_0_i - A_c_i*τ)*τ/(const_dt*ice.τ_relax*Γᵢ)*(FT(1) - exp(- const_dt/τ)) #+ (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
+        dep_rate = A_c_i * τ / (ice.τ_relax * Γᵢ) + (δ_0_i - A_c_i * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) * (FT(1) - exp(-const_dt / τ)) #+ (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
         return dep_rate
     end
 
