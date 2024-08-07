@@ -3,6 +3,7 @@ import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
 import CloudMicrophysics.HomIceNucleation as CMI_hom
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.MicrophysicsNonEq as MNE
 import Distributions as DS
 
 function deposition_nucleation(::Empty, state, dY)
@@ -21,12 +22,7 @@ function deposition_nucleation(params::MohlerAF, state, dY)
 
     AF =
         Sᵢ >= ips.deposition.Sᵢ_max ? FT(0) :
-        AF = CMI_het.dust_activated_number_fraction(
-            aerosol,
-            ips.deposition,
-            Sᵢ,
-            T,
-        )
+        AF = CMI_het.dust_activated_number_fraction(aerosol, ips.deposition, Sᵢ, T)
     return max(FT(0), AF * Nₐ - Nᵢ) / const_dt
 end
 
@@ -41,14 +37,7 @@ function deposition_nucleation(params::MohlerRate, state, dY)
         @warn("Supersaturation exceeds Sᵢ_max. No dust will be activated.")
         dNi_dt = FT(0)
     else
-        dNi_dt = CMI_het.MohlerDepositionRate(
-            aerosol,
-            ips.deposition,
-            Sᵢ,
-            T,
-            dSᵢdt,
-            Nₐ,
-        )
+        dNi_dt = CMI_het.MohlerDepositionRate(aerosol, ips.deposition, Sᵢ, T, dSᵢdt, Nₐ)
     end
 
     return min(max(dNi_dt, FT(0)), Nₐ / const_dt)
@@ -195,6 +184,81 @@ function condensation(params::CondParams, PSD_liq, state, ρ_air)
     return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD_liq.r * Nₗ
 end
 
+function condensation(params::NonEqCondParamsSimple_Anna, PSD, state, ρ_air)
+
+    FT = eltype(state)
+    (; Sₗ, T, qₗ, qᵥ, qᵢ) = state
+    (; tps, liquid) = params
+
+    q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0) # double check
+
+    #q_sat_liq = max(TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid()) - qᵥ, 0)
+    q_sat = TD.PhasePartition(FT(0), q_sat_liq, FT(0))
+
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+
+    new_q = MNE.conv_q_vap_to_q_liq_ice(liquid, q_sat, q)
+
+    return new_q
+end
+
+function condensation(params::NonEqCondParamsSimple_Morrison, PSD, state, ρ_air)
+    FT = eltype(state)
+    (; T, Sₗ, qₗ, qᵥ, qᵢ) = state
+
+    (; tps, liquid, ice) = params
+
+    q_sat_liq = qₗ / Sₗ
+    Sᵢ = S_i(tps, T, Sₗ) # realizing this is probably not ideal
+    q_sat_ice = qᵢ / Sᵢ
+
+    q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
+    q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
+
+    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+
+    cond_rate = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, q_sat, q, T)
+
+    return cond_rate
+end
+
+function condensation(params::NonEqCondParams, PSD, state, ρ_air)
+
+    FT = eltype(state)
+    (; Sₗ, T, p_air, qₗ, qᵥ, qᵢ) = state
+
+    (; aps, tps, liquid, ice, w, const_dt) = params
+
+    q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
+    q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
+    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    Rᵥ = TD.Parameters.R_v(tps)
+    R_air = TD.gas_constant_air(tps, q)
+    e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
+
+    dqₗ_dt_ce = MNE.conv_q_vap_to_q_liq_ice(
+        tps,
+        liquid,
+        ice,
+        q_sat,
+        q,
+        T,
+        Sₗ,
+        w,
+        p_air,
+        e,
+        ρ_air,
+        const_dt,
+        "condensation",
+    )
+
+    return dqₗ_dt_ce
+end
+
 function deposition(::Empty, PSD_ice, state, ρ_air)
     FT = eltype(state)
     return FT(0)
@@ -207,4 +271,75 @@ function deposition(params::DepParams, PSD_ice, state, ρ_air)
     Sᵢ = ξ(tps, T) * Sₗ
     Gᵢ = CMO.G_func(aps, tps, T, TD.Ice())
     return 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD_ice.r * Nᵢ
+end
+
+function deposition(params::NonEqDepParamsSimple_Anna, PSD, state, ρ_air)
+    FT = eltype(state)
+    (; T, Sₗ, qₗ, qᵥ, qᵢ) = state
+
+    (; tps, ice) = params
+
+    Sᵢ = S_i(tps, T, Sₗ) # realizing this is probably not ideal
+    q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
+    #q_sat_ice = TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Ice())
+
+    q_sat = TD.PhasePartition(FT(0), FT(0), q_sat_ice)
+
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+
+    new_q = MNE.conv_q_vap_to_q_liq_ice(ice, q_sat, q)
+
+    return new_q
+end
+
+function deposition(params::NonEqDepParamsSimple_Morrison, PSD, state, ρ_air)
+    FT = eltype(state)
+    (; T, qₗ, qᵥ, qᵢ) = state
+
+    (; tps, liquid, ice) = params
+
+    q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
+    q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
+
+    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+
+    dep_rate = MNE.conv_q_vap_to_q_liq_ice(tps, ice, q_sat, q, T)
+
+    return dep_rate
+end
+
+function deposition(params::NonEqDepParams, PSD, state, ρ_air)
+    FT = eltype(state)
+    (; Sₗ, T, p_air, qₗ, qᵥ, qᵢ) = state
+
+    (; aps, tps, liquid, ice, w, const_dt) = params
+
+    q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
+    q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
+    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+
+    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    Rᵥ = TD.Parameters.R_v(tps)
+    R_air = TD.gas_constant_air(tps, q)
+    e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
+
+    dqᵢ_dt_ds = MNE.conv_q_vap_to_q_liq_ice(
+        tps,
+        liquid,
+        ice,
+        q_sat,
+        q,
+        T,
+        Sₗ,
+        w,
+        p_air,
+        e,
+        ρ_air,
+        const_dt,
+        "deposition",
+    )
+
+    return dqᵢ_dt_ds
 end

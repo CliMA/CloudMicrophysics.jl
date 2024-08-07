@@ -19,6 +19,8 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     aps = CMP.AirProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
     ips = CMP.IceNucleationParameters(FT)
+    liquid = CMP.CloudLiquid(FT)
+    ice = CMP.CloudIce(FT)
     H₂SO₄ps = CMP.H2SO4SolutionParameters(FT)
     const_dt = 1
     w = FT(1)
@@ -68,6 +70,7 @@ function parcel_model(dY, Y, p, t)
 
     # Get the state values
     (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, t) = state
+
     # Get thermodynamic parameters, phase partition and create thermo state.
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     ts = TD.PhaseNonEquil_pTq(tps, p_air, T, q)
@@ -125,8 +128,8 @@ function parcel_model(dY, Y, p, t)
     dqᵥ_dt = -dqᵢ_dt - dqₗ_dt
 
     dSₗ_dt =
-        a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l -
-        (a2 + a4) * Sₗ * dqᵢ_dt_v2i - a5 * Sₗ * dqᵢ_dt_l2i
+        a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l - (a2 + a4) * Sₗ * dqᵢ_dt_v2i -
+        a5 * Sₗ * dqᵢ_dt_l2i
 
     dp_air_dt = -p_air * grav / R_air / T * w
 
@@ -135,6 +138,8 @@ function parcel_model(dY, Y, p, t)
         L_vap / cp_air * dqₗ_dt_v2l +
         L_fus / cp_air * dqᵢ_dt_l2i +
         L_subl / cp_air * dqᵢ_dt_v2i
+
+    #@info("", dT_dt, dqᵥ_dt, dqₗ_dt, dqᵢ_dt, dNᵢ_dt, dNₐ_dt, dNₗ_dt, dSₗ_dt, PSD, dp_air_dt)
 
     # Set tendencies
     dY[1] = dSₗ_dt      # saturation ratio over liquid water
@@ -239,8 +244,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.heterogeneous == "P3_het"
         imm_params = P3_het{FT}(pp.ips, pp.const_dt)
     elseif pp.heterogeneous == "Frostenberg_random"
-        imm_params =
-            Frostenberg_random{FT}(pp.ip, pp.sampling_interval, pp.const_dt)
+        imm_params = Frostenberg_random{FT}(pp.ip, pp.sampling_interval, pp.const_dt)
     elseif pp.heterogeneous == "Frostenberg_mean"
         imm_params = Frostenberg_mean{FT}(pp.ip, pp.const_dt)
     elseif pp.heterogeneous == "Frostenberg_stochastic"
@@ -265,6 +269,13 @@ function run_parcel(IC, t_0, t_end, pp)
         ce_params = Empty{FT}()
     elseif pp.condensation_growth == "Condensation"
         ce_params = CondParams{FT}(pp.aps, pp.tps)
+    elseif pp.condensation_growth == "NonEq_Condensation_Simple_Anna"
+        ce_params = NonEqCondParamsSimple_Anna{FT}(pp.tps, pp.liquid)
+    elseif pp.condensation_growth == "NonEq_Condensation_Simple_Morrison"
+        ce_params = NonEqCondParamsSimple_Morrison{FT}(pp.tps, pp.liquid, pp.ice)
+    elseif pp.condensation_growth == "NonEq_Condensation"
+        ce_params =
+            NonEqCondParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
     else
         throw("Unrecognized condensation growth mode")
     end
@@ -274,6 +285,12 @@ function run_parcel(IC, t_0, t_end, pp)
         ds_params = Empty{FT}()
     elseif pp.deposition_growth == "Deposition"
         ds_params = DepParams{FT}(pp.aps, pp.tps)
+    elseif pp.deposition_growth == "NonEq_Deposition_Simple_Anna"
+        ds_params = NonEqDepParamsSimple_Anna{FT}(pp.tps, pp.ice)
+    elseif pp.deposition_growth == "NonEq_Deposition_Simple_Morrison"
+        ds_params = NonEqDepParamsSimple_Morrison{FT}(pp.tps, pp.liquid, pp.ice)
+    elseif pp.deposition_growth == "NonEq_Deposition"
+        ds_params = NonEqDepParams{FT}(pp.aps, pp.tps, pp.liquid, pp.ice, pp.w, pp.const_dt)
     else
         throw("Unrecognized deposition growth mode")
     end

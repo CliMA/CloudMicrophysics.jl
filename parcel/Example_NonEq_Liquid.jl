@@ -4,12 +4,16 @@ import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import ClimaParams as CP
+
 FT = Float32
+
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
+liquid = CMP.CloudLiquid(FT)
+ice = CMP.CloudIce(FT)
 # Constants
 ρₗ = wps.ρw
 ρᵢ = wps.ρi
@@ -38,8 +42,8 @@ IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 w = FT(10)                                 # updraft speed
 const_dt = FT(0.5)                         # model timestep
 t_max = FT(20)
-liq_size_distribution_list = ["Monodisperse", "Gamma"]
-condensation_growth = "Condensation"
+size_distribution_list = ["Monodisperse", "Gamma"]
+condensation_growth = "NonEq_Condensation_Simple"
 
 # Data from Rogers(1975) Figure 1
 # https://www.tandfonline.com/doi/abs/10.1080/00046973.1975.9648397
@@ -52,21 +56,24 @@ Rogers_radius = [8.0, 8.08, 8.26, 8.91, 9.26, 9.68]
 
 # Setup the plots
 fig = MK.Figure(size = (800, 600))
-ax1 = MK.Axis(fig[1, 1], ylabel = "Supersaturation [%]")
-ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
-ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
-ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
-ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
-ax6 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
-MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
-MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
+ax1 = MK.Axis(fig[1, 1], ylabel = "Liquid Supersaturation [%]")
+ax2 = MK.Axis(fig[2, 1], ylabel = "Temperature [K]")
+ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
+ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
+ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
+ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
+ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
+#MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
+#MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
-for DSD in liq_size_distribution_list
+for DSD in size_distribution_list
     local params = parcel_params{FT}(
-        liq_size_distribution = DSD,
+        size_distribution = DSD,
         condensation_growth = condensation_growth,
         const_dt = const_dt,
         w = w,
+        liquid = liquid,#,
+        #ice = ice
     )
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
@@ -74,8 +81,10 @@ for DSD in liq_size_distribution_list
     # Plot results
     MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = DSD)
     MK.lines!(ax2, sol.t, sol[3, :])
-    MK.lines!(ax3, sol.t, sol[4, :] * 1e3)
-    MK.lines!(ax4, sol.t, sol[5, :] * 1e3)
+    MK.lines!(ax3, sol.t, sol[5, :] * 1e3)
+    MK.lines!(ax4, sol.t, (S_i.(tps, sol[3, :], sol[1, :]) .- 1) * 100.0, label = DSD)
+    MK.lines!(ax5, sol.t, sol[4, :] * 1e3)
+    MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
 
     sol_Nₗ = sol[8, :]
     sol_Nᵢ = sol[9, :]
@@ -86,21 +95,20 @@ for DSD in liq_size_distribution_list
     sol_qₗ = sol[5, :]
     sol_qᵢ = sol[6, :]
 
+    int_energy = TD.internal_energy.(tps, sol_T, q)
+    MK.lines!(ax7, sol.t, int_energy)
+
     local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
     local ρₐ = TD.air_density.(tps, ts)
-
-    int_energy = TD.internal_energy.(tps, sol_T, q)
-    MK.lines!(ax6, sol.t, int_energy)
-
     # Compute the mean particle size based on the distribution
-    distr = sol.prob.p.liq_distr
-    moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ)
-    local r = similar(sol_T)
+    distr = sol.prob.p.distr
+    moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ, sol_qᵢ, Nᵢ, ρᵢ)
+    local rₗ = similar(sol_T)
     for it in range(1, length(sol_T))
-        r[it] = moms[it].r
+        rₗ[it] = moms[it].rₗ
     end
-    MK.lines!(ax5, sol.t, r * 1e6)
+    #MK.lines!(ax5, sol.t, rₗ * 1e6)
 end
 
 MK.axislegend(
@@ -112,4 +120,7 @@ MK.axislegend(
     position = :rb,
 )
 
-MK.save("liquid_only_parcel.svg", fig)
+MK.save(
+    "/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_temps/liquid_noneq_parcel_simple.svg",
+    fig,
+)
