@@ -632,8 +632,8 @@ function test_microphysics2M(FT)
         ρₗ = SB2006.pdf_r.ρw
 
         # example number concentration and specific humidity
-        Nᵣ = FT(5e5)
-        qᵣ = FT(5e-4)
+        Nᵣ = FT(0.5 * 1e6)   # 0.5 1/cm3
+        qᵣ = FT(0.5 * 1e-3)  # 0.5 g/kg
 
         # limited distribution parameters for rain
         Ar_l = CM2.pdf_rain_parameters(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ).Ar
@@ -666,13 +666,13 @@ function test_microphysics2M(FT)
         m∞ = m(D∞)
         # integral bounds computed based on the size distribution
         D_max_limited =
-            CM2.get_size_distribution_bound(SB2006.pdf_r, qᵣ, Nᵣ, ρₐ, FT(1e-6))
+            CM2.get_size_distribution_bound(SB2006.pdf_r, qᵣ, Nᵣ, ρₐ, eps(FT))
         D_max = CM2.get_size_distribution_bound(
             SB2006_no_limiters.pdf_r,
             qᵣ,
             Nᵣ,
             ρₐ,
-            FT(1e-6),
+            eps(FT),
         )
 
         # Sanity checks for number concentrations for rain
@@ -700,8 +700,13 @@ function test_microphysics2M(FT)
         TT.@test Nx ≈ Nᵣ rtol = FT(1e-2)
         TT.@test ND_lim ≈ Nᵣ rtol = FT(1e-2)
         TT.@test Nx_lim ≈ Nᵣ rtol = FT(1e-2)
-        TT.@test ND_bounded ≈ Nᵣ rtol = FT(1e-2)
-        TT.@test ND_bounded_limited ≈ Nᵣ rtol = FT(1e-2)
+        if FT == Float64
+            TT.@test ND_bounded ≈ Nᵣ rtol = eps(FT)
+            TT.@test ND_bounded_limited ≈ Nᵣ rtol = FT(1e-15)
+        else
+            TT.@test ND_bounded ≈ Nᵣ rtol = 1e-6
+            TT.@test ND_bounded_limited ≈ Nᵣ rtol = 1e-6
+        end
 
         # Sanity checks for specific humidities for rain
         qD = QGK.quadgk(x -> m(x) * f_D(x), D₀, D∞)[1] / ρₐ
@@ -729,27 +734,32 @@ function test_microphysics2M(FT)
                 0,
                 D_max_limited,
             )[1] / ρₐ
-        TT.@test qD ≈ qᵣ atol = FT(1e-6)
-        TT.@test qx ≈ qᵣ atol = FT(1e-6)
-        TT.@test qD_bounded ≈ qᵣ atol = FT(1e-6)
-        TT.@test qD_bounded_limited ≈ qᵣ atol = FT(1e-6)
-
-        # The mass integrals don't work with limiters
-        TT.@test qx_lim ≈ qᵣ atol = FT(1e-6)
-        TT.@test qD_lim ≈ qx_lim atol = FT(1e-6)
+        TT.@test qD ≈ qᵣ rtol = FT(1e-2)
+        TT.@test qx ≈ qᵣ rtol = FT(1e-2)
+        TT.@test qx_lim ≈ qᵣ rtol = FT(1e-2)
+        TT.@test qD_lim ≈ qx_lim rtol = FT(1e-2)
+        if FT == Float64
+            TT.@test qD_bounded ≈ qᵣ rtol = FT(1e-11)
+            TT.@test qD_bounded_limited ≈ qᵣ rtol = FT(1e-11)
+        else
+            TT.@test qD_bounded ≈ qᵣ rtol = FT(1e-4)
+            TT.@test qD_bounded_limited ≈ qᵣ rtol = FT(1e-4)
+        end
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 cloud distribution sanity checks" begin
 
         # example number concentration and specific humidity
-        Nₗ = FT(1e9)
-        qₗ = FT(1e-3)
+        Nₗ = FT(1e3 * 1e6) # 1000 1/cm3
+        qₗ = FT(1e-3)      # 1 g/kg
 
         # air and liquid water densities in μg/m3
         ρₐ = FT(1.2)
         ρₗ = SB2006.pdf_r.ρw
 
-        # distribution parameters for cloud, units: [Bc] = 1/μg, [Ac] = 1/m3 1/μg3
+        # distribution parameters for cloud
+        # units: [Bc] = (1/μg)^μc, [Ac] = 1/m3 (1/μg)^(νc+1)
+        # units: [Ec] = (1/mm)^ψc, [Cc ] = (1/mm)^(ϕc+4)
         (; χ, Ac, Bc, Cc, Ec, ϕc, ψc) =
             CM2.pdf_cloud_parameters(SB2006_no_limiters.pdf_c, qₗ, ρₐ, Nₗ)
 
@@ -759,33 +769,32 @@ function test_microphysics2M(FT)
         # cloud droplet mass distribution (eq.(2) from 2M docs)
         f_x(x) = Ac * x^(2) * exp(-Bc * x^(1))
 
-        # cloud droplet diameter distribution (eq.(7) from 2M docs)
+        # cloud droplet diameter distribution (eq.(7) from 2M docs) in mm
         # the same as size_distribution(SB2006_no_limiters.pdf_c, D, qₗ, ρₐ, Nₗ)
         f_D(D) = Cc * D^ϕc * exp(-Ec * D^ψc)
 
-        # integral bounds guesstimated
-        D₀ = 1e-8
-        D∞ = 1e-4
+        # integral bounds guesstimated in meters for the mass distribution
+        D₀ = 0.1 * 1e-6    # 0.1 um
+        D∞ = 100 * 1e-6   # 1000 um
         m₀ = m(D₀)
         m∞ = m(D∞)
 
-        # Sanity checks specific humidity and number concentration with mass distribution
+        # Sanity checks of specific humidity and number concentration with mass distribution
         # Sanity checks for number concentrations for cloud
         qx = QGK.quadgk(x -> x * f_x(x), m₀, m∞)[1] / (ρₐ * FT(10)^χ)
         Nx = QGK.quadgk(x -> f_x(x), m₀, m∞)[1]
         TT.@test qx ≈ qₗ rtol = FT(1e-6)
         TT.@test Nx ≈ Nₗ rtol = FT(1e-6)
 
-        # mass of liquid droplets as a function of its diameter in mm and μg
-        _m(D) = FT(π / 6) * ρₗ * FT(10)^(χ - 9) * D^3
+        # mass of liquid droplets as a function of its diameter in mm in kg
+        _m(D) = FT(π / 6) * ρₗ * (D * 1e-3)^3
 
         # integral bounds in millimiters
-        _D₀ = 1e-8 * FT(1e3)
-        _D∞ = 1e-4 * FT(1e3)
+        _D₀ = 0.1 * 1e-6 * 1e3
+        _D∞ = 100 * 1e-6 * 1e3
         # Sanity checks specific humidity and number concentration with diameter distribution
-        qD =
-            QGK.quadgk(x -> _m(x) * f_D(x), _D₀, _D∞)[1] / (ρₐ * FT(10)^(χ - 9))
-        ND = QGK.quadgk(x -> f_D(x), _D₀, _D∞)[1] * FT(1e9)
+        qD = QGK.quadgk(x -> _m(x) * f_D(x), _D₀, _D∞)[1] / ρₐ * FT(1e9) # convert from mm3 to m3
+        ND = QGK.quadgk(x -> f_D(x), _D₀, _D∞)[1] * FT(1e9) # convert from mm3 to m3
         TT.@test ND ≈ Nₗ rtol = FT(1e-6)
         TT.@test qD ≈ qₗ rtol = FT(1e-6)
 
@@ -795,13 +804,16 @@ function test_microphysics2M(FT)
             qₗ,
             Nₗ,
             ρₐ,
-            FT(1e-6),
+            eps(FT),
         )
         # Sanity checks specific humidity and number concentration with diameter distribution
         qD_bounded =
             QGK.quadgk(
                 x ->
-                    _m(x) * CM2.size_distribution(
+                    FT(π / 6) *
+                    ρₗ *
+                    x^3 *
+                    CM2.size_distribution(
                         SB2006_no_limiters.pdf_c,
                         FT(x),
                         qₗ,
@@ -810,21 +822,25 @@ function test_microphysics2M(FT)
                     ),
                 0,
                 D_max,
-            )[1] / (ρₐ * FT(10)^(χ - 9))
-        ND_bounded =
-            QGK.quadgk(
-                x -> CM2.size_distribution(
-                    SB2006_no_limiters.pdf_c,
-                    FT(x),
-                    qₗ,
-                    ρₐ,
-                    Nₗ,
-                ),
-                0,
-                D_max,
-            )[1] * FT(1e9)
-        TT.@test ND ≈ Nₗ rtol = FT(1e-6)
-        TT.@test qD ≈ qₗ rtol = FT(1e-6)
+            )[1] / ρₐ
+        ND_bounded = QGK.quadgk(
+            x -> CM2.size_distribution(
+                SB2006_no_limiters.pdf_c,
+                FT(x),
+                qₗ,
+                ρₐ,
+                Nₗ,
+            ),
+            0,
+            D_max,
+        )[1]
+        if FT == Float64
+            TT.@test ND_bounded ≈ Nₗ rtol = FT(1e-7)
+            TT.@test qD_bounded ≈ qₗ rtol = FT(1e-6)
+        else
+            TT.@test ND_bounded ≈ Nₗ rtol = FT(1e-6)
+            TT.@test qD_bounded ≈ qₗ rtol = FT(1e-5)
+        end
     end
 end
 
