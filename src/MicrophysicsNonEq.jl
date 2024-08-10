@@ -160,15 +160,21 @@ function conv_q_vap_to_q_liq_ice(
     cp_air = TD.cp_m(tps, q)
     L_subl = TD.latent_heat_sublim(tps, T)
     L_v = TD.latent_heat_vapor(tps, T)
+    R_v = TD.Parameters.R_v(tps)
     g = TD.Parameters.grav(tps)
+    
 
-    nonequil_phase = TD.PhaseNonEquil # 
-    λ = TD.liquid_fraction(tps, T, nonequil_phase, q)
-    L = TD.weighted_latent_heat(tps, T, λ)
+    #nonequil_phase = TD.PhaseNonEquil # 
+    #λ = TD.liquid_fraction(tps, T, nonequil_phase, q)
+    #L = TD.weighted_latent_heat(tps, T, λ)
 
     # a bit unsure that this is the correct way to calculate this
-    dqsldT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.liq, L)
-    dqsidT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.ice, L)
+    #dqsldT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.liq, L)
+    #dqsidT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.ice, L)
+
+    # changed after deriving more correctly
+    dqsldT = q_sat.liq * (L_v/(R_v * T^2) - 1 / T)
+    dqsidT = q_sat.ice * (L_subl/(R_v * T^2) - 1 / T)
 
     Γₗ = FT(1) + (L_v / cp_air) * dqsldT
     Γᵢ = FT(1) + (L_subl / cp_air) * dqsidT
