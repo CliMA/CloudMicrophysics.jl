@@ -191,9 +191,12 @@ function size_distribution(
     N::FT,
 ) where {FT}
     (; Cc, Ec, ϕc, ψc) = pdf_cloud_parameters(pdf, q, ρₐ, N)
-    # Convert values from mm to m
-    Ec *= 1e9
-    Cc *= 1e36
+    # Convert values from mm to m assuming
+    Ec *= FT(10^(3 * ψc))
+    # TODO - overflow for Float32. We only need it in P3 scheme and it only
+    # works for Float64 right now. The solution is to non-dimensionalize
+    # all distributions by a reference mass/size, similar to the 1M scheme.
+    Cc *= Float64(10^((ϕc + 4) * 3))
     return Cc * D^ϕc * exp(-Ec * D^ψc)
 end
 
@@ -207,6 +210,7 @@ end
  - tolerance - tolerance for integration error
 
     Returns D_max value such that (1 - tolerance) = 1/N * ∫ N'(D) dD from 0 to D_max.
+    All inputs and output D_max are in base SI units.
     For rain size distribution D_max is obtained analytically.
     For cloud size distribution D_max is calculated through a linear approximation
     of the bounds from numerical solutions.
@@ -252,7 +256,7 @@ function get_size_distribution_bound(
             RS.RelativeSolutionTolerance(eps(FT)),
             5,
         ).root
-    return FT(1e-3) * exp(log_cloud_x)
+    return exp(log_cloud_x)
 end
 
 """
