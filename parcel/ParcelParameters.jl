@@ -73,18 +73,18 @@ struct CondParams{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
 end
 
-struct NonEqCondParamsSimple_Anna{ft} <: CMP.ParametersType{FT}
+struct NonEqCondParamsSimple_Anna{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     liquid::CMP.CloudLiquid{FT}
 end
 
-struct NonEqCondParamsSimple_Morrison{ft} <: CMP.ParametersType{FT}
+struct NonEqCondParamsSimple_Morrison{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     liquid::CMP.CloudLiquid{FT}
     ice::CMP.CloudIce{FT}
 end
 
-struct NonEqCondParams{ft} <: CMP.ParametersType{FT}
+struct NonEqCondParams{FT} <: CMP.ParametersType{FT}
     aps::CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     liquid::CMP.CloudLiquid{FT}
@@ -98,18 +98,18 @@ struct DepParams{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
 end
 
-struct NonEqDepParamsSimple_Anna{ft} <: CMP.ParametersType{FT}
+struct NonEqDepParamsSimple_Anna{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     ice::CMP.CloudIce{FT}
 end
 
-struct NonEqDepParamsSimple_Morrison{ft} <: CMP.ParametersType{FT}
+struct NonEqDepParamsSimple_Morrison{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     liquid::CMP.CloudLiquid{FT}
     ice::CMP.CloudIce{FT}
 end
 
-struct NonEqDepParams{ft} <: CMP.ParametersType{FT}
+struct NonEqDepParams{FT} <: CMP.ParametersType{FT}
     aps::CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     liquid::CMP.CloudLiquid{FT}

@@ -80,7 +80,7 @@ ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
 
 for DSD in size_distribution_list
     local params = parcel_params{FT}(
-        size_distribution = DSD,
+        liq_size_distribution = DSD,
         condensation_growth = condensation_growth,
         deposition_growth = deposition_growth,
         const_dt = const_dt,
@@ -140,12 +140,12 @@ for DSD in size_distribution_list
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
     local ρₐ = TD.air_density.(tps, ts)
     # Compute the mean particle size based on the distribution
-    distr = sol.prob.p.distr
-    moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ, sol_qᵢ, Nᵢ, ρᵢ)
-    local rₗ = similar(sol_T)
-    for it in range(1, length(sol_T))
-        rₗ[it] = moms[it].rₗ
-    end
+    #distr = sol.prob.p.distr
+    #moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ, sol_qᵢ, Nᵢ, ρᵢ)
+    #local rₗ = similar(sol_T)
+    #for it in range(1, length(sol_T))
+    #    rₗ[it] = moms[it].rₗ
+    #end
     #MK.lines!(ax5, sol.t, rₗ * 1e6)
 end
 
