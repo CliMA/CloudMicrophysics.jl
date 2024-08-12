@@ -154,17 +154,7 @@ function conv_q_vap_to_q_liq_ice(
     L_v = TD.latent_heat_vapor(tps, T)
     R_v = TD.Parameters.R_v(tps)
     g = TD.Parameters.grav(tps)
-    
 
-    #nonequil_phase = TD.PhaseNonEquil # 
-    #λ = TD.liquid_fraction(tps, T, nonequil_phase, q)
-    #L = TD.weighted_latent_heat(tps, T, λ)
-
-    # a bit unsure that this is the correct way to calculate this
-    #dqsldT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.liq, L)
-    #dqsidT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.ice, L)
-
-    # changed after deriving more correctly
     dqsldT = q_sat.liq * (L_v/(R_v * T^2) - 1 / T)
     dqsidT = q_sat.ice * (L_subl/(R_v * T^2) - 1 / T)
 
@@ -186,7 +176,9 @@ function conv_q_vap_to_q_liq_ice(
     A_c_l = A_c_uplift_l - A_c_WBF
     A_c_i = A_c_uplift_i + A_c_WBF
 
-    τ = (liquid.τ_relax^(-1) + (1 + (L_subl / cp_air)) * ice.τ_relax^(-1) / Γᵢ)^(-1)
+    τ = (liquid.τ_relax^(-1) + (1 + (L_subl / cp_air)*dqsldT) * ice.τ_relax^(-1) / Γᵢ)^(-1)
+    #combined_τₗ = (liquid.τ_relax^(-1) + (1 + (L_subl / cp_air)) * ice.τ_relax^(-1) / Γᵢ)^(-1)
+    #combined_τᵢ = (ice.τ_relax^(-1) + (1 + (L_v / cp_air)) * liquid.τ_relax^(-1) / Γₗ)^(-1)
 
     q_v = q.tot - q.liq - q.ice
     δ_0_l = q_v - q_sat.liq #(Sₗ-1)*q_sat.liq
@@ -199,10 +191,14 @@ function conv_q_vap_to_q_liq_ice(
             (FT(1) - exp(-const_dt / τ))
         return cond_rate
     elseif type == "deposition"
+        #dep_rate =
+        #    A_c_i * τ / (ice.τ_relax * Γᵢ) +
+        #    (δ_0_i - A_c_i * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
+        #    (FT(1) - exp(-const_dt / τ))
         dep_rate =
-            A_c_i * τ / (ice.τ_relax * Γᵢ) +
-            (δ_0_i - A_c_i * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
-            (FT(1) - exp(-const_dt / τ)) #+ (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
+            A_c_l * τ / (ice.τ_relax * Γᵢ) +
+            (δ_0_l - A_c_l * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
+            (FT(1) - exp(-const_dt / τ)) + (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
         return dep_rate
     end
 
