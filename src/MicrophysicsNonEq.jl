@@ -189,7 +189,7 @@ function conv_q_vap_to_q_liq_ice(
             A_c_l * τ / (liquid.τ_relax * Γₗ) +
             (δ_0_l - A_c_l * τ) * τ / (const_dt * liquid.τ_relax * Γₗ) *
             (FT(1) - exp(-const_dt / τ))
-        return cond_rate
+        return max(cond_rate, -q.liq)
     elseif type == "deposition"
         #dep_rate =
         #    A_c_i * τ / (ice.τ_relax * Γᵢ) +
@@ -199,7 +199,7 @@ function conv_q_vap_to_q_liq_ice(
             A_c_l * τ / (ice.τ_relax * Γᵢ) +
             (δ_0_l - A_c_l * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
             (FT(1) - exp(-const_dt / τ)) + (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
-        return dep_rate
+        return max(dep_rate, -q.ice)
     end
 
 end
