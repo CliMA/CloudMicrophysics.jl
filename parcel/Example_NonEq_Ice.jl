@@ -23,10 +23,10 @@ R_d = TD.Parameters.R_d(tps)
 # Initial conditions
 Nₐ = FT(0)
 Nₗ = FT(200 * 1e6)
-Nᵢ = FT(1e3)
+Nᵢ = FT(0)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
-T₀ = FT(251)
+T₀ = FT(273.15 + 7.0)
 ln_INPC = FT(0)
 e_sat = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 Sₗ = FT(1)
@@ -39,12 +39,12 @@ qᵥ = mv_v / (md_v + mv_v + ml_v + mi_v)
 qₗ = ml_v / (md_v + mv_v + ml_v + mi_v)
 qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
-simple = false
+simple = true
 
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed
-const_dt = FT(0.001)                         # model timestep
-t_max = FT(100)#FT(const_dt*1)
+const_dt = FT(0.5)                         # model timestep
+t_max = FT(20)#FT(const_dt*1)
 size_distribution_list = ["Monodisperse", "Gamma"]
 
 if simple
@@ -80,7 +80,8 @@ ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
 
 for DSD in size_distribution_list
     local params = parcel_params{FT}(
-        size_distribution = DSD,
+        liq_size_distribution = DSD,
+        ice_size_distribution = DSD,
         condensation_growth = condensation_growth,
         deposition_growth = deposition_growth,
         const_dt = const_dt,
@@ -140,13 +141,14 @@ for DSD in size_distribution_list
     local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
     local ρₐ = TD.air_density.(tps, ts)
     # Compute the mean particle size based on the distribution
-    distr = sol.prob.p.distr
-    moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ, sol_qᵢ, Nᵢ, ρᵢ)
-    local rₗ = similar(sol_T)
-    for it in range(1, length(sol_T))
-        rₗ[it] = moms[it].rₗ
-    end
-    #MK.lines!(ax5, sol.t, rₗ * 1e6)
+    #liq_distr = sol.prob.p.liq_distr
+    #ice_distr = sol.prob.p.ice_distr
+    #moms = distribution_moments.(liq_distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ, sol_qᵢ, Nᵢ, ρᵢ)
+    #local rₗ = similar(sol_T)
+    #for it in range(1, length(sol_T))
+    #    rₗ[it] = moms[it].rₗ
+    #end
+    #ßMK.lines!(ax5, sol.t, rₗ * 1e6)
 end
 
 MK.axislegend(
