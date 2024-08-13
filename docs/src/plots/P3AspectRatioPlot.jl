@@ -50,7 +50,7 @@ function p3_aspect()
     # define plot axis
     #[row, column]
     ax1 = define_axis(fig, 1:7,  1:9,   CMK.L"ϕᵢ(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$ϕᵢ$ (-)", [0.0, 0.5, 1.0], 1.9, logscale = false)
-    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"ϕᵢ(D) regime for $F_r = 0.4$",          CMK.L"$ϕᵢ$ (-)", [0.0, 0.5, 1.0], 1.8, logscale = false)
+    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"ϕᵢ(D) regime for $F_rim = 0.4$",          CMK.L"$ϕᵢ$ (-)", [0.0, 0.5, 1.0], 1.8, logscale = false)
 
     # Get thresholds
     sol4_0 = P3.thresholds(p3, 400.0, 0.0)
@@ -87,10 +87,10 @@ function p3_aspect()
         global d_gr_800 = CMK.vlines!(ax, sol_8[2] * 1e3,           linestyle = :dash, color = cl[3], linewidth = lw)
     end
     # add legend
-    CMK.Legend(fig[8:9, 1], [fig1_0, fig1_5, fig1_8], [CMK.L"$F_{r} = 0.0$", CMK.L"$F_{r} = 0.5$", CMK.L"$F_{r} = 0.8$"], framevisible = false)
+    CMK.Legend(fig[8:9, 1], [fig1_0, fig1_5, fig1_8], [CMK.L"$F_{rim} = 0.0$", CMK.L"$F_{rim} = 0.5$", CMK.L"$F_{rim} = 0.8$"], framevisible = false)
     CMK.Legend(fig[8:9, 3], [d_tha], [CMK.L"$D_{th}$"], framevisible = false)
-    CMK.Legend(fig[8:9, 7], [d_cr_5, d_cr_8], [CMK.L"$D_{cr}$ for $F_{r} = 0.5$", CMK.L"$D_{cr}$ for $F_{r} = 0.8$"], framevisible = false)
-    CMK.Legend(fig[8:9, 5], [d_gr_5, d_gr_8], [CMK.L"$D_{gr}$ for $F_{r} = 0.5$", CMK.L"$D_{gr}$ for $F_{r} = 0.8$"], framevisible = false)
+    CMK.Legend(fig[8:9, 7], [d_cr_5, d_cr_8], [CMK.L"$D_{cr}$ for $F_{rim} = 0.5$", CMK.L"$D_{cr}$ for $F_{rim} = 0.8$"], framevisible = false)
+    CMK.Legend(fig[8:9, 5], [d_gr_5, d_gr_8], [CMK.L"$D_{gr}$ for $F_{rim} = 0.5$", CMK.L"$D_{gr}$ for $F_{rim} = 0.8$"], framevisible = false)
 
     CMK.Legend(fig[8:9, 13], [fig2_200, fig2_400, fig2_800],    [CMK.L"$\rho_{r} = 200.0 kg m^{-3}$", CMK.L"$\rho_{r} = 400.0 kg m^{-3}$", CMK.L"$\rho_{r} = 800.0 kg m^{-3}$",], framevisible = false)
     CMK.Legend(fig[8:9, 14], [d_thb],                           [CMK.L"$D_{th}$"], framevisible = false)

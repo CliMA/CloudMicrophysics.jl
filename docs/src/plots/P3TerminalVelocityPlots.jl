@@ -10,17 +10,18 @@ const PSP3 = CMP.ParametersP3
 FT = Float64
 
 p3 = CMP.ParametersP3(FT)
+F_liq = FT(0) # set to 0 for now
 
 function get_values(
     p3::PSP3,
-    Chen2022::CMP.Chen2022VelTypeSnowIce,
+    Chen2022::CMP.Chen2022VelType,
     L::FT,
     N::FT,
     ρ_a::FT,
     x_resolution::Int,
     y_resolution::Int,
 ) where {FT}
-    F_rs = range(FT(0), stop = FT(1 - eps(FT)), length = x_resolution)
+    F_rims = range(FT(0), stop = FT(1 - eps(FT)), length = x_resolution)
     ρ_rs = range(FT(25), stop = FT(975), length = y_resolution)
 
     V_m = zeros(x_resolution, y_resolution)
@@ -30,10 +31,10 @@ function get_values(
 
     for i in 1:x_resolution
         for j in 1:y_resolution
-            F_r = F_rs[i]
+            F_rim = F_rims[i]
             ρ_r = ρ_rs[j]
-            aspect_ratio = true
-            th = P3.thresholds(p3, ρ_r, F_r)
+            use_aspect_ratio = true
+            th = P3.thresholds(p3, ρ_r, F_rim)
 
             V_m[i, j] = P3.ice_terminal_velocity(
                 p3,
@@ -41,21 +42,22 @@ function get_values(
                 L,
                 N,
                 ρ_r,
-                F_r,
+                F_rim,
+                F_liq,
                 ρ_a,
-                aspect_ratio,
+                use_aspect_ratio,
             )[2]
 
-            D_m[i, j] = P3.D_m(p3, L, N, ρ_r, F_r)
+            D_m[i, j] = P3.D_m(p3, L, N, ρ_r, F_rim, F_liq)
             D_m_regimes[i, j] = D_m[i, j]
-            ϕᵢ[i, j] = P3.ϕᵢ(p3, D_m[i, j], F_r, th)
+            ϕᵢ[i, j] = P3.ϕᵢ(p3, D_m[i, j], F_rim, th)
 
             # plot the regimes
             D_th = P3.D_th_helper(p3)
             if D_th > D_m[i, j]
                 # small spherical ice
                 D_m_regimes[i, j] = 0
-            elseif F_r == 0
+            elseif F_rim == 0
                 # large nonspherical unrimed ice
                 D_m_regimes[i, j] = 0
             elseif th.D_gr > D_m[i, j] >= D_th
@@ -71,13 +73,13 @@ function get_values(
         end
     end
     D_m *= 1e3
-    return (; F_rs, ρ_rs, D_m_regimes, D_m, ϕᵢ, V_m)
+    return (; F_rims, ρ_rs, D_m_regimes, D_m, ϕᵢ, V_m)
 end
 
 function make_axis(fig, row, col, title)
     return Plt.Axis(
         fig[row, col],
-        xlabel = "F_r",
+        xlabel = "F_rim",
         ylabel = "ρ_r",
         title = title,
         width = 350,
@@ -109,11 +111,11 @@ function figure_2()
     xres = 100
     yres = 100
 
-    (F_rs, ρ_rs, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s) =
+    (F_rims, ρ_rs, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s) =
         get_values(p3, Chen2022.snow_ice, L_s, N_s, ρ_a, xres, yres)
-    (F_rm, ρ_rm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m) =
+    (F_rimm, ρ_rm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m) =
         get_values(p3, Chen2022.snow_ice, L_m, N_m, ρ_a, xres, yres)
-    (F_rl, ρ_rl, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l) =
+    (F_riml, ρ_rl, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l) =
         get_values(p3, Chen2022.snow_ice, L_l, N_l, ρ_a, xres, yres)
 
     fig = Plt.Figure()
@@ -131,7 +133,7 @@ function figure_2()
     ax1 = make_axis(fig, 1, 1, "Particle regimes with small Dₘ")
     hm = Plt.contourf!(
         ax1,
-        F_rs,
+        F_rims,
         ρ_rs,
         D_m_regimes_s,
         levels = 3,
@@ -149,7 +151,7 @@ function figure_2()
     ax2 = make_axis(fig, 1, 2, "Particle regimes with medium Dₘ")
     hm = Plt.contourf!(
         ax2,
-        F_rm,
+        F_rimm,
         ρ_rm,
         D_m_regimes_m,
         levels = 3,
@@ -167,7 +169,7 @@ function figure_2()
     ax3 = make_axis(fig, 1, 3, "Particle regimes with large Dₘ")
     hm = Plt.contourf!(
         ax3,
-        F_rl,
+        F_riml,
         ρ_rl,
         D_m_regimes_l,
         levels = 3,
@@ -183,45 +185,45 @@ function figure_2()
     )
 
     ax4 = make_axis(fig, 3, 1, "Dₘ (mm) (L = 8e-4 kgm⁻³, N = 1e6 m⁻³)")
-    hm = Plt.contourf!(ax4, F_rs, ρ_rs, D_m_s)
+    hm = Plt.contourf!(ax4, F_rims, ρ_rs, D_m_s)
     Plt.Colorbar(fig[4, 1], hm, vertical = false)
 
     ax5 = make_axis(fig, 3, 2, "Dₘ (mm) (L = 0.22 kgm⁻³, N = 1e6 m⁻³)")
-    hm = Plt.contourf!(ax5, F_rm, ρ_rm, D_m_m)
+    hm = Plt.contourf!(ax5, F_rimm, ρ_rm, D_m_m)
     Plt.Colorbar(fig[4, 2], hm, vertical = false)
 
     ax6 = make_axis(fig, 3, 3, "Dₘ (mm) (L = 0.7 kgm⁻³, N = 1e6 m⁻³)")
-    hm = Plt.contourf!(ax6, F_rl, ρ_rl, D_m_l)
+    hm = Plt.contourf!(ax6, F_riml, ρ_rl, D_m_l)
     Plt.Colorbar(fig[4, 3], hm, vertical = false)
 
     ax7 = make_axis(fig, 5, 1, "ϕᵢ with small Dₘ")
-    hm = Plt.contourf!(ax7, F_rs, ρ_rs, ϕᵢ_s, levels = 20)
+    hm = Plt.contourf!(ax7, F_rims, ρ_rs, ϕᵢ_s, levels = 20)
     Plt.Colorbar(fig[6, 1], hm, vertical = false)
-    Plt.contour!(ax7, F_rs, ρ_rs, D_m_s, label = "D_m"; contour_args...)
+    Plt.contour!(ax7, F_rims, ρ_rs, D_m_s, label = "D_m"; contour_args...)
 
     ax8 = make_axis(fig, 5, 2, "ϕᵢ with medium Dₘ")
-    hm = Plt.contourf!(ax8, F_rm, ρ_rm, ϕᵢ_m)
+    hm = Plt.contourf!(ax8, F_rimm, ρ_rm, ϕᵢ_m)
     Plt.Colorbar(fig[6, 2], hm, vertical = false)
-    Plt.contour!(ax8, F_rm, ρ_rm, D_m_m, label = "D_m"; contour_args...)
+    Plt.contour!(ax8, F_rimm, ρ_rm, D_m_m, label = "D_m"; contour_args...)
 
     ax9 = make_axis(fig, 5, 3, "ϕᵢ with large Dₘ")
-    hm = Plt.contourf!(ax9, F_rl, ρ_rl, ϕᵢ_l)
+    hm = Plt.contourf!(ax9, F_riml, ρ_rl, ϕᵢ_l)
     Plt.Colorbar(fig[6, 3], hm, vertical = false)
-    Plt.contour!(ax9, F_rl, ρ_rl, D_m_l, label = "D_m"; contour_args...)
+    Plt.contour!(ax9, F_riml, ρ_rl, D_m_l, label = "D_m"; contour_args...)
 
     ax10 = make_axis(fig, 7, 1, "Vₘ with small Dₘ")
-    hm = Plt.contourf!(ax10, F_rs, ρ_rs, V_m_s)
-    Plt.contour!(ax10, F_rs, ρ_rs, D_m_s; contour_args...)
+    hm = Plt.contourf!(ax10, F_rims, ρ_rs, V_m_s)
+    Plt.contour!(ax10, F_rims, ρ_rs, D_m_s; contour_args...)
     Plt.Colorbar(fig[8, 1], hm, vertical = false)
 
     ax11 = make_axis(fig, 7, 2, "Vₘ with medium Dₘ")
-    hm = Plt.contourf!(ax11, F_rm, ρ_rm, V_m_m)
-    Plt.contour!(ax11, F_rm, ρ_rm, D_m_m; contour_args...)
+    hm = Plt.contourf!(ax11, F_rimm, ρ_rm, V_m_m)
+    Plt.contour!(ax11, F_rimm, ρ_rm, D_m_m; contour_args...)
     Plt.Colorbar(fig[8, 2], hm, vertical = false)
 
     ax12 = make_axis(fig, 7, 3, "Vₘ with large Dₘ")
-    hm = Plt.contourf!(ax12, F_rl, ρ_rl, V_m_l)
-    Plt.contour!(ax12, F_rl, ρ_rl, D_m_l; contour_args...)
+    hm = Plt.contourf!(ax12, F_riml, ρ_rl, V_m_l)
+    Plt.contour!(ax12, F_riml, ρ_rl, D_m_l; contour_args...)
     Plt.Colorbar(fig[8, 3], hm, vertical = false)
 
     Plt.linkxaxes!(ax1, ax2)

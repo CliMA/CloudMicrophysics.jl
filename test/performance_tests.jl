@@ -113,7 +113,8 @@ function benchmark_test(FT)
     e = FT(600)
 
     ρ_r = FT(400.0)
-    F_r = FT(0.95)
+    F_rim = FT(0.95)
+    F_liq = FT(0.33)
     N = FT(1e8)
 
     T_air_2 = FT(250)
@@ -148,28 +149,28 @@ function benchmark_test(FT)
     INPC = FT(1e5)
 
     # P3 scheme
-    bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 2048, 80)
+    bench_press(P3.thresholds, (p3, ρ_r, F_rim), 12e6, 2048, 80)
     if FT == Float64
         bench_press(
             P3.distribution_parameter_solver,
-            (p3, q_ice, N, ρ_r, F_r),
+            (p3, q_ice, N, ρ_r, F_rim, F_liq),
             1e5,
         )
         bench_press(
             P3.ice_terminal_velocity,
-            (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, false),
-            2.5e5,
-            800,
-            4,
+            (p3, ch2022, q_ice, N, ρ_r, F_rim, F_liq, ρ_air, false),
+            3e5,
+            1e3,
+            6,
         )
         bench_press(
             P3.ice_terminal_velocity,
-            (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, true),
-            2.5e5,
-            800,
-            4,
+            (p3, ch2022, q_ice, N, ρ_r, F_rim, F_liq, ρ_air, true),
+            3e5,
+            1e3,
+            6,
         )
-        bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_r), 1e5)
+        bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_rim, F_liq), 1e5)
     end
 
     # aerosol activation

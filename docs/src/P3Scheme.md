@@ -39,7 +39,7 @@ The mass ``m`` and projected area ``A`` of particles
 |large, unrimed ice                    | ``L_{rim} = 0`` and ``D > D_{th}``           | ``\alpha_{va} \ D^{\beta_{va}}``             | ``\gamma \ D^{\sigma}``                                    |
 |dense nonspherical ice                | ``L_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\alpha_{va} \ D^{\beta_{va}}``             | ``\gamma \ D^{\sigma}``                                    |
 |graupel (completely rimed, spherical) | ``L_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\frac{\pi}{6} \rho_g \ D^3``               | ``\frac{\pi}{4} D^2``                                      |
-|partially rimed ice                   | ``L_{rim} > 0`` and ``D > D_{cr}``           | ``\frac{\alpha_{va}}{1-F_r} D^{\beta_{va}}`` | ``F_{r} \frac{\pi}{4} D^2 + (1-F_{r})\gamma \ D^{\sigma}`` |
+|partially rimed ice                   | ``L_{rim} > 0`` and ``D > D_{cr}``           | ``\frac{\alpha_{va}}{1-F_rim} D^{\beta_{va}}`` | ``F_{rim} \frac{\pi}{4} D^2 + (1-F_{rim})\gamma \ D^{\sigma}`` |
 
 where:
  - ``D_{th}``, ``D_{gr}``, ``D_{cr}`` are particle size thresholds in ``m``,
@@ -57,11 +57,11 @@ The remaining thresholds: ``D_{gr}``, ``D_{cr}``, as well as the
   and the bulk density of the unrimed part ``\rho_d``
   form a nonlinear system:
  - ``D_{gr} = (\frac{6\alpha_{va}}{\pi \rho_g})^{\frac{1}{3 - \beta_{va}}}``
- - ``D_{cr} = [ (\frac{1}{1-F_r}) \frac{6 \alpha_{va}}{\pi \rho_g} ]^{\frac{1}{3 - \beta_{va}}}``
- - ``\rho_g = \rho_r F_r + (1 - F_r) \rho_d``
+ - ``D_{cr} = [ (\frac{1}{1-F_rim}) \frac{6 \alpha_{va}}{\pi \rho_g} ]^{\frac{1}{3 - \beta_{va}}}``
+ - ``\rho_g = \rho_r F_rim + (1 - F_rim) \rho_d``
  - ``\rho_d = \frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}``
 where
- - ``F_r = \frac{L_{rim}}{L_{ice}}`` is the rime mass fraction,
+ - ``F_rim = \frac{L_{rim}}{L_{ice}}`` is the rime mass fraction,
  - ``\rho_{r} = \frac{L_{rim}}{B_{rim}}`` is the predicted rime density.
 
 !!! note
@@ -130,7 +130,7 @@ As a result ``L_{ice}`` can be expressed as a sum of incomplete gamma functions,
 | ``L_{rim} = 0`` and ``D > D_{th}``           | ``\int_{D_{th}}^{\infty} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}))`` |
 | ``L_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\int_{D_{th}}^{D_{gr}} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}) - \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{gr}))`` |
 | ``L_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\int_{D_{gr}}^{D_{cr}} \! \frac{\pi}{6} \rho_g \ D^3 N'(D) \mathrm{d}D``               | ``\frac{\pi}{6} \rho_g N_0 \lambda \,^{-(\mu \, + 4)} (\Gamma \,(\mu \, + 4, \lambda \,D_{gr}) - \Gamma \,(\mu \, + 4, \lambda \,D_{cr}))`` |
-| ``L_{rim} > 0`` and ``D > D_{cr}``           | ``\int_{D_{cr}}^{\infty} \! \frac{\alpha_{va}}{1-F_r} D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\frac{\alpha_{va}}{1-F_r} N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{cr}))``  |
+| ``L_{rim} > 0`` and ``D > D_{cr}``           | ``\int_{D_{cr}}^{\infty} \! \frac{\alpha_{va}}{1-F_rim} D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\frac{\alpha_{va}}{1-F_rim} N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{cr}))``  |
 
 where ``\Gamma \,(a, z) = \int_{z}^{\infty} \! t^{a - 1} e^{-t} \mathrm{d}D``
   and ``\Gamma \,(a) = \Gamma \,(a, 0)`` for simplicity.
@@ -212,6 +212,71 @@ They can be compared with Figure 2 from [MorrisonMilbrandt2015](@cite).
 include("plots/P3TerminalVelocityPlots.jl")
 ```
 ![](MorrisonandMilbrandtFig2.svg)
+
+## Liquid Fraction
+
+To allow for the modeling of mixed-phase particles with P3, a new prognostic variable can be introduced:
+  ``L_{liq}``, the content of liquid on mixed-phase particles. As described in [Choletteetal2019](@cite),
+  this addition to the framework of P3 opens the door to tracking the gradual melting (and refreezing) of a
+  particle population with hydrometeor categories such as wet snow. Here, we describe the characteristics
+  of the scheme with the addition of ``L_{liq}``.
+
+Replicating Fig. 1 from [Choletteetal2019](@cite), we can expect more liquid to increase velocities of small particles for all ``F_rim`` values, while exhibiting more complex behavior for larger particles:
+
+```@example
+include("plots/Cholette2019_fig1.jl")
+```
+![](Choletteetal2019_fig1.svg)
+
+Liquid fraction, analogous to ``F_rim`` for rime, is defined ``F_{liq} = \frac{L_{liq}}{L_{ice}}``.
+  Importantly, the introduction of ``L_{liq}`` changes the formulation of ``F_rim``: whereas above,
+  we have ``F_rim = \frac{L_{rim}}{L_{ice}}``, we now need ``F_rim = \frac{L_{rim}}{L_{ice} - L_{liq}}``
+  since the total mass of ice particles ``L_{ice} = L_{rim} + L_{dep} + L_{liq}`` now includes liquid mass.
+
+The addition of the liquid fraction does not change the thresholds ``D_{th}``, ``D_{gr}``, ``D_{cr}``,
+  since the threshold regime depends only on ice core properties.
+
+However, the assumed particle properties become ``F_{liq}``-weighted averages of particles' solid and liquid
+  components:
+
+```math
+m(D, F_{liq}) = (1 - F_liq) * m(D, F_{liq} = 0) + F_liq * m_{liq}(D)
+```
+```math
+A(D, F_{liq}) = (1 - F_liq) * A(D, F_{liq} = 0) + F_liq * A_{liq}(D)
+```
+
+where ``m_{liq}(D) = \frac{\pi}{6} \rho_liq * D^3`` and ``A_{liq}(D) = \frac{\pi}{4} D^2``.
+
+When calculating shape parameters and integrating over the particle size distribution (PSD), it is important to
+  keep in mind whether the desired moment of the PSD is tied only to ice (in which case we concern ourselves with the
+  ice core diameter ``D_{core}``) or to the whole mixed-phase particle (in which case we need ``D_p``). If calculating
+  the ice core parameters, ``F_{liq} = 0`` is passed into the solver framework as indicated.
+
+For the above particle properties and for terminal velocity, we use the PSD corresponding to the whole mixed-phase particle,
+  so our terminal velocity of a mixed-phase particle is:
+
+```math
+V(D_{p}, F_{liq}) = (1 - F_{liq}) * V_{ice}(D_{p}) + F_{liq} * V_{rain}(D_{p})
+```
+
+We continue to use the terminal velocity parameterizations from [Chen2022](@cite) for rain, which
+  is described [here](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics2M/#Terminal-Velocity).
+
+Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{rim}`` with ``\rho_{r} = 900`` for small, medium, and large particles, we observe mostly higher fall speeds for all ``F_{rim}``  with increasing ``F_{liq}``. In all the plots we observe partially rimed ice (``D > D_{cr}``) except for a small band of graupel for very high ``F_{rim}`` in medium and large particles.
+
+```@example
+include("plots/P3TerminalVelocity_F_liq_rim.jl")
+```
+![](P3TerminalVelocity_F_liq_rim.svg)
+
+When modifying process rates, we now need to consider whether they are concerned with
+  the ice core or the whole particle, in addition to whether they become sources
+  and sinks of different prognostic variables. With the addition of liquid fraction, too,
+  come new process rates.
+
+!!! note
+    TODO - Implement process rates, complete docs.
 
 ## Acknowledgments
 
