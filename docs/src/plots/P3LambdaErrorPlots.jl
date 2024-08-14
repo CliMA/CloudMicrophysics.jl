@@ -152,13 +152,19 @@ function μ_approximation_effects(F_rim::FT, ρ_r::FT) where {FT}
     λ_solved = [FT(0) for λ in λs]
 
     for i in 1:numpts
-        L_over_N = P3.L_over_N_gamma(p3, F_rim, log(λs[i]), μs[i], th)
+        L_over_N = P3.L_over_N_gamma(p3, F_rim, F_liq, log(λs[i]), μs[i], th)
         Ls[i] = L_over_N
         N = FT(1e6)
-        (L, N) =
-            P3.distribution_parameter_solver(p3, L_over_N * N, N, ρ_r, F_rim)
+        (L, N) = P3.distribution_parameter_solver(
+            p3,
+            L_over_N * N,
+            N,
+            ρ_r,
+            F_rim,
+            F_liq,
+        )
         λ_solved[i] = L
-        μs_approx[i] = P3.DSD_μ_approx(p3, N * L_over_N, N, ρ_r, F_rim)
+        μs_approx[i] = P3.DSD_μ_approx(p3, N * L_over_N, N, ρ_r, F_rim, F_liq)
     end
 
     # Plot

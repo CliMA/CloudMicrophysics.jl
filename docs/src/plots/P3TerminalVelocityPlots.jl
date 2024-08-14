@@ -112,11 +112,11 @@ function figure_2()
     yres = 100
 
     (F_rims, ρ_rs, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s) =
-        get_values(p3, Chen2022.snow_ice, L_s, N_s, ρ_a, xres, yres)
+        get_values(p3, Chen2022, L_s, N_s, ρ_a, xres, yres)
     (F_rimm, ρ_rm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m) =
-        get_values(p3, Chen2022.snow_ice, L_m, N_m, ρ_a, xres, yres)
+        get_values(p3, Chen2022, L_m, N_m, ρ_a, xres, yres)
     (F_riml, ρ_rl, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l) =
-        get_values(p3, Chen2022.snow_ice, L_l, N_l, ρ_a, xres, yres)
+        get_values(p3, Chen2022, L_l, N_l, ρ_a, xres, yres)
 
     fig = Plt.Figure()
 

@@ -8,6 +8,7 @@ FT = Float64
 
 const PSP3 = CMP.ParametersP3
 p3 = CMP.ParametersP3(FT)
+F_liq = FT(0)
 
 function define_axis(
     fig,

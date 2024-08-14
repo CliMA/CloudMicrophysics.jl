@@ -218,20 +218,21 @@ include("plots/P3TerminalVelocityPlots.jl")
 To allow for the modeling of mixed-phase particles with P3, a new prognostic variable can be introduced:
   ``L_{liq}``, the content of liquid on mixed-phase particles. As described in [Choletteetal2019](@cite),
   this addition to the framework of P3 opens the door to tracking the gradual melting (and refreezing) of a
-  particle population with hydrometeor categories such as wet snow. Here, we describe the characteristics
-  of the scheme with the addition of ``L_{liq}``.
+  particle population. Here, we describe the characteristics of the scheme with the addition of ``L_{liq}``.
 
-Replicating Fig. 1 from [Choletteetal2019](@cite), we can expect more liquid to increase velocities of small particles for all ``F_rim`` values, while exhibiting more complex behavior for larger particles:
+Liquid fraction, analogous to ``F_{rim}`` for rime, is defined ``F_{liq} = \frac{L_{liq}}{L_{ice}}``.
+  Importantly, the introduction of ``L_{liq}`` changes the formulation of ``F_rim``: whereas above,
+  we have ``F_rim = \frac{L_{rim}}{L_{ice}}``, we now need ``F_rim = \frac{L_{rim}}{L_{ice} - L_{liq}}``
+  since the total mass of ice particles ``L_{ice} = L_{rim} + L_{dep} + L_{liq}`` now includes liquid mass.
+
+Based on Fig. 1 from [Choletteetal2019](@cite), we can expect the accumulation of liquid on an ice core to increase
+  velocities of small particles for all ``F_{rim}`` values. For larger ``F_{rim}`` values and larger particles, we
+  observe more complex behavior as evidenced by the reproduction of Fig. 1 from [Choletteetal2019](@cite) below:
 
 ```@example
 include("plots/Cholette2019_fig1.jl")
 ```
 ![](Choletteetal2019_fig1.svg)
-
-Liquid fraction, analogous to ``F_rim`` for rime, is defined ``F_{liq} = \frac{L_{liq}}{L_{ice}}``.
-  Importantly, the introduction of ``L_{liq}`` changes the formulation of ``F_rim``: whereas above,
-  we have ``F_rim = \frac{L_{rim}}{L_{ice}}``, we now need ``F_rim = \frac{L_{rim}}{L_{ice} - L_{liq}}``
-  since the total mass of ice particles ``L_{ice} = L_{rim} + L_{dep} + L_{liq}`` now includes liquid mass.
 
 The addition of the liquid fraction does not change the thresholds ``D_{th}``, ``D_{gr}``, ``D_{cr}``,
   since the threshold regime depends only on ice core properties.
@@ -240,18 +241,18 @@ However, the assumed particle properties become ``F_{liq}``-weighted averages of
   components:
 
 ```math
-m(D, F_{liq}) = (1 - F_liq) * m(D, F_{liq} = 0) + F_liq * m_{liq}(D)
+m(D, F_{liq}) = (1 - F_{liq}) m(D, F_{liq} = 0) + F_{liq} m_{liq}(D)
 ```
 ```math
-A(D, F_{liq}) = (1 - F_liq) * A(D, F_{liq} = 0) + F_liq * A_{liq}(D)
+A(D, F_{liq}) = (1 - F_liq) A(D, F_{liq} = 0) + F_liq A_{liq}(D)
 ```
 
-where ``m_{liq}(D) = \frac{\pi}{6} \rho_liq * D^3`` and ``A_{liq}(D) = \frac{\pi}{4} D^2``.
+where ``m_{liq}(D) = \frac{\pi}{6} \rho_{liq} D^3`` and ``A_{liq}(D) = \frac{\pi}{4} D^2``.
 
 When calculating shape parameters and integrating over the particle size distribution (PSD), it is important to
   keep in mind whether the desired moment of the PSD is tied only to ice (in which case we concern ourselves with the
   ice core diameter ``D_{core}``) or to the whole mixed-phase particle (in which case we need ``D_p``). If calculating
-  the ice core parameters, ``F_{liq} = 0`` is passed into the solver framework as indicated.
+  the ice core parameters, ``F_{liq} = 0`` is passed into the solver framework as indicated in the code.
 
 For the above particle properties and for terminal velocity, we use the PSD corresponding to the whole mixed-phase particle,
   so our terminal velocity of a mixed-phase particle is:
@@ -263,7 +264,11 @@ V(D_{p}, F_{liq}) = (1 - F_{liq}) * V_{ice}(D_{p}) + F_{liq} * V_{rain}(D_{p})
 We continue to use the terminal velocity parameterizations from [Chen2022](@cite) for rain, which
   is described [here](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics2M/#Terminal-Velocity).
 
-Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{rim}`` with ``\rho_{r} = 900`` for small, medium, and large particles, we observe mostly higher fall speeds for all ``F_{rim}``  with increasing ``F_{liq}``. In all the plots we observe partially rimed ice (``D > D_{cr}``) except for a small band of graupel for very high ``F_{rim}`` in medium and large particles.
+Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{rim}`` with ``\rho_{r} = 900 kg m^{-3}`` for small,
+  medium, and large particles, we observe higher fall speeds with increasing ``F_{liq}``except for some peaks and troughs for medium and large
+  particles with low ``F_{liq}``. In all the plots, the ``D_{m}`` we visualize are largely categorized as partially rimed ice (``D > D_{cr}``) except for a 
+  small band of graupel for very high ``F_{rim}`` in medium and large particles. The ``L`` and ``N`` values used to generate small, medium, and large ``D_{m}``
+  are the same as in the plot above.
 
 ```@example
 include("plots/P3TerminalVelocity_F_liq_rim.jl")
@@ -272,7 +277,8 @@ include("plots/P3TerminalVelocity_F_liq_rim.jl")
 
 When modifying process rates, we now need to consider whether they are concerned with
   the ice core or the whole particle, in addition to whether they become sources
-  and sinks of different prognostic variables. With the addition of liquid fraction, too,
+  and sinks of different prognostic variables with the inclusion of ``F_{liq}``. 
+  With the addition of liquid fraction, too,
   come new process rates.
 
 !!! note
