@@ -182,8 +182,8 @@ where ``\phi = (16 \rho_{ice}^2 A(D)^3) / (9 \pi m(D)^2)`` is the aspect ratio,
 and ``\kappa``, ``a_i``, ``b_i`` and ``c_i`` are the free parameters.
 
 The aspect ratio of a spheroid is defined ``\phi = \frac{a}{c}``, where ``a`` is the equatorial radius and ``c`` is the distance from the pole to the center.
-  In terms of ``a`` and ``c``, a spheroid's volume can be represented as ``V = \frac{4}{3} \pi a^2 c``, and its cross-sectional area can be assumed ``A(a, c) = \pi a c``.
-  We use ``m(D)`` and ``A(D)`` from P3, so by substituting ``m(a, c) = \rho_{ice} * V(a, c)``, ``A(a, c)`` for ``m(D)``, ``A(D)`` into the formulation of aspect ratio above,
+  In terms of ``a`` and ``c``, a spheroid's volume can be represented as ``V(a, c) = \frac{4}{3} \pi a^2 c``, and its cross-sectional area can be assumed ``A(a, c) = \pi a c``.
+  We use ``m(D)`` and ``A(D)`` from P3, so by substituting ``m(a, c) = \rho_{ice} V(a, c)``, ``A(a, c)`` for ``m(D)``, ``A(D)`` into the formulation of aspect ratio above,
   we demonstrate agreement with the definition ``\phi = \frac{a}{c}``.
 
 Note that ``\phi = 1`` corresponds to spherical particles
