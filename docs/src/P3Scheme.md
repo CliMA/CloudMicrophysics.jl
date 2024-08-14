@@ -211,7 +211,8 @@ Below we provide plots of these relationships for small, medium, and large ``D_m
   the first row highlights the particle size regime,
   the second displays ``D_m`` of the particles,
   the third shows the aspect ratio ``\phi (D_m)``,
-  and the final row exhibits ``V_m``.
+  the fourth shows ``V_m`` without using aspect ratio in the computation (i.e. ``\phi = 1``),
+  and the final row exhibits ``V_m``, computed using ``\phi(D)``.
 They can be compared with Figure 2 from [MorrisonMilbrandt2015](@cite).
 ```@example
 include("plots/P3TerminalVelocityPlots.jl")
@@ -227,12 +228,16 @@ To allow for the modeling of mixed-phase particles with P3, a new prognostic var
 
 Liquid fraction, analogous to ``F_{rim}`` for rime, is defined ``F_{liq} = \frac{L_{liq}}{L_{ice}}``.
   Importantly, the introduction of ``L_{liq}`` changes the formulation of ``F_rim``: whereas above,
-  we have ``F_rim = \frac{L_{rim}}{L_{ice}}``, we now need ``F_rim = \frac{L_{rim}}{L_{ice} - L_{liq}}``
+  we have ``F_{rim} = \frac{L_{rim}}{L_{ice}}``, we now need ``F_{rim} = \frac{L_{rim}}{L_{ice} - L_{liq}}``
   since the total mass of ice particles ``L_{ice} = L_{rim} + L_{dep} + L_{liq}`` now includes liquid mass.
 
 Based on Fig. 1 from [Choletteetal2019](@cite), we can expect the accumulation of liquid on an ice core to increase
-  velocities of small particles for all ``F_{rim}`` values. For larger ``F_{rim}`` values and larger particles, we
-  observe more complex behavior as evidenced by the reproduction of Fig. 1 from [Choletteetal2019](@cite) below:
+  velocities of small particles for all ``F_{rim}`` values. Below, we reproduce this figure with ``\rho_{r} = 900 kg m^{-3}``,
+  and, notably, we continue to use the terminal velocity parameterizations from [Chen2022](@cite)
+  (described [here](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics2M/#Terminal-Velocity) for rain), whereas [Choletteetal2019](@cite) uses
+  [MitchellHeymsfield2005](@cite) for snow and ice and [Simmeletal2002](@cite) for rain. Despite these different choices, we
+  reproduce similar behavior with, and we include a dashed line for the velocity computed without aspect ratio. This dashed line mimics velocity
+  with ``F_{rim} = 1``, since both ``\phi = 1`` and ``F_{rim} = 1`` shift us into a spherical particle regime.
 
 ```@example
 include("plots/Cholette2019_fig1.jl")
@@ -249,7 +254,7 @@ However, the assumed particle properties become ``F_{liq}``-weighted averages of
 m(D, F_{liq}) = (1 - F_{liq}) m(D, F_{liq} = 0) + F_{liq} m_{liq}(D)
 ```
 ```math
-A(D, F_{liq}) = (1 - F_liq) A(D, F_{liq} = 0) + F_liq A_{liq}(D)
+A(D, F_{liq}) = (1 - F_liq) A(D, F_{liq} = 0) + F_{liq} A_{liq}(D)
 ```
 
 where ``m_{liq}(D) = \frac{\pi}{6} \rho_{liq} D^3`` and ``A_{liq}(D) = \frac{\pi}{4} D^2``.
@@ -263,16 +268,23 @@ For the above particle properties and for terminal velocity, we use the PSD corr
   so our terminal velocity of a mixed-phase particle is:
 
 ```math
-V(D_{p}, F_{liq}) = (1 - F_{liq}) * V_{ice}(D_{p}) + F_{liq} * V_{rain}(D_{p})
+V(D_{p}, F_{liq}) = (1 - F_{liq}) V_{ice}(D_{p}) + F_{liq} V_{rain}(D_{p})
 ```
 
-We continue to use the terminal velocity parameterizations from [Chen2022](@cite) for rain, which
-  is described [here](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics2M/#Terminal-Velocity).
+To continue with the same plotting format as we see above for terminal velocity, below, we show terminal velocity with
+  ``F_{liq} = 0.0, 0.5, 0.9`` using the mass-weighted terminal velocity with aspect ratio. Clearly, the velocity increases
+  with ``F_{liq}`` and becomes decreasingly dependent on ``F_{rim}`` and ``\rho_{r}`` as we shrink the size of the ice core.
+
+```@example
+include("plots/P3TerminalVelocityPlots_WithFliq.jl")
+```
+![](MorrisonandMilbrandtFig2_with_F_liq.svg)
 
 Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{rim}`` with ``\rho_{r} = 900 kg m^{-3}`` for small,
-  medium, and large particles, we observe higher fall speeds with increasing ``F_{liq}``except for some peaks and troughs for medium and large
-  particles with low ``F_{liq}``. In all the plots, the ``D_{m}`` we visualize are largely categorized as partially rimed ice (``D > D_{cr}``) except for a 
-  small band of graupel for very high ``F_{rim}`` in medium and large particles. The ``L`` and ``N`` values used to generate small, medium, and large ``D_{m}``
+  medium, and large particles, we have mostly graupel (``D_{gr} < D < D_{cr}``) for small ``D_m`` and mostly partially rimed ice
+  (``D > D_{cr}``) for medium and large ``D_m``. Thus, we can attribute the non-monotonic behavior of velocity with ``F_liq`` in the
+  medium and large ``D_m`` plots to the variations in ``\phi`` caused by nonspherical particle shape, whereas the small ``D_m`` plot
+  confirms a mmore monotonic change in ``V_m`` for spherical ice. The ``L`` and ``N`` values used to generate small, medium, and large ``D_{m}``
   are the same as in the plot above.
 
 ```@example

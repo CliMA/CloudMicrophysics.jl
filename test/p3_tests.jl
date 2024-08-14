@@ -292,7 +292,7 @@ function test_particle_terminal_velocities(FT)
         end
     end
 
-    TT.@testset "Chen 2022 - Mixed-Phase (with ϕᵢ)" begin
+    TT.@testset "Chen 2022 - Mixed-Phase" begin
         F_rim = FT(0.5)
         F_liq = FT(0.5)
         ρ_r = FT(500)
@@ -316,164 +316,26 @@ function test_particle_terminal_velocities(FT)
             TT.@test vel >= 0
             TT.@test vel ≈ expected[i] rtol = 1e-3
         end
-    end
-
-    TT.@testset "Chen 2022 - Mixed-Phase vs Cholette et al 2019 Fig1a (with ϕᵢ)" begin
-        # F_rim = 0, with aspect ratio
-        # for F_liq = 0.0, 0.33, 0.67, 1.0
-        F_rim = FT(0)
-        ρ_r = FT(900)
-        th = P3.thresholds(p3, ρ_r, F_rim)
-        F_liqs = [FT(0.0), FT(0.33), FT(0.67), FT(1)]
-        Ds = [FT(0.001), FT(0.002), FT(0.003), FT(0.005)]
-        paper = zeros((length(Ds), length(F_liqs)))
-        # F_rim = 0
-        paper[:, 1] = [FT(0.6502), FT(0.8337), FT(0.9528), FT(0.9979)]
-        paper[:, 2] = [FT(1.7285), FT(2.8616), FT(3.4474), FT(3.7500)]
-        paper[:, 3] = [FT(2.9035), FT(4.9378), FT(6.0386), FT(6.5343)]
-        paper[:, 4] = [FT(4.0462), FT(6.9657), FT(8.5493), FT(9.2221)]
-        # with aspect ratio
-        use_aspect_ratio = true
-        for i in axes(F_liqs, 1)
-            for j in axes(Ds, 1)
-                F_liq = F_liqs[i]
-                D = Ds[j]
-                vel = P3.p3_particle_terminal_velocity(
-                    p3,
-                    D,
-                    Chen2022,
-                    ρ_a,
-                    F_rim,
-                    F_liq,
-                    th,
-                    use_aspect_ratio,
-                )
-                test = paper[j, i]
-                # biggest disagreement occurs when F_liq = 0
-                TT.@test vel >= 0
-                TT.@test vel ≈ test rtol = 0.8
-            end
-        end
-    end
-
-    TT.@testset "Chen 2022 - Mixed-Phase vs Cholette et al 2019 Fig1a (without ϕᵢ)" begin
-        # F_rim = 0, without aspect ratio
-        # for F_liq = 0.0, 0.33, 0.67, 1.0
-        F_rim = FT(0)
-        ρ_r = FT(900)
-        th = P3.thresholds(p3, ρ_r, F_rim)
-        F_liqs = [FT(0.0), FT(0.33), FT(0.67), FT(1)]
-        Ds = [FT(0.001), FT(0.002), FT(0.003), FT(0.005)]
-        paper = zeros((length(Ds), length(F_liqs)))
-        paper[:, 1] = [FT(0.6502), FT(0.8337), FT(0.9528), FT(0.9979)]
-        paper[:, 2] = [FT(1.7285), FT(2.8616), FT(3.4474), FT(3.7500)]
-        paper[:, 3] = [FT(2.9035), FT(4.9378), FT(6.0386), FT(6.5343)]
-        paper[:, 4] = [FT(4.0462), FT(6.9657), FT(8.5493), FT(9.2221)]
-        # with aspect ratio
         use_aspect_ratio = false
-        for i in axes(F_liqs, 1)
-            for j in axes(Ds, 1)
-                F_liq = F_liqs[i]
-                D = Ds[j]
-                vel = P3.p3_particle_terminal_velocity(
-                    p3,
-                    D,
-                    Chen2022,
-                    ρ_a,
-                    F_rim,
-                    F_liq,
-                    th,
-                    use_aspect_ratio,
-                )
-                test = paper[j, i]
-                TT.@test vel >= 0
-                TT.@test vel ≈ test rtol = 0.9
-            end
-        end
-    end
-
-    TT.@testset "Chen 2022 - Mixed-Phase vs Cholette et al 2019 Fig1b (with ϕᵢ)" begin
-        # F_rim = 1, with aspect ratio
-        # for F_liq = 0.0, 0.33, 0.67, 1.0
-        F_rim = 1 - eps(FT)
-        ρ_r = FT(900)
-        th = P3.thresholds(p3, ρ_r, F_rim)
-        F_liqs = [FT(0.0), FT(0.33), FT(0.67), FT(1)]
         # Allow for a D falling into every regime of the P3 Scheme
-        Ds = [FT(0.00035), FT(0.00125), FT(0.003), FT(0.0055), FT(0.0085)]
-        paper = zeros((length(Ds), length(F_liqs)))
-        # F_rim = 0
-        paper[:, 1] =
-            [FT(1.2393), FT(4.0075), FT(7.3069), FT(10.4131), FT(13.2940)]
-        paper[:, 2] =
-            [FT(1.38412), FT(4.26502), FT(7.61266), FT(10.0429), FT(11.9260)]
-        paper[:, 3] =
-            [FT(1.31974), FT(4.66738), FT(8.07940), FT(9.62446), FT(10.5740)]
-        paper[:, 4] =
-            [FT(1.4163), FT(4.9249), FT(8.5139), FT(9.1899), FT(9.2060)]
-        use_aspect_ratio = true
-        for i in axes(F_liqs, 1)
-            for j in axes(Ds, 1)
-                F_liq = F_liqs[i]
-                D = Ds[j]
-                vel = P3.p3_particle_terminal_velocity(
-                    p3,
-                    D,
-                    Chen2022,
-                    ρ_a,
-                    F_rim,
-                    F_liq,
-                    th,
-                    use_aspect_ratio,
-                )
-                test = paper[j, i]
-                TT.@test vel >= 0
-                TT.@test vel ≈ test rtol = 0.25
-            end
+        Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
+        expected = [0.13191, 0.50457, 0.90753, 1.301499, 1.67569]
+        for i in axes(Ds, 1)
+            D = Ds[i]
+            vel = P3.p3_particle_terminal_velocity(
+                p3,
+                D,
+                Chen2022,
+                ρ_a,
+                F_rim,
+                F_liq,
+                th,
+                use_aspect_ratio,
+            )
+            TT.@test vel >= 0
+            TT.@test vel ≈ expected[i] rtol = 1e-3
         end
     end
-
-    TT.@testset "Chen 2022 - Mixed-Phase vs Cholette et al 2019 Fig1b (without ϕᵢ)" begin
-        # F_rim = 1, with and without aspect ratio
-        # for F_liq = 0.0, 0.33, 0.67, 1.0
-        F_rim = 1 - eps(FT)
-        ρ_r = FT(900)
-        th = P3.thresholds(p3, ρ_r, F_rim)
-        F_liqs = [FT(0.0), FT(0.33), FT(0.67), FT(1)]
-        # Allow for a D falling into every regime of the P3 Scheme
-        Ds = [FT(0.00035), FT(0.00125), FT(0.003), FT(0.0055), FT(0.0085)]
-        paper = zeros((length(Ds), length(F_liqs)))
-        # F_rim = 0
-        paper[:, 1] =
-            [FT(1.2393), FT(4.0075), FT(7.3069), FT(10.4131), FT(13.2940)]
-        paper[:, 2] =
-            [FT(1.38412), FT(4.26502), FT(7.61266), FT(10.0429), FT(11.9260)]
-        paper[:, 3] =
-            [FT(1.31974), FT(4.66738), FT(8.07940), FT(9.62446), FT(10.5740)]
-        paper[:, 4] =
-            [FT(1.4163), FT(4.9249), FT(8.5139), FT(9.1899), FT(9.2060)]
-        use_aspect_ratio = false
-        for i in axes(F_liqs, 1)
-            for j in axes(Ds, 1)
-                F_liq = F_liqs[i]
-                D = Ds[j]
-                vel = P3.p3_particle_terminal_velocity(
-                    p3,
-                    D,
-                    Chen2022,
-                    ρ_a,
-                    F_rim,
-                    F_liq,
-                    th,
-                    use_aspect_ratio,
-                )
-                test = paper[j, i]
-                TT.@test vel >= 0
-                TT.@test vel ≈ test rtol = 0.25
-            end
-        end
-    end
-
 end
 
 function test_bulk_terminal_velocities(FT)

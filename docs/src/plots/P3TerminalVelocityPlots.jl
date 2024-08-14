@@ -25,6 +25,7 @@ function get_values(
     ρ_rs = range(FT(25), stop = FT(975), length = y_resolution)
 
     V_m = zeros(x_resolution, y_resolution)
+    V_m_ϕ = zeros(x_resolution, y_resolution)
     D_m = zeros(x_resolution, y_resolution)
     D_m_regimes = zeros(x_resolution, y_resolution)
     ϕᵢ = zeros(x_resolution, y_resolution)
@@ -34,9 +35,22 @@ function get_values(
             F_rim = F_rims[i]
             ρ_r = ρ_rs[j]
             use_aspect_ratio = true
+            do_not_use_aspect = false
             th = P3.thresholds(p3, ρ_r, F_rim)
 
             V_m[i, j] = P3.ice_terminal_velocity(
+                p3,
+                Chen2022,
+                L,
+                N,
+                ρ_r,
+                F_rim,
+                F_liq,
+                ρ_a,
+                do_not_use_aspect,
+            )[2]
+
+            V_m_ϕ[i, j] = P3.ice_terminal_velocity(
                 p3,
                 Chen2022,
                 L,
@@ -73,7 +87,7 @@ function get_values(
         end
     end
     D_m *= 1e3
-    return (; F_rims, ρ_rs, D_m_regimes, D_m, ϕᵢ, V_m)
+    return (; F_rims, ρ_rs, D_m_regimes, D_m, ϕᵢ, V_m, V_m_ϕ)
 end
 
 function make_axis(fig, row, col, title)
@@ -111,11 +125,11 @@ function figure_2()
     xres = 100
     yres = 100
 
-    (F_rims, ρ_rs, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s) =
+    (F_rims, ρ_rs, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s, V_m_ϕ_s) =
         get_values(p3, Chen2022, L_s, N_s, ρ_a, xres, yres)
-    (F_rimm, ρ_rm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m) =
+    (F_rimm, ρ_rm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m, V_m_ϕ_m) =
         get_values(p3, Chen2022, L_m, N_m, ρ_a, xres, yres)
-    (F_riml, ρ_rl, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l) =
+    (F_riml, ρ_rl, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l, V_m_ϕ_l) =
         get_values(p3, Chen2022, L_l, N_l, ρ_a, xres, yres)
 
     fig = Plt.Figure()
@@ -211,20 +225,35 @@ function figure_2()
     Plt.Colorbar(fig[6, 3], hm, vertical = false)
     Plt.contour!(ax9, F_riml, ρ_rl, D_m_l, label = "D_m"; contour_args...)
 
-    ax10 = make_axis(fig, 7, 1, "Vₘ with small Dₘ")
+    ax10 = make_axis(fig, 7, 1, "Vₘ (ϕᵢ = 1) with small Dₘ")
     hm = Plt.contourf!(ax10, F_rims, ρ_rs, V_m_s)
     Plt.contour!(ax10, F_rims, ρ_rs, D_m_s; contour_args...)
     Plt.Colorbar(fig[8, 1], hm, vertical = false)
 
-    ax11 = make_axis(fig, 7, 2, "Vₘ with medium Dₘ")
+    ax11 = make_axis(fig, 7, 2, "Vₘ (ϕᵢ = 1) with medium Dₘ")
     hm = Plt.contourf!(ax11, F_rimm, ρ_rm, V_m_m)
     Plt.contour!(ax11, F_rimm, ρ_rm, D_m_m; contour_args...)
     Plt.Colorbar(fig[8, 2], hm, vertical = false)
 
-    ax12 = make_axis(fig, 7, 3, "Vₘ with large Dₘ")
+    ax12 = make_axis(fig, 7, 3, "Vₘ  (ϕᵢ = 1) with large Dₘ")
     hm = Plt.contourf!(ax12, F_riml, ρ_rl, V_m_l)
     Plt.contour!(ax12, F_riml, ρ_rl, D_m_l; contour_args...)
     Plt.Colorbar(fig[8, 3], hm, vertical = false)
+
+    ax13 = make_axis(fig, 9, 1, "Vₘ (using ϕᵢ) with small Dₘ")
+    hm = Plt.contourf!(ax13, F_rims, ρ_rs, V_m_ϕ_s)
+    Plt.contour!(ax13, F_rims, ρ_rs, D_m_s; contour_args...)
+    Plt.Colorbar(fig[10, 1], hm, vertical = false)
+
+    ax14 = make_axis(fig, 9, 2, "Vₘ (using ϕᵢ) with medium Dₘ")
+    hm = Plt.contourf!(ax14, F_rimm, ρ_rm, V_m_ϕ_m)
+    Plt.contour!(ax14, F_rimm, ρ_rm, D_m_m; contour_args...)
+    Plt.Colorbar(fig[10, 2], hm, vertical = false)
+
+    ax15 = make_axis(fig, 9, 3, "Vₘ  (using ϕᵢ) with large Dₘ")
+    hm = Plt.contourf!(ax15, F_riml, ρ_rl, V_m_ϕ_l)
+    Plt.contour!(ax15, F_riml, ρ_rl, D_m_l; contour_args...)
+    Plt.Colorbar(fig[10, 3], hm, vertical = false)
 
     Plt.linkxaxes!(ax1, ax2)
     Plt.linkxaxes!(ax2, ax3)
@@ -248,6 +277,12 @@ function figure_2()
     Plt.linkyaxes!(ax1, ax10)
     Plt.linkyaxes!(ax10, ax11)
     Plt.linkyaxes!(ax11, ax12)
+    Plt.linkxaxes!(ax1, ax13)
+    Plt.linkxaxes!(ax13, ax14)
+    Plt.linkxaxes!(ax14, ax15)
+    Plt.linkyaxes!(ax1, ax13)
+    Plt.linkyaxes!(ax13, ax14)
+    Plt.linkyaxes!(ax14, ax15)
 
     Plt.resize_to_layout!(fig)
     Plt.save("MorrisonandMilbrandtFig2.svg", fig)

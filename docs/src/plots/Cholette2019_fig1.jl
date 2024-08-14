@@ -30,10 +30,12 @@ function get_values(
     ρ_r = FT(900)
 
     V = zeros(res)
+    Vϕ = zeros(res)
+    do_not_use_aspect = false
     use_aspect_ratio = true
 
     for i in 1:res
-        V[i] = P3.p3_particle_terminal_velocity(
+        Vϕ[i] = P3.p3_particle_terminal_velocity(
             p3,
             D_ps[i],
             Chen2022,
@@ -43,8 +45,18 @@ function get_values(
             th,
             use_aspect_ratio,
         )
+        V[i] = P3.p3_particle_terminal_velocity(
+            p3,
+            D_ps[i],
+            Chen2022,
+            ρ_a,
+            F_r,
+            F_liq,
+            th,
+            do_not_use_aspect,
+        )
     end
-    return (D_ps, V)
+    return (D_ps, V, Vϕ)
 end
 
 function fig1()
@@ -55,7 +67,8 @@ function fig1()
     F_liqs = (FT(0), FT(0.33), FT(0.67), FT(1))
     F_rs = (FT(0), FT(1 - eps(FT)))
 
-    labels = ["F_liq = 0", "F_liq = 0.33", "F_liq = 0.67", "F_liq = 1"]
+    labels =
+        ["F_liq = 0", "F_liq = 0.33", "F_liq = 0.67", "F_liq = 1", "ϕᵢ = 1"]
     colors = [:black, :blue, :red, :green]
     res = 50
 
@@ -70,7 +83,7 @@ function fig1()
     )
 
     for i in 1:4
-        D_ps, V_0 = get_values(
+        D_ps, V_0, V_0_ϕ = get_values(
             p3,
             Chen2022,
             F_liqs[i],
@@ -79,7 +92,15 @@ function fig1()
             P3.thresholds(p3, ρ_r, F_rs[1]),
             res,
         )
-        Plt.lines!(ax1, D_ps, V_0, color = colors[i], label = labels[i])
+        Plt.lines!(ax1, D_ps, V_0_ϕ, color = colors[i], label = labels[i])
+        Plt.lines!(
+            ax1,
+            D_ps,
+            V_0,
+            color = colors[i],
+            label = labels[i],
+            linestyle = :dash,
+        )
     end
 
     # F_r = 1
@@ -90,7 +111,7 @@ function fig1()
         ylabel = "V (m s⁻¹)",
     )
     for i in 1:4
-        D_ps, V_1 = get_values(
+        D_ps, V_1, V_1_ϕ = get_values(
             p3,
             Chen2022,
             F_liqs[i],
@@ -99,7 +120,15 @@ function fig1()
             P3.thresholds(p3, ρ_r, F_rs[2]),
             res,
         )
-        Plt.lines!(ax2, D_ps, V_1, color = colors[i], label = labels[i])
+        Plt.lines!(ax2, D_ps, V_1_ϕ, color = colors[i], label = labels[i])
+        Plt.lines!(
+            ax2,
+            D_ps,
+            V_1,
+            color = colors[i],
+            label = labels[i],
+            linestyle = :dash,
+        )
     end
 
     Plt.Legend(
@@ -109,6 +138,7 @@ function fig1()
             Plt.LineElement(color = :blue),
             Plt.LineElement(color = :red),
             Plt.LineElement(color = :green),
+            Plt.LineElement(color = :black, linestyle = :dash),
         ],
         labels,
         framevisible = false,
