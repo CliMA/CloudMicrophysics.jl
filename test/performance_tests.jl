@@ -186,7 +186,7 @@ function benchmark_test(FT)
             ρ_air,
             Δt,
         ),
-        150,
+        200,
     )
 
     # aerosol activation
