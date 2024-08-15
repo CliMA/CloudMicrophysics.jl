@@ -117,6 +117,7 @@ function benchmark_test(FT)
     N = FT(1e8)
 
     T_air_2 = FT(250)
+    RH_2 = FT(1.5)
     T_air_cold = FT(230)
     S_ice = FT(1.2)
     dSi_dt = FT(0.05)
@@ -171,6 +172,21 @@ function benchmark_test(FT)
         )
         bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_r), 1e5)
     end
+    # P3 ice nucleation
+    bench_press(
+        P3.het_ice_nucleation,
+        (
+            kaolinite,
+            tps,
+            TD.PhasePartition(q_tot, q_liq, q_ice),
+            N_liq,
+            RH_2,
+            T_air_2,
+            ρ_air,
+            Δt,
+        ),
+        150,
+    )
 
     # aerosol activation
     bench_press(

@@ -459,54 +459,6 @@ end
 #        end
 #    end
 #
-#    TT.@testset "Heterogeneous Freezing Smoke Test" begin
-#        T = FT(250)
-#        N = FT(1e8)
-#        ρ_a = FT(1.2)
-#        qᵥ = FT(8.1e-4)
-#        aero_type = CMP.Illite(FT)
-#
-#        qs = range(0.001, stop = 0.005, length = 5)
-#
-#        expected_freeze_q =
-#            [2.036e-61, 6.463e-61, 1.270e-60, 2.052e-60, 2.976e-60]
-#        expected_freeze_N =
-#            [1.414e-51, 2.244e-51, 2.941e-51, 3.562e-51, 4.134e-51]
-#
-#        for i in axes(qs, 1)
-#            rate_mass = P3.p3_rain_het_freezing(
-#                true,
-#                pdf_r,
-#                p3,
-#                tps,
-#                qs[i],
-#                N,
-#                T,
-#                ρ_a,
-#                qᵥ,
-#                aero_type,
-#            )
-#            rate_num = P3.p3_rain_het_freezing(
-#                false,
-#                pdf_r,
-#                p3,
-#                tps,
-#                qs[i],
-#                N,
-#                T,
-#                ρ_a,
-#                qᵥ,
-#                aero_type,
-#            )
-#
-#            TT.@test rate_mass >= 0
-#            TT.@test rate_mass ≈ expected_freeze_q[i] rtol = 1e-3
-#
-#            TT.@test rate_num >= 0
-#            TT.@test rate_num ≈ expected_freeze_N[i] rtol = 1e-3
-#        end
-#    end
-#
 #end
 
 function test_integrals(FT)
@@ -574,6 +526,43 @@ function test_integrals(FT)
     end
 end
 
+function test_p3_het_freezing(FT)
+
+    TT.@testset "Heterogeneous Freezing Smoke Test" begin
+        tps = TD.Parameters.ThermodynamicsParameters(FT)
+        p3 = CMP.ParametersP3(FT)
+        SB2006 = CMP.SB2006(FT, false) # no limiters
+        pdf_c = SB2006.pdf_c
+        aerosol = CMP.Illite(FT)
+
+        N_liq = FT(1e8)
+        T = FT(244)
+        p = FT(500 * 1e2)
+
+        dt = FT(1)
+
+        expected_freeze_L =
+            [1.544e-22, 1.068e-6, 0.0001428, 0.0001428, 0.0001428, 0.0001428]
+        expected_freeze_N = [1.082e-10, 747647.5, N_liq, N_liq, N_liq, N_liq]
+        qᵥ_range = range(0.5e-3, stop = 1.5e-3, length = 6)
+
+        for it in range(1, 6)
+            qₚ = TD.PhasePartition(FT(qᵥ_range[it]), FT(2e-4), FT(0))
+            eᵥ_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+            ϵ = tps.molmass_water / tps.molmass_dryair
+            eᵥ = p * qᵥ_range[it] / (ϵ + qᵥ_range[it] * (1 - ϵ))
+            RH = eᵥ / eᵥ_sat
+            ρₐ = TD.air_density(tps, T, p, qₚ)
+            rate = P3.het_ice_nucleation(aerosol, tps, qₚ, N_liq, RH, T, ρₐ, dt)
+
+            TT.@test rate.dNdt >= 0
+            TT.@test rate.dLdt >= 0
+
+            TT.@test rate.dNdt ≈ expected_freeze_N[it] rtol = 1e-2
+            TT.@test rate.dLdt ≈ expected_freeze_L[it] rtol = 1e-2
+        end
+    end
+end
 
 println("Testing Float32")
 test_p3_thresholds(Float32)
@@ -588,5 +577,6 @@ test_p3_thresholds(Float64)
 test_p3_shape_solver(Float64)
 test_particle_terminal_velocities(Float64)
 test_bulk_terminal_velocities(Float64)
-#test_tendencies(Float64)
 test_integrals(Float64)
+test_p3_het_freezing(Float64)
+#test_tendencies(Float64)
