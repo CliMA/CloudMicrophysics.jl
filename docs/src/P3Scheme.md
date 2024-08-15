@@ -301,6 +301,35 @@ When modifying process rates, we now need to consider whether they are concerned
 !!! note
     TODO - Implement process rates, complete docs.
 
+## Heterogeneous Freezing
+
+Immersion freezing is parameterized based on water activity and follows the ABIFM
+  parameterization from [KnopfAlpert2013](@cite).
+See also the derivation notes about different
+  [ice nucleation parameterizations](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/).
+The immersion freezing nucleation rate is computed by numerically integrating
+  over the distribution of cloud droplets given by the 2-moment warm rain
+  microphysics scheme from [SeifertBeheng2006](@cite).
+The rate is limited by the available cloud droplet number concentration
+  and water content.
+```math
+\frac{dN}{dt} = \int_{0}^{D_{max}} \! J_{ABIFM} A_a(D) N'(D) \mathrm{d}D
+```
+```math
+\frac{dQ}{dt} = \int_{0}^{D_{max}} \! J_{ABIFM} A_a(D) N'(D) m(D) \mathrm{d}D
+```
+where
+- ``J_{ABIFM}`` - is the immersion freezing nucleation rate,
+- ``A_a(D)`` - is the assumed surface area of insoluble ice nucleating particles,
+- ``N'(D)`` - number distribution of cloud droplets,
+- ``m(D)`` - assumed mass of a cloud droplet as a function of its diameter.
+
+```@example
+include("plots/P3ImmersionFreezing.jl")
+```
+![](P3_het_ice_nucleation.svg)
+
+
 ## Acknowledgments
 
 Click on the P3 mascot duck to be taken to the repository
