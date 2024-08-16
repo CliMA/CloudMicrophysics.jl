@@ -207,7 +207,37 @@ function p3_mass(
     elseif th.D_cr > D >= th.D_gr
         return mass_s(D, th.ρ_g)          # graupel
     else #elseif D >= th.D_cr
-        return mass_r(p3, D, F_r)                # partially rimed ice
+        return mass_r(p3, D, F_r)         # partially rimed ice
+    end
+end
+
+"""
+    p3_dmdD(p3, D, F_r, th)
+
+ - p3 - a struct containing p3 parameters
+ - D - maximum dimension of the particle
+ - F_r - rime mass fraction (q_rim/ q_i)
+ - th - thresholds as calculated by thresholds()
+
+Returns dm(D)/dD for each particle regime, used in snow melting
+"""
+function p3_dmdD(
+    p3::PSP3,
+    D::FT,
+    F_r::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT <: Real}
+    D_th = D_th_helper(p3)
+    if D_th > D
+        return FT(π) / 2 * p3.ρ_i * D^2
+    elseif F_r == 0
+        return α_va_si(p3) * p3.β_va * D^(p3.β_va - 1)
+    elseif th.D_gr > D >= D_th
+        return α_va_si(p3) * p3.β_va * D^(p3.β_va - 1)
+    elseif th.D_cr > D >= th.D_gr
+        return FT(π) / 2 * th.ρ_g * D^2
+    else # D >= th.D_cr
+        return α_va_si(p3) / (1 - F_r) * p3.β_va * D^(p3.β_va -1)
     end
 end
 
@@ -252,9 +282,7 @@ function p3_area(
         return A_ns(p3, D)                 # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
         return A_s(D)                      # graupel
-    elseif D >= th.D_cr
+    else #D >= th.D_cr
         return A_r(p3, F_r, D)             # partially rimed ice
-    else
-        throw("D not in range")
     end
 end

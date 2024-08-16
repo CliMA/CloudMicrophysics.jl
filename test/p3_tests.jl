@@ -564,6 +564,36 @@ function test_p3_het_freezing(FT)
     end
 end
 
+function test_p3_melting(FT)
+
+    TT.@testset "Melting Smoke Test" begin
+
+        p3 = CMP.ParametersP3(FT)
+        Chen2022 = CMP.Chen2022VelType(FT)
+        aps = CMP.AirProperties(FT)
+        tps = TD.Parameters.ThermodynamicsParameters(FT)
+
+        Tₐ = FT(244)
+        ρₐ = FT(0.7)
+
+        qᵢ = FT(0.022)
+        Lᵢ = qᵢ * ρₐ
+        Nᵢ = FT(1e6)
+
+        F_rim = FT(0.8)
+        ρ_rim = FT(400)
+
+        dt = FT(1)
+
+        (dLdt, dNdt) = P3.ice_melt(
+             p3, Chen2022.snow_ice, aps, tps, Lᵢ, Nᵢ, Tₐ, ρₐ, F_rim, ρ_rim, dt,
+        )
+        @info(" ", dLdt, dNdt)
+    end
+end
+
+test_p3_melting(Float64)
+
 println("Testing Float32")
 test_p3_thresholds(Float32)
 test_particle_terminal_velocities(Float32)

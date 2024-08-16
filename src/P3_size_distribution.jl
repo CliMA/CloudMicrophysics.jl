@@ -71,6 +71,7 @@ function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
     ice_problem(x) =
         tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
     guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
+    @info(guess)
     log_ice_x =
         RS.find_zero(
             ice_problem,
