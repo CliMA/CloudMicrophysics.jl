@@ -1,5 +1,7 @@
 import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics.AerosolModel as AM
 
 include(joinpath(pkgdir(CM), "parcel", "ParcelParameters.jl"))
 
@@ -7,6 +9,7 @@ include(joinpath(pkgdir(CM), "parcel", "ParcelParameters.jl"))
     Parcel simulation parameters
 """
 Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
+    aerosol_act = "None"
     deposition = "None"
     heterogeneous = "None"
     homogeneous = "None"
@@ -15,9 +18,11 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     liq_size_distribution = "Monodisperse"
     ice_size_distribution = "Monodisperse"
     aerosol = Empty{FT}()
+    aero_σ_g = FT(0)
     wps = CMP.WaterProperties(FT)
     aps = CMP.AirProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
+    aap = CMP.AerosolActivationParameters(FT)
     ips = CMP.IceNucleationParameters(FT)
     H₂SO₄ps = CMP.H2SO4SolutionParameters(FT)
     const_dt = 1
@@ -44,7 +49,8 @@ function parcel_model(dY, Y, p, t)
     # Simulation parameters
     (; wps, tps, r_nuc, w) = p
     (; liq_distr, ice_distr) = p
-    (; dep_params, imm_params, hom_params, ce_params, ds_params) = p
+    (; aero_act_params, dep_params, imm_params, hom_params) = p
+    (; ce_params, ds_params) = p
     # Y values stored in a named tuple for ease of use
     state = (
         Sₗ = Y[1],
@@ -90,6 +96,11 @@ function parcel_model(dY, Y, p, t)
     # Mean radius, area and volume of liquid droplets and ice crystals
     PSD_liq = distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air)
     PSD_ice = distribution_moments(ice_distr, qᵢ, Nᵢ, ρᵢ, ρ_air)
+
+    # Aerosol activation
+    dNₗ_dt_act = aerosol_activation(aero_act_params, state)
+    dqₗ_dt_act = dNₗ_dt_act * 4 * FT(π) / 3 * r_nuc^3 * ρₗ / ρ_air
+
     # Deposition ice nucleation
     # (All deposition parameterizations assume monodisperse aerosol size distr)
     dNᵢ_dt_dep = deposition_nucleation(dep_params, state, dY)
@@ -112,17 +123,17 @@ function parcel_model(dY, Y, p, t)
 
     # number concentration and ...
     dNᵢ_dt = dNᵢ_dt_dep + dNᵢ_dt_imm + dNᵢ_dt_hom
-    dNₐ_dt = -dNᵢ_dt_dep
-    dNₗ_dt = -dNᵢ_dt_imm - dNᵢ_dt_hom
+    dNₐ_dt = -dNᵢ_dt_dep - dNₗ_dt_act
+    dNₗ_dt = dNₗ_dt_act - dNᵢ_dt_imm - dNᵢ_dt_hom
     # ... water mass budget
-    dqₗ_dt_v2l = dqₗ_dt_ce
+    dqₗ_dt_v2l = dqₗ_dt_ce + dqₗ_dt_act
     dqᵢ_dt_l2i = dqᵢ_dt_imm + dqᵢ_dt_hom
     dqᵢ_dt_v2i = dqᵢ_dt_dep + dqᵢ_dt_ds
 
     # Update the tendecies
     dqᵢ_dt = dqᵢ_dt_v2i + dqᵢ_dt_l2i
     dqₗ_dt = dqₗ_dt_v2l - dqᵢ_dt_l2i
-    dqᵥ_dt = -dqᵢ_dt - dqₗ_dt
+    dqᵥ_dt = -dqₗ_dt_v2l - dqᵢ_dt_v2i
 
     dSₗ_dt =
         a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l -
@@ -216,6 +227,16 @@ function run_parcel(IC, t_0, t_end, pp)
 
     info *= "Aerosol: $(chop( string(typeof(pp.aerosol)), head = 29, tail = 9))\n"
 
+    info *= "Aerosol Activation: $(pp.aerosol_act)\n"
+    if pp.aerosol_act == "None"
+        aero_act_params = Empty{FT}()
+    elseif pp.aerosol_act == "AeroAct"
+        aero_act_params =
+            AeroAct{FT}(pp.aap, pp.aerosol, pp.aero_σ_g, pp.r_nuc, pp.const_dt)
+    else
+        throw("Unrecognized aerosol activation mode")
+    end
+
     info *= "Deposition: $(pp.deposition)\n"
     if pp.deposition == "None"
         dep_params = Empty{FT}()
@@ -283,6 +304,7 @@ function run_parcel(IC, t_0, t_end, pp)
     p = (
         liq_distr = liq_distr,
         ice_distr = ice_distr,
+        aero_act_params,
         dep_params = dep_params,
         imm_params = imm_params,
         hom_params = hom_params,
@@ -290,6 +312,8 @@ function run_parcel(IC, t_0, t_end, pp)
         ds_params = ds_params,
         wps = pp.wps,
         tps = pp.tps,
+        aps = pp.aps,
+        aap = pp.aap,
         r_nuc = pp.r_nuc,
         w = pp.w,
     )
