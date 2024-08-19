@@ -26,7 +26,7 @@ Nₗ = FT(200 * 1e6)
 Nᵢ = FT(200 * 1e3)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
-T₀ = FT(273.15 - 5.0)
+T₀ = FT(273.15 - 30.0)
 ln_INPC = FT(0)
 e_sat = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 Sₗ = FT(0.8)
@@ -43,7 +43,7 @@ simple = false
 
 # Simulation parameters passed into ODE solver
 w = FT(1)                                 # updraft speed
-const_dt = FT(0.5)                         # model timestep
+const_dt = FT(20)                         # model timestep
 t_max = FT(20)#FT(const_dt*1)
 size_distribution_list = ["Monodisperse", "Gamma"]
 
@@ -148,9 +148,9 @@ MK.axislegend(
 #)
 
 if simple
-    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/timestep_experiment_simple_morrison/both.png", fig)
-    #MK.save("ice_noneq_parcel_simple_morrison.svg", fig)
+    #MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/timestep_experiment_simple_morrison/both.png", fig)
+    MK.save("ice_noneq_parcel_simple_morrison.svg", fig)
 else
-    MK.save("ice_noneq_parcel_morrison.svg", fig)
-    #MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_01.png", fig)
+    #MK.save("ice_noneq_parcel_morrison.svg", fig)
+    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/timestep_experiment_morrison/both.png", fig)
 end
