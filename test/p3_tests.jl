@@ -88,7 +88,7 @@ function test_p3_thresholds(FT)
         end
     end
 
-    TT.@testset "mass, area, density and aspect ratio tests" begin
+    TT.@testset "mass, area, density, aspect ratio, collision kernel tests" begin
         # values
         ρ_r = FT(500)
         F_r = FT(0.5)
@@ -102,6 +102,9 @@ function test_p3_thresholds(FT)
         D_1 = D_th / 2
         D_2 = (D_th + D_gr) / 2
         D_3 = (D_gr + D_cr) / 2
+
+        # D_other for collision kernel
+        D_other = FT(30e-6)
 
         # test area
         TT.@test P3.p3_area(p3, D_1, F_r, th) == P3.A_s(D_1)
@@ -126,6 +129,16 @@ function test_p3_thresholds(FT)
         TT.@test P3.ϕᵢ(p3, D_2, F_r, th) ≈ 0.5777887690
         TT.@test P3.ϕᵢ(p3, D_3, F_r, th) ≈ 1
         TT.@test P3.ϕᵢ(p3, D_cr, F_r, th) ≈ 0.662104776
+
+        # test collision kernel
+        TT.@test P3.K(p3, D_1, D_other, F_r, th) ≈ 9.269859071834973e-9 atol =
+            eps(FT)
+        TT.@test P3.K(p3, D_2, D_other, F_r, th) ≈ 3.2192514614119116e-8 atol =
+            eps(FT)
+        TT.@test P3.K(p3, D_3, D_other, F_r, th) ≈ 1.0707907354477365e-7 atol =
+            eps(FT)
+        TT.@test P3.K(p3, D_cr, D_other, F_r, th) ≈ 1.4982638955913763e-7 atol =
+            eps(FT)
 
         # test F_r = 0 and D > D_th
         F_r = FT(0)

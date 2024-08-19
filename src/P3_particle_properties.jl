@@ -258,3 +258,29 @@ function p3_area(
         throw("D not in range")
     end
 end
+
+"""
+    K(p3, D1, D1)
+
+ - p3 - a struct with P3 scheme parameters
+ - D_ice - maximum dimension of ice particle
+ - D_other - maximum dimension of second particle (can be cloud water or rain)
+ - F_rim - rime mass fraction (L_rim/ (L_ice - L_liq))
+ - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
+
+Computes the geometric collision kernel of an ice particle colliding
+with a spherical cloud water or rain particle.
+We assume a spherical particle of the same
+area if the particle is nonspherical. We also assume collision efficiency
+of 1, so the geometric collision kernel is the total collision kernel.
+"""
+function K(
+    p3::PSP3,
+    D_ice::FT,
+    D_other::FT,
+    F_rim::FT,
+    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+) where {FT}
+    A_ice = p3_area(p3, D_ice, F_rim, th)
+    return FT(π) * ((A_ice / FT(π))^0.5 + D_other)^2
+end
