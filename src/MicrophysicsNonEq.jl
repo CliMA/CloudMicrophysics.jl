@@ -59,13 +59,13 @@ function conv_q_vap_to_q_liq_ice(
 end
 
 """
-    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q_sat, q, T)
-    conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q_sat, q, T)
+    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ, T)
+    conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ, T)
 
 - `liquid` or `ice` - a struct with cloud water or ice free parameters
 - `tps` - thermodynamics parameters struct
 - `q` - current PhasePartition
-- `T` - air density [kg/m3]
+- `ρ` - air density [kg/m3]
 - `T` - air temperature [K]
 
 Returns the cloud water tendency due to condensation and evaporation
