@@ -47,7 +47,7 @@ where:
     for hints.
     In particular, [Desai2019](@cite).
 
-## Condensation/evaporation and deposition/sublimation from Morrison and Grabowski 2008
+## Condensation/evaporation and deposition/sublimation from Morrison and Milbrandt 2015
 
 Condensation/evaporation and deposition/sublimation rates are based on
   the difference between the water vapor specific humidity and saturation
@@ -92,3 +92,26 @@ where:
 - ``c_p`` is the specific heat of air at constant pressure,
 - ``R_v`` is the gas constant of water vapor,
 - ``L_v`` and ``L_s`` is the latent heat of vaporization and sublimation.
+ 
+    Note that these forms of condensation/sublimation and deposition/sublimation are equivalent to those described in the adiabatic parcel model with some rearrangements and assumptions. It is just necessary to use the definitions of ```\tau```, ```q_{sl}```, and the thermal diffusivity ```D_v```:
+
+    ```math
+    \begin{equation}
+      \tau = 4 \pi N_{tot} \bar{r}, \;\;\;\;\;\;\;\;
+      q_{sl} = \frac{e_{sl}}{\rho R_v T}, \;\;\;\;\;\;\;\;
+      D_v = \frac{K}{\rho c_p}
+    \end{equation}
+    ```
+    and if we assume that the supersaturation S can be approximated by specific humidities (this is only exactly true for mass mixing ratios):
+    ```math
+    \begin{equation}
+        S_l = \frac{q_{vap}}{q_{sl}}
+    \end{equation}
+    ```
+    then we can write:
+    ```math
+    \begin{equation}
+      q_{vap} - q_{sl} = q_{sl}(S_l - 1)
+    \end{equation}
+    ```
+    and ```Gamma``` is equivalent to the ```G``` function used in our parcel and parameterizations.
