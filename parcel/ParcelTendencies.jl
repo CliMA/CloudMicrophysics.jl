@@ -4,6 +4,35 @@ import CloudMicrophysics.HetIceNucleation as CMI_het
 import CloudMicrophysics.HomIceNucleation as CMI_hom
 import CloudMicrophysics.Parameters as CMP
 import Distributions as DS
+import SpecialFunctions as SF
+
+function aerosol_activation(::Empty, state)
+    FT = eltype(state)
+    return FT(0)
+end
+
+function aerosol_activation(params::AeroAct, state)
+    (; aap, aerosol, aero_σ_g, r_nuc, const_dt) = params
+    (; T, Sₗ, Nₐ) = state
+    FT = eltype(state)
+
+    ad = AM.Mode_κ(
+        r_nuc,
+        aero_σ_g,
+        Nₐ,
+        (FT(1.0),),
+        (FT(1.0),),
+        (aerosol.M,),
+        (aerosol.κ,),
+    )
+    all_ad = AM.AerosolDistribution((ad,))
+
+    smax = (Sₗ - 1) < 0 ? FT(0) : (Sₗ - 1)
+    sm = AA.critical_supersaturation(aap, all_ad, T)
+    u = 2 * log(sm[1] / smax) / 3 / sqrt(2) / log(ad.stdev)
+
+    return ad.N * (1 / 2) * (1 - SF.erf(u)) / const_dt
+end
 
 function deposition_nucleation(::Empty, state, dY)
     FT = eltype(state)
