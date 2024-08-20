@@ -14,6 +14,7 @@ import ..Parameters as CMP
 export τ_relax
 export conv_q_vap_to_q_liq_ice
 export conv_q_vap_to_q_liq_ice_MM2015
+export conv_q_vap_to_q_liq_ice_MM2015_timeintegrator
 
 """
     τ_relax(liquid)
