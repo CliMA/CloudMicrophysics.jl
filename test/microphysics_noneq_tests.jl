@@ -108,11 +108,11 @@ function test_microphysics_noneq(FT)
         # test sign
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(0.5 * qᵥ_sl)), ρ, T, w, p_air, const_dt, "condensation") < FT(0)
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.5 * qᵥ_sl)), ρ, T, w, p_air, const_dt, "condensation") > FT(0)
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(       qᵥ_sl), ρ, T, w, p_air, const_dt, "condensation") ≈ FT(0) rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(       qᵥ_sl), ρ, T, FT(0), p_air, const_dt, "condensation") ≈ FT(0) rtol = 1e-6
 
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(0.5 * qᵥ_si)), ρ, T, w, p_air, const_dt, "deposition") < FT(0)
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.5 * qᵥ_si)), ρ, T, w, p_air, const_dt, "deposition") > FT(0)
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(       qᵥ_si), ρ, T, w, p_air, const_dt, "deposition") ≈ FT(0) rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(       qᵥ_si), ρ, T, FT(0), p_air, const_dt, "deposition") ≈ FT(0) rtol = 1e-6
 
         # smoke test for values
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T, w, p_air, const_dt, "condensation") ≈ 3.7177455f-5 rtol = 1e-6
