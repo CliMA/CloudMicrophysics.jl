@@ -9,6 +9,7 @@ CurrentModule = CloudMicrophysics
 MicrophysicsNonEq
 MicrophysicsNonEq.τ_relax
 MicrophysicsNonEq.conv_q_vap_to_q_liq_ice
+MicrophysicsNonEq.conv_q_vap_to_q_liq_ice_MM2015
 ```
 
 # 0-moment precipitation microphysics

@@ -410,7 +410,7 @@ Three different implementations of this parametrization are used in the parcel m
   with the mean and standard deviation defined in [Frostenberg2023](@cite).
   The inverse timescale of the process is set by ``\gamma``.
 
-The stochastic implementation is based on the [Ornstein-Uhlenbeck process](https://en.wikipedia.org/wiki/Ornstein–Uhlenbeck_process), 
+The stochastic implementation is based on the [Ornstein-Uhlenbeck process](https://en.wikipedia.org/wiki/Ornstein–Uhlenbeck_process),
 in which the variable ``x`` is a mean-reverting process perturbed by Gaussian random noise (i.e. increments of the Wiener process ``W``):
 ```math
 \begin{equation}
@@ -421,7 +421,7 @@ where ``N`` is a zero-mean normal distribution with variance ``dt``.
 For constant ``\gamma`` and ``\sigma``, and given some initial condition ``x(0)=x_0``, ``x`` has the analytical solution:
 ```math
 \begin{equation}
-  x(t) = 
+  x(t) =
       x_0 e^{-\gamma t} + \mu (1 - e^{-\gamma t})
     + \sqrt{2\gamma} \sigma \int_0^t e^{-\gamma(t-s)} dW,
 \end{equation}
@@ -429,8 +429,8 @@ For constant ``\gamma`` and ``\sigma``, and given some initial condition ``x(0)=
 where ``\tau \equiv 1 / \gamma`` is the assumed timescale of the process. The process mean is ``x_0 e^{-\gamma t} + \mu (1 - e^{-\gamma t})``. We can calculate the variance ``\mathbb{V}(t)`` as,
 ```math
 \begin{equation}
-  \mathbb{V}(t) 
-  = 2\gamma \sigma^2 \int_0^t e^{-2\gamma(t-s)} ds 
+  \mathbb{V}(t)
+  = 2\gamma \sigma^2 \int_0^t e^{-2\gamma(t-s)} ds
   = \frac{g^2}{2\gamma} \left( 1 - e^{-2\gamma t} \right).
 \end{equation}
 ```
@@ -439,7 +439,7 @@ We use this process to model ``x=\log(\text{INPC})``, which tends toward a tempe
 The equation for ``\log(\text{INPC})`` is then,
 ```math
 \begin{equation}
-  d\log(\text{INPC}) = 
+  d\log(\text{INPC}) =
     - \frac{\log(\text{INPC}) - μ}{\tau} dt
     + \sigma \sqrt{\frac{2}{\tau}} dW
 \end{equation}
