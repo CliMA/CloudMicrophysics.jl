@@ -828,6 +828,7 @@ function test_gpu(FT)
 
     @testset "non-equilibrium microphysics kernels" begin
         dims = (3, 1)
+        dims = (3, 1)
         (; output, ndrange) = setup_output(dims, FT)
 
         ρ = ArrayType([FT(0.8)])
@@ -835,6 +836,9 @@ function test_gpu(FT)
         qᵥ_sl = ArrayType([FT(0.0035)])
         qᵢ = ArrayType([FT(0.003)])
         qᵢ_s = ArrayType([FT(0.002)])
+        w = ArrayType([FT(1)])
+        p = ArrayType([FT(800 * 1e2)])
+        const_dt = ArrayType([FT(0.1)])
         w = ArrayType([FT(1)])
         p = ArrayType([FT(800 * 1e2)])
         const_dt = ArrayType([FT(0.1)])
