@@ -53,6 +53,34 @@ function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT}
     return N_0 * D^DSD_μ(p3, λ) * exp(-λ * D)
 end
 
+#"""
+#    get_ice_bound(p3, λ, tolerance)
+#
+# - p3 - a struct containing p3 parameters
+# - λ - shape parameters of ice distribution
+# - tolerance - tolerance for how much of the distribution we want to integrate over
+#
+# Returns the bound on the distribution that would guarantee that 1-tolerance
+# of the ice distribution is integrated over. This is calculated by setting
+# N_0(1 - tolerance) = ∫ N'(D) dD from 0 to bound and solving for bound.
+# This was further simplified to cancel out the N_0 from both sides.
+# The guess was calculated through a linear approximation extrapolated from
+# numerical solutions.
+#"""
+#function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
+#    ice_problem(x) =
+#        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
+#    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
+#    log_ice_x =
+#        RS.find_zero(
+#            ice_problem,
+#            RS.SecantMethod(guess - 1, guess),
+#            RS.CompactSolution(),
+#            RS.RelativeSolutionTolerance(eps(FT)),
+#            5,
+#        ).root
+#    return exp(log_ice_x)
+#end
 """
     get_ice_bound(p3, λ, tolerance)
 
@@ -60,27 +88,11 @@ end
  - λ - shape parameters of ice distribution
  - tolerance - tolerance for how much of the distribution we want to integrate over
 
- Returns the bound on the distribution that would guarantee that 1-tolerance
- of the ice distribution is integrated over. This is calculated by setting
- N_0(1 - tolerance) = ∫ N'(D) dD from 0 to bound and solving for bound.
- This was further simplified to cancel out the N_0 from both sides.
- The guess was calculated through a linear approximation extrapolated from
- numerical solutions.
+ Ice size distribution upper bound. Set to a fixed number as a temporary fix.
+ The commented above function is not stable right now.
 """
 function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
-    ice_problem(x) =
-        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
-    guess = log(FT(19) / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
-    log_ice_x =
-        RS.find_zero(
-            ice_problem,
-            RS.SecantMethod(guess - 1, guess),
-            RS.CompactSolution(),
-            RS.RelativeSolutionTolerance(eps(FT)),
-            5,
-        ).root
-
-    return exp(log_ice_x)
+    return FT(1e-2)
 end
 
 """
