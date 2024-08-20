@@ -54,7 +54,7 @@ function test_microphysics_noneq(FT)
         end
     end
 
-    TT.@testset "CondEvap_DepSub_MG2008" begin
+    TT.@testset "CondEvap_DepSub_MM2015" begin
 
         ρ = FT(0.8)
         T = FT(273 - 10)
@@ -84,6 +84,43 @@ function test_microphysics_noneq(FT)
         # ice grows faster than liquid
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T) <
                  CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice,    tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T)
+
+        #! format: on
+    end
+
+    TT.@testset "CondEvap_DepSub_MM2015_timeintegrator" begin
+
+        ρ = FT(0.8)
+        T = FT(273 - 10)
+        w = FT(1)
+        p_air = FT(800 * 1e2)
+        const_dt = FT(0.1)
+
+        pᵥ_sl = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+        qᵥ_sl = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sl)
+
+        pᵥ_si = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+        qᵥ_si = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_si)
+
+        qₚ(qᵥ) = TD.PhasePartition(FT(qᵥ))
+
+        #! format: off
+        # test sign
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(0.5 * qᵥ_sl)), ρ, T, w, p_air, const_dt, "condensation") < FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.5 * qᵥ_sl)), ρ, T, w, p_air, const_dt, "condensation") > FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(       qᵥ_sl), ρ, T, w, p_air, const_dt, "condensation") ≈ FT(0)
+
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(0.5 * qᵥ_si)), ρ, T, w, p_air, const_dt, "deposition") < FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.5 * qᵥ_si)), ρ, T, w, p_air, const_dt, "deposition") > FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(       qᵥ_si), ρ, T, w, p_air, const_dt, "deposition") ≈ FT(0)
+
+        # smoke test for values
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T, w, p_air, const_dt, "condensation") ≈ 9.0419475e-5 rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.2 * qᵥ_si)), ρ, T, w, p_air, const_dt, "deposition") ≈ 8.627814e-5 rtol = 1e-6
+
+        # ice grows faster than liquid
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T, w, p_air, const_dt, "condensation") <
+                 CMNe.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T, w, p_air, const_dt, "deposition")
 
         #! format: on
     end
