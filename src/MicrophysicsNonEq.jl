@@ -124,9 +124,9 @@ end
 - `ρ` - air density [kg/m3]
 - `T` - air temperature [K]
 - `w` - vertical velocity [m/s]
-- `p_air` - air pressure 
-- `const_dt`-
-- `type` -
+- `p_air` - air pressure [Pa]
+- `const_dt` - length of time step [s]
+- `"condensation"` or `"deposition"` - type of process to calculate and output [str]
 
 Returns the cloud water tendency due to condensation and evaporation
 or cloud ice tendency due to sublimation and vapor deposition.
