@@ -113,7 +113,7 @@ end
     qᵢ_s,
     w,
     p,
-    const_dt
+    const_dt,
 ) where {FT}
 
     i = @index(Group, Linear)
@@ -136,7 +136,7 @@ end
             w[i],
             p[i],
             const_dt[i],
-            "condensation"
+            "condensation",
         )
         output[3, i] = CMN.conv_q_vap_to_q_liq_ice(
             ice,
@@ -840,7 +840,21 @@ function test_gpu(FT)
         const_dt = ArrayType([FT(0.1)])
 
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
-        kernel!(liquid, ice, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s, w, p, const_dt; ndrange)
+        kernel!(
+            liquid,
+            ice,
+            tps,
+            output,
+            ρ,
+            T,
+            qᵥ_sl,
+            qᵢ,
+            qᵢ_s,
+            w,
+            p,
+            const_dt;
+            ndrange,
+        )
 
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(9.043587231238157e-5)

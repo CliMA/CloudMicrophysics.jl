@@ -160,21 +160,28 @@ function conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(
     pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
     qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
 
-    dqsldT = qᵥ_sat_liq * (Lᵥ/(Rᵥ * T^2) - 1 / T)
-    dqsidT = qᵥ_sat_ice * (Lₛ/(Rᵥ * T^2) - 1 / T)
+    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
+    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
 
     Γₗ = FT(1) + (Lᵥ / cₚ_air) * dqsldT
     Γᵢ = FT(1) + (Lₛ / cₚ_air) * dqsidT
 
     A_c_WBF =
-        (qᵥ_sat_liq - qᵥ_sat_ice) / (ice.τ_relax * Γᵢ) * (1 + (Lₛ / cₚ_air) * dqsldT)
+        (qᵥ_sat_liq - qᵥ_sat_ice) / (ice.τ_relax * Γᵢ) *
+        (1 + (Lₛ / cₚ_air) * dqsldT)
 
-    A_c_uplift = -(qᵥ_sat_liq * g * w * ρ) / (p_air - pᵥ_sat_liq) + dqsldT * w * g / cₚ_air
+    A_c_uplift =
+        -(qᵥ_sat_liq * g * w * ρ) / (p_air - pᵥ_sat_liq) +
+        dqsldT * w * g / cₚ_air
 
     A_c = A_c_uplift - A_c_WBF
 
-    τ = (liquid.τ_relax^(-1) + (1 + (Lₛ / cₚ_air)*dqsldT) * ice.τ_relax^(-1) / Γᵢ)^(-1)
-    
+    τ =
+        (
+            liquid.τ_relax^(-1) +
+            (1 + (Lₛ / cₚ_air) * dqsldT) * ice.τ_relax^(-1) / Γᵢ
+        )^(-1)
+
     δ_0 = qᵥ - qᵥ_sat_liq
 
     if type == "condensation"
@@ -187,7 +194,8 @@ function conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(
         dep_rate =
             A_c * τ / (ice.τ_relax * Γᵢ) +
             (δ_0 - A_c * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
-            (FT(1) - exp(-const_dt / τ)) + (qᵥ_sat_liq - qᵥ_sat_ice)/(ice.τ_relax*Γᵢ)
+            (FT(1) - exp(-const_dt / τ)) +
+            (qᵥ_sat_liq - qᵥ_sat_ice) / (ice.τ_relax * Γᵢ)
         return dep_rate
     end
 
