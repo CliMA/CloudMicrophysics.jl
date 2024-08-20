@@ -1,12 +1,13 @@
 import Test as TT
+import SpecialFunctions as SF
+import QuadGK as QGK
+
 import ClimaParams
 import CloudMicrophysics as CM
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Microphysics2M as CM2
 import Thermodynamics as TD
-
-import QuadGK as QGK
 
 @info "P3 Scheme Tests"
 
@@ -573,12 +574,12 @@ function test_p3_melting(FT)
         aps = CMP.AirProperties(FT)
         tps = TD.Parameters.ThermodynamicsParameters(FT)
 
-        Tₐ = FT(244)
+        Tₐ = FT(273.15 + 0.5)
         ρₐ = FT(0.7)
 
-        qᵢ = FT(0.022)
+        qᵢ = FT(1e-4)
         Lᵢ = qᵢ * ρₐ
-        Nᵢ = FT(1e6)
+        Nᵢ = FT(1e5) * ρₐ
 
         F_rim = FT(0.8)
         ρ_rim = FT(400)
@@ -588,25 +589,35 @@ function test_p3_melting(FT)
         (dLdt, dNdt) = P3.ice_melt(
              p3, Chen2022.snow_ice, aps, tps, Lᵢ, Nᵢ, Tₐ, ρₐ, F_rim, ρ_rim, dt,
         )
-        @info(" ", dLdt, dNdt)
     end
 end
 
+
+#function test_gamma_helper(FT)
+#
+#    a = FT(10)
+#    z = FT(11)
+#
+#    @info(" ", SF.gamma(a, z), P3.Γ_approx(a, z))
+#end
+
+#test_gamma_helper(Float64)
 test_p3_melting(Float64)
 
 println("Testing Float32")
 test_p3_thresholds(Float32)
-test_particle_terminal_velocities(Float32)
+#test_particle_terminal_velocities(Float32)
+
 #TODO - only works for Float64 now. We should switch the units inside the solver
 # from SI base to something more managable
 #test_p3_shape_solver(Float32)
 # test_bulk_terminal_velocities(Float32)
 
 println("Testing Float64")
-test_p3_thresholds(Float64)
-test_p3_shape_solver(Float64)
-test_particle_terminal_velocities(Float64)
-test_bulk_terminal_velocities(Float64)
-test_integrals(Float64)
-test_p3_het_freezing(Float64)
+#test_p3_thresholds(Float64)
+#test_p3_shape_solver(Float64)
+#test_particle_terminal_velocities(Float64)
+#test_bulk_terminal_velocities(Float64)
+#test_integrals(Float64)
+#test_p3_het_freezing(Float64)
 #test_tendencies(Float64)

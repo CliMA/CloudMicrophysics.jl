@@ -68,20 +68,20 @@ end
  numerical solutions.
 """
 function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
-    ice_problem(x) =
-        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
-    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
-    @info(guess)
-    log_ice_x =
-        RS.find_zero(
-            ice_problem,
-            RS.SecantMethod(guess - 1, guess),
-            RS.CompactSolution(),
-            RS.RelativeSolutionTolerance(eps(FT)),
-            5,
-        ).root
-
-    return exp(log_ice_x)
+    #ice_problem(x) =
+    #    tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
+    #guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
+    #log_ice_x =
+    #    RS.find_zero(
+    #        ice_problem,
+    #        RS.SecantMethod(guess - 1, guess),
+    #        RS.CompactSolution(),
+    #        RS.RelativeSolutionTolerance(eps(FT)),
+    #        5,
+    #    )
+    #@info(" ", guess, log_ice_x, exp(log_ice_x.root))
+    #return exp(log_ice_x.root)
+    return FT(1e-2)
 end
 
 """

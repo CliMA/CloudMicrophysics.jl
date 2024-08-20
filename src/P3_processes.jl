@@ -88,7 +88,7 @@ function ice_melt(
     # ... and D_max for the integral
     bound = get_ice_bound(p3, λ, FT(1e-6))
 
-    @info(" ", λ, N_0, bound)
+    @info(" ", th, λ, N_0, bound, 1/λ)
 
     # Ice particle terminal velocity
     v(D) = ice_particle_terminal_velocity(p3, D, Chen2022, ρₐ, F_rim, th)
@@ -102,15 +102,20 @@ function ice_melt(
 
     # Integrate
     (dLdt, error) = QGK.quadgk(d -> f(d), FT(0), bound, rtol = FT(1e-6))
+    @info(" ", L_ice, dLdt)
 
     # only consider melting (not fusion)
     dLdt = max(0, dLdt)
     # compute change of N_ice proportional to change in L
     dNdt = N_ice / L_ice * dLdt
+    @info(" ", N_ice, dNdt)
 
     # ... and dont exceed the available number and mass of water droplets
     dNdt = min(dNdt, N_ice / dt)
     dLdt = min(dLdt, L_ice / dt)
+
+    @info(" ", L_ice, dLdt)
+    @info(" ", N_ice, dNdt)
 
     return (; dNdt, dLdt)
 end
