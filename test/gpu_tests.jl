@@ -111,6 +111,9 @@ end
     qᵥ_sl,
     qᵢ,
     qᵢ_s,
+    w,
+    p,
+    const_dt
 ) where {FT}
 
     i = @index(Group, Linear)
@@ -123,7 +126,19 @@ end
             ρ[i],
             T[i],
         )
-        output[2, i] = CMN.conv_q_vap_to_q_liq_ice(
+        output[2, i] = CMN.conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(
+            liquid,
+            ice,
+            tps,
+            TD.PhasePartition(qᵥ_sl[i]),
+            ρ[i],
+            T[i],
+            w[i],
+            p[i],
+            const_dt[i],
+            "condensation"
+        )
+        output[3, i] = CMN.conv_q_vap_to_q_liq_ice(
             ice,
             TD.PhasePartition(FT(0), FT(0), qᵢ_s[i]),
             TD.PhasePartition(FT(0), FT(0), qᵢ[i]),
@@ -812,7 +827,7 @@ function test_gpu(FT)
     end
 
     @testset "non-equilibrium microphysics kernels" begin
-        dims = (2, 1)
+        dims = (3, 1)
         (; output, ndrange) = setup_output(dims, FT)
 
         ρ = ArrayType([FT(0.8)])
@@ -820,13 +835,17 @@ function test_gpu(FT)
         qᵥ_sl = ArrayType([FT(0.0035)])
         qᵢ = ArrayType([FT(0.003)])
         qᵢ_s = ArrayType([FT(0.002)])
+        w = ArrayType([FT(1)])
+        p = ArrayType([FT(800 * 1e2)])
+        const_dt = ArrayType([FT(0.1)])
 
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
-        kernel!(liquid, ice, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s, ; ndrange)
+        kernel!(liquid, ice, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s, w, p, const_dt; ndrange)
 
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(9.043587231238157e-5)
-        @test Array(output)[2] ≈ FT(-1e-4)
+        @test Array(output)[2] ≈ FT(3.7177455f-5)
+        @test Array(output)[3] ≈ FT(-1e-4)
     end
 
     @testset "0-moment microphysics kernels" begin
