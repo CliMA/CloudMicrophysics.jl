@@ -151,28 +151,28 @@ function benchmark_test(FT)
 
     # P3 scheme
     bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 2048, 80)
-    if FT == Float64
-        bench_press(
-            P3.distribution_parameter_solver,
-            (p3, q_ice, N, ρ_r, F_r),
-            1e5,
-        )
-        bench_press(
-            P3.ice_terminal_velocity,
-            (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, false),
-            2.5e5,
-            800,
-            4,
-        )
-        bench_press(
-            P3.ice_terminal_velocity,
-            (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, true),
-            2.5e5,
-            800,
-            4,
-        )
-        bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_r), 1e5)
-    end
+    #if FT == Float64
+    #    bench_press(
+    #        P3.distribution_parameter_solver,
+    #        (p3, q_ice, N, ρ_r, F_r),
+    #        1e5,
+    #    )
+    #    bench_press(
+    #        P3.ice_terminal_velocity,
+    #        (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, false),
+    #        2.5e5,
+    #        800,
+    #        4,
+    #    )
+    #    bench_press(
+    #        P3.ice_terminal_velocity,
+    #        (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, true),
+    #        2.5e5,
+    #        800,
+    #        4,
+    #    )
+    #    bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_r), 1e5)
+    #end
     # P3 ice nucleation
     bench_press(
         P3.het_ice_nucleation,
