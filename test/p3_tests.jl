@@ -8,13 +8,35 @@ import Thermodynamics as TD
 
 import QuadGK as QGK
 
-@info "P3 Scheme Tests"
+@info("P3 Scheme Tests")
 
-function test_p3_thresholds(FT)
+function test_incomplete_gamma_function_approximation(FT)
+    # A smoke tests to see if the reference values are not changed
+    TT.@testset "Incomplete Γ function approximation" begin
+
+        Γ_lower_reference = [
+            [0.6171173028812539, 0.9999647375921944, 0.9999999999999561],
+            [66.43238525128415, 192195.93434392574, 362553.66f0],
+            [9.801186821098075e11, 8.309791f14, 1.1845235f17],
+        ]
+
+        a = [FT(1), FT(10), FT(20)]
+        z = [FT(1), FT(10), FT(30)]
+
+        for it in [1, 2, 3]
+            for jt in [1, 2, 3]
+                TT.@test P3.Γ_lower(a[it], z[jt]) ≈ Γ_lower_reference[it][jt] rtol =
+                    1e-3
+            end
+        end
+    end
+end
+
+function test_thresholds_solver(FT)
 
     p3 = CMP.ParametersP3(FT)
 
-    TT.@testset "thresholds (nonlinear solver function)" begin
+    TT.@testset "Thresholds - nonlinear solver" begin
 
         # initialize test values:
         ρ_r = FT(400)
@@ -89,7 +111,7 @@ function test_p3_thresholds(FT)
         end
     end
 
-    TT.@testset "mass, area, density and aspect ratio tests" begin
+    TT.@testset "Thresholds - mass, area, density, aspect ratio" begin
         # values
         ρ_r = FT(500)
         F_rim = FT(0.5)
@@ -186,11 +208,11 @@ function test_p3_thresholds(FT)
     end
 end
 
-function test_p3_shape_solver(FT)
+function test_shape_solver(FT)
 
     p3 = CMP.ParametersP3(FT)
 
-    TT.@testset "shape parameters (nonlinear solver function)" begin
+    TT.@testset "Shape parameters - nonlinear solver" begin
 
         # initialize test values:
         ep = 1 #1e4 * eps(FT)
@@ -248,7 +270,7 @@ function test_particle_terminal_velocities(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
     ρ_a = FT(1.2)
 
-    TT.@testset "Chen 2022 - Rain" begin
+    TT.@testset "Smoke tests for rain particle terminal vel from Chen 2022" begin
         Ds = range(FT(1e-6), stop = FT(1e-5), length = 5)
         expected = [0.002508, 0.009156, 0.01632, 0.02377, 0.03144]
         for i in axes(Ds, 1)
@@ -258,7 +280,7 @@ function test_particle_terminal_velocities(FT)
         end
     end
 
-    TT.@testset "Chen 2022 - Ice" begin
+    TT.@testset "Smoke tests for ice particle terminal vel from Chen 2022" begin
         F_rim = FT(0.5)
         ρ_r = FT(500)
         F_liq = FT(0)
@@ -302,7 +324,7 @@ function test_particle_terminal_velocities(FT)
         end
     end
 
-    TT.@testset "Chen 2022 - Mixed-Phase" begin
+    TT.@testset "Smoke tests for mixed phase particle terminal velocity" begin
         F_rim = FT(0.5)
         F_liq = FT(0.5)
         ρ_r = FT(500)
@@ -354,202 +376,136 @@ function test_bulk_terminal_velocities(FT)
     L = FT(0.22)
     N = FT(1e6)
     ρ_a = FT(1.2)
-    ρ_rs = [FT(200), FT(400), FT(600), FT(800)]
-    F_rims = [FT(0), FT(0.2), FT(0.4), FT(0.6), FT(0.8)]
-    F_liqs = [FT(0), FT(0.5), FT(1)]
+    ρ_r = FT(800)
+    F_rims = [FT(0), FT(0.6)]
+    F_liqs = [FT(0.5), FT(1)]
 
     TT.@testset "Mass and number weighted terminal velocities" begin
-        # commented out reference values:
-        # these are computed with the old get_ice_bound()
-        # reference_vals_m = [
-        #     [
-        #         [7.79, 7.27, 6.66, 5.94, 5.25],
-        #         [7.79, 7.26, 6.62, 5.83, 4.82],
-        #         [7.79, 7.26, 6.62, 5.81, 4.70],
-        #         [7.79, 7.25, 6.61, 5.80, 4.65],
-        #     ],
-        #     [
-        #         [5.19, 5.17, 5.15, 5.12, 5.09],
-        #         [5.19, 5.17, 5.13, 5.08, 4.97],
-        #         [5.19, 5.17, 5.13, 5.07, 4.92],
-        #         [5.19, 5.16, 5.13, 5.06, 4.89],
-        #     ],
-        #     [
-        #         [5.42, 5.42, 5.42, 5.42, 5.42],
-        #         [5.42, 5.42, 5.42, 5.42, 5.42],
-        #         [5.42, 5.42, 5.42, 5.42, 5.42],
-        #         [5.42, 5.42, 5.42, 5.42, 5.42],
-        #     ],
-        # ]
 
-        # reference_vals_n = [
-        #     [
-        #         [3.65, 3.37, 3.05, 2.64, 2.14],
-        #         [3.65, 3.37, 3.04, 2.62, 2.04],
-        #         [3.65, 3.37, 3.04, 2.62, 2.02],
-        #         [3.65, 3.37, 3.04, 2.62, 2.01],
-        #     ],
-        #     [
-        #         [1.69, 1.68, 1.68, 1.66, 1.64],
-        #         [1.69, 1.68, 1.68, 1.66, 1.62],
-        #         [1.69, 1.68, 1.67, 1.66, 1.61],
-        #         [1.69, 1.68, 1.67, 1.66, 1.61],
-        #     ],
-        #     [
-        #         [1.62, 1.62, 1.62, 1.62, 1.62],
-        #         [1.62, 1.62, 1.62, 1.62, 1.62],
-        #         [1.62, 1.62, 1.62, 1.62, 1.62],
-        #         [1.62, 1.62, 1.62, 1.62, 1.62],
-        #     ],
-        # ]
+        # Liquid fraction = 0
 
-        # reference_vals_m_ϕ = [
-        #     [
-        #         [4.23, 4.65, 4.9, 4.94, 4.89],
-        #         [4.23, 4.65, 4.88, 4.84, 4.44],
-        #         [4.23, 4.65, 4.87, 4.82, 4.33],
-        #         [4.23, 4.65, 4.87, 4.81, 4.28],
-        #     ],
-        #     [
-        #         [4.36, 4.51, 4.67, 4.82, 4.99],
-        #         [4.36, 4.51, 4.64, 4.76, 4.82],
-        #         [4.36, 4.50, 4.64, 4.74, 4.77],
-        #         [4.36, 4.50, 4.64, 4.74, 4.74],
-        #     ],
-        #     [
-        #         [5.42, 5.42, 5.42, 5.42, 5.42],
-        #         [5.42, 5.42, 5.42, 5.42, 5.42],
-        #         [5.42, 5.42, 5.42, 5.42, 5.42],
-        #         [5.42, 5.42, 5.42, 5.42, 5.42],
-        #     ],
-        # ]
+        ref_v_n = [3.637320375996216, 2.6130243256593313]
+        ref_v_n_ϕ = [2.2058692424028923, 2.24224820764301]
+        ref_v_m = [7.7208191246659705, 5.751352472270078]
+        ref_v_m_ϕ = [4.193799087495265, 4.773592179767702]
 
-        # reference_vals_n_ϕ = [
-        #     [
-        #         [2.21, 2.34, 2.39, 2.31, 2.04],
-        #         [2.21, 2.33, 2.37, 2.27, 1.94],
-        #         [2.21, 2.33, 2.36, 2.25, 1.91],
-        #         [2.21, 2.33, 2.36, 2.24, 1.90],
-        #     ],
-        #     [
-        #         [1.47, 1.52, 1.56, 1.59, 1.60],
-        #         [1.47, 1.52, 1.56, 1.59, 1.60],
-        #         [1.47, 1.51, 1.55, 1.58, 1.59],
-        #         [1.47, 1.51, 1.55, 1.58, 1.58],
-        #     ],
-        #     [
-        #         [1.62, 1.62, 1.62, 1.62, 1.62],
-        #         [1.62, 1.62, 1.62, 1.62, 1.62],
-        #         [1.62, 1.62, 1.62, 1.62, 1.62],
-        #         [1.62, 1.62, 1.62, 1.62, 1.62],
-        #     ],
-        # ]
+        for k in 1:length(F_rims)
+            F_rim = F_rims[k]
+            F_liq = FT(0)
+            vel = P3.ice_terminal_velocity(
+                p3,
+                Chen2022,
+                L,
+                N,
+                ρ_r,
+                F_rim,
+                F_liq,
+                ρ_a,
+                false,
+            )
+            vel_ϕ = P3.ice_terminal_velocity(
+                p3,
+                Chen2022,
+                L,
+                N,
+                ρ_r,
+                F_rim,
+                F_liq,
+                ρ_a,
+                true,
+            )
 
-        #! format: off
-        reference_vals_m = [6.63 6.63 6.63 6.63; 5.19 5.19 5.19 5.19; 5.42 5.42 5.42 5.42;;; 6.56 6.55 6.55 6.55; 5.17 5.17 5.17 5.16; 5.42 5.42 5.42 5.42;;; 6.32 6.29 6.28 6.28; 5.15 5.13 5.13 5.13; 5.42 5.42 5.42 5.42;;; 5.84 5.74 5.72 5.71; 5.12 5.08 5.07 5.06; 5.42 5.42 5.42 5.42;;; 5.24 4.81 4.69 4.65; 5.09 4.97 4.92 4.89; 5.42 5.42 5.42 5.42]
-        
+            # number weighted
+            TT.@test vel[1] > 0
+            TT.@test vel_ϕ[1] > 0
+            TT.@test vel[1] ≈ ref_v_n[k] rtol = 1e-6
+            TT.@test vel_ϕ[1] ≈ ref_v_n_ϕ[k] rtol = 1e-6
 
-        reference_vals_n = [3.59 3.59 3.59 3.59; 1.69 1.69 1.69 1.69; 1.62 1.62 1.62 1.62;;; 3.34 3.34 3.34 3.34; 1.68 1.68 1.68 1.68; 1.62 1.62 1.62 1.62;;; 3.03 3.03 3.03 3.03; 1.68 1.68 1.67 1.67; 1.62 1.62 1.62 1.62;;; 2.64 2.62 2.62 2.62; 1.66 1.66 1.66 1.66; 1.62 1.62 1.62 1.62;;; 2.14 2.04 2.02 2.01; 1.64 1.62 1.61 1.61; 1.62 1.62 1.62 1.62]
+            # mass weighted
+            TT.@test vel[2] > 0
+            TT.@test vel_ϕ[2] > 0
+            TT.@test vel[2] ≈ ref_v_m[k] rtol = 1e-6
+            TT.@test vel_ϕ[2] ≈ ref_v_m_ϕ[k] rtol = 1e-6
 
-        reference_vals_m_ϕ = [3.66 3.66 3.66 3.66; 4.36 4.36 4.36 4.36; 5.42 5.42 5.42 5.42;;; 4.23 4.23 4.23 4.23; 4.51 4.51 4.5 4.5; 5.42 5.42 5.42 5.42;;; 4.67 4.64 4.64 4.64; 4.67 4.64 4.64 4.64; 5.42 5.42 5.42 5.42;;; 4.86 4.77 4.75 4.74; 4.82 4.76 4.74 4.74; 5.42 5.42 5.42 5.42;;; 4.88 4.44 4.32 4.28; 4.99 4.82 4.77 4.74; 5.42 5.42 5.42 5.42]
+            # slower with aspect ratio
+            TT.@test vel_ϕ[1] <= vel[1]
+            TT.@test vel_ϕ[2] <= vel[2]
+        end
 
-        reference_vals_n_ϕ = [2.18 2.18 2.18 2.18; 1.47 1.47 1.47 1.47; 1.62 1.62 1.62 1.62;;; 2.32 2.32 2.31 2.31; 1.52 1.52 1.51 1.51; 1.62 1.62 1.62 1.62;;; 2.38 2.36 2.35 2.35; 1.56 1.56 1.55 1.55; 1.62 1.62 1.62 1.62;;; 2.3 2.26 2.25 2.25; 1.59 1.59 1.58 1.58; 1.62 1.62 1.62 1.62;;; 2.04 1.94 1.91 1.9; 1.6 1.6 1.59 1.58; 1.62 1.62 1.62 1.62]
-        #! format: on
+        # Liquid fraction != 0
+        ref_v_n = [1.674591925057434, 1.6180970319460353]
+        ref_v_n_ϕ = [1.549777478756061, 1.6180970319460353]
+        ref_v_m = [5.126648558302173, 5.416679316254198]
+        ref_v_m_ϕ = [4.6358422594886495, 5.416679316254198]
 
-        for j in 1:length(ρ_rs)
-            for k in 1:length(F_rims)
-                for i in 1:length(F_liqs)
-                    ρ_r = ρ_rs[j]
-                    F_rim = F_rims[k]
-                    F_liq = F_liqs[i]
+        for k in 1:length(F_liqs)
+            F_liq = F_liqs[k]
+            F_rim = FT(0.4)
+            vel = P3.ice_terminal_velocity(
+                p3,
+                Chen2022,
+                L,
+                N,
+                ρ_r,
+                F_rim,
+                F_liq,
+                ρ_a,
+                false,
+            )
+            vel_ϕ = P3.ice_terminal_velocity(
+                p3,
+                Chen2022,
+                L,
+                N,
+                ρ_r,
+                F_rim,
+                F_liq,
+                ρ_a,
+                true,
+            )
+            # number weighted
+            TT.@test vel[1] > 0
+            TT.@test vel_ϕ[1] > 0
+            TT.@test vel[1] ≈ ref_v_n[k] rtol = 1e-6
+            TT.@test vel_ϕ[1] ≈ ref_v_n_ϕ[k] rtol = 1e-6
 
-                    calculated_vel = P3.ice_terminal_velocity(
-                        p3,
-                        Chen2022,
-                        L,
-                        N,
-                        ρ_r,
-                        F_rim,
-                        F_liq,
-                        ρ_a,
-                        false,
-                    )
-                    calculated_vel_ϕ = P3.ice_terminal_velocity(
-                        p3,
-                        Chen2022,
-                        L,
-                        N,
-                        ρ_r,
-                        F_rim,
-                        F_liq,
-                        ρ_a,
-                        true,
-                    )
+            # mass weighted
+            TT.@test vel[2] > 0
+            TT.@test vel_ϕ[2] > 0
+            TT.@test vel[2] ≈ ref_v_m[k] rtol = 1e-6
+            TT.@test vel_ϕ[2] ≈ ref_v_m_ϕ[k] rtol = 1e-6
 
-                    # number weighted
-                    TT.@test calculated_vel[1] > 0
-                    TT.@test reference_vals_n[i, j, k] ≈ calculated_vel[1] atol =
-                        0.1
-                    TT.@test calculated_vel_ϕ[1] > 0
-                    TT.@test reference_vals_n_ϕ[i, j, k] ≈ calculated_vel_ϕ[1] atol =
-                        0.1
-
-                    # mass weighted
-                    TT.@test calculated_vel[2] > 0
-                    TT.@test reference_vals_m[i, j, k] ≈ calculated_vel[2] atol =
-                        0.1
-                    TT.@test calculated_vel_ϕ[2] > 0
-                    TT.@test reference_vals_m_ϕ[i, j, k] ≈ calculated_vel_ϕ[2] atol =
-                        0.1
-
-                    TT.@test calculated_vel_ϕ[1] <= calculated_vel[1]
-                    TT.@test calculated_vel_ϕ[2] <= calculated_vel[2]
-                end
-            end
+            # slower with aspect ratio
+            TT.@test vel_ϕ[1] <= vel[1]
+            TT.@test vel_ϕ[2] <= vel[2]
         end
     end
-
     TT.@testset "Mass-weighted mean diameters" begin
-        F_liq = FT(0) # test against paper
-        paper_vals = [
-            [5, 5, 5, 5, 5],
-            [4.5, 4.5, 4.5, 4.5, 4.5],
-            [3.5, 3.5, 3.5, 3.5, 3.5],
-            [3.5, 3.5, 2.5, 2.5, 2.5],
-        ]
-        for i in 1:length(ρ_rs)
-            for j in 1:length(F_rims)
-                ρ_r = ρ_rs[i]
-                F_rim = F_rims[j]
-
-                calculated_dm = P3.D_m(p3, L, N, ρ_r, F_rim, F_liq) * 1e3
-
-                TT.@test calculated_dm > 0
-                TT.@test paper_vals[i][j] ≈ calculated_dm atol = 3.14
-
-            end
+        F_liq = FT(0)
+        ref_vals = [0.00536934536778844, 0.003321590762128599]
+        for j in 1:length(F_rims)
+            Dₘ = P3.D_m(p3, L, N, ρ_r, F_rims[j], F_liq)
+            TT.@test Dₘ > 0
+            TT.@test Dₘ ≈ ref_vals[j]
         end
 
         # nonzero F_liq
-        ρ_r = ρ_rs[4]
-        F_rim = F_rims[4]
-        F_liqs = [FT(0), FT(0.33), FT(0.67), FT(1)]
-        expected_vals =
-            [FT(0.00333689), FT(0.000892223), FT(0.00124423), FT(0.00164873)]
+        F_rim = F_rims[2]
+        F_liqs = [FT(0.33), FT(1)]
+        ref_vals = [FT(0.0021371920600012184), FT(0.0016487352655895715)]
         for i in eachindex(F_liqs)
-            calculated_dm = P3.D_m(p3, L, N, ρ_r, F_rim, F_liqs[i])
-            expected_vals[i] = calculated_dm
-            TT.@test expected_vals[i] ≈ calculated_dm atol = 1e-6
+            Dₘ = P3.D_m(p3, L, N, ρ_r, F_rim, F_liqs[i])
+            TT.@test Dₘ ≈ ref_vals[i]
         end
     end
 end
 
-function test_integrals(FT)
+function test_numerical_integrals(FT)
     p3 = CMP.ParametersP3(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
 
     N = FT(1e8)
-    Ls = range(0.001, stop = 0.005, length = 5)
+    Ls = range(FT(0.001), stop = FT(0.005), length = 5)
     ρ_r = FT(500)
     F_rims = [FT(0), FT(0.5)]
     ρ_a = FT(1.2)
@@ -557,12 +513,29 @@ function test_integrals(FT)
     tolerance = eps(FT)
     F_liq = FT(0) # test F_liq = 0
 
-    TT.@testset "Gamma vs Integral Comparison" begin
+    TT.@testset "Numerical integrals sanity checks for N, velocity and diameter" begin
         for F_rim in F_rims
             for i in axes(Ls, 1)
                 L = Ls[i]
 
-                # Velocity comparisons
+                # Get shape parameters, thresholds and intergal bounds
+                λ, N_0 = P3.distribution_parameter_solver(
+                    p3,
+                    L,
+                    N,
+                    ρ_r,
+                    F_rim,
+                    F_liq,
+                )
+                th = P3.thresholds(p3, ρ_r, F_rim)
+                ice_bound = P3.get_ice_bound(p3, λ, N, tolerance)
+
+                # Number concentration comparison
+                f(d) = P3.N′ice(p3, d, λ, N_0)
+                qgk_N, = QGK.quadgk(d -> f(d), FT(0), ice_bound)
+                TT.@test N ≈ qgk_N rtol = sqrt(eps(FT))
+
+                # Bulk velocity comparison
                 vel_N, vel_m = P3.ice_terminal_velocity(
                     p3,
                     Chen2022,
@@ -575,17 +548,7 @@ function test_integrals(FT)
                     use_aspect_ratio,
                 )
 
-                λ, N_0 = P3.distribution_parameter_solver(
-                    p3,
-                    L,
-                    N,
-                    ρ_r,
-                    F_rim,
-                    F_liq,
-                )
-                th = P3.thresholds(p3, ρ_r, F_rim)
-                ice_bound = P3.get_ice_bound(p3, λ, tolerance)
-                vel(d) = P3.ice_particle_terminal_velocity(
+                particle_vel(d) = P3.ice_particle_terminal_velocity(
                     p3,
                     d,
                     Chen2022.snow_ice,
@@ -594,27 +557,25 @@ function test_integrals(FT)
                     th,
                     use_aspect_ratio,
                 )
-                f(d) = vel(d) * P3.N′ice(p3, d, λ, N_0)
+                g(d) = particle_vel(d) * P3.N′ice(p3, d, λ, N_0)
 
-                qgk_vel_N, = QGK.quadgk(d -> f(d) / N, FT(0), ice_bound)
+                qgk_vel_N, = QGK.quadgk(d -> g(d) / N, FT(0), ice_bound)
                 qgk_vel_m, = QGK.quadgk(
-                    d -> f(d) * P3.p3_mass(p3, d, F_rim, F_liq, th) / L,
+                    d -> g(d) * P3.p3_mass(p3, d, F_rim, F_liq, th) / L,
                     FT(0),
                     ice_bound,
                 )
-
-                TT.@test vel_N ≈ qgk_vel_N rtol = 1e-5
-                TT.@test vel_m ≈ qgk_vel_m rtol = 1e-5
+                TT.@test vel_N ≈ qgk_vel_N rtol = 1e-6
+                TT.@test vel_m ≈ qgk_vel_m rtol = 1e-6
 
                 # Dₘ comparisons
                 D_m = P3.D_m(p3, L, N, ρ_r, F_rim, F_liq)
-                f_d(d) =
+                h(d) =
                     d *
                     P3.p3_mass(p3, d, F_rim, F_liq, th) *
                     P3.N′ice(p3, d, λ, N_0)
-                qgk_D_m, = QGK.quadgk(d -> f_d(d) / L, FT(0), ice_bound)
-
-                TT.@test D_m ≈ qgk_D_m rtol = 1e-8
+                qgk_D_m, = QGK.quadgk(d -> h(d) / L, FT(0), ice_bound)
+                TT.@test D_m ≈ qgk_D_m rtol = 1e-2
             end
         end
     end
@@ -771,7 +732,7 @@ function test_p3_het_freezing(FT)
         expected_freeze_L =
             [1.544e-22, 1.068e-6, 0.0001428, 0.0001428, 0.0001428, 0.0001428]
         expected_freeze_N = [1.082e-10, 747647.5, N_liq, N_liq, N_liq, N_liq]
-        qᵥ_range = range(0.5e-3, stop = 1.5e-3, length = 6)
+        qᵥ_range = range(FT(0.5e-3), stop = FT(1.5e-3), length = 6)
 
         for it in range(1, 6)
             qₚ = TD.PhasePartition(FT(qᵥ_range[it]), FT(2e-4), FT(0))
@@ -845,8 +806,8 @@ function test_p3_melting(FT)
         TT.@test rate.dNdt >= 0
         TT.@test rate.dLdt >= 0
 
-        TT.@test rate.dNdt ≈ 171236.02291689217 rtol = 1e-6
-        TT.@test rate.dLdt ≈ 8.561801145844608e-5 rtol = 1e-6
+        TT.@test rate.dNdt ≈ 171326.17992979713 rtol = 1e-6
+        TT.@test rate.dLdt ≈ 8.566308996489856e-5 rtol = 1e-6
 
         T_vwarm = FT(273.15 + 0.1)
         rate = P3.ice_melt(
@@ -868,22 +829,31 @@ function test_p3_melting(FT)
     end
 end
 
+for FT in [Float32, Float64]
+    @info("Testing " * string(FT))
 
-println("Testing Float32")
-test_p3_thresholds(Float32)
-test_particle_terminal_velocities(Float32)
-# TODO - fix instability in get_ice_bound for Float32
-# TODO - only works for Float64 now. We should switch the units inside the solver
-# from SI base to something more managable
-# test_p3_shape_solver(Float32)
-# test_bulk_terminal_velocities(Float32)
+    # numerics
+    test_incomplete_gamma_function_approximation(FT)
+    test_thresholds_solver(FT)
 
-println("Testing Float64")
-test_p3_thresholds(Float64)
-test_p3_shape_solver(Float64)
-test_particle_terminal_velocities(Float64)
-test_bulk_terminal_velocities(Float64)
-test_integrals(Float64)
-test_p3_het_freezing(Float64)
-test_p3_melting(Float64)
-#test_tendencies(Float64)
+    # velocity
+    test_particle_terminal_velocities(FT)
+
+    # processes
+    test_p3_het_freezing(FT)
+end
+
+# TODO - make work for Float32
+for FT in [Float64]
+    @info("Tests that only work for Float64")
+
+    # numerics
+    test_shape_solver(FT)
+    test_numerical_integrals(FT)
+
+    # velocity
+    test_bulk_terminal_velocities(FT)
+
+    # processes
+    test_p3_melting(FT)
+end

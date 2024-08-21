@@ -50,49 +50,49 @@ end
  N'(D) = N0 * D ^ μ * exp(-λD)) at given D
 """
 function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT}
-    return N_0 * D^DSD_μ(p3, λ) * exp(-λ * D)
+    #@assert D > FT(0)
+    return ifelse(D > 0, N_0 * D^DSD_μ(p3, λ) * exp(-λ * D), FT(0))
 end
 
-# """
-#    get_ice_bound(p3, λ, tolerance)
-
-# - p3 - a struct containing p3 parameters
-# - λ - shape parameters of ice distribution
-# - tolerance - tolerance for how much of the distribution we want to integrate over
-
-# Returns the bound on the distribution that would guarantee that 1-tolerance
-# of the ice distribution is integrated over. This is calculated by setting
-# N_0(1 - tolerance) = ∫ N'(D) dD from 0 to bound and solving for bound.
-# This was further simplified to cancel out the N_0 from both sides.
-# The guess was calculated through a linear approximation extrapolated from
-# numerical solutions.
-# """
-# function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
-#    ice_problem(x) =
-#        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
-#    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
-#    log_ice_x =
-#        RS.find_zero(
-#            ice_problem,
-#            RS.SecantMethod(guess - 1, guess),
-#            RS.CompactSolution(),
-#            RS.RelativeSolutionTolerance(eps(FT)),
-#            5,
-#        ).root
-#    return exp(log_ice_x)
-# end
 """
-    get_ice_bound(p3, λ, tolerance)
+    get_ice_bound(p3, λ, N, rtol)
 
  - p3 - a struct containing p3 parameters
  - λ - shape parameters of ice distribution
- - tolerance - tolerance for how much of the distribution we want to integrate over
+ - N - ice number concentration
+ - rtol - relative tolerance for root solver
 
- Ice size distribution upper bound. Set to a fixed number as a temporary fix.
- The commented above function is not stable right now.
+ Ice size distribution upper bound for numerical integrals, such that
+ total number concentration is equal to the integral over the size distribution
+ with relative tolerance rtol.
 """
-function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
-    return FT(1e-2)
+function get_ice_bound(p3::PSP3, λ::FT, N::FT, rtol::FT) where {FT}
+    #return FT(1e-2) - From what I'm seeing so far, this is not such a bad guess
+    #We might want to reconsider using it in the future (after more testing).
+    μ = DSD_μ(p3, λ)
+    N₀ = DSD_N₀(p3, N, λ)
+
+    ice_bound_problem(D_max_hat) =
+        N - N₀ / λ^(μ + 1) * Γ_lower(μ + 1, D_max_hat)
+
+    D_guess_low = FT(1e-6)
+    D_guess_high = FT(1e-1)
+
+    if ice_bound_problem(D_guess_low * λ) <= rtol
+        return D_guess_low
+    elseif ice_bound_problem(D_guess_high * λ) <= rtol
+        return D_guess_high
+    else
+        bound =
+            RS.find_zero(
+                ice_bound_problem,
+                RS.SecantMethod(D_guess_low * λ, D_guess_high * λ),
+                RS.CompactSolution(),
+                RS.RelativeSolutionTolerance(rtol),
+                5,
+            ).root
+        return bound / λ
+    end
 end
 
 """
@@ -160,7 +160,6 @@ function L_over_N_gamma(
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
     N = Γ(1 + μ) / (λ^(1 + μ))
-
     return ifelse(
         F_rim == FT(0),
         (p3_F_liq_average(

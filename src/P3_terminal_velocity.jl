@@ -181,7 +181,7 @@ function ice_terminal_velocity(
         # get the size distribution parameters
         (λ, N₀) = distribution_parameter_solver(p3, L, N, ρ_r, F_rim, F_liq)
         # get the integral limit
-        D_max = get_ice_bound(p3, λ, eps(FT))
+        D_max = get_ice_bound(p3, λ, N, 1e-8)
 
         # ∫N(D) m(D) v(D) dD
         v_m = QGK.quadgk(
