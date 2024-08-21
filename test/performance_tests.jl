@@ -116,6 +116,7 @@ function benchmark_test(FT)
     ρ_r = FT(400.0)
     F_r = FT(0.95)
     N = FT(1e8)
+    L = ρ_air * q_ice
 
     T_air_2 = FT(250)
     RH_2 = FT(1.5)
@@ -186,8 +187,18 @@ function benchmark_test(FT)
             ρ_air,
             Δt,
         ),
-        150,
+        200,
     )
+
+    if FT == Float64
+        bench_press(
+            P3.ice_melt,
+            (p3, ch2022.snow_ice, aps, tps, L, N, T_air, ρ_air, F_r, ρ_r, Δt),
+            3.7e5,
+            2e3,
+            3,
+        )
+    end
 
     # aerosol activation
     bench_press(
