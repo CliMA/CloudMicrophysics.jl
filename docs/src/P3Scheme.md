@@ -134,6 +134,14 @@ As a result ``L_{p3, tot}`` can be expressed as a sum of incomplete gamma functi
 
 where ``\Gamma \,(a, z) = \int_{z}^{\infty} \! t^{a - 1} e^{-t} \mathrm{d}D``
   and ``\Gamma \,(a) = \Gamma \,(a, 0)`` for simplicity.
+We rely on [Blahak2010](@cite) parameterization to compute the incomplete gamma functions.
+Below plot roughly reproduce Figure 4 from [Blahak2010](@cite).
+The relative error differences are mostly due to too small values returned by
+  our reference incomplete gamma function from Julia SpecialFunctions package.
+```@example
+include("plots/P3GammaAprox.jl")
+```
+![](P3_GammaInc_error.svg)
 
 In our solver, we approximate ``\mu`` from ``L/N`` and keep it constant throughout the solving step.
 We approximate ``\mu`` by an exponential function given by the ``L/N`` points
@@ -174,7 +182,7 @@ include("plots/P3LambdaErrorPlots.jl")
 
 ## Terminal Velocity
 
-We use the [Chen2022](@cite) velocity parametrization:
+We use the [Chen2022](@cite) velocity parameterization:
 ```math
 V(D) = \phi^{\kappa} \sum_{i=1}^{j} \; a_i D^{b_i} e^{-c_i \; D}
 ```
@@ -291,7 +299,7 @@ Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{r
   medium, and large particles, we have mostly graupel (``D_{gr} < D < D_{cr}``) for small ``D_m`` and mostly partially rimed ice
   (``D > D_{cr}``) for medium and large ``D_m``. Thus, we can attribute the non-monotonic behavior of velocity with ``F_liq`` in the
   medium and large ``D_m`` plots to the variations in ``\phi`` caused by nonspherical particle shape, whereas the small ``D_m`` plot
-  confirms a mmore monotonic change in ``V_m`` for spherical ice. The ``L`` and ``N`` values used to generate small, medium, and large ``D_{m}``
+  confirms a more monotonic change in ``V_m`` for spherical ice. The ``L`` and ``N`` values used to generate small, medium, and large ``D_{m}``
   are the same as in the plot above.
 
 ```@example
@@ -301,7 +309,7 @@ include("plots/P3TerminalVelocity_F_liq_rim.jl")
 
 When modifying process rates, we now need to consider whether they are concerned with
   the ice core or the whole particle, in addition to whether they become sources
-  and sinks of different prognostic variables with the inclusion of ``F_{liq}``. 
+  and sinks of different prognostic variables with the inclusion of ``F_{liq}``.
   With the addition of liquid fraction, too,
   come new process rates.
 
