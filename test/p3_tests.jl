@@ -564,6 +564,83 @@ function test_p3_het_freezing(FT)
     end
 end
 
+function test_p3_melting(FT)
+
+    TT.@testset "Melting Smoke Test" begin
+
+        p3 = CMP.ParametersP3(FT)
+        vel = CMP.Chen2022VelType(FT)
+        aps = CMP.AirProperties(FT)
+        tps = TD.Parameters.ThermodynamicsParameters(FT)
+
+        ρₐ = FT(1.2)
+        qᵢ = FT(1e-4)
+        Lᵢ = qᵢ * ρₐ
+        Nᵢ = FT(2e5) * ρₐ
+        F_rim = FT(0.8)
+        ρ_rim = FT(800)
+        dt = FT(1)
+
+        T_cold = FT(273.15 - 0.01)
+        rate = P3.ice_melt(
+            p3,
+            vel.snow_ice,
+            aps,
+            tps,
+            Lᵢ,
+            Nᵢ,
+            T_cold,
+            ρₐ,
+            F_rim,
+            ρ_rim,
+            dt,
+        )
+
+        TT.@test rate.dNdt == 0
+        TT.@test rate.dLdt == 0
+
+        T_warm = FT(273.15 + 0.01)
+        rate = P3.ice_melt(
+            p3,
+            vel.snow_ice,
+            aps,
+            tps,
+            Lᵢ,
+            Nᵢ,
+            T_warm,
+            ρₐ,
+            F_rim,
+            ρ_rim,
+            dt,
+        )
+
+        TT.@test rate.dNdt >= 0
+        TT.@test rate.dLdt >= 0
+
+        TT.@test rate.dNdt ≈ 171236.02291689217 rtol = 1e-6
+        TT.@test rate.dLdt ≈ 8.561801145844608e-5 rtol = 1e-6
+
+        T_vwarm = FT(273.15 + 0.1)
+        rate = P3.ice_melt(
+            p3,
+            vel.snow_ice,
+            aps,
+            tps,
+            Lᵢ,
+            Nᵢ,
+            T_vwarm,
+            ρₐ,
+            F_rim,
+            ρ_rim,
+            dt,
+        )
+
+        TT.@test rate.dNdt == Nᵢ
+        TT.@test rate.dLdt == Lᵢ
+    end
+end
+
+
 println("Testing Float32")
 test_p3_thresholds(Float32)
 test_particle_terminal_velocities(Float32)
@@ -579,4 +656,5 @@ test_particle_terminal_velocities(Float64)
 test_bulk_terminal_velocities(Float64)
 test_integrals(Float64)
 test_p3_het_freezing(Float64)
+test_p3_melting(Float64)
 #test_tendencies(Float64)

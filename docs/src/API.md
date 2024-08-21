@@ -70,6 +70,7 @@ P3Scheme.thresholds
 P3Scheme.distribution_parameter_solver
 P3Scheme.ice_terminal_velocity
 P3Scheme.het_ice_nucleation
+P3Scheme.ice_melt
 ```
 
 # Aerosol model
