@@ -151,7 +151,7 @@ function benchmark_test(FT)
     INPC = FT(1e5)
 
     # P3 scheme
-    bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 2048, 80)
+    bench_press(P3.thresholds, (p3, ρ_r, F_rim), 12e6, 2048, 80)
     #if FT == Float64
     #    bench_press(
     #        P3.distribution_parameter_solver,
