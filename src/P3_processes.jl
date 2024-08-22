@@ -76,6 +76,9 @@ function ice_melt(
     ρ_rim::FT,
     dt::FT,
 ) where {FT}
+    # process not dependent on F_liq
+    # (we want ice core shape params)
+    F_liq_ = FT(0)
     # Get constants
     (; ν_air, D_vapor, K_therm) = aps
     L_f = TD.latent_heat_fusion(tps, Tₐ)
@@ -83,7 +86,8 @@ function ice_melt(
 
     # Get the P3 diameter distribution...
     th = thresholds(p3, ρ_rim, F_rim)
-    (λ, N_0) = distribution_parameter_solver(p3, L_ice, N_ice, ρ_rim, F_rim)
+    (λ, N_0) =
+        distribution_parameter_solver(p3, L_ice, N_ice, ρ_rim, F_rim, F_liq_)
     N(D) = N′ice(p3, D, λ, N_0)
     # ... and D_max for the integral
     bound = get_ice_bound(p3, λ, FT(1e-6))
