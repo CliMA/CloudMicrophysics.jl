@@ -336,6 +336,35 @@ include("plots/P3ImmersionFreezing.jl")
 ```
 ![](P3_het_ice_nucleation.svg)
 
+## Melting
+
+Melting rate is derived in the same way as in the
+  [1-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-melt).
+We assume the same ventilation factor parameterization as in [SeifertBeheng2006](@cite),
+  and use the terminal velocity parameterization from [Chen2022](@cite).
+The ``dm/dD`` derivative is computed for each P3 size regime.
+The bulk melting rate is computed by numerically integrating over the particle
+  size distribution:
+```math
+\begin{equation}
+  \left. \frac{dL}{dt} \right|_{melt} = \frac{4 \, K_{thermo}}{L_f} \left(T - T_{freeze}\right)
+    \int_{0}^{\infty} \frac{dm(D)}{dD} \frac{F_v(D) N(D)}{D}
+\end{equation}
+```
+The melting rate for number concentration is assumed to be proportional to the
+  ice content melting rate.
+```math
+\begin{equation}
+  \left. \frac{dN}{dt} \right|_{melt} = \frac{N}{L} \left. \frac{dL}{dt} \right|_{melt}
+\end{equation}
+```
+Both rates are limited by the total available ice content and number concentration
+  divided by model time step length.
+
+```@example
+include("plots/P3Melting.jl")
+```
+![](P3_ice_melt.svg)
 
 ## Acknowledgments
 
