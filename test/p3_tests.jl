@@ -807,6 +807,7 @@ function test_p3_melting(FT)
         F_rim = FT(0.8)
         ρ_rim = FT(800)
         dt = FT(1)
+        F_liq = FT(0) # process not dependent on F_liq
 
         T_cold = FT(273.15 - 0.01)
         rate = P3.ice_melt(
