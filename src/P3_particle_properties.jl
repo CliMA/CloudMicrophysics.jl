@@ -27,7 +27,7 @@ D_th_helper(p3::PSP3{FT}) where {FT} =
     D_cr_helper(p3, F_rim, ρ_g)
 
  - p3 - a struct with P3 scheme parameters
- - F_rim - rime mass fraction L_rim / (L_ice - L_liq)) [-]
+ - F_rim - rime mass fraction L_rim / L_ice) [-]
  - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
 
 Returns the size of equal mass for graupel and partially rimed ice, in meters.
@@ -56,7 +56,7 @@ end
     ρ_g_helper(ρ_r, F_rim, ρ_d)
 
  - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq)) [-]
+ - F_rim - rime mass fraction (L_rim / L_ice) [-]
  - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
 
 Returns the density of total (deposition + rime) ice mass for graupel, in kg/m3
@@ -87,7 +87,7 @@ end
 
  - p3 - a struct with P3 scheme parameters
  - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq)) [-]
+ - F_rim - rime mass fraction (L_rim / L_ice) [-]
 
 Solves the nonlinear system consisting of D_cr, D_gr, ρ_g, ρ_d
 for a given rime density and rime mass fraction.
@@ -133,7 +133,20 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_rim::FT) where {FT}
 end
 
 """
-p3_density(p3, D, F_rim, th)
+    p3_F_liq_average(F_liq, X_ice, X_liq)
+
+ - F_liq - liquid fraction (L_liq / L_p3_tot)
+ - X_ice - ice core parameterization (i.e. mass, etc)
+ - X_liq - liquid part parameterization
+
+Returns the liquid fraction weighted average of X_ice and X_liq.
+"""
+function p3_F_liq_average(F_liq::FT, X_ice::FT, X_liq::FT) where {FT}
+    return (1 - F_liq) * X_ice + F_liq * X_liq
+end
+
+"""
+    p3_density(p3, D, F_rim, th)
 
 - p3 - a struct with P3 parameters
 - D - maximum particle dimension [m]
@@ -143,16 +156,16 @@ p3_density(p3, D, F_rim, th)
 Returns the density of a particle based on where it falls in the particle-size-based properties
 regime. Following Morrison and Milbrandt (2015), the density of nonspherical particles is assumed to
 be the particle mass divided by the volume of a sphere with the same D.
+Needed for aspect ratio calculation, so we assume zero liquid fraction.
 """
 function p3_density(p3::PSP3, D::FT, F_rim::FT, th) where {FT}
-    D_th = D_th_helper(p3)
-    if D_th > D
+    if D_th_helper(p3) > D
         # small spherical ice
         return p3.ρ_i
     elseif F_rim == 0
         # large nonspherical unrimed ice
         return (6 * α_va_si(p3)) / FT(π) * D^(p3.β_va - 3)
-    elseif th.D_gr > D >= D_th
+    elseif th.D_gr > D >= D_th_helper(p3)
         # dense nonspherical ice
         return (6 * α_va_si(p3)) / FT(π) * D^(p3.β_va - 3)
     elseif th.D_cr > D >= th.D_gr
@@ -187,8 +200,8 @@ mass_r(p3::PSP3, D::FT, F_rim::FT) where {FT <: Real} =
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq))
- - F_liq - liquid fraction (L_liq/L_i,tot)
+ - F_rim - rime mass fraction (L_rim / L_ice)
+ - F_liq - liquid fraction (L_liq / L_p3_tot)
  - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns mass(D) regime, used to create figures for the docs page.
@@ -200,17 +213,16 @@ function p3_mass(
     F_liq::FT,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT}
-    D_th = D_th_helper(p3)
-    if D_th > D
-        return (1 - F_liq) * mass_s(D, p3.ρ_i) + F_liq * mass_s(D, p3.ρ_l)         # small spherical ice
+    if D_th_helper(p3) > D
+        return p3_F_liq_average(F_liq, mass_s(D, p3.ρ_i), mass_s(D, p3.ρ_l))         # small spherical ice
     elseif F_rim == 0
-        return (1 - F_liq) * mass_nl(p3, D) + F_liq * mass_s(D, p3.ρ_l)            # large nonspherical unrimed ice
-    elseif th.D_gr > D >= D_th
-        return (1 - F_liq) * mass_nl(p3, D) + F_liq * mass_s(D, p3.ρ_l)            # dense nonspherical ice
+        return p3_F_liq_average(F_liq, mass_nl(p3, D), mass_s(D, p3.ρ_l))            # large nonspherical unrimed ice
+    elseif th.D_gr > D >= D_th_helper(p3)
+        return p3_F_liq_average(F_liq, mass_nl(p3, D), mass_s(D, p3.ρ_l))            # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
-        return (1 - F_liq) * mass_s(D, th.ρ_g) + F_liq * mass_s(D, p3.ρ_l)         # graupel
+        return p3_F_liq_average(F_liq, mass_s(D, th.ρ_g), mass_s(D, p3.ρ_l))         # graupel
     else #elseif D >= th.D_cr
-        return (1 - F_liq) * mass_r(p3, D, F_rim) + F_liq * mass_s(D, p3.ρ_l)        # partially rimed ice
+        return p3_F_liq_average(F_liq, mass_r(p3, D, F_rim), mass_s(D, p3.ρ_l))      # partially rimed ice
     end
 end
 
@@ -235,8 +247,8 @@ A_r(p3::PSP3, F_rim::FT, D::FT) where {FT} =
 
  - p3 - a struct with P3 scheme parameters
  - D - maximum particle dimension
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq))
- - F_liq - liquid fraction (L_liq/L_i,tot)
+ - F_rim - rime mass fraction (L_rim / L_ice)
+ - F_liq - liquid fraction (L_liq / L_p3_tot)
  - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
 Returns area(D), used to create figures for the documentation.
@@ -250,16 +262,40 @@ function p3_area(
 ) where {FT}
     # Area regime:
     if D_th_helper(p3) > D
-        return A_s(D)                                            # small spherical ice
+        return A_s(D)                                              # small spherical ice
     elseif F_rim == 0
-        return (1 - F_liq) * A_ns(p3, D) + F_liq * A_s(D)        # large nonspherical unrimed ice
+        return p3_F_liq_average(F_liq, A_ns(p3, D), A_s(D))        # large nonspherical unrimed ice
     elseif th.D_gr > D >= D_th_helper(p3)
-        return (1 - F_liq) * A_ns(p3, D) + F_liq * A_s(D)        # dense nonspherical ice
+        return p3_F_liq_average(F_liq, A_ns(p3, D), A_s(D))        # dense nonspherical ice
     elseif th.D_cr > D >= th.D_gr
-        return A_s(D)                                            # graupel
+        return A_s(D)                                              # graupel
     elseif D >= th.D_cr
-        return (1 - F_liq) * A_r(p3, F_rim, D) + F_liq * A_s(D)  # partially rimed ice
+        return p3_F_liq_average(F_liq, A_r(p3, F_rim, D), A_s(D))  # partially rimed ice
     else
         throw("D not in range")
     end
+end
+
+"""
+    ϕᵢ(p3, D, F_rim, th)
+
+ - p3 - a struct containing P3 parameters
+ - D - maximum dimension of ice particle [m]
+ - F_rim - rime mass fraction (L_rim/ L_ice) [-]
+ - th - P3 particle properties thresholds
+
+Returns the aspect ratio (ϕ) for an ice particle with mass, cross-sectional area,  
+and ice density determined using the size-dependent particle property regimes  
+following Morrison and Milbrandt (2015). The density of nonspherical  
+particles is assumed to be equal to the particle mass divided by the volume of a  
+spherical particle with the same D_max.  
+Assuming zero liquid fraction. 
+"""
+function ϕᵢ(p3::PSP3, D::FT, F_rim::FT, th) where {FT}
+    F_liq = FT(0)
+    mᵢ = p3_mass(p3, D, F_rim, F_liq, th)
+    aᵢ = p3_area(p3, D, F_rim, F_liq, th)
+    ρᵢ = p3_density(p3, D, F_rim, th)
+
+    return ifelse(D == 0, FT(0), 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))
 end

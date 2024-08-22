@@ -53,21 +53,21 @@ function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT}
     return N_0 * D^DSD_μ(p3, λ) * exp(-λ * D)
 end
 
-#"""
+# """
 #    get_ice_bound(p3, λ, tolerance)
-#
+
 # - p3 - a struct containing p3 parameters
 # - λ - shape parameters of ice distribution
 # - tolerance - tolerance for how much of the distribution we want to integrate over
-#
+
 # Returns the bound on the distribution that would guarantee that 1-tolerance
 # of the ice distribution is integrated over. This is calculated by setting
 # N_0(1 - tolerance) = ∫ N'(D) dD from 0 to bound and solving for bound.
 # This was further simplified to cancel out the N_0 from both sides.
 # The guess was calculated through a linear approximation extrapolated from
 # numerical solutions.
-#"""
-#function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
+# """
+# function get_ice_bound(p3::PSP3, λ::FT, tolerance::FT) where {FT}
 #    ice_problem(x) =
 #        tolerance - Γ(1 + DSD_μ(p3, λ), FT(exp(x)) * λ) / Γ(1 + DSD_μ(p3, λ))
 #    guess = log(19 / 6 * (DSD_μ(p3, λ) - 1) + 39) - log(λ)
@@ -80,7 +80,7 @@ end
 #            5,
 #        ).root
 #    return exp(log_ice_x)
-#end
+# end
 """
     get_ice_bound(p3, λ, tolerance)
 
@@ -100,61 +100,46 @@ end
 
  - p3 - a struct with P3 scheme parameters
  - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq)) [-]
- - F_liq - liquid fraction (L_liq / L_ice) [-]:
-    - zero if solving for ice core shape parameters
+ - F_rim - rime mass fraction (L_rim / L_ice) [-]
  - μ - shape parameter of N′ gamma distribution
  - λ - slope parameter of N′ gamma distribution
  - D_min - minimum bound for regime
  - D_max - maximum bound for regime (if not specified, then infinity)
 
- Returns ice content for a given m(D) regime
+Returns ice content for a given m(D) regime.
+Liquid fraction weighted averaging is not computed here but in L_over_N_gamma().
 """
 # small, spherical ice or graupel (completely rimed, spherical)
 # D_min = 0, D_max = D_th, ρ = ρᵢ
 # or
 # L_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
-function L_s(
-    p3::PSP3,
-    F_liq::FT,
-    ρ::FT,
-    μ::FT,
-    λ::FT,
-    D_min::FT,
-    D_max::FT,
-) where {FT}
-    return ∫_Γ(D_min, D_max, (1 - F_liq) * FT(π) / 6 * ρ, μ + 3, λ)
+function L_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
+    return ∫_Γ(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
 end
 # L_rim = 0 and D_min = D_th, D_max = inf
-function L_rz(p3::PSP3, F_liq::FT, μ::FT, λ::FT, D_min::FT) where {FT}
-    return ∫_Γ(D_min, FT(Inf), (1 - F_liq) * α_va_si(p3), μ + p3.β_va, λ)
+function L_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
+    return ∫_Γ(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
 end
 # L_rim > 0 and D_min = D_th and D_max = D_gr
-function L_n(p3::PSP3, F_liq::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    return ∫_Γ(D_min, D_max, (1 - F_liq) * α_va_si(p3), μ + p3.β_va, λ)
+function L_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
+    return ∫_Γ(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
 end
 # partially rimed ice or large unrimed ice (upper bound on D is infinity)
 # L_rim > 0 and D_min = D_cr, D_max = inf
-function L_r(p3::PSP3, F_rim::FT, F_liq::FT, μ::FT, λ::FT, D_min::FT) where {FT}
-    return ∫_Γ(
-        D_min,
-        FT(Inf),
-        (1 - F_liq) * α_va_si(p3) / (1 - F_rim),
-        μ + p3.β_va,
-        λ,
-    )
+function L_r(p3::PSP3, F_rim::FT, μ::FT, λ::FT, D_min::FT) where {FT}
+    return ∫_Γ(D_min, FT(Inf), α_va_si(p3) / (1 - F_rim), μ + p3.β_va, λ)
 end
 # F_liq != 0 (liquid mass on mixed-phase particles for D in [D_min, D_max])
-function L_liq(p3::PSP3, F_liq::FT, μ::FT, λ::FT) where {FT}
-    return ∫_Γ(FT(0), FT(Inf), F_liq * (FT(π) / 6) * p3.ρ_l, μ + 3, λ)
+function L_liq(p3::PSP3, μ::FT, λ::FT) where {FT}
+    return ∫_Γ(FT(0), FT(Inf), (FT(π) / 6) * p3.ρ_l, μ + 3, λ)
 end
 
 """
     L_over_N_gamma(p3, F_rim, F_liq, log_λ, th)
 
  - p3 - a struct with P3 scheme parameters
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq)) [-]
- - F_liq - liquid fraction (L_liq / L_ice) [-]:
+ - F_rim - rime mass fraction (L_rim / L_ice) [-]
+ - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
     - zero if solving for ice core shape parameters
  - log_λ - logarithm of the slope parameter of N′ gamma distribution
  - μ - shape parameter of N′ gamma distribution
@@ -178,30 +163,31 @@ function L_over_N_gamma(
 
     return ifelse(
         F_rim == FT(0),
-        (
-            L_s(p3, F_liq, p3.ρ_i, μ, λ, FT(0), D_th) +
-            L_rz(p3, F_liq, μ, λ, D_th) +
-            L_liq(p3, F_liq, μ, λ)
-        ) / N,
-        (
-            L_s(p3, F_liq, p3.ρ_i, μ, λ, FT(0), D_th) +
-            L_n(p3, F_liq, μ, λ, D_th, th.D_gr) +
-            L_s(p3, F_liq, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
-            L_r(p3, F_rim, F_liq, μ, λ, th.D_cr) +
-            L_liq(p3, F_liq, μ, λ)
-        ) / N,
+        (p3_F_liq_average(
+            F_liq,
+            L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) + L_rz(p3, μ, λ, D_th),
+            L_liq(p3, μ, λ),
+        )) / N,
+        (p3_F_liq_average(
+            F_liq,
+            L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) +
+            L_n(p3, μ, λ, D_th, th.D_gr) +
+            L_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
+            L_r(p3, F_rim, μ, λ, th.D_cr),
+            L_liq(p3, μ, λ),
+        )) / N,
     )
 end
 
 """
-    DSD_μ_approx(p3, L_ice, N, ρ_r, F_rim, F_liq)
+    DSD_μ_approx(p3, L, N, ρ_r, F_rim, F_liq)
 
  - p3 - a struct with P3 scheme parameters
- - L_ice - ice content [kg/m3]
+ - L - ice content [kg/m3]
  - N - total ice number concentration [1/m3]
  - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq)) [-]
- - F_liq - liquid fraction (L_liq / L_ice) [-]:
+ - F_rim - rime mass fraction (L_rim / L_ice) [-]
+ - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
     - zero if solving for ice core shape parameters
 Returns the approximated shape parameter μ for a given q and N value
 """
@@ -237,8 +223,8 @@ end
  - N - ice number concentration [1/m3]
  - L - ice content [kg/m3]
  - μ - shape parameter of N′ gamma distribution
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq)) [-]
- - F_liq - liquid fraction (L_liq / L_ice) [-]:
+ - F_rim - rime mass fraction (L_rim / L_ice) [-]
+ - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
     - zero if solving for ice core shape parameters - p3 - a struct with P3 scheme parameters
  - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
 
@@ -285,11 +271,11 @@ end
     distrbution_parameter_solver()
 
  - p3 - a struct with P3 scheme parameters
- - L - mass mixing ratio
- - N - number mixing ratio
+ - L - ice content [kg/m3]
+ - N - number concentration [1/m3]
  - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq)) [-]
- - F_liq - liquid fraction (L_liq / L_ice) [-]:
+ - F_rim - rime mass fraction (L_rim / L_ice) [-]
+ - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
     - zero if solving for ice core shape parameters - p3 - a struct with P3 scheme parameters
 
 Solves the nonlinear system consisting of N_0 and λ for P3 prognostic variables
@@ -334,11 +320,11 @@ end
     D_m (p3, L, N, ρ_r, F_rim)
 
  - p3 - a struct with P3 scheme parameters
- - L - mass mixing ratio
- - N - number mixing ratio
+ - L - ice mass content [kg/m3]
+ - N - number concentration [1/m3]
  - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / (L_ice - L_liq)) [-]
- - F_liq - liquid fraction (L_liq / L_ice) [-]:
+ - F_rim - rime mass fraction (L_rim / L_ice) [-]
+ - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
     - zero if solving for ice core D_m
  - p3 - a struct with P3 scheme parameters
 
@@ -371,9 +357,6 @@ function D_m(p3::PSP3, L::FT, N::FT, ρ_r::FT, F_rim::FT, F_liq::FT) where {FT}
         n_l = ∫_Γ(FT(0), FT(Inf), N_0 * p3.ρ_l * (FT(π) / 6), μ + 4, λ)
     end
 
-    # F_liq-weighted average:
-    n = (1 - F_liq) * n_nl + F_liq * n_l
-
-    # Normalize by L
-    return ifelse(L < eps(FT), FT(0), n / L)
+    # compute F_liq-weighted average and normalize by L
+    return ifelse(L < eps(FT), FT(0), p3_F_liq_average(F_liq, n_nl, n_l) / L)
 end

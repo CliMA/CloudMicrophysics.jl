@@ -4,7 +4,7 @@ The `P3Scheme.jl` module implements the predicted particle properties
  (P3) scheme for ice-phase microphysics developed by [MorrisonMilbrandt2015](@cite).
 The P3 scheme is a 2-moment, bulk scheme involving a
  single ice-phase category with 4 degrees of freedom: total ice content,
- rime content, rime volume, and number mixing ratios.
+ rime content, rime volume, and number concentration.
 Traditionally, cloud ice microphysics schemes use various predefined
  categories (such as ice, graupel, or hail) to represent ice modes, but the P3 scheme sidesteps the
  problem of prescribing transitions between ice categories by adopting
@@ -13,7 +13,7 @@ This simplification aids in attempts to constrain the scheme's free parameters.
 
 The prognostic variables are:
  - ``N_{ice}`` - number concentration 1/m3
- - ``L_{ice}`` - ice mass content kg/m3
+ - ``L_{p3, tot}`` - total ice particle mass content kg/m3
  - ``L_{rim}`` - rime mass content kg/m3
  - ``B_{rim}`` - rime volume - (volume of rime per total air volume: dimensionless)
 
@@ -39,7 +39,7 @@ The mass ``m`` and projected area ``A`` of particles
 |large, unrimed ice                    | ``L_{rim} = 0`` and ``D > D_{th}``           | ``\alpha_{va} \ D^{\beta_{va}}``             | ``\gamma \ D^{\sigma}``                                    |
 |dense nonspherical ice                | ``L_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\alpha_{va} \ D^{\beta_{va}}``             | ``\gamma \ D^{\sigma}``                                    |
 |graupel (completely rimed, spherical) | ``L_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\frac{\pi}{6} \rho_g \ D^3``               | ``\frac{\pi}{4} D^2``                                      |
-|partially rimed ice                   | ``L_{rim} > 0`` and ``D > D_{cr}``           | ``\frac{\alpha_{va}}{1-F_rim} D^{\beta_{va}}`` | ``F_{rim} \frac{\pi}{4} D^2 + (1-F_{rim})\gamma \ D^{\sigma}`` |
+|partially rimed ice                   | ``L_{rim} > 0`` and ``D > D_{cr}``           | ``\frac{\alpha_{va}}{1-F_{rim}} D^{\beta_{va}}`` | ``F_{rim} \frac{\pi}{4} D^2 + (1-F_{rim})\gamma \ D^{\sigma}`` |
 
 where:
  - ``D_{th}``, ``D_{gr}``, ``D_{cr}`` are particle size thresholds in ``m``,
@@ -57,11 +57,11 @@ The remaining thresholds: ``D_{gr}``, ``D_{cr}``, as well as the
   and the bulk density of the unrimed part ``\rho_d``
   form a nonlinear system:
  - ``D_{gr} = (\frac{6\alpha_{va}}{\pi \rho_g})^{\frac{1}{3 - \beta_{va}}}``
- - ``D_{cr} = [ (\frac{1}{1-F_rim}) \frac{6 \alpha_{va}}{\pi \rho_g} ]^{\frac{1}{3 - \beta_{va}}}``
- - ``\rho_g = \rho_r F_rim + (1 - F_rim) \rho_d``
+ - ``D_{cr} = [ (\frac{1}{1-F_{rim}}) \frac{6 \alpha_{va}}{\pi \rho_g} ]^{\frac{1}{3 - \beta_{va}}}``
+ - ``\rho_g = \rho_r F_{rim} + (1 - F_{rim}) \rho_d``
  - ``\rho_d = \frac{6\alpha_{va}(D_{cr}^{\beta{va} \ - 2} - D_{gr}^{\beta{va} \ - 2})}{\pi \ (\beta_{va} \ - 2)(D_{cr}-D_{gr})}``
 where
- - ``F_rim = \frac{L_{rim}}{L_{ice}}`` is the rime mass fraction,
+ - ``F_{rim} = \frac{L_{rim}}{L_{ice}}`` is the rime mass fraction and ``L_{ice}`` the solid ice mass content,
  - ``\rho_{r} = \frac{L_{rim}}{B_{rim}}`` is the predicted rime density.
 
 !!! note
@@ -106,7 +106,7 @@ The model predicted ice number concentration and ice content are defined as
 N_{ice} = \int_{0}^{\infty} \! N'(D) \mathrm{d}D
 ```
 ```math
-L_{ice} = \int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D
+L_{p3, tot} = \int_{0}^{\infty} \! m(D) N'(D) \mathrm{d}D
 ```
 
 ## Calculating shape parameters
@@ -119,18 +119,18 @@ Solving for ``N_{ice}`` is relatively straightforward:
 N_{ice} = \int_{0}^{\infty} \! N'(D) \mathrm{d}D = \int_{0}^{\infty} \! N_{0} D^\mu \, e^{-\lambda \, D} \mathrm{d}D = N_{0} (\lambda \,^{-(\mu \, + 1)} \Gamma \,(1 + \mu \,))
 ```
 
-``L_{ice}`` depends on the variable mass-size relation ``m(D)`` defined above.
-We solve for ``L_{ice}`` in a piece-wise fashion defined by the same thresholds as ``m(D)``.
-As a result ``L_{ice}`` can be expressed as a sum of incomplete gamma functions,
+``L_{p3, tot}`` depends on the variable mass-size relation ``m(D)`` defined above.
+We solve for ``L_{p3, tot}`` in a piece-wise fashion defined by the same thresholds as ``m(D)``.
+As a result ``L_{p3, tot}`` can be expressed as a sum of incomplete gamma functions,
   and the shape parameters are found using iterative solver.
 
-|      condition(s)                            |    ``L_{ice} = \int \! m(D) N'(D) \mathrm{d}D``                                          |         gamma representation          |
+|      condition(s)                            |    ``L_{p3, tot} = \int \! m(D) N'(D) \mathrm{d}D``                                          |         gamma representation          |
 |:---------------------------------------------|:-----------------------------------------------------------------------------------------|:---------------------------------------------|
 | ``D < D_{th}``                               | ``\int_{0}^{D_{th}} \! \frac{\pi}{6} \rho_i \ D^3 N'(D) \mathrm{d}D``                    | ``\frac{\pi}{6} \rho_i N_0 \lambda \,^{-(\mu \, + 4)} (\Gamma \,(\mu \, + 4) - \Gamma \,(\mu \, + 4, \lambda \,D_{th}))``|
 | ``L_{rim} = 0`` and ``D > D_{th}``           | ``\int_{D_{th}}^{\infty} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}))`` |
 | ``L_{rim} > 0`` and ``D_{gr} > D > D_{th}``  | ``\int_{D_{th}}^{D_{gr}} \! \alpha_{va} \ D^{\beta_{va}} N'(D) \mathrm{d}D``             | ``\alpha_{va} \ N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{th}) - \Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{gr}))`` |
 | ``L_{rim} > 0`` and ``D_{cr} > D > D_{gr}``  | ``\int_{D_{gr}}^{D_{cr}} \! \frac{\pi}{6} \rho_g \ D^3 N'(D) \mathrm{d}D``               | ``\frac{\pi}{6} \rho_g N_0 \lambda \,^{-(\mu \, + 4)} (\Gamma \,(\mu \, + 4, \lambda \,D_{gr}) - \Gamma \,(\mu \, + 4, \lambda \,D_{cr}))`` |
-| ``L_{rim} > 0`` and ``D > D_{cr}``           | ``\int_{D_{cr}}^{\infty} \! \frac{\alpha_{va}}{1-F_rim} D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\frac{\alpha_{va}}{1-F_rim} N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{cr}))``  |
+| ``L_{rim} > 0`` and ``D > D_{cr}``           | ``\int_{D_{cr}}^{\infty} \! \frac{\alpha_{va}}{1-F_{rim}} D^{\beta_{va}} N'(D) \mathrm{d}D`` | ``\frac{\alpha_{va}}{1-F_{rim}} N_0 \lambda \,^{-(\mu \, + \beta_{va} \, + 1)} (\Gamma \,(\mu \, + \beta_{va} \, + 1, \lambda \,D_{cr}))``  |
 
 where ``\Gamma \,(a, z) = \int_{z}^{\infty} \! t^{a - 1} e^{-t} \mathrm{d}D``
   and ``\Gamma \,(a) = \Gamma \,(a, 0)`` for simplicity.
@@ -178,8 +178,11 @@ We use the [Chen2022](@cite) velocity parametrization:
 ```math
 V(D) = \phi^{\kappa} \sum_{i=1}^{j} \; a_i D^{b_i} e^{-c_i \; D}
 ```
-where ``\phi = (16 \rho_{ice}^2 A(D)^3) / (9 \pi m(D)^2)`` is the aspect ratio,
-and ``\kappa``, ``a_i``, ``b_i`` and ``c_i`` are the free parameters.
+where
+```math
+\phi = (16 \rho_{ice}(D)^2 A(D)^3) / (9 \pi m(D)^2)
+```
+is the aspect ratio, and ``\kappa``, ``a_i``, ``b_i`` and ``c_i`` are the free parameters.
 
 The aspect ratio of a spheroid is defined ``\phi = \frac{a}{c}``, where ``a`` is the equatorial radius and ``c`` is the distance from the pole to the center.
   In terms of ``a`` and ``c``, a spheroid's volume can be represented as ``V(a, c) = \frac{4}{3} \pi a^2 c``, and its cross-sectional area can be assumed ``A(a, c) = \pi a c``.
@@ -226,10 +229,11 @@ To allow for the modeling of mixed-phase particles with P3, a new prognostic var
   this addition to the framework of P3 opens the door to tracking the gradual melting (and refreezing) of a
   particle population. Here, we describe the characteristics of the scheme with the addition of ``L_{liq}``.
 
-Liquid fraction, analogous to ``F_{rim}`` for rime, is defined ``F_{liq} = \frac{L_{liq}}{L_{ice}}``.
-  Importantly, the introduction of ``L_{liq}`` changes the formulation of ``F_rim``: whereas above,
-  we have ``F_{rim} = \frac{L_{rim}}{L_{ice}}``, we now need ``F_{rim} = \frac{L_{rim}}{L_{ice} - L_{liq}}``
-  since the total mass of ice particles ``L_{ice} = L_{rim} + L_{dep} + L_{liq}`` now includes liquid mass.
+Liquid fraction, analogous to ``F_{rim}`` for rime, is defined ``F_{liq} = \frac{L_{liq}}{L_{p3, tot}}``
+  where ``L_{p3, tot} = L_{ice} + L_{liq}`` and where ``L_{ice}`` is the solid ice mass content which includes
+  rime mass content and mass grown by vapor deposition. This is important notably for
+  ``F_{rim} = \frac{L_{rim}}{L_{ice}}`` — which differs now from ``F_{rim} = \frac{L_{rim}}{L_{p3, tot}}``
+  because we want to normalize only by solid ice mass content for ``F_{rim}``.
 
 Based on Fig. 1 from [Choletteetal2019](@cite), we can expect the accumulation of liquid on an ice core to increase
   velocities of small particles for all ``F_{rim}`` values. Below, we reproduce this figure with ``\rho_{r} = 900 kg m^{-3}``,
@@ -274,6 +278,9 @@ V(D_{p}, F_{liq}) = (1 - F_{liq}) V_{ice}(D_{p}) + F_{liq} V_{rain}(D_{p})
 To continue with the same plotting format as we see above for terminal velocity, below, we show terminal velocity with
   ``F_{liq} = 0.0, 0.5, 0.9`` using the mass-weighted terminal velocity with aspect ratio. Clearly, the velocity increases
   with ``F_{liq}`` and becomes decreasingly dependent on ``F_{rim}`` and ``\rho_{r}`` as we shrink the size of the ice core.
+  Of note relating to our calculation of terminal velocity with liquid fraction, we let ``F_{liq} = 0`` in our calculation of
+  ``\phi``. This is because we want ``V_{ice}(D_{p})`` (velocity of a mixed-phase particle treating it as an ice particle
+  with the same D).
 
 ```@example
 include("plots/P3TerminalVelocityPlots_WithFliq.jl")

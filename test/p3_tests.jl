@@ -139,14 +139,26 @@ function test_p3_thresholds(FT)
         # test F_liq != 0
         F_liq = FT(0.5)
 
+        # get D_i values again
+        # values
+        ρ_r = FT(500)
+        F_rim = FT(0.5)
+
+        # get thresholds
+        D_th = P3.D_th_helper(p3)
+        th = P3.thresholds(p3, ρ_r, F_rim)
+        (; D_gr, D_cr) = th
+
+        # define in between values
+        D_1 = D_th / 2
+        D_2 = (D_th + D_gr) / 2
+        D_3 = (D_gr + D_cr) / 2
+
         # test area
         TT.@test P3.p3_area(p3, D_1, F_rim, F_liq, th) == P3.A_s(D_1)
         TT.@test P3.p3_area(p3, D_2, F_rim, F_liq, th) ==
                  (1 - F_liq) * P3.A_ns(p3, D_2) + F_liq * P3.A_s(D_2)
-        # TODO - debug this test
-        # TT.@test P3.p3_area(p3, D_3, F_rim, F_liq, th) == P3.A_s(D_3)
-        TT.@test P3.p3_area(p3, D_3, F_rim, F_liq, th) ==
-                 (1 - F_liq) * P3.A_ns(p3, D_3) + F_liq * P3.A_s(D_3)
+        TT.@test P3.p3_area(p3, D_3, F_rim, F_liq, th) == P3.A_s(D_3)
         TT.@test P3.p3_area(p3, D_cr, F_rim, F_liq, th) ==
                  (1 - F_liq) * P3.A_r(p3, F_rim, D_cr) + F_liq * P3.A_s(D_cr)
 
@@ -158,10 +170,8 @@ function test_p3_thresholds(FT)
                  (1 - F_liq) * P3.mass_nl(p3, D_2) +
                  F_liq * P3.mass_s(D_2, p3.ρ_l)
         TT.@test P3.p3_mass(p3, D_3, F_rim, F_liq, th) ==
-                 (1 - F_liq) * P3.mass_nl(p3, D_3) +
+                 (1 - F_liq) * P3.mass_s(D_3, th.ρ_g) +
                  F_liq * P3.mass_s(D_3, p3.ρ_l)
-        # TODO - debug this test:
-        # TT.@test P3.p3_mass(p3, D_3, F_rim, F_liq, th) == (1 - F_liq) * P3.mass_s(D_3, th.ρ_g) + F_liq * P3.mass_s(D_3, p3.ρ_l)
         TT.@test P3.p3_mass(p3, D_cr, F_rim, F_liq, th) ==
                  (1 - F_liq) * P3.mass_r(p3, D_cr, F_rim) +
                  F_liq * P3.mass_s(D_cr, p3.ρ_l)

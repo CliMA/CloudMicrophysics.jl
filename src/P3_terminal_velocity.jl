@@ -1,39 +1,11 @@
 """
-    ϕᵢ(p3, D, F_rim, th)
-
- - p3 - a struct containing P3 parameters
- - D - maximum dimension of ice particle [m]
- - F_rim - rime mass fraction (L_rim/ L_ice) [-]
- - th - P3 particle properties thresholds
-
-Returns the aspect ratio (ϕ) for an ice particle with mass, cross-section area,
-and ice density determined using the size-dependent particle property regimes
-following Morrison and Milbrandt (2015). The density of nonspherical
-particles is assumed to be equal to the particle mass divided by the volume of a
-spherical particle with the same D_max.
-"""
-function ϕᵢ(p3::PSP3, D::FT, F_rim::FT, th) where {FT}
-    # Let F_liq = 0 to calculate ϕᵢ for an ice particle with D
-    # of the total particle but treating a mixed-phase particle
-    # as an ice particle with the same D. We need this for the F_liq
-    # weighted average of velocities discussed in the docs.
-    # TODO? should the above comment be here or should it be in the docs?
-    F_liq = FT(0)
-    mᵢ = p3_mass(p3, D, F_rim, F_liq, th)
-    aᵢ = p3_area(p3, D, F_rim, F_liq, th)
-    ρᵢ = p3_density(p3, D, F_rim, th)
-
-    return ifelse(D == 0, FT(0), 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))
-end
-
-"""
     ice_particle_terminal_velocity(p3, D, Chen2022, ρₐ, F_rim, th, use_aspect_ratio)
 
  - p3 - p3 parameters
  - D - maximum particle dimension
  - Chen2022 - a struct with terminal velocity parameters from Chen 2022
  - ρₐ - air density
- - F_rim - rime mass fraction (L_rim/(L_ice - L_liq)) [-]
+ - F_rim - rime mass fraction (L_rim/L_ice) [-]
  - th - P3 particle properties thresholds
  - use_aspect_ratio - Bool flag set to true if we want to consider the effects
    of particle aspect ratio on its terminal velocity (default: true)
@@ -67,8 +39,8 @@ end
  - D - maximum particle dimension
  - Chen2022 - struct with terminal velocity parameters from Chen 2022
  - ρₐ - air density
- - F_rim - rime mass fraction (L_rim/(L_ice - L_liq)) [-]
- - F_liq - liquid fraction (L_liq/L_ice) [-]
+ - F_rim - rime mass fraction (L_rim/L_ice) [-]
+ - F_liq - liquid fraction (L_liq / L_p3_tot) [-]
  - th - thresholds as calculated by thresholds()
  - use_aspect_ratio - Bool flag set to true if we want to consider the effects
    of particle aspect ratio on its terminal velocity (default: true)
@@ -97,8 +69,7 @@ function p3_particle_terminal_velocity(
         use_aspect_ratio,
     )
     v_r = CM2.rain_particle_terminal_velocity(D, Chen2022.rain, ρₐ)
-    v = (1 - F_liq) * v_i + F_liq * v_r
-    return v
+    return p3_F_liq_average(F_liq, v_i, v_r)
 end
 
 """
@@ -110,8 +81,8 @@ end
  - p3 - a struct containing P3 parameters
  - Chen2022 - a struct containing Chen 2022 velocity parameters
  - ρ_a - density of air
- - F_rim - rime mass fraction (L_rim/(L_ice - L_liq)) [-]
- - F_liq - liquid fraction (L_liq/L_ice) [-]
+ - F_rim - rime mass fraction (L_rim/L_ice) [-]
+ - F_liq - liquid fraction (L_liq / L_p3_tot) [-]
  - th - P3 particle properties thresholds
  - use_aspect_ratio - Bool flag set to true if we want to consider the effects of
    particle aspect ratio on its terminal velocity (default: true)
@@ -180,10 +151,10 @@ end
 
  - p3 - a struct with P3 scheme parameters
  - Chen2022 - a struch with terminal velocity parameters as in Chen(2022)
- - L - mass mixing ratio
- - N - number mixing ratio
+ - L - ice mass content [kg/m3]
+ - N - number concentration [1/m3]
  - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim/q_ice)
+ - F_rim - rime mass fraction (L_rim/L_ice)
  - ρₐ - density of air
  - use_aspect_ratio - Bool flag set to true if we want to consider the effects
    of particle aspect ratio on its terminal velocity (default: true)
