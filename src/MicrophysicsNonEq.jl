@@ -59,11 +59,12 @@ function conv_q_vap_to_q_liq_ice(
 end
 
 """
-    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ, T)
-    conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ, T)
+    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q_sat, q, T)
+    conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q_sat, q, T)
 
 - `liquid` or `ice` - a struct with cloud water or ice free parameters
 - `tps` - thermodynamics parameters struct
+- `q_sat` - PhasePartition of the q_vap values at saturation for liquid and ice
 - `q` - current PhasePartition
 - `ρ` - air density [kg/m3]
 - `T` - air temperature [K]
@@ -76,8 +77,8 @@ Morrison and Milbrandt 2015
 function conv_q_vap_to_q_liq_ice_MM2015(
     (; τ_relax)::CMP.CloudLiquid{FT},
     tps::TDP.ThermodynamicsParameters{FT},
+    q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
-    ρ::FT,
     T::FT,
 ) where {FT}
     Rᵥ = TD.Parameters.R_v(tps)
@@ -85,19 +86,16 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     Lᵥ = TD.latent_heat_vapor(tps, T)
     qᵥ = TD.vapor_specific_humidity(q)
 
-    pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-    qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
-
-    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
+    dqsldT = q_sat.liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
     Γₗ = FT(1) + (Lᵥ / cₚ_air) * dqsldT
 
-    return (qᵥ - qᵥ_sat_liq) / τ_relax * Γₗ
+    return (qᵥ - q_sat.liq) / (τ_relax * Γₗ)
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
     (; τ_relax)::CMP.CloudIce{FT},
     tps::TDP.ThermodynamicsParameters{FT},
+    q_sat::TD.PhasePartition{FT},
     q::TD.PhasePartition{FT},
-    ρ::FT,
     T::FT,
 ) where {FT}
     Rᵥ = TD.Parameters.R_v(tps)
@@ -105,13 +103,10 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     Lₛ = TD.latent_heat_sublim(tps, T)
     qᵥ = TD.vapor_specific_humidity(q)
 
-    pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
-    qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
-
-    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
+    dqsidT = q_sat.ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
     Γᵢ = FT(1) + (Lₛ / cₚ_air) * dqsidT
 
-    return (qᵥ - qᵥ_sat_ice) / τ_relax * Γᵢ
+    return (qᵥ - q_sat.ice) / (τ_relax * Γᵢ)
 end
 
 end #module MicrophysicsNonEq.jl
