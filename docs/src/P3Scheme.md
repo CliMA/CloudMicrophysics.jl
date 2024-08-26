@@ -342,7 +342,9 @@ Melting rate is derived in the same way as in the
   [1-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-melt).
 We assume the same ventilation factor parameterization as in [SeifertBeheng2006](@cite),
   and use the terminal velocity parameterization from [Chen2022](@cite).
-The ``dm/dD`` derivative is computed for each P3 size regime.
+The ``dm/dD`` derivative is computed for each P3 size regime, without taking into account
+  ``L_{liq}``, since melting is dependent only on the ice core and not on the entire
+  mixed-phase particle.
 The bulk melting rate is computed by numerically integrating over the particle
   size distribution:
 ```math
