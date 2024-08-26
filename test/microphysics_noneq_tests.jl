@@ -73,7 +73,7 @@ function test_microphysics_noneq(FT)
         # test sign
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qᵥ_s, qₚ(FT(0.5 * qᵥ_sl)), T) < FT(0)
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qᵥ_s, qₚ(FT(1.5 * qᵥ_sl)), T) > FT(0)
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qᵥ_s, qₚ(      qᵥ_sl), ρ, T) ≈ FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qᵥ_s, qₚ(      qᵥ_sl), T) ≈ FT(0)
 
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qᵥ_s, qₚ(FT(0.5 * qᵥ_si)), T) < FT(0)
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qᵥ_s, qₚ(FT(1.5 * qᵥ_si)), T) > FT(0)
