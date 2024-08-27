@@ -114,3 +114,82 @@ function ice_melt(
     dLdt = min(dLdt, L_ice / dt)
     return (; dNdt, dLdt)
 end
+
+"""
+   ice_shed(p3, L_ice, N_ice, F_rim, ρ_rim, F_liq, dt)
+
+
+- p3 - a struct containing p3 parameters
+- L_p3_tot - total ice mass content
+- N_ice - ice number concentration
+- F_rim - rime mass fraction (L_rim / L_ice)
+- ρ_r - rime density (L_rim/B_rim)
+- F_liq - liquid fraction (L_liq / L_p3_tot)
+- dt - model time step (for limiting the tendnecy)
+
+
+Returns the sink of L_liq due to shedding—N_ice remains constant.
+"""
+function ice_shed(
+   p3::PSP3,
+   L_p3_tot::FT,
+   N_ice::FT,
+   F_rim::FT,
+   ρ_rim::FT,
+   F_liq::FT,
+   dt::FT,
+) where {FT}
+   dLdt = FT(0)
+   if L_p3_tot > eps(FT) && N_ice > eps(FT)
+       # process dependent on F_liq
+       # (we want whole particle shape params)
+       # Get constants
+
+
+       # Get the P3 diameter distribution...
+       th = thresholds(p3, ρ_rim, F_rim)
+       (λ, N_0) =
+           distribution_parameter_solver(p3, L_p3_tot, N_ice, ρ_rim, F_rim, F_liq)
+       N(D) = N′ice(p3, D, λ, N_0)
+
+
+       # ... and D_max for the integral
+       bound = get_ice_bound(p3, λ, FT(1e-6))
+
+
+       # critical size for shedding
+       shed_bound = FT(9e-3)
+
+
+       # liquid mass
+       m_liq(D) = F_liq * mass_s(D, p3.ρ_l)
+       # integrand (mass shed is a function of F_rim)
+       f(D) = F_rim * m_liq(D) * N(D)
+
+
+
+
+       # if we have no particles that are big
+       # enough to undergo shedding, we return 0
+       # TODO - maybe there is a better way to
+       # toggle between shedding and no shedding
+       # Integrate
+       (dLdt, error) = ifelse(
+           shed_bound >= bound,
+           (FT(0), FT(0)),
+           QGK.quadgk(d -> f(d), shed_bound, bound, rtol = FT(1e-6)),
+       )
+
+
+       # ... don't exceed the available liquid mass content
+       dLdt = min(dLdt, F_liq * L_p3_tot / dt)
+   end
+   # return rates struct, with dNdt
+   # assuming raindrops with D = 1 mm
+   return P3Rates{FT}(
+       dLdt_p3_tot = dLdt,
+       dLdt_liq = dLdt,
+       dLdt_rai = dLdt,
+       dNdt_rai = dLdt / mass_s(FT(1e-3), p3.ρ_l),
+   )
+end
