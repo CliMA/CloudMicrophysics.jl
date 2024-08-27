@@ -199,6 +199,13 @@ function benchmark_test(FT)
             2e3,
             3,
         )
+        bench_press(
+            P3.ice_shed,
+            (p3, L, N, F_rim, ρ_r, F_liq, Δt),
+            1.5e5,
+            1.5e3,
+            2,
+        )
     end
 
     # aerosol activation

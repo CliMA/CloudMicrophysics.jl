@@ -1,4 +1,25 @@
 """
+A structure containing the rates of change of the specific humidities and number
+densities of liquid and rain water.
+"""
+Base.@kwdef struct P3Rates{FT}
+    "Rate of change of total ice mass content"
+    dLdt_p3_tot::FT = FT(0)
+    "Rate of change of rime mass content"
+    dLdt_rim::FT = FT(0)
+    "Rate of change of mass content of liquid on ice"
+    dLdt_liq::FT = FT(0)
+    "Rate of change of rime volume"
+    ddtB_rim::FT = FT(0)
+    "Rate of change of ice number concentration"
+    dNdt_ice::FT = FT(0)
+    "Rate of change of rain mass content"
+    dLdt_rai::FT = FT(0)
+    "Rate of change of rain number concentration"
+    dNdt_rai::FT = FT(0)
+end
+
+"""
     het_ice_nucleation(pdf_c, p3, tps, q, N, T, ρₐ, p, aerosol)
 
  - aerosol - aerosol parameters (supported types: desert dust, illite, kaolinite)
@@ -118,78 +139,76 @@ end
 """
    ice_shed(p3, L_ice, N_ice, F_rim, ρ_rim, F_liq, dt)
 
-
 - p3 - a struct containing p3 parameters
 - L_p3_tot - total ice mass content
 - N_ice - ice number concentration
 - F_rim - rime mass fraction (L_rim / L_ice)
-- ρ_r - rime density (L_rim/B_rim)
+- ρ_rim - rime density (L_rim/B_rim)
 - F_liq - liquid fraction (L_liq / L_p3_tot)
 - dt - model time step (for limiting the tendnecy)
-
 
 Returns the sink of L_liq due to shedding—N_ice remains constant.
 """
 function ice_shed(
-   p3::PSP3,
-   L_p3_tot::FT,
-   N_ice::FT,
-   F_rim::FT,
-   ρ_rim::FT,
-   F_liq::FT,
-   dt::FT,
+    p3::PSP3,
+    L_p3_tot::FT,
+    N_ice::FT,
+    F_rim::FT,
+    ρ_rim::FT,
+    F_liq::FT,
+    dt::FT,
 ) where {FT}
-   dLdt = FT(0)
-   if L_p3_tot > eps(FT) && N_ice > eps(FT)
-       # process dependent on F_liq
-       # (we want whole particle shape params)
-       # Get constants
+    dLdt = FT(0)
+    if L_p3_tot > eps(FT) && N_ice > eps(FT)
+        # process dependent on F_liq
+        # (we want whole particle shape params)
+        # Get the P3 diameter distribution...
+        (λ, N_0) = distribution_parameter_solver(
+            p3,
+            L_p3_tot,
+            N_ice,
+            ρ_rim,
+            F_rim,
+            F_liq,
+        )
+        N(D) = N′ice(p3, D, λ, N_0)
 
+        # ... and D_max for the integral
+        # TODO - once get_ice_bound() is changed,
+        # find a reasonable tolerance for which
+        # it's worth computing shedding over the PSD
+        # (i.e. if only 1% of the particles are bigger than 9 mm
+        # is it really worth doing a computation and returning a tiny dLdt?)
+        bound = get_ice_bound(p3, λ, FT(1e-6))
+        # hard-coding another bound for testing:
+        bound = FT(2e-2)
 
-       # Get the P3 diameter distribution...
-       th = thresholds(p3, ρ_rim, F_rim)
-       (λ, N_0) =
-           distribution_parameter_solver(p3, L_p3_tot, N_ice, ρ_rim, F_rim, F_liq)
-       N(D) = N′ice(p3, D, λ, N_0)
+        # critical size for shedding
+        shed_bound = FT(9e-3)
 
+        # check if there are particles big enough to shed
+        shedding = ifelse(bound > shed_bound, true, false)
 
-       # ... and D_max for the integral
-       bound = get_ice_bound(p3, λ, FT(1e-6))
+        # liquid mass
+        m_liq(D) = F_liq * mass_s(D, p3.ρ_l)
+        # integrand (mass shed is a function of F_rim)
+        f(D) = F_rim * m_liq(D) * N(D)
 
+        # Integrate
+        if shedding
+            (dLdt, error) =
+                QGK.quadgk(d -> f(d), shed_bound, bound, rtol = FT(1e-6))
+        end
 
-       # critical size for shedding
-       shed_bound = FT(9e-3)
-
-
-       # liquid mass
-       m_liq(D) = F_liq * mass_s(D, p3.ρ_l)
-       # integrand (mass shed is a function of F_rim)
-       f(D) = F_rim * m_liq(D) * N(D)
-
-
-
-
-       # if we have no particles that are big
-       # enough to undergo shedding, we return 0
-       # TODO - maybe there is a better way to
-       # toggle between shedding and no shedding
-       # Integrate
-       (dLdt, error) = ifelse(
-           shed_bound >= bound,
-           (FT(0), FT(0)),
-           QGK.quadgk(d -> f(d), shed_bound, bound, rtol = FT(1e-6)),
-       )
-
-
-       # ... don't exceed the available liquid mass content
-       dLdt = min(dLdt, F_liq * L_p3_tot / dt)
-   end
-   # return rates struct, with dNdt
-   # assuming raindrops with D = 1 mm
-   return P3Rates{FT}(
-       dLdt_p3_tot = dLdt,
-       dLdt_liq = dLdt,
-       dLdt_rai = dLdt,
-       dNdt_rai = dLdt / mass_s(FT(1e-3), p3.ρ_l),
-   )
+        # ... don't exceed the available liquid mass content
+        dLdt = min(dLdt, F_liq * L_p3_tot / dt)
+    end
+    # return rates struct, with dNdt
+    # assuming raindrops of D = 1 mm
+    return P3Rates{FT}(
+        dLdt_p3_tot = dLdt,
+        dLdt_liq = dLdt,
+        dLdt_rai = dLdt,
+        dNdt_rai = dLdt / mass_s(FT(1e-3), p3.ρ_l),
+    )
 end

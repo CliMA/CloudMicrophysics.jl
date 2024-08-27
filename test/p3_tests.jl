@@ -868,6 +868,53 @@ function test_p3_melting(FT)
     end
 end
 
+function test_p3_shedding(FT)
+
+    TT.@testset "Shedding Smoke Test" begin
+
+        p3 = CMP.ParametersP3(FT)
+
+        qᵢ = FT(5e-3)
+        ρₐ = FT(1.2)
+        Lᵢ = qᵢ * ρₐ
+        Nᵢ = FT(5e3) * ρₐ
+        F_rim = FT(0.8)
+        ρ_rim = FT(800)
+        dt = FT(1)
+        F_liq = FT(0)
+
+        rate = P3.ice_shed(p3, Lᵢ, Nᵢ, F_rim, ρ_rim, F_liq, dt)
+
+        TT.@test rate.dLdt_p3_tot == 0
+        TT.@test rate.dLdt_liq == 0
+        TT.@test rate.dLdt_rai == 0
+        TT.@test rate.dNdt_rai == 0
+
+        F_liq = FT(0.9)
+
+        rate = P3.ice_shed(p3, Lᵢ, Nᵢ, F_rim, ρ_rim, F_liq, dt)
+
+        TT.@test rate.dLdt_p3_tot >= 0
+        TT.@test rate.dLdt_liq >= 0
+        TT.@test rate.dLdt_rai >= 0
+        TT.@test rate.dNdt_rai >= 0
+
+        TT.@test rate.dLdt_p3_tot == 5.80171629651495e-6
+        TT.@test rate.dNdt_rai == 11.080461924085903
+
+        Lᵢ = FT(0)
+        Nᵢ = FT(0)
+
+        rate = P3.ice_shed(p3, Lᵢ, Nᵢ, F_rim, ρ_rim, F_liq, dt)
+
+        TT.@test rate.dLdt_p3_tot == 0
+        TT.@test rate.dLdt_liq == 0
+        TT.@test rate.dLdt_rai == 0
+        TT.@test rate.dNdt_rai == 0
+
+    end
+end
+
 
 println("Testing Float32")
 test_p3_thresholds(Float32)
@@ -886,4 +933,5 @@ test_bulk_terminal_velocities(Float64)
 test_integrals(Float64)
 test_p3_het_freezing(Float64)
 test_p3_melting(Float64)
+test_p3_shedding(Float64)
 #test_tendencies(Float64)
