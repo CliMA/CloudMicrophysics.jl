@@ -159,7 +159,7 @@ function ice_shed(
     dt::FT,
 ) where {FT}
     dLdt = FT(0)
-    if L_p3_tot > eps(FT) && N_ice > eps(FT)
+    if L_p3_tot > eps(FT) && N_ice > eps(FT) && F_liq > eps(FT)
         # process dependent on F_liq
         # (we want whole particle shape params)
         # Get the P3 diameter distribution...
