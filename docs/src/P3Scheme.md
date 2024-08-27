@@ -367,7 +367,7 @@ The melting rate for number concentration is assumed to be proportional to
   an immediate transfer to rain rather than an accumulation of ``L_{liq}``.
 ```math
 \begin{equation}
-  \left. \frac{dN}{dt} \right|_{melt} = \frac{N}{L_{ice}} \left. \frac{dL}{dt} \right|_{melt}
+  \left. \frac{dN}{dt} \right|_{melt} = \frac{N}{L_{ice}} \left. \frac{dL_{rai}}{dt} \right|_{melt}
 \end{equation}
 ```
 If ``F_{liq} > 0.99``, ``L_{p3, tot}`` is completely transferred to rain.
