@@ -10,7 +10,7 @@ Base.@kwdef struct P3Rates{FT}
     "Rate of change of mass content of liquid on ice"
     dLdt_liq::FT = FT(0)
     "Rate of change of rime volume"
-    dB_rim_dt::FT = FT(0)
+    ddtB_rim::FT = FT(0)
     "Rate of change of ice number concentration"
     dNdt_ice::FT = FT(0)
     "Rate of change of rain mass content"
@@ -87,7 +87,7 @@ modified for the liquid fraction scheme described in Cholette et al (2019).
 """
 function ice_melt(
     p3::PSP3,
-    Chen2022::CMP.Chen2022VelTypeSnowIce,
+    Chen2022::CMP.Chen2022VelType,
     aps::CMP.AirProperties{FT},
     tps::TDP.ThermodynamicsParameters{FT},
     L_p3_tot::FT,
@@ -100,14 +100,22 @@ function ice_melt(
     dt::FT,
 ) where {FT}
     # initialize rates and compute solid ice content
-    (; dLdt_p3_tot, dLdt_rim, dLdt_liq, dLdt_rai, dNdt_ice, dNdt_rai) =
-        P3Rates{FT}()
+    (;
+        dLdt_p3_tot,
+        dLdt_rim,
+        dLdt_liq,
+        dLdt_rai,
+        dNdt_ice,
+        dNdt_rai,
+        ddtB_rim,
+    ) = P3Rates{FT}()
     L_ice = (1 - F_liq) * L_p3_tot
     if F_liq > 0.99
         # transfer total ice mass to rain
         dLdt_p3_tot = L_p3_tot
         dNdt_ice = N_ice
         dLdt_rim = F_rim * L_ice
+        ddtB_rim = dLdt_rim / ρ_rim
         dLdt_rai = L_p3_tot
         dNdt_rai = N_ice
     elseif L_ice > eps(FT) && N_ice > eps(FT)
@@ -141,7 +149,17 @@ function ice_melt(
         small = ifelse(bound < D_th, true, false)
 
         # Ice particle terminal velocity
-        v(D) = ice_particle_terminal_velocity(p3, D, Chen2022, ρₐ, F_rim, th)
+        use_aspect_ratio = true
+        v(D) = p3_particle_terminal_velocity(
+            p3,
+            D,
+            Chen2022,
+            ρₐ,
+            F_rim,
+            F_liq,
+            th,
+            use_aspect_ratio,
+        )
         # Reynolds number
         N_Re(D) = D * v(D) / ν_air
         # Ventillation factor
@@ -176,8 +194,9 @@ function ice_melt(
             dLdt_ice = (L_ice / dt)
         end
 
-        # compute change in L_rim is such that F_rim is unchanged
+        # compute change in L_rim, B_rim such that F_rim is unchanged
         dLdt_rim = F_rim * dLdt_ice
+        ddtB_rim = dLdt_rim / ρ_rim
 
 
         # change in total ice mass is equal to mass lost to rain
@@ -185,11 +204,10 @@ function ice_melt(
 
         # compute change of N_ice and N_rai proportional to the change of L_p3_tot
         dNdt_ice = N_ice / L_ice * dLdt_p3_tot
-        dNdt_rai = dNdt_ice
 
         # ... and don't exceed the available number
         dNdt_ice = max(0, min(dNdt_ice, N_ice / dt))
-        dNdt_rai = max(0, min(dNdt_rai, N_ice / dt))
+        dNdt_rai = dNdt_ice
     end
     return P3Rates{FT}(
         dLdt_p3_tot = dLdt_p3_tot,
@@ -198,75 +216,6 @@ function ice_melt(
         dLdt_rai = dLdt_rai,
         dNdt_ice = dNdt_ice,
         dNdt_rai = dNdt_rai,
-    )
-end
-
-"""
-    ice_shed(p3, L_ice, N_ice, F_rim, ρ_rim, F_liq, dt)
-
- - p3 - a struct containing p3 parameters
- - L_ice - ice content
- - N_ice - ice number concentration
- - F_rim - rime mass fraction (L_rim / L_ice)
- - ρ_r - rime density (L_rim/B_rim)
- - F_liq - liquid fraction (L_liq / L_p3_tot)
- - dt - model time step (for limiting the tendnecy)
-
-Returns the sink of L_liq due to shedding—N_ice remains constant.
-"""
-function ice_shed(
-    p3::PSP3,
-    L_ice::FT,
-    N_ice::FT,
-    F_rim::FT,
-    ρ_rim::FT,
-    F_liq::FT,
-    dt::FT,
-) where {FT}
-    dLdt = FT(0)
-    if L_ice > eps(FT) && N_ice > eps(FT)
-        # process dependent on F_liq
-        # (we want whole particle shape params)
-        # Get constants
-
-        # Get the P3 diameter distribution...
-        th = thresholds(p3, ρ_rim, F_rim)
-        (λ, N_0) =
-            distribution_parameter_solver(p3, L_ice, N_ice, ρ_rim, F_rim, F_liq)
-        N(D) = N′ice(p3, D, λ, N_0)
-
-        # ... and D_max for the integral
-        bound = get_ice_bound(p3, λ, FT(1e-6))
-
-        # critical size for shedding
-        shed_bound = FT(9e-3)
-
-        # liquid mass
-        m_liq(D) = F_liq * mass_s(D, p3.ρ_l)
-        # integrand (mass shed is a function of F_rim)
-        f(D) = F_rim * m_liq(D) * N(D)
-
-
-        # if we have no particles that are big
-        # enough to undergo shedding, we return 0
-        # TODO - maybe there is a better way to
-        # toggle between shedding and no shedding
-        # Integrate
-        (dLdt, error) = ifelse(
-            shed_bound >= bound,
-            (FT(0), FT(0)),
-            QGK.quadgk(d -> f(d), shed_bound, bound, rtol = FT(1e-6)),
-        )
-
-        # ... don't exceed the available liquid mass content
-        dLdt = min(dLdt, F_liq * L_ice / dt)
-    end
-    # return rates struct, with dNdt
-    # assuming raindrops with D = 1 mm
-    return P3Rates{FT}(
-        dLdt_p3_tot = dLdt,
-        dLdt_liq = dLdt,
-        dLdt_rai = dLdt,
-        dNdt_rai = dLdt / mass_s(FT(1e-3), p3.ρ_l),
+        ddtB_rim = ddtB_rim,
     )
 end

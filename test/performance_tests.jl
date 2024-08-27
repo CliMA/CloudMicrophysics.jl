@@ -194,10 +194,10 @@ function benchmark_test(FT)
     if FT == Float64
         bench_press(
             P3.ice_melt,
-            (p3, ch2022.snow_ice, aps, tps, L, N, T_air, ρ_air, F_rim, ρ_r, Δt),
-            3.7e5,
-            2e3,
-            3,
+            (p3, ch2022, aps, tps, L, N, T_air, ρ_air, F_rim, ρ_r, F_liq, Δt),
+            6e5,
+            5e3,
+            6,
         )
     end
 

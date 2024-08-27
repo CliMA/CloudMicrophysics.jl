@@ -345,22 +345,33 @@ We assume the same ventilation factor parameterization as in [SeifertBeheng2006]
 The ``dm/dD`` derivative is computed for each P3 size regime, without taking into account
   ``L_{liq}``, since melting is dependent only on the ice core and not on the entire
   mixed-phase particle.
-The bulk melting rate is computed by numerically integrating over the particle
-  size distribution:
+The bulk melting rates are computed by piecewise and numerically integrating over the ice core
+  size distribution using the terminal velocity of the mixed-phase particle. Particles with ``D < D_{th}``
+  are transferred directly to rain in one time step, whereas melting on particles with ``D > D_{th}``
+  is a source of ``L_{liq}``.
 ```math
 \begin{equation}
-  \left. \frac{dL}{dt} \right|_{melt} = \frac{4 \, K_{thermo}}{L_f} \left(T - T_{freeze}\right)
-    \int_{0}^{\infty} \frac{dm(D)}{dD} \frac{F_v(D) N(D)}{D}
+  \left. \frac{dL_{rai}}{dt} \right|_{melt} = \frac{4 \, K_{thermo}}{L_f} \left(T - T_{freeze}\right)
+    \int_{0}^{D_{th}} \frac{dm(D)}{dD} \frac{F_v(D) N(D)}{D}
 \end{equation}
 ```
-The melting rate for number concentration is assumed to be proportional to the
-  ice content melting rate.
 ```math
 \begin{equation}
-  \left. \frac{dN}{dt} \right|_{melt} = \frac{N}{L} \left. \frac{dL}{dt} \right|_{melt}
+  \left. \frac{dL_{liq}}{dt} \right|_{melt} = \frac{4 \, K_{thermo}}{L_f} \left(T - T_{freeze}\right)
+    \int_{D_{th}}^{\infty} \frac{dm(D)}{dD} \frac{F_v(D) N(D)}{D}
 \end{equation}
 ```
-Both rates are limited by the total available ice content and number concentration
+Sinks of ``L_{p3, tot}``, ``L_{rim}``, and ``B_{rim}`` are calculated accordingly.
+The melting rate for number concentration is assumed to be proportional to
+  the change in ``L_{ice}`` from ``\frac{dL_{rai}}{dt}`` since this represents
+  an immediate transfer to rain rather than an accumulation of ``L_{liq}``.
+```math
+\begin{equation}
+  \left. \frac{dN}{dt} \right|_{melt} = \frac{N}{L_{ice}} \left. \frac{dL}{dt} \right|_{melt}
+\end{equation}
+```
+If ``F_{liq} > 0.99``, ``L_{p3, tot}`` is completely transferred to rain.
+All rates are limited by the total available mass contents and number concentration
   divided by model time step length.
 
 ```@example

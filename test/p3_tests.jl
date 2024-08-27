@@ -813,7 +813,7 @@ function test_p3_melting(FT)
         T_cold = FT(273.15 - 0.01)
         rate = P3.ice_melt(
             p3,
-            vel.snow_ice,
+            vel,
             aps,
             tps,
             Lᵢ,
@@ -832,12 +832,13 @@ function test_p3_melting(FT)
         TT.@test rate.dLdt_rai == 0
         TT.@test rate.dLdt_rim == 0
         TT.@test rate.dLdt_liq == 0
+        TT.@test rate.ddtB_rim == 0
 
         # some melting:
         T_warm = FT(273.15 + 0.01)
         rate = P3.ice_melt(
             p3,
-            vel.snow_ice,
+            vel,
             aps,
             tps,
             Lᵢ,
@@ -853,15 +854,17 @@ function test_p3_melting(FT)
         @show rate
         TT.@test rate.dNdt_ice >= 0
         TT.@test rate.dLdt_p3_tot >= 0
-        TT.@test rate.dNdt_rai >= 0
-        TT.@test rate.dLdt_rai >= 0
+        TT.@test rate.dLdt_p3_tot == rate.dLdt_rai
+        TT.@test rate.dNdt_rai == rate.dNdt_ice
         TT.@test rate.dLdt_rim >= 0
         TT.@test rate.dLdt_liq >= 0
 
-        TT.@test rate.dLdt_p3_tot == rate.dLdt_rai
 
         # rime test
-        TT.@test rate.dLdt_rim == F_rim * (rate.dLdt_rai + rate.dLdt_liq)
+        TT.@test rate.dLdt_rim ==
+                 F_rim * (1 - F_liq) * (rate.dLdt_rai + rate.dLdt_liq)
+        TT.@test rate.ddtB_rim ==
+                 F_rim * (1 - F_liq) * (rate.dLdt_rai + rate.dLdt_liq) / ρ_rim
 
         TT.@test rate.dNdt_ice ≈ 81702.82455772653 rtol = 1e-6
         TT.@test rate.dNdt_rai ≈ 81702.82455772653 rtol = 1e-6
@@ -872,7 +875,7 @@ function test_p3_melting(FT)
         T_vwarm = FT(273.15 + 0.1)
         rate = P3.ice_melt(
             p3,
-            vel.snow_ice,
+            vel,
             aps,
             tps,
             Lᵢ,
@@ -888,13 +891,18 @@ function test_p3_melting(FT)
         TT.@test rate.dNdt_ice <= Nᵢ
         TT.@test rate.dNdt_rai <= Nᵢ
         TT.@test rate.dLdt_liq + rate.dLdt_rai ≈ Lᵢ atol = eps(FT)
+        TT.@test F_rim * (rate.dLdt_liq + rate.dLdt_rai) ≈
+                 F_rim * (1 - F_liq) * Lᵢ atol = eps(FT)
+        TT.@test F_rim * (rate.dLdt_liq + rate.dLdt_rai) / ρ_rim ≈
+                 F_rim * (1 - F_liq) * Lᵢ / ρ_rim atol = eps(FT)
+
 
         # for F_liq > 0.99, all ice mass transferred to rain
         # (including liquid on ice)
         F_liq = FT(0.99) + eps(FT)
         rate = P3.ice_melt(
             p3,
-            vel.snow_ice,
+            vel,
             aps,
             tps,
             Lᵢ,
@@ -911,6 +919,7 @@ function test_p3_melting(FT)
         TT.@test rate.dNdt_rai == Nᵢ
         TT.@test rate.dLdt_rai == Lᵢ
         TT.@test rate.dLdt_rim == F_rim * (1 - F_liq) * Lᵢ
+        TT.@test rate.ddtB_rim == F_rim * (1 - F_liq) * Lᵢ / ρ_rim
         TT.@test rate.dLdt_liq == 0
 
         # TODO - test functionality for small = true
