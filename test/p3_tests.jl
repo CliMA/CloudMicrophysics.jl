@@ -925,6 +925,7 @@ function test_p3_melting(FT)
         # TODO - test functionality for small = true
         # (i.e. find L, N such that all particles have D < D_th;
         # and check that dLdt_liq == 0, dLdt_rai >= 0)
+        # can only be done with new get_ice_bound()
     end
 end
 

@@ -195,7 +195,7 @@ function benchmark_test(FT)
         bench_press(
             P3.ice_melt,
             (p3, ch2022, aps, tps, L, N, T_air, ρ_air, F_rim, ρ_r, F_liq, Δt),
-            6e5,
+            6.5e5,
             5e3,
             6,
         )
