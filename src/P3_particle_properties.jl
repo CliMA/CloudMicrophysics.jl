@@ -22,12 +22,11 @@ function p3_predictor(
     F_rim = FT(0)
     ρ_rim = FT(0)
     F_liq = FT(0)
-    if N_ice > eps(FT) && L_p3_tot > eps(FT)
+    if L_p3_tot > eps(FT)
         # particle must always have some unrimed part
         F_rim = max(FT(0), min(L_rim / (L_p3_tot - L_liq), 1 - eps(FT)))
         if B_rim > eps(FT)
             # density must always be less than liquid
-            # TODO - maybe a nonzero lower limit is best here?
             ρ_rim = max(FT(0), min(L_rim / B_rim, p3.ρ_l))
         end
         # to be a mixed-phase particle, we must have some ice
