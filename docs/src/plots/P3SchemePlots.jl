@@ -51,11 +51,11 @@ function p3_relations_plot()
     # define plot axis
     #[row, column]
     ax1 = define_axis(fig, 1:7,  1:9,   CMK.L"m(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.9)
-    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"m(D) regime for $F_rim = 0.95$",          CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.8)
+    ax3 = define_axis(fig, 1:7,  10:18, CMK.L"m(D) regime for $F_{rim} = 0.95$",          CMK.L"$m$ (kg)", [1e-10, 1e-8, 1e-6], 1.8)
     ax2 = define_axis(fig, 8:15, 1:9,   CMK.L"A(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.7)
-    ax4 = define_axis(fig, 8:15, 10:18, CMK.L"A(D) regime for $F_rim = 0.95$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.6)
+    ax4 = define_axis(fig, 8:15, 10:18, CMK.L"A(D) regime for $F_{rim} = 0.95$", CMK.L"$A$ ($m^2$)", [1e-8, 1e-6, 1e-4], 1.6)
     ax5 = define_axis(fig, 16:22, 1:9,   CMK.L"ρ(D) regime for $ρ_r = 400 kg m^{-3}$", CMK.L"$ρ$ ($kg m^{-3}$)", [100, 500, 900], 2, logscale = false)
-    ax6 = define_axis(fig, 16:22, 10:18, CMK.L"ρ(D) regime for $F_rim = 0.95$", CMK.L"$ρ$ ($kg m^{-3}$)", [100, 500, 900], 1.9, logscale = false)
+    ax6 = define_axis(fig, 16:22, 10:18, CMK.L"ρ(D) regime for $F_{rim} = 0.95$", CMK.L"$ρ$ ($kg m^{-3}$)", [100, 500, 900], 1.9, logscale = false)
 
     # Get thresholds
     sol4_0 = P3.thresholds(p3, 400.0, 0.0)
