@@ -102,10 +102,10 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_rim::FT) where {FT}
     @assert F_rim >= FT(0)   # rime mass fraction must be positive ...
     @assert F_rim < FT(1)    # ... and there must always be some unrimed part
 
-    if F_rim == FT(0)
+    if F_rim == FT(0) || ρ_r == FT(0)
         return (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0))
     else
-        @assert ρ_r > FT(0)   # rime density must be positive ...
+        @assert ρ_r >= FT(0)   # rime density must be positive ...
         @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
 
         P3_problem(ρ_d) =
