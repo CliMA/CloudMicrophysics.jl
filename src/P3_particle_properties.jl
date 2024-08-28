@@ -1,4 +1,42 @@
 """
+    p3_predictor(p3, N_ice, L_p3_tot, L_rim, B_rim, L_liq)
+
+ - p3 - struct with P3 scheme parameters
+ - N_ice - ice number concentration [1/m3]
+ - L_p3_tot - total ice mass content [kg/m3]
+ - L_rim - rime mass content [kg/m3]
+ - B_rim - rime volume [-]
+ - L_liq - liquid mass content on ice [kg/m3]
+
+Given the P3 state vector, this function returns the predicted quantities
+F_rim, ρ_rim, F_liq, dealing with limit cases.
+"""
+function p3_predictor(
+    p3::PSP3,
+    N_ice::FT,
+    L_p3_tot::FT,
+    L_rim::FT,
+    B_rim::FT,
+    L_liq::FT,
+) where {FT}
+    F_rim = FT(0)
+    ρ_rim = FT(0)
+    F_liq = FT(0)
+    if N_ice > eps(FT) && L_p3_tot > eps(FT)
+        # particle must always have some unrimed part
+        F_rim = max(FT(0), min(L_rim / (L_p3_tot - L_liq), 1 - eps(FT)))
+        if B_rim > eps(FT)
+            # density must always be less than liquid
+            # TODO - maybe a nonzero lower limit is best here?
+            ρ_rim = max(FT(0), min(L_rim / B_rim, p3.ρ_l))
+        end
+        # to be a mixed-phase particle, we must have some ice
+        F_liq = max(FT(0), min(L_liq / L_p3_tot, FT(1 - eps(FT))))
+    end
+    return (; F_rim, ρ_rim, F_liq)
+end
+
+"""
     α_va_si(p3)
 
  - p3 - a struct with P3 scheme parameters
@@ -105,7 +143,7 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_rim::FT) where {FT}
     if F_rim == FT(0)
         return (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0))
     else
-        @assert ρ_r > FT(0)   # rime density must be positive ...
+        @assert ρ_r >= FT(0)   # rime density must be positive ...
         @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
 
         P3_problem(ρ_d) =

@@ -10,6 +10,58 @@ import QuadGK as QGK
 
 @info "P3 Scheme Tests"
 
+function test_p3_predictor(FT)
+
+    p3 = CMP.ParametersP3(FT)
+
+    TT.@testset "predicted quantities helper" begin
+
+        # initialize test values:
+        L_p3_tots = [FT(1e-8), FT(1e-6), FT(1e-4), FT(5e-4)]
+        L_rims::Vector{FT} = 0.5 * (1 - 0.5) * L_p3_tots
+        B_rims::Vector{FT} = 0.5 * (1 - 0.5) * L_p3_tots / FT(750)
+        L_liqs::Vector{FT} = 0.5 * L_p3_tots
+
+        for i in eachindex(L_p3_tots)
+            state = (;
+                N_ice = FT(1e6),
+                L_p3_tot = L_p3_tots[i],
+                L_rim = L_rims[i],
+                B_rim = B_rims[i],
+                L_liq = L_liqs[i],
+            )
+            (; F_rim, ρ_rim, F_liq) = P3.p3_predictor(p3, state...)
+
+            TT.@test F_rim >= FT(0)
+            TT.@test ρ_rim >= FT(0)
+            TT.@test F_liq >= FT(0)
+
+            TT.@test F_rim < FT(1)
+            TT.@test ρ_rim < p3.ρ_l
+            TT.@test F_liq < FT(1)
+
+            if FT == Float64
+                TT.@test F_rim == 0.5
+                TT.@test ρ_rim == 750
+                TT.@test F_liq == 0.5
+            end
+        end
+
+        state = (;
+            N_ice = FT(0),
+            L_p3_tot = FT(0),
+            L_rim = FT(0),
+            B_rim = FT(0),
+            L_liq = FT(0),
+        )
+        (; F_rim, ρ_rim, F_liq) = P3.p3_predictor(p3, state...)
+
+        TT.@test F_rim == FT(0)
+        TT.@test ρ_rim == FT(0)
+        TT.@test F_liq == FT(0)
+    end
+end
+
 function test_p3_thresholds(FT)
 
     p3 = CMP.ParametersP3(FT)
@@ -23,8 +75,8 @@ function test_p3_thresholds(FT)
         F_rim_good = (FT(0.5), FT(0.8), FT(0.95)) # representative F_rim values
 
         # test asserts
-        for _ρ_r in (FT(0), FT(-1))
-            TT.@test_throws AssertionError("ρ_r > FT(0)") P3.thresholds(
+        for _ρ_r in (FT(0) - eps(FT), FT(-1))
+            TT.@test_throws AssertionError("ρ_r >= FT(0)") P3.thresholds(
                 p3,
                 _ρ_r,
                 F_rim,
@@ -870,6 +922,7 @@ end
 
 
 println("Testing Float32")
+test_p3_predictor(Float32)
 test_p3_thresholds(Float32)
 test_particle_terminal_velocities(Float32)
 # TODO - fix instability in get_ice_bound for Float32
@@ -879,6 +932,7 @@ test_particle_terminal_velocities(Float32)
 # test_bulk_terminal_velocities(Float32)
 
 println("Testing Float64")
+test_p3_predictor(Float64)
 test_p3_thresholds(Float64)
 test_p3_shape_solver(Float64)
 test_particle_terminal_velocities(Float64)
