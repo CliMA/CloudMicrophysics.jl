@@ -366,6 +366,26 @@ include("plots/P3Melting.jl")
 ```
 ![](P3_ice_melt.svg)
 
+## Shedding
+
+Shedding is a sink of ``L_{liq}`` that transfers liquid mass on large, mixed-phase particles to rain.
+  Following [Choletteetal2019](@cite), shedding occurs only for ``D > 9 mm``, and it is scaled
+  with ``F_{rim}`` such that more in-filling with rime translates to more liquid mass being
+  shed from the ice core. It is calculated as follows by numerically integrating over the
+  whole mixed-phase particle PSD:
+```math
+\begin{equation}
+ \left. \frac{dL}{dt} \right|_{shed} =  \int_{9 mm}^{\infty} F_{rim} F_{liq} m(D) N_{0} D^{\mu} \exp^{- \lambda D} dD
+\end{equation}
+```
+The source of rain number concentration from shedding is computed as described by [Choletteetal2019](@cite)
+  assuming mean raindrop diameter ``D = 1 mm``:
+```math
+\begin{equation}
+  \left. \frac{dN_{rai}}{dt} \right|_{shed} = \frac{1}{\frac{\pi}{6}\rho_{l}D^{3}} \left. \frac{dL}{dt} \right|_{shed}
+\end{equation}
+```
+
 ## Acknowledgments
 
 Click on the P3 mascot duck to be taken to the repository

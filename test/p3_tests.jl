@@ -23,8 +23,8 @@ function test_p3_thresholds(FT)
         F_rim_good = (FT(0.5), FT(0.8), FT(0.95)) # representative F_rim values
 
         # test asserts
-        for _ρ_r in (FT(0), FT(-1))
-            TT.@test_throws AssertionError("ρ_r > FT(0)") P3.thresholds(
+        for _ρ_r in (FT(-1))
+            TT.@test_throws AssertionError("ρ_r >= FT(0)") P3.thresholds(
                 p3,
                 _ρ_r,
                 F_rim,
@@ -868,6 +868,53 @@ function test_p3_melting(FT)
     end
 end
 
+function test_p3_shedding(FT)
+
+    TT.@testset "Shedding Smoke Test" begin
+
+        p3 = CMP.ParametersP3(FT)
+
+        qᵢ = FT(5e-3)
+        ρₐ = FT(1.2)
+        Lᵢ = qᵢ * ρₐ
+        Nᵢ = FT(5e3) * ρₐ
+        F_rim = FT(0.8)
+        ρ_rim = FT(800)
+        dt = FT(1)
+        F_liq = FT(0)
+
+        rate = P3.ice_shed(p3, Lᵢ, Nᵢ, F_rim, ρ_rim, F_liq, dt)
+
+        TT.@test rate.dLdt_p3_tot == 0
+        TT.@test rate.dLdt_liq == 0
+        TT.@test rate.dLdt_rai == 0
+        TT.@test rate.dNdt_rai == 0
+
+        F_liq = FT(0.9)
+
+        rate = P3.ice_shed(p3, Lᵢ, Nᵢ, F_rim, ρ_rim, F_liq, dt)
+
+        TT.@test rate.dLdt_p3_tot >= 0
+        TT.@test rate.dLdt_liq >= 0
+        TT.@test rate.dLdt_rai >= 0
+        TT.@test rate.dNdt_rai >= 0
+
+        TT.@test rate.dLdt_p3_tot == 3.929198115623993e-6
+        TT.@test rate.dNdt_rai == 7.504215629867026
+
+        Lᵢ = FT(0)
+        Nᵢ = FT(0)
+
+        rate = P3.ice_shed(p3, Lᵢ, Nᵢ, F_rim, ρ_rim, F_liq, dt)
+
+        TT.@test rate.dLdt_p3_tot == 0
+        TT.@test rate.dLdt_liq == 0
+        TT.@test rate.dLdt_rai == 0
+        TT.@test rate.dNdt_rai == 0
+
+    end
+end
+
 
 println("Testing Float32")
 test_p3_thresholds(Float32)
@@ -886,4 +933,5 @@ test_bulk_terminal_velocities(Float64)
 test_integrals(Float64)
 test_p3_het_freezing(Float64)
 test_p3_melting(Float64)
+test_p3_shedding(Float64)
 #test_tendencies(Float64)
