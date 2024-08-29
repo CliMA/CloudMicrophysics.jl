@@ -23,8 +23,8 @@ function test_p3_thresholds(FT)
         F_rim_good = (FT(0.5), FT(0.8), FT(0.95)) # representative F_rim values
 
         # test asserts
-        for _ρ_r in (FT(0), FT(-1))
-            TT.@test_throws AssertionError("ρ_r > FT(0)") P3.thresholds(
+        for _ρ_r in (FT(-1))
+            TT.@test_throws AssertionError("ρ_r >= FT(0)") P3.thresholds(
                 p3,
                 _ρ_r,
                 F_rim,
