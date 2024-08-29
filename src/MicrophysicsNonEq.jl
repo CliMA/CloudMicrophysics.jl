@@ -7,11 +7,13 @@
 module MicrophysicsNonEq
 
 import Thermodynamics as TD
+import Thermodynamics.Parameters as TDP
 
 import ..Parameters as CMP
 
 export τ_relax
 export conv_q_vap_to_q_liq_ice
+export conv_q_vap_to_q_liq_ice_MM2015
 
 """
     τ_relax(liquid)
@@ -30,14 +32,16 @@ deposition of cloud ice.
     conv_q_vap_to_q_liq_ice(liquid, q_sat, q)
     conv_q_vap_to_q_liq_ice(ice, q_sat, q)
 
- - `liquid` or `ice` - a type for cloud water or ice
+ - `liquid` or `ice` - a struct with cloud water or ice free parameters
  - `q_sat` - PhasePartition at equilibrium
  - `q` - current PhasePartition
 
 Returns the cloud water tendency due to condensation and evaporation
 or cloud ice tendency due to sublimation and vapor deposition.
 The tendency is obtained assuming a relaxation to equilibrium with
-a constant timescale.
+a constant timescale and is based on the difference between
+specific humidity in equilibrium at the current temperature
+and the current cloud condensate.
 """
 function conv_q_vap_to_q_liq_ice(
     (; τ_relax)::CMP.CloudLiquid{FT},
@@ -52,6 +56,62 @@ function conv_q_vap_to_q_liq_ice(
     q::TD.PhasePartition{FT},
 ) where {FT}
     return (q_sat.ice - q.ice) / τ_relax
+end
+
+"""
+    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ, T)
+    conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ, T)
+
+- `liquid` or `ice` - a struct with cloud water or ice free parameters
+- `tps` - thermodynamics parameters struct
+- `q` - current PhasePartition
+- `ρ` - air density [kg/m3]
+- `T` - air temperature [K]
+
+Returns the cloud water tendency due to condensation and evaporation
+or cloud ice tendency due to sublimation and vapor deposition.
+The formulation is based on Morrison and Grabowski 2008 and
+Morrison and Milbrandt 2015
+"""
+function conv_q_vap_to_q_liq_ice_MM2015(
+    (; τ_relax)::CMP.CloudLiquid{FT},
+    tps::TDP.ThermodynamicsParameters{FT},
+    q::TD.PhasePartition{FT},
+    ρ::FT,
+    T::FT,
+) where {FT}
+    Rᵥ = TD.Parameters.R_v(tps)
+    cₚ_air = TD.cp_m(tps, q)
+    Lᵥ = TD.latent_heat_vapor(tps, T)
+    qᵥ = TD.vapor_specific_humidity(q)
+
+    pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
+
+    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
+    Γₗ = FT(1) + (Lᵥ / cₚ_air) * dqsldT
+
+    return (qᵥ - qᵥ_sat_liq) / τ_relax * Γₗ
+end
+function conv_q_vap_to_q_liq_ice_MM2015(
+    (; τ_relax)::CMP.CloudIce{FT},
+    tps::TDP.ThermodynamicsParameters{FT},
+    q::TD.PhasePartition{FT},
+    ρ::FT,
+    T::FT,
+) where {FT}
+    Rᵥ = TD.Parameters.R_v(tps)
+    cₚ_air = TD.cp_m(tps, q)
+    Lₛ = TD.latent_heat_sublim(tps, T)
+    qᵥ = TD.vapor_specific_humidity(q)
+
+    pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+    qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
+
+    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
+    Γᵢ = FT(1) + (Lₛ / cₚ_air) * dqsidT
+
+    return (qᵥ - qᵥ_sat_ice) / τ_relax * Γᵢ
 end
 
 end #module MicrophysicsNonEq.jl

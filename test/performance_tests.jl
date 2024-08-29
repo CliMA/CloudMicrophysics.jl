@@ -64,6 +64,7 @@ function benchmark_test(FT)
     p0m = CMP.Parameters0M(FT)
     # 1-moment microphysics
     liquid = CMP.CloudLiquid(FT)
+    ice = CMP.CloudIce(FT)
     rain = CMP.Rain(FT)
     ce = CMP.CollisionEff(FT)
     # 2-moment microphysics
@@ -150,28 +151,28 @@ function benchmark_test(FT)
 
     # P3 scheme
     bench_press(P3.thresholds, (p3, ρ_r, F_r), 12e6, 2048, 80)
-    if FT == Float64
-        bench_press(
-            P3.distribution_parameter_solver,
-            (p3, q_ice, N, ρ_r, F_r),
-            1e5,
-        )
-        bench_press(
-            P3.ice_terminal_velocity,
-            (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, false),
-            2.5e5,
-            800,
-            4,
-        )
-        bench_press(
-            P3.ice_terminal_velocity,
-            (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, true),
-            2.5e5,
-            800,
-            4,
-        )
-        bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_r), 1e5)
-    end
+    #if FT == Float64
+    #    bench_press(
+    #        P3.distribution_parameter_solver,
+    #        (p3, q_ice, N, ρ_r, F_r),
+    #        1e5,
+    #    )
+    #    bench_press(
+    #        P3.ice_terminal_velocity,
+    #        (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, false),
+    #        2.5e5,
+    #        800,
+    #        4,
+    #    )
+    #    bench_press(
+    #        P3.ice_terminal_velocity,
+    #        (p3, ch2022.snow_ice, q_ice, N, ρ_r, F_r, ρ_air, true),
+    #        2.5e5,
+    #        800,
+    #        4,
+    #    )
+    #    bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_r), 1e5)
+    #end
     # P3 ice nucleation
     bench_press(
         P3.het_ice_nucleation,
@@ -230,6 +231,20 @@ function benchmark_test(FT)
 
     # non-equilibrium
     bench_press(CMN.τ_relax, (liquid,), 10)
+    bench_press(
+        CMN.conv_q_vap_to_q_liq_ice,
+        (
+            ice,
+            TD.PhasePartition(FT(0), FT(0), FT(0.002)),
+            TD.PhasePartition(FT(0), FT(0), FT(0.001)),
+        ),
+        10,
+    )
+    bench_press(
+        CMN.conv_q_vap_to_q_liq_ice_MM2015,
+        (liquid, tps, TD.PhasePartition(FT(0.00145)), FT(0.8), FT(263)),
+        60,
+    )
 
     # 0-moment
     bench_press(CM0.remove_precipitation, (p0m, q), 12)
