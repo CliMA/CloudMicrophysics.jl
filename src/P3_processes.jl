@@ -180,8 +180,6 @@ function ice_shed(
         # (i.e. if only 1% of the particles are bigger than 9 mm
         # is it really worth doing a computation and returning a tiny dLdt?)
         bound = get_ice_bound(p3, λ, FT(1e-6))
-        # hard-coding another bound for testing:
-        bound = FT(2e-2)
 
         # critical size for shedding
         shed_bound = FT(9e-3)
