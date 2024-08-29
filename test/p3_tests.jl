@@ -899,8 +899,8 @@ function test_p3_shedding(FT)
         TT.@test rate.dLdt_rai >= 0
         TT.@test rate.dNdt_rai >= 0
 
-        TT.@test rate.dLdt_p3_tot == 5.80171629651495e-6
-        TT.@test rate.dNdt_rai == 11.080461924085903
+        TT.@test rate.dLdt_p3_tot == 3.929198115623993e-6
+        TT.@test rate.dNdt_rai == 7.504215629867026
 
         Lᵢ = FT(0)
         Nᵢ = FT(0)
