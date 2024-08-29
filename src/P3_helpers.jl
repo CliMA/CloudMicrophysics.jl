@@ -15,7 +15,7 @@ f(D, c1, c2, c3) = c1 * D ^ (c2) * exp(-c3 * D)
 Integrates f(D, c1, c2, c3) dD from x₀ to x_end
 """
 function ∫_Γ(x₀::FT, x_end::FT, c1::FT, c2::FT, c3::FT) where {FT}
-    if x_end == Inf
+    if x_end == FT(Inf)
         return c1 * c3^(-c2 - 1) * (Γ(1 + c2, x₀ * c3))
     elseif x₀ == 0
         return c1 * c3^(-c2 - 1) * (Γ(1 + c2) - Γ(1 + c2, x_end * c3))

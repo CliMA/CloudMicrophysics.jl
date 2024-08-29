@@ -706,15 +706,15 @@ end
 @kernel function P3_scheme_kernel!(
     p3,
     output::AbstractArray{FT},
-    F_r,
+    F_rim,
     ρ_r,
 ) where {FT}
 
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = P3.thresholds(p3, ρ_r[i], F_r[i])[1]
-        output[2, i] = P3.thresholds(p3, ρ_r[i], F_r[i])[2]
+        output[1, i] = P3.thresholds(p3, ρ_r[i], F_rim[i])[1]
+        output[2, i] = P3.thresholds(p3, ρ_r[i], F_rim[i])[2]
     end
 end
 
@@ -1306,11 +1306,11 @@ function test_gpu(FT)
         dims = (2, 2)
         (; output, ndrange) = setup_output(dims, FT)
 
-        F_r = ArrayType([FT(0.5), FT(0.95)])
+        F_rim = ArrayType([FT(0.5), FT(0.95)])
         ρ_r = ArrayType([FT(400), FT(800)])
 
         kernel! = P3_scheme_kernel!(backend, work_groups)
-        kernel!(p3, output, F_r, ρ_r; ndrange)
+        kernel!(p3, output, F_rim, ρ_r; ndrange)
 
         # test if all output is positive...
         @test all(Array(output) .> FT(0))
