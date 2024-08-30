@@ -102,7 +102,7 @@ function thresholds(p3::PSP3{FT}, ρ_r::FT, F_rim::FT) where {FT}
     @assert F_rim >= FT(0)   # rime mass fraction must be positive ...
     @assert F_rim < FT(1)    # ... and there must always be some unrimed part
 
-    if F_rim == FT(0)
+    if F_rim == FT(0) || ρ_r == FT(0)
         return (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0))
     else
         @assert ρ_r > FT(0)   # rime density must be positive ...
@@ -324,10 +324,13 @@ function K(
     D_ice::FT,
     D_other::FT,
     F_rim::FT,
+    F_liq::FT,
     th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
 ) where {FT}
-    A_ice = p3_area(p3, D_ice, F_rim, th)
+    A_ice = p3_area(p3, D_ice, F_rim, F_liq, th)
     return FT(π) * ((A_ice / FT(π))^0.5 + D_other)^2
+end
+
 """
     ϕᵢ(p3, D, F_rim, th)
 
