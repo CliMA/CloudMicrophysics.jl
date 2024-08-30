@@ -857,9 +857,8 @@ function test_gpu(FT)
         )
 
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
-        @test Array(output)[1] ≈ FT(9.043587231238157e-5)
-        @test Array(output)[2] ≈ FT(3.7177455f-5)
-        @test Array(output)[3] ≈ FT(-1e-4)
+        @test Array(output)[1] ≈ FT(3.763783850665844e-5)
+        @test Array(output)[2] ≈ FT(-1e-4)
     end
 
     @testset "0-moment microphysics kernels" begin

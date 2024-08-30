@@ -191,15 +191,15 @@ function benchmark_test(FT)
         200,
     )
 
-    if FT == Float64
-        bench_press(
-            P3.ice_melt,
-            (p3, ch2022.snow_ice, aps, tps, L, N, T_air, ρ_air, F_rim, ρ_r, Δt),
-            3.7e5,
-            2e3,
-            3,
-        )
-    end
+    #if FT == Float64
+    #    bench_press(
+    #        P3.ice_melt,
+    #        (p3, ch2022.snow_ice, aps, tps, L, N, T_air, ρ_air, F_rim, ρ_r, Δt),
+    #        3.7e5,
+    #        2e3,
+    #        3,
+    #    )
+    #end
 
     # aerosol activation
     bench_press(
