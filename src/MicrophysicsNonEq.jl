@@ -92,7 +92,7 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
     Γₗ = FT(1) + (Lᵥ / cₚ_air) * dqsldT
 
-    return (qᵥ - qᵥ_sat_liq) / τ_relax * Γₗ
+    return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
     (; τ_relax)::CMP.CloudIce{FT},
@@ -112,7 +112,7 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
     Γᵢ = FT(1) + (Lₛ / cₚ_air) * dqsidT
 
-    return (qᵥ - qᵥ_sat_ice) / τ_relax * Γᵢ
+    return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
 end
 
 """
