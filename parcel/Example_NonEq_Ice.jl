@@ -9,10 +9,13 @@ FT = Float64
 
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
+τ_vals = [FT(10.0), FT(5.0), FT(2.0), FT(1.0), FT(0.1), FT(0.01), FT(0.001), FT(0.0001)]
+τ = τ_vals[0]
+
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
-wps = CMP.WaterProperties(FT)
-liquid = CMP.CloudLiquid(FT)
+wps = CMP.WaterProperties(FT(τ))
+liquid = CMP.CloudLiquid(FT(τ))
 ice = CMP.CloudIce(FT)
 # Constants
 ρₗ = wps.ρw
