@@ -10,13 +10,21 @@ FT = Float64
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 τ_vals = [FT(10.0), FT(5.0), FT(2.0), FT(1.0), FT(0.1), FT(0.01), FT(0.001), FT(0.0001)]
-τ = τ_vals[0]
+τ = τ_vals[2]
+@info("using τ value ", τ)
+
+override_file = Dict(
+    "sublimation_deposition_timescale" =>
+        Dict("value" => τ, "type" => "float"),
+)
+toml_dict = CP.create_toml_dict(FT; override_file)
 
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
-wps = CMP.WaterProperties(FT(τ))
+wps = CMP.WaterProperties(FT)
 liquid = CMP.CloudLiquid(FT(τ))
-ice = CMP.CloudIce(FT)
+ice = CMP.CloudIce(toml_dict)
+@info("relaxations:", liquid.τ_relax, ice.τ_relax)
 # Constants
 ρₗ = wps.ρw
 ρᵢ = wps.ρi
