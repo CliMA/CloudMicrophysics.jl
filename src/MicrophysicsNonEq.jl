@@ -109,7 +109,7 @@ function conv_q_vap_to_q_liq_ice(
     Γₗ = FT(1) + (L_v / cp_air) * dqsldT
 
     q_v = q.tot - q.liq - q.ice
-    cond_rate = (q_v - q_sat.liq) / liquid.τ_relax * Γₗ
+    cond_rate = (q_v - q_sat.liq) / (liquid.τ_relax * Γₗ)
 
     return cond_rate
 end
@@ -136,7 +136,7 @@ function conv_q_vap_to_q_liq_ice(
     Γᵢ = FT(1) + (L_subl / cp_air) * dqsidT
 
     q_v = q.tot - q.liq - q.ice
-    dep_rate = (q_v - q_sat.ice) / ice.τ_relax * Γᵢ
+    dep_rate = (q_v - q_sat.ice) / (ice.τ_relax * Γᵢ)
 
     return dep_rate
 end
