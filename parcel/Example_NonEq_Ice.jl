@@ -11,7 +11,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 τ_vals = [FT(10.0), FT(5.0), FT(2.0), FT(1.0), FT(0.1), FT(0.01), FT(0.001), FT(0.00075), FT(0.0005), FT(0.00025), FT(0.0001), FT(0.00001), FT(1e-6), FT(1e-7), FT(1e-8), FT(1e-9), FT(1e-10), FT(1e-20),
             FT(1e-30), FT(1e-50)]
-τ = τ_vals[20]
+τ = τ_vals[1]
 @info("using τ value ", τ)
 
 override_file = Dict(
@@ -97,9 +97,10 @@ for DSD in size_distribution_list
         deposition_growth = deposition_growth,
         const_dt = const_dt,
         w = w,
-        liquid = liquid,#,
-        #ice = ice
+        liquid = liquid,
+        ice = ice
     )
+    @info("params", params)
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
 
@@ -124,6 +125,7 @@ for DSD in size_distribution_list
     # calculating the saturation vapor pressure from S:
     #e_test = sol_qᵥ.*sol_p .* (R_v/(R_v+R_d))
     q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
+    @info("q", q)
     e_test = sol_qᵥ .* sol_p .* (TD.Parameters.R_v(tps) ./ TD.gas_constant_air.(tps, q))
     #e_test = sol_qᵥ.*sol_p .* (TD.Parameters.R_v(tps)/(TD.Parameters.R_v(tps)+TD.Parameters.R_d(tps)))
     e_sat_fromS = e_test ./ sol[1, :]

@@ -227,31 +227,20 @@ end
 function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
     FT = eltype(state)
-    (; Sₗ, T, p_air, qₗ, qᵥ, qᵢ) = state
+    (; T, p_air, qₗ, qᵥ, qᵢ) = state
 
-    (; aps, tps, liquid, ice, w, const_dt) = params
-
-    q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
-    q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
-    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
-
+    (; tps, liquid, ice, w, const_dt) = params
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-    Rᵥ = TD.Parameters.R_v(tps)
-    R_air = TD.gas_constant_air(tps, q)
-    e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
     dqₗ_dt_ce = MNE.conv_q_vap_to_q_liq_ice(
-        tps,
         liquid,
         ice,
-        q_sat,
+        tps,
         q,
+        ρ_air,
         T,
-        Sₗ,
         w,
         p_air,
-        e,
-        ρ_air,
         const_dt,
         "condensation",
     )
@@ -312,31 +301,21 @@ end
 
 function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     FT = eltype(state)
-    (; Sₗ, T, p_air, qₗ, qᵥ, qᵢ) = state
+    (; T, p_air, qₗ, qᵥ, qᵢ) = state
 
-    (; aps, tps, liquid, ice, w, const_dt) = params
-
-    q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
-    q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
-    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+    (; tps, liquid, ice, w, const_dt) = params
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-    Rᵥ = TD.Parameters.R_v(tps)
-    R_air = TD.gas_constant_air(tps, q)
-    e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
     dqᵢ_dt_ds = MNE.conv_q_vap_to_q_liq_ice(
-        tps,
         liquid,
-        ice,
-        q_sat,
+        ice,    
+        tps,
         q,
+        ρ_air,
         T,
-        Sₗ,
         w,
         p_air,
-        e,
-        ρ_air,
         const_dt,
         "deposition",
     )
