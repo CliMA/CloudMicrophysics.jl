@@ -9,8 +9,9 @@ FT = Float64
 
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
-τ_vals = [FT(10.0), FT(5.0), FT(2.0), FT(1.0), FT(0.1), FT(0.01), FT(0.001), FT(0.0001)]
-τ = τ_vals[2]
+τ_vals = [FT(10.0), FT(5.0), FT(2.0), FT(1.0), FT(0.1), FT(0.01), FT(0.001), FT(0.00075), FT(0.0005), FT(0.00025), FT(0.0001), FT(0.00001), FT(1e-6), FT(1e-7), FT(1e-8), FT(1e-9), FT(1e-10), FT(1e-20),
+            FT(1e-30), FT(1e-50)]
+τ = τ_vals[20]
 @info("using τ value ", τ)
 
 override_file = Dict(
@@ -179,9 +180,9 @@ MK.axislegend(
 #)
 
 if simple
-    #MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_simple_morrison_01.png", fig)
-    MK.save("ice_noneq_parcel_simple_morrison.svg", fig)
+    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_tau_percent/ice_noneq_parcel_simple_morrison_$(τ/const_dt).png", fig)
+    #MK.save("ice_noneq_parcel_simple_morrison.svg", fig)
 else
-    MK.save("ice_noneq_parcel_morrison.svg", fig)
-    #MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_timesteps/ice_noneq_parcel_01.png", fig)
+    #MK.save("ice_noneq_parcel_morrison.svg", fig)
+    MK.save("/Users/oliviaalcabes/Documents/research/microphysics/parcel_sims/diff_tau_percent/ice_noneq_parcel_$(τ/const_dt).png", fig)
 end
