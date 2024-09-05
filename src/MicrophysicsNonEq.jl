@@ -142,75 +142,67 @@ function conv_q_vap_to_q_liq_ice(
 end
 
 function conv_q_vap_to_q_liq_ice(
-    tps::TDP.ThermodynamicsParameters{FT},
     liquid::CMP.CloudLiquid{FT},
     ice::CMP.CloudIce{FT},
-    q_sat::TD.PhasePartition{FT},
+    tps::TDP.ThermodynamicsParameters{FT},
     q::TD.PhasePartition{FT},
-    T::FT, # temperature
-    Sₗ::FT, # liquid saturation ratio
-    w::FT, # upwards velocity
-    p_air::FT, # air pressure
-    e::FT, # vapor pressure
-    ρ_air::FT, # air density
+    ρ::FT,
+    T::FT,
+    w::FT,
+    p_air::FT,
     const_dt::FT,
     type::String,
 ) where {FT}
 
-    cp_air = TD.cp_m(tps, q)
-    L_subl = TD.latent_heat_sublim(tps, T)
-    L_v = TD.latent_heat_vapor(tps, T)
-    R_v = TD.Parameters.R_v(tps)
+    cₚ_air = TD.cp_m(tps, q)
+    Lₛ = TD.latent_heat_sublim(tps, T)
+    Lᵥ = TD.latent_heat_vapor(tps, T)
+    Rᵥ = TD.Parameters.R_v(tps)
     g = TD.Parameters.grav(tps)
-    
+    qᵥ = TD.vapor_specific_humidity(q)
 
-    #nonequil_phase = TD.PhaseNonEquil # 
-    #λ = TD.liquid_fraction(tps, T, nonequil_phase, q)
-    #L = TD.weighted_latent_heat(tps, T, λ)
+    pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
 
-    # a bit unsure that this is the correct way to calculate this
-    #dqsldT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.liq, L)
-    #dqsidT = TD.∂q_vap_sat_∂T(tps, λ, T, q_sat.ice, L)
+    pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+    qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
 
-    # changed after deriving more correctly
-    dqsldT = q_sat.liq * (L_v/(R_v * T^2) - 1 / T)
-    dqsidT = q_sat.ice * (L_subl/(R_v * T^2) - 1 / T)
+    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
+    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
 
-    Γₗ = FT(1) + (L_v / cp_air) * dqsldT
-    Γᵢ = FT(1) + (L_subl / cp_air) * dqsidT
+    Γₗ = FT(1) + (Lᵥ / cₚ_air) * dqsldT
+    Γᵢ = FT(1) + (Lₛ / cₚ_air) * dqsidT
 
     A_c_WBF =
-        (q_sat.liq - q_sat.ice) / (ice.τ_relax * Γᵢ) * (1 + (L_subl / cp_air) * dqsldT)
-    #A_c_WBF = 0
-    e_sl = e / Sₗ # assuming this is ok but would like to double check
-    Sᵢ =
-        TD.saturation_vapor_pressure(tps, T, TD.Liquid()) /
-        TD.saturation_vapor_pressure(tps, T, TD.Ice()) * Sₗ
-    e_si = e / Sᵢ
+        (qᵥ_sat_liq - qᵥ_sat_ice) / (ice.τ_relax * Γᵢ) *
+        (1 + (Lₛ / cₚ_air) * dqsldT)
 
-    A_c_uplift_l = -(q_sat.liq * g * w * ρ_air) / (p_air - e_sl) + dqsldT * w * g / cp_air
-    A_c_uplift_i = -(q_sat.ice * g * w * ρ_air) / (p_air - e_si) + dqsidT * w * g / cp_air
+    A_c_uplift =
+        -(qᵥ_sat_liq * g * w * ρ) / (p_air - pᵥ_sat_liq) +
+        dqsldT * w * g / cₚ_air
 
-    A_c_l = A_c_uplift_l - A_c_WBF
-    A_c_i = A_c_uplift_i + A_c_WBF
+    A_c = A_c_uplift - A_c_WBF
 
-    τ = (liquid.τ_relax^(-1) + (1 + (L_subl / cp_air)) * ice.τ_relax^(-1) / Γᵢ)^(-1)
+    τ =
+        (
+            liquid.τ_relax^(-1) +
+            (1 + (Lₛ / cₚ_air) * dqsldT) * ice.τ_relax^(-1) / Γᵢ
+        )^(-1)
 
-    q_v = q.tot - q.liq - q.ice
-    δ_0_l = q_v - q_sat.liq #(Sₗ-1)*q_sat.liq
-    δ_0_i = q_v - q_sat.ice #(Sₗ-1)*q_sat.liq
+    δ_0 = qᵥ - qᵥ_sat_liq
 
     if type == "condensation"
         cond_rate =
-            A_c_l * τ / (liquid.τ_relax * Γₗ) +
-            (δ_0_l - A_c_l * τ) * τ / (const_dt * liquid.τ_relax * Γₗ) *
+            A_c * τ / (liquid.τ_relax * Γₗ) +
+            (δ_0 - A_c * τ) * τ / (const_dt * liquid.τ_relax * Γₗ) *
             (FT(1) - exp(-const_dt / τ))
         return cond_rate
     elseif type == "deposition"
         dep_rate =
-            A_c_i * τ / (ice.τ_relax * Γᵢ) +
-            (δ_0_i - A_c_i * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
-            (FT(1) - exp(-const_dt / τ)) #+ (q_sat.liq - q_sat.ice)/(ice.τ_relax*Γᵢ)
+            A_c * τ / (ice.τ_relax * Γᵢ) +
+            (δ_0 - A_c * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
+            (FT(1) - exp(-const_dt / τ)) +
+            (qᵥ_sat_liq - qᵥ_sat_ice) / (ice.τ_relax * Γᵢ)
         return dep_rate
     end
 
