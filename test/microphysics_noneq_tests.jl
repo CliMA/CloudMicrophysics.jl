@@ -54,7 +54,7 @@ function test_microphysics_noneq(FT)
         end
     end
 
-    TT.@testset "CondEvap_DepSub_MG2008" begin
+    TT.@testset "CondEvap_DepSub_MM2015" begin
 
         ρ = FT(0.8)
         T = FT(273 - 10)
@@ -78,8 +78,8 @@ function test_microphysics_noneq(FT)
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₚ(      qᵥ_si), ρ, T) ≈ FT(0)
 
         # smoke test for values
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T) ≈ 9.0419475e-5 rtol = 1e-6
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice,    tps, qₚ(FT(1.2 * qᵥ_si)), ρ, T) ≈ 8.627814e-5 rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T) ≈ 3.7631e-5 rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice,    tps, qₚ(FT(1.2 * qᵥ_si)), ρ, T) ≈ 3.2356777e-5 rtol = 1e-6
 
         # ice grows faster than liquid
         TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T) <
