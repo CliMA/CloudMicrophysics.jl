@@ -102,6 +102,7 @@ function velocity_difference(
     Chen2022::CMP.Chen2022VelType,
     ρₐ::FT,
     F_rim::FT,
+    F_liq::FT,
     th,
     use_aspect_ratio = true,
 ) where {FT}
