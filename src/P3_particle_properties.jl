@@ -312,12 +312,12 @@ end
  - F_rim - rime mass fraction (L_rim/ L_ice) [-]
  - th - P3 particle properties thresholds
 
-Returns the aspect ratio (ϕ) for an ice particle with mass, cross-sectional area,  
-and ice density determined using the size-dependent particle property regimes  
-following Morrison and Milbrandt (2015). The density of nonspherical  
-particles is assumed to be equal to the particle mass divided by the volume of a  
-spherical particle with the same D_max.  
-Assuming zero liquid fraction. 
+Returns the aspect ratio (ϕ) for an ice particle with mass, cross-sectional area,
+and ice density determined using the size-dependent particle property regimes
+following Morrison and Milbrandt (2015). The density of nonspherical
+particles is assumed to be equal to the particle mass divided by the volume of a
+spherical particle with the same D_max.
+Assuming zero liquid fraction.
 """
 function ϕᵢ(p3::PSP3, D::FT, F_rim::FT, th) where {FT}
     F_liq = FT(0)

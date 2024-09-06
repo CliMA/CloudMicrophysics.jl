@@ -90,7 +90,7 @@ function ice_melt(
         distribution_parameter_solver(p3, L_ice, N_ice, ρ_rim, F_rim, F_liq_)
     N(D) = N′ice(p3, D, λ, N_0)
     # ... and D_max for the integral
-    bound = get_ice_bound(p3, λ, FT(1e-6))
+    bound = get_ice_bound(p3, λ, N_ice, FT(1e-6))
 
     # Ice particle terminal velocity
     v(D) = ice_particle_terminal_velocity(p3, D, Chen2022, ρₐ, F_rim, th)
