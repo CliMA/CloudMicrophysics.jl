@@ -151,8 +151,8 @@ function benchmark_test(FT)
 
     INPC = FT(1e5)
 
-    # P3 scheme
-    bench_press(P3.thresholds, (p3, ρ_r, F_rim), 12e6, 2048, 80)
+    # P3 scheme - TODO - bring them back once we optimize P3 scheme
+    #bench_press(P3.thresholds, (p3, ρ_r, F_rim), 12e6, 2048, 80)
     #if FT == Float64
     #    bench_press(
     #        P3.distribution_parameter_solver,
@@ -176,21 +176,20 @@ function benchmark_test(FT)
     #    bench_press(P3.D_m, (p3, q_ice, N, ρ_r, F_r), 1e5)
     #end
     # P3 ice nucleation
-    bench_press(
-        P3.het_ice_nucleation,
-        (
-            kaolinite,
-            tps,
-            TD.PhasePartition(q_tot, q_liq, q_ice),
-            N_liq,
-            RH_2,
-            T_air_2,
-            ρ_air,
-            Δt,
-        ),
-        200,
-    )
-
+    #bench_press(
+    #    P3.het_ice_nucleation,
+    #    (
+    #        kaolinite,
+    #        tps,
+    #        TD.PhasePartition(q_tot, q_liq, q_ice),
+    #        N_liq,
+    #        RH_2,
+    #        T_air_2,
+    #        ρ_air,
+    #        Δt,
+    #    ),
+    #    200,
+    #)
     #if FT == Float64
     #    bench_press(
     #        P3.ice_melt,
@@ -200,6 +199,8 @@ function benchmark_test(FT)
     #        3,
     #    )
     #end
+    #bench_press(CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
+    #bench_press(CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
 
     # aerosol activation
     bench_press(
@@ -230,9 +231,7 @@ function benchmark_test(FT)
         80,
     )
     bench_press(CMI_het.deposition_J, (kaolinite, Delta_a_w), 230)
-    bench_press(CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
     bench_press(CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 230)
-    bench_press(CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
     bench_press(
         CMI_het.INP_concentration_frequency,
         (ip_frostenberg, INPC, T_air_cold),
