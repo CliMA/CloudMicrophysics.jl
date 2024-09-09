@@ -244,8 +244,8 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
         const_dt,
         "condensation",
     )
-
-    return dqₗ_dt_ce
+    #return dqₗ_dt_ce
+    return max(dqₗ_dt_ce, -qₗ/const_dt)
 end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)
@@ -320,5 +320,6 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
         "deposition",
     )
 
-    return dqᵢ_dt_ds
+    #return dqᵢ_dt_ds
+    return max(dqᵢ_dt_ds, -qᵢ/const_dt)
 end
