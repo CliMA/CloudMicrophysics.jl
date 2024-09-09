@@ -136,7 +136,7 @@ end
             w[i],
             p[i],
             const_dt[i],
-            "condensation",
+            "deposition",
         )
         output[3, i] = CMN.conv_q_vap_to_q_liq_ice(
             ice,
