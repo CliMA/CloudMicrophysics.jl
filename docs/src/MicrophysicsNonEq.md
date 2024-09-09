@@ -179,7 +179,7 @@ Then
 ```
 
 !!! note
-    we neglect terms due to radiation and mixing (included in the [morrison_modeling_2008](@cite) and [MorrisonMilbrandt2015](@cite) versions) in the parcel case.
+    we neglect terms due to radiation and mixing (included in the [MorrisonGrabowski2008_supersat](@cite) and [MorrisonMilbrandt2015](@cite) versions) in the parcel case.
 
 Putting these back into the $\delta$ equations and rearranging based on the definitions of $\Gamma_l$ and $\Gamma_i$, we get:
 
