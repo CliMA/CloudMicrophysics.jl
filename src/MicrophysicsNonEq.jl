@@ -144,8 +144,8 @@ function conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(
     w::FT,
     p_air::FT,
     const_dt::FT,
-    type::String,
-) where {FT}
+    ::Val{type},
+) where {FT, type}
 
     cₚ_air = TD.cp_m(tps, q)
     Lₛ = TD.latent_heat_sublim(tps, T)
@@ -184,19 +184,21 @@ function conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(
 
     δ_0 = qᵥ - qᵥ_sat_liq
 
-    if type == "condensation"
+    if type == :condensation
         cond_rate =
             A_c * τ / (liquid.τ_relax * Γₗ) +
             (δ_0 - A_c * τ) * τ / (const_dt * liquid.τ_relax * Γₗ) *
             (FT(1) - exp(-const_dt / τ))
         return cond_rate
-    elseif type == "deposition"
+    elseif type == :deposition
         dep_rate =
             A_c * τ / (ice.τ_relax * Γᵢ) +
             (δ_0 - A_c * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
             (FT(1) - exp(-const_dt / τ)) +
             (qᵥ_sat_liq - qᵥ_sat_ice) / (ice.τ_relax * Γᵢ)
         return dep_rate
+    else
+        error("please specify condensation or deposition")
     end
 
 end
