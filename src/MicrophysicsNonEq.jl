@@ -14,6 +14,7 @@ import ..Parameters as CMP
 export τ_relax
 export conv_q_vap_to_q_liq_ice
 export conv_q_vap_to_q_liq_ice_MM2015
+export conv_q_vap_to_q_liq_ice_MM2015_timeintegrator
 
 """
     τ_relax(liquid)
@@ -114,4 +115,92 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
 end
 
-end #module MicrophysicsNonEq.jl
+"""
+    conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(liquid, ice, tps, q, ρ, T, w, p_air, const_dt, type)
+
+- `liquid` - a struct with cloud water free parameters
+- `ice` - a struct with cloud ice free parameters
+- `tps` - thermodynamics parameters struct
+- `q` - current PhasePartition
+- `ρ` - air density [kg/m3]
+- `T` - air temperature [K]
+- `w` - vertical velocity [m/s]
+- `p_air` - air pressure [Pa]
+- `const_dt` - length of time step [s]
+- `"condensation"` or `"deposition"` - type of process to calculate and output [str]
+
+Returns the cloud water tendency due to condensation and evaporation
+or cloud ice tendency due to sublimation and vapor deposition.
+The formulation is based on Morrison and Grabowski 2008 and
+Morrison and Milbrandt 2015
+"""
+function conv_q_vap_to_q_liq_ice_MM2015_timeintegrator(
+    liquid::CMP.CloudLiquid{FT},
+    ice::CMP.CloudIce{FT},
+    tps::TDP.ThermodynamicsParameters{FT},
+    q::TD.PhasePartition{FT},
+    ρ::FT,
+    T::FT,
+    w::FT,
+    p_air::FT,
+    const_dt::FT,
+    ::Val{type},
+) where {FT, type}
+
+    cₚ_air = TD.cp_m(tps, q)
+    Lₛ = TD.latent_heat_sublim(tps, T)
+    Lᵥ = TD.latent_heat_vapor(tps, T)
+    Rᵥ = TD.Parameters.R_v(tps)
+    g = TD.Parameters.grav(tps)
+    qᵥ = TD.vapor_specific_humidity(q)
+
+    pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
+
+    pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+    qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
+
+    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
+    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
+
+    Γₗ = FT(1) + (Lᵥ / cₚ_air) * dqsldT
+    Γᵢ = FT(1) + (Lₛ / cₚ_air) * dqsidT
+
+    A_c_WBF =
+        (qᵥ_sat_liq - qᵥ_sat_ice) / (ice.τ_relax * Γᵢ) *
+        (1 + (Lₛ / cₚ_air) * dqsldT)
+
+    A_c_uplift =
+        -(qᵥ_sat_liq * g * w * ρ) / (p_air - pᵥ_sat_liq) +
+        dqsldT * w * g / cₚ_air
+
+    A_c = A_c_uplift - A_c_WBF
+
+    τ =
+        (
+            liquid.τ_relax^(-1) +
+            (1 + (Lₛ / cₚ_air) * dqsldT) * ice.τ_relax^(-1) / Γᵢ
+        )^(-1)
+
+    δ_0 = qᵥ - qᵥ_sat_liq
+
+    if type == :condensation
+        cond_rate =
+            A_c * τ / (liquid.τ_relax * Γₗ) +
+            (δ_0 - A_c * τ) * τ / (const_dt * liquid.τ_relax * Γₗ) *
+            (FT(1) - exp(-const_dt / τ))
+        return cond_rate
+    elseif type == :deposition
+        dep_rate =
+            A_c * τ / (ice.τ_relax * Γᵢ) +
+            (δ_0 - A_c * τ) * τ / (const_dt * ice.τ_relax * Γᵢ) *
+            (FT(1) - exp(-const_dt / τ)) +
+            (qᵥ_sat_liq - qᵥ_sat_ice) / (ice.τ_relax * Γᵢ)
+        return dep_rate
+    else
+        error("please specify condensation or deposition")
+    end
+
+end
+
+end
