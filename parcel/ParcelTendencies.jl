@@ -190,12 +190,9 @@ end
 function homogeneous_freezing(params::ABHOM, PSD_liq, state)
     FT = eltype(state)
     (; tps, ips, const_dt) = params
-    (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ) = state
+    (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ, Sₗ) = state
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-    Rᵥ = TD.Parameters.R_v(tps)
-    R_air = TD.gas_constant_air(tps, q)
-    e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
+    e = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) * Sₗ
 
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
     J = CMI_hom.homogeneous_J_linear(ips.homogeneous, Δa_w)
@@ -218,10 +215,12 @@ end
 
 function condensation(params::CondParams, PSD_liq, state, ρ_air)
     FT = eltype(state)
-    (; aps, tps) = params
+    (; aps, tps, const_dt) = params
     (; Sₗ, T, Nₗ, qₗ) = state
     Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
-    return 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD_liq.r * Nₗ
+    dqₗ_dt = 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD_liq.r * Nₗ
+
+    return qₗ + dqₗ_dt * const_dt > 0 ? dqₗ_dt : -qₗ / const_dt
 end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)
