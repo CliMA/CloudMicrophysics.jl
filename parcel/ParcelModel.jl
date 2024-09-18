@@ -17,7 +17,6 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     deposition_growth = "None"
     liq_size_distribution = "Monodisperse"
     ice_size_distribution = "Monodisperse"
-    σ_g = FT(0)
     aerosol = Empty{FT}()
     aero_σ_g = FT(0)
     wps = CMP.WaterProperties(FT)
@@ -211,8 +210,6 @@ function run_parcel(IC, t_0, t_end, pp)
         liq_distr = Monodisperse{FT}()
     elseif pp.liq_size_distribution == "Gamma"
         liq_distr = Gamma{FT}()
-    elseif pp.liq_size_distribution == "Lognormal"
-        liq_distr = Lognormal{FT}(pp.σ_g)
     else
         throw("Unrecognized size distribution")
     end
