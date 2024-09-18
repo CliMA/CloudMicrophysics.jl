@@ -7,10 +7,10 @@ import Thermodynamics as TD
 function perf_model_params(FT, IN_mode)
     if IN_mode == "ABDINM"
         const_dt = FT(1)
-        w = FT(0.4)
-        t_max = FT(100)
+        w = FT(5)
+        t_max = FT(300)
         aerosol_act = "None"
-        aerosol = "None"
+        aerosol = CMP.Kaolinite(FT)
         aero_σ_g = FT(0)
         r_nuc = FT(1e-7)
         dep_nucleation = "ABDINM"
@@ -22,10 +22,10 @@ function perf_model_params(FT, IN_mode)
         ice_size_distribution = "Monodisperse"
     elseif IN_mode == "ABIFM"
         const_dt = FT(1)
-        w = FT(0.4)
+        w = FT(1)
         t_max = FT(100)
         aerosol_act = "None"
-        aerosol = "None"
+        aerosol = CMP.Kaolinite(FT)
         aero_σ_g = FT(0)
         r_nuc = FT(1e-7)
         dep_nucleation = "None"
@@ -70,14 +70,13 @@ function perf_model_IC(FT, IN_mode)
     ϵₘ = R_d / R_v
 
     if IN_mode == "ABDINM"
-        Nₐ = FT(8e6) # according to fig 2 panel b deposition nucleation experiment
+        Nₐ = FT(2e8)
         Nₗ = FT(0)
         Nᵢ = FT(0)
-        r₀ = FT(0.5e-6)
-        p₀ = FT(987.018 * 1e2)
-        T₀ = FT(212.978)
-        C_v = FT(10.8509 * 1e-6)
-        qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
+        r₀ = FT(1e-7)
+        p₀ = FT(80000)
+        T₀ = FT(235)
+        qᵥ = FT(8.8e-5)
         qₗ = FT(0)
         qᵢ = FT(0)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
@@ -87,15 +86,13 @@ function perf_model_IC(FT, IN_mode)
         Sₗ = FT(e / eₛ)
     elseif IN_mode == "ABIFM"
         Nₐ = FT(0)
-        Nₗ = FT(8e6)
+        Nₗ = FT(2000)
         Nᵢ = FT(0)
-        r₀ = FT(0.5e-6)
-        p₀ = FT(987.018 * 1e2)
-        T₀ = FT(212.978)
+        r₀ = FT(1e-6)
+        p₀ = FT(800 * 1e2)
+        T₀ = FT(251)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
-        C_l = FT(qₗ / ((1 - qₗ) * ϵₘ + qₗ))  # concentration/mol fraction of liquid
-        C_v = FT(10.8509 * 1e-6 - C_l)     # concentration/mol fraction of vapor
-        qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
+        qᵥ = FT(8.1e-4)
         qᵢ = FT(0)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
         Rₐ = TD.gas_constant_air(tps, q)
@@ -110,7 +107,6 @@ function perf_model_IC(FT, IN_mode)
         p₀ = FT(9712.183)
         T₀ = FT(190)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
-        C_l = FT(qₗ / ((1 - qₗ) * ϵₘ + qₗ))  # concentration/mol fraction of liquid
         C_v = FT(5 * 1e-6)
         qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
         qᵢ = FT(0)
@@ -137,7 +133,7 @@ function perf_model_pseudo_data(FT, IN_mode, params, IC)
     G_truth = run_model(params, coeff_true, IN_mode, FT, IC)
     dim_output = length(G_truth)
 
-    Γ = 0.005 * LinearAlgebra.I * (maximum(G_truth) - minimum(G_truth))
+    Γ = 0.03 * LinearAlgebra.I * (maximum(G_truth) - minimum(G_truth))
     noise_dist = Distributions.MvNormal(zeros(dim_output), Γ)
 
     y_truth = zeros(length(G_truth), n_samples) # where noisy ICNC will be stored

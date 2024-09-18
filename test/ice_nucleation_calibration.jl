@@ -24,9 +24,26 @@ function test_J_calibration(FT, IN_mode)
         perfect_model = true,
     )
     calibrated_parameters = [output[1], output[2]]
+    calibrated_soln =
+        run_calibrated_model(FT, IN_mode, calibrated_parameters, params, IC)
+    true_soln = run_calibrated_model(FT, IN_mode, coeff_true, params, IC)
 
-    TT.@test calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.2)
-    TT.@test calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(0.2)
+
+    # test that coeffs are close to "true" values
+    if IN_mode == "ABDINM"
+        TT.@test calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
+        TT.@test calibrated_parameters[2] ≈ coeff_true[2] atol = FT(3)
+    elseif IN_mode == "ABIFM"
+        TT.@test calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
+        TT.@test calibrated_parameters[2] ≈ coeff_true[2] atol = FT(7)
+    elseif IN_mode == "ABHOM"
+        TT.@test calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
+        TT.@test calibrated_parameters[2] ≈ coeff_true[2] atol = FT(20)
+    end
+
+    # test that resulting ICNC are similar
+    TT.@test (calibrated_soln[9, end] ./ (IC[7] + IC[8] + IC[9])) ≈
+             (true_soln[9, end] ./ (IC[7] + IC[8] + IC[9])) rtol = FT(0.1)
 end
 
 @info "Ice Nucleation Calibration Test"

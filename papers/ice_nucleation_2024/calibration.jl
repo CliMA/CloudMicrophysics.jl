@@ -47,10 +47,6 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             ice_size_distribution = ice_size_distribution,
         )
 
-        # solve ODE
-        local sol = run_parcel(IC, FT(0), t_max, params)
-        return sol[9, :] .* 1e10 # ICNC magnified
-
     elseif IN_mode == "ABIFM"
         # overwriting
         override_file = Dict(
@@ -73,10 +69,6 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             liq_size_distribution = liq_size_distribution,
             ice_size_distribution = ice_size_distribution,
         )
-
-        # solve ODE
-        local sol = run_parcel(IC, FT(0), t_max, params)
-        return sol[9, :] # ICNC
 
     elseif IN_mode == "ABHOM"
         # overwriting
@@ -104,22 +96,76 @@ function run_model(p, coefficients, IN_mode, FT, IC)
             ips = overwrite,
             r_nuc = r_nuc,
         )
-
-        # solve ODE
-        local sol = run_parcel(IC, FT(0), t_max, params)
-        return sol[9, :] ./  (IC[7] + IC[8] + IC[9])  # frozen fraction
     end
+
+    # solve ODE
+    local sol = run_parcel(IC, FT(0), t_max, params)
+    return sol[9, :] ./ (IC[7] + IC[8] + IC[9])  # frozen fraction
 end
 
 function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
     # grabbing parameters
     m_calibrated, c_calibrated = coefficients
-    (; const_dt, w, t_max, aerosol_act, aerosol) = p
-    (; deposition_growth, condensation_growth) = p
-    (; homogeneous) = p
+    (; const_dt, w, t_max, aerosol_act, aerosol, r_nuc) = p
     (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
+    (; deposition_growth, condensation_growth) = p
+
+    if IN_mode == "ABDINM"
+        (; dep_nucleation) = p
+        # overwriting
+        override_file = Dict(
+            "China2017_J_deposition_m_Kaolinite" =>
+                Dict("value" => m_calibrated, "type" => "float"),
+            "China2017_J_deposition_c_Kaolinite" =>
+                Dict("value" => c_calibrated, "type" => "float"),
+        )
+        kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
+        overwrite = CMP.Kaolinite(kaolinite_calibrated)
+
+        # run parcel with new coefficients
+        local params = parcel_params{FT}(
+            const_dt = const_dt,
+            w = w,
+            aerosol_act = aerosol_act,
+            aerosol = overwrite,
+            aero_σ_g = aero_σ_g,
+            deposition = dep_nucleation,
+            condensation_growth = condensation_growth,
+            deposition_growth = deposition_growth,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
+            ips = overwrite,
+        )
+
+    elseif IN_mode == "ABIFM"
+        (; heterogeneous) = p
+        # overwriting
+        override_file = Dict(
+            "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
+                Dict("value" => m_calibrated, "type" => "float"),
+            "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
+                Dict("value" => c_calibrated, "type" => "float"),
+        )
+        kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
+        overwrite = CMP.Kaolinite(kaolinite_calibrated)
+
+        # run parcel with new coefficients
+        local params = parcel_params{FT}(
+            const_dt = const_dt,
+            w = w,
+            aerosol_act = aerosol_act,
+            aerosol = overwrite,
+            aero_σ_g = aero_σ_g,
+            heterogeneous = heterogeneous,
+            condensation_growth = condensation_growth,
+            deposition_growth = deposition_growth,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
+            ips = overwrite,
+        )
     
-    if IN_mode == "ABHOM"
+    elseif IN_mode == "ABHOM"
+        (; homogeneous) = p
         # overwriting
         override_file = Dict(
             "Linear_J_hom_coeff2" =>
@@ -143,12 +189,12 @@ function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
             liq_size_distribution = liq_size_distribution,
             ice_size_distribution = ice_size_distribution,
             ips = overwrite,
+            r_nuc = r_nuc,
         )
-
-        # solve ODE
-        local sol = run_parcel(IC, FT(0), t_max, params)
-        return sol
     end
+    # solve ODE
+    local sol = run_parcel(IC, FT(0), t_max, params)
+    return sol
 end
 
 function create_prior(FT, IN_mode, ; perfect_model = false)
@@ -159,14 +205,14 @@ function create_prior(FT, IN_mode, ; perfect_model = false)
     # for perfect model calibration
     if perfect_model == true
         if IN_mode == "ABDINM"
-            m_stats = [FT(20), FT(1), FT(0), Inf]
-            c_stats = [FT(-1), FT(1), -Inf, Inf]
+            m_stats = [FT(20), FT(8), FT(0), Inf]
+            c_stats = [FT(-1), FT(2), -Inf, Inf]
         elseif IN_mode == "ABIFM"
-            m_stats = [FT(50), FT(1), FT(0), Inf]
-            c_stats = [FT(-7), FT(1), -Inf, Inf]
+            m_stats = [FT(50), FT(7), FT(0), Inf]
+            c_stats = [FT(-7), FT(4), -Inf, Inf]
         elseif IN_mode == "ABHOM"
-            m_stats = [FT(260), FT(1), FT(0), Inf]
-            c_stats = [FT(-70), FT(1), -Inf, Inf]
+            m_stats = [FT(251), FT(6), FT(0), Inf]
+            c_stats = [FT(-66), FT(3), -Inf, Inf]
         end
     elseif perfect_model == false
         if IN_mode == "ABDINM"
@@ -207,8 +253,8 @@ function calibrate_J_parameters(FT, IN_mode, params, IC, y_truth, Γ,; perfect_m
     rng = Random.seed!(Random.GLOBAL_RNG, rng_seed)
 
     prior = create_prior(FT, IN_mode, perfect_model = perfect_model)
-    N_ensemble = 10      # runs N_ensemble trials per iteration
-    N_iterations = 150    # number of iterations the inverse problem goes through
+    N_ensemble = 25      # runs N_ensemble trials per iteration
+    N_iterations = 100    # number of iterations the inverse problem goes through
 
     # Generate initial ensemble and set up EKI
     initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)

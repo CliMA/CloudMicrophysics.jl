@@ -299,7 +299,8 @@ function run_parcel(IC, t_0, t_end, pp)
     else
         throw("Unrecognized deposition growth mode")
     end
-    @info info
+    # To see parcel parameters in output, uncomment
+    # @info info
 
     # Parameters for the ODE solver
     p = (
