@@ -31,7 +31,6 @@ Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 
 [compat]
 ClimaParams = "0.10.6"
-EnsembleKalmanProcesses = "1.1.5"
 KernelAbstractions = "0.9"
 MLJFlux = "0.4"
 Optim = "<1.9.3"
