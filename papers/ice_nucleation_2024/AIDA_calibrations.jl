@@ -85,7 +85,7 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     MK.save("$plot_name"*"_ICNC.svg", AIDA_data_fig)
 
     ### Calibration.
-    output = calibrate_J_parameters(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
+    output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
     n_iterations = size(output[3])[1]
     n_ensembles = size(output[3][1])[2]
     calibrated_parameters = [output[1], output[2]]

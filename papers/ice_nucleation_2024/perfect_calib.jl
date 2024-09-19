@@ -17,7 +17,7 @@ for IN_mode in IN_mode_list
     y_truth = pseudo_data[1]
     coeff_true = pseudo_data[3]
 
-    output = calibrate_J_parameters(
+    output = calibrate_J_parameters_EKI(
         FT,
         IN_mode,
         params,

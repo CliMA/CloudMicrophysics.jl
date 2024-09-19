@@ -247,7 +247,7 @@ function create_prior(FT, IN_mode, ; perfect_model = false)
     return prior
 end
 
-function calibrate_J_parameters(FT, IN_mode, params, IC, y_truth, Γ,; perfect_model = false)
+function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, Γ,; perfect_model = false)
     # Random number generator
     rng_seed = 24
     rng = Random.seed!(Random.GLOBAL_RNG, rng_seed)
@@ -293,6 +293,56 @@ function calibrate_J_parameters(FT, IN_mode, params, IC, y_truth, Γ,; perfect_m
     )
 
     return [m_coeff_ekp, c_coeff_ekp, ϕ_n_values]
+end
+
+function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, Γ,; perfect_model = false)
+    # Random number generator
+    rng_seed = 24
+    rng = Random.seed!(Random.GLOBAL_RNG, rng_seed)
+
+    prior = create_prior(FT, IN_mode, perfect_model = perfect_model)
+    N_ensemble = 25      # runs N_ensemble trials per iteration
+    N_iterations = 100   # number of iterations the inverse problem goes through
+    α_reg = 1.0
+    update_freq = 1
+
+    # Generate initial ensemble and set up EKI
+    initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
+    process = EKP.Unscented(mean(prior), cov(prior); α_reg = α_reg, update_freq = update_freq) # TODO - replace with my variables
+    UKI_obj = EKP.EnsembleKalmanProcess(
+        initial_ensemble,
+        y_truth,
+        Γ,
+        process;
+        rng = rng,
+    )
+
+    err = []
+    final_iter = [N_iterations]  # TODO - think this is supposed to be final_it
+    for n in 1:N_iterations
+        # Return transformed parameters in physical/constrained space
+        ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
+        # Evaluate forward map
+        G_ens = hcat(
+            [
+                run_model(params, ϕ_n[:, i], IN_mode, FT, IC) for
+                i in 1:N_ensemble
+            ]...,
+        )
+        terminate = EKP.EnsembleKalmanProcesses.update_ensemble!(UKI_obj, G_ens)
+        push!(err, get_error(UKI_obj)[end])
+        if !isnothing(terminate)
+            final_iter[1] = n - 1
+            break
+        end
+    end
+    n_iter = final_iter[1]
+
+    UKI_results = get_u_mean_final(UKI_obj)
+    u_stored = get_u(ukiobj, return_array = false)  # calibrated parameters
+    g_stored = get_g(ukiobj, return_array = false)  # calibrated parcel outputs?
+
+    return [UKI_results, u_stored, g_stored, n_iter, N_iterations, err]
 end
 
 function ensemble_means(ϕ_n_values, N_iterations, N_ensemble)

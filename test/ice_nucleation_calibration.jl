@@ -14,7 +14,7 @@ function test_J_calibration(FT, IN_mode)
     y_truth = pseudo_data[1]
     coeff_true = pseudo_data[3]
 
-    output = calibrate_J_parameters(
+    output = calibrate_J_parameters_EKI(
         FT,
         IN_mode,
         params,
