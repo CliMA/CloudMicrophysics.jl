@@ -85,11 +85,12 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     MK.save("$plot_name"*"_ICNC.svg", AIDA_data_fig)
 
     ### Calibration.
-    output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
-    n_iterations = size(output[3])[1]
-    n_ensembles = size(output[3][1])[2]
-    calibrated_parameters = [output[1], output[2]]
-    calibrated_ensemble_means = ensemble_means(output[3], n_iterations, n_ensembles)
+    # EKI_output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
+    UKI_output = calibrate_J_parameters_UKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
+    n_iterations = size(EKI_output[3])[1]
+    n_ensembles = size(EKI_output[3][1])[2]
+    calibrated_parameters = [EKI_output[1], EKI_output[2]]
+    calibrated_ensemble_means = ensemble_means(EKI_output[3], n_iterations, n_ensembles)
     # Calibrated parcel
     parcel = run_calibrated_model(FT, "ABHOM", calibrated_parameters, params, IC)
     #parcel_default = run_calibrated_model(FT, "ABHOM", [FT(255.927125), FT(-68.553283)], params, IC)
