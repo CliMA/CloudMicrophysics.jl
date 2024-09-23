@@ -85,14 +85,19 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     MK.save("$plot_name"*"_ICNC.svg", AIDA_data_fig)
 
     ### Calibration.
-    # EKI_output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
+    EKI_output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
     UKI_output = calibrate_J_parameters_UKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
-    n_iterations = size(EKI_output[3])[1]
-    n_ensembles = size(EKI_output[3][1])[2]
-    calibrated_parameters = [EKI_output[1], EKI_output[2]]
-    calibrated_ensemble_means = ensemble_means(EKI_output[3], n_iterations, n_ensembles)
+    
+    EKI_n_iterations = size(EKI_output[3])[1]
+    EKI_n_ensembles = size(EKI_output[3][1])[2]
+    
+    EKI_calibrated_parameters = [EKI_output[1], EKI_output[2]]
+    UKI_calibrated_parameters = UKI_output[1]
+    calibrated_ensemble_means = ensemble_means(EKI_output[3], EKI_n_iterations, EKI_n_ensembles)
+    
     # Calibrated parcel
-    parcel = run_calibrated_model(FT, "ABHOM", calibrated_parameters, params, IC)
+    EKI_parcel = run_calibrated_model(FT, "ABHOM", EKI_calibrated_parameters, params, IC)
+    UKI_parcel = run_calibrated_model(FT, "ABHOM", UKI_calibrated_parameters, params, IC)
     #parcel_default = run_calibrated_model(FT, "ABHOM", [FT(255.927125), FT(-68.553283)], params, IC)
 
     ### Plots.
@@ -101,13 +106,12 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     calibrated_coeffs_fig = MK.Figure(size = (600, 600), fontsize = 24)
     ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$plot_name")
     ax4 = MK.Axis(calibrated_coeffs_fig[2, 1], ylabel = "c coefficient [-]", xlabel = "iteration #")
-    MK.lines!(ax3, collect(1:n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)
-    MK.lines!(ax4, collect(1:n_iterations), calibrated_ensemble_means[2], label = "ensemble mean", color = :orange, linewidth = 2.5)
+    MK.lines!(ax3, collect(1:EKI_n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)
+    MK.lines!(ax4, collect(1:EKI_n_iterations), calibrated_ensemble_means[2], label = "ensemble mean", color = :orange, linewidth = 2.5)
     MK.save("$plot_name"*"_calibrated_coeffs_fig.svg", calibrated_coeffs_fig)
 
     ## Calibrated parcel simulations.
     #  Does the calibrated parcel give reasonable outputs?
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
     chamber_S_l = zeros(FT, size(chamber_data[start_time:end_time, 4], 1), size(chamber_data[start_time:end_time, 4], 2))
     for (i, e) in enumerate(chamber_data[start_time:end_time, 4])
         temp = chamber_data[start_time:end_time, 3][i]
@@ -128,9 +132,10 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     ax_parcel_6 = MK.Axis(calibrated_parcel_fig[3, 2], ylabel = "Nᵢ [m^-3]", xlabel = "time [s]")
     ax_parcel_7 = MK.Axis(calibrated_parcel_fig[1, 3], ylabel = "pressure [Pa]", xlabel = "time [s]")
     ax_parcel_8 = MK.Axis(calibrated_parcel_fig[2, 3], ylabel = "Nₐ [m^-3]", xlabel = "time [s]")
-    MK.lines!(ax_parcel_1, parcel.t .+ (moving_average_n / 2), parcel[1, :], label = "calibrated", color = :orange) # label = "liquid"
+    MK.lines!(ax_parcel_1, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[1, :], label = "EKI Calib Liq", color = :orange) # label = "liquid"
+    MK.lines!(ax_parcel_1, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[1, :], label = "UKI Calib Liq", color = :fuchsia) # label = "liquid"
     #MK.lines!(ax_parcel_1, parcel_default.t .+ (moving_average_n / 2), parcel_default[1, :], label = "default", color = :darkorange2)
-    MK.lines!(ax_parcel_1, parcel.t .+ (moving_average_n / 2), S_i.(tps, parcel[3, :], parcel[1, :]), label = "ice", color = :green)
+    MK.lines!(ax_parcel_1, EKI_parcel.t .+ (moving_average_n / 2), S_i.(tps, EKI_parcel[3, :], EKI_parcel[1, :]), label = "EKI Calib Ice", color = :green)
     # MK.lines!(
     #     ax_parcel_1,
     #     chamber_data[start_time:end_time, 1] .- (start_time - 100),
@@ -138,9 +143,11 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     #     label = "chamber",
     #     color = :blue
     # )
-    MK.lines!(ax_parcel_2, parcel.t .+ (moving_average_n / 2), parcel[5, :], color = :orange)
+    MK.lines!(ax_parcel_2, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[5, :], color = :orange)
+    MK.lines!(ax_parcel_2, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[5, :], color = :fuchsia)
     #MK.lines!(ax_parcel_2, parcel_default.t .+ (moving_average_n / 2), parcel_default[5,:], color = :darkorange2)
-    MK.lines!(ax_parcel_3, parcel.t .+ (moving_average_n / 2), parcel[3, :], color = :orange)
+    MK.lines!(ax_parcel_3, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[3, :], color = :orange)
+    MK.lines!(ax_parcel_3, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[3, :], color = :fuchsia)
     #MK.lines!(ax_parcel_3, parcel_default.t .+ (moving_average_n / 2), parcel_default[3, :], color = :darkorange2)
     MK.lines!(
         ax_parcel_3,
@@ -148,25 +155,30 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
         chamber_data[start_time:end_time, 3],
         color = :blue
     )
-    MK.lines!(ax_parcel_4, parcel.t .+ (moving_average_n / 2), parcel[6, :], color = :orange)
+    MK.lines!(ax_parcel_4, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[6, :], color = :orange)
+    MK.lines!(ax_parcel_4, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[6, :], color = :fuchsia)
     #MK.lines!(ax_parcel_4, parcel_default.t .+ (moving_average_n / 2), parcel_default[6, :], color = :darkorange2)
-    MK.lines!(ax_parcel_5, parcel.t .+ (moving_average_n / 2), parcel[8, :], color = :orange)
+    MK.lines!(ax_parcel_5, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[8, :], color = :orange)
+    MK.lines!(ax_parcel_5, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[8, :], color = :fuchsia)    
     #MK.lines!(ax_parcel_5, parcel_default.t .+ (moving_average_n / 2), parcel_default[8, :], color = :darkorange2)
-    MK.lines!(ax_parcel_6, parcel.t .+ (moving_average_n / 2), parcel[9, :], color = :orange)
+    MK.lines!(ax_parcel_6, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[9, :], color = :orange)
+    MK.lines!(ax_parcel_6, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[9, :], color = :fuchsia)
     # MK.lines!(ax_parcel_6, parcel_default.t .+ (moving_average_n / 2), parcel_default[9, :], color = :darkorange2)
     MK.lines!(ax_parcel_6, 
         chamber_data[start_time:end_time, 1] .- (start_time - 100),
         ICNC,
         color = :blue
     )
-    MK.lines!(ax_parcel_7, parcel.t .+ (moving_average_n / 2), parcel[2, :], color = :orange)
+    MK.lines!(ax_parcel_7, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[2, :], color = :orange)
+    MK.lines!(ax_parcel_7, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[2, :], color = :fuchsia)
     MK.lines!(
         ax_parcel_7,
         chamber_data[start_time:end_time, 1] .- (start_time - 100),
         chamber_data[start_time:end_time, 2] .* 1e2,
         color = :blue
     )
-    MK.lines!(ax_parcel_8, parcel.t .+ (moving_average_n / 2), parcel[7, :], color = :orange)
+    MK.lines!(ax_parcel_8, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[7, :], color = :orange)
+    MK.lines!(ax_parcel_8, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[7, :], color = :fuchsia)
     MK.save("$plot_name"*"_calibrated_parcel_fig.svg", calibrated_parcel_fig)
 
     ## Comparing AIDA data and calibrated parcel.
@@ -183,8 +195,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     # )
     MK.lines!(
         ax_compare,
-        parcel.t .+ (moving_average_n / 2),
-        parcel[9, :]./ (IC[7] + IC[8] + IC[9]),
+        EKI_parcel.t .+ (moving_average_n / 2),
+        EKI_parcel[9, :]./ (IC[7] + IC[8] + IC[9]),
         label = "CM.jl Parcel (Calibrated)",
         linewidth = 2.5,
         color =:orange,

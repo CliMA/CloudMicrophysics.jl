@@ -1,5 +1,4 @@
 import EnsembleKalmanProcesses as EKP
-import EnsembleKalmanProcesses.ParameterDistributions
 import Random
 import Distributions
 import LinearAlgebra
@@ -10,6 +9,9 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import Thermodynamics as TD
 using StatsBase
+# using EnsembleKalmanProcesses.EnsembleKalmanProcessModule
+# using EnsembleKalmanProcesses.ParameterDistributionStorage
+# using EnsembleKalmanProcesses.DataStorage
 
 #! format: off
 # definition of the ODE problem for parcel model
@@ -304,30 +306,45 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, Γ,; perfe
     α_reg = 1.0
     update_freq = 1
 
-    @info("", y_truth)
-    truth = EKP.Observations.Observation(y_truth, Γ, "y_truth")
+    # truth = EKP.Observations.Observation(y_truth, Γ, "y_truth")
+    truth = EKP.Observation(Dict("samples" => vec(mean(y_truth, dims = 2)), "covariances" => Γ, "names" => "y_truth"))
 
     # Generate initial ensemble and set up UKI
     process = EKP.Unscented(mean(prior), cov(prior); α_reg = α_reg, update_freq = update_freq)
     UKI_obj = EKP.EnsembleKalmanProcess(truth, process)
 
+    err = []
+    final_iter =[N_iterations]
     for n in 1:N_iterations
         # Return transformed parameters in physical/constrained space
         ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
-        @info("",ϕ_n)
+        #@info("",ϕ_n)
         # Evaluate forward map
         G_n = [
             run_model(params, ϕ_n[:, i], IN_mode, FT, IC) for
-            i in 1:N_ensemble
+            i in 1:size(ϕ_n)[2]  #i in 1:N_ensemble
         ]
         # Reformat into `d x N_ens` matrix
         G_ens = hcat(G_n...)
         # Update ensemble
-        EKP.EnsembleKalmanProcesses.update_ensemble!(UKI_obj, G_ens)
+        terminate = EKP.EnsembleKalmanProcesses.update_ensemble!(UKI_obj, G_ens)
+        push!(err, EKP.get_error(UKI_obj)[end])
+        println(
+            "Iteration: " *
+            string(n) *
+            ", Error: " *
+            string(err[n]) *
+            " norm(Cov):" *
+            string(Distributions.norm(EKP.get_process(UKI_obj).uu_cov[n]))
+        )
+        if !isnothing(terminate)
+            final_iter[1] = n - 1
+            break
+        end
     end
 
-    UKI_mean = get_u_mean_final(UKI_obj)
-    UKI_cov = get_u_cov_final(UKI_obj)
+    UKI_mean = EKP.get_u_mean_final(UKI_obj)
+    UKI_cov = EKP.get_u_cov_final(UKI_obj)
 
     return [UKI_mean, UKI_cov]
 end
