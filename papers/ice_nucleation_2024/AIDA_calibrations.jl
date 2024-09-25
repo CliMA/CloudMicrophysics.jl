@@ -59,7 +59,7 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     frozen_frac = ICNC ./ (IC[7] + IC[8] + IC[9])
     frozen_frac_moving_mean = moving_average(frozen_frac, moving_average_n)
     ICNC_moving_avg = moving_average(ICNC, moving_average_n)
-    Γ = 0.15 * LinearAlgebra.I * (maximum(frozen_frac_moving_mean) - minimum(frozen_frac_moving_mean)) # coeff is an estimated of the noise
+    Γ = 0.001 * LinearAlgebra.I * (maximum(frozen_frac_moving_mean) - minimum(frozen_frac_moving_mean)) # coeff is an estimated of the noise
 
     ### Plotting AIDA data.
     AIDA_data_fig = MK.Figure(size = (800, 600), fontsize = 24)
@@ -85,8 +85,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     MK.save("$plot_name"*"_ICNC.svg", AIDA_data_fig)
 
     ### Calibration.
-    EKI_output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
-    UKI_output = calibrate_J_parameters_UKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
+    EKI_output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean[end-25:end], Γ)
+    UKI_output = calibrate_J_parameters_UKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean[end-25:end], Γ)
     
     EKI_n_iterations = size(EKI_output[3])[1]
     EKI_n_ensembles = size(EKI_output[3][1])[2]
@@ -94,7 +94,7 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     EKI_calibrated_parameters = [EKI_output[1], EKI_output[2]]
     UKI_calibrated_parameters = UKI_output[1]
     calibrated_ensemble_means = ensemble_means(EKI_output[3], EKI_n_iterations, EKI_n_ensembles)
-    
+
     # Calibrated parcel
     EKI_parcel = run_calibrated_model(FT, "ABHOM", EKI_calibrated_parameters, params, IC)
     UKI_parcel = run_calibrated_model(FT, "ABHOM", UKI_calibrated_parameters, params, IC)
@@ -161,14 +161,21 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     MK.lines!(ax_parcel_5, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[8, :], color = :orange)
     MK.lines!(ax_parcel_5, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[8, :], color = :fuchsia)    
     #MK.lines!(ax_parcel_5, parcel_default.t .+ (moving_average_n / 2), parcel_default[8, :], color = :darkorange2)
-    MK.lines!(ax_parcel_6, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[9, :], color = :orange)
-    MK.lines!(ax_parcel_6, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[9, :], color = :fuchsia)
+    MK.lines!(ax_parcel_6, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[9, :]./ (IC[7] + IC[8] + IC[9]), color = :orange)
+    MK.lines!(ax_parcel_6, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[9, :]./ (IC[7] + IC[8] + IC[9]), color = :fuchsia)
     # MK.lines!(ax_parcel_6, parcel_default.t .+ (moving_average_n / 2), parcel_default[9, :], color = :darkorange2)
     MK.lines!(ax_parcel_6, 
         chamber_data[start_time:end_time, 1] .- (start_time - 100),
-        ICNC,
+        ICNC ./ (IC[7] + IC[8] + IC[9]),
         color = :blue
     )
+
+    error = fill(sqrt(Γ[1,1]) * 2, length(chamber_data[start_time:end_time, 1] .- (start_time - 100)))
+    MK.errorbars!(ax_parcel_6, chamber_data[start_time:end_time, 1] .- (start_time - 100), ICNC ./ (IC[7] + IC[8] + IC[9]), error)
+
+
+
+
     MK.lines!(ax_parcel_7, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[2, :], color = :orange)
     MK.lines!(ax_parcel_7, UKI_parcel.t .+ (moving_average_n / 2), UKI_parcel[2, :], color = :fuchsia)
     MK.lines!(
