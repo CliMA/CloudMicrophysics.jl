@@ -255,8 +255,8 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, Γ,; perfe
     rng = Random.seed!(Random.GLOBAL_RNG, rng_seed)
 
     prior = create_prior(FT, IN_mode, perfect_model = perfect_model)
-    N_ensemble = 25      # runs N_ensemble trials per iteration
-    N_iterations = 100    # number of iterations the inverse problem goes through
+    N_ensemble = 25       # runs N_ensemble trials per iteration
+    N_iterations = 50     # number of iterations the inverse problem goes through
 
     # Generate initial ensemble and set up EKI
     initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
@@ -282,9 +282,10 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, Γ,; perfe
                 i in 1:N_ensemble
             ]...,
         )
-        # EKP.update_ensemble!(EKI_obj, G_ens)
-        terminated = EKP.update_ensemble!(EKI_obj, G_ens) # check for termination
-        if !isnothing(terminated) # if termination is flagged, break the loop
+        # Update ensemble
+        terminated = EKP.update_ensemble!(EKI_obj, G_ens)
+        # if termination flagged, can stop at earlier iteration
+        if !isnothing(terminated)
             final_iter[1] = n - 1
             break
         end
@@ -302,18 +303,21 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, Γ,; perfe
         digits = 6,
     )
 
-    return [m_coeff_ekp, c_coeff_ekp, ϕ_n_values]
+    calibrated_coeffs = [m_coeff_ekp, c_coeff_ekp]
+
+    return [calibrated_coeffs, ϕ_n_values]
 end
 
 function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, Γ,; perfect_model = false)
-    # Random number generator
     prior = create_prior(FT, IN_mode, perfect_model = perfect_model)
-    N_iterations = 25   # number of iterations the inverse problem goes through
+    N_iterations = 25
     α_reg = 1.0
     update_freq = 1
 
     # truth = EKP.Observations.Observation(y_truth, Γ, "y_truth")
-    truth = EKP.Observation(Dict("samples" => vec(mean(y_truth, dims = 2)), "covariances" => Γ, "names" => "y_truth"))
+    truth = EKP.Observation(
+        Dict("samples" => vec(mean(y_truth, dims = 2)), "covariances" => Γ, "names" => "y_truth")
+    )
 
     # Generate initial ensemble and set up UKI
     process = EKP.Unscented(
