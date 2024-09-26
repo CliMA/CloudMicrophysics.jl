@@ -19,11 +19,11 @@ function test_J_calibration(FT, IN_mode)
         IN_mode,
         params,
         IC,
-        y_truth,
+        y_truth[end-25:end],
         Γ,
         perfect_model = true,
     )
-    calibrated_parameters = [output[1], output[2]]
+    calibrated_parameters = output[1]
     calibrated_soln =
         run_calibrated_model(FT, IN_mode, calibrated_parameters, params, IC)
     true_soln = run_calibrated_model(FT, IN_mode, coeff_true, params, IC)
