@@ -19,7 +19,7 @@ function test_J_calibration(FT, IN_mode)
         IN_mode,
         params,
         IC,
-        y_truth[end-25:end],
+        y_truth,
         Γ,
         perfect_model = true,
     )

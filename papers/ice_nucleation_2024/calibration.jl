@@ -102,8 +102,8 @@ function run_model(p, coefficients, IN_mode, FT, IC)
 
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
-    return sol[9, end-25:end] ./ (IC[7] + IC[8] + IC[9])  # frozen fraction
-    # return sol[9,:] ./ (IC[7] + IC[8] + IC[9])
+    # return sol[9, end-25:end] ./ (IC[7] + IC[8] + IC[9])  # frozen fraction
+    return sol[9,:] ./ (IC[7] + IC[8] + IC[9])
 end
 
 function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
