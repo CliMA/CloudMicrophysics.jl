@@ -23,9 +23,9 @@ function ice_particle_terminal_velocity(
     use_aspect_ratio = true,
 ) where {FT}
     if D <= Chen2022.cutoff
-        (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρₐ)
+        (ai, bi, ci) = CO.Chen2022_vel_coeffs_B2(Chen2022, ρₐ)
     else
-        (ai, bi, ci) = CO.Chen2022_vel_coeffs_large(Chen2022, ρₐ)
+        (ai, bi, ci) = CO.Chen2022_vel_coeffs_B4(Chen2022, ρₐ)
     end
     v = sum(@. sum(ai * D^bi * exp(-ci * D)))
 

@@ -9,6 +9,8 @@ module MicrophysicsNonEq
 import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
 
+import CloudMicrophysics.Common as CO
+
 import ..Parameters as CMP
 
 export τ_relax
@@ -112,6 +114,64 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     Γᵢ = FT(1) + (Lₛ / cₚ_air) * dqsidT
 
     return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
+end
+
+"""
+    terminal_velocity(sediment, vel, ρ, q)
+
+ - `sediment` - a struct with sedimentation type (cloud liquid or ice)
+ - `vel` - a struct with terminal velocity parameters
+ - `ρ` - air density
+ - `q` - cloud liquid or ice specific humidity
+
+Returns the mass weighted average terminal velocity assuming a
+monodisperse size distribution with prescribed number concentration.
+The fall velocity of individual particles is parameterized following
+Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171
+"""
+function terminal_velocity(
+    (; ρw)::CMP.CloudLiquid{FT},
+    vel::CMP.Chen2022VelTypeRain{FT},
+    ρ::FT,
+    q::FT,
+) where {FT}
+    fall_w = FT(0)
+    if q > FT(0)
+        # TODO: Coefficients from Table B1 from Chen et. al. 2022 are only valid
+        # for D > 100mm. We should look for a different parameterization
+        # that is more suited for cloud droplets. For now I'm just multiplying
+        # by an arbitrary correction factor.
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρ)
+        # The 1M scheme does not assume any cloud droplet size distribution.
+        # TODO - For now I compute a mean volume radius assuming a fixed value
+        # for the total number concentration of droplets.
+        N = FT(500 * 1e6)
+        D = cbrt(ρ * q / N / ρw)
+        corr = FT(0.1)
+        # assuming ϕ = 1 (spherical)
+        fall_w = sum(CO.Chen2022_monodisperse_pdf.(aiu, bi, ciu, D))
+        fall_w = max(FT(0), corr * fall_w)
+    end
+    return fall_w
+end
+function terminal_velocity(
+    (; pdf, mass, ρi)::CMP.CloudIce{FT},
+    vel::CMP.Chen2022VelTypeSnowIce{FT},
+    ρ::FT,
+    q::FT,
+) where {FT}
+    fall_w = FT(0)
+    if q > FT(0)
+        # Coefficients from Table B2 from Chen et. al. 2022
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρ)
+        # See the comment for liquid droplets above
+        N = FT(500 * 1e6)
+        D = cbrt(ρ * q / N / ρi)
+        # assuming ϕ = 1 (spherical)
+        fall_w = sum(CO.Chen2022_monodisperse_pdf.(aiu, bi, ciu, D))
+        fall_w = max(FT(0), fall_w)
+    end
+    return fall_w
 end
 
 end #module MicrophysicsNonEq.jl

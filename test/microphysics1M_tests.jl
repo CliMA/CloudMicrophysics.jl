@@ -84,23 +84,6 @@ function test_microphysics1M(FT)
         TT.@test v_bigger > vt_rai
     end
 
-    TT.@testset "1M_microphysics - Chen 2022 ice terminal velocity" begin
-        #setup
-        ρ = FT(1.2)
-        q_ice = FT(5e-4)
-        N_rai = FT(1e4)
-
-        #action
-        vt_ice = CM1.terminal_velocity(ice, Ch2022.snow_ice, ρ, q_ice)
-        v_bigger = CM1.terminal_velocity(ice, Ch2022.snow_ice, ρ, q_ice * 2)
-
-        #test
-        TT.@test vt_ice ≈ 2.2309476335899388 rtol = 2e-6
-        TT.@test CM1.terminal_velocity(ice, Ch2022.snow_ice, ρ, FT(0)) ≈ 0 atol =
-            eps(FT)
-        TT.@test v_bigger > vt_ice
-    end
-
     TT.@testset "1M_microphysics - Chen 2022 snow terminal velocity" begin
         #setup
         ρ = FT(1.1)
@@ -112,7 +95,7 @@ function test_microphysics1M(FT)
         v_bigger = CM1.terminal_velocity(snow, Ch2022.snow_ice, ρ, q_sno * 2)
 
         #test
-        TT.@test vt_sno ≈ 1.4722373984934243 rtol = 2e-6
+        TT.@test vt_sno ≈ 0.7529349430245454 rtol = 2e-6
         TT.@test CM1.terminal_velocity(snow, Ch2022.snow_ice, ρ, FT(0)) ≈ 0 atol =
             eps(FT)
         TT.@test v_bigger > vt_sno

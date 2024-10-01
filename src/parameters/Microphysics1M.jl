@@ -113,20 +113,25 @@ The parameters and type for cloud liquid water condensate
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct CloudLiquid{FT} <: CloudCondensateType{FT}
+Base.@kwdef struct CloudLiquid{FT} <: CloudCondensateType{FT}
     "condensation evaporation non_equil microphysics relaxation timescale [s]"
     τ_relax::FT
+    "water density [kg/m3]"
+    ρw::FT
 end
 
 CloudLiquid(::Type{FT}) where {FT <: AbstractFloat} =
     CloudLiquid(CP.create_toml_dict(FT))
 
 function CloudLiquid(toml_dict::CP.AbstractTOMLDict)
-    name_map = (; :condensation_evaporation_timescale => :τ_relax)
-    (; τ_relax) =
+    name_map = (;
+        :condensation_evaporation_timescale => :τ_relax,
+        :density_liquid_water => :ρw,
+    )
+    parameters =
         CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
-    return CloudLiquid{FT}(τ_relax)
+    return CloudLiquid{FT}(; parameters...)
 end
 
 """
@@ -148,6 +153,8 @@ struct CloudIce{FT, PD, MS} <: CloudCondensateType{FT}
     r_ice_snow::FT
     "deposition sublimation non_equil microphysics relaxation timescale [s]"
     τ_relax::FT
+    "ice density [kg/m3]"
+    ρi::FT
 end
 
 CloudIce(::Type{FT}) where {FT <: AbstractFloat} =
@@ -168,7 +175,7 @@ function CloudIce(toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT))
     FT = CP.float_type(toml_dict)
     P = typeof(pdf)
     M = typeof(mass)
-    return CloudIce{FT, P, M}(pdf, mass, p.r0, p.r_ice_snow, p.τ_relax)
+    return CloudIce{FT, P, M}(pdf, mass, p.r0, p.r_ice_snow, p.τ_relax, p.ρi)
 end
 
 function ParticleMass(::Type{CloudIce}, td::CP.AbstractTOMLDict)

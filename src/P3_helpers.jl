@@ -1,8 +1,3 @@
-# Wrapper to cast types from SF.gamma
-# (which returns Float64 even when the input is Float32)
-# TODO - replace with parameterization of our own
-Γ(a::FT) where {FT <: Real} = FT(SF.gamma(a))
-
 # helper functions for Γ_approx
 function c₁(a::FT) where {FT <: Real}
     p1 = FT(9.4368392235e-03)
@@ -81,7 +76,7 @@ function Γ_lower(a::FT, z::FT) where {FT <: Real}
                    c₁(a) * z / a / (a + 1) +
                    (c₁(a) * z)^2 / a / (a + 1) / (a + 2)
                ) *
-               (1 - W(a, z)) + Γ(a) * W(a, z) * (1 - c₄(a)^(-z))
+               (1 - W(a, z)) + CO.Γ(a) * W(a, z) * (1 - c₄(a)^(-z))
     end
 end
 
@@ -91,7 +86,7 @@ end
 An approximated upper incomplete Gamma function computed as Γ(a) - Γ_lower(a, z)
 """
 function Γ_upper(a::FT, z::FT) where {FT <: Real}
-    return Γ(a) - Γ_lower(a, z)
+    return CO.Γ(a) - Γ_lower(a, z)
 end
 
 """

@@ -22,18 +22,6 @@ const Chen2022 = CMP.Chen2022VelType(FT)
 const Blk1MVel = CMP.Blk1MVelType(FT)
 const ce = CMP.CollisionEff(FT)
 
-# eq. 5d in [Grabowski1996](@cite)
-function terminal_velocity_empirical(
-    q_rai::DT,
-    q_tot::DT,
-    ρ::DT,
-    ρ_air_ground::DT,
-) where {DT <: Real}
-    rr = q_rai / (DT(1) - q_tot)
-    vel = DT(14.34) * ρ_air_ground^DT(0.5) * ρ^-DT(0.3654) * rr^DT(0.1346)
-    return vel
-end
-
 # eq. 5b in [Grabowski1996](@cite)
 function accretion_empirical(q_rai::DT, q_liq::DT, q_tot::DT) where {DT <: Real}
     rr = q_rai / (DT(1) - q_tot)
@@ -68,26 +56,6 @@ function rain_evap_empirical(
     return DT(1) / (DT(1) - q.tot) * S * F * G
 end
 
-function terminal_velocity_chen_large(
-    (; pdf, mass)::CMP.CloudIce{FT},
-    vel::CMP.Chen2022VelTypeSnowIce{FT},
-    ρ::FT,
-    q::FT,
-) where {FT}
-    fall_w = FT(0)
-    if q > FT(0)
-        # coefficients from Table B1 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_large(vel, ρ)
-        # size distribution parameter
-        λ::FT = CM1.lambda(pdf, mass, q, ρ)
-        # eq 20 from Chen et al 2022
-        fall_w = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 3))
-        # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
-        fall_w = max(FT(0), fall_w)
-    end
-    return fall_w
-end
-
 # example values
 q_liq_range = range(1e-8, stop = 5e-3, length = 100)
 q_ice_range = range(1e-8, stop = 5e-3, length = 100)
@@ -95,84 +63,6 @@ q_rain_range = range(1e-8, stop = 5e-3, length = 100)
 q_snow_range = range(1e-8, stop = 5e-3, length = 100)
 ρ_air, ρ_air_ground = 1.2, 1.22
 q_liq, q_ice, q_tot = 5e-4, 5e-4, 20e-3
-
-PL.plot(
-    q_rain_range * 1e3,
-    [
-        CM1.terminal_velocity(rain, Blk1MVel.rain, ρ_air, q_rai) for
-        q_rai in q_rain_range
-    ],
-    linewidth = 3,
-    label = "Rain-1M-default",
-    color = :blue,
-    xlabel = "q_rain/ice/snow [g/kg]",
-    ylabel = "terminal velocity [m/s]",
-)
-PL.plot!(
-    q_rain_range * 1e3,
-    [
-        CM1.terminal_velocity(rain, Chen2022.rain, ρ_air, q_rai) for
-        q_rai in q_rain_range
-    ],
-    linewidth = 3,
-    label = "Rain-Chen",
-    color = :blue,
-    linestyle = :dot,
-)
-PL.plot!(
-    q_rain_range * 1e3,
-    [
-        terminal_velocity_empirical(q_rai, q_tot, ρ_air, ρ_air_ground) for
-        q_rai in q_rain_range
-    ],
-    linewidth = 3,
-    label = "Rain-Empirical",
-    color = :green,
-)
-PL.plot!(
-    q_ice_range * 1e3,
-    [
-        CM1.terminal_velocity(ice, Chen2022.snow_ice, ρ_air, q_ice) for
-        q_ice in q_ice_range
-    ],
-    linewidth = 3,
-    label = "Ice-Chen",
-    color = :pink,
-    linestyle = :dot,
-)
-PL.plot!(
-    q_ice_range * 1e3,
-    [
-        terminal_velocity_chen_large(ice, Chen2022.snow_ice, ρ_air, q_ice) for
-        q_ice in q_ice_range
-    ],
-    linewidth = 3,
-    label = "Ice-Chen-Large",
-    color = :lightpink1,
-    linestyle = :dot,
-)
-PL.plot!(
-    q_snow_range * 1e3,
-    [
-        CM1.terminal_velocity(snow, Blk1MVel.snow, ρ_air, q_sno) for
-        q_sno in q_snow_range
-    ],
-    linewidth = 3,
-    label = "Snow-1M-default",
-    color = :red,
-)
-PL.plot!(
-    q_snow_range * 1e3,
-    [
-        CM1.terminal_velocity(snow, Chen2022.snow_ice, ρ_air, q_sno) for
-        q_sno in q_snow_range
-    ],
-    linewidth = 3,
-    label = "Snow-Chen",
-    color = :red,
-    linestyle = :dot,
-)
-PL.savefig("terminal_velocity.svg") # hide
 
 T = 273.15
 PL.plot(
