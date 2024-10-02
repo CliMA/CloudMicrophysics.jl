@@ -61,18 +61,9 @@ Jensen_t_ICNC = [0.217, 42.69, 50.02, 54.41, 58.97, 65.316, 72.477, 82.08, 92.65
 Jensen_ICNC = [0, 0, 0.282, 0.789, 1.804, 4.1165, 7.218, 12.12, 16.35, 16.8, 16.97, 17.086]
 #! format: on
 
-fig = MK.Figure(size = (1000, 1000))
-ax1 = MK.Axis(fig[1, 1], ylabel = "Saturation")
-ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
-ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
-ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
-ax5 = MK.Axis(fig[1, 2], ylabel = "ICNC [cm^-3]")
-ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]")
-
-MK.ylims!(ax2, 188.5, 190)
-MK.xlims!(ax2, -5, 150)
-MK.xlims!(ax3, -5, 150)
-MK.xlims!(ax4, -5, 150)
+fig = MK.Figure(size = (800, 300), fontsize = 20)
+ax1 = MK.Axis(fig[1, 1], ylabel = "Saturation", xlabel = "Time [s]")
+ax2 = MK.Axis(fig[1, 2], ylabel = "ICNC [cm^-3]", xlabel = "Time [s]")
 
 MK.lines!(
     ax1,
@@ -80,20 +71,15 @@ MK.lines!(
     Jensen_sat,
     label = "Jensen et al 2022",
     color = :green,
+    linewidth = 2,
 )
 MK.lines!(
     ax2,
-    Jensen_t_T,
-    Jensen_T,
-    color = :green,
-    label = "Jensen et al 2022",
-)
-MK.lines!(
-    ax5,
     Jensen_t_ICNC,
     Jensen_ICNC,
     color = :green,
     label = "Jensen et al 2022",
+    linewidth = 2,
 )
 
 params = parcel_params{FT}(
@@ -113,37 +99,32 @@ MK.lines!(
     S_i.(tps, sol[3, :], (sol[1, :])),
     label = "ice",
     color = :blue,
+    linewidth = 2,
 )
-MK.lines!(ax1, sol.t, (sol[1, :]), label = "liquid", color = :red) # liq saturation
-MK.lines!(ax2, sol.t, sol[3, :], label = "CM.jl")                  # temperature
-MK.lines!(ax3, sol.t, sol[4, :] * 1e3) # q_vap
-MK.lines!(ax4, sol.t, sol[5, :] * 1e3) # q_liq
-MK.lines!(ax5, sol.t, sol[9, :] * 1e-6, label = "CM.jl")           # ICNC
-MK.lines!(ax6, sol.t, sol[6, :] * 1e3) # q_ice
+MK.lines!(
+    ax1,
+    sol.t,
+    (sol[1, :]),
+    label = "liquid",
+    color = :red,
+    linewidth = 2,
+) # liq saturation
+MK.lines!(ax2, sol.t, sol[9, :] * 1e-6, label = "CM.jl", linewidth = 2) # ICNC
 
 MK.axislegend(
     ax1,
     framevisible = false,
-    labelsize = 12,
-    orientation = :horizontal,
-    nbanks = 2,
-    position = :lc,
-)
-MK.axislegend(
-    ax5,
-    framevisible = false,
-    labelsize = 12,
-    orientation = :horizontal,
-    nbanks = 2,
+    labelsize = 16,
+    orientation = :vertical,
     position = :lc,
 )
 MK.axislegend(
     ax2,
     framevisible = false,
-    labelsize = 12,
-    orientation = :horizontal,
-    nbanks = 2,
+    labelsize = 16,
+    orientation = :vertical,
     position = :lc,
 )
 
 MK.save("Jensen_et_al_2022.svg", fig)
+nothing

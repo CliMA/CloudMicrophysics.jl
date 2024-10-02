@@ -50,17 +50,15 @@ Rogers_time_supersat = [0.0645, 0.511, 0.883, 1.4, 2.07, 2.72, 3.24, 3.89, 4.53,
 Rogers_supersat = [0.0268, 0.255, 0.393, 0.546, 0.707, 0.805, 0.863, 0.905, 0.938, 0.971, 0.978, 0.963, 0.910, 0.885]
 Rogers_time_radius = [0.561, 2, 3.99, 10.7, 14.9, 19.9]
 Rogers_radius = [8.0, 8.08, 8.26, 8.91, 9.26, 9.68]
-#! format: on
 
 # Setup the plots
-fig = MK.Figure(size = (800, 600))
-ax1 = MK.Axis(fig[1, 1], ylabel = "Supersaturation [%]")
-ax2 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "Temperature [K]")
-ax3 = MK.Axis(fig[2, 1], ylabel = "q_vap [g/kg]")
-ax4 = MK.Axis(fig[2, 2], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
-ax5 = MK.Axis(fig[1, 2], ylabel = "radius [μm]")
-MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
-MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
+fig = MK.Figure(size = (800, 300))
+ax1 = MK.Axis(fig[1, 1], xlabel = "Time [s]", ylabel = "Supersaturation [%]")
+ax2 = MK.Axis(fig[1, 2], xlabel = "Time [s]", ylabel = "radius [μm]")
+ax3 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
+MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975", color = :red)
+MK.lines!(ax2, Rogers_time_radius, Rogers_radius, color = :red)
+#! format: on
 
 for DSD in liq_size_distribution_list
     local params = parcel_params{FT}(
@@ -74,9 +72,7 @@ for DSD in liq_size_distribution_list
 
     # Plot results
     MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = DSD)
-    MK.lines!(ax2, sol.t, sol[3, :])
-    MK.lines!(ax3, sol.t, sol[4, :] * 1e3)
-    MK.lines!(ax4, sol.t, sol[5, :] * 1e3)
+    MK.lines!(ax3, sol.t, sol[5, :] * 1e3)
 
     sol_Nₗ = sol[8, :]
     sol_Nᵢ = sol[9, :]
@@ -96,16 +92,16 @@ for DSD in liq_size_distribution_list
     for it in range(1, length(sol_T))
         r[it] = moms[it].r
     end
-    MK.lines!(ax5, sol.t, r * 1e6)
+    MK.lines!(ax2, sol.t, r * 1e6)
 end
 
 MK.axislegend(
     ax1,
     framevisible = false,
     labelsize = 12,
-    orientation = :horizontal,
-    nbanks = 2,
+    orientation = :vertical,
     position = :rb,
 )
 
 MK.save("liquid_only_parcel.svg", fig)
+nothing

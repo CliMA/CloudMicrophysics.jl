@@ -241,7 +241,7 @@ function benchmark_test(FT)
     bench_press(CMI_hom.homogeneous_J_linear, (ip.homogeneous, Delta_a_w), 230)
 
     # non-equilibrium
-    bench_press(CMN.τ_relax, (liquid,), 10)
+    bench_press(CMN.τ_relax, (liquid,), 15)
     bench_press(
         CMN.conv_q_vap_to_q_liq_ice,
         (

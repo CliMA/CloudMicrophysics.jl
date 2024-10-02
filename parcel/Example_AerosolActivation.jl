@@ -42,7 +42,7 @@ IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 # Simulation parameters passed into ODE solver
 w = FT(1.2)         # updraft speed
 const_dt = FT(1)    # model timestep
-t_max = FT(100)     # total time
+t_max = FT(35)     # total time
 aerosol = CMP.Sulfate(FT)
 
 condensation_growth = "Condensation"
@@ -64,20 +64,15 @@ params = parcel_params{FT}(
 sol = run_parcel(IC, FT(0), t_max, params)
 
 # Plot results
-fig = MK.Figure(size = (1000, 800), fontsize = 20)
-ax1 = MK.Axis(fig[1, 1], ylabel = "Liquid Saturation [-]")
-ax2 = MK.Axis(fig[1, 2], xlabel = "Time [s]", ylabel = "Temperature [K]")
-ax3 = MK.Axis(fig[2, 1], ylabel = "N_aero [m^-3]", xlabel = "Time [s]")
-ax4 = MK.Axis(fig[2, 2], ylabel = "N_liq [m^-3]", xlabel = "Time [s]")
-ax5 = MK.Axis(fig[3, 1], ylabel = "q_vap [g/kg]", xlabel = "Time [s]")
-ax6 = MK.Axis(fig[3, 2], ylabel = "q_liq [g/kg]", xlabel = "Time [s]")
+fig = MK.Figure(size = (800, 300), fontsize = 20)
+ax1 = MK.Axis(fig[1, 1], ylabel = "Liquid Saturation [-]", xlabel = "Time [s]")
+ax2 = MK.Axis(fig[1, 2], ylabel = "N [m^-3]", xlabel = "Time [s]")
 
-MK.lines!(ax1, sol.t, (sol[1, :]))            # liq saturation
-MK.lines!(ax2, sol.t, sol[3, :])              # temperature
-MK.lines!(ax3, sol.t, sol[7, :])              # N_aero
-MK.lines!(ax4, sol.t, sol[8, :])              # N_liq
-MK.lines!(ax5, sol.t, sol[4, :] .* 1e3)       # q_vap
-MK.lines!(ax6, sol.t, sol[5, :] .* 1e3)       # q_liq
+MK.lines!(ax1, sol.t, (sol[1, :]), linewidth = 2)
+MK.lines!(ax2, sol.t, sol[7, :], label = "N_aero", linewidth = 2, color = :red)
+MK.lines!(ax2, sol.t, sol[8, :], label = "N_liq", linewidth = 2, color = :blue)
 
+MK.axislegend(ax2, framevisible = false, labelsize = 16, position = :rc)
 
 MK.save("Parcel_Aerosol_Activation.svg", fig)
+nothing

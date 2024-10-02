@@ -122,49 +122,50 @@ The crux of the problem is modeling the ``\frac{dq_l}{dt}`` and ``\frac{dq_i}{dt
   for different homogeneous and heterogeneous ice nucleation paths.
 
 ## Supported size distributions
-Currently, the parcel model supports monodisperse, gamma, and lognormal size distributions. For
-  monodisperse size distributions, the total mass is evenly distributed to all particles.
+Currently the parcel model supports monodisperse and gamma size distributions of cloud droplets and ice crystals,
+  and solves prognostic equations for the cloud water and cloud ice specific humidities
+  ``q_l``, ``q_i`` and number concentrations ``N_l``, ``N_i``.
+
+For a monodisperse size distribution of cloud droplets or ice crystals
 ```math
 \begin{equation}
-  n(r) = N_{tot} \delta(r-\bar{r})
+  n(r) = N \delta(r-\bar{r})
 \end{equation}
+```
+and assuming spherical shape, the mean radius is defined as
+```math
 \begin{equation}
-  bar{r} = \left( \frac{3 \rho_a q_l}{4 \pi \rho_l N_{tot}} \right)^{1/3}
+  \bar{r} = \left( \frac{3 \rho_a q}{4 \pi \rho N} \right)^{1/3}
+\end{equation}
+```
+where:
+ - ``\rho_a`` is the air density,
+ - ``\rho``  is the cloud water or cloud ice density.
+
+For a gamma distribution of cloud droplets
+```math
+\begin{equation}
+  n(r) = N_0 \; r \; \exp(-\lambda r)
+\end{equation}
+```
+where:
+ - ``\lambda`` and ``N_0`` are the free parameters.
+```math
+\begin{equation}
+  N = {\int_0^\infty \, n(r) \, dr}, \;\;\;\;\;
+  q = \frac{1}{\rho_a}{\int_0^\infty \, \frac{4}{3} \pi \rho r^3 n(r) \, dr}
+\end{equation}
+```
+As a result
+```math
+\begin{equation}
+  \lambda = \left(\frac{32 \pi N \rho}{q \rho_a}\right)^{1/3}, \;\;\;\;\;
+  N_0 = N \lambda^2
 \end{equation}
 ```
 
-For a gamma distribution of droplets, a free parameter, ``\lambda``, must be constrained.
-  This can be done through relating the specific humidity and volume (assuming spherical
-  droplets and crystals). The mean of ``r^3`` is found by dividing the third moment, ``M_3``, by the
-  zeroth moment, ``M_0``. Once ``\lambda`` is found, we can use it to find the mean radius by
-  dividing the first moment, ``M_1``, by the zeroth moment, ``M_0``.
-
-```math
-\begin{equation}
-  n(r) = A \; r \; exp(-\lambda r)
-\end{equation}
-\begin{equation}
-  \bar{r} = \frac{M_1}{M_0} = \frac{2}{\lambda}
-\end{equation}
-```
-where ``\lambda = \left(\frac{32 \pi N_{tot} \rho_l}{q_l \rho_a}\right)^{1/3}``.
-
-A similar approach is used for the lognormal size distribution. We assume that the geometric
-  standard deviation, ``\sigma_g``, is measured so that the only parameter that needs to be constrained is the median radius, ``r_m``.
-
-```math
-\begin{equation}
-  n(r) = \frac{N_0}{\sqrt{2\pi}} \; \frac{1}{r \: ln(\sigma_g)} \; exp \left[ -frac{(ln(r)-ln(r_m))^2}{2 \: ln^2(\sigma_g)} \right]
-\end{equation}
-\begin{equation}
-  \bar{r^3} = \frac{\rho_a}{\rho_w}\frac{3}{4\pi}\frac{q}{N} = \frac{M_3}{M_0} = r_m^3 exp \left( \frac{9}{2} ln^2(\sigma_g)\right)
-\end{equation}
-\begin{equation}
-  \bar{r} = \frac{M_1}{M_0} = r_m exp \left( \frac{1}{2} ln^2(\sigma_g)\right)
-\end{equation}
-```
-
-## Aerosol Activation
+## Supported source terms
+### Aerosol Activation
 Aerosol activation is described by ([see discussion](https://clima.github.io/CloudMicrophysics.jl/dev/AerosolActivation/#Number-and-mass-of-activated-particles)).
   It is inherently assumed that the aerosols have a lognormal size distribution.
   For simplicity, the parcel accepts one mode and one aerosol type at a time, therefore,
@@ -176,7 +177,7 @@ Aerosol activation is described by ([see discussion](https://clima.github.io/Clo
     Standard deviation and r_{mean} of the aerosol size distribution may change as aerosols activate.
     For now, we will neglect these effects.
 
-## Condensation growth
+### Condensation growth
 
 The diffusional growth of individual cloud droplet is described by
 ([see discussion](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-autoconversion)),
@@ -214,7 +215,7 @@ where:
 - ``\bar{r}`` is their mean radius
 - ``\rho_a`` is the density of air.
 
-## Deposition growth
+### Deposition growth
 
 Similarly, for a case of a spherical ice particle growing through water vapor deposition
 ```math
@@ -245,7 +246,7 @@ It follows that
 where:
 - ``N_{act}`` is the number of activated ice particles.
 
-## Deposition Nucleation on dust particles
+### Deposition Nucleation on dust particles
 There are multiple ways of running deposition nucleation in the parcel.
   `"MohlerAF_Deposition"` will trigger an activated fraction approach
   from [Mohler2006](@cite). `"MohlerRate_Deposition"` will trigger a
@@ -266,7 +267,7 @@ where ``N_{areo}`` is total number of unactiviated ice nucleating particles and
 The deposition nucleation methods are parameterized as described in
   [Ice Nucleation](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/).
 
-## Immersion Freezing
+### Immersion Freezing
 Following the water activity based immersion freezing model (ABIFM), the ABIFM derived
   nucleation rate coefficient, ``J_{immer}``, can be determined. The ice production rate,``P_{ice, immer}``,
   per second via immersion freezing can then be calculating using
@@ -279,7 +280,7 @@ Following the water activity based immersion freezing model (ABIFM), the ABIFM d
 where ``N_{liq}`` is total number of ice nuclei containing droplets and
   ``A_{aero}`` is surface area of the ice nucleating particle.
 
-## Homogeneous Freezing
+### Homogeneous Freezing
 Homogeneous freezing follows the water-activity based model described in the
   [Ice Nucleation](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/) section which gives a nucleation rate coefficient of
   units ``cm^{-3}s^{-1}``.
@@ -293,88 +294,7 @@ The ice production rate from homogeneous freezing can then be determined:
 where ``N_{liq}`` is total number of ice nuclei containing droplets and
   ``V`` is the volume of those droplets.
 
-## Example figures
-
-Here we show various example simulation results from the adiabatic parcel
-  model. This includes examples with deposition nucleation on dust,
-  liquid processes only, immersion freezing with condensation and deposition growth,
-  and homogeneous freezing with deposition growth.
-
-First, we check that aerosol activation works reasonably within the parcel.
-
-```@example
-include("../../parcel/Example_AerosolActivation.jl")
-```
-![](Parcel_Aerosol_Activation.svg)
-
-The following examples show ice nucleation, starting with deposition
-  freezing on dust.
-The model is run three times using the `"MohlerAF_Deposition"` approach
-  for 30 minutes simulation time, (shown by three different colors on the plot).
-Between each run the water vapor specific humidity is changed,
-  while keeping all other state variables the same as at the last time step
-  of the previous run.
-The prescribed vertical velocity is equal to 3.5 cm/s.
-Supersaturation is plotted for both liquid (solid lines) and ice (dashed lines).
-The pale blue line uses the `"MohlerRate_Deposition"` approach.
-  We only run it for the first GCM timestep because the rate approach requires
-  the change in ice saturation over time. With the discontinuous jump in saturation,
-  the parameterization is unable to determine a proper nucleation rate. When we force
-  the initial ice crystal number concentration for this simulation to match
-  that in the `"MohlerAF_Deposition"` approach, we obtain the same results as
-  in the `"MohlerAF_Deposition"` approach for the first GCM timestep.
-
-```@example
-include("../../parcel/Example_Tully_et_al_2023.jl")
-```
-![](cirrus_box.svg)
-
-The water activity based parameterization for deposition nucleation shows
-  similar outcomes when compared to the `"MohlerRate_Deposition"` approach.
-  Here, we run the parcel for 100 secs for all available aerosol types. The
-  solid lines correspond to the `"MohlerRate_Deposition"` approach while the
-  dashed lines correspond to `"ActivityBasedDeposition"`. Note that there
-  is no common aerosol type between the two parameterizations.
-
-```@example
-include("../../parcel/Example_Deposition_Nucleation.jl")
-```
-![](deposition_nucleation.svg)
-
-In the plots below, the parcel model is ran with only condensation (no ice or freezing)
-  assuming either a monodisperse or a gamma distribution of droplets.
-It is compared to [Rogers1975](@cite).
-
-```@example
-include("../../parcel/Example_Liquid_only.jl")
-```
-![](liquid_only_parcel.svg)
-
-The plots below are the results of the adiabatic parcel model
-  with immersion freezing, condensation growth, and deposition growth for
-  both a monodisperse and gamma size distribution. Note that this has not
-  yet been validated against literature. Results are very sensitive to
-  initial conditions.
-
-```@example
-include("../../parcel/Example_Immersion_Freezing.jl")
-```
-![](immersion_freezing.svg)
-
-The following plots show the parcel model running with homogeneous freezing and
-  depositional growth assuming a lognormal distribution of aerosols.
-  It is compared against [Jensen2022](@cite). Note that running with the initial
-  conditions described in [Jensen2022](@cite) results in a ``\Delta a_w`` smaller
-  than the minimum valid value for the ``J_{hom}`` parameterization. We have forced
-  the ``\Delta a_w`` to be equal to the minimum valid value in this example only
-  for demonstrative purposes.
-
-```@example
-include("../../parcel/Example_Jensen_et_al_2022.jl")
-```
-![](Jensen_et_al_2022.svg)
-
-## P3 Ice Nucleation Parameterizations
+### P3 Ice Nucleation Parameterizations
 The parcel also includes ice nucleation parameterizations used in
   the P3 scheme as described in [MorrisonMilbrandt2015](@cite).
   Deposition nucleation is based on the ice crystal number parameterization
@@ -382,21 +302,9 @@ The parcel also includes ice nucleation parameterizations used in
   follows Bigg(1953) with parameters from Barklie aand Gokhale (1959), is
   treated as immersion freezing in the parcel. Homogeneous freezing happens
   instantaneously at 233.15K.
-Shown below are three separate parcel simulations for deposition nucleation,
-  immersion freezing, and homogeneous freezing. Note that initial temperature
-  varies for each run. The deposition nucleation run does not conserve
-  INP number, while the other two freezing modes do. Updraft velocity is
-  set to 0.5 m/s.
-```@example
-include("../../parcel/Example_P3_ice_nuc.jl")
-```
-![](P3_ice_nuc.svg)
 
-
-## Immersion Freezing Parametrization based on Frostenberg et al. 2023
-
-Here we show the parcel model results when using the parametrization of immersion freezing
-  based on [Frostenberg2023](@cite).
+### Frostenberg et al. 2023 Immersion Freezing
+An immersion freezing parameterization based on [Frostenberg2023](@cite) is also available.
 The concentration of ice nucleating particles (INPC) depends only on air temperature,
   and is based on a lognormal relative frequency distribution.
 New ice crystals are created if the INPC exceeds the existing concentration of ice crystals,
@@ -455,11 +363,97 @@ This equation is currently implemented with the simple [Euler-Maruyama method](h
 ```
 where ``z_t \sim N(0,1)`` is a standard normal random variable.
 
-The following plot shows resuls of the parcel model with the `mean` (black line), `random` (dotted lines) and `stochastic` (solid lines) parameterization options.
-We show results for two sampling intervals ``\Delta t`` (random), two process time scales ``\tau`` (stochastic), and two model time steps `dt`.
+## Example figures
+
+Here we show various example simulation results from the adiabatic parcel
+  model. This includes examples with deposition nucleation on dust,
+  liquid processes only, immersion freezing with condensation and deposition growth,
+  and homogeneous freezing with deposition growth.
+
+First, we check that aerosol activation works reasonably within the parcel.
 
 ```@example
-using Suppressor: @suppress # hide
-@suppress include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl") # hide
+    include("../../parcel/Example_AerosolActivation.jl")
+```
+![](Parcel_Aerosol_Activation.svg)
+
+The following examples show ice nucleation, starting with deposition
+  freezing on dust.
+The model is run three times using the `"MohlerAF_Deposition"` approach
+  for 30 minutes simulation time, (shown by three different colors on the plot).
+Between each run the water vapor specific humidity is changed,
+  while keeping all other state variables the same as at the last time step
+  of the previous run.
+The prescribed vertical velocity is equal to 3.5 cm/s.
+
+Supersaturation is plotted for both liquid (solid lines) and ice (dashed lines).
+The pale blue line uses the `"MohlerRate_Deposition"` approach.
+  We only run it for the first GCM timestep because the rate approach requires
+  the change in ice saturation over time. With the discontinuous jump in saturation,
+  the parameterization is unable to determine a proper nucleation rate. When we force
+  the initial ice crystal number concentration for this simulation to match
+  that in the `"MohlerAF_Deposition"` approach, we obtain the same results as
+  in the `"MohlerAF_Deposition"` approach for the first GCM timestep.
+
+```@example
+using Suppressor: @suppress #hide
+  @suppress begin #hide
+     include("../../parcel/Example_Tully_et_al_2023.jl")
+end # hide
+```
+![](cirrus_box.svg)
+
+The water activity based parameterization for deposition nucleation shows
+  similar outcomes when compared to the `"MohlerRate_Deposition"` approach.
+  Here, we run the parcel for 100 secs for all available aerosol types. The
+  solid lines correspond to the `"MohlerRate_Deposition"` approach while the
+  dashed lines correspond to `"ActivityBasedDeposition"`. Note that there
+  is no common aerosol type between the two parameterizations.
+
+```@example
+  include("../../parcel/Example_Deposition_Nucleation.jl")
+```
+![](deposition_nucleation.svg)
+
+In the plots below, the parcel model is ran with only condensation (no ice or freezing)
+  assuming either a monodisperse or a gamma distribution of droplets.
+It is compared to [Rogers1975](@cite). This is to ensure the parcel can run
+with liquid phase and different size distributions without issues.
+
+```@example
+  include("../../parcel/Example_Liquid_only.jl")
+```
+![](liquid_only_parcel.svg)
+
+The following plots show the parcel model running with homogeneous freezing and
+  depositional growth assuming a lognormal distribution of aerosols.
+  It is compared against [Jensen2022](@cite). Note that running with the initial
+  conditions described in [Jensen2022](@cite) results in a ``\Delta a_w`` smaller
+  than the minimum valid value for the ``J_{hom}`` parameterization. We have forced
+  the ``\Delta a_w`` to be equal to the minimum valid value in this example only
+  for demonstrative purposes.
+
+```@example
+  include("../../parcel/Example_Jensen_et_al_2022.jl")
+```
+![](Jensen_et_al_2022.svg)
+
+Shown below are three separate parcel simulations for deposition nucleation,
+  immersion freezing, and homogeneous freezing as parameterized in the P3 scheme.
+  Note that initial temperature varies for each run. The deposition nucleation
+  run does not conserve INP number, while the other two freezing modes do.
+  Updraft velocity is set to 0.5 m/s.
+```@example
+  include("../../parcel/Example_P3_ice_nuc.jl")
+```
+![](P3_ice_nuc.svg)
+
+The results of the immersion freezing parameterization from Frostenberg et al. 2023 are shown below.
+The following plot shows resuls of the parcel model with the `mean` (black line), `random` (dotted lines)
+and `stochastic` (solid lines) parameterization options. We show results for two sampling intervals
+``\Delta t`` (random), two process time scales ``\tau`` (stochastic), and two model time steps `dt`.
+
+```@example
+  include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl")
 ```
 ![](frostenberg_immersion_freezing.svg)

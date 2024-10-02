@@ -46,11 +46,9 @@ deposition_growth = "Deposition"
 size_distribution = "Monodisperse"
 
 # Plotting
-fig = MK.Figure(size = (800, 600))
-ax1 = MK.Axis(fig[1, 1], ylabel = "Ice Saturation [-]")
-ax2 = MK.Axis(fig[1, 2], ylabel = "Temperature [K]")
-ax3 = MK.Axis(fig[2, 1], ylabel = "q_ice [g/kg]", xlabel = "time")
-ax4 = MK.Axis(fig[2, 2], ylabel = "N_ice [m^-3]", xlabel = "time")
+fig = MK.Figure(size = (800, 300))
+ax1 = MK.Axis(fig[1, 1], ylabel = "Ice Saturation [-]", xlabel = "time")
+ax2 = MK.Axis(fig[1, 2], ylabel = "N_ice [m^-3]", xlabel = "time")
 
 for deposition in deposition_modes
     if deposition == "MohlerRate"
@@ -79,9 +77,7 @@ for deposition in deposition_modes
                 S_i.(tps, sol[3, :], sol[1, :]),
                 label = aero_label,
             )
-            MK.lines!(ax2, sol.t, sol[3, :])         # temperature
-            MK.lines!(ax3, sol.t, sol[6, :] * 1e3)   # q_ice
-            MK.lines!(ax4, sol.t, sol[9, :])         # N_ice
+            MK.lines!(ax2, sol.t, sol[9, :])         # N_ice
         end
 
     elseif deposition == "ABDINM"
@@ -113,9 +109,7 @@ for deposition in deposition_modes
                 label = aero_label,
                 linestyle = :dash,
             )
-            MK.lines!(ax2, sol.t, sol[3, :], linestyle = :dash)             # temperature
-            MK.lines!(ax3, sol.t, sol[6, :] * 1e3, linestyle = :dash)       # q_ice
-            MK.lines!(ax4, sol.t, sol[9, :], linestyle = :dash)             # N_ice
+            MK.lines!(ax2, sol.t, sol[9, :], linestyle = :dash)             # N_ice
         end
     end
 end
@@ -130,3 +124,4 @@ MK.axislegend(
 )
 
 MK.save("deposition_nucleation.svg", fig)
+nothing
