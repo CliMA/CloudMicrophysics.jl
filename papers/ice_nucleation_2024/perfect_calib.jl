@@ -22,7 +22,7 @@ for IN_mode in IN_mode_list
         IN_mode,
         params,
         IC,
-        y_truth,
+        y_truth[end-25:end],
         Γ,
         perfect_model = true,
     )

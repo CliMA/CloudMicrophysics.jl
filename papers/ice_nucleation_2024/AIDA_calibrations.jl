@@ -76,8 +76,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     end
 
     ### Calibration.
-    EKI_output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
-    UKI_output = calibrate_J_parameters_UKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, Γ)
+    EKI_output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean[end-25:end], Γ)
+    UKI_output = calibrate_J_parameters_UKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean[end-25:end], Γ)
     
     EKI_n_iterations = size(EKI_output[2])[1]
     EKI_n_ensembles = size(EKI_output[2][1])[2]
