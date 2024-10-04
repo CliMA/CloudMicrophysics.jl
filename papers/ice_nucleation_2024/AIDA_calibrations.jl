@@ -250,5 +250,71 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     MK.axislegend(ax_compare, framevisible = false, labelsize = 20, position = :rb)
     MK.save("$plot_name"*"_ICNC_comparison_fig.svg", ICNC_comparison_fig)
 
+    ## Looking at spread in UKI calibrated parameters
+    ϕ_UKI = UKI_output[2]
+    UKI_parcel_1 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,1], ϕ_UKI[2,1]], params, IC)
+    UKI_parcel_2 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,2], ϕ_UKI[2,2]], params, IC)
+    UKI_parcel_3 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,3], ϕ_UKI[2,3]], params, IC)
+    UKI_parcel_4 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,4], ϕ_UKI[2,4]], params, IC)
+    UKI_parcel_5 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,5], ϕ_UKI[2,5]], params, IC)
+
+    UKI_spread_fig = MK.Figure(size = (700, 600), fontsize = 24)
+    ax_spread = MK.Axis(UKI_spread_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$plot_name")
+    MK.lines!(
+        ax_spread,
+        chamber_data[moving_average_start:moving_average_end, 1] .- (start_time - 100),
+        frozen_frac_moving_mean,
+        label = "AIDA Moving Avg",
+        linewidth = 2.5,
+        color =:blue
+    )
+    MK.lines!(
+        ax_spread,
+        UKI_parcel_1.t .+ (moving_average_n / 2),
+        UKI_parcel_1[9, :]./ (IC[7] + IC[8] + IC[9]),
+        linewidth = 2.5,
+        color =:grey80,
+    )
+    MK.lines!(
+        ax_spread,
+        UKI_parcel_2.t .+ (moving_average_n / 2),
+        UKI_parcel_2[9, :]./ (IC[7] + IC[8] + IC[9]),
+        linewidth = 2.5,
+        color =:grey60,
+    )
+    MK.lines!(
+        ax_spread,
+        UKI_parcel_3.t .+ (moving_average_n / 2),
+        UKI_parcel_3[9, :]./ (IC[7] + IC[8] + IC[9]),
+        linewidth = 2.5,
+        color =:grey40,
+    )
+    MK.lines!(
+        ax_spread,
+        UKI_parcel_4.t .+ (moving_average_n / 2),
+        UKI_parcel_4[9, :]./ (IC[7] + IC[8] + IC[9]),
+        linewidth = 2.5,
+        color =:grey25,
+    )
+    MK.lines!(
+        ax_spread,
+        UKI_parcel_5.t .+ (moving_average_n / 2),
+        UKI_parcel_5[9, :]./ (IC[7] + IC[8] + IC[9]),
+        linewidth = 2.5,
+        color =:grey12,
+    )
+    MK.lines!(
+        ax_spread,
+        UKI_parcel.t .+ (moving_average_n / 2),
+        UKI_parcel[9, :]./ (IC[7] + IC[8] + IC[9]),
+        label = "CM.jl Parcel (UKI Calibrated)",
+        linewidth = 2.5,
+        color =:fuchsia,
+        linestyle = :dash,
+    )
+    error = fill(sqrt(Γ[1,1]) * 2, length(frozen_frac_moving_mean))
+    MK.errorbars!(ax_spread, chamber_data[moving_average_start:moving_average_end, 1] .- (start_time - 100), frozen_frac_moving_mean, error)
+    MK.save("$plot_name"*"_UKI_spread_fig.svg", UKI_spread_fig)
+
     #! format: on
 end

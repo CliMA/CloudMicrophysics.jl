@@ -361,8 +361,10 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, Γ,; perfe
 
     UKI_mean_u_space = EKP.get_u_mean_final(UKI_obj)
     UKI_mean = EKP.transform_unconstrained_to_constrained(prior, UKI_mean_u_space)
+
+    ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
     
-    return [UKI_mean]
+    return [UKI_mean, ϕ_n, final_iter]
 end
 
 function ensemble_means(ϕ_n_values, N_iterations, N_ensemble)
