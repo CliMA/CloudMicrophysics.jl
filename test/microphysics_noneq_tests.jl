@@ -12,6 +12,7 @@ function test_microphysics_noneq(FT)
     ice = CMP.CloudIce(FT)
     liquid = CMP.CloudLiquid(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
+    Ch2022 = CMP.Chen2022VelType(FT)
 
     TT.@testset "τ_relax" begin
         TT.@test CMNe.τ_relax(liquid) ≈ FT(10)
@@ -86,6 +87,38 @@ function test_microphysics_noneq(FT)
                  CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice,    tps, qₚ(FT(1.2 * qᵥ_sl)), ρ, T)
 
         #! format: on
+    end
+
+    TT.@testset "Cloud condensate sedimentation - liquid" begin
+        #setup
+        ρ = FT(1.1)
+        q_liq = FT(1 * 1e-3)
+
+        #action
+        vt_zero = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, FT(0))
+        vt_liq = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, q_liq)
+        v_bigger = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, q_liq * 2)
+
+        #test
+        TT.@test vt_zero == FT(0)
+        TT.@test vt_liq ≈ 0.004249204292098458 rtol = sqrt(eps(FT))
+        TT.@test v_bigger > vt_liq
+    end
+
+    TT.@testset "Cloud condensate sedimentation - ice" begin
+        #setup
+        ρ = FT(0.75)
+        q_ice = FT(0.5 * 1e-3)
+
+        #action
+        vt_zero = CMNe.terminal_velocity(ice, Ch2022.snow_ice, ρ, FT(0))
+        vt_ice = CMNe.terminal_velocity(ice, Ch2022.snow_ice, ρ, q_ice)
+        v_bigger = CMNe.terminal_velocity(ice, Ch2022.snow_ice, ρ, q_ice * 2)
+
+        #test
+        TT.@test vt_zero == FT(0)
+        TT.@test vt_ice ≈ 0.005587793323944559 rtol = sqrt(eps(FT))
+        TT.@test v_bigger > vt_ice
     end
 end
 

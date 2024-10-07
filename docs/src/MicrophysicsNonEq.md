@@ -92,26 +92,62 @@ where:
 - ``c_p`` is the specific heat of air at constant pressure,
 - ``R_v`` is the gas constant of water vapor,
 - ``L_v`` and ``L_s`` is the latent heat of vaporization and sublimation.
- 
-    Note that these forms of condensation/sublimation and deposition/sublimation are equivalent to those described in the adiabatic parcel model with some rearrangements and assumptions. It is just necessary to use the definitions of ```\tau```, ```q_{sl}```, and the thermal diffusivity ```D_v```:
 
-    ```math
-    \begin{equation}
-      \tau = 4 \pi N_{tot} \bar{r}, \;\;\;\;\;\;\;\;
-      q_{sl} = \frac{e_{sl}}{\rho R_v T}, \;\;\;\;\;\;\;\;
-      D_v = \frac{K}{\rho c_p}
-    \end{equation}
-    ```
-    and if we assume that the supersaturation S can be approximated by specific humidities (this is only exactly true for mass mixing ratios):
-    ```math
-    \begin{equation}
-        S_l = \frac{q_{vap}}{q_{sl}}
-    \end{equation}
-    ```
-    then we can write:
-    ```math
-    \begin{equation}
-      q_{vap} - q_{sl} = q_{sl}(S_l - 1)
-    \end{equation}
-    ```
-    and ```Gamma``` is equivalent to the ```G``` function used in our parcel and parameterizations.
+Note that these forms of condensation/sublimation and deposition/sublimation
+  are equivalent to those described in the adiabatic parcel model with some rearrangements and assumptions.
+To see this, it is necessary to use the definitions of ``\tau``, ``q_{sl}``, and the thermal diffusivity ``D_v``:
+
+```math
+\begin{equation}
+  \tau = 4 \pi N_{tot} \bar{r}, \;\;\;\;\;\;\;\;
+  q_{sl} = \frac{e_{sl}}{\rho R_v T}, \;\;\;\;\;\;\;\;
+  D_v = \frac{K}{\rho c_p}.
+\end{equation}
+```
+If we then assume that the supersaturation ``S`` can be approximated by the specific humidities (this is only exactly true for mass mixing ratios):
+```math
+\begin{equation}
+    S_l = \frac{q_{vap}}{q_{sl}},
+\end{equation}
+```
+we can write
+```math
+\begin{equation}
+  q_{vap} - q_{sl} = q_{sl}(S_l - 1).
+\end{equation}
+```
+``\Gamma_l`` and ``\Gamma_i`` then are equivalent to the ``G`` function used in our parcel model and parameterizations.
+
+## Cloud condensate sedimentation
+
+We use the Chen et al. [Chen2022](@cite) parameterization for cloud liquid and cloud ice sedimentation velocities.
+In the 1-moment precipitation scheme, we assume that cloud condensate is a continuous field
+  and don't introduce an explicit particle size distribution.
+For simplicity, we assume a monodisperse size distribution
+  and compute the group terminal velocity based on the volume radius
+  and prescribed number concentration:
+
+```math
+\begin{equation}
+  D_{vol} = \frac{\rho_{air} q}{N \rho}
+\end{equation}
+```
+where:
+ - ``\rho_{air}`` is the air density,
+ - ``q`` is the cloud liquid or cloud ice specific humidity,
+ - ``N`` is the prescribed number concentration (``500/cm^3`` by default),
+ - ``\rho`` is the cloud water or cloud ice density.
+
+The sedimentation velocity then is
+```math
+\begin{equation}
+  v_t = v_{term}(D_{vol}).
+\end{equation}
+```
+
+!!! note
+    We are using the B1 coefficients from Chen et al. [Chen2022](@cite) to compute
+    the cloud condensate velocities. They were fitted for larger particle sizes.
+    To mitigate the resulting errors, we multiply by a correction factor.
+    We should instead find a parameterization that was designed for the cloud droplet
+    size range.

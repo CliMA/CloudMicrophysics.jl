@@ -93,7 +93,7 @@ function lambda(
 
     return q > FT(0) ?
            (
-        χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
+        χm * m0 * n0 * CO.Γ(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
     )^FT(1 / (me + Δm + 1)) : FT(0)
 end
 
@@ -153,28 +153,26 @@ function terminal_velocity(
         # size distrbution
         λ = lambda(pdf, mass, q, ρ)
 
-        return χv *
-               v0 *
-               (λ * r0)^(-ve - Δv) *
-               SF.gamma(me + ve + Δm + Δv + FT(1)) / SF.gamma(me + Δm + FT(1))
+        return χv * v0 * (λ * r0)^(-ve - Δv) * CO.Γ(me + ve + Δm + Δv + FT(1)) /
+               CO.Γ(me + Δm + FT(1))
     else
         return FT(0)
     end
 end
 function terminal_velocity(
-    (; pdf, mass)::Union{CMP.Rain{FT}, CMP.CloudIce{FT}},
-    vel::Union{CMP.Chen2022VelTypeRain{FT}, CMP.Chen2022VelTypeSnowIce{FT}},
+    (; pdf, mass)::CMP.Rain{FT},
+    vel::CMP.Chen2022VelTypeRain{FT},
     ρ::FT,
     q::FT,
 ) where {FT}
     fall_w = FT(0)
     if q > FT(0)
         # coefficients from Table B1 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρ)
         # size distribution parameter
         λ::FT = lambda(pdf, mass, q, ρ)
         # eq 20 from Chen et al 2022
-        fall_w = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 3))
+        fall_w = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
         # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
         fall_w = max(FT(0), fall_w)
     end
@@ -187,37 +185,31 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
+    # For now, we assume the B4 table coefficients for snow
+    # and B2 table coefficients for cloud ice.
+    # TODO - we should do partial integrals
+    # from D=125um to D=625um using B2 and D=625um to inf using B4.
     if q > FT(0)
-
-        (; r0, m0, me, Δm, χm) = mass
-        (; a0, ae, Δa, χa) = area
+        # coefficients from Table B4 from Chen et. al. 2022
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρ)
+        #aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρ)
+        # size distribution parameter
         λ::FT = lambda(pdf, mass, q, ρ)
 
-        m0c = m0 * χm
-        a0c = a0 * χa
-        mec = me + Δm
-        aec = ae + Δa
+        # As a next step, we could keep ϕ(r) under the integrals
+        # ϕ(r) = 16 * ρᵢ^2 * aᵢ(r)^3 / (9 * π * mᵢ(r)^2)
 
-        # coefficients from Appendix B from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
+        # compute the mass weighted average aspect ratio
+        (; r0, m0, me, Δm, χm) = mass
+        (; a0, ae, Δa, χa) = area
         ρᵢ = vel.ρᵢ
-        κ = FT(-1 / 3) #oblate
-        k = 3 # mass weighted
+        α = 3 * (ae + Δa) - 2 * (me + Δm)
+        ϕ₀ = 16 * ρᵢ^2 / 9 / FT(π) * (χa * a0)^3 / (χm * m0)^2 / r0^α
+        ϕ_avg = ϕ₀ / λ^α * CO.Γ(α + 3 + 1) / CO.Γ(3 + 1)
 
-        tmp =
-            λ^(k + 1) *
-            ((16 * a0c^3 * ρᵢ^2) / (9 * π * m0c^2 * r0^(3 * aec - 2 * mec)))^κ
-        ci_pow =
-            (2 .* ciu .+ λ) .^
-            (.-(3 .* aec .* κ .- 2 .* mec .* κ .+ bi .+ k .+ 1))
-
-        ti = tmp .* aiu .* FT(2) .^ bi .* ci_pow
-
-        Chen2022_vel_add_sno(t, b, aec, mec, κ, k) =
-            t * SF.gamma(3 * κ * aec - 2 * κ * mec + b + k + 1) /
-            SF.gamma(k + 1)
-
-        fall_w = sum(Chen2022_vel_add_sno.(ti, bi, aec, mec, κ, k))
+        # eq 20 from Chen 2022
+        κ = FT(-1 / 3) # assuming oblate
+        fall_w = ϕ_avg^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
@@ -340,7 +332,7 @@ function accretion(
 
         accr_rate =
             q_clo * E * n0 * a0 * v0 * χa * χv / λ *
-            SF.gamma(ae + ve + Δa + Δv + FT(1)) / (λ * r0)^(ae + ve + Δa + Δv)
+            CO.Γ(ae + ve + Δa + Δv + FT(1)) / (λ * r0)^(ae + ve + Δa + Δv)
     end
     return accr_rate
 end
@@ -386,7 +378,7 @@ function accretion_rain_sink(
 
         accr_rate =
             E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv / λ_ice / λ *
-            SF.gamma(me + ae + ve + Δm + Δa + Δv + FT(1)) /
+            CO.Γ(me + ae + ve + Δm + Δa + Δv + FT(1)) /
             (r0 * λ)^FT(me + ae + ve + Δm + Δa + Δv)
     end
     return accr_rate
@@ -443,11 +435,11 @@ function accretion_snow_rain(
         accr_rate =
             FT(π) / ρ * n0_i * n0_j * m0_j * χm_j * E_ij * abs(v_ti - v_tj) /
             r0_j^(me_j + Δm_j) * (
-                FT(2) * SF.gamma(me_j + Δm_j + FT(1)) / λ_i^FT(3) /
+                FT(2) * CO.Γ(me_j + Δm_j + FT(1)) / λ_i^FT(3) /
                 λ_j^(me_j + Δm_j + FT(1)) +
-                FT(2) * SF.gamma(me_j + Δm_j + FT(2)) / λ_i^FT(2) /
+                FT(2) * CO.Γ(me_j + Δm_j + FT(2)) / λ_i^FT(2) /
                 λ_j^(me_j + Δm_j + FT(2)) +
-                SF.gamma(me_j + Δm_j + FT(3)) / λ_i / λ_j^(me_j + Δm_j + FT(3))
+                CO.Γ(me_j + Δm_j + FT(3)) / λ_i / λ_j^(me_j + Δm_j + FT(3))
             )
     end
     return accr_rate
@@ -502,7 +494,7 @@ function evaporation_sublimation(
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
                 (r0 * λ)^((ve + Δv) / FT(2)) *
                 (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
-                SF.gamma((ve + Δv + FT(5)) / FT(2))
+                CO.Γ((ve + Δv + FT(5)) / FT(2))
             )
     end
     # only evaporation is considered for rain
@@ -541,7 +533,7 @@ function evaporation_sublimation(
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
                 (r0 * λ)^((ve + Δv) / FT(2)) *
                 (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
-                SF.gamma((ve + Δv + FT(5)) / FT(2))
+                CO.Γ((ve + Δv + FT(5)) / FT(2))
             )
     end
     return evap_subl_rate
@@ -592,7 +584,7 @@ function snow_melt(
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
                 (r0 * λ)^((ve + Δv) / FT(2)) *
                 (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
-                SF.gamma((ve + Δv + FT(5)) / FT(2))
+                CO.Γ((ve + Δv + FT(5)) / FT(2))
             )
     end
     return snow_melt_rate

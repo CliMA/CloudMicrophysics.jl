@@ -20,6 +20,7 @@ The cloud microphysics variables are expressed as specific humidities:
 Particles are assumed to follow power-law relationships involving the mass(radius),
 denoted by ``m(r)``, the cross section(radius), denoted by ``a(r)``, and the
 terminal velocity(radius), denoted by ``v_{term}(r)``, respectively.
+See terminal velocity section for more details on the available terminal velocity options.
 The coefficients are defined in the
   [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package
   and are shown in the table below.
@@ -34,15 +35,12 @@ m(r) = \chi_m \, m_0 \left(\frac{r}{r_0}\right)^{m_e + \Delta_m}
 ```math
 a(r) = \chi_a \, a_0 \left(\frac{r}{r_0}\right)^{a_e + \Delta_a}
 ```
-```math
-v_{term}(r) = \chi_v \, v_0 \left(\frac{r}{r_0}\right)^{v_e + \Delta_v}
-```
 where:
  - ``r`` is the particle radius,
  - ``r_0`` is the typical particle radius used to nondimensionalize,
- - ``m_0, \, m_e, \, a_0, \, a_e, \, v_0, \, v_e \,`` are the default
+ - ``m_0, \, m_e, \, a_0, \, a_e`` are the default
    coefficients,
- - ``\chi_m``, ``\Delta_m``, ``\chi_a``, ``\Delta_a``, ``\chi_v``, ``\Delta_v``
+ - ``\chi_m``, ``\Delta_m``, ``\chi_a``, ``\Delta_a``
    are the coefficients that can be used during model calibration to expand
    around the default values.
    Without calibration all ``\chi`` parameters are set to 1
@@ -72,7 +70,6 @@ With that said, the assumption about the shape of the particles is used three
 |``m_e^{rai}``  | exponent in ``m(r)`` for rain           | -               | ``3``                                           |           |
 |``a_0^{rai}``  | coefficient in ``a(r)`` for rain        | ``m^2``         | ``\pi \, r_0^2``                                |           |
 |``a_e^{rai}``  | exponent in ``a(r)`` for rain           | -               | ``2``                                           |           |
-|``v_e^{rai}``  | exponent in ``v_{term}(r)`` for rain    | -               | ``0.5``                                         |           |
 |               |                                         |                 |                                                 |           |
 |``r_0^{ice}``  | typical ice crystal radius              | ``m``           | ``10^{-5} ``                                    |           |
 |``m_0^{ice}``  | coefficient in ``m(r)`` for ice         | ``kg``          | ``\frac{4}{3} \, \pi \, \rho_{ice} \, r_0^3``   |           |
@@ -83,121 +80,10 @@ With that said, the assumption about the shape of the particles is used three
 |``m_e^{sno}``  | exponent in ``m(r)`` for snow           | -               | ``2``                                           | eq (6b) [Grabowski1998](@cite) |
 |``a_0^{sno}``  | coefficient in ``a(r)`` for snow        | ``m^2``         | ``0.3 \pi \, r_0^2``                            | ``\alpha`` in eq(16b) [Grabowski1998](@cite).|
 |``a_e^{sno}``  | exponent in ``a(r)`` for snow           | -               | ``2``                                           |           |
-|``v_0^{sno}``  | coefficient in ``v_{term}(r)`` for snow | ``\frac{m}{s}`` | ``2^{9/4} r_0^{1/4}``                           | eq (6b) [Grabowski1998](@cite) |
-|``v_e^{sno}``  | exponent in ``v_{term}(r)`` for snow    | -               | ``0.25``                                        | eq (6b) [Grabowski1998](@cite) |
 
 where:
  - ``\rho_{water}`` is the density of water,
  - ``\rho_{ice}`` is the density of ice.
-
-The terminal velocity of an individual rain drop is defined by the balance
-  between the gravitational acceleration (taking into account
-  the density difference between water and air) and the drag force.
-Therefore the ``v_0^{rai}`` is defined as
-```math
-\begin{equation}
-v_0^{rai} =
-  \left(
-    \frac{8}{3 \, C_{drag}} \left( \frac{\rho_{water}}{\rho} -1 \right)
-  \right)^{1/2} (g r_0^{rai})^{1/2}
-\label{eq:vdrop}
-\end{equation}
-```
-where:
- - ``g`` is the gravitational acceleration,
- - ``C_{drag}`` is the drag coefficient,
- - ``\rho`` is the density of air.
-
-!!! note
-    Assuming a constant drag coefficient is an approximation and it should
-    be size and flow dependent, see for example
-    [here](https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/drag-of-a-sphere/).
-    We are in the process of updating the 1-moment microphysics scheme to formulae from [Chen2022](@cite).
-    Other possibilities: [Khvorostyanov2002](@cite) or [Karrer2020](@cite)
-
-[Chen2022](@cite) provides a terminal velocity parameterisation
-  based on an empirical fit to a high accuracy model.
-The terminal velocity depends on particle shape, size and density,
-  consideres the deformation effects of large rain drops,
-  as well as size-specific air density dependence.
-The fall speed of individual particles $v(D)$ is parameterized as:
-```math
-\begin{equation}
-    v_{term}(D) = \phi^{\kappa} \sum_{i=1}^{j} \; a_i D^{b_i} e^{-c_i \; D}
-\end{equation}
-```
-where:
- - ``D`` is the particle diameter,
- - ``a_i``, ``b_i``, ``c_i`` are the free parameters,
- - ``\phi`` is the aspect ratio, and
- - ``\kappa`` is a parameter that depends on the particle shape (``\kappa=0`` for spheres, ``\kappa=-1/3`` for oblate and ``\kappa=1/6`` for prolate spheroids).
-
-For ice and snow ``j=2`` and for rain ``j=3``, to account for deformation at larger sizes.
-For rain and ice we assume ``\phi=1`` (spherical).
-For snow we assume ``\kappa = -1/3`` and
-  find the aspect ratio that is consistent with the assumed ``m(r)`` and ``a(r)`` relationships.
-The aspect ratio is defined as:
-```math
-\begin{equation}
-    \phi \equiv c/a
-\end{equation}
-```
-where:
- - ``a`` is the basal plane axial half-length, and
- - ``c`` is perpendicular to the basal plane.
-
-The volume of a spheroid can be represented as ``V_p = 4\pi/3 \; a^2 c``
-  and the area can be represented as ``A_p = \pi a c``.
-It follows that
-  ``c = (4A_p^2) / (3 \pi V_p)``,
-  ``a = (3V_p) / (4A_p)``, and
-  ``\phi = (16 A_p^3) / (9 \pi V_p^2)``.
-The volume and area are defined by the assumed power-law size relations
-  ``V_p = m(r) / (\rho_{ice})``, ``A_p = a(r)``.
-As a result the terminal velocity of individual snow particles as:
-```math
-\begin{equation}
-    v_{term}(r) = \left(\frac{16 \; \rho_{ice}^2 \; a_0^3 \; (r/r_0)^{3a_e}}{9 \pi \; m_0^2 \; (r/r_0)^{2 m_e}} \right)^{\kappa}  \sum_{i=1}^{2} \; a_i (2r)^{b_i} e^{-2 c_i r}
-\end{equation}
-```
-where $r$ is the radius of the particle.
-
-Here we plot the terminal velocity formulae from the current default 1-moment scheme and [Chen2022](@cite).
-We also show the aspect ratio of snow particles.
-
-```@example
-include("plots/TerminalVelocityComparisons.jl")
-```
-![](1M_individual_terminal_velocity_comparisons.svg)
-
-The rain ``a_i``, ``b_i``, and ``c_i`` are listed in the table below.
-The formula is applicable when ``D > 0.1 mm``,
-$q$ refers to ``q = e^{0.115231 \; \rho_a}``, where  ``\rho_a`` is air density [kg/m3].
-The units are: [v] = m/s, [D]=mm, [``a_i``] = ``mm^{-b_i} m/s``, [``b_i``] is dimensionless, [``c_i``] = 1/mm.
-
-|  ``i``  |            ``a_i``                        |         ``b_i``                      |   ``c_i``           |
-|---------|-------------------------------------------|--------------------------------------|---------------------|
-|   1     |   `` 0.044612 \; q``                      |   ``2.2955 \; -0.038465 \; \rho_a``  |   ``0``             |
-|   2     |   ``-0.263166 \; q``                      |   ``2.2955 \; -0.038465 \; \rho_a``  |   ``0.184325``      |
-|   3     |   ``4.7178 \; q \; (\rho_a)^{-0.47335}``  |   ``1.1451 \; -0.038465 \; \rho_a``  |   ``0.184325``      |
-
-The ice and snow ``a_i``, ``b_i``, and ``c_i`` are listed in the table below.
-The formula is applicable when ``D < 0.625 mm``.
-
-| ``i`` |        ``a_i``              |       ``b_i``           |   ``c_i`` |
-|-------|-----------------------------|-------------------------|-----------|
-|   1   |   ``E_s (\rho_a)^{A_s}``    |   ``B_s + C_s \rho_a``  |   ``0``   |
-|   2   |   ``F_s (\rho_a)^{A_s}``    |   ``B_s + C_s \rho_a``  |   ``G_s`` |
-
-| Coefficient  | Formula                                                                                        |
-|--------------|------------------------------------------------------------------------------------------------|
-| ``A_s``      | ``0.00174079 \log{(\rho_{ice})}^2 − 0.0378769 \log{(\rho_{ice})} - 0.263503``                  |
-| ``B_s``      | ``(0.575231 + 0.0909307 \log{(\rho_{ice})} + 0.515579 / \sqrt{\rho_{ice}})^{-1}``              |
-| ``C_s``      | ``-0.345387 + 0.177362 \, \exp{(-0.000427794 \rho_{ice})} + 0.00419647 \sqrt{\rho_{ice}}``     |
-| ``E_s``      | ``-0.156593 - 0.0189334 \log{(\rho_{ice})}^2 + 0.1377817 \sqrt{\rho_{ice}}``                   |
-| ``F_s``      | ``- \exp{[-3.35641 - 0.0156199 \log{\rho_{ice}}^2 + 0.765337 \log{\rho_{ice}}]}``              |
-| ``G_s``      | ``(-0.0309715 + 1.55054 / \log{(\rho_{ice})} - 0.518349 log{(\rho_{ice})} / \rho_{ice})^{-1}`` |
-
 
 ## Assumed particle size distributions
 
@@ -287,7 +173,6 @@ They consist of:
 
 |    symbol                  |         definition                                        | units                    | default value          | reference |
 |----------------------------|-----------------------------------------------------------|--------------------------|------------------------|-----------|
-|``C_{drag}``                | rain drop drag coefficient                                | -                        | ``0.55``               | ``C_{drag}`` is such that the mass averaged terminal velocity is close to [Grabowski1996](@cite) |
 |``\tau_{acnv\_rain}``       | cloud liquid to rain water autoconversion timescale       | ``s``                    | ``10^3``               | eq (5a) [Grabowski1996](@cite) |
 |``\tau_{acnv\_snow}``       | cloud ice to snow autoconversion timescale                | ``s``                    | ``10^2``               |           |
 |``q_{liq\_threshold}``      | cloud liquid to rain water autoconversion threshold       | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite) |
@@ -356,7 +241,9 @@ The mass weighted terminal velocity ``v_t`` (following [Ogura1971](@cite)) is:
 \label{eq:vt}
 \end{equation}
 ```
-Integrating the default 1-moment ``m(r)`` and ``v_{term}(r)`` relationships
+See [here](https://clima.github.io/CloudMicrophysics.jl/dev/TerminalVelocity.html)
+  for discussion of the different parameterizations of ``v_{term}``.
+Integrating the 1-moment ``m(r)`` and power-law ``v_{term}(r)`` relationships
     over the assumed Marshall-Palmer distribution results in group terminal velocity:
 ```math
 \begin{equation}
@@ -365,31 +252,21 @@ Integrating the default 1-moment ``m(r)`` and ``v_{term}(r)`` relationships
              {\Gamma(m_e + \Delta_m + 1)}
 \end{equation}
 ```
+Integrating the Chen et al. [Chen2022](@cite) formulae over the assumed Marshall-Palmer size distribution
+  results in the group terminal velocity (eq. 20 in [Chen2022](@cite)):
+```math
+\begin{equation}
+  v_t = \phi_{avg}^\kappa \sum_{i=1}^{j} \frac{a_i \lambda^{\delta} \Gamma(b_i + \delta)}{(\lambda + c_i)^{b_i + \delta} \; \Gamma(\delta)},
+\end{equation}
+```
+where ``\delta = 4`` for the case of an exponential size distribution and the mass-weighted mean.
+For snow, for simplicity, we first compute the
+  mass-weighted mean aspect ratio over the size distribution of particles ``\phi_{avg}``
+  and then treat this as constant when computing the group terminal velocity.
 
-Integrating [Chen2022](@cite) formulae for rain and ice
-  over the assumed Marshall-Palmer size distribution,
-  results in group terminal velocity:
-```math
-\begin{equation}
-  v_t = \sum_{i=1}^{j} \frac{a_i \lambda^{\delta} \Gamma(b_i + \delta)}{(\lambda + c_i)^{b_i + 4} \; \Gamma(4)}
-\end{equation}
-```
-Finally, integrating [Chen2022](@cite) formulae for snow
-  over the assumed Marshall-Palmer distribution,
-  results in group terminal velocity:
-```math
-\begin{equation}
-  v_t = \sum_{i=1}^{2} t_i \frac{\Gamma(3a_e \kappa - 2 m_e \kappa + b_i + k + 1)}{\Gamma(k+1)}
-\end{equation}
-```
-where:
-```math
-\begin{equation}
-t_i = \frac{[16 a_0^3 \rho_{ice}^2]^{\kappa} \; a_i \; 2^{b_i} [2 c_i \lambda]^{-(3 a_e \kappa - 2 m_e \kappa + b_i + k)-1}}
-{[9 \pi m_0^2]^{\kappa} \; r_0^{3 a_e \kappa - 2 m_e \kappa} \lambda^{-k-1}}
-\end{equation}
-```
-and $k = 3$.
+!!! note
+    For snow, we only use the B4 coefficients from [Chen2022](@cite).
+    We should switch to doing partial integrals and include also the B2 coefficients.
 
 ## Rain autoconversion
 
@@ -759,7 +636,9 @@ If ``T > T_{freeze}``:
 
 ## Rain radar reflectivity
 
-The rain radar reflectivity factor (``Z``) is used to measure the power returned by a radar signal when it encounters rain particles, and it is defined as the sixth moment of the rain particles distribution:
+The rain radar reflectivity factor Z is used to measure the power
+  returned by a radar signal when it encounters rain particles.
+It is defined as the 6th moment of the rain particle size distribution:
 ```math
 \begin{equation}
 Z = {\int_0^\infty r^{6} \, n(r) \, dr}.
@@ -776,20 +655,19 @@ where:
  - ``n_{0}^{rai}`` - rain drop size distribution parameter,
  - ``\lambda`` - as defined in eq. 7
 
-By dividing ``Z`` with the equivalent return of a ``1 mm`` drop in a volume of a meter cube (``Z_0``) and applying the decimal logarithm to the result, we obtains the logarithmic rain radar reflectivity ``L_Z``, which is the variable that is commonly used to refer to the radar reflectivity values: 
+By dividing ``Z`` by the radar reflectivity factor ``Z_0`` for a drop of radius ``1 mm`` in a volume of ``1 m^3`` and applying the decimal logarithm to the result, we obtain the normalized logarithmic rain radar reflectivity ``L_Z``, which is the variable that is commonly referenced for radar reflectivity values:
 ```math
 \begin{equation}
-L_Z = {10 \, \log_{10}(\frac{Z}{Z_0})}.
+L_Z = {10 \, \log_{10} \left( \frac{Z}{Z_0} \right)}.
 \end{equation}
 ```
-The resulting logarithmic dimensionless unit is decibel relative to ``Z``, or ``dBZ``.
+The resulting logarithmic dimensionless unit is decibel relative to ``Z_0``.
 
 ## Example figures
 
 ```@example
 include("plots/Microphysics1M_plots.jl")
 ```
-![](terminal_velocity.svg)
 ![](autoconversion_rate.svg)
 ![](accretion_rate.svg)
 ![](accretion_rain_sink_rate.svg)

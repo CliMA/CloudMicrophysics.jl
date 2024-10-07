@@ -182,24 +182,12 @@ include("plots/P3LambdaErrorPlots.jl")
 
 ## Terminal Velocity
 
-We use the [Chen2022](@cite) velocity parameterization:
-```math
-V(D) = \phi^{\kappa} \sum_{i=1}^{j} \; a_i D^{b_i} e^{-c_i \; D}
-```
-where
-```math
-\phi = (16 \rho_{ice}(D)^2 A(D)^3) / (9 \pi m(D)^2)
-```
-is the aspect ratio, and ``\kappa``, ``a_i``, ``b_i`` and ``c_i`` are the free parameters.
+We use the Chen et al. [Chen2022](@cite) velocity parameterization,
+  see [here](https://clima.github.io/CloudMicrophysics.jl/dev/TerminalVelocity.html#Chen-et.-al.-2022) for details.
 
-The aspect ratio of a spheroid is defined ``\phi = \frac{a}{c}``, where ``a`` is the equatorial radius and ``c`` is the distance from the pole to the center.
-  In terms of ``a`` and ``c``, a spheroid's volume can be represented as ``V(a, c) = \frac{4}{3} \pi a^2 c``, and its cross-sectional area can be assumed ``A(a, c) = \pi a c``.
-  We use ``m(D)`` and ``A(D)`` from P3, so by substituting ``m(a, c) = \rho_{ice} V(a, c)``, ``A(a, c)`` for ``m(D)``, ``A(D)`` into the formulation of aspect ratio above,
-  we demonstrate agreement with the definition ``\phi = \frac{a}{c}``.
-
+The figure below shows the implied aspect ratio for different particle size regimes.
 Note that ``\phi = 1`` corresponds to spherical particles
   (small spherical ice (``D < D_{th}``) and graupel (``D_{gr} < D < D_{cr}``)).
-The plot provided below helps to visualize the transitions between spherical and nonspherical regimes.
 ```@example
 include("plots/P3AspectRatioPlot.jl")
 ```

@@ -524,7 +524,7 @@ function rain_particle_terminal_velocity(
     Chen2022::CMP.Chen2022VelTypeRain,
     ρₐ::FT,
 ) where {FT}
-    (ai, bi, ci) = CO.Chen2022_vel_coeffs_small(Chen2022, ρₐ)
+    (ai, bi, ci) = CO.Chen2022_vel_coeffs_B1(Chen2022, ρₐ)
 
     v = sum(@. sum(ai * D^bi * exp(-ci * D)))
     return v
@@ -574,13 +574,13 @@ function rain_terminal_velocity(
     N_rai::FT,
 ) where {FT}
     # coefficients from Table B1 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs_small(vel, ρ)
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρ)
     # size distribution parameter
     λ = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai).λr
 
     # eq 20 from Chen et al 2022
-    vt0 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 0))
-    vt3 = sum(CO.Chen2022_vel_add.(aiu, bi, ciu, λ, 3))
+    vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 0))
+    vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
 
     vt0 = N_rai < eps(FT) ? FT(0) : max(FT(0), vt0)
     vt3 = q_rai < eps(FT) ? FT(0) : max(FT(0), vt3)

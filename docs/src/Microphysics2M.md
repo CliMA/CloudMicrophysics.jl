@@ -302,61 +302,6 @@ The default free parameter values are:
 !!! note
     In the paper for ``\overline{D}_{eq} < \overline{D}_r`` the equation ``\Phi_{br}(\Delta \overline{D}_r) = 2 exp(\kappa_{br} \Delta \overline{D}_r) -1`` is given. This equations seems to be missing parentheses as the equation must be continuous at ``\Delta \overline{D}_r = 0`` as shown in Fig. 2 of the paper.
 
-### Terminal velocity
-
-For the two moment scheme which is based on number density and mass, it is straightforward to model sedimentation of particles by using number- and mass-weighted mean terminal velocities. For rain water these terminal velocities are obtained by calculating the following integral:
-```math
-\begin{equation}
-  \overline{v}_{r,\, k} = \frac{1}{M_r^k} \int_0^\infty x^k f_r(x) v(x) dx,
-\end{equation}
-```
-where the superscript ``k`` indicates the moment number, ``k=0`` for number density and ``k=1`` for mass.
-The individual terminal velocity of particles is approximated by
-```math
-v(x) = \left(\rho_0/\rho\right)^{\frac{1}{2}} [a_R - b_R exp(-c_R D_r)]
-```
-where ``a_R``, ``b_R`` and ``c_R`` are three free parameters and ``D_r`` is the particle diameter.
-Evaluating the integral results in the following equation for terminal velocity:
-```math
-\begin{equation}
-  \overline{v}_{r,\, k} = \left(\frac{\rho_0}{\rho}\right)^{\frac{1}{2}}\left[a_R - b_R \left(1+\frac{c_R}{\lambda_r}\right)^{-(3k+1)}\right],
-\label{eq:SBTerminalVelocity}
-\end{equation}
-```
-where ``\lambda_r`` is the raindrops size distribution parameter (based on diameter): ``\lambda_r = (\phi \rho_w/\overline{x}_r)^{1/3}``. To avoid numerical instabilities, especially when ``N_{rai} \rightarrow 0`` and ``q_{rai} \rightarrow 0``, ``\lambda_r`` is bounded. The limiting algorithm is as follows:
-```math
-\begin{align}
-\widetilde{x}_r &= max \left(\overline{x}_{r,\, min} , min \left(\overline{x}_{r,\, max} , \frac{\rho q_{rai}}{N_{rai}}\right)\right),\\
-N_0 &= max \left(N_{0,\, min} , min \left(N_{0,\, max} , N_{rai}\left(\frac{\pi \rho_w}{\widetilde{x}_r}\right)^{\frac{1}{3}}\right)\right),\\
-\lambda_r &= max \left(\lambda_{min} , min \left(\lambda_{max} , \left(\frac{\pi \rho_w N_0}{\rho q_{rai}}\right)^{\frac{1}{4}}\right)\right).
-\end{align}
-```
-
-When the limiting algorithm is not applied, the terminal velocity given by eq. (\ref{eq:SBTerminalVelocity}) can become negative for small mean radius values. This occurs because the equation for the individual particle's terminal velocity may predict negative values for small particles. To avoid negative terminal velocities (or a sudden transition to zero velocity if we return zero instead of negative values), we need to adjust the integration bounds. Specifically, the integrals should be evaluated from the radius at which the individual terminal velocity is zero to infinity. This adjustment leads to the following equation for the terminal velocity:
-
-```math
-\begin{align}
-  \overline{v}_{r,\, k} &= \frac{1}{M_r^k} \int_{r_c}^\infty x^k f_r(x) v(x) dx \nonumber\\
-  &= \left(\frac{\rho_0}{\rho}\right)^{\frac{1}{2}}\left[a_R \frac{\Gamma(3k+1, 2r_c\lambda_r)}{\Gamma(3k+1)} - b_R \frac{\Gamma(3k+1, 2r_c(\lambda_r + c_R))}{\Gamma(3k+1)} \left(1+\frac{c_R}{\lambda_r}\right)^{-(3k+1)}\right],
-\label{eq:SBModifiedTerminalVelocity}
-\end{align}
-```
-where ``r_c = -ln(a_R / b_R)/(2c_R)``.
-
-The default free parameter values are:
-
-|   symbol                   | default value                       |
-|----------------------------|-------------------------------------|
-|``a_R``                     | ``9.65 \, m \cdot s^{-1}``          |
-|``b_R``                     | ``10.3 \, m \cdot s^{-1}``          |
-|``c_R``                     | ``600 \, m^{-1}``                   |
-|``\overline{x}_{r,\, min}`` | ``6.54 \times 10^{-11} \, m``        |
-|``\overline{x}_{r,\, max}`` | ``5 \times 10^{-6}  \, m``          |
-|``N_{0,\, min}``            | ``3.5 \times 10^{5}  \, m^{-4}``    |
-|``N_{0,\, max}``            | ``2 \times 10^{10}  \, m^{-4}``      |
-|``\lambda_{min}``           | ``1 \times 10^{3}  \, m^{-1}``      |
-|``\lambda_{max}``           | ``4 \times 10^{4}  \, m^{-1}``      |
-
 ### Rain evaporation
 
 The parametrization of rain evaporation is obtained by considering the time scale of evaporation of individual raindrops:
@@ -426,6 +371,87 @@ The default free parameter values are:
 include("plots/RainEvapoartionSB2006.jl")
 ```
 ![](SB2006_rain_evaporation.svg)
+
+### Terminal velocity
+
+The number- and mass-weighted terminal velocities for rain water are obtained by calculating the following integral:
+```math
+\begin{equation}
+  \overline{v}_{r,\, k} = \frac{1}{M_r^k} \int_0^\infty x^k f_r(x) v(x) dx,
+\end{equation}
+```
+where the superscript ``k`` indicates the moment number,  with``k=0`` for number density and ``k=1`` for mass.
+
+The individual terminal velocity of particles is approximated by
+```math
+v(D) = \left(\rho_0/\rho\right)^{\frac{1}{2}} [a_R - b_R exp(-c_R D)]
+```
+where ``a_R``, ``b_R`` and ``c_R`` are free parameters and ``D`` is the particle diameter.
+Evaluating the integral results in
+```math
+\begin{equation}
+  \overline{v}_{r,\, k} = \left(\frac{\rho_0}{\rho}\right)^{\frac{1}{2}}\left[a_R - b_R \left(1+\frac{c_R}{\lambda_r}\right)^{-(3k+1)}\right],
+\label{eq:SBTerminalVelocity}
+\end{equation}
+```
+where ``\lambda_r`` is the raindrop size distribution parameter (based on diameter): ``\lambda_r = (\phi \rho_w/\overline{x}_r)^{1/3}``. To avoid numerical instabilities, especially when ``N_{rai} \rightarrow 0`` and ``q_{rai} \rightarrow 0``, ``\lambda_r`` is bounded. The limiting algorithm is as follows:
+```math
+\begin{align}
+\widetilde{x}_r &= \max \left[ \overline{x}_{r,\, \min} , \min \left(\overline{x}_{r,\, \max} , \frac{\rho q_{rai}}{N_{rai}}\right)\right] ,\\
+N_0 &= \max \left[ N_{0,\, \min} , \min \left(N_{0,\, \max} , N_{rai}\left(\frac{\pi \rho_w}{\widetilde{x}_r}\right)^{\frac{1}{3}}\right)\right],\\
+\lambda_r &= \max \left[ \lambda_{\min} , \min \left(\lambda_{\max} , \left(\frac{\pi \rho_w N_0}{\rho q_{rai}}\right)^{\frac{1}{4}}\right)\right].
+\end{align}
+```
+
+When the limiting algorithm is not applied, the terminal velocity given by eq. (\ref{eq:SBTerminalVelocity}) can become negative for small mean radius values. This occurs because the equation for the individual particle's terminal velocity may predict negative values for small particles. To avoid negative terminal velocities (or a sudden transition to zero velocity if we return zero instead of negative values), we need to adjust the integration bounds. Specifically, the integrals should be evaluated from the radius at which the individual terminal velocity is zero to infinity. This adjustment leads to the following equation for the terminal velocity:
+```math
+\begin{align}
+  \overline{v}_{r,\, k} &= \frac{1}{M_r^k} \int_{r_c}^\infty x^k f_r(x) v(x) dx \nonumber\\
+  &= \left(\frac{\rho_0}{\rho}\right)^{\frac{1}{2}}\left[a_R \frac{\Gamma(3k+1, 2r_c\lambda_r)}{\Gamma(3k+1)} - b_R \frac{\Gamma(3k+1, 2r_c(\lambda_r + c_R))}{\Gamma(3k+1)} \left(1+\frac{c_R}{\lambda_r}\right)^{-(3k+1)}\right],
+\label{eq:SBModifiedTerminalVelocity}
+\end{align}
+```
+where ``r_c = -\ln(a_R / b_R)/(2c_R)``.
+
+The default parameter values are:
+
+|   symbol                   | default value                       |
+|----------------------------|-------------------------------------|
+|``a_R``                     | ``9.65 \, m \cdot s^{-1}``          |
+|``b_R``                     | ``10.3 \, m \cdot s^{-1}``          |
+|``c_R``                     | ``600 \, m^{-1}``                   |
+|``\overline{x}_{r,\, \min}`` | ``6.54 \times 10^{-11} \, m``        |
+|``\overline{x}_{r,\, \max}`` | ``5 \times 10^{-6}  \, m``          |
+|``N_{0,\, \min}``            | ``3.5 \times 10^{5}  \, m^{-4}``    |
+|``N_{0,\, \max}``            | ``2 \times 10^{10}  \, m^{-4}``      |
+|``\lambda_{\min}``           | ``1 \times 10^{3}  \, m^{-1}``      |
+|``\lambda_{\max}``           | ``4 \times 10^{4}  \, m^{-1}``      |
+
+Below we compare number-weighted (left) and mass-weighted (right) terminal velocities
+  for the original parameterization of SB2006 [SeifertBeheng2006](@cite)
+  and the modifed parameterzation given by eq. (\ref{eq:SBModifiedTerminalVelocity}),
+  without the limiting distribution shape factor $\lambda_r$.
+```@example
+include("plots/TerminalVelocity2M.jl")
+```
+![](2M_terminal_velocity_comparisons.svg)
+
+For the Chen et al. [Chen2022](@cite) terminal velocity parameterization,
+  the number- and mass-weighted group terminal velocities are:
+```math
+\begin{equation}
+  \overline{v_k} = \frac{\int_0^\infty v(D) \, D^k \, n(D) \, dD}
+             {\int_0^\infty D^k \, n(D) \, dD}
+             = (\phi)^{\kappa} \Sigma_{i} \frac{a_i \lambda^\delta \Gamma(b_i + \delta)}
+             {(\lambda + c_i)^{b_i + \delta} \; \Gamma(\delta)},
+\end{equation}
+```
+where $\Gamma$ is the gamma function, $\delta = k + 1$, and
+$\lambda$ is the size distribution parameter.
+The velocity $\overline{v_k}$ is the number-weighted mean terminal velocity when k = 0,
+and the mass-weighted mean terminal velocity when k = 3.
+
+## Diagnostics
 
 ### Radar reflectivity
 
@@ -509,61 +535,8 @@ where:
 
 ## Additional 2-moment microphysics options
 
-### Terminal Velocity
-
-[Chen2022](@cite) provides a terminal velocity parameterisation
-based on an empirical fit to a high accuracy model.
-It consideres the deformation effects of large rain drops,
-as well as size-specific air density dependence.
-The fall speed of individual raindrops $v(D)$ is parameterized as:
-```math
-\begin{equation}
-    v(D) = (\phi)^{\kappa} \Sigma_{i = 1,3} \; a_i D^{b_i} e^{-c_i*D}
-\end{equation}
-```
-where D is the diameter of the particle,
-$a_i$, $b_i$, and $c_i$ are free parameers that account for deformation at larger sizes and air density dependance,
-$\phi$ is the aspect ratio (assumed to be 1 for spherical droplets), and
-$\kappa$ is 0 (corresponding to a spherical raindrop).
-$a_i$, $b_i$, and $c_i$ are listed in the table below.
-The formula is applicable when $D > 0.1 mm$,
-$q$ refers to $q = e^{0.115231 * \rho_a}$, where  $\rho_a$ refers to air density.
-The units are: [v] = m/s, [D]=mm, [$a_i$] = $mm^{-b_i} m/s$, [$b_i$] is dimensionless, [$c_i$] = 1/mm.
-
-|  $i$  |            $a_i$                        |         $b_i$                      |   $c_i$           |
-|-------|-----------------------------------------|------------------------------------|-------------------|
-|   1   |   $ 0.044612 \; q$                      |   $2.2955 \; -0.038465 \; \rho_a$  |   $0$             |
-|   2   |   $-0.263166 \; q$                      |   $2.2955 \; -0.038465 \; \rho_a$  |   $0.184325$      |
-|   3   |   $4.7178 \; q \; (\rho_a)^{-0.47335}$  |   $1.1451 \; -0.038465 \; \rho_a$  |   $0.184325$      |
-
-Assuming the same size distribution as in [SeifertBeheng2006](@cite),
-the number- and mass-weighted mean terminal velocities are:
-```math
-\begin{equation}
-  \overline{v_k} = \frac{\int_0^\infty v(D) \, D^k \, n(D) \, dD}
-             {\int_0^\infty D^k \, n(D) \, dD}
-             = (\phi)^{\kappa} \Sigma_{i} \frac{a_i \lambda^\delta \Gamma(b_i + \delta)}
-             {(\lambda + c_i)^{b_i + \delta} \; \Gamma(\delta)}
-\end{equation}
-```
-where $\Gamma$ is the gamma function, $\delta = k + 1$, and
-$\lambda$ is the size distribution parameter.
-$\overline{v_k}$ corresponds to the number-weighted mean terminal velocity when k = 0,
-and mass-weighted mean terminal velocity when k = 3.
-
-Below, in the top-left panel we compare the individual terminal velocity formulas for Chen2022 [Chen2022](@cite), SB2006 [SeifertBeheng2006](@cite) and data from [Gunn1949](@cite).
-In the top-right panel, we compare bulk number weighted [ND] and mass weighted [M]
-terminal velocities for both formulas integrated over the size distribution from SB2006 [SeifertBeheng2006](@cite).
-We also show the mass weighted terminal velocity from the 1-moment scheme. In the bottom panels we compare number-weighted (left) and mass-weighted (right) terminal velocities for the original parameterization of SB2006 [SeifertBeheng2006](@cite) and the modifed parameterzation given by eq. (\ref{eq:SBModifiedTerminalVelocity}) without limiting distribution shape factor $\lambda_r$.
-```@example
-include("plots/TerminalVelocityComparisons.jl")
-```
-![](2M_terminal_velocity_comparisons.svg)
-
-### Accretion and Autoconversion
-
-The other autoconversion and accretion rates in the `Microphysics2M.jl` module are implemented after Table 1 from [Wood2005](@cite)
-  and are based on the works of
+The other autoconversion and accretion rates in the `Microphysics2M.jl` module
+  are implemented after Table 1 from [Wood2005](@cite) and are based on the works of
   [KhairoutdinovKogan2000](@cite),
   [Beheng1994](@cite),
   [TripoliCotton1980](@cite) and

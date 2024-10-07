@@ -10,6 +10,7 @@ MicrophysicsNonEq
 MicrophysicsNonEq.τ_relax
 MicrophysicsNonEq.conv_q_vap_to_q_liq_ice
 MicrophysicsNonEq.conv_q_vap_to_q_liq_ice_MM2015
+MicrophysicsNonEq.terminal_velocity
 ```
 
 # 0-moment precipitation microphysics
@@ -131,9 +132,11 @@ Common.H2SO4_soln_saturation_vapor_pressure
 Common.a_w_xT
 Common.a_w_eT
 Common.a_w_ice
-Common.Chen2022_vel_add
-Common.Chen2022_vel_coeffs_small
-Common.Chen2022_vel_coeffs_large
+Common.Chen2022_monodisperse_pdf
+Common.Chen2022_exponential_pdf
+Common.Chen2022_vel_coeffs_B1
+Common.Chen2022_vel_coeffs_B2
+Common.Chen2022_vel_coeffs_B4
 ```
 
 # Parameters

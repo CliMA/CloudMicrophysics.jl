@@ -35,7 +35,7 @@ Returns the shape parameter N₀ from Eq. 2 in Morrison and Milbrandt (2015).
 """
 function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT}
     μ = DSD_μ(p3, λ)
-    return N / Γ(1 + μ) * λ^(1 + μ)
+    return N / CO.Γ(1 + μ) * λ^(1 + μ)
 end
 
 """
@@ -159,7 +159,7 @@ function L_over_N_gamma(
 
     D_th = D_th_helper(p3)
     λ = exp(log_λ)
-    N = Γ(1 + μ) / (λ^(1 + μ))
+    N = CO.Γ(1 + μ) / (λ^(1 + μ))
     return ifelse(
         F_rim == FT(0),
         (p3_F_liq_average(

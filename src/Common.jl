@@ -16,9 +16,11 @@ export H2SO4_soln_saturation_vapor_pressure
 export a_w_xT
 export a_w_eT
 export a_w_ice
-export Chen2022_vel_add
-export Chen2022_vel_coeffs_small
-export Chen2022_vel_coeffs_large
+export Chen2022_monodisperse_pdf
+export Chen2022_exponential_pdf
+export Chen2022_vel_coeffs_B1
+export Chen2022_vel_coeffs_B2
+export Chen2022_vel_coeffs_B4
 
 """
     G_func(air_props, tps, T, Liquid())
@@ -206,15 +208,15 @@ function a_w_ice(tps::TPS, T::FT) where {FT}
 end
 
 """
-    Chen2022_vel_coeffs_small(precip_type, velo_scheme, ρ)
+    Chen2022_vel_coeffs_B1(ρ)
 
- - velo_scheme - type for terminal velocity scheme (contains free parameters)
  - ρ - air density
+ - velo_scheme - a struct with terminal velocity free parameters
 
-Returns the coefficients from Appendix B in Chen et al 2022
+Returns the coefficients from Table B1 Appendix B in Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
 """
-function Chen2022_vel_coeffs_small(
+function Chen2022_vel_coeffs_B1(
     velo_scheme::CMP.Chen2022VelTypeRain,
     ρ::FT,
 ) where {FT}
@@ -232,7 +234,17 @@ function Chen2022_vel_coeffs_small(
 
     return (aiu, bi, ciu)
 end
-function Chen2022_vel_coeffs_small(
+
+"""
+    Chen2022_vel_coeffs_B2(ρ)
+
+ - ρ - air density
+ - velo_scheme - a struct with terminal velocity free parameters
+
+Returns the coefficients from Table B2 Appendix B in Chen et al 2022
+DOI: 10.1016/j.atmosres.2022.106171
+"""
+function Chen2022_vel_coeffs_B2(
     velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
     ρ::FT,
 ) where {FT}
@@ -249,15 +261,15 @@ function Chen2022_vel_coeffs_small(
 end
 
 """
-    Chen2022_vel_coeffs_large(velo_scheme, ρ)
+    Chen2022_vel_coeffs_B4(ρ)
 
- - velo_scheme - type for terminal velocity scheme (contains free parameters)
  - ρ - air density
+ - velo_scheme - a struct with terminal velocity free parameters
 
-Returns the coefficients from Appendix B (table B4 for large particles) in Chen et al 2022
+Returns the coefficients from Table B4 Appendix B in Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
 """
-function Chen2022_vel_coeffs_large(
+function Chen2022_vel_coeffs_B4(
     velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
     ρ::FT,
 ) where {FT}
@@ -273,8 +285,27 @@ function Chen2022_vel_coeffs_large(
     return (aiu, bi, ciu)
 end
 
+# Wrapper to cast types from SF.gamma
+# (which returns Float64 even when the input is Float32)
+# TODO - replace with parameterization of our own
+Γ(a::FT) where {FT <: Real} = FT(SF.gamma(a))
+
 """
-    Chen2022_vel_add(a, b, c, λ, k)
+    Chen2022_monodisperse_pdf(a, b, c, D)
+
+ - a, b, c, - free parameters defined in Chen etl al 2022
+ - D - droplet diameter
+
+Returns the addends of the bulk fall speed of rain or ice particles
+following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
+Assuming monodisperse droplet distribution.
+"""
+function Chen2022_monodisperse_pdf(a, b, c, D)
+    return a * D^b * exp(-c * D)
+end
+
+"""
+    Chen2022_exponential_pdf(a, b, c, λ, k)
 
  - a, b, c, - free parameters defined in Chen etl al 2022
  - λ - size distribution parameter
@@ -282,11 +313,12 @@ end
 
 Returns the addends of the bulk fall speed of rain or ice particles
 following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
-We are assuming exponential size distribution and hence μ=0.
+Assuming exponential size distribution and hence μ=0.
 """
-function Chen2022_vel_add(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT}
+function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT}
     μ = 0 # Exponential instead of gamma distribution
     δ = FT(μ + k + 1)
-    return a * λ^δ * SF.gamma(b + δ) / (λ + c)^(b + δ) / SF.gamma(δ)
+    return a * λ^δ * Γ(b + δ) / (λ + c)^(b + δ) / Γ(δ)
 end
-end
+
+end # module end
