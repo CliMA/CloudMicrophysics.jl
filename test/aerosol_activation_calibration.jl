@@ -22,8 +22,8 @@ function calibrate_ARG(
     fname = "2modal_dataset1_train.csv",
     sample_size = 500,
     N_samples = 1,
-    N_ensemble = 10,
-    N_iterations_per_sample = 20,
+    N_ensemble = 60,
+    N_iterations_per_sample = 40,
 )
     aip = CMP.AirProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)

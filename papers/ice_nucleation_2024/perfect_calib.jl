@@ -17,29 +17,29 @@ for IN_mode in IN_mode_list
     y_truth = pseudo_data[1]
     coeff_true = pseudo_data[3]
 
-    output = calibrate_J_parameters(
+    output = calibrate_J_parameters_EKI(
         FT,
         IN_mode,
         params,
         IC,
-        y_truth,
+        y_truth[end-25:end],
         Γ,
         perfect_model = true,
     )
 
-    iterations = collect(1:size(output[3])[1])
-    calibrated_parameters = [output[1], output[2]]
+    iterations = collect(1:size(output[2])[1])
+    calibrated_parameters = output[1]
     m_mean = []
     m_mean = ensemble_means(
-        output[3],
-        size(output[3])[1],
-        size(output[3][1])[2],
+        output[2],
+        size(output[2])[1],
+        size(output[2][1])[2],
     )[1]
     c_mean = []
     c_mean = ensemble_means(
-        output[3],
-        size(output[3])[1],
-        size(output[3][1])[2],
+        output[2],
+        size(output[2])[1],
+        size(output[2][1])[2],
     )[2]
 
     # Plotting calibrated parameters per iteration
