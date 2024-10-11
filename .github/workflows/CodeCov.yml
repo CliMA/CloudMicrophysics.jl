@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2.2.0
+    - uses: actions/checkout@v4
 
     - name: Set up Julia
       uses: julia-actions/setup-julia@latest
@@ -33,7 +33,7 @@ jobs:
       if: success()
 
     - name: Submit coverage
-      uses: codecov/codecov-action@v1.0.7
+      uses: codecov/codecov-action@v4.6.0
       with:
         token: ${{secrets.CODECOV_TOKEN}}
       if: success()
