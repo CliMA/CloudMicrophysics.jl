@@ -249,7 +249,7 @@ function benchmark_test(FT)
             TD.PhasePartition(FT(0), FT(0), FT(0.002)),
             TD.PhasePartition(FT(0), FT(0), FT(0.001)),
         ),
-        10,
+        12,
     )
     bench_press(
         CMN.conv_q_vap_to_q_liq_ice_MM2015,
