@@ -11,13 +11,13 @@ jobs:
     timeout-minutes: 30
     steps:
     - name: Cancel Previous Runs
-      uses: styfle/cancel-workflow-action@0.4.0
+      uses: styfle/cancel-workflow-action@0.12.1
       with:
         access_token: ${{ github.token }}
 
-    - uses: actions/checkout@v2.2.0
+    - uses: actions/checkout@v4
 
-    - uses: dorny/paths-filter@v2.9.1
+    - uses: dorny/paths-filter@v3.0.2
       id: filter
       with:
         filters: |
