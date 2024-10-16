@@ -317,7 +317,7 @@ and ice density determined using the size-dependent particle property regimes
 following Morrison and Milbrandt (2015). The density of nonspherical
 particles is assumed to be equal to the particle mass divided by the volume of a
 spherical particle with the same D_max.
-Assuming zero liquid fraction.
+Assuming zero liquid fraction and oblate shape.
 """
 function ϕᵢ(p3::PSP3, D::FT, F_rim::FT, th) where {FT}
     F_liq = FT(0)
@@ -325,5 +325,9 @@ function ϕᵢ(p3::PSP3, D::FT, F_rim::FT, th) where {FT}
     aᵢ = p3_area(p3, D, F_rim, F_liq, th)
     ρᵢ = p3_density(p3, D, F_rim, th)
 
-    return ifelse(D == 0, FT(0), 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))
+    # TODO - prolate or oblate?
+    ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
+    #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
+
+    return ifelse(D == 0, FT(0), ϕ_ob)
 end

@@ -155,7 +155,7 @@ function terminal_velocity(
     return fall_w
 end
 function terminal_velocity(
-    (; pdf, mass, ρᵢ)::CMP.CloudIce{FT},
+    (; ρᵢ)::CMP.CloudIce{FT},
     vel::CMP.Chen2022VelTypeSmallIce{FT},
     ρₐ::FT,
     q::FT,
