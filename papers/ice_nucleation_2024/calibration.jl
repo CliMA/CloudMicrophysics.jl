@@ -9,6 +9,7 @@ import ClimaParams as CP
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import Thermodynamics as TD
+import StatsBase as SB
 
 #! format: off
 # definition of the ODE problem for parcel model
@@ -16,7 +17,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
 
 # Define model which wraps around parcel and overwrites calibrated parameters
-function run_model(p, coefficients, IN_mode, FT, IC)
+function run_model(p, coefficients, IN_mode, FT, IC, end_sim)
     # grabbing parameters
     m_calibrated, c_calibrated = coefficients
     (; const_dt, w, t_max, aerosol_act, aerosol, r_nuc) = p
@@ -100,7 +101,7 @@ function run_model(p, coefficients, IN_mode, FT, IC)
 
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
-    return sol[9, :] ./ (IC[7] + IC[8] + IC[9])  # frozen fraction
+    return sol[9, end - end_sim:end] ./ (IC[7] + IC[8] + IC[9])
 end
 
 function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
@@ -247,52 +248,121 @@ function create_prior(FT, IN_mode, ; perfect_model = false)
     return prior
 end
 
-function calibrate_J_parameters(FT, IN_mode, params, IC, y_truth, Γ,; perfect_model = false)
+function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
     # Random number generator
     rng_seed = 24
     rng = Random.seed!(Random.GLOBAL_RNG, rng_seed)
 
     prior = create_prior(FT, IN_mode, perfect_model = perfect_model)
-    N_ensemble = 25      # runs N_ensemble trials per iteration
-    N_iterations = 100    # number of iterations the inverse problem goes through
+    N_ensemble = 25       # runs N_ensemble trials per iteration
+    N_iterations = 50     # number of iterations the inverse problem goes through
 
     # Generate initial ensemble and set up EKI
     initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
     EKI_obj = EKP.EnsembleKalmanProcess(
         initial_ensemble,
-        y_truth,
+        y_truth[end - end_sim:end],
         Γ,
         EKP.Inversion();
         rng = rng,
+        verbose = true,
+        localization_method = EKP.Localizers.NoLocalization(), # no localization
     )
 
     # Carry out the EKI calibration
     # ϕ_n_values[iteration] stores ensembles of calibrated coeffs in that iteration
     global ϕ_n_values = []
+    final_iter = N_iterations
     for n in 1:N_iterations
         ϕ_n = EKP.get_ϕ_final(prior, EKI_obj)
         G_ens = hcat(
             [
-                run_model(params, ϕ_n[:, i], IN_mode, FT, IC) for
+                run_model(params, ϕ_n[:, i], IN_mode, FT, IC, end_sim) for
                 i in 1:N_ensemble
             ]...,
         )
-        EKP.update_ensemble!(EKI_obj, G_ens)
+        # Update ensemble
+        terminated = EKP.update_ensemble!(EKI_obj, G_ens)
+        # if termination flagged, can stop at earlier iteration
+        if !isnothing(terminated)
+            final_iter = n - 1
+            break
+        end
 
         ϕ_n_values = vcat(ϕ_n_values, [ϕ_n])
     end
 
     # Mean coefficients of all ensembles in the final iteration
     m_coeff_ekp = round(
-        Distributions.mean(ϕ_n_values[N_iterations][1, 1:N_ensemble]),
+        Distributions.mean(ϕ_n_values[final_iter][1, 1:N_ensemble]),
         digits = 6,
     )
     c_coeff_ekp = round(
-        Distributions.mean(ϕ_n_values[N_iterations][2, 1:N_ensemble]),
+        Distributions.mean(ϕ_n_values[final_iter][2, 1:N_ensemble]),
         digits = 6,
     )
 
-    return [m_coeff_ekp, c_coeff_ekp, ϕ_n_values]
+    calibrated_coeffs = [m_coeff_ekp, c_coeff_ekp]
+
+    return [calibrated_coeffs, ϕ_n_values]
+end
+
+function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
+    prior = create_prior(FT, IN_mode, perfect_model = perfect_model)
+    N_iterations = 25
+    α_reg = 1.0
+    update_freq = 1
+
+    # truth = EKP.Observations.Observation(y_truth, Γ, "y_truth")
+    truth = EKP.Observation(
+        Dict("samples" => vec(SB.mean(y_truth[end - end_sim: end], dims = 2)), "covariances" => Γ, "names" => "y_truth")
+    )
+
+    # Generate initial ensemble and set up UKI
+    process = EKP.Unscented(
+        SB.mean(prior),
+        SB.cov(prior);
+        α_reg = α_reg,
+        update_freq = update_freq,
+        impose_prior = false,
+    )
+    UKI_obj = EKP.EnsembleKalmanProcess(truth, process; verbose = true)
+
+    err = []
+    final_iter =[N_iterations]
+    for n in 1:N_iterations
+        # Return transformed parameters in physical/constrained space
+        ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
+        # Evaluate forward map
+        G_n = [
+            run_model(params, ϕ_n[:, i], IN_mode, FT, IC, end_sim) for
+            i in 1:size(ϕ_n)[2]  #i in 1:N_ensemble
+        ]
+        # Reformat into `d x N_ens` matrix
+        G_ens = hcat(G_n...)
+        # Update ensemble
+        terminate = EKP.EnsembleKalmanProcesses.update_ensemble!(UKI_obj, G_ens)
+        push!(err, EKP.get_error(UKI_obj)[end])
+        println(
+            "Iteration: " *
+            string(n) *
+            ", Error: " *
+            string(err[n]) *
+            " norm(Cov):" *
+            string(Distributions.norm(EKP.get_process(UKI_obj).uu_cov[n]))
+        )
+        if !isnothing(terminate)
+            final_iter[1] = n - 1
+            break
+        end
+    end
+
+    UKI_mean_u_space = EKP.get_u_mean_final(UKI_obj)
+    UKI_mean = EKP.transform_unconstrained_to_constrained(prior, UKI_mean_u_space)
+
+    ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
+
+    return [UKI_mean, ϕ_n, final_iter]
 end
 
 function ensemble_means(ϕ_n_values, N_iterations, N_ensemble)
