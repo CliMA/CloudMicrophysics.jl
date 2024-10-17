@@ -26,6 +26,10 @@ export terminal_velocity,
     evaporation_sublimation,
     snow_melt
 
+abstract type AbstractSnowShape end
+struct Oblate <: AbstractSnowShape end
+struct Prolate <: AbstractSnowShape end
+
 """
     Ec(type_1, type_2, ce)
 
@@ -125,6 +129,44 @@ function radar_reflectivity(
 end
 
 """
+    aspect_ratio_coeffs(snow_shape, mass, area, density)
+
+ - `snow_shape` - a struct specifying assumed snow particle shape (Oblate or Prolate)
+ - `mass` - a struct with assumed m(r) power law relation parameters
+ - `area` - a struct with assumed a(r) power law relation parameters
+ - `ρᵢ` particle density
+
+Returns coefficients of the implied power law relationship between aspect ratio
+and particle diameter ϕ(D) = ϕ₀ D^α
+Also returns the coefficient for the aspect ratio in Chen 2022 terminal velocity
+parameterization (κ=1/3 for oblate and κ=-1/6 for prolate).
+"""
+function aspect_ratio_coeffs(
+    snow_shape::Oblate,
+    (; r0, m0, me, Δm, χm)::CMP.ParticleMass{FT},
+    (; a0, ae, Δa, χa)::CMP.ParticleArea{FT},
+    ρᵢ::FT,
+) where {FT}
+    # ϕ(r) = 3 * sqrt(FT(π)) * mᵢ(r) / (4 * ρᵢ * aᵢ(r)^(3/2)
+    α = me + Δm - 3/2 * (ae + Δa)
+    ϕ₀ = 3 * sqrt(FT(π)) / 4 / ρᵢ * χm * m0 / (χa * a0)^(3/2) / (2 * r0)^α
+    κ = FT(1 / 3)
+    return (; ϕ₀, α, κ)
+end
+function aspect_ratio_coeffs(
+    snow_shape::Prolate,
+    (; r0, m0, me, Δm, χm)::CMP.ParticleMass{FT},
+    (; a0, ae, Δa, χa)::CMP.ParticleArea{FT},
+    ρᵢ::FT,
+) where {FT}
+    # ϕ(r) = 16 * ρᵢ^2 * aᵢ(r)^3 / (9 * π * mᵢ(r)^2)
+    α = 3 * (ae + Δa) - 2 * (me + Δm)
+    ϕ₀ = 16 * ρᵢ^2 / 9 / FT(π) * (χa * a0)^3 / (χm * m0)^2 / (2 *r0)^α
+    κ = FT(-1 / 6)
+    return (; ϕ₀, α, κ)
+end
+
+"""
     terminal_velocity(precip, vel, ρ, q)
 
  - `precip` - a struct with precipitation type (rain or snow)
@@ -179,37 +221,51 @@ function terminal_velocity(
     return fall_w
 end
 function terminal_velocity(
-    (; pdf, mass, area)::CMP.Snow{FT},
+    (; pdf, mass, aspr)::CMP.Snow{FT},
     vel::CMP.Chen2022VelTypeSnowIce{FT},
     ρ::FT,
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    # For now, we assume the B4 table coefficients for snow
-    # and B2 table coefficients for cloud ice.
-    # TODO - we should do partial integrals
+    # We assume the B4 table coeffs for snow and B2 table coeffs for cloud ice.
+    # aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρ)
+    # Instead we should do partial integrals
     # from D=125um to D=625um using B2 and D=625um to inf using B4.
     if q > FT(0)
         # coefficients from Table B4 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρ)
-        #aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρ)
         # size distribution parameter
         λ::FT = lambda(pdf, mass, q, ρ)
 
-        # As a next step, we could keep ϕ(r) under the integrals
-        # ϕ(r) = 16 * ρᵢ^2 * aᵢ(r)^3 / (9 * π * mᵢ(r)^2)
-
-        # compute the mass weighted average aspect ratio
-        (; r0, m0, me, Δm, χm) = mass
-        (; a0, ae, Δa, χa) = area
-        ρᵢ = vel.ρᵢ
-        α = 3 * (ae + Δa) - 2 * (me + Δm)
-        ϕ₀ = 16 * ρᵢ^2 / 9 / FT(π) * (χa * a0)^3 / (χm * m0)^2 / r0^α
-        ϕ_avg = ϕ₀ / λ^α * CO.Γ(α + 3 + 1) / CO.Γ(3 + 1)
+        # assume oblate shape and aspect ratio
+        (; ϕ, κ) = aspr
 
         # eq 20 from Chen 2022
-        κ = FT(-1 / 3) # assuming oblate
-        fall_w = ϕ_avg^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+        fall_w = ϕ^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+        fall_w = max(FT(0), fall_w)
+    end
+    return fall_w
+end
+function terminal_velocity(
+    (; pdf, mass, area)::CMP.Snow{FT},
+    vel::CMP.Chen2022VelTypeSnowIce{FT},
+    ρ::FT,
+    q::FT,
+    snow_shape::AbstractSnowShape,
+) where {FT}
+    fall_w = FT(0)
+    # see comments above about B2 vs B4 coefficients
+    if q > FT(0)
+        # coefficients from Table B4 from Chen et. al. 2022
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρ)
+        # size distribution parameter
+        λ::FT = lambda(pdf, mass, q, ρ)
+        # Compute the mass weighted average aspect ratio ϕ_av
+        # As a next step, we could keep ϕ(r) under the integrals
+        (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, vel.ρᵢ)
+        ϕ_av = ϕ₀ / λ^α * CO.Γ(α + 3 + 1) / CO.Γ(3 + 1)
+        # eq 20 from Chen 2022
+        fall_w = ϕ_av^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
         fall_w = max(FT(0), fall_w)
     end
     return fall_w

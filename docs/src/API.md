@@ -174,6 +174,7 @@ Parameters.ParticlePDFSnow
 Parameters.ParticlePDFIceRain
 Parameters.ParticleMass
 Parameters.ParticleArea
+Parameters.SnowAspectRatio
 Parameters.Ventilation
 Parameters.Acnv1M
 Parameters.CloudLiquid

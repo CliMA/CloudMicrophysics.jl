@@ -149,9 +149,9 @@ function test_thresholds_solver(FT)
 
         # test aspect ratio
         TT.@test P3.ϕᵢ(p3, D_1, F_rim, th) ≈ 1
-        TT.@test P3.ϕᵢ(p3, D_2, F_rim, th) ≈ 0.5777887690
+        TT.@test P3.ϕᵢ(p3, D_2, F_rim, th) ≈ 1
         TT.@test P3.ϕᵢ(p3, D_3, F_rim, th) ≈ 1
-        TT.@test P3.ϕᵢ(p3, D_cr, F_rim, th) ≈ 0.662104776
+        TT.@test P3.ϕᵢ(p3, D_cr, F_rim, th) ≈ 1
 
         # test F_rim = 0 and D > D_th
         F_rim = FT(0)
@@ -307,7 +307,7 @@ function test_particle_terminal_velocities(FT)
         use_aspect_ratio = true
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
-        expected = [0.08109, 0.34441, 0.79121, 1.155, 1.289]
+        expected = [0.08109, 0.4115, 0.79121, 1.155, 1.487]
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = P3.ice_particle_terminal_velocity(
@@ -332,7 +332,7 @@ function test_particle_terminal_velocities(FT)
         use_aspect_ratio = true
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
-        expected = [0.13192, 0.471, 0.90753, 1.3015, 1.5766]
+        expected = [0.13192, 0.50457, 0.90753, 1.3015, 1.6757]
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = P3.p3_particle_terminal_velocity(
@@ -385,9 +385,11 @@ function test_bulk_terminal_velocities(FT)
         # Liquid fraction = 0
 
         ref_v_n = [3.637320375996216, 2.6130243256593313]
-        ref_v_n_ϕ = [2.2058692424028923, 2.24224820764301]
+        ref_v_n_ϕ = [3.637320375996216, 2.6130243256593313]
+        #ref_v_n_ϕ = [2.2058692424028923, 2.24224820764301]
         ref_v_m = [7.7208191246659705, 5.751352472270078]
-        ref_v_m_ϕ = [4.193799087495265, 4.773592179767702]
+        ref_v_m_ϕ = [7.7208191246659705, 5.751352472270078]
+        #ref_v_m_ϕ = [4.193799087495265, 4.773592179767702]
 
         for k in 1:length(F_rims)
             F_rim = F_rims[k]
@@ -434,9 +436,11 @@ function test_bulk_terminal_velocities(FT)
 
         # Liquid fraction != 0
         ref_v_n = [1.674591925057434, 1.6180970319460353]
-        ref_v_n_ϕ = [1.549777478756061, 1.6180970319460353]
+        ref_v_n_ϕ = [1.674591925057434, 1.6180970319460353]
+        #ref_v_n_ϕ = [1.549777478756061, 1.6180970319460353]
         ref_v_m = [5.126648558302173, 5.416679316254198]
-        ref_v_m_ϕ = [4.6358422594886495, 5.416679316254198]
+        ref_v_m_ϕ = [5.126648558302173, 5.416679316254198]
+        #ref_v_m_ϕ = [4.6358422594886495, 5.416679316254198]
 
         for k in 1:length(F_liqs)
             F_liq = F_liqs[k]
@@ -806,8 +810,8 @@ function test_p3_melting(FT)
         TT.@test rate.dNdt >= 0
         TT.@test rate.dLdt >= 0
 
-        TT.@test rate.dNdt ≈ 171326.17992979713 rtol = 1e-6
-        TT.@test rate.dLdt ≈ 8.566308996489856e-5 rtol = 1e-6
+        TT.@test rate.dNdt ≈ 172032.67844162227 rtol = 1e-6
+        TT.@test rate.dLdt ≈ 8.601633922081113e-5 rtol = 1e-6
 
         T_vwarm = FT(273.15 + 0.1)
         rate = P3.ice_melt(

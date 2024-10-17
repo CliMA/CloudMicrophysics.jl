@@ -89,6 +89,21 @@ struct Ventilation{FT} <: ParametersType{FT}
 end
 
 """
+    SnowAspectRatio{FT}
+
+A struct with aspect ratio coefficients
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+struct SnowAspectRatio{FT} <: ParametersType{FT}
+    "aspect ratio [-]"
+    ϕ::FT
+    "power law coefficient in terminal velocity parameterization from Chen et al 2022 [-]"
+    κ::FT
+end
+
+"""
     Acnv1M{FT}
 
 A struct with autoconversion parameters
@@ -276,14 +291,14 @@ function ParticleArea(::Type{Rain}, td::CP.AbstractTOMLDict)
 end
 
 """
-    Snow{FT, PD, MS, AR, VT, AC}
+    Snow{FT, PD, MS, AR, VT, AP, AC}
 
 The parameters and type for snow
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Snow{FT, PD, MS, AR, VT, AC} <: PrecipitationType{FT}
+struct Snow{FT, PD, MS, AR, VT, AP, AC} <: PrecipitationType{FT}
     "a struct with size distribution parameters"
     pdf::PD
     "a struct with mass size relation parameters"
@@ -292,6 +307,8 @@ struct Snow{FT, PD, MS, AR, VT, AC} <: PrecipitationType{FT}
     area::AR
     "a struct with ventilation coefficients"
     vent::VT
+    "a struct with aspect ratio parameters"
+    aspr::AP
     "a struct with ice to snow autoconversion parameters"
     acnv1M::AC
     "particle length scale [m]"
@@ -317,6 +334,8 @@ function Snow(toml_dict::CP.AbstractTOMLDict)
         :snow_flake_size_distribution_coefficient_nu => :ν,
         :snow_ventillation_coefficient_a => :a,
         :snow_ventillation_coefficient_b => :b,
+        :snow_aspect_ratio => :ϕ,
+        :snow_aspect_ratio_coefficient => :κ,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
 
@@ -324,6 +343,7 @@ function Snow(toml_dict::CP.AbstractTOMLDict)
     area = ParticleArea(Snow, toml_dict)
     pdf = ParticlePDFSnow(p.μ, p.ν)
     vent = Ventilation(p.a, p.b)
+    aspr = SnowAspectRatio(p.ϕ, p.κ)
     acnv1M = Acnv1M(p.τ, p.q_threshold, p.k)
     FT = CP.float_type(toml_dict)
     return Snow{
@@ -332,12 +352,14 @@ function Snow(toml_dict::CP.AbstractTOMLDict)
         typeof(mass),
         typeof(area),
         typeof(vent),
+        typeof(aspr),
         typeof(acnv1M),
     }(
         pdf,
         mass,
         area,
         vent,
+        aspr,
         acnv1M,
         p.r0,
         p.T_freeze,

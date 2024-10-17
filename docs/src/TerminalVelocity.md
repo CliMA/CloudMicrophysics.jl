@@ -93,8 +93,8 @@ The default parameter values are
 
 Chen et al. [Chen2022](@cite) provide a terminal velocity parameterization
   based on an empirical fit to a high-accuracy model.
-The terminal velocity depends on particle shape, size, and density,
-  and it considers the deformation of large rain drops,
+The terminal velocity depends on particle shape, size, and density.
+It considers the deformation of large rain drops,
   as well as a size-specific air density dependence.
 The fall speed of individual particles is parameterized as
 ```math
@@ -107,7 +107,7 @@ where:
  - ``a_i``, ``b_i``, ``c_i`` are the free parameters,
  - ``\phi`` is the aspect ratio, and
  - ``\kappa`` is a parameter that depends on the particle shape
-   (``\kappa=0`` for spheres, ``\kappa=-1/3`` for oblate and ``\kappa=1/6`` for prolate spheroids).
+   (``\kappa=0`` for spheres, ``\kappa=1/3`` for oblate and ``\kappa=-1/6`` for prolate spheroids).
 
 For ice, ``j=2``, and for rain, ``j=3``, to account for deformation at larger drop sizes.
 The rain parameterization is valid for ``D > 100 \; \mu m``.
@@ -126,10 +126,16 @@ where:
 In the non-equilibrium cloud microphysics scheme, we assume that both cloud
   droplets and ice crystals are spherical and ``\phi=1``.
 In all bulk schemes, we assume that rain drops are spherical and ``\phi=1``.
-In the 1-moment bulk scheme for snow and in the P3 scheme, we assume that ``\kappa = -1/3``.
-We compute the aspect ratio based on the assumed ``m(r)`` and ``a(r)`` relationships,
-  assuming that the particle volume can be represented as ``V_p = 4\pi/3 \; a^2 c``,
-  and particle cross section area as ``A_p = \pi a c``.
+In the 1-moment bulk scheme for snow we assume ``\kappa = 1/3``
+  and aspect ratio ``\phi = 0.2`` by default.
+Additionally in the 1-moment scheme for snow we provide an option
+  to assume either an oblate or a prolate shape and compute the aspect ratio
+  based on the ``m(r)`` and ``a(r)`` relationships.
+For both assumed shapes the particle volume can be represented as ``V_p = 4\pi/3 \; a^2 c``.
+For oblates the particle cross section area is ``A_p = \pi a^2``
+  and for prolates ``A_p = \pi a c``.
+In the P3 scheme we assume that particles are oblates and
+  compute the aspect ratio based on the P3 ``m(r)`` and ``a(r)`` relationships.
 
 ## Example figures
 
