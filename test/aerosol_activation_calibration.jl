@@ -22,7 +22,7 @@ function calibrate_ARG(
     fname = "2modal_dataset1_train.csv",
     sample_size = 500,
     N_samples = 1,
-    N_ensemble = 10,
+    N_ensemble = 60,
     N_iterations_per_sample = 20,
 )
     aip = CMP.AirProperties(FT)
@@ -66,7 +66,8 @@ function calibrate_ARG(
             initial_ensemble,
             Y_sample,
             1.0 * EKP.I,
-            EKP.Inversion(),
+            EKP.Inversion();
+            localization_method = EKP.Localizers.NoLocalization(),
         )
 
         mean_error_metrics = []

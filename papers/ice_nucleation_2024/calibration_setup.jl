@@ -129,11 +129,11 @@ function perf_model_pseudo_data(FT, IN_mode, params, IC)
     elseif IN_mode == "ABHOM"
         coeff_true = [FT(255.927125), FT(-68.553283)]
     end
-
-    G_truth = run_model(params, coeff_true, IN_mode, FT, IC)
+    sol_ICNC = run_calibrated_model(FT, IN_mode, coeff_true, params, IC)[9, :]
+    G_truth = sol_ICNC ./ (IC[7] + IC[8] + IC[9])
     dim_output = length(G_truth)
 
-    Γ = 0.03 * LinearAlgebra.I * (maximum(G_truth) - minimum(G_truth))
+    Γ = 0.001 * LinearAlgebra.I * (maximum(G_truth) - minimum(G_truth))
     noise_dist = Distributions.MvNormal(zeros(dim_output), Γ)
 
     y_truth = zeros(length(G_truth), n_samples) # where noisy ICNC will be stored
