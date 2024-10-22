@@ -65,6 +65,8 @@ function parcel_model(dY, Y, p, t)
         ln_INPC = Y[10],   # needed only in stochastic Frostenberg
         t = t,
     )
+    println(dep_params, imm_params,hom_params)
+    sleep(5)
 
     # Constants
     Rᵥ = TD.Parameters.R_v(tps)

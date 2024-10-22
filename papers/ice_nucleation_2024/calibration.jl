@@ -89,6 +89,8 @@ function run_model(p, coefficients, IN_mode, FT, IC, end_sim)
             aerosol_act = aerosol_act,
             aerosol = aerosol,
             aero_σ_g = aero_σ_g,
+            deposition = dep_nucleation,
+            heterogeneous = heterogeneous,
             homogeneous = homogeneous,
             condensation_growth = condensation_growth,
             deposition_growth = deposition_growth,
