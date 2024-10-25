@@ -134,75 +134,81 @@ function SB2006VelType(td::CP.AbstractTOMLDict)
 end
 
 """
-    Chen2022VelTypeSnowIce
+    Chen2022VelTypeSmallIce
 
-The type for precipitation terminal velocity from Chen et al 2022 for
-snow and ice. See Table B3 for parameter definitions.
-DOI: 10.1016/j.atmosres.2022.106171
+The type for precipitation terminal velocity from Chen et al 2022 for small ice.
+See Table B3 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Chen2022VelTypeSnowIce{FT} <: ParametersType{FT}
-    As::FT
-    Bs::FT
-    Cs::FT
-    Es::FT
-    Fs::FT
-    Gs::FT
-    Al::FT
-    Bl::FT
-    Cl::FT
-    El::FT
-    Fl::FT
-    Gl::FT
-    Hl::FT
+Base.@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: ParametersType{FT}
+    A::NTuple{N, FT}
+    B::NTuple{N, FT}
+    C::NTuple{M, FT}
+    E::NTuple{N, FT}
+    F::NTuple{N, FT}
+    G::NTuple{N, FT}
     "cutoff for small vs large ice particle dimension [m]"
     cutoff::FT
-    "density of cloud ice [kg/m3]"
-    ρᵢ::FT
 end
 
-function Chen2022VelTypeSnowIce(toml_dict::CP.AbstractTOMLDict)
+function Chen2022VelTypeSmallIce(td::CP.AbstractTOMLDict)
     # TODO: These should be array parameters.
     name_map = (;
-        :Chen2022_table_B3_As => :As,
-        :Chen2022_table_B3_Bs => :Bs,
-        :Chen2022_table_B3_Cs => :Cs,
-        :Chen2022_table_B3_Es => :Es,
-        :Chen2022_table_B3_Fs => :Fs,
-        :Chen2022_table_B3_Gs => :Gs,
-        :Chen2022_table_B5_Al => :Al,
-        :Chen2022_table_B5_Bl => :Bl,
-        :Chen2022_table_B5_Cl => :Cl,
-        :Chen2022_table_B5_El => :El,
-        :Chen2022_table_B5_Fl => :Fl,
-        :Chen2022_table_B5_Gl => :Gl,
-        :Chen2022_table_B5_Hl => :Hl,
+        :Chen2022_table_B3_As => :A,
+        :Chen2022_table_B3_Bs => :B,
+        :Chen2022_table_B3_Cs => :C,
+        :Chen2022_table_B3_Es => :E,
+        :Chen2022_table_B3_Fs => :F,
+        :Chen2022_table_B3_Gs => :G,
         :Chen2022_ice_cutoff => :cutoff,
-        :density_ice_water => :ρᵢ,
     )
-    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
-    FT = CP.float_type(toml_dict)
-    return Chen2022VelTypeSnowIce{FT}(
-        p.As[2] * (log(p.ρᵢ))^2 − p.As[3] * log(p.ρᵢ) + p.As[1],
-        FT(1) / (p.Bs[1] + p.Bs[2] * log(p.ρᵢ) + p.Bs[3] / sqrt(p.ρᵢ)),
-        p.Cs[1] + p.Cs[2] * exp(p.Cs[3] * p.ρᵢ) + p.Cs[4] * sqrt(p.ρᵢ),
-        p.Es[1] - p.Es[2] * (log(p.ρᵢ))^2 + p.Es[3] * sqrt(p.ρᵢ),
-        -exp(p.Fs[1] - p.Fs[2] * (log(p.ρᵢ))^2 + p.Fs[3] * log(p.ρᵢ)),
-        FT(1) / (p.Gs[1] + p.Gs[2] / (log(p.ρᵢ)) - p.Gs[3] * log(p.ρᵢ) / p.ρᵢ),
-        p.Al[1] + p.Al[2] * log(p.ρᵢ) + p.Al[3] * (p.ρᵢ)^(-3 / 2),
-        exp(p.Bl[1] + p.Bl[2] * log(p.ρᵢ)^2 + p.Bl[3] * log(p.ρᵢ)),
-        exp(p.Cl[1] + p.Cl[2] / log(p.ρᵢ) + p.Cl[3] / p.ρᵢ),
-        p.El[1] + p.El[2] * log(p.ρᵢ) * sqrt(p.ρᵢ) + p.El[3] * sqrt(p.ρᵢ),
-        p.Fl[1] + p.Fl[2] * log(p.ρᵢ) + p.Fl[3] * exp(-p.ρᵢ),
-        (
-            p.Gl[1] + p.Gl[2] * log(p.ρᵢ) * sqrt(p.ρᵢ) + p.Gl[3] / sqrt(p.ρᵢ)
-        )^(-1),
-        p.Hl[1] + p.Hl[2] * (p.ρᵢ)^(5 / 2) - p.Hl[3] * exp(-p.ρᵢ),
-        p.cutoff,
-        p.ρᵢ,
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    # hack!
+    parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
+    FT = CP.float_type(td)
+    return Chen2022VelTypeSmallIce{FT, 3, 4}(; parameters...)
+end
+
+"""
+    Chen2022VelTypeLargeIce
+
+The type for precipitation terminal velocity from Chen et al 2022 for large ice.
+See Table B4 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+Base.@kwdef struct Chen2022VelTypeLargeIce{FT, N} <: ParametersType{FT}
+    A::NTuple{N, FT}
+    B::NTuple{N, FT}
+    C::NTuple{N, FT}
+    E::NTuple{N, FT}
+    F::NTuple{N, FT}
+    G::NTuple{N, FT}
+    H::NTuple{N, FT}
+    "cutoff for small vs large ice particle dimension [m]"
+    cutoff::FT
+end
+
+function Chen2022VelTypeLargeIce(td::CP.AbstractTOMLDict)
+    # TODO: These should be array parameters.
+    name_map = (;
+        :Chen2022_table_B5_Al => :A,
+        :Chen2022_table_B5_Bl => :B,
+        :Chen2022_table_B5_Cl => :C,
+        :Chen2022_table_B5_El => :E,
+        :Chen2022_table_B5_Fl => :F,
+        :Chen2022_table_B5_Gl => :G,
+        :Chen2022_table_B5_Hl => :H,
+        :Chen2022_ice_cutoff => :cutoff,
     )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    # hack!
+    parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
+    FT = CP.float_type(td)
+    return Chen2022VelTypeLargeIce{FT, 3}(; parameters...)
 end
 
 """
@@ -253,9 +259,10 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Chen2022VelType{FT, R, SI} <: TerminalVelocityType{FT}
+struct Chen2022VelType{FT, R, SI, LI} <: TerminalVelocityType{FT}
     rain::R
-    snow_ice::SI
+    small_ice::SI
+    large_ice::LI
 end
 
 Chen2022VelType(::Type{FT}) where {FT <: AbstractFloat} =
@@ -263,7 +270,17 @@ Chen2022VelType(::Type{FT}) where {FT <: AbstractFloat} =
 
 function Chen2022VelType(toml_dict::CP.AbstractTOMLDict)
     rain = Chen2022VelTypeRain(toml_dict)
-    snow_ice = Chen2022VelTypeSnowIce(toml_dict)
+    small_ice = Chen2022VelTypeSmallIce(toml_dict)
+    large_ice = Chen2022VelTypeLargeIce(toml_dict)
     FT = CP.float_type(toml_dict)
-    return Chen2022VelType{FT, typeof(rain), typeof(snow_ice)}(rain, snow_ice)
+    return Chen2022VelType{
+        FT,
+        typeof(rain),
+        typeof(small_ice),
+        typeof(large_ice),
+    }(
+        rain,
+        small_ice,
+        large_ice,
+    )
 end

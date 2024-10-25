@@ -294,7 +294,7 @@ function test_particle_terminal_velocities(FT)
             vel = P3.ice_particle_terminal_velocity(
                 p3,
                 D,
-                Chen2022.snow_ice,
+                Chen2022,
                 ρ_a,
                 F_rim,
                 th,
@@ -313,7 +313,7 @@ function test_particle_terminal_velocities(FT)
             vel = P3.ice_particle_terminal_velocity(
                 p3,
                 D,
-                Chen2022.snow_ice,
+                Chen2022,
                 ρ_a,
                 F_rim,
                 th,
@@ -551,7 +551,7 @@ function test_numerical_integrals(FT)
                 particle_vel(d) = P3.ice_particle_terminal_velocity(
                     p3,
                     d,
-                    Chen2022.snow_ice,
+                    Chen2022,
                     ρ_a,
                     F_rim,
                     th,
@@ -771,37 +771,15 @@ function test_p3_melting(FT)
         F_liq = FT(0) # process not dependent on F_liq
 
         T_cold = FT(273.15 - 0.01)
-        rate = P3.ice_melt(
-            p3,
-            vel.snow_ice,
-            aps,
-            tps,
-            Lᵢ,
-            Nᵢ,
-            T_cold,
-            ρₐ,
-            F_rim,
-            ρ_rim,
-            dt,
-        )
+        rate =
+            P3.ice_melt(p3, vel, aps, tps, Lᵢ, Nᵢ, T_cold, ρₐ, F_rim, ρ_rim, dt)
 
         TT.@test rate.dNdt == 0
         TT.@test rate.dLdt == 0
 
         T_warm = FT(273.15 + 0.01)
-        rate = P3.ice_melt(
-            p3,
-            vel.snow_ice,
-            aps,
-            tps,
-            Lᵢ,
-            Nᵢ,
-            T_warm,
-            ρₐ,
-            F_rim,
-            ρ_rim,
-            dt,
-        )
+        rate =
+            P3.ice_melt(p3, vel, aps, tps, Lᵢ, Nᵢ, T_warm, ρₐ, F_rim, ρ_rim, dt)
 
         TT.@test rate.dNdt >= 0
         TT.@test rate.dLdt >= 0
@@ -812,7 +790,7 @@ function test_p3_melting(FT)
         T_vwarm = FT(273.15 + 0.1)
         rate = P3.ice_melt(
             p3,
-            vel.snow_ice,
+            vel,
             aps,
             tps,
             Lᵢ,

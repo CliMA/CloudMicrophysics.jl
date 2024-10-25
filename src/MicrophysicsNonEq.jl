@@ -121,7 +121,7 @@ end
 
  - `sediment` - a struct with sedimentation type (cloud liquid or ice)
  - `vel` - a struct with terminal velocity parameters
- - `ρ` - air density
+ - `ρₐ` - air density
  - `q` - cloud liquid or ice specific humidity
 
 Returns the mass weighted average terminal velocity assuming a
@@ -132,7 +132,7 @@ Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171
 function terminal_velocity(
     (; ρw)::CMP.CloudLiquid{FT},
     vel::CMP.Chen2022VelTypeRain{FT},
-    ρ::FT,
+    ρₐ::FT,
     q::FT,
 ) where {FT}
     fall_w = FT(0)
@@ -141,12 +141,12 @@ function terminal_velocity(
         # for D > 100mm. We should look for a different parameterization
         # that is more suited for cloud droplets. For now I'm just multiplying
         # by an arbitrary correction factor.
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρₐ)
         # The 1M scheme does not assume any cloud droplet size distribution.
         # TODO - For now I compute a mean volume radius assuming a fixed value
         # for the total number concentration of droplets.
         N = FT(500 * 1e6)
-        D = cbrt(ρ * q / N / ρw)
+        D = cbrt(ρₐ * q / N / ρw)
         corr = FT(0.1)
         # assuming ϕ = 1 (spherical)
         fall_w = sum(CO.Chen2022_monodisperse_pdf.(aiu, bi, ciu, D))
@@ -155,18 +155,18 @@ function terminal_velocity(
     return fall_w
 end
 function terminal_velocity(
-    (; pdf, mass, ρi)::CMP.CloudIce{FT},
-    vel::CMP.Chen2022VelTypeSnowIce{FT},
-    ρ::FT,
+    (; pdf, mass, ρᵢ)::CMP.CloudIce{FT},
+    vel::CMP.Chen2022VelTypeSmallIce{FT},
+    ρₐ::FT,
     q::FT,
 ) where {FT}
     fall_w = FT(0)
     if q > FT(0)
         # Coefficients from Table B2 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρₐ, ρᵢ)
         # See the comment for liquid droplets above
         N = FT(500 * 1e6)
-        D = cbrt(ρ * q / N / ρi)
+        D = cbrt(ρₐ * q / N / ρᵢ)
         # assuming ϕ = 1 (spherical)
         fall_w = sum(CO.Chen2022_monodisperse_pdf.(aiu, bi, ciu, D))
         fall_w = max(FT(0), fall_w)
