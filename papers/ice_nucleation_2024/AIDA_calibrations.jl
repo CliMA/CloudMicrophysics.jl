@@ -62,7 +62,7 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     frozen_frac = ICNC ./ (IC[7] + IC[8] + IC[9])
     frozen_frac_moving_mean = moving_average(frozen_frac, moving_average_n)
     ICNC_moving_avg = moving_average(ICNC, moving_average_n)
-    Γ = 0.001 * LinearAlgebra.I * (maximum(frozen_frac_moving_mean) - minimum(frozen_frac_moving_mean)) # coeff is an estimated of the noise
+    Γ = 0.1 * LinearAlgebra.I * (maximum(frozen_frac_moving_mean) - minimum(frozen_frac_moving_mean)) # coeff is an estimated of the noise
 
     ## Calculating some variables from AIDA data.
     chamber_S_l = zeros(FT, size(chamber_data[start_time:end_time, 4], 1), size(chamber_data[start_time:end_time, 4], 2))
