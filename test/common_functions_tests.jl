@@ -184,36 +184,28 @@ function test_Chen_coefficients(FT)
         aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(Ch2022.small_ice, ρ, ice.ρᵢ)
 
         TT.@test all(
-            isapprox.(
-                aiu,
-                [380.9523818928577, -378.94964461870484],
-                rtol = tol,
-            ),
+            isapprox.(aiu, [312.9777159510928, -316.5335670126842], rtol = tol),
         )
         TT.@test all(
-            isapprox.(bi, [0.7065511618279822, 0.7065511618279822], rtol = tol),
+            isapprox.(bi, [0.7295470725655279, 0.7295470725655279], rtol = tol),
         )
-        TT.@test all(isapprox.(ciu, [0.0, 5194.870484289714], rtol = tol))
+        TT.@test all(isapprox.(ciu, [0.0, 4715.089121981011], rtol = tol))
     end
 
     TT.@testset "Chen terminal velocity large ice (B4)" begin
         aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(Ch2022.large_ice, ρ, snow.ρᵢ)
 
         TT.@test all(
-            isapprox.(
-                aiu,
-                [144.32735209844674, -0.9732523067775996],
-                rtol = tol,
-            ),
+            isapprox.(aiu, [51.86069839334009, -1.394567234046072], rtol = tol),
         )
         TT.@test all(
             isapprox.(
                 bi,
-                [0.5375612365666844, 0.020917783512726773],
+                [0.5655671081749194, 0.18155881980108224],
                 rtol = tol,
             ),
         )
-        TT.@test all(isapprox.(ciu, [0.0, 86.47212246687042], rtol = tol))
+        TT.@test all(isapprox.(ciu, [0.0, 34.820462392120504], rtol = tol))
     end
 end
 

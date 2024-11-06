@@ -160,10 +160,9 @@ end
 CloudIce(::Type{FT}) where {FT <: AbstractFloat} =
     CloudIce(CP.create_toml_dict(FT))
 
-#:cloud_ice_apparent_density => :ρi,
 function CloudIce(toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT))
     name_map = (;
-        :density_ice_water => :ρᵢ,
+        :cloud_ice_apparent_density => :ρᵢ,
         :cloud_ice_crystals_length_scale => :r0,
         :cloud_ice_size_distribution_coefficient_n0 => :n0,
         :cloud_ice_mass_size_relation_coefficient_me => :me,
@@ -179,17 +178,16 @@ function CloudIce(toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT))
     return CloudIce{FT, P, M}(pdf, mass, p.r0, p.r_ice_snow, p.τ_relax, p.ρᵢ)
 end
 
-#:cloud_ice_apparent_density => :ρi,
 function ParticleMass(::Type{CloudIce}, td::CP.AbstractTOMLDict)
     name_map = (;
-        :density_ice_water => :ρi,
+        :cloud_ice_apparent_density => :ρᵢ,
         :cloud_ice_crystals_length_scale => :r0,
         :cloud_ice_mass_size_relation_coefficient_me => :me,
         :cloud_ice_mass_size_relation_coefficient_delm => :Δm,
         :cloud_ice_mass_size_relation_coefficient_chim => :χm,
     )
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    m0 = 4 / 3 * π * p.ρi * p.r0^p.me
+    m0 = 4 / 3 * π * p.ρᵢ * p.r0^p.me
     FT = CP.float_type(td)
     return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
 end
@@ -306,11 +304,10 @@ end
 
 Snow(::Type{FT}) where {FT <: AbstractFloat} = Snow(CP.create_toml_dict(FT))
 
-#:snow_apparent_density => :ρi,
 function Snow(toml_dict::CP.AbstractTOMLDict)
     name_map = (;
         :cloud_ice_crystals_length_scale => :r0,
-        :density_ice_water => :ρᵢ,
+        :snow_apparent_density => :ρᵢ,
         :snow_autoconversion_timescale => :τ,
         :cloud_ice_specific_humidity_autoconversion_threshold =>
             :q_threshold,
@@ -348,7 +345,6 @@ function Snow(toml_dict::CP.AbstractTOMLDict)
     )
 end
 
-#:snow_apparent_density => :ρi,
 function ParticleMass(::Type{Snow}, td::CP.AbstractTOMLDict)
     name_map = (;
         :snow_flake_length_scale => :r0,
