@@ -111,9 +111,9 @@ function test_microphysics_noneq(FT)
         q_ice = FT(0.5 * 1e-3)
 
         #action
-        vt_zero = CMNe.terminal_velocity(ice, Ch2022.snow_ice, ρ, FT(0))
-        vt_ice = CMNe.terminal_velocity(ice, Ch2022.snow_ice, ρ, q_ice)
-        v_bigger = CMNe.terminal_velocity(ice, Ch2022.snow_ice, ρ, q_ice * 2)
+        vt_zero = CMNe.terminal_velocity(ice, Ch2022.small_ice, ρ, FT(0))
+        vt_ice = CMNe.terminal_velocity(ice, Ch2022.small_ice, ρ, q_ice)
+        v_bigger = CMNe.terminal_velocity(ice, Ch2022.small_ice, ρ, q_ice * 2)
 
         #test
         TT.@test vt_zero == FT(0)

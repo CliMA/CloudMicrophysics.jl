@@ -162,15 +162,15 @@ end
 function terminal_velocity(
     (; pdf, mass)::CMP.Rain{FT},
     vel::CMP.Chen2022VelTypeRain{FT},
-    ρ::FT,
+    ρₐ::FT,
     q::FT,
 ) where {FT}
     fall_w = FT(0)
     if q > FT(0)
         # coefficients from Table B1 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρₐ)
         # size distribution parameter
-        λ::FT = lambda(pdf, mass, q, ρ)
+        λ::FT = lambda(pdf, mass, q, ρₐ)
         # eq 20 from Chen et al 2022
         fall_w = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
         # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
@@ -179,9 +179,9 @@ function terminal_velocity(
     return fall_w
 end
 function terminal_velocity(
-    (; pdf, mass, area)::CMP.Snow{FT},
-    vel::CMP.Chen2022VelTypeSnowIce{FT},
-    ρ::FT,
+    (; pdf, mass, area, ρᵢ)::CMP.Snow{FT},
+    vel::CMP.Chen2022VelTypeLargeIce{FT},
+    ρₐ::FT,
     q::FT,
 ) where {FT}
     fall_w = FT(0)
@@ -191,10 +191,10 @@ function terminal_velocity(
     # from D=125um to D=625um using B2 and D=625um to inf using B4.
     if q > FT(0)
         # coefficients from Table B4 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρ)
-        #aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρₐ, ρᵢ)
+        #aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρₐ, ρᵢ)
         # size distribution parameter
-        λ::FT = lambda(pdf, mass, q, ρ)
+        λ::FT = lambda(pdf, mass, q, ρₐ)
 
         # As a next step, we could keep ϕ(r) under the integrals
         # ϕ(r) = 16 * ρᵢ^2 * aᵢ(r)^3 / (9 * π * mᵢ(r)^2)
@@ -202,7 +202,6 @@ function terminal_velocity(
         # compute the mass weighted average aspect ratio
         (; r0, m0, me, Δm, χm) = mass
         (; a0, ae, Δa, χa) = area
-        ρᵢ = vel.ρᵢ
         α = 3 * (ae + Δa) - 2 * (me + Δm)
         ϕ₀ = 16 * ρᵢ^2 / 9 / FT(π) * (χa * a0)^3 / (χm * m0)^2 / r0^α
         ϕ_avg = ϕ₀ / λ^α * CO.Γ(α + 3 + 1) / CO.Γ(3 + 1)

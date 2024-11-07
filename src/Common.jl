@@ -208,80 +208,94 @@ function a_w_ice(tps::TPS, T::FT) where {FT}
 end
 
 """
-    Chen2022_vel_coeffs_B1(ρ)
+    Chen2022_vel_coeffs_B1(coeffs, ρₐ)
 
- - ρ - air density
- - velo_scheme - a struct with terminal velocity free parameters
+ - coeffs - a struct with terminal velocity free parameters
+ - ρₐ - air density
 
 Returns the coefficients from Table B1 Appendix B in Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
 """
 function Chen2022_vel_coeffs_B1(
-    velo_scheme::CMP.Chen2022VelTypeRain,
-    ρ::FT,
+    coeffs::CMP.Chen2022VelTypeRain,
+    ρₐ::FT,
 ) where {FT}
-
-    (; ρ0, a, a3_pow, b, b_ρ, c) = velo_scheme
-
-    q = exp(ρ0 * ρ)
-    ai = (a[1] * q, a[2] * q, a[3] * q * ρ^a3_pow)
-    bi = (b[1] - b_ρ * ρ, b[2] - b_ρ * ρ, b[3] - b_ρ * ρ)
+    (; ρ0, a, a3_pow, b, b_ρ, c) = coeffs
+    # Table B1
+    q = exp(ρ0 * ρₐ)
+    ai = (a[1] * q, a[2] * q, a[3] * q * ρₐ^a3_pow)
+    bi = (b[1] - b_ρ * ρₐ, b[2] - b_ρ * ρₐ, b[3] - b_ρ * ρₐ)
     ci = (c[1], c[2], c[3])
-
     # unit conversions
     aiu = ai .* 1000 .^ bi
     ciu = ci .* 1000
-
     return (aiu, bi, ciu)
 end
 
 """
-    Chen2022_vel_coeffs_B2(ρ)
+    Chen2022_vel_coeffs_B2(coeffs, ρₐ, ρᵢ)
 
- - ρ - air density
- - velo_scheme - a struct with terminal velocity free parameters
+ - coeffs - a struct with terminal velocity free parameters
+ - ρₐ - air density
+ - ρᵢ - apparent density of ice particles
 
 Returns the coefficients from Table B2 Appendix B in Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
 """
 function Chen2022_vel_coeffs_B2(
-    velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
-    ρ::FT,
+    coeffs::CMP.Chen2022VelTypeSmallIce,
+    ρₐ::FT,
+    ρᵢ::FT,
 ) where {FT}
-    (; As, Bs, Cs, Es, Fs, Gs) = velo_scheme
-
-    ai = (Es * ρ^As, Fs * ρ^As)
-    bi = (Bs + ρ * Cs, Bs + ρ * Cs)
+    (; A, B, C, E, F, G) = coeffs
+    # Table B3
+    As = A[2] * (log(ρᵢ))^2 − A[3] * log(ρᵢ) + A[1]
+    Bs = FT(1) / (B[1] + B[2] * log(ρᵢ) + B[3] / sqrt(ρᵢ))
+    Cs = C[1] + C[2] * exp(C[3] * ρᵢ) + C[4] * sqrt(ρᵢ)
+    Es = E[1] - E[2] * (log(ρᵢ))^2 + E[3] * sqrt(ρᵢ)
+    Fs = -exp(F[1] - F[2] * (log(ρᵢ))^2 + F[3] * log(ρᵢ))
+    Gs = FT(1) / (G[1] + G[2] / (log(ρᵢ)) - G[3] * log(ρᵢ) / ρᵢ)
+    # Table B2
+    ai = (Es * ρₐ^As, Fs * ρₐ^As)
+    bi = (Bs + ρₐ * Cs, Bs + ρₐ * Cs)
     ci = (FT(0), Gs)
     # unit conversions
     aiu = ai .* 1000 .^ bi
     ciu = ci .* 1000
-
     return (aiu, bi, ciu)
 end
 
 """
-    Chen2022_vel_coeffs_B4(ρ)
+    Chen2022_vel_coeffs_B4(coeffs, ρₐ, ρᵢ)
 
- - ρ - air density
- - velo_scheme - a struct with terminal velocity free parameters
+ - coeffs - a struct with terminal velocity free parameters
+ - ρₐ - air density
+ - ρᵢ - apparent density of ice particles
 
 Returns the coefficients from Table B4 Appendix B in Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
 """
 function Chen2022_vel_coeffs_B4(
-    velo_scheme::CMP.Chen2022VelTypeSnowIce{FT},
-    ρ::FT,
+    coeffs::CMP.Chen2022VelTypeLargeIce,
+    ρₐ::FT,
+    ρᵢ::FT,
 ) where {FT}
-    (; Al, Bl, Cl, El, Fl, Gl, Hl) = velo_scheme
-
-    ai = (Bl * ρ^Al, El * ρ^Al * exp(Hl * ρ))
+    (; A, B, C, E, F, G, H) = coeffs
+    # Table B5
+    Al = A[1] + A[2] * log(ρᵢ) + A[3] * (ρᵢ)^FT(-3 / 2)
+    Bl = exp(B[1] + B[2] * log(ρᵢ)^2 + B[3] * log(ρᵢ))
+    Cl = exp(C[1] + C[2] / log(ρᵢ) + C[3] / ρᵢ)
+    El = E[1] + E[2] * log(ρᵢ) * sqrt(ρᵢ) + E[3] * sqrt(ρᵢ)
+    Fl = F[1] + F[2] * log(ρᵢ) + F[3] * exp(-ρᵢ)
+    Gl = (G[1] + G[2] * log(ρᵢ) * sqrt(ρᵢ) + G[3] / sqrt(ρᵢ))^(-1)
+    Hl = H[1] + H[2] * (ρᵢ)^FT(5 / 2) - H[3] * exp(-ρᵢ)
+    # Table B4
+    ai = (Bl * ρₐ^Al, El * ρₐ^Al * exp(Hl * ρₐ))
     bi = (Cl, Fl)
     ci = (FT(0), Gl)
     # unit conversions
     aiu = ai .* 1000 .^ bi
     ciu = ci .* 1000
-
     return (aiu, bi, ciu)
 end
 

@@ -33,20 +33,20 @@ max_dNdt = [Nᵢ / dt for ΔT in ΔT_range]
 ρₐ1 = FT(1.2)
 Fᵣ1 = FT(0.8)
 ρᵣ1 = FT(800)
-dLdt1 = [P3.ice_melt(pps, vel.snow_ice, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ1, ρᵣ1, dt).dLdt for ΔT in ΔT_range]
-dNdt1 = [P3.ice_melt(pps, vel.snow_ice, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ1, ρᵣ1, dt).dNdt for ΔT in ΔT_range]
+dLdt1 = [P3.ice_melt(pps, vel, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ1, ρᵣ1, dt).dLdt for ΔT in ΔT_range]
+dNdt1 = [P3.ice_melt(pps, vel, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ1, ρᵣ1, dt).dNdt for ΔT in ΔT_range]
 
 Fᵣ2 = FT(0.2)
-dLdt2 = [P3.ice_melt(pps, vel.snow_ice, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ2, ρᵣ1, dt).dLdt for ΔT in ΔT_range]
-dNdt2 = [P3.ice_melt(pps, vel.snow_ice, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ2, ρᵣ1, dt).dNdt for ΔT in ΔT_range]
+dLdt2 = [P3.ice_melt(pps, vel, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ2, ρᵣ1, dt).dLdt for ΔT in ΔT_range]
+dNdt2 = [P3.ice_melt(pps, vel, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ2, ρᵣ1, dt).dNdt for ΔT in ΔT_range]
 
 ρᵣ2 = FT(200)
-dLdt3 = [P3.ice_melt(pps, vel.snow_ice, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ2, ρᵣ2, dt).dLdt for ΔT in ΔT_range]
-dNdt3 = [P3.ice_melt(pps, vel.snow_ice, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ2, ρᵣ2, dt).dNdt for ΔT in ΔT_range]
+dLdt3 = [P3.ice_melt(pps, vel, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ2, ρᵣ2, dt).dLdt for ΔT in ΔT_range]
+dNdt3 = [P3.ice_melt(pps, vel, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ1, Fᵣ2, ρᵣ2, dt).dNdt for ΔT in ΔT_range]
 
 ρₐ2 = FT(0.5)
-dLdt4 = [P3.ice_melt(pps, vel.snow_ice, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ2, Fᵣ2, ρᵣ2, dt).dLdt for ΔT in ΔT_range]
-dNdt4 = [P3.ice_melt(pps, vel.snow_ice, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ2, Fᵣ2, ρᵣ2, dt).dNdt for ΔT in ΔT_range]
+dLdt4 = [P3.ice_melt(pps, vel, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ2, Fᵣ2, ρᵣ2, dt).dLdt for ΔT in ΔT_range]
+dNdt4 = [P3.ice_melt(pps, vel, aps, tps, Lᵢ, Nᵢ, pps.T_freeze .+ ΔT, ρₐ2, Fᵣ2, ρᵣ2, dt).dNdt for ΔT in ΔT_range]
 
 # plotting
 fig = PL.Figure(size = (1500, 500), fontsize=22, linewidth=3)

@@ -65,7 +65,7 @@ Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
 """
 function ice_melt(
     p3::PSP3,
-    Chen2022::CMP.Chen2022VelTypeSnowIce,
+    Chen2022::CMP.Chen2022VelType,
     aps::CMP.AirProperties{FT},
     tps::TDP.ThermodynamicsParameters{FT},
     L_ice::FT,

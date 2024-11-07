@@ -206,7 +206,8 @@ Parameters.Blk1MVelTypeRain
 Parameters.Blk1MVelTypeSnow
 Parameters.SB2006VelType
 Parameters.Chen2022VelType
-Parameters.Chen2022VelTypeSnowIce
+Parameters.Chen2022VelTypeSmallIce
+Parameters.Chen2022VelTypeLargeIce
 Parameters.Chen2022VelTypeRain
 ```
 
