@@ -117,7 +117,7 @@ function test_microphysics_noneq(FT)
 
         #test
         TT.@test vt_zero == FT(0)
-        TT.@test vt_ice ≈ 0.005587793323944559 rtol = sqrt(eps(FT))
+        TT.@test vt_ice ≈ 0.003199067212454443 rtol = sqrt(eps(FT))
         TT.@test v_bigger > vt_ice
     end
 end

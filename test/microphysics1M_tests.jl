@@ -95,7 +95,7 @@ function test_microphysics1M(FT)
         v_bigger = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno * 2)
 
         #test
-        TT.@test vt_sno ≈ 0.7529349430245454 rtol = 2e-6
+        TT.@test vt_sno ≈ 0.8237838042435908 rtol = 2e-6
         TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(0)) ≈ 0 atol =
             eps(FT)
         TT.@test v_bigger > vt_sno
@@ -189,7 +189,7 @@ function test_microphysics1M(FT)
         q = TD.PhasePartition(q_vap + q_liq + q_ice, q_liq, q_ice)
 
         TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, q, ρ, T) ≈
-                 FT(1.8512022335645584e-9)
+                 FT(2.5405159487552133e-9)
     end
 
     TT.@testset "RainLiquidAccretion" begin
@@ -278,7 +278,7 @@ function test_microphysics1M(FT)
             q_ice,
             q_rai,
             ρ,
-        ) ≈ FT(3.085229094251214e-5)
+        ) ≈ FT(3.590060148920766e-5)
 
         TT.@test CM1.accretion_snow_rain(
             snow,

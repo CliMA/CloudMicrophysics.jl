@@ -892,7 +892,7 @@ function test_gpu(FT)
         @test Array(output)[2, 2] ≈ FT(2.453070979562392e-7)
         @test Array(output)[3, 2] ≈ FT(2.453070979562392e-7)
         @test Array(output)[4, 2] ≈ FT(1.768763302130443e-6)
-        @test Array(output)[5, 2] ≈ FT(3.085229094251214e-5)
+        @test Array(output)[5, 2] ≈ FT(3.590060148920767e-5)
         @test Array(output)[6, 2] ≈ FT(2.1705865794293408e-4)
         @test Array(output)[7, 2] ≈ FT(6.0118801860768854e-5)
 
