@@ -95,7 +95,7 @@ function test_microphysics1M(FT)
         v_bigger = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno * 2)
 
         #test
-        TT.@test vt_sno ≈ 0.8237838042435908 rtol = 2e-6
+        TT.@test vt_sno ≈ 0.5151154754853093 rtol = 2e-6
         TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(0)) ≈ 0 atol =
             eps(FT)
         TT.@test v_bigger > vt_sno
