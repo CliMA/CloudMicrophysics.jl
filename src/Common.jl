@@ -286,9 +286,9 @@ function Chen2022_vel_coeffs_B4(
     Bl = exp(B[1] + B[2] * log(ρᵢ)^2 + B[3] * log(ρᵢ))
     Cl = exp(C[1] + C[2] / log(ρᵢ) + C[3] / ρᵢ)
     El = E[1] + E[2] * log(ρᵢ) * sqrt(ρᵢ) + E[3] * sqrt(ρᵢ)
-    Fl = F[1] + F[2] * log(ρᵢ) + F[3] * exp(-ρᵢ)
+    Fl = F[1] + F[2] * log(ρᵢ) - exp(log(-F[3]) - ρᵢ)
     Gl = (G[1] + G[2] * log(ρᵢ) * sqrt(ρᵢ) + G[3] / sqrt(ρᵢ))^(-1)
-    Hl = H[1] + H[2] * (ρᵢ)^FT(5 / 2) - H[3] * exp(-ρᵢ)
+    Hl = H[1] + H[2] * (ρᵢ)^FT(5 / 2) + exp(log(-H[3]) - ρᵢ)
     # Table B4
     ai = (Bl * ρₐ^Al, El * ρₐ^Al * exp(Hl * ρₐ))
     bi = (Cl, Fl)
