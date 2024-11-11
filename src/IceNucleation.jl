@@ -80,6 +80,7 @@ Returns the deposition nucleation rate coefficient, `J`, in m^-2 s^-1
 for different minerals in liquid droplets.
 The free parameters `m` and `c` are derived from China et al (2017)
 see DOI: 10.1002/2016JD025817
+Returns zero for unsupported aerosol types.
 """
 function deposition_J(
     dust::Union{CMP.Ferrihydrite, CMP.Feldspar, CMP.Kaolinite},
@@ -89,6 +90,9 @@ function deposition_J(
     logJ::FT = dust.deposition_m * Δa_w + dust.deposition_c
 
     return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
+end
+function deposition_J(dust::CMP.AerosolType, Δa_w::FT) where {FT}
+    return FT(0)
 end
 
 """
@@ -101,6 +105,7 @@ Returns the immersion freezing nucleation rate coefficient, `J`, in m^-2 s^-1
 for different minerals in liquid droplets.
 The free parameters `m` and `c` are taken from Knopf & Alpert 2013
 see DOI: 10.1039/C3FD00035D
+Returns zero for unsupported aerosol types.
 """
 function ABIFM_J(
     dust::Union{CMP.DesertDust, CMP.Illite, CMP.Kaolinite},
@@ -110,6 +115,9 @@ function ABIFM_J(
     logJ::FT = dust.ABIFM_m * Δa_w + dust.ABIFM_c
 
     return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
+end
+function ABIFM_J(dust::CMP.AerosolType, Δa_w::FT) where {FT}
+    return FT(0)
 end
 
 """
@@ -187,7 +195,6 @@ function INP_concentration_frequency(
     return 1 / (sqrt(2 * FT(π)) * params.σ) *
            exp(-(log(INPC) - μ)^2 / (2 * params.σ^2))
 end
-
 
 """
     INP_concentration_mean(T)

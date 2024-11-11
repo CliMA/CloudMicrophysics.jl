@@ -24,6 +24,7 @@ function test_heterogeneous_ice_nucleation(FT)
     kaolinite = CMP.Kaolinite(FT)
     feldspar = CMP.Feldspar(FT)
     ferrihydrite = CMP.Ferrihydrite(FT)
+    unsupported_sea_salt = CMP.Seasalt(FT)
 
     TT.@testset "dust_activation" begin
 
@@ -144,6 +145,12 @@ function test_heterogeneous_ice_nucleation(FT)
                 CO.a_w_eT(tps, e_warm, T_warm_2) - CO.a_w_ice(tps, T_warm_2),
             )
         end
+
+        # if unsupported aerosol type, default to J = 0
+        TT.@test CMI_het.deposition_J(
+            unsupported_sea_salt,
+            CO.a_w_eT(tps, e_cold, T_cold_2) - CO.a_w_ice(tps, T_cold_2),
+        ) == 0
     end
 
     TT.@testset "P3 Deposition Nᵢ" begin
@@ -193,6 +200,12 @@ function test_heterogeneous_ice_nucleation(FT)
                 CO.a_w_eT(tps, e_warm, T_warm_2) - CO.a_w_ice(tps, T_warm_2),
             )
         end
+
+        # if unsupported aerosol type, default to J = 0
+        TT.@test CMI_het.ABIFM_J(
+            unsupported_sea_salt,
+            CO.a_w_eT(tps, e_cold, T_cold_2) - CO.a_w_ice(tps, T_cold_2),
+        ) == 0
     end
 
     TT.@testset "P3 Heterogeneous Nᵢ" begin
