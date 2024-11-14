@@ -9,6 +9,9 @@ include(joinpath(pkgdir(CM), "parcel", "ParcelParameters.jl"))
     Parcel simulation parameters
 """
 Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
+    prescribed_thermodynamics = false
+    cooling_rate = 0
+    expansion_rate = 0
     aerosol_act = "None"
     deposition = "None"
     heterogeneous = "None"
@@ -47,6 +50,7 @@ function parcel_model(dY, Y, p, t)
     # Numerical precision used in the simulation
     FT = eltype(Y)
     # Simulation parameters
+    (; prescribed_thermodynamics, cooling_rate, expansion_rate) = p
     (; wps, tps, r_nuc, w) = p
     (; liq_distr, ice_distr) = p
     (; aero_act_params, dep_params, imm_params, hom_params) = p
@@ -139,9 +143,12 @@ function parcel_model(dY, Y, p, t)
         a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l -
         (a2 + a4) * Sₗ * dqᵢ_dt_v2i - a5 * Sₗ * dqᵢ_dt_l2i
 
-    dp_air_dt = -p_air * grav / R_air / T * w
+    dp_air_dt =
+        prescribed_thermodynamics ? expansion_rate :
+        -p_air * grav / R_air / T * w
 
     dT_dt =
+        prescribed_thermodynamics ? cooling_rate :
         -grav / cp_air * w +
         L_vap / cp_air * dqₗ_dt_v2l +
         L_fus / cp_air * dqᵢ_dt_l2i +
@@ -301,6 +308,9 @@ function run_parcel(IC, t_0, t_end, pp)
 
     # Parameters for the ODE solver
     p = (
+        prescribed_thermodynamics = pp.prescribed_thermodynamics,
+        cooling_rate = pp.cooling_rate,
+        expansion_rate = pp.expansion_rate,
         liq_distr = liq_distr,
         ice_distr = ice_distr,
         aero_act_params = aero_act_params,
