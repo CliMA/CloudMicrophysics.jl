@@ -332,7 +332,7 @@ Assuming exponential size distribution and hence μ=0.
 function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT}
     μ = 0 # Exponential instead of gamma distribution
     δ = FT(μ + k + 1)
-    return a * λ^δ * Γ(b + δ) / (λ + c)^(b + δ) / Γ(δ)
+    return a * exp(δ * log(λ) - (b + δ) * log(λ + c)) * Γ(b + δ) / Γ(δ)
 end
 
 end # module end
