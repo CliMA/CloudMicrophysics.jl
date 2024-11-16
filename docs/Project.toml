@@ -19,4 +19,4 @@ UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 
 [compat]
 Documenter = "1.1"
-DocumenterCitations = "=1.3.3"
+DocumenterCitations = "1.3.3"
