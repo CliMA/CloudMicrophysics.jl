@@ -30,7 +30,6 @@ moving_average_n = 20                      # average every n points
 updrafts = [FT(1.5), FT(1.4), FT(5)]       # updrafts matching AIDA cooling rate
 
 # Additional definitions
-ips = CMP.IceNucleationParameters(FT)
 tps = TD.Parameters.ThermodynamicsParameters(FT)
 R_v = TD.Parameters.R_v(tps)
 R_d = TD.Parameters.R_d(tps)
@@ -52,12 +51,15 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
         (end_time - 100 - (moving_average_n / 2)) -     # AIDA time starts at -100 seconds (t = 0 at index 101)
         (start_time - 100 + (moving_average_n / 2 - 1)) # duration of simulation
 
-    params = AIDA_IN05_params(FT, w, t_max)
-    IC = AIDA_IN05_IC(FT, data_file_name)
-
     ### Check for data file in AIDA_data folder.
     chamber_data = unpack_data(data_file_name)
     ICNC = chamber_data[start_time:end_time, 6] .* 1e6 # Nᵢ [m^-3]
+    t_profile = chamber_data[moving_average_start+1:moving_average_end, 1] .- moving_average_start .+ 100
+    T_profile = chamber_data[moving_average_start+1:moving_average_end, 3]
+    P_profile = chamber_data[moving_average_start+1:moving_average_end, 2] * 1e2
+
+    params = AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
+    IC = AIDA_IN05_IC(FT, data_file_name)
 
     frozen_frac = ICNC ./ (IC[7] + IC[8] + IC[9])
     frozen_frac_moving_mean = moving_average(frozen_frac, moving_average_n)
@@ -91,8 +93,6 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     EKI_parcel = run_calibrated_model(FT, "ABHOM", EKI_calibrated_parameters, params, IC)
     UKI_parcel = run_calibrated_model(FT, "ABHOM", UKI_calibrated_parameters, params, IC)
     parcel_default = run_calibrated_model(FT, "ABHOM", [FT(255.927125), FT(-68.553283)], params, IC)
-
-
 
     ### Plots.
     ## Plotting AIDA data.
@@ -162,7 +162,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
         ax_parcel_3,
         chamber_data[start_time:end_time, 1] .- (start_time - 100),
         chamber_data[start_time:end_time, 3],
-        color = :blue
+        color = :blue,
+        linestyle =:dash,
     )
 
     MK.lines!(ax_parcel_4, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[6, :], color = :orange)
@@ -191,7 +192,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
         ax_parcel_7,
         chamber_data[start_time:end_time, 1] .- (start_time - 100),
         chamber_data[start_time:end_time, 2] .* 1e2,
-        color = :blue
+        color = :blue,
+        linestyle =:dash,
     )
 
     MK.lines!(ax_parcel_8, EKI_parcel.t .+ (moving_average_n / 2), EKI_parcel[7, :], color = :orange)

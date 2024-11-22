@@ -20,6 +20,11 @@ function perf_model_params(FT, IN_mode)
         deposition_growth = "Deposition"
         liq_size_distribution = "Monodisperse"
         ice_size_distribution = "Monodisperse"
+        prescribed_thermodynamics = false
+        t_profile = []
+        T_profile = []
+        P_profile = []
+        ips = CMP.IceNucleationParameters(FT)
     elseif IN_mode == "ABIFM"
         const_dt = FT(1)
         w = FT(1)
@@ -35,6 +40,11 @@ function perf_model_params(FT, IN_mode)
         deposition_growth = "Deposition"
         liq_size_distribution = "Monodisperse"
         ice_size_distribution = "Monodisperse"
+        prescribed_thermodynamics = false
+        t_profile = []
+        T_profile = []
+        P_profile = []
+        ips = CMP.IceNucleationParameters(FT)
     elseif IN_mode == "ABHOM"
         const_dt = FT(1)
         w = FT(1)
@@ -50,8 +60,14 @@ function perf_model_params(FT, IN_mode)
         deposition_growth = "Deposition"
         liq_size_distribution = "Monodisperse"
         ice_size_distribution = "Monodisperse"
+        prescribed_thermodynamics = false
+        t_profile = []
+        T_profile = []
+        P_profile = []
+        ips = CMP.IceNucleationParameters(FT)
     end
-    params = (; const_dt, w, t_max,
+    params = (; const_dt, w, t_max,ips,
+        prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
         condensation_growth, deposition_growth,         # growth
         liq_size_distribution, ice_size_distribution,   # size distribution
@@ -141,9 +157,10 @@ function perf_model_pseudo_data(FT, IN_mode, params, IC)
     return [y_truth, Γ, coeff_true]
 end
 
-function AIDA_IN05_params(FT, w, t_max)
+function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
     IN_mode = "ABHOM"
     const_dt = FT(1)
+    prescribed_thermodynamics = true
     aerosol_act = "AeroAct"
     aerosol = CMP.Sulfate(FT)
     dep_nucleation = "None"
@@ -155,8 +172,10 @@ function AIDA_IN05_params(FT, w, t_max)
     ice_size_distribution = "Gamma"
     aero_σ_g = FT(2.3)
     r_nuc = FT(1e-7) #FT(3.057e-6)
+    ips = CMP.IceNucleationParameters(FT)
 
-    params = (; const_dt, w, t_max,
+    params = (; const_dt, w, t_max,ips,
+        prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
         condensation_growth, deposition_growth,         # growth
         liq_size_distribution, ice_size_distribution,   # size distribution
@@ -198,8 +217,8 @@ function AIDA_IN05_IC(FT, data_file)
         Nᵢ = FT(1.53 * 1e6)
         Nₐ = FT(275 * 1e6) - Nₗ - Nᵢ
         r₀ = FT(7.03467 * 1e-6)
-        p₀ = FT(873.212 * 1e2)
-        T₀ = FT(237.134)
+        p₀ = FT(873.322 * 1e2)
+        T₀ = FT(237.175)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
@@ -215,8 +234,8 @@ function AIDA_IN05_IC(FT, data_file)
         Nₗ = FT(180 * 1e6)
         Nᵢ = FT(0.49 * 1e6)
         r₀ = FT(6.5e-6)     # !!missing in dataset!!
-        p₀ = FT(722.852 * 1e2)
-        T₀ = FT(237.521)
+        p₀ = FT(724.545 * 1e2)
+        T₀ = FT(237.639)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
