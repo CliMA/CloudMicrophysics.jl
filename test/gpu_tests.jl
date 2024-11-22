@@ -131,6 +131,32 @@ end
     end
 end
 
+@kernel function test_chen2022_terminal_velocity_kernel!(
+    liquid,
+    ice,
+    rain,
+    snow,
+    Ch2022,
+    output::AbstractArray{FT},
+    ρₐ,
+    qₗ,
+    qᵢ,
+    qᵣ,
+    qₛ,
+) where {FT}
+
+    i = @index(Group, Linear)
+
+    @inbounds begin
+        output[1, i] = CMN.terminal_velocity(liquid, Ch2022.rain, ρₐ[i], qₗ[i])
+        output[2, i] =
+            CMN.terminal_velocity(ice, Ch2022.small_ice, ρₐ[i], qᵢ[i])
+        output[3, i] = CM1.terminal_velocity(rain, Ch2022.rain, ρₐ[i], qᵣ[i])
+        output[4, i] =
+            CM1.terminal_velocity(snow, Ch2022.large_ice, ρₐ[i], qₛ[i])
+    end
+end
+
 @kernel function test_0_moment_micro_kernel!(
     p0m,
     output::AbstractArray{FT},
@@ -750,6 +776,7 @@ function test_gpu(FT)
     # Terminal velocity
     blk1mvel = CMP.Blk1MVelType(FT)
     SB2006Vel = CMP.SB2006VelType(FT)
+    Ch2022 = CMP.Chen2022VelType(FT)
 
     # 2-moment microphysics
     SB2006 = CMP.SB2006(FT)
@@ -827,6 +854,39 @@ function test_gpu(FT)
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(3.763783850665844e-5)
         @test Array(output)[2] ≈ FT(-1e-4)
+    end
+
+    @testset "Chen 2022 terminal velocity kernels" begin
+        dims = (4, 1)
+        (; output, ndrange) = setup_output(dims, FT)
+
+        ρ = ArrayType([FT(0.95)])
+        qₗ = ArrayType([FT(0.004)])
+        qᵢ = ArrayType([FT(0.003)])
+        qᵣ = ArrayType([FT(0.002)])
+        qₛ = ArrayType([FT(0.001)])
+
+        kernel! = test_chen2022_terminal_velocity_kernel!(backend, work_groups)
+        kernel!(
+            liquid,
+            ice,
+            rain,
+            snow,
+            Ch2022,
+            output,
+            ρ,
+            qₗ,
+            qᵢ,
+            qᵣ,
+            qₛ;
+            ndrange,
+        )
+
+        # test that terminal velocity is callable and returns a reasonable value
+        @test Array(output)[1] ≈ FT(0.00689286343412659)
+        @test Array(output)[2] ≈ FT(0.011493257177438487)
+        @test Array(output)[3] ≈ FT(4.274715870117866)
+        @test Array(output)[4] ≈ FT(0.5688979454130587)
     end
 
     @testset "0-moment microphysics kernels" begin

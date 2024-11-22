@@ -66,6 +66,7 @@ function benchmark_test(FT)
     liquid = CMP.CloudLiquid(FT)
     ice = CMP.CloudIce(FT)
     rain = CMP.Rain(FT)
+    snow = CMP.Snow(FT)
     ce = CMP.CollisionEff(FT)
     # 2-moment microphysics
     override_file = joinpath(
@@ -201,6 +202,20 @@ function benchmark_test(FT)
     #end
     #bench_press(CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
     #bench_press(CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
+
+    # Chen 2022 terminal velocity
+    bench_press(CMN.terminal_velocity, (liquid, ch2022.rain, ρ_air, q_liq), 350)
+    bench_press(
+        CMN.terminal_velocity,
+        (ice, ch2022.small_ice, ρ_air, q_ice),
+        350,
+    )
+    bench_press(CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 700)
+    bench_press(
+        CM1.terminal_velocity,
+        (snow, ch2022.large_ice, ρ_air, q_sno),
+        700,
+    )
 
     # aerosol activation
     bench_press(
