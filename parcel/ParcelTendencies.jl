@@ -96,6 +96,7 @@ function deposition_nucleation(params::ABDINM, state, dY)
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
     J = CMI_het.deposition_J(aerosol, Δa_w)
     A = 4 * FT(π) * r_nuc^2
+    @info("ABDINM ABDINM ABDINM ABDINM ABDINM ABDINM ABDINM ABDINM ABDINM ABDINM ABDINM ABDINM ABDINM")
     return min(max(FT(0), J * Nₐ * A), Nₐ / const_dt)
 end
 
@@ -125,6 +126,7 @@ function immersion_freezing(params::ABIFM, PSD_liq, state)
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
 
     J = CMI_het.ABIFM_J(aerosol, Δa_w)
+    @info("ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM ABIFM")
     return min((J * Nₗ * A_aer), (Nₗ / const_dt))
 end
 

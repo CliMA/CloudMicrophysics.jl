@@ -146,8 +146,8 @@ function AIDA_IN05_params(FT, w, t_max)
     const_dt = FT(1)
     aerosol_act = "AeroAct"
     aerosol = CMP.Sulfate(FT)
-    dep_nucleation = "None"
-    heterogeneous = "None"
+    dep_nucleation = "ABDINM"
+    heterogeneous = "ABIFM"
     homogeneous = "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
@@ -162,6 +162,7 @@ function AIDA_IN05_params(FT, w, t_max)
         liq_size_distribution, ice_size_distribution,   # size distribution
         dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
     )
+
     return params
 end
 
