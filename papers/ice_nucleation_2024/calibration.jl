@@ -20,7 +20,9 @@ include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup
 function run_model(p, coefficients, IN_mode, FT, IC, end_sim)
     # grabbing parameters
     m_calibrated, c_calibrated = coefficients
-    (; const_dt, w, t_max, aerosol_act, aerosol, r_nuc) = p
+    (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
+    (; const_dt, w, t_max, ips) = p
+    (; aerosol_act, aerosol, r_nuc) = p
     (; deposition_growth, condensation_growth) = p
     (; dep_nucleation, heterogeneous, homogeneous) = p
     (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
@@ -34,19 +36,7 @@ function run_model(p, coefficients, IN_mode, FT, IC, end_sim)
                 Dict("value" => c_calibrated, "type" => "float"),
         )
         kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        overwrite = CMP.Kaolinite(kaolinite_calibrated)
-
-        # run parcel with new coefficients
-        local params = parcel_params{FT}(
-            const_dt = const_dt,
-            w = w,
-            aerosol = overwrite,
-            deposition = dep_nucleation,
-            condensation_growth = condensation_growth,
-            deposition_growth = deposition_growth,
-            liq_size_distribution = liq_size_distribution,
-            ice_size_distribution = ice_size_distribution,
-        )
+        aerosol = CMP.Kaolinite(kaolinite_calibrated)
 
     elseif IN_mode == "ABIFM"
         # overwriting
@@ -57,19 +47,7 @@ function run_model(p, coefficients, IN_mode, FT, IC, end_sim)
                 Dict("value" => c_calibrated, "type" => "float"),
         )
         kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        overwrite = CMP.Kaolinite(kaolinite_calibrated)
-
-        # run parcel with new coefficients
-        local params = parcel_params{FT}(
-            const_dt = const_dt,
-            w = w,
-            aerosol = overwrite,
-            heterogeneous = heterogeneous,
-            condensation_growth = condensation_growth,
-            deposition_growth = deposition_growth,
-            liq_size_distribution = liq_size_distribution,
-            ice_size_distribution = ice_size_distribution,
-        )
+        aerosol = CMP.Kaolinite(kaolinite_calibrated)
 
     elseif IN_mode == "ABHOM"
         # overwriting
@@ -80,24 +58,30 @@ function run_model(p, coefficients, IN_mode, FT, IC, end_sim)
                 Dict("value" => c_calibrated, "type" => "float"),
         )
         ip_calibrated = CP.create_toml_dict(FT; override_file)
-        overwrite = CMP.IceNucleationParameters(ip_calibrated)
-
-        # run parcel with new coefficients
-        local params = parcel_params{FT}(
-            const_dt = const_dt,
-            w = w,
-            aerosol_act = aerosol_act,
-            aerosol = aerosol,
-            aero_σ_g = aero_σ_g,
-            homogeneous = homogeneous,
-            condensation_growth = condensation_growth,
-            deposition_growth = deposition_growth,
-            liq_size_distribution = liq_size_distribution,
-            ice_size_distribution = ice_size_distribution,
-            ips = overwrite,
-            r_nuc = r_nuc,
-        )
+        ips = CMP.IceNucleationParameters(ip_calibrated)
     end
+
+    # run parcel with new coefficients
+    local params = parcel_params{FT}(
+        const_dt = const_dt,
+        w = w,
+        prescribed_thermodynamics = prescribed_thermodynamics,
+        t_profile = t_profile,
+        T_profile = T_profile,
+        P_profile = P_profile,
+        aerosol_act = aerosol_act,
+        aerosol = aerosol,
+        aero_σ_g = aero_σ_g,
+        homogeneous = homogeneous,
+        deposition = dep_nucleation,
+        heterogeneous = heterogeneous,
+        condensation_growth = condensation_growth,
+        deposition_growth = deposition_growth,
+        liq_size_distribution = liq_size_distribution,
+        ice_size_distribution = ice_size_distribution,
+        ips = ips,
+        r_nuc = r_nuc,
+    )
 
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
@@ -107,12 +91,14 @@ end
 function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
     # grabbing parameters
     m_calibrated, c_calibrated = coefficients
-    (; const_dt, w, t_max, aerosol_act, aerosol, r_nuc) = p
+    (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
+    (; const_dt, w, t_max, ips) = p
+    (; aerosol_act, aerosol, r_nuc) = p
     (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
+    (; dep_nucleation, heterogeneous, homogeneous) = p
     (; deposition_growth, condensation_growth) = p
 
     if IN_mode == "ABDINM"
-        (; dep_nucleation) = p
         # overwriting
         override_file = Dict(
             "China2017_J_deposition_m_Kaolinite" =>
@@ -121,25 +107,9 @@ function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
                 Dict("value" => c_calibrated, "type" => "float"),
         )
         kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        overwrite = CMP.Kaolinite(kaolinite_calibrated)
-
-        # run parcel with new coefficients
-        local params = parcel_params{FT}(
-            const_dt = const_dt,
-            w = w,
-            aerosol_act = aerosol_act,
-            aerosol = overwrite,
-            aero_σ_g = aero_σ_g,
-            deposition = dep_nucleation,
-            condensation_growth = condensation_growth,
-            deposition_growth = deposition_growth,
-            liq_size_distribution = liq_size_distribution,
-            ice_size_distribution = ice_size_distribution,
-            ips = overwrite,
-        )
+        aerosol = CMP.Kaolinite(kaolinite_calibrated)
 
     elseif IN_mode == "ABIFM"
-        (; heterogeneous) = p
         # overwriting
         override_file = Dict(
             "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
@@ -148,25 +118,9 @@ function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
                 Dict("value" => c_calibrated, "type" => "float"),
         )
         kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        overwrite = CMP.Kaolinite(kaolinite_calibrated)
-
-        # run parcel with new coefficients
-        local params = parcel_params{FT}(
-            const_dt = const_dt,
-            w = w,
-            aerosol_act = aerosol_act,
-            aerosol = overwrite,
-            aero_σ_g = aero_σ_g,
-            heterogeneous = heterogeneous,
-            condensation_growth = condensation_growth,
-            deposition_growth = deposition_growth,
-            liq_size_distribution = liq_size_distribution,
-            ice_size_distribution = ice_size_distribution,
-            ips = overwrite,
-        )
+        aerosol = CMP.Kaolinite(kaolinite_calibrated)
     
     elseif IN_mode == "ABHOM"
-        (; homogeneous) = p
         # overwriting
         override_file = Dict(
             "Linear_J_hom_coeff2" =>
@@ -175,24 +129,31 @@ function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
                 Dict("value" => c_calibrated, "type" => "float"),
         )
         ip_calibrated = CP.create_toml_dict(FT; override_file)
-        overwrite = CMP.IceNucleationParameters(ip_calibrated)
-
-        # run parcel with new coefficients
-        local params = parcel_params{FT}(
-            const_dt = const_dt,
-            w = w,
-            aerosol_act = aerosol_act,
-            aerosol = aerosol,
-            aero_σ_g = aero_σ_g,
-            homogeneous = homogeneous,
-            condensation_growth = condensation_growth,
-            deposition_growth = deposition_growth,
-            liq_size_distribution = liq_size_distribution,
-            ice_size_distribution = ice_size_distribution,
-            ips = overwrite,
-            r_nuc = r_nuc,
-        )
+        ips = CMP.IceNucleationParameters(ip_calibrated)
     end
+
+    # run parcel with new coefficients
+    local params = parcel_params{FT}(
+        const_dt = const_dt,
+        prescribed_thermodynamics = prescribed_thermodynamics,
+        t_profile = t_profile,
+        T_profile = T_profile,
+        P_profile = P_profile,
+        w = w,
+        aerosol_act = aerosol_act,
+        aerosol = aerosol,
+        aero_σ_g = aero_σ_g,
+        homogeneous = homogeneous,
+        deposition = dep_nucleation,
+        heterogeneous = heterogeneous,
+        condensation_growth = condensation_growth,
+        deposition_growth = deposition_growth,
+        liq_size_distribution = liq_size_distribution,
+        ice_size_distribution = ice_size_distribution,
+        ips = ips,
+        r_nuc = r_nuc,
+    )
+
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
     return sol
