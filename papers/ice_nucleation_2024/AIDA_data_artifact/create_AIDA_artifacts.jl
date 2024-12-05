@@ -3,10 +3,11 @@
 # of a function in CloudMicrophysics that is called by ClimaAtmos). For more info, please
 # visit the ClimaArtifacts.jl repo on GitHub!
 
-# To use in VS Code, first activate the AIDA_data_artifact environment.
+# In terminal, make sure your pwd is in AIDA_data_artifact. Then,
+# activate Julia at --project=papers/ice_nucleation_2024/AIDA_data_artifact.
+# You are in the right place if you enter the shell (tap ; on keyboard) and
+# see that you are in the AIDA_data_artifact folder (NOT CloudMicrophysics.jl)
 # Then, copy and paste the following script to the Julia REPL.
-# To use in terminal, activate Julia at --project=papers/ice_nucleation_2024/AIDA_data_artifact.
-# Then, copy and paste the following script in your now opened Julia REPL.
 
 # If you do not already have ClimaArtifactsHelper, go into the Julia REPL and type:
 # Pkg.develop(url="https://github.com/CliMA/ClimaArtifacts.git", subdir="ClimaArtifactsHelper.jl")
@@ -25,7 +26,7 @@ create_artifact_guided(data_folder; artifact_name = data_set_name)
 
 # After getting an updated "OutputArtifacts.toml" file in this folder, 
 # Add it to the list of artifacts in CloudMicrophysics.jl's Artifact.toml file.
-# Add `lazy = true` under the `git-tree-sha1` line in Artifact.toml i fyou would like
+# Add `lazy = true` under the `git-tree-sha1` line in Artifact.toml if you would like
 # the artifact to be downloaded lazily.
 
 # To use data, make sure your script has "using LazyArtifacts" at the top.
