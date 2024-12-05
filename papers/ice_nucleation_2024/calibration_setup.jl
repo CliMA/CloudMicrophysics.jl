@@ -213,17 +213,17 @@ function AIDA_IN05_IC(FT, data_file)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     elseif data_file == "in05_18_aida.edf"
-        Nₗ = FT(209.46 * 1e6)
-        Nᵢ = FT(1.53 * 1e6)
+        Nₗ = FT(210.28 * 1e6)
+        Nᵢ = FT(1.73 * 1e6)
         Nₐ = FT(275 * 1e6) - Nₗ - Nᵢ
-        r₀ = FT(7.03467 * 1e-6)
+        r₀ = FT(6.99998 * 1e-6)
         p₀ = FT(873.322 * 1e2)
         T₀ = FT(237.175)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
-        e = FT(28.1324)
+        e = FT(28.086)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
         Rₐ = TD.gas_constant_air(tps, q)
@@ -232,7 +232,7 @@ function AIDA_IN05_IC(FT, data_file)
     elseif data_file == "in05_19_aida.edf"
         Nₐ = FT(0)
         Nₗ = FT(180 * 1e6)
-        Nᵢ = FT(0.49 * 1e6)
+        Nᵢ = FT(0.882 * 1e6)
         r₀ = FT(6.5e-6)     # !!missing in dataset!!
         p₀ = FT(724.545 * 1e2)
         T₀ = FT(237.639)

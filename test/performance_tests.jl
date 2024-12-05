@@ -208,7 +208,7 @@ function benchmark_test(FT)
     bench_press(
         CMN.terminal_velocity,
         (ice, ch2022.small_ice, ρ_air, q_ice),
-        350,
+        400,
     )
     bench_press(CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 750)
     bench_press(

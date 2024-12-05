@@ -13,11 +13,10 @@ S_i(tps, T, S_liq) = ξ(tps, T) * S_liq
 
 # Interpolating for cooling/expansion rate
 function AIDA_rate(model_t, data_t, data)
-    index = Int32(model_t) + 1
     data_at_t = Intp.linear_interpolation(data_t, data)
 
-    if index < length(data) - 1
-        return (data_at_t(model_t + 2) - data_at_t(model_t + 1))
+    if model_t < data_t[end]
+        return (data_at_t(model_t + 1) - data_at_t(model_t))
     else
         return 0
     end
