@@ -12,16 +12,19 @@ After logging in, data is found under "Data Curation of Homeless Data" -->
 bring the user to the EUROCHAMP2020 interface where AIDA chamber data can be found.
 
 ## Data details
-The point of contact and author of the raw homogeneous ice
-nucleation data (IN05_17, IN05_18, and IN05_19) is Ottmar Mohler.
-This data includes a time series of pressure, mean gas temperature, water partial
-pressure, total water concentration, ice number density, droplet number density,
-and droplet diameter. These temperature-dependent rate measurements were made
-during adiabatic expansion experiments in the AIDA chamber.
+The point of contact and author of the raw ice nucleation data
+from the AIDA chamber is Ottmar Mohler. The homogeneous ice nucleation
+data (IN05_17, IN05_18, IN05_19) includes a time series of pressure,
+mean gas temperature, water partial pressure, total water concentration,
+ice number density from WELAS, droplet number density, and droplet diameter.
+The heterogeneous ice nucleation data (IN07_01, IN07_19) includes the same
+first six variables, ice number density from FTIR, and ice water content.
+These measurements were made during adiabatic expansion experiments in the AIDA chamber.
 Experimental details can be found in Benz et al (2005) here:
-https://www.sciencedirect.com/science/article/pii/S1010603005004181. 
-
-More AIDA chamebr data is to be added from various heterogeneous experiments.
+https://www.sciencedirect.com/science/article/pii/S1010603005004181.
+More details on the heterogeneous ice nucleation experiments can be found
+in Mohler et al (2008) here:
+https://iopscience.iop.org/article/10.1088/1748-9326/3/2/025007/pdf.
 
 ## Licensing
 License: Creative Commons Attribution 4.0 International (CC by 4.0)

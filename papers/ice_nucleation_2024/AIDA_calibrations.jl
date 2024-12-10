@@ -33,11 +33,17 @@ moving_average(data, n) =
     [sum(@view data[i:(i + n)]) / n for i in 1:(length(data) - n)]
 
 # Defining data names, start/end times, etc.
-data_file_names = ["in05_17_aida.edf", "in05_18_aida.edf", "in05_19_aida.edf"]
-plot_names = ["IN0517", "IN0518", "IN0519"]
+data_file_names = [
+    "in05_17_aida.edf",
+    "in05_18_aida.edf",
+    "in05_19_aida.edf",
+    "in07_01_aida.edf",
+    "in07_19_aida.edf",
+]
+plot_names = ["IN0517", "IN0518", "IN0519", "IN0701", "IN0719"]
 end_sim = 25                                            # Loss func looks at last end_sim timesteps only
-start_time_list = [195, 180, 80, 50, 35]                # freezing onset
-end_time_list = [290, 290, 170, 800, 800]               # approximate time freezing stops
+start_time_list = [150, 180, 80, 50, 35]                # freezing onset
+end_time_list = [290, 290, 170, 400, 400]               # approximate time freezing stops
 moving_average_n = 20                                   # average every n points
 updrafts = [FT(1.5), FT(1.4), FT(5), FT(1.5), FT(1.5)]  # updrafts matching AIDA cooling rate
 
@@ -49,6 +55,7 @@ R_d = TD.Parameters.R_d(tps)
 
 
 for (exp_index, data_file_name) in enumerate(data_file_names)
+    @info(data_file_name)
     #! format: off
     ### Unpacking experiment-specific variables.
     plot_name = plot_names[exp_index]
@@ -57,6 +64,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     start_time_index = start_time .+ 100
     end_time = end_time_list[exp_index]
     end_time_index = end_time .+ 100
+
+    nuc_mode = plot_name == "IN0701" || plot_name == "IN0719" ? "ABDINM" : "ABHOM"
 
     ## Moving average to smooth data.
     moving_average_start_index = Int32(start_time_index + (moving_average_n / 2))
@@ -72,10 +81,16 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     P_profile = AIDA_P_profile[moving_average_start_index:moving_average_end_index]
     ICNC_profile = AIDA_ICNC[moving_average_start_index:moving_average_end_index]
     e_profile = AIDA_e[moving_average_start_index:moving_average_end_index]
-    # S_l_profile = e_profile ./ (TD.saturation_vapor_pressure.(tps, T_profile, TD.Liquid()))
+    S_l_profile = e_profile ./ (TD.saturation_vapor_pressure.(tps, T_profile, TD.Liquid()))
 
-    params = AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
-    IC = AIDA_IN05_IC(FT, data_file_name)
+    params =
+        nuc_mode == "ABHOM" ?
+        AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile) :
+        AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, plot_name)
+    IC =
+        nuc_mode == "ABHOM" ?
+        AIDA_IN05_IC(FT, data_file_name) :
+        AIDA_IN07_IC(FT, data_file_name)
 
     Nₜ = IC[7] + IC[8] + IC[9]
     frozen_frac = AIDA_ICNC[start_time_index:end_time_index] ./ Nₜ
@@ -84,8 +99,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     Γ = 0.1 * LinearAlgebra.I * (maximum(frozen_frac_moving_mean) - minimum(frozen_frac_moving_mean)) # coeff is an estimated of the noise
 
     ### Calibration.
-    EKI_output = calibrate_J_parameters_EKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, end_sim, Γ)
-    UKI_output = calibrate_J_parameters_UKI(FT, "ABHOM", params, IC, frozen_frac_moving_mean, end_sim, Γ)
+    EKI_output = calibrate_J_parameters_EKI(FT, nuc_mode, params, IC, frozen_frac_moving_mean, end_sim, Γ)
+    UKI_output = calibrate_J_parameters_UKI(FT, nuc_mode, params, IC, frozen_frac_moving_mean, end_sim, Γ)
     
     EKI_n_iterations = size(EKI_output[2])[1]
     EKI_n_ensembles = size(EKI_output[2][1])[2]
@@ -95,16 +110,15 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     calibrated_ensemble_means = ensemble_means(EKI_output[2], EKI_n_iterations, EKI_n_ensembles)
 
     ## Calibrated parcel.
-    EKI_parcel = run_calibrated_model(FT, "ABHOM", EKI_calibrated_parameters, params, IC)
-    UKI_parcel = run_calibrated_model(FT, "ABHOM", UKI_calibrated_parameters, params, IC)
-    parcel_default = run_calibrated_model(FT, "ABHOM", [FT(255.927125), FT(-68.553283)], params, IC)
+    EKI_parcel = run_calibrated_model(FT, nuc_mode, EKI_calibrated_parameters, params, IC)
+    UKI_parcel = run_calibrated_model(FT, nuc_mode, UKI_calibrated_parameters, params, IC)
 
     ### Plots.
     ## Plotting AIDA data.
     AIDA_data_fig = MK.Figure(size = (800, 600), fontsize = 24)
     ax1 = MK.Axis(AIDA_data_fig[1, 1], ylabel = "ICNC [m^-3]", xlabel = "time [s]", title = "AIDA data $plot_name")
     MK.lines!(ax1, AIDA_t_profile, AIDA_ICNC, label = "Raw AIDA", color =:blue, linestyle =:dash, linewidth = 2)
-    MK.lines!(ax1, t_profile, ICNC_moving_avg, label = "AIDA moving mean", linewidth = 2.5, color =:blue)
+    MK.lines!(ax1, t_profile .+ moving_average_start_index .- 100, ICNC_moving_avg, label = "AIDA moving mean", linewidth = 2.5, color =:blue)
     MK.axislegend(ax1, framevisible = true, labelsize = 12, position = :rc)
     MK.save("$plot_name"*"_ICNC.svg", AIDA_data_fig)
 
@@ -131,30 +145,24 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     
     MK.lines!(ax_parcel_1, EKI_parcel.t, EKI_parcel[1, :], label = "EKI Calib Liq", color = :orange) # label = "liquid"
     MK.lines!(ax_parcel_1, UKI_parcel.t, UKI_parcel[1, :], label = "UKI Calib Liq", color = :fuchsia) # label = "liquid"
-    MK.lines!(ax_parcel_1, parcel_default.t, parcel_default[1, :], label = "default", color = :darkorange2)
     MK.lines!(ax_parcel_1, EKI_parcel.t, S_i.(tps, EKI_parcel[3, :], EKI_parcel[1, :]), label = "EKI Calib Ice", color = :green)
-    # MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
+    MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
     
     MK.lines!(ax_parcel_2, EKI_parcel.t, EKI_parcel[5, :], color = :orange)
     MK.lines!(ax_parcel_2, UKI_parcel.t, UKI_parcel[5, :], color = :fuchsia)
-    MK.lines!(ax_parcel_2, parcel_default.t, parcel_default[5,:], color = :darkorange2)
 
     MK.lines!(ax_parcel_3, EKI_parcel.t, EKI_parcel[3, :], color = :orange)
     MK.lines!(ax_parcel_3, UKI_parcel.t, UKI_parcel[3, :], color = :fuchsia)
-    MK.lines!(ax_parcel_3, parcel_default.t, parcel_default[3, :], color = :darkorange2)
     MK.lines!(ax_parcel_3, t_profile, T_profile, color = :blue, linestyle =:dash)
 
     MK.lines!(ax_parcel_4, EKI_parcel.t, EKI_parcel[6, :], color = :orange)
     MK.lines!(ax_parcel_4, UKI_parcel.t, UKI_parcel[6, :], color = :fuchsia)
-    MK.lines!(ax_parcel_4, parcel_default.t, parcel_default[6, :], color = :darkorange2)
 
     MK.lines!(ax_parcel_5, EKI_parcel.t, EKI_parcel[8, :], color = :orange)
     MK.lines!(ax_parcel_5, UKI_parcel.t, UKI_parcel[8, :], color = :fuchsia)    
-    MK.lines!(ax_parcel_5, parcel_default.t, parcel_default[8, :], color = :darkorange2)
 
     MK.lines!(ax_parcel_6, EKI_parcel.t, EKI_parcel[9, :], color = :orange, label = "EKI")
     MK.lines!(ax_parcel_6, UKI_parcel.t, UKI_parcel[9, :], color = :fuchsia, label = "UKI")
-    MK.lines!(ax_parcel_6, parcel_default.t, parcel_default[9, :], color = :darkorange2, label = "Pre-Calib")
     MK.lines!(ax_parcel_6, t_profile, ICNC_profile, color = :blue, label = "AIDA",)
     
     error = fill(sqrt(Γ[1,1]) * 2, length(AIDA_t_profile[start_time_index:end_time_index] .- start_time))
@@ -174,14 +182,6 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     #  Does calibrated parcel look like observations?
     ICNC_comparison_fig = MK.Figure(size = (700, 600), fontsize = 24)
     ax_compare = MK.Axis(ICNC_comparison_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$plot_name")
-    # MK.lines!(
-    #     ax_compare,
-    #     parcel_default.t,
-    #     parcel_default[9, :]./  Nₜ,
-    #     label = "CM.jl Parcel (Pre-Calib)",
-    #     linewidth = 2.5,
-    #     color =:orangered,
-    # )
     MK.lines!(
         ax_compare,
         EKI_parcel.t,
@@ -223,11 +223,11 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
 
     ## Looking at spread in UKI calibrated parameters
     ϕ_UKI = UKI_output[2]
-    UKI_parcel_1 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,1], ϕ_UKI[2,1]], params, IC)
-    UKI_parcel_2 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,2], ϕ_UKI[2,2]], params, IC)
-    UKI_parcel_3 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,3], ϕ_UKI[2,3]], params, IC)
-    UKI_parcel_4 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,4], ϕ_UKI[2,4]], params, IC)
-    UKI_parcel_5 = run_calibrated_model(FT, "ABHOM", [ϕ_UKI[1,5], ϕ_UKI[2,5]], params, IC)
+    UKI_parcel_1 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,1], ϕ_UKI[2,1]], params, IC)
+    UKI_parcel_2 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,2], ϕ_UKI[2,2]], params, IC)
+    UKI_parcel_3 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,3], ϕ_UKI[2,3]], params, IC)
+    UKI_parcel_4 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,4], ϕ_UKI[2,4]], params, IC)
+    UKI_parcel_5 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,5], ϕ_UKI[2,5]], params, IC)
 
     UKI_spread_fig = MK.Figure(size = (700, 600), fontsize = 24)
     ax_spread = MK.Axis(UKI_spread_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$plot_name")
