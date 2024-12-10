@@ -10,6 +10,10 @@ DOI: 10.1039/C3FD00035D
 $(DocStringExtensions.FIELDS)
 """
 Base.@kwdef struct Illite{FT} <: AerosolType{FT}
+    "m coefficient for deposition nucleation J [-]"
+    deposition_m::FT
+    "c coefficient for deposition nucleation J [-]"
+    deposition_c::FT
     "m coefficient for immersion freezing J [-]"
     ABIFM_m::FT
     "c coefficient for immersion freezing J [-]"

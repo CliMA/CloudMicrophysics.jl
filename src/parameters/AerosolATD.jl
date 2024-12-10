@@ -18,6 +18,14 @@ Base.@kwdef struct ArizonaTestDust{FT} <: AerosolType{FT}
     a_warm::FT
     "a for T < T_thr [-]"
     a_cold::FT
+    "m coefficient for deposition nucleation J [-]"
+    deposition_m::FT
+    "c coefficient for deposition nucleation J [-]"
+    deposition_c::FT
+    "m coefficient for immersion freezing J [-]"
+    ABIFM_m::FT
+    "c coefficient for immersion freezing J [-]"
+    ABIFM_c::FT
 end
 
 ArizonaTestDust(::Type{FT}) where {FT <: AbstractFloat} =

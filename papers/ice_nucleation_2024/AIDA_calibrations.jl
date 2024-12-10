@@ -33,8 +33,8 @@ moving_average(data, n) =
     [sum(@view data[i:(i + n)]) / n for i in 1:(length(data) - n)]
 
 # Defining data names, start/end times, etc.
-data_file_names = ["in05_17_aida.edf", "in05_18_aida.edf", "in05_19_aida.edf"]
-plot_names = ["IN0517", "IN0518", "IN0519"]
+data_file_names = ["in05_17_aida.edf", "in05_18_aida.edf", "in05_19_aida.edf", "in07_01_aida.edf", "in07_19_aida.edf"]
+plot_names = ["IN0517", "IN0518", "IN0519", "IN0701", "IN0719"]
 end_sim = 25                                            # Loss func looks at last end_sim timesteps only
 start_time_list = [195, 180, 80, 50, 35]                # freezing onset
 end_time_list = [290, 290, 170, 800, 800]               # approximate time freezing stops
@@ -58,6 +58,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     end_time = end_time_list[exp_index]
     end_time_index = end_time .+ 100
 
+    nuc_mode = plot_name == "IN0701" || plot_name == "IN0719" ? "HET" : "HOM"
+
     ## Moving average to smooth data.
     moving_average_start_index = Int32(start_time_index + (moving_average_n / 2))
     moving_average_end_index = Int32(end_time_index - (moving_average_n / 2))
@@ -72,10 +74,16 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     P_profile = AIDA_P_profile[moving_average_start_index:moving_average_end_index]
     ICNC_profile = AIDA_ICNC[moving_average_start_index:moving_average_end_index]
     e_profile = AIDA_e[moving_average_start_index:moving_average_end_index]
-    # S_l_profile = e_profile ./ (TD.saturation_vapor_pressure.(tps, T_profile, TD.Liquid()))
+    S_l_profile = e_profile ./ (TD.saturation_vapor_pressure.(tps, T_profile, TD.Liquid()))
 
-    params = AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
-    IC = AIDA_IN05_IC(FT, data_file_name)
+    params =
+        nuc_mode == "HOM" ?
+        AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile) :
+        AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, plot_name)
+    IC =
+        nuc_mode == "HOM" ?
+        AIDA_IN05_IC(FT, data_file_name) :
+        AIDA_IN07_IC(FT, data_file_name)
 
     Nₜ = IC[7] + IC[8] + IC[9]
     frozen_frac = AIDA_ICNC[start_time_index:end_time_index] ./ Nₜ
@@ -131,9 +139,9 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     
     MK.lines!(ax_parcel_1, EKI_parcel.t, EKI_parcel[1, :], label = "EKI Calib Liq", color = :orange) # label = "liquid"
     MK.lines!(ax_parcel_1, UKI_parcel.t, UKI_parcel[1, :], label = "UKI Calib Liq", color = :fuchsia) # label = "liquid"
-    MK.lines!(ax_parcel_1, parcel_default.t, parcel_default[1, :], label = "default", color = :darkorange2)
+    # MK.lines!(ax_parcel_1, parcel_default.t, parcel_default[1, :], label = "default", color = :darkorange2)
     MK.lines!(ax_parcel_1, EKI_parcel.t, S_i.(tps, EKI_parcel[3, :], EKI_parcel[1, :]), label = "EKI Calib Ice", color = :green)
-    # MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
+    MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
     
     MK.lines!(ax_parcel_2, EKI_parcel.t, EKI_parcel[5, :], color = :orange)
     MK.lines!(ax_parcel_2, UKI_parcel.t, UKI_parcel[5, :], color = :fuchsia)
