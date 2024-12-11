@@ -1,5 +1,9 @@
 export Blk1MVelType, SB2006VelType, Chen2022VelType
 
+to_svec(x::AbstractArray) = SA.SVector{length(x)}(x)
+to_svec(x) = x
+to_svec(x::NamedTuple) = map(x -> to_svec(x), x)
+
 """
     Blk1MVelTypeRain
 
@@ -142,13 +146,13 @@ See Table B3 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: ParametersType{FT}
-    A::NTuple{N, FT}
-    B::NTuple{N, FT}
-    C::NTuple{M, FT}
-    E::NTuple{N, FT}
-    F::NTuple{N, FT}
-    G::NTuple{N, FT}
+Base.@kwdef struct Chen2022VelTypeSmallIce{FT, VFT1, VFT2} <: ParametersType{FT}
+    A::VFT1
+    B::VFT1
+    C::VFT2
+    E::VFT1
+    F::VFT1
+    G::VFT1
     "cutoff for small vs large ice particle dimension [m]"
     cutoff::FT
 end
@@ -165,10 +169,11 @@ function Chen2022VelTypeSmallIce(td::CP.AbstractTOMLDict)
         :Chen2022_ice_cutoff => :cutoff,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    # hack!
-    parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
+    parameters = to_svec(parameters)
+    VFT1 = typeof(parameters.A)
+    VFT2 = typeof(parameters.C)
     FT = CP.float_type(td)
-    return Chen2022VelTypeSmallIce{FT, 3, 4}(; parameters...)
+    return Chen2022VelTypeSmallIce{FT, VFT1, VFT2}(; parameters...)
 end
 
 """
@@ -180,14 +185,14 @@ See Table B4 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeLargeIce{FT, N} <: ParametersType{FT}
-    A::NTuple{N, FT}
-    B::NTuple{N, FT}
-    C::NTuple{N, FT}
-    E::NTuple{N, FT}
-    F::NTuple{N, FT}
-    G::NTuple{N, FT}
-    H::NTuple{N, FT}
+Base.@kwdef struct Chen2022VelTypeLargeIce{FT, VFT} <: ParametersType{FT}
+    A::VFT
+    B::VFT
+    C::VFT
+    E::VFT
+    F::VFT
+    G::VFT
+    H::VFT
     "cutoff for small vs large ice particle dimension [m]"
     cutoff::FT
 end
@@ -206,9 +211,10 @@ function Chen2022VelTypeLargeIce(td::CP.AbstractTOMLDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     # hack!
-    parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
+    parameters = to_svec(parameters)
+    VFT = typeof(parameters.A)
     FT = CP.float_type(td)
-    return Chen2022VelTypeLargeIce{FT, 3}(; parameters...)
+    return Chen2022VelTypeLargeIce{FT, VFT}(; parameters...)
 end
 
 """
@@ -221,13 +227,13 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeRain{FT, N} <: ParametersType{FT}
+Base.@kwdef struct Chen2022VelTypeRain{FT, VFT} <: ParametersType{FT}
     ρ0::FT
-    a::NTuple{N, FT}
+    a::VFT
     a3_pow::FT
-    b::NTuple{N, FT}
+    b::VFT
     b_ρ::FT
-    c::NTuple{N, FT}
+    c::VFT
 end
 
 Chen2022VelTypeRain(::Type{FT}) where {FT <: AbstractFloat} =
@@ -243,10 +249,10 @@ function Chen2022VelTypeRain(td::CP.AbstractTOMLDict)
         :Chen2022_table_B1_ci => :c,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    # hack!
-    parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
+    parameters = to_svec(parameters)
+    VFT = typeof(parameters.a)
     FT = CP.float_type(td)
-    return Chen2022VelTypeRain{FT, 3}(; parameters...)
+    Chen2022VelTypeRain{FT, VFT}(; parameters...)
 end
 
 """
