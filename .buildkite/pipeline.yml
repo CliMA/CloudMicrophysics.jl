@@ -40,3 +40,12 @@ steps:
       CLIMACOMMS_DEVICE: "CUDA"
     agents:
       slurm_gpus: 1
+
+  - label: ":cyclone: ClimaCore + GPU unit tests"
+    key: "clima_core_gpu_unittests"
+    command:
+      - "julia --project=test --color=yes test/gpu_clima_core_test.jl"
+    env:
+      CLIMACOMMS_DEVICE: "CUDA"
+    agents:
+      slurm_gpus: 1
