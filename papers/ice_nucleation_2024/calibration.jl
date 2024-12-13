@@ -29,14 +29,34 @@ function run_model(p, coefficients, IN_mode, FT, IC, end_sim)
 
     if IN_mode == "ABDINM"
         # overwriting
-        override_file = Dict(
-            "China2017_J_deposition_m_Kaolinite" =>
-                Dict("value" => m_calibrated, "type" => "float"),
-            "China2017_J_deposition_c_Kaolinite" =>
-                Dict("value" => c_calibrated, "type" => "float"),
-        )
-        kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        aerosol = CMP.Kaolinite(kaolinite_calibrated)
+        if aerosol == CMP.Kaolinite(FT)
+            override_file = Dict(
+                "China2017_J_deposition_m_Kaolinite" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "China2017_J_deposition_c_Kaolinite" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+            kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.Kaolinite(kaolinite_calibrated)
+        elseif aerosol == CMP.ArizonaTestDust(FT)
+            override_file = Dict(
+                "J_ABDINM_m_ArizonaTestDust" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "J_ABDINM_c_ArizonaTestDust" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+            ATD_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.ArizonaTestDust(ATD_calibrated)
+        elseif aerosol == CMP.Illite(FT)
+            override_file = Dict(
+                "J_ABDINM_m_Illite" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "J_ABDINM_c_Illite" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+            illite_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.Illite(illite_calibrated)
+        end
 
     elseif IN_mode == "ABIFM"
         # overwriting
@@ -100,14 +120,34 @@ function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
 
     if IN_mode == "ABDINM"
         # overwriting
-        override_file = Dict(
-            "China2017_J_deposition_m_Kaolinite" =>
-                Dict("value" => m_calibrated, "type" => "float"),
-            "China2017_J_deposition_c_Kaolinite" =>
-                Dict("value" => c_calibrated, "type" => "float"),
-        )
-        kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        aerosol = CMP.Kaolinite(kaolinite_calibrated)
+        if aerosol == CMP.Kaolinite(FT)
+            override_file = Dict(
+                "China2017_J_deposition_m_Kaolinite" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "China2017_J_deposition_c_Kaolinite" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+            kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.Kaolinite(kaolinite_calibrated)
+        elseif aerosol == CMP.ArizonaTestDust(FT)
+            override_file = Dict(
+                "J_ABDINM_m_ArizonaTestDust" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "J_ABDINM_c_ArizonaTestDust" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+            ATD_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.ArizonaTestDust(ATD_calibrated)
+        elseif aerosol == CMP.Illite(FT)
+            override_file = Dict(
+                "J_ABDINM_m_Illite" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "J_ABDINM_c_Illite" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+            illite_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.Illite(illite_calibrated)
+        end
 
     elseif IN_mode == "ABIFM"
         # overwriting
@@ -159,7 +199,7 @@ function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
     return sol
 end
 
-function create_prior(FT, IN_mode, ; perfect_model = false)
+function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothing)
     # TODO - add perfect_model flag to plot_ensemble_mean.jl
     observation_data_names = ["m_coeff", "c_coeff"]
 
@@ -178,13 +218,17 @@ function create_prior(FT, IN_mode, ; perfect_model = false)
         end
     elseif perfect_model == false
         if IN_mode == "ABDINM"
-            # m_stats = [FT(20), FT(1), FT(0), Inf]
-            # c_stats = [FT(-1), FT(1), -Inf, Inf]
-            println("Calibration for ABDINM with AIDA not yet implemented.")
+            if aerosol_type == CMP.ArizonaTestDust(FT)
+                m_stats = [FT(40), FT(20), FT(0), Inf]
+                c_stats = [FT(0.5), FT(20), -Inf, Inf]
+            elseif aerosol_type == CMP.Illite(FT)
+                m_stats = [FT(30), FT(20), FT(0), Inf]
+                c_stats = [FT(0.7), FT(7), -Inf, Inf]
+            end
         elseif IN_mode == "ABIFM"
             # m_stats = [FT(50), FT(1), FT(0), Inf]
             # c_stats = [FT(-7), FT(1), -Inf, Inf]
-            println("Calibration for ABIFM with AIDA not yet implemented.")
+            error("ABIFM calibrations not yet supported.")
         elseif IN_mode == "ABHOM"
             m_stats = [FT(260.927125), FT(25), FT(0), Inf]
             c_stats = [FT(-68.553283), FT(10), -Inf, Inf]
@@ -210,11 +254,14 @@ function create_prior(FT, IN_mode, ; perfect_model = false)
 end
 
 function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
+    @info("Starting EKI calibration")
     # Random number generator
     rng_seed = 24
     rng = Random.seed!(Random.GLOBAL_RNG, rng_seed)
 
-    prior = create_prior(FT, IN_mode, perfect_model = perfect_model)
+    (; aerosol) = params
+
+    prior = create_prior(FT, IN_mode, perfect_model = perfect_model, aerosol_type = aerosol)
     N_ensemble = 25       # runs N_ensemble trials per iteration
     N_iterations = 50     # number of iterations the inverse problem goes through
 
@@ -233,7 +280,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     # Carry out the EKI calibration
     # ϕ_n_values[iteration] stores ensembles of calibrated coeffs in that iteration
     global ϕ_n_values = []
-    final_iter = N_iterations
+    global final_iter = N_iterations
     for n in 1:N_iterations
         ϕ_n = EKP.get_ϕ_final(prior, EKI_obj)
         G_ens = hcat(
@@ -269,7 +316,10 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
 end
 
 function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
-    prior = create_prior(FT, IN_mode, perfect_model = perfect_model)
+    @info("Starting UKI calibration")
+    (; aerosol) = params
+
+    prior = create_prior(FT, IN_mode, perfect_model = perfect_model, aerosol_type = aerosol)
     N_iterations = 25
     α_reg = 1.0
     update_freq = 1
@@ -289,8 +339,8 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     )
     UKI_obj = EKP.EnsembleKalmanProcess(truth, process; verbose = true)
 
-    err = []
-    final_iter =[N_iterations]
+    global err = []
+    global final_iter =[N_iterations]
     for n in 1:N_iterations
         # Return transformed parameters in physical/constrained space
         ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
@@ -304,14 +354,14 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         # Update ensemble
         terminate = EKP.EnsembleKalmanProcesses.update_ensemble!(UKI_obj, G_ens)
         push!(err, EKP.get_error(UKI_obj)[end])
-        println(
-            "Iteration: " *
-            string(n) *
-            ", Error: " *
-            string(err[n]) *
-            " norm(Cov):" *
-            string(Distributions.norm(EKP.get_process(UKI_obj).uu_cov[n]))
-        )
+        # println(
+        #     "Iteration: " *
+        #     string(n) *
+        #     ", Error: " *
+        #     string(err[n]) *
+        #     " norm(Cov):" *
+        #     string(Distributions.norm(EKP.get_process(UKI_obj).uu_cov[n]))
+        # )
         if !isnothing(terminate)
             final_iter[1] = n - 1
             break

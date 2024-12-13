@@ -195,18 +195,17 @@ function AIDA_IN05_IC(FT, data_file)
     ϵₘ = R_d / R_v
 
     if data_file == "in05_17_aida.edf"
-    # starting at t = 205 s (to match moving average freezing onset)
-        Nₗ = FT(297.136 * 1e6)
-        Nᵢ = FT(1.49 * 1e6)
+        Nₗ = FT(317.559 * 1e6)
+        Nᵢ = FT(0.0 * 1e6)
         Nₐ = FT(360 * 1e6) - Nₗ - Nᵢ
-        r₀ = FT(6.17664e-6)  # FT(1e-7)
-        p₀ = FT(865.179 * 1e2)
-        T₀ = FT(236.91)
+        r₀ = FT(5.49484e-6)
+        p₀ = FT(889.386 * 1e2)
+        T₀ = FT(237.696)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
-        e = FT(27.0341)
+        e = FT(28.4628)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
         Rₐ = TD.gas_constant_air(tps, q)
@@ -247,8 +246,84 @@ function AIDA_IN05_IC(FT, data_file)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     end
-    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]   #remove the last 2 elements, its J & r_l
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
+function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, plot_name)
+    IN_mode = "ABDINM"
+    const_dt = FT(1)
+    prescribed_thermodynamics = true
+    aerosol_act = "None"
+    aerosol = plot_name == "IN0701" ? CMP.ArizonaTestDust(FT) : CMP.Illite(FT)
+    dep_nucleation = "ABDINM"
+    heterogeneous = "None"
+    homogeneous = "None"
+    condensation_growth = "Condensation"
+    deposition_growth = "Deposition"
+    liq_size_distribution = "Gamma"
+    ice_size_distribution = "Gamma"
+    aero_σ_g = FT(2.3)
+    r_nuc = FT(0.1742857 * 1e-6)
+    # r_nuc = r₀ in IC
+    ips = CMP.IceNucleationParameters(FT)
+
+    params = (; const_dt, w, t_max,ips,
+        prescribed_thermodynamics, t_profile, T_profile, P_profile,
+        aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
+        condensation_growth, deposition_growth,         # growth
+        liq_size_distribution, ice_size_distribution,   # size distribution
+        dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
+    )
+    return params
+end
+
+function AIDA_IN07_IC(FT, data_file)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    wps = CMP.WaterProperties(FT)
+
+    ρₗ = wps.ρw
+    ρᵢ = wps.ρi
+    R_d = TD.Parameters.R_d(tps)
+    R_v = TD.Parameters.R_v(tps)
+    ϵₘ = R_d / R_v
+    if data_file == "in07_01_aida.edf"
+        Nₗ = FT(0)
+        Nᵢ = FT(1.485 * 1e6)
+        Nₐ = FT(146 * 1e6) - Nₗ - Nᵢ
+        r₀ = FT(0.19801 * 1e-6)
+        # r₀ is weighted avg of two modes as listed in Table 2 of Mohler et al (2008)
+        p₀ = FT(976.752 * 1e2)
+        T₀ = FT(208.671)
+        qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
+        qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
+        m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
+        m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+        e = FT(0.67935)
+        qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
+        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+        Rₐ = TD.gas_constant_air(tps, q)
+        eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+        Sₗ = FT(e / eₛ)
+    elseif data_file == "in07_19_aida.edf"
+        Nₗ = FT(0)
+        Nᵢ = FT(0.21 * 1e6)
+        Nₐ = FT(95 * 1e6) - Nₗ - Nᵢ
+        r₀ = FT(0.1742857 * 1e-6)
+        # r₀ is weighted avg of two modes as listed in Table 2 of Mohler et al (2008)
+        p₀ = FT(977.948 * 1e2)
+        T₀ = FT(208.672)
+        qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
+        qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
+        m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
+        m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+        e = FT(0.624557)
+        qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
+        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+        Rₐ = TD.gas_constant_air(tps, q)
+        eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+        Sₗ = FT(e / eₛ)
+    end
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+end
 
 #! format: on

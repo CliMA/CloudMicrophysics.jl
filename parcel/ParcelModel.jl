@@ -91,12 +91,9 @@ function parcel_model(dY, Y, p, t)
     L_vap = TD.latent_heat_vapor(tps, T)
     ρ_air = TD.air_density(tps, ts)
 
-    # Adiabatic parcel coefficients
-    a1 = L_vap * grav / cp_air / T^2 / Rᵥ - grav / R_air / T
-    a2 = 1 / qᵥ
-    a3 = L_vap^2 / Rᵥ / T^2 / cp_air
-    a4 = L_vap * L_subl / Rᵥ / T^2 / cp_air
-    a5 = L_vap * L_fus / Rᵥ / cp_air / (T^2)
+    # Vapor pressures
+    e = qᵥ * p_air * Rᵥ / R_air
+    eₛₗ = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 
     # Mean radius, area and volume of liquid droplets and ice crystals
     PSD_liq = distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air)
@@ -140,10 +137,6 @@ function parcel_model(dY, Y, p, t)
     dqₗ_dt = dqₗ_dt_v2l - dqᵢ_dt_l2i
     dqᵥ_dt = -dqₗ_dt_v2l - dqᵢ_dt_v2i
 
-    dSₗ_dt =
-        a1 * w * Sₗ - (a2 + a3) * Sₗ * dqₗ_dt_v2l -
-        (a2 + a4) * Sₗ * dqᵢ_dt_v2i - a5 * Sₗ * dqᵢ_dt_l2i
-
     dp_air_dt =
         prescribed_thermodynamics ? AIDA_rate(t, t_profile, P_profile) :
         -p_air * grav / R_air / T * w
@@ -154,6 +147,10 @@ function parcel_model(dY, Y, p, t)
         L_vap / cp_air * dqₗ_dt_v2l +
         L_fus / cp_air * dqᵢ_dt_l2i +
         L_subl / cp_air * dqᵢ_dt_v2i
+
+    de_dt = dqᵥ_dt * p_air * Rᵥ / R_air + qᵥ * dp_air_dt * Rᵥ / R_air
+    deₛₗ_dt = L_vap * eₛₗ / Rᵥ / T^2 * dT_dt
+    dSₗ_dt = 1 / eₛₗ * de_dt - e / (eₛₗ)^2 * deₛₗ_dt
 
     # Set tendencies
     dY[1] = dSₗ_dt      # saturation ratio over liquid water
