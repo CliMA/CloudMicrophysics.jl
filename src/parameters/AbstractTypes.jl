@@ -5,7 +5,7 @@ The top-level super-type for all cloud microphysics parameters
 """
 abstract type ParametersType{FT} end
 Base.eltype(::ParametersType{FT}) where {FT} = FT
-Base.broadcastable(x::ParametersType) = tuple(x)
+Base.broadcastable(o::ParametersType) = Ref(o)
 
 """
     AerosolType{FT}
