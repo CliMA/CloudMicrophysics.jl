@@ -124,6 +124,7 @@ function ABIFM_J(
     return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
 end
 function ABIFM_J(dust::CMP.AerosolType, Δa_w::FT) where {FT}
+    println("Aerosol type not supported for ABIFM.")
     return FT(0)
 end
 
