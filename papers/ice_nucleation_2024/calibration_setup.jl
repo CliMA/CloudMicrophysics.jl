@@ -163,8 +163,8 @@ function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
     prescribed_thermodynamics = true
     aerosol_act = "AeroAct"
     aerosol = CMP.Sulfate(FT)
-    dep_nucleation = "None"
-    heterogeneous = "None"
+    dep_nucleation = "ABDINM"
+    heterogeneous = "ABIFM"
     homogeneous = "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
@@ -256,8 +256,8 @@ function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, plot_na
     aerosol_act = "None"
     aerosol = plot_name == "IN0701" ? CMP.ArizonaTestDust(FT) : CMP.Illite(FT)
     dep_nucleation = "ABDINM"
-    heterogeneous = "None"
-    homogeneous = "None"
+    heterogeneous = "ABIFM"
+    homogeneous = "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
     liq_size_distribution = "Gamma"
