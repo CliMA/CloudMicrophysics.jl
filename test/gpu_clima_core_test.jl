@@ -14,6 +14,7 @@ import CloudMicrophysics.MicrophysicsNonEq as CMN
 function make_column(::Type{FT}) where {FT}
 
     context = ClimaComms.SingletonCommsContext(ClimaComms.CUDADevice())
+    #context = ClimaComms.context()
 
     vert_domain = CC.Domains.IntervalDomain(
         CC.Geometry.ZPoint{FT}(FT(0)),
@@ -32,6 +33,7 @@ end
 function make_extruded_sphere(::Type{FT}) where {FT}
 
     context = ClimaComms.SingletonCommsContext(ClimaComms.CUDADevice())
+    #context = ClimaComms.context()
 
     # Define vertical
     # domain
@@ -145,6 +147,7 @@ function main_3d(::Type{FT}) where {FT}
     space_3d_w = make_extruded_sphere(FT)
 
     ρq = CC.Fields.ones(space_3d_ρq) .* FT(1e-3)
+
     ρ = CC.Fields.ones(space_3d_ρ)
     w = CC.Fields.zeros(space_3d_w)
 
@@ -161,15 +164,12 @@ using Test
 @testset "GPU inference failure 1D Float64" begin
     main_1d(Float64)
 end
-
 @testset "GPU inference failure 3D Float64" begin
     main_3d(Float64)
 end
-
 @testset "GPU inference failure 1D Float32" begin
     main_1d(Float32)
 end
-
 @testset "GPU inference failure 3D Float32" begin
     main_3d(Float32)
 end

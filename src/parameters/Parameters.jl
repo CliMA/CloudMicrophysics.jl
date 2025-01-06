@@ -40,4 +40,17 @@ include("MicrophysicsP3.jl")
 # Terminal velocity parameters  (can be used with different microph. schemes)
 include("TerminalVelocity.jl")
 
+for T in (
+    Chen2022VelTypeRain,
+    Chen2022VelTypeSmallIce,
+    Chen2022VelTypeLargeIce,
+    Chen2022VelType,
+    CloudLiquid,
+)
+    @eval Base.Broadcast.broadcastable(x::$T) = x
+    @eval Base.ndims(::Type{<:$T}) = 0
+    @eval Base.size(::$T) = ()
+    @eval Base.@propagate_inbounds Base.getindex(x::$T, i) = x
+end
+
 end # module
