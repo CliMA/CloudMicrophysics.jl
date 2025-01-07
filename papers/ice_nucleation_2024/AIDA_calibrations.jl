@@ -110,8 +110,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     calibrated_ensemble_means = ensemble_means(EKI_output[2], EKI_n_iterations, EKI_n_ensembles)
 
     ## Calibrated parcel.
-    EKI_parcel = run_calibrated_model(FT, nuc_mode, EKI_calibrated_parameters, params, IC)
-    UKI_parcel = run_calibrated_model(FT, nuc_mode, UKI_calibrated_parameters, params, IC)
+    EKI_parcel = run_model(params, EKI_calibrated_parameters, FT, IC, end_sim)
+    UKI_parcel = run_model(params, UKI_calibrated_parameters, FT, IC, end_sim)
 
     ### Plots.
     ## Plotting AIDA data.
@@ -124,11 +124,21 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
 
     ## Calibrated coefficients.
     #  Did they converge?
-    calibrated_coeffs_fig = MK.Figure(size = (600, 600), fontsize = 24)
-    ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$plot_name")
-    ax4 = MK.Axis(calibrated_coeffs_fig[2, 1], ylabel = "c coefficient [-]", xlabel = "iteration #")
+    calibrated_coeffs_fig = MK.Figure(size = (1100, 900), fontsize = 24)
+    ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "ABDINM m coefficient [-]", title = "$plot_name")
+    ax4 = MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "ABDINM c coefficient [-]", xlabel = "iteration #")
+    ax5 = MK.Axis(calibrated_coeffs_fig[2, 1], ylabel = "ABIFM m coefficient [-]", title = "$plot_name")
+    ax6 = MK.Axis(calibrated_coeffs_fig[2, 2], ylabel = "ABIFM c coefficient [-]", xlabel = "iteration #")
+    ax7 = MK.Axis(calibrated_coeffs_fig[3, 1], ylabel = "ABHOM m coefficient [-]", title = "$plot_name")
+    ax8 = MK.Axis(calibrated_coeffs_fig[3, 2], ylabel = "ABHOM c coefficient [-]", xlabel = "iteration #")
+    
     MK.lines!(ax3, collect(1:EKI_n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)
     MK.lines!(ax4, collect(1:EKI_n_iterations), calibrated_ensemble_means[2], label = "ensemble mean", color = :orange, linewidth = 2.5)
+    MK.lines!(ax5, collect(1:EKI_n_iterations), calibrated_ensemble_means[3], label = "ensemble mean", color = :orange, linewidth = 2.5)
+    MK.lines!(ax6, collect(1:EKI_n_iterations), calibrated_ensemble_means[4], label = "ensemble mean", color = :orange, linewidth = 2.5)
+    MK.lines!(ax7, collect(1:EKI_n_iterations), calibrated_ensemble_means[5], label = "ensemble mean", color = :orange, linewidth = 2.5)
+    MK.lines!(ax8, collect(1:EKI_n_iterations), calibrated_ensemble_means[6], label = "ensemble mean", color = :orange, linewidth = 2.5)
+
     MK.save("$plot_name"*"_calibrated_coeffs_fig.svg", calibrated_coeffs_fig)
 
     ## Calibrated parcel simulations.
@@ -223,11 +233,11 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
 
     ## Looking at spread in UKI calibrated parameters
     ϕ_UKI = UKI_output[2]
-    UKI_parcel_1 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,1], ϕ_UKI[2,1]], params, IC)
-    UKI_parcel_2 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,2], ϕ_UKI[2,2]], params, IC)
-    UKI_parcel_3 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,3], ϕ_UKI[2,3]], params, IC)
-    UKI_parcel_4 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,4], ϕ_UKI[2,4]], params, IC)
-    UKI_parcel_5 = run_calibrated_model(FT, nuc_mode, [ϕ_UKI[1,5], ϕ_UKI[2,5]], params, IC)
+    UKI_parcel_1 = run_model(params, [ϕ_UKI[1,1], ϕ_UKI[2,1], ϕ_UKI[3,1], ϕ_UKI[4,1], ϕ_UKI[5,1], ϕ_UKI[6,1]], FT, IC, end_sim)
+    UKI_parcel_2 = run_model(params, [ϕ_UKI[1,2], ϕ_UKI[2,2], ϕ_UKI[3,2], ϕ_UKI[4,2], ϕ_UKI[5,2], ϕ_UKI[6,2]], FT, IC, end_sim)
+    UKI_parcel_3 = run_model(params, [ϕ_UKI[1,3], ϕ_UKI[2,3], ϕ_UKI[3,3], ϕ_UKI[4,3], ϕ_UKI[5,3], ϕ_UKI[6,3]], FT, IC, end_sim)
+    UKI_parcel_4 = run_model(params, [ϕ_UKI[1,4], ϕ_UKI[2,4], ϕ_UKI[3,4], ϕ_UKI[4,4], ϕ_UKI[5,4], ϕ_UKI[6,4]], FT, IC, end_sim)
+    UKI_parcel_5 = run_model(params, [ϕ_UKI[1,5], ϕ_UKI[2,5], ϕ_UKI[3,5], ϕ_UKI[4,5], ϕ_UKI[5,5], ϕ_UKI[6,5]], FT, IC, end_sim)
 
     UKI_spread_fig = MK.Figure(size = (700, 600), fontsize = 24)
     ax_spread = MK.Axis(UKI_spread_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$plot_name")
