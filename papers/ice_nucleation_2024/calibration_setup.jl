@@ -135,17 +135,15 @@ function perf_model_IC(FT, IN_mode)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function perf_model_pseudo_data(FT, IN_mode, params, IC)
+function perf_model_pseudo_data(FT, IN_mode, params, IC, end_sim)
     n_samples = 10
 
-    if IN_mode == "ABDINM"
-        coeff_true = [FT(27.551), FT(-2.2209)]
-    elseif IN_mode == "ABIFM"
-        coeff_true = [FT(54.58834), FT(-10.54758)]
-    elseif IN_mode == "ABHOM"
-        coeff_true = [FT(255.927125), FT(-68.553283)]
-    end
-    sol_ICNC = run_calibrated_model(FT, IN_mode, coeff_true, params, IC)[9, :]
+    coeff_true = [
+        FT(27.551), FT(-2.2209),        # ABDINM
+        FT(54.58834), FT(-10.54758),    # ABIFM
+        FT(255.927125), FT(-68.553283), # ABHOM
+    ]
+    sol_ICNC = run_model(params, coeff_true, FT, IC, end_sim)[9, :]
     G_truth = sol_ICNC ./ (IC[7] + IC[8] + IC[9])
     dim_output = length(G_truth)
 

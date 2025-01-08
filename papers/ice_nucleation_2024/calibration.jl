@@ -11,7 +11,7 @@ import CloudMicrophysics.Parameters as CMP
 import Thermodynamics as TD
 import StatsBase as SB
 
-# format: off
+#! format: off
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
@@ -19,7 +19,9 @@ include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup
 # Define model which wraps around parcel and overwrites calibrated parameters
 function run_model(p, coefficients, FT, IC, end_sim; calibration = false)
     # grabbing parameters
-    ABDINM_m_calibrated, ABDINM_c_calibrated, ABIFM_m_calibrated, ABIFM_c_calibrated, ABHOM_m_calibrated, ABHOM_c_calibrated = coefficients
+    ABDINM_m_calibrated, ABDINM_c_calibrated,
+    ABIFM_m_calibrated, ABIFM_c_calibrated,
+    ABHOM_m_calibrated, ABHOM_c_calibrated = coefficients
     (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
     (; const_dt, w, t_max, ips) = p
     (; aerosol_act, aerosol, r_nuc) = p
@@ -103,7 +105,7 @@ function run_model(p, coefficients, FT, IC, end_sim; calibration = false)
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
     if calibration == true
-        return sol[9, end - end_sim:end] ./ (IC[7] + IC[8] + IC[9])
+        return sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
     elseif calibration == false
         return sol
     end
@@ -197,7 +199,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
     EKI_obj = EKP.EnsembleKalmanProcess(
         initial_ensemble,
-        y_truth[end - end_sim:end],
+        y_truth[(end - end_sim):end],
         Γ,
         EKP.Inversion();
         rng = rng,
@@ -323,8 +325,11 @@ function ensemble_means(ϕ_n_values, N_iterations, N_ensemble)
             Distributions.mean(ϕ_n_values[iter][5, i] for i in 1:N_ensemble)
         ABHOM_c_mean[iter] =
             Distributions.mean(ϕ_n_values[iter][6, i] for i in 1:N_ensemble)
-    
     end
 
-    return [ABDINM_m_mean, ABDINM_c_mean, ABIFM_m_mean, ABIFM_c_mean, ABHOM_m_mean, ABHOM_c_mean]
+    return [
+        ABDINM_m_mean, ABDINM_c_mean,
+        ABIFM_m_mean, ABIFM_c_mean,
+        ABHOM_m_mean, ABHOM_c_mean
+    ]
 end
