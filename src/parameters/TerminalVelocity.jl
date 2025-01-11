@@ -284,3 +284,12 @@ function Chen2022VelType(toml_dict::CP.AbstractTOMLDict)
         large_ice,
     )
 end
+
+# Additional helpers for compiler to work on GPU when parameter structs
+# contain tuples.
+for T in (Chen2022VelTypeRain, Chen2022VelTypeSmallIce, Chen2022VelTypeLargeIce)
+    @eval Base.Broadcast.broadcastable(x::$T) = x;
+    @eval Base.ndims(::Type{<:$T}) = 0;
+    @eval Base.size(::$T) = ();
+    @eval Base.@propagate_inbounds Base.getindex(x::$T, i) = x;
+end

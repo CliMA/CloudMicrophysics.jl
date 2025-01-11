@@ -86,6 +86,16 @@ function make_extruded_sphere(::Type{FT}) where {FT}
     return center_extruded_space
 end
 
+struct HelperParams{A, B}
+    liquid::A
+    rain::B
+end
+Base.Broadcast.broadcastable(x::HelperParams) = tuple(x)
+
+wrapper_terminal_velocity(p_hlp, ρ, q) = CMN.terminal_velocity(
+    p_hlp.liquid, p_hlp.rain, ρ, q
+)
+
 """
     Try to reproduce the setup of how terminal velocity is used in Atmos
 """
@@ -94,9 +104,16 @@ function set_sedimentation_precomputed_quantities(Y, p, t)
     (; w) = p
     (; params) = p
 
-    @. w = CMN.terminal_velocity(
-        params.liquid,
-        params.Ch2022.rain,
+    #@. w = CMN.terminal_velocity(
+    #    params.liquid,
+    #    params.Ch2022.rain,
+    #    Y.ρ,
+    #    max(0, Y.ρq / Y.ρ),
+    #)
+
+    p_hlp = HelperParams(params.liquid, params.Ch2022.rain)
+    @. w = wrapper_terminal_velocity(
+        p_hlp,
         Y.ρ,
         max(0, Y.ρq / Y.ρ),
     )
