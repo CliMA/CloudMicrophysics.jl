@@ -244,7 +244,7 @@ function AIDA_IN05_IC(FT, data_file)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     end
-    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0), FT(0), FT(0), FT(0)]
 end
 
 function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, plot_name)
@@ -321,7 +321,7 @@ function AIDA_IN07_IC(FT, data_file)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     end
-    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0), FT(0), FT(0), FT(0)]
 end
 
 #! format: on

@@ -297,5 +297,61 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     MK.errorbars!(ax_spread, t_profile, frozen_frac_moving_mean, error)
     MK.save("$plot_name"*"_UKI_spread_fig.svg", UKI_spread_fig)
 
+    ## Freezing rates
+    freezing_rates_fig = MK.Figure(size = (700, 600), fontsize = 24)
+    ax_ABDINM = MK.Axis(freezing_rates_fig[1, 1], ylabel = "ABDINM", xlabel = "time [s]", title = "$plot_name")
+    ax_ABIFM = MK.Axis(freezing_rates_fig[1, 2], ylabel = "ABIFM", xlabel = "time [s]", title = "dNᵢ/dt [#/m^3/s]")
+    ax_ABHOM = MK.Axis(freezing_rates_fig[2, 1], ylabel = "ABHOM", xlabel = "time [s]")
+    MK.lines!(
+        ax_ABDINM,
+        EKI_parcel.t,
+        EKI_parcel[11, :],
+        label = "EKI ABDINM",
+        linewidth = 2.5,
+        color =:orange
+    )
+    MK.lines!(
+        ax_ABDINM,
+        UKI_parcel.t,
+        UKI_parcel[11, :],
+        label = "UKI ABDINM",
+        linewidth = 2.5,
+        color =:fuchsia
+    )
+    MK.lines!(
+        ax_ABIFM,
+        EKI_parcel.t,
+        EKI_parcel[12, :],
+        label = "EKI ABIFM",
+        linewidth = 2.5,
+        color =:orange
+    )
+    MK.lines!(
+        ax_ABIFM,
+        UKI_parcel.t,
+        UKI_parcel[12, :],
+        label = "UKI ABIFM",
+        linewidth = 2.5,
+        color =:fuchsia
+    )
+    MK.lines!(
+        ax_ABHOM,
+        EKI_parcel.t,
+        EKI_parcel[13, :],
+        label = "EKI ABHOM",
+        linewidth = 2.5,
+        color =:orange
+    )
+    MK.lines!(
+        ax_ABHOM,
+        UKI_parcel.t,
+        UKI_parcel[13, :],
+        label = "UKI ABHOM",
+        linewidth = 2.5,
+        color =:fuchsia
+    )
+    MK.save("$plot_name"*"_freezing_rates_fig.svg", freezing_rates_fig)
+
+
     #! format: on
 end

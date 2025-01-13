@@ -68,6 +68,9 @@ function parcel_model(dY, Y, p, t)
         Nₗ = clip!(Y[8]),
         Nᵢ = clip!(Y[9]),
         ln_INPC = Y[10],   # needed only in stochastic Frostenberg
+        dep_nuc_rate = clip!(Y[11]),
+        imm_rate = clip!(Y[12]),
+        hom_rate = clip!(Y[13]),
         t = t,
     )
 
@@ -78,7 +81,7 @@ function parcel_model(dY, Y, p, t)
     ρₗ = wps.ρw
 
     # Get the state values
-    (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, t) = state
+    (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, dep_nuc_rate, imm_rate, hom_rate, t) = state
     # Get thermodynamic parameters, phase partition and create thermo state.
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     ts = TD.PhaseNonEquil_pTq(tps, p_air, T, q)
@@ -133,6 +136,11 @@ function parcel_model(dY, Y, p, t)
     dqᵢ_dt_v2i = dqᵢ_dt_dep + dqᵢ_dt_ds
 
     # Update the tendecies
+    (; const_dt) = dep_params
+    d2Nᵢ_dt2_dep = (dNᵢ_dt_dep - dep_nuc_rate) / const_dt
+    d2Nᵢ_dt2_imm = (dNᵢ_dt_imm - imm_rate) / const_dt
+    d2Nᵢ_dt2_hom = (dNᵢ_dt_hom - hom_rate) / const_dt
+
     dqᵢ_dt = dqᵢ_dt_v2i + dqᵢ_dt_l2i
     dqₗ_dt = dqₗ_dt_v2l - dqᵢ_dt_l2i
     dqᵥ_dt = -dqₗ_dt_v2l - dqᵢ_dt_v2i
@@ -163,6 +171,9 @@ function parcel_model(dY, Y, p, t)
     dY[8] = dNₗ_dt      # mumber concentration of droplets
     dY[9] = dNᵢ_dt      # number concentration of activated particles
     dY[10] = dln_INPC_imm
+    dY[11] = d2Nᵢ_dt2_dep
+    dY[12] = d2Nᵢ_dt2_imm
+    dY[13] = d2Nᵢ_dt2_hom
 end
 
 """
