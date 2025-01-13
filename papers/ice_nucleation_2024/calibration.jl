@@ -17,11 +17,9 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
 
 # Define model which wraps around parcel and overwrites calibrated parameters
-function run_model(p, coefficients, FT, IC, end_sim; calibration = false)
+function run_model(p, IN_mode, coefficients, FT, IC, end_sim; calibration = false)
     # grabbing parameters
-    ABDINM_m_calibrated, ABDINM_c_calibrated,
-    ABIFM_m_calibrated, ABIFM_c_calibrated,
-    ABHOM_m_calibrated, ABHOM_c_calibrated = coefficients
+    m_calibrated, c_calibrated = coefficients
     (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
     (; const_dt, w, t_max, ips) = p
     (; aerosol_act, aerosol, r_nuc) = p
@@ -31,50 +29,65 @@ function run_model(p, coefficients, FT, IC, end_sim; calibration = false)
 
     # overwriting
     if aerosol == CMP.Kaolinite(FT)
-        override_file = Dict(
+        if IN_mode == "ABDINM"
+            override_file = Dict(
             "China2017_J_deposition_m_Kaolinite" =>
-                Dict("value" => ABDINM_m_calibrated, "type" => "float"),
+                Dict("value" => m_calibrated, "type" => "float"),
             "China2017_J_deposition_c_Kaolinite" =>
-                Dict("value" => ABDINM_c_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
-                Dict("value" => ABIFM_m_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
-                Dict("value" => ABIFM_c_calibrated, "type" => "float"),
-        )
+                Dict("value" => c_calibrated, "type" => "float"),
+            )
+        elseif IN_mode == "ABIFM"
+            override_file = Dict(
+                "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+        end
         kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
         aerosol = CMP.Kaolinite(kaolinite_calibrated)
     elseif aerosol == CMP.ArizonaTestDust(FT)
-        override_file = Dict(
-            "J_ABDINM_m_ArizonaTestDust" =>
-                Dict("value" => ABDINM_m_calibrated, "type" => "float"),
-            "J_ABDINM_c_ArizonaTestDust" =>
-                Dict("value" => ABDINM_c_calibrated, "type" => "float"),
-            "J_ABIFM_m_ArizonaTestDust" =>
-                Dict("value" => ABIFM_m_calibrated, "type" => "float"),
-            "J_ABIFM_c_ArizonaTestDust" =>
-                Dict("value" => ABIFM_c_calibrated, "type" => "float"),
-        )
+        if IN_mode == "ABDINM"
+            override_file = Dict(
+                "J_ABDINM_m_ArizonaTestDust" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "J_ABDINM_c_ArizonaTestDust" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+        elseif IN_mode == "ABIFM"
+            override_file = Dict(
+                "J_ABIFM_m_ArizonaTestDust" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "J_ABIFM_c_ArizonaTestDust" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+        end
         ATD_calibrated = CP.create_toml_dict(FT; override_file)
         aerosol = CMP.ArizonaTestDust(ATD_calibrated)
     elseif aerosol == CMP.Illite(FT)
-        override_file = Dict(
-            "J_ABDINM_m_Illite" =>
-                Dict("value" => ABDINM_m_calibrated, "type" => "float"),
-            "J_ABDINM_c_Illite" =>
-                Dict("value" => ABDINM_c_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_m_Illite" =>
-                Dict("value" => ABIFM_m_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_c_Illite" =>
-                Dict("value" => ABIFM_c_calibrated, "type" => "float"),
-        )
+        if IN_mode == "ABDINM"
+            override_file = Dict(
+                "J_ABDINM_m_Illite" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "J_ABDINM_c_Illite" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+        elseif IN_mode == "ABIFM"
+            override_file = Dict(
+                "KnopfAlpert2013_J_ABIFM_m_Illite" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "KnopfAlpert2013_J_ABIFM_c_Illite" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+        end
         illite_calibrated = CP.create_toml_dict(FT; override_file)
         aerosol = CMP.Illite(illite_calibrated)
     elseif aerosol == CMP.Sulfate(FT)
         override_file = Dict(
             "Linear_J_hom_coeff2" =>
-                Dict("value" => ABHOM_m_calibrated, "type" => "float"),
+                Dict("value" => m_calibrated, "type" => "float"),
             "Linear_J_hom_coeff1" =>
-                Dict("value" => ABHOM_c_calibrated, "type" => "float"),
+                Dict("value" => c_calibrated, "type" => "float"),
         )
         ip_calibrated = CP.create_toml_dict(FT; override_file)
         ips = CMP.IceNucleationParameters(ip_calibrated)
@@ -111,76 +124,58 @@ function run_model(p, coefficients, FT, IC, end_sim; calibration = false)
     end
 end
 
-function stats_to_prior(observation_name, stats)
-    prior = EKP.constrained_gaussian(
-        observation_name,
-        stats[1],
-        stats[2],
-        stats[3],
-        stats[4],
-    )
-    return prior
-end
-
 function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothing)
     # TODO - add perfect_model flag to plot_ensemble_mean.jl
-    observation_data_names = [
-        "ABDINM_m_coeff", "ABDINM_c_coeff",
-        "ABIFM_m_coeff", "ABIFM_c_coeff",
-        "ABHOM_m_coeff", "ABHOM_c_coeff",
-    ]
-
-    stats = [
-        [FT(0.001), FT(0), FT(0), Inf], # ABDINM m
-        [FT(0), FT(0), -Inf, Inf],  # ABDINM c
-        [FT(0.001), FT(0), FT(0), Inf], # ABIFM m
-        [FT(0), FT(0), -Inf, Inf],  # ABIFM c
-        [FT(0001), FT(0), FT(0), Inf], # ABHOM m
-        [FT(0), FT(0), -Inf, Inf],  # ABHOM c
-    ]
+    observation_data_names = ["m_coeff", "c_coeff"]
 
     # stats = [mean, std dev, lower bound, upper bound]
     # for perfect model calibration
     if perfect_model == true
-        stats[1] = [FT(20), FT(8), FT(0), Inf]
-        stats[2] = [FT(-1), FT(2), -Inf, Inf]
-
-        stats[3] = [FT(50), FT(7), FT(0), Inf]
-        stats[4] = [FT(-7), FT(4), -Inf, Inf]
-
-        stats[5] = [FT(251), FT(6), FT(0), Inf]
-        stats[6] = [FT(-66), FT(3), -Inf, Inf]
-
+        if IN_mode == "ABDINM"
+            m_stats = [FT(20), FT(8), FT(0), Inf]
+            c_stats = [FT(-1), FT(2), -Inf, Inf]
+        elseif IN_mode == "ABIFM"
+            m_stats = [FT(50), FT(7), FT(0), Inf]
+            c_stats = [FT(-7), FT(4), -Inf, Inf]
+        elseif IN_mode == "ABHOM"
+            m_stats = [FT(251), FT(6), FT(0), Inf]
+            c_stats = [FT(-66), FT(3), -Inf, Inf]
+        end
     elseif perfect_model == false
-        if aerosol_type == CMP.ArizonaTestDust(FT)
-            stats[1] = [FT(40), FT(20), FT(0), Inf]
-            stats[2] = [FT(0.5), FT(20), -Inf, Inf]
-
-            stats[3] = [FT(30), FT(30), FT(0), Inf]
-            stats[4] = [FT(-1), FT(20), -Inf, Inf]
-        elseif aerosol_type == CMP.Illite(FT)
-            stats[1] = [FT(30), FT(20), FT(0), Inf]
-            stats[2] = [FT(0.7), FT(7), -Inf, Inf]
-
-            stats[3] = [FT(30), FT(30), FT(0), Inf]
-            stats[4] = [FT(-1), FT(20), -Inf, Inf]
-        elseif aerosol_type == CMP.Sulfate(FT)
-            stats[5] = [FT(260.927125), FT(25), FT(0), Inf]
-            stats[6] = [FT(-68.553283), FT(10), -Inf, Inf]
+        if IN_mode == "ABDINM"
+            if aerosol_type == CMP.ArizonaTestDust(FT)
+                m_stats = [FT(40), FT(20), FT(0), Inf]
+                c_stats = [FT(0.5), FT(20), -Inf, Inf]
+            elseif aerosol_type == CMP.Illite(FT)
+                m_stats = [FT(30), FT(20), FT(0), Inf]
+                c_stats = [FT(0.7), FT(7), -Inf, Inf]
+            end
+        elseif IN_mode == "ABIFM"
+            # m_stats = [FT(50), FT(1), FT(0), Inf]
+            # c_stats = [FT(-7), FT(1), -Inf, Inf]
+            error("ABIFM calibrations not yet supported.")
+        elseif IN_mode == "ABHOM"
+            m_stats = [FT(260.927125), FT(25), FT(0), Inf]
+            c_stats = [FT(-68.553283), FT(10), -Inf, Inf]
         end
     end
 
-    priors = [
-        stats_to_prior(observation_data_names[1], stats[1]),
-        stats_to_prior(observation_data_names[2], stats[2]),
-        stats_to_prior(observation_data_names[3], stats[3]),
-        stats_to_prior(observation_data_names[4], stats[4]),
-        stats_to_prior(observation_data_names[5], stats[5]),
-        stats_to_prior(observation_data_names[6], stats[6]),
-    ]
-
-    combined_prior = EKP.combine_distributions(priors)
-    return combined_prior
+    m_prior = EKP.constrained_gaussian(
+        observation_data_names[1],
+        m_stats[1],
+        m_stats[2],
+        m_stats[3],
+        m_stats[4],
+    )
+    c_prior = EKP.constrained_gaussian(
+        observation_data_names[2],
+        c_stats[1],
+        c_stats[2],
+        c_stats[3],
+        c_stats[4],
+    )
+    prior = EKP.combine_distributions([m_prior, c_prior])
+    return prior
 end
 
 function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
@@ -215,7 +210,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         ϕ_n = EKP.get_ϕ_final(prior, EKI_obj)
         G_ens = hcat(
             [
-                run_model(params, ϕ_n[:, i], FT, IC, end_sim, calibration = true) for
+                run_model(params, IN_mode, ϕ_n[:, i], FT, IC, end_sim, calibration = true) for
                 i in 1:N_ensemble
             ]...,
         )
@@ -231,13 +226,16 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     end
 
     # Mean coefficients of all ensembles in the final iteration
-    calibrated_coeffs = []
-    for i = 1:6
-        append!(calibrated_coeffs, round(
-            Distributions.mean(ϕ_n_values[final_iter][i, 1:N_ensemble]),
-            digits = 6)
-        )
-    end
+    m_coeff_ekp = round(
+        Distributions.mean(ϕ_n_values[final_iter][1, 1:N_ensemble]),
+        digits = 6,
+    )
+    c_coeff_ekp = round(
+        Distributions.mean(ϕ_n_values[final_iter][2, 1:N_ensemble]),
+        digits = 6,
+    )
+
+    calibrated_coeffs = [m_coeff_ekp, c_coeff_ekp]
 
     return [calibrated_coeffs, ϕ_n_values]
 end
@@ -273,7 +271,7 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
         # Evaluate forward map
         G_n = [
-            run_model(params, ϕ_n[:, i], FT, IC, end_sim, calibration = true) for
+            run_model(params, IN_mode, ϕ_n[:, i], FT, IC, end_sim, calibration = true) for
             i in 1:size(ϕ_n)[2]  #i in 1:N_ensemble
         ]
         # Reformat into `d x N_ens` matrix
@@ -305,31 +303,15 @@ end
 
 function ensemble_means(ϕ_n_values, N_iterations, N_ensemble)
     iterations = collect(1:N_iterations)
-    ABDINM_m_mean = zeros(length(iterations))
-    ABDINM_c_mean = zeros(length(iterations))
-    ABIFM_m_mean = zeros(length(iterations))
-    ABIFM_c_mean = zeros(length(iterations))
-    ABHOM_m_mean = zeros(length(iterations))
-    ABHOM_c_mean = zeros(length(iterations))
+    m_mean = zeros(length(iterations))
+    c_mean = zeros(length(iterations))
 
     for iter in iterations
-        ABDINM_m_mean[iter] =
+        m_mean[iter] =
             Distributions.mean(ϕ_n_values[iter][1, i] for i in 1:N_ensemble)
-        ABDINM_c_mean[iter] =
+        c_mean[iter] =
             Distributions.mean(ϕ_n_values[iter][2, i] for i in 1:N_ensemble)
-        ABIFM_m_mean[iter] =
-            Distributions.mean(ϕ_n_values[iter][3, i] for i in 1:N_ensemble)
-        ABIFM_c_mean[iter] =
-            Distributions.mean(ϕ_n_values[iter][4, i] for i in 1:N_ensemble)
-        ABHOM_m_mean[iter] =
-            Distributions.mean(ϕ_n_values[iter][5, i] for i in 1:N_ensemble)
-        ABHOM_c_mean[iter] =
-            Distributions.mean(ϕ_n_values[iter][6, i] for i in 1:N_ensemble)
     end
 
-    return [
-        ABDINM_m_mean, ABDINM_c_mean,
-        ABIFM_m_mean, ABIFM_c_mean,
-        ABHOM_m_mean, ABHOM_c_mean
-    ]
+    return [m_mean, c_mean]
 end
