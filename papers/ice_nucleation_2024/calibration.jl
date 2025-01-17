@@ -17,7 +17,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
 
 # Define model which wraps around parcel and overwrites calibrated parameters
-function run_model(p, coefficients, FT, IC, end_sim; calibration = false)
+function run_model(p, coefficients, FT, IC, end_sim::FT; calibration = false)
     # grabbing parameters
     ABDINM_m_calibrated, ABDINM_c_calibrated,
     ABIFM_m_calibrated, ABIFM_c_calibrated,
@@ -79,6 +79,58 @@ function run_model(p, coefficients, FT, IC, end_sim; calibration = false)
         ip_calibrated = CP.create_toml_dict(FT; override_file)
         ips = CMP.IceNucleationParameters(ip_calibrated)
     end
+
+    # run parcel with new coefficients
+    local params = parcel_params{FT}(
+        const_dt = const_dt,
+        w = w,
+        prescribed_thermodynamics = prescribed_thermodynamics,
+        t_profile = t_profile,
+        T_profile = T_profile,
+        P_profile = P_profile,
+        aerosol_act = aerosol_act,
+        aerosol = aerosol,
+        aero_σ_g = aero_σ_g,
+        homogeneous = homogeneous,
+        deposition = dep_nucleation,
+        heterogeneous = heterogeneous,
+        condensation_growth = condensation_growth,
+        deposition_growth = deposition_growth,
+        liq_size_distribution = liq_size_distribution,
+        ice_size_distribution = ice_size_distribution,
+        ips = ips,
+        r_nuc = r_nuc,
+    )
+
+    # solve ODE
+    local sol = run_parcel(IC, FT(0), t_max, params)
+    if calibration == true
+        return sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
+    elseif calibration == false
+        return sol
+    end
+end
+
+function run_model(p, coefficients, FT, IC, end_sim::Array{Any}; calibration = false)
+    # grabbing parameters
+    ABHOM_m_calibrated, ABHOM_c_calibrated = coefficients
+    (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
+    (; const_dt, w, t_max, ips) = p
+    (; aerosol_act, aerosol, r_nuc) = p
+    (; deposition_growth, condensation_growth) = p
+    (; dep_nucleation, heterogeneous, homogeneous) = p
+    (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
+    # TODO - will need p1, p2, p3, IC1, IC2, IC3 for the individual HOM exps
+
+    # overwriting
+    override_file = Dict(
+        "Linear_J_hom_coeff2" =>
+            Dict("value" => ABHOM_m_calibrated, "type" => "float"),
+        "Linear_J_hom_coeff1" =>
+            Dict("value" => ABHOM_c_calibrated, "type" => "float"),
+    )
+    ip_calibrated = CP.create_toml_dict(FT; override_file)
+    ips = CMP.IceNucleationParameters(ip_calibrated)
 
     # run parcel with new coefficients
     local params = parcel_params{FT}(
