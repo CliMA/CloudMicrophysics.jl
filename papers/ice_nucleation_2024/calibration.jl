@@ -145,7 +145,7 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
         if IN_mode == "ABDINM"
             if aerosol_type == CMP.ArizonaTestDust(FT)
                 m_stats = [FT(40), FT(20), FT(0), Inf]
-                c_stats = [FT(0.5), FT(20), -Inf, Inf]
+                c_stats = [FT(0.5), FT(20), FT(-2), Inf]
             elseif aerosol_type == CMP.Illite(FT)
                 m_stats = [FT(30), FT(20), FT(0), Inf]
                 c_stats = [FT(0.7), FT(7), -Inf, Inf]
@@ -156,7 +156,7 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
             error("ABIFM calibrations not yet supported.")
         elseif IN_mode == "ABHOM"
             m_stats = [FT(260.927125), FT(25), FT(0), Inf]
-            c_stats = [FT(-68.553283), FT(10), -Inf, Inf]
+            c_stats = [FT(-68.553283), FT(10), FT(-70), Inf]
         end
     end
 
