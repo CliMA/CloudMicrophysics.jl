@@ -53,6 +53,8 @@ R_v = TD.Parameters.R_v(tps)
 R_d = TD.Parameters.R_d(tps)
 ϵₘ = R_d / R_v
 
+global EKI_calibratated_coeff_dict = Dict()
+global UKI_calibratated_coeff_dict = Dict()
 
 for (exp_index, data_file_name) in enumerate(data_file_names)
     @info(data_file_name)
@@ -108,6 +110,8 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     EKI_calibrated_parameters = EKI_output[1]
     UKI_calibrated_parameters = UKI_output[1]
     calibrated_ensemble_means = ensemble_means(EKI_output[2], EKI_n_iterations, EKI_n_ensembles)
+    merge!(EKI_calibratated_coeff_dict, Dict(plot_name => EKI_calibrated_parameters))
+    merge!(UKI_calibratated_coeff_dict, Dict(plot_name => UKI_calibrated_parameters))
 
     ## Calibrated parcel.
     EKI_parcel = run_model(params, EKI_calibrated_parameters, FT, IC, end_sim)
@@ -126,10 +130,10 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     #  Did they converge?
     calibrated_coeffs_fig = MK.Figure(size = (1100, 900), fontsize = 24)
     ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "ABDINM m coefficient [-]", title = "$plot_name")
-    ax4 = MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "ABDINM c coefficient [-]", xlabel = "iteration #")
-    ax5 = MK.Axis(calibrated_coeffs_fig[2, 1], ylabel = "ABIFM m coefficient [-]", title = "$plot_name")
+    ax4 = MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "ABDINM c coefficient [-]", xlabel = "iteration #", title = "EKI")
+    ax5 = MK.Axis(calibrated_coeffs_fig[2, 1], ylabel = "ABIFM m coefficient [-]")
     ax6 = MK.Axis(calibrated_coeffs_fig[2, 2], ylabel = "ABIFM c coefficient [-]", xlabel = "iteration #")
-    ax7 = MK.Axis(calibrated_coeffs_fig[3, 1], ylabel = "ABHOM m coefficient [-]", title = "$plot_name")
+    ax7 = MK.Axis(calibrated_coeffs_fig[3, 1], ylabel = "ABHOM m coefficient [-]")
     ax8 = MK.Axis(calibrated_coeffs_fig[3, 2], ylabel = "ABHOM c coefficient [-]", xlabel = "iteration #")
     
     MK.lines!(ax3, collect(1:EKI_n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)
@@ -155,8 +159,9 @@ for (exp_index, data_file_name) in enumerate(data_file_names)
     
     MK.lines!(ax_parcel_1, EKI_parcel.t, EKI_parcel[1, :], label = "EKI Calib Liq", color = :orange) # label = "liquid"
     MK.lines!(ax_parcel_1, UKI_parcel.t, UKI_parcel[1, :], label = "UKI Calib Liq", color = :fuchsia) # label = "liquid"
-    MK.lines!(ax_parcel_1, EKI_parcel.t, S_i.(tps, EKI_parcel[3, :], EKI_parcel[1, :]), label = "EKI Calib Ice", color = :green)
-    MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
+    MK.lines!(ax_parcel_1, EKI_parcel.t, S_i.(tps, EKI_parcel[3, :], EKI_parcel[1, :]), label = "EKI Calib Ice", color = :orange, linestyle = :dash)
+    MK.lines!(ax_parcel_1, UKI_parcel.t, S_i.(tps, UKI_parcel[3, :], UKI_parcel[1, :]), label = "UKI Calib Ice", color = :fuchsia, linestyle = :dash)
+   # MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
     
     MK.lines!(ax_parcel_2, EKI_parcel.t, EKI_parcel[5, :], color = :orange)
     MK.lines!(ax_parcel_2, UKI_parcel.t, UKI_parcel[5, :], color = :fuchsia)
