@@ -154,7 +154,7 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
     elseif perfect_model == false
         if aerosol_type == CMP.ArizonaTestDust(FT)
             stats[1] = [FT(40), FT(20), FT(0), Inf]
-            stats[2] = [FT(0.5), FT(20), -Inf, Inf]
+            stats[2] = [FT(0.5), FT(20), FT(-2), Inf]
 
             stats[3] = [FT(30), FT(30), FT(0), Inf]
             stats[4] = [FT(-1), FT(20), -Inf, Inf]
@@ -166,7 +166,7 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
             stats[4] = [FT(-1), FT(20), -Inf, Inf]
         elseif aerosol_type == CMP.Sulfate(FT)
             stats[5] = [FT(260.927125), FT(25), FT(0), Inf]
-            stats[6] = [FT(-68.553283), FT(10), -Inf, Inf]
+            stats[6] = [FT(-68.553283), FT(10), FT(-70), Inf]
         end
     end
 
