@@ -17,150 +17,110 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
 
 # Define model which wraps around parcel and overwrites calibrated parameters
-function run_model(p, coefficients, FT, IC, end_sim::FT; calibration = false)
-    # grabbing parameters
+function run_model(p_list, coefficients, FT, IC_list, end_sim::Int64; calibration = false)
+    # grabbing calibrated m and c
     ABDINM_m_calibrated, ABDINM_c_calibrated,
     ABIFM_m_calibrated, ABIFM_c_calibrated,
     ABHOM_m_calibrated, ABHOM_c_calibrated = coefficients
-    (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
-    (; const_dt, w, t_max, ips) = p
-    (; aerosol_act, aerosol, r_nuc) = p
-    (; deposition_growth, condensation_growth) = p
-    (; dep_nucleation, heterogeneous, homogeneous) = p
-    (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
-
-    # overwriting
-    if aerosol == CMP.Kaolinite(FT)
-        override_file = Dict(
-            "China2017_J_deposition_m_Kaolinite" =>
-                Dict("value" => ABDINM_m_calibrated, "type" => "float"),
-            "China2017_J_deposition_c_Kaolinite" =>
-                Dict("value" => ABDINM_c_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
-                Dict("value" => ABIFM_m_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
-                Dict("value" => ABIFM_c_calibrated, "type" => "float"),
-        )
-        kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        aerosol = CMP.Kaolinite(kaolinite_calibrated)
-    elseif aerosol == CMP.ArizonaTestDust(FT)
-        override_file = Dict(
-            "J_ABDINM_m_ArizonaTestDust" =>
-                Dict("value" => ABDINM_m_calibrated, "type" => "float"),
-            "J_ABDINM_c_ArizonaTestDust" =>
-                Dict("value" => ABDINM_c_calibrated, "type" => "float"),
-            "J_ABIFM_m_ArizonaTestDust" =>
-                Dict("value" => ABIFM_m_calibrated, "type" => "float"),
-            "J_ABIFM_c_ArizonaTestDust" =>
-                Dict("value" => ABIFM_c_calibrated, "type" => "float"),
-        )
-        ATD_calibrated = CP.create_toml_dict(FT; override_file)
-        aerosol = CMP.ArizonaTestDust(ATD_calibrated)
-    elseif aerosol == CMP.Illite(FT)
-        override_file = Dict(
-            "J_ABDINM_m_Illite" =>
-                Dict("value" => ABDINM_m_calibrated, "type" => "float"),
-            "J_ABDINM_c_Illite" =>
-                Dict("value" => ABDINM_c_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_m_Illite" =>
-                Dict("value" => ABIFM_m_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_c_Illite" =>
-                Dict("value" => ABIFM_c_calibrated, "type" => "float"),
-        )
-        illite_calibrated = CP.create_toml_dict(FT; override_file)
-        aerosol = CMP.Illite(illite_calibrated)
-    elseif aerosol == CMP.Sulfate(FT)
-        override_file = Dict(
-            "Linear_J_hom_coeff2" =>
-                Dict("value" => ABHOM_m_calibrated, "type" => "float"),
-            "Linear_J_hom_coeff1" =>
-                Dict("value" => ABHOM_c_calibrated, "type" => "float"),
-        )
-        ip_calibrated = CP.create_toml_dict(FT; override_file)
-        ips = CMP.IceNucleationParameters(ip_calibrated)
-    end
 
     # run parcel with new coefficients
-    local params = parcel_params{FT}(
-        const_dt = const_dt,
-        w = w,
-        prescribed_thermodynamics = prescribed_thermodynamics,
-        t_profile = t_profile,
-        T_profile = T_profile,
-        P_profile = P_profile,
-        aerosol_act = aerosol_act,
-        aerosol = aerosol,
-        aero_σ_g = aero_σ_g,
-        homogeneous = homogeneous,
-        deposition = dep_nucleation,
-        heterogeneous = heterogeneous,
-        condensation_growth = condensation_growth,
-        deposition_growth = deposition_growth,
-        liq_size_distribution = liq_size_distribution,
-        ice_size_distribution = ice_size_distribution,
-        ips = ips,
-        r_nuc = r_nuc,
-    )
+    loss_func = []
+    for (exp_index, p) in enumerate(p_list)
+        (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
+        (; const_dt, w, t_max, ips) = p
+        (; aerosol_act, aerosol, r_nuc) = p
+        (; deposition_growth, condensation_growth) = p
+        (; dep_nucleation, heterogeneous, homogeneous) = p
+        (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
 
-    # solve ODE
-    local sol = run_parcel(IC, FT(0), t_max, params)
-    if calibration == true
-        return sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
-    elseif calibration == false
-        return sol
+        IC = IC_list[exp_index]
+
+        # overwriting
+        if aerosol == CMP.Kaolinite(FT)
+            override_file = Dict(
+                "China2017_J_deposition_m_Kaolinite" =>
+                    Dict("value" => ABDINM_m_calibrated, "type" => "float"),
+                "China2017_J_deposition_c_Kaolinite" =>
+                    Dict("value" => ABDINM_c_calibrated, "type" => "float"),
+                "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
+                    Dict("value" => ABIFM_m_calibrated, "type" => "float"),
+                "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
+                    Dict("value" => ABIFM_c_calibrated, "type" => "float"),
+            )
+            kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.Kaolinite(kaolinite_calibrated)
+        elseif aerosol == CMP.ArizonaTestDust(FT)
+            override_file = Dict(
+                "J_ABDINM_m_ArizonaTestDust" =>
+                    Dict("value" => ABDINM_m_calibrated, "type" => "float"),
+                "J_ABDINM_c_ArizonaTestDust" =>
+                    Dict("value" => ABDINM_c_calibrated, "type" => "float"),
+                "J_ABIFM_m_ArizonaTestDust" =>
+                    Dict("value" => ABIFM_m_calibrated, "type" => "float"),
+                "J_ABIFM_c_ArizonaTestDust" =>
+                    Dict("value" => ABIFM_c_calibrated, "type" => "float"),
+            )
+            ATD_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.ArizonaTestDust(ATD_calibrated)
+        elseif aerosol == CMP.Illite(FT)
+            override_file = Dict(
+                "J_ABDINM_m_Illite" =>
+                    Dict("value" => ABDINM_m_calibrated, "type" => "float"),
+                "J_ABDINM_c_Illite" =>
+                    Dict("value" => ABDINM_c_calibrated, "type" => "float"),
+                "KnopfAlpert2013_J_ABIFM_m_Illite" =>
+                    Dict("value" => ABIFM_m_calibrated, "type" => "float"),
+                "KnopfAlpert2013_J_ABIFM_c_Illite" =>
+                    Dict("value" => ABIFM_c_calibrated, "type" => "float"),
+            )
+            illite_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.Illite(illite_calibrated)
+        elseif aerosol == CMP.Sulfate(FT)
+            override_file = Dict(
+                "Linear_J_hom_coeff2" =>
+                    Dict("value" => ABHOM_m_calibrated, "type" => "float"),
+                "Linear_J_hom_coeff1" =>
+                    Dict("value" => ABHOM_c_calibrated, "type" => "float"),
+            )
+            ip_calibrated = CP.create_toml_dict(FT; override_file)
+            ips = CMP.IceNucleationParameters(ip_calibrated)
+        end
+
+        # loading parcel parameters
+        local params = parcel_params{FT}(
+            const_dt = const_dt,
+            w = w,
+            prescribed_thermodynamics = prescribed_thermodynamics,
+            t_profile = t_profile,
+            T_profile = T_profile,
+            P_profile = P_profile,
+            aerosol_act = aerosol_act,
+            aerosol = aerosol,
+            aero_σ_g = aero_σ_g,
+            homogeneous = homogeneous,
+            deposition = dep_nucleation,
+            heterogeneous = heterogeneous,
+            condensation_growth = condensation_growth,
+            deposition_growth = deposition_growth,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
+            ips = ips,
+            r_nuc = r_nuc,
+        )
+
+        # solve ODE
+        local sol = run_parcel(IC, FT(0), t_max, params)
+    
+        if calibration == true
+            loss_func_i = sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
+            append!(loss_func, loss_func_i)
+        elseif calibration == false
+            return sol
+        end
+
     end
-end
 
-function run_model(p, coefficients, FT, IC, end_sim::Array{Any}; calibration = false)
-    # grabbing parameters
-    ABHOM_m_calibrated, ABHOM_c_calibrated = coefficients
-    (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
-    (; const_dt, w, t_max, ips) = p
-    (; aerosol_act, aerosol, r_nuc) = p
-    (; deposition_growth, condensation_growth) = p
-    (; dep_nucleation, heterogeneous, homogeneous) = p
-    (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
-    # TODO - will need p1, p2, p3, IC1, IC2, IC3 for the individual HOM exps
-
-    # overwriting
-    override_file = Dict(
-        "Linear_J_hom_coeff2" =>
-            Dict("value" => ABHOM_m_calibrated, "type" => "float"),
-        "Linear_J_hom_coeff1" =>
-            Dict("value" => ABHOM_c_calibrated, "type" => "float"),
-    )
-    ip_calibrated = CP.create_toml_dict(FT; override_file)
-    ips = CMP.IceNucleationParameters(ip_calibrated)
-
-    # run parcel with new coefficients
-    local params = parcel_params{FT}(
-        const_dt = const_dt,
-        w = w,
-        prescribed_thermodynamics = prescribed_thermodynamics,
-        t_profile = t_profile,
-        T_profile = T_profile,
-        P_profile = P_profile,
-        aerosol_act = aerosol_act,
-        aerosol = aerosol,
-        aero_σ_g = aero_σ_g,
-        homogeneous = homogeneous,
-        deposition = dep_nucleation,
-        heterogeneous = heterogeneous,
-        condensation_growth = condensation_growth,
-        deposition_growth = deposition_growth,
-        liq_size_distribution = liq_size_distribution,
-        ice_size_distribution = ice_size_distribution,
-        ips = ips,
-        r_nuc = r_nuc,
-    )
-
-    # solve ODE
-    local sol = run_parcel(IC, FT(0), t_max, params)
-    if calibration == true
-        return sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
-    elseif calibration == false
-        return sol
-    end
+    return loss_func # will only run if calibration == true
 end
 
 function stats_to_prior(observation_name, stats)
@@ -241,7 +201,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     rng_seed = 24
     rng = Random.seed!(Random.GLOBAL_RNG, rng_seed)
 
-    (; aerosol) = params
+    (; aerosol) = params[1]
 
     prior = create_prior(FT, IN_mode, perfect_model = perfect_model, aerosol_type = aerosol)
     N_ensemble = 25       # runs N_ensemble trials per iteration
@@ -251,7 +211,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
     EKI_obj = EKP.EnsembleKalmanProcess(
         initial_ensemble,
-        y_truth[(end - end_sim):end],
+        y_truth,
         Γ,
         EKP.Inversion();
         rng = rng,
@@ -296,7 +256,7 @@ end
 
 function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
     @info("Starting UKI calibration")
-    (; aerosol) = params
+    (; aerosol) = params[1]
 
     prior = create_prior(FT, IN_mode, perfect_model = perfect_model, aerosol_type = aerosol)
     N_iterations = 25
@@ -305,7 +265,7 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
 
     # truth = EKP.Observations.Observation(y_truth, Γ, "y_truth")
     truth = EKP.Observation(
-        Dict("samples" => vec(SB.mean(y_truth[end - end_sim: end], dims = 2)), "covariances" => Γ, "names" => "y_truth")
+        Dict("samples" => vec(SB.mean(y_truth, dims = 2)), "covariances" => Γ, "names" => "y_truth")
     )
 
     # Generate initial ensemble and set up UKI

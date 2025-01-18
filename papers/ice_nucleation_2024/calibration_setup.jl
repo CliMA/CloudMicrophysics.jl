@@ -172,7 +172,7 @@ function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
     r_nuc = FT(1e-7) #FT(3.057e-6)
     ips = CMP.IceNucleationParameters(FT)
 
-    params = (; const_dt, w, t_max,ips,
+    params = (; const_dt, w, t_max, ips,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
         condensation_growth, deposition_growth,         # growth
