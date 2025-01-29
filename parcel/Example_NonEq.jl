@@ -10,27 +10,31 @@ FT = Float64
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 
-# choosing a value for tau
+# choosing a value for the ice relaxation timescale
 τ = 0.01
 @info("using τ value ", τ)
-
-override_file = Dict(
-    "sublimation_deposition_timescale" =>
-        Dict("value" => τ, "type" => "float"),
-)
-toml_dict = CP.create_toml_dict(FT; override_file)
 
 # Get free parameters
 tps = TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
-liquid = CMP.CloudLiquid(FT(τ))
-ice = CMP.CloudIce(toml_dict)
-@info("relaxations:", liquid.τ_relax, ice.τ_relax)
 # Constants
 ρₗ = wps.ρw
 ρᵢ = wps.ρi
 R_v = TD.Parameters.R_v(tps)
 R_d = TD.Parameters.R_d(tps)
+liquid = CMP.CloudLiquid(τ, ρₗ)
+
+override_file = Dict(
+    "cloud_ice_apparent_density" =>
+        Dict("value" => ρᵢ, "type" => "float"),
+    "sublimation_deposition_timescale" =>
+        Dict("value" => τ, "type" => "float"),
+)
+
+toml_dict = CP.create_toml_dict(FT; override_file)
+
+ice = CMP.CloudIce(toml_dict)
+@info("relaxations:", liquid.τ_relax, ice.τ_relax)
 
 # Initial conditions
 Nₐ = FT(0)
@@ -62,15 +66,6 @@ size_distribution_list = ["Monodisperse", "Gamma"]
 condensation_growth = "NonEq_Condensation"
 deposition_growth = "NonEq_Deposition"
 
-# Data from Rogers(1975) Figure 1
-# https://www.tandfonline.com/doi/abs/10.1080/00046973.1975.9648397
-#! format: off
-Rogers_time_supersat = [0.0645, 0.511, 0.883, 1.4, 2.07, 2.72, 3.24, 3.89, 4.53, 5.87, 7.16, 9.79, 16.0, 19.8]
-Rogers_supersat = [0.0268, 0.255, 0.393, 0.546, 0.707, 0.805, 0.863, 0.905, 0.938, 0.971, 0.978, 0.963, 0.910, 0.885]
-Rogers_time_radius = [0.561, 2, 3.99, 10.7, 14.9, 19.9]
-Rogers_radius = [8.0, 8.08, 8.26, 8.91, 9.26, 9.68]
-#! format: on
-
 # Setup the plots
 fig = MK.Figure(size = (800, 600))
 ax1 = MK.Axis(fig[1, 1], ylabel = "Liquid Supersaturation [%]")
@@ -80,10 +75,6 @@ ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
 ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
 ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
 ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
-#ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure rel error")
-#ax8 = MK.Axis(fig[2, 3], xlabel = "Time [s]", ylabel = "saturation vapor pressure (from S)")
-#MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975")
-#MK.lines!(ax5, Rogers_time_radius, Rogers_radius)
 
 for DSD in size_distribution_list
     local params = parcel_params{FT}(
@@ -110,7 +101,6 @@ for DSD in size_distribution_list
 
     sol_Nₗ = sol[8, :]
     sol_Nᵢ = sol[9, :]
-    # Compute the current air density
     sol_T = sol[3, :]
     sol_p = sol[2, :]
     sol_qᵥ = sol[4, :]

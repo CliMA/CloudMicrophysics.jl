@@ -242,18 +242,13 @@ end
 
 function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     FT = eltype(state)
-    (; T, Sₗ, qₗ, qᵥ, qᵢ) = state
+    (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, liquid, ice) = params
-
-    q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
-    q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
-
-    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+    (; tps, liquid) = params
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
-    cond_rate = MNE.conv_q_vap_to_q_liq_ice(tps, liquid, q_sat, q, T)
+    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ_air, T)
 
     return cond_rate
 end
@@ -294,16 +289,11 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, liquid, ice) = params
-
-    q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
-    q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
-
-    q_sat = TD.PhasePartition(FT(0), q_sat_liq, q_sat_ice)
+    (; tps, ice) = params
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
-    dep_rate = MNE.conv_q_vap_to_q_liq_ice(tps, ice, q_sat, q, T)
+    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ_air, T)
 
     return dep_rate
 end
