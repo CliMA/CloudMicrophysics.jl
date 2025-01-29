@@ -11,7 +11,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 
 # choosing a value for the ice relaxation timescale
-τ = 0.1
+τ = FT(10)
 @info("using τ value ", τ)
 
 # Get free parameters
@@ -39,10 +39,10 @@ ice = CMP.CloudIce(toml_dict)
 # Initial conditions
 Nₐ = FT(0)
 Nₗ = FT(200 * 1e6)
-Nᵢ = FT(1e1)
+Nᵢ = FT(1e6)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
-T₀ = FT(251)
+T₀ = FT(243)
 ln_INPC = FT(0)
 e_sat = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
 Sₗ = FT(1)
@@ -58,9 +58,9 @@ IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 simple = false
 
 # Simulation parameters passed into ODE solver
-w = FT(10)                                 # updraft speed
+w = FT(1)                                 # updraft speed
 const_dt = FT(0.001)                         # model timestep
-t_max = FT(100)#FT(const_dt*1)
+t_max = FT(20)#FT(const_dt*1)
 size_distribution_list = ["Monodisperse", "Gamma"]
 
 condensation_growth = "NonEq_Condensation"
