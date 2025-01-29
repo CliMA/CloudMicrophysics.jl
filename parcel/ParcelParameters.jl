@@ -82,7 +82,29 @@ struct CondParams{FT} <: CMP.ParametersType{FT}
     const_dt::FT
 end
 
+struct NonEqCondParams_Anna{FT} <: CMP.ParametersType{FT}
+    tps::TDP.ThermodynamicsParameters{FT}
+    liquid::CMP.CloudLiquid{FT}
+end
+
+struct NonEqCondParams{FT} <: CMP.ParametersType{FT}
+    tps::TDP.ThermodynamicsParameters{FT}
+    liquid::CMP.CloudLiquid{FT}
+    ice::CMP.CloudIce{FT}
+end
+
 struct DepParams{FT} <: CMP.ParametersType{FT}
     aps::CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
+end
+
+struct NonEqDepParams_Anna{FT} <: CMP.ParametersType{FT}
+    tps::TDP.ThermodynamicsParameters{FT}
+    ice::CMP.CloudIce{FT}
+end
+
+struct NonEqDepParams{FT} <: CMP.ParametersType{FT}
+    tps::TDP.ThermodynamicsParameters{FT}
+    liquid::CMP.CloudLiquid{FT}
+    ice::CMP.CloudIce{FT}
 end
