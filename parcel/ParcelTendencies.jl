@@ -7,6 +7,11 @@ import CloudMicrophysics.Parameters as CMP
 import Distributions as DS
 import SpecialFunctions as SF
 
+# helper function to limit the tendency for noneq
+function limit(q, dt, n::Int)
+    return q / dt / n
+end
+
 function aerosol_activation(::Empty, state)
     FT = eltype(state)
     return FT(0)
@@ -244,13 +249,18 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, liquid) = params
+    (; tps, liquid, dt) = params
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
     cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ_air, T)
 
-    return cond_rate
+    # using same limiter as ClimaAtmos for now
+    return ifelse(
+        cond_rate > FT(0),
+        min(cond_rate, limit(qᵥ, dt, 2)),
+        -min(abs(cond_rate), limit(qₗ, dt, 2)),
+    )
 end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)
@@ -289,11 +299,16 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, ice) = params
+    (; tps, ice, dt) = params
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
     dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ_air, T)
 
-    return dep_rate
+    # using same limiter as ClimaAtmos for now
+    return ifelse(
+        dep_rate > FT(0),
+        min(dep_rate, limit(qᵥ, dt, 2)),
+        -min(abs(dep_rate), limit(qᵢ, dt, 2)),
+    )
 end

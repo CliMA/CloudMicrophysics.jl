@@ -39,7 +39,7 @@ ice = CMP.CloudIce(toml_dict)
 # Initial conditions
 Nₐ = FT(0)
 Nₗ = FT(200 * 1e6)
-Nᵢ = FT(1e3)
+Nᵢ = FT(1e1)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(251)
@@ -59,7 +59,7 @@ simple = false
 
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed
-const_dt = FT(0.01)                         # model timestep
+const_dt = FT(0.001)                         # model timestep
 t_max = FT(100)#FT(const_dt*1)
 size_distribution_list = ["Monodisperse", "Gamma"]
 
@@ -74,7 +74,6 @@ ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
 ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
 ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
 ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
-ax7 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "internal energy")
 
 for DSD in size_distribution_list
     local params = parcel_params{FT}(
@@ -123,3 +122,6 @@ MK.axislegend(
     nbanks = 2,
     position = :rb,
 )
+
+MK.save("noneq_parcel.svg", fig)
+nothing

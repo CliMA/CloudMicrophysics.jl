@@ -294,7 +294,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.condensation_growth == "NonEq_Condensation_Anna"
         ce_params = NonEqCondParams_Anna{FT}(pp.tps, pp.liquid)
     elseif pp.condensation_growth == "NonEq_Condensation"
-        ce_params = NonEqCondParams{FT}(pp.tps, pp.liquid)
+        ce_params = NonEqCondParams{FT}(pp.tps, pp.liquid, pp.const_dt)
     else
         throw("Unrecognized condensation growth mode")
     end
@@ -307,7 +307,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.deposition_growth == "NonEq_Deposition_Anna"
         ds_params = NonEqDepParams_Anna{FT}(pp.tps, pp.ice)
     elseif pp.deposition_growth == "NonEq_Deposition"
-        ds_params = NonEqDepParams{FT}(pp.tps, pp.ice)
+        ds_params = NonEqDepParams{FT}(pp.tps, pp.ice, pp.const_dt)
     else
         throw("Unrecognized deposition growth mode")
     end
