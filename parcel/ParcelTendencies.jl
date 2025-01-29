@@ -230,15 +230,13 @@ function condensation(params::NonEqCondParams_Anna, PSD, state, ρ_air)
     (; Sₗ, T, qₗ, qᵥ, qᵢ) = state
     (; tps, liquid) = params
 
-    q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0) # double check
-
-    #q_sat_liq = max(TD.q_vap_saturation_generic(tps,T,ρ_air,TD.Liquid()) - qᵥ, 0)
+    q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0)
     q_sat = TD.PhasePartition(FT(0), q_sat_liq, FT(0))
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
     new_q = MNE.conv_q_vap_to_q_liq_ice(liquid, q_sat, q)
-    
+
     return new_q
 end
 
@@ -247,10 +245,6 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     (; T, Sₗ, qₗ, qᵥ, qᵢ) = state
 
     (; tps, liquid, ice) = params
-
-    q_sat_liq = qₗ / Sₗ
-    Sᵢ = S_i(tps, T, Sₗ) # realizing this is probably not ideal
-    q_sat_ice = qᵢ / Sᵢ
 
     q_sat_liq = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Liquid())
     q_sat_ice = TD.q_vap_saturation_generic(tps, T, ρ_air, TD.Ice())
@@ -284,7 +278,7 @@ function deposition(params::NonEqDepParams_Anna, PSD, state, ρ_air)
 
     (; tps, ice) = params
 
-    Sᵢ = S_i(tps, T, Sₗ) # realizing this is probably not ideal
+    Sᵢ = S_i(tps, T, Sₗ)
     q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
 
     q_sat = TD.PhasePartition(FT(0), FT(0), q_sat_ice)
