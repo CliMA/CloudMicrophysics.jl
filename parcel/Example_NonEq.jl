@@ -25,8 +25,7 @@ R_d = TD.Parameters.R_d(tps)
 liquid = CMP.CloudLiquid(τ, ρₗ)
 
 override_file = Dict(
-    "cloud_ice_apparent_density" =>
-        Dict("value" => ρᵢ, "type" => "float"),
+    "cloud_ice_apparent_density" => Dict("value" => ρᵢ, "type" => "float"),
     "sublimation_deposition_timescale" =>
         Dict("value" => τ, "type" => "float"),
 )
@@ -83,9 +82,9 @@ for DSD in size_distribution_list
         const_dt = const_dt,
         w = w,
         liquid = liquid,
-        ice = ice
+        ice = ice,
     )
-  
+
     # solve ODE
     local sol = run_parcel(IC, FT(0), t_max, params)
 
@@ -93,7 +92,12 @@ for DSD in size_distribution_list
     MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = DSD)
     MK.lines!(ax2, sol.t, sol[3, :])
     MK.lines!(ax3, sol.t, sol[5, :] * 1e3)
-    MK.lines!(ax4, sol.t, (S_i.(tps, sol[3, :], sol[1, :]) .- 1) * 100.0, label = DSD)
+    MK.lines!(
+        ax4,
+        sol.t,
+        (S_i.(tps, sol[3, :], sol[1, :]) .- 1) * 100.0,
+        label = DSD,
+    )
     MK.lines!(ax5, sol.t, sol[4, :] * 1e3)
     MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
 
