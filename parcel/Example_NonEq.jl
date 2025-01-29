@@ -11,7 +11,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 
 # choosing a value for the ice relaxation timescale
-τ = 0.01
+τ = 0.1
 @info("using τ value ", τ)
 
 # Get free parameters
@@ -59,7 +59,7 @@ simple = false
 
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed
-const_dt = FT(0.001)                         # model timestep
+const_dt = FT(0.01)                         # model timestep
 t_max = FT(100)#FT(const_dt*1)
 size_distribution_list = ["Monodisperse", "Gamma"]
 
