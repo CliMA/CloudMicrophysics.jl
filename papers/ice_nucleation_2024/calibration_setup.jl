@@ -8,14 +8,14 @@ function perf_model_params(FT, IN_mode)
     if IN_mode == "ABDINM"
         const_dt = FT(1)
         w = FT(5)
-        t_max = FT(300)
+        t_max = FT(100)
         aerosol_act = "None"
         aerosol = CMP.Kaolinite(FT)
         aero_σ_g = FT(0)
         r_nuc = FT(1e-7)
         dep_nucleation = "ABDINM"
-        heterogeneous = "None"
-        homogeneous = "None"
+        heterogeneous = "ABIFM"
+        homogeneous = "ABHOM"
         condensation_growth = "None"
         deposition_growth = "Deposition"
         liq_size_distribution = "Monodisperse"
@@ -33,9 +33,9 @@ function perf_model_params(FT, IN_mode)
         aerosol = CMP.Kaolinite(FT)
         aero_σ_g = FT(0)
         r_nuc = FT(1e-7)
-        dep_nucleation = "None"
+        dep_nucleation = "ABDINM"
         heterogeneous = "ABIFM"
-        homogeneous = "None"
+        homogeneous = "ABHOM"
         condensation_growth = "Condensation"
         deposition_growth = "Deposition"
         liq_size_distribution = "Monodisperse"
@@ -50,11 +50,11 @@ function perf_model_params(FT, IN_mode)
         w = FT(1)
         t_max = FT(100)
         aerosol_act = "None"
-        aerosol = "None"
+        aerosol = CMP.Sulfate(FT)
         aero_σ_g = FT(0)
         r_nuc = FT(1e-7)
-        dep_nucleation = "None"
-        heterogeneous = "None"
+        dep_nucleation = "ABDINM"
+        heterogeneous = "ABIFM"
         homogeneous = "ABHOM"
         condensation_growth = "None"
         deposition_growth = "Deposition"
@@ -66,7 +66,7 @@ function perf_model_params(FT, IN_mode)
         P_profile = []
         ips = CMP.IceNucleationParameters(FT)
     end
-    params = (; const_dt, w, t_max,ips,
+    params = (; const_dt, w, t_max, ips,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
         condensation_growth, deposition_growth,         # growth
@@ -91,7 +91,7 @@ function perf_model_IC(FT, IN_mode)
         Nᵢ = FT(0)
         r₀ = FT(1e-7)
         p₀ = FT(80000)
-        T₀ = FT(235)
+        T₀ = FT(230)
         qᵥ = FT(8.8e-5)
         qₗ = FT(0)
         qᵢ = FT(0)
@@ -135,7 +135,7 @@ function perf_model_IC(FT, IN_mode)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function perf_model_pseudo_data(FT, IN_mode, params, IC)
+function perf_model_pseudo_data(FT, IN_mode, params, IC, end_sim)
     n_samples = 10
 
     if IN_mode == "ABDINM"
@@ -145,11 +145,11 @@ function perf_model_pseudo_data(FT, IN_mode, params, IC)
     elseif IN_mode == "ABHOM"
         coeff_true = [FT(255.927125), FT(-68.553283)]
     end
-    sol_ICNC = run_calibrated_model(FT, IN_mode, coeff_true, params, IC)[9, :]
-    G_truth = sol_ICNC ./ (IC[7] + IC[8] + IC[9])
+
+    G_truth = run_model(params, IN_mode, coeff_true, FT, IC, end_sim, calibration = true)
     dim_output = length(G_truth)
 
-    Γ = 0.001 * LinearAlgebra.I * (maximum(G_truth) - minimum(G_truth))
+    Γ = 0.01 * LinearAlgebra.I * (maximum(G_truth) - minimum(G_truth))
     noise_dist = Distributions.MvNormal(zeros(dim_output), Γ)
 
     y_truth = zeros(length(G_truth), n_samples) # where noisy ICNC will be stored
@@ -163,8 +163,8 @@ function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
     prescribed_thermodynamics = true
     aerosol_act = "AeroAct"
     aerosol = CMP.Sulfate(FT)
-    dep_nucleation = "None"
-    heterogeneous = "None"
+    dep_nucleation = "ABDINM"
+    heterogeneous = "ABIFM"
     homogeneous = "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
@@ -174,7 +174,7 @@ function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
     r_nuc = FT(1e-7) #FT(3.057e-6)
     ips = CMP.IceNucleationParameters(FT)
 
-    params = (; const_dt, w, t_max,ips,
+    params = (; const_dt, w, t_max, ips,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
         condensation_growth, deposition_growth,         # growth
@@ -256,8 +256,8 @@ function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, plot_na
     aerosol_act = "None"
     aerosol = plot_name == "IN0701" ? CMP.ArizonaTestDust(FT) : CMP.Illite(FT)
     dep_nucleation = "ABDINM"
-    heterogeneous = "None"
-    homogeneous = "None"
+    heterogeneous = "ABIFM"
+    homogeneous = "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
     liq_size_distribution = "Gamma"

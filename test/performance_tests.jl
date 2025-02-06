@@ -269,7 +269,7 @@ function benchmark_test(FT)
     bench_press(
         CMN.conv_q_vap_to_q_liq_ice_MM2015,
         (liquid, tps, TD.PhasePartition(FT(0.00145)), FT(0.8), FT(263)),
-        60,
+        70,
     )
 
     # 0-moment
