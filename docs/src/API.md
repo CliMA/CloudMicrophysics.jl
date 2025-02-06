@@ -27,7 +27,6 @@ Microphysics1M
 Microphysics1M.get_v0
 Microphysics1M.get_n0
 Microphysics1M.lambda
-Microphysics1M.radar_reflectivity
 Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_liq_to_q_rai
 Microphysics1M.conv_q_ice_to_q_sno_no_supersat
@@ -56,9 +55,6 @@ Microphysics2M.rain_breakup
 Microphysics2M.rain_self_collection_and_breakup
 Microphysics2M.rain_terminal_velocity
 Microphysics2M.rain_evaporation
-Microphysics2M.radar_reflectivity
-Microphysics2M.effective_radius
-Microphysics2M.effective_radius_Liu_Hallet_97
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
@@ -119,6 +115,16 @@ HetIceNucleation.INP_concentration_mean
 HomIceNucleation
 HomIceNucleation.homogeneous_J_cubic
 HomIceNucleation.homogeneous_J_linear
+```
+
+# Cloud diagnostics
+```@docs
+CloudDiagnostics
+CloudDiagnostics.radar_reflectivity_1M
+CloudDiagnostics.radar_reflectivity_2M
+CloudDiagnostics.effective_radius_const
+CloudDiagnostics.effective_radius_Liu_Hallet_97
+CloudDiagnostics.effective_radius_2M
 ```
 
 # Common utility functions
