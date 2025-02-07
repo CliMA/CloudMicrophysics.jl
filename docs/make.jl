@@ -45,6 +45,7 @@ Parameterizations = [
     "Water Activity" => "WaterActivity.md",
     "Ice Nucleation" => "IceNucleation.md",
     "Aerosol Nucleation" => "AerosolNucleation.md",
+    "Cloud diagnostics" => "CloudDiagnostics.md",
     "Precipitation Susceptibility" => "PrecipitationSusceptibility.md",
 ]
 
@@ -83,6 +84,7 @@ format = Documenter.HTML(
     prettyurls = get(ENV, "CI", nothing) == "true",
     mathengine = mathengine,
     collapselevel = 1,
+    size_threshold_ignore = ["API.md"],
 )
 
 makedocs(

@@ -36,6 +36,7 @@ function test_microphysics2M(FT)
 
     # Thermodynamics and air properties parameters
     aps = CMP.AirProperties(FT)
+    wtr = CMP.WaterProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
 
     # Terminal velocity parameters
@@ -571,57 +572,6 @@ function test_microphysics2M(FT)
             N_rai,
             T,
         ).evap_rate_0 ≈ 0 atol = eps(FT)
-
-    end
-
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 effective radius and reflectivity" begin
-        #setup
-        ρₐ = FT(1)
-
-        q_liq = [FT(2.128e-4), FT(2.128e-20), FT(1.6e-12), FT(0), FT(1.037e-25)]
-        N_liq = [FT(15053529), FT(3), FT(5512), FT(0), FT(5.225e-12)]
-        q_rai = [FT(1.573e-4), FT(1.573e-4), FT(1.9e-15), FT(0), FT(2.448e-27)]
-        N_rai = [FT(510859), FT(510859), FT(0), FT(0), FT(5.136e-18)]
-
-        # reference values
-        rr = [FT(-12.561951), FT(-12.579899), FT(-150), FT(-150), FT(-150)]
-        reff = [FT(2.319383e-5), FT(6.91594e-5), FT(0), FT(0), FT(0)]
-
-        for (qₗ, Nₗ, qᵣ, Nᵣ, rₑ, Z) in zip(q_liq, N_liq, q_rai, N_rai, reff, rr)
-            for SB in [SB2006, SB2006_no_limiters]
-
-                #action
-                Z_val = CM2.radar_reflectivity(SB, qₗ, qᵣ, Nₗ, Nᵣ, ρₐ)
-                rₑ_val = CM2.effective_radius(SB, qₗ, qᵣ, Nₗ, Nᵣ, ρₐ)
-
-                #test
-                TT.@test rₑ_val ≈ rₑ atol = FT(1e-6)
-                TT.@test Z_val ≈ Z atol = FT(1e-4)
-            end
-        end
-    end
-
-    TT.@testset "2M_microphysics - '1/3' power law from Liu and Hallett (1997)" begin
-        #setup
-        ρ_air = FT(1)
-        ρ_w = FT(1000)
-        q_liq = FT(2.128e-4)
-        N_liq = FT(15053529)
-        q_rai = FT(1.573e-4)
-        N_rai = FT(510859)
-
-        #action
-        reff = CM2.effective_radius_Liu_Hallet_97(
-            q_liq,
-            q_rai,
-            N_liq,
-            N_rai,
-            ρ_air,
-            ρ_w,
-        )
-
-        #test
-        TT.@test reff ≈ FT(2.66e-05) atol = FT(8e-6)
 
     end
 
