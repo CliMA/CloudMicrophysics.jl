@@ -634,35 +634,6 @@ If ``T > T_{freeze}``:
 \end{equation}
 ```
 
-## Rain radar reflectivity
-
-The rain radar reflectivity factor Z is used to measure the power
-  returned by a radar signal when it encounters rain particles.
-It is defined as the 6th moment of the rain particle size distribution:
-```math
-\begin{equation}
-Z = {\int_0^\infty r^{6} \, n(r) \, dr}.
-\label{eq:Z}
-\end{equation}
-```
-Integrating over the assumed Marshall-Palmer distribution (eq. 6) leads to
-```math
-\begin{equation}
-Z = {\frac{6! \, n_{0}^{rai}}{\lambda^7}},
-\end{equation}
-```
-where:
- - ``n_{0}^{rai}`` - rain drop size distribution parameter,
- - ``\lambda`` - as defined in eq. 7
-
-By dividing ``Z`` by the radar reflectivity factor ``Z_0`` for a drop of radius ``1 mm`` in a volume of ``1 m^3`` and applying the decimal logarithm to the result, we obtain the normalized logarithmic rain radar reflectivity ``L_Z``, which is the variable that is commonly referenced for radar reflectivity values:
-```math
-\begin{equation}
-L_Z = {10 \, \log_{10} \left( \frac{Z}{Z_0} \right)}.
-\end{equation}
-```
-The resulting logarithmic dimensionless unit is decibel relative to ``Z_0``.
-
 ## Example figures
 
 ```@example

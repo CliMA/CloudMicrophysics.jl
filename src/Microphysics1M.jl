@@ -102,33 +102,6 @@ function lambda(
 end
 
 """
-    radar_reflectivity(precip, q, ρ)
-
-    - `precip` - struct with rain free parameters
-    - `q` - specific humidity of rain
-    - `ρ` - air density
-
-Returns logarithmic radar reflectivity from the assumed rain particle size distribution
-normalized by the reflectivty of 1 millimiter drop in a volume of one meter cube
-"""
-function radar_reflectivity(
-    (; pdf, mass)::CMP.Rain{FT},
-    q::FT,
-    ρ::FT,
-) where {FT}
-
-    # change units for accuracy
-    n0 = get_n0(pdf) * FT(1e-12)
-    λ = lambda(pdf, mass, q, ρ) * FT(1e-3)
-
-    Z = (λ == FT(0)) ? FT(0) : (720 * n0 / λ^7)
-    log_10_Z₀ = FT(-18)
-    log_Z = FT(10) * (log10(Z) - log_10_Z₀ - FT(9))
-
-    return max(FT(-430), log_Z)
-end
-
-"""
     aspect_ratio_coeffs(snow_shape, mass, area, density)
 
  - `snow_shape` - a struct specifying assumed snow particle shape (Oblate or Prolate)

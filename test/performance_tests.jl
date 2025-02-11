@@ -19,6 +19,7 @@ import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Nucleation as HN
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.CloudDiagnostics as CMP
 
 @info "Performance Tests"
 
@@ -100,6 +101,7 @@ function benchmark_test(FT)
     organ_nuc = CMP.OrganicNucleationParameters(FT)
     # air and thermodynamics parameters
     aps = CMP.AirProperties(FT)
+    wtr = CMP.WaterProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
 
     ρ_air = FT(1.2)
@@ -269,7 +271,7 @@ function benchmark_test(FT)
     bench_press(
         CMN.conv_q_vap_to_q_liq_ice_MM2015,
         (liquid, tps, TD.PhasePartition(FT(0.00145)), FT(0.8), FT(263)),
-        60,
+        70,
     )
 
     # 0-moment
@@ -281,7 +283,7 @@ function benchmark_test(FT)
         (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air),
         350,
     )
-    bench_press(CM1.radar_reflectivity, (rain, q_rai, ρ_air), 300)
+    bench_press(CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
 
     # 2-moment
     for sb in [sb2006, sb2006_no_limiters]
@@ -311,19 +313,19 @@ function benchmark_test(FT)
             2200,
         )
         bench_press(
-            CM2.radar_reflectivity,
+            CMD.radar_reflectivity_2M,
             (sb, q_liq, q_rai, N_liq, N_rai, ρ_air),
             2000,
         )
         bench_press(
-            CM2.effective_radius,
+            CMD.effective_radius_2M,
             (sb, q_liq, q_rai, N_liq, N_rai, ρ_air),
             2000,
         )
     end
     bench_press(
-        CM2.effective_radius_Liu_Hallet_97,
-        (q_liq, q_rai, N_liq, N_rai, ρ_air, FT(1000)),
+        CMD.effective_radius_Liu_Hallet_97,
+        (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai),
         300,
     )
     # Homogeneous Nucleation

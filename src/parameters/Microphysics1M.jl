@@ -133,6 +133,8 @@ Base.@kwdef struct CloudLiquid{FT} <: CloudCondensateType{FT}
     τ_relax::FT
     "water density [kg/m3]"
     ρw::FT
+    "effective radius [m]"
+    r_eff::FT
 end
 
 CloudLiquid(::Type{FT}) where {FT <: AbstractFloat} =
@@ -142,6 +144,7 @@ function CloudLiquid(toml_dict::CP.AbstractTOMLDict)
     name_map = (;
         :condensation_evaporation_timescale => :τ_relax,
         :density_liquid_water => :ρw,
+        :liquid_cloud_effective_radius => :r_eff,
     )
     parameters =
         CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
@@ -170,6 +173,8 @@ struct CloudIce{FT, PD, MS} <: CloudCondensateType{FT}
     τ_relax::FT
     "cloud ice apparent density [kg/m3]"
     ρᵢ::FT
+    "effective radius [m]"
+    r_eff::FT
 end
 
 CloudIce(::Type{FT}) where {FT <: AbstractFloat} =
@@ -183,6 +188,7 @@ function CloudIce(toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT))
         :cloud_ice_mass_size_relation_coefficient_me => :me,
         :ice_snow_threshold_radius => :r_ice_snow,
         :sublimation_deposition_timescale => :τ_relax,
+        :ice_cloud_effective_radius => :r_eff,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     mass = ParticleMass(CloudIce, toml_dict)
@@ -190,7 +196,15 @@ function CloudIce(toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT))
     FT = CP.float_type(toml_dict)
     P = typeof(pdf)
     M = typeof(mass)
-    return CloudIce{FT, P, M}(pdf, mass, p.r0, p.r_ice_snow, p.τ_relax, p.ρᵢ)
+    return CloudIce{FT, P, M}(
+        pdf,
+        mass,
+        p.r0,
+        p.r_ice_snow,
+        p.τ_relax,
+        p.ρᵢ,
+        p.r_eff,
+    )
 end
 
 function ParticleMass(::Type{CloudIce}, td::CP.AbstractTOMLDict)

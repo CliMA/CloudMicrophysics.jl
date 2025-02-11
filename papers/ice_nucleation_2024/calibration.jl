@@ -17,186 +17,136 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
 
 # Define model which wraps around parcel and overwrites calibrated parameters
-function run_model(p, coefficients, IN_mode, FT, IC, end_sim)
-    # grabbing parameters
+function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; calibration = false)
+    # grabbing calibrated m and c
     m_calibrated, c_calibrated = coefficients
-    (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
-    (; const_dt, w, t_max, ips) = p
-    (; aerosol_act, aerosol, r_nuc) = p
-    (; deposition_growth, condensation_growth) = p
-    (; dep_nucleation, heterogeneous, homogeneous) = p
-    (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
 
-    if IN_mode == "ABDINM"
+    # run parcel with new coefficients
+    loss_func = []
+    for (exp_index, p) in enumerate(p_list)
+        (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
+        (; const_dt, w, t_max, ips) = p
+        (; aerosol_act, aerosol, r_nuc) = p
+        (; deposition_growth, condensation_growth) = p
+        (; dep_nucleation, heterogeneous, homogeneous) = p
+        (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
+
+        IC = IC_list[exp_index]
+
         # overwriting
         if aerosol == CMP.Kaolinite(FT)
-            override_file = Dict(
-                "China2017_J_deposition_m_Kaolinite" =>
-                    Dict("value" => m_calibrated, "type" => "float"),
-                "China2017_J_deposition_c_Kaolinite" =>
-                    Dict("value" => c_calibrated, "type" => "float"),
-            )
+            if IN_mode == "ABDINM"
+                override_file = Dict(
+                    "China2017_J_deposition_m_Kaolinite" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "China2017_J_deposition_c_Kaolinite" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            elseif IN_mode == "ABIFM"
+                override_file = Dict(
+                    "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            end
             kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
             aerosol = CMP.Kaolinite(kaolinite_calibrated)
         elseif aerosol == CMP.ArizonaTestDust(FT)
-            override_file = Dict(
-                "J_ABDINM_m_ArizonaTestDust" =>
-                    Dict("value" => m_calibrated, "type" => "float"),
-                "J_ABDINM_c_ArizonaTestDust" =>
-                    Dict("value" => c_calibrated, "type" => "float"),
-            )
+            if IN_mode == "ABDINM"
+                override_file = Dict(
+                    "J_ABDINM_m_ArizonaTestDust" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABDINM_c_ArizonaTestDust" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            elseif IN_mode == "ABIFM"
+                override_file = Dict(
+                    "J_ABIFM_m_ArizonaTestDust" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABIFM_c_ArizonaTestDust" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            end
             ATD_calibrated = CP.create_toml_dict(FT; override_file)
             aerosol = CMP.ArizonaTestDust(ATD_calibrated)
         elseif aerosol == CMP.Illite(FT)
-            override_file = Dict(
-                "J_ABDINM_m_Illite" =>
-                    Dict("value" => m_calibrated, "type" => "float"),
-                "J_ABDINM_c_Illite" =>
-                    Dict("value" => c_calibrated, "type" => "float"),
-            )
+            if IN_mode == "ABDINM"
+                override_file = Dict(
+                    "J_ABDINM_m_Illite" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABDINM_c_Illite" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            elseif IN_mode == "ABIFM"
+                override_file = Dict( 
+                    "KnopfAlpert2013_J_ABIFM_m_Illite" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "KnopfAlpert2013_J_ABIFM_c_Illite" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            end
             illite_calibrated = CP.create_toml_dict(FT; override_file)
             aerosol = CMP.Illite(illite_calibrated)
+        elseif aerosol == CMP.Sulfate(FT)
+            override_file = Dict(
+                "Linear_J_hom_coeff2" =>
+                    Dict("value" => m_calibrated, "type" => "float"),
+                "Linear_J_hom_coeff1" =>
+                    Dict("value" => c_calibrated, "type" => "float"),
+            )
+            ip_calibrated = CP.create_toml_dict(FT; override_file)
+            ips = CMP.IceNucleationParameters(ip_calibrated)
+        else
+            @error("Aerosol type not supported for calibration.")
         end
 
-    elseif IN_mode == "ABIFM"
-        # overwriting
-        override_file = Dict(
-            "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
-                Dict("value" => m_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
-                Dict("value" => c_calibrated, "type" => "float"),
+        # loading parcel parameters
+        local params = parcel_params{FT}(
+            const_dt = const_dt,
+            w = w,
+            prescribed_thermodynamics = prescribed_thermodynamics,
+            t_profile = t_profile,
+            T_profile = T_profile,
+            P_profile = P_profile,
+            aerosol_act = aerosol_act,
+            aerosol = aerosol,
+            aero_σ_g = aero_σ_g,
+            homogeneous = homogeneous,
+            deposition = dep_nucleation,
+            heterogeneous = heterogeneous,
+            condensation_growth = condensation_growth,
+            deposition_growth = deposition_growth,
+            liq_size_distribution = liq_size_distribution,
+            ice_size_distribution = ice_size_distribution,
+            ips = ips,
+            r_nuc = r_nuc,
         )
-        kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        aerosol = CMP.Kaolinite(kaolinite_calibrated)
 
-    elseif IN_mode == "ABHOM"
-        # overwriting
-        override_file = Dict(
-            "Linear_J_hom_coeff2" =>
-                Dict("value" => m_calibrated, "type" => "float"),
-            "Linear_J_hom_coeff1" =>
-                Dict("value" => c_calibrated, "type" => "float"),
-        )
-        ip_calibrated = CP.create_toml_dict(FT; override_file)
-        ips = CMP.IceNucleationParameters(ip_calibrated)
+        # solve ODE
+        local sol = run_parcel(IC, FT(0), t_max, params)
+
+        if calibration == true
+            loss_func_i = sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
+            append!(loss_func, loss_func_i)
+        elseif calibration == false
+            return sol
+        end
+
     end
 
-    # run parcel with new coefficients
-    local params = parcel_params{FT}(
-        const_dt = const_dt,
-        w = w,
-        prescribed_thermodynamics = prescribed_thermodynamics,
-        t_profile = t_profile,
-        T_profile = T_profile,
-        P_profile = P_profile,
-        aerosol_act = aerosol_act,
-        aerosol = aerosol,
-        aero_σ_g = aero_σ_g,
-        homogeneous = homogeneous,
-        deposition = dep_nucleation,
-        heterogeneous = heterogeneous,
-        condensation_growth = condensation_growth,
-        deposition_growth = deposition_growth,
-        liq_size_distribution = liq_size_distribution,
-        ice_size_distribution = ice_size_distribution,
-        ips = ips,
-        r_nuc = r_nuc,
-    )
-
-    # solve ODE
-    local sol = run_parcel(IC, FT(0), t_max, params)
-    return sol[9, end - end_sim:end] ./ (IC[7] + IC[8] + IC[9])
+    return loss_func # will only run if calibration == true
 end
 
-function run_calibrated_model(FT, IN_mode, coefficients, p, IC)
-    # grabbing parameters
-    m_calibrated, c_calibrated = coefficients
-    (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
-    (; const_dt, w, t_max, ips) = p
-    (; aerosol_act, aerosol, r_nuc) = p
-    (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
-    (; dep_nucleation, heterogeneous, homogeneous) = p
-    (; deposition_growth, condensation_growth) = p
-
-    if IN_mode == "ABDINM"
-        # overwriting
-        if aerosol == CMP.Kaolinite(FT)
-            override_file = Dict(
-                "China2017_J_deposition_m_Kaolinite" =>
-                    Dict("value" => m_calibrated, "type" => "float"),
-                "China2017_J_deposition_c_Kaolinite" =>
-                    Dict("value" => c_calibrated, "type" => "float"),
-            )
-            kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-            aerosol = CMP.Kaolinite(kaolinite_calibrated)
-        elseif aerosol == CMP.ArizonaTestDust(FT)
-            override_file = Dict(
-                "J_ABDINM_m_ArizonaTestDust" =>
-                    Dict("value" => m_calibrated, "type" => "float"),
-                "J_ABDINM_c_ArizonaTestDust" =>
-                    Dict("value" => c_calibrated, "type" => "float"),
-            )
-            ATD_calibrated = CP.create_toml_dict(FT; override_file)
-            aerosol = CMP.ArizonaTestDust(ATD_calibrated)
-        elseif aerosol == CMP.Illite(FT)
-            override_file = Dict(
-                "J_ABDINM_m_Illite" =>
-                    Dict("value" => m_calibrated, "type" => "float"),
-                "J_ABDINM_c_Illite" =>
-                    Dict("value" => c_calibrated, "type" => "float"),
-            )
-            illite_calibrated = CP.create_toml_dict(FT; override_file)
-            aerosol = CMP.Illite(illite_calibrated)
-        end
-
-    elseif IN_mode == "ABIFM"
-        # overwriting
-        override_file = Dict(
-            "KnopfAlpert2013_J_ABIFM_m_Kaolinite" =>
-                Dict("value" => m_calibrated, "type" => "float"),
-            "KnopfAlpert2013_J_ABIFM_c_Kaolinite" =>
-                Dict("value" => c_calibrated, "type" => "float"),
-        )
-        kaolinite_calibrated = CP.create_toml_dict(FT; override_file)
-        aerosol = CMP.Kaolinite(kaolinite_calibrated)
-    
-    elseif IN_mode == "ABHOM"
-        # overwriting
-        override_file = Dict(
-            "Linear_J_hom_coeff2" =>
-                Dict("value" => m_calibrated, "type" => "float"),
-            "Linear_J_hom_coeff1" =>
-                Dict("value" => c_calibrated, "type" => "float"),
-        )
-        ip_calibrated = CP.create_toml_dict(FT; override_file)
-        ips = CMP.IceNucleationParameters(ip_calibrated)
-    end
-
-    # run parcel with new coefficients
-    local params = parcel_params{FT}(
-        const_dt = const_dt,
-        prescribed_thermodynamics = prescribed_thermodynamics,
-        t_profile = t_profile,
-        T_profile = T_profile,
-        P_profile = P_profile,
-        w = w,
-        aerosol_act = aerosol_act,
-        aerosol = aerosol,
-        aero_σ_g = aero_σ_g,
-        homogeneous = homogeneous,
-        deposition = dep_nucleation,
-        heterogeneous = heterogeneous,
-        condensation_growth = condensation_growth,
-        deposition_growth = deposition_growth,
-        liq_size_distribution = liq_size_distribution,
-        ice_size_distribution = ice_size_distribution,
-        ips = ips,
-        r_nuc = r_nuc,
+function stats_to_prior(observation_name, stats)
+    prior = EKP.constrained_gaussian(
+        observation_name,
+        stats[1],
+        stats[2],
+        stats[3],
+        stats[4],
     )
-
-    # solve ODE
-    local sol = run_parcel(IC, FT(0), t_max, params)
-    return sol
+    return prior
 end
 
 function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothing)
@@ -207,15 +157,16 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
     # for perfect model calibration
     if perfect_model == true
         if IN_mode == "ABDINM"
-            m_stats = [FT(20), FT(8), FT(0), Inf]
-            c_stats = [FT(-1), FT(2), -Inf, Inf]
+            m_stats = [FT(20), FT(20), FT(0), Inf]
+            c_stats = [FT(-1), FT(20), -Inf, Inf]
         elseif IN_mode == "ABIFM"
-            m_stats = [FT(50), FT(7), FT(0), Inf]
-            c_stats = [FT(-7), FT(4), -Inf, Inf]
+            m_stats = [FT(50), FT(20), FT(0), Inf]
+            c_stats = [FT(-7), FT(20), -Inf, Inf]
         elseif IN_mode == "ABHOM"
-            m_stats = [FT(251), FT(6), FT(0), Inf]
-            c_stats = [FT(-66), FT(3), -Inf, Inf]
+            m_stats = [FT(251), FT(70), FT(0), Inf]
+            c_stats = [FT(-66), FT(20), -Inf, Inf]
         end
+
     elseif perfect_model == false
         if IN_mode == "ABDINM"
             if aerosol_type == CMP.ArizonaTestDust(FT)
@@ -230,8 +181,8 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
             # c_stats = [FT(-7), FT(1), -Inf, Inf]
             error("ABIFM calibrations not yet supported.")
         elseif IN_mode == "ABHOM"
-            m_stats = [FT(260.927125), FT(25), FT(0), Inf]
-            c_stats = [FT(-68.553283), FT(10), -Inf, Inf]
+            m_stats = [FT(260.927125), FT(70), FT(0), Inf]
+            c_stats = [FT(-68.553283), FT(20), -Inf, Inf]
         end
     end
 
@@ -259,7 +210,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     rng_seed = 24
     rng = Random.seed!(Random.GLOBAL_RNG, rng_seed)
 
-    (; aerosol) = params
+    (; aerosol) = params[1]
 
     prior = create_prior(FT, IN_mode, perfect_model = perfect_model, aerosol_type = aerosol)
     N_ensemble = 25       # runs N_ensemble trials per iteration
@@ -269,12 +220,14 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
     EKI_obj = EKP.EnsembleKalmanProcess(
         initial_ensemble,
-        y_truth[end - end_sim:end],
+        y_truth,
         Γ,
         EKP.Inversion();
         rng = rng,
         verbose = true,
         localization_method = EKP.Localizers.NoLocalization(), # no localization
+        scheduler = EKP.DataMisfitController(terminate_at = 1),
+        accelerator = EKP.DefaultAccelerator(), # no acceleration
     )
 
     # Carry out the EKI calibration
@@ -285,7 +238,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         ϕ_n = EKP.get_ϕ_final(prior, EKI_obj)
         G_ens = hcat(
             [
-                run_model(params, ϕ_n[:, i], IN_mode, FT, IC, end_sim) for
+                run_model(params, IN_mode, ϕ_n[:, i], FT, IC, end_sim, calibration = true) for
                 i in 1:N_ensemble
             ]...,
         )
@@ -317,7 +270,7 @@ end
 
 function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
     @info("Starting UKI calibration")
-    (; aerosol) = params
+    (; aerosol) = params[1]
 
     prior = create_prior(FT, IN_mode, perfect_model = perfect_model, aerosol_type = aerosol)
     N_iterations = 25
@@ -326,7 +279,7 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
 
     # truth = EKP.Observations.Observation(y_truth, Γ, "y_truth")
     truth = EKP.Observation(
-        Dict("samples" => vec(SB.mean(y_truth[end - end_sim: end], dims = 2)), "covariances" => Γ, "names" => "y_truth")
+        Dict("samples" => vec(SB.mean(y_truth, dims = 2)), "covariances" => Γ, "names" => "y_truth")
     )
 
     # Generate initial ensemble and set up UKI
@@ -346,7 +299,7 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
         # Evaluate forward map
         G_n = [
-            run_model(params, ϕ_n[:, i], IN_mode, FT, IC, end_sim) for
+            run_model(params, IN_mode, ϕ_n[:, i], FT, IC, end_sim, calibration = true) for
             i in 1:size(ϕ_n)[2]  #i in 1:N_ensemble
         ]
         # Reformat into `d x N_ens` matrix

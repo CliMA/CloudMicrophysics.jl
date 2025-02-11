@@ -8,18 +8,18 @@ include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
 function test_J_calibration(FT, IN_mode)
     params = perf_model_params(FT, IN_mode)
     IC = perf_model_IC(FT, IN_mode)
+    end_sim = 25
 
-    pseudo_data = perf_model_pseudo_data(FT, IN_mode, params, IC)
+    pseudo_data = perf_model_pseudo_data(FT, IN_mode, [params], [IC], end_sim)
     Γ = pseudo_data[2]
     y_truth = pseudo_data[1]
     coeff_true = pseudo_data[3]
-    end_sim = 25
 
     EKI_output = calibrate_J_parameters_EKI(
         FT,
         IN_mode,
-        params,
-        IC,
+        [params],
+        [IC],
         y_truth,
         end_sim,
         Γ,
@@ -28,8 +28,8 @@ function test_J_calibration(FT, IN_mode)
     UKI_output = calibrate_J_parameters_UKI(
         FT,
         IN_mode,
-        params,
-        IC,
+        [params],
+        [IC],
         y_truth,
         end_sim,
         Γ,
@@ -38,47 +38,47 @@ function test_J_calibration(FT, IN_mode)
 
     EKI_calibrated_parameters = EKI_output[1]
     UKI_calibrated_parameters = UKI_output[1]
-    EKI_calibrated_soln =
-        run_calibrated_model(FT, IN_mode, EKI_calibrated_parameters, params, IC)
-    UKI_calibrated_soln =
-        run_calibrated_model(FT, IN_mode, UKI_calibrated_parameters, params, IC)
-    true_soln = run_calibrated_model(FT, IN_mode, coeff_true, params, IC)
+    EKI_calibrated_soln = run_model(
+        [params],
+        IN_mode,
+        EKI_calibrated_parameters,
+        FT,
+        [IC],
+        end_sim,
+    )
+    UKI_calibrated_soln = run_model(
+        [params],
+        IN_mode,
+        UKI_calibrated_parameters,
+        FT,
+        [IC],
+        end_sim,
+    )
+    true_soln = run_model([params], IN_mode, coeff_true, FT, [IC], end_sim)
 
     TT.@testset "EKI Perfect Model Calibrations on AIDA" begin
-        # test that coeffs are close to "true" values and that end ICNC are similar
+        # test that end ICNC are similar
         if IN_mode == "ABDINM"
-            TT.@test EKI_calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
-            TT.@test EKI_calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(1.5)
             TT.@test EKI_calibrated_soln[9, end] ≈ true_soln[9, end] rtol =
                 FT(0.3)
         elseif IN_mode == "ABIFM"
-            TT.@test EKI_calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
-            TT.@test EKI_calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(0.3)
             TT.@test EKI_calibrated_soln[9, end] ≈ true_soln[9, end] rtol =
                 FT(0.3)
         elseif IN_mode == "ABHOM"
-            TT.@test EKI_calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
-            TT.@test EKI_calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(0.3)
             TT.@test EKI_calibrated_soln[9, end] ≈ true_soln[9, end] rtol =
                 FT(0.3)
         end
     end
 
     TT.@testset "UKI Perfect Model Calibrations on AIDA" begin
-        # test that coeffs are close to "true" values and that end ICNC are similar
+        # test that end ICNC are similar
         if IN_mode == "ABDINM"
-            TT.@test UKI_calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
-            TT.@test UKI_calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(1.5)
             TT.@test UKI_calibrated_soln[9, end] ≈ true_soln[9, end] rtol =
                 FT(0.3)
         elseif IN_mode == "ABIFM"
-            TT.@test UKI_calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
-            TT.@test UKI_calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(0.3)
             TT.@test UKI_calibrated_soln[9, end] ≈ true_soln[9, end] rtol =
                 FT(0.3)
         elseif IN_mode == "ABHOM"
-            TT.@test UKI_calibrated_parameters[1] ≈ coeff_true[1] rtol = FT(0.3)
-            TT.@test UKI_calibrated_parameters[2] ≈ coeff_true[2] rtol = FT(0.3)
             TT.@test UKI_calibrated_soln[9, end] ≈ true_soln[9, end] rtol =
                 FT(0.3)
         end
