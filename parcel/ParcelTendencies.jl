@@ -229,7 +229,7 @@ function condensation(params::CondParams, PSD_liq, state, ρ_air)
     return qₗ + dqₗ_dt * const_dt > 0 ? dqₗ_dt : -qₗ / const_dt
 end
 
-function condensation(params::NonEqCondParams_Anna, PSD, state, ρ_air)
+function condensation(params::NonEqCondParams_simple, PSD, state, ρ_air)
 
     FT = eltype(state)
     (; Sₗ, T, qₗ, qᵥ, qᵢ) = state
@@ -277,7 +277,7 @@ function deposition(params::DepParams, PSD_ice, state, ρ_air)
     return 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD_ice.r * Nᵢ
 end
 
-function deposition(params::NonEqDepParams_Anna, PSD, state, ρ_air)
+function deposition(params::NonEqDepParams_simple, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, Sₗ, qₗ, qᵥ, qᵢ) = state
 
