@@ -1,7 +1,7 @@
 name = "CloudMicrophysics"
 uuid = "6a9e3e04-43cd-43ba-94b9-e8782df3c71b"
 authors = ["Climate Modeling Alliance"]
-version = "0.22.7"
+version = "0.22.8"
 
 [deps]
 ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
@@ -22,7 +22,7 @@ MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
 EmulatorModelsExt = ["DataFrames", "MLJ"]
 
 [compat]
-ClimaParams = "0.10"
+ClimaParams = "0.10.19"
 DataFrames = "1.6"
 DocStringExtensions = "0.8, 0.9"
 ForwardDiff = "0.10"

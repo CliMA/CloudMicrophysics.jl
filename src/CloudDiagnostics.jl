@@ -210,10 +210,10 @@ end
 Returns a constant assumed effective radius for clouds
 """
 function effective_radius_const(cloud_params::CMP.CloudLiquid{FT}) where {FT}
-    return FT(14e-6) # TODO grab it from parameters
+    return cloud_params.r_eff
 end
 function effective_radius_const(cloud_params::CMP.CloudIce{FT}) where {FT}
-    return FT(25e-6)
+    return cloud_params.r_eff
 end
 
 end # end module
