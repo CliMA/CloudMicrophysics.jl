@@ -258,8 +258,8 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     # using same limiter as ClimaAtmos for now
     return ifelse(
         cond_rate > FT(0),
-        min(cond_rate, limit(qᵥ, dt, 2)),
-        -min(abs(cond_rate), limit(qₗ, dt, 2)),
+        min(cond_rate, limit(qᵥ, dt, 1)),
+        -min(abs(cond_rate), limit(qₗ, dt, 1)),
     )
 end
 
@@ -308,7 +308,7 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     # using same limiter as ClimaAtmos for now
     return ifelse(
         dep_rate > FT(0),
-        min(dep_rate, limit(qᵥ, dt, 2)),
-        -min(abs(dep_rate), limit(qᵢ, dt, 2)),
+        min(dep_rate, limit(qᵥ, dt, 1)),
+        -min(abs(dep_rate), limit(qᵢ, dt, 1)),
     )
 end
