@@ -2,6 +2,7 @@ import OrdinaryDiffEq as ODE
 import CairoMakie as MK
 import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.CloudDiagnostics as CD
 import CloudMicrophysics.Parameters as CMP
 import ClimaParams as CP
 
@@ -22,18 +23,6 @@ wps = CMP.WaterProperties(FT)
 ρᵢ = wps.ρi
 R_v = TD.Parameters.R_v(tps)
 R_d = TD.Parameters.R_d(tps)
-liquid = CMP.CloudLiquid(τ, ρₗ)
-
-override_file = Dict(
-    "cloud_ice_apparent_density" => Dict("value" => ρᵢ, "type" => "float"),
-    "sublimation_deposition_timescale" =>
-        Dict("value" => τ, "type" => "float"),
-)
-
-toml_dict = CP.create_toml_dict(FT; override_file)
-
-ice = CMP.CloudIce(toml_dict)
-@info("relaxations:", liquid.τ_relax, ice.τ_relax)
 
 # Initial conditions
 Nₐ = FT(0)
@@ -53,6 +42,36 @@ mi_v = Nᵢ * 4 / 3 * FT(π) * ρᵢ * r₀^3
 qᵥ = mv_v / (md_v + mv_v + ml_v + mi_v)
 qₗ = ml_v / (md_v + mv_v + ml_v + mi_v)
 qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v)
+
+# using dummy values of 1 for effective radius in this case b/c it's not important
+# to track accurately for this experiment
+
+override_file = Dict(
+    "density_liquid_water" => Dict("value" => ρₗ, "type" => "float"),
+    "condensation_evaporation_timescale" =>
+        Dict("value" => τ, "type" => "float"),
+    "liquid_cloud_effective_radius" =>
+        Dict("value" => 1, "type" => "float"),
+)
+
+liquid_toml_dict = CP.create_toml_dict(FT; override_file)
+
+liquid = CMP.CloudLiquid(liquid_toml_dict)
+
+override_file = Dict(
+    "cloud_ice_apparent_density" => Dict("value" => ρᵢ, "type" => "float"),
+    "sublimation_deposition_timescale" =>
+        Dict("value" => τ, "type" => "float"),
+    "ice_cloud_effective_radius" =>
+        Dict("value" => 1, "type" => "float"),
+)
+
+ice_toml_dict = CP.create_toml_dict(FT; override_file)
+
+ice = CMP.CloudIce(ice_toml_dict)
+@info("relaxations:", liquid.τ_relax, ice.τ_relax)
+
+
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 simple = false
 
@@ -60,7 +79,7 @@ simple = false
 w = FT(1)                                 # updraft speed
 const_dt = FT(0.001)                         # model timestep
 t_max = FT(20)#FT(const_dt*1)
-size_distribution_list = ["Monodisperse", "Gamma"]
+size_distribution_list = ["Monodisperse"]
 
 condensation_growth = "NonEq_Condensation"
 deposition_growth = "NonEq_Deposition"
@@ -89,14 +108,13 @@ for DSD in size_distribution_list
     local sol = run_parcel(IC, FT(0), t_max, params)
 
     # Plot results
-    MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0, label = DSD)
+    MK.lines!(ax1, sol.t, (sol[1, :] .- 1) * 100.0)
     MK.lines!(ax2, sol.t, sol[3, :])
     MK.lines!(ax3, sol.t, sol[5, :] * 1e3)
     MK.lines!(
         ax4,
         sol.t,
         (S_i.(tps, sol[3, :], sol[1, :]) .- 1) * 100.0,
-        label = DSD,
     )
     MK.lines!(ax5, sol.t, sol[4, :] * 1e3)
     MK.lines!(ax6, sol.t, sol[6, :] * 1e3)
@@ -117,15 +135,6 @@ for DSD in size_distribution_list
     local ρₐ = TD.air_density.(tps, ts)
 
 end
-
-MK.axislegend(
-    ax1,
-    framevisible = false,
-    labelsize = 12,
-    orientation = :horizontal,
-    nbanks = 2,
-    position = :rb,
-)
 
 MK.save("noneq_parcel.svg", fig)
 nothing
