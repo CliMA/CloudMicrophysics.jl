@@ -50,8 +50,8 @@ override_file = Dict(
     "density_liquid_water" => Dict("value" => ρₗ, "type" => "float"),
     "condensation_evaporation_timescale" =>
         Dict("value" => τ, "type" => "float"),
-    "liquid_cloud_effective_radius" =>
-        Dict("value" => 1, "type" => "float"),
+    #"liquid_cloud_effective_radius" =>
+    #    Dict("value" => 1, "type" => "float"),
 )
 
 liquid_toml_dict = CP.create_toml_dict(FT; override_file)
