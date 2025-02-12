@@ -179,7 +179,9 @@ Aerosol activation is described by ([see discussion](https://clima.github.io/Clo
 
 ### Condensation growth
 
-The diffusional growth of individual cloud droplet is described by
+There are both equilibrium and non-equilibrium options for condensation. The non-equilibrium equations are described in the non-equilibrium documentation ([here](https://clima.github.io/CloudMicrophysics.jl/dev/MicrophysicsNonEq)).
+
+For the equilibrium formulation, the diffusional growth of individual cloud droplet is described by
 ([see discussion](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-autoconversion)),
 ```math
 \begin{equation}
@@ -217,7 +219,10 @@ where:
 
 ### Deposition growth
 
-Similarly, for a case of a spherical ice particle growing through water vapor deposition
+Again, there are both equilibrium and non-equilibrium options for deposition. The non-equilibrium equations are described in the non-equilibrium documentation ([here](https://clima.github.io/CloudMicrophysics.jl/dev/MicrophysicsNonEq)).
+
+For the equilibrium formulation, we use a similar process as with condensation.
+For a case of a spherical ice particle growing through water vapor deposition
 ```math
 \begin{equation}
   \frac{dm_i}{dt} = 4 \pi \, r_i \, \alpha_m \, (S_i - 1) \, G_i(T)
@@ -457,3 +462,9 @@ and `stochastic` (solid lines) parameterization options. We show results for two
   include("../../parcel/Example_Frostenberg_Immersion_Freezing.jl")
 ```
 ![](frostenberg_immersion_freezing.svg)
+
+Below, we show how the non-equilibrium formulation is able to represent the Wegener-Bergeron-Findeisen (WBF) regime in the parcel model. These plots show the liquid supersaturation percent, ice supersaturation percent, temperature, specific humidity of water vapor `q_{vap}`, specific humidity of liquid `q_{liq}`, and specific humidity of ice `q_{ice}` over time. When the supersaturation is negative evaporation/sublimation occurs and when it is positive condensation/deposition occurs. Because the water vapor pressure in the parcel is greater than the saturation water vapor pressure of liquid but larger than that of ice, liquid evaporates while ice grows.
+
+```@example
+  include("../../parcel/Example_NonEq.jl")
+```
