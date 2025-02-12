@@ -9,6 +9,7 @@ See [our documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) for t
 | **GHA CI**           | [![gha ci][gha-ci-img]][gha-ci-url]           |
 | **Code Coverage**    | [![codecov][codecov-img]][codecov-url]        |
 | **Downloads**        | [![downloads][downloads-img]][downloads-url]  |
+| **Total Downloads**  | [![total downloads][total_downloads-img]][total_downloads-url]  |
 
 [docs-bld-img]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/docs.yml/badge.svg
 [docs-bld-url]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/docs.yml
@@ -22,8 +23,11 @@ See [our documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) for t
 [codecov-img]: https://codecov.io/gh/CliMA/CloudMicrophysics.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/CliMA/CloudMicrophysics.jl
 
-[downloads-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FCloudMicrophysics&query=total_requests&suffix=%2Ftotal&label=Downloads
+[downloads-img]:https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Fmonthly_downloads%2FCloudMicrophysics&query=total_requests&suffix=%2Fmonth&label=Downloads&style=flat-square">
 [downloads-url]: https://juliapkgstats.com/pkg/CloudMicrophysics
+
+[downloads-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FCloudMicrophysics&query=total_requests&&label=Total%20Downloads&style=flat-square">
+[total_downloads-url]: https://juliapkgstats.com/pkg/CloudMicrophysics
 
 ## Installation and running instructions
 
