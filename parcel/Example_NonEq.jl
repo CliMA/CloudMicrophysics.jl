@@ -43,30 +43,20 @@ qᵥ = mv_v / (md_v + mv_v + ml_v + mi_v)
 qₗ = ml_v / (md_v + mv_v + ml_v + mi_v)
 qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v)
 
-# using dummy values of 1 for effective radius in this case b/c it's not important
-# to track accurately for this experiment
-
-override_file = Dict(
-    "density_liquid_water" => Dict("value" => ρₗ, "type" => "float"),
+liq_override_file = Dict(
     "condensation_evaporation_timescale" =>
         Dict("value" => τ, "type" => "float"),
-    #"liquid_cloud_effective_radius" =>
-    #    Dict("value" => 1, "type" => "float"),
 )
 
-liquid_toml_dict = CP.create_toml_dict(FT; override_file)
-
+liquid_toml_dict = CP.create_toml_dict(FT; liq_override_file)
 liquid = CMP.CloudLiquid(liquid_toml_dict)
 
-override_file = Dict(
-    "cloud_ice_apparent_density" => Dict("value" => ρᵢ, "type" => "float"),
+ice_override_file = Dict(
     "sublimation_deposition_timescale" =>
         Dict("value" => τ, "type" => "float"),
-    "ice_cloud_effective_radius" =>
-        Dict("value" => 1, "type" => "float"),
 )
 
-ice_toml_dict = CP.create_toml_dict(FT; override_file)
+ice_toml_dict = CP.create_toml_dict(FT; ice_override_file)
 
 ice = CMP.CloudIce(ice_toml_dict)
 @info("relaxations:", liquid.τ_relax, ice.τ_relax)
