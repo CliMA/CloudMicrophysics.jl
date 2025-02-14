@@ -195,51 +195,34 @@ function AIDA_IN05_IC(FT, data_file)
     ϵₘ = R_d / R_v
 
     if data_file == "in05_17_aida.edf"
-        Nₗ = FT(317.559 * 1e6)
-        Nᵢ = FT(0.0 * 1e6)
+        Nₗ = FT(320.876 * 1e6)
+        Nᵢ = FT(0.05 * 1e6)
         Nₐ = FT(360 * 1e6) - Nₗ - Nᵢ
-        r₀ = FT(5.49484e-6)
-        p₀ = FT(889.386 * 1e2)
-        T₀ = FT(237.696)
+        r₀ = FT(5.18056 / 2 * 1e-6)
+        p₀ = FT(894.409 * 1e2)
+        T₀ = FT(237.871)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
-        e = FT(28.4628)
+        e = FT(30.2314)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
         Rₐ = TD.gas_constant_air(tps, q)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     elseif data_file == "in05_18_aida.edf"
-        Nₗ = FT(210.28 * 1e6)
-        Nᵢ = FT(1.73 * 1e6)
+        Nₗ = FT(212.885 * 1e6)
+        Nᵢ = FT(0.787 * 1e6)
         Nₐ = FT(275 * 1e6) - Nₗ - Nᵢ
-        r₀ = FT(6.99998 * 1e-6)
-        p₀ = FT(873.322 * 1e2)
-        T₀ = FT(237.175)
+        r₀ = FT(6.83925 / 2 * 1e-6)
+        p₀ = FT(878.345 * 1e2)
+        T₀ = FT(237.234)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
-        e = FT(28.086)
-        qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
-        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-        Rₐ = TD.gas_constant_air(tps, q)
-        eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
-        Sₗ = FT(e / eₛ)
-    elseif data_file == "in05_19_aida.edf"
-        Nₐ = FT(0)
-        Nₗ = FT(180 * 1e6)
-        Nᵢ = FT(0.882 * 1e6)
-        r₀ = FT(6.5e-6)     # !!missing in dataset!!
-        p₀ = FT(724.545 * 1e2)
-        T₀ = FT(237.639)
-        qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
-        qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
-        m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
-        m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
-        e = FT(29.5341)    # !!missing in dataset!!
+        e = FT(28.9235)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
         Rₐ = TD.gas_constant_air(tps, q)
@@ -249,12 +232,12 @@ function AIDA_IN05_IC(FT, data_file)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, plot_name)
+function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, exp_name)
     IN_mode = "ABDINM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "None"
-    aerosol = plot_name == "IN0701" ? CMP.ArizonaTestDust(FT) : CMP.Illite(FT)
+    aerosol = exp_name == "IN0701" ? CMP.ArizonaTestDust(FT) : CMP.Illite(FT)
     dep_nucleation = "ABDINM"
     heterogeneous = "ABIFM"
     homogeneous = "ABHOM"
@@ -287,18 +270,18 @@ function AIDA_IN07_IC(FT, data_file)
     R_v = TD.Parameters.R_v(tps)
     ϵₘ = R_d / R_v
     if data_file == "in07_01_aida.edf"
-        Nₗ = FT(0)
-        Nᵢ = FT(1.485 * 1e6)
+        Nₗ = FT(14.2922 * 1e6)
+        Nᵢ = FT(0.635 * 1e6)
         Nₐ = FT(146 * 1e6) - Nₗ - Nᵢ
-        r₀ = FT(0.19801 * 1e-6)
+        r₀ = FT(0.0146991 / 2 * 1e-6)
         # r₀ is weighted avg of two modes as listed in Table 2 of Mohler et al (2008)
-        p₀ = FT(976.752 * 1e2)
-        T₀ = FT(208.671)
+        p₀ = FT(981.610 * 1e2)
+        T₀ = FT(208.917)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
-        e = FT(0.67935)
+        e = FT(0.682376)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
         Rₐ = TD.gas_constant_air(tps, q)
@@ -306,17 +289,17 @@ function AIDA_IN07_IC(FT, data_file)
         Sₗ = FT(e / eₛ)
     elseif data_file == "in07_19_aida.edf"
         Nₗ = FT(0)
-        Nᵢ = FT(0.21 * 1e6)
+        Nᵢ = FT(0)
         Nₐ = FT(95 * 1e6) - Nₗ - Nᵢ
         r₀ = FT(0.1742857 * 1e-6)
         # r₀ is weighted avg of two modes as listed in Table 2 of Mohler et al (2008)
-        p₀ = FT(977.948 * 1e2)
-        T₀ = FT(208.672)
+        p₀ = FT(982.977 * 1e2)
+        T₀ = FT(208.961)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
-        e = FT(0.624557)
+        e = FT(0.632723)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
         Rₐ = TD.gas_constant_air(tps, q)
