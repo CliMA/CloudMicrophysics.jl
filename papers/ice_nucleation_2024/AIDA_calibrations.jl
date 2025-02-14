@@ -8,6 +8,7 @@ import CairoMakie as MK
 import DelimitedFiles
 using LazyArtifacts
 using ClimaUtilities.ClimaArtifacts
+import NaNStatistics
 
 FT = Float64
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
@@ -29,8 +30,12 @@ function grab_data(unpacked_data)
     data = (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e)
     return data
 end
-moving_average(data, n) =
-    [sum(@view data[i:(i + n)]) / n for i in 1:(length(data) - n)]
+function moving_average(data, n)
+    window_size = length(data) / n
+    moving_avg = NaNStatistics.movmean(data, window_size)
+    #[sum(@view data[i:(i + n)]) / n for i in 1:(length(data) - n)]
+    return moving_avg
+end
 
 # Defining data names, start/end times, etc.
 data_file_names = [
@@ -43,8 +48,8 @@ end_sim = 25               # Loss func looks at last end_sim timesteps only
 start_time_list =          # freezing onset
     [[Int32(150), Int32(180), Int32(80)], [Int32(50)], [Int32(35)]]
 end_time_list =            # approximate time freezing stops
-    [[Int32(290), Int32(290), Int32(170)], [Int32(400)], [Int32(400)]]
-moving_average_n = 20      # average every n points
+    [[Int32(290), Int32(290), Int32(175)], [Int32(375)], [Int32(375)]]
+moving_average_n = 5      # average every length(data) / n points
 updrafts = [[FT(1.5), FT(1.4), FT(5)], [FT(1.5)], [FT(1.5)]]  # updrafts matching AIDA cooling rate
 
 # Additional definitions
@@ -66,13 +71,9 @@ for (calib_index, plot_name) in enumerate(plot_names)
     start_time_index = start_time .+ Int32(100)
     end_time = end_time_list[calib_index]
     end_time_index = end_time .+ Int32(100)
+    t_max = end_time_index .- start_time_index
 
     nuc_mode = plot_name == "IN05" ? "ABHOM" : "ABDINM"
-
-    ## Moving average to smooth data.
-    moving_average_start_index = start_time_index .+ Int32(moving_average_n / 2)
-    moving_average_end_index = end_time_index .- Int32(moving_average_n / 2)
-    t_max = moving_average_end_index .- moving_average_start_index
 
     ### Check for and grab data in AIDA_data folder.
     t_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
@@ -109,11 +110,11 @@ for (calib_index, plot_name) in enumerate(plot_names)
         AIDA_data = grab_data(unpack_data(data_file_name))
         (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
         
-        t_profile[exp_index] = AIDA_t_profile[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]] .- (moving_average_start_index[exp_index] - 101)
-        T_profile[exp_index] = AIDA_T_profile[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]]
-        P_profile[exp_index] = AIDA_P_profile[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]]
-        ICNC_profile[exp_index] = AIDA_ICNC[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]]
-        e_profile[exp_index] = AIDA_e[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]]
+        t_profile[exp_index] = AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- (start_time_index[exp_index] - 101)
+        T_profile[exp_index] = AIDA_T_profile[start_time_index[exp_index]:end_time_index[exp_index]]
+        P_profile[exp_index] = AIDA_P_profile[start_time_index[exp_index]:end_time_index[exp_index]]
+        ICNC_profile[exp_index] = AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]]
+        e_profile[exp_index] = AIDA_e[start_time_index[exp_index]:end_time_index[exp_index]]
         S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
 
         params_list[exp_index] =
@@ -176,8 +177,8 @@ for (calib_index, plot_name) in enumerate(plot_names)
         data_ax1 = MK.Axis(AIDA_data_fig[1, 1], ylabel = "ICNC [m^-3]", xlabel = "time [s]", title = "AIDA data $specific_plot_name")
         data_ax2 = MK.Axis(AIDA_data_fig[1, 2], ylabel = "Frozen Frac Moving Mean [-]", xlabel = "time [s]", title = "AIDA data $specific_plot_name")
         MK.lines!(data_ax1, AIDA_t_profile, AIDA_ICNC, label = "Raw AIDA", color =:blue, linestyle =:dash, linewidth = 2)
-        MK.lines!(data_ax1, t_profile[exp_index] .+ moving_average_start_index[exp_index] .- 100, ICNC_moving_avg[exp_index], label = "AIDA ICNC moving mean", linewidth = 2.5, color =:blue)
-        MK.lines!(data_ax2, t_profile[exp_index] .+ moving_average_start_index[exp_index] .- 100, frozen_frac_moving_mean[exp_index], linewidth = 2.5, color =:blue)
+        MK.lines!(data_ax1, t_profile[exp_index] .+ start_time_index[exp_index] .- 100, ICNC_moving_avg[exp_index], label = "AIDA ICNC moving mean", linewidth = 2.5, color =:blue)
+        MK.lines!(data_ax2, t_profile[exp_index] .+ start_time_index[exp_index] .- 100, frozen_frac_moving_mean[exp_index], linewidth = 2.5, color =:blue)
         MK.axislegend(data_ax1, framevisible = true, labelsize = 12, position = :rc)
         MK.save("$specific_plot_name"*"_ICNC.svg", AIDA_data_fig)
 
@@ -216,7 +217,7 @@ for (calib_index, plot_name) in enumerate(plot_names)
         MK.lines!(ax_parcel_1, UKI_parcel.t, UKI_parcel[1, :], label = "UKI Calib Liq", color = :fuchsia) # label = "liquid"
         MK.lines!(ax_parcel_1, EKI_parcel.t, S_i.(tps, EKI_parcel[3, :], EKI_parcel[1, :]), label = "EKI Calib Ice", color = :orange, linestyle = :dash)
         MK.lines!(ax_parcel_1, UKI_parcel.t, S_i.(tps, UKI_parcel[3, :], UKI_parcel[1, :]), label = "UKI Calib Ice", color = :fuchsia, linestyle = :dash)
-        # MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
+        # MK.lines!(ax_parcel_1, t_profile[exp_index], S_l_profile[exp_index], label = "chamber", color = :blue)
         
         MK.lines!(ax_parcel_2, EKI_parcel.t, EKI_parcel[5, :], color = :orange)
         MK.lines!(ax_parcel_2, UKI_parcel.t, UKI_parcel[5, :], color = :fuchsia)
@@ -234,9 +235,6 @@ for (calib_index, plot_name) in enumerate(plot_names)
         MK.lines!(ax_parcel_6, EKI_parcel.t, EKI_parcel[9, :], color = :orange, label = "EKI")
         MK.lines!(ax_parcel_6, UKI_parcel.t, UKI_parcel[9, :], color = :fuchsia, label = "UKI")
         MK.lines!(ax_parcel_6, t_profile[exp_index], ICNC_profile[exp_index], color = :blue, label = "AIDA",)
-        
-        # error = fill(sqrt(Γ[1,1]) * 2, length(AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- start_time[exp_index]))
-        # MK.errorbars!(ax_parcel_6, AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- start_time[exp_index], AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index], error)
 
         error = (AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index]) .* 0.1
         MK.errorbars!(ax_parcel_6, AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- start_time[exp_index], AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index], error, color = (:blue, 0.3))

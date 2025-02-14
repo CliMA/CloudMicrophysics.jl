@@ -133,7 +133,7 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; c
             return sol
         end
 
-    end
+    end  # end of calibrating one exp
 
     return loss_func # will only run if calibration == true
 end
