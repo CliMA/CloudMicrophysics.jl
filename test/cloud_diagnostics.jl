@@ -100,6 +100,9 @@ function test_cloud_diagnostics(FT)
             FT(0),
             FT(0),
         ) == CMD.effective_radius_Liu_Hallet_97(wtr, ρ_air, q_liq)
+
+        CMD.effective_radius_Liu_Hallet_97(wtr, ρ_air, q_liq) ==
+        CMD.effective_radius_Liu_Hallet_97(cloud_liquid, ρ_air, q_liq)
     end
 
     TT.@testset "Constant effective radius" begin
