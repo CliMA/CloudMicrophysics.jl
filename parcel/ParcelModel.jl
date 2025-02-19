@@ -28,6 +28,8 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     tps = TD.Parameters.ThermodynamicsParameters(FT)
     aap = CMP.AerosolActivationParameters(FT)
     ips = CMP.IceNucleationParameters(FT)
+    liquid = CMP.CloudLiquid(FT)
+    ice = CMP.CloudIce(FT)
     H₂SO₄ps = CMP.H2SO4SolutionParameters(FT)
     const_dt = 1
     w = FT(1)
@@ -289,6 +291,10 @@ function run_parcel(IC, t_0, t_end, pp)
         ce_params = Empty{FT}()
     elseif pp.condensation_growth == "Condensation"
         ce_params = CondParams{FT}(pp.aps, pp.tps, pp.const_dt)
+    elseif pp.condensation_growth == "NonEq_Condensation_simple"
+        ce_params = NonEqCondParams_simple{FT}(pp.tps, pp.liquid)
+    elseif pp.condensation_growth == "NonEq_Condensation"
+        ce_params = NonEqCondParams{FT}(pp.tps, pp.liquid, pp.const_dt)
     else
         throw("Unrecognized condensation growth mode")
     end
@@ -298,6 +304,10 @@ function run_parcel(IC, t_0, t_end, pp)
         ds_params = Empty{FT}()
     elseif pp.deposition_growth == "Deposition"
         ds_params = DepParams{FT}(pp.aps, pp.tps)
+    elseif pp.deposition_growth == "NonEq_Deposition_simple"
+        ds_params = NonEqDepParams_simple{FT}(pp.tps, pp.ice)
+    elseif pp.deposition_growth == "NonEq_Deposition"
+        ds_params = NonEqDepParams{FT}(pp.tps, pp.ice, pp.const_dt)
     else
         throw("Unrecognized deposition growth mode")
     end
