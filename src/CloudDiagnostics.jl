@@ -169,7 +169,7 @@ If not provided by the user, it is assumed that there is no rain present and tha
 the cloud droplet number concentration is 100 1/cm3.
 """
 function effective_radius_Liu_Hallet_97(
-    (; ρw)::CMP.WaterProperties{FT},
+    (; ρw)::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
     ρ_air::FT,
     q_liq::FT,
     N_liq::FT,
@@ -188,12 +188,12 @@ function effective_radius_Liu_Hallet_97(
     return r_vol / k^FT(1 / 3)
 end
 function effective_radius_Liu_Hallet_97(
-    wtr::CMP.WaterProperties{FT},
+    wtr::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
     ρ_air::FT,
     q_liq::FT,
 ) where {FT}
     return effective_radius_Liu_Hallet_97(
-        wtr::CMP.WaterProperties{FT},
+        wtr::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
         ρ_air::FT,
         q_liq::FT,
         FT(100),
