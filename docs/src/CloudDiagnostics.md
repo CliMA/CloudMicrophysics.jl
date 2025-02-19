@@ -128,3 +128,17 @@ a constant cloud droplet number concentration of 100 $cm^{-3}$.
 For testing purposes we also provide a constant effective radius option.
 The default values are 14 $\mu m$ for liquid clouds and 25 $\mu m$ for ice clouds,
 and can be easily overwritten via `ClimaParams.jl`.
+
+## Example figures
+
+Below we show effective radius and radar reflecivity plots as a function of cloud water and rain water.
+The effective radius is computed assuming a constant cloud droplet number concentration
+  of 100 or 1000 per cubic centimeter.
+The radar reflectivity is computed assuming a constant rain drop number concentration
+  of 10 or 100 per cubic centimeter.
+Note the effect of using the limiters in SB2006 scheme on the radar reflectivity.
+
+```@example
+include("plots/CloudDiagnostics.jl")
+```
+![](CloudDiagnostics.svg)
