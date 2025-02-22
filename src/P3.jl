@@ -10,6 +10,7 @@ import SpecialFunctions as SF
 import QuadGK as QGK
 import RootSolvers as RS
 import HCubature as HC
+import LogExpFunctions: logsumexp
 
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
@@ -21,6 +22,7 @@ import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
 
 const PSP3 = CMP.ParametersP3
+using CloudMicrophysics.Parameters: MassPowerLaw, AreaPowerLaw, SlopeLaw, SlopePowerLaw, SlopeConstant
 
 export thresholds, distribution_parameter_solver
 

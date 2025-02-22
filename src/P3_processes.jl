@@ -102,7 +102,7 @@ function ice_melt(
 
     f(D) = 4 * K_therm / L_f * (Tₐ - p3.T_freeze) * dmdD(D) / D * F_v(D) * N(D)
     # Integrate
-    (dLdt, error) = QGK.quadgk(d -> f(d), 0, bound, rtol = FT(1e-6))
+    (dLdt, error) = QGK.quadgk(d -> f(d), 0, D_th, D_gr, D_cr, bound, rtol = FT(1e-6))
 
     # only consider melting (not fusion)
     dLdt = max(0, dLdt)

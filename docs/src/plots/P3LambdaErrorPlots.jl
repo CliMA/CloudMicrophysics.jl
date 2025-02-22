@@ -13,20 +13,24 @@ p3 = CMP.ParametersP3(FT)
 F_liq = FT(0) # preserving original P3
 # TODO: investigate for F_liq != 0
 
-function λ_diff(F_rim::FT, ρ_r::FT, N::FT, λ_ex::FT, p3::PSP3) where {FT}
+function λ_diff(F_rim::FT, ρ_r::FT, N::FT, λ::FT, p3::PSP3) where {FT}
 
     # Find the P3 scheme  thresholds
     th = P3.thresholds(p3, ρ_r, F_rim)
     # Get μ corresponding to λ
-    μ = P3.DSD_μ(p3, λ_ex)
+    # μ = P3.DSD_μ(p3, λ)
     # Convert λ to ensure it remains positive
-    x = log(λ_ex)
+    # x = log(λ)
     # Compute mass density based on input shape parameters
-    L_calc = N * P3.L_over_N_gamma(p3, F_rim, F_liq, x, μ, th)
+    # L_calc = N * P3.L_over_N_gamma(p3, F_rim, F_liq, x, μ, th)
+    D_th = P3.D_th_helper(p3)
+    α_va = P3.α_va_si(p3)
+    log_L_over_N_calc = P3.log_L_over_N_gamma(p3, log(λ), F_rim, D_th, th, α_va)
+    L_calc = exp(log_L_over_N_calc + log(N))
 
     (λ_calculated,) =
-        P3.distribution_parameter_solver(p3, L_calc, N, ρ_r, F_rim, F_liq)
-    return abs(λ_ex - λ_calculated)
+        P3.distribution_parameter_solver2(p3, L_calc, N, ρ_r, F_rim, F_liq)
+    return abs(λ - λ_calculated)
 end
 
 function get_errors(
@@ -52,8 +56,9 @@ function get_errors(
             F_rim = F_rims[j]
 
             er = log(λ_diff(F_rim, ρ_r, N, λ, p3) / λ)
-            er = er == Inf ? 9999.99 : er
-            er = er == -Inf ? -9999.99 : er
+            er = isinf(er) ? FT(NaN) : er
+            # er = er == Inf ? 9999.99 : er
+            # er = er == -Inf ? -9999.99 : er
             E[i, j] = er
         end
     end
@@ -61,6 +66,7 @@ function get_errors(
 end
 
 #! format: off
+
 function plot_relerrors(
     N::FT,
     log10_λ_min::FT,
@@ -81,13 +87,15 @@ function plot_relerrors(
     x = 1
     y = 1
     for i in 1:numPlots
-        i = 1
+        # i = 1
 
         ρ = ρ_rs[i]
         (λs, F_rims, E) = get_errors(p3, log10_λ_min, log10_λ_max, F_rim_min, F_rim_max, ρ, N, λSteps, F_rimSteps)
 
         CMK.Axis(f[x, y], xlabel = "λ", ylabel = "F_rim", title = string("log(relative error calculated λ) for ρ_r = ", string(ρ)), width = 400, height = 300, xscale = log10)
-        hm = CMK.heatmap!(λs, F_rims, E, colormap = CMK.cgrad(:viridis, 20, categorical=true),  colorrange = (-10, 0), highclip = :red, lowclip = :indigo)
+        hm = CMK.heatmap!(λs, F_rims, E, colormap = CMK.cgrad(:viridis, 20, categorical=true),  
+            colorrange = (-10, 0), 
+            highclip = :red, lowclip = :black)
         CMK.Colorbar(f[x, y + 1], hm)
 
         y = y + 2
@@ -195,8 +203,8 @@ F_rim_max = FT(0.9)
 ρ_r_max = FT(900)
 N = FT(1e8)
 
-λ_Steps = 40
-F_rim_Steps = 40
+λSteps = 40
+F_rimSteps = 40
 NumPlots = 9
 
 plot_relerrors(
@@ -207,8 +215,8 @@ plot_relerrors(
     F_rim_max,
     ρ_r_min,
     ρ_r_max,
-    λ_Steps,
-    F_rim_Steps,
+    λSteps,
+    F_rimSteps,
     NumPlots,
     p3,
 )
