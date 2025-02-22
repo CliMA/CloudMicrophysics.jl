@@ -1,333 +1,497 @@
+# TODO: Implement `F_liq` as another P3State-like struct
 """
-    α_va_si(p3)
+    P3State{FT}
 
- - p3 - a struct with P3 scheme parameters
+State of the P3 scheme.
 
-Returns `α_va` coefficient for the assumed particle mass(size) relation for
-large unrimed ice and dense nonspherical ice, in base SI units: kg m^(-β_va).
-`β_va` is another coefficient of the mass(size) relation.
-From measurements of mass grown by vapor diffusion and aggregation
-in midlatitude cirrus by Brown and Francis (1995)
-doi: 10.1175/1520-0426(1995)012<0410:IMOTIW>2.0.CO;2
+This struct bundles the P3 parameterizations `params`, the provided rime state (`F_rim`, `ρ_r`), 
+    and the derived threshold variables (`D_th`, `D_gr`, `D_cr`, `ρ_g`).
+
+To obtain a `P3State` object, use the [`get_state`](@ref) function.
+
+# Fields
+$(FIELDS)
 """
-α_va_si(p3::PSP3{FT}) where {FT} = p3.α_va * 10^(6 * p3.β_va - 3)
+@kwdef struct P3State{FT}
+    "[`CMP.ParametersP3`](@ref) object"
+    params::PSP3{FT}
 
-"""
-    D_th_helper(p3)
+    "Rime mass fraction"
+    F_rim::FT
+    "Rime density"
+    ρ_r::FT
+    "Graupel density"
+    ρ_g::FT
 
- - p3 - a struct with P3 scheme parameters
-
-Returns the critical size separating spherical and nonspherical ice, in meters.
-Eq. 8 in Morrison and Milbrandt (2015).
-"""
-D_th_helper(p3::PSP3{FT}) where {FT} =
-    (FT(π) * p3.ρ_i / 6 / α_va_si(p3))^(1 / (p3.β_va - 3))
-
-"""
-    D_cr_helper(p3, F_rim, ρ_g)
-
- - p3 - a struct with P3 scheme parameters
- - F_rim - rime mass fraction L_rim / L_ice) [-]
- - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
-
-Returns the size of equal mass for graupel and partially rimed ice, in meters.
-Eq. 14 in Morrison and Milbrandt (2015).
-"""
-function D_cr_helper(p3::PSP3{FT}, F_rim::FT, ρ_g::FT) where {FT}
-    α_va = α_va_si(p3)
-    return (1 / (1 - F_rim) * 6 * α_va / FT(π) / ρ_g)^(1 / (3 - p3.β_va))
+    "Spherical ice threshold"
+    D_th::FT
+    "Graupel threshold"
+    D_gr::FT
+    "Partially rimed ice threshold"
+    D_cr::FT
 end
 
 """
-    D_gr_helper(p3, ρ_g)
+    get_state(params; F_rim, ρ_r)
 
- - p3 - a struct with P3 scheme parameters
- - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
+Create a [`P3State`](@ref) object from a [`CMP.ParametersP3`](@ref) object and rime state parameters.
 
-Returns the size of equal mass for graupel and unrimed ice, in meters.
-Eq. 15 in Morrison and Milbrandt (2015).
+# Arguments
+- `params`: [`CMP.ParametersP3`](@ref) object
+- `F_rim`: rime mass fraction
+- `ρ_r`: rime density
+
+# Examples
+
+```jldoctest
+julia> import CloudMicrophysics.Parameters as CMP, CloudMicrophysics.P3Scheme as P3
+
+julia> FT = Float32;
+
+julia> params = CMP.ParametersP3(FT);
+
+julia> state = P3.get_state(params; F_rim = FT(0.5), ρ_r = FT(916.7))
+P3State{Float32}
+├── params = {MassPowerLaw, AreaPowerLaw, SlopePowerLaw, VentilationSB2005}
+├── F_rim = 0.5 [-]
+├── ρ_r = 916.7 [kg/m^3]
+├── ρ_g = 702.8062 [kg/m^3]
+├── D_th = 9.728088e-5 [m]
+├── D_gr = 0.00012385941 [m]
+└── D_cr = 0.00023259086 [m]
+```
 """
-function D_gr_helper(p3::PSP3{FT}, ρ_g::FT) where {FT}
-    α_va = α_va_si(p3)
-    return (6 * α_va / FT(π) / ρ_g)^(1 / (3 - p3.β_va))
-end
+function get_state(params::PSP3{FT}; F_rim, ρ_r) where {FT}
+    # rime mass fraction must always be non-negative ...
+    # ... and there must always be some unrimed part
+    @assert 0 ≤ F_rim < 1 "Rime mass fraction, `F_rim`, must be between 0 and 1"
 
-"""
-    ρ_g_helper(ρ_r, F_rim, ρ_d)
+    (; mass, ρ_i, ρ_l) = params
 
- - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / L_ice) [-]
- - ρ_g - is the effective density of a spherical graupel particle [kg/m^3]
+    D_th = get_D_th(mass, ρ_i)
 
-Returns the density of total (deposition + rime) ice mass for graupel, in kg/m3
-Eq. 16 in Morrison and Milbrandt (2015).
-"""
-ρ_g_helper(ρ_r::FT, F_rim::FT, ρ_d::FT) where {FT} =
-    F_rim * ρ_r + (1 - F_rim) * ρ_d
-
-"""
-    ρ_d_helper(p3, D_cr, D_gr)
-
- - p3 - a struct with P3 scheme parameters
- - D_cr - is the size of equal mass for graupel and partially rimed ice, in meters
- - D_gr - the size of equal mass for graupel and unrimed ice, in meters
-
-Returns the density of unrimed ice mass, in kg/m3
-Eq. 17 in Morrison and Milbrandt (2015).
-"""
-function ρ_d_helper(p3::PSP3{FT}, D_cr::FT, D_gr::FT) where {FT}
-    α_va = α_va_si(p3)
-    β_m2 = p3.β_va - 2
-    return 6 * α_va * (D_cr^β_m2 - D_gr^β_m2) / FT(π) / β_m2 /
-           max(D_cr - D_gr, eps(FT))
-end
-
-"""
-    thresholds(p3, ρ_r, F_rim)
-
- - p3 - a struct with P3 scheme parameters
- - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / L_ice) [-]
-
-Solves the nonlinear system consisting of D_cr, D_gr, ρ_g, ρ_d
-for a given rime density and rime mass fraction.
-Returns a named tuple containing:
- - D_cr - is the threshold size separating partially rimed ice and graupel [m],
- - D_gr - is the threshold size separating graupel and dense nonspherical ice [m],
- - ρ_g - is the effective density of a spherical graupel particle [kg/m3],
- - ρ_d - is the density of the unrimed portion of the particle [kg/m3],
-"""
-function thresholds(p3::PSP3{FT}, ρ_r::FT, F_rim::FT) where {FT}
-
-    @assert F_rim >= FT(0)   # rime mass fraction must be positive ...
-    @assert F_rim < FT(1)    # ... and there must always be some unrimed part
-
-    if F_rim == FT(0)
-        return (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0))
+    if iszero(F_rim)
+        ρ_g = D_gr = D_cr = FT(NaN)
     else
-        @assert ρ_r > FT(0)   # rime density must be positive ...
-        @assert ρ_r <= p3.ρ_l # ... and as a bulk ice density can't exceed the density of water
+        # rime density must be positive ...
+        # ... and as a bulk ice density can't exceed the density of water
+        @assert 0 < ρ_r <= ρ_l
 
-        P3_problem(ρ_d) =
-            ρ_d - ρ_d_helper(
-                p3,
-                D_cr_helper(p3, F_rim, ρ_g_helper(ρ_r, F_rim, ρ_d)),
-                D_gr_helper(p3, ρ_g_helper(ρ_r, F_rim, ρ_d)),
-            )
+        ρ_d = get_ρ_d(mass, F_rim, ρ_r)
+        ρ_g = get_ρ_g(ρ_r, F_rim, ρ_d)
 
-        ρ_d =
-            RS.find_zero(
-                P3_problem,
-                RS.SecantMethod(FT(0), FT(1000)),
-                RS.CompactSolution(),
-            ).root
-        ρ_g = ρ_g_helper(ρ_r, F_rim, ρ_d)
+        D_gr = get_D_gr(mass, ρ_g)
+        D_cr = get_D_cr(mass, ρ_g, F_rim)
+    end
 
-        return (;
-            D_cr = D_cr_helper(p3, F_rim, ρ_g),
-            D_gr = D_gr_helper(p3, ρ_g),
-            ρ_g,
-            ρ_d,
-        )
+    return P3State(; params, F_rim, ρ_r, ρ_g, D_th, D_gr, D_cr)
+end
+
+Base.eltype(::P3State{FT}) where {FT} = FT
+Base.broadcastable(state::P3State) = tuple(state)
+
+get_parameters(state::P3State) = state.params
+
+isunrimed(state::P3State) = iszero(state.F_rim)
+
+"""
+    threshold_tuple(state)
+
+Return a tuple of the thresholds for the current state.
+
+This function is useful for providing thresholds to quadgk, for example.
+
+!!! note
+    If the state is unrimed, there is only one threshold, `D_th`.
+    Otherwise (rimed state), there are three thresholds, `D_th < D_gr < D_cr`.
+"""
+function threshold_tuple(state::P3State)
+    if isunrimed(state)
+        return (state.D_th,)
+    else
+        return (state.D_th, state.D_gr, state.D_cr)
     end
 end
 
 """
-    p3_F_liq_average(F_liq, X_ice, X_liq)
+    get_ρ_d(mass::MassPowerLaw, F_rim, ρ_r)
 
- - F_liq - liquid fraction (L_liq / L_p3_tot)
- - X_ice - ice core parameterization (i.e. mass, etc)
- - X_liq - liquid part parameterization
+Exact solution for the density of the unrimed portion of the particle as 
+    function of the rime mass fraction `F_rim`, mass power law parameters `mass`, 
+    and rime density `ρ_r`.
 
-Returns the liquid fraction weighted average of X_ice and X_liq.
+# Arguments
+- `mass`: [`CMP.MassPowerLaw`](@ref) parameters
+- `F_rim`: rime mass fraction
+- `ρ_r`: rime density
+
+# Returns
+- `ρ_d`: density of the unrimed portion of the particle [kg/m³]
+
+# Examples
+
+```jldoctest
+julia> import CloudMicrophysics.Parameters as CMP, 
+              ClimaParams as CP, 
+              CloudMicrophysics.P3Scheme as P3
+
+julia> FT = Float64;
+
+julia> mass = CMP.MassPowerLaw(CP.create_toml_dict(FT));
+
+julia> F_rim, ρ_r = FT(0.5), FT(916.7);
+
+julia> ρ_d = P3.get_ρ_d(mass, F_rim, ρ_r)
+488.9120789986412
+```
 """
-function p3_F_liq_average(F_liq::FT, X_ice::FT, X_liq::FT) where {FT}
-    return (1 - F_liq) * X_ice + F_liq * X_liq
+function get_ρ_d((; β_va)::CMP.MassPowerLaw, F_rim, ρ_r)
+    k = (1 - F_rim)^(-1 / (3 - β_va))
+    num = ρ_r * F_rim
+    den = (β_va - 2) * (k - 1) / ((1 - F_rim) * k - 1) - (1 - F_rim)
+    return num / den
 end
 
 """
-    p3_density(p3, D, F_rim, th)
+    get_ρ_g(ρ_r, F_rim, ρ_d)
 
-- p3 - a struct with P3 parameters
-- D - maximum particle dimension [m]
-- F_rim - rime mass fraction (L_rim / L_ice) [-]
-- th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
+Return the density of total (deposition + rime) ice mass for graupel [kg/m³]
 
-Returns the density of a particle based on where it falls in the particle-size-based properties
-regime. Following Morrison and Milbrandt (2015), the density of nonspherical particles is assumed to
-be the particle mass divided by the volume of a sphere with the same D.
-Needed for aspect ratio calculation, so we assume zero liquid fraction.
+# Arguments
+- `ρ_r`: rime density (`L_rim/B_rim`) [kg/m³]
+- `F_rim`: rime mass fraction (`L_rim / L_ice`) [-]
+- `ρ_d`: density of the unrimed portion of the particle [kg/m³], see [`get_ρ_d`](@ref)
+
+# Returns
+- `ρ_g`: density of total (deposition + rime) ice mass for graupel [kg/m³]
+
+# Examples
+
+```jldoctest
+julia> import CloudMicrophysics.P3Scheme as P3
+
+julia> FT = Float64; 
+
+julia> ρ_r, F_rim, ρ_d = FT(916.7), FT(0.5), FT(916.7);
+
+julia> ρ_g = P3.get_ρ_g(ρ_r, F_rim, ρ_d)
+916.7
+```
+
+# Notes:
+See Eq. 16 in [MorrisonMilbrandt2015](@cite).
 """
-function p3_density(p3::PSP3, D::FT, F_rim::FT, th) where {FT}
-    if D_th_helper(p3) > D
-        # small spherical ice
-        return p3.ρ_i
-    elseif F_rim == 0
-        # large nonspherical unrimed ice
-        return (6 * α_va_si(p3)) / FT(π) * D^(p3.β_va - 3)
-    elseif th.D_gr > D >= D_th_helper(p3)
-        # dense nonspherical ice
-        return (6 * α_va_si(p3)) / FT(π) * D^(p3.β_va - 3)
-    elseif th.D_cr > D >= th.D_gr
-        # graupel
-        return th.ρ_g
-    else #elseif D >= th.D_cr
-        # partially rimed ice
-        return (6 * α_va_si(p3)) / (FT(π) * (1 - F_rim)) * D^(p3.β_va - 3)
+get_ρ_g(ρ_r, F_rim, ρ_d) = F_rim * ρ_r + (1 - F_rim) * ρ_d
+
+"""
+    get_threshold(params, ρ)
+
+All thresholds are on the form
+    
+```math
+\\left( \\frac{6α_{va}}{π ρ} \\right)^\\frac{1}{3 - β_{va}}
+```
+
+where for the different thresholds, `ρ` is:
+- `D_th`: `ρ = ρ_i` (see [`get_D_th`](@ref))
+- `D_gr`: `ρ = ρ_g` (see [`get_D_gr`](@ref))
+- `D_cr`: `ρ = ρ_g * (1 - F_rim)` (see [`get_D_cr`](@ref))
+
+# Arguments
+- `params`: [`CMP.MassPowerLaw`](@ref) parameters
+- `ρ`: density [kg/m³]
+"""
+get_threshold((; α_va, β_va)::CMP.MassPowerLaw{FT}, ρ::FT) where {FT} =
+    (6α_va / (FT(π) * ρ))^(1 / (3 - β_va))
+
+"""
+    get_D_th(mass::MassPowerLaw, ρ_i)
+
+Return the critical size separating spherical and nonspherical ice [meters]
+
+See Eq. 8 in [MorrisonMilbrandt2015](@cite).
+"""
+get_D_th(mass::CMP.MassPowerLaw, ρ_i) = get_threshold(mass, ρ_i)
+
+"""
+    get_D_gr(mass::MassPowerLaw, ρ_g)
+
+Return the size of equal mass for graupel and unrimed ice [meters]
+
+See Eq. 15 in [MorrisonMilbrandt2015](@cite).
+"""
+get_D_gr(mass::CMP.MassPowerLaw, ρ_g) = get_threshold(mass, ρ_g)
+
+"""
+    get_D_cr(mass::MassPowerLaw, ρ_g, F_rim)
+
+Return the size of equal mass for graupel and partially rimed ice [meters]
+
+See Eq. 14 in [MorrisonMilbrandt2015](@cite).
+"""
+get_D_cr(mass::CMP.MassPowerLaw, ρ_g, F_rim) =
+    get_threshold(mass, ρ_g * (1 - F_rim))
+
+"""
+    weighted_average(f_a, a, b)
+
+Return the weighted average of `a` and `b` with fraction `f_a`,
+    
+```math
+f_a ⋅ a + (1 - f_a) ⋅ b
+```
+"""
+function weighted_average(f_a, a, b)
+    return f_a * a + (1 - f_a) * b
+end
+
+"""
+    mass_spherical(ρ, D)
+
+Calculate the mass as a function of size for spherical particles, used for small ice, liquid, and graupel.
+
+# Arguments
+- `ρ`: bulk density [kg m⁻³]
+- `D`: maximum particle dimension [m]
+
+"""
+mass_spherical(ρ, D) = ρ * CO.volume_sphere_D(D)
+
+"""
+    mass_nonspherical(mass, D)
+
+Calculate the mass as a function of size for large nonspherical ice or dense nonspherical ice.
+
+# Arguments
+- `mass`: [`CMP.MassPowerLaw`](@ref) parameters
+- `D`: maximum particle dimension [m]
+"""
+mass_nonspherical((; α_va, β_va)::CMP.MassPowerLaw, D) = α_va * D^β_va
+
+"""
+    mass_rimed(mass, D, F_rim)
+
+Calculate the mass as a function of size for partially rimed ice.
+
+# Arguments
+- `mass`: [`CMP.MassPowerLaw`](@ref) parameters
+- `D`: maximum particle dimension [m]
+- `F_rim`: rime mass fraction [`L_rim/L_ice`]
+"""
+mass_rimed((; α_va, β_va)::CMP.MassPowerLaw, D, F_rim) = α_va * D^β_va / (1 - F_rim)
+
+"""
+    ice_mass(state, D)
+
+Return the mass of a particle based on where it falls in the particle-size-based properties regime.
+
+# Arguments
+- `state`: [`P3State`](@ref) object
+- `D`: maximum particle dimension [m]
+"""
+function ice_mass(state::P3State, D)
+    (; D_th, D_gr, D_cr, ρ_g, F_rim) = state
+    (; mass, ρ_i) = get_parameters(state)
+    return if D < D_th
+        mass_spherical(ρ_i, D)      # small spherical ice
+    elseif isunrimed(state)
+        mass_nonspherical(mass, D)  # large nonspherical unrimed ice
+    elseif D_th ≤ D < D_gr
+        mass_nonspherical(mass, D)  # dense nonspherical rimed ice
+    elseif D_gr ≤ D < D_cr
+        mass_spherical(ρ_g, D)      # graupel (rimed)
+    else # D_cr ≤ D
+        mass_rimed(mass, D, F_rim)  # partially rimed ice
     end
 end
 
 """
-    mass_(p3, D, ρ, F_rim)
+    ice_density(state::P3State, D)
 
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension [m]
- - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m3]
- - F_rim - rime mass fraction [L_rim/L_ice]
+Return the density of a particle based on where it falls in the particle-size-based properties regime. 
 
-Returns mass as a function of size for differen particle regimes [kg]
+# Arguments
+- `state`: [`P3State`](@ref) object
+- `D`: maximum particle dimension [m]
+
+The density of nonspherical particles is assumed to be the particle mass divided by the volume of a sphere with the 
+    same D [MorrisonMilbrandt2015](@cite). Needed for aspect ratio calculation, so we assume zero liquid fraction.
 """
-# for spherical particles (small ice, completely rimed ice, or liquid on ice)
-mass_s(D::FT, ρ::FT) where {FT <: Real} = FT(π) / 6 * ρ * D^3
-# for large nonspherical ice (used for unrimed and dense types)
-mass_nl(p3::PSP3, D::FT) where {FT <: Real} = α_va_si(p3) * D^p3.β_va
-# for partially rimed ice
-mass_r(p3::PSP3, D::FT, F_rim::FT) where {FT <: Real} =
-    α_va_si(p3) / (1 - F_rim) * D^p3.β_va
+ice_density(state::P3State, D) = ice_mass(state, D) / CO.volume_sphere_D(D)
+
+# """
+#     p3_mass(state, D)
+
+# Return mass(D) regime, used to create figures for the docs page.
+
+# # Arguments
+# - `state`: [`P3State`](@ref) object
+# - `D`: maximum particle dimension [m]
+
+# """
+# function p3_mass(state::P3State, D)
+#     # TODO: Refactor to be a parameterization for use with `F_liq`
+#     (; ρ_l) = get_parameters(state)
+#     m_liq = mass_spherical(ρ_l, D)
+#     m_ice = ice_mass(state, D)
+#     mass_avg = weighted_average(F_liq, m_liq, m_ice)
+#     return mass_avg
+# end
+
 
 """
-    p3_mass(p3, D, F_rim, F_liq, th)
+    ∂ice_mass_∂D(state, D)
 
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
- - F_rim - rime mass fraction (L_rim / L_ice)
- - F_liq - liquid fraction (L_liq / L_p3_tot)
- - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
+Calculate the derivative of the ice mass with respect to the maximum particle dimension.
 
-Returns mass(D) regime, used to create figures for the docs page.
+Used in snow melting calculations.
+
+# Arguments
+- `state`: [`P3State`](@ref) object
+- `D`: maximum dimension of the particle [m]
 """
-function p3_mass(
-    p3::PSP3,
-    D::FT,
-    F_rim::FT,
-    F_liq::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT}
-    if D_th_helper(p3) > D
-        return p3_F_liq_average(F_liq, mass_s(D, p3.ρ_i), mass_s(D, p3.ρ_l))         # small spherical ice
-    elseif F_rim == 0
-        return p3_F_liq_average(F_liq, mass_nl(p3, D), mass_s(D, p3.ρ_l))            # large nonspherical unrimed ice
-    elseif th.D_gr > D >= D_th_helper(p3)
-        return p3_F_liq_average(F_liq, mass_nl(p3, D), mass_s(D, p3.ρ_l))            # dense nonspherical ice
-    elseif th.D_cr > D >= th.D_gr
-        return p3_F_liq_average(F_liq, mass_s(D, th.ρ_g), mass_s(D, p3.ρ_l))         # graupel
-    else #elseif D >= th.D_cr
-        return p3_F_liq_average(F_liq, mass_r(p3, D, F_rim), mass_s(D, p3.ρ_l))      # partially rimed ice
+function ∂ice_mass_∂D(state::P3State, D)
+    (; D_th, D_gr, D_cr, ρ_g, F_rim) = state
+    (; mass, ρ_i) = get_parameters(state)
+
+    ∂mass_spherical_∂D(ρ::FT, D::FT) where {FT} = ρ * D^2 * FT(π) / 2
+    ∂mass_nonspherical_∂D((; α_va, β_va)::CMP.MassPowerLaw, D) =
+        β_va * α_va * D^(β_va - 1)
+    ∂mass_rimed_∂D((; α_va, β_va)::CMP.MassPowerLaw, D, F_rim) =
+        β_va * α_va * D^(β_va - 1) / (1 - F_rim)
+
+    return if D < D_th
+        ∂mass_spherical_∂D(ρ_i, D)      # small spherical ice
+    elseif isunrimed(state)
+        ∂mass_nonspherical_∂D(mass, D)  # large nonspherical unrimed ice
+    elseif D_th ≤ D < D_gr
+        ∂mass_nonspherical_∂D(mass, D)  # dense nonspherical rimed ice
+    elseif D_gr ≤ D < D_cr
+        ∂mass_spherical_∂D(ρ_g, D)      # graupel (rimed)
+    else # D_cr ≤ D
+        ∂mass_rimed_∂D(mass, D, F_rim)  # partially rimed ice
     end
 end
 
-"""
-    p3_dmdD(p3, D, F_r, th)
 
- - p3 - a struct containing p3 parameters
- - D - maximum dimension of the particle
- - F_r - rime mass fraction (q_rim/ q_i)
- - th - thresholds as calculated by thresholds()
-
-Returns dm(D)/dD for each particle regime, used in snow melting
 """
-function p3_dmdD(
-    p3::PSP3,
-    D::FT,
-    F_r::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT <: Real}
-    D_th = D_th_helper(p3)
-    if D_th > D
-        return FT(π) / 2 * p3.ρ_i * D^2
-    elseif F_r == 0
-        return α_va_si(p3) * p3.β_va * D^(p3.β_va - 1)
-    elseif th.D_gr > D >= D_th
-        return α_va_si(p3) * p3.β_va * D^(p3.β_va - 1)
-    elseif th.D_cr > D >= th.D_gr
-        return FT(π) / 2 * th.ρ_g * D^2
-    else # D >= th.D_cr
-        return α_va_si(p3) / (1 - F_r) * p3.β_va * D^(p3.β_va - 1)
-    end
+    area_spherical(D)
+
+Calculate the cross-sectional area of a spherical particle.
+
+# Arguments
+- `D`: maximum particle dimension [m]
+"""
+area_spherical(D::FT) where {FT} = D^2 * FT(π) / 4
+
+"""
+    area_nonspherical(area, D)
+
+Calculate the cross-sectional area of a nonspherical particle.
+
+# Arguments
+- `area`: [`CMP.AreaPowerLaw`](@ref) parameters
+- `D`: maximum particle dimension [m]
+"""
+area_nonspherical((; γ, σ)::CMP.AreaPowerLaw, D) = γ * D^σ
+
+"""
+    area_rimed(area, F_rim, D)
+
+Calculate the cross-sectional area of a partially rimed particle.
+
+# Arguments
+- `area`: [`CMP.AreaPowerLaw`](@ref) parameters
+- `F_rim`: rime mass fraction [`L_rim/L_ice`]
+- `D`: maximum particle dimension [m]
+"""
+function area_rimed(area::CMP.AreaPowerLaw, F_rim, D)
+    rimed_area = area_spherical(D)
+    unrimed_area = area_nonspherical(area, D)
+    return weighted_average(F_rim, rimed_area, unrimed_area)
 end
 
 """
-    A_(p3, D)
+    ice_area(state, D)
 
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
+Return the cross-sectional area of a particle based on where it falls in the 
+    particle-size-based properties regime.
 
-Returns particle projected area as a function of size for different particle regimes
+# Arguments
+- `state`: [`P3State`](@ref) object
+- `D`: maximum particle dimension [m]
 """
-# for spherical particles
-A_s(D::FT) where {FT} = FT(π) / 4 * D^2
-# for nonspherical particles
-A_ns(p3::PSP3, D::FT) where {FT} = p3.γ * D^p3.σ
-# partially rimed ice
-A_r(p3::PSP3, F_rim::FT, D::FT) where {FT} =
-    F_rim * A_s(D) + (1 - F_rim) * A_ns(p3, D)
-
-"""
-    p3_area(p3, D, F_rim, F_liq, th)
-
- - p3 - a struct with P3 scheme parameters
- - D - maximum particle dimension
- - F_rim - rime mass fraction (L_rim / L_ice)
- - F_liq - liquid fraction (L_liq / L_p3_tot)
- - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
-Returns area(D), used to create figures for the documentation.
-"""
-function p3_area(
-    p3::PSP3,
-    D::FT,
-    F_rim::FT,
-    F_liq::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT}
-    # Area regime:
-    if D_th_helper(p3) > D
-        return A_s(D)                                              # small spherical ice
-    elseif F_rim == 0
-        return p3_F_liq_average(F_liq, A_ns(p3, D), A_s(D))        # large nonspherical unrimed ice
-    elseif th.D_gr > D >= D_th_helper(p3)
-        return p3_F_liq_average(F_liq, A_ns(p3, D), A_s(D))        # dense nonspherical ice
-    elseif th.D_cr > D >= th.D_gr
-        return A_s(D)                                              # graupel
-    else # D >= th.D_cr
-        return p3_F_liq_average(F_liq, A_r(p3, F_rim, D), A_s(D))  # partially rimed ice
+function ice_area(state::P3State, D)
+    (; area) = get_parameters(state)
+    (; D_th, D_gr, D_cr, F_rim) = state
+    return if D < D_th
+        area_spherical(D)           # small spherical ice
+    elseif isunrimed(state)
+        area_nonspherical(area, D)  # large nonspherical unrimed ice
+    elseif D_th ≤ D < D_gr
+        area_nonspherical(area, D)  # dense nonspherical rimed ice
+    elseif D_gr ≤ D < D_cr
+        area_spherical(D)           # graupel (rimed)
+    else # D_cr ≤ D
+        area_rimed(area, F_rim, D)  # partially rimed ice
     end
 end
 
-"""
-    ϕᵢ(p3, D, F_rim, th)
+# """
+#     p3_area(state, D)
 
- - p3 - a struct containing P3 parameters
- - D - maximum dimension of ice particle [m]
- - F_rim - rime mass fraction (L_rim/ L_ice) [-]
- - th - P3 particle properties thresholds
+# Return area(D), used to create figures for the documentation.
 
-Returns the aspect ratio (ϕ) for an ice particle with mass, cross-sectional area,
-and ice density determined using the size-dependent particle property regimes
-following Morrison and Milbrandt (2015). The density of nonspherical
-particles is assumed to be equal to the particle mass divided by the volume of a
-spherical particle with the same D_max.
-Assuming zero liquid fraction and oblate shape.
+# # Arguments
+# - `state`: [`P3State`](@ref) object
+# - `D`: maximum particle dimension [m]
+# """
+# function p3_area(state::P3State, D)
+#     # TODO: Refactor to be a parameterization for use with `F_liq`
+#     (; F_liq) = get_parameters(state)
+#     area_liq = area_spherical(D)
+#     area_ice = ice_area(state, D)
+#     return weighted_average(F_liq, area_liq, area_ice)
+# end
+
 """
-function ϕᵢ(p3::PSP3, D::FT, F_rim::FT, th) where {FT}
-    F_liq = FT(0)
-    mᵢ = p3_mass(p3, D, F_rim, F_liq, th)
-    aᵢ = p3_area(p3, D, F_rim, F_liq, th)
-    ρᵢ = p3_density(p3, D, F_rim, th)
+    ϕᵢ(state, D)
+
+Returns the aspect ratio (ϕ) for an ice particle
+
+# Arguments
+- `state`: [`P3State`](@ref) object
+- `D`: maximum dimension of ice particle [m]
+
+The density of nonspherical particles is assumed to be equal to the particle mass divided by the volume of a
+spherical particle with the same D_max [MorrisonMilbrandt2015](@cite). Assuming zero liquid fraction and oblate shape.
+"""
+function ϕᵢ(state::P3State, D)
+    FT = eltype(state)
+    mᵢ = ice_mass(state, D)
+    aᵢ = ice_area(state, D)
+    ρᵢ = ice_density(state, D)
 
     # TODO - prolate or oblate?
     ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
     #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
 
-    return ifelse(D == 0, FT(0), ϕ_ob)
+    return ifelse(D == 0, 0, ϕ_ob)
+end
+
+### ----------------- ###
+### ----- UTILS ----- ###
+### ----------------- ###
+
+function Base.show(io::IO, state::P3State{FT}) where {FT}
+    _name(state, field) = typeof(getfield(state.params, field)).name.name
+    param_types = join(_name.(state, (:mass, :area, :slope, :vent)), ", ")
+    println(io, "P3State{$FT}")
+    println(io, "├── params = {$param_types}")
+    println(io, "├── F_rim = $(state.F_rim) [-]")
+    println(io, "├── ρ_r = $(state.ρ_r) [kg/m^3]")
+    println(io, "├── ρ_g = $(state.ρ_g) [kg/m^3]")
+    println(io, "├── D_th = $(state.D_th) [m]")
+    println(io, "├── D_gr = $(state.D_gr) [m]")
+    println(io, "└── D_cr = $(state.D_cr) [m]")
 end

@@ -1,361 +1,347 @@
-"""
-    μ_to_λ(μ)
 
- - μ - parameter for gamma distribution of N′
+### --------------------------------- ###
+### ----- P3Distribution STRUCT ----- ###
+### --------------------------------- ###
 
-Returns corresponding λ to given μ value
 """
-function μ_to_λ(p3::PSP3, μ::FT) where {FT}
-    return ((μ + p3.c) / p3.a)^(1 / p3.b)
+    P3Distribution{FT}
+
+Distribution of ice particles in size.
+
+# Fields
+$(FIELDS)
+"""
+@kwdef struct P3Distribution{FT}
+    "Particle state, see [`P3State`](@ref)"
+    state::P3State{FT}
+
+    # Integral solution parameters
+    "The mass concentration [kg/m³]"
+    L::FT
+    "The number concentration [1/m³]"
+    N::FT
+
+    # Distribution parameters
+    "Logarithm of the slope parameter"
+    log_λ::FT
+    "Logarithm of the intercept parameter"
+    log_N₀::FT
 end
 
 """
-    DSD_μ(p3, λ)
+    get_state(dist::P3Distribution)
 
-- p3 - a struct with P3 scheme parameters
-- λ - slope parameter for gamma distribution of N′ [1/m]
-
-Returns the shape parameter μ for a given λ value
-Eq. 3 in Morrison and Milbrandt (2015).
+Return the particle state from a [`P3Distribution`](@ref) object.
 """
-function DSD_μ(p3::PSP3, λ::FT) where {FT}
-    #@assert λ > FT(0)
-    return min(p3.μ_max, max(FT(0), p3.a * λ^p3.b - p3.c))
+get_state(dist::P3Distribution) = dist.state
+
+Base.eltype(::P3Distribution{FT}) where {FT} = FT
+Base.broadcastable(state::P3Distribution) = tuple(state)
+
+"""
+    get_parameters(dist::P3Distribution)
+
+Return the parameters from a [`P3Distribution`](@ref) object.
+"""
+get_parameters(dist::P3Distribution) = get_parameters(get_state(dist))
+
+"""
+    isunrimed(dist::P3Distribution)
+
+Return `true` if the particle state associated with a [`P3Distribution`](@ref) object is unrimed, `false` otherwise.
+"""
+isunrimed(dist::P3Distribution) = isunrimed(get_state(dist))
+
+
+"""
+    log_N′ice(dist, D)
+
+Compute the log of the ice particle number concentration at diameter `D` 
+    given the distribution `dist`
+"""
+function log_N′ice(dist::P3Distribution, D)
+    (; log_N₀, log_λ) = dist
+    μ = get_μ(dist)
+    return log_N₀ + μ * log(D) - exp(log_λ) * D
 end
 
 """
-    DSD_N₀(p3, μ, N, λ)
+    N′ice(dist, D)
 
- - p3 - a struct with P3 scheme parameters
- - N - total ice number concentration [1/m3]
- - μ - shape parameter of N′ gamma distribution
- - λ - slope parameter for gamma distribution of N′ [1/m]
-
-Returns the shape parameter N₀ from Eq. 2 in Morrison and Milbrandt (2015).
+Compute the ice particle number concentration at diameter `D` given the distribution `dist`
 """
-function DSD_N₀(p3::PSP3, N::FT, λ::FT) where {FT}
-    μ = DSD_μ(p3, λ)
-    return N / CO.Γ(1 + μ) * λ^(1 + μ)
+N′ice(dist::P3Distribution, D) = exp(log_N′ice(dist, D))
+
+
+### ------------------------------------------------ ###
+### ----- Obtaining P3 distribution parameters ----- ###
+### ------------------------------------------------ ###
+
+
+"""
+    log_integrate_moment_psd(D₁, D₂, a, b, μ, log_λ)
+
+Computes the log of the integral of the moment of the PSD from `D₁` to `D₂`
+
+i.e. integral of the form
+    ``∫_{D₁}^{D₂} (aD^b) D^μ e^{-λD} dD``
+"""
+function log_integrate_moment_psd(D₁, D₂, a, b, μ, log_λ)
+    b_μ_1 = b + μ + 1
+    (_, q_D₁) = SF.gamma_inc(b_μ_1, exp(log_λ) * D₁)
+    (_, q_D₂) = SF.gamma_inc(b_μ_1, exp(log_λ) * D₂)
+    return log(a) - b_μ_1 * log_λ + SF.loggamma(b_μ_1) + log(abs(q_D₁ - q_D₂))
 end
 
 """
-    N′ice(p3, D, λ, N0)
+    get_μ(dist)
+    get_μ(state, log_λ)
+    get_μ(params, log_λ)
+    
+Compute the slope parameter μ
 
- - p3 - a struct containing P3 scheme parameters
- - D - diameter of particle
- - λ - shape parameter of distribution
- - N0 - shape parameter of distribution
-
- Returns the distribution of ice particles (assumed to be of the form
- N'(D) = N0 * D ^ μ * exp(-λD)) at given D
+# Arguments
+- `dist`: [`P3Distribution`](@ref) object
+- `state`: [`P3State`](@ref) object
+- `params`: [`CMP.ParametersP3`](@ref) object
+- `log_λ`: The log of the slope parameter [log(1/m)]
 """
-function N′ice(p3::PSP3, D::FT, λ::FT, N_0::FT) where {FT}
-    #@assert D > FT(0)
-    return ifelse(D > 0, N_0 * D^DSD_μ(p3, λ) * exp(-λ * D), FT(0))
-end
+get_μ(dist::P3Distribution) = get_μ(get_state(dist), dist.log_λ)
+get_μ(state::P3State, log_λ) = get_μ(get_parameters(state), log_λ)
+get_μ(params::PSP3, log_λ) = get_μ(params.slope, log_λ)
+
+get_μ((; a, b, c, μ_max)::CMP.SlopePowerLaw, log_λ) =
+    clamp(a * exp(log_λ)^b - c, 0, μ_max)
+get_μ((; μ)::CMP.SlopeConstant, _) = μ
 
 """
-    get_ice_bound(p3, λ, N, rtol)
+    log∫DⁿmN′dD(state, log_λ; n = 0)
 
- - p3 - a struct containing p3 parameters
- - λ - shape parameters of ice distribution
- - N - ice number concentration
- - rtol - relative tolerance for root solver
+Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state` and `log_λ`.
+    This is the log of the `n`-th moment of the mass-weighted PSD.
 
- Ice size distribution upper bound for numerical integrals, such that
- total number concentration is equal to the integral over the size distribution
- with relative tolerance rtol.
+# Arguments
+- `state::P3State`: [`P3State`](@ref) object
+- `log_λ`: The log of the slope parameter [log(1/m)]
+- `n`: The order of the moment [dimensionless]
+
+# Note:
+- For `n = 0`, this evaluates to `log(L/N₀)`, see [`log_L_div_N₀`](@ref)
+- For `n = 1`, this evaluates to the (unnormalized) mass-weighted mean particle size, see [`D_m`](@ref)
 """
-function get_ice_bound(p3::PSP3, λ::FT, N::FT, rtol::FT) where {FT}
-    #return FT(1e-2) - From what I'm seeing so far, this is not such a bad guess
-    #We might want to reconsider using it in the future (after more testing).
-    μ = DSD_μ(p3, λ)
-    N₀ = DSD_N₀(p3, N, λ)
+function log∫DⁿmN′dD(state::P3State{FT}, log_λ; n = 0) where {FT}
+    @assert n ≥ 0 "The moment order must be non-negative"
+    (; F_rim, ρ_g, D_th, D_gr, D_cr) = state
+    (; ρ_i, mass) = get_parameters(state)
+    (; α_va, β_va) = mass
 
-    ice_bound_problem(D_max_hat) =
-        N - N₀ / λ^(μ + 1) * Γ_lower(μ + 1, D_max_hat)
-
-    D_guess_low = FT(1e-6)
-    D_guess_high = FT(1e-1)
-
-    if ice_bound_problem(D_guess_low * λ) <= rtol
-        return D_guess_low
-    elseif ice_bound_problem(D_guess_high * λ) <= rtol
-        return D_guess_high
+    μ = get_μ(state, log_λ)
+    ∞ = FT(Inf)
+    G = log_integrate_moment_psd
+    # G_liqfrac = G(FT(0), FT(Inf), ρ_l * FT(π) / 6, 3 + n, μ, log_λ)  # TODO: Implement liquid fraction (need to do weighted average)
+    G_small_spherical = G(0, D_th, ρ_i * π / 6, 3 + n, μ, log_λ)
+    if isunrimed(state)
+        G_large_unrimed = G(D_th, ∞, α_va, β_va + n, μ, log_λ)
+        return LogExpFunctions.logsumexp((G_small_spherical, G_large_unrimed))
     else
-        bound =
-            RS.find_zero(
-                ice_bound_problem,
-                RS.SecantMethod(D_guess_low * λ, D_guess_high * λ),
-                RS.CompactSolution(),
-                RS.RelativeSolutionTolerance(rtol),
-                5,
-            ).root
-        return bound / λ
+        G_dense_nonspherical = G(D_th, D_gr, α_va, β_va + n, μ, log_λ)
+        G_graupel = G(D_gr, D_cr, ρ_g * π / 6, 3 + n, μ, log_λ)
+        G_partially_rimed = G(D_cr, ∞, α_va / (1 - F_rim), β_va + n, μ, log_λ)
+        return LogExpFunctions.logsumexp((
+            G_small_spherical,
+            G_dense_nonspherical,
+            G_graupel,
+            G_partially_rimed,
+        ))
     end
 end
 
-"""
-    L_(p3, ρ, F_rim, F_liq, λ, μ, D_min, D_max)
 
- - p3 - a struct with P3 scheme parameters
- - ρ - bulk ice density (ρ_i for small ice, ρ_g for graupel) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / L_ice) [-]
- - μ - shape parameter of N′ gamma distribution
- - λ - slope parameter of N′ gamma distribution
- - D_min - minimum bound for regime
- - D_max - maximum bound for regime (if not specified, then infinity)
-
-Returns ice content for a given m(D) regime.
-Liquid fraction weighted averaging is not computed here but in L_over_N_gamma().
 """
-# small, spherical ice or graupel (completely rimed, spherical)
-# D_min = 0, D_max = D_th, ρ = ρᵢ
-# or
-# L_rim > 0 and D_min = D_gr, D_max = D_cr, ρ = ρ_g
-function L_s(p3::PSP3, ρ::FT, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    return ∫_Γ(D_min, D_max, FT(π) / 6 * ρ, μ + 3, λ)
-end
-# L_rim = 0 and D_min = D_th, D_max = inf
-function L_rz(p3::PSP3, μ::FT, λ::FT, D_min::FT) where {FT}
-    return ∫_Γ(D_min, FT(Inf), α_va_si(p3), μ + p3.β_va, λ)
-end
-# L_rim > 0 and D_min = D_th and D_max = D_gr
-function L_n(p3::PSP3, μ::FT, λ::FT, D_min::FT, D_max::FT) where {FT}
-    return ∫_Γ(D_min, D_max, α_va_si(p3), μ + p3.β_va, λ)
-end
-# partially rimed ice or large unrimed ice (upper bound on D is infinity)
-# L_rim > 0 and D_min = D_cr, D_max = inf
-function L_r(p3::PSP3, F_rim::FT, μ::FT, λ::FT, D_min::FT) where {FT}
-    return ∫_Γ(D_min, FT(Inf), α_va_si(p3) / (1 - F_rim), μ + p3.β_va, λ)
-end
-# F_liq != 0 (liquid mass on mixed-phase particles for D in [D_min, D_max])
-function L_liq(p3::PSP3, μ::FT, λ::FT) where {FT}
-    return ∫_Γ(FT(0), FT(Inf), (FT(π) / 6) * p3.ρ_l, μ + 3, λ)
+    log_L_div_N₀(state, log_λ)
+
+Compute `log(L/N₀)` given the `state` and `log_λ`
+"""
+log_L_div_N₀(state::P3State, log_λ) = log∫DⁿmN′dD(state, log_λ; n = 0)
+
+"""
+    log_N_div_N₀(state, log_λ)
+    log_N_div_N₀(slope, log_λ)
+
+Compute `log(N/N₀)` given either the `state` or the `slope` parameterization, and `log_λ`
+
+Note: This function is equivalent to `log_integrate_moment_psd(0, Inf, 1, 0, μ, log_λ)`
+"""
+log_N_div_N₀(state::P3State, log_λ) = log_N_div_N₀(get_parameters(state), log_λ)
+log_N_div_N₀(params::PSP3, log_λ) = log_N_div_N₀(params.slope, log_λ)
+function log_N_div_N₀(slope::CMP.SlopeLaw, log_λ)
+    μ = get_μ(slope, log_λ)
+    return SF.loggamma(μ + 1) - (μ + 1) * log_λ
 end
 
 """
-    L_over_N_gamma(p3, F_rim, F_liq, log_λ, th)
+    log_L_div_N(state, log_λ)
 
- - p3 - a struct with P3 scheme parameters
- - F_rim - rime mass fraction (L_rim / L_ice) [-]
- - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
-    - zero if solving for ice core shape parameters
- - log_λ - logarithm of the slope parameter of N′ gamma distribution
- - μ - shape parameter of N′ gamma distribution
- - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
+Compute `log(L/N)` given the `state` (or `params`) and `log_λ`
 
-Returns L/N for all values of D (sum over all regimes).
-Eq. 5 in Morrison and Milbrandt (2015).
+# Arguments
+- `state::P3State`: [`P3State`](@ref) object, or
+- `params::PSP3`: [`CMP.ParametersP3`](@ref) object, and
+- `log_λ`: The log of the slope parameter [log(1/m)]
 """
-function L_over_N_gamma(
-    p3::PSP3,
-    F_rim::FT,
-    F_liq::FT,
-    log_λ::FT,
-    μ::FT,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
+log_L_div_N(state::P3State, log_λ) = log_L_div_N₀(state, log_λ) - log_N_div_N₀(state, log_λ)
+
+"""
+    get_log_N₀(state; N, log_λ)
+    get_log_N₀(params; N, log_λ)
+
+Compute `log(N₀)` given the `state`, `N`, and `log_λ`
+
+# Arguments
+- `state::P3State`: [`P3State`](@ref) object, or
+- `params::PSP3`: [`CMP.ParametersP3`](@ref) object
+
+# Keyword arguments
+- `N`: The number concentration [1/m³]
+- `log_λ`: The log of the slope parameter [log(1/m)]
+"""
+function get_log_N₀(state::P3State; N, log_λ)
+    get_log_N₀(get_parameters(state); N, log_λ)
+end
+function get_log_N₀(params::PSP3; N, log_λ)
+    μ = get_μ(params, log_λ)
+    return log(N) - SF.loggamma(μ + 1) + (μ + 1) * log_λ
+end
+
+"""
+    get_distribution_parameters(state; L, N, [log_λ_min, log_λ_max])
+
+Solve for the distribution parameters given the state, and the mass (`L`) and number (`N`) concentrations.
+
+The assumed distribution is of the form
+
+```math
+N(D) = N₀ D^μ e^{-λD}
+```
+where `N(D)` is the number concentration at diameter `D` and `μ` is the slope parameter.
+    The slope parameter is parameterized, e.g. [`CMP.SlopePowerLaw`](@ref) or [`CMP.SlopeConstant`](@ref).
+
+This algorithm solves for `log_λ = log(λ)` and `log_N₀ = log(N₀)` 
+    given `L` and `N` by solving the equations:
+
+```math
+\\begin{align*}
+\\log(L) &= \\log ∫_0^∞ m(D) N(D)\\ \\mathrm{d}D, \\\\
+\\log(N) &= \\log ∫_0^∞ N(D)\\ \\mathrm{d}D, \\\\
+\\end{align*}
+```
+where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
+    The procedure is decribed in detail in [the P3 docs](@ref "Parameterizations for the slope parameter \$μ\$").
+
+
+# Arguments
+- `state`: [`P3State`](@ref) object
+
+# Keyword arguments
+- `L`: The mass concentration [kg/m³]
+- `N`: The number concentration [1/m³]
+- `search_bound_min`: The minimum value of the search bounds [log(1/m)], default is `log(1e1)`
+- `search_bound_max`: The maximum value of the search bounds [log(1/m)], default is `log(1e7)`
+
+# Returns
+- [`P3Distribution`](@ref) object with the distribution parameters `log_λ` and `log_N₀`
+
+# Examples
+
+```jldoctest
+julia> import CloudMicrophysics.Parameters as CMP,
+              CloudMicrophysics.P3Scheme   as P3
+
+julia> params = CMP.ParametersP3(Float64);
+
+julia> state = P3.get_state(params; F_rim = 0.0, ρ_r = 400.0);
+
+julia> dist = P3.get_distribution_parameters(state; L = 1e-3, N = 1e3)
+P3Distribution{Float64}
+├── state: is unrimed
+├── log_λ = 5.4897008376530385 [log(1/m)]
+└── log_N₀ = 12.397456116635176 [log(1/m^3)]
+```
+"""
+function get_distribution_parameters(
+    state::P3State{FT};
+    L,
+    N,
+    log_λ_min = log(1e1),
+    log_λ_max = log(1e7),
 ) where {FT}
+    target_log_LdN = log(L) - log(N)
 
-    D_th = D_th_helper(p3)
-    λ = exp(log_λ)
-    N = CO.Γ(1 + μ) / (λ^(1 + μ))
-    return ifelse(
-        F_rim == FT(0),
-        (p3_F_liq_average(
-            F_liq,
-            L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) + L_rz(p3, μ, λ, D_th),
-            L_liq(p3, μ, λ),
-        )) / N,
-        (p3_F_liq_average(
-            F_liq,
-            L_s(p3, p3.ρ_i, μ, λ, FT(0), D_th) +
-            L_n(p3, μ, λ, D_th, th.D_gr) +
-            L_s(p3, th.ρ_g, μ, λ, th.D_gr, th.D_cr) +
-            L_r(p3, F_rim, μ, λ, th.D_cr),
-            L_liq(p3, μ, λ),
-        )) / N,
-    )
-end
-
-"""
-    DSD_μ_approx(p3, L, N, ρ_r, F_rim, F_liq)
-
- - p3 - a struct with P3 scheme parameters
- - L - ice content [kg/m3]
- - N - total ice number concentration [1/m3]
- - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / L_ice) [-]
- - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
-    - zero if solving for ice core shape parameters
-Returns the approximated shape parameter μ for a given q and N value
-"""
-function DSD_μ_approx(
-    p3::PSP3,
-    L::FT,
-    N::FT,
-    ρ_r::FT,
-    F_rim::FT,
-    F_liq::FT,
-) where {FT}
-    # Get thresholds for given F_rim, ρ_r
-    th = thresholds(p3, ρ_r, F_rim)
-
-    # Get min and max lambda values
-    λ_0 = μ_to_λ(p3, FT(0))
-    λ_6 = μ_to_λ(p3, p3.μ_max)
-
-    # Get corresponding L/N values at given F_rim
-    L_over_N_min = log(L_over_N_gamma(p3, F_rim, F_liq, log(λ_0), FT(0), th))
-    L_over_N_max = log(L_over_N_gamma(p3, F_rim, F_liq, log(λ_6), p3.μ_max, th))
-
-    # Return approximation between them
-    μ = (p3.μ_max / (L_over_N_max - L_over_N_min)) * (log(L / N) - L_over_N_min)
-
-    # Clip approximation between 0 and 6
-    return min(p3.μ_max, max(FT(0), μ))
-end
-
-"""
-    get_bounds(N, L, F_rim, F_liq, p3, th)
-
- - N - ice number concentration [1/m3]
- - L - ice content [kg/m3]
- - μ - shape parameter of N′ gamma distribution
- - F_rim - rime mass fraction (L_rim / L_ice) [-]
- - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
-    - zero if solving for ice core shape parameters - p3 - a struct with P3 scheme parameters
- - th - P3 scheme thresholds() output tuple (D_cr, D_gr, ρ_g, ρ_d)
-
- Returns estimated guess for λ from L to be used in distribution_parameter_solver()
-"""
-function get_bounds(
-    N::FT,
-    L::FT,
-    μ::FT,
-    F_rim::FT,
-    F_liq::FT,
-    p3::PSP3,
-    th = (; D_cr = FT(0), D_gr = FT(0), ρ_g = FT(0), ρ_d = FT(0)),
-) where {FT}
-    goal = L / N
-
-    if goal >= 1e-8
-        left = FT(1)
-        right = FT(6 * 1e3)
-        radius = FT(0.2)
-    elseif goal >= 2 * 1e-9
-        left = FT(6 * 1e3)
-        right = FT(3 * 1e4)
-        radius = FT(-0.1)
-    else
-        left = FT(4 * 1e4)
-        right = FT(1e6)
-        radius = FT(0.2)
-    end
-
-    Ll = L_over_N_gamma(p3, F_rim, F_liq, log(left), μ, th)
-    Lr = L_over_N_gamma(p3, F_rim, F_liq, log(right), μ, th)
-
-    guess =
-        left * (goal / (Ll))^((log(right) - log(left)) / (log(Lr) - log(Ll)))
-
-    max = log(guess * exp(radius))
-    min = log(guess)
-
-    return (; min, max)
-end
-
-"""
-    distrbution_parameter_solver()
-
- - p3 - a struct with P3 scheme parameters
- - L - ice content [kg/m3]
- - N - number concentration [1/m3]
- - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / L_ice) [-]
- - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
-    - zero if solving for ice core shape parameters - p3 - a struct with P3 scheme parameters
-
-Solves the nonlinear system consisting of N_0 and λ for P3 prognostic variables
-Returns a named tuple containing:
- - N_0 - intercept size distribution parameter [1/m4]
- - λ - slope size distribution parameter [1/m]
-"""
-function distribution_parameter_solver(
-    p3::PSP3{FT},
-    L::FT,
-    N::FT,
-    ρ_r::FT,
-    F_rim::FT,
-    F_liq::FT,
-) where {FT}
-    # Get the thresholds for different particles regimes
-    th = thresholds(p3, ρ_r, F_rim)
-
-    # Get μ given L and N
-    μ = DSD_μ_approx(p3, L, N, ρ_r, F_rim, F_liq)
-
-    # To ensure that λ is positive solve for x such that λ = exp(x)
-    shape_problem(x) = L / N - L_over_N_gamma(p3, F_rim, F_liq, x, μ, th)
-
-    # Get intial guess for solver
-    (; min, max) = get_bounds(N, L, μ, F_rim, F_liq, p3, th)
+    shape_problem(log_λ) = log_L_div_N(state, log_λ) - target_log_LdN
 
     # Find slope parameter
-    x =
-        RS.find_zero(
-            shape_problem,
-            RS.SecantMethod(min, max),
-            RS.CompactSolution(),
-            RS.RelativeSolutionTolerance(eps(FT)),
-            5,
-        ).root
+    sol = RS.find_zero(
+        shape_problem,
+        RS.SecantMethod(FT(log_λ_min), FT(log_λ_max)),
+        RS.CompactSolution(),
+        RS.RelativeSolutionTolerance(eps(FT)),
+        50,
+    )
+    log_λ = sol.root
 
-    return (; λ = exp(x), N_0 = DSD_N₀(p3, N, exp(x)))
+    log_N₀ = get_log_N₀(state; N, log_λ)
+
+    return P3Distribution(; state, L, N, log_λ, log_N₀)
 end
 
 """
-    D_m (p3, L, N, ρ_r, F_rim)
+    get_distribution_parameters_all_solutions(state; L, N)
 
- - p3 - a struct with P3 scheme parameters
- - L - ice mass content [kg/m3]
- - N - number concentration [1/m3]
- - ρ_r - rime density (L_rim/B_rim) [kg/m^3]
- - F_rim - rime mass fraction (L_rim / L_ice) [-]
- - F_liq - liquid fraction (L_liq / L_p3_tot) [-]:
-    - zero if solving for ice core D_m
- - p3 - a struct with P3 scheme parameters
+Find all solutions for `log_λ` given the `state` ([`P3State`](@ref)), `L`, and `N`.
 
- Return the mass weighted mean particle size [m]
+!!! note "Usage"
+    This function is experimental, and usually only relevant for the
+    [`SlopePowerLaw`](@ref) parameterization, which can have multiple solutions
+    for `log_λ` for a given `log_L` and `log_N`.
 """
-function D_m(p3::PSP3, L::FT, N::FT, ρ_r::FT, F_rim::FT, F_liq::FT) where {FT}
-    # Get the thresholds for different particles regimes
-    th = thresholds(p3, ρ_r, F_rim)
-    D_th = D_th_helper(p3)
+function get_distribution_parameters_all_solutions(
+    state::P3State{FT};
+    L,
+    N,
+) where {FT}
+    # Find bounds by evaluating function incrementally, then apply root finding with bounds above and below zero-point
+    target_log_LdN = log(L) - log(N)
 
-    # Get the shape parameters
-    (λ, N_0) = distribution_parameter_solver(p3, L, N, ρ_r, F_rim, F_liq)
-    μ = DSD_μ(p3, λ)
+    shape_problem(log_λ) = log_L_div_N(state, log_λ) - target_log_LdN
 
-    # Redefine α_va to be in si units
-    α_va = α_va_si(p3)
-
-    # Calculate numerator
-    n_nl = 0
-    if F_rim == 0
-        n_nl += ∫_Γ(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
-        n_nl += ∫_Γ(D_th, FT(Inf), α_va * N_0, μ + p3.β_va + 1, λ)
-        n_l = ∫_Γ(FT(0), FT(Inf), N_0 * p3.ρ_l * (FT(π) / 6), μ + 4, λ)
-    else
-        n_nl += ∫_Γ(FT(0), D_th, π / 6 * p3.ρ_i * N_0, μ + 4, λ)
-        n_nl += ∫_Γ(D_th, th.D_gr, α_va * N_0, μ + p3.β_va + 1, λ)
-        n_nl += ∫_Γ(th.D_gr, th.D_cr, π / 6 * th.ρ_g * N_0, μ + 4, λ)
-        n_nl +=
-            ∫_Γ(th.D_cr, FT(Inf), α_va / (1 - F_rim) * N_0, μ + p3.β_va + 1, λ)
-        n_l = ∫_Γ(FT(0), FT(Inf), N_0 * p3.ρ_l * (FT(π) / 6), μ + 4, λ)
+    Δλ = 0.01
+    λs = 10.0 .^ (2.0:Δλ:6.0)
+    λ_bnds = Tuple[]
+    # Loop over λs and find where shape_problem changes sign
+    for i in 1:(length(λs) - 1)
+        if shape_problem(log(λs[i])) * shape_problem(log(λs[i + 1])) < 0
+            push!(λ_bnds, (λs[i], λs[i + 1]))
+        end
     end
 
-    # compute F_liq-weighted average and normalize by L
-    return ifelse(L < eps(FT), FT(0), p3_F_liq_average(F_liq, n_nl, n_l) / L)
+    # Apply root finding with bounds above and below zero-point
+    dists = P3Distribution[]
+    for (λ_min, λ_max) in λ_bnds
+        log_λ_min, log_λ_max = log(λ_min), log(λ_max)
+        dist = get_distribution_parameters(state; L, N, log_λ_min, log_λ_max)
+        push!(dists, dist)
+    end
+    return dists
+end
+
+### ----------------- ###
+### ----- UTILS ----- ###
+### ----------------- ###
+
+function Base.show(io::IO, p3s::P3Distribution{FT}) where {FT}
+    rimed = isunrimed(p3s) ? "unrimed" : "rimed"
+    println(io, "P3Distribution{$FT}")
+    println(io, "├── state: is $rimed")
+    println(io, "├── log_λ = $(p3s.log_λ) [log(1/m)]")
+    println(io, "└── log_N₀ = $(p3s.log_N₀) [log(1/m^3)]")
 end

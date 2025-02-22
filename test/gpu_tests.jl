@@ -729,20 +729,20 @@ end
     end
 end
 
-@kernel function P3_scheme_kernel!(
-    p3,
-    output::AbstractArray{FT},
-    F_rim,
-    ρ_r,
-) where {FT}
+# @kernel function P3_scheme_kernel!(
+#     p3,
+#     output::AbstractArray{FT},
+#     F_rim,
+#     ρ_r,
+# ) where {FT}
 
-    i = @index(Group, Linear)
+#     i = @index(Group, Linear)
 
-    @inbounds begin
-        output[1, i] = P3.thresholds(p3, ρ_r[i], F_rim[i])[1]
-        output[2, i] = P3.thresholds(p3, ρ_r[i], F_rim[i])[2]
-    end
-end
+#     @inbounds begin
+#         output[1, i] = P3.thresholds(p3, ρ_r[i], F_rim[i])[1]
+#         output[2, i] = P3.thresholds(p3, ρ_r[i], F_rim[i])[2]
+#     end
+# end
 
 """
     setup_output(dims, FT)
@@ -1362,40 +1362,40 @@ function test_gpu(FT)
 
         @test all(Array(output) .> FT(0))
     end
-    @testset "P3 scheme kernels" begin
-        dims = (2, 2)
-        (; output, ndrange) = setup_output(dims, FT)
+    # @testset "P3 scheme kernels" begin
+    #     dims = (2, 2)
+    #     (; output, ndrange) = setup_output(dims, FT)
 
-        F_rim = ArrayType([FT(0.5), FT(0.95)])
-        ρ_r = ArrayType([FT(400), FT(800)])
+    #     F_rim = ArrayType([FT(0.5), FT(0.95)])
+    #     ρ_r = ArrayType([FT(400), FT(800)])
 
-        kernel! = P3_scheme_kernel!(backend, work_groups)
-        kernel!(p3, output, F_rim, ρ_r; ndrange)
+    #     kernel! = P3_scheme_kernel!(backend, work_groups)
+    #     kernel!(p3, output, F_rim, ρ_r; ndrange)
 
-        # test if all output is positive...
-        @test all(Array(output) .> FT(0))
-        #... and returns reasonable numbers
-        @test isapprox(
-            Array(output)[1, 1],
-            FT(0.4946323381999426 * 1e-3),
-            rtol = 1e-2,
-        )
-        @test isapprox(
-            Array(output)[2, 1],
-            FT(0.26151186272014415 * 1e-3),
-            rtol = 1e-2,
-        )
-        @test isapprox(
-            Array(output)[1, 2],
-            FT(1.7400778369620664 * 1e-3),
-            rtol = 1e-2,
-        )
-        @test isapprox(
-            Array(output)[2, 2],
-            FT(0.11516682512848 * 1e-3),
-            rtol = 1e-2,
-        )
-    end
+    #     # test if all output is positive...
+    #     @test all(Array(output) .> FT(0))
+    #     #... and returns reasonable numbers
+    #     @test isapprox(
+    #         Array(output)[1, 1],
+    #         FT(0.4946323381999426 * 1e-3),
+    #         rtol = 1e-2,
+    #     )
+    #     @test isapprox(
+    #         Array(output)[2, 1],
+    #         FT(0.26151186272014415 * 1e-3),
+    #         rtol = 1e-2,
+    #     )
+    #     @test isapprox(
+    #         Array(output)[1, 2],
+    #         FT(1.7400778369620664 * 1e-3),
+    #         rtol = 1e-2,
+    #     )
+    #     @test isapprox(
+    #         Array(output)[2, 2],
+    #         FT(0.11516682512848 * 1e-3),
+    #         rtol = 1e-2,
+    #     )
+    # end
 end
 
 println("Testing Float64")

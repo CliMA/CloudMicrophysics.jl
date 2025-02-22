@@ -119,6 +119,14 @@ If possible, it's really appreciated to also add short code snippets that reprod
   results from the literature.
 Those code snippets are executed every time documentation is build and provide
   great examples on how different available parameterizations work.
+In some cases, it may be useful to add simple usage examples to the docstrings.
+  This achieved by using the `jldoctest` environment described in the
+  [Documenter.jl docs](https://documenter.juliadocs.org/stable/man/doctests/#Doctests).
+  These examples should be self-contained and executable. If they contain output
+  from calculations, it is best to generate the output using the `doctest` function
+  described [here](https://documenter.juliadocs.org/stable/man/doctests/#Fixing-Outdated-Doctests).
+  This will ensure that the examples are always up to date. If the output differs,
+  building the documentation will fail.
 
 Additionally, each function in the source code is required to have a docstring
   and should be added to the `API` documentation page.
