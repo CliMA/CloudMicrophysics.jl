@@ -26,7 +26,6 @@ using CloudMicrophysics.Parameters: MassPowerLaw, AreaPowerLaw, SlopeLaw, SlopeP
 
 export thresholds, distribution_parameter_solver
 
-include("P3_helpers.jl")
 include("P3_particle_properties.jl")
 include("P3_size_distribution.jl")
 include("P3_terminal_velocity.jl")

@@ -126,6 +126,8 @@ Given $ρ_d$, we can obtain $ρ_g$, $D_{gr}$, and $D_{cr}$ using the expressions
 
 ```@example
 include("plots/P3Thresholds.jl")
+
+nothing # hide
 ```
 ![](P3Thresholds.svg)
 
@@ -137,6 +139,8 @@ Following [MorrisonMilbrandt2015](@cite), for nonspherical particles ``ρ_{ice}`
 
 ```@example
 include("plots/P3SchemePlots.jl")
+
+nothing # hide
 ```
 ![](P3Scheme_relations.svg)
 
@@ -283,10 +287,7 @@ include("plots/P3SlopeParameterizations.jl")
 
 With this choice, it appears that some values of $\log(L/N)$ gives rise to multiple solutions for $λ$, as seen in the plot below.
 
-```@example
-include("plots/P3ShapeSolverPlots.jl")
-```
-![](SolverInitialGuess.svg)
+!!! todo "TODO: Add plot of multiple solutions"
 
 
 #### $μ$ as a constant
@@ -302,48 +303,6 @@ which looks like this:
 ![](P3SlopeParameterizations_constant.svg)
 
 
-
-## Calculating shape parameters old
-
-In our solver, we approximate $μ$ from $L/N$ and keep it constant throughout the solving step.
-We approximate $μ$ by an exponential function given by the $L/N$ points
-  corresponding to $μ = 6$ and $μ = 0$.
-This is shown below as well as how this affects the solvers $λ$ solutions.
-
-```@example
-include("plots/P3LambdaErrorPlots.jl")
-```
-![](MuApprox.svg)
-
-An initial guess for the non-linear solver is found by approximating the gamma functions
-  as a simple linear function from $x = \log{(L/N)}$ to $y = \log{(λ)}$.
-The equation is given by $(x - x_1) = A \; (y - y_1)$ where
-  $A = \frac{x_1 - x_2}{y_1 - y_2}$.
-$y_1$ and $y_2$ define $log(λ)$ values for three $L/N$ ranges
-
-|            L/N              |       $y_1$    |    $y_2$      |
-|:----------------------------|:---------------|:--------------|
-|       $L/N ≥ 10^{-8}$       |       $1$      |   $6 ⋅ 10^3$  |
-|  $2 ⋅ 10^9 ≤ L/N < 10^{-8}$ |   $6 ⋅ 10^3$   |   $3 ⋅ 10^4$  |
-|       $L/N < 2 ⋅ 10^9$      |   $4 ⋅ 10^4$   |     $10^6$    |
-
-We use this approximation to calculate initial guess for the shape parameter
-```math
-λ_g = λ_1 \left(\frac{L}{L_1}\right)^{\left(\frac{y_1 - y_2}{x_1 - x_2}\right)}
-```
-
-```@example
-include("plots/P3ShapeSolverPlots.jl")
-```
-![](SolverInitialGuess.svg)
-
-Using this approach we get the following relative errors for $λ$
-
-```@example
-include("plots/P3LambdaErrorPlots.jl")
-```
-![](P3LambdaHeatmap.png)
-
 ## Terminal Velocity
 
 We use the Chen et al. [Chen2022](@cite) velocity parameterization,
@@ -353,6 +312,8 @@ The figure below shows the implied aspect ratio for different particle size regi
 Note that $ϕ = 1$ corresponds to spherical particles (small spherical ice ($D < D_{th}$) and graupel ($D_{gr} < D < D_{cr}$)).
 ```@example
 include("plots/P3AspectRatioPlot.jl")
+
+nothing # hide
 ```
 ![](P3Scheme_aspect_ratio.svg)
 
@@ -378,6 +339,8 @@ Below we provide plots of these relationships for small, medium, and large ``D_m
 They can be compared with Figure 2 from [MorrisonMilbrandt2015](@cite).
 ```@example
 include("plots/P3TerminalVelocityPlots.jl")
+
+nothing # hide
 ```
 ![](MorrisonandMilbrandtFig2.svg)
 
@@ -404,9 +367,10 @@ Based on Fig. 1 from [Choletteetal2019](@cite), we can expect the accumulation o
   and ``F_{rim} = 1`` shift us into a spherical particle regime.
 
 ```@example
-include("plots/Cholette2019_fig1.jl")
+nothing
+# include("plots/Cholette2019_fig1.jl")
 ```
-![](Choletteetal2019_fig1.svg)
+<!-- ![](Choletteetal2019_fig1.svg) -->
 
 The addition of the liquid fraction does not change the thresholds ``D_{th}``, ``D_{gr}``, ``D_{cr}``,
   since the threshold regime depends only on ice core properties.
@@ -442,9 +406,10 @@ To continue with the same plotting format as we see above for terminal velocity,
   with the same D).
 
 ```@example
-include("plots/P3TerminalVelocityPlots_WithFliq.jl")
+nothing
+# include("plots/P3TerminalVelocityPlots_WithFliq.jl")
 ```
-![](MorrisonandMilbrandtFig2_with_F_liq.svg)
+<!-- ![](MorrisonandMilbrandtFig2_with_F_liq.svg) -->
 
 Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{rim}`` with ``ρ_r = 900 kg m^{-3}`` for small,
   medium, and large particles, we have mostly graupel (``D_{gr} < D < D_{cr}``) for small ``D_m`` and mostly partially rimed ice
@@ -454,9 +419,10 @@ Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{r
   are the same as in the plot above.
 
 ```@example
-include("plots/P3TerminalVelocity_F_liq_rim.jl")
+nothing
+# include("plots/P3TerminalVelocity_F_liq_rim.jl")
 ```
-![](P3TerminalVelocity_F_liq_rim.svg)
+<!-- ![](P3TerminalVelocity_F_liq_rim.svg) -->
 
 When modifying process rates, we now need to consider whether they are concerned with
   the ice core or the whole particle, in addition to whether they become sources

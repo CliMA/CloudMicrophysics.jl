@@ -106,48 +106,6 @@ function get_log_N₀(state::P3State, log_N, log_λ)
     return log_N - SF.loggamma(μ + 1) + (μ + 1) * log_λ
 end
 
-function get_log_λ_initial_bounds(
-    state::P3State{FT},
-    target_log_mass_per_particle::FT,
-) where {FT}
-
-    # Choose λ range based on mass per particle
-    if target_log_mass_per_particle >= log(FT(1e-8))
-        λ_min = FT(1)        # Small particles
-        λ_max = FT(6e3)
-        search_width = FT(0.2)
-    elseif target_log_mass_per_particle >= log(FT(2e-9))
-        λ_min = FT(6e3)      # Medium particles
-        λ_max = FT(3e4)
-        search_width = FT(-0.1)
-    else
-        λ_min = FT(4e4)      # Large particles
-        λ_max = FT(1e6)
-        search_width = FT(0.2)
-    end
-
-    # Convert λ bounds to log space
-    log_λ_min = log(λ_min)
-    log_λ_max = log(λ_max)
-
-    # Get mass per particle at bounds in log space
-    mass_per_particle_at_min = log_LdN(state, log_λ_min)
-    mass_per_particle_at_max = log_LdN(state, log_λ_max)
-
-    # Linear interpolation in log space to estimate λ
-    log_λ_guess = simple_linear_interpolation(
-        mass_per_particle_at_min, log_λ_min,
-        mass_per_particle_at_max, log_λ_max,
-        target_log_mass_per_particle
-    )
-
-    # Define search interval around guess
-    search_min = log_λ_guess - search_width
-    search_max = log_λ_guess + search_width
-
-    return (; min = search_min, max = search_max)
-end
-
 """
     simple_linear_interpolation(x₁, y₁, x₂, y₂, x_target)
 
@@ -234,14 +192,14 @@ end
 """
 # function D_m(p3::PSP3, L::FT, N::FT, ρ_r::FT, F_rim::FT, F_liq::FT) where {FT}
 function D_m(state::P3State, log_L::FT, log_N::FT) where {FT}
-    exp(L) < eps(FT) && return FT(0)
+    exp(log_L) < eps(FT) && return FT(0)
 
     (; F_rim, ρ_g, D_th, D_gr, D_cr) = state
     (; ρ_i, ρ_l, mass) = get_parameters(state)
     (; α_va, β_va) = mass
     
     # Get the shape parameters
-    (; log_λ, log_N₀) = dist = distribution_parameter_solver(state, log_L, log_N)
+    (; log_λ, log_N₀) = distribution_parameter_solver(state, log_L, log_N)
     
     μ = get_μ(state, log_λ)
 
@@ -262,5 +220,5 @@ function D_m(state::P3State, log_L::FT, log_N::FT) where {FT}
     end
 
     # compute F_liq-weighted average and normalize by L
-    return weighted_average(F_liq, exp(G_summed), exp(G_liqfrac)) * exp(log_N₀) / exp(log_L)
+    return weighted_average(state.F_liq, exp(G_liqfrac), exp(G_summed)) * exp(log_N₀) / exp(log_L)
 end

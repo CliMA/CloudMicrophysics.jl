@@ -150,7 +150,7 @@ end
 
 get_state(dist::P3Distribution) = dist.state
 
-Base.eltype(state::P3Distribution{FT}) where {FT} = FT
+Base.eltype(::P3Distribution{FT}) where {FT} = FT
 Base.broadcastable(state::P3Distribution) = tuple(state)
 
 get_parameters(dist::P3Distribution) = get_parameters(get_state(dist))
@@ -276,6 +276,7 @@ Returns mass(D) regime, used to create figures for the docs page.
 
 """
 function p3_mass(state::P3State, D)
+    # TODO: Refactor to be a parameterization for use with `F_liq`
     (; ρ_l) = params = get_parameters(state)
     m_liq = mass_spherical(ρ_l, D)
     m_ice = ice_mass(state, D)
@@ -316,21 +317,6 @@ function ∂ice_mass_∂D(state::P3State, D)
     end
 end
 
-# sum((SphericalParticle(), NonSpherical())) do x
-# sum((f1, f2)) do x
-# sum(((area_spherical, (0, D_th)), (area_nonspherical, (D_th, Inf)))) do x
-#     QDK.quadgk(D -> f1(x, state.area, D), ranges(x, state)...)
-# end
-# abstract type ParticleType end
-# struct SphericalParticle <: ParticleType
-#     x₀
-#     x₁
-# end
-# f1(::SphericalParticle, area::AreaPowerLaw, D)
-# f1(::NonSpherical, area::AreaPowerLaw, D)
-
-# ranges(::SphericalParticle, state) = (0, state.D_th)
-# ranges(::NonSpherical, state) = (state.D_th, state.D_gr)
 
 # for spherical particles
 area_spherical(D) =  D^2 * π / 4
@@ -341,7 +327,7 @@ area_rimed(area::AreaPowerLaw, F_rim, D) = weighted_average(F_rim, area_spherica
 
 function ice_area(state::P3State, D)
     (; area) = get_parameters(state)
-    (; D_th, D_gr, D_cr, ρ_g, F_rim) = state
+    (; D_th, D_gr, D_cr, F_rim) = state
     return if D < D_th
         area_spherical(D)           # small spherical ice
     elseif isunrimed(state)
@@ -352,22 +338,6 @@ function ice_area(state::P3State, D)
         area_spherical(D)           # graupel (rimed)
     else # D_cr ≤ D
         area_rimed(area, F_rim, D)  # partially rimed ice
-    end
-end
-
-function piecewise_function(state, f1, f2, f3, f4, f5)
-    (; area) = get_parameters(state)
-    (; D_th, D_gr, D_cr, ρ_g, F_rim) = state
-    return if D < D_th
-        f1(D)           # small spherical ice
-    elseif isunrimed(state)
-        f2(area, D)  # large nonspherical unrimed ice
-    elseif D_th ≤ D < D_gr
-        f3(area, D)  # dense nonspherical rimed ice
-    elseif D_gr ≤ D < D_cr
-        f4(D)           # graupel (rimed)
-    else # D_cr ≤ D
-        f5(area, F_rim, D)  # partially rimed ice
     end
 end
 
@@ -383,6 +353,7 @@ end
 Returns area(D), used to create figures for the documentation.
 """
 function p3_area(state::P3State, D)
+    # TODO: Refactor to be a parameterization for use with `F_liq`
     (; F_liq) = get_parameters(state)
     area_liq = area_spherical(D)
     area_ice = ice_area(state, D)
@@ -404,17 +375,18 @@ particles is assumed to be equal to the particle mass divided by the volume of a
 spherical particle with the same D_max.
 Assuming zero liquid fraction and oblate shape.
 """
-function ϕᵢ(p3::PSP3{FT}, D, F_rim, th) where {FT}
-    F_liq = FT(0)
-    mᵢ = p3_mass(p3, D, F_rim, F_liq, th)
-    aᵢ = p3_area(p3, D, F_rim, F_liq, th)
-    ρᵢ = ice_density(p3, D, F_rim, th)
+# function ϕᵢ(p3::PSP3{FT}, D, F_rim, th) where {FT}
+function ϕᵢ(state::P3State, D)
+    FT = eltype(state)
+    mᵢ = ice_mass(state, D)
+    aᵢ = ice_area(state, D)
+    ρᵢ = ice_density(state, D)
 
     # TODO - prolate or oblate?
-    ϕ_ob = min(1, 3 * sqrt(π) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
+    ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
     #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
 
-    return ifelse(D == 0, FT(0), ϕ_ob)
+    return ifelse(D == 0, 0, ϕ_ob)
 end
 
 ### ----------------- ###
