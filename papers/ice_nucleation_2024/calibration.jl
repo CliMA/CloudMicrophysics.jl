@@ -14,7 +14,6 @@ import StatsBase as SB
 #! format: off
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
-include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
 
 # Define model which wraps around parcel and overwrites calibrated parameters
 function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; calibration = false)
@@ -88,17 +87,65 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; c
             end
             illite_calibrated = CP.create_toml_dict(FT; override_file)
             aerosol = CMP.Illite(illite_calibrated)
+        elseif aerosol == CMP.AsianDust(FT)
+            if IN_mode == "ABDINM"
+                override_file = Dict(
+                    "J_ABDINM_m_AsianDust" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABDINM_c_AsianDust" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            elseif IN_mode == "ABIFM"
+                override_file = Dict( 
+                    "J_ABIFM_m_AsianDust" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABIFM_c_AsianDust" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            end
+            asian_dust_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.AsianDust(asian_dust_calibrated)
+        elseif aerosol == CMP.SaharanDust(FT)
+            if IN_mode == "ABDINM"
+                override_file = Dict(
+                    "J_ABDINM_m_SaharanDust" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABDINM_c_SaharanDust" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            else
+                @error("Only ABDINM is supported for Saharan Dust.")
+            end
+            saharan_dust_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.SaharanDust(saharan_dust_calibrated)
+        elseif aerosol == CMP. MiddleEasternDust(FT)
+            if IN_mode == "ABIFM"
+                override_file = Dict(
+                    "J_ABIFM_m_MiddleEasternDust" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABIFM_c_MiddleEasternDust" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            else
+                @error("Only ABIFM is supported for Middle Eastern Dust.")
+            end
+            middle_eastern_dust_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.MiddleEasternDust(middle_eastern_dust_calibrated)
         elseif aerosol == CMP.Sulfate(FT)
-            override_file = Dict(
-                "Linear_J_hom_coeff2" =>
-                    Dict("value" => m_calibrated, "type" => "float"),
-                "Linear_J_hom_coeff1" =>
-                    Dict("value" => c_calibrated, "type" => "float"),
-            )
+            if IN_mode == "ABHOM"
+                override_file = Dict(
+                    "Linear_J_hom_coeff2" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "Linear_J_hom_coeff1" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            else
+                @error("Only ABHOM is supported for Sulfate.")
+            end
             ip_calibrated = CP.create_toml_dict(FT; override_file)
             ips = CMP.IceNucleationParameters(ip_calibrated)
         else
-            @error("Aerosol type not supported for calibration.")
+            @error("Aerosol type not supported for calibration.\nSee calibration.jl run_model function.")
         end
 
         # loading parcel parameters
@@ -175,11 +222,25 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
             elseif aerosol_type == CMP.Illite(FT)
                 m_stats = [FT(30), FT(20), FT(0), Inf]
                 c_stats = [FT(0.7), FT(7), -Inf, Inf]
+            elseif aerosol_type == CMP.AsianDust(FT)
+                m_stats = [FT(30), FT(50), FT(0), Inf]
+                c_stats = [FT(0.7), FT(20), -Inf, Inf]
+            elseif aerosol_type == CMP.SaharanDust(FT)
+                m_stats = [FT(100), FT(50), FT(0), Inf]
+                c_stats = [FT(0.7), FT(20), -Inf, Inf]
+            else
+                error("Aerosol type not supported for ABDINM.")
             end
         elseif IN_mode == "ABIFM"
-            # m_stats = [FT(50), FT(1), FT(0), Inf]
-            # c_stats = [FT(-7), FT(1), -Inf, Inf]
-            error("ABIFM calibrations not yet supported.")
+            if aerosol_type == CMP.AsianDust(FT)
+                m_stats = [FT(50), FT(50), FT(0), Inf]
+                c_stats = [FT(-7), FT(20), -Inf, Inf]
+            elseif aerosol_type == CMP.MiddleEasternDust(FT)
+                m_stats = [FT(50), FT(50), FT(0), Inf]
+                c_stats = [FT(-7), FT(20), -Inf, Inf]
+            else
+                error("Aerosol type not supported for ABIFM.")
+            end
         elseif IN_mode == "ABHOM"
             m_stats = [FT(260.927125), FT(70), FT(0), Inf]
             c_stats = [FT(-68.553283), FT(20), -Inf, Inf]

@@ -89,6 +89,8 @@ function deposition_J(
         CMP.Kaolinite,
         CMP.Illite,
         CMP.ArizonaTestDust,
+        CMP.SaharanDust,
+        CMP.AsianDust,
     },
     Δa_w::FT,
 ) where {FT}
@@ -98,7 +100,6 @@ function deposition_J(
     return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
 end
 function deposition_J(dust::CMP.AerosolType, Δa_w::FT) where {FT}
-    #println("Aerosol type not supported for ABDINM.")
     return FT(0)
 end
 
@@ -115,7 +116,10 @@ see DOI: 10.1039/C3FD00035D
 Returns zero for unsupported aerosol types.
 """
 function ABIFM_J(
-    dust::Union{CMP.DesertDust, CMP.Illite, CMP.Kaolinite, CMP.ArizonaTestDust},
+    dust::Union{
+        CMP.DesertDust, CMP.Illite, CMP.Kaolinite,
+        CMP.ArizonaTestDust, CMP.MiddleEasternDust, CMP.AsianDust,
+    },
     Δa_w::FT,
 ) where {FT}
 
@@ -124,7 +128,6 @@ function ABIFM_J(
     return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
 end
 function ABIFM_J(dust::CMP.AerosolType, Δa_w::FT) where {FT}
-    #println("Aerosol type not supported for ABIFM.")
     return FT(0)
 end
 

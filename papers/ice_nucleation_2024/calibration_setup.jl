@@ -13,6 +13,7 @@ function perf_model_params(FT, IN_mode)
         aerosol = CMP.Kaolinite(FT)
         aero_σ_g = FT(0)
         r_nuc = FT(1e-7)
+        A_aer = FT(4 * π * r_nuc^2)
         dep_nucleation = "ABDINM"
         heterogeneous = "ABIFM"
         homogeneous = "ABHOM"
@@ -33,6 +34,7 @@ function perf_model_params(FT, IN_mode)
         aerosol = CMP.Kaolinite(FT)
         aero_σ_g = FT(0)
         r_nuc = FT(1e-7)
+        A_aer = FT(4 * π * r_nuc^2)
         dep_nucleation = "ABDINM"
         heterogeneous = "ABIFM"
         homogeneous = "ABHOM"
@@ -53,6 +55,7 @@ function perf_model_params(FT, IN_mode)
         aerosol = CMP.Sulfate(FT)
         aero_σ_g = FT(0)
         r_nuc = FT(1e-7)
+        A_aer = FT(4 * π * r_nuc^2)
         dep_nucleation = "ABDINM"
         heterogeneous = "ABIFM"
         homogeneous = "ABHOM"
@@ -68,7 +71,7 @@ function perf_model_params(FT, IN_mode)
     end
     params = (; const_dt, w, t_max, ips,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
-        aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
+        aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth
         liq_size_distribution, ice_size_distribution,   # size distribution
         dep_nucleation, heterogeneous, homogeneous,     # nucleation
@@ -172,11 +175,12 @@ function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
     ice_size_distribution = "Gamma"
     aero_σ_g = FT(2.3)
     r_nuc = FT(1e-7) #FT(3.057e-6)
+    A_aer = FT(4 * π * r_nuc^2)
     ips = CMP.IceNucleationParameters(FT)
 
     params = (; const_dt, w, t_max, ips,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
-        aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
+        aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth
         liq_size_distribution, ice_size_distribution,   # size distribution
         dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
@@ -247,12 +251,13 @@ function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, exp_nam
     ice_size_distribution = "Gamma"
     aero_σ_g = FT(2.3)
     r_nuc = FT(0.1742857 * 1e-6)
+    A_aer = FT(4 * π * r_nuc^2)
     # r_nuc = r₀ in IC
     ips = CMP.IceNucleationParameters(FT)
 
-    params = (; const_dt, w, t_max,ips,
+    params = (; const_dt, w, t_max, ips,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
-        aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
+        aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth
         liq_size_distribution, ice_size_distribution,   # size distribution
         dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
@@ -306,6 +311,233 @@ function AIDA_IN07_IC(FT, data_file)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     end
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+end
+
+function TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile)
+    IN_mode = "ABHOM"
+    const_dt = FT(1)
+    prescribed_thermodynamics = true
+    aerosol_act = "AeroAct"
+    aerosol = CMP.Sulfate(FT)
+    dep_nucleation = "ABDINM"
+    heterogeneous = "ABIFM"
+    homogeneous = "ABHOM"
+    condensation_growth = "Condensation"
+    deposition_growth = "Deposition"
+    liq_size_distribution = "Gamma"
+    ice_size_distribution = "Gamma"
+    aero_σ_g = FT(0.45605)
+    r_nuc = FT(1.15 / 2 * 1e-6)
+    A_aer = FT(4 * π * r_nuc^2)
+    ips = CMP.IceNucleationParameters(FT)
+
+    params = (; const_dt, w, t_max, ips,
+        prescribed_thermodynamics, t_profile, T_profile, P_profile,
+        aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
+        condensation_growth, deposition_growth,         # growth
+        liq_size_distribution, ice_size_distribution,   # size distribution
+        dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
+    )
+    return params
+end
+
+function TROPIC04_IC(FT)
+    # refers to exp 4 of campaign TROPIC04
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    wps = CMP.WaterProperties(FT)
+
+    ρₗ = wps.ρw
+    ρᵢ = wps.ρi
+    R_d = TD.Parameters.R_d(tps)
+    R_v = TD.Parameters.R_v(tps)
+
+    Nₗ = FT(0)
+    Nᵢ = FT(0)
+    Nₐ = FT(66.19233 * 1e6) - Nₗ - Nᵢ
+    r₀ = FT(1.15 / 2 * 1e-6)
+    p₀ = FT(100477.45358)
+    T₀ = FT(209.79503)
+    qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
+    qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
+    m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
+    m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+    e = FT(0.6418042)
+    qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
+    eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+    Sₗ = FT(e / eₛ)
+
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+end
+
+function ACI04_22_params(FT, w, t_max, t_profile, T_profile, P_profile)
+    # Niemand et al (2012)
+    IN_mode = "ABIFM"
+    const_dt = FT(1)
+    prescribed_thermodynamics = true
+    aerosol_act = "None"
+    aerosol = CMP.MiddleEasternDust(FT)
+    dep_nucleation = "ABDINM"
+    heterogeneous = "ABIFM"
+    homogeneous = "ABHOM"
+    condensation_growth = "Condensation"
+    deposition_growth = "Deposition"
+    liq_size_distribution = "Gamma"
+    ice_size_distribution = "Gamma"
+    aero_σ_g = FT(1.47)           # avg of 2 modes
+    r_nuc = FT(0.645 / 2 * 1e-6)  # avg of 2 modes
+    A_aer = FT(4 * π * r_nuc^2)
+    ips = CMP.IceNucleationParameters(FT)
+
+    params = (; const_dt, w, t_max, ips,
+        prescribed_thermodynamics, t_profile, T_profile, P_profile,
+        aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
+        condensation_growth, deposition_growth,         # growth
+        liq_size_distribution, ice_size_distribution,   # size distribution
+        dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
+    )
+    return params
+end
+
+function ACI04_22_IC(FT)
+    # Niemand et al (2012)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    wps = CMP.WaterProperties(FT)
+
+    ρₗ = wps.ρw
+    ρᵢ = wps.ρi
+    R_d = TD.Parameters.R_d(tps)
+    R_v = TD.Parameters.R_v(tps)
+
+    Nᵢ = FT(10075.141555)
+    Nₗ = FT(252.1 * 1e6) - Nᵢ
+    Nₐ = FT(0)
+    r₀ = FT(10 * 1e-6)
+    p₀ = FT(97785.714286)
+    T₀ = FT(253.4983146)
+    qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
+    qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
+    m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
+    m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+    e = FT(104.5108)
+    qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
+    eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+    Sₗ = FT(e / eₛ)
+
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+end
+
+function EXP19_params(FT, w, t_max, t_profile, T_profile, P_profile)
+    # Cotten et al (2007)
+    IN_mode = "ABIFM"
+    const_dt = FT(1)
+    prescribed_thermodynamics = true
+    aerosol_act = "None"
+    aerosol = CMP.AsianDust(FT)
+    dep_nucleation = "ABDINM"
+    heterogeneous = "ABIFM"
+    homogeneous = "ABHOM"
+    condensation_growth = "Condensation"
+    deposition_growth = "Deposition"
+    liq_size_distribution = "Gamma"
+    ice_size_distribution = "Gamma"
+    aero_σ_g = FT(log(1.75))    # converted std dev to geometric std dev
+    r_nuc = FT(0.4 / 2 * 1e-6)   # value is mode radius, not mean
+    A_aer = FT(4 * π * r_nuc^2)
+    ips = CMP.IceNucleationParameters(FT)
+
+    params = (; const_dt, w, t_max, ips,
+        prescribed_thermodynamics, t_profile, T_profile, P_profile,
+        aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
+        condensation_growth, deposition_growth,         # growth
+        liq_size_distribution, ice_size_distribution,   # size distribution
+        dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
+    )
+    return params
+end
+
+function EXP19_IC(FT)
+    # Cotten et al (2007)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    wps = CMP.WaterProperties(FT)
+
+    ρₗ = wps.ρw
+    ρᵢ = wps.ρi
+    R_d = TD.Parameters.R_d(tps)
+    R_v = TD.Parameters.R_v(tps)
+
+    Nᵢ = FT(161515.09922)
+    Nₗ = FT(129.2 * 1e6) - Nᵢ
+    Nₐ = FT(0)
+    r₀ = FT(8 * 1e-6)
+    p₀ = FT(99766.35514)
+    T₀ = FT(251.721428)
+    qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
+    qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
+    m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
+    m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+    e = FT(57.103126)
+    qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
+    eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+    Sₗ = FT(e / eₛ)
+
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+end
+
+function EXP45_params(FT, w, t_max, t_profile, T_profile, P_profile)
+    # Cotten et al (2007)
+    IN_mode = "ABDINM"
+    const_dt = FT(1)
+    prescribed_thermodynamics = true
+    aerosol_act = "None"
+    aerosol = CMP.SaharanDust(FT)
+    dep_nucleation = "ABDINM"
+    heterogeneous = "ABIFM"
+    homogeneous = "ABHOM"
+    condensation_growth = "Condensation"
+    deposition_growth = "Deposition"
+    liq_size_distribution = "Gamma"
+    ice_size_distribution = "Gamma"
+    aero_σ_g = FT(log(1.75))     # converted std dev to geometric std dev
+    r_nuc = FT(0.4 / 2 * 1e-6)   # value is mode radius, not mean
+    A_aer = FT(4 * π * r_nuc^2)
+    ips = CMP.IceNucleationParameters(FT)
+
+    params = (; const_dt, w, t_max, ips,
+        prescribed_thermodynamics, t_profile, T_profile, P_profile,
+        aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
+        condensation_growth, deposition_growth,         # growth
+        liq_size_distribution, ice_size_distribution,   # size distribution
+        dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
+    )
+    return params
+end
+
+function EXP45_IC(FT)
+    # Cotten et al (2007)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    wps = CMP.WaterProperties(FT)
+
+    ρₗ = wps.ρw
+    ρᵢ = wps.ρi
+    R_d = TD.Parameters.R_d(tps)
+    R_v = TD.Parameters.R_v(tps)
+
+    Nₗ = FT(0)
+    Nᵢ = FT(748663.1016)
+    Nₐ = FT(9 * 1e6) - Nᵢ- Nₗ
+    r₀ = FT(10 * 1e-6)
+    p₀ = FT(99583.33333)
+    T₀ = FT(213.351)
+    qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
+    qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
+    m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
+    m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+    e = FT(1.08486)
+    qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
+    eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+    Sₗ = FT(e / eₛ)
+
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
