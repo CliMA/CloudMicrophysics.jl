@@ -303,7 +303,7 @@ function run_parcel(IC, t_0, t_end, pp)
     if pp.deposition_growth == "None"
         ds_params = Empty{FT}()
     elseif pp.deposition_growth == "Deposition"
-        ds_params = DepParams{FT}(pp.aps, pp.tps)
+        ds_params = DepParams{FT}(pp.aps, pp.tps, pp.const_dt)
     elseif pp.deposition_growth == "NonEq_Deposition_simple"
         ds_params = NonEqDepParams_simple{FT}(pp.tps, pp.ice)
     elseif pp.deposition_growth == "NonEq_Deposition"

@@ -131,7 +131,7 @@ function immersion_freezing(params::ABIFM, PSD_liq, state)
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
 
     J = CMI_het.ABIFM_J(aerosol, Δa_w)
-    return min((J * Nₗ * A_aer), (Nₗ / const_dt))
+    return min(max(FT(0), (J * Nₗ * A_aer)), (Nₗ / const_dt))
 end
 
 function immersion_freezing(params::P3_het, PSD_liq, state)
@@ -269,12 +269,13 @@ function deposition(::Empty, PSD_ice, state, ρ_air)
 end
 
 function deposition(params::DepParams, PSD_ice, state, ρ_air)
-    (; aps, tps) = params
-    (; T, Sₗ, Nᵢ) = state
+    (; aps, tps, const_dt) = params
+    (; T, Sₗ, Nᵢ, qᵢ) = state
     FT = eltype(state)
     Sᵢ = ξ(tps, T) * Sₗ
     Gᵢ = CMO.G_func(aps, tps, T, TD.Ice())
-    return 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD_ice.r * Nᵢ
+    dqᵢ_dt = 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD_ice.r * Nᵢ
+    return qᵢ + dqᵢ_dt * const_dt > 0 ? dqᵢ_dt : -qᵢ / const_dt
 end
 
 function deposition(params::NonEqDepParams_simple, PSD, state, ρ_air)
