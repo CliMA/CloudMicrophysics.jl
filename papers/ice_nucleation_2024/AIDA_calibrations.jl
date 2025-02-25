@@ -15,9 +15,16 @@ include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
 
 # Helper functions
 function unpack_data(data_file_name)
-
+    
+    edf_data_names = ["in05_17_aida.edf", "in05_18_aida.edf", "in07_01_aida.edf", "in07_19_aida.edf"]
     file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name)
-    return DelimitedFiles.readdlm(file_path, skipstart = 125)
+
+    if data_file_name in edf_data_names
+        return DelimitedFiles.readdlm(file_path, skipstart = 125) 
+    else
+        # TODO - combine data into one csv with common t values
+        # return DelimitedFiles.readdlm(file_path, skipstart = 0) # or add row to start of csv so that skipstart = 1
+    end
 end
 function grab_data(unpacked_data)
 
@@ -33,7 +40,6 @@ end
 function moving_average(data, n)
     window_size = length(data) / n
     moving_avg = NaNStatistics.movmean(data, window_size)
-    #[sum(@view data[i:(i + n)]) / n for i in 1:(length(data) - n)]
     return moving_avg
 end
 
@@ -155,7 +161,13 @@ for (calib_index, batch_name) in enumerate(batch_names)
     ### Plot.
     for (exp_index, data_file) in enumerate(data_file_name_list)
         if nuc_mode == "ABHOM"
-            exp_name = exp_index == 1 ? "IN0517" : "IN0518"
+            if exp_index == 1
+                exp_name = "IN0517"
+            elseif exp_index == 2
+                exp_name = "IN0518"
+            elseif exp_index == 3
+                exp_name = "TROPIC04"
+            end
         else
             exp_name = batch_name
         end
@@ -181,7 +193,7 @@ for (calib_index, batch_name) in enumerate(batch_names)
         ## Calibrated coefficients.
         #  Did they converge?
         calibrated_coeffs_fig = MK.Figure(size = (1100, 900), fontsize = 24)
-        ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$batch_name")
+        ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$plot_name")
         ax4 = MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "iteration #", title = "EKI")
     
         MK.lines!(ax3, collect(1:EKI_n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)
