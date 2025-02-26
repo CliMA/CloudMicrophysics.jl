@@ -8,6 +8,7 @@ import CairoMakie as MK
 import DelimitedFiles
 using LazyArtifacts
 using ClimaUtilities.ClimaArtifacts
+import NaNStatistics
 
 FT = Float64
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
@@ -29,23 +30,27 @@ function grab_data(unpacked_data)
     data = (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e)
     return data
 end
-moving_average(data, n) =
-    [sum(@view data[i:(i + n)]) / n for i in 1:(length(data) - n)]
+function moving_average(data, n)
+    window_size = length(data) / n
+    moving_avg = NaNStatistics.movmean(data, window_size)
+    #[sum(@view data[i:(i + n)]) / n for i in 1:(length(data) - n)]
+    return moving_avg
+end
 
 # Defining data names, start/end times, etc.
 data_file_names = [
-    ["in05_17_aida.edf", "in05_18_aida.edf", "in05_19_aida.edf"],
+    ["in05_17_aida.edf", "in05_18_aida.edf"],
     ["in07_01_aida.edf"],
     ["in07_19_aida.edf"],
 ]
-plot_names = ["IN05", "IN0701", "IN0719"]
+batch_names = ["IN05", "IN0701", "IN0719"]
 end_sim = 25               # Loss func looks at last end_sim timesteps only
 start_time_list =          # freezing onset
-    [[Int32(150), Int32(180), Int32(80)], [Int32(50)], [Int32(35)]]
+    [[Int32(150), Int32(180)], [Int32(50)], [Int32(35)]]
 end_time_list =            # approximate time freezing stops
-    [[Int32(290), Int32(290), Int32(170)], [Int32(400)], [Int32(400)]]
-moving_average_n = 20      # average every n points
-updrafts = [[FT(1.5), FT(1.4), FT(5)], [FT(1.5)], [FT(1.5)]]  # updrafts matching AIDA cooling rate
+    [[Int32(315), Int32(290)], [Int32(375)], [Int32(375)]]
+moving_average_n = 3      # average every length(data) / n points
+updrafts = [[FT(1.5), FT(1.4)], [FT(1.5)], [FT(1.5)]]  # updrafts matching AIDA cooling rate
 
 # Additional definitions
 tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -56,8 +61,8 @@ R_d = TD.Parameters.R_d(tps)
 global EKI_calibratated_coeff_dict = Dict()
 global UKI_calibratated_coeff_dict = Dict()
 
-for (calib_index, plot_name) in enumerate(plot_names)
-    @info(plot_name)
+for (calib_index, batch_name) in enumerate(batch_names)
+    @info(batch_name)
     #! format: off
     ### Unpacking experiment-specific variables.
     data_file_name_list = data_file_names[calib_index]
@@ -66,13 +71,9 @@ for (calib_index, plot_name) in enumerate(plot_names)
     start_time_index = start_time .+ Int32(100)
     end_time = end_time_list[calib_index]
     end_time_index = end_time .+ Int32(100)
+    t_max = end_time_index .- start_time_index
 
-    nuc_mode = plot_name == "IN05" ? "ABHOM" : "ABDINM"
-
-    ## Moving average to smooth data.
-    moving_average_start_index = start_time_index .+ Int32(moving_average_n / 2)
-    moving_average_end_index = end_time_index .- Int32(moving_average_n / 2)
-    t_max = moving_average_end_index .- moving_average_start_index
+    nuc_mode = batch_name == "IN05" ? "ABHOM" : "ABDINM"
 
     ### Check for and grab data in AIDA_data folder.
     t_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
@@ -109,17 +110,17 @@ for (calib_index, plot_name) in enumerate(plot_names)
         AIDA_data = grab_data(unpack_data(data_file_name))
         (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
         
-        t_profile[exp_index] = AIDA_t_profile[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]] .- (moving_average_start_index[exp_index] - 101)
-        T_profile[exp_index] = AIDA_T_profile[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]]
-        P_profile[exp_index] = AIDA_P_profile[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]]
-        ICNC_profile[exp_index] = AIDA_ICNC[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]]
-        e_profile[exp_index] = AIDA_e[moving_average_start_index[exp_index]:moving_average_end_index[exp_index]]
+        t_profile[exp_index] = AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- (start_time_index[exp_index] - 101)
+        T_profile[exp_index] = AIDA_T_profile[start_time_index[exp_index]:end_time_index[exp_index]]
+        P_profile[exp_index] = AIDA_P_profile[start_time_index[exp_index]:end_time_index[exp_index]]
+        ICNC_profile[exp_index] = AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]]
+        e_profile[exp_index] = AIDA_e[start_time_index[exp_index]:end_time_index[exp_index]]
         S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
 
         params_list[exp_index] =
             nuc_mode == "ABHOM" ?
             AIDA_IN05_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index]) :
-            AIDA_IN07_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index], plot_name)
+            AIDA_IN07_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index], batch_name)
         IC_list[exp_index] = nuc_mode == "ABHOM" ?
             AIDA_IN05_IC(FT, data_file_name) :
             AIDA_IN07_IC(FT, data_file_name)
@@ -127,9 +128,11 @@ for (calib_index, plot_name) in enumerate(plot_names)
         Nₜ[exp_index] = IC_list[exp_index][7] + IC_list[exp_index][8] + IC_list[exp_index][9]
         frozen_frac[exp_index] = AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index]
         frozen_frac_moving_mean[exp_index] = moving_average(frozen_frac[exp_index], moving_average_n)
-        
         ICNC_moving_avg[exp_index] = moving_average(AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]], moving_average_n)
-        append!(y_truth, frozen_frac_moving_mean[exp_index][end - end_sim: end])
+        
+        pseudo_ss_ff = NaNStatistics.nanmean(frozen_frac_moving_mean[exp_index][end - end_sim: end])
+        pseudo_ss_ff_array = zeros(length(frozen_frac_moving_mean[exp_index][end - end_sim: end])) .+ pseudo_ss_ff
+        append!(y_truth, pseudo_ss_ff_array)
     end
 
     ff_max = maximum.(frozen_frac_moving_mean)
@@ -146,21 +149,15 @@ for (calib_index, plot_name) in enumerate(plot_names)
     EKI_calibrated_parameters = EKI_output[1]
     UKI_calibrated_parameters = UKI_output[1]
     calibrated_ensemble_means = ensemble_means(EKI_output[2], EKI_n_iterations, EKI_n_ensembles)
-    merge!(EKI_calibratated_coeff_dict, Dict(plot_name => EKI_calibrated_parameters))
-    merge!(UKI_calibratated_coeff_dict, Dict(plot_name => UKI_calibrated_parameters))
+    merge!(EKI_calibratated_coeff_dict, Dict(batch_name => EKI_calibrated_parameters))
+    merge!(UKI_calibratated_coeff_dict, Dict(batch_name => UKI_calibrated_parameters))
 
     ### Plot.
     for (exp_index, data_file) in enumerate(data_file_name_list)
         if nuc_mode == "ABHOM"
-            if exp_index == 1
-                specific_plot_name = "IN0517"
-            elseif exp_index == 2
-                specific_plot_name = "IN0518"
-            elseif exp_index == 3
-                specific_plot_name = "IN0519"
-            end
+            exp_name = exp_index == 1 ? "IN0517" : "IN0518"
         else
-            specific_plot_name = plot_name
+            exp_name = batch_name
         end
 
         ## Calibrated parcel.
@@ -173,37 +170,29 @@ for (calib_index, plot_name) in enumerate(plot_names)
         (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
 
         AIDA_data_fig = MK.Figure(size = (1000, 600), fontsize = 24)
-        data_ax1 = MK.Axis(AIDA_data_fig[1, 1], ylabel = "ICNC [m^-3]", xlabel = "time [s]", title = "AIDA data $specific_plot_name")
-        data_ax2 = MK.Axis(AIDA_data_fig[1, 2], ylabel = "Frozen Frac Moving Mean [-]", xlabel = "time [s]", title = "AIDA data $specific_plot_name")
+        data_ax1 = MK.Axis(AIDA_data_fig[1, 1], ylabel = "ICNC [m^-3]", xlabel = "time [s]", title = "AIDA data $exp_name")
+        data_ax2 = MK.Axis(AIDA_data_fig[1, 2], ylabel = "Frozen Frac Moving Mean [-]", xlabel = "time [s]", title = "AIDA data $exp_name")
         MK.lines!(data_ax1, AIDA_t_profile, AIDA_ICNC, label = "Raw AIDA", color =:blue, linestyle =:dash, linewidth = 2)
-        MK.lines!(data_ax1, t_profile[exp_index] .+ moving_average_start_index[exp_index] .- 100, ICNC_moving_avg[exp_index], label = "AIDA ICNC moving mean", linewidth = 2.5, color =:blue)
-        MK.lines!(data_ax2, t_profile[exp_index] .+ moving_average_start_index[exp_index] .- 100, frozen_frac_moving_mean[exp_index], linewidth = 2.5, color =:blue)
+        MK.lines!(data_ax1, t_profile[exp_index] .+ start_time_index[exp_index] .- 100, ICNC_moving_avg[exp_index], label = "AIDA ICNC moving mean", linewidth = 2.5, color =:blue)
+        MK.lines!(data_ax2, t_profile[exp_index] .+ start_time_index[exp_index] .- 100, frozen_frac_moving_mean[exp_index], linewidth = 2.5, color =:blue)
         MK.axislegend(data_ax1, framevisible = true, labelsize = 12, position = :rc)
-        MK.save("$specific_plot_name"*"_ICNC.svg", AIDA_data_fig)
+        MK.save("$exp_name"*"_ICNC.svg", AIDA_data_fig)
 
-        # ## Calibrated coefficients.
-        # #  Did they converge?
-        # calibrated_coeffs_fig = MK.Figure(size = (1100, 900), fontsize = 24)
-        # ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "ABDINM m coefficient [-]", title = "$plot_name")
-        # ax4 = MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "ABDINM c coefficient [-]", xlabel = "iteration #", title = "EKI")
-        # ax5 = MK.Axis(calibrated_coeffs_fig[2, 1], ylabel = "ABIFM m coefficient [-]")
-        # ax6 = MK.Axis(calibrated_coeffs_fig[2, 2], ylabel = "ABIFM c coefficient [-]", xlabel = "iteration #")
-        # ax7 = MK.Axis(calibrated_coeffs_fig[3, 1], ylabel = "ABHOM m coefficient [-]")
-        # ax8 = MK.Axis(calibrated_coeffs_fig[3, 2], ylabel = "ABHOM c coefficient [-]", xlabel = "iteration #")
+        ## Calibrated coefficients.
+        #  Did they converge?
+        calibrated_coeffs_fig = MK.Figure(size = (1100, 900), fontsize = 24)
+        ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$batch_name")
+        ax4 = MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "iteration #", title = "EKI")
     
-        # MK.lines!(ax3, collect(1:EKI_n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)
-        # MK.lines!(ax4, collect(1:EKI_n_iterations), calibrated_ensemble_means[2], label = "ensemble mean", color = :orange, linewidth = 2.5)
-        # MK.lines!(ax5, collect(1:EKI_n_iterations), calibrated_ensemble_means[3], label = "ensemble mean", color = :orange, linewidth = 2.5)
-        # MK.lines!(ax6, collect(1:EKI_n_iterations), calibrated_ensemble_means[4], label = "ensemble mean", color = :orange, linewidth = 2.5)
-        # MK.lines!(ax7, collect(1:EKI_n_iterations), calibrated_ensemble_means[5], label = "ensemble mean", color = :orange, linewidth = 2.5)
-        # MK.lines!(ax8, collect(1:EKI_n_iterations), calibrated_ensemble_means[6], label = "ensemble mean", color = :orange, linewidth = 2.5)
-
-        # MK.save("$plot_name"*"_calibrated_coeffs_fig.svg", calibrated_coeffs_fig)
+        MK.lines!(ax3, collect(1:EKI_n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)
+        MK.lines!(ax4, collect(1:EKI_n_iterations), calibrated_ensemble_means[2], label = "ensemble mean", color = :orange, linewidth = 2.5)
+    
+        MK.save("$batch_name"*"_calibrated_coeffs_fig.svg", calibrated_coeffs_fig)
 
         ## Calibrated parcel simulations.
         #  Does the calibrated parcel give reasonable outputs?
         calibrated_parcel_fig = MK.Figure(size = (1500, 800), fontsize = 20)
-        ax_parcel_1 = MK.Axis(calibrated_parcel_fig[1, 1], ylabel = "saturation [-]", xlabel = "time [s]", title = "$specific_plot_name")
+        ax_parcel_1 = MK.Axis(calibrated_parcel_fig[1, 1], ylabel = "saturation [-]", xlabel = "time [s]", title = "$exp_name")
         ax_parcel_2 = MK.Axis(calibrated_parcel_fig[2, 1], ylabel = "liq mixing ratio [g/kg]", xlabel = "time [s]")
         ax_parcel_3 = MK.Axis(calibrated_parcel_fig[1, 2], ylabel = "temperature [K]", xlabel = "time [s]")
         ax_parcel_4 = MK.Axis(calibrated_parcel_fig[2, 2], ylabel = "qᵢ [g/kg]", xlabel = "time [s]")
@@ -216,7 +205,7 @@ for (calib_index, plot_name) in enumerate(plot_names)
         MK.lines!(ax_parcel_1, UKI_parcel.t, UKI_parcel[1, :], label = "UKI Calib Liq", color = :fuchsia) # label = "liquid"
         MK.lines!(ax_parcel_1, EKI_parcel.t, S_i.(tps, EKI_parcel[3, :], EKI_parcel[1, :]), label = "EKI Calib Ice", color = :orange, linestyle = :dash)
         MK.lines!(ax_parcel_1, UKI_parcel.t, S_i.(tps, UKI_parcel[3, :], UKI_parcel[1, :]), label = "UKI Calib Ice", color = :fuchsia, linestyle = :dash)
-        # MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
+        # MK.lines!(ax_parcel_1, t_profile[exp_index], S_l_profile[exp_index], label = "chamber", color = :blue)
         
         MK.lines!(ax_parcel_2, EKI_parcel.t, EKI_parcel[5, :], color = :orange)
         MK.lines!(ax_parcel_2, UKI_parcel.t, UKI_parcel[5, :], color = :fuchsia)
@@ -234,9 +223,6 @@ for (calib_index, plot_name) in enumerate(plot_names)
         MK.lines!(ax_parcel_6, EKI_parcel.t, EKI_parcel[9, :], color = :orange, label = "EKI")
         MK.lines!(ax_parcel_6, UKI_parcel.t, UKI_parcel[9, :], color = :fuchsia, label = "UKI")
         MK.lines!(ax_parcel_6, t_profile[exp_index], ICNC_profile[exp_index], color = :blue, label = "AIDA",)
-        
-        # error = fill(sqrt(Γ[1,1]) * 2, length(AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- start_time[exp_index]))
-        # MK.errorbars!(ax_parcel_6, AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- start_time[exp_index], AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index], error)
 
         error = (AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index]) .* 0.1
         MK.errorbars!(ax_parcel_6, AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- start_time[exp_index], AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index], error, color = (:blue, 0.3))
@@ -249,12 +235,12 @@ for (calib_index, plot_name) in enumerate(plot_names)
         MK.lines!(ax_parcel_8, UKI_parcel.t, UKI_parcel[7, :], color = :fuchsia)
         
         MK.axislegend(ax_parcel_6, framevisible = false, labelsize = 16, position = :rb)            
-        MK.save("$specific_plot_name"*"_calibrated_parcel_fig.svg", calibrated_parcel_fig)
+        MK.save("$exp_name"*"_calibrated_parcel_fig.svg", calibrated_parcel_fig)
 
         ## Comparing AIDA data and calibrated parcel.
         #  Does calibrated parcel look like observations?
         ICNC_comparison_fig = MK.Figure(size = (700, 600), fontsize = 24)
-        ax_compare = MK.Axis(ICNC_comparison_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$specific_plot_name")
+        ax_compare = MK.Axis(ICNC_comparison_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$exp_name")
         MK.lines!(
             ax_compare,
             EKI_parcel.t,
@@ -292,7 +278,7 @@ for (calib_index, plot_name) in enumerate(plot_names)
         )
         
         MK.axislegend(ax_compare, framevisible = false, labelsize = 20, position = :rb)
-        MK.save("$specific_plot_name"*"_ICNC_comparison_fig.svg", ICNC_comparison_fig)
+        MK.save("$exp_name"*"_ICNC_comparison_fig.svg", ICNC_comparison_fig)
 
         ## Looking at spread in UKI calibrated parameters
         ϕ_UKI = UKI_output[2]
@@ -303,7 +289,7 @@ for (calib_index, plot_name) in enumerate(plot_names)
         UKI_parcel_5 = run_model([params_list[exp_index]], nuc_mode, [ϕ_UKI[1,1], ϕ_UKI[2,1]], FT, [IC_list[exp_index]], end_sim)
 
         UKI_spread_fig = MK.Figure(size = (700, 600), fontsize = 24)
-        ax_spread = MK.Axis(UKI_spread_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$specific_plot_name")
+        ax_spread = MK.Axis(UKI_spread_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$exp_name")
         MK.lines!(
             ax_spread,
             t_profile[exp_index],
@@ -358,7 +344,7 @@ for (calib_index, plot_name) in enumerate(plot_names)
         )
         error = frozen_frac_moving_mean[exp_index] .* 0.1
         MK.errorbars!(ax_spread, t_profile[exp_index], frozen_frac_moving_mean[exp_index], error, color = (:blue, 0.3))
-        MK.save("$specific_plot_name"*"_UKI_spread_fig.svg", UKI_spread_fig)
+        MK.save("$exp_name"*"_UKI_spread_fig.svg", UKI_spread_fig)
     end # plotting
     #! format: on
 end
