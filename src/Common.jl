@@ -302,7 +302,7 @@ end
 # Wrapper to cast types from SF.gamma
 # (which returns Float64 even when the input is Float32)
 # TODO - replace with parameterization of our own
-Γ(a::FT) where {FT <: Real} = FT(SF.gamma(a))
+Γ(a::FT) where {FT <: Real} = FT(SF.gamma(a))  # TODO: Don't need this. Float32 is correctly handled.
 
 """
     Chen2022_monodisperse_pdf(a, b, c, D)
