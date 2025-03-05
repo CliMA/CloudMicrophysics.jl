@@ -347,7 +347,7 @@ function ParametersP3(td::CP.AbstractTOMLDict; slope_law = :powerlaw)
     )
     params = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
-    return ParametersP3{FT}(; mass, area, slope, vent, params...)
+    return ParametersP3{FT, typeof(slope)}(; mass, area, slope, vent, params...)
 end
 
 ### ----------------- ###
