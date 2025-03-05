@@ -246,7 +246,8 @@ From [MorrisonMilbrandt2015](@cite)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct ParametersP3{FT, SLOPELAW <: SlopeLaw{FT}} <: ParametersType{FT}
+Base.@kwdef struct ParametersP3{FT, SLOPELAW <: SlopeLaw{FT}} <:
+                   ParametersType{FT}
     "Mass-size relation"
     mass::MassPowerLaw{FT}
     "Area-size relation"
