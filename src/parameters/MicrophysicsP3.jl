@@ -246,13 +246,13 @@ From [MorrisonMilbrandt2015](@cite)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct ParametersP3{FT} <: ParametersType{FT}
+Base.@kwdef struct ParametersP3{FT, SLOPELAW <: SlopeLaw{FT}} <: ParametersType{FT}
     "Mass-size relation"
     mass::MassPowerLaw{FT}
     "Area-size relation"
     area::AreaPowerLaw{FT}
     "Slope relation"
-    slope::SlopeLaw{FT}
+    slope::SLOPELAW
     "Ventilation relation"
     vent::VentilationSB2005{FT}
     "Cloud ice density [kg m⁻³]"
