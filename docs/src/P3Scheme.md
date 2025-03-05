@@ -74,10 +74,6 @@ The remaining thresholds: $D_{gr}$, $D_{cr}$, as well as the bulk density of gra
 \end{align*}
 ```
 
-!!! todo "TODO: Check units"
-    see [issue #151](https://github.com/CliMA/CloudMicrophysics.jl/issues/151)
-
-
 Unlike (REFS), which solve the system of equations with iterative methods, we here derive an analytical solution for $ρ_d$ in terms of $ρ_r$ and $F_{rim}$.
 
 !!! details "Click here to see the derivation"
@@ -219,7 +215,7 @@ we seek to solve for $N_0$ and $λ$. This is most conveniently achieved by first
     \begin{align*}
     ∫_0^∞ D^μ e^{-λD}\ \mathrm{d}D &= \frac{Γ(μ+1)}{λ^{μ+1}} \\
     ∫_0^∞ (aD^b) D^μ e^{-λD}\ \mathrm{d}D &= a \frac{Γ(b+μ+1)}{λ^{b+μ+1}} \\
-    ∫_x^y (aD^b) D^μ e^{-λD}\ \mathrm{d}D &= \frac{a}{λ^{b+μ+1}} \Big( Γ(b+μ+1,λx) - Γ(b+μ+1,λy) \Big)
+    ∫_{D_1}^{D_2} (aD^b) D^μ e^{-λD}\ \mathrm{d}D &= \frac{a}{λ^{b+μ+1}} \Big( Γ(b+μ+1,λD_1) - Γ(b+μ+1,λD_2) \Big)
     \end{align*}
     ```
 
@@ -229,13 +225,13 @@ we seek to solve for $N_0$ and $λ$. This is most conveniently achieved by first
     ```math
     \begin{align*}
     \log\left( ∫_{0}^{∞} D^μ e^{-λD}\ \mathrm{d}D \right) &= \log\Big( Γ(μ+1,λx) \Big) - (μ+1)\log(λ) \\
-    \log\left( ∫_{x}^{y} (aD^b) D^μ e^{-λD}\ \mathrm{d}D \right) &= \log(a) - (b+μ+1)\log(λ) + \log\Big(Γ(b+μ+1)\Big) \\
-    &\quad + \log\Big( q(b+μ+1,λx) - q(b+μ+1,λy) \Big)
+    \log\left( ∫_{D_1}^{D_2} (aD^b) D^μ e^{-λD}\ \mathrm{d}D \right) &= \log(a) - (b+μ+1)\log(λ) + \log\Big(Γ(b+μ+1)\Big) \\
+    &\quad + \log\Big( q(b+μ+1,λD_1) - q(b+μ+1,λD_2) \Big)
     \end{align*}
     ```
     We define this latter integral as
     ```math
-    G(x,y,a,b,μ,λ) ≡ \log\left( ∫_{x}^{y} (aD^b) D^μ e^{-λD}\ \mathrm{d}D \right),
+    G(D_1,D_2,a,b,μ,λ) ≡ \log\left( ∫_{D_1}^{D_2} (aD^b) D^μ e^{-λD}\ \mathrm{d}D \right),
     ```
     
     The integral of $m(D) N'(D)$ can be computed using the following function definitions, $G_i$:
@@ -303,11 +299,6 @@ An alternative parameterization for $μ$ is a constant value:
 ```math
 μ = μ_{const}
 ```
-
-which looks like this:
-
-![](P3SlopeParameterizations_constant.svg)
-
 
 ## Terminal Velocity
 
