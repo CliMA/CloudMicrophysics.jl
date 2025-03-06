@@ -9,34 +9,73 @@ import DelimitedFiles
 using LazyArtifacts
 using ClimaUtilities.ClimaArtifacts
 import NaNStatistics
+import Interpolations as Intp
 
 FT = Float64
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
+global edf_data_names = ["in05_17_aida.edf", "in05_18_aida.edf", "in07_01_aida.edf", "in07_19_aida.edf"]
 
 # Helper functions
-function unpack_data(data_file_name)
-    
-    edf_data_names = ["in05_17_aida.edf", "in05_18_aida.edf", "in07_01_aida.edf", "in07_19_aida.edf"]
-    file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name)
+function unpack_data(data_file_name, ; total_t = 0)
 
     if data_file_name in edf_data_names
-        return DelimitedFiles.readdlm(file_path, skipstart = 125) 
-    else
-        # TODO - combine data into one csv with common t values
-        # return DelimitedFiles.readdlm(file_path, skipstart = 0) # or add row to start of csv so that skipstart = 1
-    end
-end
-function grab_data(unpacked_data)
+        file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name)
+        unpacked_data = DelimitedFiles.readdlm(file_path, skipstart = 125) 
 
-    AIDA_t_profile = unpacked_data[:, 1]
-    AIDA_T_profile = unpacked_data[:, 3]
-    AIDA_P_profile = unpacked_data[:, 2] * 1e2  # hPa to Pa
-    AIDA_ICNC = unpacked_data[:, 6] .* 1e6      # Nᵢ [m^-3]
-    AIDA_e = unpacked_data[:, 4]
+        AIDA_t_profile = unpacked_data[:, 1]
+        AIDA_T_profile = unpacked_data[:, 3]
+        AIDA_P_profile = unpacked_data[:, 2] * 1e2  # hPa to Pa
+        AIDA_ICNC = unpacked_data[:, 6] .* 1e6      # Nᵢ [m^-3]
+        AIDA_e = unpacked_data[:, 4]
+    else
+        AIDA_t_profile = collect(0:1:total_t)  # TODO - start from 0 or 1?
+
+        AIDA_T_profile = zeros(total_t)
+        AIDA_P_profile = zeros(total_t)
+        AIDA_ICNC = zeros(total_t)
+        AIDA_e = zeros(total_t)
+
+        T_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_T.csv")
+        P_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_P.csv")
+        ICNC_file_path =
+            data_file_name == "TROPIC04" ? 
+                CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_act_frac.csv") :
+                CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_N_ice.csv")
+        e_file_path =
+            data_file_name == "TROPIC04" ? 
+                CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_S_ice.csv") :
+                CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_RH_water.csv")
+        
+        raw_T_data = DelimitedFiles.readdlm(T_file_path, ',' , header = false)
+        raw_P_data = DelimitedFiles.readdlm(P_file_path, ',' , header = false)
+        raw_ICNC_data = DelimitedFiles.readdlm(ICNC_file_path, ',' , header = false) # activated fraction for TROPIC04
+        raw_e_data = DelimitedFiles.readdlm(e_file_path, ',' , header = false)  # S_ice for TROPIC04
+
+        AIDA_T_profile = interpolated_data(raw_T_data, AIDA_t_profile)
+        AIDA_P_profile = interpolated_data(raw_P_data, AIDA_t_profile)
+        AIDA_ICNC = interpolated_data(raw_ICNC_data, AIDA_t_profile) # activated fraction for TROPIC04
+        AIDA_e = interpolated_data(raw_e_data, AIDA_t_profile)       # S_ice for TROPIC04
+
+        if data_file_name == "TROPIC04"
+            # converting activated frac and S_ice to ICNC and e for TROPIC04
+            N_total = 66.19233e6  # should match initial conditions; Nₐ + Nₗ + Nᵢ
+            AIDA_ICNC = AIDA_ICNC .* N_total
+
+            eₛ = [TD.saturation_vapor_pressure(tps, T₀, TD.Ice()) for T₀ in AIDA_T_profile]
+            AIDA_e = AIDA_e .* eₛ
+        end
+    end
 
     data = (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e)
     return data
+
 end
+
+function interpolated_data(raw_data, time_array)
+    data_at_t = Intp.linear_interpolation(raw_data[:, 1], raw_data[:, 2])
+    return data_at_t.(time_array)
+end
+
 function moving_average(data, n)
     window_size = length(data) / n
     moving_avg = NaNStatistics.movmean(data, window_size)
@@ -45,16 +84,16 @@ end
 
 # Defining data names, start/end times, etc.
 data_file_names = [
-    ["in05_17_aida.edf", "in05_18_aida.edf"],
+    ["in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04"],
     ["in07_01_aida.edf"],
     ["in07_19_aida.edf"],
 ]
-batch_names = ["IN05", "IN0701", "IN0719"]
+batch_names = ["HOM", "IN0701", "IN0719"]
 end_sim = 25               # Loss func looks at last end_sim timesteps only
 start_time_list =          # freezing onset
-    [[Int32(150), Int32(180)], [Int32(50)], [Int32(35)]]
+    [[Int32(150), Int32(180), Int32(1)], [Int32(50)], [Int32(35)]] # TODO - TROPIC04 start at 1 or 0?
 end_time_list =            # approximate time freezing stops
-    [[Int32(315), Int32(290)], [Int32(375)], [Int32(375)]]
+    [[Int32(315), Int32(290), Int32(700)], [Int32(375)], [Int32(375)]]
 moving_average_n = 3      # average every length(data) / n points
 updrafts = [[FT(1.5), FT(1.4)], [FT(1.5)], [FT(1.5)]]  # updrafts matching AIDA cooling rate
 
@@ -79,7 +118,7 @@ for (calib_index, batch_name) in enumerate(batch_names)
     end_time_index = end_time .+ Int32(100)
     t_max = end_time_index .- start_time_index
 
-    nuc_mode = batch_name == "IN05" ? "ABHOM" : "ABDINM"
+    nuc_mode = batch_name == "HOM" ? "ABHOM" : "ABDINM"
 
     ### Check for and grab data in AIDA_data folder.
     t_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
@@ -113,32 +152,65 @@ for (calib_index, batch_name) in enumerate(batch_names)
     y_truth = []
 
     for (exp_index, data_file_name) in enumerate(data_file_name_list)
-        AIDA_data = grab_data(unpack_data(data_file_name))
-        (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
-        
-        t_profile[exp_index] = AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- (start_time_index[exp_index] - 101)
-        T_profile[exp_index] = AIDA_T_profile[start_time_index[exp_index]:end_time_index[exp_index]]
-        P_profile[exp_index] = AIDA_P_profile[start_time_index[exp_index]:end_time_index[exp_index]]
-        ICNC_profile[exp_index] = AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]]
-        e_profile[exp_index] = AIDA_e[start_time_index[exp_index]:end_time_index[exp_index]]
-        S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
+        # Takes cropped version of data in the window of time that aligns with our simulation
+        # and creates y_truth to be used for calibration
+        if data_file_name in edf_data_names
+            AIDA_data = unpack_data(data_file_name)
+            (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
 
-        params_list[exp_index] =
-            nuc_mode == "ABHOM" ?
-            AIDA_IN05_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index]) :
-            AIDA_IN07_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index], batch_name)
-        IC_list[exp_index] = nuc_mode == "ABHOM" ?
-            AIDA_IN05_IC(FT, data_file_name) :
-            AIDA_IN07_IC(FT, data_file_name)
+            t_profile[exp_index] = AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- (start_time_index[exp_index] - 101)
+            T_profile[exp_index] = AIDA_T_profile[start_time_index[exp_index]:end_time_index[exp_index]]
+            P_profile[exp_index] = AIDA_P_profile[start_time_index[exp_index]:end_time_index[exp_index]]
+            ICNC_profile[exp_index] = AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]]
+            e_profile[exp_index] = AIDA_e[start_time_index[exp_index]:end_time_index[exp_index]]
+            S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
+
+            params_list[exp_index] =
+                nuc_mode == "ABHOM" ?
+                AIDA_IN05_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index]) :
+                AIDA_IN07_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index], batch_name)
+            IC_list[exp_index] = nuc_mode == "ABHOM" ?
+                AIDA_IN05_IC(FT, data_file_name) :
+                AIDA_IN07_IC(FT, data_file_name)
+
+        else
+            AIDA_data = unpack_data(data_file_name, total_t = t_max[exp_index])
+            (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
+            t_profile[exp_index] = AIDA_t_profile
+            T_profile[exp_index] = AIDA_T_profile
+            P_profile[exp_index] = AIDA_P_profile
+            ICNC_profile[exp_index] = AIDA_ICNC
+            e_profile[exp_index] = AIDA_e
+            
+            S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
+            
+            if data_file_name == "TROPIC04"
+                params_list[exp_index] = TROPIC04_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
+                IC_list[exp_index] = TROPIC04_IC(FT)
+            elseif data_file_name == "ACI04_22"
+                params_list[exp_index] = ACI04_22_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
+                IC_list[exp_index] = ACI04_22_IC(FT)
+            elseif data_file_name == "EXP19"
+                params_list[exp_index] = EXP19_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
+                IC_list[exp_index] = EXP19_IC(FT)
+            elseif data_file_name == "EXP45"
+                params_list[exp_index] = EXP45_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
+                IC_list[exp_index] = EXP45_IC(FT)
+            elseif data_file_name == "EXP28"
+                params_list[exp_index] = EXP45_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
+                IC_list[exp_index] = EXP45_IC(FT)
+            end
+        end
 
         Nₜ[exp_index] = IC_list[exp_index][7] + IC_list[exp_index][8] + IC_list[exp_index][9]
-        frozen_frac[exp_index] = AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index]
+        frozen_frac[exp_index] = ICNC_profile[exp_index] ./ Nₜ[exp_index]
         frozen_frac_moving_mean[exp_index] = moving_average(frozen_frac[exp_index], moving_average_n)
-        ICNC_moving_avg[exp_index] = moving_average(AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]], moving_average_n)
+        ICNC_moving_avg[exp_index] = moving_average(ICNC_profile[exp_index], moving_average_n)
         
         pseudo_ss_ff = NaNStatistics.nanmean(frozen_frac_moving_mean[exp_index][end - end_sim: end])
         pseudo_ss_ff_array = zeros(length(frozen_frac_moving_mean[exp_index][end - end_sim: end])) .+ pseudo_ss_ff
         append!(y_truth, pseudo_ss_ff_array)
+
     end
 
     ff_max = maximum.(frozen_frac_moving_mean)
@@ -193,7 +265,7 @@ for (calib_index, batch_name) in enumerate(batch_names)
         ## Calibrated coefficients.
         #  Did they converge?
         calibrated_coeffs_fig = MK.Figure(size = (1100, 900), fontsize = 24)
-        ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$plot_name")
+        ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$batch_name")
         ax4 = MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "iteration #", title = "EKI")
     
         MK.lines!(ax3, collect(1:EKI_n_iterations), calibrated_ensemble_means[1], label = "ensemble mean", color = :orange, linewidth = 2.5)

@@ -310,7 +310,7 @@ function AIDA_IN07_IC(FT, data_file)
 end
 
 
-function AIDA_TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile)
+function TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile)
     IN_mode = "ABHOM"
     const_dt = FT(1) # TODO
     prescribed_thermodynamics = true
@@ -337,7 +337,7 @@ function AIDA_TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile)
     return params
 end
 
-function AIDA_TROPIC04_IC(FT)
+function TROPIC04_IC(FT)
     # refers to exp 4 of campaign TROPIC04
     tps = TD.Parameters.ThermodynamicsParameters(FT)
     wps = CMP.WaterProperties(FT)
