@@ -309,4 +309,64 @@ function AIDA_IN07_IC(FT, data_file)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
+
+function TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile)
+    IN_mode = "ABHOM"
+    const_dt = FT(1) # TODO
+    prescribed_thermodynamics = true
+    aerosol_act = "AeroAct"
+    aerosol = CMP.Sulfate(FT)
+    dep_nucleation = "ABDINM"
+    heterogeneous = "ABIFM"
+    homogeneous = "ABHOM"
+    condensation_growth = "Condensation"
+    deposition_growth = "Deposition"
+    liq_size_distribution = "Gamma"
+    ice_size_distribution = "Gamma"
+    aero_σ_g = FT() # TODO
+    r_nuc = FT()    # TODO
+    ips = CMP.IceNucleationParameters(FT)
+
+    params = (; const_dt, w, t_max, ips,
+        prescribed_thermodynamics, t_profile, T_profile, P_profile,
+        aerosol_act, aerosol, r_nuc, aero_σ_g,          # aerosol activation
+        condensation_growth, deposition_growth,         # growth
+        liq_size_distribution, ice_size_distribution,   # size distribution
+        dep_nucleation, heterogeneous, homogeneous,     # ice nucleation
+    )
+    return params
+end
+
+function TROPIC04_IC(FT)
+    # refers to exp 4 of campaign TROPIC04
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    wps = CMP.WaterProperties(FT)
+
+    ρₗ = wps.ρw
+    ρᵢ = wps.ρi
+    R_d = TD.Parameters.R_d(tps)
+    R_v = TD.Parameters.R_v(tps)
+    ϵₘ = R_d / R_v
+
+    Nₗ = FT(0)
+    Nᵢ = FT(0)
+    Nₐ = FT(66.19233 * 1e6) - Nₗ - Nᵢ
+    r₀ = FT(1.15 / 2 * 1e-6)
+    p₀ = FT(100477.45358)
+    T₀ = FT(209.79503)
+    qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
+    qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
+    m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
+    m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+    Sᵢ = FT(0.95200)
+    Sₗ = FT(Sᵢ / ξ(tps, T₀))
+    eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+    e = FT(Sₗ * eₛ)
+    qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
+    q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    Rₐ = TD.gas_constant_air(tps, q)
+
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+end
+
 #! format: on
