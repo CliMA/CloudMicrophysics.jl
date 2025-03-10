@@ -72,97 +72,17 @@ for (calib_index, batch_name) in enumerate(batch_names)
     end
 
     ### Check for and grab data in AIDA_data folder.
-    t_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    T_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    P_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    ICNC_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    e_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    S_l_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-
-    params_list = Vector{NamedTuple{
-                    (:const_dt, :w, :t_max, :ips,
-                     :prescribed_thermodynamics, :t_profile, :T_profile, :P_profile,
-                     :aerosol_act, :aerosol, :r_nuc, :aero_σ_g,
-                     :condensation_growth, :deposition_growth,
-                     :liq_size_distribution, :ice_size_distribution,
-                     :dep_nucleation, :heterogeneous, :homogeneous
-                    ),
-                    Tuple{
-                        Float64, Float64, Int32, CM.Parameters.IceNucleationParameters{Float64, CM.Parameters.Mohler2006{Float64}, CM.Parameters.Koop2000{Float64}, CM.Parameters.MorrisonMilbrandt2014{Float64}},
-                        Bool, Vector{Float64}, Vector{Float64}, Vector{Float64}, 
-                        String, CM.Parameters.ParametersType{Float64}, Float64, Float64,
-                        Vararg{String, 7}
-                    }
-                    }}(undef, length(data_file_name_list))
-    IC_list = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-
-    frozen_frac = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    frozen_frac_moving_mean = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    ICNC_moving_avg = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    Nₜ = Array{Float64}(undef, length(data_file_name_list), 1)
-    y_truth = []
-
-    for (exp_index, data_file_name) in enumerate(data_file_name_list)
-        # Takes cropped version of data in the window of time that aligns with our simulation
-        # and creates y_truth to be used for calibration
-        if data_file_name in edf_data_names
-            AIDA_data = unpack_data(data_file_name)
-            (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
-
-            t_profile[exp_index] = AIDA_t_profile[start_time[exp_index]:end_time[exp_index]] .- start_time[exp_index]
-            T_profile[exp_index] = AIDA_T_profile[start_time[exp_index]:end_time[exp_index]]
-            P_profile[exp_index] = AIDA_P_profile[start_time[exp_index]:end_time[exp_index]]
-            ICNC_profile[exp_index] = AIDA_ICNC[start_time[exp_index]:end_time[exp_index]]
-            e_profile[exp_index] = AIDA_e[start_time[exp_index]:end_time[exp_index]]
-            S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
-
-            params_list[exp_index] =
-                nuc_mode == "ABHOM" ?
-                AIDA_IN05_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index]) :
-                AIDA_IN07_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index], batch_name)
-            IC_list[exp_index] = nuc_mode == "ABHOM" ?
-                AIDA_IN05_IC(FT, data_file_name) :
-                AIDA_IN07_IC(FT, data_file_name)
-
-        else
-            AIDA_data = unpack_data(data_file_name, total_t = t_max[exp_index])
-            (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
-            t_profile[exp_index] = AIDA_t_profile
-            T_profile[exp_index] = AIDA_T_profile
-            P_profile[exp_index] = AIDA_P_profile
-            ICNC_profile[exp_index] = AIDA_ICNC
-            e_profile[exp_index] = AIDA_e
-            
-            S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
-            # @info(t_profile[exp_index][1], T_profile[exp_index][1], P_profile[exp_index][1], ICNC_profile[exp_index][1], e_profile[exp_index][1])
-            if data_file_name == "TROPIC04"
-                params_list[exp_index] = TROPIC04_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
-                IC_list[exp_index] = TROPIC04_IC(FT)
-            elseif data_file_name == "ACI04_22"
-                params_list[exp_index] = ACI04_22_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
-                IC_list[exp_index] = ACI04_22_IC(FT)
-            elseif data_file_name == "EXP19"
-                params_list[exp_index] = EXP19_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
-                IC_list[exp_index] = EXP19_IC(FT)
-            elseif data_file_name == "EXP45"
-                params_list[exp_index] = EXP45_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
-                IC_list[exp_index] = EXP45_IC(FT)
-            elseif data_file_name == "EXP28"
-                params_list[exp_index] = EXP45_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
-                IC_list[exp_index] = EXP45_IC(FT)
-            end
-        end
-
-        Nₜ[exp_index] = IC_list[exp_index][7] + IC_list[exp_index][8] + IC_list[exp_index][9]
-        frozen_frac[exp_index] = ICNC_profile[exp_index] ./ Nₜ[exp_index]
-        frozen_frac_moving_mean[exp_index] = moving_average(frozen_frac[exp_index], moving_average_n)
-        ICNC_moving_avg[exp_index] = moving_average(ICNC_profile[exp_index], moving_average_n)
-        
-        pseudo_ss_ff = NaNStatistics.nanmean(frozen_frac_moving_mean[exp_index][end - end_sim: end])
-        pseudo_ss_ff_array = zeros(length(frozen_frac_moving_mean[exp_index][end - end_sim: end])) .+ pseudo_ss_ff
-        append!(y_truth, pseudo_ss_ff_array)
-
-    end
+    calib_variables = data_to_calib_inputs(
+        FT, batch_name, data_file_name_list,
+        start_time, end_time,
+        w, t_max, end_sim,
+    )
+    (;
+        t_profile, T_profile, P_profile, ICNC_profile, e_profile, S_l_profile,
+        params_list, IC_list,
+        frozen_frac, frozen_frac_moving_mean, ICNC_moving_avg,
+        Nₜ, y_truth,
+    ) = calib_variables
 
     ff_max = maximum.(frozen_frac_moving_mean)
     ff_min = minimum.(frozen_frac_moving_mean)
