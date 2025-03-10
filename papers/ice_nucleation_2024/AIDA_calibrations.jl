@@ -24,7 +24,7 @@ function unpack_data(data_file_name, ; total_t = 0)
 
         AIDA_t_profile = unpacked_data[:, 1]
         AIDA_T_profile = unpacked_data[:, 3]
-        AIDA_P_profile = unpacked_data[:, 2] * 1e2  # hPa to Pa
+        AIDA_P_profile = unpacked_data[:, 2] .* 1e2  # hPa to Pa
         AIDA_ICNC = unpacked_data[:, 6] .* 1e6      # Nᵢ [m^-3]
         AIDA_e = unpacked_data[:, 4]
     else
@@ -87,6 +87,10 @@ data_file_names = [
     ["in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04"],
     ["in07_01_aida.edf"],
     ["in07_19_aida.edf"],
+    ["ACI04_22"],
+    ["ACI04_07"],
+    ["EXP19"],
+    ["EXP45"],
 ]
 batch_names = ["HOM", "IN0701", "IN0719"]
 end_sim = 25               # Loss func looks at last end_sim timesteps only
@@ -95,7 +99,7 @@ start_time_list =          # freezing onset
 end_time_list =            # approximate time freezing stops
     [[Int32(315), Int32(290), Int32(700)], [Int32(375)], [Int32(375)]]
 moving_average_n = 3      # average every length(data) / n points
-updrafts = [[FT(1.5), FT(1.4)], [FT(1.5)], [FT(1.5)]]  # updrafts matching AIDA cooling rate
+updrafts = [[FT(1.5), FT(1.4), FT(1.4)], [FT(1.5)], [FT(1.5)]]  # updrafts matching AIDA cooling rate
 
 # Additional definitions
 tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -183,7 +187,7 @@ for (calib_index, batch_name) in enumerate(batch_names)
             e_profile[exp_index] = AIDA_e
             
             S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
-            
+            @info(t_profile[exp_index][1], T_profile[exp_index][1], P_profile[exp_index][1], ICNC_profile[exp_index][1], e_profile[exp_index][1])
             if data_file_name == "TROPIC04"
                 params_list[exp_index] = TROPIC04_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
                 IC_list[exp_index] = TROPIC04_IC(FT)
