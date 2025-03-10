@@ -12,6 +12,12 @@ function interpolated_data(raw_data, time_array)
     return data_at_t.(time_array)
 end
 
+function moving_average(data, n)
+    window_size = length(data) / n
+    moving_avg = NaNStatistics.movmean(data, window_size)
+    return moving_avg
+end
+
 function unpack_data(data_file_name, ; total_t = 0)
     edf_data_names = [
         "in05_17_aida.edf", "in05_18_aida.edf",
@@ -91,7 +97,7 @@ function unpack_data(data_file_name, ; total_t = 0)
 end
 
 function data_to_calib_inputs(
-    FT, batch_name, data_file_name_list,
+    FT, batch_name, data_file_name_list, nuc_mode,
     batch_start_times, batch_end_times,
     w, t_max, end_sim,
 )
@@ -137,13 +143,13 @@ function data_to_calib_inputs(
         # and creates y_truth to be used for calibration
         if data_file_name in edf_data_names
             AIDA_data = unpack_data(data_file_name)
-            (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
+            (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC_profile, AIDA_e_profile) = AIDA_data
 
             t_profile[exp_index] = AIDA_t_profile[batch_start_times[exp_index]:batch_end_times[exp_index]] .- batch_start_times[exp_index]
             T_profile[exp_index] = AIDA_T_profile[batch_start_times[exp_index]:batch_end_times[exp_index]]
             P_profile[exp_index] = AIDA_P_profile[batch_start_times[exp_index]:batch_end_times[exp_index]]
-            ICNC_profile[exp_index] = AIDA_ICNC[batch_start_times[exp_index]:batch_end_times[exp_index]]
-            e_profile[exp_index] = AIDA_e[batch_start_times[exp_index]:batch_end_times[exp_index]]
+            ICNC_profile[exp_index] = AIDA_ICNC_profile[batch_start_times[exp_index]:batch_end_times[exp_index]]
+            e_profile[exp_index] = AIDA_e_profile[batch_start_times[exp_index]:batch_end_times[exp_index]]
             S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
 
             params_list[exp_index] =
@@ -156,12 +162,12 @@ function data_to_calib_inputs(
 
         else
             AIDA_data = unpack_data(data_file_name, total_t = t_max[exp_index])
-            (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
+            (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC_profile, AIDA_e_profile) = AIDA_data
             t_profile[exp_index] = AIDA_t_profile
             T_profile[exp_index] = AIDA_T_profile
             P_profile[exp_index] = AIDA_P_profile
-            ICNC_profile[exp_index] = AIDA_ICNC
-            e_profile[exp_index] = AIDA_e
+            ICNC_profile[exp_index] = AIDA_ICNC_profile
+            e_profile[exp_index] = AIDA_e_profile
             
             S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
             # @info(t_profile[exp_index][1], T_profile[exp_index][1], P_profile[exp_index][1], ICNC_profile[exp_index][1], e_profile[exp_index][1])

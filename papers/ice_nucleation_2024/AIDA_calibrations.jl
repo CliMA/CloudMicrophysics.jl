@@ -14,13 +14,6 @@ FT = Float64
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "unpack_AIDA.jl"))
 
-# Helper functions
-function moving_average(data, n)
-    window_size = length(data) / n
-    moving_avg = NaNStatistics.movmean(data, window_size)
-    return moving_avg
-end
-
 # Defining data names, start/end times, etc.
 global edf_data_names = [
     "in05_17_aida.edf", "in05_18_aida.edf",
@@ -36,13 +29,35 @@ data_file_names = [
     # ["EXP28"],
 ]
 batch_names = ["HOM", "IN0701", "IN0719", "ACI04_22", "EXP19", "EXP45"]
-end_sim = 25               # Loss func looks at last end_sim timesteps only
-start_time_list =          # freezing onset
-    [[Int32(150), Int32(180), Int32(0)], [Int32(50)], [Int32(35)], [Int32(0)], [Int32(0)], [Int32(0)]] # EXP28 -> [Int32(0)]
-end_time_list =            # approximate time freezing stops
-    [[Int32(315), Int32(290), Int32(700)], [Int32(375)], [Int32(375)], [Int32(400)], [Int32(240)], [Int32(200)]] # EXP28 -> [Int32(300)]
-moving_average_n = 5      # average every length(data) / n points
-updrafts = [[FT(1.5), FT(1.4), FT(1.4)], [FT(1.5)], [FT(1.5)], [FT(1.5)], FT(1.5), FT(1.5)]  # updrafts matching AIDA cooling rate
+end_sim = 25            # Loss func looks at last end_sim timesteps only
+start_time_list = [     # freezing onset
+    [Int32(150), Int32(180), Int32(0)],
+    [Int32(50)],
+    [Int32(35)],
+    [Int32(0)],
+    [Int32(0)],
+    [Int32(0)],
+    # [Int32(0)],
+]
+end_time_list = [       # approximate time freezing stops
+    [Int32(315), Int32(290), Int32(700)],
+    [Int32(375)],
+    [Int32(375)],
+    [Int32(400)],
+    [Int32(240)],
+    [Int32(200)],
+    # [Int32(300)]
+]
+moving_average_n = 5    # average every length(data) / n points
+updrafts = [            # updrafts matching AIDA cooling rate
+    [FT(1.5), FT(1.4), FT(1.4)],
+    [FT(1.5)],
+    [FT(1.5)],
+    [FT(1.5)],
+    [FT(1.5)],
+    [FT(1.5)],
+    # [FT(1.5)],
+]
 
 # Additional definitions
 tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -73,7 +88,7 @@ for (calib_index, batch_name) in enumerate(batch_names)
 
     ### Check for and grab data in AIDA_data folder.
     calib_variables = data_to_calib_inputs(
-        FT, batch_name, data_file_name_list,
+        FT, batch_name, data_file_name_list, nuc_mode,
         start_time, end_time,
         w, t_max, end_sim,
     )
@@ -121,8 +136,8 @@ for (calib_index, batch_name) in enumerate(batch_names)
 
         ## Plots.
         ## Plotting AIDA data.
-        AIDA_data = grab_data(unpack_data(data_file))
-        (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
+        AIDA_data = unpack_data(data_file)
+        (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC_profile, AIDA_e_profile) = AIDA_data
 
         AIDA_data_fig = MK.Figure(size = (1000, 600), fontsize = 24)
         data_ax1 = MK.Axis(AIDA_data_fig[1, 1], ylabel = "ICNC [m^-3]", xlabel = "time [s]", title = "AIDA data $exp_name")
