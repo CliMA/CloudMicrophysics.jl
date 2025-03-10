@@ -9,73 +9,12 @@ import DelimitedFiles
 using LazyArtifacts
 using ClimaUtilities.ClimaArtifacts
 import NaNStatistics
-import Interpolations as Intp
 
 FT = Float64
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
-global edf_data_names = ["in05_17_aida.edf", "in05_18_aida.edf", "in07_01_aida.edf", "in07_19_aida.edf"]
+include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "unpack_AIDA.jl"))
 
 # Helper functions
-function unpack_data(data_file_name, ; total_t = 0)
-
-    if data_file_name in edf_data_names
-        file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name)
-        unpacked_data = DelimitedFiles.readdlm(file_path, skipstart = 125) 
-
-        AIDA_t_profile = unpacked_data[:, 1]
-        AIDA_T_profile = unpacked_data[:, 3]
-        AIDA_P_profile = unpacked_data[:, 2] .* 1e2  # hPa to Pa
-        AIDA_ICNC = unpacked_data[:, 6] .* 1e6      # Nᵢ [m^-3]
-        AIDA_e = unpacked_data[:, 4]
-    else
-        AIDA_t_profile = collect(0:1:total_t)  # TODO - start from 0 or 1?
-
-        AIDA_T_profile = zeros(total_t)
-        AIDA_P_profile = zeros(total_t)
-        AIDA_ICNC = zeros(total_t)
-        AIDA_e = zeros(total_t)
-
-        T_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_T.csv")
-        P_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_P.csv")
-        ICNC_file_path =
-            data_file_name == "TROPIC04" ? 
-                CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_act_frac.csv") :
-                CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_N_ice.csv")
-        e_file_path =
-            data_file_name == "TROPIC04" ? 
-                CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_S_ice.csv") :
-                CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_RH_water.csv")
-        
-        raw_T_data = DelimitedFiles.readdlm(T_file_path, ',' , header = false)
-        raw_P_data = DelimitedFiles.readdlm(P_file_path, ',' , header = false)
-        raw_ICNC_data = DelimitedFiles.readdlm(ICNC_file_path, ',' , header = false) # activated fraction for TROPIC04
-        raw_e_data = DelimitedFiles.readdlm(e_file_path, ',' , header = false)  # S_ice for TROPIC04
-
-        AIDA_T_profile = interpolated_data(raw_T_data, AIDA_t_profile)
-        AIDA_P_profile = interpolated_data(raw_P_data, AIDA_t_profile)
-        AIDA_ICNC = interpolated_data(raw_ICNC_data, AIDA_t_profile) # activated fraction for TROPIC04
-        AIDA_e = interpolated_data(raw_e_data, AIDA_t_profile)       # S_ice for TROPIC04
-
-        if data_file_name == "TROPIC04"
-            # converting activated frac and S_ice to ICNC and e for TROPIC04
-            N_total = 66.19233e6  # should match initial conditions; Nₐ + Nₗ + Nᵢ
-            AIDA_ICNC = AIDA_ICNC .* N_total
-
-            eₛ = [TD.saturation_vapor_pressure(tps, T₀, TD.Ice()) for T₀ in AIDA_T_profile]
-            AIDA_e = AIDA_e .* eₛ
-        end
-    end
-
-    data = (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e)
-    return data
-
-end
-
-function interpolated_data(raw_data, time_array)
-    data_at_t = Intp.linear_interpolation(raw_data[:, 1], raw_data[:, 2])
-    return data_at_t.(time_array)
-end
-
 function moving_average(data, n)
     window_size = length(data) / n
     moving_avg = NaNStatistics.movmean(data, window_size)
@@ -83,23 +22,27 @@ function moving_average(data, n)
 end
 
 # Defining data names, start/end times, etc.
+global edf_data_names = [
+    "in05_17_aida.edf", "in05_18_aida.edf",
+    "in07_01_aida.edf", "in07_19_aida.edf",
+]
 data_file_names = [
     ["in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04"],
     ["in07_01_aida.edf"],
     ["in07_19_aida.edf"],
     ["ACI04_22"],
-    ["ACI04_07"],
     ["EXP19"],
     ["EXP45"],
+    # ["EXP28"],
 ]
-batch_names = ["HOM", "IN0701", "IN0719"]
+batch_names = ["HOM", "IN0701", "IN0719", "ACI04_22", "EXP19", "EXP45"]
 end_sim = 25               # Loss func looks at last end_sim timesteps only
 start_time_list =          # freezing onset
-    [[Int32(150), Int32(180), Int32(1)], [Int32(50)], [Int32(35)]] # TODO - TROPIC04 start at 1 or 0?
+    [[Int32(150), Int32(180), Int32(0)], [Int32(50)], [Int32(35)], [Int32(0)], [Int32(0)], [Int32(0)]] # EXP28 -> [Int32(0)]
 end_time_list =            # approximate time freezing stops
-    [[Int32(315), Int32(290), Int32(700)], [Int32(375)], [Int32(375)]]
-moving_average_n = 3      # average every length(data) / n points
-updrafts = [[FT(1.5), FT(1.4), FT(1.4)], [FT(1.5)], [FT(1.5)]]  # updrafts matching AIDA cooling rate
+    [[Int32(315), Int32(290), Int32(700)], [Int32(375)], [Int32(375)], [Int32(400)], [Int32(240)], [Int32(200)]] # EXP28 -> [Int32(300)]
+moving_average_n = 5      # average every length(data) / n points
+updrafts = [[FT(1.5), FT(1.4), FT(1.4)], [FT(1.5)], [FT(1.5)], [FT(1.5)], FT(1.5), FT(1.5)]  # updrafts matching AIDA cooling rate
 
 # Additional definitions
 tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -117,12 +60,16 @@ for (calib_index, batch_name) in enumerate(batch_names)
     data_file_name_list = data_file_names[calib_index]
     w = updrafts[calib_index]
     start_time = start_time_list[calib_index]
-    start_time_index = start_time .+ Int32(100)
     end_time = end_time_list[calib_index]
-    end_time_index = end_time .+ Int32(100)
-    t_max = end_time_index .- start_time_index
+    t_max = end_time .- start_time
 
-    nuc_mode = batch_name == "HOM" ? "ABHOM" : "ABDINM"
+    if batch_name == "HOM"
+        nuc_mode = "ABHOM"
+    elseif batch_name == "IN0701" || batch_name == "IN0719" || batch_name == "EXP45"
+        nuc_mode = "ABDINM"
+    elseif batch_name == "ACI04_22" ||batch_name == "EXP19"
+        nuc_mode = "ABIFM"
+    end
 
     ### Check for and grab data in AIDA_data folder.
     t_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
@@ -162,11 +109,11 @@ for (calib_index, batch_name) in enumerate(batch_names)
             AIDA_data = unpack_data(data_file_name)
             (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC, AIDA_e) = AIDA_data
 
-            t_profile[exp_index] = AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- (start_time_index[exp_index] - 101)
-            T_profile[exp_index] = AIDA_T_profile[start_time_index[exp_index]:end_time_index[exp_index]]
-            P_profile[exp_index] = AIDA_P_profile[start_time_index[exp_index]:end_time_index[exp_index]]
-            ICNC_profile[exp_index] = AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]]
-            e_profile[exp_index] = AIDA_e[start_time_index[exp_index]:end_time_index[exp_index]]
+            t_profile[exp_index] = AIDA_t_profile[start_time[exp_index]:end_time[exp_index]] .- start_time[exp_index]
+            T_profile[exp_index] = AIDA_T_profile[start_time[exp_index]:end_time[exp_index]]
+            P_profile[exp_index] = AIDA_P_profile[start_time[exp_index]:end_time[exp_index]]
+            ICNC_profile[exp_index] = AIDA_ICNC[start_time[exp_index]:end_time[exp_index]]
+            e_profile[exp_index] = AIDA_e[start_time[exp_index]:end_time[exp_index]]
             S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
 
             params_list[exp_index] =
@@ -187,7 +134,7 @@ for (calib_index, batch_name) in enumerate(batch_names)
             e_profile[exp_index] = AIDA_e
             
             S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
-            @info(t_profile[exp_index][1], T_profile[exp_index][1], P_profile[exp_index][1], ICNC_profile[exp_index][1], e_profile[exp_index][1])
+            # @info(t_profile[exp_index][1], T_profile[exp_index][1], P_profile[exp_index][1], ICNC_profile[exp_index][1], e_profile[exp_index][1])
             if data_file_name == "TROPIC04"
                 params_list[exp_index] = TROPIC04_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
                 IC_list[exp_index] = TROPIC04_IC(FT)
@@ -261,8 +208,8 @@ for (calib_index, batch_name) in enumerate(batch_names)
         data_ax1 = MK.Axis(AIDA_data_fig[1, 1], ylabel = "ICNC [m^-3]", xlabel = "time [s]", title = "AIDA data $exp_name")
         data_ax2 = MK.Axis(AIDA_data_fig[1, 2], ylabel = "Frozen Frac Moving Mean [-]", xlabel = "time [s]", title = "AIDA data $exp_name")
         MK.lines!(data_ax1, AIDA_t_profile, AIDA_ICNC, label = "Raw AIDA", color =:blue, linestyle =:dash, linewidth = 2)
-        MK.lines!(data_ax1, t_profile[exp_index] .+ start_time_index[exp_index] .- 100, ICNC_moving_avg[exp_index], label = "AIDA ICNC moving mean", linewidth = 2.5, color =:blue)
-        MK.lines!(data_ax2, t_profile[exp_index] .+ start_time_index[exp_index] .- 100, frozen_frac_moving_mean[exp_index], linewidth = 2.5, color =:blue)
+        MK.lines!(data_ax1, t_profile[exp_index] .+ start_time[exp_index] .- 100, ICNC_moving_avg[exp_index], label = "AIDA ICNC moving mean", linewidth = 2.5, color =:blue)
+        MK.lines!(data_ax2, t_profile[exp_index] .+ start_time[exp_index] .- 100, frozen_frac_moving_mean[exp_index], linewidth = 2.5, color =:blue)
         MK.axislegend(data_ax1, framevisible = true, labelsize = 12, position = :rc)
         MK.save("$exp_name"*"_ICNC.svg", AIDA_data_fig)
 
@@ -312,8 +259,8 @@ for (calib_index, batch_name) in enumerate(batch_names)
         MK.lines!(ax_parcel_6, UKI_parcel.t, UKI_parcel[9, :], color = :fuchsia, label = "UKI")
         MK.lines!(ax_parcel_6, t_profile[exp_index], ICNC_profile[exp_index], color = :blue, label = "AIDA",)
 
-        error = (AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index]) .* 0.1
-        MK.errorbars!(ax_parcel_6, AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- start_time[exp_index], AIDA_ICNC[start_time_index[exp_index]:end_time_index[exp_index]] ./ Nₜ[exp_index], error, color = (:blue, 0.3))
+        error = (AIDA_ICNC[start_time[exp_index]:end_time[exp_index]] ./ Nₜ[exp_index]) .* 0.1
+        MK.errorbars!(ax_parcel_6, AIDA_t_profile[start_time[exp_index]:end_time[exp_index]] .- start_time[exp_index], AIDA_ICNC[start_time[exp_index]:end_time[exp_index]] ./ Nₜ[exp_index], error, color = (:blue, 0.3))
 
         MK.lines!(ax_parcel_7, EKI_parcel.t, EKI_parcel[2, :], color = :orange)
         MK.lines!(ax_parcel_7, UKI_parcel.t, UKI_parcel[2, :], color = :fuchsia)
@@ -349,7 +296,7 @@ for (calib_index, batch_name) in enumerate(batch_names)
         MK.errorbars!(ax_compare, t_profile[exp_index], frozen_frac_moving_mean[exp_index], error, color = (:blue, 0.3))
         MK.lines!(
             ax_compare,
-            AIDA_t_profile[start_time_index[exp_index]:end_time_index[exp_index]] .- start_time[exp_index],
+            AIDA_t_profile[start_time[exp_index]:end_time[exp_index]] .- start_time[exp_index],
             frozen_frac[exp_index],
             label = "Raw AIDA",
             linewidth = 2,

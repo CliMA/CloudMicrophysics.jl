@@ -14,7 +14,6 @@ import StatsBase as SB
 #! format: off
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
-include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
 
 # Define model which wraps around parcel and overwrites calibrated parameters
 function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; calibration = false)
