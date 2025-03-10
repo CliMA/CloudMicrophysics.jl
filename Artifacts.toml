@@ -1,7 +1,7 @@
 [AIDA_ice_nucleation]
-git-tree-sha1 = "3f8caa83fe0786974a62aa3f7403c56293cf9f2f"
+git-tree-sha1 = "b3952a36d4d7cb5fc5fff58918faf37a8e80c625"
 lazy = true
 
     [[AIDA_ice_nucleation.download]]
-    sha256 = "58d61c4fd2ef608c2b78ccd41739a3803e56fe58766355b7a1a4d39801be12bd"
+    sha256 = "b4f44300997255e3cab2f9e4d6787db1af196072c3157a23ddfc6e6fdab12ade"
     url = "https://caltech.box.com/shared/static/imo0pyr6o0m9txu8racztmt7lz5n9xf1.gz"
