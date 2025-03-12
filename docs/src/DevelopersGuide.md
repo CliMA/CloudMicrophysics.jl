@@ -39,12 +39,11 @@ After creating a PR on GitHub, you will find that every following commit & push 
   If the documentation build was successful, the `documenter/deploy`
   will display the documentation page based on the PR (click on the details).
 - The `JuliaFormatter / format` ensures consistent formatting throughout the repository.
-  If this check fails, you can click on details
-  to see which files are not following the formatting rules.
-  You can apply the formatter by running
-  `julia --project=.dev .dev/climaformat.jl file_name` in the terminal.
-  The formatter might break if the code does not compile,
-  so make sure you handle the compilation errors first.
+  If this check fails, you can click on details to see which files are not following the formatting rules.
+  You can apply the formatter by adding `JuliaFormatter` to your base environment, and running
+  `julia -e 'import JuliaFormatter; JuliaFormatter.format_file(".")'` 
+  from the root directory, in the terminal.
+  The formatter might break if the code does not compile, so make sure you handle the compilation errors first.
 - The `codecov` shows what percentage of source code lines are exercised inside the tests.
   We strive to keep the test coverage high, but this test is not strictly required to pass before merging a PR.
 
