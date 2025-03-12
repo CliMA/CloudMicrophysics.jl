@@ -54,7 +54,7 @@ updrafts = [            # updrafts matching AIDA cooling rate
     [FT(1.5)],
     [FT(1.5)],
     [FT(1.5)],
-    [FT(1.5)],
+    [FT(9)],
     [FT(1.5)],
     # [FT(1.5)],
 ]
@@ -68,14 +68,14 @@ R_d = TD.Parameters.R_d(tps)
 global EKI_calibratated_coeff_dict = Dict()
 global UKI_calibratated_coeff_dict = Dict()
 
-for (calib_index, batch_name) in enumerate(batch_names)
+for (batch_index, batch_name) in enumerate(batch_names)
     @info(batch_name)
     #! format: off
     ### Unpacking experiment-specific variables.
-    data_file_name_list = data_file_names[calib_index]
-    w = updrafts[calib_index]
-    start_time = start_time_list[calib_index]
-    end_time = end_time_list[calib_index]
+    data_file_name_list = data_file_names[batch_index]
+    w = updrafts[batch_index]
+    start_time = start_time_list[batch_index]
+    end_time = end_time_list[batch_index]
     t_max = end_time .- start_time
 
     if batch_name == "HOM"
@@ -136,15 +136,18 @@ for (calib_index, batch_name) in enumerate(batch_names)
 
         ## Plots.
         ## Plotting AIDA data.
-        AIDA_data = unpack_data(data_file)
+        AIDA_data = data_file in edf_data_names ? unpack_data(data_file) : unpack_data(data_file, total_t = t_max[exp_index])
         (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC_profile, AIDA_e_profile) = AIDA_data
+
+        start_time_index = start_time[exp_index] + 1
+        end_time_index = end_time[exp_index] + 1
 
         AIDA_data_fig = MK.Figure(size = (1000, 600), fontsize = 24)
         data_ax1 = MK.Axis(AIDA_data_fig[1, 1], ylabel = "ICNC [m^-3]", xlabel = "time [s]", title = "AIDA data $exp_name")
         data_ax2 = MK.Axis(AIDA_data_fig[1, 2], ylabel = "Frozen Frac Moving Mean [-]", xlabel = "time [s]", title = "AIDA data $exp_name")
-        MK.lines!(data_ax1, AIDA_t_profile, AIDA_ICNC, label = "Raw AIDA", color =:blue, linestyle =:dash, linewidth = 2)
-        MK.lines!(data_ax1, t_profile[exp_index] .+ start_time[exp_index] .- 100, ICNC_moving_avg[exp_index], label = "AIDA ICNC moving mean", linewidth = 2.5, color =:blue)
-        MK.lines!(data_ax2, t_profile[exp_index] .+ start_time[exp_index] .- 100, frozen_frac_moving_mean[exp_index], linewidth = 2.5, color =:blue)
+        MK.lines!(data_ax1, AIDA_t_profile, AIDA_ICNC_profile, label = "Raw AIDA", color =:blue, linestyle =:dash, linewidth = 2)
+        MK.lines!(data_ax1, t_profile[exp_index], ICNC_moving_avg[exp_index], label = "AIDA ICNC moving mean", linewidth = 2.5, color =:blue)
+        MK.lines!(data_ax2, t_profile[exp_index], frozen_frac_moving_mean[exp_index], linewidth = 2.5, color =:blue)
         MK.axislegend(data_ax1, framevisible = true, labelsize = 12, position = :rc)
         MK.save("$exp_name"*"_ICNC.svg", AIDA_data_fig)
 
@@ -194,12 +197,12 @@ for (calib_index, batch_name) in enumerate(batch_names)
         MK.lines!(ax_parcel_6, UKI_parcel.t, UKI_parcel[9, :], color = :fuchsia, label = "UKI")
         MK.lines!(ax_parcel_6, t_profile[exp_index], ICNC_profile[exp_index], color = :blue, label = "AIDA",)
 
-        error = (AIDA_ICNC[start_time[exp_index]:end_time[exp_index]] ./ Nₜ[exp_index]) .* 0.1
-        MK.errorbars!(ax_parcel_6, AIDA_t_profile[start_time[exp_index]:end_time[exp_index]] .- start_time[exp_index], AIDA_ICNC[start_time[exp_index]:end_time[exp_index]] ./ Nₜ[exp_index], error, color = (:blue, 0.3))
+        error = (AIDA_ICNC_profile[start_time_index:end_time_index] ./ Nₜ[exp_index]) .* 0.1
+        MK.errorbars!(ax_parcel_6, AIDA_t_profile[start_time_index:end_time_index] .- start_time[exp_index], AIDA_ICNC_profile[start_time_index:end_time_index] ./ Nₜ[exp_index], error, color = (:blue, 0.3))
 
         MK.lines!(ax_parcel_7, EKI_parcel.t, EKI_parcel[2, :], color = :orange)
         MK.lines!(ax_parcel_7, UKI_parcel.t, UKI_parcel[2, :], color = :fuchsia)
-        MK.lines!(ax_parcel_7, t_profile[exp_index], P_profile[exp_index], color = :blue) #, linestyle =:dash
+        MK.lines!(ax_parcel_7, t_profile[exp_index], P_profile[exp_index], color = :blue, linestyle =:dash)
 
         MK.lines!(ax_parcel_8, EKI_parcel.t, EKI_parcel[7, :], color = :orange)
         MK.lines!(ax_parcel_8, UKI_parcel.t, UKI_parcel[7, :], color = :fuchsia)
@@ -231,7 +234,7 @@ for (calib_index, batch_name) in enumerate(batch_names)
         MK.errorbars!(ax_compare, t_profile[exp_index], frozen_frac_moving_mean[exp_index], error, color = (:blue, 0.3))
         MK.lines!(
             ax_compare,
-            AIDA_t_profile[start_time[exp_index]:end_time[exp_index]] .- start_time[exp_index],
+            AIDA_t_profile[start_time_index:end_time_index] .- start_time[exp_index],
             frozen_frac[exp_index],
             label = "Raw AIDA",
             linewidth = 2,

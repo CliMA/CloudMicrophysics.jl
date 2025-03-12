@@ -84,10 +84,10 @@ function unpack_data(data_file_name, ; total_t = 0)
         raw_ICNC_data = DelimitedFiles.readdlm(ICNC_file_path, ',' , header = false)
         raw_e_data = DelimitedFiles.readdlm(e_file_path, ',' , header = false)
 
-        AIDA_T_profile = interpolated_data(raw_T_data, t_profile)
-        AIDA_P_profile = interpolated_data(raw_P_data, t_profile) .* 100
-        AIDA_ICNC_profile = interpolated_data(raw_ICNC_data, t_profile) .* 1e6
-        AIDA_e_profile = interpolated_data(raw_e_data, t_profile)
+        AIDA_T_profile = interpolated_data(raw_T_data, AIDA_t_profile)
+        AIDA_P_profile = interpolated_data(raw_P_data, AIDA_t_profile) .* 100
+        AIDA_ICNC_profile = interpolated_data(raw_ICNC_data, AIDA_t_profile) .* 1e6
+        AIDA_e_profile = interpolated_data(raw_e_data, AIDA_t_profile)
 
     end
 
@@ -107,12 +107,12 @@ function data_to_calib_inputs(
     ]
 
     # pre-defined variable arrays
-    t_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    T_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    P_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    ICNC_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    e_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
-    S_l_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
+    global t_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
+    global T_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
+    global P_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
+    global ICNC_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
+    global e_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
+    global S_l_profile = Array{Vector{Float64}}(undef, length(data_file_name_list), 1)
 
     params_list = Vector{NamedTuple{
                     (:const_dt, :w, :t_max, :ips,
@@ -170,7 +170,7 @@ function data_to_calib_inputs(
             e_profile[exp_index] = AIDA_e_profile
             
             S_l_profile[exp_index] = e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
-            # @info(t_profile[exp_index][1], T_profile[exp_index][1], P_profile[exp_index][1], ICNC_profile[exp_index][1], e_profile[exp_index][1])
+            @info(data_file_name, t_profile[exp_index][1], T_profile[exp_index][1], P_profile[exp_index][1], ICNC_profile[exp_index][1], e_profile[exp_index][1])
             if data_file_name == "TROPIC04"
                 params_list[exp_index] = TROPIC04_params(FT, w[exp_index], t_max[exp_index], t_profile[exp_index], T_profile[exp_index], P_profile[exp_index])
                 IC_list[exp_index] = TROPIC04_IC(FT)
