@@ -77,17 +77,22 @@ function unpack_data(data_file_name, ; total_t = 0)
         T_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_T.csv")
         P_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_P.csv")
         ICNC_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_N_ice.csv")
-        e_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_RH_water.csv")
+        RH_file_path = CM.ArtifactCalling.AIDA_ice_nucleation(data_file_name * "_RH_water.csv")
         
         raw_T_data = DelimitedFiles.readdlm(T_file_path, ',' , header = false)
         raw_P_data = DelimitedFiles.readdlm(P_file_path, ',' , header = false)
         raw_ICNC_data = DelimitedFiles.readdlm(ICNC_file_path, ',' , header = false)
-        raw_e_data = DelimitedFiles.readdlm(e_file_path, ',' , header = false)
+        raw_RH_data = DelimitedFiles.readdlm(RH_file_path, ',' , header = false)
 
         AIDA_T_profile = interpolated_data(raw_T_data, AIDA_t_profile)
         AIDA_P_profile = interpolated_data(raw_P_data, AIDA_t_profile) .* 100
         AIDA_ICNC_profile = interpolated_data(raw_ICNC_data, AIDA_t_profile) .* 1e6
-        AIDA_e_profile = interpolated_data(raw_e_data, AIDA_t_profile)
+        AIDA_RH_profile = data_file_name == "ACI04_22" ?
+            interpolated_data(raw_RH_data, AIDA_t_profile) ./ 100 :
+            interpolated_data(raw_RH_data, AIDA_t_profile)
+
+        eₛ = [TD.saturation_vapor_pressure(tps, T, TD.Liquid()) for T in AIDA_T_profile]
+        AIDA_e_profile = AIDA_RH_profile .*  eₛ
 
     end
 

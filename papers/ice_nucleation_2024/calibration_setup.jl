@@ -372,7 +372,7 @@ function ACI04_22_params(FT, w, t_max, t_profile, T_profile, P_profile)
     IN_mode = "ABIFM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
-    aerosol_act = "AeroAct"
+    aerosol_act = "None"
     aerosol = CMP.MiddleEasternDust(FT)
     dep_nucleation = "ABDINM"
     heterogeneous = "ABIFM"
@@ -405,9 +405,9 @@ function ACI04_22_IC(FT)
     R_d = TD.Parameters.R_d(tps)
     R_v = TD.Parameters.R_v(tps)
 
-    Nₗ = FT(0)
     Nᵢ = FT(10075.141555)
-    Nₐ = FT(252.1 * 1e6) - Nₗ - Nᵢ
+    Nₗ = FT(252.1 * 1e6) - Nᵢ
+    Nₐ = FT(0)
     r₀ = FT(0.645 / 2 * 1e6)
     p₀ = FT(97785.714286)
     T₀ = FT(253.4983146)
@@ -415,8 +415,8 @@ function ACI04_22_IC(FT)
     qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
     m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
     m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+    e = FT(104.5108)
     qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
-    e = FT(80.74074)
     eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
     Sₗ = FT(e / eₛ)
 
@@ -428,7 +428,7 @@ function EXP19_params(FT, w, t_max, t_profile, T_profile, P_profile)
     IN_mode = "ABIFM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
-    aerosol_act = "AeroAct"
+    aerosol_act = "None"
     aerosol = CMP.AsianDust(FT)
     dep_nucleation = "ABDINM"
     heterogeneous = "ABIFM"
@@ -461,18 +461,18 @@ function EXP19_IC(FT)
     R_d = TD.Parameters.R_d(tps)
     R_v = TD.Parameters.R_v(tps)
 
-    Nₗ = FT(0)
-    Nᵢ = FT(0)  # TODO 
-    Nₐ = FT(252.1 * 1e6) - Nₗ - Nᵢ
+    Nᵢ = FT(161515.09922)
+    Nₗ = FT(252.1 * 1e6) - Nᵢ
+    Nₐ = FT(0)
     r₀ = FT(2.4 / 2 * 1e6)
-    p₀ = FT()  # TODO 
-    T₀ = FT()  # TODO 
+    p₀ = FT(99766.35514)
+    T₀ = FT(251.721428)
     qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
     qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
     m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
     m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+    e = FT(57.103126)
     qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
-    e = FT()    # TODO 
     eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
     Sₗ = FT(e / eₛ)
 
@@ -484,7 +484,7 @@ function EXP45_params(FT, w, t_max, t_profile, T_profile, P_profile)
     IN_mode = "ABDINM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
-    aerosol_act = "AeroAct"
+    aerosol_act = "None"
     aerosol = CMP.SaharanDust(FT)
     dep_nucleation = "ABDINM"
     heterogeneous = "ABIFM"
@@ -517,18 +517,18 @@ function EXP45_IC(FT)
     R_d = TD.Parameters.R_d(tps)
     R_v = TD.Parameters.R_v(tps)
 
-    Nₗ = FT(0)
-    Nᵢ = FT(0)  # TODO 
-    Nₐ = FT(252.1 * 1e6) - Nₗ - Nᵢ
+    Nᵢ = FT(748663.1016)
+    Nₗ = FT(252.1 * 1e6) - Nᵢ
+    Nₐ = FT(0)
     r₀ = FT(2.4838 / 2 * 1e6)
-    p₀ = FT()  # TODO 
-    T₀ = FT()  # TODO 
+    p₀ = FT(99583.33333)
+    T₀ = FT(213.351)
     qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
     qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
     m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
     m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
+    e = FT(1.08486)
     qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
-    e = FT()    # TODO 
     eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
     Sₗ = FT(e / eₛ)
 
