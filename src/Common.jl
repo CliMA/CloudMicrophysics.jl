@@ -299,11 +299,6 @@ function Chen2022_vel_coeffs_B4(
     return (aiu, bi, ciu)
 end
 
-# Wrapper to cast types from SF.gamma
-# (which returns Float64 even when the input is Float32)
-# TODO - replace with parameterization of our own
-Γ(a::FT) where {FT <: Real} = FT(SF.gamma(a))
-
 """
     Chen2022_monodisperse_pdf(a, b, c, D)
 
@@ -332,7 +327,33 @@ Assuming exponential size distribution and hence μ=0.
 function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT}
     μ = 0 # Exponential instead of gamma distribution
     δ = FT(μ + k + 1)
-    return a * exp(δ * log(λ) - (b + δ) * log(λ + c)) * Γ(b + δ) / Γ(δ)
+    return a * exp(δ * log(λ) - (b + δ) * log(λ + c)) * SF.gamma(b + δ) / SF.gamma(δ)
 end
+
+"""
+    volume_sphere_D(D)
+
+Calculate the volume of a sphere with diameter D.
+
+```math
+V = D^3 * π / 6
+```
+
+See also [`volume_sphere_R`](@ref).
+"""
+volume_sphere_D(D) = D^3 * π / 6
+
+"""
+    volume_sphere_R(R)
+
+Calculate the volume of a sphere with radius R.
+
+```math
+V = (2R)^3 * π / 6
+```
+
+See also [`volume_sphere_D`](@ref).
+"""
+volume_sphere_R(R) = volume_sphere_D(2R)
 
 end # module end

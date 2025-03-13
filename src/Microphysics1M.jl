@@ -97,7 +97,7 @@ function lambda(
 
     return q > FT(0) ?
            (
-        χm * m0 * n0 * CO.Γ(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
+        χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
     )^FT(1 / (me + Δm + 1)) : FT(0)
 end
 
@@ -168,8 +168,8 @@ function terminal_velocity(
         # size distrbution
         λ = lambda(pdf, mass, q, ρ)
 
-        return χv * v0 * (λ * r0)^(-ve - Δv) * CO.Γ(me + ve + Δm + Δv + FT(1)) /
-               CO.Γ(me + Δm + FT(1))
+        return χv * v0 * (λ * r0)^(-ve - Δv) * SF.gamma(me + ve + Δm + Δv + FT(1)) /
+               SF.gamma(me + Δm + FT(1))
     else
         return FT(0)
     end
@@ -237,7 +237,7 @@ function terminal_velocity(
         # Compute the mass weighted average aspect ratio ϕ_av
         # As a next step, we could keep ϕ(r) under the integrals
         (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
-        ϕ_av = ϕ₀ / λ^α * CO.Γ(α + 3 + 1) / CO.Γ(3 + 1)
+        ϕ_av = ϕ₀ / λ^α * SF.gamma(α + 3 + 1) / SF.gamma(3 + 1)
         # eq 20 from Chen 2022
         fall_w = ϕ_av^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
         fall_w = max(FT(0), fall_w)
@@ -362,7 +362,7 @@ function accretion(
 
         accr_rate =
             q_clo * E * n0 * a0 * v0 * χa * χv / λ *
-            CO.Γ(ae + ve + Δa + Δv + FT(1)) / (λ * r0)^(ae + ve + Δa + Δv)
+            SF.gamma(ae + ve + Δa + Δv + FT(1)) / (λ * r0)^(ae + ve + Δa + Δv)
     end
     return accr_rate
 end
@@ -408,7 +408,7 @@ function accretion_rain_sink(
 
         accr_rate =
             E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv / λ_ice / λ *
-            CO.Γ(me + ae + ve + Δm + Δa + Δv + FT(1)) /
+            SF.gamma(me + ae + ve + Δm + Δa + Δv + FT(1)) /
             (r0 * λ)^FT(me + ae + ve + Δm + Δa + Δv)
     end
     return accr_rate
@@ -465,11 +465,11 @@ function accretion_snow_rain(
         accr_rate =
             FT(π) / ρ * n0_i * n0_j * m0_j * χm_j * E_ij * abs(v_ti - v_tj) /
             r0_j^(me_j + Δm_j) * (
-                FT(2) * CO.Γ(me_j + Δm_j + FT(1)) / λ_i^FT(3) /
+                FT(2) * SF.gamma(me_j + Δm_j + FT(1)) / λ_i^FT(3) /
                 λ_j^(me_j + Δm_j + FT(1)) +
-                FT(2) * CO.Γ(me_j + Δm_j + FT(2)) / λ_i^FT(2) /
+                FT(2) * SF.gamma(me_j + Δm_j + FT(2)) / λ_i^FT(2) /
                 λ_j^(me_j + Δm_j + FT(2)) +
-                CO.Γ(me_j + Δm_j + FT(3)) / λ_i / λ_j^(me_j + Δm_j + FT(3))
+                SF.gamma(me_j + Δm_j + FT(3)) / λ_i / λ_j^(me_j + Δm_j + FT(3))
             )
     end
     return accr_rate
@@ -524,7 +524,7 @@ function evaporation_sublimation(
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
                 (r0 * λ)^((ve + Δv) / FT(2)) *
                 (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
-                CO.Γ((ve + Δv + FT(5)) / FT(2))
+                SF.gamma((ve + Δv + FT(5)) / FT(2))
             )
     end
     # only evaporation is considered for rain
@@ -563,7 +563,7 @@ function evaporation_sublimation(
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
                 (r0 * λ)^((ve + Δv) / FT(2)) *
                 (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
-                CO.Γ((ve + Δv + FT(5)) / FT(2))
+                SF.gamma((ve + Δv + FT(5)) / FT(2))
             )
     end
     return evap_subl_rate
@@ -614,7 +614,7 @@ function snow_melt(
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
                 (r0 * λ)^((ve + Δv) / FT(2)) *
                 (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
-                CO.Γ((ve + Δv + FT(5)) / FT(2))
+                SF.gamma((ve + Δv + FT(5)) / FT(2))
             )
     end
     return snow_melt_rate

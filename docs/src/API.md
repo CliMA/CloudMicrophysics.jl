@@ -62,11 +62,110 @@ Microphysics2M.conv_q_liq_to_q_rai
 
 ```@docs
 P3Scheme
-P3Scheme.thresholds
-P3Scheme.distribution_parameter_solver
+```
+
+## Construct parameterization set
+```@docs
+CMP.ParametersP3{Float64}
+CMP.ParametersP3(::Float64)
+CMP.ParametersP3(::Parameters.CP.AbstractTOMLDict)
+```
+
+### Sub-parameterizations
+```@docs
+CMP.MassPowerLaw
+CMP.AreaPowerLaw
+CMP.SlopeLaw
+CMP.SlopePowerLaw{Float64}
+CMP.SlopeConstant{Float64}
+CMP.VentilationSB2005
+```
+
+## Obtain particle state
+
+```@docs
+P3Scheme.P3State
+P3Scheme.get_state
+```
+
+### State relationships
+
+```@docs
+P3Scheme.get_ρ_d
+P3Scheme.get_ρ_g
+P3Scheme.get_D_th
+P3Scheme.get_D_gr
+P3Scheme.get_D_cr
+P3Scheme.get_threshold
+```
+
+### Fetch from state
+
+```@docs
+P3Scheme.get_parameters
+P3Scheme.isunrimed
+P3Scheme.threshold_tuple
+```
+
+### Derived quantities
+
+#### Main particle methods
+These methods are a function of the particle diameter, `D`.
+```@docs
+P3Scheme.ice_mass
+P3Scheme.ice_density
+P3Scheme.∂ice_mass_∂D
+P3Scheme.ice_area
+P3Scheme.ϕᵢ
+```
+
+#### Supporting methods
+
+```@docs
+P3Scheme.weighted_average
+P3Scheme.mass_spherical
+P3Scheme.mass_nonspherical
+P3Scheme.mass_rimed
+P3Scheme.area_spherical
+P3Scheme.area_nonspherical
+P3Scheme.area_rimed
+```
+
+## Distribution parameters
+
+```@docs
+P3Scheme.P3Distribution
+P3Scheme.get_distribution_parameters
+```
+
+### Distribution relationships
+
+```@docs
+P3Scheme.log_N′ice
+P3Scheme.N′ice
+P3Scheme.get_μ
+P3Scheme.log_integrate_moment_psd
+P3Scheme.log_L_div_N₀
+P3Scheme.log_N_div_N₀
+P3Scheme.log_L_div_N
+P3Scheme.get_log_N₀
+```
+
+### Derived integral quantities
+These methods integrate over the particle size distribution.
+```@docs
+P3Scheme.D_m
+P3Scheme.ice_particle_terminal_velocity
 P3Scheme.ice_terminal_velocity
 P3Scheme.het_ice_nucleation
 P3Scheme.ice_melt
+```
+
+### Supporting integral methods
+
+```@docs
+P3Scheme.∫fdD
+P3Scheme.∫fdD_error
 ```
 
 # Aerosol model
@@ -143,6 +242,8 @@ Common.Chen2022_exponential_pdf
 Common.Chen2022_vel_coeffs_B1
 Common.Chen2022_vel_coeffs_B2
 Common.Chen2022_vel_coeffs_B4
+Common.volume_sphere_D
+Common.volume_sphere_R
 ```
 
 # Parameters
@@ -207,7 +308,6 @@ Parameters.AccrSB2006
 Parameters.SelfColSB2006
 Parameters.BreakupSB2006
 Parameters.EvaporationSB2006
-Parameters.ParametersP3
 Parameters.Blk1MVelType
 Parameters.Blk1MVelTypeRain
 Parameters.Blk1MVelTypeSnow
