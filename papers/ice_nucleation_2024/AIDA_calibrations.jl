@@ -21,7 +21,7 @@ global edf_data_names = [
 ]
 data_file_names = [
     # ["in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04"],
-    ["in07_01_aida.edf"],
+    # ["in07_01_aida.edf"],
     ["in07_19_aida.edf"],
     ["ACI04_22"],
     ["EXP19"],
@@ -29,11 +29,11 @@ data_file_names = [
     # ["EXP28"],
 ]
 # batch_names = ["HOM", "IN0701", "IN0719", "ACI04_22", "EXP19", "EXP45"]
-batch_names = ["IN0701", "IN0719", "ACI04_22", "EXP19", "EXP45"]
+batch_names = ["IN0719", "ACI04_22", "EXP19", "EXP45"]
 end_sim = 25            # Loss func looks at last end_sim timesteps only
 start_time_list = [     # freezing onset
     # [Int32(150), Int32(180), Int32(0)],
-    [Int32(50)],
+    # [Int32(50)],
     [Int32(35)],
     [Int32(0)],
     [Int32(0)],
@@ -42,17 +42,17 @@ start_time_list = [     # freezing onset
 ]
 end_time_list = [       # approximate time freezing stops
     # [Int32(315), Int32(290), Int32(700)],
-    [Int32(375)],
+    # [Int32(375)],
     [Int32(375)],
     [Int32(300)],
-    [Int32(240)],
+    [Int32(200)],
     [Int32(200)],
     # [Int32(300)]
 ]
 moving_average_n = 5    # average every length(data) / n points
 updrafts = [            # updrafts matching AIDA cooling rate
     # [FT(1.5), FT(1.4), FT(1.4)],
-    [FT(1.5)],
+    # [FT(1.5)],
     [FT(1.5)],
     [FT(1.5)],
     [FT(9)],

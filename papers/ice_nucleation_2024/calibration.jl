@@ -237,9 +237,9 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
                 c_stats = [FT(-7), FT(20), -Inf, Inf]
             elseif aerosol_type == CMP.MiddleEasternDust(FT)
                 m_stats = [FT(50), FT(50), FT(0), Inf]
-                c_stats = [FT(0.7), FT(20), -Inf, Inf]
+                c_stats = [FT(-7), FT(20), -Inf, Inf]
             else
-                error("Aerosol type not supported for ABDINM.")
+                error("Aerosol type not supported for ABIFM.")
             end
         elseif IN_mode == "ABHOM"
             m_stats = [FT(260.927125), FT(70), FT(0), Inf]
