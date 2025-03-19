@@ -284,13 +284,14 @@ which looks like this:
 
 ```@example
 include("plots/P3SlopeParameterizations.jl")
+
+nothing # hide
 ```
 ![](P3SlopeParameterizations_power_law.svg)
 
-With this choice, it appears that some values of $\log(L/N)$ gives rise to multiple solutions for $λ$, as seen in the plot below.
+With this choice, it appears that some values of $\log(L/N)$ gives rise to multiple solutions for $λ$, as seen in the plot below. Each vertical line shows a different solution for $λ$ for a given value of $\log(L/N)$. The right panel shows the number concentration distribution $N'(D)$ for the different solutions.
 
-!!! todo "TODO: Add plot of multiple solutions"
-
+![](P3SlopeParameterizations_multiple_solutions.svg)
 
 #### $μ$ as a constant
 
