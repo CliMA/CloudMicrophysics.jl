@@ -102,7 +102,7 @@ function deposition_nucleation(params::ABDINM, state, dY)
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
     J = CMI_het.deposition_J(aerosol, Δa_w)
     A = 4 * FT(π) * r_nuc^2
-    return min(max(FT(0), J * Nₐ * A), Nₐ / const_dt)
+    return min(J * Nₐ * A, Nₐ / const_dt)
 end
 
 function deposition_nucleation(params::P3_dep, state, dY)
@@ -131,7 +131,7 @@ function immersion_freezing(params::ABIFM, PSD_liq, state)
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
 
     J = CMI_het.ABIFM_J(aerosol, Δa_w)
-    return min((J * Nₗ * A_aer), (Nₗ / const_dt))
+    return min(J * Nₗ * A_aer, (Nₗ / const_dt))
 end
 
 function immersion_freezing(params::P3_het, PSD_liq, state)
@@ -203,7 +203,7 @@ function homogeneous_freezing(params::ABHOM, PSD_liq, state)
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
     J = CMI_hom.homogeneous_J_linear(ips.homogeneous, Δa_w)
 
-    return min(max(FT(0), J * Nₗ * PSD_liq.V), Nₗ / const_dt)
+    return min(J * Nₗ * PSD_liq.V, Nₗ / const_dt)
 end
 
 function homogeneous_freezing(params::P3_hom, PSD_liq, state)
@@ -222,11 +222,15 @@ end
 function condensation(params::CondParams, PSD_liq, state, ρ_air)
     FT = eltype(state)
     (; aps, tps, const_dt) = params
-    (; Sₗ, T, Nₗ, qₗ) = state
+    (; Sₗ, T, Nₗ, qᵥ, qₗ) = state
     Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
     dqₗ_dt = 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD_liq.r * Nₗ
 
-    return qₗ + dqₗ_dt * const_dt > 0 ? dqₗ_dt : -qₗ / const_dt
+    return ifelse(
+        dqₗ_dt > FT(0),
+        min(dqₗ_dt, limit(qᵥ, const_dt, 1)),
+        -min(abs(dqₗ_dt), limit(qₗ, const_dt, 1)),
+    )
 end
 
 function condensation(params::NonEqCondParams_simple, PSD, state, ρ_air)
@@ -269,12 +273,18 @@ function deposition(::Empty, PSD_ice, state, ρ_air)
 end
 
 function deposition(params::DepParams, PSD_ice, state, ρ_air)
-    (; aps, tps) = params
-    (; T, Sₗ, Nᵢ) = state
+    (; aps, tps, const_dt) = params
+    (; T, Sₗ, Nᵢ, qᵥ, qᵢ) = state
     FT = eltype(state)
     Sᵢ = ξ(tps, T) * Sₗ
     Gᵢ = CMO.G_func(aps, tps, T, TD.Ice())
-    return 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD_ice.r * Nᵢ
+    dqᵢ_dt = 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD_ice.r * Nᵢ
+
+    return ifelse(
+        dqᵢ_dt > FT(0),
+        min(dqᵢ_dt, limit(qᵥ, const_dt, 1)),
+        -min(abs(dqᵢ_dt), limit(qᵢ, const_dt, 1)),
+    )
 end
 
 function deposition(params::NonEqDepParams_simple, PSD, state, ρ_air)

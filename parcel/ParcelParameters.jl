@@ -96,6 +96,7 @@ end
 struct DepParams{FT} <: CMP.ParametersType{FT}
     aps::CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
+    const_dt::FT
 end
 
 struct NonEqDepParams_simple{FT} <: CMP.ParametersType{FT}

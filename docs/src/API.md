@@ -261,6 +261,9 @@ Parameters.AirProperties
 Parameters.WaterProperties
 Parameters.ArizonaTestDust
 Parameters.DesertDust
+Parameters.AsianDust
+Parameters.MiddleEasternDust
+Parameters.SaharanDust
 Parameters.Illite
 Parameters.Kaolinite
 Parameters.Feldspar

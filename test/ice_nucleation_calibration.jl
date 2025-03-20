@@ -4,6 +4,7 @@ import Test as TT
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration.jl"))
+include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup.jl"))
 
 function test_J_calibration(FT, IN_mode)
     params = perf_model_params(FT, IN_mode)

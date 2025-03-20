@@ -212,11 +212,11 @@ function benchmark_test(FT)
         (ice, ch2022.small_ice, ρ_air, q_ice),
         400,
     )
-    bench_press(CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 750)
+    bench_press(CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 850)
     bench_press(
         CM1.terminal_velocity,
         (snow, ch2022.large_ice, ρ_air, q_sno),
-        750,
+        850,
     )
 
     # aerosol activation
