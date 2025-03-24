@@ -20,7 +20,7 @@ global edf_data_names = [
     "in07_01_aida.edf", "in07_19_aida.edf",
 ]
 data_file_names = [
-    ["in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04"],
+    ["in05_17_aida.edf", "in05_18_aida.edf"],
     ["in07_01_aida.edf"],
     ["in07_19_aida.edf"],
     ["ACI04_22"],
@@ -31,7 +31,7 @@ data_file_names = [
 batch_names = ["HOM", "IN0701", "IN0719", "ACI04_22", "EXP19", "EXP45"]
 end_sim = 25            # Loss func looks at last end_sim timesteps only
 start_time_list = [     # freezing onset
-    [Int32(150), Int32(180), Int32(0)],
+    [Int32(150), Int32(180)],
     [Int32(50)],
     [Int32(35)],
     [Int32(0)],
@@ -40,7 +40,7 @@ start_time_list = [     # freezing onset
     # [Int32(0)],
 ]
 end_time_list = [       # approximate time freezing stops
-    [Int32(295), Int32(290), Int32(700)],
+    [Int32(295), Int32(290)],
     [Int32(375)],
     [Int32(375)],
     [Int32(300)],
@@ -50,7 +50,7 @@ end_time_list = [       # approximate time freezing stops
 ]
 moving_average_n = 5    # average every length(data) / n points
 updrafts = [            # updrafts matching AIDA cooling rate
-    [FT(1.5), FT(1.4), FT(1.4)],
+    [FT(1.5), FT(1.4)],
     [FT(1.5)],
     [FT(1.5)],
     [FT(1.5)],
@@ -59,8 +59,29 @@ updrafts = [            # updrafts matching AIDA cooling rate
     # [FT(1.5)],
 ]
 
+# Supercooled water thermodynamic properties
+override_file = Dict( 
+    "pressure_triple_point" =>
+        Dict("value" => FT(25.16299251 * 1.0047), "type" => "float"),
+    "temperature_triple_point" =>
+        Dict("value" => FT(236), "type" => "float"),
+    "thermodynamics_temperature_reference" =>
+        Dict("value" => FT(236), "type" => "float"),
+    "latent_heat_vaporization_at_reference" =>
+        Dict("value" => FT(2600307.36), "type" => "float"),
+    "latent_heat_sublimation_at_reference" =>
+        Dict("value" => FT(2841004.893), "type" => "float"),
+    "isobaric_specific_heat_vapor" =>
+        Dict("value" => FT(1853.675619), "type" => "float"),
+    "isobaric_specific_heat_liquid" =>
+        Dict("value" => FT(5396.1059), "type" => "float"),
+    "isobaric_specific_heat_ice" =>
+        Dict("value" => FT(1823.342958), "type" => "float"),
+)
+toml_dict = CP.create_toml_dict(FT; override_file)
+tps = TD.Parameters.ThermodynamicsParameters(toml_dict)
+
 # Additional definitions
-tps = TD.Parameters.ThermodynamicsParameters(FT)
 R_v = TD.Parameters.R_v(tps)
 R_d = TD.Parameters.R_d(tps)
 ϵₘ = R_d / R_v
@@ -90,7 +111,8 @@ for (batch_index, batch_name) in enumerate(batch_names)
 
     ### Check for and grab data in AIDA_data folder.
     calib_variables = data_to_calib_inputs(
-        FT, batch_name, data_file_name_list, nuc_mode,
+        FT, tps,
+        batch_name, data_file_name_list, nuc_mode,
         start_time, end_time,
         w, t_max, end_sim,
     )

@@ -103,7 +103,8 @@ function unpack_data(data_file_name, ; total_t = 0)
 end
 
 function data_to_calib_inputs(
-    FT, batch_name, data_file_name_list, nuc_mode,
+    FT, tps,
+    batch_name, data_file_name_list, nuc_mode,
     batch_start_times, batch_end_times,
     w, t_max, end_sim,
 )
@@ -156,6 +157,8 @@ function data_to_calib_inputs(
 
     # filling in empty variable arrays
     for (exp_index, data_file_name) in enumerate(data_file_name_list)
+
+
         # Takes cropped version of data in the window of time that aligns with our simulation
         # and creates y_truth to be used for calibration
         if data_file_name in edf_data_names
@@ -192,8 +195,8 @@ function data_to_calib_inputs(
                 )
             IC_list[exp_index] =
                 nuc_mode == "ABHOM" ?
-                AIDA_IN05_IC(FT, data_file_name) :
-                AIDA_IN07_IC(FT, data_file_name)
+                AIDA_IN05_IC(FT, tps, data_file_name) :
+                AIDA_IN07_IC(FT, tps, data_file_name)
 
         else
             AIDA_data = unpack_data(data_file_name, total_t = t_max[exp_index])
@@ -215,7 +218,7 @@ function data_to_calib_inputs(
                     T_profile[exp_index],
                     P_profile[exp_index],
                 )
-                IC_list[exp_index] = TROPIC04_IC(FT)
+                IC_list[exp_index] = TROPIC04_IC(FT, tps)
             elseif data_file_name == "ACI04_22"
                 params_list[exp_index] = ACI04_22_params(
                     FT,
@@ -225,7 +228,7 @@ function data_to_calib_inputs(
                     T_profile[exp_index],
                     P_profile[exp_index],
                 )
-                IC_list[exp_index] = ACI04_22_IC(FT)
+                IC_list[exp_index] = ACI04_22_IC(FT, tps)
             elseif data_file_name == "EXP19"
                 params_list[exp_index] = EXP19_params(
                     FT,
@@ -235,7 +238,7 @@ function data_to_calib_inputs(
                     T_profile[exp_index],
                     P_profile[exp_index],
                 )
-                IC_list[exp_index] = EXP19_IC(FT)
+                IC_list[exp_index] = EXP19_IC(FT, tps)
             elseif data_file_name == "EXP45"
                 params_list[exp_index] = EXP45_params(
                     FT,
@@ -245,7 +248,7 @@ function data_to_calib_inputs(
                     T_profile[exp_index],
                     P_profile[exp_index],
                 )
-                IC_list[exp_index] = EXP45_IC(FT)
+                IC_list[exp_index] = EXP45_IC(FT, tps)
             elseif data_file_name == "EXP28"
                 params_list[exp_index] = EXP45_params(
                     FT,
@@ -255,7 +258,7 @@ function data_to_calib_inputs(
                     T_profile[exp_index],
                     P_profile[exp_index],
                 )
-                IC_list[exp_index] = EXP45_IC(FT)
+                IC_list[exp_index] = EXP45_IC(FT, tps)
             end
         end
 

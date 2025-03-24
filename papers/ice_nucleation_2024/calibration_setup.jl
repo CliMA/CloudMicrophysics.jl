@@ -188,8 +188,7 @@ function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
     return params
 end
 
-function AIDA_IN05_IC(FT, data_file)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+function AIDA_IN05_IC(FT, tps, data_file)
     wps = CMP.WaterProperties(FT)
 
     ρₗ = wps.ρw
@@ -265,8 +264,7 @@ function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, exp_nam
     return params
 end
 
-function AIDA_IN07_IC(FT, data_file)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+function AIDA_IN07_IC(FT, tps, data_file)
     wps = CMP.WaterProperties(FT)
 
     ρₗ = wps.ρw
@@ -342,9 +340,8 @@ function TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile)
     return params
 end
 
-function TROPIC04_IC(FT)
+function TROPIC04_IC(FT, tps)
     # refers to exp 4 of campaign TROPIC04
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
     wps = CMP.WaterProperties(FT)
 
     ρₗ = wps.ρw
@@ -399,9 +396,8 @@ function ACI04_22_params(FT, w, t_max, t_profile, T_profile, P_profile)
     return params
 end
 
-function ACI04_22_IC(FT)
+function ACI04_22_IC(FT, tps)
     # Niemand et al (2012)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
     wps = CMP.WaterProperties(FT)
 
     ρₗ = wps.ρw
@@ -456,9 +452,8 @@ function EXP19_params(FT, w, t_max, t_profile, T_profile, P_profile)
     return params
 end
 
-function EXP19_IC(FT)
+function EXP19_IC(FT, tps)
     # Cotten et al (2007)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
     wps = CMP.WaterProperties(FT)
 
     ρₗ = wps.ρw
@@ -513,9 +508,8 @@ function EXP45_params(FT, w, t_max, t_profile, T_profile, P_profile)
     return params
 end
 
-function EXP45_IC(FT)
+function EXP45_IC(FT, tps)
     # Cotten et al (2007)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
     wps = CMP.WaterProperties(FT)
 
     ρₗ = wps.ρw
