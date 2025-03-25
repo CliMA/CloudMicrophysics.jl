@@ -268,6 +268,7 @@ Parameters.Illite
 Parameters.Kaolinite
 Parameters.Feldspar
 Parameters.Ferrihydrite
+Parameters.Dust
 Parameters.Seasalt
 Parameters.Sulfate
 Parameters.AerosolActivationParameters

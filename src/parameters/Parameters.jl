@@ -29,6 +29,7 @@ include("AerosolFerrihydrite.jl")
 include("AerosolAsianDust.jl")
 include("AerosolMiddleEasternDust.jl")
 include("AerosolSaharanDust.jl")
+include("AerosolDust.jl")
 
 # Parameters for aerosol specific parameterizations
 include("AerosolActivation.jl")
