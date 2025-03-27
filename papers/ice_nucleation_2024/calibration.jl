@@ -114,7 +114,7 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; c
                         Dict("value" => c_calibrated, "type" => "float"),
                 )
             else
-                @error("Only ABDINM is supported for Saharan Dust.")
+                error("Only ABDINM is supported for Saharan Dust.")
             end
             saharan_dust_calibrated = CP.create_toml_dict(FT; override_file)
             aerosol = CMP.SaharanDust(saharan_dust_calibrated)
@@ -127,10 +127,30 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; c
                         Dict("value" => c_calibrated, "type" => "float"),
                 )
             else
-                @error("Only ABIFM is supported for Middle Eastern Dust.")
+                error("Only ABIFM is supported for Middle Eastern Dust.")
             end
             middle_eastern_dust_calibrated = CP.create_toml_dict(FT; override_file)
             aerosol = CMP.MiddleEasternDust(middle_eastern_dust_calibrated)
+        elseif aerosol == CMP.Dust(FT)
+            if IN_mode == "ABDINM"
+                override_file = Dict(
+                    "J_ABDINM_m_Dust" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABDINM_c_Dust" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            elseif IN_mode == "ABIFM"
+                override_file = Dict(
+                    "J_ABIFM_m_Dust" =>
+                        Dict("value" => m_calibrated, "type" => "float"),
+                    "J_ABIFM_c_Dust" =>
+                        Dict("value" => c_calibrated, "type" => "float"),
+                )
+            else
+                error("Only ABIFM and ABDINM are supported for Dust.")
+            end
+            dust_calibrated = CP.create_toml_dict(FT; override_file)
+            aerosol = CMP.Dust(dust_calibrated)
         elseif aerosol == CMP.Sulfate(FT)
             if IN_mode == "ABHOM"
                 override_file = Dict(
@@ -140,12 +160,12 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; c
                         Dict("value" => c_calibrated, "type" => "float"),
                 )
             else
-                @error("Only ABHOM is supported for Sulfate.")
+                error("Only ABHOM is supported for Sulfate.")
             end
             ip_calibrated = CP.create_toml_dict(FT; override_file)
             ips = CMP.IceNucleationParameters(ip_calibrated)
         else
-            @error("Aerosol type not supported for calibration.\nSee calibration.jl run_model function.")
+            error("Aerosol type not supported for calibration.\nSee calibration.jl run_model function.")
         end
 
         # loading parcel parameters
@@ -228,8 +248,11 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
             elseif aerosol_type == CMP.SaharanDust(FT)
                 m_stats = [FT(100), FT(50), FT(0), Inf]
                 c_stats = [FT(0.7), FT(20), -Inf, Inf]
+            elseif aerosol_type == CMP.Dust(FT)
+                m_stats = [FT(50), FT(50), FT(0), Inf]
+                c_stats = [FT(0.7), FT(20), -Inf, Inf]
             else
-                error("Aerosol type not supported for ABDINM.")
+                error("Aerosol type not supported for ABDINM. Check create_prior function.")
             end
         elseif IN_mode == "ABIFM"
             if aerosol_type == CMP.AsianDust(FT)
@@ -238,8 +261,11 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
             elseif aerosol_type == CMP.MiddleEasternDust(FT)
                 m_stats = [FT(50), FT(50), FT(0), Inf]
                 c_stats = [FT(-7), FT(20), -Inf, Inf]
+            elseif aerosol_type == CMP.Dust(FT)
+                m_stats = [FT(50), FT(50), FT(0), Inf]
+                c_stats = [FT(-7), FT(20), -Inf, Inf]
             else
-                error("Aerosol type not supported for ABIFM.")
+                error("Aerosol type not supported for ABIFM. Check create_prior function.")
             end
         elseif IN_mode == "ABHOM"
             m_stats = [FT(260.927125), FT(70), FT(0), Inf]
