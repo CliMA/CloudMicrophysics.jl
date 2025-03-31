@@ -159,8 +159,8 @@ function parcel_model(dY, Y, p, t)
     dY[2] = dp_air_dt   # pressure
     dY[3] = dT_dt       # temperature
     dY[4] = dqᵥ_dt      # vapor specific humidity
-    dY[5] = dqₗ_dt      # liquid water specific humidity
-    dY[6] = dqᵢ_dt      # ice specific humidity
+    dY[5] = dqₗ_dt      # liquid water specific content
+    dY[6] = dqᵢ_dt      # ice specific content
     dY[7] = dNₐ_dt      # number concentration of interstitial aerosol
     dY[8] = dNₗ_dt      # mumber concentration of droplets
     dY[9] = dNᵢ_dt      # number concentration of activated particles
@@ -183,8 +183,8 @@ Parcel state vector (all variables are in base SI units):
  - p_air - air pressure
  - T     - temperature
  - qᵥ    - vapor specific humidity
- - qₗ    - liquid water specific humidity
- - qᵢ    - ice specific humidity
+ - qₗ    - liquid water specific content
+ - qᵢ    - ice specific content
  - Nₐ    - number concentration of interstitial aerosol
  - Nₗ    - number concentration of existing water droplets
  - Nᵢ    - concentration of activated ice crystals

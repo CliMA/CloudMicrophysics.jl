@@ -114,7 +114,7 @@ $(DocStringExtensions.FIELDS)
 struct Acnv1M{FT} <: ParametersType{FT}
     "autoconversion timescale [s]"
     τ::FT
-    "specific humidity autoconversion threshold [-]"
+    "condensate specific content autoconversion threshold [-]"
     q_threshold::FT
     "threshold smooth transition steepness [-]"
     k::FT
