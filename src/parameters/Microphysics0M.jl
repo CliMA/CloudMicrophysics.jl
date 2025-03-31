@@ -11,7 +11,7 @@ $(DocStringExtensions.FIELDS)
 Base.@kwdef struct Parameters0M{FT} <: ParametersType{FT}
     "precipitation timescale [s]"
     τ_precip::FT
-    "specific humidity precipitation threshold [-]"
+    "condensate specific content precipitation threshold [-]"
     qc_0::FT
     "supersaturation precipitation threshold [-]"
     S_0::FT

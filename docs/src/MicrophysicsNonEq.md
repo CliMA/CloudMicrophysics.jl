@@ -4,11 +4,11 @@ The `MicrophysicsNonEq.jl` module describes a bulk parameterization of
   diffusion of water vapor on cloud droplets and cloud ice crystals
   modeled as a relaxation to equilibrium.
 
-The cloud microphysics variables are expressed as specific humidities:
-  - `q_tot` - total water specific humidity,
-  - `q_vap` - water vapor specific humidity,
-  - `q_liq` - cloud water specific humidity,
-  - `q_ice` - cloud ice specific humidity,
+The cloud microphysics variables are expressed as specific contents:
+  - `q_tot` - total water specific content,
+  - `q_vap` - water vapor specific content (i.e., specific humidity),
+  - `q_liq` - cloud water specific content,
+  - `q_ice` - cloud ice specific content,
 
 Parameters used in the parameterization are defined in
   [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package.
@@ -34,9 +34,9 @@ The equilibrium value is obtained based on a prescribed phase partition function
 \end{equation}
 ```
 where:
- - ``q^{eq}_{liq}, q^{eq}_{ice}`` - liquid and water specific humidity in equilibrium at current temperature and
+ - ``q^{eq}_{liq}, q^{eq}_{ice}`` - liquid and water specific content in equilibrium at current temperature and
    assuming some phase partition function based on temperature
- - ``q_{liq}, q_{ice}`` - current liquid water and ice specific humidity,
+ - ``q_{liq}, q_{ice}`` - current liquid water and ice specific content,
  - ``\tau_{l}, \tau_{i}`` - relaxation timescales.
 
 !!! note
@@ -50,15 +50,15 @@ where:
 ## Condensation/evaporation and deposition/sublimation from Morrison and Milbrandt 2015
 
 Condensation/evaporation and deposition/sublimation rates are based on
-  the difference between the water vapor specific humidity and saturation
-  vapor specific humidity over liquid and ice at the current temperature.
+  the difference between the specific humidity and the
+  specific humidity at saturation over liquid and ice at the current temperature.
 The process is modeled as a relaxation with a constant timescale.
 This formulation is derived from [MorrisonGrabowski2008_supersat](@cite)
   and [MorrisonMilbrandt2015](@cite), but without imposing exponential time integrators.
 
 !!! note
     The [MorrisonGrabowski2008_supersat](@cite) and [MorrisonMilbrandt2015](@cite)
-    papers use mass mixing ratios, not specific humidities.
+    papers use mass mixing ratios, not specific contents.
     Additionally, in their formulations they consider two different categories for liquid:
     cloud water and rain. For now we only consider cloud water and use a single relaxation timescale
     ``\tau_l`` (liquid) rather than separate ``\tau_c`` (cloud) and ``\tau_r`` (rain) values.
@@ -70,8 +70,8 @@ This formulation is derived from [MorrisonGrabowski2008_supersat](@cite)
 \end{equation}
 ```
 where:
-- ``q_{vap}`` is the water vapor specific humidity
-- ``q_{sl}``, ``q_{si}`` is the saturation specific humidity over liquid and ice
+- ``q_{vap}`` is the specific humidity
+- ``q_{sl}``, ``q_{si}`` is the specific humidity at saturation over liquid and ice
 - ``\tau_l``, ``\tau_i`` is the liquid and ice relaxation timescale
 - ``\Gamma_l``, ``\Gamma_i`` is a psychometric correction due to latent heating/cooling:
 
@@ -104,7 +104,7 @@ To see this, it is necessary to use the definitions of ``\tau``, ``q_{sl}``, and
   D_v = \frac{K}{\rho c_p}.
 \end{equation}
 ```
-If we then assume that the supersaturation ``S`` can be approximated by the specific humidities (this is only exactly true for mass mixing ratios):
+If we then assume that the supersaturation ``S`` can be approximated by the specific contents (this is only exactly true for mass mixing ratios):
 ```math
 \begin{equation}
     S_l = \frac{q_{vap}}{q_{sl}},
@@ -134,7 +134,7 @@ For simplicity, we assume a monodisperse size distribution
 ```
 where:
  - ``\rho_{air}`` is the air density,
- - ``q`` is the cloud liquid or cloud ice specific humidity,
+ - ``q`` is the cloud liquid or cloud ice specific content,
  - ``N`` is the prescribed number concentration (``500/cm^3`` by default),
  - ``\rho`` is the cloud water or cloud ice density.
 

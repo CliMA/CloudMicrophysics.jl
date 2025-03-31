@@ -31,7 +31,7 @@ e = q_v p \frac{R_v}{R_a}
 \end{equation}
 ```
 where:
-- ``q_v`` is the water vapor specific humidity
+- ``q_v`` is the specific humidity
 - ``p`` is the air pressure
 - ``R_v``, ``R_a`` are the gas constants for water vapor and air.
 
@@ -59,9 +59,9 @@ From the moist adiabatic assumption
 \end{equation}
 ```
 where:
-- ``q_{l,vap}`` is the cloud liquid water specific humidity from vaporization/condensation,
-- ``q_{i,subl}`` is the cloud ice specific humidity from sublimation/deposition,
-- ``q_{i,fus}`` is the cloud ice specific humidity from melting/freezing,
+- ``q_{l,vap}`` is the cloud liquid water specific content from vaporization/condensation,
+- ``q_{i,subl}`` is the cloud ice specific content from sublimation/deposition,
+- ``q_{i,fus}`` is the cloud ice specific content from melting/freezing,
 - ``L_s`` is the latent heat of sublimation,
 - ``L_f`` is the latent heat of fusion.
 
@@ -123,7 +123,7 @@ The crux of the problem is modeling the ``\frac{dq_l}{dt}`` and ``\frac{dq_i}{dt
 
 ## Supported size distributions
 Currently the parcel model supports monodisperse and gamma size distributions of cloud droplets and ice crystals,
-  and solves prognostic equations for the cloud water and cloud ice specific humidities
+  and solves prognostic equations for the cloud water and cloud ice specific contents
   ``q_l``, ``q_i`` and number concentrations ``N_l``, ``N_i``.
 
 For a monodisperse size distribution of cloud droplets or ice crystals
@@ -386,7 +386,7 @@ The following examples show ice nucleation, starting with deposition
   freezing on dust.
 The model is run three times using the `"MohlerAF_Deposition"` approach
   for 30 minutes simulation time, (shown by three different colors on the plot).
-Between each run the water vapor specific humidity is changed,
+Between each run the specific humidity is changed,
   while keeping all other state variables the same as at the last time step
   of the previous run.
 The prescribed vertical velocity is equal to 3.5 cm/s.
@@ -463,7 +463,7 @@ and `stochastic` (solid lines) parameterization options. We show results for two
 ```
 ![](frostenberg_immersion_freezing.svg)
 
-Below, we show how the non-equilibrium formulation is able to represent the Wegener-Bergeron-Findeisen (WBF) regime in the parcel model. These plots show the liquid supersaturation percent, ice supersaturation percent, temperature, specific humidity of water vapor `q_{vap}`, specific humidity of liquid `q_{liq}`, and specific humidity of ice `q_{ice}` over time. When the supersaturation is negative evaporation/sublimation occurs and when it is positive condensation/deposition occurs. Because the water vapor pressure in the parcel is greater than the saturation water vapor pressure of liquid but larger than that of ice, liquid evaporates while ice grows.
+Below, we show how the non-equilibrium formulation is able to represent the Wegener-Bergeron-Findeisen (WBF) regime in the parcel model. These plots show the liquid supersaturation percent, ice supersaturation percent, temperature, specific humidity `q_{vap}`, specific content of liquid `q_{liq}`, and specific content of ice `q_{ice}` over time. When the supersaturation is negative evaporation/sublimation occurs and when it is positive condensation/deposition occurs. Because the water vapor pressure in the parcel is greater than the saturation water vapor pressure of liquid but larger than that of ice, liquid evaporates while ice grows.
 
 ```@example
   include("../../parcel/Example_NonEq.jl")

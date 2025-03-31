@@ -26,15 +26,15 @@ nothing #hide
 # Note that both the free parameters and the input values are of the same floating point type.
 # All values are defined in base SI units.
 const SB2006 = CMP.SB2006(FT)
-qₗ = FT(1e-3)  # Cloud liquid water specific humidity
-qᵣ = FT(5e-4)  # Rain water specific humidity
+qₗ = FT(1e-3)  # Cloud liquid water specific content
+qᵣ = FT(5e-4)  # Rain water specific content
 ρₐ = FT(1)     # Air density
 Nₗ = FT(1e8)   # Cloud droplet number concentration
 
 nothing #hide
 
 # Finally, we call `accretion`, which will return the accretion rates for
-# cloud and rain water specific humidities, as well as cloud and rain water number concentrations.
+# cloud and rain water specific contents, as well as cloud and rain water number concentrations.
 (; dq_rai_dt, dq_liq_dt, dN_rai_dt, dN_liq_dt) =
     CM2.accretion(SB2006, qₗ, qᵣ, ρₐ, Nₗ)
 @info("Accretion rates: ", dq_rai_dt, dq_liq_dt, dN_rai_dt, dN_liq_dt)

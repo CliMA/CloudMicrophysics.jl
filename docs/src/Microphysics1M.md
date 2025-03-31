@@ -7,13 +7,13 @@ The module is based on the ideas of
   [Grabowski1998](@cite)
   and [Kaul2015](@cite).
 
-The cloud microphysics variables are expressed as specific humidities:
-  - `q_tot` - total water specific humidity,
-  - `q_vap` - water vapor specific humidity,
-  - `q_liq` - cloud water specific humidity,
-  - `q_ice` - cloud ice specific humidity,
-  - `q_rai` - rain specific humidity,
-  - `q_sno` - snow specific humidity.
+The cloud microphysics variables are expressed as specific contents:
+  - `q_tot` - total water specific content,
+  - `q_vap` - water vapor specific content (i.e., specific humidity),
+  - `q_liq` - cloud water specific content,
+  - `q_ice` - cloud ice specific content,
+  - `q_rai` - rain specific content,
+  - `q_sno` - snow specific content.
 
 ## Assumed particle size relationships
 
@@ -133,7 +133,7 @@ The ``\lambda`` parameter is defined as
 \end{equation}
 ```
 where:
- - ``q`` is rain, snow or ice specific humidity
+ - ``q`` is rain, snow or ice specific content
  - ``\chi_m``, ``m_0``, ``m_e``, ``\Delta_m``, ``r_0``, and ``n_0``
    are the corresponding mass(radius) and size distribution parameters
  - ``\Gamma()`` is the gamma function
@@ -149,7 +149,7 @@ In other derivations cloud ice, similar to cloud liquid water,
 
      - Do we want to test different size distributions?
 
-Here we plot the Marshall-Palmer particle size distribution for 4 different values for the rain specific humidity (q_rai).
+Here we plot the Marshall-Palmer particle size distribution for 4 different values for the rain specific content (q_rai).
 
 ```@example
 include("plots/MarshallPalmer_distribution.jl")
@@ -282,7 +282,7 @@ It is parameterized following
 \end{equation}
 ```
 where:
- - ``q_{liq}`` - liquid water specific humidity,
+ - ``q_{liq}`` - liquid water specific content,
  - ``\tau_{acnv\_rain}`` - timescale,
  - ``q_{liq\_threshold}`` - autoconversion threshold.
 
@@ -374,7 +374,7 @@ It is formulated similarly to the rain autoconversion:
 \end{equation}
 ```
 where:
- - ``q_{liq}`` - liquid water specific humidity,
+ - ``q_{liq}`` - liquid water specific content,
  - ``\tau_{acnv\_rain}`` - timescale,
  - ``q_{liq\_threshold}`` - autoconversion threshold.
 
