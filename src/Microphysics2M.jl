@@ -31,15 +31,15 @@ export autoconversion,
     get_size_distribution_bound
 
 """
-A structure containing the rates of change of the specific humidities and number
+A structure containing the rates of change of the specific contents and number
 densities of liquid and rain water.
 """
 Base.@kwdef struct LiqRaiRates{FT}
-    "Rate of change of the liquid water specific humidity"
+    "Rate of change of the liquid water specific content"
     dq_liq_dt::FT = FT(0)
     "Rate of change of the liquid water number density"
     dN_liq_dt::FT = FT(0)
-    "Rate of change of the rain water specific humidity"
+    "Rate of change of the rain water specific content"
     dq_rai_dt::FT = FT(0)
     "Rate of change of the rain water number density"
     dN_rai_dt::FT = FT(0)
@@ -52,7 +52,7 @@ end
     pdf_cloud_parameters(pdf_c, qₗ, ρₐ, Nₗ)
 
  - `pdf_c` - a struct with SB2006 cloud droplets size distribution parameters
- - `qₗ` - cloud water specific humidity
+ - `qₗ` - cloud water specific content
  - `ρₐ` - air density
  - `Nₗ` cloud droplet number concentration
 
@@ -104,7 +104,7 @@ end
     pdf_rain_parameters(pdf_r, qᵣ, ρₐ, Nᵣ)
 
  - `pdf_r` - a struct with SB2006 raindrops size distribution parameters
- - `qᵣ` - rain water specific humidity
+ - `qᵣ` - rain water specific content
  - `ρₐ` - air density
  - `Nᵣ` rain drop number concentration
 
@@ -163,7 +163,7 @@ end
 
  - pdf - struct containing size distribution parameters of cloud or rain
  - D - particle size (i.e. maximum dimension of particle)
- - q - cloud or rain water specific humidity
+ - q - cloud or rain water specific content
  - ρₐ - density of air
  - N - cloud or rain water number concentration
 
@@ -263,8 +263,8 @@ end
     autoconversion(scheme, q_liq, q_rai, ρ, N_liq)
 
  - `acnv`, `pdf_c` - structs with autoconversion and cloud size distribution parameters
- - `q_liq` - cloud water specific humidity
- - `q_rai` - rain water specific humidity
+ - `q_liq` - cloud water specific content
+ - `q_rai` - rain water specific content
  - `ρ` - air density
  - `N_liq` - cloud droplet number density
 
@@ -315,8 +315,8 @@ end
     accretion(scheme, q_liq, q_rai, ρ, N_liq)
 
  - `scheme` - type for 2-moment accretion parameterization
- - `q_liq` - cloud water specific humidity
- - `q_rai` - rain water specific humidity
+ - `q_liq` - cloud water specific content
+ - `q_rai` - rain water specific content
  - `ρ` - air density
  - `N_liq` - cloud droplet number density
 
@@ -353,7 +353,7 @@ end
     liquid_self_collection(scheme, q_liq, ρ, dN_liq_dt_au)
 
  - `scheme` - type for 2-moment liquid self-collection parameterization
- - `q_liq` - cloud water specific humidity
+ - `q_liq` - cloud water specific content
  - `ρ` - air density
  - `dN_liq_dt_au` - rate of change of cloud droplets number density due to autoconversion
 
@@ -386,8 +386,8 @@ end
     autoconversion_and_liquid_self_collection(scheme, q_liq, q_rai, ρ, N_liq)
 
  - `scheme` - type for 2-moment rain autoconversion parameterization
- - `q_liq` - cloud water specific humidity
- - `q_rai` - rain water specific humidity
+ - `q_liq` - cloud water specific content
+ - `q_rai` - rain water specific content
  - `ρ` - air density
  - `N_liq` - cloud droplet number density
 
@@ -412,7 +412,7 @@ end
     rain_self_collection(scheme, q_rai, ρ, N_rai)
 
  - `scheme` - type for 2-moment rain self-collection parameterization
- - `q_rai` - rain water specific humidity
+ - `q_rai` - rain water specific content
  - `ρ` - air density
  - `N_rai` - raindrops number density
 
@@ -448,7 +448,7 @@ end
     rain_breakup(scheme, q_rai, ρ, dN_rai_dt_sc)
 
  - `scheme` - type for 2-moment liquid self-collection parameterization
- - `q_rai` - rain water specific humidity
+ - `q_rai` - rain water specific content
  - `ρ` - air density
  - `N_rai` - raindrops number density
  - `dN_rai_dt_sc` - rate of change of raindrops number density due to self-collection
@@ -488,7 +488,7 @@ end
 
  - `SB2006` - a struct with SB2006 parameters for raindrops size
     distribution, self collection, and breakup
- - `q_rai` - rain water specific humidity
+ - `q_rai` - rain water specific content
  - `ρ` - air density
  - `N_rai` - raindrops number density
 
@@ -535,7 +535,7 @@ end
 
  - `SB2006` - a struct with SB2006 rain size distribution parameters
  - `vel` - a struct with terminal velocity parameters
- - `q_rai` - rain water specific humidity [kg/kg]
+ - `q_rai` - rain water specific content [kg/kg]
  - `ρ` - air density [kg/m^3]
  - `N_rai` - raindrops number density [1/m^3]
 
@@ -634,13 +634,13 @@ end
  - `aps` - air properties
  - `tps` - thermodynamics parameters
  - `q` - phase partition
- - `q_rai` - rain specific humidity
+ - `q_rai` - rain specific content
  - `ρ` - air density
  - `N_rai` - raindrops number density
  - `T` - air temperature
 
 Returns a named tuple containing the tendency of raindrops number density and rain water
-specific humidity due to rain rain_evaporation, assuming a power law velocity relation for
+specific content due to rain rain_evaporation, assuming a power law velocity relation for
 fall velocity of individual drops and an exponential size distribution, for `scheme == SB2006Type`
 """
 function rain_evaporation(
@@ -707,7 +707,7 @@ end
     conv_q_liq_to_q_rai(acnv, q_liq, ρ, N_d; smooth_transition)
 
  - `acnv` - 2-moment rain autoconversion parameterization
- - `q_liq` - cloud water specific humidity
+ - `q_liq` - cloud water specific content
  - `ρ` - air density
  - `N_d` - prescribed cloud droplet number concentration
 
@@ -754,7 +754,7 @@ function conv_q_liq_to_q_rai(
     N_d,
     smooth_transition = false,
 ) where {FT}
-    #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
+    #TODO - The original paper is actually formulated for mixing ratios, not specific contents
     q_liq = max(0, q_liq)
     (; m0_liq_coeff, me_liq, D, a, b, r_0, k) = acnv
     q_liq_threshold::FT = m0_liq_coeff * N_d / ρ * r_0^me_liq
@@ -803,8 +803,8 @@ end
     accretion(accretion_scheme, q_liq, q_rai, ρ)
 
  - `accretion_scheme` - type for 2-moment rain accretion parameterization
- - `q_liq` - cloud water specific humidity
- - `q_rai` - rain water specific humidity
+ - `q_liq` - cloud water specific content
+ - `q_rai` - rain water specific content
  - `ρ` - air density (for `KK2000Type` and `Beheng1994Type`)
 
  Returns the accretion rate of rain, parametrized following
@@ -827,7 +827,7 @@ function accretion((; accr)::CMP.B1994{FT}, q_liq, q_rai, ρ) where {FT}
 end
 
 function accretion((; accr)::CMP.TC1980{FT}, q_liq, q_rai) where {FT}
-    #TODO - The original paper is actually formulated for mixing ratios, not specific humidities
+    #TODO - The original paper is actually formulated for mixing ratios, not specific contents
     q_liq = max(0, q_liq)
     q_rai = max(0, q_rai)
     (; A) = accr

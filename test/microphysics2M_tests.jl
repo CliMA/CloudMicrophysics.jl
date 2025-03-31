@@ -581,7 +581,7 @@ function test_microphysics2M(FT)
         ρₐ = FT(1.2)
         ρₗ = SB2006.pdf_r.ρw
 
-        # example number concentration and specific humidity
+        # example number concentration and specific content
         Nᵣ = FT(0.5 * 1e6)   # 0.5 1/cm3
         qᵣ = FT(0.5 * 1e-3)  # 0.5 g/kg
 
@@ -658,7 +658,7 @@ function test_microphysics2M(FT)
             TT.@test ND_bounded_limited ≈ Nᵣ rtol = 1e-6
         end
 
-        # Sanity checks for specific humidities for rain
+        # Sanity checks for specific contents for rain
         qD = QGK.quadgk(x -> m(x) * f_D(x), D₀, D∞)[1] / ρₐ
         qx = QGK.quadgk(x -> x * f_x(x), m₀, m∞)[1] / ρₐ
         qD_lim = QGK.quadgk(x -> m(x) * f_D_limited(x), D₀, D∞)[1] / ρₐ
@@ -699,7 +699,7 @@ function test_microphysics2M(FT)
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 cloud distribution sanity checks" begin
 
-        # example number concentration and specific humidity
+        # example number concentration and specific content
         Nₗ = FT(1e3 * 1e6) # 1000 1/cm3
         qₗ = FT(1e-3)      # 1 g/kg
 
@@ -729,7 +729,7 @@ function test_microphysics2M(FT)
         m₀ = m(D₀)
         m∞ = m(D∞)
 
-        # Sanity checks of specific humidity and number concentration with mass distribution
+        # Sanity checks of specific content and number concentration with mass distribution
         # Sanity checks for number concentrations for cloud
         qx = QGK.quadgk(x -> x * f_x(x), m₀, m∞)[1] / (ρₐ * FT(10)^χ)
         Nx = QGK.quadgk(x -> f_x(x), m₀, m∞)[1]
@@ -742,7 +742,7 @@ function test_microphysics2M(FT)
         # integral bounds in millimiters
         _D₀ = 0.1 * 1e-6 * 1e3
         _D∞ = 100 * 1e-6 * 1e3
-        # Sanity checks specific humidity and number concentration with diameter distribution
+        # Sanity checks of specific content and number concentration with diameter distribution
         qD = QGK.quadgk(x -> _m(x) * f_D(x), _D₀, _D∞)[1] / ρₐ * FT(1e9) # convert from mm3 to m3
         ND = QGK.quadgk(x -> f_D(x), _D₀, _D∞)[1] * FT(1e9) # convert from mm3 to m3
         TT.@test ND ≈ Nₗ rtol = FT(1e-6)
@@ -756,7 +756,7 @@ function test_microphysics2M(FT)
             ρₐ,
             eps(FT),
         )
-        # Sanity checks specific humidity and number concentration with diameter distribution
+        # Sanity checks of specific content and number concentration with diameter distribution
         qD_bounded =
             QGK.quadgk(
                 x ->

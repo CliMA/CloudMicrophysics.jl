@@ -4,9 +4,9 @@ The `Microphysics2M.jl` module provides 2-moment warm rain bulk parameterization
  - the double-moment [SeifertBeheng2006](@cite) parametrization, which includes autoconversion, accretion, cloud and rain self-collection rates, breakup, terminal velocity and evaporation;
  - and other double-moment autoconversion and accretions schemes from [Wood2005](@cite) based on the works of [KhairoutdinovKogan2000](@cite), [Beheng1994](@cite), [TripoliCotton1980](@cite) and [LiuDaum2004](@cite).
 
-The microphysics variables are expressed as specific humidities [kg/kg] and number densities [1/m^3]:
-  - `q_liq` - cloud water specific humidity,
-  - `q_rai` - rain specific humidity,
+The microphysics variables are expressed as specific contents [kg/kg] and number densities [1/m^3]:
+  - `q_liq` - cloud water specific content,
+  - `q_rai` - rain specific content,
   - `N_liq` - cloud droplets number density,
   - `N_rai` - raindrops number density.
 The default values of free parameters are defined in
@@ -117,14 +117,14 @@ The autoconversion rate can be estimated by looking at variations in the second 
 ```
 where ``Z`` represents the second moment, and ``c`` and ``r`` subscripts denote cloud and rain categories respectively. In the early stages of rain evolution, an estimate of the variations in the second moment of the particle mass spectrum is obtained from the stochastic collection equation: ``\partial Z / \partial t  \approx  2k_c L_c M_c^{(3)}``, where ``M_c^{(3)}`` is the third moment of the cloud droplets spectrum. Using these equations, along with computing ``Z_c``, ``M_c^{(3)}``, ``Z_r`` directly by integrating the distribution functions, allows us to derive an equation for the autoconversion rate. To simplify the derivation, we assume that in the initial stage of the rain evolution raindrops have sizes of the order of ``x^*`` and the mean radius of cloud droplets is much less than ``x^*``. This approach yields an approximation of the autoconversion rate in the early stages of rain evolution. The early stage rain evolution assumption is then relaxed by means of a universal function that depends on a process time scale.
 
-The rate of change of rain specific humidity by autoconversion is finally expressed as
+The rate of change of rain specific content by autoconversion is finally expressed as
 ``` math
 \begin{equation}
   \left. \frac{\partial q_{rai}}{\partial t} \right|_{acnv} = \frac{k_{cc}}{20 \; x^* \; \rho} \frac{(\nu+2)(\nu+4)}{(\nu+1)^2} (q_{liq} \rho)^2 \overline{x}_c^2 \left(1+\frac{\phi_{acnv}(\tau)}{1-\tau^2}\right)\frac{\rho_0}{\rho},
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
   - ``\rho`` is the moist air density,
   - ``\rho_0 = 1.225 \, kg \cdot m^{-3}`` is the air density at surface conditions,
   - ``k_{cc}`` is the cloud-cloud collection kernel constant,
@@ -139,7 +139,7 @@ The function ``\phi_{acnv}(\tau)`` is used to correct the autoconversion rate fo
 \end{equation}
 ```
 where
-  - ``\tau = 1 - q_{liq}/(q_{liq} + q_{rai})`` is a dimensionless internal time scale with ``q_{rai}`` being the cloud liquid water specific humidity.
+  - ``\tau = 1 - q_{liq}/(q_{liq} + q_{rai})`` is a dimensionless internal time scale with ``q_{rai}`` being the cloud liquid water specific content.
 
 The default free parameter values are:
 
@@ -156,7 +156,7 @@ The rate of change of raindrops number density is
   \left. \frac{\partial N_{rai}}{\partial t} \right|_{acnv} = \frac{\rho}{x^*} \left. \frac{d \, q_{rai}}{dt} \right|_{acnv},
 \end{equation}
 ```
-and the rate of change of liquid water specific humidity and cloud droplets number density are
+and the rate of change of liquid water specific content and cloud droplets number density are
 ``` math
 \begin{align}
   \left. \frac{\partial q_{liq}}{\partial t} \right|_{acnv} = - \left. \frac{\partial q_{rai}}{\partial t} \right|_{acnv},\\
@@ -164,7 +164,7 @@ and the rate of change of liquid water specific humidity and cloud droplets numb
 \end{align}
 ```
 !!! note
-    The Seifert and Beheng parametrization is formulated for the rate of change of liquid water content ``L = \rho q``. Here, we assume constant ``\rho`` and divide the rates by ``\rho`` to derive the equations for the rate of change of specific humidities.
+    The Seifert and Beheng parametrization is formulated for the rate of change of liquid water content ``L = \rho q``. Here, we assume constant ``\rho`` and divide the rates by ``\rho`` to derive the equations for the rate of change of specific contents.
 
 ### Accretion
 An approximation for the accretion rate is obtained by directly evaluating the integral:
@@ -173,7 +173,7 @@ An approximation for the accretion rate is obtained by directly evaluating the i
     \left. \frac{\partial q_{rai}}{\partial t} \right|_{accr} = \frac{1}{\rho} \int_{x=0}^\infty\int_{y=0}^\infty f_c(x) f_r(y) K(x,y) x dy dx.
 \end{align}
 ```
-Similar to the autoconversion rate, the accretion rate is modified by a universal function. Thus, the rate of change of rain specific humidity by accretion becomes
+Similar to the autoconversion rate, the accretion rate is modified by a universal function. Thus, the rate of change of rain specific content by accretion becomes
 ```math
 \begin{align}
   \left. \frac{\partial q_{rai}}{\partial t} \right|_{accr} = & \frac{k_{cr}}{\rho} (q_{liq} \rho) (q_{rai} \rho) \phi_{accr}(\tau),\nonumber\\
@@ -181,8 +181,8 @@ Similar to the autoconversion rate, the accretion rate is modified by a universa
 \end{align}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
-  - ``q_{rai}`` is the rain liquid water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{rai}`` is the rain liquid water specific content,
   - ``\rho`` is the moist air density,
   - ``\rho_0`` is the air density at surface conditions,
   - ``k_{cr}`` is the cloud-rain collection kernel constant.
@@ -203,7 +203,7 @@ The default free parameter values are:
 |``\tau_0``  | ``5 \times 10^{-5}``                |
 |``c``       | ``4``                               |
 
-The rate of change of raindrops number density by accretion is zero, and the rate of change of liquid water specific humidity and cloud droplets number density are
+The rate of change of raindrops number density by accretion is zero, and the rate of change of liquid water specific content and cloud droplets number density are
 ``` math
 \begin{align}
   \left. \frac{\partial q_{liq}}{dt} \right|_{accr} = - \left. \frac{\partial q_{rai}}{dt} \right|_{accr},\\
@@ -228,7 +228,7 @@ Direct evaluation of the integral results in the following approximation of the 
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
   - ``\rho`` is the moist air density,
   - ``\rho_0`` is the air density at surface conditions,
   - ``k_{cc}`` is the Long's collection kernel constant,
@@ -250,7 +250,7 @@ This yields,
 \end{equation}
 ```
 where:
-  - ``q_{rai}`` is the rain water specific humidity,
+  - ``q_{rai}`` is the rain water specific content,
   - ``\rho`` is the moist air density,
   - ``\rho_0`` is the air density at surface conditions,
   - ``N_{rai}`` is the raindrops number density,
@@ -482,7 +482,7 @@ From the above works:
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
   - ``N_d`` is the cloud droplet concentration,
   - ``\rho`` is the air density,
 
@@ -504,7 +504,7 @@ and the default free parameter values are:
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
   - ``N_d`` is the cloud droplet number concentration,
 
 and the default free parameter values are:
@@ -527,7 +527,7 @@ and the default free parameter values are:
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
   - ``q_{liq_threshold}`` is the cloud liquid to rain water threshold,
   - ``N_d`` is the cloud droplet number concentration,
   - ``\mathrm{H}(x)`` is the Heaviside step function.
@@ -560,7 +560,7 @@ and the default free parameter values are:
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
   - ``N_d`` is the cloud droplet number concentration,
   - ``\rho`` is the air density.
 
@@ -594,7 +594,7 @@ Then the ``R_6`` and ``R_{6C}`` are defined as
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
   - ``N_d`` is the cloud droplet number concentration,
   - ``\tau_{acnv,\, 0}`` is the auto-conversion time scale at ``N_d = 100 cm^{-3}``.
 
@@ -615,8 +615,8 @@ The default free parameter values are:
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
-  - ``q_{rai}`` is the rain water specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{rai}`` is the rain water specific content,
   - ``\rho``    is the air density,
 
 and the default free parameter values are:
@@ -636,8 +636,8 @@ and the default free parameter values are:
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific humidity,
-  - ``q_{rai}`` is the rain specific humidity,
+  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{rai}`` is the rain specific content,
   - ``\rho``    is the air density,
 
 and the default free parameter values are:
@@ -655,8 +655,8 @@ and the default free parameter values are:
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is cloud liquid water specific humidity
-  - ``q_{rai}`` is rain specific humidity
+  - ``q_{liq}`` is cloud liquid water specific content
+  - ``q_{rai}`` is rain specific content
 
 and the default free parameter values are:
 

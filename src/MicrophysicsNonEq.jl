@@ -122,7 +122,7 @@ end
  - `sediment` - a struct with sedimentation type (cloud liquid or ice)
  - `vel` - a struct with terminal velocity parameters
  - `ρₐ` - air density
- - `q` - cloud liquid or ice specific humidity
+ - `q` - cloud liquid or ice specific content
 
 Returns the mass weighted average terminal velocity assuming a
 monodisperse size distribution with prescribed number concentration.
