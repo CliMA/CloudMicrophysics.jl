@@ -3,6 +3,7 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import Thermodynamics as TD
 import CairoMakie as MK
+import OrdinaryDiffEq as ODE
 
 # To grab data
 import DelimitedFiles
@@ -70,8 +71,17 @@ R_v = TD.Parameters.R_v(tps)
 R_d = TD.Parameters.R_d(tps)
 ϵₘ = R_d / R_v
 
-global EKI_calibratated_coeff_dict = Dict()
-global UKI_calibratated_coeff_dict = Dict()
+global EKI_calibrated_coeff_dict = Dict()
+global UKI_calibrated_coeff_dict = Dict()
+mutable struct all_calibration_data
+    EKI_calibrated_parcel::Vector{ODE.ODESolution}
+    UKI_calibrated_parcel::Vector{ODE.ODESolution}
+    Nₜ_list::Vector{Any}
+    t_profile_list::Vector{Any}
+    frozen_frac_moving_mean_list::Vector{Any}
+    frozen_frac_list::Vector{Any}
+end
+global overview_data = all_calibration_data(Vector{ODE.ODESolution}(), Vector{ODE.ODESolution}(), [], [], [], [])
 
 for (batch_index, batch_name) in enumerate(batch_names)
     @info(batch_name)
@@ -104,6 +114,13 @@ for (batch_index, batch_name) in enumerate(batch_names)
         Nₜ, y_truth,
     ) = calib_variables
 
+    if batch_name in ["HOM", "DEP", "IMM"]
+        append!(overview_data.Nₜ_list, Nₜ)
+        append!(overview_data.t_profile_list, t_profile)
+        append!(overview_data.frozen_frac_moving_mean_list, frozen_frac_moving_mean)
+        append!(overview_data.frozen_frac_list, frozen_frac)
+    end
+
     ff_max = maximum.(frozen_frac_moving_mean)
     ff_min = minimum.(frozen_frac_moving_mean)
     Γ = 0.01 / 9 * LinearAlgebra.I * (maximum(ff_max) - minimum(ff_min))
@@ -118,8 +135,8 @@ for (batch_index, batch_name) in enumerate(batch_names)
     EKI_calibrated_parameters = EKI_output[1]
     UKI_calibrated_parameters = UKI_output[1]
     calibrated_ensemble_means = ensemble_means(EKI_output[2], EKI_n_iterations, EKI_n_ensembles)
-    merge!(EKI_calibratated_coeff_dict, Dict(batch_name => EKI_calibrated_parameters))
-    merge!(UKI_calibratated_coeff_dict, Dict(batch_name => UKI_calibrated_parameters))
+    merge!(EKI_calibrated_coeff_dict, Dict(batch_name => EKI_calibrated_parameters))
+    merge!(UKI_calibrated_coeff_dict, Dict(batch_name => UKI_calibrated_parameters))
 
     ### Plot for individual experiments.
     for (exp_index, data_file) in enumerate(data_file_name_list)
@@ -130,12 +147,18 @@ for (batch_index, batch_name) in enumerate(batch_names)
         elseif batch_name == "IMM"
             exp_names = ["IMM_Batch_ACI04_22", "IMM_Batch_EXP19"]
         else
-            exp_names = batch_name
+            exp_names = [batch_name]
         end
 
         ## Calibrated parcel.
         EKI_parcel = run_model([params_list[exp_index]], nuc_mode, EKI_calibrated_parameters, FT, [IC_list[exp_index]], end_sim)
         UKI_parcel = run_model([params_list[exp_index]], nuc_mode, UKI_calibrated_parameters, FT, [IC_list[exp_index]], end_sim)
+        if batch_name in ["HOM", "DEP", "IMM"]
+            # the order it appends is "in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04",
+            # "in07_01_aida.edf", "in07_19_aida.edf", "EXP45", "ACI04_22", "EXP19".
+            push!(overview_data.EKI_calibrated_parcel, EKI_parcel)
+            push!(overview_data.UKI_calibrated_parcel, UKI_parcel)
+        end
 
         ## Plots.
         ## Plotting AIDA data.
@@ -182,6 +205,10 @@ for (batch_index, batch_name) in enumerate(batch_names)
             UKI_parcel_1, UKI_parcel_2, UKI_parcel_3, UKI_parcel_4, UKI_parcel_5, UKI_parcel,
         )
 
-    end # plotting
-    #! format: on
+    end # plotting individual experiments
 end
+
+# Plotting overview
+plot_ICNC_overview(overview_data)
+
+#! format: on
