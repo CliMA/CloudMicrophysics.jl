@@ -95,10 +95,14 @@ function lambda(
     # mass(size)
     (; r0, m0, me, Δm, χm) = mass
 
+    #return q > FT(0) ?
+    #       exp(
+    #    FT(1 / (me + Δm + 1)) * log(χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q * exp((-me - Δm) * log(r0))),
+    #) : FT(0)
     return q > FT(0) ?
-           exp(
-        FT(1 / (me + Δm + 1)) * log(χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q * exp((-me - Δm) * log(r0))),
-    ) : FT(0)
+           (
+        χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
+    )^FT(1 / (me + Δm + 1)) : FT(0)
 end
 
 """
@@ -168,8 +172,10 @@ function terminal_velocity(
         # size distrbution
         λ = lambda(pdf, mass, q, ρ)
 
-        return χv * v0 * exp((-ve - Δv) * log(λ * r0)) *
-               SF.gamma(me + ve + Δm + Δv + FT(1)) / SF.gamma(me + Δm + FT(1))
+        return χv * v0 * (λ * r0)^(-ve - Δv) * SF.gamma(me + ve + Δm + Δv + FT(1)) /
+               SF.gamma(me + Δm + FT(1))
+        #return χv * v0 * exp((-ve - Δv) * log(λ * r0)) *
+        #       SF.gamma(me + ve + Δm + Δv + FT(1)) / SF.gamma(me + Δm + FT(1))
     else
         return FT(0)
     end
