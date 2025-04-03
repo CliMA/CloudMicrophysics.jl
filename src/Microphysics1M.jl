@@ -159,7 +159,7 @@ function terminal_velocity(
     ρ::FT,
     q::FT,
 ) where {FT}
-    if q > FT(0)
+    if q > FT(5e-4)
         # terminal_velocity(size)
         (; χv, ve, Δv) = vel
         v0 = get_v0(vel, ρ)
