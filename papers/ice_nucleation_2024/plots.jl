@@ -51,11 +51,12 @@ Plots evolution of calibrated coefficients over the EKI iterations. Plot is save
 function plot_calibrated_coeffs(batch_name, EKI_n_iterations, calibrated_ensemble_means)
 
     calibrated_coeffs_fig = MK.Figure(size = (1100, 900), fontsize = 24)
-    ax3 = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$batch_name")
-    ax4 = MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "iteration #", title = "EKI")
+    m_coeff_ax = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$batch_name")
+    c_coeff_ax =
+        MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "iteration #", title = "EKI")
 
     MK.lines!(
-        ax3,
+        m_coeff_ax,
         collect(1:EKI_n_iterations),
         calibrated_ensemble_means[1],
         label = "ensemble mean",
@@ -63,7 +64,7 @@ function plot_calibrated_coeffs(batch_name, EKI_n_iterations, calibrated_ensembl
         linewidth = 2.5,
     )
     MK.lines!(
-        ax4,
+        c_coeff_ax,
         collect(1:EKI_n_iterations),
         calibrated_ensemble_means[2],
         label = "ensemble mean",
@@ -294,4 +295,98 @@ function plot_UKI_spread(
 
     return plot_UKI_spread
 
+end
+
+"""
+    plot_ICNC_overview(
+        EKI_calibrated_parcel, UKI_parcel,
+    )
+
+Plots frozen fraction evolution for EKI and UKI calibrated parcel simulations
+and AIDA data for all batch experiments. Plot is saved and returned.
+"""
+function plot_ICNC_overview(overview_data)
+
+    EKI_calibrated_parcel = overview_data.EKI_calibrated_parcel
+    UKI_calibrated_parcel = overview_data.UKI_calibrated_parcel
+    Nₜ_list = overview_data.Nₜ_list
+    t_profile_list = overview_data.t_profile_list
+    frozen_frac_moving_mean_list = overview_data.frozen_frac_moving_mean_list
+    frozen_frac_list = overview_data.frozen_frac_list
+
+    overview_fig = MK.Figure(size = (1000, 800), fontsize = 24)
+
+    exp_name_list = [
+        "IN05_17", "IN05_18", "TROPIC04",
+        "IN07_01", "IN07_19", "EXP45",
+        "ACI04_22", "EXP19",
+    ]
+    position = [
+        overview_fig[1, 1], overview_fig[2, 1], overview_fig[3, 1],
+        overview_fig[1, 2], overview_fig[2, 2], overview_fig[3, 2],
+        overview_fig[1, 3], overview_fig[2, 3],
+    ]
+
+    for (i, exp_name) in enumerate(exp_name_list)
+
+        EKI_parcel = EKI_calibrated_parcel[i]
+        UKI_parcel = UKI_calibrated_parcel[i]
+        Nₜ = Nₜ_list[i]
+        frozen_frac_moving_mean = frozen_frac_moving_mean_list[i]
+        t_profile = t_profile_list[i]
+        frozen_frac = frozen_frac_list[i]
+
+        ax = MK.Axis(position[i], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$exp_name")
+
+        MK.lines!(
+            ax,
+            EKI_parcel.t,
+            EKI_parcel[9, :] ./ Nₜ,
+            label = "CM.jl Parcel (EKI Calibrated)",
+            linewidth = 2.5,
+            color = :orange,
+        )
+        MK.lines!(
+            ax,
+            UKI_parcel.t,
+            UKI_parcel[9, :] ./ Nₜ,
+            label = "CM.jl Parcel (UKI Calibrated)",
+            linewidth = 2.5,
+            color = :fuchsia,
+            linestyle = :dash,
+        )
+        error = frozen_frac_moving_mean .* 0.1
+        MK.errorbars!(ax, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
+        MK.lines!(
+            ax,
+            t_profile,
+            frozen_frac,
+            label = "Raw AIDA",
+            linewidth = 2,
+            color = :blue,
+            linestyle = :dash,
+        )
+        MK.lines!(
+            ax,
+            t_profile,
+            frozen_frac_moving_mean,
+            label = "AIDA Moving Avg",
+            linewidth = 2.5,
+            color = :blue,
+        )
+    end
+
+    legend_axis = MK.Axis(overview_fig[3, 3], title = "Legend")
+    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (EKI Calibrated)", color = :orange)
+    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (UKI Calibrated)", color = :fuchsia, linestyle = :dash)
+    MK.lines!(legend_axis, 1, 1, label = "Raw AIDA", color = :blue, linestyle = :dash)
+    MK.lines!(legend_axis, 1, 1, label = "AIDA Moving Avg", color = :blue)
+    MK.axislegend(legend_axis, framevisible = false, labelsize = 18, position = :rb)
+
+    MK.hidespines!(legend_axis)
+    MK.hidedecorations!(legend_axis)
+
+    MK.save("Overview_ICNC_fig.svg", overview_fig)
+
+    return overview_fig
 end
