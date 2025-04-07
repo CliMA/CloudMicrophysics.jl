@@ -187,7 +187,9 @@ function terminal_velocity(
         # size distribution parameter
         λ::FT = lambda(pdf, mass, q, ρₐ)
         # eq 20 from Chen et al 2022
-        fall_w = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+        fall_w = sum((1, 2, 3); init = FT(0)) do i
+            CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+        end
         # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
         fall_w = max(FT(0), fall_w)
     end
@@ -215,7 +217,9 @@ function terminal_velocity(
         (; ϕ, κ) = aspr
 
         # eq 20 from Chen 2022
-        fall_w = ϕ^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+        fall_w = sum((1, 2); init = FT(0)) do i
+            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+        end
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
@@ -239,7 +243,9 @@ function terminal_velocity(
         (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
         ϕ_av = ϕ₀ / λ^α * SF.gamma(α + 3 + 1) / SF.gamma(3 + 1)
         # eq 20 from Chen 2022
-        fall_w = ϕ_av^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+        fall_w = sum((1, 2); init = FT(0)) do i
+            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+        end
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
