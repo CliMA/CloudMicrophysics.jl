@@ -108,3 +108,53 @@ function ice_melt(
     dLdt = min(dLdt, L / dt)
     return (; dNdt, dLdt)
 end
+
+function collision_cross_section_ice_liquid(state, Dᵢ, Dₗ)
+    rᵢ_eff(Dᵢ) = √(ice_area(state, Dᵢ) / π)
+    return π * (rᵢ_eff(Dᵢ) + Dₗ / 2)^2  # collision cross section  -- TODO: Check if this is correct
+end
+
+import CloudMicrophysics.Microphysics2M as CM2
+function bulk_collision_rate_with_liquid(
+    ice_dist::P3Distribution{FT},
+    vel::CMP.Chen2022VelType,
+    liquid_dist::Union{
+        CMP.RainParticlePDF_SB2006{FT},
+        CMP.RainParticlePDF_SB2006_limited{FT},
+        CMP.CloudParticlePDF_SB2006{FT}
+    },
+    ρₐ::FT,
+    Lₗ::FT,
+    Nₗ::FT,
+) where {FT}
+    (; ρ_l, ρ_i) = ice_dist.state.params
+
+    # dN/dt = ∫ E ⋅ K ⋅ |Vᵢ - Vₗ| ⋅ Nₗ ⋅ Nᵢ dDᵢ dDₗ
+    function integrand(Dᵢ, Dₗ)
+        T = typeof(Dᵢ)
+        E = T(1)  # TODO - Make it a function of Dᵢ and Dₗ
+        K = collision_cross_section_ice_liquid(state, Dᵢ, Dₗ)
+        vᵢ = p3_particle_terminal_velocity(state, Dᵢ, vel, ρₐ)
+        vₗ = terminal_velocity(Dₗ, vel.rain, ρₐ)
+        Nᵢ = N′ice(ice_dist, Dᵢ)
+        Nₗ = CM2.size_distribution(liquid_dist, Dₗ, Lₗ / ρₐ, ρₐ, Nₗ)
+        return E * K * abs(vᵢ - vₗ) * Nᵢ * Nₗ
+    end
+    mₗ(Dₗ) = ρ_l * CO.volume_sphere_D(Dₗ)
+    
+    (dNdt_liquid, _) = HC.hcubature((0, 0), (1, 1)) do (Dᵢ, Dₗ)
+        - integrand(Dᵢ, Dₗ)
+    end
+    (dLdt_liquid, _) = HC.hcubature((0, 0), (1, 1)) do (Dᵢ, Dₗ)
+        - integrand(Dᵢ, Dₗ) * mₗ(Dₗ)
+    end
+    
+    # How this impacts other prognostic variables:
+    dNdt_ice = FT(0)  # assume no splintering/breakup (i.e. no change in N_ice)
+    dLdt_ice = - dLdt_liquid
+    dLdt_rim = - dLdt_liquid
+    dBdt_rim = dLdt_rim / ρ_i
+
+    return (; dNdt_ice, dLdt_ice, dLdt_rim, dBdt_rim, dNdt_liquid, dLdt_liquid)
+
+end
