@@ -23,7 +23,7 @@ From these, we derive the following rime quantities:
 !!! note "Change of symbol convention"
     The original paper [MorrisonMilbrandt2015](@cite) uses the symbol ``q`` to denote the mass of a tracer per volume of air 
     (named mass mixing ratio). In our documentation of the 1-moment and 2-moment schemes we used ``q`` to denote the mass 
-    of a tracer per mass of air (named specific humidity). To keep the notation consistent between the 1,2-moment schemes 
+    of a tracer per mass of air (specific content). To keep the notation consistent between the 1,2-moment schemes 
     and P3, and to highlight the difference between normalizing by air mass or volume, we denote the mass of a tracer per 
     volume of air as ``L`` (named content).
 

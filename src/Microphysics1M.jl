@@ -49,7 +49,7 @@ Ec(::CMP.Snow, ::CMP.Rain, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
     get_n0(pdf, q_sno, ρ)
 
  - `pdf` -  a struct with parameters for snow, ice, and rain size distribution
- - `q_sno` -  snow specific humidity (only for `Snow`)
+ - `q_sno` -  snow specific content (only for `Snow`)
  - `ρ` - air density (only for `Snow`)
 
 Returns the intercept parameter of the assumed Marshall-Palmer distribution
@@ -77,7 +77,7 @@ get_v0((; v0)::CMP.Blk1MVelTypeSnow{FT}, args...) where {FT} = v0
     lambda(pdf, mass, q, ρ)
 
  - `pdf`, `mass` - structs with particle size distribution and mass parameters
- - `q` - specific humidity of rain, ice or snow
+ - `q` - specific content of rain, ice or snow
  - `ρ` - air density
 
 Returns the rate parameter of the assumed size distribution of
@@ -145,7 +145,7 @@ end
  - `precip` - a struct with precipitation type (rain or snow)
  - `vel` - a struct with terminal velocity parameters
  - `ρ` - air density
- - `q` - rain or snow specific humidity
+ - `q` - rain or snow specific content
 
 Returns the mass weighted average terminal velocity assuming
 a Marshall-Palmer (1948) distribution of particles.
@@ -187,7 +187,9 @@ function terminal_velocity(
         # size distribution parameter
         λ::FT = lambda(pdf, mass, q, ρₐ)
         # eq 20 from Chen et al 2022
-        fall_w = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+        fall_w = sum((1, 2, 3); init = FT(0)) do i
+            CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+        end
         # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
         fall_w = max(FT(0), fall_w)
     end
@@ -215,7 +217,9 @@ function terminal_velocity(
         (; ϕ, κ) = aspr
 
         # eq 20 from Chen 2022
-        fall_w = ϕ^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+        fall_w = sum((1, 2); init = FT(0)) do i
+            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+        end
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
@@ -239,7 +243,9 @@ function terminal_velocity(
         (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
         ϕ_av = ϕ₀ / λ^α * SF.gamma(α + 3 + 1) / SF.gamma(3 + 1)
         # eq 20 from Chen 2022
-        fall_w = ϕ_av^κ * sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+        fall_w = sum((1, 2); init = FT(0)) do i
+            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+        end
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
@@ -249,7 +255,7 @@ end
     conv_q_liq_to_q_rai(acnv, q_liq, smooth_transition)
 
  - `acnv` - 1M autoconversion parameters
- - `q_liq` - liquid water specific humidity
+ - `q_liq` - liquid water specific content
  - `smooth_transition` - a flag to switch on smoothing
 
 Returns the q_rai tendency due to collisions between cloud droplets
@@ -268,7 +274,7 @@ conv_q_liq_to_q_rai(
     conv_q_ice_to_q_sno_no_supersat(acnv, q_ice, smooth_transition)
 
  - `acnv` - 1M autoconversion parameters
- - `q_ice` -  cloud ice specific humidity
+ - `q_ice` -  cloud ice specific content
  - `smooth_transition` - a flag to switch on smoothing
 
 Returns the q_sno tendency due to autoconversion from ice.
@@ -330,9 +336,9 @@ end
  - `precip` - type for rain or snow
  - `vel` - a struct with terminal velocity parameters
  - `ce` - collision efficiency parameters
- - `q_clo` - cloud water or cloud ice specific humidity
- - `q_pre` - rain water or snow specific humidity
- - `ρ` - rain water or snow specific humidity
+ - `q_clo` - cloud water or cloud ice specific content
+ - `q_pre` - rain water or snow specific content
+ - `ρ` - air density
 
 Returns the source of precipitating water (rain or snow)
 due to collisions with cloud water (liquid or ice).
@@ -374,8 +380,8 @@ end
  - `ice` - ice type parameters
  - `vel` - terminal velocity parameters for rain
  - `ce` - collision efficiency parameters
- - `q_ice` - cloud ice specific humidity
- - `q_rai` - rain water specific humidity
+ - `q_ice` - cloud ice specific content
+ - `q_rai` - rain water specific content
  - `ρ` - air density
 
 Returns the sink of rain water (partial source of snow) due to collisions
@@ -424,7 +430,7 @@ end
          or snow for temperatures above freezing
  - `type_i`, `type_j` - a type for snow or rain
  - `blk1mveltype_ti`, `blk1mveltype_tj` - 1M terminal velocity parameters
- - `q_` - specific humidity of snow or rain
+ - `q_` - specific content of snow or rain
  - `ρ` - air density
 
 Returns the accretion rate between rain and snow.
@@ -485,8 +491,8 @@ end
  - `aps` - a struct with air parameters
  - `tps` - a struct with thermodynamics parameters
  - `q` - phase partition
- - `q_rai` - rain specific humidity
- - `q_sno` - snow specific humidity
+ - `q_rai` - rain specific content
+ - `q_sno` - snow specific content
  - `ρ` - air density
  - `T` - air temperature
 
@@ -576,7 +582,7 @@ end
  - `vel` - terminal velocity parameters
  - `aps` - air properties
  - `tps` - thermodynamics parameters
- - `q_sno` - snow water specific humidity
+ - `q_sno` - snow water specific content
  - `ρ` - air density
  - `T` - air temperature
 

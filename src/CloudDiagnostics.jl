@@ -16,7 +16,7 @@ import ..Microphysics2M as CM2
     radar_reflectivity_1M(precip, q, ρ)
 
   - `precip` - struct with 1-moment microphysics rain free parameters
-  - `q` - specific humidity of rain
+  - `q` - specific content of rain
   - `ρ` - air density
 
 Returns logarithmic radar reflectivity for the 1-moment microphysics
@@ -46,8 +46,8 @@ end
 
     - `structs` - structs microphysics 2-moment with SB2006 cloud droplets
                   and raindrops size distributions parameters
-    - `q_liq` - cloud water specific humidity
-    - `q_rai` - rain water specific humidity
+    - `q_liq` - cloud water specific content
+    - `q_rai` - rain water specific content
     - `N_liq` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
@@ -98,8 +98,8 @@ end
 
     - `structs` - structs with SB2006 cloud droplets and raindrops
                 size distribution parameters
-    - `q_liq` - cloud water specific humidity
-    - `q_rai` - rain water specific humidity
+    - `q_liq` - cloud water specific content
+    - `q_rai` - rain water specific content
     - `N_liq` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
@@ -157,8 +157,8 @@ end
 """
     effective_radius_Liu_Hallet_97(q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
 
-    - `q_liq` - cloud water specific humidity
-    - `q_rai` - rain water specific humidity
+    - `q_liq` - cloud water specific content
+    - `q_rai` - rain water specific content
     - `N_liq` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density

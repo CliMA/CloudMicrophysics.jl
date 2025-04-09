@@ -19,13 +19,13 @@ export remove_precipitation
 
  - `params_0M` - a struct with 0-moment parameters
  - `q` - current PhasePartition
- - `q_vap_sat` - water vapor specific humidity at saturation
+ - `q_vap_sat` - specific humidity at saturation
 
 Returns the `q_tot` tendency due to the removal of precipitation.
 The tendency is obtained assuming a relaxation with a constant timescale
 to a state with precipitable water removed.
 The threshold for when to remove `q_tot` is defined either by the
-condensate specific humidity or supersaturation.
+condensate specific content or supersaturation.
 The thresholds and the relaxation timescale are defined in
 ClimaParams.
 """

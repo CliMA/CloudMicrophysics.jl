@@ -227,6 +227,7 @@ function data_to_calib_inputs(
                     t_profile[exp_index],
                     T_profile[exp_index],
                     P_profile[exp_index],
+                    batch_name,
                 )
                 IC_list[exp_index] = ACI04_22_IC(FT, tps)
             elseif data_file_name == "EXP19"
@@ -237,6 +238,7 @@ function data_to_calib_inputs(
                     t_profile[exp_index],
                     T_profile[exp_index],
                     P_profile[exp_index],
+                    batch_name,
                 )
                 IC_list[exp_index] = EXP19_IC(FT, tps)
             elseif data_file_name == "EXP45"
@@ -247,6 +249,7 @@ function data_to_calib_inputs(
                     t_profile[exp_index],
                     T_profile[exp_index],
                     P_profile[exp_index],
+                    batch_name,
                 )
                 IC_list[exp_index] = EXP45_IC(FT, tps)
             elseif data_file_name == "EXP28"
@@ -257,6 +260,7 @@ function data_to_calib_inputs(
                     t_profile[exp_index],
                     T_profile[exp_index],
                     P_profile[exp_index],
+                    batch_name,
                 )
                 IC_list[exp_index] = EXP45_IC(FT, tps)
             end

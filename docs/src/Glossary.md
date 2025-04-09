@@ -2,14 +2,14 @@
 
 A scheme that predicts one moment of the particle size distribution (PSD).
 Typically it's the 3rd moment of PSD.
-The scheme's prognostic variable is the specific humidity (mass fraction)
+The scheme's prognostic variable is the specific content (mass fraction)
   of water in each category, which is proportional to the 3rd moment of PSD.
 
 ## 2-moment scheme
 
 A scheme that predicts two moments of the particle size distribution (PSD).
 Typically those are the 3rd and the 0th moments of PSD.
-The scheme's prognostic variables are the specific humidity (mass fraction)
+The scheme's prognostic variables are the specific content (mass fraction)
   and number concentration of particles in each category,
   which are proportional to the 3rd and 0th moment of (PSD)
 

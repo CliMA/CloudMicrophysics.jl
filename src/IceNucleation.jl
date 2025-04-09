@@ -91,6 +91,7 @@ function deposition_J(
         CMP.ArizonaTestDust,
         CMP.SaharanDust,
         CMP.AsianDust,
+        CMP.Dust,
     },
     Δa_w::FT,
 ) where {FT}
@@ -117,7 +118,7 @@ Returns zero for unsupported aerosol types.
 """
 function ABIFM_J(
     dust::Union{
-        CMP.DesertDust, CMP.Illite, CMP.Kaolinite,
+        CMP.DesertDust, CMP.Illite, CMP.Kaolinite, CMP.Dust,
         CMP.ArizonaTestDust, CMP.MiddleEasternDust, CMP.AsianDust,
     },
     Δa_w::FT,

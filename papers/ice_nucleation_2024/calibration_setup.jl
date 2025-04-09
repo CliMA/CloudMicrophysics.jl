@@ -235,12 +235,18 @@ function AIDA_IN05_IC(FT, tps, data_file)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, exp_name)
+function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
     IN_mode = "ABDINM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "None"
-    aerosol = exp_name == "IN0701" ? CMP.ArizonaTestDust(FT) : CMP.Illite(FT)
+    if batch_name == "IN0701"
+        aerosol = CMP.ArizonaTestDust(FT)
+    elseif batch_name == "IN0719"
+        aerosol = CMP.Illite(FT)
+    elseif batch_name == "DEP"
+        aerosol = CMP.Dust(FT)
+    end
     dep_nucleation = "ABDINM"
     heterogeneous = "ABIFM"
     homogeneous = "ABHOM"
@@ -367,13 +373,13 @@ function TROPIC04_IC(FT, tps)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function ACI04_22_params(FT, w, t_max, t_profile, T_profile, P_profile)
+function ACI04_22_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
     # Niemand et al (2012)
     IN_mode = "ABIFM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "None"
-    aerosol = CMP.MiddleEasternDust(FT)
+    aerosol = batch_name == "ACI04_22" ? CMP.MiddleEasternDust(FT) : CMP.Dust(FT)
     dep_nucleation = "ABDINM"
     heterogeneous = "ABIFM"
     homogeneous = "ABHOM"
@@ -423,13 +429,13 @@ function ACI04_22_IC(FT, tps)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function EXP19_params(FT, w, t_max, t_profile, T_profile, P_profile)
+function EXP19_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
     # Cotten et al (2007)
     IN_mode = "ABIFM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "None"
-    aerosol = CMP.AsianDust(FT)
+    aerosol = batch_name == "EXP19" ? CMP.AsianDust(FT) : CMP.Dust(FT)
     dep_nucleation = "ABDINM"
     heterogeneous = "ABIFM"
     homogeneous = "ABHOM"
@@ -479,13 +485,13 @@ function EXP19_IC(FT, tps)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function EXP45_params(FT, w, t_max, t_profile, T_profile, P_profile)
+function EXP45_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
     # Cotten et al (2007)
     IN_mode = "ABDINM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "None"
-    aerosol = CMP.SaharanDust(FT)
+    aerosol = batch_name == "EXP45" ? CMP.SaharanDust(FT) : CMP.Dust(FT)
     dep_nucleation = "ABDINM"
     heterogeneous = "ABIFM"
     homogeneous = "ABHOM"

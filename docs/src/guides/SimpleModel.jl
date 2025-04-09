@@ -20,8 +20,8 @@ function rain_formation(dY, Y, p, t)
     FT = eltype(Y) # Floating point precision type
     (; ρₐ, rain, liquid, ce, v_term) = p # Additional parameters passed through p
 
-    qₗ = Y[1] # Cloud water specific humidity
-    qᵣ = Y[2] # Rain water specific humidity
+    qₗ = Y[1] # Cloud water specific content
+    qᵣ = Y[2] # Rain water specific content
 
     acnv = CM1.conv_q_liq_to_q_rai(rain.acnv1M, qₗ) # Rain autoconversion rate
     accr = CM1.accretion(liquid, rain, v_term.rain, ce, qₗ, qᵣ, ρₐ) # Rain accretion rate
@@ -45,7 +45,7 @@ p = (; ρₐ, rain, liquid, ce, v_term)
 
 nothing #hide
 
-# Finally we define the simulation time and initial conditions for cloud and rain water specific humidities.
+# Finally we define the simulation time and initial conditions for cloud and rain water specific contents.
 # We define the ODE problem, pass it to the solver, and visualize the results.
 t₀ = FT(0)
 t_end = FT(10 * 60)

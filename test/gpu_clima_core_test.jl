@@ -7,6 +7,7 @@ import ClimaCore as CC
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.MicrophysicsNonEq as CMN
+import CloudMicrophysics.Microphysics1M as CM1
 
 """
     A helper function to create a ClimaCore 1d column space
@@ -93,12 +94,30 @@ end
 """
 function set_sedimentation_precomputed_quantities(Y, p, t)
 
-    (; w) = p
+    (; wₗ, wᵢ, wᵣ, wₛ) = p
     (; params) = p
 
-    @. w = CMN.terminal_velocity(
+    @. wₗ = CMN.terminal_velocity(
         params.liquid,
         params.Ch2022.rain,
+        Y.ρ,
+        max(0, Y.ρq / Y.ρ),
+    )
+    @. wᵢ = CMN.terminal_velocity(
+        params.ice,
+        params.Ch2022.small_ice,
+        Y.ρ,
+        max(0, Y.ρq / Y.ρ),
+    )
+    @. wᵣ = CM1.terminal_velocity(
+        params.rain,
+        params.Ch2022.rain,
+        Y.ρ,
+        max(0, Y.ρq / Y.ρ),
+    )
+    @. wₛ = CM1.terminal_velocity(
+        params.snow,
+        params.Ch2022.large_ice,
         Y.ρ,
         max(0, Y.ρq / Y.ρ),
     )
@@ -113,7 +132,7 @@ function main_1d(::Type{FT}) where {FT}
     rain = CMP.Rain(FT)
     snow = CMP.Snow(FT)
 
-    params = (; liquid, ice, Ch2022)
+    params = (; liquid, ice, rain, snow, Ch2022)
 
     space_1d_ρq = make_column(FT)
     space_1d_ρ = make_column(FT)
@@ -121,10 +140,13 @@ function main_1d(::Type{FT}) where {FT}
 
     ρq = CC.Fields.ones(space_1d_ρq) .* FT(1e-3)
     ρ = CC.Fields.ones(space_1d_ρ)
-    w = CC.Fields.zeros(space_1d_w)
+    wₗ = CC.Fields.zeros(space_1d_w)
+    wᵢ = CC.Fields.zeros(space_1d_w)
+    wᵣ = CC.Fields.zeros(space_1d_w)
+    wₛ = CC.Fields.zeros(space_1d_w)
 
     Y = (; ρq, ρ)
-    p = (; w, params)
+    p = (; wₗ, wᵢ, wᵣ, wₛ, params)
 
     t = 1
 
@@ -140,7 +162,7 @@ function main_3d(::Type{FT}) where {FT}
     rain = CMP.Rain(FT)
     snow = CMP.Snow(FT)
 
-    params = (; liquid, ice, Ch2022)
+    params = (; liquid, ice, rain, snow, Ch2022)
 
     space_3d_ρq = make_extruded_sphere(FT)
     space_3d_ρ = make_extruded_sphere(FT)
@@ -149,10 +171,13 @@ function main_3d(::Type{FT}) where {FT}
     ρq = CC.Fields.ones(space_3d_ρq) .* FT(1e-3)
 
     ρ = CC.Fields.ones(space_3d_ρ)
-    w = CC.Fields.zeros(space_3d_w)
+    wₗ = CC.Fields.zeros(space_3d_w)
+    wᵢ = CC.Fields.zeros(space_3d_w)
+    wᵣ = CC.Fields.zeros(space_3d_w)
+    wₛ = CC.Fields.zeros(space_3d_w)
 
     Y = (; ρq, ρ)
-    p = (; w, params)
+    p = (; wₗ, wᵢ, wᵣ, wₛ, params)
 
     t = 1
 

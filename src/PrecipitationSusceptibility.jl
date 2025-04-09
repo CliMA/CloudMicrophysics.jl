@@ -10,7 +10,7 @@ export precipitation_susceptibility_accretion
 
 """
 A structure containing the logarithmic derivatives of the production of
-precipitation with respect to the specific humidities and number
+precipitation with respect to the specific contents and number
 densities of liquid and rain water.
 """
 Base.@kwdef struct precip_susceptibility_rates{FT}
@@ -24,8 +24,8 @@ end
     precipitation_susceptibility_autoconversion(param_set, scheme, q_liq, q_rai, ρ, N_liq)
 
 - `scheme` - type for 2-moment rain autoconversion parameterization
-- `q_liq` - cloud water specific humidity
-- `q_rai` - rain water specific humidity
+- `q_liq` - cloud water specific content
+- `q_rai` - rain water specific content
 - `ρ` - air density
 - `N_liq` - cloud droplet number density
 
@@ -58,8 +58,8 @@ end
     precipitation_susceptibility_accretion(param_set, scheme, q_liq, q_rai, ρ, N_liq)
 
 - `scheme` - type for 2-moment rain autoconversion parameterization
-- `q_liq` - cloud water specific humidity
-- `q_rai` - rain water specific humidity
+- `q_liq` - cloud water specific content
+- `q_rai` - rain water specific content
 - `ρ` - air density
 - `N_liq` - cloud droplet number density
 
