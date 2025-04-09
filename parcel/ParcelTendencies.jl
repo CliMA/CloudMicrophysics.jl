@@ -198,9 +198,14 @@ function homogeneous_freezing(params::ABHOM, PSD_liq, state)
     (; tps, ips, const_dt) = params
     (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ, Sₗ) = state
 
-    e = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) * Sₗ
+    if T < 235 && T > 185
+        a_w = CMO.a_w_xT(CMP.H2SO4SolutionParameters(FT), tps, 0.0015, T)
+    else
+        e = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) * Sₗ
+        a_w = CMO.a_w_eT(tps, e, T)
+    end
 
-    Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
+    Δa_w = a_w - CMO.a_w_ice(tps, T)
     J = CMI_hom.homogeneous_J_linear(ips.homogeneous, Δa_w)
 
     return min(J * Nₗ * PSD_liq.V, Nₗ / const_dt)

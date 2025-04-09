@@ -22,7 +22,7 @@ global edf_data_names = [
     "in07_01_aida.edf", "in07_19_aida.edf",
 ]
 data_file_names = [
-    ["in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04"],
+    ["in05_17_aida.edf", "in05_18_aida.edf"],
     ["in07_01_aida.edf"],
     ["in07_19_aida.edf"],
     ["ACI04_22"],
@@ -34,7 +34,7 @@ data_file_names = [
 batch_names = ["HOM", "IN0701", "IN0719", "ACI04_22", "EXP19", "EXP45", "DEP", "IMM"]
 end_sim = 25            # Loss func looks at last end_sim timesteps only
 start_time_list = [     # freezing onset
-    [Int32(150), Int32(180), Int32(0)],
+    [Int32(150), Int32(180)],
     [Int32(50)],
     [Int32(35)],
     [Int32(0)],
@@ -44,7 +44,7 @@ start_time_list = [     # freezing onset
     [Int32(0), Int32(0)],
 ]
 end_time_list = [       # approximate time freezing stops
-    [Int32(295), Int32(290), Int32(700)],
+    [Int32(295), Int32(290)],
     [Int32(375)],
     [Int32(375)],
     [Int32(300)],
@@ -55,7 +55,7 @@ end_time_list = [       # approximate time freezing stops
 ]
 moving_average_n = 5    # average every length(data) / n points
 updrafts = [            # updrafts matching AIDA cooling rate
-    [FT(1.5), FT(1.4), FT(1.4)],
+    [FT(1.5), FT(1.4)],
     [FT(1.5)],
     [FT(1.5)],
     [FT(1.5)],
@@ -141,7 +141,7 @@ for (batch_index, batch_name) in enumerate(batch_names)
     ### Plot for individual experiments.
     for (exp_index, data_file) in enumerate(data_file_name_list)
         if batch_name == "HOM"
-            exp_names = ["HOM_Batch_IN0517", "HOM_Batch_IN0518", "HOM_Batch_TROPIC04"]
+            exp_names = ["HOM_Batch_IN0517", "HOM_Batch_IN0518"]
         elseif batch_name == "DEP"
             exp_names = ["DEP_Batch_IN0701", "DEP_Batch_IN0719", "DEP_Batch_EXP45"]
         elseif batch_name == "IMM"
