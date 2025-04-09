@@ -317,12 +317,12 @@ function plot_ICNC_overview(overview_data)
     overview_fig = MK.Figure(size = (1000, 800), fontsize = 24)
 
     exp_name_list = [
-        "IN05_17", "IN05_18", "TROPIC04",
+        "IN05_17", "IN05_18",
         "IN07_01", "IN07_19", "EXP45",
         "ACI04_22", "EXP19",
     ]
     position = [
-        overview_fig[1, 1], overview_fig[2, 1], overview_fig[3, 1],
+        overview_fig[1, 1], overview_fig[2, 1],
         overview_fig[1, 2], overview_fig[2, 2], overview_fig[3, 2],
         overview_fig[1, 3], overview_fig[2, 3],
     ]
