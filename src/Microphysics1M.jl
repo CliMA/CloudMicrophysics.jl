@@ -24,7 +24,8 @@ export terminal_velocity,
     accretion_rain_sink,
     accretion_snow_rain,
     evaporation_sublimation,
-    snow_melt
+    snow_melt,
+    lambda
 
 abstract type AbstractSnowShape end
 struct Oblate <: AbstractSnowShape end
