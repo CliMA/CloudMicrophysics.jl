@@ -96,12 +96,15 @@ function lambda_inverse(
     # mass(size)
     (; r0, m0, me, Δm, χm) = mass
 
-    return (q > FT(0) && ρ > FT(0)) ?
-            exp(1 / (me + Δm + 1) *
-                log(
-                ρ * q * exp((me + Δm) * log(r0)) / χm / m0 / n0 / SF.gamma(me + Δm + FT(1))
+    λ_inv = FT(0)
+    if q > FT(0) && ρ > FT(0)
+        λ_inv = exp(1 / (me + Δm + 1) *
+                    log(
+                        ρ * q * exp((me + Δm) * log(r0)) / χm / m0 / n0 / SF.gamma(me + Δm + FT(1))
+                    )
                 )
-            ) : FT(0)
+    end
+    return max(FT(1e-8), λ_inv)
 end
 
 """
