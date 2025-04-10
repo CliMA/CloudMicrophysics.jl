@@ -32,9 +32,9 @@ function radar_reflectivity_1M(
 
     # change units for accuracy
     n0 = CM1.get_n0(pdf) * FT(1e-12)
-    λ = CM1.lambda(pdf, mass, q, ρ) * FT(1e-3)
+    λ_inv = CM1.lambda_inverse(pdf, mass, q, ρ) / FT(1e-3)
 
-    Z = (λ == FT(0)) ? FT(0) : (720 * n0 / λ^7)
+    Z = 720 * n0 * λ_inv^7
     log_10_Z₀ = FT(-18)
     log_Z = FT(10) * (log10(Z) - log_10_Z₀ - FT(9))
 

@@ -82,18 +82,23 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     ρ,
     T,
 )
-    Rᵥ = TD.Parameters.R_v(tps)
-    cₚ_air = TD.cp_m(tps, q)
-    Lᵥ = TD.latent_heat_vapor(tps, T)
-    qᵥ = TD.vapor_specific_humidity(q)
+    FT = eltype(tps)
+    if TD.vapor_specific_humidity(q) + TD.liquid_specific_humidity(q) > FT(0)
+        Rᵥ = TD.Parameters.R_v(tps)
+        cₚ_air = TD.cp_m(tps, q)
+        Lᵥ = TD.latent_heat_vapor(tps, T)
+        qᵥ = TD.vapor_specific_humidity(q)
 
-    pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-    qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
+        pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+        qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
 
-    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
-    Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
+        dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
+        Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
 
-    return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
+        return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
+    else
+        return FT(0)
+    end
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
     (; τ_relax)::CMP.CloudIce,
@@ -102,18 +107,23 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     ρ,
     T,
 )
-    Rᵥ = TD.Parameters.R_v(tps)
-    cₚ_air = TD.cp_m(tps, q)
-    Lₛ = TD.latent_heat_sublim(tps, T)
-    qᵥ = TD.vapor_specific_humidity(q)
+    FT = eltype(tps)
+    if TD.vapor_specific_humidity(q) + TD.ice_specific_humidity(q) > FT(0)
+        Rᵥ = TD.Parameters.R_v(tps)
+        cₚ_air = TD.cp_m(tps, q)
+        Lₛ = TD.latent_heat_sublim(tps, T)
+        qᵥ = TD.vapor_specific_humidity(q)
 
-    pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
-    qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
+        pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+        qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
 
-    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
-    Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
+        dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
+        Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
 
-    return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
+        return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
+    else
+        return FT(0)
+    end
 end
 
 """
