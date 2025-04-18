@@ -143,7 +143,7 @@ function effective_radius_2M(
         Ac *
         C^(νc + 1) *
         (Bc * C^μc)^(-(5 + 3 * νc) / (3 * μc)) *
-        SF.gamma((5 + 3 * νc) / (3 * μc)) / μc / FT(10)^(χ * 2 / 3)
+        SF.gamma((5 + 3 * νc) / (3 * μc)) / μc / 10^(χ * FT(2) / 3)
     M2_r =
         Br == 0 ? FT(0) :
         Ar *

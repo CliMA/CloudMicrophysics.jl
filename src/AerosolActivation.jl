@@ -210,7 +210,7 @@ function N_activated_per_mode(
         mode_i = ad.modes[i]
         u_i::FT = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
 
-        mode_i.N * (1 / 2) * (1 - SF.erf(u_i))
+        mode_i.N * FT(0.5) * (1 - SF.erf(u_i))
     end
 end
 

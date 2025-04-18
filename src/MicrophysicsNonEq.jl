@@ -76,12 +76,12 @@ The formulation is based on Morrison and Grabowski 2008 and
 Morrison and Milbrandt 2015
 """
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudLiquid{FT},
-    tps::TDP.ThermodynamicsParameters{FT},
-    q::TD.PhasePartition{FT},
-    ρ::FT,
-    T::FT,
-) where {FT}
+    (; τ_relax)::CMP.CloudLiquid,
+    tps::TDP.ThermodynamicsParameters,
+    q::TD.PhasePartition,
+    ρ,
+    T,
+)
     Rᵥ = TD.Parameters.R_v(tps)
     cₚ_air = TD.cp_m(tps, q)
     Lᵥ = TD.latent_heat_vapor(tps, T)
@@ -91,17 +91,17 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
 
     dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
-    Γₗ = FT(1) + (Lᵥ / cₚ_air) * dqsldT
+    Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
 
     return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudIce{FT},
-    tps::TDP.ThermodynamicsParameters{FT},
-    q::TD.PhasePartition{FT},
-    ρ::FT,
-    T::FT,
-) where {FT}
+    (; τ_relax)::CMP.CloudIce,
+    tps::TDP.ThermodynamicsParameters,
+    q::TD.PhasePartition,
+    ρ,
+    T,
+)
     Rᵥ = TD.Parameters.R_v(tps)
     cₚ_air = TD.cp_m(tps, q)
     Lₛ = TD.latent_heat_sublim(tps, T)
@@ -111,7 +111,7 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
 
     dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
-    Γᵢ = FT(1) + (Lₛ / cₚ_air) * dqsidT
+    Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
 
     return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
 end

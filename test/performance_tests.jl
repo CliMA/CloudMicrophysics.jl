@@ -19,11 +19,12 @@ import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Nucleation as HN
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.CloudDiagnostics as CMP
+import CloudMicrophysics.CloudDiagnostics as CMD
 
 @info "Performance Tests"
 
 function bench_press(
+    type,
     foo,
     args,
     min_run_time,
@@ -48,12 +49,16 @@ function bench_press(
     # Test that foo is free from optimization failures
     # and unresolved method dispatches
     JET.@test_opt(foo(args...))
+
+    # Test that the return type of foo is of correct type (Float32 vs Float64)
+    TT.@test typeof(foo(args...)) == type
 end
 
 function benchmark_test(FT)
 
     # Artifact calling
     bench_press(
+        String,
         AFC.AIDA_ice_nucleation,
         ("in05_17_aida.edf"),
         50000,
@@ -206,14 +211,16 @@ function benchmark_test(FT)
     #bench_press(CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
 
     # Chen 2022 terminal velocity
-    bench_press(CMN.terminal_velocity, (liquid, ch2022.rain, ρ_air, q_liq), 350)
+    bench_press(FT, CMN.terminal_velocity, (liquid, ch2022.rain, ρ_air, q_liq), 350)
     bench_press(
+        FT,
         CMN.terminal_velocity,
         (ice, ch2022.small_ice, ρ_air, q_ice),
         400,
     )
-    bench_press(CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 850)
+    bench_press(FT, CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 850)
     bench_press(
+        FT,
         CM1.terminal_velocity,
         (snow, ch2022.large_ice, ρ_air, q_sno),
         850,
@@ -221,6 +228,7 @@ function benchmark_test(FT)
 
     # aerosol activation
     bench_press(
+        FT,
         AA.total_N_activated,
         (ap, aer_distr, aps, tps, T_air, p_air, w_air, q),
         1300,
@@ -228,38 +236,43 @@ function benchmark_test(FT)
 
     # Common
     bench_press(
+        FT,
         CO.H2SO4_soln_saturation_vapor_pressure,
         (H2SO4_prs, x_sulph, T_air_cold),
         50,
     )
-    bench_press(CO.a_w_xT, (H2SO4_prs, tps, x_sulph, T_air_cold), 230)
-    bench_press(CO.a_w_eT, (tps, e, T_air_cold), 230)
-    bench_press(CO.a_w_ice, (tps, T_air_cold), 230)
+    bench_press(FT, CO.a_w_xT, (H2SO4_prs, tps, x_sulph, T_air_cold), 230)
+    bench_press(FT, CO.a_w_eT, (tps, e, T_air_cold), 230)
+    bench_press(FT, CO.a_w_ice, (tps, T_air_cold), 230)
 
     # ice nucleation
     bench_press(
+        FT,
         CMI_het.dust_activated_number_fraction,
         (desert_dust, ip.deposition, S_ice, T_air_2),
         50,
     )
     bench_press(
+        FT,
         CMI_het.MohlerDepositionRate,
         (desert_dust, ip.deposition, S_ice, T_air_2, dSi_dt, N_aer),
         80,
     )
-    bench_press(CMI_het.deposition_J, (kaolinite, Delta_a_w), 230)
-    bench_press(CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 230)
+    bench_press(FT, CMI_het.deposition_J, (kaolinite, Delta_a_w), 230)
+    bench_press(FT, CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 230)
     bench_press(
+        FT,
         CMI_het.INP_concentration_frequency,
         (ip_frostenberg, INPC, T_air_cold),
         150,
     )
-    bench_press(CMI_hom.homogeneous_J_cubic, (ip.homogeneous, Delta_a_w), 230)
-    bench_press(CMI_hom.homogeneous_J_linear, (ip.homogeneous, Delta_a_w), 230)
+    bench_press(FT, CMI_hom.homogeneous_J_cubic, (ip.homogeneous, Delta_a_w), 230)
+    bench_press(FT, CMI_hom.homogeneous_J_linear, (ip.homogeneous, Delta_a_w), 230)
 
     # non-equilibrium
-    bench_press(CMN.τ_relax, (liquid,), 15)
+    bench_press(FT, CMN.τ_relax, (liquid,), 15)
     bench_press(
+        FT,
         CMN.conv_q_vap_to_q_liq_ice,
         (
             ice,
@@ -269,75 +282,92 @@ function benchmark_test(FT)
         12,
     )
     bench_press(
+        FT,
         CMN.conv_q_vap_to_q_liq_ice_MM2015,
         (liquid, tps, TD.PhasePartition(FT(0.00145)), FT(0.8), FT(263)),
         70,
     )
 
     # 0-moment
-    bench_press(CM0.remove_precipitation, (p0m, q), 12)
+    bench_press(FT, CM0.remove_precipitation, (p0m, q), 12)
 
     # 1-moment
     bench_press(
+        FT,
         CM1.accretion,
         (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air),
         350,
     )
-    bench_press(CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
+    bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
 
     # 2-moment
     for sb in [sb2006, sb2006_no_limiters]
         bench_press(
+            @NamedTuple{au::CM2.LiqRaiRates{FT}, sc::FT},
             CM2.autoconversion_and_liquid_self_collection,
             (sb, q_liq, q_rai, ρ_air, N_liq),
             300,
         )
         bench_press(
+            @NamedTuple{sc::FT, br::FT},
             CM2.rain_self_collection_and_breakup,
             (sb, q_rai, ρ_air, N_rai),
             1200,
         )
         bench_press(
+            @NamedTuple{evap_rate_0::FT, evap_rate_1::FT},
             CM2.rain_evaporation,
             (sb, aps, tps, q, q_rai, ρ_air, N_rai, T_air),
             2000,
         )
         bench_press(
+            Tuple{FT, FT},
             CM2.rain_terminal_velocity,
             (sb, sb2006vel, q_rai, ρ_air, N_rai),
             700,
         )
         bench_press(
+            Tuple{FT, FT},
             CM2.rain_terminal_velocity,
             (sb, ch2022.rain, q_rai, ρ_air, N_rai),
             2200,
         )
         bench_press(
+            FT,
             CMD.radar_reflectivity_2M,
             (sb, q_liq, q_rai, N_liq, N_rai, ρ_air),
             2000,
         )
         bench_press(
+            FT,
             CMD.effective_radius_2M,
             (sb, q_liq, q_rai, N_liq, N_rai, ρ_air),
             2000,
         )
     end
     bench_press(
+        FT,
         CMD.effective_radius_Liu_Hallet_97,
         (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai),
         300,
     )
     # Homogeneous Nucleation
-    bench_press(HN.h2so4_nucleation_rate, (1e12, 1.0, 1.0, 208, h2so4_nuc), 470)
     bench_press(
+        @NamedTuple{binary_rate::FT, ternary_rate::FT},
+        HN.h2so4_nucleation_rate,
+        (FT(1e12), FT(1), FT(1), FT(208), h2so4_nuc),
+        470,
+    )
+    bench_press(
+        FT,
         HN.organic_nucleation_rate,
-        (0.0, 1e3, 1e3, 1e3, 300, 1, organ_nuc),
+        (FT(0), FT(1e3), FT(1e3), FT(1e3), FT(300), FT(1), organ_nuc),
         850,
     )
     bench_press(
+        FT,
         HN.organic_and_h2so4_nucleation_rate,
-        (2.6e6, 1.0, 1.0, 300, 1, mixed_nuc),
+        (FT(2.6e6), FT(1), FT(1), FT(300), FT(1), mixed_nuc),
         120,
     )
 end
