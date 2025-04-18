@@ -55,12 +55,13 @@ function h2so4_nucleation_rate(
     temp,
     params,
 )
+    FT = eltype(params)
     # Change units from 1/m³ to 1/cm³
-    h2so4_conc *= 1e-6
-    nh3_conc *= 1e-6
+    h2so4_conc *= FT(1e-6)
+    nh3_conc *= FT(1e-6)
 
     # Reference concentration for h2so4 and nh3 (Units: 1e6/cm³)
-    ref_conc = 1e6
+    ref_conc = FT(1e6)
 
     # Calculate factors
     k(T, u, v, w) = exp(u - exp(v * (T / 1000 - w)))
@@ -83,8 +84,8 @@ function h2so4_nucleation_rate(
         k_t_i * f_i * (h2so4_conc / ref_conc)^params.p_t_i * negative_ion_conc
     # Convert to 1/m³/s
     return (;
-        binary_rate = binary_rate * 1e6,
-        ternary_rate = ternary_rate * 1e6,
+        binary_rate = binary_rate * FT(1e6),
+        ternary_rate = ternary_rate * FT(1e6),
     )
 end
 
@@ -111,11 +112,12 @@ function organic_nucleation_rate(
     condensation_sink,
     params,
 )
+    FT = eltype(params)
     # Convert units from 1/m³ to 1/cm³ - assume units are meant to be in 1/cm³
-    negative_ion_conc *= 1e-6
-    monoterpene_conc *= 1e-6
-    O3_conc *= 1e-6
-    OH_conc *= 1e-6
+    negative_ion_conc *= FT(1e-6)
+    monoterpene_conc *= FT(1e-6)
+    O3_conc *= FT(1e-6)
+    OH_conc *= FT(1e-6)
 
     # Y_* params from Dunne et al. 2016
     k_MTO3 = params.k_MTO3 * exp(params.exp_MTO3 / temp)
@@ -137,8 +139,9 @@ function organic_nucleation_rate_hom_prescribed(
     HOM_conc,
     params,
 )
+    FT = eltype(params)
     # HOM reference concentration: 1e7/cm³
-    ref_conc = 1e7
+    ref_conc = FT(1e7)
     rate =
         params.a_1 *
         (
@@ -150,7 +153,7 @@ function organic_nucleation_rate_hom_prescribed(
         )^(params.a_4 + params.a_5 / (HOM_conc / ref_conc)) *
         negative_ion_conc
     # Convert from (1/cm³/s) to (1/m³/s)
-    return rate * 1e6
+    return rate * FT(1e6)
 end
 
 """
@@ -174,10 +177,11 @@ function organic_and_h2so4_nucleation_rate(
     condensation_sink,
     params,
 )
+    FT = eltype(params)
     k_MTOH = params.k_MTOH * exp(params.exp_MTOH / temp) # Units: 1/cm³/s
     bioOxOrg = k_MTOH * monoterpene_conc * OH_conc / condensation_sink
     # Convert from 1/cm³ to 1/m³
-    bioOxOrg *= 1e6
+    bioOxOrg *= FT(1e6)
     return organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
         h2so4_conc,
         bioOxOrg,
@@ -190,14 +194,15 @@ function organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
     bioOxOrg,
     params,
 )
+    FT = eltype(params)
     # Convert bioOxOrg and k_H2SO4org from 1/m³ to 1/cm³
-    k_H2SO4org = 1e-6 * params.k_H2SO4org
-    bioOxOrg *= 1e-6
+    k_H2SO4org = FT(1e-6) * params.k_H2SO4org
+    bioOxOrg *= FT(1e-6)
     # Convert from 1/m³ to 10⁶/cm³
     # h2so4_conc *= 1e-6
-    rate = 0.5 * k_H2SO4org * h2so4_conc^2 * bioOxOrg
+    rate = FT(0.5) * k_H2SO4org * h2so4_conc^2 * bioOxOrg
     # Convert from 1/cm³/s to 1/m³/s
-    return rate * 1e6
+    return rate * FT(1e6)
 end
 
 end

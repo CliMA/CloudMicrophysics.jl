@@ -220,7 +220,7 @@ function INP_concentration_mean(T::FT) where {FT}
 
     T_celsius = T - FT(273.15)
 
-    return log(-(T_celsius)^9 * 10^(-9))
+    return log(-(T_celsius)^9 * FT(10)^(-9))
 end
 
 end # end module
@@ -253,7 +253,7 @@ function homogeneous_J_cubic(ip::CMP.Koop2000, Δa_w::FT) where {FT}
 
     logJ::FT = ip.c₁ + ip.c₂ * Δa_w - ip.c₃ * Δa_w^2 + ip.c₄ * Δa_w^3
 
-    return FT(10)^(logJ) * 1e6
+    return 10^logJ * FT(1e6)
 end
 
 """
@@ -270,7 +270,7 @@ function homogeneous_J_linear(ip::CMP.Koop2000, Δa_w::FT) where {FT}
 
     logJ::FT = ip.linear_c₂ * Δa_w + ip.linear_c₁
 
-    return FT(10)^(logJ) * 1e6
+    return 10^logJ * FT(1e6)
 end
 
 end # end module
