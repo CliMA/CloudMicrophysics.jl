@@ -2,6 +2,8 @@ import CairoMakie as MK
 
 include(joinpath(pkgdir(CM), "parcel", "ParcelCommon.jl"))
 
+#! format: off
+
 """
     plot_AIDA_ICNC_data(
         exp_name,
@@ -12,7 +14,7 @@ include(joinpath(pkgdir(CM), "parcel", "ParcelCommon.jl"))
 Plots raw AIDA ICNC data. Plot is saved and returned.
 """
 function plot_AIDA_ICNC_data(
-    exp_name,
+    exp_name, start_time,
     AIDA_t_profile, AIDA_ICNC_profile,
     t_profile, ICNC_moving_avg, frozen_frac_moving_mean,
 )
@@ -34,8 +36,8 @@ function plot_AIDA_ICNC_data(
         linestyle = :dash,
         linewidth = 2,
     )
-    MK.lines!(data_ax1, t_profile, ICNC_moving_avg, label = "AIDA ICNC moving mean", linewidth = 2.5, color = :blue)
-    MK.lines!(data_ax2, t_profile, frozen_frac_moving_mean, linewidth = 2.5, color = :blue)
+    MK.lines!(data_ax1, t_profile .+ start_time, ICNC_moving_avg, label = "AIDA ICNC moving mean", linewidth = 2.5, color = :blue)
+    MK.lines!(data_ax2, t_profile .+ start_time, frozen_frac_moving_mean, linewidth = 2.5, color = :blue)
     MK.axislegend(data_ax1, framevisible = true, labelsize = 12, position = :rc)
     MK.save("$exp_name" * "_ICNC.svg", AIDA_data_fig)
 
@@ -48,30 +50,70 @@ end
 
 Plots evolution of calibrated coefficients over the EKI iterations. Plot is saved and returned.
 """
-function plot_calibrated_coeffs(batch_name, EKI_n_iterations, calibrated_ensemble_means)
+function plot_calibrated_coeffs(
+    batch_name,
+    EKI_n_iterations, EKI_n_ensembles, EKI_all_params,
+    UKI_n_iterations, UKI_n_ensembles, UKI_all_params,
+)
+    EKI_x_axis = []
+    UKI_x_axis = []
+    EKI_m = []
+    UKI_m = []
+    EKI_c = []
+    UKI_c = []
 
-    calibrated_coeffs_fig = MK.Figure(size = (1100, 900), fontsize = 24)
+    for iter in 1:EKI_n_iterations
+        for ensemble_n in 1:EKI_n_ensembles
+            append!(EKI_x_axis, iter)
+            append!(EKI_m, EKI_all_params[iter][1, ensemble_n])
+            append!(EKI_c, EKI_all_params[iter][2, ensemble_n])
+        end
+    end
+    for iter in 1:UKI_n_iterations
+        for ensemble_n in 1:UKI_n_ensembles
+            append!(UKI_x_axis, iter)
+            append!(UKI_m, UKI_all_params[iter][1, ensemble_n])
+            append!(UKI_c, UKI_all_params[iter][2, ensemble_n])
+        end
+    end
+
+    calibrated_coeffs_fig = MK.Figure(size = (900, 600), fontsize = 24)
     m_coeff_ax = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$batch_name")
     c_coeff_ax =
-        MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "iteration #", title = "EKI")
+        MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "iteration #", title = "Ensemble Mean")
 
-    MK.lines!(
+    MK.scatter!(
         m_coeff_ax,
-        collect(1:EKI_n_iterations),
-        calibrated_ensemble_means[1],
-        label = "ensemble mean",
-        color = :orange,
-        linewidth = 2.5,
+        EKI_x_axis,
+        EKI_m,
+        label = "EKI",
+        color = (:orange, 0.5),
+        # marker = :xcross,
     )
-    MK.lines!(
+    MK.scatter!(
         c_coeff_ax,
-        collect(1:EKI_n_iterations),
-        calibrated_ensemble_means[2],
-        label = "ensemble mean",
-        color = :orange,
-        linewidth = 2.5,
+        EKI_x_axis,
+        EKI_c,
+        label = "EKI",
+        color = (:orange, 0.5),
+        # marker = :xcross
+    )
+    MK.scatter!(
+        m_coeff_ax,
+        UKI_x_axis,
+        UKI_m,
+        label = "UKI",
+        color = (:fuchsia, 0.5),
+    )
+    MK.scatter!(
+        c_coeff_ax,
+        UKI_x_axis,
+        UKI_c,
+        label = "UKI",
+        color = (:fuchsia, 0.5),
     )
 
+    MK.axislegend(m_coeff_ax, framevisible = false, labelsize = 18, position = :rt)
     MK.save("$batch_name" * "_calibrated_coeffs_fig.svg", calibrated_coeffs_fig)
 
     return calibrated_coeffs_fig
@@ -293,14 +335,12 @@ function plot_UKI_spread(
     MK.errorbars!(ax_spread, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
     MK.save("$exp_name" * "_UKI_spread_fig.svg", UKI_spread_fig)
 
-    return plot_UKI_spread
+    return UKI_spread_fig
 
 end
 
 """
-    plot_ICNC_overview(
-        EKI_calibrated_parcel, UKI_parcel,
-    )
+    plot_ICNC_overview(overview_data)
 
 Plots frozen fraction evolution for EKI and UKI calibrated parcel simulations
 and AIDA data for all batch experiments. Plot is saved and returned.
@@ -390,3 +430,45 @@ function plot_ICNC_overview(overview_data)
 
     return overview_fig
 end
+
+"""
+    plot_loss_func(
+        batch_name,
+        EKI_n_iterations, UKI_n_iterations,
+        EKI_error, UKI_error,
+    )
+
+Plots the difference in loss functions over each iteration of
+    calibration for a batch. Plot is saved and returned.
+"""
+function plot_loss_func(
+    batch_name,
+    EKI_n_iterations, UKI_n_iterations,
+    EKI_error, UKI_error,
+)
+
+    loss_fig = MK.Figure(size = (700, 600), fontsize = 24)
+    ax_loss = MK.Axis(loss_fig[1, 1], ylabel = "Error [-]", xlabel = "Iteration [-]", title = "$batch_name: Error")
+    MK.lines!(
+        ax_loss,
+        collect(1:EKI_n_iterations),
+        EKI_error,
+        label = "EKI",
+        linewidth = 2.5,
+        color = :orange,
+    )
+    MK.lines!(
+        ax_loss,
+        collect(1:(UKI_n_iterations - 1)),
+        UKI_error,
+        label = "UKI",
+        linewidth = 2.5,
+        color = :fuchsia,
+    )
+    MK.axislegend(ax_loss, framevisible = false, labelsize = 18, position = :rc)
+    MK.save("$batch_name" * "_loss_fig.svg", loss_fig)
+
+    return loss_fig
+
+end
+#! format: on
