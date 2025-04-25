@@ -249,8 +249,8 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
                 m_stats = [FT(100), FT(50), FT(0), Inf]
                 c_stats = [FT(0.7), FT(20), -Inf, Inf]
             elseif aerosol_type == CMP.Dust(FT)
-                m_stats = [FT(50), FT(50), FT(0), Inf]
-                c_stats = [FT(0.7), FT(20), -Inf, Inf]
+                m_stats = [FT(50), FT(70), FT(0), Inf]
+                c_stats = [FT(0.7), FT(40), -Inf, Inf]
             else
                 error("Aerosol type not supported for ABDINM. Check create_prior function.")
             end
@@ -350,9 +350,15 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         digits = 6,
     )
 
-    calibrated_coeffs = [m_coeff_ekp, c_coeff_ekp]
+    mean_each_iter = []
+    for i in 1:final_iter[1]
+        push!(mean_each_iter, EKP.get_u_mean(EKI_obj, i))
+    end
 
-    return [calibrated_coeffs, ϕ_n_values]
+    calibrated_coeffs = [m_coeff_ekp, c_coeff_ekp]
+    error = EKP.get_error(EKI_obj)
+
+    return [calibrated_coeffs, ϕ_n_values, mean_each_iter, error]
 end
 
 function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
@@ -394,14 +400,7 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         # Update ensemble
         terminate = EKP.EnsembleKalmanProcesses.update_ensemble!(UKI_obj, G_ens)
         push!(err, EKP.get_error(UKI_obj)[end])
-        # println(
-        #     "Iteration: " *
-        #     string(n) *
-        #     ", Error: " *
-        #     string(err[n]) *
-        #     " norm(Cov):" *
-        #     string(Distributions.norm(EKP.get_process(UKI_obj).uu_cov[n]))
-        # )
+
         if !isnothing(terminate)
             final_iter[1] = n - 1
             break
@@ -411,9 +410,19 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     UKI_mean_u_space = EKP.get_u_mean_final(UKI_obj)
     UKI_mean = EKP.transform_unconstrained_to_constrained(prior, UKI_mean_u_space)
 
-    ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
+    ϕ_n = EKP.get_ϕ_final(prior, UKI_obj) # final iteraiton for each ensemble
+    all_ϕ_n = EKP.get_ϕ(prior, UKI_obj; return_array=true) # set of params for each ensembles AND each iteration
 
-    return [UKI_mean, ϕ_n, final_iter]
+    mean_each_iter = []
+    for i in 1:(final_iter[1] + 1)
+        mean_u_space = EKP.get_u_mean(UKI_obj, i)
+        mean_u_space_transformed = EKP.transform_unconstrained_to_constrained(prior, mean_u_space)
+        push!(mean_each_iter, mean_u_space_transformed)
+    end
+
+    error = EKP.get_error(UKI_obj)
+
+    return [UKI_mean, all_ϕ_n, mean_each_iter, ϕ_n, error]
 end
 
 function ensemble_means(ϕ_n_values, N_iterations, N_ensemble)
