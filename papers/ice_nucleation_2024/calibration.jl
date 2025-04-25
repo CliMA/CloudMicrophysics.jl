@@ -16,7 +16,7 @@ import StatsBase as SB
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 # Define model which wraps around parcel and overwrites calibrated parameters
-function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; calibration = false)
+function run_model(p_list, IN_mode, coefficients, FT, IC_list; calibration = false, P3 = false)
     # grabbing calibrated m and c
     m_calibrated, c_calibrated = coefficients
 
@@ -33,7 +33,9 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; c
         IC = IC_list[exp_index]
 
         # overwriting
-        if aerosol == CMP.Kaolinite(FT)
+        if P3 == true
+            nothing
+        elseif aerosol == CMP.Kaolinite(FT)
             if IN_mode == "ABDINM"
                 override_file = Dict(
                     "China2017_J_deposition_m_Kaolinite" =>
@@ -194,7 +196,6 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; c
         local sol = run_parcel(IC, FT(0), t_max, params)
 
         if calibration == true
-            # loss_func_i = sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
             loss_func_i = sol[9, end] / (IC[7] + IC[8] + IC[9])
             append!(loss_func, loss_func_i)
         elseif calibration == false
@@ -292,7 +293,7 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
     return prior
 end
 
-function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
+function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, Γ,; perfect_model = false)
     @info("Starting EKI calibration")
     # Random number generator
     rng_seed = 24
@@ -326,7 +327,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         ϕ_n = EKP.get_ϕ_final(prior, EKI_obj)
         G_ens = hcat(
             [
-                run_model(params, IN_mode, ϕ_n[:, i], FT, IC, end_sim, calibration = true) for
+                run_model(params, IN_mode, ϕ_n[:, i], FT, IC, calibration = true) for
                 i in 1:N_ensemble
             ]...,
         )
@@ -362,7 +363,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, �
     return [calibrated_coeffs, ϕ_n_values, mean_each_iter, error]
 end
 
-function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, Γ,; perfect_model = false)
+function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, Γ,; perfect_model = false)
     @info("Starting UKI calibration")
     (; aerosol) = params[1]
 
@@ -393,7 +394,7 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, �
         ϕ_n = EKP.get_ϕ_final(prior, UKI_obj)
         # Evaluate forward map
         G_n = [
-            run_model(params, IN_mode, ϕ_n[:, i], FT, IC, end_sim, calibration = true) for
+            run_model(params, IN_mode, ϕ_n[:, i], FT, IC, calibration = true) for
             i in 1:size(ϕ_n)[2]  #i in 1:N_ensemble
         ]
         # Reformat into `d x N_ens` matrix

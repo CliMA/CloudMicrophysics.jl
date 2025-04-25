@@ -138,7 +138,7 @@ function perf_model_IC(FT, IN_mode)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function perf_model_pseudo_data(FT, IN_mode, params, IC, end_sim)
+function perf_model_pseudo_data(FT, IN_mode, params, IC)
     n_samples = 10
 
     if IN_mode == "ABDINM"
@@ -149,7 +149,7 @@ function perf_model_pseudo_data(FT, IN_mode, params, IC, end_sim)
         coeff_true = [FT(255.927125), FT(-68.553283)]
     end
 
-    G_truth = run_model(params, IN_mode, coeff_true, FT, IC, end_sim, calibration = true)
+    G_truth = run_model(params, IN_mode, coeff_true, FT, IC, calibration = true)
     dim_output = length(G_truth)
 
     Γ = (0.1 / 3)^2 * LinearAlgebra.I
@@ -160,15 +160,15 @@ function perf_model_pseudo_data(FT, IN_mode, params, IC, end_sim)
     return [y_truth, Γ, coeff_true]
 end
 
-function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
+function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile; P3 = false)
     IN_mode = "ABHOM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "AeroAct"
     aerosol = CMP.Sulfate(FT)
-    dep_nucleation = "ABDINM"
-    heterogeneous = "ABIFM"
-    homogeneous = "ABHOM"
+    dep_nucleation = P3 ? "P3_dep" : "ABDINM"
+    heterogeneous = P3 ? "P3_het" : "ABIFM"
+    homogeneous = P3 ? "P3_hom" : "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
     liq_size_distribution = "Gamma"
@@ -177,8 +177,9 @@ function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile)
     r_nuc = FT(1e-7) #FT(3.057e-6)
     A_aer = FT(4 * π * r_nuc^2)
     ips = CMP.IceNucleationParameters(FT)
+    aap = CMP.AerosolActivationParameters(FT)
 
-    params = (; const_dt, w, t_max, ips,
+    params = (; const_dt, w, t_max, ips, aap,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth
@@ -236,7 +237,7 @@ function AIDA_IN05_IC(FT, data_file)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
+function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name; P3 = false)
     IN_mode = "ABDINM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
@@ -248,9 +249,9 @@ function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_n
     elseif batch_name == "DEP"
         aerosol = CMP.Dust(FT)
     end
-    dep_nucleation = "ABDINM"
-    heterogeneous = "ABIFM"
-    homogeneous = "ABHOM"
+    dep_nucleation = P3 ? "P3_dep" : "ABDINM"
+    heterogeneous = P3 ? "P3_het" : "ABIFM"
+    homogeneous = P3 ? "P3_hom" : "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
     liq_size_distribution = "Gamma"
@@ -260,8 +261,9 @@ function AIDA_IN07_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_n
     A_aer = FT(4 * π * r_nuc^2)
     # r_nuc = r₀ in IC
     ips = CMP.IceNucleationParameters(FT)
+    aap = CMP.AerosolActivationParameters(FT)
 
-    params = (; const_dt, w, t_max, ips,
+    params = (; const_dt, w, t_max, ips, aap,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth
@@ -320,15 +322,15 @@ function AIDA_IN07_IC(FT, data_file)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile)
+function TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile; P3 = false)
     IN_mode = "ABHOM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "AeroAct"
     aerosol = CMP.Sulfate(FT)
-    dep_nucleation = "ABDINM"
-    heterogeneous = "ABIFM"
-    homogeneous = "ABHOM"
+    dep_nucleation = "None"
+    heterogeneous = "None"
+    homogeneous = P3 ? "P3_hom" : "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
     liq_size_distribution = "Gamma"
@@ -337,8 +339,9 @@ function TROPIC04_params(FT, w, t_max, t_profile, T_profile, P_profile)
     r_nuc = FT(1.15 / 2 * 1e-6)
     A_aer = FT(4 * π * r_nuc^2)
     ips = CMP.IceNucleationParameters(FT)
+    aap = CMP.AerosolActivationParameters(FT)
 
-    params = (; const_dt, w, t_max, ips,
+    params = (; const_dt, w, t_max, ips, aap,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth
@@ -376,16 +379,16 @@ function TROPIC04_IC(FT)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function ACI04_22_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
+function ACI04_22_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name; P3 = false)
     # Niemand et al (2012)
     IN_mode = "ABIFM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "None"
     aerosol = batch_name == "ACI04_22" ? CMP.MiddleEasternDust(FT) : CMP.Dust(FT)
-    dep_nucleation = "ABDINM"
-    heterogeneous = "ABIFM"
-    homogeneous = "ABHOM"
+    dep_nucleation = P3 ? "P3_dep" : "ABDINM"
+    heterogeneous = P3 ? "P3_het" : "ABIFM"
+    homogeneous = P3 ? "P3_hom" : "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
     liq_size_distribution = "Gamma"
@@ -394,8 +397,9 @@ function ACI04_22_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_na
     r_nuc = FT(0.645 / 2 * 1e-6)  # avg of 2 modes
     A_aer = FT(4 * π * r_nuc^2)
     ips = CMP.IceNucleationParameters(FT)
+    aap = CMP.AerosolActivationParameters(FT)
 
-    params = (; const_dt, w, t_max, ips,
+    params = (; const_dt, w, t_max, ips, aap,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth
@@ -433,16 +437,16 @@ function ACI04_22_IC(FT)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function EXP19_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
+function EXP19_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name; P3 = false)
     # Cotten et al (2007)
     IN_mode = "ABIFM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "None"
     aerosol = batch_name == "EXP19" ? CMP.AsianDust(FT) : CMP.Dust(FT)
-    dep_nucleation = "ABDINM"
-    heterogeneous = "ABIFM"
-    homogeneous = "ABHOM"
+    dep_nucleation = P3 ? "P3_dep" : "ABDINM"
+    heterogeneous = P3 ? "P3_het" : "ABIFM"
+    homogeneous = P3 ? "P3_hom" : "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
     liq_size_distribution = "Gamma"
@@ -451,8 +455,9 @@ function EXP19_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
     r_nuc = FT(0.4 / 2 * 1e-6)   # value is mode radius, not mean
     A_aer = FT(4 * π * r_nuc^2)
     ips = CMP.IceNucleationParameters(FT)
+    aap = CMP.AerosolActivationParameters(FT)
 
-    params = (; const_dt, w, t_max, ips,
+    params = (; const_dt, w, t_max, ips, aap,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth
@@ -490,16 +495,16 @@ function EXP19_IC(FT)
     return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
 end
 
-function EXP45_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
+function EXP45_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name; P3 = false)
     # Cotten et al (2007)
     IN_mode = "ABDINM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
     aerosol_act = "None"
     aerosol = batch_name == "EXP45" ? CMP.SaharanDust(FT) : CMP.Dust(FT)
-    dep_nucleation = "ABDINM"
-    heterogeneous = "ABIFM"
-    homogeneous = "ABHOM"
+    dep_nucleation = P3 ? "P3_dep" : "ABDINM"
+    heterogeneous = P3 ? "P3_het" : "ABIFM"
+    homogeneous = P3 ? "P3_hom" : "ABHOM"
     condensation_growth = "Condensation"
     deposition_growth = "Deposition"
     liq_size_distribution = "Gamma"
@@ -508,8 +513,9 @@ function EXP45_params(FT, w, t_max, t_profile, T_profile, P_profile, batch_name)
     r_nuc = FT(0.4 / 2 * 1e-6)   # value is mode radius, not mean
     A_aer = FT(4 * π * r_nuc^2)
     ips = CMP.IceNucleationParameters(FT)
+    aap = CMP.AerosolActivationParameters(FT)
 
-    params = (; const_dt, w, t_max, ips,
+    params = (; const_dt, w, t_max, ips, aap,
         prescribed_thermodynamics, t_profile, T_profile, P_profile,
         aerosol_act, aerosol, r_nuc, aero_σ_g, A_aer,   # aerosol activation
         condensation_growth, deposition_growth,         # growth

@@ -32,7 +32,6 @@ data_file_names = [
     ["ACI04_22", "EXP19"],
 ]
 batch_names = ["HOM", "IN0701", "IN0719", "ACI04_22", "EXP19", "EXP45", "DEP", "IMM"]
-end_sim = 25            # Loss func looks at last end_sim timesteps only
 start_time_list = [     # freezing onset
     [Int32(150), Int32(180), Int32(0)],
     [Int32(50)],
@@ -75,12 +74,13 @@ global EKI_calibrated_coeff_dict = Dict()
 global UKI_calibrated_coeff_dict = Dict()
 mutable struct all_calibration_data
     UKI_calibrated_parcel::Vector{ODE.ODESolution}
+    P3_parcel::Vector{ODE.ODESolution}
     Nₜ_list::Vector{Any}
     t_profile_list::Vector{Any}
     frozen_frac_moving_mean_list::Vector{Any}
     frozen_frac_list::Vector{Any}
 end
-global overview_data = all_calibration_data(Vector{ODE.ODESolution}(), [], [], [], [])
+global overview_data = all_calibration_data(Vector{ODE.ODESolution}(), Vector{ODE.ODESolution}(), [], [], [], [])
 
 for (batch_index, batch_name) in enumerate(batch_names)
     @info(batch_name)
@@ -94,23 +94,28 @@ for (batch_index, batch_name) in enumerate(batch_names)
 
     if batch_name == "HOM"
         nuc_mode = "ABHOM"
+        P3_nuc_mode  = "P3_hom"
     elseif batch_name in ["IN0701", "IN0719", "EXP45", "DEP"]
         nuc_mode = "ABDINM"
+        P3_nuc_mode = "P3_dep"
     elseif batch_name in ["ACI04_22", "EXP19", "IMM"]
         nuc_mode = "ABIFM"
+        P3_nuc_mode = "P3_het"
     end
 
     ### Check for and grab data in AIDA_data folder.
     calib_variables = data_to_calib_inputs(
         FT, batch_name, data_file_name_list, nuc_mode,
         start_time, end_time,
-        w, t_max, end_sim,
+        w, t_max,
+        P3_nuc_mode,
     )
     (;
         t_profile, T_profile, P_profile, ICNC_profile, e_profile, S_l_profile,
         params_list, IC_list,
         frozen_frac, frozen_frac_moving_mean, ICNC_moving_avg,
         Nₜ, y_truth,
+        P3_params_list,
     ) = calib_variables
 
     if batch_name in ["HOM", "DEP", "IMM"]
@@ -123,7 +128,7 @@ for (batch_index, batch_name) in enumerate(batch_names)
     Γ = (0.1 / 3)^2 * LinearAlgebra.I   # 0.1 is the uncertainty in observed ICNC
 
     ### Calibration.
-    UKI_output = calibrate_J_parameters_UKI(FT, nuc_mode, params_list, IC_list, y_truth, end_sim, Γ)
+    UKI_output = calibrate_J_parameters_UKI(FT, nuc_mode, params_list, IC_list, y_truth, Γ)
 
     UKI_calibrated_parameters = UKI_output[1] # MEAN of parameters from ensembles in FINAL iteration 
     UKI_all_params = UKI_output[2]            # parameters from EACH ensemble in EACH iteration
@@ -151,11 +156,14 @@ for (batch_index, batch_name) in enumerate(batch_names)
         end
 
         ## Calibrated parcel.
-        UKI_parcel = run_model([params_list[exp_index]], nuc_mode, UKI_calibrated_parameters, FT, [IC_list[exp_index]], end_sim)
+        UKI_parcel = run_model([params_list[exp_index]], nuc_mode, UKI_calibrated_parameters, FT, [IC_list[exp_index]])
+        @info(exp_names[exp_index])
+        P3_parcel = run_model([P3_params_list[exp_index]], P3_nuc_mode, [0, 0], FT, [IC_list[exp_index]], P3 = true)
         if batch_name in ["HOM", "DEP", "IMM"]
             # the order it appends is "in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04",
             # "in07_01_aida.edf", "in07_19_aida.edf", "EXP45", "ACI04_22", "EXP19".
             push!(overview_data.UKI_calibrated_parcel, UKI_parcel)
+            push!(overview_data.P3_parcel, P3_parcel)
         end
 
         ## Plots.
@@ -192,12 +200,12 @@ for (batch_index, batch_name) in enumerate(batch_names)
             t_profile[exp_index], frozen_frac_moving_mean[exp_index], frozen_frac[exp_index],
         )
 
-        ## Looking at spread in UKI calibrated parameters
-        UKI_parcel_1 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,1], UKI_final_iter_spread[2,1]], FT, [IC_list[exp_index]], end_sim)
-        UKI_parcel_2 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,2], UKI_final_iter_spread[2,2]], FT, [IC_list[exp_index]], end_sim)
-        UKI_parcel_3 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,3], UKI_final_iter_spread[2,3]], FT, [IC_list[exp_index]], end_sim)
-        UKI_parcel_4 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,4], UKI_final_iter_spread[2,4]], FT, [IC_list[exp_index]], end_sim)
-        UKI_parcel_5 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,5], UKI_final_iter_spread[2,5]], FT, [IC_list[exp_index]], end_sim)
+        # Looking at spread in UKI calibrated parameters
+        UKI_parcel_1 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,1], UKI_final_iter_spread[2,1]], FT, [IC_list[exp_index]])
+        UKI_parcel_2 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,2], UKI_final_iter_spread[2,2]], FT, [IC_list[exp_index]])
+        UKI_parcel_3 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,3], UKI_final_iter_spread[2,3]], FT, [IC_list[exp_index]])
+        UKI_parcel_4 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,4], UKI_final_iter_spread[2,4]], FT, [IC_list[exp_index]])
+        UKI_parcel_5 = run_model([params_list[exp_index]], nuc_mode, [UKI_final_iter_spread[1,5], UKI_final_iter_spread[2,5]], FT, [IC_list[exp_index]])
 
         UKI_spread_fig = plot_UKI_spread(
             exp_names[exp_index],

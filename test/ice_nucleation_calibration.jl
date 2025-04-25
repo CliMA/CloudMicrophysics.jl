@@ -9,9 +9,8 @@ include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup
 function test_J_calibration(FT, IN_mode)
     params = perf_model_params(FT, IN_mode)
     IC = perf_model_IC(FT, IN_mode)
-    end_sim = 25
 
-    pseudo_data = perf_model_pseudo_data(FT, IN_mode, [params], [IC], end_sim)
+    pseudo_data = perf_model_pseudo_data(FT, IN_mode, [params], [IC])
     Γ = pseudo_data[2]
     y_truth = pseudo_data[1]
     coeff_true = pseudo_data[3]
@@ -22,7 +21,6 @@ function test_J_calibration(FT, IN_mode)
         [params],
         [IC],
         y_truth,
-        end_sim,
         Γ,
         perfect_model = true,
     )
@@ -32,7 +30,6 @@ function test_J_calibration(FT, IN_mode)
         [params],
         [IC],
         y_truth,
-        end_sim,
         Γ,
         perfect_model = true,
     )
@@ -45,7 +42,6 @@ function test_J_calibration(FT, IN_mode)
         EKI_calibrated_parameters,
         FT,
         [IC],
-        end_sim,
     )
     UKI_calibrated_soln = run_model(
         [params],
@@ -53,9 +49,8 @@ function test_J_calibration(FT, IN_mode)
         UKI_calibrated_parameters,
         FT,
         [IC],
-        end_sim,
     )
-    true_soln = run_model([params], IN_mode, coeff_true, FT, [IC], end_sim)
+    true_soln = run_model([params], IN_mode, coeff_true, FT, [IC])
 
     # test that end ICNC are similar
     TT.@testset "EKI Perfect Model Calibrations on AIDA" begin

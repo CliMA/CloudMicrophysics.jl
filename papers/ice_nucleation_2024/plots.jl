@@ -299,6 +299,7 @@ and AIDA data for all batch experiments. Plot is saved and returned.
 function plot_ICNC_overview(overview_data)
 
     UKI_calibrated_parcel = overview_data.UKI_calibrated_parcel
+    P3_parcel_list = overview_data.P3_parcel
     Nₜ_list = overview_data.Nₜ_list
     t_profile_list = overview_data.t_profile_list
     frozen_frac_moving_mean_list = overview_data.frozen_frac_moving_mean_list
@@ -321,6 +322,7 @@ function plot_ICNC_overview(overview_data)
     for (i, exp_name) in enumerate(exp_name_list)
 
         UKI_parcel = UKI_calibrated_parcel[i]
+        P3_parcel = P3_parcel_list[i]
         Nₜ = Nₜ_list[i]
         frozen_frac_moving_mean = frozen_frac_moving_mean_list[i]
         t_profile = t_profile_list[i]
@@ -336,8 +338,16 @@ function plot_ICNC_overview(overview_data)
             linewidth = 2.5,
             color = :fuchsia,
         )
-        # error = frozen_fac_moving_mean .* 0.1
-        # MK.errorbars!(ax, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
+        MK.lines!(
+            ax,
+            P3_parcel.t,
+            P3_parcel[9, :] ./ Nₜ,
+            label = "CM.jl Parcel (P3)",
+            linewidth = 2.5,
+            color = :green,
+        )
+        error = frozen_frac_moving_mean .* 0.1
+        MK.errorbars!(ax, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
         MK.lines!(
             ax,
             t_profile,
@@ -362,6 +372,7 @@ function plot_ICNC_overview(overview_data)
 
     legend_axis = MK.Axis(overview_fig[3, 3], title = "Legend")
     MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (UKI Calibrated)", color = :fuchsia)
+    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (P3)", color = :green)
     MK.lines!(legend_axis, 1, 1, label = "Raw AIDA", color = :blue, linestyle = :dash)
     MK.lines!(legend_axis, 1, 1, label = "AIDA Moving Avg", color = :blue)
     MK.axislegend(legend_axis, framevisible = false, labelsize = 18, position = :rb)
@@ -370,7 +381,6 @@ function plot_ICNC_overview(overview_data)
     MK.hidedecorations!(legend_axis)
 
     MK.save("Overview_ICNC_fig.svg", overview_fig)
-
     return overview_fig
 end
 
