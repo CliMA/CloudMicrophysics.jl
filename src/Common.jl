@@ -314,20 +314,20 @@ function Chen2022_monodisperse_pdf(a, b, c, D)
 end
 
 """
-    Chen2022_exponential_pdf(a, b, c, λ, k)
+    Chen2022_exponential_pdf(a, b, c, λ_inv, k)
 
  - a, b, c, - free parameters defined in Chen etl al 2022
- - λ - size distribution parameter
+ - λ_inv - inverse of the size distribution parameter
  - k - size distribution moment for which we compute the bulk fall speed
 
 Returns the addends of the bulk fall speed of rain or ice particles
 following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
 Assuming exponential size distribution and hence μ=0.
 """
-function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ::FT, k::Int) where {FT}
+function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where {FT}
     μ = 0 # Exponential instead of gamma distribution
     δ = FT(μ + k + 1)
-    return a * exp(δ * log(λ) - (b + δ) * log(λ + c)) * SF.gamma(b + δ) / SF.gamma(δ)
+    return a * exp(δ * log(1 / λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / SF.gamma(δ)
 end
 
 """

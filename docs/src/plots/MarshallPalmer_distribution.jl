@@ -21,9 +21,9 @@ function Marshall_Palmer_distribution(
 ) where {FT}
 
     n₀::FT = CM1.get_n0(pdf)
-    λ = CM1.lambda(pdf, mass, q, ρ)
+    λ_inv = CM1.lambda_inverse(pdf, mass, q, ρ)
     # distribution
-    n_r = n₀ * exp(-λ * r)
+    n_r = n₀ * exp(-r / λ_inv)
 
     return n_r
 end

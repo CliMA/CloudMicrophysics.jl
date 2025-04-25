@@ -24,7 +24,8 @@ export terminal_velocity,
     accretion_rain_sink,
     accretion_snow_rain,
     evaporation_sublimation,
-    snow_melt
+    snow_melt,
+    lambda_inverse
 
 abstract type AbstractSnowShape end
 struct Oblate <: AbstractSnowShape end
@@ -74,16 +75,17 @@ get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain{FT}, ρ::FT) where {FT} =
 get_v0((; v0)::CMP.Blk1MVelTypeSnow{FT}, args...) where {FT} = v0
 
 """
-    lambda(pdf, mass, q, ρ)
+    lambda_inverse(pdf, mass, q, ρ)
 
  - `pdf`, `mass` - structs with particle size distribution and mass parameters
  - `q` - specific content of rain, ice or snow
  - `ρ` - air density
 
-Returns the rate parameter of the assumed size distribution of
+Returns the inverse of rate parameter of the assumed size distribution of
 particles (rain drops, ice crystals, snow crystals).
+The value is clipped at 1e-8.
 """
-function lambda(
+function lambda_inverse(
     #(; pdf, mass)::Union{CMP.Snow{FT}, CMP.Rain{FT}, CMP.CloudIce{FT}},
     pdf::Union{CMP.ParticlePDFIceRain{FT}, CMP.ParticlePDFSnow{FT}},
     mass::CMP.ParticleMass{FT},
@@ -95,10 +97,15 @@ function lambda(
     # mass(size)
     (; r0, m0, me, Δm, χm) = mass
 
-    return q > FT(0) ?
-           (
-        χm * m0 * n0 * SF.gamma(me + Δm + FT(1)) / ρ / q / r0^(me + Δm)
-    )^FT(1 / (me + Δm + 1)) : FT(0)
+    λ_inv = FT(0)
+    if q > FT(0) && ρ > FT(0)
+        λ_inv = exp(1 / (me + Δm + 1) *
+            log(
+            ρ * q * exp((me + Δm) * log(r0)) / χm / m0 / n0 / SF.gamma(me + Δm + FT(1)),
+        )
+        )
+    end
+    return max(r0 * FT(1e-5), λ_inv)
 end
 
 """
@@ -166,9 +173,9 @@ function terminal_velocity(
         # mass(size)
         (; r0, me, Δm, χm) = mass
         # size distrbution
-        λ = lambda(pdf, mass, q, ρ)
+        λ_inv = lambda_inverse(pdf, mass, q, ρ)
 
-        return χv * v0 * (λ * r0)^(-ve - Δv) * SF.gamma(me + ve + Δm + Δv + FT(1)) /
+        return χv * v0 * (r0 / λ_inv)^(-ve - Δv) * SF.gamma(me + ve + Δm + Δv + FT(1)) /
                SF.gamma(me + Δm + FT(1))
     else
         return FT(0)
@@ -185,10 +192,10 @@ function terminal_velocity(
         # coefficients from Table B1 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρₐ)
         # size distribution parameter
-        λ::FT = lambda(pdf, mass, q, ρₐ)
+        λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
         # eq 20 from Chen et al 2022
         fall_w = sum((1, 2, 3); init = FT(0)) do i
-            CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+            CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ_inv, 3)
         end
         # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
         fall_w = max(FT(0), fall_w)
@@ -210,7 +217,7 @@ function terminal_velocity(
         aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρₐ, ρᵢ)
         #aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρₐ, ρᵢ)
         # size distribution parameter
-        λ::FT = lambda(pdf, mass, q, ρₐ)
+        λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
 
         # As a next step, we could keep ϕ(r) under the integrals
         # assume oblate shape and aspect ratio
@@ -218,7 +225,7 @@ function terminal_velocity(
 
         # eq 20 from Chen 2022
         fall_w = sum((1, 2); init = FT(0)) do i
-            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ_inv, 3)
         end
         fall_w = max(FT(0), fall_w)
     end
@@ -237,14 +244,14 @@ function terminal_velocity(
         # coefficients from Table B4 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρₐ, ρᵢ)
         # size distribution parameter
-        λ::FT = lambda(pdf, mass, q, ρₐ)
+        λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
         # Compute the mass weighted average aspect ratio ϕ_av
         # As a next step, we could keep ϕ(r) under the integrals
         (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
-        ϕ_av = ϕ₀ / λ^α * SF.gamma(α + 3 + 1) / SF.gamma(3 + 1)
+        ϕ_av = ϕ₀ * λ_inv^α * SF.gamma(α + 3 + 1) / SF.gamma(3 + 1)
         # eq 20 from Chen 2022
         fall_w = sum((1, 2); init = FT(0)) do i
-            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ, 3)
+            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ_inv, 3)
         end
         fall_w = max(FT(0), fall_w)
     end
@@ -319,12 +326,12 @@ function conv_q_ice_to_q_sno(
         (; me, Δm) = mass
         G = CO.G_func(aps, tps, T, TD.Ice())
         n0 = get_n0(pdf)
-        λ = lambda(pdf, mass, q.ice, ρ)
+        λ_inv = lambda_inverse(pdf, mass, q.ice, ρ)
 
         acnv_rate =
             4 * FT(π) * S * G * n0 / ρ *
-            exp(-λ * r_ice_snow) *
-            (r_ice_snow^FT(2) / (me + Δm) + (r_ice_snow * λ + FT(1)) / λ^FT(2))
+            exp(-r_ice_snow / λ_inv) *
+            (r_ice_snow^FT(2) / (me + Δm) + (r_ice_snow / λ_inv + FT(1)) * λ_inv^FT(2))
     end
     return acnv_rate
 end
@@ -363,12 +370,12 @@ function accretion(
         (; χv, ve, Δv) = vel
         (; a0, ae, χa, Δa) = precip.area
 
-        λ = lambda(precip.pdf, precip.mass, q_pre, ρ)
+        λ_inv = lambda_inverse(precip.pdf, precip.mass, q_pre, ρ)
         E = Ec(cloud, precip, ce)
 
         accr_rate =
-            q_clo * E * n0 * a0 * v0 * χa * χv / λ *
-            SF.gamma(ae + ve + Δa + Δv + FT(1)) / (λ * r0)^(ae + ve + Δa + Δv)
+            q_clo * E * n0 * a0 * v0 * χa * χv * λ_inv *
+            SF.gamma(ae + ve + Δa + Δv + FT(1)) / (r0 / λ_inv)^(ae + ve + Δa + Δv)
     end
     return accr_rate
 end
@@ -400,7 +407,7 @@ function accretion_rain_sink(
     if (q_ice > FT(0) && q_rai > FT(0))
 
         n0_ice = get_n0(ice.pdf)
-        λ_ice = lambda(ice.pdf, ice.mass, q_ice, ρ)
+        λ_ice_inv = lambda_inverse(ice.pdf, ice.mass, q_ice, ρ)
 
         n0 = get_n0(rain.pdf, q_rai, ρ)
         v0 = get_v0(vel, ρ)
@@ -410,12 +417,12 @@ function accretion_rain_sink(
 
         E = Ec(ice, rain, ce)
 
-        λ = lambda(rain.pdf, rain.mass, q_rai, ρ)
+        λ_inv = lambda_inverse(rain.pdf, rain.mass, q_rai, ρ)
 
         accr_rate =
-            E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv / λ_ice / λ *
+            E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv * λ_ice_inv * λ_inv *
             SF.gamma(me + ae + ve + Δm + Δa + Δv + FT(1)) /
-            (r0 * λ)^FT(me + ae + ve + Δm + Δa + Δv)
+            (r0 / λ_inv)^FT(me + ae + ve + Δm + Δa + Δv)
     end
     return accr_rate
 end
@@ -462,8 +469,8 @@ function accretion_snow_rain(
 
         E_ij = Ec(type_i, type_j, ce)
 
-        λ_i = lambda(type_i.pdf, type_i.mass, q_i, ρ)
-        λ_j = lambda(type_j.pdf, type_j.mass, q_j, ρ)
+        λ_i_inv = lambda_inverse(type_i.pdf, type_i.mass, q_i, ρ)
+        λ_j_inv = lambda_inverse(type_j.pdf, type_j.mass, q_j, ρ)
 
         v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i)
         v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j)
@@ -471,11 +478,11 @@ function accretion_snow_rain(
         accr_rate =
             FT(π) / ρ * n0_i * n0_j * m0_j * χm_j * E_ij * abs(v_ti - v_tj) /
             r0_j^(me_j + Δm_j) * (
-                FT(2) * SF.gamma(me_j + Δm_j + FT(1)) / λ_i^FT(3) /
-                λ_j^(me_j + Δm_j + FT(1)) +
-                FT(2) * SF.gamma(me_j + Δm_j + FT(2)) / λ_i^FT(2) /
-                λ_j^(me_j + Δm_j + FT(2)) +
-                SF.gamma(me_j + Δm_j + FT(3)) / λ_i / λ_j^(me_j + Δm_j + FT(3))
+                FT(2) * SF.gamma(me_j + Δm_j + FT(1)) * λ_i_inv^FT(3) *
+                λ_j_inv^(me_j + Δm_j + FT(1)) +
+                FT(2) * SF.gamma(me_j + Δm_j + FT(2)) * λ_i_inv^FT(2) *
+                λ_j_inv^(me_j + Δm_j + FT(2)) +
+                SF.gamma(me_j + Δm_j + FT(3)) * λ_i_inv * λ_j_inv^(me_j + Δm_j + FT(3))
             )
     end
     return accr_rate
@@ -522,14 +529,15 @@ function evaporation_sublimation(
         a_vent = vent.a
         b_vent = vent.b
 
-        λ = lambda(pdf, mass, q_rai, ρ)
+        λ_inv = lambda_inverse(pdf, mass, q_rai, ρ)
 
         evap_subl_rate =
-            4 * FT(π) * n0 / ρ * S * G / λ^FT(2) * (
+            4 * FT(π) * n0 / ρ * S * G * λ_inv^FT(2) *
+            (
                 a_vent +
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
-                (r0 * λ)^((ve + Δv) / FT(2)) *
-                (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
+                (r0 / λ_inv)^((ve + Δv) / FT(2)) *
+                (FT(2) * v0 * χv / ν_air * λ_inv)^FT(1 / 2) *
                 SF.gamma((ve + Δv + FT(5)) / FT(2))
             )
     end
@@ -561,14 +569,15 @@ function evaporation_sublimation(
         a_vent = vent.a
         b_vent = vent.b
 
-        λ = lambda(pdf, mass, q_sno, ρ)
+        λ_inv = lambda_inverse(pdf, mass, q_sno, ρ)
 
         evap_subl_rate =
-            4 * FT(π) * n0 / ρ * S * G / λ^FT(2) * (
+            4 * FT(π) * n0 / ρ * S * G * λ_inv^FT(2) *
+            (
                 a_vent +
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
-                (r0 * λ)^((ve + Δv) / FT(2)) *
-                (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
+                (r0 / λ_inv)^((ve + Δv) / FT(2)) *
+                (FT(2) * v0 * χv / ν_air * λ_inv)^FT(1 / 2) *
                 SF.gamma((ve + Δv + FT(5)) / FT(2))
             )
     end
@@ -612,14 +621,15 @@ function snow_melt(
         a_vent = vent.a
         b_vent = vent.b
 
-        λ = lambda(pdf, mass, q_sno, ρ)
+        λ_inv = lambda_inverse(pdf, mass, q_sno, ρ)
 
         snow_melt_rate =
-            4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) / λ^FT(2) * (
+            4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^FT(2) *
+            (
                 a_vent +
                 b_vent * (ν_air / D_vapor)^FT(1 / 3) /
-                (r0 * λ)^((ve + Δv) / FT(2)) *
-                (FT(2) * v0 * χv / ν_air / λ)^FT(1 / 2) *
+                (r0 / λ_inv)^((ve + Δv) / FT(2)) *
+                (FT(2) * v0 * χv / ν_air * λ_inv)^FT(1 / 2) *
                 SF.gamma((ve + Δv + FT(5)) / FT(2))
             )
     end

@@ -26,7 +26,7 @@ Microphysics0M.remove_precipitation
 Microphysics1M
 Microphysics1M.get_v0
 Microphysics1M.get_n0
-Microphysics1M.lambda
+Microphysics1M.lambda_inverse
 Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_liq_to_q_rai
 Microphysics1M.conv_q_ice_to_q_sno_no_supersat

@@ -579,8 +579,8 @@ function rain_terminal_velocity(
     λ = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai).λr
 
     # eq 20 from Chen et al 2022
-    vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 0))
-    vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, λ, 3))
+    vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, 1 / λ, 0))
+    vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, 1 / λ, 3))
 
     vt0 = N_rai < eps(FT) ? FT(0) : max(FT(0), vt0)
     vt3 = q_rai < eps(FT) ? FT(0) : max(FT(0), vt3)

@@ -24,7 +24,7 @@ A struct with snow size distribution parameters
 $(DocStringExtensions.FIELDS)
 """
 struct ParticlePDFIceRain{FT} <: ParametersType{FT}
-    "snow size distribution coefficient [1/m4]"
+    "Size distribution coefficient [1/m4]"
     n0::FT
 end
 
