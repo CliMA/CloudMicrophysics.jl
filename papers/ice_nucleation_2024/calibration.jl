@@ -194,7 +194,8 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list, end_sim::Int64; c
         local sol = run_parcel(IC, FT(0), t_max, params)
 
         if calibration == true
-            loss_func_i = sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
+            # loss_func_i = sol[9, (end - end_sim):end] ./ (IC[7] + IC[8] + IC[9])
+            loss_func_i = sol[9, end] / (IC[7] + IC[8] + IC[9])
             append!(loss_func, loss_func_i)
         elseif calibration == false
             return sol
@@ -311,7 +312,7 @@ function calibrate_J_parameters_EKI(FT, IN_mode, params, IC, y_truth, end_sim, Î
         Î“,
         EKP.Inversion();
         rng = rng,
-        verbose = true,
+        verbose = false,
         localization_method = EKP.Localizers.NoLocalization(), # no localization
         scheduler = EKP.DataMisfitController(terminate_at = 1),
         accelerator = EKP.DefaultAccelerator(), # no acceleration
@@ -383,7 +384,7 @@ function calibrate_J_parameters_UKI(FT, IN_mode, params, IC, y_truth, end_sim, Î
         update_freq = update_freq,
         impose_prior = false,
     )
-    UKI_obj = EKP.EnsembleKalmanProcess(truth, process; verbose = true)
+    UKI_obj = EKP.EnsembleKalmanProcess(truth, process; verbose = false)
 
     global err = []
     global final_iter =[N_iterations]
