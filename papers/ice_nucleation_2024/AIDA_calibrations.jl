@@ -74,14 +74,13 @@ R_d = TD.Parameters.R_d(tps)
 global EKI_calibrated_coeff_dict = Dict()
 global UKI_calibrated_coeff_dict = Dict()
 mutable struct all_calibration_data
-    EKI_calibrated_parcel::Vector{ODE.ODESolution}
     UKI_calibrated_parcel::Vector{ODE.ODESolution}
     Nₜ_list::Vector{Any}
     t_profile_list::Vector{Any}
     frozen_frac_moving_mean_list::Vector{Any}
     frozen_frac_list::Vector{Any}
 end
-global overview_data = all_calibration_data(Vector{ODE.ODESolution}(), Vector{ODE.ODESolution}(), [], [], [], [])
+global overview_data = all_calibration_data(Vector{ODE.ODESolution}(), [], [], [], [])
 
 for (batch_index, batch_name) in enumerate(batch_names)
     @info(batch_name)
@@ -121,33 +120,22 @@ for (batch_index, batch_name) in enumerate(batch_names)
         append!(overview_data.frozen_frac_list, frozen_frac)
     end
 
-    ff_max = maximum.(frozen_frac_moving_mean)
-    ff_min = minimum.(frozen_frac_moving_mean)
-    Γ = 0.01 / 9 * LinearAlgebra.I * (maximum(ff_max) - minimum(ff_min))
+    Γ = (0.1 / 3)^2 * LinearAlgebra.I   # 0.1 is the uncertainty in observed ICNC
 
     ### Calibration.
-    EKI_output = calibrate_J_parameters_EKI(FT, nuc_mode, params_list, IC_list, y_truth, end_sim, Γ)
     UKI_output = calibrate_J_parameters_UKI(FT, nuc_mode, params_list, IC_list, y_truth, end_sim, Γ)
 
-    EKI_calibrated_parameters = EKI_output[1] # MEAN of parameters from ensembles in FINAL iteration
     UKI_calibrated_parameters = UKI_output[1] # MEAN of parameters from ensembles in FINAL iteration 
-    EKI_all_params = EKI_output[2]            # parameters from EACH ensemble in EACH iteration
     UKI_all_params = UKI_output[2]            # parameters from EACH ensemble in EACH iteration
-    EKI_mean_each_iter = EKI_output[3]        # MEAN of parameters from ensembles in EACH iteration 
     UKI_mean_each_iter = UKI_output[3]        # MEAN of parameters from ensembles in EACH iteration 
     UKI_final_iter_spread = UKI_output[4]     # parameters for EACH ensemble in FINAL iteration
-    EKI_error = EKI_output[4]
     UKI_error = UKI_output[5]
 
-    EKI_n_iterations = size(EKI_output[2])[1]
-    EKI_n_ensembles = size(EKI_output[2][1])[2]
     UKI_n_iterations = size(UKI_output[2])[1]
     UKI_n_ensembles = size(UKI_output[2][1])[2]
 
-    EKI_calibrated_ensemble_means = ensemble_means(EKI_all_params, EKI_n_iterations, EKI_n_ensembles)
     UKI_calibrated_ensemble_means = ensemble_means(UKI_all_params, UKI_n_iterations, UKI_n_ensembles)
 
-    merge!(EKI_calibrated_coeff_dict, Dict(batch_name => EKI_calibrated_parameters))
     merge!(UKI_calibrated_coeff_dict, Dict(batch_name => UKI_calibrated_parameters))
 
     ### Plot for individual experiments.
@@ -163,12 +151,10 @@ for (batch_index, batch_name) in enumerate(batch_names)
         end
 
         ## Calibrated parcel.
-        EKI_parcel = run_model([params_list[exp_index]], nuc_mode, EKI_calibrated_parameters, FT, [IC_list[exp_index]], end_sim)
         UKI_parcel = run_model([params_list[exp_index]], nuc_mode, UKI_calibrated_parameters, FT, [IC_list[exp_index]], end_sim)
         if batch_name in ["HOM", "DEP", "IMM"]
             # the order it appends is "in05_17_aida.edf", "in05_18_aida.edf", "TROPIC04",
             # "in07_01_aida.edf", "in07_19_aida.edf", "EXP45", "ACI04_22", "EXP19".
-            push!(overview_data.EKI_calibrated_parcel, EKI_parcel)
             push!(overview_data.UKI_calibrated_parcel, UKI_parcel)
         end
 
@@ -187,7 +173,6 @@ for (batch_index, batch_name) in enumerate(batch_names)
         #  Did they converge?
         calibrated_coeffs_fig = plot_calibrated_coeffs(
             batch_name,
-            EKI_n_iterations, EKI_n_ensembles, EKI_all_params,
             UKI_n_iterations, UKI_n_ensembles, UKI_all_params,
         )
 
@@ -195,7 +180,7 @@ for (batch_index, batch_name) in enumerate(batch_names)
         #  Does the calibrated parcel give reasonable outputs?
         calibrated_parcels_fig = plot_calibrated_parcels(
             exp_names[exp_index], Nₜ[exp_index],
-            EKI_parcel, UKI_parcel,
+            UKI_parcel,
             t_profile[exp_index], T_profile[exp_index], P_profile[exp_index], ICNC_profile[exp_index],
         )
 
@@ -203,7 +188,7 @@ for (batch_index, batch_name) in enumerate(batch_names)
         #  Does calibrated parcel look like observations?
         compare_ICNC_fig = plot_compare_ICNC(
             exp_names[exp_index],
-            Nₜ[exp_index], EKI_parcel, UKI_parcel,
+            Nₜ[exp_index], UKI_parcel,
             t_profile[exp_index], frozen_frac_moving_mean[exp_index], frozen_frac[exp_index],
         )
 
@@ -225,8 +210,8 @@ for (batch_index, batch_name) in enumerate(batch_names)
     ## Plotting loss function over calibration iterations
     loss_fig = plot_loss_func(
         batch_name,
-        EKI_n_iterations, UKI_n_iterations,
-        EKI_error, UKI_error,
+        UKI_n_iterations,
+        UKI_error,
     )
 
 end  # iterating over batches

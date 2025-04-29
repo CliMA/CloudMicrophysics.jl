@@ -46,29 +46,21 @@ function plot_AIDA_ICNC_data(
 end
 
 """
-    plot_calibrated_coeffs(batch_name, EKI_n_iterations, calibrated_ensemble_means)
+    plot_calibrated_coeffs(
+        batch_name,
+        UKI_n_iterations, UKI_n_ensembles, UKI_all_params,
+    )
 
-Plots evolution of calibrated coefficients over the EKI iterations. Plot is saved and returned.
+Plots evolution of calibrated coefficients over the UKI iterations. Plot is saved and returned.
 """
 function plot_calibrated_coeffs(
     batch_name,
-    EKI_n_iterations, EKI_n_ensembles, EKI_all_params,
     UKI_n_iterations, UKI_n_ensembles, UKI_all_params,
 )
-    EKI_x_axis = []
     UKI_x_axis = []
-    EKI_m = []
     UKI_m = []
-    EKI_c = []
     UKI_c = []
 
-    for iter in 1:EKI_n_iterations
-        for ensemble_n in 1:EKI_n_ensembles
-            append!(EKI_x_axis, iter)
-            append!(EKI_m, EKI_all_params[iter][1, ensemble_n])
-            append!(EKI_c, EKI_all_params[iter][2, ensemble_n])
-        end
-    end
     for iter in 1:UKI_n_iterations
         for ensemble_n in 1:UKI_n_ensembles
             append!(UKI_x_axis, iter)
@@ -84,22 +76,6 @@ function plot_calibrated_coeffs(
 
     MK.scatter!(
         m_coeff_ax,
-        EKI_x_axis,
-        EKI_m,
-        label = "EKI",
-        color = (:orange, 0.5),
-        # marker = :xcross,
-    )
-    MK.scatter!(
-        c_coeff_ax,
-        EKI_x_axis,
-        EKI_c,
-        label = "EKI",
-        color = (:orange, 0.5),
-        # marker = :xcross
-    )
-    MK.scatter!(
-        m_coeff_ax,
         UKI_x_axis,
         UKI_m,
         label = "UKI",
@@ -113,7 +89,7 @@ function plot_calibrated_coeffs(
         color = (:fuchsia, 0.5),
     )
 
-    MK.axislegend(m_coeff_ax, framevisible = false, labelsize = 18, position = :rt)
+    # MK.axislegend(m_coeff_ax, framevisible = false, labelsize = 18, position = :rt)
     MK.save("$batch_name" * "_calibrated_coeffs_fig.svg", calibrated_coeffs_fig)
 
     return calibrated_coeffs_fig
@@ -123,7 +99,7 @@ end
 """
     plot_calibrated_parcels(
         exp_name, Nₜ,
-        EKI_parcel, UKI_parcel,
+        UKI_parcel,
         t_profile, T_profile, P_profile, ICNC_profile,
     )
 
@@ -131,7 +107,7 @@ Plots parcel simulations ran with calibrated parameters. Plot is saved and retur
 """
 function plot_calibrated_parcels(
     exp_name, Nₜ,
-    EKI_parcel, UKI_parcel,
+    UKI_parcel,
     t_profile, T_profile, P_profile, ICNC_profile,
 )
 
@@ -146,16 +122,7 @@ function plot_calibrated_parcels(
     ax_parcel_7 = MK.Axis(calibrated_parcel_fig[1, 3], ylabel = "pressure [Pa]", xlabel = "time [s]")
     ax_parcel_8 = MK.Axis(calibrated_parcel_fig[2, 3], ylabel = "Nₐ [m^-3]", xlabel = "time [s]")
 
-    MK.lines!(ax_parcel_1, EKI_parcel.t, EKI_parcel[1, :], label = "EKI Calib Liq", color = :orange) # label = "liquid"
     MK.lines!(ax_parcel_1, UKI_parcel.t, UKI_parcel[1, :], label = "UKI Calib Liq", color = :fuchsia) # label = "liquid"
-    MK.lines!(
-        ax_parcel_1,
-        EKI_parcel.t,
-        S_i.(tps, EKI_parcel[3, :], EKI_parcel[1, :]),
-        label = "EKI Calib Ice",
-        color = :orange,
-        linestyle = :dash,
-    )
     MK.lines!(
         ax_parcel_1,
         UKI_parcel.t,
@@ -166,31 +133,24 @@ function plot_calibrated_parcels(
     )
     # MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
 
-    MK.lines!(ax_parcel_2, EKI_parcel.t, EKI_parcel[5, :], color = :orange)
     MK.lines!(ax_parcel_2, UKI_parcel.t, UKI_parcel[5, :], color = :fuchsia)
 
-    MK.lines!(ax_parcel_3, EKI_parcel.t, EKI_parcel[3, :], color = :orange)
     MK.lines!(ax_parcel_3, UKI_parcel.t, UKI_parcel[3, :], color = :fuchsia)
     MK.lines!(ax_parcel_3, t_profile, T_profile, color = :blue, linestyle = :dash)
 
-    MK.lines!(ax_parcel_4, EKI_parcel.t, EKI_parcel[6, :], color = :orange)
     MK.lines!(ax_parcel_4, UKI_parcel.t, UKI_parcel[6, :], color = :fuchsia)
 
-    MK.lines!(ax_parcel_5, EKI_parcel.t, EKI_parcel[8, :], color = :orange)
     MK.lines!(ax_parcel_5, UKI_parcel.t, UKI_parcel[8, :], color = :fuchsia)
 
-    MK.lines!(ax_parcel_6, EKI_parcel.t, EKI_parcel[9, :], color = :orange, label = "EKI")
     MK.lines!(ax_parcel_6, UKI_parcel.t, UKI_parcel[9, :], color = :fuchsia, label = "UKI")
     MK.lines!(ax_parcel_6, t_profile, ICNC_profile, color = :blue, label = "AIDA")
 
     error = (ICNC_profile ./ Nₜ) .* 0.1
     MK.errorbars!(ax_parcel_6, t_profile, ICNC_profile ./ Nₜ, error, color = (:blue, 0.3))
 
-    MK.lines!(ax_parcel_7, EKI_parcel.t, EKI_parcel[2, :], color = :orange)
     MK.lines!(ax_parcel_7, UKI_parcel.t, UKI_parcel[2, :], color = :fuchsia)
     MK.lines!(ax_parcel_7, t_profile, P_profile, color = :blue, linestyle = :dash)
 
-    MK.lines!(ax_parcel_8, EKI_parcel.t, EKI_parcel[7, :], color = :orange)
     MK.lines!(ax_parcel_8, UKI_parcel.t, UKI_parcel[7, :], color = :fuchsia)
 
     MK.axislegend(ax_parcel_6, framevisible = false, labelsize = 16, position = :rb)
@@ -203,16 +163,16 @@ end
 """
     plot_compare_ICNC(
         exp_name,
-        Nₜ, EKI_parcel, UKI_parcel,
+        Nₜ, UKI_parcel,
         t_profile, frozen_frac_moving_mean, frozen_frac,
     )
 
-Plots frozen fraction evolution for EKI and UKI calibrated parcel simulations and AIDA data.
+Plots frozen fraction evolution for UKI calibrated parcel simulation and AIDA data.
 Plot is saved and returned.
 """
 function plot_compare_ICNC(
     exp_name,
-    Nₜ, EKI_parcel, UKI_parcel,
+    Nₜ, UKI_parcel,
     t_profile, frozen_frac_moving_mean, frozen_frac,
 )
 
@@ -221,20 +181,11 @@ function plot_compare_ICNC(
         MK.Axis(ICNC_comparison_fig[1, 1], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$exp_name")
     MK.lines!(
         ax_compare,
-        EKI_parcel.t,
-        EKI_parcel[9, :] ./ Nₜ,
-        label = "CM.jl Parcel (EKI Calibrated)",
-        linewidth = 2.5,
-        color = :orange,
-    )
-    MK.lines!(
-        ax_compare,
         UKI_parcel.t,
         UKI_parcel[9, :] ./ Nₜ,
-        label = "CM.jl Parcel (UKI Calibrated)",
+        label = "UKI Calibrated",
         linewidth = 2.5,
         color = :fuchsia,
-        linestyle = :dash,
     )
     error = frozen_frac_moving_mean .* 0.1
     MK.errorbars!(ax_compare, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
@@ -342,17 +293,17 @@ end
 """
     plot_ICNC_overview(overview_data)
 
-Plots frozen fraction evolution for EKI and UKI calibrated parcel simulations
+Plots frozen fraction evolution for UKI calibrated parcel simulation
 and AIDA data for all batch experiments. Plot is saved and returned.
 """
 function plot_ICNC_overview(overview_data)
 
-    EKI_calibrated_parcel = overview_data.EKI_calibrated_parcel
     UKI_calibrated_parcel = overview_data.UKI_calibrated_parcel
     Nₜ_list = overview_data.Nₜ_list
     t_profile_list = overview_data.t_profile_list
     frozen_frac_moving_mean_list = overview_data.frozen_frac_moving_mean_list
     frozen_frac_list = overview_data.frozen_frac_list
+    uncertainty = 0.1
 
     overview_fig = MK.Figure(size = (1000, 800), fontsize = 24)
 
@@ -369,7 +320,6 @@ function plot_ICNC_overview(overview_data)
 
     for (i, exp_name) in enumerate(exp_name_list)
 
-        EKI_parcel = EKI_calibrated_parcel[i]
         UKI_parcel = UKI_calibrated_parcel[i]
         Nₜ = Nₜ_list[i]
         frozen_frac_moving_mean = frozen_frac_moving_mean_list[i]
@@ -380,23 +330,14 @@ function plot_ICNC_overview(overview_data)
 
         MK.lines!(
             ax,
-            EKI_parcel.t,
-            EKI_parcel[9, :] ./ Nₜ,
-            label = "CM.jl Parcel (EKI Calibrated)",
-            linewidth = 2.5,
-            color = :orange,
-        )
-        MK.lines!(
-            ax,
             UKI_parcel.t,
             UKI_parcel[9, :] ./ Nₜ,
-            label = "CM.jl Parcel (UKI Calibrated)",
+            label = "UKI Calibrated",
             linewidth = 2.5,
             color = :fuchsia,
-            linestyle = :dash,
         )
-        error = frozen_frac_moving_mean .* 0.1
-        MK.errorbars!(ax, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
+        # error = frozen_fac_moving_mean .* 0.1
+        # MK.errorbars!(ax, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
         MK.lines!(
             ax,
             t_profile,
@@ -414,11 +355,13 @@ function plot_ICNC_overview(overview_data)
             linewidth = 2.5,
             color = :blue,
         )
+        uncertainty_up = max_ignore_nan(frozen_frac_moving_mean) * (1 + uncertainty)
+        uncertainty_low = max_ignore_nan(frozen_frac_moving_mean) * (1 - uncertainty)
+        MK.hspan!(ax, uncertainty_low, uncertainty_up; color = :green, alpha = 0.3)
     end
 
     legend_axis = MK.Axis(overview_fig[3, 3], title = "Legend")
-    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (EKI Calibrated)", color = :orange)
-    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (UKI Calibrated)", color = :fuchsia, linestyle = :dash)
+    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (UKI Calibrated)", color = :fuchsia)
     MK.lines!(legend_axis, 1, 1, label = "Raw AIDA", color = :blue, linestyle = :dash)
     MK.lines!(legend_axis, 1, 1, label = "AIDA Moving Avg", color = :blue)
     MK.axislegend(legend_axis, framevisible = false, labelsize = 18, position = :rb)
@@ -432,31 +375,15 @@ function plot_ICNC_overview(overview_data)
 end
 
 """
-    plot_loss_func(
-        batch_name,
-        EKI_n_iterations, UKI_n_iterations,
-        EKI_error, UKI_error,
-    )
+    plot_loss_func(batch_name, UKI_n_iterations, UKI_error)
 
 Plots the difference in loss functions over each iteration of
     calibration for a batch. Plot is saved and returned.
 """
-function plot_loss_func(
-    batch_name,
-    EKI_n_iterations, UKI_n_iterations,
-    EKI_error, UKI_error,
-)
+function plot_loss_func(batch_name, UKI_n_iterations, UKI_error)
 
     loss_fig = MK.Figure(size = (700, 600), fontsize = 24)
     ax_loss = MK.Axis(loss_fig[1, 1], ylabel = "Error [-]", xlabel = "Iteration [-]", title = "$batch_name: Error")
-    MK.lines!(
-        ax_loss,
-        collect(1:EKI_n_iterations),
-        EKI_error,
-        label = "EKI",
-        linewidth = 2.5,
-        color = :orange,
-    )
     MK.lines!(
         ax_loss,
         collect(1:(UKI_n_iterations - 1)),
@@ -465,7 +392,7 @@ function plot_loss_func(
         linewidth = 2.5,
         color = :fuchsia,
     )
-    MK.axislegend(ax_loss, framevisible = false, labelsize = 18, position = :rc)
+    # MK.axislegend(ax_loss, framevisible = false, labelsize = 18, position = :rc)
     MK.save("$batch_name" * "_loss_fig.svg", loss_fig)
 
     return loss_fig

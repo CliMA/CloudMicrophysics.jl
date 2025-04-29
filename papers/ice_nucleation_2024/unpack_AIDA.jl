@@ -12,6 +12,10 @@ function interpolated_data(raw_data, time_array)
     return data_at_t.(time_array)
 end
 
+function max_ignore_nan(vec)
+    return maximum(x for x in vec if !isnan(x))
+end
+
 function moving_average(data, n)
     window_size = length(data) / n
     moving_avg = NaNStatistics.movmean(data, window_size)
@@ -268,9 +272,11 @@ function data_to_calib_inputs(
         frozen_frac_moving_mean[exp_index] = moving_average(frozen_frac[exp_index], moving_average_n)
         ICNC_moving_avg[exp_index] = moving_average(ICNC_profile[exp_index], moving_average_n)
 
-        pseudo_ss_ff = NaNStatistics.nanmean(frozen_frac_moving_mean[exp_index][(end - end_sim):end])
-        pseudo_ss_ff_array = zeros(length(frozen_frac_moving_mean[exp_index][(end - end_sim):end])) .+ pseudo_ss_ff
-        append!(y_truth, pseudo_ss_ff_array)
+        # pseudo_ss_ff = NaNStatistics.nanmean(frozen_frac_moving_mean[exp_index][(end - end_sim):end])
+        pseudo_ss_ff = max_ignore_nan(frozen_frac_moving_mean[exp_index])
+        # pseudo_ss_ff_array = zeros(length(frozen_frac_moving_mean[exp_index][(end - end_sim):end])) .+ pseudo_ss_ff
+        # append!(y_truth, pseudo_ss_ff_array)
+        append!(y_truth, pseudo_ss_ff)
 
     end
 
