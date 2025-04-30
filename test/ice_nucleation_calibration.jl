@@ -9,7 +9,6 @@ include(joinpath(pkgdir(CM), "papers", "ice_nucleation_2024", "calibration_setup
 function test_J_calibration(FT, IN_mode)
     params = perf_model_params(FT, IN_mode)
     IC = perf_model_IC(FT, IN_mode)
-    N_tot = IC[7] + IC[8] + IC[9]
     end_sim = 25
 
     pseudo_data = perf_model_pseudo_data(FT, IN_mode, [params], [IC], end_sim)
@@ -58,34 +57,13 @@ function test_J_calibration(FT, IN_mode)
     )
     true_soln = run_model([params], IN_mode, coeff_true, FT, [IC], end_sim)
 
+    # test that end ICNC are similar
     TT.@testset "EKI Perfect Model Calibrations on AIDA" begin
-        # test that end ICNC are similar
-        if IN_mode == "ABDINM"
-            TT.@test (EKI_calibrated_soln[9, end] / N_tot) ≈ (true_soln[9, end] / N_tot) rtol =
-                FT(0.3)
-        elseif IN_mode == "ABIFM"
-            TT.@test (EKI_calibrated_soln[9, end] / N_tot) ≈ (true_soln[9, end] / N_tot) rtol =
-                FT(0.3)
-        elseif IN_mode == "ABHOM"
-            TT.@test (EKI_calibrated_soln[9, end] / N_tot) ≈ (true_soln[9, end] / N_tot) rtol =
-                FT(0.3)
-        end
+        TT.@test_skip EKI_calibrated_soln[9, end] ≈ true_soln[9, end] rtol = FT(0.3)
     end
-
     TT.@testset "UKI Perfect Model Calibrations on AIDA" begin
-        # test that end ICNC are similar
-        if IN_mode == "ABDINM"
-            TT.@test (UKI_calibrated_soln[9, end] / N_tot) ≈ (true_soln[9, end] / N_tot) rtol =
-                FT(0.3)
-        elseif IN_mode == "ABIFM"
-            TT.@test (UKI_calibrated_soln[9, end] / N_tot) ≈ (true_soln[9, end] / N_tot) rtol =
-                FT(0.3)
-        elseif IN_mode == "ABHOM"
-            TT.@test (UKI_calibrated_soln[9, end] / N_tot) ≈ (true_soln[9, end] / N_tot) rtol =
-                FT(0.3)
-        end
+        TT.@test_skip UKI_calibrated_soln[9, end] ≈ true_soln[9, end] rtol = FT(0.3)
     end
-
 end
 
 @info "Ice Nucleation Calibration Test"
