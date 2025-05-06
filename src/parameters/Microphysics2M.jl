@@ -419,6 +419,11 @@ function RainParticlePDF_SB2006(td::CP.AbstractTOMLDict)
     return RainParticlePDF_SB2006{FT}(; parameters...)
 end
 
+const RainParticlePDF_SB2006_MaybeLimited{FT} = Union{
+    RainParticlePDF_SB2006{FT},
+    RainParticlePDF_SB2006_limited{FT},
+} where {FT}
+
 """
     CloudParticlePDF_SB2006
 

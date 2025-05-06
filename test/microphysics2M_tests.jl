@@ -598,10 +598,10 @@ function test_microphysics2M(FT)
         m(D) = FT(π / 6) * ρₗ * D^3
 
         # rain drop diameter distribution (eq.(3) from 2M docs)
-        # the same as size_distribution(SB2006_no_limiters.pdf_r, D, qᵣ, ρₐ, Nᵣ)
+        # the same as size_distribution(SB2006_no_limiters.pdf_r, qᵣ, ρₐ, Nᵣ, D)
         f_D(D) = N₀r * exp(-λr * D)
         # rain drop diameter distribution, but using SB2006 limiters
-        # the same as size_distribution(SB2006.pdf_r, D, qᵣ, ρₐ, Nᵣ)
+        # the same as size_distribution(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ, D)
         f_D_limited(D) = N₀r_l * exp(-λr_l * D)
 
         # rain drop mass distribution (eq.(4) from 2M docs)
@@ -631,18 +631,12 @@ function test_microphysics2M(FT)
         ND_lim = QGK.quadgk(x -> f_D_limited(x), D₀, D∞)[1]
         Nx_lim = QGK.quadgk(x -> f_x_limited(x), m₀, m∞)[1]
         ND_bounded = QGK.quadgk(
-            x -> CM2.size_distribution(
-                SB2006_no_limiters.pdf_r,
-                FT(x),
-                qᵣ,
-                ρₐ,
-                Nᵣ,
-            ),
+            CM2.size_distribution(SB2006_no_limiters.pdf_r, qᵣ, ρₐ, Nᵣ),
             0,
             D_max,
         )[1]
         ND_bounded_limited = QGK.quadgk(
-            x -> CM2.size_distribution(SB2006.pdf_r, FT(x), qᵣ, ρₐ, Nᵣ),
+            CM2.size_distribution(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ),
             0,
             D_max_limited,
         )[1]
