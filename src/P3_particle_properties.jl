@@ -479,6 +479,34 @@ function ϕᵢ(state::P3State, D)
     return ifelse(D == 0, 0, ϕ_ob)
 end
 
+"""
+    ventilation_factor(state, vel, ρₐ, aps)
+
+Returns a function that computes the ventilation factor for an ice particle 
+    as a function of the maximum particle dimension, `D`.
+
+# Arguments
+- `state`: The [`P3State`](@ref)
+- `vel`: The [`Chen2022VelType`](@ref)
+- `ρₐ`: Air density [kg/m³]
+- `aps`: [`CMP.AirProperties`](@ref)
+
+# Returns
+- `vent_factor(D)`: The ventilation factor as a function of `D`
+"""
+function ventilation_factor(state, vel, ρₐ, aps)
+    (; ν_air, D_vapor) = aps
+    (; vent_a, vent_b) = state.params.vent
+    N_sc = ν_air / D_vapor
+    v_term = ice_particle_terminal_velocity(state, vel, ρₐ)
+
+    # Reynolds number
+    N_Re(D) = D * v_term(D) / ν_air
+    # Ventilation factor
+    vent_factor(D) = vent_a + vent_b * cbrt(N_sc) * sqrt(N_Re(D))
+    return vent_factor
+end
+
 ### ----------------- ###
 ### ----- UTILS ----- ###
 ### ----------------- ###
