@@ -109,6 +109,7 @@ function plot_calibrated_parcels(
     exp_name, Nₜ,
     UKI_parcel,
     t_profile, T_profile, P_profile, ICNC_profile,
+    Sₗ_profile,
 )
 
     calibrated_parcel_fig = MK.Figure(size = (1500, 800), fontsize = 20)
@@ -131,7 +132,7 @@ function plot_calibrated_parcels(
         color = :fuchsia,
         linestyle = :dash,
     )
-    # MK.lines!(ax_parcel_1, t_profile, S_l_profile, label = "chamber", color = :blue)
+    MK.lines!(ax_parcel_1, t_profile, Sₗ_profile, label = "chamber", color = :blue)
 
     MK.lines!(ax_parcel_2, UKI_parcel.t, UKI_parcel[5, :], color = :fuchsia)
 

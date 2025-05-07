@@ -33,7 +33,7 @@ data_file_names = [
 ]
 batch_names = ["HOM", "IN0701", "IN0719", "ACI04_22", "EXP19", "EXP45", "DEP", "IMM"]
 start_time_list = [     # freezing onset
-    [Int32(150), Int32(180)],
+    [Int32(169), Int32(180)],
     [Int32(50)],
     [Int32(35)],
     [Int32(0)],
@@ -190,6 +190,7 @@ for (batch_index, batch_name) in enumerate(batch_names)
             exp_names[exp_index], Nₜ[exp_index],
             UKI_parcel,
             t_profile[exp_index], T_profile[exp_index], P_profile[exp_index], ICNC_profile[exp_index],
+            S_l_profile[exp_index],
         )
 
         ## Comparing AIDA data and calibrated parcel.

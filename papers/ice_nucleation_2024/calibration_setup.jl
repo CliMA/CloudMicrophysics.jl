@@ -200,17 +200,17 @@ function AIDA_IN05_IC(FT, data_file)
     ϵₘ = R_d / R_v
 
     if data_file == "in05_17_aida.edf"
-        Nᵢ = FT(0.05 * 1e6)
-        Nₗ = FT(360 * 1e6) -  Nᵢ
+        Nᵢ = FT(0.647 * 1e6)
+        Nₗ = FT(360 * 1e6) - Nᵢ
         Nₐ = FT(0)
-        r₀ = FT(5.18056 / 2 * 1e-6)
-        p₀ = FT(894.409 * 1e2)
-        T₀ = FT(237.871)
+        r₀ = FT(5.68782 / 2 * 1e-6)
+        p₀ = FT(883.539 * 1e2)
+        T₀ = FT(237.502)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))  # 1.2 should be ρₐ
         qᵢ = FT(Nᵢ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2))
         m_l = Nₗ * ρₗ *  4 * π / 3 * r₀^3
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
-        e = FT(30.2314)
+        e = FT(29.811)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
         q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
         Rₐ = TD.gas_constant_air(tps, q)
