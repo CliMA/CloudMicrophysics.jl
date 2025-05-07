@@ -21,13 +21,15 @@ The first method returns a function of `D`, while the second evaluates at a spec
 function ice_particle_terminal_velocity(
     state::P3State, velocity::CMP.Chen2022VelType, ρₐ; use_aspect_ratio = true,
 )
-    (; small_ice, large_ice) = velocity
-
     function v_term(D::FT) where {FT}
+        (; small_ice, large_ice) = velocity
         ρᵢ = FT(916.7) # ρᵢ = p3_density(p3, D, F_rim, th) # TODO: tmp
         ϕ_factor = use_aspect_ratio ? cbrt(ϕᵢ(state, D)) : FT(1)
-        ice = D <= small_ice.cutoff ? small_ice : large_ice
-        (ai, bi, ci) = CO.Chen2022_vel_coeffs_B2(ice, ρₐ, ρᵢ)
+        (ai, bi, ci) = if D <= small_ice.cutoff
+            CO.Chen2022_vel_coeffs_B2(small_ice, ρₐ, ρᵢ)
+        else
+            CO.Chen2022_vel_coeffs_B4(large_ice, ρₐ, ρᵢ)
+        end
         ϕ_factor * sum(@. sum(ai * D^bi * exp(-ci * D)))
     end
     return v_term
