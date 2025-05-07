@@ -111,7 +111,7 @@ end
     and the two rain drop mass distribution parameters Ar [1/m3 * (1/kg)^(νr+1)], Br [(1/kg)^μr].
 """
 function pdf_rain_parameters(
-    pdf_r::CMP.RainParticlePDF_SB2006{FT}, qᵣ, ρₐ, Nᵣ
+    pdf_r::CMP.RainParticlePDF_SB2006{FT}, qᵣ, ρₐ, Nᵣ,
 ) where {FT}
     (; νr, μr, ρw) = pdf_r
 
@@ -129,7 +129,7 @@ function pdf_rain_parameters(
     end
 end
 function pdf_rain_parameters(
-    pdf_r::CMP.RainParticlePDF_SB2006_limited{FT}, qᵣ, ρₐ, Nᵣ
+    pdf_r::CMP.RainParticlePDF_SB2006_limited{FT}, qᵣ, ρₐ, Nᵣ,
 ) where {FT}
     (; νr, μr, xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
 
@@ -175,7 +175,7 @@ end
 function size_distribution(pdf::CMP.RainParticlePDF_SB2006_MaybeLimited, q, ρₐ, N)
     (; N₀r, λr) = pdf_rain_parameters(pdf, q, ρₐ, N)
     return rain_psd(D) = N₀r * exp(-λr * D)
-end  
+end
 function size_distribution(
     pdf::CMP.CloudParticlePDF_SB2006{FT},
     q, ρₐ, N,

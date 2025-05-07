@@ -612,7 +612,7 @@ for FT in [Float32, Float64]
     # velocity
     test_particle_terminal_velocities(FT)
     test_bulk_terminal_velocities(FT)
-    
+
     # particle properties
     test_ventilation_factor(FT)
 

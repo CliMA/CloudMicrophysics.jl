@@ -22,7 +22,7 @@ function ice_particle_terminal_velocity(
     state::P3State, velocity::CMP.Chen2022VelType, ρₐ; use_aspect_ratio = true,
 )
     (; small_ice, large_ice) = velocity
-    
+
     function v_term(D::FT) where {FT}
         ρᵢ = FT(916.7) # ρᵢ = p3_density(p3, D, F_rim, th) # TODO: tmp
         ϕ_factor = use_aspect_ratio ? cbrt(ϕᵢ(state, D)) : FT(1)
@@ -69,12 +69,12 @@ function ice_terminal_velocity(
     end
 
     v_term = ice_particle_terminal_velocity(state, velocity, ρₐ; use_aspect_ratio)
-    
+
     # ∫N(D) m(D) v(D) dD
-    mass_weighted_integrand(D) = N′ice(dist, D) * v_term(D) * ice_mass(state, D) 
+    mass_weighted_integrand(D) = N′ice(dist, D) * v_term(D) * ice_mass(state, D)
     # ∫N(D) v(D) dD
     number_weighted_integrand(D) = N′ice(dist, D) * v_term(D)
-    
+
     v_m = ∫fdD(mass_weighted_integrand, state; accurate)
     v_n = ∫fdD(number_weighted_integrand, state; accurate)
     return (v_n / N, v_m / L)

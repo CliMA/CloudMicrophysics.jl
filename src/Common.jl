@@ -360,7 +360,7 @@ function liquid_particle_terminal_velocity(velocity::CMP.Chen2022VelTypeRain, ρ
     v_term(D) = sum(@. sum(ai * D^bi * exp(-ci * D)))
     return v_term
 end
-liquid_particle_terminal_velocity(velocity::CMP.Chen2022VelType, ρₐ) = 
+liquid_particle_terminal_velocity(velocity::CMP.Chen2022VelType, ρₐ) =
     liquid_particle_terminal_velocity(velocity.rain, ρₐ)
 
 function liquid_particle_terminal_velocity(velocity, ρₐ, D)
