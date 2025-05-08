@@ -164,7 +164,7 @@ function AIDA_IN05_params(FT, w, t_max, t_profile, T_profile, P_profile; P3 = fa
     IN_mode = "ABHOM"
     const_dt = FT(1)
     prescribed_thermodynamics = true
-    aerosol_act = "AeroAct"
+    aerosol_act = "None"
     aerosol = CMP.Sulfate(FT)
     dep_nucleation = P3 ? "P3_dep" : "ABDINM"
     heterogeneous = P3 ? "P3_het" : "ABIFM"
@@ -200,9 +200,9 @@ function AIDA_IN05_IC(FT, data_file)
     ϵₘ = R_d / R_v
 
     if data_file == "in05_17_aida.edf"
-        Nₗ = FT(320.876 * 1e6)
         Nᵢ = FT(0.05 * 1e6)
-        Nₐ = FT(360 * 1e6) - Nₗ - Nᵢ
+        Nₗ = FT(360 * 1e6) -  Nᵢ
+        Nₐ = FT(0)
         r₀ = FT(5.18056 / 2 * 1e-6)
         p₀ = FT(894.409 * 1e2)
         T₀ = FT(237.871)
@@ -217,9 +217,9 @@ function AIDA_IN05_IC(FT, data_file)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     elseif data_file == "in05_18_aida.edf"
-        Nₗ = FT(212.885 * 1e6)
         Nᵢ = FT(0.787 * 1e6)
-        Nₐ = FT(275 * 1e6) - Nₗ - Nᵢ
+        Nₗ = FT(275 * 1e6)- Nᵢ
+        Nₐ = FT(0)
         r₀ = FT(6.83925 / 2 * 1e-6)
         p₀ = FT(878.345 * 1e2)
         T₀ = FT(237.234)

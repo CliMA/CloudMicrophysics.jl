@@ -114,9 +114,9 @@ function plot_calibrated_parcels(
     calibrated_parcel_fig = MK.Figure(size = (1500, 800), fontsize = 20)
     ax_parcel_1 =
         MK.Axis(calibrated_parcel_fig[1, 1], ylabel = "saturation [-]", xlabel = "time [s]", title = "$exp_name")
-    ax_parcel_2 = MK.Axis(calibrated_parcel_fig[2, 1], ylabel = "liq mixing ratio [g/kg]", xlabel = "time [s]")
+    ax_parcel_2 = MK.Axis(calibrated_parcel_fig[2, 1], ylabel = "qₗ [kg/kg]", xlabel = "time [s]")
     ax_parcel_3 = MK.Axis(calibrated_parcel_fig[1, 2], ylabel = "temperature [K]", xlabel = "time [s]")
-    ax_parcel_4 = MK.Axis(calibrated_parcel_fig[2, 2], ylabel = "qᵢ [g/kg]", xlabel = "time [s]")
+    ax_parcel_4 = MK.Axis(calibrated_parcel_fig[2, 2], ylabel = "qᵢ [kg/kg]", xlabel = "time [s]")
     ax_parcel_5 = MK.Axis(calibrated_parcel_fig[3, 1], ylabel = "Nₗ [m^-3]", xlabel = "time [s]")
     ax_parcel_6 = MK.Axis(calibrated_parcel_fig[3, 2], ylabel = "Nᵢ [m^-3]", xlabel = "time [s]")
     ax_parcel_7 = MK.Axis(calibrated_parcel_fig[1, 3], ylabel = "pressure [Pa]", xlabel = "time [s]")
@@ -309,12 +309,12 @@ function plot_ICNC_overview(overview_data)
     overview_fig = MK.Figure(size = (1000, 800), fontsize = 24)
 
     exp_name_list = [
-        "IN05_17", "IN05_18", "TROPIC04",
+        "IN05_17", "IN05_18",
         "IN07_01", "IN07_19", "EXP45",
         "ACI04_22", "EXP19",
     ]
     position = [
-        overview_fig[1, 1], overview_fig[2, 1], overview_fig[3, 1],
+        overview_fig[1, 1], overview_fig[2, 1],
         overview_fig[1, 2], overview_fig[2, 2], overview_fig[3, 2],
         overview_fig[1, 3], overview_fig[2, 3],
     ]
