@@ -175,7 +175,7 @@ function terminal_velocity(
         # size distrbution
         λ_inv = lambda_inverse(pdf, mass, q, ρ)
 
-        return χv * v0 * (r0 / λ_inv)^(-ve - Δv) * SF.gamma(me + ve + Δm + Δv + FT(1)) /
+        return χv * v0 * exp((-ve - Δv) * log(r0 / λ_inv)) * SF.gamma(me + ve + Δm + Δv + FT(1)) /
                SF.gamma(me + Δm + FT(1))
     else
         return FT(0)
