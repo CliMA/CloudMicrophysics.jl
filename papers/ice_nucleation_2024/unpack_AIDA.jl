@@ -109,7 +109,8 @@ end
 function data_to_calib_inputs(
     FT, batch_name, data_file_name_list, nuc_mode,
     batch_start_times, batch_end_times,
-    w, t_max, end_sim,
+    w, t_max,
+    P3_nuc_mode,
 )
     edf_data_names = [
         "in05_17_aida.edf", "in05_18_aida.edf",
@@ -126,7 +127,7 @@ function data_to_calib_inputs(
 
     params_list = Vector{
         NamedTuple{
-            (:const_dt, :w, :t_max, :ips,
+            (:const_dt, :w, :t_max, :ips, :aap,
                 :prescribed_thermodynamics, :t_profile, :T_profile, :P_profile,
                 :aerosol_act, :aerosol, :r_nuc, :aero_σ_g, :A_aer,
                 :condensation_growth, :deposition_growth,
@@ -141,6 +142,34 @@ function data_to_calib_inputs(
                     CM.Parameters.Koop2000{Float64},
                     CM.Parameters.MorrisonMilbrandt2014{Float64},
                 },
+                CM.Parameters.AerosolActivationParameters{Float64},
+                Bool, Vector{Float64}, Vector{Float64}, Vector{Float64},
+                String, CM.Parameters.ParametersType{Float64}, Float64, Float64, Float64,
+                Vararg{String, 7},
+            },
+        },
+    }(
+        undef,
+        length(data_file_name_list),
+    )
+    P3_params_list = Vector{
+        NamedTuple{
+            (:const_dt, :w, :t_max, :ips, :aap,
+                :prescribed_thermodynamics, :t_profile, :T_profile, :P_profile,
+                :aerosol_act, :aerosol, :r_nuc, :aero_σ_g, :A_aer,
+                :condensation_growth, :deposition_growth,
+                :liq_size_distribution, :ice_size_distribution,
+                :dep_nucleation, :heterogeneous, :homogeneous,
+            ),
+            Tuple{
+                Float64, Float64, Int32,
+                CM.Parameters.IceNucleationParameters{
+                    Float64,
+                    CM.Parameters.Mohler2006{Float64},
+                    CM.Parameters.Koop2000{Float64},
+                    CM.Parameters.MorrisonMilbrandt2014{Float64},
+                },
+                CM.Parameters.AerosolActivationParameters{Float64},
                 Bool, Vector{Float64}, Vector{Float64}, Vector{Float64},
                 String, CM.Parameters.ParametersType{Float64}, Float64, Float64, Float64,
                 Vararg{String, 7},
@@ -199,6 +228,27 @@ function data_to_calib_inputs(
                 AIDA_IN05_IC(FT, data_file_name) :
                 AIDA_IN07_IC(FT, data_file_name)
 
+            P3_params_list[exp_index] =
+                P3_nuc_mode == "P3_hom" ?
+                AIDA_IN05_params(
+                    FT,
+                    w[exp_index],
+                    t_max[exp_index],
+                    t_profile[exp_index],
+                    T_profile[exp_index],
+                    P_profile[exp_index],
+                    P3 = true,
+                ) :
+                AIDA_IN07_params(
+                    FT,
+                    w[exp_index],
+                    t_max[exp_index],
+                    t_profile[exp_index],
+                    T_profile[exp_index],
+                    P_profile[exp_index],
+                    batch_name,
+                    P3 = true,
+                )
         else
             AIDA_data = unpack_data(data_file_name, total_t = t_max[exp_index])
             (; AIDA_t_profile, AIDA_T_profile, AIDA_P_profile, AIDA_ICNC_profile, AIDA_e_profile) = AIDA_data
@@ -207,9 +257,9 @@ function data_to_calib_inputs(
             P_profile[exp_index] = AIDA_P_profile
             ICNC_profile[exp_index] = AIDA_ICNC_profile
             e_profile[exp_index] = AIDA_e_profile
-
             S_l_profile[exp_index] =
                 e_profile[exp_index] ./ (TD.saturation_vapor_pressure.(tps, T_profile[exp_index], TD.Liquid()))
+
             if data_file_name == "TROPIC04"
                 params_list[exp_index] = TROPIC04_params(
                     FT,
@@ -218,6 +268,15 @@ function data_to_calib_inputs(
                     t_profile[exp_index],
                     T_profile[exp_index],
                     P_profile[exp_index],
+                )
+                P3_params_list[exp_index] = TROPIC04_params(
+                    FT,
+                    w[exp_index],
+                    t_max[exp_index],
+                    t_profile[exp_index],
+                    T_profile[exp_index],
+                    P_profile[exp_index],
+                    P3 = true,
                 )
                 IC_list[exp_index] = TROPIC04_IC(FT)
             elseif data_file_name == "ACI04_22"
@@ -230,6 +289,16 @@ function data_to_calib_inputs(
                     P_profile[exp_index],
                     batch_name,
                 )
+                P3_params_list[exp_index] = ACI04_22_params(
+                    FT,
+                    w[exp_index],
+                    t_max[exp_index],
+                    t_profile[exp_index],
+                    T_profile[exp_index],
+                    P_profile[exp_index],
+                    batch_name,
+                    P3 = true,
+                )
                 IC_list[exp_index] = ACI04_22_IC(FT)
             elseif data_file_name == "EXP19"
                 params_list[exp_index] = EXP19_params(
@@ -240,6 +309,16 @@ function data_to_calib_inputs(
                     T_profile[exp_index],
                     P_profile[exp_index],
                     batch_name,
+                )
+                P3_params_list[exp_index] = EXP19_params(
+                    FT,
+                    w[exp_index],
+                    t_max[exp_index],
+                    t_profile[exp_index],
+                    T_profile[exp_index],
+                    P_profile[exp_index],
+                    batch_name,
+                    P3 = true,
                 )
                 IC_list[exp_index] = EXP19_IC(FT)
             elseif data_file_name == "EXP45"
@@ -252,6 +331,16 @@ function data_to_calib_inputs(
                     P_profile[exp_index],
                     batch_name,
                 )
+                P3_params_list[exp_index] = EXP45_params(
+                    FT,
+                    w[exp_index],
+                    t_max[exp_index],
+                    t_profile[exp_index],
+                    T_profile[exp_index],
+                    P_profile[exp_index],
+                    batch_name,
+                    P3 = true,
+                )
                 IC_list[exp_index] = EXP45_IC(FT)
             elseif data_file_name == "EXP28"
                 params_list[exp_index] = EXP45_params(
@@ -263,6 +352,16 @@ function data_to_calib_inputs(
                     P_profile[exp_index],
                     batch_name,
                 )
+                P3_params_list[exp_index] = EXP45_params(
+                    FT,
+                    w[exp_index],
+                    t_max[exp_index],
+                    t_profile[exp_index],
+                    T_profile[exp_index],
+                    P_profile[exp_index],
+                    batch_name,
+                    P3 = true,
+                )
                 IC_list[exp_index] = EXP45_IC(FT)
             end
         end
@@ -272,10 +371,7 @@ function data_to_calib_inputs(
         frozen_frac_moving_mean[exp_index] = moving_average(frozen_frac[exp_index], moving_average_n)
         ICNC_moving_avg[exp_index] = moving_average(ICNC_profile[exp_index], moving_average_n)
 
-        # pseudo_ss_ff = NaNStatistics.nanmean(frozen_frac_moving_mean[exp_index][(end - end_sim):end])
         pseudo_ss_ff = max_ignore_nan(frozen_frac_moving_mean[exp_index])
-        # pseudo_ss_ff_array = zeros(length(frozen_frac_moving_mean[exp_index][(end - end_sim):end])) .+ pseudo_ss_ff
-        # append!(y_truth, pseudo_ss_ff_array)
         append!(y_truth, pseudo_ss_ff)
 
     end
@@ -286,6 +382,7 @@ function data_to_calib_inputs(
         params_list, IC_list,
         frozen_frac, frozen_frac_moving_mean, ICNC_moving_avg,
         Nₜ, y_truth,
+        P3_params_list,
     )
     return calib_variables
 
