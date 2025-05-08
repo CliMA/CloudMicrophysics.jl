@@ -122,13 +122,15 @@ function parcel_model(dY, Y, p, t)
 
     # Condensation/evaporation
     dqₗ_dt_ce = condensation(ce_params, PSD_liq, state, ρ_air)
+    dNₗ_dt_ce = dqₗ_dt_ce < FT(0) && qₗ > FT(0) && qₗ < FT(1e-6) ? Nₗ * dqₗ_dt_ce / qₗ : FT(0)
     # Deposition/sublimation
     dqᵢ_dt_ds = deposition(ds_params, PSD_ice, state, ρ_air)
+    dNᵢ_dt_ds = dqᵢ_dt_ds < FT(0) && qᵢ > FT(0) && qᵢ < FT(1e-6) ? Nᵢ * dqᵢ_dt_ds / qᵢ : FT(0)
 
     # number concentration and ...
-    dNᵢ_dt = dNᵢ_dt_dep + dNᵢ_dt_imm + dNᵢ_dt_hom
+    dNᵢ_dt = dNᵢ_dt_dep + dNᵢ_dt_imm + dNᵢ_dt_hom + dNᵢ_dt_ds
     dNₐ_dt = -dNᵢ_dt_dep - dNₗ_dt_act
-    dNₗ_dt = dNₗ_dt_act - dNᵢ_dt_imm - dNᵢ_dt_hom
+    dNₗ_dt = dNₗ_dt_act - dNᵢ_dt_imm - dNᵢ_dt_hom + dNₗ_dt_ce
     # ... water mass budget
     dqₗ_dt_v2l = dqₗ_dt_ce + dqₗ_dt_act
     dqᵢ_dt_l2i = dqᵢ_dt_imm + dqᵢ_dt_hom
