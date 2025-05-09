@@ -308,6 +308,30 @@ function plot_ICNC_overview(overview_data)
     uncertainty = 0.1
 
     overview_fig = MK.Figure(size = (1000, 800), fontsize = 24)
+    MK.Label(
+        overview_fig[0, 1], 
+        "         DEP         ",
+        font = :bold,
+        fontsize = 30,
+        halign = :center,   # Horizontal alignment
+        valign = :top       # Vertical alignment (relative to its grid cell)
+    )
+    MK.Label(
+        overview_fig[0, 2], 
+        "         IMM         ",
+        font = :bold,
+        fontsize = 30,
+        halign = :center,   # Horizontal alignment
+        valign = :top       # Vertical alignment (relative to its grid cell)
+    )
+    MK.Label(
+        overview_fig[0, 3], 
+        "         HOM         ",
+        font = :bold,
+        fontsize = 30,
+        halign = :center,   # Horizontal alignment
+        valign = :top       # Vertical alignment (relative to its grid cell)
+    )
 
     exp_name_list = [
         "IN05_17", "IN05_18",
@@ -315,9 +339,9 @@ function plot_ICNC_overview(overview_data)
         "ACI04_22", "EXP19",
     ]
     position = [
-        overview_fig[1, 1], overview_fig[2, 1],
-        overview_fig[1, 2], overview_fig[2, 2], overview_fig[3, 2],
         overview_fig[1, 3], overview_fig[2, 3],
+        overview_fig[1, 1], overview_fig[2, 1], overview_fig[3, 1],
+        overview_fig[1, 2], overview_fig[2, 2],
     ]
 
     for (i, exp_name) in enumerate(exp_name_list)
