@@ -49,6 +49,7 @@ end
     plot_calibrated_coeffs(
         batch_name,
         UKI_n_iterations, UKI_n_ensembles, UKI_all_params,
+        UKI_mean_each_iter,
     )
 
 Plots evolution of calibrated coefficients over the UKI iterations. Plot is saved and returned.
@@ -56,37 +57,73 @@ Plots evolution of calibrated coefficients over the UKI iterations. Plot is save
 function plot_calibrated_coeffs(
     batch_name,
     UKI_n_iterations, UKI_n_ensembles, UKI_all_params,
+    UKI_mean_each_iter,
 )
-    UKI_x_axis = []
+
+    # Every ensemble member at every iteration
     UKI_m = []
     UKI_c = []
-
+    UKI_x_axis_ensembles = []
     for iter in 1:UKI_n_iterations
         for ensemble_n in 1:UKI_n_ensembles
-            append!(UKI_x_axis, iter)
+            append!(UKI_x_axis_ensembles, iter)
             append!(UKI_m, UKI_all_params[iter][1, ensemble_n])
             append!(UKI_c, UKI_all_params[iter][2, ensemble_n])
         end
     end
 
-    calibrated_coeffs_fig = MK.Figure(size = (900, 600), fontsize = 24)
-    m_coeff_ax = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", title = "$batch_name")
-    c_coeff_ax =
-        MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "iteration #", title = "Ensemble Mean")
+    # Mean of each iteration
+    UKI_m_mean = []
+    UKI_c_mean = []
+    UKI_x_axis_mean = []
+    for iter in 1:UKI_n_iterations
+        append!(UKI_x_axis_mean, iter)
+        append!(UKI_m_mean, UKI_mean_each_iter[iter][1])
+        append!(UKI_c_mean, UKI_mean_each_iter[iter][2])
+    end
 
+    calibrated_coeffs_fig = MK.Figure(size = (900, 450), fontsize = 24)
+    m_coeff_ax = MK.Axis(calibrated_coeffs_fig[1, 1], ylabel = "m coefficient [-]", xlabel = "Iteration #")
+    c_coeff_ax =
+        MK.Axis(calibrated_coeffs_fig[1, 2], ylabel = "c coefficient [-]", xlabel = "Iteration #")
+
+    MK.Label(
+        calibrated_coeffs_fig[0, :], 
+        "$batch_name: Calibrating Coefficients",
+        font = :bold,
+        fontsize = 30,
+        halign = :center,   # Horizontal alignment
+        valign = :top       # Vertical alignment (relative to its grid cell)
+    )
+    MK.lines!(
+        m_coeff_ax,
+        UKI_x_axis_mean,
+        UKI_m_mean,
+        label = "UKI Mean",
+        color = :blue,
+        linewidth = 3,
+    )
     MK.scatter!(
         m_coeff_ax,
-        UKI_x_axis,
+        UKI_x_axis_ensembles,
         UKI_m,
-        label = "UKI",
-        color = (:fuchsia, 0.5),
+        label = "UKI Ensemble",
+        color = (:deepskyblue, 0.5),
+    )
+    MK.lines!(
+        c_coeff_ax,
+        UKI_x_axis_mean,
+        UKI_c_mean,
+        label = "UKI Mean",
+        color = :blue,
+        linewidth = 3,
     )
     MK.scatter!(
         c_coeff_ax,
-        UKI_x_axis,
+        UKI_x_axis_ensembles,
         UKI_c,
-        label = "UKI",
-        color = (:fuchsia, 0.5),
+        label = "UKI Ensemble",
+        color = (:deepskyblue, 0.5),
     )
 
     # MK.axislegend(m_coeff_ax, framevisible = false, labelsize = 18, position = :rt)
@@ -186,17 +223,17 @@ function plot_compare_ICNC(
         UKI_parcel[9, :] ./ Nₜ,
         label = "UKI Calibrated",
         linewidth = 2.5,
-        color = :fuchsia,
+        color = :blue,
     )
     error = frozen_frac_moving_mean .* 0.1
-    MK.errorbars!(ax_compare, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
+    MK.errorbars!(ax_compare, t_profile, frozen_frac_moving_mean, error, color = (:gray, 0.3))
     MK.lines!(
         ax_compare,
         t_profile,
         frozen_frac,
         label = "Raw AIDA",
         linewidth = 2,
-        color = :blue,
+        color = :black,
         linestyle = :dash,
     )
     MK.lines!(
@@ -205,7 +242,7 @@ function plot_compare_ICNC(
         frozen_frac_moving_mean,
         label = "AIDA Moving Avg",
         linewidth = 2.5,
-        color = :blue,
+        color = :black,
     )
 
     MK.axislegend(ax_compare, framevisible = false, labelsize = 20, position = :rb)
@@ -355,31 +392,35 @@ function plot_ICNC_overview(overview_data)
 
         ax = MK.Axis(position[i], ylabel = "Frozen Fraction [-]", xlabel = "time [s]", title = "$exp_name")
 
+        uncertainty_up = max_ignore_nan(frozen_frac_moving_mean) * (1 + uncertainty)
+        uncertainty_low = max_ignore_nan(frozen_frac_moving_mean) * (1 - uncertainty)
+        MK.hspan!(ax, uncertainty_low, uncertainty_up; color = :gray, alpha = 0.3)
+
         MK.lines!(
             ax,
             UKI_parcel.t,
             UKI_parcel[9, :] ./ Nₜ,
             label = "UKI Calibrated",
-            linewidth = 2.5,
-            color = :fuchsia,
+            linewidth = 3,
+            color = :blue,
         )
         MK.lines!(
             ax,
             P3_parcel.t,
             P3_parcel[9, :] ./ Nₜ,
             label = "CM.jl Parcel (P3)",
-            linewidth = 2.5,
-            color = :green,
+            linewidth = 3,
+            color = :red,
         )
-        error = frozen_frac_moving_mean .* 0.1
-        MK.errorbars!(ax, t_profile, frozen_frac_moving_mean, error, color = (:blue, 0.3))
+        # error = frozen_frac_moving_mean .* 0.1
+        # MK.errorbars!(ax, t_profile, frozen_frac_moving_mean, error, color = (:gray, 0.3))
         MK.lines!(
             ax,
             t_profile,
             frozen_frac,
             label = "Raw AIDA",
             linewidth = 2,
-            color = :blue,
+            color = :black,
             linestyle = :dash,
         )
         MK.lines!(
@@ -387,19 +428,16 @@ function plot_ICNC_overview(overview_data)
             t_profile,
             frozen_frac_moving_mean,
             label = "AIDA Moving Avg",
-            linewidth = 2.5,
-            color = :blue,
+            linewidth = 3,
+            color = :black,
         )
-        uncertainty_up = max_ignore_nan(frozen_frac_moving_mean) * (1 + uncertainty)
-        uncertainty_low = max_ignore_nan(frozen_frac_moving_mean) * (1 - uncertainty)
-        MK.hspan!(ax, uncertainty_low, uncertainty_up; color = :green, alpha = 0.3)
     end
 
     legend_axis = MK.Axis(overview_fig[3, 3], title = "Legend")
-    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (UKI Calibrated)", color = :fuchsia)
-    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (P3)", color = :green)
-    MK.lines!(legend_axis, 1, 1, label = "Raw AIDA", color = :blue, linestyle = :dash)
-    MK.lines!(legend_axis, 1, 1, label = "AIDA Moving Avg", color = :blue)
+    MK.lines!(legend_axis, 1, 1, label = "AIDA", color = :black, linestyle = :dash)
+    MK.lines!(legend_axis, 1, 1, label = "AIDA Moving Avg", color = :black)
+    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (UKI Calibrated)", color = :blue)
+    MK.lines!(legend_axis, 1, 1, label = "CM.jl Parcel (P3)", color = :red)
     MK.axislegend(legend_axis, framevisible = false, labelsize = 18, position = :rb)
 
     MK.hidespines!(legend_axis)
@@ -418,14 +456,14 @@ Plots the difference in loss functions over each iteration of
 function plot_loss_func(batch_name, UKI_n_iterations, UKI_error)
 
     loss_fig = MK.Figure(size = (700, 600), fontsize = 24)
-    ax_loss = MK.Axis(loss_fig[1, 1], ylabel = "Error [-]", xlabel = "Iteration [-]", title = "$batch_name: Error")
+    ax_loss = MK.Axis(loss_fig[1, 1], ylabel = "Error [-]", xlabel = "Iteration # [-]", title = "$batch_name: Error")
     MK.lines!(
         ax_loss,
         collect(1:(UKI_n_iterations - 1)),
         UKI_error,
         label = "UKI",
         linewidth = 2.5,
-        color = :fuchsia,
+        color = :red,
     )
     # MK.axislegend(ax_loss, framevisible = false, labelsize = 18, position = :rc)
     MK.save("$batch_name" * "_loss_fig.svg", loss_fig)
