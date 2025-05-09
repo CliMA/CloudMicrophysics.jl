@@ -25,7 +25,7 @@ If based on maximum condensate specific content, the sink is defined as:
 ``` math
 \begin{equation}
   \left. \frac{d \, q_{tot}}{dt} \right|_{precip} =-
-    \frac{max(0, q_{liq} + q_{ice} - q_{c0})}{\tau_{precip}}
+    \frac{\max(0, q_{liq} + q_{ice} - q_{c0})}{\tau_{precip}}
 \end{equation}
 ```
 where:
@@ -37,7 +37,7 @@ If based on saturation excess, the sink is defined as:
 ```math
 \begin{equation}
   \left. \frac{d \, q_{tot}}{dt} \right|_{precip} =-
-    \frac{max(0, q_{liq} + q_{ice} - S_{0} \, q_{vap}^{sat})}{\tau_{precip}}
+    \frac{\max(0, q_{liq} + q_{ice} - S_{0} \, q_{vap}^{sat})}{\tau_{precip}}
 \end{equation}
 ```
 where:
