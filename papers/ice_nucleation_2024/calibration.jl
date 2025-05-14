@@ -25,7 +25,7 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list; calibration = fal
     for (exp_index, p) in enumerate(p_list)
         (; prescribed_thermodynamics, t_profile, T_profile, P_profile) = p
         (; const_dt, w, t_max, ips) = p
-        (; aerosol_act, aerosol, r_nuc) = p
+        (; aerosol_act, aerosol, r_nuc, A_aer) = p
         (; deposition_growth, condensation_growth) = p
         (; dep_nucleation, heterogeneous, homogeneous) = p
         (; liq_size_distribution, ice_size_distribution, aero_σ_g) = p
@@ -190,6 +190,7 @@ function run_model(p_list, IN_mode, coefficients, FT, IC_list; calibration = fal
             ice_size_distribution = ice_size_distribution,
             ips = ips,
             r_nuc = r_nuc,
+            A_aer = A_aer,
         )
 
         # solve ODE
@@ -270,8 +271,8 @@ function create_prior(FT, IN_mode, ; perfect_model = false, aerosol_type = nothi
                 error("Aerosol type not supported for ABIFM. Check create_prior function.")
             end
         elseif IN_mode == "ABHOM"
-            m_stats = [FT(260.927125), FT(70), FT(0), Inf]
-            c_stats = [FT(-68.553283), FT(20), -Inf, Inf]
+            m_stats = [FT(255.927125), FT(100), FT(0), Inf]
+            c_stats = [FT(-68.553283), FT(40 ), -Inf, Inf]
         end
     end
 
