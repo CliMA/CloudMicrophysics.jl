@@ -210,16 +210,15 @@ end
 """
     Chen2022_vel_coeffs_B1(coeffs, ρₐ)
 
- - coeffs - a struct with terminal velocity free parameters
- - ρₐ - air density
-
 Returns the coefficients from Table B1 Appendix B in Chen et al 2022
+
+# Arguments
+ - `coeffs`: a struct with terminal velocity free parameters
+ - `ρₐ`: air density [kg/m³]
+
 DOI: 10.1016/j.atmosres.2022.106171
 """
-function Chen2022_vel_coeffs_B1(
-    coeffs::CMP.Chen2022VelTypeRain,
-    ρₐ::FT,
-) where {FT}
+function Chen2022_vel_coeffs_B1(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
     (; ρ0, a, a3_pow, b, b_ρ, c) = coeffs
     # Table B1
     q = exp(ρ0 * ρₐ)
@@ -235,11 +234,13 @@ end
 """
     Chen2022_vel_coeffs_B2(coeffs, ρₐ, ρᵢ)
 
- - coeffs - a struct with terminal velocity free parameters
- - ρₐ - air density
- - ρᵢ - apparent density of ice particles
-
 Returns the coefficients from Table B2 Appendix B in Chen et al 2022
+
+# Arguments
+ - `coeffs`: a struct with terminal velocity free parameters
+ - `ρₐ`: air density [kg/m³]
+ - `ρᵢ`: apparent density of ice particles [kg/m³]
+
 DOI: 10.1016/j.atmosres.2022.106171
 """
 function Chen2022_vel_coeffs_B2(
@@ -249,12 +250,13 @@ function Chen2022_vel_coeffs_B2(
 ) where {FT}
     (; A, B, C, E, F, G) = coeffs
     # Table B3
-    As = A[2] * (log(ρᵢ))^2 − A[3] * log(ρᵢ) + A[1]
-    Bs = FT(1) / (B[1] + B[2] * log(ρᵢ) + B[3] / sqrt(ρᵢ))
+    log_ρᵢ = log(ρᵢ)
+    As = A[2] * log_ρᵢ^2 − A[3] * log_ρᵢ + A[1]
+    Bs = FT(1) / (B[1] + B[2] * log_ρᵢ + B[3] / sqrt(ρᵢ))
     Cs = C[1] + C[2] * exp(C[3] * ρᵢ) + C[4] * sqrt(ρᵢ)
-    Es = E[1] - E[2] * (log(ρᵢ))^2 + E[3] * sqrt(ρᵢ)
-    Fs = -exp(F[1] - F[2] * (log(ρᵢ))^2 + F[3] * log(ρᵢ))
-    Gs = FT(1) / (G[1] + G[2] / (log(ρᵢ)) - G[3] * log(ρᵢ) / ρᵢ)
+    Es = E[1] - E[2] * log_ρᵢ^2 + E[3] * sqrt(ρᵢ)
+    Fs = -exp(F[1] - F[2] * log_ρᵢ^2 + F[3] * log_ρᵢ)
+    Gs = FT(1) / (G[1] + G[2] / log_ρᵢ - G[3] * log_ρᵢ / ρᵢ)
     # Table B2
     ai = (Es * ρₐ^As, Fs * ρₐ^As)
     bi = (Bs + ρₐ * Cs, Bs + ρₐ * Cs)
@@ -268,11 +270,13 @@ end
 """
     Chen2022_vel_coeffs_B4(coeffs, ρₐ, ρᵢ)
 
- - coeffs - a struct with terminal velocity free parameters
- - ρₐ - air density
- - ρᵢ - apparent density of ice particles
-
 Returns the coefficients from Table B4 Appendix B in Chen et al 2022
+
+# Arguments
+ - `coeffs`: a struct with terminal velocity free parameters
+ - `ρₐ`: air density [kg/m³]
+ - `ρᵢ`: apparent density of ice particles [kg/m³]
+
 DOI: 10.1016/j.atmosres.2022.106171
 """
 function Chen2022_vel_coeffs_B4(
@@ -282,13 +286,14 @@ function Chen2022_vel_coeffs_B4(
 ) where {FT}
     (; A, B, C, E, F, G, H) = coeffs
     # Table B5
-    Al = A[1] + A[2] * log(ρᵢ) + A[3] * (ρᵢ)^FT(-3 / 2)
-    Bl = exp(B[1] + B[2] * log(ρᵢ)^2 + B[3] * log(ρᵢ))
-    Cl = exp(C[1] + C[2] / log(ρᵢ) + C[3] / ρᵢ)
-    El = E[1] + E[2] * log(ρᵢ) * sqrt(ρᵢ) + E[3] * sqrt(ρᵢ)
-    Fl = F[1] + F[2] * log(ρᵢ) - exp(log(-F[3]) - ρᵢ)
-    Gl = (G[1] + G[2] * log(ρᵢ) * sqrt(ρᵢ) + G[3] / sqrt(ρᵢ))^(-1)
-    Hl = H[1] + H[2] * (ρᵢ)^FT(5 / 2) + exp(log(-H[3]) - ρᵢ)
+    log_ρᵢ = log(ρᵢ)
+    Al = A[1] + A[2] * log_ρᵢ + A[3] * ρᵢ^FT(-3 / 2)
+    Bl = exp(B[1] + B[2] * log_ρᵢ^2 + B[3] * log_ρᵢ)
+    Cl = exp(C[1] + C[2] / log_ρᵢ + C[3] / ρᵢ)
+    El = E[1] + E[2] * log_ρᵢ * sqrt(ρᵢ) + E[3] * sqrt(ρᵢ)
+    Fl = F[1] + F[2] * log_ρᵢ - exp(log(-F[3]) - ρᵢ)
+    Gl = (G[1] + G[2] * log_ρᵢ * sqrt(ρᵢ) + G[3] / sqrt(ρᵢ))^(-1)
+    Hl = H[1] + H[2] * ρᵢ^FT(5 / 2) + exp(log(-H[3]) - ρᵢ)
     # Table B4
     ai = (Bl * ρₐ^Al, El * ρₐ^Al * exp(Hl * ρₐ))
     bi = (Cl, Fl)
@@ -328,6 +333,39 @@ function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where
     μ = 0 # Exponential instead of gamma distribution
     δ = FT(μ + k + 1)
     return a * exp(δ * log(1 / λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / SF.gamma(δ)
+end
+
+"""
+    liquid_particle_terminal_velocity(velocity, ρₐ)
+    liquid_particle_terminal_velocity(velocity, ρₐ, D)
+
+Compute the terminal velocity of a liquid particle as a function of its size 
+    (maximum dimension, `D`) using the Chen 2022 parametrization.
+
+# Arguments
+- `velocity`: a struct with terminal velocity parameters from Chen 2022
+- `ρₐ`: air density [kg/m³]
+- `D`: maximum particle dimension [m]
+
+# Returns
+- The first method returns a function of `D`, while the second evaluates at a specific `D`.
+
+Needed for numerical integrals in the P3 scheme.
+
+!!! note
+    We use the same terminal velocity parametrization for cloud and rain water.
+"""
+function liquid_particle_terminal_velocity(velocity::CMP.Chen2022VelTypeRain, ρₐ)
+    (ai, bi, ci) = Chen2022_vel_coeffs_B1(velocity, ρₐ)
+    v_term(D) = sum(@. sum(ai * D^bi * exp(-ci * D)))
+    return v_term
+end
+liquid_particle_terminal_velocity(velocity::CMP.Chen2022VelType, ρₐ) =
+    liquid_particle_terminal_velocity(velocity.rain, ρₐ)
+
+function liquid_particle_terminal_velocity(velocity, ρₐ, D)
+    v_term = liquid_particle_terminal_velocity(velocity, ρₐ)
+    return v_term(D)
 end
 
 """
