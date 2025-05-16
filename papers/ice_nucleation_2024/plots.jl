@@ -489,7 +489,7 @@ Plots the difference in loss functions over each iteration of
 """
 function plot_loss_func(batch_name, UKI_n_iterations, UKI_error)
 
-    loss_fig = MK.Figure(size = (700, 600), fontsize = 24)
+    loss_fig = MK.Figure(size = (600, 530), fontsize = 24)
     ax_loss = MK.Axis(loss_fig[1, 1], ylabel = "L(θ) [-]", xlabel = "Iteration # [-]", title = "$batch_name: Minimizing Loss")
     MK.lines!(
         ax_loss,
