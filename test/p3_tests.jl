@@ -233,13 +233,13 @@ function test_particle_terminal_velocities(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
     ρ_a = FT(1.2)
 
-    @testset "Smoke tests for rain particle terminal vel from Chen 2022" begin
-        Ds = range(FT(1e-6), stop = FT(1e-5), length = 5)
+    @testset "Smoke tests for cloud/rain particle terminal vel from Chen 2022" begin
+        Ds = range(FT(1e-6), stop = FT(1e-5), length = 5)  # TODO: Add tests for larger sizes
         expected = [0.002508, 0.009156, 0.01632, 0.02377, 0.03144]
-        for i in axes(Ds, 1)
-            vel = CM2.rain_particle_terminal_velocity(Ds[i], Chen2022.rain, ρ_a)
+        for (D, vel_expected) in zip(Ds, expected)
+            vel = CO.liquid_particle_terminal_velocity(Chen2022, ρ_a, D)
             @test vel >= 0
-            @test vel ≈ expected[i] rtol = 1e-3
+            @test vel ≈ vel_expected rtol = 1e-3
         end
     end
 
@@ -293,7 +293,7 @@ function test_particle_terminal_velocities(FT)
         expected = [0.13192, 0.50457, 0.90753, 1.3015, 1.6757]
         for i in axes(Ds, 1)
             D = Ds[i]
-            vel = P3.p3_particle_terminal_velocity(
+            vel = P3.ice_particle_terminal_velocity(
                 state,
                 D,
                 Chen2022,
@@ -309,7 +309,7 @@ function test_particle_terminal_velocities(FT)
         expected = [0.13191, 0.50457, 0.90753, 1.301499, 1.67569]
         for i in axes(Ds, 1)
             D = Ds[i]
-            vel = P3.p3_particle_terminal_velocity(
+            vel = P3.ice_particle_terminal_velocity(
                 state,
                 D,
                 Chen2022,
@@ -578,6 +578,26 @@ function test_p3_melting(FT)
     end
 end
 
+function test_ventilation_factor(FT)
+    @testset "Ventilation factor smoke test ($FT)" begin
+        params = CMP.ParametersP3(FT)
+        vel = CMP.Chen2022VelType(FT)
+        aps = CMP.AirProperties(FT)
+        F_rim = FT(0.5)  # Riming fraction [-]
+        ρ_r = FT(500)    # Riming density [kg/m³]
+        ρₐ = FT(1.2)     # Air density [kg/m³]
+        state = P3.get_state(params; F_rim, ρ_r)
+        vent_factor = P3.ventilation_factor(state, vel, ρₐ, aps)
+        Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
+        calc_vents = vent_factor.(Ds)
+        smoke_vents = [0.91818553, 1.3191912, 1.7451854, 2.1598392, 2.5553002]
+        for (calc_vent, smoke_vent) in zip(calc_vents, smoke_vents)
+            @test calc_vent ≈ smoke_vent rtol = 1e-6
+        end
+    end
+end
+
+
 for FT in [Float32, Float64]
     @info("Testing " * string(FT))
 
@@ -592,6 +612,9 @@ for FT in [Float32, Float64]
     # velocity
     test_particle_terminal_velocities(FT)
     test_bulk_terminal_velocities(FT)
+
+    # particle properties
+    test_ventilation_factor(FT)
 
     # processes
     test_p3_het_freezing(FT)
