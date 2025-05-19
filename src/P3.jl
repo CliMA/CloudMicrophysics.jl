@@ -12,6 +12,7 @@ import QuadGK as QGK
 import RootSolvers as RS
 import HCubature as HC
 import LogExpFunctions
+import StaticArrays as SA
 
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
