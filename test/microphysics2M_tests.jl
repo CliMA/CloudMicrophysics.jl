@@ -598,10 +598,10 @@ function test_microphysics2M(FT)
         m(D) = FT(π / 6) * ρₗ * D^3
 
         # rain drop diameter distribution (eq.(3) from 2M docs)
-        # the same as size_distribution(SB2006_no_limiters.pdf_r, D, qᵣ, ρₐ, Nᵣ)
+        # the same as size_distribution(SB2006_no_limiters.pdf_r, qᵣ, ρₐ, Nᵣ, D)
         f_D(D) = N₀r * exp(-λr * D)
         # rain drop diameter distribution, but using SB2006 limiters
-        # the same as size_distribution(SB2006.pdf_r, D, qᵣ, ρₐ, Nᵣ)
+        # the same as size_distribution(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ, D)
         f_D_limited(D) = N₀r_l * exp(-λr_l * D)
 
         # rain drop mass distribution (eq.(4) from 2M docs)
@@ -615,14 +615,9 @@ function test_microphysics2M(FT)
         m₀ = m(D₀)
         m∞ = m(D∞)
         # integral bounds computed based on the size distribution
-        D_max_limited =
-            CM2.get_size_distribution_bound(SB2006.pdf_r, qᵣ, Nᵣ, ρₐ, eps(FT))
+        D_max_lim = CM2.get_size_distribution_bound(SB2006.pdf_r, qᵣ, Nᵣ, ρₐ, eps(FT))
         D_max = CM2.get_size_distribution_bound(
-            SB2006_no_limiters.pdf_r,
-            qᵣ,
-            Nᵣ,
-            ρₐ,
-            eps(FT),
+            SB2006_no_limiters.pdf_r, qᵣ, Nᵣ, ρₐ, eps(FT),
         )
 
         # Sanity checks for number concentrations for rain
@@ -630,22 +625,10 @@ function test_microphysics2M(FT)
         Nx = QGK.quadgk(x -> f_x(x), m₀, m∞)[1]
         ND_lim = QGK.quadgk(x -> f_D_limited(x), D₀, D∞)[1]
         Nx_lim = QGK.quadgk(x -> f_x_limited(x), m₀, m∞)[1]
-        ND_bounded = QGK.quadgk(
-            x -> CM2.size_distribution(
-                SB2006_no_limiters.pdf_r,
-                FT(x),
-                qᵣ,
-                ρₐ,
-                Nᵣ,
-            ),
-            0,
-            D_max,
-        )[1]
-        ND_bounded_limited = QGK.quadgk(
-            x -> CM2.size_distribution(SB2006.pdf_r, FT(x), qᵣ, ρₐ, Nᵣ),
-            0,
-            D_max_limited,
-        )[1]
+        psd_nolim = CM2.size_distribution(SB2006_no_limiters.pdf_r, qᵣ, ρₐ, Nᵣ)
+        psd_lim = CM2.size_distribution(SB2006.pdf_r, qᵣ, ρₐ, Nᵣ)
+        ND_bounded = QGK.quadgk(psd_nolim, 0, D_max)[1]
+        ND_bounded_limited = QGK.quadgk(psd_lim, 0, D_max_lim)[1]
         TT.@test ND ≈ Nᵣ rtol = FT(1e-2)
         TT.@test Nx ≈ Nᵣ rtol = FT(1e-2)
         TT.@test ND_lim ≈ Nᵣ rtol = FT(1e-2)
@@ -663,37 +646,18 @@ function test_microphysics2M(FT)
         qx = QGK.quadgk(x -> x * f_x(x), m₀, m∞)[1] / ρₐ
         qD_lim = QGK.quadgk(x -> m(x) * f_D_limited(x), D₀, D∞)[1] / ρₐ
         qx_lim = QGK.quadgk(x -> x * f_x_limited(x), m₀, m∞)[1] / ρₐ
-        qD_bounded =
-            QGK.quadgk(
-                x ->
-                    m(x) * CM2.size_distribution(
-                        SB2006_no_limiters.pdf_r,
-                        FT(x),
-                        qᵣ,
-                        ρₐ,
-                        Nᵣ,
-                    ),
-                0,
-                D_max,
-            )[1] / ρₐ
-        qD_bounded_limited =
-            QGK.quadgk(
-                x ->
-                    m(x) *
-                    CM2.size_distribution(SB2006.pdf_r, FT(x), qᵣ, ρₐ, Nᵣ),
-                0,
-                D_max_limited,
-            )[1] / ρₐ
+        qD_bounded = QGK.quadgk(x -> m(x) * psd_nolim(x), 0, D_max)[1] / ρₐ
+        qD_bounded_lim = QGK.quadgk(x -> m(x) * psd_lim(x), 0, D_max_lim)[1] / ρₐ
         TT.@test qD ≈ qᵣ rtol = FT(1e-2)
         TT.@test qx ≈ qᵣ rtol = FT(1e-2)
         TT.@test qx_lim ≈ qᵣ rtol = FT(1e-2)
         TT.@test qD_lim ≈ qx_lim rtol = FT(1e-2)
         if FT == Float64
             TT.@test qD_bounded ≈ qᵣ rtol = FT(1e-11)
-            TT.@test qD_bounded_limited ≈ qᵣ rtol = FT(1e-11)
+            TT.@test qD_bounded_lim ≈ qᵣ rtol = FT(1e-11)
         else
             TT.@test qD_bounded ≈ qᵣ rtol = FT(1e-4)
-            TT.@test qD_bounded_limited ≈ qᵣ rtol = FT(1e-4)
+            TT.@test qD_bounded_lim ≈ qᵣ rtol = FT(1e-4)
         end
     end
 
