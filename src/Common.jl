@@ -131,18 +131,7 @@ Returns the saturation vapor pressure above a sulphuric acid solution droplet in
 `x` is, for example, 0.1 if droplets are 10 percent sulphuric acid by weight
 """
 function H2SO4_soln_saturation_vapor_pressure(
-    (;
-        T_max,
-        T_min,
-        w_2,
-        c1,
-        c2,
-        c3,
-        c4,
-        c5,
-        c6,
-        c7,
-    )::CMP.H2SO4SolutionParameters{FT},
+    (; T_max, T_min, w_2, c1, c2, c3, c4, c5, c6, c7)::CMP.H2SO4SolutionParameters{FT},
     x::FT,
     T::FT,
 ) where {FT}
@@ -170,7 +159,7 @@ end
 Returns water activity of H2SO4 containing droplet.
 `x` is, for example, 0.1 if droplets are 10 percent sulphuric acid by weight.
 """
-function a_w_xT(H2SO4_prs::HPS, tps::TPS, x::FT, T::FT) where {FT}
+function a_w_xT(H2SO4_prs::HPS, tps::TPS, x, T)
 
     p_sol = H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x, T)
     p_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
@@ -188,7 +177,7 @@ end
 Returns water activity of pure water droplet.
 Valid when droplet is in equilibrium with surroundings.
 """
-function a_w_eT(tps::TPS, e::FT, T::FT) where {FT}
+function a_w_eT(tps::TPS, e, T)
     # RH
     return e / TD.saturation_vapor_pressure(tps, T, TD.Liquid())
 end
@@ -201,7 +190,7 @@ end
 
 Returns water activity of ice.
 """
-function a_w_ice(tps::TPS, T::FT) where {FT}
+function a_w_ice(tps::TPS, T)
 
     return TD.saturation_vapor_pressure(tps, T, TD.Ice()) /
            TD.saturation_vapor_pressure(tps, T, TD.Liquid())
@@ -213,8 +202,8 @@ end
 Returns the coefficients from Table B1 Appendix B in Chen et al 2022
 
 # Arguments
- - `coeffs`: a struct with terminal velocity free parameters
- - `ρₐ`: air density [kg/m³]
+ - `coeffs`: Terminal velocity free parameters, [`CMP.Chen2022VelTypeRain`](@ref)
+ - `ρₐ`: Air density [kg/m³]
 
 DOI: 10.1016/j.atmosres.2022.106171
 """
@@ -237,9 +226,9 @@ end
 Returns the coefficients from Table B2 Appendix B in Chen et al 2022
 
 # Arguments
- - `coeffs`: a struct with terminal velocity free parameters
- - `ρₐ`: air density [kg/m³]
- - `ρᵢ`: apparent density of ice particles [kg/m³]
+ - `coeffs`: Terminal velocity free parameters, [`CMP.Chen2022VelTypeSmallIce`](@ref)
+ - `ρₐ`: Air density [kg/m³]
+ - `ρᵢ`: Apparent density of ice particles [kg/m³]
 
 DOI: 10.1016/j.atmosres.2022.106171
 """
@@ -273,9 +262,9 @@ end
 Returns the coefficients from Table B4 Appendix B in Chen et al 2022
 
 # Arguments
- - `coeffs`: a struct with terminal velocity free parameters
- - `ρₐ`: air density [kg/m³]
- - `ρᵢ`: apparent density of ice particles [kg/m³]
+ - `coeffs`: Terminal velocity free parameters, [`CMP.Chen2022VelTypeLargeIce`](@ref)
+ - `ρₐ`: Air density [kg/m³]
+ - `ρᵢ`: Apparent density of ice particles [kg/m³]
 
 DOI: 10.1016/j.atmosres.2022.106171
 """
@@ -307,12 +296,14 @@ end
 """
     Chen2022_monodisperse_pdf(a, b, c, D)
 
- - a, b, c, - free parameters defined in Chen etl al 2022
- - D - droplet diameter
+Returns the addends of the bulk fall speed of rain or ice particles (in m/s)
 
-Returns the addends of the bulk fall speed of rain or ice particles
-following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
-Assuming monodisperse droplet distribution.
+Assumes monodisperse droplet distribution.
+From Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171
+
+# Arguments
+ - `a`, `b`, `c`: Free parameters defined in Chen etl al 2022
+ - `D`: Droplet diameter
 """
 function Chen2022_monodisperse_pdf(a, b, c, D)
     return a * D^b * exp(-c * D)
@@ -321,13 +312,15 @@ end
 """
     Chen2022_exponential_pdf(a, b, c, λ_inv, k)
 
- - a, b, c, - free parameters defined in Chen etl al 2022
- - λ_inv - inverse of the size distribution parameter
- - k - size distribution moment for which we compute the bulk fall speed
+Returns the addends of the bulk fall speed of rain or ice particles (in m/s)
 
-Returns the addends of the bulk fall speed of rain or ice particles
-following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
-Assuming exponential size distribution and hence μ=0.
+Assumes exponential size distribution and hence μ=0.
+From Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171
+
+# Arguments
+ - `a`, `b`, `c`: Free parameters defined in Chen etl al 2022
+ - `λ_inv`: Inverse of the size distribution parameter
+ - `k`: Size distribution moment for which we compute the bulk fall speed
 """
 function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where {FT}
     μ = 0 # Exponential instead of gamma distribution

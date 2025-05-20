@@ -603,8 +603,8 @@ If snow occurs in temperatures above freezing it is melting into rain.
 The sink for snow is parameterized again as
 ```math
 \begin{equation}
-  \left. \frac{dq}{dt} \right|_{melt} =
-    \frac{1}{\rho} \int_{0}^{\infty} \frac{dm(r)}{dt} n(r) dr
+  \left. \frac{dq}{dt} \right|_\text{melt} =
+    \frac{1}{ρ} \int_{0}^{∞} \frac{dm(r)}{dt} n(r) dr
 \end{equation}
 ```
 For snow melt
@@ -621,15 +621,15 @@ where:
 If ``T > T_{freeze}``:
 ```math
 \begin{equation}
-\left. \frac{dq}{dt} \right|_{evap\_subl} =
-    \frac{4 \pi \, n_0 \, K_{thermo}}{\rho \, L_f} (T - T_{freeze}) \lambda^{-2}
+\left. \frac{dq}{dt} \right|_\text{melt} =
+    \frac{4 π \, n_0 \, K_{thermo}}{ρ \, L_f} (T - T_{freeze}) λ^{-2}
     \left(
        a_{vent} +
        b_{vent} \,
-         \left( \frac{\nu_{air}}{D_{vapor}} \right)^{\frac{1}{3}} \,
-         \left( \frac{1}{r_0 \, \lambda} \right)^{\frac{v_e + \Delta_v}{2}} \,
-         \left( \frac{2 \, \chi_v \, v_0}{\nu_{air} \, \lambda} \right)^{\frac{1}{2}} \,
-         \Gamma \left( \frac{v_e + \Delta_v + 5}{2} \right)
+         \left( \frac{ν_{air}}{D_{vapor}} \right)^{\frac{1}{3}} \,
+         \left( \frac{1}{r_0 \, λ} \right)^{\frac{v_e + Δ_v}{2}} \,
+         \left( \frac{2 \, χ_v \, v_0}{ν_{air} \, λ} \right)^{\frac{1}{2}} \,
+         Γ \left( \frac{v_e + Δ_v + 5}{2} \right)
     \right)
 \end{equation}
 ```
