@@ -254,7 +254,7 @@ end
 
 The type for precipitation terminal velocity from Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
-(defied for rain, snow and cloud ice)
+(defined for rain, snow and cloud ice)
 
 # Fields
 $(DocStringExtensions.FIELDS)
