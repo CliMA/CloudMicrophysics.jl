@@ -244,6 +244,7 @@ Common.Chen2022_vel_coeffs_B2
 Common.Chen2022_vel_coeffs_B4
 Common.volume_sphere_D
 Common.volume_sphere_R
+Common.ventilation_factor
 ```
 
 # Parameters
