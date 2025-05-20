@@ -290,6 +290,7 @@ function benchmark_test(FT)
 
     # 0-moment
     bench_press(FT, CM0.remove_precipitation, (p0m, q), 12)
+    bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)
 
     # 1-moment
     bench_press(
