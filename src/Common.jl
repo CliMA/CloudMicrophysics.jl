@@ -21,6 +21,7 @@ export Chen2022_exponential_pdf
 export Chen2022_vel_coeffs_B1
 export Chen2022_vel_coeffs_B2
 export Chen2022_vel_coeffs_B4
+export ventilation_factor
 
 """
     G_func(air_props, tps, T, Liquid())
@@ -360,5 +361,31 @@ V = (2R)^3 * π / 6
 See also [`volume_sphere_D`](@ref).
 """
 volume_sphere_R(R) = volume_sphere_D(2R)
+
+"""
+    ventilation_factor(vent, aps, v_term)
+
+Returns a function that computes the ventilation factor for a particle as a function of its diameter, `D`.
+
+The ventilation factor parameterizes the increase in the mass and heat exchange for falling particles.
+
+# Arguments
+- `vent`: Ventilation parameterization constants, [`CMP.VentilationSB2005`](@ref)
+- `aps`: Parameters with air properties, [`CMP.AirProperties`](@ref)
+- `v_term`: A function `v_term(D)` that returns the terminal velocity of a particle with diameter `D`
+
+# Returns
+- `F_v(D)`: The ventilation factor as a function of diameter, `D`
+
+See e.g. [SeifertBeheng2006](@cite) Eq. (24) for the definition of the ventilation factor.
+"""
+function ventilation_factor(vent, aps, v_term)
+    (; vent_a, vent_b) = vent
+    (; ν_air, D_vapor) = aps
+    N_sc = ν_air / D_vapor           # Schmidt number
+    N_Re(D) = D * v_term(D) / ν_air  # Reynolds number
+    F_v(D) = vent_a + vent_b * ∛(N_sc) * √(N_Re(D))  # Ventilation factor
+    return F_v
+end
 
 end # module end
