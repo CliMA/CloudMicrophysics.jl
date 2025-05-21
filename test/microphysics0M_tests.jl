@@ -21,7 +21,10 @@ function test_microphysics0M(FT)
         # no rain if no cloud
         q = TD.PhasePartition(q_tot)
         TT.@test CM0.remove_precipitation(p0m, q) ≈ FT(0)
+        TT.@test CM0.remove_precipitation(p0m, FT(0), FT(0)) ≈ FT(0)
         TT.@test CM0.remove_precipitation(p0m, q, q_vap_sat) ≈ FT(0)
+        TT.@test CM0.remove_precipitation(p0m, FT(0), FT(0), q_vap_sat) ≈ FT(0)
+
 
         # rain based on qc threshold
         for lf in frac
@@ -31,6 +34,8 @@ function test_microphysics0M(FT)
             q = TD.PhasePartition(q_tot, q_liq, q_ice)
 
             TT.@test CM0.remove_precipitation(p0m, q) ≈
+                     -max(0, q_liq + q_ice - qc_0) / τ_precip
+            TT.@test CM0.remove_precipitation(p0m, q_liq, q_ice) ≈
                      -max(0, q_liq + q_ice - qc_0) / τ_precip
         end
 
@@ -42,6 +47,8 @@ function test_microphysics0M(FT)
             q = TD.PhasePartition(q_tot, q_liq, q_ice)
 
             TT.@test CM0.remove_precipitation(p0m, q, q_vap_sat) ≈
+                     -max(0, q_liq + q_ice - S_0 * q_vap_sat) / τ_precip
+            TT.@test CM0.remove_precipitation(p0m, q_liq, q_ice, q_vap_sat) ≈
                      -max(0, q_liq + q_ice - S_0 * q_vap_sat) / τ_precip
         end
     end

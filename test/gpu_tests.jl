@@ -173,7 +173,8 @@ end
         q = TD.PhasePartition(FT(qt[i]), ql, qi)
 
         output[1, i] = CM0.remove_precipitation(p0m, q)
-        output[2, i] = -max(0, ql + qi - p0m.qc_0) / p0m.τ_precip
+        output[2, i] = CM0.remove_precipitation(p0m, ql, qi)
+        output[3, i] = -max(0, ql + qi - p0m.qc_0) / p0m.τ_precip
     end
 end
 
@@ -890,7 +891,7 @@ function test_gpu(FT)
     end
 
     @testset "0-moment microphysics kernels" begin
-        dims = (3, 2)
+        dims = (3, 3)
         (; output, ndrange) = setup_output(dims, FT)
 
         liquid_frac = ArrayType([FT(0), FT(0.5), FT(1)])
@@ -902,6 +903,7 @@ function test_gpu(FT)
 
         # test 0-moment rain removal is callable and returns a reasonable value
         @test all(isequal(Array(output)[1, :], Array(output)[2, :]))
+        @test all(isequal(Array(output)[1, :], Array(output)[3, :]))
     end
 
     @testset "1-moment microphysics kernels" begin
