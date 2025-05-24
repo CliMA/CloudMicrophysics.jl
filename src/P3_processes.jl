@@ -76,23 +76,16 @@ function ice_melt(
     # Note: process not dependent on `F_liq`
     # (we want ice core shape params)
     # Get constants
-    (; ν_air, D_vapor, K_therm) = aps
+    (; K_therm) = aps
     L_f = TD.latent_heat_fusion(tps, Tₐ)
-    N_sc = ν_air / D_vapor
 
-    state = get_state(dist)
-    params = get_parameters(dist)
+    (; L, N, state) = dist
+    (; T_freeze) = state.params
 
-    # Ice particle terminal velocity
-    v(D) = ice_particle_terminal_velocity(state, D, Chen2022, ρₐ)
-    # Reynolds number
-    N_Re(D) = D * v(D) / ν_air
-    # Ventillation factor
-    (; vent_a, vent_b) = params.vent
-    F_v(D) = vent_a + vent_b * N_sc^FT(1 / 3) * N_Re(D)^FT(1 / 2)
+    F_v = ventilation_factor(state, Chen2022, ρₐ, aps)
 
     # Integrate
-    fac = 4 * K_therm / L_f * (Tₐ - params.T_freeze)
+    fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
     dLdt = fac * ∫fdD(state; ∫kwargs...) do D
         ∂ice_mass_∂D(state, D) * F_v(D) * N′ice(dist, D) / D
     end
@@ -100,7 +93,6 @@ function ice_melt(
     # only consider melting (not fusion)
     dLdt = max(0, dLdt)
     # compute change of N_ice proportional to change in L
-    (; N, L) = dist
     dNdt = N / L * dLdt
 
     # ... and don't exceed the available number and mass of water droplets

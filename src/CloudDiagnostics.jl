@@ -72,23 +72,26 @@ function radar_reflectivity_2M(
     log_10_Z₀ = -18
 
     # rain size distribution parameters
-    (; Ar, Br) = CM2.pdf_rain_parameters(pdf_r, q_rai, ρ_air, N_rai)
+    (; Ar, Br) = CM2.pdf_rain_parameters_mass(pdf_r, q_rai, ρ_air, N_rai)
 
-    # cloud size distribution parameters (χ converts from μg to base SI)
-    (; Ac, Bc, χ) = CM2.pdf_cloud_parameters(pdf_c, q_liq, ρ_air, N_liq)
+    # cloud size distribution parameters
+    L_c = ρ_air * q_liq
+    logAc, logBc = CM2.log_pdf_cloud_parameters_mass(L_c, N_liq, νc, μc)
+    Ac = exp(logAc)
+    Bc = exp(logBc)
 
-    Zc =
-        Bc < eps(FT) ? FT(0) :
-        Ac *
-        C^(νc + 1) *
-        (Bc * C^μc)^(-(3 + νc) / μc) *
-        SF.gamma((3 + νc) / μc) / μc * FT(10)^(-2 * χ)
-    Zr =
-        Br < eps(FT) ? FT(0) :
-        Ar *
-        C^(νr + 1) *
-        (Br * C^μr)^(-(3 + νr) / μr) *
-        SF.gamma((3 + νr) / μr) / μr
+    function radar_reflectivity(A, B, ν, μ)
+        n = 2  # 2nd moment in mass
+        z = (ν + 1 + n) / μ
+        M_n = A * C^(ν+1) * (B * C^μ)^(-z) * SF.gamma(z) / μ
+        return M_n
+        # TODO: Consider calculating log(M_n)
+        # logM_n = logA + (ν+1) * logC - z * (logB + μ * logC) + SF.loggamma(z) - log(μ)
+    end
+
+    Zc = radar_reflectivity(Ac, Bc, νc, μc)
+    # TODO: Rewrite in terms of diameter
+    Zr = radar_reflectivity(Ar, Br, νr, μr)
 
     return max(FT(-150), 10 * (log10(max(FT(0), Zc + Zr)) - log_10_Z₀))
 end
