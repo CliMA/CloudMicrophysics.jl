@@ -122,7 +122,7 @@ function pdf_rain_parameters(
     (; νr, μr, ρw) = pdf_r
 
     if qᵣ < eps(FT) || Nᵣ < eps(FT)
-        return (λr = FT(0), xr = FT(0), Ar = FT(0), Br = FT(0))
+        return (λr = FT(0), N₀r = FT(0), xr = FT(0), Ar = FT(0), Br = FT(0))
     else
         λr = (Nᵣ * FT(π) * ρw / ρₐ / qᵣ)^FT(1 / 3)   #1/m
         N₀r = Nᵣ * λr                                #1/m4
