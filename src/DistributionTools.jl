@@ -26,7 +26,7 @@ Calculate the quantile (inverse cumulative distribution function) for a
 # Returns
 - `x`: The value x such that P(X ≤ x) = Y
 """
-function generalized_gamma_quantile(ν, μ, B, Y)    
+function generalized_gamma_quantile(ν, μ, B, Y)
     # Compute the inverse of the regularized incomplete gamma function
     z = SF.gamma_inc_inv((ν + 1) / μ, Y, 1-Y)
     return (z / B)^(1/μ)
@@ -55,7 +55,7 @@ function generalized_gamma_cdf(ν, μ, B, x)
     B > 0 || throw(DomainError(B, "Parameter B must be positive"))
     # Handle edge cases
     x ≤ 0 && return zero(x)
-    
+
     # Compute the regularized incomplete gamma function
     p, _ = SF.gamma_inc((ν + 1) / μ, (B * x)^μ)
     return p

@@ -161,7 +161,7 @@ function test_microphysics2M(FT)
 
                 # Test limits, with tolerance 1e-5
                 tol = eps(λ)
-                TT.@test  λ_min - tol <= λ       <=  λ_max + tol
+                TT.@test λ_min - tol <= λ <= λ_max + tol
                 TT.@test xr_min - tol <= xr_mean <= xr_max + tol
             end
         end
@@ -548,21 +548,21 @@ function test_microphysics2M(FT)
             TT.@test DT.exponential_cdf(Dr_mean, D_max) ≈ 1 - p
 
             # Sanity checks for number concentrations for rain
-            ND =     QGK.quadgk(f_D, D_min, D_max)[1]
-            Nx =     QGK.quadgk(f_x, x_min, x_max)[1]
+            ND = QGK.quadgk(f_D, D_min, D_max)[1]
+            Nx = QGK.quadgk(f_x, x_min, x_max)[1]
             ND_psd = QGK.quadgk(psd, D_min, D_max)[1]
             TT.@test ND ≈ Nᵣ
             TT.@test Nx ≈ Nᵣ
             TT.@test ND_psd ≈ Nᵣ
 
             # Sanity checks for specific contents for rain
-            qD =     QGK.quadgk(Mⁿ(3, f_D), D_min, D_max)[1] * k_m / ρₐ
-            qx =     QGK.quadgk(Mⁿ(1, f_x), x_min, x_max)[1] / ρₐ
+            qD = QGK.quadgk(Mⁿ(3, f_D), D_min, D_max)[1] * k_m / ρₐ
+            qx = QGK.quadgk(Mⁿ(1, f_x), x_min, x_max)[1] / ρₐ
             qD_psd = QGK.quadgk(Mⁿ(3, psd), D_min, D_max)[1] * k_m / ρₐ
             TT.@test qD ≈ qᵣ
             TT.@test qx ≈ qᵣ
             TT.@test qD_psd ≈ qᵣ
-            
+
         end  # end of testset
     end  # end of loop over pdf_r
 
@@ -579,9 +579,9 @@ function test_microphysics2M(FT)
         # distribution parameters for cloud
         (; Ac, Bc) = CM2.pdf_cloud_parameters_mass(pdf_c, qₗ, ρₐ, Nₗ)
         (; logN₀c, λc, νcD, μcD) = CM2.pdf_cloud_parameters(pdf_c, qₗ, ρₐ, Nₗ)
-        
+
         logAc, logBc = CM2.log_pdf_cloud_parameters_mass(pdf_c, qₗ, ρₐ, Nₗ)
-        
+
         # mass of liquid droplet as a function of its diameter
         k_m = π * ρw / 6
         m(D) = k_m * D^3
@@ -618,9 +618,9 @@ function test_microphysics2M(FT)
         TT.@test Nx ≈ Nₗ
 
         # Sanity checks of specific content and number concentration with diameter distribution
-        ND =     QGK.quadgk(Mⁿ(0, f_D), D_min, D_max)[1]
+        ND = QGK.quadgk(Mⁿ(0, f_D), D_min, D_max)[1]
         ND_psd = QGK.quadgk(Mⁿ(0, psd), D_min, D_max)[1]
-        qD =     QGK.quadgk(Mⁿ(3, f_D), D_min, D_max)[1] * k_m / ρₐ
+        qD = QGK.quadgk(Mⁿ(3, f_D), D_min, D_max)[1] * k_m / ρₐ
         qD_psd = QGK.quadgk(Mⁿ(3, psd), D_min, D_max)[1] * k_m / ρₐ
         TT.@test ND ≈ Nₗ
         TT.@test ND_psd ≈ Nₗ
