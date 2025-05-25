@@ -335,6 +335,14 @@ function VarTimescaleAcnv(td::CP.AbstractTOMLDict)
     return VarTimescaleAcnv{FT}(; parameters...)
 end
 
+"""
+    RainParticlePDF_SB2006
+
+Abstract type for the size distribution parameters of rain particles
+
+See [`RainParticlePDF_SB2006_limited`](@ref) and [`RainParticlePDF_SB2006_notlimited`](@ref)
+for the concrete types.
+"""
 abstract type RainParticlePDF_SB2006{FT} <: ParametersType{FT} end
 
 """
@@ -410,8 +418,8 @@ end
 
 function RainParticlePDF_SB2006_notlimited(td::CP.AbstractTOMLDict)
     name_map = (;
-        :SB2006_rain_distribution_coeff_nu => :νr,  # TODO: Not used?
-        :SB2006_rain_distribution_coeff_mu => :μr,  # TODO: Not used?
+        :SB2006_rain_distribution_coeff_nu => :νr,
+        :SB2006_rain_distribution_coeff_mu => :μr,
         :density_liquid_water => :ρw,
         :SB2006_reference_air_density => :ρ0,
         :SB2006_raindrops_min_mass => :xr_min,
@@ -420,6 +428,9 @@ function RainParticlePDF_SB2006_notlimited(td::CP.AbstractTOMLDict)
     FT = CP.float_type(td)
     return RainParticlePDF_SB2006_notlimited{FT}(; parameters...)
 end
+
+islimited(pdf::RainParticlePDF_SB2006_limited) = true
+islimited(pdf::RainParticlePDF_SB2006_notlimited) = false
 
 """
     CloudParticlePDF_SB2006
