@@ -48,12 +48,16 @@ Microphysics2M
 ```@docs
 Microphysics2M.pdf_cloud_parameters
 Microphysics2M.pdf_rain_parameters
+Microphysics2M.pdf_cloud_parameters_mass
+Microphysics2M.pdf_rain_parameters_mass
+Microphysics2M.log_pdf_cloud_parameters_mass
 ```
 
 ### Size distributions
 ```@docs
 Microphysics2M.size_distribution
-Microphysics2M.get_size_distribution_bound
+Microphysics2M.size_distribution_value
+Microphysics2M.get_size_distribution_bounds
 ```
 
 ## Rates
@@ -330,6 +334,8 @@ Parameters.LD2004
 Parameters.VarTimescaleAcnv
 Parameters.SB2006
 Parameters.RainParticlePDF_SB2006
+Parameters.RainParticlePDF_SB2006_limited
+Parameters.RainParticlePDF_SB2006_notlimited
 Parameters.CloudParticlePDF_SB2006
 Parameters.AcnvSB2006
 Parameters.AccrSB2006

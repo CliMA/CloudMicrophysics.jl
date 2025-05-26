@@ -11,6 +11,7 @@ import SpecialFunctions as SF
 import ..Parameters as CMP
 import ..Microphysics1M as CM1
 import ..Microphysics2M as CM2
+import ..DistributionTools as DT
 
 """
     radar_reflectivity_1M(precip, q, ρ)
@@ -59,11 +60,7 @@ The values are clipped at -150 dBZ.
 """
 function radar_reflectivity_2M(
     (; pdf_c, pdf_r)::CMP.SB2006{FT},
-    q_liq::FT,
-    q_rai::FT,
-    N_liq::FT,
-    N_rai::FT,
-    ρ_air::FT,
+    q_liq, q_rai, N_liq, N_rai, ρ_air,
 ) where {FT}
     # free parameters
     (; νc, μc) = pdf_c
@@ -71,24 +68,16 @@ function radar_reflectivity_2M(
     C = FT(4 / 3 * π * ρw)
     log_10_Z₀ = -18
 
-    # rain size distribution parameters
-    (; Ar, Br) = CM2.pdf_rain_parameters(pdf_r, q_rai, ρ_air, N_rai)
+    notvalid(B) = iszero(B) || !isfinite(B)  # TODO: Verify that this is the right limit
 
-    # cloud size distribution parameters (χ converts from μg to base SI)
-    (; Ac, Bc, χ) = CM2.pdf_cloud_parameters(pdf_c, q_liq, ρ_air, N_liq)
+    # Rain and cloud size distribution parameters
+    (; Br) = CM2.pdf_rain_parameters_mass(pdf_r, q_rai, ρ_air, N_rai)
+    (; Bc) = CM2.pdf_cloud_parameters_mass(pdf_c, q_liq, ρ_air, N_liq)
 
-    Zc =
-        Bc < eps(FT) ? FT(0) :
-        Ac *
-        C^(νc + 1) *
-        (Bc * C^μc)^(-(3 + νc) / μc) *
-        SF.gamma((3 + νc) / μc) / μc * FT(10)^(-2 * χ)
-    Zr =
-        Br < eps(FT) ? FT(0) :
-        Ar *
-        C^(νr + 1) *
-        (Br * C^μr)^(-(3 + νr) / μr) *
-        SF.gamma((3 + νr) / μr) / μr
+    # 2nd moment in mass = 6th moment in radius
+    n_mass = 2
+    Zc = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, n_mass) / C^n_mass
+    Zr = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C^n_mass
 
     return max(FT(-150), 10 * (log10(max(FT(0), Zc + Zr)) - log_10_Z₀))
 end
@@ -109,47 +98,26 @@ Computed based on the assumed cloud and rain particle size distributions.
 """
 function effective_radius_2M(
     (; pdf_c, pdf_r)::CMP.SB2006{FT},
-    q_liq::FT,
-    q_rai::FT,
-    N_liq::FT,
-    N_rai::FT,
-    ρ_air::FT,
+    q_liq, q_rai, N_liq, N_rai, ρ_air,
 ) where {FT}
     # free parameters
     (; νc, μc) = pdf_c
     (; νr, μr, ρw) = pdf_r
     C = FT(4 / 3 * π * ρw)
-    # rain size distribution parameters
-    (; Ar, Br) = CM2.pdf_rain_parameters(pdf_r, q_rai, ρ_air, N_rai)
+    # Rain and cloud size distribution parameters
+    (; Br) = CM2.pdf_rain_parameters_mass(pdf_r, q_rai, ρ_air, N_rai)
+    (; Bc) = CM2.pdf_cloud_parameters_mass(pdf_c, q_liq, ρ_air, N_liq)
 
-    # cloud size distribution parameters (χ converts from μg to base SI)
-    (; Ac, Bc, χ) = CM2.pdf_cloud_parameters(pdf_c, q_liq, ρ_air, N_liq)
+    notvalid(B) = iszero(B) || !isfinite(B)
+    # 3rd moment in radius = 1st moment in mass
+    n_mass = 1
+    M3_c = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, n_mass) / C
+    M3_r = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C
 
-    M3_c =
-        Bc == 0 ? FT(0) :
-        Ac *
-        C^(νc + 1) *
-        (Bc * C^μc)^(-(2 + νc) / μc) *
-        SF.gamma((2 + νc) / μc) / μc / FT(10)^χ
-    M3_r =
-        Br == 0 ? FT(0) :
-        Ar *
-        C^(νr + 1) *
-        (Br * C^μr)^(-(2 + νr) / μr) *
-        SF.gamma((2 + νr) / μr) / μr
-
-    M2_c =
-        Bc == 0 ? FT(0) :
-        Ac *
-        C^(νc + 1) *
-        (Bc * C^μc)^(-(5 + 3 * νc) / (3 * μc)) *
-        SF.gamma((5 + 3 * νc) / (3 * μc)) / μc / 10^(χ * FT(2) / 3)
-    M2_r =
-        Br == 0 ? FT(0) :
-        Ar *
-        C^(νr + 1) *
-        (Br * C^μr)^(-(5 + 3 * νr) / (3 * μr)) *
-        SF.gamma((5 + 3 * νr) / (3 * μr)) / μr
+    # 2nd moment in radius = (2/3)rd moment in mass
+    n_mass = 2 // 3
+    M2_c = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, n_mass) / C^(n_mass)
+    M2_r = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C^(n_mass)
 
     return M2_c + M2_r <= eps(FT) ? FT(0) : (M3_c + M3_r) / (M2_c + M2_r)
 end

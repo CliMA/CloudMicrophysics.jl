@@ -336,6 +336,16 @@ function VarTimescaleAcnv(td::CP.AbstractTOMLDict)
 end
 
 """
+    RainParticlePDF_SB2006
+
+Abstract type for the size distribution parameters of rain particles
+
+See [`RainParticlePDF_SB2006_limited`](@ref) and [`RainParticlePDF_SB2006_notlimited`](@ref)
+for the concrete types.
+"""
+abstract type RainParticlePDF_SB2006{FT} <: ParametersType{FT} end
+
+"""
     RainParticlePDF_SB2006_limited
 
 Rain size distribution parameters from SB2006 including the limiters
@@ -344,7 +354,7 @@ on drop maximum mass and the size distribution coefficinets N0 and lambda
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct RainParticlePDF_SB2006_limited{FT} <: ParametersType{FT}
+Base.@kwdef struct RainParticlePDF_SB2006_limited{FT} <: RainParticlePDF_SB2006{FT}
     "Raindrop size distribution coefficient νr"
     νr::FT
     "Raindrop size distribution coefficient μr"
@@ -393,7 +403,7 @@ Rain size distribution parameters from SB2006 but without the limiters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct RainParticlePDF_SB2006{FT} <: ParametersType{FT}
+Base.@kwdef struct RainParticlePDF_SB2006_notlimited{FT} <: RainParticlePDF_SB2006{FT}
     "Raindrop size distribution coefficient νr"
     νr::FT
     "Raindrop size distribution coefficient μr"
@@ -406,7 +416,7 @@ Base.@kwdef struct RainParticlePDF_SB2006{FT} <: ParametersType{FT}
     xr_min::FT
 end
 
-function RainParticlePDF_SB2006(td::CP.AbstractTOMLDict)
+function RainParticlePDF_SB2006_notlimited(td::CP.AbstractTOMLDict)
     name_map = (;
         :SB2006_rain_distribution_coeff_nu => :νr,
         :SB2006_rain_distribution_coeff_mu => :μr,
@@ -416,8 +426,11 @@ function RainParticlePDF_SB2006(td::CP.AbstractTOMLDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
-    return RainParticlePDF_SB2006{FT}(; parameters...)
+    return RainParticlePDF_SB2006_notlimited{FT}(; parameters...)
 end
+
+islimited(pdf::RainParticlePDF_SB2006_limited) = true
+islimited(pdf::RainParticlePDF_SB2006_notlimited) = false
 
 """
     CloudParticlePDF_SB2006
@@ -645,7 +658,7 @@ function SB2006(toml_dict::CP.AbstractTOMLDict, is_limited = true)
     pdf_c = CloudParticlePDF_SB2006(toml_dict)
     pdf_r =
         is_limited ? RainParticlePDF_SB2006_limited(toml_dict) :
-        RainParticlePDF_SB2006(toml_dict)
+        RainParticlePDF_SB2006_notlimited(toml_dict)
     acnv = AcnvSB2006(toml_dict)
     accr = AccrSB2006(toml_dict)
     self = SelfColSB2006(toml_dict)
