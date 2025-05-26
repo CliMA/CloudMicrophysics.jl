@@ -24,11 +24,7 @@ function test_microphysics2M(FT)
 
     # Seifert and Beheng 2006 parameters
     override_file = joinpath(
-        pkgdir(CM),
-        "src",
-        "parameters",
-        "toml",
-        "SB2006_limiters.toml",
+        pkgdir(CM), "src", "parameters", "toml", "SB2006_limiters.toml",
     )
     toml_dict = CP.create_toml_dict(FT; override_file)
     SB2006 = CMP.SB2006(toml_dict)
@@ -36,14 +32,13 @@ function test_microphysics2M(FT)
 
     # Thermodynamics and air properties parameters
     aps = CMP.AirProperties(FT)
-    wtr = CMP.WaterProperties(FT)
     tps = TD.Parameters.ThermodynamicsParameters(FT)
 
     # Terminal velocity parameters
     SB2006Vel = CMP.SB2006VelType(FT)
     Chen2022Vel = CMP.Chen2022VelTypeRain(FT)
 
-    TT.@testset "2M_microphysics - unit tests" begin
+    TT.@testset "2M_microphysics - unit tests ($FT)" begin
 
         ρ = FT(1)
 
@@ -93,7 +88,7 @@ function test_microphysics2M(FT)
 
     end
 
-    TT.@testset "2M_microphysics - compare with Wood_2005" begin
+    TT.@testset "2M_microphysics - compare with Wood_2005 ($FT)" begin
 
         ρ = FT(1)
         q_liq = FT(0.5e-3)
@@ -149,7 +144,7 @@ function test_microphysics2M(FT)
     end
 
     # 2M_microphysics - Seifert and Beheng 2006 double moment scheme tests
-    TT.@testset "limiting lambda_r and x_r - Seifert and Beheng 2006" begin
+    TT.@testset "limiting lambda_r and x_r - Seifert and Beheng 2006 ($FT)" begin
         #setup
         q_rai = [FT(0), FT(1e-3), FT(1e-4), FT(1e-2)]
         N_rai = [FT(1e1), FT(1e1), FT(1e3), FT(1e5)]
@@ -170,7 +165,7 @@ function test_microphysics2M(FT)
 
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 autoconversion and liquid self-collection" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 autoconversion and liquid self-collection ($FT)" begin
         #setup
         ρ = FT(1)
         q_liq = FT(0.5e-3)
@@ -260,7 +255,7 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 accretion" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 accretion ($FT)" begin
         #setup
         ρ = FT(1.1)
         q_liq = FT(0.5e-3)
@@ -303,29 +298,26 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain self-collection and breakup" begin
-        #setup
-        ρ = FT(1.1)
-        q_rai = FT(1e-6)
-        N_rai = FT(1e4)
+    for SB in [SB2006, SB2006_no_limiters]
+        sb_str = SB == SB2006 ? "with limiters" : "without limiters"
+        TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain self-collection and breakup ($sb_str) ($FT)" begin
+            # Setup
+            ρ = FT(1.1)
+            q_rai = FT(1e-6)
+            N_rai = FT(1e4)
 
-        for SB in [SB2006, SB2006_no_limiters]
             (; krr, κrr) = SB.self
             (; Deq, kbr, κbr) = SB.brek
             ρ0 = SB.pdf_r.ρ0
 
-            #action
-            sc_rai =
-                CM2.rain_self_collection(SB.pdf_r, SB.self, q_rai, ρ, N_rai)
-            br_rai =
-                CM2.rain_breakup(SB.pdf_r, SB.brek, q_rai, ρ, N_rai, sc_rai)
-            sc_br_rai =
-                CM2.rain_self_collection_and_breakup(SB, q_rai, ρ, N_rai)
+            # Action
+            sc_rai = CM2.rain_self_collection(SB.pdf_r, SB.self, q_rai, ρ, N_rai)
+            br_rai = CM2.rain_breakup(SB.pdf_r, SB.brek, q_rai, ρ, N_rai, sc_rai)
+            sc_br_rai = CM2.rain_self_collection_and_breakup(SB, q_rai, ρ, N_rai)
 
             λr = CM2.pdf_rain_parameters(SB.pdf_r, q_rai, ρ, N_rai).Br
 
-            dNrdt_sc =
-                -krr * N_rai * ρ * q_rai * (1 + κrr / λr)^-5 * sqrt(ρ0 / ρ)
+            dNrdt_sc = -krr * N_rai * ρ * q_rai * (1 + κrr / λr)^-5 * √(ρ0 / ρ)
 
             Dr =
                 (
@@ -339,14 +331,10 @@ function test_microphysics2M(FT)
 
             dNrdt_br = -(ϕ_br + 1) * sc_rai
 
-            #test
+            # Test
             TT.@test sc_rai ≈ dNrdt_sc rtol = 1e-6
             TT.@test CM2.rain_self_collection(
-                SB.pdf_r,
-                SB.self,
-                FT(0),
-                ρ,
-                N_rai,
+                SB.pdf_r, SB.self, FT(0), ρ, N_rai,
             ) ≈ FT(0) atol = eps(FT)
             TT.@test br_rai ≈ dNrdt_br rtol = 1e-6
             TT.@test sc_br_rai isa NamedTuple
@@ -357,12 +345,9 @@ function test_microphysics2M(FT)
             q_rai = FT(0)
 
             #action
-            sc_rai =
-                CM2.rain_self_collection(SB.pdf_r, SB.self, q_rai, ρ, N_rai)
-            br_rai =
-                CM2.rain_breakup(SB.pdf_r, SB.brek, q_rai, ρ, N_rai, sc_rai)
-            sc_br_rai =
-                CM2.rain_self_collection_and_breakup(SB, q_rai, ρ, N_rai)
+            sc_rai = CM2.rain_self_collection(SB.pdf_r, SB.self, q_rai, ρ, N_rai)
+            br_rai = CM2.rain_breakup(SB.pdf_r, SB.brek, q_rai, ρ, N_rai, sc_rai)
+            sc_br_rai = CM2.rain_self_collection_and_breakup(SB, q_rai, ρ, N_rai)
 
             #test
             TT.@test sc_rai ≈ FT(0) atol = eps(FT)
@@ -372,7 +357,7 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity with limiters" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity with limiters ($FT)" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(1e-6)
@@ -393,22 +378,14 @@ function test_microphysics2M(FT)
         TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
 
         TT.@test CM2.rain_terminal_velocity(
-            SB2006,
-            SB2006Vel,
-            q_rai,
-            ρ,
-            FT(0),
+            SB2006, SB2006Vel, q_rai, ρ, FT(0),
         )[1] ≈ 0 atol = eps(FT)
         TT.@test CM2.rain_terminal_velocity(
-            SB2006,
-            SB2006Vel,
-            FT(0),
-            ρ,
-            N_rai,
+            SB2006, SB2006Vel, FT(0), ρ, N_rai,
         )[2] ≈ 0 atol = eps(FT)
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 modified rain terminal velocity without limiters" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 modified rain terminal velocity without limiters ($FT)" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(1e-6)
@@ -418,11 +395,7 @@ function test_microphysics2M(FT)
 
         #action
         vt_rai = CM2.rain_terminal_velocity(
-            SB2006_no_limiters,
-            SB2006Vel,
-            q_rai,
-            ρ,
-            N_rai,
+            SB2006_no_limiters, SB2006Vel, q_rai, ρ, N_rai,
         )
 
         λr =
@@ -448,22 +421,14 @@ function test_microphysics2M(FT)
         TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
 
         TT.@test CM2.rain_terminal_velocity(
-            SB2006_no_limiters,
-            SB2006Vel,
-            q_rai,
-            ρ,
-            FT(0),
+            SB2006_no_limiters, SB2006Vel, q_rai, ρ, FT(0),
         )[1] ≈ 0 atol = eps(FT)
         TT.@test CM2.rain_terminal_velocity(
-            SB2006_no_limiters,
-            SB2006Vel,
-            FT(0),
-            ρ,
-            N_rai,
+            SB2006_no_limiters, SB2006Vel, FT(0), ρ, N_rai,
         )[2] ≈ 0 atol = eps(FT)
     end
 
-    TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity" begin
+    TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity ($FT)" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(5e-4)
@@ -471,10 +436,8 @@ function test_microphysics2M(FT)
 
         for SB in [SB2006, SB2006_no_limiters]
             #action
-            vt_rai =
-                CM2.rain_terminal_velocity(SB, Chen2022Vel, q_rai, ρ, N_rai)
-            v_bigger =
-                CM2.rain_terminal_velocity(SB, Chen2022Vel, q_rai * 2, ρ, N_rai)
+            vt_rai = CM2.rain_terminal_velocity(SB, Chen2022Vel, q_rai, ρ, N_rai)
+            v_bigger = CM2.rain_terminal_velocity(SB, Chen2022Vel, q_rai * 2, ρ, N_rai)
 
             #test
             TT.@test vt_rai isa Tuple
@@ -482,18 +445,10 @@ function test_microphysics2M(FT)
             TT.@test vt_rai[2] ≈ 4.00592218028957 rtol = 1e-6
 
             TT.@test CM2.rain_terminal_velocity(
-                SB,
-                Chen2022Vel,
-                q_rai,
-                ρ,
-                FT(0),
+                SB, Chen2022Vel, q_rai, ρ, FT(0),
             )[1] ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_terminal_velocity(
-                SB,
-                Chen2022Vel,
-                FT(0),
-                ρ,
-                N_rai,
+                SB, Chen2022Vel, FT(0), ρ, N_rai,
             )[2] ≈ 0 atol = eps(FT)
 
             TT.@test v_bigger[1] > vt_rai[1]
@@ -501,7 +456,7 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain evaporation" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain evaporation ($FT)" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(1e-6)
@@ -540,37 +495,16 @@ function test_microphysics2M(FT)
             TT.@test evap.evap_rate_0 ≈ evap0 rtol = 1e-4
             TT.@test evap.evap_rate_1 ≈ evap1 rtol = 1e-5
             TT.@test CM2.rain_evaporation(
-                SB,
-                aps,
-                tps,
-                q,
-                q_rai,
-                ρ,
-                FT(0),
-                T,
+                SB, aps, tps, q, q_rai, ρ, FT(0), T,
             ).evap_rate_0 ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_evaporation(
-                SB,
-                aps,
-                tps,
-                q,
-                FT(0),
-                ρ,
-                N_rai,
-                T,
+                SB, aps, tps, q, FT(0), ρ, N_rai, T,
             ).evap_rate_1 ≈ 0 atol = eps(FT)
         end
 
         # test limit case: xr = 0 for SB with no limiters
         TT.@test CM2.rain_evaporation(
-            SB2006_no_limiters,
-            aps,
-            tps,
-            q,
-            FT(0),
-            ρ,
-            N_rai,
-            T,
+            SB2006_no_limiters, aps, tps, q, FT(0), ρ, N_rai, T,
         ).evap_rate_0 ≈ 0 atol = eps(FT)
 
     end
@@ -697,7 +631,7 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 cloud distribution sanity checks" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 cloud distribution sanity checks ($FT)" begin
 
         # example number concentration and specific content
         Nₗ = FT(1e3 * 1e6) # 1000 1/cm3
