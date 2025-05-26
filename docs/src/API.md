@@ -71,6 +71,16 @@ Microphysics2M.rain_evaporation
 Microphysics2M.conv_q_liq_to_q_rai
 ```
 
+## Distribution tools for 2-moment microphysics
+
+```@docs
+DistributionTools
+DistributionTools.generalized_gamma_quantile
+DistributionTools.generalized_gamma_cdf
+DistributionTools.exponential_cdf
+DistributionTools.exponential_quantile
+```
+
 # P3 scheme
 
 ```@docs
