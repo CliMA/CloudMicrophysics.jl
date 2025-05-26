@@ -41,11 +41,24 @@ Microphysics1M.snow_melt
 # 2-moment precipitation microphysics
 ```@docs
 Microphysics2M
-Microphysics2M.LiqRaiRates
+```
+## Size distributions
+
+### Parameters
+```@docs
 Microphysics2M.pdf_cloud_parameters
 Microphysics2M.pdf_rain_parameters
+```
+
+### Size distributions
+```@docs
 Microphysics2M.size_distribution
 Microphysics2M.get_size_distribution_bound
+```
+
+## Rates
+```@docs
+Microphysics2M.LiqRaiRates
 Microphysics2M.autoconversion
 Microphysics2M.accretion
 Microphysics2M.liquid_self_collection
