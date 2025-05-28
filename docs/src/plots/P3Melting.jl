@@ -1,5 +1,5 @@
-import CairoMakie: CairoMakie, Makie
-CairoMakie.activate!(type = "svg")
+import CairoMakie as MK
+MK.activate!(type = "svg")
 
 import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
@@ -56,32 +56,27 @@ dLdt4 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ2, dt).dL
 dNdt4 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ2, dt).dNdt for ΔT in ΔT_range]
 
 # plotting
-fig = Makie.Figure(size = (1500, 500), fontsize=22, linewidth=3)
+fig = MK.Figure(size = (1500, 500), fontsize=22, linewidth=3)
 
-ax1 = Makie.Axis(fig[1, 1]; yscale = log10)
-ax2 = Makie.Axis(fig[1, 2]; yscale = log10)
+ax1 = MK.Axis(fig[1, 1]; yscale = log10, xlabel = "T [C]", ylabel = "ice mass melting rate [g/m³/s]")
+ax2 = MK.Axis(fig[1, 2]; yscale = log10, xlabel = "T [C]", ylabel = "ice number melting rate [1/m³/s]")
 
-ax1.xlabel = "T [C]"
-ax1.ylabel = "ice mass melting rate [g/m3/s]"
-ax2.xlabel = "T [C]"
-ax2.ylabel = "ice number melting rate [1/cm3/s]"
+l_max_dLdt = MK.lines!(ax1, ΔT_range,  max_dLdt * 1e3,  color = :thistle)
+l_max_dNdt = MK.lines!(ax2, ΔT_range,  max_dNdt * 1e-6, color = :thistle)
 
-l_max_dLdt = Makie.lines!(ax1, ΔT_range,  max_dLdt * 1e3,  color = :thistle)
-l_max_dNdt = Makie.lines!(ax2, ΔT_range,  max_dNdt * 1e-6, color = :thistle)
+l_dLdt1 = MK.lines!(ax1, ΔT_range,  dLdt1 * 1e3,  color = :skyblue)
+l_dNdt1 = MK.lines!(ax2, ΔT_range,  dNdt1 * 1e-6, color = :skyblue)
 
-l_dLdt1 = Makie.lines!(ax1, ΔT_range,  dLdt1 * 1e3,  color = :skyblue)
-l_dNdt1 = Makie.lines!(ax2, ΔT_range,  dNdt1 * 1e-6, color = :skyblue)
+l_dLdt2 = MK.lines!(ax1, ΔT_range,  dLdt2 * 1e3,  color = :blue3)
+l_dNdt2 = MK.lines!(ax2, ΔT_range,  dNdt2 * 1e-6, color = :blue3)
 
-l_dLdt2 = Makie.lines!(ax1, ΔT_range,  dLdt2 * 1e3,  color = :blue3)
-l_dNdt2 = Makie.lines!(ax2, ΔT_range,  dNdt2 * 1e-6, color = :blue3)
+l_dLdt3 = MK.lines!(ax1, ΔT_range,  dLdt3 * 1e3,  color = :orchid)
+l_dNdt3 = MK.lines!(ax2, ΔT_range,  dNdt3 * 1e-6, color = :orchid)
 
-l_dLdt3 = Makie.lines!(ax1, ΔT_range,  dLdt3 * 1e3,  color = :orchid)
-l_dNdt3 = Makie.lines!(ax2, ΔT_range,  dNdt3 * 1e-6, color = :orchid)
+l_dLdt4 = MK.lines!(ax1, ΔT_range,  dLdt4 * 1e3,  color = :purple)
+l_dNdt4 = MK.lines!(ax2, ΔT_range,  dNdt4 * 1e-6, color = :purple)
 
-l_dLdt4 = Makie.lines!(ax1, ΔT_range,  dLdt4 * 1e3,  color = :purple)
-l_dNdt4 = Makie.lines!(ax2, ΔT_range,  dNdt4 * 1e-6, color = :purple)
-
-Makie.Legend(
+MK.Legend(
     fig[1, 3],
     [l_max_dNdt, l_dNdt1, l_dNdt2, l_dNdt3, l_dNdt4],
     [
@@ -93,4 +88,4 @@ Makie.Legend(
     ],
     framevisible = false,
 )
-Makie.save("P3_ice_melt.svg", fig)
+MK.save("P3_ice_melt.svg", fig)

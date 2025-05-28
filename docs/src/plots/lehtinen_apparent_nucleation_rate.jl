@@ -1,4 +1,4 @@
-using Plots
+import Plots
 
 import CloudMicrophysics.Nucleation as Nucleation
 
@@ -20,7 +20,7 @@ for (cs, od) in zip(coag_sinks, output_diams)
     append!(rates, rate)
 end
 
-plot(
+Plots.plot(
     collect(output_diams),
     rates,
     # yaxis = :log,
@@ -28,4 +28,4 @@ plot(
     ylabel = "Apparent Nucleation Rate Reduction",
     legend = false,
 )
-savefig("apparent_nucleation.svg");
+Plots.savefig("apparent_nucleation.svg");

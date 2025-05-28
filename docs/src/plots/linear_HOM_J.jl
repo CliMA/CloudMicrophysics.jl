@@ -1,10 +1,10 @@
 import CairoMakie as MK
-import CloudMicrophysics as CM
+
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.HomIceNucleation as CMH
 
 FT = Float32
-const ip = CMP.IceNucleationParameters(FT)
+ip = CMP.IceNucleationParameters(FT)
 
 # Koop2000 parameterization
 Koop_Δa = collect(0.26:0.0025:0.34)
@@ -18,7 +18,7 @@ new_log10J =
     [linear_coeffs[2] * Delta_a + linear_coeffs[1] for Delta_a in Koop_Δa]
 
 # Plotting J vs Δa
-fig = MK.Figure(resolution = (800, 600), fontsize = 18)
+fig = MK.Figure(size = (800, 600), fontsize = 18)
 ax1 = MK.Axis(
     fig[1, 1],
     xlabel = "Δa_w [-]",

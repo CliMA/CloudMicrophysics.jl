@@ -1,7 +1,6 @@
-using Plots
+import Plots as PL
 
-import ClimaParams as CP
-import CloudMicrophysics.Nucleation as Nucleation
+import CloudMicrophysics.Nucleation
 import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
@@ -18,8 +17,8 @@ nucleation_rates = map(bioOxOrg_concentrations) do bioOxOrg_conc
     ) * 1e6
 end
 
-Plots.plot(xaxis = :log, yaxis = :log, lw = 3)
-Plots.plot!(
+PL.plot(xaxis = :log, yaxis = :log, lw = 3)
+PL.plot!(
     bioOxOrg_concentrations,
     nucleation_rates,
     label = "Riccobono parameterization",
@@ -53,7 +52,7 @@ CLOUD_points = [
     (196732207.6712905, 2.987642282932369),
 ]
 
-Plots.plot!(
+PL.plot!(
     CLOUD_points,
     seriestype = :scatter,
     label = "CLOUD data",
@@ -64,4 +63,4 @@ Plots.plot!(
     xticks = [1e6, 1e7, 1e8],
     yticks = [0.01, 0.1, 1, 10],
 )
-Plots.svg("Riccobono_nucleation");
+PL.svg("Riccobono_nucleation");

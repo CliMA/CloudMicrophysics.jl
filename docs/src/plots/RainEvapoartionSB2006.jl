@@ -3,8 +3,6 @@ import CairoMakie as MK
 import SpecialFunctions as SF
 
 import Thermodynamics as TD
-import CloudMicrophysics as CM
-import ClimaParams as CP
 
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
@@ -12,9 +10,9 @@ import CloudMicrophysics.Microphysics2M as CM2
 
 FT = Float64
 
-const tps = TD.Parameters.ThermodynamicsParameters(FT)
-const aps = CMP.AirProperties(FT)
-const SB2006 = CMP.SB2006(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
+aps = CMP.AirProperties(FT)
+SB2006 = CMP.SB2006(FT)
 
 function rain_evaporation_CPU(SB2006, aps, tps, q, q_rai, ρ, N_rai, T)
 
@@ -82,7 +80,7 @@ evap_qᵣ_3n = [CM2.rain_evaporation(SB2006, aps, tps, q, _qᵣ, ρ, Nᵣ, T).ev
 evap_Nᵣ_3n = [CM2.rain_evaporation(SB2006, aps, tps, q, qᵣ, ρ, _Nᵣ, T).evap_rate_1 for _Nᵣ in Nᵣ_range]
 evap_T_3n = [CM2.rain_evaporation(SB2006, aps, tps, q, qᵣ, ρ, Nᵣ, _T).evap_rate_1 for _T in T_range]
 
-fig = MK.Figure(resolution = (800, 600))
+fig = MK.Figure(size = (800, 600))
 
 ax1 = MK.Axis(fig[1, 1], xlabel = "q_rain [g/kg]", ylabel = "evap rate [1/cm3/s]")
 ax2 = MK.Axis(fig[2, 1], xlabel = "N_rain [1/cm3]", ylabel = "evap rate [1/cm3/s]")

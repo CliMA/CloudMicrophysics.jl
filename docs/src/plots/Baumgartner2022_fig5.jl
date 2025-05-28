@@ -1,12 +1,10 @@
 import RootSolvers as RS
 import CairoMakie as MK
 
-import CloudMicrophysics as CM
 import Thermodynamics as TD
-import ClimaParams as CP
 
-const CMO = CM.Common
-const CMP = CM.Parameters
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
 tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -54,12 +52,12 @@ a_w_Nach = [Δa_crit + (Baumgartner_p_ice(T)) / (Nach_p_liq(T)) for T in T_range
 a_w_Luo = [
     Δa_crit +
     (Baumgartner_p_ice(T)) /
-    (CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, 0.0, T)) for
+    (CO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, 0.0, T)) for
     T in T_range
 ]
 
 #! format: off
-fig = MK.Figure(resolution = (800, 600))
+fig = MK.Figure(size = (800, 600))
 ax1 = MK.Axis(fig[1, 1], title = "Water Activity vs Temperature", ylabel = "a_w [-]", xlabel = "T [K]")
 MK.lines!(ax1, BG2022_fig5_T, BG2022_fig5_aw, label = "Baumgartner2022", linestyle = :dash, color = :blue)
 MK.lines!(ax1, T_range, a_w, label = "CloudMicrophysics", color = :blue)
@@ -70,7 +68,7 @@ MK.lines!(ax1, T_range, a_w_ice, label = "a_w_ice", color = :red)
 MK.axislegend(position = :lt)
 MK.save("Baumgartner2022_fig5.svg", fig)
 
-fig = MK.Figure(resolution = (800, 600))
+fig = MK.Figure(size = (800, 600))
 ax1 = MK.Axis(fig[1, 1], title = "Saturated Vapor Pressure vs Temperature", ylabel = "Pressure [Pa]", xlabel = "T [K]")
 MK.lines!(ax1, T_range, [Baumgartner_p_ice(T) for T in T_range], label = "Baumgartner's p_ice", color = :blue, linestyle = :dash)
 MK.lines!(ax1, T_range, p_sat_ice, label = "CM's p_ice", color = :blue)

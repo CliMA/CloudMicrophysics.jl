@@ -1,5 +1,5 @@
-import CairoMakie as PL
-PL.activate!(type = "svg")
+import CairoMakie as MK
+MK.activate!(type = "svg")
 
 import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
@@ -61,35 +61,35 @@ dLdt_il_T2 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T2, RH), 
 dNdt_il_T2 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
 
 # plotting
-fig = PL.Figure(size = (1500, 500), fontsize=22, linewidth=3)
+fig = MK.Figure(size = (1500, 500), fontsize=22, linewidth=3)
 
-ax1 = PL.Axis(fig[1, 1]; yscale = log10)
-ax2 = PL.Axis(fig[1, 2]; yscale = log10)
+ax1 = MK.Axis(fig[1, 1]; yscale = log10)
+ax2 = MK.Axis(fig[1, 2]; yscale = log10)
 
 ax1.xlabel = "RH [%]"
 ax1.ylabel = "ice mass nucleation rate [g/m3/s]"
 ax2.xlabel = "RH [%]"
 ax2.ylabel = "ice number nucleation rate [1/cm3/s]"
 
-l_max_dLdt_T1 = PL.lines!(ax1, RH_range * 1e2,  max_dLdt_T1 * 1e3,  color = :thistle)
-l_max_dLdt_T2 = PL.lines!(ax1, RH_range * 1e2,  max_dLdt_T2 * 1e3,  color = :thistle)
-l_max_dNdt    = PL.lines!(ax2, RH_range * 1e2,  max_dNdt    * 1e-6, color = :thistle)
+l_max_dLdt_T1 = MK.lines!(ax1, RH_range * 1e2,  max_dLdt_T1 * 1e3,  color = :thistle)
+l_max_dLdt_T2 = MK.lines!(ax1, RH_range * 1e2,  max_dLdt_T2 * 1e3,  color = :thistle)
+l_max_dNdt    = MK.lines!(ax2, RH_range * 1e2,  max_dNdt    * 1e-6, color = :thistle)
 
 
-l_dLdt_dd_T1 = PL.lines!(ax1, RH_range * 1e2,  dLdt_dd_T1 * 1e3,  color = :skyblue)
-l_dNdt_dd_T1 = PL.lines!(ax2, RH_range * 1e2,  dNdt_dd_T1 * 1e-6, color = :skyblue)
+l_dLdt_dd_T1 = MK.lines!(ax1, RH_range * 1e2,  dLdt_dd_T1 * 1e3,  color = :skyblue)
+l_dNdt_dd_T1 = MK.lines!(ax2, RH_range * 1e2,  dNdt_dd_T1 * 1e-6, color = :skyblue)
 
-l_dLdt_dd_T2 = PL.lines!(ax1, RH_range * 1e2,  dLdt_dd_T2 * 1e3,  color = :blue3)
-l_dNdt_dd_T2 = PL.lines!(ax2, RH_range * 1e2,  dNdt_dd_T2 * 1e-6, color = :blue3)
+l_dLdt_dd_T2 = MK.lines!(ax1, RH_range * 1e2,  dLdt_dd_T2 * 1e3,  color = :blue3)
+l_dNdt_dd_T2 = MK.lines!(ax2, RH_range * 1e2,  dNdt_dd_T2 * 1e-6, color = :blue3)
 
 
-l_dLdt_il_T1 = PL.lines!(ax1, RH_range * 1e2,  dLdt_il_T1 * 1e3,  color = :orchid)
-l_dNdt_il_T1 = PL.lines!(ax2, RH_range * 1e2,  dNdt_il_T1 * 1e-6, color = :orchid)
+l_dLdt_il_T1 = MK.lines!(ax1, RH_range * 1e2,  dLdt_il_T1 * 1e3,  color = :orchid)
+l_dNdt_il_T1 = MK.lines!(ax2, RH_range * 1e2,  dNdt_il_T1 * 1e-6, color = :orchid)
 
-l_dLdt_il_T2 = PL.lines!(ax1, RH_range * 1e2,  dLdt_il_T2 * 1e3,  color = :purple)
-l_dNdt_il_T2 = PL.lines!(ax2, RH_range * 1e2,  dNdt_il_T2 * 1e-6, color = :purple)
+l_dLdt_il_T2 = MK.lines!(ax1, RH_range * 1e2,  dLdt_il_T2 * 1e3,  color = :purple)
+l_dNdt_il_T2 = MK.lines!(ax2, RH_range * 1e2,  dNdt_il_T2 * 1e-6, color = :purple)
 
-PL.Legend(
+MK.Legend(
     fig[1, 3],
     [l_max_dNdt,
      l_dNdt_dd_T1, l_dNdt_dd_T2,
@@ -103,4 +103,4 @@ PL.Legend(
     ],
     framevisible = false,
 )
-PL.save("P3_het_ice_nucleation.svg", fig)
+MK.save("P3_het_ice_nucleation.svg", fig)

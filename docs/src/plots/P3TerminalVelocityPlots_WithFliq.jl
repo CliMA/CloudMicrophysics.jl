@@ -1,10 +1,7 @@
-import ClimaParams
-import CloudMicrophysics as CM
+import CairoMakie as MK
+
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
-import CairoMakie as Plt
-
-const PSP3 = CMP.ParametersP3
 
 FT = Float64
 
@@ -13,7 +10,7 @@ p3 = CMP.ParametersP3(FT)
 # Testing terminal velocity with liquid fraction
 
 function get_values(
-    p3::PSP3,
+    p3,
     Chen2022::CMP.Chen2022VelType,
     L::FT,
     N::FT,
@@ -53,7 +50,7 @@ function get_values(
 end
 
 function make_axis(fig, row, col, title)
-    return Plt.Axis(
+    return MK.Axis(
         fig[row, col],
         xlabel = "F_rim",
         ylabel = "ρ_r",
@@ -102,7 +99,7 @@ function figure_2()
     (F_rimm_9, ρ_rm_9, V_mm_9, D_mm_9) = get_values(p3, Chen2022, L_m_9, N_m, FT(0.9), ρ_a, xres, yres)
     (F_riml_9, ρ_rl_9, V_ml_9, D_ml_9) = get_values(p3, Chen2022, L_l_9, N_l, FT(0.9), ρ_a, xres, yres)
 
-    fig = Plt.Figure()
+    fig = MK.Figure()
 
     # Plot velocities as in Fig 2 in Morrison and Milbrandt 2015
 
@@ -114,77 +111,77 @@ function figure_2()
     crange_large(len) = range(5, 10, length = len)
 
     ax1 = make_axis(fig, 1, 1, "Vₘ with small Dₘ, F_liq = 0")
-    hm = Plt.contourf!(ax1, F_rims_0, ρ_rs_0, V_ms_0, levels = crange_small(10), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax1, F_rims_0, ρ_rs_0, D_ms_0; args...)
-    # Plt.Colorbar(fig[2, 1], hm, vertical = false)
+    hm = MK.contourf!(ax1, F_rims_0, ρ_rs_0, V_ms_0, levels = crange_small(10), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax1, F_rims_0, ρ_rs_0, D_ms_0; args...)
+    # MK.Colorbar(fig[2, 1], hm, vertical = false)
 
     ax2 = make_axis(fig, 1, 2, "Vₘ with medium Dₘ, F_liq = 0")
-    hm = Plt.contourf!(ax2, F_rimm_0, ρ_rm_0, V_mm_0, levels = crange_med(10), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax2, F_rimm_0, ρ_rm_0, D_mm_0; args...)
-    # Plt.Colorbar(fig[2, 2], hm, vertical = false)
+    hm = MK.contourf!(ax2, F_rimm_0, ρ_rm_0, V_mm_0, levels = crange_med(10), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax2, F_rimm_0, ρ_rm_0, D_mm_0; args...)
+    # MK.Colorbar(fig[2, 2], hm, vertical = false)
 
     ax3 = make_axis(fig, 1, 3, "Vₘ with large Dₘ, F_liq = 0")
-    hm = Plt.contourf!(ax3, F_riml_0, ρ_rl_0, V_ml_0, levels = crange_large(10), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax3, F_riml_0, ρ_rl_0, D_ml_0; args...)
-    # Plt.Colorbar(fig[2, 3], hm, vertical = false)
+    hm = MK.contourf!(ax3, F_riml_0, ρ_rl_0, V_ml_0, levels = crange_large(10), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax3, F_riml_0, ρ_rl_0, D_ml_0; args...)
+    # MK.Colorbar(fig[2, 3], hm, vertical = false)
 
-    Plt.linkxaxes!(ax1, ax2)
-    Plt.linkxaxes!(ax2, ax3)
-    Plt.linkyaxes!(ax1, ax2)
-    Plt.linkyaxes!(ax2, ax3)
+    MK.linkxaxes!(ax1, ax2)
+    MK.linkxaxes!(ax2, ax3)
+    MK.linkyaxes!(ax1, ax2)
+    MK.linkyaxes!(ax2, ax3)
 
     ## Plot F_liq = 0.5 as second row of comparisons
 
     ax4 = make_axis(fig, 3, 1, "Vₘ with small Dₘ, F_liq = 0.5")
-    hm = Plt.contourf!(ax4, F_rims_5, ρ_rs_5, V_ms_5, levels = crange_small(25), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax4, F_rims_5, ρ_rs_5, D_ms_5; args...)
-    # Plt.Colorbar(fig[4, 1], hm, vertical = false)
+    hm = MK.contourf!(ax4, F_rims_5, ρ_rs_5, V_ms_5, levels = crange_small(25), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax4, F_rims_5, ρ_rs_5, D_ms_5; args...)
+    # MK.Colorbar(fig[4, 1], hm, vertical = false)
 
     ax5 = make_axis(fig, 3, 2, "Vₘ with medium Dₘ, F_liq = 0.5")
-    hm = Plt.contourf!(ax5, F_rimm_5, ρ_rm_5, V_mm_5, levels = crange_med(25), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax5, F_rimm_5, ρ_rm_5, D_mm_5; args...)
-    # Plt.Colorbar(fig[4, 2], hm, vertical = false)
+    hm = MK.contourf!(ax5, F_rimm_5, ρ_rm_5, V_mm_5, levels = crange_med(25), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax5, F_rimm_5, ρ_rm_5, D_mm_5; args...)
+    # MK.Colorbar(fig[4, 2], hm, vertical = false)
 
     ax6 = make_axis(fig, 3, 3, "Vₘ with large Dₘ, F_liq = 0.5")
-    hm = Plt.contourf!(ax6, F_riml_5, ρ_rl_5, V_ml_5, levels = crange_large(30), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax6, F_riml_5, ρ_rl_5, D_ml_5; args...)
-    # Plt.Colorbar(fig[4, 3], hm, vertical = false)
+    hm = MK.contourf!(ax6, F_riml_5, ρ_rl_5, V_ml_5, levels = crange_large(30), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax6, F_riml_5, ρ_rl_5, D_ml_5; args...)
+    # MK.Colorbar(fig[4, 3], hm, vertical = false)
 
-    Plt.linkxaxes!(ax1, ax4)
-    Plt.linkxaxes!(ax4, ax5)
-    Plt.linkxaxes!(ax5, ax6)
-    Plt.linkyaxes!(ax1, ax4)
-    Plt.linkyaxes!(ax4, ax5)
-    Plt.linkyaxes!(ax5, ax6)
+    MK.linkxaxes!(ax1, ax4)
+    MK.linkxaxes!(ax4, ax5)
+    MK.linkxaxes!(ax5, ax6)
+    MK.linkyaxes!(ax1, ax4)
+    MK.linkyaxes!(ax4, ax5)
+    MK.linkyaxes!(ax5, ax6)
 
     ## Plot F_liq = 0.9 as second row of comparisons
 
     ax7 = make_axis(fig, 5, 1, "Vₘ with small Dₘ, F_liq = 0.9")
-    hm = Plt.contourf!(ax7, F_rims_9, ρ_rs_9, V_ms_9, levels = crange_small(45), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax7, F_rims_9, ρ_rs_9, D_ms_9; args...)
-    Plt.Colorbar(fig[6, 1], hm, vertical = false)
+    hm = MK.contourf!(ax7, F_rims_9, ρ_rs_9, V_ms_9, levels = crange_small(45), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax7, F_rims_9, ρ_rs_9, D_ms_9; args...)
+    MK.Colorbar(fig[6, 1], hm, vertical = false)
 
     ax8 = make_axis(fig, 5, 2, "Vₘ with medium Dₘ, F_liq = 0.9")
-    hm = Plt.contourf!(ax8, F_rimm_9, ρ_rm_9, V_mm_9, levels = crange_med(45), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax8, F_rimm_9, ρ_rm_9, D_mm_9; args...)
-    Plt.Colorbar(fig[6, 2], hm, vertical = false)
+    hm = MK.contourf!(ax8, F_rimm_9, ρ_rm_9, V_mm_9, levels = crange_med(45), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax8, F_rimm_9, ρ_rm_9, D_mm_9; args...)
+    MK.Colorbar(fig[6, 2], hm, vertical = false)
 
     ax9 = make_axis(fig, 5, 3, "Vₘ with large Dₘ, F_liq = 0.9")
-    hm = Plt.contourf!(ax9, F_riml_9, ρ_rl_9, V_ml_9, levels = crange_large(45), extendlow = :auto, extendhigh = :auto)
-    Plt.contour!(ax9, F_riml_9, ρ_rl_9, D_ml_9; args...)
-    Plt.Colorbar(fig[6, 3], hm, vertical = false)
+    hm = MK.contourf!(ax9, F_riml_9, ρ_rl_9, V_ml_9, levels = crange_large(45), extendlow = :auto, extendhigh = :auto)
+    MK.contour!(ax9, F_riml_9, ρ_rl_9, D_ml_9; args...)
+    MK.Colorbar(fig[6, 3], hm, vertical = false)
 
-    Plt.linkxaxes!(ax1, ax7)
-    Plt.linkxaxes!(ax7, ax8)
-    Plt.linkxaxes!(ax8, ax9)
-    Plt.linkyaxes!(ax1, ax7)
-    Plt.linkyaxes!(ax7, ax8)
-    Plt.linkyaxes!(ax8, ax9)
+    MK.linkxaxes!(ax1, ax7)
+    MK.linkxaxes!(ax7, ax8)
+    MK.linkxaxes!(ax8, ax9)
+    MK.linkyaxes!(ax1, ax7)
+    MK.linkyaxes!(ax7, ax8)
+    MK.linkyaxes!(ax8, ax9)
 
 
-    Plt.resize_to_layout!(fig)
-    # Plt.display(fig)
-    Plt.save("MorrisonandMilbrandtFig2_with_F_liq.svg", fig)
+    MK.resize_to_layout!(fig)
+    # MK.display(fig)
+    MK.save("MorrisonandMilbrandtFig2_with_F_liq.svg", fig)
 end
 
 figure_2()

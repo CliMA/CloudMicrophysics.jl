@@ -1,8 +1,7 @@
-using Plots
+import Plots
 
-import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.Nucleation as Nucleation
+import CloudMicrophysics.Nucleation
 
 FT = Float64
 params = CMP.OrganicNucleationParameters(FT)

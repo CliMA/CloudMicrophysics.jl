@@ -95,7 +95,7 @@ J_immer = @. CMI_het.ABIFM_J(aerosol, Δa) # m^-2 s^-1
 
 #! format: off
 # Plot results
-fig = MK.Figure(resolution = (1200, 400))
+fig = MK.Figure(size = (1200, 400))
 ax1 = MK.Axis(fig[1, 1], ylabel = "J_immer [cm^-2 s^-1]", xlabel = "Temperature [K]", yscale = log10)
 ax2 = MK.Axis(fig[1, 2], ylabel = "frozen fraction",      xlabel = "Temperature [K]")
 ax3 = MK.Axis(fig[1, 3], ylabel = "total A [cm^2]",       xlabel = "Temperature [K]", yscale = log10)

@@ -1,6 +1,6 @@
-import CairoMakie: Makie
-import CloudMicrophysics as CM
-import ClimaParams as CP
+
+import CairoMakie as MK
+
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.P3Scheme as P3
 
@@ -15,7 +15,7 @@ get_state2(F_rim, ρ_r) = P3.get_state(params; F_rim, ρ_r)
 
 states = get_state2.(F_rims, ρ_rs')
 
-fig = Makie.Figure(size = (1200, 900), figure_padding = 20)
+fig = MK.Figure(size = (1200, 900), figure_padding = 20)
 
 D_th = round(states[1].D_th * 1e3, digits = 4) # mm
 # Make a plot for each threshold
@@ -26,24 +26,24 @@ for (i, key) in enumerate(thresh_keys)
     else
         ""
     end
-    ax = Makie.Axis(fig[i, 1], xlabel = "F_rim", ylabel = "ρ_r", title = title)
+    ax = MK.Axis(fig[i, 1], xlabel = "F_rim", ylabel = "ρ_r", title = title)
     threshold = getproperty.(states, key) * 1e3
-    hm = Makie.heatmap!(ax, F_rims, ρ_rs, threshold)
-    Makie.Colorbar(fig[i, 2], hm, label = "mm")
+    hm = MK.heatmap!(ax, F_rims, ρ_rs, threshold)
+    MK.Colorbar(fig[i, 2], hm, label = "mm")
 end
 
 # Make a plot for each density
 ρ_keys = (:ρ_g, :ρ_d)
 for (i, key) in enumerate(ρ_keys)
-    ax = Makie.Axis(fig[i, 3], xlabel = "F_rim", ylabel = "ρ_r", title = string(key))
+    ax = MK.Axis(fig[i, 3], xlabel = "F_rim", ylabel = "ρ_r", title = string(key))
     density = if key == :ρ_g
         getproperty.(states, key)
     else # :ρ_d
         P3.get_ρ_d.(params.mass, F_rims, ρ_rs')
     end
-    hm = Makie.heatmap!(ax, F_rims, ρ_rs, density)
-    Makie.Colorbar(fig[i, 4], hm, label = "kg/m³")
+    hm = MK.heatmap!(ax, F_rims, ρ_rs, density)
+    MK.Colorbar(fig[i, 4], hm, label = "kg/m³")
 end
 
-Makie.save("P3Thresholds.svg", fig)
+MK.save("P3Thresholds.svg", fig)
 fig

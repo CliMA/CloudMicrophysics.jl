@@ -1,30 +1,28 @@
 import Plots as PL
-using Measures
+import Plots.Measures.mm
 
-import ClimaParams as CP
-
-FT = Float64
 
 import CloudMicrophysics.MicrophysicsNonEq as CMNe
 import CloudMicrophysics.Microphysics1M as CM1
-import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.Common as CMO
+import CloudMicrophysics.Common as CO
 
-const rain = CMP.Rain(FT)
-const liquid = CMP.CloudLiquid(FT)
-const ice = CMP.CloudIce(FT)
-const snow = CMP.Snow(FT)
+FT = Float64
 
-const SB2006 = CMP.SB2006(FT)
-const SB2006_no_lim = CMP.SB2006(FT, false)
+rain = CMP.Rain(FT)
+liquid = CMP.CloudLiquid(FT)
+ice = CMP.CloudIce(FT)
+snow = CMP.Snow(FT)
 
-const Chen2022 = CMP.Chen2022VelType(FT)
-const SB2006Vel = CMP.SB2006VelType(FT)
-const Blk1MVel = CMP.Blk1MVelType(FT)
+SB2006 = CMP.SB2006(FT)
+SB2006_no_lim = CMP.SB2006(FT, false)
 
-const oblate = CM1.Oblate()
-const prolate = CM1.Prolate()
+Chen2022 = CMP.Chen2022VelType(FT)
+SB2006Vel = CMP.SB2006VelType(FT)
+Blk1MVel = CMP.Blk1MVelType(FT)
+
+oblate = CM1.Oblate()
+prolate = CM1.Prolate()
 
 function aspect_ratio_snow_1M_oblate(snow::CMP.Snow, D::FT) where {FT <: Real}
     (; r0, m0, me, χm, Δm) = snow.mass
@@ -62,7 +60,7 @@ function rain_terminal_velocity_individual_Chen(
     ρₐ::FT,
     D::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B1(velo_scheme, ρₐ)
+    ai, bi, ci = CO.Chen2022_vel_coeffs_B1(velo_scheme, ρₐ)
 
     v = 0
     for i in 1:3
@@ -77,7 +75,7 @@ function ice_terminal_velocity_individual_Chen(
     ρₐ::FT,
     D::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B2(velo_scheme, ρₐ, ice.ρᵢ)
+    ai, bi, ci = CO.Chen2022_vel_coeffs_B2(velo_scheme, ρₐ, ice.ρᵢ)
 
     v = 0
     for i in 1:2
@@ -92,7 +90,7 @@ function snow_terminal_velocity_individual_Chen(
     ρₐ::FT,
     D::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
+    ai, bi, ci = CO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
     (; ϕ, κ) = snow.aspr
 
     v = 0
@@ -108,7 +106,7 @@ function snow_terminal_velocity_individual_Chen_oblate(
     ρₐ::FT,
     D_r::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
+    ai, bi, ci = CO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
 
     ϕ = aspect_ratio_snow_1M_oblate(snow, D_r)
 
@@ -125,7 +123,7 @@ function snow_terminal_velocity_individual_Chen_prolate(
     ρₐ::FT,
     D_r::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
+    ai, bi, ci = CO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
 
     ϕ = aspect_ratio_snow_1M_prolate(snow, D_r)
 

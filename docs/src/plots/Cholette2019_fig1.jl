@@ -1,11 +1,8 @@
-import ClimaParams
-import CloudMicrophysics as CM
+import CairoMakie as MK
+
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.Common as CO
-import CairoMakie as Plt
-
-const PSP3 = CMP.ParametersP3
+import CloudMicrophysics.Parameters.ParametersP3 as PSP3
 
 FT = Float64
 
@@ -72,10 +69,10 @@ function fig1()
     colors = [:black, :blue, :red, :green]
     res = 50
 
-    fig = Plt.Figure(size = (1200, 400))
+    fig = MK.Figure(size = (1200, 400))
 
     #F_r = 0
-    ax1 = Plt.Axis(
+    ax1 = MK.Axis(
         fig[1:7, 1:9],
         title = "Fᵣ = 0",
         xlabel = "Dₚ (m)",
@@ -92,8 +89,8 @@ function fig1()
             P3.thresholds(p3, ρ_r, F_rs[1]),
             res,
         )
-        Plt.lines!(ax1, D_ps, V_0_ϕ, color = colors[i], label = labels[i])
-        Plt.lines!(
+        MK.lines!(ax1, D_ps, V_0_ϕ, color = colors[i], label = labels[i])
+        MK.lines!(
             ax1,
             D_ps,
             V_0,
@@ -104,7 +101,7 @@ function fig1()
     end
 
     # F_r = 1
-    ax2 = Plt.Axis(
+    ax2 = MK.Axis(
         fig[1:7, 10:18],
         title = "Fᵣ = 1",
         xlabel = "Dₚ (m)",
@@ -120,8 +117,8 @@ function fig1()
             P3.thresholds(p3, ρ_r, F_rs[2]),
             res,
         )
-        Plt.lines!(ax2, D_ps, V_1_ϕ, color = colors[i], label = labels[i])
-        Plt.lines!(
+        MK.lines!(ax2, D_ps, V_1_ϕ, color = colors[i], label = labels[i])
+        MK.lines!(
             ax2,
             D_ps,
             V_1,
@@ -131,20 +128,20 @@ function fig1()
         )
     end
 
-    Plt.Legend(
+    MK.Legend(
         fig[4, 19:22],
         [
-            Plt.LineElement(color = :black),
-            Plt.LineElement(color = :blue),
-            Plt.LineElement(color = :red),
-            Plt.LineElement(color = :green),
-            Plt.LineElement(color = :black, linestyle = :dash),
+            MK.LineElement(color = :black),
+            MK.LineElement(color = :blue),
+            MK.LineElement(color = :red),
+            MK.LineElement(color = :green),
+            MK.LineElement(color = :black, linestyle = :dash),
         ],
         labels,
         framevisible = false,
     )
 
-    Plt.linkaxes!(ax1, ax2)
+    MK.linkaxes!(ax1, ax2)
     ax1.xticks = (
         [0, 0.002, 0.004, 0.006, 0.008, 0.01],
         string.([0, 0.002, 0.004, 0.006, 0.008, 0.01]),
@@ -155,8 +152,8 @@ function fig1()
     )
 
 
-    Plt.resize_to_layout!(fig)
-    Plt.save("Choletteetal2019_fig1.svg", fig)
+    MK.resize_to_layout!(fig)
+    MK.save("Choletteetal2019_fig1.svg", fig)
 end
 
 fig1()
