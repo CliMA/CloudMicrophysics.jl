@@ -337,6 +337,39 @@ function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where
 end
 
 """
+    liquid_particle_terminal_velocity(velocity_params, ρₐ)
+    liquid_particle_terminal_velocity(velocity_params, ρₐ, D)
+
+Compute the terminal velocity of a liquid particle as a function of its size 
+    (maximum dimension, `D`) using the Chen 2022 parametrization.
+
+# Arguments
+- `velocity_params`: a struct with terminal velocity parameters from Chen 2022
+- `ρₐ`: air density [kg/m³]
+- `D`: maximum particle dimension [m]
+
+# Returns
+- The first method returns a function of `D`, while the second evaluates at a specific `D`.
+
+Needed for numerical integrals in the P3 scheme.
+
+!!! note
+    We use the same terminal velocity parametrization for cloud and rain water.
+"""
+function liquid_particle_terminal_velocity(velocity_params::CMP.Chen2022VelTypeRain, ρₐ)
+    (ai, bi, ci) = Chen2022_vel_coeffs_B1(velocity_params, ρₐ)
+    v_term(D) = sum(@. sum(ai * D^bi * exp(-ci * D)))
+    return v_term
+end
+liquid_particle_terminal_velocity(velocity_params::CMP.Chen2022VelType, ρₐ) =
+    liquid_particle_terminal_velocity(velocity_params.rain, ρₐ)
+
+function liquid_particle_terminal_velocity(velocity_params, ρₐ, D)
+    v_term = liquid_particle_terminal_velocity(velocity_params, ρₐ)
+    return v_term(D)
+end
+
+"""
     volume_sphere_D(D)
 
 Calculate the volume of a sphere with diameter D.
