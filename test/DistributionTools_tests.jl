@@ -6,7 +6,7 @@ import CloudMicrophysics.DistributionTools as DT
         # Test parameters
         ν = 2.0
         μ = 3.0
-        B = 1.0
+        B = 2.0
 
         # Test CDF and quantile correspondence
         for Y in [0.1, 0.25, 0.5, 0.75, 0.9]

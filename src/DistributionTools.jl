@@ -11,6 +11,7 @@ Mostly used for the 2-moment microphysics.
 module DistributionTools
 
 import SpecialFunctions as SF
+import LogExpFunctions as LEF
 
 """
     generalized_gamma_quantile(ν, μ, B, Y)
@@ -58,8 +59,33 @@ function generalized_gamma_cdf(ν, μ, B, x)
     x ≤ 0 && return zero(x)
 
     # Compute the regularized incomplete gamma function
-    p, _ = SF.gamma_inc((ν + 1) / μ, (B * x)^μ)
+    p, _ = SF.gamma_inc((ν + 1) / μ, B * x^μ)
     return p
+end
+
+"""
+    generalized_gamma_Mⁿ(ν, μ, B, N, n)
+
+Calculate the nth physical moment of a generalized gamma distribution parameterized in the form:
+
+    g(x) = A ⋅ x^ν ⋅ exp(-B ⋅ x^μ)
+
+ This is:
+
+    Mⁿ = ∫ x^n ⋅ g(x) dx
+       = N ⋅ B^(-n/μ) ⋅ Γ((ν+1+n)/μ) / Γ((ν+1)/μ)
+ 
+# Arguments
+ - `ν, μ, B`: The PDF parameters
+ - `N`: The total number concentration of particles
+ - `n`: The moment order
+
+# Returns
+ - `Mⁿ`: The nth physical moment of the distribution
+"""
+function generalized_gamma_Mⁿ(ν, μ, B, N, n)
+    # Equivalent to Eq. (82) in SB2006
+    return N * B^(-n / μ) * SF.gamma((ν + 1 + n) / μ) / SF.gamma((ν + 1) / μ)
 end
 
 """
@@ -85,7 +111,8 @@ function exponential_cdf(D_mean, D)
     # Handle edge cases
     D < 0 && return zero(D)
     # Calculate CDF: P(X ≤ D) = 1 - exp(-D/D_mean)
-    return 1 - exp(-D / D_mean)
+    logcdf = LEF.log1mexp(-D / D_mean)  # careful calculation in log-space
+    return exp(logcdf)
 end
 
 """
@@ -110,7 +137,34 @@ function exponential_quantile(D_mean, Y)
     (0 ≤ Y ≤ 1) || throw(DomainError(Y, "Probability Y must be in [0,1]"))
     D_mean > 0 || throw(DomainError(D_mean, "Mean parameter must be positive"))
     # Calculate quantile: x = -D_mean * ln(1-Y)
-    return -D_mean * log(1 - Y)
+    logquantile = log(D_mean) + LEF.cloglog(Y)  # careful calculation in log-space
+    return exp(logquantile)
+end
+
+"""
+    exponential_Mⁿ(D_mean, N, n)
+
+Calculate the nth moment of an exponential distribution parameterized in the form:
+
+    n(D) = N₀ * exp(-D / D_mean)
+
+ This is:
+
+    Mⁿ = ∫ x^n ⋅ n(x) dx
+       = N ⋅ n! ⋅ D_mean^n
+ 
+ where N₀ = N / D_mean.
+
+# Arguments
+ - `D_mean`: The mean value of the distribution
+ - `N`: The total number concentration of particles
+ - `n`: The moment order
+
+# Returns
+ - `Mⁿ`: The nth physical moment of the distribution
+"""
+function exponential_Mⁿ(D_mean, N, n)
+    return N * factorial(n) * D_mean^n
 end
 
 end # module DistributionTools

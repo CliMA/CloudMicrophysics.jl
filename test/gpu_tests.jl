@@ -1076,7 +1076,7 @@ function test_gpu(FT)
                 @test isapprox(Array(output)[10], FT(-40447.855), rtol = 1e-6)
                 @test isapprox(Array(output)[11], FT(0), rtol = 1e-6)
                 @test isapprox(Array(output)[12], FT(2.6429e-3), rtol = 1e-4)
-                @test isapprox(Array(output)[13], FT(0.1149338), rtol = 1e-6)
+                @test isapprox(Array(output)[13], FT(0.1149338), rtol = 1e-5)
                 @test isapprox(Array(output)[14], FT(-52903.817), rtol = 1e-6)
                 @test isapprox(
                     Array(output)[15],

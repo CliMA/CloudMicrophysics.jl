@@ -30,10 +30,10 @@ function rain_evaporation_CPU(SB2006, aps, tps, q, q_rai, ρ, N_rai, T)
         x_star = SB2006.pdf_r.xr_min
         G = CO.G_func(aps, tps, T, TD.Liquid())
 
-        xr = CM2.pdf_rain_parameters(SB2006.pdf_r, q_rai, ρ, N_rai).xr
-        Dr = (FT(6) / FT(π) / ρw)^FT(1 / 3) * xr^FT(1 / 3)
+        (; xr_mean) = CM2.pdf_rain_parameters(SB2006.pdf_r, q_rai, ρ, N_rai)
+        Dr = (FT(6) / FT(π) / ρw)^FT(1 / 3) * xr_mean^FT(1 / 3)
 
-        t_star = (FT(6) * x_star / xr)^FT(1 / 3)
+        t_star = (FT(6) * x_star / xr_mean)^FT(1 / 3)
         a_vent_0 = av * FT(SF.gamma(-1, t_star)) / FT(6)^FT(-2 / 3)
         b_vent_0 =
             bv * FT(SF.gamma((-1 / 2) + (3 / 2) * β, t_star)) /
@@ -43,11 +43,11 @@ function rain_evaporation_CPU(SB2006, aps, tps, q, q_rai, ρ, N_rai, T)
         b_vent_1 =
             bv * SF.gamma(FT(5 / 2) + FT(3 / 2) * β) / FT(6)^FT(β / 2 + 1 / 2)
 
-        N_Re = α * xr^β * sqrt(ρ0 / ρ) * Dr / ν_air
+        N_Re = α * xr_mean^β * sqrt(ρ0 / ρ) * Dr / ν_air
         Fv0 = a_vent_0 + b_vent_0 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
         Fv1 = a_vent_1 + b_vent_1 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
 
-        evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv0 / xr)
+        evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean)
         evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
     end
 

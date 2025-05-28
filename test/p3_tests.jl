@@ -236,8 +236,9 @@ function test_particle_terminal_velocities(FT)
     @testset "Smoke tests for rain particle terminal vel from Chen 2022" begin
         Ds = range(FT(1e-6), stop = FT(1e-5), length = 5)
         expected = [0.002508, 0.009156, 0.01632, 0.02377, 0.03144]
+        vel_func = CM2.rain_particle_terminal_velocity(Chen2022.rain, ρ_a)
         for i in axes(Ds, 1)
-            vel = CM2.rain_particle_terminal_velocity(Ds[i], Chen2022.rain, ρ_a)
+            vel = vel_func(Ds[i])
             @test vel >= 0
             @test vel ≈ expected[i] rtol = 1e-3
         end
