@@ -193,6 +193,7 @@ P3Scheme.ice_melt
 ```@docs
 P3Scheme.∫fdD
 P3Scheme.∫fdD_error
+P3Scheme.integral_bounds
 ```
 
 # Aerosol model

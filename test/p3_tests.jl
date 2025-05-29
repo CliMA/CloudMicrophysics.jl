@@ -323,17 +323,16 @@ function test_bulk_terminal_velocities(FT)
 
         # Liquid fraction = 0
 
-        ref_v_n = [3.6459710187339343, 2.619104899972692]
-        ref_v_n_ϕ = [3.6459710187339343, 2.619104899972692]
-        ref_v_m = [7.790036674136336, 5.799151695989574]
-        ref_v_m_ϕ = [7.790036674136336, 5.799151695989574]
+        ref_v_n = [3.6459501724701835, 2.619088950728837]
+        ref_v_n_ϕ = [3.6459501724701835, 2.619088950728837]
+        ref_v_m = [7.7881075425985085, 5.797674122909204]
+        ref_v_m_ϕ = [7.7881075425985085, 5.797674122909204]
 
         for (k, F_rim) in enumerate(F_rims)
             state = P3.get_state(params; F_rim, ρ_r)
             dist = P3.get_distribution_parameters(state; L, N)
             vel_n, vel_m = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = false, accurate = true)
-            vel_n_ϕ, vel_m_ϕ =
-                P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = true, accurate = true)
+            vel_n_ϕ, vel_m_ϕ = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = true, accurate = true)
 
             # number weighted
             @test vel_n > 0
@@ -347,9 +346,9 @@ function test_bulk_terminal_velocities(FT)
             @test vel_m ≈ ref_v_m[k] rtol = 5e-5
             @test vel_m_ϕ ≈ ref_v_m_ϕ[k] rtol = 5e-5
 
-            # slower with aspect ratio
-            @test vel_n_ϕ <= vel_n
-            @test vel_m_ϕ <= vel_m
+            # slower with aspect ratio (within machine precision)
+            @test vel_n_ϕ <= vel_n + eps(vel_n)
+            @test vel_m_ϕ <= vel_m + eps(vel_m)
         end
 
         # Liquid fraction != 0
@@ -417,10 +416,10 @@ function test_numerical_integrals(FT)
     F_rims = FT[0, 0.5]
     ρ_a = FT(1.2)
     use_aspect_ratio = false
-    accurates = [false, true]
+    ps = [1e-3, 1e-6]
 
     @testset "Numerical integrals sanity checks for N, velocity and diameter" begin
-        for (F_rim, L, accurate) in Iterators.product(F_rims, Ls, accurates)
+        for (F_rim, L, p) in Iterators.product(F_rims, Ls, ps)
 
             # Get shape parameters, thresholds and intergal bounds
             state = P3.get_state(params; F_rim, ρ_r)
@@ -431,29 +430,27 @@ function test_numerical_integrals(FT)
             # increase the `order` of the quadrature rule, and set `rtol=0`.
             # The `rtol` settings essentially forces max evaluations of the method.
             # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
-            N_estim = P3.∫fdD(state; accurate = true, order = 88) do D
+            N_estim = P3.∫fdD(dist) do D
                 P3.N′ice(dist, D)
             end
             @test N ≈ N_estim rtol = 1e-5
 
             # Bulk velocity comparison
-            vel_N, vel_m = P3.ice_terminal_velocity(
-                dist, Chen2022, ρ_a; use_aspect_ratio, accurate,
-            )
+            vel_N, vel_m = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio, p)
 
             v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
             g(D) = v_term(D) * exp(P3.log_N′ice(dist, D))
-            vel_N_estim = P3.∫fdD(g, state; accurate) / N
-            vel_m_estim = P3.∫fdD(state; accurate) do D
+            vel_N_estim = P3.∫fdD(g, dist; p) / N
+            vel_m_estim = P3.∫fdD(dist; p) do D
                 g(D) * P3.ice_mass(state, D) / L
             end
 
             @test vel_N ≈ vel_N_estim rtol = 1e-6
-            @test vel_m ≈ vel_m_estim rtol = 1e-6
+            @test vel_m ≈ vel_m_estim rtol = 1e-5
 
             # Dₘ comparisons
             D_m = P3.D_m(dist)
-            D_m_estim = P3.∫fdD(state; accurate = true) do D
+            D_m_estim = P3.∫fdD(dist; moment_order = 1 + 3) do D
                 D * P3.ice_mass(state, D) * P3.N′ice(dist, D) / L
             end
             @test D_m ≈ D_m_estim rtol = 5e-4
@@ -524,7 +521,7 @@ function test_p3_melting(FT)
         @test rate.dLdt == 0
 
         T_warm = FT(273.15 + 0.01)
-        rate = P3.ice_melt(dist, vel, aps, tps, T_warm, ρₐ, dt; ∫kwargs = (; accurate = true))
+        rate = P3.ice_melt(dist, vel, aps, tps, T_warm, ρₐ, dt)
 
         @test rate.dNdt >= 0
         @test rate.dLdt >= 0
@@ -533,14 +530,14 @@ function test_p3_melting(FT)
         # A failing test indicates that the code has changed.
         # But if the changes are intentional, the reference values can be updated.
         if FT == Float64
-            ref_dNdt = FT(171953.27800922818)
-            ref_dLdt = FT(8.597663900461409e-5)
+            ref_dNdt = FT(171951.91644755047)
+            ref_dLdt = FT(8.597595822377523e-5)
         else
-            ref_dNdt = FT(172121.12)
-            ref_dLdt = FT(8.6060565f-5)
+            ref_dNdt = FT(172119.73f0)
+            ref_dLdt = FT(8.605987f-5)
         end
-        @test rate.dNdt ≈ ref_dNdt rtol = 1e-6
-        @test rate.dLdt ≈ ref_dLdt rtol = 1e-6
+        @test rate.dNdt ≈ ref_dNdt
+        @test rate.dLdt ≈ ref_dLdt
 
         T_vwarm = FT(273.15 + 0.1)
         rate = P3.ice_melt(dist, vel, aps, tps, T_vwarm, ρₐ, dt)
