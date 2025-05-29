@@ -32,19 +32,14 @@ function get_values(
         for j in 1:y_resolution
             F_rim = F_rims[i]
             ρ_r = ρ_rs[j]
-            use_aspect_ratio = true
-            do_not_use_aspect = false
             state = P3.get_state(params; F_rim, ρ_r)
             dist = P3.get_distribution_parameters(state; L, N)
 
             V_m[i, j] = P3.ice_terminal_velocity(
-                dist,
-                Chen2022,
-                ρ_a,
-                do_not_use_aspect,
+                dist, Chen2022, ρ_a; use_aspect_ratio = false,
             )[2]
             V_m_ϕ[i, j] =
-                P3.ice_terminal_velocity(dist, Chen2022, ρ_a, use_aspect_ratio)[2]
+                P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = true)[2]
 
             D_m[i, j] = P3.D_m(dist)
             D_m_regimes[i, j] = D_m[i, j]

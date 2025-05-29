@@ -233,8 +233,8 @@ function test_particle_terminal_velocities(FT)
     Chen2022 = CMP.Chen2022VelType(FT)
     ρ_a = FT(1.2)
 
-    @testset "Smoke tests for rain particle terminal vel from Chen 2022" begin
-        Ds = range(FT(1e-6), stop = FT(1e-5), length = 5)
+    @testset "Smoke tests for cloud/rain particle terminal vel from Chen 2022" begin
+        Ds = range(FT(1e-6), stop = FT(1e-5), length = 5)  # TODO: Add tests for larger sizes
         expected = [0.002508, 0.009156, 0.01632, 0.02377, 0.03144]
         vel_func = CM2.rain_particle_terminal_velocity(Chen2022.rain, ρ_a)
         for i in axes(Ds, 1)
@@ -252,15 +252,10 @@ function test_particle_terminal_velocities(FT)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.08109, 0.4115, 0.7912, 1.1550, 1.4871]
+        v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
-            vel = P3.ice_particle_terminal_velocity(
-                state,
-                D,
-                Chen2022,
-                ρ_a,
-                use_aspect_ratio,
-            )
+            vel = v_term(D)
             @test vel >= 0
             @test vel ≈ expected[i] rtol = 1e-3
         end
@@ -269,15 +264,10 @@ function test_particle_terminal_velocities(FT)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.08109, 0.4115, 0.79121, 1.155, 1.487]
+        v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
-            vel = P3.ice_particle_terminal_velocity(
-                state,
-                D,
-                Chen2022,
-                ρ_a,
-                use_aspect_ratio,
-            )
+            vel = v_term(D)
             @test vel >= 0
             @test vel ≈ expected[i] rtol = 1e-3
         end
@@ -292,15 +282,10 @@ function test_particle_terminal_velocities(FT)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.13192, 0.50457, 0.90753, 1.3015, 1.6757]
+        v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
-            vel = P3.p3_particle_terminal_velocity(
-                state,
-                D,
-                Chen2022,
-                ρ_a,
-                use_aspect_ratio,
-            )
+            vel = v_term(D)
             @test vel >= 0
             @test_broken vel ≈ expected[i] rtol = 1e-3  # TODO: Implement `F_liq != 0`
         end
@@ -308,15 +293,10 @@ function test_particle_terminal_velocities(FT)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.13191, 0.50457, 0.90753, 1.301499, 1.67569]
+        v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
-            vel = P3.p3_particle_terminal_velocity(
-                state,
-                D,
-                Chen2022,
-                ρ_a,
-                use_aspect_ratio,
-            )
+            vel = v_term(D)
             @test vel >= 0
             @test_broken vel ≈ expected[i] rtol = 1e-3  # TODO: Implement `F_liq != 0`
         end
@@ -350,9 +330,9 @@ function test_bulk_terminal_velocities(FT)
         for (k, F_rim) in enumerate(F_rims)
             state = P3.get_state(params; F_rim, ρ_r)
             dist = P3.get_distribution_parameters(state; L, N)
-            vel_n, vel_m = P3.ice_terminal_velocity(dist, Chen2022, ρ_a, false; accurate = true)
+            vel_n, vel_m = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = false, accurate = true)
             vel_n_ϕ, vel_m_ϕ =
-                P3.ice_terminal_velocity(dist, Chen2022, ρ_a, true; accurate = true)
+                P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = true, accurate = true)
 
             # number weighted
             @test vel_n > 0
@@ -457,21 +437,11 @@ function test_numerical_integrals(FT)
 
             # Bulk velocity comparison
             vel_N, vel_m = P3.ice_terminal_velocity(
-                dist,
-                Chen2022,
-                ρ_a,
-                use_aspect_ratio;
-                accurate,
+                dist, Chen2022, ρ_a; use_aspect_ratio, accurate,
             )
 
-            particle_vel(D) = P3.ice_particle_terminal_velocity(
-                state,
-                D,
-                Chen2022,
-                ρ_a,
-                use_aspect_ratio;
-            )
-            g(D) = particle_vel(D) * exp(P3.log_N′ice(dist, D))
+            v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
+            g(D) = v_term(D) * exp(P3.log_N′ice(dist, D))
             vel_N_estim = P3.∫fdD(g, state; accurate) / N
             vel_m_estim = P3.∫fdD(state; accurate) do D
                 g(D) * P3.ice_mass(state, D) / L
@@ -578,6 +548,7 @@ function test_p3_melting(FT)
         @test rate.dLdt == Lᵢ
     end
 end
+
 
 for FT in [Float32, Float64]
     @info("Testing " * string(FT))
