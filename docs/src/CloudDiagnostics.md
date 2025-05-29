@@ -8,6 +8,32 @@ Available diagnostics are:
  - Radar reflectivity
  - Effective radius
 
+Calculating these diagnostics make use of the physical moment equation for the 
+generalized gamma distribution, as a function of particle mass. We denote the moment
+as ``M_x^n`` to emphasize that it is the moment with respect to the particle size 
+distribution written as a function of particle mass ``x``.
+```math
+\begin{equation}
+M_x^n(;N, ν, μ, B) 
+  = ∫_0^∞ x^n ⋅ f(x) dx
+  = N ⋅ B^{-\frac{n}{μ}} ⋅ \frac{Γ\left(\frac{ν+1+n}{μ}\right)}{Γ\left(\frac{ν+1}{μ}\right)}
+\end{equation}
+```
+where:
+```math
+\begin{equation}
+f(x) = A ⋅ x^ν ⋅ \exp(-B ⋅ x^μ)
+\end{equation}
+```
+is the particle size distribution as a function of particle mass, and
+```math
+\begin{equation}
+B = \left( \bar{x} \frac{Γ\left(\frac{ν+1}{μ}\right)}{Γ\left(\frac{ν+2}{μ}\right)} \right)^{-μ}
+\end{equation}
+```
+is the particle size distribution parameter, in which ``\bar{x} = L/N`` is the mean particle mass.
+See the particle size distribution section in [Microphysics 2M](@ref) for more details.
+
 ## Radar reflectivity
 
 The radar reflectivity factor ``Z`` is used to measure the power returned
@@ -49,27 +75,27 @@ where:
 
 For the [2-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics2M/)
   we take into consideration the effect of both cloud and rain droplets.
-Integrating over the assumed cloud droplets Gamma distribution leads to
+The radar reflectivity, as written above is proportional to the 2nd moment cloud number distribution in mass
 ```math
 \begin{equation}
-Z_c = A_c C^{\nu_c+1} \frac{ (B_c C^{\mu_c})^{-\frac{3+\nu_c}{\mu_c}} \, \Gamma \left(\frac{3+\nu_c}{\mu_c}\right)}{\mu_c},
+Z_c = M_x^2 / C^2
 \end{equation}
 ```
 where:
- - ``\Gamma \,(x) = \int_{0}^{\infty} \! t^{x - 1} e^{-t} \mathrm{d}t`` is the gamma function,
- - ``C = \frac{4}{3} \pi \rho_w``.
+ - ``C = \frac{4}{3} π ρ_w``.
+The additional factor of ``C^2`` results in a radar reflectivity that equals the 6th moment in radius.
 
 Similar for rain drop exponential distribution
 ```math
 \begin{equation}
-Z_r = A_r C^{\nu_r+1} \frac{ (B_r C^{\mu_r})^{-\frac{3+\nu_r}{\mu_r}} \, \Gamma \left(\frac{3+\nu_r}{\mu_r}\right)}{\mu_r},
+Z_r = M_x^2 / C^2
 \end{equation}
 ```
 The final radar reflectivity factor is a sum of ``Z_c`` and ``Z_r``.
 
 ## Effective radius
 
-The effective radius of hydrometeors (``r_{eff}``) is defined as
+The effective radius of hydrometeors (``r_\text{eff}``) is defined as
 the area weighted radius of the population of particles.
 It can be computed as the ratio of the third to the second moment
 of the size distribution.
@@ -80,19 +106,25 @@ We compute the total third and second moment as a sum of cloud condensate and
 precipitation moments:
 ```math
 \begin{equation}
-r_{eff} = \frac{M_{3}^c + M_{3}^r}{M_{2}^c + M_{2}^r} = \frac{{\int_0^\infty r^{3} \, (n_c(r) + n_r(r)) \, dr}}{{\int_0^\infty r^{2} \, (n_c(r) + n_r(r)) \, dr}}.
+r_{eff} 
+  = \frac{M^3_{r,c} + M^3_{r,r}}{M^2_{r,c} + M^2_{r,r}} 
+  = \frac{∫_0^∞ r^3 \, (n_c(r) + n_r(r)) \, dr}{∫_0^∞ r^2 \, (n_c(r) + n_r(r)) \, dr}.
 \label{eq:reff}
 \end{equation}
 ```
-After integrating we obtain
+The 3rd moment in radius, ``M^3_r`` equals the 1st moment in mass, ``M^1_x``,
 ```math
 \begin{equation}
-M_{3}^c + M_{3}^r = A_c C^{\nu_c+1} \frac{ (B_c C^{\mu_c})^{-\frac{2+\nu_c}{\mu_c}} \, \Gamma \left(\frac{2+\nu_c}{\mu_c}\right)}{\mu_c} + A_r C^{\nu_r+1} \frac{ (B_r C^{\mu_r})^{-\frac{2+\nu_r}{\mu_r}} \, \Gamma \left(\frac{2+\nu_r}{\mu_r}\right)}{\mu_r}.
+M^3_r = M^1_x / C
 \end{equation}
 ```
+where
+ - ``C = \frac{4}{3} π ρ_w`` relates radius to mass for a spherical particle, ``x = C r^3``.
+
+Similarly, the 2nd moment in radius, ``M^2_r`` equals the "2/3rd" moment in mass, ``M^2_x``,
 ```math
 \begin{equation}
-M_{2}^c + M_{2}^r = A_c C^{\nu_c+1} \frac{ (B_c C^{\mu_c})^{-\frac{5+3\nu_c}{3\mu_c}} \, \Gamma \left(\frac{5+3\nu_c}{3\mu_c}\right)}{\mu_c} + A_r C^{\nu_r+1} \frac{ (B_r C^{\mu_r})^{-\frac{5+3\nu_r}{3\mu_r}} \, \Gamma \left(\frac{5+3\nu_r}{3\mu_r}\right)}{\mu_r}.
+M_r^2 = M_x^\frac{2}{3} / C^\frac{2}{3}
 \end{equation}
 ```
 

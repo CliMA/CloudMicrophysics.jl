@@ -41,11 +41,28 @@ Microphysics1M.snow_melt
 # 2-moment precipitation microphysics
 ```@docs
 Microphysics2M
-Microphysics2M.LiqRaiRates
+```
+## Size distributions
+
+### Parameters
+```@docs
 Microphysics2M.pdf_cloud_parameters
 Microphysics2M.pdf_rain_parameters
+Microphysics2M.pdf_cloud_parameters_mass
+Microphysics2M.pdf_rain_parameters_mass
+Microphysics2M.log_pdf_cloud_parameters_mass
+```
+
+### Size distributions
+```@docs
 Microphysics2M.size_distribution
-Microphysics2M.get_size_distribution_bound
+Microphysics2M.size_distribution_value
+Microphysics2M.get_size_distribution_bounds
+```
+
+## Rates
+```@docs
+Microphysics2M.LiqRaiRates
 Microphysics2M.autoconversion
 Microphysics2M.accretion
 Microphysics2M.liquid_self_collection
@@ -56,6 +73,16 @@ Microphysics2M.rain_self_collection_and_breakup
 Microphysics2M.rain_terminal_velocity
 Microphysics2M.rain_evaporation
 Microphysics2M.conv_q_liq_to_q_rai
+```
+
+## Distribution tools for 2-moment microphysics
+
+```@docs
+DistributionTools
+DistributionTools.generalized_gamma_quantile
+DistributionTools.generalized_gamma_cdf
+DistributionTools.exponential_cdf
+DistributionTools.exponential_quantile
 ```
 
 # P3 scheme
@@ -307,6 +334,8 @@ Parameters.LD2004
 Parameters.VarTimescaleAcnv
 Parameters.SB2006
 Parameters.RainParticlePDF_SB2006
+Parameters.RainParticlePDF_SB2006_limited
+Parameters.RainParticlePDF_SB2006_notlimited
 Parameters.CloudParticlePDF_SB2006
 Parameters.AcnvSB2006
 Parameters.AccrSB2006
