@@ -69,7 +69,7 @@ deposition_growth = "Deposition"
 size_distribution = "Monodisperse"
 
 # Plotting
-fig = MK.Figure(resolution = (1000, 600))
+fig = MK.Figure(size = (1000, 600))
 ax1 = MK.Axis(fig[1, 1], ylabel = "Ice Saturation [-]")
 ax2 = MK.Axis(fig[1, 2], ylabel = "ICNC [cm^-3]", yscale = log10)
 ax3 = MK.Axis(fig[1, 3], ylabel = "Temperature [K]")

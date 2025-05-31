@@ -1,17 +1,15 @@
 import CairoMakie as MK
 
 import Thermodynamics as TD
-import CloudMicrophysics as CM
-import ClimaParams as CP
 
-const CMO = CM.Common
-const CMI = CM.HomIceNucleation
-const CMP = CM.Parameters
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.HomIceNucleation as CMI
+import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
-const tps = TD.Parameters.ThermodynamicsParameters(FT)
-const H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
-const ip = CMP.IceNucleationParameters(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
+H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
+ip = CMP.IceNucleationParameters(FT)
 
 # Initializing
 T_range = range(229.0, stop = 234.5, length = 50)  # air temperature
@@ -19,15 +17,15 @@ x_sulph = Vector{FT}([0.03, 0.04, 0.06])           # wt% sulphuric acid in dropl
 
 # Solving for Δa and J values
 Δa1 = [
-    CMO.a_w_xT(H2SO4_prs, tps, x_sulph[1], T) - CMO.a_w_ice(tps, T) for
+    CO.a_w_xT(H2SO4_prs, tps, x_sulph[1], T) - CO.a_w_ice(tps, T) for
     T in T_range
 ]
 Δa2 = [
-    CMO.a_w_xT(H2SO4_prs, tps, x_sulph[2], T) - CMO.a_w_ice(tps, T) for
+    CO.a_w_xT(H2SO4_prs, tps, x_sulph[2], T) - CO.a_w_ice(tps, T) for
     T in T_range
 ]
 Δa3 = [
-    CMO.a_w_xT(H2SO4_prs, tps, x_sulph[3], T) - CMO.a_w_ice(tps, T) for
+    CO.a_w_xT(H2SO4_prs, tps, x_sulph[3], T) - CO.a_w_ice(tps, T) for
     T in T_range
 ]
 
@@ -60,7 +58,7 @@ Baum_Delta_a = [0.26, 0.27, 0.28, 0.29, 0.3, 0.32, 0.33, 0.339]
 Baum_J = [4.25e-5, 0.306, 454.09, 2.06e5, 6.31e7, 1.8e12, 4.45e14, 1.69e17]
 
 # Plotting
-fig = MK.Figure(resolution = (800, 500))
+fig = MK.Figure(size = (800, 500))
 ax1 = MK.Axis(
     fig[1, 1],
     ylabel = "log10(J) with J in SI units",

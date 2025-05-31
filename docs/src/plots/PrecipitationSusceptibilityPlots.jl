@@ -1,10 +1,11 @@
-using CairoMakie
-CairoMakie.activate!(type = "svg")
+
+import CairoMakie as MK
+MK.activate!(type = "svg")
 
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.PrecipitationSusceptibility as CMPS
 
-const FT = Float64
+FT = Float64
 
 scheme = CMP.SB2006(FT)
 
@@ -37,19 +38,16 @@ acc_rates =
         Ref(N_liq),
     )
 
-fig = Figure()
+fig = MK.Figure()
 
-ax = Axis(fig[1, 1])
+ax = MK.Axis(fig[1, 1]; xlabel = "q_rai / (q_liq + q_rai)", ylabel = "Precipitation susceptibility")
 
-ax.xlabel = "q_rai / (q_liq + q_rai)"
-ax.ylabel = "Precipitation susceptibility"
+l1 = MK.lines!(ax, τ, [r.d_ln_pp_d_ln_q_liq for r in aut_rates], color = :red)
+l2 = MK.lines!(ax, τ, [r.d_ln_pp_d_ln_q_rai for r in aut_rates], color = :brown)
+l3 = MK.lines!(ax, τ, [r.d_ln_pp_d_ln_q_liq for r in acc_rates], color = :blue)
+l4 = MK.lines!(ax, τ, [r.d_ln_pp_d_ln_q_rai for r in acc_rates], color = :green)
 
-l1 = lines!(ax, τ, [r.d_ln_pp_d_ln_q_liq for r in aut_rates], color = :red)
-l2 = lines!(ax, τ, [r.d_ln_pp_d_ln_q_rai for r in aut_rates], color = :brown)
-l3 = lines!(ax, τ, [r.d_ln_pp_d_ln_q_liq for r in acc_rates], color = :blue)
-l4 = lines!(ax, τ, [r.d_ln_pp_d_ln_q_rai for r in acc_rates], color = :green)
-
-Legend(
+MK.Legend(
     fig[1, 2],
     [l1, l2, l3, l4],
     [
@@ -60,4 +58,4 @@ Legend(
     ],
 )
 
-save("Glassmeier-Lohmann_Fig2.svg", fig)
+MK.save("Glassmeier-Lohmann_Fig2.svg", fig)

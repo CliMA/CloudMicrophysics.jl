@@ -1,7 +1,6 @@
 import Plots as PL
-using Measures
+import Plots.Measures.mm
 
-import ClimaParams as CP
 import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Parameters as CMP
 

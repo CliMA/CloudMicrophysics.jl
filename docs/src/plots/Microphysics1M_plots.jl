@@ -1,26 +1,21 @@
-import Plots
+import Plots as PL
 
-import Thermodynamics
-import CloudMicrophysics
-import ClimaParams
-import CloudMicrophysics.Common as CO
+import Thermodynamics as TD
 
-const PL = Plots
-const CM1 = CloudMicrophysics.Microphysics1M
-const TD = Thermodynamics
-const CMP = CloudMicrophysics.Parameters
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
 
-const tps = Thermodynamics.Parameters.ThermodynamicsParameters(FT)
-const aps = CMP.AirProperties(FT)
-const liquid = CMP.CloudLiquid(FT)
-const ice = CMP.CloudIce(FT)
-const rain = CMP.Rain(FT)
-const snow = CMP.Snow(FT)
-const Chen2022 = CMP.Chen2022VelType(FT)
-const Blk1MVel = CMP.Blk1MVelType(FT)
-const ce = CMP.CollisionEff(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
+aps = CMP.AirProperties(FT)
+liquid = CMP.CloudLiquid(FT)
+ice = CMP.CloudIce(FT)
+rain = CMP.Rain(FT)
+snow = CMP.Snow(FT)
+Chen2022 = CMP.Chen2022VelType(FT)
+Blk1MVel = CMP.Blk1MVelType(FT)
+ce = CMP.CollisionEff(FT)
 
 # eq. 5b in [Grabowski1996](@cite)
 function accretion_empirical(q_rai::DT, q_liq::DT, q_tot::DT) where {DT <: Real}

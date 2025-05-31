@@ -1,19 +1,15 @@
-import Plots
 
-import CloudMicrophysics
-import ClimaParams
-import Thermodynamics
+import Plots as PL
 
-const PL = Plots
-const AM = CloudMicrophysics.AerosolModel
-const AA = CloudMicrophysics.AerosolActivation
-const CP = ClimaParams
-const CMP = CloudMicrophysics.Parameters
-const TD = Thermodynamics
+import Thermodynamics as TD
+
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics.Parameters as CMP
+
 
 FT = Float64
-
-tps = Thermodynamics.Parameters.ThermodynamicsParameters(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
 aip = CMP.AirProperties(FT)
 ap = CMP.AerosolActivationParameters(FT)
 

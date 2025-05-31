@@ -1,10 +1,9 @@
-using CairoMakie
-import CloudMicrophysics as CM
-import ClimaParams as CP
+import CairoMakie as MK
+
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.P3Scheme as P3
 
-axis_theme = Theme(
+axis_theme = MK.Theme(
     Axis = (
         xscale = log10,
         xminorticksvisible = true,
@@ -19,7 +18,7 @@ axis_theme = Theme(
     VLines = (linewidth = 1.5,),
 )
 
-logocolors = Makie.Colors.JULIA_LOGO_COLORS
+logocolors = MK.Colors.JULIA_LOGO_COLORS
 cl = [logocolors.blue, logocolors.green, logocolors.red]
 
 #! format: off
@@ -31,20 +30,20 @@ function p3_relations_plot()
 	params = CMP.ParametersP3(FT)
 	
 	D_range = 10.0 .^ (-2:0.01:1.0) * 1e-3
-	fig = Figure(size=(1200, 400), figure_padding = 20)
+	fig = MK.Figure(size=(1200, 400), figure_padding = 20)
 
 	# define plot axis
-	ax1L = Axis(fig[1, 1], ylabel = L"$ϕ(D)$ [-]", title = L"Regimes for $ρ_r = 400$ kg/m³")
-	ax1R = Axis(fig[1, 2], title = L"Regimes for $F_{rim} = 0.4$")
+	ax1L = MK.Axis(fig[1, 1], ylabel = L"$ϕ(D)$ [-]", title = L"Regimes for $ρ_r = 400$ kg/m³")
+	ax1R = MK.Axis(fig[1, 2], title = L"Regimes for $F_{rim} = 0.4$")
 
-	colgap!(fig.layout, 40) # add space between columns so xticklabels don't overlap
+	MK.colgap!(fig.layout, 40) # add space between columns so xticklabels don't overlap
 
 	function lines_and_vlines!(ax, state, color)
-		lines!(ax, D_range * mm, P3.ϕᵢ.(state, D_range); color)
+		MK.lines!(ax, D_range * mm, P3.ϕᵢ.(state, D_range); color)
 
-		vlines!(ax, state.D_th * mm; linestyle = (:dot, :loose), color = :gray)
-		vlines!(ax, state.D_gr * mm; linestyle = :dash, color)
-		vlines!(ax, state.D_cr * mm; linestyle = :dashdot, color)
+		MK.vlines!(ax, state.D_th * mm; linestyle = (:dot, :loose), color = :gray)
+		MK.vlines!(ax, state.D_gr * mm; linestyle = :dash, color)
+		MK.vlines!(ax, state.D_cr * mm; linestyle = :dashdot, color)
 	end
 
 	# Make a plot for each rime fraction
@@ -65,23 +64,23 @@ function p3_relations_plot()
 		lines_and_vlines!(ax1R, state, color)
 	end
 
-	linkyaxes!(ax1R, ax1L)
+	MK.linkyaxes!(ax1R, ax1L)
 
 	# Add legend
 	leg_elems = [
-		map(color -> LineElement(;color), cl), 
-		map(linestyle -> LineElement(;linestyle, linewidth = 1.5, color = :gray), [(:dot, :loose), (:dash, :dense), (:dashdot, :dense)])
+		map(color -> MK.LineElement(;color), cl), 
+		map(linestyle -> MK.LineElement(;linestyle, linewidth = 1.5, color = :gray), [(:dot, :loose), (:dash, :dense), (:dashdot, :dense)])
 	]
 	thresh_labels = [L"$D_{th}$", L"$D_{gr}$", L"$D_{cr}$"]
 	leg_kwargs = (; orientation = :horizontal, nbanks=10, tellheight = false, tellwidth = false, margin = (10, 10, 10, 10), halign = :left, valign = :center)
-	Legend(fig[1,1], leg_elems, [Makie.latexstring.(L"F_{rim} = ", F_rims), thresh_labels], ["Rime fraction", "Thresholds"]; leg_kwargs...)
-	Legend(fig[1,2], leg_elems, [Makie.latexstring.(L"ρ_r = ", ρ_rs), thresh_labels], ["Rime density", "Thresholds"]; leg_kwargs...)
+	MK.Legend(fig[1,1], leg_elems, [MK.latexstring.(L"F_{rim} = ", F_rims), thresh_labels], ["Rime fraction", "Thresholds"]; leg_kwargs...)
+	MK.Legend(fig[1,2], leg_elems, [MK.latexstring.(L"ρ_r = ", ρ_rs), thresh_labels], ["Rime density", "Thresholds"]; leg_kwargs...)
 
-	resize_to_layout!(fig)
+	MK.resize_to_layout!(fig)
 	return fig
 end
 #! format: on
 
-fig = with_theme(p3_relations_plot, axis_theme)
-save("P3Scheme_aspect_ratio.svg", fig)
+fig = MK.with_theme(p3_relations_plot, axis_theme)
+MK.save("P3Scheme_aspect_ratio.svg", fig)
 fig

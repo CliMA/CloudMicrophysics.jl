@@ -1,12 +1,10 @@
-import Plots
-import CloudMicrophysics
-import ClimaParams
 
-const PL = Plots
-const CM1 = CloudMicrophysics.Microphysics1M
-const CM2 = CloudMicrophysics.Microphysics2M
-const CP = ClimaParams
-const CMP = CloudMicrophysics.Parameters
+import Plots as PL
+
+import ClimaParams as CP
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
 

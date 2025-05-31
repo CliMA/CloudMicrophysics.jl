@@ -1,14 +1,7 @@
+
 import CairoMakie as MK
 
-import SpecialFunctions as SF
-
-import Thermodynamics as TD
-import CloudMicrophysics as CM
-import ClimaParams as CP
-
-import Thermodynamics.Parameters as TDP
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Microphysics1M as CM1
 
 FT = Float64
@@ -45,7 +38,7 @@ n_r_2 =
 n_r_3 =
     [Marshall_Palmer_distribution(CMP.Rain(FT), qᵣ_3, ρ, r) for r in r_range]
 
-fig = MK.Figure(resolution = (1100, 600))
+fig = MK.Figure(size = (1100, 600))
 ax1 = MK.Axis(
     fig[1, 1],
     title = "Marshall-Palmer distribution",

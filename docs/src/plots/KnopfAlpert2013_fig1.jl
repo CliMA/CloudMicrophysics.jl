@@ -1,15 +1,14 @@
 import Plots as PL
 
 import Thermodynamics as TD
-import CloudMicrophysics as CM
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.HetIceNucleation as IN
 import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
-const tps = TD.Parameters.ThermodynamicsParameters(FT)
-const H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
-const kaolinite = CMP.Kaolinite(FT) # dust type
+tps = TD.Parameters.ThermodynamicsParameters(FT)
+H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
+kaolinite = CMP.Kaolinite(FT) # dust type
 
 # Initializing
 T_range = range(210, stop = 232, length = 100)  # air temperature

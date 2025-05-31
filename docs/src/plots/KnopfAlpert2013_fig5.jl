@@ -1,9 +1,7 @@
 import CairoMakie as MK
 
-import ClimaParams
 import Thermodynamics as TD
-import CloudMicrophysics as CM
-import CloudMicrophysics.Common as CMO
+import CloudMicrophysics.Common as CO
 import CloudMicrophysics.HetIceNucleation as CMI
 import CloudMicrophysics.Parameters as CMP
 
@@ -40,17 +38,17 @@ T_range = range(228.2, stop = 229.6, length = 100)  # air temperature
 T_dew = FT(228.0)               # dew point temperature
 x_sulph = FT(0)                 # sulphuric acid concentration in droplets
 a_sol = [                       # water activity of solution droplet at equilibrium
-    CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x_sulph, T_dew) /
+    CO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x_sulph, T_dew) /
     TD.saturation_vapor_pressure(tps, T, TD.Liquid()) for T in T_range
 ]
 # water activity of ice
-a_ice = [CMO.a_w_ice(tps, T) for T in T_range]
+a_ice = [CO.a_w_ice(tps, T) for T in T_range]
 
 Δa_w = @. max(abs(a_sol - a_ice), FT(0.0))
 J_ABIFM = @. CMI.ABIFM_J(illite, Δa_w) * 1e-4 # converted from SI units to cm^-2 s^-1
 
 # Plot results
-fig = MK.Figure(resolution = (800, 600))
+fig = MK.Figure(size = (800, 600))
 ax1 = MK.Axis(
     fig[1, 1],
     ylabel = "J_het [cm^-2 s^-1]",

@@ -1,16 +1,15 @@
 import Plots as PL
 
 import Thermodynamics as TD
-import CloudMicrophysics as CM
-import CloudMicrophysics.Common as CO
+
 import CloudMicrophysics.HetIceNucleation as IN
 import CloudMicrophysics.Parameters as CMP
 
 FT = Float32
-const tps = TD.Parameters.ThermodynamicsParameters(FT)
-const feldspar = CMP.Feldspar(FT)
-const ferrihydrite = CMP.Ferrihydrite(FT)
-const kaolinite = CMP.Kaolinite(FT)
+tps = TD.Parameters.ThermodynamicsParameters(FT)
+feldspar = CMP.Feldspar(FT)
+ferrihydrite = CMP.Ferrihydrite(FT)
+kaolinite = CMP.Kaolinite(FT)
 
 # Initializing
 Δa_w = range(FT(0), stop = FT(0.32), length = 50)    # difference in solution and ice water activity
