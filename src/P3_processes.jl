@@ -83,7 +83,7 @@ function ice_melt(
 
     # Integrate
     fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
-    dLdt = fac * ∫fdD(state; ∫kwargs...) do D
+    dLdt = fac * ∫fdD(dist; ∫kwargs...) do D
         ∂ice_mass_∂D(state, D) * F_v(D) * N′ice(dist, D) / D
     end
 
