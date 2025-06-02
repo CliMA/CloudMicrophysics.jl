@@ -591,29 +591,6 @@ function rain_self_collection_and_breakup(
 end
 
 """
-    rain_particle_terminal_velocity(Chen2022, ρₐ)
-
-Compute the terminal velocity of an individual rain drop as a function of its size
-(maximum dimension) following Chen 2022 velocity parametrization.
-Needed for numerical integrals in the P3 scheme.
-
-# Arguments
- - `Chen2022`: terminal velocity parameters from Chen 2022, [`CMP.Chen2022VelTypeRain`](@ref)
- - `ρₐ`: air density
-
-# Returns
- - The terminal velocity of an individual rain drop as a function
-    of its size (maximum dimension) following Chen 2022 velocity parametrization.
-    Needed for numerical integrals in the P3 scheme.
- """
-function rain_particle_terminal_velocity(Chen2022::CMP.Chen2022VelTypeRain, ρₐ)
-    (ai, bi, ci) = CO.Chen2022_vel_coeffs_B1(Chen2022, ρₐ)
-
-    v(D) = sum(@. sum(ai * D^bi * exp(-ci * D)))
-    return v
-end
-
-"""
     rain_terminal_velocity(SB2006, vel, q_rai, ρ, N_rai)
 
 Compute the raindrops terminal velocity.
@@ -655,7 +632,7 @@ function rain_terminal_velocity(
     q_rai, ρ, N_rai,
 ) where {FT}
     # coefficients from Table B1 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρ)
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρ)
     # size distribution parameter
     (; Dr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
 

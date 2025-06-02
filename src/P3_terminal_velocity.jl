@@ -21,14 +21,13 @@ function ice_particle_terminal_velocity(
 )
     function v_term(D::FT) where {FT}
         (; small_ice, large_ice) = velocity_params
+        D_cutoff = small_ice.cutoff # Diameter cutoff between small and large ice regimes
         ρᵢ = FT(916.7) # ρᵢ = p3_density(p3, D, F_rim, th) # TODO: tmp
+        v_term_small = CO.particle_terminal_velocity(small_ice, ρₐ, ρᵢ)
+        v_term_large = CO.particle_terminal_velocity(large_ice, ρₐ, ρᵢ)
         ϕ_factor = use_aspect_ratio ? cbrt(ϕᵢ(state, D)) : FT(1)
-        (ai, bi, ci) = if D <= small_ice.cutoff
-            CO.Chen2022_vel_coeffs_B2(small_ice, ρₐ, ρᵢ)
-        else
-            CO.Chen2022_vel_coeffs_B4(large_ice, ρₐ, ρᵢ)
-        end
-        ϕ_factor * sum(@. sum(ai * D^bi * exp(-ci * D)))
+        vₜ = D <= D_cutoff ? v_term_small(D) : v_term_large(D)
+        return ϕ_factor * vₜ
     end
     return v_term
 end

@@ -190,7 +190,7 @@ function terminal_velocity(
     fall_w = FT(0)
     if q > FT(0)
         # coefficients from Table B1 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρₐ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
         # size distribution parameter
         λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
         # eq 20 from Chen et al 2022
@@ -214,8 +214,7 @@ function terminal_velocity(
     # from D=125um to D=625um using B2 and D=625um to inf using B4.
     if q > FT(0)
         # coefficients from Table B4 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρₐ, ρᵢ)
-        #aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρₐ, ρᵢ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
         # size distribution parameter
         λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
 
@@ -242,7 +241,7 @@ function terminal_velocity(
     # see comments above about B2 vs B4 coefficients
     if q > FT(0)
         # coefficients from Table B4 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B4(vel, ρₐ, ρᵢ)
+        aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
         # size distribution parameter
         λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
         # Compute the mass weighted average aspect ratio ϕ_av

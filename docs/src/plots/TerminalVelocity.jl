@@ -47,59 +47,15 @@ function aspect_ratio_snow_1M_prolate(snow::CMP.Snow, D::FT) where {FT <: Real}
     return 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2)
 end
 
-"""
-    rain_terminal_velocity_individual_Chen(velo_scheme ρₐ, ρᵢ, D_r)
-
- - `velo_scheme` - structs with free parameters
- - `ρₐ` - air density
- - `ρᵢ` - apparent density of ice particles
- - `D` - particle diameter
-
-Returns the fall velocity of a raindrops or ice crystals from Chen et al 2022
-"""
-function rain_terminal_velocity_individual_Chen(
-    velo_scheme::CMP.Chen2022VelTypeRain,
-    ρₐ::FT,
-    D::FT, #in m
-) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B1(velo_scheme, ρₐ)
-
-    v = 0
-    for i in 1:3
-        v += ai[i] * D^bi[i] * exp(-D * ci[i])
-    end
-    return v
-end
-
-function ice_terminal_velocity_individual_Chen(
-    ice::CMP.CloudIce,
-    velo_scheme::CMP.Chen2022VelTypeSmallIce,
-    ρₐ::FT,
-    D::FT, #in m
-) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B2(velo_scheme, ρₐ, ice.ρᵢ)
-
-    v = 0
-    for i in 1:2
-        v += ai[i] * D^bi[i] * exp(-D * ci[i])
-    end
-    return v
-end
-
 function snow_terminal_velocity_individual_Chen(
     snow::CMP.Snow,
     velo_scheme::CMP.Chen2022VelTypeLargeIce,
     ρₐ::FT,
     D::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
+    vₜ = CMO.particle_terminal_velocity(velo_scheme, ρₐ, snow.ρᵢ)
     (; ϕ, κ) = snow.aspr
-
-    v = 0
-    for i in 1:2
-        v += ai[i] * D^bi[i] * exp(-D * ci[i])
-    end
-    v_term = ϕ^κ * v
+    v_term = ϕ^κ * vₜ(D)
     return max(FT(0), v_term)
 end
 function snow_terminal_velocity_individual_Chen_oblate(
@@ -108,15 +64,9 @@ function snow_terminal_velocity_individual_Chen_oblate(
     ρₐ::FT,
     D_r::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
-
+    vₜ = CMO.particle_terminal_velocity(velo_scheme, ρₐ, snow.ρᵢ)
     ϕ = aspect_ratio_snow_1M_oblate(snow, D_r)
-
-    v = 0
-    for i in 1:2
-        v += ai[i] * (D_r)^(bi[i]) * exp(-D_r * ci[i])
-    end
-    v_term = ϕ^(1 / 3) * v
+    v_term = ϕ^(1 // 3) * vₜ(D_r)
     return max(FT(0), v_term)
 end
 function snow_terminal_velocity_individual_Chen_prolate(
@@ -125,15 +75,9 @@ function snow_terminal_velocity_individual_Chen_prolate(
     ρₐ::FT,
     D_r::FT, #in m
 ) where {FT <: Real}
-    ai, bi, ci = CMO.Chen2022_vel_coeffs_B4(velo_scheme, ρₐ, snow.ρᵢ)
-
+    vₜ = CMO.particle_terminal_velocity(velo_scheme, ρₐ, snow.ρᵢ)
     ϕ = aspect_ratio_snow_1M_prolate(snow, D_r)
-
-    v = 0
-    for i in 1:2
-        v += ai[i] * (D_r)^(bi[i]) * exp(-D_r * ci[i])
-    end
-    v_term = ϕ^(-1 / 6) * v
+    v_term = ϕ^(-1 // 6) * vₜ(D_r)
     return max(FT(0), v_term)
 end
 
@@ -181,12 +125,14 @@ q_range = range(0, stop = 5 * 1e-3, length = 100)
 
 #! format: off
 # velocity values for cloud particle sizes
+v_term_rain = CMO.particle_terminal_velocity(Chen2022.rain, ρ_air)
+v_term_small_ice = CMO.particle_terminal_velocity(Chen2022.small_ice, ρ_air, ice.ρᵢ)
 SB_rain_small = [rain_terminal_velocity_individual_SB(SB2006Vel, ρ_air, D_r)                 for D_r in D_r_range_small]
 M1_rain_small = [terminal_velocity_individual_1M(Blk1MVel.rain, ρ_air, D_r)                  for D_r in D_r_range_small]
 M1_snow_small = [terminal_velocity_individual_1M(Blk1MVel.snow, ρ_air, D_r)                  for D_r in D_r_range_small]
-Ch_liq_small =  [rain_terminal_velocity_individual_Chen(Chen2022.rain, ρ_air, D_r)           for D_r in D_r_range_small]
-Ch_ice_small =  [ice_terminal_velocity_individual_Chen(ice, Chen2022.small_ice, ρ_air, D_r)        for D_r in D_r_range_small]
-Ch_rain_small = [rain_terminal_velocity_individual_Chen(Chen2022.rain, ρ_air, D_r)           for D_r in D_r_range_small]
+Ch_liq_small = v_term_rain.(D_r_range_small)
+Ch_ice_small = v_term_small_ice.(D_r_range_small)
+Ch_rain_small = v_term_rain.(D_r_range_small)
 Ch_snow_small = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range_small]
 Ch_snow_small_oblate = [snow_terminal_velocity_individual_Chen_oblate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range_small]
 Ch_snow_small_prolate = [snow_terminal_velocity_individual_Chen_prolate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range_small]
@@ -194,9 +140,9 @@ Ch_snow_small_prolate = [snow_terminal_velocity_individual_Chen_prolate(snow, Ch
 SB_rain = [rain_terminal_velocity_individual_SB(SB2006Vel, ρ_air, D_r)                 for D_r in D_r_range]
 M1_rain = [terminal_velocity_individual_1M(Blk1MVel.rain, ρ_air, D_r)                  for D_r in D_r_range]
 M1_snow = [terminal_velocity_individual_1M(Blk1MVel.snow, ρ_air, D_r)                  for D_r in D_r_range]
-Ch_liq =  [rain_terminal_velocity_individual_Chen(Chen2022.rain, ρ_air, D_r)           for D_r in D_r_range]
-Ch_ice =  [ice_terminal_velocity_individual_Chen(ice, Chen2022.small_ice, ρ_air, D_r)        for D_r in D_r_range]
-Ch_rain = [rain_terminal_velocity_individual_Chen(Chen2022.rain, ρ_air, D_r)           for D_r in D_r_range]
+Ch_liq = v_term_rain.(D_r_range)
+Ch_ice = v_term_small_ice.(D_r_range)
+Ch_rain = v_term_rain.(D_r_range)
 Ch_snow = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range]
 Ch_snow_oblate  = [snow_terminal_velocity_individual_Chen_oblate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range]
 Ch_snow_prolate = [snow_terminal_velocity_individual_Chen_prolate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range]

@@ -264,11 +264,9 @@ Common.H2SO4_soln_saturation_vapor_pressure
 Common.a_w_xT
 Common.a_w_eT
 Common.a_w_ice
+Common.Chen2022_vel_coeffs
 Common.Chen2022_monodisperse_pdf
 Common.Chen2022_exponential_pdf
-Common.Chen2022_vel_coeffs_B1
-Common.Chen2022_vel_coeffs_B2
-Common.Chen2022_vel_coeffs_B4
 Common.volume_sphere_D
 Common.volume_sphere_R
 Common.ventilation_factor

@@ -16,11 +16,9 @@ export H2SO4_soln_saturation_vapor_pressure
 export a_w_xT
 export a_w_eT
 export a_w_ice
+export Chen2022_vel_coeffs
 export Chen2022_monodisperse_pdf
 export Chen2022_exponential_pdf
-export Chen2022_vel_coeffs_B1
-export Chen2022_vel_coeffs_B2
-export Chen2022_vel_coeffs_B4
 export ventilation_factor
 
 """
@@ -209,17 +207,23 @@ function a_w_ice(tps::TPS, T::FT) where {FT}
 end
 
 """
-    Chen2022_vel_coeffs_B1(coeffs, ρₐ)
+    Chen2022_vel_coeffs(coeffs, ρₐ)
+    Chen2022_vel_coeffs(coeffs, ρₐ, ρᵢ)
 
-Returns the coefficients from Table B1 Appendix B in Chen et al 2022
+Compute the coefficients for the Chen 2022 terminal velocity parametrization.
 
 # Arguments
  - `coeffs`: a struct with terminal velocity free parameters
+    - [`CMP.Chen2022VelTypeRain`](@ref): Fetch from Table B1
+    - [`CMP.Chen2022VelTypeSmallIce`](@ref): Fetch from Table B2
+    - [`CMP.Chen2022VelTypeLargeIce`](@ref): Fetch from Table B4
  - `ρₐ`: air density [kg/m³]
+ - `ρᵢ`: apparent density of ice particles [kg/m³],
+    only used for [`CMP.Chen2022VelTypeSmallIce`](@ref) and [`CMP.Chen2022VelTypeLargeIce`](@ref)
 
-DOI: 10.1016/j.atmosres.2022.106171
+See [Chen2022](@cite) for more details.
 """
-function Chen2022_vel_coeffs_B1(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
+function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
     (; ρ0, a, a3_pow, b, b_ρ, c) = coeffs
     # Table B1
     q = exp(ρ0 * ρₐ)
@@ -231,24 +235,8 @@ function Chen2022_vel_coeffs_B1(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
     ciu = ci .* 1000
     return (aiu, bi, ciu)
 end
-
-"""
-    Chen2022_vel_coeffs_B2(coeffs, ρₐ, ρᵢ)
-
-Returns the coefficients from Table B2 Appendix B in Chen et al 2022
-
-# Arguments
- - `coeffs`: a struct with terminal velocity free parameters
- - `ρₐ`: air density [kg/m³]
- - `ρᵢ`: apparent density of ice particles [kg/m³]
-
-DOI: 10.1016/j.atmosres.2022.106171
-"""
-function Chen2022_vel_coeffs_B2(
-    coeffs::CMP.Chen2022VelTypeSmallIce,
-    ρₐ::FT,
-    ρᵢ::FT,
-) where {FT}
+function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeSmallIce, ρₐ, ρᵢ)
+    FT = eltype(coeffs)
     (; A, B, C, E, F, G) = coeffs
     # Table B3
     log_ρᵢ = log(ρᵢ)
@@ -267,24 +255,8 @@ function Chen2022_vel_coeffs_B2(
     ciu = ci .* 1000
     return (aiu, bi, ciu)
 end
-
-"""
-    Chen2022_vel_coeffs_B4(coeffs, ρₐ, ρᵢ)
-
-Returns the coefficients from Table B4 Appendix B in Chen et al 2022
-
-# Arguments
- - `coeffs`: a struct with terminal velocity free parameters
- - `ρₐ`: air density [kg/m³]
- - `ρᵢ`: apparent density of ice particles [kg/m³]
-
-DOI: 10.1016/j.atmosres.2022.106171
-"""
-function Chen2022_vel_coeffs_B4(
-    coeffs::CMP.Chen2022VelTypeLargeIce,
-    ρₐ::FT,
-    ρᵢ::FT,
-) where {FT}
+function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
+    FT = eltype(coeffs)
     (; A, B, C, E, F, G, H) = coeffs
     # Table B5
     log_ρᵢ = log(ρᵢ)
@@ -306,17 +278,16 @@ function Chen2022_vel_coeffs_B4(
 end
 
 """
-    Chen2022_monodisperse_pdf(a, b, c, D)
+    Chen2022_monodisperse_pdf(a, b, c)
 
- - a, b, c, - free parameters defined in Chen etl al 2022
- - D - droplet diameter
+# Arguments
+ - `a`, `b`, `c`: free parameters defined in [Chen2022](@cite)
 
-Returns the addends of the bulk fall speed of rain or ice particles
-following Chen et al 2022 DOI: 10.1016/j.atmosres.2022.106171 in [m/s].
-Assuming monodisperse droplet distribution.
+# Returns
+ - `pdf(D)`: The monodisperse particle distribution function as a function of diameter, `D`, in [m/s].
 """
-function Chen2022_monodisperse_pdf(a, b, c, D)
-    return a * D^b * exp(-c * D)
+function Chen2022_monodisperse_pdf(a, b, c)
+    return pdf(D) = a * D^b * exp(-c * D)
 end
 
 """
@@ -335,6 +306,34 @@ function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where
     δ = FT(μ + k + 1)
     return a * exp(δ * log(1 / λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / SF.gamma(δ)
 end
+
+"""
+    particle_terminal_velocity(velocity_params, ρₐ)
+    particle_terminal_velocity(velocity_params, ρₐ, ρᵢ)
+
+Return a function `v_term(D)` that computes the particle terminal velocity
+
+# Arguments
+- `velocity_params`: a struct with terminal velocity parameters from Chen 2022
+- `ρₐ`: air density [kg/m³]
+- `ρᵢ`: apparent density of ice particles [kg/m³],
+    only used for [`CMP.Chen2022VelTypeSmallIce`](@ref) and [`CMP.Chen2022VelTypeLargeIce`](@ref)
+
+# Returns
+- `v_term(D)`: The terminal velocity of a particle as a function of its size (diameter, `D`)
+    
+Needed for numerical integrals in the P3 scheme.
+
+!!! note
+    We use the same terminal velocity parametrization for cloud and rain water.
+"""
+function particle_terminal_velocity(velocity_params::CMP.TerminalVelocityType, ρs...)
+    (ai, bi, ci) = Chen2022_vel_coeffs(velocity_params, ρs...)
+    v_terms = Chen2022_monodisperse_pdf.(ai, bi, ci)  # tuple of functions
+    v_term(D) = sum(@. D |> v_terms)
+    return v_term
+end
+
 
 """
     volume_sphere_D(D)
