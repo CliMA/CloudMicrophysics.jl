@@ -151,7 +151,7 @@ function terminal_velocity(
         # for D > 100mm. We should look for a different parameterization
         # that is more suited for cloud droplets. For now I'm just multiplying
         # by an arbitrary correction factor.
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρₐ)
+        v_term = CO.particle_terminal_velocity(vel, ρₐ)
         # The 1M scheme does not assume any cloud droplet size distribution.
         # TODO - For now I compute a mean volume radius assuming a fixed value
         # for the total number concentration of droplets.
@@ -159,8 +159,7 @@ function terminal_velocity(
         D = cbrt(ρₐ * q / N / ρw)
         corr = FT(0.1)
         # assuming ϕ = 1 (spherical)
-        fall_w = sum(CO.Chen2022_monodisperse_pdf.(aiu, bi, ciu, D))
-        fall_w = max(FT(0), corr * fall_w)
+        fall_w = max(FT(0), corr * v_term(D))
     end
     return fall_w
 end
@@ -172,14 +171,12 @@ function terminal_velocity(
 ) where {FT}
     fall_w = FT(0)
     if q > FT(0)
-        # Coefficients from Table B2 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs_B2(vel, ρₐ, ρᵢ)
+        v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
         # See the comment for liquid droplets above
         N = FT(500 * 1e6)
         D = cbrt(ρₐ * q / N / ρᵢ)
         # assuming ϕ = 1 (spherical)
-        fall_w = sum(CO.Chen2022_monodisperse_pdf.(aiu, bi, ciu, D))
-        fall_w = max(FT(0), fall_w)
+        fall_w = max(FT(0), v_term(D))
     end
     return fall_w
 end

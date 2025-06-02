@@ -142,7 +142,7 @@ See Table B3 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: ParametersType{FT}
+Base.@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: TerminalVelocityType{FT}
     A::NTuple{N, FT}
     B::NTuple{N, FT}
     C::NTuple{M, FT}
@@ -180,7 +180,7 @@ See Table B4 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeLargeIce{FT, N} <: ParametersType{FT}
+Base.@kwdef struct Chen2022VelTypeLargeIce{FT, N} <: TerminalVelocityType{FT}
     A::NTuple{N, FT}
     B::NTuple{N, FT}
     C::NTuple{N, FT}
@@ -221,7 +221,7 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeRain{FT, N} <: ParametersType{FT}
+Base.@kwdef struct Chen2022VelTypeRain{FT, N} <: TerminalVelocityType{FT}
     ρ0::FT
     a::NTuple{N, FT}
     a3_pow::FT
@@ -259,7 +259,7 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Chen2022VelType{FT, R, SI, LI} <: TerminalVelocityType{FT}
+struct Chen2022VelType{FT, R, SI, LI}
     rain::R
     small_ice::SI
     large_ice::LI

@@ -237,7 +237,7 @@ function test_particle_terminal_velocities(FT)
     @testset "Smoke tests for cloud/rain particle terminal vel from Chen 2022" begin
         Ds = range(FT(1e-6), stop = FT(1e-5), length = 5)  # TODO: Add tests for larger sizes
         expected = [0.002508, 0.009156, 0.01632, 0.02377, 0.03144]
-        v_term = CO.liquid_particle_terminal_velocity(Chen2022.rain, ρ_a)
+        v_term = CO.particle_terminal_velocity(Chen2022.rain, ρ_a)
         for i in axes(Ds, 1)
             vel = v_term(Ds[i])
             @test vel >= 0

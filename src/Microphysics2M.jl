@@ -632,7 +632,7 @@ function rain_terminal_velocity(
     q_rai, ρ, N_rai,
 ) where {FT}
     # coefficients from Table B1 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs_B1(vel, ρ)
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρ)
     # size distribution parameter
     (; Dr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
 
