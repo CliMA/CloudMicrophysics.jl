@@ -255,9 +255,11 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
     (; tps, liquid, dt) = params
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    qₜ = qᵥ + qₗ + qᵢ
 
-    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ_air, T)
+    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₜ, qₗ, qᵢ, ρ_air, T)
+
+    return cond_rate
 
     # using same limiter as ClimaAtmos for now
     return ifelse(
@@ -311,9 +313,9 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
 
     (; tps, ice, dt) = params
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    qₜ = qᵥ + qₗ + qᵢ
 
-    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ_air, T)
+    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, ρ_air, T)
 
     # using same limiter as ClimaAtmos for now
     return ifelse(
