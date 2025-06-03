@@ -76,18 +76,20 @@ The formulation is based on Morrison and Grabowski 2008 and
 Morrison and Milbrandt 2015
 """
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudLiquid,
+    (; τ_relax)::CMP.CloudLiquid{FT},
     tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition,
+    qₜ,
+    qₗ,
+    qᵢ,
     ρ,
     T,
 )
     FT = eltype(tps)
-    if TD.vapor_specific_humidity(q) + TD.liquid_specific_humidity(q) > FT(0)
+    qᵥ = qₜ - qₗ - qᵢ
+    if qᵥ + qₗ > FT(0) # this forces cp_air to be positive. do we want that?
         Rᵥ = TD.Parameters.R_v(tps)
-        cₚ_air = TD.cp_m(tps, q)
+        cₚ_air = TD.cp_m(tps, qₜ, qₗ, qᵢ)
         Lᵥ = TD.latent_heat_vapor(tps, T)
-        qᵥ = TD.vapor_specific_humidity(q)
 
         pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
         qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
@@ -101,18 +103,38 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     end
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudIce,
+    (; τ_relax)::CMP.CloudLiquid{FT},
     tps::TDP.ThermodynamicsParameters,
     q::TD.PhasePartition,
     ρ,
     T,
 )
+
+    override_file = Dict(
+        "condensation_evaporation_timescale" =>
+            Dict("value" => τ, "type" => "float"),
+    )
+    liquid_toml_dict = CP.create_toml_dict(FT; override_file)
+    liquid = CMP.CloudLiquid(liquid_toml_dict)
+
+    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q.tot, q.liq, q.ice, ρ, T)
+
+end
+function conv_q_vap_to_q_liq_ice_MM2015(
+    (; τ_relax)::CMP.CloudIce{FT},
+    tps::TDP.ThermodynamicsParameters,
+    qₜ,
+    qₗ,
+    qᵢ,
+    ρ,
+    T,
+)
     FT = eltype(tps)
-    if TD.vapor_specific_humidity(q) + TD.ice_specific_humidity(q) > FT(0)
+    qᵥ = qₜ - qₗ - qᵢ
+    if qᵥ + qᵢ > FT(0)
         Rᵥ = TD.Parameters.R_v(tps)
-        cₚ_air = TD.cp_m(tps, q)
+        cₚ_air = TD.cp_m(tps, qₜ, qₗ, qᵢ)
         Lₛ = TD.latent_heat_sublim(tps, T)
-        qᵥ = TD.vapor_specific_humidity(q)
 
         pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
         qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
