@@ -14,11 +14,11 @@ function test_p3_state_creation(FT)
         params = CMP.ParametersP3(FT)
 
         # Test unrimed state
-        state_unrimed = P3.get_state(params; F_rim = FT(0.0), ρ_r = FT(400))
+        state_unrimed = P3.get_state(params; F_rim = FT(0.0), ρ_rim = FT(400))
         @test P3.isunrimed(state_unrimed)
 
         # Test rimed state
-        state_rimed = P3.get_state(params; F_rim = FT(0.5), ρ_r = FT(400))
+        state_rimed = P3.get_state(params; F_rim = FT(0.5), ρ_rim = FT(400))
         @test !P3.isunrimed(state_rimed)
 
         # Test thresholds for unrimed state
@@ -34,17 +34,17 @@ function test_p3_state_creation(FT)
         @test_throws AssertionError P3.get_state(
             params;
             F_rim = FT(-0.1),
-            ρ_r = FT(400),
+            ρ_rim = FT(400),
         )
         @test_throws AssertionError P3.get_state(
             params;
             F_rim = FT(1),
-            ρ_r = FT(400),
+            ρ_rim = FT(400),
         )
         @test_throws AssertionError P3.get_state(
             params;
             F_rim = FT(0.5),
-            ρ_r = FT(-400),
+            ρ_rim = FT(-400),
         )
     end
 end
@@ -56,24 +56,24 @@ function test_thresholds_solver(FT)
     @testset "Thresholds - nonlinear solver" begin
 
         # initialize test values:
-        ρ_r = FT(400)
+        ρ_rim = FT(400)
         F_rim = FT(0.8)
-        ρ_r_good = (FT(200), FT(400), FT(800)) # representative ρ_r values
+        ρ_rim_good = (FT(200), FT(400), FT(800)) # representative ρ_rim values
         F_rim_good = (FT(0.5), FT(0.8), FT(0.95)) # representative F_rim values
 
         # test asserts
         for _ρ_r in (FT(0), FT(-1), params.ρ_l + 1)
-            @test_throws AssertionError("0 < ρ_r <= ρ_l") P3.get_state(
+            @test_throws AssertionError("0 < ρ_rim <= ρ_l") P3.get_state(
                 params;
                 F_rim,
-                ρ_r = _ρ_r,
+                ρ_rim = _ρ_r,
             )
         end
 
         for _F_rim in (FT(-eps(FT)), FT(-1), FT(1), FT(1.5))
             @test_throws AssertionError(
                 "Rime mass fraction, `F_rim`, must be between 0 and 1",
-            ) P3.get_state(params; F_rim = _F_rim, ρ_r)
+            ) P3.get_state(params; F_rim = _F_rim, ρ_rim)
         end
 
         # Test if the P3 scheme solution satisifies the conditions
@@ -86,53 +86,48 @@ function test_thresholds_solver(FT)
             return num / den
         end
 
+        (; mass, ρ_i) = params
         for F_rim in F_rim_good
-            for ρ_r in ρ_r_good
-                state = P3.get_state(params; F_rim, ρ_r)
-
-                ρ_d = P3.get_ρ_d(params.mass, F_rim, ρ_r)
-                @test get_ρ_d_paper(
-                    params.mass;
-                    D_cr = state.D_cr,
-                    D_gr = state.D_gr,
-                ) ≈ ρ_d
-                @test P3.get_ρ_g(ρ_r, F_rim, ρ_d) ≈ state.ρ_g
-                @test P3.get_D_cr(params.mass, state.ρ_g, F_rim) ≈ state.D_cr
-                @test P3.get_D_gr(params.mass, state.ρ_g) ≈ state.D_gr
+            for ρ_rim in ρ_rim_good
+                ρ_d = P3.get_ρ_d(mass, F_rim, ρ_rim)
+                ρ_g = P3.get_ρ_g(F_rim, ρ_rim, ρ_d)
+                D_th = P3.get_D_th(mass, ρ_i)
+                D_gr = P3.get_D_gr(mass, ρ_g)
+                D_cr = P3.get_D_cr(mass, ρ_g, F_rim)
+                @test D_th < D_gr < D_cr
+                @test get_ρ_d_paper(mass; D_cr, D_gr) ≈ ρ_d
             end
         end
 
         # Check that the P3 scheme solution matches the published values
-        function diff(ρ_r, F_rim, el, gold, rtol = 2e-2)
-            state = P3.get_state(params; F_rim, ρ_r)
-            @test getfield(state, el) * 1e3 ≈ gold rtol = rtol
-        end
         # D_cr and D_gr vs Fig. 1a Morrison and Milbrandt 2015
-        D_cr_fig_1a_ref = [FT(0.4946323381999426), FT(1.0170979628696817)]
-        D_gr_fig_1a_ref = [FT(0.26151186272014415), FT(0.23392868352755775)]
-        for val in [1, 2]
-            diff(ρ_r_good[2], F_rim_good[val], :D_cr, D_cr_fig_1a_ref[val])
-            diff(ρ_r_good[2], F_rim_good[val], :D_gr, D_gr_fig_1a_ref[val])
+        D_cr_fig_1a_ref = FT[0.4946323381999426, 1.0170979628696817]
+        D_gr_fig_1a_ref = FT[0.26151186272014415, 0.23392868352755775]
+        for i in 1:2
+            D_cr = P3.get_D_cr(mass, F_rim, ρ_rim_good[2])
+            D_gr = P3.get_D_gr(mass, ρ_g)
+            @test 1000 * D_cr ≈ D_cr_fig_1a_ref[i] rtol = 2e-2
+            @test 1000 * D_gr ≈ D_gr_fig_1a_ref[i] rtol = 2e-2
         end
         # D_cr and D_gr vs Fig. 1b Morrison and Milbrandt 2015
-        #! format: off
-        D_cr_fig_1b_ref = [FT(6.152144691917768), FT(3.2718818175768405), FT(1.7400778369620664)]
-        D_gr_fig_1b_ref = [FT(0.39875043123651077), FT(0.2147085163169669), FT(0.11516682512848)]
-        #! format: on
-        for val in [1, 2, 3]
-            # TODO: fix this. Where do the reference values come from? They are close to one digit only.
-            # diff(ρ_r_good[val], F_rim_good[3], :D_cr, D_cr_fig_1b_ref[val])
-            # diff(ρ_r_good[val], F_rim_good[3], :D_gr, D_gr_fig_1b_ref[val])
-        end
+        # D_cr_fig_1b_ref = FT[6.152144691917768, 3.2718818175768405, 1.7400778369620664]
+        # D_gr_fig_1b_ref = FT[0.39875043123651077, 0.2147085163169669, 0.11516682512848]
+        # for val in 1:3
+        #     # TODO: fix this. Where do the reference values come from? They are close to one digit only.
+        #     D_cr = P3.get_D_cr(mass, F_rim_good[3], ρ_rim_good[val])
+        #     D_gr = P3.get_D_gr(mass, ρ_g)
+        #     @test 1000 * D_cr ≈ D_cr_fig_1b_ref[val] rtol = 2e-2
+        #     @test 1000 * D_gr ≈ D_gr_fig_1b_ref[val] rtol = 2e-2
+        # end
     end
 
     @testset "Thresholds - mass, area, density, aspect ratio" begin
         # values
-        ρ_r = FT(500)
+        ρ_rim = FT(500)
         F_rim = FT(0.5)
 
         # get thresholds
-        state = P3.get_state(params; F_rim, ρ_r)
+        state = P3.get_state(params; F_rim, ρ_rim)
         (; D_th, D_gr, D_cr) = state
 
         # define in between values
@@ -167,7 +162,7 @@ function test_thresholds_solver(FT)
         @test P3.ϕᵢ(state, D_cr) ≈ 1
 
         # test F_rim = 0 and D > D_th
-        state = P3.get_state(params; F_rim = FT(0), ρ_r)
+        state = P3.get_state(params; F_rim = FT(0), ρ_rim)
         @test P3.ice_area(state, D_2) == P3.area_nonspherical(params.area, D_2)
         @test P3.ice_mass(state, D_2) == P3.mass_nonspherical(params.mass, D_2)
 
@@ -187,7 +182,7 @@ function test_shape_solver(FT)
             ep = 1 #1e4 * eps(FT)
             N_test = (FT(1e7), FT(1e8), FT(1e9), FT(1e10))                         # N values
             λ_test = (FT(1e1), FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))        # test λ values in range also do 15000, 20000
-            ρ_r_test = (FT(200), FT(400), FT(600), FT(800))                        # representative ρ_r values
+            ρ_r_test = (FT(200), FT(400), FT(600), FT(800))                        # representative ρ_rim values
             F_rim_test = (FT(0), FT(0.5), FT(0.8), FT(0.95))                       # representative F_rim values
 
             # TODO: Add tests for F_liq != 0
@@ -196,20 +191,20 @@ function test_shape_solver(FT)
             # check that the shape solution solves to give correct values
             for N in N_test
                 for λ_ex in λ_test
-                    for ρ_r in ρ_r_test
+                    for ρ_rim in ρ_r_test
                         for F_rim in F_rim_test
                             # for F_liq in F_liq_test
 
-                            state = P3.get_state(params; F_rim, ρ_r)
+                            state = P3.get_state(params; F_rim, ρ_rim)
                             # Compute the shape parameters that correspond to the input test values
                             logλ_ex = log(λ_ex)
-                            logN₀_ex = P3.get_log_N₀(state; N, log_λ = logλ_ex)
+                            logN₀_ex = P3.get_logN₀(state; N, logλ = logλ_ex)
                             # Compute mass density based on input shape parameters
-                            L_calc = exp(log(N) + P3.log_L_div_N(state, logλ_ex))
+                            L_calc = exp(log(N) + P3.logLdN(state, logλ_ex))
 
                             if L_calc < FT(1)
                                 # Solve for shape parameters
-                                (; log_λ, log_N₀) =
+                                (; logλ, log_N₀) =
                                     P3.get_distribution_parameters(
                                         state;
                                         L = L_calc,
@@ -217,7 +212,7 @@ function test_shape_solver(FT)
                                     )
 
                                 # Compare solved values with the input expected values
-                                @test log_λ ≈ logλ_ex rtol = ep
+                                @test logλ ≈ logλ_ex rtol = ep
                                 @test log_N₀ ≈ logN₀_ex rtol = ep
                             end
                         end
@@ -247,8 +242,8 @@ function test_particle_terminal_velocities(FT)
 
     @testset "Smoke tests for ice particle terminal vel from Chen 2022" begin
         F_rim = FT(0.5)
-        ρ_r = FT(500)
-        state = P3.get_state(params; F_rim, ρ_r)
+        ρ_rim = FT(500)
+        state = P3.get_state(params; F_rim, ρ_rim)
         use_aspect_ratio = false
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
@@ -277,8 +272,8 @@ function test_particle_terminal_velocities(FT)
     @testset "Smoke tests for mixed phase particle terminal velocity" begin
         F_rim = FT(0.5)
         F_liq = FT(0.5)  # TODO: Broken test since it assumes `F_liq != 0`
-        ρ_r = FT(500)
-        state = P3.get_state(params; F_rim, ρ_r)
+        ρ_rim = FT(500)
+        state = P3.get_state(params; F_rim, ρ_rim)
         use_aspect_ratio = true
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
@@ -310,7 +305,7 @@ function test_bulk_terminal_velocities(FT)
     L = FT(0.22)
     N = FT(1e6)
     ρ_a = FT(1.2)
-    ρ_r = FT(800)
+    ρ_rim = FT(800)
     F_rims = FT[0, 0.6]
 
     # TODO: Implement `F_liq != 0`. The tests break below since they expect `F_liq != 0`
@@ -329,7 +324,7 @@ function test_bulk_terminal_velocities(FT)
         ref_v_m_ϕ = [7.7881075425985085, 5.797674122909204]
 
         for (k, F_rim) in enumerate(F_rims)
-            state = P3.get_state(params; F_rim, ρ_r)
+            state = P3.get_state(params; F_rim, ρ_rim)
             dist = P3.get_distribution_parameters(state; L, N)
             vel_n, vel_m = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = false, accurate = true)
             vel_n_ϕ, vel_m_ϕ = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = true, accurate = true)
@@ -364,9 +359,9 @@ function test_bulk_terminal_velocities(FT)
         #     F_liq = F_liqs[k]
         #     F_rim = FT(0.4)
         #     vel =
-        #         P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_rim, F_liq, ρ_a, false)
+        #         P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_rim, F_rim, F_liq, ρ_a, false)
         #     vel_ϕ =
-        #         P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_r, F_rim, F_liq, ρ_a, true)
+        #         P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_rim, F_rim, F_liq, ρ_a, true)
         #     # number weighted
         #     @test vel[1] > 0
         #     @test vel_ϕ[1] > 0
@@ -387,7 +382,7 @@ function test_bulk_terminal_velocities(FT)
     @testset "Mass-weighted mean diameters" begin
         ref_vals = [0.005397144197921535, 0.0033368960364578005]
         for (F_rim, ref_val) in zip(F_rims, ref_vals)
-            state = P3.get_state(params; F_rim, ρ_r)
+            state = P3.get_state(params; F_rim, ρ_rim)
             dist = P3.get_distribution_parameters(state; L, N)
             Dₘ = P3.D_m(dist)
             @test Dₘ > 0
@@ -400,7 +395,7 @@ function test_bulk_terminal_velocities(FT)
         # F_liqs = [FT(0.33), FT(1)]
         # ref_vals = [FT(0.0021371920600012184), FT(0.0016487352655895715)]
         # for i in eachindex(F_liqs)
-        #     Dₘ = P3.D_m(p3, L, N, ρ_r, F_rim, F_liqs[i])
+        #     Dₘ = P3.D_m(p3, L, N, ρ_rim, F_rim, F_liqs[i])
         #     @test Dₘ ≈ ref_vals[i]
         # end
     end
@@ -412,7 +407,7 @@ function test_numerical_integrals(FT)
 
     N = FT(1e8)
     Ls = range(FT(0.001), stop = FT(0.005), length = 5)
-    ρ_r = FT(500)
+    ρ_rim = FT(500)
     F_rims = FT[0, 0.5]
     ρ_a = FT(1.2)
     use_aspect_ratio = false
@@ -422,7 +417,7 @@ function test_numerical_integrals(FT)
         for (F_rim, L, p) in Iterators.product(F_rims, Ls, ps)
 
             # Get shape parameters, thresholds and intergal bounds
-            state = P3.get_state(params; F_rim, ρ_r)
+            state = P3.get_state(params; F_rim, ρ_rim)
             dist = P3.get_distribution_parameters(state; L, N)
 
             # Number concentration comparison
@@ -439,7 +434,7 @@ function test_numerical_integrals(FT)
             vel_N, vel_m = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio, p)
 
             v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
-            g(D) = v_term(D) * exp(P3.log_N′ice(dist, D))
+            g(D) = v_term(D) * exp(P3.logN′ice(dist, D))
             vel_N_estim = P3.∫fdD(g, dist; p) / N
             vel_m_estim = P3.∫fdD(dist; p) do D
                 g(D) * P3.ice_mass(state, D) / L
@@ -510,7 +505,7 @@ function test_p3_melting(FT)
         ρ_rim = FT(800)
         dt = FT(1)
 
-        state = P3.get_state(params; F_rim, ρ_r = ρ_rim)
+        state = P3.get_state(params; F_rim, ρ_rim = ρ_rim)
         dist = P3.get_distribution_parameters(state; L = Lᵢ, N = Nᵢ)
 
         T_cold = FT(273.15 - 0.01)
