@@ -83,10 +83,8 @@ function conv_q_vap_to_q_liq_ice_MM2015(
         Rᵥ = TD.Parameters.R_v(tps)
         Lᵥ = TD.latent_heat_vapor(tps, T)
 
-        q = TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno)
-        #cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
-        cₚ_air = TD.cp_m(tps, q)
-        qᵥ = TD.vapor_specific_humidity(q)
+        qᵥ = q_tot - q_liq - q_ice - q_rai - q_sno
+        cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
 
         pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
         qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
@@ -115,10 +113,8 @@ function conv_q_vap_to_q_liq_ice_MM2015(
         Rᵥ = TD.Parameters.R_v(tps)
         Lₛ = TD.latent_heat_sublim(tps, T)
 
-        q = TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno)
-        #cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
-        cₚ_air = TD.cp_m(tps, q)
-        qᵥ = TD.vapor_specific_humidity(q)
+        qᵥ = q_tot - q_liq - q_ice - q_rai - q_sno
+        cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
 
         pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
         qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
