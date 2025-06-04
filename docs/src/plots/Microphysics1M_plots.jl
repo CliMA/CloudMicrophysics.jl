@@ -63,6 +63,8 @@ q_rain_range = range(1e-8, stop = 5e-3, length = 100)
 q_snow_range = range(1e-8, stop = 5e-3, length = 100)
 ρ_air, ρ_air_ground = 1.2, 1.22
 q_liq, q_ice, q_tot = 5e-4, 5e-4, 20e-3
+q_rai = 1e-3
+q_sno = 1e-4
 
 T = 273.15
 PL.plot(
@@ -81,6 +83,8 @@ PL.plot!(
             aps,
             tps,
             TD.PhasePartition(q_tot, 0.0, q_ice),
+            q_rai,
+            q_sno, 
             ρ_air,
             T - 5,
         ) for q_ice in q_ice_range
@@ -96,6 +100,8 @@ PL.plot!(
             aps,
             tps,
             TD.PhasePartition(q_tot, 0.0, q_ice),
+            q_rai,
+            q_sno,
             ρ_air,
             T - 10,
         ) for q_ice in q_ice_range
@@ -111,6 +117,8 @@ PL.plot!(
             aps,
             tps,
             TD.PhasePartition(q_tot, 0.0, q_ice),
+            q_rai,
+            q_sno,
             ρ_air,
             T - 15,
         ) for q_ice in q_ice_range
