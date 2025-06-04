@@ -12,6 +12,11 @@ function limit(q, dt, n::Int)
     return q / dt / n
 end
 
+# the triangle inequality limiter used in ClimaAtmos
+function triangle_inequality_limiter(force, limit)
+    return force + limit - sqrt(force^2 + limit^2)
+end
+
 function aerosol_activation(::Empty, state)
     FT = eltype(state)
     return FT(0)
@@ -262,8 +267,8 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     # using same limiter as ClimaAtmos for now
     return ifelse(
         cond_rate > FT(0),
-        min(cond_rate, limit(qᵥ, dt, 1)),
-        -min(abs(cond_rate), limit(qₗ, dt, 1)),
+        triangle_inequality_limiter(cond_rate, limit(qᵥ, dt, 2)),
+        -triangle_inequality_limiter(abs(cond_rate), limit(qₗ, dt, 2)),
     )
 end
 
@@ -318,7 +323,7 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     # using same limiter as ClimaAtmos for now
     return ifelse(
         dep_rate > FT(0),
-        min(dep_rate, limit(qᵥ, dt, 1)),
-        -min(abs(dep_rate), limit(qᵢ, dt, 1)),
+        triangle_inequality_limiter(dep_rate, limit(qᵥ, dt, 2)),
+        -triangle_inequality_limiter(abs(dep_rate), limit(qᵢ, dt, 2)),
     )
 end
