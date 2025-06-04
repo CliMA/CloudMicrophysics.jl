@@ -468,3 +468,4 @@ Below, we show how the non-equilibrium formulation is able to represent the Wege
 ```@example
   include("../../parcel/Example_NonEq.jl")
 ```
+![](noneq_parcel.svg)
