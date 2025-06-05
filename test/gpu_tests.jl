@@ -119,7 +119,9 @@ end
         output[1, i] = CMN.conv_q_vap_to_q_liq_ice_MM2015(
             liquid,
             tps,
-            TD.PhasePartition(qᵥ_sl[i]),
+            qᵥ_sl[i],
+            FT(0),
+            FT(0),
             ρ[i],
             T[i],
         )
