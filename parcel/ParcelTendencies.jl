@@ -253,7 +253,7 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, liquid, dt) = params
+    (; tps, liquid, limiter, dt) = params
 
     qₜ = qᵥ + qₗ + qᵢ
 
@@ -261,14 +261,17 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
     return cond_rate
 
-    # using same limiter as ClimaAtmos for now
-    return ifelse(
-        cond_rate > FT(0),
-        min(cond_rate, limit(qᵥ, dt, 1)),
-        -min(abs(cond_rate), limit(qₗ, dt, 1)),
-    )
+    if limiter
+        return ifelse(
+            cond_rate > FT(0),
+            min(cond_rate, limit(qᵥ, dt, 1)),
+            -min(abs(cond_rate), limit(qₗ, dt, 1)),
+        )
+    else
+        return cond_rate
+    end
 end
-
+=
 function deposition(::Empty, PSD_ice, state, ρ_air)
     FT = eltype(state)
     return FT(0)
@@ -311,16 +314,19 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, ice, dt) = params
+    (; tps, ice, limiter, dt) = params
 
     qₜ = qᵥ + qₗ + qᵢ
 
     dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, ρ_air, T)
 
-    # using same limiter as ClimaAtmos for now
-    return ifelse(
-        dep_rate > FT(0),
-        min(dep_rate, limit(qᵥ, dt, 1)),
-        -min(abs(dep_rate), limit(qᵢ, dt, 1)),
-    )
+    if limiter
+        return ifelse(
+            dep_rate > FT(0),
+            min(dep_rate, limit(qᵥ, dt, 1)),
+            -min(abs(dep_rate), limit(qᵢ, dt, 1)),
+        )
+    else
+        return dep_rate
+    end
 end
