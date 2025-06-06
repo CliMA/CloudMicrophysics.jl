@@ -12,6 +12,10 @@ function limit(q, dt, n::Int)
     return q / dt / n
 end
 
+function triangle_inequality_limiter(force, limit)
+    return force + limit - sqrt(force^2 + limit^2)
+end
+
 function aerosol_activation(::Empty, state)
     FT = eltype(state)
     return FT(0)
@@ -253,20 +257,25 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, liquid, dt) = params
+    (; tps, liquid, limiter, dt) = params
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    qₜ = qᵥ + qₗ + qᵢ
 
-    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ_air, T)
+    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₜ, qₗ, qᵢ, ρ_air, T)
 
-    # using same limiter as ClimaAtmos for now
-    return ifelse(
-        cond_rate > FT(0),
-        min(cond_rate, limit(qᵥ, dt, 1)),
-        -min(abs(cond_rate), limit(qₗ, dt, 1)),
-    )
+    return cond_rate
+
+    if limiter
+        return ifelse(
+            cond_rate > FT(0),
+            triangle_inequality_limiter(cond_rate, limit(qᵥ, dt, 2)),
+            -triangle_inequality_limiter(abs(cond_rate), limit(qₗ, dt, 2)),
+        )
+    else
+        return cond_rate
+    end
 end
-
+=
 function deposition(::Empty, PSD_ice, state, ρ_air)
     FT = eltype(state)
     return FT(0)
@@ -309,16 +318,19 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, ice, dt) = params
+    (; tps, ice, limiter, dt) = params
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    qₜ = qᵥ + qₗ + qᵢ
 
-    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ_air, T)
+    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, ρ_air, T)
 
-    # using same limiter as ClimaAtmos for now
-    return ifelse(
-        dep_rate > FT(0),
-        min(dep_rate, limit(qᵥ, dt, 1)),
-        -min(abs(dep_rate), limit(qᵢ, dt, 1)),
-    )
+    if limiter
+        return ifelse(
+            dep_rate > FT(0),
+            triangle_inequality_limiter(dep_rate, limit(qᵥ, dt, 2)),
+            -triangle_inequality_limiter(abs(dep_rate), limit(qᵢ, dt, 2)),
+        )
+    else
+        return dep_rate
+    end
 end
