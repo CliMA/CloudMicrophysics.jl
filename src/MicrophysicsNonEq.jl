@@ -61,12 +61,15 @@ function conv_q_vap_to_q_liq_ice(
 end
 
 """
+    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₜ, qₗ, qᵢ, ρ, T)
     conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ, T)
+    conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, ρ, T)
     conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ, T)
 
-- `liquid` or `ice` - a struct with cloud water or ice free parameters
+- `liquid` OR `ice` - a struct with cloud water or ice free parameters
 - `tps` - thermodynamics parameters struct
-- `q` - current PhasePartition
+- `qₜ`, `qₗ`, `qᵢ` OR `q` - specific humidities of total, liquid, and ice OR
+                           current PhasePartition
 - `ρ` - air density [kg/m3]
 - `T` - air temperature [K]
 
@@ -76,7 +79,7 @@ The formulation is based on Morrison and Grabowski 2008 and
 Morrison and Milbrandt 2015
 """
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudLiquid{FT},
+    (; τ_relax)::CMP.CloudLiquid,
     tps::TDP.ThermodynamicsParameters,
     qₜ,
     qₗ,
@@ -103,7 +106,7 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     end
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudLiquid{FT},
+    (; τ_relax)::CMP.CloudLiquid,
     tps::TDP.ThermodynamicsParameters,
     q::TD.PhasePartition,
     ρ,
@@ -112,7 +115,7 @@ function conv_q_vap_to_q_liq_ice_MM2015(
 
     override_file = Dict(
         "condensation_evaporation_timescale" =>
-            Dict("value" => τ, "type" => "float"),
+            Dict("value" => τ_relax, "type" => "float"),
     )
     liquid_toml_dict = CP.create_toml_dict(FT; override_file)
     liquid = CMP.CloudLiquid(liquid_toml_dict)
@@ -121,7 +124,7 @@ function conv_q_vap_to_q_liq_ice_MM2015(
 
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudIce{FT},
+    (; τ_relax)::CMP.CloudIce,
     tps::TDP.ThermodynamicsParameters,
     qₜ,
     qₗ,
