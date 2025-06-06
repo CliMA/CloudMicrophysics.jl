@@ -106,21 +106,14 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     end
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudLiquid,
+    liquid::CMP.CloudLiquid,
     tps::TDP.ThermodynamicsParameters,
     q::TD.PhasePartition,
     ρ,
     T,
 )
 
-    override_file = Dict(
-        "condensation_evaporation_timescale" =>
-            Dict("value" => τ_relax, "type" => "float"),
-    )
-    liquid_toml_dict = CP.create_toml_dict(FT; override_file)
-    liquid = CMP.CloudLiquid(liquid_toml_dict)
-
-    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q.tot, q.liq, q.ice, ρ, T)
+    return conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q.tot, q.liq, q.ice, ρ, T)
 
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
@@ -149,6 +142,18 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     else
         return FT(0)
     end
+end
+
+function conv_q_vap_to_q_liq_ice_MM2015(
+    ice::CMP.CloudIce,
+    tps::TDP.ThermodynamicsParameters,
+    q::TD.PhasePartition,
+    ρ,
+    T,
+)
+
+    return conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q.tot, q.liq, q.ice, ρ, T)
+
 end
 
 """
