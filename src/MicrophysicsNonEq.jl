@@ -66,7 +66,7 @@ end
     conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, ρ, T)
     conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ, T)
 
-- `liquid` OR `ice` - a struct with cloud water or ice free parameters
+- `liquid` OR `ice` - a struct with cloud water OR ice free parameters
 - `tps` - thermodynamics parameters struct
 - `qₜ`, `qₗ`, `qᵢ` OR `q` - specific humidities of total, liquid, and ice OR
                            current PhasePartition
@@ -112,9 +112,7 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     ρ,
     T,
 )
-
     return conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q.tot, q.liq, q.ice, ρ, T)
-
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
     (; τ_relax)::CMP.CloudIce,
@@ -151,9 +149,7 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     ρ,
     T,
 )
-
     return conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q.tot, q.liq, q.ice, ρ, T)
-
 end
 
 """
