@@ -32,6 +32,7 @@ function generalized_gamma_quantile(ν, μ, B, Y)
     # Compute the inverse of the regularized incomplete gamma function
     z = SF.gamma_inc_inv((ν + 1) / μ, Y, 1 - Y)
     return (z / B)^(1 / μ)
+    # return exp((log(z) - log(B)) / μ)
 end
 
 """

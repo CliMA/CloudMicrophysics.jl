@@ -4,6 +4,8 @@
 module Common
 
 import SpecialFunctions as SF
+using DocStringExtensions
+using Printf
 
 import Thermodynamics as TD
 const TPS = TD.Parameters.ThermodynamicsParameters
@@ -20,6 +22,7 @@ export Chen2022_vel_coeffs
 export Chen2022_monodisperse_pdf
 export Chen2022_exponential_pdf
 export ventilation_factor
+export PowerLaw, BoundedPowerLaw, PiecewisePowerLaw
 
 """
     G_func(air_props, tps, T, Liquid())
@@ -385,6 +388,132 @@ function ventilation_factor(vent, aps, v_term)
     N_Re(D) = D * v_term(D) / ν_air  # Reynolds number
     F_v(D) = vent_a + vent_b * ∛(N_sc) * √(N_Re(D))  # Ventilation factor
     return F_v
+end
+
+"""
+    weighted_average(f_a, a, b)
+
+Return the weighted average of `a` and `b` with fraction `f_a`,
+    
+```math
+f_a ⋅ a + (1 - f_a) ⋅ b
+```
+"""
+function weighted_average(f_a, a, b)
+    return f_a * a + (1 - f_a) * b
+end
+
+"""
+    BoundedPowerLaw{FT}
+
+A power law `a * D^b` defined over the interval [D_min, D_max).
+
+# Fields
+$(FIELDS)
+"""
+@kwdef struct BoundedPowerLaw{FT, DT}
+    "Coefficient [`varies`]"
+    a::FT
+    "Exponent [`-`]"
+    b::FT
+    "Lower bound (inclusive) [`m`]"
+    D_min::DT
+    "Upper bound (exclusive) [`m`]"  
+    D_max::DT
+end
+
+Base.eltype(::BoundedPowerLaw{FT}) where {FT} = FT
+
+# Check if D is in this power law's domain
+is_in_domain(bpl::BoundedPowerLaw, D) = bpl.D_min ≤ D < bpl.D_max
+
+# Evaluation (with optional bounds checking)
+function (bpl::BoundedPowerLaw)(D)
+    return bpl.a * D^bpl.b
+end
+
+get_coefficients(bpl::BoundedPowerLaw) = (bpl.a, bpl.b)
+get_bounds(bpl::BoundedPowerLaw) = (bpl.D_min, bpl.D_max)
+
+"""
+    PiecewisePowerLaw{FT, N}
+
+A collection of N bounded power laws that together define a piecewise function.
+
+# Fields
+$(FIELDS)
+"""
+@kwdef struct PiecewisePowerLaw{FT, N}
+    "Bounded power laws defining each piece"
+    pieces::NTuple{N, BoundedPowerLaw{FT}}
+end
+
+Base.eltype(::PiecewisePowerLaw{FT}) where {FT} = FT
+
+function (ppl::PiecewisePowerLaw)(D)
+    for piece in ppl.pieces
+        if is_in_domain(piece, D)
+            return piece(D)
+        end
+    end
+    error("D = $D is not in the domain of any piece")
+end
+
+function get_power_law_at(ppl::PiecewisePowerLaw, D)
+    for piece in ppl.pieces
+        if is_in_domain(piece, D)
+            return piece
+        end
+    end
+    error("D = $D is not in the domain of any piece")
+end
+
+### ----------------- ###
+### ----- UTILS ----- ###
+### ----------------- ###
+
+function Base.show(io::IO, bpl::BoundedPowerLaw{FT}) where {FT}
+    # Verbose standalone display
+    println(io, "BoundedPowerLaw{$FT}")
+    
+    # Format bounds nicely
+    D_min_str = bpl.D_min == 0 ? "0" : @sprintf("%.3g", bpl.D_min)
+    D_max_str = isinf(bpl.D_max) ? "∞" : @sprintf("%.3g", bpl.D_max)
+    println(io, @sprintf("└── %.6g * D^%.6g, %s ≤ D < %s", bpl.a, bpl.b, D_min_str, D_max_str))
+end
+
+function Base.show(io::IO, ppl::PiecewisePowerLaw{FT, N}) where {FT, N}
+    println(io, "PiecewisePowerLaw{$FT, $N}")
+    
+    # First pass: collect all law parts and domain parts
+    law_parts = String[]
+    domain_parts = String[]
+    
+    for (i, piece) in enumerate(ppl.pieces)
+        is_last = i == N
+        piece_prefix = is_last ? "└── " : "├── "
+        
+        # Format the law part
+        a_str = @sprintf("%.3g", piece.a)
+        b_str = @sprintf("%.3g", piece.b)
+        law_part = "$piece_prefix$a_str * D^$b_str,"
+        push!(law_parts, law_part)
+        
+        # Format the domain part
+        D_min_str = piece.D_min == 0 ? "0" : @sprintf("%.2g", piece.D_min)
+        D_max_str = isinf(piece.D_max) ? "∞" : @sprintf("%.2g", piece.D_max)
+        domain_part = "$D_min_str ≤ D < $D_max_str"
+        push!(domain_parts, domain_part)
+    end
+    
+    # Find the maximum width of law parts
+    max_law_width = maximum(textwidth.(law_parts))
+    
+    # Second pass: print with proper alignment
+    for i in 1:N
+        law_padded = @sprintf("%-*s", max_law_width, law_parts[i])
+        println(io, "$law_padded  $(domain_parts[i])")
+    end
 end
 
 end # module end

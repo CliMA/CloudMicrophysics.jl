@@ -161,21 +161,18 @@ P3Scheme.area_rimed
 ## Distribution parameters
 
 ```@docs
-P3Scheme.P3Distribution
-P3Scheme.get_distribution_parameters
+P3Scheme.get_μ
+P3Scheme.get_logN₀
 ```
 
 ### Distribution relationships
 
 ```@docs
-P3Scheme.log_N′ice
+P3Scheme.logN′ice
 P3Scheme.N′ice
-P3Scheme.get_μ
-P3Scheme.log_integrate_moment_psd
-P3Scheme.log_L_div_N₀
-P3Scheme.log_N_div_N₀
-P3Scheme.log_L_div_N
-P3Scheme.get_log_N₀
+P3Scheme.logLdN₀
+P3Scheme.logNdN₀
+P3Scheme.logLdN
 ```
 
 ### Derived integral quantities

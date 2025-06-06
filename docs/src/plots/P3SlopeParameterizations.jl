@@ -25,8 +25,8 @@ end
 params = CMP.ParametersP3(FT)
 slope_power_law = params.slope
 
-log_λ_from_μ(spl::CMP.SlopePowerLaw, μ) = log((μ + spl.c) / spl.a) / spl.b
-λ_bnds = log_λ_from_μ.(slope_power_law, [0.0, 6.0]) .|> exp
+logλ_from_μ(spl::CMP.SlopePowerLaw, μ) = log((μ + spl.c) / spl.a) / spl.b
+λ_bnds = logλ_from_μ.(slope_power_law, [0.0, 6.0]) .|> exp
 
 fig = Makie.with_theme(Makie.theme_minimal()) do
     make_slope_plot(slope_power_law, "μ as a function of λ (power law)")
@@ -39,8 +39,8 @@ function make_multiple_solutions_plot()
     state = P3.get_state(params; F_rim = 0.0, ρ_r = 400.0)
     L_known = 2.39e-4
     N_known = 1e5
-    target_log_L_div_N = log(L_known) - log(N_known)
-    shape_problem(log_λ) = P3.log_L_div_N(state, log_λ) - target_log_L_div_N
+    target_logLdN = log(L_known) - log(N_known)
+    shape_problem(logλ) = P3.logLdN(state, logλ) - target_logLdN
     shape_sol = shape_problem.(logλs)
     # Brute-force roots
     dists = P3.get_distribution_parameters_all_solutions(state; L = L_known, N = N_known)
@@ -56,7 +56,7 @@ function make_multiple_solutions_plot()
 
     Makie.lines!(ax, exp.(logλs), shape_sol; color = :black)
     map(dists) do dist
-        λ = exp(dist.log_λ)
+        λ = exp(dist.logλ)
         Makie.vlines!(ax, λ; label = Printf.@sprintf("λ = %.0f m⁻¹", λ))
     end
     Makie.axislegend(ax; framevisible = true)
@@ -81,7 +81,7 @@ function make_multiple_solutions_plot()
     )
     Makie.vlines!(state.D_th * m_to_mm, color = (:gray, 0.5))
     for dist in dists
-        N′ = @. exp(P3.log_N′ice(dist, Ds))
+        N′ = @. exp(P3.logN′ice(dist, Ds))
         Makie.lines!(Ds_mm, N′ / m_to_cm^4)
         # Makie.lines!(Ds_mm, cumsum(N′.(Ds) .* Ds / m_to_cm^3))  # CUMULATIVE DISTRIBUTION
     end
