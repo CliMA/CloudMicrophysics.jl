@@ -18,7 +18,7 @@ The prognostic variables are:
 
 From these, we derive the following rime quantities:
  -  $F_{rim} = \frac{L_{rim}}{L_{ice}}$, the rime mass fraction,
- -  $ρ_r = \frac{L_{rim}}{B_{rim}}$, the rime density.
+ -  $ρ_{rim} = \frac{L_{rim}}{B_{rim}}$, the rime density.
 
 !!! note "Change of symbol convention"
     The original paper [MorrisonMilbrandt2015](@cite) uses the symbol ``q`` to denote the mass of a tracer per volume of air 
@@ -50,7 +50,7 @@ where $D_{th}$, $D_{gr}$, $D_{cr}$, and $ρ_g$ are determined by relations below
     | $D_{cr}$  |                                         | $\text{m}$               | partially rimed ice threshold                                                                                                                                      |
     | $ρ_i$     | 916.7                                   | $\text{kg m}^{-3}$       | cloud ice density                                                                                                                                                  |
     | $ρ_g$     |                                         | $\text{kg m}^{-3}$       | bulk density of graupel                                                                                                                                            |
-    | $ρ_r$     |                                         | $\text{kg m}^{-3}$       | rime density                                                                                                                                                       |
+    | $ρ_{rim}$ |                                         | $\text{kg m}^{-3}$       | rime density                                                                                                                                                       |
     | $ρ_d$     |                                         | $\text{kg m}^{-3}$       | bulk density of unrimed ice                                                                                                                                        |
     | $F_{rim}$ |                                         | --                       | rime mass fraction                                                                                                                                                 |
     | $β_{va}$  | 1.9                                     | --                       | dimensionless parameter from [BrownFrancis1995](@cite) (based on measurements of vapor diffusion and aggregation in midlatitude cirrus)                            |
@@ -69,12 +69,12 @@ The remaining thresholds: $D_{gr}$, $D_{cr}$, as well as the bulk density of gra
 \begin{align*}
   D_{gr}  &= \left( \frac{6α_{va}}{π ρ_g} \right)^{\frac{1}{3 - β_{va}}} \\
   D_{cr}  &= \left[ \left(\frac{1}{1-F_{rim}} \right) \frac{6 α_{va}}{π ρ_g} \right]^{\frac{1}{3 - β_{va}}} \\
-  ρ_g     &= ρ_r F_{rim} + (1 - F_{rim}) ρ_d \\
+  ρ_g     &= ρ_{rim} F_{rim} + (1 - F_{rim}) ρ_d \\
   ρ_d     &= \frac{6α_{va}(D_{cr}^{β_{va} - 2} - D_{gr}^{β_{va} - 2})}{π \ (β_{va} - 2)(D_{cr}-D_{gr})}
 \end{align*}
 ```
 
-Unlike (REFS), which solve the system of equations with iterative methods, we here derive an analytical solution for $ρ_d$ in terms of $ρ_r$ and $F_{rim}$.
+Unlike (REFS), which solve the system of equations with iterative methods, we here derive an analytical solution for $ρ_d$ in terms of $ρ_{rim}$ and $F_{rim}$.
 
 !!! details "Click here to see the derivation"
     To derive the expression for $ρ_d$ we first observe that $D_{cr}$ is proportional to $D_{gr}$,
@@ -105,7 +105,7 @@ Unlike (REFS), which solve the system of equations with iterative methods, we he
     ```math
     \begin{align*}
     ρ_d &= \frac{((1 - F_{rim}) k - 1) ρ_g D_{gr}}{(β_{va} - 2)(k - 1)D_{gr}} \\
-      &= \frac{((1 - F_{rim}) k - 1)}{(β_{va} - 2)(k - 1)} ( ρ_r F_{rim} + (1 - F_{rim}) ρ_d )
+      &= \frac{((1 - F_{rim}) k - 1)}{(β_{va} - 2)(k - 1)} ( ρ_{rim} F_{rim} + (1 - F_{rim}) ρ_d )
     \end{align*}
     ```
     and rearrange to obtain the expression for $ρ_d$ below.
@@ -113,12 +113,12 @@ Unlike (REFS), which solve the system of equations with iterative methods, we he
 We obtain the following expression for $ρ_d$
 ```math
 ρ_d = \frac{
-  ρ_r F_{rim}
+  ρ_{rim} F_{rim}
 }{
   \frac{(β_{va} - 2)(k - 1)}{(1 - F_{rim}) k - 1} - (1 - F_{rim})
 }
 ```
-Given $ρ_d$, we can obtain $ρ_g$, $D_{gr}$, and $D_{cr}$ using the expressions above. Depending on the value of $ρ_r$ and $F_{rim}$, 
+Given $ρ_d$, we can obtain $ρ_g$, $D_{gr}$, and $D_{cr}$ using the expressions above. Depending on the value of $ρ_{rim}$ and $F_{rim}$, 
   these thresholds and densities obtain a range of values, as shown in the plot below.
 
 ```@example
@@ -412,7 +412,7 @@ nothing
 # ![](MorrisonandMilbrandtFig2_with_F_liq.svg)
 ```
 
-Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{rim}`` with ``ρ_r = 900 kg m^{-3}`` for small,
+Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{rim}`` with ``ρ_{rim} = 900 kg m^{-3}`` for small,
   medium, and large particles, we have mostly graupel (``D_{gr} < D < D_{cr}``) for small ``D_m`` and mostly partially rimed ice
   (``D > D_{cr}``) for medium and large ``D_m``. Thus, we can attribute the non-monotonic behavior of velocity with ``F_liq`` in the
   medium and large ``D_m`` plots to the variations in ``ϕ`` caused by nonspherical particle shape, whereas the small ``D_m`` plot

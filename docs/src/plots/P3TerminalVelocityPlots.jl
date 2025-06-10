@@ -4,8 +4,6 @@ import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CairoMakie: Makie
 
-const PSP3 = CMP.ParametersP3
-
 FT = Float64
 
 params = CMP.ParametersP3(FT; slope_law = :constant)
@@ -20,7 +18,7 @@ function get_values(
     y_resolution::Int,
 ) where {FT}
     F_rims = range(FT(0), stop = FT(1 - eps(FT)), length = x_resolution)
-    ρ_rs = range(FT(25), stop = FT(975), length = y_resolution)
+    ρ_rims = range(FT(25), stop = FT(975), length = y_resolution)
 
     V_m = zeros(x_resolution, y_resolution)
     V_m_ϕ = zeros(x_resolution, y_resolution)
@@ -31,8 +29,8 @@ function get_values(
     for i in 1:x_resolution
         for j in 1:y_resolution
             F_rim = F_rims[i]
-            ρ_r = ρ_rs[j]
-            state = P3.get_state(params; F_rim, ρ_r)
+            ρ_rim = ρ_rims[j]
+            state = P3.get_state(params; F_rim, ρ_rim)
             dist = P3.get_distribution_parameters(state; L, N)
             V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(dist, Chen2022, ρ_a; use_aspect_ratio = false)
             V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(dist, Chen2022, ρ_a; use_aspect_ratio = true)
@@ -40,27 +38,28 @@ function get_values(
             D_m_regimes[i, j] = D_m[i, j]
             ϕᵢ[i, j] = P3.ϕᵢ(state, D_m[i, j])
 
+            (; D_th, D_gr, D_cr) = P3.get_thresholds_ρ_g(state)
             # plot the regimes
-            if state.D_th > D_m[i, j]
+            if D_th > D_m[i, j]
                 # small spherical ice
                 D_m_regimes[i, j] = 0
-            elseif state.F_rim == 0
+            elseif F_rim == 0
                 # large nonspherical unrimed ice
                 D_m_regimes[i, j] = 0
-            elseif state.D_gr > D_m[i, j] >= state.D_th
+            elseif D_gr > D_m[i, j] >= D_th
                 # dense nonspherical ice
                 D_m_regimes[i, j] = 1
-            elseif state.D_cr > D_m[i, j] >= state.D_gr
+            elseif D_cr > D_m[i, j] >= D_gr
                 # graupel
                 D_m_regimes[i, j] = 2
-            else #elseif D >= state.D_cr
+            else #elseif D >= D_cr
                 # partially rimed ice
                 D_m_regimes[i, j] = 3
             end
         end
     end
     D_m *= 1e3
-    return (; F_rims, ρ_rs, D_m_regimes, D_m, ϕᵢ, V_m, V_m_ϕ)
+    return (; F_rims, ρ_rims, D_m_regimes, D_m, ϕᵢ, V_m, V_m_ϕ)
 end
 
 theme = Makie.Theme(
@@ -100,11 +99,11 @@ function figure_2()
     xres = 100
     yres = 100
 
-    (F_rims, ρ_rs, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s, V_m_ϕ_s) =
+    (F_rims, ρ_rims, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s, V_m_ϕ_s) =
         get_values(params, Chen2022, L_s, N_s, ρ_a, xres, yres)
-    (F_rimm, ρ_rm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m, V_m_ϕ_m) =
+    (F_rimm, ρ_rimm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m, V_m_ϕ_m) =
         get_values(params, Chen2022, L_m, N_m, ρ_a, xres, yres)
-    (F_riml, ρ_rl, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l, V_m_ϕ_l) =
+    (F_riml, ρ_riml, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l, V_m_ϕ_l) =
         get_values(params, Chen2022, L_l, N_l, ρ_a, xres, yres)
 
     ### PLOT ###
@@ -117,13 +116,13 @@ function figure_2()
 
     row = 1
     ax1 = Makie.Axis(fig[row, 1]; title = "Particle regimes with small Dₘ")
-    hm = Makie.contourf!(ax1, F_rims, ρ_rs, D_m_regimes_s; regime_contour_kwargs...)
+    hm = Makie.contourf!(ax1, F_rims, ρ_rims, D_m_regimes_s; regime_contour_kwargs...)
 
     ax2 = Makie.Axis(fig[row, 2]; title = "Particle regimes with medium Dₘ")
-    hm = Makie.contourf!(ax2, F_rimm, ρ_rm, D_m_regimes_m; regime_contour_kwargs...)
+    hm = Makie.contourf!(ax2, F_rimm, ρ_rimm, D_m_regimes_m; regime_contour_kwargs...)
 
     ax3 = Makie.Axis(fig[row, 3]; title = "Particle regimes with large Dₘ")
-    hm = Makie.contourf!(ax3, F_riml, ρ_rl, D_m_regimes_l; regime_contour_kwargs...)
+    hm = Makie.contourf!(ax3, F_riml, ρ_riml, D_m_regimes_l; regime_contour_kwargs...)
 
     map(1:3) do col
         ticks = (
@@ -149,7 +148,7 @@ function figure_2()
         row,
         col,
         F_rim,
-        ρ_r;
+        ρ_rim;
         cfvals,
         cvals = nothing,
         title = "",
@@ -166,7 +165,7 @@ function figure_2()
                 bottomspinecolor = :white,
                 topspinecolor = :white,
             ) : (;)
-        hm = Makie.contourf!(ax, F_rim, ρ_r, cfvals)
+        hm = Makie.contourf!(ax, F_rim, ρ_rim, cfvals)
         Makie.Colorbar(
             gp,
             hm;
@@ -178,40 +177,40 @@ function figure_2()
             ticklabelpad = 0,
             row3_opts...,
         )
-        !isnothing(cvals) && Makie.contour!(ax, F_rim, ρ_r, cvals)
+        !isnothing(cvals) && Makie.contour!(ax, F_rim, ρ_rim, cvals)
     end
 
     row += 1
     title = "Dₘ (mm) (L = 8e-4 kgm⁻³, N = 1e6 m⁻³)"
-    make_plots(row, 1, F_rims, ρ_rs; cfvals = D_m_s, title)
+    make_plots(row, 1, F_rims, ρ_rims; cfvals = D_m_s, title)
     title = "Dₘ (mm) (L = 0.22 kgm⁻³, N = 1e6 m⁻³)"
-    make_plots(row, 2, F_rimm, ρ_rm; cfvals = D_m_m, title)
+    make_plots(row, 2, F_rimm, ρ_rimm; cfvals = D_m_m, title)
     title = "Dₘ (mm) (L = 0.7 kgm⁻³, N = 1e6 m⁻³)"
-    make_plots(row, 3, F_riml, ρ_rl; cfvals = D_m_l, title)
+    make_plots(row, 3, F_riml, ρ_riml; cfvals = D_m_l, title)
 
     row += 1
     title = "ϕᵢ with small Dₘ"
-    make_plots(row, 1, F_rims, ρ_rs; cfvals = ϕᵢ_s, cvals = D_m_s, title)
+    make_plots(row, 1, F_rims, ρ_rims; cfvals = ϕᵢ_s, cvals = D_m_s, title)
     title = "ϕᵢ with medium Dₘ"
-    make_plots(row, 2, F_rimm, ρ_rm; cfvals = ϕᵢ_m, cvals = D_m_m, title)
+    make_plots(row, 2, F_rimm, ρ_rimm; cfvals = ϕᵢ_m, cvals = D_m_m, title)
     title = "ϕᵢ with large Dₘ"
-    make_plots(row, 3, F_riml, ρ_rl; cfvals = ϕᵢ_l, cvals = D_m_l, title)
+    make_plots(row, 3, F_riml, ρ_riml; cfvals = ϕᵢ_l, cvals = D_m_l, title)
 
     row += 1
     title = "Vₘ (ϕᵢ = 1) with small Dₘ"
-    make_plots(row, 1, F_rims, ρ_rs; cfvals = V_m_s, cvals = D_m_s, title)
+    make_plots(row, 1, F_rims, ρ_rims; cfvals = V_m_s, cvals = D_m_s, title)
     title = "Vₘ (ϕᵢ = 1) with medium Dₘ",
-    make_plots(row, 2, F_rimm, ρ_rm; cfvals = V_m_m, cvals = D_m_m, title)
+    make_plots(row, 2, F_rimm, ρ_rimm; cfvals = V_m_m, cvals = D_m_m, title)
     title = "Vₘ (ϕᵢ = 1) with large Dₘ"
-    make_plots(row, 3, F_riml, ρ_rl; cfvals = V_m_l, cvals = D_m_l, title)
+    make_plots(row, 3, F_riml, ρ_riml; cfvals = V_m_l, cvals = D_m_l, title)
 
     row += 1
     title = "Vₘ (using ϕᵢ) with small Dₘ"
-    make_plots(row, 1, F_rims, ρ_rs; cfvals = V_m_ϕ_s, cvals = D_m_s, title)
+    make_plots(row, 1, F_rims, ρ_rims; cfvals = V_m_ϕ_s, cvals = D_m_s, title)
     title = "Vₘ (using ϕᵢ) with medium Dₘ"
-    make_plots(row, 2, F_rimm, ρ_rm; cfvals = V_m_ϕ_m, cvals = D_m_m, title)
+    make_plots(row, 2, F_rimm, ρ_rimm; cfvals = V_m_ϕ_m, cvals = D_m_m, title)
     title = "Vₘ (using ϕᵢ) with large Dₘ"
-    make_plots(row, 3, F_riml, ρ_rl; cfvals = V_m_ϕ_l, cvals = D_m_l, title)
+    make_plots(row, 3, F_riml, ρ_riml; cfvals = V_m_ϕ_l, cvals = D_m_l, title)
 
     axs = filter(ax -> ax isa Makie.Axis, fig.content)
     Makie.linkaxes!(axs...)

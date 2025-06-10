@@ -108,7 +108,7 @@ Compute the slope parameter μ
 """
 get_μ(dist::P3Distribution) = get_μ(get_state(dist), dist.log_λ)
 get_μ(state::P3State, log_λ) = get_μ(get_parameters(state), log_λ)
-get_μ(params::PSP3, log_λ) = get_μ(params.slope, log_λ)
+get_μ(params::CMP.ParametersP3, log_λ) = get_μ(params.slope, log_λ)
 
 get_μ((; a, b, c, μ_max)::CMP.SlopePowerLaw, log_λ) =
     clamp(a * exp(log_λ)^b - c, 0, μ_max)
@@ -131,8 +131,9 @@ Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state` and `log_λ`.
 """
 function log∫DⁿmN′dD(state::P3State{FT}, log_λ; n = 0) where {FT}
     @assert n ≥ 0 "The moment order must be non-negative"
-    (; F_rim, ρ_g, D_th, D_gr, D_cr) = state
-    (; ρ_i, mass) = get_parameters(state)
+    (; F_rim) = state
+    (; D_th, D_gr, D_cr, ρ_g) = get_thresholds_ρ_g(state)
+    (; ρ_i, mass) = state.params
     (; α_va, β_va) = mass
 
     μ = get_μ(state, log_λ)
@@ -173,7 +174,7 @@ Compute `log(N/N₀)` given either the `state` or the `slope` parameterization, 
 Note: This function is equivalent to `log_integrate_moment_psd(0, Inf, 1, 0, μ, log_λ)`
 """
 log_N_div_N₀(state::P3State, log_λ) = log_N_div_N₀(get_parameters(state), log_λ)
-log_N_div_N₀(params::PSP3, log_λ) = log_N_div_N₀(params.slope, log_λ)
+log_N_div_N₀(params::CMP.ParametersP3, log_λ) = log_N_div_N₀(params.slope, log_λ)
 function log_N_div_N₀(slope::CMP.SlopeLaw, log_λ)
     μ = get_μ(slope, log_λ)
     return SF.loggamma(μ + 1) - (μ + 1) * log_λ
@@ -186,7 +187,7 @@ Compute `log(L/N)` given the `state` (or `params`) and `log_λ`
 
 # Arguments
 - `state::P3State`: [`P3State`](@ref) object, or
-- `params::PSP3`: [`CMP.ParametersP3`](@ref) object, and
+- `params`: [`CMP.ParametersP3`](@ref) object, and
 - `log_λ`: The log of the slope parameter [log(1/m)]
 """
 log_L_div_N(state::P3State, log_λ) = log_L_div_N₀(state, log_λ) - log_N_div_N₀(state, log_λ)
@@ -199,7 +200,7 @@ Compute `log(N₀)` given the `state`, `N`, and `log_λ`
 
 # Arguments
 - `state::P3State`: [`P3State`](@ref) object, or
-- `params::PSP3`: [`CMP.ParametersP3`](@ref) object
+- `params`: [`CMP.ParametersP3`](@ref) object
 
 # Keyword arguments
 - `N`: The number concentration [1/m³]
@@ -208,7 +209,7 @@ Compute `log(N₀)` given the `state`, `N`, and `log_λ`
 function get_log_N₀(state::P3State; N, log_λ)
     get_log_N₀(get_parameters(state); N, log_λ)
 end
-function get_log_N₀(params::PSP3; N, log_λ)
+function get_log_N₀(params::CMP.ParametersP3; N, log_λ)
     μ = get_μ(params, log_λ)
     return log(N) - SF.loggamma(μ + 1) + (μ + 1) * log_λ
 end
@@ -259,7 +260,7 @@ julia> import CloudMicrophysics.Parameters as CMP,
 
 julia> params = CMP.ParametersP3(Float64);
 
-julia> state = P3.get_state(params; F_rim = 0.0, ρ_r = 400.0);
+julia> state = P3.get_state(params; F_rim = 0.0, ρ_rim = 400.0);
 
 julia> dist = P3.get_distribution_parameters(state; L = 1e-3, N = 1e3)
 P3Distribution{Float64}

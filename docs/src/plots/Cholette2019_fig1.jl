@@ -5,8 +5,6 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
 import CairoMakie as Plt
 
-const PSP3 = CMP.ParametersP3
-
 FT = Float64
 
 p3 = CMP.ParametersP3(FT)
@@ -14,7 +12,7 @@ p3 = CMP.ParametersP3(FT)
 # Testing terminal velocity with liquid fraction
 
 function get_values(
-    p3::PSP3,
+    p3::CMP.ParametersP3,
     Chen2022::CMP.Chen2022VelType,
     F_liq::FT,
     F_r::FT,

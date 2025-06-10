@@ -36,7 +36,7 @@ Makie.save("P3SlopeParameterizations_power_law.svg", fig)
 # Multiple solutions issue
 
 function make_multiple_solutions_plot()
-    state = P3.get_state(params; F_rim = 0.0, ρ_r = 400.0)
+    state = P3.get_state(params; F_rim = 0.0, ρ_rim = 400.0)
     L_known = 2.39e-4
     N_known = 1e5
     target_log_L_div_N = log(L_known) - log(N_known)
@@ -79,7 +79,7 @@ function make_multiple_solutions_plot()
         ylabel = "[1/cm⁴]",
         title = "Number concentration distribution, N'(D)",
     )
-    Makie.vlines!(state.D_th * m_to_mm, color = (:gray, 0.5))
+    Makie.vlines!(P3.get_D_th(params) * m_to_mm, color = (:gray, 0.5))
     for dist in dists
         N′ = @. exp(P3.log_N′ice(dist, Ds))
         Makie.lines!(Ds_mm, N′ / m_to_cm^4)
