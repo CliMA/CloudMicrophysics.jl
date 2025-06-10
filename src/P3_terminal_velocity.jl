@@ -31,14 +31,15 @@ function ice_particle_terminal_velocity(
 end
 
 """
-    ice_terminal_velocity_number_weighted(dist, velocity_params, ρₐ; [use_aspect_ratio], [∫kwargs...])
+    ice_terminal_velocity_number_weighted(state, logλ velocity_params, ρₐ; [use_aspect_ratio], [∫kwargs...])
 
 Return the terminal velocity of the number-weighted mean ice particle size.
 
 # Arguments
- - `dist`: A [`P3Distribution`](@ref)
- - `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
- - `ρₐ`: Air density [kg/m³]
+- `state`: A [`P3State`](@ref)
+- `logλ`: The log of the slope parameter [log(1/m)]
+- `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
+- `ρₐ`: Air density [kg/m³]
 
 # Keyword arguments
  - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
@@ -48,31 +49,33 @@ Return the terminal velocity of the number-weighted mean ice particle size.
 See also [`ice_terminal_velocity_mass_weighted`](@ref)
 """
 function ice_terminal_velocity_number_weighted(
-    dist::P3Distribution, velocity_params::CMP.Chen2022VelType, ρₐ;
+    state::P3State, logλ, velocity_params::CMP.Chen2022VelType, ρₐ;
     use_aspect_ratio = true, ∫kwargs...,
 )
-    (; state, N, L) = dist
-
-    if N < eps(one(N)) || L < eps(one(L))
-        return zero(N)
+    (; N_ice, L_ice) = state
+    if N_ice < eps(one(N_ice)) || L_ice < eps(one(L_ice))
+        return zero(N_ice)
     end
 
     v_term = ice_particle_terminal_velocity(state, velocity_params, ρₐ; use_aspect_ratio)
+    N′ = N′ice(state, logλ)
 
     # ∫N(D) v(D) dD
-    number_weighted_integrand(D) = N′ice(dist, D) * v_term(D)
+    number_weighted_integrand(D) = N′(D) * v_term(D)
 
-    return ∫fdD(number_weighted_integrand, dist; ∫kwargs...) / N
+    return ∫fdD(number_weighted_integrand, state, logλ; ∫kwargs...) / N_ice
 end
 
 """
-    ice_terminal_velocity_mass_weighted(dist, velocity_params, ρₐ; [use_aspect_ratio], [∫kwargs...])
+    ice_terminal_velocity_mass_weighted(state, logλ, velocity_params, ρₐ; [use_aspect_ratio], [∫kwargs...])
 
 Return the terminal velocity of the mass-weighted mean ice particle size.
 
 # Arguments
- - `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
- - `ρₐ`: Air density [kg/m³]
+- `state`: A [`P3State`](@ref)
+- `logλ`: The log of the slope parameter [log(1/m)]
+- `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
+- `ρₐ`: Air density [kg/m³]
 
 # Keyword arguments
  - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
@@ -82,18 +85,20 @@ Return the terminal velocity of the mass-weighted mean ice particle size.
 See also [`ice_terminal_velocity_number_weighted`](@ref)
 """
 function ice_terminal_velocity_mass_weighted(
-    dist::P3Distribution, velocity_params::CMP.Chen2022VelType, ρₐ;
+    state::P3State, logλ, velocity_params::CMP.Chen2022VelType, ρₐ;
     use_aspect_ratio = true, ∫kwargs...,
 )
-    (; state, L, N) = dist
-    if N < eps(one(N)) || L < eps(one(L))
-        return zero(L)
+    (; N_ice, L_ice) = state
+    if N_ice < eps(one(N_ice)) || L_ice < eps(one(L_ice))
+        return zero(L_ice)
     end
 
     v_term = ice_particle_terminal_velocity(state, velocity_params, ρₐ; use_aspect_ratio)
+    N′ = N′ice(state, logλ)  # Number concentration at diameter D
 
     # ∫N(D) m(D) v(D) dD
-    mass_weighted_integrand(D) = N′ice(dist, D) * v_term(D) * ice_mass(state, D)
+    mass_weighted_integrand(D) = N′(D) * v_term(D) * ice_mass(state, D)
 
-    return ∫fdD(mass_weighted_integrand, dist; ∫kwargs...) / L
+
+    return ∫fdD(mass_weighted_integrand, state, logλ; ∫kwargs...) / L_ice
 end

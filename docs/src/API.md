@@ -119,7 +119,6 @@ P3Scheme.get_state
 
 ```@docs
 P3Scheme.get_thresholds_ρ_g
-P3Scheme.threshold_tuple
 P3Scheme.get_ρ_d
 P3Scheme.get_ρ_g
 P3Scheme.get_D_th
@@ -142,21 +141,21 @@ P3Scheme.ϕᵢ
 ## Distribution parameters
 
 ```@docs
-P3Scheme.P3Distribution
-P3Scheme.get_distribution_parameters
+P3Scheme.get_μ
+P3Scheme.get_logN₀
+P3Scheme.get_distribution_logλ
 ```
 
 ### Distribution relationships
 
 ```@docs
-P3Scheme.log_N′ice
+P3Scheme.logN′ice
 P3Scheme.N′ice
-P3Scheme.get_μ
-P3Scheme.log_integrate_moment_psd
-P3Scheme.log_L_div_N₀
-P3Scheme.log_N_div_N₀
-P3Scheme.log_L_div_N
-P3Scheme.get_log_N₀
+P3Scheme.loggamma_inc_moment
+P3Scheme.loggamma_moment
+P3Scheme.logmass_gamma_moment
+P3Scheme.logLdivN
+
 ```
 
 ### Derived integral quantities

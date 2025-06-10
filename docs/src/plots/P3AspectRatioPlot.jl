@@ -53,7 +53,7 @@ function p3_relations_plot()
 	F_rims = [0.0, 0.5, 0.8]
 	for (i, F_rim) in enumerate(F_rims)
 		color = cl[i]
-		state = P3.get_state(params; F_rim, ρ_rim = ρ_rim₀)
+		state = P3.get_state(params; F_rim, ρ_rim = ρ_rim₀, L_ice = FT(0), N_ice = FT(0))
 		lines_and_vlines!(ax1L, state, color)
 	end
 
@@ -62,7 +62,7 @@ function p3_relations_plot()
 	ρ_rims = [200.0, 400.0, 800.0]
 	for (i, ρ_rim) in enumerate(ρ_rims)
 		color = cl[i]
-		state = P3.get_state(params; F_rim = F_rim₀, ρ_rim)
+		state = P3.get_state(params; F_rim = F_rim₀, ρ_rim, L_ice = FT(0), N_ice = FT(0))
 		lines_and_vlines!(ax1R, state, color)
 	end
 
