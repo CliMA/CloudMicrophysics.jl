@@ -271,22 +271,20 @@ function benchmark_test(FT)
 
     # non-equilibrium
     bench_press(FT, CMN.τ_relax, (liquid,), 15)
+    bench_press(FT, CMN.conv_q_vap_to_q_liq_ice, (ice, FT(2e-3), FT(1e-3)), 12)
     bench_press(
         FT,
-        CMN.conv_q_vap_to_q_liq_ice,
-        (
-            ice,
-            TD.PhasePartition(FT(0), FT(0), FT(0.002)),
-            TD.PhasePartition(FT(0), FT(0), FT(0.001)),
-        ),
-        12,
+        CMN.conv_q_vap_to_q_liq_ice_MM2015,
+        (liquid, tps, TD.PhasePartition(FT(0.00145)), FT(0), FT(0), FT(0.8), FT(263)),
+        70,
     )
     bench_press(
         FT,
         CMN.conv_q_vap_to_q_liq_ice_MM2015,
-        (liquid, tps, TD.PhasePartition(FT(0.00145)), FT(0.8), FT(263)),
+        (liquid, tps, FT(0.00145), FT(0), FT(0), FT(0), FT(0), FT(0.8), FT(263)),
         70,
     )
+
 
     # 0-moment
     bench_press(FT, CM0.remove_precipitation, (p0m, q), 12)
