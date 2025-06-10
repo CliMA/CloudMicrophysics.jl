@@ -183,7 +183,8 @@ These methods integrate over the particle size distribution.
 ```@docs
 P3Scheme.D_m
 P3Scheme.ice_particle_terminal_velocity
-P3Scheme.ice_terminal_velocity
+P3Scheme.ice_terminal_velocity_number_weighted
+P3Scheme.ice_terminal_velocity_mass_weighted
 P3Scheme.het_ice_nucleation
 P3Scheme.ice_melt
 ```

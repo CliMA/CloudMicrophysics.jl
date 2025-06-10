@@ -5,8 +5,6 @@
 Returns the terminal velocity of a single ice particle as a function of its size 
     (maximum dimension, `D`) using the Chen 2022 parametrization.
 
-The first method returns a function of `D`, while the second evaluates at a specific `D`.
-
 # Arguments
  - `state`: A [`P3State`](@ref)
  - `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
@@ -33,43 +31,69 @@ function ice_particle_terminal_velocity(
 end
 
 """
-    ice_terminal_velocity(dist, velocity_params, ρₐ; [use_aspect_ratio], [∫kwargs...])
+    ice_terminal_velocity_number_weighted(dist, velocity_params, ρₐ; [use_aspect_ratio], [∫kwargs...])
 
-Compute the mass and number weighted fall speeds for ice
-
-See Eq. C10 of [MorrisonMilbrandt2015](@cite) and use the Chen 2022 terminal velocity scheme.
+Return the terminal velocity of the number-weighted mean ice particle size.
 
 # Arguments
-- `dist`: A [`P3Distribution`](@ref)
-- `velocity_params`: A [`CMP.Chen2022VelType`](@ref)
-- `ρₐ`: The density of air [kg/m³]
+ - `dist`: A [`P3Distribution`](@ref)
+ - `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
+ - `ρₐ`: Air density [kg/m³]
 
 # Keyword arguments
-- `use_aspect_ratio`: Bool flag set to true if we want to consider the effects
-   of particle aspect ratio on its terminal velocity (default: `true`)
-- `∫kwargs`: Additional optional keyword arguments to pass to [`∫fdD`](@ref)
+ - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
+    of particle aspect ratio on its terminal velocity (default: `true`)
+ - `∫kwargs...`: Additional optional keyword arguments to pass to [`∫fdD`](@ref)
 
-# Returns
-- `v_n`: The number weighted fall speed
-- `v_m`: The mass weighted fall speed
+See also [`ice_terminal_velocity_mass_weighted`](@ref)
 """
-function ice_terminal_velocity(
+function ice_terminal_velocity_number_weighted(
+    dist::P3Distribution, velocity_params::CMP.Chen2022VelType, ρₐ;
+    use_aspect_ratio = true, ∫kwargs...,
+)
+    (; state, N, L) = dist
+
+    if N < eps(one(N)) || L < eps(one(L))
+        return zero(N)
+    end
+
+    v_term = ice_particle_terminal_velocity(state, velocity_params, ρₐ; use_aspect_ratio)
+
+    # ∫N(D) v(D) dD
+    number_weighted_integrand(D) = N′ice(dist, D) * v_term(D)
+
+    return ∫fdD(number_weighted_integrand, dist; ∫kwargs...) / N
+end
+
+"""
+    ice_terminal_velocity_mass_weighted(dist, velocity_params, ρₐ; [use_aspect_ratio], [∫kwargs...])
+
+Return the terminal velocity of the mass-weighted mean ice particle size.
+
+# Arguments
+ - `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
+ - `ρₐ`: Air density [kg/m³]
+
+# Keyword arguments
+ - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
+    of particle aspect ratio on its terminal velocity (default: `true`)
+ - `∫kwargs...`: Keyword arguments passed to [`∫fdD`](@ref)
+
+See also [`ice_terminal_velocity_number_weighted`](@ref)
+"""
+function ice_terminal_velocity_mass_weighted(
     dist::P3Distribution, velocity_params::CMP.Chen2022VelType, ρₐ;
     use_aspect_ratio = true, ∫kwargs...,
 )
     (; state, L, N) = dist
-    if N < eps(N) || L < eps(L)
-        return zero(N), zero(L)
+    if N < eps(one(N)) || L < eps(one(L))
+        return zero(L)
     end
 
     v_term = ice_particle_terminal_velocity(state, velocity_params, ρₐ; use_aspect_ratio)
 
     # ∫N(D) m(D) v(D) dD
     mass_weighted_integrand(D) = N′ice(dist, D) * v_term(D) * ice_mass(state, D)
-    # ∫N(D) v(D) dD
-    number_weighted_integrand(D) = N′ice(dist, D) * v_term(D)
 
-    v_m = ∫fdD(mass_weighted_integrand, dist; ∫kwargs...)
-    v_n = ∫fdD(number_weighted_integrand, dist; ∫kwargs...)
-    return (v_n / N, v_m / L)
+    return ∫fdD(mass_weighted_integrand, dist; ∫kwargs...) / L
 end
