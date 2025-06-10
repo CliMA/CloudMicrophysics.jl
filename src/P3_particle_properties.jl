@@ -16,6 +16,10 @@ $(FIELDS)
     "[`CMP.ParametersP3`](@ref) object"
     params::PARAMS
 
+    "The ice mass concentration [kg/m³]"
+    L_ice::FT
+    "The ice number concentration [1/m³]"
+    N_ice::FT
     "Rime mass fraction"
     F_rim::FT
     "Rime density"
@@ -23,7 +27,7 @@ $(FIELDS)
 end
 
 """
-    get_state(params; F_rim, ρ_rim)
+    get_state(params; L_ice, N_ice, F_rim, ρ_rim)
 
 Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parameters.
 
@@ -31,6 +35,8 @@ Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parame
  - `params`: [`CMP.ParametersP3`](@ref) object
 
 # Keyword arguments
+ - `L_ice`: ice mass concentration [kg/m³]
+ - `N_ice`: ice number concentration [1/m³]
  - `F_rim`: rime mass fraction [-], `F_rim = L_rim / L_ice`
  - `ρ_rim`: rime density [kg/m³],   `ρ_rim = L_rim / B_rim`
 
@@ -51,45 +57,29 @@ Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parame
  └── ρ_rim = 916.7 [kg/m^3]
  ```
 """
-function get_state(params::CMP.ParametersP3; F_rim, ρ_rim)
+function get_state(params::CMP.ParametersP3; L_ice, N_ice, F_rim, ρ_rim)
     # rime mass fraction must always be non-negative ...
     # ... and there must always be some unrimed part
     @assert 0 ≤ F_rim < 1 "Rime mass fraction, `F_rim`, must be between 0 and 1"
     # rime density must be positive ...
     # ... and as a bulk ice density can't exceed the density of water
     @assert 0 < ρ_rim ≤ params.ρ_l "Rime density, `ρ_rim`, must be between 0 and ρ_l"
-    return P3State(; params, F_rim, ρ_rim)
+    return P3State(; params, L_ice, N_ice, F_rim, ρ_rim)
 end
 
 Base.eltype(::P3State{FT}) where {FT} = FT
 Base.broadcastable(state::P3State) = tuple(state)
 
-get_parameters(state::P3State) = state.params
+"""
+    isunrimed(state::P3State)
 
+Return `true` if the particle is unrimed, i.e. `F_rim = 0`.
+"""
 isunrimed(state::P3State) = iszero(state.F_rim)
 
 """
-    threshold_tuple(state)
-
-Return a tuple of the thresholds for the current state.
-
-This function is useful for providing thresholds to quadgk, for example.
-
-!!! note
-    If the state is unrimed, there is only one threshold, `D_th`.
-    Otherwise (rimed state), there are three thresholds, `D_th < D_gr < D_cr`.
-"""
-function threshold_tuple(state::P3State)
-    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
-    if isunrimed(state)
-        return (D_th,)
-    else
-        return (D_th, D_gr, D_cr)
-    end
-end
-
-"""
     get_ρ_d(mass::MassPowerLaw, F_rim, ρ_rim)
+    get_ρ_d(state::P3State)
 
 Exact solution for the density of the unrimed portion of the particle as 
     function of the rime mass fraction `F_rim`, mass power law parameters `mass`, 
@@ -225,6 +215,31 @@ function get_thresholds_ρ_g(params::CMP.ParametersP3, F_rim, ρ_rim)
     D_cr = get_D_cr(mass, F_rim, ρ_g)
 
     return (; D_th, D_gr, D_cr, ρ_g)
+end
+
+"""
+    get_segments(state::P3State)
+
+Return the segments of the size distribution.
+
+# Arguments
+- `state`: [`P3State`](@ref) object
+
+# Returns
+- `segments`: tuple of tuples, each containing the lower and upper bounds of a segment
+
+For example, if the (valid) thresholds are `(D_th, D_gr, D_cr)`, then the segments are:
+- `(0, D_th)`, `(D_th, D_gr)`, `(D_gr, D_cr)`, `(D_cr, Inf)`
+"""
+function get_segments(state::P3State)
+    FT = eltype(state)
+    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
+    # For certain high rimed values, D_gr < D_th (cf test/p3_tests.jl): 
+    #   so here we filter away invalid thresholds 
+    # (this also works correctly for the unrimed case, where D_gr = D_cr = NaN)
+    valid_D = filter(≥(D_th), (D_th, D_gr, D_cr))
+    segments = tuple.((FT(0), valid_D...), (valid_D..., FT(Inf)))
+    return segments
 end
 
 """
@@ -400,6 +415,8 @@ function Base.show(io::IO, state::P3State)
     param_types = join(_name.(state, (:mass, :area, :slope, :vent)), ", ")
     println(io, "P3State{$FT}")
     println(io, "├── params = {$param_types}")
+    println(io, "├── L_ice = $(state.L_ice) [kg/m³]")
+    println(io, "├── N_ice = $(state.N_ice) [1/m³]")
     println(io, "├── F_rim = $(state.F_rim) [-]")
     println(io, "└── ρ_rim = $(state.ρ_rim) [kg/m³]")
 end

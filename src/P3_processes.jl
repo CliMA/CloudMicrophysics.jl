@@ -47,10 +47,11 @@ function het_ice_nucleation(
 end
 
 """
-    ice_melt(p3, Chen2022, aps, tps, Tₐ, ρₐ, dt; ∫kwargs...)
+    ice_melt(state, logλ, Chen2022, aps, tps, Tₐ, ρₐ, dt; ∫kwargs...)
 
 # Arguments
- - `dist`: a [`P3Distribution`](@ref) object
+ - `state`: a [`P3State`](@ref) object
+ - `logλ`: the log of the slope parameter [log(1/m)]
  - `Chen2022`: struct containing Chen 2022 velocity parameters
  - `aps`: air properties
  - `tps`: thermodynamics parameters
@@ -64,7 +65,7 @@ end
 Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
 """
 function ice_melt(
-    dist::P3Distribution, Chen2022::CMP.Chen2022VelType,
+    state::P3State, logλ, Chen2022::CMP.Chen2022VelType,
     aps::CMP.AirProperties, tps::TDP.ThermodynamicsParameters,
     Tₐ, ρₐ, dt;
     ∫kwargs = (;),
@@ -75,25 +76,26 @@ function ice_melt(
     (; K_therm) = aps
     L_f = TD.latent_heat_fusion(tps, Tₐ)
 
-    (; L, N, state) = dist
+    (; L_ice, N_ice) = state
     (; T_freeze, vent) = state.params
 
     v_term = ice_particle_terminal_velocity(state, Chen2022, ρₐ)
     F_v = CO.ventilation_factor(vent, aps, v_term)
+    N′ = N′ice(state, logλ)
 
     # Integrate
     fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
-    dLdt = fac * ∫fdD(dist; ∫kwargs...) do D
-        ∂ice_mass_∂D(state, D) * F_v(D) * N′ice(dist, D) / D
+    dLdt = fac * ∫fdD(state, logλ; ∫kwargs...) do D
+        ∂ice_mass_∂D(state, D) * F_v(D) * N′(D) / D
     end
 
     # only consider melting (not fusion)
     dLdt = max(0, dLdt)
     # compute change of N_ice proportional to change in L
-    dNdt = N / L * dLdt
+    dNdt = N_ice / L_ice * dLdt
 
     # ... and don't exceed the available number and mass of water droplets
-    dNdt = min(dNdt, N / dt)
-    dLdt = min(dLdt, L / dt)
+    dNdt = min(dNdt, N_ice / dt)  # TODO: Apply limiters in CA.jl
+    dLdt = min(dLdt, L_ice / dt)
     return (; dNdt, dLdt)
 end

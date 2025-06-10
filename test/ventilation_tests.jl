@@ -14,9 +14,11 @@ function test_ventilation_factor(FT)
         vel = CMP.Chen2022VelType(FT)
         aps = CMP.AirProperties(FT)
         F_rim = FT(0.5)  # Riming fraction [-]
-        ρ_rim = FT(500)    # Riming density [kg/m³]
+        ρ_rim = FT(500)  # Riming density [kg/m³]
+        L_ice = FT(0.22) # Ice mass concentration [kg/m³] (not used in this test)
+        N_ice = FT(1e6)  # Ice number concentration [1/m³] (not used in this test)
         ρₐ = FT(1.2)     # Air density [kg/m³]
-        state = P3.get_state(params; F_rim, ρ_rim)
+        state = P3.get_state(params; F_rim, ρ_rim, L_ice, N_ice)
         vent = state.params.vent
         v_term = P3.ice_particle_terminal_velocity(state, vel, ρₐ)
         vent_factor = CO.ventilation_factor(vent, aps, v_term)
