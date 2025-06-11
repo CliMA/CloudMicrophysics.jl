@@ -317,6 +317,21 @@ function test_bulk_terminal_velocities(FT)
     # F_liqs = [FT(0.5), FT(1)]
 
     @testset "Mass and number weighted terminal velocities" begin
+
+        state₀ = P3.get_state(params; F_rim = FT(0.5), ρ_r)
+        dist₀ = P3.get_distribution_parameters(state₀; L = FT(0), N)
+        vel_n₀ = P3.ice_terminal_velocity_number_weighted(dist₀, Chen2022, ρ_a)
+        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(dist₀, Chen2022, ρ_a)
+        @test iszero(vel_n₀)
+        @test iszero(vel_m₀)
+
+        state₀ = P3.get_state(params; F_rim = FT(0.5), ρ_r)
+        dist₀ = P3.get_distribution_parameters(state₀; L, N = FT(0))
+        vel_n₀ = P3.ice_terminal_velocity_number_weighted(dist₀, Chen2022, ρ_a)
+        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(dist₀, Chen2022, ρ_a)
+        @test iszero(vel_n₀)
+        @test iszero(vel_m₀)
+
         # NOTE: All reference values are output from the code.
         # A failing test indicates that the code has changed.
         # But if the changes are intentional, the reference values can be updated.
@@ -331,8 +346,12 @@ function test_bulk_terminal_velocities(FT)
         for (k, F_rim) in enumerate(F_rims)
             state = P3.get_state(params; F_rim, ρ_r)
             dist = P3.get_distribution_parameters(state; L, N)
-            vel_n, vel_m = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = false, accurate = true)
-            vel_n_ϕ, vel_m_ϕ = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = true, accurate = true)
+            args = (dist, Chen2022, ρ_a)
+            accurate = true
+            vel_n = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = false, accurate)
+            vel_m = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = false, accurate)
+            vel_n_ϕ = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = true, accurate)
+            vel_m_ϕ = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = true, accurate)
 
             # number weighted
             @test vel_n > 0
@@ -436,7 +455,8 @@ function test_numerical_integrals(FT)
             @test N ≈ N_estim rtol = 1e-5
 
             # Bulk velocity comparison
-            vel_N, vel_m = P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio, p)
+            vel_N = P3.ice_terminal_velocity_number_weighted(dist, Chen2022, ρ_a; use_aspect_ratio, p)
+            vel_m = P3.ice_terminal_velocity_mass_weighted(dist, Chen2022, ρ_a; use_aspect_ratio, p)
 
             v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
             g(D) = v_term(D) * exp(P3.log_N′ice(dist, D))

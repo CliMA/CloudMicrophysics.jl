@@ -34,13 +34,8 @@ function get_values(
             ρ_r = ρ_rs[j]
             state = P3.get_state(params; F_rim, ρ_r)
             dist = P3.get_distribution_parameters(state; L, N)
-
-            V_m[i, j] = P3.ice_terminal_velocity(
-                dist, Chen2022, ρ_a; use_aspect_ratio = false,
-            )[2]
-            V_m_ϕ[i, j] =
-                P3.ice_terminal_velocity(dist, Chen2022, ρ_a; use_aspect_ratio = true)[2]
-
+            V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(dist, Chen2022, ρ_a; use_aspect_ratio = false)
+            V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(dist, Chen2022, ρ_a; use_aspect_ratio = true)
             D_m[i, j] = P3.D_m(dist)
             D_m_regimes[i, j] = D_m[i, j]
             ϕᵢ[i, j] = P3.ϕᵢ(state, D_m[i, j])
