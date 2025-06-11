@@ -32,28 +32,28 @@ max_dNdt = [Nᵢ / dt for ΔT in ΔT_range]
 ρₐ1 = FT(1.2)
 Fᵣ1 = FT(0.8)
 ρᵣ1 = FT(800)
-state = P3.get_state(params; F_rim = Fᵣ1, ρ_rim = ρᵣ1)
-dist = P3.get_distribution_parameters(state; L = Lᵢ, N = Nᵢ)
-dLdt1 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dLdt for ΔT in ΔT_range]
-dNdt1 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dNdt for ΔT in ΔT_range]
+state = P3.get_state(params; F_rim = Fᵣ1, ρ_rim = ρᵣ1, L_ice = Lᵢ, N_ice = Nᵢ)
+logλ = P3.get_distribution_logλ(state)
+dLdt1 = [P3.ice_melt(state, logλ, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dLdt for ΔT in ΔT_range]
+dNdt1 = [P3.ice_melt(state, logλ, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dNdt for ΔT in ΔT_range]
 
 Fᵣ2 = FT(0.2)
-state = P3.get_state(params; F_rim = Fᵣ2, ρ_rim = ρᵣ1)
-dist = P3.get_distribution_parameters(state; L = Lᵢ, N = Nᵢ)
-dLdt2 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dLdt for ΔT in ΔT_range]
-dNdt2 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dNdt for ΔT in ΔT_range]
+state = P3.get_state(params; F_rim = Fᵣ2, ρ_rim = ρᵣ1, L_ice = Lᵢ, N_ice = Nᵢ)
+logλ = P3.get_distribution_logλ(state)
+dLdt2 = [P3.ice_melt(state, logλ, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dLdt for ΔT in ΔT_range]
+dNdt2 = [P3.ice_melt(state, logλ, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dNdt for ΔT in ΔT_range]
 
 ρᵣ2 = FT(200)
-state = P3.get_state(params; F_rim = Fᵣ2, ρ_rim = ρᵣ2)
-dist = P3.get_distribution_parameters(state; L = Lᵢ, N = Nᵢ)
-dLdt3 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dLdt for ΔT in ΔT_range]
-dNdt3 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dNdt for ΔT in ΔT_range]
+state = P3.get_state(params; F_rim = Fᵣ2, ρ_rim = ρᵣ2, L_ice = Lᵢ, N_ice = Nᵢ)
+logλ = P3.get_distribution_logλ(state)
+dLdt3 = [P3.ice_melt(state, logλ, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dLdt for ΔT in ΔT_range]
+dNdt3 = [P3.ice_melt(state, logλ, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ1, dt).dNdt for ΔT in ΔT_range]
 
 ρₐ2 = FT(0.5)
-state = P3.get_state(params; F_rim = Fᵣ2, ρ_rim = ρᵣ2)
-dist = P3.get_distribution_parameters(state; L = Lᵢ, N = Nᵢ)
-dLdt4 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ2, dt).dLdt for ΔT in ΔT_range]
-dNdt4 = [P3.ice_melt(dist, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ2, dt).dNdt for ΔT in ΔT_range]
+state = P3.get_state(params; F_rim = Fᵣ2, ρ_rim = ρᵣ2, L_ice = Lᵢ, N_ice = Nᵢ)
+logλ = P3.get_distribution_logλ(state)
+dLdt4 = [P3.ice_melt(state, logλ, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ2, dt).dLdt for ΔT in ΔT_range]
+dNdt4 = [P3.ice_melt(state, logλ, vel, aps, tps, params.T_freeze .+ ΔT, ρₐ2, dt).dNdt for ΔT in ΔT_range]
 
 # plotting
 fig = Makie.Figure(size = (1500, 500), fontsize=22, linewidth=3)

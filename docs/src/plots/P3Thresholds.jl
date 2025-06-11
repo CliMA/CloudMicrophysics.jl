@@ -11,7 +11,7 @@ params = CMP.ParametersP3(FT)
 F_rims = FT.(0.0:0.01:0.9)
 ρ_rims = FT.(200.0:10.0:900.0)
 
-get_state2(F_rim, ρ_rim) = P3.get_state(params; F_rim, ρ_rim)
+get_state2(F_rim, ρ_rim) = P3.get_state(params; F_rim, ρ_rim, L_ice = FT(0), N_ice = FT(0))
 
 states = get_state2.(F_rims, ρ_rims')
 
