@@ -33,7 +33,7 @@ function p3_relations_plot()
 	fig = Makie.Figure(size=(1200, 900), figure_padding = 20)
 
 	# define plot axis
-	ax1L = Makie.Axis(fig[1, 1], yscale = log10, ylabel = Makie.L"$m(D)$ (kg)", title = Makie.L"Regimes for $ρ_r = 400$ kg/m³")
+	ax1L = Makie.Axis(fig[1, 1], yscale = log10, ylabel = Makie.L"$m(D)$ (kg)", title = Makie.L"Regimes for $ρ_{rim} = 400$ kg/m³")
 	ax1R = Makie.Axis(fig[1, 2], yscale = log10, title = Makie.L"Regimes for $F_{rim} = 0.95$")
 	ax2L = Makie.Axis(fig[2, 1], yscale = log10, ylabel = Makie.L"$A(D)$ (m²)")
 	ax2R = Makie.Axis(fig[2, 2], yscale = log10)
@@ -49,28 +49,29 @@ function p3_relations_plot()
 		Makie.lines!(ax2, D_range * mm, P3.ice_area.(state, D_range); color)
 		Makie.lines!(ax3, D_range * mm, P3.ice_density.(state, D_range); color)
 
+		(; D_th, D_gr, D_cr) = P3.get_thresholds_ρ_g(state)
 		for ax in [ax1, ax2, ax3]
-			Makie.vlines!(ax, state.D_th * mm; linestyle = (:dot, :loose), color = :gray)
-			Makie.vlines!(ax, state.D_gr * mm; linestyle = :dash, color)
-			Makie.vlines!(ax, state.D_cr * mm; linestyle = :dashdot, color)
+			Makie.vlines!(ax, D_th * mm; linestyle = (:dot, :loose), color = :gray)
+			Makie.vlines!(ax, D_gr * mm; linestyle = :dash, color)
+			Makie.vlines!(ax, D_cr * mm; linestyle = :dashdot, color)
 		end
 	end
 
 	# Make a plot for each rime fraction
-	ρ_r₀ = 400.0
+	ρ_rim₀ = 400.0
 	F_rims = [0.0, 0.5, 0.8]
 	for (i, F_rim) in enumerate(F_rims)
 		color = cl[i]
-		state = P3.get_state(params; F_rim, ρ_r = ρ_r₀)
+		state = P3.get_state(params; F_rim, ρ_rim = ρ_rim₀)
 		lines_and_vlines!((ax1L, ax2L, ax3L), state, color)
 	end
 
 	# Make a plot for each rime density
 	F_rim₀ = 0.95
-	ρ_rs = [200.0, 400.0, 800.0]
-	for (i, ρ_r) in enumerate(ρ_rs)
+	ρ_rims = [200.0, 400.0, 800.0]
+	for (i, ρ_rim) in enumerate(ρ_rims)
 		color = cl[i]
-		state = P3.get_state(params; F_rim = F_rim₀, ρ_r)
+		state = P3.get_state(params; F_rim = F_rim₀, ρ_rim)
 		lines_and_vlines!((ax1R, ax2R, ax3R), state, color)
 	end
 
@@ -87,7 +88,7 @@ function p3_relations_plot()
 	thresh_labels = [Makie.L"$D_{th}$", Makie.L"$D_{gr}$", Makie.L"$D_{cr}$"]
 	leg_kwargs = (; orientation = :horizontal, nbanks=10, tellheight = false, tellwidth = false, margin = (10, 10, 10, 10), halign = :left, valign = :top)
 	Makie.Legend(fig[1,1], leg_elems, [Makie.latexstring.(Makie.L"F_{rim} = ", F_rims), thresh_labels], ["Rime fraction", "Thresholds"]; leg_kwargs...)
-	Makie.Legend(fig[1,2], leg_elems, [Makie.latexstring.(Makie.L"ρ_r = ", ρ_rs), thresh_labels], ["Rime density", "Thresholds"]; leg_kwargs...)
+	Makie.Legend(fig[1,2], leg_elems, [Makie.latexstring.(Makie.L"ρ_{rim} = ", ρ_rims), thresh_labels], ["Rime density", "Thresholds"]; leg_kwargs...)
 
 	Makie.resize_to_layout!(fig)
 	return fig

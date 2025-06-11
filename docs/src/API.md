@@ -118,20 +118,13 @@ P3Scheme.get_state
 ### State relationships
 
 ```@docs
+P3Scheme.get_thresholds_ρ_g
+P3Scheme.threshold_tuple
 P3Scheme.get_ρ_d
 P3Scheme.get_ρ_g
 P3Scheme.get_D_th
 P3Scheme.get_D_gr
 P3Scheme.get_D_cr
-P3Scheme.get_threshold
-```
-
-### Fetch from state
-
-```@docs
-P3Scheme.get_parameters
-P3Scheme.isunrimed
-P3Scheme.threshold_tuple
 ```
 
 ### Derived quantities
@@ -144,18 +137,6 @@ P3Scheme.ice_density
 P3Scheme.∂ice_mass_∂D
 P3Scheme.ice_area
 P3Scheme.ϕᵢ
-```
-
-#### Supporting methods
-
-```@docs
-P3Scheme.weighted_average
-P3Scheme.mass_spherical
-P3Scheme.mass_nonspherical
-P3Scheme.mass_rimed
-P3Scheme.area_spherical
-P3Scheme.area_nonspherical
-P3Scheme.area_rimed
 ```
 
 ## Distribution parameters

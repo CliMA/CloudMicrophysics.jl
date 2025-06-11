@@ -44,7 +44,7 @@ julia> import CloudMicrophysics.Parameters as CMP,
 
 julia> params = CMP.ParametersP3(Float64);
 
-julia> state = P3.get_state(params; F_rim = 0.0, ρ_r = 400.0);
+julia> state = P3.get_state(params; F_rim = 0.0, ρ_rim = 400.0);
 
 julia> dist = P3.get_distribution_parameters(state; L = 0.002, N = 1000.0);
 
