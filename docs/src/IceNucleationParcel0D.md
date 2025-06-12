@@ -463,8 +463,17 @@ and `stochastic` (solid lines) parameterization options. We show results for two
 ```
 ![](frostenberg_immersion_freezing.svg)
 
-Below, we show how the non-equilibrium formulation is able to represent the Wegener-Bergeron-Findeisen (WBF) regime in the parcel model. These plots show the liquid supersaturation percent, ice supersaturation percent, temperature, specific humidity `q_{vap}`, specific content of liquid `q_{liq}`, and specific content of ice `q_{ice}` over time. When the supersaturation is negative evaporation/sublimation occurs and when it is positive condensation/deposition occurs. Because the water vapor pressure in the parcel is greater than the saturation water vapor pressure of liquid but larger than that of ice, liquid evaporates while ice grows.
+Below, we show how the non-equilibrium formulation is able to represent the
+Wegener-Bergeron-Findeisen (WBF) regime in the parcel model.
+These plots show the liquid supersaturation, ice supersaturation,
+temperature, specific humidity `q_{vap}`, specific content of liquid `q_{liq}`,
+and specific content of ice `q_{ice}` over time.
+When the supersaturation is negative evaporation/sublimation occurs,
+and when it is positive condensation/deposition occurs.
+In the example below, the water vapor pressure is smaller than the saturation water vapor pressure of liquid
+but larger than that of ice, and as a result liquid water evaporates while ice grows.
 
 ```@example
   include("../../parcel/Example_NonEq.jl")
 ```
+![](noneq_parcel.svg)
