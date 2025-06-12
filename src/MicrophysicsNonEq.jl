@@ -61,12 +61,15 @@ function conv_q_vap_to_q_liq_ice(
 end
 
 """
+    conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₜ, qₗ, qᵢ, ρ, T)
     conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ, T)
+    conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, ρ, T)
     conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ, T)
 
-- `liquid` or `ice` - a struct with cloud water or ice free parameters
+- `liquid` OR `ice` - a struct with cloud water OR ice free parameters
 - `tps` - thermodynamics parameters struct
-- `q` - current PhasePartition
+- `qₜ`, `qₗ`, `qᵢ` OR `q` - specific humidities of total, liquid, and ice OR
+                           current PhasePartition
 - `ρ` - air density [kg/m3]
 - `T` - air temperature [K]
 
@@ -78,16 +81,18 @@ Morrison and Milbrandt 2015
 function conv_q_vap_to_q_liq_ice_MM2015(
     (; τ_relax)::CMP.CloudLiquid,
     tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition,
+    qₜ,
+    qₗ,
+    qᵢ,
     ρ,
     T,
 )
     FT = eltype(tps)
-    if TD.vapor_specific_humidity(q) + TD.liquid_specific_humidity(q) > FT(0)
+    qᵥ = qₜ - qₗ - qᵢ
+    if qᵥ + qₗ > FT(0) # this forces cp_air to be positive. do we want that?
         Rᵥ = TD.Parameters.R_v(tps)
-        cₚ_air = TD.cp_m(tps, q)
+        cₚ_air = TD.cp_m(tps, qₜ, qₗ, qᵢ)
         Lᵥ = TD.latent_heat_vapor(tps, T)
-        qᵥ = TD.vapor_specific_humidity(q)
 
         pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
         qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
@@ -101,18 +106,29 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     end
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
-    (; τ_relax)::CMP.CloudIce,
+    liquid::CMP.CloudLiquid,
     tps::TDP.ThermodynamicsParameters,
     q::TD.PhasePartition,
     ρ,
     T,
 )
+    return conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q.tot, q.liq, q.ice, ρ, T)
+end
+function conv_q_vap_to_q_liq_ice_MM2015(
+    (; τ_relax)::CMP.CloudIce,
+    tps::TDP.ThermodynamicsParameters,
+    qₜ,
+    qₗ,
+    qᵢ,
+    ρ,
+    T,
+)
     FT = eltype(tps)
-    if TD.vapor_specific_humidity(q) + TD.ice_specific_humidity(q) > FT(0)
+    qᵥ = qₜ - qₗ - qᵢ
+    if qᵥ + qᵢ > FT(0)
         Rᵥ = TD.Parameters.R_v(tps)
-        cₚ_air = TD.cp_m(tps, q)
+        cₚ_air = TD.cp_m(tps, qₜ, qₗ, qᵢ)
         Lₛ = TD.latent_heat_sublim(tps, T)
-        qᵥ = TD.vapor_specific_humidity(q)
 
         pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
         qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
@@ -124,6 +140,16 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     else
         return FT(0)
     end
+end
+
+function conv_q_vap_to_q_liq_ice_MM2015(
+    ice::CMP.CloudIce,
+    tps::TDP.ThermodynamicsParameters,
+    q::TD.PhasePartition,
+    ρ,
+    T,
+)
+    return conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q.tot, q.liq, q.ice, ρ, T)
 end
 
 """
