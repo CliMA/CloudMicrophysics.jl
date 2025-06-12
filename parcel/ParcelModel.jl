@@ -72,7 +72,6 @@ function parcel_model(dY, Y, p, t)
         ln_INPC = Y[10],   # needed only in stochastic Frostenberg
         t = t,
     )
-
     # Constants
     Rᵥ = TD.Parameters.R_v(tps)
     grav = TD.Parameters.grav(tps)
@@ -111,7 +110,6 @@ function parcel_model(dY, Y, p, t)
     dqᵢ_dt_dep = dNᵢ_dt_dep * 4 / 3 * FT(π) * r_nuc^3 * ρᵢ / ρ_air
 
     # Heterogeneous ice nucleation
-    #@info(imm_params)
     dln_INPC_imm = INPC_model(imm_params, state)
     dNᵢ_dt_imm = immersion_freezing(imm_params, PSD_liq, state)
     dqᵢ_dt_imm = dNᵢ_dt_imm * PSD_liq.V * ρᵢ / ρ_air
@@ -211,7 +209,6 @@ The parcel parameters struct comes with default values that can be overwritten:
  - γ - inverse timescale for the stochastic process in Frostenberg_stochastic parametrization of immerison freezing
 """
 function run_parcel(IC, t_0, t_end, pp)
-
     FT = eltype(IC)
 
     info = "\nSize distribution (liq): $(pp.liq_size_distribution)\n"
@@ -337,7 +334,6 @@ function run_parcel(IC, t_0, t_end, pp)
         r_nuc = pp.r_nuc,
         w = pp.w,
     )
-
     problem = ODE.ODEProblem(parcel_model, IC, (FT(t_0), FT(t_end)), p)
     return ODE.solve(
         problem,
