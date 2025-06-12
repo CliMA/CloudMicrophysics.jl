@@ -424,6 +424,8 @@ end
                 Nr[i],
                 T[i],
             ).evap_rate_1
+        output[16, i] = CM2.number_increase_for_mass_limit(SB2006.numadj, SB2006.pdf_r.xr_max, qr[i], ρ[i], Nr[i])
+        output[17, i] = CM2.number_decrease_for_mass_limit(SB2006.numadj, SB2006.pdf_r.xr_min, qr[i], ρ[i], Nr[i])
     end
 end
 
@@ -1028,7 +1030,7 @@ function test_gpu(FT)
         @test Array(output)[3] ≈ FT(4.7e-6)
 
         for SB in [SB2006, SB2006_no_limiters]
-            dims = (15, 1)
+            dims = (17, 1)
             (; output, ndrange) = setup_output(dims, FT)
 
             T = ArrayType([FT(290)])
@@ -1094,6 +1096,8 @@ function test_gpu(FT)
                     rtol = 1e-6,
                 )
             end
+            @test isapprox(Array(output)[16], FT(0), rtol = 1e-6)
+            @test isapprox(Array(output)[17], FT(-7.692307e4), rtol = 1e-6)
         end
     end
 

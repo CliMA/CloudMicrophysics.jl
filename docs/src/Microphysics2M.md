@@ -850,6 +850,32 @@ and the default free parameter values are:
 |------------|---------------------------|
 |``A``       | ``4.7``                   |
 
+## Number concentration adjustment (Horn 2012)
+To ensure that the number concentration ``N`` remains physically consistent with the mass mixing ratio ``q``, the `Microphysics2M.jl` module provides a pair of relaxation tendencies that bound the implied mean particle mass ``x = \rho q / N`` within user-defined limits ``[x_{min}, x_{max}]``. This is useful in two-moment schemes to prevent unphysical droplet masses and improve numerical stability.
+
+The tendencies are applied over a relaxation timescale ``\tau``, following the method described in [Horn2012](@cite). The total tendency can be written as:
+```math
+\frac{\partial N}{\partial t} = \frac{1}{\tau}\left[max\left(0, \frac{\rho q}{x_{max}}-N\right) + min\left(0, \frac{\rho q}{x_{min}}-N\right)\right].
+```
+This correction increases ``N`` when droplets are too heavy (i.e., ``x > x_{max}``) and decreases ``N`` when they are too light (``x < x_{min}``), while applying no correction when ``x`` lies within bounds. 
+
+This formulation is implemented as two separate functions:
+- `number_increase_for_mass_limit`: returns the rate needed to increase `N` when particles are too heavy (`x > x_{max}`).
+- `number_decrease_for_mass_limit`: returns the rate needed to decrease `N` when particles are too light (`x < x_{min}`).
+No correction is applied when x lies within bounds. The default parameter value is
+
+|   symbol   | default value                       |
+|------------|-------------------------------------|
+|``\tau``    | ``100 \, s``                        |
+
+The adjustment is assumed to exchange number concentration with a background reservoir of cloud condensation nuclei (CCN), so that any increase in droplet number is accompanied by a corresponding decrease in CCN number, and vice versa:
+```math
+\frac{\partial N_{CCN}}{\partial t} = -\frac{\partial N}{\partial t}
+```
+
+!!! note
+    In the reference paper, this approach is given for the number concentration of cloud droplets; however, the same formulation can also be used for raindrops.
+
 ## Example figures
 
 ```@example

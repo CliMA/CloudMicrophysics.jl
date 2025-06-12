@@ -649,6 +649,39 @@ function test_microphysics2M(FT)
         TT.@test qD ≈ qₗ rtol = 1e-5
         TT.@test qD_psd ≈ qₗ rtol = 1e-5
     end
+
+    TT.@testset "2M_microphysics - Horn 2012 number concentration adjustment ($FT)" begin
+
+        # Setup
+        ρ = FT(1.2)       # kg/m³
+        q = FT(1e-3)      # kg/kg
+        x_min = FT(2.6e-10)   # kg
+        x_max = FT(5e-6)      # kg
+        NumAdj = SB2006.numadj
+        (; τ) = NumAdj
+
+        N_low = FT(1e2)        # 1/m³
+        N_inrange = FT(1e4)    # 1/m³
+        N_high = FT(1e7)       # 1/m³
+        N_veryhigh = FT(1e15)  # 1/m³
+
+        # Action
+        dN_dt_low = (ρ * q / x_max - N_low) / τ
+        dN_dt_high = (ρ * q / x_min - N_high) / τ
+
+        # Test
+        TT.@test CM2.number_increase_for_mass_limit(NumAdj, x_max, q, ρ, N_low) ≈ dN_dt_low
+        TT.@test CM2.number_increase_for_mass_limit(NumAdj, x_max, q, ρ, N_inrange) ≈ FT(0)
+        TT.@test CM2.number_increase_for_mass_limit(NumAdj, x_max, q, ρ, N_high) ≈ FT(0)
+        TT.@test CM2.number_increase_for_mass_limit(NumAdj, x_max, FT(0), ρ, N_inrange) ≈ FT(0)
+
+        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, x_min, q, ρ, N_low) ≈ FT(0)
+        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, x_min, q, ρ, N_inrange) ≈ FT(0)
+        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, x_min, q, ρ, N_high) ≈ dN_dt_high
+        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, x_min, FT(0), ρ, N_inrange) ≈ -N_inrange / τ
+        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, FT(0), q, ρ, N_veryhigh) ≈ FT(0)
+        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, FT(0), FT(0), ρ, N_veryhigh) ≈ FT(0)
+    end
 end
 
 println("Testing Float64")
