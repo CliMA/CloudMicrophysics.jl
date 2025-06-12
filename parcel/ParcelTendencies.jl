@@ -236,15 +236,12 @@ end
 function condensation(params::NonEqCondParams_simple, PSD, state, ρ_air)
 
     FT = eltype(state)
-    (; Sₗ, T, qₗ, qᵥ, qᵢ) = state
+    (; Sₗ, qₗ, qᵥ) = state
     (; tps, liquid) = params
 
     q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0)
-    q_sat = TD.PhasePartition(FT(0), q_sat_liq, FT(0))
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-
-    new_q = MNE.conv_q_vap_to_q_liq_ice(liquid, q_sat, q)
+    new_q = MNE.conv_q_vap_to_q_liq_ice(liquid, q_sat_liq, qₗ)
 
     return new_q
 end
@@ -257,7 +254,7 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
-    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, ρ_air, T)
+    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, FT(0), FT(0), ρ_air, T)
 
     # using same limiter as ClimaAtmos for now
     return ifelse(
@@ -289,18 +286,14 @@ end
 
 function deposition(params::NonEqDepParams_simple, PSD, state, ρ_air)
     FT = eltype(state)
-    (; T, Sₗ, qₗ, qᵥ, qᵢ) = state
+    (; T, Sₗ, qᵥ, qᵢ) = state
 
     (; tps, ice) = params
 
     Sᵢ = S_i(tps, T, Sₗ)
     q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
 
-    q_sat = TD.PhasePartition(FT(0), FT(0), q_sat_ice)
-
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-
-    new_q = MNE.conv_q_vap_to_q_liq_ice(ice, q_sat, q)
+    new_q = MNE.conv_q_vap_to_q_liq_ice(ice, q_sat_ice, qᵢ)
 
     return new_q
 end
@@ -313,7 +306,7 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
 
     q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 
-    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, ρ_air, T)
+    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, FT(0), FT(0), ρ_air, T)
 
     # using same limiter as ClimaAtmos for now
     return ifelse(

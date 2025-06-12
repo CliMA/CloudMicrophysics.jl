@@ -120,14 +120,23 @@ end
             liquid,
             tps,
             TD.PhasePartition(qᵥ_sl[i]),
+            FT(0),
+            FT(0),
             ρ[i],
             T[i],
         )
-        output[2, i] = CMN.conv_q_vap_to_q_liq_ice(
-            ice,
-            TD.PhasePartition(FT(0), FT(0), qᵢ_s[i]),
-            TD.PhasePartition(FT(0), FT(0), qᵢ[i]),
+        output[2, i] = CMN.conv_q_vap_to_q_liq_ice_MM2015(
+            liquid,
+            tps,
+            qᵥ_sl[i],
+            FT(0),
+            FT(0),
+            FT(0),
+            FT(0),
+            ρ[i],
+            T[i],
         )
+        output[3, i] = CMN.conv_q_vap_to_q_liq_ice(ice, qᵢ_s[i], qᵢ[i])
     end
 end
 
@@ -840,7 +849,7 @@ function test_gpu(FT)
     end
 
     @testset "non-equilibrium microphysics kernels" begin
-        dims = (2, 1)
+        dims = (3, 1)
         (; output, ndrange) = setup_output(dims, FT)
 
         ρ = ArrayType([FT(0.8)])
@@ -854,7 +863,8 @@ function test_gpu(FT)
 
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         @test Array(output)[1] ≈ FT(3.763783850665844e-5)
-        @test Array(output)[2] ≈ FT(-1e-4)
+        @test Array(output)[2] ≈ FT(3.763783850665844e-5)
+        @test Array(output)[3] ≈ FT(-1e-4)
     end
 
     @testset "Chen 2022 terminal velocity kernels" begin
