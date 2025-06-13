@@ -4,7 +4,6 @@ Parameterization for heterogenous ice nucleation.
 module HetIceNucleation
 
 import ..Parameters as CMP
-import Thermodynamics as TD
 
 export dust_activated_number_fraction
 export MohlerDepositionRate
@@ -231,7 +230,6 @@ Parameterization for homogeneous ice nucleation
 module HomIceNucleation
 
 import ..Parameters as CMP
-import Thermodynamics as TD
 
 export homogeneous_J_cubic
 export homogeneous_J_linear

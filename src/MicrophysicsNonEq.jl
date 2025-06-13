@@ -6,12 +6,12 @@
 """
 module MicrophysicsNonEq
 
-import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
 
 import CloudMicrophysics.Common as CO
 
 import ..Parameters as CMP
+import ..ThermodynamicsExt as TDe
 
 export τ_relax
 export conv_q_vap_to_q_liq_ice
@@ -80,16 +80,14 @@ function conv_q_vap_to_q_liq_ice_MM2015(
 )
     FT = eltype(tps)
     if q_tot - q_ice - q_rai - q_sno > FT(0) #If there is water vapor or liquid
-        Rᵥ = TD.Parameters.R_v(tps)
-        Lᵥ = TD.latent_heat_vapor(tps, T)
+        Rᵥ = TDe.Rᵥ(tps)
+        Lᵥ = TDe.Lᵥ(tps, T)
+        cₚ_air = TDe.cpₘ(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
 
-        q = TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno)
-        #cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
-        cₚ_air = TD.cp_m(tps, q)
-        qᵥ = TD.vapor_specific_humidity(q)
+        qᵥ = TDe.q_vap(q_tot, q_liq + q_rai, q_ice + q_sno)
 
-        pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-        qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
+        pᵥ_sat_liq = TDe.saturation_vapor_pressure_over_liquid(tps, T)
+        qᵥ_sat_liq = TDe.p2q(tps, T, ρ, pᵥ_sat_liq)
 
         dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
         Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
@@ -112,16 +110,14 @@ function conv_q_vap_to_q_liq_ice_MM2015(
 )
     FT = eltype(tps)
     if q_tot - q_liq - q_rai - q_sno > FT(0) #If there is water vapor or ice
-        Rᵥ = TD.Parameters.R_v(tps)
-        Lₛ = TD.latent_heat_sublim(tps, T)
+        Rᵥ = TDe.Rᵥ(tps)
+        Lₛ = TDe.Lₛ(tps, T)
+        cₚ_air = TDe.cpₘ(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
 
-        q = TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno)
-        #cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
-        cₚ_air = TD.cp_m(tps, q)
-        qᵥ = TD.vapor_specific_humidity(q)
+        qᵥ = TDe.q_vap(q_tot, q_liq + q_rai, q_ice + q_sno)
 
-        pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
-        qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
+        pᵥ_sat_ice = TDe.saturation_vapor_pressure_over_ice(tps, T)
+        qᵥ_sat_ice = TDe.p2q(tps, T, ρ, pᵥ_sat_ice)
 
         dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
         Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
@@ -131,46 +127,6 @@ function conv_q_vap_to_q_liq_ice_MM2015(
         return FT(0)
     end
 end
-
-conv_q_vap_to_q_liq_ice_MM2015(
-    params::CMP.CloudLiquid,
-    tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-) = conv_q_vap_to_q_liq_ice_MM2015(
-    params::CMP.CloudLiquid,
-    tps::TDP.ThermodynamicsParameters,
-    q.tot,
-    q.liq - q_rai,
-    q.ice - q_sno,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-)
-
-conv_q_vap_to_q_liq_ice_MM2015(
-    params::CMP.CloudIce,
-    tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-) = conv_q_vap_to_q_liq_ice_MM2015(
-    params::CMP.CloudIce,
-    tps::TDP.ThermodynamicsParameters,
-    q.tot,
-    q.liq - q_rai,
-    q.ice - q_sno,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-)
 
 """
     terminal_velocity(sediment, vel, ρ, q)

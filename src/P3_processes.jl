@@ -16,7 +16,7 @@ hetergoeneous freezing rates from cloud droplets.
 function het_ice_nucleation(
     aerosol::Union{CMP.DesertDust, CMP.Illite, CMP.Kaolinite},
     tps::TDP.ThermodynamicsParameters{FT},
-    qₚ::TD.PhasePartition{FT},
+    q_liq::FT,
     N_liq::FT,
     RH::FT,
     T::FT,
@@ -34,14 +34,14 @@ function het_ice_nucleation(
     A_aer = FT(1e-10)
 
     dNdt = J * A_aer * N_liq
-    dLdt = J * A_aer * qₚ.liq * ρₐ
+    dLdt = J * A_aer * q_liq * ρₐ
 
     # nucleation rates are always positive definite...
     dNdt = max(0, dNdt)
     dLdt = max(0, dLdt)
     # ... and dont exceed the available number and mass of water droplets
     dNdt = min(dNdt, N_liq / dt)
-    dLdt = min(dLdt, qₚ.liq * ρₐ / dt)
+    dLdt = min(dLdt, q_liq * ρₐ / dt)
 
     return (; dNdt, dLdt)
 end
@@ -74,7 +74,7 @@ function ice_melt(
     # (we want ice core shape params)
     # Get constants
     (; K_therm) = aps
-    L_f = TD.latent_heat_fusion(tps, Tₐ)
+    L_f = TDe.Lf(tps, Tₐ)
 
     (; L_ice, N_ice) = state
     (; T_freeze, vent) = state.params

@@ -11,11 +11,12 @@ module Microphysics1M
 
 import SpecialFunctions as SF
 
-import Thermodynamics as TD
 import Thermodynamics.Parameters as TDP
 
 import ..Common as CO
 import ..Parameters as CMP
+
+import ..ThermodynamicsExt as TDe
 
 export terminal_velocity,
     conv_q_liq_to_q_rai,
@@ -30,14 +31,6 @@ export terminal_velocity,
 abstract type AbstractSnowShape end
 struct Oblate <: AbstractSnowShape end
 struct Prolate <: AbstractSnowShape end
-
-# Thermodynamics deps:
-# ---------------------
-# TD.latent_heat_fusion(tps, T)
-# TD.supersaturation(tps, q, ρ, T, TD.Liquid())
-# TD.supersaturation(tps, q, ρ, T, TD.Ice())
-# CO.G_func(aps, tps, T, TD.Liquid())
-# CO.G_func(aps, tps, T, TD.Ice())
 
 """
     Ec(type_1, type_2, ce)
@@ -337,13 +330,7 @@ function conv_q_ice_to_q_sno(
     T::FT,
 ) where {FT}
     acnv_rate = FT(0)
-    S = TD.supersaturation(
-        tps,
-        TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno),
-        ρ,
-        T,
-        TD.Ice(),
-    )
+    S = TDe.supersaturation_over_ice(tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T)
 
     if (q_ice > FT(0) && S > FT(0))
         (; me, Δm) = mass
@@ -358,27 +345,6 @@ function conv_q_ice_to_q_sno(
     end
     return acnv_rate
 end
-conv_q_ice_to_q_sno(
-    ice_params::CMP.CloudIce,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition, # Assuming q = (q_tot, q_liq + q_rai, q_ice + q_sno)
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-) = conv_q_ice_to_q_sno(
-    ice_params::CMP.CloudIce,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q.tot,
-    q.liq - q_rai,
-    q.ice - q_sno,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-)
 
 """
     accretion(cloud, precip, vel, ce, q_clo, q_pre, ρ)
@@ -565,12 +531,7 @@ function evaporation_sublimation(
     T::FT,
 ) where {FT}
     evap_subl_rate = FT(0)
-    S = TD.supersaturation(
-        tps,
-        TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno),
-        ρ,
-        T, TD.Liquid(),
-    )
+    S = TDe.supersaturation_over_liquid(tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T)
 
     if (q_rai > FT(0) && S < FT(0))
 
@@ -598,29 +559,6 @@ function evaporation_sublimation(
     # only evaporation is considered for rain
     return min(0, evap_subl_rate)
 end
-evaporation_sublimation(
-    rain_params::CMP.Rain,
-    vel::CMP.Blk1MVelTypeRain,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition, # Assuming q = (q_tot, q_liq + q_rai, q_ice + q_sno)
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-) = evaporation_sublimation(
-    rain_params::CMP.Rain,
-    vel::CMP.Blk1MVelTypeRain,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q.tot,
-    q.liq - q_rai,
-    q.ice - q_sno,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-)
 
 function evaporation_sublimation(
     (; pdf, mass, vent)::CMP.Snow{FT},
@@ -639,13 +577,7 @@ function evaporation_sublimation(
     if q_sno > FT(0)
         (; ν_air, D_vapor) = aps
 
-        S = TD.supersaturation(
-            tps,
-            TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno),
-            ρ,
-            T,
-            TD.Ice(),
-        )
+        S = TDe.supersaturation_over_ice(tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T)
         G = CO.G_func(aps, tps, T, TD.Ice())
 
         n0 = get_n0(pdf, q_sno, ρ)
@@ -670,30 +602,6 @@ function evaporation_sublimation(
     end
     return evap_subl_rate
 end
-
-evaporation_sublimation(
-    snow_params::CMP.Snow,
-    vel::CMP.Blk1MVelTypeSnow,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition, # Assuming q = (q_tot, q_liq + q_rai, q_ice + q_sno)
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-) = evaporation_sublimation(
-    snow_params::CMP.Snow,
-    vel::CMP.Blk1MVelTypeSnow,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q.tot,
-    q.liq - q_rai,
-    q.ice - q_sno,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-)
 
 """
     snow_melt(snow, vel, aps, tps, q_sno, ρ, T)
@@ -722,7 +630,7 @@ function snow_melt(
     if (q_sno > FT(0) && T > T_freeze)
         (; ν_air, D_vapor, K_therm) = aps
 
-        L = TD.latent_heat_fusion(tps, T)
+        L = TDe.Lf(tps, T)
 
         n0 = get_n0(pdf, q_sno, ρ)
         v0 = get_v0(vel, ρ)
