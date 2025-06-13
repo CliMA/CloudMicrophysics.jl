@@ -350,6 +350,18 @@ function benchmark_test(FT)
         (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai),
         300,
     )
+    bench_press(
+        FT,
+        CM2.number_increase_for_mass_limit,
+        (sb2006.numadj, FT(5e-6), q_rai, ρ_air, N_rai),
+        50,
+    )
+    bench_press(
+        FT,
+        CM2.number_decrease_for_mass_limit,
+        (sb2006.numadj, FT(2.6e-10), q_rai, ρ_air, N_rai),
+        50,
+    )
     # Homogeneous Nucleation
     bench_press(
         @NamedTuple{binary_rate::FT, ternary_rate::FT},

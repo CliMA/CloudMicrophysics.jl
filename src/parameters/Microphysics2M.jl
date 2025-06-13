@@ -408,21 +408,24 @@ Base.@kwdef struct RainParticlePDF_SB2006_notlimited{FT} <: RainParticlePDF_SB20
     νr::FT
     "Raindrop size distribution coefficient μr"
     μr::FT
+    "Raindrop minimum mass"
+    xr_min::FT
+    "Raindrop maximum mass"
+    xr_max::FT
     "Cloud liquid water density [kg/m3]"
     ρw::FT
     "Reference air density [kg/m3]"
     ρ0::FT
-    "Raindrop minimal mass"
-    xr_min::FT
 end
 
 function RainParticlePDF_SB2006_notlimited(td::CP.AbstractTOMLDict)
     name_map = (;
         :SB2006_rain_distribution_coeff_nu => :νr,
         :SB2006_rain_distribution_coeff_mu => :μr,
+        :SB2006_raindrops_min_mass => :xr_min,
+        :SB2006_raindrops_max_mass => :xr_max,
         :density_liquid_water => :ρw,
         :SB2006_reference_air_density => :ρ0,
-        :SB2006_raindrops_min_mass => :xr_min,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
@@ -445,6 +448,10 @@ Base.@kwdef struct CloudParticlePDF_SB2006{FT} <: ParametersType{FT}
     νc::FT
     "Cloud droplet size distribution coefficient μc"
     μc::FT
+    "Cloud droplets minimum mass"
+    xc_min::FT
+    "Cloud droplets maximum mass"
+    xc_max::FT
     "Cloud liquid water density [kg/m3]"
     ρw::FT
 end
@@ -453,6 +460,8 @@ function CloudParticlePDF_SB2006(td::CP.AbstractTOMLDict)
     name_map = (;
         :SB2006_cloud_gamma_distribution_parameter => :νc,
         :SB2006_cloud_gamma_distribution_coeff_mu => :μc,
+        :SB2006_cloud_droplets_min_mass => :xc_min,
+        :SB2006_raindrops_min_mass => :xc_max,
         :density_liquid_water => :ρw,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
@@ -623,6 +632,28 @@ function EvaporationSB2006(td::CP.AbstractTOMLDict)
 end
 
 """
+    NumberAdjustmentHorn2012
+
+Number concentration adjustment parameter from Horn (2012, DOI: 10.5194/gmd-5-345-2012)
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+Base.@kwdef struct NumberAdjustmentHorn2012{FT} <: ParametersType{FT}
+    "Number concentration adjustment timescale [s]"
+    τ::FT
+end
+
+function NumberAdjustmentHorn2012(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :Horn2012_number_concentration_adjustment_timescale => :τ,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return NumberAdjustmentHorn2012{FT}(; parameters...)
+end
+
+"""
     SB2006
 
 The type and parameters for 2-moment precipitation formation by
@@ -634,7 +665,7 @@ DOI: 10.1007/s00703-005-0112-4
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SB2006{FT, PDc, PDr, AV, AR, SC, BR, EV} <: Precipitation2MType{FT}
+struct SB2006{FT, PDc, PDr, AV, AR, SC, BR, EV, NA} <: Precipitation2MType{FT}
     "Cloud particle size distribution parameters"
     pdf_c::PDc
     "Rain particle size distribution parameters"
@@ -649,6 +680,8 @@ struct SB2006{FT, PDc, PDr, AV, AR, SC, BR, EV} <: Precipitation2MType{FT}
     brek::BR
     "Rain evaporation parameters"
     evap::EV
+    "Number concentration adjustment parameter"
+    numadj::NA
 end
 
 SB2006(::Type{FT}, is_limited = true) where {FT <: AbstractFloat} =
@@ -664,6 +697,7 @@ function SB2006(toml_dict::CP.AbstractTOMLDict, is_limited = true)
     self = SelfColSB2006(toml_dict)
     brek = BreakupSB2006(toml_dict)
     evap = EvaporationSB2006(toml_dict)
+    numadj = NumberAdjustmentHorn2012(toml_dict)
     FT = CP.float_type(toml_dict)
     PDc = typeof(pdf_c)
     PDr = typeof(pdf_r)
@@ -672,7 +706,8 @@ function SB2006(toml_dict::CP.AbstractTOMLDict, is_limited = true)
     SE = typeof(self)
     BR = typeof(brek)
     EV = typeof(evap)
-    return SB2006{FT, PDc, PDr, AN, AR, SE, BR, EV}(
+    NA = typeof(numadj)
+    return SB2006{FT, PDc, PDr, AN, AR, SE, BR, EV, NA}(
         pdf_c,
         pdf_r,
         acnv,
@@ -680,5 +715,6 @@ function SB2006(toml_dict::CP.AbstractTOMLDict, is_limited = true)
         self,
         brek,
         evap,
+        numadj,
     )
 end

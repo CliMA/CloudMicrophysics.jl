@@ -2,6 +2,7 @@
 Double-moment bulk microphysics parametrizations including:
  - autoconversion, accretion, self-collection, breakup, mean terminal velocity of raindrops, 
     and rain evaporation rates from Seifert and Beheng 2006.
+ - number concentration adjustment from Horn 2012. 
  - additional double-moment bulk microphysics autoconversion and accretion rates
    from: Khairoutdinov and Kogan 2000, Beheng 1994, Tripoli and Cotton 1980, and
    Liu and Daum 2004.
@@ -29,7 +30,9 @@ export autoconversion,
     rain_breakup,
     rain_self_collection_and_breakup,
     size_distribution,
-    get_size_distribution_bounds
+    get_size_distribution_bounds,
+    number_increase_for_mass_limit,
+    number_decrease_for_mass_limit
 
 """
     pdf_rain_parameters(pdf_r, qᵣ, ρₐ, Nᵣ)
@@ -738,6 +741,57 @@ function rain_evaporation(
     end
 
     return (; evap_rate_0, evap_rate_1)
+end
+
+"""
+    number_increase_for_mass_limit(numadj, x_max, q, ρ, N)
+
+Compute the tendency (rate of change) of number concentration `N` required to ensure that 
+the mean particle mass `x = ρq / N` does not exceed the upper limit `x_max`. Returns a positive 
+tendency when the mean mass is too high (`x > x_max`), and zero otherwise.
+The method is based on Horn (2012, DOI: [10.5194/gmd-5-345-2012](https://doi.org/10.5194/gmd-5-345-2012)).
+
+# Arguments
+- `numadj`: Number concentration adjustment parameters ([CMP.NumberAdjustmentHorn2012](@ref))
+- `q`: Mass mixing ratio [kg/kg]
+- `ρ`: Air density [kg/m³]
+- `N`: Number concentration [1/m³]
+- `x_max`: Maximum allowed mean particle mass [kg]
+
+# Returns
+- The rate of change of number concentration [1/(m³·s)] needed to bring the mean mass within the upper bound.
+"""
+function number_increase_for_mass_limit(
+    (; τ)::CMP.NumberAdjustmentHorn2012{FT}, x_max, q, ρ, N,
+) where {FT}
+    return max(FT(0), ρ * q / x_max - N) / τ
+end
+
+"""
+    number_decrease_for_mass_limit(numadj, x_min, q, ρ, N)
+
+Compute the tendency (rate of change) of number concentration `N` required to ensure that 
+the mean particle mass `x = ρq / N` does not fall below the lower limit `x_min`. Returns a negative
+tendency when the mean mass is too low (`x < x_min`), and zero otherwise.
+The method is based on Horn (2012, DOI: [10.5194/gmd-5-345-2012](https://doi.org/10.5194/gmd-5-345-2012)).
+
+# Arguments
+- `numadj`: Number concentration adjustment parameters ([CMP.NumberAdjustmentHorn2012](@ref))
+- `q`: Mass mixing ratio [kg/kg]
+- `ρ`: Air density [kg/m³]
+- `N`: Number concentration [1/m³]
+- `x_min`: Minimum allowed mean particle mass [kg]
+
+# Returns
+- The rate of change of number concentration [1/(m³·s)] needed to bring the mean mass within the lower bound.
+"""
+function number_decrease_for_mass_limit(
+    (; τ)::CMP.NumberAdjustmentHorn2012{FT}, x_min, q, ρ, N,
+) where {FT}
+
+    N_max = iszero(x_min) ? Inf : ρ * q / x_min   # Avoid Nan when both q and x_min are 0
+
+    return min(FT(0), N_max - N) / τ
 end
 
 # Additional double moment autoconversion and accretion parametrizations:

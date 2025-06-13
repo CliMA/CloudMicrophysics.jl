@@ -73,6 +73,8 @@ Microphysics2M.rain_self_collection_and_breakup
 Microphysics2M.rain_terminal_velocity
 Microphysics2M.rain_evaporation
 Microphysics2M.conv_q_liq_to_q_rai
+Microphysics2M.number_increase_for_mass_limit
+Microphysics2M.number_decrease_for_mass_limit
 ```
 
 ## Distribution tools for 2-moment microphysics
@@ -322,6 +324,7 @@ Parameters.AccrSB2006
 Parameters.SelfColSB2006
 Parameters.BreakupSB2006
 Parameters.EvaporationSB2006
+Parameters.NumberAdjustmentHorn2012
 Parameters.Blk1MVelType
 Parameters.Blk1MVelTypeRain
 Parameters.Blk1MVelTypeSnow
