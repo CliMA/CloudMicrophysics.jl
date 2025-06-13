@@ -2,8 +2,8 @@ import Interpolations as Intp
 
 # Saturation ratio over ice
 ξ(tps, T) =
-    TD.saturation_vapor_pressure(tps, T, TD.Liquid()) /
-    TD.saturation_vapor_pressure(tps, T, TD.Ice())
+    TDI.saturation_vapor_pressure_over_liquid(tps, T) /
+    TDI.saturation_vapor_pressure_over_ice(tps, T)
 
 # Vapour partial pressure
 eᵥ(qᵥ, p_air, R_air, Rᵥ) = qᵥ * p_air * Rᵥ / R_air

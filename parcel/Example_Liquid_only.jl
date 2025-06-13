@@ -1,8 +1,9 @@
 import OrdinaryDiffEq as ODE
 import CairoMakie as MK
-import Thermodynamics as TD
+
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
@@ -10,13 +11,13 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 FT = Float32
 
 # Get free parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
 # Constants
 ρₗ = wps.ρw
 ρᵢ = wps.ρi
-R_v = TD.Parameters.R_v(tps)
-R_d = TD.Parameters.R_d(tps)
+R_v = TDI.Rᵥ(tps)
+R_d = TDI.Rd(tps)
 
 # Initial conditions
 Nₐ = FT(0)
@@ -26,7 +27,7 @@ r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(273.15 + 7.0)
 ln_INPC = FT(0)
-e = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+e = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
 Sₗ = FT(1)
 md_v = (p₀ - e) / R_d / T₀
 mv_v = e / R_v / T₀
@@ -82,9 +83,7 @@ for DSD in liq_size_distribution_list
     sol_qᵥ = sol[4, :]
     sol_qₗ = sol[5, :]
     sol_qᵢ = sol[6, :]
-    local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
-    local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
-    local ρₐ = TD.air_density.(tps, ts)
+    local ρₐ = TDI.air_density.(tps, sol_T, sol_p, sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
     # Compute the mean particle size based on the distribution
     distr = sol.prob.p.liq_distr
     moms = distribution_moments.(distr, sol_qₗ, sol_Nₗ, ρₗ, ρₐ)

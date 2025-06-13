@@ -1,9 +1,9 @@
 import Test as TT
 
-import Thermodynamics as TD
-import CloudMicrophysics as CM
 import ClimaParams as CP
 
+import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.HomIceNucleation as CMH
@@ -12,7 +12,7 @@ import CloudMicrophysics.HomIceNucleation as CMH
 
 function test_homogeneous_J_cubic(FT)
 
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     ip = CMP.IceNucleationParameters(FT)
 
@@ -49,7 +49,7 @@ end
 
 function test_homogeneous_J_linear(FT)
 
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     ip = CMP.IceNucleationParameters(FT)
 

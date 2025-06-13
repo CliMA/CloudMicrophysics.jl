@@ -1,18 +1,15 @@
-import Plots
+import Plots as PL
 
-import Thermodynamics
-import CloudMicrophysics
 import ClimaParams
-import CloudMicrophysics.Common as CO
 
-const PL = Plots
-const CM1 = CloudMicrophysics.Microphysics1M
-const TD = Thermodynamics
-const CMP = CloudMicrophysics.Parameters
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.ThermodynamicsInterface as TDI
+import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
 
-const tps = Thermodynamics.Parameters.ThermodynamicsParameters(FT)
+const tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 const aps = CMP.AirProperties(FT)
 const liquid = CMP.CloudLiquid(FT)
 const ice = CMP.CloudIce(FT)
@@ -31,18 +28,21 @@ end
 
 # eq. 5c in [Grabowski1996](@cite)
 function rain_evap_empirical(
+    tps,
     q_rai::DT,
-    q::TD.PhasePartition,
+    q_tot::DT,
+    q_liq::DT,
     T::DT,
     p::DT,
     ρ::DT,
 ) where {DT <: Real}
 
-    ts_neq = TD.PhaseNonEquil_ρTq(tps, ρ, T, q)
-    q_sat = TD.q_vap_saturation(tps, ts_neq)
-    q_vap = q.tot - q.liq
-    rr = q_rai / (DT(1) - q.tot)
-    rv_sat = q_sat / (DT(1) - q.tot)
+    p_v_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+    q_sat = TDI.p2q(tps, T, ρ, p_v_sat)
+
+    q_vap = q_tot - q_liq
+    rr = q_rai / (DT(1) - q_tot)
+    rv_sat = q_sat / (DT(1) - q_tot)
     S = q_vap / q_sat - DT(1)
 
     ag, bg = 5.4 * 1e2, 2.55 * 1e5
@@ -53,7 +53,7 @@ function rain_evap_empirical(
         av * (ρ / DT(1e3))^DT(0.525) * rr^DT(0.525) +
         bv * (ρ / DT(1e3))^DT(0.7296) * rr^DT(0.7296)
 
-    return DT(1) / (DT(1) - q.tot) * S * F * G
+    return DT(1) / (DT(1) - q_tot) * S * F * G
 end
 
 #! format: off
@@ -79,20 +79,20 @@ PL.plot(
 )
 PL.plot!(
     q_ice_range * 1e3,
-    [CM1.conv_q_ice_to_q_sno(ice, aps, tps, TD.PhasePartition(q_tot, 0.0, q_ice), q_rai, q_sno, ρ_air, T - 5) for q_ice in q_ice_range],
+    [CM1.conv_q_ice_to_q_sno(ice, aps, tps, q_tot, 0.0, q_ice, q_rai, q_sno, ρ_air, T - 5) for q_ice in q_ice_range],
     linewidth = 3,
     label = "Snow T=-5C",
 )
 
 PL.plot!(
     q_ice_range * 1e3,
-    [CM1.conv_q_ice_to_q_sno(ice, aps, tps, TD.PhasePartition(q_tot, 0.0, q_ice), q_rai, q_sno, ρ_air, T - 10) for q_ice in q_ice_range],
+    [CM1.conv_q_ice_to_q_sno(ice, aps, tps, q_tot, 0.0, q_ice, q_rai, q_sno, ρ_air, T - 10) for q_ice in q_ice_range],
     linewidth = 3,
     label = "Snow T=-10C",
 )
 PL.plot!(
     q_ice_range * 1e3,
-    [CM1.conv_q_ice_to_q_sno(ice, aps, tps, TD.PhasePartition(q_tot, 0.0, q_ice), q_rai, q_sno, ρ_air, T - 15) for q_ice in q_ice_range],
+    [CM1.conv_q_ice_to_q_sno(ice, aps, tps, q_tot, 0.0, q_ice, q_rai, q_sno, ρ_air, T - 15) for q_ice in q_ice_range],
     linewidth = 3,
     label = "Snow T=-15C",
 )
@@ -216,8 +216,8 @@ PL.savefig("accretion_snow_rain_below_freeze.svg") # hide
 
 # example values
 T, p = 273.15 + 15, 90000.0
-ϵ = 1.0 / TD.Parameters.molmass_ratio(tps)
-p_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+ϵ = TDI.Rd_over_Rv(tps)
+p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.0))
 q_rain_range = range(1e-8, stop = 5e-3, length = 100)
 q_tot = 15e-3
@@ -225,13 +225,12 @@ q_vap = 0.15 * q_sat
 q_ice = 0.0
 q_liq = q_tot - q_vap - q_ice
 q_sno = 0.0
-q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(tps, q)
+R = TDI.Rₘ(tps, q_tot, q_liq, q_ice) #technically rain and snow should be included
 ρ = p / R / T
 
 PL.plot(
     q_rain_range * 1e3,
-    [CM1.evaporation_sublimation(rain, Blk1MVel.rain, aps, tps, q, q_rai, q_sno, ρ, T) for q_rai in q_rain_range],
+    [CM1.evaporation_sublimation(rain, Blk1MVel.rain, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T) for q_rai in q_rain_range],
     xlabel = "q_rain [g/kg]",
     linewidth = 3,
     ylabel = "rain evaporation rate [1/s]",
@@ -239,7 +238,7 @@ PL.plot(
 )
 PL.plot!(
     q_rain_range * 1e3,
-    [rain_evap_empirical(q_rai, q, T, p, ρ) for q_rai in q_rain_range],
+    [rain_evap_empirical(tps, q_rai, q_tot, q_liq, T, p, ρ) for q_rai in q_rain_range],
     linewidth = 3,
     label = "empirical",
 )
@@ -247,8 +246,8 @@ PL.savefig("rain_evaporation_rate.svg") # hide
 
 # example values
 T, p = 273.15 - 15, 90000.0
-ϵ = 1.0 / TD.Parameters.molmass_ratio(tps)
-p_sat = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+ϵ = TDI.Rd_over_Rv(tps)
+p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.0))
 q_snow_range = range(1e-8, stop = 5e-3, length = 100)
 q_tot = 15e-3
@@ -256,13 +255,12 @@ q_vap = 0.15 * q_sat
 q_liq = 0.0
 q_ice = q_tot - q_vap - q_liq
 q_rai = 0.0
-q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(tps, q)
+R = TDI.Rₘ(tps, q_tot, q_liq, q_ice) # Technically rain and snow should be included
 ρ = p / R / T
 
 PL.plot(
     q_snow_range * 1e3,
-    [CM1.evaporation_sublimation(snow, Blk1MVel.snow, aps, tps, q, q_rai, q_sno, ρ, T) for q_sno in q_snow_range],
+    [CM1.evaporation_sublimation(snow, Blk1MVel.snow, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T) for q_sno in q_snow_range],
     xlabel = "q_snow [g/kg]",
     linewidth = 3,
     ylabel = "snow deposition sublimation rate [1/s]",
@@ -270,8 +268,8 @@ PL.plot(
 )
 
 T, p = 273.15 + 15, 90000.0
-ϵ = 1.0 / TD.Parameters.molmass_ratio(tps)
-p_sat = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+ϵ = TDI.Rd_over_Rv(tps)
+p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.0))
 q_snow_range = range(1e-8, stop = 5e-3, length = 100)
 q_tot = 15e-3
@@ -279,13 +277,12 @@ q_vap = 0.15 * q_sat
 q_liq = 0.0
 q_ice = q_tot - q_vap - q_liq
 q_rai = 0.0
-q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(tps, q)
+R = TDI.Rₘ(tps, q_tot, q_liq, q_ice) # same as above
 ρ = p / R / T
 
 PL.plot!(
     q_snow_range * 1e3,
-    [CM1.evaporation_sublimation(snow, Blk1MVel.snow, aps, tps, q, q_rai, q_sno, ρ, T) for q_sno in q_snow_range],
+    [CM1.evaporation_sublimation(snow, Blk1MVel.snow, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T) for q_sno in q_snow_range],
     xlabel = "q_snow [g/kg]",
     linewidth = 3,
     ylabel = "snow deposition sublimation rate [1/s]",

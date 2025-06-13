@@ -1,8 +1,8 @@
 import OrdinaryDiffEq as ODE
 import CairoMakie as MK
 
-import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 # definition of the ODE problem for parcel model
@@ -12,10 +12,9 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
     Wrapper for initial condition
 """
 function get_initial_condition(tps, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC)
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-    R_a = TD.gas_constant_air(tps, q)
-    R_v = TD.Parameters.R_v(tps)
-    e_sl = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    R_a = TDI.Rₘ(tps, qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    R_v = TDI.Rᵥ(tps)
+    e_sl = TDI.saturation_vapor_pressure_over_liquid(tps, T)
     e = eᵥ(qᵥ, p_air, R_a, R_v)
     Sₗ = e / e_sl
 
@@ -33,7 +32,7 @@ end
 function Tully_et_al_2023(FT)
 
     # get free parameters
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     # Initial conditions for 1st period
     N_aerosol = FT(2000 * 1e3)
     N_droplets = FT(0)

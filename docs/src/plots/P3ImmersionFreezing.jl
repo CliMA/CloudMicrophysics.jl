@@ -47,18 +47,18 @@ max_dLdt_T1 = [qₗ* p2ρ(T1, RH) / dt for RH in RH_range]
 max_dLdt_T2 = [qₗ* p2ρ(T2, RH) / dt for RH in RH_range]
 max_dNdt =    [Nₗ              / dt for RH in RH_range]
 
-dLdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, TD.PhasePartition(RH2qₜ(T1, RH), qₗ, qᵢ), Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
-dNdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, TD.PhasePartition(RH2qₜ(T1, RH), qₗ, qᵢ), Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
+dLdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
+dNdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
 
-dLdt_il_T1 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T1, RH), qₗ, qᵢ), Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
-dNdt_il_T1 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T1, RH), qₗ, qᵢ), Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
+dLdt_il_T1 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
+dNdt_il_T1 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
 
 
-dLdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
-dNdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
+dLdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
+dNdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
 
-dLdt_il_T2 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
-dNdt_il_T2 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
+dLdt_il_T2 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
+dNdt_il_T2 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
 
 # plotting
 fig = PL.Figure(size = (1500, 500), fontsize=22, linewidth=3)
