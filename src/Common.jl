@@ -5,10 +5,8 @@ module Common
 
 import SpecialFunctions as SF
 
-import Thermodynamics as TD
-const TPS = TD.Parameters.ThermodynamicsParameters
-
 import ..Parameters as CMP
+import ..ThermodynamicsExt as TDe
 const HPS = CMP.H2SO4SolutionParameters
 
 export G_func
@@ -22,38 +20,35 @@ export Chen2022_exponential_pdf
 export ventilation_factor
 
 """
-    G_func(air_props, tps, T, Liquid())
-    G_func(air_props, tps, T, Ice())
+    G_func_liquid(air_props, tps, T, Liquid())
+    G_func_ice(air_props, tps, T, Ice())
 
  - `air_props` - struct with air parameters
  - `tps` - struct with thermodynamics parameters
  - `T` - air temperature
- - `Liquid()`, `Ice()` - liquid or ice phase to dispatch over.
 
 Utility function combining thermal conductivity and vapor diffusivity effects.
 """
-function G_func(
+function G_func_liquid(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TPS,
     T::FT,
-    ::TD.Liquid,
 ) where {FT}
-    R_v = TD.Parameters.R_v(tps)
-    L = TD.latent_heat_vapor(tps, T)
-    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    R_v = TDe.Rᵥ(tps)
+    L = TDe.Lᵥ(tps, T)
+    p_vs = TDe.saturation_vapor_pressure_over_liquid(tps, T)
 
     return FT(1) /
            (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
 end
-function G_func(
+function G_func_ice(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TPS,
     T::FT,
-    ::TD.Ice,
 ) where {FT}
-    R_v = TD.Parameters.R_v(tps)
-    L = TD.latent_heat_sublim(tps, T)
-    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+    R_v = TDe.Rᵥ(tps)
+    L = TDe.Lₛ(tps, T)
+    p_vs = TDe.saturation_vapor_pressure_over_ice(tps, T)
 
     return FT(1) /
            (L / K_therm / T * (L / R_v / T - FT(1)) + R_v * T / D_vapor / p_vs)
@@ -172,7 +167,7 @@ Returns water activity of H2SO4 containing droplet.
 function a_w_xT(H2SO4_prs::HPS, tps::TPS, x::FT, T::FT) where {FT}
 
     p_sol = H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x, T)
-    p_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    p_sat = TDe.saturation_vapor_pressure_over_liquid(tps, T)
 
     return p_sol / p_sat
 end
@@ -189,7 +184,7 @@ Valid when droplet is in equilibrium with surroundings.
 """
 function a_w_eT(tps::TPS, e::FT, T::FT) where {FT}
     # RH
-    return e / TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    return e / TDe.saturation_vapor_pressure_over_liquid(tps, T)
 end
 
 """
@@ -202,8 +197,8 @@ Returns water activity of ice.
 """
 function a_w_ice(tps::TPS, T::FT) where {FT}
 
-    return TD.saturation_vapor_pressure(tps, T, TD.Ice()) /
-           TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    return TDe.saturation_vapor_pressure_over_ice(tps, T) /
+           TDe.saturation_vapor_pressure_over_liquid(tps, T)
 end
 
 """
@@ -321,7 +316,7 @@ Return a function `v_term(D)` that computes the particle terminal velocity
 
 # Returns
 - `v_term(D)`: The terminal velocity of a particle as a function of its size (diameter, `D`)
-    
+
 Needed for numerical integrals in the P3 scheme.
 
 !!! note

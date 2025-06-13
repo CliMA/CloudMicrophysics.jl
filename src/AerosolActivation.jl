@@ -11,9 +11,7 @@ module AerosolActivation
 
 import SpecialFunctions as SF
 
-import Thermodynamics as TD
-import Thermodynamics.Parameters as TDP
-
+import ..ThermodynamicsExt as TDe
 import ..Common as CO
 import ..AerosolModel as AM
 import ..Parameters as CMP
@@ -307,9 +305,9 @@ function total_M_activated(
     T::FT,
     p::FT,
     w::FT,
-    q::TD.PhasePartition{FT},
+    q_tot::FT, q_liq::FT, q_ice::FT, q_rai::FT, q_sno::FT,
 ) where {FT}
-    return sum(M_activated_per_mode(ap, ad, aip, tps, T, p, w, q))
+    return sum(M_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot))
 end
 
 end # module AerosolActivation.jl
