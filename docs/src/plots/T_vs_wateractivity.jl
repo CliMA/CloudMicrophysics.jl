@@ -1,14 +1,14 @@
 import CairoMakie as MK
 
-import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 const CMO = CM.Common
 const CMP = CM.Parameters
 
 FT = Float64
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.PS(FT)
 H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
 T_range = range(190, stop = 234, length = 100)
@@ -16,8 +16,8 @@ x = FT(0.1)
 #! format: off
 p_sol_1 = [CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x, T) for T in T_range]     # p_sol for concentration x
 p_sol_0 = [CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, 0.0, T) for T in T_range]   # sat vap pressure over pure liq water using p_sol eqn
-p_sat_liq = [TD.saturation_vapor_pressure(tps, T, TD.Liquid()) for T in T_range]  # sat vap pressure over pure liq water using TD package
-p_sat_ice = [TD.saturation_vapor_pressure(tps, T, TD.Ice()) for T in T_range]     # sat vap pressure over ice using TD package
+p_sat_liq = [TDI.saturation_vapor_pressure_over_liquid(tps, T) for T in T_range]  # sat vap pressure over pure liq water using TD package
+p_sat_ice = [TDI.saturation_vapor_pressure_over_ice(tps, T) for T in T_range]     # sat vap pressure over ice using TD package
 
 a_w = p_sol_1 ./ p_sat_liq                 # a_w current parameterization
 a_w_alternate = p_sol_1 ./ p_sol_0         # a_w if sat vapor pressure over pure liq water was calculated with p_sol eqn

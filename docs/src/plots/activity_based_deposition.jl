@@ -1,13 +1,13 @@
 import Plots as PL
 
-import Thermodynamics as TD
 import CloudMicrophysics as CM
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.HetIceNucleation as IN
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 FT = Float32
-const tps = TD.Parameters.ThermodynamicsParameters(FT)
+const tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 const feldspar = CMP.Feldspar(FT)
 const ferrihydrite = CMP.Ferrihydrite(FT)
 const kaolinite = CMP.Kaolinite(FT)

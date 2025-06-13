@@ -1,15 +1,14 @@
 import CairoMakie as MK
 
-import Thermodynamics as TD
-
 import CloudMicrophysics
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 FT = Float64
 
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 aps = CMP.AirProperties(FT)
 liquid = CMP.CloudLiquid(FT)
 ice = CMP.CloudIce(FT)
@@ -27,14 +26,15 @@ function accretion_empirical(q_rai::DT, q_liq::DT, q_tot::DT) where {DT <: Real}
 end
 
 # eq. 5c in [Grabowski1996](@cite)
-function rain_evap_empirical(q_rai, q::TD.PhasePartition, T, p, ρ)
+function rain_evap_empirical(tps, q_rai, q_tot, q_liq, T, p, ρ)
     DT = eltype(q_rai)
 
-    ts_neq = TD.PhaseNonEquil_ρTq(tps, ρ, T, q)
-    q_sat = TD.q_vap_saturation(tps, ts_neq)
-    q_vap = q.tot - q.liq
-    rr = q_rai / (1 - q.tot)
-    rv_sat = q_sat / (1 - q.tot)
+    p_v_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+    q_sat = TDI.p2q(tps, T, ρ, p_v_sat)
+
+    q_vap = q_tot - q_liq
+    rr = q_rai / (DT(1) - q_tot)
+    rv_sat = q_sat / (DT(1) - q_tot)
     S = q_vap / q_sat - 1
 
     ag, bg = 5.4 * 1e2, 2.55 * 1e5
@@ -45,7 +45,7 @@ function rain_evap_empirical(q_rai, q::TD.PhasePartition, T, p, ρ)
         av * (ρ / DT(1e3))^DT(0.525) * rr^DT(0.525) +
         bv * (ρ / DT(1e3))^DT(0.7296) * rr^DT(0.7296)
 
-    return 1 / (1 - q.tot) * S * F * G
+    return 1 / (1 - q_tot) * S * F * G
 end
 
 # example values
@@ -64,7 +64,7 @@ MK.set_theme!(MK.theme_minimal())
 
 # autoconversion rate figure
 T = 273.15
-q_range = TD.PhasePartition.(q_tot, 0.0, q_ice_range)
+q_range = TDI.PP.(q_tot, 0.0, q_ice_range)
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_liq or q_ice [g/kg]", ylabel = "autoconversion rate [1/s]", limits)
 q_ice_to_q_sno_rate = T -> CM1.conv_q_ice_to_q_sno.(ice, aps, tps, q_range, q_rai, q_sno, ρ_air, T)
@@ -135,8 +135,8 @@ MK.save("accretion_snow_rain_below_freeze.svg", fig) # hide
 
 # example values
 T, p = 273.15 + 15, 90000.0
-ϵ = 1.0 / TD.Parameters.molmass_ratio(tps)
-p_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+ϵ = TDI.Rd_over_Rv(tps)
+p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.0))
 q_rain_range = range(1e-8, stop = 5e-3, length = 100)
 q_tot = 15e-3
@@ -144,8 +144,8 @@ q_vap = 0.15 * q_sat
 q_ice = 0.0
 q_liq = q_tot - q_vap - q_ice
 q_sno = 0.0
-q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(tps, q)
+q = TDI.PP(q_tot, q_liq, q_ice)
+R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
 ρ = p / R / T
 
 fig = MK.Figure()
@@ -155,7 +155,7 @@ MK.lines!(
     q_rain_range * 1e3, CM1.evaporation_sublimation.(rain, Blk1MVel.rain, aps, tps, Ref(q), q_rain_range, q_sno, ρ, T),
     label = "ClimateMachine",
 )
-MK.lines!(q_rain_range * 1e3, rain_evap_empirical.(q_rain_range, Ref(q), T, p, ρ), label = "empirical")
+MK.lines!(q_rain_range * 1e3, rain_evap_empirical.(tps, q_rain_range, q_tot, q_liq, T, p, ρ), label = "empirical")
 MK.axislegend(ax; position = :rt)
 MK.save("rain_evaporation_rate.svg", fig) # hide
 
@@ -166,8 +166,8 @@ MK.xlims!(ax, 0, q_max * 1e3)
 
 # example values 1
 T, p = 273.15 - 15, 90000.0
-ϵ = 1.0 / TD.Parameters.molmass_ratio(tps)
-p_sat = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+ϵ = TDI.Rd_over_Rv(tps)
+p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.0))
 q_snow_range = range(1e-8, stop = 5e-3, length = 100)
 q_tot = 15e-3
@@ -175,16 +175,16 @@ q_vap = 0.15 * q_sat
 q_liq = 0.0
 q_ice = q_tot - q_vap - q_liq
 q_rai = 0.0
-q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(tps, q)
+q = TDI.PP(q_tot, q_liq, q_ice)
+R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
 ρ = p / R / T
 rate = CM1.evaporation_sublimation.(snow, Blk1MVel.snow, aps, tps, Ref(q), q_rai, q_snow_range, ρ, T)
 MK.lines!(q_snow_range * 1e3, rate, label = "T < 0°C")
 
 # example values 2
 T, p = 273.15 + 15, 90000.0
-ϵ = 1.0 / TD.Parameters.molmass_ratio(tps)
-p_sat = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+ϵ = TDI.Rd_over_Rv(tps)
+p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
 q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1.0))
 q_snow_range = range(1e-8, stop = 5e-3, length = 100)
 q_tot = 15e-3
@@ -192,8 +192,8 @@ q_vap = 0.15 * q_sat
 q_liq = 0.0
 q_ice = q_tot - q_vap - q_liq
 q_rai = 0.0
-q = TD.PhasePartition(q_tot, q_liq, q_ice)
-R = TD.gas_constant_air(tps, q)
+q = TDI.PP(q_tot, q_liq, q_ice)
+R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
 ρ = p / R / T
 rate = CM1.evaporation_sublimation.(snow, Blk1MVel.snow, aps, tps, Ref(q), q_rai, q_snow_range, ρ, T)
 MK.lines!(q_snow_range * 1e3, rate, label = "T > 0°C")

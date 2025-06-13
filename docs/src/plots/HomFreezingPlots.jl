@@ -1,15 +1,15 @@
 import CairoMakie as MK
 
-import Thermodynamics as TD
 import CloudMicrophysics as CM
 import ClimaParams as CP
 
 const CMO = CM.Common
 const CMI = CM.HomIceNucleation
 const CMP = CM.Parameters
+const TDI = CM.ThermodynamicsInterface
 
 FT = Float64
-const tps = TD.Parameters.ThermodynamicsParameters(FT)
+const tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 const H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 const ip = CMP.IceNucleationParameters(FT)
 

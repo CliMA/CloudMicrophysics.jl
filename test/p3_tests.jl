@@ -3,7 +3,7 @@ import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Common as CO
-import Thermodynamics as TD
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 function test_p3_state_creation(FT)
@@ -473,7 +473,7 @@ end
 function test_p3_het_freezing(FT)
 
     @testset "Heterogeneous Freezing Smoke Test" begin
-        tps = TD.Parameters.ThermodynamicsParameters(FT)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
         aerosol = CMP.Illite(FT)
 
         N_liq = FT(1e8)
@@ -488,13 +488,13 @@ function test_p3_het_freezing(FT)
         qᵥ_range = range(FT(0.5e-3), stop = FT(1.5e-3), length = 6)
 
         for it in range(1, 6)
-            qₚ = TD.PhasePartition(FT(qᵥ_range[it]), FT(2e-4), FT(0))
-            eᵥ_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-            ϵ = tps.molmass_water / tps.molmass_dryair
+            q_liq = FT(2e-4)
+            eᵥ_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+            ϵ = TDI.Rd_over_Rv(tps)
             eᵥ = p * qᵥ_range[it] / (ϵ + qᵥ_range[it] * (1 - ϵ))
             RH = eᵥ / eᵥ_sat
-            ρₐ = TD.air_density(tps, T, p, qₚ)
-            rate = P3.het_ice_nucleation(aerosol, tps, qₚ, N_liq, RH, T, ρₐ, dt)
+            ρₐ = TDI.air_density(tps, T, p, qᵥ_range[it] + q_liq, q_liq, FT(0))
+            rate = P3.het_ice_nucleation(aerosol, tps, q_liq, N_liq, RH, T, ρₐ, dt)
 
             @test rate.dNdt >= 0
             @test rate.dLdt >= 0
@@ -512,7 +512,7 @@ function test_p3_melting(FT)
         params = CMP.ParametersP3(FT)
         vel = CMP.Chen2022VelType(FT)
         aps = CMP.AirProperties(FT)
-        tps = TD.Parameters.ThermodynamicsParameters(FT)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
         ρₐ = FT(1.2)
         qᵢ = FT(1e-4)

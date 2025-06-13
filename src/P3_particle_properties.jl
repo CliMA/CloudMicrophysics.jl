@@ -4,7 +4,7 @@
 
 State of the P3 scheme.
 
-This struct bundles the P3 parameterizations `params`, the provided rime state (`F_rim`, `ρ_rim`), 
+This struct bundles the P3 parameterizations `params`, the provided rime state (`F_rim`, `ρ_rim`),
     and the derived threshold variables (`D_th`, `D_gr`, `D_cr`, `ρ_g`).
 
 To obtain a `P3State` object, use the [`get_state`](@ref) function.
@@ -43,13 +43,13 @@ Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parame
 # Examples
 
  ```jldoctest
- julia> import CloudMicrophysics.Parameters as CMP, 
+ julia> import CloudMicrophysics.Parameters as CMP,
                CloudMicrophysics.P3Scheme as P3
- 
+
  julia> FT = Float32;
- 
+
  julia> params = CMP.ParametersP3(FT);
- 
+
  julia> state = P3.get_state(params; F_rim = FT(0.5), ρ_rim = FT(916.7))
  P3State{Float32}
  ├── params = {MassPowerLaw, AreaPowerLaw, SlopePowerLaw, VentilationFactor}
@@ -81,8 +81,8 @@ isunrimed(state::P3State) = iszero(state.F_rim)
     get_ρ_d(mass::MassPowerLaw, F_rim, ρ_rim)
     get_ρ_d(state::P3State)
 
-Exact solution for the density of the unrimed portion of the particle as 
-    function of the rime mass fraction `F_rim`, mass power law parameters `mass`, 
+Exact solution for the density of the unrimed portion of the particle as
+    function of the rime mass fraction `F_rim`, mass power law parameters `mass`,
     and rime density `ρ_rim`.
 
 # Arguments
@@ -96,8 +96,8 @@ Exact solution for the density of the unrimed portion of the particle as
 # Examples
 
 ```jldoctest
-julia> import CloudMicrophysics.Parameters as CMP, 
-              ClimaParams as CP, 
+julia> import CloudMicrophysics.Parameters as CMP,
+              ClimaParams as CP,
               CloudMicrophysics.P3Scheme as P3
 
 julia> FT = Float64;
@@ -146,7 +146,7 @@ get_ρ_g((; params, F_rim, ρ_rim)::P3State) = get_ρ_g(params.mass, F_rim, ρ_r
     _get_threshold(params, ρ)
 
 All thresholds are on the form
-    
+
 ```math
 \\left( \\frac{6α_{va}}{π ρ} \\right)^\\frac{1}{3 - β_{va}}
 ```
@@ -195,7 +195,7 @@ get_D_cr(mass::CMP.MassPowerLaw, F_rim, ρ_g) = _get_threshold(mass, ρ_g * (1 -
     get_thresholds_ρ_g(params::CMP.ParametersP3, F_rim, ρ_rim)
 
 # Returns
-- `(; D_th, D_gr, D_cr, ρ_g)`: The thresholds for the size distribution, 
+- `(; D_th, D_gr, D_cr, ρ_g)`: The thresholds for the size distribution,
     and the density of total (deposition + rime) ice mass for graupel [kg/m³]
 
 
@@ -234,8 +234,8 @@ For example, if the (valid) thresholds are `(D_th, D_gr, D_cr)`, then the segmen
 function get_segments(state::P3State)
     FT = eltype(state)
     (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
-    # For certain high rimed values, D_gr < D_th (cf test/p3_tests.jl): 
-    #   so here we filter away invalid thresholds 
+    # For certain high rimed values, D_gr < D_th (cf test/p3_tests.jl):
+    #   so here we filter away invalid thresholds
     # (this also works correctly for the unrimed case, where D_gr = D_cr = NaN)
     valid_D = filter(≥(D_th), (D_th, D_gr, D_cr))
     segments = tuple.((FT(0), valid_D...), (valid_D..., FT(Inf)))
@@ -246,7 +246,7 @@ end
     weighted_average(f_a, a, b)
 
 Return the weighted average of `a` and `b` with fraction `f_a`,
-    
+
 ```math
 f_a ⋅ a + (1 - f_a) ⋅ b
 ```
@@ -318,8 +318,8 @@ Return the density of a particle at diameter D
  - `D`: maximum particle dimension [m]
 
 # Notes:
- The density of nonspherical particles is assumed to be the particle mass divided 
- by the volume of a sphere with the same D [MorrisonMilbrandt2015](@cite). 
+ The density of nonspherical particles is assumed to be the particle mass divided
+ by the volume of a sphere with the same D [MorrisonMilbrandt2015](@cite).
  Needed for aspect ratio calculation, so we assume zero liquid fraction.
 """
 function ice_density(args_D...)
@@ -348,7 +348,7 @@ end
     ice_area(state::P3State, D)
     ice_area(params::CMP.ParametersP3, F_rim, ρ_rim, D)
 
-Return the cross-sectional area of a particle based on where it falls in the 
+Return the cross-sectional area of a particle based on where it falls in the
     particle-size-based properties regime.
 
 # Arguments
@@ -387,8 +387,8 @@ Returns the aspect ratio (ϕ) for an ice particle
  - `D`: maximum dimension of ice particle [m]
 
 # Notes
- The density of nonspherical particles is assumed to be equal to the particle mass 
- divided by the volume of a spherical particle with the same D_max [MorrisonMilbrandt2015](@cite). 
+ The density of nonspherical particles is assumed to be equal to the particle mass
+ divided by the volume of a spherical particle with the same D_max [MorrisonMilbrandt2015](@cite).
  Assuming zero liquid fraction and oblate shape.
 """
 function ϕᵢ(args_D...)

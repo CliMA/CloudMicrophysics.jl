@@ -1,8 +1,8 @@
 import Test as TT
 
 import ClimaParams
-import Thermodynamics as TD
 
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.MicrophysicsNonEq as CMNe
 
@@ -10,7 +10,7 @@ function test_microphysics_noneq(FT)
 
     ice = CMP.CloudIce(FT)
     liquid = CMP.CloudLiquid(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     Ch2022 = CMP.Chen2022VelType(FT)
 
     TT.@testset "τ_relax" begin
@@ -49,13 +49,13 @@ function test_microphysics_noneq(FT)
         ρ = FT(0.8)
         T = FT(273 - 10)
 
-        pᵥ_sl = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-        qᵥ_sl = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sl)
+        pᵥ_sl = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+        qᵥ_sl = TDI.p2q(tps, T, ρ, pᵥ_sl)
 
-        pᵥ_si = TD.saturation_vapor_pressure(tps, T, TD.Ice())
-        qᵥ_si = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_si)
+        pᵥ_si = TDI.saturation_vapor_pressure_over_ice(tps, T)
+        qᵥ_si = TDI.p2q(tps, T, ρ, pᵥ_si)
 
-        qₚ(qᵥ) = TD.PhasePartition(FT(qᵥ))
+        qₚ(qᵥ) = TDI.TD.PhasePartition(FT(qᵥ))
 
         #! format: off
         # test sign

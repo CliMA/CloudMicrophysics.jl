@@ -2,10 +2,10 @@ import Test as TT
 import BenchmarkTools as BT
 import JET
 
-import CloudMicrophysics as CM
 import ClimaParams as CP
-import Thermodynamics as TD
 
+import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.ArtifactCalling as AFC
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.AerosolModel as AM
@@ -105,14 +105,14 @@ function benchmark_test(FT)
     # air and thermodynamics parameters
     aps = CMP.AirProperties(FT)
     wtr = CMP.WaterProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
     ρ_air = FT(1.2)
     T_air = FT(280)
     q_liq = FT(5e-4)
     q_ice = FT(5e-4)
     q_tot = FT(1e-3)
-    q = TD.PhasePartition(q_tot)
+    q = TDI.TD.PhasePartition(q_tot)
     q_rai = FT(1e-4)
     q_sno = FT(1e-4)
     N_liq = FT(1e8)
@@ -187,7 +187,7 @@ function benchmark_test(FT)
     #    (
     #        kaolinite,
     #        tps,
-    #        TD.PhasePartition(q_tot, q_liq, q_ice),
+    #        TDI.TD.PhasePartition(q_tot, q_liq, q_ice),
     #        N_liq,
     #        RH_2,
     #        T_air_2,
@@ -228,7 +228,7 @@ function benchmark_test(FT)
     bench_press(
         FT,
         AA.total_N_activated,
-        (ap, aer_distr, aps, tps, T_air, p_air, w_air, q),
+        (ap, aer_distr, aps, tps, T_air, p_air, w_air, q_tot, FT(0), FT(0)),
         1300,
     )
 
@@ -273,7 +273,7 @@ function benchmark_test(FT)
     bench_press(
         FT,
         CMN.conv_q_vap_to_q_liq_ice_MM2015,
-        (liquid, tps, TD.PhasePartition(FT(0.00145)), FT(0), FT(0), FT(0.8), FT(263)),
+        (liquid, tps, TDI.TD.PhasePartition(FT(0.00145)), FT(0), FT(0), FT(0.8), FT(263)),
         70,
     )
     bench_press(
@@ -314,7 +314,7 @@ function benchmark_test(FT)
         bench_press(
             @NamedTuple{evap_rate_0::FT, evap_rate_1::FT},
             CM2.rain_evaporation,
-            (sb, aps, tps, q, q_rai, ρ_air, N_rai, T_air),
+            (sb, aps, tps, q_tot, q_liq, q_ice, q_rai, ρ_air, N_rai, T_air),
             2000,
         )
         bench_press(

@@ -1,8 +1,9 @@
 import OrdinaryDiffEq as ODE
 import CairoMakie as MK
-import Thermodynamics as TD
+
 import CloudMicrophysics as CM
 import CloudMicrophysics.HetIceNucleation as CMI
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 import Random as RAND
@@ -13,7 +14,7 @@ N_ensemble = 32
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 FT = Float32
 # get free parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
 
 # Initial conditions
@@ -27,14 +28,14 @@ T₀ = FT(251)
 qᵥ = FT(8.1e-4)
 qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2) # ρₐ ~ 1.2
 qᵢ = FT(0)
+qₜ = qᵥ + qₗ + qᵢ
 ln_INPC₀ = FT(CMI_het.INP_concentration_mean(T₀))
 
 # Moisture dependent initial conditions
-q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-R_v = TD.Parameters.R_v(tps)
-Rₐ = TD.gas_constant_air(tps, q)
-eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
-e = eᵥ(qᵥ, p₀, Rₐ, R_v)
+Rᵥ = TDI.Rᵥ(tps)
+Rₐ = TDI.Rₘ(tps, qₜ, qₗ, qᵢ)
+eₛ = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
+e = eᵥ(qᵥ, p₀, Rₐ, Rᵥ)
 Sₗ = FT(e / eₛ)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC₀]
 

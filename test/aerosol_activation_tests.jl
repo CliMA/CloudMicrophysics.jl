@@ -1,16 +1,16 @@
 import Test as TT
 
 import ClimaParams as CP
-import CloudMicrophysics as CM
-import Thermodynamics as TD
 
+import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.Parameters as CMP
 
 function test_aerosol_activation(FT)
 
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     aip = CMP.AirProperties(FT)
     #default ARG2000 parameter values
     ap_default = CMP.AerosolActivationParameters(FT)
@@ -29,9 +29,11 @@ function test_aerosol_activation(FT)
     # moist air R_m and cp_m in aerosol activation module.
     # We are assuming here saturated conditions and no liquid water or ice.
     # This is consistent with the assumptions of the aerosol activation scheme.
-    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-    q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
-    q = TD.PhasePartition(q_vs)
+    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+    q_vs = 1 / (1 - 1 / TDI.Rd_over_Rv(tps) * (p_vs - p) / p_vs)
+    q_tot = q_vs
+    q_liq = FT(0)
+    q_ice = FT(0)
 
     # Accumulation mode
     r_dry_accum = FT(0.243 * 1e-6) # m
@@ -140,19 +142,19 @@ function test_aerosol_activation(FT)
                     T,
                     p,
                     w,
-                    q,
+                    q_tot, q_liq, q_ice,
                 ) > 0.0
                 TT.@test all(
-                    AA.N_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q) .>
+                    AA.N_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice) .>
                     0.0,
                 )
                 TT.@test all(
-                    AA.M_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q) .>
+                    AA.M_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice) .>
                     0.0,
                 )
-                TT.@test AA.total_N_activated(ap, AM_t, aip, tps, T, p, w, q) >
+                TT.@test AA.total_N_activated(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice) >
                          0.0
-                TT.@test AA.total_M_activated(ap, AM_t, aip, tps, T, p, w, q) >
+                TT.@test AA.total_M_activated(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice) >
                          0.0
             end
         end
@@ -189,15 +191,15 @@ function test_aerosol_activation(FT)
 
     TT.@testset "order of modes does not matter" begin
         for ap in (ap_default, ap_calibrated)
-            TT.@test AA.total_N_activated(ap, AM_3_B, aip, tps, T, p, w, q) ==
-                     AA.total_N_activated(ap, AM_2_B, aip, tps, T, p, w, q)
-            TT.@test AA.total_M_activated(ap, AM_3_B, aip, tps, T, p, w, q) ==
-                     AA.total_M_activated(ap, AM_2_B, aip, tps, T, p, w, q)
+            TT.@test AA.total_N_activated(ap, AM_3_B, aip, tps, T, p, w, q_tot, q_liq, q_ice) ==
+                     AA.total_N_activated(ap, AM_2_B, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+            TT.@test AA.total_M_activated(ap, AM_3_B, aip, tps, T, p, w, q_tot, q_liq, q_ice) ==
+                     AA.total_M_activated(ap, AM_2_B, aip, tps, T, p, w, q_tot, q_liq, q_ice)
 
-            TT.@test AA.total_N_activated(ap, AM_3_κ, aip, tps, T, p, w, q) ==
-                     AA.total_N_activated(ap, AM_2_κ, aip, tps, T, p, w, q)
-            TT.@test AA.total_M_activated(ap, AM_3_κ, aip, tps, T, p, w, q) ==
-                     AA.total_M_activated(ap, AM_2_κ, aip, tps, T, p, w, q)
+            TT.@test AA.total_N_activated(ap, AM_3_κ, aip, tps, T, p, w, q_tot, q_liq, q_ice) ==
+                     AA.total_N_activated(ap, AM_2_κ, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+            TT.@test AA.total_M_activated(ap, AM_3_κ, aip, tps, T, p, w, q_tot, q_liq, q_ice) ==
+                     AA.total_M_activated(ap, AM_2_κ, aip, tps, T, p, w, q_tot, q_liq, q_ice)
         end
     end
 
@@ -253,10 +255,10 @@ function test_aerosol_activation(FT)
                 AD_κ = AM.AerosolDistribution((paper_mode_1_κ, paper_mode_2_κ))
 
                 N_act_frac_B[it] =
-                    AA.N_activated_per_mode(ap, AD_B, aip, tps, T, p, w, q)[1] /
+                    AA.N_activated_per_mode(ap, AD_B, aip, tps, T, p, w, q_tot, q_liq, q_ice)[1] /
                     N_1_paper
                 N_act_frac_κ[it] =
-                    AA.N_activated_per_mode(ap, AD_κ, aip, tps, T, p, w, q)[1] /
+                    AA.N_activated_per_mode(ap, AD_κ, aip, tps, T, p, w, q_tot, q_liq, q_ice)[1] /
                     N_1_paper
                 it += 1
             end

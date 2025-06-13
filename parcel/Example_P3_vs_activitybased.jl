@@ -1,22 +1,23 @@
 import OrdinaryDiffEq as ODE
 import CairoMakie as MK
-import Thermodynamics as TD
+
 import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 FT = Float32
 # get free parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 aps = CMP.AirProperties(FT)
 wps = CMP.WaterProperties(FT)
 ip = CMP.IceNucleationParameters(FT)
 
 # Constants
 ρₗ = wps.ρw
-R_v = TD.Parameters.R_v(tps)
-R_d = TD.Parameters.R_d(tps)
+R_v = TDI.Rᵥ(tps)
+R_d = TDI.Rd(tps)
 
 # Initial conditions
 Nₐ = FT(2000)
@@ -30,20 +31,17 @@ T₀_hom = FT(236.5)
 qᵥ = FT(8.3e-4)
 qₗ = FT(Nₗ * 4 / 3 * π * rₗ^3 * ρₗ / 1.2)
 qᵢ = FT(0)
+qₜ = qᵥ + qₗ + qᵢ
 ln_INPC = FT(0)
 
 # Moisture dependent initial conditions
-q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-ts_dep = TD.PhaseNonEquil_pTq(tps, p₀, T₀_dep, q)
-ts_het = TD.PhaseNonEquil_pTq(tps, p₀, T₀_het, q)
-ts_hom = TD.PhaseNonEquil_pTq(tps, p₀, T₀_hom, q)
-ρₐ_dep = TD.air_density(tps, ts_dep)
-ρₐ_het = TD.air_density(tps, ts_het)
-ρₐ_hom = TD.air_density(tps, ts_hom)
-Rₐ = TD.gas_constant_air(tps, q)
-eₛ_dep = TD.saturation_vapor_pressure(tps, T₀_dep, TD.Liquid())
-eₛ_het = TD.saturation_vapor_pressure(tps, T₀_het, TD.Liquid())
-eₛ_hom = TD.saturation_vapor_pressure(tps, T₀_hom, TD.Liquid())
+ρₐ_dep = TDI.air_density(tps, T₀_dep, p₀, qₜ, qₗ, qᵢ)
+ρₐ_het = TDI.air_density(tps, T₀_het, p₀, qₜ, qₗ, qᵢ)
+ρₐ_hom = TDI.air_density(tps, T₀_hom, p₀, qₜ, qₗ, qᵢ)
+Rₐ = TDI.Rₘ(tps, qₜ, qₗ, qᵢ)
+eₛ_dep = TDI.saturation_vapor_pressure_over_liquid(tps, T₀_dep)
+eₛ_het = TDI.saturation_vapor_pressure_over_liquid(tps, T₀_het)
+eₛ_hom = TDI.saturation_vapor_pressure_over_liquid(tps, T₀_hom)
 e = eᵥ(qᵥ, p₀, Rₐ, R_v)
 
 Sₗ_dep = FT(e / eₛ_dep)

@@ -1,8 +1,8 @@
 import Test as TT
 
 import ClimaParams
-import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
 
@@ -85,7 +85,7 @@ end
 
 function test_a_w_xT(FT)
 
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 
     TT.@testset "a_w_xT" begin
@@ -111,7 +111,7 @@ end
 
 function test_a_w_eT(FT)
 
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
     TT.@testset "a_w_eT" begin
 
@@ -132,7 +132,7 @@ end
 
 function test_a_w_ice(FT)
 
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
     TT.@testset "a_w_ice" begin
 

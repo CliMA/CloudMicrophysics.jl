@@ -1,8 +1,8 @@
 """
 Double-moment bulk microphysics parametrizations including:
- - autoconversion, accretion, self-collection, breakup, mean terminal velocity of raindrops, 
+ - autoconversion, accretion, self-collection, breakup, mean terminal velocity of raindrops,
     and rain evaporation rates from Seifert and Beheng 2006.
- - number concentration adjustment from Horn 2012. 
+ - number concentration adjustment from Horn 2012.
  - additional double-moment bulk microphysics autoconversion and accretion rates
    from: Khairoutdinov and Kogan 2000, Beheng 1994, Tripoli and Cotton 1980, and
    Liu and Daum 2004.
@@ -12,9 +12,7 @@ module Microphysics2M
 import SpecialFunctions as SF
 import RootSolvers as RS
 
-import Thermodynamics as TD
-import Thermodynamics.Parameters as TDP
-
+import ..ThermodynamicsInterface as TDI
 import ..Common as CO
 import ..Parameters as CMP
 import ..DistributionTools as DT
@@ -43,9 +41,9 @@ Return the parameters of the rain drop diameter distribution
 
     n_r(D) = N_0 * exp(- D / Dr_mean)
 
- where 
- - `D` is the diameter of the raindrop, 
- - `N_0` [1/m³] is the number concentration of raindrops, 
+ where
+ - `D` is the diameter of the raindrop,
+ - `N_0` [1/m³] is the number concentration of raindrops,
  - `Dr_mean` [m] is the mean diameter of the raindrops.
 
  Note: in SB2006, Eq. (83) the distribution is given as:
@@ -105,7 +103,7 @@ In terms of mass (`x`), the size distribution is given by:
          = N₀ * exp(-D(x) / Dr_mean) * 2 / (π * ρw) * x^(-2/3)
          = N₀ * 2 / (π * ρw) * x^(-2/3) * exp(- (6 / (π * ρw))^(1/3) / Dr_mean * x^(1/3))
 
- where 
+ where
  - `D(x) = (6x / (π * ρw))^(1/3)` is the diameter of a raindrop of mass `x`.
  - `∂D∂x(x) = (6 / (π * ρw))^(1/3) * x^(-2/3)` is the derivative of the diameter with respect to the mass.
 
@@ -283,11 +281,11 @@ end
 """
     get_size_distribution_bounds(pdf, q, ρₐ, N, p)
 
-Return the minimum and maximum diameters of a cloud or rain particle such that 
+Return the minimum and maximum diameters of a cloud or rain particle such that
 the size distribution is within (1 - p) to (p) probability of the true size distribution.
 
 # Arguments
- - `pdf`: Size distribution parameters for cloud or rain, 
+ - `pdf`: Size distribution parameters for cloud or rain,
     [`CMP.RainParticlePDF_SB2006`](@ref) or [`CMP.CloudParticlePDF_SB2006`](@ref)
  - `q`: mass mixing ratio of cloud or rain water
  - `ρₐ`: density of air
@@ -295,7 +293,7 @@ the size distribution is within (1 - p) to (p) probability of the true size dist
  - `p`: probability level (0 ≤ p ≤ 1)
 
 # Returns
- - `D_min, D_max`: minimum and maximum diameters of a cloud or rain particle such that 
+ - `D_min, D_max`: minimum and maximum diameters of a cloud or rain particle such that
     the size distribution is within (1 - p) to (p) probability of the true size distribution.
     All inputs and output diameters are in base SI units.
     The bounds are calculated through quantile functions of the size distribution.
@@ -480,7 +478,7 @@ Compute autoconversion and liquid self-collection rates
  - `N_liq`: Cloud droplet number density [1/m³]
 
 # Returns
- - `(au, sc)`: A `NamedTuple` containing the autoconversion rate and the 
+ - `(au, sc)`: A `NamedTuple` containing the autoconversion rate and the
     liquid self-collection rate.
 """
 function autoconversion_and_liquid_self_collection(
@@ -507,7 +505,7 @@ Compute the rain self-collection rate
  - `N_rai`: Raindrops number density [1/m³]
 
 # Returns
- - The raindrops number density tendency due to collisions of raindrops that 
+ - The raindrops number density tendency due to collisions of raindrops that
     produce larger raindrops (self-collection).
 """
 function rain_self_collection(
@@ -543,7 +541,7 @@ Compute the raindrops number density tendency due to breakup of raindrops
  - `dN_rai_dt_sc`: Rate of change of raindrops number density due to self-collection
 
 # Returns
- - The raindrops number density tendency due to breakup of raindrops that produce 
+ - The raindrops number density tendency due to breakup of raindrops that produce
     smaller raindrops
 """
 function rain_breakup(
@@ -685,13 +683,13 @@ function Γ_incl(a::FT, x::FT) where {FT}
 end
 
 """
-    rain_evaporation(evap, aps, tps, q, q_rai, ρ, N_rai, T)
+    rain_evaporation(evap, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, N_rai, T)
 
  - `evap` - evaporation parameterization scheme
  - `aps` - air properties
  - `tps` - thermodynamics parameters
- - `q` - phase partition
- - `q_rai` - rain specific content
+ - `q_tot`, `q_liq`, `q_ice`, `q_rai`, `q_sno` - total water,
+    cloud water, cloud ice, rain and snow specific contents,
  - `ρ` - air density
  - `N_rai` - raindrops number density
  - `T` - air temperature
@@ -702,13 +700,16 @@ fall velocity of individual drops and an exponential size distribution, for `sch
 """
 function rain_evaporation(
     (; pdf_r, evap)::CMP.SB2006{FT}, aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters, q::TD.PhasePartition,
-    q_rai, ρ, N_rai, T,
+    tps::TDI.PS,
+    q_tot, q_liq, q_ice, q_rai, ρ, N_rai, T,
 ) where {FT}
 
     evap_rate_0 = FT(0)
     evap_rate_1 = FT(0)
-    S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
+    # TODO - rain and snow are part of the working fluid and should be included in
+    # thermodynamics calls. This changes the results so I'll do it as a next PR
+    #S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq, q_ice, ρ, T)
 
     if ((q_rai > eps(FT) || N_rai > eps(FT)) && S < FT(0))
 
@@ -716,7 +717,7 @@ function rain_evaporation(
         (; av, bv, α, β, ρ0) = evap
         x_star = pdf_r.xr_min
         ρw = pdf_r.ρw
-        G = CO.G_func(aps, tps, T, TD.Liquid())
+        G = CO.G_func_liquid(aps, tps, T)
 
         (; xr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
         Dr = ∛(6 * xr_mean / (π * ρw))
@@ -749,8 +750,8 @@ end
 """
     number_increase_for_mass_limit(numadj, x_max, q, ρ, N)
 
-Compute the tendency (rate of change) of number concentration `N` required to ensure that 
-the mean particle mass `x = ρq / N` does not exceed the upper limit `x_max`. Returns a positive 
+Compute the tendency (rate of change) of number concentration `N` required to ensure that
+the mean particle mass `x = ρq / N` does not exceed the upper limit `x_max`. Returns a positive
 tendency when the mean mass is too high (`x > x_max`), and zero otherwise.
 The method is based on Horn (2012, DOI: [10.5194/gmd-5-345-2012](https://doi.org/10.5194/gmd-5-345-2012)).
 
@@ -773,7 +774,7 @@ end
 """
     number_decrease_for_mass_limit(numadj, x_min, q, ρ, N)
 
-Compute the tendency (rate of change) of number concentration `N` required to ensure that 
+Compute the tendency (rate of change) of number concentration `N` required to ensure that
 the mean particle mass `x = ρq / N` does not fall below the lower limit `x_min`. Returns a negative
 tendency when the mean mass is too low (`x < x_min`), and zero otherwise.
 The method is based on Horn (2012, DOI: [10.5194/gmd-5-345-2012](https://doi.org/10.5194/gmd-5-345-2012)).
@@ -935,4 +936,14 @@ function accretion((; accr)::CMP.TC1980{FT}, q_liq, q_rai) where {FT}
     return A * q_liq * q_rai
 end
 
-end
+###
+### Wrappers for calling with TD.PhasePartition
+###
+
+rain_evaporation(
+    sb_params::CMP.SB2006, air_params::CMP.AirProperties, tps::TDI.PS,
+    q::TDI.TD.PhasePartition,
+    q_rai, ρ, N_rai, T,
+) = rain_evaporation(sb_params, air_params, tps, q.tot, q.liq, q.ice, q_rai, ρ, N_rai, T)
+
+end # module

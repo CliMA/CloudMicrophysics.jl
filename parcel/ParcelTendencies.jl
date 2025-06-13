@@ -1,9 +1,9 @@
-import Thermodynamics as TD
 import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
 import CloudMicrophysics.HomIceNucleation as CMI_hom
 import CloudMicrophysics.MicrophysicsNonEq as MNE
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import Distributions as DS
 import SpecialFunctions as SF
 
@@ -94,9 +94,8 @@ function deposition_nucleation(params::ABDINM, state, dY)
     (; tps, aerosol, r_nuc, const_dt) = params
     (; T, p_air, qᵥ, qₗ, qᵢ, Nₐ) = state
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-    Rᵥ = TD.Parameters.R_v(tps)
-    R_air = TD.gas_constant_air(tps, q)
+    Rᵥ = TDI.Rᵥ(tps)
+    R_air = TDI.Rₘ(tps, qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
@@ -123,9 +122,8 @@ function immersion_freezing(params::ABIFM, PSD_liq, state)
     (; tps, aerosol, A_aer, const_dt) = params
     FT = eltype(state)
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-    Rᵥ = TD.Parameters.R_v(tps)
-    R_air = TD.gas_constant_air(tps, q)
+    Rᵥ = TDI.Rᵥ(tps)
+    R_air = TDI.Rₘ(tps, qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     e = eᵥ(qᵥ, p_air, R_air, Rᵥ)
 
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
@@ -198,7 +196,7 @@ function homogeneous_freezing(params::ABHOM, PSD_liq, state)
     (; tps, ips, const_dt) = params
     (; T, p_air, qᵥ, qₗ, qᵢ, Nₗ, Sₗ) = state
 
-    e = TD.saturation_vapor_pressure(tps, T, TD.Liquid()) * Sₗ
+    e = TDI.saturation_vapor_pressure_over_liquid(tps, T) * Sₗ
 
     Δa_w = CMO.a_w_eT(tps, e, T) - CMO.a_w_ice(tps, T)
     J = CMI_hom.homogeneous_J_linear(ips.homogeneous, Δa_w)
@@ -223,7 +221,7 @@ function condensation(params::CondParams, PSD_liq, state, ρ_air)
     FT = eltype(state)
     (; aps, tps, const_dt) = params
     (; Sₗ, T, Nₗ, qᵥ, qₗ) = state
-    Gₗ = CMO.G_func(aps, tps, T, TD.Liquid())
+    Gₗ = CMO.G_func_liquid(aps, tps, T)
     dqₗ_dt = 4 * FT(π) / ρ_air * (Sₗ - 1) * Gₗ * PSD_liq.r * Nₗ
 
     return ifelse(
@@ -279,7 +277,7 @@ function deposition(params::DepParams, PSD_ice, state, ρ_air)
     (; T, Sₗ, Nᵢ, qᵥ, qᵢ) = state
     FT = eltype(state)
     Sᵢ = ξ(tps, T) * Sₗ
-    Gᵢ = CMO.G_func(aps, tps, T, TD.Ice())
+    Gᵢ = CMO.G_func_ice(aps, tps, T)
     dqᵢ_dt = 4 * FT(π) / ρ_air * (Sᵢ - 1) * Gᵢ * PSD_ice.r * Nᵢ
 
     return ifelse(

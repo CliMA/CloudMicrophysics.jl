@@ -1,25 +1,25 @@
 import CairoMakie as PL
 PL.activate!(type = "svg")
 
-import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.P3Scheme as P3
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 FT = Float64
 
 # thermodynamics parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.PS(FT)
 
 # helper functions
 function RH2qₜ(T, RH)
-    eᵥ_sat = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    eᵥ_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
     eᵥ = RH * eᵥ_sat
     qᵥ = 1 / (1 - tps.molmass_dryair / tps.molmass_water * (eᵥ - p) / eᵥ)
     qₜ = qᵥ + qₗ + qᵢ
     return qₜ
 end
 function p2ρ(T, RH)
-    return TD.air_density(tps, T, p, TD.PhasePartition(RH2qₜ(T, RH), qₗ, qᵢ))
+    return TDI.air_density(tps, T, p, RH2qₜ(T, RH), qₗ, qᵢ)
 end
 
 # ambient conditions
@@ -47,18 +47,18 @@ max_dLdt_T1 = [qₗ* p2ρ(T1, RH) / dt for RH in RH_range]
 max_dLdt_T2 = [qₗ* p2ρ(T2, RH) / dt for RH in RH_range]
 max_dNdt =    [Nₗ              / dt for RH in RH_range]
 
-dLdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, TD.PhasePartition(RH2qₜ(T1, RH), qₗ, qᵢ), Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
-dNdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, TD.PhasePartition(RH2qₜ(T1, RH), qₗ, qᵢ), Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
+dLdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
+dNdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
 
-dLdt_il_T1 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T1, RH), qₗ, qᵢ), Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
-dNdt_il_T1 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T1, RH), qₗ, qᵢ), Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
+dLdt_il_T1 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
+dNdt_il_T1 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
 
 
-dLdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
-dNdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
+dLdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
+dNdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
 
-dLdt_il_T2 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
-dNdt_il_T2 = [P3.het_ice_nucleation(il, tps, TD.PhasePartition(RH2qₜ(T2, RH), qₗ, qᵢ), Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
+dLdt_il_T2 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
+dNdt_il_T2 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
 
 # plotting
 fig = PL.Figure(size = (1500, 500), fontsize=22, linewidth=3)

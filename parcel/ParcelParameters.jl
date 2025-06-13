@@ -1,5 +1,5 @@
 import CloudMicrophysics.Parameters as CMP
-import Thermodynamics.Parameters as TDP
+import CloudMicrophysics.ThermodynamicsInterface.TD.Parameters as TDP
 
 struct Empty{FT} <: CMP.ParametersType{FT} end
 
