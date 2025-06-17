@@ -58,10 +58,10 @@ function ice_terminal_velocity_number_weighted(
     end
 
     v_term = ice_particle_terminal_velocity(state, velocity_params, ρₐ; use_aspect_ratio)
-    N′ = N′ice(state, logλ)
+    n = DT.size_distribution(state, logλ)
 
-    # ∫N(D) v(D) dD
-    number_weighted_integrand(D) = N′(D) * v_term(D)
+    # ∫n(D) v(D) dD
+    number_weighted_integrand(D) = n(D) * v_term(D)
 
     return ∫fdD(number_weighted_integrand, state, logλ; ∫kwargs...) / N_ice
 end
@@ -94,10 +94,10 @@ function ice_terminal_velocity_mass_weighted(
     end
 
     v_term = ice_particle_terminal_velocity(state, velocity_params, ρₐ; use_aspect_ratio)
-    N′ = N′ice(state, logλ)  # Number concentration at diameter D
+    n = DT.size_distribution(state, logλ)  # Number concentration at diameter D
 
-    # ∫N(D) m(D) v(D) dD
-    mass_weighted_integrand(D) = N′(D) * v_term(D) * ice_mass(state, D)
+    # ∫n(D) m(D) v(D) dD
+    mass_weighted_integrand(D) = n(D) * v_term(D) * ice_mass(state, D)
 
 
     return ∫fdD(mass_weighted_integrand, state, logλ; ∫kwargs...) / L_ice

@@ -19,6 +19,8 @@ import ..Common as CO
 import ..Parameters as CMP
 import ..DistributionTools as DT
 
+import ..DistributionTools: size_distribution
+
 export autoconversion,
     accretion,
     liquid_self_collection,
@@ -229,9 +231,9 @@ end
 size_distribution_mass(pdf, q_c, ρₐ, N_c) = exp ∘ log_size_distribution_mass(pdf, q_c, ρₐ, N_c)
 
 """
-    size_distribution(pdf, q, ρₐ, N)
+    size_distribution(pdf::CMP.RainParticlePDF_SB2006, q, ρₐ, N)
 
-Return a function in diameter `D` that computes the size distribution value for rain particles.
+Return `n(D)`, a function that computes the size distribution for rain particles at diameter `D`
 
 # Arguments
 - `pdf`: Rain size distribution parameters, [`CMP.RainParticlePDF_SB2006`](@ref)
@@ -239,15 +241,15 @@ Return a function in diameter `D` that computes the size distribution value for 
 - `ρₐ`: Density of air [kg/m³]
 - `N`: Rain water number concentration [1/m³]
 """
-function size_distribution(pdf::CMP.RainParticlePDF_SB2006, q, ρₐ, N)
+function DT.size_distribution(pdf::CMP.RainParticlePDF_SB2006, q, ρₐ, N)
     (; N₀r, Dr_mean) = pdf_rain_parameters(pdf, q, ρₐ, N)
-    return rain_psd(D) = N₀r * exp(-D / Dr_mean)
+    return n(D) = N₀r * exp(-D / Dr_mean)
 end
 
 """
     size_distribution(pdf::CMP.CloudParticlePDF_SB2006, q, ρₐ, N)
 
-Return a function in diameter `D` that computes the size distribution value for cloud particles.
+Return `n(D)`, a function that computes the size distribution for cloud particles at diameter `D`
 
 The size distribution is given by:
 
@@ -260,7 +262,7 @@ The size distribution is given by:
  - `N`: Cloud water number concentration [1/m³]
 
 """
-function size_distribution(pdf::CMP.CloudParticlePDF_SB2006, q, ρₐ, N)
+function DT.size_distribution(pdf::CMP.CloudParticlePDF_SB2006, q, ρₐ, N)
     (; logN₀c, λc, νcD, μcD) = pdf_cloud_parameters(pdf, q, ρₐ, N)
     return n(D) = exp(logN₀c + νcD * log(D) - λc * D^μcD)
 end

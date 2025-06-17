@@ -14,6 +14,18 @@ import SpecialFunctions as SF
 import LogExpFunctions as LEF
 
 """
+    size_distribution(args...; kwargs...)
+
+Compute the size distribution at diameter `D` given relevant arguments
+
+Note: This is a function stub. Implementations are provided by the various
+    models in the `CloudMicrophysics` package.
+"""
+function size_distribution(args...; kwargs...)
+    throw(ArgumentError("No size distribution implementation exists for the provided arguments"))
+end
+
+"""
     generalized_gamma_quantile(ν, μ, B, Y)
 
 Calculate the quantile (inverse cumulative distribution function) for a 

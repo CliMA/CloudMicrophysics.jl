@@ -81,7 +81,7 @@ function make_multiple_solutions_plot()
     )
     Makie.vlines!(P3.get_D_th(params) * m_to_mm, color = (:gray, 0.5))
     for logλ in logλs_calc
-        N′ = P3.N′ice(state, logλ)
+        N′ = P3.size_distribution(state, logλ)
         Makie.lines!(Ds_mm, N′.(Ds) / m_to_cm^4)
         # Makie.lines!(Ds_mm, cumsum(N′.(Ds) .* Ds / m_to_cm^3))  # CUMULATIVE DISTRIBUTION
     end

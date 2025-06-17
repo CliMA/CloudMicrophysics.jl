@@ -81,7 +81,7 @@ function ice_melt(
 
     v_term = ice_particle_terminal_velocity(state, Chen2022, ρₐ)
     F_v = CO.ventilation_factor(vent, aps, v_term)
-    N′ = N′ice(state, logλ)
+    N′ = size_distribution(state, logλ)
 
     # Integrate
     fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
