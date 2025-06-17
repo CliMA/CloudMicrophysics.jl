@@ -13,6 +13,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 # choosing a value for the ice relaxation timescale
 τ = FT(10)
+limiter = true
 @info("using τ value ", τ)
 
 # Get free parameters
@@ -26,7 +27,7 @@ R_d = TD.Parameters.R_d(tps)
 
 # Initial conditions
 Nₐ = FT(0)
-Nₗ = FT(200 * 1e6)
+Nₗ = FT(200 * 1e2)
 Nᵢ = FT(1e6)
 r₀ = FT(8e-6)
 p₀ = FT(800 * 1e2)
@@ -87,6 +88,7 @@ for DSD in size_distribution_list
         liq_size_distribution = DSD,
         condensation_growth = condensation_growth,
         deposition_growth = deposition_growth,
+        limiter = limiter,
         const_dt = const_dt,
         w = w,
         liquid = liquid,
