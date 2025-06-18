@@ -1,3 +1,4 @@
+import CloudMicrophysics.DistributionTools: size_distribution
 
 """
     logN′ice(state, logλ)
@@ -14,12 +15,15 @@ function logN′ice(state::P3State, logλ)
 end
 
 """
-    N′ice(dist, D)
+    size_distribution(state::P3State, logλ)
 
-Compute the ice particle number concentration at diameter `D` given the distribution `dist`
+Return `n(D)`, a function that computes the size distribution for ice particles at diameter `D`
+
+# Arguments
+- `state`: The [`P3State`](@ref)
+- `logλ`: The log of the slope parameter [log(1/m)]
 """
-N′ice(state::P3State, logλ) = exp ∘ logN′ice(state, logλ)
-
+DT.size_distribution(state::P3State, logλ) = exp ∘ logN′ice(state, logλ)
 
 ### ------------------------------------------------ ###
 ### ----- Obtaining P3 distribution parameters ----- ###

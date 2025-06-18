@@ -28,8 +28,8 @@ This method calls [`∫fdD_error`](@ref), which returns both the value of the in
 - `value`: The value of the integral
 
 !!! note "Integral accuracy"
-    To achieve highest accuracy, which can be challenging when integrating the
-    [`N′ice`](@ref) function, it is recommended to increase the `order` of the 
+    To achieve highest accuracy, which can be challenging when integrating over 
+    the size distribution, it is recommended to increase the `order` of the 
     quadrature rule and set `rtol = 0`. Experimentally, `order = 44` has been found
     to be sufficient for most cases. 
 
@@ -47,13 +47,13 @@ julia> state = P3.get_state(params; F_rim = 0.0, ρ_rim = 400.0, L_ice = 0.002, 
 
 julia> logλ = P3.get_distribution_logλ(state);
 
-julia> f(D) = D^3 * P3.N′ice(state, logλ)(D);  # Define a function to integrate
+julia> f(D) = D^3 * P3.size_distribution(state, logλ)(D);  # Define a function to integrate
 
 julia> P3.∫fdD(f, state, logλ; p = 0.01)  # Integrate the function
 0.0008519464332296608
 
 julia> P3.∫fdD(state, logλ; p = 0.01) do D  # Integrate with a `do`-block
-           P3.ice_mass(state, D) * P3.N′ice(state, logλ)(D)
+           P3.ice_mass(state, D) * P3.size_distribution(state, logλ)(D)
        end
 0.0017027833723511712
 ```

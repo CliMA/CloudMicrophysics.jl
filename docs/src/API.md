@@ -55,7 +55,8 @@ Microphysics2M.log_pdf_cloud_parameters_mass
 
 ### Size distributions
 ```@docs
-Microphysics2M.size_distribution
+Microphysics2M.size_distribution(::CMP.RainParticlePDF_SB2006, _, _, _)
+Microphysics2M.size_distribution(::CMP.CloudParticlePDF_SB2006, _, _, _)
 Microphysics2M.size_distribution_value
 Microphysics2M.get_size_distribution_bounds
 ```
@@ -152,12 +153,11 @@ P3Scheme.get_distribution_logλ
 
 ```@docs
 P3Scheme.logN′ice
-P3Scheme.N′ice
+P3Scheme.size_distribution(::P3Scheme.P3State, _)
 P3Scheme.loggamma_inc_moment
 P3Scheme.loggamma_moment
 P3Scheme.logmass_gamma_moment
 P3Scheme.logLdivN
-
 ```
 
 ### Derived integral quantities

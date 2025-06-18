@@ -442,7 +442,7 @@ function test_numerical_integrals(FT)
             # increase the `order` of the quadrature rule, and set `rtol=0`.
             # The `rtol` settings essentially forces max evaluations of the method.
             # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
-            N′ = P3.N′ice(state, logλ)
+            N′ = P3.size_distribution(state, logλ)
             N_estim = P3.∫fdD(state, logλ) do D
                 N′(D)
             end
