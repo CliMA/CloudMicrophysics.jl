@@ -518,6 +518,7 @@ function test_microphysics2M(FT)
             # distribution parameters for rain
             (; N₀r, Dr_mean) = CM2.pdf_rain_parameters(pdf_r, qᵣ, ρₐ, Nᵣ)
             (; Ar, Br) = CM2.pdf_rain_parameters_mass(pdf_r, qᵣ, ρₐ, Nᵣ)
+            TT.@test all(x -> x isa FT, (N₀r, Dr_mean, Ar, Br))
 
             # mass of liquid droplet as a function of its diameter
             k_m = π * ρw / 6
@@ -603,6 +604,7 @@ function test_microphysics2M(FT)
         (; logN₀c, λc, νcD, μcD) = CM2.pdf_cloud_parameters(pdf_c, qₗ, ρₐ, Nₗ)
 
         logAc, logBc = CM2.log_pdf_cloud_parameters_mass(pdf_c, qₗ, ρₐ, Nₗ)
+        TT.@test all(x -> x isa FT, (Ac, Bc, logN₀c, λc, νcD, μcD, logAc, logBc))
 
         # mass of liquid droplet as a function of its diameter
         k_m = π * ρw / 6

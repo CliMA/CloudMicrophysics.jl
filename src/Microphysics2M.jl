@@ -200,11 +200,12 @@ where
  - `(logN₀c, λc, νcD, μcD)`: Parameters of the generalized gamma distribution in terms of diameter
 """
 function pdf_cloud_parameters(pdf_c, q, ρₐ, N)
+    FT = eltype(pdf_c)
     logAc, logBc = log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
     (; νc, μc, ρw) = pdf_c
     k_m = ρw * π / 6
     # Convert from mass-based to diameter-based distribution
-    logN₀c = logAc + log(3) + (νc + 1) * log(k_m)
+    logN₀c = logAc + log(FT(3)) + (νc + 1) * log(k_m)
     λc = exp(logBc) * k_m^μc
     return (; logN₀c, λc, νcD = 3νc + 2, μcD = 3μc)
 end
