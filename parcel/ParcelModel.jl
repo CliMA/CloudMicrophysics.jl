@@ -1,7 +1,7 @@
-import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 include(joinpath(pkgdir(CM), "parcel", "ParcelParameters.jl"))
 
@@ -25,7 +25,7 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     aero_σ_g = FT(0)
     wps = CMP.WaterProperties(FT)
     aps = CMP.AirProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     aap = CMP.AerosolActivationParameters(FT)
     ips = CMP.IceNucleationParameters(FT)
     liquid = CMP.CloudLiquid(FT)
@@ -73,28 +73,27 @@ function parcel_model(dY, Y, p, t)
         t = t,
     )
     # Constants
-    Rᵥ = TD.Parameters.R_v(tps)
-    grav = TD.Parameters.grav(tps)
+    Rᵥ = TDI.Rᵥ(tps)
+    grav = TDI.grav(tps)
     ρᵢ = wps.ρi
     ρₗ = wps.ρw
 
     # Get the state values
     (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, t) = state
     # Get thermodynamic parameters, phase partition and create thermo state.
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-    ts = TD.PhaseNonEquil_pTq(tps, p_air, T, q)
+    qₜ = qᵥ + qₗ + qᵢ
 
     # Constants and variables that depend on the moisture content
-    R_air = TD.gas_constant_air(tps, q)
-    cp_air = TD.cp_m(tps, q)
-    L_subl = TD.latent_heat_sublim(tps, T)
-    L_fus = TD.latent_heat_fusion(tps, T)
-    L_vap = TD.latent_heat_vapor(tps, T)
-    ρ_air = TD.air_density(tps, ts)
+    R_air = TDI.Rₘ(tps, qₜ, qₗ, qᵢ)
+    cp_air = TDI.cpₘ(tps, qₜ, qₗ, qᵢ)
+    L_subl = TDI.Lₛ(tps, T)
+    L_fus = TDI.Lf(tps, T)
+    L_vap = TDI.Lᵥ(tps, T)
+    ρ_air = TDI.air_density(tps, T, p_air, qₜ, qₗ, qᵢ)
 
     # Vapor pressures
     e = qᵥ * p_air * Rᵥ / R_air
-    eₛₗ = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    eₛₗ = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 
     # Mean radius, area and volume of liquid droplets and ice crystals
     PSD_liq = distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air)

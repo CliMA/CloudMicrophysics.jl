@@ -5,7 +5,7 @@ using StatsBase
 
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
-import Thermodynamics.Parameters as TDP
+import CloudMicrophysics.ThermodynamicsInterface.TD.Parameters as TDP
 
 function get_num_modes(df::DataFrame)
     i = 1
@@ -108,13 +108,12 @@ function get_ARG_act_frac(
             ) for i in 1:num_modes
         )...,
     )
-    pv0 = TD.saturation_vapor_pressure(tps, FT(T), TD.Liquid())
-    vapor_mix_ratio = pv0 / TD.Parameters.molmass_ratio(tps) / (p - pv0)
+    pv0 = TDI.saturation_vapor_pressure_over_liquid(tps, FT(T))
+    vapor_mix_ratio = pv0 * TDI.Rd_over_Rv(tps) / (p - pv0)
     q_vap = vapor_mix_ratio / (vapor_mix_ratio + 1)
-    q = TD.PhasePartition(FT(q_vap), FT(0), FT(0))
 
     return collect(
-        AA.N_activated_per_mode(ap, ad, aip, tps, FT(T), FT(p), FT(w), q),
+        AA.N_activated_per_mode(ap, ad, aip, tps, FT(T), FT(p), FT(w), FT(q_vap), FT(0), FT(0)),
     ) ./ mode_Ns
 end
 

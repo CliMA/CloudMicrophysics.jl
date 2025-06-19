@@ -4,11 +4,11 @@ using ClimaComms
 ClimaComms.@import_required_backends
 
 # Needed for parameters
-import CloudMicrophysics.Parameters as CMP
 import ClimaParams as CP
-import Thermodynamics as TD
 
 # Modules to test
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.HetIceNucleation as CMI_het
@@ -58,12 +58,12 @@ const ArrayType = CuArray
     T = FT(294)      # air temperature K
     p = FT(1e5)    # air pressure Pa
     w = FT(0.5)         # vertical velocity m/s
-    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-    q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
-    # water vapor specific humidity (saturated)
-    q = TD.PhasePartition(q_vs)
+    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+    q_vs = 1 / (1 - 1 / TDI.Rd_over_Rv(tps) * (p_vs - p) / p_vs)
+    q_liq = FT(0)
+    q_ice = FT(0)
 
-    args = (aps, tps, T, p, w, q)
+    args = (aps, tps, T, p, w, q_vs, q_liq, q_ice)
 
     @inbounds begin
         mode_B = AM.Mode_B(
@@ -119,7 +119,7 @@ end
         output[1, i] = CMN.conv_q_vap_to_q_liq_ice_MM2015(
             liquid,
             tps,
-            TD.PhasePartition(qᵥ_sl[i]),
+            TDI.TD.PhasePartition(qᵥ_sl[i]),
             FT(0),
             FT(0),
             ρ[i],
@@ -179,7 +179,7 @@ end
     @inbounds begin
         ql = qc[i] * liquid_frac[i]
         qi = (1 - liquid_frac[i]) * qc[i]
-        q = TD.PhasePartition(FT(qt[i]), ql, qi)
+        q = TDI.TD.PhasePartition(FT(qt[i]), ql, qi)
 
         output[1, i] = CM0.remove_precipitation(p0m, q)
         output[2, i] = CM0.remove_precipitation(p0m, ql, qi)
@@ -343,7 +343,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        q = TD.PhasePartition(FT(qt[i]), FT(ql[i]), FT(0))
+        q = TDI.TD.PhasePartition(FT(qt[i]), FT(ql[i]), FT(0))
 
         output[1, i] =
             CM2.autoconversion_and_liquid_self_collection(
@@ -407,7 +407,9 @@ end
                 SB2006,
                 aps,
                 tps,
-                q,
+                qt[i],
+                ql[i],
+                FT(0),
                 qr[i],
                 ρ[i],
                 Nr[i],
@@ -418,7 +420,9 @@ end
                 SB2006,
                 aps,
                 tps,
-                q,
+                qt[i],
+                ql[i],
+                FT(0),
                 qr[i],
                 ρ[i],
                 Nr[i],
@@ -770,7 +774,7 @@ function test_gpu(FT)
 
     # thermodynamics and air properties
     aps = CMP.AirProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
     # aerosol activation
     ap = CMP.AerosolActivationParameters(FT)

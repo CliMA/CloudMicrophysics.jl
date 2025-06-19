@@ -3,15 +3,16 @@ module EmulatorModelsExt
 import MLJ
 import DataFrames as DF
 
-import Thermodynamics as TD
-import Thermodynamics.Parameters as TDP
 import ClimaParams as CP
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
+
+const TDP = TDI.TD.Parameters
 
 """
-    N_activated_per_mode(machine, ap, ad, aip, tps, T, p, w, q)
+    N_activated_per_mode(machine, ap, ad, aip, tps, T, p, w, qₜ, qₗ, qᵢ)
 
   - `machine` - ML model
   - `ap`  - a struct with aerosol activation parameters
@@ -21,7 +22,9 @@ import CloudMicrophysics.Parameters as CMP
   - `T`   - air temperature
   - `p`   - air pressure
   - `w`   - vertical velocity
-  - `q`   - phase partition
+  - `qₜ`  - total water specific content
+  - `qₗ`  - liquid water specific content
+  - `qᵢ`  - ice specific content
 
 Returns the number of activated aerosol particles
 in each aerosol size distribution mode by using a trained emulator.
@@ -35,7 +38,9 @@ function AA.N_activated_per_mode(
     T::FT,
     p::FT,
     w::FT,
-    q::TD.PhasePartition{FT},
+    qₜ::FT,
+    qₗ::FT,
+    qᵢ::FT,
 ) where {FT <: Real}
     hygro = AA.mean_hygroscopicity_parameter(ap, ad)
     return ntuple(Val(AM.n_modes(ad))) do i
@@ -62,7 +67,7 @@ function AA.N_activated_per_mode(
 end
 
 """
-    total_N_activated(machine, ap, ad, aip, tps, T, p, w, q)
+    total_N_activated(machine, ap, ad, aip, tps, T, p, w, qₜ, qₗ, qᵢ)
 
   - `machine` - ML model
   - `ap` - a struct with aerosol activation parameters
@@ -72,7 +77,9 @@ end
   - `T` - air temperature
   - `p` - air pressure
   - `w` - vertical velocity
-  - `q` - phase partition
+  - `qₜ`  - total water specific content
+  - `qₗ`  - liquid water specific content
+  - `qᵢ`  - ice specific content
 
 Returns the total number of activated aerosol particles by using a trained emulator.
 """
@@ -85,9 +92,11 @@ function AA.total_N_activated(
     T::FT,
     p::FT,
     w::FT,
-    q::TD.PhasePartition{FT},
+    qₜ::FT,
+    qₗ::FT,
+    qᵢ::FT,
 ) where {FT}
-    return sum(AA.N_activated_per_mode(machine, ap, ad, aip, tps, T, p, w, q))
+    return sum(AA.N_activated_per_mode(machine, ap, ad, aip, tps, T, p, w, qₜ, qₗ, qᵢ))
 end
 
 """

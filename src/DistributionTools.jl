@@ -28,7 +28,7 @@ end
 """
     generalized_gamma_quantile(ν, μ, B, Y)
 
-Calculate the quantile (inverse cumulative distribution function) for a 
+Calculate the quantile (inverse cumulative distribution function) for a
     generalized gamma distribution parameterized in the form:
 
     g(x) = A ⋅ x^ν ⋅ exp(-B ⋅ x^μ)
@@ -86,7 +86,7 @@ Calculate the nth physical moment of a generalized gamma distribution parameteri
 
     Mⁿ = ∫ x^n ⋅ g(x) dx
        = N ⋅ B^(-n/μ) ⋅ Γ((ν+1+n)/μ) / Γ((ν+1)/μ)
- 
+
 # Arguments
  - `ν, μ, B`: The PDF parameters
  - `N`: The total number concentration of particles
@@ -164,7 +164,7 @@ Calculate the nth moment of an exponential distribution parameterized in the for
 
     Mⁿ = ∫ x^n ⋅ n(x) dx
        = N ⋅ n! ⋅ D_mean^n
- 
+
  where N₀ = N / D_mean.
 
 # Arguments
