@@ -559,6 +559,58 @@ function test_p3_melting(FT)
     end
 end
 
+function test_p3_bulk_liquid_ice_collisions(FT)
+    params = CMP.ParametersP3(FT)
+    vel_params = CMP.Chen2022VelType(FT)
+    aps = CMP.AirProperties(FT)
+    tps = TD.Parameters.ThermodynamicsParameters(FT)
+
+    (; T_freeze) = params
+
+    ρₐ = FT(1.2)
+    qᵢ = FT(1e-4)
+    Lᵢ = qᵢ * ρₐ
+    Nᵢ = FT(2e5) * ρₐ
+    F_rim = FT(0.8)
+    ρ_rim = FT(800)
+
+    state = P3.get_state(params; F_rim, ρ_rim, L_ice = Lᵢ, N_ice = Nᵢ)
+    logλ = P3.get_distribution_logλ(state)
+    D̄ = exp(-logλ)
+
+    @testset "maximum dry freezing rate" begin
+        # Below freezing, max freeze rate is non-zero (check against reference value)
+        Tₐ = T_freeze - 1 // 10
+        max_rate = P3.compute_max_freeze_rate(state, aps, tps, vel_params, ρₐ, Tₐ)
+        @test max_rate(D̄) ≈ FT(8.819134467143614e-13) rtol = 1e-4
+
+        # At freezing, max freeze rate is zero
+        Tₐ = T_freeze
+        max_rate = P3.compute_max_freeze_rate(state, aps, tps, vel_params, ρₐ, Tₐ)
+        @test iszero(max_rate(D̄))
+
+        # Above freezing, max freeze rate is zero
+        Tₐ = T_freeze + 1 // 10
+        max_rate = P3.compute_max_freeze_rate(state, aps, tps, vel_params, ρₐ, Tₐ)
+        @test iszero(max_rate(D̄))
+    end
+
+    @testset "local rime density" begin
+        Tₐ = T_freeze - 1 // 10
+        ρ′_rim = P3.compute_local_rime_density(state, vel_params, ρₐ, Tₐ)
+        @test ρ′_rim(D̄, D̄) ≈ FT(159.5) rtol = 1e-6
+
+        a, b, c = 51, 114, -11 // 2 # coeffs for Eq. 17 in Cober and List (1993), converted to [kg / m³]
+        ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2  # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
+        ρ⭒ = FT(900)  # ρ^⭒: density of solid bulk ice
+
+        @test P3.ρ′_rim_P3(FT(1)) == ρ′_rim_CL93(FT(1))
+        @test P3.ρ′_rim_P3(FT(8)) == ρ′_rim_CL93(FT(8))
+        @test P3.ρ′_rim_P3(FT(12)) == ρ⭒
+    end
+
+end
+
 
 TT.@testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation
@@ -576,5 +628,8 @@ TT.@testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # processes
     test_p3_het_freezing(FT)
     test_p3_melting(FT)
+
+    # bulk liquid-ice collisions and related processes
+    test_p3_bulk_liquid_ice_collisions(FT)
 end
 nothing

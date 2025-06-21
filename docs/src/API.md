@@ -167,8 +167,25 @@ P3Scheme.D_m
 P3Scheme.ice_particle_terminal_velocity
 P3Scheme.ice_terminal_velocity_number_weighted
 P3Scheme.ice_terminal_velocity_mass_weighted
+```
+
+### Processes
+
+#### Heterogeneous ice nucleation
+```@docs
 P3Scheme.het_ice_nucleation
+```
+
+#### Ice melting
+```@docs
 P3Scheme.ice_melt
+```
+
+#### Collisions with liquid droplets
+Supporting methods:
+```@docs
+P3Scheme.compute_max_freeze_rate
+P3Scheme.compute_local_rime_density
 ```
 
 ### Supporting integral methods

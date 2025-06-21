@@ -99,3 +99,130 @@ function ice_melt(
     dLdt = min(dLdt, L_ice / dt)
     return (; dNdt, dLdt)
 end
+
+"""
+    compute_max_freeze_rate(state, aps, tps, velocity_params, ρₐ, Tₐ)
+
+Returns a function `max_freeze_rate(Dᵢ)` that returns the maximum possible freezing rate [kg/s] 
+    for an ice particle of diameter `Dᵢ` [m]. Evaluates to `0` if `T ≥ T_freeze`.
+
+# Arguments
+- `state`: [`P3State`](@ref)
+- `aps`: [`CMP.AirProperties`](@ref) 
+- `tps`: `TDP.ThermodynamicsParameters`
+- `velocity_params`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density [kg/m³]
+- `Tₐ`: air temperature [K]
+
+This rate represents the thermodynamic upper limit to collisional freezing, 
+which occurs when the heat transfer from the ice particle to the environment is 
+balanced by the latent heat of fusion.
+
+From Eq (A7) in Musil (1970), [Musil1970](@cite).
+"""
+function compute_max_freeze_rate(state, aps, tps, velocity_params, ρₐ, Tₐ)
+    (; D_vapor, K_therm) = aps
+    cp_l = TDP.cp_l(tps)
+    T_frz = TDP.T_freeze(tps)
+    Lᵥ = TD.latent_heat_vapor(tps, Tₐ)
+    L_f = TD.latent_heat_fusion(tps, Tₐ)
+    Tₛ = T_frz  # the surface of the ice particle is assumed to be at the freezing temperature
+    ΔT = Tₛ - Tₐ  # temperature difference between the surface of the ice particle and the air
+    Δρᵥ_sat =
+        ρₐ * (  # saturation vapor density difference between the surface of the ice particle and the air
+            TD.q_vap_saturation(tps, Tₛ, ρₐ, TD.PhaseNonEquil) -
+            TD.q_vap_saturation(tps, Tₐ, ρₐ, TD.PhaseNonEquil)
+        )
+    v_term = ice_particle_terminal_velocity(state, velocity_params, ρₐ)
+    F_v = CO.ventilation_factor(state.params.vent, aps, v_term)
+    function max_freeze_rate(Dᵢ)
+        Tₐ ≥ T_frz && return zero(Dᵢ)  # No collisional freezing above the freezing temperature
+        return 2 * (π * Dᵢ) * F_v(Dᵢ) * (K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat) / (L_f - cp_l * ΔT)
+    end
+    return max_freeze_rate
+end
+
+"""
+    compute_local_rime_density(state, velocity_params, ρₐ, T)
+
+Provides a function `ρ′_rim(Dᵢ, Dₗ)` that computes the local rime density [kg/m³] 
+    for a given ice particle diameter `Dᵢ` [m] and liquid particle diameter `Dₗ` [m].
+
+# Arguments
+- `state`: [`P3State`](@ref)
+- `velocity_params`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density [kg/m³]
+- `T`: temperature [K]
+
+# Returns
+A function that computes the local rime density [kg/m³] using the equation:
+
+```math
+ρ'_{rim} = 51 + 114 R_i - 5.5 R_i^2
+```
+where
+```math
+R_i = \\frac{ D_{liq} ⋅ |v_{liq} - v_{ice}| }{ 2 T_{sfc} }
+```
+and ``T_{sfc}`` is the surface temperature [°C], ``D_{liq}`` is the liquid particle
+diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
+So the units of ``R_i`` are [m² s⁻¹ K⁻¹]. The units of ``ρ'_{rim}`` are [kg/m³].
+
+They assume for simplicity that ``T_{sfc}`` equals ``T``, the ambient air temperature.
+For real graupel, ``T_{sfc}`` is slightly higher than ``T`` due to latent heat release 
+of freezing liquid particles onto the ice particle. Morrison & Milbrandt (2013) 
+found little sensitivity to "realistic" increases in ``T_{sfc}``.
+
+Implementation follows Cober and List (1993), Eq. 16 and 17.
+See also the P3 fortran code, `microphy_p3.f90`, Line 3315-3323,
+which extends the range of the calculation to ``R_i ≤ 12``, the upper limit of which
+then equals the solid bulk ice density, ``ρ^⭒ = 900 kg/m^3``.
+
+Note that Morrison & Milbrandt (2015) [MorrisonMilbrandt2015](@cite) only uses this 
+parameterization for collisions with cloud droplets.
+For rain drops, they use the solid bulk ice density, ``ρ^* = 900 kg/m^3``.
+We do not consider this distinction, and use this parameterization for all liquid particles.
+"""
+function compute_local_rime_density(state, velocity_params, ρₐ, T)
+    (; T_freeze) = state.params
+    T°C = T - T_freeze  # Convert to °C
+
+    v_ice = ice_particle_terminal_velocity(state, velocity_params, ρₐ)
+    v_liq = CO.particle_terminal_velocity(velocity_params.rain, ρₐ)
+    function ρ′_rim(Dᵢ, Dₗ)
+        v_term = abs(v_ice(Dᵢ) - v_liq(Dₗ))
+        Rᵢ = (Dₗ * v_term) / (2 * T°C)  # Eq. 16 in Cober and List (1993). Note: no `-` due to absolute value in v_term
+        return ρ′_rim_P3(Rᵢ)
+    end
+    return ρ′_rim
+end
+
+"""
+    ρ′_rim_P3(Rᵢ)
+
+Returns the local rime density [kg/m³] for a given Rᵢ [m² s⁻¹ °C⁻¹].
+
+Based on Cober and List (1993), Eq. 16 and 17 (valid `for 1 ≤ Rᵢ ≤ 8`).
+For `8 < Rᵢ ≤ 12`, linearly interpolate between `ρ′_rim(8) ≡ 611 kg/m³` and `ρ⭒ = 900 kg/m³`.
+See also the P3 fortran code, `microphy_p3.f90`, Line 3315-3323.
+"""
+function ρ′_rim_P3(Rᵢ)
+    # TODO: Externalize these parameters
+    a, b, c = 51, 114, -11 // 2 # coeffs for Eq. 17 in Cober and List (1993), converted to [kg / m³]
+    ρ⭒ = 900  # ρ^⭒: density of solid bulk ice
+
+    Rᵢ = clamp(Rᵢ, 1, 12)  # P3 fortran code, microphy_p3.f90, Line 3315 clamps to 1 ≤ Rᵢ ≤ 12
+
+    ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2  # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
+    ρ′_rim = if Rᵢ ≤ 8
+        ρ′_rim_CL93(Rᵢ)
+    else
+        # following P3 fortran code, microphy_p3.f90, Line 3323
+        #   https://github.com/P3-microphysics/P3-microphysics/blob/main/src/microphy_p3.f90#L3323
+        # for 8 < Rᵢ ≤ 12, linearly interpolate between ρ′_rim(8) ≡ 611 kg/m³ and ρ⭒ = 900 kg/m³
+        ρ′_rim8 = ρ′_rim_CL93(8)
+        f_ρ⭒ = (Rᵢ - 8) / (12 - 8)
+        (1 - f_ρ⭒) * ρ′_rim8 + f_ρ⭒ * ρ⭒  # Linear interpolation beyond 8.
+    end
+    return float(ρ′_rim)
+end
