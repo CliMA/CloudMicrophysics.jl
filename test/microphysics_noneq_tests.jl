@@ -115,5 +115,6 @@ function test_microphysics_noneq(FT)
     end
 end
 
-test_microphysics_noneq(Float32)
-test_microphysics_noneq(Float64)
+TT.@testset "Microphysics Non-Equilibrium Tests ($FT)" for FT in (Float64, Float32)
+    test_microphysics_noneq(FT)
+end

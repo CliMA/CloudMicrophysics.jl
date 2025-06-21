@@ -111,8 +111,6 @@ function test_cloud_diagnostics(FT)
     end
 end
 
-println("Testing Float64")
-test_cloud_diagnostics(Float64)
-
-println("Testing Float32")
-test_cloud_diagnostics(Float32)
+TT.@testset "Cloud Diagnostics Tests ($FT)" for FT in (Float64, Float32)
+    test_cloud_diagnostics(FT)
+end

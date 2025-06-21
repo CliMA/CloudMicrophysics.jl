@@ -481,8 +481,6 @@ function test_microphysics1M(FT)
     end
 end
 
-println("Testing Float64")
-test_microphysics1M(Float64)
-
-println("Testing Float32")
-test_microphysics1M(Float32)
+TT.@testset "Microphysics 1M Tests ($FT)" for FT in (Float64, Float32)
+    test_microphysics1M(FT)
+end

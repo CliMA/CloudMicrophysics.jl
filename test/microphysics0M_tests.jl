@@ -54,5 +54,6 @@ function test_microphysics0M(FT)
     end
 end
 
-test_microphysics0M(Float32)
-test_microphysics0M(Float64)
+TT.@testset "Microphysics 0M Tests ($FT)" for FT in (Float64, Float32)
+    test_microphysics0M(FT)
+end
