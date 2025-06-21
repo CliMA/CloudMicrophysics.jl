@@ -182,8 +182,12 @@ P3Scheme.ice_melt
 ```
 
 #### Collisions with liquid droplets
+```@docs
+P3Scheme.bulk_collision_rate_with_liquid
+```
 Supporting methods:
 ```@docs
+P3Scheme.volumetric_collision_rate_integrand
 P3Scheme.compute_max_freeze_rate
 P3Scheme.compute_local_rime_density
 ```

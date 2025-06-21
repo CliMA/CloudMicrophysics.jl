@@ -429,10 +429,309 @@ When modifying process rates, we now need to consider whether they are concerned
   in addition to whether they become sources and sinks of different prognostic variables with the inclusion of ``F_{liq}``.
   With the addition of liquid fraction, too, come new process rates.
 
-!!! note
-    TODO - Implement process rates, complete docs.
+## Microphysical Process Rates
 
-## Heterogeneous Freezing
+The sources and sinks of the prognostic variables are given by the following equations:
+
+!!! details "Symbol definitions"
+    Table and text in this box is copied from [MorrisonMilbrandt2015](@cite), c.f. Appendix B.
+    
+    | Symbol | Description |
+    |:-------|:------------|
+    | $\textcolor{cyan}{\textsf{WRM}}$    | Warm rain microphysics |
+    | $\textcolor{magenta}{\textsf{NUC}}$    | Ice nucleation |
+    | $\textcolor{magenta}{\textsf{DEP}}$    | Ice deposition |
+    | $\textcolor{pink}{\textsf{SUB}}$    | Ice sublimation |
+    | $\textcolor{brown}{\textsf{COL}}$    | Collision/collection between liquid and ice |
+    | $\textcolor{brown}{\textsf{SHD}}$    | Drop shedding |
+    | $\textcolor{orange}{\textsf{HET}}$    | Heterogeneous freezing of cloud droplets and rain |
+    | $\textcolor{purple}{\textsf{HOM}}$    | Homogeneous freezing of cloud droplets and rain |
+    | $\textcolor{pink}{\textsf{MLT}}$    | Melting of ice |
+    | $\textcolor{brown}{\textsf{WET}}$    | Particle densification due to wet growth in subfreezing temperatures |
+  
+    The naming convention for the process rates below is as follows:
+    - The first letter describes whether the process involves a change in mass (Q), number (N), or volume (B) mixing ratio.
+      - we currently formulate the scheme in terms of mass content [kg/m³] instead of specific mass [kg/kg], so rates for $L_{rim}$ and $L_{ice}$ are given in [kg/m³/s] instead of [kg/kg/s]
+    - For source and sink processes that do not involve multispecies interaction, the second letter indicates the species as cloud water (C), rain (R), or ice (I).
+    - For source/sink processes that involve multispecies interaction (i.e., the same process acting as a source for one species but a sink for another), the second letter (C, R, or I) indicates the species that is reduced as a result of the process.
+    - The remaining three letters indicate the type of microphysical process as defined in the table above.
+
+    
+Liquid phase:
+```math
+\begin{align*}
+  S_{q_c} &= \textcolor{cyan}{QCWRM} 
+  % S_{q_c} &= \textcolor{cyan}{     \text{QCNUC} + \text{QCCON} - \text{QCAUT} - \text{QCACC}} 
+             \textcolor{orange}{ - \text{QCHET}} 
+             \textcolor{lime}{   - \text{QCHOM}} 
+             \textcolor{brown}{  - \text{QCCOL}} 
+             \\
+  S_{q_r} &= \textcolor{cyan}{QRWRM} 
+  % S_{q_r} &= \textcolor{cyan}{     \text{QRAUT} + \text{QRCACC}} 
+             \textcolor{orange}{ - \text{QRHET}}
+             \textcolor{lime}{   - \text{QRHOM}}
+             \textcolor{pink}{   + \text{QIMLT}}
+             \textcolor{brown}{  - \text{QRCOL} + \text{QCSHD}}
+             \\
+  S_{N_c} &= \textcolor{cyan}{NCWRM} 
+  % S_{N_c} &= \textcolor{cyan}{     \text{NCNUC} - \text{NCAUT} - \text{NCACC}} 
+             \textcolor{orange}{ - \text{NCHET}} 
+             \textcolor{lime}{   - \text{NCHOM}} 
+             \textcolor{brown}{  - \text{NCCOL}} 
+             \\
+  S_{N_r} &= \textcolor{cyan}{NRWRM} 
+  % S_{N_r} &= \textcolor{cyan}{     \text{NCAUT}} 
+             \textcolor{orange}{ - \text{NRHET}} 
+             \textcolor{lime}{   - \text{NRHOM}} 
+             \textcolor{pink}{   + \text{NIMLT}} 
+             \textcolor{brown}{  - \text{NRCOL} + \text{NRSHD}} 
+             \\
+\end{align*}
+```
+Ice phase:
+```math
+\begin{align*}
+  S_{L_{rim}} &= 
+                 \textcolor{orange}{   \text{QCHET} + \text{QRHET}} 
+                 \textcolor{lime}{   + \text{QCHOM} + \text{QRHOM}}
+                 - F_{rim} (\textcolor{pink}{\text{QISUB} + \text{QIMLT}})
+                \\
+                 &\quad 
+                 \textcolor{brown}{  + \text{QCCOL} + \text{QRCOL} + \text{QIWET}} 
+                \\
+  S_{L_{ice}} &= 
+               \textcolor{magenta}{  \text{QINUC} + \text{QIDEP} }
+               - (1 - F_{rim}) (\textcolor{pink}{\text{QISUB} + \text{QIMLT}})
+               \textcolor{brown}{ + S_{L_{rim}}} 
+                \\
+  S_{N_{ice}} &= 
+               \textcolor{magenta}{  \text{NINUC} }
+               \textcolor{orange}{ + \text{NCHET} + \text{NRHET}} 
+               \textcolor{lime}{   + \text{NCHOM} + \text{NRHOM}} 
+               \textcolor{pink}{   - \text{NISUB}} 
+               \\
+  S_{B_{rim}} &= \frac{1}{ρ^*} \left( 
+                  \textcolor{orange}{  \text{QCHET} + \text{QRHET}} 
+                  \textcolor{lime}{  + \text{QCHOM} + \text{QRHOM}}
+                \right) 
+               - \frac{1}{ρ_{rim}} F_{rim} (\textcolor{pink}{\text{QISUB} + \text{QIMLT}})
+               \\
+                &\quad 
+               \textcolor{brown}{+ \text{BCCOL} + \text{BRCOL} + \text{BIWET}} 
+                \\
+\end{align*}
+```
+
+Terms that are related are colored the same:
+
+- The $\textcolor{cyan}{\textsf{cyan}}$ colors → warm rain microphysics (i.e. WRM)
+  - nucleation, condensation, autoconversion, accretion, evaporation
+- The $\textcolor{orange}{\textsf{orange}}$ colors → heterogeneous freezing (i.e. HET)
+- The $\textcolor{lime}{\textsf{lime}}$ colors → homogeneous freezing (i.e. HOM)
+- The $\textcolor{brown}{\textsf{brown}}$ colors → liquid-ice collisions (i.e. COL, SHD, WET)
+- The $\textcolor{pink}{\textsf{pink}}$ colors → melting (i.e. MLT)
+- The $\textcolor{magenta}{\textsf{magenta}}$ colors → nucleation and deposition (i.e. NUC, DEP)
+
+!!! note "Differences with Morrison & Milbrandt (2015)"
+    There are numerous differences between the P3 scheme in Morrison & Milbrandt (2015) and the P3 scheme in this package:
+    - the maximum freezing rate (wet growth limit) is computed at the particle level, instead of as a bulk process
+    - changes in rime volume due to (dry) collisions with cloud and rain are computed at the particle level, with a local rime density evaluated as a function of both the liquid and ice particle diameters
+    - in the wet growth regime, the densification process is computed as a rapidly adjusting bulk process, instead of instantenous particle-level densification. We also scale by the fraction of the mass rate that undergoes wet growth.
+
+
+Below, we describe the different processes in more detail.
+
+### Collisions with liquid droplets
+
+Collisions between liquid droplets (cloud or rain) and ice particles are parameterized 
+ by integrating the volumetric collision rate $∂_t\mathcal{V}$ [$\text{m}^3/\text{s}$] 
+ over the particle size distributions. The volumetric collision rate is on the form
+```math
+∂_t\mathcal{V}_l(D_i, D_l) = E(D_i, D_l) K(D_i, D_l) |v_i(D_i) - v_l(D_l)|
+```
+where $l ∈ \{c, r\}$ denotes cloud or rain, 
+- ``E(D_i, D_l)`` is the collision efficiency (which we assume to be 1), 
+- ``K(D_i, D_l) = π (r_i + D_l/2)^2`` is the collision cross section, 
+  - ``r_i`` is the effective radius of the ice particle, which is the radius of a circle with the same cross-sectional area as the (in general, non-spherical) ice particle,
+- ``v_i(D_i)`` and ``v_l(D_l)`` are the terminal velocities of the ice particle and the liquid droplet, respectively.
+
+!!! note "Number of collisions per unit time"
+    If we multiply ``∂_t\mathcal{V}_l(D_i, D_l)`` by the liquid droplet size distribution ``N_l(D_l)``, we obtain the kernel
+    ```math
+    ∂_t\mathcal{V}_l(D_i, D_l) N_l(D_l),
+    ```
+    which represents the number of liquid droplets of size ``D_l`` colliding with an ice particle of size ``D_i`` per unit time. If we know, say, the mass of each liquid droplet, and integrate the mass-kernel over all liquid drop sizes, we get the total mass of the collected liquid droplets by an ice particle of size ``D_i``.
+
+The quantity $∂_t\mathcal{N}_{\text{col},l}(D_i)$ [$\text{s}^{-1}$],
+```math
+∂_t\mathcal{N}_{\text{col},l}(D_i) = ∫_0^∞ ∂_t\mathcal{V}_l(D_i, D_l) N_l(D_l) \mathrm{d}D_l
+```
+quantifies how many liquid droplets collide with an ice particle of size $D_i$ per unit time.
+
+!!! note "Bulk loss of liquid droplets"
+    The bulk loss of liquid droplets is then given by
+    ```math
+    \textcolor{brown}{\text{NCCOL}} = ∫_0^∞ ∂_t\mathcal{N}_{\text{col},l}(D_i) N'_i(D_i) \mathrm{d}D_i,
+    \quad
+    \textcolor{brown}{\text{NRCOL}} = ∫_0^∞ ∂_t\mathcal{N}_{\text{col},r}(D_i) N'_i(D_i) \mathrm{d}D_i,
+    ```
+
+The total mass of the collected liquid droplets $∂_t\mathcal{M}_{col,l}(D_i)$ [$\text{kg/s}$] can be expressed as
+```math
+∂_t\mathcal{M}_{\text{col},l}(D_i) 
+  = ∫_0^∞ ∂_t\mathcal{V}_l(D_i, D_l) N_l(D_l) m_l(D_l) \mathrm{d}D_l
+```
+
+When liquid droplets collide with ice particles, we assume that they can either freeze or be shed as
+ rain particles. Above freezing, all particles are shed. In subfreezing temperatures, normally all particles are frozen. However,
+ close to the freezing temperature, there may not be enough time for all particles to freeze.
+ We refer to this as the wet growth regime. In this case, the particles that are not frozen are shed as rain.
+ The wet growth regime is determined by comparing the freezing rate to the collection rate.
+
+The maximum freezing rate is based on Musil (1970) [Musil1970](@cite),
+ which considers the heat transfer rate for a spherical wet hailstone.
+ The maximum freezing rate [kg/s] is computed as
+```math
+∂_t\mathcal{M}_\text{max}(D_i) 
+  = 2π D_i F_v(D_i) \frac{- K_t ΔT + H_v D_v Δq_{v,\text{sat}}}{L_f + C_p ΔT}
+```
+where the first term in the numerator is the heat transfer rate to the air surrounding the hailstone,
+ and the second term is evaporative cooling. The denominator is the heat that must be dissipated by the hailstone.
+
+!!! details "Symbol definitions"
+    | Symbol     | Units | Description |
+    |:-----------|:------|:------------|
+    | $D_i$      | $\text{m}$       | diameter of the ice particle |
+    | $F_v(D_i)$ | $-$              | ventilation factor |
+    | $K_t$      | $\text{W/(m K)}$ | thermal conductivity |
+    | $ΔT$       | $\text{K}$       | temperature difference between the surface of the ice particle and the surrounding air |
+    | $H_v$      | $\text{J/kg}$    | latent heat of vaporization |
+    | $D_v$      | $\text{m}^2/\text{s}$    | vapor diffusivity |
+    | $Δq_{v,\text{sat}}$  | $\text{kg/kg}$ | difference in saturation vapor mixing ratio between the surface of the ice particle and the surrounding air |
+    | $L_f$      | $\text{J/kg}$     | latent heat of fusion |
+    | $C_p$      | $\text{J/(kg K)}$ | specific heat capacity of water |
+
+For collisions with ice particles of size $D_i$, the freezing (riming) rate $∂_t\mathcal{M}_\text{frz}$ [$\text{kg/s}$] is thus
+```math
+∂_t\mathcal{M}_\text{frz} = \min \left( ∂_t\mathcal{M}_\text{col}, ∂_t\mathcal{M}_\text{max} \right), 
+\quad \textsf{where} \quad
+∂_t\mathcal{M}_\text{col} = ∂_t\mathcal{M}_\text{col,c} + ∂_t\mathcal{M}_\text{col,r},
+```
+where $∂_t\mathcal{M}_{col}$ is the total mass of the collected liquid droplets. The fraction of the collected liquid that freezes is given by
+```math
+f_\text{frz}(D_i) 
+  = \frac{∂_t \mathcal{M}_\text{frz}(D_i)}{∂_t \mathcal{M}_\text{col}(D_i)}
+```
+
+!!! note "Bulk freezing rates"
+    The bulk freezing rates are obtained by integrating the per-particle freezing rates over the ice particle size distribution,
+    ```math
+    \textcolor{brown}{\text{QCCOL}} 
+      = ∫_0^∞ ∂_t\mathcal{M}_{\text{col},c}(D_i) f_\text{frz}(D_i) N'_i(D_i) \mathrm{d}D_i,
+    \quad
+    \textcolor{brown}{\text{QRCOL}} 
+      = ∫_0^∞ ∂_t\mathcal{M}_{\text{col},r}(D_i) f_\text{frz}(D_i) N'_i(D_i) \mathrm{d}D_i, 
+    ```
+    which can be combined to give the bulk liquid freezing rate
+    ```math
+    \textcolor{brown}{\text{QCCOL} + \text{QRCOL}} 
+      = ∫_0^∞ ∂_t \mathcal{M}_\text{frz}(D_i)                   N'_i(D_i) \mathrm{d}D_i 
+      = ∫_0^∞ ∂_t \mathcal{M}_\text{col}(D_i) f_\text{frz}(D_i) N'_i(D_i) \mathrm{d}D_i
+    ```
+
+Any excess mass $∂_t\mathcal{M}_{shd}$ [$\text{kg/s}$] is shed as rain, where
+```math
+∂_t\mathcal{M}_\text{shd} = ∂_t\mathcal{M}_{col} - ∂_t\mathcal{M}_\text{frz}
+```
+We assume that all shed droplets are shed at some fixed diameter $D_\text{shd}$. 
+  Following [MorrisonMilbrandt2015](@cite), we set $D_\text{shd} = 1 \text{ mm}$. 
+  This implies that the number of shed droplets is
+```math
+∂_t\mathcal{N}_\text{shd} = \frac{∂_t\mathcal{M}_\text{shd}}{m(D_\text{shd})}
+```
+
+!!! note "Bulk source to rain mass and number"
+    The corresponding bulk source to rain mass and number is
+    ```math
+    \begin{align*}
+    \textcolor{brown}{\text{QRSHD}} 
+    &= ∫_0^∞                           ∂_t\mathcal{M}_\text{shd}(D_i) N'_i(D_i) \mathrm{d}D_i
+    = ∫_0^∞ (1 - f_{\text{frz}}(D_i)) ∂_t\mathcal{M}_\text{col}(D_i) N'_i(D_i) \mathrm{d}D_i \\
+    &= ∫_0^∞ ∂_t\mathcal{M}_\text{col}(D_i) N'_i(D_i) \mathrm{d}D_i - (\textcolor{brown}{\text{QCCOL} + \text{QRCOL}})
+    \\
+    \textcolor{brown}{\text{NRSHD}} &= ∫_0^∞ ∂_t\mathcal{N}_\text{shd} N'_i(D_i) \mathrm{d}D_i
+    = ∫_0^∞ \frac{∂_t\mathcal{M}_\text{shd}}{m(D_\text{shd})}          N'_i(D_i) \mathrm{d}D_i
+    = \frac{\textcolor{brown}{\text{QRSHD}}}{m(D_\text{shd})},
+    \end{align*}
+    ```
+
+Finally, how does this affect the rime volume? 
+
+Collisions with rain, cloud, and shedded wet growth all contribute to the rime volume.
+
+The change in rime volume is given by the change in mass divided by some rime density.
+
+!!! note "Local rime density parameterization"
+    Following [MorrisonMilbrandt2015](@cite), we apply the Cober & List (1993) [CoberList1993](@cite) parameterization to calculate the local rime density for each collision pair. 
+    For an ice particle of size $D_i$ colliding with a liquid droplet of size $D_l$ (where $l ∈ \{c, r\}$ for cloud or rain), the rime density is given by
+    ```math
+    \begin{align}
+    V_\text{term}(D_i, D_l) &= |v_i(D_i) - v_l(D_l)|, 
+    \\
+    R_i(D_i, D_l) &= \frac{D_l \, V_\text{term}(D_i, D_l)}{2 |T - T_\text{freeze}|},
+    \\
+    ρ'_r(R_i) &= 
+    \begin{cases}
+      a_\text{CL} + b_\text{CL} R_i + c_\text{CL} R_i^2         & \text{if }\, 1 ≤ R_i ≤ 8, 
+      \\
+      (1 - \frac{R_i-8}{12-8}) ρ'_r(8) + \frac{R_i-8}{12-8} ρ^* & \text{if }\, 8 < R_i ≤ 12,
+    \end{cases}
+    \end{align}
+    ```
+    where $ρ^* = 900$ kg/m³ is the density of solid bulk ice, and $a_\text{CL}, b_\text{CL}, c_\text{CL}$ are the coefficients for the Cober & List (1993) parameterization [CoberList1993](@cite).
+    The $R_i$ quantity is limited to the range $1 ≤ R_i ≤ 12$.
+    Their values are $a_\text{CL} = 51$, $b_\text{CL} = 114$, and $c_\text{CL} = -5.5$.
+
+The change in rime volume at some diameter $D_i$ is then given by
+```math
+∂_t\mathcal{B}_{\text{rim},l}(D_i) 
+  = ∫_0^∞ \frac{∂_t\mathcal{V}_l(D_i, D_l) m_l(D_l)}{ρ'_r(R_i(D_i, D_l))} N_l(D_l) \mathrm{d}D_l
+```
+The bulk rate of rime volume change is limited by the fraction of mass that freezes, and is then given by
+```math
+\textcolor{brown}{\text{BCCOL} + \text{BRCOL}} 
+  = \sum_{l ∈ \{c, r\}} ∫_0^∞ ∂_t\mathcal{B}_{\text{rim},l}(D_i) f_\text{frz}(D_i) N'_i(D_i) \mathrm{d}D_i
+```
+
+In the wet growth regime, the rime compacts, rapidly relaxing towards the solid bulk ice density $ρ^* = 900$ kg/m³.
+Because the P3 scheme only tracks the bulk rime volume $B_\text{rim}$, the densification rate is applied to the bulk rime volume.
+As a measure of the "intensity" of wet growth, we use the fraction of the total liquid collection that occurs by particles in wet growth regime,
+```math
+\begin{align*}
+f_\text{wet} 
+&= \frac{
+  ∫_0^∞ \mathbb{1}_\text{wet}(D_i) ⋅ ∂_t \mathcal{M}_{col}(D_i) N'(D_i) \mathrm{d}D_i
+}{∫_0^∞ ∂_t \mathcal{M}_\text{col}(D_i) N'(D_i) \mathrm{d}D_i
+}, \\
+&= \frac{
+  ∫_0^∞ \mathbb{1}_\text{wet}(D_i) ⋅ ∂_t \mathcal{M}_{col}(D_i) N'(D_i) \mathrm{d}D_i
+}{\textcolor{brown}{\text{QCCOL} + \text{QRCOL} + \text{QRSHD}}
+},
+\end{align*}
+```
+The bulk rate of rime volume change is then given by
+```math
+\begin{align*}
+\textcolor{brown}{\text{QIWET}}
+  &= f_\text{wet} ⋅ \frac{1}{τ_\text{wet}} (L_\text{ice} - L_\text{rim})
+   = f_\text{wet} ⋅ \frac{1}{τ_\text{wet}}  L_\text{ice} (1 - F_{rim})
+\\
+\textcolor{brown}{\text{BIWET}}
+  &= f_\text{wet} ⋅ \frac{1}{τ_\text{wet}} \left(\frac{L_\text{ice}}{ρ^*} - B_\text{rim}\right) \\
+\end{align*}
+```
+
+### Heterogeneous Freezing
 
 Immersion freezing is parameterized based on water activity and follows the ABIFM
   parameterization from [KnopfAlpert2013](@cite).
@@ -460,7 +759,7 @@ include("plots/P3ImmersionFreezing.jl")
 ```
 ![](P3_het_ice_nucleation.svg)
 
-## Melting
+### Melting
 
 Melting rate is derived in the same way as in the
   [1-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-melt).
