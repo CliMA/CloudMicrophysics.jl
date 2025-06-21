@@ -269,8 +269,6 @@ function test_aerosol_activation(FT)
     end
 end
 
-println("Testing Float64")
-test_aerosol_activation(Float64)
-
-println("Testing Float32")
-test_aerosol_activation(Float32)
+TT.@testset "Aerosol Activation Tests ($FT)" for FT in (Float64, Float32)
+    test_aerosol_activation(FT)
+end

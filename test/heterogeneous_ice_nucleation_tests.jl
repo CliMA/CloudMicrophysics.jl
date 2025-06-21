@@ -238,8 +238,6 @@ function test_heterogeneous_ice_nucleation(FT)
     end
 end
 
-println("Testing Float64")
-test_heterogeneous_ice_nucleation(Float64)
-
-println("Testing Float32")
-test_heterogeneous_ice_nucleation(Float32)
+TT.@testset "Heterogeneous Ice Nucleation Tests ($FT)" for FT in (Float64, Float32)
+    test_heterogeneous_ice_nucleation(FT)
+end

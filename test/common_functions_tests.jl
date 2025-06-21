@@ -218,8 +218,7 @@ function test_volume_sphere(FT)
     end
 end
 
-for FT in (Float64, Float32)
-    println("Testing $FT")
+TT.@testset "Common Functions Tests ($FT)" for FT in (Float64, Float32)
     test_H2SO4_soln_saturation_vapor_pressure(FT)
     test_a_w_xT(FT)
     test_a_w_eT(FT)

@@ -61,16 +61,6 @@ function test_J_calibration(FT, IN_mode)
     end
 end
 
-@info "Ice Nucleation Calibration Test"
-
-TT.@testset "Perfect model calibration on ABDINM" begin
-    test_J_calibration(Float64, "ABDINM")
-end
-
-TT.@testset "Perfect model calibration on ABIFM" begin
-    test_J_calibration(Float64, "ABIFM")
-end
-
-TT.@testset "Perfect model calibration on ABHOM" begin
-    test_J_calibration(Float64, "ABHOM")
+TT.@testset "Ice Nucleation perfect model calibration on $IN_mode" for IN_mode in ("ABDINM", "ABIFM", "ABHOM")
+    test_J_calibration(Float64, IN_mode)
 end

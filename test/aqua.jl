@@ -1,10 +1,10 @@
-using Test
-using CloudMicrophysics
-using Aqua
+import Test as TT
+import CloudMicrophysics
+import Aqua
 
-@testset "Quality assurance - Aqua" begin
+TT.@testset "Quality assurance - Aqua" begin
 
-    @testset "Aqua tests (performance)" begin
+    TT.@testset "Aqua tests (performance)" begin
         # This tests that we don't accidentally run into
         # https://github.com/JuliaLang/julia/issues/29393
         ua = Aqua.detect_unbound_args_recursively(CloudMicrophysics)
@@ -15,7 +15,7 @@ using Aqua
 
         # There are unbound ambiguities in CM that match this pattern:
         # https://github.com/JuliaTesting/Aqua.jl/issues/86
-        @test length(ua) <= 4
+        TT.@test length(ua) <= 4
 
         # See: https://github.com/SciML/OrdinaryDiffEq.jl/issues/1750
         # Test that we're not introducing method ambiguities across deps
@@ -34,9 +34,9 @@ using Aqua
         #for method_ambiguity in ambs
         #     @show method_ambiguity
         #end
-        @test length(ambs) ≤ 0
+        TT.@test length(ambs) ≤ 0
     end
-    @testset "Aqua tests (additional)" begin
+    TT.@testset "Aqua tests (additional)" begin
         Aqua.test_undefined_exports(CloudMicrophysics)
         Aqua.test_stale_deps(CloudMicrophysics)
         Aqua.test_deps_compat(CloudMicrophysics)

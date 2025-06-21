@@ -62,5 +62,6 @@ function test_common_types_broadcasts(FT)
     end
 end
 
-test_common_types_broadcasts(Float32)
-test_common_types_broadcasts(Float64)
+TT.@testset "Common Types Tests ($FT)" for FT in (Float64, Float32)
+    test_common_types_broadcasts(FT)
+end
