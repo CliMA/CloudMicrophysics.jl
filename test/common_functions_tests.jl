@@ -6,8 +6,6 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
 
-@info "Common Functions Tests"
-
 TT.@testset "logistic_function unit tests" begin
 
     TT.@test CO.logistic_function(-1.0, 1.0, 2.0) == 0.0
@@ -218,8 +216,7 @@ function test_volume_sphere(FT)
     end
 end
 
-for FT in (Float64, Float32)
-    println("Testing $FT")
+TT.@testset "Common Functions Tests ($FT)" for FT in (Float64, Float32)
     test_H2SO4_soln_saturation_vapor_pressure(FT)
     test_a_w_xT(FT)
     test_a_w_eT(FT)
@@ -227,3 +224,4 @@ for FT in (Float64, Float32)
     test_Chen_coefficients(FT)
     test_volume_sphere(FT)
 end
+nothing

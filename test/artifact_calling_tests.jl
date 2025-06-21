@@ -3,9 +3,6 @@ import Test as TT
 import CloudMicrophysics as CM
 import CloudMicrophysics.ArtifactCalling as AFC
 
-
-@info "Artifact Calling Tests"
-
 function test_artifact_calling()
 
     TT.@testset "AIDA ice nucleating experiments" begin
@@ -21,4 +18,7 @@ function test_artifact_calling()
     end
 end
 
-test_artifact_calling()
+TT.@testset "Artifact calling tests" begin
+    test_artifact_calling()
+end
+nothing

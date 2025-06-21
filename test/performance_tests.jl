@@ -21,8 +21,6 @@ import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.CloudDiagnostics as CMD
 
-@info "Performance Tests"
-
 function bench_press(
     type,
     foo,
@@ -31,7 +29,7 @@ function bench_press(
     min_memory = 0.0,
     min_allocs = 0.0,
 )
-    println("Testing ", "$foo")
+    @info "Testing $foo"
 
     # converts a string argument to tuple
     args isa String && (args = (args,))
@@ -383,8 +381,7 @@ function benchmark_test(FT)
     )
 end
 
-println("Testing Float64")
-benchmark_test(Float64)
-
-println("Testing Float32")
-benchmark_test(Float32)
+TT.@testset "Performance Tests ($FT)" for FT in (Float64, Float32)
+    benchmark_test(FT)
+end
+nothing

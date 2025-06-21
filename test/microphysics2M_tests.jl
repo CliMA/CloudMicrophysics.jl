@@ -12,8 +12,6 @@ import CloudMicrophysics.DistributionTools as DT
 import QuadGK as QGK
 import SpecialFunctions as SF
 
-@info "Microphysics 2M Tests"
-
 function test_microphysics2M(FT)
 
     # Different 2-moment autoconversion and accretion parameters
@@ -39,7 +37,7 @@ function test_microphysics2M(FT)
     SB2006Vel = CMP.SB2006VelType(FT)
     Chen2022Vel = CMP.Chen2022VelTypeRain(FT)
 
-    TT.@testset "2M_microphysics - unit tests ($FT)" begin
+    TT.@testset "2M_microphysics - unit tests" begin
 
         ρ = FT(1)
 
@@ -89,7 +87,7 @@ function test_microphysics2M(FT)
 
     end
 
-    TT.@testset "2M_microphysics - compare with Wood_2005 ($FT)" begin
+    TT.@testset "2M_microphysics - compare with Wood_2005" begin
 
         ρ = FT(1)
         q_liq = FT(0.5e-3)
@@ -145,7 +143,7 @@ function test_microphysics2M(FT)
     end
 
     # 2M_microphysics - Seifert and Beheng 2006 double moment scheme tests
-    TT.@testset "limiting lambda_r and x_r - Seifert and Beheng 2006 ($FT)" begin
+    TT.@testset "limiting lambda_r and x_r - Seifert and Beheng 2006" begin
         #setup
         q_rai = [FT(0), FT(1e-3), FT(1e-4), FT(1e-2)]
         N_rai = [FT(1e1), FT(1e1), FT(1e3), FT(1e5)]
@@ -168,7 +166,7 @@ function test_microphysics2M(FT)
 
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 autoconversion and liquid self-collection ($FT)" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 autoconversion and liquid self-collection" begin
         #setup
         ρ = FT(1)
         q_liq = FT(0.5e-3)
@@ -258,7 +256,7 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 accretion ($FT)" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 accretion" begin
         #setup
         ρ = FT(1.1)
         q_liq = FT(0.5e-3)
@@ -303,7 +301,7 @@ function test_microphysics2M(FT)
 
     for SB in [SB2006, SB2006_no_limiters]
         sb_str = CMP.islimited(SB.pdf_r) ? "with limiters" : "without limiters"
-        TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain self-collection and breakup ($sb_str) ($FT)" begin
+        TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain self-collection and breakup ($sb_str)" begin
             # Setup
             ρ = FT(1.1)
             q_rai = FT(1e-6)
@@ -356,7 +354,7 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity with limiters ($FT)" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity with limiters" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(1e-6)
@@ -384,7 +382,7 @@ function test_microphysics2M(FT)
         )[2] ≈ 0 atol = eps(FT)
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 modified rain terminal velocity without limiters ($FT)" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 modified rain terminal velocity without limiters" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(1e-6)
@@ -422,7 +420,7 @@ function test_microphysics2M(FT)
         )[2] ≈ 0 atol = eps(FT)
     end
 
-    TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity ($FT)" begin
+    TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(5e-4)
@@ -450,7 +448,7 @@ function test_microphysics2M(FT)
         end
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain evaporation ($FT)" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain evaporation" begin
         #setup
         ρ = FT(1.1)
         q_rai = FT(1e-6)
@@ -505,7 +503,7 @@ function test_microphysics2M(FT)
 
     for pdf_r in [SB2006_no_limiters.pdf_r, SB2006.pdf_r]
         pdf_str = CMP.islimited(pdf_r) ? "with limiters" : "without limiters"
-        TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain distribution sanity checks ($pdf_str) ($FT)" begin
+        TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain distribution sanity checks ($pdf_str)" begin
 
             # air and liquid water densities
             ρₐ = FT(1.2)  # kg/m³
@@ -589,7 +587,7 @@ function test_microphysics2M(FT)
         end  # end of testset
     end  # end of loop over pdf_r
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 cloud distribution sanity checks ($FT)" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 cloud distribution sanity checks" begin
 
         # example number concentration and specific content
         Nₗ = FT(1e3 * 1e6) # 1000 1/cm3
@@ -652,7 +650,7 @@ function test_microphysics2M(FT)
         TT.@test qD_psd ≈ qₗ rtol = 1e-5
     end
 
-    TT.@testset "2M_microphysics - Horn 2012 number concentration adjustment ($FT)" begin
+    TT.@testset "2M_microphysics - Horn 2012 number concentration adjustment" begin
 
         # Setup
         ρ = FT(1.2)       # kg/m³
@@ -686,8 +684,7 @@ function test_microphysics2M(FT)
     end
 end
 
-println("Testing Float64")
-test_microphysics2M(Float64)
-
-println("Testing Float32")
-test_microphysics2M(Float32)
+TT.@testset "Microphysics 2M Tests ($FT)" for FT in (Float64, Float32)
+    test_microphysics2M(FT)
+end
+nothing

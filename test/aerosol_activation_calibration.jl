@@ -161,8 +161,7 @@ function test_emulator(FT; rtols = [1e-4, 1e-3, 0.26], N_samples_calib = 2)
     end
 end
 
-@info "Aerosol activation test"
-
-TT.@testset "Calibrated ARG" begin
+TT.@testset "Aerosol activation test: Calibrated ARG" begin
     test_emulator(Float32, N_samples_calib = 5, rtols = [1e-4, 1e-3, 0.26])
 end
+nothing

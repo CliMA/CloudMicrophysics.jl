@@ -6,7 +6,6 @@ import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Microphysics0M as CM0
 
-@info "Microphysics 0M Tests"
 function test_microphysics0M(FT)
 
     TT.@testset "0M_microphysics" begin
@@ -54,5 +53,7 @@ function test_microphysics0M(FT)
     end
 end
 
-test_microphysics0M(Float32)
-test_microphysics0M(Float64)
+TT.@testset "Microphysics 0M Tests ($FT)" for FT in (Float64, Float32)
+    test_microphysics0M(FT)
+end
+nothing

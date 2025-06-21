@@ -8,8 +8,6 @@ import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.Parameters as CMP
 
-@info "Aerosol Activation Tests"
-
 function test_aerosol_activation(FT)
 
     tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -269,8 +267,7 @@ function test_aerosol_activation(FT)
     end
 end
 
-println("Testing Float64")
-test_aerosol_activation(Float64)
-
-println("Testing Float32")
-test_aerosol_activation(Float32)
+TT.@testset "Aerosol Activation Tests ($FT)" for FT in (Float64, Float32)
+    test_aerosol_activation(FT)
+end
+nothing
