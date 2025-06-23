@@ -251,17 +251,22 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     (; T, qₗ, qᵥ, qᵢ) = state
     (; tps, liquid, dt) = params
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    if qᵥ + qₗ > FT(0)
 
-    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, q, FT(0), FT(0), ρ_air, T)
+        qₜ = qᵥ + qₗ + qᵢ
 
-    # Using same limiter as ClimaAtmos for now
-    # Not sure why, but without intermediate storing of the tendencies for the
-    # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
-    cond_limit = min(cond_rate, limit(qᵥ, dt, 1))
-    evap_limit = min(abs(cond_rate), limit(qₗ, dt, 1))
-    ret = ifelse(cond_rate > FT(0), cond_limit, -1 * evap_limit)
-    return ret
+        cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+
+        # Using same limiter as ClimaAtmos for now
+        # Not sure why, but without intermediate storing of the tendencies for the
+        # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
+        cond_limit = min(cond_rate, limit(qᵥ, dt, 1))
+        evap_limit = min(abs(cond_rate), limit(qₗ, dt, 1))
+        ret = ifelse(cond_rate > FT(0), cond_limit, -1 * evap_limit)
+        return ret
+    else
+        return FT(0)
+    end
 end
 
 function deposition(::Empty, PSD_ice, state, ρ_air)
@@ -304,15 +309,19 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
 
     (; tps, ice, dt) = params
 
-    q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    if qᵥ + qᵢ > FT(0)
+        qₜ = qᵥ + qₗ + qᵢ
 
-    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, q, FT(0), FT(0), ρ_air, T)
+        dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
 
-    # Using same limiter as ClimaAtmos for now
-    # Not sure why, but without intermediate storing of the tendencies for the
-    # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
-    dep_limit = min(dep_rate, limit(qᵥ, dt, 1))
-    sub_limit = min(abs(dep_rate), limit(qᵢ, dt, 1))
-    ret = ifelse(dep_rate > FT(0), dep_limit, -1 * sub_limit)
-    return ret
+        # Using same limiter as ClimaAtmos for now
+        # Not sure why, but without intermediate storing of the tendencies for the
+        # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
+        dep_limit = min(dep_rate, limit(qᵥ, dt, 1))
+        sub_limit = min(abs(dep_rate), limit(qᵢ, dt, 1))
+        ret = ifelse(dep_rate > FT(0), dep_limit, -1 * sub_limit)
+        return ret
+    else
+        return FT(0)
+    end
 end
