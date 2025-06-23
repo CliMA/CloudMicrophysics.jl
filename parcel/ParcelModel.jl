@@ -21,6 +21,7 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     deposition_growth = "None"
     liq_size_distribution = "Monodisperse"
     ice_size_distribution = "Monodisperse"
+    limiter = false
     aerosol = Empty{FT}()
     aero_σ_g = FT(0)
     wps = CMP.WaterProperties(FT)
@@ -293,7 +294,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.condensation_growth == "NonEq_Condensation_simple"
         ce_params = NonEqCondParams_simple{FT}(pp.tps, pp.liquid)
     elseif pp.condensation_growth == "NonEq_Condensation"
-        ce_params = NonEqCondParams{FT}(pp.tps, pp.liquid, pp.const_dt)
+        ce_params = NonEqCondParams{FT}(pp.tps, pp.liquid, pp.limiter, pp.const_dt)
     else
         throw("Unrecognized condensation growth mode")
     end
@@ -306,7 +307,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.deposition_growth == "NonEq_Deposition_simple"
         ds_params = NonEqDepParams_simple{FT}(pp.tps, pp.ice)
     elseif pp.deposition_growth == "NonEq_Deposition"
-        ds_params = NonEqDepParams{FT}(pp.tps, pp.ice, pp.const_dt)
+        ds_params = NonEqDepParams{FT}(pp.tps, pp.ice, pp.limiter, pp.const_dt)
     else
         throw("Unrecognized deposition growth mode")
     end

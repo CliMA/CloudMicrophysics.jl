@@ -12,6 +12,11 @@ function limit(q, dt, n::Int)
     return q / dt / n
 end
 
+# the triangle inequality limiter used in ClimaAtmos
+function triangle_inequality_limiter(force, limit)
+    return force + limit - sqrt(force^2 + limit^2)
+end
+
 function aerosol_activation(::Empty, state)
     FT = eltype(state)
     return FT(0)
@@ -249,23 +254,28 @@ end
 function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
-    (; tps, liquid, dt) = params
 
-    if qᵥ + qₗ > FT(0)
+    (; tps, liquid, limiter, dt) = params
 
-        qₜ = qᵥ + qₗ + qᵢ
+    qₜ = qᵥ + qₗ + qᵢ
 
-        cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+    cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
 
-        # Using same limiter as ClimaAtmos for now
+    # Using same limiter as ClimaAtmos
+    if limiter
         # Not sure why, but without intermediate storing of the tendencies for the
         # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
+
         cond_limit = min(cond_rate, limit(qᵥ, dt, 1))
         evap_limit = min(abs(cond_rate), limit(qₗ, dt, 1))
-        ret = ifelse(cond_rate > FT(0), cond_limit, -1 * evap_limit)
-        return ret
+
+        return ifelse(
+            cond_rate > FT(0),
+            triangle_inequality_limiter(cond_rate, cond_limit),
+            -triangle_inequality_limiter(abs(cond_rate), evap_limit),
+        )
     else
-        return FT(0)
+        return cond_rate
     end
 end
 
@@ -307,21 +317,24 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, ice, dt) = params
+    (; tps, ice, limiter, dt) = params
 
-    if qᵥ + qᵢ > FT(0)
-        qₜ = qᵥ + qₗ + qᵢ
+    qₜ = qᵥ + qₗ + qᵢ
 
-        dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+    dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
 
-        # Using same limiter as ClimaAtmos for now
+    # using same limiter as ClimaAtmos for now
+    if limiter
         # Not sure why, but without intermediate storing of the tendencies for the
         # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
         dep_limit = min(dep_rate, limit(qᵥ, dt, 1))
         sub_limit = min(abs(dep_rate), limit(qᵢ, dt, 1))
-        ret = ifelse(dep_rate > FT(0), dep_limit, -1 * sub_limit)
-        return ret
+        return ifelse(
+            dep_rate > FT(0),
+            triangle_inequality_limiter(dep_rate, dep_limit),
+            -triangle_inequality_limiter(abs(dep_rate), sub_limit),
+        )
     else
-        return FT(0)
+        return dep_rate
     end
 end
