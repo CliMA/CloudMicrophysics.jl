@@ -369,7 +369,7 @@ Returns a function that computes the ventilation factor for a particle as a func
 The ventilation factor parameterizes the increase in the mass and heat exchange for falling particles.
 
 # Arguments
-- `vent`: Ventilation parameterization constants, [`CMP.VentilationSB2005`](@ref)
+- `vent`: Ventilation parameterization constants, [`CMP.VentilationFactor`](@ref)
 - `aps`: Parameters with air properties, [`CMP.AirProperties`](@ref)
 - `v_term`: A function `v_term(D)` that returns the terminal velocity of a particle with diameter `D`
 

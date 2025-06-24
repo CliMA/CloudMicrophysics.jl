@@ -26,6 +26,7 @@ docs/src/guides/literated/
 
 # Deps
 Manifest.toml
+Manifest-v*.*.toml
 
 # Settings
 .vscode/

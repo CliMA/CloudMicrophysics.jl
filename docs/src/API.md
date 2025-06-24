@@ -108,7 +108,7 @@ CMP.AreaPowerLaw
 CMP.SlopeLaw
 CMP.SlopePowerLaw{Float64}
 CMP.SlopeConstant{Float64}
-CMP.VentilationSB2005
+CMP.VentilationFactor
 ```
 
 ## Obtain particle state

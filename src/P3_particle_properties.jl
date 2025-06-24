@@ -52,7 +52,7 @@ Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parame
  
  julia> state = P3.get_state(params; F_rim = FT(0.5), ρ_rim = FT(916.7))
  P3State{Float32}
- ├── params = {MassPowerLaw, AreaPowerLaw, SlopePowerLaw, VentilationSB2005}
+ ├── params = {MassPowerLaw, AreaPowerLaw, SlopePowerLaw, VentilationFactor}
  ├── F_rim = 0.5 [-]
  └── ρ_rim = 916.7 [kg/m^3]
  ```
