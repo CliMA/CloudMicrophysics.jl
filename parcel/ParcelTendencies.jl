@@ -266,8 +266,8 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
         # Not sure why, but without intermediate storing of the tendencies for the
         # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
 
-        cond_limit = min(cond_rate, limit(qᵥ, dt, 1))
-        evap_limit = min(abs(cond_rate), limit(qₗ, dt, 1))
+        cond_limit = limit(qᵥ, dt, 1)
+        evap_limit = limit(qₗ, dt, 1)
 
         return ifelse(
             cond_rate > FT(0),
@@ -327,8 +327,8 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     if limiter
         # Not sure why, but without intermediate storing of the tendencies for the
         # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
-        dep_limit = min(dep_rate, limit(qᵥ, dt, 1))
-        sub_limit = min(abs(dep_rate), limit(qᵢ, dt, 1))
+        dep_limit = limit(qᵥ, dt, 1)
+        sub_limit = limit(qᵢ, dt, 1)
         return ifelse(
             dep_rate > FT(0),
             triangle_inequality_limiter(dep_rate, dep_limit),
