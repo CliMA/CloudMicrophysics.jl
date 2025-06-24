@@ -65,7 +65,9 @@ end
 Returns the cloud water tendency due to condensation and evaporation
 or cloud ice tendency due to sublimation and vapor deposition.
 The formulation is based on Morrison and Grabowski 2008 and
-Morrison and Milbrandt 2015
+Morrison and Milbrandt 2015. It does NOT screen for small or
+negative values for humidities, so we suggest applying a limiter
+of choice to this function when running it in a model.
 """
 function conv_q_vap_to_q_liq_ice_MM2015(
     (; τ_relax)::CMP.CloudLiquid,
@@ -79,23 +81,20 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     T,
 )
     FT = eltype(tps)
-    if q_tot - q_ice - q_rai - q_sno > FT(0) #If there is water vapor or liquid
-        Rᵥ = TD.Parameters.R_v(tps)
-        Lᵥ = TD.latent_heat_vapor(tps, T)
 
-        qᵥ = q_tot - q_liq - q_ice - q_rai - q_sno
-        cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
+    Rᵥ = TD.Parameters.R_v(tps)
+    Lᵥ = TD.latent_heat_vapor(tps, T)
 
-        pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-        qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
+    qᵥ = q_tot - q_liq - q_ice - q_rai - q_sno
+    cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
 
-        dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
-        Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
+    pᵥ_sat_liq = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    qᵥ_sat_liq = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_liq)
 
-        return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
-    else
-        return FT(0)
-    end
+    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
+    Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
+
+    return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
 end
 function conv_q_vap_to_q_liq_ice_MM2015(
     (; τ_relax)::CMP.CloudIce,
@@ -109,23 +108,19 @@ function conv_q_vap_to_q_liq_ice_MM2015(
     T,
 )
     FT = eltype(tps)
-    if q_tot - q_liq - q_rai - q_sno > FT(0) #If there is water vapor or ice
-        Rᵥ = TD.Parameters.R_v(tps)
-        Lₛ = TD.latent_heat_sublim(tps, T)
+    Rᵥ = TD.Parameters.R_v(tps)
+    Lₛ = TD.latent_heat_sublim(tps, T)
 
-        qᵥ = q_tot - q_liq - q_ice - q_rai - q_sno
-        cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
+    qᵥ = q_tot - q_liq - q_ice - q_rai - q_sno
+    cₚ_air = TD.cp_m(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
 
-        pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
-        qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
+    pᵥ_sat_ice = TD.saturation_vapor_pressure(tps, T, TD.Ice())
+    qᵥ_sat_ice = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ_sat_ice)
 
-        dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
-        Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
+    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
+    Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
 
-        return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
-    else
-        return FT(0)
-    end
+    return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
 end
 
 conv_q_vap_to_q_liq_ice_MM2015(
