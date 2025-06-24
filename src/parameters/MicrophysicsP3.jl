@@ -1,5 +1,5 @@
 export ParametersP3
-export MassPowerLaw, AreaPowerLaw, SlopePowerLaw, SlopeConstant, VentilationSB2005
+export MassPowerLaw, AreaPowerLaw, SlopePowerLaw, SlopeConstant, VentilationFactor
 
 ### ----------------------------- ###
 ### --- SUB-PARAMETERIZATIONS --- ###
@@ -10,8 +10,8 @@ export MassPowerLaw, AreaPowerLaw, SlopePowerLaw, SlopeConstant, VentilationSB20
 
 Parameters for mass(size) relation.
 
-From measurements of mass grown by vapor diffusion and aggregation in midlatitude cirrus by Brown and Francis (1995)
-doi: 10.1175/1520-0426(1995)012<0410:IMOTIW>2.0.CO;2
+From measurements of mass grown by vapor diffusion and aggregation in midlatitude cirrus
+by Brown and Francis (1995) [BrownFrancis1995](@cite)
 
 A part of the [`ParametersP3`](@ref) parameter set.
 
@@ -45,20 +45,26 @@ end
 
 Parameters for area(size) relation.
 
+```math
+A(D) = γ D^σ
+```
+
+where `γ` and `σ` are coefficients in area(size) for ice side plane, column, bullet,
+and planar polycrystal aggregates. Values are from Mitchell (1996) [Mitchell1996](@cite)
+
 A part of the [`ParametersP3`](@ref) parameter set.
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct AreaPowerLaw{FT} <: ParametersType{FT}
-    "Coefficient in area(size) for ice side plane, column, bullet, and planar polycrystal aggregates from Mitchell 1996 [`μm^(2-σ)`]"
+    "Scale [`μm^(2-σ)`]"
     γ::FT
-    "Coefficient in area(size) for ice side plane, column, bullet, and planar polycrystal aggregates from Mitchell 1996 [`-`]"
+    "Power [`-`]"
     σ::FT
 end
 function AreaPowerLaw(toml_dict::CP.AbstractTOMLDict)
-    name_map =
-        (; :M1996_area_coeff_gamma => :γ, :M1996_area_exponent_sigma => :σ)
+    name_map = (; :M1996_area_coeff_gamma => :γ, :M1996_area_exponent_sigma => :σ)
     params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
     return AreaPowerLaw{FT}(; params...)
@@ -88,7 +94,7 @@ and is limited to:
 0 ≤ μ ≤ μ_{max}
 ```
 
-See also Eq. 3 in Morrison and Milbrandt 2015.
+See also Eq. 3 in Morrison and Milbrandt (2015) [MorrisonMilbrandt2015](@cite)
 
 A part of the [`ParametersP3`](@ref) parameter set.
 
@@ -143,35 +149,37 @@ function SlopeConstant(toml_dict::CP.AbstractTOMLDict)
 end
 
 """
-    VentilationSB2005{FT}
+    VentilationFactor{FT}
 
 Parameters for ventilation factor:
 
 ```math
-F(r) = a_{vent} + b_{vent}  N_{Sc}^{1/3} N_{Re}(r)^{1/2}
+F(D) = a_{vent} + b_{vent}  N_{Sc}^{1/3} N_{Re}(D)^{1/2}
 ```
+where `N_{Sc}` is the Schmidt number and `N_{Re}(D)` is the Reynolds number for a particle with diameter `D`.
 
-From Seifert and Beheng 2005, doi: 10.1007/s00703-005-0112-4
+From Seifert and Beheng (2006) [SeifertBeheng2006](@cite),
+see also Eq. (13-61) in Pruppacher and Klett (2010) [PruppacherKlett2010](@cite)
 
 A part of the [`ParametersP3`](@ref) parameter set.
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct VentilationSB2005{FT} <: ParametersType{FT}
+@kwdef struct VentilationFactor{FT} <: ParametersType{FT}
     "Ventilation factor a [`-`]"
     vent_a::FT
     "Ventilation factor b [`-`]"
     vent_b::FT
 end
-function VentilationSB2005(toml_dict::CP.AbstractTOMLDict)
+function VentilationFactor(toml_dict::CP.AbstractTOMLDict)
     name_map = (;
         :p3_ventillation_a => :vent_a, # TODO: fix typo in TOML
         :p3_ventiallation_b => :vent_b,
     )
     params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
-    return VentilationSB2005{FT}(; params...)
+    return VentilationFactor{FT}(; params...)
 end
 
 ### ----------------------------- ###
@@ -183,20 +191,20 @@ end
 
 Parameters for P3 bulk microphysics scheme.
     
-From Morrison and Milbrandt 2015 [MorrisonMilbrandt2015](@cite)
+From Morrison and Milbrandt (2015) [MorrisonMilbrandt2015](@cite)
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct ParametersP3{FT, SLOPELAW <: SlopeLaw{FT}} <: ParametersType{FT}
-    "Mass-size relation"
+    "Mass-size relation, e.g. [`MassPowerLaw`](@ref)"
     mass::MassPowerLaw{FT}
-    "Area-size relation"
+    "Area-size relation, e.g. [`AreaPowerLaw`](@ref)"
     area::AreaPowerLaw{FT}
-    "Slope relation"
+    "Slope relation, e.g. [`SlopePowerLaw`](@ref) or [`SlopeConstant`](@ref)"
     slope::SLOPELAW
-    "Ventilation relation"
-    vent::VentilationSB2005{FT}
+    "Ventilation relation, e.g. [`VentilationFactor`](@ref)"
+    vent::VentilationFactor{FT}
     "Cloud ice density [`kg m⁻³`]"
     ρ_i::FT
     "Cloud liquid water density [`kg m⁻³`]"
@@ -228,7 +236,7 @@ ParametersP3{Float64}
 │   ├── b = 0.8 [-]
 │   ├── c = 2.0 [-]
 │   └── μ_max = 6.0 [-]
-├── vent: VentilationSB2005
+├── vent: VentilationFactor
 │   ├── vent_a = 0.78 [-]
 │   └── vent_b = 0.308 [-]
 ├── ρ_i = 916.7 [kg m⁻³]
@@ -257,7 +265,7 @@ function ParametersP3(toml_dict::CP.AbstractTOMLDict; slope_law = :powerlaw)
     else
         SlopeConstant(toml_dict)
     end
-    vent = VentilationSB2005(toml_dict)
+    vent = VentilationFactor(toml_dict)
     name_map = (;
         :density_ice_water => :ρ_i,
         :density_liquid_water => :ρ_l,
@@ -280,7 +288,7 @@ function Base.show(
         AreaPowerLaw,
         SlopePowerLaw,
         SlopeConstant,
-        VentilationSB2005,
+        VentilationFactor,
     },
 )
     indent = get(io, :indent, "")
