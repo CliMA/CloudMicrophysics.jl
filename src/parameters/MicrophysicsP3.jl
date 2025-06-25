@@ -297,7 +297,7 @@ function Base.show(
     # Get type information
     T = typeof(p)
     FT = eltype(p)
-    type = get(io, :typeinfo, true) ? "{$FT}" : ""
+    type = (FT != get(io, :typeinfo, Any)) ? "{$FT}" : ""
 
     # Print type name, handling nested types
     type_name = T.name.name
@@ -323,7 +323,7 @@ function Base.show(
                 io,
                 :prefix => "$(prefix_char)── $(field): ",
                 :indent => "$(indent)│   ",
-                :typeinfo => false,
+                :typeinfo => FT,
             )
             show(nested_io, value)
         end
