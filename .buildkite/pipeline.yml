@@ -5,6 +5,8 @@ agents:
 
 env:
   OPENBLAS_NUM_THREADS: 1
+  JULIA_MAX_NUM_PRECOMPILE_FILES: 100
+  JULIA_DEPOT_PATH: "${BUILDKITE_BUILD_PATH}/${BUILDKITE_PIPELINE_SLUG}/depot/default"
 
 steps:
   - label: "initialize"
