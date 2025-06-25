@@ -1,8 +1,6 @@
 import Test as TT
 import CloudMicrophysics.Parameters as CMP
 
-@info "Test broadcasting over types"
-
 function test_common_types_broadcasts(FT)
     for some_type in (
         CMP.ParametersType{FT},
@@ -62,5 +60,7 @@ function test_common_types_broadcasts(FT)
     end
 end
 
-test_common_types_broadcasts(Float32)
-test_common_types_broadcasts(Float64)
+TT.@testset "Broadcasting over common types tests ($FT)" for FT in (Float64, Float32)
+    test_common_types_broadcasts(FT)
+end
+nothing

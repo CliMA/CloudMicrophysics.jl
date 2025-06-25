@@ -1,4 +1,4 @@
-using Test
+import Test as TT
 using KernelAbstractions
 using ClimaComms
 ClimaComms.@import_required_backends
@@ -818,7 +818,7 @@ function test_gpu(FT)
     ip = CMP.IceNucleationParameters(FT)
     ip_frostenberg = CMP.Frostenberg2023(FT)
 
-    @testset "Aerosol activation kernels" begin
+    TT.@testset "Aerosol activation kernels" begin
         dims = (6, 2)
         (; output, ndrange) = setup_output(dims, FT)
 
@@ -836,21 +836,21 @@ function test_gpu(FT)
         kernel!(ap, aps, tps, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ, ; ndrange)
 
         # test if all aerosol activation output is positive
-        @test all(Array(output)[:, :] .>= FT(0))
+        TT.@test all(Array(output)[:, :] .>= FT(0))
         # test if higroscopicity parameter is the same for κ and B modes
-        @test all(
+        TT.@test all(
             isapprox(Array(output)[1, :], Array(output)[2, :], rtol = 0.3),
         )
         # test if the number and mass activated are the same for κ and B modes
-        @test all(
+        TT.@test all(
             isapprox(Array(output)[3, :], Array(output)[4, :], rtol = 1e-5),
         )
-        @test all(
+        TT.@test all(
             isapprox(Array(output)[5, :], Array(output)[6, :], rtol = 1e-5),
         )
     end
 
-    @testset "non-equilibrium microphysics kernels" begin
+    TT.@testset "non-equilibrium microphysics kernels" begin
         dims = (3, 1)
         (; output, ndrange) = setup_output(dims, FT)
 
@@ -864,12 +864,12 @@ function test_gpu(FT)
         kernel!(liquid, ice, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s, ; ndrange)
 
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
-        @test Array(output)[1] ≈ FT(3.763783850665844e-5)
-        @test Array(output)[2] ≈ FT(3.763783850665844e-5)
-        @test Array(output)[3] ≈ FT(-1e-4)
+        TT.@test Array(output)[1] ≈ FT(3.763783850665844e-5)
+        TT.@test Array(output)[2] ≈ FT(3.763783850665844e-5)
+        TT.@test Array(output)[3] ≈ FT(-1e-4)
     end
 
-    @testset "Chen 2022 terminal velocity kernels" begin
+    TT.@testset "Chen 2022 terminal velocity kernels" begin
         dims = (4, 1)
         (; output, ndrange) = setup_output(dims, FT)
 
@@ -896,13 +896,13 @@ function test_gpu(FT)
         )
 
         # test that terminal velocity is callable and returns a reasonable value
-        @test Array(output)[1] ≈ FT(0.00689286343412659)
-        @test Array(output)[2] ≈ FT(0.011493257177438487)
-        @test Array(output)[3] ≈ FT(4.274715870117866)
-        @test Array(output)[4] ≈ FT(0.5688979454130587)
+        TT.@test Array(output)[1] ≈ FT(0.00689286343412659)
+        TT.@test Array(output)[2] ≈ FT(0.011493257177438487)
+        TT.@test Array(output)[3] ≈ FT(4.274715870117866)
+        TT.@test Array(output)[4] ≈ FT(0.5688979454130587)
     end
 
-    @testset "0-moment microphysics kernels" begin
+    TT.@testset "0-moment microphysics kernels" begin
         dims = (3, 3)
         (; output, ndrange) = setup_output(dims, FT)
 
@@ -914,11 +914,11 @@ function test_gpu(FT)
         kernel!(p0m, output, liquid_frac, qc, qt, ; ndrange)
 
         # test 0-moment rain removal is callable and returns a reasonable value
-        @test all(isequal(Array(output)[1, :], Array(output)[2, :]))
-        @test all(isequal(Array(output)[1, :], Array(output)[3, :]))
+        TT.@test all(isequal(Array(output)[1, :], Array(output)[2, :]))
+        TT.@test all(isequal(Array(output)[1, :], Array(output)[3, :]))
     end
 
-    @testset "1-moment microphysics kernels" begin
+    TT.@testset "1-moment microphysics kernels" begin
         dims = (2, 2)
         (; output, ndrange) = setup_output(dims, FT)
         ql = ArrayType([FT(1e-3), FT(5e-4)])
@@ -929,8 +929,8 @@ function test_gpu(FT)
 
         # Sanity checks for the GPU KernelAbstractions workflow
         # See https://github.com/CliMA/SurfaceFluxes.jl/issues/142
-        @test !any(isequal(Array(output), FT(-99999.99)))
-        @test all(isequal(Array(output)[1, :], Array(output)[2, :]))
+        TT.@test !any(isequal(Array(output), FT(-99999.99)))
+        TT.@test all(isequal(Array(output)[1, :], Array(output)[2, :]))
 
         dims = (7, 2)
         (; output, ndrange) = setup_output(dims, FT)
@@ -961,14 +961,14 @@ function test_gpu(FT)
         )
 
         # test 1-moment accretion is callable and returns a reasonable value
-        @test all(Array(output)[:, 1] .== FT(0))
-        @test Array(output)[1, 2] ≈ FT(1.4150106417043544e-6)
-        @test Array(output)[2, 2] ≈ FT(2.453070979562392e-7)
-        @test Array(output)[3, 2] ≈ FT(2.453070979562392e-7)
-        @test Array(output)[4, 2] ≈ FT(1.768763302130443e-6)
-        @test Array(output)[5, 2] ≈ FT(3.590060148920767e-5)
-        @test Array(output)[6, 2] ≈ FT(2.1705865794293408e-4)
-        @test Array(output)[7, 2] ≈ FT(6.0118801860768854e-5)
+        TT.@test all(Array(output)[:, 1] .== FT(0))
+        TT.@test Array(output)[1, 2] ≈ FT(1.4150106417043544e-6)
+        TT.@test Array(output)[2, 2] ≈ FT(2.453070979562392e-7)
+        TT.@test Array(output)[3, 2] ≈ FT(2.453070979562392e-7)
+        TT.@test Array(output)[4, 2] ≈ FT(1.768763302130443e-6)
+        TT.@test Array(output)[5, 2] ≈ FT(3.590060148920767e-5)
+        TT.@test Array(output)[6, 2] ≈ FT(2.1705865794293408e-4)
+        TT.@test Array(output)[7, 2] ≈ FT(6.0118801860768854e-5)
 
         dims = (1, 3)
         (; output, ndrange) = setup_output(dims, FT)
@@ -981,12 +981,12 @@ function test_gpu(FT)
         kernel!(snow, blk1mvel, aps, tps, output, ρ, T, qs, ; ndrange)
 
         # test if 1-moment snow melt is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(9.518235437405256e-6)
-        @test Array(output)[2] ≈ FT(0)
-        @test Array(output)[3] ≈ FT(0)
+        TT.@test Array(output)[1] ≈ FT(9.518235437405256e-6)
+        TT.@test Array(output)[2] ≈ FT(0)
+        TT.@test Array(output)[3] ≈ FT(0)
     end
 
-    @testset "2-moment microphysics kernels" begin
+    TT.@testset "2-moment microphysics kernels" begin
 
         dims = (5, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1009,11 +1009,11 @@ function test_gpu(FT)
             ndrange = ndrange,
         )
 
-        @test Array(output)[1] ≈ FT(2e-6)
-        @test Array(output)[2] ≈ FT(1.6963072465911614e-6)
-        @test Array(output)[3] ≈ FT(3.5482867084128596e-6)
-        @test Array(output)[4] ≈ FT(9.825462758968215e-7)
-        @test Array(output)[5] ≈ FT(5.855332513368727e-8)
+        TT.@test Array(output)[1] ≈ FT(2e-6)
+        TT.@test Array(output)[2] ≈ FT(1.6963072465911614e-6)
+        TT.@test Array(output)[3] ≈ FT(3.5482867084128596e-6)
+        TT.@test Array(output)[4] ≈ FT(9.825462758968215e-7)
+        TT.@test Array(output)[5] ≈ FT(5.855332513368727e-8)
 
         dims = (3, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1025,9 +1025,9 @@ function test_gpu(FT)
         kernel! = test_2_moment_accr_kernel!(backend, work_groups)
         kernel!(KK2000, B1994, TC1980, output, ql, qr, ρ, ndrange = ndrange)
 
-        @test isapprox(Array(output)[1], FT(6.6548664e-6), rtol = 1e-6)
-        @test Array(output)[2] ≈ FT(7.2e-6)
-        @test Array(output)[3] ≈ FT(4.7e-6)
+        TT.@test isapprox(Array(output)[1], FT(6.6548664e-6), rtol = 1e-6)
+        TT.@test Array(output)[2] ≈ FT(7.2e-6)
+        TT.@test Array(output)[3] ≈ FT(4.7e-6)
 
         for SB in [SB2006, SB2006_no_limiters]
             dims = (17, 1)
@@ -1059,49 +1059,49 @@ function test_gpu(FT)
                 ndrange = ndrange,
             )
 
-            @test isapprox(Array(output)[1], FT(-4.083606e-7), rtol = 1e-6)
-            @test isapprox(Array(output)[2], FT(-3769.4827), rtol = 1e-6)
-            @test isapprox(Array(output)[3], FT(4.083606e-7), rtol = 1e-6)
-            @test isapprox(Array(output)[4], FT(1884.7413), rtol = 1e-6)
-            @test isapprox(Array(output)[5], FT(-31040.115), rtol = 1e-6)
-            @test isapprox(Array(output)[6], FT(-6.358926e-6), rtol = 1e-6)
-            @test isapprox(Array(output)[7], FT(-317946.28), rtol = 1e-6)
-            @test isapprox(Array(output)[8], FT(6.358926e-6), rtol = 1e-6)
-            @test isapprox(Array(output)[9], FT(0.0), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[1], FT(-4.083606e-7), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[2], FT(-3769.4827), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[3], FT(4.083606e-7), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[4], FT(1884.7413), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[5], FT(-31040.115), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[6], FT(-6.358926e-6), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[7], FT(-317946.28), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[8], FT(6.358926e-6), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[9], FT(0.0), rtol = 1e-6)
             if SB == SB2006
-                @test isapprox(Array(output)[10], FT(-21187.494), rtol = 1e-6)
-                @test isapprox(Array(output)[11], FT(14154.027), rtol = 1e-6)
-                @test isapprox(Array(output)[12], FT(0.9868878), rtol = 1e-6)
-                @test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
-                @test isapprox(
+                TT.@test isapprox(Array(output)[10], FT(-21187.494), rtol = 1e-6)
+                TT.@test isapprox(Array(output)[11], FT(14154.027), rtol = 1e-6)
+                TT.@test isapprox(Array(output)[12], FT(0.9868878), rtol = 1e-6)
+                TT.@test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
+                TT.@test isapprox(
                     Array(output)[14],
                     FT(-243259.75126),
                     rtol = 1e-6,
                 )
-                @test isapprox(
+                TT.@test isapprox(
                     Array(output)[15],
                     FT(-0.0034601581),
                     rtol = 1e-6,
                 )
             end
             if SB == SB2006_no_limiters
-                @test isapprox(Array(output)[10], FT(-40447.855), rtol = 1e-6)
-                @test isapprox(Array(output)[11], FT(0), rtol = 1e-6)
-                @test isapprox(Array(output)[12], FT(2.6429e-3), rtol = 1e-4)
-                @test isapprox(Array(output)[13], FT(0.1149338), rtol = 1e-5)
-                @test isapprox(Array(output)[14], FT(-52903.817), rtol = 1e-6)
-                @test isapprox(
+                TT.@test isapprox(Array(output)[10], FT(-40447.855), rtol = 1e-6)
+                TT.@test isapprox(Array(output)[11], FT(0), rtol = 1e-6)
+                TT.@test isapprox(Array(output)[12], FT(2.6429e-3), rtol = 1e-4)
+                TT.@test isapprox(Array(output)[13], FT(0.1149338), rtol = 1e-5)
+                TT.@test isapprox(Array(output)[14], FT(-52903.817), rtol = 1e-6)
+                TT.@test isapprox(
                     Array(output)[15],
                     FT(-9.3601206e-5),
                     rtol = 1e-6,
                 )
             end
-            @test isapprox(Array(output)[16], FT(0), rtol = 1e-6)
-            @test isapprox(Array(output)[17], FT(-7.692307e4), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[16], FT(0), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[17], FT(-7.692307e4), rtol = 1e-6)
         end
     end
 
-    @testset "Common Kernels" begin
+    TT.@testset "Common Kernels" begin
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
 
@@ -1115,7 +1115,7 @@ function test_gpu(FT)
         kernel!(H2SO4_prs, output, x_sulph, T; ndrange)
 
         # test H2SO4_soln_saturation_vapor_pressure is callable and returns a reasonable value
-        @test Array(output)[1] ≈ FT(12.685507586924)
+        TT.@test Array(output)[1] ≈ FT(12.685507586924)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1127,7 +1127,7 @@ function test_gpu(FT)
         kernel!(H2SO4_prs, tps, output, x_sulph, T; ndrange)
 
         # test if a_w_xT is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(0.92824538441)
+        TT.@test Array(output)[1] ≈ FT(0.92824538441)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1139,7 +1139,7 @@ function test_gpu(FT)
         kernel!(tps, output, e, T; ndrange)
 
         # test if a_w_eT is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(0.880978146)
+        TT.@test Array(output)[1] ≈ FT(0.880978146)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1150,10 +1150,10 @@ function test_gpu(FT)
         kernel!(tps, output, T; ndrange)
 
         # test if a_w_ice is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(0.653191723)
+        TT.@test Array(output)[1] ≈ FT(0.653191723)
     end
 
-    @testset "Ice Nucleation kernels" begin
+    TT.@testset "Ice Nucleation kernels" begin
         dims = (1, 2)
         (; output, ndrange) = setup_output(dims, FT)
 
@@ -1175,8 +1175,8 @@ function test_gpu(FT)
         )
 
         # test if dust_activated_number_fraction is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(0.0129835639)
-        @test Array(output)[2] ≈ FT(1.2233164999)
+        TT.@test Array(output)[1] ≈ FT(0.0129835639)
+        TT.@test Array(output)[2] ≈ FT(1.2233164999)
 
         dims = (1, 2)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1199,8 +1199,8 @@ function test_gpu(FT)
         )
 
         # test if MohlerDepositionRate is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(38.6999999999)
-        @test Array(output)[2] ≈ FT(423)
+        TT.@test Array(output)[1] ≈ FT(38.6999999999)
+        TT.@test Array(output)[2] ≈ FT(423)
 
         dims = (1, 3)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1211,9 +1211,9 @@ function test_gpu(FT)
         kernel!(output, kaolinite, feldspar, ferrihydrite, Delta_a_w; ndrange)
 
         # test if deposition_J is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(1.5390757663075784e6)
-        @test Array(output)[2] ≈ FT(5.693312205851678e6)
-        @test Array(output)[3] ≈ FT(802555.3607426438)
+        TT.@test Array(output)[1] ≈ FT(1.5390757663075784e6)
+        TT.@test Array(output)[2] ≈ FT(5.693312205851678e6)
+        TT.@test Array(output)[3] ≈ FT(802555.3607426438)
 
         dims = (1, 2)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1224,8 +1224,8 @@ function test_gpu(FT)
         kernel!(output, kaolinite, illite, Delta_a_w; ndrange)
 
         # test if ABIFM_J is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(153.65772539109)
-        @test Array(output)[2] ≈ FT(31.870032033791)
+        TT.@test Array(output)[1] ≈ FT(153.65772539109)
+        TT.@test Array(output)[2] ≈ FT(31.870032033791)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1237,7 +1237,7 @@ function test_gpu(FT)
         kernel!(output, ip_P3, T; ndrange)
 
         # test if P3_deposition_N_i is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(119018.93920746)
+        TT.@test Array(output)[1] ≈ FT(119018.93920746)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1251,7 +1251,7 @@ function test_gpu(FT)
         kernel!(output, ip_P3, T, N_l, V_l, Δt; ndrange)
 
         # test if P3_het_N_i is callable and returns reasonable values
-        @test Array(output)[1] ≈ FT(0.0002736160475969029)
+        TT.@test Array(output)[1] ≈ FT(0.0002736160475969029)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1263,7 +1263,7 @@ function test_gpu(FT)
         kernel!(output, ip_frostenberg, INPC, T; ndrange)
 
         # test INPC_frequency is callable and returns a reasonable value
-        @test Array(output)[1] ≈ FT(0.26) rtol = 0.1
+        TT.@test Array(output)[1] ≈ FT(0.26) rtol = 0.1
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1276,17 +1276,17 @@ function test_gpu(FT)
         kernel!(ip, output, Delta_a_w; ndrange)
 
         # test homogeneous_J_cubic is callable and returns a reasonable value
-        @test Array(output)[1] ≈ FT(2.66194650334444e12)
+        TT.@test Array(output)[1] ≈ FT(2.66194650334444e12)
 
         kernel! =
             IceNucleation_homogeneous_J_linear_kernel!(backend, work_groups)
         kernel!(ip, output, Delta_a_w; ndrange)
 
         # test homogeneous_J_linear is callable and returns a reasonable value
-        @test Array(output)[1] ≈ FT(7.156568123338207e11)
+        TT.@test Array(output)[1] ≈ FT(7.156568123338207e11)
     end
 
-    @testset "Modal nucleation kernels" begin
+    TT.@testset "Modal nucleation kernels" begin
         dims = (1, 2)
         (; output, ndrange) = setup_output(dims, FT)
 
@@ -1307,7 +1307,7 @@ function test_gpu(FT)
             ndrange,
         )
 
-        @test all(Array(output) .> FT(0))
+        TT.@test all(Array(output) .> FT(0))
 
         # Organic nucleation
 
@@ -1331,7 +1331,7 @@ function test_gpu(FT)
             ndrange,
         )
 
-        @test all(Array(output) .> FT(0))
+        TT.@test all(Array(output) .> FT(0))
 
         # Organic and h2so4 nucleation
 
@@ -1353,7 +1353,7 @@ function test_gpu(FT)
             ndrange,
         )
 
-        @test all(Array(output) .> FT(0))
+        TT.@test all(Array(output) .> FT(0))
 
         # Apparent nucleation rate
 
@@ -1376,9 +1376,9 @@ function test_gpu(FT)
             ndrange,
         )
 
-        @test all(Array(output) .> FT(0))
+        TT.@test all(Array(output) .> FT(0))
     end
-    # @testset "P3 scheme kernels" begin
+    # TT.@testset "P3 scheme kernels" begin
     #     dims = (2, 2)
     #     (; output, ndrange) = setup_output(dims, FT)
 
@@ -1389,24 +1389,24 @@ function test_gpu(FT)
     #     kernel!(p3, output, F_rim, ρ_r; ndrange)
 
     #     # test if all output is positive...
-    #     @test all(Array(output) .> FT(0))
+    #     TT.@test all(Array(output) .> FT(0))
     #     #... and returns reasonable numbers
-    #     @test isapprox(
+    #     TT.@test isapprox(
     #         Array(output)[1, 1],
     #         FT(0.4946323381999426 * 1e-3),
     #         rtol = 1e-2,
     #     )
-    #     @test isapprox(
+    #     TT.@test isapprox(
     #         Array(output)[2, 1],
     #         FT(0.26151186272014415 * 1e-3),
     #         rtol = 1e-2,
     #     )
-    #     @test isapprox(
+    #     TT.@test isapprox(
     #         Array(output)[1, 2],
     #         FT(1.7400778369620664 * 1e-3),
     #         rtol = 1e-2,
     #     )
-    #     @test isapprox(
+    #     TT.@test isapprox(
     #         Array(output)[2, 2],
     #         FT(0.11516682512848 * 1e-3),
     #         rtol = 1e-2,
@@ -1414,8 +1414,7 @@ function test_gpu(FT)
     # end
 end
 
-println("Testing Float64")
-test_gpu(Float64)
-
-println("Testing Float32")
-test_gpu(Float32)
+TT.@testset "GPU tests ($FT)" for FT in (Float64, Float32)
+    test_gpu(FT)
+end
+nothing

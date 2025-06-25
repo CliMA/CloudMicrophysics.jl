@@ -8,8 +8,6 @@ import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.HetIceNucleation as CMI_het
 
-@info "Heterogeneous Ice Nucleation Tests"
-
 function test_heterogeneous_ice_nucleation(FT)
 
     # parameters for parameterizations
@@ -238,8 +236,7 @@ function test_heterogeneous_ice_nucleation(FT)
     end
 end
 
-println("Testing Float64")
-test_heterogeneous_ice_nucleation(Float64)
-
-println("Testing Float32")
-test_heterogeneous_ice_nucleation(Float32)
+TT.@testset "Heterogeneous Ice Nucleation Tests ($FT)" for FT in (Float64, Float32)
+    test_heterogeneous_ice_nucleation(FT)
+end
+nothing

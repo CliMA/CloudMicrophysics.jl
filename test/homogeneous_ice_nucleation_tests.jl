@@ -8,8 +8,6 @@ import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.HomIceNucleation as CMH
 
-@info "Homogeneous Ice Nucleation Tests"
-
 function test_homogeneous_J_cubic(FT)
 
     tps = TD.Parameters.ThermodynamicsParameters(FT)
@@ -74,14 +72,8 @@ function test_homogeneous_J_linear(FT)
 end
 
 
-println("Testing Float64")
-test_homogeneous_J_cubic(Float64)
-
-println("Testing Float32")
-test_homogeneous_J_cubic(Float32)
-
-println("Testing Float64")
-test_homogeneous_J_linear(Float64)
-
-println("Testing Float32")
-test_homogeneous_J_linear(Float32)
+TT.@testset "Homogeneous Ice Nucleation Tests ($FT)" for FT in (Float64, Float32)
+    test_homogeneous_J_cubic(FT)
+    test_homogeneous_J_linear(FT)
+end
+nothing

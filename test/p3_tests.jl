@@ -6,8 +6,6 @@ import CloudMicrophysics.Common as CO
 import Thermodynamics as TD
 import ClimaParams as CP
 
-@info("P3 Scheme Tests")
-
 function test_p3_state_creation(FT)
     @testset "P3State Creation and Properties" begin
         # Test creating a state with valid parameters
@@ -562,9 +560,7 @@ function test_p3_melting(FT)
 end
 
 
-for FT in [Float32, Float64]
-    @info("Testing " * string(FT))
-
+TT.@testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation
     test_p3_state_creation(FT)
 
@@ -581,3 +577,4 @@ for FT in [Float32, Float64]
     test_p3_het_freezing(FT)
     test_p3_melting(FT)
 end
+nothing

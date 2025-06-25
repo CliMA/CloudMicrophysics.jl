@@ -1,4 +1,4 @@
-using Test: @testset, @test, @test_throws, @test_broken
+import Test as TT
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
@@ -6,10 +6,8 @@ import CloudMicrophysics.Microphysics2M as CM2
 import Thermodynamics as TD
 import ClimaParams as CP
 
-@info("Ventilation factor tests")
-
 function test_ventilation_factor(FT)
-    @testset "Ventilation factor / P3 terminal velocity smoke test ($FT)" begin
+    TT.@testset "Ventilation factor / P3 terminal velocity smoke test" begin
         params = CMP.ParametersP3(FT)
         vel = CMP.Chen2022VelType(FT)
         aps = CMP.AirProperties(FT)
@@ -26,11 +24,12 @@ function test_ventilation_factor(FT)
         calc_vents = vent_factor.(Ds)
         smoke_vents = [0.91818553, 1.3191912, 1.7451854, 2.1598392, 2.5553002]
         for (calc_vent, smoke_vent) in zip(calc_vents, smoke_vents)
-            @test calc_vent ≈ smoke_vent rtol = 1e-6
+            TT.@test calc_vent ≈ smoke_vent rtol = 1e-6
         end
     end
 end
 
-for FT in [Float32, Float64]
+TT.@testset "Ventilation Tests ($FT)" for FT in (Float64, Float32)
     test_ventilation_factor(FT)
 end
+nothing

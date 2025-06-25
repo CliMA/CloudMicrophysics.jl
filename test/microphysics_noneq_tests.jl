@@ -6,7 +6,6 @@ import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.MicrophysicsNonEq as CMNe
 
-@info "Non-equilibrium Microphysics Tests"
 function test_microphysics_noneq(FT)
 
     ice = CMP.CloudIce(FT)
@@ -115,5 +114,7 @@ function test_microphysics_noneq(FT)
     end
 end
 
-test_microphysics_noneq(Float32)
-test_microphysics_noneq(Float64)
+TT.@testset "Microphysics Non-Equilibrium Tests ($FT)" for FT in (Float64, Float32)
+    test_microphysics_noneq(FT)
+end
+nothing

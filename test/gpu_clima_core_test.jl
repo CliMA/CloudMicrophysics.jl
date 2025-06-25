@@ -185,16 +185,10 @@ function main_3d(::Type{FT}) where {FT}
     return nothing
 end
 
-using Test
-@testset "GPU inference failure 1D Float64" begin
-    main_1d(Float64)
+import Test as TT
+
+TT.@testset "ClimaCore GPU inference failure $nD $FT" for nD in ("1D", "3D"), FT in (Float64, Float32)
+    main_nd = nD == "1D" ? main_1d : main_3d
+    main_nd(FT)
 end
-@testset "GPU inference failure 3D Float64" begin
-    main_3d(Float64)
-end
-@testset "GPU inference failure 1D Float32" begin
-    main_1d(Float32)
-end
-@testset "GPU inference failure 3D Float32" begin
-    main_3d(Float32)
-end
+nothing

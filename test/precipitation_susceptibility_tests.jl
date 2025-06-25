@@ -3,8 +3,6 @@ import Test as TT
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.PrecipitationSusceptibility as CMPS
 
-FT = Float64
-
 """
 Logarithmic derivative of universal function for autoconversion as described
     in Glassmeier & Lohmann, which is (1 + Phi(τ)/(1 - τ^2)) for Phi(τ)
@@ -32,6 +30,7 @@ d_ln_phi_acc_d_ln_τ(
 
 
 TT.@testset "precipitation_susceptibility_SB2006" begin
+    FT = Float64
     sb2006 = CMP.SB2006(FT)
 
     q_liq = FT(0.5e-3)
@@ -68,3 +67,4 @@ TT.@testset "precipitation_susceptibility_SB2006" begin
     TT.@test acc_rates.d_ln_pp_d_ln_q_rai ≈
              1 + (1 - τ) * d_ln_phi_acc_d_ln_τ(sb2006.accr, τ)
 end
+nothing

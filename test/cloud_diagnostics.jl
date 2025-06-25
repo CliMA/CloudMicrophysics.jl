@@ -6,8 +6,6 @@ import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.CloudDiagnostics as CMD
 
-@info "Cloud diagnostics tests"
-
 function test_cloud_diagnostics(FT)
 
     # Seifert and Beheng 2006 parameters
@@ -111,8 +109,7 @@ function test_cloud_diagnostics(FT)
     end
 end
 
-println("Testing Float64")
-test_cloud_diagnostics(Float64)
-
-println("Testing Float32")
-test_cloud_diagnostics(Float32)
+TT.@testset "Cloud Diagnostics Tests ($FT)" for FT in (Float64, Float32)
+    test_cloud_diagnostics(FT)
+end
+nothing
