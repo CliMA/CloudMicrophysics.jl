@@ -29,16 +29,15 @@ function calibrate_ARG(
     tps = TD.Parameters.ThermodynamicsParameters(FT)
 
     # download (if necessary) and load the data
-    fpath = joinpath(pkgdir(CM), "test")
-    if !isfile(joinpath(fpath, "data", fname))
+    fpath = joinpath(pkgdir(CM), "test", "data", fname)
+    if !isfile(fpath)
         # see above note on downloading from dropbox
         url = "https://www.dropbox.com/scl/fi/qgq6ujvqenebjkskqvht5/2modal_dataset1_train.csv?rlkey=53qtqz0mtce993gy5jtnpdfz5&dl=0"
         download(url, fname)
-        mkdir(joinpath(fpath, "data"))
-        mv(fname, joinpath(fpath, "data", fname), force = true)
+        mkpath(dirname(fpath))
+        mv(fname, fpath, force = true)
     end
-    X_train, Y_train, initial_data =
-        read_aerosol_dataset(joinpath(fpath, "data", fname))
+    X_train, Y_train, initial_data = read_aerosol_dataset(fpath)
 
     rng = Random.MersenneTwister(1)
 
@@ -55,18 +54,13 @@ function calibrate_ARG(
     all_mean_error_metrics = []
 
     for i in 1:N_samples
-        sample_inds =
-            StatsBase.sample(1:DF.nrow(X_train), sample_size, replace = false)
+        sample_inds = StatsBase.sample(1:DF.nrow(X_train), sample_size, replace = false)
         X_sample = X_train[sample_inds, :]
         Y_sample = Y_train[sample_inds]
 
-        initial_ensemble =
-            EKP.construct_initial_ensemble(rng, prior, N_ensemble)
+        initial_ensemble = EKP.construct_initial_ensemble(rng, prior, N_ensemble)
         ensemble_kalman_process = EKP.EnsembleKalmanProcess(
-            initial_ensemble,
-            Y_sample,
-            1.0 * EKP.I,
-            EKP.Inversion();
+            initial_ensemble, Y_sample, 1.0 * EKP.I, EKP.Inversion();
             localization_method = EKP.Localizers.NoLocalization(),
         )
 
@@ -74,40 +68,18 @@ function calibrate_ARG(
 
         for j in 1:N_iterations_per_sample
             params_cur = EKP.get_ϕ_final(prior, ensemble_kalman_process)
-            errs = calibration_error_metrics(
-                X_sample,
-                Y_sample,
-                params_cur,
-                aip,
-                tps,
-                FT,
-            )
+            errs = calibration_error_metrics(X_sample, Y_sample, params_cur, aip, tps, FT)
             push!(mean_error_metrics, StatsBase.mean(errs))
 
-            pred_ens = hcat(
-                [
-                    calibrated_prediction(
-                        X_sample,
-                        params_cur[:, k],
-                        aip,
-                        tps,
-                        FT,
-                    ) for k in 1:N_ensemble
-                ]...,
-            )
+            get_pred(p) = calibrated_prediction(X_sample, p, aip, tps, FT)
+            pred_ens = hcat(map(get_pred, eachcol(params_cur))...)
 
-            EKP.update_ensemble!(ensemble_kalman_process, pred_ens)
+            terminate = EKP.update_ensemble!(ensemble_kalman_process, pred_ens)
+            terminate == true && break
         end
 
         params_final = EKP.get_ϕ_final(prior, ensemble_kalman_process)
-        errs = calibration_error_metrics(
-            X_sample,
-            Y_sample,
-            params_final,
-            aip,
-            tps,
-            FT,
-        )
+        errs = calibration_error_metrics(X_sample, Y_sample, params_final, aip, tps, FT)
         push!(mean_error_metrics, StatsBase.mean(errs))
 
         params_mean_final = EKP.get_ϕ_mean_final(prior, ensemble_kalman_process)
@@ -151,11 +123,9 @@ function test_emulator(FT; rtols = [1e-4, 1e-3, 0.26], N_samples_calib = 2)
     ap_calib = CMP.AerosolActivationParameters(calib_params)
 
     TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[1] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
-        rtols[1]
+             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol = rtols[1]
     TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[2] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
-        rtols[2]
+             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol = rtols[2]
     for n in 1:N_samples_calib
         TT.@test errs[n][end] < rtols[3]
     end
