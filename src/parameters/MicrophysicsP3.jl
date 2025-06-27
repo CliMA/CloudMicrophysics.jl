@@ -182,6 +182,66 @@ function VentilationFactor(toml_dict::CP.AbstractTOMLDict)
     return VentilationFactor{FT}(; params...)
 end
 
+"""
+    LocalRimeDensity{FT}
+    (ρ′_rim::LocalRimeDensity)(Rᵢ)
+
+Local rime density parameterization based on Cober and List (1993) [CoberList1993](@cite),
+Eq. 16 and 17.
+
+Given an instance `ρ′_rim::LocalRimeDensity`, obtain the local rime density 
+for a given Rᵢ [m² s⁻¹ °C⁻¹] by calling `ρ′_rim(Rᵢ)`.
+
+The parameterization is given by:
+
+```math
+ρ'_{rim} = a + b R_i + c R_i^2, \\quad 1 ≤ R_i ≤ 8,
+```
+The range is extended to `R_i ≤ 12`, by linearly interpolating between 
+`ρ′_rim(8)` and `ρ_ice = 900 kg/m³`. The latter is the solid bulk ice density.
+
+For calculating Rᵢ, see [`compute_local_rime_density`](@ref CloudMicrophysics.P3Scheme.compute_local_rime_density).
+"""
+@kwdef struct LocalRimeDensity{FT} <: ParametersType{FT}
+    "Constant coefficient"
+    a::FT
+    "Linear coefficient"
+    b::FT
+    "Quadratic coefficient"
+    c::FT
+    "Density of solid bulk ice [`kg m⁻³`]"
+    ρ_ice::FT
+end
+function LocalRimeDensity(toml_dict::CP.AbstractTOMLDict)
+    name_map = (;
+        :CL1993_local_rime_density_constant_coeff => :a,
+        :CL1993_local_rime_density_linear_coeff => :b,
+        :CL1993_local_rime_density_quadratic_coeff => :c,
+        :density_ice_water => :ρ_ice,
+    )
+    params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    FT = CP.float_type(toml_dict)
+    return LocalRimeDensity{FT}(; params...)
+end
+function ((; a, b, c, ρ_ice)::LocalRimeDensity)(Rᵢ)
+    Rᵢ = clamp(Rᵢ, 1, 12)  # P3 fortran code, microphy_p3.f90, Line 3315 clamps to 1 ≤ Rᵢ ≤ 12
+
+    # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
+    ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2
+
+    ρ′_rim = if Rᵢ ≤ 8
+        ρ′_rim_CL93(Rᵢ)
+    else
+        # following P3 fortran code, microphy_p3.f90, Line 3323
+        #   https://github.com/P3-microphysics/P3-microphysics/blob/main/src/microphy_p3.f90#L3323
+        # for 8 < Rᵢ ≤ 12, linearly interpolate between ρ′_rim(8) ≡ 611 kg/m³ and ρ_ice = 916.7 kg/m³
+        ρ′_rim8 = ρ′_rim_CL93(8)
+        f_ρ_ice = (Rᵢ - 8) / (12 - 8)
+        (1 - f_ρ_ice) * ρ′_rim8 + f_ρ_ice * ρ_ice  # Linear interpolation beyond 8.
+    end
+    return ρ′_rim
+end
+
 ### ----------------------------- ###
 ### --- TOP-LEVEL CONSTRUCTOR --- ###
 ### ----------------------------- ###
@@ -205,6 +265,8 @@ $(DocStringExtensions.FIELDS)
     slope::SLOPELAW
     "Ventilation relation, e.g. [`VentilationFactor`](@ref)"
     vent::VentilationFactor{FT}
+    "Local rime density, e.g. [`LocalRimeDensity`](@ref)"
+    ρ_rim_local::LocalRimeDensity{FT}
     "Cloud ice density [`kg m⁻³`]"
     ρ_i::FT
     "Cloud liquid water density [`kg m⁻³`]"
@@ -266,6 +328,7 @@ function ParametersP3(toml_dict::CP.AbstractTOMLDict; slope_law = :powerlaw)
         SlopeConstant(toml_dict)
     end
     vent = VentilationFactor(toml_dict)
+    ρ_rim_local = LocalRimeDensity(toml_dict)
     name_map = (;
         :density_ice_water => :ρ_i,
         :density_liquid_water => :ρ_l,
@@ -273,7 +336,7 @@ function ParametersP3(toml_dict::CP.AbstractTOMLDict; slope_law = :powerlaw)
     )
     params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
-    return ParametersP3{FT, typeof(slope)}(; mass, area, slope, vent, params...)
+    return ParametersP3{FT, typeof(slope)}(; mass, area, slope, vent, ρ_rim_local, params...)
 end
 
 ### ----------------- ###

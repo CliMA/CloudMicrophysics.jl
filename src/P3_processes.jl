@@ -158,7 +158,7 @@ Provides a function `ρ′_rim(Dᵢ, Dₗ)` that computes the local rime density
 A function that computes the local rime density [kg/m³] using the equation:
 
 ```math
-ρ'_{rim} = 51 + 114 R_i - 5.5 R_i^2
+ρ'_{rim} = a + b R_i + c R_i^2
 ```
 where
 ```math
@@ -168,23 +168,27 @@ and ``T_{sfc}`` is the surface temperature [°C], ``D_{liq}`` is the liquid part
 diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
 So the units of ``R_i`` are [m² s⁻¹ °C⁻¹]. The units of ``ρ'_{rim}`` are [kg/m³].
 
-They assume for simplicity that ``T_{sfc}`` equals ``T``, the ambient air temperature.
+We assume for simplicity that ``T_{sfc}`` equals ``T``, the ambient air temperature.
 For real graupel, ``T_{sfc}`` is slightly higher than ``T`` due to latent heat release 
 of freezing liquid particles onto the ice particle. Morrison & Milbrandt (2013) 
 found little sensitivity to "realistic" increases in ``T_{sfc}``.
 
-Implementation follows Cober and List (1993), Eq. 16 and 17.
-See also the P3 fortran code, `microphy_p3.f90`, Line 3315-3323,
-which extends the range of the calculation to ``R_i ≤ 12``, the upper limit of which
-then equals the solid bulk ice density, ``ρ^⭒ = 900 kg/m^3``.
+See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity).
 
-Note that Morrison & Milbrandt (2015) [MorrisonMilbrandt2015](@cite) only uses this 
-parameterization for collisions with cloud droplets.
-For rain drops, they use the solid bulk ice density, ``ρ^* = 900 kg/m^3``.
-We do not consider this distinction, and use this parameterization for all liquid particles.
+# Extended help
+
+ Implementation follows Cober and List (1993), Eq. 16 and 17.
+ See also the P3 fortran code, `microphy_p3.f90`, Line 3315-3323,
+ which extends the range of the calculation to ``R_i ≤ 12``, the upper limit of which
+ then equals the solid bulk ice density, ``ρ_ice = 916.7 kg/m^3``.
+
+ Note that Morrison & Milbrandt (2015) [MorrisonMilbrandt2015](@cite) only uses this 
+ parameterization for collisions with cloud droplets.
+ For rain drops, they use a value near the solid bulk ice density, ``ρ^* = 900 kg/m^3``.
+ We do not consider this distinction, and use this parameterization for all liquid particles.
 """
 function compute_local_rime_density(state, velocity_params, ρₐ, T)
-    (; T_freeze) = state.params
+    (; T_freeze, ρ_rim_local) = state.params
     T°C = T - T_freeze  # Convert to °C
     μm = 1_000_000  # Note: m to μm factor, c.f. units of rₘ in Eq. 16 in Cober and List (1993)
 
@@ -193,7 +197,7 @@ function compute_local_rime_density(state, velocity_params, ρₐ, T)
     function ρ′_rim(Dᵢ, Dₗ)
         v_term = abs(v_ice(Dᵢ) - v_liq(Dₗ))
         Rᵢ = (Dₗ * μm * v_term) / (2 * T°C)  # Eq. 16 in Cober and List (1993). Note: no `-` due to absolute value in v_term
-        return ρ′_rim_P3(Rᵢ)
+        return ρ_rim_local(Rᵢ)
     end
     return ρ′_rim
 end
