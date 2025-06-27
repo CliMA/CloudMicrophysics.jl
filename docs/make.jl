@@ -71,7 +71,7 @@ pages = Any[
     "References" => "References.md",
 ]
 
-mathengine = MathJax(
+mathengine = MathJax3(
     Dict(
         :TeX => Dict(
             :equationNumbers => Dict(:autoNumber => "AMS"),
