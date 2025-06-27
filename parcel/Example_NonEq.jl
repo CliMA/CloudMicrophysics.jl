@@ -11,6 +11,7 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 
 # choosing a value for the ice relaxation timescale
 τ = FT(10)
+limiter = true
 @info("using τ value ", τ)
 override_file = Dict(
     "condensation_evaporation_timescale" =>
@@ -72,6 +73,7 @@ ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
 params = parcel_params{FT}(
     condensation_growth = condensation_growth,
     deposition_growth = deposition_growth,
+    limiter = limiter,
     const_dt = const_dt,
     w = w,
     liquid = liquid,
