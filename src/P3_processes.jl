@@ -102,7 +102,7 @@ end
 
 function collision_cross_section_ice_liquid(state, Dᵢ, Dₗ)
     rᵢ_eff(Dᵢ) = √(ice_area(state, Dᵢ) / π)
-    return π * (rᵢ_eff(Dᵢ) + Dₗ / 2)^2  # collision cross section  -- TODO: Check if this is correct
+    return π * (rᵢ_eff(Dᵢ) + Dₗ / 2)^2  # collision cross section
 end
 
 """
