@@ -154,7 +154,7 @@ end
 Parameters for ventilation factor:
 
 ```math
-F(D) = a_{vent} + b_{vent}  N_{Sc}^{1/3} N_{Re}(D)^{1/2}
+F(D) = a_{v} + b_{v}  N_{Sc}^{1/3} N_{Re}(D)^{1/2}
 ```
 where `N_{Sc}` is the Schmidt number and `N_{Re}(D)` is the Reynolds number for a particle with diameter `D`.
 
@@ -167,15 +167,15 @@ A part of the [`ParametersP3`](@ref) parameter set.
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct VentilationFactor{FT} <: ParametersType{FT}
-    "Ventilation factor a [`-`]"
-    vent_a::FT
-    "Ventilation factor b [`-`]"
-    vent_b::FT
+    "Constant coefficient in ventilation factor [`-`]"
+    aᵥ::FT
+    "Linear coefficient in ventilation factor [`-`]"
+    bᵥ::FT
 end
 function VentilationFactor(toml_dict::CP.AbstractTOMLDict)
     name_map = (;
-        :p3_ventillation_a => :vent_a, # TODO: fix typo in TOML
-        :p3_ventiallation_b => :vent_b,
+        :SB2006_ventilation_factor_coeff_av => :aᵥ,
+        :SB2006_ventilation_factor_coeff_bv => :bᵥ,
     )
     params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
@@ -299,8 +299,8 @@ ParametersP3{Float64}
 │   ├── c = 2.0 [-]
 │   └── μ_max = 6.0 [-]
 ├── vent: VentilationFactor
-│   ├── vent_a = 0.78 [-]
-│   └── vent_b = 0.308 [-]
+│   ├── aᵥ = 0.78 [-]
+│   └── bᵥ = 0.308 [-]
 ├── ρ_i = 916.7 [kg m⁻³]
 ├── ρ_l = 1000.0 [kg m⁻³]
 └── T_freeze = 273.15 [K]
@@ -402,6 +402,6 @@ function _get_parameter_unit(field::Symbol)
         :ρ_l => "kg m⁻³",
         :T_freeze => "K",
     )
-    # unitless parameters: β_va, σ, b, c, μ_max, μ, vent_a, vent_b
+    # unitless parameters: β_va, σ, b, c, μ_max, μ, aᵥ, bᵥ
     return get(units, field, "-")
 end
