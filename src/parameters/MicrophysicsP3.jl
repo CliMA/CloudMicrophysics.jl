@@ -301,6 +301,11 @@ ParametersP3{Float64}
 ├── vent: VentilationFactor
 │   ├── aᵥ = 0.78 [-]
 │   └── bᵥ = 0.308 [-]
+├── ρ_rim_local: LocalRimeDensity
+│   ├── a = 51.0 [m^b]
+│   ├── b = 114.0 [-]
+│   ├── c = -5.5 [-]
+│   └── ρ_ice = 916.7 [-]
 ├── ρ_i = 916.7 [kg m⁻³]
 ├── ρ_l = 1000.0 [kg m⁻³]
 └── T_freeze = 273.15 [K]
@@ -352,6 +357,7 @@ function Base.show(
         SlopePowerLaw,
         SlopeConstant,
         VentilationFactor,
+        LocalRimeDensity,
     },
 )
     indent = get(io, :indent, "")
