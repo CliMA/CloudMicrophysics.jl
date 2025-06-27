@@ -17,7 +17,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 
 !!! note
     The `BF1995_mass_coeff_alpha` parameter is provided in units of [`g μm^(-β_va)`]
-    but the `α_va` field is stored in SI-like units of [`kg m^(-β_va)`] for 
+    but the `α_va` field is stored in SI-like units of [`kg m^(-β_va)`] for
     consistency with the rest of the code.
 
 # Fields
@@ -83,7 +83,7 @@ abstract type SlopeLaw{FT} <: ParametersType{FT} end
     SlopePowerLaw{FT}
 
 Slope parameter μ as a power law in shape parameter λ:
-    
+
 ```math
 μ(λ) = a λ^b - c
 ```
@@ -174,8 +174,8 @@ $(DocStringExtensions.FIELDS)
 end
 function VentilationFactor(toml_dict::CP.AbstractTOMLDict)
     name_map = (;
-        :p3_ventillation_a => :vent_a, # TODO: fix typo in TOML
-        :p3_ventiallation_b => :vent_b,
+        :SB2006_ventilation_factor_coeff_av => :vent_a,
+        :SB2006_ventilation_factor_coeff_bv => :vent_b,
     )
     params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
@@ -190,7 +190,7 @@ end
     ParametersP3{FT}
 
 Parameters for P3 bulk microphysics scheme.
-    
+
 From Morrison and Milbrandt (2015) [MorrisonMilbrandt2015](@cite)
 
 # Fields
