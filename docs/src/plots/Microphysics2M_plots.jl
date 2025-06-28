@@ -2,7 +2,6 @@ using CairoMakie
 CairoMakie.activate!(type = "svg")
 
 import ClimaParams
-import Thermodynamics as TD
 import CloudMicrophysics
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2
@@ -10,7 +9,6 @@ import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
 
-const tps = TD.Parameters.ThermodynamicsParameters(FT)
 const aps = CMP.AirProperties(FT)
 
 const KK2000 = CMP.KK2000(FT)

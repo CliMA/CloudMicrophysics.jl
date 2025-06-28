@@ -1,15 +1,15 @@
-
 import OrdinaryDiffEq as ODE
 import CairoMakie as MK
-import Thermodynamics as TD
+
 import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 FT = Float32
 # get free parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
 
 # Initial conditions
@@ -23,13 +23,13 @@ T₀ = FT(251)
 qᵥ = FT(8.1e-4)
 qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2) # 1.2 should be ρₐ
 qᵢ = FT(0)
+qₜ = qᵥ + qₗ + qᵢ
 ln_INPC = FT(0)
 
 # Moisture dependent initial conditions
-q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-R_v = TD.Parameters.R_v(tps)
-Rₐ = TD.gas_constant_air(tps, q)
-eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+R_v = TDI.Rᵥ(tps)
+Rₐ = TDI.Rₘ(tps, qₜ, qₗ, qᵢ)
+eₛ = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
 e = eᵥ(qᵥ, p₀, Rₐ, R_v)
 Sₗ = FT(e / eₛ)
 IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]

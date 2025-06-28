@@ -1,9 +1,9 @@
 import Test as TT
 
-import Thermodynamics as TD
-import CloudMicrophysics as CM
 import ClimaParams as CP
 
+import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CMC
 import CloudMicrophysics.Microphysics2M as CM2
@@ -31,7 +31,7 @@ function test_microphysics2M(FT)
 
     # Thermodynamics and air properties parameters
     aps = CMP.AirProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
     # Terminal velocity parameters
     SB2006Vel = CMP.SB2006VelType(FT)
@@ -455,7 +455,10 @@ function test_microphysics2M(FT)
         N_rai = FT(1e4)
         T = FT(288.15)
         q_tot = FT(1e-3)
-        q = TD.PhasePartition(q_tot)
+        q_liq = FT(0)
+        q_ice = FT(0)
+        q_sno = FT(0)
+        q = TDI.TD.PhasePartition(q_tot, q_liq, q_ice)
 
         for SB in [SB2006, SB2006_no_limiters]
 
@@ -463,10 +466,14 @@ function test_microphysics2M(FT)
             (; ν_air, D_vapor) = aps
 
             #action
-            evap = CM2.rain_evaporation(SB, aps, tps, q, q_rai, ρ, N_rai, T)
+            evap = CM2.rain_evaporation(SB, aps, tps, q_tot, q_liq, q_ice, q_rai, ρ, N_rai, T)
 
-            G = CMC.G_func(aps, tps, T, TD.Liquid())
-            S = TD.supersaturation(tps, q, ρ, T, TD.Liquid())
+            @assert CM2.rain_evaporation(SB, aps, tps, q_tot, q_liq, q_ice, q_rai, ρ, N_rai, T) ==
+                    CM2.rain_evaporation(SB, aps, tps, q, q_rai, ρ, N_rai, T)
+
+            G = CMC.G_func_liquid(aps, tps, T)
+            # TODO - update after working fluid change
+            S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq, q_ice, ρ, T)
 
             (; xr_mean) = CM2.pdf_rain_parameters(SB.pdf_r, q_rai, ρ, N_rai)
             Dr = FT(6 / π / 1000.0)^FT(1 / 3) * xr_mean^FT(1 / 3)
@@ -487,16 +494,16 @@ function test_microphysics2M(FT)
             TT.@test evap.evap_rate_0 ≈ evap0 rtol = 1e-4
             TT.@test evap.evap_rate_1 ≈ evap1 rtol = 1e-5
             TT.@test CM2.rain_evaporation(
-                SB, aps, tps, q, q_rai, ρ, FT(0), T,
+                SB, aps, tps, q_tot, q_liq, q_ice, q_rai, ρ, FT(0), T,
             ).evap_rate_0 ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_evaporation(
-                SB, aps, tps, q, FT(0), ρ, N_rai, T,
+                SB, aps, tps, q_tot, q_liq, q_ice, FT(0), ρ, N_rai, T,
             ).evap_rate_1 ≈ 0 atol = eps(FT)
         end
 
         # test limit case: xr = 0 for SB with no limiters
         TT.@test CM2.rain_evaporation(
-            SB2006_no_limiters, aps, tps, q, FT(0), ρ, N_rai, T,
+            SB2006_no_limiters, aps, tps, q_tot, q_liq, q_ice, FT(0), ρ, N_rai, T,
         ).evap_rate_0 ≈ 0 atol = eps(FT)
 
     end

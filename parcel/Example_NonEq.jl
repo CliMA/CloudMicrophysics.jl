@@ -1,8 +1,9 @@
 import OrdinaryDiffEq as ODE
 import CairoMakie as MK
-import Thermodynamics as TD
+
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 FT = Float64
@@ -24,13 +25,13 @@ ice = CMP.CloudIce(override_toml_dict)
 @info("relaxations:", liquid.τ_relax, ice.τ_relax)
 
 # Get free parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
 # Constants
 ρₗ = wps.ρw
 ρᵢ = wps.ρi
-R_v = TD.Parameters.R_v(tps)
-R_d = TD.Parameters.R_d(tps)
+R_v = TDI.Rᵥ(tps)
+R_d = TDI.Rd(tps)
 
 # Initial conditions
 Nₐ = FT(0)
@@ -41,7 +42,7 @@ r₀ᵢ = FT(8e-6)
 p₀ = FT(800 * 1e2)
 T₀ = FT(243)
 ln_INPC = FT(0)
-e_sat = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+e_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
 Sₗ = FT(1)
 e = Sₗ * e_sat
 md_v = (p₀ - e) / R_d / T₀

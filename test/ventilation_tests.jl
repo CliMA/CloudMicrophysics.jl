@@ -3,7 +3,6 @@ import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Microphysics2M as CM2
-import Thermodynamics as TD
 import ClimaParams as CP
 
 function test_ventilation_factor(FT)

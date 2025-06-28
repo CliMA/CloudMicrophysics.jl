@@ -1,14 +1,14 @@
 import CairoMakie as MK
 
 import ClimaParams
-import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI
 import CloudMicrophysics.Parameters as CMP
 
 FT = Float64
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
 illite = CMP.Illite(FT)    # dust type
 
@@ -41,7 +41,7 @@ T_dew = FT(228.0)               # dew point temperature
 x_sulph = FT(0)                 # sulphuric acid concentration in droplets
 a_sol = [                       # water activity of solution droplet at equilibrium
     CMO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x_sulph, T_dew) /
-    TD.saturation_vapor_pressure(tps, T, TD.Liquid()) for T in T_range
+    TDI.saturation_vapor_pressure_over_liquid(tps, T) for T in T_range
 ]
 # water activity of ice
 a_ice = [CMO.a_w_ice(tps, T) for T in T_range]

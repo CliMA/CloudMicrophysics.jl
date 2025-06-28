@@ -11,11 +11,10 @@ module Microphysics1M
 
 import SpecialFunctions as SF
 
-import Thermodynamics as TD
-import Thermodynamics.Parameters as TDP
-
+import ..ThermodynamicsInterface as TDI
 import ..Common as CO
 import ..Parameters as CMP
+
 
 export terminal_velocity,
     conv_q_liq_to_q_rai,
@@ -30,14 +29,6 @@ export terminal_velocity,
 abstract type AbstractSnowShape end
 struct Oblate <: AbstractSnowShape end
 struct Prolate <: AbstractSnowShape end
-
-# Thermodynamics deps:
-# ---------------------
-# TD.latent_heat_fusion(tps, T)
-# TD.supersaturation(tps, q, ρ, T, TD.Liquid())
-# TD.supersaturation(tps, q, ρ, T, TD.Ice())
-# CO.G_func(aps, tps, T, TD.Liquid())
-# CO.G_func(aps, tps, T, TD.Ice())
 
 """
     Ec(type_1, type_2, ce)
@@ -64,10 +55,7 @@ Ec(::CMP.Snow, ::CMP.Rain, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
 Returns the intercept parameter of the assumed Marshall-Palmer distribution
 """
 get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT} =
-    μ * (ρ * max(0, q_sno))^ν
-# TODO               this max should be replaced by
-#                    limiting inside a PhasePartition struct for
-#                    precipitation (once it is implemented)
+    μ * (ρ * max(0, q_sno))^ν  # TODO - think about limiters
 get_n0((; n0)::CMP.ParticlePDFIceRain{FT}, args...) where {FT} = n0
 
 """
@@ -307,7 +295,6 @@ conv_q_ice_to_q_sno_no_supersat(
 
 """
     conv_q_ice_to_q_sno(ice, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T)
-    conv_q_ice_to_q_sno(ice, aps, tps, q::PhasePartition, q_rai, q_sno, ρ, T)
 
  - `ice` - a struct with ice parameters
  - `aps` - a struct with air properties
@@ -317,7 +304,6 @@ conv_q_ice_to_q_sno_no_supersat(
  - `q_ice` - ice specific content
  - `q_rai` - rain specific content
  - `q_sno` - snow specific content
- - `q` - Thermodynamics.PhasePartition
  - `ρ` - air density
  - `T` - air temperature
 
@@ -327,7 +313,7 @@ Parameterized following Harrington et al. (1996) and Kaul et al. (2015).
 function conv_q_ice_to_q_sno(
     (; r_ice_snow, pdf, mass)::CMP.CloudIce{FT},
     aps::CMP.AirProperties{FT},
-    tps::TDP.ThermodynamicsParameters{FT},
+    tps::TDI.PS,
     q_tot::FT,
     q_liq::FT,
     q_ice::FT,
@@ -337,17 +323,11 @@ function conv_q_ice_to_q_sno(
     T::FT,
 ) where {FT}
     acnv_rate = FT(0)
-    S = TD.supersaturation(
-        tps,
-        TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno),
-        ρ,
-        T,
-        TD.Ice(),
-    )
+    S = TDI.supersaturation_over_ice(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
 
     if (q_ice > FT(0) && S > FT(0))
         (; me, Δm) = mass
-        G = CO.G_func(aps, tps, T, TD.Ice())
+        G = CO.G_func_ice(aps, tps, T)
         n0 = get_n0(pdf)
         λ_inv = lambda_inverse(pdf, mass, q_ice, ρ)
 
@@ -358,27 +338,6 @@ function conv_q_ice_to_q_sno(
     end
     return acnv_rate
 end
-conv_q_ice_to_q_sno(
-    ice_params::CMP.CloudIce,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition, # Assuming q = (q_tot, q_liq + q_rai, q_ice + q_sno)
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-) = conv_q_ice_to_q_sno(
-    ice_params::CMP.CloudIce,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q.tot,
-    q.liq - q_rai,
-    q.ice - q_sno,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-)
 
 """
     accretion(cloud, precip, vel, ce, q_clo, q_pre, ρ)
@@ -534,7 +493,6 @@ end
 
 """
     evaporation_sublimation(params, vel, aps, tps, q_tot, q_liq, q_ice, q_rai, q_snow, ρ, T)
-    evaporation_sublimation(params, vel, aps, tps, q::PhasePartition, q_rai, q_sno, ρ, T)
 
  - `params` - a struct with rain or snow parameters
  - `vel` - a struct with terminal velocity parameters
@@ -545,7 +503,6 @@ end
  - `q_ice` - ice specific content
  - `q_rai` - rain specific content
  - `q_sno` - snow specific content
- - `q` - Thermodynamics.PhasePartition
  - `ρ` - air density
  - `T` - air temperature
 
@@ -555,7 +512,7 @@ function evaporation_sublimation(
     (; pdf, mass, vent)::CMP.Rain{FT},
     vel::CMP.Blk1MVelTypeRain{FT},
     aps::CMP.AirProperties{FT},
-    tps::TDP.ThermodynamicsParameters{FT},
+    tps::TDI.PS,
     q_tot::FT,
     q_liq::FT,
     q_ice::FT,
@@ -565,17 +522,12 @@ function evaporation_sublimation(
     T::FT,
 ) where {FT}
     evap_subl_rate = FT(0)
-    S = TD.supersaturation(
-        tps,
-        TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno),
-        ρ,
-        T, TD.Liquid(),
-    )
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
 
     if (q_rai > FT(0) && S < FT(0))
 
         (; ν_air, D_vapor) = aps
-        G = CO.G_func(aps, tps, T, TD.Liquid())
+        G = CO.G_func_liquid(aps, tps, T)
         n0 = get_n0(pdf, q_rai, ρ)
         v0 = get_v0(vel, ρ)
         (; χv, ve, Δv) = vel
@@ -598,35 +550,12 @@ function evaporation_sublimation(
     # only evaporation is considered for rain
     return min(0, evap_subl_rate)
 end
-evaporation_sublimation(
-    rain_params::CMP.Rain,
-    vel::CMP.Blk1MVelTypeRain,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition, # Assuming q = (q_tot, q_liq + q_rai, q_ice + q_sno)
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-) = evaporation_sublimation(
-    rain_params::CMP.Rain,
-    vel::CMP.Blk1MVelTypeRain,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q.tot,
-    q.liq - q_rai,
-    q.ice - q_sno,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-)
 
 function evaporation_sublimation(
     (; pdf, mass, vent)::CMP.Snow{FT},
     vel::CMP.Blk1MVelTypeSnow{FT},
     aps::CMP.AirProperties{FT},
-    tps::TDP.ThermodynamicsParameters{FT},
+    tps::TDI.PS,
     q_tot::FT,
     q_liq::FT,
     q_ice::FT,
@@ -639,14 +568,8 @@ function evaporation_sublimation(
     if q_sno > FT(0)
         (; ν_air, D_vapor) = aps
 
-        S = TD.supersaturation(
-            tps,
-            TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno),
-            ρ,
-            T,
-            TD.Ice(),
-        )
-        G = CO.G_func(aps, tps, T, TD.Ice())
+        S = TDI.supersaturation_over_ice(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
+        G = CO.G_func_ice(aps, tps, T)
 
         n0 = get_n0(pdf, q_sno, ρ)
         v0 = get_v0(vel, ρ)
@@ -671,30 +594,6 @@ function evaporation_sublimation(
     return evap_subl_rate
 end
 
-evaporation_sublimation(
-    snow_params::CMP.Snow,
-    vel::CMP.Blk1MVelTypeSnow,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q::TD.PhasePartition, # Assuming q = (q_tot, q_liq + q_rai, q_ice + q_sno)
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-) = evaporation_sublimation(
-    snow_params::CMP.Snow,
-    vel::CMP.Blk1MVelTypeSnow,
-    aps::CMP.AirProperties,
-    tps::TDP.ThermodynamicsParameters,
-    q.tot,
-    q.liq - q_rai,
-    q.ice - q_sno,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
-)
-
 """
     snow_melt(snow, vel, aps, tps, q_sno, ρ, T)
 
@@ -712,7 +611,7 @@ function snow_melt(
     (; T_freeze, pdf, mass, vent)::CMP.Snow{FT},
     vel::CMP.Blk1MVelTypeSnow{FT},
     aps::CMP.AirProperties{FT},
-    tps::TDP.ThermodynamicsParameters{FT},
+    tps::TDI.PS,
     q_sno::FT,
     ρ::FT,
     T::FT,
@@ -722,7 +621,7 @@ function snow_melt(
     if (q_sno > FT(0) && T > T_freeze)
         (; ν_air, D_vapor, K_therm) = aps
 
-        L = TD.latent_heat_fusion(tps, T)
+        L = TDI.Lf(tps, T)
 
         n0 = get_n0(pdf, q_sno, ρ)
         v0 = get_v0(vel, ρ)
@@ -746,5 +645,25 @@ function snow_melt(
     end
     return snow_melt_rate
 end
+
+###
+### Wrappers for calling with TD.PhasePartition
+###
+
+conv_q_ice_to_q_sno(
+    ice_params::CMP.CloudIce, aps::CMP.AirProperties, tps::TDI.PS,
+    q::TDI.TD.PhasePartition, q_rai, q_sno, ρ, T,
+) = conv_q_ice_to_q_sno(ice_params, aps, tps, TDI.q_(q, q_rai, q_sno)..., q_rai, q_sno, ρ, T)
+
+evaporation_sublimation(
+    rain_params::CMP.Rain, vel::CMP.Blk1MVelTypeRain, aps::CMP.AirProperties, tps::TDI.PS,
+    q::TDI.TD.PhasePartition, q_rai, q_sno, ρ, T,
+) = evaporation_sublimation(rain_params, vel, aps, tps, TDI.q_(q, q_rai, q_sno)..., q_rai, q_sno, ρ, T)
+
+evaporation_sublimation(
+    snow_params::CMP.Snow, vel::CMP.Blk1MVelTypeSnow, aps::CMP.AirProperties, tps::TDI.PS,
+    q::TDI.TD.PhasePartition, q_rai, q_sno, ρ, T,
+) = evaporation_sublimation(snow_params, vel, aps, tps, TDI.q_(q, q_rai, q_sno)..., q_rai, q_sno, ρ, T)
+
 
 end #module Microphysics1M.jl

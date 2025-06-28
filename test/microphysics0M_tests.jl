@@ -1,8 +1,8 @@
 import Test as TT
 
 import ClimaParams
-import Thermodynamics as TD
 
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Microphysics0M as CM0
 
@@ -18,7 +18,7 @@ function test_microphysics0M(FT)
         frac = [FT(0), FT(0.5), FT(1.0)]
 
         # no rain if no cloud
-        q = TD.PhasePartition(q_tot)
+        q = TDI.TD.PhasePartition(q_tot)
         TT.@test CM0.remove_precipitation(p0m, q) ≈ FT(0)
         TT.@test CM0.remove_precipitation(p0m, FT(0), FT(0)) ≈ FT(0)
         TT.@test CM0.remove_precipitation(p0m, q, q_vap_sat) ≈ FT(0)
@@ -30,7 +30,7 @@ function test_microphysics0M(FT)
             q_liq = qc * lf
             q_ice = (1 - lf) * qc
 
-            q = TD.PhasePartition(q_tot, q_liq, q_ice)
+            q = TDI.TD.PhasePartition(q_tot, q_liq, q_ice)
 
             TT.@test CM0.remove_precipitation(p0m, q) ≈
                      -max(0, q_liq + q_ice - qc_0) / τ_precip
@@ -43,7 +43,7 @@ function test_microphysics0M(FT)
             q_liq = qc * lf
             q_ice = (1 - lf) * qc
 
-            q = TD.PhasePartition(q_tot, q_liq, q_ice)
+            q = TDI.TD.PhasePartition(q_tot, q_liq, q_ice)
 
             TT.@test CM0.remove_precipitation(p0m, q, q_vap_sat) ≈
                      -max(0, q_liq + q_ice - S_0 * q_vap_sat) / τ_precip

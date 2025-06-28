@@ -2,13 +2,9 @@ import CairoMakie as MK
 
 import SpecialFunctions as SF
 
-import Thermodynamics as TD
-import CloudMicrophysics as CM
 import ClimaParams as CP
 
-import Thermodynamics.Parameters as TDP
 import CloudMicrophysics.Parameters as CMP
-import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Microphysics1M as CM1
 
 FT = Float64

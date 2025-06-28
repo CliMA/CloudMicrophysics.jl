@@ -1,15 +1,17 @@
 import OrdinaryDiffEq as ODE
 import CairoMakie as MK
-import Thermodynamics as TD
-import CloudMicrophysics as CM
+
 import ClimaParams as CP
+import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 FT = Float32
 
 # Get free parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
 
 # Initial conditions
@@ -22,10 +24,8 @@ ln_INPC = FT(0)
 
 # Constants
 ρₗ = wps.ρw
-R_v = TD.Parameters.R_v(tps)
-R_d = TD.Parameters.R_d(tps)
-ϵₘ = R_d / R_v
-eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+ϵₘ = TDI.Rd_over_Rv(tps)
+eₛ = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
 qᵥ = ϵₘ / (ϵₘ - 1 + 1 / cᵥ₀)
 # Compute qₗ assuming that initially droplets are lognormally distributed
 # with N(r₀, σ). We are not keeping that size distribution assumption

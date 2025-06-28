@@ -1,17 +1,16 @@
 import CairoMakie: CairoMakie, Makie
 CairoMakie.activate!(type = "svg")
 
-import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.P3Scheme as P3
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 FT = Float64
 
 # parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
 params = CMP.ParametersP3(FT; slope_law = :constant)
 vel = CMP.Chen2022VelType(FT)
 aps = CMP.AirProperties(FT)
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.PS(FT)
 
 # model time step (for limiting)
 dt = FT(1)

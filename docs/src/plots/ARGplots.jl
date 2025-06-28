@@ -1,23 +1,18 @@
-import Plots
+import Plots as PL
 
-import CloudMicrophysics
-import ClimaParams
-import Thermodynamics
-
-const PL = Plots
-const AM = CloudMicrophysics.AerosolModel
-const AA = CloudMicrophysics.AerosolActivation
-const CP = ClimaParams
-const CMP = CloudMicrophysics.Parameters
-const TD = Thermodynamics
+import CloudMicrophysics as CM
+import CloudMicrophysics.AerosolModel as AM
+import CloudMicrophysics.AerosolActivation as AA
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 FT = Float64
 
-tps = Thermodynamics.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 aip = CMP.AirProperties(FT)
 ap = CMP.AerosolActivationParameters(FT)
 
-include("plots/ARGdata.jl")
+include(joinpath(pkgdir(CM), "docs", "src", "plots", "ARGdata.jl"))
 
 # Atmospheric conditions
 T = 294.0         # air temperature
@@ -27,9 +22,8 @@ p = 1000.0 * 1e2   # air pressure
 # moist R_m and cp_m in aerosol activation module.
 # We are assuming here saturated conditions and no liquid water or ice.
 # This is consistent with the assumptions of the aerosol activation scheme.
-p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
-q = TD.PhasePartition(q_vs, 0.0, 0.0)
+p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+q_vs = 1 / (1 - 1 / TDI.Rd_over_Rv(tps) * (p_vs - p) / p_vs)
 
 # Sulfate
 sulfate = CMP.Sulfate(FT)
@@ -162,10 +156,10 @@ function make_ARG_figX(X)
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[1] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q_vs, FT(0), FT(0))[1] /
                     N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[2] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q_vs, FT(0), FT(0))[2] /
                     N2i
                 global it += 1
             end
@@ -215,10 +209,10 @@ function make_ARG_figX(X)
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[1] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q_vs, FT(0), FT(0))[1] /
                     N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[2] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q_vs, FT(0), FT(0))[2] /
                     N2i
                 global it += 1
             end
@@ -270,10 +264,10 @@ function make_ARG_figX(X)
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[1] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q_vs, FT(0), FT(0))[1] /
                     N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[2] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q_vs, FT(0), FT(0))[2] /
                     N_2
                 global it += 1
             end
@@ -322,10 +316,10 @@ function make_ARG_figX(X)
                 end
                 AD = AM.AerosolDistribution((paper_mode_1, paper_mode_2))
                 act_frac1[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[1] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q_vs, FT(0), FT(0))[1] /
                     N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q)[2] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, w, q_vs, FT(0), FT(0))[2] /
                     N_2
                 global it += 1
             end
@@ -376,10 +370,10 @@ function make_ARG_figX(X)
 
             for wi in w
                 act_frac1[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, wi, q)[1] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, wi, q_vs, FT(0), FT(0))[1] /
                     N_1
                 act_frac2[it] =
-                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, wi, q)[2] /
+                    AA.N_activated_per_mode(ap, AD, aip, tps, T, p, wi, q_vs, FT(0), FT(0))[2] /
                     N_2
                 global it += 1
             end

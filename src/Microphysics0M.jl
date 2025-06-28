@@ -9,8 +9,11 @@ terminal velocity.
 """
 module Microphysics0M
 
-import Thermodynamics as TD
 import CloudMicrophysics.Parameters as CMP
+
+# Only needed for the wrapper for calling remove_precipitation with
+# TD.PhasePartition as an argument. Can be dropped if we drop this pattern.
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 export remove_precipitation
 
@@ -19,7 +22,7 @@ export remove_precipitation
     remove_precipitation(params_0M, q; q_vap_sat)
 
  - `params_0M` - a struct with 0-moment parameters
- - `q` - current Thermodynamics.PhasePartition or `q_liq` and `q_ice` specific contents
+ - `q` - `q_liq` and `q_ice` specific contents
  - `q_vap_sat` - specific humidity at saturation
 
 Returns the `q_tot` tendency due to the removal of precipitation.
@@ -35,20 +38,18 @@ remove_precipitation(
     q_ice,
 ) = -max(0, (q_liq + q_ice - qc_0)) / τ_precip
 remove_precipitation(
-    params::CMP.Parameters0M,
-    q::TD.PhasePartition,
-) = remove_precipitation(params, q.liq, q.ice)
-
-remove_precipitation(
     (; τ_precip, S_0)::CMP.Parameters0M,
     q_liq,
     q_ice,
     q_vap_sat,
 ) = -max(0, (q_liq + q_ice - S_0 * q_vap_sat)) / τ_precip
-remove_precipitation(
-    params::CMP.Parameters0M,
-    q::TD.PhasePartition,
-    q_vap_sat,
-) = remove_precipitation(params, q.liq, q.ice, q_vap_sat)
+
+###
+### Wrappers for calling with TD.PhasePartition
+###
+remove_precipitation(params::CMP.Parameters0M, q::TDI.TD.PhasePartition) =
+    remove_precipitation(params, q.liq, q.ice)
+remove_precipitation(params::CMP.Parameters0M, q::TDI.TD.PhasePartition, q_vap_sat) =
+    remove_precipitation(params, q.liq, q.ice, q_vap_sat)
 
 end #module Microphysics0M.jl

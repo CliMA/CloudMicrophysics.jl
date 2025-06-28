@@ -15,9 +15,10 @@ EvoTreeRegressor = MLJ.@load EvoTreeRegressor pkg = EvoTrees
 import Test as TT
 
 # Get the CliMA packages
-import CloudMicrophysics as CM
 import ClimaParams as CP
-import Thermodynamics as TD
+
+import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.Parameters as CMP
@@ -159,7 +160,7 @@ include(joinpath(pkgdir(CM), "ext", "Common.jl"))
 
 function preprocess_aerosol_data_with_ARG_act_frac_FT32(x::DataFrame)
     aip = CMP.AirProperties(Float32)
-    tps = TD.Parameters.ThermodynamicsParameters(Float32)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(Float32)
     ap = CMP.AerosolActivationParameters(Float32)
     return preprocess_aerosol_data_with_ARG_act_frac(x, ap, aip, tps, Float32)
 end
@@ -290,16 +291,16 @@ function test_emulator(
 )
 
     aip = CMP.AirProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     ap = CMP.AerosolActivationParameters(FT)
 
     # Atmospheric conditions
     T = FT(294)    # air temperature K
     p = FT(1e5)    # air pressure Pa
     w = FT(0.5)    # vertical velocity m/s
-    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-    q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
-    q = TD.PhasePartition(q_vs)
+    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+    q_vs = 1 / (1 - 1 / TDI.Rd_over_Rv(tps) * (p_vs - p) / p_vs)
+    q = TDI.TD.PhasePartition(q_vs)
 
     # Aerosol size distribution
     salt = CMP.Seasalt(FT)

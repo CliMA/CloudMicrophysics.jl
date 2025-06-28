@@ -1,14 +1,15 @@
 import OrdinaryDiffEq as ODE
 import CairoMakie as MK
-import Thermodynamics as TD
+
 import CloudMicrophysics as CM
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
 # definition of the ODE problem for parcel model
 include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
 FT = Float32
 # get free parameters
-tps = TD.Parameters.ThermodynamicsParameters(FT)
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 wps = CM.Parameters.WaterProperties(FT)
 
 # Initial conditions
@@ -20,12 +21,12 @@ p₀ = FT(20000)
 qᵥ = FT(5e-4)
 qₗ = FT(Nₗ * 4 / 3 * π * rₗ^3 * wps.ρw / 1.2)
 qᵢ = FT(0)
+qₜ = qᵥ + qₗ + qᵢ
 ln_INPC = FT(0)
 
 # Moisture dependent initial conditions
-q = TD.PhasePartition(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-Rₐ = TD.gas_constant_air(tps, q)
-Rᵥ = TD.Parameters.R_v(tps)
+Rₐ = TDI.Rₘ(tps, qₜ, qₗ, qᵢ)
+Rᵥ = TDI.Rᵥ(tps)
 e = eᵥ(qᵥ, p₀, Rₐ, Rᵥ)
 
 # Simulation parameters passed into ODE solver
@@ -50,9 +51,8 @@ ax_list = [ax1, ax2, ax3]
 for it in [1, 2, 3]
     mode = ice_nucleation_modes_list[it]
     local T₀ = T₀_list[it]
-    local ts = TD.PhaseNonEquil_pTq(tps, p₀, T₀, q)
-    local ρₐ = TD.air_density(tps, ts)
-    local eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+    local ρₐ = TDI.air_density(tps, T₀, p₀, qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    local eₛ = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
     local Sₗ = FT(e / eₛ)
     local IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
 

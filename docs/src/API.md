@@ -241,7 +241,8 @@ CloudDiagnostics.effective_radius_2M
 
 ```@docs
 Common
-Common.G_func
+Common.G_func_liquid
+Common.G_func_ice
 Common.logistic_function
 Common.logistic_function_integral
 Common.H2SO4_soln_saturation_vapor_pressure

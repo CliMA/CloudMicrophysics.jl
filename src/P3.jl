@@ -13,14 +13,13 @@ import RootSolvers as RS
 import LogExpFunctions
 
 import ClimaParams as CP
+
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.DistributionTools as DT
 import CloudMicrophysics.HetIceNucleation as CM_HetIce
 import CloudMicrophysics.Microphysics2M as CM2
-
-import Thermodynamics as TD
-import Thermodynamics.Parameters as TDP
 
 include("P3_particle_properties.jl")
 include("P3_size_distribution.jl")

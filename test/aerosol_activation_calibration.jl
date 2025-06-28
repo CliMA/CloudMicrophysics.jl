@@ -9,7 +9,7 @@ import Test as TT
 
 # Get the CliMA packages
 import CloudMicrophysics as CM
-import Thermodynamics as TD
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.Parameters as CMP
@@ -26,7 +26,7 @@ function calibrate_ARG(
     N_iterations_per_sample = 20,
 )
     aip = CMP.AirProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
     # download (if necessary) and load the data
     fpath = joinpath(pkgdir(CM), "test", "data", fname)
@@ -94,16 +94,15 @@ end
 function test_emulator(FT; rtols = [1e-4, 1e-3, 0.26], N_samples_calib = 2)
 
     aip = CMP.AirProperties(FT)
-    tps = TD.Parameters.ThermodynamicsParameters(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     ap = CMP.AerosolActivationParameters(FT)
 
     # Atmospheric conditions
     T = FT(294)    # air temperature K
     p = FT(1e5)    # air pressure Pa
     w = FT(0.5)    # vertical velocity m/s
-    p_vs = TD.saturation_vapor_pressure(tps, T, TD.Liquid())
-    q_vs = 1 / (1 - TD.Parameters.molmass_ratio(tps) * (p_vs - p) / p_vs)
-    q = TD.PhasePartition(q_vs)
+    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+    q_vs = 1 / (1 - 1 / TDI.Rd_over_Rv(tps) * (p_vs - p) / p_vs)
 
     # Aerosol size distribution
     salt = CMP.Seasalt(FT)
@@ -122,10 +121,12 @@ function test_emulator(FT; rtols = [1e-4, 1e-3, 0.26], N_samples_calib = 2)
     calib_params, errs = calibrate_ARG(FT, N_samples = N_samples_calib)
     ap_calib = CMP.AerosolActivationParameters(calib_params)
 
-    TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[1] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol = rtols[1]
-    TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q)[2] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol = rtols[2]
+    TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q_vs, FT(0), FT(0))[1] ≈
+             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_vs, FT(0), FT(0))[1] rtol =
+        rtols[1]
+    TT.@test AA.N_activated_per_mode(ap_calib, ad, aip, tps, T, p, w, q_vs, FT(0), FT(0))[2] ≈
+             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_vs, FT(0), FT(0))[2] rtol =
+        rtols[2]
     for n in 1:N_samples_calib
         TT.@test errs[n][end] < rtols[3]
     end
