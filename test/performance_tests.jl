@@ -269,7 +269,7 @@ function benchmark_test(FT)
 
     # non-equilibrium
     bench_press(FT, CMN.τ_relax, (liquid,), 15)
-    bench_press(FT, CMN.conv_q_vap_to_q_liq_ice, (ice, FT(2e-3), FT(1e-3)), 12)
+    bench_press(FT, CMN.conv_q_vap_to_q_liq_ice, (ice, FT(2e-3), FT(1e-3)), 15)
     bench_press(
         FT,
         CMN.conv_q_vap_to_q_liq_ice_MM2015,
@@ -314,7 +314,7 @@ function benchmark_test(FT)
         bench_press(
             @NamedTuple{evap_rate_0::FT, evap_rate_1::FT},
             CM2.rain_evaporation,
-            (sb, aps, tps, q_tot, q_liq, q_ice, q_rai, ρ_air, N_rai, T_air),
+            (sb, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ_air, N_rai, T_air),
             2000,
         )
         bench_press(

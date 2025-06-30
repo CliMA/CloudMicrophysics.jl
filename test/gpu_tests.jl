@@ -411,6 +411,7 @@ end
                 ql[i],
                 FT(0),
                 qr[i],
+                FT(0),
                 ρ[i],
                 Nr[i],
                 T[i],
@@ -424,6 +425,7 @@ end
                 ql[i],
                 FT(0),
                 qr[i],
+                FT(0),
                 ρ[i],
                 Nr[i],
                 T[i],
@@ -1079,12 +1081,12 @@ function test_gpu(FT)
                 TT.@test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
                 TT.@test isapprox(
                     Array(output)[14],
-                    FT(-243259.75126),
+                    FT(-260774.56803),
                     rtol = 1e-6,
                 )
                 TT.@test isapprox(
                     Array(output)[15],
-                    FT(-0.0034601581),
+                    FT(-0.0037092913),
                     rtol = 1e-6,
                 )
             end
@@ -1093,10 +1095,10 @@ function test_gpu(FT)
                 TT.@test isapprox(Array(output)[11], FT(0), rtol = 1e-6)
                 TT.@test isapprox(Array(output)[12], FT(2.6429e-3), rtol = 1e-4)
                 TT.@test isapprox(Array(output)[13], FT(0.1149338), rtol = 1e-5)
-                TT.@test isapprox(Array(output)[14], FT(-52903.817), rtol = 1e-6)
+                TT.@test isapprox(Array(output)[14], FT(-56712.917), rtol = 1e-6)
                 TT.@test isapprox(
                     Array(output)[15],
-                    FT(-9.3601206e-5),
+                    FT(-0.0001003405),
                     rtol = 1e-6,
                 )
             end

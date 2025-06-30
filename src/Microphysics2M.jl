@@ -701,15 +701,12 @@ fall velocity of individual drops and an exponential size distribution, for `sch
 function rain_evaporation(
     (; pdf_r, evap)::CMP.SB2006{FT}, aps::CMP.AirProperties,
     tps::TDI.PS,
-    q_tot, q_liq, q_ice, q_rai, ρ, N_rai, T,
+    q_tot, q_liq, q_ice, q_rai, q_sno, ρ, N_rai, T,
 ) where {FT}
 
     evap_rate_0 = FT(0)
     evap_rate_1 = FT(0)
-    # TODO - rain and snow are part of the working fluid and should be included in
-    # thermodynamics calls. This changes the results so I'll do it as a next PR
-    #S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
-    S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq, q_ice, ρ, T)
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
 
     if ((q_rai > eps(FT) || N_rai > eps(FT)) && S < FT(0))
 
@@ -943,7 +940,7 @@ end
 rain_evaporation(
     sb_params::CMP.SB2006, air_params::CMP.AirProperties, tps::TDI.PS,
     q::TDI.TD.PhasePartition,
-    q_rai, ρ, N_rai, T,
-) = rain_evaporation(sb_params, air_params, tps, q.tot, q.liq, q.ice, q_rai, ρ, N_rai, T)
+    q_rai, q_sno, ρ, N_rai, T,
+) = rain_evaporation(sb_params, air_params, tps, q.tot, q.liq, q.ice, q_rai, q_sno, ρ, N_rai, T)
 
 end # module
