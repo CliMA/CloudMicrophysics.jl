@@ -708,7 +708,7 @@ function rain_evaporation(
     evap_rate_1 = FT(0)
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
 
-    if ((q_rai > eps(FT) || N_rai > eps(FT)) && S < FT(0))
+    if (N_rai > eps(FT) && S < FT(0))
 
         (; ν_air, D_vapor) = aps
         (; av, bv, α, β, ρ0) = evap
@@ -735,8 +735,7 @@ function rain_evaporation(
 
         # When xr = 0 evap_rate_0 becomes NaN. We replace NaN with 0 which is the limit of
         # evap_rate_0 for xr -> 0.
-        evap_rate_0 =
-            N_rai < eps(FT) || xr_mean / x_star < eps(FT) ? FT(0) : evap_rate_0
+        evap_rate_0 = xr_mean / x_star < eps(FT) ? FT(0) : evap_rate_0
         evap_rate_1 = q_rai < eps(FT) ? FT(0) : evap_rate_1
 
     end
