@@ -932,14 +932,4 @@ function accretion((; accr)::CMP.TC1980{FT}, q_liq, q_rai) where {FT}
     return A * q_liq * q_rai
 end
 
-###
-### Wrappers for calling with TD.PhasePartition
-###
-
-rain_evaporation(
-    sb_params::CMP.SB2006, air_params::CMP.AirProperties, tps::TDI.PS,
-    q::TDI.TD.PhasePartition,
-    q_rai, q_sno, ρ, N_rai, T,
-) = rain_evaporation(sb_params, air_params, tps, q.tot, q.liq, q.ice, q_rai, q_sno, ρ, N_rai, T)
-
 end # module

@@ -11,8 +11,8 @@ module Microphysics0M
 
 import CloudMicrophysics.Parameters as CMP
 
-# Only needed for the wrapper for calling remove_precipitation with
-# TD.PhasePartition as an argument. Can be dropped if we drop this pattern.
+# Needed for the wrapper for calling the 0-moment remove_precipitation
+# with TD.PhasePartition in ClimaAtmos
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 export remove_precipitation
@@ -46,6 +46,9 @@ remove_precipitation(
 
 ###
 ### Wrappers for calling with TD.PhasePartition
+###
+### For now leaving the PhasePartition wrapper because I'm not sure how to get
+### rid of equilibrium thermo state in the Atmos model.
 ###
 remove_precipitation(params::CMP.Parameters0M, q::TDI.TD.PhasePartition) =
     remove_precipitation(params, q.liq, q.ice)

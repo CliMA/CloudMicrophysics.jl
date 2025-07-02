@@ -64,10 +64,9 @@ MK.set_theme!(MK.theme_minimal())
 
 # autoconversion rate figure
 T = 273.15
-q_range = TDI.PP.(q_tot, 0.0, q_ice_range)
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_liq or q_ice [g/kg]", ylabel = "autoconversion rate [1/s]", limits)
-q_ice_to_q_sno_rate = T -> CM1.conv_q_ice_to_q_sno.(ice, aps, tps, q_range, q_rai, q_sno, ρ_air, T)
+q_ice_to_q_sno_rate = T -> CM1.conv_q_ice_to_q_sno.(ice, aps, tps, q_tot, FT(0), q_ice_range, q_rai, q_sno, ρ_air, T)
 MK.lines!(q_liq_range * 1e3, CM1.conv_q_liq_to_q_rai.(rain.acnv1M, q_liq_range), label = "Rain")
 MK.lines!(q_ice_range * 1e3, q_ice_to_q_sno_rate(T - 5), label = "Snow T = −5°C")
 MK.lines!(q_ice_range * 1e3, q_ice_to_q_sno_rate(T - 10), label = "Snow T = −10°C")
@@ -144,7 +143,6 @@ q_vap = 0.15 * q_sat
 q_ice = 0.0
 q_liq = q_tot - q_vap - q_ice
 q_sno = 0.0
-q = TDI.PP(q_tot, q_liq, q_ice)
 R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
 ρ = p / R / T
 
@@ -152,7 +150,20 @@ fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_rain [g/kg]", ylabel = "rain evaporation rate [1/s]")
 MK.xlims!(ax, 0, q_max * 1e3)
 MK.lines!(
-    q_rain_range * 1e3, CM1.evaporation_sublimation.(rain, Blk1MVel.rain, aps, tps, Ref(q), q_rain_range, q_sno, ρ, T),
+    q_rain_range * 1e3,
+    CM1.evaporation_sublimation.(
+        rain,
+        Blk1MVel.rain,
+        aps,
+        tps,
+        q_tot,
+        q_liq .- q_rain_range,
+        q_ice,
+        q_rain_range,
+        q_sno,
+        ρ,
+        T,
+    ),
     label = "ClimateMachine",
 )
 MK.lines!(q_rain_range * 1e3, rain_evap_empirical.(tps, q_rain_range, q_tot, q_liq, T, p, ρ), label = "empirical")
@@ -173,12 +184,25 @@ q_snow_range = range(1e-8, stop = 5e-3, length = 100)
 q_tot = 15e-3
 q_vap = 0.15 * q_sat
 q_liq = 0.0
+q_lcl = 0.0
 q_ice = q_tot - q_vap - q_liq
 q_rai = 0.0
-q = TDI.PP(q_tot, q_liq, q_ice)
 R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
 ρ = p / R / T
-rate = CM1.evaporation_sublimation.(snow, Blk1MVel.snow, aps, tps, Ref(q), q_rai, q_snow_range, ρ, T)
+rate =
+    CM1.evaporation_sublimation.(
+        snow,
+        Blk1MVel.snow,
+        aps,
+        tps,
+        q_tot,
+        q_lcl,
+        q_ice .- q_snow_range,
+        q_rai,
+        q_snow_range,
+        ρ,
+        T,
+    )
 MK.lines!(q_snow_range * 1e3, rate, label = "T < 0°C")
 
 # example values 2
@@ -190,12 +214,25 @@ q_snow_range = range(1e-8, stop = 5e-3, length = 100)
 q_tot = 15e-3
 q_vap = 0.15 * q_sat
 q_liq = 0.0
+q_lcl = 0.0
 q_ice = q_tot - q_vap - q_liq
 q_rai = 0.0
-q = TDI.PP(q_tot, q_liq, q_ice)
 R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
 ρ = p / R / T
-rate = CM1.evaporation_sublimation.(snow, Blk1MVel.snow, aps, tps, Ref(q), q_rai, q_snow_range, ρ, T)
+rate =
+    CM1.evaporation_sublimation.(
+        snow,
+        Blk1MVel.snow,
+        aps,
+        tps,
+        q_tot,
+        q_lcl,
+        q_ice .- q_snow_range,
+        q_rai,
+        q_snow_range,
+        ρ,
+        T,
+    )
 MK.lines!(q_snow_range * 1e3, rate, label = "T > 0°C")
 
 MK.axislegend(ax; position = :rt)

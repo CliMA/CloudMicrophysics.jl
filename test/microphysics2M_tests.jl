@@ -458,7 +458,6 @@ function test_microphysics2M(FT)
         q_liq = FT(0)
         q_ice = FT(0)
         q_sno = FT(0)
-        q = TDI.TD.PhasePartition(q_tot, q_liq, q_ice)
 
         for SB in [SB2006, SB2006_no_limiters]
 
@@ -467,9 +466,6 @@ function test_microphysics2M(FT)
 
             #action
             evap = CM2.rain_evaporation(SB, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, N_rai, T)
-
-            @assert CM2.rain_evaporation(SB, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, N_rai, T) ==
-                    CM2.rain_evaporation(SB, aps, tps, q, q_rai, q_sno, ρ, N_rai, T)
 
             G = CMC.G_func_liquid(aps, tps, T)
             # TODO - update after working fluid change

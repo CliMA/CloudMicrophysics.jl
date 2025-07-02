@@ -646,24 +646,4 @@ function snow_melt(
     return snow_melt_rate
 end
 
-###
-### Wrappers for calling with TD.PhasePartition
-###
-
-conv_q_ice_to_q_sno(
-    ice_params::CMP.CloudIce, aps::CMP.AirProperties, tps::TDI.PS,
-    q::TDI.TD.PhasePartition, q_rai, q_sno, ρ, T,
-) = conv_q_ice_to_q_sno(ice_params, aps, tps, TDI.q_(q, q_rai, q_sno)..., q_rai, q_sno, ρ, T)
-
-evaporation_sublimation(
-    rain_params::CMP.Rain, vel::CMP.Blk1MVelTypeRain, aps::CMP.AirProperties, tps::TDI.PS,
-    q::TDI.TD.PhasePartition, q_rai, q_sno, ρ, T,
-) = evaporation_sublimation(rain_params, vel, aps, tps, TDI.q_(q, q_rai, q_sno)..., q_rai, q_sno, ρ, T)
-
-evaporation_sublimation(
-    snow_params::CMP.Snow, vel::CMP.Blk1MVelTypeSnow, aps::CMP.AirProperties, tps::TDI.PS,
-    q::TDI.TD.PhasePartition, q_rai, q_sno, ρ, T,
-) = evaporation_sublimation(snow_params, vel, aps, tps, TDI.q_(q, q_rai, q_sno)..., q_rai, q_sno, ρ, T)
-
-
 end #module Microphysics1M.jl
