@@ -153,27 +153,21 @@ function test_microphysics1M(FT)
         qₗ = FT(2e-3)
         qᵢ = FT(1e-3)
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
-        q = TDI.TD.PhasePartition(qₜ, qₗ + qᵣ, qᵢ + qₛ)
         T = T₀ + FT(30)
         TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) == FT(0)
-        TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, q, qᵣ, qₛ, ρ, T) == FT(0)
 
         # no ice -> no snow
         qᵢ = FT(0)
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
-        q = TDI.TD.PhasePartition(qₜ, qₗ + qᵣ, qᵢ + qₛ)
         T = T₀ - FT(30)
         TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) == FT(0)
-        TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, q, qᵣ, qₛ, ρ, T) == FT(0)
 
         # no supersaturation -> no snow
         T = T₀ - FT(5)
         qᵢ = FT(3e-3)
         q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
         qₜ = q_sat_ice
-        q = TDI.TD.PhasePartition(qₜ, qₗ + qᵣ, qᵢ + qₛ)
         TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) ≈ FT(0)
-        TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, q, qᵣ, qₛ, ρ, T) == FT(0)
 
         # Coudnt find a plot of what it should be from the original paper
         # just checking if the number stays the same
@@ -182,10 +176,8 @@ function test_microphysics1M(FT)
         qₗ = FT(0)
         qᵢ = FT(0.03) * qᵥ
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
-        q = TDI.TD.PhasePartition(qₜ, qₗ + qᵣ, qᵢ + qₛ)
         ref = FT(2.5405159487552133e-9)
         TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) ≈ ref
-        TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, q, qᵣ, qₛ, ρ, T) ≈ ref
     end
 
     TT.@testset "RainLiquidAccretion" begin
@@ -304,16 +296,18 @@ function test_microphysics1M(FT)
         function rain_evap_empir(
             tps::TDI.TD.Parameters.ThermodynamicsParameters,
             q_rai::FT,
-            q::TDI.TD.PhasePartition, # Assuming q = (q.tot, q_liq + q_rai, q_ice + q_sno)
+            q_tot::FT,
+            q_lcl::FT,
+            q_ice::FT,
             T::FT,
             p::FT,
             ρ::FT,
         ) where {FT <: Real}
 
             q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
-            q_vap = q.tot - q.liq - q.ice
-            rr = q_rai / (1 - q.tot)
-            rv_sat = q_sat / (1 - q.tot)
+            q_vap = q_tot - q_lcl - q_ice - q_rai
+            rr = q_rai / (1 - q_tot)
+            rv_sat = q_sat / (1 - q_tot)
             S = q_vap / q_sat - 1
 
             ag, bg = FT(5.4 * 1e2), FT(2.55 * 1e5)
@@ -324,7 +318,7 @@ function test_microphysics1M(FT)
                 av * (ρ / FT(1e3))^FT(0.525) * rr^FT(0.525) +
                 bv * (ρ / FT(1e3))^FT(0.7296) * rr^FT(0.7296)
 
-            return 1 / (1 - q.tot) * S * F * G
+            return 1 / (1 - q_tot) * S * F * G
         end
 
         # example values
@@ -336,17 +330,14 @@ function test_microphysics1M(FT)
         q_tot = FT(15e-3)
         q_vap = FT(0.15) * q_sat
         for q_rai in q_rain_range
-            q_liq = q_tot - q_vap - q_rai
-            q = TDI.TD.PhasePartition(q_tot, q_liq + q_rai, FT(0))
-            R = TDI.Rₘ(tps, q_tot, q_liq + q_rai, FT(0))
+            q_lcl = q_tot - q_vap - q_rai
+            R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, FT(0))
             ρ = p / R / T
 
-            tmp1 = CM1.evaporation_sublimation(rain, blk1mvel.rain, aps, tps, q, q_rai, FT(0), ρ, T)
-            tmp2 = CM1.evaporation_sublimation(rain, blk1mvel.rain, aps, tps, q_tot, q_liq, FT(0), q_rai, FT(0), ρ, T)
-            tmp3 = rain_evap_empir(tps, q_rai, q, T, p, ρ)
+            tmp1 = CM1.evaporation_sublimation(rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai, FT(0), ρ, T)
+            tmp2 = rain_evap_empir(tps, q_rai, q_tot, q_lcl, FT(0), T, p, ρ)
 
-            @assert tmp1 == tmp2
-            @assert isapprox(tmp1, tmp3; atol = 1e-6)
+            @assert isapprox(tmp1, tmp2; atol = 1e-6)
         end
 
         # no condensational growth for rain
@@ -360,21 +351,9 @@ function test_microphysics1M(FT)
         q_ice = FT(0)
         q_liq = q_tot - q_vap - q_ice
         q_sno = FT(0) # TODO - add non-zero case
-        q = TDI.TD.PhasePartition(q_tot, q_liq, q_ice)
         R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
         ρ = p / R / T
 
-        TT.@test CM1.evaporation_sublimation(
-            rain,
-            blk1mvel.rain,
-            aps,
-            tps,
-            q,
-            q_rai,
-            q_sno,
-            ρ,
-            T,
-        ) ≈ FT(0)
         TT.@test CM1.evaporation_sublimation(
             rain,
             blk1mvel.rain,
@@ -417,23 +396,11 @@ function test_microphysics1M(FT)
                 q_tot = eps * q_sat + q_sno
                 q_ice = FT(0)
                 q_liq = FT(0)
-                q = TDI.TD.PhasePartition(q_tot, q_liq + q_rai, q_ice + q_sno)
 
                 R = TDI.Rₘ(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
                 ρ = p / R / T
 
                 tmp1 = CM1.evaporation_sublimation(
-                    snow,
-                    blk1mvel.snow,
-                    aps,
-                    tps,
-                    q,
-                    q_rai,
-                    q_sno,
-                    ρ,
-                    T,
-                )
-                tmp2 = CM1.evaporation_sublimation(
                     snow,
                     blk1mvel.snow,
                     aps,
@@ -446,7 +413,6 @@ function test_microphysics1M(FT)
                     ρ,
                     T,
                 )
-                TT.@test tmp1 == tmp2
                 TT.@test tmp1 ≈ ref_val[cnt] rtol = 1e-2
             end
         end

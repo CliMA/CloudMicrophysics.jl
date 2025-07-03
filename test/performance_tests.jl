@@ -273,12 +273,6 @@ function benchmark_test(FT)
     bench_press(
         FT,
         CMN.conv_q_vap_to_q_liq_ice_MM2015,
-        (liquid, tps, TDI.TD.PhasePartition(FT(0.00145)), FT(0), FT(0), FT(0.8), FT(263)),
-        70,
-    )
-    bench_press(
-        FT,
-        CMN.conv_q_vap_to_q_liq_ice_MM2015,
         (liquid, tps, FT(0.00145), FT(0), FT(0), FT(0), FT(0), FT(0.8), FT(263)),
         70,
     )

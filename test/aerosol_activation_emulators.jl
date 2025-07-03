@@ -300,7 +300,9 @@ function test_emulator(
     w = FT(0.5)    # vertical velocity m/s
     p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
     q_vs = 1 / (1 - 1 / TDI.Rd_over_Rv(tps) * (p_vs - p) / p_vs)
-    q = TDI.TD.PhasePartition(q_vs)
+    q_tot = q_vs
+    q_liq = FT(0)
+    q_ice = FT(0)
 
     # Aerosol size distribution
     salt = CMP.Seasalt(FT)
@@ -323,14 +325,14 @@ function test_emulator(
         machine_name = machine_name,
     )
 
-    TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q)[1] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[1] rtol =
+    TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)[1] ≈
+             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)[1] rtol =
         rtols[1]
-    TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q)[2] ≈
-             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q)[2] rtol =
+    TT.@test AA.N_activated_per_mode(mach, ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)[2] ≈
+             AA.N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)[2] rtol =
         rtols[2]
-    TT.@test AA.total_N_activated(mach, ap, ad, aip, tps, T, p, w, q) ≈
-             AA.total_N_activated(ap, ad, aip, tps, T, p, w, q) rtol = rtols[2]
+    TT.@test AA.total_N_activated(mach, ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice) ≈
+             AA.total_N_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice) rtol = rtols[2]
 
 end
 

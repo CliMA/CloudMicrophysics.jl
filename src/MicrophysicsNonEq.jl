@@ -170,18 +170,4 @@ function terminal_velocity(
     return fall_w
 end
 
-###
-### Wrappers fro calling with TD.PhasePartition
-###
-conv_q_vap_to_q_liq_ice_MM2015(
-    prs::CMP.CloudLiquid, tps::TDI.PS, q::TDI.TD.PhasePartition, q_rai, q_sno, ρ, T,
-    #) = conv_q_vap_to_q_liq_ice_MM2015(prs, tps, TDI.q_(q, q_rai, q_sno)..., ρ, T)
-) = conv_q_vap_to_q_liq_ice_MM2015(prs, tps, q.tot, q.liq - q_rai, q.ice - q_sno, q_rai, q_sno..., ρ, T)
-
-conv_q_vap_to_q_liq_ice_MM2015(
-    prs::CMP.CloudIce, tps::TDI.PS, q::TDI.TD.PhasePartition, q_rai, q_sno, ρ, T,
-) = conv_q_vap_to_q_liq_ice_MM2015(prs, tps, q.tot, q.liq - q_rai, q.ice - q_sno, q_rai, q_sno..., ρ, T)
-#) = conv_q_vap_to_q_liq_ice_MM2015(prs, tps, TDI.q_(q, q_rai, q_sno)..., ρ, T)
-
-
 end #module MicrophysicsNonEq.jl
