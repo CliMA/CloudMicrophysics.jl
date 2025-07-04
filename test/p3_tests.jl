@@ -244,7 +244,7 @@ function test_particle_terminal_velocities(FT)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.08109, 0.4115, 0.7912, 1.1550, 1.4871]
-        v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -256,7 +256,7 @@ function test_particle_terminal_velocities(FT)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.08109, 0.4115, 0.79121, 1.155, 1.487]
-        v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -274,7 +274,7 @@ function test_particle_terminal_velocities(FT)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.13192, 0.50457, 0.90753, 1.3015, 1.6757]
-        v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -285,7 +285,7 @@ function test_particle_terminal_velocities(FT)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.13191, 0.50457, 0.90753, 1.301499, 1.67569]
-        v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -311,15 +311,15 @@ function test_bulk_terminal_velocities(FT)
 
         state₀ = P3.get_state(params; F_rim = FT(0.5), ρ_rim, L_ice = FT(0), N_ice)
         logλ = P3.get_distribution_logλ(state₀)
-        vel_n₀ = P3.ice_terminal_velocity_number_weighted(state₀, logλ, Chen2022, ρ_a)
-        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(state₀, logλ, Chen2022, ρ_a)
+        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ)
+        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ)
         @test iszero(vel_n₀)
         @test iszero(vel_m₀)
 
         state₀ = P3.get_state(params; F_rim = FT(0.5), ρ_rim, L_ice, N_ice = FT(0))
         logλ = P3.get_distribution_logλ(state₀)
-        vel_n₀ = P3.ice_terminal_velocity_number_weighted(state₀, logλ, Chen2022, ρ_a)
-        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(state₀, logλ, Chen2022, ρ_a)
+        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ)
+        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ)
         @test iszero(vel_n₀)
         @test iszero(vel_m₀)
 
@@ -337,7 +337,7 @@ function test_bulk_terminal_velocities(FT)
         for (k, F_rim) in enumerate(F_rims)
             state = P3.get_state(params; F_rim, ρ_rim, L_ice, N_ice)
             logλ = P3.get_distribution_logλ(state)
-            args = (state, logλ, Chen2022, ρ_a)
+            args = (Chen2022, ρ_a, state, logλ)
             accurate = true
             vel_n = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = false, accurate)
             vel_m = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = false, accurate)
@@ -447,10 +447,10 @@ function test_numerical_integrals(FT)
             @test N_ice ≈ N_estim rtol = 1e-5
 
             # Bulk velocity comparison
-            vel_N = P3.ice_terminal_velocity_number_weighted(state, logλ, Chen2022, ρ_a; use_aspect_ratio, p)
-            vel_m = P3.ice_terminal_velocity_mass_weighted(state, logλ, Chen2022, ρ_a; use_aspect_ratio, p)
+            vel_N = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio, p)
+            vel_m = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio, p)
 
-            v_term = P3.ice_particle_terminal_velocity(state, Chen2022, ρ_a; use_aspect_ratio)
+            v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
             g(D) = v_term(D) * N′(D)
             vel_N_estim = P3.∫fdD(g, state, logλ; p) / N_ice
             vel_m_estim = P3.∫fdD(state, logλ; p) do D
@@ -527,13 +527,13 @@ function test_p3_melting(FT)
 
         T_cold = FT(273.15 - 0.01)
 
-        rate = P3.ice_melt(state, logλ, vel, aps, tps, T_cold, ρₐ, dt)
+        rate = P3.ice_melt(vel, aps, tps, T_cold, ρₐ, dt, state, logλ)
 
         @test rate.dNdt == 0
         @test rate.dLdt == 0
 
         T_warm = FT(273.15 + 0.01)
-        rate = P3.ice_melt(state, logλ, vel, aps, tps, T_warm, ρₐ, dt)
+        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, dt, state, logλ)
 
         @test rate.dNdt >= 0
         @test rate.dLdt >= 0
@@ -552,15 +552,69 @@ function test_p3_melting(FT)
         @test rate.dLdt ≈ ref_dLdt
 
         T_vwarm = FT(273.15 + 0.1)
-        rate = P3.ice_melt(state, logλ, vel, aps, tps, T_vwarm, ρₐ, dt)
+        rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, dt, state, logλ)
 
         @test rate.dNdt == Nᵢ
         @test rate.dLdt == Lᵢ
     end
 end
 
+function test_p3_bulk_liquid_ice_collisions(FT)
+    params = CMP.ParametersP3(FT)
+    vel_params = CMP.Chen2022VelType(FT)
+    aps = CMP.AirProperties(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
-TT.@testset "P3 tests ($FT)" for FT in (Float64, Float32)
+    (; T_freeze) = params
+
+    ρₐ = FT(1.2)
+    qᵢ = FT(1e-4)
+    Lᵢ = qᵢ * ρₐ
+    Nᵢ = FT(2e5) * ρₐ
+    F_rim = FT(0.8)
+    ρ_rim = FT(800)
+
+    state = P3.get_state(params; F_rim, ρ_rim, L_ice = Lᵢ, N_ice = Nᵢ)
+    logλ = P3.get_distribution_logλ(state)
+    D̄ = exp(-logλ)
+
+    @testset "maximum dry freezing rate" begin
+        # Below freezing, max freeze rate is non-zero (check against reference value)
+        Tₐ = T_freeze - 1 // 10
+        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, ρₐ, Tₐ, state)
+        @test max_rate(D̄) ≈ FT(9.35962884896919e-13) rtol = 1e-4
+
+        # At freezing, max freeze rate is zero
+        Tₐ = T_freeze
+        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, ρₐ, Tₐ, state)
+        @test iszero(max_rate(D̄))
+
+        # Above freezing, max freeze rate is zero
+        Tₐ = T_freeze + 1 // 10
+        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, ρₐ, Tₐ, state)
+        @test iszero(max_rate(D̄))
+    end
+
+    @testset "local rime density" begin
+        Tₐ = T_freeze - 1 // 10
+        ρ′_rim = P3.compute_local_rime_density(vel_params, ρₐ, Tₐ, state)
+        @test ρ′_rim(D̄, D̄) ≈ FT(159.5) rtol = 1e-6
+
+        a, b, c = 51, 114, -11 // 2 # coeffs for Eq. 17 in Cober and List (1993), converted to [kg / m³]
+        ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2  # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
+        ρ_ice = FT(916.7)  # density of solid bulk ice
+
+        ρ_rim_local = params.ρ_rim_local
+
+        @test ρ_rim_local(1) == ρ′_rim_CL93(1)
+        @test ρ_rim_local(8) == ρ′_rim_CL93(8)
+        @test ρ_rim_local(12) == ρ_ice
+    end
+
+end
+
+
+@testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation
     test_p3_state_creation(FT)
 
@@ -576,5 +630,8 @@ TT.@testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # processes
     test_p3_het_freezing(FT)
     test_p3_melting(FT)
+
+    # bulk liquid-ice collisions and related processes
+    test_p3_bulk_liquid_ice_collisions(FT)
 end
 nothing

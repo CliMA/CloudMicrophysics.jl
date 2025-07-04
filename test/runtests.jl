@@ -22,3 +22,4 @@ TT.@testset "All tests" begin
     include("ventilation_tests.jl")
     include("DistributionTools_tests.jl")
 end
+nothing

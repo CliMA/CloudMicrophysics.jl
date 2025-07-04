@@ -32,8 +32,8 @@ function get_values(
             ρ_rim = ρ_rims[j]
             state = P3.get_state(params; F_rim, ρ_rim, L_ice = L, N_ice = N)
             logλ = P3.get_distribution_logλ(state)
-            V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(state, logλ, Chen2022, ρ_a; use_aspect_ratio = false)
-            V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(state, logλ, Chen2022, ρ_a; use_aspect_ratio = true)
+            V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio = false)
+            V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio = true)
             D_m[i, j] = P3.D_m(state, logλ)
             D_m_regimes[i, j] = D_m[i, j]
             ϕᵢ[i, j] = P3.ϕᵢ(state, D_m[i, j])
