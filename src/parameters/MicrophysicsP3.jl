@@ -267,6 +267,8 @@ $(DocStringExtensions.FIELDS)
     vent::VentilationFactor{FT}
     "Local rime density, e.g. [`LocalRimeDensity`](@ref)"
     ρ_rim_local::LocalRimeDensity{FT}
+    "Wet growth time scale [`s`]"
+    τ_wet::FT
     "Cloud ice density [`kg m⁻³`]"
     ρ_i::FT
     "Cloud liquid water density [`kg m⁻³`]"
@@ -306,6 +308,7 @@ ParametersP3{Float64}
 │   ├── b = 114.0 [-]
 │   ├── c = -5.5 [-]
 │   └── ρ_ice = 916.7 [-]
+├── τ_wet = 100.0 [s]
 ├── ρ_i = 916.7 [kg m⁻³]
 ├── ρ_l = 1000.0 [kg m⁻³]
 └── T_freeze = 273.15 [K]
@@ -338,6 +341,7 @@ function ParametersP3(toml_dict::CP.AbstractTOMLDict; slope_law = :powerlaw)
         :density_ice_water => :ρ_i,
         :density_liquid_water => :ρ_l,
         :temperature_water_freeze => :T_freeze,
+        :P3_wet_growth_timescale => :τ_wet,
     )
     params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
@@ -404,6 +408,7 @@ function _get_parameter_unit(field::Symbol)
         :α_va => "kg μm^(-β_va)",
         :γ => "μm^(2-σ)",
         :a => "m^b",
+        :τ_wet => "s",
         :ρ_i => "kg m⁻³",
         :ρ_l => "kg m⁻³",
         :T_freeze => "K",
