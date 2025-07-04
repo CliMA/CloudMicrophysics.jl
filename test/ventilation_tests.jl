@@ -17,7 +17,7 @@ function test_ventilation_factor(FT)
         ρₐ = FT(1.2)     # Air density [kg/m³]
         state = P3.get_state(params; F_rim, ρ_rim, L_ice, N_ice)
         vent = state.params.vent
-        v_term = P3.ice_particle_terminal_velocity(state, vel, ρₐ)
+        v_term = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
         vent_factor = CO.ventilation_factor(vent, aps, v_term)
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         calc_vents = vent_factor.(Ds)

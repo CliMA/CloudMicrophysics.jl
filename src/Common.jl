@@ -383,14 +383,15 @@ The ventilation factor parameterizes the increase in the mass and heat exchange 
 # Returns
 - `F_v(D)`: The ventilation factor as a function of diameter, `D`
 
-See e.g. [SeifertBeheng2006](@cite) Eq. (24) for the definition of the ventilation factor.
+See e.g. [SeifertBeheng2006](@cite) Eq. (24), or [`CMP.VentilationFactor`](@ref),
+for the definition of the ventilation factor.
 """
 function ventilation_factor(vent, aps, v_term)
-    (; vent_a, vent_b) = vent
+    (; aᵥ, bᵥ) = vent
     (; ν_air, D_vapor) = aps
     N_sc = ν_air / D_vapor           # Schmidt number
     N_Re(D) = D * v_term(D) / ν_air  # Reynolds number
-    F_v(D) = vent_a + vent_b * ∛(N_sc) * √(N_Re(D))  # Ventilation factor
+    F_v(D) = aᵥ + bᵥ * ∛(N_sc) * √(N_Re(D))  # Ventilation factor
     return F_v
 end
 
