@@ -5,6 +5,8 @@ import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
+import SpecialFunctions as SF
+import QuadGK as QGK
 
 function test_p3_state_creation(FT)
     @testset "P3State Creation and Properties" begin
@@ -597,8 +599,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
 
     @testset "local rime density" begin
         Tₐ = T_freeze - 1 // 10
-        ρ′_rim = P3.compute_local_rime_density(vel_params, ρₐ, Tₐ, state)
-        @test ρ′_rim(D̄, D̄) ≈ FT(159.5) rtol = 1e-6
+        ρ′_rim_func = P3.compute_local_rime_density(vel_params, ρₐ, Tₐ, state)
+        @test ρ′_rim_func(D̄, D̄) ≈ FT(159.5) rtol = 1e-6
 
         a, b, c = 51, 114, -11 // 2 # coeffs for Eq. 17 in Cober and List (1993), converted to [kg / m³]
         ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2  # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
@@ -611,8 +613,149 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test ρ_rim_local(12) == ρ_ice
     end
 
-end
+    @testset "∫liquid_ice_collisions" begin
+        # Test liquid_integrals function in isolation
+        # Mock simple functions for analytical comparison
+        ∂ₜV(Dᵢ, D) = Dᵢ * D  # Simple collision rate
+        n(D) = exp(-D)       # Simple size distribution
+        n_c = n_r = n_i = n  # Mock cloud, rain and ice size distributions
+        m_l(D) = D^3         # Simple mass function
+        ρ′_rim(Dᵢ, D) = 500     # Constant rime density
+        liq_bounds = ice_bounds = (FT(0), FT(1))
+        Dᵢ = FT(2.5)
+        cloud_integrals = P3.get_liquid_integrals(n_c, ∂ₜV, m_l, ρ′_rim, liq_bounds)
+        rain_integrals = P3.get_liquid_integrals(n_r, ∂ₜV, m_l, ρ′_rim, liq_bounds)
 
+        # Test with known analytical result, noting e.g. that:
+        # ∫₀¹ Dᵢ * D * exp(-D) * D³ dD = ∫₀¹ D⁴ * exp(-D) dD = γ(5, 1) [lower incomplete gamma function]
+        γ(a, x) = SF.gamma_inc(a, x)[1] * SF.gamma(a)
+
+        (∫∂ₜVn, ∫∂ₜVnm, ∫∂ₜVnm_ρ′) = cloud_integrals(Dᵢ)
+        @test all(x -> x isa FT, (∫∂ₜVn, ∫∂ₜVnm, ∫∂ₜVnm_ρ′))  # check type stability
+        @test ∫∂ₜVn ≈ γ(2, 1) * Dᵢ
+        @test ∫∂ₜVnm ≈ γ(5, 1) * Dᵢ
+        @test ∫∂ₜVnm_ρ′ ≈ γ(5, 1) * Dᵢ / 500
+
+        # Test edge cases for liquid_integrals
+
+        # Zero ice diameter
+        result = cloud_integrals(FT(0))
+        @test all(iszero, result)
+
+        # Zero liquid content (n(D) = 0)
+        n_zero(D) = FT(0)
+        integrals_n0 = P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds)
+        result = integrals_n0(Dᵢ)
+        @test all(iszero, result)
+
+        # Mass rate should be related to number rate through mass
+        # ∂ₜM_col should be approximately ∫ n(D) * m_l(D) * ∂ₜV dD
+        # This is a simplified check - in reality it's more complex
+
+        # Test the full ∫liquid_ice_collisions function
+        # Mock functions
+        ∂ₜM_max(Dᵢ) = FT(0.04)  # Small max freeze rate
+        rates = P3.∫liquid_ice_collisions(
+            n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds,
+        )
+        @test all(x -> x isa FT, rates)  # check type stability
+        @test all(>(0), rates)  # check positivity
+
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+
+        # Mass conservation: QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
+        @test QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
+
+        # Wet growth indicator should be ≤ total collision rate
+        @test ∫𝟙_wet_M_col <= ∫M_col
+
+        # Since we specified identical size distributions, we expect:
+        @test QCFRZ == QRFRZ
+        @test QCSHD == QRSHD
+        @test NCCOL == NRCOL
+        @test BCCOL == BRCOL
+
+        # Test edge cases for full collision integration
+
+        # Zero ice content
+        n_i_zero(Dᵢ) = FT(0)
+        rates = P3.∫liquid_ice_collisions(
+            n_i_zero, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds,
+        )
+        @test all(iszero, rates)
+
+        # Zero liquid content
+        n_zero = Returns(FT(0))
+        zero_liq_integrals = P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds)
+        rates = P3.∫liquid_ice_collisions(
+            n_i, ∂ₜM_max, zero_liq_integrals, zero_liq_integrals, ice_bounds,
+        )
+        @test all(iszero, rates)
+
+        # No freezing (above freezing temperature)
+        ∂ₜM_max_zero(Dᵢ) = FT(0)
+        rates = P3.∫liquid_ice_collisions(
+            n_i, ∂ₜM_max_zero, cloud_integrals, rain_integrals, ice_bounds,
+        )
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+        @test QCFRZ == 0  # No cloud freezing
+        @test QRFRZ == 0  # No rain freezing
+        @test QCSHD > 0  # All cloud particles should shed
+        @test QRSHD > 0  # All rain particles should freeze
+        @test QCSHD + QRSHD == ∫M_col  # All collisions should result shedding
+        @test ∫𝟙_wet_M_col == ∫M_col  # Above freezing, collisions at all sizes are wet
+    end
+
+    @testset "Bulk liquid-ice collisions" begin
+        # Test the high-level interface with real P3 parameters
+        state = P3.get_state(params; F_rim, ρ_rim, L_ice = Lᵢ, N_ice = Nᵢ)
+        logλ = P3.get_distribution_logλ(state)
+
+        # Create mock particle size distributions
+        toml_dict = CP.create_toml_dict(FT)
+        psd_c = CMP.CloudParticlePDF_SB2006(toml_dict)
+        psd_r = CMP.RainParticlePDF_SB2006_limited(toml_dict)
+
+        # Test parameters
+        L_c = FT(1e-3)  # 1 g/m³ cloud water
+        N_c = FT(1e8)   # 100 million cloud droplets per m³
+        L_r = FT(1e-4)  # 0.1 g/m³ rain water
+        N_r = FT(1e6)   # 1 million raindrops per m³
+        T = T_freeze - FT(5)  # 5K below freezing
+
+        # Liquid particle mass function
+        ρw = psd_c.ρw
+        m_l(Dₗ) = ρw * CO.volume_sphere_D(Dₗ)
+
+        # Test the high-level interface
+        rates = P3.∫liquid_ice_collisions(
+            state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
+            aps, tps, vel_params, ρₐ, T, m_l,
+        )
+        @test eltype(rates) == FT  # check type stability
+
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+
+        # Basic sanity checks
+        @test all(rates .>= 0)
+        @test QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
+        @test ∫𝟙_wet_M_col <= ∫M_col
+
+        # Smoke tests, aka: Check that rates don't change with new commits.
+        @test QCFRZ ≈ 5.927427329659313e-7
+        QCSHD_ref = FT == Float64 ? 2.062557952759815e-9 : 2.0516662f-9
+        @test QCSHD ≈ QCSHD_ref
+        @test NCCOL ≈ 60211.89330800856
+        @test QRFRZ ≈ 6.894036355445859e-5
+        @test QRSHD ≈ 4.441496556322414e-6
+        @test NRCOL ≈ 173.12792993043564
+        @test ∫M_col ≈ 7.397666540169968e-5
+        @test BCCOL ≈ 3.716255379096748e-9
+        @test BRCOL ≈ 4.3222798466745195e-7
+        ∫𝟙_wet_M_col_ref = FT == Float64 ? 1.862725034230418e-5 : 1.6320892f-5
+        @test ∫𝟙_wet_M_col ≈ ∫𝟙_wet_M_col_ref
+    end
+end
 
 @testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation

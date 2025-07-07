@@ -98,6 +98,49 @@ function ice_melt(
     return (; dNdt, dLdt)
 end
 
+function collision_cross_section_ice_liquid(state, Dᵢ, Dₗ)
+    rᵢ_eff(Dᵢ) = √(ice_area(state, Dᵢ) / π)
+    return π * (rᵢ_eff(Dᵢ) + Dₗ / 2)^2  # collision cross section
+end
+
+"""
+    volumetric_collision_rate_integrand(state, velocity_params, ρₐ)
+
+Returns a function that computes the volumetric collision rate integrand for ice-liquid collisions [m³/s].
+The returned function takes ice and liquid particle diameters as arguments.
+
+# Arguments
+- `state`: [`P3State`](@ref)
+- `velocity_params`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density
+
+# Returns
+A function `(D_ice, D_liq) -> E * K * |vᵢ - vₗ|` where:
+- `D_ice` and `D_liq` are the (maximum) diameters of the ice and liquid particles
+- `E` is the collision efficiency
+- `K` is the collision cross section
+- `vᵢ` and `vₗ` are the terminal velocities of ice and liquid particles
+
+Note that `E`, `K`, `vᵢ` and `vₗ` are all, in general, functions of `D_ice` and `D_liq`.
+
+This function is a component of integrals like
+
+```math
+∫ ∫ E * K * |vᵢ - vₗ| * N'_i * N'_l dD_i dD_l
+```
+"""
+function volumetric_collision_rate_integrand(velocity_params, ρₐ, state)
+    v_ice = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
+    v_liq = CO.particle_terminal_velocity(velocity_params.rain, ρₐ)
+    function integrand(D_ice::FT, D_liq::FT) where {FT}
+        E = FT(1)  # TODO - Make collision efficiency a function of Dᵢ and Dₗ
+        K = collision_cross_section_ice_liquid(state, D_ice, D_liq)
+        return E * K * abs(v_ice(D_ice) - v_liq(D_liq))
+    end
+
+    return integrand
+end
+
 """
     compute_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state)
 
@@ -198,4 +241,260 @@ function compute_local_rime_density(velocity_params, ρₐ, T, state)
         return ρ_rim_local(Rᵢ)
     end
     return ρ′_rim
+end
+
+"""
+    get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwargs...)
+
+Returns a function `liquid_integrals(Dᵢ)` that computes the liquid particle integrals 
+    for a given ice particle diameter `Dᵢ`.
+
+# Arguments
+- `n`: liquid particle size distribution function `n(D)`
+- `∂ₜV`: volumetric collision rate integrand function `∂ₜV(Dᵢ, D)`
+- `m_liq`: liquid particle mass function `m_liq(D)`
+- `ρ′_rim`: local rime density function `ρ′_rim(Dᵢ, D)`
+- `liq_bounds`: integration bounds for liquid particles
+
+# Keyword arguments
+- `∫kwargs...`: Additional keyword arguments passed to `QuadGK.quadgk`
+
+# Notes
+The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col, ∂ₜB_col)` 
+    of collision rates at `Dᵢ`, where:
+- `∂ₜN_col`: number collision rate [1/s]
+- `∂ₜM_col`: mass collision rate [kg/s]  
+- `∂ₜB_col`: rime volume collision rate [m³/s]
+"""
+function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwargs...)
+    function liquid_integrals(Dᵢ)
+        ((∂ₜN_col, ∂ₜM_col, ∂ₜB_col), _) =
+            QGK.quadgk(liq_bounds...; ∫kwargs...) do D
+                return SA.SVector(
+                    # ∂ₜN_col = ∫ ∂ₜV ⋅ n ⋅ dD
+                    ∂ₜV(Dᵢ, D) * n(D),
+                    # ∂ₜM_col = ∫ ∂ₜV ⋅ n ⋅ m_liq ⋅ dD
+                    ∂ₜV(Dᵢ, D) * n(D) * m_liq(D),
+                    # ∂ₜB_col = ∫ ∂ₜV ⋅ n ⋅ m_liq / ρ′_rim ⋅ dD 
+                    ∂ₜV(Dᵢ, D) * n(D) * m_liq(D) / ρ′_rim(Dᵢ, D),
+                )
+            end
+        return ∂ₜN_col, ∂ₜM_col, ∂ₜB_col
+    end
+    return liquid_integrals
+end
+
+"""
+    ∫liquid_ice_collisions(
+        n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; ∫kwargs...
+    )
+
+Computes the bulk collision rate integrands between ice and liquid particles.
+
+# Arguments
+- `n_i`: ice particle size distribution function n_i(D)
+- `∂ₜM_max`: maximum freezing rate function ∂ₜM_max(Dᵢ)
+- `cloud_integrals`: an instance of [`get_liquid_integrals`](@ref) for cloud particles
+- `rain_integrals`: an instance of [`get_liquid_integrals`](@ref) for rain particles
+- `ice_bounds`: integration bounds for ice particles, from [`integral_bounds`](@ref)
+
+# Keyword arguments
+- `∫kwargs...`: Additional keyword arguments passed to `QuadGK.quadgk`
+
+# Returns
+A tuple of 8 integrands, see [`∫liquid_ice_collisions`](@ref) for details.
+"""
+function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; ∫kwargs...)
+    function liquid_ice_collisions_integrands(Dᵢ)
+        # Inner integrals over liquid particle diameters
+        ∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col = cloud_integrals(Dᵢ)
+        ∂ₜN_r_col, ∂ₜM_r_col, ∂ₜB_r_col = rain_integrals(Dᵢ)
+
+        # Partition the mass collisions between freezing and shedding
+        ∂ₜM_col = ∂ₜM_c_col + ∂ₜM_r_col  # [kg / s]
+
+        ∂ₜM_frz = min(∂ₜM_col, ∂ₜM_max(Dᵢ))
+        f_frz = iszero(∂ₜM_col) ? zero(∂ₜM_frz) : ∂ₜM_frz / ∂ₜM_col
+        𝟙_wet = ∂ₜM_col > ∂ₜM_frz  # Used for wet densification
+
+        n = n_i(Dᵢ)
+        # Integrating over `Dᵢ` gives another unit of `[m]`, so `[X / s / m]` --> `[X / s]`
+        # ∂ₜX = ∫ ∂ₜX(Dᵢ) nᵢ(Dᵢ) dDᵢ
+        return SA.SVector(
+            n * ∂ₜM_c_col * f_frz,        # QCFRZ
+            n * ∂ₜM_c_col * (1 - f_frz),  # QCSHD
+            n * ∂ₜN_c_col,                # NCCOL
+            n * ∂ₜM_r_col * f_frz,        # QRFRZ
+            n * ∂ₜM_r_col * (1 - f_frz),  # QRSHD
+            n * ∂ₜN_r_col,                # NRCOL
+            n * ∂ₜM_col,                  # ∫M_col,      total collision rate
+            n * ∂ₜB_c_col * f_frz,        # BCCOL,       ∂ₜB_rim source
+            n * ∂ₜB_r_col * f_frz,        # BRCOL,       ∂ₜB_rim source
+            n * 𝟙_wet * ∂ₜM_col,          # ∫𝟙_wet_M_col, wet growth indicator
+        )
+    end
+
+    (rates, _) = QGK.quadgk(liquid_ice_collisions_integrands, ice_bounds...; ∫kwargs...)
+    return rates
+end
+
+"""
+    ∫liquid_ice_collisions(
+        state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r, 
+        aps, tps, vel, ρₐ, T, m_liq
+    )
+
+Compute key liquid-ice collision rates and quantities. Used by [`bulk_liquid_ice_collision_sources`](@ref).
+
+# Arguments
+- `state`: [`P3State`](@ref)
+- `logλ`: the log of the slope parameter [log(1/m)]
+- `psd_c`: [`CMP.CloudParticlePDF_SB2006`](@ref)
+- `psd_r`: [`CMP.RainParticlePDF_SB2006`](@ref)
+- `L_c`: cloud liquid water content [kg/m³]
+- `N_c`: cloud liquid water number concentration [1/m³]
+- `L_r`: rain water content [kg/m³]
+- `N_r`: rain number concentration [1/m³]
+- `aps`: [`CMP.AirProperties`](@ref)
+- `tps`: `TDP.ThermodynamicsParameters`
+- `vel`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density [kg/m³]
+- `T`: temperature [K]
+- `m_liq`: liquid particle mass function `m_liq(D)`
+
+# Returns
+A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col)`, where:
+1. `QCFRZ` - Cloud mass collision rate due to freezing [kg/s]
+2. `QCSHD` - Cloud mass collision rate due to shedding [kg/s]
+3. `NCCOL` - Cloud number collision rate [1/s]
+4. `QRFRZ` - Rain mass collision rate due to freezing [kg/s]
+5. `QRSHD` - Rain mass collision rate due to shedding [kg/s]
+4. `NRCOL` - Rain number collision rate [1/s]
+5. `∫M_col` - Total collision rate [kg/s]
+6. `BCCOL` - Cloud rime volume source [m³/m³/s]
+7. `BRCOL` - Rain rime volume source [m³/m³/s]
+8. `∫𝟙_wet_M_col` - Wet growth indicator [kg/s]
+"""
+function ∫liquid_ice_collisions(
+    state, logλ,
+    psd_c, psd_r, L_c, N_c, L_r, N_r,
+    aps, tps, vel, ρₐ, T, m_liq,
+)
+    FT = eltype(state)
+
+    # Particle size distributions
+    n_c = DT.size_distribution(psd_c, L_c / ρₐ, ρₐ, N_c)  # n_c(Dₗ)
+    n_r = DT.size_distribution(psd_r, L_r / ρₐ, ρₐ, N_r)  # n_r(Dₗ)
+    n_i = DT.size_distribution(state, logλ)               # n_i(Dᵢ)
+
+    # Initialize integration buffers by evaluating a representative integral
+    ice_bounds = integral_bounds(state, logλ; p = 0.00001)
+    mm = FT(1e-3)
+    bounds_c = FT[0; 0.01mm; 0.1mm; 1mm; 10mm; 100mm; 1]  # TODO: Replace by quantiles method
+    bounds_r = FT[0; 0.01mm; 0.1mm; 1mm; 10mm; 100mm; 1]  # TODO: Replace by quantiles method
+    segbuf_c = QGK.quadgk_segbuf(n_c, bounds_c...)[3]
+    segbuf_r = QGK.quadgk_segbuf(n_r, bounds_r...)[3]
+    segbuf_ice = QGK.quadgk_segbuf(n_i, ice_bounds...)[3]
+
+    # Integrand components
+    # NOTE: We assume collision efficiency, shape (spherical), and terminal velocity is the 
+    #   same for cloud and precipitating liquid particles ⟹ same volumetric collision rate, ∂ₜV
+    ∂ₜV = volumetric_collision_rate_integrand(vel, ρₐ, state)  # ∂ₜV(Dᵢ, Dₗ)
+    ρ′_rim = compute_local_rime_density(vel, ρₐ, T, state)  # ρ′_rim(Dᵢ, Dₗ)
+    ∂ₜM_max = compute_max_freeze_rate(aps, tps, vel, ρₐ, T, state)  # ∂ₜM_max(Dᵢ)
+
+    cloud_integrals = get_liquid_integrals(n_c, ∂ₜV, m_liq, ρ′_rim, bounds_c; eval_segbuf = segbuf_c)  # (∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col)
+    rain_integrals = get_liquid_integrals(n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r; eval_segbuf = segbuf_r)  # (∂ₜN_r_col, ∂ₜM_r_col, ∂ₜB_r_col)
+
+    return ∫liquid_ice_collisions(
+        n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; eval_segbuf = segbuf_ice,
+    )
+end
+
+"""
+    bulk_liquid_ice_collision_sources(
+        params, logλ, L_ice, F_rim, ρ_rim,
+        psd_c, psd_r, L_c, N_c, L_r, N_r,
+        aps, tps, vel, ρₐ, T,
+    )
+
+Computes the bulk rates for ice and liquid particle collisions.
+
+# Arguments
+- `params`: the [`CMP.ParametersP3`](@ref)
+- `logλ`: the log of the slope parameter [log(1/m)]
+- `L_ice`: ice water content [kg/m³]
+- `F_rim`: riming fraction
+- `ρ_rim`: rime density [kg/m³]
+- `psd_c`: a [`CMP.CloudParticlePDF_SB2006`](@ref)
+- `psd_r`: a [`CMP.RainParticlePDF_SB2006`](@ref)
+- `L_c`: cloud liquid water content [kg/m³]
+- `N_c`: cloud liquid water number concentration [1/m³]
+- `L_r`: rain water content [kg/m³]
+- `N_r`: rain number concentration [1/m³]
+- `aps`: [`CMP.AirProperties`](@ref)
+- `tps`: thermodynamics parameters
+- `vel`: the velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density [kg/m³]
+- `T`: temperature [K]
+
+# Returns
+A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, ∂ₜL_ice, ∂ₜB_rim)`, where:
+1. `∂ₜq_c`: cloud liquid water content tendency [kg/kg/s]
+2. `∂ₜq_r`: rain water content tendency [kg/kg/s]
+3. `∂ₜN_c`: cloud number concentration tendency [1/m³/s]
+4. `∂ₜN_r`: rain number concentration tendency [1/m³/s]
+5. `∂ₜL_rim`: riming mass tendency [kg/m³/s]
+6. `∂ₜL_ice`: ice water content tendency [kg/m³/s]
+7. `∂ₜB_rim`: rime volume tendency [m³/m³/s]
+"""
+function bulk_liquid_ice_collision_sources(
+    params, logλ, L_ice, F_rim, ρ_rim,
+    psd_c, psd_r, L_c, N_c, L_r, N_r,
+    aps, tps, vel, ρₐ, T,
+)
+    FT = eltype(params)
+    (; τ_wet) = params
+    D_shd = FT(1e-3) # 1mm  # TODO: Externalize this parameter
+
+    ρw = psd_c.ρw
+    @assert ρw == psd_r.ρw "Cloud and rain should have the same liquid water density"
+    m_liq(Dₗ) = ρw * CO.volume_sphere_D(Dₗ)
+
+    state = get_state(params; L_ice, F_rim, ρ_rim)
+
+    (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫∂ₜM_col, BCCOL, BRCOL, ∫𝟙_wet_M_col) = ∫liquid_ice_collisions(
+        state, logλ,
+        psd_c, psd_r, L_c, N_c, L_r, N_r,
+        aps, tps, vel, ρₐ, T, m_liq,
+    )
+
+    # Bulk wet growth fraction
+    f_wet = ∫𝟙_wet_M_col / ∫∂ₜM_col
+
+    # Shedding of rain
+    # QRSHD = ∫∂ₜM_col - (QCFRZ + QRFRZ)
+    NRSHD = QRSHD / m_liq(D_shd)
+    # NCSHD = QCSHD / m_liq(D_shd)
+
+    # Densification of rime
+    (; L_ice, F_rim, ρ_rim) = state
+    B_rim = (L_ice * F_rim) / ρ_rim  # from: ρ_rim = L_rim / B_rim
+    QIWET = f_wet * L_ice * (1 - F_rim) / τ_wet   # densification of rime mass
+    BIWET = f_wet * (L_ice / ρ⭒ - B_rim) / τ_wet  # densification of rime volume
+
+    # Bulk rates
+    ## Liquid phase
+    ∂ₜq_c = (-QCFRZ - QCSHD) / ρₐ
+    ∂ₜq_r = (-QRFRZ + QCSHD) / ρₐ
+    ∂ₜN_c = -NCCOL
+    ∂ₜN_r = -NRCOL + NRSHD
+    ## Ice phase
+    ∂ₜL_rim = QCFRZ + QRFRZ + QIWET
+    ∂ₜL_ice = QCFRZ + QRFRZ
+    # ∂ₜN_ice = 0
+    ∂ₜB_rim = BCCOL + BRCOL + BIWET
+
+    return (; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, ∂ₜL_ice, ∂ₜB_rim)
+
 end
