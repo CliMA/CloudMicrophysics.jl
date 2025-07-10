@@ -35,7 +35,7 @@ function bench_press(
     args isa String && (args = (args,))
 
     # Benchmark foo
-    trail = BT.@benchmark $foo($args...)
+    trail = BT.@benchmark $foo($args...) samples = 100 evals = 100
 
     show(stdout, MIME("text/plain"), trail)
     println("\n")
