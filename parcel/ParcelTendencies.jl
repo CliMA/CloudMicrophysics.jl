@@ -25,7 +25,7 @@ function aerosol_activation(params::AeroAct, state)
     ad = AM.Mode_κ(
         r_nuc,
         aero_σ_g,
-        Nₐ,
+        params.Nₐ,
         (FT(1.0),),
         (FT(1.0),),
         (aerosol.M,),
@@ -37,7 +37,7 @@ function aerosol_activation(params::AeroAct, state)
     sm = AA.critical_supersaturation(aap, all_ad, T)
     u = 2 * log(sm[1] / smax) / 3 / sqrt(2) / log(ad.stdev)
 
-    return ad.N * (1 / 2) * (1 - SF.erf(u)) / const_dt
+    return max(FT(0), ad.N * (1 / 2) * (1 - SF.erf(u)) - (params.Nₐ - Nₐ)) / FT(1)
 end
 
 function deposition_nucleation(::Empty, state, dY)

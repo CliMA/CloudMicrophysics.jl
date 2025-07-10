@@ -38,6 +38,9 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     sampling_interval = FT(1)
     γ = FT(1)
     ip = CMP.Frostenberg2023(FT)
+    Nₐ = FT(1e8)
+    qₗ₀ = FT(1e-3)
+    Nₗ₀ = FT(0)
 end
 
 """
@@ -70,6 +73,7 @@ function parcel_model(dY, Y, p, t)
         Nₗ = clip!(Y[8]),
         Nᵢ = clip!(Y[9]),
         ln_INPC = Y[10],   # needed only in stochastic Frostenberg
+        ∫GSₗ = Y[11],
         t = t,
     )
     # Constants
@@ -79,7 +83,7 @@ function parcel_model(dY, Y, p, t)
     ρₗ = wps.ρw
 
     # Get the state values
-    (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, t) = state
+    (; Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₗ, Nᵢ, ∫GSₗ, t) = state
     # Get thermodynamic parameters, phase partition and create thermo state.
     qₜ = qᵥ + qₗ + qᵢ
 
@@ -96,12 +100,18 @@ function parcel_model(dY, Y, p, t)
     eₛₗ = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 
     # Mean radius, area and volume of liquid droplets and ice crystals
-    PSD_liq = distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air)
+    PSD_liq = 
+        liq_distr isa MonodisperseMix ? 
+            distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air, p.qₗ₀, p.Nₗ₀, ∫GSₗ) : 
+            distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air)
     PSD_ice = distribution_moments(ice_distr, qᵢ, Nᵢ, ρᵢ, ρ_air)
 
     # Aerosol activation
     dNₗ_dt_act = aerosol_activation(aero_act_params, state)
-    dqₗ_dt_act = dNₗ_dt_act * 4 * FT(π) / 3 * r_nuc^3 * ρₗ / ρ_air
+    r_act = dNₗ_dt_act < eps(FT) || (Sₗ-1) < eps(FT) ? 
+        r_nuc : 
+        min(FT(1e-6), get_particle_activation_radius(aero_act_params.aap, T, (Sₗ-1)))
+    dqₗ_dt_act = dNₗ_dt_act * 4 * FT(π) / 3 * r_act^3 * ρₗ / ρ_air
 
     # Deposition ice nucleation
     # (All deposition parameterizations assume monodisperse aerosol size distr)
@@ -153,6 +163,9 @@ function parcel_model(dY, Y, p, t)
     deₛₗ_dt = L_vap * eₛₗ / Rᵥ / T^2 * dT_dt
     dSₗ_dt = 1 / eₛₗ * de_dt - e / (eₛₗ)^2 * deₛₗ_dt
 
+    Gₗ = CMO.G_func_liquid(p.aps, p.tps, T)
+    d∫GSₗ_dt = Gₗ * (Sₗ-1)
+
     # Set tendencies
     dY[1] = dSₗ_dt      # saturation ratio over liquid water
     dY[2] = dp_air_dt   # pressure
@@ -164,6 +177,7 @@ function parcel_model(dY, Y, p, t)
     dY[8] = dNₗ_dt      # mumber concentration of droplets
     dY[9] = dNᵢ_dt      # number concentration of activated particles
     dY[10] = dln_INPC_imm
+    dY[11] = d∫GSₗ_dt
 end
 
 """
@@ -215,6 +229,8 @@ function run_parcel(IC, t_0, t_end, pp)
         liq_distr = Monodisperse{FT}()
     elseif pp.liq_size_distribution == "Gamma"
         liq_distr = Gamma{FT}()
+    elseif pp.liq_size_distribution == "MonodisperseMix"
+        liq_distr = MonodisperseMix{FT}()
     else
         throw("Unrecognized size distribution")
     end
@@ -235,7 +251,7 @@ function run_parcel(IC, t_0, t_end, pp)
         aero_act_params = Empty{FT}()
     elseif pp.aerosol_act == "AeroAct"
         aero_act_params =
-            AeroAct{FT}(pp.aap, pp.aerosol, pp.aero_σ_g, pp.r_nuc, pp.const_dt)
+            AeroAct{FT}(pp.aap, pp.aerosol, pp.aero_σ_g, pp.r_nuc, pp.const_dt, pp.Nₐ)
     else
         throw("Unrecognized aerosol activation mode")
     end
@@ -332,6 +348,8 @@ function run_parcel(IC, t_0, t_end, pp)
         aap = pp.aap,
         r_nuc = pp.r_nuc,
         w = pp.w,
+        qₗ₀ = pp.qₗ₀,
+        Nₗ₀ = pp.Nₗ₀,
     )
     problem = ODE.ODEProblem(parcel_model, IC, (FT(t_0), FT(t_end)), p)
     return ODE.solve(

@@ -16,39 +16,39 @@ wps = CMP.WaterProperties(FT)
 
 # Initial conditions
 Nₐ = FT(5e8)
-Nₗ = FT(0)
-Nᵢ = FT(0)
+Nₗ = FT(1e8)
+Nᵢ = FT(0e5)
 T₀ = FT(230)
 cᵥ₀ = FT(5 * 1e-5)
 ln_INPC = FT(0)
 
 # Constants
 ρₗ = wps.ρw
+ρᵢ = wps.ρi
 ϵₘ = TDI.Rd_over_Rv(tps)
 eₛ = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
 qᵥ = ϵₘ / (ϵₘ - 1 + 1 / cᵥ₀)
-# Compute qₗ assuming that initially droplets are lognormally distributed
-# with N(r₀, σ). We are not keeping that size distribution assumption
-# in the simulation
-r₀ = FT(3e-7)
-σ = FT(2)
-qₗ = Nₗ * FT(4 / 3 * π) * exp((6 * log(r₀) + 9 * σ^2) / (2))
-qᵢ = FT(0)
-Sₗ = FT(0.99)
+Sₗ = FT(1.0)
 e = Sₗ * eₛ
 p₀ = e / cᵥ₀
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+ρ_air = TDI.air_density(tps, T₀, p₀, qᵥ, FT(0), FT(0))
+rₗ = FT(10e-6)
+qₗ = Nₗ * FT(4 / 3 * π) * (rₗ)^3 * ρₗ / ρ_air
+rᵢ = FT(10e-6)
+qᵢ = Nᵢ * FT(4 / 3 * π) * (rᵢ)^3 * ρᵢ / ρ_air
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 
 # Simulation parameters passed into ODE solver
 w = FT(1.2)         # updraft speed
-const_dt = FT(1)    # model timestep
-t_max = FT(35)     # total time
+const_dt = FT(1e-2)    # model timestep
+t_max = FT(60)     # total time
 aerosol = CMP.Sulfate(FT)
 
 condensation_growth = "Condensation"
+deposition_growth = "Deposition"
 aerosol_act = "AeroAct"     # turn on aerosol activation
 aero_σ_g = FT(2.3)
-r_nuc = r₀
+r_nuc = FT(4e-8)
 
 params = parcel_params{FT}(
     w = w,
@@ -58,21 +58,52 @@ params = parcel_params{FT}(
     aero_σ_g = aero_σ_g,
     r_nuc = r_nuc,
     condensation_growth = condensation_growth,
+    deposition_growth = deposition_growth,
+    Nₐ = Nₐ,
+    qₗ₀ = qₗ,
+    Nₗ₀ = Nₗ,
+    liq_size_distribution = "MonodisperseMix",
 )
 
 # solve ODE
 sol = run_parcel(IC, FT(0), t_max, params)
 
 # Plot results
-fig = MK.Figure(size = (800, 300), fontsize = 20)
+fig = MK.Figure(size = (800, 600), fontsize = 20)
 ax1 = MK.Axis(fig[1, 1], ylabel = "Liquid Saturation [-]", xlabel = "Time [s]")
 ax2 = MK.Axis(fig[1, 2], ylabel = "N [m^-3]", xlabel = "Time [s]")
+ax3 = MK.Axis(fig[2, 1], ylabel = "T [k]", xlabel = "Time [s]")
+ax4 = MK.Axis(fig[2, 2], ylabel = "q_liq [g kg^-1]", xlabel = "Time [s]")
 
-MK.lines!(ax1, sol.t, (sol[1, :]), linewidth = 2)
+MK.lines!(ax1, sol.t, sol[1, :], linewidth = 2)
 MK.lines!(ax2, sol.t, sol[7, :], label = "N_aero", linewidth = 2, color = :red)
 MK.lines!(ax2, sol.t, sol[8, :], label = "N_liq", linewidth = 2, color = :blue)
+MK.lines!(ax3, sol.t, sol[3, :], label = "T", linewidth = 2, color = :blue)
+MK.lines!(ax4, sol.t, sol[5, :] * 1e3, label = "q_liq", linewidth = 2, color = :blue)
 
 MK.axislegend(ax2, framevisible = false, labelsize = 16, position = :rc)
 
-MK.save("Parcel_Aerosol_Activation.svg", fig)
+MK.save("Parcel_Aerosol_Activation.png", fig)
+
+# ARG evaluation
+S_max = maximum(sol[1, :])-FT(1)
+ad = AM.Mode_κ(
+        params.r_nuc,
+        params.aero_σ_g,
+        params.Nₐ,
+        (FT(1.0),),
+        (FT(1.0),),
+        (params.aerosol.M,),
+        (params.aerosol.κ,),
+    )
+all_ad = AM.AerosolDistribution((ad,))
+S_max_ARG = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ+qₗ+qᵢ, qₗ, qᵢ)
+error_ARG = abs(S_max_ARG - S_max) / S_max_ARG * 100
+S_max_mod = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ+qₗ+qᵢ, qₗ, qᵢ, Nₗ, Nᵢ)
+error_mod = abs(S_max_mod - S_max) / S_max_ARG * 100
+
+@show S_max
+@show S_max_ARG, error_ARG
+@show S_max_mod, error_mod
+
 nothing
