@@ -16,6 +16,8 @@ Base.@kwdef struct AerosolActivationParameters{FT} <: ParametersType{FT}
     R::FT
     "cloud water density [kg/m3]"
     ρ_w::FT
+    "cloud ice density [kg/m3]"
+    ρ_i::FT
     "surface tension of water [N/m]"
     σ::FT
     "gravitational_acceleration [m/s2]"
@@ -42,6 +44,7 @@ function AerosolActivationParameters(td::CP.AbstractTOMLDict)
         :molar_mass_water => :M_w,
         :gas_constant => :R,
         :density_liquid_water => :ρ_w,
+        :density_ice_water => :ρ_i,
         :surface_tension_water => :σ,
         :gravitational_acceleration => :g,
         :ARG2000_f_coeff_1 => :f1,

@@ -122,9 +122,7 @@ The crux of the problem is modeling the ``\frac{dq_l}{dt}`` and ``\frac{dq_i}{dt
   for different homogeneous and heterogeneous ice nucleation paths.
 
 ## Supported size distributions
-Currently the parcel model supports monodisperse and gamma size distributions of cloud droplets and ice crystals,
-  and solves prognostic equations for the cloud water and cloud ice specific contents
-  ``q_l``, ``q_i`` and number concentrations ``N_l``, ``N_i``.
+Currently, the parcel model supports monodisperse and gamma size distributions of cloud droplets and ice crystals, and solves prognostic equations for the cloud water and cloud ice specific contents (`q_l`, `q_i`) and number concentrations (`N_l`, `N_i`). Additionally, a `monodisperseMix` option is now supported for cloud liquid droplets. This allows representing the droplet population as a mixture of two monodisperse modes: one corresponding to an initial set of preexisting droplets, and the other representing droplets formed through activation during the simulation. This feature enables more realistic treatment of scenarios involving preexisting hydrometeors.
 
 For a monodisperse size distribution of cloud droplets or ice crystals
 ```math
@@ -167,15 +165,10 @@ As a result
 ## Supported source terms
 ### Aerosol Activation
 Aerosol activation is described by ([see discussion](https://clima.github.io/CloudMicrophysics.jl/dev/AerosolActivation/#Number-and-mass-of-activated-particles)).
-  It is inherently assumed that the aerosols have a lognormal size distribution.
-  For simplicity, the parcel accepts one mode and one aerosol type at a time, therefore,
-  internal mixing is not needed. The maxiumum supersaturation as described in the above
-  mentioned documentation is replaced by the liquid supersaturation in the parcel as
-  it evolves over time.
+It is inherently assumed that the aerosols have a lognormal size distribution. For simplicity, the parcel accepts one mode and one aerosol type at a time, therefore, internal mixing is not needed. The maxiumum supersaturation as described in the above mentioned documentation is replaced by the liquid supersaturation in the parcel as it evolves over time.
 
 !!! note
-    Standard deviation and r_{mean} of the aerosol size distribution may change as aerosols activate.
-    For now, we will neglect these effects.
+    The standard deviation and $r_{\text{mean}}$ of the aerosol size distribution represent the initial (pre-activation) aerosol population and are assumed to remain fixed throughout the simulation. They do not evolve as aerosols activate.
 
 ### Condensation growth
 

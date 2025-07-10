@@ -140,11 +140,9 @@ where:
 
 ## Maximum Supersaturation
 
-Maximum supersaturation reached by the system ``S_{max}`` governs
-  what aerosol sizes are activated and what aren't.
-We estimate ``S_{max}`` by considering a parcel of air raising adiabatically
-  with a constant velocity, see for example [Rogers1975](@cite).
-The time rate of change of ``S`` is given by eq (10) in [Rogers1975](@cite)
+Maximum supersaturation reached by the system ``S_{max}`` governs what aerosol sizes are activated and what aren't.
+We estimate ``S_{max}`` by considering a parcel of air raising adiabatically with a constant velocity, see for example [KorolevMazin2003](@cite).
+The time rate of change of ``S`` is given by eq (A11) in [KorolevMazin2003](@cite)
 
 ```math
 \begin{equation}
@@ -157,25 +155,24 @@ where:
   - ``d\chi / dt`` is the water condensation rate during aerosol activation and growth,
   - ``\alpha`` and ``\gamma`` are coefficients that do not depend on aerosol properties.
 
-The parameters ``\alpha`` and ``\gamma`` are defined by eq. (11) and (12)
-  in [Abdul-Razzaketal1998](@cite) .
-Here, they are implemented following the [Rogers1975](@cite) eq. (10):
+The parameters ``\alpha`` and ``\gamma`` are defined similarly to eq. (11) and (12) in [Abdul-Razzaketal1998](@cite), but we follow the full formulation from [KorolevMazin2003](@cite) eq. (A11), without assuming ``S + 1 ≈ 1``. While the difference is often small, we retain the full expressions for completeness and consistency with our implementation. The parameters are:
 ```math
 \begin{equation}
-\alpha = \frac{L_v \, g \, \epsilon}{R_m \, c_{pm} \, T^2} - \frac{g}{R_m \, T}
+\alpha = \frac{p_{vap}}{p_{vap}^{sat}}\left[\frac{L_v \, g}{R_v \, c_{pm} \, T^2} - \frac{g}{R_m \, T}\right]
 \end{equation}
 ```
 ```math
 \begin{equation}
-\gamma = \frac{R_m T}{\epsilon \, p_{vap}^{sat}} + \frac{\epsilon \, L_v^2}{c_{pm} \, T \, p}
+\gamma = \frac{R_v T}{p_{vap}^{sat}} + \frac{p_{vap}}{p_{vap}^{sat}}\frac{R_m \, L_v^2}{R_v \, c_{pm} \, T \, p}
 \end{equation}
 ```
 where:
   - ``L_v`` is the latent heat of vaporization,
   - ``g`` is gravitational acceleration,
-  - ``\epsilon`` is the ratio of water molar mass to dry air molar mass,
+  - ``R_v`` is the gas constant of vapor,
   - ``R_m`` is the gas constant of air (dry air and moisture)
   - ``c_{pm}`` is the specific heat of air (dry air and moisture),
+  - ``p_{vap}`` is the vapor pressure,
   - ``p_{vap}^{sat}`` is the saturation vapor pressure,
   - ``p`` is the total air pressure.
 
@@ -285,3 +282,108 @@ The CloudMicrophysics package offers an advanced feature for predicting the aero
 In addition, we provide functionality and a demonstration for re-training the free parameters of the traditional ARG activation scheme using Ensemble Kalman Processes. This functionality is showcased in `test/aerosol_activation_calibration.jl`.
 
 Using ML emulators or calibration with Ensemble Kalman Processes for predicting aerosol activation is provided through an extension to the main package. This extension will be loaded with `CloudMicrophysics.jl` if both `MLJ.jl`, `DataFrames.jl`, and `EnsembleKalmanProcesses.jl` are loaded by the user as well.
+
+## Modification for Local Supersaturation with Preexisting Hydrometeors
+
+The original ARG activation scheme assumes adiabatic ascent with no preexisting cloud or ice particles, which is a valid approximation near cloud base. As a result, the ARG formulation is traditionally applied only at cloud base, where no vapor has yet condensed and no hydrometeors exist to affect the supersaturation evolution.
+
+However, in many applications—such as large-eddy simulations or cloud-resolving models—it is desirable to apply the activation scheme locally, throughout the vertical extent of the cloud. In such cases, preexisting cloud droplets and ice crystals act as persistent vapor sinks, suppressing supersaturation and inhibiting further activation.
+
+To relax the cloud-base-only constraint and extend ARG into a local operator, we propose modifying the supersaturation tendency equation by incorporating the effects of these preexisting hydrometeors.
+When coupling this approach to a full model, additional clipping may be needed: the modified ARG should only be applied when the local supersaturation does not exceed the predicted maximum, and when the number concentration of hydrometeors remains below the potential activation of aerosols.
+
+
+### Modified Supersaturation Budget
+
+We modify the supersaturation tendency equation to include additional vapor sink terms:
+
+```math
+\frac{dS}{dt} = \alpha w - \gamma \frac{d\chi}{dt}_{\text{activation}} - \gamma \frac{d\chi}{dt}_{\text{liquid}} - \gamma_i \frac{d\chi}{dt}_{\text{ice}},
+```
+
+where the thermodynamic coefficient ``\gamma_i`` is defined as
+```math
+\begin{equation}
+\gamma_i = \frac{R_v T}{p_{vap}^{sat}} + \frac{p_{vap}}{p_{vap}^{sat}}\frac{R_m \, L_v L_s}{R_v \, c_{pm} \, T \, p}
+\end{equation}
+```
+where ``L_s`` is the latent heat of sublimation. The new sink terms are:
+
+- Liquid sink:
+```math
+\frac{d\chi}{dt}_{\text{liquid}} = 4 \pi \rho_w N_l r_l G_l S,
+```
+
+- Ice sink:
+```math
+\frac{d\chi}{dt}_{\text{ice}} = 4 \pi \rho_i N_i r_i G_i S_i,
+```
+
+with
+```math
+S_i = \xi (S + 1) - 1, \quad \xi = \frac{e_{s,\ell}}{e_{s,i}}.
+```
+
+Here:
+
+- ``N_l``, ``r_l``, and ``G_l`` are the number concentration, radius, and condensational growth coefficient of liquid droplets,
+- ``N_i``, ``r_i``, and ``G_i`` are the corresponding values for ice crystals,
+- ``\rho_w`` and ``\rho_i`` are the densities of liquid water and ice.
+
+We define:
+```math
+K_l = 4 \pi \rho_w N_l r_l G_l \gamma, \quad K_i = 4 \pi \rho_i N_i r_i G_i \gamma_i,
+```
+
+yielding the modified supersaturation equation at peak supersaturation:
+```math
+0 = \alpha w - \gamma f(S_{max}) - K_l S_{max} - K_i \big[ \xi (S_{max} + 1) - 1 \big].
+```
+
+### Approximate Solution
+
+Let ``S_0`` be the ARG solution obtained by solving:
+```math
+\alpha w = \gamma f(S_0),
+```
+and approximate the nonlinear sink function ``f(S)`` as linear between 0 and ``S_0``:
+```math
+f(S) \approx f(S_0) \cdot \frac{S}{S_0}.
+```
+
+Substituting into the modified budget and solving for ``S_1``:
+```math
+\alpha w = \gamma f(S_0) \cdot \frac{S_1}{S_0} + K_l S_1 + K_i \big[\xi (S_1 + 1) - 1 \big],
+```
+yields:
+```math
+S_1 = \frac{(\alpha w - K_i (\xi - 1)) S_0}{\alpha w + (K_l + K_i \xi) S_0}.
+```
+
+The final expression for the modified supersaturation becomes:
+```math
+S_{\text{max}}^{\text{modified}} = \frac{(\alpha w - K_i (\xi - 1)) S_{\text{max}}^{\text{ARG}}}{\alpha w + (K_l + K_i \xi) S_{\text{max}}^{\text{ARG}}}.
+```
+
+- When ``K_l = K_i = 0``, the formula reduces to the original ARG solution.
+- Larger values of $K_l$ or $K_i$ reduce the supersaturation due to vapor uptake by preexisting hydrometeors.
+- This extension allows the ARG activation scheme to be applied at any vertical level, making it suitable for use as a local operator in models that resolve cloud-scale dynamics.
+
+### Example
+
+To illustrate the behavior of the modified ARG scheme, we compare the maximum supersaturation it predicts against that from a detailed parcel model in four idealized scenarios:
+
+- Varying the liquid droplet number concentration with no ice particles present,
+- Varying the ice crystal number concentration with no liquid droplets present,
+- Varying the initial droplet radius with no ice particles present,
+- Varying the initial ice particle radius with no liquid droplets present.
+
+In all cases, the parcel model assumes an initial zero supersaturation and includes activation, condensational growth, and depositional growth during adiabatic ascent. A background population of sulfate aerosol with an initial concentration of 500 cm⁻³ is present in all scenarios. For simplicity, ice particles are assumed to be monodisperse. Liquid droplets formed through activation and those present initially are represented as two separate monodisperse populations.
+
+The figure below shows the ratio of the maximum supersaturation reached in the parcel model to that predicted by the modified ARG scheme. This comparison highlights the conditions under which the modified ARG provides a good approximation to the more detailed parcel-model results.
+
+```@example
+include("plots/ARGmodified_plots.jl")
+```
+![](parcel_vs_modifiedARG_aerosol_activation.svg)
+

@@ -34,6 +34,8 @@ function test_aerosol_activation(FT)
     q_tot = q_vs
     q_liq = FT(0)
     q_ice = FT(0)
+    N_liq = FT(1000)
+    N_ice = FT(1000)
 
     # Accumulation mode
     r_dry_accum = FT(0.243 * 1e-6) # m
@@ -134,6 +136,7 @@ function test_aerosol_activation(FT)
         for AM_t in (AM_3_B, AM_3_κ)
             for ap in (ap_default, ap_calibrated)
                 TT.@test all(AA.mean_hygroscopicity_parameter(ap, AM_t) .> 0.0)
+
                 TT.@test AA.max_supersaturation(
                     ap,
                     AM_t,
@@ -144,17 +147,44 @@ function test_aerosol_activation(FT)
                     w,
                     q_tot, q_liq, q_ice,
                 ) > 0.0
+                TT.@test AA.max_supersaturation(
+                    ap,
+                    AM_t,
+                    aip,
+                    tps,
+                    T,
+                    p,
+                    w,
+                    q_tot, q_liq, q_ice,
+                    N_liq, N_ice,
+                ) ≥ 0.0
+
                 TT.@test all(
                     AA.N_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice) .>
                     0.0,
                 )
                 TT.@test all(
+                    AA.N_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice) .≥
+                    0.0,
+                )
+
+                TT.@test all(
                     AA.M_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice) .>
                     0.0,
                 )
+                TT.@test all(
+                    AA.M_activated_per_mode(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice) .≥
+                    0.0,
+                )
+
                 TT.@test AA.total_N_activated(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice) >
                          0.0
+                TT.@test AA.total_N_activated(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice) ≥
+                         0.0
+
                 TT.@test AA.total_M_activated(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice) >
+                         0.0
+                TT.@test AA.total_M_activated(ap, AM_t, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice) ≥
                          0.0
             end
         end

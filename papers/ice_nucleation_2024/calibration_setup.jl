@@ -135,7 +135,7 @@ function perf_model_IC(FT, IN_mode)
         e = eᵥ(qᵥ, p₀, Rₐ, R_v)
         Sₗ = FT(e / eₛ)
     end
-    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0)]
+    return [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, FT(0), FT(0)]
 end
 
 function perf_model_pseudo_data(FT, IN_mode, params, IC)
