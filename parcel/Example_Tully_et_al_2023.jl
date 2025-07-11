@@ -18,7 +18,7 @@ function get_initial_condition(tps, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ
     e = eᵥ(qᵥ, p_air, R_a, R_v)
     Sₗ = e / e_sl
 
-    return [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+    return [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 end
 
 """

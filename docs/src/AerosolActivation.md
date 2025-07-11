@@ -373,7 +373,7 @@ To illustrate the behavior of the modified ARG scheme, we compare the maximum su
 - Varying the initial droplet radius with no ice particles present,
 - Varying the initial ice particle radius with no liquid droplets present.
 
-In all cases, the parcel model assumes an initial zero supersaturation and includes activation, condensational growth, and depositional growth during adiabatic ascent. A background population of sulfate aerosol with an initial concentration of 500 cm⁻³ is present in all scenarios.
+In all cases, the parcel model assumes an initial zero supersaturation and includes activation, condensational growth, and depositional growth during adiabatic ascent. A background population of sulfate aerosol with an initial concentration of 500 cm⁻³ is present in all scenarios. For simplicity, ice particles are assumed to be monodisperse. Liquid droplets formed through activation and those present initially are represented as two separate monodisperse populations.
 
 The figure below shows the ratio of the maximum supersaturation reached in the parcel model to that predicted by the modified ARG scheme. This comparison highlights the conditions under which the modified ARG provides a good approximation to the more detailed parcel-model results.
 

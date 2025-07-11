@@ -52,7 +52,7 @@ mi_v = Nᵢ * 4 / 3 * FT(π) * ρᵢ * r₀ᵢ^3
 qᵥ = mv_v / (md_v + mv_v + ml_v + mi_v)
 qₗ = ml_v / (md_v + mv_v + ml_v + mi_v)
 qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v)
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 
 # Simulation parameters passed into ODE solver
 w = FT(1)                     # updraft speed

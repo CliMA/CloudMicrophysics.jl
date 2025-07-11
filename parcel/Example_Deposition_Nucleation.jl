@@ -32,7 +32,7 @@ eₛ = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
 e = eᵥ(qᵥ, p₀, Rₐ, Rᵥ)
 
 Sₗ = FT(e / eₛ)
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 
 # Simulation parameters passed into ODE solver
 r_nuc = FT(1.25e-6)                     # assumed size of nucleated particles
