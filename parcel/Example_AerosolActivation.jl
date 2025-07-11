@@ -86,20 +86,20 @@ MK.axislegend(ax2, framevisible = false, labelsize = 16, position = :rc)
 MK.save("Parcel_Aerosol_Activation.png", fig)
 
 # ARG evaluation
-S_max = maximum(sol[1, :])-FT(1)
+S_max = maximum(sol[1, :]) - FT(1)
 ad = AM.Mode_κ(
-        params.r_nuc,
-        params.aero_σ_g,
-        params.Nₐ,
-        (FT(1.0),),
-        (FT(1.0),),
-        (params.aerosol.M,),
-        (params.aerosol.κ,),
-    )
+    params.r_nuc,
+    params.aero_σ_g,
+    params.Nₐ,
+    (FT(1.0),),
+    (FT(1.0),),
+    (params.aerosol.M,),
+    (params.aerosol.κ,),
+)
 all_ad = AM.AerosolDistribution((ad,))
-S_max_ARG = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ+qₗ+qᵢ, qₗ, qᵢ)
+S_max_ARG = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ + qₗ + qᵢ, qₗ, qᵢ)
 error_ARG = abs(S_max_ARG - S_max) / S_max_ARG * 100
-S_max_mod = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ+qₗ+qᵢ, qₗ, qᵢ, Nₗ, Nᵢ)
+S_max_mod = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ + qₗ + qᵢ, qₗ, qᵢ, Nₗ, Nᵢ)
 error_mod = abs(S_max_mod - S_max) / S_max_ARG * 100
 
 @show S_max

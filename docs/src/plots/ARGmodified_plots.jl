@@ -63,7 +63,7 @@ function run_parcel_model(Nₐ, Nₗ, Nᵢ, rₗ, rᵢ, w, FT)
     # solve ODE
     sol = run_parcel(IC, FT(0), t_max, params)
 
-    S_max = maximum(sol[1, :])-FT(1)
+    S_max = maximum(sol[1, :]) - FT(1)
 
     # ARG results
     ad = AM.Mode_κ(
@@ -76,8 +76,9 @@ function run_parcel_model(Nₐ, Nₗ, Nᵢ, rₗ, rᵢ, w, FT)
         (params.aerosol.κ,),
     )
     all_ad = AM.AerosolDistribution((ad,))
-    S_max_ARG = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ+qₗ+qᵢ, qₗ, qᵢ)
-    S_max_mod = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ+qₗ+qᵢ, qₗ, qᵢ, Nₗ, Nᵢ)
+    S_max_ARG = AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ + qₗ + qᵢ, qₗ, qᵢ)
+    S_max_mod =
+        AA.max_supersaturation(params.aap, all_ad, params.aps, params.tps, T₀, p₀, w, qᵥ + qₗ + qᵢ, qₗ, qᵢ, Nₗ, Nᵢ)
 
     return S_max / S_max_ARG, S_max_mod / S_max_ARG
 end
