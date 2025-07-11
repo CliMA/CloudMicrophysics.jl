@@ -17,7 +17,7 @@ wps = CMP.WaterProperties(FT)
 # Initial conditions
 Nₐ = FT(5e8)
 Nₗ = FT(1e8)
-Nᵢ = FT(0e5)
+Nᵢ = FT(1e8)
 T₀ = FT(230)
 cᵥ₀ = FT(5 * 1e-5)
 ln_INPC = FT(0)
@@ -32,7 +32,7 @@ Sₗ = FT(1.0)
 e = Sₗ * eₛ
 p₀ = e / cᵥ₀
 ρ_air = TDI.air_density(tps, T₀, p₀, qᵥ, FT(0), FT(0))
-rₗ = FT(10e-6)
+rₗ = FT(6.333333e-6)
 qₗ = Nₗ * FT(4 / 3 * π) * (rₗ)^3 * ρₗ / ρ_air
 rᵢ = FT(10e-6)
 qᵢ = Nᵢ * FT(4 / 3 * π) * (rᵢ)^3 * ρᵢ / ρ_air

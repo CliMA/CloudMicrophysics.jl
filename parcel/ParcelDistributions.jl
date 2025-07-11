@@ -30,8 +30,8 @@ function distribution_moments(::MonodisperseMix, q, N, ρ, ρ_air, q₀_mode1, N
         A = FT(0)
         V = FT(0)
     else
-        r₀_mode1 = cbrt(q₀_mode1 / N_mode1 / FT(4 / 3 * π) / ρ * ρ_air)
-        r_mode1 = sqrt(r₀_mode1^FT(2) + FT(2) / ρₗ * ∫GS)
+        r₀_mode1 = N_mode1 == FT(0) ? FT(0) : cbrt(q₀_mode1 / N_mode1 / FT(4 / 3 * π) / ρ * ρ_air)
+        r_mode1 = sqrt(max(FT(0), r₀_mode1^FT(2) + FT(2) / ρₗ * ∫GS))
         A_mode1 = 4 * FT(π) * r_mode1^2
         V_mode1 = FT(4 / 3 * π) * r_mode1^3
         q_mode1 = V_mode1 * ρ * N_mode1 / ρ_air

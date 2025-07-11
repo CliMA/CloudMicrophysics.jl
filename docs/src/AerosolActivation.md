@@ -285,3 +285,100 @@ The CloudMicrophysics package offers an advanced feature for predicting the aero
 In addition, we provide functionality and a demonstration for re-training the free parameters of the traditional ARG activation scheme using Ensemble Kalman Processes. This functionality is showcased in `test/aerosol_activation_calibration.jl`.
 
 Using ML emulators or calibration with Ensemble Kalman Processes for predicting aerosol activation is provided through an extension to the main package. This extension will be loaded with `CloudMicrophysics.jl` if both `MLJ.jl`, `DataFrames.jl`, and `EnsembleKalmanProcesses.jl` are loaded by the user as well.
+
+## Modification for Local Supersaturation with Preexisting Hydrometeors
+
+The original ARG activation scheme assumes adiabatic ascent with no preexisting cloud or ice particles, which is a valid approximation near cloud base. As a result, the ARG formulation is traditionally applied only at cloud base, where no vapor has yet condensed and no hydrometeors exist to affect the supersaturation evolution.
+
+However, in many applications—such as large-eddy simulations or cloud-resolving models—it is desirable to apply the activation scheme locally, throughout the vertical extent of the cloud. In such cases, preexisting cloud droplets and ice crystals act as persistent vapor sinks, suppressing supersaturation and inhibiting further activation.
+
+To relax the cloud-base-only constraint and extend ARG into a local operator, we propose modifying the supersaturation tendency equation by incorporating the effects of these preexisting hydrometeors.
+
+### Modified Supersaturation Budget
+
+We augment the supersaturation tendency with additional vapor sinks:
+
+$$
+\frac{dS}{dt} = \alpha w - \gamma \frac{d\chi}{dt}_{activation} - \gamma \frac{d\chi}{dt}_{liquid} - \gamma \frac{d\chi}{dt}_{ice},
+$$
+
+where the new sink terms are:
+
+- Liquid sink:
+$$
+\frac{d\chi}{dt}_{liquid} = 4 \pi \rho_w N_l r_l G_l S,
+$$
+
+- Ice sink:
+$$
+\frac{d\chi}{dt}_{ice} = 4 \pi \rho_i N_i r_i G_i S_i,
+$$
+
+with
+$$
+S_i = \xi (S + 1) - 1, \quad \xi = \frac{e_{s,i}}{e_{s,\ell}}.
+$$
+
+Here:
+
+- $N_l$, $r_l$, and $G_l$ are the number concentration, radius, and condensational growth coefficient of liquid droplets,
+- $N_i$, $r_i$, and $G_i$ are the corresponding values for ice crystals,
+- $\rho_w$ and $\rho_i$ are the densities of liquid water and ice.
+
+We define:
+$$
+K_l = 4 \pi \rho_w N_l r_l G_l, \quad K_i = 4 \pi \rho_i N_i r_i G_i,
+$$
+
+yielding the modified steady-state supersaturation equation:
+$$
+0 = \alpha w - \gamma f(S_{max}) - K_l S_{max} - K_i \big[ \xi (S_{max} + 1) - 1 \big].
+$$
+
+### Approximate Solution
+
+Let $S_0$ be the ARG solution obtained by solving:
+$$
+\alpha w = \gamma f(S_0),
+$$
+and approximate the nonlinear sink function $f(S)$ as linear between 0 and $S_0$:
+$$
+f(S) \approx f(S_0) \cdot \frac{S}{S_0}.
+$$
+
+Substituting into the modified budget and solving for $S_1$:
+$$
+\alpha w = \gamma f(S_0) \cdot \frac{S_1}{S_0} + K_l S_1 + K_i \big[\xi (S_1 + 1) - 1 \big],
+$$
+yields:
+$$
+S_1 = \frac{(\alpha w - K_i (\xi - 1)) S_0}{\alpha w + (K_l + K_i \xi) S_0}.
+$$
+
+The final expression for the modified supersaturation becomes:
+$$
+S_{max}^{modified} = \frac{(\alpha w - K_i (\xi - 1)) S_{max}^{ARG}}{\alpha w + (K_l + K_i \xi) S_{max}^{ARG}}.
+$$
+
+- When $K_l = K_i = 0$, the formula reduces to the original ARG solution.
+- Larger values of $K_l$ or $K_i$ reduce the supersaturation due to vapor uptake by preexisting hydrometeors.
+- This extension allows the ARG activation scheme to be applied at any vertical level, making it suitable for use as a local operator in models that resolve cloud-scale dynamics.
+
+### Example
+
+To illustrate the behavior of the modified ARG scheme, we compare the maximum supersaturation it predicts against that from a detailed parcel model in four idealized scenarios:
+
+- Varying the liquid droplet number concentration with no ice particles present,
+- Varying the ice crystal number concentration with no liquid droplets present,
+- Varying the initial droplet radius with no ice particles present,
+- Varying the initial ice particle radius with no liquid droplets present.
+
+In all cases, the parcel model assumes an initial zero supersaturation and includes activation, condensational growth, and depositional growth during adiabatic ascent. A background population of sulfate aerosol with an initial concentration of 500 cm⁻³ is present in all scenarios.
+
+The figure below shows the ratio of the maximum supersaturation reached in the parcel model to that predicted by the modified ARG scheme. This comparison highlights the conditions under which the modified ARG provides a good approximation to the more detailed parcel-model results.
+
+```@example
+include("plots/ARGmodified_plots.jl")
+```
+![](parcel_vs_modifiedARG_aerosol_activation.svg)
+
