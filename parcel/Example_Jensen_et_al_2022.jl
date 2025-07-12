@@ -40,7 +40,7 @@ Sᵢ = FT(1.55)
 Sₗ = Sᵢ / ξ(tps, T₀)
 e = Sₗ * eₛ
 p₀ = e / cᵥ₀
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 
 # Simulation parameters passed into ODE solver
 w = FT(1)           # updraft speed

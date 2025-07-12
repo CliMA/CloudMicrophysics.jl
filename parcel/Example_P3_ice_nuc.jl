@@ -54,7 +54,7 @@ for it in [1, 2, 3]
     local ρₐ = TDI.air_density(tps, T₀, p₀, qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     local eₛ = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
     local Sₗ = FT(e / eₛ)
-    local IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+    local IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 
     #! format: off
     if mode == "P3_dep"

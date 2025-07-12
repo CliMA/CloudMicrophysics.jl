@@ -35,7 +35,7 @@ ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
 qᵥ = mv_v / (md_v + mv_v + ml_v)
 qₗ = ml_v / (md_v + mv_v + ml_v)
 qᵢ = FT(0)
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 
 # Simulation parameters passed into ODE solver
 w = FT(10)                                 # updraft speed

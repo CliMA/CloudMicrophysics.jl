@@ -37,7 +37,7 @@ qᵢ = FT(0)
 Sₗ = FT(0.99)
 e = Sₗ * eₛ
 p₀ = e / cᵥ₀
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 
 # Simulation parameters passed into ODE solver
 w = FT(1.2)         # updraft speed
@@ -58,6 +58,7 @@ params = parcel_params{FT}(
     aero_σ_g = aero_σ_g,
     r_nuc = r_nuc,
     condensation_growth = condensation_growth,
+    Nₐ = Nₐ,
 )
 
 # solve ODE

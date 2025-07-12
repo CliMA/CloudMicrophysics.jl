@@ -9,6 +9,7 @@ struct AeroAct{FT} <: CMP.ParametersType{FT}
     aero_σ_g::FT
     r_nuc::FT
     const_dt::FT
+    Nₐ::FT
 end
 
 struct MohlerAF{FT} <: CMP.ParametersType{FT}

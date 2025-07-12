@@ -47,9 +47,9 @@ e = eᵥ(qᵥ, p₀, Rₐ, R_v)
 Sₗ_dep = FT(e / eₛ_dep)
 Sₗ_het = FT(e / eₛ_het)
 Sₗ_hom = FT(e / eₛ_hom)
-IC_dep = [Sₗ_dep, p₀, T₀_dep, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
-IC_het = [Sₗ_het, p₀, T₀_het, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
-IC_hom = [Sₗ_hom, p₀, T₀_hom, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+IC_dep = [Sₗ_dep, p₀, T₀_dep, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
+IC_het = [Sₗ_het, p₀, T₀_het, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
+IC_hom = [Sₗ_hom, p₀, T₀_hom, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 
 # Simulation parameters passed into ODE solver
 r_nuc = FT(1.25e-6)                     # assumed size of nucleated particles

@@ -37,7 +37,7 @@ Rₐ = TDI.Rₘ(tps, qₜ, qₗ, qᵢ)
 eₛ = TDI.saturation_vapor_pressure_over_liquid(tps, T₀)
 e = eᵥ(qᵥ, p₀, Rₐ, Rᵥ)
 Sₗ = FT(e / eₛ)
-IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC₀]
+IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC₀, FT(0)]
 
 # Simulation parameters passed into ODE solver
 w = FT(0.7)

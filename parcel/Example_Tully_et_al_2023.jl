@@ -12,13 +12,14 @@ include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
     Wrapper for initial condition
 """
 function get_initial_condition(tps, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC)
+    FT = typeof(T)
     R_a = TDI.Rₘ(tps, qᵥ + qₗ + qᵢ, qₗ, qᵢ)
     R_v = TDI.Rᵥ(tps)
     e_sl = TDI.saturation_vapor_pressure_over_liquid(tps, T)
     e = eᵥ(qᵥ, p_air, R_a, R_v)
     Sₗ = e / e_sl
 
-    return [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+    return [Sₗ, p_air, T, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC, FT(0)]
 end
 
 """

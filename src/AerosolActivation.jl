@@ -117,7 +117,7 @@ function critical_supersaturation(
 end
 
 """
-    max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+    max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
 
   - `ap`  - a struct with aerosol activation parameters
   - `ad`  - a struct with aerosol distribution
@@ -129,6 +129,8 @@ end
   - `q_tot` - total water specific content
   - `q_liq` - liquid water specific content
   - `q_ice` - ice water specific content
+  - `N_liq` - liquid water number concentration
+  - `N_ice` - ice water number concentration
 
 Returns the maximum supersaturation.
 """
@@ -143,6 +145,8 @@ function max_supersaturation(
     q_tot::FT,
     q_liq::FT,
     q_ice::FT,
+    N_liq::FT,
+    N_ice::FT,
 ) where {FT}
     ϵ::FT = TDI.Rd_over_Rv(tps)
     R_m::FT = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
@@ -175,12 +179,38 @@ function max_supersaturation(
             1 / (Sm[i])^2 *
             (f * (ζ / η)^ap.p1 + g * (Sm[i]^2 / (η + 3 * ζ))^ap.p2)
     end
+    S_max_ARG::FT = FT(1) / sqrt(tmp)
 
-    return FT(1) / sqrt(tmp)
+    ρ_air::FT = TDI.air_density(tps, T, p, q_tot, q_liq, q_ice)
+    r_liq::FT = N_liq < eps(FT) ? FT(0) : cbrt(ρ_air * q_liq / N_liq / ap.ρ_w / FT(4 / 3 * π))
+    K_liq::FT = FT(4 * π) * ap.ρ_w * N_liq * r_liq * G * γ
+
+    r_ice::FT = N_ice < eps(FT) ? FT(0) : cbrt(ρ_air * q_ice / N_ice / ap.ρ_i / FT(4 / 3 * π))
+    Gᵢ::FT = CO.G_func_ice(aip, tps, T)
+    ξ::FT = TDI.saturation_vapor_pressure_over_liquid(tps, T) / TDI.saturation_vapor_pressure_over_ice(tps, T)
+    K_ice::FT = FT(4 * π) * N_ice * r_ice * Gᵢ * γ
+
+    S_max::FT = S_max_ARG * (α * w - K_ice * (ξ - FT(1))) / (α * w + (K_liq + K_ice * ξ) * S_max_ARG)
+
+    return max(FT(0), S_max)
+end
+function max_supersaturation(
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDI.PS,
+    T::FT,
+    p::FT,
+    w::FT,
+    q_tot::FT,
+    q_liq::FT,
+    q_ice::FT,
+) where {FT}
+    return max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, FT(0), FT(0))
 end
 
 """
-    N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+    N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
 
   - `ap`  - a struct with aerosol activation parameters
   - `ad`  - aerosol distribution struct
@@ -192,6 +222,8 @@ end
   - `q_tot` - total water specific content
   - `q_liq` - liquid water specific content
   - `q_ice` - ice water specific content
+  - `N_liq` - liquid water number concentration
+  - `N_ice` - ice water number concentration
 
 Returns the number of activated aerosol particles
 in each aerosol size distribution mode.
@@ -207,8 +239,10 @@ function N_activated_per_mode(
     q_tot::FT,
     q_liq::FT,
     q_ice::FT,
+    N_liq::FT,
+    N_ice::FT,
 ) where {FT}
-    smax::FT = max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+    smax::FT = max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
     sm = critical_supersaturation(ap, ad, T)
 
     return ntuple(Val(AM.n_modes(ad))) do i
@@ -219,9 +253,23 @@ function N_activated_per_mode(
         mode_i.N * FT(0.5) * (1 - SF.erf(u_i))
     end
 end
+function N_activated_per_mode(
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDI.PS,
+    T::FT,
+    p::FT,
+    w::FT,
+    q_tot::FT,
+    q_liq::FT,
+    q_ice::FT,
+) where {FT}
+    return N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, FT(0), FT(0))
+end
 
 """
-    M_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+    M_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
 
   - `ap`  - a struct with aerosol activation parameters
   - `ad`  - a struct with aerosol distribution parameters
@@ -233,6 +281,8 @@ end
   - `q_tot` - total water specific content
   - `q_liq` - liquid water specific content
   - `q_ice` - ice water specific content
+  - `N_liq` - liquid water number concentration
+  - `N_ice` - ice water number concentration
 
 Returns the mass of activated aerosol particles
 per mode of the aerosol size distribution.
@@ -248,8 +298,10 @@ function M_activated_per_mode(
     q_tot::FT,
     q_liq::FT,
     q_ice::FT,
+    N_liq::FT,
+    N_ice::FT,
 ) where {FT}
-    smax::FT = max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+    smax::FT = max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
     sm = critical_supersaturation(ap, ad, T)
 
     return ntuple(Val(AM.n_modes(ad))) do i
@@ -267,9 +319,23 @@ function M_activated_per_mode(
         (1 - SF.erf(u_i - 3 * sqrt(2) / 2 * log(mode_i.stdev)))
     end
 end
+function M_activated_per_mode(
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDI.PS,
+    T::FT,
+    p::FT,
+    w::FT,
+    q_tot::FT,
+    q_liq::FT,
+    q_ice::FT,
+) where {FT}
+    return M_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, FT(0), FT(0))
+end
 
 """
-    total_N_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+    total_N_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
 
   - `ap` - a struct with aerosol activation parameters
   - `ad` - aerosol distribution struct
@@ -281,9 +347,27 @@ end
   - `q_tot` - total water specific content
   - `q_liq` - liquid water specific content
   - `q_ice` - ice water specific content
+  - `N_liq` - liquid water number concentration
+  - `N_ice` - ice water number concentration
 
 Returns the total number of activated aerosol particles.
 """
+function total_N_activated(
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDI.PS,
+    T::FT,
+    p::FT,
+    w::FT,
+    q_tot::FT,
+    q_liq::FT,
+    q_ice::FT,
+    N_liq::FT,
+    N_ice::FT,
+) where {FT}
+    return sum(N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice))
+end
 function total_N_activated(
     ap::CMP.AerosolActivationParameters,
     ad::CMP.AerosolDistributionType,
@@ -300,7 +384,7 @@ function total_N_activated(
 end
 
 """
-    total_M_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
+    total_M_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
 
   - `ap` - a struct with aerosol activation parameters
   - `ad` - aerosol distribution struct
@@ -312,9 +396,27 @@ end
   - `q_tot` - total water specific content
   - `q_liq` - liquid water specific content
   - `q_ice` - ice water specific content
+  - `N_liq` - liquid water number concentration
+  - `N_ice` - ice water number concentration
 
 Returns the total mass of activated aerosol particles.
 """
+function total_M_activated(
+    ap::CMP.AerosolActivationParameters,
+    ad::CMP.AerosolDistributionType,
+    aip::CMP.AirProperties,
+    tps::TDI.PS,
+    T::FT,
+    p::FT,
+    w::FT,
+    q_tot::FT,
+    q_liq::FT,
+    q_ice::FT,
+    N_liq::FT,
+    N_ice::FT,
+) where {FT}
+    return sum(M_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice))
+end
 function total_M_activated(
     ap::CMP.AerosolActivationParameters,
     ad::CMP.AerosolDistributionType,
