@@ -298,69 +298,69 @@ To relax the cloud-base-only constraint and extend ARG into a local operator, we
 
 We augment the supersaturation tendency with additional vapor sinks:
 
-$$
+```math
 \frac{dS}{dt} = \alpha w - \gamma \frac{d\chi}{dt}_{activation} - \gamma \frac{d\chi}{dt}_{liquid} - \gamma \frac{d\chi}{dt}_{ice},
-$$
+```
 
 where the new sink terms are:
 
 - Liquid sink:
-$$
+```math
 \frac{d\chi}{dt}_{liquid} = 4 \pi \rho_w N_l r_l G_l S,
-$$
+```
 
 - Ice sink:
-$$
+```math
 \frac{d\chi}{dt}_{ice} = 4 \pi \rho_i N_i r_i G_i S_i,
-$$
+```
 
 with
-$$
+```math
 S_i = \xi (S + 1) - 1, \quad \xi = \frac{e_{s,i}}{e_{s,\ell}}.
-$$
+```
 
 Here:
 
-- $N_l$, $r_l$, and $G_l$ are the number concentration, radius, and condensational growth coefficient of liquid droplets,
-- $N_i$, $r_i$, and $G_i$ are the corresponding values for ice crystals,
-- $\rho_w$ and $\rho_i$ are the densities of liquid water and ice.
+- ``N_l``, ``r_l``, and ``G_l`` are the number concentration, radius, and condensational growth coefficient of liquid droplets,
+- ``N_i``, ``r_i``, and ``G_i`` are the corresponding values for ice crystals,
+- ``\rho_w`` and ``\rho_i`` are the densities of liquid water and ice.
 
 We define:
-$$
+```math
 K_l = 4 \pi \rho_w N_l r_l G_l, \quad K_i = 4 \pi \rho_i N_i r_i G_i,
-$$
+```
 
-yielding the modified steady-state supersaturation equation:
-$$
+yielding the modified supersaturation equation at peak supersaturation:
+```math
 0 = \alpha w - \gamma f(S_{max}) - K_l S_{max} - K_i \big[ \xi (S_{max} + 1) - 1 \big].
-$$
+```
 
 ### Approximate Solution
 
-Let $S_0$ be the ARG solution obtained by solving:
-$$
+Let ``S_0`` be the ARG solution obtained by solving:
+```math
 \alpha w = \gamma f(S_0),
-$$
-and approximate the nonlinear sink function $f(S)$ as linear between 0 and $S_0$:
-$$
+```
+and approximate the nonlinear sink function ``f(S)`` as linear between 0 and ``S_0``:
+```math
 f(S) \approx f(S_0) \cdot \frac{S}{S_0}.
-$$
+```
 
-Substituting into the modified budget and solving for $S_1$:
-$$
+Substituting into the modified budget and solving for ``S_1``:
+```math
 \alpha w = \gamma f(S_0) \cdot \frac{S_1}{S_0} + K_l S_1 + K_i \big[\xi (S_1 + 1) - 1 \big],
-$$
+```
 yields:
-$$
+```math
 S_1 = \frac{(\alpha w - K_i (\xi - 1)) S_0}{\alpha w + (K_l + K_i \xi) S_0}.
-$$
+```
 
 The final expression for the modified supersaturation becomes:
-$$
+```math
 S_{max}^{modified} = \frac{(\alpha w - K_i (\xi - 1)) S_{max}^{ARG}}{\alpha w + (K_l + K_i \xi) S_{max}^{ARG}}.
-$$
+```
 
-- When $K_l = K_i = 0$, the formula reduces to the original ARG solution.
+- When ``K_l = K_i = 0``, the formula reduces to the original ARG solution.
 - Larger values of $K_l$ or $K_i$ reduce the supersaturation due to vapor uptake by preexisting hydrometeors.
 - This extension allows the ARG activation scheme to be applied at any vertical level, making it suitable for use as a local operator in models that resolve cloud-scale dynamics.
 
