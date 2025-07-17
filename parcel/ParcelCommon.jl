@@ -21,3 +21,13 @@ function AIDA_rate(model_t, data_t, data)
         return 0
     end
 end
+
+# Return activated particle radius. See below eq. 19 in [Abdul-Razzaketal1998](@cite)
+function get_particle_activation_radius(
+    ap::CMP.AerosolActivationParameters,
+    T::FT,
+    S::FT,
+) where {FT}
+    A::FT = AA.coeff_of_curvature(ap, T)
+    return FT(2 / 3) * A / S
+end

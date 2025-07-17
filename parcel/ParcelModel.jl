@@ -38,6 +38,7 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     sampling_interval = FT(1)
     γ = FT(1)
     ip = CMP.Frostenberg2023(FT)
+    Nₐ = FT(1e8)
 end
 
 """
@@ -96,12 +97,30 @@ function parcel_model(dY, Y, p, t)
     eₛₗ = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 
     # Mean radius, area and volume of liquid droplets and ice crystals
-    PSD_liq = distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air)
+    # If liq_distr is a MonodisperseMix, we explicitly evolve q and N of its first monodisperse mode (stored in Y[11] and Y[12]).
+    if liq_distr isa MonodisperseMix
+        qₗ_mode1 = Y[11]
+        Nₗ_mode1 = Y[12]
+        _tmp_state = merge(state, (; qₗ = qₗ_mode1, Nₗ = Nₗ_mode1))
+        PSD_liq_mode1 = distribution_moments(Monodisperse{FT}(), qₗ_mode1, Nₗ_mode1, ρₗ, ρ_air)
+        dqₗ_mode1_dt = condensation(ce_params, PSD_liq_mode1, _tmp_state, ρ_air)
+        dNₗ_mode1_dt =
+            dqₗ_mode1_dt < FT(0) && qₗ_mode1 > FT(0) && qₗ_mode1 < FT(1e-6) ? Nₗ_mode1 * dqₗ_mode1_dt / qₗ_mode1 : FT(0)
+        dY[11] = dqₗ_mode1_dt
+        dY[12] = dNₗ_mode1_dt
+        PSD_liq = distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air, qₗ_mode1, Nₗ_mode1)
+    else
+        PSD_liq = distribution_moments(liq_distr, qₗ, Nₗ, ρₗ, ρ_air)
+    end
     PSD_ice = distribution_moments(ice_distr, qᵢ, Nᵢ, ρᵢ, ρ_air)
 
     # Aerosol activation
     dNₗ_dt_act = aerosol_activation(aero_act_params, state)
-    dqₗ_dt_act = dNₗ_dt_act * 4 * FT(π) / 3 * r_nuc^3 * ρₗ / ρ_air
+    r_act =
+        dNₗ_dt_act < eps(FT) || (Sₗ - 1) < eps(FT) ?
+        r_nuc :
+        min(FT(1e-6), get_particle_activation_radius(aero_act_params.aap, T, (Sₗ - 1)))
+    dqₗ_dt_act = dNₗ_dt_act * 4 * FT(π) / 3 * r_act^3 * ρₗ / ρ_air
 
     # Deposition ice nucleation
     # (All deposition parameterizations assume monodisperse aerosol size distr)
@@ -215,6 +234,8 @@ function run_parcel(IC, t_0, t_end, pp)
         liq_distr = Monodisperse{FT}()
     elseif pp.liq_size_distribution == "Gamma"
         liq_distr = Gamma{FT}()
+    elseif pp.liq_size_distribution == "MonodisperseMix"
+        liq_distr = MonodisperseMix{FT}()
     else
         throw("Unrecognized size distribution")
     end
@@ -235,7 +256,7 @@ function run_parcel(IC, t_0, t_end, pp)
         aero_act_params = Empty{FT}()
     elseif pp.aerosol_act == "AeroAct"
         aero_act_params =
-            AeroAct{FT}(pp.aap, pp.aerosol, pp.aero_σ_g, pp.r_nuc, pp.const_dt)
+            AeroAct{FT}(pp.aap, pp.aerosol, pp.aero_σ_g, pp.r_nuc, pp.const_dt, pp.Nₐ)
     else
         throw("Unrecognized aerosol activation mode")
     end

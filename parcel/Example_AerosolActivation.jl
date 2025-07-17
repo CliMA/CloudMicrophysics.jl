@@ -58,6 +58,7 @@ params = parcel_params{FT}(
     aero_σ_g = aero_σ_g,
     r_nuc = r_nuc,
     condensation_growth = condensation_growth,
+    Nₐ = Nₐ,
 )
 
 # solve ODE
