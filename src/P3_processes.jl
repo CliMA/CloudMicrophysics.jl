@@ -442,28 +442,30 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
 7. `∂ₜB_rim`: rime volume tendency [m³/m³/s]
 """
 function bulk_liquid_ice_collision_sources(
-    params, logλ, L_ice, F_rim, ρ_rim,
+    params, logλ, L_ice, N_ice, F_rim, ρ_rim,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
     aps, tps, vel, ρₐ, T; ∫kwargs...,
 )
     FT = eltype(params)
-    (; τ_wet) = params
+    (; τ_wet, ρ_i) = params
     D_shd = FT(1e-3) # 1mm  # TODO: Externalize this parameter
 
     ρw = psd_c.ρw
     @assert ρw == psd_r.ρw "Cloud and rain should have the same liquid water density"
     m_liq(Dₗ) = ρw * CO.volume_sphere_D(Dₗ)
 
-    state = get_state(params; L_ice, F_rim, ρ_rim)
+    # state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
+    state = P3State(params, L_ice, N_ice, F_rim, ρ_rim)
 
-    (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫∂ₜM_col, BCCOL, BRCOL, ∫𝟙_wet_M_col) = ∫liquid_ice_collisions(
+    rates = ∫liquid_ice_collisions(
         state, logλ,
         psd_c, psd_r, L_c, N_c, L_r, N_r,
         aps, tps, vel, ρₐ, T, m_liq; ∫kwargs...,
     )
+    (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫∂ₜM_col, BCCOL, BRCOL, ∫𝟙_wet_M_col) = rates
 
     # Bulk wet growth fraction
-    f_wet = ∫𝟙_wet_M_col / ∫∂ₜM_col
+    f_wet = iszero(∫∂ₜM_col) ? zero(∫∂ₜM_col) : ∫𝟙_wet_M_col / ∫∂ₜM_col
 
     # Shedding of rain
     # QRSHD = ∫∂ₜM_col - (QCFRZ + QRFRZ)
@@ -472,9 +474,9 @@ function bulk_liquid_ice_collision_sources(
 
     # Densification of rime
     (; L_ice, F_rim, ρ_rim) = state
-    B_rim = (L_ice * F_rim) / ρ_rim  # from: ρ_rim = L_rim / B_rim
+    B_rim = iszero(ρ_rim) ? zero(ρ_rim) : (L_ice * F_rim) / ρ_rim  # from: ρ_rim = L_rim / B_rim
     QIWET = f_wet * L_ice * (1 - F_rim) / τ_wet   # densification of rime mass
-    BIWET = f_wet * (L_ice / ρ⭒ - B_rim) / τ_wet  # densification of rime volume
+    BIWET = f_wet * (L_ice / ρ_i - B_rim) / τ_wet  # densification of rime volume
 
     # Bulk rates
     ## Liquid phase
@@ -488,6 +490,7 @@ function bulk_liquid_ice_collision_sources(
     # ∂ₜN_ice = 0
     ∂ₜB_rim = BCCOL + BRCOL + BIWET
 
-    return (; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, ∂ₜL_ice, ∂ₜB_rim)
-
+    return @NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT}(
+        (∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, ∂ₜL_ice, ∂ₜB_rim)
+    )
 end
