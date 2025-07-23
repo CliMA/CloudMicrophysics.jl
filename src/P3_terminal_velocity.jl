@@ -70,6 +70,13 @@ function ice_terminal_velocity_number_weighted(
     bnds = integral_bounds(state, logλ; p)
     return integrate(number_weighted_integrand, bnds...; ∫kwargs...) / N_ice
 end
+function ice_terminal_velocity_number_weighted(
+    velocity_params::CMP.Chen2022VelType, ρₐ, params::CMP.ParametersP3, L_ice, N_ice, F_rim, ρ_rim, logλ;
+    use_aspect_ratio = true, ∫kwargs...,
+)
+    state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
+    return ice_terminal_velocity_number_weighted(velocity_params, ρₐ, state, logλ; use_aspect_ratio, ∫kwargs...)
+end
 
 """
     ice_terminal_velocity_mass_weighted(velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ; [use_aspect_ratio], [∫kwargs...])
@@ -106,4 +113,11 @@ function ice_terminal_velocity_mass_weighted(
 
     bnds = integral_bounds(state, logλ; p)
     return integrate(mass_weighted_integrand, bnds...; ∫kwargs...) / L_ice
+end
+function ice_terminal_velocity_mass_weighted(
+    velocity_params::CMP.Chen2022VelType, ρₐ, params::CMP.ParametersP3, L_ice, N_ice, F_rim, ρ_rim, logλ;
+    use_aspect_ratio = true, ∫kwargs...,
+)
+    state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
+    return ice_terminal_velocity_mass_weighted(velocity_params, ρₐ, state, logλ; use_aspect_ratio, ∫kwargs...)
 end
