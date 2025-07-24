@@ -64,6 +64,7 @@ Return the parameters of the rain drop diameter distribution
  - A `NamedTuple` with the fields `(; N₀r, Dr_mean, xr_mean)`
 """
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ, ρₐ, Nᵣ)
+    (iszero(Nᵣ) && iszero(qᵣ)) && return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
     (; ρw) = pdf_r
     Lᵣ = ρₐ * qᵣ
 
@@ -75,11 +76,12 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ,
     return (; N₀r, Dr_mean, xr_mean)
 end
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρₐ, Nᵣ)
+    (iszero(Nᵣ) && iszero(qᵣ)) && return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
     (; xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
     Lᵣ = ρₐ * max(0, qᵣ)
 
     # Sequence of limiting steps in Seifert and Beheng 2006:
-    x̃r = clamp(Lᵣ / Nᵣ, xr_min, xr_max)  # Eq. (94)  # TODO: Ill-defined for 0 / 0
+    x̃r = clamp(Lᵣ / Nᵣ, xr_min, xr_max)  # Eq. (94)
     N₀r = clamp(Nᵣ * ∛(π * ρw / x̃r), N0_min, N0_max)  # Eq. (95)
     λr = clamp(∜(π * ρw * N₀r / Lᵣ), λ_min, λ_max)  # Eq. (96)
     xr_mean = clamp(Lᵣ * λr / N₀r, xr_min, xr_max)  # Eq. (97)
@@ -153,6 +155,7 @@ That is,
  - `(logA, logB)`: Log of the parameters of the generalized gamma distribution
 """
 function log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
+    (N < eps(one(N)) && q < eps(one(q))) && return (log(zero(N)), log(1 / zero(q)))
     (; νc, μc) = pdf_c
     L = ρₐ * q
     logx̄ = log(L / N)
@@ -242,7 +245,7 @@ Return `n(D)`, a function that computes the size distribution for rain particles
 """
 function DT.size_distribution(pdf::CMP.RainParticlePDF_SB2006, q, ρₐ, N)
     (; N₀r, Dr_mean) = pdf_rain_parameters(pdf, q, ρₐ, N)
-    return n(D) = N₀r * exp(-D / Dr_mean)
+    return n(D) = iszero(N₀r) ? zero(D) : N₀r * exp(-D / Dr_mean)
 end
 
 """
@@ -263,7 +266,7 @@ The size distribution is given by:
 """
 function DT.size_distribution(pdf::CMP.CloudParticlePDF_SB2006, q, ρₐ, N)
     (; logN₀c, λc, νcD, μcD) = pdf_cloud_parameters(pdf, q, ρₐ, N)
-    return n(D) = exp(logN₀c + νcD * log(D) - λc * D^μcD)
+    return n(D) = logN₀c == -Inf ? zero(D) : exp(logN₀c + νcD * log(D) - λc * D^μcD)
 end
 
 """
@@ -303,6 +306,7 @@ function get_size_distribution_bounds(
     q, ρₐ, N, p = eps(FT),
 ) where {FT}
     (; Dr_mean) = pdf_rain_parameters(pdf, q, ρₐ, N)
+    iszero(Dr_mean) && return (FT(0), FT(0))
     D_min = DT.exponential_quantile(Dr_mean, p)
     D_max = DT.exponential_quantile(Dr_mean, 1 - p)
     return D_min, D_max

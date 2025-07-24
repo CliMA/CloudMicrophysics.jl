@@ -178,6 +178,11 @@ function test_shape_solver(FT)
         params = CMP.ParametersP3(FT; slope_law)
 
         @testset "Shape parameters - nonlinear solver" begin
+            # -- First, test limiting behavior: `N_ice = L_ice = 0` --
+            state = P3.get_state(params; F_rim = FT(0.5), ρ_rim = FT(500), L_ice = FT(0), N_ice = FT(0))
+            logλ = P3.get_distribution_logλ(state)
+            @test logλ == -Inf
+            # --
 
             # initialize test values:
             ep = 1 #1e4 * eps(FT)
