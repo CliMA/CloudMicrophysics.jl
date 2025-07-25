@@ -198,8 +198,8 @@ P3Scheme.∫liquid_ice_collisions
 ### Supporting integral methods
 
 ```@docs
-P3Scheme.∫fdD
-P3Scheme.∫fdD_error
+P3Scheme.integrate
+P3Scheme.ChebyshevGauss
 P3Scheme.integral_bounds
 ```
 

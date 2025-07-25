@@ -48,13 +48,13 @@ Return the terminal velocity of the number-weighted mean ice particle size.
 # Keyword arguments
  - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
     of particle aspect ratio on its terminal velocity (default: `true`)
- - `∫kwargs...`: Additional optional keyword arguments to pass to [`∫fdD`](@ref)
+ - `∫kwargs...`: Additional optional keyword arguments to pass to the quadrature rule
 
 See also [`ice_terminal_velocity_mass_weighted`](@ref)
 """
 function ice_terminal_velocity_number_weighted(
     velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
-    use_aspect_ratio = true, ∫kwargs...,
+    use_aspect_ratio = true, p = 1e-6, ∫kwargs...,
 )
     (; N_ice, L_ice) = state
     if N_ice < eps(one(N_ice)) || L_ice < eps(one(L_ice))
@@ -67,7 +67,8 @@ function ice_terminal_velocity_number_weighted(
     # ∫n(D) v(D) dD
     number_weighted_integrand(D) = n(D) * v_term(D)
 
-    return ∫fdD(number_weighted_integrand, state, logλ; ∫kwargs...) / N_ice
+    bnds = integral_bounds(state, logλ; p)
+    return integrate(number_weighted_integrand, bnds...; ∫kwargs...) / N_ice
 end
 
 """
@@ -84,13 +85,13 @@ Return the terminal velocity of the mass-weighted mean ice particle size.
 # Keyword arguments
  - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
     of particle aspect ratio on its terminal velocity (default: `true`)
- - `∫kwargs...`: Keyword arguments passed to [`∫fdD`](@ref)
+ - `∫kwargs...`: Keyword arguments passed to the quadrature rule
 
 See also [`ice_terminal_velocity_number_weighted`](@ref)
 """
 function ice_terminal_velocity_mass_weighted(
     velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
-    use_aspect_ratio = true, ∫kwargs...,
+    use_aspect_ratio = true, p = 1e-6, ∫kwargs...,
 )
     (; N_ice, L_ice) = state
     if N_ice < eps(one(N_ice)) || L_ice < eps(one(L_ice))
@@ -103,6 +104,6 @@ function ice_terminal_velocity_mass_weighted(
     # ∫n(D) m(D) v(D) dD
     mass_weighted_integrand(D) = n(D) * v_term(D) * ice_mass(state, D)
 
-
-    return ∫fdD(mass_weighted_integrand, state, logλ; ∫kwargs...) / L_ice
+    bnds = integral_bounds(state, logλ; p)
+    return integrate(mass_weighted_integrand, bnds...; ∫kwargs...) / L_ice
 end

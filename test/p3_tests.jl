@@ -345,17 +345,16 @@ function test_bulk_terminal_velocities(FT)
             state = P3.get_state(params; F_rim, ρ_rim, L_ice, N_ice)
             logλ = P3.get_distribution_logλ(state)
             args = (Chen2022, ρ_a, state, logλ)
-            accurate = true
-            vel_n = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = false, accurate)
-            vel_m = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = false, accurate)
-            vel_n_ϕ = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = true, accurate)
-            vel_m_ϕ = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = true, accurate)
+            vel_n = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = false)
+            vel_m = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = false)
+            vel_n_ϕ = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = true)
+            vel_m_ϕ = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = true)
 
             # number weighted
             @test vel_n > 0
             @test vel_n_ϕ > 0
-            @test vel_n ≈ ref_v_n[k] rtol = 1e-6
-            @test vel_n_ϕ ≈ ref_v_n_ϕ[k] rtol = 1e-6
+            @test vel_n ≈ ref_v_n[k] rtol = 1e-4
+            @test vel_n_ϕ ≈ ref_v_n_ϕ[k] rtol = 1e-4
 
             # mass weighted
             @test vel_m > 0
@@ -435,6 +434,17 @@ function test_numerical_integrals(FT)
     use_aspect_ratio = false
     ps = [1e-3, 1e-6]
 
+    @testset "Chebyshev-Gauss quadrature" begin
+        quad = P3.ChebyshevGauss(10)
+        f(x) = x^4
+        # test that integration gives the correct result
+        num_int = P3.integrate(f, 0, 1; quad)
+        @test num_int ≈ 0.2 rtol = 0.1
+        # test that increasing the number of points improves the accuracy
+        num_int2 = P3.integrate(f, 0, 1; quad = P3.ChebyshevGauss(100))
+        @test abs(num_int2 - 0.2) < abs(num_int - 0.2)
+    end
+
     @testset "Numerical integrals sanity checks for N, velocity and diameter" begin
         for (F_rim, L_ice, p) in Iterators.product(F_rims, L_ices, ps)
 
@@ -448,10 +458,14 @@ function test_numerical_integrals(FT)
             # The `rtol` settings essentially forces max evaluations of the method.
             # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
             N′ = P3.size_distribution(state, logλ)
-            N_estim = P3.∫fdD(state, logλ) do D
-                N′(D)
-            end
-            @test N_ice ≈ N_estim rtol = 1e-5
+            bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
+            N_estim_cheb = P3.integrate(N′, bnds...)
+            @test N_ice ≈ N_estim_cheb rtol = 1e-5
+
+            # Compare with quadgk
+            N_estim_qgk = QGK.quadgk(N′, bnds...)[1]
+            @test N_estim_cheb ≈ N_estim_qgk rtol = 1e-5
+
 
             # Bulk velocity comparison
             vel_N = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio, p)
@@ -459,20 +473,29 @@ function test_numerical_integrals(FT)
 
             v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
             g(D) = v_term(D) * N′(D)
-            vel_N_estim = P3.∫fdD(g, state, logλ; p) / N_ice
-            vel_m_estim = P3.∫fdD(state, logλ; p) do D
-                g(D) * P3.ice_mass(state, D) / L_ice
-            end
+            gm(D) = g(D) * P3.ice_mass(state, D)
+            vel_N_estim_cheb = P3.integrate(g, bnds...; quad = P3.ChebyshevGauss(10)) / N_ice
+            vel_m_estim_cheb = P3.integrate(gm, bnds...; quad = P3.ChebyshevGauss(10)) / L_ice
+            @test vel_N ≈ vel_N_estim_cheb rtol = 0.005
+            @test vel_m ≈ vel_m_estim_cheb rtol = 0.05
 
-            @test vel_N ≈ vel_N_estim rtol = 1e-6
-            @test vel_m ≈ vel_m_estim rtol = 1e-5
+            # Compare with quadgk
+            vel_N_estim_qgk = QGK.quadgk(g, bnds...)[1] / N_ice
+            vel_m_estim_qgk = QGK.quadgk(gm, bnds...)[1] / L_ice
+
+            @test vel_N_estim_cheb ≈ vel_N_estim_qgk rtol = 0.005
+            @test vel_m_estim_cheb ≈ vel_m_estim_qgk rtol = 0.05
+
 
             # Dₘ comparisons
             D_m = P3.D_m(state, logλ)
-            D_m_estim = P3.∫fdD(state, logλ; moment_order = 1 + 3) do D
-                D * P3.ice_mass(state, D) * N′(D) / L_ice
-            end
-            @test D_m ≈ D_m_estim rtol = 5e-4
+            D_m_func(D) = D * P3.ice_mass(state, D) * N′(D) / L_ice
+            D_m_estim_cheb = P3.integrate(D_m_func, bnds...; quad = P3.ChebyshevGauss(100))
+            @test D_m ≈ D_m_estim_cheb rtol = 5e-4
+
+            # Compare with quadgk
+            D_m_estim_qgk = QGK.quadgk(D_m_func, bnds...)[1]
+            @test D_m_estim_cheb ≈ D_m_estim_qgk rtol = 5e-4
         end
     end
 end
@@ -549,8 +572,8 @@ function test_p3_melting(FT)
         # A failing test indicates that the code has changed.
         # But if the changes are intentional, the reference values can be updated.
         if FT == Float64
-            ref_dNdt = FT(171951.91644755047)
-            ref_dLdt = FT(8.597595822377523e-5)
+            ref_dNdt = FT(171964.6981857982)
+            ref_dLdt = FT(8.59823490928991e-5)
         else
             ref_dNdt = FT(172119.73f0)
             ref_dLdt = FT(8.605987f-5)
@@ -628,8 +651,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         ρ′_rim(Dᵢ, D) = 500     # Constant rime density
         liq_bounds = ice_bounds = (FT(0), FT(1))
         Dᵢ = FT(2.5)
-        cloud_integrals = P3.get_liquid_integrals(n_c, ∂ₜV, m_l, ρ′_rim, liq_bounds)
-        rain_integrals = P3.get_liquid_integrals(n_r, ∂ₜV, m_l, ρ′_rim, liq_bounds)
+        cloud_integrals = P3.get_liquid_integrals(n_c, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.ChebyshevGauss(100))
+        rain_integrals = P3.get_liquid_integrals(n_r, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.ChebyshevGauss(100))
 
         # Test with known analytical result, noting e.g. that:
         # ∫₀¹ Dᵢ * D * exp(-D) * D³ dD = ∫₀¹ D⁴ * exp(-D) dD = γ(5, 1) [lower incomplete gamma function]
@@ -637,9 +660,9 @@ function test_p3_bulk_liquid_ice_collisions(FT)
 
         (∫∂ₜVn, ∫∂ₜVnm, ∫∂ₜVnm_ρ′) = cloud_integrals(Dᵢ)
         @test all(x -> x isa FT, (∫∂ₜVn, ∫∂ₜVnm, ∫∂ₜVnm_ρ′))  # check type stability
-        @test ∫∂ₜVn ≈ γ(2, 1) * Dᵢ
-        @test ∫∂ₜVnm ≈ γ(5, 1) * Dᵢ
-        @test ∫∂ₜVnm_ρ′ ≈ γ(5, 1) * Dᵢ / 500
+        @test ∫∂ₜVn ≈ γ(2, 1) * Dᵢ rtol = 5e-5
+        @test ∫∂ₜVnm ≈ γ(5, 1) * Dᵢ rtol = 1e-4
+        @test ∫∂ₜVnm_ρ′ ≈ γ(5, 1) * Dᵢ / 500 rtol = 1e-4
 
         # Test edge cases for liquid_integrals
 
@@ -735,7 +758,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Test the high-level interface
         rates = P3.∫liquid_ice_collisions(
             state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
-            aps, tps, vel_params, ρₐ, T, m_l,
+            aps, tps, vel_params, ρₐ, T, m_l;
+            quad = P3.ChebyshevGauss(50),
         )
         @test eltype(rates) == FT  # check type stability
 
@@ -747,18 +771,16 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test ∫𝟙_wet_M_col <= ∫M_col
 
         # Smoke tests, aka: Check that rates don't change with new commits.
-        @test QCFRZ ≈ 5.927427329659313e-7
-        QCSHD_ref = FT == Float64 ? 2.062557952759815e-9 : 2.0516662f-9
-        @test QCSHD ≈ QCSHD_ref
-        @test NCCOL ≈ 60211.89330800856
-        @test QRFRZ ≈ 6.894036355445859e-5
-        @test QRSHD ≈ 4.441496556322414e-6
-        @test NRCOL ≈ 173.12792993043564
-        @test ∫M_col ≈ 7.397666540169968e-5
-        @test BCCOL ≈ 3.716255379096748e-9
-        @test BRCOL ≈ 4.3222798466745195e-7
-        ∫𝟙_wet_M_col_ref = FT == Float64 ? 1.862725034230418e-5 : 1.6320892f-5
-        @test ∫𝟙_wet_M_col ≈ ∫𝟙_wet_M_col_ref
+        @test QCFRZ ≈ 5.930929f-7
+        @test QCSHD ≈ 1.8625477f-9
+        @test NCCOL ≈ 60226.258f0
+        @test QRFRZ ≈ 6.714895f-5
+        @test QRSHD ≈ 3.8634025f-6
+        @test NRCOL ≈ 172.92946f0
+        @test ∫M_col ≈ 7.160729f-5
+        @test BCCOL ≈ 3.7184509f-9
+        @test BRCOL ≈ 4.2099646f-7
+        @test ∫𝟙_wet_M_col ≈ 1.58113f-5
     end
 end
 
