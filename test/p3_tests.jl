@@ -781,6 +781,14 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test BCCOL ≈ 3.7184509f-9
         @test BRCOL ≈ 4.2099646f-7
         @test ∫𝟙_wet_M_col ≈ 1.58113f-5
+
+        ### Test the bulk source function
+        rates = P3.bulk_liquid_ice_collision_sources(
+            params, logλ, Lᵢ, Nᵢ, F_rim, ρ_rim,
+            psd_c, psd_r, L_c, N_c, L_r, N_r,
+            aps, tps, vel_params, ρₐ, T,
+        )
+        @test eltype(rates) == FT  # check type stability
     end
 end
 

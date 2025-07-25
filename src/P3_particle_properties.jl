@@ -217,10 +217,18 @@ function get_thresholds_ρ_g(params::CMP.ParametersP3, F_rim, ρ_rim)
     return (; D_th, D_gr, D_cr, ρ_g)
 end
 
+function get_bounded_thresholds(state::P3State, D_min = 0, D_max = Inf)
+    FT = eltype(state)
+    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
+    thresholds = clamp.((FT(D_min), D_th, D_gr, D_cr, FT(D_max)), FT(D_min), FT(D_max))
+    bounded_thresholds = replace(thresholds, NaN => FT(D_max))
+    return bounded_thresholds
+end
+
 """
     get_segments(state::P3State)
 
-Return the segments of the size distribution.
+Return the segments of the size distribution as a tuple of intervals.
 
 # Arguments
 - `state`: [`P3State`](@ref) object
@@ -228,17 +236,12 @@ Return the segments of the size distribution.
 # Returns
 - `segments`: tuple of tuples, each containing the lower and upper bounds of a segment
 
-For example, if the (valid) thresholds are `(D_th, D_gr, D_cr)`, then the segments are:
+For example, if the thresholds are `(D_th, D_gr, D_cr)`, then the segments are:
 - `(0, D_th)`, `(D_th, D_gr)`, `(D_gr, D_cr)`, `(D_cr, Inf)`
 """
-function get_segments(state::P3State)
-    FT = eltype(state)
-    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
-    # For certain high rimed values, D_gr < D_th (cf test/p3_tests.jl):
-    #   so here we filter away invalid thresholds
-    # (this also works correctly for the unrimed case, where D_gr = D_cr = NaN)
-    valid_D = filter(≥(D_th), (D_th, D_gr, D_cr))
-    segments = tuple.((FT(0), valid_D...), (valid_D..., FT(Inf)))
+function get_segments(state::P3State, D_min = 0, D_max = Inf)
+    thresholds = get_bounded_thresholds(state, D_min, D_max)
+    segments = tuple.(Base.front(thresholds), Base.tail(thresholds))
     return segments
 end
 
@@ -300,9 +303,9 @@ Return the mass of a particle based on where it falls in the particle-size-based
  - `params, F_rim, ρ_rim`: The [`CMP.ParametersP3`](@ref), rime mass fraction, and rime density,
  - `D`: maximum particle dimension [m]
 """
-function ice_mass(args_D...)
-    D = last(args_D)
-    (a, b) = ice_mass_coeffs(args_D...)
+ice_mass((; params, F_rim, ρ_rim)::P3State, D) = ice_mass(params, F_rim, ρ_rim, D)
+function ice_mass(params::CMP.ParametersP3, F_rim, ρ_rim, D)
+    (a, b) = ice_mass_coeffs(params, F_rim, ρ_rim, D)
     return a * D^b
 end
 
@@ -322,13 +325,14 @@ Return the density of a particle at diameter D
  by the volume of a sphere with the same D [MorrisonMilbrandt2015](@cite).
  Needed for aspect ratio calculation, so we assume zero liquid fraction.
 """
-function ice_density(args_D...)
-    D = last(args_D)
-    return ice_mass(args_D...) / CO.volume_sphere_D(D)
+ice_density((; params, F_rim, ρ_rim)::P3State, D) = ice_density(params, F_rim, ρ_rim, D)
+function ice_density(params::CMP.ParametersP3, F_rim, ρ_rim, D)
+    return ice_mass(params, F_rim, ρ_rim, D) / CO.volume_sphere_D(D)
 end
 
-function get_∂mass_∂D_coeffs(args_D...)
-    (a, b) = ice_mass_coeffs(args_D...)
+get_∂mass_∂D_coeffs((; params, F_rim, ρ_rim)::P3State, D) = get_∂mass_∂D_coeffs(params, F_rim, ρ_rim, D)
+function get_∂mass_∂D_coeffs(params::CMP.ParametersP3, F_rim, ρ_rim, D)
+    (a, b) = ice_mass_coeffs(params, F_rim, ρ_rim, D)
     return a * b, b - 1
 end
 
@@ -338,9 +342,9 @@ end
 
 Return the derivative of the ice mass with respect to the particle diameter.
 """
-function ∂ice_mass_∂D(args_D...)
-    D = last(args_D)
-    (a, b) = get_∂mass_∂D_coeffs(args_D...)
+∂ice_mass_∂D((; params, F_rim, ρ_rim)::P3State, D) = ∂ice_mass_∂D(params, F_rim, ρ_rim, D)
+function ∂ice_mass_∂D(params::CMP.ParametersP3, F_rim, ρ_rim, D)
+    (a, b) = get_∂mass_∂D_coeffs(params, F_rim, ρ_rim, D)
     return a * D^b
 end
 
@@ -391,18 +395,18 @@ Returns the aspect ratio (ϕ) for an ice particle
  divided by the volume of a spherical particle with the same D_max [MorrisonMilbrandt2015](@cite).
  Assuming zero liquid fraction and oblate shape.
 """
-function ϕᵢ(args_D...)
-    D = last(args_D)
+ϕᵢ((; params, F_rim, ρ_rim)::P3State, D) = ϕᵢ(params, F_rim, ρ_rim, D)
+function ϕᵢ(params::CMP.ParametersP3, F_rim, ρ_rim, D)
     FT = eltype(D)
-    mᵢ = ice_mass(args_D...)
-    aᵢ = ice_area(args_D...)
-    ρᵢ = ice_density(args_D...)
+    mᵢ = ice_mass(params, F_rim, ρ_rim, D)
+    aᵢ = ice_area(params, F_rim, ρ_rim, D)
+    ρᵢ = ice_density(params, F_rim, ρ_rim, D)
 
     # TODO - prolate or oblate?
     ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
     #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
 
-    return ifelse(D == 0, 0, ϕ_ob)
+    return ifelse(D == 0, FT(0), ϕ_ob)
 end
 
 ### ----------------- ###
