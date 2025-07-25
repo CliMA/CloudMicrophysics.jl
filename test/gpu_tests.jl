@@ -1246,7 +1246,15 @@ function test_gpu(FT)
         kernel!(output, ip_P3, T, N_l, V_l, Δt; ndrange)
 
         # test if P3_het_N_i is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(0.0002736160475969029)
+        ref_val = if FT == Float64
+            FT(0.0002736160475969029)
+        else
+            # loss of precision due to
+            # `exp(-B * V_l_converted * Δt * exp(a * Tₛ))` -> 0.9999999 (Float32)
+            # instead of 0.9999998631919762 (Float64).
+            FT(0.00023841858f0)
+        end
+        TT.@test Array(output)[1] ≈ ref_val
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
