@@ -143,6 +143,34 @@ function test_microphysics2M(FT)
     end
 
     # 2M_microphysics - Seifert and Beheng 2006 double moment scheme tests
+    TT.@testset "Seifert and Beheng 2006 - PDF parameters limiting behavior" begin
+        N = 0.0
+        q = 0.0
+        ρₐ = 1.2
+        # limited rain drop size distribution
+        params = CM2.pdf_rain_parameters(SB2006.pdf_r, q, ρₐ, N)
+        TT.@test all(iszero, params)
+        n = CM2.size_distribution(SB2006.pdf_r, q, ρₐ, N)
+        TT.@test all(iszero, (n(0), n(0.1), n(Inf)))
+        bnds = CM2.get_size_distribution_bounds(SB2006.pdf_r, q, ρₐ, N)
+        TT.@test all(iszero, bnds)
+        # not limited rain drop size distribution
+        params = CM2.pdf_rain_parameters(SB2006_no_limiters.pdf_r, q, ρₐ, N)
+        TT.@test all(iszero, params)
+        n = CM2.size_distribution(SB2006_no_limiters.pdf_r, q, ρₐ, N)
+        TT.@test all(iszero, (n(0), n(0.1), n(Inf)))
+        bnds = CM2.get_size_distribution_bounds(SB2006_no_limiters.pdf_r, q, ρₐ, N)
+        TT.@test all(iszero, bnds)
+        # cloud drop size distribution
+        logA, logB = CM2.log_pdf_cloud_parameters_mass(SB2006.pdf_c, q, ρₐ, N)
+        TT.@test logA == -Inf
+        TT.@test logB == Inf
+        A, B = CM2.pdf_cloud_parameters_mass(SB2006.pdf_c, q, ρₐ, N)
+        TT.@test A == 0
+        TT.@test B == Inf
+        n = CM2.size_distribution(SB2006.pdf_c, q, ρₐ, N)
+        TT.@test all(iszero, (n(0), n(0.1), n(Inf)))
+    end
     TT.@testset "limiting lambda_r and x_r - Seifert and Beheng 2006" begin
         #setup
         q_rai = [FT(0), FT(1e-3), FT(1e-4), FT(1e-2)]

@@ -225,6 +225,7 @@ where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
 function get_distribution_logλ(
     state::P3State{FT}; logλ_min = log(1e1), logλ_max = log(1e7),
 ) where {FT}
+    (iszero(state.N_ice) || iszero(state.L_ice)) && return log(zero(FT))
     target_log_LdN = log(state.L_ice) - log(state.N_ice)
 
     shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
