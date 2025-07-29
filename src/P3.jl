@@ -8,7 +8,6 @@ module P3Scheme
 using DocStringExtensions
 
 import SpecialFunctions as SF
-import QuadGK as QGK
 import RootSolvers as RS
 import LogExpFunctions
 import StaticArrays as SA

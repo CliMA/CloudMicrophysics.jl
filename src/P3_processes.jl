@@ -60,13 +60,13 @@ end
  - `logλ`: the log of the slope parameter [log(1/m)]
 
 # Keyword arguments
- - `∫kwargs`: Named tuple of keyword arguments passed to [`∫fdD`](@ref)
+ - `∫kwargs...`: Additional keyword arguments passed to the quadrature rule
 
 Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
 """
 function ice_melt(
     velocity_params::CMP.Chen2022VelType, aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, dt, state::P3State, logλ;
-    ∫kwargs = (;),
+    ∫kwargs...,
 )
     # Note: process not dependent on `F_liq`
     # (we want ice core shape params)
@@ -83,7 +83,8 @@ function ice_melt(
 
     # Integrate
     fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
-    dLdt = fac * ∫fdD(state, logλ; ∫kwargs...) do D
+    bnds = integral_bounds(state, logλ; p = 1e-6)
+    dLdt = fac * integrate(bnds...; ∫kwargs...) do D
         ∂ice_mass_∂D(state, D) * F_v(D) * N′(D) / D
     end
 
@@ -257,7 +258,7 @@ Returns a function `liquid_integrals(Dᵢ)` that computes the liquid particle in
 - `liq_bounds`: integration bounds for liquid particles
 
 # Keyword arguments
-- `∫kwargs...`: Additional keyword arguments passed to `QuadGK.quadgk`
+- `∫kwargs...`: Additional keyword arguments passed to the quadrature rule
 
 # Notes
 The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col, ∂ₜB_col)` 
@@ -268,17 +269,16 @@ The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col
 """
 function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwargs...)
     function liquid_integrals(Dᵢ)
-        ((∂ₜN_col, ∂ₜM_col, ∂ₜB_col), _) =
-            QGK.quadgk(liq_bounds...; ∫kwargs...) do D
-                return SA.SVector(
-                    # ∂ₜN_col = ∫ ∂ₜV ⋅ n ⋅ dD
-                    ∂ₜV(Dᵢ, D) * n(D),
-                    # ∂ₜM_col = ∫ ∂ₜV ⋅ n ⋅ m_liq ⋅ dD
-                    ∂ₜV(Dᵢ, D) * n(D) * m_liq(D),
-                    # ∂ₜB_col = ∫ ∂ₜV ⋅ n ⋅ m_liq / ρ′_rim ⋅ dD 
-                    ∂ₜV(Dᵢ, D) * n(D) * m_liq(D) / ρ′_rim(Dᵢ, D),
-                )
-            end
+        (∂ₜN_col, ∂ₜM_col, ∂ₜB_col) = integrate(liq_bounds...; ∫kwargs...) do D
+            return SA.SVector(
+                # ∂ₜN_col = ∫ ∂ₜV ⋅ n ⋅ dD
+                ∂ₜV(Dᵢ, D) * n(D),
+                # ∂ₜM_col = ∫ ∂ₜV ⋅ n ⋅ m_liq ⋅ dD
+                ∂ₜV(Dᵢ, D) * n(D) * m_liq(D),
+                # ∂ₜB_col = ∫ ∂ₜV ⋅ n ⋅ m_liq / ρ′_rim ⋅ dD 
+                ∂ₜV(Dᵢ, D) * n(D) * m_liq(D) / ρ′_rim(Dᵢ, D),
+            )
+        end
         return ∂ₜN_col, ∂ₜM_col, ∂ₜB_col
     end
     return liquid_integrals
@@ -299,7 +299,7 @@ Computes the bulk collision rate integrands between ice and liquid particles.
 - `ice_bounds`: integration bounds for ice particles, from [`integral_bounds`](@ref)
 
 # Keyword arguments
-- `∫kwargs...`: Additional keyword arguments passed to `QuadGK.quadgk`
+- `∫kwargs...`: Additional keyword arguments passed to the quadrature rule
 
 # Returns
 A tuple of 8 integrands, see [`∫liquid_ice_collisions`](@ref) for details.
@@ -333,9 +333,7 @@ function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integr
             n * 𝟙_wet * ∂ₜM_col,          # ∫𝟙_wet_M_col, wet growth indicator
         )
     end
-
-    (rates, _) = QGK.quadgk(liquid_ice_collisions_integrands, ice_bounds...; ∫kwargs...)
-    return rates
+    return integrate(liquid_ice_collisions_integrands, ice_bounds...; ∫kwargs...)
 end
 
 """
@@ -378,7 +376,7 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫�
 function ∫liquid_ice_collisions(
     state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
-    aps, tps, vel, ρₐ, T, m_liq,
+    aps, tps, vel, ρₐ, T, m_liq; ∫kwargs...,
 )
     FT = eltype(state)
 
@@ -388,13 +386,10 @@ function ∫liquid_ice_collisions(
     n_i = DT.size_distribution(state, logλ)               # n_i(Dᵢ)
 
     # Initialize integration buffers by evaluating a representative integral
-    ice_bounds = integral_bounds(state, logλ; p = 0.00001)
-    mm = FT(1e-3)
-    bounds_c = FT[0; 0.01mm; 0.1mm; 1mm; 10mm; 100mm; 1]  # TODO: Replace by quantiles method
-    bounds_r = FT[0; 0.01mm; 0.1mm; 1mm; 10mm; 100mm; 1]  # TODO: Replace by quantiles method
-    segbuf_c = QGK.quadgk_segbuf(n_c, bounds_c...)[3]
-    segbuf_r = QGK.quadgk_segbuf(n_r, bounds_r...)[3]
-    segbuf_ice = QGK.quadgk_segbuf(n_i, ice_bounds...)[3]
+    p = FT(0.00001)
+    ice_bounds = integral_bounds(state, logλ; p)
+    bounds_c = CM2.get_size_distribution_bounds(psd_c, L_c, ρₐ, N_c, p)
+    bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r, ρₐ, N_r, p)
 
     # Integrand components
     # NOTE: We assume collision efficiency, shape (spherical), and terminal velocity is the 
@@ -403,12 +398,10 @@ function ∫liquid_ice_collisions(
     ρ′_rim = compute_local_rime_density(vel, ρₐ, T, state)  # ρ′_rim(Dᵢ, Dₗ)
     ∂ₜM_max = compute_max_freeze_rate(aps, tps, vel, ρₐ, T, state)  # ∂ₜM_max(Dᵢ)
 
-    cloud_integrals = get_liquid_integrals(n_c, ∂ₜV, m_liq, ρ′_rim, bounds_c; eval_segbuf = segbuf_c)  # (∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col)
-    rain_integrals = get_liquid_integrals(n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r; eval_segbuf = segbuf_r)  # (∂ₜN_r_col, ∂ₜM_r_col, ∂ₜB_r_col)
+    cloud_integrals = get_liquid_integrals(n_c, ∂ₜV, m_liq, ρ′_rim, bounds_c; ∫kwargs...)  # (∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col)
+    rain_integrals = get_liquid_integrals(n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r; ∫kwargs...)  # (∂ₜN_r_col, ∂ₜM_r_col, ∂ₜB_r_col)
 
-    return ∫liquid_ice_collisions(
-        n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; eval_segbuf = segbuf_ice,
-    )
+    return ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; ∫kwargs...)
 end
 
 """
@@ -451,7 +444,7 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
 function bulk_liquid_ice_collision_sources(
     params, logλ, L_ice, F_rim, ρ_rim,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
-    aps, tps, vel, ρₐ, T,
+    aps, tps, vel, ρₐ, T; ∫kwargs...,
 )
     FT = eltype(params)
     (; τ_wet) = params
@@ -466,7 +459,7 @@ function bulk_liquid_ice_collision_sources(
     (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫∂ₜM_col, BCCOL, BRCOL, ∫𝟙_wet_M_col) = ∫liquid_ice_collisions(
         state, logλ,
         psd_c, psd_r, L_c, N_c, L_r, N_r,
-        aps, tps, vel, ρₐ, T, m_liq,
+        aps, tps, vel, ρₐ, T, m_liq; ∫kwargs...,
     )
 
     # Bulk wet growth fraction

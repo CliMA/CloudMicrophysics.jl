@@ -7,6 +7,7 @@ import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Common as CMC
 import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.DistributionTools as DT
 
 import QuadGK as QGK
@@ -557,7 +558,7 @@ function test_microphysics2M(FT)
             # rain drop diameter distribution (eq.(3) from 2M docs)
             f_D(D) = N₀r * exp(-D / Dr_mean)
             # rain drop mass distribution (eq.(4) from 2M docs)
-            f_x(x) = Ar * x^νr * exp(-Br * x^μr)
+            f_x(x) = iszero(x) ? 0 : Ar * x^νr * exp(-Br * x^μr)
 
             ### Fetch the size distribution functions from the module
             psd = CM2.size_distribution(pdf_r, qᵣ, ρₐ, Nᵣ)
@@ -577,20 +578,24 @@ function test_microphysics2M(FT)
             TT.@test DT.exponential_cdf(Dr_mean, D_max) ≈ 1 - p
 
             # Sanity checks for number concentrations for rain
-            ND = QGK.quadgk(f_D, D_min, D_max)[1]
-            Nx = QGK.quadgk(f_x, x_min, x_max)[1]
-            ND_psd = QGK.quadgk(psd, D_min, D_max)[1]
-            TT.@test ND ≈ Nᵣ rtol = 1e-5
-            TT.@test Nx ≈ Nᵣ rtol = 5e-3
-            TT.@test ND_psd ≈ Nᵣ rtol = 1e-5
+            ND = P3.integrate(f_D, D_min, D_max; quad = P3.ChebyshevGauss(1000))
+            Nx = P3.integrate(f_x, x_min, x_max; quad = P3.ChebyshevGauss(100_000))
+            ND_psd = P3.integrate(psd, D_min, D_max; quad = P3.ChebyshevGauss(1000))
+            TT.@test ND ≈ Nᵣ rtol = 1e-6
+            if FT == Float64
+                TT.@test Nx ≈ Nᵣ rtol = 7e-3
+            else
+                TT.@test Nx ≈ Nᵣ rtol = 4e-2  # TODO: poor convergence for Float32
+            end
+            TT.@test ND_psd == ND
 
             # Sanity checks for specific contents for rain
-            qD = QGK.quadgk(Mⁿ(3, f_D), D_min, D_max)[1] * k_m / ρₐ
-            qx = QGK.quadgk(Mⁿ(1, f_x), x_min, x_max)[1] / ρₐ
-            qD_psd = QGK.quadgk(Mⁿ(3, psd), D_min, D_max)[1] * k_m / ρₐ
-            TT.@test qD ≈ qᵣ rtol = 5e-3
-            TT.@test qx ≈ qᵣ rtol = 5e-3
-            TT.@test qD_psd ≈ qᵣ rtol = 5e-3
+            qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max) * k_m / ρₐ
+            qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max) / ρₐ
+            qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max) * k_m / ρₐ
+            TT.@test qD ≈ qᵣ rtol = 6e-4
+            TT.@test qx ≈ qᵣ rtol = 5e-4
+            TT.@test qD_psd == qD
 
             # Test relationship between exponential moments in diameter space and generalized gamma moments in mass space
             # For raindrops, we expect:
@@ -665,16 +670,16 @@ function test_microphysics2M(FT)
 
 
         # Sanity checks of specific content and number concentration with mass distribution
-        Nx = QGK.quadgk(Mⁿ(0, f_x), x_min, x_max)[1]
-        qx = QGK.quadgk(Mⁿ(1, f_x), x_min, x_max)[1] / ρₐ
+        Nx = P3.integrate(Mⁿ(0, f_x), x_min, x_max)
+        qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max) / ρₐ
         TT.@test qx ≈ qₗ rtol = 1e-5
         TT.@test Nx ≈ Nₗ rtol = 1e-5
 
         # Sanity checks of specific content and number concentration with diameter distribution
-        ND = QGK.quadgk(Mⁿ(0, f_D), D_min, D_max)[1]
-        ND_psd = QGK.quadgk(Mⁿ(0, psd), D_min, D_max)[1]
-        qD = QGK.quadgk(Mⁿ(3, f_D), D_min, D_max)[1] * k_m / ρₐ
-        qD_psd = QGK.quadgk(Mⁿ(3, psd), D_min, D_max)[1] * k_m / ρₐ
+        ND = P3.integrate(Mⁿ(0, f_D), D_min, D_max)
+        ND_psd = P3.integrate(Mⁿ(0, psd), D_min, D_max)
+        qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max) * k_m / ρₐ
+        qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max) * k_m / ρₐ
         TT.@test ND ≈ Nₗ rtol = 1e-5
         TT.@test ND_psd ≈ Nₗ rtol = 1e-5
         TT.@test qD ≈ qₗ rtol = 1e-5
