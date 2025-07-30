@@ -34,7 +34,7 @@
 
 # Arguments
  - `f`: Function to integrate
- - `a`, `b`: Integration bounds
+ - `a`, `b`: Integration bounds. Note: if `a ≥ b`, or `a` or `b` is `NaN`, `zero(f(a))` is returned.
 
 # Keyword arguments
  - `quad`: Quadrature scheme, default: `ChebyshevGauss(100)`
@@ -56,7 +56,7 @@ function integrate(f, a, b; quad = ChebyshevGauss(100))
 
     # Compute integral using Chebyshev-Gauss quadrature
     result = zero(f(a))
-    a == b && return result  # return early if a == b
+    a < b || return result  # return early unless a < b
     (; n) = quad
     for i in 1:n
         # Node on [-1, 1] interval
@@ -164,17 +164,15 @@ Compute the integration bounds for the P3 size distribution,
 - `bnds`: The integration bounds (a `Tuple`), for use in numerical integration (c.f. [`integrate`](@ref)).
 """
 function integral_bounds(state::P3State{FT}, logλ; p, moment_order = 0) where {FT}
-    # Get mass thresholds
-    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
-    # Get bounds from quantiles
+    # Get reduced lower and upper bounds from quantiles
     k = get_μ(state, logλ) + moment_order
     D_min = DT.generalized_gamma_quantile(k, FT(1), exp(logλ), FT(p))
     D_max = DT.generalized_gamma_quantile(k, FT(1), exp(logλ), FT(1 - p))
 
     # Only integrate up to the maximum diameter, `D_max`, including intermediate thresholds
     # If `F_rim` is very close to 1, `D_cr` may be greater than `D_max`, in which case it is disregarded.
-    bnds = (D_min, filter(<(D_max), (D_th, D_gr, D_cr))..., D_max)
-    return bnds
+    thresholds = get_bounded_thresholds(state, D_min, D_max)
+    return thresholds
 end
 
 """

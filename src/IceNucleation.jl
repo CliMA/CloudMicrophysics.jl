@@ -150,7 +150,7 @@ function P3_deposition_N_i(ip::CMP.MorrisonMilbrandt2014, T::FT) where {FT}
         max(FT(0), FT(ip.c₁ * exp(ip.c₂ * (T₀ - T_thres)))),
         max(FT(0), FT(ip.c₁ * exp(ip.c₂ * (T₀ - T)))),
     )
-    return Nᵢ * 1e3  # converts L^-1 to m^-3
+    return Nᵢ * 1000  # converts L^-1 to m^-3
 end
 
 """
@@ -176,9 +176,9 @@ function P3_het_N_i(
     Δt::FT,
 ) where {FT}
 
-    a = ip.het_a                # (celcius)^-1
-    B = ip.het_B                # cm^-3 s^-1 for rain water
-    V_l_converted = V_l * 1e6   # converted from m^3 to cm^3
+    a = ip.het_a                     # (celcius)^-1
+    B = ip.het_B                     # cm^-3 s^-1 for rain water
+    V_l_converted = V_l * 1_000_000  # converted from m^3 to cm^3
     Tₛ = ip.T₀ - T
 
     return N_l * (1 - exp(-B * V_l_converted * Δt * exp(a * Tₛ)))
