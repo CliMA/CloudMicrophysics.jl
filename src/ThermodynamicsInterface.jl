@@ -50,7 +50,7 @@ supersaturation_over_ice(tps::PS, qₜ, qₗ, qᵢ, ρ, T) =
 q_vap(q_tot, q_liq, q_ice) = q_tot - q_liq - q_ice
 # Get vapor specific content from total water, cloud liquid water, cloud ice,
 # rain and snow specific contents.
-q_vap(q_tot, q_liq, q_ice, q_rai, q_sno) = q_tot - q_liq - q_ice - q_rai - q_sno
+q_vap(q_tot, q_lcl, q_icl, q_rai, q_sno) = q_tot - q_lcl - q_icl - q_rai - q_sno
 
 # Get specific content from partial pressure
 p2q(tps::PS, T, ρ, p) = TD.q_vap_saturation_from_density(tps, T, ρ, p)

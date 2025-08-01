@@ -27,28 +27,28 @@ function test_microphysics0M(FT)
 
         # rain based on qc threshold
         for lf in frac
-            q_liq = qc * lf
-            q_ice = (1 - lf) * qc
+            q_lcl = qc * lf
+            q_icl = (1 - lf) * qc
 
-            q = TDI.TD.PhasePartition(q_tot, q_liq, q_ice)
+            q = TDI.TD.PhasePartition(q_tot, q_lcl, q_icl)
 
             TT.@test CM0.remove_precipitation(p0m, q) ≈
-                     -max(0, q_liq + q_ice - qc_0) / τ_precip
-            TT.@test CM0.remove_precipitation(p0m, q_liq, q_ice) ≈
-                     -max(0, q_liq + q_ice - qc_0) / τ_precip
+                     -max(0, q_lcl + q_icl - qc_0) / τ_precip
+            TT.@test CM0.remove_precipitation(p0m, q_lcl, q_icl) ≈
+                     -max(0, q_lcl + q_icl - qc_0) / τ_precip
         end
 
         # rain based on supersaturation threshold
         for lf in frac
-            q_liq = qc * lf
-            q_ice = (1 - lf) * qc
+            q_lcl = qc * lf
+            q_icl = (1 - lf) * qc
 
-            q = TDI.TD.PhasePartition(q_tot, q_liq, q_ice)
+            q = TDI.TD.PhasePartition(q_tot, q_lcl, q_icl)
 
             TT.@test CM0.remove_precipitation(p0m, q, q_vap_sat) ≈
-                     -max(0, q_liq + q_ice - S_0 * q_vap_sat) / τ_precip
-            TT.@test CM0.remove_precipitation(p0m, q_liq, q_ice, q_vap_sat) ≈
-                     -max(0, q_liq + q_ice - S_0 * q_vap_sat) / τ_precip
+                     -max(0, q_lcl + q_icl - S_0 * q_vap_sat) / τ_precip
+            TT.@test CM0.remove_precipitation(p0m, q_lcl, q_icl, q_vap_sat) ≈
+                     -max(0, q_lcl + q_icl - S_0 * q_vap_sat) / τ_precip
         end
     end
 end

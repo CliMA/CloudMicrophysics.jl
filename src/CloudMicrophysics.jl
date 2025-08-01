@@ -5,9 +5,9 @@ import .Parameters
 const CMP = Parameters
 
 # function stubs to be re-defined inside Microphysics1M and Microphysics2M
-export conv_q_liq_to_q_rai
+export conv_q_lcl_to_q_rai
 export accretion
-function conv_q_liq_to_q_rai end
+function conv_q_lcl_to_q_rai end
 function accretion end
 
 include("ThermodynamicsInterface.jl")

@@ -33,36 +33,36 @@ TT.@testset "precipitation_susceptibility_SB2006" begin
     FT = Float64
     sb2006 = CMP.SB2006(FT)
 
-    q_liq = FT(0.5e-3)
-    N_liq = FT(1e8)
+    q_lcl = FT(0.5e-3)
+    N_lcl = FT(1e8)
     q_rai = FT(1e-5)
     ρ = FT(1)
 
-    τ = FT(1) - q_liq / (q_liq + q_rai)
+    τ = FT(1) - q_lcl / (q_lcl + q_rai)
 
     aut_rates = CMPS.precipitation_susceptibility_autoconversion(
         sb2006,
-        q_liq,
+        q_lcl,
         q_rai,
         ρ,
-        N_liq,
+        N_lcl,
     )
 
     acc_rates = CMPS.precipitation_susceptibility_accretion(
         sb2006,
-        q_liq,
+        q_lcl,
         q_rai,
         ρ,
-        N_liq,
+        N_lcl,
     )
 
-    TT.@test aut_rates.d_ln_pp_d_ln_N_liq ≈ -2
-    TT.@test aut_rates.d_ln_pp_d_ln_q_liq ≈
+    TT.@test aut_rates.d_ln_pp_d_ln_N_lcl ≈ -2
+    TT.@test aut_rates.d_ln_pp_d_ln_q_lcl ≈
              4 - (1 - τ) * d_ln_phi_au_d_ln_τ(sb2006.acnv, τ)
     TT.@test aut_rates.d_ln_pp_d_ln_q_rai ≈
              (1 - τ) * d_ln_phi_au_d_ln_τ(sb2006.acnv, τ)
 
-    TT.@test acc_rates.d_ln_pp_d_ln_q_liq ≈
+    TT.@test acc_rates.d_ln_pp_d_ln_q_lcl ≈
              1 - (1 - τ) * d_ln_phi_acc_d_ln_τ(sb2006.accr, τ)
     TT.@test acc_rates.d_ln_pp_d_ln_q_rai ≈
              1 + (1 - τ) * d_ln_phi_acc_d_ln_τ(sb2006.accr, τ)

@@ -476,7 +476,7 @@ function test_p3_het_freezing(FT)
         tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
         aerosol = CMP.Illite(FT)
 
-        N_liq = FT(1e8)
+        N_lcl = FT(1e8)
         T = FT(244)
         p = FT(500 * 1e2)
 
@@ -484,17 +484,17 @@ function test_p3_het_freezing(FT)
 
         expected_freeze_L =
             [1.544e-22, 1.068e-6, 0.0001428, 0.0001428, 0.0001428, 0.0001428]
-        expected_freeze_N = [1.082e-10, 747647.5, N_liq, N_liq, N_liq, N_liq]
+        expected_freeze_N = [1.082e-10, 747647.5, N_lcl, N_lcl, N_lcl, N_lcl]
         qᵥ_range = range(FT(0.5e-3), stop = FT(1.5e-3), length = 6)
 
         for it in range(1, 6)
-            q_liq = FT(2e-4)
+            q_lcl = FT(2e-4)
             eᵥ_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
             ϵ = TDI.Rd_over_Rv(tps)
             eᵥ = p * qᵥ_range[it] / (ϵ + qᵥ_range[it] * (1 - ϵ))
             RH = eᵥ / eᵥ_sat
-            ρₐ = TDI.air_density(tps, T, p, qᵥ_range[it] + q_liq, q_liq, FT(0))
-            rate = P3.het_ice_nucleation(aerosol, tps, q_liq, N_liq, RH, T, ρₐ, dt)
+            ρₐ = TDI.air_density(tps, T, p, qᵥ_range[it] + q_lcl, q_lcl, FT(0))
+            rate = P3.het_ice_nucleation(aerosol, tps, q_lcl, N_lcl, RH, T, ρₐ, dt)
 
             @test rate.dNdt >= 0
             @test rate.dLdt >= 0
