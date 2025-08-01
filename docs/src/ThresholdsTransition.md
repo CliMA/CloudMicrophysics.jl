@@ -32,6 +32,6 @@ The curve defined by the above equation smoothly transition from ``f(x) = 0``, f
 ```@example
 include("plots/Thersholds_transitions.jl")
 ```
-![](q_liq_K1969.svg)
-![](q_liq_TC1980_LD2004.svg)
+![](q_lcl_K1969.svg)
+![](q_lcl_TC1980_LD2004.svg)
 ![](N_d_B1994.svg)

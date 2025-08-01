@@ -8,8 +8,8 @@ CurrentModule = CloudMicrophysics
 ```@docs
 MicrophysicsNonEq
 MicrophysicsNonEq.τ_relax
-MicrophysicsNonEq.conv_q_vap_to_q_liq_ice
-MicrophysicsNonEq.conv_q_vap_to_q_liq_ice_MM2015
+MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl
+MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl_MM2015
 MicrophysicsNonEq.terminal_velocity
 ```
 
@@ -28,9 +28,9 @@ Microphysics1M.get_v0
 Microphysics1M.get_n0
 Microphysics1M.lambda_inverse
 Microphysics1M.terminal_velocity
-Microphysics1M.conv_q_liq_to_q_rai
-Microphysics1M.conv_q_ice_to_q_sno_no_supersat
-Microphysics1M.conv_q_ice_to_q_sno
+Microphysics1M.conv_q_lcl_to_q_rai
+Microphysics1M.conv_q_icl_to_q_sno_no_supersat
+Microphysics1M.conv_q_icl_to_q_sno
 Microphysics1M.accretion
 Microphysics1M.accretion_rain_sink
 Microphysics1M.accretion_snow_rain
@@ -63,17 +63,17 @@ Microphysics2M.get_size_distribution_bounds
 
 ## Rates
 ```@docs
-Microphysics2M.LiqRaiRates
+Microphysics2M.LclRaiRates
 Microphysics2M.autoconversion
 Microphysics2M.accretion
-Microphysics2M.liquid_self_collection
-Microphysics2M.autoconversion_and_liquid_self_collection
+Microphysics2M.cloud_liquid_self_collection
+Microphysics2M.autoconversion_and_cloud_liquid_self_collection
 Microphysics2M.rain_self_collection
 Microphysics2M.rain_breakup
 Microphysics2M.rain_self_collection_and_breakup
 Microphysics2M.rain_terminal_velocity
 Microphysics2M.rain_evaporation
-Microphysics2M.conv_q_liq_to_q_rai
+Microphysics2M.conv_q_lcl_to_q_rai
 Microphysics2M.number_increase_for_mass_limit
 Microphysics2M.number_decrease_for_mass_limit
 ```

@@ -56,7 +56,7 @@ Rogers_radius = [8.0, 8.08, 8.26, 8.91, 9.26, 9.68]
 fig = MK.Figure(size = (800, 300))
 ax1 = MK.Axis(fig[1, 1], xlabel = "Time [s]", ylabel = "Supersaturation [%]")
 ax2 = MK.Axis(fig[1, 2], xlabel = "Time [s]", ylabel = "radius [μm]")
-ax3 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
+ax3 = MK.Axis(fig[1, 3], xlabel = "Time [s]", ylabel = "q_lcl [g/kg]")
 MK.lines!(ax1, Rogers_time_supersat, Rogers_supersat, label = "Rogers_1975", color = :red)
 MK.lines!(ax2, Rogers_time_radius, Rogers_radius, color = :red)
 #! format: on

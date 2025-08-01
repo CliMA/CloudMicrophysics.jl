@@ -271,11 +271,11 @@ Following the water activity based immersion freezing model (ABIFM), the ABIFM d
   per second via immersion freezing can then be calculating using
 ```math
 \begin{equation}
-  P_{ice, immer} = \left[ \frac{dN_i}{dt} \right]_{immer} = J_{immer}\;A_{aero}(N_{liq})
+  P_{ice, immer} = \left[ \frac{dN_i}{dt} \right]_{immer} = J_{immer}\;A_{aero}(N_{lcl})
   \label{eq:ABIFM_P_ice}
 \end{equation}
 ```
-where ``N_{liq}`` is total number of ice nuclei containing droplets and
+where ``N_{lcl}`` is total number of ice nuclei containing droplets and
   ``A_{aero}`` is surface area of the ice nucleating particle.
 
 ### Homogeneous Freezing
@@ -285,11 +285,11 @@ Homogeneous freezing follows the water-activity based model described in the
 The ice production rate from homogeneous freezing can then be determined:
 ```math
 \begin{equation}
-  P_{ice, hom} = \left[ \frac{dN_i}{dt} \right]_{hom} = J_{hom}V(N_{liq})
+  P_{ice, hom} = \left[ \frac{dN_i}{dt} \right]_{hom} = J_{hom}V(N_{lcl})
   \label{eq:hom_P_ice}
 \end{equation}
 ```
-where ``N_{liq}`` is total number of ice nuclei containing droplets and
+where ``N_{lcl}`` is total number of ice nuclei containing droplets and
   ``V`` is the volume of those droplets.
 
 ### P3 Ice Nucleation Parameterizations
@@ -459,8 +459,8 @@ and `stochastic` (solid lines) parameterization options. We show results for two
 Below, we show how the non-equilibrium formulation is able to represent the
 Wegener-Bergeron-Findeisen (WBF) regime in the parcel model.
 These plots show the liquid supersaturation, ice supersaturation,
-temperature, specific humidity `q_{vap}`, specific content of liquid `q_{liq}`,
-and specific content of ice `q_{ice}` over time.
+temperature, specific humidity `q_{vap}`, specific content of cloud liquid `q_{lcl}`,
+and specific content of cloud ice `q_{icl}` over time.
 When the supersaturation is negative evaporation/sublimation occurs,
 and when it is positive condensation/deposition occurs.
 In the example below, the water vapor pressure is smaller than the saturation water vapor pressure of liquid

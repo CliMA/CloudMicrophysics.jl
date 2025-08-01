@@ -116,7 +116,7 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = CMN.conv_q_vap_to_q_liq_ice_MM2015(
+        output[1, i] = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
             liquid,
             tps,
             qᵥ_sl[i],
@@ -127,7 +127,7 @@ end
             ρ[i],
             T[i],
         )
-        output[2, i] = CMN.conv_q_vap_to_q_liq_ice(ice, qᵢ_s[i], qᵢ[i])
+        output[2, i] = CMN.conv_q_vap_to_q_lcl_icl(ice, qᵢ_s[i], qᵢ[i])
     end
 end
 
@@ -191,8 +191,8 @@ end
     output[2, 1] = FT(-99999.99)
     output[2, 2] = FT(-99999.99)
     @inbounds begin
-        output[1, i] = CM1.conv_q_liq_to_q_rai(acnv1M, ql[i], false)
-        output[2, i] = CM1.conv_q_liq_to_q_rai(acnv1M, ql[i], false)
+        output[1, i] = CM1.conv_q_lcl_to_q_rai(acnv1M, ql[i], false)
+        output[2, i] = CM1.conv_q_lcl_to_q_rai(acnv1M, ql[i], false)
     end
 end
 
@@ -289,11 +289,11 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = CM2.conv_q_liq_to_q_rai(VarTSc, ql[i], ρ[i], Nd[i])
-        output[2, i] = CM2.conv_q_liq_to_q_rai(LD2004, ql[i], ρ[i], Nd[i])
-        output[3, i] = CM2.conv_q_liq_to_q_rai(TC1980, ql[i], ρ[i], Nd[i])
-        output[4, i] = CM2.conv_q_liq_to_q_rai(B1994, ql[i], ρ[i], Nd[i])
-        output[5, i] = CM2.conv_q_liq_to_q_rai(KK2000, ql[i], ρ[i], Nd[i])
+        output[1, i] = CM2.conv_q_lcl_to_q_rai(VarTSc, ql[i], ρ[i], Nd[i])
+        output[2, i] = CM2.conv_q_lcl_to_q_rai(LD2004, ql[i], ρ[i], Nd[i])
+        output[3, i] = CM2.conv_q_lcl_to_q_rai(TC1980, ql[i], ρ[i], Nd[i])
+        output[4, i] = CM2.conv_q_lcl_to_q_rai(B1994, ql[i], ρ[i], Nd[i])
+        output[5, i] = CM2.conv_q_lcl_to_q_rai(KK2000, ql[i], ρ[i], Nd[i])
     end
 end
 
@@ -336,23 +336,23 @@ end
     @inbounds begin
 
         output[1, i] =
-            CM2.autoconversion_and_liquid_self_collection(
+            CM2.autoconversion_and_cloud_liquid_self_collection(
                 SB2006,
                 ql[i],
                 qr[i],
                 ρ[i],
                 Nl[i],
-            ).au.dq_liq_dt
+            ).au.dq_lcl_dt
         output[2, i] =
-            CM2.autoconversion_and_liquid_self_collection(
+            CM2.autoconversion_and_cloud_liquid_self_collection(
                 SB2006,
                 ql[i],
                 qr[i],
                 ρ[i],
                 Nl[i],
-            ).au.dN_liq_dt
+            ).au.dN_lcl_dt
         output[3, i] =
-            CM2.autoconversion_and_liquid_self_collection(
+            CM2.autoconversion_and_cloud_liquid_self_collection(
                 SB2006,
                 ql[i],
                 qr[i],
@@ -360,7 +360,7 @@ end
                 Nl[i],
             ).au.dq_rai_dt
         output[4, i] =
-            CM2.autoconversion_and_liquid_self_collection(
+            CM2.autoconversion_and_cloud_liquid_self_collection(
                 SB2006,
                 ql[i],
                 qr[i],
@@ -369,7 +369,7 @@ end
             ).au.dN_rai_dt
 
         output[5, i] =
-            CM2.autoconversion_and_liquid_self_collection(
+            CM2.autoconversion_and_cloud_liquid_self_collection(
                 SB2006,
                 ql[i],
                 qr[i],
@@ -377,9 +377,9 @@ end
                 Nl[i],
             ).sc
         output[6, i] =
-            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_liq_dt
+            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_lcl_dt
         output[7, i] =
-            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_liq_dt
+            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_lcl_dt
         output[8, i] =
             CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_rai_dt
         output[9, i] =

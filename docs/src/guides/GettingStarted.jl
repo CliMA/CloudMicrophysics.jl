@@ -35,6 +35,6 @@ nothing #hide
 
 # Finally, we call `accretion`, which will return the accretion rates for
 # cloud and rain water specific contents, as well as cloud and rain water number concentrations.
-(; dq_rai_dt, dq_liq_dt, dN_rai_dt, dN_liq_dt) =
+(; dq_rai_dt, dq_lcl_dt, dN_rai_dt, dN_lcl_dt) =
     CM2.accretion(SB2006, qₗ, qᵣ, ρₐ, Nₗ)
-@info("Accretion rates: ", dq_rai_dt, dq_liq_dt, dN_rai_dt, dN_liq_dt)
+@info("Accretion rates: ", dq_rai_dt, dq_lcl_dt, dN_rai_dt, dN_lcl_dt)

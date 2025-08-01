@@ -11,8 +11,8 @@ import ..ThermodynamicsInterface as TDI
 import ...Common as CO
 
 export τ_relax
-export conv_q_vap_to_q_liq_ice
-export conv_q_vap_to_q_liq_ice_MM2015
+export conv_q_vap_to_q_lcl_icl
+export conv_q_vap_to_q_lcl_icl_MM2015
 
 """
     τ_relax(liquid)
@@ -28,48 +28,51 @@ deposition of cloud ice.
 τ_relax(p::CMP.CloudIce) = p.τ_relax
 
 """
-    conv_q_vap_to_q_liq_ice(params, q_sat, q_)
+    conv_q_vap_to_q_lcl_icl(params, q_sat, q_lcl)
+    conv_q_vap_to_q_lcl_icl(params, q_sat, q_icl)
 
  - `params` - a struct with cloud water or ice free parameters
- - `q_sat` - liquid or ice equilibrium specific contents
- - `q_`` - current liquid or ice specific contants
+ - `q_sat` - liquid water or ice equilibrium specific contents
+ - `q_lcl`, `q_icl` - current cloud liquid water or cloud ice specific contants
 
-Returns the cloud water tendency due to condensation and evaporation
+Returns the cloud liquid water tendency due to condensation and evaporation
 or cloud ice tendency due to sublimation and vapor deposition.
 The tendency is obtained assuming a relaxation to equilibrium with
 a constant timescale and is based on the difference between
 specific contents in equilibrium at the current temperature
 and the current cloud condensate.
 """
-function conv_q_vap_to_q_liq_ice((; τ_relax)::CMP.CloudLiquid, q_sat_liq, q_liq)
-    return (q_sat_liq - q_liq) / τ_relax
+function conv_q_vap_to_q_lcl_icl((; τ_relax)::CMP.CloudLiquid, q_sat_liq, q_lcl)
+    return (q_sat_liq - q_lcl) / τ_relax
 end
-function conv_q_vap_to_q_liq_ice((; τ_relax)::CMP.CloudIce, q_sat_ice, q_ice)
-    return (q_sat_ice - q_ice) / τ_relax
+function conv_q_vap_to_q_lcl_icl((; τ_relax)::CMP.CloudIce, q_sat_ice, q_icl)
+    return (q_sat_ice - q_icl) / τ_relax
 end
 
 """
-    conv_q_vap_to_q_liq_ice_MM2015(params, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T)
+    conv_q_vap_to_q_lcl_icl_MM2015(params, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
 
-- `params` - a struct with cloud water or ice free parameters
+- `params` - a struct with cloud liquid water or ice free parameters
 - `tps` - thermodynamics parameters struct
-- `q_tot`, `q_liq`, `q_ice`, `q_rai`, `q_sno` - specific contents of total water, cloud liquid and ice, rain and snow,
+- `q_tot`, `q_lcl`, `q_icl`, `q_rai`, `q_sno` - specific contents of total water, cloud liquid water and ice, rain and snow,
 - `ρ` - air density [kg/m3]
 - `T` - air temperature [K]
 
-Returns the cloud water tendency due to condensation and evaporation
+Returns the cloud liquid water tendency due to condensation and evaporation
 or cloud ice tendency due to sublimation and vapor deposition.
 The formulation is based on Morrison and Grabowski 2008 and
-Morrison and Milbrandt 2015. It does NOT screen for small or
-negative values for humidities, so we suggest applying a limiter
-of choice to this function when running it in a model.
+Morrison and Milbrandt 2015.
+
+It does NOT screen for small or negative values for humidities,
+so we suggest applying a limiter of choice to this function,
+when running it in a model.
 """
-function conv_q_vap_to_q_liq_ice_MM2015(
+function conv_q_vap_to_q_lcl_icl_MM2015(
     (; τ_relax)::CMP.CloudLiquid,
     tps::TDI.PS,
     q_tot,
-    q_liq,
-    q_ice,
+    q_lcl,
+    q_icl,
     q_rai,
     q_sno,
     ρ,
@@ -77,9 +80,9 @@ function conv_q_vap_to_q_liq_ice_MM2015(
 )
     Rᵥ = TDI.Rᵥ(tps)
     Lᵥ = TDI.Lᵥ(tps, T)
-    cₚ_air = TDI.cpₘ(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
+    cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
 
-    qᵥ = TDI.q_vap(q_tot, q_liq + q_rai, q_ice + q_sno)
+    qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
 
     pᵥ_sat_liq = TDI.saturation_vapor_pressure_over_liquid(tps, T)
     qᵥ_sat_liq = TDI.p2q(tps, T, ρ, pᵥ_sat_liq)
@@ -89,12 +92,12 @@ function conv_q_vap_to_q_liq_ice_MM2015(
 
     return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
 end
-function conv_q_vap_to_q_liq_ice_MM2015(
+function conv_q_vap_to_q_lcl_icl_MM2015(
     (; τ_relax)::CMP.CloudIce,
     tps::TDI.PS,
     q_tot,
-    q_liq,
-    q_ice,
+    q_lcl,
+    q_icl,
     q_rai,
     q_sno,
     ρ,
@@ -102,9 +105,9 @@ function conv_q_vap_to_q_liq_ice_MM2015(
 )
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)
-    cₚ_air = TDI.cpₘ(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
+    cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
 
-    qᵥ = TDI.q_vap(q_tot, q_liq + q_rai, q_ice + q_sno)
+    qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
 
     pᵥ_sat_ice = TDI.saturation_vapor_pressure_over_ice(tps, T)
     qᵥ_sat_ice = TDI.p2q(tps, T, ρ, pᵥ_sat_ice)
@@ -121,7 +124,7 @@ end
  - `sediment` - a struct with sedimentation type (cloud liquid or ice)
  - `vel` - a struct with terminal velocity parameters
  - `ρₐ` - air density
- - `q` - cloud liquid or ice specific content
+ - `q` - cloud liquid water or ice specific content
 
 Returns the mass weighted average terminal velocity assuming a
 monodisperse size distribution with prescribed number concentration.

@@ -31,7 +31,7 @@ cpₘ(tps::PS, qₜ, qₗ, qᵢ) = TD.cp_m(tps, qₜ, qₗ, qᵢ)
 q_vap(q_tot, q_liq, q_ice) = q_tot - q_liq - q_ice
 # Get vapor specific content from total water, cloud liquid water, cloud ice,
 # rain and snow specific contents.
-q_vap(q_tot, q_liq, q_ice, q_rai, q_sno) = q_tot - q_liq - q_ice - q_rai - q_sno
+q_vap(q_tot, q_lcl, q_icl, q_rai, q_sno) = q_tot - q_lcl - q_icl - q_rai - q_sno
 
 # Get specific content from partial pressure
 p2q(tps::PS, T, ρ, pᵥ) = TD.q_vap_from_p_vap(tps, T, ρ, pᵥ)

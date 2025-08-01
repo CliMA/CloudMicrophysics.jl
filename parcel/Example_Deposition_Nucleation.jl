@@ -48,7 +48,7 @@ size_distribution = "Monodisperse"
 # Plotting
 fig = MK.Figure(size = (800, 300))
 ax1 = MK.Axis(fig[1, 1], ylabel = "Ice Saturation [-]", xlabel = "time")
-ax2 = MK.Axis(fig[1, 2], ylabel = "N_ice [m^-3]", xlabel = "time")
+ax2 = MK.Axis(fig[1, 2], ylabel = "N_icl [m^-3]", xlabel = "time")
 
 for deposition in deposition_modes
     if deposition == "MohlerRate"

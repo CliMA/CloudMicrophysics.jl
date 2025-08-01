@@ -58,9 +58,9 @@ nothing #hide
 # Finally we check the values of the rain autoconversion timescales
 # and the corresponding rain formation rates.
 qₗ = FT(1e-3)
-default_acnv = CM1.conv_q_liq_to_q_rai(default.acnv1M, qₗ) # Rain autoconversion rate
-overwrite_acnv = CM1.conv_q_liq_to_q_rai(overwrite.acnv1M, qₗ) # Rain autoconversion rate
-overwrite_acnv2 = CM1.conv_q_liq_to_q_rai(overwrite2.acnv1M, qₗ) # Rain autoconversion rate
+default_acnv = CM1.conv_q_lcl_to_q_rai(default.acnv1M, qₗ) # Rain autoconversion rate
+overwrite_acnv = CM1.conv_q_lcl_to_q_rai(overwrite.acnv1M, qₗ) # Rain autoconversion rate
+overwrite_acnv2 = CM1.conv_q_lcl_to_q_rai(overwrite2.acnv1M, qₗ) # Rain autoconversion rate
 
 @info("Default:", default.acnv1M.τ, default_acnv)
 @info("Overwrite:", overwrite.acnv1M.τ, overwrite_acnv)
@@ -94,9 +94,9 @@ const LD2004 = CMP.LD2004(FT)  # Liu and Daum (2004)
 qₗ = FT(1e-3)
 ρₐ = FT(1)
 N = FT(1e8)
-KK2000_rate = CM2.conv_q_liq_to_q_rai(KK2000, qₗ, ρₐ, N)
-TC1980_rate = CM2.conv_q_liq_to_q_rai(TC1980, qₗ, ρₐ, N)
-LD2004_rate = CM2.conv_q_liq_to_q_rai(LD2004, qₗ, ρₐ, N)
-B1994_rate = CM2.conv_q_liq_to_q_rai(B1994, qₗ, ρₐ, N)
+KK2000_rate = CM2.conv_q_lcl_to_q_rai(KK2000, qₗ, ρₐ, N)
+TC1980_rate = CM2.conv_q_lcl_to_q_rai(TC1980, qₗ, ρₐ, N)
+LD2004_rate = CM2.conv_q_lcl_to_q_rai(LD2004, qₗ, ρₐ, N)
+B1994_rate = CM2.conv_q_lcl_to_q_rai(B1994, qₗ, ρₐ, N)
 
 @info("Autoconversion: ", KK2000_rate, B1994_rate, TC1980_rate, LD2004_rate)

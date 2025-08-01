@@ -17,8 +17,8 @@ import ..Parameters as CMP
 
 
 export terminal_velocity,
-    conv_q_liq_to_q_rai,
-    conv_q_ice_to_q_sno,
+    conv_q_lcl_to_q_rai,
+    conv_q_icl_to_q_sno,
     accretion,
     accretion_rain_sink,
     accretion_snow_rain,
@@ -38,10 +38,10 @@ struct Prolate <: AbstractSnowShape end
 
 Returns collision efficiency for two colliding species
 """
-Ec(::CMP.CloudLiquid, ::CMP.Rain, (; e_liq_rai)::CMP.CollisionEff) = e_liq_rai
-Ec(::CMP.CloudLiquid, ::CMP.Snow, (; e_liq_sno)::CMP.CollisionEff) = e_liq_sno
-Ec(::CMP.CloudIce, ::CMP.Rain, (; e_ice_rai)::CMP.CollisionEff) = e_ice_rai
-Ec(::CMP.CloudIce, ::CMP.Snow, (; e_ice_sno)::CMP.CollisionEff) = e_ice_sno
+Ec(::CMP.CloudLiquid, ::CMP.Rain, (; e_lcl_rai)::CMP.CollisionEff) = e_lcl_rai
+Ec(::CMP.CloudLiquid, ::CMP.Snow, (; e_lcl_sno)::CMP.CollisionEff) = e_lcl_sno
+Ec(::CMP.CloudIce, ::CMP.Rain, (; e_icl_rai)::CMP.CollisionEff) = e_icl_rai
+Ec(::CMP.CloudIce, ::CMP.Snow, (; e_icl_sno)::CMP.CollisionEff) = e_icl_sno
 Ec(::CMP.Rain, ::CMP.Snow, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
 Ec(::CMP.Snow, ::CMP.Rain, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
 
@@ -74,7 +74,7 @@ get_v0((; v0)::CMP.Blk1MVelTypeSnow{FT}, args...) where {FT} = v0
     lambda_inverse(pdf, mass, q, ρ)
 
  - `pdf`, `mass` - structs with particle size distribution and mass parameters
- - `q` - specific content of rain, ice or snow
+ - `q` - specific content of rain, cloud ice or snow
  - `ρ` - air density
 
 Returns the inverse of rate parameter of the assumed size distribution of
@@ -254,54 +254,54 @@ function terminal_velocity(
 end
 
 """
-    conv_q_liq_to_q_rai(acnv, q_liq, smooth_transition)
+    conv_q_lcl_to_q_rai(acnv, q_lcl, smooth_transition)
 
  - `acnv` - 1M autoconversion parameters
- - `q_liq` - liquid water specific content
+ - `q_lcl` - cloud liquid water specific content
  - `smooth_transition` - a flag to switch on smoothing
 
 Returns the q_rai tendency due to collisions between cloud droplets
 (autoconversion), parametrized following Kessler (1995).
 """
-conv_q_liq_to_q_rai(
+conv_q_lcl_to_q_rai(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
-    q_liq::FT,
+    q_lcl::FT,
     smooth_transition::Bool = false,
 ) where {FT} =
     smooth_transition ?
-    CO.logistic_function_integral(q_liq, q_threshold, k) / τ :
-    max(0, q_liq - q_threshold) / τ
+    CO.logistic_function_integral(q_lcl, q_threshold, k) / τ :
+    max(0, q_lcl - q_threshold) / τ
 
 """
-    conv_q_ice_to_q_sno_no_supersat(acnv, q_ice, smooth_transition)
+    conv_q_icl_to_q_sno_no_supersat(acnv, q_icl, smooth_transition)
 
  - `acnv` - 1M autoconversion parameters
- - `q_ice` -  cloud ice specific content
+ - `q_icl` -  cloud ice specific content
  - `smooth_transition` - a flag to switch on smoothing
 
-Returns the q_sno tendency due to autoconversion from ice.
+Returns the q_sno tendency due to autoconversion from cloud ice.
 This is a simplified version of a snow autoconversion rate that can be used in
 simulations where there is no supersaturation
 (for example in TC.jl when using saturation adjustment).
 """
-conv_q_ice_to_q_sno_no_supersat(
+conv_q_icl_to_q_sno_no_supersat(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
-    q_ice::FT,
+    q_icl::FT,
     smooth_transition::Bool = false,
 ) where {FT} =
     smooth_transition ?
-    CO.logistic_function_integral(q_ice, q_threshold, k) / τ :
-    max(0, q_ice - q_threshold) / τ
+    CO.logistic_function_integral(q_icl, q_threshold, k) / τ :
+    max(0, q_icl - q_threshold) / τ
 
 """
-    conv_q_ice_to_q_sno(ice, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T)
+    conv_q_icl_to_q_sno(ice, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
 
  - `ice` - a struct with ice parameters
  - `aps` - a struct with air properties
  - `tps` - a struct with thermodynamics parameters
  - `q_tot` - total water specific content
- - `q_liq` - cloud water specific content
- - `q_ice` - ice specific content
+ - `q_lcl` - cloud liquid water specific content
+ - `q_icl` - cloud ice specific content
  - `q_rai` - rain specific content
  - `q_sno` - snow specific content
  - `ρ` - air density
@@ -310,26 +310,26 @@ conv_q_ice_to_q_sno_no_supersat(
 Returns the q_sno tendency due to autoconversion from ice.
 Parameterized following Harrington et al. (1996) and Kaul et al. (2015).
 """
-function conv_q_ice_to_q_sno(
+function conv_q_icl_to_q_sno(
     (; r_ice_snow, pdf, mass)::CMP.CloudIce{FT},
     aps::CMP.AirProperties{FT},
     tps::TDI.PS,
     q_tot::FT,
-    q_liq::FT,
-    q_ice::FT,
+    q_lcl::FT,
+    q_icl::FT,
     q_rai::FT,
     q_sno::FT,
     ρ::FT,
     T::FT,
 ) where {FT}
     acnv_rate = FT(0)
-    S = TDI.supersaturation_over_ice(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
+    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (q_ice > FT(0) && S > FT(0))
+    if (q_icl > FT(0) && S > FT(0))
         (; me, Δm) = mass
         G = CO.G_func_ice(aps, tps, T)
         n0 = get_n0(pdf)
-        λ_inv = lambda_inverse(pdf, mass, q_ice, ρ)
+        λ_inv = lambda_inverse(pdf, mass, q_icl, ρ)
 
         acnv_rate =
             4 * FT(π) * S * G * n0 / ρ *
@@ -346,7 +346,7 @@ end
  - `precip` - type for rain or snow
  - `vel` - a struct with terminal velocity parameters
  - `ce` - collision efficiency parameters
- - `q_clo` - cloud water or cloud ice specific content
+ - `q_clo` - cloud liquid water or cloud ice specific content
  - `q_pre` - rain water or snow specific content
  - `ρ` - air density
 
@@ -384,13 +384,13 @@ function accretion(
 end
 
 """
-    accretion_rain_sink(rain, ice, vel, ce, q_ice, q_rai, ρ)
+    accretion_rain_sink(rain, ice, vel, ce, q_icl, q_rai, ρ)
 
  - `rain` - rain type parameters
  - `ice` - ice type parameters
  - `vel` - terminal velocity parameters for rain
  - `ce` - collision efficiency parameters
- - `q_ice` - cloud ice specific content
+ - `q_icl` - cloud ice specific content
  - `q_rai` - rain water specific content
  - `ρ` - air density
 
@@ -402,15 +402,15 @@ function accretion_rain_sink(
     ice::CMP.CloudIce{FT},
     vel::CMP.Blk1MVelTypeRain{FT},
     ce::CMP.CollisionEff,
-    q_ice::FT,
+    q_icl::FT,
     q_rai::FT,
     ρ::FT,
 ) where {FT}
     accr_rate = FT(0)
-    if (q_ice > FT(0) && q_rai > FT(0))
+    if (q_icl > FT(0) && q_rai > FT(0))
 
         n0_ice = get_n0(ice.pdf)
-        λ_ice_inv = lambda_inverse(ice.pdf, ice.mass, q_ice, ρ)
+        λ_ice_inv = lambda_inverse(ice.pdf, ice.mass, q_icl, ρ)
 
         n0 = get_n0(rain.pdf, q_rai, ρ)
         v0 = get_v0(vel, ρ)
@@ -492,15 +492,15 @@ function accretion_snow_rain(
 end
 
 """
-    evaporation_sublimation(params, vel, aps, tps, q_tot, q_liq, q_ice, q_rai, q_snow, ρ, T)
+    evaporation_sublimation(params, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_snow, ρ, T)
 
  - `params` - a struct with rain or snow parameters
  - `vel` - a struct with terminal velocity parameters
  - `aps` - a struct with air parameters
  - `tps` - a struct with thermodynamics parameters
  - `q_tot` - total water specific content
- - `q_liq` - liquid water specific content
- - `q_ice` - ice specific content
+ - `q_lcl` - cloud liquid water specific content
+ - `q_icl` - cloud ice specific content
  - `q_rai` - rain specific content
  - `q_sno` - snow specific content
  - `ρ` - air density
@@ -514,15 +514,15 @@ function evaporation_sublimation(
     aps::CMP.AirProperties{FT},
     tps::TDI.PS,
     q_tot::FT,
-    q_liq::FT,
-    q_ice::FT,
+    q_lcl::FT,
+    q_icl::FT,
     q_rai::FT,
     q_sno::FT,
     ρ::FT,
     T::FT,
 ) where {FT}
     evap_subl_rate = FT(0)
-    S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
     if (q_rai > FT(0) && S < FT(0))
 
@@ -557,8 +557,8 @@ function evaporation_sublimation(
     aps::CMP.AirProperties{FT},
     tps::TDI.PS,
     q_tot::FT,
-    q_liq::FT,
-    q_ice::FT,
+    q_lcl::FT,
+    q_icl::FT,
     q_rai::FT,
     q_sno::FT,
     ρ::FT,
@@ -568,7 +568,7 @@ function evaporation_sublimation(
     if q_sno > FT(0)
         (; ν_air, D_vapor) = aps
 
-        S = TDI.supersaturation_over_ice(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
+        S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
         G = CO.G_func_ice(aps, tps, T)
 
         n0 = get_n0(pdf, q_sno, ρ)

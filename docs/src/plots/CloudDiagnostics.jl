@@ -42,16 +42,16 @@ Z_2M_100_nolim = [CMD.radar_reflectivity_2M(SB_no_limiters, FT(0), q_rai, FT(0),
 Z_2M_10_nolim  = [CMD.radar_reflectivity_2M(SB_no_limiters, FT(0), q_rai, FT(0), FT(10 * 1e6), ρ_air) for q_rai in q_rain_range]
 
 # tested cloud range for effective radiius plots
-q_liq_range = range(0, stop = 5e-3, length = 1000)
+q_lcl_range = range(0, stop = 5e-3, length = 1000)
 
-reff_2M_100  = [CMD.effective_radius_2M(SB, q_liq, FT(0), FT(100 * 1e6), FT(0), ρ_air) for q_liq in q_liq_range]
-reff_2M_1000 = [CMD.effective_radius_2M(SB, q_liq, FT(0), FT(1000 * 1e6), FT(0), ρ_air) for q_liq in q_liq_range]
+reff_2M_100  = [CMD.effective_radius_2M(SB, q_lcl, FT(0), FT(100 * 1e6), FT(0), ρ_air) for q_lcl in q_lcl_range]
+reff_2M_1000 = [CMD.effective_radius_2M(SB, q_lcl, FT(0), FT(1000 * 1e6), FT(0), ρ_air) for q_lcl in q_lcl_range]
 
-reff_2M_100_nolim  = [CMD.effective_radius_2M(SB_no_limiters, q_liq, FT(0), FT(100 * 1e6), FT(0), ρ_air) for q_liq in q_liq_range]
-reff_2M_1000_nolim = [CMD.effective_radius_2M(SB_no_limiters, q_liq, FT(0), FT(1000 * 1e6), FT(0), ρ_air) for q_liq in q_liq_range]
+reff_2M_100_nolim  = [CMD.effective_radius_2M(SB_no_limiters, q_lcl, FT(0), FT(100 * 1e6), FT(0), ρ_air) for q_lcl in q_lcl_range]
+reff_2M_1000_nolim = [CMD.effective_radius_2M(SB_no_limiters, q_lcl, FT(0), FT(1000 * 1e6), FT(0), ρ_air) for q_lcl in q_lcl_range]
 
-reff_2M_100_LH  = [CMD.effective_radius_Liu_Hallet_97(cloud_liquid, ρ_air, q_liq, FT(100 * 1e6), FT(0), FT(0)) for q_liq in q_liq_range]
-reff_2M_1000_LH = [CMD.effective_radius_Liu_Hallet_97(cloud_liquid, ρ_air, q_liq, FT(1000 * 1e6), FT(0), FT(0)) for q_liq in q_liq_range]
+reff_2M_100_LH  = [CMD.effective_radius_Liu_Hallet_97(cloud_liquid, ρ_air, q_lcl, FT(100 * 1e6), FT(0), FT(0)) for q_lcl in q_lcl_range]
+reff_2M_1000_LH = [CMD.effective_radius_Liu_Hallet_97(cloud_liquid, ρ_air, q_lcl, FT(1000 * 1e6), FT(0), FT(0)) for q_lcl in q_lcl_range]
 
 # plotting
 fig = PL.Figure(size = (1100, 1000), fontsize=22, linewidth=3)
@@ -61,18 +61,18 @@ ax2 = PL.Axis(fig[2, 1])
 
 PL.ylims!(ax2, [-50, 40])
 
-ax1.xlabel = "q_liq [g/kg]"
+ax1.xlabel = "q_lcl [g/kg]"
 ax1.ylabel = "effective radius [μm]"
 ax2.xlabel = "q_rai [g/kg]"
 ax2.ylabel = "radar reflectivity [dBZ]"
 
-#p_reff_2M_100        = PL.lines!(ax1, q_liq_range * 1e3,  reff_2M_100 * 1e6,  color = :blue, linestyle = :dot)
-#p_reff_2M_1000       = PL.lines!(ax1, q_liq_range * 1e3,  reff_2M_1000 * 1e6,  color = :skyblue1, linestyle = :dot)
-p_reff_2M_100_nolim  = PL.lines!(ax1, q_liq_range * 1e3,  reff_2M_100_nolim * 1e6,  color = :blue)
-p_reff_2M_100_LH     = PL.lines!(ax1, q_liq_range * 1e3,  reff_2M_100_LH * 1e6,     color = :crimson)
+#p_reff_2M_100        = PL.lines!(ax1, q_lcl_range * 1e3,  reff_2M_100 * 1e6,  color = :blue, linestyle = :dot)
+#p_reff_2M_1000       = PL.lines!(ax1, q_lcl_range * 1e3,  reff_2M_1000 * 1e6,  color = :skyblue1, linestyle = :dot)
+p_reff_2M_100_nolim  = PL.lines!(ax1, q_lcl_range * 1e3,  reff_2M_100_nolim * 1e6,  color = :blue)
+p_reff_2M_100_LH     = PL.lines!(ax1, q_lcl_range * 1e3,  reff_2M_100_LH * 1e6,     color = :crimson)
 
-p_reff_2M_1000_nolim = PL.lines!(ax1, q_liq_range * 1e3,  reff_2M_1000_nolim * 1e6,  color = :skyblue1)
-p_reff_2M_1000_LH    = PL.lines!(ax1, q_liq_range * 1e3,  reff_2M_1000_LH * 1e6,     color = :orange)
+p_reff_2M_1000_nolim = PL.lines!(ax1, q_lcl_range * 1e3,  reff_2M_1000_nolim * 1e6,  color = :skyblue1)
+p_reff_2M_1000_LH    = PL.lines!(ax1, q_lcl_range * 1e3,  reff_2M_1000_LH * 1e6,     color = :orange)
 
 p_Z_1M           = PL.lines!(ax2, q_rain_range * 1e3,  Z_1M,  color = :green)
 

@@ -71,7 +71,7 @@ ax2 = MK.Axis(fig[1, 2], ylabel = "N [m^-3]", xlabel = "Time [s]")
 
 MK.lines!(ax1, sol.t, (sol[1, :]), linewidth = 2)
 MK.lines!(ax2, sol.t, sol[7, :], label = "N_aero", linewidth = 2, color = :red)
-MK.lines!(ax2, sol.t, sol[8, :], label = "N_liq", linewidth = 2, color = :blue)
+MK.lines!(ax2, sol.t, sol[8, :], label = "N_lcl", linewidth = 2, color = :blue)
 
 MK.axislegend(ax2, framevisible = false, labelsize = 16, position = :rc)
 

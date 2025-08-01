@@ -43,13 +43,13 @@ function radar_reflectivity_1M(
 end
 
 """
-    radar_reflectivity_2M(structs, q_liq, q_rai, N_liq, N_rai, ρ_air)
+    radar_reflectivity_2M(structs, q_lcl, q_rai, N_lcl, N_rai, ρ_air)
 
     - `structs` - structs microphysics 2-moment with SB2006 cloud droplets
                   and raindrops size distributions parameters
-    - `q_liq` - cloud water specific content
+    - `q_lcl` - cloud liquid water specific content
     - `q_rai` - rain water specific content
-    - `N_liq` - cloud droplet number density
+    - `N_lcl` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
 
@@ -60,7 +60,7 @@ The values are clipped at -150 dBZ.
 """
 function radar_reflectivity_2M(
     (; pdf_c, pdf_r)::CMP.SB2006{FT},
-    q_liq, q_rai, N_liq, N_rai, ρ_air,
+    q_lcl, q_rai, N_lcl, N_rai, ρ_air,
 ) where {FT}
     # free parameters
     (; νc, μc) = pdf_c
@@ -72,24 +72,24 @@ function radar_reflectivity_2M(
 
     # Rain and cloud size distribution parameters
     (; Br) = CM2.pdf_rain_parameters_mass(pdf_r, q_rai, ρ_air, N_rai)
-    (; Bc) = CM2.pdf_cloud_parameters_mass(pdf_c, q_liq, ρ_air, N_liq)
+    (; Bc) = CM2.pdf_cloud_parameters_mass(pdf_c, q_lcl, ρ_air, N_lcl)
 
     # 2nd moment in mass = 6th moment in radius
     n_mass = 2
-    Zc = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, n_mass) / C^n_mass
+    Zc = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_lcl, n_mass) / C^n_mass
     Zr = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C^n_mass
 
     return max(FT(-150), 10 * (log10(max(FT(0), Zc + Zr)) - log_10_Z₀))
 end
 
 """
-    effective_radius_2M(structs, q_liq, q_rai, N_liq, N_rai, ρ_air)
+    effective_radius_2M(structs, q_lcl, q_rai, N_lcl, N_rai, ρ_air)
 
     - `structs` - structs with SB2006 cloud droplets and raindrops
                 size distribution parameters
-    - `q_liq` - cloud water specific content
+    - `q_lcl` - cloud liquid water specific content
     - `q_rai` - rain water specific content
-    - `N_liq` - cloud droplet number density
+    - `N_lcl` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
 
@@ -98,7 +98,7 @@ Computed based on the assumed cloud and rain particle size distributions.
 """
 function effective_radius_2M(
     (; pdf_c, pdf_r)::CMP.SB2006{FT},
-    q_liq, q_rai, N_liq, N_rai, ρ_air,
+    q_lcl, q_rai, N_lcl, N_rai, ρ_air,
 ) where {FT}
     # free parameters
     (; νc, μc) = pdf_c
@@ -106,28 +106,28 @@ function effective_radius_2M(
     C = FT(4 / 3 * π * ρw)
     # Rain and cloud size distribution parameters
     (; Br) = CM2.pdf_rain_parameters_mass(pdf_r, q_rai, ρ_air, N_rai)
-    (; Bc) = CM2.pdf_cloud_parameters_mass(pdf_c, q_liq, ρ_air, N_liq)
+    (; Bc) = CM2.pdf_cloud_parameters_mass(pdf_c, q_lcl, ρ_air, N_lcl)
 
     notvalid(B) = iszero(B) || !isfinite(B)
     # 3rd moment in radius = 1st moment in mass
     n_mass = 1
-    M3_c = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, n_mass) / C
+    M3_c = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_lcl, n_mass) / C
     M3_r = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C
 
     # 2nd moment in radius = (2/3)rd moment in mass
     n_mass = 2 // 3
-    M2_c = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, n_mass) / C^(n_mass)
+    M2_c = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_lcl, n_mass) / C^(n_mass)
     M2_r = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C^(n_mass)
 
     return M2_c + M2_r <= eps(FT) ? FT(0) : (M3_c + M3_r) / (M2_c + M2_r)
 end
 
 """
-    effective_radius_Liu_Hallet_97(q_liq, q_rai, N_liq, N_rai, ρ_air, ρ_w)
+    effective_radius_Liu_Hallet_97(q_lcl, q_rai, N_lcl, N_rai, ρ_air, ρ_w)
 
-    - `q_liq` - cloud water specific content
+    - `q_lcl` - cloud water specific content
     - `q_rai` - rain water specific content
-    - `N_liq` - cloud droplet number density
+    - `N_lcl` - cloud droplet number density
     - `N_rai` - rain droplet number density
     - `ρ_air` - air density
     - `ρ_w` - water density
@@ -139,18 +139,18 @@ the cloud droplet number concentration is 100 1/cm3.
 function effective_radius_Liu_Hallet_97(
     (; ρw)::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
     ρ_air::FT,
-    q_liq::FT,
-    N_liq::FT,
+    q_lcl::FT,
+    N_lcl::FT,
     q_rai::FT,
     N_rai::FT,
 ) where {FT}
 
     k = FT(0.8)
     r_vol =
-        ((N_liq + N_rai) < eps(FT)) ? FT(0) :
+        ((N_lcl + N_rai) < eps(FT)) ? FT(0) :
         (
-            (FT(3) * (q_liq + q_rai) * ρ_air) /
-            (FT(4) * π * ρw * (N_liq + N_rai))
+            (FT(3) * (q_lcl + q_rai) * ρ_air) /
+            (FT(4) * π * ρw * (N_lcl + N_rai))
         )^FT(1 / 3)
 
     return r_vol / k^FT(1 / 3)
@@ -158,12 +158,12 @@ end
 function effective_radius_Liu_Hallet_97(
     wtr::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
     ρ_air::FT,
-    q_liq::FT,
+    q_lcl::FT,
 ) where {FT}
     return effective_radius_Liu_Hallet_97(
         wtr::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
         ρ_air::FT,
-        q_liq::FT,
+        q_lcl::FT,
         FT(100),
         FT(0),
         FT(0),

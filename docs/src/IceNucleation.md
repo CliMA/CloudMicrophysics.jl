@@ -27,14 +27,14 @@ The parameterization for deposition on dust particles is an implementation of
 ## Activated fraction for deposition freezing on dust
 There are 2 parameterizations from [Mohler2006](@cite) available: one
   which calculates the activated fraction and one which calculates nucleation
-  rate. 
+  rate.
 The activated fraction parameterization follows eq. (3) in the paper.
 ```math
 \begin{equation}
 f_i(S_i) = exp[a(S_i - S_0)] - 1
 \end{equation}
 ```
-where 
+where
   - ``f_i`` is the activated fraction
      (the ratio of aerosol particles acting as ice nuclei to the total number of aerosol particles),
   - ``a`` is a scaling parameter dependent on aerosol properties and temperature,
@@ -45,7 +45,7 @@ The other parameterization models the nucleation rate of ice
   see eq. (5) in [Mohler2006](@cite).
 ```math
 \begin{equation}
-\frac{dn_{ice}}{dt} = N_{aer} a \frac{dS_i}{dt}
+\frac{dn_{icl}}{dt} = N_{aer} a \frac{dS_i}{dt}
 \end{equation}
 ```
 where:
@@ -140,11 +140,11 @@ Once ``J_{ABIFM}`` is calculated, it can be used to determine the ice production
 per second via immersion freezing.
 ```math
 \begin{equation}
-  P_{ice} = J_{ABIFM}A(N_{aer} - N_{ice})
+  P_{ice} = J_{ABIFM}A(N_{aer} - N_{icl})
 \end{equation}
 ```
 where ``A`` is surface area of an individual ice nuclei, ``N_{aer}`` is total number
-  of ice nuclei, and ``N_{ice}`` is number of ice crystals already in the system.
+  of ice nuclei, and ``N_{icl}`` is number of ice crystals already in the system.
 
 ### ABIFM Example Figures
 The following plot shows ``J`` as a function of ``\Delta a_w`` as compared to
@@ -186,12 +186,12 @@ It is also important to note that this plot is reflective of cirrus clouds
 
 ### Bigg (1953) Volume and Time Dependent Heterogeneous Freezing
 Heterogeneous freezing in the P3 scheme as described in [MorrisonMilbrandt2015](@cite)
-  follows the parameterization from [Bigg1953](@cite) with parameters from 
+  follows the parameterization from [Bigg1953](@cite) with parameters from
   [BarklieGokhale1959](@cite). The number of ice nucleated in a timestep via
   heterogeneous freezing is determined by
 ```math
 \begin{equation}
-  N_{ice} = N_{liq} \left[ 1 - exp(-B V_{l} \Delta t exp(aT_s)) \right]
+  N_{icl} = N_{lcl} \left[ 1 - exp(-B V_{l} \Delta t exp(aT_s)) \right]
 \end{equation}
 ```
 where `a` and `B` are parameters taken from [BarklieGokhale1959](@cite) for
@@ -276,7 +276,7 @@ For the activity based immersion freezing model (ABIFM):
  - Magenta corresponds to kaolinite.
 The P3 heterogeneous parameterization also shows much more ICNC than any of the ABIFM runs. It
   should be noted that the P3 parameterization does not distinguish between immersion freezing,
-  contact freezing, etc. 
+  contact freezing, etc.
 
 The P3 scheme allows homogeneous freezing to freeze all droplets at temperatures equal to or less than 233.15K. No homogeneous freezing occurs at warmer temperatures.
 
@@ -302,7 +302,7 @@ where ``T`` is the temperature in degrees Celsius, ``INPC`` is the INP concentra
 
     Our implementation uses base SI units and takes ``T`` in Kelvin.
 
-The following plot shows the relative frequency distribution for INPCs, as a function of temperature (the same as figure 1 in [Frostenberg2023](@cite)). 
+The following plot shows the relative frequency distribution for INPCs, as a function of temperature (the same as figure 1 in [Frostenberg2023](@cite)).
 
 ```@example
 include("plots/Frostenberg_fig1.jl")

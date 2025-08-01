@@ -34,6 +34,7 @@ for Guide in UnliteratedGuides
 end
 
 Parameterizations = [
+    "Thermodynamics" => "Thermodynamics.md",
     "0-moment precipitation microphysics" => "Microphysics0M.md",
     "1-moment precipitation microphysics" => "Microphysics1M.md",
     "2-moment precipitation microphysics" => "Microphysics2M.md",
