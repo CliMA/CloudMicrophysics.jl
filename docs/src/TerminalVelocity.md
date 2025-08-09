@@ -1,8 +1,8 @@
 # Terminal velocity
 
-`CloudMicrophysics.jl` offers three parameterizations of the relationship between
-particle size and terminal velocity:
+`CloudMicrophysics.jl` offers several parameterizations of the relationship between particle size and terminal velocity:
  - A simple power-law used in the 1-moment microphysics scheme,
+ - An analytical Stokes-regime formulation for cloud liquid droplets in two-moment microphysics,
  - The rain terminal velocity used in Seifert and Beheng 2006 [SeifertBeheng2006](@cite),
  - The rain and ice terminal velocities described in Chen et. al. 2022  [Chen2022](@cite).
 
@@ -15,8 +15,7 @@ The above terminal velocities need to be averaged over the assumed
    and use the power-law formulation when deriving process rates such as accretion.
    The Chen et al. [Chen2022](@cite) terminal velocity is available in 1-moment scheme
    for rain and snow, but without re-deriving other process rates.
- - The 2-moment scheme can be run with either the Seifert and Beheng [SeifertBeheng2006](@cite)
-   or the Chen et al. [Chen2022](@cite) terminal velocity.
+ - In the 2-moment scheme, for rain, the Seifert and Beheng [SeifertBeheng2006] (@cite) or the Chen et al. [Chen2022](@cite) parameterizations can be used. For cloud liquid droplets, we use the analytical Stokes-regime terminal velocity formulation.
  - The P3 scheme can only be run with the Chen et al. [Chen2022](@cite) terminal velocity
    and uses it when deriving the process rates.
 See the relevant sections in 1M, 2M, P3 and non-equilibrium microphysics documentation
@@ -88,6 +87,12 @@ The default parameter values are
 |``a_R``                     | ``9.65``      | ``\frac{m}{s}`` |
 |``b_R``                     | ``10.3``      | ``\frac{m}{s}`` |
 |``c_R``                     | ``600``       | ``\frac{1}{m}`` |
+
+For cloud liquid droplets in two-moment microphysics, we use the analytical Stokes-regime terminal velocity formulation where individual droplet fall speeds follow:
+```math
+v_{term}(r) = \frac{2}{9} \frac{(\rho_{water} - \rho_{air}) g r^2}{\mu_{air}}
+```
+with ``\mu_{air} = \rho_{air} \, \nu_{air}`` and assuming constant kinematic viscosity ``\nu_{air}``. Number- and mass-weighted mean velocities are computed by integrating over a gamma particle size distribution.
 
 ## Chen et. al. 2022
 
