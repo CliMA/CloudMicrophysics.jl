@@ -72,7 +72,7 @@ The cloud droplet number distribution, as a function of mass ``x`` [kg], is assu
     f_c(x) = A_c x^{ν_c} \exp\left(-B_c x^{μ_c} \right), 
 \end{align}
 ```
-We assume that ``ν_c`` and ``μ_c`` are fixed constants. Our default choice for these parameters are ``ν_c = 2`` and ``μ_c = 1``.
+We assume that ``ν_c`` and ``μ_c`` are fixed constants. Our default choice for these parameters are ``ν_c = 1`` and ``μ_c = 1``.
 
 The free parameters for cloud droplets (``A_c``, ``B_c``) can be found analytically by integrating over the assumed 
 mass distribution to find the prognostic variables
@@ -323,7 +323,7 @@ The default free parameter values are:
 
 |   symbol   | default value |
 |------------|---------------|
-|``ν``       | ``2``         |
+|``ν``       | ``1``         |
 |``A``       | ``400``       |
 |``a``       | ``0.7``       |
 |``b``       | ``3``         |
@@ -621,6 +621,18 @@ Below we compare number-weighted (left) and mass-weighted (right) terminal veloc
 include("plots/TerminalVelocity2M.jl")
 ```
 ![](2M_terminal_velocity_comparisons.svg)
+
+For cloud liquid droplets in two-moment microphysics, we use the analytical Stokes-regime terminal velocity formulation for individual particles:
+```math
+v_{term}(r) = \frac{2}{9} \frac{(\rho_{water} - \rho_{air}) g r^2}{\mu_{air}}
+```
+with ``\mu_{air} = \rho_{air} \, \nu_{air}`` and assuming constant kinematic viscosity ``\nu_{air}``. Integrating this equation over the gamma size distribution to find the number- and mass-weighted mean velocities results in:
+```math
+\begin{align}
+  \overline{v}_{c,\, k} = \frac{2}{9}\, \left(\frac{3}{4\, \pi\, \rho_{water}}\right)^{2/3}\, \left(\frac{\rho_{water}}{\rho_{air}}-1\right)\, \frac{g}{\nu_{air}}\, \frac{M_{k+2/3}}{M_k}
+\end{align}
+```
+where $M_i$ represent the $i$-th moments of the gamma size distribution.
 
 For the Chen et al. [Chen2022](@cite) terminal velocity parameterization,
   the number- and mass-weighted group terminal velocities are:

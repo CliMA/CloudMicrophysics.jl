@@ -106,7 +106,6 @@ end
     SB2006VelType
 
 The type for precipitation terminal velocity from Seifert and Beheng 2006
-(Defined only for rain)
 
 # Fields
 $(DocStringExtensions.FIELDS)
@@ -116,6 +115,9 @@ Base.@kwdef struct SB2006VelType{FT} <: TerminalVelocityType{FT}
     aR::FT
     bR::FT
     cR::FT
+    ρw::FT
+    ν_air::FT
+    grav::FT
 end
 
 SB2006VelType(::Type{FT}) where {FT <: AbstractFloat} =
@@ -127,6 +129,9 @@ function SB2006VelType(td::CP.AbstractTOMLDict)
         :SB2006_raindrops_terminal_velocity_coeff_aR => :aR,
         :SB2006_raindrops_terminal_velocity_coeff_bR => :bR,
         :SB2006_raindrops_terminal_velocity_coeff_cR => :cR,
+        :density_liquid_water => :ρw,
+        :kinematic_viscosity_of_air => :ν_air,
+        :gravitational_acceleration => :grav,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
