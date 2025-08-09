@@ -35,6 +35,7 @@ function test_microphysics2M(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
     # Terminal velocity parameters
+    STVel = CMP.StokesRegimeVelType(FT)
     SB2006Vel = CMP.SB2006VelType(FT)
     Chen2022Vel = CMP.Chen2022VelTypeRain(FT)
 
@@ -381,6 +382,42 @@ function test_microphysics2M(FT)
             TT.@test sc_br_rai.sc ≈ FT(0) atol = eps(FT)
             TT.@test sc_br_rai.br ≈ FT(0) atol = eps(FT)
         end
+    end
+
+    TT.@testset "2M_microphysics - cloud terminal velocity" begin
+        #setup
+        ρ = FT(1.1)
+        q_liq = FT(1e-3)
+        N_liq = FT(1e7)
+
+        (; ρw, grav, ν_air) = STVel
+
+        #action
+        vt_liq = CM2.cloud_terminal_velocity(SB2006.pdf_c, STVel, q_liq, ρ, N_liq)
+
+        (; νc, μc, ρw) = SB2006.pdf_c
+        (; Bc) = CM2.pdf_cloud_parameters_mass(SB2006.pdf_c, q_liq, ρ, N_liq)
+        terminal_velocity_prefactor = FT(2 / 9) * (3 / 4 / pi / ρw)^(2 / 3) * (ρw / ρ - 1) * grav / ν_air
+        vt0 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(2 / 3)) / N_liq
+        vt1 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(5 / 3)) / ρ / q_liq
+
+        #test
+        TT.@test vt_liq isa Tuple
+        TT.@test vt_liq[1] ≈ vt0 rtol = 1e-6
+        TT.@test vt_liq[2] ≈ vt1 rtol = 1e-6
+
+        TT.@test CM2.cloud_terminal_velocity(
+            SB2006.pdf_c, STVel, q_liq, ρ, FT(0),
+        )[1] ≈ 0 atol = eps(FT)
+        TT.@test CM2.cloud_terminal_velocity(
+            SB2006.pdf_c, STVel, FT(0), ρ, N_liq,
+        )[2] ≈ 0 atol = eps(FT)
+        TT.@test CM2.cloud_terminal_velocity(
+            SB2006.pdf_c, STVel, FT(0), ρ, FT(0),
+        )[1] ≈ 0 atol = eps(FT)
+        TT.@test CM2.cloud_terminal_velocity(
+            SB2006.pdf_c, STVel, FT(0), ρ, FT(0),
+        )[2] ≈ 0 atol = eps(FT)
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 rain terminal velocity with limiters" begin

@@ -1,4 +1,4 @@
-export Blk1MVelType, SB2006VelType, Chen2022VelType
+export Blk1MVelType, StokesRegimeVelType, SB2006VelType, Chen2022VelType
 
 """
     Blk1MVelTypeRain
@@ -101,12 +101,38 @@ function Blk1MVelType(toml_dict::CP.AbstractTOMLDict)
     return Blk1MVelType{FT, typeof(rain), typeof(snow)}(rain, snow)
 end
 
+"""
+    StokesRegimeVelType
+
+The type for precipitation terminal velocity in the Stokes regime (Re < 1)
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+Base.@kwdef struct StokesRegimeVelType{FT} <: TerminalVelocityType{FT}
+    ρw::FT
+    ν_air::FT
+    grav::FT
+end
+
+StokesRegimeVelType(::Type{FT}) where {FT <: AbstractFloat} =
+    StokesRegimeVelType(CP.create_toml_dict(FT))
+
+function StokesRegimeVelType(td::CP.AbstractTOMLDict)
+    name_map = (;
+        :density_liquid_water => :ρw,
+        :kinematic_viscosity_of_air => :ν_air,
+        :gravitational_acceleration => :grav,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    FT = CP.float_type(td)
+    return StokesRegimeVelType{FT}(; parameters...)
+end
 
 """
     SB2006VelType
 
 The type for precipitation terminal velocity from Seifert and Beheng 2006
-(Defined only for rain)
 
 # Fields
 $(DocStringExtensions.FIELDS)
@@ -116,6 +142,9 @@ Base.@kwdef struct SB2006VelType{FT} <: TerminalVelocityType{FT}
     aR::FT
     bR::FT
     cR::FT
+    ρw::FT
+    ν_air::FT
+    grav::FT
 end
 
 SB2006VelType(::Type{FT}) where {FT <: AbstractFloat} =
@@ -127,6 +156,9 @@ function SB2006VelType(td::CP.AbstractTOMLDict)
         :SB2006_raindrops_terminal_velocity_coeff_aR => :aR,
         :SB2006_raindrops_terminal_velocity_coeff_bR => :bR,
         :SB2006_raindrops_terminal_velocity_coeff_cR => :cR,
+        :density_liquid_water => :ρw,
+        :kinematic_viscosity_of_air => :ν_air,
+        :gravitational_acceleration => :grav,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)

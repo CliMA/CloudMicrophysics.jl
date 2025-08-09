@@ -1,8 +1,8 @@
 # Terminal velocity
 
-`CloudMicrophysics.jl` offers three parameterizations of the relationship between
-particle size and terminal velocity:
+`CloudMicrophysics.jl` offers several parameterizations of the relationship between particle size and terminal velocity:
  - A simple power-law used in the 1-moment microphysics scheme,
+ - An analytical Stokes-regime formulation for cloud liquid droplets in two-moment microphysics,
  - The rain terminal velocity used in Seifert and Beheng 2006 [SeifertBeheng2006](@cite),
  - The rain and ice terminal velocities described in Chen et. al. 2022  [Chen2022](@cite).
 
@@ -15,8 +15,7 @@ The above terminal velocities need to be averaged over the assumed
    and use the power-law formulation when deriving process rates such as accretion.
    The Chen et al. [Chen2022](@cite) terminal velocity is available in 1-moment scheme
    for rain and snow, but without re-deriving other process rates.
- - The 2-moment scheme can be run with either the Seifert and Beheng [SeifertBeheng2006](@cite)
-   or the Chen et al. [Chen2022](@cite) terminal velocity.
+ - In the 2-moment scheme, for rain, the Seifert and Beheng [SeifertBeheng2006] (@cite) or the Chen et al. [Chen2022](@cite) parameterizations can be used. For cloud liquid droplets, we use the analytical Stokes-regime terminal velocity formulation.
  - The P3 scheme can only be run with the Chen et al. [Chen2022](@cite) terminal velocity
    and uses it when deriving the process rates.
 See the relevant sections in 1M, 2M, P3 and non-equilibrium microphysics documentation
@@ -69,6 +68,15 @@ The coefficients for the snow terminal velocity are empirical.
 |``r_0^{sno}``  | typical snow crystal radius             | ``m``           | ``10^{-3} ``          |           |
 |``v_0^{sno}``  | coefficient in ``v_{term}(r)`` for snow | ``\frac{m}{s}`` | ``2^{9/4} r_0^{1/4}`` | eq (6b) [Grabowski1998](@cite) |
 |``v_e^{sno}``  | exponent in ``v_{term}(r)`` for snow    | -               | ``0.25``              | eq (6b) [Grabowski1998](@cite) |
+
+## Stokes-flow terminal velocity
+In the Stokes regime (`Re < 1`), the analytical fall speed of a spherical particle is given by
+```math
+v_{term}(r) = \frac{2}{9} \frac{(\rho_{water} - \rho_{air}) g}{\mu_{air}} r^2
+```
+where ``\mu_{air} = \rho_{air} \, \nu_{air}`` is the dynamic viscosity of air, and ``\nu_{air}`` is the kinematic viscosity. In general, ``\nu_{air}`` depends on temperature and pressure, but in our parameterization it is treated as a constant for simplicity.
+
+In two-moment cloud microphysics parameterizations (e.g., Seifert & Beheng 2006), this expression can be integrated over a gamma droplet size distribution to obtain number-weighted and mass-weighted mean fall velocities of cloud droplets.
 
 ## Seifert and Beheng 2006
 

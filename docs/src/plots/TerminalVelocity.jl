@@ -20,6 +20,7 @@ const SB2006 = CMP.SB2006(FT)
 const SB2006_no_lim = CMP.SB2006(FT, false)
 
 const Chen2022 = CMP.Chen2022VelType(FT)
+const STVel = CMP.StokesRegimeVelType(FT)
 const SB2006Vel = CMP.SB2006VelType(FT)
 const Blk1MVel = CMP.Blk1MVelType(FT)
 
@@ -122,11 +123,14 @@ end
 D_r_range = range(1e-6, stop = 6e-3, length = 1000)
 D_r_range_small = range(0.1 * 1e-6, stop = 100 * 1e-6, length = 1000)
 q_range = range(0, stop = 5 * 1e-3, length = 100)
+N_liq = 500e6
 
 #! format: off
 # velocity values for cloud particle sizes
 v_term_rain = CMO.particle_terminal_velocity(Chen2022.rain, ρ_air)
 v_term_small_ice = CMO.particle_terminal_velocity(Chen2022.small_ice, ρ_air, ice.ρᵢ)
+v_term_stokes = CMO.particle_terminal_velocity(STVel, ρ_air)
+ST_cloud_small = v_term_stokes.(D_r_range_small)
 SB_rain_small = [rain_terminal_velocity_individual_SB(SB2006Vel, ρ_air, D_r)                 for D_r in D_r_range_small]
 M1_rain_small = [terminal_velocity_individual_1M(Blk1MVel.rain, ρ_air, D_r)                  for D_r in D_r_range_small]
 M1_snow_small = [terminal_velocity_individual_1M(Blk1MVel.snow, ρ_air, D_r)                  for D_r in D_r_range_small]
@@ -137,6 +141,7 @@ Ch_snow_small = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice
 Ch_snow_small_oblate = [snow_terminal_velocity_individual_Chen_oblate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range_small]
 Ch_snow_small_prolate = [snow_terminal_velocity_individual_Chen_prolate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range_small]
 # velocity values for precip particle sizes
+ST_cloud = v_term_stokes.(D_r_range)
 SB_rain = [rain_terminal_velocity_individual_SB(SB2006Vel, ρ_air, D_r)                 for D_r in D_r_range]
 M1_rain = [terminal_velocity_individual_1M(Blk1MVel.rain, ρ_air, D_r)                  for D_r in D_r_range]
 M1_snow = [terminal_velocity_individual_1M(Blk1MVel.snow, ρ_air, D_r)                  for D_r in D_r_range]
@@ -165,6 +170,8 @@ bCh_rain = [CM1.terminal_velocity(rain, Chen2022.rain,     ρ_air, q) for q in q
 bCh_snow = [CM1.terminal_velocity(snow, Chen2022.large_ice, ρ_air, q) for q in q_range]
 bCh_snow_oblate =  [CM1.terminal_velocity(snow, Chen2022.large_ice, ρ_air, q, oblate) for q in q_range]
 bCh_snow_prolate = [CM1.terminal_velocity(snow, Chen2022.large_ice, ρ_air, q, prolate) for q in q_range]
+bSt_N_liq = [CM2.cloud_terminal_velocity(SB2006.pdf_c, STVel, q, ρ_air, N_liq)[1] for q in q_range]
+bSt_liq = [CM2.cloud_terminal_velocity(SB2006.pdf_c, STVel, q, ρ_air, N_liq)[2] for q in q_range]
 bCh_liq = [CMNe.terminal_velocity(liquid, Chen2022.rain,     ρ_air, q) for q in q_range]
 bCh_ice = [CMNe.terminal_velocity(ice,    Chen2022.small_ice, ρ_air, q) for q in q_range]
 
@@ -172,6 +179,7 @@ bCh_ice = [CMNe.terminal_velocity(ice,    Chen2022.small_ice, ρ_air, q) for q i
 p1 = PL.scatter(D_Gunn_Kinzer_small * 1e6, u_Gunn_Kinzer_small * 1e2, ms = 3, color = 4, label = "Gunn and Kinzer (1949)")
 p1 = PL.plot!(D_r_range_small  * 1e6, M1_rain_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Rain 1M",   color = :skyblue1, margin=10mm)
 p1 = PL.plot!(D_r_range_small  * 1e6, M1_snow_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Snow 1M",   color = :plum)
+p1 = PL.plot!(D_r_range_small  * 1e6, ST_cloud_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Stokes",   color = :cadetblue, style = :dash)
 p1 = PL.plot!(D_r_range_small  * 1e6, SB_rain_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Rain SB",   color = :cadetblue)
 p1 = PL.plot!(D_r_range_small  * 1e6, Ch_rain_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Rain Chen", color = :blue)
 p1 = PL.plot!(D_r_range_small  * 1e6, Ch_snow_small         * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Snow Chen", color = :darkviolet)
@@ -182,18 +190,22 @@ p1 = PL.plot!(D_r_range_small  * 1e6, Ch_ice_small * 1e2,  linewidth = 3, xlabel
 p2 = PL.scatter(D_Gunn_Kinzer * 1e3, u_Gunn_Kinzer, ms = 3, color = 4, legend=false)
 p2 = PL.plot!(D_r_range * 1e3, M1_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :skyblue1)
 p2 = PL.plot!(D_r_range * 1e3, M1_snow, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :plum)
+p2 = PL.plot!(D_r_range * 1e3, ST_cloud, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [m/s]", legend=false, color = :cadetblue, style = :dash)
 p2 = PL.plot!(D_r_range * 1e3, SB_rain, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [m/s]", legend=false, color = :cadetblue)
 p2 = PL.plot!(D_r_range * 1e3, Ch_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :blue)
 p2 = PL.plot!(D_r_range * 1e3, Ch_snow,         linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :darkviolet)
 p2 = PL.plot!(D_r_range * 1e3, Ch_snow_oblate,  linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :darkviolet, style = :dash)
 p2 = PL.plot!(D_r_range * 1e3, Ch_snow_prolate, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :darkviolet, style = :dot)
 p2 = PL.plot!(D_r_range * 1e3, Ch_ice,  linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :orange)
+p2 = PL.plot!(ylim=(-1.0, 11.0))
 # snow aspect ratio
 p3 = PL.plot(D_r_range  * 1e3,  Aspect_Ratio_oblate,  linewidth = 3, xlabel = "D [mm]", ylabel = "aspect ratio", label = "Snow aspect ratio oblate",  color = :darkviolet, ylim = (0, 100), style = :dash)
 p3 = PL.plot!(D_r_range * 1e3,  Aspect_Ratio_prolate, linewidth = 3, xlabel = "D [mm]", ylabel = "aspect ratio", label = "Snow aspect ratio prolate", color = :darkviolet, style = :dot)
 # group velocity comparison
-p4 = PL.plot(q_range * 1e3,  bCh_liq * 100,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :green,      label="Liq Chen", margin=10mm)
-p4 = PL.plot!(q_range * 1e3, bCh_ice * 100, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :orange,     label="Ice Chen")
+p4 = PL.plot(q_range * 1e3,  bSt_liq * 100,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :cadetblue, label="Liq Stokes", margin=10mm)
+p4 = PL.plot!(q_range * 1e3,  bSt_N_liq * 100,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :cadetblue, style = :dash, label="Liq Num Stokes")
+p4 = PL.plot!(q_range * 1e3,  bCh_liq * 100,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :orange,      label="Liq Chen")
+p4 = PL.plot!(q_range * 1e3, bCh_ice * 100, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :blue,     label="Ice Chen")
 
 p5 = PL.plot(q_range  * 1e3, bM1_rain, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :skyblue1,   label="Rain 1M")
 p5 = PL.plot!(q_range * 1e3, bM1_snow, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :plum,       label="Snow 1M")
