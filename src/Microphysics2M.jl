@@ -623,6 +623,10 @@ function cloud_terminal_velocity(
     q_liq, ρₐ, N_liq,
 ) where {FT}
 
+    if N_liq < eps(FT) || q_liq < eps(FT)
+        return (FT(0), FT(0))
+    end
+
     (; νc, μc) = pdf_c
     (; Bc) = pdf_cloud_parameters_mass(pdf_c, q_liq, ρₐ, N_liq)
 
@@ -634,9 +638,6 @@ function cloud_terminal_velocity(
         q_liq < eps(FT) ? FT(0) :
         terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(5 / 3)) / ρₐ / q_liq
 
-    if q_liq >= 5e-3
-        @show terminal_velocity_prefactor, vt0, vt1
-    end
     return (vt0, vt1)
 
 end
