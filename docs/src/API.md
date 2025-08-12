@@ -353,6 +353,7 @@ Parameters.NumberAdjustmentHorn2012
 Parameters.Blk1MVelType
 Parameters.Blk1MVelTypeRain
 Parameters.Blk1MVelTypeSnow
+Parameters.StokesRegimeVelType
 Parameters.SB2006VelType
 Parameters.Chen2022VelType
 Parameters.Chen2022VelTypeSmallIce

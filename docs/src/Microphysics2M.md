@@ -72,7 +72,7 @@ The cloud droplet number distribution, as a function of mass ``x`` [kg], is assu
     f_c(x) = A_c x^{ν_c} \exp\left(-B_c x^{μ_c} \right), 
 \end{align}
 ```
-We assume that ``ν_c`` and ``μ_c`` are fixed constants. Our default choice for these parameters are ``ν_c = 2`` and ``μ_c = 1``.
+We assume that ``ν_c`` and ``μ_c`` are fixed constants. Our default choice for these parameters are ``ν_c = 1`` and ``μ_c = 1``.
 
 The free parameters for cloud droplets (``A_c``, ``B_c``) can be found analytically by integrating over the assumed 
 mass distribution to find the prognostic variables
@@ -323,7 +323,7 @@ The default free parameter values are:
 
 |   symbol   | default value |
 |------------|---------------|
-|``ν``       | ``2``         |
+|``ν``       | ``1``         |
 |``A``       | ``400``       |
 |``a``       | ``0.7``       |
 |``b``       | ``3``         |
@@ -566,7 +566,7 @@ The number- and mass-weighted terminal velocities for rain water are obtained by
   \overline{v}_{r,\, k} = \frac{1}{M_r^k} \int_0^\infty x^k f_r(x) v(x) dx,
 \end{equation}
 ```
-where the superscript ``k`` indicates the moment number,  with``k=0`` for number density and ``k=1`` for mass.
+where the superscript ``k`` indicates the moment number,  with ``k=0`` for number density and ``k=1`` for mass.
 
 The individual terminal velocity of particles is approximated by
 ```math
@@ -621,6 +621,29 @@ Below we compare number-weighted (left) and mass-weighted (right) terminal veloc
 include("plots/TerminalVelocity2M.jl")
 ```
 ![](2M_terminal_velocity_comparisons.svg)
+
+For cloud liquid droplets in two-moment microphysics schemes, we use the analytical Stokes-regime expression for the terminal velocity of an individual spherical particle:
+```math
+v(r) = \frac{2}{9} \frac{(\rho_{water} - \rho_{air}) g}{\mu_{air}} r^2
+```
+with ``\mu_{air} = \rho_{air} \, \nu_{air}`` and assuming constant kinematic viscosity ``\nu_{air}`` in our parameterization. 
+When droplet sizes follow a gamma distribution (as in Seifert & Beheng 2006), integrating this equation over the size spectrum yields the number- and mass-weighted mean terminal velocities: 
+```math
+\begin{align*}
+  \overline{v}_{c,\, k} = \frac{2}{9}\, \left(\frac{3}{4\, \pi\, \rho_{water}}\right)^{2/3}\, \left(\frac{\rho_{water}}{\rho_{air}}-1\right)\, \frac{g}{\nu_{air}}\, \frac{M_{k+2/3}}{M_k}
+\end{align*}
+```
+where
+- ``M_i`` is the ``i``-th moment of the droplet size distribution.
+- ``k`` is the weighting moment: ``k=0`` for number-mean velocity, ``k=1`` for mass-mean velocity.
+
+For a gamma distribution with shape parameters ``\nu_c`` and ``\mu_c``, the mean terminal velocities can be written analytically as:
+```math
+\begin{align*}
+  \overline{v}_{c,\, k} = \frac{\Gamma(\frac{k+2/3+\nu_c+1}{\mu_c})}{\Gamma(\frac{k+\nu_c+1}{\mu_c})}\left[\frac{\Gamma(\frac{\nu_c+1}{\mu_c})}{\Gamma(\frac{\nu_c+2}{\mu_c})}\right]^{2/3} v_{c,\, k}(\overline{r})
+\end{align*}
+```
+where ``v_{c,\, k}(\overline{r})`` is the fall speed of a particle with mean radius ``\overline{r}``.
 
 For the Chen et al. [Chen2022](@cite) terminal velocity parameterization,
   the number- and mass-weighted group terminal velocities are:

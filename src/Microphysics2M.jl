@@ -599,6 +599,49 @@ function rain_self_collection_and_breakup(
 end
 
 """
+    cloud_terminal_velocity(pdf_c, vel_params, q_liq, ρₐ, N_liq)
+
+Compute the number-averaged and mass-averaged terminal velocities of cloud droplets
+assuming a gamma size distribution for droplet mass and the analytical Stokes-regime terminal
+velocity of spherical particles.
+
+# Arguments
+- `pdf_c`: Cloud droplet size distribution parameters, [`CMP.CloudParticlePDF_SB2006`](@ref).
+- `vel_params`: Terminal velocity parameters, [`CMP.StokesRegimeVelType`](@ref).
+- `q_liq`: Cloud liquid water specific content [kg kg⁻¹].
+- `ρₐ`: Air density [kg m⁻³].
+- `N_liq`: Cloud droplet number concentration [m⁻³].
+
+# Returns
+A tuple containing the number- and mass-weighted mean fall velocities of cloud droplets in [m/s].
+Individual droplet terminal velocities follow v_{term}(D) = (1/18) (ρw - ρₐ) g D^2 / μ_air with 
+μ_air = ρₐ * ν_air and assuming constant ν_air.
+"""
+function cloud_terminal_velocity(
+    pdf_c::CMP.CloudParticlePDF_SB2006{FT},
+    (; ρw, grav, ν_air)::CMP.StokesRegimeVelType{FT},
+    q_liq, ρₐ, N_liq,
+) where {FT}
+
+    (; νc, μc) = pdf_c
+    (; Bc) = pdf_cloud_parameters_mass(pdf_c, q_liq, ρₐ, N_liq)
+
+    terminal_velocity_prefactor = FT(1 / 18) * (6 / pi / ρw)^(2 / 3) * (ρw / ρₐ - 1) * grav / ν_air
+    vt0 =
+        N_liq < eps(FT) ? FT(0) :
+        terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(2 / 3)) / N_liq
+    vt1 =
+        q_liq < eps(FT) ? FT(0) :
+        terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(5 / 3)) / ρₐ / q_liq
+
+    if q_liq >= 5e-3
+        @show terminal_velocity_prefactor, vt0, vt1
+    end
+    return (vt0, vt1)
+
+end
+
+"""
     rain_terminal_velocity(SB2006, vel, q_rai, ρ, N_rai)
 
 Compute the raindrops terminal velocity.
