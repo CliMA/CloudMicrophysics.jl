@@ -4,6 +4,7 @@
 module Common
 
 import SpecialFunctions as SF
+using UnrolledUtilities
 
 import ..Parameters as CMP
 import ..ThermodynamicsInterface as TDI
@@ -337,7 +338,7 @@ Needed for numerical integrals in the P3 scheme.
 function particle_terminal_velocity(velocity_params::CMP.TerminalVelocityType, ρs...)
     (ai, bi, ci) = Chen2022_vel_coeffs(velocity_params, ρs...)
     v_terms = Chen2022_monodisperse_pdf.(ai, bi, ci)  # tuple of functions
-    v_term(D) = sum(@. D |> v_terms)
+    v_term(D) = unrolled_sum(v_term -> v_term(D), v_terms)
     return v_term
 end
 
