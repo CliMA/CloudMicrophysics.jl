@@ -531,3 +531,19 @@ Fig5b_y_param = [
     0.7030508474576271,
     0.7505084745762711,
 ]
+
+function get_ARG_data(fig_num)
+    if fig_num == 1
+        return Fig1_x_obs, Fig1_y_obs, Fig1_x_param, Fig1_y_param
+    elseif fig_num == 2
+        return Fig2a_x_obs, Fig2a_y_obs, Fig2a_x_param, Fig2a_y_param
+    elseif fig_num == 3
+        return Fig3a_x_obs, Fig3a_y_obs, Fig3a_x_param, Fig3a_y_param
+    elseif fig_num == 4
+        return Fig4a_x_obs, Fig4a_y_obs, Fig4a_x_param, Fig4a_y_param
+    elseif fig_num == 5
+        return Fig5a_x_obs, Fig5a_y_obs, Fig5a_x_param, Fig5a_y_param
+    else
+        error("Figure $fig_num does not exist")
+    end
+end
