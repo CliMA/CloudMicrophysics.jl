@@ -30,7 +30,7 @@ jobs:
           - os: windows-2022
             version: '1.11'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: julia-actions/cache@v2
       - uses: julia-actions/setup-julia@v2
         with:
