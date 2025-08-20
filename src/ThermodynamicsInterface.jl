@@ -11,7 +11,7 @@ grav(tps::PS) = TD.Parameters.grav(tps) # Needed in parcel model
 
 Rᵥ(tps::PS) = TD.Parameters.R_v(tps)
 Rd(tps::PS) = TD.Parameters.R_d(tps)
-Rd_over_Rv(tps::PS) = 1 / TD.Parameters.molmass_ratio(tps)
+Rd_over_Rv(tps::PS) = 1 / TD.Parameters.Rv_over_Rd(tps)
 
 # Gas constant for moist air
 Rₘ(tps::PS, qₜ, qₗ, qᵢ) = TD.gas_constant_air(tps, qₜ, qₗ, qᵢ)
@@ -34,7 +34,7 @@ q_vap(q_tot, q_liq, q_ice) = q_tot - q_liq - q_ice
 q_vap(q_tot, q_liq, q_ice, q_rai, q_sno) = q_tot - q_liq - q_ice - q_rai - q_sno
 
 # Get specific content from partial pressure
-p2q(tps::PS, T, ρ, pᵥ) = TD.q_vap_saturation_from_density(tps, T, ρ, pᵥ)
+p2q(tps::PS, T, ρ, pᵥ) = TD.q_vap_from_p_vap(tps, T, ρ, pᵥ)
 
 # Get partial pressure from specific content
 q2p(tps::PS, T, ρ, qᵥ) = qᵥ * ρ * Rᵥ(tps) * T

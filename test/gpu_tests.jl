@@ -860,7 +860,7 @@ function test_gpu(FT)
         kernel!(liquid, ice, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s, ; ndrange)
 
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(3.763783850665844e-5)
+        TT.@test Array(output)[1] ≈ FT(3.76347635339803e-5)
         TT.@test Array(output)[2] ≈ FT(-1e-4)
     end
 
@@ -976,7 +976,7 @@ function test_gpu(FT)
         kernel!(snow, blk1mvel, aps, tps, output, ρ, T, qs, ; ndrange)
 
         # test if 1-moment snow melt is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(9.518235437405256e-6)
+        TT.@test Array(output)[1] ≈ FT(9.516553267013084e-6)
         TT.@test Array(output)[2] ≈ FT(0)
         TT.@test Array(output)[3] ≈ FT(0)
     end
@@ -1054,11 +1054,11 @@ function test_gpu(FT)
                 ndrange = ndrange,
             )
 
-            TT.@test isapprox(Array(output)[1], FT(-4.083606e-7), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[2], FT(-3769.4827), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[3], FT(4.083606e-7), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[4], FT(1884.7413), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[5], FT(-31040.115), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[1], FT(-5.742569998787898e-7), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[2], FT(-5300.833845034984), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[3], FT(5.742569998787898e-7), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[4], FT(2650.416922517492), rtol = 1e-6)
+            TT.@test isapprox(Array(output)[5], FT(-33859.96615496501), rtol = 1e-6)
             TT.@test isapprox(Array(output)[6], FT(-6.358926e-6), rtol = 1e-6)
             TT.@test isapprox(Array(output)[7], FT(-317946.28), rtol = 1e-6)
             TT.@test isapprox(Array(output)[8], FT(6.358926e-6), rtol = 1e-6)
@@ -1070,12 +1070,12 @@ function test_gpu(FT)
                 TT.@test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
                 TT.@test isapprox(
                     Array(output)[14],
-                    FT(-260774.56803),
+                    FT(-260791.30068415933),
                     rtol = 1e-6,
                 )
                 TT.@test isapprox(
                     Array(output)[15],
-                    FT(-0.0037092913),
+                    FT(-0.003709529301871412),
                     rtol = 1e-6,
                 )
             end
@@ -1084,10 +1084,10 @@ function test_gpu(FT)
                 TT.@test isapprox(Array(output)[11], FT(0), rtol = 1e-6)
                 TT.@test isapprox(Array(output)[12], FT(2.6429e-3), rtol = 1e-4)
                 TT.@test isapprox(Array(output)[13], FT(0.1149338), rtol = 1e-5)
-                TT.@test isapprox(Array(output)[14], FT(-56712.917), rtol = 1e-6)
+                TT.@test isapprox(Array(output)[14], FT(-56716.556198709244), rtol = 1e-6)
                 TT.@test isapprox(
                     Array(output)[15],
-                    FT(-0.0001003405),
+                    FT(-0.00010034697555076008),
                     rtol = 1e-6,
                 )
             end
@@ -1122,7 +1122,7 @@ function test_gpu(FT)
         kernel!(H2SO4_prs, tps, output, x_sulph, T; ndrange)
 
         # test if a_w_xT is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(0.92824538441)
+        TT.@test Array(output)[1] ≈ FT(0.928418590276476)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1134,7 +1134,7 @@ function test_gpu(FT)
         kernel!(tps, output, e, T; ndrange)
 
         # test if a_w_eT is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(0.880978146)
+        TT.@test Array(output)[1] ≈ FT(0.880951366899518)
 
         dims = (1, 1)
         (; output, ndrange) = setup_output(dims, FT)
@@ -1145,7 +1145,7 @@ function test_gpu(FT)
         kernel!(tps, output, T; ndrange)
 
         # test if a_w_ice is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(0.653191723)
+        TT.@test Array(output)[1] ≈ FT(0.6538439184585567)
     end
 
     TT.@testset "Ice Nucleation kernels" begin

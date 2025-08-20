@@ -257,8 +257,8 @@ function Rain(toml_dict::CP.AbstractTOMLDict)
         :cloud_liquid_water_specific_humidity_autoconversion_threshold =>
             :q_threshold,
         :threshold_smooth_transition_steepness => :k,
-        :rain_ventillation_coefficient_a => :a,
-        :rain_ventillation_coefficient_b => :b,
+        :rain_ventilation_coefficient_a => :a,
+        :rain_ventilation_coefficient_b => :b,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
 
@@ -346,8 +346,8 @@ function Snow(toml_dict::CP.AbstractTOMLDict)
         :temperature_water_freeze => :T_freeze,
         :snow_flake_size_distribution_coefficient_mu => :μ,
         :snow_flake_size_distribution_coefficient_nu => :ν,
-        :snow_ventillation_coefficient_a => :a,
-        :snow_ventillation_coefficient_b => :b,
+        :snow_ventilation_coefficient_a => :a,
+        :snow_ventilation_coefficient_b => :b,
         :snow_aspect_ratio => :ϕ,
         :snow_aspect_ratio_coefficient => :κ,
     )

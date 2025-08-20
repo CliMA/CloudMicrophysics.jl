@@ -176,7 +176,7 @@ function test_microphysics1M(FT)
         qₗ = FT(0)
         qᵢ = FT(0.03) * qᵥ
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
-        ref = FT(2.5405159487552133e-9)
+        ref = FT(2.5408135723057333e-9)
         TT.@test CM1.conv_q_ice_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) ≈ ref
     end
 
@@ -425,7 +425,7 @@ function test_microphysics1M(FT)
         ρ = FT(1.2)
         q_sno = FT(1e-4)
         TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
-                 FT(9.518235437405256e-6)
+                 FT(9.516553267013085e-6)
 
         # no snow -> no snow melt
         T = FT(273.15 + 2)
