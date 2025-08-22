@@ -458,7 +458,7 @@ end
 
 function CloudParticlePDF_SB2006(td::CP.AbstractTOMLDict)
     name_map = (;
-        :SB2006_cloud_gamma_distribution_parameter => :νc,
+        :SB2006_cloud_gamma_distribution_coeff_nu => :νc,
         :SB2006_cloud_gamma_distribution_coeff_mu => :μc,
         :SB2006_cloud_droplets_min_mass => :xc_min,
         :SB2006_raindrops_min_mass => :xc_max,
@@ -587,7 +587,7 @@ end
 
 function BreakupSB2006(td::CP.AbstractTOMLDict)
     name_map = (;
-        :SB2006_raindrops_equlibrium_mean_diameter => :Deq,
+        :SB2006_raindrops_equilibrium_mean_diameter => :Deq,
         :SB2006_raindrops_breakup_mean_diameter_threshold => :Dr_th,
         :SB2006_raindrops_breakup_coeff_kbr => :kbr,
         :SB2006_raindrops_breakup_coeff_kappabr => :κbr,
@@ -622,8 +622,8 @@ function EvaporationSB2006(td::CP.AbstractTOMLDict)
     name_map = (;
         :SB2006_ventilation_factor_coeff_av => :av,
         :SB2006_ventilation_factor_coeff_bv => :bv,
-        :SB2006_rain_evaportation_coeff_alpha => :α,
-        :SB2006_rain_evaportation_coeff_beta => :β,
+        :SB2006_rain_evaporation_coeff_alpha => :α,
+        :SB2006_rain_evaporation_coeff_beta => :β,
         :SB2006_reference_air_density => :ρ0,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")

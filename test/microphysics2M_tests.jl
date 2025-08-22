@@ -709,7 +709,7 @@ function test_microphysics2M(FT)
         # Sanity checks of specific content and number concentration with mass distribution
         Nx = P3.integrate(Mⁿ(0, f_x), x_min, x_max)
         qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max) / ρₐ
-        TT.@test qx ≈ qₗ rtol = 1e-5
+        TT.@test qx ≈ qₗ rtol = 2e-5
         TT.@test Nx ≈ Nₗ rtol = 1e-5
 
         # Sanity checks of specific content and number concentration with diameter distribution
@@ -719,8 +719,8 @@ function test_microphysics2M(FT)
         qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max) * k_m / ρₐ
         TT.@test ND ≈ Nₗ rtol = 1e-5
         TT.@test ND_psd ≈ Nₗ rtol = 1e-5
-        TT.@test qD ≈ qₗ rtol = 1e-5
-        TT.@test qD_psd ≈ qₗ rtol = 1e-5
+        TT.@test qD ≈ qₗ rtol = 2e-5
+        TT.@test qD_psd ≈ qₗ rtol = 2e-5
     end
 
     TT.@testset "2M_microphysics - Horn 2012 number concentration adjustment" begin

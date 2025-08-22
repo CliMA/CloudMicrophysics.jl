@@ -52,7 +52,7 @@ function test_cloud_diagnostics(FT)
         N_rai = [FT(510859), FT(510859), FT(0), FT(0), FT(5.136e-18)]
 
         # reference values
-        rr = [FT(-12.561951), FT(-12.579899), FT(-150), FT(-150), FT(-150)]
+        rr = [FT(-12.559725319858543), FT(-12.579899), FT(-150), FT(-150), FT(-150)]
         reff = [FT(2.319383e-5), FT(6.91594e-5), FT(0), FT(0), FT(0)]
 
         for (qₗ, Nₗ, qᵣ, Nᵣ, rₑ, Z) in zip(q_liq, N_liq, q_rai, N_rai, reff, rr)

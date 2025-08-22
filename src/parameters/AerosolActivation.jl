@@ -42,7 +42,7 @@ AerosolActivationParameters(::Type{FT}) where {FT <: AbstractFloat} =
 function AerosolActivationParameters(td::CP.AbstractTOMLDict)
     name_map = (;
         :molar_mass_water => :M_w,
-        :gas_constant => :R,
+        :universal_gas_constant => :R,
         :density_liquid_water => :ρ_w,
         :density_ice_water => :ρ_i,
         :surface_tension_water => :σ,
