@@ -76,7 +76,7 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ,
     return (; N₀r, Dr_mean, xr_mean)
 end
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρₐ, Nᵣ)
-    (iszero(Nᵣ) && iszero(qᵣ)) && return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
+    (Nᵣ < eps(one(Nᵣ)) && qᵣ < eps(one(qᵣ))) && return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
     (; xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
     Lᵣ = ρₐ * max(0, qᵣ)
 
@@ -155,9 +155,10 @@ That is,
  - `(logA, logB)`: Log of the parameters of the generalized gamma distribution
 """
 function log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
-    (N < eps(one(N)) && q < eps(one(q))) && return (log(zero(N)), log(1 / zero(q)))
-    (; νc, μc) = pdf_c
     L = ρₐ * q
+    # If L or N are (essentially) zero, return `A=0` (no number per mass), `B=∞` (zero mass "length" scale)
+    (N < eps(one(N)) || L < eps(one(L))) && return (log(zero(N)), log(1 / zero(q)))
+    (; νc, μc) = pdf_c
     logx̄ = log(L / N)
     z1 = (νc + 1) / μc
     z2 = (νc + 2) / μc
