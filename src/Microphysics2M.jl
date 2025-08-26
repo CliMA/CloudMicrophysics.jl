@@ -631,7 +631,7 @@ function cloud_terminal_velocity(
     (; νc, μc) = pdf_c
     (; Bc) = pdf_cloud_parameters_mass(pdf_c, q_liq, ρₐ, N_liq)
 
-    terminal_velocity_prefactor = FT(1 / 18) * (6 / pi / ρw)^(2 / 3) * (ρw / ρₐ - 1) * grav / ν_air
+    terminal_velocity_prefactor = FT(1 / 18) * (6 / ρw / π)^(2 // 3) * (ρw / ρₐ - 1) * grav / ν_air
     vt0 =
         N_liq < eps(FT) ? FT(0) :
         terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(2 / 3)) / N_liq
