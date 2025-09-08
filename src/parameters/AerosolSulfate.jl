@@ -26,7 +26,7 @@ end
 Sulfate(::Type{FT}) where {FT <: AbstractFloat} =
     Sulfate(CP.create_toml_dict(FT))
 
-function Sulfate(td::CP.AbstractTOMLDict)
+function Sulfate(td::CP.ParamDict)
     name_map = (;
         :sulfate_aerosol_molar_mass => :M,
         :sulfate_aerosol_density => :ρ,

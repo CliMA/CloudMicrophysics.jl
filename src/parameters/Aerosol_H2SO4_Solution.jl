@@ -35,7 +35,7 @@ end
 H2SO4SolutionParameters(::Type{FT}) where {FT <: AbstractFloat} =
     H2SO4SolutionParameters(CP.create_toml_dict(FT))
 
-function H2SO4SolutionParameters(td::CP.AbstractTOMLDict)
+function H2SO4SolutionParameters(td::CP.ParamDict)
     name_map = (;
         :p_over_sulphuric_acid_solution_T_max => :T_max,
         :p_over_sulphuric_acid_solution_T_min => :T_min,

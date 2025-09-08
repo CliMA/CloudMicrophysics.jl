@@ -22,7 +22,7 @@ end
 AsianDust(::Type{FT}) where {FT <: AbstractFloat} =
     AsianDust(CP.create_toml_dict(FT))
 
-function AsianDust(td::CP.AbstractTOMLDict)
+function AsianDust(td::CP.ParamDict)
     name_map = (;
         :J_ABDINM_m_AsianDust => :deposition_m,
         :J_ABDINM_c_AsianDust => :deposition_c,

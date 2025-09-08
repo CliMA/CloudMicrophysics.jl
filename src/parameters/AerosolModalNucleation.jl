@@ -36,7 +36,7 @@ end
 H2S04NucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
     H2S04NucleationParameters(CP.create_toml_dict(FT))
 
-function H2S04NucleationParameters(td::CP.AbstractTOMLDict)
+function H2S04NucleationParameters(td::CP.ParamDict)
     name_map = (;
         :mam3_nucleation_p_b_n_neutral => :p_b_n,
         :mam3_nucleation_p_b_i_ion_induced => :p_b_i,
@@ -91,7 +91,7 @@ end
 OrganicNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
     OrganicNucleationParameters(CP.create_toml_dict(FT))
 
-function OrganicNucleationParameters(td::CP.AbstractTOMLDict)
+function OrganicNucleationParameters(td::CP.ParamDict)
     name_map = (;
         :mam3_nucleation_a_1_neutral => :a_1,
         :mam3_nucleation_a_2_neutral => :a_2,
@@ -128,7 +128,7 @@ end
 MixedNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
     MixedNucleationParameters(CP.create_toml_dict(FT))
 
-function MixedNucleationParameters(td::CP.AbstractTOMLDict)
+function MixedNucleationParameters(td::CP.ParamDict)
     name_map = (;
         :mam3_nucleation_k_H2SO4_mixed_organic_sulfuric_acid_factor =>
             :k_H2SO4org,

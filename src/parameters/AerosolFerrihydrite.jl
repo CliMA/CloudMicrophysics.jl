@@ -19,7 +19,7 @@ end
 Ferrihydrite(::Type{FT}) where {FT <: AbstractFloat} =
     Ferrihydrite(CP.create_toml_dict(FT))
 
-function Ferrihydrite(td::CP.AbstractTOMLDict)
+function Ferrihydrite(td::CP.ParamDict)
     name_map = (;
         :Alpert2022_J_deposition_m_Ferrihydrite => :deposition_m,
         :Alpert2022_J_deposition_c_Ferrihydrite => :deposition_c,

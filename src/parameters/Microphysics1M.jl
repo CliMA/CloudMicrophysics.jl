@@ -140,7 +140,7 @@ end
 CloudLiquid(::Type{FT}) where {FT <: AbstractFloat} =
     CloudLiquid(CP.create_toml_dict(FT))
 
-function CloudLiquid(toml_dict::CP.AbstractTOMLDict)
+function CloudLiquid(toml_dict::CP.ParamDict)
     name_map = (;
         :condensation_evaporation_timescale => :τ_relax,
         :density_liquid_water => :ρw,
@@ -180,7 +180,7 @@ end
 CloudIce(::Type{FT}) where {FT <: AbstractFloat} =
     CloudIce(CP.create_toml_dict(FT))
 
-function CloudIce(toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT))
+function CloudIce(toml_dict::CP.ParamDict = CP.create_toml_dict(FT))
     name_map = (;
         :cloud_ice_apparent_density => :ρᵢ,
         :cloud_ice_crystals_length_scale => :r0,
@@ -207,7 +207,7 @@ function CloudIce(toml_dict::CP.AbstractTOMLDict = CP.create_toml_dict(FT))
     )
 end
 
-function ParticleMass(::Type{CloudIce}, td::CP.AbstractTOMLDict)
+function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
     name_map = (;
         :cloud_ice_apparent_density => :ρᵢ,
         :cloud_ice_crystals_length_scale => :r0,
@@ -246,7 +246,7 @@ end
 
 Rain(::Type{FT}) where {FT <: AbstractFloat} = Rain(CP.create_toml_dict(FT))
 
-function Rain(toml_dict::CP.AbstractTOMLDict)
+function Rain(toml_dict::CP.ParamDict)
     name_map = (;
         :density_liquid_water => :ρ,
         :rain_drop_length_scale => :r0,
@@ -277,7 +277,7 @@ function Rain(toml_dict::CP.AbstractTOMLDict)
     return Rain{FT, P, M, A, V, AC}(pdf, mass, area, vent, acnv1M, p.r0)
 end
 
-function ParticleMass(::Type{Rain}, td::CP.AbstractTOMLDict)
+function ParticleMass(::Type{Rain}, td::CP.ParamDict)
     name_map = (;
         :density_liquid_water => :ρ,
         :rain_drop_length_scale => :r0,
@@ -291,7 +291,7 @@ function ParticleMass(::Type{Rain}, td::CP.AbstractTOMLDict)
     return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
 end
 
-function ParticleArea(::Type{Rain}, td::CP.AbstractTOMLDict)
+function ParticleArea(::Type{Rain}, td::CP.ParamDict)
     name_map = (;
         :rain_drop_length_scale => :r0,
         :rain_cross_section_size_relation_coefficient_ae => :ae,
@@ -335,7 +335,7 @@ end
 
 Snow(::Type{FT}) where {FT <: AbstractFloat} = Snow(CP.create_toml_dict(FT))
 
-function Snow(toml_dict::CP.AbstractTOMLDict)
+function Snow(toml_dict::CP.ParamDict)
     name_map = (;
         :cloud_ice_crystals_length_scale => :r0,
         :snow_apparent_density => :ρᵢ,
@@ -381,7 +381,7 @@ function Snow(toml_dict::CP.AbstractTOMLDict)
     )
 end
 
-function ParticleMass(::Type{Snow}, td::CP.AbstractTOMLDict)
+function ParticleMass(::Type{Snow}, td::CP.ParamDict)
     name_map = (;
         :snow_flake_length_scale => :r0,
         :snow_mass_size_relation_coefficient_me => :me,
@@ -394,7 +394,7 @@ function ParticleMass(::Type{Snow}, td::CP.AbstractTOMLDict)
     return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
 end
 
-function ParticleArea(::Type{Snow}, toml_dict::CP.AbstractTOMLDict)
+function ParticleArea(::Type{Snow}, toml_dict::CP.ParamDict)
     name_map = (;
         :snow_flake_length_scale => :r0,
         :snow_cross_section_size_relation_coefficient => :ae,
@@ -431,7 +431,7 @@ end
 CollisionEff(::Type{FT}) where {FT <: AbstractFloat} =
     CollisionEff(CP.create_toml_dict(FT))
 
-function CollisionEff(td::CP.AbstractTOMLDict)
+function CollisionEff(td::CP.ParamDict)
     name_map = (;
         :cloud_liquid_rain_collision_efficiency => :e_liq_rai,
         :cloud_liquid_snow_collision_efficiency => :e_liq_sno,

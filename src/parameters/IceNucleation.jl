@@ -17,7 +17,7 @@ Base.@kwdef struct Mohler2006{FT} <: ParametersType{FT}
     T_thr::FT
 end
 
-function Mohler2006(td::CP.AbstractTOMLDict)
+function Mohler2006(td::CP.ParamDict)
     name_map = (;
         :Mohler2006_maximum_allowed_Si => :Sᵢ_max,
         :Mohler2006_threshold_T => :T_thr,
@@ -55,7 +55,7 @@ Base.@kwdef struct Koop2000{FT} <: ParametersType{FT}
     linear_c₂::FT
 end
 
-function Koop2000(td::CP.AbstractTOMLDict)
+function Koop2000(td::CP.ParamDict)
     name_map = (;
         :Koop2000_min_delta_aw => :Δa_w_min,
         :Koop2000_max_delta_aw => :Δa_w_max,
@@ -95,7 +95,7 @@ Base.@kwdef struct MorrisonMilbrandt2014{FT} <: ParametersType{FT}
     het_B::FT
 end
 
-function MorrisonMilbrandt2014(td::CP.AbstractTOMLDict)
+function MorrisonMilbrandt2014(td::CP.ParamDict)
     name_map = (;
         :temperature_homogenous_nucleation => :T_dep_thres,
         :Thompson2004_c1_Cooper => :c₁,
@@ -126,7 +126,7 @@ end
 IceNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
     IceNucleationParameters(CP.create_toml_dict(FT))
 
-function IceNucleationParameters(toml_dict::CP.AbstractTOMLDict)
+function IceNucleationParameters(toml_dict::CP.ParamDict)
     deposition = Mohler2006(toml_dict)
     homogeneous = Koop2000(toml_dict)
     p3 = MorrisonMilbrandt2014(toml_dict)
@@ -163,7 +163,7 @@ end
 Frostenberg2023(::Type{FT}) where {FT <: AbstractFloat} =
     Frostenberg2023(CP.create_toml_dict(FT))
 
-function Frostenberg2023(td::CP.AbstractTOMLDict)
+function Frostenberg2023(td::CP.ParamDict)
     name_map = (;
         :Frostenberg2023_standard_deviation => :σ,
         :Frostenberg2023_a_coefficient => :a,

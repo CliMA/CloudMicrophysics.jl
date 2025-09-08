@@ -20,7 +20,7 @@ end
 AirProperties(::Type{FT}) where {FT <: AbstractFloat} =
     AirProperties(CP.create_toml_dict(FT))
 
-function AirProperties(td::CP.AbstractTOMLDict)
+function AirProperties(td::CP.ParamDict)
     name_map = (;
         :thermal_conductivity_of_air => :K_therm,
         :diffusivity_of_water_vapor => :D_vapor,

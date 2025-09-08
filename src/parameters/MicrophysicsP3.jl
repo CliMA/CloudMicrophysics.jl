@@ -29,7 +29,7 @@ $(DocStringExtensions.FIELDS)
     "Coefficient in mass(size) relation [`-`]"
     β_va::FT
 end
-function MassPowerLaw(toml_dict::CP.AbstractTOMLDict)
+function MassPowerLaw(toml_dict::CP.ParamDict)
     name_map = (;
         :BF1995_mass_coeff_alpha => :α_va,
         :BF1995_mass_exponent_beta => :β_va,
@@ -63,7 +63,7 @@ $(DocStringExtensions.FIELDS)
     "Power [`-`]"
     σ::FT
 end
-function AreaPowerLaw(toml_dict::CP.AbstractTOMLDict)
+function AreaPowerLaw(toml_dict::CP.ParamDict)
     name_map = (; :M1996_area_coeff_gamma => :γ, :M1996_area_exponent_sigma => :σ)
     params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
@@ -111,7 +111,7 @@ $(DocStringExtensions.FIELDS)
     "Upper limiter [`-`]"
     μ_max::FT
 end
-function SlopePowerLaw(toml_dict::CP.AbstractTOMLDict)
+function SlopePowerLaw(toml_dict::CP.ParamDict)
     name_map = (;
         :Heymsfield_mu_coeff1 => :a,
         :Heymsfield_mu_coeff2 => :b,
@@ -141,7 +141,7 @@ $(DocStringExtensions.FIELDS)
     "Slope parameter μ [`-`]"
     μ::FT
 end
-function SlopeConstant(toml_dict::CP.AbstractTOMLDict)
+function SlopeConstant(toml_dict::CP.ParamDict)
     name_map = (; :P3_constant_slope_parameterization_value => :μ)
     params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
@@ -172,7 +172,7 @@ $(DocStringExtensions.FIELDS)
     "Linear coefficient in ventilation factor [`-`]"
     bᵥ::FT
 end
-function VentilationFactor(toml_dict::CP.AbstractTOMLDict)
+function VentilationFactor(toml_dict::CP.ParamDict)
     name_map = (;
         :SB2006_ventilation_factor_coeff_av => :aᵥ,
         :SB2006_ventilation_factor_coeff_bv => :bᵥ,
@@ -212,7 +212,7 @@ For calculating Rᵢ, see [`compute_local_rime_density`](@ref CloudMicrophysics.
     "Density of solid bulk ice [`kg m⁻³`]"
     ρ_ice::FT
 end
-function LocalRimeDensity(toml_dict::CP.AbstractTOMLDict)
+function LocalRimeDensity(toml_dict::CP.ParamDict)
     name_map = (;
         :CL1993_local_rime_density_constant_coeff => :a,
         :CL1993_local_rime_density_linear_coeff => :b,
@@ -317,16 +317,16 @@ ParametersP3{Float64}
 ParametersP3(::Type{FT}; kw...) where {FT} = ParametersP3(CP.create_toml_dict(FT); kw...)
 
 """
-    ParametersP3(toml_dict::CP.AbstractTOMLDict; [slope_law = :powerlaw])
+    ParametersP3(toml_dict::CP.ParamDict; [slope_law = :powerlaw])
 
 Create a `ParametersP3` object from a `ClimaParams` TOML dictionary.
 
 # Arguments
-- `toml_dict::CP.AbstractTOMLDict`: A `ClimaParams` TOML dictionary
+- `toml_dict::CP.ParamDict`: A `ClimaParams` TOML dictionary
 - `slope_law`: Slope law to use (`:constant` or, by default, `:powerlaw`)
 
 """
-function ParametersP3(toml_dict::CP.AbstractTOMLDict; slope_law = :powerlaw)
+function ParametersP3(toml_dict::CP.ParamDict; slope_law = :powerlaw)
     @assert slope_law in (:constant, :powerlaw)
     mass = MassPowerLaw(toml_dict)
     area = AreaPowerLaw(toml_dict)

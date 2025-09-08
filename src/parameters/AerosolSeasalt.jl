@@ -26,7 +26,7 @@ end
 Seasalt(::Type{FT}) where {FT <: AbstractFloat} =
     Seasalt(CP.create_toml_dict(FT))
 
-function Seasalt(td::CP.AbstractTOMLDict)
+function Seasalt(td::CP.ParamDict)
     name_map = (;
         :seasalt_aerosol_molar_mass => :M,
         :seasalt_aerosol_density => :ρ,
