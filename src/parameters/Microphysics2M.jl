@@ -19,7 +19,7 @@ Base.@kwdef struct AcnvKK2000{FT} <: ParametersType{FT}
     c::FT
 end
 
-function AcnvKK2000(td::CP.AbstractTOMLDict)
+function AcnvKK2000(td::CP.ParamDict)
     name_map = (;
         :KK2000_autoconversion_coeff_A => :A,
         :KK2000_autoconversion_coeff_a => :a,
@@ -48,7 +48,7 @@ Base.@kwdef struct AccrKK2000{FT} <: ParametersType{FT}
     b::FT
 end
 
-function AccrKK2000(td::CP.AbstractTOMLDict)
+function AccrKK2000(td::CP.ParamDict)
     name_map = (;
         :KK2000_accretion_coeff_A => :A,
         :KK2000_accretion_coeff_a => :a,
@@ -80,7 +80,7 @@ end
 KK2000(::Type{FT}) where {FT <: AbstractFloat} = KK2000(CP.create_toml_dict(FT))
 
 
-function KK2000(toml_dict::CP.AbstractTOMLDict)
+function KK2000(toml_dict::CP.ParamDict)
     acnv = AcnvKK2000(toml_dict)
     accr = AccrKK2000(toml_dict)
     FT = CP.float_type(toml_dict)
@@ -114,7 +114,7 @@ Base.@kwdef struct AcnvB1994{FT} <: ParametersType{FT}
     k::FT
 end
 
-function AcnvB1994(td::CP.AbstractTOMLDict)
+function AcnvB1994(td::CP.ParamDict)
     name_map = (;
         :B1994_autoconversion_coeff_C => :C,
         :B1994_autoconversion_coeff_a => :a,
@@ -143,7 +143,7 @@ struct AccrB1994{FT} <: ParametersType{FT}
     A::FT
 end
 
-function AccrB1994(toml_dict::CP.AbstractTOMLDict)
+function AccrB1994(toml_dict::CP.ParamDict)
     (; B1994_accretion_coeff_A) = CP.get_parameter_values(
         toml_dict,
         "B1994_accretion_coeff_A",
@@ -171,7 +171,7 @@ end
 
 B1994(::Type{FT}) where {FT <: AbstractFloat} = B1994(CP.create_toml_dict(FT))
 
-function B1994(toml_dict::CP.AbstractTOMLDict)
+function B1994(toml_dict::CP.ParamDict)
     acnv = AcnvB1994(toml_dict)
     accr = AccrB1994(toml_dict)
     FT = CP.float_type(toml_dict)
@@ -203,7 +203,7 @@ Base.@kwdef struct AcnvTC1980{FT} <: ParametersType{FT}
     k::FT
 end
 
-function AcnvTC1980(td::CP.AbstractTOMLDict)
+function AcnvTC1980(td::CP.ParamDict)
     name_map = (;
         :TC1980_autoconversion_coeff_a => :a,
         :TC1980_autoconversion_coeff_b => :b,
@@ -233,7 +233,7 @@ struct AccrTC1980{FT} <: ParametersType{FT}
     A::FT
 end
 
-function AccrTC1980(toml_dict::CP.AbstractTOMLDict)
+function AccrTC1980(toml_dict::CP.ParamDict)
     (; TC1980_accretion_coeff_A) = CP.get_parameter_values(
         toml_dict,
         "TC1980_accretion_coeff_A",
@@ -263,7 +263,7 @@ end
 
 TC1980(::Type{FT}) where {FT <: AbstractFloat} = TC1980(CP.create_toml_dict(FT))
 
-function TC1980(toml_dict::CP.AbstractTOMLDict)
+function TC1980(toml_dict::CP.ParamDict)
     acnv = AcnvTC1980(toml_dict)
     accr = AccrTC1980(toml_dict)
     FT = CP.float_type(toml_dict)
@@ -294,7 +294,7 @@ end
 
 LD2004(::Type{FT}) where {FT <: AbstractFloat} = LD2004(CP.create_toml_dict(FT))
 
-function LD2004(td::CP.AbstractTOMLDict)
+function LD2004(td::CP.ParamDict)
     name_map = (;
         :LD2004_R_6C_coeff => :R_6C_0,
         :LD2004_E_0_coeff => :E_0,
@@ -325,7 +325,7 @@ end
 VarTimescaleAcnv(::Type{FT}) where {FT <: AbstractFloat} =
     VarTimescaleAcnv(CP.create_toml_dict(FT))
 
-function VarTimescaleAcnv(td::CP.AbstractTOMLDict)
+function VarTimescaleAcnv(td::CP.ParamDict)
     name_map = (;
         :rain_autoconversion_timescale => :τ,
         :Variable_time_scale_autoconversion_coeff_alpha => :α,
@@ -377,7 +377,7 @@ Base.@kwdef struct RainParticlePDF_SB2006_limited{FT} <: RainParticlePDF_SB2006{
     ρ0::FT
 end
 
-function RainParticlePDF_SB2006_limited(td::CP.AbstractTOMLDict)
+function RainParticlePDF_SB2006_limited(td::CP.ParamDict)
     name_map = (;
         :SB2006_rain_distribution_coeff_nu => :νr,
         :SB2006_rain_distribution_coeff_mu => :μr,
@@ -418,7 +418,7 @@ Base.@kwdef struct RainParticlePDF_SB2006_notlimited{FT} <: RainParticlePDF_SB20
     ρ0::FT
 end
 
-function RainParticlePDF_SB2006_notlimited(td::CP.AbstractTOMLDict)
+function RainParticlePDF_SB2006_notlimited(td::CP.ParamDict)
     name_map = (;
         :SB2006_rain_distribution_coeff_nu => :νr,
         :SB2006_rain_distribution_coeff_mu => :μr,
@@ -456,7 +456,7 @@ Base.@kwdef struct CloudParticlePDF_SB2006{FT} <: ParametersType{FT}
     ρw::FT
 end
 
-function CloudParticlePDF_SB2006(td::CP.AbstractTOMLDict)
+function CloudParticlePDF_SB2006(td::CP.ParamDict)
     name_map = (;
         :SB2006_cloud_gamma_distribution_coeff_nu => :νc,
         :SB2006_cloud_gamma_distribution_coeff_mu => :μc,
@@ -492,7 +492,7 @@ Base.@kwdef struct AcnvSB2006{FT} <: ParametersType{FT}
     b::FT
 end
 
-function AcnvSB2006(td::CP.AbstractTOMLDict)
+function AcnvSB2006(td::CP.ParamDict)
     name_map = (;
         :SB2006_collection_kernel_coeff_kcc => :kcc,
         :SB2006_raindrops_min_mass => :x_star,
@@ -526,7 +526,7 @@ Base.@kwdef struct AccrSB2006{FT} <: ParametersType{FT}
     c::FT
 end
 
-function AccrSB2006(td::CP.AbstractTOMLDict)
+function AccrSB2006(td::CP.ParamDict)
     name_map = (;
         :SB2006_collection_kernel_coeff_kcr => :kcr,
         :SB2006_accretion_correcting_function_coeff_tau0 => :τ0,
@@ -555,7 +555,7 @@ Base.@kwdef struct SelfColSB2006{FT} <: ParametersType{FT}
     d::FT
 end
 
-function SelfColSB2006(td::CP.AbstractTOMLDict)
+function SelfColSB2006(td::CP.ParamDict)
     name_map = (;
         :SB2006_collection_kernel_coeff_krr => :krr,
         :SB2006_collection_kernel_coeff_kapparr => :κrr,
@@ -585,7 +585,7 @@ Base.@kwdef struct BreakupSB2006{FT} <: ParametersType{FT}
     κbr::FT
 end
 
-function BreakupSB2006(td::CP.AbstractTOMLDict)
+function BreakupSB2006(td::CP.ParamDict)
     name_map = (;
         :SB2006_raindrops_equilibrium_mean_diameter => :Deq,
         :SB2006_raindrops_breakup_mean_diameter_threshold => :Dr_th,
@@ -618,7 +618,7 @@ Base.@kwdef struct EvaporationSB2006{FT} <: ParametersType{FT}
     ρ0::FT
 end
 
-function EvaporationSB2006(td::CP.AbstractTOMLDict)
+function EvaporationSB2006(td::CP.ParamDict)
     name_map = (;
         :SB2006_ventilation_factor_coeff_av => :av,
         :SB2006_ventilation_factor_coeff_bv => :bv,
@@ -644,7 +644,7 @@ Base.@kwdef struct NumberAdjustmentHorn2012{FT} <: ParametersType{FT}
     τ::FT
 end
 
-function NumberAdjustmentHorn2012(td::CP.AbstractTOMLDict)
+function NumberAdjustmentHorn2012(td::CP.ParamDict)
     name_map = (;
         :Horn2012_number_concentration_adjustment_timescale => :τ,
     )
@@ -687,7 +687,7 @@ end
 SB2006(::Type{FT}, is_limited = true) where {FT <: AbstractFloat} =
     SB2006(CP.create_toml_dict(FT), is_limited)
 
-function SB2006(toml_dict::CP.AbstractTOMLDict, is_limited = true)
+function SB2006(toml_dict::CP.ParamDict, is_limited = true)
     pdf_c = CloudParticlePDF_SB2006(toml_dict)
     pdf_r =
         is_limited ? RainParticlePDF_SB2006_limited(toml_dict) :

@@ -22,7 +22,7 @@ end
 
 Illite(::Type{FT}) where {FT <: AbstractFloat} = Illite(CP.create_toml_dict(FT))
 
-function Illite(td::CP.AbstractTOMLDict)
+function Illite(td::CP.ParamDict)
     name_map = (;
         :J_ABDINM_m_Illite => :deposition_m,
         :J_ABDINM_c_Illite => :deposition_c,

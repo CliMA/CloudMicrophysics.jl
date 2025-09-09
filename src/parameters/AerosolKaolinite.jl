@@ -24,7 +24,7 @@ end
 Kaolinite(::Type{FT}) where {FT <: AbstractFloat} =
     Kaolinite(CP.create_toml_dict(FT))
 
-function Kaolinite(td::CP.AbstractTOMLDict)
+function Kaolinite(td::CP.ParamDict)
     name_map = (;
         :China2017_J_deposition_m_Kaolinite => :deposition_m,
         :China2017_J_deposition_c_Kaolinite => :deposition_c,

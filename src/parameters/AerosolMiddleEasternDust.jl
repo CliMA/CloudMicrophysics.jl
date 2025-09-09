@@ -18,7 +18,7 @@ end
 MiddleEasternDust(::Type{FT}) where {FT <: AbstractFloat} =
     MiddleEasternDust(CP.create_toml_dict(FT))
 
-function MiddleEasternDust(td::CP.AbstractTOMLDict)
+function MiddleEasternDust(td::CP.ParamDict)
     name_map = (;
         :J_ABIFM_m_MiddleEasternDust => :ABIFM_m,
         :J_ABIFM_c_MiddleEasternDust => :ABIFM_c,

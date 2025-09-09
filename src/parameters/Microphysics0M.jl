@@ -20,7 +20,7 @@ end
 Parameters0M(::Type{FT}) where {FT <: AbstractFloat} =
     Parameters0M(CP.create_toml_dict(FT))
 
-function Parameters0M(td::CP.AbstractTOMLDict)
+function Parameters0M(td::CP.ParamDict)
     name_map = (;
         :precipitation_timescale => :τ_precip,
         :specific_humidity_precipitation_threshold => :qc_0,

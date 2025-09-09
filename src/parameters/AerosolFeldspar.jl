@@ -19,7 +19,7 @@ end
 Feldspar(::Type{FT}) where {FT <: AbstractFloat} =
     Feldspar(CP.create_toml_dict(FT))
 
-function Feldspar(td::CP.AbstractTOMLDict)
+function Feldspar(td::CP.ParamDict)
     name_map = (;
         :Alpert2022_J_deposition_m_Feldspar => :deposition_m,
         :Alpert2022_J_deposition_c_Feldspar => :deposition_c,

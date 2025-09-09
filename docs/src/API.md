@@ -98,7 +98,7 @@ P3Scheme
 ```@docs
 CMP.ParametersP3{Float64}
 CMP.ParametersP3(::Float64)
-CMP.ParametersP3(::Parameters.CP.AbstractTOMLDict)
+CMP.ParametersP3(::Parameters.CP.ParamDict)
 ```
 
 ### Sub-parameterizations

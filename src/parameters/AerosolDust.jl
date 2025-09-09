@@ -21,7 +21,7 @@ end
 
 Dust(::Type{FT}) where {FT <: AbstractFloat} = Dust(CP.create_toml_dict(FT))
 
-function Dust(td::CP.AbstractTOMLDict)
+function Dust(td::CP.ParamDict)
     name_map = (;
         :J_ABDINM_m_Dust => :deposition_m,
         :J_ABDINM_c_Dust => :deposition_c,

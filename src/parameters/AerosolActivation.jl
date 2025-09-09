@@ -39,7 +39,7 @@ end
 AerosolActivationParameters(::Type{FT}) where {FT <: AbstractFloat} =
     AerosolActivationParameters(CP.create_toml_dict(FT))
 
-function AerosolActivationParameters(td::CP.AbstractTOMLDict)
+function AerosolActivationParameters(td::CP.ParamDict)
     name_map = (;
         :molar_mass_water => :M_w,
         :universal_gas_constant => :R,

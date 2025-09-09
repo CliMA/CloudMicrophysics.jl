@@ -31,7 +31,7 @@ end
 ArizonaTestDust(::Type{FT}) where {FT <: AbstractFloat} =
     ArizonaTestDust(CP.create_toml_dict(FT))
 
-function ArizonaTestDust(td::CP.AbstractTOMLDict)
+function ArizonaTestDust(td::CP.ParamDict)
     name_map = (;
         :Mohler2006_S0_warm_ArizonaTestDust => :S₀_warm,
         :Mohler2006_S0_cold_ArizonaTestDust => :S₀_cold,

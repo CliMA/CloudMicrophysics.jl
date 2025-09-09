@@ -18,7 +18,7 @@ end
 SaharanDust(::Type{FT}) where {FT <: AbstractFloat} =
     SaharanDust(CP.create_toml_dict(FT))
 
-function SaharanDust(td::CP.AbstractTOMLDict)
+function SaharanDust(td::CP.ParamDict)
     name_map = (;
         :J_ABDINM_m_SaharanDust => :deposition_m,
         :J_ABDINM_c_SaharanDust => :deposition_c,

@@ -26,7 +26,7 @@ Base.@kwdef struct Blk1MVelTypeRain{FT} <: ParametersType{FT}
     grav::FT
 end
 
-function Blk1MVelTypeRain(td::CP.AbstractTOMLDict)
+function Blk1MVelTypeRain(td::CP.ParamDict)
     name_map = (;
         :snow_flake_length_scale => :r0,
         :rain_terminal_velocity_size_relation_coefficient_ve => :ve,
@@ -63,7 +63,7 @@ Base.@kwdef struct Blk1MVelTypeSnow{FT} <: ParametersType{FT}
     v0::FT
 end
 
-function Blk1MVelTypeSnow(td::CP.AbstractTOMLDict)
+function Blk1MVelTypeSnow(td::CP.ParamDict)
     name_map = (;
         :snow_flake_length_scale => :r0,
         :snow_terminal_velocity_size_relation_coefficient => :ve,
@@ -94,7 +94,7 @@ end
 Blk1MVelType(::Type{FT}) where {FT <: AbstractFloat} =
     Blk1MVelType(CP.create_toml_dict(FT))
 
-function Blk1MVelType(toml_dict::CP.AbstractTOMLDict)
+function Blk1MVelType(toml_dict::CP.ParamDict)
     rain = Blk1MVelTypeRain(toml_dict)
     snow = Blk1MVelTypeSnow(toml_dict)
     FT = CP.float_type(toml_dict)
@@ -118,7 +118,7 @@ end
 StokesRegimeVelType(::Type{FT}) where {FT <: AbstractFloat} =
     StokesRegimeVelType(CP.create_toml_dict(FT))
 
-function StokesRegimeVelType(td::CP.AbstractTOMLDict)
+function StokesRegimeVelType(td::CP.ParamDict)
     name_map = (;
         :density_liquid_water => :ρw,
         :kinematic_viscosity_of_air => :ν_air,
@@ -150,7 +150,7 @@ end
 SB2006VelType(::Type{FT}) where {FT <: AbstractFloat} =
     SB2006VelType(CP.create_toml_dict(FT))
 
-function SB2006VelType(td::CP.AbstractTOMLDict)
+function SB2006VelType(td::CP.ParamDict)
     name_map = (;
         :SB2006_reference_air_density => :ρ0,
         :SB2006_raindrops_terminal_velocity_coeff_aR => :aR,
@@ -185,7 +185,7 @@ Base.@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: TerminalVelocityType{FT}
     cutoff::FT
 end
 
-function Chen2022VelTypeSmallIce(td::CP.AbstractTOMLDict)
+function Chen2022VelTypeSmallIce(td::CP.ParamDict)
     # TODO: These should be array parameters.
     name_map = (;
         :Chen2022_table_B3_As => :A,
@@ -224,7 +224,7 @@ Base.@kwdef struct Chen2022VelTypeLargeIce{FT, N} <: TerminalVelocityType{FT}
     cutoff::FT
 end
 
-function Chen2022VelTypeLargeIce(td::CP.AbstractTOMLDict)
+function Chen2022VelTypeLargeIce(td::CP.ParamDict)
     # TODO: These should be array parameters.
     name_map = (;
         :Chen2022_table_B5_Al => :A,
@@ -265,7 +265,7 @@ end
 Chen2022VelTypeRain(::Type{FT}) where {FT <: AbstractFloat} =
     Chen2022VelTypeRain(CP.create_toml_dict(FT))
 
-function Chen2022VelTypeRain(td::CP.AbstractTOMLDict)
+function Chen2022VelTypeRain(td::CP.ParamDict)
     name_map = (;
         :Chen2022_table_B1_q_coeff => :ρ0,
         :Chen2022_table_B1_ai => :a,
@@ -300,7 +300,7 @@ end
 Chen2022VelType(::Type{FT}) where {FT <: AbstractFloat} =
     Chen2022VelType(CP.create_toml_dict(FT))
 
-function Chen2022VelType(toml_dict::CP.AbstractTOMLDict)
+function Chen2022VelType(toml_dict::CP.ParamDict)
     rain = Chen2022VelTypeRain(toml_dict)
     small_ice = Chen2022VelTypeSmallIce(toml_dict)
     large_ice = Chen2022VelTypeLargeIce(toml_dict)

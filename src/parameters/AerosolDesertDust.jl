@@ -28,7 +28,7 @@ end
 DesertDust(::Type{FT}) where {FT <: AbstractFloat} =
     DesertDust(CP.create_toml_dict(FT))
 
-function DesertDust(td::CP.AbstractTOMLDict)
+function DesertDust(td::CP.ParamDict)
     name_map = (;
         :Mohler2006_S0_warm_DesertDust => :S₀_warm,
         :Mohler2006_S0_cold_DesertDust => :S₀_cold,
