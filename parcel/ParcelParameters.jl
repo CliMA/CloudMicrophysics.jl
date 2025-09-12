@@ -91,6 +91,7 @@ end
 struct NonEqCondParams{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     liquid::CMP.CloudLiquid{FT}
+    limiter::Bool
     dt::FT
 end
 
@@ -108,5 +109,6 @@ end
 struct NonEqDepParams{FT} <: CMP.ParametersType{FT}
     tps::TDP.ThermodynamicsParameters{FT}
     ice::CMP.CloudIce{FT}
+    limiter::Bool
     dt::FT
 end
