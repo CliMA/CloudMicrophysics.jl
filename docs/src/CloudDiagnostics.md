@@ -8,13 +8,13 @@ Available diagnostics are:
  - Radar reflectivity
  - Effective radius
 
-Calculating these diagnostics make use of the physical moment equation for the 
+Calculating these diagnostics make use of the physical moment equation for the
 generalized gamma distribution, as a function of particle mass. We denote the moment
-as ``M_x^n`` to emphasize that it is the moment with respect to the particle size 
+as ``M_x^n`` to emphasize that it is the moment with respect to the particle size
 distribution written as a function of particle mass ``x``.
 ```math
 \begin{equation}
-M_x^n(;N, ν, μ, B) 
+M_x^n(;N, ν, μ, B)
   = ∫_0^∞ x^n ⋅ f(x) dx
   = N ⋅ B^{-\frac{n}{μ}} ⋅ \frac{Γ\left(\frac{ν+1+n}{μ}\right)}{Γ\left(\frac{ν+1}{μ}\right)}
 \end{equation}
@@ -106,8 +106,8 @@ We compute the total third and second moment as a sum of cloud condensate and
 precipitation moments:
 ```math
 \begin{equation}
-r_{eff} 
-  = \frac{M^3_{r,c} + M^3_{r,r}}{M^2_{r,c} + M^2_{r,r}} 
+r_{eff}
+  = \frac{M^3_{r,c} + M^3_{r,r}}{M^2_{r,c} + M^2_{r,r}}
   = \frac{∫_0^∞ r^3 \, (n_c(r) + n_r(r)) \, dr}{∫_0^∞ r^2 \, (n_c(r) + n_r(r)) \, dr}.
 \label{eq:reff}
 \end{equation}
@@ -145,12 +145,12 @@ where:
 Where the volume-averaged radius is computed using
 ```math
 \begin{equation}
-  r_{vol} = \left(\frac{3}{4 \pi \rho_w}\right)^{\frac{1}{3}} \, \left(\frac{L}{N}\right)^{\frac{1}{3}} = \left(\frac{3  \rho (q_{liq} + q_{rai})}{4 \pi \rho_w (N_{liq} + N_{rai})}\right)^{\frac{1}{3}},
+  r_{vol} = \left(\frac{3}{4 \pi \rho_w}\right)^{\frac{1}{3}} \, \left(\frac{L}{N}\right)^{\frac{1}{3}} = \left(\frac{3  \rho (q_{lcl} + q_{rai})}{4 \pi \rho_w (N_{lcl} + N_{rai})}\right)^{\frac{1}{3}},
 \end{equation}
 ```
 where:
-  - ``L = \rho q``, is the liquid water content,
-  - ``N = N_{liq} + N_{rai}``.
+  - ``L = \rho q``, is the liquid water content (cloud water and rain),
+  - ``N = N_{lcl} + N_{rai}``.
 
 By default for the 1-moment scheme we don't consider precipitation and assume
 a constant cloud droplet number concentration of 100 $cm^{-3}$.

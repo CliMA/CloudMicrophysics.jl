@@ -417,13 +417,13 @@ $(DocStringExtensions.FIELDS)
 """
 Base.@kwdef struct CollisionEff{FT} <: ParametersType{FT}
     "cloud liquid-rain collision efficiency [-]"
-    e_liq_rai::FT
+    e_lcl_rai::FT
     "cloud liquid-snow collision efficiency [-]"
-    e_liq_sno::FT
+    e_lcl_sno::FT
     "cloud ice-rain collision efficiency [-]"
-    e_ice_rai::FT
+    e_icl_rai::FT
     "cloud ice-snow collision efficiency [-]"
-    e_ice_sno::FT
+    e_icl_sno::FT
     "rain-snow collision efficiency [-]"
     e_rai_sno::FT
 end
@@ -433,10 +433,10 @@ CollisionEff(::Type{FT}) where {FT <: AbstractFloat} =
 
 function CollisionEff(td::CP.ParamDict)
     name_map = (;
-        :cloud_liquid_rain_collision_efficiency => :e_liq_rai,
-        :cloud_liquid_snow_collision_efficiency => :e_liq_sno,
-        :cloud_ice_rain_collision_efficiency => :e_ice_rai,
-        :cloud_ice_snow_collision_efficiency => :e_ice_sno,
+        :cloud_liquid_rain_collision_efficiency => :e_lcl_rai,
+        :cloud_liquid_snow_collision_efficiency => :e_lcl_sno,
+        :cloud_ice_rain_collision_efficiency => :e_icl_rai,
+        :cloud_ice_snow_collision_efficiency => :e_icl_sno,
         :rain_snow_collision_efficiency => :e_rai_sno,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")

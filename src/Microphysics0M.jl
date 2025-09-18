@@ -18,14 +18,15 @@ import CloudMicrophysics.ThermodynamicsInterface as TDI
 export remove_precipitation
 
 """
-    remove_precipitation(params_0M, q_liq, q_ice; q_vap_sat)
+    remove_precipitation(params_0M, q_lcl, q_icl; q_vap_sat)
     remove_precipitation(params_0M, q; q_vap_sat)
 
  - `params_0M` - a struct with 0-moment parameters
- - `q` - `q_liq` and `q_ice` specific contents
+ - `q` - Thermodynamics PhasePartition struct (deprecated)
+ - `q_lcl` and `q_icl` cloud liquid water and cloud ice specific contents
  - `q_vap_sat` - specific humidity at saturation
 
-Returns the `q_tot` tendency due to the removal of precipitation.
+Returns the tota water (`q_tot`) tendency due to the removal of precipitation.
 The tendency is obtained assuming a relaxation with a constant timescale
 to a state with precipitable water removed.
 The threshold for when to remove `q_tot` is defined either by the
@@ -34,15 +35,15 @@ The thresholds and the relaxation timescale are defined `Parameters0M` struct.
 """
 remove_precipitation(
     (; τ_precip, qc_0)::CMP.Parameters0M,
-    q_liq,
-    q_ice,
-) = -max(0, (q_liq + q_ice - qc_0)) / τ_precip
+    q_lcl,
+    q_icl,
+) = -max(0, (q_lcl + q_icl - qc_0)) / τ_precip
 remove_precipitation(
     (; τ_precip, S_0)::CMP.Parameters0M,
-    q_liq,
-    q_ice,
+    q_lcl,
+    q_icl,
     q_vap_sat,
-) = -max(0, (q_liq + q_ice - S_0 * q_vap_sat)) / τ_precip
+) = -max(0, (q_lcl + q_icl - S_0 * q_vap_sat)) / τ_precip
 
 ###
 ### Wrappers for calling with TD.PhasePartition

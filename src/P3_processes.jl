@@ -1,10 +1,10 @@
 """
-    het_ice_nucleation(pdf_c, p3, tps, q_liq, N, T, ρₐ, p, aerosol)
+    het_ice_nucleation(pdf_c, p3, tps, q_lcl, N, T, ρₐ, p, aerosol)
 
  - aerosol - aerosol parameters (supported types: desert dust, illite, kaolinite)
  - tps - thermodynamics parameters
- - q_liq - liquid water specific content
- - N_liq - cloud water number concentration
+ - q_lcl - cloud liquid water specific content
+ - N_lcl - cloud droplet number concentration
  - RH - relative humidity
  - T - temperature
  - ρₐ - air density
@@ -16,8 +16,8 @@ hetergoeneous freezing rates from cloud droplets.
 function het_ice_nucleation(
     aerosol::Union{CMP.DesertDust, CMP.Illite, CMP.Kaolinite},
     tps::TDI.PS,
-    q_liq::FT,
-    N_liq::FT,
+    q_lcl::FT,
+    N_lcl::FT,
     RH::FT,
     T::FT,
     ρₐ::FT,
@@ -33,15 +33,15 @@ function het_ice_nucleation(
     # We could consider making it a function of the droplet size distribution
     A_aer = FT(1e-10)
 
-    dNdt = J * A_aer * N_liq
-    dLdt = J * A_aer * q_liq * ρₐ
+    dNdt = J * A_aer * N_lcl
+    dLdt = J * A_aer * q_lcl * ρₐ
 
     # nucleation rates are always positive definite...
     dNdt = max(0, dNdt)
     dLdt = max(0, dLdt)
     # ... and dont exceed the available number and mass of water droplets
-    dNdt = min(dNdt, N_liq / dt)
-    dLdt = min(dLdt, q_liq * ρₐ / dt)
+    dNdt = min(dNdt, N_lcl / dt)
+    dLdt = min(dLdt, q_lcl * ρₐ / dt)
 
     return (; dNdt, dLdt)
 end

@@ -23,7 +23,7 @@ function rain_formation(dY, Y, p, t)
     qₗ = Y[1] # Cloud water specific content
     qᵣ = Y[2] # Rain water specific content
 
-    acnv = CM1.conv_q_liq_to_q_rai(rain.acnv1M, qₗ) # Rain autoconversion rate
+    acnv = CM1.conv_q_lcl_to_q_rai(rain.acnv1M, qₗ) # Rain autoconversion rate
     accr = CM1.accretion(liquid, rain, v_term.rain, ce, qₗ, qᵣ, ρₐ) # Rain accretion rate
 
     dY[1] = -acnv - accr # Add the tendecies for cloud water

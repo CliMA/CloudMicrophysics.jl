@@ -5,9 +5,9 @@ The `Microphysics2M.jl` module provides 2-moment warm rain bulk parameterization
  - and other double-moment autoconversion and accretions schemes from [Wood2005](@cite) based on the works of [KhairoutdinovKogan2000](@cite), [Beheng1994](@cite), [TripoliCotton1980](@cite) and [LiuDaum2004](@cite).
 
 The microphysics variables are expressed as specific contents [kg substance / kg air] and number densities [1 / m$^3$ air]:
-  - `q_liq` - cloud water specific content,
+  - `q_lcl` - cloud water specific content,
   - `q_rai` - rain specific content,
-  - `N_liq` - cloud droplets number density,
+  - `N_lcl` - cloud droplets number density,
   - `N_rai` - raindrops number density.
 The default values of free parameters are defined in
   [ClimaParams](https://github.com/CliMA/ClimaParams.jl)
@@ -15,7 +15,7 @@ The default values of free parameters are defined in
 
 ## The Seifert and Beheng (2006) parametrization
 
-The [SeifertBeheng2006](@cite) parametrization provides process rates for autoconversion, accretion, self-collection of cloud droplets and raindrops, raindrops breakup, raindrops mean fall speed, and rain evaporation. This parametrization is directly derived from the stochastic collection equation (SCE) with a piecewise polynomial collsion kernel. 
+The [SeifertBeheng2006](@cite) parametrization provides process rates for autoconversion, accretion, self-collection of cloud droplets and raindrops, raindrops breakup, raindrops mean fall speed, and rain evaporation. This parametrization is directly derived from the stochastic collection equation (SCE) with a piecewise polynomial collsion kernel.
 It assumes
 - a generalized gamma distribution for cloud droplets (as a function of mass)
 - an exponential distribution for raindrops (as a function of diameter)
@@ -69,12 +69,12 @@ The cloud droplet number distribution, as a function of mass ``x`` [kg], is assu
 
 ```math
 \begin{align}
-    f_c(x) = A_c x^{ν_c} \exp\left(-B_c x^{μ_c} \right), 
+    f_c(x) = A_c x^{ν_c} \exp\left(-B_c x^{μ_c} \right),
 \end{align}
 ```
 We assume that ``ν_c`` and ``μ_c`` are fixed constants. Our default choice for these parameters are ``ν_c = 1`` and ``μ_c = 1``.
 
-The free parameters for cloud droplets (``A_c``, ``B_c``) can be found analytically by integrating over the assumed 
+The free parameters for cloud droplets (``A_c``, ``B_c``) can be found analytically by integrating over the assumed
 mass distribution to find the prognostic variables
 ```math
 \begin{align}
@@ -87,7 +87,7 @@ where ``L_c = ρ_a q_c`` [kg / m$^3$] is the cloud liquid water content, ``ρ_a`
 
     TODO: Add derivation
 
-Then[^2], 
+Then[^2],
 ```math
 \begin{align}
     B_c = \left(\overline{x}_c \; \frac{Γ\left(\frac{ν_c+1}{μ_c}\right)}{Γ\left(\frac{ν_c+2}{μ_c}\right)}\right)^{-μ_c}, \qquad
@@ -98,7 +98,7 @@ Then[^2],
 [^2]: c.f. Eq. (80) in [SeifertBeheng2006](@cite)
 
 ##### Interactions with the P3 scheme
-For interactions (e.g. collisions) with frozen particles, as parameterized in the P3 scheme, 
+For interactions (e.g. collisions) with frozen particles, as parameterized in the P3 scheme,
 bulk rates are computed by integrating over diameter instead of mass.
 
 !!! details "Change of variables between mass (x) and diameter (D)"
@@ -119,14 +119,14 @@ bulk rates are computed by integrating over diameter instead of mass.
     n(D)dD \rightarrow n(D(x)) \frac{1}{3} k_m^{-1/3} x^{-2/3} dx
     ```
 
-    We remark that if the integration bounds are at ``0`` and ``∞``,  then they remain unchanged by the 
+    We remark that if the integration bounds are at ``0`` and ``∞``,  then they remain unchanged by the
     change of variable. For any other bounds, we would need to consider the transformation of the bounds.
 
 The resulting cloud droplet distribution in terms of diameter is
 ```math
 \begin{align}
-    n_c(D) 
-    = f_c(x(D)) \frac{ρ_w π}{2} D^2 
+    n_c(D)
+    = f_c(x(D)) \frac{ρ_w π}{2} D^2
     = A_c x(D)^{\nu_c} \exp\left(-B_c x(D)^{\mu_c} \right) 3k_m D^2
 \end{align}
 ```
@@ -161,7 +161,7 @@ The raindrop number distribution, as a function of diameter ``D`` [m], is assume
 To find the free parameters ``N_0`` and ``\overline{D}_r``, we write the expressions for the raindrop number density and the raindrop liquid water content:
 ```math
 \begin{align}
-    N_r = ∫_0^∞ n_r(D) dD, \quad  
+    N_r = ∫_0^∞ n_r(D) dD, \quad
     L_r = ρ_a q_r = k_m ∫_0^∞ D^3 \; n_r(D) dD
 \end{align}
 ```
@@ -176,7 +176,7 @@ where ``L_r`` [kg / m$^3$] is the raindrop content. The second expression comes 
     for any ``k>-1``, ``\overline{D}_r > 0``.
     This allows us to solve the integrals above for ``N_0`` and ``\overline{D}_r``:
     ```math
-    N_r = N_0 \overline{D}_r, \quad  
+    N_r = N_0 \overline{D}_r, \quad
     L_r = k_m N_0 Γ(4) \overline{D}_r^4
         = 6 k_m N_r \overline{D}_r^3
     ```
@@ -188,17 +188,17 @@ where ``L_r`` [kg / m$^3$] is the raindrop content. The second expression comes 
                        = \left( \frac{\overline{x}_r}{6 k_m} \right)^{1/3}
                        = \left( \frac{\overline{x}_r}{ρ_w π} \right)^{1/3}
     ```
-    
+
 we find
 ```math
 \begin{align}
-    \overline{D}_r 
+    \overline{D}_r
       = \left( \frac{\overline{x}_r}{6 k_m} \right)^{1/3}
       = \left( \frac{\overline{x}_r}{π ρ_w} \right)^\frac{1}{3}, \qquad
     N_0 = \frac{N_r}{\overline{D}_r}.
 \end{align}
 ```
-where ``\overline{x}_r = L_r / N_r`` is the mean raindrop mass. This implies a relation between the mean mass and mean diameter 
+where ``\overline{x}_r = L_r / N_r`` is the mean raindrop mass. This implies a relation between the mean mass and mean diameter
 ```math
 \begin{align}
     \overline{x}_r = 6 k_m \overline{D}_r^3 = ρ_w π \overline{D}_r^3.
@@ -210,14 +210,14 @@ where ``\overline{x}_r = L_r / N_r`` is the mean raindrop mass. This implies a r
     In terms of mass, the distribution is given by
     ```math
     \begin{align*}
-        f_r(x) 
+        f_r(x)
         &= n(D(x)) \frac{1}{3} k_m^{-1/3} x^{-2/3} \\
         &= \frac{N_0 k_m^{-1/3}}{3} x^{-2/3} \exp\left(- \frac{k_m^{-1/3} x^{1/3}}{\overline{D}_r}\right) \\
         &= \frac{N_r k_m^{-1/3}}{3\overline{D}_r} x^{-2/3} \exp\left(- \frac{k_m^{-1/3} x^{1/3}}{\overline{D}_r}\right) \\
     \end{align*}
     ```
     We identify ``B_r`` by ``B_r = \tfrac{k_m^{-1/3}}{\overline{D}_r} = \left(\tfrac{\overline{x}_r}{6}\right)^{-1/3}``. This implies that ``A_r = \frac{N_r}{3}B_r``.
-    
+
 In the model code, we provide two options for calculating the raindrop number distribution parameters ``N_0`` and ``\overline{D}_r``. One option is to use the expressions above. The other option, described below, limits the range of ``\overline{x}_r``, ``N_0`` and ``\overline{D}_r`` to avoid numerical artifacts.
 
 ##### Limiting the range of D̄ᵣ
@@ -233,7 +233,7 @@ First, compute a limited mean mass by
     \tilde{x}_r → \overline{x}_{r, \text{min}} ≤ \frac{L_r}{N_r} ≤ \overline{x}_{r, \text{max}}.
 \end{align}
 ```
-Then, limit ``N_0`` to be consistent with the limited mean mass 
+Then, limit ``N_0`` to be consistent with the limited mean mass
 
 !!! details "Derivation of the limit on N₀"
     Substitute the expression ``\overline{D}_r = \left(\tfrac{\overline{x}_r}{ρ_w π}\right)^{1/3}`` into the expression for ``N_0``:
@@ -254,13 +254,13 @@ With the limited ``N_0``, we then limit ``λ_r ≡ \tfrac{1}{\overline{D}_r}``.
         The limit on ``λ_r`` is what is proposed in [SeifertBeheng2006](@cite).
         However, we use ``\overline{D}_r`` in the code, so we should limit ``\overline{D}_r`` instead.
         This requires a change to the `ClimaParams` parameters.
-      
+
     Next, limit ``λ_r`` by considering the integral expression for ``L_r``:
     ```math
     \begin{align*}
         L_r &= k_m ∫_0^∞ D^3 n_r(D) dD \\
             &= k_m N_0 ∫_0^∞ D^3 \exp\left(-λ_r D\right) dD \\
-            &= k_m N_0 \frac{Γ(3+1)}{λ_r^{3+1}} 
+            &= k_m N_0 \frac{Γ(3+1)}{λ_r^{3+1}}
              = \frac{6 k_m N_0}{λ_r^4}.
     \end{align*}
     ```
@@ -297,18 +297,18 @@ where ``Z`` represents the second moment, and ``c`` and ``r`` subscripts denote 
 The rate of change of rain specific content by autoconversion is finally expressed as
 ``` math
 \begin{equation}
-  \left. \frac{∂q_{rai}}{∂t} \right|_\text{acnv} 
-  = \frac{k_{cc}}{20 \; x^* \; ρ} \frac{(ν+2)(ν+4)}{(ν+1)^2} (q_{liq} ρ)^2 \overline{x}_c^2 \left(1+\frac{ϕ_\text{acnv}(τ)}{1-τ^2}\right)\frac{ρ_0}{ρ},
+  \left. \frac{∂q_{rai}}{∂t} \right|_\text{acnv}
+  = \frac{k_{cc}}{20 \; x^* \; ρ} \frac{(ν+2)(ν+4)}{(ν+1)^2} (q_{lcl} ρ)^2 \overline{x}_c^2 \left(1+\frac{ϕ_\text{acnv}(τ)}{1-τ^2}\right)\frac{ρ_0}{ρ},
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``ρ`` is the moist air density,
   - ``ρ_0 = 1.225`` [kg / m$^3$] is the air density at surface conditions,
   - ``k_{cc}`` is the cloud-cloud collection kernel constant,
   - ``ν`` is the cloud droplet gamma distribution parameter,
   - ``x^*`` is the drop mass separating the cloud and rain categories
-  - ``\overline{x}_c = (q_{liq} ρ) / N_{liq}`` is the cloud droplet mean mass with ``N_{liq}`` denoting the cloud droplet number density. Here, to ensure numerical stability, we limit ``\overline{x}_c`` by the upper bound of ``x^*``.
+  - ``\overline{x}_c = (q_{lcl} ρ) / N_{lcl}`` is the cloud droplet mean mass with ``N_{lcl}`` denoting the cloud droplet number density. Here, to ensure numerical stability, we limit ``\overline{x}_c`` by the upper bound of ``x^*``.
 
 The function ``ϕ_\text{acnv}(τ)`` is used to correct the autoconversion rate for the undeveloped cloud droplet spectrum and the early stage rain evolution assumptions. This is a universal function which is obtained by fitting to numerical results of the SCE:
 ```math
@@ -317,7 +317,7 @@ The function ``ϕ_\text{acnv}(τ)`` is used to correct the autoconversion rate f
 \end{equation}
 ```
 where
-  - ``τ = 1 - \tfrac{q_{liq}}{q_{liq} + q_{rai}}`` is a dimensionless internal time scale with ``q_{rai}`` being the cloud liquid water specific content.
+  - ``τ = 1 - \tfrac{q_{lcl}}{q_{lcl} + q_{rai}}`` is a dimensionless internal time scale with ``q_{rai}`` being the cloud liquid water specific content.
 
 The default free parameter values are:
 
@@ -331,16 +331,16 @@ The default free parameter values are:
 The rate of change of raindrops number density is
 ``` math
 \begin{equation}
-  \left. \frac{∂N_{rai}}{∂t} \right|_\text{acnv} 
+  \left. \frac{∂N_{rai}}{∂t} \right|_\text{acnv}
   = \frac{ρ}{x^*} \left. \frac{d \, q_{rai}}{dt} \right|_\text{acnv},
 \end{equation}
 ```
 and the rate of change of liquid water specific content and cloud droplets number density are
 ``` math
 \begin{align}
-  \left. \frac{∂q_{liq}}{∂t} \right|_{acnv} 
+  \left. \frac{∂q_{lcl}}{∂t} \right|_{acnv}
     = - \left. \frac{∂q_{rai}}{∂t} \right|_{acnv},\\
-  \left. \frac{∂N_{liq}}{∂t} \right|_{acnv} 
+  \left. \frac{∂N_{lcl}}{∂t} \right|_{acnv}
     = -2 \left. \frac{∂N_{rai}}{∂t} \right|_{acnv}.
 \end{align}
 ```
@@ -357,12 +357,12 @@ An approximation for the accretion rate is obtained by directly evaluating the i
 Similar to the autoconversion rate, the accretion rate is modified by a universal function. Thus, the rate of change of rain specific content by accretion becomes
 ```math
 \begin{align}
-  \left. \frac{∂ q_{rai}}{∂t} \right|_\text{accr} = & \frac{k_{cr}}{ρ} (q_{liq} ρ) (q_{rai} ρ) ϕ_\text{accr}(τ),\nonumber\\
-   = & k_r ρ q_{liq} q_{rai} ϕ_\text{accr}(τ) \left(\frac{ρ_0}{ρ}\right)^{1/2},
+  \left. \frac{∂ q_{rai}}{∂t} \right|_\text{accr} = & \frac{k_{cr}}{ρ} (q_{lcl} ρ) (q_{rai} ρ) ϕ_\text{accr}(τ),\nonumber\\
+   = & k_r ρ q_{lcl} q_{rai} ϕ_\text{accr}(τ) \left(\frac{ρ_0}{ρ}\right)^{1/2},
 \end{align}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``q_{rai}`` is the rain liquid water specific content,
   - ``ρ`` is the moist air density,
   - ``ρ_0`` is the air density at surface conditions,
@@ -375,7 +375,7 @@ The universal function ``ϕ_\text{accr}(τ)`` is used to correct the accretion r
 \end{equation}
 ```
 where
-  - ``τ = 1 - \tfrac{q_{liq}}{q_{liq} + q_{rai}}`` is a dimensionless internal time scale.
+  - ``τ = 1 - \tfrac{q_{lcl}}{q_{lcl} + q_{rai}}`` is a dimensionless internal time scale.
 
 The default free parameter values are:
 
@@ -387,39 +387,39 @@ The default free parameter values are:
 The rate of change of raindrops number density by accretion is zero, and the rate of change of liquid water specific content and cloud droplets number density are
 ``` math
 \begin{align}
-  \left. \frac{∂q_{liq}}{∂t} \right|_\text{accr} = - \left. \frac{∂q_{rai}}{∂t} \right|_\text{accr},\\
-  \left. \frac{∂N_{liq}}{∂t} \right|_\text{accr} = \frac{ρ}{\overline{x}_c} \left. \frac{∂q_{liq}}{∂t} \right|_\text{accr},
+  \left. \frac{∂q_{lcl}}{∂t} \right|_\text{accr} = - \left. \frac{∂q_{rai}}{∂t} \right|_\text{accr},\\
+  \left. \frac{∂N_{lcl}}{∂t} \right|_\text{accr} = \frac{ρ}{\overline{x}_c} \left. \frac{∂q_{lcl}}{∂t} \right|_\text{accr},
 \end{align}
 ```
-where ``\overline{x}_c = \tfrac{q_{liq}}{N_{liq}}`` is the cloud droplet mean mass.
+where ``\overline{x}_c = \tfrac{q_{lcl}}{N_{lcl}}`` is the cloud droplet mean mass.
 
 ### Cloud droplet self-collection
 
 An approximation for the self-collection rate of cloud droplets is obtained by the following equation:
 ```math
 \begin{align}
-   \left. \frac{∂N_{liq}}{∂t} \right|_\text{sc} 
-     &= \left. \frac{∂N_{liq}}{∂t} \right|_\text{acnv, sc} 
+   \left. \frac{∂N_{lcl}}{∂t} \right|_\text{sc}
+     &= \left. \frac{∂N_{lcl}}{∂t} \right|_\text{acnv, sc}
       - \left. \frac{∂q_{rai}}{∂t} \right|_\text{acnv}\nonumber\\
-     &= - \frac{1}{2}∫_{x=0}^{∞}∫_{y=0}^{∞} f_c(x) f_c(y) K(x,y) dy dx 
+     &= - \frac{1}{2}∫_{x=0}^{∞}∫_{y=0}^{∞} f_c(x) f_c(y) K(x,y) dy dx
         - \left. \frac{d \, q_{rai}}{dt} \right|_\text{acnv}.
 \end{align}
 ```
 Direct evaluation of the integral results in the following approximation of the rate of change of cloud droplets number density due to self-collection
 ``` math
 \begin{equation}
-  \left. \frac{∂N_{liq}}{∂t} \right|_\text{sc} 
-    = -k_{cc} \frac{ν + 2}{ν + 1} \frac{ρ_0}{ρ} (q_{liq} ρ)^2 
-    - \left. \frac{∂N_{liq}}{∂t} \right|_\text{acnv},
+  \left. \frac{∂N_{lcl}}{∂t} \right|_\text{sc}
+    = -k_{cc} \frac{ν + 2}{ν + 1} \frac{ρ_0}{ρ} (q_{lcl} ρ)^2
+    - \left. \frac{∂N_{lcl}}{∂t} \right|_\text{acnv},
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``ρ`` is the moist air density,
   - ``ρ_0`` is the air density at surface conditions,
   - ``k_{cc}`` is the Long's collection kernel constant,
   - ``ν`` is the cloud droplet gamma distribution parameter,
-  - ``\left. \frac{d \, N_{liq}}{dt} \right|_\text{acnv}`` is the rate of change of cloud droplets number density by autoconversion.
+  - ``\left. \frac{d \, N_{lcl}}{dt} \right|_\text{acnv}`` is the rate of change of cloud droplets number density by autoconversion.
 
 ### Raindrop self-collection
 
@@ -626,8 +626,8 @@ For cloud liquid droplets in two-moment microphysics schemes, we use the analyti
 ```math
 v(r) = \frac{2}{9} \frac{(\rho_{water} - \rho_{air}) g}{\mu_{air}} r^2
 ```
-with ``\mu_{air} = \rho_{air} \, \nu_{air}`` and assuming constant kinematic viscosity ``\nu_{air}`` in our parameterization. 
-When droplet sizes follow a gamma distribution (as in Seifert & Beheng 2006), integrating this equation over the size spectrum yields the number- and mass-weighted mean terminal velocities: 
+with ``\mu_{air} = \rho_{air} \, \nu_{air}`` and assuming constant kinematic viscosity ``\nu_{air}`` in our parameterization.
+When droplet sizes follow a gamma distribution (as in Seifert & Beheng 2006), integrating this equation over the size spectrum yields the number- and mass-weighted mean terminal velocities:
 ```math
 \begin{align*}
   \overline{v}_{c,\, k} = \frac{2}{9}\, \left(\frac{3}{4\, \pi\, \rho_{water}}\right)^{2/3}\, \left(\frac{\rho_{water}}{\rho_{air}}-1\right)\, \frac{g}{\nu_{air}}\, \frac{M_{k+2/3}}{M_k}
@@ -687,11 +687,11 @@ From the above works:
 
 ``` math
 \begin{equation}
-  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} = A \; q_{liq}^a \; N_d^b \; \rho^c
+  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} = A \; q_{lcl}^a \; N_d^b \; \rho^c
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``N_d`` is the cloud droplet concentration,
   - ``\rho`` is the air density,
 
@@ -709,11 +709,11 @@ and the default free parameter values are:
 
 ``` math
 \begin{equation}
-  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} = \frac{C \; d^a \; (q_{liq} \rho)^b \; N_d^c}{\rho}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} = \frac{C \; d^a \; (q_{lcl} \rho)^b \; N_d^c}{\rho}
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``N_d`` is the cloud droplet number concentration,
 
 and the default free parameter values are:
@@ -732,12 +732,12 @@ and the default free parameter values are:
 ```math
 \begin{equation}
   \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
-    D \; q_{liq}^a \; N_d^b \; \mathrm{H}(q_{liq} - q_{liq\_threshold})
+    D \; q_{lcl}^a \; N_d^b \; \mathrm{H}(q_{lcl} - q_{lcl\_threshold})
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
-  - ``q_{liq_threshold}`` is the cloud liquid to rain water threshold,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
+  - ``q_{lcl_threshold}`` is the cloud liquid to rain water threshold,
   - ``N_d`` is the cloud droplet number concentration,
   - ``\mathrm{H}(x)`` is the Heaviside step function.
 
@@ -745,7 +745,7 @@ The cloud liquid to rain water autoconversion threshold is defined
   assuming spherical liquid water drops of radius equal to ``7 \mu m``:
 ```math
 \begin{equation}
-  q_{liq\_threshold} = \frac{4}{3} \pi \rho_w N_d r_{cm}^3
+  q_{lcl\_threshold} = \frac{4}{3} \pi \rho_w N_d r_{cm}^3
 \end{equation}
 ```
 where:
@@ -765,11 +765,11 @@ and the default free parameter values are:
 ```math
 \begin{equation}
   \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
-    \frac{E \; (q_{liq} \; \rho)^3 \; \mathrm{H}(R_6 - R_{6C})}{N_d \; \rho}
+    \frac{E \; (q_{lcl} \; \rho)^3 \; \mathrm{H}(R_6 - R_{6C})}{N_d \; \rho}
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``N_d`` is the cloud droplet number concentration,
   - ``\rho`` is the air density.
 
@@ -777,7 +777,7 @@ The parameterisation is formulated using mean volume radius
   ``r_{vol}`` expressed in ``\mu m`` which we compute as
 ```math
 \begin{equation}
-    r_{vol} = \left(\frac{\rho q_{liq}}{4/3 \pi \; \rho_w \; N_d}\right)^{1/3} 10^6
+    r_{vol} = \left(\frac{\rho q_{lcl}}{4/3 \pi \; \rho_w \; N_d}\right)^{1/3} 10^6
 \end{equation}
 ```
 where:
@@ -785,7 +785,7 @@ where:
 
 Then the ``R_6`` and ``R_{6C}`` are defined as
   - ``R_6 = \beta_6 \; r_{vol}``
-  - ``R_{6C} = \frac{R_{C0}}{(q_{liq} \rho)^{1/6} R_6^{1/2}}``
+  - ``R_{6C} = \frac{R_{C0}}{(q_{lcl} \rho)^{1/6} R_6^{1/2}}``
   - ``\beta_6 = \left( \frac{r_{vol} + 3}{r_{vol}} \right)^{1/3}``
   - ``E = E_0 \beta_6^6``
 
@@ -799,11 +799,11 @@ Then the ``R_6`` and ``R_{6C}`` are defined as
 ```math
 \begin{equation}
   \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
-    \frac{q_{liq}}{\tau_{acnv,\, 0} \left(\frac{N_d}{100\, cm^{-3}}\right)^{\alpha_{acnv}}}
+    \frac{q_{lcl}}{\tau_{acnv,\, 0} \left(\frac{N_d}{100\, cm^{-3}}\right)^{\alpha_{acnv}}}
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``N_d`` is the cloud droplet number concentration,
   - ``\tau_{acnv,\, 0}`` is the auto-conversion time scale at ``N_d = 100 cm^{-3}``.
 
@@ -820,11 +820,11 @@ The default free parameter values are:
 
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; (q_{liq} q_{rai})^a \; \rho^b
+  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; (q_{lcl} q_{rai})^a \; \rho^b
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``q_{rai}`` is the rain water specific content,
   - ``\rho``    is the air density,
 
@@ -841,11 +841,11 @@ and the default free parameter values are:
 
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; q_{liq} \; q_{rai} \; \rho
+  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; q_{lcl} \; q_{rai} \; \rho
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is the cloud liquid water specific content,
+  - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``q_{rai}`` is the rain specific content,
   - ``\rho``    is the air density,
 
@@ -860,11 +860,11 @@ and the default free parameter values are:
 
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; q_{liq} \; q_{rai}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; q_{lcl} \; q_{rai}
 \end{equation}
 ```
 where:
-  - ``q_{liq}`` is cloud liquid water specific content
+  - ``q_{lcl}`` is cloud liquid water specific content
   - ``q_{rai}`` is rain specific content
 
 and the default free parameter values are:
@@ -880,7 +880,7 @@ The tendencies are applied over a relaxation timescale ``\tau``, following the m
 ```math
 \frac{\partial N}{\partial t} = \frac{1}{\tau}\left[max\left(0, \frac{\rho q}{x_{max}}-N\right) + min\left(0, \frac{\rho q}{x_{min}}-N\right)\right].
 ```
-This correction increases ``N`` when droplets are too heavy (i.e., ``x > x_{max}``) and decreases ``N`` when they are too light (``x < x_{min}``), while applying no correction when ``x`` lies within bounds. 
+This correction increases ``N`` when droplets are too heavy (i.e., ``x > x_{max}``) and decreases ``N`` when they are too light (``x < x_{min}``), while applying no correction when ``x`` lies within bounds.
 
 This formulation is implemented as two separate functions:
 - `number_increase_for_mass_limit`: returns the rate needed to increase `N` when particles are too heavy (`x > x_{max}`).

@@ -1,5 +1,5 @@
 """
-Parameterization for heterogenous ice nucleation.
+Parameterization for heterogenous cloud ice nucleation.
 """
 module HetIceNucleation
 
@@ -18,7 +18,7 @@ export INP_concentration_mean
     dust_activated_number_fraction(dust, ip, Si, T)
 
  - `dust` - a struct with dust parameters
- - `ip` - a struct with ice nucleation parameters
+ - `ip` - a struct with cloud ice nucleation parameters
  - `Si` - ice saturation ratio
  - `T` - air temperature [K]
 
@@ -45,13 +45,13 @@ end
     MohlerDepositionRate(dust, ip, S_i, T, dSi_dt, N_aer)
 
  - `dust` - a struct with dust parameters
- - `ip` - a struct with ice nucleation parameters
+ - `ip` - a struct with cloud ice nucleation parameters
  - `Si` - ice saturation
  - `T` - ambient temperature
  - `dSi_dt` - change in ice saturation over time
  - `N_aer` - number of unactivated aerosols
 
-Returns the ice nucleation rate from deposition.
+Returns the cloud ice nucleation rate from deposition.
 From Mohler et al 2006 equation 5.
 """
 function MohlerDepositionRate(
@@ -137,7 +137,7 @@ end
  - `ip` - a struct with ice nucleation parameters,
  - `T` - air temperature [K].
 
-Returns the number of ice nucleated via deposition nucleation with units of m^-3.
+Returns the number of ice crystals nucleated via deposition nucleation with units of m^-3.
 From Thompson et al 2004 eqn 2 as used in Morrison & Milbrandt 2015.
 """
 function P3_deposition_N_i(ip::CMP.MorrisonMilbrandt2014, T::FT) where {FT}
@@ -225,7 +225,7 @@ end
 end # end module
 
 """
-Parameterization for homogeneous ice nucleation
+Parameterization for homogeneous cloud ice nucleation
 """
 module HomIceNucleation
 
@@ -237,7 +237,7 @@ export homogeneous_J_linear
 """
     homogeneous_J_cubic(ip, Δa_w)
 
- - `ip` - a struct with ice nucleation parameters
+ - `ip` - a struct with cloud ice nucleation parameters
  - `Δa_w` - change in water activity [-].
 
 Returns the homogeneous freezing nucleation rate coefficient,

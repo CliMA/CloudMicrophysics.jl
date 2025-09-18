@@ -192,10 +192,10 @@ function benchmark_test(FT)
 
     # non-equilibrium
     bench_press(FT, CMN.τ_relax, (liquid,), 15)
-    bench_press(FT, CMN.conv_q_vap_to_q_liq_ice, (ice, FT(2e-3), FT(1e-3)), 15)
+    bench_press(FT, CMN.conv_q_vap_to_q_lcl_icl, (ice, FT(2e-3), FT(1e-3)), 15)
     bench_press(
         FT,
-        CMN.conv_q_vap_to_q_liq_ice_MM2015,
+        CMN.conv_q_vap_to_q_lcl_icl_MM2015,
         (liquid, tps, FT(0.00145), FT(0), FT(0), FT(0), FT(0), FT(0.8), FT(263)),
         70,
     )
@@ -212,8 +212,8 @@ function benchmark_test(FT)
     # 2-moment
     for sb in [sb2006, sb2006_no_limiters]
         bench_press(
-            @NamedTuple{au::CM2.LiqRaiRates{FT}, sc::FT},
-            CM2.autoconversion_and_liquid_self_collection,
+            @NamedTuple{au::CM2.LclRaiRates{FT}, sc::FT},
+            CM2.autoconversion_and_cloud_liquid_self_collection,
             (sb, q_liq, q_rai, ρ_air, N_liq),
             300,
         )

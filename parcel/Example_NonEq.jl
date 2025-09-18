@@ -65,10 +65,10 @@ deposition_growth = "NonEq_Deposition"
 fig = MK.Figure(size = (800, 600))
 ax1 = MK.Axis(fig[1, 1], ylabel = "Liquid Supersaturation [%]")
 ax2 = MK.Axis(fig[2, 1], ylabel = "Temperature [K]")
-ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
+ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_lcl [g/kg]")
 ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
 ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
-ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
+ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_icl [g/kg]")
 
 params = parcel_params{FT}(
     condensation_growth = condensation_growth,

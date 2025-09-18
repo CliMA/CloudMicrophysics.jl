@@ -46,8 +46,8 @@ function test_cloud_diagnostics(FT)
         #setup
         ρₐ = FT(1)
 
-        q_liq = [FT(2.128e-4), FT(2.128e-20), FT(1.6e-12), FT(0), FT(1.037e-25)]
-        N_liq = [FT(15053529), FT(3), FT(5512), FT(0), FT(5.225e-12)]
+        q_lcl = [FT(2.128e-4), FT(2.128e-20), FT(1.6e-12), FT(0), FT(1.037e-25)]
+        N_lcl = [FT(15053529), FT(3), FT(5512), FT(0), FT(5.225e-12)]
         q_rai = [FT(1.573e-4), FT(1.573e-4), FT(1.9e-15), FT(0), FT(2.448e-27)]
         N_rai = [FT(510859), FT(510859), FT(0), FT(0), FT(5.136e-18)]
 
@@ -55,7 +55,7 @@ function test_cloud_diagnostics(FT)
         rr = [FT(-12.559725319858543), FT(-12.579899), FT(-150), FT(-150), FT(-150)]
         reff = [FT(2.319383e-5), FT(6.91594e-5), FT(0), FT(0), FT(0)]
 
-        for (qₗ, Nₗ, qᵣ, Nᵣ, rₑ, Z) in zip(q_liq, N_liq, q_rai, N_rai, reff, rr)
+        for (qₗ, Nₗ, qᵣ, Nᵣ, rₑ, Z) in zip(q_lcl, N_lcl, q_rai, N_rai, reff, rr)
             for SB in [SB2006, SB2006_no_limiters]
 
                 #action
@@ -73,8 +73,8 @@ function test_cloud_diagnostics(FT)
         #setup
         ρ_air = FT(1)
         ρ_w = FT(1000)
-        q_liq = FT(2.128e-4)
-        N_liq = FT(15053529)
+        q_lcl = FT(2.128e-4)
+        N_lcl = FT(15053529)
         q_rai = FT(1.573e-4)
         N_rai = FT(510859)
 
@@ -82,8 +82,8 @@ function test_cloud_diagnostics(FT)
         reff = CMD.effective_radius_Liu_Hallet_97(
             wtr,
             ρ_air,
-            q_liq,
-            N_liq,
+            q_lcl,
+            N_lcl,
             q_rai,
             N_rai,
         )
@@ -93,14 +93,14 @@ function test_cloud_diagnostics(FT)
         TT.@test CMD.effective_radius_Liu_Hallet_97(
             wtr,
             ρ_air,
-            q_liq,
+            q_lcl,
             FT(100),
             FT(0),
             FT(0),
-        ) == CMD.effective_radius_Liu_Hallet_97(wtr, ρ_air, q_liq)
+        ) == CMD.effective_radius_Liu_Hallet_97(wtr, ρ_air, q_lcl)
 
-        CMD.effective_radius_Liu_Hallet_97(wtr, ρ_air, q_liq) ==
-        CMD.effective_radius_Liu_Hallet_97(cloud_liquid, ρ_air, q_liq)
+        CMD.effective_radius_Liu_Hallet_97(wtr, ρ_air, q_lcl) ==
+        CMD.effective_radius_Liu_Hallet_97(cloud_liquid, ρ_air, q_lcl)
     end
 
     TT.@testset "Constant effective radius" begin

@@ -7,8 +7,8 @@ The `MicrophysicsNonEq.jl` module describes a bulk parameterization of
 The cloud microphysics variables are expressed as specific contents:
   - `q_tot` - total water specific content,
   - `q_vap` - water vapor specific content (i.e., specific humidity),
-  - `q_liq` - cloud water specific content,
-  - `q_ice` - cloud ice specific content,
+  - `q_lcl` - cloud water specific content,
+  - `q_icl` - cloud ice specific content,
 
 Parameters used in the parameterization are defined in
   [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package.
@@ -29,14 +29,14 @@ The equilibrium value is obtained based on a prescribed phase partition function
   (based on temperature).
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{liq}}{dt} \right|_{cond, evap} = \frac{q^{eq}_{liq} - q_{liq}}{\tau_{l}}; \;\;\;\;\;\;\;
-  \left. \frac{d \, q_{ice}}{dt} \right|_{dep, sub}   = \frac{q^{eq}_{ice} - q_{ice}}{\tau_{i}}
+  \left. \frac{d \, q_{lcl}}{dt} \right|_{cond, evap} = \frac{q^{eq}_{lcl} - q_{lcl}}{\tau_{l}}; \;\;\;\;\;\;\;
+  \left. \frac{d \, q_{icl}}{dt} \right|_{dep, sub}   = \frac{q^{eq}_{icl} - q_{icl}}{\tau_{i}}
 \end{equation}
 ```
 where:
- - ``q^{eq}_{liq}, q^{eq}_{ice}`` - liquid and water specific content in equilibrium at current temperature and
+ - ``q^{eq}_{lcl}, q^{eq}_{icl}`` - liquid and ice water specific content in equilibrium at current temperature and
    assuming some phase partition function based on temperature
- - ``q_{liq}, q_{ice}`` - current liquid water and ice specific content,
+ - ``q_{lcl}, q_{icl}`` - current liquid water and ice specific content,
  - ``\tau_{l}, \tau_{i}`` - relaxation timescales.
 
 !!! note
@@ -65,8 +65,8 @@ This formulation is derived from [MorrisonGrabowski2008_supersat](@cite)
 
 ```math
 \begin{equation}
-   \left. \frac{d \, q_{liq}}{dt} \right|_{cond, evap} = \frac{q_{vap} - q_{sl}}{\tau_l \Gamma_l}; \;\;\;\;\;\;\;
-   \left. \frac{d \, q_{ice}}{dt} \right|_{dep, sub}   = \frac{q_{vap} - q_{si}}{\tau_i \Gamma_i}
+   \left. \frac{d \, q_{lcl}}{dt} \right|_{cond, evap} = \frac{q_{vap} - q_{sl}}{\tau_l \Gamma_l}; \;\;\;\;\;\;\;
+   \left. \frac{d \, q_{icl}}{dt} \right|_{dep, sub}   = \frac{q_{vap} - q_{si}}{\tau_i \Gamma_i}
 \end{equation}
 ```
 where:

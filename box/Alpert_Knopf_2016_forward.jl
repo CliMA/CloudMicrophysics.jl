@@ -23,7 +23,7 @@ include(joinpath(pkgdir(CM), "box", "box.jl"))
 A_aero = FT(1e-5) * 1e-4 # INP surface area, m^2
 σg = 10
 N₀ = 1000
-N_ice = 0
+N_icl = 0
 T_initial = FT(256)         # initial temperature, K
 cooling_rate = FT(0.5 / 60) # prescribed cooling rate K s^-1
 aerosol = CMP.Illite(FT)    # aerosol free parameters
@@ -43,7 +43,7 @@ Aj_sorted = zeros(N₀)
 Aj_sorted = sort(Aj_unsorted, rev = true)
 
 # initial condition for the ODE problem
-IC = [T_initial, A_sum, FT(N₀), FT(N_ice)]
+IC = [T_initial, A_sum, FT(N₀), FT(N_icl)]
 # additional model parameters
 p_def = (; tps, A_aero, aerosol, cooling_rate, N₀)
 

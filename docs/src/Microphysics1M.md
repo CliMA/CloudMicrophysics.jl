@@ -10,8 +10,8 @@ The module is based on the ideas of
 The cloud microphysics variables are expressed as specific contents:
   - `q_tot` - total water specific content,
   - `q_vap` - water vapor specific content (i.e., specific humidity),
-  - `q_liq` - cloud water specific content,
-  - `q_ice` - cloud ice specific content,
+  - `q_lcl` - cloud water specific content,
+  - `q_icl` - cloud ice specific content,
   - `q_rai` - rain specific content,
   - `q_sno` - snow specific content.
 
@@ -175,8 +175,8 @@ They consist of:
 |----------------------------|-----------------------------------------------------------|--------------------------|------------------------|-----------|
 |``\tau_{acnv\_rain}``       | cloud liquid to rain water autoconversion timescale       | ``s``                    | ``10^3``               | eq (5a) [Grabowski1996](@cite) |
 |``\tau_{acnv\_snow}``       | cloud ice to snow autoconversion timescale                | ``s``                    | ``10^2``               |           |
-|``q_{liq\_threshold}``      | cloud liquid to rain water autoconversion threshold       | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite) |
-|``q_{ice\_threshold}``      | cloud ice snow autoconversion threshold                   | -                        | ``1 \cdot 10^{-6}``    |           |
+|``q_{lcl\_threshold}``      | cloud liquid to rain water autoconversion threshold       | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite) |
+|``q_{icl\_threshold}``      | cloud ice snow autoconversion threshold                   | -                        | ``1 \cdot 10^{-6}``    |           |
 |``r_{is}``                  | threshold particle radius between ice and snow            | ``m``                    | ``62.5 \cdot 10^{-6}`` | abstract [Harrington1995](@cite) |
 |``E_{lr}``                  | collision efficiency between rain drops and cloud droplets| -                        | ``0.8``                | eq (16a) [Grabowski1998](@cite) |
 |``E_{ls}``                  | collision efficiency between snow and cloud droplets      | -                        | ``0.1``                | Appendix B [Rutledge1983](@cite) |
@@ -278,13 +278,13 @@ It is parameterized following
 ```math
 \begin{equation}
   \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
-    \frac{max(0, q_{liq} - q_{liq\_threshold})}{\tau_{acnv\_rain}}
+    \frac{max(0, q_{lcl} - q_{lcl\_threshold})}{\tau_{acnv\_rain}}
 \end{equation}
 ```
 where:
- - ``q_{liq}`` - liquid water specific content,
+ - ``q_{lcl}`` - cloud liquid water specific content,
  - ``\tau_{acnv\_rain}`` - timescale,
- - ``q_{liq\_threshold}`` - autoconversion threshold.
+ - ``q_{lcl\_threshold}`` - autoconversion threshold.
 
 !!! note
     This is the simplest possible autoconversion parameterization.
@@ -370,13 +370,13 @@ It is formulated similarly to the rain autoconversion:
 ```math
 \begin{equation}
   \left. \frac{d \, q_{sno}}{dt} \right|_{acnv} =
-    \frac{max(0, q_{ice} - q_{ice\_threshold})}{\tau_{acnv\_snow}}
+    \frac{max(0, q_{icl} - q_{icl\_threshold})}{\tau_{acnv\_snow}}
 \end{equation}
 ```
 where:
- - ``q_{liq}`` - liquid water specific content,
- - ``\tau_{acnv\_rain}`` - timescale,
- - ``q_{liq\_threshold}`` - autoconversion threshold.
+ - ``q_{icl}`` - cloud ice specific content,
+ - ``\tau_{acnv\_snow}`` - timescale,
+ - ``q_{icl\_threshold}`` - autoconversion threshold.
 
 ## Accretion
 

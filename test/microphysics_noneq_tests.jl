@@ -26,8 +26,8 @@ function test_microphysics_noneq(FT)
         _τ_cond_evap = CMNe.τ_relax(liquid)
 
         for fr in frac
-            q_liq = q_liq_sat * fr
-            TT.@test CMNe.conv_q_vap_to_q_liq_ice(liquid, q_liq_sat, q_liq) ≈ (1 - fr) * q_liq_sat / _τ_cond_evap
+            q_lcl = q_liq_sat * fr
+            TT.@test CMNe.conv_q_vap_to_q_lcl_icl(liquid, q_liq_sat, q_lcl) ≈ (1 - fr) * q_liq_sat / _τ_cond_evap
         end
     end
 
@@ -39,8 +39,8 @@ function test_microphysics_noneq(FT)
         _τ_cond_evap = CMNe.τ_relax(ice)
 
         for fr in frac
-            q_ice = q_ice_sat * fr
-            TT.@test CMNe.conv_q_vap_to_q_liq_ice(ice, q_ice_sat, q_ice) ≈ (1 - fr) * q_ice_sat / _τ_cond_evap
+            q_icl = q_ice_sat * fr
+            TT.@test CMNe.conv_q_vap_to_q_lcl_icl(ice, q_ice_sat, q_icl) ≈ (1 - fr) * q_ice_sat / _τ_cond_evap
         end
     end
 
@@ -57,24 +57,24 @@ function test_microphysics_noneq(FT)
 
         #! format: off
         # test sign
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, FT(0.5 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) < FT(0)
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, FT(1.5 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) > FT(0)
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps,          qᵥ_sl,  FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, FT(0.5 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) < FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, FT(1.5 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) > FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps,          qᵥ_sl,  FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ FT(0)
 
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, FT(0.5 * qᵥ_si), FT(0), FT(0), FT(0), FT(0), ρ, T) < FT(0)
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, FT(1.5 * qᵥ_si), FT(0), FT(0), FT(0), FT(0), ρ, T) > FT(0)
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice, tps,          qᵥ_si,  FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, FT(0.5 * qᵥ_si), FT(0), FT(0), FT(0), FT(0), ρ, T) < FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, FT(1.5 * qᵥ_si), FT(0), FT(0), FT(0), FT(0), ρ, T) > FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps,          qᵥ_si,  FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ FT(0)
 
         # smoke test for values
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, FT(1.2 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ 3.763045798130144e-5  rtol = 1e-6
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice,    tps, FT(1.2 * qᵥ_si), FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ 3.235984203087906e-5 rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, FT(1.2 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ 3.763045798130144e-5  rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(ice,    tps, FT(1.2 * qᵥ_si), FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ 3.235984203087906e-5 rtol = 1e-6
 
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, FT(1.2 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ 3.7630474f-5 rtol = 1e-6
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice,    tps, FT(1.2 * qᵥ_si), FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ 3.2359854f-5 rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, FT(1.2 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ 3.7630474f-5 rtol = 1e-6
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(ice,    tps, FT(1.2 * qᵥ_si), FT(0), FT(0), FT(0), FT(0), ρ, T) ≈ 3.2359854f-5 rtol = 1e-6
 
         # ice grows faster than liquid
-        TT.@test CMNe.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, FT(1.2 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) <
-                 CMNe.conv_q_vap_to_q_liq_ice_MM2015(ice,    tps, FT(1.2 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T)
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, FT(1.2 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T) <
+                 CMNe.conv_q_vap_to_q_lcl_icl_MM2015(ice,    tps, FT(1.2 * qᵥ_sl), FT(0), FT(0), FT(0), FT(0), ρ, T)
 
         #! format: on
     end
@@ -82,12 +82,12 @@ function test_microphysics_noneq(FT)
     TT.@testset "Cloud condensate sedimentation - liquid" begin
         #setup
         ρ = FT(1.1)
-        q_liq = FT(1 * 1e-3)
+        q_lcl = FT(1 * 1e-3)
 
         #action
         vt_zero = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, FT(0))
-        vt_liq = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, q_liq)
-        v_bigger = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, q_liq * 2)
+        vt_liq = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, q_lcl)
+        v_bigger = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, q_lcl * 2)
 
         #test
         TT.@test vt_zero == FT(0)
@@ -98,12 +98,12 @@ function test_microphysics_noneq(FT)
     TT.@testset "Cloud condensate sedimentation - ice" begin
         #setup
         ρ = FT(0.75)
-        q_ice = FT(0.5 * 1e-3)
+        q_icl = FT(0.5 * 1e-3)
 
         #action
         vt_zero = CMNe.terminal_velocity(ice, Ch2022.small_ice, ρ, FT(0))
-        vt_ice = CMNe.terminal_velocity(ice, Ch2022.small_ice, ρ, q_ice)
-        v_bigger = CMNe.terminal_velocity(ice, Ch2022.small_ice, ρ, q_ice * 2)
+        vt_ice = CMNe.terminal_velocity(ice, Ch2022.small_ice, ρ, q_icl)
+        v_bigger = CMNe.terminal_velocity(ice, Ch2022.small_ice, ρ, q_icl * 2)
 
         #test
         TT.@test vt_zero == FT(0)

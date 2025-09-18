@@ -44,47 +44,47 @@ function test_microphysics2M(FT)
         ρ = FT(1)
 
         # no reference data available - checking if callable and not NaN
-        q_liq = FT(0.5e-3)
+        q_lcl = FT(0.5e-3)
         q_rai = FT(1e-6)
         N_d = FT(1e8)
 
-        TT.@test CM2.accretion(KK2000, q_liq, q_rai, ρ) != NaN
-        TT.@test CM2.accretion(B1994, q_liq, q_rai, ρ) != NaN
-        TT.@test CM2.accretion(TC1980, q_liq, q_rai) != NaN
-        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, N_d) != NaN
+        TT.@test CM2.accretion(KK2000, q_lcl, q_rai, ρ) != NaN
+        TT.@test CM2.accretion(B1994, q_lcl, q_rai, ρ) != NaN
+        TT.@test CM2.accretion(TC1980, q_lcl, q_rai) != NaN
+        TT.@test CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ, N_d) != NaN
 
         # output should be zero if either q_liq or q_rai are zero
-        q_liq = FT(0)
+        q_lcl = FT(0)
         q_rai = FT(1e-6)
 
-        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, N_d) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(KK2000, q_liq, ρ, N_d) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ, N_d) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ, N_d) == FT(0)
-        TT.@test CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ, N_d) == FT(0)
-        TT.@test CM2.accretion(KK2000, q_liq, q_rai, ρ) == FT(0)
-        TT.@test CM2.accretion(B1994, q_liq, q_rai, ρ) == FT(0)
-        TT.@test CM2.accretion(TC1980, q_liq, q_rai) == FT(0)
+        TT.@test CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ, N_d) == FT(0)
+        TT.@test CM2.conv_q_lcl_to_q_rai(KK2000, q_lcl, ρ, N_d) == FT(0)
+        TT.@test CM2.conv_q_lcl_to_q_rai(B1994, q_lcl, ρ, N_d) == FT(0)
+        TT.@test CM2.conv_q_lcl_to_q_rai(TC1980, q_lcl, ρ, N_d) == FT(0)
+        TT.@test CM2.conv_q_lcl_to_q_rai(LD2004, q_lcl, ρ, N_d) == FT(0)
+        TT.@test CM2.accretion(KK2000, q_lcl, q_rai, ρ) == FT(0)
+        TT.@test CM2.accretion(B1994, q_lcl, q_rai, ρ) == FT(0)
+        TT.@test CM2.accretion(TC1980, q_lcl, q_rai) == FT(0)
 
-        q_liq = FT(0.5e-3)
+        q_lcl = FT(0.5e-3)
         q_rai = FT(0)
-        TT.@test CM2.accretion(KK2000, q_liq, q_rai, ρ) == FT(0)
-        TT.@test CM2.accretion(B1994, q_liq, q_rai, ρ) == FT(0)
-        TT.@test CM2.accretion(TC1980, q_liq, q_rai) == FT(0)
+        TT.@test CM2.accretion(KK2000, q_lcl, q_rai, ρ) == FT(0)
+        TT.@test CM2.accretion(B1994, q_lcl, q_rai, ρ) == FT(0)
+        TT.@test CM2.accretion(TC1980, q_lcl, q_rai) == FT(0)
 
-        TT.@test CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, N_d) >
-                 CM2.conv_q_liq_to_q_rai(VarTSc, q_liq, ρ, 10 * N_d)
+        TT.@test CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ, N_d) >
+                 CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ, 10 * N_d)
 
         # far from threshold points, autoconversion with and without smooth transition should
         # be approximately equal
-        q_liq = FT(0.5e-3)
-        TT.@test CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ, N_d, true) ≈
-                 CM2.conv_q_liq_to_q_rai(B1994, q_liq, ρ, N_d, false) rtol = 0.2
-        TT.@test CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ, N_d, true) ≈
-                 CM2.conv_q_liq_to_q_rai(TC1980, q_liq, ρ, N_d, false) rtol =
+        q_lcl = FT(0.5e-3)
+        TT.@test CM2.conv_q_lcl_to_q_rai(B1994, q_lcl, ρ, N_d, true) ≈
+                 CM2.conv_q_lcl_to_q_rai(B1994, q_lcl, ρ, N_d, false) rtol = 0.2
+        TT.@test CM2.conv_q_lcl_to_q_rai(TC1980, q_lcl, ρ, N_d, true) ≈
+                 CM2.conv_q_lcl_to_q_rai(TC1980, q_lcl, ρ, N_d, false) rtol =
             0.2
-        TT.@test CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ, N_d, true) ≈
-                 CM2.conv_q_liq_to_q_rai(LD2004, q_liq, ρ, N_d, false) rtol =
+        TT.@test CM2.conv_q_lcl_to_q_rai(LD2004, q_lcl, ρ, N_d, true) ≈
+                 CM2.conv_q_lcl_to_q_rai(LD2004, q_lcl, ρ, N_d, false) rtol =
             0.2
 
     end
@@ -92,12 +92,12 @@ function test_microphysics2M(FT)
     TT.@testset "2M_microphysics - compare with Wood_2005" begin
 
         ρ = FT(1)
-        q_liq = FT(0.5e-3)
+        q_lcl = FT(0.5e-3)
         N_d = FT(1e8)
 
         # compare with Wood 2005 Fig 1 panel a
         function compare(scheme, input, output; eps = 0.1)
-            TT.@test CM2.conv_q_liq_to_q_rai(scheme, input * FT(1e-3), ρ, N_d) ≈
+            TT.@test CM2.conv_q_lcl_to_q_rai(scheme, input * FT(1e-3), ρ, N_d) ≈
                      output atol = eps * output
         end
         compare(KK2000, FT(0.03138461538461537), FT(2.636846054348105e-12))
@@ -121,9 +121,9 @@ function test_microphysics2M(FT)
 
         # compare with Wood 2005 Fig 1 panel b
         function compare_Nd(scheme, input, output; eps = 0.1)
-            TT.@test CM2.conv_q_liq_to_q_rai(
+            TT.@test CM2.conv_q_lcl_to_q_rai(
                 scheme,
-                q_liq,
+                q_lcl,
                 ρ,
                 input * FT(1e6),
             ) ≈ output atol = eps * output
@@ -196,11 +196,11 @@ function test_microphysics2M(FT)
 
     end
 
-    TT.@testset "2M_microphysics - Seifert and Beheng 2006 autoconversion and liquid self-collection" begin
+    TT.@testset "2M_microphysics - Seifert and Beheng 2006 autoconversion and cloud liquid self-collection" begin
         #setup
         ρ = FT(1)
-        q_liq = FT(0.5e-3)
-        N_liq = FT(1e8)
+        q_lcl = FT(0.5e-3)
+        N_lcl = FT(1e8)
         q_rai = FT(1e-6)
 
         for SB in [SB2006, SB2006_no_limiters]
@@ -208,25 +208,25 @@ function test_microphysics2M(FT)
             (; νc) = SB.pdf_c
 
             #action
-            au = CM2.autoconversion(SB.acnv, SB.pdf_c, q_liq, q_rai, ρ, N_liq)
-            sc = CM2.liquid_self_collection(
+            au = CM2.autoconversion(SB.acnv, SB.pdf_c, q_lcl, q_rai, ρ, N_lcl)
+            sc = CM2.cloud_liquid_self_collection(
                 SB.acnv,
                 SB.pdf_c,
-                q_liq,
+                q_lcl,
                 ρ,
-                au.dN_liq_dt,
+                au.dN_lcl_dt,
             )
-            au_sc = CM2.autoconversion_and_liquid_self_collection(
+            au_sc = CM2.autoconversion_and_cloud_liquid_self_collection(
                 SB,
-                q_liq,
+                q_lcl,
                 q_rai,
                 ρ,
-                N_liq,
+                N_lcl,
             )
 
-            Lc = ρ * q_liq
+            Lc = ρ * q_lcl
             Lr = ρ * q_rai
-            xc = min(x_star, Lc / N_liq)
+            xc = min(x_star, Lc / N_lcl)
             τ = 1 - Lc / (Lc + Lr)
             ϕ_au = 400 * τ^0.7 * (1 - τ^0.7)^3
             dqrdt_au =
@@ -239,48 +239,48 @@ function test_microphysics2M(FT)
             dNcdt_au = 2 / x_star * ρ * dqcdt_au
             dNrdt_au = -0.5 * dNcdt_au
             dNcdt_sc =
-                -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * Lc^2 - au.dN_liq_dt
+                -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * Lc^2 - au.dN_lcl_dt
 
             #test
-            TT.@test au isa CM2.LiqRaiRates
-            TT.@test au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
+            TT.@test au isa CM2.LclRaiRates
+            TT.@test au.dq_lcl_dt ≈ dqcdt_au rtol = 1e-6
             TT.@test au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
-            TT.@test au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
+            TT.@test au.dN_lcl_dt ≈ dNcdt_au rtol = 1e-6
             TT.@test au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
             TT.@test sc ≈ dNcdt_sc rtol = 1e-6
             TT.@test au_sc isa NamedTuple
-            TT.@test au_sc.au.dq_liq_dt ≈ dqcdt_au rtol = 1e-6
+            TT.@test au_sc.au.dq_lcl_dt ≈ dqcdt_au rtol = 1e-6
             TT.@test au_sc.au.dq_rai_dt ≈ dqrdt_au rtol = 1e-6
-            TT.@test au_sc.au.dN_liq_dt ≈ dNcdt_au rtol = 1e-6
+            TT.@test au_sc.au.dN_lcl_dt ≈ dNcdt_au rtol = 1e-6
             TT.@test au_sc.au.dN_rai_dt ≈ dNrdt_au rtol = 1e-6
             TT.@test au_sc.sc ≈ dNcdt_sc rtol = 1e-6
 
             #action
-            au = CM2.autoconversion(SB.acnv, SB.pdf_c, FT(0), FT(0), ρ, N_liq)
-            sc = CM2.liquid_self_collection(
+            au = CM2.autoconversion(SB.acnv, SB.pdf_c, FT(0), FT(0), ρ, N_lcl)
+            sc = CM2.cloud_liquid_self_collection(
                 SB.acnv,
                 SB.pdf_c,
                 FT(0),
                 ρ,
-                au.dN_liq_dt,
+                au.dN_lcl_dt,
             )
-            au_sc = CM2.autoconversion_and_liquid_self_collection(
+            au_sc = CM2.autoconversion_and_cloud_liquid_self_collection(
                 SB,
                 FT(0),
                 FT(0),
                 ρ,
-                N_liq,
+                N_lcl,
             )
 
             #test
-            TT.@test au.dq_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au.dq_lcl_dt ≈ FT(0) atol = eps(FT)
             TT.@test au.dq_rai_dt ≈ FT(0) atol = eps(FT)
-            TT.@test au.dN_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au.dN_lcl_dt ≈ FT(0) atol = eps(FT)
             TT.@test au.dN_rai_dt ≈ FT(0) atol = eps(FT)
             TT.@test sc ≈ FT(0) atol = eps(FT)
-            TT.@test au_sc.au.dq_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au_sc.au.dq_lcl_dt ≈ FT(0) atol = eps(FT)
             TT.@test au_sc.au.dq_rai_dt ≈ FT(0) atol = eps(FT)
-            TT.@test au_sc.au.dN_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test au_sc.au.dN_lcl_dt ≈ FT(0) atol = eps(FT)
             TT.@test au_sc.au.dN_rai_dt ≈ FT(0) atol = eps(FT)
             TT.@test au_sc.sc ≈ FT(0) atol = eps(FT)
         end
@@ -289,8 +289,8 @@ function test_microphysics2M(FT)
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 accretion" begin
         #setup
         ρ = FT(1.1)
-        q_liq = FT(0.5e-3)
-        N_liq = FT(1e8)
+        q_lcl = FT(0.5e-3)
+        N_lcl = FT(1e8)
         q_rai = FT(1e-6)
         N_rai = FT(1e4)
 
@@ -298,11 +298,11 @@ function test_microphysics2M(FT)
             (; kcr, ρ0) = SB.accr
 
             #action
-            ac = CM2.accretion(SB, q_liq, q_rai, ρ, N_liq)
+            ac = CM2.accretion(SB, q_lcl, q_rai, ρ, N_lcl)
 
-            Lc = ρ * q_liq
+            Lc = ρ * q_lcl
             Lr = ρ * q_rai
-            xc = Lc / N_liq
+            xc = Lc / N_lcl
             τ = 1 - Lc / (Lc + Lr)
             ϕ_ac = (τ / (τ + 5e-5))^4
 
@@ -312,19 +312,19 @@ function test_microphysics2M(FT)
             dNrdt_ac = FT(0)
 
             #test
-            TT.@test ac isa CM2.LiqRaiRates
-            TT.@test ac.dq_liq_dt ≈ dqcdt_ac rtol = FT(1e-6)
+            TT.@test ac isa CM2.LclRaiRates
+            TT.@test ac.dq_lcl_dt ≈ dqcdt_ac rtol = FT(1e-6)
             TT.@test ac.dq_rai_dt ≈ dqrdt_ac rtol = FT(1e-6)
-            TT.@test ac.dN_liq_dt ≈ dNcdt_ac rtol = FT(1e-6)
+            TT.@test ac.dN_lcl_dt ≈ dNcdt_ac rtol = FT(1e-6)
             TT.@test ac.dN_rai_dt ≈ dNrdt_ac rtol = FT(1e-6)
 
             #action
-            ac = CM2.accretion(SB, FT(0), FT(0), ρ, N_liq)
+            ac = CM2.accretion(SB, FT(0), FT(0), ρ, N_lcl)
 
             #test
-            TT.@test ac.dq_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test ac.dq_lcl_dt ≈ FT(0) atol = eps(FT)
             TT.@test ac.dq_rai_dt ≈ FT(0) atol = eps(FT)
-            TT.@test ac.dN_liq_dt ≈ FT(0) atol = eps(FT)
+            TT.@test ac.dN_lcl_dt ≈ FT(0) atol = eps(FT)
             TT.@test ac.dN_rai_dt ≈ FT(0) atol = eps(FT)
         end
     end
@@ -521,8 +521,8 @@ function test_microphysics2M(FT)
         N_rai = FT(1e4)
         T = FT(288.15)
         q_tot = FT(1e-3)
-        q_liq = FT(0)
-        q_ice = FT(0)
+        q_lcl = FT(0)
+        q_icl = FT(0)
         q_sno = FT(0)
 
         for SB in [SB2006, SB2006_no_limiters]
@@ -531,11 +531,10 @@ function test_microphysics2M(FT)
             (; ν_air, D_vapor) = aps
 
             #action
-            evap = CM2.rain_evaporation(SB, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, N_rai, T)
+            evap = CM2.rain_evaporation(SB, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
 
             G = CMC.G_func_liquid(aps, tps, T)
-            # TODO - update after working fluid change
-            S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
+            S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
             (; xr_mean) = CM2.pdf_rain_parameters(SB.pdf_r, q_rai, ρ, N_rai)
             Dr = FT(6 / π / 1000.0)^FT(1 / 3) * xr_mean^FT(1 / 3)
@@ -556,16 +555,16 @@ function test_microphysics2M(FT)
             TT.@test evap.evap_rate_0 ≈ evap0 rtol = 1e-4
             TT.@test evap.evap_rate_1 ≈ evap1 rtol = 1e-5
             TT.@test CM2.rain_evaporation(
-                SB, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, FT(0), T,
+                SB, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, FT(0), T,
             ).evap_rate_0 ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_evaporation(
-                SB, aps, tps, q_tot, q_liq, q_ice, FT(0), q_sno, ρ, N_rai, T,
+                SB, aps, tps, q_tot, q_lcl, q_icl, FT(0), q_sno, ρ, N_rai, T,
             ).evap_rate_1 ≈ 0 atol = eps(FT)
         end
 
         # test limit case: xr = 0 for SB with no limiters
         TT.@test CM2.rain_evaporation(
-            SB2006_no_limiters, aps, tps, q_tot, q_liq, q_ice, FT(0), q_sno, ρ, N_rai, T,
+            SB2006_no_limiters, aps, tps, q_tot, q_lcl, q_icl, FT(0), q_sno, ρ, N_rai, T,
         ).evap_rate_0 ≈ 0 atol = eps(FT)
 
     end

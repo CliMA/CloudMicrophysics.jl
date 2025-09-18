@@ -7,7 +7,7 @@ microphysics schemes, as described in [Glassmeier2016](@cite).
 The precipitation susceptibility describes the rate of change of precipitation
 production due to some moment of the particle size distribution:
 
-For some partial moment $X$, such as $q_{liq}$, $q_{rai}$, $N_{liq}$, or $N_{rai}$
+For some partial moment $X$, such as $q_{lcl}$, $q_{rai}$, $N_{lcl}$, or $N_{rai}$
 and some process rate of precipitation production $r$, such as autoconversion,
 accretion, etc, this is defined as:
 ```math

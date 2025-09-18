@@ -210,14 +210,14 @@ function test_heterogeneous_ice_nucleation(FT)
 
         T_warm = FT(235)
         T_cold = FT(234)
-        N_liq = FT(2e5)
+        N_lcl = FT(2e5)
         r_l = FT(2e-5)
         V_l = FT(4 / 3 * FT(π) * r_l^3)
         Δt = FT(0.1)
 
         # higher ice concentration at colder temperatures
-        TT.@test CMI_het.P3_het_N_i(ip.p3, T_cold, N_liq, V_l, Δt) >
-                 CMI_het.P3_het_N_i(ip.p3, T_warm, N_liq, V_l, Δt)
+        TT.@test CMI_het.P3_het_N_i(ip.p3, T_cold, N_lcl, V_l, Δt) >
+                 CMI_het.P3_het_N_i(ip.p3, T_warm, N_lcl, V_l, Δt)
     end
 
     TT.@testset "Frostenberg" begin

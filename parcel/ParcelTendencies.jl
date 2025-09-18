@@ -239,7 +239,7 @@ function condensation(params::NonEqCondParams_simple, PSD, state, ρ_air)
 
     q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0)
 
-    new_q = MNE.conv_q_vap_to_q_liq_ice(liquid, q_sat_liq, qₗ)
+    new_q = MNE.conv_q_vap_to_q_lcl_icl(liquid, q_sat_liq, qₗ)
 
     return new_q
 end
@@ -253,7 +253,7 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
         qₜ = qᵥ + qₗ + qᵢ
 
-        cond_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+        cond_rate = MNE.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
 
         # Using same limiter as ClimaAtmos for now
         # Not sure why, but without intermediate storing of the tendencies for the
@@ -296,7 +296,7 @@ function deposition(params::NonEqDepParams_simple, PSD, state, ρ_air)
     Sᵢ = S_i(tps, T, Sₗ)
     q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
 
-    new_q = MNE.conv_q_vap_to_q_liq_ice(ice, q_sat_ice, qᵢ)
+    new_q = MNE.conv_q_vap_to_q_lcl_icl(ice, q_sat_ice, qᵢ)
 
     return new_q
 end
@@ -310,7 +310,7 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     if qᵥ + qᵢ > FT(0)
         qₜ = qᵥ + qₗ + qᵢ
 
-        dep_rate = MNE.conv_q_vap_to_q_liq_ice_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+        dep_rate = MNE.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
 
         # Using same limiter as ClimaAtmos for now
         # Not sure why, but without intermediate storing of the tendencies for the

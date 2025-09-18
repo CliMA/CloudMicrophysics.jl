@@ -25,11 +25,11 @@ If based on maximum condensate specific content, the sink is defined as:
 ``` math
 \begin{equation}
   \left. \frac{d \, q_{tot}}{dt} \right|_{precip} =-
-    \frac{\max(0, q_{liq} + q_{ice} - q_{c0})}{\tau_{precip}}
+    \frac{\max(0, q_{lcl} + q_{icl} - q_{c0})}{\tau_{precip}}
 \end{equation}
 ```
 where:
-  - ``q_{liq}``, ``q_{ice}`` are cloud liquid water and cloud ice specific contents,
+  - ``q_{lcl}``, ``q_{icl}`` are cloud liquid water and cloud ice specific contents,
   - ``q_{c0}`` is the condensate specific content threshold above which water is removed,
   - ``\tau_{precip}`` is the relaxation timescale.
 
@@ -37,11 +37,11 @@ If based on saturation excess, the sink is defined as:
 ```math
 \begin{equation}
   \left. \frac{d \, q_{tot}}{dt} \right|_{precip} =-
-    \frac{\max(0, q_{liq} + q_{ice} - S_{0} \, q_{vap}^{sat})}{\tau_{precip}}
+    \frac{\max(0, q_{lcl} + q_{icl} - S_{0} \, q_{vap}^{sat})}{\tau_{precip}}
 \end{equation}
 ```
 where:
-  - ``q_{liq}``, ``q_{ice}`` are cloud liquid water and cloud ice specific contents,
+  - ``q_{lcl}``, ``q_{icl}`` are cloud liquid water and cloud ice specific contents,
   - ``S_{0}`` is the supersaturation threshold above which water is removed,
   - ``q_{vap}^{sat}`` is the saturation specific humidity,
   - ``\tau_{precip}`` is the relaxation timescale.

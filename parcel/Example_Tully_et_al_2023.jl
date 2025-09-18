@@ -40,8 +40,8 @@ function Tully_et_al_2023(FT)
     p_0 = FT(20000)
     T_0 = FT(230)
     q_vap_0 = FT(3.3e-4)
-    q_liq_0 = FT(0)
-    q_ice_0 = FT(0)
+    q_lcl_0 = FT(0)
+    q_icl_0 = FT(0)
     ln_INPC = FT(0)
     # Initial conditions for the 2nd period
     T2 = FT(229.25)
@@ -69,7 +69,7 @@ function Tully_et_al_2023(FT)
     ax3 = MK.Axis(fig[2, 1], ylabel = "N act [1/dm3]", yscale = log10)
     ax4 = MK.Axis(fig[2, 2], ylabel = "N areo [1/dm3]")
     ax5 = MK.Axis(fig[3, 1], ylabel = "q_vap [g/kg]", xlabel = "Height [m]")
-    ax6 = MK.Axis(fig[3, 2], ylabel = "q_ice [g/kg]", xlabel = "Height [m]")
+    ax6 = MK.Axis(fig[3, 2], ylabel = "q_icl [g/kg]", xlabel = "Height [m]")
     MK.ylims!(ax3, 3, 2e3)
 
     for mode in ice_nucleation_modes
@@ -88,8 +88,8 @@ function Tully_et_al_2023(FT)
             p_0,
             T_0,
             q_vap_0,
-            q_liq_0,
-            q_ice_0,
+            q_lcl_0,
+            q_icl_0,
             N_aerosol,
             N_droplets,
             N_0,
@@ -106,7 +106,7 @@ function Tully_et_al_2023(FT)
                 #sol1[3, end],
                 T2,
                 q_vap2,
-                q_liq_0,
+                q_lcl_0,
                 sol1[6, end],
                 sol1[7, end],
                 sol1[8, end],
@@ -124,7 +124,7 @@ function Tully_et_al_2023(FT)
                 #sol2[3, end],
                 T3,
                 q_vap3,
-                q_liq_0,
+                q_lcl_0,
                 sol2[6, end],
                 sol2[7, end],
                 sol2[8, end],

@@ -21,10 +21,10 @@ import ..DistributionTools: size_distribution
 
 export autoconversion,
     accretion,
-    liquid_self_collection,
-    autoconversion_and_liquid_self_collection,
+    cloud_liquid_self_collection,
+    autoconversion_and_cloud_liquid_self_collection,
     rain_terminal_velocity,
-    conv_q_liq_to_q_rai,
+    conv_q_lcl_to_q_rai,
     rain_evaporation,
     rain_self_collection,
     rain_breakup,
@@ -330,13 +330,13 @@ end
 
 """
 A structure containing the rates of change of the specific contents and number
-densities of liquid and rain water.
+densities of cloud liquid water and rain water.
 """
-Base.@kwdef struct LiqRaiRates{FT}
-    "Rate of change of the liquid water specific content"
-    dq_liq_dt::FT = FT(0)
-    "Rate of change of the liquid water number density"
-    dN_liq_dt::FT = FT(0)
+Base.@kwdef struct LclRaiRates{FT}
+    "Rate of change of the cloud liquid water specific content"
+    dq_lcl_dt::FT = FT(0)
+    "Rate of change of the cloud liquid water number density"
+    dN_lcl_dt::FT = FT(0)
     "Rate of change of the rain water specific content"
     dq_rai_dt::FT = FT(0)
     "Rate of change of the rain water number density"
@@ -344,155 +344,155 @@ Base.@kwdef struct LiqRaiRates{FT}
 end
 
 """
-    autoconversion(acnv, pdf_c, q_liq, q_rai, ρ, N_liq)
+    autoconversion(acnv, pdf_c, q_lcl, q_rai, ρ, N_lcl)
 
 Compute autoconversion rates
 
 # Arguments
  - `acnv`: Autoconversion parameters, [`CMP.AcnvSB2006`](@ref)
  - `pdf_c`: Cloud size distribution parameters, [`CMP.CloudParticlePDF_SB2006`](@ref)
- - `q_liq`: Cloud water specific content [kg/kg]
+ - `q_lcl`: Cloud liquid water specific content [kg/kg]
  - `q_rai`: Rain water specific content [kg/kg]
  - `ρ`: Air density [kg/m³]
- - `N_liq`: Cloud droplet number density [1/m³]
+ - `N_lcl`: Cloud droplet number density [1/m³]
 
 # Returns
- - [`LiqRaiRates`](@ref) with `q_liq`, `N_liq`, `q_rai`, `N_rai` tendencies due to
+ - [`LclRaiRates`](@ref) with `q_lcl`, `N_lcl`, `q_rai`, `N_rai` tendencies due to
     collisions between cloud droplets (autoconversion)
 """
 function autoconversion(
     acnv::CMP.AcnvSB2006{FT}, pdf_c::CMP.CloudParticlePDF_SB2006{FT},
-    q_liq, q_rai, ρ, N_liq,
+    q_lcl, q_rai, ρ, N_lcl,
 ) where {FT}
 
-    if q_liq < eps(FT) || N_liq < eps(FT)
-        return LiqRaiRates{FT}()
+    if q_lcl < eps(FT) || N_lcl < eps(FT)
+        return LclRaiRates{FT}()
     end
 
     (; kcc, x_star, ρ0, A, a, b) = acnv
     (; νc) = pdf_c
 
-    L_liq = ρ * q_liq
-    x_liq = min(x_star, L_liq / N_liq)
+    L_lcl = ρ * q_lcl
+    x_lcl = min(x_star, L_lcl / N_lcl)
     q_rai = max(FT(0), q_rai)
-    τ = 1 - q_liq / (q_liq + q_rai)  # Eq. (5) from SB2006
+    τ = 1 - q_lcl / (q_lcl + q_rai)  # Eq. (5) from SB2006
     ϕ_au = A * τ^a * (1 - τ^a)^b
 
     dL_rai_dt =
         kcc / 20 / x_star * (νc + 2) * (νc + 4) / (νc + 1)^2 *
-        L_liq^2 * x_liq^2 * (1 + ϕ_au / (1 - τ)^2) * ρ0 / ρ  # Eq. (4) from SB2006
+        L_lcl^2 * x_lcl^2 * (1 + ϕ_au / (1 - τ)^2) * ρ0 / ρ  # Eq. (4) from SB2006
     dN_rai_dt = dL_rai_dt / x_star
-    dL_liq_dt = -dL_rai_dt
-    dN_liq_dt = -2 * dN_rai_dt
+    dL_lcl_dt = -dL_rai_dt
+    dN_lcl_dt = -2 * dN_rai_dt
 
-    return LiqRaiRates(
-        dq_liq_dt = dL_liq_dt / ρ,
-        dN_liq_dt = dN_liq_dt,
+    return LclRaiRates(
+        dq_lcl_dt = dL_lcl_dt / ρ,
+        dN_lcl_dt = dN_lcl_dt,
         dq_rai_dt = dL_rai_dt / ρ,
         dN_rai_dt = dN_rai_dt,
     )
 end
 
 """
-    accretion(accr, q_liq, q_rai, ρ, N_liq)
+    accretion(accr, q_lcl, q_rai, ρ, N_lcl)
 
 Compute accretion rate
 
 # Arguments
  - `accr`: Accretion parameters, [`CMP.AccrSB2006`](@ref)
- - `q_liq`: Cloud water specific content [kg/kg]
+ - `q_lcl`: Cloud liquid water specific content [kg/kg]
  - `q_rai`: Rain water specific content [kg/kg]
  - `ρ`: Air density [kg/m³]
- - `N_liq`: Cloud droplet number density [1/m³]
+ - `N_lcl`: Cloud droplet number density [1/m³]
 
 # Returns
- - [`LiqRaiRates`](@ref) with `q_liq`, `N_liq`, `q_rai`, `N_rai` tendencies due to
+ - [`LclRaiRates`](@ref) with `q_lcl`, `N_lcl`, `q_rai`, `N_rai` tendencies due to
     collisions between raindrops and cloud droplets (accretion)
 """
-function accretion((; accr)::CMP.SB2006{FT}, q_liq, q_rai, ρ, N_liq) where {FT}
+function accretion((; accr)::CMP.SB2006{FT}, q_lcl, q_rai, ρ, N_lcl) where {FT}
 
-    if q_liq < eps(FT) || q_rai < eps(FT) || N_liq < eps(FT)
-        return LiqRaiRates{FT}()
+    if q_lcl < eps(FT) || q_rai < eps(FT) || N_lcl < eps(FT)
+        return LclRaiRates{FT}()
     end
 
     (; kcr, τ0, ρ0, c) = accr
-    L_liq = ρ * q_liq
+    L_lcl = ρ * q_lcl
     L_rai = ρ * q_rai
-    x_liq = L_liq / N_liq
-    τ = 1 - q_liq / (q_liq + q_rai)  # Eq. (5) from SB2006
+    x_lcl = L_lcl / N_lcl
+    τ = 1 - q_lcl / (q_lcl + q_rai)  # Eq. (5) from SB2006
     ϕ_ac = (τ / (τ + τ0))^c          # Eq. (8) from SB2006
 
-    dL_rai_dt = kcr * L_liq * L_rai * ϕ_ac * sqrt(ρ0 / ρ)  # Eq. (7) from SB2006
-    dN_rai_dt = zero(N_liq)
-    dL_liq_dt = -dL_rai_dt
-    dN_liq_dt = dL_liq_dt / x_liq
+    dL_rai_dt = kcr * L_lcl * L_rai * ϕ_ac * sqrt(ρ0 / ρ)  # Eq. (7) from SB2006
+    dN_rai_dt = zero(N_lcl)
+    dL_lcl_dt = -dL_rai_dt
+    dN_lcl_dt = dL_lcl_dt / x_lcl
 
-    return LiqRaiRates(
-        dq_liq_dt = dL_liq_dt / ρ,
-        dN_liq_dt = dN_liq_dt,
+    return LclRaiRates(
+        dq_lcl_dt = dL_lcl_dt / ρ,
+        dN_lcl_dt = dN_lcl_dt,
         dq_rai_dt = dL_rai_dt / ρ,
         dN_rai_dt = dN_rai_dt,
     )
 end
 
 """
-    liquid_self_collection(acnv, pdf_c, q_liq, ρ, dN_liq_dt_au)
+    cloud_liquid_self_collection(acnv, pdf_c, q_lcl, ρ, dN_lcl_dt_au)
 
-Compute liquid self-collection rate
+Compute cloud liquid self-collection rate
 
 # Arguments
  - `acnv`: 2-moment autoconversion parameterization, [`CMP.AcnvSB2006`](@ref)
  - `pdf_c`: Cloud size distribution parameters, [`CMP.CloudParticlePDF_SB2006`](@ref)
- - `q_liq`: Cloud water specific content [kg/kg]
+ - `q_lcl`: Cloud liquid water specific content [kg/kg]
  - `ρ`: Air density [kg/m³]
- - `dN_liq_dt_au`: Rate of change of cloud droplets number density due to autoconversion [1/m³/s]
+ - `dN_lcl_dt_au`: Rate of change of cloud droplets number density due to autoconversion [1/m³/s]
 
 # Returns
  - The cloud droplets number density tendency due to collisions of cloud droplets
     that produce larger cloud droplets (self-collection)
 """
-function liquid_self_collection(
+function cloud_liquid_self_collection(
     acnv::CMP.AcnvSB2006{FT}, pdf_c::CMP.CloudParticlePDF_SB2006{FT},
-    q_liq, ρ, dN_liq_dt_au,
+    q_lcl, ρ, dN_lcl_dt_au,
 ) where {FT}
 
-    if q_liq < eps(FT)
+    if q_lcl < eps(FT)
         return FT(0)
     end
     (; kcc, ρ0) = acnv
     (; νc) = pdf_c
 
-    L_liq = ρ * q_liq
+    L_lcl = ρ * q_lcl
 
     # Eq. (9) from SB2006
-    dN_liq_dt_sc = -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * L_liq^2 - dN_liq_dt_au
+    dN_lcl_dt_sc = -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * L_lcl^2 - dN_lcl_dt_au
 
-    return dN_liq_dt_sc
+    return dN_lcl_dt_sc
 end
 
 """
-    autoconversion_and_liquid_self_collection(scheme, q_liq, q_rai, ρ, N_liq)
+    autoconversion_and_cloud_liquid_self_collection(scheme, q_lcl, q_rai, ρ, N_lcl)
 
-Compute autoconversion and liquid self-collection rates
+Compute autoconversion and cloud liquid self-collection rates
 
 # Arguments
  - `scheme`: 2-moment rain autoconversion parameterization, [`CMP.SB2006`](@ref)
- - `q_liq`: Cloud water specific content [kg/kg]
+ - `q_lcl`: Cloud liquid water specific content [kg/kg]
  - `q_rai`: Rain water specific content [kg/kg]
  - `ρ`: Air density [kg/m³]
- - `N_liq`: Cloud droplet number density [1/m³]
+ - `N_lcl`: Cloud droplet number density [1/m³]
 
 # Returns
  - `(au, sc)`: A `NamedTuple` containing the autoconversion rate and the
-    liquid self-collection rate.
+    cloud liquid self-collection rate.
 """
-function autoconversion_and_liquid_self_collection(
+function autoconversion_and_cloud_liquid_self_collection(
     (; acnv, pdf_c)::CMP.SB2006{FT},
-    q_liq, q_rai, ρ, N_liq,
+    q_lcl, q_rai, ρ, N_lcl,
 ) where {FT}
 
-    au = autoconversion(acnv, pdf_c, q_liq, q_rai, ρ, N_liq)
-    sc = liquid_self_collection(acnv, pdf_c, q_liq, ρ, au.dN_liq_dt)
+    au = autoconversion(acnv, pdf_c, q_lcl, q_rai, ρ, N_lcl)
+    sc = cloud_liquid_self_collection(acnv, pdf_c, q_lcl, ρ, au.dN_lcl_dt)
 
     return (; au, sc)
 end
@@ -615,7 +615,7 @@ velocity of spherical particles.
 
 # Returns
 A tuple containing the number- and mass-weighted mean fall velocities of cloud droplets in [m/s].
-Individual droplet terminal velocities follow v_{term}(D) = (1/18) (ρw - ρₐ) g D^2 / μ_air with 
+Individual droplet terminal velocities follow v_{term}(D) = (1/18) (ρw - ρₐ) g D^2 / μ_air with
 μ_air = ρₐ * ν_air and assuming constant ν_air.
 """
 function cloud_terminal_velocity(
@@ -732,13 +732,13 @@ function Γ_incl(a::FT, x::FT) where {FT}
 end
 
 """
-    rain_evaporation(evap, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ, N_rai, T)
+    rain_evaporation(evap, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
 
  - `evap` - evaporation parameterization scheme
  - `aps` - air properties
  - `tps` - thermodynamics parameters
- - `q_tot`, `q_liq`, `q_ice`, `q_rai`, `q_sno` - total water,
-    cloud water, cloud ice, rain and snow specific contents,
+ - `q_tot`, `q_lcl`, `q_icl`, `q_rai`, `q_sno` - total water,
+    cloud liquid water, cloud ice, rain and snow specific contents,
  - `ρ` - air density
  - `N_rai` - raindrops number density
  - `T` - air temperature
@@ -750,12 +750,12 @@ fall velocity of individual drops and an exponential size distribution, for `sch
 function rain_evaporation(
     (; pdf_r, evap)::CMP.SB2006{FT}, aps::CMP.AirProperties,
     tps::TDI.PS,
-    q_tot, q_liq, q_ice, q_rai, q_sno, ρ, N_rai, T,
+    q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T,
 ) where {FT}
 
     evap_rate_0 = FT(0)
     evap_rate_1 = FT(0)
-    S = TDI.supersaturation_over_liquid(tps, q_tot, q_liq + q_rai, q_ice + q_sno, ρ, T)
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
     if (N_rai > eps(FT) && S < FT(0))
 
@@ -851,10 +851,10 @@ end
 # - variable timescale autoconversion Azimi (2023)
 
 """
-    conv_q_liq_to_q_rai(acnv, q_liq, ρ, N_d; smooth_transition)
+    conv_q_lcl_to_q_rai(acnv, q_lcl, ρ, N_d; smooth_transition)
 
  - `acnv` - 2-moment rain autoconversion parameterization
- - `q_liq` - cloud water specific content
+ - `q_lcl` - cloud liquid water specific content
  - `ρ` - air density
  - `N_d` - prescribed cloud droplet number concentration
 
@@ -870,19 +870,19 @@ additionally accept `smooth_transition` flag that
 smoothes their thershold behaviour if set to `true`.
 The default value is `false`.
 """
-function conv_q_liq_to_q_rai((; acnv)::CMP.KK2000{FT}, q_liq, ρ, N_d) where {FT}
-    q_liq = max(0, q_liq)
+function conv_q_lcl_to_q_rai((; acnv)::CMP.KK2000{FT}, q_lcl, ρ, N_d) where {FT}
+    q_lcl = max(0, q_lcl)
     (; A, a, b, c) = acnv
-    return A * q_liq^a * N_d^b * ρ^c
+    return A * q_lcl^a * N_d^b * ρ^c
 end
-function conv_q_liq_to_q_rai(
+function conv_q_lcl_to_q_rai(
     (; acnv)::CMP.B1994{FT},
-    q_liq,
+    q_lcl,
     ρ,
     N_d,
     smooth_transition = false,
 ) where {FT}
-    q_liq = max(0, q_liq)
+    q_lcl = max(0, q_lcl)
     (; C, a, b, c, N_0, k, d_low, d_high) = acnv
     d = FT(0)
     if smooth_transition
@@ -892,65 +892,65 @@ function conv_q_liq_to_q_rai(
     else
         d = N_d >= N_0 ? d_low : d_high
     end
-    return C * d^a * (q_liq * ρ)^b * N_d^c / ρ
+    return C * d^a * (q_lcl * ρ)^b * N_d^c / ρ
 end
-function conv_q_liq_to_q_rai(
+function conv_q_lcl_to_q_rai(
     (; acnv)::CMP.TC1980{FT},
-    q_liq,
+    q_lcl,
     ρ,
     N_d,
     smooth_transition = false,
 ) where {FT}
     #TODO - The original paper is actually formulated for mixing ratios, not specific contents
-    q_liq = max(0, q_liq)
+    q_lcl = max(0, q_lcl)
     (; m0_liq_coeff, me_liq, D, a, b, r_0, k) = acnv
     q_liq_threshold::FT = m0_liq_coeff * N_d / ρ * r_0^me_liq
     output =
-        smooth_transition ? CO.logistic_function(q_liq, q_liq_threshold, k) :
-        CO.heaviside(q_liq - q_liq_threshold)
-    return D * q_liq^a * N_d^b * output
+        smooth_transition ? CO.logistic_function(q_lcl, q_liq_threshold, k) :
+        CO.heaviside(q_lcl - q_liq_threshold)
+    return D * q_lcl^a * N_d^b * output
 end
-function conv_q_liq_to_q_rai(
+function conv_q_lcl_to_q_rai(
     (; ρ_w, R_6C_0, E_0, k)::CMP.LD2004{FT},
-    q_liq,
+    q_lcl,
     ρ,
     N_d,
     smooth_transition = false,
 ) where {FT}
-    if q_liq <= eps(FT)
+    if q_lcl <= eps(FT)
         return FT(0)
     else
         # Mean volume radius in microns (assuming spherical cloud droplets)
         r_vol =
-            (FT(3) * (q_liq * ρ) / FT(4) / FT(π) / ρ_w / N_d)^FT(1 / 3) *
+            (FT(3) * (q_lcl * ρ) / FT(4) / FT(π) / ρ_w / N_d)^FT(1 / 3) *
             FT(1e6)
 
         # Assumed size distribution: modified gamma distribution
         β_6 = ((r_vol + FT(3)) / r_vol)^FT(1 / 3)
         E = E_0 * β_6^6
         R_6 = β_6 * r_vol
-        R_6C = R_6C_0 / (q_liq * ρ)^FT(1 / 6) / R_6^FT(1 / 2)
+        R_6C = R_6C_0 / (q_lcl * ρ)^FT(1 / 6) / R_6^FT(1 / 2)
 
         output =
             smooth_transition ? CO.logistic_function(R_6, R_6C, k) :
             CO.heaviside(R_6 - R_6C)
-        return E * (q_liq * ρ)^3 / N_d / ρ * output
+        return E * (q_lcl * ρ)^3 / N_d / ρ * output
     end
 end
-function conv_q_liq_to_q_rai(
+function conv_q_lcl_to_q_rai(
     (; τ, α)::CMP.VarTimescaleAcnv{FT},
-    q_liq::FT,
+    q_lcl::FT,
     ρ::FT,
     N_d::FT,
 ) where {FT}
-    return max(0, q_liq) / (τ * (N_d / 1e8)^α)
+    return max(0, q_lcl) / (τ * (N_d / 1e8)^α)
 end
 
 """
-    accretion(accretion_scheme, q_liq, q_rai, ρ)
+    accretion(accretion_scheme, q_lcl, q_rai, ρ)
 
  - `accretion_scheme` - type for 2-moment rain accretion parameterization
- - `q_liq` - cloud water specific content
+ - `q_lcl` - cloud liquid water specific content
  - `q_rai` - rain water specific content
  - `ρ` - air density (for `KK2000Type` and `Beheng1994Type`)
 
@@ -959,26 +959,26 @@ end
  - Beheng (1994) for `scheme == B1994Type`
  - Tripoli and Cotton (1980) for `scheme == TC1980Type`
 """
-function accretion((; accr)::CMP.KK2000{FT}, q_liq, q_rai, ρ) where {FT}
-    q_liq = max(0, q_liq)
+function accretion((; accr)::CMP.KK2000{FT}, q_lcl, q_rai, ρ) where {FT}
+    q_lcl = max(0, q_lcl)
     q_rai = max(0, q_rai)
     (; A, a, b) = accr
-    return A * (q_liq * q_rai)^a * ρ^b
+    return A * (q_lcl * q_rai)^a * ρ^b
 end
 
-function accretion((; accr)::CMP.B1994{FT}, q_liq, q_rai, ρ) where {FT}
-    q_liq = max(0, q_liq)
+function accretion((; accr)::CMP.B1994{FT}, q_lcl, q_rai, ρ) where {FT}
+    q_lcl = max(0, q_lcl)
     q_rai = max(0, q_rai)
     (; A) = accr
-    return A * q_liq * ρ * q_rai
+    return A * q_lcl * ρ * q_rai
 end
 
-function accretion((; accr)::CMP.TC1980{FT}, q_liq, q_rai) where {FT}
+function accretion((; accr)::CMP.TC1980{FT}, q_lcl, q_rai) where {FT}
     #TODO - The original paper is actually formulated for mixing ratios, not specific contents
-    q_liq = max(0, q_liq)
+    q_lcl = max(0, q_lcl)
     q_rai = max(0, q_rai)
     (; A) = accr
-    return A * q_liq * q_rai
+    return A * q_lcl * q_rai
 end
 
 end # module

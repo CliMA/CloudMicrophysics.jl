@@ -17,26 +17,26 @@ function box_model(dY, Y, p, t)
 
     # Our state vector
     T = Y[1]          # temperature
-    N_liq = Y[3]      # number concentration of existing water droplets
-    N_ice = Y[4]      # number concentration of activated ice crystals
+    N_lcl = Y[3]      # number concentration of existing water droplets
+    N_icl = Y[4]      # number concentration of activated ice crystals
 
     Δa = FT(1) - CMO.a_w_ice(tps, T)
     J_immer = CMI_het.ABIFM_J(aerosol, Δa) # m^-2 s^-1
 
     # Update the tendecies
     dT_dt = -cooling_rate
-    dN_ice_dt = FT(0)
-    dN_liq_dt = FT(0)
-    if N_liq > 0
-        dN_ice_dt = J_immer * N_liq * A_aero
-        dN_liq_dt = -dN_ice_dt
+    dN_icl_dt = FT(0)
+    dN_lcl_dt = FT(0)
+    if N_lcl > 0
+        dN_icl_dt = J_immer * N_lcl * A_aero
+        dN_lcl_dt = -dN_icl_dt
     end
 
     # Set tendencies
     dY[1] = dT_dt          # temperature
     dY[2] = FT(0)          # not used here
-    dY[3] = dN_liq_dt      # number concentration of droplets
-    dY[4] = dN_ice_dt      # number concentration of ice crystals
+    dY[3] = dN_lcl_dt      # number concentration of droplets
+    dY[4] = dN_icl_dt      # number concentration of ice crystals
 end
 
 """
@@ -52,8 +52,8 @@ function box_model_with_probability(dY, Y, p, t)
     # Our state vector
     T = Y[1]                      # temperature
     A = Y[2]                      # available surface area for freezing
-    N_liq = max(FT(0), Y[3])      # number concentration of existing water droplets
-    N_ice = max(FT(0), Y[4])      # number concentration of activated ice crystals
+    N_lcl = max(FT(0), Y[3])      # number concentration of existing water droplets
+    N_icl = max(FT(0), Y[4])      # number concentration of activated ice crystals
 
     # immersion freezing rate
     Δa = FT(1) - CMO.a_w_ice(tps, T)
@@ -62,9 +62,9 @@ function box_model_with_probability(dY, Y, p, t)
     # Update the tendecies
     dT_dt = -cooling_rate
     dAj_dt = FT(0)
-    dN_ice_dt = FT(0)
-    dN_liq_dt = FT(0)
-    if N_liq > 0
+    dN_icl_dt = FT(0)
+    dN_lcl_dt = FT(0)
+    if N_lcl > 0
         n_frz = 0
         for j in range(start = 1, stop = N₀, step = 1)
             # Sample from the surface area distribution
@@ -81,15 +81,15 @@ function box_model_with_probability(dY, Y, p, t)
         end
         Aj_sum = sum(Aj_sorted)
         dAj_dt = (Aj_sum - A) / const_dt
-        dN_ice_dt = max(FT(0), n_frz / const_dt)
-        dN_liq_dt = -dN_ice_dt
+        dN_icl_dt = max(FT(0), n_frz / const_dt)
+        dN_lcl_dt = -dN_icl_dt
     end
 
     # Set tendencies
     dY[1] = dT_dt          # temperature
     dY[2] = dAj_dt         # total Aj
-    dY[3] = dN_liq_dt      # mumber concentration of droplets
-    dY[4] = dN_ice_dt      # number concentration of ice activated particles
+    dY[3] = dN_lcl_dt      # mumber concentration of droplets
+    dY[4] = dN_icl_dt      # number concentration of ice activated particles
 
 end
 
@@ -100,7 +100,7 @@ Returns the solution of an ODE probelm defined by the box model.
 
 Inputs:
  - IC - A vector with the initial conditions for
-   [T, A_sum, N_liq, N_ice]
+   [T, A_sum, N_lcl, N_icl]
  - t_0 - simulation start time
  - t_end - simulation end time
  - p - a named tuple with simulation parameters.
@@ -108,8 +108,8 @@ Inputs:
 Initial condition contains (all in base SI units):
  - T - temperature
  - A_sum - available surface area for freezing
- - N_liq - cloud droplet number concnentration
- - N_ice - ice crystal number concentration
+ - N_lcl - cloud droplet number concnentration
+ - N_icl - ice crystal number concentration
 
 The named tuple p should contain:
  - tps - a struct with free parameters for Thermodynamics package,
