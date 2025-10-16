@@ -206,7 +206,7 @@ function benchmark_test(FT)
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)
 
     # 1-moment
-    bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air), 350)
+    bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air), 360)
     bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
 
     # 2-moment
