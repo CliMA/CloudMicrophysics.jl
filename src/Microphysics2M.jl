@@ -365,7 +365,7 @@ function autoconversion(
     q_lcl, q_rai, ρ, N_lcl,
 ) where {FT}
 
-    if q_lcl < eps(FT) || N_lcl < eps(FT)
+    if q_lcl < CO.ϵ_numerics(FT) || N_lcl < CO.ϵ_numerics(FT)
         return LclRaiRates{FT}()
     end
 
@@ -411,7 +411,7 @@ Compute accretion rate
 """
 function accretion((; accr)::CMP.SB2006{FT}, q_lcl, q_rai, ρ, N_lcl) where {FT}
 
-    if q_lcl < eps(FT) || q_rai < eps(FT) || N_lcl < eps(FT)
+    if q_lcl < CO.ϵ_numerics(FT) || q_rai < CO.ϵ_numerics(FT) || N_lcl < CO.ϵ_numerics(FT)
         return LclRaiRates{FT}()
     end
 
@@ -456,7 +456,7 @@ function cloud_liquid_self_collection(
     q_lcl, ρ, dN_lcl_dt_au,
 ) where {FT}
 
-    if q_lcl < eps(FT)
+    if q_lcl < CO.ϵ_numerics(FT)
         return FT(0)
     end
     (; kcc, ρ0) = acnv
@@ -518,7 +518,7 @@ function rain_self_collection(
     q_rai, ρ, N_rai,
 ) where {FT}
 
-    if q_rai < eps(FT) || N_rai < eps(FT)
+    if q_rai < CO.ϵ_numerics(FT) || N_rai < CO.ϵ_numerics(FT)
         return FT(0)
     end
 
@@ -554,7 +554,7 @@ function rain_breakup(
     q_rai, ρ, N_rai, dN_rai_dt_sc,
 ) where {FT}
 
-    if q_rai < eps(FT) || N_rai < eps(FT)
+    if q_rai < CO.ϵ_numerics(FT) || N_rai < CO.ϵ_numerics(FT)
         return FT(0)
     end
     (; Deq, Dr_th, kbr, κbr) = brek
@@ -624,7 +624,7 @@ function cloud_terminal_velocity(
     q_liq, ρₐ, N_liq,
 ) where {FT}
 
-    if N_liq < eps(FT) || q_liq < eps(FT)
+    if N_liq < CO.ϵ_numerics(FT) || q_liq < CO.ϵ_numerics(FT)
         return (FT(0), FT(0))
     end
 
@@ -633,10 +633,10 @@ function cloud_terminal_velocity(
 
     terminal_velocity_prefactor = FT(1 / 18) * (6 / ρw / π)^(2 // 3) * (ρw / ρₐ - 1) * grav / ν_air
     vt0 =
-        N_liq < eps(FT) ? FT(0) :
+        N_liq < CO.ϵ_numerics(FT) ? FT(0) :
         terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(2 / 3)) / N_liq
     vt1 =
-        q_liq < eps(FT) ? FT(0) :
+        q_liq < CO.ϵ_numerics(FT) ? FT(0) :
         terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(5 / 3)) / ρₐ / q_liq
 
     return (vt0, vt1)
@@ -673,10 +673,10 @@ function rain_terminal_velocity(
         _sb_rain_terminal_velocity_helper(pdf_r, 1 / Dr_mean, aR, bR, cR)
 
     vt0 =
-        N_rai < eps(FT) ? FT(0) :
+        N_rai < CO.ϵ_numerics(FT) ? FT(0) :
         max(FT(0), sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR * Dr_mean)))
     vt1 =
-        q_rai < eps(FT) ? FT(0) :
+        q_rai < CO.ϵ_numerics(FT) ? FT(0) :
         max(FT(0), sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR * Dr_mean)^4))
     return (vt0, vt1)
 end
@@ -757,7 +757,7 @@ function rain_evaporation(
     evap_rate_1 = FT(0)
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (N_rai > eps(FT) && S < FT(0))
+    if (N_rai > CO.ϵ_numerics(FT) && S < FT(0))
 
         (; ν_air, D_vapor) = aps
         (; av, bv, α, β, ρ0) = evap
@@ -917,7 +917,7 @@ function conv_q_lcl_to_q_rai(
     N_d,
     smooth_transition = false,
 ) where {FT}
-    if q_lcl <= eps(FT)
+    if q_lcl <= CO.ϵ_numerics(FT)
         return FT(0)
     else
         # Mean volume radius in microns (assuming spherical cloud droplets)

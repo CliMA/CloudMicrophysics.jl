@@ -22,6 +22,12 @@ export Chen2022_exponential_pdf
 export ventilation_factor
 
 """
+    Smallest number that is different than zero for the purpose of microphysics
+    computations.
+"""
+ϵ_numerics(FT) = sqrt(floatmin(FT))
+
+"""
     G_func_liquid(air_props, tps, T)
 
  - `air_props` - struct with air parameters
@@ -89,9 +95,9 @@ function logistic_function(x::FT, x_0::FT, k::FT) where {FT}
     @assert x_0 >= 0
     x = max(0, x)
 
-    if abs(x) < eps(FT)
+    if abs(x) < ϵ_numerics(FT)
         return FT(0)
-    elseif abs(x_0) < eps(FT)
+    elseif abs(x_0) < ϵ_numerics(FT)
         return FT(1)
     end
 
@@ -114,9 +120,9 @@ function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT}
     @assert x_0 >= 0
     x = max(0, x)
 
-    if abs(x) < eps(FT)
+    if abs(x) < ϵ_numerics(FT)
         return FT(0)
-    elseif abs(x_0) < eps(FT)
+    elseif abs(x_0) < ϵ_numerics(FT)
         return x
     end
 

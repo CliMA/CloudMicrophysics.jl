@@ -12,6 +12,7 @@ import ..Parameters as CMP
 import ..Microphysics1M as CM1
 import ..Microphysics2M as CM2
 import ..DistributionTools as DT
+import ..Common as CO
 
 """
     radar_reflectivity_1M(precip, q, ρ)
@@ -119,7 +120,7 @@ function effective_radius_2M(
     M2_c = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_lcl, n_mass) / C^(n_mass)
     M2_r = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C^(n_mass)
 
-    return M2_c + M2_r <= eps(FT) ? FT(0) : (M3_c + M3_r) / (M2_c + M2_r)
+    return M2_c + M2_r <= CO.ϵ_numerics(FT) ? FT(0) : (M3_c + M3_r) / (M2_c + M2_r)
 end
 
 """
@@ -147,7 +148,7 @@ function effective_radius_Liu_Hallet_97(
 
     k = FT(0.8)
     r_vol =
-        ((N_lcl + N_rai) < eps(FT)) ? FT(0) :
+        ((N_lcl + N_rai) < CO.ϵ_numerics(FT)) ? FT(0) :
         (
             (FT(3) * (q_lcl + q_rai) * ρ_air) /
             (FT(4) * π * ρw * (N_lcl + N_rai))

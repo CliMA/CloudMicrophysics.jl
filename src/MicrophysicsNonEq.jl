@@ -138,7 +138,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > FT(0)
+    if q > CO.ϵ_numerics(FT)
         # TODO: Coefficients from Table B1 from Chen et. al. 2022 are only valid
         # for D > 100mm. We should look for a different parameterization
         # that is more suited for cloud droplets. For now I'm just multiplying
@@ -162,7 +162,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > FT(0)
+    if q > CO.ϵ_numerics(FT)
         v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
         # See the comment for liquid droplets above
         N = FT(500 * 1e6)
