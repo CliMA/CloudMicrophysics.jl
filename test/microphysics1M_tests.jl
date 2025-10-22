@@ -82,6 +82,9 @@ function test_microphysics1M(FT)
         TT.@test v_bigger > vt_sno
     end
 
+    TT.@testset "1M_microphysics - 1M snow terminal velocity Nans" begin
+        TT.@test !isnan(CM1.terminal_velocity(snow, blk1mvel.snow, FT(0.2439843), FT(3.0f-45)))
+    end
 
     TT.@testset "RainAutoconversion" begin
 

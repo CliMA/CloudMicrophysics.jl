@@ -94,7 +94,7 @@ function lambda_inverse(
     (; r0, m0, me, Δm, χm) = mass
 
     λ_inv = FT(0)
-    if q > FT(0) && ρ > FT(0)
+    if q > CO.ϵ_numerics(FT) && ρ > CO.ϵ_numerics(FT)
         λ_inv = exp(1 / (me + Δm + 1) *
             log(
             ρ * q * exp((me + Δm) * log(r0)) / χm / m0 / n0 / SF.gamma(me + Δm + FT(1)),
@@ -162,7 +162,7 @@ function terminal_velocity(
     ρ::FT,
     q::FT,
 ) where {FT}
-    if q > FT(0)
+    if q > CO.ϵ_numerics(FT)
         # terminal_velocity(size)
         (; χv, ve, Δv) = vel
         v0 = get_v0(vel, ρ)
@@ -184,7 +184,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > FT(0)
+    if q > CO.ϵ_numerics(FT)
         # coefficients from Table B1 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
         # size distribution parameter
@@ -208,7 +208,7 @@ function terminal_velocity(
     # We assume the B4 table coeffs for snow and B2 table coeffs for cloud ice.
     # Instead we should do partial integrals
     # from D=125um to D=625um using B2 and D=625um to inf using B4.
-    if q > FT(0)
+    if q > CO.ϵ_numerics(FT)
         # coefficients from Table B4 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
         # size distribution parameter
@@ -235,7 +235,7 @@ function terminal_velocity(
 ) where {FT}
     fall_w = FT(0)
     # see comments above about B2 vs B4 coefficients
-    if q > FT(0)
+    if q > CO.ϵ_numerics(FT)
         # coefficients from Table B4 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
         # size distribution parameter
@@ -325,7 +325,7 @@ function conv_q_icl_to_q_sno(
     acnv_rate = FT(0)
     S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (q_icl > FT(0) && S > FT(0))
+    if (q_icl > CO.ϵ_numerics(FT) && S > FT(0))
         (; me, Δm) = mass
         G = CO.G_func_ice(aps, tps, T)
         n0 = get_n0(pdf)
@@ -364,7 +364,7 @@ function accretion(
 ) where {FT}
 
     accr_rate = FT(0)
-    if (q_clo > FT(0) && q_pre > FT(0))
+    if (q_clo > CO.ϵ_numerics(FT) && q_pre > CO.ϵ_numerics(FT))
 
         n0::FT = get_n0(precip.pdf, q_pre, ρ)
         v0::FT = get_v0(vel, ρ)
@@ -407,7 +407,7 @@ function accretion_rain_sink(
     ρ::FT,
 ) where {FT}
     accr_rate = FT(0)
-    if (q_icl > FT(0) && q_rai > FT(0))
+    if (q_icl > CO.ϵ_numerics(FT) && q_rai > CO.ϵ_numerics(FT))
 
         n0_ice = get_n0(ice.pdf)
         λ_ice_inv = lambda_inverse(ice.pdf, ice.mass, q_icl, ρ)
@@ -459,7 +459,7 @@ function accretion_snow_rain(
 ) where {FT}
 
     accr_rate = FT(0)
-    if (q_i > FT(0) && q_j > FT(0))
+    if (q_i > CO.ϵ_numerics(FT) && q_j > CO.ϵ_numerics(FT))
 
         n0_i = get_n0(type_i.pdf, q_i, ρ)
         n0_j = get_n0(type_j.pdf, q_j, ρ)
@@ -524,7 +524,7 @@ function evaporation_sublimation(
     evap_subl_rate = FT(0)
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (q_rai > FT(0) && S < FT(0))
+    if (q_rai > CO.ϵ_numerics(FT) && S < FT(0))
 
         (; ν_air, D_vapor) = aps
         G = CO.G_func_liquid(aps, tps, T)
@@ -565,7 +565,7 @@ function evaporation_sublimation(
     T::FT,
 ) where {FT}
     evap_subl_rate = FT(0)
-    if q_sno > FT(0)
+    if q_sno > CO.ϵ_numerics(FT)
         (; ν_air, D_vapor) = aps
 
         S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
@@ -618,7 +618,7 @@ function snow_melt(
 ) where {FT}
     snow_melt_rate = FT(0)
 
-    if (q_sno > FT(0) && T > T_freeze)
+    if (q_sno > CO.ϵ_numerics(FT) && T > T_freeze)
         (; ν_air, D_vapor, K_therm) = aps
 
         L = TDI.Lf(tps, T)

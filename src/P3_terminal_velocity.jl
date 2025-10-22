@@ -3,7 +3,7 @@
     ice_particle_terminal_velocity(velocity_params, ρₐ, state::P3State; [use_aspect_ratio])
     ice_particle_terminal_velocity(velocity_params, ρₐ, params::CMP.ParametersP3, F_rim, ρ_rim; [use_aspect_ratio])
 
-Returns the terminal velocity of a single ice particle as a function of its size 
+Returns the terminal velocity of a single ice particle as a function of its size
     (maximum dimension, `D`) using the Chen 2022 parametrization.
 
 # Arguments
@@ -57,6 +57,7 @@ function ice_terminal_velocity_number_weighted(
     use_aspect_ratio = true, p = 1e-6, ∫kwargs...,
 )
     (; N_ice, L_ice) = state
+    # TODO - do we want to swicth to ϵ_numerics(FT)
     if N_ice < eps(one(N_ice)) || L_ice < eps(one(L_ice))
         return zero(N_ice)
     end
@@ -101,6 +102,7 @@ function ice_terminal_velocity_mass_weighted(
     use_aspect_ratio = true, p = 1e-6, ∫kwargs...,
 )
     (; N_ice, L_ice) = state
+    # TODO - do we want to swicth to ϵ_numerics(FT)
     if N_ice < eps(one(N_ice)) || L_ice < eps(one(L_ice))
         return zero(L_ice)
     end
