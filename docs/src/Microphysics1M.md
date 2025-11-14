@@ -490,14 +490,18 @@ There are two additional assumptions that we make to integrate
   We approximate the terminal velocity difference for each particle pair with
   a difference between mass-weighted mean terminal velocities and move it
   outside of the integral.
-  See the discussion in [Ikawa\_and\_Saito\_1991](https://www.mri-jma.go.jp/Publish/Technical/DATA/VOL_28/28_005.pdf)
-  page 88.
+  See the discussion in [Ikawa and Saito (1991)](https://www.mri-jma.go.jp/Publish/Technical/DATA/VOL_28/28_005.pdf)[^1]
+  on page 88.
 
 - We assume that ``a(r_i, r_j) = \pi (r_i + r_j)^2``.
   This corresponds to a geometric formulation of the collision kernel,
   aka cylindrical formulation, see
   [Wang2006](@cite)
   for discussion.
+
+[^1]: [Ikawa and Saito (1991)](https://www.mri-jma.go.jp/Publish/Technical/DATA/VOL_28/28_005.pdf)
+       is section B of a [full technical report](https://www.mri-jma.go.jp/Publish/Technical/DATA/VOL_28/28_en.html)
+       called "Description of a Nonhydrostatic Model Developed at the Forecast Research Department of the MRI".
 
 The eq.(\ref{eq:accr_sr1}) can then be integrated as:
 ```math
@@ -529,8 +533,8 @@ The eq.(\ref{eq:accr_sr1}) can then be integrated as:
     could be revisited:
 
     The discussion on page 88 in
-    [Ikawa\_and\_Saito\_1991](https://www.mri-jma.go.jp/Publish/Technical/DATA/VOL_28/28_005.pdf)
-    suggests an alternative approximation of the velocity difference.
+    [Ikawa and Saito (1991)](https://www.mri-jma.go.jp/Publish/Technical/DATA/VOL_28/28_005.pdf)
+    suggests an alternative approximation of the velocity difference. See also [Mizuno1990](@citet).
 
     The ``(r_i + r_j)^2`` assumption for the crossection is inconsistent
     with the snow crossection used when modelling collisions with cloud water
