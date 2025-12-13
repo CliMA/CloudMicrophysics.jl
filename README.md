@@ -37,7 +37,7 @@ When using the CloudMicrophysics.jl inside your own project,
   (accessed by pressing `]` in the Julia REPL):
 
 ```julia
-julia>]
+julia> ]
 pkg> add CloudMicrophysics
 pkg> instantiate
 ```
@@ -59,7 +59,7 @@ For example, to get all the needed dependencies and then run all the tests
 ```julia
 julia --project=test
 
-julia>]
+julia> ]
 
 pkg> dev .
 
