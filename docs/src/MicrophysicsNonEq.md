@@ -122,7 +122,7 @@ we can write
 
 We use the Chen et al. [Chen2022](@cite) parameterization for cloud liquid and cloud ice sedimentation velocities.
 In the 1-moment precipitation scheme, we assume that cloud condensate is a continuous field
-  and don't introduce an explicit particle size distribution.
+  and doesn't introduce an explicit particle size distribution.
 For simplicity, we assume a monodisperse size distribution
   and compute the group terminal velocity based on the volume radius
   and prescribed number concentration:
