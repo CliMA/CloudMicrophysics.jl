@@ -26,6 +26,8 @@ export ventilation_factor
     computations.
 """
 ϵ_numerics(FT) = sqrt(floatmin(FT))
+ϵ_numerics_2M_M(FT) = eps(FT)
+ϵ_numerics_2M_N(FT) = eps(FT)
 
 """
     G_func_liquid(air_props, tps, T)
