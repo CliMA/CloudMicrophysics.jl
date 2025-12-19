@@ -76,7 +76,9 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ,
     return (; N₀r, Dr_mean, xr_mean)
 end
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρₐ, Nᵣ)
-    (Nᵣ < eps(one(Nᵣ)) && qᵣ < eps(one(qᵣ))) && return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
+    FT = eltype(qᵣ)
+    (Nᵣ < CO.ϵ_numerics_2M_N(FT) && qᵣ < CO.ϵ_numerics_2M_M(FT)) &&
+        return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
     (; xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
     Lᵣ = ρₐ * max(0, qᵣ)
 
@@ -155,9 +157,10 @@ That is,
  - `(logA, logB)`: Log of the parameters of the generalized gamma distribution
 """
 function log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
+    FT = eltype(q)
     L = ρₐ * q
     # If L or N are (essentially) zero, return `A=0` (no number per mass), `B=∞` (zero mass "length" scale)
-    (N < eps(one(N)) || L < eps(one(L))) && return (log(zero(N)), log(1 / zero(q)))
+    (N < CO.ϵ_numerics_2M_N(FT) || L < CO.ϵ_numerics_2M_M(FT)) && return (log(zero(N)), log(1 / zero(q)))
     (; νc, μc) = pdf_c
     logx̄ = log(L / N)
     z1 = (νc + 1) / μc
@@ -365,7 +368,7 @@ function autoconversion(
     q_lcl, q_rai, ρ, N_lcl,
 ) where {FT}
 
-    if q_lcl < CO.ϵ_numerics(FT) || N_lcl < CO.ϵ_numerics(FT)
+    if q_lcl < CO.ϵ_numerics_2M_M(FT) || N_lcl < CO.ϵ_numerics_2M_N(FT)
         return LclRaiRates{FT}()
     end
 
@@ -411,7 +414,7 @@ Compute accretion rate
 """
 function accretion((; accr)::CMP.SB2006{FT}, q_lcl, q_rai, ρ, N_lcl) where {FT}
 
-    if q_lcl < CO.ϵ_numerics(FT) || q_rai < CO.ϵ_numerics(FT) || N_lcl < CO.ϵ_numerics(FT)
+    if q_lcl < CO.ϵ_numerics_2M_M(FT) || q_rai < CO.ϵ_numerics_2M_M(FT) || N_lcl < CO.ϵ_numerics_2M_N(FT)
         return LclRaiRates{FT}()
     end
 
@@ -456,7 +459,7 @@ function cloud_liquid_self_collection(
     q_lcl, ρ, dN_lcl_dt_au,
 ) where {FT}
 
-    if q_lcl < CO.ϵ_numerics(FT)
+    if q_lcl < CO.ϵ_numerics_2M_M(FT)
         return FT(0)
     end
     (; kcc, ρ0) = acnv
@@ -518,7 +521,7 @@ function rain_self_collection(
     q_rai, ρ, N_rai,
 ) where {FT}
 
-    if q_rai < CO.ϵ_numerics(FT) || N_rai < CO.ϵ_numerics(FT)
+    if q_rai < CO.ϵ_numerics_2M_M(FT) || N_rai < CO.ϵ_numerics_2M_N(FT)
         return FT(0)
     end
 
@@ -554,7 +557,7 @@ function rain_breakup(
     q_rai, ρ, N_rai, dN_rai_dt_sc,
 ) where {FT}
 
-    if q_rai < CO.ϵ_numerics(FT) || N_rai < CO.ϵ_numerics(FT)
+    if q_rai < CO.ϵ_numerics_2M_M(FT) || N_rai < CO.ϵ_numerics_2M_N(FT)
         return FT(0)
     end
     (; Deq, Dr_th, kbr, κbr) = brek
@@ -624,7 +627,7 @@ function cloud_terminal_velocity(
     q_liq, ρₐ, N_liq,
 ) where {FT}
 
-    if N_liq < CO.ϵ_numerics(FT) || q_liq < CO.ϵ_numerics(FT)
+    if N_liq < CO.ϵ_numerics_2M_N(FT) || q_liq < CO.ϵ_numerics_2M_M(FT)
         return (FT(0), FT(0))
     end
 
@@ -633,10 +636,10 @@ function cloud_terminal_velocity(
 
     terminal_velocity_prefactor = FT(1 / 18) * (6 / ρw / π)^(2 // 3) * (ρw / ρₐ - 1) * grav / ν_air
     vt0 =
-        N_liq < CO.ϵ_numerics(FT) ? FT(0) :
+        N_liq < CO.ϵ_numerics_2M_N(FT) ? FT(0) :
         terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(2 / 3)) / N_liq
     vt1 =
-        q_liq < CO.ϵ_numerics(FT) ? FT(0) :
+        q_liq < CO.ϵ_numerics_2M_M(FT) ? FT(0) :
         terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(5 / 3)) / ρₐ / q_liq
 
     return (vt0, vt1)
@@ -673,10 +676,10 @@ function rain_terminal_velocity(
         _sb_rain_terminal_velocity_helper(pdf_r, 1 / Dr_mean, aR, bR, cR)
 
     vt0 =
-        N_rai < CO.ϵ_numerics(FT) ? FT(0) :
+        N_rai < CO.ϵ_numerics_2M_N(FT) ? FT(0) :
         max(FT(0), sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR * Dr_mean)))
     vt1 =
-        q_rai < CO.ϵ_numerics(FT) ? FT(0) :
+        q_rai < CO.ϵ_numerics_2M_M(FT) ? FT(0) :
         max(FT(0), sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR * Dr_mean)^4))
     return (vt0, vt1)
 end
@@ -693,8 +696,8 @@ function rain_terminal_velocity(
     vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 0))
     vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 3))
 
-    vt0 = N_rai < eps(FT) ? FT(0) : max(FT(0), vt0)
-    vt3 = q_rai < eps(FT) ? FT(0) : max(FT(0), vt3)
+    vt0 = N_rai < CO.ϵ_numerics_2M_N(FT) ? FT(0) : max(FT(0), vt0)
+    vt3 = q_rai < CO.ϵ_numerics_2M_M(FT) ? FT(0) : max(FT(0), vt3)
     # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
     return (vt0, vt3)
 end
@@ -757,7 +760,7 @@ function rain_evaporation(
     evap_rate_1 = FT(0)
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (N_rai > CO.ϵ_numerics(FT) && S < FT(0))
+    if (N_rai > CO.ϵ_numerics_2M_N(FT) && S < FT(0))
 
         (; ν_air, D_vapor) = aps
         (; av, bv, α, β, ρ0) = evap
@@ -785,7 +788,7 @@ function rain_evaporation(
         # When xr = 0 evap_rate_0 becomes NaN. We replace NaN with 0 which is the limit of
         # evap_rate_0 for xr -> 0.
         evap_rate_0 = xr_mean / x_star < eps(FT) ? FT(0) : evap_rate_0
-        evap_rate_1 = q_rai < eps(FT) ? FT(0) : evap_rate_1
+        evap_rate_1 = q_rai < CO.ϵ_numerics_2M_M(FT) ? FT(0) : evap_rate_1
 
     end
 
@@ -917,7 +920,7 @@ function conv_q_lcl_to_q_rai(
     N_d,
     smooth_transition = false,
 ) where {FT}
-    if q_lcl <= CO.ϵ_numerics(FT)
+    if q_lcl <= CO.ϵ_numerics_2M_M(FT)
         return FT(0)
     else
         # Mean volume radius in microns (assuming spherical cloud droplets)
