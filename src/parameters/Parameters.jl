@@ -8,6 +8,7 @@ module Parameters
 using DocStringExtensions
 
 import ClimaParams as CP
+import SpecialFunctions
 
 # Super-types (dispatch, broadcasting, etc...)
 include("AbstractTypes.jl")
