@@ -52,7 +52,6 @@ function test_microphysics1M(FT)
         #setup
         ρ = FT(1.2)
         q_rai = FT(5e-4)
-        N_rai = FT(1e4)
 
         #action
         vt_rai = CM1.terminal_velocity(rain, Ch2022.rain, ρ, q_rai)
@@ -69,7 +68,6 @@ function test_microphysics1M(FT)
         #setup
         ρ = FT(1.1)
         q_sno = FT(5e-4)
-        N_rai = FT(1e4)
 
         #action
         vt_sno = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno)
@@ -82,8 +80,122 @@ function test_microphysics1M(FT)
         TT.@test v_bigger > vt_sno
     end
 
-    TT.@testset "1M_microphysics - 1M snow terminal velocity Nans" begin
+    TT.@testset "1M_microphysics - Chen 2022 snow terminal velocity with snow_shape" begin
+        #setup
+        ρ = FT(1.1)
+        q_sno = FT(5e-4)
+
+        # action - test both Oblate and Prolate shapes
+        vt_oblate = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno, CM1.Oblate())
+        vt_prolate = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno, CM1.Prolate())
+        v_bigger_oblate = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno * 2, CM1.Oblate())
+        v_bigger_prolate = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno * 2, CM1.Prolate())
+
+        # test - regression values
+        TT.@test vt_oblate > 0
+        TT.@test vt_prolate > 0
+        # zero input returns zero
+        TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(0), CM1.Oblate()) ≈ 0 atol = eps(FT)
+        TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(0), CM1.Prolate()) ≈ 0 atol = eps(FT)
+        # monotonicity: more snow -> higher velocity
+        TT.@test v_bigger_oblate > vt_oblate
+        TT.@test v_bigger_prolate > vt_prolate
+        # both shapes give reasonable velocities (within an order of magnitude of each other)
+        TT.@test 0.1 < vt_oblate / vt_prolate < 10
+    end
+
+    TT.@testset "1M_microphysics - 1M snow terminal velocity" begin
+        # NaN check for edge case near zero
         TT.@test !isnan(CM1.terminal_velocity(snow, blk1mvel.snow, FT(0.2439843), FT(3.0f-45)))
+
+        # zero input returns zero
+        TT.@test CM1.terminal_velocity(snow, blk1mvel.snow, FT(1.2), FT(0)) ≈ 0 atol = eps(FT)
+
+        # monotonicity: more snow -> higher velocity
+        ρ = FT(1.2)
+        q_sno = FT(5e-4)
+        vt_sno = CM1.terminal_velocity(snow, blk1mvel.snow, ρ, q_sno)
+        v_bigger = CM1.terminal_velocity(snow, blk1mvel.snow, ρ, q_sno * 2)
+        TT.@test vt_sno > 0
+        TT.@test v_bigger > vt_sno
+    end
+
+    TT.@testset "lambda_inverse" begin
+        # Direct tests for the Marshall-Palmer rate parameter
+        ρ = FT(1.2)
+
+        # zero specific content returns minimum value (r0 * 1e-5)
+        λ_inv_zero_rain = CM1.lambda_inverse(rain.pdf, rain.mass, FT(0), ρ)
+        λ_inv_zero_snow = CM1.lambda_inverse(snow.pdf, snow.mass, FT(0), ρ)
+        TT.@test λ_inv_zero_rain ≈ rain.mass.r0 * FT(1e-5)
+        TT.@test λ_inv_zero_snow ≈ snow.mass.r0 * FT(1e-5)
+
+        # λ⁻¹ increases with specific content (larger mean particle size)
+        q_small = FT(1e-5)
+        q_large = FT(1e-3)
+        λ_inv_small = CM1.lambda_inverse(rain.pdf, rain.mass, q_small, ρ)
+        λ_inv_large = CM1.lambda_inverse(rain.pdf, rain.mass, q_large, ρ)
+        TT.@test λ_inv_large > λ_inv_small
+
+        # λ⁻¹ for snow also increases with content
+        λ_inv_snow_small = CM1.lambda_inverse(snow.pdf, snow.mass, q_small, ρ)
+        λ_inv_snow_large = CM1.lambda_inverse(snow.pdf, snow.mass, q_large, ρ)
+        TT.@test λ_inv_snow_large > λ_inv_snow_small
+
+        # reasonable order of magnitude: λ⁻¹ ~ 100 μm to 1 mm for typical rain
+        q_rai = FT(1e-4)
+        λ_inv = CM1.lambda_inverse(rain.pdf, rain.mass, q_rai, ρ)
+        TT.@test FT(1e-5) < λ_inv < FT(1e-2)  # 10 μm to 10 mm
+    end
+
+    TT.@testset "MixedPhaseEvaporation" begin
+        # Test evaporation with non-zero snow content (previously untested)
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T, p = T_freeze + FT(10), FT(90000)
+        ϵ = TDI.Rd_over_Rv(tps)
+        p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+        q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+
+        q_rai = FT(1e-4)
+        q_sno = FT(1e-4)  # Non-zero snow in warm conditions
+        q_tot = FT(15e-3)
+        q_vap = FT(0.7) * q_sat  # subsaturated
+        q_ice = FT(0)
+        q_liq = q_tot - q_vap - q_ice - q_rai - q_sno
+        R = TDI.Rₘ(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
+        ρ = p / R / T
+
+        # Rain evaporates, rate should be negative
+        evap_rate = CM1.evaporation_sublimation(
+            rain, blk1mvel.rain, aps, tps,
+            q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T,
+        )
+        TT.@test evap_rate < 0
+    end
+
+    TT.@testset "MixedPhaseSublimation" begin
+        # Test sublimation with non-zero rain content (previously untested)
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T, p = T_freeze - FT(10), FT(90000)
+        ϵ = TDI.Rd_over_Rv(tps)
+        p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
+        q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+
+        q_sno = FT(1e-4)
+        q_rai = FT(1e-4)  # Non-zero rain in cold conditions
+        q_vap = FT(0.9) * q_sat  # slightly subsaturated over ice
+        q_tot = q_vap + q_sno + q_rai
+        q_ice = FT(0)
+        q_liq = FT(0)
+        R = TDI.Rₘ(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
+        ρ = p / R / T
+
+        # Snow sublimation rate should be negative (losing mass)
+        subl_rate = CM1.evaporation_sublimation(
+            snow, blk1mvel.snow, aps, tps,
+            q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T,
+        )
+        TT.@test subl_rate < 0
     end
 
     TT.@testset "RainAutoconversion" begin
@@ -149,32 +261,31 @@ function test_microphysics1M(FT)
         ρ = FT(1.0)
         qᵣ = FT(1e-4)
         qₛ = FT(1e-4)
-        T₀ = FT(273.15)
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
 
         # above freezing temperatures -> no snow
         qᵥ = FT(15e-3)
         qₗ = FT(2e-3)
         qᵢ = FT(1e-3)
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
-        T = T₀ + FT(30)
+        T = T_freeze + FT(30)
         TT.@test CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) == FT(0)
 
         # no cloud ice -> no snow
         qᵢ = FT(0)
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
-        T = T₀ - FT(30)
+        T = T_freeze - FT(30)
         TT.@test CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) == FT(0)
 
         # no supersaturation -> no snow
-        T = T₀ - FT(5)
+        T = T_freeze - FT(5)
         qᵢ = FT(3e-3)
         q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
         qₜ = q_sat_ice
         TT.@test CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) ≈ FT(0)
 
-        # Coudnt find a plot of what it should be from the original paper
-        # just checking if the number stays the same
-        T = T₀ - FT(10)
+        # Regression test: keep result constant when code changes
+        T = T_freeze - FT(10)
         qᵥ = FT(1.02) * TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
         qₗ = FT(0)
         qᵢ = FT(0.03) * qᵥ
@@ -184,8 +295,7 @@ function test_microphysics1M(FT)
     end
 
     TT.@testset "RainLiquidAccretion" begin
-        #dupa
-        # eq. 5b in [Grabowski1996](@cite)
+        # Compare against eq. 5b in [Grabowski1996](@cite)
         function accretion_empir(
             q_rai::FT,
             q_liq::FT,
@@ -227,8 +337,7 @@ function test_microphysics1M(FT)
     end
 
     TT.@testset "Accretion" begin
-        # TODO - coudnt find a plot of what it should be from the original paper
-        # just chacking if the number stays the same
+        # Regression test: keep results constant when code changes
 
         # some example values
         ρ = FT(1.2)
@@ -325,7 +434,8 @@ function test_microphysics1M(FT)
         end
 
         # example values
-        T, p = FT(273.15 + 15), FT(90000)
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T, p = T_freeze + FT(15), FT(90000)
         ϵ = TDI.Rd_over_Rv(tps)
         p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
         q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
@@ -340,11 +450,11 @@ function test_microphysics1M(FT)
             tmp1 = CM1.evaporation_sublimation(rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai, FT(0), ρ, T)
             tmp2 = rain_evap_empir(tps, q_rai, q_tot, q_lcl, FT(0), T, p, ρ)
 
-            @assert isapprox(tmp1, tmp2; atol = 1e-6)
+            TT.@test tmp1 ≈ tmp2 atol = 1e-6
         end
 
         # no condensational growth for rain
-        T, p = FT(273.15 + 15), FT(90000)
+        T, p = T_freeze + FT(15), FT(90000)
         ϵ = TDI.Rd_over_Rv(tps)
         p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
         q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
@@ -353,7 +463,7 @@ function test_microphysics1M(FT)
         q_vap = FT(1.15) * q_sat
         q_ice = FT(0)
         q_liq = q_tot - q_vap - q_ice
-        q_sno = FT(0) # TODO - add non-zero case
+        q_sno = FT(0)
         R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
         ρ = p / R / T
 
@@ -374,8 +484,7 @@ function test_microphysics1M(FT)
     end
 
     TT.@testset "SnowSublimation" begin
-        # TODO - coudnt find a plot of what it should be from the original paper
-        # just checking if the number stays the same
+        # Regression test: keep results constant when code changes
 
         cnt = 0
         ref_val = [
@@ -385,7 +494,8 @@ function test_microphysics1M(FT)
             FT(1.663814937710236e-7),
         ]
         # some example values
-        for T in [FT(273.15 + 2), FT(273.15 - 2)]
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        for T in [T_freeze + FT(2), T_freeze - FT(2)]
             p = FT(90000)
             ϵ = TDI.Rd_over_Rv(tps)
             p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
@@ -395,7 +505,7 @@ function test_microphysics1M(FT)
                 cnt += 1
 
                 q_sno = FT(1e-4)
-                q_rai = FT(0) # TODO -add non-zero case
+                q_rai = FT(0)
                 q_tot = eps * q_sat + q_sno
                 q_ice = FT(0)
                 q_liq = FT(0)
@@ -423,22 +533,23 @@ function test_microphysics1M(FT)
 
     TT.@testset "SnowMelt" begin
 
-        # TODO - find a good reference to compare with
-        T = FT(273.15 + 2)
+        # Regression test: keep result constant when code changes
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T = T_freeze + FT(2)
         ρ = FT(1.2)
         q_sno = FT(1e-4)
         TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
                  FT(9.516553267013085e-6)
 
         # no snow -> no snow melt
-        T = FT(273.15 + 2)
+        T = T_freeze + FT(2)
         ρ = FT(1.2)
         q_sno = FT(0)
         TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
                  FT(0)
 
         # T < T_freeze -> no snow melt
-        T = FT(273.15 - 2)
+        T = T_freeze - FT(2)
         ρ = FT(1.2)
         q_sno = FT(1e-4)
         TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
