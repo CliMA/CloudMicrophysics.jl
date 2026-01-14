@@ -158,6 +158,8 @@ Base.@kwdef struct Frostenberg2023{FT} <: ParametersType{FT}
     a::FT
     "coefficient"
     b::FT
+    "freezing temperature [K]"
+    T_freeze::FT
 end
 
 Frostenberg2023(::Type{FT}) where {FT <: AbstractFloat} =
@@ -168,6 +170,7 @@ function Frostenberg2023(td::CP.ParamDict)
         :Frostenberg2023_standard_deviation => :σ,
         :Frostenberg2023_a_coefficient => :a,
         :Frostenberg2023_b_coefficient => :b,
+        :temperature_water_freeze => :T_freeze,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)

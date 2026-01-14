@@ -1,11 +1,9 @@
 """
     Microphysics0M
 
-Zero-moment bulk microphysics scheme that instantly removes
-moisture above certain threshold.
-This is equivalent to instanteneous conversion of cloud condensate
-into precipitation and precipitation fallout with infinite
-terminal velocity.
+Zero-moment bulk microphysics scheme that removes cloud condensate 
+above a threshold, equivalent to instantaneous conversion to precipitation 
+with infinite terminal velocity.
 """
 module Microphysics0M
 
@@ -18,26 +16,32 @@ import CloudMicrophysics.ThermodynamicsInterface as TDI
 export remove_precipitation
 
 """
-    remove_precipitation(params_0M, q_lcl, q_icl; q_vap_sat)
-    remove_precipitation(params_0M, q; q_vap_sat)
+    remove_precipitation(params_0M::Parameters0M, q_lcl, q_icl)
+    remove_precipitation(params_0M::Parameters0M, q_lcl, q_icl, q_vap_sat)
 
- - `params_0M` - a struct with 0-moment parameters
- - `q` - Thermodynamics PhasePartition struct (deprecated)
- - `q_lcl` and `q_icl` cloud liquid water and cloud ice specific contents
- - `q_vap_sat` - specific humidity at saturation
+Compute the total water tendency due to precipitation removal.
 
-Returns the tota water (`q_tot`) tendency due to the removal of precipitation.
-The tendency is obtained assuming a relaxation with a constant timescale
-to a state with precipitable water removed.
-The threshold for when to remove `q_tot` is defined either by the
-condensate specific content or supersaturation.
-The thresholds and the relaxation timescale are defined `Parameters0M` struct.
+The tendency assumes relaxation with constant timescale to a state 
+with condensate above a threshold removed. The threshold is defined 
+by either fixed condensate specific humidity (`qc_0`) or fixed 
+supersaturation (`S_0`), along with the relaxation timescale, 
+specified in the `Parameters0M` struct.
+
+# Arguments
+- `params_0M`: 0-moment microphysics parameters (contains `τ_precip` and either `qc_0` or `S_0`)
+- `q_lcl`: cloud liquid water specific humidity
+- `q_icl`: cloud ice specific humidity  
+- `q_vap_sat`: (second method only) saturation specific humidity
+
+# Returns
+- Total water (`q_tot`) tendency (kg/kg/s)
 """
 remove_precipitation(
     (; τ_precip, qc_0)::CMP.Parameters0M,
     q_lcl,
     q_icl,
 ) = -max(0, (q_lcl + q_icl - qc_0)) / τ_precip
+
 remove_precipitation(
     (; τ_precip, S_0)::CMP.Parameters0M,
     q_lcl,
@@ -46,7 +50,7 @@ remove_precipitation(
 ) = -max(0, (q_lcl + q_icl - S_0 * q_vap_sat)) / τ_precip
 
 ###
-### Wrappers for calling with TD.PhasePartition
+### Wrappers for calling with TD.PhasePartition (deprecated)
 ###
 ### For now leaving the PhasePartition wrapper because I'm not sure how to get
 ### rid of equilibrium thermo state in the Atmos model.

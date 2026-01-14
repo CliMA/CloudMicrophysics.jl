@@ -1,11 +1,24 @@
 """
-    One-moment bulk microphysics scheme, which includes:
+    Microphysics1M
 
+One-moment bulk microphysics scheme, which includes:
   - terminal velocity of precipitation
   - autoconversion of cloud liquid water into rain and of cloud ice into snow
   - accretion due to collisions between categories of condensed species
   - evaporation and sublimation of hydrometeors
   - melting of snow into rain
+
+# Mathematical Approach
+
+Particle size distributions are assumed to follow the Marshall-Palmer exponential
+distribution. Microphysical process rates are derived by integrating particle-scale
+physics (terminal velocities, collision kernels, mass transfer) over these assumed
+distributions.
+
+Based on:
+  - Kessler (1995) - https://doi.org/10.1016/0169-8095(94)00090-Z
+  - Grabowski (1998) - https://doi.org/10.1175/1520-0469(1998)055<3283:TCRMOL>2.0.CO;2
+  - Kaul et al. (2015) - https://doi.org/10.1175/MWR-D-14-00319.1
 """
 module Microphysics1M
 
@@ -33,55 +46,72 @@ struct Prolate <: AbstractSnowShape end
 """
     Ec(type_1, type_2, ce)
 
- - `type_1` and `type_2` - types of colliding species
- - `ce` - a struct with collision efficiency parameters
+Returns the collision efficiency (Ec) for two colliding species.
 
-Returns collision efficiency for two colliding species
+Collision efficiency represents the fraction of geometric collisions that result
+in coalescence (0 ≤ Ec ≤ 1). A value of 1 means all collisions lead to merging,
+while lower values account for particles bouncing apart.
+
+# Arguments
+- `type_1`, `type_2`: types of colliding species (CloudLiquid, CloudIce, Rain, Snow)
+- `ce`: collision efficiency parameters struct
 """
-Ec(::CMP.CloudLiquid, ::CMP.Rain, (; e_lcl_rai)::CMP.CollisionEff) = e_lcl_rai
-Ec(::CMP.CloudLiquid, ::CMP.Snow, (; e_lcl_sno)::CMP.CollisionEff) = e_lcl_sno
-Ec(::CMP.CloudIce, ::CMP.Rain, (; e_icl_rai)::CMP.CollisionEff) = e_icl_rai
-Ec(::CMP.CloudIce, ::CMP.Snow, (; e_icl_sno)::CMP.CollisionEff) = e_icl_sno
-Ec(::CMP.Rain, ::CMP.Snow, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
-Ec(::CMP.Snow, ::CMP.Rain, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
+@inline Ec(::CMP.CloudLiquid, ::CMP.Rain, (; e_lcl_rai)::CMP.CollisionEff) = e_lcl_rai
+@inline Ec(::CMP.CloudLiquid, ::CMP.Snow, (; e_lcl_sno)::CMP.CollisionEff) = e_lcl_sno
+@inline Ec(::CMP.CloudIce, ::CMP.Rain, (; e_icl_rai)::CMP.CollisionEff) = e_icl_rai
+@inline Ec(::CMP.CloudIce, ::CMP.Snow, (; e_icl_sno)::CMP.CollisionEff) = e_icl_sno
+@inline Ec(::CMP.Rain, ::CMP.Snow, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
+@inline Ec(::CMP.Snow, ::CMP.Rain, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
 
 """
-    get_n0(pdf, q_sno, ρ)
-
- - `pdf` -  a struct with parameters for snow, ice, and rain size distribution
- - `q_sno` -  snow specific content (only for `Snow`)
- - `ρ` - air density (only for `Snow`)
+    get_n0(pdf::ParticlePDFSnow, q_sno, ρ)
+    get_n0(pdf::ParticlePDFIceRain, args...)
 
 Returns the intercept parameter of the assumed Marshall-Palmer distribution
+(Marshall and Palmer, 1948).
+
+# Arguments
+- `pdf`: size distribution parameters (contains `ν`, `μ` for snow; `n0` for rain/ice)
+- `q_sno`: snow specific content (snow only)
+- `ρ`: air density (snow only)
 """
-get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT} =
+@inline get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT} =
     μ * (ρ * max(0, q_sno))^ν  # TODO - think about limiters
-get_n0((; n0)::CMP.ParticlePDFIceRain{FT}, args...) where {FT} = n0
+@inline get_n0((; n0)::CMP.ParticlePDFIceRain{FT}, args...) where {FT} = n0
 
 """
-    get_v0(v, ρ)
-
- - `v` - a struct with bulk 1-moment terminal velocity parameters
- - `ρ` - air density (only for `Rain`)
+    get_v0(vel::Blk1MVelTypeRain, ρ)
+    get_v0(vel::Blk1MVelTypeSnow, args...)
 
 Returns the proportionality coefficient in terminal velocity(r/r0).
+
+# Arguments
+- `vel`: terminal velocity parameters (contains `C_drag`, `ρw`, `grav`, `r0` for rain; `v0` for snow)
+- `ρ`: air density (rain only)
 """
-get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain{FT}, ρ::FT) where {FT} =
-    sqrt(FT(8 / 3) / C_drag * (ρw / ρ - FT(1)) * grav * r0)
-get_v0((; v0)::CMP.Blk1MVelTypeSnow{FT}, args...) where {FT} = v0
+@inline get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain{FT}, ρ::FT) where {FT} =
+    sqrt(FT(8 / 3) / C_drag * (ρw / ρ - 1) * grav * r0)
+@inline get_v0((; v0)::CMP.Blk1MVelTypeSnow{FT}, args...) where {FT} = v0
 
 """
-    lambda_inverse(pdf, mass, q, ρ)
+    lambda_inverse(pdf, mass::ParticleMass, q, ρ)
 
- - `pdf`, `mass` - structs with particle size distribution and mass parameters
- - `q` - specific content of rain, cloud ice or snow
- - `ρ` - air density
+Returns the inverse of the rate parameter (λ⁻¹) of the assumed Marshall-Palmer
+size distribution of particles (rain drops, ice crystals, snow crystals).
 
-Returns the inverse of rate parameter of the assumed size distribution of
-particles (rain drops, ice crystals, snow crystals).
-The value is clipped at 1e-8.
+The rate parameter λ is related to the mean particle size: larger λ means smaller
+average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issues.
+
+# Arguments
+- `pdf`: size distribution parameters (ParticlePDFIceRain or ParticlePDFSnow)
+- `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`)
+- `q`: specific content of rain, cloud ice, or snow (kg/kg)
+- `ρ`: air density (kg/m³)
+
+# Returns
+- `λ⁻¹`: inverse rate parameter (m)
 """
-function lambda_inverse(
+@inline function lambda_inverse(
     #(; pdf, mass)::Union{CMP.Snow{FT}, CMP.Rain{FT}, CMP.CloudIce{FT}},
     pdf::Union{CMP.ParticlePDFIceRain{FT}, CMP.ParticlePDFSnow{FT}},
     mass::CMP.ParticleMass{FT},
@@ -95,27 +125,27 @@ function lambda_inverse(
 
     λ_inv = FT(0)
     if q > CO.ϵ_numerics(FT) && ρ > CO.ϵ_numerics(FT)
-        λ_inv = exp(1 / (me + Δm + 1) *
-            log(
-            ρ * q * exp((me + Δm) * log(r0)) / χm / m0 / n0 / SF.gamma(me + Δm + FT(1)),
-        )
-        )
+        # Note: Julia compiles x^y to exp(y * log(x))
+        # TODO: Consider pre-computing gamma terms and storing them in parameter struct for optimized GPU performance
+        λ_inv = (ρ * q * r0^(me + Δm) / (χm * m0 * n0 * SF.gamma(me + Δm + 1)))^(1 / (me + Δm + 1))
     end
     return max(r0 * FT(1e-5), λ_inv)
 end
 
 """
-    aspect_ratio_coeffs(snow_shape, mass, area, density)
-
- - `snow_shape` - a struct specifying assumed snow particle shape (Oblate or Prolate)
- - `mass` - a struct with assumed m(r) power law relation parameters
- - `area` - a struct with assumed a(r) power law relation parameters
- - `ρᵢ` particle density
+    aspect_ratio_coeffs(snow_shape::Oblate, mass::ParticleMass, area::ParticleArea, ρᵢ)
+    aspect_ratio_coeffs(snow_shape::Prolate, mass::ParticleMass, area::ParticleArea, ρᵢ)
 
 Returns coefficients of the implied power law relationship between aspect ratio
-and particle diameter ϕ(D) = ϕ₀ D^α
-Also returns the coefficient for the aspect ratio in Chen 2022 terminal velocity
-parameterization (κ=1/3 for oblate and κ=-1/6 for prolate).
+and particle diameter φ(D) = φ₀ D^α.
+Also returns the coefficient κ for the aspect ratio in Chen et al. (2022)
+terminal velocity parameterization (κ=1/3 for oblate, κ=-1/6 for prolate).
+
+# Arguments
+- `snow_shape`: assumed snow particle shape (Oblate or Prolate)
+- `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`)
+- `area`: area(radius) parameters (contains `a0`, `ae`, `Δa`, `χa`)
+- `ρᵢ`: particle density
 """
 function aspect_ratio_coeffs(
     snow_shape::Oblate,
@@ -129,6 +159,7 @@ function aspect_ratio_coeffs(
     κ = FT(1 / 3)
     return (; ϕ₀, α, κ)
 end
+
 function aspect_ratio_coeffs(
     snow_shape::Prolate,
     (; r0, m0, me, Δm, χm)::CMP.ParticleMass{FT},
@@ -143,18 +174,32 @@ function aspect_ratio_coeffs(
 end
 
 """
-    terminal_velocity(precip, vel, ρ, q)
+    terminal_velocity(precip::Rain, vel::Blk1MVelTypeRain, ρ, q)
+    terminal_velocity(precip::Snow, vel::Blk1MVelTypeSnow, ρ, q)
+    terminal_velocity(precip::Rain, vel::Chen2022VelTypeRain, ρ, q)
+    terminal_velocity(precip::Snow, vel::Chen2022VelTypeLargeIce, ρ, q)
+    terminal_velocity(precip::Snow, vel::Chen2022VelTypeLargeIce, ρ, q, snow_shape)
 
- - `precip` - a struct with precipitation type (rain or snow)
- - `vel` - a struct with terminal velocity parameters
- - `ρ` - air density
- - `q` - rain or snow specific content
+Returns the mass-weighted average terminal velocity assuming a Marshall-Palmer
+distribution of particles (Ogura and Takahashi, 1971).
 
-Returns the mass weighted average terminal velocity assuming
-a Marshall-Palmer (1948) distribution of particles.
-Fall velocity of individual rain drops is parameterized:
- - assuming an empirical power-law relations for `velocity == Blk1MVelType`
- - following Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171, for `velocity == Chen2022VelType`
+The mass-weighted average velocity is computed by integrating the product of
+particle mass, terminal velocity, and size distribution, then dividing by the
+total mass. This represents the sedimentation velocity of the bulk hydrometeor field.
+
+Fall velocity of individual particles is parameterized:
+  - using empirical power-law relations for `Blk1MVelType`
+  - following Chen et al. (2022), https://doi.org/10.1016/j.atmosres.2022.106171, for `Chen2022VelType`
+
+# Arguments
+- `precip`: precipitation parameters (Rain or Snow, contains `pdf`, `mass`, and for snow: `area`, `ρᵢ`, `aspr`)
+- `vel`: terminal velocity parameterization parameters
+- `ρ`: air density (kg/m³)
+- `q`: rain or snow specific content (kg/kg)
+- `snow_shape`: (optional) assumed snow shape (Oblate or Prolate)
+
+# Returns
+- Mass-weighted terminal velocity (m/s)
 """
 function terminal_velocity(
     (; pdf, mass)::Union{CMP.Rain{FT}, CMP.Snow{FT}},
@@ -168,15 +213,16 @@ function terminal_velocity(
         v0 = get_v0(vel, ρ)
         # mass(size)
         (; r0, me, Δm, χm) = mass
-        # size distrbution
+        # size distribution
         λ_inv = lambda_inverse(pdf, mass, q, ρ)
 
-        return χv * v0 * exp((-ve - Δv) * log(r0 / λ_inv)) * SF.gamma(me + ve + Δm + Δv + FT(1)) /
-               SF.gamma(me + Δm + FT(1))
+        return χv * v0 * exp((-ve - Δv) * log(r0 / λ_inv)) * SF.gamma(me + ve + Δm + Δv + 1) /
+               SF.gamma(me + Δm + 1)
     else
         return FT(0)
     end
 end
+
 function terminal_velocity(
     (; pdf, mass)::CMP.Rain{FT},
     vel::CMP.Chen2022VelTypeRain{FT},
@@ -189,15 +235,17 @@ function terminal_velocity(
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
         # size distribution parameter
         λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
-        # eq 20 from Chen et al 2022
-        fall_w = sum((1, 2, 3); init = FT(0)) do i
-            CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ_inv, 3)
-        end
+        # eq 20 from Chen et al 2022 (loop unrolled for GPU performance)
+        fall_w =
+            CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv, 3) +
+            CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv, 3) +
+            CO.Chen2022_exponential_pdf(aiu[3], bi[3], ciu[3], λ_inv, 3)
         # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
 end
+
 function terminal_velocity(
     (; pdf, mass, area, ρᵢ, aspr)::CMP.Snow{FT},
     vel::CMP.Chen2022VelTypeLargeIce{FT},
@@ -218,14 +266,15 @@ function terminal_velocity(
         # assume oblate shape and aspect ratio
         (; ϕ, κ) = aspr
 
-        # eq 20 from Chen 2022
-        fall_w = sum((1, 2); init = FT(0)) do i
-            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ_inv, 3)
-        end
+        # eq 20 from Chen 2022 (loop unrolled for GPU performance)
+        fall_w =
+            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv, 3) +
+            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv, 3)
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
 end
+
 function terminal_velocity(
     (; pdf, mass, area, ρᵢ)::CMP.Snow{FT},
     vel::CMP.Chen2022VelTypeLargeIce{FT},
@@ -244,24 +293,32 @@ function terminal_velocity(
         # As a next step, we could keep ϕ(r) under the integrals
         (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
         ϕ_av = ϕ₀ * λ_inv^α * SF.gamma(α + 3 + 1) / SF.gamma(3 + 1)
-        # eq 20 from Chen 2022
-        fall_w = sum((1, 2); init = FT(0)) do i
-            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[i], bi[i], ciu[i], λ_inv, 3)
-        end
+        # eq 20 from Chen 2022 (loop unrolled for GPU performance)
+        fall_w =
+            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv, 3) +
+            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv, 3)
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
 end
 
 """
-    conv_q_lcl_to_q_rai(acnv, q_lcl, smooth_transition)
+    conv_q_lcl_to_q_rai(acnv::Acnv1M, q_lcl, smooth_transition)
 
- - `acnv` - 1M autoconversion parameters
- - `q_lcl` - cloud liquid water specific content
- - `smooth_transition` - a flag to switch on smoothing
+Returns the rain tendency due to collisions between cloud droplets (autoconversion),
+parameterized following Kessler (1995), https://doi.org/10.1016/0169-8095(94)00090-Z.
 
-Returns the q_rai tendency due to collisions between cloud droplets
-(autoconversion), parametrized following Kessler (1995).
+When `smooth_transition = false`, uses a step function at the threshold.
+When `smooth_transition = true`, uses a logistic function to smooth the transition
+over the threshold, avoiding discontinuities in the tendency.
+
+# Arguments
+- `acnv`: autoconversion parameters (contains `τ`, `q_threshold`, `k`)
+- `q_lcl`: cloud liquid water specific content (kg/kg)
+- `smooth_transition`: flag to switch on smoothing
+
+# Returns
+- Rain autoconversion rate (kg/kg/s)
 """
 conv_q_lcl_to_q_rai(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
@@ -273,16 +330,16 @@ conv_q_lcl_to_q_rai(
     max(0, q_lcl - q_threshold) / τ
 
 """
-    conv_q_icl_to_q_sno_no_supersat(acnv, q_icl, smooth_transition)
+    conv_q_icl_to_q_sno_no_supersat(acnv::Acnv1M, q_icl, smooth_transition)
 
- - `acnv` - 1M autoconversion parameters
- - `q_icl` -  cloud ice specific content
- - `smooth_transition` - a flag to switch on smoothing
+Returns the snow tendency due to autoconversion from cloud ice.
+This is a simplified version for use in simulations without supersaturation
+(e.g., with saturation adjustment).
 
-Returns the q_sno tendency due to autoconversion from cloud ice.
-This is a simplified version of a snow autoconversion rate that can be used in
-simulations where there is no supersaturation
-(for example in TC.jl when using saturation adjustment).
+# Arguments
+- `acnv`: autoconversion parameters (contains `τ`, `q_threshold`, `k`)
+- `q_icl`: cloud ice specific content
+- `smooth_transition`: flag to switch on smoothing
 """
 conv_q_icl_to_q_sno_no_supersat(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
@@ -294,21 +351,24 @@ conv_q_icl_to_q_sno_no_supersat(
     max(0, q_icl - q_threshold) / τ
 
 """
-    conv_q_icl_to_q_sno(ice, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    conv_q_icl_to_q_sno(ice::CloudIce, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
 
- - `ice` - a struct with ice parameters
- - `aps` - a struct with air properties
- - `tps` - a struct with thermodynamics parameters
- - `q_tot` - total water specific content
- - `q_lcl` - cloud liquid water specific content
- - `q_icl` - cloud ice specific content
- - `q_rai` - rain specific content
- - `q_sno` - snow specific content
- - `ρ` - air density
- - `T` - air temperature
+Returns the snow tendency due to autoconversion from ice.
+Parameterized following:
+  - Harrington et al. (1995), https://doi.org/10.1175/1520-0469(1995)052<4344:POICCP>2.0.CO;2  
+  - Kaul et al. (2015), https://doi.org/10.1175/MWR-D-14-00319.1
 
-Returns the q_sno tendency due to autoconversion from ice.
-Parameterized following Harrington et al. (1996) and Kaul et al. (2015).
+# Arguments
+- `ice`: ice parameters (contains `r_ice_snow`, `pdf`, `mass`)
+- `aps`: air properties struct  
+- `tps`: thermodynamics parameters struct
+- `q_tot`: total water specific content
+- `q_lcl`: cloud liquid water specific content
+- `q_icl`: cloud ice specific content
+- `q_rai`: rain specific content
+- `q_sno`: snow specific content
+- `ρ`: air density
+- `T`: air temperature
 """
 function conv_q_icl_to_q_sno(
     (; r_ice_snow, pdf, mass)::CMP.CloudIce{FT},
@@ -334,24 +394,25 @@ function conv_q_icl_to_q_sno(
         acnv_rate =
             4 * FT(π) * S * G * n0 / ρ *
             exp(-r_ice_snow / λ_inv) *
-            (r_ice_snow^FT(2) / (me + Δm) + (r_ice_snow / λ_inv + FT(1)) * λ_inv^FT(2))
+            (r_ice_snow^2 / (me + Δm) + (r_ice_snow / λ_inv + 1) * λ_inv^2)
     end
     return acnv_rate
 end
 
 """
-    accretion(cloud, precip, vel, ce, q_clo, q_pre, ρ)
+    accretion(cloud::CloudCondensateType, precip::PrecipitationType, vel, ce, q_clo, q_pre, ρ)
 
- - `cloud` - type for cloud water or cloud ice
- - `precip` - type for rain or snow
- - `vel` - a struct with terminal velocity parameters
- - `ce` - collision efficiency parameters
- - `q_clo` - cloud liquid water or cloud ice specific content
- - `q_pre` - rain water or snow specific content
- - `ρ` - air density
+Returns the source of precipitating water (rain or snow) due to collisions
+with cloud water (liquid or ice).
 
-Returns the source of precipitating water (rain or snow)
-due to collisions with cloud water (liquid or ice).
+# Arguments
+- `cloud`: type for cloud water or cloud ice
+- `precip`: type for rain or snow
+- `vel`: terminal velocity parameters (Blk1MVelTypeRain or Blk1MVelTypeSnow)
+- `ce`: collision efficiency parameters
+- `q_clo`: cloud liquid water or cloud ice specific content
+- `q_pre`: rain or snow specific content
+- `ρ`: air density
 """
 function accretion(
     cloud::CMP.CloudCondensateType{FT},
@@ -378,24 +439,25 @@ function accretion(
 
         accr_rate =
             q_clo * E * n0 * a0 * v0 * χa * χv * λ_inv *
-            SF.gamma(ae + ve + Δa + Δv + FT(1)) / (r0 / λ_inv)^(ae + ve + Δa + Δv)
+            SF.gamma(ae + ve + Δa + Δv + 1) / (r0 / λ_inv)^(ae + ve + Δa + Δv)
     end
     return accr_rate
 end
 
 """
-    accretion_rain_sink(rain, ice, vel, ce, q_icl, q_rai, ρ)
-
- - `rain` - rain type parameters
- - `ice` - ice type parameters
- - `vel` - terminal velocity parameters for rain
- - `ce` - collision efficiency parameters
- - `q_icl` - cloud ice specific content
- - `q_rai` - rain water specific content
- - `ρ` - air density
+    accretion_rain_sink(rain::Rain, ice::CloudIce, vel::Blk1MVelTypeRain, ce, q_icl, q_rai, ρ)
 
 Returns the sink of rain water (partial source of snow) due to collisions
 with cloud ice.
+
+# Arguments
+- `rain`: rain type parameters
+- `ice`: ice type parameters
+- `vel`: terminal velocity parameters for rain
+- `ce`: collision efficiency parameters
+- `q_icl`: cloud ice specific content
+- `q_rai`: rain water specific content
+- `ρ`: air density
 """
 function accretion_rain_sink(
     rain::CMP.Rain{FT},
@@ -424,28 +486,30 @@ function accretion_rain_sink(
 
         accr_rate =
             E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv * λ_ice_inv * λ_inv *
-            SF.gamma(me + ae + ve + Δm + Δa + Δv + FT(1)) /
+            SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) /
             (r0 / λ_inv)^FT(me + ae + ve + Δm + Δa + Δv)
     end
     return accr_rate
 end
 
 """
-    accretion_snow_rain(ce, type_i, type_j, blk1m_type_i, blk1m_type_j, q_i, q_j, ρ)
+    accretion_snow_rain(type_i::PrecipitationType, type_j::PrecipitationType, blk1mveltype_ti, blk1mveltype_tj, ce, q_i, q_j, ρ)
 
- - `ce` - collision efficiency parameters
- - `i` - snow for temperatures below freezing
-         or rain for temperatures above freezing
- - `j` - rain for temperatures below freezing
-         or snow for temperatures above freezing
- - `type_i`, `type_j` - a type for snow or rain
- - `blk1mveltype_ti`, `blk1mveltype_tj` - 1M terminal velocity parameters
- - `q_` - specific content of snow or rain
- - `ρ` - air density
+Returns the accretion rate when rain and snow collide.
+Collisions result in snow for T < T_freeze and rain for T > T_freeze.
 
-Returns the accretion rate between rain and snow.
-Collisions between rain and snow result in
-snow at temperatures below freezing and in rain at temperatures above freezing.
+Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)².
+
+# Arguments
+- `type_i`: snow (T < T_freeze) or rain (T > T_freeze)
+- `type_j`: rain (T < T_freeze) or snow (T > T_freeze)  
+- `blk1mveltype_ti`, `blk1mveltype_tj`: 1M terminal velocity parameters
+- `ce`: collision efficiency parameters
+- `q_i`, `q_j`: specific contents of snow or rain (kg/kg)
+- `ρ`: air density (kg/m³)
+
+# Returns
+- Accretion rate (kg/kg/s)
 """
 function accretion_snow_rain(
     type_i::CMP.PrecipitationType{FT},
@@ -481,32 +545,42 @@ function accretion_snow_rain(
         accr_rate =
             FT(π) / ρ * n0_i * n0_j * m0_j * χm_j * E_ij * abs(v_ti - v_tj) /
             r0_j^(me_j + Δm_j) * (
-                FT(2) * SF.gamma(me_j + Δm_j + FT(1)) * λ_i_inv^FT(3) *
-                λ_j_inv^(me_j + Δm_j + FT(1)) +
-                FT(2) * SF.gamma(me_j + Δm_j + FT(2)) * λ_i_inv^FT(2) *
-                λ_j_inv^(me_j + Δm_j + FT(2)) +
-                SF.gamma(me_j + Δm_j + FT(3)) * λ_i_inv * λ_j_inv^(me_j + Δm_j + FT(3))
+                2 * SF.gamma(me_j + Δm_j + 1) * λ_i_inv^3 *
+                λ_j_inv^(me_j + Δm_j + 1) +
+                2 * SF.gamma(me_j + Δm_j + 2) * λ_i_inv^2 *
+                λ_j_inv^(me_j + Δm_j + 2) +
+                SF.gamma(me_j + Δm_j + 3) * λ_i_inv * λ_j_inv^(me_j + Δm_j + 3)
             )
     end
     return accr_rate
 end
 
 """
-    evaporation_sublimation(params, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_snow, ρ, T)
+    evaporation_sublimation(rain::Rain, vel::Blk1MVelTypeRain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    evaporation_sublimation(snow::Snow, vel::Blk1MVelTypeSnow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
 
- - `params` - a struct with rain or snow parameters
- - `vel` - a struct with terminal velocity parameters
- - `aps` - a struct with air parameters
- - `tps` - a struct with thermodynamics parameters
- - `q_tot` - total water specific content
- - `q_lcl` - cloud liquid water specific content
- - `q_icl` - cloud ice specific content
- - `q_rai` - rain specific content
- - `q_sno` - snow specific content
- - `ρ` - air density
- - `T` - air temperature
+Returns the tendency due to rain evaporation or snow sublimation/deposition.
+Ventilation factor parameterization follows Seifert and Beheng (2006),
+https://doi.org/10.1007/s00703-005-0112-4.
 
-Returns the tendency due to rain evaporation or snow sublimation.
+**Rain**: Only evaporation is considered (S < 0), result is clamped to be ≤ 0.
+**Snow**: Both sublimation (S < 0) and deposition (S > 0) are considered.
+
+# Arguments
+- `rain` or `snow`: particle parameters (contains `pdf`, `mass`, `vent`)
+- `vel`: terminal velocity parameters (Blk1MVelTypeRain or Blk1MVelTypeSnow)
+- `aps`: air properties struct
+- `tps`: thermodynamics parameters struct
+- `q_tot`: total water specific content (kg/kg)
+- `q_lcl`: cloud liquid water specific content (kg/kg)
+- `q_icl`: cloud ice specific content (kg/kg)
+- `q_rai`: rain specific content (kg/kg)
+- `q_sno`: snow specific content (kg/kg)
+- `ρ`: air density (kg/m³)
+- `T`: air temperature (K)
+
+# Returns
+- Evaporation/sublimation/deposition rate (kg/kg/s)
 """
 function evaporation_sublimation(
     (; pdf, mass, vent)::CMP.Rain{FT},
@@ -537,14 +611,17 @@ function evaporation_sublimation(
 
         λ_inv = lambda_inverse(pdf, mass, q_rai, ρ)
 
+        # Schmidt number
+        Sc = ν_air / D_vapor
+
         evap_subl_rate =
-            4 * FT(π) * n0 / ρ * S * G * λ_inv^FT(2) *
+            4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
             (
                 a_vent +
-                b_vent * (ν_air / D_vapor)^FT(1 / 3) /
-                (r0 / λ_inv)^((ve + Δv) / FT(2)) *
-                (FT(2) * v0 * χv / ν_air * λ_inv)^FT(1 / 2) *
-                SF.gamma((ve + Δv + FT(5)) / FT(2))
+                b_vent * cbrt(Sc) /
+                (r0 / λ_inv)^((ve + Δv) / 2) *
+                sqrt(2 * v0 * χv / ν_air * λ_inv) *
+                SF.gamma((ve + Δv + 5) / 2)
             )
     end
     # only evaporation is considered for rain
@@ -581,31 +658,36 @@ function evaporation_sublimation(
 
         λ_inv = lambda_inverse(pdf, mass, q_sno, ρ)
 
+        # Schmidt number
+        Sc = ν_air / D_vapor
+
         evap_subl_rate =
-            4 * FT(π) * n0 / ρ * S * G * λ_inv^FT(2) *
+            4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
             (
                 a_vent +
-                b_vent * (ν_air / D_vapor)^FT(1 / 3) /
-                (r0 / λ_inv)^((ve + Δv) / FT(2)) *
-                (FT(2) * v0 * χv / ν_air * λ_inv)^FT(1 / 2) *
-                SF.gamma((ve + Δv + FT(5)) / FT(2))
+                b_vent * cbrt(Sc) /
+                (r0 / λ_inv)^((ve + Δv) / 2) *
+                sqrt(2 * v0 * χv / ν_air * λ_inv) *
+                SF.gamma((ve + Δv + 5) / 2)
             )
     end
+    # both sublimation (S < 0) and deposition (S > 0) are considered for snow
     return evap_subl_rate
 end
 
 """
-    snow_melt(snow, vel, aps, tps, q_sno, ρ, T)
-
- - `snow` - snow parameters
- - `vel` - terminal velocity parameters
- - `aps` - air properties
- - `tps` - thermodynamics parameters
- - `q_sno` - snow water specific content
- - `ρ` - air density
- - `T` - air temperature
+    snow_melt(snow::Snow, vel::Blk1MVelTypeSnow, aps, tps, q_sno, ρ, T)
 
 Returns the tendency due to snow melt.
+
+# Arguments
+- `snow`: snow parameters (contains `T_freeze`, `pdf`, `mass`, `vent`)
+- `vel`: terminal velocity parameters
+- `aps`: air properties struct
+- `tps`: thermodynamics parameters struct
+- `q_sno`: snow water specific content
+- `ρ`: air density
+- `T`: air temperature
 """
 function snow_melt(
     (; T_freeze, pdf, mass, vent)::CMP.Snow{FT},
@@ -633,14 +715,17 @@ function snow_melt(
 
         λ_inv = lambda_inverse(pdf, mass, q_sno, ρ)
 
+        # Schmidt number
+        Sc = ν_air / D_vapor
+
         snow_melt_rate =
-            4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^FT(2) *
+            4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^2 *
             (
                 a_vent +
-                b_vent * (ν_air / D_vapor)^FT(1 / 3) /
-                (r0 / λ_inv)^((ve + Δv) / FT(2)) *
-                (FT(2) * v0 * χv / ν_air * λ_inv)^FT(1 / 2) *
-                SF.gamma((ve + Δv + FT(5)) / FT(2))
+                b_vent * cbrt(Sc) /
+                (r0 / λ_inv)^((ve + Δv) / 2) *
+                sqrt(2 * v0 * χv / ν_air * λ_inv) *
+                SF.gamma((ve + Δv + 5) / 2)
             )
     end
     return snow_melt_rate
