@@ -29,9 +29,9 @@ specified in the `Parameters0M` struct.
 
 # Arguments
 - `params_0M`: 0-moment microphysics parameters (contains `τ_precip` and either `qc_0` or `S_0`)
-- `q_lcl`: cloud liquid water specific humidity
-- `q_icl`: cloud ice specific humidity  
-- `q_vap_sat`: (second method only) saturation specific humidity
+- `q_lcl`: cloud liquid water specific humidity (kg/kg)
+- `q_icl`: cloud ice specific humidity (kg/kg)
+- `q_vap_sat`: (second method only) saturation specific humidity (kg/kg)
 
 # Returns
 - Total water (`q_tot`) tendency (kg/kg/s)

@@ -121,13 +121,13 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     # size distribution
     n0::FT = get_n0(pdf, q, ρ)
     # mass(size)
-    (; r0, m0, me, Δm, χm) = mass
+    (; r0, m0, me, Δm, χm, gamma_coeff) = mass
 
     λ_inv = FT(0)
     if q > CO.ϵ_numerics(FT) && ρ > CO.ϵ_numerics(FT)
         # Note: Julia compiles x^y to exp(y * log(x))
-        # TODO: Consider pre-computing gamma terms and storing them in parameter struct for optimized GPU performance
-        λ_inv = (ρ * q * r0^(me + Δm) / (χm * m0 * n0 * SF.gamma(me + Δm + 1)))^(1 / (me + Δm + 1))
+        # gamma_coeff is pre-computed in ParticleMass constructor for GPU performance
+        λ_inv = (ρ * q * r0^(me + Δm) / (χm * m0 * n0 * gamma_coeff))^(1 / (me + Δm + 1))
     end
     return max(r0 * FT(1e-5), λ_inv)
 end
@@ -216,7 +216,7 @@ function terminal_velocity(
         # size distribution
         λ_inv = lambda_inverse(pdf, mass, q, ρ)
 
-        return χv * v0 * exp((-ve - Δv) * log(r0 / λ_inv)) * SF.gamma(me + ve + Δm + Δv + 1) /
+        return χv * v0 * (λ_inv / r0)^(ve + Δv) * SF.gamma(me + ve + Δm + Δv + 1) /
                SF.gamma(me + Δm + 1)
     else
         return FT(0)

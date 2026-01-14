@@ -49,6 +49,8 @@ Base.@kwdef struct ParticleMass{FT} <: ParametersType{FT}
     Δm::FT
     "mass size relation coefficient [-]"
     χm::FT
+    "pre-computed gamma(me + Δm + 1) for performance [-]"
+    gamma_coeff::FT
 end
 
 """
@@ -218,7 +220,8 @@ function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     m0 = 4 / 3 * π * p.ρᵢ * p.r0^p.me
     FT = CP.float_type(td)
-    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
+    gamma_coeff = FT(SpecialFunctions.gamma(p.me + p.Δm + 1))
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
 end
 
 """
@@ -288,7 +291,8 @@ function ParticleMass(::Type{Rain}, td::CP.ParamDict)
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     m0 = 4 / 3 * π * p.ρ * p.r0^p.me
     FT = CP.float_type(td)
-    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
+    gamma_coeff = FT(SpecialFunctions.gamma(p.me + p.Δm + 1))
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
 end
 
 function ParticleArea(::Type{Rain}, td::CP.ParamDict)
@@ -391,7 +395,8 @@ function ParticleMass(::Type{Snow}, td::CP.ParamDict)
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     m0 = 1e-1 * p.r0^p.me
     FT = CP.float_type(td)
-    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
+    gamma_coeff = FT(SpecialFunctions.gamma(p.me + p.Δm + 1))
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
 end
 
 function ParticleArea(::Type{Snow}, toml_dict::CP.ParamDict)
