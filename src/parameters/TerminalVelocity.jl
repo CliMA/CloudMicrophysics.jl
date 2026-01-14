@@ -26,10 +26,14 @@ Base.@kwdef struct Blk1MVelTypeRain{FT} <: ParametersType{FT}
     grav::FT
     "pre-computed gamma((ve + Δv + 5) / 2) for ventilation [-]"
     gamma_vent::FT
+    "pre-computed gamma(me + ve + Δm + Δv + 1) for terminal velocity [-]"
+    gamma_term::FT
+    "pre-computed gamma(ae + ve + Δa + Δv + 1) for accretion [-]"
+    gamma_accr::FT
 end
 
 function Blk1MVelTypeRain(td::CP.ParamDict)
-    name_map = (;
+    vel_map = (;
         :snow_flake_length_scale => :r0,
         :rain_terminal_velocity_size_relation_coefficient_ve => :ve,
         :rain_terminal_velocity_size_relation_coefficient_delv => :Δv,
@@ -38,10 +42,22 @@ function Blk1MVelTypeRain(td::CP.ParamDict)
         :rain_drop_drag_coefficient => :C_drag,
         :gravitational_acceleration => :grav,
     )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    mass_map = (;
+        :rain_mass_size_relation_coefficient_me => :me,
+        :rain_mass_size_relation_coefficient_delm => :Δm,
+    )
+    area_map = (;
+        :rain_cross_section_size_relation_coefficient_ae => :ae,
+        :rain_cross_section_size_relation_coefficient_dela => :Δa,
+    )
+    parameters = CP.get_parameter_values(td, vel_map, "CloudMicrophysics")
+    mass_p = CP.get_parameter_values(td, mass_map, "CloudMicrophysics")
+    area_p = CP.get_parameter_values(td, area_map, "CloudMicrophysics")
     FT = CP.float_type(td)
-    gamma_vent = FT(SpecialFunctions.gamma((parameters.ve + parameters.Δv + 5) / 2))
-    return Blk1MVelTypeRain{FT}(; parameters..., gamma_vent)
+    gamma_vent = FT(SF.gamma((parameters.ve + parameters.Δv + 5) / 2))
+    gamma_term = FT(SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1))
+    gamma_accr = FT(SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1))
+    return Blk1MVelTypeRain{FT}(; parameters..., gamma_vent, gamma_term, gamma_accr)
 end
 
 """
@@ -66,21 +82,37 @@ Base.@kwdef struct Blk1MVelTypeSnow{FT} <: ParametersType{FT}
     v0::FT
     "pre-computed gamma((ve + Δv + 5) / 2) for ventilation [-]"
     gamma_vent::FT
+    "pre-computed gamma(me + ve + Δm + Δv + 1) for terminal velocity [-]"
+    gamma_term::FT
+    "pre-computed gamma(ae + ve + Δa + Δv + 1) for accretion [-]"
+    gamma_accr::FT
 end
 
 function Blk1MVelTypeSnow(td::CP.ParamDict)
-    name_map = (;
+    vel_map = (;
         :snow_flake_length_scale => :r0,
         :snow_terminal_velocity_size_relation_coefficient => :ve,
         :snow_terminal_velocity_size_relation_coefficient_delv => :Δv,
         :snow_terminal_velocity_size_relation_coefficient_chiv => :χv,
     )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    mass_map = (;
+        :snow_mass_size_relation_coefficient_me => :me,
+        :snow_mass_size_relation_coefficient_delm => :Δm,
+    )
+    area_map = (;
+        :snow_cross_section_size_relation_coefficient => :ae,
+        :snow_cross_section_size_relation_coefficient_dela => :Δa,
+    )
+    parameters = CP.get_parameter_values(td, vel_map, "CloudMicrophysics")
+    mass_p = CP.get_parameter_values(td, mass_map, "CloudMicrophysics")
+    area_p = CP.get_parameter_values(td, area_map, "CloudMicrophysics")
 
     v0 = 2^(9 / 4) * parameters.r0^parameters.ve
     FT = CP.float_type(td)
-    gamma_vent = FT(SpecialFunctions.gamma((parameters.ve + parameters.Δv + 5) / 2))
-    return Blk1MVelTypeSnow{FT}(; parameters..., v0, gamma_vent)
+    gamma_vent = FT(SF.gamma((parameters.ve + parameters.Δv + 5) / 2))
+    gamma_term = FT(SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1))
+    gamma_accr = FT(SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1))
+    return Blk1MVelTypeSnow{FT}(; parameters..., v0, gamma_vent, gamma_term, gamma_accr)
 end
 
 """

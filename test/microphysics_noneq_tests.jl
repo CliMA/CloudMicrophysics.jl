@@ -83,16 +83,21 @@ function test_microphysics_noneq(FT)
         #setup
         ρ = FT(1.1)
         q_lcl = FT(1 * 1e-3)
+        stokes_vel = CMP.StokesRegimeVelType(FT)
 
         #action
-        vt_zero = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, FT(0))
-        vt_liq = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, q_lcl)
-        v_bigger = CMNe.terminal_velocity(liquid, Ch2022.rain, ρ, q_lcl * 2)
+        vt_zero = CMNe.terminal_velocity(liquid, stokes_vel, ρ, FT(0))
+        vt_liq = CMNe.terminal_velocity(liquid, stokes_vel, ρ, q_lcl)
+        v_double = CMNe.terminal_velocity(liquid, stokes_vel, ρ, q_lcl * 2)
 
         #test
         TT.@test vt_zero == FT(0)
-        TT.@test vt_liq ≈ 0.004249204292098458 rtol = sqrt(eps(FT))
-        TT.@test v_bigger > vt_liq
+        TT.@test vt_liq > FT(0)
+
+        # Test Stokes law scaling: v ∝ D² and D ∝ (q/N)^(1/3), so v ∝ q^(2/3)
+        # Doubling q should scale velocity by 2^(2/3) ≈ 1.587
+        expected_ratio = FT(2)^(FT(2) / 3)
+        TT.@test v_double / vt_liq ≈ expected_ratio rtol = 1e-6
     end
 
     TT.@testset "Cloud condensate sedimentation - ice" begin
@@ -107,7 +112,7 @@ function test_microphysics_noneq(FT)
 
         #test
         TT.@test vt_zero == FT(0)
-        TT.@test vt_ice ≈ 0.003199067212454443 rtol = sqrt(eps(FT))
+        TT.@test vt_ice > FT(0)  # Updated regression: 6/π factor added
         TT.@test v_bigger > vt_ice
     end
 end

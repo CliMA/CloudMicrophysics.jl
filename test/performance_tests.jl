@@ -80,6 +80,7 @@ function benchmark_test(FT)
     blk1mvel = CMP.Blk1MVelType(FT)
     sb2006vel = CMP.SB2006VelType(FT)
     ch2022 = CMP.Chen2022VelType(FT)
+    stokes_vel = CMP.StokesRegimeVelType(FT)
 
     # Aerosol parameters
     ap = CMP.AerosolActivationParameters(FT)
@@ -90,7 +91,7 @@ function benchmark_test(FT)
     ip = CMP.IceNucleationParameters(FT)
     H2SO4_prs = CMP.H2SO4SolutionParameters(FT)
     ip_frostenberg = CMP.Frostenberg2023(FT)
-    
+
     # Aerosol nucleation parameters
     mixed_nuc = CMP.MixedNucleationParameters(FT)
     h2so4_nuc = CMP.H2S04NucleationParameters(FT)
@@ -174,9 +175,11 @@ function benchmark_test(FT)
     bench_press(FT, CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
     bench_press(FT, CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
 
-    @info "Chen 2022 Terminal Velocity"
-    bench_press(FT, CMN.terminal_velocity, (liquid, ch2022.rain, ρ_air, q_liq), 350)
+    @info "Cloud/Ice Terminal Velocity (Non-Eq)"
+    bench_press(FT, CMN.terminal_velocity, (liquid, stokes_vel, ρ_air, q_liq), 350)
     bench_press(FT, CMN.terminal_velocity, (ice, ch2022.small_ice, ρ_air, q_ice), 400)
+
+    @info "Precipitation Terminal Velocity (1M)"
     bench_press(FT, CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 850)
     bench_press(FT, CM1.terminal_velocity, (snow, ch2022.large_ice, ρ_air, q_sno), 850)
 

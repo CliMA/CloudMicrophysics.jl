@@ -209,15 +209,16 @@ function terminal_velocity(
 ) where {FT}
     if q > CO.ϵ_numerics(FT)
         # terminal_velocity(size)
-        (; χv, ve, Δv) = vel
+        (; χv, ve, Δv, gamma_term) = vel
         v0 = get_v0(vel, ρ)
         # mass(size)
-        (; r0, me, Δm, χm) = mass
+        (; r0, me, Δm, χm, gamma_coeff) = mass
         # size distribution
         λ_inv = lambda_inverse(pdf, mass, q, ρ)
 
-        return χv * v0 * (λ_inv / r0)^(ve + Δv) * SF.gamma(me + ve + Δm + Δv + 1) /
-               SF.gamma(me + Δm + 1)
+        # gamma_term = SF.gamma(me + ve + Δm + Δv + 1) (pre-computed in vel)
+        # gamma_coeff = SF.gamma(me + Δm + 1) (pre-computed in mass)
+        return χv * v0 * (λ_inv / r0)^(ve + Δv) * gamma_term / gamma_coeff
     else
         return FT(0)
     end
@@ -234,12 +235,13 @@ function terminal_velocity(
         # coefficients from Table B1 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
         # size distribution parameter
-        λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
+        λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
+        λ_inv_diameter = 2 * λ_inv_radius
         # eq 20 from Chen et al 2022 (loop unrolled for GPU performance)
         fall_w =
-            CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv, 3) +
-            CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv, 3) +
-            CO.Chen2022_exponential_pdf(aiu[3], bi[3], ciu[3], λ_inv, 3)
+            CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
+            CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3) +
+            CO.Chen2022_exponential_pdf(aiu[3], bi[3], ciu[3], λ_inv_diameter, 3)
         # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
         fall_w = max(FT(0), fall_w)
     end
@@ -260,7 +262,8 @@ function terminal_velocity(
         # coefficients from Table B4 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
         # size distribution parameter
-        λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
+        λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
+        λ_inv_diameter = 2 * λ_inv_radius
 
         # As a next step, we could keep ϕ(r) under the integrals
         # assume oblate shape and aspect ratio
@@ -268,15 +271,15 @@ function terminal_velocity(
 
         # eq 20 from Chen 2022 (loop unrolled for GPU performance)
         fall_w =
-            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv, 3) +
-            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv, 3)
+            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
+            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
 end
 
 function terminal_velocity(
-    (; pdf, mass, area, ρᵢ)::CMP.Snow{FT},
+    (; pdf, mass, area, ρᵢ, gamma_aspect_oblate, gamma_aspect_prolate)::CMP.Snow{FT},
     vel::CMP.Chen2022VelTypeLargeIce{FT},
     ρₐ::FT,
     q::FT,
@@ -288,15 +291,18 @@ function terminal_velocity(
         # coefficients from Table B4 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
         # size distribution parameter
-        λ_inv::FT = lambda_inverse(pdf, mass, q, ρₐ)
+        λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
+        λ_inv_diameter = 2 * λ_inv_radius
         # Compute the mass weighted average aspect ratio ϕ_av
         # As a next step, we could keep ϕ(r) under the integrals
         (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
-        ϕ_av = ϕ₀ * λ_inv^α * SF.gamma(α + 3 + 1) / SF.gamma(3 + 1)
+        # Use pre-computed gamma_aspect from Snow struct
+        gamma_aspect = snow_shape isa Oblate ? gamma_aspect_oblate : gamma_aspect_prolate
+        ϕ_av = ϕ₀ * λ_inv_radius^α * gamma_aspect
         # eq 20 from Chen 2022 (loop unrolled for GPU performance)
         fall_w =
-            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv, 3) +
-            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv, 3)
+            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
+            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
         fall_w = max(FT(0), fall_w)
     end
     return fall_w
@@ -431,15 +437,16 @@ function accretion(
         v0::FT = get_v0(vel, ρ)
 
         (; r0) = precip.mass
-        (; χv, ve, Δv) = vel
+        (; χv, ve, Δv, gamma_accr) = vel
         (; a0, ae, χa, Δa) = precip.area
 
         λ_inv = lambda_inverse(precip.pdf, precip.mass, q_pre, ρ)
         E = Ec(cloud, precip, ce)
 
+        # gamma_accr = SF.gamma(ae + ve + Δa + Δv + 1) (pre-computed in vel)
         accr_rate =
             q_clo * E * n0 * a0 * v0 * χa * χv * λ_inv *
-            SF.gamma(ae + ve + Δa + Δv + 1) / (r0 / λ_inv)^(ae + ve + Δa + Δv)
+            gamma_accr / (r0 / λ_inv)^(ae + ve + Δa + Δv)
     end
     return accr_rate
 end
@@ -498,7 +505,8 @@ end
 Returns the accretion rate when rain and snow collide.
 Collisions result in snow for T < T_freeze and rain for T > T_freeze.
 
-Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)².
+Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)² 
+(that is, ignores dispersion of fall velocities).
 
 # Arguments
 - `type_i`: snow (T < T_freeze) or rain (T > T_freeze)

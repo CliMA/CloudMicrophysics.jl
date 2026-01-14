@@ -143,56 +143,44 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
 end
 
 """
-    terminal_velocity(sediment::CloudLiquid, vel::Chen2022VelTypeRain, ρₐ, q)
+    terminal_velocity(sediment::CloudLiquid, vel::StokesRegimeVelType, ρₐ, q)
     terminal_velocity(sediment::CloudIce, vel::Chen2022VelTypeSmallIce, ρₐ, q)
 
 Computes mass-weighted average terminal velocity for cloud droplets or ice crystals
-assuming a monodisperse size distribution with prescribed number concentration.
+assuming a monodisperse size distribution.
 
-Uses Chen et al. (2022) terminal velocity parameterization.
-See [DOI: 10.1016/j.atmosres.2022.106171](https://doi.org/10.1016/j.atmosres.2022.106171)
+- **Cloud Liquid**: Uses Stokes Law (v ∝ D²), valid for small droplets (Re < 1).
+- **Cloud Ice**: Uses Chen et al. (2022) parameterization,
+  [DOI: 10.1016/j.atmosres.2022.106171](https://doi.org/10.1016/j.atmosres.2022.106171)
 
 # Arguments
-- `sediment` - cloud liquid or ice parameters struct (provides density)
-- `vel` - Chen2022 terminal velocity parameters struct
+- `sediment` - cloud liquid or ice parameters struct (provides density and N_0)
+- `vel` - velocity parameters (StokesRegimeVelType for liquid, Chen2022 for ice)
 - `ρₐ` - air density [kg/m³]
 - `q` - cloud liquid water or ice specific content [kg/kg]
 
 # Returns
 - Mass-weighted terminal velocity [m/s]
-
-# Notes
-The Chen et al. (2022) coefficients are calibrated for D > 100 μm and may
-not be accurate for smaller cloud droplets. A correction factor is applied
-for cloud liquid. Number concentration is assumed fixed at 500 × 10⁶ m⁻³.
 """
 function terminal_velocity(
-    (; ρw)::CMP.CloudLiquid{FT},
-    vel::CMP.Chen2022VelTypeRain{FT},
+    (; ρw, N_0)::CMP.CloudLiquid{FT},
+    vel::CMP.StokesRegimeVelType{FT},
     ρₐ::FT,
     q::FT,
 ) where {FT}
     fall_w = FT(0)
     if q > CO.ϵ_numerics(FT)
-        # TODO: Coefficients from Table B1 from Chen et. al. 2022 are only valid
-        # for D > 100mm. We should look for a different parameterization
-        # that is more suited for cloud droplets. For now I'm just multiplying
-        # by an arbitrary correction factor.
+        # Stokes law: v(D) = C * D^2, valid for D < ~80 μm (Re < 1)
         v_term = CO.particle_terminal_velocity(vel, ρₐ)
-        # The 1M scheme does not assume any cloud droplet size distribution.
-        # TODO - For now I compute a mean volume radius assuming a fixed value
-        # for the total number concentration of droplets.
-        N = FT(500 * 1e6)
-        D = cbrt(ρₐ * q / N / ρw)
-        corr = FT(0.1)
-        # assuming spherical particles (ϕ = 1)
-        fall_w = max(FT(0), corr * v_term(D))
+        # Mean volume diameter from assumed number concentration
+        D = cbrt(FT(6 / π) * ρₐ * q / N_0 / ρw)
+        fall_w = v_term(D)
     end
     return fall_w
 end
 
 function terminal_velocity(
-    (; ρᵢ)::CMP.CloudIce{FT},
+    (; ρᵢ, N_0)::CMP.CloudIce{FT},
     vel::CMP.Chen2022VelTypeSmallIce{FT},
     ρₐ::FT,
     q::FT,
@@ -200,14 +188,11 @@ function terminal_velocity(
     fall_w = FT(0)
     if q > CO.ϵ_numerics(FT)
         v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
-        # Assume fixed ice crystal number concentration (see comment for liquid above)
-        N = FT(500 * 1e6)
-        D = cbrt(ρₐ * q / N / ρᵢ)
-        # assuming spherical particles (ϕ = 1)
+        # Mean volume diameter from assumed number concentration
+        D = cbrt(FT(6 / π) * ρₐ * q / N_0 / ρᵢ)
         fall_w = max(FT(0), v_term(D))
     end
     return fall_w
 end
 
 end #module MicrophysicsNonEq.jl
-

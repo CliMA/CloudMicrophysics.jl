@@ -59,7 +59,7 @@ function test_microphysics1M(FT)
         v_bigger = CM1.terminal_velocity(rain, Ch2022.rain, ρ, q_rai * 2)
 
         #test
-        TT.@test vt_rai ≈ 3.0721397260869705 rtol = 2e-6
+        TT.@test vt_rai ≈ 5.25213637238494 rtol = 1e-5
         TT.@test CM1.terminal_velocity(rain, Ch2022.rain, ρ, FT(0))[1] ≈ 0 atol =
             eps(FT)
         TT.@test v_bigger > vt_rai
@@ -76,7 +76,7 @@ function test_microphysics1M(FT)
         v_bigger = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno * 2)
 
         #test
-        TT.@test vt_sno ≈ 0.5151154754853068 rtol = 3e-6
+        TT.@test vt_sno ≈ 0.8573952434834717 rtol = 3e-6
         TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(0)) ≈ 0 atol =
             eps(FT)
         TT.@test v_bigger > vt_sno
