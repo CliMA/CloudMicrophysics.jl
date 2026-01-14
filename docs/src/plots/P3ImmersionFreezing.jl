@@ -14,7 +14,7 @@ tps = TDI.PS(FT)
 function RH2qₜ(T, RH)
     eᵥ_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
     eᵥ = RH * eᵥ_sat
-    qᵥ = 1 / (1 - tps.molmass_dryair / tps.molmass_water * (eᵥ - p) / eᵥ)
+    qᵥ = 1 / (1 - TDI.TD.Parameters.Rv_over_Rd(tps) * (eᵥ - p) / eᵥ)
     qₜ = qᵥ + qₗ + qᵢ
     return qₜ
 end

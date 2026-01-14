@@ -16,6 +16,7 @@ FT = Float32
 # get free parameters
 tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 wps = CMP.WaterProperties(FT)
+ip = CMP.Frostenberg2023(FT)
 
 # Initial conditions
 ρₗ = wps.ρw
@@ -29,7 +30,7 @@ qᵥ = FT(8.1e-4)
 qₗ = Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2) # ρₐ ~ 1.2
 qᵢ = FT(0)
 qₜ = qᵥ + qₗ + qᵢ
-ln_INPC₀ = FT(CMI_het.INP_concentration_mean(T₀))
+ln_INPC₀ = FT(CMI.INP_concentration_mean(ip, T₀))
 
 # Moisture dependent initial conditions
 Rᵥ = TDI.Rᵥ(tps)
@@ -198,7 +199,7 @@ for (sol, t, ll, cl) in zip(results_mean, time_mean, labels_mean, colors_mean)
     MK.lines!(
         ax7,
         sol[3, :],
-        exp.(CMI_het.INP_concentration_mean.(sol[3, :])),
+        exp.(CMI.INP_concentration_mean.(Ref(ip), sol[3, :])),
         linestyle = ls,
         color = cl,
     )

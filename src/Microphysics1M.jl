@@ -105,11 +105,11 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
 # Arguments
 - `pdf`: size distribution parameters (ParticlePDFIceRain or ParticlePDFSnow)
 - `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`)
-- `q`: specific content of rain, cloud ice, or snow (kg/kg)
-- `ρ`: air density (kg/m³)
+- `q`: specific content of rain, cloud ice, or snow [kg/kg]
+- `ρ`: air density [kg/m³]
 
 # Returns
-- `λ⁻¹`: inverse rate parameter (m)
+- `λ⁻¹`: inverse rate parameter [m]
 """
 @inline function lambda_inverse(
     #(; pdf, mass)::Union{CMP.Snow{FT}, CMP.Rain{FT}, CMP.CloudIce{FT}},
@@ -194,12 +194,12 @@ Fall velocity of individual particles is parameterized:
 # Arguments
 - `precip`: precipitation parameters (Rain or Snow, contains `pdf`, `mass`, and for snow: `area`, `ρᵢ`, `aspr`)
 - `vel`: terminal velocity parameterization parameters
-- `ρ`: air density (kg/m³)
-- `q`: rain or snow specific content (kg/kg)
+- `ρ`: air density [kg/m³]
+- `q`: rain or snow specific content [kg/kg]
 - `snow_shape`: (optional) assumed snow shape (Oblate or Prolate)
 
 # Returns
-- Mass-weighted terminal velocity (m/s)
+- Mass-weighted terminal velocity [m/s]
 """
 function terminal_velocity(
     (; pdf, mass)::Union{CMP.Rain{FT}, CMP.Snow{FT}},
@@ -314,11 +314,11 @@ over the threshold, avoiding discontinuities in the tendency.
 
 # Arguments
 - `acnv`: autoconversion parameters (contains `τ`, `q_threshold`, `k`)
-- `q_lcl`: cloud liquid water specific content (kg/kg)
+- `q_lcl`: cloud liquid water specific content [kg/kg]
 - `smooth_transition`: flag to switch on smoothing
 
 # Returns
-- Rain autoconversion rate (kg/kg/s)
+- Rain autoconversion rate [kg/kg/s]
 """
 conv_q_lcl_to_q_rai(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
@@ -505,11 +505,11 @@ Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)².
 - `type_j`: rain (T < T_freeze) or snow (T > T_freeze)  
 - `blk1mveltype_ti`, `blk1mveltype_tj`: 1M terminal velocity parameters
 - `ce`: collision efficiency parameters
-- `q_i`, `q_j`: specific contents of snow or rain (kg/kg)
-- `ρ`: air density (kg/m³)
+- `q_i`, `q_j`: specific contents of snow or rain [kg/kg]
+- `ρ`: air density [kg/m³]
 
 # Returns
-- Accretion rate (kg/kg/s)
+- Accretion rate [kg/kg/s]
 """
 function accretion_snow_rain(
     type_i::CMP.PrecipitationType{FT},
@@ -571,16 +571,16 @@ https://doi.org/10.1007/s00703-005-0112-4.
 - `vel`: terminal velocity parameters (Blk1MVelTypeRain or Blk1MVelTypeSnow)
 - `aps`: air properties struct
 - `tps`: thermodynamics parameters struct
-- `q_tot`: total water specific content (kg/kg)
-- `q_lcl`: cloud liquid water specific content (kg/kg)
-- `q_icl`: cloud ice specific content (kg/kg)
-- `q_rai`: rain specific content (kg/kg)
-- `q_sno`: snow specific content (kg/kg)
-- `ρ`: air density (kg/m³)
-- `T`: air temperature (K)
+- `q_tot`: total water specific content [kg/kg]
+- `q_lcl`: cloud liquid water specific content [kg/kg]
+- `q_icl`: cloud ice specific content [kg/kg]
+- `q_rai`: rain specific content [kg/kg]
+- `q_sno`: snow specific content [kg/kg]
+- `ρ`: air density [kg/m³]
+- `T`: air temperature [K]
 
 # Returns
-- Evaporation/sublimation/deposition rate (kg/kg/s)
+- Evaporation/sublimation/deposition rate [kg/kg/s]
 """
 function evaporation_sublimation(
     (; pdf, mass, vent)::CMP.Rain{FT},

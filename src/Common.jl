@@ -39,12 +39,12 @@ for vapor to liquid phase change.
 # Arguments
 - `air_props`: air parameters struct (contains `K_therm`, `D_vapor`)
 - `tps`: thermodynamics parameters struct
-- `T`: air temperature (K)
+- `T`: air temperature [K]
 
 # Returns
-- G function for liquid (kg/m²/s/Pa)
+- G function for liquid [kg/m²/s/Pa]
 """
-function G_func_liquid(
+@inline function G_func_liquid(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
     T::FT,
@@ -66,12 +66,12 @@ for vapor to ice phase change.
 # Arguments
 - `air_props`: air parameters struct (contains `K_therm`, `D_vapor`)
 - `tps`: thermodynamics parameters struct
-- `T`: air temperature (K)
+- `T`: air temperature [K]
 
 # Returns
-- G function for ice (kg/m²/s/Pa)
+- G function for ice [kg/m²/s/Pa]
 """
-function G_func_ice(
+@inline function G_func_ice(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
     T::FT,
@@ -108,15 +108,15 @@ For x < 0 the value at x = 0 is returned. For x_0 = 0, H(x) is returned.
 @inline function logistic_function(x::FT, x_0::FT, k::FT) where {FT}
     # GPU-compatible implementation with edge case handling
     x = max(FT(0), x)
-    
+
     # Edge cases: x ≈ 0 → return 0, x_0 ≈ 0 → return 1 (if x > 0)
     x_safe = max(x, ϵ_numerics(FT))
     x_0_safe = max(x_0, ϵ_numerics(FT))
-    
+
     # σ(z) = 1 / (1 + exp(-z)) = exp(-log1pexp(-z))
     z = k * (x_safe / x_0_safe - x_0_safe / x_safe)
     result = exp(-LEF.log1pexp(-z))
-    
+
     # Handle edge cases with ifelse (branchless)
     return ifelse(x < ϵ_numerics(FT), FT(0), ifelse(x_0 < ϵ_numerics(FT), FT(1), result))
 end
@@ -162,10 +162,10 @@ Returns the saturation vapor pressure above a sulphuric acid solution droplet.
 # Arguments
 - `prs`: H2SO4 solution free parameters struct
 - `x`: weight percent sulphuric acid (dimensionless, e.g., 0.1 for 10%)
-- `T`: air temperature (K)
+- `T`: air temperature [K]
 
 # Returns
-- Saturation vapor pressure (Pa)
+- Saturation vapor pressure [Pa]
 """
 function H2SO4_soln_saturation_vapor_pressure(
     (;
@@ -203,7 +203,7 @@ Returns water activity of H2SO4 containing droplet.
 - `H2SO4_prs`: H2SO4 solution free parameters struct
 - `tps`: thermodynamics parameters struct
 - `x`: weight percent sulphuric acid (dimensionless, e.g., 0.1 for 10%)
-- `T`: air temperature (K)
+- `T`: air temperature [K]
 
 # Returns
 - Water activity (dimensionless)
@@ -224,8 +224,8 @@ Valid when droplet is in equilibrium with surroundings.
 
 # Arguments
 - `tps`: thermodynamics parameters struct
-- `e`: partial pressure of water (Pa)
-- `T`: air temperature (K)
+- `e`: partial pressure of water [Pa]
+- `T`: air temperature [K]
 
 # Returns
 - Water activity (dimensionless, equivalent to relative humidity)
@@ -242,7 +242,7 @@ Returns water activity of ice.
 
 # Arguments
 - `tps`: thermodynamics parameters struct
-- `T`: air temperature (K)
+- `T`: air temperature [K]
 
 # Returns
 - Water activity of ice (dimensionless)
@@ -282,6 +282,7 @@ See [Chen2022](@cite) for more details.
     ciu = ci .* 1000
     return (aiu, bi, ciu)
 end
+
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeSmallIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G) = coeffs
@@ -303,6 +304,7 @@ end
     ciu = ci .* 1000
     return (aiu, bi, ciu)
 end
+
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G, H) = coeffs
@@ -335,7 +337,7 @@ end
 # Returns
  - `pdf(D)`: The monodisperse particle distribution function as a function of diameter, `D`, in [m/s].
 """
-function Chen2022_monodisperse_pdf(a, b, c)
+@inline function Chen2022_monodisperse_pdf(a, b, c)
     return pdf(D) = a * D^b * exp(-c * D)
 end
 
@@ -348,11 +350,11 @@ Assumes exponential size distribution (μ=0).
 
 # Arguments
 - `a`, `b`, `c`: free parameters defined in Chen et al. (2022)
-- `λ_inv`: inverse of the size distribution parameter (m)
-- `k`: size distribution moment for which we compute the bulk fall speed
+ - `λ_inv`: inverse of the size distribution parameter [m]
+ - `k`: size distribution moment for which we compute the bulk fall speed
 
 # Returns
-- Bulk fall speed component (m/s)
+- Bulk fall speed component [m/s]
 """
 @inline function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where {FT}
     # μ = 0 for exponential distribution, δ = k + 1
@@ -441,7 +443,7 @@ See e.g., Seifert and Beheng (2006), https://doi.org/10.1007/s00703-005-0112-4, 
 # Arguments
 - `vent`: ventilation parameterization constants (contains `aᵥ`, `bᵥ`)
 - `aps`: air properties parameters (contains `ν_air`, `D_vapor`)
-- `v_term`: function `v_term(D)` that returns terminal velocity (m/s) for diameter D (m)
+- `v_term`: function `v_term(D)` that returns terminal velocity [m/s] for diameter D [m]
 
 # Returns
 - `F_v(D)`: ventilation factor function (dimensionless)
