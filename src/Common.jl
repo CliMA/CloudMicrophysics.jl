@@ -106,11 +106,19 @@ For x < 0 the value at x = 0 is returned. For x_0 = 0, H(x) is returned.
 - Logistic function value (dimensionless, range [0,1])
 """
 @inline function logistic_function(x::FT, x_0::FT, k::FT) where {FT}
-    # Branchless GPU-compatible implementation
+    # GPU-compatible implementation with edge case handling
     x = max(FT(0), x)
+    
+    # Edge cases: x ≈ 0 → return 0, x_0 ≈ 0 → return 1 (if x > 0)
+    x_safe = max(x, ϵ_numerics(FT))
+    x_0_safe = max(x_0, ϵ_numerics(FT))
+    
     # σ(z) = 1 / (1 + exp(-z)) = exp(-log1pexp(-z))
-    z = k * (x / max(x_0, ϵ_numerics(FT)) - max(x_0, ϵ_numerics(FT)) / max(x, ϵ_numerics(FT)))
-    return exp(-LEF.log1pexp(-z))
+    z = k * (x_safe / x_0_safe - x_0_safe / x_safe)
+    result = exp(-LEF.log1pexp(-z))
+    
+    # Handle edge cases with ifelse (branchless)
+    return ifelse(x < ϵ_numerics(FT), FT(0), ifelse(x_0 < ϵ_numerics(FT), FT(1), result))
 end
 
 """

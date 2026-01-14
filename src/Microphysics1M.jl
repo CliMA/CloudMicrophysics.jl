@@ -604,7 +604,7 @@ function evaporation_sublimation(
         G = CO.G_func_liquid(aps, tps, T)
         n0 = get_n0(pdf, q_rai, ρ)
         v0 = get_v0(vel, ρ)
-        (; χv, ve, Δv) = vel
+        (; χv, ve, Δv, gamma_vent) = vel
         (; r0) = mass
         a_vent = vent.a
         b_vent = vent.b
@@ -621,7 +621,7 @@ function evaporation_sublimation(
                 b_vent * cbrt(Sc) /
                 (r0 / λ_inv)^((ve + Δv) / 2) *
                 sqrt(2 * v0 * χv / ν_air * λ_inv) *
-                SF.gamma((ve + Δv + 5) / 2)
+                gamma_vent
             )
     end
     # only evaporation is considered for rain
@@ -651,7 +651,7 @@ function evaporation_sublimation(
         n0 = get_n0(pdf, q_sno, ρ)
         v0 = get_v0(vel, ρ)
         (; r0) = mass
-        (; χv, ve, Δv) = vel
+        (; χv, ve, Δv, gamma_vent) = vel
 
         a_vent = vent.a
         b_vent = vent.b
@@ -668,7 +668,7 @@ function evaporation_sublimation(
                 b_vent * cbrt(Sc) /
                 (r0 / λ_inv)^((ve + Δv) / 2) *
                 sqrt(2 * v0 * χv / ν_air * λ_inv) *
-                SF.gamma((ve + Δv + 5) / 2)
+                gamma_vent
             )
     end
     # both sublimation (S < 0) and deposition (S > 0) are considered for snow
@@ -708,7 +708,7 @@ function snow_melt(
         n0 = get_n0(pdf, q_sno, ρ)
         v0 = get_v0(vel, ρ)
         (; r0) = mass
-        (; χv, ve, Δv) = vel
+        (; χv, ve, Δv, gamma_vent) = vel
 
         a_vent = vent.a
         b_vent = vent.b
@@ -725,7 +725,7 @@ function snow_melt(
                 b_vent * cbrt(Sc) /
                 (r0 / λ_inv)^((ve + Δv) / 2) *
                 sqrt(2 * v0 * χv / ν_air * λ_inv) *
-                SF.gamma((ve + Δv + 5) / 2)
+                gamma_vent
             )
     end
     return snow_melt_rate

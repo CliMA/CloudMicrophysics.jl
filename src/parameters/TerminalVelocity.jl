@@ -24,6 +24,8 @@ Base.@kwdef struct Blk1MVelTypeRain{FT} <: ParametersType{FT}
     C_drag::FT
     "gravitational acceleration [m/s2]"
     grav::FT
+    "pre-computed gamma((ve + Δv + 5) / 2) for ventilation [-]"
+    gamma_vent::FT
 end
 
 function Blk1MVelTypeRain(td::CP.ParamDict)
@@ -38,7 +40,8 @@ function Blk1MVelTypeRain(td::CP.ParamDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
-    return Blk1MVelTypeRain{FT}(; parameters...)
+    gamma_vent = FT(SpecialFunctions.gamma((parameters.ve + parameters.Δv + 5) / 2))
+    return Blk1MVelTypeRain{FT}(; parameters..., gamma_vent)
 end
 
 """
@@ -61,6 +64,8 @@ Base.@kwdef struct Blk1MVelTypeSnow{FT} <: ParametersType{FT}
     χv::FT
     "snow terminal velocity size relation coefficient [m/s]"
     v0::FT
+    "pre-computed gamma((ve + Δv + 5) / 2) for ventilation [-]"
+    gamma_vent::FT
 end
 
 function Blk1MVelTypeSnow(td::CP.ParamDict)
@@ -74,7 +79,8 @@ function Blk1MVelTypeSnow(td::CP.ParamDict)
 
     v0 = 2^(9 / 4) * parameters.r0^parameters.ve
     FT = CP.float_type(td)
-    return Blk1MVelTypeSnow{FT}(; parameters..., v0)
+    gamma_vent = FT(SpecialFunctions.gamma((parameters.ve + parameters.Δv + 5) / 2))
+    return Blk1MVelTypeSnow{FT}(; parameters..., v0, gamma_vent)
 end
 
 """

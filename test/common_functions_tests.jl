@@ -15,13 +15,6 @@ TT.@testset "logistic_function unit tests" begin
 
     TT.@test CO.logistic_function(1.0, 0.0, 2.0) == 1.0
     TT.@test CO.logistic_function(0.0, 0.0, 2.0) == 0.0
-    TT.@test_throws AssertionError("x_0 >= 0") CO.logistic_function(
-        1.0,
-        -1.0,
-        2.0,
-    )
-    TT.@test_throws AssertionError("k > 0") CO.logistic_function(1.0, 1.0, 0.0)
-
 end
 
 TT.@testset "logistic_function_integral unit tests" begin
@@ -33,17 +26,6 @@ TT.@testset "logistic_function_integral unit tests" begin
 
     TT.@test CO.logistic_function_integral(1.0, 0.0, 2.0) == 1.0
     TT.@test CO.logistic_function_integral(0.0, 0.0, 2.0) == 0.0
-    TT.@test_throws AssertionError("x_0 >= 0") CO.logistic_function_integral(
-        1.0,
-        -1.0,
-        2.0,
-    )
-    TT.@test_throws AssertionError("k > 0") CO.logistic_function_integral(
-        1.0,
-        1.0,
-        0.0,
-    )
-
 end
 
 function test_H2SO4_soln_saturation_vapor_pressure(FT)
@@ -58,17 +40,7 @@ function test_H2SO4_soln_saturation_vapor_pressure(FT)
         T_too_cold = FT(180)
         x_sulph = FT(0.1)
 
-        # If T out of range
-        TT.@test_throws AssertionError("T < T_max") CO.H2SO4_soln_saturation_vapor_pressure(
-            H2SO4_prs,
-            x_sulph,
-            T_too_warm,
-        )
-        TT.@test_throws AssertionError("T > T_min") CO.H2SO4_soln_saturation_vapor_pressure(
-            H2SO4_prs,
-            x_sulph,
-            T_too_cold,
-        )
+        # Note: @assert removed for GPU compatibility - T bounds no longer throw
 
         # p_sol should be higher at warmer temperatures
         TT.@test CO.H2SO4_soln_saturation_vapor_pressure(
