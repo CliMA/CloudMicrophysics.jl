@@ -46,8 +46,8 @@ simple relaxation-to-equilibrium formulation with a constant timescale.
 - `q_lcl` or `q_icl` - cloud liquid water or ice specific content [kg/kg]
 
 # Returns
-- Cloud condensate tendency [kg/kg/s] (positive for condensation/deposition,
-  negative for evaporation/sublimation)
+- Cloud condensate tendency in kg/kg/s, positive for condensation/deposition,
+  negative for evaporation/sublimation
 
 The tendency is computed as:
 ```math

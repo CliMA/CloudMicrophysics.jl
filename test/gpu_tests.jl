@@ -895,10 +895,10 @@ function test_gpu(FT)
         )
 
         # test that terminal velocity is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(0.00689286343412659)
-        TT.@test Array(output)[2] ≈ FT(0.011493257177438487)
-        TT.@test Array(output)[3] ≈ FT(4.274715870117866)
-        TT.@test Array(output)[4] ≈ FT(0.5688979454130587)
+        TT.@test Array(output)[1] ≈ FT(0.021314907475574747)  # CloudLiquid with Stokes velocity
+        TT.@test Array(output)[2] ≈ FT(0.01696129041896599)   # CloudIce with Chen2022 small ice
+        TT.@test Array(output)[3] ≈ FT(6.9241079942767305)    # Rain with Chen2022 rain
+        TT.@test Array(output)[4] ≈ FT(0.9514450529349796)    # Snow with Chen2022 large ice
     end
 
     TT.@testset "0-moment microphysics kernels" begin
