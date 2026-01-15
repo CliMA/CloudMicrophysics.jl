@@ -505,13 +505,16 @@ end
 Returns the accretion rate when rain and snow collide.
 Collisions result in snow for T < T_freeze and rain for T > T_freeze.
 
-Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)².
+Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)², with
+a velocity dispersion correction that assumes that fall velocity standard 
+deviations are proportional to the mean fall velocities, with coefficient
+`ce.coeff_disp`.
 
 # Arguments
 - `type_i`: snow (T < T_freeze) or rain (T > T_freeze)
 - `type_j`: rain (T < T_freeze) or snow (T > T_freeze)  
 - `blk1mveltype_ti`, `blk1mveltype_tj`: 1M terminal velocity parameters
-- `ce`: collision efficiency parameters
+- `ce`: collision efficiency parameters (contains `e_rai_sno`, `coeff_disp`)
 - `q_i`, `q_j`: specific contents of snow or rain [kg/kg]
 - `ρ`: air density [kg/m³]
 
@@ -535,11 +538,8 @@ function accretion_snow_rain(
         n0_i = get_n0(type_i.pdf, q_i, ρ)
         n0_j = get_n0(type_j.pdf, q_j, ρ)
 
-        r0_j = type_j.mass.r0
-        m0_j = type_j.mass.m0
-        me_j = type_j.mass.me
-        Δm_j = type_j.mass.Δm
-        χm_j = type_j.mass.χm
+        (; r0, m0, me, Δm, χm, gamma_coeff) = type_j.mass
+        δ = me + Δm
 
         E_ij = Ec(type_i, type_j, ce)
 
@@ -551,17 +551,17 @@ function accretion_snow_rain(
 
         # Add simple parameterization for velocity dispersion, assuming that fall velocity 
         # standard deviations are proportional to the mean fall velocities, with coefficient 
-        #ce.coeff_disp
+        # ce.coeff_disp
         Δv_eff = sqrt((v_ti - v_tj)^2 + ce.coeff_disp * (v_ti^2 + v_tj^2))
 
+        # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms.
+        # gamma_coeff = Γ(δ + 1) is pre-computed.
         accr_rate =
-            FT(π) / ρ * n0_i * n0_j * m0_j * χm_j * E_ij * Δv_eff /
-            r0_j^(me_j + Δm_j) * (
-                2 * SF.gamma(me_j + Δm_j + 1) * λ_i_inv^3 *
-                λ_j_inv^(me_j + Δm_j + 1) +
-                2 * SF.gamma(me_j + Δm_j + 2) * λ_i_inv^2 *
-                λ_j_inv^(me_j + Δm_j + 2) +
-                SF.gamma(me_j + Δm_j + 3) * λ_i_inv * λ_j_inv^(me_j + Δm_j + 3)
+            FT(π) / ρ * n0_i * n0_j * m0 * χm * E_ij * Δv_eff * gamma_coeff /
+            r0^δ * (
+                2 * λ_i_inv^3 * λ_j_inv^(δ + 1) +
+                2 * (δ + 1) * λ_i_inv^2 * λ_j_inv^(δ + 2) +
+                (δ + 2) * (δ + 1) * λ_i_inv * λ_j_inv^(δ + 3)
             )
     end
     return accr_rate

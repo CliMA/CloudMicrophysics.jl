@@ -398,8 +398,8 @@ end
 Returns a function `v_term(D)` that computes the analytical fall speed of a cloud droplet as a function of
 its size (diameter, `D`) in the Stokes regime (Re < 1)
 """
-function particle_terminal_velocity(vel::CMP.StokesRegimeVelType, ρ)
-    (; ρw, grav, ν_air) = vel
+function particle_terminal_velocity(velocity_params::CMP.StokesRegimeVelType, ρ)
+    (; ρw, grav, ν_air) = velocity_params
     FT = eltype(ρ)
     terminal_velocity_prefactor = FT(1 / 18) * (ρw / ρ - 1) * grav / ν_air
     v_term(D) = terminal_velocity_prefactor * D^2

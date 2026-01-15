@@ -154,6 +154,15 @@ function CloudLiquid(toml_dict::CP.ParamDict)
         CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     FT = CP.float_type(toml_dict)
     N_0 = FT(500 * 1e6)  # default assumed number concentration
+    try
+        p_n0 = CP.get_parameter_values(
+            toml_dict,
+            (; :cloud_liquid_sedimentation_number_concentration => :N_0),
+            "CloudMicrophysics",
+        )
+        N_0 = p_n0.N_0
+    catch
+    end
     return CloudLiquid{FT}(; parameters..., N_0)
 end
 
@@ -204,6 +213,15 @@ function CloudIce(toml_dict::CP.ParamDict = CP.create_toml_dict(FT))
     P = typeof(pdf)
     M = typeof(mass)
     N_0 = FT(500 * 1e6)  # default assumed number concentration
+    try
+        p_n0 = CP.get_parameter_values(
+            toml_dict,
+            (; :cloud_ice_sedimentation_number_concentration => :N_0),
+            "CloudMicrophysics",
+        )
+        N_0 = p_n0.N_0
+    catch
+    end
     return CloudIce{FT, P, M}(
         pdf,
         mass,
@@ -470,11 +488,12 @@ function CollisionEff(td::CP.ParamDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
-    
+
     coeff_disp = FT(0.2) # Default value
     try
         # Try to load from TOML if present
-        disp_param = CP.get_parameter_values(td, (; :rain_snow_velocity_dispersion_coefficient => :v), "CloudMicrophysics")
+        disp_param =
+            CP.get_parameter_values(td, (; :rain_snow_velocity_dispersion_coefficient => :v), "CloudMicrophysics")
         coeff_disp = disp_param.v
     catch
         # default to 0.2 if not found

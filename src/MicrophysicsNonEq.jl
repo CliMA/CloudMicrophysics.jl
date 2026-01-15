@@ -155,7 +155,7 @@ assuming a monodisperse size distribution.
 
 # Arguments
 - `sediment` - cloud liquid or ice parameters struct (provides density and N_0)
-- `vel` - velocity parameters (StokesRegimeVelType for liquid, Chen2022 for ice)
+- `vel` - velocity parameters (StokesRegimeVelType for liquid, Chen2022VelTypeSmallIce for ice)
 - `ρₐ` - air density [kg/m³]
 - `q` - cloud liquid water or ice specific content [kg/kg]
 
