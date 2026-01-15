@@ -541,9 +541,9 @@ function evaporation_sublimation(
             4 * FT(π) * n0 / ρ * S * G * λ_inv^FT(2) *
             (
                 a_vent +
-                b_vent * (ν_air / D_vapor)^FT(1 / 3) /
+                b_vent * cbrt(ν_air / D_vapor) /
                 (r0 / λ_inv)^((ve + Δv) / FT(2)) *
-                (FT(2) * v0 * χv / ν_air * λ_inv)^FT(1 / 2) *
+                sqrt(2v0 * χv / ν_air * λ_inv) *
                 SF.gamma((ve + Δv + FT(5)) / FT(2))
             )
     end
