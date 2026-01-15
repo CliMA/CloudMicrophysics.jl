@@ -2,7 +2,6 @@ module ThermodynamicsInterface
 
 import Thermodynamics as TD
 const PS = TD.Parameters.ThermodynamicsParameters
-const PP = TD.PhasePartition  # Still used in Atmos EquilMoist model rain formation
 
 ###
 ### Constants
@@ -42,7 +41,12 @@ q2p(tps::PS, T, ρ, qᵥ) = qᵥ * ρ * Rᵥ(tps) * T
 # Get air density from temperature, pressure and water content
 # (only used in tests)
 air_density(tps::PS, T, p, q_tot, q_liq, q_ice) =
-    TD.air_density(tps, T, p, PP(q_tot, q_liq, q_ice))
+    TD.air_density(tps, T, p, q_tot, q_liq, q_ice)
+
+# Get water vapor specific content from relative humidity over liquid
+# (used in documentation plots for P3 scheme)
+q_vap_from_RH_over_liquid(tps::PS, p, T, RH) =
+    TD.q_vap_from_RH(tps, p, T, RH, TD.Liquid())
 
 ###
 ### Supersaturations
@@ -54,9 +58,9 @@ saturation_vapor_pressure_over_ice(tps::PS, T) =
 
 # (only used in tests)
 saturation_vapor_specific_content_over_liquid(tps::PS, T, ρ) =
-    TD.q_vap_saturation_generic(tps, T, ρ, TD.Liquid())
+    TD.q_vap_saturation(tps, T, ρ, TD.Liquid())
 saturation_vapor_specific_content_over_ice(tps::PS, T, ρ) =
-    TD.q_vap_saturation_generic(tps, T, ρ, TD.Ice())
+    TD.q_vap_saturation(tps, T, ρ, TD.Ice())
 
 function supersaturation_over_liquid(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
     pᵥ_sat = saturation_vapor_pressure_over_liquid(tps, T)
