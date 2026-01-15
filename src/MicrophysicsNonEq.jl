@@ -5,7 +5,7 @@ Implements relaxation-to-equilibrium approach for:
 - Condensation and evaporation of cloud liquid water
 - Deposition and sublimation of cloud ice
 
-See also: [`Microphysics1M`](@ref) for precipitating hydrometeor processes.
+See also: `Microphysics1M` for precipitating hydrometeor processes.
 """
 module MicrophysicsNonEq
 
