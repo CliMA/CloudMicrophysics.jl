@@ -389,7 +389,7 @@ function test_microphysics1M(FT)
             q_sno,
             q_rai,
             ρ,
-        ) ≈ FT(2.1705865794293408e-4)
+        ) ≈ FT(2.466313958248222e-4) # Includes velocity dispersion correction
         TT.@test CM1.accretion_snow_rain(
             rain,
             snow,
@@ -399,7 +399,7 @@ function test_microphysics1M(FT)
             q_rai,
             q_sno,
             ρ,
-        ) ≈ FT(6.0118801860768854e-5)
+        ) ≈ FT(6.830957197816771e-5) # Includes velocity dispersion correction
     end
 
     TT.@testset "RainEvaporation" begin

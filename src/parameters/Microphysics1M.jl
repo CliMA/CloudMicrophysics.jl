@@ -453,6 +453,8 @@ Base.@kwdef struct CollisionEff{FT} <: ParametersType{FT}
     e_icl_sno::FT
     "rain-snow collision efficiency [-]"
     e_rai_sno::FT
+    "rain-snow velocity dispersion coefficient [-]"
+    coeff_disp::FT
 end
 
 CollisionEff(::Type{FT}) where {FT <: AbstractFloat} =
@@ -468,5 +470,15 @@ function CollisionEff(td::CP.ParamDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)
-    return CollisionEff{FT}(; parameters...)
+    
+    coeff_disp = FT(0.2) # Default value
+    try
+        # Try to load from TOML if present
+        disp_param = CP.get_parameter_values(td, (; :rain_snow_velocity_dispersion_coefficient => :v), "CloudMicrophysics")
+        coeff_disp = disp_param.v
+    catch
+        # default to 0.2 if not found
+    end
+
+    return CollisionEff{FT}(; parameters..., coeff_disp)
 end

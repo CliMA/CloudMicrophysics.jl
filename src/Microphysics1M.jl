@@ -86,7 +86,7 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 Returns the proportionality coefficient in terminal velocity(r/r0).
 
 # Arguments
-- `vel`: terminal velocity parameters (contains `C_drag`, `ρw`, `grav`, `r0` for rain; `v0` for snow)
+- `vel`: terminal velocity parameters (contains `C_drag`, `ρw`, `grav`, `r0`, `gamma_term` for rain; `v0`, `gamma_term` for snow)
 - `ρ`: air density (rain only)
 """
 @inline get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain{FT}, ρ::FT) where {FT} =
@@ -104,7 +104,7 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
 
 # Arguments
 - `pdf`: size distribution parameters (ParticlePDFIceRain or ParticlePDFSnow)
-- `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`)
+- `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`, `gamma_coeff`)
 - `q`: specific content of rain, cloud ice, or snow [kg/kg]
 - `ρ`: air density [kg/m³]
 
@@ -143,7 +143,7 @@ terminal velocity parameterization (κ=1/3 for oblate, κ=-1/6 for prolate).
 
 # Arguments
 - `snow_shape`: assumed snow particle shape (Oblate or Prolate)
-- `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`)
+- `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`, `gamma_coeff`)
 - `area`: area(radius) parameters (contains `a0`, `ae`, `Δa`, `χa`)
 - `ρᵢ`: particle density
 """
@@ -414,7 +414,7 @@ with cloud water (liquid or ice).
 # Arguments
 - `cloud`: type for cloud water or cloud ice
 - `precip`: type for rain or snow
-- `vel`: terminal velocity parameters (Blk1MVelTypeRain or Blk1MVelTypeSnow)
+- `vel`: terminal velocity parameters (Blk1MVelTypeRain or Blk1MVelTypeSnow, contains `gamma_accr`)
 - `ce`: collision efficiency parameters
 - `q_clo`: cloud liquid water or cloud ice specific content
 - `q_pre`: rain or snow specific content
@@ -505,8 +505,7 @@ end
 Returns the accretion rate when rain and snow collide.
 Collisions result in snow for T < T_freeze and rain for T > T_freeze.
 
-Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)² 
-(that is, ignores dispersion of fall velocities).
+Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)².
 
 # Arguments
 - `type_i`: snow (T < T_freeze) or rain (T > T_freeze)
@@ -550,8 +549,13 @@ function accretion_snow_rain(
         v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i)
         v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j)
 
+        # Add simple parameterization for velocity dispersion, assuming that fall velocity 
+        # standard deviations are proportional to the mean fall velocities, with coefficient 
+        #ce.coeff_disp
+        Δv_eff = sqrt((v_ti - v_tj)^2 + ce.coeff_disp * (v_ti^2 + v_tj^2))
+
         accr_rate =
-            FT(π) / ρ * n0_i * n0_j * m0_j * χm_j * E_ij * abs(v_ti - v_tj) /
+            FT(π) / ρ * n0_i * n0_j * m0_j * χm_j * E_ij * Δv_eff /
             r0_j^(me_j + Δm_j) * (
                 2 * SF.gamma(me_j + Δm_j + 1) * λ_i_inv^3 *
                 λ_j_inv^(me_j + Δm_j + 1) +
