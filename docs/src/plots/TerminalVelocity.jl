@@ -172,7 +172,7 @@ bCh_snow_oblate =  [CM1.terminal_velocity(snow, Chen2022.large_ice, ρ_air, q, o
 bCh_snow_prolate = [CM1.terminal_velocity(snow, Chen2022.large_ice, ρ_air, q, prolate) for q in q_range]
 bSt_N_lcl = [CM2.cloud_terminal_velocity(SB2006.pdf_c, STVel, q, ρ_air, N_lcl)[1] for q in q_range]
 bSt_lcl = [CM2.cloud_terminal_velocity(SB2006.pdf_c, STVel, q, ρ_air, N_lcl)[2] for q in q_range]
-bCh_lcl = [CMNe.terminal_velocity(liquid, Chen2022.rain,     ρ_air, q) for q in q_range]
+bCh_lcl = [CMNe.terminal_velocity(liquid, STVel, ρ_air, q) for q in q_range]
 bCh_icl = [CMNe.terminal_velocity(ice,    Chen2022.small_ice, ρ_air, q) for q in q_range]
 
 # individual particle comparison - cloud size range
