@@ -183,7 +183,6 @@ function H2SO4_soln_saturation_vapor_pressure(
     x::FT,
     T::FT,
 ) where {FT}
-    # GPU-compatible: removed @assert temperature bounds checks
 
     w_h = w_2 * x
     p_sol =
