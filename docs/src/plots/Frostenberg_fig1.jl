@@ -16,7 +16,7 @@ frequency = [
     IN.INP_concentration_frequency(ip, INPC, T) : missing for
     INPC in INPC_range, T in T_range
 ]
-mu = [exp(IN.INP_concentration_mean(T)) for T in T_range]
+mu = [exp(IN.INP_concentration_mean(ip, T)) for T in T_range]
 
 
 PL.contourf(

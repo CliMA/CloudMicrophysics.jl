@@ -1,13 +1,14 @@
 # CloudMicrophysics.jl
-A package containing a library of cloud microphysics and aerosol parameterizations.
-See [our documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) for the list of available schemes.
+
+CloudMicrophysics.jl provides a library of cloud microphysics and aerosol parameterizations for the [CliMA Earth System Model](https://clima.caltech.edu). It implements bulk microphysics schemes for cloud formation, precipitation, and aerosol processes, designed for high-performance climate simulations.
 
 |||
-|---------------------:|:----------------------------------------------|
-| **Docs Build**       | [![docs build][docs-bld-img]][docs-bld-url]   |
-| **Documentation**    | [![dev][docs-dev-img]][docs-dev-url]          |
-| **GHA CI**           | [![gha ci][gha-ci-img]][gha-ci-url]           |
-| **Code Coverage**    | [![codecov][codecov-img]][codecov-url]        |
+|-----------------------------:|:-------------------------------------------------|
+| **Documentation**            | [![dev][docs-dev-img]][docs-dev-url]             |
+| **Docs Build**               | [![docs build][docs-bld-img]][docs-bld-url]      |
+| **GHA CI**                   | [![gha ci][gha-ci-img]][gha-ci-url]              |
+| **Code Coverage**            | [![codecov][codecov-img]][codecov-url]           |
+| **Downloads**                | [![Downloads][dlt-img]][dlt-url]                 |
 
 [docs-bld-img]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/docs.yml/badge.svg
 [docs-bld-url]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/docs.yml
@@ -21,88 +22,77 @@ See [our documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) for t
 [codecov-img]: https://codecov.io/gh/CliMA/CloudMicrophysics.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/CliMA/CloudMicrophysics.jl
 
-## Installation and running instructions
+[dlt-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FCloudMicrophysics&query=total_requests&label=Downloads
+[dlt-url]: https://juliapkgstats.com/pkg/CloudMicrophysics
 
-CloudMicrophysics.jl is a Julia registered package.
-It depends on a couple of standard Julia packages as well as
-  the [Thermodynamics.jl](https://github.com/CliMA/Thermodynamics.jl) and
-  [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl)
-  (two Julia packages developed at [CliMA](https://github.com/CliMA)).
-See the [Project.toml](https://github.com/CliMA/CloudMicrophysics.jl/blob/main/Project.toml)
-  for a full list of CloudMicrophysics.jl's dependencies.
+## Quick Start
 
-When using the CloudMicrophysics.jl inside your own project,
-  the easiest way to obtain the latest stable version of the package
-  and it's dependencies is to use the Julia built-in package manager
-  (accessed by pressing `]` in the Julia REPL):
+### Installation
 
 ```julia
-julia> ]
-pkg> add CloudMicrophysics
-pkg> instantiate
+using Pkg
+Pkg.add("CloudMicrophysics")
+Pkg.add("ClimaParams")
 ```
 
-CloudMicrophysics.jl can be updated to the latest tagged release
-  from the package manager.
-The package is still under development and changes to API are very possible!
+### Basic Usage
 
 ```julia
-pkg> update CloudMicrophysics
+import CloudMicrophysics as CM
+import CloudMicrophysics.Microphysics1M as CM1
+import CloudMicrophysics.Parameters as CMP
+
+# Create microphysics parameters
+rain = CMP.Rain(Float64)
+vel = CMP.Blk1MVelType(Float64).rain
+
+# Compute rain terminal velocity
+ρ = 1.2      # air density [kg/m³]
+q_rai = 1e-3 # rain specific content [kg/kg]
+v_term = CM1.terminal_velocity(rain, vel, ρ, q_rai)
 ```
 
-When contributing to the CloudMicrophysics.jl development,
-  the easiest way is to clone the [repository](https://github.com/CliMA/CloudMicrophysics.jl)
-  and then run it using its project environment.
-For example, to get all the needed dependencies and then run all the tests
-  you could try:
+## Key Features
 
-```julia
-julia --project=test
+### 🌧️ **Bulk Microphysics Schemes**
 
-julia> ]
+- **0-moment scheme**: Simple precipitation removal
+- **1-moment scheme**: Marshall-Palmer distributions for rain and snow
+- **2-moment scheme**: [Seifert & Beheng (2006)](https://doi.org/10.1007/s00703-005-0112-4) with mass and number concentration
+- **P3 scheme**: Predicted particle properties for ice
 
-pkg> dev .
+### 🧊 **Ice Nucleation**
 
-pkg> instantiate
+- **Heterogeneous nucleation**: Deposition, immersion freezing ([ABIFM](https://doi.org/10.5194/acp-12-9817-2012))
+- **Homogeneous nucleation**: [Koop et al. (2000)](https://doi.org/10.1038/35020537) parameterization
+- **INP distributions**: [Frostenberg et al. (2023)](https://doi.org/10.5194/acp-23-10883-2023)
 
-julia> include("test/runtests.jl")
-```
+### 💨 **Aerosol Processes**
 
-See the [Pkg docs](https://docs.julialang.org/en/v1/stdlib/Pkg/)
-  for an overview of basic package manager features.
+- **Aerosol activation**: [Abdul-Razzak & Ghan (2000)](https://doi.org/10.1029/1999JD901161) parameterization
+- **Aerosol nucleation**: H₂SO₄ and organic nucleation pathways
+- **Aerosol model**: Modal distributions with κ-Köhler theory
 
-## Contributing
+### ⚡ **High Performance**
 
-CloudMicrophysics.jl is being actively developed
-  and welcomes contributions and feedback.
-There is a variety of projects big and small that are available to take up as
-  fun research projects for interested students and other contributors.
-Below is a list of possible examples,
-  but other suggestions and ideas are always welcome!
+- **Type-stable** and **GPU-compatible** (CUDA.jl, AMDGPU.jl)
+- **AD-compatible** (ForwardDiff.jl) for differentiable physics
+- Optimized for minimal allocations
 
-- CloudMicrophysics.jl should be tested against a high-resolution model.
-  We have chosen [PySDM](https://github.com/atmos-cloud-sim-uj/PySDM)
-  as our high-resolution benchmark.
-  PySDM is a package for simulating the dynamics of population of particles
-  and is based on the [Super-Droplet algorithm](https://doi.org/10.1002/qj.441).
-  Possible tasks in this project would include testing the aerosol activation parameterization
-  against PySDM in adiabatic parcel setup, or testing the 1-moment
-  microphysics parameterization against PySDM in an
-  [1-dimensional](https://github.com/CliMA/Kinematic1D.jl) or
-  2-dimensional prescribed flow setups.
-  This could be extended further into a calibration exercise using the
-  [EnsembleKalmanProcesses.jl](https://github.com/CliMA/EnsembleKalmanProcesses.jl) package.
-  An example pipeline can be seen in the
-  [EKP.jl docs](https://clima.github.io/EnsembleKalmanProcesses.jl/dev/examples/Cloudy_example/)
-  where [Cloudy.jl](https://github.com/CliMA/Cloudy.jl) parameters are calibrated.
+## Documentation
 
-- The CloudMicrophysics.jl package should be tested against observations.
-  We are focusing on the ice-free precipitation first. The tests include
-  comparisons against [CFODDs](https://doi.org/10.1175/JAS-D-20-0321.1) and
-  against [Stratocumulus LWP(N) patterns](https://doi.org/10.5194/acp-19-10191-2019).
+- **[Getting Started](https://clima.github.io/CloudMicrophysics.jl/dev/GettingStarted/)** - Installation and first steps
+- **[API Reference](https://clima.github.io/CloudMicrophysics.jl/dev/API/)** - Detailed function documentation
+- **[Microphysics Schemes](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/)** - Scheme descriptions
 
-- Adding an aerosol model and coupling it with the aerosol activation
-  parameterization.
-  [MAM4](https://doi.org/10.5194/gmd-9-505-2016) could be the aerosol model to implement,
-  but we are also searching for some simpler alternatives first.
-  This is a big project and an opportunity for a more long term contribution.
+## Integration with Climate Models
+
+CloudMicrophysics.jl is used throughout the [CliMA](https://github.com/CliMA) ecosystem:
+
+- [ClimaAtmos](https://github.com/CliMA/ClimaAtmos.jl) - Atmospheric model
+- [KinematicDriver](https://github.com/CliMA/KinematicDriver.jl) - 1D/2D kinematic framework
+- [Thermodynamics](https://github.com/CliMA/Thermodynamics.jl) - Moist thermodynamics
+
+## Getting Help
+
+For questions, check the [documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) or open an issue on [GitHub](https://github.com/CliMA/CloudMicrophysics.jl).

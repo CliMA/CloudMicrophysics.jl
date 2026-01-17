@@ -49,6 +49,8 @@ Base.@kwdef struct ParticleMass{FT} <: ParametersType{FT}
     Δm::FT
     "mass size relation coefficient [-]"
     χm::FT
+    "pre-computed gamma(me + Δm + 1) for performance [-]"
+    gamma_coeff::FT
 end
 
 """
@@ -135,6 +137,8 @@ Base.@kwdef struct CloudLiquid{FT} <: CloudCondensateType{FT}
     ρw::FT
     "effective radius [m]"
     r_eff::FT
+    "assumed number concentration for cloud sedimentation [1/m3]"
+    N_0::FT
 end
 
 CloudLiquid(::Type{FT}) where {FT <: AbstractFloat} =
@@ -145,6 +149,7 @@ function CloudLiquid(toml_dict::CP.ParamDict)
         :condensation_evaporation_timescale => :τ_relax,
         :density_liquid_water => :ρw,
         :liquid_cloud_effective_radius => :r_eff,
+        :cloud_liquid_sedimentation_number_concentration => :N_0,
     )
     parameters =
         CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
@@ -175,6 +180,8 @@ struct CloudIce{FT, PD, MS} <: CloudCondensateType{FT}
     ρᵢ::FT
     "effective radius [m]"
     r_eff::FT
+    "assumed number concentration for cloud sedimentation [1/m3]"
+    N_0::FT
 end
 
 CloudIce(::Type{FT}) where {FT <: AbstractFloat} =
@@ -189,6 +196,7 @@ function CloudIce(toml_dict::CP.ParamDict = CP.create_toml_dict(FT))
         :ice_snow_threshold_radius => :r_ice_snow,
         :sublimation_deposition_timescale => :τ_relax,
         :ice_cloud_effective_radius => :r_eff,
+        :cloud_ice_sedimentation_number_concentration => :N_0,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     mass = ParticleMass(CloudIce, toml_dict)
@@ -204,6 +212,7 @@ function CloudIce(toml_dict::CP.ParamDict = CP.create_toml_dict(FT))
         p.τ_relax,
         p.ρᵢ,
         p.r_eff,
+        p.N_0,
     )
 end
 
@@ -218,7 +227,8 @@ function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     m0 = 4 / 3 * π * p.ρᵢ * p.r0^p.me
     FT = CP.float_type(td)
-    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
+    gamma_coeff = FT(SF.gamma(p.me + p.Δm + 1))
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
 end
 
 """
@@ -288,7 +298,8 @@ function ParticleMass(::Type{Rain}, td::CP.ParamDict)
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     m0 = 4 / 3 * π * p.ρ * p.r0^p.me
     FT = CP.float_type(td)
-    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
+    gamma_coeff = FT(SF.gamma(p.me + p.Δm + 1))
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
 end
 
 function ParticleArea(::Type{Rain}, td::CP.ParamDict)
@@ -331,6 +342,10 @@ struct Snow{FT, PD, MS, AR, VT, AP, AC} <: PrecipitationType{FT}
     T_freeze::FT
     "snow apparent density [kg/m3]"
     ρᵢ::FT
+    "pre-computed gamma(α+4)/6 for oblate aspect ratio [-]"
+    gamma_aspect_oblate::FT
+    "pre-computed gamma(α+4)/6 for prolate aspect ratio [-]"
+    gamma_aspect_prolate::FT
 end
 
 Snow(::Type{FT}) where {FT <: AbstractFloat} = Snow(CP.create_toml_dict(FT))
@@ -360,6 +375,15 @@ function Snow(toml_dict::CP.ParamDict)
     aspr = SnowAspectRatio(p.ϕ, p.κ)
     acnv1M = Acnv1M(p.τ, p.q_threshold, p.k)
     FT = CP.float_type(toml_dict)
+
+    # Pre-compute gamma aspect ratio for oblate and prolate shapes
+    # Oblate: α = me + Δm - 3/2 * (ae + Δa)
+    # Prolate: α = 3 * (ae + Δa) - 2 * (me + Δm)
+    α_oblate = mass.me + mass.Δm - FT(3 / 2) * (area.ae + area.Δa)
+    α_prolate = 3 * (area.ae + area.Δa) - 2 * (mass.me + mass.Δm)
+    gamma_aspect_oblate = FT(SF.gamma(α_oblate + 4) / SF.gamma(FT(4)))
+    gamma_aspect_prolate = FT(SF.gamma(α_prolate + 4) / SF.gamma(FT(4)))
+
     return Snow{
         FT,
         typeof(pdf),
@@ -378,6 +402,8 @@ function Snow(toml_dict::CP.ParamDict)
         p.r0,
         p.T_freeze,
         p.ρᵢ,
+        gamma_aspect_oblate,
+        gamma_aspect_prolate,
     )
 end
 
@@ -391,7 +417,8 @@ function ParticleMass(::Type{Snow}, td::CP.ParamDict)
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     m0 = 1e-1 * p.r0^p.me
     FT = CP.float_type(td)
-    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm)
+    gamma_coeff = FT(SF.gamma(p.me + p.Δm + 1))
+    return ParticleMass{FT}(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
 end
 
 function ParticleArea(::Type{Snow}, toml_dict::CP.ParamDict)
@@ -426,6 +453,8 @@ Base.@kwdef struct CollisionEff{FT} <: ParametersType{FT}
     e_icl_sno::FT
     "rain-snow collision efficiency [-]"
     e_rai_sno::FT
+    "rain-snow velocity dispersion coefficient [-]"
+    coeff_disp::FT
 end
 
 CollisionEff(::Type{FT}) where {FT <: AbstractFloat} =
@@ -438,6 +467,7 @@ function CollisionEff(td::CP.ParamDict)
         :cloud_ice_rain_collision_efficiency => :e_icl_rai,
         :cloud_ice_snow_collision_efficiency => :e_icl_sno,
         :rain_snow_collision_efficiency => :e_rai_sno,
+        :rain_snow_velocity_dispersion_coefficient => :coeff_disp,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     FT = CP.float_type(td)

@@ -233,6 +233,14 @@ function test_heterogeneous_ice_nucleation(FT)
                 T,
             ) ≈ frequency rtol = 0.1
         end
+
+        # test T > T_freeze
+        T_warm = ip_frostenberg.T_freeze + FT(1)
+        TT.@test CMI_het.INP_concentration_frequency(
+            ip_frostenberg,
+            INPCs[1],
+            T_warm,
+        ) == FT(0)
     end
 end
 

@@ -1,8 +1,11 @@
 """
-    Non-equilibrium bulk microphysics scheme, which includes:
+Non-equilibrium bulk microphysics scheme for cloud condensate formation.
 
-  - condensation and evaporation of cloud liquid water and
-    deposition and sublimation of cloud ice (relaxation to equilibrium)
+Implements relaxation-to-equilibrium approach for:
+- Condensation and evaporation of cloud liquid water
+- Deposition and sublimation of cloud ice
+
+See also: `Microphysics1M` for precipitating hydrometeor processes.
 """
 module MicrophysicsNonEq
 
@@ -15,57 +18,77 @@ export conv_q_vap_to_q_lcl_icl
 export conv_q_vap_to_q_lcl_icl_MM2015
 
 """
-    τ_relax(liquid)
-    τ_relax(ice)
+    τ_relax(liquid::CloudLiquid)
+    τ_relax(ice::CloudIce)
 
- - `liquid` or `ice` - a type for cloud liquid water or ice
+Returns the relaxation timescale for phase change processes.
 
-Returns the relaxation timescale for condensation and evaporation of
-cloud liquid water or the relaxation timescale for sublimation and
-deposition of cloud ice.
+# Arguments
+- `liquid::CloudLiquid` or `ice::CloudIce` - cloud condensate parameters struct
+
+# Returns
+- Relaxation timescale [s] for condensation/evaporation (liquid) or
+  deposition/sublimation (ice)
 """
-τ_relax(p::CMP.CloudLiquid) = p.τ_relax
-τ_relax(p::CMP.CloudIce) = p.τ_relax
+@inline τ_relax(p::CMP.CloudLiquid) = p.τ_relax
+@inline τ_relax(p::CMP.CloudIce) = p.τ_relax
 
 """
-    conv_q_vap_to_q_lcl_icl(params, q_sat, q_lcl)
-    conv_q_vap_to_q_lcl_icl(params, q_sat, q_icl)
+    conv_q_vap_to_q_lcl_icl(params::CloudLiquid, q_sat_liq, q_lcl)
+    conv_q_vap_to_q_lcl_icl(params::CloudIce, q_sat_ice, q_icl)
 
- - `params` - a struct with cloud water or ice free parameters
- - `q_sat` - liquid water or ice equilibrium specific contents
- - `q_lcl`, `q_icl` - current cloud liquid water or cloud ice specific contants
+Computes the tendency of cloud condensate specific content using a
+simple relaxation-to-equilibrium formulation with a constant timescale.
 
-Returns the cloud liquid water tendency due to condensation and evaporation
-or cloud ice tendency due to sublimation and vapor deposition.
-The tendency is obtained assuming a relaxation to equilibrium with
-a constant timescale and is based on the difference between
-specific contents in equilibrium at the current temperature
-and the current cloud condensate.
+# Arguments
+- `params` - cloud liquid or ice parameters struct containing `τ_relax`
+- `q_sat_liq` or `q_sat_ice` - saturation specific humidity [kg/kg]
+- `q_lcl` or `q_icl` - cloud liquid water or ice specific content [kg/kg]
+
+# Returns
+- Cloud condensate tendency in kg/kg/s, positive for condensation/deposition,
+  negative for evaporation/sublimation
+
+The tendency is computed as:
+```math
+\\frac{dq}{dt} = \\frac{q_{sat} - q}{\\tau_{relax}}
+```
 """
-function conv_q_vap_to_q_lcl_icl((; τ_relax)::CMP.CloudLiquid, q_sat_liq, q_lcl)
+@inline function conv_q_vap_to_q_lcl_icl((; τ_relax)::CMP.CloudLiquid, q_sat_liq, q_lcl)
     return (q_sat_liq - q_lcl) / τ_relax
 end
-function conv_q_vap_to_q_lcl_icl((; τ_relax)::CMP.CloudIce, q_sat_ice, q_icl)
+
+@inline function conv_q_vap_to_q_lcl_icl((; τ_relax)::CMP.CloudIce, q_sat_ice, q_icl)
     return (q_sat_ice - q_icl) / τ_relax
 end
 
 """
     conv_q_vap_to_q_lcl_icl_MM2015(params, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
 
-- `params` - a struct with cloud liquid water or ice free parameters
+Computes cloud condensate tendency using the formulation from
+Morrison & Grabowski (2008), https://doi.org/10.1175/2007JAS2374.1, and
+Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
+
+This formulation includes a thermodynamic adjustment factor Γ that
+accounts for latent heat release modifying the saturation state.
+
+# Arguments
+- `params` - cloud liquid or ice parameters struct containing `τ_relax`
 - `tps` - thermodynamics parameters struct
-- `q_tot`, `q_lcl`, `q_icl`, `q_rai`, `q_sno` - specific contents of total water, cloud liquid water and ice, rain and snow,
-- `ρ` - air density [kg/m3]
+- `q_tot` - total water specific content [kg/kg]
+- `q_lcl` - cloud liquid water specific content [kg/kg]
+- `q_icl` - cloud ice specific content [kg/kg]
+- `q_rai` - rain specific content [kg/kg]
+- `q_sno` - snow specific content [kg/kg]
+- `ρ` - air density [kg/m³]
 - `T` - air temperature [K]
 
-Returns the cloud liquid water tendency due to condensation and evaporation
-or cloud ice tendency due to sublimation and vapor deposition.
-The formulation is based on Morrison and Grabowski 2008 and
-Morrison and Milbrandt 2015.
+# Returns
+- Cloud condensate tendency [kg/kg/s]
 
-It does NOT screen for small or negative values for humidities,
-so we suggest applying a limiter of choice to this function,
-when running it in a model.
+# Notes
+This function does NOT apply limiters for small or negative specific humidities.
+Users should apply appropriate bounds checking when integrating in a model.
 """
 function conv_q_vap_to_q_lcl_icl_MM2015(
     (; τ_relax)::CMP.CloudLiquid,
@@ -92,6 +115,7 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
 
     return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
 end
+
 function conv_q_vap_to_q_lcl_icl_MM2015(
     (; τ_relax)::CMP.CloudIce,
     tps::TDI.PS,
@@ -119,44 +143,44 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
 end
 
 """
-    terminal_velocity(sediment, vel, ρ, q)
+    terminal_velocity(sediment::CloudLiquid, vel::StokesRegimeVelType, ρₐ, q)
+    terminal_velocity(sediment::CloudIce, vel::Chen2022VelTypeSmallIce, ρₐ, q)
 
- - `sediment` - a struct with sedimentation type (cloud liquid or ice)
- - `vel` - a struct with terminal velocity parameters
- - `ρₐ` - air density
- - `q` - cloud liquid water or ice specific content
+Computes mass-weighted average terminal velocity for cloud droplets or ice crystals
+assuming a monodisperse size distribution.
 
-Returns the mass weighted average terminal velocity assuming a
-monodisperse size distribution with prescribed number concentration.
-The fall velocity of individual particles is parameterized following
-Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171
+- **Cloud Liquid**: Uses Stokes Law (v ∝ D²), valid for small droplets (Re < 1).
+- **Cloud Ice**: Uses Chen et al. (2022) parameterization,
+  [DOI: 10.1016/j.atmosres.2022.106171](https://doi.org/10.1016/j.atmosres.2022.106171)
+
+# Arguments
+- `sediment` - cloud liquid or ice parameters struct (provides density and N_0)
+- `vel` - velocity parameters (StokesRegimeVelType for liquid, Chen2022VelTypeSmallIce for ice)
+- `ρₐ` - air density [kg/m³]
+- `q` - cloud liquid water or ice specific content [kg/kg]
+
+# Returns
+- Mass-weighted terminal velocity [m/s]
 """
 function terminal_velocity(
-    (; ρw)::CMP.CloudLiquid{FT},
-    vel::CMP.Chen2022VelTypeRain{FT},
+    (; ρw, N_0)::CMP.CloudLiquid{FT},
+    vel::CMP.StokesRegimeVelType{FT},
     ρₐ::FT,
     q::FT,
 ) where {FT}
     fall_w = FT(0)
     if q > CO.ϵ_numerics(FT)
-        # TODO: Coefficients from Table B1 from Chen et. al. 2022 are only valid
-        # for D > 100mm. We should look for a different parameterization
-        # that is more suited for cloud droplets. For now I'm just multiplying
-        # by an arbitrary correction factor.
+        # Stokes law: v(D) = C * D^2, valid for D < ~80 μm (Re < 1)
         v_term = CO.particle_terminal_velocity(vel, ρₐ)
-        # The 1M scheme does not assume any cloud droplet size distribution.
-        # TODO - For now I compute a mean volume radius assuming a fixed value
-        # for the total number concentration of droplets.
-        N = FT(500 * 1e6)
-        D = cbrt(ρₐ * q / N / ρw)
-        corr = FT(0.1)
-        # assuming ϕ = 1 (spherical)
-        fall_w = max(FT(0), corr * v_term(D))
+        # Mean volume diameter from assumed number concentration
+        D = cbrt(FT(6 / π) * ρₐ * q / N_0 / ρw)
+        fall_w = v_term(D)
     end
     return fall_w
 end
+
 function terminal_velocity(
-    (; ρᵢ)::CMP.CloudIce{FT},
+    (; ρᵢ, N_0)::CMP.CloudIce{FT},
     vel::CMP.Chen2022VelTypeSmallIce{FT},
     ρₐ::FT,
     q::FT,
@@ -164,10 +188,8 @@ function terminal_velocity(
     fall_w = FT(0)
     if q > CO.ϵ_numerics(FT)
         v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
-        # See the comment for liquid droplets above
-        N = FT(500 * 1e6)
-        D = cbrt(ρₐ * q / N / ρᵢ)
-        # assuming ϕ = 1 (spherical)
+        # Mean volume diameter from assumed number concentration
+        D = cbrt(FT(6 / π) * ρₐ * q / N_0 / ρᵢ)
         fall_w = max(FT(0), v_term(D))
     end
     return fall_w

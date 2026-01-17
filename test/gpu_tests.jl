@@ -137,6 +137,7 @@ end
     rain,
     snow,
     Ch2022,
+    STVel,
     output::AbstractArray{FT},
     ρₐ,
     qₗ,
@@ -148,7 +149,8 @@ end
     i = @index(Group, Linear)
 
     @inbounds begin
-        output[1, i] = CMN.terminal_velocity(liquid, Ch2022.rain, ρₐ[i], qₗ[i])
+        # CloudLiquid supports StokesRegimeVelType, not Chen2022VelTypeRain
+        output[1, i] = CMN.terminal_velocity(liquid, STVel, ρₐ[i], qₗ[i])
         output[2, i] =
             CMN.terminal_velocity(ice, Ch2022.small_ice, ρₐ[i], qᵢ[i])
         output[3, i] = CM1.terminal_velocity(rain, Ch2022.rain, ρₐ[i], qᵣ[i])
@@ -785,6 +787,7 @@ function test_gpu(FT)
     blk1mvel = CMP.Blk1MVelType(FT)
     SB2006Vel = CMP.SB2006VelType(FT)
     Ch2022 = CMP.Chen2022VelType(FT)
+    STVel = CMP.StokesRegimeVelType(FT)
 
     # 2-moment microphysics
     SB2006 = CMP.SB2006(FT)
@@ -881,6 +884,7 @@ function test_gpu(FT)
             rain,
             snow,
             Ch2022,
+            STVel,
             output,
             ρ,
             qₗ,
@@ -891,10 +895,10 @@ function test_gpu(FT)
         )
 
         # test that terminal velocity is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(0.00689286343412659)
-        TT.@test Array(output)[2] ≈ FT(0.011493257177438487)
-        TT.@test Array(output)[3] ≈ FT(4.274715870117866)
-        TT.@test Array(output)[4] ≈ FT(0.5688979454130587)
+        TT.@test Array(output)[1] ≈ FT(0.021314907475574747)  # CloudLiquid with Stokes velocity
+        TT.@test Array(output)[2] ≈ FT(0.01696129041896599)   # CloudIce with Chen2022 small ice
+        TT.@test Array(output)[3] ≈ FT(6.9241079942767305)    # Rain with Chen2022 rain
+        TT.@test Array(output)[4] ≈ FT(0.9514450529349796)    # Snow with Chen2022 large ice
     end
 
     TT.@testset "0-moment microphysics kernels" begin
@@ -962,8 +966,8 @@ function test_gpu(FT)
         TT.@test Array(output)[3, 2] ≈ FT(2.453070979562392e-7)
         TT.@test Array(output)[4, 2] ≈ FT(1.768763302130443e-6)
         TT.@test Array(output)[5, 2] ≈ FT(3.590060148920767e-5)
-        TT.@test Array(output)[6, 2] ≈ FT(2.1705865794293408e-4)
-        TT.@test Array(output)[7, 2] ≈ FT(6.0118801860768854e-5)
+        TT.@test Array(output)[6, 2] ≈ FT(2.466313958248222e-4)
+        TT.@test Array(output)[7, 2] ≈ FT(6.830957197816771e-5)
 
         dims = (1, 3)
         (; output, ndrange) = setup_output(dims, FT)

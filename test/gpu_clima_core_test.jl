@@ -99,7 +99,7 @@ function set_sedimentation_precomputed_quantities(Y, p, t)
 
     @. wₗ = CMN.terminal_velocity(
         params.liquid,
-        params.Ch2022.rain,
+        params.STVel,
         Y.ρ,
         max(0, Y.ρq / Y.ρ),
     )
@@ -127,12 +127,13 @@ end
 function main_1d(::Type{FT}) where {FT}
 
     Ch2022 = CMP.Chen2022VelType(FT)
+    STVel = CMP.StokesRegimeVelType(FT)
     liquid = CMP.CloudLiquid(FT)
     ice = CMP.CloudIce(FT)
     rain = CMP.Rain(FT)
     snow = CMP.Snow(FT)
 
-    params = (; liquid, ice, rain, snow, Ch2022)
+    params = (; liquid, ice, rain, snow, Ch2022, STVel)
 
     space_1d_ρq = make_column(FT)
     space_1d_ρ = make_column(FT)
@@ -157,12 +158,13 @@ end
 function main_3d(::Type{FT}) where {FT}
 
     Ch2022 = CMP.Chen2022VelType(FT)
+    STVel = CMP.StokesRegimeVelType(FT)
     liquid = CMP.CloudLiquid(FT)
     ice = CMP.CloudIce(FT)
     rain = CMP.Rain(FT)
     snow = CMP.Snow(FT)
 
-    params = (; liquid, ice, rain, snow, Ch2022)
+    params = (; liquid, ice, rain, snow, Ch2022, STVel)
 
     space_3d_ρq = make_extruded_sphere(FT)
     space_3d_ρ = make_extruded_sphere(FT)

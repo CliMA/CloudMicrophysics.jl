@@ -201,25 +201,30 @@ function INP_concentration_frequency(
     T::FT,
 ) where {FT}
 
-    μ = INP_concentration_mean(T)
+    if T >= params.T_freeze
+        return FT(0)
+    end
+
+    μ = INP_concentration_mean(params, T)
 
     return 1 / (sqrt(2 * FT(π)) * params.σ) *
            exp(-(log(INPC) - μ)^2 / (2 * params.σ^2))
 end
 
 """
-    INP_concentration_mean(T)
+    INP_concentration_mean(params, T)
 
+ - `params` - a struct with INPC(T) distribution parameters
  - `T` - air temperature [K]
 
 Returns the logarithm of mean INP concentration (in m^-3), depending on the temperature.
 Based on the function μ(T) in Frostenberg et al., 2023. See DOI: 10.5194/acp-23-10883-2023
 """
-function INP_concentration_mean(T::FT) where {FT}
+function INP_concentration_mean(params::CMP.Frostenberg2023, T::FT) where {FT}
 
-    T_celsius = T - FT(273.15)
+    T_celsius = min(T - params.T_freeze, FT(0))
 
-    return log(-(T_celsius)^9 * FT(10)^(-9))
+    return log((-T_celsius / 10)^9)
 end
 
 end # end module
