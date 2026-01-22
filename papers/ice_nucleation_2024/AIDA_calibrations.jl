@@ -182,6 +182,7 @@ for (batch_index, batch_name) in enumerate(batch_names)
         calibrated_coeffs_fig = plot_calibrated_coeffs(
             batch_name,
             UKI_n_iterations, UKI_n_ensembles, UKI_all_params,
+            UKI_mean_each_iter,
         )
 
         ## Calibrated parcel simulations.
