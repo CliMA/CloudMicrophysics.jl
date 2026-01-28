@@ -145,27 +145,27 @@ end
 """
     compute_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state)
 
-Returns a function `max_freeze_rate(Dᵢ)` that returns the maximum possible freezing rate [kg/s] 
+Returns a function `max_freeze_rate(Dᵢ)` that returns the maximum possible freezing rate [kg/s]
     for an ice particle of diameter `Dᵢ` [m]. Evaluates to `0` if `T ≥ T_freeze`.
 
 # Arguments
-- `aps`: [`CMP.AirProperties`](@ref) 
+- `aps`: [`CMP.AirProperties`](@ref)
 - `tps`: `TDP.ThermodynamicsParameters`
 - `velocity_params`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
 - `ρₐ`: air density [kg/m³]
 - `Tₐ`: air temperature [K]
 - `state`: [`P3State`](@ref)
 
-This rate represents the thermodynamic upper limit to collisional freezing, 
-which occurs when the heat transfer from the ice particle to the environment is 
+This rate represents the thermodynamic upper limit to collisional freezing,
+which occurs when the heat transfer from the ice particle to the environment is
 balanced by the latent heat of fusion.
 
 From Eq (A7) in Musil (1970), [Musil1970](@cite).
 """
 function compute_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state)
     (; D_vapor, K_therm) = aps
-    cp_l = TDI.TD.Parameters.cp_l(tps)
-    T_frz = TDI.TD.Parameters.T_freeze(tps)
+    cp_l = TDI.cp_l(tps)
+    T_frz = TDI.T_freeze(tps)
     Lᵥ = TDI.Lᵥ(tps, Tₐ)
     L_f = TDI.Lf(tps, Tₐ)
     Tₛ = T_frz  # the surface of the ice particle is assumed to be at the freezing temperature
@@ -187,7 +187,7 @@ end
 """
     compute_local_rime_density(velocity_params, ρₐ, T, state)
 
-Provides a function `ρ′_rim(Dᵢ, Dₗ)` that computes the local rime density [kg/m³] 
+Provides a function `ρ′_rim(Dᵢ, Dₗ)` that computes the local rime density [kg/m³]
     for a given ice particle diameter `Dᵢ` [m] and liquid particle diameter `Dₗ` [m].
 
 # Arguments
@@ -211,8 +211,8 @@ diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
 So the units of ``R_i`` are [m² s⁻¹ °C⁻¹]. The units of ``ρ'_{rim}`` are [kg/m³].
 
 We assume for simplicity that ``T_{sfc}`` equals ``T``, the ambient air temperature.
-For real graupel, ``T_{sfc}`` is slightly higher than ``T`` due to latent heat release 
-of freezing liquid particles onto the ice particle. Morrison & Milbrandt (2013) 
+For real graupel, ``T_{sfc}`` is slightly higher than ``T`` due to latent heat release
+of freezing liquid particles onto the ice particle. Morrison & Milbrandt (2013)
 found little sensitivity to "realistic" increases in ``T_{sfc}``.
 
 See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity).
@@ -224,7 +224,7 @@ See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity
  which extends the range of the calculation to ``R_i ≤ 12``, the upper limit of which
  then equals the solid bulk ice density, ``ρ_ice = 916.7 kg/m^3``.
 
- Note that Morrison & Milbrandt (2015) [MorrisonMilbrandt2015](@cite) only uses this 
+ Note that Morrison & Milbrandt (2015) [MorrisonMilbrandt2015](@cite) only uses this
  parameterization for collisions with cloud droplets.
  For rain drops, they use a value near the solid bulk ice density, ``ρ^* = 900 kg/m^3``.
  We do not consider this distinction, and use this parameterization for all liquid particles.
@@ -247,7 +247,7 @@ end
 """
     get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwargs...)
 
-Returns a function `liquid_integrals(Dᵢ)` that computes the liquid particle integrals 
+Returns a function `liquid_integrals(Dᵢ)` that computes the liquid particle integrals
     for a given ice particle diameter `Dᵢ`.
 
 # Arguments
@@ -261,10 +261,10 @@ Returns a function `liquid_integrals(Dᵢ)` that computes the liquid particle in
 - `∫kwargs...`: Additional keyword arguments passed to the quadrature rule
 
 # Notes
-The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col, ∂ₜB_col)` 
+The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col, ∂ₜB_col)`
     of collision rates at `Dᵢ`, where:
 - `∂ₜN_col`: number collision rate [1/s]
-- `∂ₜM_col`: mass collision rate [kg/s]  
+- `∂ₜM_col`: mass collision rate [kg/s]
 - `∂ₜB_col`: rime volume collision rate [m³/s]
 """
 function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwargs...)
@@ -275,7 +275,7 @@ function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwarg
                 ∂ₜV(Dᵢ, D) * n(D),
                 # ∂ₜM_col = ∫ ∂ₜV ⋅ n ⋅ m_liq ⋅ dD
                 ∂ₜV(Dᵢ, D) * n(D) * m_liq(D),
-                # ∂ₜB_col = ∫ ∂ₜV ⋅ n ⋅ m_liq / ρ′_rim ⋅ dD 
+                # ∂ₜB_col = ∫ ∂ₜV ⋅ n ⋅ m_liq / ρ′_rim ⋅ dD
                 ∂ₜV(Dᵢ, D) * n(D) * m_liq(D) / ρ′_rim(Dᵢ, D),
             )
         end
@@ -338,7 +338,7 @@ end
 
 """
     ∫liquid_ice_collisions(
-        state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r, 
+        state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
         aps, tps, vel, ρₐ, T, m_liq
     )
 
@@ -392,7 +392,7 @@ function ∫liquid_ice_collisions(
     bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r, ρₐ, N_r, p)
 
     # Integrand components
-    # NOTE: We assume collision efficiency, shape (spherical), and terminal velocity is the 
+    # NOTE: We assume collision efficiency, shape (spherical), and terminal velocity is the
     #   same for cloud and precipitating liquid particles ⟹ same volumetric collision rate, ∂ₜV
     ∂ₜV = volumetric_collision_rate_integrand(vel, ρₐ, state)  # ∂ₜV(Dᵢ, Dₗ)
     ρ′_rim = compute_local_rime_density(vel, ρₐ, T, state)  # ρ′_rim(Dᵢ, Dₗ)

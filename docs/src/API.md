@@ -1,7 +1,8 @@
 ```@meta
 CurrentModule = CloudMicrophysics
 ```
-# .
+
+#
 
 # Non-equilibrium cloud formation
 
@@ -39,12 +40,15 @@ Microphysics1M.snow_melt
 ```
 
 # 2-moment precipitation microphysics
+
 ```@docs
 Microphysics2M
 ```
+
 ## Size distributions
 
 ### Parameters
+
 ```@docs
 Microphysics2M.pdf_cloud_parameters
 Microphysics2M.pdf_rain_parameters
@@ -54,6 +58,7 @@ Microphysics2M.log_pdf_cloud_parameters_mass
 ```
 
 ### Size distributions
+
 ```@docs
 Microphysics2M.size_distribution(::CMP.RainParticlePDF_SB2006, _, _, _)
 Microphysics2M.size_distribution(::CMP.CloudParticlePDF_SB2006, _, _, _)
@@ -62,6 +67,7 @@ Microphysics2M.get_size_distribution_bounds
 ```
 
 ## Rates
+
 ```@docs
 Microphysics2M.LclRaiRates
 Microphysics2M.autoconversion
@@ -88,6 +94,20 @@ DistributionTools.exponential_cdf
 DistributionTools.exponential_quantile
 ```
 
+# Bulk microphysics tendencies
+
+Fused tendency functions for 0-moment, 1-moment, 2-moment, and P3 microphysics schemes.
+
+```@docs
+BulkMicrophysicsTendencies
+BulkMicrophysicsTendencies.MicrophysicsScheme
+BulkMicrophysicsTendencies.Microphysics0Moment
+BulkMicrophysicsTendencies.Microphysics1Moment
+BulkMicrophysicsTendencies.Microphysics2Moment
+BulkMicrophysicsTendencies.MicrophysicsP3
+BulkMicrophysicsTendencies.bulk_microphysics_tendencies
+```
+
 # P3 scheme
 
 ```@docs
@@ -95,6 +115,7 @@ P3Scheme
 ```
 
 ## Construct parameterization set
+
 ```@docs
 CMP.ParametersP3{Float64}
 CMP.ParametersP3(::Float64)
@@ -102,6 +123,7 @@ CMP.ParametersP3(::Parameters.CP.ParamDict)
 ```
 
 ### Sub-parameterizations
+
 ```@docs
 CMP.MassPowerLaw
 CMP.AreaPowerLaw
@@ -133,7 +155,9 @@ P3Scheme.get_D_cr
 ### Derived quantities
 
 #### Main particle methods
+
 These methods are a function of the particle diameter, `D`.
+
 ```@docs
 P3Scheme.ice_mass
 P3Scheme.ice_density
@@ -162,7 +186,9 @@ P3Scheme.logLdivN
 ```
 
 ### Derived integral quantities
+
 These methods integrate over the particle size distribution.
+
 ```@docs
 P3Scheme.D_m
 P3Scheme.ice_particle_terminal_velocity
@@ -173,20 +199,25 @@ P3Scheme.ice_terminal_velocity_mass_weighted
 ### Processes
 
 #### Heterogeneous ice nucleation
+
 ```@docs
 P3Scheme.het_ice_nucleation
 ```
 
 #### Ice melting
+
 ```@docs
 P3Scheme.ice_melt
 ```
 
 #### Collisions with liquid droplets
+
 ```@docs
 P3Scheme.bulk_liquid_ice_collision_sources
 ```
+
 Supporting methods:
+
 ```@docs
 P3Scheme.volumetric_collision_rate_integrand
 P3Scheme.compute_max_freeze_rate
@@ -232,6 +263,7 @@ ArtifactCalling.AIDA_ice_nucleation
 ```
 
 # Heterogeneous ice nucleation
+
 ```@docs
 HetIceNucleation
 HetIceNucleation.dust_activated_number_fraction
@@ -245,6 +277,7 @@ HetIceNucleation.INP_concentration_mean
 ```
 
 # Homogeneous ice nucleation
+
 ```@docs
 HomIceNucleation
 HomIceNucleation.homogeneous_J_cubic
@@ -252,6 +285,7 @@ HomIceNucleation.homogeneous_J_linear
 ```
 
 # Cloud diagnostics
+
 ```@docs
 CloudDiagnostics
 CloudDiagnostics.radar_reflectivity_1M

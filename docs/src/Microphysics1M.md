@@ -608,6 +608,10 @@ The eq.(\ref{eq:accr_sr1}) can then be integrated as:
     with the snow crossection used when modelling collisions with cloud water
     and cloud ice.
 
+Similarly to cloud ice and snow collisions, there is additional melting term
+   when snow collides with rain in temperatures warmer than freezing.
+This term is proportional to ``\frac{c_{vl}}{L_f}(T - T_{freeze})``.
+
 ## Rain evaporation and snow sublimation
 
 We start from a similar equation as when computing snow autoconversion rate

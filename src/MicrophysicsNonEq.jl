@@ -113,7 +113,8 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
     Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
 
-    return (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
+    tendency = (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
+    return ifelse(tendency < 0 && q_lcl <= 0, zero(tendency), tendency)
 end
 
 function conv_q_vap_to_q_lcl_icl_MM2015(
@@ -139,7 +140,8 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
     Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
 
-    return (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
+    tendency = (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
+    return ifelse(tendency < 0 && q_icl <= 0, zero(tendency), tendency)
 end
 
 """

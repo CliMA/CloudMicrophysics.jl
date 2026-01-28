@@ -7,6 +7,7 @@ const PS = TD.Parameters.ThermodynamicsParameters
 ### Constants
 ###
 grav(tps::PS) = TD.Parameters.grav(tps) # Needed in parcel model
+T_freeze(tps::PS) = TD.Parameters.T_freeze(tps)
 
 Rᵥ(tps::PS) = TD.Parameters.R_v(tps)
 Rd(tps::PS) = TD.Parameters.R_d(tps)
@@ -20,6 +21,16 @@ Lₛ(tps::PS, T) = TD.latent_heat_sublim(tps, T)
 Lf(tps::PS, T) = TD.latent_heat_fusion(tps, T)
 
 cpₘ(tps::PS, qₜ, qₗ, qᵢ) = TD.cp_m(tps, qₜ, qₗ, qᵢ)
+cv_l(tps::PS) = TD.Parameters.cv_l(tps)
+cp_l(tps::PS) = TD.Parameters.cp_l(tps)
+
+###
+### Internal energies and liquid fraction (needed for energy sources from 0M)
+###
+liquid_fraction(tps::PS, T, q_lcl, q_icl) =
+    TD.liquid_fraction(tps, T, q_lcl, q_icl)
+internal_energy_liquid(tps::PS, T) = TD.internal_energy_liquid(tps, T)
+internal_energy_ice(tps::PS, T) = TD.internal_energy_ice(tps, T)
 
 ###
 ### Utility functions
