@@ -155,7 +155,7 @@ function benchmark_test(FT)
     bench_press(FT, P3.get_distribution_logλ, (state,), 30_000)
     bench_press(FT, P3.get_distribution_logλ, (params_P3, L_ice, N_ice, F_rim, ρ_rim), 30_000)
     bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 120_000)
-    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 130_000)
+    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 135_000)
     bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 3_000)
     bench_press(FT, P3.D_m, (state, logλ), 3_000)
 

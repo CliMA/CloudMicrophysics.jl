@@ -12,9 +12,7 @@ tps = TDI.PS(FT)
 
 # helper functions
 function RH2qₜ(T, RH)
-    eᵥ_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
-    eᵥ = RH * eᵥ_sat
-    qᵥ = 1 / (1 - TDI.TD.Parameters.Rv_over_Rd(tps) * (eᵥ - p) / eᵥ)
+    qᵥ = TDI.q_vap_from_RH_over_liquid(tps, p, T, RH)
     qₜ = qᵥ + qₗ + qᵢ
     return qₜ
 end
