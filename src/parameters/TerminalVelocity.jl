@@ -1,4 +1,4 @@
-export Blk1MVelType, StokesRegimeVelType, SB2006VelType, Chen2022VelType
+export Blk1MVelType, StokesRegimeVelType, SB2006VelType, Chen2022VelType, TerminalVelocityParams
 
 """
     Blk1MVelTypeRain
@@ -352,5 +352,98 @@ function Chen2022VelType(toml_dict::CP.ParamDict)
         rain,
         small_ice,
         large_ice,
+    )
+end
+
+"""
+    TerminalVelocityParams{FT, STOKES, CHEN, BLK1M}
+
+Unified container for all terminal velocity parameterizations used in CloudMicrophysics.
+
+This struct consolidates terminal velocity parameters for sedimentation calculations
+across all microphysics schemes (0M, 1M, 2M, NonEq). It provides a single source of
+truth for velocity parameterizations, eliminating duplication and enabling flexible
+mixing of velocity types across schemes.
+
+# Fields
+- `stokes::STOKES`: [`StokesRegimeVelType`](@ref) — terminal velocity for cloud liquid droplets (Stokes regime)
+- `chen2022::CHEN`: [`Chen2022VelType`](@ref) — terminal velocity for rain and ice (Chen et al. 2022)
+- `blk1m::BLK1M`: [`Blk1MVelType`](@ref) — terminal velocity for rain and snow (1-moment scheme)
+
+# Usage
+
+Terminal velocities are used for sedimentation (advection of hydrometeors), not for
+microphysical process rates (which are handled by scheme-specific parameter structs).
+
+Different schemes use different velocity parameterizations:
+- **Cloud liquid**: `stokes` (all schemes)
+- **Cloud ice**: `chen2022.small_ice` (all schemes)
+- **Rain (1M)**: `blk1m.rain`
+- **Rain (2M)**: `chen2022.rain`
+- **Snow**: `blk1m.snow` (used by both 1M and 2M)
+
+# Example
+```julia
+using CloudMicrophysics.Parameters as CMP
+using CloudMicrophysics.MicrophysicsNonEq as CMNe
+using CloudMicrophysics.Microphysics1M as CM1
+
+# Create unified terminal velocity parameters
+tv = CMP.TerminalVelocityParams(Float64)
+
+# Cloud liquid sedimentation (Stokes regime)
+v_liq = CMNe.terminal_velocity(cloud_liquid, tv.stokes, ρ, q_liq)
+
+# Cloud ice sedimentation (Chen 2022)
+v_ice = CMNe.terminal_velocity(cloud_ice, tv.chen2022.small_ice, ρ, q_ice)
+
+# Rain sedimentation (1M scheme uses Blk1M)
+v_rain_1m = CM1.terminal_velocity(rain, tv.blk1m.rain, ρ, q_rai)
+
+# Snow sedimentation (shared by 1M and 2M)
+v_snow = CM1.terminal_velocity(snow, tv.blk1m.snow, ρ, q_sno)
+```
+
+# See Also
+- [`StokesRegimeVelType`](@ref): Stokes regime terminal velocity
+- [`Chen2022VelType`](@ref): Chen et al. (2022) terminal velocity
+- [`Blk1MVelType`](@ref): 1-moment bulk terminal velocity
+"""
+struct TerminalVelocityParams{FT, STOKES, CHEN, BLK1M}
+    stokes::STOKES
+    chen2022::CHEN
+    blk1m::BLK1M
+end
+
+"""
+    TerminalVelocityParams(::Type{FT}) where {FT <: AbstractFloat}
+
+Create a `TerminalVelocityParams` object from a floating point type.
+
+# Arguments
+- `FT`: Floating point type (e.g., Float64, Float32)
+"""
+TerminalVelocityParams(::Type{FT}) where {FT <: AbstractFloat} =
+    TerminalVelocityParams(CP.create_toml_dict(FT))
+
+"""
+    TerminalVelocityParams(toml_dict::CP.ParamDict)
+
+Create a `TerminalVelocityParams` object from a ClimaParams TOML dictionary.
+
+# Arguments
+- `toml_dict`: ClimaParams parameter dictionary
+"""
+function TerminalVelocityParams(toml_dict::CP.ParamDict)
+    FT = CP.float_type(toml_dict)
+
+    stokes = StokesRegimeVelType(toml_dict)
+    chen2022 = Chen2022VelType(toml_dict)
+    blk1m = Blk1MVelType(toml_dict)
+
+    return TerminalVelocityParams{FT, typeof(stokes), typeof(chen2022), typeof(blk1m)}(
+        stokes,
+        chen2022,
+        blk1m,
     )
 end

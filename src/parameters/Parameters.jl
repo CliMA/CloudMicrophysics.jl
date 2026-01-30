@@ -45,6 +45,11 @@ include("MicrophysicsP3.jl")
 # Terminal velocity parameters  (can be used with different microph. schemes)
 include("TerminalVelocity.jl")
 
+# Unified parameter containers
+include("Microphysics0MParams.jl")
+include("Microphysics1MParams.jl")
+include("Microphysics2MParams.jl")
+
 for T in (
     Chen2022VelTypeRain,
     Chen2022VelTypeSmallIce,
