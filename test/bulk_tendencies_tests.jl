@@ -606,7 +606,19 @@ function test_bulk_microphysics_2m_tendencies(FT)
             FT(1e8),
             FT(1e4),
         )
-        @test tendencies isa @NamedTuple{dq_lcl_dt::FT, dq_rai_dt::FT, dn_lcl_dt::FT, dn_rai_dt::FT}
+        @test tendencies isa @NamedTuple{
+            dq_lcl_dt::FT,
+            dn_lcl_dt::FT,
+            dq_rai_dt::FT,
+            dn_rai_dt::FT,
+            dq_ice_dt::FT,
+            dq_rim_dt::FT,
+            db_rim_dt::FT,
+        }
+        # Ice tendencies should be zero for 2M mode
+        @test tendencies.dq_ice_dt == FT(0)
+        @test tendencies.dq_rim_dt == FT(0)
+        @test tendencies.db_rim_dt == FT(0)
     end
 end
 
@@ -640,7 +652,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = FT(10)  # Dummy, not used without ice
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
@@ -684,7 +696,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
@@ -728,7 +740,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
@@ -770,7 +782,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
@@ -815,7 +827,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
