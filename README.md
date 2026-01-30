@@ -81,7 +81,7 @@ v_term = CM1.terminal_velocity(rain, vel, ρ, q_rai)
 
 ## Documentation
 
-- **[Getting Started](https://clima.github.io/CloudMicrophysics.jl/dev/GettingStarted/)** - Installation and first steps
+- **[Getting Started](https://clima.github.io/CloudMicrophysics.jl/dev/guides/literated/GettingStarted/)** - Installation and first steps
 - **[API Reference](https://clima.github.io/CloudMicrophysics.jl/dev/API/)** - Detailed function documentation
 - **[Microphysics Schemes](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/)** - Scheme descriptions
 
