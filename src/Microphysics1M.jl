@@ -147,7 +147,7 @@ terminal velocity parameterization (κ=1/3 for oblate, κ=-1/6 for prolate).
 - `area`: area(radius) parameters (contains `a0`, `ae`, `Δa`, `χa`)
 - `ρᵢ`: particle density
 """
-function aspect_ratio_coeffs(
+@inline function aspect_ratio_coeffs(
     snow_shape::Oblate,
     (; r0, m0, me, Δm, χm)::CMP.ParticleMass{FT},
     (; a0, ae, Δa, χa)::CMP.ParticleArea{FT},
@@ -160,7 +160,7 @@ function aspect_ratio_coeffs(
     return (; ϕ₀, α, κ)
 end
 
-function aspect_ratio_coeffs(
+@inline function aspect_ratio_coeffs(
     snow_shape::Prolate,
     (; r0, m0, me, Δm, χm)::CMP.ParticleMass{FT},
     (; a0, ae, Δa, χa)::CMP.ParticleArea{FT},
@@ -201,7 +201,7 @@ Fall velocity of individual particles is parameterized:
 # Returns
 - Mass-weighted terminal velocity [m/s]
 """
-function terminal_velocity(
+@inline function terminal_velocity(
     (; pdf, mass)::Union{CMP.Rain{FT}, CMP.Snow{FT}},
     vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
     ρ::FT,
@@ -224,7 +224,7 @@ function terminal_velocity(
     end
 end
 
-function terminal_velocity(
+@inline function terminal_velocity(
     (; pdf, mass)::CMP.Rain{FT},
     vel::CMP.Chen2022VelTypeRain{FT},
     ρₐ::FT,
@@ -248,7 +248,7 @@ function terminal_velocity(
     return fall_w
 end
 
-function terminal_velocity(
+@inline function terminal_velocity(
     (; pdf, mass, area, ρᵢ, aspr)::CMP.Snow{FT},
     vel::CMP.Chen2022VelTypeLargeIce{FT},
     ρₐ::FT,
@@ -278,7 +278,7 @@ function terminal_velocity(
     return fall_w
 end
 
-function terminal_velocity(
+@inline function terminal_velocity(
     (; pdf, mass, area, ρᵢ, gamma_aspect_oblate, gamma_aspect_prolate)::CMP.Snow{FT},
     vel::CMP.Chen2022VelTypeLargeIce{FT},
     ρₐ::FT,
@@ -326,7 +326,7 @@ over the threshold, avoiding discontinuities in the tendency.
 # Returns
 - Rain autoconversion rate [kg/kg/s]
 """
-conv_q_lcl_to_q_rai(
+@inline conv_q_lcl_to_q_rai(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
     q_lcl::FT,
     smooth_transition::Bool = false,
@@ -347,7 +347,7 @@ This is a simplified version for use in simulations without supersaturation
 - `q_icl`: cloud ice specific content
 - `smooth_transition`: flag to switch on smoothing
 """
-conv_q_icl_to_q_sno_no_supersat(
+@inline conv_q_icl_to_q_sno_no_supersat(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
     q_icl::FT,
     smooth_transition::Bool = false,
@@ -376,7 +376,7 @@ Parameterized following:
 - `ρ`: air density
 - `T`: air temperature
 """
-function conv_q_icl_to_q_sno(
+@inline function conv_q_icl_to_q_sno(
     (; r_ice_snow, pdf, mass)::CMP.CloudIce{FT},
     aps::CMP.AirProperties{FT},
     tps::TDI.PS,
@@ -420,7 +420,7 @@ with cloud water (liquid or ice).
 - `q_pre`: rain or snow specific content
 - `ρ`: air density
 """
-function accretion(
+@inline function accretion(
     cloud::CMP.CloudCondensateType{FT},
     precip::CMP.PrecipitationType{FT},
     vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
@@ -466,7 +466,7 @@ with cloud ice.
 - `q_rai`: rain water specific content
 - `ρ`: air density
 """
-function accretion_rain_sink(
+@inline function accretion_rain_sink(
     rain::CMP.Rain{FT},
     ice::CMP.CloudIce{FT},
     vel::CMP.Blk1MVelTypeRain{FT},
@@ -521,7 +521,7 @@ deviations are proportional to the mean fall velocities, with coefficient
 # Returns
 - Accretion rate [kg/kg/s]
 """
-function accretion_snow_rain(
+@inline function accretion_snow_rain(
     type_i::CMP.PrecipitationType{FT},
     type_j::CMP.PrecipitationType{FT},
     blk1mveltype_ti::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
@@ -594,7 +594,7 @@ https://doi.org/10.1007/s00703-005-0112-4.
 # Returns
 - Evaporation/sublimation/deposition rate [kg/kg/s]
 """
-function evaporation_sublimation(
+@inline function evaporation_sublimation(
     (; pdf, mass, vent)::CMP.Rain{FT},
     vel::CMP.Blk1MVelTypeRain{FT},
     aps::CMP.AirProperties{FT},
@@ -640,7 +640,7 @@ function evaporation_sublimation(
     return min(0, evap_subl_rate)
 end
 
-function evaporation_sublimation(
+@inline function evaporation_sublimation(
     (; pdf, mass, vent)::CMP.Snow{FT},
     vel::CMP.Blk1MVelTypeSnow{FT},
     aps::CMP.AirProperties{FT},
@@ -701,7 +701,7 @@ Returns the tendency due to snow melt.
 - `ρ`: air density
 - `T`: air temperature
 """
-function snow_melt(
+@inline function snow_melt(
     (; T_freeze, pdf, mass, vent)::CMP.Snow{FT},
     vel::CMP.Blk1MVelTypeSnow{FT},
     aps::CMP.AirProperties{FT},

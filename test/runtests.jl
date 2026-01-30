@@ -7,6 +7,7 @@ TT.@testset "All tests" begin
     include("homogeneous_ice_nucleation_tests.jl")
     include("microphysics0M_tests.jl")
     include("microphysics1M_tests.jl")
+    include("bulk_tendencies_tests.jl")
     include("microphysics2M_tests.jl")
     include("microphysics_noneq_tests.jl")
     include("cloud_diagnostics.jl")
