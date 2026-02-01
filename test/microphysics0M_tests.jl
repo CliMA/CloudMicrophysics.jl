@@ -18,10 +18,7 @@ function test_microphysics0M(FT)
         frac = [FT(0), FT(0.5), FT(1.0)]
 
         # no rain if no cloud
-        q = TDI.TD.PhasePartition(q_tot)
-        TT.@test CM0.remove_precipitation(p0m, q) ≈ FT(0)
         TT.@test CM0.remove_precipitation(p0m, FT(0), FT(0)) ≈ FT(0)
-        TT.@test CM0.remove_precipitation(p0m, q, q_vap_sat) ≈ FT(0)
         TT.@test CM0.remove_precipitation(p0m, FT(0), FT(0), q_vap_sat) ≈ FT(0)
 
 
@@ -30,10 +27,6 @@ function test_microphysics0M(FT)
             q_lcl = qc * lf
             q_icl = (1 - lf) * qc
 
-            q = TDI.TD.PhasePartition(q_tot, q_lcl, q_icl)
-
-            TT.@test CM0.remove_precipitation(p0m, q) ≈
-                     -max(0, q_lcl + q_icl - qc_0) / τ_precip
             TT.@test CM0.remove_precipitation(p0m, q_lcl, q_icl) ≈
                      -max(0, q_lcl + q_icl - qc_0) / τ_precip
         end
@@ -43,10 +36,6 @@ function test_microphysics0M(FT)
             q_lcl = qc * lf
             q_icl = (1 - lf) * qc
 
-            q = TDI.TD.PhasePartition(q_tot, q_lcl, q_icl)
-
-            TT.@test CM0.remove_precipitation(p0m, q, q_vap_sat) ≈
-                     -max(0, q_lcl + q_icl - S_0 * q_vap_sat) / τ_precip
             TT.@test CM0.remove_precipitation(p0m, q_lcl, q_icl, q_vap_sat) ≈
                      -max(0, q_lcl + q_icl - S_0 * q_vap_sat) / τ_precip
         end

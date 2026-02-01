@@ -117,7 +117,6 @@ function benchmark_test(FT)
     q_rai = FT(1e-4)
     q_sno = FT(1e-4)
     q_tot = FT(1e-3)
-    q = TDI.TD.PhasePartition(q_tot)
 
     N_liq = FT(1e8)
     N_rai = FT(1e8)
@@ -212,7 +211,6 @@ function benchmark_test(FT)
     )
 
     @info "0-Moment Scheme"
-    bench_press(FT, CM0.remove_precipitation, (p0m, q), 12)
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)
 
     @info "1-Moment Scheme"

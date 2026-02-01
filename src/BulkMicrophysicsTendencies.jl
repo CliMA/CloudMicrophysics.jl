@@ -459,9 +459,9 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     aps = mp.warm_rain.air_properties
 
     # Initialize ice-related tendencies (always zero for warm-only)
-    dq_ice_dt = zero(typeof(ρ))
-    dq_rim_dt = zero(typeof(ρ))
-    db_rim_dt = zero(typeof(ρ))
+    dq_ice_dt = zero(ρ)
+    dq_rim_dt = zero(ρ)
+    db_rim_dt = zero(ρ)
 
     # --- Core Warm Rain Processes (shared helper) ---
     warm = warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
@@ -473,7 +473,6 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     # Convert to number densities for remaining functions
     N_lcl = ρ * n_lcl
     N_rai = ρ * n_rai
-
 
     # --- Rain evaporation ---
     evap = CM2.rain_evaporation(sb, aps, tps, zero(ρ), q_lcl, zero(ρ), q_rai, zero(ρ), ρ, N_rai, T)
@@ -555,11 +554,11 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     aps = mp.warm_rain.air_properties
 
     # Initialize ice-related tendencies
-    dq_ice_dt = zero(typeof(ρ))
+    dq_ice_dt = zero(ρ)
     # TODO: When ice number concentration becomes prognostic, add:
-    # dn_ice_dt = zero(typeof(ρ))  # Ice number tendency (changes due to melting, aggregation)
-    dq_rim_dt = zero(typeof(ρ))
-    db_rim_dt = zero(typeof(ρ))
+    # dn_ice_dt = zero(ρ)  # Ice number tendency (changes due to melting, aggregation)
+    dq_rim_dt = zero(ρ)
+    db_rim_dt = zero(ρ)
 
     # --- Core Warm Rain Processes (shared helper) ---
     warm = warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
@@ -589,7 +588,9 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dn_rai_dt += (dn_rai_inc + dn_rai_dec) / ρ
 
     # --- P3 Ice Processes ---
-    # Ice parameters are guaranteed to be present (enforced by type signature)
+    # NOTE: P3 uses gamma_inc_inv from SpecialFunctions which is NOT GPU-compatible
+    # (it uses string formatting for errors). We must keep if-branches to skip
+    # P3 code when there is no ice, otherwise GPU compilation fails.
     p3 = mp.ice.scheme
     vel = mp.ice.terminal_velocity
     pdf_c = mp.ice.cloud_pdf
@@ -648,7 +649,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         T_freeze = TDI.TD.Parameters.T_freeze(tps)
         if T > T_freeze && L_ice > zero(L_ice)
             state = CMP3.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
-            # TODO: Using a function that takes dt as an argument is not compatible with the current API. 
+            # TODO: Using a function that takes dt as an argument is not compatible with the current API.
             # We should use a function that doesn't take dt as an argument.
             dt_dummy = 1000 * one(T)  # P3 uses dt for limiting, we'll limit later
             melt = CMP3.ice_melt(vel, aps, tps, T, ρ, dt_dummy, state, logλ)
