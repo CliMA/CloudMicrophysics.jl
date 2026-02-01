@@ -19,17 +19,18 @@ end
 function test_bulk_microphysics_1m_tendencies(FT)
 
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    aps = CMP.AirProperties(FT)
 
-    rain = CMP.Rain(FT)
-    snow = CMP.Snow(FT)
-    ice = CMP.CloudIce(FT)
-    liquid = CMP.CloudLiquid(FT)
-    ce = CMP.CollisionEff(FT)
-    vel = CMP.Blk1MVelType(FT)
+    # Use unified parameter container
+    mp = CMP.Microphysics1MParams(FT)
 
-    # Bundle microphysics parameters into a single NamedTuple
-    mp = (; lcl = liquid, icl = ice, rai = rain, sno = snow, ce, aps, vel)
+    # Extract individual parameters for direct testing
+    liquid = mp.cloud.liquid
+    ice = mp.cloud.ice
+    rain = mp.precip.rain
+    snow = mp.precip.snow
+    ce = mp.collision
+    aps = mp.air_properties
+    vel = mp.terminal_velocity
 
     T_freeze = TDI.T_freeze(tps)
 
@@ -502,8 +503,7 @@ end
 
 function test_bulk_microphysics_0m_tendencies(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    params_0M = CMP.Parameters0M(FT)
-    mp = (; params_0M)
+    mp = CMP.Microphysics0MParams(FT)
 
     T_freeze = TDI.T_freeze(tps)
 
@@ -552,9 +552,7 @@ end
 
 function test_bulk_microphysics_2m_tendencies(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    aps = CMP.AirProperties(FT)
-    sb = CMP.SB2006(FT)
-    mp = (; sb, aps)
+    mp = CMP.Microphysics2MParams(FT; with_ice = false)
 
     T_freeze = TDI.T_freeze(tps)
 
@@ -606,23 +604,30 @@ function test_bulk_microphysics_2m_tendencies(FT)
             FT(1e8),
             FT(1e4),
         )
-        @test tendencies isa @NamedTuple{dq_lcl_dt::FT, dq_rai_dt::FT, dn_lcl_dt::FT, dn_rai_dt::FT}
+        @test tendencies isa @NamedTuple{
+            dq_lcl_dt::FT,
+            dn_lcl_dt::FT,
+            dq_rai_dt::FT,
+            dn_rai_dt::FT,
+            dq_ice_dt::FT,
+            dq_rim_dt::FT,
+            db_rim_dt::FT,
+        }
+        # Ice tendencies should be zero for 2M mode
+        @test tendencies.dq_ice_dt == FT(0)
+        @test tendencies.dq_rim_dt == FT(0)
+        @test tendencies.db_rim_dt == FT(0)
     end
 end
 
 function test_bulk_microphysics_p3_tendencies(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    aps = CMP.AirProperties(FT)
-    sb = CMP.SB2006(FT)
-    p3 = CMP.ParametersP3(FT)
-    vel = CMP.Chen2022VelType(FT)
+    mp = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true)
 
-    # SB2006 PDFs needed for both warm rain and P3 collisions
-    toml = CP.create_toml_dict(FT)
-    pdf_c = CMP.CloudParticlePDF_SB2006(toml)
-    pdf_r = CMP.RainParticlePDF_SB2006_limited(toml)
-
-    mp = (; sb, aps, p3, vel, pdf_c, pdf_r)
+    # Extract individual parameters for direct testing
+    p3 = mp.ice.scheme
+    pdf_c = mp.ice.cloud_pdf
+    pdf_r = mp.ice.rain_pdf
     T_freeze = TDI.T_freeze(tps)
 
     @testset "BulkMicrophysicsTendencies P3 - Warm rain processes" begin
@@ -640,7 +645,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = FT(10)  # Dummy, not used without ice
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
@@ -684,7 +689,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
@@ -728,7 +733,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
@@ -770,7 +775,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,
@@ -815,7 +820,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.MicrophysicsP3(),
+            BMT.Microphysics2Moment(),
             mp,
             tps,
             ρ,

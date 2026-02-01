@@ -104,7 +104,6 @@ BulkMicrophysicsTendencies.MicrophysicsScheme
 BulkMicrophysicsTendencies.Microphysics0Moment
 BulkMicrophysicsTendencies.Microphysics1Moment
 BulkMicrophysicsTendencies.Microphysics2Moment
-BulkMicrophysicsTendencies.MicrophysicsP3
 BulkMicrophysicsTendencies.bulk_microphysics_tendencies
 ```
 
@@ -393,6 +392,14 @@ Parameters.Chen2022VelType
 Parameters.Chen2022VelTypeSmallIce
 Parameters.Chen2022VelTypeLargeIce
 Parameters.Chen2022VelTypeRain
+Parameters.TerminalVelocityParams
+Parameters.Microphysics0MParams
+Parameters.CloudPhaseParams1M
+Parameters.PrecipPhaseParams1M
+Parameters.Microphysics1MParams
+Parameters.WarmRainParams2M
+Parameters.P3IceParams
+Parameters.Microphysics2MParams
 ```
 
 # Precipitation susceptibility
