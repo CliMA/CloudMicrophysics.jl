@@ -98,8 +98,8 @@ function perf_model_IC(FT, IN_mode)
         qᵥ = FT(8.8e-5)
         qₗ = FT(0)
         qᵢ = FT(0)
-        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-        Rₐ = TD.gas_constant_air(tps, q)
+        q_tot = qᵥ + qₗ + qᵢ
+        Rₐ = TD.gas_constant_air(tps, q_tot, qₗ, qᵢ)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         e = eᵥ(qᵥ, p₀, Rₐ, R_v)
         Sₗ = FT(e / eₛ)
@@ -113,8 +113,8 @@ function perf_model_IC(FT, IN_mode)
         qₗ = FT(Nₗ * 4 / 3 * FT(π) * r₀^3 * ρₗ / FT(1.2)) # 1.2 should be ρₐ
         qᵥ = FT(8.1e-4)
         qᵢ = FT(0)
-        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-        Rₐ = TD.gas_constant_air(tps, q)
+        q_tot = qᵥ + qₗ + qᵢ
+        Rₐ = TD.gas_constant_air(tps, q_tot, qₗ, qᵢ)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         e = eᵥ(qᵥ, p₀, Rₐ, R_v)
         Sₗ = FT(e / eₛ)
@@ -129,8 +129,8 @@ function perf_model_IC(FT, IN_mode)
         C_v = FT(5 * 1e-6)
         qᵥ = ϵₘ / (ϵₘ - 1 + 1 / C_v)
         qᵢ = FT(0)
-        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-        Rₐ = TD.gas_constant_air(tps, q)
+        q_tot = qᵥ + qₗ + qᵢ
+        Rₐ = TD.gas_constant_air(tps, q_tot, qₗ, qᵢ)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         e = eᵥ(qᵥ, p₀, Rₐ, R_v)
         Sₗ = FT(e / eₛ)
@@ -212,8 +212,8 @@ function AIDA_IN05_IC(FT, data_file)
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
         e = FT(29.811)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
-        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-        Rₐ = TD.gas_constant_air(tps, q)
+        q_tot = qᵥ + qₗ + qᵢ
+        Rₐ = TD.gas_constant_air(tps, q_tot, qₗ, qᵢ)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     elseif data_file == "in05_18_aida.edf"
@@ -229,8 +229,8 @@ function AIDA_IN05_IC(FT, data_file)
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
         e = FT(28.9235)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
-        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-        Rₐ = TD.gas_constant_air(tps, q)
+        q_tot = qᵥ + qₗ + qᵢ
+        Rₐ = TD.gas_constant_air(tps, q_tot, qₗ, qᵢ)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     end
@@ -296,8 +296,8 @@ function AIDA_IN07_IC(FT, data_file)
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
         e = FT(0.682376)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
-        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-        Rₐ = TD.gas_constant_air(tps, q)
+        q_tot = qᵥ + qₗ + qᵢ
+        Rₐ = TD.gas_constant_air(tps, q_tot, qₗ, qᵢ)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     elseif data_file == "in07_19_aida.edf"
@@ -314,8 +314,8 @@ function AIDA_IN07_IC(FT, data_file)
         m_i = Nᵢ * ρᵢ *  4 * π / 3 * r₀^3
         e = FT(0.632723)
         qᵥ = (e / R_v / T₀) / ((p₀ - e) / (R_d * T₀) + e / R_v / T₀ + m_l + m_i)
-        q = TD.PhasePartition.(qᵥ + qₗ + qᵢ, qₗ, qᵢ)
-        Rₐ = TD.gas_constant_air(tps, q)
+        q_tot = qᵥ + qₗ + qᵢ
+        Rₐ = TD.gas_constant_air(tps, q_tot, qₗ, qᵢ)
         eₛ = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
         Sₗ = FT(e / eₛ)
     end

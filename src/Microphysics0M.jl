@@ -9,8 +9,6 @@ module Microphysics0M
 
 import CloudMicrophysics.Parameters as CMP
 
-# Needed for the wrapper for calling the 0-moment remove_precipitation
-# with TD.PhasePartition in ClimaAtmos
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 export remove_precipitation
