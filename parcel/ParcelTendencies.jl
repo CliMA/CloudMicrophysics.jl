@@ -33,7 +33,7 @@ function aerosol_activation(params::AeroAct, state)
     )
     all_ad = AM.AerosolDistribution((ad,))
 
-    smax = (Sₗ - 1) < 0 ? FT(0) : (Sₗ - 1)
+    smax = max(0, Sₗ - 1)
     sm = AA.critical_supersaturation(aap, all_ad, T)
     u = 2 * log(sm[1] / smax) / 3 / sqrt(2) / log(ad.stdev)
 

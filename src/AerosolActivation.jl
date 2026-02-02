@@ -175,7 +175,7 @@ function max_supersaturation(
 
         f::FT = ap.f1 * exp(ap.f2 * (log(mode_i.stdev))^2)
         g::FT = ap.g1 + ap.g2 * log(mode_i.stdev)
-        η::FT = (α * w / G)^FT(3 / 2) / (FT(2 * pi) * ap.ρ_w * γ * mode_i.N)
+        η::FT = sqrt(α * w / G)^3 / (FT(2 * pi) * ap.ρ_w * γ * mode_i.N)
 
         tmp +=
             1 / (Sm[i])^2 *
