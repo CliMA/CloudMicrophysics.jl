@@ -423,6 +423,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
 - `tps`: Thermodynamics parameters
 - `ρ`: Air density (kg/m³)
 - `T`: Temperature (K)
+- `q_tot`: Total water specific content (kg/kg)
 - `q_lcl`: Cloud liquid specific content (kg/kg)
 - `n_lcl`: Cloud droplet number per kg air (1/kg)
 - `q_rai`: Rain specific content (kg/kg)
@@ -444,6 +445,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     tps,
     ρ,
     T,
+    q_tot,
     q_lcl,
     n_lcl,
     q_rai,
@@ -511,6 +513,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `tps`: Thermodynamics parameters
 - `ρ`: Air density (kg/m³)
 - `T`: Temperature (K)
+- `q_tot`: Total water specific content (kg/kg) 
 - `q_lcl`: Cloud liquid specific content (kg/kg)
 - `n_lcl`: Cloud droplet number per kg air (1/kg)
 - `q_rai`: Rain specific content (kg/kg)
@@ -539,6 +542,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     tps,
     ρ,
     T,
+    q_tot,
     q_lcl,
     n_lcl,
     q_rai,

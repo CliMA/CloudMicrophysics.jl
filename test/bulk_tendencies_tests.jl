@@ -573,10 +573,8 @@ function test_bulk_microphysics_2m_tendencies(FT)
             T,
             q_tot,
             q_lcl,
-            FT(0),
-            q_rai,
-            FT(0),
             n_lcl,
+            q_rai,
             n_rai,
         )
 
@@ -596,13 +594,11 @@ function test_bulk_microphysics_2m_tendencies(FT)
             tps,
             ρ,
             T,
-            FT(0.01),
-            FT(1e-3),
-            FT(0),
-            FT(1e-4),
-            FT(0),
-            FT(1e8),
-            FT(1e4),
+            FT(0.01),   # q_tot
+            FT(1e-3),   # q_lcl
+            FT(1e8),    # n_lcl
+            FT(1e-4),   # q_rai
+            FT(1e4),    # n_rai
         )
         @test tendencies isa @NamedTuple{
             dq_lcl_dt::FT,
@@ -634,6 +630,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         # Test that P3 includes 2M warm rain processes
         ρ = FT(1.2)
         T = T_freeze + FT(10)  # Above freezing
+        q_tot = FT(0.015)
         q_lcl = FT(2e-3)  # Significant cloud liquid
         n_lcl = FT(1e8 / ρ)  # 100/mg
         q_rai = FT(0)
@@ -650,6 +647,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
             tps,
             ρ,
             T,
+            q_tot,
             q_lcl,
             n_lcl,
             q_rai,
@@ -671,6 +669,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         # Ice should melt above freezing
         ρ = FT(1.2)
         T = T_freeze + FT(5)  # Above freezing
+        q_tot = FT(0.015)
         q_lcl = FT(0)
         n_lcl = FT(0)
         q_rai = FT(0)
@@ -694,6 +693,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
             tps,
             ρ,
             T,
+            q_tot,
             q_lcl,
             n_lcl,
             q_rai,
@@ -715,6 +715,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         # Ice collecting cloud liquid below freezing
         ρ = FT(1.2)
         T = T_freeze - FT(10)  # Below freezing
+        q_tot = FT(0.015)
         q_lcl = FT(1e-3)  # Cloud liquid
         n_lcl = FT(1e8) / ρ
         q_rai = FT(1e-5)  # Some rain
@@ -738,6 +739,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
             tps,
             ρ,
             T,
+            q_tot,
             q_lcl,
             n_lcl,
             q_rai,
@@ -758,6 +760,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
     @testset "BulkMicrophysicsTendencies P3 - Return finiteness" begin
         ρ = FT(1.2)
         T = T_freeze - FT(5)
+        q_tot = FT(0.015)
         q_lcl = FT(1e-3)
         n_lcl = FT(1e8) / ρ
         q_rai = FT(1e-4)
@@ -780,6 +783,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
             tps,
             ρ,
             T,
+            q_tot,
             q_lcl,
             n_lcl,
             q_rai,
@@ -803,6 +807,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
     @testset "BulkMicrophysicsTendencies P3 - Type stability" begin
         ρ = FT(1.2)
         T = T_freeze - FT(5)
+        q_tot = FT(0.015)
         q_lcl = FT(1e-3)
         n_lcl = FT(1e8) / ρ
         q_rai = FT(1e-4)
@@ -825,6 +830,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
             tps,
             ρ,
             T,
+            q_tot,
             q_lcl,
             n_lcl,
             q_rai,
