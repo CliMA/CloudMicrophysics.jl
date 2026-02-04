@@ -350,7 +350,7 @@ function test_microphysics2M(FT)
             (; Br) = CM2.pdf_rain_parameters_mass(SB.pdf_r, q_rai, ρ, N_rai)
 
             dNrdt_sc = -krr * N_rai * ρ * q_rai * (1 + κrr / Br)^-5 * √(ρ0 / ρ)
-            Dr = ∛(xr_mean / 1000 / FT(π) * 6)
+            Dr = cbrt(xr_mean / 1000 / FT(π) * 6)
             ΔDr = Dr - Deq
             ϕ_br =
                 Dr < 0.35e-3 ? FT(-1) :
