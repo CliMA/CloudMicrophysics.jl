@@ -75,7 +75,7 @@ function run_type_stability_tests()
                     Ref(BMT.Microphysics2Moment()),
                     Ref(mp2_warm),
                     Ref(tps),
-                    ρ, T, q_lcl, n_lcl, q_rai, n_rai,
+                    ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
                 )
 
             @test tendencies_2M_warm isa Vector
@@ -97,7 +97,7 @@ function run_type_stability_tests()
                     Ref(BMT.Microphysics2Moment()),
                     Ref(mp2_p3),
                     Ref(tps),
-                    ρ, T, q_lcl, n_lcl, q_rai, n_rai,
+                    ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
                     q_ice, n_ice, q_rim, b_rim, logλ,
                 )
 

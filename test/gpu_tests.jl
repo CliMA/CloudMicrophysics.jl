@@ -820,6 +820,7 @@ end
     output::AbstractArray{FT},
     ρ,
     T,
+    q_tot,
     q_lcl,
     n_lcl,
     q_rai,
@@ -834,6 +835,7 @@ end
             tps,
             ρ[i],
             T[i],
+            q_tot[i],
             q_lcl[i],
             n_lcl[i],
             q_rai[i],
@@ -855,6 +857,7 @@ end
     output::AbstractArray{FT},
     ρ,
     T,
+    q_tot,
     q_lcl,
     n_lcl,
     q_rai,
@@ -873,6 +876,7 @@ end
             tps,
             ρ[i],
             T[i],
+            q_tot[i],
             q_lcl[i],
             n_lcl[i],
             q_rai[i],
@@ -1575,7 +1579,7 @@ function test_gpu(FT)
             @. n_rai = FT(1e6)
 
             kernel! = test_bulk_tendencies_2m_warm_kernel!(backend, work_groups)
-            kernel!(mp_2m_warm, tps, output, ρ, T, q_lcl, n_lcl, q_rai, n_rai; ndrange)
+            kernel!(mp_2m_warm, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai; ndrange)
             TT.@test !any(isnan.(Array(output)))  # No NaNs
             TT.@test all(Array(output)[5, :] .== FT(0))  # Ice tendency is zero for warm-only
             TT.@test all(Array(output)[6, :] .== FT(0))  # Rime tendency is zero for warm-only
