@@ -69,7 +69,7 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ,
     Lᵣ = ρₐ * qᵣ
 
     xr_mean = Lᵣ / Nᵣ
-    λr = ∛(π * ρw / xr_mean)
+    λr = cbrt(π * ρw / xr_mean)
     N₀r = λr * Nᵣ
 
     Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
@@ -84,8 +84,8 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρ
 
     # Sequence of limiting steps in Seifert and Beheng 2006:
     x̃r = clamp(Lᵣ / Nᵣ, xr_min, xr_max)  # Eq. (94)
-    N₀r = clamp(Nᵣ * ∛(π * ρw / x̃r), N0_min, N0_max)  # Eq. (95)
-    λr = clamp(∜(π * ρw * N₀r / Lᵣ), λ_min, λ_max)  # Eq. (96)
+    N₀r = clamp(Nᵣ * cbrt(π * ρw / x̃r), N0_min, N0_max)  # Eq. (95)
+    λr = clamp(sqrt(sqrt(π * ρw * N₀r / Lᵣ)), λ_min, λ_max)  # Eq. (96)
     xr_mean = clamp(Lᵣ * λr / N₀r, xr_min, xr_max)  # Eq. (97)
 
     Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
@@ -123,7 +123,7 @@ If we write the general form of the size distribution as:
 """
 function pdf_rain_parameters_mass(pdf_r::CMP.RainParticlePDF_SB2006, qᵣ, ρₐ, Nᵣ)
     (; xr_mean) = pdf_rain_parameters(pdf_r, qᵣ, ρₐ, Nᵣ)
-    Br = ∛(6 / xr_mean)
+    Br = cbrt(6 / xr_mean)
     Ar = Nᵣ * Br / 3
     return (; Ar, Br)
 end
@@ -563,7 +563,7 @@ function rain_breakup(
     (; Deq, Dr_th, kbr, κbr) = brek
     (; ρw) = pdf
     (; xr_mean) = pdf_rain_parameters(pdf, q_rai, ρ, N_rai)
-    Dr = ∛(xr_mean * 6 / (π * ρw))  # mean volume raindrop diameter
+    Dr = cbrt(xr_mean * 6 / (π * ρw))  # mean volume raindrop diameter
     ΔD = Dr - Deq
     Φ_br = if Dr < Dr_th  # Below the threshold diameter, breakup is neglected
         FT(-1)
@@ -716,8 +716,8 @@ function _sb_rain_terminal_velocity_helper(
     _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
     _pa0::FT = _Γ_1(2 * _rc * λr)
     _pb0::FT = _Γ_1(2 * _rc * (λr + cR))
-    _pa1::FT = _Γ_4(2 * _rc * λr) / FT(6)
-    _pb1::FT = _Γ_4(2 * _rc * (λr + cR)) / FT(6)
+    _pa1::FT = _Γ_4(2 * _rc * λr) / 6
+    _pb1::FT = _Γ_4(2 * _rc * (λr + cR)) / 6
     return (_pa0, _pb0, _pa1, _pb1)
 end
 
@@ -769,18 +769,18 @@ function rain_evaporation(
         G = CO.G_func_liquid(aps, tps, T)
 
         (; xr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
-        Dr = ∛(6 * xr_mean / (π * ρw))
+        Dr = cbrt(6 * xr_mean / (π * ρw))
 
-        t_star = ∛(6 * x_star / xr_mean)
+        t_star = cbrt(6 * x_star / xr_mean)
         a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^(-2 // 3)
         b_vent_0 = bv * Γ_incl(-1 // 2 + 3 // 2 * β, t_star) / FT(6)^(β / 2 - 1 // 2)
 
-        a_vent_1 = av * SF.gamma(FT(2)) / ∛FT(6)
-        b_vent_1 = bv * SF.gamma(5 // 2 + 3 // 2 * β) / 6^(β / 2 + 1 // 2)
+        a_vent_1 = av * SF.gamma(FT(2)) / cbrt(FT(6))
+        b_vent_1 = bv * SF.gamma(5 // 2 + 3 // 2 * β) / FT(6)^(β / 2 + 1 // 2)
 
         N_Re = α * xr_mean^β * sqrt(ρ0 / ρ) * Dr / ν_air
-        Fv0 = a_vent_0 + b_vent_0 * ∛(ν_air / D_vapor) * sqrt(N_Re)
-        Fv1 = a_vent_1 + b_vent_1 * ∛(ν_air / D_vapor) * sqrt(N_Re)
+        Fv0 = a_vent_0 + b_vent_0 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
+        Fv1 = a_vent_1 + b_vent_1 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
 
         evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean)
         evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
@@ -841,7 +841,8 @@ function number_decrease_for_mass_limit(
     (; τ)::CMP.NumberAdjustmentHorn2012{FT}, x_min, q, ρ, N,
 ) where {FT}
 
-    N_max = iszero(x_min) ? Inf : ρ * q / x_min   # Avoid Nan when both q and x_min are 0
+    # Avoid NaN when both q and x_min are 0; use typed Inf to avoid type promotion
+    N_max = iszero(x_min) ? FT(Inf) : ρ * q / x_min
 
     return min(FT(0), N_max - N) / τ
 end
