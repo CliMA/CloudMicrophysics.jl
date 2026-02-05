@@ -294,6 +294,18 @@ CloudDiagnostics.effective_radius_Liu_Hallet_97
 CloudDiagnostics.effective_radius_2M
 ```
 
+# Utilities
+
+Lightweight numerical utility functions shared across modules.
+
+```@docs
+Utilities
+Utilities.clamp_to_nonneg
+Utilities.ϵ_numerics
+Utilities.ϵ_numerics_2M_M
+Utilities.ϵ_numerics_2M_N
+```
+
 # Common utility functions
 
 ```@docs

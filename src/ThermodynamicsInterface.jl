@@ -36,12 +36,29 @@ internal_energy_ice(tps::PS, T) = TD.internal_energy_ice(tps, T)
 ### Utility functions
 ###
 
-# Get vapor specific content from total water, total liquid water and total ice
-# water specific contents.
-q_vap(q_tot, q_liq, q_ice) = q_tot - q_liq - q_ice
-# Get vapor specific content from total water, cloud liquid water, cloud ice,
-# rain and snow specific contents.
-q_vap(q_tot, q_lcl, q_icl, q_rai, q_sno) = q_tot - q_lcl - q_icl - q_rai - q_sno
+import ..Utilities as UT
+
+"""
+    q_vap(q_tot, q_liq, q_ice)
+    q_vap(q_tot, q_lcl, q_icl, q_rai, q_sno)
+
+Compute vapor specific content from total water and condensed phase specific contents.
+
+# Arguments
+- `q_tot`: Total water specific content [kg/kg]
+- `q_liq` or `q_lcl`: Liquid water specific content [kg/kg]
+- `q_ice` or `q_icl`: Ice specific content [kg/kg]
+- `q_rai`: Rain specific content [kg/kg] (5-argument version only)
+- `q_sno`: Snow specific content [kg/kg] (5-argument version only)
+
+# Returns
+- Vapor specific content [kg/kg], clamped to be non-negative
+
+# Notes
+- Negative values from `q_tot - Σq_condensed` are clamped to zero using AD-compatible operations
+"""
+q_vap(q_tot, q_liq, q_ice) = UT.clamp_to_nonneg(q_tot - q_liq - q_ice)
+q_vap(q_tot, q_lcl, q_icl, q_rai, q_sno) = UT.clamp_to_nonneg(q_tot - q_lcl - q_icl - q_rai - q_sno)
 
 # Get specific content from partial pressure
 p2q(tps::PS, T, ρ, pᵥ) = TD.q_vap_from_p_vap(tps, T, ρ, pᵥ)
@@ -73,17 +90,39 @@ saturation_vapor_specific_content_over_liquid(tps::PS, T, ρ) =
 saturation_vapor_specific_content_over_ice(tps::PS, T, ρ) =
     TD.q_vap_saturation(tps, T, ρ, TD.Ice())
 
+"""
+    supersaturation_over_liquid(tps, qₜ, qₗ, qᵢ, ρ, T)
+    supersaturation_over_ice(tps, qₜ, qₗ, qᵢ, ρ, T)
+
+Compute supersaturation with respect to liquid water or ice.
+
+Uses clamped vapor specific content calculation to ensure robustness against
+negative humidity inputs while preserving AD compatibility.
+
+# Arguments
+- `tps`: Thermodynamics parameters
+- `qₜ`: Total water specific content [kg/kg]
+- `qₗ`: Total liquid water specific content [kg/kg]
+- `qᵢ`: Total ice specific content [kg/kg]
+- `ρ`: Air density [kg/m³]
+- `T`: Temperature [K]
+
+# Returns
+- Supersaturation: `S = (pᵥ / pᵥ_sat) - 1` (dimensionless)
+  - `S > 0`: supersaturated (condensation/deposition occurs)
+  - `S < 0`: subsaturated (evaporation/sublimation occurs)
+
+# Notes
+- Internally uses `q_vap` which clamps negative vapor values to zero
+- This prevents unphysical supersaturation values from negative humidity inputs
+"""
 function supersaturation_over_liquid(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
-    pᵥ_sat = saturation_vapor_pressure_over_liquid(tps, T)
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
-    pᵥ = q2p(tps, T, ρ, qᵥ)
-    return pᵥ / pᵥ_sat - 1
+    return TD.supersaturation(tps, qᵥ, ρ, T, TD.Liquid())
 end
 function supersaturation_over_ice(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
-    pᵥ_sat = saturation_vapor_pressure_over_ice(tps, T)
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
-    pᵥ = q2p(tps, T, ρ, qᵥ)
-    return pᵥ / pᵥ_sat - 1
+    return TD.supersaturation(tps, qᵥ, ρ, T, TD.Ice())
 end
 
 end
