@@ -11,7 +11,8 @@ module MicrophysicsNonEq
 
 import ..Parameters as CMP
 import ..ThermodynamicsInterface as TDI
-import ...Common as CO
+import ..Common as CO
+import ..Utilities as UT
 
 export τ_relax
 export conv_q_vap_to_q_lcl_icl
@@ -171,7 +172,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > CO.ϵ_numerics(FT)
+    if q > UT.ϵ_numerics(FT)
         # Stokes law: v(D) = C * D^2, valid for D < ~80 μm (Re < 1)
         v_term = CO.particle_terminal_velocity(vel, ρₐ)
         # Mean volume diameter from assumed number concentration
@@ -188,7 +189,7 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > CO.ϵ_numerics(FT)
+    if q > UT.ϵ_numerics(FT)
         v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
         # Mean volume diameter from assumed number concentration
         D = cbrt(FT(6 / π) * ρₐ * q / N_0 / ρᵢ)

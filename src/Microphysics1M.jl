@@ -27,6 +27,7 @@ import SpecialFunctions as SF
 import ..ThermodynamicsInterface as TDI
 import ..Common as CO
 import ..Parameters as CMP
+import ..Utilities as UT
 
 
 export terminal_velocity,
@@ -76,7 +77,7 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 - `ρ`: air density (snow only)
 """
 @inline get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT} =
-    μ * (ρ * max(0, q_sno))^ν  # TODO - think about limiters
+    q_sno > UT.ϵ_numerics(FT) ? μ * (ρ * q_sno)^ν : zero(FT)
 @inline get_n0((; n0)::CMP.ParticlePDFIceRain{FT}, args...) where {FT} = n0
 
 """
@@ -85,12 +86,17 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 
 Returns the proportionality coefficient in terminal velocity(r/r0).
 
+Guards against unphysical density ratios (ρ > ρw) that would cause sqrt of negative.
+
 # Arguments
 - `vel`: terminal velocity parameters (contains `C_drag`, `ρw`, `grav`, `r0`, `gamma_term` for rain; `v0`, `gamma_term` for snow)
 - `ρ`: air density (rain only)
 """
-@inline get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain{FT}, ρ::FT) where {FT} =
-    sqrt(FT(8 / 3) / C_drag * (ρw / ρ - 1) * grav * r0)
+@inline function get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain{FT}, ρ::FT) where {FT}
+    # Guard against ρ > ρw (unphysical but could occur from numerical errors)
+    density_factor = max(ρw / ρ - 1, zero(FT))
+    return sqrt(FT(8 / 3) / C_drag * density_factor * grav * r0)
+end
 @inline get_v0((; v0)::CMP.Blk1MVelTypeSnow{FT}, args...) where {FT} = v0
 
 """
@@ -124,7 +130,7 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     (; r0, m0, me, Δm, χm, gamma_coeff) = mass
 
     λ_inv = FT(0)
-    if q > CO.ϵ_numerics(FT) && ρ > CO.ϵ_numerics(FT)
+    if q > UT.ϵ_numerics(FT) && ρ > UT.ϵ_numerics(FT)
         # Note: Julia compiles x^y to exp(y * log(x))
         # gamma_coeff is pre-computed in ParticleMass constructor for GPU performance
         λ_inv = (ρ * q * r0^(me + Δm) / (χm * m0 * n0 * gamma_coeff))^(1 / (me + Δm + 1))
@@ -207,7 +213,7 @@ Fall velocity of individual particles is parameterized:
     ρ::FT,
     q::FT,
 ) where {FT}
-    if q > CO.ϵ_numerics(FT)
+    if q > UT.ϵ_numerics(FT)
         # terminal_velocity(size)
         (; χv, ve, Δv, gamma_term) = vel
         v0 = get_v0(vel, ρ)
@@ -231,7 +237,7 @@ end
     q::FT,
 ) where {FT}
     fall_w = FT(0)
-    if q > CO.ϵ_numerics(FT)
+    if q > UT.ϵ_numerics(FT)
         # coefficients from Table B1 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
         # size distribution parameter
@@ -258,7 +264,7 @@ end
     # We assume the B4 table coeffs for snow and B2 table coeffs for cloud ice.
     # Instead we should do partial integrals
     # from D=125um to D=625um using B2 and D=625um to inf using B4.
-    if q > CO.ϵ_numerics(FT)
+    if q > UT.ϵ_numerics(FT)
         # coefficients from Table B4 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
         # size distribution parameter
@@ -287,7 +293,7 @@ end
 ) where {FT}
     fall_w = FT(0)
     # see comments above about B2 vs B4 coefficients
-    if q > CO.ϵ_numerics(FT)
+    if q > UT.ϵ_numerics(FT)
         # coefficients from Table B4 from Chen et. al. 2022
         aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
         # size distribution parameter
@@ -361,20 +367,21 @@ This is a simplified version for use in simulations without supersaturation
 
 Returns the snow tendency due to autoconversion from ice.
 Parameterized following:
-  - Harrington et al. (1995), https://doi.org/10.1175/1520-0469(1995)052<4344:POICCP>2.0.CO;2  
+  - Harrington et al. (1995), https://doi.org/10.1175/1520-0469(1995)052<4344:POICCP>2.0.CO;2
   - Kaul et al. (2015), https://doi.org/10.1175/MWR-D-14-00319.1
 
 # Arguments
 - `ice`: ice parameters (contains `r_ice_snow`, `pdf`, `mass`)
-- `aps`: air properties struct  
+- `aps`: air properties struct
 - `tps`: thermodynamics parameters struct
-- `q_tot`: total water specific content
-- `q_lcl`: cloud liquid water specific content
-- `q_icl`: cloud ice specific content
-- `q_rai`: rain specific content
-- `q_sno`: snow specific content
-- `ρ`: air density
-- `T`: air temperature
+- `q_tot`: total water specific content [kg/kg]
+- `q_lcl`: cloud liquid water specific content [kg/kg]
+- `q_icl`: cloud ice specific content [kg/kg]
+- `q_rai`: rain specific content [kg/kg]
+- `q_sno`: snow specific content [kg/kg]
+- `ρ`: air density [kg/m³]
+- `T`: air temperature [K]
+
 """
 @inline function conv_q_icl_to_q_sno(
     (; r_ice_snow, pdf, mass)::CMP.CloudIce{FT},
@@ -391,7 +398,8 @@ Parameterized following:
     acnv_rate = FT(0)
     S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (q_icl > CO.ϵ_numerics(FT) && S > FT(0))
+    # Only allow ice autoconversion below freezing with positive supersaturation
+    if (q_icl > UT.ϵ_numerics(FT) && S > FT(0) && T < TDI.T_freeze(tps))
         (; me, Δm) = mass
         G = CO.G_func_ice(aps, tps, T)
         n0 = get_n0(pdf)
@@ -431,7 +439,7 @@ with cloud water (liquid or ice).
 ) where {FT}
 
     accr_rate = FT(0)
-    if (q_clo > CO.ϵ_numerics(FT) && q_pre > CO.ϵ_numerics(FT))
+    if (q_clo > UT.ϵ_numerics(FT) && q_pre > UT.ϵ_numerics(FT))
 
         n0::FT = get_n0(precip.pdf, q_pre, ρ)
         v0::FT = get_v0(vel, ρ)
@@ -476,7 +484,7 @@ with cloud ice.
     ρ::FT,
 ) where {FT}
     accr_rate = FT(0)
-    if (q_icl > CO.ϵ_numerics(FT) && q_rai > CO.ϵ_numerics(FT))
+    if (q_icl > UT.ϵ_numerics(FT) && q_rai > UT.ϵ_numerics(FT))
 
         n0_ice = get_n0(ice.pdf)
         λ_ice_inv = lambda_inverse(ice.pdf, ice.mass, q_icl, ρ)
@@ -533,7 +541,7 @@ deviations are proportional to the mean fall velocities, with coefficient
 ) where {FT}
 
     accr_rate = FT(0)
-    if (q_i > CO.ϵ_numerics(FT) && q_j > CO.ϵ_numerics(FT))
+    if (q_i > UT.ϵ_numerics(FT) && q_j > UT.ϵ_numerics(FT))
 
         n0_i = get_n0(type_i.pdf, q_i, ρ)
         n0_j = get_n0(type_j.pdf, q_j, ρ)
@@ -608,33 +616,37 @@ https://doi.org/10.1007/s00703-005-0112-4.
     T::FT,
 ) where {FT}
     evap_subl_rate = FT(0)
-    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (q_rai > CO.ϵ_numerics(FT) && S < FT(0))
+    # Early return if no rain
+    if q_rai > UT.ϵ_numerics(FT)
+        S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-        (; ν_air, D_vapor) = aps
-        G = CO.G_func_liquid(aps, tps, T)
-        n0 = get_n0(pdf, q_rai, ρ)
-        v0 = get_v0(vel, ρ)
-        (; χv, ve, Δv, gamma_vent) = vel
-        (; r0) = mass
-        a_vent = vent.a
-        b_vent = vent.b
+        if S < FT(0)
 
-        λ_inv = lambda_inverse(pdf, mass, q_rai, ρ)
+            (; ν_air, D_vapor) = aps
+            G = CO.G_func_liquid(aps, tps, T)
+            n0 = get_n0(pdf, q_rai, ρ)
+            v0 = get_v0(vel, ρ)
+            (; χv, ve, Δv, gamma_vent) = vel
+            (; r0) = mass
+            a_vent = vent.a
+            b_vent = vent.b
 
-        # Schmidt number
-        Sc = ν_air / D_vapor
+            λ_inv = lambda_inverse(pdf, mass, q_rai, ρ)
 
-        evap_subl_rate =
-            4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
-            (
-                a_vent +
-                b_vent * cbrt(Sc) /
-                (r0 / λ_inv)^((ve + Δv) / 2) *
-                sqrt(2 * v0 * χv / ν_air * λ_inv) *
-                gamma_vent
-            )
+            # Schmidt number (guard against division by near-zero D_vapor)
+            Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
+
+            evap_subl_rate =
+                4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
+                (
+                    a_vent +
+                    b_vent * cbrt(Sc) /
+                    (r0 / λ_inv)^((ve + Δv) / 2) *
+                    sqrt(2 * v0 * χv / ν_air * λ_inv) *
+                    gamma_vent
+                )
+        end
     end
     # only evaporation is considered for rain
     return min(0, evap_subl_rate)
@@ -654,9 +666,8 @@ end
     T::FT,
 ) where {FT}
     evap_subl_rate = FT(0)
-    if q_sno > CO.ϵ_numerics(FT)
+    if q_sno > UT.ϵ_numerics(FT)
         (; ν_air, D_vapor) = aps
-
         S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
         G = CO.G_func_ice(aps, tps, T)
 
@@ -670,8 +681,8 @@ end
 
         λ_inv = lambda_inverse(pdf, mass, q_sno, ρ)
 
-        # Schmidt number
-        Sc = ν_air / D_vapor
+        # Schmidt number (guard against division by near-zero D_vapor)
+        Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
 
         evap_subl_rate =
             4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
@@ -712,7 +723,7 @@ Returns the tendency due to snow melt.
 ) where {FT}
     snow_melt_rate = FT(0)
 
-    if (q_sno > CO.ϵ_numerics(FT) && T > T_freeze)
+    if (q_sno > UT.ϵ_numerics(FT) && T > T_freeze)
         (; ν_air, D_vapor, K_therm) = aps
 
         L = TDI.Lf(tps, T)
@@ -727,8 +738,8 @@ Returns the tendency due to snow melt.
 
         λ_inv = lambda_inverse(pdf, mass, q_sno, ρ)
 
-        # Schmidt number
-        Sc = ν_air / D_vapor
+        # Schmidt number (guard against division by near-zero D_vapor)
+        Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
 
         snow_melt_rate =
             4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^2 *

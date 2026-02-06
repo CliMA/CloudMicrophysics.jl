@@ -26,7 +26,7 @@ tendencies = bulk_microphysics_tendencies(
 module BulkMicrophysicsTendencies
 
 import ..Parameters as CMP
-import ..Common as CO
+import ..Utilities as UT
 import ..Microphysics0M as CM0
 import ..Microphysics1M as CM1
 import ..Microphysics2M as CM2
@@ -147,9 +147,12 @@ This is a pure function of local thermodynamic state, suitable for:
 - `dq_rai_dt`: Rain tendency [kg/kg/s]
 - `dq_sno_dt`: Snow tendency [kg/kg/s]
 
+# Input Validation
+- Negative specific contents are clamped to zero for robustness against numerical errors.
+
 # Notes
-- This function does NOT apply limiters to prevent negative concentrations.
-  Limiters depend on timestep `dt` and should be applied by the caller.
+- This function does NOT apply timestep-dependent limiters to prevent negative concentrations.
+  Limiters depend on timestep `dt` and should be applied by the caller after computing tendencies.
 """
 @inline function bulk_microphysics_tendencies(
     ::Microphysics1Moment,
@@ -164,6 +167,13 @@ This is a pure function of local thermodynamic state, suitable for:
     q_sno,
     N_lcl = zero(ρ),
 )
+    # Clamp negative specific contents to zero (robustness against numerical errors)
+    q_tot = UT.clamp_to_nonneg(q_tot)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_icl = UT.clamp_to_nonneg(q_icl)
+    q_rai = UT.clamp_to_nonneg(q_rai)
+    q_sno = UT.clamp_to_nonneg(q_sno)
+
     # Unpack microphysics parameter container
     lcl = mp.cloud.liquid
     icl = mp.cloud.ice
@@ -323,6 +333,10 @@ Caller adds geopotential Φ for energy tendency: `e_tot = dq_tot_dt * (e_int_pre
     q_lcl,
     q_icl,
 )
+    # Clamp negative specific contents to zero (robustness against numerical errors)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_icl = UT.clamp_to_nonneg(q_icl)
+
     # Unpack microphysics parameters
     params_0M = mp.precip
 
@@ -456,6 +470,17 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     b_rim = zero(ρ),
     logλ = zero(ρ),
 ) where {FT, WR}
+    # Clamp negative specific contents and number concentrations to zero (robustness against numerical errors)
+    q_tot = UT.clamp_to_nonneg(q_tot)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_rai = UT.clamp_to_nonneg(q_rai)
+    n_lcl = UT.clamp_to_nonneg(n_lcl)
+    n_rai = UT.clamp_to_nonneg(n_rai)
+    q_ice = UT.clamp_to_nonneg(q_ice)
+    n_ice = UT.clamp_to_nonneg(n_ice)
+    q_rim = UT.clamp_to_nonneg(q_rim)
+    b_rim = UT.clamp_to_nonneg(b_rim)
+
     # Unpack warm rain parameters
     sb = mp.warm_rain.seifert_beheng
     aps = mp.warm_rain.air_properties
@@ -553,6 +578,17 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     b_rim = zero(ρ),
     logλ = zero(ρ),
 ) where {FT, WR, ICE <: CMP.P3IceParams}
+    # Clamp negative specific contents and number concentrations to zero (robustness against numerical errors)
+    q_tot = UT.clamp_to_nonneg(q_tot)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_rai = UT.clamp_to_nonneg(q_rai)
+    n_lcl = UT.clamp_to_nonneg(n_lcl)
+    n_rai = UT.clamp_to_nonneg(n_rai)
+    q_ice = UT.clamp_to_nonneg(q_ice)
+    n_ice = UT.clamp_to_nonneg(n_ice)
+    q_rim = UT.clamp_to_nonneg(q_rim)
+    b_rim = UT.clamp_to_nonneg(b_rim)
+
     # Unpack warm rain parameters (always present)
     sb = mp.warm_rain.seifert_beheng
     aps = mp.warm_rain.air_properties

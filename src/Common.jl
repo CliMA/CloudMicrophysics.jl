@@ -9,6 +9,7 @@ using UnrolledUtilities
 
 import ..Parameters as CMP
 import ..ThermodynamicsInterface as TDI
+import ..Utilities as UT
 const HPS = CMP.H2SO4SolutionParameters
 
 export G_func_liquid
@@ -23,18 +24,13 @@ export Chen2022_exponential_pdf
 export ventilation_factor
 
 """
-    Smallest number that is different than zero for the purpose of microphysics
-    computations.
-"""
-@inline ϵ_numerics(FT) = sqrt(floatmin(FT))
-@inline ϵ_numerics_2M_M(FT) = eps(FT)
-@inline ϵ_numerics_2M_N(FT) = eps(FT)
-
-"""
     G_func_liquid(air_props, tps, T)
 
 Utility function combining thermal conductivity and vapor diffusivity effects
 for vapor to liquid phase change.
+
+Includes guards against division by zero using ϵ_numerics thresholds for
+numerical robustness.
 
 # Arguments
 - `air_props`: air parameters struct (contains `K_therm`, `D_vapor`)
@@ -43,6 +39,10 @@ for vapor to liquid phase change.
 
 # Returns
 - G function for liquid [kg/m²/s/Pa]
+
+# Notes
+- Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
+- This prevents NaN/Inf propagation from near-zero denominators
 """
 @inline function G_func_liquid(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
@@ -53,8 +53,13 @@ for vapor to liquid phase change.
     L = TDI.Lᵥ(tps, T)
     p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 
+    # Guard against division by zero
+    p_vs_safe = max(p_vs, UT.ϵ_numerics(FT))
+    D_vapor_safe = max(D_vapor, UT.ϵ_numerics(FT))
+    K_therm_safe = max(K_therm, UT.ϵ_numerics(FT))
+
     return 1 /
-           (L / K_therm / T * (L / R_v / T - 1) + R_v * T / D_vapor / p_vs)
+           (L / K_therm_safe / T * (L / R_v / T - 1) + R_v * T / D_vapor_safe / p_vs_safe)
 end
 
 """
@@ -63,6 +68,9 @@ end
 Utility function combining thermal conductivity and vapor diffusivity effects
 for vapor to ice phase change.
 
+Includes guards against division by zero using ϵ_numerics thresholds for
+numerical robustness.
+
 # Arguments
 - `air_props`: air parameters struct (contains `K_therm`, `D_vapor`)
 - `tps`: thermodynamics parameters struct
@@ -70,6 +78,10 @@ for vapor to ice phase change.
 
 # Returns
 - G function for ice [kg/m²/s/Pa]
+
+# Notes
+- Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
+- This prevents NaN/Inf propagation from near-zero denominators
 """
 @inline function G_func_ice(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
@@ -80,8 +92,13 @@ for vapor to ice phase change.
     L = TDI.Lₛ(tps, T)
     p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T)
 
+    # Guard against division by zero
+    p_vs_safe = max(p_vs, UT.ϵ_numerics(FT))
+    D_vapor_safe = max(D_vapor, UT.ϵ_numerics(FT))
+    K_therm_safe = max(K_therm, UT.ϵ_numerics(FT))
+
     return 1 /
-           (L / K_therm / T * (L / R_v / T - 1) + R_v * T / D_vapor / p_vs)
+           (L / K_therm_safe / T * (L / R_v / T - 1) + R_v * T / D_vapor_safe / p_vs_safe)
 end
 
 """
@@ -110,15 +127,15 @@ For x < 0 the value at x = 0 is returned. For x_0 = 0, H(x) is returned.
     x = max(FT(0), x)
 
     # Edge cases: x ≈ 0 → return 0, x_0 ≈ 0 → return 1 (if x > 0)
-    x_safe = max(x, ϵ_numerics(FT))
-    x_0_safe = max(x_0, ϵ_numerics(FT))
+    x_safe = max(x, UT.ϵ_numerics(FT))
+    x_0_safe = max(x_0, UT.ϵ_numerics(FT))
 
     # σ(z) = 1 / (1 + exp(-z)) = exp(-log1pexp(-z))
     z = k * (x_safe / x_0_safe - x_0_safe / x_safe)
     result = exp(-LEF.log1pexp(-z))
 
     # Handle edge cases with ifelse (branchless)
-    return ifelse(x < ϵ_numerics(FT), FT(0), ifelse(x_0 < ϵ_numerics(FT), FT(1), result))
+    return ifelse(x < UT.ϵ_numerics(FT), FT(0), ifelse(x_0 < UT.ϵ_numerics(FT), FT(1), result))
 end
 
 """
@@ -140,8 +157,8 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
 @inline function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT}
     # Branchless GPU-compatible implementation
     x = max(FT(0), x)
-    x_safe = max(x, ϵ_numerics(FT))
-    x_0_safe = max(x_0, ϵ_numerics(FT))
+    x_safe = max(x, UT.ϵ_numerics(FT))
+    x_0_safe = max(x_0, UT.ϵ_numerics(FT))
 
     # translation of the curve in x and y to enforce zero at x = 0
     # Using log1mexp for numerical stability: log1mexp(x) = log(1 - exp(x))
@@ -151,7 +168,7 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
     result = (LEF.log1pexp(kt) / k - trnslt) * x_0_safe
 
     # Handle edge cases: if x ≈ 0, return 0; if x_0 ≈ 0, return x
-    return ifelse(x < ϵ_numerics(FT), FT(0), ifelse(x_0 < ϵ_numerics(FT), x, result))
+    return ifelse(x < UT.ϵ_numerics(FT), FT(0), ifelse(x_0 < UT.ϵ_numerics(FT), x, result))
 end
 
 """
