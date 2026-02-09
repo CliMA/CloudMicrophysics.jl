@@ -64,12 +64,12 @@ function parcel_model(dY, Y, p, t)
         Sₗ = Y[1],
         p_air = Y[2],
         T = Y[3],
-        qᵥ = Y[4],
-        qₗ = Y[5],
-        qᵢ = Y[6],
-        Nₐ = Y[7],
-        Nₗ = Y[8],
-        Nᵢ = Y[9],
+        qᵥ = clip!(Y[4]),
+        qₗ = clip!(Y[5]),
+        qᵢ = clip!(Y[6]),
+        Nₐ = clip!(Y[7]),
+        Nₗ = clip!(Y[8]),
+        Nᵢ = clip!(Y[9]),
         ln_INPC = Y[10],   # needed only in stochastic Frostenberg
         t = t,
     )

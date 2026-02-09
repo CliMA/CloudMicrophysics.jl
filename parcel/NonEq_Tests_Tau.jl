@@ -1,0 +1,161 @@
+import OrdinaryDiffEq as ODE
+import CairoMakie as MK
+import Thermodynamics as TD
+import CloudMicrophysics as CM
+import CloudMicrophysics.CloudDiagnostics as CD
+import CloudMicrophysics.Parameters as CMP
+import ClimaParams as CP
+
+FT = Float64
+
+include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
+
+τ_ratios = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 2, 3, 4, 5]
+
+#@info("using τ value ", τ)
+
+# Get free parameters
+tps = TD.Parameters.ThermodynamicsParameters(FT)
+wps = CMP.WaterProperties(FT)
+# Constants
+ρₗ = wps.ρw
+ρᵢ = wps.ρi
+R_v = TD.Parameters.R_v(tps)
+R_d = TD.Parameters.R_d(tps)
+
+# Initial conditions
+Nₐ = FT(0)
+Nₗ = FT(200 * 1e6)
+Nᵢ = FT(1e6)
+r₀ = FT(8e-6)
+p₀ = FT(800 * 1e2)
+T₀ = FT(243)
+ln_INPC = FT(0)
+e_sat = TD.saturation_vapor_pressure(tps, T₀, TD.Liquid())
+Sₗ = FT(1.5)
+e = Sₗ * e_sat
+md_v = (p₀ - e) / R_d / T₀
+mv_v = e / R_v / T₀
+ml_v = Nₗ * 4 / 3 * FT(π) * ρₗ * r₀^3
+mi_v = Nᵢ * 4 / 3 * FT(π) * ρᵢ * r₀^3
+qᵥ = mv_v / (md_v + mv_v + ml_v + mi_v)
+qₗ = ml_v / (md_v + mv_v + ml_v + mi_v)
+qᵢ = mi_v / (md_v + mv_v + ml_v + mi_v)
+
+
+# Setup the plots
+fig = MK.Figure(size = (800, 600))
+ax1 = MK.Axis(fig[1, 1], ylabel = "Liquid Supersaturation [%]")
+ax2 = MK.Axis(fig[2, 1], ylabel = "Temperature [K]")
+ax3 = MK.Axis(fig[3, 1], xlabel = "Time [s]", ylabel = "q_liq [g/kg]")
+ax4 = MK.Axis(fig[1, 2], ylabel = "Ice Supersaturation [%]")
+ax5 = MK.Axis(fig[2, 2], ylabel = "q_vap [g/kg]")
+ax6 = MK.Axis(fig[3, 2], xlabel = "Time [s]", ylabel = "q_ice [g/kg]")
+
+for ratio in τ_ratios
+    # choosing a value for the ice relaxation timescale
+    τ_i = FT(10)
+
+    τ_l = ratio * τ_i
+
+    override_file = Dict(
+        "condensation_evaporation_timescale" =>
+            Dict("value" => τ_l, "type" => "float"),
+    )
+
+    liquid_toml_dict = CP.create_toml_dict(FT; override_file)
+    liquid = CMP.CloudLiquid(liquid_toml_dict)
+
+    override_file = Dict(
+        "sublimation_deposition_timescale" =>
+            Dict("value" => τ_i, "type" => "float"),
+    )
+
+    ice_toml_dict = CP.create_toml_dict(FT; override_file)
+
+    ice = CMP.CloudIce(ice_toml_dict)
+    @info("relaxations:", liquid.τ_relax, ice.τ_relax)
+
+    IC = [Sₗ, p₀, T₀, qᵥ, qₗ, qᵢ, Nₐ, Nₗ, Nᵢ, ln_INPC]
+    simple = false
+
+    # Simulation parameters passed into ODE solver
+    w = FT(10)                                 # updraft speed
+    const_dt = FT(0.1)                         # model timestep
+    t_max = FT(200)#FT(const_dt*1)
+    size_distribution = "Monodisperse"
+
+    condensation_growth_list = ["Condensation", "NonEq_Condensation"]
+    deposition_growth_list = ["Deposition", "NonEq_Deposition"]
+
+    saved_sol = []
+
+    for (i, CD) in enumerate(condensation_growth_list)
+        local params = parcel_params{FT}(
+            liq_size_distribution = size_distribution,
+            condensation_growth = CD,
+            deposition_growth = deposition_growth_list[i],
+            const_dt = const_dt,
+            w = w,
+            liquid = liquid,
+            ice = ice,
+        )
+
+        # solve ODE
+        local sol = run_parcel(IC, FT(0), t_max, params)
+
+        push!(saved_sol, sol)
+
+        #if i == 0
+        #    saved_sol = [sol]
+        #else
+        #    append!(saved_sol, sol)
+        #end
+
+        sol_Nₗ = sol[8, :]
+        sol_Nᵢ = sol[9, :]
+        sol_T = sol[3, :]
+        sol_p = sol[2, :]
+        sol_qᵥ = sol[4, :]
+        sol_qₗ = sol[5, :]
+        sol_qᵢ = sol[6, :]
+
+        q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
+
+        local q = TD.PhasePartition.(sol_qᵥ + sol_qₗ + sol_qᵢ, sol_qₗ, sol_qᵢ)
+        local ts = TD.PhaseNonEquil_pTq.(tps, sol_p, sol_T, q)
+        local ρₐ = TD.air_density.(tps, ts)
+
+    end
+
+    diff_Sl = saved_sol[2][1, :] - saved_sol[1][1, :]
+    diff_Si =
+        (S_i.(tps, saved_sol[2][3, :], saved_sol[2][1, :]) .- 1) -
+        (S_i.(tps, saved_sol[1][3, :], saved_sol[1][1, :]) .- 1)
+    diff_qₗ = saved_sol[2][5, :] - saved_sol[1][5, :]
+    diff_qᵢ = saved_sol[2][6, :] - saved_sol[1][6, :]
+    diff_T = saved_sol[2][3, :] - saved_sol[1][3, :]
+    diff_qᵥ = saved_sol[2][4, :] - saved_sol[1][4, :]
+
+    # Plot results
+    MK.lines!(ax1, saved_sol[1].t, diff_Sl, label = string(ratio))
+    MK.lines!(ax2, saved_sol[1].t, diff_T)
+    MK.lines!(ax3, saved_sol[1].t, diff_qₗ * 1e3)
+    MK.lines!(ax4, saved_sol[1].t, diff_Si * 100.0)
+    MK.lines!(ax5, saved_sol[1].t, diff_qᵥ * 1e3)
+    MK.lines!(ax6, saved_sol[1].t, diff_qᵢ * 1e3)
+
+end
+
+MK.Legend(fig[2, 4], ax1)
+
+#MK.axislegend(ax1,position=:)
+#    ax1,
+#    framevisible = false,
+#    labelsize = 12,
+#    orientation = :vertical,
+#    position = :rb,
+#)
+
+MK.save("noneq_difference_tau.svg", fig)
+nothing
