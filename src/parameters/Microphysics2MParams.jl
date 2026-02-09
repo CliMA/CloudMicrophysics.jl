@@ -9,7 +9,7 @@ Parameters for 2-moment warm rain processes (Seifert-Beheng 2006).
 - `seifert_beheng::SB`: SB2006 — all warm rain parameters (autoconversion, accretion, etc.)
 - `air_properties::AP`: AirProperties — air properties for evaporation
 """
-struct WarmRainParams2M{FT, SB, AP}
+struct WarmRainParams2M{FT, SB, AP} <: ParametersType{FT}
     seifert_beheng::SB
     air_properties::AP
 end
@@ -25,7 +25,7 @@ Parameters for P3 ice-phase processes (optional).
 - `cloud_pdf::PDc`: CloudParticlePDF_SB2006 — cloud droplet size distribution
 - `rain_pdf::PDr`: RainParticlePDF_SB2006 — rain drop size distribution
 """
-struct P3IceParams{FT, P3, VL, PDc, PDr}
+struct P3IceParams{FT, P3, VL, PDc, PDr} <: ParametersType{FT}
     scheme::P3
     terminal_velocity::VL
     cloud_pdf::PDc

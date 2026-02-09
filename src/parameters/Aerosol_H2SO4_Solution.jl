@@ -9,7 +9,7 @@ from Luo et al 1995. DOI: 10.1029/94GL02988
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct H2SO4SolutionParameters{FT}
+Base.@kwdef struct H2SO4SolutionParameters{FT} <: ParametersType{FT}
     "max temperature for which the parameterization is valid [K]"
     T_max::FT
     "min temperature for which the parameterization is valid [K]"
