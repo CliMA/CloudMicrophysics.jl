@@ -99,7 +99,7 @@ To see this, it is necessary to use the definitions of ``\tau``, ``q_{sl}``, and
 
 ```math
 \begin{equation}
-  \tau = 4 \pi N_{tot} \bar{r}, \;\;\;\;\;\;\;\;
+  \tau = \left( 4 \pi N_{tot} D_v \bar{r} \right)^{-1}, \;\;\;\;\;\;\;\;
   q_{sl} = \frac{e_{sl}}{\rho R_v T}, \;\;\;\;\;\;\;\;
   D_v = \frac{K}{\rho c_p}.
 \end{equation}
@@ -122,6 +122,41 @@ we can write
 include("plots/NonEqCondEvapRate.jl")
 ```
 ![](condensation_evaporation_ql_z.svg)
+
+### Liquid and ice relaxation timescales as functions of number concentration
+
+We also provide functionality to set the relaxation timescales of liquid and ice, ``\tau_l`` and ``\tau_i``, as functions of cloud droplet number concentrations ``N_l`` and ``N_i`` following [MorrisonGrabowski2008_supersat](@cite) and [MorrisonMilbrandt2015](@cite). First, we approximate average radius of droplets from mass and number:
+
+```math
+\begin{equation}
+\bar{r} = \left( \frac{3q_c}{4 π N(T) \rho_c} \right)^{1/3} 
+\end{equation}
+```
+
+where ``q_c`` is the mass of condensate and ``ρ_c`` is the density of the condensate (either liquid or water). Then, we calculate the relaxation timescale:
+
+```math
+\begin{equation}
+\tau = \left( 4 \pi N_c D_v \bar{r} \right)^{-1}
+\end{equation}
+```
+
+where ``D_v`` is the thermal diffusivity and ``N_c`` is the droplet number concentration of the condensate, either ``N_l`` or ``N_i``.
+
+### Ice relaxation timescale as function of temperature through Frostenberg 2023
+
+We can also calculate ``\tau_i`` as a function of temperature using the [Frostenberg2023](@cite) parameterization. Namely, we approximate the concentration of ice cloud droplets as equal to the mean amount of ice nucleating particles for a given temperature using [Frostenberg2023](@cite): 
+```math
+N_i(T) = ln(-(b \cdot T)^9 \times 10^{-9})
+```
+
+ ``\sigma^2`` is the variance, ``a`` and ``b`` are coefficients. The parameters defined in [Frostenberg2023](@cite) for marine data sets are ``\sigma=1.37``, ``a=1`` m``^3``, ``b=1``/C.
+
+Then, we use ``N_i`` to solve for ``\tau_i`` as demonstrated above. Here we show an example of how ``\tau_i`` changes with temperature for a set ``q_{icl}=1e-6``:
+```@example
+include("plots/NonEqFrostenberg.jl")
+```
+![](taui_Frostenberg.svg)
 
 
 ## Cloud condensate sedimentation
