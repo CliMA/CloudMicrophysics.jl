@@ -10,6 +10,8 @@ CurrentModule = CloudMicrophysics
 MicrophysicsNonEq
 MicrophysicsNonEq.τ_relax
 MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl
+MicrophysicsNonEq.conv_q_vap_to_q_lcl_MM2015
+MicrophysicsNonEq.conv_q_vap_to_q_icl_MM2015
 MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl_MM2015
 MicrophysicsNonEq.INP_limiter
 MicrophysicsNonEq.terminal_velocity

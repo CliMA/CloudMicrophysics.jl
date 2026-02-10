@@ -77,6 +77,20 @@ This unified scheme handles:
 """
 struct Microphysics2Moment <: MicrophysicsScheme end
 
+"""
+    NonEq Scheme
+
+Abstract type for NonEquilibrium microphysics parameterizations. Namely,
+this scheme specifies how to set the relaxation timescales (τₗ, τᵢ) for
+liquid condensation/evaporation and ice deposition/sublimation.
+NonEq_Constant sets τₗ and τᵢ are determined by the τ_relax arguments in
+lcl and icl, whereas NonEq_N calculates τₗ and τᵢ from liquid and ice
+number concentration.
+"""
+abstract type NonEqScheme end
+struct NonEq_Constant <: NonEqScheme end
+struct NonEq_N <: NonEqScheme end
+
 # --- Helper Functions ---
 
 """
@@ -100,8 +114,18 @@ end
 
 """
     bulk_microphysics_tendencies(
-        ::Microphysics1Moment, mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        ::Microphysics1Moment,
+        noneq_scheme::NonEqScheme,
+        mp,
+        tps,
+        aps,
+        ρ,
+        T,
+        q_tot,
+        q_lcl,
+        q_icl,
+        q_rai,
+        q_sno,
     )
 
 Compute all 1-moment microphysics tendencies in one fused call.
@@ -113,6 +137,7 @@ This is a pure function of local thermodynamic state, suitable for:
 - Unit testing in isolation
 
 # Arguments
+- `noneq_scheme` Type of NonEquilibrium scheme to use
 - `mp`: NamedTuple of microphysics parameters with fields:
   - `lcl`: CloudLiquid parameters
   - `icl`: CloudIce parameters
@@ -148,8 +173,18 @@ This is a pure function of local thermodynamic state, suitable for:
   Limiters depend on timestep `dt` and should be applied by the caller after computing tendencies.
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl = zero(ρ),
+    ::Microphysics1Moment,
+    noneq_scheme::NonEqScheme,
+    mp::CMP.Microphysics1MParams,
+    tps,
+    ρ,
+    T,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    N_lcl = zero(ρ),
 )
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
@@ -177,12 +212,22 @@ This is a pure function of local thermodynamic state, suitable for:
 
     # --- Cloud condensate formation (non-equilibrium) ---
 
+    if noneq_scheme isa NonEq_Constant
+        τₗ = lcl.τ_relax
+        τᵢ = icl.τ_relax
+    elseif noneq_scheme isa NonEq_N
+        τₗ = CMNonEq.τ_N(q_icl, N_lcl, lcl.ρw, aps.D_vapor)
+        τᵢ = CMNonEq.τ_Frostenberg(icl, aps, ip, q_icl, T)
+    end
+
     # Condensation/evaporation of cloud liquid
-    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_MM2015(tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T, τₗ)
     dq_lcl_dt += S_lcl_cond
 
-    # Deposition/sublimation of cloud ice (INP limiter applied inside conv_q_vap_to_q_lcl_icl_MM2015)
-    S_icl_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    # Deposition/sublimation of cloud ice
+    S_icl_dep = CMNonEq.conv_q_vap_to_q_icl_MM2015(tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T, τᵢ)
+    # No ice deposition above freezing (lack of INPs) - use ifelse to avoid GPU branching
+    S_icl_dep = ifelse(T > tps.T_freeze, min(S_icl_dep, zero(T)), S_icl_dep)
     dq_icl_dt += S_icl_dep
 
     # --- Autoconversion (cloud → precipitation) ---
@@ -663,7 +708,7 @@ end
 # --- 2-Moment Microphysics Helper Functions ---
 
 """
-    warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
+    warm_rain_tendencies_2m(warm_rain, noneq_scheme, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
 
 Internal helper function that computes core 2M warm rain processes:
 autoconversion, self-collection, accretion, and rain breakup.
@@ -671,7 +716,10 @@ autoconversion, self-collection, accretion, and rain breakup.
 Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
 
 # Arguments
-- `sb`: SB2006 parameters
+- `warm_rain`
+    - `sb`: SB2006 parameters
+    - `aps`: air property parameters
+- `noneq_scheme` Type of NonEquilibrium scheme to use
 - `q_lcl`: Cloud liquid specific content (kg/kg)
 - `q_rai`: Rain specific content (kg/kg)
 - `ρ`: Air density (kg/m³)
@@ -685,7 +733,7 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
 - `dn_lcl_dt`: Cloud number tendency (1/kg/s)
 - `dn_rai_dt`: Rain number tendency (1/kg/s)
 """
-@inline function warm_rain_tendencies_2m(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+@inline function warm_rain_tendencies_2m(warm_rain, noneq_scheme, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
 
     # Unpack parameters
     sb = warm_rain.seifert_beheng
@@ -704,7 +752,8 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_rai_dt = zero(FT)
 
     # --- Condensation of vapor / evaporation of cloud liquid water ---
-    ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(condevap, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T)
+    ∂ₜq_lcl_cond =
+        CMNonEq.conv_q_vap_to_q_lcl_MM2015(tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T, condevap.τ_relax)
     ∂ₜn_lcl_cond = zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation
     dq_lcl_dt += ∂ₜq_lcl_cond
     dn_lcl_dt += ∂ₜn_lcl_cond
@@ -759,6 +808,7 @@ end
 """
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
+        noneq_scheme::NonEqScheme,
         mp::Microphysics2MParams{WR, Nothing},
         ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     )
@@ -769,6 +819,7 @@ This method is type-stable and GPU-optimized for warm rain processes only.
 For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR, <:P3IceParams}`.
 
 # Arguments
+- `noneq_scheme` Type of NonEquilibrium scheme to use
 - `mp`: Microphysics2MParams with `mp.ice == nothing` (warm rain only)
 - `tps`: Thermodynamics parameters
 - `ρ`: Air density (kg/m³)
@@ -790,7 +841,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
 - `db_rim_dt`: Rime volume tendency (always zero for warm-only)
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, Nothing}, tps,
+    ::Microphysics2Moment, noneq_scheme::NonEqScheme, mp::CMP.Microphysics2MParams{WR, Nothing}, tps,
     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
 ) where {WR}
@@ -812,7 +863,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     db_rim_dt = zero(ρ)
 
     # --- Core Warm Rain Processes (shared helper) ---
-    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+    warm = warm_rain_tendencies_2m(mp.warm_rain, noneq_scheme, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
     dq_lcl_dt = warm.dq_lcl_dt
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
@@ -824,6 +875,7 @@ end
 """
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
+        noneq_scheme::NonEqScheme,
         mp::Microphysics2MParams{FT, WR, <:P3IceParams},
         ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
         q_ice, n_ice, q_rim, b_rim, logλ,
@@ -836,6 +888,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 
 # Arguments
 ## Required
+- `noneq_scheme` Type of NonEquilibrium scheme to use
 - `mp`: Microphysics2MParams with P3 ice parameters present
 - `tps`: Thermodynamics parameters
 - `ρ`: Air density (kg/m³)
@@ -864,7 +917,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `db_rim_dt`: Rime volume tendency (m³/kg/s)
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, ICE}, tps,
+    ::Microphysics2Moment, noneq_scheme::NonEqScheme, mp::CMP.Microphysics2MParams{WR, ICE}, tps,
     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
@@ -891,7 +944,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     db_rim_dt = zero(ρ)
 
     # --- Core Warm Rain Processes (shared helper) ---
-    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+    warm = warm_rain_tendencies_2m(mp.warm_rain, noneq_scheme, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
     dq_lcl_dt = warm.dq_lcl_dt
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
