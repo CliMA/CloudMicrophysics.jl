@@ -80,8 +80,8 @@ end
     i = @index(Global, Linear)
     FT = eltype(tps)
     q_lcl = q_icl = q_rai = q_sno = FT(0) # set to zero in this test
-    S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
-        lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
+    S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_MM2015(
+        tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i], lcl.τ_relax,
     )
     S_cond = CMN.conv_q_vap_to_q_lcl_icl(icl, qᵢ_s[i], qᵢ[i])
     output[i] = (; S_cond_MM2015, S_cond)
