@@ -118,6 +118,12 @@ we can write
 ```
 ``\Gamma_l`` and ``\Gamma_i`` then are equivalent to the ``G`` function used in our parcel model and parameterizations.
 
+```@example
+include("plots/NonEqCondEvapRate.jl")
+```
+![](condensation_evaporation_ql_z.svg)
+
+
 ## Cloud condensate sedimentation
 
 We use the Chen et al. [Chen2022](@cite) parameterization for cloud liquid and cloud ice sedimentation velocities.
