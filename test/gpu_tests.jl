@@ -980,50 +980,13 @@ function test_gpu(FT)
 
         kernel! = test_bulk_tendencies_2m_p3_kernel!(backend, work_groups)
         TT.@testset "2M+P3" begin
-            # kernel!(mp_2m_p3, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim; ndrange)
-            # TT.@test allequal(Array(output))
-            # tendencies = Array(output)[1]
-            # TT.@test all(isfinite, tendencies)
-            # TT.@test !iszero(tendencies.dq_ice_dt)
-            # Skip P3 GPU test - P3 uses gamma_inc_inv which is not GPU-compatible
-            TT.@test_broken false  # P3 bulk tendencies kernel not GPU-safe yet
+            kernel!(mp_2m_p3, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim; ndrange)
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+            TT.@test !iszero(tendencies.dq_ice_dt)
         end
     end  # TT.@testset "Bulk microphysics tendencies kernels"
-
-    # TT.@testset "P3 scheme kernels" begin
-    #     dims = (2, 2)
-    #     (; output, ndrange) = setup_output(dims, FT)
-
-    #     F_rim = ArrayType([FT(0.5), FT(0.95)])
-    #     ρ_r = ArrayType([FT(400), FT(800)])
-
-    #     kernel! = P3_scheme_kernel!(backend, work_groups)
-    #     kernel!(p3, output, F_rim, ρ_r; ndrange)
-
-    #     # test if all output is positive...
-    #     TT.@test all(Array(output) .> FT(0))
-    #     #... and returns reasonable numbers
-    #     TT.@test isapprox(
-    #         Array(output)[1, 1],
-    #         FT(0.4946323381999426 * 1e-3),
-    #         rtol = 1e-2,
-    #     )
-    #     TT.@test isapprox(
-    #         Array(output)[2, 1],
-    #         FT(0.26151186272014415 * 1e-3),
-    #         rtol = 1e-2,
-    #     )
-    #     TT.@test isapprox(
-    #         Array(output)[1, 2],
-    #         FT(1.7400778369620664 * 1e-3),
-    #         rtol = 1e-2,
-    #     )
-    #     TT.@test isapprox(
-    #         Array(output)[2, 2],
-    #         FT(0.11516682512848 * 1e-3),
-    #         rtol = 1e-2,
-    #     )
-    # end
 end  # function test_gpu(FT)
 
 TT.@testset "GPU tests ($FT)" for FT in (Float64, Float32)
