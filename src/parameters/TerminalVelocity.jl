@@ -329,7 +329,7 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Chen2022VelType{FT, R, SI, LI}
+struct Chen2022VelType{FT, R, SI, LI} <: TerminalVelocityType{FT}
     rain::R
     small_ice::SI
     large_ice::LI
@@ -409,7 +409,7 @@ v_snow = CM1.terminal_velocity(snow, tv.blk1m.snow, ρ, q_sno)
 - [`Chen2022VelType`](@ref): Chen et al. (2022) terminal velocity
 - [`Blk1MVelType`](@ref): 1-moment bulk terminal velocity
 """
-struct TerminalVelocityParams{FT, STOKES, CHEN, BLK1M}
+struct TerminalVelocityParams{FT, STOKES, CHEN, BLK1M} <: ParametersType{FT}
     stokes::STOKES
     chen2022::CHEN
     blk1m::BLK1M

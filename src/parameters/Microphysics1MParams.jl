@@ -9,7 +9,7 @@ Parameters for cloud-phase (non-precipitating) hydrometeors in 1-moment scheme.
 - `liquid::LCL`: CloudLiquid — cloud liquid water parameters
 - `ice::ICL`: CloudIce — cloud ice parameters
 """
-struct CloudPhaseParams1M{FT, LCL, ICL}
+struct CloudPhaseParams1M{FT, LCL, ICL} <: ParametersType{FT}
     liquid::LCL
     ice::ICL
 end
@@ -23,7 +23,7 @@ Parameters for precipitating hydrometeors in 1-moment scheme.
 - `rain::RAI`: Rain — rain parameters (includes autoconversion)
 - `snow::SNO`: Snow — snow parameters (includes autoconversion)
 """
-struct PrecipPhaseParams1M{FT, RAI, SNO}
+struct PrecipPhaseParams1M{FT, RAI, SNO} <: ParametersType{FT}
     rain::RAI
     snow::SNO
 end

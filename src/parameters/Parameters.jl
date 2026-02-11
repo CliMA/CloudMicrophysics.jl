@@ -50,17 +50,5 @@ include("Microphysics0MParams.jl")
 include("Microphysics1MParams.jl")
 include("Microphysics2MParams.jl")
 
-for T in (
-    Chen2022VelTypeRain,
-    Chen2022VelTypeSmallIce,
-    Chen2022VelTypeLargeIce,
-    Chen2022VelType,
-    CloudLiquid,
-)
-    @eval Base.Broadcast.broadcastable(x::$T) = x
-    @eval Base.ndims(::Type{<:$T}) = 0
-    @eval Base.size(::$T) = ()
-    @eval Base.@propagate_inbounds Base.getindex(x::$T, i) = x
-end
 
 end # module
