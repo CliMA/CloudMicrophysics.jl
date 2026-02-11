@@ -10,6 +10,7 @@
 module AerosolActivation
 
 import SpecialFunctions as SF
+import UnrolledUtilities as UU
 
 import ..ThermodynamicsInterface as TDI
 import ..Common as CO
@@ -251,7 +252,7 @@ function N_activated_per_mode(
     return ntuple(Val(AM.n_modes(ad))) do i
 
         mode_i = ad.modes[i]
-        u_i::FT = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
+        u_i = 2 * log(sm[i] / smax) / 3 / sqrt(FT(2)) / log(mode_i.stdev)
 
         mode_i.N * FT(0.5) * (1 - SF.erf(u_i))
     end
@@ -308,18 +309,14 @@ function M_activated_per_mode(
     sm = critical_supersaturation(ap, ad, T)
 
     return ntuple(Val(AM.n_modes(ad))) do i
-
         mode_i = ad.modes[i]
+        Mᵢ = UU.unrolled_sum(mode_i.molar_mass .* mode_i.mass_mix_ratio)
+        σᵢ = mode_i.stdev
+        fac = 3log(σᵢ) * √(FT(2)) / 2  # 3√2/2 log(σᵢ), shared factor in `erf`
+        u_i = log(sm[i] / smax) / fac
 
-        avg_molar_mass_i = FT(0)
-        @inbounds for j in 1:(AM.n_components(mode_i))
-            avg_molar_mass_i += mode_i.molar_mass[j] * mode_i.mass_mix_ratio[j]
-        end
-
-        u_i = 2 * log(sm[i] / smax) / 3 / sqrt(2) / log(mode_i.stdev)
-
-        avg_molar_mass_i * 1 / 2 *
-        (1 - SF.erf(u_i - 3 * sqrt(2) / 2 * log(mode_i.stdev)))
+        # erfc(x) ≡ 1 - erf(x), but more accurate for large x
+        Mᵢ / 2 * SF.erfc(u_i - fac)
     end
 end
 function M_activated_per_mode(

@@ -22,39 +22,27 @@ import CloudMicrophysics.Nucleation as MN
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 
-const work_groups = (1,)
+work_groups = 2
 
 ClimaComms.device() isa ClimaComms.CUDADevice || error("No GPU found")
 
 # Set up GPU
 using CUDA
-const backend = CUDABackend()
+backend = CUDABackend()
 CUDA.allowscalar(false)
-const ArrayType = CuArray
+ArrayType = CuArray
 
 # For debugging on the CPU
-#const backend = CPU()
-#const ArrayType = Array
+# backend = CPU()
+# ArrayType = Array
 
 @info "GPU Tests" backend ArrayType
 
-@kernel function aerosol_activation_kernel!(
-    ap,
-    aps,
-    tps,
-    output::AbstractArray{FT},
-    r,
-    stdev,
-    N,
-    ϵ,
-    ϕ,
-    M,
-    ν,
-    ρ,
-    κ,
-) where {FT}
-
-    i = @index(Group, Linear)
+@kernel inbounds = true function aerosol_activation_kernel!(
+    ap, aps, tps, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ,
+)
+    i = @index(Global, Linear)
+    FT = eltype(ap)
     # atmospheric conditions (taken from aerosol activation tests)
     T = FT(294)      # air temperature K
     p = FT(1e5)    # air pressure Pa
@@ -66,844 +54,319 @@ const ArrayType = CuArray
 
     args = (aps, tps, T, p, w, q_vs, q_liq, q_ice)
 
-    @inbounds begin
-        mode_B = AM.Mode_B(
-            r[i],
-            stdev[i],
-            N[i],
-            (FT(1.0),),
-            (ϵ[i],),
-            (ϕ[i],),
-            (M[i],),
-            (ν[i],),
-            (ρ[i],),
-        )
-        mode_κ = AM.Mode_κ(
-            r[i],
-            stdev[i],
-            N[i],
-            (FT(1.0),),
-            (FT(1.0),),
-            (M[i],),
-            (κ[i],),
-        )
+    mode_B = AM.Mode_B(
+        r[i], stdev[i], N[i], (FT(1.0),), (ϵ[i],), (ϕ[i],), (M[i],), (ν[i],), (ρ[i],),
+    )
+    mode_κ = AM.Mode_κ(r[i], stdev[i], N[i], (FT(1.0),), (FT(1.0),), (M[i],), (κ[i],))
 
-        arsl_dst_B = AM.AerosolDistribution((mode_B,))
-        arsl_dst_κ = AM.AerosolDistribution((mode_κ,))
+    arsl_dst_B = AM.AerosolDistribution((mode_B,))
+    arsl_dst_κ = AM.AerosolDistribution((mode_κ,))
 
-        output[1, i] = AA.mean_hygroscopicity_parameter(ap, arsl_dst_B)[1]
-        output[2, i] = AA.mean_hygroscopicity_parameter(ap, arsl_dst_κ)[1]
+    mean_B = AA.mean_hygroscopicity_parameter(ap, arsl_dst_B)[1]
+    mean_κ = AA.mean_hygroscopicity_parameter(ap, arsl_dst_κ)[1]
 
-        output[3, i] = AA.total_N_activated(ap, arsl_dst_B, args...)
-        output[4, i] = AA.total_N_activated(ap, arsl_dst_κ, args...)
+    N_act_B = AA.total_N_activated(ap, arsl_dst_B, args...)
+    N_act_κ = AA.total_N_activated(ap, arsl_dst_κ, args...)
 
-        output[5, i] = AA.total_M_activated(ap, arsl_dst_B, args...)
-        output[6, i] = AA.total_M_activated(ap, arsl_dst_κ, args...)
-    end
+    M_act_B = AA.total_M_activated(ap, arsl_dst_B, args...)
+    M_act_κ = AA.total_M_activated(ap, arsl_dst_κ, args...)
+
+    output[i] = (; mean_B, N_act_B, M_act_B, mean_κ, N_act_κ, M_act_κ)
 end
 
-@kernel function test_noneq_micro_kernel!(
-    liquid,
-    ice,
-    tps,
-    output::AbstractArray{FT},
-    ρ,
-    T,
-    qᵥ_sl,
-    qᵢ,
-    qᵢ_s,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1, i] = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
-            liquid,
-            tps,
-            qᵥ_sl[i],
-            FT(0),
-            FT(0),
-            FT(0),
-            FT(0),
-            ρ[i],
-            T[i],
-        )
-        output[2, i] = CMN.conv_q_vap_to_q_lcl_icl(ice, qᵢ_s[i], qᵢ[i])
-    end
+@kernel inbounds = true function test_noneq_micro_kernel!(
+    lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s,
+)
+    i = @index(Global, Linear)
+    FT = eltype(tps)
+    q_lcl = q_icl = q_rai = q_sno = FT(0) # set to zero in this test
+    S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
+        lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
+    )
+    S_cond = CMN.conv_q_vap_to_q_lcl_icl(icl, qᵢ_s[i], qᵢ[i])
+    output[i] = (; S_cond_MM2015, S_cond)
 end
 
-@kernel function test_chen2022_terminal_velocity_kernel!(
-    liquid,
-    ice,
-    rain,
-    snow,
-    Ch2022,
-    STVel,
-    output::AbstractArray{FT},
-    ρₐ,
-    qₗ,
-    qᵢ,
-    qᵣ,
-    qₛ,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        # CloudLiquid supports StokesRegimeVelType, not Chen2022VelTypeRain
-        output[1, i] = CMN.terminal_velocity(liquid, STVel, ρₐ[i], qₗ[i])
-        output[2, i] =
-            CMN.terminal_velocity(ice, Ch2022.small_ice, ρₐ[i], qᵢ[i])
-        output[3, i] = CM1.terminal_velocity(rain, Ch2022.rain, ρₐ[i], qᵣ[i])
-        output[4, i] =
-            CM1.terminal_velocity(snow, Ch2022.large_ice, ρₐ[i], qₛ[i])
-    end
+@kernel inbounds = true function test_chen2022_terminal_velocity_kernel!(
+    lcl, icl, rain, snow, Ch2022, STVel, output, ρₐ, qₗ, qᵢ, qᵣ, qₛ,
+)
+    i = @index(Global, Linear)
+    # CloudLiquid supports StokesRegimeVelType, not Chen2022VelTypeRain
+    lcl_stokes = CMN.terminal_velocity(lcl, STVel, ρₐ[i], qₗ[i])
+    lci_chen2022 = CMN.terminal_velocity(icl, Ch2022.small_ice, ρₐ[i], qᵢ[i])
+    rai_chen2022 = CM1.terminal_velocity(rain, Ch2022.rain, ρₐ[i], qᵣ[i])
+    sno_chen2022 = CM1.terminal_velocity(snow, Ch2022.large_ice, ρₐ[i], qₛ[i])
+    output[i] = (; lcl_stokes, lci_chen2022, rai_chen2022, sno_chen2022)
 end
 
-@kernel function test_0_moment_micro_kernel!(
-    p0m,
-    output::AbstractArray{FT},
-    liquid_frac,
-    qc,
-    qt,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        ql = qc[i] * liquid_frac[i]
-        qi = (1 - liquid_frac[i]) * qc[i]
-
-        output[1, i] = CM0.remove_precipitation(p0m, ql, qi)
-        output[2, i] = -max(0, ql + qi - p0m.qc_0) / p0m.τ_precip
-    end
+@kernel inbounds = true function test_0_moment_micro_kernel!(p0m, liquid_frac, output, qc)
+    i = @index(Global, Linear)
+    ql = qc[i] * liquid_frac[i]
+    qi = (1 - liquid_frac[i]) * qc[i]
+    S_pr = CM0.remove_precipitation(p0m, ql, qi)
+    S_pr_ref = -max(0, ql + qi - p0m.qc_0) / p0m.τ_precip
+    output[i] = (; S_pr, S_pr_ref)
 end
 
-@kernel function test_1_moment_micro_smooth_transition_kernel!(
-    acnv1M,
-    output::AbstractArray{FT},
-    ql,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    output[1, 1] = FT(-99999.99)
-    output[1, 2] = FT(-99999.99)
-    output[2, 1] = FT(-99999.99)
-    output[2, 2] = FT(-99999.99)
-    @inbounds begin
-        output[1, i] = CM1.conv_q_lcl_to_q_rai(acnv1M, ql[i], false)
-        output[2, i] = CM1.conv_q_lcl_to_q_rai(acnv1M, ql[i], false)
-    end
+@kernel inbounds = true function test_1_moment_micro_acnv_kernel!(output, acnv1M, ql)
+    i = @index(Global, Linear)
+    output[i] = CM1.conv_q_lcl_to_q_rai(acnv1M, ql[i], false)
 end
 
-@kernel function test_1_moment_micro_accretion_kernel!(
-    liquid,
-    rain,
-    ice,
-    snow,
-    ce,
-    blk1mvel,
-    output::AbstractArray{FT},
-    ρ,
-    qt,
-    qi,
-    qs,
-    ql,
-    qr,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1, i] =
-            CM1.accretion(liquid, rain, blk1mvel.rain, ce, ql[i], qr[i], ρ[i])
-        output[2, i] =
-            CM1.accretion(ice, snow, blk1mvel.snow, ce, qi[i], qs[i], ρ[i])
-        output[3, i] =
-            CM1.accretion(liquid, snow, blk1mvel.snow, ce, ql[i], qs[i], ρ[i])
-        output[4, i] =
-            CM1.accretion(ice, rain, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
-        output[5, i] = CM1.accretion_rain_sink(
-            rain,
-            ice,
-            blk1mvel.rain,
-            ce,
-            qi[i],
-            qr[i],
-            ρ[i],
-        )
-        output[6, i] = CM1.accretion_snow_rain(
-            snow,
-            rain,
-            blk1mvel.snow,
-            blk1mvel.rain,
-            ce,
-            qs[i],
-            qr[i],
-            ρ[i],
-        )
-        output[7, i] = CM1.accretion_snow_rain(
-            rain,
-            snow,
-            blk1mvel.rain,
-            blk1mvel.snow,
-            ce,
-            qr[i],
-            qs[i],
-            ρ[i],
-        )
-    end
+@kernel inbounds = true function test_1_moment_micro_accretion_kernel!(
+    lcl, rain, icl, snow, ce, blk1mvel, output, ρ, qi, qs, ql, qr,
+)
+    i = @index(Global, Linear)
+    liq_rai = CM1.accretion(lcl, rain, blk1mvel.rain, ce, ql[i], qr[i], ρ[i])
+    ice_sno = CM1.accretion(icl, snow, blk1mvel.snow, ce, qi[i], qs[i], ρ[i])
+    liq_sno = CM1.accretion(lcl, snow, blk1mvel.snow, ce, ql[i], qs[i], ρ[i])
+    ice_rai = CM1.accretion(icl, rain, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
+    rai_sink = CM1.accretion_rain_sink(rain, icl, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
+    sno_rai = CM1.accretion_snow_rain(
+        snow, rain, blk1mvel.snow, blk1mvel.rain, ce, qs[i], qr[i], ρ[i],
+    )
+    rai_sno = CM1.accretion_snow_rain(
+        rain, snow, blk1mvel.rain, blk1mvel.snow, ce, qr[i], qs[i], ρ[i],
+    )
+    output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, rai_sink, sno_rai, rai_sno)
 end
 
-@kernel function test_1_moment_micro_snow_melt_kernel!(
-    snow,
-    blk1mvel,
-    aps,
-    tps,
-    output::AbstractArray{FT},
-    ρ,
-    T,
-    qs,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] =
-            CM1.snow_melt(snow, blk1mvel.snow, aps, tps, qs[i], ρ[i], T[i])
-    end
+@kernel inbounds = true function test_1_moment_micro_snow_melt_kernel!(
+    snow, blk1mvel, aps, tps, output, ρ, T, qs)
+    i = @index(Global, Linear)
+    output[i] = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, qs[i], ρ[i], T[i])
 end
 
-@kernel function test_2_moment_acnv_kernel!(
-    KK2000,
-    B1994,
-    TC1980,
-    LD2004,
-    VarTSc,
-    output::AbstractArray{FT},
-    ql,
-    ρ,
-    Nd,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1, i] = CM2.conv_q_lcl_to_q_rai(VarTSc, ql[i], ρ[i], Nd[i])
-        output[2, i] = CM2.conv_q_lcl_to_q_rai(LD2004, ql[i], ρ[i], Nd[i])
-        output[3, i] = CM2.conv_q_lcl_to_q_rai(TC1980, ql[i], ρ[i], Nd[i])
-        output[4, i] = CM2.conv_q_lcl_to_q_rai(B1994, ql[i], ρ[i], Nd[i])
-        output[5, i] = CM2.conv_q_lcl_to_q_rai(KK2000, ql[i], ρ[i], Nd[i])
-    end
+@kernel inbounds = true function test_2_moment_acnv_kernel!(
+    KK2000, B1994, TC1980, LD2004, VarTSc, output, ql, ρ, Nd,
+)
+    i = @index(Global, Linear)
+    S_VarTSc = CM2.conv_q_lcl_to_q_rai(VarTSc, ql[i], ρ[i], Nd[i])
+    S_LD2004 = CM2.conv_q_lcl_to_q_rai(LD2004, ql[i], ρ[i], Nd[i])
+    S_TC1980 = CM2.conv_q_lcl_to_q_rai(TC1980, ql[i], ρ[i], Nd[i])
+    S_B1994 = CM2.conv_q_lcl_to_q_rai(B1994, ql[i], ρ[i], Nd[i])
+    S_KK2000 = CM2.conv_q_lcl_to_q_rai(KK2000, ql[i], ρ[i], Nd[i])
+    output[i] = (; S_VarTSc, S_LD2004, S_TC1980, S_B1994, S_KK2000)
 end
 
-@kernel function test_2_moment_accr_kernel!(
-    KK2000,
-    B1994,
-    TC1980,
-    output::AbstractArray{FT},
-    ql,
-    qr,
-    ρ,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1, i] = CM2.accretion(KK2000, ql[i], qr[i], ρ[i])
-        output[2, i] = CM2.accretion(B1994, ql[i], qr[i], ρ[i])
-        output[3, i] = CM2.accretion(TC1980, ql[i], qr[i])
-    end
+@kernel inbounds = true function test_2_moment_accr_kernel!(
+    KK2000, B1994, TC1980, output, ql, qr, ρ,
+)
+    i = @index(Global, Linear)
+    S_KK2000 = CM2.accretion(KK2000, ql[i], qr[i], ρ[i])
+    S_B1994 = CM2.accretion(B1994, ql[i], qr[i], ρ[i])
+    S_TC1980 = CM2.accretion(TC1980, ql[i], qr[i])
+    output[i] = (; S_KK2000, S_B1994, S_TC1980)
 end
 
-@kernel function test_2_moment_SB2006_kernel!(
-    aps,
-    tps,
-    SB2006,
-    SB2006Vel,
-    output::AbstractArray{FT},
-    qt,
-    ql,
-    qr,
-    Nl,
-    Nr,
-    ρ,
-    T,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-
-        output[1, i] =
-            CM2.autoconversion_and_cloud_liquid_self_collection(
-                SB2006,
-                ql[i],
-                qr[i],
-                ρ[i],
-                Nl[i],
-            ).au.dq_lcl_dt
-        output[2, i] =
-            CM2.autoconversion_and_cloud_liquid_self_collection(
-                SB2006,
-                ql[i],
-                qr[i],
-                ρ[i],
-                Nl[i],
-            ).au.dN_lcl_dt
-        output[3, i] =
-            CM2.autoconversion_and_cloud_liquid_self_collection(
-                SB2006,
-                ql[i],
-                qr[i],
-                ρ[i],
-                Nl[i],
-            ).au.dq_rai_dt
-        output[4, i] =
-            CM2.autoconversion_and_cloud_liquid_self_collection(
-                SB2006,
-                ql[i],
-                qr[i],
-                ρ[i],
-                Nl[i],
-            ).au.dN_rai_dt
-
-        output[5, i] =
-            CM2.autoconversion_and_cloud_liquid_self_collection(
-                SB2006,
-                ql[i],
-                qr[i],
-                ρ[i],
-                Nl[i],
-            ).sc
-        output[6, i] =
-            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_lcl_dt
-        output[7, i] =
-            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_lcl_dt
-        output[8, i] =
-            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dq_rai_dt
-        output[9, i] =
-            CM2.accretion(SB2006, ql[i], qr[i], ρ[i], Nl[i]).dN_rai_dt
-        output[10, i] =
-            CM2.rain_self_collection_and_breakup(SB2006, qr[i], ρ[i], Nr[i]).sc
-        output[11, i] =
-            CM2.rain_self_collection_and_breakup(SB2006, qr[i], ρ[i], Nr[i]).br
-        output[12, i] =
-            CM2.rain_terminal_velocity(SB2006, SB2006Vel, qr[i], ρ[i], Nr[i])[1]
-        output[13, i] =
-            CM2.rain_terminal_velocity(SB2006, SB2006Vel, qr[i], ρ[i], Nr[i])[2]
-        output[14, i] =
-            CM2.rain_evaporation(
-                SB2006,
-                aps,
-                tps,
-                qt[i],
-                ql[i],
-                FT(0),
-                qr[i],
-                FT(0),
-                ρ[i],
-                Nr[i],
-                T[i],
-            ).evap_rate_0
-        output[15, i] =
-            CM2.rain_evaporation(
-                SB2006,
-                aps,
-                tps,
-                qt[i],
-                ql[i],
-                FT(0),
-                qr[i],
-                FT(0),
-                ρ[i],
-                Nr[i],
-                T[i],
-            ).evap_rate_1
-        output[16, i] = CM2.number_increase_for_mass_limit(SB2006.numadj, SB2006.pdf_r.xr_max, qr[i], ρ[i], Nr[i])
-        output[17, i] = CM2.number_decrease_for_mass_limit(SB2006.numadj, SB2006.pdf_r.xr_min, qr[i], ρ[i], Nr[i])
-    end
+function SB2006_2M_kernel(aps, tps, SB2006, SB2006Vel, qt, ql, qr, Nl, Nr, ρ, T)
+    FT = eltype(aps)
+    lcl_aconv_scoll =
+        CM2.autoconversion_and_cloud_liquid_self_collection(SB2006, ql, qr, ρ, Nl)
+    accr = CM2.accretion(SB2006, ql, qr, ρ, Nl)
+    rain_scoll = CM2.rain_self_collection_and_breakup(SB2006, qr, ρ, Nr)
+    rain_vel = CM2.rain_terminal_velocity(SB2006, SB2006Vel, qr, ρ, Nr)
+    rain_evap = CM2.rain_evaporation(SB2006, aps, tps, qt, ql, FT(0), qr, FT(0), ρ, Nr, T)
+    num_incr_mass_limit =
+        CM2.number_increase_for_mass_limit(SB2006.numadj, SB2006.pdf_r.xr_max, qr, ρ, Nr)
+    num_decr_mass_limit =
+        CM2.number_decrease_for_mass_limit(SB2006.numadj, SB2006.pdf_r.xr_min, qr, ρ, Nr)
+    return (;
+        lcl_aconv_scoll, accr, rain_scoll, rain_vel,
+        rain_evap, num_incr_mass_limit, num_decr_mass_limit,
+    )
 end
 
-@kernel function h2so4_nucleation_kernel!(
-    h2so4_nuc,
-    output::AbstractArray{FT},
-    h2so4_conc,
-    nh3_conc,
-    negative_ion_conc,
-    temp,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = sum(
-            MN.h2so4_nucleation_rate(
-                h2so4_conc[i],
-                nh3_conc[i],
-                negative_ion_conc[i],
-                temp[i],
-                h2so4_nuc,
-            ),
-        )
-    end
+@kernel inbounds = true function test_2_moment_SB2006_kernel!(
+    aps, tps, SB2006, SB2006Vel, output, qt, ql, qr, Nl, Nr, ρ, T,
+)
+    i = @index(Global, Linear)
+    output[i] = SB2006_2M_kernel(
+        aps, tps, SB2006, SB2006Vel, qt[i], ql[i], qr[i], Nl[i], Nr[i], ρ[i], T[i],
+    )
 end
 
-@kernel function organic_nucleation_kernel!(
-    org_nuc,
-    output::AbstractArray{FT},
-    negative_ion_conc,
-    monoterpene_conc,
-    O3_conc,
-    OH_conc,
-    temp,
-    condensation_sink,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = MN.organic_nucleation_rate(
-            negative_ion_conc[i],
-            monoterpene_conc[i],
-            O3_conc[i],
-            OH_conc[i],
-            temp[i],
-            condensation_sink[i],
-            org_nuc,
-        )
-    end
+@kernel inbounds = true function h2so4_nucleation_kernel!(
+    h2so4_nuc, output, h2so4_conc, nh3_conc, negative_ion_conc, temp,
+)
+    i = @index(Global, Linear)
+    output[i] = sum(MN.h2so4_nucleation_rate(
+        h2so4_conc[i], nh3_conc[i], negative_ion_conc[i], temp[i], h2so4_nuc,
+    ))
 end
 
-@kernel function organic_and_h2so4_nucleation_kernel!(
-    mix_nuc,
-    output::AbstractArray{FT},
-    h2so4_conc,
-    monoterpene_conc,
-    OH_conc,
-    temp,
-    condensation_sink,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = MN.organic_and_h2so4_nucleation_rate(
-            h2so4_conc[i],
-            monoterpene_conc[i],
-            OH_conc[i],
-            temp[i],
-            condensation_sink[i],
-            mix_nuc,
-        )
-    end
+@kernel inbounds = true function organic_nucleation_kernel!(
+    org_nuc, output, negative_ion_conc, monoterpene_conc, O3_conc, OH_conc,
+    temp, condensation_sink,
+)
+    i = @index(Global, Linear)
+    output[i] = MN.organic_nucleation_rate(
+        negative_ion_conc[i], monoterpene_conc[i], O3_conc[i], OH_conc[i],
+        temp[i], condensation_sink[i], org_nuc,
+    )
 end
 
-@kernel function apparent_nucleation_rate_kernel!(
-    output::AbstractArray{FT},
-    output_diam,
-    nucleation_rate,
-    condensation_growth_rate,
-    coag_sink,
-    coag_sink_input_diam,
-    input_diam,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = MN.apparent_nucleation_rate(
-            output_diam[i],
-            nucleation_rate[i],
-            condensation_growth_rate[i],
-            coag_sink[i],
-            coag_sink_input_diam[i],
-            input_diam[i],
-        )
-    end
+@kernel inbounds = true function organic_and_h2so4_nucleation_kernel!(
+    mix_nuc, output, h2so4_conc, monoterpene_conc, OH_conc, temp, condensation_sink,
+)
+    i = @index(Global, Linear)
+    output[i] = MN.organic_and_h2so4_nucleation_rate(
+        h2so4_conc[i], monoterpene_conc[i], OH_conc[i],
+        temp[i], condensation_sink[i], mix_nuc,
+    )
 end
 
-@kernel function Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
-    H2SO4_prs,
-    output::AbstractArray{FT},
-    x_sulph,
-    T,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] =
-            CO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x_sulph[i], T[i])
-    end
+@kernel inbounds = true function apparent_nucleation_rate_kernel!(
+    output, output_diam, nucleation_rate, condensation_growth_rate, coag_sink,
+    coag_sink_input_diam, input_diam,
+)
+    i = @index(Global, Linear)
+    output[i] = MN.apparent_nucleation_rate(
+        output_diam[i], nucleation_rate[i], condensation_growth_rate[i], coag_sink[i],
+        coag_sink_input_diam[i], input_diam[i],
+    )
 end
 
-@kernel function Common_a_w_xT_kernel!(
-    H2SO4_prs,
-    tps,
-    output::AbstractArray{FT},
-    x_sulph,
-    T,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = CO.a_w_xT(H2SO4_prs, tps, x_sulph[i], T[i])
-    end
+@kernel inbounds = true function Common_H2SO4_kernel!(H2SO4_prs, tps, output, x_sulph, T)
+    i = @index(Global, Linear)
+    H2SO4_soln_qv_sat = CO.H2SO4_soln_saturation_vapor_pressure(H2SO4_prs, x_sulph[i], T[i])
+    H2SO4_soln_a_w = CO.a_w_xT(H2SO4_prs, tps, x_sulph[i], T[i])
+    output[i] = (; H2SO4_soln_qv_sat, H2SO4_soln_a_w)
 end
 
-@kernel function Common_a_w_eT_kernel!(
-    tps,
-    output::AbstractArray{FT},
-    e,
-    T,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = CO.a_w_eT(tps, e[i], T[i])
-    end
+@kernel inbounds = true function Common_a_w_eT_kernel!(tps, output, e, T)
+    i = @index(Global, Linear)
+    output[i] = CO.a_w_eT(tps, e[i], T[i])
 end
 
-@kernel function Common_a_w_ice_kernel!(
-    tps,
-    output::AbstractArray{FT},
-    T,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[i] = CO.a_w_ice(tps, T[i])
-    end
+@kernel inbounds = true function Common_a_w_ice_kernel!(tps, output, T)
+    i = @index(Global, Linear)
+    output[i] = CO.a_w_ice(tps, T[i])
 end
 
-@kernel function IceNucleation_dust_activated_number_fraction_kernel!(
-    output::AbstractArray{FT},
-    desert_dust,
-    arizona_test_dust,
-    ip,
-    S_i,
-    T,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] =
-            CMI_het.dust_activated_number_fraction(desert_dust, ip, S_i, T)
-        output[2] = CMI_het.dust_activated_number_fraction(
-            arizona_test_dust,
-            ip,
-            S_i,
-            T,
-        )
-    end
+@kernel inbounds = true function IceNucleation_dust_activated_number_fraction_kernel!(
+    desert_dust, arizona_test_dust, ip, output, S_i, T,
+)
+    i = @index(Global, Linear)
+    desert_act_N_frac =
+        CMI_het.dust_activated_number_fraction(desert_dust, ip, S_i[i], T[i])
+    arizona_act_N_frac =
+        CMI_het.dust_activated_number_fraction(arizona_test_dust, ip, S_i[i], T[i])
+    output[i] = (; desert_act_N_frac, arizona_act_N_frac)
 end
 
-@kernel function IceNucleation_MohlerDepositionRate_kernel!(
-    output::AbstractArray{FT},
-    desert_dust,
-    arizona_test_dust,
-    ip,
-    S_i,
-    T,
-    dSi_dt,
-    N_aero,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] = CMI_het.MohlerDepositionRate(
-            desert_dust,
-            ip,
-            S_i,
-            T,
-            dSi_dt,
-            N_aero,
-        )
-        output[2] = CMI_het.MohlerDepositionRate(
-            arizona_test_dust,
-            ip,
-            S_i,
-            T,
-            dSi_dt,
-            N_aero,
-        )
-    end
+@kernel inbounds = true function IceNucleation_MohlerDepositionRate_kernel!(
+    desert_dust, arizona_test_dust, ip, output, S_i, T, dSi_dt, N_aero,
+)
+    i = @index(Global, Linear)
+    args = (ip, S_i[i], T[i], dSi_dt[i], N_aero[i])
+    desert_dep_rate = CMI_het.MohlerDepositionRate(desert_dust, args...)
+    arizona_dep_rate = CMI_het.MohlerDepositionRate(arizona_test_dust, args...)
+    output[i] = (; desert_dep_rate, arizona_dep_rate)
 end
 
-@kernel function IceNucleation_deposition_J_kernel!(
-    output::AbstractArray{FT},
-    kaolinite,
-    feldspar,
-    ferrihydrite,
-    Delta_a_w,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] = CMI_het.deposition_J(kaolinite, Delta_a_w[1])
-        output[2] = CMI_het.deposition_J(feldspar, Delta_a_w[2])
-        output[3] = CMI_het.deposition_J(ferrihydrite, Delta_a_w[3])
-    end
+@kernel inbounds = true function IceNucleation_deposition_J_kernel!(mineral, output, Delta_a_w)
+    i = @index(Global, Linear)
+    output[i] = CMI_het.deposition_J(mineral, Delta_a_w[i])
 end
 
-@kernel function IceNucleation_ABIFM_J_kernel!(
-    output::AbstractArray{FT},
-    kaolinite,
-    illite,
-    Delta_a_w,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] = CMI_het.ABIFM_J(kaolinite, Delta_a_w[1])
-        output[2] = CMI_het.ABIFM_J(illite, Delta_a_w[2])
-    end
+@kernel inbounds = true function IceNucleation_ABIFM_J_kernel!(mineral, output, Delta_a_w)
+    i = @index(Global, Linear)
+    output[i] = CMI_het.ABIFM_J(mineral, Delta_a_w[i])
 end
 
-@kernel function IceNucleation_P3_deposition_N_i_kernel!(
-    output::AbstractArray{FT},
-    ip,
-    T,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] = CMI_het.P3_deposition_N_i(ip, T[1])
-    end
+@kernel inbounds = true function IceNucleation_P3_deposition_N_i_kernel!(ip, output, T)
+    i = @index(Global, Linear)
+    output[i] = CMI_het.P3_deposition_N_i(ip, T[i])
 end
 
-@kernel function IceNucleation_P3_het_N_i_kernel!(
-    output::AbstractArray{FT},
-    ip,
-    T,
-    N_l,
-    V_l,
-    Δt,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] = CMI_het.P3_het_N_i(ip, T[1], N_l[1], V_l[1], Δt[1])
-    end
+@kernel inbounds = true function IceNucleation_P3_het_N_i_kernel!(ip, output, T, N_l, V_l, Δt)
+    i = @index(Global, Linear)
+    output[i] = CMI_het.P3_het_N_i(ip, T[i], N_l[i], V_l[i], Δt[i])
 end
 
-@kernel function IceNucleation_INPC_frequency_kernel!(
-    output::AbstractArray{FT},
-    ip_frostenberg,
-    INPC,
-    T,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] = CMI_het.INP_concentration_frequency(ip_frostenberg, INPC, T)
-    end
+@kernel inbounds = true function IceNucleation_INPC_frequency_kernel!(ip, output, INPC, T)
+    i = @index(Global, Linear)
+    output[i] = CMI_het.INP_concentration_frequency(ip, INPC[i], T[i])
 end
 
-@kernel function IceNucleation_homogeneous_J_cubic_kernel!(
-    ip,
-    output::AbstractArray{FT},
-    Delta_a_w,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] = CMI_hom.homogeneous_J_cubic(ip.homogeneous, Delta_a_w[1])
-    end
+@kernel inbounds = true function IceNucleation_homogeneous_J_kernel!(ip, output, Delta_a_w)
+    i = @index(Global, Linear)
+    J_cubic = CMI_hom.homogeneous_J_cubic(ip.homogeneous, Delta_a_w[i])
+    J_linear = CMI_hom.homogeneous_J_linear(ip.homogeneous, Delta_a_w[i])
+    output[i] = (; J_cubic, J_linear)
 end
 
-@kernel function IceNucleation_homogeneous_J_linear_kernel!(
-    ip,
-    output::AbstractArray{FT},
-    Delta_a_w,
-) where {FT}
-
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        output[1] = CMI_hom.homogeneous_J_linear(ip.homogeneous, Delta_a_w[1])
-    end
+@kernel inbounds = true function IceNucleation_homogeneous_J_linear_kernel!(
+    ip, output, Delta_a_w,
+)
+    i = @index(Global, Linear)
+    output[i] = CMI_hom.homogeneous_J_linear(ip.homogeneous, Delta_a_w[i])
 end
 
-# @kernel function P3_scheme_kernel!(
-#     p3,
-#     output::AbstractArray{FT},
-#     F_rim,
-#     ρ_r,
-# ) where {FT}
-
-#     i = @index(Group, Linear)
-
-#     @inbounds begin
-#         output[1, i] = P3.thresholds(p3, ρ_r[i], F_rim[i])[1]
-#         output[2, i] = P3.thresholds(p3, ρ_r[i], F_rim[i])[2]
-#     end
-# end
-
-@kernel function test_bulk_tendencies_0m_kernel!(
-    mp,
-    tps,
-    output::AbstractArray{FT},
-    liquid_frac,
-    qc,
-    T,
-) where {FT}
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        ql = qc[i] * liquid_frac[i]
-        qi = (1 - liquid_frac[i]) * qc[i]
-        result = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics0Moment(),
-            mp,
-            tps,
-            T[i],
-            ql,
-            qi,
-        )
-        # Extract fields from NamedTuple
-        output[1, i] = result.dq_tot_dt
-        output[2, i] = result.e_int_precip
-    end
+@kernel inbounds = true function test_bulk_tendencies_0m_kernel!(
+    mp, tps, output, liquid_frac, qc, T,
+)
+    i = @index(Global, Linear)
+    ql = qc[i] * liquid_frac[i]
+    qi = (1 - liquid_frac[i]) * qc[i]
+    CM0M = BMT.Microphysics0Moment()
+    output[i] = BMT.bulk_microphysics_tendencies(CM0M, mp, tps, T[i], ql, qi)
 end
 
-@kernel function test_bulk_tendencies_1m_kernel!(
-    mp,
-    tps,
-    output::AbstractArray{FT},
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-) where {FT}
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics1Moment(),
-            mp,
-            tps,
-            ρ[i],
-            T[i],
-            q_tot[i],
-            q_lcl[i],
-            q_icl[i],
-            q_rai[i],
-            q_sno[i],
-        )
-        output[1, i] = tendencies.dq_lcl_dt
-        output[2, i] = tendencies.dq_icl_dt
-        output[3, i] = tendencies.dq_rai_dt
-        output[4, i] = tendencies.dq_sno_dt
-    end
+@kernel inbounds = true function test_bulk_tendencies_1m_kernel!(
+    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+)
+    i = @index(Global, Linear)
+    CM1M = BMT.Microphysics1Moment()
+    output[i] = BMT.bulk_microphysics_tendencies(
+        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+    )
 end
 
-@kernel function test_bulk_tendencies_2m_warm_kernel!(
-    mp,
-    tps,
-    output::AbstractArray{FT},
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    n_lcl,
-    q_rai,
-    n_rai,
-) where {FT}
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics2Moment(),
-            mp,
-            tps,
-            ρ[i],
-            T[i],
-            q_tot[i],
-            q_lcl[i],
-            n_lcl[i],
-            q_rai[i],
-            n_rai[i],
-        )
-        output[1, i] = tendencies.dq_lcl_dt
-        output[2, i] = tendencies.dn_lcl_dt
-        output[3, i] = tendencies.dq_rai_dt
-        output[4, i] = tendencies.dn_rai_dt
-        output[5, i] = tendencies.dq_ice_dt
-        output[6, i] = tendencies.dq_rim_dt
-        output[7, i] = tendencies.db_rim_dt
-    end
+@kernel inbounds = true function test_bulk_tendencies_2m_warm_kernel!(
+    mp, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
+)
+    i = @index(Global, Linear)
+    CM2M = BMT.Microphysics2Moment()
+    output[i] = BMT.bulk_microphysics_tendencies(
+        CM2M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
+    )
 end
 
-@kernel function test_bulk_tendencies_2m_p3_kernel!(
-    mp,
-    tps,
-    output::AbstractArray{FT},
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    n_lcl,
-    q_rai,
-    n_rai,
-    q_ice,
-    n_ice,
-    q_rim,
-    b_rim,
-) where {FT}
-    i = @index(Group, Linear)
-
-    @inbounds begin
-        tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics2Moment(),
-            mp,
-            tps,
-            ρ[i],
-            T[i],
-            q_tot[i],
-            q_lcl[i],
-            n_lcl[i],
-            q_rai[i],
-            n_rai[i],
-            q_ice[i],
-            n_ice[i],
-            q_rim[i],
-            b_rim[i],
-        )
-        output[1, i] = tendencies.dq_lcl_dt
-        output[2, i] = tendencies.dn_lcl_dt
-        output[3, i] = tendencies.dq_rai_dt
-        output[4, i] = tendencies.dn_rai_dt
-        output[5, i] = tendencies.dq_ice_dt
-        output[6, i] = tendencies.dq_rim_dt
-        output[7, i] = tendencies.db_rim_dt
-    end
+@kernel inbounds = true function test_bulk_tendencies_2m_p3_kernel!(
+    mp, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim,
+)
+    i = @index(Global, Linear)
+    CM2M = BMT.Microphysics2Moment()
+    output[i] = BMT.bulk_microphysics_tendencies(
+        CM2M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
+        q_ice[i], n_ice[i], q_rim[i], b_rim[i],
+    )
 end
 
 """
     setup_output(dims, FT)
 Helper function for GPU tests. Allocates an array of type `FT` with dimensions
-`dims`. The second element of `dims` is the `data_length`.
+`dims`. The last element of `dims` is the `data_length`.
+
+Optionally, `default_value` can be provided to
+uniformly initialize the output array values.
 """
-function setup_output(dims, FT)
+function setup_output(dims, FT, default_value = nothing)
     output = allocate(backend, FT, dims...)
-    return (; output, ndrange = (dims[2],))
+    !isnothing(default_value) && fill!(output, FT(default_value))
+    return (; output, ndrange = (dims[end],))
+end
+
+"""
+    constant_data(value; ndrange)
+Helper function for GPU tests. Allocates a vector of type `FT` with length
+`ndrange` and fills it with `value`.
+"""
+function constant_data(value; ndrange)
+    FT = eltype(value)
+    return fill!(allocate(backend, FT, ndrange), value)
 end
 
 function test_gpu(FT)
@@ -919,8 +382,8 @@ function test_gpu(FT)
     p0m = CMP.Parameters0M(FT)
 
     # 1-momeny microphysics
-    liquid = CMP.CloudLiquid(FT)
-    ice = CMP.CloudIce(FT)
+    lcl = CMP.CloudLiquid(FT)
+    icl = CMP.CloudIce(FT)
     rain = CMP.Rain(FT)
     snow = CMP.Snow(FT)
     ce = CMP.CollisionEff(FT)
@@ -940,14 +403,11 @@ function test_gpu(FT)
     LD2004 = CMP.LD2004(FT)
     VarTSc = CMP.VarTimescaleAcnv(FT)
 
-    # p3 microphysics
-
     # Bulk microphysics parameters
     mp_0m = CMP.Microphysics0MParams(FT)
     mp_1m = CMP.Microphysics1MParams(FT)
     mp_2m_warm = CMP.Microphysics2MParams(FT; with_ice = false)
     mp_2m_p3 = CMP.Microphysics2MParams(FT; with_ice = true)
-    p3 = CMP.ParametersP3(FT)
 
     # aerosol nucleation
     mix_nuc = CMP.MixedNucleationParameters(FT)
@@ -966,9 +426,6 @@ function test_gpu(FT)
     ip_frostenberg = CMP.Frostenberg2023(FT)
 
     TT.@testset "Aerosol activation kernels" begin
-        dims = (6, 2)
-        (; output, ndrange) = setup_output(dims, FT)
-
         r = ArrayType([FT(0.243 * 1e-6), FT(1.5 * 1e-6)])
         stdev = ArrayType([FT(1.4), FT(2.1)])
         N = ArrayType([FT(100 * 1e6), FT(1 * 1e6)])
@@ -978,28 +435,27 @@ function test_gpu(FT)
         ν = ArrayType([FT(3), FT(2)])
         ρ = ArrayType([FT(1770), FT(2170)])
         κ = ArrayType([FT(0.53), FT(1.12)])
+        DT = @NamedTuple{
+            mean_B::FT, N_act_B::FT, M_act_B::FT,
+            mean_κ::FT, N_act_κ::FT, M_act_κ::FT,
+        }
+        (; ndrange, output) = setup_output(2, DT)
 
         kernel! = aerosol_activation_kernel!(backend, work_groups)
-        kernel!(ap, aps, tps, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ, ; ndrange)
-
-        # test if all aerosol activation output is positive
-        TT.@test all(Array(output)[:, :] .>= FT(0))
-        # test if higroscopicity parameter is the same for κ and B modes
-        TT.@test all(
-            isapprox(Array(output)[1, :], Array(output)[2, :], rtol = 0.3),
-        )
-        # test if the number and mass activated are the same for κ and B modes
-        TT.@test all(
-            isapprox(Array(output)[3, :], Array(output)[4, :], rtol = 1e-5),
-        )
-        TT.@test all(
-            isapprox(Array(output)[5, :], Array(output)[6, :], rtol = 1e-5),
-        )
+        kernel!(ap, aps, tps, output, r, stdev, N, ϵ, ϕ, M, ν, ρ, κ; ndrange)
+        for nt in Array(output)
+            # test if all aerosol activation output is positive
+            TT.@test isapprox(nt.mean_B, nt.mean_κ, rtol = 0.3)
+            # test if higroscopicity parameter is the same for κ and B modes
+            TT.@test isapprox(nt.N_act_B, nt.N_act_κ, rtol = 1e-5)
+            # test if the number and mass activated are the same for κ and B modes
+            TT.@test isapprox(nt.M_act_B, nt.M_act_κ, rtol = 1e-5)
+        end
     end
 
     TT.@testset "non-equilibrium microphysics kernels" begin
-        dims = (2, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+        DT = @NamedTuple{S_cond_MM2015::FT, S_cond::FT}
+        (; ndrange, output) = setup_output(1, DT)
 
         ρ = ArrayType([FT(0.8)])
         T = ArrayType([FT(263)])
@@ -1008,16 +464,19 @@ function test_gpu(FT)
         qᵢ_s = ArrayType([FT(0.002)])
 
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
-        kernel!(liquid, ice, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s, ; ndrange)
-
+        kernel!(lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
+        (; S_cond_MM2015, S_cond) = Array(output)[1]
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(3.76347635339803e-5)
-        TT.@test Array(output)[2] ≈ FT(-1e-4)
+        TT.@test S_cond_MM2015 ≈ FT(3.76347635339803e-5)
+        TT.@test S_cond ≈ FT(-1e-4)
     end
 
     TT.@testset "Chen 2022 terminal velocity kernels" begin
-        dims = (4, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+        DT = @NamedTuple{
+            lcl_stokes::FT, lci_chen2022::FT,
+            rai_chen2022::FT, sno_chen2022::FT,
+        }
+        (; ndrange, output) = setup_output(1, DT)
 
         ρ = ArrayType([FT(0.95)])
         qₗ = ArrayType([FT(0.004)])
@@ -1026,581 +485,511 @@ function test_gpu(FT)
         qₛ = ArrayType([FT(0.001)])
 
         kernel! = test_chen2022_terminal_velocity_kernel!(backend, work_groups)
-        kernel!(
-            liquid,
-            ice,
-            rain,
-            snow,
-            Ch2022,
-            STVel,
-            output,
-            ρ,
-            qₗ,
-            qᵢ,
-            qᵣ,
-            qₛ;
-            ndrange,
-        )
+        kernel!(lcl, icl, rain, snow, Ch2022, STVel, output, ρ, qₗ, qᵢ, qᵣ, qₛ; ndrange)
+        v_term = Array(output)[1]
 
         # test that terminal velocity is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(0.021314907475574747)  # CloudLiquid with Stokes velocity
-        TT.@test Array(output)[2] ≈ FT(0.01696129041896599)   # CloudIce with Chen2022 small ice
-        TT.@test Array(output)[3] ≈ FT(6.9241079942767305)    # Rain with Chen2022 rain
-        TT.@test Array(output)[4] ≈ FT(0.9514450529349796)    # Snow with Chen2022 large ice
+        TT.@test v_term.lcl_stokes ≈ FT(0.021314907475574747)  # CloudLiquid with Stokes velocity
+        TT.@test v_term.lci_chen2022 ≈ FT(0.01696129041896599)   # CloudIce with Chen2022 small ice
+        TT.@test v_term.rai_chen2022 ≈ FT(6.9241079942767305)    # Rain with Chen2022 rain
+        TT.@test v_term.sno_chen2022 ≈ FT(0.9514450529349796)    # Snow with Chen2022 large ice
     end
 
     TT.@testset "0-moment microphysics kernels" begin
-        dims = (2, 3)  # 2 outputs: remove_precipitation call and direct formula
-        (; output, ndrange) = setup_output(dims, FT)
+        DT = @NamedTuple{S_pr::FT, S_pr_ref::FT}
+        (; ndrange, output) = setup_output(10, DT)
 
         liquid_frac = ArrayType([FT(0), FT(0.5), FT(1)])
-        qt = ArrayType([FT(13e-3), FT(13e-3), FT(13e-3)])
         qc = ArrayType([FT(3e-3), FT(4e-3), FT(5e-3)])
 
         kernel! = test_0_moment_micro_kernel!(backend, work_groups)
-        kernel!(p0m, output, liquid_frac, qc, qt, ; ndrange)
-
+        kernel!(p0m, liquid_frac, output, qc; ndrange)
         # test that remove_precipitation matches the direct formula
-        TT.@test all(isequal(Array(output)[1, :], Array(output)[2, :]))
+        TT.@test all(map(nt -> nt.S_pr_ref == nt.S_pr, Array(output)))
     end
 
     TT.@testset "1-moment microphysics kernels" begin
-        dims = (2, 2)
-        (; output, ndrange) = setup_output(dims, FT)
+        bad_value = -99999.99
+        (; output, ndrange) = setup_output(2, FT, bad_value)
         ql = ArrayType([FT(1e-3), FT(5e-4)])
 
-        kernel! =
-            test_1_moment_micro_smooth_transition_kernel!(backend, work_groups)
-        kernel!(rain.acnv1M, output, ql; ndrange)
+        kernel! = test_1_moment_micro_acnv_kernel!(backend, work_groups)
+        kernel!(output, rain.acnv1M, ql; ndrange)
+        out = Array(output)
 
         # Sanity checks for the GPU KernelAbstractions workflow
         # See https://github.com/CliMA/SurfaceFluxes.jl/issues/142
-        TT.@test !any(isequal(Array(output), FT(-99999.99)))
-        TT.@test all(isequal(Array(output)[1, :], Array(output)[2, :]))
+        TT.@test !any(isequal(out, FT(bad_value)))
+        TT.@test out == FT[5e-7, 0]
 
-        dims = (7, 2)
-        (; output, ndrange) = setup_output(dims, FT)
+        DT = @NamedTuple{
+            liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT,
+            rai_sink::FT, sno_rai::FT, rai_sno::FT,
+        }
+        (; output, ndrange) = setup_output(2, DT)
 
         ρ = ArrayType([FT(1.2), FT(1.2)])
-        qt = ArrayType([FT(0), FT(20e-3)])
         qi = ArrayType([FT(0), FT(5e-4)])
         qs = ArrayType([FT(0), FT(5e-4)])
         ql = ArrayType([FT(0), FT(5e-4)])
         qr = ArrayType([FT(0), FT(5e-4)])
 
         kernel! = test_1_moment_micro_accretion_kernel!(backend, work_groups)
-        kernel!(
-            liquid,
-            rain,
-            ice,
-            snow,
-            ce,
-            blk1mvel,
-            output,
-            ρ,
-            qt,
-            qi,
-            qs,
-            ql,
-            qr;
-            ndrange,
-        )
+        kernel!(lcl, rain, icl, snow, ce, blk1mvel, output, ρ, qi, qs, ql, qr; ndrange)
+        out0, out1 = Array(output)
 
         # test 1-moment accretion is callable and returns a reasonable value
-        TT.@test all(Array(output)[:, 1] .== FT(0))
-        TT.@test Array(output)[1, 2] ≈ FT(1.4150106417043544e-6)
-        TT.@test Array(output)[2, 2] ≈ FT(2.453070979562392e-7)
-        TT.@test Array(output)[3, 2] ≈ FT(2.453070979562392e-7)
-        TT.@test Array(output)[4, 2] ≈ FT(1.768763302130443e-6)
-        TT.@test Array(output)[5, 2] ≈ FT(3.590060148920767e-5)
-        TT.@test Array(output)[6, 2] ≈ FT(2.466313958248222e-4)
-        TT.@test Array(output)[7, 2] ≈ FT(6.830957197816771e-5)
+        TT.@test all(iszero, out0)
+        TT.@test out1.liq_rai ≈ FT(1.4150106417043544e-6)
+        TT.@test out1.ice_sno ≈ FT(2.453070979562392e-7)
+        TT.@test out1.liq_sno ≈ FT(2.453070979562392e-7)
+        TT.@test out1.ice_rai ≈ FT(1.768763302130443e-6)
+        TT.@test out1.rai_sink ≈ FT(3.590060148920767e-5)
+        TT.@test out1.sno_rai ≈ FT(2.466313958248222e-4)
+        TT.@test out1.rai_sno ≈ FT(6.830957197816771e-5)
 
-        dims = (1, 3)
-        (; output, ndrange) = setup_output(dims, FT)
+        (; output, ndrange) = setup_output(3, FT)
 
+        T_freeze = FT(273.15)
         ρ = ArrayType([FT(1.2), FT(1.2), FT(1.2)])
-        T = ArrayType([FT(273.15 + 2), FT(273.15 + 2), FT(273.15 - 2)])
+        T = ArrayType([T_freeze + 2, T_freeze + 2, T_freeze - 2])
         qs = ArrayType([FT(1e-4), FT(0), FT(1e-4)])
 
         kernel! = test_1_moment_micro_snow_melt_kernel!(backend, work_groups)
-        kernel!(snow, blk1mvel, aps, tps, output, ρ, T, qs, ; ndrange)
+        kernel!(snow, blk1mvel, aps, tps, output, ρ, T, qs; ndrange)
+        out = Array(output)
 
         # test if 1-moment snow melt is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(9.516553267013084e-6)
-        TT.@test Array(output)[2] ≈ FT(0)
-        TT.@test Array(output)[3] ≈ FT(0)
+        TT.@test out ≈ FT[9.516553267013084e-6, 0, 0]
     end
 
     TT.@testset "2-moment microphysics kernels" begin
 
-        dims = (5, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+        TT.@testset "autoconversion" begin
+            DT = @NamedTuple{S_VarTSc::FT, S_LD2004::FT, S_TC1980::FT, S_B1994::FT, S_KK2000::FT}
+            (; output, ndrange) = setup_output(10, DT)
 
-        ql = ArrayType([FT(2e-3)])
-        ρ = ArrayType([FT(1.2)])
-        Nd = ArrayType([FT(1e8)])
+            ql = constant_data(FT(2e-3); ndrange)
+            ρ = constant_data(FT(1.2); ndrange)
+            Nd = constant_data(FT(1e8); ndrange)
 
-        kernel! = test_2_moment_acnv_kernel!(backend, work_groups)
-        kernel!(
-            KK2000,
-            B1994,
-            TC1980,
-            LD2004,
-            VarTSc,
-            output,
-            ql,
-            ρ,
-            Nd,
-            ndrange = ndrange,
-        )
+            kernel! = test_2_moment_acnv_kernel!(backend, work_groups)
+            kernel!(KK2000, B1994, TC1980, LD2004, VarTSc, output, ql, ρ, Nd; ndrange)
+            out = Array(output)
 
-        TT.@test Array(output)[1] ≈ FT(2e-6)
-        TT.@test Array(output)[2] ≈ FT(1.6963072465911614e-6)
-        TT.@test Array(output)[3] ≈ FT(3.5482867084128596e-6)
-        TT.@test Array(output)[4] ≈ FT(9.825462758968215e-7)
-        TT.@test Array(output)[5] ≈ FT(5.855332513368727e-8)
+            TT.@test allequal(out)
+            (; S_VarTSc, S_LD2004, S_TC1980, S_B1994, S_KK2000) = out[1]
+            TT.@test S_VarTSc ≈ FT(2e-6)
+            TT.@test S_LD2004 ≈ FT(1.6963072465911614e-6)
+            TT.@test S_TC1980 ≈ FT(3.5482867084128596e-6)
+            TT.@test S_B1994 ≈ FT(9.825462758968215e-7)
+            TT.@test S_KK2000 ≈ FT(5.855332513368727e-8)
+        end
 
-        dims = (3, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+        TT.@testset "accretion" begin
+            DT = @NamedTuple{S_KK2000::FT, S_B1994::FT, S_TC1980::FT}
+            (; output, ndrange) = setup_output(10, DT)
 
-        ql = ArrayType([FT(2e-3)])
-        qr = ArrayType([FT(5e-4)])
-        ρ = ArrayType([FT(1.2)])
+            ql = constant_data(FT(2e-3); ndrange)
+            qr = constant_data(FT(5e-4); ndrange)
+            ρ = constant_data(FT(1.2); ndrange)
 
-        kernel! = test_2_moment_accr_kernel!(backend, work_groups)
-        kernel!(KK2000, B1994, TC1980, output, ql, qr, ρ, ndrange = ndrange)
-
-        TT.@test isapprox(Array(output)[1], FT(6.6548664e-6), rtol = 1e-6)
-        TT.@test Array(output)[2] ≈ FT(7.2e-6)
-        TT.@test Array(output)[3] ≈ FT(4.7e-6)
+            kernel! = test_2_moment_accr_kernel!(backend, work_groups)
+            kernel!(KK2000, B1994, TC1980, output, ql, qr, ρ; ndrange)
+            out = Array(output)
+            TT.@test allequal(out)
+            (; S_KK2000, S_B1994, S_TC1980) = out[1]
+            TT.@test S_KK2000 ≈ FT(6.6548664e-6) rtol = 1e-6
+            TT.@test S_B1994 ≈ FT(7.2e-6)
+            TT.@test S_TC1980 ≈ FT(4.7e-6)
+        end
 
         for SB in [SB2006, SB2006_no_limiters]
-            dims = (17, 1)
-            (; output, ndrange) = setup_output(dims, FT)
+            param_types = typeof.((aps, tps, SB, SB2006Vel))
+            data = ntuple(i -> FT, 7)
+            DT = Core.Compiler.return_type(SB2006_2M_kernel, Tuple{param_types..., data...})
+            (; output, ndrange) = setup_output(10, DT)
 
-            T = ArrayType([FT(290)])
-            qt = ArrayType([FT(7e-3)])
-            ql = ArrayType([FT(2e-3)])
-            qr = ArrayType([FT(5e-4)])
-            ρ = ArrayType([FT(1.2)])
-            Nl = ArrayType([FT(1e8)])
-            Nr = ArrayType([FT(1e7)])
-
+            T = constant_data(FT(290); ndrange)
+            qt = constant_data(FT(7e-3); ndrange)
+            ql = constant_data(FT(2e-3); ndrange)
+            qr = constant_data(FT(5e-4); ndrange)
+            ρ = constant_data(FT(1.2); ndrange)
+            Nl = constant_data(FT(1e8); ndrange)
+            Nr = constant_data(FT(1e7); ndrange)
 
             kernel! = test_2_moment_SB2006_kernel!(backend, work_groups)
-            kernel!(
-                aps,
-                tps,
-                SB,
-                SB2006Vel,
-                output,
-                qt,
-                ql,
-                qr,
-                Nl,
-                Nr,
-                ρ,
-                T,
-                ndrange = ndrange,
-            )
+            kernel!(aps, tps, SB, SB2006Vel, output, qt, ql, qr, Nl, Nr, ρ, T; ndrange)
+            out = Array(output)
+            TT.@test allequal(out)
+            tendencies = out[1]
 
-            TT.@test isapprox(Array(output)[1], FT(-5.742569998787898e-7), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[2], FT(-5300.833845034984), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[3], FT(5.742569998787898e-7), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[4], FT(2650.416922517492), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[5], FT(-33859.96615496501), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[6], FT(-6.358926e-6), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[7], FT(-317946.28), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[8], FT(6.358926e-6), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[9], FT(0.0), rtol = 1e-6)
+            (; lcl_aconv_scoll, accr, rain_scoll, rain_vel, rain_evap, num_incr_mass_limit, num_decr_mass_limit) =
+                tendencies
+
+            TT.@test isapprox(lcl_aconv_scoll.au.dq_lcl_dt, FT(-5.742569998787898e-7), rtol = 1e-6)
+            TT.@test isapprox(lcl_aconv_scoll.au.dN_lcl_dt, FT(-5300.833845034984), rtol = 1e-6)
+            TT.@test isapprox(lcl_aconv_scoll.au.dq_rai_dt, FT(5.742569998787898e-7), rtol = 1e-6)
+            TT.@test isapprox(lcl_aconv_scoll.au.dN_rai_dt, FT(2650.416922517492), rtol = 1e-6)
+            TT.@test isapprox(lcl_aconv_scoll.sc, FT(-33859.96615496501), rtol = 1e-6)
+            TT.@test isapprox(accr.dq_lcl_dt, FT(-6.358926e-6), rtol = 1e-6)
+            TT.@test isapprox(accr.dN_lcl_dt, FT(-317946.28), rtol = 1e-6)
+            TT.@test isapprox(accr.dq_rai_dt, FT(6.358926e-6), rtol = 1e-6)
+            TT.@test isapprox(accr.dN_rai_dt, FT(0.0), rtol = 1e-6)
             if SB == SB2006
-                TT.@test isapprox(Array(output)[10], FT(-21187.494), rtol = 1e-6)
-                TT.@test isapprox(Array(output)[11], FT(14154.027), rtol = 1e-6)
-                TT.@test isapprox(Array(output)[12], FT(0.9868878), rtol = 1e-6)
-                TT.@test isapprox(Array(output)[13], FT(4.517734), rtol = 1e-6)
-                TT.@test isapprox(
-                    Array(output)[14],
-                    FT(-260791.30068415933),
-                    rtol = 1e-6,
-                )
-                TT.@test isapprox(
-                    Array(output)[15],
-                    FT(-0.003709529301871412),
-                    rtol = 1e-6,
-                )
+                TT.@test isapprox(rain_scoll.sc, FT(-21187.494), rtol = 1e-6)
+                TT.@test isapprox(rain_scoll.br, FT(14154.027), rtol = 1e-6)
+                TT.@test isapprox(rain_vel[1], FT(0.9868878), rtol = 1e-6)
+                TT.@test isapprox(rain_vel[2], FT(4.517734), rtol = 1e-6)
+                TT.@test isapprox(rain_evap.evap_rate_0, FT(-260791.30068415933), rtol = 1e-6)
+                TT.@test isapprox(rain_evap.evap_rate_1, FT(-0.003709529301871412), rtol = 1e-6)
             end
             if SB == SB2006_no_limiters
-                TT.@test isapprox(Array(output)[10], FT(-40447.855), rtol = 1e-6)
-                TT.@test isapprox(Array(output)[11], FT(0), rtol = 1e-6)
-                TT.@test isapprox(Array(output)[12], FT(2.6429e-3), rtol = 1e-4)
-                TT.@test isapprox(Array(output)[13], FT(0.1149338), rtol = 1e-5)
-                TT.@test isapprox(Array(output)[14], FT(-56716.556198709244), rtol = 1e-6)
-                TT.@test isapprox(
-                    Array(output)[15],
-                    FT(-0.00010034697555076008),
-                    rtol = 1e-6,
-                )
+                TT.@test isapprox(rain_scoll.sc, FT(-40447.855), rtol = 1e-6)
+                TT.@test isapprox(rain_scoll.br, FT(0), rtol = 1e-6)
+                TT.@test isapprox(rain_vel[1], FT(2.6429e-3), rtol = 1e-4)
+                TT.@test isapprox(rain_vel[2], FT(0.1149338), rtol = 1e-5)
+                TT.@test isapprox(rain_evap.evap_rate_0, FT(-56716.556198709244), rtol = 1e-6)
+                TT.@test isapprox(rain_evap.evap_rate_1, FT(-0.00010034697555076008), rtol = 1e-6)
             end
-            TT.@test isapprox(Array(output)[16], FT(0), rtol = 1e-6)
-            TT.@test isapprox(Array(output)[17], FT(-7.692307e4), rtol = 1e-6)
+            TT.@test isapprox(num_incr_mass_limit, FT(0), rtol = 1e-6)
+            TT.@test isapprox(num_decr_mass_limit, FT(-7.692307e4), rtol = 1e-6)
         end
     end
 
     TT.@testset "Common Kernels" begin
-        dims = (1, 1)
-        (; output, ndrange) = setup_output(dims, FT)
 
-        T = ArrayType([FT(230)])
-        x_sulph = ArrayType([FT(0.1)])
+        TT.@testset "H2SO4 kernels" begin
+            DT = @NamedTuple{H2SO4_soln_qv_sat::FT, H2SO4_soln_a_w::FT}
+            (; output, ndrange) = setup_output(10, DT)
 
-        kernel! = Common_H2SO4_soln_saturation_vapor_pressure_kernel!(
-            backend,
-            work_groups,
-        )
-        kernel!(H2SO4_prs, output, x_sulph, T; ndrange)
+            T = constant_data(FT(230); ndrange)
+            x_sulph = constant_data(FT(0.1); ndrange)
 
-        # test H2SO4_soln_saturation_vapor_pressure is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(12.685507586924)
+            kernel! = Common_H2SO4_kernel!(backend, work_groups)
+            kernel!(H2SO4_prs, tps, output, x_sulph, T; ndrange)
+            out = Array(output)
+            TT.@test allequal(out)
+            (; H2SO4_soln_qv_sat, H2SO4_soln_a_w) = out[1]
 
-        dims = (1, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+            # test CO.H2SO4_soln_saturation_vapor_pressure
+            TT.@test H2SO4_soln_qv_sat ≈ FT(12.685507586924)
+            # test CO.a_w_xT
+            TT.@test H2SO4_soln_a_w ≈ FT(0.928418590276476)
+        end
 
-        T = ArrayType([FT(230)])
-        x_sulph = ArrayType([FT(0.1)])
+        TT.@testset "CO.a_w_eT" begin
+            (; output, ndrange) = setup_output(10, FT)
 
-        kernel! = Common_a_w_xT_kernel!(backend, work_groups)
-        kernel!(H2SO4_prs, tps, output, x_sulph, T; ndrange)
+            T = constant_data(FT(282); ndrange)
+            e = constant_data(FT(1001); ndrange)
 
-        # test if a_w_xT is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(0.928418590276476)
+            kernel! = Common_a_w_eT_kernel!(backend, work_groups)
+            kernel!(tps, output, e, T; ndrange)
+            out = Array(output)
+            TT.@test allequal(out)
+            a_w_eT = out[1]
 
-        dims = (1, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+            # test CO.a_w_eT
+            TT.@test a_w_eT ≈ FT(0.880951366899518)
+        end
 
-        T = ArrayType([FT(282)])
-        e = ArrayType([FT(1001)])
+        TT.@testset "CO.a_w_ice" begin
+            (; output, ndrange) = setup_output(10, FT)
 
-        kernel! = Common_a_w_eT_kernel!(backend, work_groups)
-        kernel!(tps, output, e, T; ndrange)
+            T = constant_data(FT(230); ndrange)
 
-        # test if a_w_eT is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(0.880951366899518)
+            kernel! = Common_a_w_ice_kernel!(backend, work_groups)
+            kernel!(tps, output, T; ndrange)
+            out = Array(output)
+            TT.@test allequal(out)
+            a_w_ice = out[1]
 
-        dims = (1, 1)
-        (; output, ndrange) = setup_output(dims, FT)
-
-        T = ArrayType([FT(230)])
-
-        kernel! = Common_a_w_ice_kernel!(backend, work_groups)
-        kernel!(tps, output, T; ndrange)
-
-        # test if a_w_ice is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(0.6538439184585567)
-    end
+            # test CO.a_w_ice
+            TT.@test a_w_ice ≈ FT(0.6538439184585567)
+        end
+    end   # TT.@testset "Common Kernels"
 
     TT.@testset "Ice Nucleation kernels" begin
-        dims = (1, 2)
-        (; output, ndrange) = setup_output(dims, FT)
+        TT.@testset "CMI_het.IN.dust_activated_number_fraction" begin
+            DT = @NamedTuple{desert_act_N_frac::FT, arizona_act_N_frac::FT}
+            (; output, ndrange) = setup_output(10, DT)
 
-        T = FT(240)
-        S_i = FT(1.2)
+            T = constant_data(FT(240); ndrange)
+            S_i = constant_data(FT(1.2); ndrange)
 
-        kernel! = IceNucleation_dust_activated_number_fraction_kernel!(
-            backend,
-            work_groups,
-        )
-        kernel!(
-            output,
-            desert_dust,
-            arizona_test_dust,
-            ip.deposition,
-            S_i,
-            T;
-            ndrange,
-        )
+            kernel! = IceNucleation_dust_activated_number_fraction_kernel!(backend, work_groups)
+            kernel!(desert_dust, arizona_test_dust, ip.deposition, output, S_i, T; ndrange)
+            out = Array(output)
+            TT.@test allequal(out)
+            (; desert_act_N_frac, arizona_act_N_frac) = out[1]
 
-        # test if dust_activated_number_fraction is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(0.0129835639)
-        TT.@test Array(output)[2] ≈ FT(1.2233164999)
-
-        dims = (1, 2)
-        (; output, ndrange) = setup_output(dims, FT)
-
-        dSi_dt = FT(0.03)
-        N_aero = FT(3000)
-
-        kernel! =
-            IceNucleation_MohlerDepositionRate_kernel!(backend, work_groups)
-        kernel!(
-            output,
-            desert_dust,
-            arizona_test_dust,
-            ip.deposition,
-            S_i,
-            T,
-            dSi_dt,
-            N_aero;
-            ndrange,
-        )
-
-        # test if MohlerDepositionRate is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(38.6999999999)
-        TT.@test Array(output)[2] ≈ FT(423)
-
-        dims = (1, 3)
-        (; output, ndrange) = setup_output(dims, FT)
-
-        Delta_a_w = ArrayType([FT(0.16), FT(0.15), FT(0.15)])
-
-        kernel! = IceNucleation_deposition_J_kernel!(backend, work_groups)
-        kernel!(output, kaolinite, feldspar, ferrihydrite, Delta_a_w; ndrange)
-
-        # test if deposition_J is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(1.5390757663075784e6)
-        TT.@test Array(output)[2] ≈ FT(5.693312205851678e6)
-        TT.@test Array(output)[3] ≈ FT(802555.3607426438)
-
-        dims = (1, 2)
-        (; output, ndrange) = setup_output(dims, FT)
-
-        Delta_a_w = ArrayType([FT(0.16), FT(0.15)])
-
-        kernel! = IceNucleation_ABIFM_J_kernel!(backend, work_groups)
-        kernel!(output, kaolinite, illite, Delta_a_w; ndrange)
-
-        # test if ABIFM_J is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(153.65772539109)
-        TT.@test Array(output)[2] ≈ FT(31.870032033791)
-
-        dims = (1, 1)
-        (; output, ndrange) = setup_output(dims, FT)
-
-        ip_P3 = ip.p3
-        T = ArrayType([FT(240)])
-
-        kernel! = IceNucleation_P3_deposition_N_i_kernel!(backend, work_groups)
-        kernel!(output, ip_P3, T; ndrange)
-
-        # test if P3_deposition_N_i is callable and returns reasonable values
-        TT.@test Array(output)[1] ≈ FT(119018.93920746)
-
-        dims = (1, 1)
-        (; output, ndrange) = setup_output(dims, FT)
-
-        T = ArrayType([FT(240)])
-        N_l = ArrayType([FT(2000)])
-        V_l = ArrayType([FT(3e-18)])
-        Δt = ArrayType([FT(0.1)])
-
-        kernel! = IceNucleation_P3_het_N_i_kernel!(backend, work_groups)
-        kernel!(output, ip_P3, T, N_l, V_l, Δt; ndrange)
-
-        # test if P3_het_N_i is callable and returns reasonable values
-        ref_val = if FT == Float64
-            FT(0.0002736160475969029)
-        else
-            # loss of precision due to
-            # `exp(-B * V_l_converted * Δt * exp(a * Tₛ))` -> 0.9999999 (Float32)
-            # instead of 0.9999998631919762 (Float64).
-            FT(0.00023841858f0)
+            # test IN.dust_activated_number_fraction
+            TT.@test desert_act_N_frac ≈ FT(0.0129835639)
+            TT.@test arizona_act_N_frac ≈ FT(1.2233164999)
         end
-        TT.@test Array(output)[1] ≈ ref_val
 
-        dims = (1, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+        TT.@testset "CMI_het.IN.MohlerDepositionRate" begin
+            DT = @NamedTuple{desert_dep_rate::FT, arizona_dep_rate::FT}
+            (; output, ndrange) = setup_output(10, DT)
 
-        T = FT(233)
-        INPC = FT(220000)
+            T = constant_data(FT(240); ndrange)
+            S_i = constant_data(FT(1.2); ndrange)
+            dSi_dt = FT(0.03)
+            N_aero = FT(3000)
 
-        kernel! = IceNucleation_INPC_frequency_kernel!(backend, work_groups)
-        kernel!(output, ip_frostenberg, INPC, T; ndrange)
+            kernel! = IceNucleation_MohlerDepositionRate_kernel!(backend, work_groups)
+            kernel!(desert_dust, arizona_test_dust, ip.deposition, output, S_i, T, dSi_dt, N_aero; ndrange)
+            out = Array(output)
+            TT.@test allequal(out)
+            (; desert_dep_rate, arizona_dep_rate) = out[1]
 
-        # test INPC_frequency is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(0.26) rtol = 0.1
+            # test IN.MohlerDepositionRate
+            TT.@test desert_dep_rate ≈ FT(38.6999999999)
+            TT.@test arizona_dep_rate ≈ FT(423)
+        end
 
-        dims = (1, 1)
-        (; output, ndrange) = setup_output(dims, FT)
+        TT.@testset "CMI_het.IN.deposition_J" begin
+            (; output, ndrange) = setup_output(10, FT)
 
-        T = ArrayType([FT(220)])
-        Delta_a_w = ArrayType([FT(0.2907389666103033)])
+            Δa_ws = FT[0.16, 0.15, 0.15]
+            minerals = [kaolinite, feldspar, ferrihydrite]
+            ref_dep_J = FT[1.5390757663075784e6, 5.693312205851678e6, 802555.3607426438]
+            for (Δa_w, mineral, ref_J) in zip(Δa_ws, minerals, ref_dep_J)
+                Delta_a_w = constant_data(Δa_w; ndrange)
+                kernel! = IceNucleation_deposition_J_kernel!(backend, work_groups)
+                kernel!(mineral, output, Delta_a_w; ndrange)
+                out = Array(output)
+                TT.@test allequal(out)
+                dep_J = out[1]
+                TT.@test dep_J ≈ ref_J
+            end
+        end
 
-        kernel! =
-            IceNucleation_homogeneous_J_cubic_kernel!(backend, work_groups)
-        kernel!(ip, output, Delta_a_w; ndrange)
+        TT.@testset "CMI_het.IN.ABIFM_J" begin
+            (; output, ndrange) = setup_output(2, FT)
 
-        # test homogeneous_J_cubic is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(2.66194650334444e12)
+            Δa_ws = FT[0.16, 0.15]
+            minerals = [kaolinite, illite]
+            ref_J = FT[153.65772539109, 31.870032033791]
+            for (Δa_w, mineral, ref_J) in zip(Δa_ws, minerals, ref_J)
+                Delta_a_w = constant_data(Δa_w; ndrange)
+                kernel! = IceNucleation_ABIFM_J_kernel!(backend, work_groups)
+                kernel!(mineral, output, Delta_a_w; ndrange)
+                out = Array(output)
+                TT.@test allequal(out)
+                J = out[1]
+                TT.@test J ≈ ref_J
+            end
+        end
 
-        kernel! =
-            IceNucleation_homogeneous_J_linear_kernel!(backend, work_groups)
-        kernel!(ip, output, Delta_a_w; ndrange)
+        TT.@testset "CMI_het.P3_deposition_N_i" begin
+            (; output, ndrange) = setup_output(1, FT)
 
-        # test homogeneous_J_linear is callable and returns a reasonable value
-        TT.@test Array(output)[1] ≈ FT(7.156568123338207e11)
-    end
+            ip_P3 = ip.p3
+            T = constant_data(FT(240); ndrange)
+
+            kernel! = IceNucleation_P3_deposition_N_i_kernel!(backend, work_groups)
+            kernel!(ip_P3, output, T; ndrange)
+
+            # test if P3_deposition_N_i is callable and returns reasonable values
+            TT.@test Array(output)[1] ≈ FT(119018.93920746)
+        end
+
+        TT.@testset "CMI_het.P3_het_N_i" begin
+            (; output, ndrange) = setup_output(1, FT)
+
+            ip_P3 = ip.p3
+            T = constant_data(FT(240); ndrange)
+            N_l = constant_data(FT(2000); ndrange)
+            V_l = constant_data(FT(3e-18); ndrange)
+            Δt = constant_data(FT(0.1); ndrange)
+
+            kernel! = IceNucleation_P3_het_N_i_kernel!(backend, work_groups)
+            kernel!(ip_P3, output, T, N_l, V_l, Δt; ndrange)
+
+            # test if P3_het_N_i is callable and returns reasonable values
+            ref_val = if FT == Float64
+                FT(0.0002736160475969029)
+            else
+                # loss of precision due to
+                # `exp(-B * V_l_converted * Δt * exp(a * Tₛ))` -> 0.9999999 (Float32)
+                # instead of 0.9999998631919762 (Float64).
+                FT(0.00023841858f0)
+            end
+            TT.@test Array(output)[1] ≈ ref_val
+        end
+
+        TT.@testset "CMI_het.INP_concentration_frequency" begin
+            (; output, ndrange) = setup_output(10, FT)
+
+            T = constant_data(FT(233); ndrange)
+            INPC = constant_data(FT(220000); ndrange)
+
+            kernel! = IceNucleation_INPC_frequency_kernel!(backend, work_groups)
+            kernel!(ip_frostenberg, output, INPC, T; ndrange)
+            out = Array(output)
+
+            # test INPC_frequency is callable and returns a reasonable value
+            TT.@test allequal(out)
+            TT.@test out[1] ≈ FT(0.26) rtol = 0.1
+        end
+
+        TT.@testset "CMI_het.homogeneous_J_[cubic/linear]" begin
+            DT = @NamedTuple{J_cubic::FT, J_linear::FT}
+            (; output, ndrange) = setup_output(10, DT)
+
+            T = constant_data(FT(220); ndrange)
+            Delta_a_w = constant_data(FT(0.2907389666103033); ndrange)
+
+            kernel! = IceNucleation_homogeneous_J_kernel!(backend, work_groups)
+            kernel!(ip, output, Delta_a_w; ndrange)
+            out = Array(output)
+            TT.@test allequal(out)
+            (; J_cubic, J_linear) = out[1]
+
+            # test homogeneous_J_cubic is callable and returns a reasonable value
+            TT.@test J_cubic ≈ FT(2.66194650334444e12)
+            # test homogeneous_J_linear is callable and returns a reasonable value
+            TT.@test J_linear ≈ FT(7.156568123338207e11)
+        end
+    end  # TT.@testset "Ice nucleation kernels"
 
     TT.@testset "Modal nucleation kernels" begin
-        dims = (1, 2)
-        (; output, ndrange) = setup_output(dims, FT)
+        (; output, ndrange) = setup_output(5, FT)
 
-        # h2so4 nucleation
-        h2so4_conc = ArrayType([FT(1e12), FT(1e12)])
-        nh3_conc = ArrayType([FT(1), FT(1)])
-        negative_ion_conc = ArrayType([FT(1), FT(1)])
-        temp = ArrayType([FT(208), FT(208)])
+        TT.@testset "h2so4 nucleation" begin
+            h2so4_conc = constant_data(FT(1e12); ndrange)
+            nh3_conc = constant_data(FT(1); ndrange)
+            negative_ion_conc = constant_data(FT(1); ndrange)
+            temp = constant_data(FT(208); ndrange)
 
-        kernel! = h2so4_nucleation_kernel!(backend, work_groups)
-        kernel!(
-            h2so4_nuc,
-            output,
-            h2so4_conc,
-            nh3_conc,
-            negative_ion_conc,
-            temp;
-            ndrange,
-        )
+            kernel! = h2so4_nucleation_kernel!(backend, work_groups)
+            kernel!(h2so4_nuc, output, h2so4_conc, nh3_conc, negative_ion_conc, temp; ndrange)
 
-        TT.@test all(Array(output) .> FT(0))
+            TT.@test all(Array(output) .> FT(0))
+        end
 
-        # Organic nucleation
+        TT.@testset "Organic nucleation" begin
+            negative_ion_conc = constant_data(FT(0.0); ndrange)
+            monoterpene_conc = constant_data(FT(1e24); ndrange)
+            O3_conc = constant_data(FT(1e24); ndrange)
+            OH_conc = constant_data(FT(1e24); ndrange)
+            temp = constant_data(FT(300); ndrange)
+            condensation_sink = constant_data(FT(1); ndrange)
 
-        negative_ion_conc = ArrayType([FT(0.0), FT(0.0)])
-        monoterpene_conc = ArrayType([FT(1e24), FT(1e24)])
-        O3_conc = ArrayType([FT(1e24), FT(1e24)])
-        OH_conc = ArrayType([FT(1e24), FT(1e24)])
-        temp = ArrayType([FT(300), FT(300)])
-        condensation_sink = ArrayType([FT(1), FT(1)])
+            kernel! = organic_nucleation_kernel!(backend, work_groups)
+            kernel!(
+                org_nuc, output, negative_ion_conc, monoterpene_conc,
+                O3_conc, OH_conc, temp, condensation_sink; ndrange,
+            )
 
-        kernel! = organic_nucleation_kernel!(backend, work_groups)
-        kernel!(
-            org_nuc,
-            output,
-            negative_ion_conc,
-            monoterpene_conc,
-            O3_conc,
-            OH_conc,
-            temp,
-            condensation_sink;
-            ndrange,
-        )
+            TT.@test all(Array(output) .> FT(0))
+        end
 
-        TT.@test all(Array(output) .> FT(0))
+        TT.@testset "Organic and h2so4 nucleation" begin
+            h2so4_conc = constant_data(FT(2.6e6); ndrange)
+            monoterpene_conc = constant_data(FT(1); ndrange)
+            OH_conc = constant_data(FT(1); ndrange)
+            temp = constant_data(FT(300); ndrange)
+            condensation_sink = constant_data(FT(1); ndrange)
 
-        # Organic and h2so4 nucleation
+            kernel! = organic_and_h2so4_nucleation_kernel!(backend, work_groups)
+            kernel!(mix_nuc, output, h2so4_conc, monoterpene_conc, OH_conc, temp, condensation_sink; ndrange)
 
-        h2so4_conc = ArrayType([FT(2.6e6), FT(2.6e6)])
-        monoterpene_conc = ArrayType([FT(1), FT(1)])
-        OH_conc = ArrayType([FT(1), FT(1)])
-        temp = ArrayType([FT(300), FT(300)])
-        condensation_sink = ArrayType([FT(1), FT(1)])
+            TT.@test all(Array(output) .> FT(0))
+        end
 
-        kernel! = organic_and_h2so4_nucleation_kernel!(backend, work_groups)
-        kernel!(
-            mix_nuc,
-            output,
-            h2so4_conc,
-            monoterpene_conc,
-            OH_conc,
-            temp,
-            condensation_sink;
-            ndrange,
-        )
+        TT.@testset "Apparent nucleation rate" begin
+            output_diam = constant_data(FT(1e-9); ndrange)
+            nucleation_rate = constant_data(FT(1e6); ndrange)
+            condensation_growth_rate = constant_data(FT(1e6); ndrange)
+            coag_sink = constant_data(FT(1e6); ndrange)
+            coag_sink_input_diam = constant_data(FT(1e-9); ndrange)
+            input_diam = constant_data(FT(1e-9); ndrange)
 
-        TT.@test all(Array(output) .> FT(0))
+            kernel! = apparent_nucleation_rate_kernel!(backend, work_groups)
+            kernel!(
+                output, output_diam, nucleation_rate, condensation_growth_rate,
+                coag_sink, coag_sink_input_diam, input_diam; ndrange,
+            )
+        end
+    end  # TT.@testset "Modal nucleation kernels"
 
-        # Apparent nucleation rate
+    TT.@testset "Bulk microphysics tendencies kernels" begin
+        # 0M tests (returns dq_tot_dt, e_int_precip)
+        ndrange = 10
+        DT = @NamedTuple{dq_tot_dt::FT, e_int_precip::FT}
+        (; output) = setup_output(ndrange, DT)
+        liquid_frac = constant_data(FT(0.5); ndrange)
+        qc = constant_data(FT(1e-3); ndrange)
+        T = constant_data(FT(280.0); ndrange)
 
-        output_diam = ArrayType([FT(1e-9), FT(1e-9)])
-        nucleation_rate = ArrayType([FT(1e6), FT(1e6)])
-        condensation_growth_rate = ArrayType([FT(1e6), FT(1e6)])
-        coag_sink = ArrayType([FT(1e6), FT(1e6)])
-        coag_sink_input_diam = ArrayType([FT(1e-9), FT(1e-9)])
-        input_diam = ArrayType([FT(1e-9), FT(1e-9)])
-
-        kernel! = apparent_nucleation_rate_kernel!(backend, work_groups)
-        kernel!(
-            output,
-            output_diam,
-            nucleation_rate,
-            condensation_growth_rate,
-            coag_sink,
-            coag_sink_input_diam,
-            input_diam;
-            ndrange,
-        )
-
-        TT.@testset "Bulk microphysics tendencies kernels" begin
-            data_length = 10
-
-            # 0M tests (returns dq_tot_dt, e_int_precip)
-            dims_0m = (2, data_length)  # 2 rows: dq_tot_dt, e_int_precip
-            (; output, ndrange) = setup_output(dims_0m, FT)
-            liquid_frac = allocate(backend, FT, data_length)
-            qc = allocate(backend, FT, data_length)
-            T = allocate(backend, FT, data_length)
-            @. liquid_frac = FT(0.5)
-            @. qc = FT(1e-3)
-            @. T = FT(280.0)
-
-            kernel! = test_bulk_tendencies_0m_kernel!(backend, work_groups)
+        kernel! = test_bulk_tendencies_0m_kernel!(backend, work_groups)
+        TT.@testset "0M" begin
             kernel!(mp_0m, tps, output, liquid_frac, qc, T; ndrange)
-            TT.@test all(Array(output)[1, :] .<= FT(0))  # Precipitation removal (dq_tot_dt) always negative or zero
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test tendencies.dq_tot_dt ≤ 0  # Precipitation removal (dq_tot_dt) always negative or zero
+            TT.@test isfinite(tendencies.e_int_precip)
+        end
 
 
-            # 1M tests
-            dims_1m = (4, data_length)
-            (; output, ndrange) = setup_output(dims_1m, FT)
-            ρ = allocate(backend, FT, data_length)
-            T = allocate(backend, FT, data_length)
-            q_tot = allocate(backend, FT, data_length)
-            q_lcl = allocate(backend, FT, data_length)
-            q_icl = allocate(backend, FT, data_length)
-            q_rai = allocate(backend, FT, data_length)
-            q_sno = allocate(backend, FT, data_length)
-            @. ρ = FT(1.0)
-            @. T = FT(280.0)
-            @. q_tot = FT(5e-3)
-            @. q_lcl = FT(1e-3)
-            @. q_icl = FT(0.5e-3)
-            @. q_rai = FT(0.2e-3)
-            @. q_sno = FT(0.1e-3)
+        # 1M tests
+        DT = @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT}
+        (; output) = setup_output(ndrange, DT)
+        ρ = constant_data(FT(1.0); ndrange)
+        T = constant_data(FT(280.0); ndrange)
+        q_tot = constant_data(FT(5e-3); ndrange)
+        q_lcl = constant_data(FT(1e-3); ndrange)
+        q_icl = constant_data(FT(0.5e-3); ndrange)
+        q_rai = constant_data(FT(0.2e-3); ndrange)
+        q_sno = constant_data(FT(0.1e-3); ndrange)
 
-            kernel! = test_bulk_tendencies_1m_kernel!(backend, work_groups)
+        kernel! = test_bulk_tendencies_1m_kernel!(backend, work_groups)
+        TT.@testset "1M" begin
             kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
-            TT.@test !any(isnan.(Array(output)))  # No NaNs
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+        end
 
-            # 2M warm rain tests
-            dims_2m = (7, data_length)
-            (; output, ndrange) = setup_output(dims_2m, FT)
-            n_lcl = allocate(backend, FT, data_length)
-            n_rai = allocate(backend, FT, data_length)
-            @. n_lcl = FT(1e8)
-            @. n_rai = FT(1e6)
+        # 2M warm rain tests
+        DT = @NamedTuple{
+            dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
+            dq_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
+        }
+        (; output) = setup_output(ndrange, DT)
+        n_lcl = constant_data(FT(1e8); ndrange)
+        n_rai = constant_data(FT(1e6); ndrange)
 
-            kernel! = test_bulk_tendencies_2m_warm_kernel!(backend, work_groups)
+        kernel! = test_bulk_tendencies_2m_warm_kernel!(backend, work_groups)
+        TT.@testset "2M warm" begin
             kernel!(mp_2m_warm, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai; ndrange)
-            TT.@test !any(isnan.(Array(output)))  # No NaNs
-            TT.@test all(Array(output)[5, :] .== FT(0))  # Ice tendency is zero for warm-only
-            TT.@test all(Array(output)[6, :] .== FT(0))  # Rime tendency is zero for warm-only
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+            TT.@test iszero(tendencies.dq_ice_dt)  # Ice tendency is zero for warm-only
+        end
 
-            # 2M+P3 tests
-            # NOTE: P3 uses gamma_inc_inv from SpecialFunctions which is NOT GPU-compatible
-            # (it uses string formatting for errors). This test is broken until P3 dependencies
-            # are made GPU-safe. 
-            q_ice = allocate(backend, FT, data_length)
-            n_ice = allocate(backend, FT, data_length)
-            q_rim = allocate(backend, FT, data_length)
-            b_rim = allocate(backend, FT, data_length)
-            @. q_ice = FT(0.3e-3)
-            @. n_ice = FT(1e5)
-            @. q_rim = FT(0.1e-3)
-            @. b_rim = FT(1e-10)
+        # 2M+P3 tests
+        q_ice = constant_data(FT(0.3e-3); ndrange)
+        n_ice = constant_data(FT(1e5); ndrange)
+        q_rim = constant_data(FT(0.1e-3); ndrange)
+        b_rim = constant_data(FT(1e-10); ndrange)
 
+        kernel! = test_bulk_tendencies_2m_p3_kernel!(backend, work_groups)
+        TT.@testset "2M+P3" begin
+            # kernel!(mp_2m_p3, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim; ndrange)
+            # TT.@test allequal(Array(output))
+            # tendencies = Array(output)[1]
+            # TT.@test all(isfinite, tendencies)
+            # TT.@test !iszero(tendencies.dq_ice_dt)
             # Skip P3 GPU test - P3 uses gamma_inc_inv which is not GPU-compatible
             TT.@test_broken false  # P3 bulk tendencies kernel not GPU-safe yet
         end
-    end
+    end  # TT.@testset "Bulk microphysics tendencies kernels"
+
     # TT.@testset "P3 scheme kernels" begin
     #     dims = (2, 2)
     #     (; output, ndrange) = setup_output(dims, FT)
@@ -1635,7 +1024,7 @@ function test_gpu(FT)
     #         rtol = 1e-2,
     #     )
     # end
-end
+end  # function test_gpu(FT)
 
 TT.@testset "GPU tests ($FT)" for FT in (Float64, Float32)
     test_gpu(FT)
