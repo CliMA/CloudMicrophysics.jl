@@ -99,16 +99,8 @@ end
 
 """
     bulk_microphysics_tendencies(
-        ::Microphysics1Moment,
-        mp,
-        tps,
-        ρ,
-        T,
-        q_tot,
-        q_lcl,
-        q_icl,
-        q_rai,
-        q_sno,
+        ::Microphysics1Moment, mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
 
 Compute all 1-moment microphysics tendencies in one fused call.
@@ -155,17 +147,8 @@ This is a pure function of local thermodynamic state, suitable for:
   Limiters depend on timestep `dt` and should be applied by the caller after computing tendencies.
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics1Moment,
-    mp::CMP.Microphysics1MParams,
-    tps,
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    N_lcl = zero(ρ),
+    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl = zero(ρ),
 )
     # Clamp negative specific contents to zero (robustness against numerical errors)
     q_tot = UT.clamp_to_nonneg(q_tot)
@@ -297,12 +280,8 @@ end
 
 """
     bulk_microphysics_tendencies(
-        ::Microphysics0Moment,
-        mp,
-        tps,
-        T,
-        q_lcl,
-        q_icl,
+        ::Microphysics0Moment, mp, tps,
+        T, q_lcl, q_icl,
     )
 
 Compute 0-moment microphysics tendencies in one fused call.
@@ -326,12 +305,8 @@ Caller adds geopotential Φ for energy tendency: `e_tot = dq_tot_dt * (e_int_pre
 - Does NOT include geopotential (caller adds Φ for energy tendency)
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics0Moment,
-    mp::CMP.Microphysics0MParams,
-    tps,
-    T,
-    q_lcl,
-    q_icl,
+    ::Microphysics0Moment, mp::CMP.Microphysics0MParams, tps,
+    T, q_lcl, q_icl,
 )
     # Clamp negative specific contents to zero (robustness against numerical errors)
     q_lcl = UT.clamp_to_nonneg(q_lcl)
@@ -424,7 +399,7 @@ end
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
         mp::Microphysics2MParams{FT, WR, Nothing},
-        ...
+        ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     )
 
 Compute 2-moment **warm rain only** microphysics tendencies (Seifert-Beheng 2006).
@@ -454,21 +429,9 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
 - `db_rim_dt`: Rime volume tendency (always zero for warm-only)
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics2Moment,
-    mp::CMP.Microphysics2MParams{FT, WR, Nothing},
-    tps,
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    n_lcl,
-    q_rai,
-    n_rai,
-    q_ice = zero(ρ),
-    n_ice = zero(ρ),
-    q_rim = zero(ρ),
-    b_rim = zero(ρ),
-    logλ = zero(ρ),
+    ::Microphysics2Moment, mp::CMP.Microphysics2MParams{FT, WR, Nothing}, tps,
+    ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
+    q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
 ) where {FT, WR}
     # Clamp negative specific contents and number concentrations to zero (robustness against numerical errors)
     q_tot = UT.clamp_to_nonneg(q_tot)
@@ -524,7 +487,8 @@ end
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
         mp::Microphysics2MParams{FT, WR, <:P3IceParams},
-        ...
+        ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
+        q_ice, n_ice, q_rim, b_rim, logλ,
     )
 
 Compute 2-moment **warm rain + P3 ice** microphysics tendencies.
@@ -562,21 +526,9 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `db_rim_dt`: Rime volume tendency (m³/kg/s)
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics2Moment,
-    mp::CMP.Microphysics2MParams{FT, WR, ICE},
-    tps,
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    n_lcl,
-    q_rai,
-    n_rai,
-    q_ice = zero(ρ),
-    n_ice = zero(ρ),
-    q_rim = zero(ρ),
-    b_rim = zero(ρ),
-    logλ = zero(ρ),
+    ::Microphysics2Moment, mp::CMP.Microphysics2MParams{FT, WR, ICE}, tps,
+    ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
+    q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
 ) where {FT, WR, ICE <: CMP.P3IceParams}
     # Clamp negative specific contents and number concentrations to zero (robustness against numerical errors)
     q_tot = UT.clamp_to_nonneg(q_tot)
@@ -628,9 +580,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dn_rai_dt += (dn_rai_inc + dn_rai_dec) / ρ
 
     # --- P3 Ice Processes ---
-    # NOTE: P3 uses gamma_inc_inv from SpecialFunctions which is NOT GPU-compatible
-    # (it uses string formatting for errors). We must keep if-branches to skip
-    # P3 code when there is no ice, otherwise GPU compilation fails.
     p3 = mp.ice.scheme
     vel = mp.ice.terminal_velocity
     pdf_c = mp.ice.cloud_pdf
@@ -654,23 +603,8 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         # Only compute if there is ice present
         if L_ice > zero(L_ice) && N_ice > zero(N_ice)
             coll = CMP3.bulk_liquid_ice_collision_sources(
-                p3,
-                logλ,
-                L_ice,
-                N_ice,
-                F_rim,
-                ρ_rim,
-                pdf_c,
-                pdf_r,
-                L_lcl,
-                N_lcl,
-                L_rai,
-                N_rai,
-                aps,
-                tps,
-                vel,
-                ρ,
-                T,
+                p3, logλ, L_ice, N_ice, F_rim, ρ_rim, pdf_c, pdf_r,
+                L_lcl, N_lcl, L_rai, N_rai, aps, tps, vel, ρ, T,
             )
 
             # Add collision tendencies
@@ -689,10 +623,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         T_freeze = TDI.TD.Parameters.T_freeze(tps)
         if T > T_freeze && L_ice > zero(L_ice)
             state = CMP3.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
-            # TODO: Using a function that takes dt as an argument is not compatible with the current API.
-            # We should use a function that doesn't take dt as an argument.
-            dt_dummy = 1000 * one(T)  # P3 uses dt for limiting, we'll limit later
-            melt = CMP3.ice_melt(vel, aps, tps, T, ρ, dt_dummy, state, logλ)
+            melt = CMP3.ice_melt(vel, aps, tps, T, ρ, state, logλ)
 
             # Melting converts ice to rain
             dq_ice_dt -= melt.dLdt / ρ

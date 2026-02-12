@@ -55,7 +55,6 @@ end
  - `tps`: thermodynamics parameters
  - `Tₐ`: temperature (K)
  - `ρₐ`: air density
- - `dt`: model time step (for limiting the tendnecy)
  - `state`: a [`P3State`](@ref) object
  - `logλ`: the log of the slope parameter [log(1/m)]
 
@@ -65,7 +64,7 @@ end
 Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
 """
 function ice_melt(
-    velocity_params::CMP.Chen2022VelType, aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, dt, state::P3State, logλ;
+    velocity_params::CMP.Chen2022VelType, aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, state::P3State, logλ;
     ∫kwargs...,
 )
     # Note: process not dependent on `F_liq`
@@ -93,9 +92,6 @@ function ice_melt(
     # compute change of N_ice proportional to change in L
     dNdt = N_ice / L_ice * dLdt
 
-    # ... and don't exceed the available number and mass of water droplets
-    dNdt = min(dNdt, N_ice / dt)  # TODO: Apply limiters in CA.jl
-    dLdt = min(dLdt, L_ice / dt)
     return (; dNdt, dLdt)
 end
 
