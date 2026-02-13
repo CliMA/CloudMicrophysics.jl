@@ -45,3 +45,11 @@ where:
   - ``S_{0}`` is the supersaturation threshold above which water is removed,
   - ``q_{vap}^{sat}`` is the saturation specific humidity,
   - ``\tau_{precip}`` is the relaxation timescale.
+
+## Moisture sink derivative
+
+We provide the derivative of the precipitation removal rate with respect to the total water
+  specific humidity ``q_{tot}`` is, to allow implicit time integration.
+The derivative is equal to ``-1/\tau_{precip}`` if the total water
+  specific content exceeds the threshold, and 0 otherwise.
+

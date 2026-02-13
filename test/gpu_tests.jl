@@ -83,8 +83,15 @@ end
     S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
         lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
     )
+    S_cond_deriv_simple = CMN.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
+        lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
+    )
+    S_cond_deriv = CMN.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
+        lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i];
+        simplified = false,
+    )
     S_cond = CMN.conv_q_vap_to_q_lcl_icl(icl, qᵢ_s[i], qᵢ[i])
-    output[i] = (; S_cond_MM2015, S_cond)
+    output[i] = (; S_cond_MM2015, S_cond_deriv_simple, S_cond_deriv, S_cond)
 end
 
 @kernel inbounds = true function test_chen2022_terminal_velocity_kernel!(
@@ -106,6 +113,29 @@ end
     S_pr = CM0.remove_precipitation(p0m, ql, qi)
     S_pr_ref = -max(0, ql + qi - p0m.qc_0) / p0m.τ_precip
     output[i] = (; S_pr, S_pr_ref)
+end
+
+@kernel inbounds = true function test_0M_derivatives_kernel!(
+    p0m,
+    liquid_frac,
+    output,
+    qc,
+    q_vap_sat,
+)
+    i = @index(Global, Linear)
+    ql = qc[i] * liquid_frac[i]
+    qi = (1 - liquid_frac[i]) * qc[i]
+    qvs = q_vap_sat[i]
+
+    # qc_0 threshold
+    ∂S_pr_qc0 = CM0.∂remove_precipitation_∂q_tot(p0m, ql, qi)
+    ∂S_pr_qc0_ref = ifelse(ql + qi > p0m.qc_0, -1 / p0m.τ_precip, zero(ql))
+
+    # S_0 threshold
+    ∂S_pr_S0 = CM0.∂remove_precipitation_∂q_tot(p0m, ql, qi, qvs)
+    ∂S_pr_S0_ref = ifelse(ql + qi > p0m.S_0 * qvs, -1 / p0m.τ_precip, zero(ql))
+
+    output[i] = (; ∂S_pr_qc0, ∂S_pr_qc0_ref, ∂S_pr_S0, ∂S_pr_S0_ref)
 end
 
 @kernel inbounds = true function test_1_moment_micro_acnv_kernel!(output, acnv1M, ql)
@@ -334,6 +364,16 @@ end
     )
 end
 
+@kernel inbounds = true function test_bulk_derivatives_1m_kernel!(
+    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+)
+    i = @index(Global, Linear)
+    CM1M = BMT.Microphysics1Moment()
+    output[i] = BMT.bulk_microphysics_derivatives(
+        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+    )
+end
+
 @kernel inbounds = true function test_bulk_tendencies_2m_warm_kernel!(
     mp, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
 )
@@ -464,7 +504,7 @@ function test_gpu(FT)
     end
 
     TT.@testset "non-equilibrium microphysics kernels" begin
-        DT = @NamedTuple{S_cond_MM2015::FT, S_cond::FT}
+        DT = @NamedTuple{S_cond_MM2015::FT, S_cond_deriv_simple::FT, S_cond_deriv::FT, S_cond::FT}
         (; ndrange, output) = setup_output(1, DT)
 
         ρ = ArrayType([FT(0.8)])
@@ -475,9 +515,11 @@ function test_gpu(FT)
 
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
         kernel!(lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
-        (; S_cond_MM2015, S_cond) = Array(output)[1]
+        (; S_cond_MM2015, S_cond_deriv_simple, S_cond_deriv, S_cond) = Array(output)[1]
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         TT.@test S_cond_MM2015 ≈ FT(3.76347635339803e-5)
+        TT.@test S_cond_deriv < FT(0)  # derivative should be negative
+        TT.@test S_cond_deriv_simple ≈ FT(-0.1)  # -1/τ_relax = -1/10
         TT.@test S_cond ≈ FT(-1e-4)
     end
 
@@ -516,6 +558,27 @@ function test_gpu(FT)
         kernel!(p0m, liquid_frac, output, qc; ndrange)
         # test that remove_precipitation matches the direct formula
         TT.@test all(map(nt -> nt.S_pr_ref == nt.S_pr, Array(output)))
+    end
+
+    TT.@testset "0-moment microphysics derivatives kernels" begin
+        DT = @NamedTuple{
+            ∂S_pr_qc0::FT,
+            ∂S_pr_qc0_ref::FT,
+            ∂S_pr_S0::FT,
+            ∂S_pr_S0_ref::FT,
+        }
+        (; ndrange, output) = setup_output(10, DT)
+
+        liquid_frac = ArrayType([FT(0), FT(0.5), FT(1)])
+        qc = ArrayType([FT(3e-3), FT(4e-3), FT(5e-3)])
+        # real q_vap_sat needed for S_0 case
+        q_vap_sat = ArrayType([FT(1e-3), FT(1e-3), FT(1e-3)])
+
+        kernel! = test_0M_derivatives_kernel!(backend, work_groups)
+        kernel!(p0m, liquid_frac, output, qc, q_vap_sat; ndrange)
+
+        TT.@test all(map(nt -> nt.∂S_pr_qc0_ref == nt.∂S_pr_qc0, Array(output)))
+        TT.@test all(map(nt -> nt.∂S_pr_S0_ref == nt.∂S_pr_S0, Array(output)))
     end
 
     TT.@testset "1-moment microphysics kernels" begin
@@ -974,6 +1037,18 @@ function test_gpu(FT)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
+        end
+
+        # 1M derivatives tests
+        DT_d = @NamedTuple{∂tendency_∂q_lcl::FT, ∂tendency_∂q_icl::FT, ∂tendency_∂q_rai::FT, ∂tendency_∂q_sno::FT}
+        (; output) = setup_output(ndrange, DT_d)
+
+        kernel! = test_bulk_derivatives_1m_kernel!(backend, work_groups)
+        TT.@testset "1M derivatives" begin
+            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
+            TT.@test allequal(Array(output))
+            derivs = Array(output)[1]
+            TT.@test all(isfinite, derivs)
         end
 
         # 2M warm rain tests

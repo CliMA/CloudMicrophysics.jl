@@ -33,11 +33,14 @@ import ..Utilities as UT
 export terminal_velocity,
     conv_q_lcl_to_q_rai,
     conv_q_icl_to_q_sno,
+    conv_q_icl_to_q_sno_no_supersat,
     accretion,
     accretion_rain_sink,
     accretion_snow_rain,
     evaporation_sublimation,
+    ∂evaporation_sublimation_∂q_precip,
     snow_melt,
+    ∂snow_melt_∂q_sno,
     lambda_inverse
 
 abstract type AbstractSnowShape end
@@ -381,7 +384,6 @@ Parameterized following:
 - `q_sno`: snow specific content [kg/kg]
 - `ρ`: air density [kg/m³]
 - `T`: air temperature [K]
-
 """
 @inline function conv_q_icl_to_q_sno(
     (; r_ice_snow, pdf, mass)::CMP.CloudIce{FT},
@@ -525,9 +527,6 @@ deviations are proportional to the mean fall velocities, with coefficient
 - `ce`: collision efficiency parameters (contains `e_rai_sno`, `coeff_disp`)
 - `q_i`, `q_j`: specific contents of snow or rain [kg/kg]
 - `ρ`: air density [kg/m³]
-
-# Returns
-- Accretion rate [kg/kg/s]
 """
 @inline function accretion_snow_rain(
     type_i::CMP.PrecipitationType{FT},
@@ -699,6 +698,51 @@ end
 end
 
 """
+    ∂evaporation_sublimation_∂q_precip(rain::Rain, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    ∂evaporation_sublimation_∂q_precip(snow::Snow, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+
+Returns the leading-order derivative of the evaporation/sublimation rate
+with respect to the precipitating species specific content:
+ - `∂(evaporation_sublimation)/∂q_rai` for the `Rain` dispatch
+ - `∂(evaporation_sublimation)/∂q_sno` for the `Snow` dispatch
+
+The approximation used is `∂(rate)/∂q_precip ≈ rate / q_precip`.
+"""
+@inline function ∂evaporation_sublimation_∂q_precip(
+    rain_params::CMP.Rain{FT},
+    vel::CMP.Blk1MVelTypeRain{FT},
+    aps::CMP.AirProperties{FT},
+    tps::TDI.PS,
+    q_tot::FT,
+    q_lcl::FT,
+    q_icl::FT,
+    q_rai::FT,
+    q_sno::FT,
+    ρ::FT,
+    T::FT,
+) where {FT}
+    rate = evaporation_sublimation(rain_params, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    return q_rai > UT.ϵ_numerics(FT) ? rate / q_rai : zero(rate)
+end
+
+@inline function ∂evaporation_sublimation_∂q_precip(
+    snow_params::CMP.Snow{FT},
+    vel::CMP.Blk1MVelTypeSnow{FT},
+    aps::CMP.AirProperties{FT},
+    tps::TDI.PS,
+    q_tot::FT,
+    q_lcl::FT,
+    q_icl::FT,
+    q_rai::FT,
+    q_sno::FT,
+    ρ::FT,
+    T::FT,
+) where {FT}
+    rate = evaporation_sublimation(snow_params, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    return q_sno > UT.ϵ_numerics(FT) ? rate / q_sno : zero(rate)
+end
+
+"""
     snow_melt(snow::Snow, vel::Blk1MVelTypeSnow, aps, tps, q_sno, ρ, T)
 
 Returns the tendency due to snow melt.
@@ -752,6 +796,26 @@ Returns the tendency due to snow melt.
             )
     end
     return snow_melt_rate
+end
+
+"""
+    ∂snow_melt_∂q_sno(snow::Snow, vel::Blk1MVelTypeSnow, aps, tps, q_sno, ρ, T)
+
+Returns `∂(snow_melt)/∂q_sno`, the derivative of the snow melt rate
+with respect to snow specific content.
+The approximation used is `∂(rate)/∂q_sno ≈ rate / q_sno`.
+"""
+@inline function ∂snow_melt_∂q_sno(
+    snow_params::CMP.Snow{FT},
+    vel::CMP.Blk1MVelTypeSnow{FT},
+    aps::CMP.AirProperties{FT},
+    tps::TDI.PS,
+    q_sno::FT,
+    ρ::FT,
+    T::FT,
+) where {FT}
+    rate = snow_melt(snow_params, vel, aps, tps, q_sno, ρ, T)
+    return q_sno > UT.ϵ_numerics(FT) ? rate / q_sno : zero(rate)
 end
 
 end #module Microphysics1M.jl

@@ -38,7 +38,8 @@ export MicrophysicsScheme,
     Microphysics0Moment,
     Microphysics1Moment,
     Microphysics2Moment,
-    bulk_microphysics_tendencies
+    bulk_microphysics_tendencies,
+    bulk_microphysics_derivatives
 
 #####
 ##### Singleton types for dispatch
@@ -197,10 +198,8 @@ This is a pure function of local thermodynamic state, suitable for:
     S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
     dq_lcl_dt += S_lcl_cond
 
-    # Deposition/sublimation of cloud ice
+    # Deposition/sublimation of cloud ice (INP limiter applied inside conv_q_vap_to_q_lcl_icl_MM2015)
     S_icl_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    # No ice deposition above freezing (lack of INPs) - use ifelse to avoid GPU branching
-    S_icl_dep = ifelse(T > tps.T_freeze, min(S_icl_dep, zero(T)), S_icl_dep)
     dq_icl_dt += S_icl_dep
 
     # --- Autoconversion (cloud → precipitation) ---
@@ -292,6 +291,82 @@ This is a pure function of local thermodynamic state, suitable for:
     dq_rai_dt += S_melt_sno
 
     return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
+end
+
+"""
+    bulk_microphysics_derivatives(
+        ::Microphysics1Moment,
+        mp,
+        tps,
+        ρ,
+        T,
+        q_tot,
+        q_lcl,
+        q_icl,
+        q_rai,
+        q_sno,
+    )
+
+Compute all 1-moment microphysics tendency derivatives in one fused call.
+
+Returns a NamedTuple with the leading-order derivative of each species tendency w.r.t.
+its own specific content. Uses the same input clamping and clipping logic
+as `bulk_microphysics_tendencies`.
+
+# Returns
+`NamedTuple` with fields:
+- `∂dq_lcl`: Derivative of cloud liquid tendency w.r.t. q_lcl [1/s]
+- `∂dq_icl`: Derivative of cloud ice tendency w.r.t. q_icl [1/s]
+- `∂dq_rai`: Derivative of rain tendency w.r.t. q_rai [1/s]
+- `∂dq_sno`: Derivative of snow tendency w.r.t. q_sno [1/s]
+"""
+@inline function bulk_microphysics_derivatives(
+    ::Microphysics1Moment,
+    mp::CMP.Microphysics1MParams,
+    tps,
+    ρ,
+    T,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    N_lcl = zero(ρ),
+)
+    # Clamp negative inputs to zero (robustness against numerical errors)
+    ρ = UT.clamp_to_nonneg(ρ)
+    q_tot = UT.clamp_to_nonneg(q_tot)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_icl = UT.clamp_to_nonneg(q_icl)
+    q_rai = UT.clamp_to_nonneg(q_rai)
+    q_sno = UT.clamp_to_nonneg(q_sno)
+
+    # Unpack microphysics parameter container
+    lcl = mp.cloud.liquid
+    icl = mp.cloud.ice
+    rai = mp.precip.rain
+    sno = mp.precip.snow
+    ce = mp.collision
+    aps = mp.air_properties
+    vel = mp.terminal_velocity
+
+    # Condensation/evaporation of cloud liquid
+    ∂tendency_∂q_lcl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+
+    # Deposition/sublimation of cloud ice (INP limiter applied inside ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld)
+    ∂tendency_∂q_icl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+
+    # Rain evaporation
+    ∂tendency_∂q_rai =
+        CM1.∂evaporation_sublimation_∂q_precip(rai, vel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+
+    # Snow sublimation/deposition and melting
+    dS_subl_sno =
+        CM1.∂evaporation_sublimation_∂q_precip(sno, vel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    dS_melt_sno = CM1.∂snow_melt_∂q_sno(sno, vel.snow, aps, tps, q_sno, ρ, T)
+    ∂tendency_∂q_sno = dS_subl_sno - dS_melt_sno
+
+    return (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl, ∂tendency_∂q_rai, ∂tendency_∂q_sno)
 end
 
 # --- 0-Moment Microphysics ---

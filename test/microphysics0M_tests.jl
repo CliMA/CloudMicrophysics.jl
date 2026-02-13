@@ -20,7 +20,8 @@ function test_microphysics0M(FT)
         # no rain if no cloud
         TT.@test CM0.remove_precipitation(p0m, FT(0), FT(0)) ≈ FT(0)
         TT.@test CM0.remove_precipitation(p0m, FT(0), FT(0), q_vap_sat) ≈ FT(0)
-
+        TT.@test CM0.∂remove_precipitation_∂q_tot(p0m, FT(0), FT(0)) ≈ FT(0)
+        TT.@test CM0.∂remove_precipitation_∂q_tot(p0m, FT(0), FT(0), q_vap_sat) ≈ FT(0)
 
         # rain based on qc threshold
         for lf in frac
@@ -29,6 +30,8 @@ function test_microphysics0M(FT)
 
             TT.@test CM0.remove_precipitation(p0m, q_lcl, q_icl) ≈
                      -max(0, q_lcl + q_icl - qc_0) / τ_precip
+            TT.@test CM0.∂remove_precipitation_∂q_tot(p0m, q_lcl, q_icl) ≈ -1 / τ_precip
+
         end
 
         # rain based on supersaturation threshold
@@ -38,6 +41,9 @@ function test_microphysics0M(FT)
 
             TT.@test CM0.remove_precipitation(p0m, q_lcl, q_icl, q_vap_sat) ≈
                      -max(0, q_lcl + q_icl - S_0 * q_vap_sat) / τ_precip
+
+            TT.@test CM0.∂remove_precipitation_∂q_tot(p0m, q_lcl, q_icl, q_vap_sat) ≈
+                     -1 / τ_precip
         end
     end
 end

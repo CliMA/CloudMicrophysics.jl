@@ -122,6 +122,40 @@ we can write
 include("plots/NonEqCondEvapRate.jl")
 ```
 ![](condensation_evaporation_ql_z.svg)
+![](condensation_evaporation_ql_T.svg)
+
+### Derivative of the tendency
+
+For implicit time integration, we also compute the total derivative of the tendency
+  with respect to the cloud condensate, accounting for the implicit feedback
+  between the condensate and temperature through latent heat release
+  (``dT/dq = L/c_p``):
+
+```math
+\begin{equation}
+    \frac{d\dot{q}_{lcl}}{dq_{lcl}} = -\frac{1}{\tau_l}
+    - \frac{\dot{q}_{lcl}}{\Gamma_l} \left(\frac{L_v}{c_p}\right)^2  \frac{d^2 q_{sl}}{dT^2};
+    \;\;\;\;\;\;\;\;
+    \frac{d\dot{q}_{icl}}{dq_{icl}} = -\frac{1}{\tau_i}
+    - \frac{\dot{q}_{icl}}{\Gamma_i} \left(\frac{L_s}{c_p}\right)^2  \frac{d^2 q_{si}}{dT^2}
+\end{equation}
+```
+where ``\dot{q}_{lcl}`` and ``\dot{q}_{icl}`` denote the condensation/evaporation
+  and deposition/sublimation tendencies respectively,
+  and the second derivative of saturation specific humidity is:
+```math
+\begin{equation}
+    \frac{d^2 q_{sl}}{dT^2} = q_{sl} \left[\left(\frac{L_v}{R_v T^2} - \frac{1}{T}\right)^2
+    + \frac{1}{T^2} - \frac{2 L_v}{R_v T^3}\right]
+\end{equation}
+```
+
+The leading-order term ``-1/\tau`` provides a simple approximation,
+  while the second term captures the higher-order correction from the
+  thermodynamic adjustment factor ``\Gamma``.
+
+![](condensation_evaporation_deriv.svg)
+![](condensation_evaporation_deriv_vs_qvap.svg)
 
 
 ## Cloud condensate sedimentation
