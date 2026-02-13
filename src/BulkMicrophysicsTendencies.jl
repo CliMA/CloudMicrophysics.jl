@@ -146,6 +146,10 @@ This is a pure function of local thermodynamic state, suitable for:
 - `dq_icl_dt`: Cloud ice tendency [kg/kg/s]
 - `dq_rai_dt`: Rain tendency [kg/kg/s]
 - `dq_sno_dt`: Snow tendency [kg/kg/s]
+- `∂dq_lcl`: Derivative of cloud liquid tendency w.r.t. q_lcl [1/s]
+- `∂dq_icl`: Derivative of cloud ice tendency w.r.t. q_icl [1/s]
+- `∂dq_rai`: Derivative of rain tendency w.r.t. q_rai [1/s]
+- `∂dq_sno`: Derivative of snow tendency w.r.t. q_sno [1/s]
 
 # Input Validation
 - Negative specific contents are clamped to zero for robustness against numerical errors.
@@ -190,43 +194,52 @@ This is a pure function of local thermodynamic state, suitable for:
     dq_rai_dt = zero(T)
     dq_sno_dt = zero(T)
 
+    # Initialize derivatives
+    ∂dq_lcl = zero(T)
+    ∂dq_icl = zero(T)
+    ∂dq_rai = zero(T)
+    ∂dq_sno = zero(T)
+
     # --- Cloud condensate formation (non-equilibrium) ---
 
     # Condensation/evaporation of cloud liquid
-    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    (S_lcl_cond, _, dS_lcl_full) = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
     dq_lcl_dt += S_lcl_cond
+    ∂dq_lcl += dS_lcl_full
 
     # Deposition/sublimation of cloud ice
-    S_icl_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    (S_icl_dep, _, dS_icl_full) = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
     # No ice deposition above freezing (lack of INPs) - use ifelse to avoid GPU branching
     S_icl_dep = ifelse(T > tps.T_freeze, min(S_icl_dep, zero(T)), S_icl_dep)
+    dS_icl_full = ifelse(T > tps.T_freeze && S_icl_dep >= zero(T), zero(T), dS_icl_full)
     dq_icl_dt += S_icl_dep
+    ∂dq_icl += dS_icl_full
 
     # --- Autoconversion (cloud → precipitation) ---
 
     # Cloud liquid → rain
     # Use 2M autoconversion when N_lcl > 0 and var provided, otherwise 1M
-    S_acnv_1M = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
+    (S_acnv_1M, _) = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
     S_acnv_2M = isnothing(var) ? S_acnv_1M : CM2.conv_q_lcl_to_q_rai(var, q_lcl, ρ, N_lcl)
     S_acnv_lcl = ifelse(N_lcl > zero(N_lcl), S_acnv_2M, S_acnv_1M)
     dq_lcl_dt -= S_acnv_lcl
     dq_rai_dt += S_acnv_lcl
 
     # Cloud ice → snow (no supersaturation version for simplicity)
-    S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
+    (S_acnv_icl, _) = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
     dq_icl_dt -= S_acnv_icl
     dq_sno_dt += S_acnv_icl
 
     # --- Accretion (collisions between species) ---
 
     # Cloud liquid + rain → rain
-    S_accr_lcl_rai = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
+    (S_accr_lcl_rai, _) = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
     dq_lcl_dt -= S_accr_lcl_rai
     dq_rai_dt += S_accr_lcl_rai
 
     # Cloud liquid + snow → snow (riming, cold) or rain + snow melt (warm)
     # Use branchless ifelse for GPU compatibility
-    S_accr_lcl_sno = CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
+    (S_accr_lcl_sno, _) = CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
     dq_lcl_dt -= S_accr_lcl_sno
 
     is_warm = T >= sno.T_freeze
@@ -240,17 +253,17 @@ This is a pure function of local thermodynamic state, suitable for:
     dq_rai_dt += S_accr_melt
 
     # Cloud ice + rain → snow
-    S_accr_icl_rai = CM1.accretion(icl, rai, vel.rain, ce, q_icl, q_rai, ρ)
+    (S_accr_icl_rai, _) = CM1.accretion(icl, rai, vel.rain, ce, q_icl, q_rai, ρ)
     dq_icl_dt -= S_accr_icl_rai
     dq_sno_dt += S_accr_icl_rai
 
     # Cloud ice + snow → snow
-    S_accr_icl_sno = CM1.accretion(icl, sno, vel.snow, ce, q_icl, q_sno, ρ)
+    (S_accr_icl_sno, _) = CM1.accretion(icl, sno, vel.snow, ce, q_icl, q_sno, ρ)
     dq_icl_dt -= S_accr_icl_sno
     dq_sno_dt += S_accr_icl_sno
 
     # Rain + cloud ice → sink of rain (forms snow)
-    S_accr_rai_icl = CM1.accretion_rain_sink(rai, icl, vel.rain, ce, q_icl, q_rai, ρ)
+    (S_accr_rai_icl, _) = CM1.accretion_rain_sink(rai, icl, vel.rain, ce, q_icl, q_rai, ρ)
     dq_rai_dt -= S_accr_rai_icl
     dq_sno_dt += S_accr_rai_icl
 
@@ -258,8 +271,8 @@ This is a pure function of local thermodynamic state, suitable for:
     # Use branchless ifelse for GPU compatibility
     # Cold: rain + snow → snow (rain freezes); Warm: snow + rain → rain (snow melts)
     # Note: accretion_snow_rain arguments differ by case (collector vs collected swap)
-    S_accr_rai_sno = CM1.accretion_snow_rain(sno, rai, vel.snow, vel.rain, ce, q_sno, q_rai, ρ)
-    S_accr_sno_rai = CM1.accretion_snow_rain(rai, sno, vel.rain, vel.snow, ce, q_rai, q_sno, ρ)
+    (S_accr_rai_sno, _) = CM1.accretion_snow_rain(sno, rai, vel.snow, vel.rain, ce, q_sno, q_rai, ρ)
+    (S_accr_sno_rai, _) = CM1.accretion_snow_rain(rai, sno, vel.rain, vel.snow, ce, q_rai, q_sno, ρ)
 
     is_warm = T >= sno.T_freeze
     # Cold pathway: rain → snow
@@ -276,21 +289,24 @@ This is a pure function of local thermodynamic state, suitable for:
     # --- Evaporation and sublimation ---
 
     # Rain evaporation
-    S_evap_rai = CM1.evaporation_sublimation(rai, vel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    (S_evap_rai, dS_evap_rai) = CM1.evaporation_sublimation(rai, vel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
     dq_rai_dt += S_evap_rai  # negative tendency (evaporation)
+    ∂dq_rai += dS_evap_rai
 
     # Snow sublimation/deposition
-    S_subl_sno = CM1.evaporation_sublimation(sno, vel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    (S_subl_sno, dS_subl_sno) = CM1.evaporation_sublimation(sno, vel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
     dq_sno_dt += S_subl_sno  # can be positive (deposition) or negative (sublimation)
+    ∂dq_sno += dS_subl_sno
 
     # --- Melting ---
 
     # Snow melt → rain
-    S_melt_sno = CM1.snow_melt(sno, vel.snow, aps, tps, q_sno, ρ, T)
+    (S_melt_sno, dS_melt_sno) = CM1.snow_melt(sno, vel.snow, aps, tps, q_sno, ρ, T)
     dq_sno_dt -= S_melt_sno
     dq_rai_dt += S_melt_sno
+    ∂dq_sno -= dS_melt_sno
 
-    return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
+    return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt, ∂dq_lcl, ∂dq_icl, ∂dq_rai, ∂dq_sno)
 end
 
 # --- 0-Moment Microphysics ---

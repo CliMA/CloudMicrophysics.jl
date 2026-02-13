@@ -166,7 +166,7 @@ function test_microphysics1M(FT)
         ρ = p / R / T
 
         # Rain evaporates, rate should be negative
-        evap_rate = CM1.evaporation_sublimation(
+        (evap_rate, _) = CM1.evaporation_sublimation(
             rain, blk1mvel.rain, aps, tps,
             q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T,
         )
@@ -191,7 +191,7 @@ function test_microphysics1M(FT)
         ρ = p / R / T
 
         # Snow sublimation rate should be negative (losing mass)
-        subl_rate = CM1.evaporation_sublimation(
+        (subl_rate, _) = CM1.evaporation_sublimation(
             snow, blk1mvel.snow, aps, tps,
             q_tot, q_liq, q_ice, q_rai, q_sno, ρ, T,
         )
@@ -204,16 +204,16 @@ function test_microphysics1M(FT)
         τ_acnv_rai = rain.acnv1M.τ
 
         q_lcl_small = FT(0.5) * q_lcl_threshold
-        TT.@test CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_small) == FT(0)
+        TT.@test first(CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_small)) == FT(0)
 
-        TT.@test CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_small, true) ≈
+        TT.@test first(CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_small, true)) ≈
                  FT(0.0) atol = 0.15 * q_lcl_threshold / τ_acnv_rai
 
         q_lcl_big = FT(1.5) * q_lcl_threshold
-        TT.@test CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_big) ≈
+        TT.@test first(CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_big)) ≈
                  FT(0.5) * q_lcl_threshold / τ_acnv_rai
 
-        TT.@test CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_big, true) ≈
+        TT.@test first(CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_big, true)) ≈
                  FT(0.5) * q_lcl_threshold / τ_acnv_rai atol =
             FT(0.15) * q_lcl_threshold / τ_acnv_rai
 
@@ -225,34 +225,34 @@ function test_microphysics1M(FT)
         τ_acnv_sno = snow.acnv1M.τ
 
         q_icl_small = FT(0.5) * q_icl_threshold
-        TT.@test CM1.conv_q_icl_to_q_sno_no_supersat(
+        TT.@test first(CM1.conv_q_icl_to_q_sno_no_supersat(
             snow.acnv1M,
             q_icl_small,
-        ) == FT(0)
+        )) == FT(0)
 
-        TT.@test CM1.conv_q_icl_to_q_sno_no_supersat(
+        TT.@test first(CM1.conv_q_icl_to_q_sno_no_supersat(
             snow.acnv1M,
             q_icl_small,
             true,
-        ) ≈ FT(0.0) atol = FT(0.15) * q_icl_threshold / τ_acnv_sno
+        )) ≈ FT(0.0) atol = FT(0.15) * q_icl_threshold / τ_acnv_sno
 
         q_icl_big = FT(1.5) * q_icl_threshold
-        TT.@test CM1.conv_q_icl_to_q_sno_no_supersat(snow.acnv1M, q_icl_big) ≈
+        TT.@test first(CM1.conv_q_icl_to_q_sno_no_supersat(snow.acnv1M, q_icl_big)) ≈
                  FT(0.5) * q_icl_threshold / τ_acnv_sno
 
-        TT.@test CM1.conv_q_icl_to_q_sno_no_supersat(
+        TT.@test first(CM1.conv_q_icl_to_q_sno_no_supersat(
             snow.acnv1M,
             q_icl_big,
             true,
-        ) ≈ FT(0.5) * q_icl_threshold / τ_acnv_sno atol =
+        )) ≈ FT(0.5) * q_icl_threshold / τ_acnv_sno atol =
             FT(0.15) * q_icl_threshold / τ_acnv_sno
 
-        TT.@test CM1.conv_q_icl_to_q_sno_no_supersat(snow.acnv1M, q_icl_big) ==
-                 CM1.conv_q_icl_to_q_sno_no_supersat(
+        TT.@test first(CM1.conv_q_icl_to_q_sno_no_supersat(snow.acnv1M, q_icl_big)) ==
+                 first(CM1.conv_q_icl_to_q_sno_no_supersat(
             snow.acnv1M,
             q_icl_big,
             false,
-        )
+        ))
 
     end
 
@@ -269,20 +269,20 @@ function test_microphysics1M(FT)
         qᵢ = FT(1e-3)
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
         T = T_freeze + FT(30)
-        TT.@test CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) == FT(0)
+        TT.@test first(CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T)) == FT(0)
 
         # no cloud ice -> no snow
         qᵢ = FT(0)
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
         T = T_freeze - FT(30)
-        TT.@test CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) == FT(0)
+        TT.@test first(CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T)) == FT(0)
 
         # no supersaturation -> no snow
         T = T_freeze - FT(5)
         qᵢ = FT(3e-3)
         q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
         qₜ = q_sat_ice
-        TT.@test CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) ≈ FT(0)
+        TT.@test first(CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T)) ≈ FT(0)
 
         # Regression test: keep result constant when code changes
         T = T_freeze - FT(10)
@@ -291,7 +291,7 @@ function test_microphysics1M(FT)
         qᵢ = FT(0.03) * qᵥ
         qₜ = qᵥ + qₗ + qᵢ + qᵣ + qₛ
         ref = FT(2.5408135723057333e-9)
-        TT.@test CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T) ≈ ref
+        TT.@test first(CM1.conv_q_icl_to_q_sno(ice, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T)) ≈ ref
     end
 
     TT.@testset "RainLiquidAccretion" begin
@@ -312,7 +312,7 @@ function test_microphysics1M(FT)
 
         for q_rai in q_rain_range
             if q_rai > eps(FT)
-                TT.@test CM1.accretion(
+                TT.@test first(CM1.accretion(
                     liquid,
                     rain,
                     blk1mvel.rain,
@@ -320,10 +320,10 @@ function test_microphysics1M(FT)
                     q_liq,
                     q_rai,
                     ρ_air,
-                ) ≈ accretion_empir(q_rai, q_liq, q_tot) atol =
+                )) ≈ accretion_empir(q_rai, q_liq, q_tot) atol =
                     (0.1 * accretion_empir(q_rai, q_liq, q_tot))
             else
-                TT.@test CM1.accretion(
+                TT.@test first(CM1.accretion(
                     liquid,
                     rain,
                     blk1mvel.rain,
@@ -331,7 +331,7 @@ function test_microphysics1M(FT)
                     q_liq,
                     q_rai,
                     ρ_air,
-                ) ≈ FT(0) atol = FT(0.2)
+                )) ≈ FT(0) atol = FT(0.2)
             end
         end
     end
@@ -347,7 +347,7 @@ function test_microphysics1M(FT)
         q_liq = FT(5e-4)
         q_rai = FT(5e-4)
 
-        TT.@test CM1.accretion(
+        TT.@test first(CM1.accretion(
             liquid,
             rain,
             blk1mvel.rain,
@@ -355,10 +355,10 @@ function test_microphysics1M(FT)
             q_liq,
             q_rai,
             ρ,
-        ) ≈ FT(1.4150106417043544e-6)
-        TT.@test CM1.accretion(ice, snow, blk1mvel.snow, ce, q_ice, q_sno, ρ) ≈
+        )) ≈ FT(1.4150106417043544e-6)
+        TT.@test first(CM1.accretion(ice, snow, blk1mvel.snow, ce, q_ice, q_sno, ρ)) ≈
                  FT(2.453070979562392e-7)
-        TT.@test CM1.accretion(
+        TT.@test first(CM1.accretion(
             liquid,
             snow,
             blk1mvel.snow,
@@ -366,11 +366,11 @@ function test_microphysics1M(FT)
             q_liq,
             q_sno,
             ρ,
-        ) ≈ FT(2.453070979562392e-7)
-        TT.@test CM1.accretion(ice, rain, blk1mvel.rain, ce, q_ice, q_rai, ρ) ≈
+        )) ≈ FT(2.453070979562392e-7)
+        TT.@test first(CM1.accretion(ice, rain, blk1mvel.rain, ce, q_ice, q_rai, ρ)) ≈
                  FT(1.768763302130443e-6)
 
-        TT.@test CM1.accretion_rain_sink(
+        TT.@test first(CM1.accretion_rain_sink(
             rain,
             ice,
             blk1mvel.rain,
@@ -378,9 +378,9 @@ function test_microphysics1M(FT)
             q_ice,
             q_rai,
             ρ,
-        ) ≈ FT(3.590060148920766e-5)
+        )) ≈ FT(3.590060148920766e-5)
 
-        TT.@test CM1.accretion_snow_rain(
+        TT.@test first(CM1.accretion_snow_rain(
             snow,
             rain,
             blk1mvel.snow,
@@ -389,8 +389,8 @@ function test_microphysics1M(FT)
             q_sno,
             q_rai,
             ρ,
-        ) ≈ FT(2.466313958248222e-4) # Includes velocity dispersion correction
-        TT.@test CM1.accretion_snow_rain(
+        )) ≈ FT(2.466313958248222e-4) # Includes velocity dispersion correction
+        TT.@test first(CM1.accretion_snow_rain(
             rain,
             snow,
             blk1mvel.rain,
@@ -399,7 +399,7 @@ function test_microphysics1M(FT)
             q_rai,
             q_sno,
             ρ,
-        ) ≈ FT(6.830957197816771e-5) # Includes velocity dispersion correction
+        )) ≈ FT(6.830957197816771e-5) # Includes velocity dispersion correction
     end
 
     TT.@testset "RainEvaporation" begin
@@ -447,10 +447,11 @@ function test_microphysics1M(FT)
             R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, FT(0))
             ρ = p / R / T
 
-            tmp1 = CM1.evaporation_sublimation(rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai, FT(0), ρ, T)
+            (tmp1, dtmp1) = CM1.evaporation_sublimation(rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai, FT(0), ρ, T)
             tmp2 = rain_evap_empir(tps, q_rai, q_tot, q_lcl, FT(0), T, p, ρ)
 
             TT.@test tmp1 ≈ tmp2 atol = 1e-6
+            TT.@test dtmp1 ≈ tmp1 / q_rai
         end
 
         # no condensational growth for rain
@@ -467,7 +468,7 @@ function test_microphysics1M(FT)
         R = TDI.Rₘ(tps, q_tot, q_liq, q_ice)
         ρ = p / R / T
 
-        TT.@test CM1.evaporation_sublimation(
+        TT.@test first(CM1.evaporation_sublimation(
             rain,
             blk1mvel.rain,
             aps,
@@ -479,7 +480,7 @@ function test_microphysics1M(FT)
             q_sno,
             ρ,
             T,
-        ) ≈ FT(0)
+        )) ≈ FT(0)
 
     end
 
@@ -513,7 +514,7 @@ function test_microphysics1M(FT)
                 R = TDI.Rₘ(tps, q_tot, q_liq + q_rai, q_ice + q_sno)
                 ρ = p / R / T
 
-                tmp1 = CM1.evaporation_sublimation(
+                (tmp1, dtmp1) = CM1.evaporation_sublimation(
                     snow,
                     blk1mvel.snow,
                     aps,
@@ -527,6 +528,7 @@ function test_microphysics1M(FT)
                     T,
                 )
                 TT.@test tmp1 ≈ ref_val[cnt] rtol = 1e-2
+                TT.@test dtmp1 ≈ tmp1 / q_sno
             end
         end
     end
@@ -538,23 +540,108 @@ function test_microphysics1M(FT)
         T = T_freeze + FT(2)
         ρ = FT(1.2)
         q_sno = FT(1e-4)
-        TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
-                 FT(9.516553267013085e-6)
+        (melt_rate, melt_deriv) = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T)
+        TT.@test melt_rate ≈ FT(9.516553267013085e-6)
+        TT.@test melt_deriv ≈ melt_rate / q_sno
 
         # no snow -> no snow melt
         T = T_freeze + FT(2)
         ρ = FT(1.2)
         q_sno = FT(0)
-        TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
+        TT.@test first(CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T)) ≈
                  FT(0)
 
         # T < T_freeze -> no snow melt
         T = T_freeze - FT(2)
         ρ = FT(1.2)
         q_sno = FT(1e-4)
-        TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
+        TT.@test first(CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T)) ≈
                  FT(0)
 
+    end
+
+    TT.@testset "RainEvaporationDerivative_FiniteDiff" begin
+        # Verify ∂(evap)/∂q_rai ≈ tendency / q_rai via finite differences
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T, p = T_freeze + FT(15), FT(90000)
+        ϵ = TDI.Rd_over_Rv(tps)
+        p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+        q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+        q_rai = FT(1e-3)
+        q_tot = FT(15e-3)
+        q_vap = FT(0.15) * q_sat  # subsaturated
+        q_lcl = q_tot - q_vap - q_rai
+        q_icl = FT(0)
+        q_sno = FT(0)
+        R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
+        ρ = p / R / T
+
+        (rate, drate) = CM1.evaporation_sublimation(
+            rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+        )
+        TT.@test rate < 0  # evaporation
+        TT.@test drate ≈ rate / q_rai
+
+        # Finite difference check: S/q is a rough leading-order approximation,
+        # so we only check same sign and same order of magnitude
+        Δq = FT(1e-8)
+        (rate_p, _) = CM1.evaporation_sublimation(
+            rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai + Δq, q_sno, ρ, T,
+        )
+        fd_deriv = (rate_p - rate) / Δq
+        TT.@test sign(drate) == sign(fd_deriv)
+        TT.@test drate ≈ fd_deriv rtol = FT(1.0)
+    end
+
+    TT.@testset "SnowSublimationDerivative_FiniteDiff" begin
+        # Verify ∂(subl)/∂q_sno ≈ tendency / q_sno via finite differences
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T, p = T_freeze - FT(10), FT(90000)
+        ϵ = TDI.Rd_over_Rv(tps)
+        p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
+        q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+        q_sno = FT(1e-4)
+        q_tot = FT(0.95) * q_sat + q_sno
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
+        ρ = p / R / T
+
+        (rate, drate) = CM1.evaporation_sublimation(
+            snow, blk1mvel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+        )
+        TT.@test rate < 0  # sublimation
+        TT.@test drate ≈ rate / q_sno
+
+        # Finite difference check: S/q is a rough leading-order approximation,
+        # so we only check same sign and same order of magnitude
+        Δq = FT(1e-8)
+        (rate_p, _) = CM1.evaporation_sublimation(
+            snow, blk1mvel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno + Δq, ρ, T,
+        )
+        fd_deriv = (rate_p - rate) / Δq
+        TT.@test sign(drate) == sign(fd_deriv)
+        TT.@test drate ≈ fd_deriv rtol = FT(1.0)
+    end
+
+    TT.@testset "SnowMeltDerivative_FiniteDiff" begin
+        # Verify ∂(melt)/∂q_sno ≈ tendency / q_sno via finite differences
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T = T_freeze + FT(4)
+        ρ = FT(1.2)
+        q_sno = FT(1e-4)
+
+        (rate, drate) = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T)
+        TT.@test rate > 0  # melting
+        TT.@test drate ≈ rate / q_sno
+
+        # Finite difference check
+        Δq = FT(1e-8)
+        (rate_p, _) = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno + Δq, ρ, T)
+        fd_deriv = (rate_p - rate) / Δq
+        TT.@test sign(drate) == sign(fd_deriv)
+        TT.@test drate ≈ fd_deriv rtol = FT(0.5)
     end
 end
 

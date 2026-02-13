@@ -17,9 +17,10 @@ SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
 Thermodynamics = "b60c26fb-14c3-4610-9d3e-2d17fe7ff00c"
 UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
+UnrolledUtilities = "0fe1646c-419e-43be-ac14-22321958931b"
 
 [sources]
-CloudMicrophysics = { path = ".." }
+CloudMicrophysics = {path = ".."}
 
 [compat]
 Dierckx = "0.5.3"

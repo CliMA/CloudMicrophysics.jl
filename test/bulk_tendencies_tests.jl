@@ -121,7 +121,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         )
 
         # Compute autoconversion separately
-        S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl, true)
+        (S_acnv_lcl, _) = CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl, true)
 
         # Rain tendency should be positive and include autoconversion
         @test tendencies.dq_rai_dt > FT(0)
@@ -194,7 +194,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         # Verify accretion is happening by checking snow growth
         # (cloud liquid tendency may be positive overall due to condensation)
-        S_accr = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
+        (S_accr, _) = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
         @test S_accr > FT(0)  # Accretion is occurring
 
         # Snow should increase (riming + deposition)
@@ -220,7 +220,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         )
 
         # Verify accretion is happening
-        S_accr = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
+        (S_accr, _) = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
         @test S_accr > FT(0)  # Accretion is occurring
 
         # Rain should increase (from accretion + snow melt)
@@ -374,7 +374,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
-        @test tendencies isa NamedTuple{(:dq_lcl_dt, :dq_icl_dt, :dq_rai_dt, :dq_sno_dt), NTuple{4, FT}}
+        @test tendencies isa NamedTuple{(:dq_lcl_dt, :dq_icl_dt, :dq_rai_dt, :dq_sno_dt, :∂dq_lcl, :∂dq_icl, :∂dq_rai, :∂dq_sno), NTuple{8, FT}}
     end
 
     @testset "Conservation: warm autoconversion at saturation" begin
@@ -451,9 +451,9 @@ function test_bulk_microphysics_1m_tendencies(FT)
         )
 
         # Calculate individual components
-        S_accr = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
-        S_melt = CM1.snow_melt(snow, vel.snow, aps, tps, q_sno, ρ, T)
-        S_subl = CM1.evaporation_sublimation(snow, vel.snow, aps, tps, q_tot, q_lcl, FT(0), FT(0), q_sno, ρ, T)
+        (S_accr, _) = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
+        (S_melt, _) = CM1.snow_melt(snow, vel.snow, aps, tps, q_sno, ρ, T)
+        (S_subl, _) = CM1.evaporation_sublimation(snow, vel.snow, aps, tps, q_tot, q_lcl, FT(0), FT(0), q_sno, ρ, T)
 
         # Calculate α
         T_frz = TDI.T_freeze(tps)

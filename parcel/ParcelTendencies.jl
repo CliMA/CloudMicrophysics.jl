@@ -253,7 +253,7 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
         qₜ = qᵥ + qₗ + qᵢ
 
-        cond_rate = MNE.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+        (cond_rate, _, _) = MNE.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
 
         # Using same limiter as ClimaAtmos for now
         # Not sure why, but without intermediate storing of the tendencies for the
@@ -310,7 +310,7 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     if qᵥ + qᵢ > FT(0)
         qₜ = qᵥ + qₗ + qᵢ
 
-        dep_rate = MNE.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+        (dep_rate, _, _) = MNE.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
 
         # Using same limiter as ClimaAtmos for now
         # Not sure why, but without intermediate storing of the tendencies for the

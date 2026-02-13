@@ -80,11 +80,11 @@ end
     i = @index(Global, Linear)
     FT = eltype(tps)
     q_lcl = q_icl = q_rai = q_sno = FT(0) # set to zero in this test
-    S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
+    (S_cond_MM2015, S_cond_deriv_simple, S_cond_deriv) = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
         lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
     )
     S_cond = CMN.conv_q_vap_to_q_lcl_icl(icl, qᵢ_s[i], qᵢ[i])
-    output[i] = (; S_cond_MM2015, S_cond)
+    output[i] = (; S_cond_MM2015, S_cond_deriv_simple, S_cond_deriv, S_cond)
 end
 
 @kernel inbounds = true function test_chen2022_terminal_velocity_kernel!(
@@ -110,22 +110,22 @@ end
 
 @kernel inbounds = true function test_1_moment_micro_acnv_kernel!(output, acnv1M, ql)
     i = @index(Global, Linear)
-    output[i] = CM1.conv_q_lcl_to_q_rai(acnv1M, ql[i], false)
+    output[i] = first(CM1.conv_q_lcl_to_q_rai(acnv1M, ql[i], false))
 end
 
 @kernel inbounds = true function test_1_moment_micro_accretion_kernel!(
     lcl, rain, icl, snow, ce, blk1mvel, output, ρ, qi, qs, ql, qr,
 )
     i = @index(Global, Linear)
-    liq_rai = CM1.accretion(lcl, rain, blk1mvel.rain, ce, ql[i], qr[i], ρ[i])
-    ice_sno = CM1.accretion(icl, snow, blk1mvel.snow, ce, qi[i], qs[i], ρ[i])
-    liq_sno = CM1.accretion(lcl, snow, blk1mvel.snow, ce, ql[i], qs[i], ρ[i])
-    ice_rai = CM1.accretion(icl, rain, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
-    rai_sink = CM1.accretion_rain_sink(rain, icl, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
-    sno_rai = CM1.accretion_snow_rain(
+    (liq_rai, _) = CM1.accretion(lcl, rain, blk1mvel.rain, ce, ql[i], qr[i], ρ[i])
+    (ice_sno, _) = CM1.accretion(icl, snow, blk1mvel.snow, ce, qi[i], qs[i], ρ[i])
+    (liq_sno, _) = CM1.accretion(lcl, snow, blk1mvel.snow, ce, ql[i], qs[i], ρ[i])
+    (ice_rai, _) = CM1.accretion(icl, rain, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
+    (rai_sink, _) = CM1.accretion_rain_sink(rain, icl, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
+    (sno_rai, _) = CM1.accretion_snow_rain(
         snow, rain, blk1mvel.snow, blk1mvel.rain, ce, qs[i], qr[i], ρ[i],
     )
-    rai_sno = CM1.accretion_snow_rain(
+    (rai_sno, _) = CM1.accretion_snow_rain(
         rain, snow, blk1mvel.rain, blk1mvel.snow, ce, qr[i], qs[i], ρ[i],
     )
     output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, rai_sink, sno_rai, rai_sno)
@@ -134,7 +134,7 @@ end
 @kernel inbounds = true function test_1_moment_micro_snow_melt_kernel!(
     snow, blk1mvel, aps, tps, output, ρ, T, qs)
     i = @index(Global, Linear)
-    output[i] = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, qs[i], ρ[i], T[i])
+    output[i] = first(CM1.snow_melt(snow, blk1mvel.snow, aps, tps, qs[i], ρ[i], T[i]))
 end
 
 @kernel inbounds = true function test_2_moment_acnv_kernel!(
@@ -454,7 +454,7 @@ function test_gpu(FT)
     end
 
     TT.@testset "non-equilibrium microphysics kernels" begin
-        DT = @NamedTuple{S_cond_MM2015::FT, S_cond::FT}
+        DT = @NamedTuple{S_cond_MM2015::FT, S_cond_deriv_simple::FT, S_cond_deriv::FT, S_cond::FT}
         (; ndrange, output) = setup_output(1, DT)
 
         ρ = ArrayType([FT(0.8)])
@@ -465,9 +465,11 @@ function test_gpu(FT)
 
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
         kernel!(lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
-        (; S_cond_MM2015, S_cond) = Array(output)[1]
+        (; S_cond_MM2015, S_cond_deriv_simple, S_cond_deriv, S_cond) = Array(output)[1]
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         TT.@test S_cond_MM2015 ≈ FT(3.76347635339803e-5)
+        TT.@test S_cond_deriv < FT(0)  # derivative should be negative
+        TT.@test S_cond_deriv_simple ≈ FT(-0.1)  # -1/τ_relax = -1/10
         TT.@test S_cond ≈ FT(-1e-4)
     end
 
@@ -936,7 +938,7 @@ function test_gpu(FT)
 
 
         # 1M tests
-        DT = @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT}
+        DT = @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT, ∂dq_lcl::FT, ∂dq_icl::FT, ∂dq_rai::FT, ∂dq_sno::FT}
         (; output) = setup_output(ndrange, DT)
         ρ = constant_data(FT(1.0); ndrange)
         T = constant_data(FT(280.0); ndrange)
