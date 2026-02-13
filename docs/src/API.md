@@ -9,7 +9,6 @@ CurrentModule = CloudMicrophysics
 ```@docs
 MicrophysicsNonEq
 MicrophysicsNonEq.τ_relax
-MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl
 MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl_MM2015
 MicrophysicsNonEq.terminal_velocity
 ```

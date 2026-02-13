@@ -75,7 +75,7 @@ ArrayType = CuArray
 end
 
 @kernel inbounds = true function test_noneq_micro_kernel!(
-    lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s,
+    lcl, tps, output, ρ, T, qᵥ_sl,
 )
     i = @index(Global, Linear)
     FT = eltype(tps)
@@ -83,8 +83,7 @@ end
     S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
         lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
     )
-    S_cond = CMN.conv_q_vap_to_q_lcl_icl(icl, qᵢ_s[i], qᵢ[i])
-    output[i] = (; S_cond_MM2015, S_cond)
+    output[i] = (; S_cond_MM2015)
 end
 
 @kernel inbounds = true function test_chen2022_terminal_velocity_kernel!(
@@ -464,11 +463,10 @@ function test_gpu(FT)
         qᵢ_s = ArrayType([FT(0.002)])
 
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
-        kernel!(lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
-        (; S_cond_MM2015, S_cond) = Array(output)[1]
+        kernel!(lcl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
+        (; S_cond_MM2015) = Array(output)[1]
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         TT.@test S_cond_MM2015 ≈ FT(3.76347635339803e-5)
-        TT.@test S_cond ≈ FT(-1e-4)
     end
 
     TT.@testset "Chen 2022 terminal velocity kernels" begin

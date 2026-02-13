@@ -19,26 +19,6 @@ They consist of:
 |``\tau_{l}``| cloud water condensation/evaporation timescale | ``s`` | ``10``        |
 |``\tau_{i}``| cloud ice deposition/sublimation timescale     | ``s`` | ``10``        |
 
-## Simple condensation/evaporation and deposition/sublimation
-
-Condensation/evaporation of cloud liquid water and
-deposition/sublimation of cloud ice are parameterized
-  as a relaxation to equilibrium value at the current time step.
-The equilibrium value is obtained based on a prescribed phase partition function
-  that divides the available excess water vapor between liquid and ice
-  (based on temperature).
-```math
-\begin{equation}
-  \left. \frac{d \, q_{lcl}}{dt} \right|_{cond, evap} = \frac{q^{eq}_{lcl} - q_{lcl}}{\tau_{l}}; \;\;\;\;\;\;\;
-  \left. \frac{d \, q_{icl}}{dt} \right|_{dep, sub}   = \frac{q^{eq}_{icl} - q_{icl}}{\tau_{i}}
-\end{equation}
-```
-where:
- - ``q^{eq}_{lcl}, q^{eq}_{icl}`` - liquid and ice water specific content in equilibrium at current temperature and
-   assuming some phase partition function based on temperature
- - ``q_{lcl}, q_{icl}`` - current liquid water and ice specific content,
- - ``\tau_{l}, \tau_{i}`` - relaxation timescales.
-
 !!! note
     Both ``\tau_{l}`` and ``\tau_{i}`` are assumed to be constant.
     It would be great to make the relaxation time a function of

@@ -18,32 +18,6 @@ function test_microphysics_noneq(FT)
         TT.@test CMNe.τ_relax(ice) ≈ FT(10)
     end
 
-    TT.@testset "CloudLiquidCondEvap" begin
-
-        q_liq_sat = FT(5e-3)
-        frac = [FT(0), FT(0.5), FT(1), FT(1.5)]
-
-        _τ_cond_evap = CMNe.τ_relax(liquid)
-
-        for fr in frac
-            q_lcl = q_liq_sat * fr
-            TT.@test CMNe.conv_q_vap_to_q_lcl_icl(liquid, q_liq_sat, q_lcl) ≈ (1 - fr) * q_liq_sat / _τ_cond_evap
-        end
-    end
-
-    TT.@testset "CloudIceCondEvap" begin
-
-        q_ice_sat = FT(2e-3)
-        frac = [FT(0), FT(0.5), FT(1), FT(1.5)]
-
-        _τ_cond_evap = CMNe.τ_relax(ice)
-
-        for fr in frac
-            q_icl = q_ice_sat * fr
-            TT.@test CMNe.conv_q_vap_to_q_lcl_icl(ice, q_ice_sat, q_icl) ≈ (1 - fr) * q_ice_sat / _τ_cond_evap
-        end
-    end
-
     TT.@testset "CondEvap_DepSub_MM2015" begin
 
         ρ = FT(0.8)

@@ -231,19 +231,6 @@ function condensation(params::CondParams, PSD_liq, state, ρ_air)
     )
 end
 
-function condensation(params::NonEqCondParams_simple, PSD, state, ρ_air)
-
-    FT = eltype(state)
-    (; Sₗ, qₗ, qᵥ) = state
-    (; tps, liquid) = params
-
-    q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0)
-
-    new_q = MNE.conv_q_vap_to_q_lcl_icl(liquid, q_sat_liq, qₗ)
-
-    return new_q
-end
-
 function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
@@ -285,20 +272,6 @@ function deposition(params::DepParams, PSD_ice, state, ρ_air)
         min(dqᵢ_dt, limit(qᵥ, const_dt, 1)),
         -min(abs(dqᵢ_dt), limit(qᵢ, const_dt, 1)),
     )
-end
-
-function deposition(params::NonEqDepParams_simple, PSD, state, ρ_air)
-    FT = eltype(state)
-    (; T, Sₗ, qᵥ, qᵢ) = state
-
-    (; tps, ice) = params
-
-    Sᵢ = S_i(tps, T, Sₗ)
-    q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
-
-    new_q = MNE.conv_q_vap_to_q_lcl_icl(ice, q_sat_ice, qᵢ)
-
-    return new_q
 end
 
 function deposition(params::NonEqDepParams, PSD, state, ρ_air)

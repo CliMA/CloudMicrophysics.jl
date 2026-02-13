@@ -202,7 +202,6 @@ function benchmark_test(FT)
 
     @info "Non-equilibrium Microphysics"
     bench_press(FT, CMN.τ_relax, (liquid,), 15)
-    bench_press(FT, CMN.conv_q_vap_to_q_lcl_icl, (ice, FT(2e-3), FT(1e-3)), 15)
     bench_press(
         FT,
         CMN.conv_q_vap_to_q_lcl_icl_MM2015,
