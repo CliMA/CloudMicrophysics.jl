@@ -20,7 +20,7 @@ ice = CMP.CloudIce(override_toml_dict)
 
 T_range = range(233, stop = 271, length = 500)
 
-τᵢ_values = [CMNe.τ_N(ice, aps, ip, q_icl, T) for T in T_range]
+τᵢ_values = [CMNe.τ_Frostenberg(ice, aps, ip, q_icl, T) for T in T_range]
 
 PL.plot(
     T_range,
