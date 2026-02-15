@@ -62,7 +62,7 @@ q_lcl_SB2006 = [
     ).dq_rai_dt for q_lcl in q_lcl_range
 ]
 q_lcl_K1969 =
-    [CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl) for q_lcl in q_lcl_range]
+    [first(CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl)) for q_lcl in q_lcl_range]
 
 N_d_KK2000 =
     [CM2.conv_q_lcl_to_q_rai(KK2000, q_lcl, ρ_air, N_d) for N_d in N_d_range]
@@ -95,7 +95,7 @@ accSB2006_q_lcl = [
     q_lcl in q_lcl_range
 ]
 accK1969_q_lcl = [
-    CM1.accretion(liquid, rain, blk1mvel.rain, ce, q_lcl, q_rai, ρ_air) for
+    first(CM1.accretion(liquid, rain, blk1mvel.rain, ce, q_lcl, q_rai, ρ_air)) for
     q_lcl in q_lcl_range
 ]
 
@@ -109,7 +109,7 @@ accSB2006_q_rai = [
     q_rai in q_rai_range
 ]
 accK1969_q_rai = [
-    CM1.accretion(liquid, rain, blk1mvel.rain, ce, q_lcl, q_rai, ρ_air) for
+    first(CM1.accretion(liquid, rain, blk1mvel.rain, ce, q_lcl, q_rai, ρ_air)) for
     q_rai in q_rai_range
 ]
 

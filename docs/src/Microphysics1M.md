@@ -733,3 +733,17 @@ include("plots/Microphysics1M_plots.jl")
 ![](rain_evaporation_rate.svg)
 ![](snow_sublimation_deposition_rate.svg)
 ![](snow_melt_rate.svg)
+
+## Derivative figures
+
+The derivative ``\partial S / \partial q`` is approximated as ``S / q``,
+  where ``S`` is the tendency and ``q`` is the precipitation specific content
+  (``q_{rai}`` for rain, ``q_{sno}`` for snow).
+
+![](rain_evap_deriv_vs_T.svg)
+![](rain_evap_deriv_vs_qrai.svg)
+![](snow_subl_deriv_vs_T.svg)
+![](snow_subl_deriv_vs_qsno.svg)
+![](snow_melt_deriv_vs_T.svg)
+![](snow_melt_deriv_vs_qsno.svg)
+

@@ -85,7 +85,12 @@ accounts for latent heat release modifying the saturation state.
 - `T` - air temperature [K]
 
 # Returns
-- Cloud condensate tendency [kg/kg/s]
+A tuple `(tendency, ∂tendency_∂q_simple, ∂tendency_∂q)`:
+- `tendency` - Cloud condensate tendency [kg/kg/s]
+- `∂tendency_∂q_simple` - Leading-order approximation of the derivative [1/s],
+  equal to -1/τ_relax
+- `∂tendency_∂q` - Total derivative of tendency w.r.t. cloud condensate [1/s],
+  accounting for implicit temperature feedback (dT/dq = L/cₚ)
 
 # Notes
 This function does NOT apply limiters for small or negative specific humidities.
@@ -111,11 +116,22 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     pᵥ_sat_liq = TDI.saturation_vapor_pressure_over_liquid(tps, T)
     qᵥ_sat_liq = TDI.p2q(tps, T, ρ, pᵥ_sat_liq)
 
-    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
-    Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
+    dqsl_dT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
+    Γₗ = 1 + (Lᵥ / cₚ_air) * dqsl_dT
 
+    # compute the tendency
     tendency = (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
-    return ifelse(tendency < 0 && q_lcl <= 0, zero(tendency), tendency)
+
+    # compute the derivative of the tendency with respect to q_lcl
+    d²qᵥ_sat_liq_dT² = qᵥ_sat_liq * ((Lᵥ / Rᵥ / T^2 - 1/T)^2 + (1/T^2 - 2 * Lᵥ / Rᵥ / T^3))
+    ∂tendency_∂qlcl = -1/τ_relax - tendency /Γₗ * (Lᵥ / cₚ_air)^2 * d²qᵥ_sat_liq_dT²
+    ∂tendency_∂qlcl_simple = -1/τ_relax
+
+    return ifelse(
+        tendency < 0 && q_lcl <= 0,
+        (zero(tendency), zero(∂tendency_∂qlcl_simple), zero(∂tendency_∂qlcl)),
+        (tendency, ∂tendency_∂qlcl_simple, ∂tendency_∂qlcl),
+    )
 end
 
 function conv_q_vap_to_q_lcl_icl_MM2015(
@@ -138,11 +154,22 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     pᵥ_sat_ice = TDI.saturation_vapor_pressure_over_ice(tps, T)
     qᵥ_sat_ice = TDI.p2q(tps, T, ρ, pᵥ_sat_ice)
 
-    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
-    Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
+    dqsi_dT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
+    Γᵢ = 1 + (Lₛ / cₚ_air) * dqsi_dT
 
+    # compute the tendency
     tendency = (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
-    return ifelse(tendency < 0 && q_icl <= 0, zero(tendency), tendency)
+
+    # compute the derivative of the tendency with respect to q_icl
+    d²qᵥ_sat_ice_dT² = qᵥ_sat_ice * ((Lₛ / Rᵥ / T^2 - 1/T)^2 + (1/T^2 - 2 * Lₛ / Rᵥ / T^3))
+    ∂tendency_∂qicl = -1/τ_relax - tendency /Γᵢ * (Lₛ / cₚ_air)^2 * d²qᵥ_sat_ice_dT²
+    ∂tendency_∂qicl_simple = -1/τ_relax
+
+    return ifelse(
+        tendency < 0 && q_icl <= 0,
+        (zero(tendency), zero(∂tendency_∂qicl_simple), zero(∂tendency_∂qicl)),
+        (tendency, ∂tendency_∂qicl_simple, ∂tendency_∂qicl)
+    )
 end
 
 """

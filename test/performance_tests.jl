@@ -204,7 +204,7 @@ function benchmark_test(FT)
     bench_press(FT, CMN.τ_relax, (liquid,), 15)
     bench_press(FT, CMN.conv_q_vap_to_q_lcl_icl, (ice, FT(2e-3), FT(1e-3)), 15)
     bench_press(
-        FT,
+        NTuple{3, FT},
         CMN.conv_q_vap_to_q_lcl_icl_MM2015,
         (liquid, tps, FT(0.00145), FT(0), FT(0), FT(0), FT(0), FT(0.8), FT(263)),
         70,
@@ -214,7 +214,7 @@ function benchmark_test(FT)
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)
 
     @info "1-Moment Scheme"
-    bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air), 360)
+    bench_press(NTuple{2, FT}, CM1.accretion, (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air), 360)
     bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
 
     @info "2-Moment Scheme"

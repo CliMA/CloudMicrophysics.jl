@@ -330,16 +330,19 @@ over the threshold, avoiding discontinuities in the tendency.
 - `smooth_transition`: flag to switch on smoothing
 
 # Returns
-- Rain autoconversion rate [kg/kg/s]
+A tuple `(tendency, ∂tendency)` where `∂tendency` is the derivative (currently zero).
 """
-@inline conv_q_lcl_to_q_rai(
+@inline function conv_q_lcl_to_q_rai(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
     q_lcl::FT,
     smooth_transition::Bool = false,
-) where {FT} =
-    smooth_transition ?
-    CO.logistic_function_integral(q_lcl, q_threshold, k) / τ :
-    max(0, q_lcl - q_threshold) / τ
+) where {FT}
+    rate =
+        smooth_transition ?
+        CO.logistic_function_integral(q_lcl, q_threshold, k) / τ :
+        max(0, q_lcl - q_threshold) / τ
+    return (rate, zero(rate))
+end
 
 """
     conv_q_icl_to_q_sno_no_supersat(acnv::Acnv1M, q_icl, smooth_transition)
@@ -352,15 +355,21 @@ This is a simplified version for use in simulations without supersaturation
 - `acnv`: autoconversion parameters (contains `τ`, `q_threshold`, `k`)
 - `q_icl`: cloud ice specific content
 - `smooth_transition`: flag to switch on smoothing
+
+# Returns
+A tuple `(tendency, ∂tendency)` where `∂tendency` is the derivative (currently zero).
 """
-@inline conv_q_icl_to_q_sno_no_supersat(
+@inline function conv_q_icl_to_q_sno_no_supersat(
     (; τ, q_threshold, k)::CMP.Acnv1M{FT},
     q_icl::FT,
     smooth_transition::Bool = false,
-) where {FT} =
-    smooth_transition ?
-    CO.logistic_function_integral(q_icl, q_threshold, k) / τ :
-    max(0, q_icl - q_threshold) / τ
+) where {FT}
+    rate =
+        smooth_transition ?
+        CO.logistic_function_integral(q_icl, q_threshold, k) / τ :
+        max(0, q_icl - q_threshold) / τ
+    return (rate, zero(rate))
+end
 
 """
     conv_q_icl_to_q_sno(ice::CloudIce, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
@@ -382,6 +391,8 @@ Parameterized following:
 - `ρ`: air density [kg/m³]
 - `T`: air temperature [K]
 
+# Returns
+A tuple `(tendency, ∂tendency)` where `∂tendency` is the derivative (currently zero).
 """
 @inline function conv_q_icl_to_q_sno(
     (; r_ice_snow, pdf, mass)::CMP.CloudIce{FT},
@@ -410,7 +421,7 @@ Parameterized following:
             exp(-r_ice_snow / λ_inv) *
             (r_ice_snow^2 / (me + Δm) + (r_ice_snow / λ_inv + 1) * λ_inv^2)
     end
-    return acnv_rate
+    return (acnv_rate, zero(acnv_rate))
 end
 
 """
@@ -427,6 +438,9 @@ with cloud water (liquid or ice).
 - `q_clo`: cloud liquid water or cloud ice specific content
 - `q_pre`: rain or snow specific content
 - `ρ`: air density
+
+# Returns
+A tuple `(tendency, ∂tendency)` where `∂tendency` is the derivative (currently zero).
 """
 @inline function accretion(
     cloud::CMP.CloudCondensateType{FT},
@@ -456,7 +470,7 @@ with cloud water (liquid or ice).
             q_clo * E * n0 * a0 * v0 * χa * χv * λ_inv *
             gamma_accr / (r0 / λ_inv)^(ae + ve + Δa + Δv)
     end
-    return accr_rate
+    return (accr_rate, zero(accr_rate))
 end
 
 """
@@ -473,6 +487,9 @@ with cloud ice.
 - `q_icl`: cloud ice specific content
 - `q_rai`: rain water specific content
 - `ρ`: air density
+
+# Returns
+A tuple `(tendency, ∂tendency)` where `∂tendency` is the derivative (currently zero).
 """
 @inline function accretion_rain_sink(
     rain::CMP.Rain{FT},
@@ -504,7 +521,7 @@ with cloud ice.
             SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) /
             (r0 / λ_inv)^FT(me + ae + ve + Δm + Δa + Δv)
     end
-    return accr_rate
+    return (accr_rate, zero(accr_rate))
 end
 
 """
@@ -527,7 +544,7 @@ deviations are proportional to the mean fall velocities, with coefficient
 - `ρ`: air density [kg/m³]
 
 # Returns
-- Accretion rate [kg/kg/s]
+A tuple `(tendency, ∂tendency)` where `∂tendency` is the derivative (currently zero).
 """
 @inline function accretion_snow_rain(
     type_i::CMP.PrecipitationType{FT},
@@ -572,7 +589,7 @@ deviations are proportional to the mean fall velocities, with coefficient
                 (δ + 2) * (δ + 1) * λ_i_inv * λ_j_inv^(δ + 3)
             )
     end
-    return accr_rate
+    return (accr_rate, zero(accr_rate))
 end
 
 """
@@ -600,7 +617,9 @@ https://doi.org/10.1007/s00703-005-0112-4.
 - `T`: air temperature [K]
 
 # Returns
-- Evaporation/sublimation/deposition rate [kg/kg/s]
+A tuple `(tendency, ∂tendency/∂q)` where `∂tendency/∂q ≈ tendency / q` is the
+leading-order derivative approximation with respect to the precipitation
+specific content (`q_rai` for rain, `q_sno` for snow).
 """
 @inline function evaporation_sublimation(
     (; pdf, mass, vent)::CMP.Rain{FT},
@@ -649,7 +668,10 @@ https://doi.org/10.1007/s00703-005-0112-4.
         end
     end
     # only evaporation is considered for rain
-    return min(0, evap_subl_rate)
+    rate = min(0, evap_subl_rate)
+    # derivative approximation: ∂(tendency)/∂q_rai ≈ tendency / q_rai
+    drate = q_rai > UT.ϵ_numerics(FT) ? rate / q_rai : zero(rate)
+    return (rate, drate)
 end
 
 @inline function evaporation_sublimation(
@@ -695,7 +717,9 @@ end
             )
     end
     # both sublimation (S < 0) and deposition (S > 0) are considered for snow
-    return evap_subl_rate
+    # derivative approximation: ∂(tendency)/∂q_sno ≈ tendency / q_sno
+    drate = q_sno > UT.ϵ_numerics(FT) ? evap_subl_rate / q_sno : zero(evap_subl_rate)
+    return (evap_subl_rate, drate)
 end
 
 """
@@ -711,6 +735,10 @@ Returns the tendency due to snow melt.
 - `q_sno`: snow water specific content
 - `ρ`: air density
 - `T`: air temperature
+
+# Returns
+A tuple `(tendency, ∂tendency/∂q_sno)` where `∂tendency/∂q_sno ≈ tendency / q_sno`
+is the leading-order derivative approximation.
 """
 @inline function snow_melt(
     (; T_freeze, pdf, mass, vent)::CMP.Snow{FT},
@@ -751,7 +779,9 @@ Returns the tendency due to snow melt.
                 gamma_vent
             )
     end
-    return snow_melt_rate
+    # derivative approximation: ∂(tendency)/∂q_sno ≈ tendency / q_sno
+    drate = q_sno > UT.ϵ_numerics(FT) ? snow_melt_rate / q_sno : zero(snow_melt_rate)
+    return (snow_melt_rate, drate)
 end
 
 end #module Microphysics1M.jl

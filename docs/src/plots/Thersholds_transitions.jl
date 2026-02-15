@@ -40,9 +40,9 @@ N_d_range = range(1e7, stop = 1e9, length = 1000)
 N_d = 1e8
 
 q_lcl_K1969 =
-    [CM1.conv_q_lcl_to_q_rai(rain[1].acnv1M, q_lcl) for q_lcl in q_lcl_range]
+    [first(CM1.conv_q_lcl_to_q_rai(rain[1].acnv1M, q_lcl)) for q_lcl in q_lcl_range]
 q_lcl_K1969_s = [
-    CM1.conv_q_lcl_to_q_rai(rain[1].acnv1M, q_lcl, true) for
+    first(CM1.conv_q_lcl_to_q_rai(rain[1].acnv1M, q_lcl, true)) for
     q_lcl in q_lcl_range
 ]
 
