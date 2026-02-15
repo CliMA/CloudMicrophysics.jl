@@ -296,14 +296,21 @@ end
 # --- 0-Moment Microphysics ---
 
 """
-    bulk_microphysics_tendencies(
-        ::Microphysics0Moment,
-        mp,
-        tps,
-        T,
-        q_lcl,
-        q_icl,
-    )
+    _precip_energy(tps, T, q_lcl, q_icl)
+
+Internal energy of removed condensate, weighted by the liquid fraction.
+Shared helper for the two 0-moment `bulk_microphysics_tendencies` methods.
+"""
+@inline function _precip_energy(tps, T, q_lcl, q_icl)
+    λ = TDI.liquid_fraction(tps, T, q_lcl, q_icl)
+    I_liq = TDI.internal_energy_liquid(tps, T)
+    I_ice = TDI.internal_energy_ice(tps, T)
+    return λ * I_liq + (1 - λ) * I_ice
+end
+
+"""
+    bulk_microphysics_tendencies(::Microphysics0Moment, mp, tps, T, q_lcl, q_icl)
+    bulk_microphysics_tendencies(::Microphysics0Moment, mp, tps, T, q_lcl, q_icl, q_vap_sat)
 
 Compute 0-moment microphysics tendencies in one fused call.
 
@@ -313,13 +320,16 @@ Returns a NamedTuple with:
 
 Caller adds geopotential Φ for energy tendency: `e_tot = dq_tot_dt * (e_int_precip + Φ)`
 
+The first form uses the fixed condensate threshold `qc_0`;
+the second form uses the supersaturation threshold `S_0 * q_vap_sat`.
+
 # Arguments
-- `mp`: NamedTuple with microphysics parameters:
-  - `params_0M`: Parameters0M struct (contains τ_precip, qc_0 or S_0)
+- `mp`: Microphysics0MParams (contains τ_precip, qc_0, S_0)
 - `tps`: Thermodynamics parameters
 - `T`: Temperature [K]
 - `q_lcl`: Cloud liquid specific content [kg/kg]
 - `q_icl`: Cloud ice specific content [kg/kg]
+- `q_vap_sat`: (second method only) Saturation specific humidity [kg/kg]
 
 # Notes
 - Does NOT apply limiters (caller applies based on timestep)
@@ -333,22 +343,26 @@ Caller adds geopotential Φ for energy tendency: `e_tot = dq_tot_dt * (e_int_pre
     q_lcl,
     q_icl,
 )
-    # Clamp negative specific contents to zero (robustness against numerical errors)
     q_lcl = UT.clamp_to_nonneg(q_lcl)
     q_icl = UT.clamp_to_nonneg(q_icl)
+    dq_tot_dt = CM0.remove_precipitation(mp.precip, q_lcl, q_icl)
+    e_int_precip = _precip_energy(tps, T, q_lcl, q_icl)
+    return (; dq_tot_dt, e_int_precip)
+end
 
-    # Unpack microphysics parameters
-    params_0M = mp.precip
-
-    # Precipitation removal rate
-    dq_tot_dt = CM0.remove_precipitation(params_0M, q_lcl, q_icl)
-
-    # Internal energy of removed condensate (liquid fraction weighted)
-    λ = TDI.liquid_fraction(tps, T, q_lcl, q_icl)
-    I_liq = TDI.internal_energy_liquid(tps, T)
-    I_ice = TDI.internal_energy_ice(tps, T)
-    e_int_precip = λ * I_liq + (1 - λ) * I_ice
-
+@inline function bulk_microphysics_tendencies(
+    ::Microphysics0Moment,
+    mp::CMP.Microphysics0MParams,
+    tps,
+    T,
+    q_lcl,
+    q_icl,
+    q_vap_sat,
+)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_icl = UT.clamp_to_nonneg(q_icl)
+    dq_tot_dt = CM0.remove_precipitation(mp.precip, q_lcl, q_icl, q_vap_sat)
+    e_int_precip = _precip_energy(tps, T, q_lcl, q_icl)
     return (; dq_tot_dt, e_int_precip)
 end
 

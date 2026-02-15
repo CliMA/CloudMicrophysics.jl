@@ -314,6 +314,16 @@ end
     output[i] = BMT.bulk_microphysics_tendencies(CM0M, mp, tps, T[i], ql, qi)
 end
 
+@kernel inbounds = true function test_bulk_tendencies_0m_S0_kernel!(
+    mp, tps, output, liquid_frac, qc, T, q_vap_sat,
+)
+    i = @index(Global, Linear)
+    ql = qc[i] * liquid_frac[i]
+    qi = (1 - liquid_frac[i]) * qc[i]
+    CM0M = BMT.Microphysics0Moment()
+    output[i] = BMT.bulk_microphysics_tendencies(CM0M, mp, tps, T[i], ql, qi, q_vap_sat[i])
+end
+
 @kernel inbounds = true function test_bulk_tendencies_1m_kernel!(
     mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
@@ -931,6 +941,18 @@ function test_gpu(FT)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test tendencies.dq_tot_dt ≤ 0  # Precipitation removal (dq_tot_dt) always negative or zero
+            TT.@test isfinite(tendencies.e_int_precip)
+        end
+
+        # 0M S_0 tests (with q_vap_sat)
+        (; output) = setup_output(ndrange, DT)
+        q_vap_sat = constant_data(FT(0.01); ndrange)
+        kernel_s0! = test_bulk_tendencies_0m_S0_kernel!(backend, work_groups)
+        TT.@testset "0M S_0" begin
+            kernel_s0!(mp_0m, tps, output, liquid_frac, qc, T, q_vap_sat; ndrange)
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test tendencies.dq_tot_dt ≤ 0
             TT.@test isfinite(tendencies.e_int_precip)
         end
 
