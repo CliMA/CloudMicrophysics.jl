@@ -50,10 +50,8 @@ function generate_cond_evap_rate(::HydrostaticBalance_qₗ_z)
     ρ = 1; title *= "ρ=$(ρ)kg/m³, "
     dt = 1; title *= "dt=$(dt)s, "
     τ_relax = 1; title *= "τ_relax=$(τ_relax)s, "
-    cm_params = CM.Parameters.CloudLiquid(FT)
-    cm_params = CM.Parameters.CloudLiquid(FT(τ_relax), cm_params.ρw, cm_params.r_eff, cm_params.N_0) # overwrite τ_relax
 
-    data = @. CMNe.conv_q_vap_to_q_lcl_icl_MM2015(cm_params, thp, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T)
+    data = @. CMNe.conv_q_vap_to_q_lcl_MM2015(thp, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T, τ_relax)
     colorrange = extrema(data)
     @. data[iszero(data)] = NaN  # set zero values to NaN, then use `nan_color=:gray` to show them as gray. These are clipped values.
     colormap = spliced_cmap(:blues, :reds, colorrange...; mid = 0, categorical = true, symmetrize_color_ranges = true)
@@ -82,10 +80,8 @@ function generate_cond_evap_rate(::Range_qₗ_T)
     ρ = 1; title *= "ρ=$(ρ)kg/m³, "
     dt = 1; title *= "dt=$(dt)s, "
     τ_relax = 1; title *= "τ_relax=$(τ_relax)s, "
-    cm_params = CM.Parameters.CloudLiquid(FT)
-    cm_params = CM.Parameters.CloudLiquid(FT(τ_relax), cm_params.ρw, cm_params.r_eff) # overwrite τ_relax
 
-    data = @. CMNe.conv_q_vap_to_q_lcl_icl_MM2015(cm_params, thp, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T')
+    data = @. CMNe.conv_q_vap_to_q_lcl_MM2015(thp, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T', τ_relax)
     colorrange = extrema(data)
     @. data[iszero(data)] = NaN  # set zero values to NaN, then use `nan_color=:gray` to show them as gray. These are clipped values.
     colormap = spliced_cmap(:blues, :reds, colorrange...; mid = 0, categorical = true, symmetrize_color_ranges = true)
