@@ -40,6 +40,27 @@ function run_type_stability_tests()
                 @test getproperty(val0, k) isa FT
             end
 
+            # --- 0-Moment (S_0 mode) ---
+            ρ_0M = fill(FT(1.2), N)
+            q_vap_sat_0M = fill(FT(0.01), N)
+            tendencies_0M_S0 =
+                BMT.bulk_microphysics_tendencies.(
+                    Ref(BMT.Microphysics0Moment()),
+                    Ref(mp0),
+                    Ref(tps),
+                    T_0M,
+                    q_lcl_0M,
+                    q_icl_0M,
+                    q_vap_sat_0M,
+                )
+
+            @test tendencies_0M_S0 isa Vector
+            @test eltype(tendencies_0M_S0) <: NamedTuple
+            val0s = tendencies_0M_S0[1]
+            for k in keys(val0s)
+                @test getproperty(val0s, k) isa FT
+            end
+
             # --- 1-Moment ---
             mp1 = CMP.Microphysics1MParams(FT)
             ρ = fill(FT(1.2), N)

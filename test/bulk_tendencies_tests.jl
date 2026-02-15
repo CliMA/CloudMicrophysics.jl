@@ -548,6 +548,53 @@ function test_bulk_microphysics_0m_tendencies(FT)
         )
         @test tendencies isa NamedTuple{(:dq_tot_dt, :e_int_precip), NTuple{2, FT}}
     end
+
+    @testset "BulkMicrophysicsTendencies 0M - S_0 precipitation removal" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_lcl = FT(2e-3)
+        q_icl = FT(0)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        tendencies = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl, q_vap_sat,
+        )
+
+        # Should be negative (removing condensate above S_0 * q_vap_sat)
+        @test tendencies.dq_tot_dt < FT(0)
+        @test isfinite(tendencies.e_int_precip)
+    end
+
+    @testset "BulkMicrophysicsTendencies 0M - S_0 below threshold" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        # Condensate below S_0 * q_vap_sat
+        q_lcl = FT(1e-8)
+        q_icl = FT(0)
+
+        tendencies = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl, q_vap_sat,
+        )
+
+        @test tendencies.dq_tot_dt == FT(0)
+    end
+
+    @testset "BulkMicrophysicsTendencies 0M - S_0 type stability" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(5)
+        q_lcl = FT(1e-3)
+        q_icl = FT(5e-4)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        tendencies = @inferred BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl, q_vap_sat,
+        )
+        @test tendencies isa NamedTuple{(:dq_tot_dt, :e_int_precip), NTuple{2, FT}}
+    end
 end
 
 function test_bulk_microphysics_2m_tendencies(FT)
