@@ -167,7 +167,8 @@ This is a pure function of local thermodynamic state, suitable for:
     q_sno,
     N_lcl = zero(ρ),
 )
-    # Clamp negative specific contents to zero (robustness against numerical errors)
+    # Clamp negative inputs to zero (robustness against numerical errors)
+    ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)
     q_lcl = UT.clamp_to_nonneg(q_lcl)
     q_icl = UT.clamp_to_nonneg(q_icl)
@@ -484,7 +485,8 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     b_rim = zero(ρ),
     logλ = zero(ρ),
 ) where {FT, WR}
-    # Clamp negative specific contents and number concentrations to zero (robustness against numerical errors)
+    # Clamp negative inputs to zero (robustness against numerical errors)
+    ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)
     q_lcl = UT.clamp_to_nonneg(q_lcl)
     q_rai = UT.clamp_to_nonneg(q_rai)
@@ -592,7 +594,8 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     b_rim = zero(ρ),
     logλ = zero(ρ),
 ) where {FT, WR, ICE <: CMP.P3IceParams}
-    # Clamp negative specific contents and number concentrations to zero (robustness against numerical errors)
+    # Clamp negative inputs to zero (robustness against numerical errors)
+    ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)
     q_lcl = UT.clamp_to_nonneg(q_lcl)
     q_rai = UT.clamp_to_nonneg(q_rai)

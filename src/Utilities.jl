@@ -11,24 +11,24 @@ export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N
 """
     clamp_to_nonneg(x)
 
-Clamp values to be non-negative in an automatic differentiation (AD) compatible way.
-Uses `ifelse` to preserve dual number types during AD.
+Clamp values to be non-negative.
+Compatible with dual numbers (AD) and GPUs.
 
 # Arguments
 - `x`: value to clamp
 
 # Returns
-- `x` if `x ≥ 0`, otherwise `0*x` (preserving the type of x)
+- `max(zero(x), x)`
 """
-@inline clamp_to_nonneg(x) = ifelse(x < 0, 0 * x, x)
+@inline clamp_to_nonneg(x) = max(zero(x), x)
 
 """
     ϵ_numerics(FT)
 
 Smallest number that is different than zero for the purpose of microphysics
-computations. Returns `sqrt(floatmin(FT))` to avoid underflow issues.
+computations. Returns `cbrt(floatmin(FT))` to avoid underflow issues.
 """
-@inline ϵ_numerics(FT) = sqrt(floatmin(FT))
+@inline ϵ_numerics(FT) = cbrt(floatmin(FT))
 
 """
     ϵ_numerics_2M_M(FT)
