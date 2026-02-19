@@ -1,8 +1,8 @@
 """
     Microphysics0M
 
-Zero-moment bulk microphysics scheme that removes cloud condensate 
-above a threshold, equivalent to instantaneous conversion to precipitation 
+Zero-moment bulk microphysics scheme that removes cloud condensate
+above a threshold, equivalent to instantaneous conversion to precipitation
 with infinite terminal velocity.
 """
 module Microphysics0M
@@ -19,10 +19,10 @@ export remove_precipitation
 
 Compute the total water tendency due to precipitation removal.
 
-The tendency assumes relaxation with constant timescale to a state 
-with condensate above a threshold removed. The threshold is defined 
-by either fixed condensate specific humidity (`qc_0`) or fixed 
-supersaturation (`S_0`), along with the relaxation timescale, 
+The tendency assumes relaxation with constant timescale to a state
+with condensate above a threshold removed. The threshold is defined
+by either fixed condensate specific humidity (`qc_0`) or fixed
+supersaturation (`S_0`), along with the relaxation timescale,
 specified in the `Parameters0M` struct.
 
 # Arguments
@@ -46,16 +46,5 @@ remove_precipitation(
     q_icl,
     q_vap_sat,
 ) = -max(0, (q_lcl + q_icl - S_0 * q_vap_sat)) / τ_precip
-
-###
-### Wrappers for calling with TD.PhasePartition (deprecated)
-###
-### For now leaving the PhasePartition wrapper because I'm not sure how to get
-### rid of equilibrium thermo state in the Atmos model.
-###
-remove_precipitation(params::CMP.Parameters0M, q::TDI.TD.PhasePartition) =
-    remove_precipitation(params, q.liq, q.ice)
-remove_precipitation(params::CMP.Parameters0M, q::TDI.TD.PhasePartition, q_vap_sat) =
-    remove_precipitation(params, q.liq, q.ice, q_vap_sat)
 
 end #module Microphysics0M.jl
