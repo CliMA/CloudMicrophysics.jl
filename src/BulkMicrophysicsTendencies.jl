@@ -76,6 +76,20 @@ This unified scheme handles:
 """
 struct Microphysics2Moment <: MicrophysicsScheme end
 
+"""
+    NonEq Scheme
+
+Abstract type for NonEquilibrium microphysics parameterizations. Namely,
+this scheme specifies how to set the relaxation timescales (τₗ, τᵢ) for
+liquid condensation/evaporation and ice deposition/sublimation.
+NonEq_Constant sets τₗ and τᵢ are determined by the τ_relax arguments in
+lcl and icl, whereas NonEq_N calculates τₗ and τᵢ from liquid and ice
+number concentration.
+"""
+abstract type NonEqScheme end
+struct NonEq_Constant <:  NonEqScheme end
+struct NonEq_N <:  NonEqScheme end
+
 # --- Helper Functions ---
 
 """
@@ -100,8 +114,10 @@ end
 """
     bulk_microphysics_tendencies(
         ::Microphysics1Moment,
+        ::NonEqScheme,
         mp,
         tps,
+        aps,
         ρ,
         T,
         q_tot,
@@ -130,6 +146,7 @@ This is a pure function of local thermodynamic state, suitable for:
   - `vel`: Blk1MVelType parameters
   - `var`: VarTimescaleAcnv parameters (optional, for 2M autoconversion)
 - `tps`: Thermodynamics parameters
+- `aps`: AirProperties parameters
 - `ρ`: Air density [kg/m³]
 - `T`: Temperature [K]
 - `q_tot`: Total water specific content [kg/kg]
@@ -156,7 +173,9 @@ This is a pure function of local thermodynamic state, suitable for:
 """
 @inline function bulk_microphysics_tendencies(
     ::Microphysics1Moment,
+    noneq_scheme::NonEqScheme,
     mp::CMP.Microphysics1MParams,
+    aps,
     tps,
     ρ,
     T,
@@ -193,12 +212,20 @@ This is a pure function of local thermodynamic state, suitable for:
 
     # --- Cloud condensate formation (non-equilibrium) ---
 
+    if noneq_scheme isa NonEq_Constant
+        τₗ = lcl.τ_relax
+        τᵢ = icl.τ_relax
+    elseif noneq_scheme isa NonEq_N # this assumes we're using the Frostenberg parameterization for τᵢ
+        τₗ = CMNonEq.τ_N(q_icl, N_lcl, lcl.ρw, aps.D_vapor)
+        τᵢ = CMNonEq.τ_Frostenberg(icl, aps, ip, q_icl, T)
+    end
+
     # Condensation/evaporation of cloud liquid
-    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_MM2015(tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T, τₗ)
     dq_lcl_dt += S_lcl_cond
 
     # Deposition/sublimation of cloud ice
-    S_icl_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    S_icl_dep = CMNonEq.conv_q_vap_to_q_icl_MM2015(tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T, τᵢ)
     # No ice deposition above freezing (lack of INPs) - use ifelse to avoid GPU branching
     S_icl_dep = ifelse(T > tps.T_freeze, min(S_icl_dep, zero(T)), S_icl_dep)
     dq_icl_dt += S_icl_dep

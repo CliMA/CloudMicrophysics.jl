@@ -253,7 +253,7 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
         qₜ = qᵥ + qₗ + qᵢ
 
-        cond_rate = MNE.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+        cond_rate = MNE.conv_q_vap_to_q_lcl_MM2015(tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T, liquid.τ_relax)
 
         # Using same limiter as ClimaAtmos for now
         # Not sure why, but without intermediate storing of the tendencies for the
@@ -310,7 +310,31 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     if qᵥ + qᵢ > FT(0)
         qₜ = qᵥ + qₗ + qᵢ
 
-        dep_rate = MNE.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+        dep_rate = MNE.conv_q_vap_to_q_icl_MM2015(tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T, ice.τ_relax)
+
+        # Using same limiter as ClimaAtmos for now
+        # Not sure why, but without intermediate storing of the tendencies for the
+        # if/else branch this code segfaults on julia v1.11 (works fine on v1.10)
+        dep_limit = min(dep_rate, limit(qᵥ, dt, 1))
+        sub_limit = min(abs(dep_rate), limit(qᵢ, dt, 1))
+        ret = ifelse(dep_rate > FT(0), dep_limit, -1 * sub_limit)
+        return ret
+    else
+        return FT(0)
+    end
+end
+
+function deposition(params::NonEqDepFrostenbergParams, PSD, state, ρ_air)
+    FT = eltype(state)
+    (; T, qₗ, qᵥ, qᵢ) = state
+
+    (; aps, tps, ip, ice, dt) = params
+
+    if qᵥ + qᵢ > FT(0)
+        qₜ = qᵥ + qₗ + qᵢ
+
+        τᵢ = MNE.τ_Frostenberg(ice, aps, ip, qᵢ, T)
+        dep_rate = MNE.conv_q_vap_to_q_icl_MM2015(tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T, τᵢ)
 
         # Using same limiter as ClimaAtmos for now
         # Not sure why, but without intermediate storing of the tendencies for the
