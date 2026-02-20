@@ -100,7 +100,7 @@ The particle size distributions are assumed to follow
 
 ```math
 \begin{equation}
-  n(r) = n_{0} exp\left(- \lambda \, r \right)
+  n(r) = n_{0} \exp\left(- \lambda \, r \right)
 \end{equation}
 ```
 
@@ -151,7 +151,7 @@ where:
 - ``q`` is rain, snow or ice specific content
 - ``\chi_m``, ``m_0``, ``m_e``, ``\Delta_m``, ``r_0``, and ``n_0``
    are the corresponding mass(radius) and size distribution parameters
-- ``\Gamma()`` is the gamma function
+- ``\Gamma(\cdot)`` is the gamma function
 
 The cloud-ice size distribution is used
   when computing snow autoconversion rate and rain sink due to accretion.
@@ -188,23 +188,23 @@ Parameters used in the parameterization are defined in
   [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package.
 They consist of:
 
-|    symbol                  |         definition                                        | units                    | default value          | reference |
-|----------------------------|-----------------------------------------------------------|--------------------------|------------------------|-----------|
-|``\tau_{acnv\_rain}``       | cloud liquid to rain water autoconversion timescale       | ``s``                    | ``10^3``               | eq (5a) [Grabowski1996](@cite) |
-|``\tau_{acnv\_snow}``       | cloud ice to snow autoconversion timescale                | ``s``                    | ``10^2``               |           |
-|``q_{lcl\_threshold}``      | cloud liquid to rain water autoconversion threshold       | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite) |
-|``q_{icl\_threshold}``      | cloud ice snow autoconversion threshold                   | -                        | ``1 \cdot 10^{-6}``    |           |
-|``r_{is}``                  | threshold particle radius between ice and snow            | ``m``                    | ``62.5 \cdot 10^{-6}`` | abstract [Harrington1995](@cite) |
-|``E_{lr}``                  | collision efficiency between rain drops and cloud droplets| -                        | ``0.8``                | eq (16a) [Grabowski1998](@cite) |
-|``E_{ls}``                  | collision efficiency between snow and cloud droplets      | -                        | ``0.1``                | Appendix B [Rutledge1983](@cite) |
-|``E_{ir}``                  | collision efficiency between rain drops and cloud ice     | -                        | ``1``                  | Appendix B [Rutledge1984](@cite) |
-|``E_{is}``                  | collision efficiency between snow and cloud ice           | -                        | ``0.1``                | bottom page 3649 [Morrison2008](@cite) |
-|``E_{rs}``                  | collision efficiency between rain drops and snow          | -                        | ``1``                  | top page 3650 [Morrison2008](@cite) |
-|``a_{vent}^{rai}, b_{vent}^{rai}`` | rain drop ventilation factor coefficients          | -                        | ``1.5 \;``,``\; 0.53`` | chosen such that at ``q_{tot}=15 g/kg`` and ``T=288K`` the evap. rate is close to empirical evap. rate in [Grabowski1996](@cite) |
-|``a_{vent}^{sno}, b_{vent}^{sno}`` | snow ventilation factor coefficients               | -                        | ``0.65 \;``,``\; 0.44``| eq (A19) [Kaul2015](@cite) |
-|``K_{therm}``               | thermal conductivity of air                               | ``\frac{J}{m \; s \; K}``| ``2.4 \cdot 10^{-2}``  |           |
-|``\nu_{air}``               | kinematic viscosity of air                                | ``\frac{m^2}{s}``        | ``1.6 \cdot 10^{-5}``  |           |
-|``D_{vapor}``               | diffusivity of water vapor                                | ``\frac{m^2}{s}``        | ``2.26 \cdot 10^{-5}`` |           |
+|    symbol                  |         definition                                         | units                    | default value          | reference |
+|----------------------------|------------------------------------------------------------|--------------------------|------------------------|-----------|
+|``\tau_\text{acnv\_rain}``  | cloud liquid to rain water autoconversion timescale        | ``s``                    | ``10^3``               | eq (5a) [Grabowski1996](@cite) |
+|``\tau_\text{acnv\_snow}``  | cloud ice to snow autoconversion timescale                 | ``s``                    | ``10^2``               |           |
+|``q_\text{lcl\_threshold}`` | cloud liquid to rain water autoconversion threshold        | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite) |
+|``q_\text{icl\_threshold}`` | cloud ice snow autoconversion threshold                    | -                        | ``1 \cdot 10^{-6}``    |           |
+|``r_{is}``                  | threshold particle radius between ice and snow             | ``m``                    | ``62.5 \cdot 10^{-6}`` | abstract [Harrington1995](@cite) |
+|``E_{lr}``                  | collision efficiency between rain drops and cloud droplets | -                        | ``0.8``                | eq (16a) [Grabowski1998](@cite) |
+|``E_{ls}``                  | collision efficiency between snow and cloud droplets       | -                        | ``0.1``                | Appendix B [Rutledge1983](@cite) |
+|``E_{ir}``                  | collision efficiency between rain drops and cloud ice      | -                        | ``1``                  | Appendix B [Rutledge1984](@cite) |
+|``E_{is}``                  | collision efficiency between snow and cloud ice            | -                        | ``0.1``                | bottom page 3649 [Morrison2008](@cite) |
+|``E_{rs}``                  | collision efficiency between rain drops and snow           | -                        | ``1``                  | top page 3650 [Morrison2008](@cite) |
+|``a_\text{vent}^{rai}, b_\text{vent}^{rai}`` | rain drop ventilation factor coefficients | -             | ``1.5 \;``,``\; 0.53`` | chosen such that at ``q_{tot}=15 g/kg`` and ``T=288K`` the evap. rate is close to empirical evap. rate in [Grabowski1996](@cite) |
+|``a_\text{vent}^{sno}, b_\text{vent}^{sno}`` | snow ventilation factor coefficients      | -             | ``0.65 \;``,``\; 0.44``| eq (A19) [Kaul2015](@cite) |
+|``K_\text{thermo}``         | thermal conductivity of air                                | ``\frac{J}{m \; s \; K}``| ``2.4 \cdot 10^{-2}``  |           |
+|``\nu_\text{air}``          | kinematic viscosity of air                                 | ``\frac{m^2}{s}``        | ``1.6 \cdot 10^{-5}``  |           |
+|``D_\text{vapor}``          | diffusivity of water vapor                                 | ``\frac{m^2}{s}``        | ``2.26 \cdot 10^{-5}`` |           |
 
 ## Ventilation factor
 
@@ -222,25 +222,25 @@ Following [SeifertBeheng2006](@cite)
 
 where:
 
-- ``a_{vent}``, ``b_{vent}`` are coefficients,
+- ``a_\text{vent}``, ``b_\text{vent}`` are coefficients,
 - ``N_{Sc}`` is the Schmidt number,
 - ``N_{Re}`` is the Reynolds number of a falling particle.
 
 The Schmidt number is assumed constant:
 
 ```math
-N_{Sc} = \frac{\nu_{air}}{D_{vapor}}
+N_{Sc} = \frac{\nu_\text{air}}{D_\text{vapor}}
 ```
 
 where:
 
-- ``\nu_{air}`` is the kinematic viscosity of air,
-- ``D_{vapor}`` is the diffusivity of water.
+- ``\nu_\text{air}`` is the kinematic viscosity of air,
+- ``D_\text{vapor}`` is the diffusivity of water.
 
 The Reynolds number of a spherical drop is defined as:
 
 ```math
-N_{Re} = \frac{2 \, r \, v_{term}(r)}{\nu_{air}}
+N_{Re} = \frac{2 \, r \, v_\text{term}(r)}{\nu_\text{air}}
 ```
 
 Applying the terminal velocity(radius) relationship results in
@@ -263,15 +263,14 @@ The mass weighted terminal velocity ``v_t`` (following [Ogura1971](@cite)) is:
 
 ```math
 \begin{equation}
-  v_t = \frac{\int_0^\infty n(r) \, m(r) \, v_{term}(r) \, dr}
+  v_t = \frac{\int_0^\infty n(r) \, m(r) \, v_\text{term}(r) \, dr}
              {\int_0^\infty n(r) \, m(r) \, dr}
-\label{eq:vt}
 \end{equation}
 ```
 
 See [here](https://clima.github.io/CloudMicrophysics.jl/dev/TerminalVelocity.html)
-  for discussion of the different parameterizations of ``v_{term}``.
-Integrating the 1-moment ``m(r)`` and power-law ``v_{term}(r)`` relationships
+  for discussion of the different parameterizations of ``v_\text{term}``.
+Integrating the 1-moment ``m(r)`` and power-law ``v_\text{term}(r)`` relationships
     over the assumed Marshall-Palmer distribution results in group terminal velocity:
 
 ```math
@@ -287,13 +286,13 @@ Integrating the Chen et al. [Chen2022](@cite) formulae over the assumed Marshall
 
 ```math
 \begin{equation}
-  v_t = \phi_{avg}^\kappa \sum_{i=1}^{j} \frac{a_i \lambda^{\delta} \Gamma(b_i + \delta)}{(\lambda + c_i)^{b_i + \delta} \; \Gamma(\delta)},
+  v_t = \phi_\text{avg}^\kappa \sum_{i=1}^{j} \frac{a_i \lambda^{\delta} \Gamma(b_i + \delta)}{(\lambda + c_i)^{b_i + \delta} \; \Gamma(\delta)},
 \end{equation}
 ```
 
 where ``\delta = 4`` for the case of an exponential size distribution and the mass-weighted mean.
 For snow, for simplicity, we first compute the
-  mass-weighted mean aspect ratio over the size distribution of particles ``\phi_{avg}``
+  mass-weighted mean aspect ratio over the size distribution of particles ``\phi_\text{avg}``
   and then treat this as constant when computing the group terminal velocity.
 
 !!! note
@@ -309,16 +308,16 @@ It is parameterized following
 
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
-    \frac{max(0, q_{lcl} - q_{lcl\_threshold})}{\tau_{acnv\_rain}}
+  \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{acnv} =
+    \frac{max(0, q_\text{lcl} - q_\text{lcl\_threshold})}{\tau_\text{acnv\_rain}}
 \end{equation}
 ```
 
 where:
 
-- ``q_{lcl}`` - cloud liquid water specific content,
-- ``\tau_{acnv\_rain}`` - timescale,
-- ``q_{lcl\_threshold}`` - autoconversion threshold.
+- ``q_\text{lcl}`` - cloud liquid water specific content,
+- ``\tau_\text{acnv\_rain}`` - timescale,
+- ``q_\text{lcl\_threshold}`` - autoconversion threshold.
 
 !!! note
     This is the simplest possible autoconversion parameterization.
@@ -338,7 +337,7 @@ See [Harrington1995](@cite)
 
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{sno}}{dt} \right|_{acnv} =
+  \left. \frac{d \, q_{sno}}{dt} \right|_\text{acnv} =
   \frac{1}{\rho} \frac{d}{dt}
     \left( \int_{r_{is}}^{\infty} m(r) n(r) dr \right) =
     \left. \frac{1}{\rho} \frac{dr}{dt} \right|_{r=r_{is}} m(r_{is}) n(r_{is})
@@ -367,12 +366,12 @@ where:
 - ``S(q_{vap}, q_{vap}^{sat}) = \frac{q_{vap}}{q_{vap}^{sat}}`` is saturation,
 - ``q_{vap}^{sat}``
      is the saturation vapor specific humidity (over ice in this case),
-- ``G(T) = \left(\frac{L_s}{KT} \left(\frac{L_s}{R_v T} - 1 \right) + \frac{R_v T}{p_{vap}^{sat} D} \right)^{-1}``
+- ``G(T) = \left(\frac{L_s}{KT} \left(\frac{L_s}{R_v T} - 1 \right) + \frac{R_v T}{p_\text{vap}^\text{sat} D} \right)^{-1}``
      combines the effects of thermal conductivity and water diffusivity.
 - ``L_s`` is the latent heat of sublimation,
-- ``K_{thermo}`` is the thermal conductivity of air,
+- ``K_\text{thermo}`` is the thermal conductivity of air,
 - ``R_v`` is the gas constant of water vapor,
-- ``D_{vapor}`` is the diffusivity of water vapor
+- ``D_\text{vapor}`` is the diffusivity of water vapor
 
 Using eq. (\ref{eq:mass_rate}) and the assumed ``m(r)`` relationship we obtain
 
@@ -389,11 +388,11 @@ Finally the snow autoconversion rate is computed as
 
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{sno}}{dt} \right|_{acnv} =
+  \left. \frac{d \, q_{sno}}{dt} \right|_\text{acnv} =
    \frac{1}{\rho} 4 \pi \, (S-1) \, G(T) \,
-   n_0^{ice} \, exp(-\lambda_{ice} r_{is})
-   \left( \frac{r_{is}^2}{m_e^{ice} + \Delta_m^{ice}} +
-   \frac{r_{is} \lambda_{ice} +1}{\lambda_{ice}^2} \right)
+   n_0^{ice} \, \exp(-\lambda_\text{ice} r_{is})
+   \left( \frac{r_{is}^2}{m_e^\text{ice} + \Delta_m^\text{ice}} +
+   \frac{r_{is} \lambda_\text{ice} +1}{\lambda_\text{ice}^2} \right)
 \end{equation}
 ```
 
@@ -412,16 +411,16 @@ It is formulated similarly to the rain autoconversion:
 
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{sno}}{dt} \right|_{acnv} =
-    \frac{max(0, q_{icl} - q_{icl\_threshold})}{\tau_{acnv\_snow}}
+  \left. \frac{d \, q_{sno}}{dt} \right|_\text{acnv} =
+    \frac{max(0, q_{icl} - q_{icl\_threshold})}{\tau_\text{acnv\_snow}}
 \end{equation}
 ```
 
 where:
 
 - ``q_{icl}`` - cloud ice specific content,
-- ``\tau_{acnv\_snow}`` - timescale,
-- ``q_{icl\_threshold}`` - autoconversion threshold.
+- ``\tau_\text{acnv\_snow}`` - timescale,
+- ``q_\text{icl\_threshold}`` - autoconversion threshold.
 
 ## Accretion
 
@@ -433,9 +432,8 @@ For the case of collisions between cloud water (liquid water or ice)
 
 ```math
 \begin{equation}
-\left. \frac{d \, q_{c}}{dt} \right|_{accr} =
-  - \int_0^\infty n_p(r) \, a^p(r) \, v_{term}(r) \, E_{cp} \, q_{c} \, dr
-\label{eq:accr_1}
+\left. \frac{d \, q_c}{dt} \right|_\text{accr} =
+  - \int_0^\infty n_p(r) \, a^p(r) \, v_\text{term}(r) \, E_{cp} \, q_{c} \, dr
 \end{equation}
 ```
 
@@ -449,7 +447,7 @@ Integrating over the distribution yields:
 
 ```math
 \begin{equation}
-\left. \frac{d \, q_c}{dt} \right|_{accr} =
+\left. \frac{d \, q_c}{dt} \right|_\text{accr} =
   - n_{0}^p \, \Pi_{a, v}^p \, q_c \, E_{cp} \,
     \Gamma(\Sigma_{a, v}^p + 1) \,
     \frac{1}{\lambda^p} \,
@@ -473,10 +471,10 @@ For temperatures above freezing, the accreted cloud droplets
   along with some melted snow are converted to rain.
 In this case eq. (\ref{eq:accrfin}) describes the sink of cloud liquid water.
 The sink of snow is proportional to the sink of cloud liquid water with
-  the coefficient ``\frac{c_{vl}}{L_f}(T - T_{freeze})``,
+  the coefficient ``\frac{c_{vl}}{L_f}(T - T_\text{freeze})``,
   where ``c_{vl}`` is the isochoric specific heat of liquid water,
  ``L_f`` is the latent heat of freezing,
-  and ``T_{freeze}`` is the freezing temperature.
+  and ``T_\text{freeze}`` is the freezing temperature.
 
 The collisions between cloud ice and rain create snow.
 The source of snow in this case is a sum of sinks from cloud ice and rain.
@@ -485,10 +483,10 @@ The sink of rain is defined as:
 
 ```math
 \begin{equation}
-\left. \frac{d \, q_{rai}}{dt} \right|_{accr\_ri} =
+\left. \frac{d \, q_{rai}}{dt} \right|_\text{accr\_ri} =
   - \int_0^\infty \int_0^\infty
   \frac{1}{\rho} \, E_{ir} \, n_i(r_i) \, n_r(r_r) \, a_r(r_r) \, m_r(r_r)
-  \, v_{term}(r_r) \, d r_i d r_r
+  \, v_\text{term}(r_r) \, d r_i d r_r
 \label{eq:accr_ir}
 \end{equation}
 ```
@@ -497,7 +495,7 @@ where:
 
 - ``E_{ir}`` is the collision efficiency between rain and cloud ice
 - ``n_i`` and ``n_r`` are the cloud ice and rain size distributions
-- ``m_r``, ``a_r`` and ``v_{term}`` are the mass(radius),
+- ``m_r``, ``a_r`` and ``v_\text{term}`` are the mass(radius),
      cross section(radius) and terminal velocity(radius) relations for rain
 - ``r_i`` and ``r_r`` mark integration over cloud ice and rain size
      distributions
@@ -506,7 +504,7 @@ Integrating eq.(\ref{eq:accr_ir}) yields:
 
 ```math
 \begin{equation}
-\left. \frac{d \, q_{rai}}{dt} \right|_{accr\_ri} =
+\left. \frac{d \, q_{rai}}{dt} \right|_\text{accr\_ri} =
   - \frac{1}{\rho} \, E_{ir} \, n_0^{rai} \, n_0^{ice} \,
   \Pi_{m, a, v}^{rai}
   \Gamma(\Sigma_{m, a, v}^{rai} + 1) \,
@@ -527,18 +525,17 @@ The source term is defined as:
 
 ```math
 \begin{equation}
-\left. \frac{d \, q_i}{dt} \right|_{accr} =
+\left. \frac{d \, q_i}{dt} \right|_\text{accr} =
     \int_0^\infty \int_0^\infty \frac{1}{\rho}
     n_i(r_i) \, n_j(r_j) \, a(r_i, r_j) \, m_j(r_j) \, E_{ij} \,
-    \left|v_{term}(r_i) - v_{term}(r_j)\right| \, dr_i dr_j
-\label{eq:accr_sr1}
+    \left|v_\text{term}(r_i) - v_\text{term}(r_j)\right| \, dr_i dr_j
 \end{equation}
 ```
 
 where
 
-- ``i`` stands for rain (``T>T_{freezing}``) or snow (``T<T_{freezing}``)
-- ``j`` stands for snow (``T>T_{freezing}``) or rain (``T<T_{freezing}``)
+- ``i`` stands for rain (``T>T_\text{freeze}``) or snow (``T<T_\text{freeze}``)
+- ``j`` stands for snow (``T>T_\text{freeze}``) or rain (``T<T_\text{freeze}``)
 - ``a(r_i, r_j)`` is the crossection of the two colliding particles
 
 There are two additional assumptions that we make to integrate
@@ -548,11 +545,11 @@ There are two additional assumptions that we make to integrate
   a velocity dispersion correction that accounts for the distribution of fall velocities:
 
   ```math
-  \Delta v_{eff} = \sqrt{(v_{ti} - v_{tj})^2 + c_{disp} (v_{ti}^2 + v_{tj}^2)}
+  \Delta v_{eff} = \sqrt{(v_{ti} - v_{tj})^2 + c_\text{disp} (v_{ti}^2 + v_{tj}^2)}
   ```
 
   where ``v_{ti}`` and ``v_{tj}`` are the mass-weighted mean terminal velocities,
-  and ``c_{disp}`` is the velocity dispersion coefficient (default 0.2).
+  and ``c_\text{disp}`` is the velocity dispersion coefficient (default 0.2).
   This formulation assumes that fall velocity standard deviations are proportional
   to the mean fall velocities.
   The effective velocity difference ``\Delta v_{eff}`` is then moved outside of the integral.
@@ -580,8 +577,8 @@ The eq.(\ref{eq:accr_sr1}) can then be integrated as:
     \int_0^\infty \int_0^\infty
     (r_i + r_j)^2
     r_{j}^{m_e^j + \Delta_m^j} \,
-    exp(- \lambda_j r_j) \,
-    exp(- \lambda_i r_i) \,
+    \exp(- \lambda_j r_j) \,
+    \exp(- \lambda_i r_i) \,
     dr_i dr_j \\
     & =
     \frac{1}{\rho} \, \pi \, n_0^{i} \, n_0^{j} \, m_0^j \, \chi_m^j \,
@@ -610,7 +607,7 @@ The eq.(\ref{eq:accr_sr1}) can then be integrated as:
 
 Similarly to cloud ice and snow collisions, there is additional melting term
    when snow collides with rain in temperatures warmer than freezing.
-This term is proportional to ``\frac{c_{vl}}{L_f}(T - T_{freeze})``.
+This term is proportional to ``\frac{c_{vl}}{L_f}(T - T_\text{freeze})``.
 
 ## Rain evaporation and snow sublimation
 
@@ -619,7 +616,7 @@ but integrate it from ``0`` to ``\infty``.
 
 ```math
 \begin{equation}
-  \left. \frac{dq}{dt} \right|_{evap\_subl} =
+  \left. \frac{dq}{dt} \right|_\text{evap\_subl} =
     \frac{1}{\rho} \int_{0}^{\infty} \frac{dm(r)}{dt} n(r) dr
 \end{equation}
 ```
@@ -630,7 +627,6 @@ In contrast to eq.(\ref{eq:mass_rate}), now we are taking into account
 ```math
 \begin{equation}
   \frac{dm}{dt} = 4 \pi \, r \, (S - 1) \, G(T) \, F(r)
-\label{eq:mass_rate2}
 \end{equation}
 ```
 
@@ -644,25 +640,25 @@ The final integral is:
 
 ```math
 \begin{align}
-\left. \frac{dq}{dt} \right|_{evap\_subl} & =
+\left. \frac{dq}{dt} \right|_\text{evap\_subl} & =
     \frac{4 \pi n_0}{\rho} (S - 1) G(T)
     \int_0^\infty
     \left(
-       a_{vent} +
-       b_{vent} \,
-         \left(\frac{\nu_{air}}{D_{vapor}} \right)^{\frac{1}{3}} \,
+       a_\text{vent} +
+       b_\text{vent} \,
+         \left(\frac{\nu_\text{air}}{D_\text{vapor}} \right)^{\frac{1}{3}} \,
          \left(\frac{r}{r_0} \right)^{\frac{v_e + \Delta_v}{2}} \,
-         \left(\frac{2 \, \chi_v \, v_0 \, r}{\nu_{air}} \right)^{\frac{1}{2}}
+         \left(\frac{2 \, \chi_v \, v_0 \, r}{\nu_\text{air}} \right)^{\frac{1}{2}}
     \right)
-    r \, exp(-\lambda r) dr \\
+    r \, \exp(-\lambda r) dr \\
     & =
     \frac{4 \pi n_0}{\rho} (S - 1) G(T) \lambda^{-2}
     \left(
-       a_{vent} +
-       b_{vent} \,
-         \left(\frac{\nu_{air}}{D_{vapor}} \right)^{\frac{1}{3}} \,
+       a_\text{vent} +
+       b_\text{vent} \,
+         \left(\frac{\nu_\text{air}}{D_\text{vapor}} \right)^{\frac{1}{3}} \,
          \left(\frac{1}{r_0 \, \lambda} \right)^{\frac{v_e + \Delta_v}{2}} \,
-         \left(\frac{2 \, \chi_v \, v_0}{\nu_{air} \, \lambda} \right)^{\frac{1}{2}} \,
+         \left(\frac{2 \, \chi_v \, v_0}{\nu_\text{air} \, \lambda} \right)^{\frac{1}{2}} \,
          \Gamma\left( \frac{v_e + \Delta_v + 5}{2} \right)
     \right)
 \end{align}
@@ -683,8 +679,9 @@ The sink for snow is parameterized again as
 
 ```math
 \begin{equation}
-  \left. \frac{dq}{dt} \right|_{melt} =
+  \left. \frac{dq}{dt} \right|_\text{melt} =
     \frac{1}{\rho} \int_{0}^{\infty} \frac{dm(r)}{dt} n(r) dr
+  \label{eq:snow_melt}
 \end{equation}
 ```
 
@@ -692,8 +689,7 @@ For snow melt
 
 ```math
 \begin{equation}
-  \frac{dm}{dt} = 4 \pi \, r \, \frac{K_{thermo}}{L_f} (T - T_{freeze}) \, F(r)
-\label{eq:mass_rate3}
+  \frac{dm(r)}{dt} = 4 \pi \, r \, \frac{K_\text{thermo}}{L_f} (T - T_\text{freeze}) \, F(r)
 \end{equation}
 ```
 
@@ -702,18 +698,18 @@ where:
 - ``F(r)`` is the ventilation factor defined in (\ref{eq:ventil_factor})
 - ``L_f`` is the latent heat of freezing.
 
-If ``T > T_{freeze}``:
+If ``T > T_\text{freeze}``, we integrate (\ref{eq:snow_melt}) from ``0`` to ``\infty`` and find:
 
 ```math
 \begin{equation}
-\left. \frac{dq}{dt} \right|_{evap\_subl} =
-    \frac{4 \pi \, n_0 \, K_{thermo}}{\rho \, L_f} (T - T_{freeze}) \lambda^{-2}
+\left. \frac{dq}{dt} \right|_\text{melt} =
+    \frac{4 \pi \, n_0 \, K_\text{thermo}}{\rho \, L_f} (T - T_\text{freeze}) \lambda^{-2}
     \left(
-       a_{vent} +
-       b_{vent} \,
-         \left( \frac{\nu_{air}}{D_{vapor}} \right)^{\frac{1}{3}} \,
+       a_\text{vent} +
+       b_\text{vent} \,
+         \left( \frac{\nu_\text{air}}{D_\text{vapor}} \right)^{\frac{1}{3}} \,
          \left( \frac{1}{r_0 \, \lambda} \right)^{\frac{v_e + \Delta_v}{2}} \,
-         \left( \frac{2 \, \chi_v \, v_0}{\nu_{air} \, \lambda} \right)^{\frac{1}{2}} \,
+         \left( \frac{2 \, \chi_v \, v_0}{\nu_\text{air} \, \lambda} \right)^{\frac{1}{2}} \,
          \Gamma \left( \frac{v_e + \Delta_v + 5}{2} \right)
     \right)
 \end{equation}
