@@ -30,9 +30,6 @@ p = FT(800 * 1e2)
 dd = CMP.DesertDust(FT)
 il = CMP.Illite(FT)
 
-# model time step (for limiting)
-dt = FT(1)
-
 # plot data
 RH_range = range(0.8, stop = 1.2, length = 1000)
 T1 = FT(273.15 - 15)
@@ -41,22 +38,23 @@ T2 = FT(273.15 - 35)
 #! format: off
 
 # limiters to not nucleate more mass and number than we have in liquid phase
-max_dLdt_T1 = [qₗ* p2ρ(T1, RH) / dt for RH in RH_range]
-max_dLdt_T2 = [qₗ* p2ρ(T2, RH) / dt for RH in RH_range]
-max_dNdt =    [Nₗ              / dt for RH in RH_range]
+# (implicitly dt = 1)
+max_dLdt_T1 = @. qₗ * p2ρ(T1, RH_range)
+max_dLdt_T2 = @. qₗ * p2ρ(T2, RH_range)
+max_dNdt = fill(Nₗ, size(RH_range))
 
-dLdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
-dNdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
+dLdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH)).dLdt for RH in RH_range]
+dNdt_dd_T1 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH)).dNdt for RH in RH_range]
 
-dLdt_il_T1 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dLdt for RH in RH_range]
-dNdt_il_T1 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH), dt).dNdt for RH in RH_range]
+dLdt_il_T1 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH)).dLdt for RH in RH_range]
+dNdt_il_T1 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T1, p2ρ(T1, RH)).dNdt for RH in RH_range]
 
 
-dLdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
-dNdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
+dLdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH)).dLdt for RH in RH_range]
+dNdt_dd_T2 = [P3.het_ice_nucleation(dd, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH)).dNdt for RH in RH_range]
 
-dLdt_il_T2 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dLdt for RH in RH_range]
-dNdt_il_T2 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH), dt).dNdt for RH in RH_range]
+dLdt_il_T2 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH)).dLdt for RH in RH_range]
+dNdt_il_T2 = [P3.het_ice_nucleation(il, tps, qₗ, Nₗ, RH, T2, p2ρ(T2, RH)).dNdt for RH in RH_range]
 
 # plotting
 fig = PL.Figure(size = (1500, 500), fontsize=22, linewidth=3)

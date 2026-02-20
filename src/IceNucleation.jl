@@ -83,14 +83,8 @@ Returns zero for unsupported aerosol types.
 """
 function deposition_J(
     dust::Union{
-        CMP.Ferrihydrite,
-        CMP.Feldspar,
-        CMP.Kaolinite,
-        CMP.Illite,
-        CMP.ArizonaTestDust,
-        CMP.SaharanDust,
-        CMP.AsianDust,
-        CMP.Dust,
+        CMP.Ferrihydrite, CMP.Feldspar, CMP.Kaolinite, CMP.Illite, CMP.ArizonaTestDust,
+        CMP.SaharanDust, CMP.AsianDust, CMP.Dust,
     },
     Δa_w::FT,
 ) where {FT}
@@ -99,89 +93,112 @@ function deposition_J(
 
     return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
 end
-function deposition_J(dust::CMP.AerosolType, Δa_w::FT) where {FT}
-    return FT(0)
-end
+deposition_J(::CMP.AerosolType, Δa_w) = zero(eltype(Δa_w))
 
 """
     ABIFM_J(dust, Δa_w)
 
- - `dust` - a struct with dust parameters
- - `Δa_w` - change in water activity [unitless].
+Compute the heterogeneous ice nucleation rate coefficient, `J` [m⁻² s⁻¹]
+    for the given `dust` type and solution water activity, `Δa_w`,
+    using the "a_w based immersion freezing model" (ABIFM)
 
-Returns the immersion freezing nucleation rate coefficient, `J`, in m^-2 s^-1
-for different minerals in liquid droplets.
+# Arguments
+ - `dust`: The given mineral in liquid solution; currently supports:
+    - `DesertDust`, `Illite`, `Kaolinite`, `Dust`, `ArizonaTestDust`, 
+      `MiddleEasternDust`, `AsianDust`
+    - all other `AerosolType`s are not supported and will return zero
+ - `Δa_w`: change in water activity [unitless].
+
+# Returns
+ - `J`: heterogeneous ice nucleation rate coefficient [m⁻² s⁻¹]
+
 The free parameters `m` and `c` are taken from Knopf & Alpert 2013
-see DOI: 10.1039/C3FD00035D
-Returns zero for unsupported aerosol types.
+see: doi.org/10.1039/C3FD00035D
 """
 function ABIFM_J(
     dust::Union{
         CMP.DesertDust, CMP.Illite, CMP.Kaolinite, CMP.Dust,
         CMP.ArizonaTestDust, CMP.MiddleEasternDust, CMP.AsianDust,
     },
-    Δa_w::FT,
-) where {FT}
+    Δa_w,
+)
+    FT = eltype(dust)
 
-    logJ::FT = dust.ABIFM_m * Δa_w + dust.ABIFM_c
+    logJ = dust.ABIFM_m * Δa_w + dust.ABIFM_c
 
-    return max(FT(0), FT(10)^logJ * FT(1e4)) # converts cm^-2 s^-1 to m^-2 s^-1
+    return max(zero(FT), 10^(logJ + 4)) # `+4` converts cm⁻² s⁻¹ to m⁻² s⁻¹
 end
-function ABIFM_J(dust::CMP.AerosolType, Δa_w::FT) where {FT}
-    return FT(0)
-end
+ABIFM_J(::CMP.AerosolType, Δa_w) = zero(eltype(Δa_w))
 
 """
     P3_deposition_N_i(ip, T)
 
- - `ip` - a struct with ice nucleation parameters,
- - `T` - air temperature [K].
+Calculate the number of ice crystals nucleated via deposition nucleation with units of m⁻³.
 
-Returns the number of ice crystals nucleated via deposition nucleation with units of m^-3.
-From Thompson et al 2004 eqn 2 as used in Morrison & Milbrandt 2015.
+# Arguments
+ - `ip`: a struct with ice nucleation parameters:
+    - `c₁`: constant [L⁻¹]
+    - `c₂`: constant [K⁻¹]
+    - `T₀`: freezing temperature [K]
+    - `T_dep_thres`: lower cutoff temperature [K]
+ - `T`: air temperature [K].
+
+# Returns
+ - `Nᵢ`: number of ice crystals nucleated via deposition nucleation with units of m^-3.
+
+From Thompson et al 2004 eqn 2 as used in Morrison & Milbrandt 2015,
+
+```
+Nᵢ = c₁ exp(c₂ (T₀ - T))
+```
+where, in Thompson et al 2004, `c₁ = 0.005`, `c₂ = 0.304`, `T₀ = 273.15 K`,
+and `T` is the air temperature [K].
+The nucleation number is at most the value at `T = T_dep_thres`, and is zero above `T₀ = 0°C`.
 """
-function P3_deposition_N_i(ip::CMP.MorrisonMilbrandt2014, T::FT) where {FT}
-
-    T₀ = ip.T₀                  # 0°C
-    T_thres = ip.T_dep_thres    # cutoff temperature
-
-    Nᵢ = ifelse(
-        T < T_thres,
-        max(FT(0), FT(ip.c₁ * exp(ip.c₂ * (T₀ - T_thres)))),
-        max(FT(0), FT(ip.c₁ * exp(ip.c₂ * (T₀ - T)))),
-    )
-    return Nᵢ * 1000  # converts L^-1 to m^-3
+function P3_deposition_N_i(ip::CMP.MorrisonMilbrandt2014, T)
+    (; c₁, c₂, T₀, T_dep_thres) = ip
+    T′ = max(T_dep_thres, T)  # clamp T to T_thres ≤ T
+    Nᵢ = 1000 * c₁ * exp(c₂ * (T₀ - T′))  # 1000 converts L⁻¹ to m⁻³
+    return ifelse(T < T₀, Nᵢ, zero(Nᵢ))  # only allow deposition nucleation below T₀ (0°C)
 end
 
 """
-    P3_het_N_i(ip, T, N_l, B, V_l, a, Δt)
+    P3_het_N_i(ip, T, Nₗ, Vₗ, Δt)
 
- - `ip` - a struct with ice nucleation parameters,
- - `T` - air temperature [K],
- - `N_l` - number of droplets [m^-3],
- - `B` - water-type dependent parameter [cm^-3 s^-1],
- - `V_l` - volume of droplets to be frozen [m^3],
- - `a` - empirical parameter [C^-1],
- - `Δt` - timestep.
+Compute number of ice crystals formed from heterogeneous condensation freezing
 
-Returns the number of ice nucleated within Δt via heterogeneous freezing
-with units of m^-3. From Pruppacher & Klett 1997 eqn (9-51) as used in
-Morrison & Milbrandt 2015.
+# Arguments
+ - `ip`: The [`MorrisonMilbrandt2014`](@ref) struct with ice nucleation parameters:
+    - `het_a`: empirical parameter [C⁻¹]
+    - `het_B`: water-type dependent parameter [cm⁻³ s⁻¹]
+    - `T₀`: freezing temperature [K]
+ - `T`: air temperature [K],
+ - `Nₗ`: number of droplets [m⁻³],
+ - `Vₗ`: volume of droplets to be frozen [m³],
+ - `Δt`: timestep [s].
+
+# Returns
+ - `Nᵢ`: number of ice nucleated within Δt via heterogeneous freezing of cloud droplets with units of m⁻³.
+
+From Pruppacher & Klett 1997 eqn (9-51) as used in Morrison & Milbrandt 2015:
+
+```
+ln N₀ / Nᵤ(t) = B Vₗ [exp(aTₛ)] t
+```
+where `N₀=Nᵤ(t=0)` is the initial number of cloud droplets, `a` and `B` are
+empirical parameters, `Tₛ` is the temperature difference between the freezing
+point and the air temperature, and `Vₗ` is the volume of cloud droplets to be
+frozen. Rearranged in terms of `Nᵤ(t)`:
+
+```
+Nᵤ(t) = N₀ exp(-B Vₗ [exp(aTₛ)] t)
+```
 """
-function P3_het_N_i(
-    ip::CMP.MorrisonMilbrandt2014,
-    T::FT,
-    N_l::FT,
-    V_l::FT,
-    Δt::FT,
-) where {FT}
-
-    a = ip.het_a                     # (celcius)^-1
-    B = ip.het_B                     # cm^-3 s^-1 for rain water
-    V_l_converted = V_l * 1_000_000  # converted from m^3 to cm^3
-    Tₛ = ip.T₀ - T
-
-    return N_l * (1 - exp(-B * V_l_converted * Δt * exp(a * Tₛ)))
+function P3_het_N_i(ip::CMP.MorrisonMilbrandt2014, T, Nₗ, Vₗ, Δt)
+    (; het_a, het_B, T₀) = ip
+    Vₗ_cm³ = Vₗ * 1_000_000  # converted from m^3 to cm^3
+    Tₛ = T₀ - T
+    return Nₗ * (1 - exp(-het_B * Vₗ_cm³ * Δt * exp(het_a * Tₛ)))
 end
 
 """
@@ -214,17 +231,25 @@ end
 """
     INP_concentration_mean(params, T)
 
- - `params` - a struct with INPC(T) distribution parameters
- - `T` - air temperature [K]
+# Arguments
+ - `params`: The [`CMP.Frostenberg2023`](@ref) INPC(T) distribution parameters
+ - `T`: air temperature [K]
 
-Returns the logarithm of mean INP concentration (in m^-3), depending on the temperature.
-Based on the function μ(T) in Frostenberg et al., 2023. See DOI: 10.5194/acp-23-10883-2023
+Returns the logarithm of mean INP concentration (in m^-3) as a function of temperature.
+
+Based on the function μ(T) in Frostenberg et al., 2023. See doi.org/10.5194/acp-23-10883-2023
+
+The mean `log(INPC)` is given by:
+```
+μ(T) = log(-(T_celsius / 10)^9)
+```
+so that the mean INPC is `exp(μ(T))`.
 """
 function INP_concentration_mean(params::CMP.Frostenberg2023, T::FT) where {FT}
 
     T_celsius = min(T - params.T_freeze, FT(0))
 
-    return log((-T_celsius / 10)^9)
+    return 9log(-T_celsius / 10)  # = log((-T_celsius / 10)^9)
 end
 
 end # end module
