@@ -547,25 +547,25 @@ function test_microphysics2M(FT)
             b_vent_1 = bv * FT(0.5873135598802672)
             Fv1 = a_vent_1 + b_vent_1 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
 
-            evap0 = 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean
-            evap1 = 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ
+            ∂ₜρn_rai = 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean
+            ∂ₜq_rai = 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ
 
             #test
-            TT.@test evap isa NamedTuple
-            TT.@test evap.evap_rate_0 ≈ evap0 rtol = 1e-4
-            TT.@test evap.evap_rate_1 ≈ evap1 rtol = 1e-5
+            TT.@test evap isa @NamedTuple{∂ₜρn_rai::FT, ∂ₜq_rai::FT}
+            TT.@test evap.∂ₜρn_rai ≈ ∂ₜρn_rai rtol = 1e-4
+            TT.@test evap.∂ₜq_rai ≈ ∂ₜq_rai rtol = 1e-5
             TT.@test CM2.rain_evaporation(
                 SB, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, FT(0), T,
-            ).evap_rate_0 ≈ 0 atol = eps(FT)
+            ).∂ₜρn_rai ≈ 0 atol = eps(FT)
             TT.@test CM2.rain_evaporation(
                 SB, aps, tps, q_tot, q_lcl, q_icl, FT(0), q_sno, ρ, N_rai, T,
-            ).evap_rate_1 ≈ 0 atol = eps(FT)
+            ).∂ₜq_rai ≈ 0 atol = eps(FT)
         end
 
         # test limit case: xr = 0 for SB with no limiters
         TT.@test CM2.rain_evaporation(
             SB2006_no_limiters, aps, tps, q_tot, q_lcl, q_icl, FT(0), q_sno, ρ, N_rai, T,
-        ).evap_rate_0 ≈ 0 atol = eps(FT)
+        ).∂ₜρn_rai ≈ 0 atol = eps(FT)
 
     end
 

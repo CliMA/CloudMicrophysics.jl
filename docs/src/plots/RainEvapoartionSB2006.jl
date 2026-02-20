@@ -16,8 +16,8 @@ const SB2006 = CMP.SB2006(FT)
 
 function rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, T)
 
-    evap_rate_0 = FT(0)
-    evap_rate_1 = FT(0)
+    ∂ₜρn_rai = FT(0)
+    ∂ₜq_rai = FT(0)
     S = TDI.supersaturation_over_liquid(tps, qₜ, qₗ + qᵣ, qᵢ + qₛ, ρ, T)
 
     if (qᵣ > FT(0) && S < FT(0))
@@ -45,11 +45,11 @@ function rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ
         Fv0 = a_vent_0 + b_vent_0 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
         Fv1 = a_vent_1 + b_vent_1 * (ν_air / D_vapor)^FT(1 / 3) * sqrt(N_Re)
 
-        evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * Nᵣ * Dr * Fv0 / xr_mean)
-        evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * Nᵣ * Dr * Fv1 / ρ)
+        ∂ₜρn_rai = min(FT(0), FT(2) * FT(π) * G * S * Nᵣ * Dr * Fv0 / xr_mean)
+        ∂ₜq_rai = min(FT(0), FT(2) * FT(π) * G * S * Nᵣ * Dr * Fv1 / ρ)
     end
 
-    return (; evap_rate_0, evap_rate_1)
+    return (; ∂ₜρn_rai, ∂ₜq_rai)
 end
 
 qᵥ = FT(1e-2)
@@ -67,21 +67,21 @@ Nᵣ_range = range(1e6, stop = 1e9, length = 1000)
 T_range = range(273.15, stop = 273.15 + 50, length = 1000)
 
 #! format: off
-evap_qᵣ_0 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, qₛ, ρ, Nᵣ, T).evap_rate_0 for _qᵣ in qᵣ_range]
-evap_Nᵣ_0 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).evap_rate_0 for _Nᵣ in Nᵣ_range]
-evap_T_0 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).evap_rate_0 for _T in T_range]
+evap_qᵣ_0 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, qₛ, ρ, Nᵣ, T).∂ₜρn_rai for _qᵣ in qᵣ_range]
+evap_Nᵣ_0 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).∂ₜρn_rai for _Nᵣ in Nᵣ_range]
+evap_T_0 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).∂ₜρn_rai for _T in T_range]
 
-evap_qᵣ_0n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, qₛ, ρ, Nᵣ, T).evap_rate_0 for _qᵣ in qᵣ_range]
-evap_Nᵣ_0n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).evap_rate_0 for _Nᵣ in Nᵣ_range]
-evap_T_0n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).evap_rate_0 for _T in T_range]
+evap_qᵣ_0n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, qₛ, ρ, Nᵣ, T).∂ₜρn_rai for _qᵣ in qᵣ_range]
+evap_Nᵣ_0n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).∂ₜρn_rai for _Nᵣ in Nᵣ_range]
+evap_T_0n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).∂ₜρn_rai for _T in T_range]
 
-evap_qᵣ_3 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, qₛ, ρ, Nᵣ, T).evap_rate_1 for _qᵣ in qᵣ_range]
-evap_Nᵣ_3 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).evap_rate_1 for _Nᵣ in Nᵣ_range]
-evap_T_3 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).evap_rate_1 for _T in T_range]
+evap_qᵣ_3 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, qₛ, ρ, Nᵣ, T).∂ₜq_rai for _qᵣ in qᵣ_range]
+evap_Nᵣ_3 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).∂ₜq_rai for _Nᵣ in Nᵣ_range]
+evap_T_3 = [rain_evaporation_CPU(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).∂ₜq_rai for _T in T_range]
 
-evap_qᵣ_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, qₛ, ρ, Nᵣ, T).evap_rate_1 for _qᵣ in qᵣ_range]
-evap_Nᵣ_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).evap_rate_1 for _Nᵣ in Nᵣ_range]
-evap_T_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).evap_rate_1 for _T in T_range]
+evap_qᵣ_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, qₛ, ρ, Nᵣ, T).∂ₜq_rai for _qᵣ in qᵣ_range]
+evap_Nᵣ_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).∂ₜq_rai for _Nᵣ in Nᵣ_range]
+evap_T_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).∂ₜq_rai for _T in T_range]
 
 fig = MK.Figure(resolution = (800, 600))
 
