@@ -448,9 +448,23 @@ function test_microphysics1M(FT)
             ρ = p / R / T
 
             tmp1 = CM1.evaporation_sublimation(rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai, FT(0), ρ, T)
+            dtmp1 = CM1.∂evaporation_sublimation_∂q_precip(
+                rain,
+                blk1mvel.rain,
+                aps,
+                tps,
+                q_tot,
+                q_lcl,
+                FT(0),
+                q_rai,
+                FT(0),
+                ρ,
+                T,
+            )
             tmp2 = rain_evap_empir(tps, q_rai, q_tot, q_lcl, FT(0), T, p, ρ)
 
             TT.@test tmp1 ≈ tmp2 atol = 1e-6
+            TT.@test dtmp1 ≈ tmp1 / q_rai
         end
 
         # no condensational growth for rain
@@ -526,7 +540,21 @@ function test_microphysics1M(FT)
                     ρ,
                     T,
                 )
+                dtmp1 = CM1.∂evaporation_sublimation_∂q_precip(
+                    snow,
+                    blk1mvel.snow,
+                    aps,
+                    tps,
+                    q_tot,
+                    q_liq,
+                    q_ice,
+                    q_rai,
+                    q_sno,
+                    ρ,
+                    T,
+                )
                 TT.@test tmp1 ≈ ref_val[cnt] rtol = 1e-2
+                TT.@test dtmp1 ≈ tmp1 / q_sno
             end
         end
     end
@@ -538,8 +566,10 @@ function test_microphysics1M(FT)
         T = T_freeze + FT(2)
         ρ = FT(1.2)
         q_sno = FT(1e-4)
-        TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
-                 FT(9.516553267013085e-6)
+        (melt_rate) = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T)
+        melt_deriv = CM1.∂snow_melt_∂q_sno(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T)
+        TT.@test melt_rate ≈ FT(9.516553267013085e-6)
+        TT.@test melt_deriv ≈ melt_rate / q_sno
 
         # no snow -> no snow melt
         T = T_freeze + FT(2)
@@ -555,6 +585,141 @@ function test_microphysics1M(FT)
         TT.@test CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T) ≈
                  FT(0)
 
+    end
+
+    TT.@testset "RainEvaporationDerivative_FiniteDiff" begin
+        # Verify ∂(evap)/∂q_rai via central finite differences at constant e_tot, ρ, q_tot.
+        # The analytical derivative uses rate/q_rai, which neglects the n0(q)‐dependence
+        # in the Marshall–Palmer distribution and temperature feedback through latent heat.
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T, p = T_freeze + FT(15), FT(90000)
+        ϵ = TDI.Rd_over_Rv(tps)
+        p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+        q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+        q_rai = FT(1e-3)
+        q_tot = FT(15e-3)
+        q_vap = FT(0.15) * q_sat  # subsaturated
+        q_lcl = q_tot - q_vap - q_rai
+        q_icl = FT(0)
+        q_sno = FT(0)
+        R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
+        ρ = p / R / T
+
+        rate = CM1.evaporation_sublimation(
+            rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+        )
+        drate = CM1.∂evaporation_sublimation_∂q_precip(
+            rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+        )
+        TT.@test rate < 0  # evaporation
+        TT.@test drate ≈ rate / q_rai
+
+        # Central finite difference at constant e_tot, ρ, q_tot:
+        # perturb q_rai, recover T from energy conservation
+        q_liq = q_lcl + q_rai
+        q_ice = q_icl + q_sno
+        e_int = TDI.TD.internal_energy(tps, T, q_tot, q_liq, q_ice)
+
+        Δq = FT(1e-8)
+        q_liq_p = q_lcl + (q_rai + Δq)
+        q_liq_m = q_lcl + (q_rai - Δq)
+        T_p = TDI.TD.air_temperature(tps, e_int, q_tot, q_liq_p, q_ice)
+        T_m = TDI.TD.air_temperature(tps, e_int, q_tot, q_liq_m, q_ice)
+        rate_p = CM1.evaporation_sublimation(
+            rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai + Δq, q_sno, ρ, T_p,
+        )
+        rate_m = CM1.evaporation_sublimation(
+            rain, blk1mvel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai - Δq, q_sno, ρ, T_m,
+        )
+        fd_deriv = (rate_p - rate_m) / (2Δq)
+        TT.@test sign(drate) == sign(fd_deriv)
+        TT.@test drate ≈ fd_deriv rtol = FT(0.2)
+    end
+
+    TT.@testset "SnowSublimationDerivative_FiniteDiff" begin
+        # Verify ∂(subl)/∂q_sno via central finite differences at constant e_tot, ρ, q_tot.
+        # The analytical derivative uses rate/q_sno, which neglects the n0(q_sno)‐dependence
+        # in the Marshall–Palmer distribution (n0 ~ q_sno^ν for snow) and temperature
+        # feedback through latent heat. This is a cruder approximation for snow than
+        # for rain because snow n0 depends on q_sno.
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T, p = T_freeze - FT(10), FT(90000)
+        ϵ = TDI.Rd_over_Rv(tps)
+        p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
+        q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+        q_sno = FT(1e-4)
+        q_tot = FT(0.95) * q_sat + q_sno
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
+        ρ = p / R / T
+
+        rate = CM1.evaporation_sublimation(
+            snow, blk1mvel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+        )
+        drate = CM1.∂evaporation_sublimation_∂q_precip(
+            snow, blk1mvel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+        )
+        TT.@test rate < 0  # sublimation
+        TT.@test drate ≈ rate / q_sno
+
+        # Central finite difference at constant e_tot, ρ, q_tot:
+        # perturb q_sno, recover T from energy conservation
+        q_liq = q_lcl + q_rai
+        q_ice = q_icl + q_sno
+        e_int = TDI.TD.internal_energy(tps, T, q_tot, q_liq, q_ice)
+
+        Δq = FT(1e-8)
+        q_ice_p = q_icl + (q_sno + Δq)
+        q_ice_m = q_icl + (q_sno - Δq)
+        T_p = TDI.TD.air_temperature(tps, e_int, q_tot, q_liq, q_ice_p)
+        T_m = TDI.TD.air_temperature(tps, e_int, q_tot, q_liq, q_ice_m)
+        rate_p = CM1.evaporation_sublimation(
+            snow, blk1mvel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno + Δq, ρ, T_p,
+        )
+        rate_m = CM1.evaporation_sublimation(
+            snow, blk1mvel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno - Δq, ρ, T_m,
+        )
+        fd_deriv = (rate_p - rate_m) / (2Δq)
+        TT.@test sign(drate) == sign(fd_deriv)
+        TT.@test drate ≈ fd_deriv rtol = FT(0.7)
+    end
+
+    TT.@testset "SnowMeltDerivative_FiniteDiff" begin
+        # Verify ∂(melt)/∂q_sno via central finite differences at constant e_tot, ρ, q_tot.
+        # The analytical derivative uses rate/q_sno.  Snow melt has a weaker n0(q_sno)
+        # dependence than sublimation, so the approximation is more accurate (~3% error).
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        T = T_freeze + FT(4)
+        ρ = FT(1.2)
+        q_sno = FT(1e-4)
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_tot = FT(10e-3)
+
+        rate = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T)
+        drate = CM1.∂snow_melt_∂q_sno(snow, blk1mvel.snow, aps, tps, q_sno, ρ, T)
+        TT.@test rate > 0  # melting
+        TT.@test drate ≈ rate / q_sno
+
+        # Central finite difference at constant e_tot, ρ, q_tot:
+        # perturb q_sno, recover T from energy conservation
+        q_liq = q_lcl + q_rai
+        q_ice = q_icl + q_sno
+        e_int = TDI.TD.internal_energy(tps, T, q_tot, q_liq, q_ice)
+
+        Δq = FT(1e-8)
+        q_ice_p = q_icl + (q_sno + Δq)
+        q_ice_m = q_icl + (q_sno - Δq)
+        T_p = TDI.TD.air_temperature(tps, e_int, q_tot, q_liq, q_ice_p)
+        T_m = TDI.TD.air_temperature(tps, e_int, q_tot, q_liq, q_ice_m)
+        rate_p = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno + Δq, ρ, T_p)
+        rate_m = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, q_sno - Δq, ρ, T_m)
+        fd_deriv = (rate_p - rate_m) / (2Δq)
+        TT.@test sign(drate) == sign(fd_deriv)
+        TT.@test drate ≈ fd_deriv rtol = FT(0.05)
     end
 end
 

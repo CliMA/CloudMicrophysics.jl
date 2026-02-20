@@ -719,6 +719,19 @@ If ``T > T_{freeze}``:
 \end{equation}
 ```
 
+## Derivative of the tendency
+
+For implicit time integration, we also provide the derivative of the tendency
+  with respect to precipitation species rain and snow.
+
+For snow deposition, sublimation and melting and rain evaporation,
+  the derivative ``\partial S / \partial q`` is approximated as ``S / q``,
+  where ``S`` is the tendency and ``q`` is the precipitation specific content
+  (``q_{rai}`` for rain, ``q_{sno}`` for snow).
+All the derivatives of collision processes such as autoconversion and accretion
+  are for now neglected.
+
+
 ## Example figures
 
 ```@example
@@ -733,3 +746,13 @@ include("plots/Microphysics1M_plots.jl")
 ![](rain_evaporation_rate.svg)
 ![](snow_sublimation_deposition_rate.svg)
 ![](snow_melt_rate.svg)
+
+## Example derivative figures
+
+![](rain_evap_deriv_vs_T.svg)
+![](rain_evap_deriv_vs_qrai.svg)
+![](snow_subl_deriv_vs_T.svg)
+![](snow_subl_deriv_vs_qsno.svg)
+![](snow_melt_deriv_vs_T.svg)
+![](snow_melt_deriv_vs_qsno.svg)
+

@@ -143,7 +143,7 @@ q_vap = 0.15 * q_sat
 q_icl = 0.0
 q_lcl = q_tot - q_vap - q_icl
 q_sno = 0.0
-R = TDI.Rₘ(tps, q_tot, q_lcl, q_icl)
+R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
 ρ = p / R / T
 
 fig = MK.Figure()
@@ -186,7 +186,7 @@ q_vap = 0.15 * q_sat
 q_lcl = 0.0
 q_icl = q_tot - q_vap - q_lcl
 q_rai = 0.0
-R = TDI.Rₘ(tps, q_tot, q_lcl, q_icl)
+R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl)
 ρ = p / R / T
 rate =
     CM1.evaporation_sublimation.(
@@ -215,7 +215,7 @@ q_vap = 0.15 * q_sat
 q_lcl = 0.0
 q_icl = q_tot - q_vap - q_lcl
 q_rai = 0.0
-R = TDI.Rₘ(tps, q_tot, q_lcl, q_icl)
+R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl)
 ρ = p / R / T
 rate =
     CM1.evaporation_sublimation.(
@@ -246,3 +246,241 @@ MK.lines!(q_snow_range * 1e3, _snow_melt(4), label = "T = 4°C")
 MK.lines!(q_snow_range * 1e3, _snow_melt(6), label = "T = 6°C")
 MK.axislegend(ax; position = :lt)
 MK.save("snow_melt_rate.svg", fig) # hide
+
+# -------------------------------------------------------------------
+# Derivative plots: tendency and ∂tendency/∂q for rain evap, snow subl, snow melt
+# -------------------------------------------------------------------
+
+T_freeze = TDI.TD.Parameters.T_freeze(tps)
+
+# ---------- Rain evaporation vs temperature ----------
+fig = MK.Figure(size = (900, 450))
+ax1 = MK.Axis(fig[1, 1];
+    xlabel = "Temperature (K)", ylabel = "Evaporation rate (1/s)",
+    title = "Rain evaporation vs T\n(q_rai=1e-3, q_tot=15e-3 g/kg, 15% RH, ρ from p=90kPa)",
+)
+ax2 = MK.Axis(fig[1, 2];
+    xlabel = "Temperature (K)", ylabel = "∂(rate)/∂q_rai (1/s)",
+    title = "Derivative of rain evaporation",
+)
+
+T_range = collect(range(250.0, stop = 310.0, length = 121))
+for q_rai_val in [FT(5e-4), FT(1e-3), FT(2e-3)]
+    rates = zeros(FT, length(T_range))
+    drates = zeros(FT, length(T_range))
+    for (i, T) in enumerate(T_range)
+        p = FT(90000)
+        ϵ = TDI.Rd_over_Rv(tps)
+        p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+        q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+        q_tot = FT(15e-3)
+        q_vap = FT(0.15) * q_sat
+        q_lcl = max(q_tot - q_vap - q_rai_val, FT(0))
+        R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai_val, FT(0))
+        ρ_loc = p / R / T
+        r = CM1.evaporation_sublimation(
+            rain, Blk1MVel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai_val, FT(0), ρ_loc, T,
+        )
+        dr = CM1.∂evaporation_sublimation_∂q_precip(
+            rain, Blk1MVel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai_val, FT(0), ρ_loc, T,
+        )
+        rates[i] = r
+        drates[i] = dr
+    end
+    lbl = "q_rai=$(q_rai_val*1e3) g/kg"
+    MK.lines!(ax1, T_range, rates; label = lbl)
+    MK.lines!(ax2, T_range, drates; label = lbl)
+end
+MK.hlines!(ax1, [0]; color = :black, linewidth = 0.5)
+MK.axislegend(ax1; position = :lb, framevisible = false)
+MK.axislegend(ax2; position = :lb, framevisible = false)
+MK.save("rain_evap_deriv_vs_T.svg", fig) # hide
+
+# ---------- Rain evaporation vs q_rai ----------
+fig = MK.Figure(size = (900, 450))
+ax1 = MK.Axis(fig[1, 1];
+    xlabel = "q_rai (g/kg)", ylabel = "Evaporation rate (1/s)",
+    title = "Rain evaporation vs q_rai",
+)
+ax2 = MK.Axis(fig[1, 2];
+    xlabel = "q_rai (g/kg)", ylabel = "∂(rate)/∂q_rai (1/s)",
+    title = "Derivative of rain evaporation",
+)
+
+q_rai_range = collect(range(FT(1e-6), stop = FT(5e-3), length = 100))
+for T in [FT(275), FT(290), FT(305)]
+    p = FT(90000)
+    ϵ = TDI.Rd_over_Rv(tps)
+    p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, T)
+    q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+    q_tot = FT(15e-3)
+    q_vap = FT(0.15) * q_sat
+    rates = zeros(FT, length(q_rai_range))
+    drates = zeros(FT, length(q_rai_range))
+    for (i, q_rai_val) in enumerate(q_rai_range)
+        q_lcl = max(q_tot - q_vap - q_rai_val, FT(0))
+        R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai_val, FT(0))
+        ρ_loc = p / R / T
+        r = CM1.evaporation_sublimation(
+            rain, Blk1MVel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai_val, FT(0), ρ_loc, T,
+        )
+        dr = CM1.∂evaporation_sublimation_∂q_precip(
+            rain, Blk1MVel.rain, aps, tps, q_tot, q_lcl, FT(0), q_rai_val, FT(0), ρ_loc, T,
+        )
+        rates[i] = r
+        drates[i] = dr
+    end
+    lbl = "T=$(Int(T))K"
+    MK.lines!(ax1, q_rai_range * 1e3, rates; label = lbl)
+    MK.lines!(ax2, q_rai_range * 1e3, drates; label = lbl)
+end
+MK.hlines!(ax1, [0]; color = :black, linewidth = 0.5)
+MK.axislegend(ax1; position = :lb, framevisible = false)
+MK.axislegend(ax2; position = :lt, framevisible = false)
+MK.save("rain_evap_deriv_vs_qrai.svg", fig) # hide
+
+# ---------- Snow sublimation/deposition vs temperature ----------
+fig = MK.Figure(size = (900, 450))
+ax1 = MK.Axis(fig[1, 1];
+    xlabel = "Temperature (K)", ylabel = "Subl/Dep rate (1/s)",
+    title = "Snow sublimation/deposition vs T\n(q_sno=1e-4, subsaturated over ice)",
+)
+ax2 = MK.Axis(fig[1, 2];
+    xlabel = "Temperature (K)", ylabel = "∂(rate)/∂q_sno (1/s)",
+    title = "Derivative of snow subl/dep",
+)
+
+T_range_cold = collect(range(220.0, stop = 280.0, length = 121))
+for (q_sno_val, rh_ice) in [(FT(5e-5), FT(0.8)), (FT(1e-4), FT(0.8)), (FT(1e-4), FT(1.05))]
+    rates = zeros(FT, length(T_range_cold))
+    drates = zeros(FT, length(T_range_cold))
+    for (i, T) in enumerate(T_range_cold)
+        p = FT(90000)
+        ϵ = TDI.Rd_over_Rv(tps)
+        p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T)
+        q_sat = ϵ * p_sat / (p + p_sat * (ϵ - 1))
+        q_tot = rh_ice * q_sat + q_sno_val
+        R = TDI.Rₘ(tps, q_tot, FT(0), q_sno_val)
+        ρ_loc = p / R / T
+        r = CM1.evaporation_sublimation(
+            snow, Blk1MVel.snow, aps, tps, q_tot, FT(0), FT(0), FT(0), q_sno_val, ρ_loc, T,
+        )
+        dr = CM1.∂evaporation_sublimation_∂q_precip(
+            snow, Blk1MVel.snow, aps, tps, q_tot, FT(0), FT(0), FT(0), q_sno_val, ρ_loc, T,
+        )
+        rates[i] = r
+        drates[i] = dr
+    end
+    rh_pct = Int(round(rh_ice * 100))
+    lbl = "q_sno=$(q_sno_val*1e3)g/kg, RH_ice=$(rh_pct)%"
+    MK.lines!(ax1, T_range_cold, rates; label = lbl)
+    MK.lines!(ax2, T_range_cold, drates; label = lbl)
+end
+MK.hlines!(ax1, [0]; color = :black, linewidth = 0.5)
+MK.axislegend(ax1; position = :lb, framevisible = false)
+MK.axislegend(ax2; position = :lb, framevisible = false)
+MK.save("snow_subl_deriv_vs_T.svg", fig) # hide
+
+# ---------- Snow sublimation vs q_sno ----------
+fig = MK.Figure(size = (900, 450))
+ax1 = MK.Axis(fig[1, 1];
+    xlabel = "q_sno (g/kg)", ylabel = "Sublimation rate (1/s)",
+    title = "Snow sublimation vs q_sno\n(subsaturated: RH_ice = 80%)",
+)
+ax2 = MK.Axis(fig[1, 2];
+    xlabel = "q_sno (g/kg)", ylabel = "∂(rate)/∂q_sno (1/s)",
+    title = "Derivative of snow sublimation",
+)
+
+q_sno_range = collect(range(FT(1e-6), stop = FT(5e-3), length = 100))
+for T in [FT(240), FT(255), FT(270)]
+    p = FT(90000)
+    ϵ = TDI.Rd_over_Rv(tps)
+    p_sat_ice = TDI.saturation_vapor_pressure_over_ice(tps, T)
+    q_sat_ice = ϵ * p_sat_ice / (p + p_sat_ice * (ϵ - 1))
+    rates = zeros(FT, length(q_sno_range))
+    drates = zeros(FT, length(q_sno_range))
+    for (i, q_sno_val) in enumerate(q_sno_range)
+        q_tot = FT(0.8) * q_sat_ice + q_sno_val
+        R = TDI.Rₘ(tps, q_tot, FT(0), q_sno_val)
+        ρ_loc = p / R / T
+        r = CM1.evaporation_sublimation(
+            snow, Blk1MVel.snow, aps, tps, q_tot, FT(0), FT(0), FT(0), q_sno_val, ρ_loc, T,
+        )
+        dr = CM1.∂evaporation_sublimation_∂q_precip(
+            snow, Blk1MVel.snow, aps, tps, q_tot, FT(0), FT(0), FT(0), q_sno_val, ρ_loc, T,
+        )
+        rates[i] = r
+        drates[i] = dr
+    end
+    lbl = "T=$(Int(T))K"
+    MK.lines!(ax1, q_sno_range * 1e3, rates; label = lbl)
+    MK.lines!(ax2, q_sno_range * 1e3, drates; label = lbl)
+end
+MK.hlines!(ax1, [0]; color = :black, linewidth = 0.5)
+MK.axislegend(ax1; position = :lb, framevisible = false)
+MK.axislegend(ax2; position = :lt, framevisible = false)
+MK.save("snow_subl_deriv_vs_qsno.svg", fig) # hide
+
+# ---------- Snow melt vs temperature ----------
+fig = MK.Figure(size = (900, 450))
+ax1 = MK.Axis(fig[1, 1];
+    xlabel = "Temperature (K)", ylabel = "Melt rate (1/s)",
+    title = "Snow melt rate vs T",
+)
+ax2 = MK.Axis(fig[1, 2];
+    xlabel = "Temperature (K)", ylabel = "∂(rate)/∂q_sno (1/s)",
+    title = "Derivative of snow melt",
+)
+
+T_range_warm = collect(range(T_freeze - 2, stop = T_freeze + 10, length = 121))
+for q_sno_val in [FT(5e-5), FT(1e-4), FT(5e-4)]
+    rates = zeros(FT, length(T_range_warm))
+    drates = zeros(FT, length(T_range_warm))
+    ρ_loc = FT(1.2)
+    for (i, T) in enumerate(T_range_warm)
+        r = CM1.snow_melt(snow, Blk1MVel.snow, aps, tps, q_sno_val, ρ_loc, T)
+        dr = CM1.∂snow_melt_∂q_sno(snow, Blk1MVel.snow, aps, tps, q_sno_val, ρ_loc, T)
+        rates[i] = r
+        drates[i] = dr
+    end
+    lbl = "q_sno=$(q_sno_val*1e3) g/kg"
+    MK.lines!(ax1, T_range_warm, rates; label = lbl)
+    MK.lines!(ax2, T_range_warm, drates; label = lbl)
+end
+MK.hlines!(ax1, [0]; color = :black, linewidth = 0.5)
+MK.axislegend(ax1; position = :lt, framevisible = false)
+MK.axislegend(ax2; position = :lt, framevisible = false)
+MK.save("snow_melt_deriv_vs_T.svg", fig) # hide
+
+# ---------- Snow melt vs q_sno ----------
+fig = MK.Figure(size = (900, 450))
+ax1 = MK.Axis(fig[1, 1];
+    xlabel = "q_sno (g/kg)", ylabel = "Melt rate (1/s)",
+    title = "Snow melt rate vs q_sno",
+)
+ax2 = MK.Axis(fig[1, 2];
+    xlabel = "q_sno (g/kg)", ylabel = "∂(rate)/∂q_sno (1/s)",
+    title = "Derivative of snow melt",
+)
+
+q_sno_range2 = collect(range(FT(1e-6), stop = FT(5e-3), length = 100))
+ρ_loc = FT(1.2)
+for ΔT in [FT(2), FT(4), FT(6)]
+    T = T_freeze + ΔT
+    rates = zeros(FT, length(q_sno_range2))
+    drates = zeros(FT, length(q_sno_range2))
+    for (i, q_sno_val) in enumerate(q_sno_range2)
+        r = CM1.snow_melt(snow, Blk1MVel.snow, aps, tps, q_sno_val, ρ_loc, T)
+        dr = CM1.∂snow_melt_∂q_sno(snow, Blk1MVel.snow, aps, tps, q_sno_val, ρ_loc, T)
+        rates[i] = r
+        drates[i] = dr
+    end
+    lbl = "T = T_freeze + $(Int(ΔT))K"
+    MK.lines!(ax1, q_sno_range2 * 1e3, rates; label = lbl)
+    MK.lines!(ax2, q_sno_range2 * 1e3, drates; label = lbl)
+end
+MK.hlines!(ax1, [0]; color = :black, linewidth = 0.5)
+MK.axislegend(ax1; position = :lt, framevisible = false)
+MK.axislegend(ax2; position = :lt, framevisible = false)
+MK.save("snow_melt_deriv_vs_qsno.svg", fig) # hide

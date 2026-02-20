@@ -17,6 +17,12 @@ import ..Utilities as UT
 export τ_relax
 export conv_q_vap_to_q_lcl_icl
 export conv_q_vap_to_q_lcl_icl_MM2015
+export ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld
+export INP_limiter
+export limit_MM2015_sinks
+export dqcld_dT
+export gamma_helper
+export d2qcld_dT2
 
 """
     τ_relax(liquid::CloudLiquid)
@@ -64,6 +70,81 @@ end
 end
 
 """
+    limit_MM2015_sinks(tendency, q_cld)
+
+Checks if the cloud evaporation or sublimation tendency need to be
+limited to prevent negative cloud condensate specific content.
+The tendency is limited if it is negative and the cloud condensate specific
+content is zero or negative.
+
+# Arguments
+- `tendency` - cloud condensate tendency [kg/kg/s]
+- `q_cld` - cloud liquid water or ice specific content [kg/kg]
+
+# Returns
+- `true` if the tendency needs to be limited, `false` otherwise
+"""
+@inline function limit_MM2015_sinks(tendency, q_cld)
+    return tendency <= zero(tendency) && q_cld <= zero(q_cld)
+end
+
+"""
+    INP_limiter(tendency, tps, T)
+
+Returns `true` when ice deposition should be suppressed:
+positive tendency (deposition) at T > T_freeze (no INPs available).
+"""
+@inline function INP_limiter(tendency, tps, T)
+    return T > TDI.T_freeze(tps) && tendency > zero(tendency)
+end
+
+"""
+    dqcld_dT(qᵥ_sat, L, Rᵥ, T)
+
+Computes the derivative of the saturation specific humidity with respect to
+temperature for a given phase of water.
+
+# Arguments
+- `qᵥ_sat` - saturation specific humidity [kg/kg]
+- `L` - latent heat [J/kg]
+- `Rᵥ` - gas constant for water vapor [J/kg/K]
+- `T` - temperature [K]
+"""
+@inline function dqcld_dT(qᵥ_sat, L, Rᵥ, T)
+    return qᵥ_sat * (L / (Rᵥ * T^2) - 1 / T)
+end
+
+"""
+    gamma_helper(L, cₚ_air, dqcld_dT)
+
+Computes the thermodynamic adjustment factor Γ.
+
+# Arguments
+- `L` - latent heat [J/kg]
+- `cₚ_air` - specific heat capacity of air [J/kg/K]
+- `dqcld_dT` - derivative of saturation specific humidity with respect to temperature [kg/kg/K]
+"""
+@inline function gamma_helper(L, cₚ_air, dqcld_dT)
+    return 1 + (L / cₚ_air) * dqcld_dT
+end
+
+"""
+    d2qcld_dT2(qᵥ_sat, L, Rᵥ, T)
+
+Computes the second derivative of the saturation specific humidity with respect to
+temperature for a given phase of water.
+
+# Arguments
+- `qᵥ_sat` - saturation specific humidity [kg/kg]
+- `L` - latent heat [J/kg]
+- `Rᵥ` - gas constant for water vapor [J/kg/K]
+- `T` - temperature [K]
+"""
+@inline function d2qcld_dT2(qᵥ_sat, L, Rᵥ, T)
+    return qᵥ_sat * ((L / Rᵥ / T^2 - 1 / T)^2 + (1 / T^2 - 2 * L / Rᵥ / T^3))
+end
+
+"""
     conv_q_vap_to_q_lcl_icl_MM2015(params, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
 
 Computes cloud condensate tendency using the formulation from
@@ -107,17 +188,16 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
 
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
+    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
 
-    pᵥ_sat_liq = TDI.saturation_vapor_pressure_over_liquid(tps, T)
-    qᵥ_sat_liq = TDI.p2q(tps, T, ρ, pᵥ_sat_liq)
+    dqsl_dT = dqcld_dT(qᵥ_sat_liq, Lᵥ, Rᵥ, T)
+    Γₗ = gamma_helper(Lᵥ, cₚ_air, dqsl_dT)
 
-    dqsldT = qᵥ_sat_liq * (Lᵥ / (Rᵥ * T^2) - 1 / T)
-    Γₗ = 1 + (Lᵥ / cₚ_air) * dqsldT
-
+    # compute the tendency
     tendency = (qᵥ - qᵥ_sat_liq) / (τ_relax * Γₗ)
-    return ifelse(tendency < 0 && q_lcl <= 0, zero(tendency), tendency)
-end
 
+    return ifelse(limit_MM2015_sinks(tendency, q_lcl), zero(tendency), tendency)
+end
 function conv_q_vap_to_q_lcl_icl_MM2015(
     (; τ_relax)::CMP.CloudIce,
     tps::TDI.PS,
@@ -134,15 +214,89 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
 
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
 
-    pᵥ_sat_ice = TDI.saturation_vapor_pressure_over_ice(tps, T)
-    qᵥ_sat_ice = TDI.p2q(tps, T, ρ, pᵥ_sat_ice)
+    dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
+    Γᵢ = gamma_helper(Lₛ, cₚ_air, dqsi_dT)
 
-    dqsidT = qᵥ_sat_ice * (Lₛ / (Rᵥ * T^2) - 1 / T)
-    Γᵢ = 1 + (Lₛ / cₚ_air) * dqsidT
-
+    # compute the tendency
     tendency = (qᵥ - qᵥ_sat_ice) / (τ_relax * Γᵢ)
-    return ifelse(tendency < 0 && q_icl <= 0, zero(tendency), tendency)
+
+    limiter = limit_MM2015_sinks(tendency, q_icl) || INP_limiter(tendency, tps, T)
+    return ifelse(limiter, zero(tendency), tendency)
+end
+
+"""
+    ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(params::CloudLiquid, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T; simplified = true)
+    ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(params::CloudIce,    tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T; simplified = true)
+
+Returns the derivative of the cloud condensate tendency with respect to the
+corresponding cloud condensate species:
+ - `∂(tendency)/∂q_lcl` for the `CloudLiquid` dispatch
+ - `∂(tendency)/∂q_icl` for the `CloudIce` dispatch
+
+# Keyword Arguments
+- `simplified` — if `true` (default), returns the leading-order approximation (`-1/τ_relax`);
+  if `false`, returns the total derivative accounting for implicit temperature feedback.
+"""
+function ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
+    lcl::CMP.CloudLiquid,
+    tps::TDI.PS,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    ρ,
+    T;
+    simplified = true,
+)
+    tendency = conv_q_vap_to_q_lcl_icl_MM2015(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    ∂tendency_∂q_lcl = -1 / lcl.τ_relax
+    if !simplified
+        Rᵥ = TDI.Rᵥ(tps)
+        Lᵥ = TDI.Lᵥ(tps, T)
+        cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
+        qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        dqsl_dT = dqcld_dT(qᵥ_sat_liq, Lᵥ, Rᵥ, T)
+        Γₗ = gamma_helper(Lᵥ, cₚ_air, dqsl_dT)
+        d²qᵥ_sat_liq_dT² = d2qcld_dT2(qᵥ_sat_liq, Lᵥ, Rᵥ, T)
+
+        ∂tendency_∂q_lcl -= tendency / Γₗ * (Lᵥ / cₚ_air)^2 * d²qᵥ_sat_liq_dT²
+    end
+
+    return ifelse(limit_MM2015_sinks(tendency, q_lcl), zero(∂tendency_∂q_lcl), ∂tendency_∂q_lcl)
+end
+function ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
+    icl::CMP.CloudIce,
+    tps::TDI.PS,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    ρ,
+    T;
+    simplified = true,
+)
+    tendency = conv_q_vap_to_q_lcl_icl_MM2015(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    ∂tendency_∂q_icl = -1 / icl.τ_relax
+    if !simplified
+        Rᵥ = TDI.Rᵥ(tps)
+        Lₛ = TDI.Lₛ(tps, T)
+        cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
+        qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+
+        dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
+        Γᵢ = gamma_helper(Lₛ, cₚ_air, dqsi_dT)
+        d²qᵥ_sat_ice_dT² = d2qcld_dT2(qᵥ_sat_ice, Lₛ, Rᵥ, T)
+
+        ∂tendency_∂q_icl -= tendency / Γᵢ * (Lₛ / cₚ_air)^2 * d²qᵥ_sat_ice_dT²
+    end
+
+    limiter = limit_MM2015_sinks(tendency, q_icl) || INP_limiter(tendency, tps, T)
+    return ifelse(limiter, zero(∂tendency_∂q_icl), ∂tendency_∂q_icl)
 end
 
 """

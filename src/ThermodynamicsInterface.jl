@@ -84,7 +84,6 @@ saturation_vapor_pressure_over_liquid(tps::PS, T) =
 saturation_vapor_pressure_over_ice(tps::PS, T) =
     TD.saturation_vapor_pressure(tps, T, TD.Ice())
 
-# (only used in tests)
 saturation_vapor_specific_content_over_liquid(tps::PS, T, ρ) =
     TD.q_vap_saturation(tps, T, ρ, TD.Liquid())
 saturation_vapor_specific_content_over_ice(tps::PS, T, ρ) =

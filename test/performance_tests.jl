@@ -212,6 +212,7 @@ function benchmark_test(FT)
 
     @info "0-Moment Scheme"
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)
+    bench_press(FT, CM0.∂remove_precipitation_∂q_tot, (p0m, q_liq, q_ice), 12)
 
     @info "1-Moment Scheme"
     bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air), 360)
