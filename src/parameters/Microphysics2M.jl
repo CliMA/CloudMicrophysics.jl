@@ -345,6 +345,15 @@ for the concrete types.
 """
 abstract type RainParticlePDF_SB2006{FT} <: ParametersType{FT} end
 
+function RainParticlePDF_SB2006(td::CP.ParamDict; is_limited = true)
+    FT = CP.float_type(td)
+    if is_limited
+        return RainParticlePDF_SB2006_limited{FT}(td)
+    else
+        return RainParticlePDF_SB2006_notlimited{FT}(td)
+    end
+end
+
 """
     RainParticlePDF_SB2006_limited
 
@@ -665,7 +674,7 @@ DOI: 10.1007/s00703-005-0112-4
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SB2006{FT, PDc, PDr, AV, AR, SC, BR, EV, NA} <: Precipitation2MType{FT}
+@kwdef struct SB2006{FT, PDc, PDr, AV, AR, SC, BR, EV, NA} <: Precipitation2MType{FT}
     "Cloud particle size distribution parameters"
     pdf_c::PDc
     "Rain particle size distribution parameters"
@@ -684,14 +693,12 @@ struct SB2006{FT, PDc, PDr, AV, AR, SC, BR, EV, NA} <: Precipitation2MType{FT}
     numadj::NA
 end
 
-SB2006(::Type{FT}, is_limited = true) where {FT <: AbstractFloat} =
-    SB2006(CP.create_toml_dict(FT), is_limited)
+SB2006(::Type{FT}; is_limited = true) where {FT} = 
+    SB2006(CP.create_toml_dict(FT); is_limited)
 
-function SB2006(toml_dict::CP.ParamDict, is_limited = true)
+function SB2006(toml_dict::CP.ParamDict; is_limited = true)  # TODO: Change `is_limited` to keyword argument
     pdf_c = CloudParticlePDF_SB2006(toml_dict)
-    pdf_r =
-        is_limited ? RainParticlePDF_SB2006_limited(toml_dict) :
-        RainParticlePDF_SB2006_notlimited(toml_dict)
+    pdf_r = RainParticlePDF_SB2006(toml_dict; is_limited)
     acnv = AcnvSB2006(toml_dict)
     accr = AccrSB2006(toml_dict)
     self = SelfColSB2006(toml_dict)
@@ -699,22 +706,5 @@ function SB2006(toml_dict::CP.ParamDict, is_limited = true)
     evap = EvaporationSB2006(toml_dict)
     numadj = NumberAdjustmentHorn2012(toml_dict)
     FT = CP.float_type(toml_dict)
-    PDc = typeof(pdf_c)
-    PDr = typeof(pdf_r)
-    AN = typeof(acnv)
-    AR = typeof(accr)
-    SE = typeof(self)
-    BR = typeof(brek)
-    EV = typeof(evap)
-    NA = typeof(numadj)
-    return SB2006{FT, PDc, PDr, AN, AR, SE, BR, EV, NA}(
-        pdf_c,
-        pdf_r,
-        acnv,
-        accr,
-        self,
-        brek,
-        evap,
-        numadj,
-    )
+    return SB2006{FT}(; pdf_c, pdf_r, acnv, accr, self, brek, evap, numadj)
 end

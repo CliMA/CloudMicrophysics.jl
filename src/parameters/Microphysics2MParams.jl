@@ -88,30 +88,10 @@ function Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limi
     FT = CP.float_type(toml_dict)
 
     # Warm rain parameters (always present)
-    seifert_beheng = SB2006(toml_dict, is_limited)
-    air_properties = AirProperties(toml_dict)
-    warm_rain = WarmRainParams2M{FT, typeof(seifert_beheng), typeof(air_properties)}(
-        seifert_beheng,
-        air_properties,
-    )
+    warm_rain = WarmRainParams2M(toml_dict; is_limited)
 
     # Optional ice phase parameters
-    ice = if with_ice
-        scheme = ParametersP3(toml_dict)
-        terminal_velocity = Chen2022VelType(toml_dict)
-        cloud_pdf = CloudParticlePDF_SB2006(toml_dict)
-        rain_pdf =
-            is_limited ? RainParticlePDF_SB2006_limited(toml_dict) :
-            RainParticlePDF_SB2006_notlimited(toml_dict)
-        P3IceParams{FT, typeof(scheme), typeof(terminal_velocity), typeof(cloud_pdf), typeof(rain_pdf)}(
-            scheme,
-            terminal_velocity,
-            cloud_pdf,
-            rain_pdf,
-        )
-    else
-        nothing
-    end
+    ice = with_ice ? P3IceParams(toml_dict; is_limited) : nothing
 
-    return Microphysics2MParams{FT, typeof(warm_rain), typeof(ice)}(warm_rain, ice)
+    return Microphysics2MParams{FT}(; warm_rain, ice)
 end
