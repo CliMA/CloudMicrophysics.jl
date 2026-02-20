@@ -756,44 +756,47 @@ function rain_evaporation(
     tps::TDI.PS,
     q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T,
 ) where {FT}
+    ϵₘ, ϵₙ = UT.ϵ_numerics_2M_M(FT), UT.ϵ_numerics_2M_N(FT)
 
-    evap_rate_0 = FT(0)
-    evap_rate_1 = FT(0)
+    ∂ₜρn_rai = FT(0)
+    ∂ₜq_rai = FT(0)
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (N_rai > UT.ϵ_numerics_2M_N(FT) && S < FT(0))
+    # If there are no raindrops or conditions are supersaturated, no evaporation occurs
+    (N_rai ≤ ϵₙ || S ≥ FT(0)) && return (; ∂ₜρn_rai, ∂ₜq_rai)
 
-        (; ν_air, D_vapor) = aps
-        (; av, bv, α, β, ρ0) = evap
-        x_star = pdf_r.xr_min
-        ρw = pdf_r.ρw
-        G = CO.G_func_liquid(aps, tps, T)
 
-        (; xr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
-        Dr = cbrt(6 * xr_mean / (π * ρw))
+    (; ν_air, D_vapor) = aps
+    (; av, bv, α, β, ρ0) = evap
+    x_star = pdf_r.xr_min
+    ρw = pdf_r.ρw
+    G = CO.G_func_liquid(aps, tps, T)
 
-        t_star = cbrt(6 * x_star / xr_mean)
-        a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^(-2 // 3)
-        b_vent_0 = bv * Γ_incl(-1 // 2 + 3 // 2 * β, t_star) / FT(6)^(β / 2 - 1 // 2)
+    (; xr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
+    Dr = cbrt(6 * xr_mean / (π * ρw))
 
-        a_vent_1 = av * SF.gamma(FT(2)) / cbrt(FT(6))
-        b_vent_1 = bv * SF.gamma(5 // 2 + 3 // 2 * β) / FT(6)^(β / 2 + 1 // 2)
+    (xr_mean / x_star < ϵₘ && q_rai < ϵₘ) && return (; evap_rate_0, evap_rate_1)
 
-        N_Re = α * xr_mean^β * sqrt(ρ0 / ρ) * Dr / ν_air
-        Fv0 = a_vent_0 + b_vent_0 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
-        Fv1 = a_vent_1 + b_vent_1 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
+    t_star = cbrt(6 * x_star / xr_mean)
+    a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^(-2 // 3)
+    b_vent_0 = bv * Γ_incl(-1 // 2 + 3 // 2 * β, t_star) / FT(6)^(β / 2 - 1 // 2)
 
-        evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean)
-        evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
+    a_vent_1 = av * SF.gamma(FT(2)) / cbrt(FT(6))
+    b_vent_1 = bv * SF.gamma(5 // 2 + 3 // 2 * β) / FT(6)^(β / 2 + 1 // 2)
 
-        # When xr = 0 evap_rate_0 becomes NaN. We replace NaN with 0 which is the limit of
-        # evap_rate_0 for xr -> 0.
-        evap_rate_0 = xr_mean / x_star < eps(FT) ? FT(0) : evap_rate_0
-        evap_rate_1 = q_rai < UT.ϵ_numerics_2M_M(FT) ? FT(0) : evap_rate_1
+    N_Re = α * xr_mean^β * sqrt(ρ0 / ρ) * Dr / ν_air
+    Fv0 = a_vent_0 + b_vent_0 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
+    Fv1 = a_vent_1 + b_vent_1 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
 
-    end
+    ∂ₜρn_rai = min(FT(0), 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean)
+    ∂ₜq_rai = min(FT(0), 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
 
-    return (; evap_rate_0, evap_rate_1)
+    # When xr = 0 ∂ₜρn_rai becomes NaN. We replace NaN with 0 which is the limit of
+    # ∂ₜρn_rai for xr -> 0.
+    ∂ₜρn_rai = xr_mean / x_star < eps(FT) ? FT(0) : ∂ₜρn_rai
+    ∂ₜq_rai = q_rai < UT.ϵ_numerics_2M_M(FT) ? FT(0) : ∂ₜq_rai
+
+    return (; ∂ₜρn_rai, ∂ₜq_rai)
 end
 
 """

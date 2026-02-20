@@ -1,14 +1,15 @@
 """
     het_ice_nucleation(pdf_c, p3, tps, q_lcl, N, T, ρₐ, p, aerosol)
 
- - aerosol - aerosol parameters (supported types: desert dust, illite, kaolinite)
- - tps - thermodynamics parameters
- - q_lcl - cloud liquid water specific content
- - N_lcl - cloud droplet number concentration
- - RH - relative humidity
- - T - temperature
- - ρₐ - air density
- - dt - model time step
+# Arguments
+ - `aerosol`: aerosol parameters (supported types: desert dust, illite, kaolinite)
+ - `tps`: thermodynamics parameters
+ - `q_lcl`: cloud liquid water specific content
+ - `N_lcl`: cloud droplet number concentration
+ - `RH`: relative humidity
+ - `T`: temperature
+ - `ρₐ`: air density
+ - `dt`: model time step
 
 Returns a named tuple with ice number concentration and ice content
 hetergoeneous freezing rates from cloud droplets.
@@ -16,13 +17,9 @@ hetergoeneous freezing rates from cloud droplets.
 function het_ice_nucleation(
     aerosol::Union{CMP.DesertDust, CMP.Illite, CMP.Kaolinite},
     tps::TDI.PS,
-    q_lcl::FT,
-    N_lcl::FT,
-    RH::FT,
-    T::FT,
-    ρₐ::FT,
-    dt::FT,
-) where {FT}
+    q_lcl, N_lcl, RH, T, ρₐ, #dt,
+)
+    FT = eltype(tps)
     #TODO - Also consider rain freezing
 
     # Immersion freezing nucleation rate coefficient
@@ -40,8 +37,8 @@ function het_ice_nucleation(
     dNdt = max(0, dNdt)
     dLdt = max(0, dLdt)
     # ... and dont exceed the available number and mass of water droplets
-    dNdt = min(dNdt, N_lcl / dt)
-    dLdt = min(dLdt, q_lcl * ρₐ / dt)
+    # dNdt = min(dNdt, N_lcl / dt)
+    # dLdt = min(dLdt, q_lcl * ρₐ / dt)
 
     return (; dNdt, dLdt)
 end
@@ -55,7 +52,6 @@ end
  - `tps`: thermodynamics parameters
  - `Tₐ`: temperature (K)
  - `ρₐ`: air density
- - `dt`: model time step (for limiting the tendnecy)
  - `state`: a [`P3State`](@ref) object
  - `logλ`: the log of the slope parameter [log(1/m)]
 
@@ -65,7 +61,7 @@ end
 Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
 """
 function ice_melt(
-    velocity_params::CMP.Chen2022VelType, aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, dt, state::P3State, logλ;
+    velocity_params::CMP.Chen2022VelType, aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, state::P3State, logλ;
     ∫kwargs...,
 )
     # Note: process not dependent on `F_liq`
@@ -93,9 +89,6 @@ function ice_melt(
     # compute change of N_ice proportional to change in L
     dNdt = N_ice / L_ice * dLdt
 
-    # ... and don't exceed the available number and mass of water droplets
-    dNdt = min(dNdt, N_ice / dt)  # TODO: Apply limiters in CA.jl
-    dLdt = min(dLdt, L_ice / dt)
     return (; dNdt, dLdt)
 end
 
