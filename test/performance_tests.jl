@@ -160,7 +160,6 @@ function benchmark_test(FT)
     Delta_a_w = FT(0.27)
     r_liq = FT(1e-6)
     V_liq = FT(4 / 3 * π * r_liq^3)
-    Δt = FT(25)
     INPC = FT(1e5)
 
     @info "P3 Scheme"
@@ -183,17 +182,17 @@ function benchmark_test(FT)
     bench_press(
         @NamedTuple{dNdt::FT, dLdt::FT},
         P3.het_ice_nucleation,
-        (kaolinite, tps, q_liq, N_liq, RH_2, T_air_2, ρ_air, Δt),
+        (kaolinite, tps, q_liq, N_liq, RH_2, T_air_2, ρ_air),
         200,
     )
     bench_press(
         @NamedTuple{dNdt::FT, dLdt::FT},
         P3.ice_melt,
-        (ch2022, aps, tps, T_air, ρ_air, Δt, state, logλ),
+        (ch2022, aps, tps, T_air, ρ_air, state, logλ),
         150_000,
     )
     bench_press(FT, CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
-    bench_press(FT, CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
+    bench_press(FT, CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq), 230)
 
     @info "Cloud/Ice Terminal Velocity (Non-Eq)"
     bench_press(FT, CMN.terminal_velocity, (liquid, stokes_vel, ρ_air, q_liq), 350)

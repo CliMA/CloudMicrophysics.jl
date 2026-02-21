@@ -510,8 +510,6 @@ function test_p3_het_freezing(FT)
         T = FT(244)
         p = FT(500 * 1e2)
 
-        dt = FT(1)
-
         expected_freeze_L =
             [1.4953923796668346e-22, 1.0365387091217913e-6, 0.0001428, 0.0001428, 0.0001428, 0.0001428]
         expected_freeze_N = [1.0473022910416716e-10, 726031.0899744622, N_lcl, N_lcl, N_lcl, N_lcl]
@@ -524,7 +522,7 @@ function test_p3_het_freezing(FT)
             eᵥ = p * qᵥ_range[it] / (ϵ + qᵥ_range[it] * (1 - ϵ))
             RH = eᵥ / eᵥ_sat
             ρₐ = TDI.air_density(tps, T, p, qᵥ_range[it] + q_lcl, q_lcl, FT(0))
-            rate = P3.het_ice_nucleation(aerosol, tps, q_lcl, N_lcl, RH, T, ρₐ, dt)
+            rate = P3.het_ice_nucleation(aerosol, tps, q_lcl, N_lcl, RH, T, ρₐ)
 
             @test rate.dNdt >= 0
             @test rate.dLdt >= 0
@@ -550,20 +548,19 @@ function test_p3_melting(FT)
         Nᵢ = FT(2e5) * ρₐ
         F_rim = FT(0.8)
         ρ_rim = FT(800)
-        dt = FT(1)
 
         state = P3.get_state(params; F_rim, ρ_rim, L_ice = Lᵢ, N_ice = Nᵢ)
         logλ = P3.get_distribution_logλ(state)
 
         T_cold = FT(273.15 - 0.01)
 
-        rate = P3.ice_melt(vel, aps, tps, T_cold, ρₐ, dt, state, logλ)
+        rate = P3.ice_melt(vel, aps, tps, T_cold, ρₐ, state, logλ)
 
         @test rate.dNdt == 0
         @test rate.dLdt == 0
 
         T_warm = FT(273.15 + 0.01)
-        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, dt, state, logλ)
+        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state, logλ)
 
         @test rate.dNdt >= 0
         @test rate.dLdt >= 0
@@ -582,7 +579,7 @@ function test_p3_melting(FT)
         @test rate.dLdt ≈ ref_dLdt
 
         T_vwarm = FT(273.15 + 0.1)
-        rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, dt, state, logλ)
+        rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, state, logλ)
 
         @test rate.dNdt == Nᵢ
         @test rate.dLdt == Lᵢ
