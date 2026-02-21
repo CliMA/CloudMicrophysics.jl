@@ -896,10 +896,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         T_freeze = TDI.TD.Parameters.T_freeze(tps)
         if T > T_freeze && L_ice > zero(L_ice)
             state = CMP3.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
-            # TODO: Using a function that takes dt as an argument is not compatible with the current API.
-            # We should use a function that doesn't take dt as an argument.
-            dt_dummy = 1000 * one(T)  # P3 uses dt for limiting, we'll limit later
-            melt = CMP3.ice_melt(vel, aps, tps, T, ρ, dt_dummy, state, logλ)
+            melt = CMP3.ice_melt(vel, aps, tps, T, ρ, state, logλ)
 
             # Melting converts ice to rain
             dq_ice_dt -= melt.dLdt / ρ
