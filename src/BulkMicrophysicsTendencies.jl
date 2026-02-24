@@ -369,6 +369,95 @@ as `bulk_microphysics_tendencies`.
     return (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl, ∂tendency_∂q_rai, ∂tendency_∂q_sno)
 end
 
+# --- 2-Moment Microphysics derivatives ---
+
+"""
+    bulk_microphysics_derivatives(
+        ::Microphysics2Moment,
+        mp,
+        tps,
+        ρ,
+        T,
+        q_tot,
+        q_lcl,
+        q_icl,
+        q_rai,
+        q_sno,
+        n_lcl,
+        n_rai,
+    )
+
+Compute 2-moment microphysics tendency derivatives in one fused call.
+
+Returns leading-order derivatives of species tendencies w.r.t. their own
+specific content (q) and number (n). Rain uses the 2-moment rain evaporation
+derivatives; snow and cloud formation derivatives are zero for now.
+
+# Arguments
+- `mp`: Microphysics2MParams (warm rain; ice optional)
+- `n_lcl`, `n_rai`: Cloud and rain number per kg air (1/kg); N_rai = ρ * n_rai used for rain evaporation derivative
+
+# Returns
+`NamedTuple` with fields: `∂tendency_∂q_lcl`, `∂tendency_∂q_icl`, `∂tendency_∂q_rai`, `∂tendency_∂q_sno`, `∂tendency_∂n_lcl`, `∂tendency_∂n_rai`
+"""
+@inline function bulk_microphysics_derivatives(
+    ::Microphysics2Moment,
+    mp::CMP.Microphysics2MParams{FT, WR, ICE},
+    tps,
+    ρ,
+    T,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    n_lcl,
+    n_rai,
+) where {FT, WR, ICE}
+    ρ = UT.clamp_to_nonneg(ρ)
+    q_tot = UT.clamp_to_nonneg(q_tot)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_icl = UT.clamp_to_nonneg(q_icl)
+    q_rai = UT.clamp_to_nonneg(q_rai)
+    q_sno = UT.clamp_to_nonneg(q_sno)
+    n_lcl = UT.clamp_to_nonneg(n_lcl)
+    n_rai = UT.clamp_to_nonneg(n_rai)
+
+    sb = mp.warm_rain.seifert_beheng
+    aps = mp.warm_rain.air_properties
+    N_rai = ρ * n_rai
+
+    # TODO: Cloud formation — 2M bulk_microphysics_tendencies does not call cloud formation yet;
+    # once it does, set these from MM2015 (same as 1M) via ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld.
+    ∂tendency_∂q_lcl = zero(ρ)
+    ∂tendency_∂q_icl = zero(ρ)
+
+    # 2-moment rain evaporation derivatives (return order: ∂n_rai, ∂q_rai, matching rain_evaporation)
+    (; ∂N_rai, ∂q_rai) =
+        CM2.∂rain_evaporation_∂N_rai_∂q_rai(sb, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
+    ∂tendency_∂q_rai = ∂q_rai
+    ∂tendency_∂n_rai = ∂N_rai / ρ
+
+    # TODO: 2M scheme also applies number/mass adjustment terms (e.g. number_increase_for_mass_limit,
+    # number_decrease_for_mass_limit) to keep the assumed size distribution stable; consider adding
+    # their derivatives here later.
+
+    # Snow derivative zero for now
+    ∂tendency_∂q_sno = zero(ρ)
+
+    # Cloud number derivative zero for now
+    ∂tendency_∂n_lcl = zero(ρ)
+
+    return (;
+        ∂tendency_∂q_lcl,
+        ∂tendency_∂q_icl,
+        ∂tendency_∂q_rai,
+        ∂tendency_∂q_sno,
+        ∂tendency_∂n_lcl,
+        ∂tendency_∂n_rai,
+    )
+end
+
 # --- 0-Moment Microphysics ---
 
 """

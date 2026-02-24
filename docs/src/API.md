@@ -88,6 +88,7 @@ Microphysics2M.rain_breakup
 Microphysics2M.rain_self_collection_and_breakup
 Microphysics2M.rain_terminal_velocity
 Microphysics2M.rain_evaporation
+Microphysics2M.∂rain_evaporation_∂N_rai_∂q_rai
 Microphysics2M.conv_q_lcl_to_q_rai
 Microphysics2M.number_increase_for_mass_limit
 Microphysics2M.number_decrease_for_mass_limit
