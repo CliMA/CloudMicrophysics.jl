@@ -27,6 +27,7 @@ export autoconversion,
     rain_terminal_velocity,
     conv_q_lcl_to_q_rai,
     rain_evaporation,
+    ∂rain_evaporation_∂N_rai_∂q_rai,
     rain_self_collection,
     rain_breakup,
     rain_self_collection_and_breakup,
@@ -794,6 +795,39 @@ function rain_evaporation(
     end
 
     return (; evap_rate_0, evap_rate_1)
+end
+
+"""
+    ∂rain_evaporation_∂N_rai_∂q_rai(sb, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
+
+Returns the leading-order derivatives of the rain evaporation tendencies with
+respect to rain specific content `q_rai` and rain number concentration N_rai.
+
+Uses the same approximation pattern as
+`Microphysics1M.∂evaporation_sublimation_∂q_precip`:
+- ∂(evap_rate_0/ρ)/∂N_rai ≈ evap_rate_0 / N_rai  (number tendency, first)
+- ∂(evap_rate_1)/∂q_rai ≈ evap_rate_1 / q_rai  (mass tendency, second)
+
+# Returns
+`NamedTuple` with fields `(; ∂tendency_∂N_rai, ∂tendnecy_∂q_rai)`.
+"""
+@inline function ∂rain_evaporation_∂N_rai_∂q_rai(
+    sb::CMP.SB2006{FT},
+    aps::CMP.AirProperties,
+    tps::TDI.PS,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    ρ,
+    N_rai,
+    T,
+) where {FT}
+    result = rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
+    ∂N_rai = N_rai > UT.ϵ_numerics_2M_N(FT) ? result.evap_rate_0 / N_rai : zero(result.evap_rate_0)
+    ∂q_rai = q_rai > UT.ϵ_numerics_2M_M(FT) ? result.evap_rate_1 / q_rai : zero(result.evap_rate_1)
+    return (; ∂N_rai, ∂q_rai)
 end
 
 """

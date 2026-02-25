@@ -16,6 +16,139 @@ function get_saturated_q_tot(tps, T::FT, ρ::FT, q_lcl::FT, q_icl::FT, q_rai::FT
     return q_vap_sat + q_lcl + q_icl + q_rai + q_sno
 end
 
+###
+### 0M tendencies and derivatives tests
+###
+
+function test_bulk_microphysics_0m_tendencies(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    mp = CMP.Microphysics0MParams(FT)
+
+    T_freeze = TDI.T_freeze(tps)
+
+    @testset "BulkMicrophysicsTendencies 0M - Precipitation removal" begin
+        T = T_freeze + FT(10)
+        q_lcl = FT(2e-3)  # Above threshold
+        q_icl = FT(0)
+
+        tendencies = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl,
+        )
+
+        # Should be negative (removing condensate)
+        @test tendencies.dq_tot_dt < FT(0)
+        # Internal energy should be finite
+        @test isfinite(tendencies.e_int_precip)
+    end
+
+    @testset "BulkMicrophysicsTendencies 0M - Below threshold" begin
+        T = T_freeze + FT(10)
+        q_lcl = FT(1e-6)  # Below threshold
+        q_icl = FT(0)
+
+        tendencies = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl,
+        )
+
+        # No precipitation when below threshold
+        @test tendencies.dq_tot_dt == FT(0)
+    end
+
+    @testset "BulkMicrophysicsTendencies 0M - Type stability" begin
+        T = T_freeze + FT(5)
+        q_lcl = FT(1e-3)
+        q_icl = FT(5e-4)
+
+        tendencies = @inferred BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl,
+        )
+        @test tendencies isa NamedTuple{(:dq_tot_dt, :e_int_precip), NTuple{2, FT}}
+    end
+
+    @testset "BulkMicrophysicsTendencies 0M - S_0 precipitation removal" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_lcl = FT(2e-3)
+        q_icl = FT(0)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        tendencies = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl, q_vap_sat,
+        )
+
+        # Should be negative (removing condensate above S_0 * q_vap_sat)
+        @test tendencies.dq_tot_dt < FT(0)
+        @test isfinite(tendencies.e_int_precip)
+    end
+
+    @testset "BulkMicrophysicsTendencies 0M - S_0 below threshold" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        # Condensate below S_0 * q_vap_sat
+        q_lcl = FT(1e-8)
+        q_icl = FT(0)
+
+        tendencies = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl, q_vap_sat,
+        )
+
+        @test tendencies.dq_tot_dt == FT(0)
+    end
+
+    @testset "BulkMicrophysicsTendencies 0M - S_0 type stability" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(5)
+        q_lcl = FT(1e-3)
+        q_icl = FT(5e-4)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        tendencies = @inferred BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics0Moment(),
+            mp, tps, T, q_lcl, q_icl, q_vap_sat,
+        )
+        @test tendencies isa NamedTuple{(:dq_tot_dt, :e_int_precip), NTuple{2, FT}}
+    end
+end
+
+function test_bulk_microphysics_0m_derivatives(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    mp = CMP.Microphysics0MParams(FT)
+
+    @testset "BulkMicrophysicsDerivatives 0M - not implemented" begin
+        # 0M scheme has no bulk_microphysics_derivatives API; document that no method exists
+        ρ = FT(1.2)
+        T = TDI.T_freeze(tps) + FT(5)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-3)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(0)
+        @test !applicable(
+            BMT.bulk_microphysics_derivatives,
+            BMT.Microphysics0Moment(),
+            mp,
+            tps,
+            ρ,
+            T,
+            q_tot,
+            q_lcl,
+            q_icl,
+            q_rai,
+            q_sno,
+        )
+    end
+end
+
+###
+### 1M tendencies and derivatives tests
+###
+
 function test_bulk_microphysics_1m_tendencies(FT)
 
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
@@ -501,101 +634,87 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
 end
 
-function test_bulk_microphysics_0m_tendencies(FT)
+function test_bulk_microphysics_1m_derivatives(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    mp = CMP.Microphysics0MParams(FT)
-
+    mp = CMP.Microphysics1MParams(FT)
     T_freeze = TDI.T_freeze(tps)
 
-    @testset "BulkMicrophysicsTendencies 0M - Precipitation removal" begin
-        T = T_freeze + FT(10)
-        q_lcl = FT(2e-3)  # Above threshold
-        q_icl = FT(0)
-
-        tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics0Moment(),
-            mp, tps, T, q_lcl, q_icl,
-        )
-
-        # Should be negative (removing condensate)
-        @test tendencies.dq_tot_dt < FT(0)
-        # Internal energy should be finite
-        @test isfinite(tendencies.e_int_precip)
-    end
-
-    @testset "BulkMicrophysicsTendencies 0M - Below threshold" begin
-        T = T_freeze + FT(10)
-        q_lcl = FT(1e-6)  # Below threshold
-        q_icl = FT(0)
-
-        tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics0Moment(),
-            mp, tps, T, q_lcl, q_icl,
-        )
-
-        # No precipitation when below threshold
-        @test tendencies.dq_tot_dt == FT(0)
-    end
-
-    @testset "BulkMicrophysicsTendencies 0M - Type stability" begin
-        T = T_freeze + FT(5)
-        q_lcl = FT(1e-3)
-        q_icl = FT(5e-4)
-
-        tendencies = @inferred BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics0Moment(),
-            mp, tps, T, q_lcl, q_icl,
-        )
-        @test tendencies isa NamedTuple{(:dq_tot_dt, :e_int_precip), NTuple{2, FT}}
-    end
-
-    @testset "BulkMicrophysicsTendencies 0M - S_0 precipitation removal" begin
+    @testset "BulkMicrophysicsDerivatives 1M - Finiteness" begin
         ρ = FT(1.2)
-        T = T_freeze + FT(10)
-        q_lcl = FT(2e-3)
-        q_icl = FT(0)
-        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        T = T_freeze + FT(7)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-4)
+        q_icl = FT(1e-4)
+        q_rai = FT(1e-4)
+        q_sno = FT(1e-4)
 
-        tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics0Moment(),
-            mp, tps, T, q_lcl, q_icl, q_vap_sat,
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
-
-        # Should be negative (removing condensate above S_0 * q_vap_sat)
-        @test tendencies.dq_tot_dt < FT(0)
-        @test isfinite(tendencies.e_int_precip)
+        @test all(isfinite, derivs)
     end
 
-    @testset "BulkMicrophysicsTendencies 0M - S_0 below threshold" begin
-        ρ = FT(1.2)
-        T = T_freeze + FT(10)
-        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
-        # Condensate below S_0 * q_vap_sat
-        q_lcl = FT(1e-8)
-        q_icl = FT(0)
-
-        tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics0Moment(),
-            mp, tps, T, q_lcl, q_icl, q_vap_sat,
-        )
-
-        @test tendencies.dq_tot_dt == FT(0)
-    end
-
-    @testset "BulkMicrophysicsTendencies 0M - S_0 type stability" begin
+    @testset "BulkMicrophysicsDerivatives 1M - Return structure" begin
         ρ = FT(1.2)
         T = T_freeze + FT(5)
+        q_tot = FT(0.01)
         q_lcl = FT(1e-3)
-        q_icl = FT(5e-4)
-        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q_icl = FT(0)
+        q_rai = FT(1e-4)
+        q_sno = FT(0)
 
-        tendencies = @inferred BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics0Moment(),
-            mp, tps, T, q_lcl, q_icl, q_vap_sat,
+        derivs = @inferred BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
-        @test tendencies isa NamedTuple{(:dq_tot_dt, :e_int_precip), NTuple{2, FT}}
+        @test derivs isa @NamedTuple{
+            ∂tendency_∂q_lcl::FT,
+            ∂tendency_∂q_icl::FT,
+            ∂tendency_∂q_rai::FT,
+            ∂tendency_∂q_sno::FT,
+        }
+    end
+
+    @testset "BulkMicrophysicsDerivatives 1M - Subsaturated rain evaporation" begin
+        # In subsaturated conditions, rain evaporates so ∂(dq_rai_dt)/∂q_rai should be ≤ 0
+        ρ = FT(1.2)
+        T = T_freeze + FT(15)
+        q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(1e-3)
+        q_sno = FT(0)
+        q_vap = FT(0.5) * q_sat
+        q_tot = q_vap + q_lcl + q_icl + q_rai + q_sno
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        @test derivs.∂tendency_∂q_rai ≤ FT(0)
+    end
+
+    @testset "BulkMicrophysicsDerivatives 1M - Edge cases (tiny q)" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-10)
+        q_icl = FT(1e-10)
+        q_rai = FT(1e-10)
+        q_sno = FT(1e-10)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        @test all(isfinite, derivs)
     end
 end
+
+###
+### 2M tendencies and derivatives tests
+###
 
 function test_bulk_microphysics_2m_tendencies(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
@@ -662,6 +781,104 @@ function test_bulk_microphysics_2m_tendencies(FT)
         @test tendencies.db_rim_dt == FT(0)
     end
 end
+
+function test_bulk_microphysics_2m_derivatives(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    mp = CMP.Microphysics2MParams(FT; with_ice = false)
+    T_freeze = TDI.T_freeze(tps)
+
+    @testset "BulkMicrophysicsDerivatives 2M - Finiteness" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-3)
+        q_icl = FT(0)
+        q_rai = FT(1e-4)
+        q_sno = FT(0)
+        n_lcl = FT(1e8)
+        n_rai = FT(1e6)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics2Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, n_lcl, n_rai,
+        )
+        @test all(isfinite, derivs)
+    end
+
+    @testset "BulkMicrophysicsDerivatives 2M - Return structure" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(5)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-3)
+        q_icl = FT(0)
+        q_rai = FT(1e-4)
+        q_sno = FT(0)
+        n_lcl = FT(1e8)
+        n_rai = FT(1e6)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics2Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, n_lcl, n_rai,
+        )
+        @test derivs isa @NamedTuple{
+            ∂tendency_∂q_lcl::FT,
+            ∂tendency_∂q_icl::FT,
+            ∂tendency_∂q_rai::FT,
+            ∂tendency_∂q_sno::FT,
+            ∂tendency_∂n_lcl::FT,
+            ∂tendency_∂n_rai::FT,
+        }
+        # Cloud and snow derivatives are zero for now (TODO in code)
+        @test derivs.∂tendency_∂q_lcl == FT(0)
+        @test derivs.∂tendency_∂q_icl == FT(0)
+        @test derivs.∂tendency_∂q_sno == FT(0)
+        @test derivs.∂tendency_∂n_lcl == FT(0)
+    end
+
+    @testset "BulkMicrophysicsDerivatives 2M - Subsaturated rain evaporation" begin
+        # In subsaturated conditions, rain evaporates so ∂(dq_rai_dt)/∂q_rai should be ≤ 0
+        ρ = FT(1.2)
+        T = T_freeze + FT(15)
+        q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(1e-3)
+        q_sno = FT(0)
+        q_vap = FT(0.5) * q_sat
+        q_tot = q_vap + q_lcl + q_icl + q_rai + q_sno
+        n_lcl = FT(1e8)
+        n_rai = FT(1e6)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics2Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, n_lcl, n_rai,
+        )
+        @test derivs.∂tendency_∂q_rai ≤ FT(0)
+        @test derivs.∂tendency_∂n_rai ≤ FT(0)
+    end
+
+    @testset "BulkMicrophysicsDerivatives 2M - Edge cases (tiny q and n)" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-10)
+        q_icl = FT(0)
+        q_rai = FT(1e-10)
+        q_sno = FT(0)
+        n_lcl = FT(1e-10)
+        n_rai = FT(1e-10)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics2Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, n_lcl, n_rai,
+        )
+        @test all(isfinite, derivs)
+    end
+end
+
+###
+### P3 tendencies tests
+###
 
 function test_bulk_microphysics_p3_tendencies(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
@@ -903,9 +1120,12 @@ function test_bulk_microphysics_p3_tendencies(FT)
 end
 
 @testset "Bulk Microphysics Tendencies ($FT)" for FT in (Float64, Float32)
-    test_bulk_microphysics_1m_tendencies(FT)
     test_bulk_microphysics_0m_tendencies(FT)
+    test_bulk_microphysics_0m_derivatives(FT)
+    test_bulk_microphysics_1m_tendencies(FT)
+    test_bulk_microphysics_1m_derivatives(FT)
     test_bulk_microphysics_2m_tendencies(FT)
+    test_bulk_microphysics_2m_derivatives(FT)
     test_bulk_microphysics_p3_tendencies(FT)
 end
 nothing
