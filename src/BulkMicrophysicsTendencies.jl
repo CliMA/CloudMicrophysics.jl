@@ -350,21 +350,53 @@ as `bulk_microphysics_tendencies`.
     aps = mp.air_properties
     vel = mp.terminal_velocity
 
-    # Condensation/evaporation of cloud liquid
+    # --- Cloud liquid: condensation + sink self-derivatives ---
     ∂tendency_∂q_lcl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    # Autoconversion q_lcl → q_rai (sink, ∂/∂q_lcl is exact for linear-above-threshold)
+    S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
+    # Accretion q_lcl + q_rai → q_rai (rate is exactly linear in q_lcl)
+    S_accr_lcl_rai = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
+    # Accretion q_lcl + q_sno → q_sno (rate is exactly linear in q_lcl)
+    S_accr_lcl_sno = CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
+    ∂tendency_∂q_lcl -= q_lcl > UT.ϵ_numerics(typeof(q_lcl)) ?
+        (S_acnv_lcl + S_accr_lcl_rai + S_accr_lcl_sno) / q_lcl : zero(q_lcl)
 
-    # Deposition/sublimation of cloud ice (INP limiter applied inside ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld)
+    # --- Cloud ice: deposition + sink self-derivatives ---
     ∂tendency_∂q_icl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    # Autoconversion q_icl → q_sno
+    S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
+    # Accretion q_icl + q_rai → q_sno (rate is exactly linear in q_icl)
+    S_accr_icl_rai = CM1.accretion(icl, rai, vel.rain, ce, q_icl, q_rai, ρ)
+    # Accretion q_icl + q_sno → q_sno (rate is exactly linear in q_icl)
+    S_accr_icl_sno = CM1.accretion(icl, sno, vel.snow, ce, q_icl, q_sno, ρ)
+    ∂tendency_∂q_icl -= q_icl > UT.ϵ_numerics(typeof(q_icl)) ?
+        (S_acnv_icl + S_accr_icl_rai + S_accr_icl_sno) / q_icl : zero(q_icl)
 
-    # Rain evaporation
+    # --- Rain: evaporation + sink self-derivatives ---
     ∂tendency_∂q_rai =
         CM1.∂evaporation_sublimation_∂q_precip(rai, vel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    # Accretion rain_sink: ice + rain → snow (rate/q_rai approximation)
+    S_accr_rai_icl = CM1.accretion_rain_sink(rai, icl, vel.rain, ce, q_icl, q_rai, ρ)
+    # Snow-rain accretion (cold): rain → snow
+    is_warm = T >= sno.T_freeze
+    S_accr_rai_sno = ifelse(is_warm, zero(T),
+        CM1.accretion_snow_rain(sno, rai, vel.snow, vel.rain, ce, q_sno, q_rai, ρ))
+    ∂tendency_∂q_rai -= q_rai > UT.ϵ_numerics(typeof(q_rai)) ?
+        (S_accr_rai_icl + S_accr_rai_sno) / q_rai : zero(q_rai)
 
-    # Snow sublimation/deposition and melting
+    # --- Snow: sublimation/deposition + melting + sink self-derivatives ---
     dS_subl_sno =
         CM1.∂evaporation_sublimation_∂q_precip(sno, vel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
     dS_melt_sno = CM1.∂snow_melt_∂q_sno(sno, vel.snow, aps, tps, q_sno, ρ, T)
     ∂tendency_∂q_sno = dS_subl_sno - dS_melt_sno
+    # Snow-rain accretion (warm): snow → rain
+    S_accr_sno_rai = ifelse(is_warm,
+        CM1.accretion_snow_rain(rai, sno, vel.rain, vel.snow, ce, q_rai, q_sno, ρ), zero(T))
+    # Accretion melt from warm liquid-snow collision
+    α = warm_accretion_melt_factor(tps, sno, T)
+    S_accr_lcl_sno_melt = α * CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
+    ∂tendency_∂q_sno -= q_sno > UT.ϵ_numerics(typeof(q_sno)) ?
+        (S_accr_sno_rai + S_accr_lcl_sno_melt) / q_sno : zero(q_sno)
 
     return (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl, ∂tendency_∂q_rai, ∂tendency_∂q_sno)
 end
