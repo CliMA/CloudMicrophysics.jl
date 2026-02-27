@@ -33,12 +33,10 @@ function run_type_stability_tests()
                 )
 
             @test tendencies_0M isa Vector
-            @test eltype(tendencies_0M) <: NamedTuple
-            # strict check
+            @test eltype(tendencies_0M) === FT
             val0 = tendencies_0M[1]
-            for k in keys(val0)
-                @test getproperty(val0, k) isa FT
-            end
+            @test val0 isa FT
+            @test isfinite(val0)
 
             # --- 0-Moment (S_0 mode) ---
             ρ_0M = fill(FT(1.2), N)
@@ -55,11 +53,10 @@ function run_type_stability_tests()
                 )
 
             @test tendencies_0M_S0 isa Vector
-            @test eltype(tendencies_0M_S0) <: NamedTuple
+            @test eltype(tendencies_0M_S0) === FT
             val0s = tendencies_0M_S0[1]
-            for k in keys(val0s)
-                @test getproperty(val0s, k) isa FT
-            end
+            @test val0s isa FT
+            @test isfinite(val0s)
 
             # --- 1-Moment ---
             mp1 = CMP.Microphysics1MParams(FT)

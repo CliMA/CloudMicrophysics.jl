@@ -1001,10 +1001,9 @@ function test_gpu(FT)
     end  # TT.@testset "Modal nucleation kernels"
 
     TT.@testset "Bulk microphysics tendencies kernels" begin
-        # 0M tests (returns dq_tot_dt, e_int_precip)
+        # 0M tests (returns dq_tot_dt scalar only)
         ndrange = 10
-        DT = @NamedTuple{dq_tot_dt::FT, e_int_precip::FT}
-        (; output) = setup_output(ndrange, DT)
+        (; output) = setup_output(ndrange, FT)
         liquid_frac = constant_data(FT(0.5); ndrange)
         qc = constant_data(FT(1e-3); ndrange)
         T = constant_data(FT(280.0); ndrange)
@@ -1013,21 +1012,21 @@ function test_gpu(FT)
         TT.@testset "0M" begin
             kernel!(mp_0m, tps, output, liquid_frac, qc, T; ndrange)
             TT.@test allequal(Array(output))
-            tendencies = Array(output)[1]
-            TT.@test tendencies.dq_tot_dt ≤ 0  # Precipitation removal (dq_tot_dt) always negative or zero
-            TT.@test isfinite(tendencies.e_int_precip)
+            dq_tot_dt = Array(output)[1]
+            TT.@test dq_tot_dt ≤ 0  # Precipitation removal (dq_tot_dt) always negative or zero
+            TT.@test isfinite(dq_tot_dt)
         end
 
         # 0M S_0 tests (with q_vap_sat)
-        (; output) = setup_output(ndrange, DT)
+        (; output) = setup_output(ndrange, FT)
         q_vap_sat = constant_data(FT(0.01); ndrange)
         kernel_s0! = test_bulk_tendencies_0m_S0_kernel!(backend, work_groups)
         TT.@testset "0M S_0" begin
             kernel_s0!(mp_0m, tps, output, liquid_frac, qc, T, q_vap_sat; ndrange)
             TT.@test allequal(Array(output))
-            tendencies = Array(output)[1]
-            TT.@test tendencies.dq_tot_dt ≤ 0
-            TT.@test isfinite(tendencies.e_int_precip)
+            dq_tot_dt = Array(output)[1]
+            TT.@test dq_tot_dt ≤ 0
+            TT.@test isfinite(dq_tot_dt)
         end
 
 

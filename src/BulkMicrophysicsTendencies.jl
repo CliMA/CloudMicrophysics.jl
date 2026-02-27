@@ -567,31 +567,13 @@ derivatives; snow and cloud formation derivatives are zero for now.
 end
 
 # --- 0-Moment Microphysics ---
-
-"""
-    _precip_energy(tps, T, q_lcl, q_icl)
-
-Internal energy of removed condensate, weighted by the liquid fraction.
-Shared helper for the two 0-moment `bulk_microphysics_tendencies` methods.
-"""
-@inline function _precip_energy(tps, T, q_lcl, q_icl)
-    λ = TDI.liquid_fraction(tps, T, q_lcl, q_icl)
-    I_liq = TDI.internal_energy_liquid(tps, T)
-    I_ice = TDI.internal_energy_ice(tps, T)
-    return λ * I_liq + (1 - λ) * I_ice
-end
-
 """
     bulk_microphysics_tendencies(::Microphysics0Moment, mp, tps, T, q_lcl, q_icl)
     bulk_microphysics_tendencies(::Microphysics0Moment, mp, tps, T, q_lcl, q_icl, q_vap_sat)
 
 Compute 0-moment microphysics tendencies in one fused call.
 
-Returns a NamedTuple with:
-- `dq_tot_dt`: Total water tendency from precipitation removal [kg/kg/s]
-- `e_int_precip`: Internal energy of removed condensate [J/kg]
-
-Caller adds geopotential Φ for energy tendency: `e_tot = dq_tot_dt * (e_int_precip + Φ)`
+Returns the total water tendency `dq_tot_dt` (a scalar, in kg/kg/s) from precipitation removal.
 
 The first form uses the fixed condensate threshold `qc_0`;
 the second form uses the supersaturation threshold `S_0 * q_vap_sat`.
@@ -606,7 +588,6 @@ the second form uses the supersaturation threshold `S_0 * q_vap_sat`.
 
 # Notes
 - Does NOT apply limiters (caller applies based on timestep)
-- Does NOT include geopotential (caller adds Φ for energy tendency)
 """
 @inline function bulk_microphysics_tendencies(
     ::Microphysics0Moment,
@@ -619,10 +600,8 @@ the second form uses the supersaturation threshold `S_0 * q_vap_sat`.
     q_lcl = UT.clamp_to_nonneg(q_lcl)
     q_icl = UT.clamp_to_nonneg(q_icl)
     dq_tot_dt = CM0.remove_precipitation(mp.precip, q_lcl, q_icl)
-    e_int_precip = _precip_energy(tps, T, q_lcl, q_icl)
-    return (; dq_tot_dt, e_int_precip)
+    return dq_tot_dt
 end
-
 @inline function bulk_microphysics_tendencies(
     ::Microphysics0Moment,
     mp::CMP.Microphysics0MParams,
@@ -635,8 +614,7 @@ end
     q_lcl = UT.clamp_to_nonneg(q_lcl)
     q_icl = UT.clamp_to_nonneg(q_icl)
     dq_tot_dt = CM0.remove_precipitation(mp.precip, q_lcl, q_icl, q_vap_sat)
-    e_int_precip = _precip_energy(tps, T, q_lcl, q_icl)
-    return (; dq_tot_dt, e_int_precip)
+    return dq_tot_dt
 end
 
 # --- 2-Moment Microphysics Helper Functions ---
@@ -826,7 +804,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `tps`: Thermodynamics parameters
 - `ρ`: Air density (kg/m³)
 - `T`: Temperature (K)
-- `q_tot`: Total water specific content (kg/kg) 
+- `q_tot`: Total water specific content (kg/kg)
 - `q_lcl`: Cloud liquid specific content (kg/kg)
 - `n_lcl`: Cloud droplet number per kg air (1/kg)
 - `q_rai`: Rain specific content (kg/kg)
