@@ -234,6 +234,7 @@ This is a pure function of local thermodynamic state, suitable for:
     dq_sno_dt += ifelse(is_warm, zero(T), S_accr_lcl_sno)
     dq_rai_dt += ifelse(is_warm, S_accr_lcl_sno, zero(T))
     # Thermal melting (α=0 when cold, so these terms vanish)
+    # Physical consistency: melt is mass of snow melted, which is α * mass of warm liquid
     α = warm_accretion_melt_factor(tps, sno, T)
     S_accr_melt = α * S_accr_lcl_sno
     dq_sno_dt -= S_accr_melt
@@ -269,7 +270,8 @@ This is a pure function of local thermodynamic state, suitable for:
     dq_sno_dt -= ifelse(is_warm, S_accr_sno_rai, zero(T))
     dq_rai_dt += ifelse(is_warm, S_accr_sno_rai, zero(T))
     # Thermal melting from warm rain (α=0 when cold)
-    S_accr_melt = α * S_accr_sno_rai
+    # Physical consistency: melt is mass of snow melted, which is α * mass of warm rain
+    S_accr_melt = α * S_accr_rai_sno
     dq_sno_dt -= ifelse(is_warm, S_accr_melt, zero(T))
     dq_rai_dt += ifelse(is_warm, S_accr_melt, zero(T))
 
@@ -352,7 +354,7 @@ as `bulk_microphysics_tendencies`.
 
     # --- Cloud liquid: condensation + sink self-derivatives ---
     ∂tendency_∂q_lcl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    # Autoconversion q_lcl → q_rai (sink, ∂/∂q_lcl is exact for linear-above-threshold)
+    # Autoconversion q_lcl → q_rai (sink, derivative ∂/∂q_lcl is conservative and safe for linear-above-threshold)
     S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
     # Accretion q_lcl + q_rai → q_rai (rate is exactly linear in q_lcl)
     S_accr_lcl_rai = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
@@ -392,11 +394,15 @@ as `bulk_microphysics_tendencies`.
     # Snow-rain accretion (warm): snow → rain
     S_accr_sno_rai = ifelse(is_warm,
         CM1.accretion_snow_rain(rai, sno, vel.rain, vel.snow, ce, q_rai, q_sno, ρ), zero(T))
+    # Thermal melting from warm rain collision -> snow sink proportional to S_accr_rai_sno
+    # (Since this is a diagonal derivative, we approximate ∂/∂q_sno by rate/q_sno, using the rain sink form S_accr_rai_sno)
+    S_accr_sno_rai_melt = ifelse(is_warm,
+        CM1.accretion_snow_rain(sno, rai, vel.snow, vel.rain, ce, q_sno, q_rai, ρ), zero(T))
     # Accretion melt from warm liquid-snow collision
     α = warm_accretion_melt_factor(tps, sno, T)
     S_accr_lcl_sno_melt = α * CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
     ∂tendency_∂q_sno -= q_sno > UT.ϵ_numerics(typeof(q_sno)) ?
-        (S_accr_sno_rai + S_accr_lcl_sno_melt) / q_sno : zero(q_sno)
+        (S_accr_sno_rai + α * S_accr_sno_rai_melt + S_accr_lcl_sno_melt) / q_sno : zero(q_sno)
 
     return (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl, ∂tendency_∂q_rai, ∂tendency_∂q_sno)
 end

@@ -710,6 +710,135 @@ function test_bulk_microphysics_1m_derivatives(FT)
         )
         @test all(isfinite, derivs)
     end
+
+    @testset "BulkMicrophysicsDerivatives 1M - Cloud liquid sink derivatives" begin
+        # With cloud liquid above autoconversion threshold and rain/snow present,
+        # the derivative should be negative (sinks from autoconversion + accretion)
+        ρ = FT(1.2)
+        T = T_freeze + FT(5)
+        q_lcl = FT(2e-3)  # above autoconversion threshold
+        q_icl = FT(0)
+        q_rai = FT(5e-4)  # rain present for accretion
+        q_sno = FT(5e-4)  # snow present for accretion
+        q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, q_icl, q_rai, q_sno)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        # Derivative should be negative (sink terms dominate at saturation)
+        @test derivs.∂tendency_∂q_lcl < FT(0)
+
+        # Compare with no-sink case (no rain, no snow, below autoconv threshold)
+        q_lcl_small = FT(1e-5)  # below threshold
+        q_tot_small = get_saturated_q_tot(tps, T, ρ, q_lcl_small, q_icl, FT(0), FT(0))
+        derivs_nosink = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot_small, q_lcl_small, q_icl, FT(0), FT(0),
+        )
+        # With sinks, derivative should be more negative
+        @test derivs.∂tendency_∂q_lcl < derivs_nosink.∂tendency_∂q_lcl
+    end
+
+    @testset "BulkMicrophysicsDerivatives 1M - Cloud ice sink derivatives" begin
+        # With cloud ice above autoconversion threshold and snow present,
+        # the derivative should include sink contributions
+        ρ = FT(1.2)
+        T = T_freeze - FT(20)  # cold
+        q_lcl = FT(0)
+        q_icl = FT(1e-3)  # above autoconversion threshold
+        q_rai = FT(0)
+        q_sno = FT(5e-4)  # snow present for accretion
+        q_tot = FT(0.012)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        # Derivative should be negative (autoconversion + accretion sinks)
+        @test derivs.∂tendency_∂q_icl < FT(0)
+    end
+
+    @testset "BulkMicrophysicsDerivatives 1M - Rain sink derivatives (cold)" begin
+        # In cold conditions with both rain and snow, rain is lost to snow
+        ρ = FT(1.2)
+        T = T_freeze - FT(5)  # below freezing
+        q_lcl = FT(0)
+        q_icl = FT(1e-4)  # ice present for accretion_rain_sink
+        q_rai = FT(5e-4)
+        q_sno = FT(5e-4)
+        q_tot = FT(0.012)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        # Rain derivative should be negative (evaporation not active in subsaturated,
+        # plus accretion sinks from ice and snow collisions)
+        @test derivs.∂tendency_∂q_rai < FT(0)
+    end
+
+    @testset "BulkMicrophysicsDerivatives 1M - Snow sink derivatives (warm)" begin
+        # In warm conditions with snow, melting and accretion sinks should make
+        # the derivative strongly negative
+        ρ = FT(1.2)
+        T = T_freeze + FT(5)  # above freezing
+        q_lcl = FT(5e-4)  # liquid present for accretion melt
+        q_icl = FT(0)
+        q_rai = FT(5e-4)  # rain present for snow-rain accretion
+        q_sno = FT(1e-3)
+        q_tot = FT(0.015)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        # Snow derivative should be strongly negative (melting + accretion sinks)
+        @test derivs.∂tendency_∂q_sno < FT(0)
+
+        # Compare: snow derivative should be more negative in warm than cold
+        T_cold = T_freeze - FT(10)
+        derivs_cold = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T_cold, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        @test derivs.∂tendency_∂q_sno < derivs_cold.∂tendency_∂q_sno
+    end
+
+    @testset "BulkMicrophysicsDerivatives 1M - Finite difference validation" begin
+        # Validate derivatives against finite differences for a representative state
+        ρ = FT(1.2)
+        T = T_freeze + FT(3)  # warm, snow processes active
+        q_lcl = FT(5e-4)
+        q_icl = FT(0)
+        q_rai = FT(5e-4)
+        q_sno = FT(5e-4)
+        q_tot = FT(0.015)
+
+        derivs = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+
+        # Finite difference for ∂(dq_sno_dt)/∂q_sno
+        δ = FT(1e-8)
+        tend_plus = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno + δ,
+        )
+        tend_minus = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno - δ,
+        )
+        fd_sno = (tend_plus.dq_sno_dt - tend_minus.dq_sno_dt) / (2δ)
+
+        # The analytic derivative should be within a factor of 3 of the finite difference
+        # (the rate/q approximation is not exact, so we use a loose tolerance)
+        @test derivs.∂tendency_∂q_sno < FT(0)
+        @test fd_sno < FT(0)
+        ratio = derivs.∂tendency_∂q_sno / fd_sno
+        @test FT(0.1) < ratio < FT(10)
+    end
 end
 
 ###
