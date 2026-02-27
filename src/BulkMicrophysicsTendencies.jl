@@ -360,8 +360,9 @@ as `bulk_microphysics_tendencies`.
     S_accr_lcl_rai = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
     # Accretion q_lcl + q_sno → q_sno (rate is exactly linear in q_lcl)
     S_accr_lcl_sno = CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
-    ∂tendency_∂q_lcl -= q_lcl > UT.ϵ_numerics(typeof(q_lcl)) ?
-        (S_acnv_lcl + S_accr_lcl_rai + S_accr_lcl_sno) / q_lcl : zero(q_lcl)
+    ∂tendency_∂q_lcl -=
+        (S_acnv_lcl + S_accr_lcl_rai + S_accr_lcl_sno) /
+        max(q_lcl, UT.ϵ_numerics(typeof(q_lcl)))
 
     # --- Cloud ice: deposition + sink self-derivatives ---
     ∂tendency_∂q_icl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
@@ -371,8 +372,9 @@ as `bulk_microphysics_tendencies`.
     S_accr_icl_rai = CM1.accretion(icl, rai, vel.rain, ce, q_icl, q_rai, ρ)
     # Accretion q_icl + q_sno → q_sno (rate is exactly linear in q_icl)
     S_accr_icl_sno = CM1.accretion(icl, sno, vel.snow, ce, q_icl, q_sno, ρ)
-    ∂tendency_∂q_icl -= q_icl > UT.ϵ_numerics(typeof(q_icl)) ?
-        (S_acnv_icl + S_accr_icl_rai + S_accr_icl_sno) / q_icl : zero(q_icl)
+    ∂tendency_∂q_icl -=
+        (S_acnv_icl + S_accr_icl_rai + S_accr_icl_sno) /
+        max(q_icl, UT.ϵ_numerics(typeof(q_icl)))
 
     # --- Rain: evaporation + sink self-derivatives ---
     ∂tendency_∂q_rai =
@@ -383,8 +385,9 @@ as `bulk_microphysics_tendencies`.
     is_warm = T >= sno.T_freeze
     S_accr_rai_sno = ifelse(is_warm, zero(T),
         CM1.accretion_snow_rain(sno, rai, vel.snow, vel.rain, ce, q_sno, q_rai, ρ))
-    ∂tendency_∂q_rai -= q_rai > UT.ϵ_numerics(typeof(q_rai)) ?
-        (S_accr_rai_icl + S_accr_rai_sno) / q_rai : zero(q_rai)
+    ∂tendency_∂q_rai -=
+        (S_accr_rai_icl + S_accr_rai_sno) /
+        max(q_rai, UT.ϵ_numerics(typeof(q_rai)))
 
     # --- Snow: sublimation/deposition + melting + sink self-derivatives ---
     dS_subl_sno =
@@ -401,8 +404,9 @@ as `bulk_microphysics_tendencies`.
     # Accretion melt from warm liquid-snow collision
     α = warm_accretion_melt_factor(tps, sno, T)
     S_accr_lcl_sno_melt = α * CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
-    ∂tendency_∂q_sno -= q_sno > UT.ϵ_numerics(typeof(q_sno)) ?
-        (S_accr_sno_rai + α * S_accr_sno_rai_melt + S_accr_lcl_sno_melt) / q_sno : zero(q_sno)
+    ∂tendency_∂q_sno -=
+        (S_accr_sno_rai + α * S_accr_sno_rai_melt + S_accr_lcl_sno_melt) /
+        max(q_sno, UT.ϵ_numerics(typeof(q_sno)))
 
     return (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl, ∂tendency_∂q_rai, ∂tendency_∂q_sno)
 end

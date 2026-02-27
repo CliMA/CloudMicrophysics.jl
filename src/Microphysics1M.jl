@@ -722,7 +722,7 @@ The approximation used is `∂(rate)/∂q_precip ≈ rate / q_precip`.
     T::FT,
 ) where {FT}
     rate = evaporation_sublimation(rain_params, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    return q_rai > UT.ϵ_numerics(FT) ? rate / q_rai : zero(rate)
+    return rate / max(q_rai, UT.ϵ_numerics(FT))
 end
 
 @inline function ∂evaporation_sublimation_∂q_precip(
@@ -739,7 +739,7 @@ end
     T::FT,
 ) where {FT}
     rate = evaporation_sublimation(snow_params, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    return q_sno > UT.ϵ_numerics(FT) ? rate / q_sno : zero(rate)
+    return rate / max(q_sno, UT.ϵ_numerics(FT))
 end
 
 """
@@ -815,7 +815,7 @@ The approximation used is `∂(rate)/∂q_sno ≈ rate / q_sno`.
     T::FT,
 ) where {FT}
     rate = snow_melt(snow_params, vel, aps, tps, q_sno, ρ, T)
-    return q_sno > UT.ϵ_numerics(FT) ? rate / q_sno : zero(rate)
+    return rate / max(q_sno, UT.ϵ_numerics(FT))
 end
 
 end #module Microphysics1M.jl
