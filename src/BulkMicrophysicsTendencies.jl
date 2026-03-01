@@ -318,10 +318,10 @@ as `bulk_microphysics_tendencies`.
 
 # Returns
 `NamedTuple` with fields:
-- `∂dq_lcl`: Derivative of cloud liquid tendency w.r.t. q_lcl [1/s]
-- `∂dq_icl`: Derivative of cloud ice tendency w.r.t. q_icl [1/s]
-- `∂dq_rai`: Derivative of rain tendency w.r.t. q_rai [1/s]
-- `∂dq_sno`: Derivative of snow tendency w.r.t. q_sno [1/s]
+- `∂tendency_∂q_lcl`: Derivative of cloud liquid tendency w.r.t. q_lcl [1/s]
+- `∂tendency_∂q_icl`: Derivative of cloud ice tendency w.r.t. q_icl [1/s]
+- `∂tendency_∂q_rai`: Derivative of rain tendency w.r.t. q_rai [1/s]
+- `∂tendency_∂q_sno`: Derivative of snow tendency w.r.t. q_sno [1/s]
 """
 @inline function bulk_microphysics_derivatives(
     ::Microphysics1Moment,
@@ -355,7 +355,7 @@ as `bulk_microphysics_tendencies`.
 
     # --- Cloud condensate derivatives (reuse dedicated function) ---
     (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl) = bulk_microphysics_cloud_derivatives(
-        Microphysics1Moment(), mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl,
+        Microphysics1Moment(), mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
 
     # --- Rain: evaporation + sink self-derivatives ---
@@ -414,7 +414,7 @@ tendency w.r.t. its own specific content. Precipitation derivatives are omitted
 (the Jacobian uses quadrature-consistent S/q for precipitation instead).
 
 This is cheaper than `bulk_microphysics_derivatives` because it skips rain
-evaporation, snow sublimation/melting, and precipitation accretion derivatives 
+evaporation, snow sublimation/melting, and precipitation accretion derivatives
 and avoids quadratures over the derivatives.
 
 # Returns
@@ -433,7 +433,6 @@ and avoids quadratures over the derivatives.
     q_icl,
     q_rai,
     q_sno,
-    N_lcl = zero(ρ),
 )
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)

@@ -847,14 +847,14 @@ function test_bulk_microphysics_1m_cloud_derivatives(FT)
     T_freeze = TDI.T_freeze(tps)
 
     # Helper: call both derivative functions and assert cloud entries match
-    function assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno; N_lcl = zero(ρ))
+    function assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
         full = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl,
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         cloud = BMT.bulk_microphysics_cloud_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl,
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test cloud.∂tendency_∂q_lcl == full.∂tendency_∂q_lcl
         @test cloud.∂tendency_∂q_icl == full.∂tendency_∂q_icl
@@ -934,6 +934,36 @@ function test_bulk_microphysics_1m_cloud_derivatives(FT)
         q_tot = FT(0.01)
 
         assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    end
+
+    @testset "CloudDerivatives 1M - Physical sign checks" begin
+        # With cloud condensate present and precipitation sinks active, the net
+        # self-derivative of each cloud species should be negative (stable for
+        # implicit time-stepping): sinks (autoconversion, accretion) plus the
+        # negative condensation feedback (more cloud → less supersaturation)
+        # all drive ∂tendency/∂q < 0.
+        ρ = FT(1.2)
+
+        # Warm case: cloud liquid with rain
+        T_warm = T_freeze + FT(10)
+        q_lcl = FT(2e-3)
+        q_rai = FT(5e-4)
+        q_tot_warm = get_saturated_q_tot(tps, T_warm, ρ, q_lcl, FT(0), q_rai, FT(0))
+        cloud_warm = BMT.bulk_microphysics_cloud_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T_warm, q_tot_warm, q_lcl, FT(0), q_rai, FT(0),
+        )
+        @test cloud_warm.∂tendency_∂q_lcl < FT(0)
+
+        # Cold case: cloud ice with snow
+        T_cold = T_freeze - FT(20)
+        q_icl = FT(1e-3)
+        q_sno = FT(5e-4)
+        cloud_cold = BMT.bulk_microphysics_cloud_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T_cold, FT(0.012), FT(0), q_icl, FT(0), q_sno,
+        )
+        @test cloud_cold.∂tendency_∂q_icl < FT(0)
     end
 end
 
