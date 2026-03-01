@@ -39,7 +39,8 @@ export MicrophysicsScheme,
     Microphysics1Moment,
     Microphysics2Moment,
     bulk_microphysics_tendencies,
-    bulk_microphysics_derivatives
+    bulk_microphysics_derivatives,
+    bulk_microphysics_cloud_derivatives
 
 #####
 ##### Singleton types for dispatch
@@ -352,29 +353,10 @@ as `bulk_microphysics_tendencies`.
     aps = mp.air_properties
     vel = mp.terminal_velocity
 
-    # --- Cloud liquid: condensation + sink self-derivatives ---
-    ∂tendency_∂q_lcl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    # Autoconversion q_lcl → q_rai (sink, derivative ∂/∂q_lcl is conservative and safe for linear-above-threshold)
-    S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
-    # Accretion q_lcl + q_rai → q_rai (rate is exactly linear in q_lcl)
-    S_accr_lcl_rai = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
-    # Accretion q_lcl + q_sno → q_sno (rate is exactly linear in q_lcl)
-    S_accr_lcl_sno = CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
-    ∂tendency_∂q_lcl -=
-        (S_acnv_lcl + S_accr_lcl_rai + S_accr_lcl_sno) /
-        max(q_lcl, UT.ϵ_numerics(typeof(q_lcl)))
-
-    # --- Cloud ice: deposition + sink self-derivatives ---
-    ∂tendency_∂q_icl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    # Autoconversion q_icl → q_sno
-    S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
-    # Accretion q_icl + q_rai → q_sno (rate is exactly linear in q_icl)
-    S_accr_icl_rai = CM1.accretion(icl, rai, vel.rain, ce, q_icl, q_rai, ρ)
-    # Accretion q_icl + q_sno → q_sno (rate is exactly linear in q_icl)
-    S_accr_icl_sno = CM1.accretion(icl, sno, vel.snow, ce, q_icl, q_sno, ρ)
-    ∂tendency_∂q_icl -=
-        (S_acnv_icl + S_accr_icl_rai + S_accr_icl_sno) /
-        max(q_icl, UT.ϵ_numerics(typeof(q_icl)))
+    # --- Cloud condensate derivatives (reuse dedicated function) ---
+    (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl) = bulk_microphysics_cloud_derivatives(
+        Microphysics1Moment(), mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl,
+    )
 
     # --- Rain: evaporation + sink self-derivatives ---
     ∂tendency_∂q_rai =
@@ -409,6 +391,91 @@ as `bulk_microphysics_tendencies`.
         max(q_sno, UT.ϵ_numerics(typeof(q_sno)))
 
     return (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl, ∂tendency_∂q_rai, ∂tendency_∂q_sno)
+end
+
+"""
+    bulk_microphysics_cloud_derivatives(
+        ::Microphysics1Moment,
+        mp,
+        tps,
+        ρ,
+        T,
+        q_tot,
+        q_lcl,
+        q_icl,
+        q_rai,
+        q_sno,
+    )
+
+Compute 1-moment cloud condensate Jacobian derivatives only.
+
+Returns a NamedTuple with the leading-order derivative of each cloud species
+tendency w.r.t. its own specific content. Precipitation derivatives are omitted
+(the Jacobian uses quadrature-consistent S/q for precipitation instead).
+
+This is cheaper than `bulk_microphysics_derivatives` because it skips rain
+evaporation, snow sublimation/melting, and precipitation accretion derivatives 
+and avoids quadratures over the derivatives.
+
+# Returns
+`NamedTuple` with fields:
+- `∂tendency_∂q_lcl`: Derivative of cloud liquid tendency w.r.t. q_lcl [1/s]
+- `∂tendency_∂q_icl`: Derivative of cloud ice tendency w.r.t. q_icl [1/s]
+"""
+@inline function bulk_microphysics_cloud_derivatives(
+    ::Microphysics1Moment,
+    mp::CMP.Microphysics1MParams,
+    tps,
+    ρ,
+    T,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    N_lcl = zero(ρ),
+)
+    # Clamp negative inputs to zero (robustness against numerical errors)
+    ρ = UT.clamp_to_nonneg(ρ)
+    q_tot = UT.clamp_to_nonneg(q_tot)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_icl = UT.clamp_to_nonneg(q_icl)
+    q_rai = UT.clamp_to_nonneg(q_rai)
+    q_sno = UT.clamp_to_nonneg(q_sno)
+
+    # Unpack microphysics parameter container
+    lcl = mp.cloud.liquid
+    icl = mp.cloud.ice
+    rai = mp.precip.rain
+    sno = mp.precip.snow
+    ce = mp.collision
+    vel = mp.terminal_velocity
+
+    # --- Cloud liquid: condensation + sink self-derivatives ---
+    ∂tendency_∂q_lcl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    # Autoconversion q_lcl → q_rai (sink)
+    S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
+    # Accretion q_lcl + q_rai → q_rai (rate is exactly linear in q_lcl)
+    S_accr_lcl_rai = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
+    # Accretion q_lcl + q_sno → q_sno (rate is exactly linear in q_lcl)
+    S_accr_lcl_sno = CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
+    ∂tendency_∂q_lcl -=
+        (S_acnv_lcl + S_accr_lcl_rai + S_accr_lcl_sno) /
+        max(q_lcl, UT.ϵ_numerics(typeof(q_lcl)))
+
+    # --- Cloud ice: deposition + sink self-derivatives ---
+    ∂tendency_∂q_icl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    # Autoconversion q_icl → q_sno
+    S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
+    # Accretion q_icl + q_rai → q_sno (rate is exactly linear in q_icl)
+    S_accr_icl_rai = CM1.accretion(icl, rai, vel.rain, ce, q_icl, q_rai, ρ)
+    # Accretion q_icl + q_sno → q_sno (rate is exactly linear in q_icl)
+    S_accr_icl_sno = CM1.accretion(icl, sno, vel.snow, ce, q_icl, q_sno, ρ)
+    ∂tendency_∂q_icl -=
+        (S_acnv_icl + S_accr_icl_rai + S_accr_icl_sno) /
+        max(q_icl, UT.ϵ_numerics(typeof(q_icl)))
+
+    return (; ∂tendency_∂q_lcl, ∂tendency_∂q_icl)
 end
 
 # --- 2-Moment Microphysics derivatives ---

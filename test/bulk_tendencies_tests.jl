@@ -841,6 +841,102 @@ function test_bulk_microphysics_1m_derivatives(FT)
     end
 end
 
+function test_bulk_microphysics_1m_cloud_derivatives(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    mp = CMP.Microphysics1MParams(FT)
+    T_freeze = TDI.T_freeze(tps)
+
+    # Helper: call both derivative functions and assert cloud entries match
+    function assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno; N_lcl = zero(ρ))
+        full = BMT.bulk_microphysics_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl,
+        )
+        cloud = BMT.bulk_microphysics_cloud_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl,
+        )
+        @test cloud.∂tendency_∂q_lcl == full.∂tendency_∂q_lcl
+        @test cloud.∂tendency_∂q_icl == full.∂tendency_∂q_icl
+    end
+
+    @testset "CloudDerivatives 1M - Return structure" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(5)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-3)
+        q_icl = FT(0)
+        q_rai = FT(1e-4)
+        q_sno = FT(0)
+
+        cloud = @inferred BMT.bulk_microphysics_cloud_derivatives(
+            BMT.Microphysics1Moment(),
+            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        @test cloud isa @NamedTuple{∂tendency_∂q_lcl::FT, ∂tendency_∂q_icl::FT}
+    end
+
+    @testset "CloudDerivatives 1M - Match full derivs (warm)" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_lcl = FT(2e-3)
+        q_icl = FT(0)
+        q_rai = FT(5e-4)
+        q_sno = FT(0)
+        q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, q_icl, q_rai, q_sno)
+
+        assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    end
+
+    @testset "CloudDerivatives 1M - Match full derivs (cold)" begin
+        ρ = FT(1.2)
+        T = T_freeze - FT(20)
+        q_lcl = FT(0)
+        q_icl = FT(1e-3)
+        q_rai = FT(0)
+        q_sno = FT(5e-4)
+        q_tot = FT(0.012)
+
+        assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    end
+
+    @testset "CloudDerivatives 1M - Match full derivs (mixed phase)" begin
+        ρ = FT(1.2)
+        T = T_freeze - FT(5)
+        q_lcl = FT(5e-4)
+        q_icl = FT(5e-4)
+        q_rai = FT(5e-4)
+        q_sno = FT(5e-4)
+        q_tot = FT(0.015)
+
+        assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    end
+
+    @testset "CloudDerivatives 1M - Match full derivs (tiny q)" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(3)
+        q_lcl = FT(1e-10)
+        q_icl = FT(1e-10)
+        q_rai = FT(1e-10)
+        q_sno = FT(1e-10)
+        q_tot = FT(0.01)
+
+        assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    end
+
+    @testset "CloudDerivatives 1M - Match full derivs (zero condensate)" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(7)
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(0)
+        q_tot = FT(0.01)
+
+        assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    end
+end
+
 ###
 ### 2M tendencies and derivatives tests
 ###
@@ -1253,6 +1349,7 @@ end
     test_bulk_microphysics_0m_derivatives(FT)
     test_bulk_microphysics_1m_tendencies(FT)
     test_bulk_microphysics_1m_derivatives(FT)
+    test_bulk_microphysics_1m_cloud_derivatives(FT)
     test_bulk_microphysics_2m_tendencies(FT)
     test_bulk_microphysics_2m_derivatives(FT)
     test_bulk_microphysics_p3_tendencies(FT)
