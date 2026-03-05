@@ -20,6 +20,9 @@ WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true) =
         air_properties = AirProperties(toml_dict),
     )
 
+Base.show(io::IO, mime::MIME"text/plain", x::WarmRainParams2M) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
+
 """
     P3IceParams
 
@@ -37,6 +40,8 @@ Parameters for P3 ice-phase processes (optional).
     cloud_pdf::PDc
     rain_pdf::PDr
 end
+Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 P3IceParams(toml_dict::CP.ParamDict; is_limited = true) =
     P3IceParams(;
@@ -73,6 +78,8 @@ mp_p3 = CMP.Microphysics2MParams(Float64; with_ice = true)
     warm_rain::WR
     ice::ICE
 end
+Base.show(io::IO, mime::MIME"text/plain", x::Microphysics2MParams) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
     Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true)

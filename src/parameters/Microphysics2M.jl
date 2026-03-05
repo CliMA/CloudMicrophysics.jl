@@ -324,6 +324,9 @@ RainParticlePDF_SB2006(toml_dict::CP.ParamDict; is_limited = true) =
     RainParticlePDF_SB2006_limited(toml_dict) :
     RainParticlePDF_SB2006_notlimited(toml_dict)
 
+Base.show(io::IO, mime::MIME"text/plain", x::RainParticlePDF_SB2006) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
+
 """
     RainParticlePDF_SB2006_limited
 

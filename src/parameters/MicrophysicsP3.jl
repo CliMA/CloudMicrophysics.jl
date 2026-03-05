@@ -306,67 +306,10 @@ end
 ### ----- UTILS ----- ###
 ### ----------------- ###
 
-function Base.show(
-    io::IO,
-    p::Union{
-        ParametersP3,
-        MassPowerLaw,
-        AreaPowerLaw,
-        SlopePowerLaw,
-        SlopeConstant,
-        VentilationFactor,
-        LocalRimeDensity,
-    },
-)
-    indent = get(io, :indent, "")
-    prefix = get(io, :prefix, "")
-
-    # Get type information
-    T = typeof(p)
-    FT = eltype(p)
-    type = (FT != get(io, :typeinfo, Any)) ? "{$FT}" : ""
-
-    # Print type name, handling nested types
-    type_name = T.name.name
-    println(io, "$(prefix)$(type_name)$type")
-
-    # Print each field
-    fields = fieldnames(T)
-    for (i, field) in enumerate(fields)
-        value = getfield(p, field)
-        is_last = i == length(fields)
-        prefix_char = is_last ? "└" : "├"
-
-        if typeof(value) <: Number
-            # Simple value - print directly with unit
-            unit = _get_parameter_unit(field)
-            println(
-                io,
-                "$(indent)$(prefix_char)── $(field) = $(value) [$(unit)]",
-            )
-        else
-            # Nested struct - recursively show with proper context
-            nested_io = IOContext(
-                io,
-                :prefix => "$(prefix_char)── $(field): ",
-                :indent => "$(indent)│   ",
-                :typeinfo => FT,
-            )
-            show(nested_io, value)
-        end
-    end
-end
-
-function _get_parameter_unit(field::Symbol)
-    units = Dict(
-        :α_va => "kg μm^(-β_va)",
-        :γ => "μm^(2-σ)",
-        :a => "m^b",
-        :τ_wet => "s",
-        :ρ_i => "kg m⁻³",
-        :ρ_l => "kg m⁻³",
-        :T_freeze => "K",
-    )
-    # unitless parameters: β_va, σ, b, c, μ_max, μ, aᵥ, bᵥ
-    return get(units, field, "-")
-end
+# Unit annotations for verbose show (used by ShowMethods.verbose_show_type_and_fields)
+ShowMethods.field_units(::MassPowerLaw) = (; α_va = "kg m^(-β_va)")
+ShowMethods.field_units(::AreaPowerLaw) = (; γ = "μm^(2-σ)")
+ShowMethods.field_units(::SlopePowerLaw) = (; a = "m^b")
+ShowMethods.field_units(::LocalRimeDensity) = (; ρ_ice = "kg m⁻³")
+ShowMethods.field_units(::ParametersP3) =
+    (; τ_wet = "s", ρ_i = "kg m⁻³", ρ_l = "kg m⁻³", T_freeze = "K")

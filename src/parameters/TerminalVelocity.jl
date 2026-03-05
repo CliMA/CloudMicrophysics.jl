@@ -127,6 +127,8 @@ $(DocStringExtensions.FIELDS)
     rain::R
     snow::S
 end
+Base.show(io::IO, mime::MIME"text/plain", x::Blk1MVelType) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 Blk1MVelType(toml_dict::CP.ParamDict) =
     Blk1MVelType(;
@@ -209,6 +211,8 @@ $(DocStringExtensions.FIELDS)
     "cutoff for small vs large ice particle dimension [m]"
     cutoff::FT
 end
+Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelTypeSmallIce) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 function Chen2022VelTypeSmallIce(td::CP.ParamDict)
     # TODO: These should be array parameters.
@@ -286,6 +290,8 @@ $(DocStringExtensions.FIELDS)
     b_ρ::FT
     c::NTuple{N, FT}
 end
+Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelTypeRain) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 function Chen2022VelTypeRain(td::CP.ParamDict)
     name_map = (;
@@ -324,6 +330,9 @@ Chen2022VelType(toml_dict::CP.ParamDict) =
         small_ice = Chen2022VelTypeSmallIce(toml_dict),
         large_ice = Chen2022VelTypeLargeIce(toml_dict),
     )
+
+Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelType) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
     TerminalVelocityParams

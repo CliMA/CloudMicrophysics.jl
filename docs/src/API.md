@@ -430,3 +430,10 @@ Parameters.Microphysics2MParams
 PrecipitationSusceptibility.precipitation_susceptibility_autoconversion
 PrecipitationSusceptibility.precipitation_susceptibility_accretion
 ```
+
+
+# Developer docs
+
+```@autodocs
+Modules = [ShowMethods]
+```
