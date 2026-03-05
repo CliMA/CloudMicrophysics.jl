@@ -52,6 +52,7 @@ $(DocStringExtensions.FIELDS)
     "pre-computed gamma(me + Δm + 1) for performance [-]"
     gamma_coeff::FT
 end
+ShowMethods.field_units(::ParticleMass) = (; r0 = "m", m0 = "kg")
 
 """
     ParticleArea{FT}
@@ -65,7 +66,7 @@ a(r) = a0 χa (r/r0)^(ae + Δa)
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct ParticleArea{FT} <: ParametersType
-    "cross section size relation coefficient [m2]"
+    "cross section size relation coefficient [m²]"
     a0::FT
     "cross section size relation coefficient [-]"
     ae::FT
@@ -74,6 +75,7 @@ $(DocStringExtensions.FIELDS)
     "cross section size relation coefficient [-]"
     χa::FT
 end
+ShowMethods.field_units(::ParticleArea) = (; a0 = "m²")
 
 """
     Ventilation{FT}
@@ -133,13 +135,15 @@ $(DocStringExtensions.FIELDS)
 @kwdef struct CloudLiquid{FT} <: CloudCondensateType
     "condensation evaporation non_equil microphysics relaxation timescale [s]"
     τ_relax::FT
-    "water density [kg/m3]"
+    "water density [kg/m³]"
     ρw::FT
     "effective radius [m]"
     r_eff::FT
-    "assumed number concentration for cloud sedimentation [1/m3]"
+    "assumed number concentration for cloud sedimentation [1/m³]"
     N_0::FT
 end
+ShowMethods.field_units(::CloudLiquid) =
+    (; τ_relax = "s", ρw = "kg/m³", r_eff = "m", N_0 = "1/m³")
 
 function CloudLiquid(toml_dict::CP.ParamDict)
     name_map = (;
@@ -171,13 +175,15 @@ $(DocStringExtensions.FIELDS)
     r_ice_snow::FT
     "deposition sublimation non_equil microphysics relaxation timescale [s]"
     τ_relax::FT
-    "cloud ice apparent density [kg/m3]"
+    "cloud ice apparent density [kg/m³]"
     ρᵢ::FT
     "effective radius [m]"
     r_eff::FT
-    "assumed number concentration for cloud sedimentation [1/m3]"
+    "assumed number concentration for cloud sedimentation [1/m³]"
     N_0::FT
 end
+ShowMethods.field_units(::CloudIce) =
+    (; r0 = "m", r_ice_snow = "m", τ_relax = "s", ρᵢ = "kg/m³", r_eff = "m", N_0 = "1/m³")
 
 function CloudIce(toml_dict::CP.ParamDict)
     name_map = (;
@@ -232,6 +238,7 @@ $(DocStringExtensions.FIELDS)
     "particle length scale [m]"
     r0::FT
 end
+ShowMethods.field_units(::Rain) = (; r0 = "m")
 
 function Rain(toml_dict::CP.ParamDict)
     name_map = (;

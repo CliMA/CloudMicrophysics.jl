@@ -14,6 +14,9 @@ Parameters for cloud-phase (non-precipitating) hydrometeors in 1-moment scheme.
     ice::ICL
 end
 
+Base.show(io::IO, mime::MIME"text/plain", x::CloudPhaseParams1M) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
+
 """
     PrecipPhaseParams1M{FT, RAI, SNO}
 
@@ -27,6 +30,9 @@ Parameters for precipitating hydrometeors in 1-moment scheme.
     rain::RAI
     snow::SNO
 end
+
+Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
     Microphysics1MParams{FT, CP, PP, CE, AP, VL, VA}
@@ -62,6 +68,8 @@ mp_with_2M = CMP.Microphysics1MParams(Float64; with_2M_autoconv = true)
     autoconv_2M::VA
     prescribed_Nc::FT
 end
+Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
     Microphysics1MParams(toml_dict::CP.ParamDict; with_2M_autoconv = false)

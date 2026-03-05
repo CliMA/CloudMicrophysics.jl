@@ -9,6 +9,7 @@ using DocStringExtensions
 
 import ClimaParams as CP
 import SpecialFunctions as SF
+import CloudMicrophysics: ShowMethods
 
 # Super-types (dispatch, broadcasting, etc...)
 include("AbstractTypes.jl")

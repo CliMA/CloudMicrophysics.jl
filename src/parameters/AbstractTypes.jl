@@ -9,6 +9,10 @@ abstract type ParametersType end
 # Temporary fallback until we stop checking eltype from the parameters
 Base.eltype(p::ParametersType) = fieldcount(typeof(p)) > 0 ? eltype(getfield(p, 1)) : Any
 Base.broadcastable(x::ParametersType) = tuple(x)
+Base.show(io::IO, x::ParametersType) =
+    ShowMethods.parseable_show_with_fields_no_type_header(io, x; with_module_prefix = false)
+Base.show(io::IO, mime::MIME"text/plain", x::ParametersType) =
+    ShowMethods.show_type_and_fields(io, mime, x)
 
 """
     AerosolType

@@ -20,6 +20,7 @@ import CloudMicrophysics.Common as CO
 import CloudMicrophysics.DistributionTools as DT
 import CloudMicrophysics.HetIceNucleation as CM_HetIce
 import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics: ShowMethods
 
 include("P3_particle_properties.jl")
 include("P3_size_distribution.jl")
