@@ -74,15 +74,4 @@ The derivative is −1/τ_precip whenever precipitation is actively being remove
     q_vap_sat,
 ) = ifelse(q_lcl + q_icl > S_0 * q_vap_sat, -1 / τ_precip, zero(q_lcl))
 
-###
-### Wrappers for calling with TD.PhasePartition (deprecated)
-###
-### For now leaving the PhasePartition wrapper because I'm not sure how to get
-### rid of equilibrium thermo state in the Atmos model.
-###
-remove_precipitation(params::CMP.Parameters0M, q::TDI.TD.PhasePartition) =
-    remove_precipitation(params, q.liq, q.ice)
-remove_precipitation(params::CMP.Parameters0M, q::TDI.TD.PhasePartition, q_vap_sat) =
-    remove_precipitation(params, q.liq, q.ice, q_vap_sat)
-
 end #module Microphysics0M.jl
