@@ -2,6 +2,7 @@ agents:
   queue: central
   slurm_mem: 8G
   modules: climacommon/2025_03_18
+  slurm_time: 00:15:00
 
 env:
   OPENBLAS_NUM_THREADS: 1
