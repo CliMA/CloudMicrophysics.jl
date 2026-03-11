@@ -9,15 +9,17 @@ Parameters for 2-moment warm rain processes (Seifert-Beheng 2006).
 - `seifert_beheng::SB`: SB2006 — all warm rain parameters (autoconversion, accretion, etc.)
 - `air_properties::AP`: AirProperties — air properties for evaporation
 """
-@kwdef struct WarmRainParams2M{SB, AP} <: ParametersType
+@kwdef struct WarmRainParams2M{SB, AP, CE} <: ParametersType
     seifert_beheng::SB
     air_properties::AP
+    condevap::CE
 end
 # Construct WarmRainParams2M from a ClimaParams TOML dictionary
 WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true) =
     WarmRainParams2M(;
         seifert_beheng = SB2006(toml_dict; is_limited),
         air_properties = AirProperties(toml_dict),
+        condevap = CondEvap2M(toml_dict),
     )
 
 Base.show(io::IO, mime::MIME"text/plain", x::WarmRainParams2M) =

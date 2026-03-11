@@ -101,16 +101,8 @@ end
 
 """
     bulk_microphysics_tendencies(
-        ::Microphysics1Moment,
-        mp,
-        tps,
-        ρ,
-        T,
-        q_tot,
-        q_lcl,
-        q_icl,
-        q_rai,
-        q_sno,
+        ::Microphysics1Moment, mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
 
 Compute all 1-moment microphysics tendencies in one fused call.
@@ -157,17 +149,8 @@ This is a pure function of local thermodynamic state, suitable for:
   Limiters depend on timestep `dt` and should be applied by the caller after computing tendencies.
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics1Moment,
-    mp::CMP.Microphysics1MParams,
-    tps,
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    N_lcl = zero(ρ),
+    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl = zero(ρ),
 )
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
@@ -590,12 +573,8 @@ the second form uses the supersaturation threshold `S_0 * q_vap_sat`.
 - Does NOT apply limiters (caller applies based on timestep)
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics0Moment,
-    mp::CMP.Microphysics0MParams,
-    tps,
-    T,
-    q_lcl,
-    q_icl,
+    ::Microphysics0Moment, mp::CMP.Microphysics0MParams, tps,
+    T, q_lcl, q_icl,
 )
     q_lcl = UT.clamp_to_nonneg(q_lcl)
     q_icl = UT.clamp_to_nonneg(q_icl)
@@ -642,7 +621,13 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
 - `dn_lcl_dt`: Cloud number tendency (1/kg/s)
 - `dn_rai_dt`: Rain number tendency (1/kg/s)
 """
-@inline function warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
+@inline function warm_rain_tendencies_2m(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+
+    # Unpack parameters
+    sb = warm_rain.seifert_beheng
+    aps = warm_rain.air_properties
+    condevap = warm_rain.condevap
+
     # Convert to number densities for CM2 functions
     N_lcl = ρ * n_lcl
     N_rai = ρ * n_rai
@@ -653,6 +638,17 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dq_rai_dt = zero(FT)
     dn_lcl_dt = zero(FT)
     dn_rai_dt = zero(FT)
+
+    # --- Condensation of vapor / evaporation of cloud liquid water ---
+    ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(condevap, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T)
+    ∂ₜn_lcl_cond = zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation
+    dq_lcl_dt += ∂ₜq_lcl_cond
+    dn_lcl_dt += ∂ₜn_lcl_cond
+
+    # --- Evaporation of rain ---
+    evap = CM2.rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, N_rai, T)
+    dq_rai_dt += evap.∂ₜq_rai
+    dn_rai_dt += evap.∂ₜρn_rai / ρ
 
     # --- Autoconversion ---
     acnv = CM2.autoconversion(sb.acnv, sb.pdf_c, q_lcl, q_rai, ρ, N_lcl)
@@ -679,6 +675,17 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_rai_br = CM2.rain_breakup(sb.pdf_r, sb.brek, q_rai, ρ, N_rai, dn_rai_sc)
     dn_rai_dt += dn_rai_br / ρ
 
+    # --- Number adjustment for mass limits ---
+    # Cloud liquid
+    dn_lcl_inc = CM2.number_increase_for_mass_limit(sb.numadj, sb.pdf_c.xc_max, q_lcl, ρ, N_lcl)
+    dn_lcl_dec = CM2.number_decrease_for_mass_limit(sb.numadj, sb.pdf_c.xc_min, q_lcl, ρ, N_lcl)
+    dn_lcl_dt += (dn_lcl_inc + dn_lcl_dec) / ρ
+
+    # Rain
+    dn_rai_inc = CM2.number_increase_for_mass_limit(sb.numadj, sb.pdf_r.xr_max, q_rai, ρ, N_rai)
+    dn_rai_dec = CM2.number_decrease_for_mass_limit(sb.numadj, sb.pdf_r.xr_min, q_rai, ρ, N_rai)
+    dn_rai_dt += (dn_rai_inc + dn_rai_dec) / ρ
+
     return (; dq_lcl_dt, dq_rai_dt, dn_lcl_dt, dn_rai_dt)
 end
 
@@ -689,7 +696,7 @@ end
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
         mp::Microphysics2MParams{WR, Nothing},
-        ...
+        ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     )
 
 Compute 2-moment **warm rain only** microphysics tendencies (Seifert-Beheng 2006).
@@ -719,21 +726,9 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
 - `db_rim_dt`: Rime volume tendency (always zero for warm-only)
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics2Moment,
-    mp::CMP.Microphysics2MParams{WR, Nothing},
-    tps,
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    n_lcl,
-    q_rai,
-    n_rai,
-    q_ice = zero(ρ),
-    n_ice = zero(ρ),
-    q_rim = zero(ρ),
-    b_rim = zero(ρ),
-    logλ = zero(ρ),
+    ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, Nothing}, tps,
+    ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
+    q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
 ) where {WR}
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
@@ -747,41 +742,17 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     q_rim = UT.clamp_to_nonneg(q_rim)
     b_rim = UT.clamp_to_nonneg(b_rim)
 
-    # Unpack warm rain parameters
-    sb = mp.warm_rain.seifert_beheng
-    aps = mp.warm_rain.air_properties
-
     # Initialize ice-related tendencies (always zero for warm-only)
     dq_ice_dt = zero(ρ)
     dq_rim_dt = zero(ρ)
     db_rim_dt = zero(ρ)
 
     # --- Core Warm Rain Processes (shared helper) ---
-    warm = warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
+    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
     dq_lcl_dt = warm.dq_lcl_dt
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
     dn_rai_dt = warm.dn_rai_dt
-
-    # Convert to number densities for remaining functions
-    N_lcl = ρ * n_lcl
-    N_rai = ρ * n_rai
-
-    # --- Rain evaporation ---
-    evap = CM2.rain_evaporation(sb, aps, tps, zero(ρ), q_lcl, zero(ρ), q_rai, zero(ρ), ρ, N_rai, T)
-    dq_rai_dt += evap.evap_rate_1
-    dn_rai_dt += evap.evap_rate_0 / ρ
-
-    # --- Number adjustment for mass limits ---
-    # Cloud liquid
-    dn_lcl_inc = CM2.number_increase_for_mass_limit(sb.numadj, sb.pdf_c.xc_max, q_lcl, ρ, N_lcl)
-    dn_lcl_dec = CM2.number_decrease_for_mass_limit(sb.numadj, sb.pdf_c.xc_min, q_lcl, ρ, N_lcl)
-    dn_lcl_dt += (dn_lcl_inc + dn_lcl_dec) / ρ
-
-    # Rain
-    dn_rai_inc = CM2.number_increase_for_mass_limit(sb.numadj, sb.pdf_r.xr_max, q_rai, ρ, N_rai)
-    dn_rai_dec = CM2.number_decrease_for_mass_limit(sb.numadj, sb.pdf_r.xr_min, q_rai, ρ, N_rai)
-    dn_rai_dt += (dn_rai_inc + dn_rai_dec) / ρ
 
     return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt, dq_ice_dt, dq_rim_dt, db_rim_dt)
 end
@@ -790,7 +761,8 @@ end
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
         mp::Microphysics2MParams{FT, WR, <:P3IceParams},
-        ...
+        ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
+        q_ice, n_ice, q_rim, b_rim, logλ,
     )
 
 Compute 2-moment **warm rain + P3 ice** microphysics tendencies.
@@ -828,21 +800,9 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `db_rim_dt`: Rime volume tendency (m³/kg/s)
 """
 @inline function bulk_microphysics_tendencies(
-    ::Microphysics2Moment,
-    mp::CMP.Microphysics2MParams{WR, ICE},
-    tps,
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    n_lcl,
-    q_rai,
-    n_rai,
-    q_ice = zero(ρ),
-    n_ice = zero(ρ),
-    q_rim = zero(ρ),
-    b_rim = zero(ρ),
-    logλ = zero(ρ),
+    ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, ICE}, tps,
+    ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
+    q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
@@ -857,7 +817,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     b_rim = UT.clamp_to_nonneg(b_rim)
 
     # Unpack warm rain parameters (always present)
-    sb = mp.warm_rain.seifert_beheng
     aps = mp.warm_rain.air_properties
 
     # Initialize ice-related tendencies
@@ -868,7 +827,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     db_rim_dt = zero(ρ)
 
     # --- Core Warm Rain Processes (shared helper) ---
-    warm = warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
+    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
     dq_lcl_dt = warm.dq_lcl_dt
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
@@ -878,26 +837,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     N_lcl = ρ * n_lcl
     N_rai = ρ * n_rai
 
-    # --- Rain evaporation ---
-    evap = CM2.rain_evaporation(sb, aps, tps, zero(ρ), q_lcl, zero(ρ), q_rai, zero(ρ), ρ, N_rai, T)
-    dq_rai_dt += evap.evap_rate_1
-    dn_rai_dt += evap.evap_rate_0 / ρ
-
-    # --- Number adjustment for mass limits ---
-    # Cloud liquid
-    dn_lcl_inc = CM2.number_increase_for_mass_limit(sb.numadj, sb.pdf_c.xc_max, q_lcl, ρ, N_lcl)
-    dn_lcl_dec = CM2.number_decrease_for_mass_limit(sb.numadj, sb.pdf_c.xc_min, q_lcl, ρ, N_lcl)
-    dn_lcl_dt += (dn_lcl_inc + dn_lcl_dec) / ρ
-
-    # Rain
-    dn_rai_inc = CM2.number_increase_for_mass_limit(sb.numadj, sb.pdf_r.xr_max, q_rai, ρ, N_rai)
-    dn_rai_dec = CM2.number_decrease_for_mass_limit(sb.numadj, sb.pdf_r.xr_min, q_rai, ρ, N_rai)
-    dn_rai_dt += (dn_rai_inc + dn_rai_dec) / ρ
-
     # --- P3 Ice Processes ---
-    # NOTE: P3 uses gamma_inc_inv from SpecialFunctions which is NOT GPU-compatible
-    # (it uses string formatting for errors). We must keep if-branches to skip
-    # P3 code when there is no ice, otherwise GPU compilation fails.
     p3 = mp.ice.scheme
     vel = mp.ice.terminal_velocity
     pdf_c = mp.ice.cloud_pdf
