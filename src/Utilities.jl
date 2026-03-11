@@ -8,7 +8,7 @@ module Utilities
 
 import UnrolledUtilities as UU
 
-export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N
+export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
 export unrolled_logsumexp
 
 """
@@ -46,6 +46,14 @@ Numerical epsilon for 2-moment mass calculations.
 Numerical epsilon for 2-moment number calculations.
 """
 @inline ϵ_numerics_2M_N(FT) = eps(FT)
+
+"""
+    ϵ_numerics_P3_B(FT)
+
+Numerical epsilon for P3 bulk microphysics mass calculations
+    relating to rim volume, B_rim.
+"""
+@inline ϵ_numerics_P3_B(FT) = eps(FT)
 
 
 """

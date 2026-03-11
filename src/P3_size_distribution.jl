@@ -74,8 +74,11 @@ function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     FT = eltype(logλ)
     D₁ < D₂ || return log(FT(0))  # return log(0) if D₁ ≥ D₂
     z = k + μ + 1
-    (_, q_D₁) = SF.gamma_inc(z, exp(logλ) * D₁)
-    (_, q_D₂) = SF.gamma_inc(z, exp(logλ) * D₂)
+    # NOTE: We use `LogExpFunctions.xexpy(D, logλ)` to compute `λD = D * exp(logλ)`.
+    # When `logλ` is large, `exp(logλ) = Inf`, so the naive product `D * exp(logλ)`
+    # yields `0 * Inf = NaN` when `D = 0`. `xexpy` correctly returns `0` in that case.
+    (_, q_D₁) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₁, logλ))
+    (_, q_D₂) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₂, logλ))
     return -z * logλ + SF.loggamma(z) + log(q_D₁ - q_D₂) + log(FT(scale))
 end
 
@@ -223,11 +226,11 @@ where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
 - `logλ_min`: The minimum value of the search bounds [log(1/m)], default is `log(1e1)`
 - `logλ_max`: The maximum value of the search bounds [log(1/m)], default is `log(1e7)`
 """
-function get_distribution_logλ(
-    state::P3State{FT}; logλ_min = log(1e1), logλ_max = log(1e7),
-) where {FT}
-    (iszero(state.N_ice) || iszero(state.L_ice)) && return log(zero(FT))
-    target_log_LdN = log(state.L_ice) - log(state.N_ice)
+function get_distribution_logλ(state, logλ_min = 2, logλ_max = 17)
+    FT = eltype(state)
+    (; N_ice, L_ice) = state
+    (iszero(N_ice) || iszero(L_ice)) && return log(zero(L_ice))
+    target_log_LdN = log(L_ice) - log(N_ice)
 
     shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
 

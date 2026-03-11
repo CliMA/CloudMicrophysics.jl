@@ -382,8 +382,8 @@ function ∫liquid_ice_collisions(
     # Initialize integration buffers by evaluating a representative integral
     p = FT(0.00001)
     ice_bounds = integral_bounds(state, logλ; p)
-    bounds_c = CM2.get_size_distribution_bounds(psd_c, L_c, ρₐ, N_c, p)
-    bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r, ρₐ, N_r, p)
+    bounds_c = CM2.get_size_distribution_bounds(psd_c, L_c / ρₐ, ρₐ, N_c, p)
+    bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r / ρₐ, ρₐ, N_r, p)
 
     # Integrand components
     # NOTE: We assume collision efficiency, shape (spherical), and terminal velocity is the
@@ -436,20 +436,17 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
 7. `∂ₜB_rim`: rime volume tendency [m³/m³/s]
 """
 function bulk_liquid_ice_collision_sources(
-    params, logλ, L_ice, N_ice, F_rim, ρ_rim,
+    state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
     aps, tps, vel, ρₐ, T; ∫kwargs...,
 )
-    FT = eltype(params)
-    (; τ_wet, ρ_i) = params
+    FT = eltype(state)
+    (; τ_wet, ρ_i) = state.params
     D_shd = FT(1e-3) # 1mm  # TODO: Externalize this parameter
 
     ρw = psd_c.ρw
     @assert ρw == psd_r.ρw "Cloud and rain should have the same liquid water density"
     m_liq(Dₗ) = ρw * CO.volume_sphere_D(Dₗ)
-
-    # state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
-    state = P3State(params, L_ice, N_ice, F_rim, ρ_rim)
 
     rates = ∫liquid_ice_collisions(
         state, logλ,
@@ -487,4 +484,89 @@ function bulk_liquid_ice_collision_sources(
     return @NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT}(
         (∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, ∂ₜL_ice, ∂ₜB_rim)
     )
+end
+
+function bulk_liquid_ice_collision_sources(
+    params, logλ, L_ice, N_ice, F_rim, ρ_rim,
+    psd_c, psd_r, L_c, N_c, L_r, N_r,
+    aps, tps, vel, ρₐ, T; ∫kwargs...,
+)
+    state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
+    return bulk_liquid_ice_collision_sources(
+        state, logλ,
+        psd_c, psd_r, L_c, N_c, L_r, N_r,
+        aps, tps, vel, ρₐ, T; ∫kwargs...,
+    )
+end
+
+function collision_cross_section_ice_ice(state, D_1, D_2)
+    r_eff(D) = √(ice_area(state, D) / π)
+    return π * (r_eff(D_1) + r_eff(D_2))^2  # collision cross section
+end
+
+"""
+    volumetric_ice_ice_collision_rate_integrand(state, velocity_params, ρₐ)
+
+Returns a function that computes the volumetric collision rate integrand for ice-ice collisions [m³/s].
+
+# Arguments
+- `state`: [`P3State`](@ref)
+- `velocity_params`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density
+
+# Returns
+A function `(D_1, D_2) -> E * K * |vᵢ(D_1) - vᵢ(D_2)|` where:
+- `D_1` and `D_2` are the (maximum) diameters of the ice particles
+- `E` is the collision efficiency
+- `K` is the collision cross section
+- `vᵢ` is the terminal velocity of ice particles
+"""
+function volumetric_ice_ice_collision_rate_integrand(velocity_params, ρₐ, state)
+    v_ice = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
+    function integrand(D_1::FT, D_2::FT) where {FT}
+        E = FT(1)  # Collision efficiency
+        K = collision_cross_section_ice_ice(state, D_1, D_2)
+        return E * K * abs(v_ice(D_1) - v_ice(D_2))
+    end
+    return integrand
+end
+
+"""
+    ice_self_collection(state, logλ, aps, tps, vel, ρₐ, T; ∫kwargs...)
+
+Computes the ice self-collection (aggregation) rate, which decreases the ice number concentration
+while leaving mass, rime mass, and rime volume unchanged.
+
+# Arguments
+- `state`: [`P3State`](@ref)
+- `logλ`: the log of the slope parameter [log(1/m)]
+- `aps`: [`CMP.AirProperties`](@ref)
+- `tps`: thermodynamics parameters
+- `vel`: the velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density [kg/m³]
+- `T`: temperature [K]
+
+# Returns
+A `NamedTuple` of `(; dNdt)`, where:
+1. `dNdt`: ice number concentration tendency due to self-collection [1/m³/s] (always positive or zero, represents a loss rate)
+"""
+function ice_self_collection(state, logλ, aps, tps, vel, ρₐ, T; ∫kwargs...)
+    n_i = DT.size_distribution(state, logλ)
+    ∂ₜV = volumetric_ice_ice_collision_rate_integrand(vel, ρₐ, state)
+
+    p = eps(one(ρₐ))
+    ice_bounds = integral_bounds(state, logλ; p)
+
+    function inner_integral(D_1)
+        (rate_at_D1,) = integrate(ice_bounds...; ∫kwargs...) do D_2
+            return SA.SVector(∂ₜV(D_1, D_2) * n_i(D_2))
+        end
+        return rate_at_D1 * n_i(D_1)
+    end
+
+    (total_rate,) = integrate(inner_integral, ice_bounds...; ∫kwargs...)
+
+    # The 0.5 factor accounts for double-counting in self-collection
+    dNdt = (1 // 2) * total_rate
+    return (; dNdt)
 end

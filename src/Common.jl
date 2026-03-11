@@ -463,6 +463,22 @@ See e.g., Seifert and Beheng (2006), https://doi.org/10.1007/s00703-005-0112-4, 
 
 # Returns
 - `F_v(D)`: ventilation factor function (dimensionless)
+
+# Extended help
+
+The ventilation factor is given by
+
+```math
+F_v(D) = a_v + b_v ⋅ ∛Sc ⋅ √Re(D)
+```
+
+where
+
+```math
+Sc = ν_{air} / D_{vapor}
+Re(D) = D * v_{term}(D) / ν_{air}
+```
+
 """
 @inline function ventilation_factor(vent, aps, v_term)
     (; aᵥ, bᵥ) = vent

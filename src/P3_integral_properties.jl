@@ -90,7 +90,9 @@ Integrate the function `f` over each subinterval of the integration bounds, `bnd
 """
 function integrate(f, bnds...; quad = ChebyshevGauss(100))
     # compute integral over each subinterval (a, b), (b, c), (c, d), ...
-    return sum(integrate(f, a, b; quad) for (a, b) in zip(Base.front(bnds), Base.tail(bnds)))
+    return UU.unrolled_sum(
+        integrate(f, a, b; quad) for (a, b) in zip(Base.front(bnds), Base.tail(bnds))
+    )
 end
 
 """

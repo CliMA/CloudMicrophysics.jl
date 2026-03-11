@@ -8,12 +8,12 @@ Parameters for 2-moment warm rain processes (Seifert-Beheng 2006).
 # Fields
 - `seifert_beheng::SB`: SB2006 — all warm rain parameters (autoconversion, accretion, etc.)
 - `air_properties::AP`: AirProperties — air properties for evaporation
-- `condevap::CE`: CondEvap2M — condensation/evaporation parameters
 """
-@kwdef struct WarmRainParams2M{SB, AP, CE} <: ParametersType
+@kwdef struct WarmRainParams2M{SB, AP, CE, SD} <: ParametersType
     seifert_beheng::SB
     air_properties::AP
     condevap::CE
+    subdep::SD
 end
 # Construct WarmRainParams2M from a ClimaParams TOML dictionary
 WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true) =
@@ -21,6 +21,7 @@ WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true) =
         seifert_beheng = SB2006(toml_dict; is_limited),
         air_properties = AirProperties(toml_dict),
         condevap = CondEvap2M(toml_dict),
+        subdep = SubDep2M(toml_dict),
     )
 
 Base.show(io::IO, mime::MIME"text/plain", x::WarmRainParams2M) =
@@ -29,19 +30,36 @@ Base.show(io::IO, mime::MIME"text/plain", x::WarmRainParams2M) =
 """
     P3IceParams
 
-Parameters for P3 ice-phase processes (optional).
+Parameters for P3 ice-phase processes.
 
 # Fields
-- `scheme::P3`: ParametersP3 — P3 scheme parameters
-- `terminal_velocity::VL`: Chen2022VelType — terminal velocity for ice
-- `cloud_pdf::PDc`: CloudParticlePDF_SB2006 — cloud droplet size distribution
-- `rain_pdf::PDr`: RainParticlePDF_SB2006 — rain drop size distribution
+$(DocStringExtensions.FIELDS)
+
+# Constructor
+
+The main constructor is
+```
+P3IceParams(toml_dict::CP.ParamDict; is_limited = true)
+```
+which constructs the parameterization with components:
+- `scheme` = [`ParametersP3`](@ref)
+- `terminal_velocity` = [`Chen2022VelType`](@ref)
+- `cloud_pdf` = [`CloudParticlePDF_SB2006`](@ref)
+- `rain_pdf` = [`RainParticlePDF_SB2006`](@ref)
+- `ice_nucleation` = [`Frostenberg2023`](@ref)
+
 """
-@kwdef struct P3IceParams{P3, VL, PDc, PDr} <: ParametersType
+@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET} <: ParametersType
+    "The core P3 scheme parameters"
     scheme::P3
+    "The terminal velocity parameterization"
     terminal_velocity::VL
+    "The cloud droplet size distribution"
     cloud_pdf::PDc
+    "The rain drop size distribution"
     rain_pdf::PDr
+    "The ice nucleation parameters"
+    ice_nucleation::HET
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -52,6 +70,7 @@ P3IceParams(toml_dict::CP.ParamDict; is_limited = true) =
         terminal_velocity = Chen2022VelType(toml_dict),
         cloud_pdf = CloudParticlePDF_SB2006(toml_dict),
         rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited),
+        ice_nucleation = Frostenberg2023(toml_dict),
     )
 
 """

@@ -74,10 +74,10 @@ Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parame
 function get_state(params::CMP.ParametersP3; L_ice, N_ice, F_rim, ρ_rim)
     # rime mass fraction must always be non-negative ...
     # ... and there must always be some unrimed part
-    @assert 0 ≤ F_rim < 1 "Rime mass fraction, `F_rim`, must be between 0 and 1"
+    0 ≤ F_rim < 1 || throw(DomainError(F_rim, "Rime mass fraction, F_rim, must be 0 ≤ F_rim < 1"))
     # rime density must be positive ...
     # ... and as a bulk ice density can't exceed the density of water
-    @assert 0 < ρ_rim ≤ params.ρ_l "Rime density, `ρ_rim`, must be between 0 and ρ_l"
+    0 ≤ ρ_rim ≤ params.ρ_l || throw(DomainError(ρ_rim, "Rime density, ρ_rim, must be 0 ≤ ρ_rim ≤ ρ_l"))
     return P3State(; params, L_ice, N_ice, F_rim, ρ_rim)
 end
 
@@ -211,7 +211,7 @@ get_D_cr(mass::CMP.MassPowerLaw, F_rim, ρ_g) = _get_threshold(mass, ρ_g * (1 -
 # Returns
 - `(; D_th, D_gr, D_cr, ρ_g)`: The thresholds for the size distribution,
     and the density of total (deposition + rime) ice mass for graupel [kg/m³]
-
+    If `F_rim = 0`, then we set `D_gr = D_cr = Inf`, and `ρ_g = NaN` (should not be used).
 
 See [`get_D_th`](@ref), [`get_D_gr`](@ref), [`get_D_cr`](@ref), and [`get_ρ_g`](@ref) for more details.
 """
@@ -220,23 +220,27 @@ function get_thresholds_ρ_g(state::P3State)
     return get_thresholds_ρ_g(params, F_rim, ρ_rim)
 end
 function get_thresholds_ρ_g(params::CMP.ParametersP3, F_rim, ρ_rim)
+    FT = eltype(F_rim)
     (; mass, ρ_i) = params
+    D_th = get_D_th(mass, ρ_i)
+    
     ρ_d = get_ρ_d(mass, F_rim, ρ_rim)
     ρ_g = get_ρ_g(F_rim, ρ_rim, ρ_d)
-
-    D_th = get_D_th(mass, ρ_i)
     D_gr = get_D_gr(mass, ρ_g)
     D_cr = get_D_cr(mass, F_rim, ρ_g)
+
+    # If unrimed, set D_gr and D_cr to infinity
+    D_gr = ifelse(iszero(F_rim), FT(Inf), D_gr)
+    D_cr = ifelse(iszero(F_rim), FT(Inf), D_cr)
 
     return (; D_th, D_gr, D_cr, ρ_g)
 end
 
-function get_bounded_thresholds(state::P3State, D_min = 0, D_max = Inf)
-    FT = eltype(state)
+function get_bounded_thresholds(
+    state::P3State{FT}, D_min::FT = FT(0), D_max::FT = FT(Inf)
+) where {FT}
     (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
-    thresholds = clamp.((FT(D_min), D_th, D_gr, D_cr, FT(D_max)), FT(D_min), FT(D_max))
-    bounded_thresholds = replace(thresholds, NaN => FT(D_max))
-    return bounded_thresholds
+    return clamp.((D_min, D_th, D_gr, D_cr, D_max), D_min, D_max)
 end
 
 """
@@ -253,9 +257,9 @@ Return the segments of the size distribution as a tuple of intervals.
 For example, if the thresholds are `(D_th, D_gr, D_cr)`, then the segments are:
 - `(0, D_th)`, `(D_th, D_gr)`, `(D_gr, D_cr)`, `(D_cr, Inf)`
 """
-function get_segments(state::P3State, D_min = 0, D_max = Inf)
-    thresholds = get_bounded_thresholds(state, D_min, D_max)
-    segments = tuple.(Base.front(thresholds), Base.tail(thresholds))
+function get_segments(state::P3State{FT}, D_min::FT = FT(0), D_max::FT = FT(Inf)) where {FT}
+    (D_min, D_th, D_gr, D_cr, D_max) = get_bounded_thresholds(state, D_min, D_max)
+    segments = ((D_min, D_th), (D_th, D_gr), (D_gr, D_cr), (D_cr, D_max))
     return segments
 end
 

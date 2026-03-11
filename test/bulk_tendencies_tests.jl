@@ -1797,32 +1797,15 @@ function test_bulk_microphysics_p3_tendencies(FT)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
-            BMT.Microphysics2Moment(),
-            mp,
-            tps,
-            ρ,
-            T,
-            q_tot,
-            q_lcl,
-            n_lcl,
-            q_rai,
-            n_rai,
-            q_ice,
-            n_ice,
-            q_rim,
-            b_rim,
-            logλ,
+            BMT.Microphysics2Moment(), mp, tps, ρ, T, q_tot,
+            q_lcl, n_lcl, q_rai, n_rai,
+            q_ice, n_ice, q_rim, b_rim, logλ,
         )
 
         # Check that we get the expected NamedTuple type
         @test tendencies isa @NamedTuple{
-            dq_lcl_dt::FT,
-            dn_lcl_dt::FT,
-            dq_rai_dt::FT,
-            dn_rai_dt::FT,
-            dq_ice_dt::FT,
-            dq_rim_dt::FT,
-            db_rim_dt::FT,
+            dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
+            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
         }
     end
 end
