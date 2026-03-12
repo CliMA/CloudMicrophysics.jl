@@ -1,7 +1,7 @@
 export Microphysics2MParams, WarmRainParams2M, P3IceParams
 
 """
-    WarmRainParams2M{FT, SB, AP}
+    WarmRainParams2M
 
 Parameters for 2-moment warm rain processes (Seifert-Beheng 2006).
 
@@ -9,13 +9,19 @@ Parameters for 2-moment warm rain processes (Seifert-Beheng 2006).
 - `seifert_beheng::SB`: SB2006 — all warm rain parameters (autoconversion, accretion, etc.)
 - `air_properties::AP`: AirProperties — air properties for evaporation
 """
-struct WarmRainParams2M{FT, SB, AP} <: ParametersType{FT}
+@kwdef struct WarmRainParams2M{SB, AP} <: ParametersType
     seifert_beheng::SB
     air_properties::AP
 end
+# Construct WarmRainParams2M from a ClimaParams TOML dictionary
+WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true) =
+    WarmRainParams2M(;
+        seifert_beheng = SB2006(toml_dict; is_limited),
+        air_properties = AirProperties(toml_dict),
+    )
 
 """
-    P3IceParams{FT, P3, VL, PDc, PDr}
+    P3IceParams
 
 Parameters for P3 ice-phase processes (optional).
 
@@ -25,15 +31,22 @@ Parameters for P3 ice-phase processes (optional).
 - `cloud_pdf::PDc`: CloudParticlePDF_SB2006 — cloud droplet size distribution
 - `rain_pdf::PDr`: RainParticlePDF_SB2006 — rain drop size distribution
 """
-struct P3IceParams{FT, P3, VL, PDc, PDr} <: ParametersType{FT}
+@kwdef struct P3IceParams{P3, VL, PDc, PDr} <: ParametersType
     scheme::P3
     terminal_velocity::VL
     cloud_pdf::PDc
     rain_pdf::PDr
 end
 
+P3IceParams(toml_dict::CP.ParamDict; is_limited = true) =
+    P3IceParams(;
+        scheme = ParametersP3(toml_dict),
+        terminal_velocity = Chen2022VelType(toml_dict),
+        cloud_pdf = CloudParticlePDF_SB2006(toml_dict),
+        rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited),
+    )
+
 """
-    Microphysics2MParams{FT, WR, ICE}
 
 Unified parameter container for 2-moment microphysics.
 
@@ -56,23 +69,10 @@ mp_warm = CMP.Microphysics2MParams(Float64; with_ice = false)
 mp_p3 = CMP.Microphysics2MParams(Float64; with_ice = true)
 ```
 """
-struct Microphysics2MParams{FT, WR, ICE} <: ParametersType{FT}
+@kwdef struct Microphysics2MParams{WR, ICE} <: ParametersType
     warm_rain::WR
     ice::ICE
 end
-
-"""
-    Microphysics2MParams(::Type{FT}; with_ice = false, is_limited = true) where {FT <: AbstractFloat}
-
-Create a `Microphysics2MParams` object from a floating point type.
-
-# Arguments
-- `FT`: Floating point type (e.g., Float64, Float32)
-- `with_ice`: Include P3 ice-phase parameters (default: false)
-- `is_limited`: Use limited rain size distribution parameters (default: true)
-"""
-Microphysics2MParams(::Type{FT}; with_ice = false, is_limited = true) where {FT <: AbstractFloat} =
-    Microphysics2MParams(CP.create_toml_dict(FT); with_ice, is_limited)
 
 """
     Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true)
@@ -84,34 +84,10 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 - `with_ice`: Include P3 ice-phase parameters (default: false)
 - `is_limited`: Use limited rain size distribution parameters (default: true)
 """
-function Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true)
-    FT = CP.float_type(toml_dict)
-
-    # Warm rain parameters (always present)
-    seifert_beheng = SB2006(toml_dict, is_limited)
-    air_properties = AirProperties(toml_dict)
-    warm_rain = WarmRainParams2M{FT, typeof(seifert_beheng), typeof(air_properties)}(
-        seifert_beheng,
-        air_properties,
+Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true) =
+    Microphysics2MParams(;
+        # Warm rain parameters (always present)
+        warm_rain = WarmRainParams2M(toml_dict; is_limited),
+        # Optional ice phase parameters
+        ice = with_ice ? P3IceParams(toml_dict; is_limited) : nothing,
     )
-
-    # Optional ice phase parameters
-    ice = if with_ice
-        scheme = ParametersP3(toml_dict)
-        terminal_velocity = Chen2022VelType(toml_dict)
-        cloud_pdf = CloudParticlePDF_SB2006(toml_dict)
-        rain_pdf =
-            is_limited ? RainParticlePDF_SB2006_limited(toml_dict) :
-            RainParticlePDF_SB2006_notlimited(toml_dict)
-        P3IceParams{FT, typeof(scheme), typeof(terminal_velocity), typeof(cloud_pdf), typeof(rain_pdf)}(
-            scheme,
-            terminal_velocity,
-            cloud_pdf,
-            rain_pdf,
-        )
-    else
-        nothing
-    end
-
-    return Microphysics2MParams{FT, typeof(warm_rain), typeof(ice)}(warm_rain, ice)
-end

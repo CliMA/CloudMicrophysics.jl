@@ -8,7 +8,7 @@ Parameters for sulfate aerosol
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Sulfate{FT} <: AerosolType{FT}
+@kwdef struct Sulfate{FT} <: AerosolType
     "molar mass [kg/mol]"
     M::FT
     "density [kg/m3]"
@@ -23,9 +23,6 @@ Base.@kwdef struct Sulfate{FT} <: AerosolType{FT}
     κ::FT
 end
 
-Sulfate(::Type{FT}) where {FT <: AbstractFloat} =
-    Sulfate(CP.create_toml_dict(FT))
-
 function Sulfate(td::CP.ParamDict)
     name_map = (;
         :sulfate_aerosol_molar_mass => :M,
@@ -36,6 +33,5 @@ function Sulfate(td::CP.ParamDict)
         :sulfate_aerosol_kappa => :κ,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return Sulfate{FT}(; parameters...)
+    return Sulfate(; parameters...)
 end
