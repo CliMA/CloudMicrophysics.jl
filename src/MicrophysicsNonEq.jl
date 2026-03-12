@@ -24,6 +24,9 @@ export dqcld_dT
 export gamma_helper
 export d2qcld_dT2
 
+const CondEvap = Union{CMP.CloudLiquid, CMP.CondEvap2M}
+const SubDep = Union{CMP.CloudIce, CMP.SubDep2M}
+
 """
     τ_relax(liquid::CloudLiquid)
     τ_relax(ice::CloudIce)
@@ -37,8 +40,8 @@ Returns the relaxation timescale for phase change processes.
 - Relaxation timescale [s] for condensation/evaporation (liquid) or
   deposition/sublimation (ice)
 """
-@inline τ_relax(p::CMP.CloudLiquid) = p.τ_relax
-@inline τ_relax(p::CMP.CloudIce) = p.τ_relax
+@inline τ_relax(p::CondEvap) = p.τ_relax
+@inline τ_relax(p::SubDep) = p.τ_relax
 
 """
     conv_q_vap_to_q_lcl_icl(params::CloudLiquid, q_sat_liq, q_lcl)
@@ -61,11 +64,11 @@ The tendency is computed as:
 \\frac{dq}{dt} = \\frac{q_{sat} - q}{\\tau_{relax}}
 ```
 """
-@inline function conv_q_vap_to_q_lcl_icl((; τ_relax)::CMP.CloudLiquid, q_sat_liq, q_lcl)
+@inline function conv_q_vap_to_q_lcl_icl((; τ_relax)::CondEvap, q_sat_liq, q_lcl)
     return (q_sat_liq - q_lcl) / τ_relax
 end
 
-@inline function conv_q_vap_to_q_lcl_icl((; τ_relax)::CMP.CloudIce, q_sat_ice, q_icl)
+@inline function conv_q_vap_to_q_lcl_icl((; τ_relax)::SubDep, q_sat_ice, q_icl)
     return (q_sat_ice - q_icl) / τ_relax
 end
 
@@ -173,15 +176,8 @@ This function does NOT apply limiters for small or negative specific humidities.
 Users should apply appropriate bounds checking when integrating in a model.
 """
 function conv_q_vap_to_q_lcl_icl_MM2015(
-    (; τ_relax)::CMP.CloudLiquid,
-    tps::TDI.PS,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
+    (; τ_relax)::CondEvap, tps::TDI.PS,
+    q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
 )
     Rᵥ = TDI.Rᵥ(tps)
     Lᵥ = TDI.Lᵥ(tps, T)
@@ -199,15 +195,8 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     return ifelse(limit_MM2015_sinks(tendency, q_lcl), zero(tendency), tendency)
 end
 function conv_q_vap_to_q_lcl_icl_MM2015(
-    (; τ_relax)::CMP.CloudIce,
-    tps::TDI.PS,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    ρ,
-    T,
+    (; τ_relax)::SubDep, tps::TDI.PS,
+    q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
 )
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)
@@ -240,15 +229,8 @@ corresponding cloud condensate species:
   if `false`, returns the total derivative accounting for implicit temperature feedback.
 """
 function ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
-    lcl::CMP.CloudLiquid,
-    tps::TDI.PS,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    ρ,
-    T;
+    lcl::CondEvap, tps::TDI.PS,
+    q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T;
     simplified = true,
 )
     tendency = conv_q_vap_to_q_lcl_icl_MM2015(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
@@ -269,15 +251,8 @@ function ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
     return ifelse(limit_MM2015_sinks(tendency, q_lcl), zero(∂tendency_∂q_lcl), ∂tendency_∂q_lcl)
 end
 function ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
-    icl::CMP.CloudIce,
-    tps::TDI.PS,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    ρ,
-    T;
+    icl::SubDep, tps::TDI.PS,
+    q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T;
     simplified = true,
 )
     tendency = conv_q_vap_to_q_lcl_icl_MM2015(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
@@ -298,6 +273,11 @@ function ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
     limiter = limit_MM2015_sinks(tendency, q_icl) || INP_limiter(tendency, tps, T)
     return ifelse(limiter, zero(∂tendency_∂q_icl), ∂tendency_∂q_icl)
 end
+
+
+### -------------------------- ###
+### 1-moment terminal velocity ###
+### -------------------------- ###
 
 """
     terminal_velocity(sediment::CloudLiquid, vel::StokesRegimeVelType, ρₐ, q)
