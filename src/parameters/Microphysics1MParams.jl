@@ -9,10 +9,13 @@ Parameters for cloud-phase (non-precipitating) hydrometeors in 1-moment scheme.
 - `liquid::LCL`: CloudLiquid — cloud liquid water parameters
 - `ice::ICL`: CloudIce — cloud ice parameters
 """
-struct CloudPhaseParams1M{FT, LCL, ICL} <: ParametersType{FT}
+@kwdef struct CloudPhaseParams1M{LCL, ICL} <: ParametersType
     liquid::LCL
     ice::ICL
 end
+
+Base.show(io::IO, mime::MIME"text/plain", x::CloudPhaseParams1M) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
     PrecipPhaseParams1M{FT, RAI, SNO}
@@ -23,10 +26,13 @@ Parameters for precipitating hydrometeors in 1-moment scheme.
 - `rain::RAI`: Rain — rain parameters (includes autoconversion)
 - `snow::SNO`: Snow — snow parameters (includes autoconversion)
 """
-struct PrecipPhaseParams1M{FT, RAI, SNO} <: ParametersType{FT}
+@kwdef struct PrecipPhaseParams1M{RAI, SNO} <: ParametersType
     rain::RAI
     snow::SNO
 end
+
+Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
     Microphysics1MParams{FT, CP, PP, CE, AP, VL, VA}
@@ -53,7 +59,7 @@ mp = CMP.Microphysics1MParams(Float64)
 mp_with_2M = CMP.Microphysics1MParams(Float64; with_2M_autoconv = true)
 ```
 """
-struct Microphysics1MParams{FT, CP, PP, CE, AP, VL, VA} <: ParametersType{FT}
+@kwdef struct Microphysics1MParams{FT, CP, PP, CE, AP, VL, VA} <: ParametersType
     cloud::CP
     precip::PP
     collision::CE
@@ -62,18 +68,8 @@ struct Microphysics1MParams{FT, CP, PP, CE, AP, VL, VA} <: ParametersType{FT}
     autoconv_2M::VA
     prescribed_Nc::FT
 end
-
-"""
-    Microphysics1MParams(::Type{FT}; with_2M_autoconv = false) where {FT <: AbstractFloat}
-
-Create a `Microphysics1MParams` object from a floating point type.
-
-# Arguments
-- `FT`: Floating point type (e.g., Float64, Float32)
-- `with_2M_autoconv`: Include 2-moment autoconversion parameters (default: false)
-"""
-Microphysics1MParams(::Type{FT}; with_2M_autoconv = false) where {FT <: AbstractFloat} =
-    Microphysics1MParams(CP.create_toml_dict(FT); with_2M_autoconv)
+Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
     Microphysics1MParams(toml_dict::CP.ParamDict; with_2M_autoconv = false)
@@ -85,50 +81,27 @@ Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 - `with_2M_autoconv`: Include 2-moment autoconversion parameters (default: false)
 """
 function Microphysics1MParams(toml_dict::CP.ParamDict; with_2M_autoconv = false)
-    FT = CP.float_type(toml_dict)
-
-    # Cloud phase parameters
-    liquid = CloudLiquid(toml_dict)
-    ice = CloudIce(toml_dict)
-    cloud = CloudPhaseParams1M{FT, typeof(liquid), typeof(ice)}(liquid, ice)
-
-    # Precipitation phase parameters
-    rain = Rain(toml_dict)
-    snow = Snow(toml_dict)
-    precip = PrecipPhaseParams1M{FT, typeof(rain), typeof(snow)}(rain, snow)
-
-    # Shared physics parameters
-    collision = CollisionEff(toml_dict)
-    air_properties = AirProperties(toml_dict)
-    terminal_velocity = Blk1MVelType(toml_dict)
-
-    # Optional 2M autoconversion
-    autoconv_2M = with_2M_autoconv ? VarTimescaleAcnv(toml_dict) : nothing
-
-
-    # Prescribed cloud droplet number concentration
-    (; prescribed_cloud_droplet_number_concentration) =
-        CP.get_parameter_values(
-            toml_dict,
-            "prescribed_cloud_droplet_number_concentration",
-            "CloudMicrophysics",
-        )
-    prescribed_Nc = FT(prescribed_cloud_droplet_number_concentration)
-    return Microphysics1MParams{
-        FT,
-        typeof(cloud),
-        typeof(precip),
-        typeof(collision),
-        typeof(air_properties),
-        typeof(terminal_velocity),
-        typeof(autoconv_2M),
-    }(
-        cloud,
-        precip,
-        collision,
-        air_properties,
-        terminal_velocity,
-        autoconv_2M,
-        prescribed_Nc,
+    (; prescribed_cloud_droplet_number_concentration) = CP.get_parameter_values(
+        toml_dict, "prescribed_cloud_droplet_number_concentration", "CloudMicrophysics",
+    )
+    return Microphysics1MParams(;
+        # Cloud phase parameters
+        cloud = CloudPhaseParams1M(;
+            liquid = CloudLiquid(toml_dict),
+            ice = CloudIce(toml_dict),
+        ),
+        # Precipitation phase parameters
+        precip = PrecipPhaseParams1M(;
+            rain = Rain(toml_dict),
+            snow = Snow(toml_dict),
+        ),
+        # Shared physics parameters
+        collision = CollisionEff(toml_dict),
+        air_properties = AirProperties(toml_dict),
+        terminal_velocity = Blk1MVelType(toml_dict),
+        # Optional 2M autoconversion
+        autoconv_2M = with_2M_autoconv ? VarTimescaleAcnv(toml_dict) : nothing,
+        # Prescribed cloud droplet number concentration
+        prescribed_Nc = prescribed_cloud_droplet_number_concentration,
     )
 end

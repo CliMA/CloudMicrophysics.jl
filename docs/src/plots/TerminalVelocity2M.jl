@@ -9,7 +9,7 @@ FT = Float64
 
 const rain = CMP.Rain(FT)
 const SB2006 = CMP.SB2006(FT)
-const SB2006_no_lim = CMP.SB2006(FT, false)
+const SB2006_no_lim = CMP.SB2006(FT; is_limited = false)
 const SB2006Vel = CMP.SB2006VelType(FT)
 
 ρ_air = 1.2

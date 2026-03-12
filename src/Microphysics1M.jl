@@ -431,8 +431,8 @@ with cloud water (liquid or ice).
 - `ρ`: air density
 """
 @inline function accretion(
-    cloud::CMP.CloudCondensateType{FT},
-    precip::CMP.PrecipitationType{FT},
+    cloud::CMP.CloudCondensateType,
+    precip::CMP.PrecipitationType,
     vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
     ce::CMP.CollisionEff,
     q_clo::FT,
@@ -529,8 +529,8 @@ deviations are proportional to the mean fall velocities, with coefficient
 - `ρ`: air density [kg/m³]
 """
 @inline function accretion_snow_rain(
-    type_i::CMP.PrecipitationType{FT},
-    type_j::CMP.PrecipitationType{FT},
+    type_i::CMP.PrecipitationType,
+    type_j::CMP.PrecipitationType,
     blk1mveltype_ti::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
     blk1mveltype_tj::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
     ce::CMP.CollisionEff,

@@ -18,7 +18,7 @@ function test_cloud_diagnostics(FT)
     )
     toml_dict = CP.create_toml_dict(FT; override_file)
     SB2006 = CMP.SB2006(toml_dict)
-    SB2006_no_limiters = CMP.SB2006(toml_dict, false)
+    SB2006_no_limiters = CMP.SB2006(toml_dict; is_limited = false)
 
     # Water parameters
     wtr = CMP.WaterProperties(FT)

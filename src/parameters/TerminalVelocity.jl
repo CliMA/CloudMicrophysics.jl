@@ -9,7 +9,7 @@ for rain
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Blk1MVelTypeRain{FT} <: ParametersType{FT}
+@kwdef struct Blk1MVelTypeRain{FT} <: ParametersType
     "particle length scale [m]"
     r0::FT
     "rain terminal velocity size relation coefficient [-]"
@@ -53,11 +53,10 @@ function Blk1MVelTypeRain(td::CP.ParamDict)
     parameters = CP.get_parameter_values(td, vel_map, "CloudMicrophysics")
     mass_p = CP.get_parameter_values(td, mass_map, "CloudMicrophysics")
     area_p = CP.get_parameter_values(td, area_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    gamma_vent = FT(SF.gamma((parameters.ve + parameters.Δv + 5) / 2))
-    gamma_term = FT(SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1))
-    gamma_accr = FT(SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1))
-    return Blk1MVelTypeRain{FT}(; parameters..., gamma_vent, gamma_term, gamma_accr)
+    gamma_vent = SF.gamma((parameters.ve + parameters.Δv + 5) / 2)
+    gamma_term = SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1)
+    gamma_accr = SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1)
+    return Blk1MVelTypeRain(; parameters..., gamma_vent, gamma_term, gamma_accr)
 end
 
 """
@@ -69,7 +68,7 @@ for snow
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Blk1MVelTypeSnow{FT} <: ParametersType{FT}
+@kwdef struct Blk1MVelTypeSnow{FT} <: ParametersType
     "particle length scale [m]"
     r0::FT
     "snow terminal velocity size relation coefficient [-]"
@@ -107,12 +106,12 @@ function Blk1MVelTypeSnow(td::CP.ParamDict)
     mass_p = CP.get_parameter_values(td, mass_map, "CloudMicrophysics")
     area_p = CP.get_parameter_values(td, area_map, "CloudMicrophysics")
 
-    v0 = 2^(9 / 4) * parameters.r0^parameters.ve
     FT = CP.float_type(td)
-    gamma_vent = FT(SF.gamma((parameters.ve + parameters.Δv + 5) / 2))
-    gamma_term = FT(SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1))
-    gamma_accr = FT(SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1))
-    return Blk1MVelTypeSnow{FT}(; parameters..., v0, gamma_vent, gamma_term, gamma_accr)
+    v0 = FT(2^(9 / 4) * parameters.r0^parameters.ve)
+    gamma_vent = SF.gamma((parameters.ve + parameters.Δv + 5) / 2)
+    gamma_term = SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1)
+    gamma_accr = SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1)
+    return Blk1MVelTypeSnow(; parameters..., v0, gamma_vent, gamma_term, gamma_accr)
 end
 
 """
@@ -124,20 +123,18 @@ The type for precipitation terminal velocity from the simple 1-moment scheme
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Blk1MVelType{FT, R, S} <: TerminalVelocityType{FT}
+@kwdef struct Blk1MVelType{R, S} <: TerminalVelocityType
     rain::R
     snow::S
 end
+Base.show(io::IO, mime::MIME"text/plain", x::Blk1MVelType) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
-Blk1MVelType(::Type{FT}) where {FT <: AbstractFloat} =
-    Blk1MVelType(CP.create_toml_dict(FT))
-
-function Blk1MVelType(toml_dict::CP.ParamDict)
-    rain = Blk1MVelTypeRain(toml_dict)
-    snow = Blk1MVelTypeSnow(toml_dict)
-    FT = CP.float_type(toml_dict)
-    return Blk1MVelType{FT, typeof(rain), typeof(snow)}(rain, snow)
-end
+Blk1MVelType(toml_dict::CP.ParamDict) =
+    Blk1MVelType(;
+        rain = Blk1MVelTypeRain(toml_dict),
+        snow = Blk1MVelTypeSnow(toml_dict),
+    )
 
 """
     StokesRegimeVelType
@@ -147,14 +144,11 @@ The type for precipitation terminal velocity in the Stokes regime (Re < 1)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct StokesRegimeVelType{FT} <: TerminalVelocityType{FT}
+@kwdef struct StokesRegimeVelType{FT} <: TerminalVelocityType
     ρw::FT
     ν_air::FT
     grav::FT
 end
-
-StokesRegimeVelType(::Type{FT}) where {FT <: AbstractFloat} =
-    StokesRegimeVelType(CP.create_toml_dict(FT))
 
 function StokesRegimeVelType(td::CP.ParamDict)
     name_map = (;
@@ -163,8 +157,7 @@ function StokesRegimeVelType(td::CP.ParamDict)
         :gravitational_acceleration => :grav,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return StokesRegimeVelType{FT}(; parameters...)
+    return StokesRegimeVelType(; parameters...)
 end
 
 """
@@ -175,7 +168,7 @@ The type for precipitation terminal velocity from Seifert and Beheng 2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct SB2006VelType{FT} <: TerminalVelocityType{FT}
+@kwdef struct SB2006VelType{FT} <: TerminalVelocityType
     ρ0::FT
     aR::FT
     bR::FT
@@ -184,9 +177,6 @@ Base.@kwdef struct SB2006VelType{FT} <: TerminalVelocityType{FT}
     ν_air::FT
     grav::FT
 end
-
-SB2006VelType(::Type{FT}) where {FT <: AbstractFloat} =
-    SB2006VelType(CP.create_toml_dict(FT))
 
 function SB2006VelType(td::CP.ParamDict)
     name_map = (;
@@ -199,8 +189,7 @@ function SB2006VelType(td::CP.ParamDict)
         :gravitational_acceleration => :grav,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return SB2006VelType{FT}(; parameters...)
+    return SB2006VelType(; parameters...)
 end
 
 """
@@ -212,7 +201,7 @@ See Table B3 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: TerminalVelocityType{FT}
+@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: TerminalVelocityType
     A::NTuple{N, FT}
     B::NTuple{N, FT}
     C::NTuple{M, FT}
@@ -222,6 +211,8 @@ Base.@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: TerminalVelocityType{FT}
     "cutoff for small vs large ice particle dimension [m]"
     cutoff::FT
 end
+Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelTypeSmallIce) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 function Chen2022VelTypeSmallIce(td::CP.ParamDict)
     # TODO: These should be array parameters.
@@ -250,7 +241,7 @@ See Table B4 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeLargeIce{FT, N} <: TerminalVelocityType{FT}
+@kwdef struct Chen2022VelTypeLargeIce{FT, N} <: TerminalVelocityType
     A::NTuple{N, FT}
     B::NTuple{N, FT}
     C::NTuple{N, FT}
@@ -291,7 +282,7 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Chen2022VelTypeRain{FT, N} <: TerminalVelocityType{FT}
+@kwdef struct Chen2022VelTypeRain{FT, N} <: TerminalVelocityType
     ρ0::FT
     a::NTuple{N, FT}
     a3_pow::FT
@@ -299,9 +290,8 @@ Base.@kwdef struct Chen2022VelTypeRain{FT, N} <: TerminalVelocityType{FT}
     b_ρ::FT
     c::NTuple{N, FT}
 end
-
-Chen2022VelTypeRain(::Type{FT}) where {FT <: AbstractFloat} =
-    Chen2022VelTypeRain(CP.create_toml_dict(FT))
+Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelTypeRain) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 function Chen2022VelTypeRain(td::CP.ParamDict)
     name_map = (;
@@ -329,34 +319,23 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Chen2022VelType{FT, R, SI, LI} <: TerminalVelocityType{FT}
+@kwdef struct Chen2022VelType{R, SI, LI} <: TerminalVelocityType
     rain::R
     small_ice::SI
     large_ice::LI
 end
-
-Chen2022VelType(::Type{FT}) where {FT <: AbstractFloat} =
-    Chen2022VelType(CP.create_toml_dict(FT))
-
-function Chen2022VelType(toml_dict::CP.ParamDict)
-    rain = Chen2022VelTypeRain(toml_dict)
-    small_ice = Chen2022VelTypeSmallIce(toml_dict)
-    large_ice = Chen2022VelTypeLargeIce(toml_dict)
-    FT = CP.float_type(toml_dict)
-    return Chen2022VelType{
-        FT,
-        typeof(rain),
-        typeof(small_ice),
-        typeof(large_ice),
-    }(
-        rain,
-        small_ice,
-        large_ice,
+Chen2022VelType(toml_dict::CP.ParamDict) =
+    Chen2022VelType(;
+        rain = Chen2022VelTypeRain(toml_dict),
+        small_ice = Chen2022VelTypeSmallIce(toml_dict),
+        large_ice = Chen2022VelTypeLargeIce(toml_dict),
     )
-end
+
+Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelType) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    TerminalVelocityParams{FT, STOKES, CHEN, BLK1M}
+    TerminalVelocityParams
 
 Unified container for all terminal velocity parameterizations used in CloudMicrophysics.
 
@@ -409,22 +388,11 @@ v_snow = CM1.terminal_velocity(snow, tv.blk1m.snow, ρ, q_sno)
 - [`Chen2022VelType`](@ref): Chen et al. (2022) terminal velocity
 - [`Blk1MVelType`](@ref): 1-moment bulk terminal velocity
 """
-struct TerminalVelocityParams{FT, STOKES, CHEN, BLK1M} <: ParametersType{FT}
+@kwdef struct TerminalVelocityParams{STOKES, CHEN, BLK1M} <: ParametersType
     stokes::STOKES
     chen2022::CHEN
     blk1m::BLK1M
 end
-
-"""
-    TerminalVelocityParams(::Type{FT}) where {FT <: AbstractFloat}
-
-Create a `TerminalVelocityParams` object from a floating point type.
-
-# Arguments
-- `FT`: Floating point type (e.g., Float64, Float32)
-"""
-TerminalVelocityParams(::Type{FT}) where {FT <: AbstractFloat} =
-    TerminalVelocityParams(CP.create_toml_dict(FT))
 
 """
     TerminalVelocityParams(toml_dict::CP.ParamDict)
@@ -434,16 +402,9 @@ Create a `TerminalVelocityParams` object from a ClimaParams TOML dictionary.
 # Arguments
 - `toml_dict`: ClimaParams parameter dictionary
 """
-function TerminalVelocityParams(toml_dict::CP.ParamDict)
-    FT = CP.float_type(toml_dict)
-
-    stokes = StokesRegimeVelType(toml_dict)
-    chen2022 = Chen2022VelType(toml_dict)
-    blk1m = Blk1MVelType(toml_dict)
-
-    return TerminalVelocityParams{FT, typeof(stokes), typeof(chen2022), typeof(blk1m)}(
-        stokes,
-        chen2022,
-        blk1m,
+TerminalVelocityParams(toml_dict::CP.ParamDict) =
+    TerminalVelocityParams(;
+        stokes = StokesRegimeVelType(toml_dict),
+        chen2022 = Chen2022VelType(toml_dict),
+        blk1m = Blk1MVelType(toml_dict),
     )
-end

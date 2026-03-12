@@ -9,7 +9,7 @@ DOI: 10.1029/1999JD901161
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct AerosolActivationParameters{FT} <: ParametersType{FT}
+@kwdef struct AerosolActivationParameters{FT} <: ParametersType
     "molar mass of water [kg/mol]"
     M_w::FT
     "gas constant [J/mol/K]"
@@ -36,9 +36,6 @@ Base.@kwdef struct AerosolActivationParameters{FT} <: ParametersType{FT}
     p2::FT
 end
 
-AerosolActivationParameters(::Type{FT}) where {FT <: AbstractFloat} =
-    AerosolActivationParameters(CP.create_toml_dict(FT))
-
 function AerosolActivationParameters(td::CP.ParamDict)
     name_map = (;
         :molar_mass_water => :M_w,
@@ -55,6 +52,5 @@ function AerosolActivationParameters(td::CP.ParamDict)
         :ARG2000_pow_2 => :p2,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return AerosolActivationParameters{FT}(; parameters...)
+    return AerosolActivationParameters(; parameters...)
 end

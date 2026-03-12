@@ -28,7 +28,7 @@ function test_microphysics2M(FT)
     )
     toml_dict = CP.create_toml_dict(FT; override_file)
     SB2006 = CMP.SB2006(toml_dict)
-    SB2006_no_limiters = CMP.SB2006(toml_dict, false)
+    SB2006_no_limiters = CMP.SB2006(toml_dict; is_limited = false)
 
     # Thermodynamics and air properties parameters
     aps = CMP.AirProperties(FT)

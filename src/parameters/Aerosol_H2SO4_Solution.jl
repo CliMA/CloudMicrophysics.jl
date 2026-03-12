@@ -9,7 +9,7 @@ from Luo et al 1995. DOI: 10.1029/94GL02988
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct H2SO4SolutionParameters{FT} <: ParametersType{FT}
+@kwdef struct H2SO4SolutionParameters{FT} <: ParametersType
     "max temperature for which the parameterization is valid [K]"
     T_max::FT
     "min temperature for which the parameterization is valid [K]"
@@ -32,9 +32,6 @@ Base.@kwdef struct H2SO4SolutionParameters{FT} <: ParametersType{FT}
     c7::FT
 end
 
-H2SO4SolutionParameters(::Type{FT}) where {FT <: AbstractFloat} =
-    H2SO4SolutionParameters(CP.create_toml_dict(FT))
-
 function H2SO4SolutionParameters(td::CP.ParamDict)
     name_map = (;
         :p_over_sulphuric_acid_solution_T_max => :T_max,
@@ -49,6 +46,5 @@ function H2SO4SolutionParameters(td::CP.ParamDict)
         :p_over_sulphuric_acid_solution_c7 => :c7,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return H2SO4SolutionParameters{FT}(; parameters...)
+    return H2SO4SolutionParameters(; parameters...)
 end

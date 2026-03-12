@@ -17,7 +17,7 @@ const ice = CMP.CloudIce(FT)
 const snow = CMP.Snow(FT)
 
 const SB2006 = CMP.SB2006(FT)
-const SB2006_no_lim = CMP.SB2006(FT, false)
+const SB2006_no_lim = CMP.SB2006(FT; is_limited = false)
 
 const Chen2022 = CMP.Chen2022VelType(FT)
 const STVel = CMP.StokesRegimeVelType(FT)
