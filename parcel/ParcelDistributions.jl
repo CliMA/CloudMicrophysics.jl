@@ -1,10 +1,10 @@
 import CloudMicrophysics.Parameters as CMP
 
-struct Monodisperse{FT} <: CMP.ParametersType{FT} end
+struct Monodisperse <: CMP.ParametersType end
 
-struct MonodisperseMix{FT} <: CMP.ParametersType{FT} end
+struct MonodisperseMix <: CMP.ParametersType end
 
-struct Gamma{FT} <: CMP.ParametersType{FT} end
+struct Gamma <: CMP.ParametersType end
 
 #! format: off
 # Size distributiom moments

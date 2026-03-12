@@ -8,7 +8,7 @@ Parameters for zero-moment bulk microphysics scheme
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Parameters0M{FT} <: ParametersType{FT}
+@kwdef struct Parameters0M{FT} <: ParametersType
     "precipitation timescale [s]"
     τ_precip::FT
     "condensate specific content precipitation threshold [-]"
@@ -17,9 +17,6 @@ Base.@kwdef struct Parameters0M{FT} <: ParametersType{FT}
     S_0::FT
 end
 
-Parameters0M(::Type{FT}) where {FT <: AbstractFloat} =
-    Parameters0M(CP.create_toml_dict(FT))
-
 function Parameters0M(td::CP.ParamDict)
     name_map = (;
         :precipitation_timescale => :τ_precip,
@@ -27,6 +24,5 @@ function Parameters0M(td::CP.ParamDict)
         :supersaturation_precipitation_threshold => :S_0,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return Parameters0M{FT}(; parameters...)
+    return Parameters0M(; parameters...)
 end

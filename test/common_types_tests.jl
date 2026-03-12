@@ -3,13 +3,13 @@ import CloudMicrophysics.Parameters as CMP
 
 function test_common_types_broadcasts(FT)
     for some_type in (
-        CMP.ParametersType{FT},
-        CMP.AerosolType{FT},
+        CMP.ParametersType,
+        CMP.AerosolType,
         CMP.AerosolDistributionType,
-        CMP.CloudCondensateType{FT},
-        CMP.PrecipitationType{FT},
-        CMP.TerminalVelocityType{FT},
-        CMP.Precipitation2MType{FT},
+        CMP.CloudCondensateType,
+        CMP.PrecipitationType,
+        CMP.TerminalVelocityType,
+        CMP.Precipitation2MType,
         CMP.ArizonaTestDust{FT},
         CMP.DesertDust{FT},
         CMP.Kaolinite{FT},
@@ -48,7 +48,7 @@ function test_common_types_broadcasts(FT)
         CMP.AccrTC1980{FT},
         CMP.LD2004{FT},
         CMP.VarTimescaleAcnv{FT},
-        CMP.RainParticlePDF_SB2006{FT},
+        CMP.RainParticlePDF_SB2006,
         CMP.CloudParticlePDF_SB2006{FT},
         CMP.AcnvSB2006{FT},
         CMP.AccrSB2006{FT},

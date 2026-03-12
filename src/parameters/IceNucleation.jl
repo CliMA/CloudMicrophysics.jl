@@ -10,7 +10,7 @@ DOI: 10.5194/acp-6-3007-2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Mohler2006{FT} <: ParametersType{FT}
+@kwdef struct Mohler2006{FT} <: ParametersType
     "max allowed supersaturation [-]"
     Sᵢ_max::FT
     "threshold temperature [K]"
@@ -23,8 +23,7 @@ function Mohler2006(td::CP.ParamDict)
         :Mohler2006_threshold_T => :T_thr,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return Mohler2006{FT}(; parameters...)
+    return Mohler2006(; parameters...)
 end
 
 """
@@ -36,7 +35,7 @@ DOI: 10.1038/35020537
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Koop2000{FT} <: ParametersType{FT}
+@kwdef struct Koop2000{FT} <: ParametersType
     "min Δaw [-]"
     Δa_w_min::FT
     "max Δaw [-]"
@@ -67,8 +66,7 @@ function Koop2000(td::CP.ParamDict)
         :Linear_J_hom_coeff2 => :linear_c₂,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return Koop2000{FT}(; parameters...)
+    return Koop2000(; parameters...)
 end
 
 """
@@ -80,7 +78,7 @@ DOI: 10.1175/JAS-D-14-0065.1
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct MorrisonMilbrandt2014{FT} <: ParametersType{FT}
+@kwdef struct MorrisonMilbrandt2014{FT} <: ParametersType
     "Cutoff temperature for deposition nucleation [K]"
     T_dep_thres::FT
     "coefficient [-]"
@@ -105,8 +103,7 @@ function MorrisonMilbrandt2014(td::CP.ParamDict)
         :BarklieGokhale1959_B_parameter => :het_B,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return MorrisonMilbrandt2014{FT}(; parameters...)
+    return MorrisonMilbrandt2014(; parameters...)
 end
 
 """
@@ -117,29 +114,18 @@ Parameters for ice nucleation
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct IceNucleationParameters{FT, DEP, HOM, P3_type} <: ParametersType{FT}
+@kwdef struct IceNucleationParameters{DEP, HOM, P3_type} <: ParametersType
     deposition::DEP
     homogeneous::HOM
     p3::P3_type
 end
 
-IceNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
-    IceNucleationParameters(CP.create_toml_dict(FT))
-
-function IceNucleationParameters(toml_dict::CP.ParamDict)
-    deposition = Mohler2006(toml_dict)
-    homogeneous = Koop2000(toml_dict)
-    p3 = MorrisonMilbrandt2014(toml_dict)
-    DEP = typeof(deposition)
-    HOM = typeof(homogeneous)
-    P3_type = typeof(p3)
-    FT = CP.float_type(toml_dict)
-    return IceNucleationParameters{FT, DEP, HOM, P3_type}(
-        deposition,
-        homogeneous,
-        p3,
+IceNucleationParameters(toml_dict::CP.ParamDict) =
+    IceNucleationParameters(;
+        deposition = Mohler2006(toml_dict),
+        homogeneous = Koop2000(toml_dict),
+        p3 = MorrisonMilbrandt2014(toml_dict),
     )
-end
 
 
 """
@@ -151,7 +137,7 @@ DOI: 10.5194/acp-23-10883-2023
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Frostenberg2023{FT} <: ParametersType{FT}
+@kwdef struct Frostenberg2023{FT} <: ParametersType
     "standard deviation"
     σ::FT
     "coefficient"
@@ -162,9 +148,6 @@ Base.@kwdef struct Frostenberg2023{FT} <: ParametersType{FT}
     T_freeze::FT
 end
 
-Frostenberg2023(::Type{FT}) where {FT <: AbstractFloat} =
-    Frostenberg2023(CP.create_toml_dict(FT))
-
 function Frostenberg2023(td::CP.ParamDict)
     name_map = (;
         :Frostenberg2023_standard_deviation => :σ,
@@ -173,6 +156,5 @@ function Frostenberg2023(td::CP.ParamDict)
         :temperature_water_freeze => :T_freeze,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return Frostenberg2023{FT}(; parameters...)
+    return Frostenberg2023(; parameters...)
 end

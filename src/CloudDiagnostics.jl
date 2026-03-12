@@ -60,10 +60,8 @@ based on the assumed cloud and rain particle size distribuions.
 Normalized by the reflectivty of 1 millimiter drop in a volume of 1m3.
 The values are clipped at -150 dBZ.
 """
-function radar_reflectivity_2M(
-    (; pdf_c, pdf_r)::CMP.SB2006{FT},
-    q_lcl, q_rai, N_lcl, N_rai, ρ_air,
-) where {FT}
+function radar_reflectivity_2M((; pdf_c, pdf_r)::CMP.SB2006, q_lcl, q_rai, N_lcl, N_rai, ρ_air)
+    FT = eltype(q_lcl)
     # free parameters
     (; νc, μc) = pdf_c
     (; νr, μr, ρw) = pdf_r
@@ -98,10 +96,8 @@ end
 Returns effective radius for the 2-moment microphysics scheme.
 Computed based on the assumed cloud and rain particle size distributions.
 """
-function effective_radius_2M(
-    (; pdf_c, pdf_r)::CMP.SB2006{FT},
-    q_lcl, q_rai, N_lcl, N_rai, ρ_air,
-) where {FT}
+function effective_radius_2M((; pdf_c, pdf_r)::CMP.SB2006, q_lcl, q_rai, N_lcl, N_rai, ρ_air)
+    FT = eltype(q_lcl)
     # free parameters
     (; νc, μc) = pdf_c
     (; νr, μr, ρw) = pdf_r

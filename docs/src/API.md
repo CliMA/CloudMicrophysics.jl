@@ -128,9 +128,7 @@ P3Scheme
 ## Construct parameterization set
 
 ```@docs
-CMP.ParametersP3{Float64}
-CMP.ParametersP3(::Float64)
-CMP.ParametersP3(::Parameters.CP.ParamDict)
+CMP.ParametersP3
 ```
 
 ### Sub-parameterizations

@@ -10,7 +10,7 @@ DOI:10.1126/science.aaf2649
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct H2S04NucleationParameters{FT} <: ParametersType{FT}
+@kwdef struct H2S04NucleationParameters{FT} <: ParametersType
     p_b_n::FT
     p_b_i::FT
     u_b_n::FT
@@ -32,9 +32,6 @@ Base.@kwdef struct H2S04NucleationParameters{FT} <: ParametersType{FT}
     a_n::FT
     a_i::FT
 end
-
-H2S04NucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
-    H2S04NucleationParameters(CP.create_toml_dict(FT))
 
 function H2S04NucleationParameters(td::CP.ParamDict)
     name_map = (;
@@ -60,8 +57,7 @@ function H2S04NucleationParameters(td::CP.ParamDict)
         :mam3_nucleation_a_i_ion_induced => :a_i,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return H2S04NucleationParameters{FT}(; parameters...)
+    return H2S04NucleationParameters(; parameters...)
 end
 
 
@@ -74,7 +70,7 @@ DOI: 10.1038/nature17953
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct OrganicNucleationParameters{FT} <: ParametersType{FT}
+@kwdef struct OrganicNucleationParameters{FT} <: ParametersType
     a_1::FT
     a_2::FT
     a_3::FT
@@ -87,9 +83,6 @@ Base.@kwdef struct OrganicNucleationParameters{FT} <: ParametersType{FT}
     exp_MTO3::FT
     exp_MTOH::FT
 end
-
-OrganicNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
-    OrganicNucleationParameters(CP.create_toml_dict(FT))
 
 function OrganicNucleationParameters(td::CP.ParamDict)
     name_map = (;
@@ -106,8 +99,7 @@ function OrganicNucleationParameters(td::CP.ParamDict)
         :mam3_nucleation_exp_MTOH_organic_factor => :exp_MTOH,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return OrganicNucleationParameters{FT}(; parameters...)
+    return OrganicNucleationParameters(; parameters...)
 end
 
 """
@@ -119,14 +111,11 @@ DOI:10.1126/science.1243527
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct MixedNucleationParameters{FT} <: ParametersType{FT}
+@kwdef struct MixedNucleationParameters{FT} <: ParametersType
     k_H2SO4org::FT
     k_MTOH::FT
     exp_MTOH::FT
 end
-
-MixedNucleationParameters(::Type{FT}) where {FT <: AbstractFloat} =
-    MixedNucleationParameters(CP.create_toml_dict(FT))
 
 function MixedNucleationParameters(td::CP.ParamDict)
     name_map = (;
@@ -136,6 +125,5 @@ function MixedNucleationParameters(td::CP.ParamDict)
         :mam3_nucleation_exp_MTOH_organic_factor => :exp_MTOH,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return MixedNucleationParameters{FT}(; parameters...)
+    return MixedNucleationParameters(; parameters...)
 end

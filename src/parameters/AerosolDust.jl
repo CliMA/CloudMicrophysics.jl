@@ -8,7 +8,7 @@ Parameters for generic dust.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Dust{FT} <: AerosolType{FT}
+@kwdef struct Dust{FT} <: AerosolType
     "m coefficient for deposition nucleation J [-]"
     deposition_m::FT
     "c coefficient for deposition nucleation J [-]"
@@ -19,8 +19,6 @@ Base.@kwdef struct Dust{FT} <: AerosolType{FT}
     ABIFM_c::FT
 end
 
-Dust(::Type{FT}) where {FT <: AbstractFloat} = Dust(CP.create_toml_dict(FT))
-
 function Dust(td::CP.ParamDict)
     name_map = (;
         :J_ABDINM_m_Dust => :deposition_m,
@@ -29,6 +27,5 @@ function Dust(td::CP.ParamDict)
         :J_ABIFM_c_Dust => :ABIFM_c,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return Dust{FT}(; parameters...)
+    return Dust(; parameters...)
 end
