@@ -32,7 +32,9 @@ import ..Microphysics1M as CM1
 import ..Microphysics2M as CM2
 import ..MicrophysicsNonEq as CMNonEq
 import ..P3Scheme as CMP3
+import ..HetIceNucleation as CM_HetIce
 import ...ThermodynamicsInterface as TDI
+import ..Common as CO
 
 export MicrophysicsScheme,
     Microphysics0Moment,
@@ -804,6 +806,9 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
+    ϵₘ = UT.ϵ_numerics_2M_M(FT)
+    ϵₙ = UT.ϵ_numerics_2M_M(FT)
+    ϵB = UT.ϵ_numerics_P3_B(FT)
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)
@@ -816,13 +821,26 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     q_rim = UT.clamp_to_nonneg(q_rim)
     b_rim = UT.clamp_to_nonneg(b_rim)
 
+    # Convert to volumetric quantities for P3 functions
+    L_lcl = q_lcl * ρ  # [kg lcl / m³ air]
+    L_rai = q_rai * ρ  # [kg rai / m³ air]
+    N_lcl = n_lcl * ρ  # [1 / m³ air]
+    N_rai = n_rai * ρ  # [1 / m³ air]
+    L_ice = q_ice * ρ  # [kg ice / m³ air]
+    N_ice = n_ice * ρ  # [1 / m³ air]
+    L_rim = q_rim * ρ  # [kg rim / m³ air]
+    B_rim = b_rim * ρ  # [m³ rim / m³ air]
+    # Compute rime fraction and density
+    F_rim = ifelse(q_ice > ϵₘ, L_rim / L_ice, zero(L_rim))
+    ρ_rim = ifelse(b_rim > ϵB, L_rim / B_rim, zero(L_rim))  # [kg rim / m³ rim]
+
     # Unpack warm rain parameters (always present)
     aps = mp.warm_rain.air_properties
+    subdep = mp.warm_rain.subdep
 
     # Initialize ice-related tendencies
     dq_ice_dt = zero(ρ)
-    # TODO: When ice number concentration becomes prognostic, add:
-    # dn_ice_dt = zero(ρ)  # Ice number tendency (changes due to melting, aggregation)
+    dn_ice_dt = zero(ρ)  # Ice number tendency (changes due to melting, aggregation)
     dq_rim_dt = zero(ρ)
     db_rim_dt = zero(ρ)
 
@@ -833,51 +851,24 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dq_rai_dt = warm.dq_rai_dt
     dn_rai_dt = warm.dn_rai_dt
 
-    # Convert to number densities for remaining functions
-    N_lcl = ρ * n_lcl
-    N_rai = ρ * n_rai
-
     # --- P3 Ice Processes ---
     p3 = mp.ice.scheme
     vel = mp.ice.terminal_velocity
     pdf_c = mp.ice.cloud_pdf
     pdf_r = mp.ice.rain_pdf
+    heterogeneous = mp.ice.heterogeneous
+    deposition_condfreeze = mp.ice.deposition_condfreeze
+
 
     # Only compute ice processes if there is ice mass/number present
-    if (q_ice > zero(q_ice) || n_ice > zero(n_ice))
-        # Convert to volumetric quantities for P3 functions
-        L_ice = q_ice * ρ  # [kg/m³]
-        N_ice = n_ice * ρ  # [1/m³]
-        L_lcl = q_lcl * ρ  # [kg/m³]
-        N_lcl = n_lcl * ρ  # [1/m³]
-        L_rai = q_rai * ρ  # [kg/m³]
-        N_rai = n_rai * ρ  # [1/m³]
-
-        # Compute rime fraction and density
-        F_rim = ifelse(q_ice > zero(q_ice), q_rim / q_ice, zero(q_rim))
-        ρ_rim = ifelse(b_rim > zero(b_rim), q_rim * ρ / (b_rim * ρ), ρ)  # [kg/m³]
+    if q_ice > ϵₘ && n_ice > ϵₙ
 
         # Liquid-ice collision sources (core P3 process)
         # Only compute if there is ice present
         if L_ice > zero(L_ice) && N_ice > zero(N_ice)
             coll = CMP3.bulk_liquid_ice_collision_sources(
-                p3,
-                logλ,
-                L_ice,
-                N_ice,
-                F_rim,
-                ρ_rim,
-                pdf_c,
-                pdf_r,
-                L_lcl,
-                N_lcl,
-                L_rai,
-                N_rai,
-                aps,
-                tps,
-                vel,
-                ρ,
-                T,
+                p3, logλ, L_ice, N_ice, F_rim, ρ_rim, pdf_c, pdf_r,
+                L_lcl, N_lcl, L_rai, N_rai, aps, tps, vel, ρ, T,
             )
 
             # Add collision tendencies
@@ -896,10 +887,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         T_freeze = TDI.TD.Parameters.T_freeze(tps)
         if T > T_freeze && L_ice > zero(L_ice)
             state = CMP3.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
-            # TODO: Using a function that takes dt as an argument is not compatible with the current API.
-            # We should use a function that doesn't take dt as an argument.
-            dt_dummy = 1000 * one(T)  # P3 uses dt for limiting, we'll limit later
-            melt = CMP3.ice_melt(vel, aps, tps, T, ρ, dt_dummy, state, logλ)
+            melt = CMP3.ice_melt(vel, aps, tps, T, ρ, state, logλ)
 
             # Melting converts ice to rain
             dq_ice_dt -= melt.dLdt / ρ
@@ -910,9 +898,69 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         end
     end
 
-    # TODO: When ice number concentration is tracked, add dn_ice_dt to return tuple:
-    # return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt, dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt)
-    return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt, dq_ice_dt, dq_rim_dt, db_rim_dt)
+    # --- -------------------- ---
+    # --- Ice Nucleation Modes ---
+    # --- -------------------- ---
+
+    # --- Ice Nucleation (Deposition) ---
+    # Assume nucleated particles have diameter 1μm --> nucleated mass (per particle)
+    D_nuc_ice = FT(1e-6) # 1μm
+    m_nuc = p3.ρ_i * CO.volume_sphere_D(D_nuc_ice)  # [kg]
+
+    # TODO: The parameterixation should return a rate, `∂N/∂t`, not number changes `ΔN`
+    n_dep = CM_HetIce.P3_deposition_N_i(deposition_condfreeze, T) / ρ  # [particles / kg air]
+    m_dep = n_dep * m_nuc  # [kg ice / kg air]
+    dn_ice_dt += n_dep
+    dq_ice_dt += m_dep
+    dq_rim_dt += m_dep
+    db_rim_dt += m_dep / 900
+
+    # --- Heterogeneous Ice Nucleation (Immersion freezing) ---
+    # Assume mass loss is mean condensate mass
+    m_lcl = ifelse(n_lcl > ϵₙ, q_lcl / n_lcl, zero(q_lcl))  # mean liquid mass
+
+    # TODO: The parameterixation should return a rate, `∂N/∂t`, not number changes `ΔN`
+    inpc = CM_HetIce.INP_concentration_mean(heterogeneous, T) / ρ  # [particles / kg air]
+    n_het = max(0, inpc - n_ice)  # [particles / kg air]
+    q_het = n_het * m_lcl  # [kg ice / kg air]
+
+    dn_ice_dt += n_het
+    dq_ice_dt += q_het
+    dq_rim_dt += q_het
+    db_rim_dt += q_het / 900  # = ρ^* TODO: make this a parameter?
+    dn_lcl_dt -= n_het
+    dq_lcl_dt -= q_het
+
+    # --- Cloud Droplet Condensation Freezing ---
+    # ref: `homogeneous_freezing` in `parcel/ParcelTendencies.jl`
+    # get mean diameter of cloud droplets, then convert to volume
+
+    # --- Ice Sublimation / Deposition ---
+    # Deposition/sublimation of cloud ice
+    ∂ₜq_ice_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(subdep, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T)
+    # No ice deposition above freezing (lack of INPs)
+    ∂ₜq_ice_dep = ifelse(T > tps.T_freeze, min(∂ₜq_ice_dep, zero(T)), ∂ₜq_ice_dep)
+    # During sublimation, the number of ice particles decreases in proportion to the mean ice mass
+    # During deposition, the number of ice particles remain unchanged
+    ∂ₜn_ice_dep = ifelse(∂ₜq_ice_dep < 0, (n_ice / q_ice) * ∂ₜq_ice_dep, zero(∂ₜq_ice_dep))
+    dq_ice_dt += ∂ₜq_ice_dep
+    dn_ice_dt += ∂ₜn_ice_dep
+
+    # --- Ice Self-collection (Aggregation) ---
+    if q_ice > ϵₘ && n_ice > ϵₙ
+        state = CMP3.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
+        S_ice_agg = CMP3.ice_self_collection(state, logλ, aps, tps, vel, ρ, T)
+        dn_ice_dt -= S_ice_agg.dNdt / ρ
+    end
+
+    # --- Rain Heterogeneous Freezing ---
+    # TODO: Implement heterogeneous freezing of rain
+    # This process is currently missing in P3_processes.jl
+    # S_rai_frz = ...
+    # dq_rai_dt -= S_rai_frz
+    # dq_ice_dt += S_rai_frz
+
+    return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt, dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt)
 end
 
 end # module BulkMicrophysicsTendencies

@@ -792,6 +792,45 @@ function test_p3_bulk_liquid_ice_collisions(FT)
     end
 end
 
+function test_p3_ice_self_collection(FT)
+    params = CMP.ParametersP3(FT)
+    vel_params = CMP.Chen2022VelType(FT)
+    aps = CMP.AirProperties(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+
+    (; T_freeze) = params
+
+    ρₐ = FT(1.2)
+    qᵢ = FT(1e-4)
+    Lᵢ = qᵢ * ρₐ
+    Nᵢ = FT(2e5) * ρₐ
+    F_rim = FT(0.8)
+    ρ_rim = FT(800)
+
+    state = P3.get_state(params; F_rim, ρ_rim, L_ice = Lᵢ, N_ice = Nᵢ)
+    logλ = P3.get_distribution_logλ(state)
+    T = T_freeze - FT(5)  # 5K below freezing
+
+    @testset "ice self-collection rate" begin
+        # Call the new ice self-collection parameterization
+        rates = P3.ice_self_collection(state, logλ, aps, tps, vel_params, ρₐ, T; quad = P3.ChebyshevGauss(50))
+        @test eltype(rates) == FT  # check type stability
+
+        # Self-collection should represent a positive loss rate
+        @test rates.dNdt > 0
+
+        # Test edge case with virtually zero L_ice and N_ice
+        state_zero = P3.get_state(params; F_rim, ρ_rim, L_ice = FT(0), N_ice = FT(0))
+        logλ_zero = P3.get_distribution_logλ(state_zero)
+        rates_zero =
+            P3.ice_self_collection(state_zero, logλ_zero, aps, tps, vel_params, ρₐ, T; quad = P3.ChebyshevGauss(50))
+        @test rates_zero.dNdt == 0
+
+        # TODO: compare against an analytically derived reference
+        # For a simple size distribution and uniform velocity difference, one could compute analytical dNdt.
+    end
+end
+
 @testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation
     test_p3_state_creation(FT)
@@ -811,5 +850,6 @@ end
 
     # bulk liquid-ice collisions and related processes
     test_p3_bulk_liquid_ice_collisions(FT)
+    test_p3_ice_self_collection(FT)
 end
 nothing
