@@ -20,6 +20,7 @@ import CloudMicrophysics.Nucleation as HN
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.CloudDiagnostics as CMD
+import Profile
 
 function bench_press(
     type,
@@ -42,7 +43,21 @@ function bench_press(
 
     TT.@test BT.minimum(trail).time < min_run_time
     TT.@test trail.memory <= min_memory
-    TT.@test trail.allocs <= min_allocs
+
+    if !(trail.allocs <= min_allocs)
+        # If allocations are above the threshold, print the allocations
+        Profile.clear()
+        Profile.Allocs.@profile sample_rate=1 foo(args...)
+        results = Profile.Allocs.fetch()
+        sorted = sort(results.allocs, by = x->x.size)
+        sorted_str = join(sorted, "\n\n")
+        @error sorted_str
+        # largest allocation
+        trace = sorted[end].stacktrace
+        @error join(trace, "\n")
+        Profile.clear()
+        TT.@test trail.allocs <= min_allocs
+    end
 
     # Test that foo is free from optimization failures
     # and unresolved method dispatches
