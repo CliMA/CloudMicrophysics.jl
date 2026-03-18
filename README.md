@@ -4,11 +4,11 @@ CloudMicrophysics.jl provides a library of cloud microphysics and aerosol parame
 
 |||
 |-----------------------------:|:-------------------------------------------------|
-| **Documentation**            | [![dev][docs-dev-img]][docs-dev-url]             |
-| **Docs Build**               | [![docs build][docs-bld-img]][docs-bld-url]      |
-| **GHA CI**                   | [![gha ci][gha-ci-img]][gha-ci-url]              |
-| **Code Coverage**            | [![codecov][codecov-img]][codecov-url]           |
-| **Downloads**                | [![Downloads][dlt-img]][dlt-url]                 |
+| **Documentation click here :arrow_right:** | [![dev][docs-dev-img]][docs-dev-url]             |
+| **Docs Build**                             | [![docs build][docs-bld-img]][docs-bld-url]      |
+| **GHA CI**                                 | [![gha ci][gha-ci-img]][gha-ci-url]              |
+| **Code Coverage**                          | [![codecov][codecov-img]][codecov-url]           |
+| **Downloads**                              | [![Downloads][dlt-img]][dlt-url]                 |
 
 [docs-bld-img]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/docs.yml/badge.svg
 [docs-bld-url]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/docs.yml
@@ -50,6 +50,20 @@ vel = CMP.Blk1MVelType(Float64).rain
 ρ = 1.2      # air density [kg/m³]
 q_rai = 1e-3 # rain specific content [kg/kg]
 v_term = CM1.terminal_velocity(rain, vel, ρ, q_rai)
+```
+
+### Running tests locally
+```julia
+# Load additional packages needed for tests
+julia --project=test
+
+# Enter Package Manager and develop locally
+julia>]
+pkg> dev .
+pkg> instantiate
+
+# Run the tests
+julia> include("test/runtests.jl")
 ```
 
 ## Key Features
