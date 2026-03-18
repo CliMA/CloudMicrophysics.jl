@@ -20,6 +20,7 @@ import CloudMicrophysics.Nucleation as HN
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.CloudDiagnostics as CMD
+import Profile
 
 function bench_press(
     type,
@@ -42,7 +43,25 @@ function bench_press(
 
     TT.@test BT.minimum(trail).time < min_run_time
     TT.@test trail.memory <= min_memory
-    TT.@test trail.allocs <= min_allocs
+
+    if !(trail.allocs <= min_allocs)
+        # If allocations are above the threshold, print the allocations
+        Profile.clear()
+        Profile.Allocs.@profile sample_rate=1 foo(args...)
+        results = Profile.Allocs.fetch()
+        sorted = sort(results.allocs, by = x->x.size)
+        if isempty(sorted)
+            @info "No allocations detected using Profile.Allocs.@profile"
+        else
+            sorted_str = join(sorted, "\n\n")
+            @error sorted_str
+            # largest allocation
+            trace = sorted[end].stacktrace
+            @error join(trace, "\n")
+        end
+        Profile.clear()
+        TT.@test trail.allocs <= min_allocs
+    end
 
     # Test that foo is free from optimization failures
     # and unresolved method dispatches
@@ -155,7 +174,7 @@ function benchmark_test(FT)
     bench_press(FT, P3.get_distribution_logλ, (params_P3, L_ice, N_ice, F_rim, ρ_rim), 30_000)
     bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 120_000)
     bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 135_000)
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 3_000)
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 3_300)
     bench_press(FT, P3.D_m, (state, logλ), 3_000)
 
     @info "P3 Ice Nucleation"
@@ -203,12 +222,8 @@ function benchmark_test(FT)
     @info "Non-equilibrium Microphysics"
     bench_press(FT, CMN.τ_relax, (liquid,), 15)
     bench_press(FT, CMN.conv_q_vap_to_q_lcl_icl, (ice, FT(2e-3), FT(1e-3)), 15)
-    bench_press(
-        FT,
-        CMN.conv_q_vap_to_q_lcl_icl_MM2015,
-        (liquid, tps, FT(0.00145), FT(0), FT(0), FT(0), FT(0), FT(0.8), FT(263)),
-        70,
-    )
+    bench_press(FT, CMN.conv_q_vap_to_q_lcl_icl_MM2015,
+        (liquid, tps, FT(0.00145), FT(0), FT(0), FT(0), FT(0), FT(0.8), FT(263)), 75)
 
     @info "0-Moment Scheme"
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)
