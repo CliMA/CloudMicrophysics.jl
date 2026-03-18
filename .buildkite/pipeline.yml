@@ -1,8 +1,7 @@
 agents:
   queue: central
   slurm_mem: 8G
-  modules: climacommon/2025_03_18
-  slurm_time: 00:15:00
+  modules: climacommon/2025_03_18 # climacommon/2026_02_18
 
 env:
   OPENBLAS_NUM_THREADS: 1
@@ -43,6 +42,7 @@ steps:
       CLIMACOMMS_DEVICE: "CUDA"
     agents:
       slurm_gpus: 1
+      slurm_time: 00:15:00
 
   - label: ":cyclone: ClimaCore + GPU unit tests"
     key: "clima_core_gpu_unittests"
@@ -52,3 +52,4 @@ steps:
       CLIMACOMMS_DEVICE: "CUDA"
     agents:
       slurm_gpus: 1
+      slurm_time: 00:15:00
