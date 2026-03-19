@@ -128,9 +128,7 @@ P3Scheme
 ## Construct parameterization set
 
 ```@docs
-CMP.ParametersP3{Float64}
-CMP.ParametersP3(::Float64)
-CMP.ParametersP3(::Parameters.CP.ParamDict)
+CMP.ParametersP3
 ```
 
 ### Sub-parameterizations
@@ -431,4 +429,11 @@ Parameters.Microphysics2MParams
 ```@docs
 PrecipitationSusceptibility.precipitation_susceptibility_autoconversion
 PrecipitationSusceptibility.precipitation_susceptibility_accretion
+```
+
+
+# Developer docs
+
+```@autodocs
+Modules = [ShowMethods]
 ```

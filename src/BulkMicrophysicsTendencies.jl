@@ -510,7 +510,7 @@ derivatives; snow and cloud formation derivatives are zero for now.
 """
 @inline function bulk_microphysics_derivatives(
     ::Microphysics2Moment,
-    mp::CMP.Microphysics2MParams{FT, WR, ICE},
+    mp::CMP.Microphysics2MParams{WR, ICE},
     tps,
     ρ,
     T,
@@ -521,7 +521,7 @@ derivatives; snow and cloud formation derivatives are zero for now.
     q_sno,
     n_lcl,
     n_rai,
-) where {FT, WR, ICE}
+) where {WR, ICE}
     ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)
     q_lcl = UT.clamp_to_nonneg(q_lcl)
@@ -688,7 +688,7 @@ end
 """
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
-        mp::Microphysics2MParams{FT, WR, Nothing},
+        mp::Microphysics2MParams{WR, Nothing},
         ...
     )
 
@@ -720,7 +720,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
 """
 @inline function bulk_microphysics_tendencies(
     ::Microphysics2Moment,
-    mp::CMP.Microphysics2MParams{FT, WR, Nothing},
+    mp::CMP.Microphysics2MParams{WR, Nothing},
     tps,
     ρ,
     T,
@@ -734,7 +734,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     q_rim = zero(ρ),
     b_rim = zero(ρ),
     logλ = zero(ρ),
-) where {FT, WR}
+) where {WR}
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)
@@ -829,7 +829,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 """
 @inline function bulk_microphysics_tendencies(
     ::Microphysics2Moment,
-    mp::CMP.Microphysics2MParams{FT, WR, ICE},
+    mp::CMP.Microphysics2MParams{WR, ICE},
     tps,
     ρ,
     T,
@@ -843,7 +843,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     q_rim = zero(ρ),
     b_rim = zero(ρ),
     logλ = zero(ρ),
-) where {FT, WR, ICE <: CMP.P3IceParams}
+) where {WR, ICE <: CMP.P3IceParams}
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)

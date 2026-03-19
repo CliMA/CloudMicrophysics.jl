@@ -25,6 +25,9 @@ $(FIELDS)
     "Rime density"
     ρ_rim::FT
 end
+Base.show(io::IO, mime::MIME"text/plain", x::P3State) =
+    ShowMethods.verbose_show_type_and_fields(io, mime, x)
+ShowMethods.field_units(::P3State) = (; L_ice = "kg/m³", N_ice = "1/m³", ρ_rim = "kg/m³")
 
 """
     get_state(params; L_ice, N_ice, F_rim, ρ_rim)
@@ -51,10 +54,21 @@ Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parame
  julia> params = CMP.ParametersP3(FT);
 
  julia> state = P3.get_state(params; F_rim = FT(0.5), ρ_rim = FT(916.7))
- P3State{Float32}
- ├── params = {MassPowerLaw, AreaPowerLaw, SlopePowerLaw, VentilationFactor}
- ├── F_rim = 0.5 [-]
- └── ρ_rim = 916.7 [kg/m^3]
+ P3State
+ ├─ params: ParametersP3
+ │  ├─ mass: MassPowerLaw(α_va = 0.018537706f0 [kg m^(-β_va)], β_va = 1.9f0 [-])
+ │  ├─ area: AreaPowerLaw(γ = 0.2285f0 [μm^(2-σ)], σ = 1.88f0 [-])
+ │  ├─ slope: SlopePowerLaw(a = 0.00191f0 [m^b], b = 0.8f0 [-], c = 2.0f0 [-], μ_max = 6.0f0 [-])
+ │  ├─ vent: VentilationFactor(aᵥ = 0.78f0 [-], bᵥ = 0.308f0 [-])
+ │  ├─ ρ_rim_local: LocalRimeDensity(a = 51.0f0 [-], b = 114.0f0 [-], c = -5.5f0 [-], ρ_ice = 916.7f0 [kg m⁻³])
+ │  ├─ τ_wet = 100.0 [s]
+ │  ├─ ρ_i = 916.7 [kg m⁻³]
+ │  ├─ ρ_l = 1000.0 [kg m⁻³]
+ │  └─ T_freeze = 273.15 [K]
+ ├─ L_ice = 0.3
+ ├─ N_ice = 1.0e6
+ ├─ F_rim = 0.5
+ └─ ρ_rim = 916.7
  ```
 """
 function get_state(params::CMP.ParametersP3; L_ice, N_ice, F_rim, ρ_rim)
@@ -407,20 +421,4 @@ function ϕᵢ(params::CMP.ParametersP3, F_rim, ρ_rim, D)
     #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
 
     return ifelse(D == 0, FT(0), ϕ_ob)
-end
-
-### ----------------- ###
-### ----- UTILS ----- ###
-### ----------------- ###
-
-function Base.show(io::IO, state::P3State)
-    FT = eltype(state)
-    _name(state, field) = typeof(getfield(state.params, field)).name.name
-    param_types = join(_name.(state, (:mass, :area, :slope, :vent)), ", ")
-    println(io, "P3State{$FT}")
-    println(io, "├── params = {$param_types}")
-    println(io, "├── L_ice = $(state.L_ice) [kg/m³]")
-    println(io, "├── N_ice = $(state.N_ice) [1/m³]")
-    println(io, "├── F_rim = $(state.F_rim) [-]")
-    println(io, "└── ρ_rim = $(state.ρ_rim) [kg/m³]")
 end

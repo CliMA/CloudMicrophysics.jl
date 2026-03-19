@@ -457,7 +457,7 @@ function test_gpu(FT)
 
     # 2-moment microphysics
     SB2006 = CMP.SB2006(FT)
-    SB2006_no_limiters = CMP.SB2006(FT, false)
+    SB2006_no_limiters = CMP.SB2006(FT; is_limited = false)
     KK2000 = CMP.KK2000(FT)
     B1994 = CMP.B1994(FT)
     TC1980 = CMP.TC1980(FT)

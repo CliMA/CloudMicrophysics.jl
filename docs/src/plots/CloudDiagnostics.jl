@@ -24,7 +24,7 @@ override_file = joinpath(
 )
 toml_dict = CP.create_toml_dict(FT; override_file)
 SB = CMP.SB2006(toml_dict)
-SB_no_limiters = CMP.SB2006(toml_dict, false)
+SB_no_limiters = CMP.SB2006(toml_dict; is_limited = false)
 
 ρ_air = FT(1)
 

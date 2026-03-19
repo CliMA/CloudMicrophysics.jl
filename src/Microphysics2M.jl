@@ -207,7 +207,7 @@ where
  - `(logN₀c, λc, νcD, μcD)`: Parameters of the generalized gamma distribution in terms of diameter
 """
 function pdf_cloud_parameters(pdf_c, q, ρₐ, N)
-    FT = eltype(pdf_c)
+    FT = eltype(q)
     logAc, logBc = log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
     (; νc, μc, ρw) = pdf_c
     k_m = ρw * π / 6
@@ -308,9 +308,9 @@ the size distribution is within (1 - p) to (p) probability of the true size dist
     The bounds are calculated through quantile functions of the size distribution.
 """
 function get_size_distribution_bounds(
-    pdf::CMP.RainParticlePDF_SB2006{FT},
-    q, ρₐ, N, p = eps(FT),
-) where {FT}
+    pdf::CMP.RainParticlePDF_SB2006, q, ρₐ, N, p = eps(eltype(q)),
+)
+    FT = eltype(q)
     (; Dr_mean) = pdf_rain_parameters(pdf, q, ρₐ, N)
     iszero(Dr_mean) && return (FT(0), FT(0))
     D_min = DT.exponential_quantile(Dr_mean, p)
@@ -318,9 +318,8 @@ function get_size_distribution_bounds(
     return D_min, D_max
 end
 function get_size_distribution_bounds(
-    pdf::CMP.CloudParticlePDF_SB2006{FT},
-    q, ρₐ, N, p = eps(FT),
-) where {FT}
+    pdf::CMP.CloudParticlePDF_SB2006, q, ρₐ, N, p = eps(eltype(q)),
+)
     (; λc, νcD, μcD) = pdf_cloud_parameters(pdf, q, ρₐ, N)
 
     D_min = DT.generalized_gamma_quantile(νcD, μcD, λc, p)
@@ -337,7 +336,7 @@ end
 A structure containing the rates of change of the specific contents and number
 densities of cloud liquid water and rain water.
 """
-Base.@kwdef struct LclRaiRates{FT}
+@kwdef struct LclRaiRates{FT}
     "Rate of change of the cloud liquid water specific content"
     dq_lcl_dt::FT = FT(0)
     "Rate of change of the cloud liquid water number density"
@@ -366,10 +365,9 @@ Compute autoconversion rates
     collisions between cloud droplets (autoconversion)
 """
 function autoconversion(
-    acnv::CMP.AcnvSB2006{FT}, pdf_c::CMP.CloudParticlePDF_SB2006{FT},
-    q_lcl, q_rai, ρ, N_lcl,
-) where {FT}
-
+    acnv::CMP.AcnvSB2006, pdf_c::CMP.CloudParticlePDF_SB2006, q_lcl, q_rai, ρ, N_lcl,
+)
+    FT = eltype(q_lcl)
     if q_lcl < UT.ϵ_numerics_2M_M(FT) || N_lcl < UT.ϵ_numerics_2M_N(FT)
         return LclRaiRates{FT}()
     end
@@ -379,7 +377,7 @@ function autoconversion(
 
     L_lcl = ρ * q_lcl
     x_lcl = min(x_star, L_lcl / N_lcl)
-    q_rai = max(FT(0), q_rai)
+    q_rai = max(0, q_rai)
     τ = 1 - q_lcl / (q_lcl + q_rai)  # Eq. (5) from SB2006
     ϕ_au = A * τ^a * (1 - τ^a)^b
 
@@ -414,8 +412,9 @@ Compute accretion rate
  - [`LclRaiRates`](@ref) with `q_lcl`, `N_lcl`, `q_rai`, `N_rai` tendencies due to
     collisions between raindrops and cloud droplets (accretion)
 """
-function accretion((; accr)::CMP.SB2006{FT}, q_lcl, q_rai, ρ, N_lcl) where {FT}
+function accretion((; accr)::CMP.SB2006, q_lcl, q_rai, ρ, N_lcl)
 
+    FT = eltype(q_lcl)
     if q_lcl < UT.ϵ_numerics_2M_M(FT) || q_rai < UT.ϵ_numerics_2M_M(FT) || N_lcl < UT.ϵ_numerics_2M_N(FT)
         return LclRaiRates{FT}()
     end
@@ -457,10 +456,9 @@ Compute cloud liquid self-collection rate
     that produce larger cloud droplets (self-collection)
 """
 function cloud_liquid_self_collection(
-    acnv::CMP.AcnvSB2006{FT}, pdf_c::CMP.CloudParticlePDF_SB2006{FT},
-    q_lcl, ρ, dN_lcl_dt_au,
-) where {FT}
-
+    acnv::CMP.AcnvSB2006, pdf_c::CMP.CloudParticlePDF_SB2006, q_lcl, ρ, dN_lcl_dt_au,
+)
+    FT = eltype(q_lcl)
     if q_lcl < UT.ϵ_numerics_2M_M(FT)
         return FT(0)
     end
@@ -492,9 +490,8 @@ Compute autoconversion and cloud liquid self-collection rates
     cloud liquid self-collection rate.
 """
 function autoconversion_and_cloud_liquid_self_collection(
-    (; acnv, pdf_c)::CMP.SB2006{FT},
-    q_lcl, q_rai, ρ, N_lcl,
-) where {FT}
+    (; acnv, pdf_c)::CMP.SB2006, q_lcl, q_rai, ρ, N_lcl,
+)
 
     au = autoconversion(acnv, pdf_c, q_lcl, q_rai, ρ, N_lcl)
     sc = cloud_liquid_self_collection(acnv, pdf_c, q_lcl, ρ, au.dN_lcl_dt)
@@ -519,9 +516,9 @@ Compute the rain self-collection rate
     produce larger raindrops (self-collection).
 """
 function rain_self_collection(
-    pdf::CMP.RainParticlePDF_SB2006{FT}, self::CMP.SelfColSB2006{FT},
-    q_rai, ρ, N_rai,
-) where {FT}
+    pdf::CMP.RainParticlePDF_SB2006, self::CMP.SelfColSB2006, q_rai, ρ, N_rai,
+)
+    FT = eltype(q_rai)
 
     if q_rai < UT.ϵ_numerics_2M_M(FT) || N_rai < UT.ϵ_numerics_2M_N(FT)
         return FT(0)
@@ -555,9 +552,9 @@ Compute the raindrops number density tendency due to breakup of raindrops
     smaller raindrops
 """
 function rain_breakup(
-    pdf::CMP.RainParticlePDF_SB2006{FT}, brek::CMP.BreakupSB2006{FT},
-    q_rai, ρ, N_rai, dN_rai_dt_sc,
-) where {FT}
+    pdf::CMP.RainParticlePDF_SB2006, brek::CMP.BreakupSB2006, q_rai, ρ, N_rai, dN_rai_dt_sc,
+)
+    FT = eltype(q_rai)
 
     if q_rai < UT.ϵ_numerics_2M_M(FT) || N_rai < UT.ϵ_numerics_2M_N(FT)
         return FT(0)
@@ -624,10 +621,11 @@ Individual droplet terminal velocities follow v_{term}(D) = (1/18) (ρw - ρₐ)
 μ_air = ρₐ * ν_air and assuming constant ν_air.
 """
 function cloud_terminal_velocity(
-    pdf_c::CMP.CloudParticlePDF_SB2006{FT},
-    (; ρw, grav, ν_air)::CMP.StokesRegimeVelType{FT},
+    pdf_c::CMP.CloudParticlePDF_SB2006,
+    (; ρw, grav, ν_air)::CMP.StokesRegimeVelType,
     q_liq, ρₐ, N_liq,
-) where {FT}
+)
+    FT = eltype(q_liq)
 
     if N_liq < UT.ϵ_numerics_2M_N(FT) || q_liq < UT.ϵ_numerics_2M_M(FT)
         return (FT(0), FT(0))
@@ -668,9 +666,9 @@ Fall velocity of individual rain drops is parameterized:
  - following Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171 for `velo_scheme == Chen2022Type`
 """
 function rain_terminal_velocity(
-    (; pdf_r)::CMP.SB2006{FT}, (; ρ0, aR, bR, cR)::CMP.SB2006VelType{FT},
-    q_rai, ρ, N_rai,
-) where {FT}
+    (; pdf_r)::CMP.SB2006, (; ρ0, aR, bR, cR)::CMP.SB2006VelType, q_rai, ρ, N_rai,
+)
+    FT = eltype(q_rai)
     # TODO: Input argument list needs to be redesigned
 
     (; Dr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
@@ -679,16 +677,16 @@ function rain_terminal_velocity(
 
     vt0 =
         N_rai < UT.ϵ_numerics_2M_N(FT) ? FT(0) :
-        max(FT(0), sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR * Dr_mean)))
+        max(0, sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR * Dr_mean)))
     vt1 =
         q_rai < UT.ϵ_numerics_2M_M(FT) ? FT(0) :
-        max(FT(0), sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR * Dr_mean)^4))
+        max(0, sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR * Dr_mean)^4))
     return (vt0, vt1)
 end
 function rain_terminal_velocity(
-    (; pdf_r)::CMP.SB2006{FT}, vel::CMP.Chen2022VelTypeRain{FT},
-    q_rai, ρ, N_rai,
-) where {FT}
+    (; pdf_r)::CMP.SB2006, vel::CMP.Chen2022VelTypeRain, q_rai, ρ, N_rai,
+)
+    FT = eltype(q_rai)
     # coefficients from Table B1 from Chen et. al. 2022
     aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρ)
     # size distribution parameter
@@ -698,28 +696,29 @@ function rain_terminal_velocity(
     vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 0))
     vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 3))
 
-    vt0 = N_rai < UT.ϵ_numerics_2M_N(FT) ? FT(0) : max(FT(0), vt0)
-    vt3 = q_rai < UT.ϵ_numerics_2M_M(FT) ? FT(0) : max(FT(0), vt3)
+    vt0 = N_rai < UT.ϵ_numerics_2M_N(FT) ? FT(0) : max(0, vt0)
+    vt3 = q_rai < UT.ϵ_numerics_2M_M(FT) ? FT(0) : max(0, vt3)
     # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
     return (vt0, vt3)
 end
 function _sb_rain_terminal_velocity_helper(
-    pdf_r::CMP.RainParticlePDF_SB2006_limited{FT}, λr, aR, bR, cR,
-) where {FT}
+    ::CMP.RainParticlePDF_SB2006_limited, λr, aR, bR, cR,
+)
+    FT = eltype(λr)
     return (FT(1), FT(1), FT(1), FT(1))
 end
 function _sb_rain_terminal_velocity_helper(
-    pdf_r::CMP.RainParticlePDF_SB2006_notlimited{FT}, λr, aR, bR, cR,
-) where {FT}
+    ::CMP.RainParticlePDF_SB2006_notlimited, λr, aR, bR, cR,
+)
     # Integrate velocity of particles over a range of r with
     # positive terminal velocity (v = aR - bR exp(-lambda D))
     _rc = -1 / (2 * cR) * log(aR / bR)
     _Γ_1(t) = exp(-t)
     _Γ_4(t) = (t^3 + 3 * t^2 + 6 * t + 6) * exp(-t)
-    _pa0::FT = _Γ_1(2 * _rc * λr)
-    _pb0::FT = _Γ_1(2 * _rc * (λr + cR))
-    _pa1::FT = _Γ_4(2 * _rc * λr) / 6
-    _pb1::FT = _Γ_4(2 * _rc * (λr + cR)) / 6
+    _pa0 = _Γ_1(2 * _rc * λr)
+    _pb0 = _Γ_1(2 * _rc * (λr + cR))
+    _pa1 = _Γ_4(2 * _rc * λr) / 6
+    _pb1 = _Γ_4(2 * _rc * (λr + cR)) / 6
     return (_pa0, _pb0, _pa1, _pb1)
 end
 
@@ -753,11 +752,11 @@ specific content due to rain rain_evaporation, assuming a power law velocity rel
 fall velocity of individual drops and an exponential size distribution, for `scheme == SB2006Type`
 """
 function rain_evaporation(
-    (; pdf_r, evap)::CMP.SB2006{FT}, aps::CMP.AirProperties,
-    tps::TDI.PS,
+    (; pdf_r, evap)::CMP.SB2006, aps::CMP.AirProperties, tps::TDI.PS,
     q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T,
-) where {FT}
+)
 
+    FT = eltype(q_tot)
     evap_rate_0 = FT(0)
     evap_rate_1 = FT(0)
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
@@ -812,18 +811,10 @@ Uses the same approximation pattern as
 `NamedTuple` with fields `(; ∂tendency_∂N_rai, ∂tendnecy_∂q_rai)`.
 """
 @inline function ∂rain_evaporation_∂N_rai_∂q_rai(
-    sb::CMP.SB2006{FT},
-    aps::CMP.AirProperties,
-    tps::TDI.PS,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    ρ,
-    N_rai,
-    T,
-) where {FT}
+    sb::CMP.SB2006, aps::CMP.AirProperties, tps::TDI.PS,
+    q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T,
+)
+    FT = eltype(q_tot)
     result = rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
     ∂N_rai = N_rai > UT.ϵ_numerics_2M_N(FT) ? result.evap_rate_0 / N_rai : zero(result.evap_rate_0)
     ∂q_rai = q_rai > UT.ϵ_numerics_2M_M(FT) ? result.evap_rate_1 / q_rai : zero(result.evap_rate_1)
@@ -848,11 +839,8 @@ The method is based on Horn (2012, DOI: [10.5194/gmd-5-345-2012](https://doi.org
 # Returns
 - The rate of change of number concentration [1/(m³·s)] needed to bring the mean mass within the upper bound.
 """
-function number_increase_for_mass_limit(
-    (; τ)::CMP.NumberAdjustmentHorn2012{FT}, x_max, q, ρ, N,
-) where {FT}
-    return max(FT(0), ρ * q / x_max - N) / τ
-end
+number_increase_for_mass_limit((; τ)::CMP.NumberAdjustmentHorn2012, x_max, q, ρ, N) =
+    max(0, ρ * q / x_max - N) / τ
 
 """
     number_decrease_for_mass_limit(numadj, x_min, q, ρ, N)
@@ -872,14 +860,10 @@ The method is based on Horn (2012, DOI: [10.5194/gmd-5-345-2012](https://doi.org
 # Returns
 - The rate of change of number concentration [1/(m³·s)] needed to bring the mean mass within the lower bound.
 """
-function number_decrease_for_mass_limit(
-    (; τ)::CMP.NumberAdjustmentHorn2012{FT}, x_min, q, ρ, N,
-) where {FT}
-
-    # Avoid NaN when both q and x_min are 0; use typed Inf to avoid type promotion
-    N_max = iszero(x_min) ? FT(Inf) : ρ * q / x_min
-
-    return min(FT(0), N_max - N) / τ
+function number_decrease_for_mass_limit((; τ)::CMP.NumberAdjustmentHorn2012, x_min, q, ρ, N)
+    # Avoid NaN when both q and x_min are 0
+    N_max = iszero(x_min) ? oftype(q, Inf) : ρ * q / x_min
+    return min(0, N_max - N) / τ
 end
 
 # Additional double moment autoconversion and accretion parametrizations:
@@ -909,66 +893,48 @@ additionally accept `smooth_transition` flag that
 smoothes their thershold behaviour if set to `true`.
 The default value is `false`.
 """
-function conv_q_lcl_to_q_rai((; acnv)::CMP.KK2000{FT}, q_lcl, ρ, N_d) where {FT}
+function conv_q_lcl_to_q_rai((; acnv)::CMP.KK2000, q_lcl, ρ, N_d)
     q_lcl = max(0, q_lcl)
     (; A, a, b, c) = acnv
     return A * q_lcl^a * N_d^b * ρ^c
 end
-function conv_q_lcl_to_q_rai(
-    (; acnv)::CMP.B1994{FT},
-    q_lcl,
-    ρ,
-    N_d,
-    smooth_transition = false,
-) where {FT}
+function conv_q_lcl_to_q_rai((; acnv)::CMP.B1994, q_lcl, ρ, N_d, smooth_transition = false)
     q_lcl = max(0, q_lcl)
     (; C, a, b, c, N_0, k, d_low, d_high) = acnv
-    d = FT(0)
+    d = zero(q_lcl)
     if smooth_transition
         d_low_acnv_fraction = CO.logistic_function(N_d, N_0, k)
-        d_high_acnv_fraction = FT(1) - d_low_acnv_fraction
+        d_high_acnv_fraction = 1 - d_low_acnv_fraction
         d = d_low_acnv_fraction * d_low + d_high_acnv_fraction * d_high
     else
         d = N_d >= N_0 ? d_low : d_high
     end
     return C * d^a * (q_lcl * ρ)^b * N_d^c / ρ
 end
-function conv_q_lcl_to_q_rai(
-    (; acnv)::CMP.TC1980{FT},
-    q_lcl,
-    ρ,
-    N_d,
-    smooth_transition = false,
-) where {FT}
+function conv_q_lcl_to_q_rai((; acnv)::CMP.TC1980, q_lcl, ρ, N_d, smooth_transition = false)
     #TODO - The original paper is actually formulated for mixing ratios, not specific contents
     q_lcl = max(0, q_lcl)
     (; m0_liq_coeff, me_liq, D, a, b, r_0, k) = acnv
-    q_liq_threshold::FT = m0_liq_coeff * N_d / ρ * r_0^me_liq
+    q_liq_threshold = m0_liq_coeff * N_d / ρ * r_0^me_liq
     output =
         smooth_transition ? CO.logistic_function(q_lcl, q_liq_threshold, k) :
         CO.heaviside(q_lcl - q_liq_threshold)
     return D * q_lcl^a * N_d^b * output
 end
 function conv_q_lcl_to_q_rai(
-    (; ρ_w, R_6C_0, E_0, k)::CMP.LD2004{FT},
-    q_lcl,
-    ρ,
-    N_d,
-    smooth_transition = false,
-) where {FT}
-    if q_lcl <= UT.ϵ_numerics_2M_M(FT)
-        return FT(0)
+    (; ρ_w, R_6C_0, E_0, k)::CMP.LD2004, q_lcl, ρ, N_d, smooth_transition = false,
+)
+    if q_lcl <= UT.ϵ_numerics_2M_M(eltype(q_lcl))
+        return zero(q_lcl)
     else
         # Mean volume radius in microns (assuming spherical cloud droplets)
-        r_vol =
-            (FT(3) * (q_lcl * ρ) / FT(4) / FT(π) / ρ_w / N_d)^FT(1 / 3) *
-            FT(1e6)
+        r_vol = cbrt(3 * q_lcl * ρ / 4 / π / ρ_w / N_d) * 1_000_000
 
         # Assumed size distribution: modified gamma distribution
-        β_6 = ((r_vol + FT(3)) / r_vol)^FT(1 / 3)
+        β_6 = cbrt((r_vol + 3) / r_vol)
         E = E_0 * β_6^6
         R_6 = β_6 * r_vol
-        R_6C = R_6C_0 / (q_lcl * ρ)^FT(1 / 6) / R_6^FT(1 / 2)
+        R_6C = R_6C_0 / cbrt(sqrt(q_lcl * ρ)) / sqrt(R_6)  # cbrt(sqrt(x)) = x^(1/6)
 
         output =
             smooth_transition ? CO.logistic_function(R_6, R_6C, k) :
@@ -976,14 +942,8 @@ function conv_q_lcl_to_q_rai(
         return E * (q_lcl * ρ)^3 / N_d / ρ * output
     end
 end
-function conv_q_lcl_to_q_rai(
-    (; τ, α)::CMP.VarTimescaleAcnv{FT},
-    q_lcl::FT,
-    ρ::FT,
-    N_d::FT,
-) where {FT}
-    return max(0, q_lcl) / (τ * (N_d / 1e8)^α)
-end
+conv_q_lcl_to_q_rai((; τ, α)::CMP.VarTimescaleAcnv, q_lcl, ρ, N_d) =
+    max(0, q_lcl) / (τ * (N_d / 100_000_000)^α)
 
 """
     accretion(accretion_scheme, q_lcl, q_rai, ρ)
@@ -998,21 +958,21 @@ end
  - Beheng (1994) for `scheme == B1994Type`
  - Tripoli and Cotton (1980) for `scheme == TC1980Type`
 """
-function accretion((; accr)::CMP.KK2000{FT}, q_lcl, q_rai, ρ) where {FT}
+function accretion((; accr)::CMP.KK2000, q_lcl, q_rai, ρ)
     q_lcl = max(0, q_lcl)
     q_rai = max(0, q_rai)
     (; A, a, b) = accr
     return A * (q_lcl * q_rai)^a * ρ^b
 end
 
-function accretion((; accr)::CMP.B1994{FT}, q_lcl, q_rai, ρ) where {FT}
+function accretion((; accr)::CMP.B1994, q_lcl, q_rai, ρ)
     q_lcl = max(0, q_lcl)
     q_rai = max(0, q_rai)
     (; A) = accr
     return A * q_lcl * ρ * q_rai
 end
 
-function accretion((; accr)::CMP.TC1980{FT}, q_lcl, q_rai) where {FT}
+function accretion((; accr)::CMP.TC1980, q_lcl, q_rai)
     #TODO - The original paper is actually formulated for mixing ratios, not specific contents
     q_lcl = max(0, q_lcl)
     q_rai = max(0, q_rai)

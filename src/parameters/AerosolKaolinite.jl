@@ -10,7 +10,7 @@ DOI: 10.1002/2016JD025817
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-Base.@kwdef struct Kaolinite{FT} <: AerosolType{FT}
+@kwdef struct Kaolinite{FT} <: AerosolType
     "m coefficient for deposition nucleation J [-]"
     deposition_m::FT
     "c coefficient for deposition nucleation J [-]"
@@ -21,9 +21,6 @@ Base.@kwdef struct Kaolinite{FT} <: AerosolType{FT}
     ABIFM_c::FT
 end
 
-Kaolinite(::Type{FT}) where {FT <: AbstractFloat} =
-    Kaolinite(CP.create_toml_dict(FT))
-
 function Kaolinite(td::CP.ParamDict)
     name_map = (;
         :China2017_J_deposition_m_Kaolinite => :deposition_m,
@@ -32,6 +29,5 @@ function Kaolinite(td::CP.ParamDict)
         :KnopfAlpert2013_J_ABIFM_c_Kaolinite => :ABIFM_c,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    FT = CP.float_type(td)
-    return Kaolinite{FT}(; parameters...)
+    return Kaolinite(; parameters...)
 end

@@ -9,6 +9,7 @@ using DocStringExtensions
 
 import ClimaParams as CP
 import SpecialFunctions as SF
+import CloudMicrophysics: ShowMethods
 
 # Super-types (dispatch, broadcasting, etc...)
 include("AbstractTypes.jl")
@@ -50,5 +51,23 @@ include("Microphysics0MParams.jl")
 include("Microphysics1MParams.jl")
 include("Microphysics2MParams.jl")
 
+
+### Create methods that enables the creation of parameter types with a given float type
+### for all subtypes of `ParametersType`
+### e.g. `Microphysics1MParams(Float32)`
+import InteractiveUtils
+function get_concrete_subtypes(type)
+    sub_types = InteractiveUtils.subtypes(type)
+    isempty(sub_types) && return [type]
+
+    concrete_types = []
+    for t in sub_types
+        append!(concrete_types, get_concrete_subtypes(t))
+    end
+    return concrete_types
+end
+for T in get_concrete_subtypes(ParametersType)
+    @eval (::Type{$T})(::Type{FT}; kw...) where {FT} = $T(CP.create_toml_dict(FT); kw...)
+end
 
 end # module

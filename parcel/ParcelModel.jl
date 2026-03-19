@@ -8,7 +8,7 @@ include(joinpath(pkgdir(CM), "parcel", "ParcelParameters.jl"))
 """
     Parcel simulation parameters
 """
-Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
+Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType
     prescribed_thermodynamics = false
     t_profile = []
     T_profile = []
@@ -21,7 +21,7 @@ Base.@kwdef struct parcel_params{FT} <: CMP.ParametersType{FT}
     deposition_growth = "None"
     liq_size_distribution = "Monodisperse"
     ice_size_distribution = "Monodisperse"
-    aerosol = Empty{FT}()
+    aerosol = Empty()
     aero_σ_g = FT(0)
     wps = CMP.WaterProperties(FT)
     aps = CMP.AirProperties(FT)
@@ -102,7 +102,7 @@ function parcel_model(dY, Y, p, t)
         qₗ_mode1 = Y[11]
         Nₗ_mode1 = Y[12]
         _tmp_state = merge(state, (; qₗ = qₗ_mode1, Nₗ = Nₗ_mode1))
-        PSD_liq_mode1 = distribution_moments(Monodisperse{FT}(), qₗ_mode1, Nₗ_mode1, ρₗ, ρ_air)
+        PSD_liq_mode1 = distribution_moments(Monodisperse(), qₗ_mode1, Nₗ_mode1, ρₗ, ρ_air)
         dqₗ_mode1_dt = condensation(ce_params, PSD_liq_mode1, _tmp_state, ρ_air)
         dNₗ_mode1_dt =
             dqₗ_mode1_dt < FT(0) && qₗ_mode1 > FT(0) && qₗ_mode1 < FT(1e-6) ? Nₗ_mode1 * dqₗ_mode1_dt / qₗ_mode1 : FT(0)
@@ -231,20 +231,20 @@ function run_parcel(IC, t_0, t_end, pp)
 
     info = "\nSize distribution (liq): $(pp.liq_size_distribution)\n"
     if pp.liq_size_distribution == "Monodisperse"
-        liq_distr = Monodisperse{FT}()
+        liq_distr = Monodisperse()
     elseif pp.liq_size_distribution == "Gamma"
-        liq_distr = Gamma{FT}()
+        liq_distr = Gamma()
     elseif pp.liq_size_distribution == "MonodisperseMix"
-        liq_distr = MonodisperseMix{FT}()
+        liq_distr = MonodisperseMix()
     else
         throw("Unrecognized size distribution")
     end
 
     info *= "Size distribution (ice): $(pp.ice_size_distribution)\n"
     if pp.ice_size_distribution == "Monodisperse"
-        ice_distr = Monodisperse{FT}()
+        ice_distr = Monodisperse()
     elseif pp.ice_size_distribution == "Gamma"
-        ice_distr = Gamma{FT}()
+        ice_distr = Gamma()
     else
         throw("Unrecognized size distribution")
     end
@@ -253,7 +253,7 @@ function run_parcel(IC, t_0, t_end, pp)
 
     info *= "Aerosol Activation: $(pp.aerosol_act)\n"
     if pp.aerosol_act == "None"
-        aero_act_params = Empty{FT}()
+        aero_act_params = Empty()
     elseif pp.aerosol_act == "AeroAct"
         aero_act_params =
             AeroAct{FT}(pp.aap, pp.aerosol, pp.aero_σ_g, pp.r_nuc, pp.const_dt, pp.Nₐ)
@@ -263,7 +263,7 @@ function run_parcel(IC, t_0, t_end, pp)
 
     info *= "Deposition: $(pp.deposition)\n"
     if pp.deposition == "None"
-        dep_params = Empty{FT}()
+        dep_params = Empty()
     elseif pp.deposition == "MohlerAF"
         dep_params = MohlerAF{FT}(pp.ips, pp.aerosol, pp.tps, pp.const_dt)
     elseif pp.deposition == "MohlerRate"
@@ -278,7 +278,7 @@ function run_parcel(IC, t_0, t_end, pp)
 
     info *= "Heterogeneous: $(pp.heterogeneous)\n"
     if pp.heterogeneous == "None"
-        imm_params = Empty{FT}()
+        imm_params = Empty()
     elseif pp.heterogeneous == "ABIFM"
         imm_params = ABIFM{FT}(pp.tps, pp.aerosol, pp.A_aer, pp.const_dt)
     elseif pp.heterogeneous == "P3_het"
@@ -296,7 +296,7 @@ function run_parcel(IC, t_0, t_end, pp)
 
     info *= "Homogeneous: $(pp.homogeneous)\n"
     if pp.homogeneous == "None"
-        hom_params = Empty{FT}()
+        hom_params = Empty()
     elseif pp.homogeneous == "ABHOM"
         hom_params = ABHOM{FT}(pp.tps, pp.ips, pp.const_dt)
     elseif pp.homogeneous == "P3_hom"
@@ -307,7 +307,7 @@ function run_parcel(IC, t_0, t_end, pp)
 
     info *= "Condensation growth: $(pp.condensation_growth)\n"
     if pp.condensation_growth == "None"
-        ce_params = Empty{FT}()
+        ce_params = Empty()
     elseif pp.condensation_growth == "Condensation"
         ce_params = CondParams{FT}(pp.aps, pp.tps, pp.const_dt)
     elseif pp.condensation_growth == "NonEq_Condensation_simple"
@@ -320,7 +320,7 @@ function run_parcel(IC, t_0, t_end, pp)
 
     info *= "Deposition growth: $(pp.deposition_growth)\n"
     if pp.deposition_growth == "None"
-        ds_params = Empty{FT}()
+        ds_params = Empty()
     elseif pp.deposition_growth == "Deposition"
         ds_params = DepParams{FT}(pp.aps, pp.tps, pp.const_dt)
     elseif pp.deposition_growth == "NonEq_Deposition_simple"
