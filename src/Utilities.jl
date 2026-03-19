@@ -6,7 +6,10 @@ Contains pure numerical operations with no physics dependencies.
 """
 module Utilities
 
+import UnrolledUtilities as UU
+
 export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N
+export unrolled_logsumexp
 
 """
     clamp_to_nonneg(x)
@@ -43,5 +46,78 @@ Numerical epsilon for 2-moment mass calculations.
 Numerical epsilon for 2-moment number calculations.
 """
 @inline ϵ_numerics_2M_N(FT) = eps(FT)
+
+
+"""
+    unrolled_logsumexp(x)
+
+Compute `log(sum(exp, x))` in a statically unrolled fashion.
+
+This method uses [`UnrolledUtilities`](https://github.com/CliMA/UnrolledUtilities.jl)
+to produce fully unrolled code with no dynamic dispatch or reductions,
+making it transparent to GPU compilers.
+
+The standard shift-by-max trick is used for numerical stability.
+
+Note: This code is two-pass (find max, then sum shifted exponentials). 
+LogExpFunctions.jl implements a one-pass version, but is not unrolled,
+so may result in more complicated GPU code.
+
+## Extended help
+
+Other implementation options were considered, detailed below, and may be revisited in the future.
+For now, this implementation is sufficient.
+
+### Naive implementation
+
+This is the most straightforward implementation, but it is not numerically stable.
+
+```julia
+log(UU.unrolled_sum(exp, x))
+```
+
+### One-pass unrolled implementation
+
+This is reaches into LogExpFunctions.jl internals,
+
+```julia
+FT = eltype(x)
+return LogExpFunctions._logsumexp_onepass_result(
+    UU.unrolled_reduce(LogExpFunctions._logsumexp_onepass_op, x, (FT(-Inf), zero(FT)))
+)
+```
+
+### Dispatch-wrapper for reduce
+
+Pass a wrapper to compile to unrolled reduce
+```julia
+# Note: This is a sketch, not tested
+struct UnrolledWrapper{T}
+    x::T
+end
+Base.iterate(w::UnrolledWrapper) = iterate(w.x)
+Base.iterate(w::UnrolledWrapper, state) = iterate(w.x, state)
+Base.length(w::UnrolledWrapper) = length(w.x)
+Base.eltype(w::UnrolledWrapper) = eltype(w.x)
+Base.reduce(op, w::UnrolledWrapper) = UU.unrolled_reduce(op, w.x)  # use unrolled reduce
+# ... then call:
+LogExpFunctions.logsumexp(UnrolledWrapper(x))
+```
+"""
+function unrolled_logsumexp(x)
+    # Find the maximum (ps: if any element is NaN, then xmax = NaN)
+    xmax = UU.unrolled_maximum(x)
+
+    # Handle non-finite values: if xmax is +Inf or -Inf or NaN, return it directly
+    # (avoids Inf - Inf = NaN and x - NaN = NaN in the shifted exponentials below)
+    isfinite(xmax) || return xmax
+
+    # Sum shifted exponentials
+    shifted_exp(xi) = exp(xi - xmax)
+    s = UU.unrolled_sum(shifted_exp, x)
+
+    return xmax + log(s)
+end
+
 
 end # module

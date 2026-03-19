@@ -139,11 +139,12 @@ Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state` and `logλ`.
 """
 function logmass_gamma_moment(state::P3State, μ, logλ; n = 0)
     segments = get_segments(state)
-    return LogExpFunctions.logsumexp(
-        let (D_min, D_max) = segment, (a, b) = ice_mass_coeffs(state, (D_min + D_max) / 2)
-            loggamma_inc_moment(D_min, D_max, μ, logλ, b + n, a)
-        end for segment in segments
-    )
+    moments = UU.unrolled_map(segments) do segment
+        (D_min, D_max) = segment
+        (a, b) = ice_mass_coeffs(state, (D_min + D_max) / 2)
+        loggamma_inc_moment(D_min, D_max, μ, logλ, b + n, a)
+    end
+    return UT.unrolled_logsumexp(moments)
 end
 
 """
