@@ -2,6 +2,7 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.ThermodynamicsInterface as TDI
+import OrdinaryDiffEqLowOrderRK as ODE
 
 include(joinpath(pkgdir(CM), "parcel", "ParcelParameters.jl"))
 

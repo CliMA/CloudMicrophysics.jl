@@ -1,10 +1,11 @@
 # # Simple Model
 
 # This guide shows how to build a simple model using `CloudMicrophysics.jl` parameterizations
-# and `OrdinaryDiffEq.jl` solver.
+# and the `OrdinaryDiffEqTsit5.jl` ODE solver (a lightweight subset of `OrdinaryDiffEq.jl`
+# that provides the Tsit5 algorithm with faster load times).
 
 # We start by importing the needed external packages and `CloudMicrophysics.jl` modules.
-import OrdinaryDiffEq as ODE
+import OrdinaryDiffEqTsit5 as ODE
 import UnicodePlots as UP
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Microphysics1M as CM1

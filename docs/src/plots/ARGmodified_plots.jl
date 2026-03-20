@@ -1,4 +1,3 @@
-import OrdinaryDiffEq as ODE
 import CairoMakie as MK
 
 import ClimaParams as CP

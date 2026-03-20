@@ -1,7 +1,7 @@
 import ClimaParams as CP
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
-import Thermodynamics as TD
+import CloudMicrophysics.ThermodynamicsInterface.TD as TD
 
 #! format: off
 function perf_model_params(FT, IN_mode)
