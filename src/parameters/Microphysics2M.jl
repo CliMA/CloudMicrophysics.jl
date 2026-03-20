@@ -669,3 +669,26 @@ SB2006(toml_dict::CP.ParamDict; is_limited = true) =
         evap = EvaporationSB2006(toml_dict),
         numadj = NumberAdjustmentHorn2012(toml_dict),
     )
+
+
+### vapor condensation / liquid evaporation
+@kwdef struct CondEvap2M{FT} <: ParametersType
+    τ_relax::FT
+end
+
+function CondEvap2M(td::CP.ParamDict)
+    name_map = (; :condensation_evaporation_timescale => :τ_relax)
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return CondEvap2M(; parameters...)
+end
+
+### vapor sublimation / ice deposition
+@kwdef struct SubDep2M{FT} <: ParametersType
+    τ_relax::FT
+end
+
+function SubDep2M(td::CP.ParamDict)
+    name_map = (; :sublimation_deposition_timescale => :τ_relax)
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return SubDep2M(; parameters...)
+end

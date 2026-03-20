@@ -981,7 +981,7 @@ function test_bulk_microphysics_2m_tendencies(FT)
         q_rai = FT(0)
         n_lcl = FT(1e8)
         n_rai = FT(0)
-        q_tot = FT(0.015)
+        q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, FT(0), q_rai, FT(0))
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
@@ -998,6 +998,35 @@ function test_bulk_microphysics_2m_tendencies(FT)
 
         @test tendencies.dq_lcl_dt < FT(0)  # Cloud decreases
         @test tendencies.dq_rai_dt > FT(0)  # Rain increases
+    end
+
+    @testset "BulkMicrophysicsTendencies 2M - Condensation and Evaporation" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_lcl = FT(0)
+        q_rai = FT(0)
+        n_lcl = FT(1e8)
+        n_rai = FT(0)
+
+        # Test 1: Supersaturated (condensation)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q_tot_super = q_vap_sat * FT(1.05)
+
+        tend_cond = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics2Moment(),
+            mp, tps, ρ, T, q_tot_super, q_lcl, n_lcl, q_rai, n_rai,
+        )
+        @test tend_cond.dq_lcl_dt > FT(0)  # Cloud increases
+
+        # Test 2: Subsaturated (evaporation)
+        q_lcl = FT(1e-3)
+        q_tot_sub = q_vap_sat * FT(0.8) + q_lcl
+
+        tend_evap = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics2Moment(),
+            mp, tps, ρ, T, q_tot_sub, q_lcl, n_lcl, q_rai, n_rai,
+        )
+        @test tend_evap.dq_lcl_dt < FT(0)  # Cloud decreases
     end
 
     @testset "BulkMicrophysicsTendencies 2M - Type stability" begin
@@ -1146,7 +1175,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
         # Test that P3 includes 2M warm rain processes
         ρ = FT(1.2)
         T = T_freeze + FT(10)  # Above freezing
-        q_tot = FT(0.015)
         q_lcl = FT(2e-3)  # Significant cloud liquid
         n_lcl = FT(1e8 / ρ)  # 100/mg
         q_rai = FT(0)
@@ -1155,6 +1183,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         n_ice = FT(0)
         q_rim = FT(0)
         b_rim = FT(0)
+        q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, q_ice + q_rim, q_rai, FT(0))
         logλ = FT(10)  # Dummy, not used without ice
 
         tendencies = BMT.bulk_microphysics_tendencies(
@@ -1185,7 +1214,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
         # Ice should melt above freezing
         ρ = FT(1.2)
         T = T_freeze + FT(5)  # Above freezing
-        q_tot = FT(0.015)
         q_lcl = FT(0)
         n_lcl = FT(0)
         q_rai = FT(0)
@@ -1194,6 +1222,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         n_ice = FT(2e5) / ρ  # Ice number per kg
         q_rim = FT(0.5e-4)  # Some rime
         b_rim = FT(1e-7)  # Rime volume
+        q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, q_ice + q_rim, q_rai, FT(0))
 
         # Compute logλ from P3 state
         L_ice = q_ice * ρ
@@ -1231,7 +1260,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
         # Ice collecting cloud liquid below freezing
         ρ = FT(1.2)
         T = T_freeze - FT(10)  # Below freezing
-        q_tot = FT(0.015)
         q_lcl = FT(1e-3)  # Cloud liquid
         n_lcl = FT(1e8) / ρ
         q_rai = FT(1e-5)  # Some rain
@@ -1240,6 +1268,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         n_ice = FT(2e5) / ρ
         q_rim = FT(0.5e-4)
         b_rim = FT(1e-7)
+        q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, q_ice, q_rai, FT(0))
 
         # Compute logλ
         L_ice = q_ice * ρ

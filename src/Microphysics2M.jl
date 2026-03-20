@@ -736,64 +736,74 @@ function Γ_incl(a::FT, x::FT) where {FT}
 end
 
 """
-    rain_evaporation(evap, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
+    rain_evaporation(scheme, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
 
- - `evap` - evaporation parameterization scheme
- - `aps` - air properties
- - `tps` - thermodynamics parameters
- - `q_tot`, `q_lcl`, `q_icl`, `q_rai`, `q_sno` - total water,
-    cloud liquid water, cloud ice, rain and snow specific contents,
- - `ρ` - air density
- - `N_rai` - raindrops number density
- - `T` - air temperature
+Compute the evaporation of raindrop number and mass.
 
-Returns a named tuple containing the tendency of raindrops number density and rain water
-specific content due to rain rain_evaporation, assuming a power law velocity relation for
-fall velocity of individual drops and an exponential size distribution, for `scheme == SB2006Type`
+# Arguments
+  - `scheme`: precipitation formation scheme, [`CMP.SB2006`](@ref). Notably, need the fields:
+    + `pdf_r`: Raindrop size distribution parameters, [`CMP.RainParticlePDF_SB2006`](@ref)
+    + `evap`: evaporation parameterization scheme, [`CMP.EvaporationSB2006`](@ref)
+  - `aps`: air properties, [`CMP.AirProperties`](@ref)
+  - `tps`: thermodynamics parameters, [`ThermodynamicsParameters`](@extref Thermodynamics.Parameters.ThermodynamicsParameters)
+  - `q_tot`, `q_lcl`, `q_icl`, `q_rai`, `q_sno`: total water,
+     cloud liquid water, cloud ice, rain and snow specific contents, [kg kg⁻¹]
+  - `ρ`: air density [kg m⁻³]
+  - `N_rai`: raindrops number density [m⁻³]
+  - `T`: air temperature [K]
+
+# Returns
+  - A NamedTuple `(; ∂ₜρn_rai, ∂ₜq_rai)` with 
+    + `∂ₜρn_rai`: tendency of raindrops number density [m⁻³ s⁻¹]
+    + `∂ₜq_rai`: tendency of rain water specific content [kg kg⁻¹ s⁻¹]
+
+These are computed assuming a power law velocity relation for the
+fall velocity of individual drops and an exponential drop size distribution.
 """
 function rain_evaporation(
     (; pdf_r, evap)::CMP.SB2006, aps::CMP.AirProperties, tps::TDI.PS,
     q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T,
 )
-
     FT = eltype(q_tot)
-    evap_rate_0 = FT(0)
-    evap_rate_1 = FT(0)
+    ϵₘ = UT.ϵ_numerics_2M_M(FT)
+    ϵₙ = UT.ϵ_numerics_2M_N(FT)
+
+    ∂ₜρn_rai = FT(0)
+    ∂ₜq_rai = FT(0)
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    if (N_rai > UT.ϵ_numerics_2M_N(FT) && S < FT(0))
+    # If there are no raindrops or conditions are supersaturated, no evaporation occurs
+    (N_rai ≤ ϵₙ || S ≥ 0) && return (; ∂ₜρn_rai, ∂ₜq_rai)
 
-        (; ν_air, D_vapor) = aps
-        (; av, bv, α, β, ρ0) = evap
-        x_star = pdf_r.xr_min
-        ρw = pdf_r.ρw
-        G = CO.G_func_liquid(aps, tps, T)
+    (; ν_air, D_vapor) = aps
+    (; av, bv, α, β, ρ0) = evap
+    ρw = pdf_r.ρw
+    x_star = pdf_r.xr_min
+    G = CO.G_func_liquid(aps, tps, T)
 
-        (; xr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
-        Dr = cbrt(6 * xr_mean / (π * ρw))
+    (; xr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
+    Dr = cbrt(6 * xr_mean / (π * ρw))
 
-        t_star = cbrt(6 * x_star / xr_mean)
-        a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^(-2 // 3)
-        b_vent_0 = bv * Γ_incl(-1 // 2 + 3 // 2 * β, t_star) / FT(6)^(β / 2 - 1 // 2)
+    t_star = cbrt(6 * x_star / xr_mean)
+    a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^(-2 // 3)
+    b_vent_0 = bv * Γ_incl(-1 // 2 + 3 // 2 * β, t_star) / FT(6)^(β / 2 - 1 // 2)
 
-        a_vent_1 = av * SF.gamma(FT(2)) / cbrt(FT(6))
-        b_vent_1 = bv * SF.gamma(5 // 2 + 3 // 2 * β) / FT(6)^(β / 2 + 1 // 2)
+    a_vent_1 = av * SF.gamma(FT(2)) / cbrt(FT(6))
+    b_vent_1 = bv * SF.gamma(5 // 2 + 3 // 2 * β) / FT(6)^(β / 2 + 1 // 2)
 
-        N_Re = α * xr_mean^β * sqrt(ρ0 / ρ) * Dr / ν_air
-        Fv0 = a_vent_0 + b_vent_0 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
-        Fv1 = a_vent_1 + b_vent_1 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
+    N_Re = α * xr_mean^β * sqrt(ρ0 / ρ) * Dr / ν_air
+    Fv0 = a_vent_0 + b_vent_0 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
+    Fv1 = a_vent_1 + b_vent_1 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
 
-        evap_rate_0 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean)
-        evap_rate_1 = min(FT(0), FT(2) * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
+    ∂ₜρn_rai = min(0, 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean)
+    ∂ₜq_rai = min(0, 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
 
-        # When xr = 0 evap_rate_0 becomes NaN. We replace NaN with 0 which is the limit of
-        # evap_rate_0 for xr -> 0.
-        evap_rate_0 = xr_mean / x_star < eps(FT) ? FT(0) : evap_rate_0
-        evap_rate_1 = q_rai < UT.ϵ_numerics_2M_M(FT) ? FT(0) : evap_rate_1
+    # When xr = 0, ∂ₜρn_rai becomes NaN. We replace NaN with 0 which is the limit of
+    # ∂ₜρn_rai for xr -> 0.
+    ∂ₜρn_rai = ifelse(xr_mean / x_star < eps(FT), FT(0), ∂ₜρn_rai)
+    ∂ₜq_rai = ifelse(q_rai < ϵₘ, FT(0), ∂ₜq_rai)
 
-    end
-
-    return (; evap_rate_0, evap_rate_1)
+    return (; ∂ₜρn_rai, ∂ₜq_rai)
 end
 
 """
@@ -804,8 +814,8 @@ respect to rain specific content `q_rai` and rain number concentration N_rai.
 
 Uses the same approximation pattern as
 `Microphysics1M.∂evaporation_sublimation_∂q_precip`:
-- ∂(evap_rate_0/ρ)/∂N_rai ≈ evap_rate_0 / N_rai  (number tendency, first)
-- ∂(evap_rate_1)/∂q_rai ≈ evap_rate_1 / q_rai  (mass tendency, second)
+- ∂(∂ₜρn_rai/ρ)/∂N_rai ≈ ∂ₜρn_rai / N_rai  (number tendency, first)
+- ∂(∂ₜq_rai)/∂q_rai ≈ ∂ₜq_rai / q_rai  (mass tendency, second)
 
 # Returns
 `NamedTuple` with fields `(; ∂tendency_∂N_rai, ∂tendnecy_∂q_rai)`.
@@ -816,8 +826,8 @@ Uses the same approximation pattern as
 )
     FT = eltype(q_tot)
     result = rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
-    ∂N_rai = N_rai > UT.ϵ_numerics_2M_N(FT) ? result.evap_rate_0 / N_rai : zero(result.evap_rate_0)
-    ∂q_rai = q_rai > UT.ϵ_numerics_2M_M(FT) ? result.evap_rate_1 / q_rai : zero(result.evap_rate_1)
+    ∂N_rai = N_rai > UT.ϵ_numerics_2M_N(FT) ? result.∂ₜρn_rai / N_rai : zero(result.∂ₜρn_rai)
+    ∂q_rai = q_rai > UT.ϵ_numerics_2M_M(FT) ? result.∂ₜq_rai / q_rai : zero(result.∂ₜq_rai)
     return (; ∂N_rai, ∂q_rai)
 end
 
