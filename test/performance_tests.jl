@@ -47,9 +47,9 @@ function bench_press(
     if !(trail.allocs <= min_allocs)
         # If allocations are above the threshold, print the allocations
         Profile.clear()
-        Profile.Allocs.@profile sample_rate=1 foo(args...)
+        Profile.Allocs.@profile sample_rate = 1 foo(args...)
         results = Profile.Allocs.fetch()
-        sorted = sort(results.allocs, by = x->x.size)
+        sorted = sort(results.allocs, by = x -> x.size)
         if isempty(sorted)
             @info "No allocations detected using Profile.Allocs.@profile"
         else

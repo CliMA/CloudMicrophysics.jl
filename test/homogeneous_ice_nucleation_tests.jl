@@ -34,13 +34,15 @@ function test_homogeneous_J_cubic(FT)
         )
 
         # If Δa_w out of range
-        TT.@test_throws AssertionError("Δa_w >= ip.Δa_w_min") CMH.homogeneous_J_cubic(
-            ip.homogeneous,
-            Δa_w_too_small,
+        (; Δa_w_min, Δa_w_max) = ip.homogeneous
+        function error_str(Δa_w)
+            "Change in water activity must be within the valid range: Δa_w ∈ [$Δa_w_min, $Δa_w_max], but Δa_w = $Δa_w"
+        end
+        TT.@test_throws DomainError(Δa_w_too_small, error_str(Δa_w_too_small)) CMH.homogeneous_J_cubic(
+            ip.homogeneous, Δa_w_too_small,
         )
-        TT.@test_throws AssertionError("Δa_w <= ip.Δa_w_max") CMH.homogeneous_J_cubic(
-            ip.homogeneous,
-            Δa_w_too_large,
+        TT.@test_throws DomainError(Δa_w_too_large, error_str(Δa_w_too_large)) CMH.homogeneous_J_cubic(
+            ip.homogeneous, Δa_w_too_large,
         )
     end
 end
