@@ -5,8 +5,16 @@ using CloudMicrophysics, Documenter
 using DocumenterCitations
 using Literate
 
+# Bibliography
 bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
 
+# External links
+using DocumenterInterLinks
+links = InterLinks(
+    "Thermodynamics" => "https://clima.github.io/Thermodynamics.jl/dev/",
+)
+
+# Literate guides
 const GUIDES_DIR = joinpath(@__DIR__, "src/guides/")
 const LITERATED_GUIDES_DIR = joinpath(@__DIR__, "src/guides/literated")
 
@@ -94,7 +102,7 @@ makedocs(
     checkdocs = :exports,
     modules = [CloudMicrophysics],
     pages = pages,
-    plugins = [bib],
+    plugins = [bib, links],
 )
 
 deploydocs(

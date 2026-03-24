@@ -36,7 +36,9 @@ function bench_press(
     args isa String && (args = (args,))
 
     # Benchmark foo
-    trail = BT.@benchmark $foo($args...) samples = 100 evals = 100
+    # Note: `$(splat(foo))($args)` is equivalent to `$foo($args...)`
+    # but the latter might allocate during the benchmark call due to `...`
+    trail = BT.@benchmark $(splat(foo))($args) samples = 100 evals = 100
 
     show(stdout, MIME("text/plain"), trail)
     println("\n")
@@ -243,7 +245,7 @@ function benchmark_test(FT)
         )
         bench_press(@NamedTuple{sc::FT, br::FT}, CM2.rain_self_collection_and_breakup, (sb, q_rai, ρ_air, N_rai), 1200)
         bench_press(
-            @NamedTuple{evap_rate_0::FT, evap_rate_1::FT},
+            @NamedTuple{∂ₜρn_rai::FT, ∂ₜq_rai::FT},
             CM2.rain_evaporation,
             (sb, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ_air, N_rai, T_air),
             2000,

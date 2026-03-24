@@ -1,4 +1,4 @@
-import OrdinaryDiffEq as ODE
+import OrdinaryDiffEqLowOrderRK as ODE
 
 import ClimaParams
 import CloudMicrophysics.Parameters as CMP
