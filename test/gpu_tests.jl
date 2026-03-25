@@ -83,15 +83,8 @@ end
     S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
         lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
     )
-    S_cond_deriv_simple = CMN.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
-        lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
-    )
-    S_cond_deriv = CMN.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(
-        lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i];
-        simplified = false,
-    )
     S_cond = CMN.conv_q_vap_to_q_lcl_icl(icl, qᵢ_s[i], qᵢ[i])
-    output[i] = (; S_cond_MM2015, S_cond_deriv_simple, S_cond_deriv, S_cond)
+    output[i] = (; S_cond_MM2015, S_cond)
 end
 
 @kernel inbounds = true function test_chen2022_terminal_velocity_kernel!(
@@ -515,7 +508,7 @@ function test_gpu(FT)
     end
 
     TT.@testset "non-equilibrium microphysics kernels" begin
-        DT = @NamedTuple{S_cond_MM2015::FT, S_cond_deriv_simple::FT, S_cond_deriv::FT, S_cond::FT}
+        DT = @NamedTuple{S_cond_MM2015::FT, S_cond::FT}
         (; ndrange, output) = setup_output(1, DT)
 
         ρ = ArrayType([FT(0.8)])
@@ -526,11 +519,9 @@ function test_gpu(FT)
 
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
         kernel!(lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
-        (; S_cond_MM2015, S_cond_deriv_simple, S_cond_deriv, S_cond) = Array(output)[1]
+        (; S_cond_MM2015, S_cond) = Array(output)[1]
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         TT.@test S_cond_MM2015 ≈ FT(3.76347635339803e-5)
-        TT.@test S_cond_deriv < FT(0)  # derivative should be negative
-        TT.@test S_cond_deriv_simple ≈ FT(-0.1)  # -1/τ_relax = -1/10
         TT.@test S_cond ≈ FT(-1e-4)
     end
 

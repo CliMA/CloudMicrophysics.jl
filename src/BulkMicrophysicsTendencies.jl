@@ -434,7 +434,7 @@ and avoids quadratures over the derivatives.
     vel = mp.terminal_velocity
 
     # --- Cloud liquid: condensation + sink self-derivatives ---
-    ∂tendency_∂q_lcl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    ∂tendency_∂q_lcl = -1 / CMNonEq.τ_relax(lcl)
     # Autoconversion q_lcl → q_rai (sink)
     S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
     # Accretion q_lcl + q_rai → q_rai (rate is exactly linear in q_lcl)
@@ -446,7 +446,7 @@ and avoids quadratures over the derivatives.
         max(q_lcl, UT.ϵ_numerics(typeof(q_lcl)))
 
     # --- Cloud ice: deposition + sink self-derivatives ---
-    ∂tendency_∂q_icl = CMNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    ∂tendency_∂q_icl = -1 / CMNonEq.τ_relax(icl)
     # Autoconversion q_icl → q_sno
     S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
     # Accretion q_icl + q_rai → q_sno (rate is exactly linear in q_icl)
@@ -519,7 +519,7 @@ derivatives; snow and cloud formation derivatives are zero for now.
     N_rai = ρ * n_rai
 
     # TODO: Cloud formation — 2M bulk_microphysics_tendencies does not call cloud formation yet;
-    # once it does, set these from MM2015 (same as 1M) via ∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld.
+    # once it does, set these from MM2015 (same as 1M) via -1/τ_relax.
     ∂tendency_∂q_lcl = zero(ρ)
     ∂tendency_∂q_icl = zero(ρ)
 
