@@ -11,13 +11,10 @@ MicrophysicsNonEq
 MicrophysicsNonEq.τ_relax
 MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl
 MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl_MM2015
-MicrophysicsNonEq.∂conv_q_vap_to_q_lcl_icl_MM2015_∂q_cld
-MicrophysicsNonEq.limit_MM2015_sinks
 MicrophysicsNonEq.INP_limiter
 MicrophysicsNonEq.terminal_velocity
 MicrophysicsNonEq.dqcld_dT
 MicrophysicsNonEq.gamma_helper
-MicrophysicsNonEq.d2qcld_dT2
 ```
 
 # 0-moment precipitation microphysics
