@@ -149,7 +149,7 @@ where ``D_v`` is the thermal diffusivity and ``N_c`` is the droplet number conce
 
 ### Ice relaxation timescale as function of temperature through Frostenberg 2023
 
-We can also calculate ``\tau_i`` as a function of temperature using the [Frostenberg2023](@cite) parameterization. Namely, we approximate the concentration of ice cloud droplets as equal to the mean amount of ice nucleating particles for a given temperature using [Frostenberg2023](@cite): 
+We can also calculate ``\tau_i`` as a function of temperature using the [Frostenberg2023](@cite) parameterization. Namely, we approximate the concentration of ice crystals as equal to the mean amount of ice nucleating particles for a given temperature using [Frostenberg2023](@cite): 
 ```math
 N_i(T) = ln(-(b \cdot T)^9 \times 10^{-9})
 ```
