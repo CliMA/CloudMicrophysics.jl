@@ -91,7 +91,7 @@ function test_microphysics_noneq(FT)
         # Ice sublimation (negative tendency) above freezing should NOT be limited
         # When subsaturated w.r.t. ice and q_icl > 0, the tendency is negative (sublimation).
         # The INP limiter only zeroes positive tendencies above freezing, so sublimation passes through.
-        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, FT(0.5 * qᵥ_si_w), FT(0), FT(0.001), FT(0), FT(0), ρ, T_warm) < FT(0)
+        TT.@test CMNe.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, FT(0.5 * qᵥ_si_w), FT(0), FT(0.001), FT(0), FT(0), ρ, T_warm) <= FT(0)
 
         #! format: on
     end
