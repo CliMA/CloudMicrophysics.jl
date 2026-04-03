@@ -1080,6 +1080,7 @@ end
 function test_bulk_microphysics_1m_derivatives(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     mp = CMP.Microphysics1MParams(FT)
+    aps = mp.air_properties
     T_freeze = TDI.T_freeze(tps)
 
     @testset "BulkMicrophysicsDerivatives 1M - Finiteness" begin
