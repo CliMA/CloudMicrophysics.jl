@@ -201,7 +201,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -223,7 +224,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -247,7 +249,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # Call fused function
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -277,7 +280,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -297,7 +301,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -319,7 +324,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -346,7 +352,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -372,7 +379,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -394,7 +402,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -419,7 +428,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -439,7 +449,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -460,7 +471,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies_cold = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ_cold, T_cold, q_tot_cold, FT(0), q_icl_cold, FT(0), q_sno_cold,
         )
         @test isfinite(tendencies_cold.dq_icl_dt)
@@ -475,7 +487,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies_warm = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ_warm, T_warm, q_tot_warm, q_lcl_warm, FT(0), q_rai_warm, FT(0),
         )
         @test isfinite(tendencies_warm.dq_lcl_dt)
@@ -502,7 +515,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # @inferred will throw if return type cannot be inferred
         tendencies = @inferred BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test tendencies isa NamedTuple{(:dq_lcl_dt, :dq_icl_dt, :dq_rai_dt, :dq_sno_dt), NTuple{4, FT}}
@@ -522,7 +536,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -551,7 +566,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -577,7 +593,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, FT(0), FT(0), q_sno,
         )
 
@@ -618,7 +635,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
@@ -1075,7 +1093,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test all(isfinite, derivs)
     end
@@ -1091,7 +1110,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = @inferred BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test derivs isa @NamedTuple{
             ∂tendency_∂q_lcl::FT,
@@ -1115,7 +1135,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test derivs.∂tendency_∂q_rai ≤ FT(0)
     end
@@ -1131,7 +1152,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test all(isfinite, derivs)
     end
@@ -1149,7 +1171,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         # Derivative should be negative (sink terms dominate at saturation)
         @test derivs.∂tendency_∂q_lcl < FT(0)
@@ -1159,7 +1182,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
         q_tot_small = get_saturated_q_tot(tps, T, ρ, q_lcl_small, q_icl, FT(0), FT(0))
         derivs_nosink = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot_small, q_lcl_small, q_icl, FT(0), FT(0),
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot_small, q_lcl_small, q_icl, FT(0), FT(0),
         )
         # With sinks, derivative should be more negative
         @test derivs.∂tendency_∂q_lcl < derivs_nosink.∂tendency_∂q_lcl
@@ -1178,7 +1202,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         # Derivative should be negative (autoconversion + accretion sinks)
         @test derivs.∂tendency_∂q_icl < FT(0)
@@ -1196,7 +1221,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         # Rain derivative should be negative (evaporation not active in subsaturated,
         # plus accretion sinks from ice and snow collisions)
@@ -1216,7 +1242,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         # Snow derivative should be strongly negative (melting + accretion sinks)
         @test derivs.∂tendency_∂q_sno < FT(0)
@@ -1225,7 +1252,8 @@ function test_bulk_microphysics_1m_derivatives(FT)
         T_cold = T_freeze - FT(10)
         derivs_cold = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T_cold, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T_cold, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test derivs.∂tendency_∂q_sno < derivs_cold.∂tendency_∂q_sno
     end
@@ -1242,18 +1270,21 @@ function test_bulk_microphysics_1m_derivatives(FT)
 
         derivs = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Finite difference for ∂(dq_sno_dt)/∂q_sno
         δ = FT(1e-8)
         tend_plus = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno + δ,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno + δ,
         )
         tend_minus = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno - δ,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno - δ,
         )
         fd_sno = (tend_plus.dq_sno_dt - tend_minus.dq_sno_dt) / (2δ)
 
@@ -1275,11 +1306,13 @@ function test_bulk_microphysics_1m_cloud_derivatives(FT)
     function assert_cloud_derivs_match(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
         full = BMT.bulk_microphysics_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         cloud = BMT.bulk_microphysics_cloud_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test cloud.∂tendency_∂q_lcl == full.∂tendency_∂q_lcl
         @test cloud.∂tendency_∂q_icl == full.∂tendency_∂q_icl
@@ -1296,7 +1329,8 @@ function test_bulk_microphysics_1m_cloud_derivatives(FT)
 
         cloud = @inferred BMT.bulk_microphysics_cloud_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test cloud isa @NamedTuple{∂tendency_∂q_lcl::FT, ∂tendency_∂q_icl::FT}
     end
@@ -1376,7 +1410,8 @@ function test_bulk_microphysics_1m_cloud_derivatives(FT)
         q_tot_warm = get_saturated_q_tot(tps, T_warm, ρ, q_lcl, FT(0), q_rai, FT(0))
         cloud_warm = BMT.bulk_microphysics_cloud_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T_warm, q_tot_warm, q_lcl, FT(0), q_rai, FT(0),
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T_warm, q_tot_warm, q_lcl, FT(0), q_rai, FT(0),
         )
         @test cloud_warm.∂tendency_∂q_lcl < FT(0)
 
@@ -1386,7 +1421,8 @@ function test_bulk_microphysics_1m_cloud_derivatives(FT)
         q_sno = FT(5e-4)
         cloud_cold = BMT.bulk_microphysics_cloud_derivatives(
             BMT.Microphysics1Moment(),
-            mp, tps, ρ, T_cold, FT(0.012), FT(0), q_icl, FT(0), q_sno,
+            BMT.NonEq_Constant(),
+            mp, aps, tps, ρ, T_cold, FT(0.012), FT(0), q_icl, FT(0), q_sno,
         )
         @test cloud_cold.∂tendency_∂q_icl < FT(0)
     end
