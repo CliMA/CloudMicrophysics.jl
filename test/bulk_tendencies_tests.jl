@@ -178,7 +178,8 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
-            mp, tps,
+            BMT.NonEq_Constant(),
+            mp, aps, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
