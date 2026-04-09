@@ -159,7 +159,7 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     # compute the tendency
     return ifelse(
         sat_excess < 0,
-        -max(FT(0), q_lcl) / timescale,
+        -min(-sat_excess, max(0, q_lcl)) / timescale,
         sat_excess / timescale,
     )
 end
@@ -184,7 +184,7 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     # compute the tendency
     tendency = ifelse(
         sat_excess < 0,
-        -max(FT(0), q_icl) / timescale,
+        -min(-sat_excess, max(0, q_icl)) / timescale,
         sat_excess / timescale,
     )
     limiter = INP_limiter(tendency, tps, T)
