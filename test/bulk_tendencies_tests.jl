@@ -631,6 +631,433 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
 end
 
+function test_average_bulk_microphysics_1m_tendencies(FT)
+
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    mp = CMP.Microphysics1MParams(FT)
+    T_freeze = TDI.T_freeze(tps)
+
+    @testset "_bulk_microphysics_linearized_operator - Finiteness checks" begin
+        ρ = FT(1.2)
+        T = T_freeze - FT(5)
+        q_tot = FT(0.015)
+        q_lcl = FT(5e-4)
+        q_icl = FT(5e-4)
+        q_rai = FT(5e-4)
+        q_sno = FT(5e-4)
+
+        lin = BMT._bulk_microphysics_linearized_operator(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+
+        @test isfinite(lin.M11)
+        @test isfinite(lin.M22)
+        @test isfinite(lin.M31)
+        @test isfinite(lin.M33)
+        @test isfinite(lin.M34)
+        @test isfinite(lin.M41)
+        @test isfinite(lin.M42)
+        @test isfinite(lin.M43)
+        @test isfinite(lin.M44)
+        @test isfinite(lin.e1)
+        @test isfinite(lin.e2)
+        @test isfinite(lin.e4)
+    end
+
+    @testset "_bulk_microphysics_linearized_operator - Type stability (@inferred)" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(7)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-4)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(0)
+
+        lin = @inferred BMT._bulk_microphysics_linearized_operator(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+
+        @test lin isa NamedTuple
+    end
+
+    @testset "_bulk_microphysics_linearized_operator - Warm rain-only structure" begin
+        # Warm rain-only case: only rain evaporation should contribute,
+        # so only M33 should be nonzero.
+        ρ = FT(1.2)
+        T = T_freeze + FT(15)
+        q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(1e-3)
+        q_sno = FT(0)
+        q_vap = FT(0.5) * q_sat
+        q_tot = q_vap + q_rai
+
+        lin = BMT._bulk_microphysics_linearized_operator(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+
+        @test lin.M33 <= FT(0)
+        @test lin.M11 == FT(0)
+        @test lin.M22 == FT(0)
+        @test lin.M31 == FT(0)
+        @test lin.M34 == FT(0)
+        @test lin.M41 == FT(0)
+        @test lin.M42 == FT(0)
+        @test lin.M43 == FT(0)
+        @test lin.M44 == FT(0)
+        @test lin.e1 == FT(0)
+        @test lin.e2 == FT(0)
+        @test lin.e4 == FT(0)
+    end
+
+    @testset "_bulk_microphysics_linearized_operator - Warm pure snow melt structure" begin
+        # Warm snow-only case: snow melts to rain, so M44 < 0 and M34 > 0.
+        ρ = FT(1.2)
+        T = T_freeze + FT(5)
+
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(1e-3)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+        q_tot = q_vap_sat + q_sno
+
+        lin = BMT._bulk_microphysics_linearized_operator(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+
+        @test lin.M34 > FT(0)
+        @test lin.M44 < FT(0)
+        @test lin.M11 == FT(0)
+        @test lin.M22 == FT(0)
+        @test lin.M31 == FT(0)
+        @test lin.M41 == FT(0)
+        @test lin.M42 == FT(0)
+        @test lin.M43 == FT(0)
+    end
+
+    @testset "_average_bulk_microphysics_tendencies - Finiteness checks" begin
+        ρ = FT(1.2)
+        T = T_freeze - FT(5)
+        q_tot = FT(0.015)
+        q_lcl = FT(5e-4)
+        q_icl = FT(5e-4)
+        q_rai = FT(5e-4)
+        q_sno = FT(5e-4)
+        Δt = FT(10)
+
+        tendencies = BMT._average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+        )
+
+        @test isfinite(tendencies.dq_lcl_dt)
+        @test isfinite(tendencies.dq_icl_dt)
+        @test isfinite(tendencies.dq_rai_dt)
+        @test isfinite(tendencies.dq_sno_dt)
+    end
+
+    @testset "_average_bulk_microphysics_tendencies - Type stability (@inferred)" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(7)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-4)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(0)
+        Δt = FT(1)
+
+        tendencies = @inferred BMT._average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+        )
+
+        @test tendencies isa NamedTuple{(:dq_lcl_dt, :dq_icl_dt, :dq_rai_dt, :dq_sno_dt), NTuple{4, FT}}
+    end
+
+    @testset "_average_bulk_microphysics_tendencies - rain evaporation damping vs dt" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(15)
+        q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(1e-3)
+        q_sno = FT(0)
+        q_vap = FT(0.5) * q_sat
+        q_tot = q_vap + q_rai
+
+        dts = FT[1, 5, 10, 50, 100]
+        rates = similar(dts)
+
+        for i in eachindex(dts)
+            tendencies = BMT._average_bulk_microphysics_tendencies(
+                BMT.Microphysics1Moment(),
+                mp, tps,
+                ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, dts[i],
+            )
+            rates[i] = tendencies.dq_rai_dt
+        end
+
+        @test all(isfinite, rates)
+        @test all(r -> r < 0, rates)
+        @test all(abs(rates[i + 1]) <= abs(rates[i]) for i in 1:(length(rates) - 1))
+    end
+
+    @testset "_average_bulk_microphysics_tendencies - Matches solved linear system" begin
+        ρ = FT(1.1)
+        T = T_freeze + FT(4)
+        q_lcl = FT(4e-4)
+        q_icl = FT(2e-4)
+        q_rai = FT(3e-4)
+        q_sno = FT(6e-4)
+        q_tot = FT(0.014)
+        Δt = FT(7)
+
+        lin = BMT._bulk_microphysics_linearized_operator(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+
+        tendencies = BMT._average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+        )
+
+        invΔt = one(FT) / Δt
+
+        q_lcl_new = q_lcl + Δt * tendencies.dq_lcl_dt
+        q_icl_new = q_icl + Δt * tendencies.dq_icl_dt
+        q_rai_new = q_rai + Δt * tendencies.dq_rai_dt
+        q_sno_new = q_sno + Δt * tendencies.dq_sno_dt
+
+        @test (q_lcl_new - q_lcl) * invΔt ≈ lin.M11 * q_lcl_new + lin.e1 atol = FT(100) * eps(FT)
+        @test (q_icl_new - q_icl) * invΔt ≈ lin.M22 * q_icl_new + lin.e2 atol = FT(100) * eps(FT)
+        @test (q_rai_new - q_rai) * invΔt ≈ lin.M31 * q_lcl_new + lin.M33 * q_rai_new + lin.M34 * q_sno_new atol =
+            FT(100) * eps(FT)
+        @test (q_sno_new - q_sno) * invΔt ≈
+              lin.M41 * q_lcl_new + lin.M42 * q_icl_new + lin.M43 * q_rai_new + lin.M44 * q_sno_new + lin.e4 atol =
+            FT(100) * eps(FT)
+    end
+
+    @testset "_average_bulk_microphysics_tendencies - Small Δt agrees with instantaneous tendency for rain evaporation" begin
+        # In this simple case the model is essentially dq_rai/dt = M33 * q_rai,
+        # so the averaged implicit tendency should approach the instantaneous one
+        # as Δt -> 0.
+        ρ = FT(1.2)
+        T = T_freeze + FT(15)
+        q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(1e-3)
+        q_sno = FT(0)
+        q_vap = FT(0.5) * q_sat
+        q_tot = q_vap + q_rai
+
+        inst = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+
+        avg = BMT._average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, FT(1e-2),
+        )
+
+        @test avg.dq_lcl_dt ≈ inst.dq_lcl_dt atol = FT(1e-8)
+        @test avg.dq_icl_dt ≈ inst.dq_icl_dt atol = FT(1e-8)
+        @test avg.dq_sno_dt ≈ inst.dq_sno_dt atol = FT(1e-8)
+        @test avg.dq_rai_dt ≈ inst.dq_rai_dt rtol = FT(1e-3)
+    end
+
+    @testset "average_bulk_microphysics_tendencies - Finiteness checks" begin
+        ρ = FT(1.2)
+        T = T_freeze - FT(5)
+        q_tot = FT(0.015)
+        q_lcl = FT(5e-4)
+        q_icl = FT(5e-4)
+        q_rai = FT(5e-4)
+        q_sno = FT(5e-4)
+        Δt = FT(10)
+
+        tendencies = BMT.average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+        )
+
+        @test isfinite(tendencies.dq_lcl_dt)
+        @test isfinite(tendencies.dq_icl_dt)
+        @test isfinite(tendencies.dq_rai_dt)
+        @test isfinite(tendencies.dq_sno_dt)
+    end
+
+    @testset "average_bulk_microphysics_tendencies - Type stability (@inferred)" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(7)
+        q_tot = FT(0.01)
+        q_lcl = FT(1e-4)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(0)
+        Δt = FT(1)
+
+        tendencies = @inferred BMT.average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+        )
+
+        @test tendencies isa NamedTuple{(:dq_lcl_dt, :dq_icl_dt, :dq_rai_dt, :dq_sno_dt), NTuple{4, FT}}
+    end
+
+    @testset "average_bulk_microphysics_tendencies - all zero inputs" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(5)
+        q_tot = FT(0)
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(0)
+        Δt = FT(10)
+
+        tendencies = BMT.average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+        )
+
+        @test tendencies.dq_lcl_dt == FT(0)
+        @test tendencies.dq_icl_dt == FT(0)
+        @test tendencies.dq_rai_dt == FT(0)
+        @test tendencies.dq_sno_dt == FT(0)
+    end
+
+    @testset "average_bulk_microphysics_tendencies - nsub=1 matches single-substep solver" begin
+        ρ = FT(1.1)
+        T = T_freeze + FT(4)
+        q_lcl = FT(4e-4)
+        q_icl = FT(2e-4)
+        q_rai = FT(3e-4)
+        q_sno = FT(6e-4)
+        q_tot = FT(0.014)
+        Δt = FT(7)
+
+        single = BMT._average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+        )
+
+        substepped = BMT.average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 1,
+        )
+
+        @test substepped.dq_lcl_dt ≈ single.dq_lcl_dt atol = FT(100) * eps(FT)
+        @test substepped.dq_icl_dt ≈ single.dq_icl_dt atol = FT(100) * eps(FT)
+        @test substepped.dq_rai_dt ≈ single.dq_rai_dt atol = FT(100) * eps(FT)
+        @test substepped.dq_sno_dt ≈ single.dq_sno_dt atol = FT(100) * eps(FT)
+    end
+
+    @testset "average_bulk_microphysics_tendencies - Warm pure snow melt keeps expected signs" begin
+        ρ = FT(1.0)
+        T = T_freeze + FT(5)
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(1e-3)
+        q_vap_sat = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+        q_tot = q_vap_sat + q_sno
+        Δt = FT(10)
+
+        tendencies = BMT.average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+        )
+
+        @test tendencies.dq_sno_dt < FT(0)
+        @test tendencies.dq_rai_dt > FT(0)
+        @test isfinite(tendencies.dq_sno_dt)
+        @test isfinite(tendencies.dq_rai_dt)
+    end
+
+    @testset "average_bulk_microphysics_tendencies - More substeps do not change simple rain-only case much" begin
+        # In a simple rain-only case, rebuilding the operator should not change
+        # the result much as nsub increases.
+        ρ = FT(1.2)
+        T = T_freeze + FT(15)
+        q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(1e-3)
+        q_sno = FT(0)
+        q_vap = FT(0.5) * q_sat
+        q_tot = q_vap + q_rai
+        Δt = FT(1)
+
+        t1 = BMT.average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 1,
+        )
+
+        t10 = BMT.average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 10,
+        )
+
+        @test t10.dq_lcl_dt ≈ t1.dq_lcl_dt atol = FT(1e-10)
+        @test t10.dq_icl_dt ≈ t1.dq_icl_dt atol = FT(1e-10)
+        @test t10.dq_sno_dt ≈ t1.dq_sno_dt atol = FT(1e-10)
+        @test t10.dq_rai_dt ≈ t1.dq_rai_dt rtol = FT(1e-2)
+    end
+
+    @testset "average_bulk_microphysics_tendencies - Substepping remains finite near freezing" begin
+        ρ = FT(1.2)
+        T = T_freeze + FT(0.01)
+        q_tot = FT(0.015)
+        q_lcl = FT(1e-3)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(5e-4)
+        Δt = FT(20)
+
+        tendencies = BMT.average_bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 20,
+        )
+
+        @test isfinite(tendencies.dq_lcl_dt)
+        @test isfinite(tendencies.dq_icl_dt)
+        @test isfinite(tendencies.dq_rai_dt)
+        @test isfinite(tendencies.dq_sno_dt)
+    end
+
+end
+
 function test_bulk_microphysics_1m_derivatives(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     mp = CMP.Microphysics1MParams(FT)
@@ -1404,6 +1831,7 @@ end
     test_bulk_microphysics_0m_tendencies(FT)
     test_bulk_microphysics_0m_derivatives(FT)
     test_bulk_microphysics_1m_tendencies(FT)
+    test_average_bulk_microphysics_1m_tendencies(FT)
     test_bulk_microphysics_1m_derivatives(FT)
     test_bulk_microphysics_1m_cloud_derivatives(FT)
     test_bulk_microphysics_2m_tendencies(FT)
