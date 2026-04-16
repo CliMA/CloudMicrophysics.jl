@@ -39,6 +39,7 @@ export MicrophysicsScheme,
     Microphysics1Moment,
     Microphysics2Moment,
     bulk_microphysics_tendencies,
+    average_bulk_microphysics_tendencies,
     bulk_microphysics_derivatives,
     bulk_microphysics_cloud_derivatives
 
@@ -275,6 +276,340 @@ This is a pure function of local thermodynamic state, suitable for:
     S_melt_sno = CM1.snow_melt(sno, vel.snow, aps, tps, q_sno, ρ, T)
     dq_sno_dt -= S_melt_sno
     dq_rai_dt += S_melt_sno
+
+    return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
+end
+
+"""
+Construct a local linear approximation of 1-moment microphysics tendencies:
+
+    dq/dt ≈ M * q + e
+
+using a donor-based linearization:
+- donor → receiver transfers are represented as `D * q_donor`
+- vapor → condensate sources are treated as constants (`e`)
+- condensate sinks are treated as linear sinks (`-D * q`)
+
+All coefficients use `D = S / max(q_min, q_donor)` for robustness.
+
+With this formulation, sink terms behave like exponential decays over a timestep
+in the implicit solve. The resulting operator is sparse and only stores the
+nonzero entries needed by the specialized solver.
+
+Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
+"""
+@inline function _bulk_microphysics_linearized_operator(
+    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl = zero(ρ),
+)
+    ρ = UT.clamp_to_nonneg(ρ)
+    q_tot = UT.clamp_to_nonneg(q_tot)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_icl = UT.clamp_to_nonneg(q_icl)
+    q_rai = UT.clamp_to_nonneg(q_rai)
+    q_sno = UT.clamp_to_nonneg(q_sno)
+
+    lcl = mp.cloud.liquid
+    icl = mp.cloud.ice
+    rai = mp.precip.rain
+    sno = mp.precip.snow
+    ce = mp.collision
+    aps = mp.air_properties
+    vel = mp.terminal_velocity
+    var = mp.autoconv_2M
+
+    FT = promote_type(
+        typeof(ρ), typeof(T), typeof(q_tot), typeof(q_lcl),
+        typeof(q_icl), typeof(q_rai), typeof(q_sno),
+    )
+
+    M11 = zero(FT)
+    M22 = zero(FT)
+    M31 = zero(FT)
+    M33 = zero(FT)
+    M34 = zero(FT)
+    M41 = zero(FT)
+    M42 = zero(FT)
+    M43 = zero(FT)
+    M44 = zero(FT)
+    e1 = zero(FT)
+    e2 = zero(FT)
+    e4 = zero(FT)
+
+    # minimum specific humidity threshold for regularizing S/q
+    q_min = TDI.TD.Parameters.q_min(tps)
+
+    # ------------------------------------------------------------
+    # Vapor -> cloud condensate: constant sources
+    # ------------------------------------------------------------
+    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(
+        lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+    )
+    D = S_lcl_cond / max(q_min, q_lcl)
+    is_source = S_lcl_cond >= zero(FT)
+    e1 += ifelse(is_source, S_lcl_cond, zero(FT))
+    M11 += ifelse(is_source, zero(FT), D)
+
+    S_icl_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(
+        icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+    )
+    D = S_icl_dep / max(q_min, q_icl)
+    is_source = S_icl_dep >= zero(FT)
+    e2 += ifelse(is_source, S_icl_dep, zero(FT))
+    M22 += ifelse(is_source, zero(FT), D)
+
+    # ------------------------------------------------------------
+    # Autoconversion: donor-based transfer
+    # ------------------------------------------------------------
+    S_acnv_1M = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
+    S_acnv_2M = isnothing(var) ? S_acnv_1M : CM2.conv_q_lcl_to_q_rai(var, q_lcl, ρ, N_lcl)
+    S_acnv_lcl = ifelse(N_lcl > zero(N_lcl), S_acnv_2M, S_acnv_1M)
+    D = S_acnv_lcl / max(q_min, q_lcl)
+    M11 -= D
+    M31 += D
+
+    S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
+    D = S_acnv_icl / max(q_min, q_icl)
+    M22 -= D
+    M42 += D
+
+    # ------------------------------------------------------------
+    # Accretion: donor-based transfer
+    # ------------------------------------------------------------
+    S_accr_lcl_rai = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
+    D = S_accr_lcl_rai / max(q_min, q_lcl)
+    M11 -= D
+    M31 += D
+
+    S_accr_lcl_sno = CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
+    D = S_accr_lcl_sno / max(q_min, q_lcl)
+    M11 -= D
+    is_warm = T >= sno.T_freeze
+    M31 += ifelse(is_warm, D, zero(FT))
+    M41 += ifelse(is_warm, zero(FT), D)
+
+    α = warm_accretion_melt_factor(tps, sno, T)
+    S_accr_melt = α * S_accr_lcl_sno
+    # this is snow -> rain melt induced by warm collected liquid
+    # donor is snow
+    D = S_accr_melt / max(q_min, q_sno)
+    M44 -= D
+    M34 += D
+
+    S_accr_icl_rai = CM1.accretion(icl, rai, vel.rain, ce, q_icl, q_rai, ρ)
+    D = S_accr_icl_rai / max(q_min, q_icl)
+    M22 -= D
+    M42 += D
+
+    S_accr_icl_sno = CM1.accretion(icl, sno, vel.snow, ce, q_icl, q_sno, ρ)
+    D = S_accr_icl_sno / max(q_min, q_icl)
+    M22 -= D
+    M42 += D
+
+    S_accr_rai_icl = CM1.accretion_rain_sink(rai, icl, vel.rain, ce, q_icl, q_rai, ρ)
+    D = S_accr_rai_icl / max(q_min, q_rai)
+    M33 -= D
+    M43 += D
+
+    S_accr_rai_sno = CM1.accretion_snow_rain(sno, rai, vel.snow, vel.rain, ce, q_sno, q_rai, ρ)
+    S_accr_sno_rai = CM1.accretion_snow_rain(rai, sno, vel.rain, vel.snow, ce, q_rai, q_sno, ρ)
+
+    # snow -> rain
+    D = S_accr_sno_rai / max(q_min, q_sno)
+    M44 -= ifelse(is_warm, D, zero(FT))
+    M34 += ifelse(is_warm, D, zero(FT))
+
+    S_accr_melt2 = α * S_accr_rai_sno
+    D = S_accr_melt2 / max(q_min, q_sno)
+    M44 -= ifelse(is_warm, D, zero(FT))
+    M34 += ifelse(is_warm, D, zero(FT))
+
+    # rain -> snow
+    D = S_accr_rai_sno / max(q_min, q_rai)
+    M33 -= ifelse(is_warm, zero(FT), D)
+    M43 += ifelse(is_warm, zero(FT), D)
+
+    # ------------------------------------------------------------
+    # Rain evaporation: sink to vapor (always zero or negative)
+    # ------------------------------------------------------------
+    S_evap_rai = CM1.evaporation_sublimation(
+        rai, vel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+    )
+    D = (-S_evap_rai) / max(q_min, q_rai)
+    M33 -= D
+
+    # ------------------------------------------------------------
+    # Snow sublimation/deposition
+    # ------------------------------------------------------------
+    S_subl_sno = CM1.evaporation_sublimation(
+        sno, vel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+    )
+    D = S_subl_sno / max(q_min, q_sno)
+    is_source = S_subl_sno >= zero(FT)
+    e4 += ifelse(is_source, S_subl_sno, zero(FT))
+    M44 += ifelse(is_source, zero(FT), D)
+
+    # ------------------------------------------------------------
+    # Snow melt: snow -> rain
+    # ------------------------------------------------------------
+    S_melt_sno = CM1.snow_melt(sno, vel.snow, aps, tps, q_sno, ρ, T)
+    D = S_melt_sno / max(q_min, q_sno)
+    M44 -= D
+    M34 += D
+
+    return (
+        M11 = M11, M22 = M22,
+        M31 = M31, M33 = M33, M34 = M34,
+        M41 = M41, M42 = M42, M43 = M43, M44 = M44,
+        e1 = e1, e2 = e2, e4 = e4,
+    )
+end
+
+"""
+Compute time-averaged 1-moment microphysics tendencies over a single linearized substep.
+
+Solves the linearized implicit system
+
+    (q* - q⁰) / Δt = M q* + e
+
+and returns the average tendency
+
+    dq/dt = (q* - q⁰) / Δt.
+
+The system uses a sparse structure specific to the 1-moment microphysics model:
+`q_lcl` and `q_icl` are solved independently, while `q_rai` and `q_sno` are
+solved from a coupled 2×2 system.
+
+Because sinks are linearized as `-D q`, they are effectively integrated as
+exponential decays over the substep.
+"""
+@inline function _average_bulk_microphysics_tendencies(
+    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, N_lcl = zero(ρ),
+)
+
+    FT = typeof(q_tot)
+
+    lin = _bulk_microphysics_linearized_operator(
+        Microphysics1Moment(), mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, N_lcl,
+    )
+
+    invΔt = one(FT) / Δt
+
+    # A = I/Δt - M
+    a11 = invΔt - lin.M11
+    a22 = invΔt - lin.M22
+    a31 = -lin.M31
+    a33 = invΔt - lin.M33
+    a34 = -lin.M34
+    a41 = -lin.M41
+    a42 = -lin.M42
+    a43 = -lin.M43
+    a44 = invΔt - lin.M44
+
+    # rhs = e + q_0/Δt
+    # e3 = 0 by the 1m model
+    b1 = lin.e1 + invΔt * q_lcl
+    b2 = lin.e2 + invΔt * q_icl
+    b3 = invΔt * q_rai
+    b4 = lin.e4 + invΔt * q_sno
+
+    q_lcl_new = b1 / a11
+    q_icl_new = b2 / a22
+
+    # Reduced 2x2 system for q_rai_new, q_sno_new
+    r3 = muladd(-a31, q_lcl_new, b3)
+    r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
+
+    det = muladd(-a34, a43, a33 * a44)
+    # det is a positive number because a44 and a33 are positive (greater than invΔt) 
+    # and a34 and a43 are non-positive so we don't need to safeguard division by det.
+    q_rai_new = (r3 * a44 - a34 * r4) / det
+    q_sno_new = (a33 * r4 - r3 * a43) / det
+
+    dq_lcl_dt = (q_lcl_new - q_lcl) * invΔt
+    dq_icl_dt = (q_icl_new - q_icl) * invΔt
+    dq_rai_dt = (q_rai_new - q_rai) * invΔt
+    dq_sno_dt = (q_sno_new - q_sno) * invΔt
+
+    return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
+end
+
+"""
+Compute average 1-moment microphysics tendencies over `Δt` using repeated
+linearized implicit substeps.
+
+The interval `Δt` is divided into `nsub` equal substeps. At each substep, a local
+linearized microphysics system is rebuilt from the current state and solved
+implicitly for cloud liquid, cloud ice, rain, and snow. Temperature is then
+updated from the latent heating implied by the substep tendencies.
+
+The returned tendencies are the net change in the hydrometeor species over the
+full interval divided by `Δt`.
+
+Increasing `nsub` improves how well the method captures nonlinear changes in the
+active microphysical processes, including regime changes near freezing.
+"""
+@inline function average_bulk_microphysics_tendencies(
+    cm::Microphysics1Moment,
+    mp::CMP.Microphysics1MParams,
+    tps,
+    ρ,
+    T,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    Δt,
+    nsub = 1,
+    N_lcl = zero(ρ),
+)
+    FT = typeof(q_tot)
+
+    q_lcl_0 = q_lcl
+    q_icl_0 = q_icl
+    q_rai_0 = q_rai
+    q_sno_0 = q_sno
+
+    Δt_sub = Δt / FT(nsub)
+
+    Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+    Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+
+    for _ in 1:nsub
+        rates = _average_bulk_microphysics_tendencies(
+            cm,
+            mp,
+            tps,
+            ρ,
+            T,
+            q_tot,
+            q_lcl,
+            q_icl,
+            q_rai,
+            q_sno,
+            Δt_sub,
+            N_lcl,
+        )
+
+        q_lcl += rates.dq_lcl_dt * Δt_sub
+        q_icl += rates.dq_icl_dt * Δt_sub
+        q_rai += rates.dq_rai_dt * Δt_sub
+        q_sno += rates.dq_sno_dt * Δt_sub
+
+        T +=
+            (
+                Lv_over_cp * (rates.dq_lcl_dt + rates.dq_rai_dt) +
+                Ls_over_cp * (rates.dq_icl_dt + rates.dq_sno_dt)
+            ) * Δt_sub
+    end
+
+    dq_lcl_dt = (q_lcl - q_lcl_0) / Δt
+    dq_icl_dt = (q_icl - q_icl_0) / Δt
+    dq_rai_dt = (q_rai - q_rai_0) / Δt
+    dq_sno_dt = (q_sno - q_sno_0) / Δt
 
     return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
 end

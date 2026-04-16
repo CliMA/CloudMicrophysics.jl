@@ -71,6 +71,7 @@ Guides = [
 pages = Any[
     "Home" => "index.md",
     "Parameterizations" => Parameterizations,
+    "Bulk tendencies" => "BulkTendencies.md",
     "Thermodynamics interface" => "Thermodynamics.md",
     "How to guides" => Guides,
     "Models" => Models,
