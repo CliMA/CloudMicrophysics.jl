@@ -47,9 +47,10 @@ which constructs the parameterization with components:
 - `cloud_pdf` = [`CloudParticlePDF_SB2006`](@ref)
 - `rain_pdf` = [`RainParticlePDF_SB2006`](@ref)
 - `ice_nucleation` = [`Frostenberg2023`](@ref)
+- `rain_freezing` = [`RainFreezing`](@ref)
 
 """
-@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET} <: ParametersType
+@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF} <: ParametersType
     "The core P3 scheme parameters"
     scheme::P3
     "The terminal velocity parameterization"
@@ -58,8 +59,10 @@ which constructs the parameterization with components:
     cloud_pdf::PDc
     "The rain drop size distribution"
     rain_pdf::PDr
-    "The ice nucleation parameters"
+    "The ice nucleation parameters (empirical INP closure)"
     ice_nucleation::HET
+    "The rain freezing parameters (Bigg-type immersion freezing)"
+    rain_freezing::RF
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -71,6 +74,7 @@ P3IceParams(toml_dict::CP.ParamDict; is_limited = true) =
         cloud_pdf = CloudParticlePDF_SB2006(toml_dict),
         rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited),
         ice_nucleation = Frostenberg2023(toml_dict),
+        rain_freezing = RainFreezing(toml_dict),
     )
 
 """

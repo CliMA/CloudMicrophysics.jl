@@ -6,6 +6,10 @@ Parameterization for heterogenous cloud ice nucleation.
 module HetIceNucleation
 
 import ..Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.DistributionTools as DT
+import CloudMicrophysics.Utilities as UT
 
 export dust_activated_number_fraction
 export MohlerDepositionRate
@@ -239,6 +243,63 @@ function INP_concentration_mean((; T_freeze)::CMP.Frostenberg2023, T)
     return 9log(-T_celsius / 10)  # = log((-T_celsius / 10)^9)
 end
 
+"""
+    liquid_freezing_rate(parameterization, pdf, tps, q_rai, ρ, N_rai, T)
+
+Compute the rate of liquid water freezing into ice.
+
+# Arguments
+ - `parameterization`: The [`CMP.RainFreezing`](@ref) parameterization.
+ - `pdf`: The liquid water particle size distribution (PSD) PDF.
+ - `tps`: Thermodynamics parameters.
+ - `q`: Liquid water specific content [kg(water) kg⁻¹(air)].
+ - `ρ`: Air density [kg(air) m⁻³(air)].
+ - `N`: Liquid water number concentration [m⁻³(air)].
+ - `T`: Air temperature [K].
+
+# Returns
+ - A `NamedTuple` with the fields:
+    + `∂ₜN_frz`: Number freezing rate [m⁻³(air) s⁻¹].
+    + `∂ₜL_frz`: Mass freezing rate [kg(water) m⁻³(air) s⁻¹].
+"""
+function liquid_freezing_rate(parameterization::CMP.RainFreezing, pdf, tps, q, ρ, N, T)
+    FT = eltype(q)
+    T_freeze = TDI.TD.Parameters.T_freeze(tps)
+    (; ρw) = pdf  # [kg(water) m⁻³(water)]
+    n = N / ρ  # [kg⁻¹(air)]
+
+    # Solve for the pdf parameters
+    (; Dr_mean) = CM2.pdf_rain_parameters(pdf, q, ρ, N)
+
+    # Bigg (1953) volumetric freezing rate:
+    J_bigg = parameterization(T, T_freeze)  # [m⁻³(water) s⁻¹]
+
+    # Diameter PSD moments via exponential_Mⁿ:
+    #   M_D^n = ∫ D^n n(D) dD
+    # The freezing probability per unit time for a single drop of diameter D
+    # is J_drop(D) = J_bigg * V(D) = J_bigg * (π/6) * D³  [s⁻¹].
+
+    # Number freezing rate: ∂n/∂t = ∫ J_drop(D) n(D) dD = ∫ (J_bigg * π/6 * D³) n(D) dD = J_bigg * (π/6) * M_D³
+    M_D³ = DT.exponential_Mⁿ(Dr_mean, n, 3)  # [m³(water) m⁻³(air)]
+
+    # Mass freezing rate:   ∂q/∂t = ∫ x(D) * J_drop(D) n(D) dD = ∫ (ρw * π/6 * D³) * (J_bigg * π/6 * D³) n(D) dD
+    #                             = J_bigg * ρw * (π/6)² * ∫ D⁶ n(D) dD = J_bigg * ρw * (π/6)² * M_D⁶
+    M_D⁶ = DT.exponential_Mⁿ(Dr_mean, n, 6)  # [m⁶(water) m⁻³(air)]
+
+    V_1 = FT(π) / 6
+    ∂ₜn_frz = J_bigg * V_1 * M_D³         # [m⁻³(air) s⁻¹]
+    ∂ₜq_frz = J_bigg * ρw * V_1^2 * M_D⁶  # [kg(water) m⁻³(air) s⁻¹]
+
+    # Return the computed rate only if N and L are (essentially) non-zero, and T is colder than -4°C.
+    # Otherwise, return zero.
+    ϵₘ, ϵₙ = UT.ϵ_numerics_2M_M(FT), UT.ϵ_numerics_2M_N(FT)
+    cond = (n > ϵₙ) & (q > ϵₘ) & (T < T_freeze - 4)
+    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(n))
+    ∂ₜq_frz = ifelse(cond, ∂ₜq_frz, zero(q))
+
+    return (; ∂ₜn_frz, ∂ₜq_frz)
+end
+    
 end # end module
 
 """

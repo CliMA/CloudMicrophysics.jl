@@ -978,9 +978,8 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
 
     # --- Condensation of vapor / evaporation of cloud liquid water ---
     ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(condevap, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T)
-    ∂ₜn_lcl_cond = zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation
     dq_lcl_dt += ∂ₜq_lcl_cond
-    dn_lcl_dt += ∂ₜn_lcl_cond
+    # dn_lcl_dt += zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation
 
     # --- Evaporation of rain ---
     evap = CM2.rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, N_rai, T)
@@ -995,8 +994,8 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_rai_dt += acnv.dN_rai_dt / ρ
 
     # --- Cloud liquid self-collection ---
-    dn_lcl_sc = CM2.cloud_liquid_self_collection(sb.acnv, sb.pdf_c, q_lcl, ρ, acnv.dN_lcl_dt)
-    dn_lcl_dt += dn_lcl_sc / ρ
+    ∂ₜN_lcl_sc = CM2.cloud_liquid_self_collection(sb.acnv, sb.pdf_c, q_lcl, ρ, acnv.dN_lcl_dt)
+    dn_lcl_dt += ∂ₜN_lcl_sc / ρ
 
     # --- Accretion ---
     accr = CM2.accretion(sb, q_lcl, q_rai, ρ, N_lcl)
@@ -1005,26 +1004,72 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_lcl_dt += accr.dN_lcl_dt / ρ
 
     # --- Rain self-collection ---
-    dn_rai_sc = CM2.rain_self_collection(sb.pdf_r, sb.self, q_rai, ρ, N_rai)
-    dn_rai_dt += dn_rai_sc / ρ
+    ∂ₜN_rai_sc = CM2.rain_self_collection(sb.pdf_r, sb.self, q_rai, ρ, N_rai)
+    dn_rai_dt += ∂ₜN_rai_sc / ρ
 
     # --- Rain breakup ---
-    dn_rai_br = CM2.rain_breakup(sb.pdf_r, sb.brek, q_rai, ρ, N_rai, dn_rai_sc)
-    dn_rai_dt += dn_rai_br / ρ
+    ∂ₜN_rai_br = CM2.rain_breakup(sb.pdf_r, sb.brek, q_rai, ρ, N_rai, ∂ₜN_rai_sc)
+    dn_rai_dt += ∂ₜN_rai_br / ρ
 
     # --- Number adjustment for mass limits ---
     # Cloud liquid
-    dn_lcl_inc = CM2.number_increase_for_mass_limit(sb.numadj, sb.pdf_c.xc_max, q_lcl, ρ, N_lcl)
-    dn_lcl_dec = CM2.number_decrease_for_mass_limit(sb.numadj, sb.pdf_c.xc_min, q_lcl, ρ, N_lcl)
-    dn_lcl_dt += (dn_lcl_inc + dn_lcl_dec) / ρ
-
+    numadj_lcl = (; sb.numadj.τ, x_min = sb.pdf_c.xc_min, x_max = sb.pdf_c.xc_max)
+    ∂ₜn_lcl_numadj = CM2.number_tendency_from_mass_limits(numadj_lcl, q_lcl, n_lcl)
+    dn_lcl_dt += ∂ₜn_lcl_numadj
     # Rain
-    dn_rai_inc = CM2.number_increase_for_mass_limit(sb.numadj, sb.pdf_r.xr_max, q_rai, ρ, N_rai)
-    dn_rai_dec = CM2.number_decrease_for_mass_limit(sb.numadj, sb.pdf_r.xr_min, q_rai, ρ, N_rai)
-    dn_rai_dt += (dn_rai_inc + dn_rai_dec) / ρ
+    numadj_rai = (; sb.numadj.τ, x_min = sb.pdf_r.xr_min, x_max = sb.pdf_r.xr_max)
+    ∂ₜn_rai_numadj = CM2.number_tendency_from_mass_limits(numadj_rai, q_rai, n_rai)
+    dn_rai_dt += ∂ₜn_rai_numadj
 
     return (; dq_lcl_dt, dq_rai_dt, dn_lcl_dt, dn_rai_dt)
 end
+
+
+# @inline function _warm_rain_tendencies_2m(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+
+#     # Unpack parameters
+#     sb = warm_rain.seifert_beheng
+#     aps = warm_rain.air_properties
+#     condevap = warm_rain.condevap
+
+#     # --- Condensation of vapor / evaporation of cloud liquid water ---
+#     cond = (; ∂ₜq_lcl = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(condevap, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T))
+#     # --- Evaporation of rain ---
+#     rai_evap = CM2.rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, ρ * n_rai, T)
+#     # --- Autoconversion ---
+#     acnv = CM2.autoconversion(sb.acnv, sb.pdf_c, q_lcl, q_rai, ρ, ρ * n_lcl)
+#     # --- Cloud liquid self-collection ---
+#     ∂ₜn_lcl_sc = CM2.cloud_liquid_self_collection(sb.acnv, sb.pdf_c, q_lcl, ρ, acnv.dN_lcl_dt) / ρ
+#     # --- Accretion ---
+#     accr = CM2.accretion(sb, q_lcl, q_rai, ρ, ρ * n_lcl)
+#     # --- Rain self-collection ---
+#     ∂ₜn_rai_sc = CM2.rain_self_collection(sb.pdf_r, sb.self, q_rai, ρ, ρ * n_rai) / ρ
+#     # --- Rain breakup ---
+#     ∂ₜn_rai_br = CM2.rain_breakup(sb.pdf_r, sb.brek, q_rai, ρ, ρ * n_rai, ρ * ∂ₜn_rai_sc) / ρ
+#     # --- Number adjustment for mass limits ---
+#     # Cloud liquid
+#     numadj_lcl = (; sb.numadj.τ, x_min = sb.pdf_c.xc_min, x_max = sb.pdf_c.xc_max)
+#     ∂ₜn_lcl_numadj = CM2.number_tendency_from_mass_limits(numadj_lcl, q_lcl, n_lcl)
+#     # Rain
+#     numadj_rai = (; sb.numadj.τ, x_min = sb.pdf_r.xr_min, x_max = sb.pdf_r.xr_max)
+#     ∂ₜn_rai_numadj = CM2.number_tendency_from_mass_limits(numadj_rai, q_rai, n_rai)
+
+#     return (; cond, rai_evap, acnv, ∂ₜn_lcl_sc, accr, ∂ₜn_rai_sc, ∂ₜn_rai_br, ∂ₜn_lcl_numadj, ∂ₜn_rai_numadj)
+# end
+
+# @inline function warm_rain_tendencies_2m_new(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+
+#     (; cond, rai_evap, acnv, ∂ₜn_lcl_sc, accr, ∂ₜn_rai_sc, ∂ₜn_rai_br, ∂ₜn_lcl_numadj, ∂ₜn_rai_numadj) = 
+#         _warm_rain_tendencies_2m(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+
+#     dq_lcl_dt = cond.∂ₜq_lcl + acnv.dq_lcl_dt + accr.dq_lcl_dt
+#     dq_rai_dt = rai_evap.∂ₜq_rai + acnv.dq_rai_dt + accr.dq_rai_dt
+#     dn_lcl_dt = ∂ₜn_lcl_sc + (acnv.dN_lcl_dt + accr.dN_lcl_dt) / ρ + ∂ₜn_lcl_numadj
+#     dn_rai_dt = ∂ₜn_rai_sc + (rai_evap.∂ₜρn_rai + acnv.dN_rai_dt) / ρ + ∂ₜn_rai_s + ∂ₜn_rai_b + ∂ₜn_rai_numadj
+
+#     return (; dq_lcl_dt, dq_rai_dt, dn_lcl_dt, dn_rai_dt)
+# end
+
 
 # --- 2-Moment Microphysics (Unified Warm + Optional Ice) ---
 
@@ -1280,20 +1325,25 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     # --- Ice number adjustment for mass limits ---
     # Number adjustment for ice mass limits (Horn 2012, DOI: 10.5194/gmd-5-345-2012).
     # Nudges n_ice toward [q_ice / x_max, q_ice / x_min] over timescale τ.
-    τ_numadj = FT(100)  # relaxation timescale [s]
-    x_ice_max = FT(1e-5)   # max mean ice particle mass [kg] (~5 mm aggregate)
-    x_ice_min = FT(1e-12)  # min mean ice particle mass [kg] (~10 μm crystal)
-    n_ice_target = ifelse(q_ice < ϵₘ, zero(n_ice),
-        clamp(n_ice, q_ice / x_ice_max, q_ice / x_ice_min),
+    numadj = (;
+        τ = FT(100), 
+        x_min = FT(1e-12),  # min mean ice particle mass [kg] (~10 μm crystal)
+        x_max = FT(1e-5),   # max mean ice particle mass [kg] (~5 mm aggregate)
     )
-    dn_ice_dt += (n_ice_target - n_ice) / τ_numadj
+    ∂ₜn_ice_numadj = CM2.number_adjustment(numadj, q_ice, ρ, n_ice)
+    dn_ice_dt += ∂ₜn_ice_numadj
 
-    # --- Rain Heterogeneous Freezing ---
-    # TODO: Implement heterogeneous freezing of rain
-    # This process is currently missing in P3_processes.jl
-    # S_rai_frz = ...
-    # dq_rai_dt -= S_rai_frz
-    # dq_ice_dt += S_rai_frz
+    # --- Rain Heterogeneous Freezing (Bigg 1953) ---
+    # Immersion freezing of rain drops, as in Morrison & Milbrandt (2015).
+    rain_frz = CM_HetIce.liquid_freezing_rate(rain_freezing, pdf_r, tps, q_rai, ρ, N_rai, T)
+
+    # Rain → ice (frozen rain is fully rimed, per MM15)
+    dq_rai_dt -= rain_frz.∂ₜq_frz
+    dn_rai_dt -= rain_frz.∂ₜn_frz
+    dq_ice_dt += rain_frz.∂ₜq_frz
+    dn_ice_dt += rain_frz.∂ₜn_frz
+    dq_rim_dt += rain_frz.∂ₜq_frz
+    db_rim_dt += rain_frz.∂ₜq_frz / p3.ρ_i  # ρ_i = 916.7 kg m⁻³, the density of solid bulk ice
 
     return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt, dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt)
 end

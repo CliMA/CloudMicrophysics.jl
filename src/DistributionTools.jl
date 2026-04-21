@@ -165,7 +165,10 @@ Calculate the nth moment of an exponential distribution parameterized in the for
     Mⁿ = ∫ x^n ⋅ n(x) dx
        = N ⋅ n! ⋅ D_mean^n
 
- where N₀ = N / D_mean.
+ where N₀ = N / D_mean. 
+
+ Note: In the limit `D_mean → 0`, the distribution becomes a Dirac delta function at 0.
+    Therefore, `Mⁿ = 0` for any `n > 0` and `M⁰ = N`.
 
 # Arguments
  - `D_mean`: The mean value of the distribution
@@ -175,8 +178,6 @@ Calculate the nth moment of an exponential distribution parameterized in the for
 # Returns
  - `Mⁿ`: The nth physical moment of the distribution
 """
-function exponential_Mⁿ(D_mean, N, n)
-    return N * factorial(n) * D_mean^n
-end
+exponential_Mⁿ(D_mean, N, n) = N * factorial(n) * D_mean^n
 
 end # module DistributionTools

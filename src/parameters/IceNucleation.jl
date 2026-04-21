@@ -106,6 +106,46 @@ function MorrisonMilbrandt2014(td::CP.ParamDict)
     return MorrisonMilbrandt2014(; parameters...)
 end
 
+export RainFreezing
+
+"""
+    RainFreezing{FT}
+
+Parameters for heterogeneous (Bigg-type) immersion freezing of rain drops.
+
+Stores the empirical Barklie–Gokhale (1959) / Bigg (1953) parameters
+used by Morrison & Milbrandt (2015).
+
+# Fields
+$(DocStringExtensions.FIELDS)
+
+# Callable interface
+
+    (rf::RainFreezing)(T, T₀) → het_B * 10⁶ * exp(het_a * (T₀ − T))
+
+Returns the volumetric freezing rate in SI units [m⁻³ s⁻¹].
+The stored `het_B` is in [cm⁻³ s⁻¹]; the factor 10⁶ converts cm³ → m³.
+"""
+@kwdef struct RainFreezing{FT} <: ParametersType
+    "empirical parameter [°C⁻¹]"
+    het_a::FT
+    "water-type dependent parameter [cm⁻³ s⁻¹]"
+    het_B::FT
+end
+
+function RainFreezing(td::CP.ParamDict)
+    name_map = (;
+        :BarklieGokhale1959_a_parameter => :het_a,
+        :BarklieGokhale1959_B_parameter => :het_B,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return RainFreezing(; parameters...)
+end
+
+# Callable: returns the Bigg (1953) volumetric freezing rate [m⁻³(water) s⁻¹]
+# het_B is stored in [cm⁻³ s⁻¹]; multiply by 10⁶ to convert to [m⁻³(water) s⁻¹].
+(rf::RainFreezing)(T, T₀) = rf.het_B * 1_000_000 * exp(rf.het_a * (T₀ - T))
+
 """
     IceNucleationParameters{FT, DEP, HOM, P3_type}
 
