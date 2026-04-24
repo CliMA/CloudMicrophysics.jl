@@ -357,26 +357,6 @@ end
     )
 end
 
-@kernel inbounds = true function test_bulk_derivatives_1m_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
-)
-    i = @index(Global, Linear)
-    CM1M = BMT.Microphysics1Moment()
-    output[i] = BMT.bulk_microphysics_derivatives(
-        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
-    )
-end
-
-@kernel inbounds = true function test_bulk_derivatives_2m_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, n_lcl, n_rai,
-)
-    i = @index(Global, Linear)
-    CM2M = BMT.Microphysics2Moment()
-    output[i] = BMT.bulk_microphysics_derivatives(
-        CM2M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
-        n_lcl[i], n_rai[i],
-    )
-end
 
 @kernel inbounds = true function test_bulk_tendencies_2m_warm_kernel!(
     mp, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
@@ -1040,40 +1020,6 @@ function test_gpu(FT)
             TT.@test all(isfinite, tendencies)
         end
 
-        # 1M derivatives tests
-        DT_d = @NamedTuple{∂tendency_∂q_lcl::FT, ∂tendency_∂q_icl::FT, ∂tendency_∂q_rai::FT, ∂tendency_∂q_sno::FT}
-        (; output) = setup_output(ndrange, DT_d)
-
-        kernel! = test_bulk_derivatives_1m_kernel!(backend, work_groups)
-        TT.@testset "1M derivatives" begin
-            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
-            TT.@test allequal(Array(output))
-            derivs = Array(output)[1]
-            TT.@test all(isfinite, derivs)
-        end
-
-        # 2M derivatives tests
-        DT_2m_d = @NamedTuple{
-            ∂tendency_∂q_lcl::FT,
-            ∂tendency_∂q_icl::FT,
-            ∂tendency_∂q_rai::FT,
-            ∂tendency_∂q_sno::FT,
-            ∂tendency_∂n_lcl::FT,
-            ∂tendency_∂n_rai::FT,
-        }
-        (; output) = setup_output(ndrange, DT_2m_d)
-        n_lcl = constant_data(FT(1e8); ndrange)
-        n_rai = constant_data(FT(1e6); ndrange)
-        q_icl = constant_data(FT(0); ndrange)
-        q_sno = constant_data(FT(0); ndrange)
-
-        kernel! = test_bulk_derivatives_2m_kernel!(backend, work_groups)
-        TT.@testset "2M derivatives" begin
-            kernel!(mp_2m_warm, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, n_lcl, n_rai; ndrange)
-            TT.@test allequal(Array(output))
-            derivs = Array(output)[1]
-            TT.@test all(isfinite, derivs)
-        end
 
         # 2M warm rain tests
         DT = @NamedTuple{

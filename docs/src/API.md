@@ -134,8 +134,6 @@ BulkMicrophysicsTendencies.Microphysics1Moment
 BulkMicrophysicsTendencies.Microphysics2Moment
 BulkMicrophysicsTendencies.bulk_microphysics_tendencies
 BulkMicrophysicsTendencies.average_bulk_microphysics_tendencies
-BulkMicrophysicsTendencies.bulk_microphysics_derivatives
-BulkMicrophysicsTendencies.bulk_microphysics_cloud_derivatives
 ```
 
 # P3 scheme
