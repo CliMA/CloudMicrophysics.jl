@@ -13,9 +13,12 @@ import ..Parameters as CMP
 import ..ThermodynamicsInterface as TDI
 import ..Common as CO
 import ..Utilities as UT
+import ..HetIceNucleation as IN
 
 export τ_relax
 export conv_q_vap_to_q_lcl_icl
+export conv_q_vap_to_q_lcl_MM2015
+export conv_q_vap_to_q_icl_MM2015
 export conv_q_vap_to_q_lcl_icl_MM2015
 export INP_limiter
 export dqcld_dT
@@ -37,8 +40,34 @@ Returns the relaxation timescale for phase change processes.
 - Relaxation timescale [s] for condensation/evaporation (liquid) or
   deposition/sublimation (ice)
 """
-@inline τ_relax(p::CondEvap) = p.τ_relax
-@inline τ_relax(p::SubDep) = p.τ_relax
+@inline τ_relax(p::CMP.CloudLiquid) = p.τ_relax
+@inline τ_relax(p::CMP.CloudIce) = p.τ_relax
+
+""" Calculate relaxation timescales from some number concentration N """
+
+""" Includes options to calculate relaxation timescales from cloud droplet
+number concentration for both liquid and ice. Also includes
+an option to calculate ice relaxation timescale through
+the Frostenberg et al., (2023). See DOI: 10.5194/acp-23-10883-2023
+parameterization that approximates ice droplet number from temperature. """
+
+function τ_N(q_c, N_c, ρ_c, D_vapor)
+    r = ((3 * q_c) / (4 * pi * N_c * ρ_c))^(1 / 3)
+    τ = (4 * pi * D_vapor * N_c * r)^(-1)
+    return τ
+end
+
+function τ_Frostenberg(
+    (; ρᵢ)::CMP.CloudIce,
+    (; D_vapor)::CMP.AirProperties,
+    ip::CMP.Frostenberg2023,
+    q_icl,
+    T,
+)
+    N_ice = exp(IN.INP_concentration_mean(ip, T))
+    τᵢ = τ_N(q_icl, N_ice, ρᵢ, D_vapor)
+    return τᵢ
+end
 
 """
     conv_q_vap_to_q_lcl_icl(params::CloudLiquid, q_sat_liq, q_lcl)
@@ -121,7 +150,6 @@ This formulation includes a thermodynamic adjustment factor Γ that
 accounts for latent heat release modifying the saturation state.
 
 # Arguments
-- `params` - cloud liquid or ice parameters struct containing `τ_relax`
 - `tps` - thermodynamics parameters struct
 - `q_tot` - total water specific content [kg/kg]
 - `q_lcl` - cloud liquid water specific content [kg/kg]
@@ -130,6 +158,7 @@ accounts for latent heat release modifying the saturation state.
 - `q_sno` - snow specific content [kg/kg]
 - `ρ` - air density [kg/m³]
 - `T` - air temperature [K]
+- `τ_relax` - relaxation timescale [s]
 
 # Returns
 - Cloud condensate tendency [kg/kg/s]
@@ -138,9 +167,16 @@ accounts for latent heat release modifying the saturation state.
 This function does NOT apply limiters for small or negative specific humidities.
 Users should apply appropriate bounds checking when integrating in a model.
 """
-function conv_q_vap_to_q_lcl_icl_MM2015(
-    (; τ_relax)::CondEvap, tps::TDI.PS,
-    q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+function conv_q_vap_to_q_lcl_MM2015(
+    tps::TDI.PS,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    ρ,
+    T,
+    τ_relax,
 )
     FT = eltype(tps)
     Rᵥ = TDI.Rᵥ(tps)
@@ -163,9 +199,42 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
         sat_excess / timescale,
     )
 end
+
+# just to be able to still use old functionality in ClimaAtmos -- to be deleted
 function conv_q_vap_to_q_lcl_icl_MM2015(
-    (; τ_relax)::SubDep, tps::TDI.PS,
-    q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+    liquid::CMP.CloudLiquid,
+    tps::TDI.PS,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    ρ,
+    T,
+)
+    return conv_q_vap_to_q_lcl_MM2015(
+        tps,
+        q_tot,
+        q_lcl,
+        q_icl,
+        q_rai,
+        q_sno,
+        ρ,
+        T,
+        liquid.τ_relax,
+    )
+end
+
+function conv_q_vap_to_q_icl_MM2015(
+    tps::TDI.PS,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    ρ,
+    T,
+    τ_relax,
 )
     FT = eltype(tps)
     Rᵥ = TDI.Rᵥ(tps)
@@ -191,9 +260,30 @@ function conv_q_vap_to_q_lcl_icl_MM2015(
     return ifelse(limiter, zero(tendency), tendency)
 end
 
-### -------------------------- ###
-### 1-moment terminal velocity ###
-### -------------------------- ###
+# just to be able to still use old functionality -- to be deleted
+function conv_q_vap_to_q_lcl_icl_MM2015(
+    ice::CMP.CloudIce,
+    tps::TDI.PS,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    ρ,
+    T,
+)
+    return conv_q_vap_to_q_icl_MM2015(
+        tps,
+        q_tot,
+        q_lcl,
+        q_icl,
+        q_rai,
+        q_sno,
+        ρ,
+        T,
+        ice.τ_relax,
+    )
+end
 
 """
     terminal_velocity(sediment::CloudLiquid, vel::StokesRegimeVelType, ρₐ, q)
