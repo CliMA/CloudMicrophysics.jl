@@ -4,15 +4,18 @@
 
 State of the P3 scheme.
 
-This struct bundles the P3 parameterizations `params`, the provided rime state (`F_rim`, `ρ_rim`),
-    and the derived threshold variables (`D_th`, `D_gr`, `D_cr`, `ρ_g`).
+This struct bundles the P3 parameterizations `params`, the provided rime state
+(`F_rim`, `ρ_rim`), and the cached derived threshold variables
+`thresholds = (; D_th, D_gr, D_cr, ρ_g)` — computed once at construction.
 
-To obtain a `P3State` object, use the [`get_state`](@ref) function.
+To obtain a `P3State` object, use the [`get_state`](@ref) function (which
+validates rime inputs) or the constructor `P3State(params, L_ice, N_ice,
+F_rim, ρ_rim)` (no validation).
 
 # Fields
 $(FIELDS)
 """
-@kwdef struct P3State{FT, PARAMS <: CMP.ParametersP3{FT}}
+struct P3State{FT, PARAMS <: CMP.ParametersP3{FT}, THRESH}
     "[`CMP.ParametersP3`](@ref) object"
     params::PARAMS
 
@@ -24,7 +27,23 @@ $(FIELDS)
     F_rim::FT
     "Rime density"
     ρ_rim::FT
+
+    "Cached derived thresholds `(; D_th, D_gr, D_cr, ρ_g)` — see [`get_thresholds_ρ_g`](@ref)"
+    thresholds::THRESH
 end
+
+# Positional convenience constructor — auto-computes thresholds from
+# (params, F_rim, ρ_rim). Use this or `get_state` instead of calling the
+# 6-field inner constructor directly, so cached thresholds stay consistent
+# with the rime state.
+function P3State(params::CMP.ParametersP3, L_ice, N_ice, F_rim, ρ_rim)
+    thresholds = get_thresholds_ρ_g(params, F_rim, ρ_rim)
+    return P3State(params, L_ice, N_ice, F_rim, ρ_rim, thresholds)
+end
+
+# Keyword convenience (preserves the @kwdef-style call site).
+P3State(; params, L_ice, N_ice, F_rim, ρ_rim) = P3State(params, L_ice, N_ice, F_rim, ρ_rim)
+
 Base.show(io::IO, mime::MIME"text/plain", x::P3State) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 ShowMethods.field_units(::P3State) = (; L_ice = "kg/m³", N_ice = "1/m³", ρ_rim = "kg/m³")
@@ -43,42 +62,67 @@ Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parame
  - `F_rim`: rime mass fraction [-], `F_rim = L_rim / L_ice`
  - `ρ_rim`: rime density [kg/m³],   `ρ_rim = L_rim / B_rim`
 
-# Examples
+# Notes
 
- ```jldoctest
- julia> import CloudMicrophysics.Parameters as CMP,
-               CloudMicrophysics.P3Scheme as P3
-
- julia> FT = Float32;
-
- julia> params = CMP.ParametersP3(FT);
-
- julia> state = P3.get_state(params; F_rim = FT(0.5), ρ_rim = FT(916.7))
- P3State
- ├─ params: ParametersP3
- │  ├─ mass: MassPowerLaw(α_va = 0.018537706f0 [kg m^(-β_va)], β_va = 1.9f0 [-])
- │  ├─ area: AreaPowerLaw(γ = 0.2285f0 [μm^(2-σ)], σ = 1.88f0 [-])
- │  ├─ slope: SlopePowerLaw(a = 0.00191f0 [m^b], b = 0.8f0 [-], c = 2.0f0 [-], μ_max = 6.0f0 [-])
- │  ├─ vent: VentilationFactor(aᵥ = 0.78f0 [-], bᵥ = 0.308f0 [-])
- │  ├─ ρ_rim_local: LocalRimeDensity(a = 51.0f0 [-], b = 114.0f0 [-], c = -5.5f0 [-], ρ_ice = 916.7f0 [kg m⁻³])
- │  ├─ τ_wet = 100.0 [s]
- │  ├─ ρ_i = 916.7 [kg m⁻³]
- │  ├─ ρ_l = 1000.0 [kg m⁻³]
- │  └─ T_freeze = 273.15 [K]
- ├─ L_ice = 0.3
- ├─ N_ice = 1.0e6
- ├─ F_rim = 0.5
- └─ ρ_rim = 916.7
- ```
+The returned state caches `thresholds = (; D_th, D_gr, D_cr, ρ_g)` —
+computed once via [`get_thresholds_ρ_g`](@ref)
 """
 function get_state(params::CMP.ParametersP3; L_ice, N_ice, F_rim, ρ_rim)
-    # rime mass fraction must always be non-negative ...
-    # ... and there must always be some unrimed part
-    0 ≤ F_rim < 1 || throw(DomainError(F_rim, "Rime mass fraction, F_rim, must be 0 ≤ F_rim < 1"))
-    # rime density must be positive ...
-    # ... and as a bulk ice density can't exceed the density of water
-    0 ≤ ρ_rim ≤ params.ρ_l || throw(DomainError(ρ_rim, "Rime density, ρ_rim, must be 0 ≤ ρ_rim ≤ ρ_l"))
+    # Rime mass fraction must always be non-negative AND strictly < 1
+    # (fully-rimed ice would leave no unrimed part).
+    0 ≤ F_rim < 1 || throw(DomainError(F_rim,
+        "Rime mass fraction, `F_rim`, must be between 0 and 1"))
+    # Rime density must be non-negative; as a bulk ice density it cannot
+    # exceed the density of liquid water `ρ_l`.
+    0 ≤ ρ_rim ≤ params.ρ_l || throw(DomainError(ρ_rim,
+        "Rime density, `ρ_rim`, must be between 0 and ρ_l"))
     return P3State(; params, L_ice, N_ice, F_rim, ρ_rim)
+end
+
+"""
+    get_state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+
+Construct a [`P3State`](@ref) from the prognostic ice variables directly,
+computing the (clamped, regularised) rime mass fraction and rime density.
+
+
+The regularised ratios come from [`Utilities.rime_mass_fraction`](@ref) and
+[`Utilities.rime_density`](@ref), which smoothly go to zero when their
+denominators are near machine precision — avoiding the hard discontinuity
+at `q_ice = ϵ` / `b_rim = ϵ`. The upper clamps `F_rim < 1 − ε` and
+`ρ_rim ≤ 0.8·ρ_l ≈ 730 kg/m³` keep the result inside the domain of validity of
+[`get_thresholds_ρ_g`](@ref).
+
+!!! note "TODO — revisit the `ρ_rim ≤ 0.8·ρ_l` cap"
+    The validated constructor [`get_state`](@ref) allows `ρ_rim ≤ ρ_l`.
+    We use the tighter `0.8·ρ_l` here because the closed-form graupel
+    density `ρ_g = F_rim·ρ_rim + (1−F_rim)·ρ_d` can mathematically exceed
+    `ρ_l` — `ρ_d` (the unrimed portion's density, [`get_ρ_d`](@ref)) is
+    linear in `ρ_rim` with no built-in upper clamp, so feeding `ρ_rim`
+    near `ρ_l` can produce `ρ_g > ρ_l`. That breaks the threshold
+    ordering `D_th < D_gr < D_cr` that the P3 partitioning assumes
+    (`D_gr ∝ (6α_va/(π·ρ_g))^{1/(3−β_va)}` shrinks as `ρ_g` grows;
+    eventually `D_gr < D_th`). The 0.8 cushion keeps `ρ_g` comfortably
+    below `ρ_l` for the realistic `(F_rim, ρ_rim)` regime — Macklin-type
+    rime-density formulations rarely give `ρ_rim > 700 kg/m³` anyway,
+    so the cushion costs us nothing physically. To lift the cap to
+    `ρ_l` we'd need to (i) explicitly bound `ρ_g` (e.g. `min(ρ_g, ρ_l)`)
+    or rederive `ρ_d` so it's monotone-bounded by `ρ_l`, and
+    (ii) accept that bulk rime densities 800–917 kg/m³ are off the
+    calibration domain of the original P3 fit.
+
+# Arguments
+- `params`: [`CMP.ParametersP3`](@ref)
+- `ρq_ice`: ice mass concentration [kg/m³]
+- `ρn_ice`: ice number concentration [1/m³]
+- `ρq_rim`: rime mass concentration [kg/m³]
+- `ρb_rim`: rime volume concentration [m³/m³]
+"""
+function get_state_from_prognostic(params::CMP.ParametersP3, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    FT = typeof(ρq_ice)
+    F_rim = min(UT.rime_mass_fraction(ρq_rim, ρq_ice), one(FT) - eps(FT))
+    ρ_rim = min(UT.rime_density(ρq_rim, ρb_rim),       FT(0.8) * params.ρ_l)
+    return P3State(params, ρq_ice, ρn_ice, F_rim, ρ_rim)
 end
 
 Base.eltype(::P3State{FT}) where {FT} = FT
@@ -173,8 +217,14 @@ where for the different thresholds, `ρ` is:
 # Arguments
 - `params`: [`CMP.MassPowerLaw`](@ref) parameters
 - `ρ`: (ice/graupel) density [kg/m³]
+
+!!! note
+    In the case where `ρ` is negative or zero, it is regularised to 1 kg/m³
+    before the threshold is computed. This avoids taking a fractional power
+    of a negative base, while remaining physically meaningful.
 """
-_get_threshold((; α_va, β_va)::CMP.MassPowerLaw, ρ) = (6α_va / (π * ρ))^(1 / (3 - β_va))
+_get_threshold((; α_va, β_va)::CMP.MassPowerLaw, ρ) =
+    (6α_va / (π * max(ρ, 1)))^(1 / (3 - β_va))
 
 """
     get_D_th(mass::MassPowerLaw, ρ_i)
@@ -215,10 +265,7 @@ get_D_cr(mass::CMP.MassPowerLaw, F_rim, ρ_g) = _get_threshold(mass, ρ_g * (1 -
 
 See [`get_D_th`](@ref), [`get_D_gr`](@ref), [`get_D_cr`](@ref), and [`get_ρ_g`](@ref) for more details.
 """
-function get_thresholds_ρ_g(state::P3State)
-    (; params, F_rim, ρ_rim) = state
-    return get_thresholds_ρ_g(params, F_rim, ρ_rim)
-end
+get_thresholds_ρ_g(state::P3State) = state.thresholds
 function get_thresholds_ρ_g(params::CMP.ParametersP3, F_rim, ρ_rim)
     FT = eltype(F_rim)
     (; mass, ρ_i) = params
@@ -272,9 +319,7 @@ Return the weighted average of `a` and `b` with fraction `f_a`,
 f_a ⋅ a + (1 - f_a) ⋅ b
 ```
 """
-function weighted_average(f_a, a, b)
-    return f_a * a + (1 - f_a) * b
-end
+weighted_average(f_a, a, b) = f_a * a + (1 - f_a) * b
 
 """
     ice_mass_coeffs(state::P3State, D)
@@ -290,16 +335,16 @@ Return the coefficients for the ice mass power law at diameter `D`.
 # Returns
  - `(a, b)`: coefficients for the ice mass power law, `a D^b`
 """
-ice_mass_coeffs((; params, F_rim, ρ_rim)::P3State, D) = ice_mass_coeffs(params, F_rim, ρ_rim, D)
-function ice_mass_coeffs(params::CMP.ParametersP3, F_rim, ρ_rim, D)
-    FT = eltype(params)
-    (; D_th, D_gr, D_cr, ρ_g) = get_thresholds_ρ_g(params, F_rim, ρ_rim)
+function ice_mass_coeffs(state::P3State, D)
+    (; params, F_rim, ρ_rim) = state
+    FT = eltype(D)
+    (; D_th, D_gr, D_cr, ρ_g) = get_thresholds_ρ_g(state)
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
 
     return if D < D_th       # small spherical ice
         (ρ_i * π / 6, FT(3))
-    elseif iszero(F_rim)  # large nonspherical unrimed ice
+    elseif iszero(F_rim)     # large nonspherical unrimed ice
         (α_va, β_va)
     elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
         (α_va, β_va)
@@ -309,6 +354,8 @@ function ice_mass_coeffs(params::CMP.ParametersP3, F_rim, ρ_rim, D)
         (α_va / (1 - F_rim), β_va)
     end
 end
+ice_mass_coeffs(params::CMP.ParametersP3, F_rim, ρ_rim, D) =
+    ice_mass_coeffs(P3State(params, zero(F_rim), zero(F_rim), F_rim, ρ_rim), D)
 
 """
     ice_mass(state, D)
@@ -321,11 +368,12 @@ Return the mass of a particle based on where it falls in the particle-size-based
  - `params, F_rim, ρ_rim`: The [`CMP.ParametersP3`](@ref), rime mass fraction, and rime density,
  - `D`: maximum particle dimension [m]
 """
-ice_mass((; params, F_rim, ρ_rim)::P3State, D) = ice_mass(params, F_rim, ρ_rim, D)
-function ice_mass(params::CMP.ParametersP3, F_rim, ρ_rim, D)
-    (a, b) = ice_mass_coeffs(params, F_rim, ρ_rim, D)
+function ice_mass(state::P3State, D)
+    (a, b) = ice_mass_coeffs(state, D)
     return a * D^b
 end
+ice_mass(params::CMP.ParametersP3, F_rim, ρ_rim, D) =
+    ice_mass(P3State(params, zero(F_rim), zero(F_rim), F_rim, ρ_rim), D)
 
 """
     ice_density(state::P3State, D)
@@ -343,16 +391,16 @@ Return the density of a particle at diameter D
  by the volume of a sphere with the same D [MorrisonMilbrandt2015](@cite).
  Needed for aspect ratio calculation, so we assume zero liquid fraction.
 """
-ice_density((; params, F_rim, ρ_rim)::P3State, D) = ice_density(params, F_rim, ρ_rim, D)
-function ice_density(params::CMP.ParametersP3, F_rim, ρ_rim, D)
-    return ice_mass(params, F_rim, ρ_rim, D) / CO.volume_sphere_D(D)
-end
+ice_density(state::P3State, D) = ice_mass(state, D) / CO.volume_sphere_D(D)
+ice_density(params::CMP.ParametersP3, F_rim, ρ_rim, D) =
+    ice_density(P3State(params, zero(F_rim), zero(F_rim), F_rim, ρ_rim), D)
 
-get_∂mass_∂D_coeffs((; params, F_rim, ρ_rim)::P3State, D) = get_∂mass_∂D_coeffs(params, F_rim, ρ_rim, D)
-function get_∂mass_∂D_coeffs(params::CMP.ParametersP3, F_rim, ρ_rim, D)
-    (a, b) = ice_mass_coeffs(params, F_rim, ρ_rim, D)
+function get_∂mass_∂D_coeffs(state::P3State, D)
+    (a, b) = ice_mass_coeffs(state, D)
     return a * b, b - 1
 end
+get_∂mass_∂D_coeffs(params::CMP.ParametersP3, F_rim, ρ_rim, D) =
+    get_∂mass_∂D_coeffs(P3State(params, zero(F_rim), zero(F_rim), F_rim, ρ_rim), D)
 
 """
     ∂ice_mass_∂D(state::P3State, D)
@@ -360,11 +408,12 @@ end
 
 Return the derivative of the ice mass with respect to the particle diameter.
 """
-∂ice_mass_∂D((; params, F_rim, ρ_rim)::P3State, D) = ∂ice_mass_∂D(params, F_rim, ρ_rim, D)
-function ∂ice_mass_∂D(params::CMP.ParametersP3, F_rim, ρ_rim, D)
-    (a, b) = get_∂mass_∂D_coeffs(params, F_rim, ρ_rim, D)
+function ∂ice_mass_∂D(state::P3State, D)
+    (a, b) = get_∂mass_∂D_coeffs(state, D)
     return a * D^b
 end
+∂ice_mass_∂D(params::CMP.ParametersP3, F_rim, ρ_rim, D) =
+    ∂ice_mass_∂D(P3State(params, zero(F_rim), zero(F_rim), F_rim, ρ_rim), D)
 
 """
     ice_area(state::P3State, D)
@@ -378,15 +427,15 @@ Return the cross-sectional area of a particle based on where it falls in the
  - `params, F_rim, ρ_rim`: The [`CMP.ParametersP3`](@ref), rime mass fraction, and rime density,
  - `D`: maximum particle dimension [m]
 """
-ice_area((; params, F_rim, ρ_rim)::P3State, D) = ice_area(params, F_rim, ρ_rim, D)
-function ice_area(params::CMP.ParametersP3, F_rim, ρ_rim, D)
-    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(params, F_rim, ρ_rim)
+function ice_area(state::P3State, D)
+    (; params, F_rim, ρ_rim) = state
+    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
     (; γ, σ) = params.area
     spherical_area(D) = D^2 * π / 4
     nonspherical_area(D) = γ * D^σ
     return if D < D_th       # small spherical ice
         spherical_area(D)
-    elseif iszero(F_rim)  # large nonspherical unrimed ice
+    elseif iszero(F_rim)     # large nonspherical unrimed ice
         nonspherical_area(D)
     elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
         nonspherical_area(D)
@@ -396,6 +445,8 @@ function ice_area(params::CMP.ParametersP3, F_rim, ρ_rim, D)
         weighted_average(F_rim, spherical_area(D), nonspherical_area(D))
     end
 end
+ice_area(params::CMP.ParametersP3, F_rim, ρ_rim, D) =
+    ice_area(P3State(params, zero(F_rim), zero(F_rim), F_rim, ρ_rim), D)
 
 """
     ϕᵢ(state::P3State, D)
@@ -413,12 +464,14 @@ Returns the aspect ratio (ϕ) for an ice particle
  divided by the volume of a spherical particle with the same D_max [MorrisonMilbrandt2015](@cite).
  Assuming zero liquid fraction and oblate shape.
 """
-ϕᵢ((; params, F_rim, ρ_rim)::P3State, D) = ϕᵢ(params, F_rim, ρ_rim, D)
-function ϕᵢ(params::CMP.ParametersP3, F_rim, ρ_rim, D)
+function ϕᵢ(state::P3State, D)
     FT = eltype(D)
-    mᵢ = ice_mass(params, F_rim, ρ_rim, D)
-    aᵢ = ice_area(params, F_rim, ρ_rim, D)
-    ρᵢ = ice_density(params, F_rim, ρ_rim, D)
+    # Reuse the mass-regime `(a, b)` coefficients for both mᵢ and ρᵢ so we
+    # only compute `a * D^b` once per call.
+    (a, b) = ice_mass_coeffs(state, D)
+    mᵢ = a * D^b
+    aᵢ = ice_area(state, D)
+    ρᵢ = mᵢ / CO.volume_sphere_D(D)
 
     # TODO - prolate or oblate?
     ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
@@ -426,3 +479,5 @@ function ϕᵢ(params::CMP.ParametersP3, F_rim, ρ_rim, D)
 
     return ifelse(D == 0, FT(0), ϕ_ob)
 end
+ϕᵢ(params::CMP.ParametersP3, F_rim, ρ_rim, D) =
+    ϕᵢ(P3State(params, zero(F_rim), zero(F_rim), F_rim, ρ_rim), D)

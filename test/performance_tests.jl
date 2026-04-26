@@ -166,7 +166,7 @@ function benchmark_test(FT)
     state = P3.get_state(params_P3; L_ice, N_ice, F_rim, ρ_rim)
     logλ = P3.get_distribution_logλ(state)
     bench_press(
-        P3.P3State{FT, CMP.ParametersP3{FT, CMP.SlopePowerLaw{FT}}},
+        P3.P3State,
         (params, L_ice, N_ice, F_rim, ρ_rim) -> P3.get_state(params; L_ice, N_ice, F_rim, ρ_rim),
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
         25,

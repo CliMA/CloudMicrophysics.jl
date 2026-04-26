@@ -25,11 +25,14 @@ function test_p3_state_creation(FT)
         state_rimed = P3.get_state(params; F_rim, ρ_rim, L_ice, N_ice)
         @test !P3.isunrimed(state_rimed)
 
-        # Test thresholds for unrimed state
+        # Test thresholds for unrimed state. Per the docstring on
+        # `get_thresholds_ρ_g`, unrimed ice has no graupel → `D_gr = D_cr = Inf`
+        # (the "always before graupel regime" sentinel) and `ρ_g = NaN`
+        # (should not be used by callers).
         (; D_th, D_gr, D_cr) = P3.get_thresholds_ρ_g(state_unrimed)
         @test isfinite(D_th)
-        @test isnan(D_gr)
-        @test isnan(D_cr)
+        @test D_gr == Inf
+        @test D_cr == Inf
 
         # Test thresholds for rimed state
         (; D_th, D_gr, D_cr) = P3.get_thresholds_ρ_g(state_rimed)
@@ -218,6 +221,38 @@ function test_shape_solver(FT)
                                 @test logλ ≈ logλ_ex rtol = ep
                                 @test log_N₀ ≈ logN₀_ex rtol = ep
                             end
+                        end
+                    end
+                end
+            end
+        end
+
+        @testset "Shape solver - robustness across physical inputs" begin
+            params = CMP.ParametersP3(FT)
+
+            # Regression test: this specific `(L_ice, N_ice, F_rim, ρ_rim)`
+            # triggered a NaN return under the previous `SecantMethod`-based
+            # solver because a secant step extrapolated outside the search
+            # interval into a region where `logLdivN` is not finite. The
+            # bracketing `BrentsMethod` must return a finite, positive
+            # `logλ` strictly inside the search bounds.
+            logλ = P3.get_distribution_logλ(
+                params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800),
+            )
+            @test isfinite(logλ)
+            @test FT(2) < logλ < FT(17)
+
+            # Broader sweep covering typical P3 microphysics inputs.
+            # All entries must give a finite `logλ` within the search bounds.
+            for L_ice in (FT(1e-6), FT(1e-5), FT(2.366e-5), FT(1e-4), FT(1e-3))
+                for N_ice in (FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))
+                    for F_rim in (FT(0), FT(0.2), FT(0.5), FT(0.8), FT(0.95))
+                        for ρ_rim in (FT(200), FT(400), FT(600), FT(800))
+                            logλ = P3.get_distribution_logλ(
+                                params, L_ice, N_ice, F_rim, ρ_rim,
+                            )
+                            @test isfinite(logλ)
+                            @test FT(2) ≤ logλ ≤ FT(17)
                         end
                     end
                 end

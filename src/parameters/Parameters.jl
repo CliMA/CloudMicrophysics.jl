@@ -45,6 +45,7 @@ include("Microphysics2M.jl")
 include("MicrophysicsP3.jl")
 # Terminal velocity parameters  (can be used with different microph. schemes)
 include("TerminalVelocity.jl")
+include("ActivationSchemes.jl")
 
 # Unified parameter containers
 include("Microphysics0MParams.jl")

@@ -403,7 +403,8 @@ end
     p3_params, output, L_ice, N_ice, F_rim, ρ_rim,
 )
     i = @index(Global, Linear)
-    output[i] = P3.get_distribution_logλ(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
+    state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
+    output[i] = P3.get_distribution_logλ(state)
 end
 
 @kernel inbounds = true function test_P3_ice_self_collection_kernel!(

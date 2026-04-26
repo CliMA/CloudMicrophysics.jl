@@ -33,6 +33,7 @@ import ..Microphysics2M as CM2
 import ..MicrophysicsNonEq as CMNonEq
 import ..P3Scheme as CMP3
 import ..HetIceNucleation as CM_HetIce
+import ..AerosolActivation as CMAA
 import ...ThermodynamicsInterface as TDI
 import ..Common as CO
 
@@ -43,7 +44,9 @@ export MicrophysicsScheme,
     bulk_microphysics_tendencies,
     average_bulk_microphysics_tendencies,
     bulk_microphysics_derivatives,
-    bulk_microphysics_cloud_derivatives
+    bulk_microphysics_cloud_derivatives,
+    activation_source,
+    repair_ice_state
 
 #####
 ##### Singleton types for dispatch
@@ -98,6 +101,121 @@ Returns 0 if T ≤ T_freeze.
     # Branchless: return 0 when cold
     is_cold = (T <= sno.T_freeze)
     return ifelse(is_cold, zero(T), cv_l / L_f * ΔT)
+end
+
+# --- Aerosol activation schemes (dispatch on AbstractActivationScheme) ---
+
+"""
+    activation_source(scheme::AbstractActivationScheme, tps, ρ, T, q_tot,
+                      q_lcl, q_ice, n_lcl, w, p)
+
+Return the cloud-droplet number source `dn_lcl_activation_dt`
+[kg⁻¹ air / s] implied by `scheme` at the given local state.
+
+All arguments are passed by value so the function is pure and suitable
+for both broadcast and GPU kernels. Inputs that are not needed by a
+particular scheme (e.g. `p` for `DiagnosticNc`) are simply ignored.
+
+# Arguments
+- `scheme`: activation scheme; dispatch target.
+- `tps`: thermodynamics parameters (for supersaturation computations).
+- `ρ`: air density [kg/m³].
+- `T`: air temperature [K].
+- `q_tot`: total water specific content [kg/kg].
+- `q_lcl`: cloud liquid specific content [kg/kg].
+- `q_ice`: ice specific content [kg/kg] (for supersaturation).
+- `n_lcl`: current cloud-droplet number per mass of air [kg⁻¹].
+- `w`: vertical velocity [m/s] (0 when unused).
+- `p`: air pressure [Pa] (0 when unused).
+"""
+@inline function activation_source(::CMP.NoActivation, tps, ρ, T, q_tot,
+        q_lcl, q_ice, n_lcl, w, p)
+    return zero(n_lcl)
+end
+
+@inline function activation_source(
+        scheme::CMP.DiagnosticNc, tps, ρ, T, q_tot, q_lcl, q_ice, n_lcl, w, p,
+)
+    FT = typeof(n_lcl)
+    target = ifelse(q_lcl > FT(scheme.q_thresh), FT(scheme.N_c), zero(FT))
+    return (target - n_lcl) / FT(scheme.τ_relax)
+end
+
+@inline function activation_source(
+        scheme::CMP.TwomeyActivation, tps, ρ, T, q_tot, q_lcl, q_ice, n_lcl, w, p,
+)
+    FT = typeof(n_lcl)
+    # Twomey: N_CCN = C * S^k whenever w > w_min and cloud is present.
+    gate_open = (q_lcl > FT(scheme.q_thresh)) & (w > FT(scheme.w_min))
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl, q_ice, ρ, T)
+    # Supersaturation can be negative in subsaturated cells; guard before `S^k`
+    S_pos = max(zero(FT), S)
+    target = ifelse(gate_open, FT(scheme.C) * S_pos^FT(scheme.k), zero(FT))
+    return (target - n_lcl) / FT(scheme.τ_relax)
+end
+
+@inline function activation_source(
+        scheme::CMP.FixedARGActivation, tps, ρ, T, q_tot, q_lcl, q_ice, n_lcl, w, p,
+)
+    FT = typeof(n_lcl)
+    # Early exit for inadmissible ARG inputs (the kernel uses sqrt(α·w/G) and
+    # assumes p > 0). A zero source is returned rather than throwing so the
+    # BMT call remains pure even in evaporating / descending cells.
+    q_gate = q_lcl > FT(scheme.q_thresh)
+    if !q_gate || w <= zero(FT) || p <= zero(FT) || !isfinite(T) || !isfinite(p)
+        return zero(FT)
+    end
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl, q_ice, ρ, T)
+    if S <= zero(FT)
+        return zero(FT)
+    end
+    # AerosolActivation uses AirProperties from the scheme owner; the closure
+    # parameters already carry one. `CMAA.total_N_activated` returns #/m³, so
+    # convert to per-mass of air by dividing by ρ before relaxing.
+    # The ARG kernel signature expects `N_liq` as a per-volume quantity.
+    N_liq = n_lcl * ρ
+    # Air properties live on the aerosol-activation parameters only via the
+    # separate `air_properties` object; to keep the scheme self-contained we
+    # recompute them from `tps` via the existing ARG helper API. The scheme
+    # must therefore carry an `air_properties` field in `act_params`'s owner;
+    # since `AerosolActivationParameters` already contains the required
+    # constants, we pass `tps`'s air block implicitly by calling the
+    # 4-argument ARG variant.
+    #
+    # The 12-arg dispatch in AerosolActivation requires an `AirProperties`
+    # parameter. Users that want ARG must therefore provide an `act_params`
+    # struct that already embeds it, or call via the high-level helper
+    # (not exposed here). For BMT we require the caller to pass an
+    # `AerosolActivationParameters` struct that is complete, and fetch
+    # `AirProperties` from the scheme's stored `distribution` via the
+    # enclosing microphysics parameters.  See `FixedARGActivation` docstring.
+    #
+    # Pragmatically: we inline just enough of the ARG logic to return N_act.
+    # Compute max-supersaturation with a default AirProperties provided by
+    # the activation parameters' parent, relayed through a helper method.
+    return _fixed_arg_relax(scheme, tps, ρ, T, p, w, q_tot, q_lcl, q_ice, n_lcl)
+end
+
+@inline function _fixed_arg_relax(
+        scheme::CMP.FixedARGActivation, tps, ρ, T, p, w, q_tot, q_lcl, q_ice, n_lcl,
+)
+    FT = typeof(n_lcl)
+    # Use CMAA.total_N_activated with the scheme's stored `act_params`,
+    # `air_properties`, and `distribution`. Any DomainError raised by the
+    # kernel (sqrt of negative, etc.) is treated as "kernel cannot apply"
+    # → no activation this step.
+    try
+        N_act = CMAA.total_N_activated(
+            scheme.act_params, scheme.distribution,
+            scheme.air_properties, tps,
+            T, p, w, q_tot, q_lcl, q_ice, n_lcl * ρ, FT(0),
+        ) / ρ
+        return ifelse(!isfinite(N_act) || N_act <= n_lcl,
+            zero(FT),
+            (N_act - n_lcl) / FT(scheme.τ_relax))
+    catch
+        return zero(FT)
+    end
 end
 
 # --- 1-Moment Microphysics ---
@@ -958,7 +1076,10 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
 - `dn_lcl_dt`: Cloud number tendency (1/kg/s)
 - `dn_rai_dt`: Rain number tendency (1/kg/s)
 """
-@inline function warm_rain_tendencies_2m(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+@inline function warm_rain_tendencies_2m(
+    warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai,
+    w = zero(ρ), p = zero(ρ),
+)
 
     # Unpack parameters
     sb = warm_rain.seifert_beheng
@@ -975,6 +1096,21 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dq_rai_dt = zero(FT)
     dn_lcl_dt = zero(FT)
     dn_rai_dt = zero(FT)
+
+    # --- Aerosol activation (scheme is in `warm_rain.activation_scheme`) ---
+    # Naturally belongs here: activation is a warm-rain droplet source. The
+    # scheme produces only a number tendency; mass is sourced from MM2015
+    # condensation in the next block (cloud droplet starter mass is small
+    # enough that the rate is dominated by the depositional growth term).
+    # `w`, `p` are the per-cell ambient state inputs that w/p-dependent
+    # schemes (Twomey, FixedARG) need; positional so the call site can use
+    # `@.` broadcast over ClimaCore Fields. Schemes that don't need them
+    # (DiagnosticNc, NoActivation) ignore the values, so the `zero(ρ)`
+    # defaults are safe for the diagnostic-Nc / no-activation cases.
+    dn_lcl_activation_dt = activation_source(
+        warm_rain.activation_scheme, tps, ρ, T, q_tot, q_lcl, q_ice, n_lcl, w, p,
+    )
+    dn_lcl_dt += dn_lcl_activation_dt
 
     # --- Condensation of vapor / evaporation of cloud liquid water ---
     ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(condevap, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T)
@@ -1021,55 +1157,8 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     ∂ₜn_rai_numadj = CM2.number_tendency_from_mass_limits(numadj_rai, q_rai, n_rai)
     dn_rai_dt += ∂ₜn_rai_numadj
 
-    return (; dq_lcl_dt, dq_rai_dt, dn_lcl_dt, dn_rai_dt)
+    return (; dq_lcl_dt, dq_rai_dt, dn_lcl_dt, dn_rai_dt, dn_lcl_activation_dt)
 end
-
-
-# @inline function _warm_rain_tendencies_2m(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
-
-#     # Unpack parameters
-#     sb = warm_rain.seifert_beheng
-#     aps = warm_rain.air_properties
-#     condevap = warm_rain.condevap
-
-#     # --- Condensation of vapor / evaporation of cloud liquid water ---
-#     cond = (; ∂ₜq_lcl = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(condevap, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T))
-#     # --- Evaporation of rain ---
-#     rai_evap = CM2.rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, ρ * n_rai, T)
-#     # --- Autoconversion ---
-#     acnv = CM2.autoconversion(sb.acnv, sb.pdf_c, q_lcl, q_rai, ρ, ρ * n_lcl)
-#     # --- Cloud liquid self-collection ---
-#     ∂ₜn_lcl_sc = CM2.cloud_liquid_self_collection(sb.acnv, sb.pdf_c, q_lcl, ρ, acnv.dN_lcl_dt) / ρ
-#     # --- Accretion ---
-#     accr = CM2.accretion(sb, q_lcl, q_rai, ρ, ρ * n_lcl)
-#     # --- Rain self-collection ---
-#     ∂ₜn_rai_sc = CM2.rain_self_collection(sb.pdf_r, sb.self, q_rai, ρ, ρ * n_rai) / ρ
-#     # --- Rain breakup ---
-#     ∂ₜn_rai_br = CM2.rain_breakup(sb.pdf_r, sb.brek, q_rai, ρ, ρ * n_rai, ρ * ∂ₜn_rai_sc) / ρ
-#     # --- Number adjustment for mass limits ---
-#     # Cloud liquid
-#     numadj_lcl = (; sb.numadj.τ, x_min = sb.pdf_c.xc_min, x_max = sb.pdf_c.xc_max)
-#     ∂ₜn_lcl_numadj = CM2.number_tendency_from_mass_limits(numadj_lcl, q_lcl, n_lcl)
-#     # Rain
-#     numadj_rai = (; sb.numadj.τ, x_min = sb.pdf_r.xr_min, x_max = sb.pdf_r.xr_max)
-#     ∂ₜn_rai_numadj = CM2.number_tendency_from_mass_limits(numadj_rai, q_rai, n_rai)
-
-#     return (; cond, rai_evap, acnv, ∂ₜn_lcl_sc, accr, ∂ₜn_rai_sc, ∂ₜn_rai_br, ∂ₜn_lcl_numadj, ∂ₜn_rai_numadj)
-# end
-
-# @inline function warm_rain_tendencies_2m_new(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
-
-#     (; cond, rai_evap, acnv, ∂ₜn_lcl_sc, accr, ∂ₜn_rai_sc, ∂ₜn_rai_br, ∂ₜn_lcl_numadj, ∂ₜn_rai_numadj) = 
-#         _warm_rain_tendencies_2m(warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
-
-#     dq_lcl_dt = cond.∂ₜq_lcl + acnv.dq_lcl_dt + accr.dq_lcl_dt
-#     dq_rai_dt = rai_evap.∂ₜq_rai + acnv.dq_rai_dt + accr.dq_rai_dt
-#     dn_lcl_dt = ∂ₜn_lcl_sc + (acnv.dN_lcl_dt + accr.dN_lcl_dt) / ρ + ∂ₜn_lcl_numadj
-#     dn_rai_dt = ∂ₜn_rai_sc + (rai_evap.∂ₜρn_rai + acnv.dN_rai_dt) / ρ + ∂ₜn_rai_s + ∂ₜn_rai_b + ∂ₜn_rai_numadj
-
-#     return (; dq_lcl_dt, dq_rai_dt, dn_lcl_dt, dn_rai_dt)
-# end
-
 
 # --- 2-Moment Microphysics (Unified Warm + Optional Ice) ---
 
@@ -1111,6 +1200,8 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, Nothing}, tps,
     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
+    inpc_log_shift = zero(ρ),
+    w = zero(ρ), p = zero(ρ),
 ) where {WR}
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
@@ -1129,14 +1220,18 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     dq_rim_dt = zero(ρ)
     db_rim_dt = zero(ρ)
 
-    # --- Core Warm Rain Processes (shared helper) ---
-    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+    # --- Core Warm Rain Processes (shared helper, includes activation) ---
+    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai,
+                                   w, p)
     dq_lcl_dt = warm.dq_lcl_dt
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
     dn_rai_dt = warm.dn_rai_dt
+    dn_lcl_activation_dt = warm.dn_lcl_activation_dt
 
-    return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt, dq_ice_dt, dq_rim_dt, db_rim_dt)
+    return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+              dq_ice_dt, dq_rim_dt, db_rim_dt,
+              dn_lcl_activation_dt)
 end
 
 """
@@ -1186,6 +1281,8 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai,
     q_ice, n_ice, q_rim, b_rim, logλ,
+    inpc_log_shift = zero(ρ),
+    w = zero(ρ), p = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = eltype(ρ)
     ϵₘ = UT.ϵ_numerics_2M_M(FT)
@@ -1212,10 +1309,13 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     N_ice = n_ice * ρ  # [1 / m³ air]
     L_rim = q_rim * ρ  # [kg rim / m³ air]
     B_rim = b_rim * ρ  # [m³ rim / m³ air]
-    # Compute rime fraction and density
-    F_rim = ifelse(q_ice > ϵₘ, q_rim / q_ice, zero(L_rim))
-    ρ_rim = ifelse(b_rim > ϵB, q_rim / b_rim, zero(L_rim))  # [kg rim / m³ rim]
-    state = CMP3.P3State(mp.ice.scheme, L_ice, N_ice, F_rim, ρ_rim)
+
+    # P3State construction handles the F_rim/ρ_rim regularisation and
+    # domain clamps internally — see `get_state_from_prognostic`. The
+    # regularised ratios (`UT.rime_mass_fraction`, `UT.rime_density`) used
+    # there smoothly blend to zero as their denominators shrink, avoiding
+    # the hard discontinuity at `q_ice = ϵ` / `b_rim = ϵ`.
+    state = CMP3.get_state_from_prognostic(mp.ice.scheme, L_ice, N_ice, L_rim, B_rim)
 
     # Unpack warm rain parameters
     aps = mp.warm_rain.air_properties
@@ -1227,12 +1327,24 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dq_rim_dt = zero(ρ)
     db_rim_dt = zero(ρ)
 
-    # --- Core Warm Rain Processes ---
-    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai)
+    # --- Core Warm Rain Processes (includes activation, see warm_rain_tendencies_2m) ---
+    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai,
+                                   w, p)
     dq_lcl_dt = warm.dq_lcl_dt
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
     dn_rai_dt = warm.dn_rai_dt
+    dn_lcl_activation_dt = warm.dn_lcl_activation_dt
+    # NOTE on latent-heat coupling: per-process phase-change rates
+    # (`S_cond`, `S_dep`, `S_frz_net`) are no longer returned. Hosts that
+    # need a combined LH rate can compute it from the prognostic mass
+    # tendencies via the identity
+    #   ḣ_lh = Lv(T) · (dq_lcl/dt + dq_rai/dt) + Ls(T) · dq_ice/dt
+    # which holds because Ls = Lv + Lf (sublimation = vaporisation +
+    # fusion) makes the L_f · S_frz term cancel when expressed in
+    # species coordinates. This keeps BMT dt-agnostic and the host's LH
+    # rate self-consistent with whatever clipping the host applies to
+    # the species tendencies.
 
     # --- P3 Ice Processes ---
     p3 = mp.ice.scheme
@@ -1241,13 +1353,15 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     pdf_r = mp.ice.rain_pdf
     ice_nucleation = mp.ice.ice_nucleation
 
+    quad = CMP3.ChebyshevGauss(mp.ice.quadrature_order)
 
     # Only compute ice processes if there is ice mass/number present
     if q_ice > ϵₘ && n_ice > ϵₙ
 
         # --- Liquid-ice collisions ---
         coll = CMP3.bulk_liquid_ice_collision_sources(
-            state, logλ, pdf_c, pdf_r, L_lcl, N_lcl, L_rai, N_rai, aps, tps, vel, ρ, T,
+            state, logλ, pdf_c, pdf_r, L_lcl, N_lcl, L_rai, N_rai, aps, tps, vel, ρ, T;
+            quad,
         )
         dq_lcl_dt += coll.∂ₜq_c
         dq_rai_dt += coll.∂ₜq_r
@@ -1258,13 +1372,13 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         db_rim_dt += coll.∂ₜB_rim / ρ
 
         # --- Ice self-collection (aggregation) ---
-        S_ice_agg = CMP3.ice_self_collection(state, logλ, aps, tps, vel, ρ, T)
+        S_ice_agg = CMP3.ice_self_collection(state, logλ, aps, tps, vel, ρ, T; quad)
         dn_ice_dt -= S_ice_agg.dNdt / ρ
 
         # Ice melting (above freezing temperature)
         T_freeze = TDI.TD.Parameters.T_freeze(tps)
         melt = ifelse(T > T_freeze,
-            CMP3.ice_melt(vel, aps, tps, T, ρ, state, logλ),
+            CMP3.ice_melt(vel, aps, tps, T, ρ, state, logλ; quad),
             (; dNdt = zero(ρ), dLdt = zero(ρ))
         )
         # Melting converts ice to rain
@@ -1290,21 +1404,86 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     # nucleation pathways explicitly.
 
     # --- Ice Nucleation (empirical) ---
-    # Assume mass loss is mean condensate mass
-    m_lcl = ifelse(n_lcl > ϵₙ, q_lcl / n_lcl, zero(q_lcl))  # mean liquid mass
-
-    # TODO: The parameterixation should return a rate, `∂N/∂t`, not number changes `ΔN`
-    inpc = CM_HetIce.INP_concentration_mean(ice_nucleation, T) / ρ  # [particles / kg air]
-    τ_nuc = FT(1)  # TODO: Make this a real tendency
-    ∂ₜn_nuc = max(0, (inpc - n_ice) / τ_nuc)  # [particles / kg air]
-    ∂ₜq_nuc = ∂ₜn_nuc * m_lcl  # [kg ice / kg air]
+    #
+    # Relaxation-style nucleation: nudge n_ice toward the Frostenberg 2023
+    # diagnostic INP concentration on a timescale τ_nuc. Newly nucleated
+    # crystals are assigned a fixed starter mass m_nuc corresponding to a
+    # D_nuc ~ 10 μm nascent crystal. Depositional growth downstream
+    # (MM2015) then carries these crystals to their equilibrium size
+    # under the local vapor excess.
+    #
+    # Previous implementation used τ_nuc = 1 s and m_nuc = q_lcl/n_lcl
+    # (the cloud-liquid mean particle mass). At KiD's prescribed
+    # N_d = 1e8/m³ the liquid mean mass is ~1e-11 kg; combined with the
+    # 1-s relaxation this saturated n_ice to the F23 target in one step
+    # but injected a tiny mass tendency, starving MM2015 deposition.
+    # Result on the Jouan 6-h baseline: IWP ~2e-4 kg/m², ~250x below
+    # observations.
+    #
+    # New design, Round 7:
+    # - τ_nuc = 300 s. F23-style bulk-ice adjustment timescales in the
+    #   literature are O(10^2–10^3 s); 300 s balances between the
+    #   original 1-s over-relaxation and the hand-roll's 600-s choice
+    #   (which produced too much ice on the Jouan column).
+    # - m_nuc = π/6 · ρ_i · D_nuc^3 with D_nuc = 10 μm, the small-D
+    #   tail of the P3 distribution (well below D_th ≈ 63 μm; represents
+    #   a fresh crystal that has survived initial growth from vapor and
+    #   is large enough to persist against sublimation). Gives
+    #   m_nuc ≈ 4.8e-13 kg. Trying D_nuc = 2 μm (m ≈ 3.8e-15 kg) on the
+    #   Jouan 6-h baseline still undershoots Jouan IWP by ~2 orders of
+    #   magnitude because N_ice ramps too slowly for MM2015 deposition
+    #   to lift mass within the sim window; 10 μm gets IWP into the
+    #   10x Jouan tolerance window.
+    # - Vapor-excess guard: cap ∂ₜq_nuc so the implied mass injection
+    #   cannot exceed half the local excess vapor over ice saturation
+    #   per τ_nuc. This prevents runaway nucleation when OU-SIF
+    #   shifts push INPC above physical vapor supply.
+    #
+    # `inpc_log_shift` allows a driver (e.g. KinematicDriver OU-SIF τ-scan)
+    # to add a scalar shift in log(INPC) space without modifying the
+    # Frostenberg2023 struct.
+    # TODO: The parameterization should return a rate, `∂N/∂t`, not a
+    # relaxation toward a diagnostic number concentration.
+    inpc = exp(CM_HetIce.INP_concentration_mean(ice_nucleation, T) + inpc_log_shift) / ρ  # [particles / kg air]
+    τ_nuc = FT(300)  # relaxation timescale for bulk heterogeneous ice nucleation [s]
+    # Starter crystal mass: π/6 · ρ_i · D_nuc^3 for D_nuc = 10 μm.
+    # This is the small-D tail of the P3 distribution rather than the
+    # very-first-crystal 1-2 μm size; it represents a fresh crystal that
+    # has already survived the initial growth from vapor and is now large
+    # enough to persist against sublimation. Using 10 μm (m_nuc ≈ 4.8e-13
+    # kg) produces IWP in the Jouan ballpark; using 1 μm undershoots by
+    # ~100x because N_ice stays tiny long enough that MM2015 deposition
+    # never catches up within the sim window.
+    D_nuc = FT(10e-6)
+    m_nuc = FT(π) / 6 * p3.ρ_i * D_nuc^3  # ≈ 4.8e-13 kg
+    ∂ₜn_nuc = max(0, (inpc - n_ice) / τ_nuc)  # [particles / kg air / s]
+    ∂ₜq_nuc_raw = ∂ₜn_nuc * m_nuc  # [kg ice / kg air / s]
+    # Vapor-excess guard: do not nucleate more mass via deposition pathway
+    # than half the local vapor excess over ice saturation can supply in
+    # one τ_nuc. This prevents the nucleation branch from writing itself
+    # into an unphysical state when OU-SIF shifts push INPC above the
+    # vapor supply, and leaves headroom for concurrent depositional
+    # growth of pre-existing crystals. When subsaturated wrt ice and no
+    # cloud liquid is available, no mass can be sourced, so ∂ₜq_nuc → 0
+    # but we still allow ∂ₜn_nuc to track the F23 diagnostic number (the
+    # implicit assumption is that those particles carry negligible mass
+    # until supersaturation develops).
+    q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    q_vap_local = TDI.q_vap(q_tot, q_lcl + q_rai, q_ice)
+    q_excess = max(zero(FT), q_vap_local - q_sat_ice)
+    ∂ₜq_vap_cap = FT(0.5) * q_excess / τ_nuc
+    ∂ₜq_nuc = min(∂ₜq_nuc_raw, ∂ₜq_vap_cap)
 
     dn_ice_dt += ∂ₜn_nuc
     dq_ice_dt += ∂ₜq_nuc
     dq_rim_dt += ∂ₜq_nuc
     db_rim_dt += ∂ₜq_nuc / p3.ρ_i  # ρ_i = 916.7 kg m⁻³, the density of solid bulk ice
-    dn_lcl_dt -= ∂ₜn_nuc
-    dq_lcl_dt -= ∂ₜq_nuc
+    # Nucleation mass is drawn from the vapor reservoir (deposition
+    # nucleation pathway), not from cloud liquid. This matches the
+    # starter-mass interpretation: the nascent ice crystal is formed
+    # from vapor deposition on an INP, not by freezing a pre-existing
+    # droplet. Freezing of existing drops is handled separately in the
+    # rain-freezing and liquid-ice collision branches.
 
     # --- Cloud Droplet Condensation Freezing ---
     # ref: `homogeneous_freezing` in `parcel/ParcelTendencies.jl`
@@ -1330,12 +1509,12 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         x_min = FT(1e-12),  # min mean ice particle mass [kg] (~10 μm crystal)
         x_max = FT(1e-5),   # max mean ice particle mass [kg] (~5 mm aggregate)
     )
-    ∂ₜn_ice_numadj = CM2.number_adjustment(numadj, q_ice, ρ, n_ice)
+    ∂ₜn_ice_numadj = CM2.number_tendency_from_mass_limits(numadj, q_ice, n_ice)
     dn_ice_dt += ∂ₜn_ice_numadj
 
     # --- Rain Heterogeneous Freezing (Bigg 1953) ---
     # Immersion freezing of rain drops, as in Morrison & Milbrandt (2015).
-    rain_frz = CM_HetIce.liquid_freezing_rate(rain_freezing, pdf_r, tps, q_rai, ρ, N_rai, T)
+    rain_frz = CM_HetIce.liquid_freezing_rate(mp.ice.rain_freezing, pdf_r, tps, q_rai, ρ, N_rai, T)
 
     # Rain → ice (frozen rain is fully rimed, per MM15)
     dq_rai_dt -= rain_frz.∂ₜq_frz
@@ -1345,7 +1524,109 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dq_rim_dt += rain_frz.∂ₜq_frz
     db_rim_dt += rain_frz.∂ₜq_frz / p3.ρ_i  # ρ_i = 916.7 kg m⁻³, the density of solid bulk ice
 
-    return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt, dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt)
+    # Aerosol activation is folded into `warm_rain_tendencies_2m` above —
+    # `dn_lcl_activation_dt` from `warm` is already included in `dn_lcl_dt`.
+
+    return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+              dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
+              dn_lcl_activation_dt)
+end
+
+"""
+    repair_ice_state(N_ice, L_ice, ρ; m_crystal_max = 1e-5, q_ice_floor = 1e-14)
+
+Enforce two complementary physical constraints on the mean P3 ice-crystal
+mass `L_ice / N_ice`:
+
+1. **Upper-mass bound** (mid-column "bowling ball" pathology): when
+   `L_ice > q_ice_floor · ρ` and the implied mean mass would exceed
+   `m_crystal_max`, raise `N_ice` to `L_ice / m_crystal_max`.
+2. **Trace-ice phantom-number** (top-of-column F23 + sedimentation
+   pathology): when `L_ice ≤ q_ice_floor · ρ` (mass effectively zero),
+   force `N_ice = 0`. Without this, a column top where mass-weighted
+   sedimentation drains all ice mass faster than number can leak F23
+   nucleation events into a runaway `N_ice` count with no corresponding
+   mass.
+
+Both branches are mass-preserving — only `N_ice` is touched.
+
+# Background (issue 012 + top-of-domain debug 2026-04-24)
+
+In a 1-D column with P3 sedimentation, the mass-weighted fall velocity
+differs from the number-weighted fall velocity. Two distinct symptoms
+result:
+
+- Mid-column "donor" cells lose mass faster than number → end with
+  almost-zero `N_ice` but non-trivial `L_ice` → mean mass ~10^−3 kg
+  (heavier than a marble) → runaway riming. Branch (1) above repairs
+  this.
+- Top-of-column "trace ice" cells — where F23 nucleation continually
+  sources new particles but mass-weighted sedimentation drains the
+  starter mass DOWN every step — accumulate `N_ice` with no
+  corresponding `L_ice`. Branch (2) above repairs this. Without it,
+  the top cell can show `N_ice ~ 10^9 m⁻³` (cirrus×10³) at `L_ice = 0`
+  after a few hours.
+
+Two design properties make this the right layer:
+
+1. **Mass-preserving.** `L_ice` is left untouched. Only the
+   bookkeeping-error variable (`N_ice`) is nudged.
+2. **Opt-in.** BMT does NOT call this internally — callers decide when to
+   apply it (typically from a `DiscreteCallback` so the correction hits
+   exactly once per step). Surreptitiously mutating caller state inside
+   BMT would hide the very bug a user is trying to diagnose.
+
+# Units convention
+
+This helper operates on **per-volume** state, using the CliMA casing
+convention `lower q/n = per-kg`, `upper L/N = per-m³`, matching how
+`ClimaCore` fields store the prognostic variables in both KiD and
+ClimaAtmos:
+
+- `N_ice` [1/m³] — number concentration per unit volume
+- `L_ice` [kg/m³] — mass per unit volume (callers typically pass
+   `Y.ρq_ice` or similar — same quantity, different spelling)
+- `ρ` [kg/m³] — air density
+
+Inputs in specific units (`q_ice` [kg/kg], `n_ice` [1/kg]) are NOT
+supported: the `q_ice_floor · ρ` threshold assumes the first positional
+argument is per-volume.
+
+# Arguments
+- `N_ice`: current cloud-ice number concentration [1/m³].
+- `L_ice`: current cloud-ice mass per unit volume [kg/m³].
+- `ρ`: air density [kg/m³].
+
+# Keyword arguments
+- `m_crystal_max = 1e-5 [kg]`: upper bound on an individual P3 ice
+   crystal mass. 1e-5 kg corresponds to a ~5 mm aggregate, which the P3
+   `numadj.x_max` already uses.
+- `q_ice_floor = 1e-14 [kg/kg]`: specific-humidity floor; below this
+   (after conversion to per-volume via `× ρ`), the cell is in trace-ice
+   territory where the BMT input clamp handles it. Repair is a no-op
+   below the floor to avoid creating droplets from numerical noise.
+
+# Return
+A revised `N_ice` value of the same type as the input.
+
+# Notes
+Callers integrating into host codes (KiD / ClimaAtmos) typically apply
+it as a broadcast over the column:
+`@. Y.N_ice = BMT.repair_ice_state(Y.N_ice, Y.ρq_ice, ρ)`.
+"""
+@inline function repair_ice_state(N_ice, L_ice, ρ;
+        m_crystal_max = oftype(N_ice, 1e-5),
+        q_ice_floor = oftype(N_ice, 1e-14))
+    FT = typeof(N_ice)
+    # threshold and L_ice both in [kg/m³]; q_ice_floor is in [kg/kg]
+    # and × ρ converts it to the per-volume scale.
+    threshold = FT(q_ice_floor) * ρ
+    # imputed: [kg/m³] / [kg/crystal] = [crystals/m³], matching N_ice.
+    imputed = L_ice / FT(m_crystal_max)
+    # Branch by trace-ice condition:
+    #   L_ice > threshold  → upper-mass bound (raise N_ice if needed)
+    #   L_ice ≤ threshold  → trace ice; collapse N_ice to 0 (no phantom number)
+    return ifelse(L_ice > threshold, max(N_ice, imputed), zero(N_ice))
 end
 
 end # module BulkMicrophysicsTendencies

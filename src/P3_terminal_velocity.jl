@@ -1,35 +1,43 @@
 
 """
     ice_particle_terminal_velocity(velocity_params, ρₐ, state::P3State; [use_aspect_ratio])
-    ice_particle_terminal_velocity(velocity_params, ρₐ, params::CMP.ParametersP3, F_rim, ρ_rim; [use_aspect_ratio])
 
-Returns the terminal velocity of a single ice particle as a function of its size
-    (maximum dimension, `D`) using the Chen 2022 parametrization.
+Returns a single-argument function `v_term(D)` that gives the Chen 2022
+terminal velocity of an ice particle of maximum dimension `D`.
+
+The size-independent coefficient work (`Chen2022_vel_coeffs` and
+monodisperse-PDF construction for both small- and large-ice regimes) is
+done once at call time; the returned closure only does the per-`D`
+evaluation and — if `use_aspect_ratio = true` — the aspect-ratio
+correction `cbrt(ϕᵢ(state, D))`. `ϕᵢ(state, D)` is O(1) because `state`
+caches the regime thresholds.
 
 # Arguments
- - `state`: A [`P3State`](@ref)
- - `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
+ - `velocity_params`: A [`CMP.Chen2022VelType`](@ref)
  - `ρₐ`: Air density [kg/m³]
+ - `state`: A [`P3State`](@ref)
 
 # Keyword arguments
- - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
-    of particle aspect ratio on its terminal velocity (default: `true`)
+ - `use_aspect_ratio`: include the aspect-ratio correction (default `true`)
 """
-function ice_particle_terminal_velocity(
-    velocity_params::CMP.Chen2022VelType, ρₐ, state_components...; use_aspect_ratio = true,
+@inline function ice_particle_terminal_velocity(
+    velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State; use_aspect_ratio = true,
 )
-    function v_term(D::FT) where {FT}
-        (; small_ice, large_ice) = velocity_params
-        D_cutoff = small_ice.cutoff # Diameter cutoff between small and large ice regimes
-        ρᵢ = FT(916.7) # ρᵢ = p3_density(p3, D, F_rim, th) # TODO: tmp
-        v_term_small = CO.particle_terminal_velocity(small_ice, ρₐ, ρᵢ)
-        v_term_large = CO.particle_terminal_velocity(large_ice, ρₐ, ρᵢ)
-        # `state_components...` is either `state` or `(params, F_rim, ρ_rim)`
-        ϕ_factor = use_aspect_ratio ? cbrt(ϕᵢ(state_components..., D)) : FT(1)
-        vₜ = D <= D_cutoff ? v_term_small(D) : v_term_large(D)
-        return ϕ_factor * vₜ
-    end
-    return v_term
+    FT = typeof(ρₐ)
+    (; small_ice, large_ice) = velocity_params
+    D_cutoff = small_ice.cutoff
+    ρᵢ = FT(916.7)
+    v_term_small = CO.particle_terminal_velocity(small_ice, ρₐ, ρᵢ)
+    v_term_large = CO.particle_terminal_velocity(large_ice, ρₐ, ρᵢ)
+
+    # Bare regime-split sedimentation velocity (no aspect-ratio correction).
+    sedimentation_velocity(D) =
+        D <= D_cutoff ? v_term_small(D) : v_term_large(D)
+    # With aspect-ratio correction, composed on top.
+    sedimentation_velocity_aspect_ratio(D) =
+        cbrt(ϕᵢ(state, D)) * sedimentation_velocity(D)
+
+    return use_aspect_ratio ? sedimentation_velocity_aspect_ratio : sedimentation_velocity
 end
 """
     ice_terminal_velocity_number_weighted(

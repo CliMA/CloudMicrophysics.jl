@@ -10,6 +10,7 @@ import UnrolledUtilities as UU
 
 export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
 export unrolled_logsumexp
+export sgs_weight_function, rime_mass_fraction, rime_density
 
 """
     clamp_to_nonneg(x)
@@ -126,6 +127,99 @@ function unrolled_logsumexp(x)
 
     return xmax + log(s)
 end
+
+
+"""
+    sgs_weight_function(a, a_half)
+
+Smooth, monotonic weight function `w(a)` ranging from 0 to 1.
+
+Used as the interpolation weight in regularised divisions so the result stays
+well-defined and smoothly blends toward zero when the denominator is small.
+
+Key properties:
+- `w(a) = 0` for `a ≤ 0`.
+- `w(a) = 1` for `a ≥ 1`.
+- `w(a_half) = 0.5`.
+- Continuously differentiable; derivatives vanish at `a = 0` and `a = 1` so
+  the blend is smooth.
+- Grows very rapidly near `a_half`, very slowly elsewhere.
+
+Construction: for `a ∈ (0, 1)`, a bounded sigmoid is built by composing `tanh`
+with the inverse of a slower `tanh`; midpoint control `(a_half, 0.5)` is
+enforced by pre-transforming `a` via `1 - (1 - a)^k`.
+
+Mirrors the `sgs_weight_function` in `ClimaAtmos.jl/src/utils/variable_manipulations.jl`.
+
+# Arguments
+- `a`: the input variable (often approximated as an area fraction `ρa / ρ`).
+- `a_half`: value of `a` at which the weight equals 0.5 (controls the
+  transition point of the sigmoid).
+
+# Returns
+- `w(a)` in `[0, 1]`.
+"""
+@inline function sgs_weight_function(a, a_half)
+    if a < 0
+        zero(a)
+    elseif a > min(1, 42 * a_half)   # autodiff generates NaNs when a is large
+        one(a)
+    else
+        (1 + tanh(2 * atanh(1 - 2 * (1 - a)^(-1 / log2(1 - a_half))))) / 2
+    end
+end
+
+"""
+    _regularised_ratio(numerator, denominator, half, ϵ)
+
+Compute `numerator / denominator` with `sgs_weight_function`-based
+regularisation so the result stays finite when `denominator` is zero
+or very small.
+
+Returns `weight(denominator) * numerator / denominator`, falling to
+zero when `denominator` is below machine precision.
+"""
+@inline function _regularised_ratio(
+    numerator, denominator,
+    half = eps(typeof(denominator)),
+    ϵ = eps(typeof(denominator))^2,
+)
+    weight = sgs_weight_function(denominator, half)
+    return ifelse(
+        denominator < ϵ, zero(numerator),
+        weight * numerator / denominator,
+    )
+end
+
+"""
+    rime_mass_fraction(q_rim, q_ice, q_ice_half)
+
+Regularised rime mass fraction `F_rim = q_rim / q_ice` that stays finite when
+`q_ice` is zero or very small, with the result clamped to `[0, 1]` via
+`min(q_rim, q_ice)`.
+
+# Arguments
+- `q_rim`: rime specific mass `[kg rim / kg air]`.
+- `q_ice`: total ice specific mass `[kg ice / kg air]`.
+- `q_ice_half`: value of `q_ice` at which the blending weight equals 0.5
+  (default `eps(typeof(q_ice))`).
+"""
+@inline rime_mass_fraction(q_rim, q_ice, kw...) =
+    _regularised_ratio(min(q_rim, q_ice), q_ice, kw...)
+
+"""
+    rime_density(q_rim, b_rim, b_rim_half)
+
+Regularised rime density `ρ_rim = q_rim / b_rim` that stays finite when
+`b_rim` is zero or very small.
+
+# Arguments
+- `q_rim`: rime specific mass `[kg rim / kg air]`.
+- `b_rim`: rime specific volume `[m³ rim / kg air]`.
+- `b_rim_half`: value of `b_rim` at which the blending weight equals 0.5
+  (default `eps(typeof(b_rim))`).
+"""
+@inline rime_density(q_rim, b_rim, kw...) = _regularised_ratio(q_rim, b_rim, kw...)
 
 
 end # module

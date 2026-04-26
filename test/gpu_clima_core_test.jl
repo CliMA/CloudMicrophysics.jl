@@ -133,8 +133,6 @@ p3_logλ_3d(::Type{FT}) where {FT} = p3_logλ(get_rcemipii_center_space(FT))
 
 function p3_logλ(space)
     (; params, L_ice, N_ice, F_rim, ρ_rim, logλ) = get_p3_fields(FT, space)
-    @. logλ = P3.get_distribution_logλ(params, L_ice, N_ice, F_rim, ρ_rim)
-
     @. logλ = P3.get_distribution_logλ(
         P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
     )
