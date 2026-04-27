@@ -280,13 +280,16 @@ function get_thresholds_ρ_g(params::CMP.ParametersP3, F_rim, ρ_rim)
     D_gr = ifelse(iszero(F_rim), FT(Inf), D_gr)
     D_cr = ifelse(iszero(F_rim), FT(Inf), D_cr)
 
-    return (; D_th, D_gr, D_cr, ρ_g)
+    # Return a plain Tuple (not a NamedTuple). NamedTuple construction in
+    # a CUDA kernel triggers `apply_type` at runtime which GPUCompiler
+    # can't lower (`unsupported call to jl_f_apply_type`).
+    return (D_th, D_gr, D_cr, ρ_g)
 end
 
 function get_bounded_thresholds(
     state::P3State{FT}, D_min::FT = FT(0), D_max::FT = FT(Inf)
 ) where {FT}
-    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
+    (D_th, D_gr, D_cr, _) = get_thresholds_ρ_g(state)
     return clamp.((D_min, D_th, D_gr, D_cr, D_max), D_min, D_max)
 end
 
@@ -336,9 +339,9 @@ Return the coefficients for the ice mass power law at diameter `D`.
  - `(a, b)`: coefficients for the ice mass power law, `a D^b`
 """
 function ice_mass_coeffs(state::P3State, D)
-    (; params, F_rim, ρ_rim) = state
+    (; params, F_rim) = state
     FT = eltype(D)
-    (; D_th, D_gr, D_cr, ρ_g) = get_thresholds_ρ_g(state)
+    (D_th, D_gr, D_cr, ρ_g) = get_thresholds_ρ_g(state)
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
 
@@ -428,8 +431,8 @@ Return the cross-sectional area of a particle based on where it falls in the
  - `D`: maximum particle dimension [m]
 """
 function ice_area(state::P3State, D)
-    (; params, F_rim, ρ_rim) = state
-    (; D_th, D_gr, D_cr) = get_thresholds_ρ_g(state)
+    (; params, F_rim) = state
+    (D_th, D_gr, D_cr, _) = get_thresholds_ρ_g(state)
     (; γ, σ) = params.area
     spherical_area(D) = D^2 * π / 4
     nonspherical_area(D) = γ * D^σ

@@ -1372,7 +1372,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         db_rim_dt += coll.∂ₜB_rim / ρ
 
         # --- Ice self-collection (aggregation) ---
-        S_ice_agg = CMP3.ice_self_collection(state, logλ, aps, tps, vel, ρ, T; quad)
+        S_ice_agg = CMP3.ice_self_collection(state, logλ, vel, ρ; quad)
         dn_ice_dt -= S_ice_agg.dNdt / ρ
 
         # Ice melting (above freezing temperature)

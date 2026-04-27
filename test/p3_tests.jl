@@ -62,13 +62,13 @@ function test_thresholds_solver(FT)
         # test asserts
         for ρ_rim in (FT(-1), params.ρ_l + 1)
             @test_throws DomainError(ρ_rim,
-                "Rime density, `ρ_rim`, must be between 0 and ρ_l",
+                "Rime density, ρ_rim, must be 0 ≤ ρ_rim ≤ ρ_l",
             ) P3.get_state(params; F_rim, ρ_rim, L_ice, N_ice)
         end
 
         for F_rim in (FT(-eps(FT)), FT(-1), FT(1), FT(1.5))
             @test_throws DomainError(F_rim,
-                "Rime mass fraction, `F_rim`, must be between 0 and 1",
+                "Rime mass fraction, F_rim, must be 0 ≤ F_rim < 1",
             ) P3.get_state(params; F_rim, ρ_rim, L_ice, N_ice)
         end
 
@@ -473,10 +473,10 @@ function test_numerical_integrals(FT)
         quad = P3.ChebyshevGauss(10)
         f(x) = x^4
         # test that integration gives the correct result
-        num_int = P3.integrate(f, 0, 1; quad)
+        num_int = P3.integrate(f, 0, 1, quad)
         @test num_int ≈ 0.2 rtol = 0.1
         # test that increasing the number of points improves the accuracy
-        num_int2 = P3.integrate(f, 0, 1; quad = P3.ChebyshevGauss(100))
+        num_int2 = P3.integrate(f, 0, 1, P3.ChebyshevGauss(100))
         @test abs(num_int2 - 0.2) < abs(num_int - 0.2)
     end
 
@@ -494,7 +494,7 @@ function test_numerical_integrals(FT)
             # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
             N′ = P3.size_distribution(state, logλ)
             bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
-            N_estim_cheb = P3.integrate(N′, bnds...)
+            N_estim_cheb = P3.integrate(N′, bnds)
             @test N_ice ≈ N_estim_cheb rtol = 1e-5
 
             # Compare with quadgk
@@ -509,8 +509,8 @@ function test_numerical_integrals(FT)
             v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
             g(D) = v_term(D) * N′(D)
             gm(D) = g(D) * P3.ice_mass(state, D)
-            vel_N_estim_cheb = P3.integrate(g, bnds...; quad = P3.ChebyshevGauss(10)) / N_ice
-            vel_m_estim_cheb = P3.integrate(gm, bnds...; quad = P3.ChebyshevGauss(10)) / L_ice
+            vel_N_estim_cheb = P3.integrate(g, bnds, P3.ChebyshevGauss(10)) / N_ice
+            vel_m_estim_cheb = P3.integrate(gm, bnds, P3.ChebyshevGauss(10)) / L_ice
             @test vel_N ≈ vel_N_estim_cheb rtol = 0.005
             @test vel_m ≈ vel_m_estim_cheb rtol = 0.05
 
@@ -525,7 +525,7 @@ function test_numerical_integrals(FT)
             # Dₘ comparisons
             D_m = P3.D_m(state, logλ)
             D_m_func(D) = D * P3.ice_mass(state, D) * N′(D) / L_ice
-            D_m_estim_cheb = P3.integrate(D_m_func, bnds...; quad = P3.ChebyshevGauss(100))
+            D_m_estim_cheb = P3.integrate(D_m_func, bnds, P3.ChebyshevGauss(100))
             @test D_m ≈ D_m_estim_cheb rtol = 5e-4
 
             # Compare with quadgk
@@ -815,8 +815,9 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test ∫𝟙_wet_M_col ≈ 1.561091379329206e-5
 
         ### Test the bulk source function
+        state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
         rates = P3.bulk_liquid_ice_collision_sources(
-            params, logλ, Lᵢ, Nᵢ, F_rim, ρ_rim,
+            state, logλ,
             psd_c, psd_r, L_c, N_c, L_r, N_r,
             aps, tps, vel_params, ρₐ, T,
         )
