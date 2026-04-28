@@ -506,7 +506,8 @@ style framework it would be replaced by an explicit prognostic
 """
 function f23_deposition_rate(
     f23_params::CMP.Frostenberg2023, tps, T, ρ, q_tot, q_liq, q_ice, n_ice; m_nuc,
-    T_thresh, S_i_thresh, τ_act = 300, inpc_log_shift = 0,
+    T_thresh = f23_params.T_freeze - 15, S_i_thresh = oftype(f23_params.T_freeze, 0.05),
+    τ_act = 300, inpc_log_shift = 0,
 )
     q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
     q_vap = TDI.q_vap(q_tot, q_liq, q_ice)

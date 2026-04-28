@@ -1461,19 +1461,14 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     #
     # Target-relaxation form, structurally identical to Cooper-style qinuc
     # with F23's log-normal target substituted for Cooper's exponential.
-    # We route through `CM_HetIce.f23_deposition_rate` for the canonical
-    # rate + vapor-cap computation; for now the doc's Pathway-1 gates
-    # `T < T_freeze - 15 K ∧ S_i > 0.05` are effectively disabled by
-    # setting permissive thresholds. This preserves the current always-on
-    # relaxation behaviour. Tighten `T_thresh` / `S_i_thresh` to the doc
-    # defaults (T_freeze−15 K, 0.05) once we're ready for the strict-MM15
-    # form. `ρ_i` is forwarded from the P3 params so the starter mass
-    # stays tied to the P3 ice density.
+    # We route through `CM_HetIce.f23_deposition_rate`, which uses the
+    # strict-MM15 doc gates `T < T_freeze − 15 K ∧ S_i > 0.05` by
+    # default. Hosts that need the legacy always-on form can override
+    # by passing e.g. `T_thresh = FT(2000), S_i_thresh = FT(-2)` to the
+    # call below.
     f23_dep = CM_HetIce.f23_deposition_rate(
-        ice_nucleation, tps, T, ρ, q_tot, q_lcl + q_rai, q_ice, n_active; m_nuc,
-        T_thresh = FT(2000),  # gate `T < T_thresh` always passes (T < 2000 K)
-        S_i_thresh = FT(-2),  # gate `S_i > S_i_thresh` always passes (S_i ≥ -1)
-        τ_act, inpc_log_shift,
+        ice_nucleation, tps, T, ρ, q_tot, q_lcl + q_rai, q_ice, n_active;
+        m_nuc, τ_act, inpc_log_shift,
     )
 
     dn_ice_dt += f23_dep.∂ₜn_frz

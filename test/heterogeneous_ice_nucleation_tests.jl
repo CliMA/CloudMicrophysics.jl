@@ -286,9 +286,28 @@ function test_heterogeneous_ice_nucleation(FT)
         ρ_i = FT(916.7)
         D_nuc = FT(10e-6)
         m_nuc = FT(π) / 6 * ρ_i * D_nuc^3
-        # Defaults used at most call sites
+        # Strict-MM15 defaults (these are now the function's defaults; we
+        # still pass them explicitly here to make the test setup
+        # self-documenting).
         T_thresh_default = T_freeze - FT(15)
         S_i_thresh_default = FT(0.05)
+
+        # Strict defaults are picked up automatically when not overridden.
+        T_test = T_freeze - FT(20)   # below the -15 °C strict gate
+        q_sat_test = TDI.saturation_vapor_specific_content_over_ice(tps, T_test, ρ)
+        r_default = CMI_het.f23_deposition_rate(
+            ip_frostenberg, tps, T_test, ρ, 2 * q_sat_test, FT(0), FT(0), n_ice;
+            m_nuc, τ_act,
+        )
+        TT.@test r_default.∂ₜn_frz > FT(0)
+        # And they're closed at T = -10 °C (above the -15 °C gate)
+        T_warm_test = T_freeze - FT(10)
+        q_sat_warm_test = TDI.saturation_vapor_specific_content_over_ice(tps, T_warm_test, ρ)
+        r_default_closed = CMI_het.f23_deposition_rate(
+            ip_frostenberg, tps, T_warm_test, ρ, 2 * q_sat_warm_test, FT(0), FT(0), n_ice;
+            m_nuc, τ_act,
+        )
+        TT.@test r_default_closed.∂ₜn_frz == FT(0)
 
         # T_freeze - 20 °C, vapor strongly supersaturated wrt ice ⇒ both
         # gates open. The function takes q_tot/q_liq/q_ice and computes
