@@ -198,3 +198,110 @@ function Frostenberg2023(td::CP.ParamDict)
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return Frostenberg2023(; parameters...)
 end
+
+# ---------------------------------------------------------------------------
+# F23 INP-activation memory models
+# ---------------------------------------------------------------------------
+
+export AbstractINPDepletion, NIceProxyDepletion, PrognosticINPDecay
+
+"""
+    AbstractINPDepletion
+
+Abstract type for the model of how F23 INP-activation budgets are
+"depleted" within an air parcel. Choose a concrete subtype to control
+the value subtracted from the F23 INPC target in the F23 deposition and
+immersion-cap rates:
+
+```
+∂ₜn_frz = max(0, INPC(T)/ρ - n_active) / τ_act
+```
+
+where `n_active` is supplied by the host. The depletion model also
+carries `τ_act`, the F23 activation relaxation timescale, so the host
+doesn't need to wire that knob separately. The model selects how the
+host sources `n_active`:
+
+- [`NIceProxyDepletion`](@ref): use existing `n_ice` (zero memory).
+- [`PrognosticINPDecay`](@ref): use a prognostic `n_INP_used` tracer
+  with a finite memory timescale.
+"""
+abstract type AbstractINPDepletion end
+
+"""
+    NIceProxyDepletion{FT}
+
+Use the in-cell ice number `n_ice` as the depletion proxy for F23
+activation. This is the legacy / always-on form: a column with no ice
+sees the full INPC target; activation events do not by themselves
+deplete the budget on a memory timescale, but the ice they create
+proxies "INPs already used" downstream until that ice sublimates,
+sediments out, or melts.
+
+Conflates two physically distinct counts: "ice in column" and
+"INPs already activated in this air parcel". Drop a fresh anvil into
+clean air below it and the F23 channel artificially shuts off.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+struct NIceProxyDepletion{FT} <: AbstractINPDepletion
+    "F23 activation relaxation timescale [s] (default `300`)"
+    τ_act::FT
+end
+NIceProxyDepletion(; τ_act = 300) = NIceProxyDepletion(τ_act)
+
+"""
+    PrognosticINPDecay{FT}
+
+Phillips-style activation memory: the host maintains a passive scalar
+`n_INP_used` whose budget is
+
+```
+∂t (ρ n_INP_used) = -∇·(ρ u n_INP_used)                  # advection
+                    + ρ (∂ₜn_frz_F23_dep + ∂ₜn_imm_F23)  # source: just-activated INPs
+                    - ρ n_INP_used / τ_INP_decay          # relaxation
+```
+
+so a parcel that activated INPs at low altitude carries that memory as
+it lofts to colder levels, but the memory decays with timescale
+`τ_INP_decay` representing aerosol re-supply from the unmodelled
+mixing/scavenging cycle. The activation/relaxation knob is `τ_INP_decay`;
+the F23 activation timescale `τ_act` is also carried for consistency:
+
+| `τ_INP_decay`        | Behaviour                                                |
+|----------------------|----------------------------------------------------------|
+| → 0                  | collapses to current always-on `(INPC − 0)/τ_act`        |
+| ~ τ_act (~minutes)   | rapid replenishment, F23 keeps firing in steady state    |
+| ~ hours              | activation memory persists across a cumulus lifetime     |
+| → ∞                  | strict Phillips depletion (INPs gone forever per parcel) |
+
+# Fields
+$(DocStringExtensions.FIELDS)
+
+# Boundary conditions
+
+A reasonable first cut is `n_INP_used = 0` at the BL floor (fresh
+aerosols enter with the full INPC budget) and zero-gradient at the top
+of domain. Rigorous treatment couples the floor source to the surface
+aerosol flux, which we don't model.
+
+# Compared to full Phillips-Demott
+
+A full multi-species Phillips depletion (4–10 aerosol tracers) would
+distinguish dust / soot / biological / sulphate INPs and track each
+species' activation/scavenging budget. This single-scalar form captures
+the dominant physical effect (activation memory + finite re-supply
+timescale) without aerosol speciation. It can be replaced by the full
+framework later when the model gains an aerosol prognostic.
+"""
+struct PrognosticINPDecay{FT} <: AbstractINPDepletion
+    "F23 activation relaxation timescale [s] (default `300`)"
+    τ_act::FT
+    "Decay timescale of activation memory [s] (τ_INP_decay → 0 recovers no-memory; τ → ∞ recovers strict depletion)"
+    τ_INP_decay::FT
+end
+function PrognosticINPDecay(; τ_INP_decay, τ_act = 300)
+    FT = typeof(τ_INP_decay)
+    return PrognosticINPDecay{FT}(FT(τ_act), τ_INP_decay)
+end

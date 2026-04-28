@@ -1283,6 +1283,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     q_ice, n_ice, q_rim, b_rim, logλ,
     inpc_log_shift = zero(ρ),
     w = zero(ρ), p = zero(ρ),
+    n_INP_used = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = eltype(ρ)
     ϵₘ = UT.ϵ_numerics_2M_M(FT)
@@ -1351,6 +1352,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     pdf_c = mp.ice.cloud_pdf
     pdf_r = mp.ice.rain_pdf
     ice_nucleation = mp.ice.ice_nucleation
+    inp_depletion_model = mp.ice.inp_depletion_model
 
     quad = CMP3.ChebyshevGauss(mp.ice.quadrature_order)
 
@@ -1380,11 +1382,35 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
             CMP3.ice_melt(vel, aps, tps, T, ρ, state, logλ; quad),
             (; dNdt = zero(ρ), dLdt = zero(ρ))
         )
-        # Melting converts ice to rain
-        dq_rai_dt += melt.dLdt / ρ
-        dn_rai_dt += melt.dNdt / ρ  # Melted ice becomes rain drops
-        dq_ice_dt -= melt.dLdt / ρ
-        dn_ice_dt -= melt.dNdt / ρ  # Ice particles consumed by melting
+        # Specific (per-kg-air) ice-mass melt rate.
+        ∂ₜq_ice_melt = melt.dLdt / ρ
+        ∂ₜn_ice_melt = melt.dNdt / ρ
+        # Melting converts ice to rain.
+        dq_rai_dt += ∂ₜq_ice_melt
+        dn_rai_dt += ∂ₜn_ice_melt  # Melted ice becomes rain drops
+        dq_ice_dt -= ∂ₜq_ice_melt
+        dn_ice_dt -= ∂ₜn_ice_melt  # Ice particles consumed by melting
+        # Rim mass and rim volume drain proportionally to ice mass during
+        # melting (uniform-melt assumption — F_rim and ρ_rim are
+        # preserved through the melt). Without this, q_rim and b_rim
+        # were conserved while q_ice drained, so q_rim/q_ice → ∞ at the
+        # 0 °C isoline (analysis showed q_rim/q_ice up to ~470× just
+        # below the freezing line in newBMT_tau1d_seed20260423).
+        #
+        #   ∂ₜq_rim = -F_rim · ∂ₜq_ice
+        #   ∂ₜb_rim = -F_rim/ρ_rim · ∂ₜq_ice
+        #
+        # together preserve both F_rim and ρ_rim. We pull F_rim and
+        # ρ_rim from `state` (the regularised P3State built at the top
+        # of the function), so trace-mass cells with q_rim near or
+        # above q_ice see the clamped F_rim ≤ 1 − ε rather than the raw
+        # prognostic ratio. Guard ρ_rim ≈ 0 (no rim volume → no
+        # b_rim drain) — `_regularised_ratio` returns 0 for `ρ_rim`
+        # when `b_rim` is below the smoothing scale.
+        dq_rim_dt -= ∂ₜq_ice_melt * state.F_rim
+        db_rim_dt -= ifelse(state.ρ_rim > 0,
+            ∂ₜq_ice_melt * state.F_rim / state.ρ_rim, zero(FT),
+        )
     end
 
     # --- ----------------------------- ---
@@ -1414,11 +1440,22 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     # See `kid_jouan_ou/F23_REGIME_AWARE_FIX.md` for the full pathway
     # inventory + the MM15 ↔ Fortran reference.
 
-    # F23 activation timescale
-    τ_act = FT(300)   # F23 activation relaxation timescale [s]
+    # F23 activation timescale, taken from the depletion model so the
+    # host can override it by passing e.g.
+    # `inp_depletion_model = NIceProxyDepletion(τ_act = FT(60))` when
+    # constructing the P3IceParams.
+    τ_act = inp_depletion_model.τ_act
     # Vapor deposition nucleation size
     D_nuc = FT(10e-6)  # 10 μm nascent crystal - small-D tail of the P3
     m_nuc = p3.ρ_i * CO.volume_sphere_D(D_nuc)
+
+    # F23 INP-activation depletion proxy. With `NIceProxyDepletion`
+    # (default) this returns `n_ice` — the legacy always-on proxy.
+    # With `PrognosticINPDecay` it returns `n_INP_used` — the host's
+    # Phillips-style activation-memory tracer. The host is responsible
+    # for advancing `n_INP_used` per the source/sink budget written in
+    # `F23_REGIME_AWARE_FIX.md`; BMT just dispatches.
+    n_active = CM_HetIce.n_active(inp_depletion_model, n_ice, n_INP_used)
 
     # ---- Pathway 1: F23 deposition nucleation (vapor → pristine ice) ----
     #
@@ -1431,10 +1468,9 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     # relaxation behaviour. Tighten `T_thresh` / `S_i_thresh` to the doc
     # defaults (T_freeze−15 K, 0.05) once we're ready for the strict-MM15
     # form. `ρ_i` is forwarded from the P3 params so the starter mass
-    # stays tied to the P3 ice density. With no Phillips prognostic yet,
-    # `N_INP_active` is proxied by `n_ice`.
+    # stays tied to the P3 ice density.
     f23_dep = CM_HetIce.f23_deposition_rate(
-        ice_nucleation, tps, T, ρ, q_tot, q_lcl + q_rai, q_ice, n_ice; m_nuc,
+        ice_nucleation, tps, T, ρ, q_tot, q_lcl + q_rai, q_ice, n_active; m_nuc,
         T_thresh = FT(2000),  # gate `T < T_thresh` always passes (T < 2000 K)
         S_i_thresh = FT(-2),  # gate `S_i > S_i_thresh` always passes (S_i ≥ -1)
         τ_act, inpc_log_shift,
@@ -1469,7 +1505,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         mp.ice.rain_freezing, pdf_c, tps, q_lcl, ρ, N_lcl, T,
     )
     cld_cap = CM_HetIce.f23_immersion_limit_rate(
-        ice_nucleation, T, ρ; τ = τ_act, inpc_log_shift,
+        ice_nucleation, T, ρ; τ = τ_act, inpc_log_shift, n_active,
     )
     ∂ₜn_imm = min(cld_bigg.∂ₜn_frz, cld_cap.∂ₜn_frz)
     # Mass = (size-weighted Bigg mass) × (rate ratio). When Bigg is
@@ -1498,6 +1534,22 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ∂ₜn_ice_dep = ifelse(∂ₜq_ice_dep < 0, n_per_q_ice * ∂ₜq_ice_dep, zero(∂ₜq_ice_dep))
     dq_ice_dt += ∂ₜq_ice_dep
     dn_ice_dt += ∂ₜn_ice_dep
+    # Rim mass and rim volume drain proportionally during *sublimation*
+    # (∂ₜq_ice_dep < 0). Same uniform-melt-style assumption as the melt
+    # branch: F_rim and ρ_rim are preserved through the phase change, so
+    # q_rim drains at F_rim · ∂ₜq_ice_sub and b_rim drains at
+    # (F_rim/ρ_rim) · ∂ₜq_ice_sub. Per MM15 Eqs. for S_qrim and S_Br,
+    # `−(qrim/qi)·QISUB` and `−(qrim/(ρ_r·qi))·QISUB` (matching the
+    # `−QIMLT` rim drains we already have). Without this branch, the
+    # cirrus-level F_rim ≈ 1 band (where ice nucleates, partially
+    # sublimates, and leaves rim mass behind) would persist
+    # indefinitely — same root cause as the melt-side bug, just on the
+    # other side of the freezing line. Deposition (∂ₜq_ice_dep > 0)
+    # adds pristine ice mass with F_rim = 0, so q_rim/b_rim are
+    # unaffected; we only drain on the sublimation branch.
+    ∂ₜq_ice_sub = min(∂ₜq_ice_dep, 0)   # ≤ 0; zero on the deposition branch
+    dq_rim_dt += ∂ₜq_ice_sub * state.F_rim
+    db_rim_dt += ifelse(state.ρ_rim > 0, ∂ₜq_ice_sub * state.F_rim / state.ρ_rim, zero(FT))
 
     # --- Ice number adjustment for mass limits ---
     # Number adjustment for ice mass limits (Horn 2012, DOI: 10.5194/gmd-5-345-2012).
@@ -1525,9 +1577,14 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     # Aerosol activation is folded into `warm_rain_tendencies_2m` above —
     # `dn_lcl_activation_dt` from `warm` is already included in `dn_lcl_dt`.
 
+    # Source rate for the host's F23 activation-memory tracer
+    # (`n_INP_used` in `PrognosticINPDecay` mode). Hosts in
+    # `NIceProxyDepletion` mode can ignore this field.
+    dn_INP_used_source_dt = f23_dep.∂ₜn_frz + ∂ₜn_imm
+
     return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
               dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
-              dn_lcl_activation_dt)
+              dn_lcl_activation_dt, dn_INP_used_source_dt)
 end
 
 """

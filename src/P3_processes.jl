@@ -83,10 +83,10 @@ function ice_melt(
     fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
     bnds = integral_bounds(state, logλ; p = 1e-6)
     melt_integrand = D -> ∂ice_mass_∂D(state, D) * F_v(D) * N′(D) / D
-    dLdt = fac * integrate(melt_integrand, bnds, quad)
+    dLdt_unclamped = fac * integrate(melt_integrand, bnds, quad)
 
     # only consider melting (not fusion)
-    dLdt = max(0, dLdt)
+    dLdt = max(0, dLdt_unclamped)
     # compute change of N_ice proportional to change in L
     dNdt = N_ice / L_ice * dLdt
 

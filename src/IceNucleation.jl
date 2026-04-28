@@ -22,6 +22,7 @@ export INP_concentration_mean
 export liquid_freezing_rate
 export f23_immersion_limit_rate
 export f23_deposition_rate
+export n_active, INP_relaxation_tendency
 
 """
     dust_activated_number_fraction(dust, ip, Si, T)
@@ -381,7 +382,7 @@ function liquid_freezing_rate(
 end
 
 """
-    f23_immersion_limit_rate(f23_params, T, ρ; τ, inpc_log_shift)
+    f23_immersion_limit_rate(f23_params, T, ρ; τ, inpc_log_shift, n_active)
 
 Compute the **F23-INPC-imposed upper limit** on the cloud-droplet immersion
 freezing number rate.
@@ -392,8 +393,14 @@ on a relaxation timescale `τ`, the maximum number of crystals nucleated per
 kg of air per second is
 
 ```
-∂ₜn_lim = INPC(T) / (ρ · τ).
+∂ₜn_lim = max(0, INPC(T)/ρ - n_active) / τ.
 ```
+
+`n_active` is the depletion proxy supplied by the host (see
+[`AbstractINPDepletion`](@ref) and [`n_active`](@ref)): with the default
+`NIceProxyDepletion` model the host passes `n_ice` (or anything; pass
+zero to recover the no-depletion form), and with `PrognosticINPDecay`
+the host passes `n_INP_used`.
 
 This is the "INPC-only" leg of Pathway 2 — the cap that forces the realized
 immersion-freezing rate to fall below pure Bigg kinetics in clean-air or
@@ -409,6 +416,8 @@ PSD, the realized Pathway-2 rate is `min(bigg, ∂ₜn_lim)`.
  - `τ`: Relaxation timescale [s] (default `300`).
  - `inpc_log_shift`: Additive shift to `log(INPC)` (e.g. an OU-SIF stochastic
    excursion). Default `0`.
+ - `n_active`: Depletion proxy [kg⁻¹(air)] (default `0`, i.e. no depletion;
+   recovers the no-memory cap).
 
 # Returns
  - A `NamedTuple` `(; ∂ₜn_frz)` — the specific number freezing-rate cap
@@ -417,11 +426,12 @@ PSD, the realized Pathway-2 rate is `min(bigg, ∂ₜn_lim)`.
 function f23_immersion_limit_rate(
     f23_params::CMP.Frostenberg2023, T, ρ;
     τ = oftype(T, 300), inpc_log_shift = zero(T),
+    n_active = zero(T),
 )
     T ≥ f23_params.T_freeze && return (; ∂ₜn_frz = zero(T))
     log_inpc = INP_concentration_mean(f23_params, T) + inpc_log_shift
     INPC_per_kg = exp(log_inpc) / ρ                  # [kg⁻¹(air)]
-    ∂ₜn_frz = INPC_per_kg / τ                        # [kg⁻¹(air) s⁻¹]
+    ∂ₜn_frz = max(zero(T), INPC_per_kg - n_active) / τ # [kg⁻¹(air) s⁻¹]
     return (; ∂ₜn_frz)
 end
 
@@ -514,6 +524,49 @@ function f23_deposition_rate(
     ∂ₜq_frz = min(m_nuc * ∂ₜn_frz, q_excess / (2τ_act))
     return (; ∂ₜn_frz, ∂ₜq_frz)
 end
+
+# ---------------------------------------------------------------------------
+# F23 INP-activation memory dispatch
+# ---------------------------------------------------------------------------
+
+"""
+    n_active(model::CMP.AbstractINPDepletion, n_ice, n_INP_used)
+
+Return the depletion proxy `n_active` to subtract from the F23 INPC
+target in [`f23_deposition_rate`](@ref) and any analogous
+INPC-budgeted rate. Dispatches on the host's chosen depletion model:
+
+- `NIceProxyDepletion`: returns `n_ice` (legacy "n_ice as proxy" form).
+- `PrognosticINPDecay`: returns `n_INP_used` (the prognostic activation-
+  memory tracer).
+
+The host always passes both `n_ice` and `n_INP_used`; only one is used
+per call, but keeping both at the call site lets us swap models without
+restructuring caller code.
+"""
+@inline n_active(::CMP.NIceProxyDepletion,    n_ice, n_INP_used) = n_ice
+@inline n_active(::CMP.PrognosticINPDecay,    n_ice, n_INP_used) = n_INP_used
+
+"""
+    INP_relaxation_tendency(model, n_INP_used)
+
+Return the relaxation contribution to `∂ₜ n_INP_used` (the host's
+prognostic activation-memory tracer):
+
+```
+∂ₜ n_INP_used (relax) = -n_INP_used / τ_INP_decay
+```
+
+This is the **decay** half of the n_INP_used budget; the **source**
+half (just-activated INPs from F23 deposition + cloud-immersion) is
+added at the BMT call site where those rates are available.
+
+For `NIceProxyDepletion`, returns 0 — the host does not maintain
+`n_INP_used` in that mode.
+"""
+@inline INP_relaxation_tendency(::CMP.NIceProxyDepletion, n_INP_used) = zero(n_INP_used)
+@inline INP_relaxation_tendency(model::CMP.PrognosticINPDecay, n_INP_used) =
+    -n_INP_used / model.τ_INP_decay
 
 end # end module
 
