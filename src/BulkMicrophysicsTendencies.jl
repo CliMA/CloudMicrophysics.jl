@@ -1328,8 +1328,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     db_rim_dt = zero(ρ)
 
     # --- Core Warm Rain Processes (includes activation, see warm_rain_tendencies_2m) ---
-    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai,
-                                   w, p)
+    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai, w, p)
     dq_lcl_dt = warm.dq_lcl_dt
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
@@ -1388,106 +1387,105 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         dn_ice_dt -= melt.dNdt / ρ  # Ice particles consumed by melting
     end
 
-    # --- --------------- ---
-    # --- Ice Nucleation  ---
-    # --- --------------- ---
-    
-    # Note: Intuitively, you choose one of two parameterization pathways,
-    # either 1. process-based (e.g. using CM_HetIce.deposition_J, etc.) or
-    # 2. empirical (e.g. using CM_HetIce.INP_concentration_mean)
-    # 1. In the former, you try to differentiate between different aerosol types
-    # and their properties, homogeneous freezing, heterogeneous deposition
-    # freezing, heterogeneous immersion freezing, etc.
-    # 2. The latter, which we adopt here, empirically relates some environmental
-    # conditions (e.g. temperature) to the number of ice crystals nucleated.
-    # We do not track the aerosol population, and do not consider different
-    # nucleation pathways explicitly.
+    # --- ----------------------------- ---
+    # --- Ice nucleation (F23 + Bigg)   ---
+    # --- ----------------------------- ---
+    #
+    # Two parallel heterogeneous-freezing channels, MM15-aligned:
+    #
+    #   Pathway 1 — F23 deposition / condensation-freezing nucleation
+    #               (analog of Fortran `qinuc`): vapor → pristine ice on
+    #               an INP. F_rim = 0 at genesis; subsequent growth via
+    #               Pathway 5 (MM2015 vapor deposition).
+    #
+    #   Pathway 2 — F23-bounded Bigg immersion freezing of cloud drops
+    #               (analog of Fortran `qcheti`): drop + INP → fully-rimed
+    #               ice (embryo graupel). F_rim = 1 at genesis; mass and
+    #               number drained from q_lcl, n_lcl.
+    #
+    # Both channels read the same Frostenberg-2023 INPC climatology
+    # (with a stochastic OU-driven shift `inpc_log_shift` supplied by
+    # the driver). They differ in mass source, gates, and F_rim.
+    #
+    # Pathway 3 (rain immersion `qrheti`) appears further below; it is
+    # MM15's Bigg formula on the rain PSD without an F23 cap. Pathway 4
+    # (homogeneous, `qchom`/`qrhom`) is not yet implemented in BMT.
+    #
+    # See `kid_jouan_ou/F23_REGIME_AWARE_FIX.md` for the full pathway
+    # inventory + the MM15 ↔ Fortran reference.
 
-    # --- Ice Nucleation (empirical) ---
-    #
-    # Relaxation-style nucleation: nudge n_ice toward the Frostenberg 2023
-    # diagnostic INP concentration on a timescale τ_nuc. Newly nucleated
-    # crystals are assigned a fixed starter mass m_nuc corresponding to a
-    # D_nuc ~ 10 μm nascent crystal. Depositional growth downstream
-    # (MM2015) then carries these crystals to their equilibrium size
-    # under the local vapor excess.
-    #
-    # Previous implementation used τ_nuc = 1 s and m_nuc = q_lcl/n_lcl
-    # (the cloud-liquid mean particle mass). At KiD's prescribed
-    # N_d = 1e8/m³ the liquid mean mass is ~1e-11 kg; combined with the
-    # 1-s relaxation this saturated n_ice to the F23 target in one step
-    # but injected a tiny mass tendency, starving MM2015 deposition.
-    # Result on the Jouan 6-h baseline: IWP ~2e-4 kg/m², ~250x below
-    # observations.
-    #
-    # New design, Round 7:
-    # - τ_nuc = 300 s. F23-style bulk-ice adjustment timescales in the
-    #   literature are O(10^2–10^3 s); 300 s balances between the
-    #   original 1-s over-relaxation and the hand-roll's 600-s choice
-    #   (which produced too much ice on the Jouan column).
-    # - m_nuc = π/6 · ρ_i · D_nuc^3 with D_nuc = 10 μm, the small-D
-    #   tail of the P3 distribution (well below D_th ≈ 63 μm; represents
-    #   a fresh crystal that has survived initial growth from vapor and
-    #   is large enough to persist against sublimation). Gives
-    #   m_nuc ≈ 4.8e-13 kg. Trying D_nuc = 2 μm (m ≈ 3.8e-15 kg) on the
-    #   Jouan 6-h baseline still undershoots Jouan IWP by ~2 orders of
-    #   magnitude because N_ice ramps too slowly for MM2015 deposition
-    #   to lift mass within the sim window; 10 μm gets IWP into the
-    #   10x Jouan tolerance window.
-    # - Vapor-excess guard: cap ∂ₜq_nuc so the implied mass injection
-    #   cannot exceed half the local excess vapor over ice saturation
-    #   per τ_nuc. This prevents runaway nucleation when OU-SIF
-    #   shifts push INPC above physical vapor supply.
-    #
-    # `inpc_log_shift` allows a driver (e.g. KinematicDriver OU-SIF τ-scan)
-    # to add a scalar shift in log(INPC) space without modifying the
-    # Frostenberg2023 struct.
-    # TODO: The parameterization should return a rate, `∂N/∂t`, not a
-    # relaxation toward a diagnostic number concentration.
-    inpc = exp(CM_HetIce.INP_concentration_mean(ice_nucleation, T) + inpc_log_shift) / ρ  # [particles / kg air]
-    τ_nuc = FT(300)  # relaxation timescale for bulk heterogeneous ice nucleation [s]
-    # Starter crystal mass: π/6 · ρ_i · D_nuc^3 for D_nuc = 10 μm.
-    # This is the small-D tail of the P3 distribution rather than the
-    # very-first-crystal 1-2 μm size; it represents a fresh crystal that
-    # has already survived the initial growth from vapor and is now large
-    # enough to persist against sublimation. Using 10 μm (m_nuc ≈ 4.8e-13
-    # kg) produces IWP in the Jouan ballpark; using 1 μm undershoots by
-    # ~100x because N_ice stays tiny long enough that MM2015 deposition
-    # never catches up within the sim window.
-    D_nuc = FT(10e-6)
-    m_nuc = FT(π) / 6 * p3.ρ_i * D_nuc^3  # ≈ 4.8e-13 kg
-    ∂ₜn_nuc = max(0, (inpc - n_ice) / τ_nuc)  # [particles / kg air / s]
-    ∂ₜq_nuc_raw = ∂ₜn_nuc * m_nuc  # [kg ice / kg air / s]
-    # Vapor-excess guard: do not nucleate more mass via deposition pathway
-    # than half the local vapor excess over ice saturation can supply in
-    # one τ_nuc. This prevents the nucleation branch from writing itself
-    # into an unphysical state when OU-SIF shifts push INPC above the
-    # vapor supply, and leaves headroom for concurrent depositional
-    # growth of pre-existing crystals. When subsaturated wrt ice and no
-    # cloud liquid is available, no mass can be sourced, so ∂ₜq_nuc → 0
-    # but we still allow ∂ₜn_nuc to track the F23 diagnostic number (the
-    # implicit assumption is that those particles carry negligible mass
-    # until supersaturation develops).
-    q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-    q_vap_local = TDI.q_vap(q_tot, q_lcl + q_rai, q_ice)
-    q_excess = max(zero(FT), q_vap_local - q_sat_ice)
-    ∂ₜq_vap_cap = FT(0.5) * q_excess / τ_nuc
-    ∂ₜq_nuc = min(∂ₜq_nuc_raw, ∂ₜq_vap_cap)
+    # F23 activation timescale
+    τ_act = FT(300)   # F23 activation relaxation timescale [s]
+    # Vapor deposition nucleation size
+    D_nuc = FT(10e-6)  # 10 μm nascent crystal - small-D tail of the P3
+    m_nuc = p3.ρ_i * CO.volume_sphere_D(D_nuc)
 
-    dn_ice_dt += ∂ₜn_nuc
-    dq_ice_dt += ∂ₜq_nuc
-    dq_rim_dt += ∂ₜq_nuc
-    db_rim_dt += ∂ₜq_nuc / p3.ρ_i  # ρ_i = 916.7 kg m⁻³, the density of solid bulk ice
-    # Nucleation mass is drawn from the vapor reservoir (deposition
-    # nucleation pathway), not from cloud liquid. This matches the
-    # starter-mass interpretation: the nascent ice crystal is formed
-    # from vapor deposition on an INP, not by freezing a pre-existing
-    # droplet. Freezing of existing drops is handled separately in the
-    # rain-freezing and liquid-ice collision branches.
+    # ---- Pathway 1: F23 deposition nucleation (vapor → pristine ice) ----
+    #
+    # Target-relaxation form, structurally identical to Cooper-style qinuc
+    # with F23's log-normal target substituted for Cooper's exponential.
+    # We route through `CM_HetIce.f23_deposition_rate` for the canonical
+    # rate + vapor-cap computation; for now the doc's Pathway-1 gates
+    # `T < T_freeze - 15 K ∧ S_i > 0.05` are effectively disabled by
+    # setting permissive thresholds. This preserves the current always-on
+    # relaxation behaviour. Tighten `T_thresh` / `S_i_thresh` to the doc
+    # defaults (T_freeze−15 K, 0.05) once we're ready for the strict-MM15
+    # form. `ρ_i` is forwarded from the P3 params so the starter mass
+    # stays tied to the P3 ice density. With no Phillips prognostic yet,
+    # `N_INP_active` is proxied by `n_ice`.
+    f23_dep = CM_HetIce.f23_deposition_rate(
+        ice_nucleation, tps, T, ρ, q_tot, q_lcl + q_rai, q_ice, n_ice; m_nuc,
+        T_thresh = FT(2000),  # gate `T < T_thresh` always passes (T < 2000 K)
+        S_i_thresh = FT(-2),  # gate `S_i > S_i_thresh` always passes (S_i ≥ -1)
+        τ_act, inpc_log_shift,
+    )
 
-    # --- Cloud Droplet Condensation Freezing ---
-    # ref: `homogeneous_freezing` in `parcel/ParcelTendencies.jl`
-    # get mean diameter of cloud droplets, then convert to volume
+    dn_ice_dt += f23_dep.∂ₜn_frz
+    dq_ice_dt += f23_dep.∂ₜq_frz
+    # NO contribution to q_rim, b_rim — pristine deposition crystals have F_rim = 0.
+
+    # ---- Pathway 2: F23-bounded Bigg immersion freezing of cloud drops ----
+    #
+    # Bigg (1953) volume-weighted kinetics over the SB2006 cloud-drop PSD
+    # (vanilla MM15 / qcheti, both rates ≥ 0 by construction):
+    #
+    #     ∂ₜn_imm^Bigg = J_bigg(T)       · (π/6)  · M_D³(N_lcl, λ_c, ν_c, μ_c)
+    #     ∂ₜq_imm^Bigg = J_bigg(T) · ρ_w · (π/6)² · M_D⁶(N_lcl, λ_c, ν_c, μ_c)
+    #
+    # F23 INPC imposes an upper bound on the activation rate (the new
+    # piece for clean-air / OU-SIF regimes; ≥ 0):
+    #
+    #     ∂ₜn_imm^INPC = INPC / τ_act
+    #
+    # Realised rate is the smaller of the two; mass tracks the limiting
+    # branch via the size-weighted Bigg mass:
+    #
+    #     ∂ₜn_imm = min(∂ₜn_imm^Bigg, ∂ₜn_imm^INPC)
+    #     ∂ₜq_imm = ∂ₜq_imm^Bigg · ∂ₜn_imm / ∂ₜn_imm^Bigg
+    #
+    # Per MM15 (Fortran `qcheti`) frozen cloud drops are fully rimed
+    # (embryo graupel) → mass adds to BOTH qitot and qirim/birim.
+    cld_bigg = CM_HetIce.liquid_freezing_rate(
+        mp.ice.rain_freezing, pdf_c, tps, q_lcl, ρ, N_lcl, T,
+    )
+    cld_cap = CM_HetIce.f23_immersion_limit_rate(
+        ice_nucleation, T, ρ; τ = τ_act, inpc_log_shift,
+    )
+    ∂ₜn_imm = min(cld_bigg.∂ₜn_frz, cld_cap.∂ₜn_frz)
+    # Mass = (size-weighted Bigg mass) × (rate ratio). When Bigg is
+    # silent (off-gate or zero N_lcl/q_lcl), `cld_bigg.∂ₜn_frz` is exactly
+    # zero — and so is `∂ₜn_imm` — so any safe ratio gives ∂ₜq_imm = 0.
+    # Use 0 as the safe value to avoid 0/0 NaN.
+    ∂ₜq_imm = ifelse(cld_bigg.∂ₜn_frz > zero(FT), cld_bigg.∂ₜq_frz * ∂ₜn_imm / cld_bigg.∂ₜn_frz, zero(FT))
+
+    # Drain liquid:
+    dq_lcl_dt -= ∂ₜq_imm
+    dn_lcl_dt -= ∂ₜn_imm
+    # Add to ice as fully-rimed embryo graupel:
+    dq_ice_dt += ∂ₜq_imm
+    dn_ice_dt += ∂ₜn_imm
+    dq_rim_dt += ∂ₜq_imm           # F_rim = 1 (frozen drop)
+    db_rim_dt += ∂ₜq_imm / p3.ρ_i  # solid-ice rime volume
 
     # --- Ice Sublimation / Deposition ---
     n_per_q_ice = ifelse(q_ice > ϵₘ, n_ice / q_ice, zero(n_ice))
