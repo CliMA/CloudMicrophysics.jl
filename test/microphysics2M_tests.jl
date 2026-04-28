@@ -614,9 +614,9 @@ function test_microphysics2M(FT)
             TT.@test DT.exponential_cdf(Dr_mean, D_max) ≈ 1 - p
 
             # Sanity checks for number concentrations for rain
-            ND = P3.integrate(f_D, D_min, D_max; quad = P3.ChebyshevGauss(1000))
-            Nx = P3.integrate(f_x, x_min, x_max; quad = P3.ChebyshevGauss(100_000))
-            ND_psd = P3.integrate(psd, D_min, D_max; quad = P3.ChebyshevGauss(1000))
+            ND = P3.integrate(f_D, D_min, D_max, P3.ChebyshevGauss(1000))
+            Nx = P3.integrate(f_x, x_min, x_max, P3.ChebyshevGauss(100_000))
+            ND_psd = P3.integrate(psd, D_min, D_max, P3.ChebyshevGauss(1000))
             TT.@test ND ≈ Nᵣ rtol = 1e-6
             if FT == Float64
                 TT.@test Nx ≈ Nᵣ rtol = 7e-3

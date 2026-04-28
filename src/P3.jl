@@ -11,6 +11,7 @@ import SpecialFunctions as SF
 import RootSolvers as RS
 import LogExpFunctions
 import StaticArrays as SA
+import UnrolledUtilities as UU
 
 import ClimaParams as CP
 
@@ -20,6 +21,7 @@ import CloudMicrophysics.Common as CO
 import CloudMicrophysics.DistributionTools as DT
 import CloudMicrophysics.HetIceNucleation as CM_HetIce
 import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.Utilities as UT
 import CloudMicrophysics: ShowMethods
 
 include("P3_particle_properties.jl")

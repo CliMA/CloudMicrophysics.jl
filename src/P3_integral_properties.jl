@@ -1,4 +1,6 @@
 
+abstract type QuadratureRule end
+
 """
     integrate(f, a, b, quad = ChebyshevGauss(100))
 
@@ -48,7 +50,7 @@
  functions with mild singularities at the interval endpoints.
  Ref: https://en.wikipedia.org/wiki/Chebyshev–Gauss_quadrature
 """
-function integrate(f, a, b; quad = ChebyshevGauss(100))
+@inline function integrate(f::F, a::T, b::T, quad::QuadratureRule = ChebyshevGauss(100)) where {F, T}
     FT = eltype(float(a))
     # Pre-compute transformation parameters
     scale_factor = (b - a) / 2
@@ -76,7 +78,7 @@ function integrate(f, a, b; quad = ChebyshevGauss(100))
 end
 
 """
-    integrate(f, bnds...; quad = ChebyshevGauss(100))
+    integrate(f, bnds, quad = ChebyshevGauss(100))
 
 Integrate the function `f` over each subinterval of the integration bounds, `bnds`.
 
@@ -88,10 +90,16 @@ Integrate the function `f` over each subinterval of the integration bounds, `bnd
  The integral is computed as the sum of the integrals over each subinterval,
  `(a, b), (b, c), (c, d), ...`.
 """
-function integrate(f, bnds...; quad = ChebyshevGauss(100))
-    # compute integral over each subinterval (a, b), (b, c), (c, d), ...
-    return sum(integrate(f, a, b; quad) for (a, b) in zip(Base.front(bnds), Base.tail(bnds)))
+@inline function integrate(
+    f::F, bnds::NTuple{N, T}, quad::QuadratureRule = ChebyshevGauss(100)
+) where {F, N, T}
+    # Compute integral over each subinterval (a, b), (b, c), (c, d), ...
+    pairs = UU.unrolled_map(Base.tail(bnds), Base.front(bnds)) do b, a
+        integrate(f, a, b, quad)
+    end
+    return UU.unrolled_sum(pairs)
 end
+
 
 """
     ChebyshevGauss(n)
@@ -130,7 +138,7 @@ If we are interested in only the integral of `f(x)`, we can instead integrate `g
 - https://en.wikipedia.org/wiki/Chebyshev–Gauss_quadrature
 - https://en.wikipedia.org/wiki/Gaussian_quadrature
 """
-struct ChebyshevGauss
+struct ChebyshevGauss <: QuadratureRule
     n::Int
 end
 Base.broadcastable(quad::ChebyshevGauss) = (quad,)

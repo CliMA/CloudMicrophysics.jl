@@ -74,8 +74,11 @@ function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     FT = eltype(logλ)
     D₁ < D₂ || return log(FT(0))  # return log(0) if D₁ ≥ D₂
     z = k + μ + 1
-    (_, q_D₁) = SF.gamma_inc(z, exp(logλ) * D₁)
-    (_, q_D₂) = SF.gamma_inc(z, exp(logλ) * D₂)
+    # NOTE: We use `LogExpFunctions.xexpy(D, logλ)` to compute `λD = D * exp(logλ)`.
+    # When `logλ` is large, `exp(logλ) = Inf`, so the naive product `D * exp(logλ)`
+    # yields `0 * Inf = NaN` when `D = 0`. `xexpy` correctly returns `0` in that case.
+    (_, q_D₁) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₁, logλ))
+    (_, q_D₂) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₂, logλ))
     return -z * logλ + SF.loggamma(z) + log(q_D₁ - q_D₂) + log(FT(scale))
 end
 
@@ -139,11 +142,12 @@ Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state` and `logλ`.
 """
 function logmass_gamma_moment(state::P3State, μ, logλ; n = 0)
     segments = get_segments(state)
-    return LogExpFunctions.logsumexp(
-        let (D_min, D_max) = segment, (a, b) = ice_mass_coeffs(state, (D_min + D_max) / 2)
-            loggamma_inc_moment(D_min, D_max, μ, logλ, b + n, a)
-        end for segment in segments
-    )
+    moments = UU.unrolled_map(segments) do segment
+        (D_min, D_max) = segment
+        (a, b) = ice_mass_coeffs(state, (D_min + D_max) / 2)
+        loggamma_inc_moment(D_min, D_max, μ, logλ, b + n, a)
+    end
+    return UT.unrolled_logsumexp(moments)
 end
 
 """
@@ -184,8 +188,7 @@ function get_logN₀(N_ice, μ, logλ)
 end
 
 """
-    get_distribution_logλ(params, L_ice, N_ice, F_rim, ρ_rim; [logλ_min, logλ_max])
-    get_distribution_logλ(state; [logλ_min, logλ_max])
+    get_distribution_logλ(state, [logλ_guess, logλ_min, logλ_max])
 
 Solve for the distribution parameters given the state, and the mass (`L`) and number (`N`) concentrations.
 
@@ -197,7 +200,7 @@ N′(D) = N₀ D^μ e^{-λD}
 where `N′(D)` is the number concentration at diameter `D` and `μ` is the slope parameter.
     The slope parameter is parameterized, e.g. [`CMP.SlopePowerLaw`](@ref) or [`CMP.SlopeConstant`](@ref).
 
-This algorithm solves for `logλ = log(λ)` and `log_N₀ = log(N₀)` 
+This algorithm solves for `logλ = log(λ)` and `log_N₀ = log(N₀)`
     given `L_ice` and `N_ice` by solving the equations:
 
 ```math
@@ -211,38 +214,103 @@ where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
 
 
 # Arguments
-- `state`: [`P3State`](@ref) object
-- `params`: [`CMP.ParametersP3`](@ref) object
-- `L_ice`: The mass concentration [kg/m³]
-- `N_ice`: The number concentration [1/m³]
-- `F_rim`: The rime mass fraction
-- `ρ_rim`: The rime density
+- `state`: The [`P3State`](@ref)
+- `logλ_guess`: Optional warm-start seed. When `logλ_guess` is finite and
+    strictly inside `[logλ_min, logλ_max]`, one extra evaluation of the
+    residual at the guess is used to **halve the Brent bracket** by sign:
+    whichever endpoint sits on the same side of the root as `f(logλ_guess)`
+    is replaced by the guess, and Brent then converges from the tighter
+    bracket. If the guess is `nothing` / non-finite / out-of-bracket, or
+    evaluates to a non-finite residual, the solver falls back to the full
+    bracket with no behaviour change. Default: `nothing`.
 
-# Keyword arguments
+    **Caveat — monotonicity depends on the `μ(λ)` parameterization.**
+
+    - Under [`CMP.SlopeConstant`](@ref) (μ fixed, independent of λ),
+      `log(L/N)(logλ)` is a strictly decreasing function of `logλ` —
+      larger slope ⇒ smaller mean mass. Brent finds the unique root on
+      any valid bracket and the sign-based warm-start narrowing is
+      exact.
+    - Under [`CMP.SlopePowerLaw`](@ref) (μ = clamp(a·λ^b − c, 0, μ_max)
+      — piecewise flat, rising, flat), the residual is *not* globally
+      monotonic and the same target `L/N` can have several roots (see
+      `docs/src/plots/P3SlopeParameterizations.jl` for a three-root
+      example). In that regime the halved bracket still contains at
+      least one root, but it may not be the root closest to the guess;
+      the warm-start is heuristic rather than exact. For smooth cell
+      evolution (step-to-step `logλ` continuity) this is usually fine
+      because the guess and the current root stay on the same branch,
+      but callers that need all roots should use
+      `get_distribution_logλ_all_solutions`.
 - `logλ_min`: The minimum value of the search bounds [log(1/m)], default is `log(1e1)`
 - `logλ_max`: The maximum value of the search bounds [log(1/m)], default is `log(1e7)`
 """
-function get_distribution_logλ(
-    state::P3State{FT}; logλ_min = log(1e1), logλ_max = log(1e7),
-) where {FT}
-    (iszero(state.N_ice) || iszero(state.L_ice)) && return log(zero(FT))
-    target_log_LdN = log(state.L_ice) - log(state.N_ice)
+function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, logλ_max = 17)
+    FT = eltype(state)
+    ϵₘ = UT.ϵ_numerics_2M_M(FT)
+    ϵₙ = UT.ϵ_numerics_2M_N(FT)
+    (; N_ice, L_ice) = state
+    (N_ice < ϵₙ || L_ice < ϵₘ) && return log(zero(L_ice))
+    target_log_LdN = log(L_ice) - log(N_ice)
 
     shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
 
-    # Find slope parameter
+    # Cold bracket. Brent converges to *some* root inside a valid bracket.
+    # Whether that root is unique over the full bracket depends on the
+    # `μ(λ)` parameterization: monotone for `SlopeConstant`, possibly
+    # multi-valued for `SlopePowerLaw` (see docstring caveat). If either
+    # endpoint residual is non-finite or the endpoints share a sign, the
+    # target `L/N` lies outside the representable PSD range — saturate at
+    # the nearer endpoint rather than failing.
+    lo, hi = FT(logλ_min), FT(logλ_max)
+    f_lo, f_hi = shape_problem(lo), shape_problem(hi)
+    if !isfinite(f_lo) || !isfinite(f_hi) || f_lo * f_hi > 0
+        return abs(f_lo) ≤ abs(f_hi) ? lo : hi
+    end
+
+    # Optional hot-start: one probe at the prior step's `logλ` halves the
+    # bracket by sign, and Brent takes over from there. Any further
+    # narrowing is Brent's job — its interpolating iteration is more
+    # efficient per f-eval than any fixed-offset probe we could add here.
+    # Non-monotonic states may have the halved bracket land on a different
+    # root than the guess; see the docstring caveat.
+    (lo, f_lo, hi, f_hi) =
+        _narrow_bracket(shape_problem, lo, f_lo, hi, f_hi, logλ_guess)
+
     sol = RS.find_zero(
         shape_problem,
-        RS.SecantMethod(FT(logλ_min), FT(logλ_max)),
+        RS.BrentsMethod(lo, hi),
         RS.CompactSolution(),
         RS.RelativeSolutionTolerance(eps(FT)),
-        50,
+        100,
     )
     return sol.root  # logλ
 end
-function get_distribution_logλ(params::CMP.ParametersP3, L_ice, N_ice, F_rim, ρ_rim; kwargs...)
-    state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
-    return get_distribution_logλ(state; kwargs...)
+"""
+    get_distribution_logλ_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+
+Compute `log(λ)` for P3, using prognostic ice variables directly
+
+The P3 variables `F_rim` and `ρ_rim` are computed in a regularised way
+"""
+function get_distribution_logλ_from_prognostic(
+    params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, args...,
+)
+    state = get_state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    return get_distribution_logλ(state, args...)
+end
+
+# One-probe narrowing of a valid bracket `[lo, hi]` using a probe point `p`.
+# No-op if `p` is not usable (nothing / non-finite / outside the bracket) or
+# if `f(p)` is non-finite. Otherwise, replace whichever endpoint sits on the
+# same side of the root as `p` — a single sign check on `f_lo * f_p`.
+@inline _narrow_bracket(_sp, lo, f_lo, hi, f_hi, ::Nothing) = (lo, f_lo, hi, f_hi)
+@inline function _narrow_bracket(shape_problem, lo, f_lo, hi, f_hi, p::Real)
+    p_ = oftype(lo, p)  # match FT of the bracket for type stability
+    (isfinite(p_) && lo < p_ < hi) || return (lo, f_lo, hi, f_hi)
+    f_p = shape_problem(p_)
+    isfinite(f_p) || return (lo, f_lo, hi, f_hi)
+    return f_lo * f_p < 0 ? (lo, f_lo, p_, f_p) : (p_, f_p, hi, f_hi)
 end
 
 """
