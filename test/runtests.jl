@@ -9,7 +9,10 @@ TT.@testset "All tests" begin
     include("microphysics1M_tests.jl")
     include("bulk_tendencies_tests.jl")
     include("activation_schemes_tests.jl")
+<<<<<<< HEAD
     include("bulk_tendencies_quadrature_tests.jl")
+=======
+>>>>>>> 96958ee9 (feat: immersion freezing, INP depletion)
     include("type_stability_tests.jl")
     include("microphysics2M_tests.jl")
     include("microphysics_noneq_tests.jl")

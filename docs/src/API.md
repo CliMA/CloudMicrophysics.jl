@@ -137,7 +137,6 @@ BulkMicrophysicsTendencies.average_bulk_microphysics_tendencies
 BulkMicrophysicsTendencies.bulk_microphysics_derivatives
 BulkMicrophysicsTendencies.bulk_microphysics_cloud_derivatives
 BulkMicrophysicsTendencies.activation_source
-BulkMicrophysicsTendencies.repair_ice_state
 ```
 
 # P3 scheme
