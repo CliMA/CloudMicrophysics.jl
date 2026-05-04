@@ -72,7 +72,7 @@ function ice_melt(
     (; K_therm) = aps
     L_f = TDI.Lf(tps, Tₐ)
 
-    (; L_ice, N_ice) = state
+    (; ρq_ice, ρn_ice) = state
     (; T_freeze, vent) = state.params
 
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
@@ -87,8 +87,8 @@ function ice_melt(
 
     # only consider melting (not fusion)
     dLdt = max(0, dLdt_unclamped)
-    # compute change of N_ice proportional to change in L
-    dNdt = N_ice / L_ice * dLdt
+    # compute change of N_ice proportional to change in mass
+    dNdt = ρn_ice / ρq_ice * dLdt
 
     return (; dNdt, dLdt)
 end
