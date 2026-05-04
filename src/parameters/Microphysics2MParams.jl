@@ -10,17 +10,12 @@ Parameters for 2-moment warm rain processes (Seifert-Beheng 2006).
 - `air_properties::AP`: AirProperties — air properties for evaporation
 - `condevap::CE`: MM2015 cond-evap relaxation timescale
 - `subdep::SD`: MM2015 sub-dep relaxation timescale
-- `activation_scheme::AS`: aerosol → cloud-droplet activation scheme
-  (defaults to [`NoActivation`](@ref); set to e.g. `DiagnosticNc`,
-  `TwomeyActivation`, or `FixedARGActivation` to enable activation in
-  the fused 2M tendency).
 """
-@kwdef struct WarmRainParams2M{SB, AP, CE, SD, AS <: AbstractActivationScheme} <: ParametersType
+@kwdef struct WarmRainParams2M{SB, AP, CE, SD} <: ParametersType
     seifert_beheng::SB
     air_properties::AP
     condevap::CE
     subdep::SD
-    activation_scheme::AS = NoActivation()
 end
 # Construct WarmRainParams2M from a ClimaParams TOML dictionary
 WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true,
@@ -30,7 +25,6 @@ WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true,
         air_properties = AirProperties(toml_dict),
         condevap = CondEvap2M(toml_dict),
         subdep = SubDep2M(toml_dict),
-        activation_scheme,
     )
 
 Base.show(io::IO, mime::MIME"text/plain", x::WarmRainParams2M) =
@@ -59,7 +53,7 @@ which constructs the parameterization with components:
 - `rain_freezing` = [`RainFreezing`](@ref)
 
 """
-@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM} <: ParametersType
+@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF} <: ParametersType
     "The core P3 scheme parameters"
     scheme::P3
     "The terminal velocity parameterization"
@@ -72,14 +66,6 @@ which constructs the parameterization with components:
     ice_nucleation::HET
     "The rain freezing parameters (Bigg-type immersion freezing)"
     rain_freezing::RF
-    "Model for F23 INP-activation memory: choose
-    [`NIceProxyDepletion`](@ref) (default; legacy n_ice-as-proxy form)
-    or [`PrognosticINPDecay`](@ref) (Phillips-style activation memory
-    via a host-supplied `n_INP_used` prognostic). Selects what value
-    is subtracted from `INPC(T)/ρ` in the F23 deposition + immersion-
-    cap rates, and whether the host needs to maintain a `n_INP_used`
-    tracer."
-    inp_depletion_model::INPDM = NIceProxyDepletion()
     "Number of Chebyshev–Gauss nodes used for size-distribution integrals
     (deposition / sublimation, melting, riming, ice-rain collection,
     sedimentation). Lower → faster, slightly less accurate. Default 100
@@ -92,7 +78,6 @@ Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
 
 P3IceParams(toml_dict::CP.ParamDict;
     is_limited = true, quadrature_order::Int = 100,
-    inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = P3IceParams(;
         scheme = ParametersP3(toml_dict),
         terminal_velocity = Chen2022VelType(toml_dict),
@@ -100,7 +85,6 @@ P3IceParams(toml_dict::CP.ParamDict;
         rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited),
         ice_nucleation = Frostenberg2023(toml_dict),
         rain_freezing = RainFreezing(toml_dict),
-        inp_depletion_model,
         quadrature_order,
     )
 
@@ -152,14 +136,12 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 """
 Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true,
-    activation_scheme::AbstractActivationScheme = NoActivation(),
     quadrature_order::Int = 100,
-    inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = Microphysics2MParams(;
         # Warm rain parameters (always present)
         warm_rain = WarmRainParams2M(toml_dict; is_limited, activation_scheme),
         # Optional ice phase parameters
         ice = with_ice ?
-              P3IceParams(toml_dict; is_limited, quadrature_order, inp_depletion_model) :
+              P3IceParams(toml_dict; is_limited, quadrature_order) :
               nothing,
     )

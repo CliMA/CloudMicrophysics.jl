@@ -839,7 +839,7 @@ function test_p3_ice_self_collection(FT)
     F_rim = FT(0.8)
     ρ_rim = FT(800)
 
-    state = P3.get_state(params; F_rim, ρ_rim, L_ice = Lᵢ, N_ice = Nᵢ)
+    state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
     logλ = P3.get_distribution_logλ(state)
     T = T_freeze - FT(5)  # 5K below freezing
 
@@ -852,7 +852,7 @@ function test_p3_ice_self_collection(FT)
         @test rates.dNdt > 0
 
         # Test edge case with virtually zero L_ice and N_ice
-        state_zero = P3.get_state(params; F_rim, ρ_rim, L_ice = FT(0), N_ice = FT(0))
+        state_zero = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)
         logλ_zero = P3.get_distribution_logλ(state_zero)
         rates_zero =
             P3.ice_self_collection(state_zero, logλ_zero, aps, tps, vel_params, ρₐ, T; quad = P3.ChebyshevGauss(50))

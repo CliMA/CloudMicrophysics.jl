@@ -1281,9 +1281,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai,
     q_ice, n_ice, q_rim, b_rim, logλ,
-    inpc_log_shift = zero(ρ),
-    w = zero(ρ), p = zero(ρ),
-    n_INP_used = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = eltype(ρ)
     ϵₘ = UT.ϵ_numerics_2M_M(FT)
@@ -1311,12 +1308,12 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     L_rim = q_rim * ρ  # [kg rim / m³ air]
     B_rim = b_rim * ρ  # [m³ rim / m³ air]
 
-    # P3State construction handles the F_rim/ρ_rim regularisation and
-    # domain clamps internally — see `get_state_from_prognostic`. The
-    # regularised ratios (`UT.rime_mass_fraction`, `UT.rime_density`) used
-    # there smoothly blend to zero as their denominators shrink, avoiding
-    # the hard discontinuity at `q_ice = ϵ` / `b_rim = ϵ`.
-    state = CMP3.get_state_from_prognostic(mp.ice.scheme, L_ice, N_ice, L_rim, B_rim)
+    # `state_from_prognostic` handles the F_rim/ρ_rim regularisation
+    # and domain clamps internally. The regularised ratios
+    # (`UT.rime_mass_fraction`, `UT.rime_density`) smoothly blend to
+    # zero as their denominators shrink, avoiding the hard
+    # discontinuity at `q_ice = ϵ` / `b_rim = ϵ`.
+    state = CMP3.state_from_prognostic(mp.ice.scheme, L_ice, N_ice, L_rim, B_rim)
 
     # Unpack warm rain parameters
     aps = mp.warm_rain.air_properties
@@ -1412,6 +1409,16 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
             ∂ₜq_ice_melt * state.F_rim / state.ρ_rim, zero(FT),
         )
     end
+    # --- Ice number adjustment for mass limits ---
+    # Number adjustment for ice mass limits (Horn 2012, DOI: 10.5194/gmd-5-345-2012).
+    # Nudges n_ice toward [q_ice / x_max, q_ice / x_min] over timescale τ.
+    numadj = (;
+        τ = FT(100), 
+        x_min = FT(1e-12),  # min mean ice particle mass [kg] (~10 μm crystal)
+        x_max = FT(1e-5),   # max mean ice particle mass [kg] (~5 mm aggregate)
+    )
+    ∂ₜn_ice_numadj = CM2.number_tendency_from_mass_limits(numadj, q_ice, n_ice)
+    dn_ice_dt += ∂ₜn_ice_numadj
 
     # --- ----------------------------- ---
     # --- Ice nucleation (F23 + Bigg)   ---
