@@ -15,7 +15,7 @@ function test_ventilation_factor(FT)
         L_ice = FT(0.22) # Ice mass concentration [kg/m³] (not used in this test)
         N_ice = FT(1e6)  # Ice number concentration [1/m³] (not used in this test)
         ρₐ = FT(1.2)     # Air density [kg/m³]
-        state = P3.get_state(params; F_rim, ρ_rim, L_ice, N_ice)
+        state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
         vent = state.params.vent
         v_term = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
         vent_factor = CO.ventilation_factor(vent, aps, v_term)

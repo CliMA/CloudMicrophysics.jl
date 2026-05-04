@@ -168,13 +168,12 @@ CMP.LocalRimeDensity
 
 ```@docs
 P3Scheme.P3State
-P3Scheme.get_state
+P3Scheme.state_from_prognostic
 ```
 
 ### State relationships
 
 ```@docs
-P3Scheme.get_thresholds_ρ_g
 P3Scheme.get_ρ_d
 P3Scheme.get_ρ_g
 P3Scheme.get_D_th

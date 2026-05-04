@@ -163,11 +163,11 @@ function benchmark_test(FT)
     INPC = FT(1e5)
 
     @info "P3 Scheme"
-    state = P3.get_state(params_P3; L_ice, N_ice, F_rim, ρ_rim)
+    state = P3.P3State(params_P3, L_ice, N_ice, F_rim, ρ_rim)
     logλ = P3.get_distribution_logλ(state)
     bench_press(
         P3.P3State,
-        (params, L_ice, N_ice, F_rim, ρ_rim) -> P3.get_state(params; L_ice, N_ice, F_rim, ρ_rim),
+        P3.P3State,
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
         25,
     )

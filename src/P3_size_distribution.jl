@@ -7,7 +7,7 @@ Compute the log of the ice particle number concentration at diameter `D` given t
 """
 function logN′ice(state::P3State, logλ)
     μ = get_μ(state, logλ)
-    log_N₀ = get_logN₀(state.N_ice, μ, logλ)
+    log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
     return function logN′(D)
         logD = log(D)
         log_N₀ + μ * logD - exp(logλ + logD)
@@ -141,11 +141,10 @@ Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state` and `logλ`.
 - For `n = 1`, this evaluates to the (unnormalized) mass-weighted mean particle size, see [`D_m`](@ref)
 """
 function logmass_gamma_moment(state::P3State, μ, logλ; n = 0)
-    segments = get_segments(state)
-    moments = UU.unrolled_map(segments) do segment
-        (D_min, D_max) = segment
-        (a, b) = ice_mass_coeffs(state, (D_min + D_max) / 2)
-        loggamma_inc_moment(D_min, D_max, μ, logλ, b + n, a)
+    bnds = segment_boundaries(state)
+    moments = UU.unrolled_map(subintervals(bnds)) do (D_lo, D_hi)
+        (a, b) = ice_mass_coeffs(state, (D_lo + D_hi) / 2)
+        loggamma_inc_moment(D_lo, D_hi, μ, logλ, b + n, a)
     end
     return UT.unrolled_logsumexp(moments)
 end
@@ -325,7 +324,7 @@ Find all solutions for `logλ` given the `state` ([`P3State`](@ref)), `L`, and `
 """
 function get_distribution_logλ_all_solutions(state::P3State)
     # Find bounds by evaluating function incrementally, then apply root finding with bounds above and below zero-point
-    target_log_LdN = log(state.L_ice) - log(state.N_ice)
+    target_log_LdN = log(state.ρq_ice) - log(state.ρn_ice)
 
     shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
 

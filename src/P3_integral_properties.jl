@@ -78,6 +78,21 @@ abstract type QuadratureRule end
 end
 
 """
+    subintervals(bnds::NTuple{N, T}) -> NTuple{N-1, NTuple{2, T}}
+
+Pair adjacent elements of a flat boundary tuple into the consecutive
+subintervals they delimit:
+
+    subintervals((a, b, c, d)) ≡ ((a, b), (b, c), (c, d))
+
+`Base.front` and `Base.tail` are zero-cost on fixed-length tuples, so
+the helper compiles to a direct tuple construction with no runtime
+dispatch.
+"""
+@inline subintervals(bnds::NTuple) =
+    UU.unrolled_map(tuple, Base.front(bnds), Base.tail(bnds))
+
+"""
     integrate(f, bnds, quad = ChebyshevGauss(100))
 
 Integrate the function `f` over each subinterval of the integration bounds, `bnds`.
@@ -88,13 +103,12 @@ Integrate the function `f` over each subinterval of the integration bounds, `bnd
  - `quad`: Quadrature scheme, default: `ChebyshevGauss(100)`
 
  The integral is computed as the sum of the integrals over each subinterval,
- `(a, b), (b, c), (c, d), ...`.
+ `(a, b), (b, c), (c, d), ...` — see [`subintervals`](@ref).
 """
 @inline function integrate(
     f::F, bnds::NTuple{N, T}, quad::QuadratureRule = ChebyshevGauss(100)
 ) where {F, N, T}
-    # Compute integral over each subinterval (a, b), (b, c), (c, d), ...
-    pairs = UU.unrolled_map(Base.tail(bnds), Base.front(bnds)) do b, a
+    pairs = UU.unrolled_map(subintervals(bnds)) do (a, b)
         integrate(f, a, b, quad)
     end
     return UU.unrolled_sum(pairs)
@@ -179,8 +193,7 @@ function integral_bounds(state::P3State{FT}, logλ; p, moment_order = 0) where {
 
     # Only integrate up to the maximum diameter, `D_max`, including intermediate thresholds
     # If `F_rim` is very close to 1, `D_cr` may be greater than `D_max`, in which case it is disregarded.
-    thresholds = get_bounded_thresholds(state, D_min, D_max)
-    return thresholds
+    return segment_boundaries(state, D_min, D_max)
 end
 
 """
@@ -195,6 +208,6 @@ Compute the mass weighted mean particle size [m]
 function D_m(state, logλ)
     μ = get_μ(state, logλ)
     mass_weighted_moment = logmass_gamma_moment(state, μ, logλ; n = 1)
-    log_N₀ = get_logN₀(state.N_ice, μ, logλ)
-    return exp(log_N₀ + mass_weighted_moment) / state.L_ice
+    log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
+    return exp(log_N₀ + mass_weighted_moment) / state.ρq_ice
 end

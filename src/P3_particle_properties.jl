@@ -8,75 +8,118 @@ This struct bundles the P3 parameterizations `params`, the provided rime state
 (`F_rim`, `ρ_rim`), and the cached derived threshold variables
 `thresholds = (; D_th, D_gr, D_cr, ρ_g)` — computed once at construction.
 
-To obtain a `P3State` object, use the [`get_state`](@ref) function (which
-validates rime inputs) or the constructor `P3State(params, L_ice, N_ice,
-F_rim, ρ_rim)` (no validation).
+# Construction
+
+Two positional, broadcast-friendly, GPU-clean entry points; both wrap the
+6-field inner constructor and auto-compute `thresholds` so the cached
+derivatives stay consistent with the rime state.
+
+  - `P3State(params, L_ice, N_ice, F_rim, ρ_rim)` — direct construction
+    from explicit `(F_rim, ρ_rim)`. Used by tests, audit prototypes, and
+    documentation plots that want exact rime-state inputs. **Performs no
+    validation.** Out-of-range inputs (`F_rim ∉ [0, 1)`, `ρ_rim ∉ [0,
+    ρ_l]`) produce a state whose downstream evaluation typically yields
+    NaN or non-physical values.
+  - [`state_from_prognostic`](@ref) — production / upstream-model entry
+    point. Accepts the volumetric prognostic variables `(ρq_ice,
+    ρn_ice, ρq_rim, ρb_rim)`, regularises them into `(F_rim, ρ_rim)`,
+    and returns the constructed state.
 
 # Fields
 $(FIELDS)
 """
-struct P3State{FT, PARAMS <: CMP.ParametersP3{FT}, THRESH}
+struct P3State{FT, PARAMS <: CMP.ParametersP3{FT}}
     "[`CMP.ParametersP3`](@ref) object"
     params::PARAMS
 
-    "The ice mass concentration [kg/m³]"
-    L_ice::FT
-    "The ice number concentration [1/m³]"
-    N_ice::FT
+    "Volumetric ice mass concentration [kg/m³]"
+    ρq_ice::FT
+    "Volumetric ice number concentration [1/m³]"
+    ρn_ice::FT
     "Rime mass fraction"
     F_rim::FT
     "Rime density"
     ρ_rim::FT
 
-    "Cached derived thresholds `(; D_th, D_gr, D_cr, ρ_g)` — see [`get_thresholds_ρ_g`](@ref)"
-    thresholds::THRESH
+    "Graupel density [kg/m³] — `NaN` when `F_rim = 0` (no graupel regime)"
+    ρ_g::FT
+    "Critical size separating spherical and nonspherical ice [m]"
+    D_th::FT
+    "Size of equal mass for graupel and unrimed ice [m] — `Inf` when `F_rim = 0`"
+    D_gr::FT
+    "Size of equal mass for graupel and partially rimed ice [m] — `Inf` when `F_rim = 0`"
+    D_cr::FT
 end
 
-# Positional convenience constructor — auto-computes thresholds from
-# (params, F_rim, ρ_rim). Use this or `get_state` instead of calling the
-# 6-field inner constructor directly, so cached thresholds stay consistent
-# with the rime state.
-function P3State(params::CMP.ParametersP3, L_ice, N_ice, F_rim, ρ_rim)
-    thresholds = get_thresholds_ρ_g(params, F_rim, ρ_rim)
-    return P3State(params, L_ice, N_ice, F_rim, ρ_rim, thresholds)
+# Positional 5-arg constructor — derives the cached thresholds and
+# graupel density from `(F_rim, ρ_rim)`. The production hot path
+# (`state_from_prognostic`) wraps this with input regularisation;
+# tests / docs call this directly with explicit `(F_rim, ρ_rim)`.
+#
+# When `F_rim = 0`, `ρ_g` collapses to `NaN` and `D_gr = D_cr = Inf`
+# (the "no graupel regime" sentinel). Downstream code is expected to
+# gate on the unrimed branch before reading those fields.
+function P3State(params::CMP.ParametersP3, ρq_ice, ρn_ice, F_rim, ρ_rim)
+    FT = eltype(ρq_ice)
+    (; mass, ρ_i) = params
+    ρ_d  = get_ρ_d(mass, F_rim, ρ_rim)
+    ρ_g  = get_ρ_g(F_rim, ρ_rim, ρ_d)
+    D_th = get_D_th(mass, ρ_i)
+    D_gr = ifelse(iszero(F_rim), FT(Inf), get_D_gr(mass, ρ_g))
+    D_cr = ifelse(iszero(F_rim), FT(Inf), get_D_cr(mass, F_rim, ρ_g))
+    return P3State(params, ρq_ice, ρn_ice, F_rim, ρ_rim, ρ_g, D_th, D_gr, D_cr)
 end
-
-# Keyword convenience (preserves the @kwdef-style call site).
-P3State(; params, L_ice, N_ice, F_rim, ρ_rim) = P3State(params, L_ice, N_ice, F_rim, ρ_rim)
 
 Base.show(io::IO, mime::MIME"text/plain", x::P3State) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
-ShowMethods.field_units(::P3State) = (; L_ice = "kg/m³", N_ice = "1/m³", ρ_rim = "kg/m³")
+ShowMethods.field_units(::P3State) = (;
+    ρq_ice = "kg/m³", ρn_ice = "1/m³", ρ_rim = "kg/m³",
+    ρ_g = "kg/m³", D_th = "m", D_gr = "m", D_cr = "m",
+)
 
 """
-    get_state(params; L_ice, N_ice, F_rim, ρ_rim)
+    state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
 
-Create a [`P3State`](@ref) from [`CMP.ParametersP3`](@ref) and rime state parameters.
+Construct a [`P3State`](@ref) from the volumetric prognostic ice
+variables directly, computing the (clamped, regularised) rime mass
+fraction and rime density. **The production / upstream-model entry
+point.** Positional and broadcast-friendly.
+
+The regularised ratios come from [`Utilities.rime_mass_fraction`](@ref) and
+[`Utilities.rime_density`](@ref), which smoothly go to zero when their
+denominators are near machine precision — avoiding the hard discontinuity
+at `q_ice = ϵ` / `b_rim = ϵ`. The upper clamps `F_rim < 1 − ε` and
+`ρ_rim ≤ 0.8·ρ_l ≈ 730 kg/m³` keep the result inside the domain of validity
+of the threshold formulas evaluated by the [`P3State`](@ref) constructor.
+
+!!! note "TODO — revisit the `ρ_rim ≤ 0.8·ρ_l` cap"
+    The closed-form graupel density `ρ_g = F_rim·ρ_rim + (1−F_rim)·ρ_d`
+    can mathematically exceed `ρ_l` — `ρ_d` (the unrimed portion's
+    density, [`get_ρ_d`](@ref)) is linear in `ρ_rim` with no built-in
+    upper clamp, so feeding `ρ_rim` near `ρ_l` can produce `ρ_g > ρ_l`.
+    That breaks the threshold ordering `D_th < D_gr < D_cr` that the P3
+    partitioning assumes (`D_gr ∝ (6α_va/(π·ρ_g))^{1/(3−β_va)}` shrinks
+    as `ρ_g` grows; eventually `D_gr < D_th`). The 0.8 cushion keeps
+    `ρ_g` comfortably below `ρ_l` for the realistic `(F_rim, ρ_rim)`
+    regime — Macklin-type rime-density formulations rarely give
+    `ρ_rim > 700 kg/m³` anyway, so the cushion costs us nothing
+    physically. To lift the cap to `ρ_l` we'd need to (i) explicitly
+    bound `ρ_g` (e.g. `min(ρ_g, ρ_l)`) or rederive `ρ_d` so it's
+    monotone-bounded by `ρ_l`, and (ii) accept that bulk rime densities
+    800–917 kg/m³ are off the calibration domain of the original P3 fit.
 
 # Arguments
- - `params`: [`CMP.ParametersP3`](@ref) object
-
-# Keyword arguments
- - `L_ice`: ice mass concentration [kg/m³]
- - `N_ice`: ice number concentration [1/m³]
- - `F_rim`: rime mass fraction [-], `F_rim = L_rim / L_ice`
- - `ρ_rim`: rime density [kg/m³],   `ρ_rim = L_rim / B_rim`
-
-# Notes
-
-The returned state caches `thresholds = (; D_th, D_gr, D_cr, ρ_g)` —
-computed once via [`get_thresholds_ρ_g`](@ref)
+- `params`: [`CMP.ParametersP3`](@ref)
+- `ρq_ice`: ice mass concentration [kg/m³]
+- `ρn_ice`: ice number concentration [1/m³]
+- `ρq_rim`: rime mass concentration [kg/m³]
+- `ρb_rim`: rime volume concentration [m³/m³]
 """
-function get_state(params::CMP.ParametersP3; L_ice, N_ice, F_rim, ρ_rim)
-    # Rime mass fraction must always be non-negative AND strictly < 1
-    # (fully-rimed ice would leave no unrimed part).
-    0 ≤ F_rim < 1 || throw(DomainError(F_rim,
-        "Rime mass fraction, `F_rim`, must be between 0 and 1"))
-    # Rime density must be non-negative; as a bulk ice density it cannot
-    # exceed the density of liquid water `ρ_l`.
-    0 ≤ ρ_rim ≤ params.ρ_l || throw(DomainError(ρ_rim,
-        "Rime density, `ρ_rim`, must be between 0 and ρ_l"))
-    return P3State(; params, L_ice, N_ice, F_rim, ρ_rim)
+function state_from_prognostic(params::CMP.ParametersP3, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    FT = eltype(ρq_ice)
+    F_rim = min(UT.rime_mass_fraction(ρq_rim, ρq_ice), one(FT) - eps(FT))
+    ρ_rim = min(UT.rime_density(ρq_rim, ρb_rim),       FT(0.8) * params.ρ_l)
+    return P3State(params, ρq_ice, ρn_ice, F_rim, ρ_rim)
 end
 
 """
@@ -255,62 +298,23 @@ See Eq. 14 in [MorrisonMilbrandt2015](@cite).
 get_D_cr(mass::CMP.MassPowerLaw, F_rim, ρ_g) = _get_threshold(mass, ρ_g * (1 - F_rim))
 
 """
-    get_thresholds_ρ_g(state::P3State)
-    get_thresholds_ρ_g(params::CMP.ParametersP3, F_rim, ρ_rim)
+    segment_boundaries(state::P3State, D_min = 0, D_max = Inf)
 
-# Returns
-- `(; D_th, D_gr, D_cr, ρ_g)`: The thresholds for the size distribution,
-    and the density of total (deposition + rime) ice mass for graupel [kg/m³]
-    If `F_rim = 0`, then we set `D_gr = D_cr = Inf`, and `ρ_g = NaN` (should not be used).
+Return the flat 5-tuple `(D_min, D_th, D_gr, D_cr, D_max)` of P3 mass-
+regime boundaries clamped into the requested integration window
+`[D_min, D_max]`. Suitable as the `bnds` argument to
+[`integrate`](@ref) / [`subintervals`](@ref).
 
-See [`get_D_th`](@ref), [`get_D_gr`](@ref), [`get_D_cr`](@ref), and [`get_ρ_g`](@ref) for more details.
+If `F_rim = 0`, `state.D_gr` and `state.D_cr` are `Inf`; the clamp
+collapses them to `D_max`, producing zero-width upper segments —
+correct for the unrimed regime where only `(D_min, D_th)` and
+`(D_th, D_max)` carry mass.
 """
-get_thresholds_ρ_g(state::P3State) = state.thresholds
-function get_thresholds_ρ_g(params::CMP.ParametersP3, F_rim, ρ_rim)
-    FT = eltype(F_rim)
-    (; mass, ρ_i) = params
-    D_th = get_D_th(mass, ρ_i)
-    
-    ρ_d = get_ρ_d(mass, F_rim, ρ_rim)
-    ρ_g = get_ρ_g(F_rim, ρ_rim, ρ_d)
-    D_gr = get_D_gr(mass, ρ_g)
-    D_cr = get_D_cr(mass, F_rim, ρ_g)
-
-    # If unrimed, set D_gr and D_cr to infinity
-    D_gr = ifelse(iszero(F_rim), FT(Inf), D_gr)
-    D_cr = ifelse(iszero(F_rim), FT(Inf), D_cr)
-
-    # Return a plain Tuple (not a NamedTuple). NamedTuple construction in
-    # a CUDA kernel triggers `apply_type` at runtime which GPUCompiler
-    # can't lower (`unsupported call to jl_f_apply_type`).
-    return (D_th, D_gr, D_cr, ρ_g)
-end
-
-function get_bounded_thresholds(
-    state::P3State{FT}, D_min::FT = FT(0), D_max::FT = FT(Inf)
-) where {FT}
-    (D_th, D_gr, D_cr, _) = get_thresholds_ρ_g(state)
-    return clamp.((D_min, D_th, D_gr, D_cr, D_max), D_min, D_max)
-end
-
-"""
-    get_segments(state::P3State)
-
-Return the segments of the size distribution as a tuple of intervals.
-
-# Arguments
-- `state`: [`P3State`](@ref) object
-
-# Returns
-- `segments`: tuple of tuples, each containing the lower and upper bounds of a segment
-
-For example, if the thresholds are `(D_th, D_gr, D_cr)`, then the segments are:
-- `(0, D_th)`, `(D_th, D_gr)`, `(D_gr, D_cr)`, `(D_cr, Inf)`
-"""
-function get_segments(state::P3State{FT}, D_min::FT = FT(0), D_max::FT = FT(Inf)) where {FT}
-    (D_min, D_th, D_gr, D_cr, D_max) = get_bounded_thresholds(state, D_min, D_max)
-    segments = ((D_min, D_th), (D_th, D_gr), (D_gr, D_cr), (D_cr, D_max))
-    return segments
+function segment_boundaries(state::P3State{FT}, D_min = FT(0), D_max = FT(Inf)) where {FT}
+    D_th = clamp(state.D_th, D_min, D_max)
+    D_gr = clamp(state.D_gr, D_min, D_max)
+    D_cr = clamp(state.D_cr, D_min, D_max)
+    return (D_min, D_th, D_gr, D_cr, D_max)
 end
 
 """
@@ -339,9 +343,8 @@ Return the coefficients for the ice mass power law at diameter `D`.
  - `(a, b)`: coefficients for the ice mass power law, `a D^b`
 """
 function ice_mass_coeffs(state::P3State, D)
-    (; params, F_rim) = state
+    (; params, F_rim, ρ_g, D_th, D_gr, D_cr) = state
     FT = eltype(D)
-    (D_th, D_gr, D_cr, ρ_g) = get_thresholds_ρ_g(state)
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
 
@@ -431,8 +434,7 @@ Return the cross-sectional area of a particle based on where it falls in the
  - `D`: maximum particle dimension [m]
 """
 function ice_area(state::P3State, D)
-    (; params, F_rim) = state
-    (D_th, D_gr, D_cr, _) = get_thresholds_ρ_g(state)
+    (; params, F_rim, D_th, D_gr, D_cr) = state
     (; γ, σ) = params.area
     spherical_area(D) = D^2 * π / 4
     nonspherical_area(D) = γ * D^σ
@@ -469,10 +471,7 @@ Returns the aspect ratio (ϕ) for an ice particle
 """
 function ϕᵢ(state::P3State, D)
     FT = eltype(D)
-    # Reuse the mass-regime `(a, b)` coefficients for both mᵢ and ρᵢ so we
-    # only compute `a * D^b` once per call.
-    (a, b) = ice_mass_coeffs(state, D)
-    mᵢ = a * D^b
+    mᵢ = ice_mass(state, D)
     aᵢ = ice_area(state, D)
     ρᵢ = mᵢ / CO.volume_sphere_D(D)
 
