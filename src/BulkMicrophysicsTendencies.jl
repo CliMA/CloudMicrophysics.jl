@@ -45,8 +45,7 @@ export MicrophysicsScheme,
     average_bulk_microphysics_tendencies,
     bulk_microphysics_derivatives,
     bulk_microphysics_cloud_derivatives,
-    activation_source,
-    repair_ice_state
+    activation_source
 
 #####
 ##### Singleton types for dispatch
@@ -1200,7 +1199,6 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, Nothing}, tps,
     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
-    inpc_log_shift = zero(ρ),
     w = zero(ρ), p = zero(ρ),
 ) where {WR}
     # Clamp negative inputs to zero (robustness against numerical errors)
@@ -1221,8 +1219,9 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
     db_rim_dt = zero(ρ)
 
     # --- Core Warm Rain Processes (shared helper, includes activation) ---
-    warm = warm_rain_tendencies_2m(mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai,
-                                   w, p)
+    warm = warm_rain_tendencies_2m(
+        mp.warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai, w, p,
+    )
     dq_lcl_dt = warm.dq_lcl_dt
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
@@ -1281,6 +1280,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai,
     q_ice, n_ice, q_rim, b_rim, logλ,
+    w = zero(ρ), p = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = eltype(ρ)
     ϵₘ = UT.ϵ_numerics_2M_M(FT)
@@ -1332,16 +1332,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dq_rai_dt = warm.dq_rai_dt
     dn_rai_dt = warm.dn_rai_dt
     dn_lcl_activation_dt = warm.dn_lcl_activation_dt
-    # NOTE on latent-heat coupling: per-process phase-change rates
-    # (`S_cond`, `S_dep`, `S_frz_net`) are no longer returned. Hosts that
-    # need a combined LH rate can compute it from the prognostic mass
-    # tendencies via the identity
-    #   ḣ_lh = Lv(T) · (dq_lcl/dt + dq_rai/dt) + Ls(T) · dq_ice/dt
-    # which holds because Ls = Lv + Lf (sublimation = vaporisation +
-    # fusion) makes the L_f · S_frz term cancel when expressed in
-    # species coordinates. This keeps BMT dt-agnostic and the host's LH
-    # rate self-consistent with whatever clipping the host applies to
-    # the species tendencies.
 
     # --- P3 Ice Processes ---
     p3 = mp.ice.scheme
@@ -1420,32 +1410,9 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ∂ₜn_ice_numadj = CM2.number_tendency_from_mass_limits(numadj, q_ice, n_ice)
     dn_ice_dt += ∂ₜn_ice_numadj
 
-    # --- ----------------------------- ---
-    # --- Ice nucleation (F23 + Bigg)   ---
-    # --- ----------------------------- ---
-    #
-    # Two parallel heterogeneous-freezing channels, MM15-aligned:
-    #
-    #   Pathway 1 — F23 deposition / condensation-freezing nucleation
-    #               (analog of Fortran `qinuc`): vapor → pristine ice on
-    #               an INP. F_rim = 0 at genesis; subsequent growth via
-    #               Pathway 5 (MM2015 vapor deposition).
-    #
-    #   Pathway 2 — F23-bounded Bigg immersion freezing of cloud drops
-    #               (analog of Fortran `qcheti`): drop + INP → fully-rimed
-    #               ice (embryo graupel). F_rim = 1 at genesis; mass and
-    #               number drained from q_lcl, n_lcl.
-    #
-    # Both channels read the same Frostenberg-2023 INPC climatology
-    # (with a stochastic OU-driven shift `inpc_log_shift` supplied by
-    # the driver). They differ in mass source, gates, and F_rim.
-    #
-    # Pathway 3 (rain immersion `qrheti`) appears further below; it is
-    # MM15's Bigg formula on the rain PSD without an F23 cap. Pathway 4
-    # (homogeneous, `qchom`/`qrhom`) is not yet implemented in BMT.
-    #
-    # See `kid_jouan_ou/F23_REGIME_AWARE_FIX.md` for the full pathway
-    # inventory + the MM15 ↔ Fortran reference.
+    return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+              dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
+              dn_lcl_activation_dt)
 
     # F23 activation timescale, taken from the depletion model so the
     # host can override it by passing e.g.
