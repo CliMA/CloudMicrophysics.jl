@@ -481,7 +481,13 @@ solved from a coupled 2×2 system.
 Because sinks are linearized as `-D q`, they are effectively integrated as
 exponential decays over the substep.
 """
-@inline function _average_bulk_microphysics_tendencies(
+# Marked @noinline to relieve register pressure when this is called repeatedly
+# from a quadrature loop (N² evaluations, often in a kernel that already inlines
+# its caller). Inlining replicates the entire substep live state across every
+# quadrature point and pushes registers/thread to ~250, capping occupancy at
+# 12.5%. Treating it as an opaque call collapses live ranges to the small
+# returned NamedTuple.
+@noinline function _average_bulk_microphysics_tendencies(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, N_lcl = zero(ρ),
 )
@@ -549,7 +555,10 @@ full interval divided by `Δt`.
 Increasing `nsub` improves how well the method captures nonlinear changes in the
 active microphysical processes, including regime changes near freezing.
 """
-@inline function average_bulk_microphysics_tendencies(
+# Marked @noinline for the same reason as `_average_bulk_microphysics_tendencies`
+# above: this is called per quadrature point inside a hot kernel; inlining
+# replicates the substepping loop's live state and crushes occupancy.
+@noinline function average_bulk_microphysics_tendencies(
     cm::Microphysics1Moment,
     mp::CMP.Microphysics1MParams,
     tps,
