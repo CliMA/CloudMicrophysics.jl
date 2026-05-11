@@ -480,13 +480,15 @@ solved from a coupled 2×2 system.
 
 Because sinks are linearized as `-D q`, they are effectively integrated as
 exponential decays over the substep.
+
+!!! note
+    Marked `@noinline` to relieve register pressure when called repeatedly from a
+    quadrature loop (N² evaluations, often in a kernel that already inlines its
+    caller). Inlining replicates the entire substep live state across every
+    quadrature point and pushes registers/thread to ~250, capping occupancy at
+    12.5%. Treating it as an opaque call collapses live ranges to the small
+    returned NamedTuple.
 """
-# Marked @noinline to relieve register pressure when this is called repeatedly
-# from a quadrature loop (N² evaluations, often in a kernel that already inlines
-# its caller). Inlining replicates the entire substep live state across every
-# quadrature point and pushes registers/thread to ~250, capping occupancy at
-# 12.5%. Treating it as an opaque call collapses live ranges to the small
-# returned NamedTuple.
 @noinline function _average_bulk_microphysics_tendencies(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, N_lcl = zero(ρ),
@@ -527,7 +529,7 @@ exponential decays over the substep.
     r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
 
     det = muladd(-a34, a43, a33 * a44)
-    # det is a positive number because a44 and a33 are positive (greater than invΔt) 
+    # det is a positive number because a44 and a33 are positive (greater than invΔt)
     # and a34 and a43 are non-positive so we don't need to safeguard division by det.
     q_rai_new = (r3 * a44 - a34 * r4) / det
     q_sno_new = (a33 * r4 - r3 * a43) / det
@@ -554,10 +556,12 @@ full interval divided by `Δt`.
 
 Increasing `nsub` improves how well the method captures nonlinear changes in the
 active microphysical processes, including regime changes near freezing.
+
+!!! note
+    Marked `@noinline` for the same reason as `_average_bulk_microphysics_tendencies`:
+    this is called per quadrature point inside a hot kernel; inlining replicates
+    the substepping loop's live state and crushes occupancy.
 """
-# Marked @noinline for the same reason as `_average_bulk_microphysics_tendencies`
-# above: this is called per quadrature point inside a hot kernel; inlining
-# replicates the substepping loop's live state and crushes occupancy.
 @noinline function average_bulk_microphysics_tendencies(
     cm::Microphysics1Moment,
     mp::CMP.Microphysics1MParams,
