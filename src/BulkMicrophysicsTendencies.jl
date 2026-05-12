@@ -366,7 +366,10 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     M11 -= D
     M31 += D
 
-    S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
+    #S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
+    S_acnv_icl = CM1.conv_q_icl_to_q_sno(
+        icl, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
+    )
     D = S_acnv_icl / max(q_min, q_icl)
     M22 -= D
     M42 += D
@@ -521,7 +524,7 @@ exponential decays over the substep.
     r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
 
     det = muladd(-a34, a43, a33 * a44)
-    # det is a positive number because a44 and a33 are positive (greater than invΔt) 
+    # det is a positive number because a44 and a33 are positive (greater than invΔt)
     # and a34 and a43 are non-positive so we don't need to safeguard division by det.
     q_rai_new = (r3 * a44 - a34 * r4) / det
     q_sno_new = (a33 * r4 - r3 * a43) / det
