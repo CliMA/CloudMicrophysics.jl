@@ -367,7 +367,6 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     M31 += D
 
     #S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
-    @info("AQQ")
     S_acnv_icl = CM1.conv_q_icl_to_q_sno(
         icl, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
     )

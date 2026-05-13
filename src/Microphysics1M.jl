@@ -397,7 +397,6 @@ Parameterized following:
     ρ::FT,
     T::FT,
 ) where {FT}
-    @info("BQQ")
     acnv_rate = FT(0)
     S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
