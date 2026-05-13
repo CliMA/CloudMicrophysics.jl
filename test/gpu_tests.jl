@@ -80,8 +80,8 @@ end
     i = @index(Global, Linear)
     FT = eltype(tps)
     q_lcl = q_icl = q_rai = q_sno = FT(0) # set to zero in this test
-    S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
-        lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
+    S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_MM2015(
+        tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i], lcl.τ_relax,
     )
     S_cond = CMN.conv_q_vap_to_q_lcl_icl(icl, qᵢ_s[i], qᵢ[i])
     output[i] = (; S_cond_MM2015, S_cond)
@@ -352,8 +352,9 @@ end
 )
     i = @index(Global, Linear)
     CM1M = BMT.Microphysics1Moment()
+    noneq_scheme = BMT.NonEq_Constant()
     output[i] = BMT.bulk_microphysics_tendencies(
-        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        CM1M, noneq_scheme, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
     )
 end
 
@@ -363,8 +364,9 @@ end
 )
     i = @index(Global, Linear)
     CM2M = BMT.Microphysics2Moment()
+    noneq_scheme = BMT.NonEq_Constant()
     output[i] = BMT.bulk_microphysics_tendencies(
-        CM2M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
+        CM2M, noneq_scheme, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
     )
 end
 
@@ -373,8 +375,9 @@ end
 )
     i = @index(Global, Linear)
     CM2M = BMT.Microphysics2Moment()
+    noneq_scheme = BMT.NonEq_Constant()
     output[i] = BMT.bulk_microphysics_tendencies(
-        CM2M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
+        CM2M, noneq_scheme, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
         q_ice[i], n_ice[i], q_rim[i], b_rim[i],
     )
 end

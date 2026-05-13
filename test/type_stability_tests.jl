@@ -71,6 +71,7 @@ function run_type_stability_tests()
             tendencies_1M =
                 BMT.bulk_microphysics_tendencies.(
                     Ref(BMT.Microphysics1Moment()),
+                    Ref(BMT.NonEq_Constant()),
                     Ref(mp1),
                     Ref(tps),
                     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
@@ -91,6 +92,7 @@ function run_type_stability_tests()
             tendencies_2M_warm =
                 BMT.bulk_microphysics_tendencies.(
                     Ref(BMT.Microphysics2Moment()),
+                    Ref(BMT.NonEq_Constant()),
                     Ref(mp2_warm),
                     Ref(tps),
                     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
@@ -113,6 +115,7 @@ function run_type_stability_tests()
             tendencies_2M_p3 =
                 BMT.bulk_microphysics_tendencies.(
                     Ref(BMT.Microphysics2Moment()),
+                    Ref(BMT.NonEq_Constant()),
                     Ref(mp2_p3),
                     Ref(tps),
                     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,

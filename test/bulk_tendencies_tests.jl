@@ -150,6 +150,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -172,6 +173,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -194,6 +196,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -218,6 +221,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # Call fused function
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -248,6 +252,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -268,6 +273,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -290,6 +296,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -317,6 +324,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -343,6 +351,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -365,6 +374,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -390,6 +400,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -410,6 +421,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -431,6 +443,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies_cold = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ_cold, T_cold, q_tot_cold, FT(0), q_icl_cold, FT(0), q_sno_cold,
         )
@@ -446,6 +459,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies_warm = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ_warm, T_warm, q_tot_warm, q_lcl_warm, FT(0), q_rai_warm, FT(0),
         )
@@ -473,6 +487,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # @inferred will throw if return type cannot be inferred
         tendencies = @inferred BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -493,6 +508,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -522,6 +538,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -548,6 +565,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, FT(0), FT(0), q_sno,
         )
@@ -589,6 +607,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -843,6 +862,7 @@ function test_average_bulk_microphysics_1m_tendencies(FT)
 
         inst = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics1Moment(),
+            BMT.NonEq_Constant(),
             mp, tps,
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
@@ -1053,6 +1073,7 @@ function test_bulk_microphysics_2m_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp,
             tps,
             ρ,
@@ -1082,6 +1103,7 @@ function test_bulk_microphysics_2m_tendencies(FT)
 
         tend_cond = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp, tps, ρ, T, q_tot_super, q_lcl, n_lcl, q_rai, n_rai,
         )
         @test tend_cond.dq_lcl_dt > FT(0)  # Cloud increases
@@ -1092,6 +1114,7 @@ function test_bulk_microphysics_2m_tendencies(FT)
 
         tend_evap = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp, tps, ρ, T, q_tot_sub, q_lcl, n_lcl, q_rai, n_rai,
         )
         @test tend_evap.dq_lcl_dt < FT(0)  # Cloud decreases
@@ -1105,6 +1128,7 @@ function test_bulk_microphysics_2m_tendencies(FT)
         # so we only test that the return is a NamedTuple with correct keys
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp,
             tps,
             ρ,
@@ -1163,6 +1187,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp,
             tps,
             ρ,
@@ -1209,6 +1234,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp,
             tps,
             ρ,
@@ -1255,6 +1281,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp,
             tps,
             ρ,
@@ -1299,6 +1326,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp,
             tps,
             ρ,
@@ -1346,6 +1374,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
+            BMT.NonEq_Constant(),
             mp,
             tps,
             ρ,
