@@ -397,6 +397,7 @@ Parameterized following:
     ρ::FT,
     T::FT,
 ) where {FT}
+    @info("BQQ")
     acnv_rate = FT(0)
     S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
@@ -516,13 +517,13 @@ Returns the accretion rate when rain and snow collide.
 Collisions result in snow for T < T_freeze and rain for T > T_freeze.
 
 Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)², with
-a velocity dispersion correction that assumes that fall velocity standard 
+a velocity dispersion correction that assumes that fall velocity standard
 deviations are proportional to the mean fall velocities, with coefficient
 `ce.coeff_disp`.
 
 # Arguments
 - `type_i`: snow (T < T_freeze) or rain (T > T_freeze)
-- `type_j`: rain (T < T_freeze) or snow (T > T_freeze)  
+- `type_j`: rain (T < T_freeze) or snow (T > T_freeze)
 - `blk1mveltype_ti`, `blk1mveltype_tj`: 1M terminal velocity parameters
 - `ce`: collision efficiency parameters (contains `e_rai_sno`, `coeff_disp`)
 - `q_i`, `q_j`: specific contents of snow or rain [kg/kg]
@@ -556,8 +557,8 @@ deviations are proportional to the mean fall velocities, with coefficient
         v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i)
         v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j)
 
-        # Add simple parameterization for velocity dispersion, assuming that fall velocity 
-        # standard deviations are proportional to the mean fall velocities, with coefficient 
+        # Add simple parameterization for velocity dispersion, assuming that fall velocity
+        # standard deviations are proportional to the mean fall velocities, with coefficient
         # ce.coeff_disp
         Δv_eff = sqrt((v_ti - v_tj)^2 + ce.coeff_disp * (v_ti^2 + v_tj^2))
 
