@@ -9,8 +9,8 @@ CurrentModule = CloudMicrophysics
 ```@docs
 MicrophysicsNonEq
 MicrophysicsNonEq.τ_relax
-MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl
-MicrophysicsNonEq.conv_q_vap_to_q_lcl_icl_MM2015
+MicrophysicsNonEq.conv_q_vap_to_q_lcl
+MicrophysicsNonEq.conv_q_vap_to_q_icl
 MicrophysicsNonEq.INP_limiter
 MicrophysicsNonEq.terminal_velocity
 MicrophysicsNonEq.dqcld_dT
@@ -41,22 +41,21 @@ Microphysics1M.get_n0
 Microphysics1M.lambda_inverse
 Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_lcl_to_q_rai
-Microphysics1M.conv_q_icl_to_q_sno_no_supersat
 Microphysics1M.conv_q_icl_to_q_sno
 Microphysics1M.accretion
 Microphysics1M.accretion_rain_sink
 Microphysics1M.accretion_snow_rain
-Microphysics1M.evaporation_sublimation
-Microphysics1M.∂evaporation_sublimation_∂q_precip
-Microphysics1M.snow_melt
-Microphysics1M.∂snow_melt_∂q_sno
+Microphysics1M.conv_q_rai_to_q_vap
+Microphysics1M.conv_q_sno_to_q_vap
+Microphysics1M.conv_q_icl_to_q_lcl
+Microphysics1M.conv_q_sno_to_q_rai
 ```
 
 ## Parameters
 
 ```@autodocs
 Modules = [Parameters]
-Pages   = ["Microphysics1M.jl", "Microphysics1MParams.jl"]
+Pages   = ["Microphysics1M.jl", "Microphysics1MOptions.jl", "Microphysics1MParams.jl"]
 ```
 
 # 2-moment precipitation microphysics

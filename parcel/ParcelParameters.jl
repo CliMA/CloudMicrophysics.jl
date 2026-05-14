@@ -108,5 +108,7 @@ end
 struct NonEqDepParams{FT} <: CMP.ParametersType
     tps::TDP.ThermodynamicsParameters{FT}
     ice::CMP.CloudIce{FT}
+    aps::CMP.AirProperties{FT}
+    ip::CMP.Frostenberg2023{FT}
     dt::FT
 end
