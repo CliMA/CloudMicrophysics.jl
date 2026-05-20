@@ -337,13 +337,25 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     # minimum specific humidity threshold for regularizing S/q
     q_min = TDI.TD.Parameters.q_min(tps)
 
+    # Hoist the four S/q regularized reciprocals. Each q_* denominator
+    # appears in many of the per-process divides below (q_lcl ×4, q_icl ×4,
+    # q_rai ×2, q_sno ×5); computing them once up front turns ~15 dependent
+    # divides into 4 independent reciprocals (which issue back-to-back) plus
+    # multiplies, directly attacking the stall_wait dependency chain on the
+    # latency-bound critical path. Note: x / d → x * (1/d) is a single ulp
+    # change in rounding per quotient.
+    inv_q_lcl = one(FT) / max(q_min, q_lcl)
+    inv_q_icl = one(FT) / max(q_min, q_icl)
+    inv_q_rai = one(FT) / max(q_min, q_rai)
+    inv_q_sno = one(FT) / max(q_min, q_sno)
+
     # ------------------------------------------------------------
     # Vapor -> cloud condensate: constant sources
     # ------------------------------------------------------------
     S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(
         lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
     )
-    D = S_lcl_cond / max(q_min, q_lcl)
+    D = S_lcl_cond * inv_q_lcl
     is_source = S_lcl_cond >= zero(FT)
     e1 += ifelse(is_source, S_lcl_cond, zero(FT))
     M11 += ifelse(is_source, zero(FT), D)
@@ -351,7 +363,7 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     S_icl_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(
         icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
     )
-    D = S_icl_dep / max(q_min, q_icl)
+    D = S_icl_dep * inv_q_icl
     is_source = S_icl_dep >= zero(FT)
     e2 += ifelse(is_source, S_icl_dep, zero(FT))
     M22 += ifelse(is_source, zero(FT), D)
@@ -362,12 +374,12 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     S_acnv_1M = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
     S_acnv_2M = isnothing(var) ? S_acnv_1M : CM2.conv_q_lcl_to_q_rai(var, q_lcl, ρ, N_lcl)
     S_acnv_lcl = ifelse(N_lcl > zero(N_lcl), S_acnv_2M, S_acnv_1M)
-    D = S_acnv_lcl / max(q_min, q_lcl)
+    D = S_acnv_lcl * inv_q_lcl
     M11 -= D
     M31 += D
 
     S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
-    D = S_acnv_icl / max(q_min, q_icl)
+    D = S_acnv_icl * inv_q_icl
     M22 -= D
     M42 += D
 
@@ -375,12 +387,12 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     # Accretion: donor-based transfer
     # ------------------------------------------------------------
     S_accr_lcl_rai = CM1.accretion(lcl, rai, vel.rain, ce, q_lcl, q_rai, ρ)
-    D = S_accr_lcl_rai / max(q_min, q_lcl)
+    D = S_accr_lcl_rai * inv_q_lcl
     M11 -= D
     M31 += D
 
     S_accr_lcl_sno = CM1.accretion(lcl, sno, vel.snow, ce, q_lcl, q_sno, ρ)
-    D = S_accr_lcl_sno / max(q_min, q_lcl)
+    D = S_accr_lcl_sno * inv_q_lcl
     M11 -= D
     is_warm = T >= sno.T_freeze
     M31 += ifelse(is_warm, D, zero(FT))
@@ -390,22 +402,22 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     S_accr_melt = α * S_accr_lcl_sno
     # this is snow -> rain melt induced by warm collected liquid
     # donor is snow
-    D = S_accr_melt / max(q_min, q_sno)
+    D = S_accr_melt * inv_q_sno
     M44 -= D
     M34 += D
 
     S_accr_icl_rai = CM1.accretion(icl, rai, vel.rain, ce, q_icl, q_rai, ρ)
-    D = S_accr_icl_rai / max(q_min, q_icl)
+    D = S_accr_icl_rai * inv_q_icl
     M22 -= D
     M42 += D
 
     S_accr_icl_sno = CM1.accretion(icl, sno, vel.snow, ce, q_icl, q_sno, ρ)
-    D = S_accr_icl_sno / max(q_min, q_icl)
+    D = S_accr_icl_sno * inv_q_icl
     M22 -= D
     M42 += D
 
     S_accr_rai_icl = CM1.accretion_rain_sink(rai, icl, vel.rain, ce, q_icl, q_rai, ρ)
-    D = S_accr_rai_icl / max(q_min, q_rai)
+    D = S_accr_rai_icl * inv_q_rai
     M33 -= D
     M43 += D
 
@@ -413,17 +425,17 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     S_accr_sno_rai = CM1.accretion_snow_rain(rai, sno, vel.rain, vel.snow, ce, q_rai, q_sno, ρ)
 
     # snow -> rain
-    D = S_accr_sno_rai / max(q_min, q_sno)
+    D = S_accr_sno_rai * inv_q_sno
     M44 -= ifelse(is_warm, D, zero(FT))
     M34 += ifelse(is_warm, D, zero(FT))
 
     S_accr_melt2 = α * S_accr_rai_sno
-    D = S_accr_melt2 / max(q_min, q_sno)
+    D = S_accr_melt2 * inv_q_sno
     M44 -= ifelse(is_warm, D, zero(FT))
     M34 += ifelse(is_warm, D, zero(FT))
 
     # rain -> snow
-    D = S_accr_rai_sno / max(q_min, q_rai)
+    D = S_accr_rai_sno * inv_q_rai
     M33 -= ifelse(is_warm, zero(FT), D)
     M43 += ifelse(is_warm, zero(FT), D)
 
@@ -433,7 +445,7 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     S_evap_rai = CM1.evaporation_sublimation(
         rai, vel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
     )
-    D = (-S_evap_rai) / max(q_min, q_rai)
+    D = (-S_evap_rai) * inv_q_rai
     M33 -= D
 
     # ------------------------------------------------------------
@@ -442,7 +454,7 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     S_subl_sno = CM1.evaporation_sublimation(
         sno, vel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
     )
-    D = S_subl_sno / max(q_min, q_sno)
+    D = S_subl_sno * inv_q_sno
     is_source = S_subl_sno >= zero(FT)
     e4 += ifelse(is_source, S_subl_sno, zero(FT))
     M44 += ifelse(is_source, zero(FT), D)
@@ -451,7 +463,7 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     # Snow melt: snow -> rain
     # ------------------------------------------------------------
     S_melt_sno = CM1.snow_melt(sno, vel.snow, aps, tps, q_sno, ρ, T)
-    D = S_melt_sno / max(q_min, q_sno)
+    D = S_melt_sno * inv_q_sno
     M44 -= D
     M34 += D
 
@@ -506,25 +518,35 @@ exponential decays over the substep.
     a43 = -lin.M43
     a44 = invΔt - lin.M44
 
-    # rhs = e + q_0/Δt
-    # e3 = 0 by the 1m model
-    b1 = lin.e1 + invΔt * q_lcl
-    b2 = lin.e2 + invΔt * q_icl
+    # rhs = e + q_0/Δt  (e3 = 0 by the 1m model). Fuse the mul-add.
+    b1 = muladd(invΔt, q_lcl, lin.e1)
+    b2 = muladd(invΔt, q_icl, lin.e2)
     b3 = invΔt * q_rai
-    b4 = lin.e4 + invΔt * q_sno
+    b4 = muladd(invΔt, q_sno, lin.e4)
 
-    q_lcl_new = b1 / a11
-    q_icl_new = b2 / a22
+    det = muladd(-a34, a43, a33 * a44)
+    # det is a positive number because a44 and a33 are positive (greater than invΔt)
+    # and a34 and a43 are non-positive so we don't need to safeguard division by det.
+
+    # Solve via reciprocal-multiply. a11, a22 and det are computed from
+    # independent inputs, so these three reciprocals issue back-to-back
+    # instead of serializing as dependent divides. This loop is the
+    # latency-bound critical path (GPU divide is high-latency and
+    # non-pipelined, and the enclosing substep loop is serial), so
+    # shortening the dependent-divide chain directly reduces stall_wait.
+    inv_a11 = one(FT) / a11
+    inv_a22 = one(FT) / a22
+    inv_det = one(FT) / det
+
+    q_lcl_new = b1 * inv_a11
+    q_icl_new = b2 * inv_a22
 
     # Reduced 2x2 system for q_rai_new, q_sno_new
     r3 = muladd(-a31, q_lcl_new, b3)
     r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
 
-    det = muladd(-a34, a43, a33 * a44)
-    # det is a positive number because a44 and a33 are positive (greater than invΔt) 
-    # and a34 and a43 are non-positive so we don't need to safeguard division by det.
-    q_rai_new = (r3 * a44 - a34 * r4) / det
-    q_sno_new = (a33 * r4 - r3 * a43) / det
+    q_rai_new = muladd(r3, a44, -(a34 * r4)) * inv_det
+    q_sno_new = muladd(a33, r4, -(r3 * a43)) * inv_det
 
     dq_lcl_dt = (q_lcl_new - q_lcl) * invΔt
     dq_icl_dt = (q_icl_new - q_icl) * invΔt
