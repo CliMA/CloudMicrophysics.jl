@@ -35,7 +35,7 @@ Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    Microphysics1MParams{FT, OPT, CP, PP, CE, AP, VL, VA, FR}
+    Microphysics1MParams{OPT, CP, PP, CE, AP, VL, VA, FR}
 
 Unified parameter container for 1-moment bulk microphysics.
 
@@ -46,8 +46,7 @@ Unified parameter container for 1-moment bulk microphysics.
 - `collision::CE`: CollisionEff — collision efficiencies between species
 - `air_properties::AP`: AirProperties — air properties (diffusivities, thermal conductivity)
 - `terminal_velocity::VL`: Blk1MVelType — terminal velocity parameters for rain and snow
-- `autoconv_2M::VA`: VarTimescaleAcnv or Nothing — 2M autoconversion parameters (built when `LiquidAutoconv2M` is selected)
-- `prescribed_Nc::FT`: Prescribed cloud droplet number concentration [1/m³]
+- `autoconv_2M::VA`: VarTimescaleAcnv or Nothing — 2M autoconversion parameters including prescribed Nc (built when `RainAutoconversionPrescribedNd` is selected)
 - `frostenberg2023::FR`: Frostenberg 2023 INP parameters or Nothing (built when `INPDependentIceFormation` is selected)
 
 # Constructors
@@ -70,19 +69,19 @@ mp = CMP.Microphysics1MParams(Float64)
 mp = CMP.Microphysics1MParams(Float64;
     options = CMP.Microphysics1MOptions(
         cloud_ice_formation  = CMP.TemperatureDependentCloudIceFormation(),
-        cloud_ice_melt = CMP.CloudIceMeltToLiquid(),
+        cloud_ice_melt = CMP.CloudIceMelt(),
     ),
 )
 
 # Create with 2M autoconversion
 mp = CMP.Microphysics1MParams(Float64;
     options = CMP.Microphysics1MOptions(
-        cloud_liquid_autoconversion = CMP.LiquidAutoconv2M(),
+        rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
     ),
 )
 ```
 """
-@kwdef struct Microphysics1MParams{FT, OPT, CP, PP, CE, AP, VL, VA, FR} <: ParametersType
+@kwdef struct Microphysics1MParams{OPT, CP, PP, CE, AP, VL, VA, FR} <: ParametersType
     options::OPT
     cloud::CP
     precip::PP
@@ -90,7 +89,6 @@ mp = CMP.Microphysics1MParams(Float64;
     air_properties::AP
     terminal_velocity::VL
     autoconv_2M::VA
-    prescribed_Nc::FT
     frostenberg2023::FR
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
@@ -106,12 +104,10 @@ Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 - `options`: Process configuration (default: baseline behavior)
 """
 function Microphysics1MParams(toml_dict::CP.ParamDict; options = Microphysics1MOptions())
-    (; prescribed_cloud_droplet_number_concentration) = CP.get_parameter_values(
-        toml_dict, "prescribed_cloud_droplet_number_concentration", "CloudMicrophysics",
-    )
     # Conditional construction driven by options
-    autoconv_2M = options.cloud_liquid_autoconversion isa LiquidAutoconv2M ?
-                  VarTimescaleAcnv(toml_dict) : nothing
+    autoconv_2M =
+        options.rain_autoconversion isa RainAutoconversionPrescribedNd ?
+        VarTimescaleAcnv(toml_dict) : nothing
     frostenberg2023 =
         options.cloud_ice_formation isa TemperatureDependentCloudIceFormation ?
         Frostenberg2023(toml_dict) : nothing
@@ -135,8 +131,6 @@ function Microphysics1MParams(toml_dict::CP.ParamDict; options = Microphysics1MO
         terminal_velocity = Blk1MVelType(toml_dict),
         # Conditionally built parameters
         autoconv_2M,
-        # Prescribed cloud droplet number concentration
-        prescribed_Nc = prescribed_cloud_droplet_number_concentration,
         frostenberg2023,
     )
 end

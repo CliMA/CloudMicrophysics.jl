@@ -43,7 +43,6 @@ Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_lcl_to_q_rai
 Microphysics1M.conv_q_icl_to_q_sno
 Microphysics1M.accretion
-Microphysics1M.accretion_rain_sink
 Microphysics1M.accretion_snow_rain
 Microphysics1M.conv_q_rai_to_q_vap
 Microphysics1M.conv_q_sno_to_q_vap

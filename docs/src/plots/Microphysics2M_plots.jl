@@ -18,6 +18,8 @@ const LD2004 = CMP.LD2004(FT)
 const VarTSc = CMP.VarTimescaleAcnv(FT)
 const SB2006 = CMP.SB2006(FT)
 
+const mp_1m = CMP.Microphysics1MParams(FT)
+
 const ce = CMP.CollisionEff(FT)
 
 const liquid = CMP.CloudLiquid(FT)
@@ -49,7 +51,7 @@ q_lcl_LD2004 = [
     CM2.conv_q_lcl_to_q_rai(LD2004, q_lcl, ρ_air, N_d) for q_lcl in q_lcl_range
 ]
 q_lcl_VarTimeScaleAcnv = [
-    CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ_air, N_d) for q_lcl in q_lcl_range
+    max(0, q_lcl) / (VarTSc.τ * (N_d / 100_000_000)^VarTSc.α) for q_lcl in q_lcl_range
 ]
 q_lcl_SB2006 = [
     CM2.autoconversion(
@@ -61,8 +63,13 @@ q_lcl_SB2006 = [
         N_d,
     ).dq_rai_dt for q_lcl in q_lcl_range
 ]
-q_lcl_K1969 =
-    [CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl) for q_lcl in q_lcl_range]
+q_lcl_K1969 = [
+    CM1.conv_q_lcl_to_q_rai(
+        CMP.RainAutoconversion1M(), mp_1m, nothing,
+        (; q_tot = FT(0), q_lcl = q, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0)),
+        nothing,
+    ) for q in q_lcl_range
+]
 
 N_d_KK2000 =
     [CM2.conv_q_lcl_to_q_rai(KK2000, q_lcl, ρ_air, N_d) for N_d in N_d_range]
@@ -72,8 +79,9 @@ N_d_TC1980 =
     [CM2.conv_q_lcl_to_q_rai(TC1980, q_lcl, ρ_air, N_d) for N_d in N_d_range]
 N_d_LD2004 =
     [CM2.conv_q_lcl_to_q_rai(LD2004, q_lcl, ρ_air, N_d) for N_d in N_d_range]
-N_d_VarTimeScaleAcnv =
-    [CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ_air, N_d) for N_d in N_d_range]
+N_d_VarTimeScaleAcnv = [
+    max(0, q_lcl) / (VarTSc.τ * (N_d / 100_000_000)^VarTSc.α) for N_d in N_d_range
+]
 N_d_SB2006 = [
     CM2.autoconversion(
         SB2006.acnv,
