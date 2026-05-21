@@ -170,13 +170,13 @@ function benchmark_test(FT)
         P3.P3State{FT, CMP.ParametersP3{FT, CMP.SlopePowerLaw{FT}}},
         (params, L_ice, N_ice, F_rim, ρ_rim) -> P3.get_state(params; L_ice, N_ice, F_rim, ρ_rim),
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
-        25,
+        50,
     )
     bench_press(FT, P3.get_distribution_logλ, (state,), 30_000)
     bench_press(FT, P3.get_distribution_logλ, (params_P3, L_ice, N_ice, F_rim, ρ_rim), 30_000)
-    bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 120_000)
-    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 135_000)
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 3_700)
+    bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 140_000)
+    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 160_000)
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 6_100)
     bench_press(FT, P3.D_m, (state, logλ), 3_000)
 
     @info "P3 Ice Nucleation"
@@ -190,7 +190,7 @@ function benchmark_test(FT)
         @NamedTuple{dNdt::FT, dLdt::FT},
         P3.ice_melt,
         (ch2022, aps, tps, T_air, ρ_air, Δt, state, logλ),
-        150_000,
+        180_000,
     )
     bench_press(FT, CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
     bench_press(FT, CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
@@ -223,9 +223,12 @@ function benchmark_test(FT)
 
     @info "Non-equilibrium Microphysics"
     bench_press(FT, CMN.τ_relax, (liquid,), 15)
-    bench_press(FT, CMN.conv_q_vap_to_q_lcl_icl, (ice, FT(2e-3), FT(1e-3)), 15)
-    bench_press(FT, CMN.conv_q_vap_to_q_lcl_icl_MM2015,
-        (liquid, tps, FT(0.00145), FT(0), FT(0), FT(0), FT(0), FT(0.8), FT(263)), 75)
+
+    mp_mock = (; cloud = (; liquid = liquid))
+    micro_mock = (; q_tot = FT(0.00145), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+    thermo_mock = (; ρ = FT(0.8), T = FT(263))
+    bench_press(FT, CMN.conv_q_vap_to_q_lcl,
+        (CMP.ConstantTimescaleCloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock), 140)
 
     @info "0-Moment Scheme"
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)

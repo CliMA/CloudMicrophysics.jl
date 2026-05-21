@@ -33,14 +33,13 @@ import ..Utilities as UT
 export terminal_velocity,
     conv_q_lcl_to_q_rai,
     conv_q_icl_to_q_sno,
-    conv_q_icl_to_q_sno_no_supersat,
     accretion,
     accretion_rain_sink,
     accretion_snow_rain,
-    evaporation_sublimation,
-    ∂evaporation_sublimation_∂q_precip,
-    snow_melt,
-    ∂snow_melt_∂q_sno,
+    conv_q_rai_to_q_vap,
+    conv_q_sno_to_q_vap,
+    conv_q_icl_to_q_lcl,
+    conv_q_sno_to_q_rai,
     lambda_inverse
 
 abstract type AbstractSnowShape end
@@ -345,58 +344,36 @@ over the threshold, avoiding discontinuities in the tendency.
     max(0, q_lcl - q_threshold) / τ
 
 """
-    conv_q_icl_to_q_sno_no_supersat(acnv::Acnv1M, q_icl, smooth_transition)
+    conv_q_icl_to_q_sno(::SnowAutoconvNoSupersat, mp, tps, micro, thermo)
+    conv_q_icl_to_q_sno(::SnowAutoconvWithSupersat, mp, tps, micro, thermo)
 
 Returns the snow tendency due to autoconversion from cloud ice.
-This is a simplified version for use in simulations without supersaturation
-(e.g., with saturation adjustment).
+
+**SnowAutoconvNoSupersat**: Simplified Kessler-type threshold autoconversion,
+for use in simulations without supersaturation (e.g., with saturation adjustment).
+
+**SnowAutoconvWithSupersat**: Supersaturation-dependent autoconversion following
+Harrington et al. (1995) and Kaul et al. (2015).
 
 # Arguments
-- `acnv`: autoconversion parameters (contains `τ`, `q_threshold`, `k`)
-- `q_icl`: cloud ice specific content
-- `smooth_transition`: flag to switch on smoothing
+- `option`: `SnowAutoconvNoSupersat()` or `SnowAutoconvWithSupersat()`
+- `mp`: 1-moment microphysics parameters
+- `tps`: thermodynamics parameters
+- `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
+- `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline conv_q_icl_to_q_sno_no_supersat(
-    (; τ, q_threshold, k)::CMP.Acnv1M{FT},
-    q_icl::FT,
-    smooth_transition::Bool = false,
-) where {FT} =
-    smooth_transition ?
-    CO.logistic_function_integral(q_icl, q_threshold, k) / τ :
-    max(0, q_icl - q_threshold) / τ
+@inline function conv_q_icl_to_q_sno(::CMP.SnowAutoconvNoSupersat, mp, tps, micro, thermo)
+    (; τ, q_threshold, k) = mp.precip.snow.acnv1M
+    q_icl = micro.q_icl
+    return CO.logistic_function_integral(q_icl, q_threshold, k) / τ
+end
 
-"""
-    conv_q_icl_to_q_sno(ice::CloudIce, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-
-Returns the snow tendency due to autoconversion from ice.
-Parameterized following:
-  - Harrington et al. (1995), https://doi.org/10.1175/1520-0469(1995)052<4344:POICCP>2.0.CO;2
-  - Kaul et al. (2015), https://doi.org/10.1175/MWR-D-14-00319.1
-
-# Arguments
-- `ice`: ice parameters (contains `r_ice_snow`, `pdf`, `mass`)
-- `aps`: air properties struct
-- `tps`: thermodynamics parameters struct
-- `q_tot`: total water specific content [kg/kg]
-- `q_lcl`: cloud liquid water specific content [kg/kg]
-- `q_icl`: cloud ice specific content [kg/kg]
-- `q_rai`: rain specific content [kg/kg]
-- `q_sno`: snow specific content [kg/kg]
-- `ρ`: air density [kg/m³]
-- `T`: air temperature [K]
-"""
-@inline function conv_q_icl_to_q_sno(
-    (; r_ice_snow, pdf, mass)::CMP.CloudIce{FT},
-    aps::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    q_tot::FT,
-    q_lcl::FT,
-    q_icl::FT,
-    q_rai::FT,
-    q_sno::FT,
-    ρ::FT,
-    T::FT,
-) where {FT}
+@inline function conv_q_icl_to_q_sno(::CMP.SnowAutoconvWithSupersat, mp, tps, micro, thermo)
+    (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
+    (; ρ, T) = thermo
+    (; r_ice_snow, pdf, mass) = mp.cloud.ice
+    aps = mp.air_properties
+    FT = eltype(ρ)
     acnv_rate = FT(0)
     S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
@@ -575,53 +552,33 @@ deviations are proportional to the mean fall velocities, with coefficient
 end
 
 """
-    evaporation_sublimation(rain::Rain, vel::Blk1MVelTypeRain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    evaporation_sublimation(snow::Snow, vel::Blk1MVelTypeSnow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    conv_q_rai_to_q_vap(::EvaporationOnly, mp, tps, micro, thermo)
 
-Returns the tendency due to rain evaporation or snow sublimation/deposition.
-Ventilation factor parameterization follows Seifert and Beheng (2006),
-https://doi.org/10.1007/s00703-005-0112-4.
+Returns the tendency due to rain evaporation.
+Ventilation factor parameterization follows Seifert and Beheng (2006).
 
-**Rain**: Only evaporation is considered (S < 0), result is clamped to be ≤ 0.
-**Snow**: Both sublimation (S < 0) and deposition (S > 0) are considered.
+Only evaporation is considered (sub-saturated over liquid); result is clamped ≤ 0.
 
 # Arguments
-- `rain` or `snow`: particle parameters (contains `pdf`, `mass`, `vent`)
-- `vel`: terminal velocity parameters (Blk1MVelTypeRain or Blk1MVelTypeSnow)
-- `aps`: air properties struct
-- `tps`: thermodynamics parameters struct
-- `q_tot`: total water specific content [kg/kg]
-- `q_lcl`: cloud liquid water specific content [kg/kg]
-- `q_icl`: cloud ice specific content [kg/kg]
-- `q_rai`: rain specific content [kg/kg]
-- `q_sno`: snow specific content [kg/kg]
-- `ρ`: air density [kg/m³]
-- `T`: air temperature [K]
-
-# Returns
-- Evaporation/sublimation/deposition rate [kg/kg/s]
+- `option`: `EvaporationOnly()`
+- `mp`: 1-moment microphysics parameters
+- `tps`: thermodynamics parameters
+- `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
+- `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline function evaporation_sublimation(
-    (; pdf, mass, vent)::CMP.Rain{FT},
-    vel::CMP.Blk1MVelTypeRain{FT},
-    aps::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    q_tot::FT,
-    q_lcl::FT,
-    q_icl::FT,
-    q_rai::FT,
-    q_sno::FT,
-    ρ::FT,
-    T::FT,
-) where {FT}
-    evap_subl_rate = FT(0)
+@inline function conv_q_rai_to_q_vap(::CMP.EvaporationOnly, mp, tps, micro, thermo)
+    (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
+    (; ρ, T) = thermo
+    (; pdf, mass, vent) = mp.precip.rain
+    vel = mp.terminal_velocity.rain
+    aps = mp.air_properties
+    FT = eltype(ρ)
+    evap_rate = FT(0)
 
-    # Early return if no rain
     if q_rai > UT.ϵ_numerics(FT)
         S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
         if S < FT(0)
-
             (; ν_air, D_vapor) = aps
             G = CO.G_func_liquid(aps, tps, T)
             n0 = get_n0(pdf, q_rai, ρ)
@@ -632,11 +589,9 @@ https://doi.org/10.1007/s00703-005-0112-4.
             b_vent = vent.b
 
             λ_inv = lambda_inverse(pdf, mass, q_rai, ρ)
-
-            # Schmidt number (guard against division by near-zero D_vapor)
             Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
 
-            evap_subl_rate =
+            evap_rate =
                 4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
                 (
                     a_vent +
@@ -647,43 +602,62 @@ https://doi.org/10.1007/s00703-005-0112-4.
                 )
         end
     end
-    # only evaporation is considered for rain
-    return min(0, evap_subl_rate)
+    return min(0, evap_rate)
 end
 
-@inline function evaporation_sublimation(
-    (; pdf, mass, vent)::CMP.Snow{FT},
-    vel::CMP.Blk1MVelTypeSnow{FT},
-    aps::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    q_tot::FT,
-    q_lcl::FT,
-    q_icl::FT,
-    q_rai::FT,
-    q_sno::FT,
-    ρ::FT,
-    T::FT,
-) where {FT}
-    evap_subl_rate = FT(0)
+"""
+    conv_q_sno_to_q_vap(::SublimationOnly, mp, tps, micro, thermo)
+    conv_q_sno_to_q_vap(::DepositionSublimation, mp, tps, micro, thermo)
+
+Returns the tendency due to snow sublimation or sublimation+deposition.
+Ventilation factor parameterization follows Seifert and Beheng (2006).
+
+**SublimationOnly**: only sublimation (S < 0 over ice) is computed;
+deposition is handled separately by non-equilibrium relaxation.
+
+**DepositionSublimation**: both sublimation and deposition are computed
+in the Marshall-Palmer integral.
+
+# Arguments
+- `option`: `SublimationOnly()` or `DepositionSublimation()`
+- `mp`: 1-moment microphysics parameters
+- `tps`: thermodynamics parameters
+- `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
+- `thermo`: thermodynamic state `(; ρ, T)`
+"""
+@inline function conv_q_sno_to_q_vap(::CMP.SublimationOnly, mp, tps, micro, thermo)
+    return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo))
+end
+
+@inline function conv_q_sno_to_q_vap(::CMP.DepositionSublimation, mp, tps, micro, thermo)
+    return _snow_subl_dep_rate(mp, tps, micro, thermo)
+end
+
+"""Internal helper: snow sublimation/deposition physics kernel."""
+@inline function _snow_subl_dep_rate(mp, tps, micro, thermo)
+    (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
+    (; ρ, T) = thermo
+    (; pdf, mass, vent) = mp.precip.snow
+    vel = mp.terminal_velocity.snow
+    aps = mp.air_properties
+    FT = eltype(ρ)
+    subl_rate = FT(0)
+
     if q_sno > UT.ϵ_numerics(FT)
         (; ν_air, D_vapor) = aps
         S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
         G = CO.G_func_ice(aps, tps, T)
-
         n0 = get_n0(pdf, q_sno, ρ)
         v0 = get_v0(vel, ρ)
         (; r0) = mass
         (; χv, ve, Δv, gamma_vent) = vel
-
         a_vent = vent.a
         b_vent = vent.b
 
         λ_inv = lambda_inverse(pdf, mass, q_sno, ρ)
-
-        # Schmidt number (guard against division by near-zero D_vapor)
         Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
 
-        evap_subl_rate =
+        subl_rate =
             4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
             (
                 a_vent +
@@ -693,78 +667,67 @@ end
                 gamma_vent
             )
     end
-    # both sublimation (S < 0) and deposition (S > 0) are considered for snow
-    return evap_subl_rate
+    return subl_rate
+end
+
+
+"""
+    conv_q_icl_to_q_lcl(::NoCloudIceMelt, mp, tps, micro, thermo)
+    conv_q_icl_to_q_lcl(::CloudIceMeltToLiquid, mp, tps, micro, thermo)
+
+Returns the tendency due to cloud ice melt.
+
+**NoCloudIceMelt**: returns zero (cloud ice melt disabled).
+
+**CloudIceMeltToLiquid**: melts cloud ice to cloud liquid above freezing,
+parameterized as diffusional growth of ice crystals.
+
+# Arguments
+- `option`: `NoCloudIceMelt()` or `CloudIceMeltToLiquid()`
+- `mp`: 1-moment microphysics parameters
+- `tps`: thermodynamics parameters
+- `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
+- `thermo`: thermodynamic state `(; ρ, T)`
+"""
+@inline conv_q_icl_to_q_lcl(::CMP.NoCloudIceMelt, mp, tps, micro, thermo) = zero(thermo.T)
+
+@inline function conv_q_icl_to_q_lcl(::CMP.CloudIceMeltToLiquid, mp, tps, micro, thermo)
+    q_icl = micro.q_icl
+    (; ρ, T) = thermo
+    (; pdf, mass) = mp.cloud.ice
+    (; K_therm) = mp.air_properties
+    FT = eltype(ρ)
+    cloud_ice_melt_rate = FT(0)
+    T_freeze = TDI.T_freeze(tps)
+
+    if (q_icl > UT.ϵ_numerics(FT) && T > T_freeze)
+        L = TDI.Lf(tps, T)
+        (; n0) = pdf
+        λ_inv = lambda_inverse(pdf, mass, q_icl, ρ)
+        cloud_ice_melt_rate = 4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^2
+    end
+    return cloud_ice_melt_rate
 end
 
 """
-    ∂evaporation_sublimation_∂q_precip(rain::Rain, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    ∂evaporation_sublimation_∂q_precip(snow::Snow, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-
-Returns the leading-order derivative of the evaporation/sublimation rate
-with respect to the precipitating species specific content:
- - `∂(evaporation_sublimation)/∂q_rai` for the `Rain` dispatch
- - `∂(evaporation_sublimation)/∂q_sno` for the `Snow` dispatch
-
-The approximation used is `∂(rate)/∂q_precip ≈ rate / q_precip`.
-"""
-@inline function ∂evaporation_sublimation_∂q_precip(
-    rain_params::CMP.Rain{FT},
-    vel::CMP.Blk1MVelTypeRain{FT},
-    aps::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    q_tot::FT,
-    q_lcl::FT,
-    q_icl::FT,
-    q_rai::FT,
-    q_sno::FT,
-    ρ::FT,
-    T::FT,
-) where {FT}
-    rate = evaporation_sublimation(rain_params, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    return rate / max(q_rai, UT.ϵ_numerics(FT))
-end
-
-@inline function ∂evaporation_sublimation_∂q_precip(
-    snow_params::CMP.Snow{FT},
-    vel::CMP.Blk1MVelTypeSnow{FT},
-    aps::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    q_tot::FT,
-    q_lcl::FT,
-    q_icl::FT,
-    q_rai::FT,
-    q_sno::FT,
-    ρ::FT,
-    T::FT,
-) where {FT}
-    rate = evaporation_sublimation(snow_params, vel, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    return rate / max(q_sno, UT.ϵ_numerics(FT))
-end
-
-"""
-    snow_melt(snow::Snow, vel::Blk1MVelTypeSnow, aps, tps, q_sno, ρ, T)
+    conv_q_sno_to_q_rai(::SnowMelt, mp, tps, micro, thermo)
 
 Returns the tendency due to snow melt.
 
 # Arguments
-- `snow`: snow parameters (contains `T_freeze`, `pdf`, `mass`, `vent`)
-- `vel`: terminal velocity parameters
-- `aps`: air properties struct
-- `tps`: thermodynamics parameters struct
-- `q_sno`: snow water specific content
-- `ρ`: air density
-- `T`: air temperature
+- `option`: `SnowMelt()`
+- `mp`: 1-moment microphysics parameters
+- `tps`: thermodynamics parameters
+- `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
+- `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline function snow_melt(
-    (; T_freeze, pdf, mass, vent)::CMP.Snow{FT},
-    vel::CMP.Blk1MVelTypeSnow{FT},
-    aps::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    q_sno::FT,
-    ρ::FT,
-    T::FT,
-) where {FT}
+@inline function conv_q_sno_to_q_rai(::CMP.SnowMelt, mp, tps, micro, thermo)
+    q_sno = micro.q_sno
+    (; ρ, T) = thermo
+    (; T_freeze, pdf, mass, vent) = mp.precip.snow
+    vel = mp.terminal_velocity.snow
+    aps = mp.air_properties
+    FT = eltype(ρ)
     snow_melt_rate = FT(0)
 
     if (q_sno > UT.ϵ_numerics(FT) && T > T_freeze)
@@ -796,26 +759,6 @@ Returns the tendency due to snow melt.
             )
     end
     return snow_melt_rate
-end
-
-"""
-    ∂snow_melt_∂q_sno(snow::Snow, vel::Blk1MVelTypeSnow, aps, tps, q_sno, ρ, T)
-
-Returns `∂(snow_melt)/∂q_sno`, the derivative of the snow melt rate
-with respect to snow specific content.
-The approximation used is `∂(rate)/∂q_sno ≈ rate / q_sno`.
-"""
-@inline function ∂snow_melt_∂q_sno(
-    snow_params::CMP.Snow{FT},
-    vel::CMP.Blk1MVelTypeSnow{FT},
-    aps::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    q_sno::FT,
-    ρ::FT,
-    T::FT,
-) where {FT}
-    rate = snow_melt(snow_params, vel, aps, tps, q_sno, ρ, T)
-    return rate / max(q_sno, UT.ϵ_numerics(FT))
 end
 
 end #module Microphysics1M.jl
