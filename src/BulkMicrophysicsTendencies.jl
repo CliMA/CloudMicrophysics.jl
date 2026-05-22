@@ -581,7 +581,7 @@ Increasing `nsub` improves how well the method captures nonlinear changes in the
 active microphysical processes, including regime changes near freezing.
 
 !!! note
-    No `@noinline` for the same reason as `_average_bulk_microphysics_tendencies`:
+    No `@inline` for the same reason as `_average_bulk_microphysics_tendencies`:
     this is called per quadrature point inside a hot kernel; inlining replicates
     the substepping loop's live state and crushes occupancy.
 """
