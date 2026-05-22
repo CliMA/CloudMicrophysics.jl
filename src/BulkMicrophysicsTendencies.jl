@@ -324,6 +324,7 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     rai = mp.precip.rain
     sno = mp.precip.snow
     ce = mp.collision
+    aps = mp.air_properties
     vel = mp.terminal_velocity
     opts = mp.options
 
