@@ -327,7 +327,7 @@ function run_parcel(IC, t_0, t_end, pp)
     elseif pp.deposition_growth == "NonEq_Deposition_simple"
         ds_params = NonEqDepParams_simple{FT}(pp.tps, pp.ice)
     elseif pp.deposition_growth == "NonEq_Deposition"
-        ds_params = NonEqDepParams{FT}(pp.tps, pp.ice, pp.const_dt)
+        ds_params = NonEqDepParams{FT}(pp.tps, pp.ice, pp.aps, pp.ip, pp.const_dt)
     else
         throw("Unrecognized deposition growth mode")
     end

@@ -747,12 +747,5 @@ include("plots/Microphysics1M_plots.jl")
 ![](snow_sublimation_deposition_rate.svg)
 ![](snow_melt_rate.svg)
 
-## Example derivative figures
 
-![](rain_evap_deriv_vs_T.svg)
-![](rain_evap_deriv_vs_qrai.svg)
-![](snow_subl_deriv_vs_T.svg)
-![](snow_subl_deriv_vs_qsno.svg)
-![](snow_melt_deriv_vs_T.svg)
-![](snow_melt_deriv_vs_qsno.svg)
 

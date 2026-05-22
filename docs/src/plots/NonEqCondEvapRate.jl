@@ -2,6 +2,7 @@ using CairoMakie
 CairoMakie.activate!(type = "svg")
 import Thermodynamics as TD
 import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.MicrophysicsNonEq as CMNe
 
 include(joinpath(@__DIR__, "plotting_utilities.jl"))  # spliced_cmap
@@ -53,7 +54,15 @@ function generate_cond_evap_rate(::HydrostaticBalance_qₗ_z)
     cm_params = CM.Parameters.CloudLiquid(FT)
     cm_params = CM.Parameters.CloudLiquid(FT(τ_relax), cm_params.ρw, cm_params.r_eff, cm_params.N_0) # overwrite τ_relax
 
-    data = @. CMNe.conv_q_vap_to_q_lcl_icl_MM2015(cm_params, thp, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T)
+    data = broadcast(qₗ, T) do q_lcl, temp
+        CMNe.conv_q_vap_to_q_lcl(
+            CMP.ConstantTimescaleCloudLiquidFormation(),
+            (; cloud = (; liquid = cm_params)),
+            thp,
+            (; q_tot = qₜ, q_lcl, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ),
+            (; ρ, T = temp)
+        )
+    end
     colorrange = extrema(data)
     @. data[iszero(data)] = NaN  # set zero values to NaN, then use `nan_color=:gray` to show them as gray. These are clipped values.
     colormap = spliced_cmap(:blues, :reds, colorrange...; mid = 0, categorical = true, symmetrize_color_ranges = true)
@@ -85,7 +94,15 @@ function generate_cond_evap_rate(::Range_qₗ_T)
     cm_params = CM.Parameters.CloudLiquid(FT)
     cm_params = CM.Parameters.CloudLiquid(FT(τ_relax), cm_params.ρw, cm_params.r_eff, cm_params.N_0) # overwrite τ_relax
 
-    data = @. CMNe.conv_q_vap_to_q_lcl_icl_MM2015(cm_params, thp, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, T')
+    data = broadcast(qₗ, T') do q_lcl, temp
+        CMNe.conv_q_vap_to_q_lcl(
+            CMP.ConstantTimescaleCloudLiquidFormation(),
+            (; cloud = (; liquid = cm_params)),
+            thp,
+            (; q_tot = qₜ, q_lcl, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ),
+            (; ρ, T = temp)
+        )
+    end
     colorrange = extrema(data)
     @. data[iszero(data)] = NaN  # set zero values to NaN, then use `nan_color=:gray` to show them as gray. These are clipped values.
     colormap = spliced_cmap(:blues, :reds, colorrange...; mid = 0, categorical = true, symmetrize_color_ranges = true)

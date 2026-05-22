@@ -239,7 +239,8 @@ function condensation(params::NonEqCondParams_simple, PSD, state, ρ_air)
 
     q_sat_liq = max(Sₗ * qᵥ - qᵥ, 0)
 
-    new_q = MNE.conv_q_vap_to_q_lcl_icl(liquid, q_sat_liq, qₗ)
+    τ = MNE.τ_relax(liquid)
+    new_q = (q_sat_liq - qₗ) / τ
 
     return new_q
 end
@@ -253,7 +254,12 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
         qₜ = qᵥ + qₗ + qᵢ
 
-        cond_rate = MNE.conv_q_vap_to_q_lcl_icl_MM2015(liquid, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+        mp_mock = (; cloud = (; liquid))
+        micro_mock = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = FT(0), q_sno = FT(0))
+        thermo_mock = (; ρ = ρ_air, T = T)
+        cond_rate = MNE.conv_q_vap_to_q_lcl(
+            CMP.ConstantTimescaleCloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock,
+        )
 
         # Using same limiter as ClimaAtmos for now
         # Not sure why, but without intermediate storing of the tendencies for the
@@ -296,7 +302,8 @@ function deposition(params::NonEqDepParams_simple, PSD, state, ρ_air)
     Sᵢ = S_i(tps, T, Sₗ)
     q_sat_ice = max(Sᵢ * qᵥ - qᵥ, 0)
 
-    new_q = MNE.conv_q_vap_to_q_lcl_icl(ice, q_sat_ice, qᵢ)
+    τ = MNE.τ_relax(ice)
+    new_q = (q_sat_ice - qᵢ) / τ
 
     return new_q
 end
@@ -305,12 +312,17 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, ice, dt) = params
+    (; tps, ice, aps, ip, dt) = params
 
     if qᵥ + qᵢ > FT(0)
         qₜ = qᵥ + qₗ + qᵢ
 
-        dep_rate = MNE.conv_q_vap_to_q_lcl_icl_MM2015(ice, tps, qₜ, qₗ, qᵢ, FT(0), FT(0), ρ_air, T)
+        mp_mock = (; cloud = (; ice), frostenberg2023 = ip, air_properties = aps)
+        micro_mock = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = FT(0), q_sno = FT(0))
+        thermo_mock = (; ρ = ρ_air, T = T)
+        dep_rate = MNE.conv_q_vap_to_q_icl(
+            CMP.TemperatureDependentCloudIceFormation(), mp_mock, tps, micro_mock, thermo_mock,
+        )
 
         # Using same limiter as ClimaAtmos for now
         # Not sure why, but without intermediate storing of the tendencies for the
