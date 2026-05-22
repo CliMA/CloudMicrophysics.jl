@@ -80,11 +80,13 @@ end
     i = @index(Global, Linear)
     FT = eltype(tps)
     q_lcl = q_icl = q_rai = q_sno = FT(0) # set to zero in this test
-    S_cond_MM2015 = CMN.conv_q_vap_to_q_lcl_icl_MM2015(
-        lcl, tps, qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno, ρ[i], T[i],
+    mp_mock = (; cloud = (; liquid = lcl))
+    micro_mock = (; q_tot = qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno)
+    thermo_mock = (; ρ = ρ[i], T = T[i])
+    S_cond = CMN.conv_q_vap_to_q_lcl(
+        CMP.ConstantTimescaleCloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock,
     )
-    S_cond = CMN.conv_q_vap_to_q_lcl_icl(icl, qᵢ_s[i], qᵢ[i])
-    output[i] = (; S_cond_MM2015, S_cond)
+    output[i] = (; S_cond)
 end
 
 @kernel inbounds = true function test_chen2022_terminal_velocity_kernel!(
@@ -155,9 +157,11 @@ end
 end
 
 @kernel inbounds = true function test_1_moment_micro_snow_melt_kernel!(
-    snow, blk1mvel, aps, tps, output, ρ, T, qs)
+    mp, tps, output, ρ, T, qs)
     i = @index(Global, Linear)
-    output[i] = CM1.snow_melt(snow, blk1mvel.snow, aps, tps, qs[i], ρ[i], T[i])
+    micro = (; q_tot = zero(ρ[i]), q_lcl = zero(ρ[i]), q_icl = zero(ρ[i]), q_rai = zero(ρ[i]), q_sno = qs[i])
+    thermo = (; ρ = ρ[i], T = T[i])
+    output[i] = CM1.conv_q_sno_to_q_rai(CMP.SnowMelt(), mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_2_moment_acnv_kernel!(
@@ -488,7 +492,7 @@ function test_gpu(FT)
     end
 
     TT.@testset "non-equilibrium microphysics kernels" begin
-        DT = @NamedTuple{S_cond_MM2015::FT, S_cond::FT}
+        DT = @NamedTuple{S_cond::FT}
         (; ndrange, output) = setup_output(1, DT)
 
         ρ = ArrayType([FT(0.8)])
@@ -499,10 +503,9 @@ function test_gpu(FT)
 
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
         kernel!(lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
-        (; S_cond_MM2015, S_cond) = Array(output)[1]
+        (; S_cond) = Array(output)[1]
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
-        TT.@test S_cond_MM2015 ≈ FT(3.76347635339803e-5)
-        TT.@test S_cond ≈ FT(-1e-4)
+        TT.@test S_cond ≈ FT(3.76347635339803e-5)
     end
 
     TT.@testset "Chen 2022 terminal velocity kernels" begin
@@ -611,7 +614,7 @@ function test_gpu(FT)
         qs = ArrayType([FT(1e-4), FT(0), FT(1e-4)])
 
         kernel! = test_1_moment_micro_snow_melt_kernel!(backend, work_groups)
-        kernel!(snow, blk1mvel, aps, tps, output, ρ, T, qs; ndrange)
+        kernel!(mp_1m, tps, output, ρ, T, qs; ndrange)
         out = Array(output)
 
         # test if 1-moment snow melt is callable and returns reasonable values

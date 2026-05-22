@@ -19,6 +19,13 @@ They consist of:
 |``\tau_{l}``| cloud water condensation/evaporation timescale | ``s`` | ``10``        |
 |``\tau_{i}``| cloud ice deposition/sublimation timescale     | ``s`` | ``10``        |
 
+!!! note
+    For ice, the deposition timescale ``\tau_{dep}`` can optionally be computed
+    from the [Frostenberg2023](@cite) INP parameterization (see
+    [below](@ref ice-relaxation-timescale-frostenberg-et-al-2023)),
+    while the sublimation timescale ``\tau_{sub}`` remains at the constant
+    ``\tau_i``.
+
 ## Simple condensation/evaporation and deposition/sublimation
 
 Condensation/evaporation of cloud liquid water and
@@ -124,9 +131,69 @@ include("plots/NonEqCondEvapRate.jl")
 ![](condensation_evaporation_ql_z.svg)
 ![](condensation_evaporation_ql_T.svg)
 
+## [Ice relaxation timescale — Frostenberg et al. (2023)](@id ice-relaxation-timescale-frostenberg-et-al-2023)
 
+The constant ice relaxation timescale ``\tau_i`` can be replaced with
+  a temperature-dependent timescale derived from the
+  Frostenberg et al. [Frostenberg2023](@cite)
+  parameterization of ice nucleating particle (INP) concentrations.
+This makes the deposition timescale physically dependent on the
+  number of available INPs and the ice crystal size.
 
+The INP number concentration is estimated as a function of temperature:
+```math
+\begin{equation}
+  N_{icl} = \exp\!\left(\overline{\ln(\mathrm{INPC})}(T)\right)
+\end{equation}
+```
+where ``\overline{\ln(\mathrm{INPC})}(T)`` is the mean log-INP concentration
+from the Frostenberg et al. (2023) parameterization.
 
+Given ``N_{icl}`` and the cloud ice specific content ``q_{icl}``,
+  the mean crystal radius is computed assuming spherical ice particles
+  with a monodisperse size distribution:
+```math
+\begin{equation}
+  r = \left(\frac{3 \, q_{icl}}{4 \pi \, N_{icl} \, \rho_i}\right)^{1/3}
+\end{equation}
+```
+A minimum radius ``r_0 = 1\,\mu m`` is enforced to avoid singularities
+  when ``q_{icl} = 0`` or ``N_{icl} = 0``.
+
+The Frostenberg deposition timescale is then:
+```math
+\begin{equation}
+  \tau_{dep} = \frac{1}{4 \pi \, D_v \, N_{icl} \, r_{safe}}
+\end{equation}
+```
+where ``D_v`` is the water vapor diffusivity and ``r_{safe} = \max(r, r_0)``.
+
+### Asymmetric deposition and sublimation timescales
+
+The ice tendency uses **different timescales** for deposition and sublimation:
+
+```math
+\begin{equation}
+  \left. \frac{d \, q_{icl}}{dt} \right|_{dep, sub} =
+  \begin{cases}
+    \dfrac{q_{vap} - q_{si}}{\tau_{dep} \, \Gamma_i} & \text{if } q_{vap} > q_{si} \text{ (deposition)} \\[10pt]
+    \dfrac{-\min(-\Delta q,\; q_{icl})}{\tau_{sub} \, \Gamma_i} & \text{if } q_{vap} \le q_{si} \text{ (sublimation)}
+  \end{cases}
+\end{equation}
+```
+where:
+- ``\tau_{dep}`` is the Frostenberg INP-based timescale (temperature-dependent),
+- ``\Gamma_i`` is the psychometric correction factor (applied to both deposition and sublimation),
+- ``\tau_{sub}`` is a constant sublimation timescale (default: ``\tau_i = 10\,s``),
+- ``\Delta q = q_{vap} - q_{si}`` is the saturation excess.
+
+An additional INP limiter suppresses deposition (positive tendency) at
+  temperatures above freezing, where no INPs are available.
+
+```@example
+include("plots/plotting_tau_relax_frostenberg.jl")
+```
+![](tau_relax_frostenberg.svg)
 
 ## Cloud condensate sedimentation
 

@@ -394,7 +394,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        # Snow should increase from deposition (evaporation_sublimation returns positive for S > 0)
+        # Snow should increase from deposition (conv_q_sno_to_q_vap returns positive for S > 0)
         @test tendencies.dq_sno_dt > FT(0)
     end
 
@@ -554,8 +554,10 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         # Calculate individual components
         S_accr = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
-        S_melt = CM1.snow_melt(snow, vel.snow, aps, tps, q_sno, ρ, T)
-        S_subl = CM1.evaporation_sublimation(snow, vel.snow, aps, tps, q_tot, q_lcl, FT(0), FT(0), q_sno, ρ, T)
+        micro_s = (; q_tot, q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno)
+        thermo_s = (; ρ, T)
+        S_melt = CM1.conv_q_sno_to_q_rai(CMP.SnowMelt(), mp, tps, micro_s, thermo_s)
+        S_subl = CM1.conv_q_sno_to_q_vap(CMP.DepositionSublimation(), mp, tps, micro_s, thermo_s)
 
         # Calculate α
         T_frz = TDI.T_freeze(tps)
@@ -625,6 +627,7 @@ function test_average_bulk_microphysics_1m_tendencies(FT)
         )
 
         @test isfinite(lin.M11)
+        @test isfinite(lin.M12)
         @test isfinite(lin.M22)
         @test isfinite(lin.M31)
         @test isfinite(lin.M33)
@@ -678,6 +681,7 @@ function test_average_bulk_microphysics_1m_tendencies(FT)
 
         @test lin.M33 <= FT(0)
         @test lin.M11 == FT(0)
+        @test lin.M12 == FT(0)
         @test lin.M22 == FT(0)
         @test lin.M31 == FT(0)
         @test lin.M34 == FT(0)
@@ -711,6 +715,7 @@ function test_average_bulk_microphysics_1m_tendencies(FT)
         @test lin.M34 > FT(0)
         @test lin.M44 < FT(0)
         @test lin.M11 == FT(0)
+        @test lin.M12 == FT(0)
         @test lin.M22 == FT(0)
         @test lin.M31 == FT(0)
         @test lin.M41 == FT(0)
@@ -817,7 +822,7 @@ function test_average_bulk_microphysics_1m_tendencies(FT)
         q_rai_new = q_rai + Δt * tendencies.dq_rai_dt
         q_sno_new = q_sno + Δt * tendencies.dq_sno_dt
 
-        @test (q_lcl_new - q_lcl) * invΔt ≈ lin.M11 * q_lcl_new + lin.e1 atol = FT(100) * eps(FT)
+        @test (q_lcl_new - q_lcl) * invΔt ≈ lin.M11 * q_lcl_new + lin.M12 * q_icl_new + lin.e1 atol = FT(100) * eps(FT)
         @test (q_icl_new - q_icl) * invΔt ≈ lin.M22 * q_icl_new + lin.e2 atol = FT(100) * eps(FT)
         @test (q_rai_new - q_rai) * invΔt ≈ lin.M31 * q_lcl_new + lin.M33 * q_rai_new + lin.M34 * q_sno_new atol =
             FT(100) * eps(FT)

@@ -167,7 +167,11 @@ This is a pure function of local thermodynamic state, suitable for:
     ce = mp.collision
     aps = mp.air_properties
     vel = mp.terminal_velocity
-    var = mp.autoconv_2M
+    opts = mp.options
+
+    # Construct state tuples (reused across all process calls)
+    micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
+    thermo = (; ρ, T)
 
     # Initialize tendencies
     dq_lcl_dt = zero(T)
@@ -178,25 +182,28 @@ This is a pure function of local thermodynamic state, suitable for:
     # --- Cloud condensate formation (non-equilibrium) ---
 
     # Condensation/evaporation of cloud liquid
-    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo)
     dq_lcl_dt += S_lcl_cond
 
-    # Deposition/sublimation of cloud ice (INP limiter applied inside conv_q_vap_to_q_lcl_icl_MM2015)
-    S_icl_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    # Deposition/sublimation of cloud ice
+    S_icl_dep = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo)
     dq_icl_dt += S_icl_dep
 
     # --- Autoconversion (cloud → precipitation) ---
 
     # Cloud liquid → rain
-    # Use 2M autoconversion when N_lcl > 0 and var provided, otherwise 1M
     S_acnv_1M = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
-    S_acnv_2M = isnothing(var) ? S_acnv_1M : CM2.conv_q_lcl_to_q_rai(var, q_lcl, ρ, N_lcl)
-    S_acnv_lcl = ifelse(N_lcl > zero(N_lcl), S_acnv_2M, S_acnv_1M)
+    S_acnv_lcl = if opts.cloud_liquid_autoconversion isa CMP.LiquidAutoconv2M
+        S_acnv_2M = CM2.conv_q_lcl_to_q_rai(mp.autoconv_2M, q_lcl, ρ, N_lcl)
+        ifelse(N_lcl > zero(N_lcl), S_acnv_2M, S_acnv_1M)
+    else
+        S_acnv_1M
+    end
     dq_lcl_dt -= S_acnv_lcl
     dq_rai_dt += S_acnv_lcl
 
-    # Cloud ice → snow (no supersaturation version for simplicity)
-    S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
+    # Cloud ice → snow
+    S_acnv_icl = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo)
     dq_icl_dt -= S_acnv_icl
     dq_sno_dt += S_acnv_icl
 
@@ -261,17 +268,22 @@ This is a pure function of local thermodynamic state, suitable for:
     # --- Evaporation and sublimation ---
 
     # Rain evaporation
-    S_evap_rai = CM1.evaporation_sublimation(rai, vel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
+    S_evap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_evaporation, mp, tps, micro, thermo)
     dq_rai_dt += S_evap_rai  # negative tendency (evaporation)
 
-    # Snow sublimation/deposition
-    S_subl_sno = CM1.evaporation_sublimation(sno, vel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T)
-    dq_sno_dt += S_subl_sno  # can be positive (deposition) or negative (sublimation)
+    # Snow sublimation (or sublimation + deposition, depending on option)
+    S_subl_sno = CM1.conv_q_sno_to_q_vap(opts.snow_sublimation, mp, tps, micro, thermo)
+    dq_sno_dt += S_subl_sno
 
     # --- Melting ---
 
+    # Cloud ice melt → cloud liquid
+    S_melt_icl = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo)
+    dq_icl_dt -= S_melt_icl
+    dq_lcl_dt += S_melt_icl
+
     # Snow melt → rain
-    S_melt_sno = CM1.snow_melt(sno, vel.snow, aps, tps, q_sno, ρ, T)
+    S_melt_sno = CM1.conv_q_sno_to_q_rai(opts.snow_melt, mp, tps, micro, thermo)
     dq_sno_dt -= S_melt_sno
     dq_rai_dt += S_melt_sno
 
@@ -314,7 +326,11 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     ce = mp.collision
     aps = mp.air_properties
     vel = mp.terminal_velocity
-    var = mp.autoconv_2M
+    opts = mp.options
+
+    # Construct state tuples (reused across all process calls)
+    micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
+    thermo = (; ρ, T)
 
     FT = promote_type(
         typeof(ρ), typeof(T), typeof(q_tot), typeof(q_lcl),
@@ -322,6 +338,7 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     )
 
     M11 = zero(FT)
+    M12 = zero(FT)
     M22 = zero(FT)
     M31 = zero(FT)
     M33 = zero(FT)
@@ -340,33 +357,41 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     # ------------------------------------------------------------
     # Vapor -> cloud condensate: constant sources
     # ------------------------------------------------------------
-    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(
-        lcl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
-    )
+    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo)
     D = S_lcl_cond / max(q_min, q_lcl)
     is_source = S_lcl_cond >= zero(FT)
     e1 += ifelse(is_source, S_lcl_cond, zero(FT))
     M11 += ifelse(is_source, zero(FT), D)
 
-    S_icl_dep = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(
-        icl, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
-    )
+    S_icl_dep = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo)
     D = S_icl_dep / max(q_min, q_icl)
     is_source = S_icl_dep >= zero(FT)
     e2 += ifelse(is_source, S_icl_dep, zero(FT))
     M22 += ifelse(is_source, zero(FT), D)
 
     # ------------------------------------------------------------
+    # Cloud ice melt: ice → cloud liquid
+    # ------------------------------------------------------------
+    S_melt_icl = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo)
+    D = S_melt_icl / max(q_min, q_icl)
+    M22 -= D
+    M12 += D
+
+    # ------------------------------------------------------------
     # Autoconversion: donor-based transfer
     # ------------------------------------------------------------
     S_acnv_1M = CM1.conv_q_lcl_to_q_rai(rai.acnv1M, q_lcl, true)
-    S_acnv_2M = isnothing(var) ? S_acnv_1M : CM2.conv_q_lcl_to_q_rai(var, q_lcl, ρ, N_lcl)
-    S_acnv_lcl = ifelse(N_lcl > zero(N_lcl), S_acnv_2M, S_acnv_1M)
+    S_acnv_lcl = if opts.cloud_liquid_autoconversion isa CMP.LiquidAutoconv2M
+        S_acnv_2M = CM2.conv_q_lcl_to_q_rai(mp.autoconv_2M, q_lcl, ρ, N_lcl)
+        ifelse(N_lcl > zero(N_lcl), S_acnv_2M, S_acnv_1M)
+    else
+        S_acnv_1M
+    end
     D = S_acnv_lcl / max(q_min, q_lcl)
     M11 -= D
     M31 += D
 
-    S_acnv_icl = CM1.conv_q_icl_to_q_sno_no_supersat(sno.acnv1M, q_icl, true)
+    S_acnv_icl = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo)
     D = S_acnv_icl / max(q_min, q_icl)
     M22 -= D
     M42 += D
@@ -430,18 +455,14 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     # ------------------------------------------------------------
     # Rain evaporation: sink to vapor (always zero or negative)
     # ------------------------------------------------------------
-    S_evap_rai = CM1.evaporation_sublimation(
-        rai, vel.rain, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
-    )
+    S_evap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_evaporation, mp, tps, micro, thermo)
     D = (-S_evap_rai) / max(q_min, q_rai)
     M33 -= D
 
     # ------------------------------------------------------------
-    # Snow sublimation/deposition
+    # Snow sublimation/deposition (generic: handles both options)
     # ------------------------------------------------------------
-    S_subl_sno = CM1.evaporation_sublimation(
-        sno, vel.snow, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, T,
-    )
+    S_subl_sno = CM1.conv_q_sno_to_q_vap(opts.snow_sublimation, mp, tps, micro, thermo)
     D = S_subl_sno / max(q_min, q_sno)
     is_source = S_subl_sno >= zero(FT)
     e4 += ifelse(is_source, S_subl_sno, zero(FT))
@@ -450,13 +471,13 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     # ------------------------------------------------------------
     # Snow melt: snow -> rain
     # ------------------------------------------------------------
-    S_melt_sno = CM1.snow_melt(sno, vel.snow, aps, tps, q_sno, ρ, T)
+    S_melt_sno = CM1.conv_q_sno_to_q_rai(opts.snow_melt, mp, tps, micro, thermo)
     D = S_melt_sno / max(q_min, q_sno)
     M44 -= D
     M34 += D
 
     return (
-        M11 = M11, M22 = M22,
+        M11 = M11, M12 = M12, M22 = M22,
         M31 = M31, M33 = M33, M34 = M34,
         M41 = M41, M42 = M42, M43 = M43, M44 = M44,
         e1 = e1, e2 = e2, e4 = e4,
@@ -474,9 +495,8 @@ and returns the average tendency
 
     dq/dt = (q* - q⁰) / Δt.
 
-The system uses a sparse structure specific to the 1-moment microphysics model:
-`q_lcl` and `q_icl` are solved independently, while `q_rai` and `q_sno` are
-solved from a coupled 2×2 system.
+The system uses a sparse structure specific to the 1-moment microphysics model.
+`q_lcl` and `q_icl` as well as `q_rai` and `q_sno` are solved from a coupled 2×2 system.
 
 Because sinks are linearized as `-D q`, they are effectively integrated as
 exponential decays over the substep.
@@ -505,6 +525,7 @@ exponential decays over the substep.
 
     # A = I/Δt - M
     a11 = invΔt - lin.M11
+    a12 = -lin.M12
     a22 = invΔt - lin.M22
     a31 = -lin.M31
     a33 = invΔt - lin.M33
@@ -521,8 +542,10 @@ exponential decays over the substep.
     b3 = invΔt * q_rai
     b4 = lin.e4 + invΔt * q_sno
 
-    q_lcl_new = b1 / a11
-    q_icl_new = b2 / a22
+    # Solve 2×2 system for q_lcl, q_icl (coupled via ice melt M12)
+    det12 = a11 * a22  # a21 = 0
+    q_lcl_new = (b1 * a22 - a12 * b2) / det12
+    q_icl_new = a11 * b2 / det12
 
     # Reduced 2x2 system for q_rai_new, q_sno_new
     r3 = muladd(-a31, q_lcl_new, b3)
@@ -717,7 +740,12 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_rai_dt = zero(FT)
 
     # --- Condensation of vapor / evaporation of cloud liquid water ---
-    ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl_icl_MM2015(condevap, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, T)
+    mp_mock = (; cloud = (; liquid = condevap))
+    micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
+    thermo_mock = (; ρ, T)
+    ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl(
+        CMP.ConstantTimescaleCloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock,
+    )
     ∂ₜn_lcl_cond = zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation
     dq_lcl_dt += ∂ₜq_lcl_cond
     dn_lcl_dt += ∂ₜn_lcl_cond
