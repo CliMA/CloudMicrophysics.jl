@@ -123,6 +123,14 @@ function benchmark_test(FT)
     wtr = CMP.WaterProperties(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
 
+    # 1-moment microphysics unified params (both liquid autoconversion flavours)
+    mp_1m = CMP.Microphysics1MParams(FT)
+    mp_1m_2M = CMP.Microphysics1MParams(FT;
+        options = CMP.Microphysics1MOptions(
+            rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
+        ),
+    )
+
     ρ_air = FT(1.2)
     T_air = FT(280)
     T_air_2 = FT(250)
@@ -235,7 +243,34 @@ function benchmark_test(FT)
     bench_press(FT, CM0.∂remove_precipitation_∂q_tot, (p0m, q_liq, q_ice), 12)
 
     @info "1-Moment Scheme"
+    micro_1m = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
+    thermo_1m = (; ρ = ρ_air, T = T_air)
+    bench_press(
+        FT, CM1.conv_q_lcl_to_q_rai,
+        (CMP.RainAutoconversion1M(), mp_1m, tps, micro_1m, thermo_1m),
+        500,
+    )
+    bench_press(
+        FT, CM1.conv_q_lcl_to_q_rai,
+        (CMP.RainAutoconversionPrescribedNd(), mp_1m_2M, tps, micro_1m, thermo_1m),
+        500,
+    )
     bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air), 360)
+    bench_press(FT, CM1.accretion, (CMP.CloudLiquidRainAccretion(), mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(
+        @NamedTuple{S_accr::FT, S_melt::FT},
+        CM1.accretion,
+        (CMP.CloudLiquidSnowAccretion(), mp_1m, tps, micro_1m, thermo_1m),
+        360,
+    )
+    bench_press(FT, CM1.accretion, (CMP.CloudIceRainAccretion(), mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (CMP.CloudIceSnowAccretion(), mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(
+        @NamedTuple{S_rai_sno::FT, S_sno_rai::FT, S_melt::FT},
+        CM1.accretion_snow_rain,
+        (CMP.RainSnowAccretion(), mp_1m, tps, micro_1m, thermo_1m),
+        1200,
+    )
     bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
 
     @info "2-Moment Scheme"

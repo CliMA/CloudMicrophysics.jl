@@ -952,9 +952,6 @@ function conv_q_lcl_to_q_rai(
         return E * (q_lcl * ρ)^3 / N_d / ρ * output
     end
 end
-conv_q_lcl_to_q_rai((; τ, α)::CMP.VarTimescaleAcnv, q_lcl, ρ, N_d) =
-    max(0, q_lcl) / (τ * (N_d / 100_000_000)^α)
-
 """
     accretion(accretion_scheme, q_lcl, q_rai, ρ)
 

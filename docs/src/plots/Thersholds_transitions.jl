@@ -5,6 +5,7 @@ import ClimaParams
 const PL = Plots
 const CM1 = CloudMicrophysics.Microphysics1M
 const CM2 = CloudMicrophysics.Microphysics2M
+const CO = CloudMicrophysics.Common
 const CP = ClimaParams
 const CMP = CloudMicrophysics.Parameters
 
@@ -39,11 +40,14 @@ N_d_range = range(1e7, stop = 1e9, length = 1000)
 ρ_air = 1.0 # kg m^-3
 N_d = 1e8
 
-q_lcl_K1969 =
-    [CM1.conv_q_lcl_to_q_rai(rain[1].acnv1M, q_lcl) for q_lcl in q_lcl_range]
+q_lcl_K1969 = [
+    max(0, q_lcl - rain[1].acnv1M.q_threshold) / rain[1].acnv1M.τ
+    for q_lcl in q_lcl_range
+]
 q_lcl_K1969_s = [
-    CM1.conv_q_lcl_to_q_rai(rain[1].acnv1M, q_lcl, true) for
-    q_lcl in q_lcl_range
+    CO.logistic_function_integral(q_lcl, rain[1].acnv1M.q_threshold, rain[1].acnv1M.k) /
+    rain[1].acnv1M.τ
+    for q_lcl in q_lcl_range
 ]
 
 q_lcl_TC1980 = [

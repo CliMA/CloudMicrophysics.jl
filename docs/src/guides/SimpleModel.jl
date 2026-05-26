@@ -8,6 +8,7 @@
 import OrdinaryDiffEqTsit5 as ODE
 import UnicodePlots as UP
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Microphysics1M as CM1
 
 nothing #hide
@@ -24,7 +25,8 @@ function rain_formation(dY, Y, p, t)
     qₗ = Y[1] # Cloud water specific content
     qᵣ = Y[2] # Rain water specific content
 
-    acnv = CM1.conv_q_lcl_to_q_rai(rain.acnv1M, qₗ) # Rain autoconversion rate
+    (; τ, q_threshold, k) = rain.acnv1M
+    acnv = CO.logistic_function_integral(qₗ, q_threshold, k) / τ # Rain autoconversion rate
     accr = CM1.accretion(liquid, rain, v_term.rain, ce, qₗ, qᵣ, ρₐ) # Rain accretion rate
 
     dY[1] = -acnv - accr # Add the tendecies for cloud water

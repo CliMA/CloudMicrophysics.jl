@@ -1,4 +1,4 @@
-export KK2000, B1994, TC1980, LD2004, VarTimescaleAcnv, SB2006
+export KK2000, B1994, TC1980, LD2004, SB2006
 
 """
     AcnvKK2000
@@ -275,31 +275,6 @@ function LD2004(td::CP.ParamDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return LD2004(; parameters...)
-end
-
-"""
-    VarTimescaleAcnv
-
-The type for 2-moment precipitation formation based on the
-1-moment parameterization with variable time scale Azimi et al (2023)
-
-# Fields
-$(DocStringExtensions.FIELDS)
-"""
-@kwdef struct VarTimescaleAcnv{FT} <: Precipitation2MType
-    "Timescale [s]"
-    τ::FT
-    "Powerlaw coefficient [-]"
-    α::FT
-end
-
-function VarTimescaleAcnv(td::CP.ParamDict)
-    name_map = (;
-        :rain_autoconversion_timescale => :τ,
-        :Variable_time_scale_autoconversion_coeff_alpha => :α,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return VarTimescaleAcnv(; parameters...)
 end
 
 """

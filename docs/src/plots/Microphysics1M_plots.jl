@@ -68,16 +68,26 @@ T = 273.15
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_lcl or q_icl [g/kg]", ylabel = "autoconversion rate [1/s]", limits)
 mp_ss = CMP.Microphysics1MParams(FT;
-    options = CMP.Microphysics1MOptions(snow_autoconversion = CMP.SnowAutoconvWithSupersat()),
+    options = CMP.Microphysics1MOptions(snow_autoconversion = CMP.SnowAutoconversionWithSupersaturation()),
 )
 q_icl_to_q_sno_rate = function (T)
     map(q_icl_range) do q_icl
         micro = (; q_tot, q_lcl = FT(0), q_icl, q_rai, q_sno)
         thermo = (; ρ = ρ_air, T)
-        CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconvWithSupersat(), mp_ss, tps, micro, thermo)
+        CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconversionWithSupersaturation(), mp_ss, tps, micro, thermo)
     end
 end
-MK.lines!(q_lcl_range * 1e3, CM1.conv_q_lcl_to_q_rai.(rain.acnv1M, q_lcl_range), label = "Rain")
+MK.lines!(
+    q_lcl_range * 1e3,
+    [
+        CM1.conv_q_lcl_to_q_rai(
+            CMP.RainAutoconversion1M(), mp, tps,
+            (; q_tot, q_lcl = q, q_icl, q_rai, q_sno),
+            (; ρ = ρ_air, T),
+        ) for q in q_lcl_range
+    ],
+    label = "Rain",
+)
 MK.lines!(q_icl_range * 1e3, q_icl_to_q_sno_rate(T - 5), label = "Snow T = −5°C")
 MK.lines!(q_icl_range * 1e3, q_icl_to_q_sno_rate(T - 10), label = "Snow T = −10°C")
 MK.lines!(q_icl_range * 1e3, q_icl_to_q_sno_rate(T - 15), label = "Snow T = −15°C")
@@ -88,19 +98,45 @@ MK.save("autoconversion_rate.svg", fig) # hide
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_rain or q_snow [g/kg]", ylabel = "accretion rate [1/s]", limits)
 MK.lines!(
-    q_rain_range * 1e3, CM1.accretion.(liquid, rain, Blk1MVel.rain, ce, q_lcl, q_rain_range, ρ_air),
+    q_rain_range * 1e3,
+    [
+        CM1.accretion(
+            CMP.CloudLiquidRainAccretion(), mp, tps,
+            (; q_tot, q_lcl, q_icl, q_rai = q_rai_val, q_sno),
+            (; ρ = ρ_air, T),
+        ) for q_rai_val in q_rain_range
+    ],
     label = "Liq+Rain-CliMA",
 )
 MK.lines!(
-    q_rain_range * 1e3, CM1.accretion.(ice, rain, Blk1MVel.rain, ce, q_icl, q_rain_range, ρ_air),
+    q_rain_range * 1e3,
+    [
+        CM1.accretion(
+            CMP.CloudIceRainAccretion(), mp, tps,
+            (; q_tot, q_lcl, q_icl, q_rai = q_rai_val, q_sno),
+            (; ρ = ρ_air, T),
+        ) for q_rai_val in q_rain_range
+    ],
     label = "Ice+Rain-CliMA",
 )
 MK.lines!(
-    q_snow_range * 1e3, CM1.accretion.(liquid, snow, Blk1MVel.snow, ce, q_lcl, q_snow_range, ρ_air),
+    q_snow_range * 1e3,
+    [
+        CM1.accretion(CMP.CloudLiquidSnowAccretion(), mp, tps,
+            (; q_tot, q_lcl, q_icl, q_rai, q_sno = q_sno_val),
+            (; ρ = ρ_air, T),
+        ).S_accr for q_sno_val in q_snow_range
+    ],
     label = "Liq+Snow-CliMA",
 )
 MK.lines!(
-    q_snow_range * 1e3, CM1.accretion.(ice, snow, Blk1MVel.snow, ce, q_icl, q_snow_range, ρ_air),
+    q_snow_range * 1e3,
+    [
+        CM1.accretion(CMP.CloudIceSnowAccretion(), mp, tps,
+            (; q_tot, q_lcl, q_icl, q_rai, q_sno = q_sno_val),
+            (; ρ = ρ_air, T),
+        ) for q_sno_val in q_snow_range
+    ],
     label = "Ice+Snow-CliMA", linewidth = 4, linestyle = :dash,
 )
 MK.lines!(
@@ -113,32 +149,47 @@ MK.save("accretion_rate.svg", fig) # hide
 # accretion rain sink rate figure
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_rain or q_snow [g/kg]", ylabel = "accretion rain sink rate [1/s]", limits)
-_accr_rain_sink(q_icl) = CM1.accretion_rain_sink.(rain, ice, Blk1MVel.rain, ce, q_icl, q_rain_range, ρ_air) # hide
+_accr_rain_sink(q_icl_val) = [
+    CM1.accretion_rain_sink(
+        mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.collision,
+        q_icl_val, q_rai_val, ρ_air,
+    ) for q_rai_val in q_rain_range
+] # hide
 MK.lines!(q_rain_range * 1e3, _accr_rain_sink(1e-6), label = "q_icl = 1e-6")
 MK.lines!(q_rain_range * 1e3, _accr_rain_sink(1e-5), label = "q_icl = 1e-5")
 MK.lines!(q_rain_range * 1e3, _accr_rain_sink(1e-4), label = "q_icl = 1e-4")
 MK.axislegend(ax; position = :lt)
 MK.save("accretion_rain_sink_rate.svg", fig) # hide
 
-# accretion snow-rain rate figure
+# accretion snow-rain rate figure (warm: snow → rain, warm arm)
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_rain [g/kg]", ylabel = "snow-rain accretion rate [1/s] T>0", limits)
-_accr_snow_rain(q_sno) =
-    CM1.accretion_snow_rain.(rain, snow, Blk1MVel.rain, Blk1MVel.snow, ce, q_rain_range, q_sno, ρ_air)
-MK.lines!(q_rain_range * 1e3, _accr_snow_rain(1e-6), label = "q_snow = 1e-6")
-MK.lines!(q_rain_range * 1e3, _accr_snow_rain(1e-5), label = "q_snow = 1e-5")
-MK.lines!(q_rain_range * 1e3, _accr_snow_rain(1e-4), label = "q_snow = 1e-4")
+_accr_snow_rain_warm(q_sno_val) = [
+    CM1.accretion_snow_rain(
+        CMP.RainSnowAccretion(), mp, tps,
+        (; q_tot, q_lcl, q_icl, q_rai = q_rai_val, q_sno = q_sno_val),
+        (; ρ = ρ_air, T),
+    ).S_sno_rai for q_rai_val in q_rain_range
+]
+MK.lines!(q_rain_range * 1e3, _accr_snow_rain_warm(1e-6), label = "q_snow = 1e-6")
+MK.lines!(q_rain_range * 1e3, _accr_snow_rain_warm(1e-5), label = "q_snow = 1e-5")
+MK.lines!(q_rain_range * 1e3, _accr_snow_rain_warm(1e-4), label = "q_snow = 1e-4")
 MK.axislegend(ax; position = :lt)
 MK.save("accretion_snow_rain_above_freeze.svg", fig) # hide
 
-# accretion snow-rain rate figure
+# accretion snow-rain rate figure (cold: rain → snow, cold arm)
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_snow [g/kg]", ylabel = "snow-rain accretion rate [1/s] T<0", limits)
-_accr_snow_rain2(q_sno) =
-    CM1.accretion_snow_rain.(snow, rain, Blk1MVel.snow, Blk1MVel.rain, ce, q_snow_range, q_sno, ρ_air)
-MK.lines!(q_snow_range * 1e3, _accr_snow_rain2(1e-6), label = "q_rain = 1e-6")
-MK.lines!(q_snow_range * 1e3, _accr_snow_rain2(1e-5), label = "q_rain = 1e-5")
-MK.lines!(q_snow_range * 1e3, _accr_snow_rain2(1e-4), label = "q_rain = 1e-4")
+_accr_snow_rain_cold(q_sno_val) = [
+    CM1.accretion_snow_rain(
+        CMP.RainSnowAccretion(), mp, tps,
+        (; q_tot, q_lcl, q_icl, q_rai, q_sno = q_sno_val),
+        (; ρ = ρ_air, T),
+    ).S_rai_sno for q_rai_val in q_snow_range
+]
+MK.lines!(q_snow_range * 1e3, _accr_snow_rain_cold(1e-6), label = "q_rain = 1e-6")
+MK.lines!(q_snow_range * 1e3, _accr_snow_rain_cold(1e-5), label = "q_rain = 1e-5")
+MK.lines!(q_snow_range * 1e3, _accr_snow_rain_cold(1e-4), label = "q_rain = 1e-4")
 MK.axislegend(ax; position = :lt)
 MK.save("accretion_snow_rain_below_freeze.svg", fig) # hide
 
@@ -163,7 +214,7 @@ MK.lines!(
     q_rain_range * 1e3,
     (
         q_rai -> CM1.conv_q_rai_to_q_vap(
-            CMP.EvaporationOnly(), mp, tps,
+            CMP.RainEvaporation(), mp, tps,
             (; q_tot, q_lcl = q_lcl - q_rai, q_icl, q_rai, q_sno),
             (; ρ, T),
         )
@@ -197,7 +248,7 @@ R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl)
 rate =
     (
         q_sno -> CM1.conv_q_sno_to_q_vap(
-            CMP.DepositionSublimation(), mp, tps,
+            CMP.SnowDepositionSublimation(), mp, tps,
             (; q_tot, q_lcl, q_icl = q_icl - q_sno, q_rai, q_sno),
             (; ρ, T),
         )
@@ -222,7 +273,7 @@ R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl)
 rate =
     (
         q_sno -> CM1.conv_q_sno_to_q_vap(
-            CMP.DepositionSublimation(), mp, tps,
+            CMP.SnowDepositionSublimation(), mp, tps,
             (; q_tot, q_lcl, q_icl = q_icl - q_sno, q_rai, q_sno),
             (; ρ, T),
         )

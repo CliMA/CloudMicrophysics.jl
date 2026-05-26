@@ -133,9 +133,18 @@ end
     output[i] = (; ∂S_pr_qc0, ∂S_pr_qc0_ref, ∂S_pr_S0, ∂S_pr_S0_ref)
 end
 
-@kernel inbounds = true function test_1_moment_micro_acnv_kernel!(output, acnv1M, ql)
+@kernel inbounds = true function test_1_moment_micro_acnv_kernel!(mp, tps, output, ql)
     i = @index(Global, Linear)
-    output[i] = CM1.conv_q_lcl_to_q_rai(acnv1M, ql[i], false)
+    micro = (; q_tot = zero(ql[i]), q_lcl = ql[i], q_icl = zero(ql[i]), q_rai = zero(ql[i]), q_sno = zero(ql[i]))
+    thermo = (; ρ = zero(ql[i]), T = zero(ql[i]))
+    output[i] = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversion1M(), mp, tps, micro, thermo)
+end
+
+@kernel inbounds = true function test_1_moment_micro_acnv2M_kernel!(mp, tps, output, ql)
+    i = @index(Global, Linear)
+    micro = (; q_tot = zero(ql[i]), q_lcl = ql[i], q_icl = zero(ql[i]), q_rai = zero(ql[i]), q_sno = zero(ql[i]))
+    thermo = (; ρ = zero(ql[i]), T = zero(ql[i]))
+    output[i] = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversionPrescribedNd(), mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_1_moment_micro_accretion_kernel!(
@@ -156,6 +165,24 @@ end
     output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, rai_sink, sno_rai, rai_sno)
 end
 
+@kernel inbounds = true function test_1_moment_micro_accretion_opt_kernel!(
+    mp, tps, output, ρ, T, qi, qs, ql, qr,
+)
+    i = @index(Global, Linear)
+    micro = (; q_tot = zero(ρ[i]), q_lcl = ql[i], q_icl = qi[i], q_rai = qr[i], q_sno = qs[i])
+    thermo = (; ρ = ρ[i], T = T[i])
+    liq_rai = CM1.accretion(CMP.CloudLiquidRainAccretion(), mp, tps, micro, thermo)
+    liq_sno = CM1.accretion(CMP.CloudLiquidSnowAccretion(), mp, tps, micro, thermo).S_accr
+    ice_rai = CM1.accretion(CMP.CloudIceRainAccretion(), mp, tps, micro, thermo)
+    ice_sno = CM1.accretion(CMP.CloudIceSnowAccretion(), mp, tps, micro, thermo)
+    # rain-sink is now internal (coupled to CloudIceRainAccretion), so use low-level kernel directly
+    rai_sink = CM1.accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.collision,
+        micro.q_icl, micro.q_rai, ρ[i])
+    r_sr = CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mp, tps, micro, thermo)
+    output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, rai_sink,
+        sno_rai = r_sr.S_rai_sno, rai_sno = r_sr.S_sno_rai)
+end
+
 @kernel inbounds = true function test_1_moment_micro_snow_melt_kernel!(
     mp, tps, output, ρ, T, qs)
     i = @index(Global, Linear)
@@ -165,15 +192,14 @@ end
 end
 
 @kernel inbounds = true function test_2_moment_acnv_kernel!(
-    KK2000, B1994, TC1980, LD2004, VarTSc, output, ql, ρ, Nd,
+    KK2000, B1994, TC1980, LD2004, output, ql, ρ, Nd,
 )
     i = @index(Global, Linear)
-    S_VarTSc = CM2.conv_q_lcl_to_q_rai(VarTSc, ql[i], ρ[i], Nd[i])
     S_LD2004 = CM2.conv_q_lcl_to_q_rai(LD2004, ql[i], ρ[i], Nd[i])
     S_TC1980 = CM2.conv_q_lcl_to_q_rai(TC1980, ql[i], ρ[i], Nd[i])
     S_B1994 = CM2.conv_q_lcl_to_q_rai(B1994, ql[i], ρ[i], Nd[i])
     S_KK2000 = CM2.conv_q_lcl_to_q_rai(KK2000, ql[i], ρ[i], Nd[i])
-    output[i] = (; S_VarTSc, S_LD2004, S_TC1980, S_B1994, S_KK2000)
+    output[i] = (; S_LD2004, S_TC1980, S_B1994, S_KK2000)
 end
 
 @kernel inbounds = true function test_2_moment_accr_kernel!(
@@ -444,6 +470,11 @@ function test_gpu(FT)
     # Bulk microphysics parameters
     mp_0m = CMP.Microphysics0MParams(FT)
     mp_1m = CMP.Microphysics1MParams(FT)
+    mp_1m_2M = CMP.Microphysics1MParams(FT;
+        options = CMP.Microphysics1MOptions(
+            rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
+        ),
+    )
     mp_2m_warm = CMP.Microphysics2MParams(FT; with_ice = false)
     mp_2m_p3 = CMP.Microphysics2MParams(FT; with_ice = true)
 
@@ -572,13 +603,31 @@ function test_gpu(FT)
         ql = ArrayType([FT(1e-3), FT(5e-4)])
 
         kernel! = test_1_moment_micro_acnv_kernel!(backend, work_groups)
-        kernel!(output, rain.acnv1M, ql; ndrange)
+        kernel!(mp_1m, tps, output, ql; ndrange)
         out = Array(output)
 
         # Sanity checks for the GPU KernelAbstractions workflow
         # See https://github.com/CliMA/SurfaceFluxes.jl/issues/142
         TT.@test !any(isequal(out, FT(bad_value)))
-        TT.@test out == FT[5e-7, 0]
+        # Both inputs are above threshold so both should give positive autoconversion
+        TT.@test all(x -> x > 0, out)
+
+        # RainAutoconversionPrescribedNd: variable-timescale autoconversion
+        bad_value = -99999.99
+        (; output, ndrange) = setup_output(2, FT, bad_value)
+        ql = ArrayType([FT(2e-3), FT(0)])
+
+        kernel! = test_1_moment_micro_acnv2M_kernel!(backend, work_groups)
+        kernel!(mp_1m_2M, tps, output, ql; ndrange)
+        out = Array(output)
+
+        # Sanity checks
+        TT.@test !any(isequal(out, FT(bad_value)))
+        # q_lcl = 2e-3 → positive rate; q_lcl = 0 → zero rate
+        TT.@test out[1] > FT(0)
+        TT.@test out[2] == FT(0)
+        # Regression: q_lcl = 2e-3 with default autoconv_2M.Nc ≈ 1e8 → ≈ 2e-6
+        TT.@test out[1] ≈ FT(2e-6) rtol = 1e-3
 
         DT = @NamedTuple{
             liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT,
@@ -606,6 +655,27 @@ function test_gpu(FT)
         TT.@test out1.sno_rai ≈ FT(2.466313958248222e-4)
         TT.@test out1.rai_sno ≈ FT(6.830957197816771e-5)
 
+        # Option-dispatched wrappers must give identical values on GPU
+        DT_opt = @NamedTuple{
+            liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT,
+            rai_sink::FT, sno_rai::FT, rai_sno::FT,
+        }
+        (; output, ndrange) = setup_output(2, DT_opt)
+        T_arr = ArrayType([FT(290), FT(290)])
+
+        kernel_opt! = test_1_moment_micro_accretion_opt_kernel!(backend, work_groups)
+        kernel_opt!(mp_1m, tps, output, ρ, T_arr, qi, qs, ql, qr; ndrange)
+        out0_opt, out1_opt = Array(output)
+
+        TT.@test all(iszero, out0_opt)
+        TT.@test out1_opt.liq_rai ≈ FT(1.4150106417043544e-6)
+        TT.@test out1_opt.ice_sno ≈ FT(2.453070979562392e-7)
+        TT.@test out1_opt.liq_sno ≈ FT(2.453070979562392e-7)
+        TT.@test out1_opt.ice_rai ≈ FT(1.768763302130443e-6)
+        TT.@test out1_opt.rai_sink ≈ FT(3.590060148920767e-5)
+        TT.@test out1_opt.sno_rai ≈ FT(2.466313958248222e-4)
+        TT.@test out1_opt.rai_sno ≈ FT(6.830957197816771e-5)
+
         (; output, ndrange) = setup_output(3, FT)
 
         T_freeze = FT(273.15)
@@ -624,7 +694,7 @@ function test_gpu(FT)
     TT.@testset "2-moment microphysics kernels" begin
 
         TT.@testset "autoconversion" begin
-            DT = @NamedTuple{S_VarTSc::FT, S_LD2004::FT, S_TC1980::FT, S_B1994::FT, S_KK2000::FT}
+            DT = @NamedTuple{S_LD2004::FT, S_TC1980::FT, S_B1994::FT, S_KK2000::FT}
             (; output, ndrange) = setup_output(10, DT)
 
             ql = constant_data(FT(2e-3); ndrange)
@@ -632,12 +702,11 @@ function test_gpu(FT)
             Nd = constant_data(FT(1e8); ndrange)
 
             kernel! = test_2_moment_acnv_kernel!(backend, work_groups)
-            kernel!(KK2000, B1994, TC1980, LD2004, VarTSc, output, ql, ρ, Nd; ndrange)
+            kernel!(KK2000, B1994, TC1980, LD2004, output, ql, ρ, Nd; ndrange)
             out = Array(output)
 
             TT.@test allequal(out)
-            (; S_VarTSc, S_LD2004, S_TC1980, S_B1994, S_KK2000) = out[1]
-            TT.@test S_VarTSc ≈ FT(2e-6)
+            (; S_LD2004, S_TC1980, S_B1994, S_KK2000) = out[1]
             TT.@test S_LD2004 ≈ FT(1.6963072465911614e-6)
             TT.@test S_TC1980 ≈ FT(3.5482867084128596e-6)
             TT.@test S_B1994 ≈ FT(9.825462758968215e-7)

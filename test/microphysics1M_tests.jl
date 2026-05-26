@@ -169,7 +169,7 @@ function test_microphysics1M(FT)
         # Rain evaporates, rate should be negative
         micro = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
         thermo = (; ρ, T)
-        evap_rate = CM1.conv_q_rai_to_q_vap(CMP.EvaporationOnly(), mp, tps, micro, thermo)
+        evap_rate = CM1.conv_q_rai_to_q_vap(CMP.RainEvaporation(), mp, tps, micro, thermo)
         TT.@test evap_rate < 0
     end
 
@@ -193,7 +193,7 @@ function test_microphysics1M(FT)
         # Snow sublimation rate should be negative (losing mass)
         micro = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
         thermo = (; ρ, T)
-        subl_rate = CM1.conv_q_sno_to_q_vap(CMP.SublimationOnly(), mp, tps, micro, thermo)
+        subl_rate = CM1.conv_q_sno_to_q_vap(CMP.SnowSublimation(), mp, tps, micro, thermo)
         TT.@test subl_rate < 0
     end
 
@@ -202,19 +202,62 @@ function test_microphysics1M(FT)
         q_lcl_threshold = rain.acnv1M.q_threshold
         τ_acnv_rai = rain.acnv1M.τ
 
-        q_lcl_small = FT(0.5) * q_lcl_threshold
-        TT.@test CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_small) == FT(0)
+        micro_s = (; q_tot = FT(0), q_lcl = FT(0.5) * q_lcl_threshold,
+            q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        micro_b = (; q_tot = FT(0), q_lcl = FT(1.5) * q_lcl_threshold,
+            q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        thermo = (; ρ = FT(1), T = FT(280))
 
-        TT.@test CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_small, true) ≈
+        # Below threshold → near zero (smooth logistic)
+        TT.@test CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversion1M(), mp, tps, micro_s, thermo) ≈
                  FT(0.0) atol = 0.15 * q_lcl_threshold / τ_acnv_rai
 
-        q_lcl_big = FT(1.5) * q_lcl_threshold
-        TT.@test CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_big) ≈
-                 FT(0.5) * q_lcl_threshold / τ_acnv_rai
-
-        TT.@test CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl_big, true) ≈
+        # Above threshold → ≈ 0.5 * q_threshold / τ (smooth logistic)
+        TT.@test CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversion1M(), mp, tps, micro_b, thermo) ≈
                  FT(0.5) * q_lcl_threshold / τ_acnv_rai atol =
             FT(0.15) * q_lcl_threshold / τ_acnv_rai
+
+    end
+
+    TT.@testset "RainAutoconversion2M" begin
+        # Variable-timescale autoconversion (RainAutoconversionPrescribedNd)
+        mp_2m = CMP.Microphysics1MParams(FT;
+            options = CMP.Microphysics1MOptions(
+                rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
+            ),
+        )
+        thermo = (; ρ = FT(1), T = FT(280))
+
+        # Zero cloud liquid → zero rate
+        micro_0 = (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        TT.@test CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversionPrescribedNd(), mp_2m, tps, micro_0, thermo) == FT(0)
+
+        # Negative cloud liquid → zero rate (max(0, q_lcl))
+        micro_neg = (; q_tot = FT(0), q_lcl = FT(-1e-4), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        TT.@test CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversionPrescribedNd(), mp_2m, tps, micro_neg, thermo) == FT(0)
+
+        # Positive cloud liquid → positive rate
+        q_lcl = FT(2e-3)
+        N_d = mp_2m.autoconv_2M.Nc
+        (; τ, α) = mp_2m.autoconv_2M
+        micro = (; q_tot = FT(0), q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        rate = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversionPrescribedNd(), mp_2m, tps, micro, thermo)
+        TT.@test rate > FT(0)
+        # Rate should match the formula: q_lcl / (τ * (N_d / 1e8)^α)
+        TT.@test rate ≈ q_lcl / (τ * (N_d / 100_000_000)^α)
+
+        # Higher N_d → slower autoconversion (more droplets → longer timescale)
+        # We test this via the formula directly: smaller N_d → larger rate
+        q_lcl_test = FT(1e-3)
+        N_d_low = FT(1e7)
+        N_d_high = FT(1e9)
+        rate_low_N = q_lcl_test / (τ * (N_d_low / 100_000_000)^α)
+        rate_high_N = q_lcl_test / (τ * (N_d_high / 100_000_000)^α)
+        TT.@test rate_low_N > rate_high_N
+
+        # Regression: keep result constant when code changes
+        # q_lcl = 2e-3, default autoconv_2M.Nc ~1e8
+        TT.@test rate ≈ FT(2e-6) rtol = 1e-3
 
     end
 
@@ -228,14 +271,14 @@ function test_microphysics1M(FT)
         micro_s = (; q_tot = FT(0), q_lcl = FT(0), q_icl = q_icl_small, q_rai = FT(0), q_sno = FT(0))
         thermo_s = (; ρ = FT(1), T = FT(250))
         TT.@test CM1.conv_q_icl_to_q_sno(
-            CMP.SnowAutoconvNoSupersat(), mp, tps, micro_s, thermo_s,
+            CMP.SnowAutoconversionNoSupersaturation(), mp, tps, micro_s, thermo_s,
         ) ≈ FT(0.0) atol = FT(0.15) * q_icl_threshold / τ_acnv_sno
 
         # Above threshold → positive rate
         q_icl_big = FT(1.5) * q_icl_threshold
         micro_b = (; q_tot = FT(0), q_lcl = FT(0), q_icl = q_icl_big, q_rai = FT(0), q_sno = FT(0))
         TT.@test CM1.conv_q_icl_to_q_sno(
-            CMP.SnowAutoconvNoSupersat(), mp, tps, micro_b, thermo_s,
+            CMP.SnowAutoconversionNoSupersaturation(), mp, tps, micro_b, thermo_s,
         ) ≈ FT(0.5) * q_icl_threshold / τ_acnv_sno atol =
             FT(0.15) * q_icl_threshold / τ_acnv_sno
 
@@ -248,9 +291,9 @@ function test_microphysics1M(FT)
         qₛ = FT(1e-4)
         T_freeze = TDI.TD.Parameters.T_freeze(tps)
 
-        # Use mp with SnowAutoconvWithSupersat
+        # Use mp with SnowAutoconversionWithSupersaturation
         mp_ss = CMP.Microphysics1MParams(FT;
-            options = CMP.Microphysics1MOptions(snow_autoconversion = CMP.SnowAutoconvWithSupersat()),
+            options = CMP.Microphysics1MOptions(snow_autoconversion = CMP.SnowAutoconversionWithSupersaturation()),
         )
 
         # above freezing temperatures -> no snow
@@ -261,7 +304,8 @@ function test_microphysics1M(FT)
         T = T_freeze + FT(30)
         micro = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ)
         thermo = (; ρ, T)
-        TT.@test CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconvWithSupersat(), mp_ss, tps, micro, thermo) == FT(0)
+        TT.@test CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconversionWithSupersaturation(), mp_ss, tps, micro, thermo) ==
+                 FT(0)
 
         # no cloud ice -> no snow
         qᵢ = FT(0)
@@ -269,7 +313,8 @@ function test_microphysics1M(FT)
         T = T_freeze - FT(30)
         micro = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ)
         thermo = (; ρ, T)
-        TT.@test CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconvWithSupersat(), mp_ss, tps, micro, thermo) == FT(0)
+        TT.@test CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconversionWithSupersaturation(), mp_ss, tps, micro, thermo) ==
+                 FT(0)
 
         # no supersaturation -> no snow
         T = T_freeze - FT(5)
@@ -278,7 +323,7 @@ function test_microphysics1M(FT)
         qₜ = q_sat_ice
         micro = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ)
         thermo = (; ρ, T)
-        TT.@test CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconvWithSupersat(), mp_ss, tps, micro, thermo) ≈ FT(0)
+        TT.@test CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconversionWithSupersaturation(), mp_ss, tps, micro, thermo) ≈ FT(0)
 
         # Regression test: keep result constant when code changes
         T = T_freeze - FT(10)
@@ -289,7 +334,7 @@ function test_microphysics1M(FT)
         ref = FT(2.5408135723057333e-9)
         micro = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ)
         thermo = (; ρ, T)
-        TT.@test CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconvWithSupersat(), mp_ss, tps, micro, thermo) ≈ ref
+        TT.@test CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconversionWithSupersaturation(), mp_ss, tps, micro, thermo) ≈ ref
     end
 
     TT.@testset "RainLiquidAccretion" begin
@@ -400,6 +445,77 @@ function test_microphysics1M(FT)
         ) ≈ FT(6.830957197816771e-5) # Includes velocity dispersion correction
     end
 
+    TT.@testset "AccretionOptionAPI" begin
+        # Verify that the option-dispatched wrappers return the same values
+        # as the internal low-level kernels (regression values from "Accretion" testset)
+        ρ = FT(1.2)
+        q_tot = FT(20e-3)
+        q_liq = FT(5e-4)
+        q_ice = FT(5e-4)
+        q_sno = FT(5e-4)
+        q_rai = FT(5e-4)
+        T_warm = snow.T_freeze + FT(5)   # above freezing
+        T_cold = snow.T_freeze - FT(5)   # below freezing
+
+        micro = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
+        thermo_warm = (; ρ, T = T_warm)
+        thermo_cold = (; ρ, T = T_cold)
+
+        # CloudLiquidRainAccretion: scalar, matches internal kernel
+        TT.@test CM1.accretion(CMP.CloudLiquidRainAccretion(), mp, tps, micro, thermo_warm) ≈
+                 FT(1.4150106417043544e-6)
+
+        # CloudIceRainAccretion: scalar, matches internal kernel
+        TT.@test CM1.accretion(CMP.CloudIceRainAccretion(), mp, tps, micro, thermo_warm) ≈
+                 FT(1.768763302130443e-6)
+
+        # CloudIceSnowAccretion: scalar, matches internal kernel
+        TT.@test CM1.accretion(CMP.CloudIceSnowAccretion(), mp, tps, micro, thermo_warm) ≈
+                 FT(2.453070979562392e-7)
+
+        # CloudLiquidSnowAccretion: NamedTuple (; S_accr, S_melt)
+        # S_accr matches the internal lcl×sno kernel; S_melt = α * S_accr (α > 0 warm)
+        (; S_accr, S_melt) = CM1.accretion(CMP.CloudLiquidSnowAccretion(), mp, tps, micro, thermo_warm)
+        TT.@test S_accr ≈ FT(2.453070979562392e-7)
+        TT.@test S_melt >= FT(0)      # α >= 0
+        TT.@test S_melt <= S_accr     # melt ≤ S_accr (α ≤ 1 for reasonable ΔT)
+
+        # Cold: melt should be zero (T < T_freeze → α = 0)
+        let r = CM1.accretion(CMP.CloudLiquidSnowAccretion(), mp, tps, micro, thermo_cold)
+            TT.@test r.S_accr ≈ FT(2.453070979562392e-7)
+            TT.@test r.S_melt == FT(0)
+        end
+
+        # RainSnowAccretion: NamedTuple (; S_rai_sno, S_sno_rai, S_melt)
+        # cold arm S_rai_sno matches internal (sno, rai) call
+        # warm arm S_sno_rai matches internal (rai, sno) call
+        let r = CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mp, tps, micro, thermo_warm)
+            TT.@test r.S_rai_sno ≈ FT(2.466313958248222e-4)
+            TT.@test r.S_sno_rai ≈ FT(6.830957197816771e-5)
+            TT.@test r.S_melt >= FT(0)
+        end
+        # Cold: S_melt = 0 (α = 0 below freezing)
+        let r = CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mp, tps, micro, thermo_cold)
+            TT.@test r.S_melt == FT(0)
+        end
+
+        # No* variants return zero
+        micro_zero = (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        TT.@test CM1.accretion(CMP.NoCloudLiquidRainAccretion(), mp, tps, micro_zero, thermo_warm) == FT(0)
+        TT.@test CM1.accretion(CMP.NoCloudIceRainAccretion(), mp, tps, micro_zero, thermo_warm) == FT(0)
+        TT.@test CM1.accretion(CMP.NoCloudIceSnowAccretion(), mp, tps, micro_zero, thermo_warm) == FT(0)
+        TT.@test CM1.accretion(CMP.NoCloudLiquidSnowAccretion(), mp, tps, micro_zero, thermo_warm).S_accr == FT(0)
+        TT.@test CM1.accretion_snow_rain(CMP.NoRainSnowAccretion(), mp, tps, micro_zero, thermo_warm).S_rai_sno == FT(0)
+        TT.@test CM1.accretion_snow_rain(CMP.NoRainSnowAccretion(), mp, tps, micro_zero, thermo_warm).S_sno_rai == FT(0)
+        # Active variants: zero inputs → zero rates
+        TT.@test CM1.accretion(CMP.CloudLiquidRainAccretion(), mp, tps, micro_zero, thermo_warm) == FT(0)
+        TT.@test CM1.accretion(CMP.CloudIceRainAccretion(), mp, tps, micro_zero, thermo_warm) == FT(0)
+        TT.@test CM1.accretion(CMP.CloudIceSnowAccretion(), mp, tps, micro_zero, thermo_warm) == FT(0)
+        TT.@test CM1.accretion(CMP.CloudLiquidSnowAccretion(), mp, tps, micro_zero, thermo_warm).S_accr == FT(0)
+        TT.@test CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mp, tps, micro_zero, thermo_warm).S_rai_sno == FT(0)
+        TT.@test CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mp, tps, micro_zero, thermo_warm).S_sno_rai == FT(0)
+    end
+
     TT.@testset "RainEvaporation" begin
 
         # eq. 5c in [Grabowski1996](@cite)
@@ -447,7 +563,7 @@ function test_microphysics1M(FT)
 
             micro = (; q_tot, q_lcl, q_icl = FT(0), q_rai, q_sno = FT(0))
             thermo = (; ρ, T)
-            tmp1 = CM1.conv_q_rai_to_q_vap(CMP.EvaporationOnly(), mp, tps, micro, thermo)
+            tmp1 = CM1.conv_q_rai_to_q_vap(CMP.RainEvaporation(), mp, tps, micro, thermo)
             tmp2 = rain_evap_empir(tps, q_rai, q_tot, q_lcl, FT(0), T, p, ρ)
 
             TT.@test tmp1 ≈ tmp2 atol = 1e-6
@@ -469,7 +585,7 @@ function test_microphysics1M(FT)
 
         micro = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
         thermo = (; ρ, T)
-        TT.@test CM1.conv_q_rai_to_q_vap(CMP.EvaporationOnly(), mp, tps, micro, thermo) ≈ FT(0)
+        TT.@test CM1.conv_q_rai_to_q_vap(CMP.RainEvaporation(), mp, tps, micro, thermo) ≈ FT(0)
 
     end
 
@@ -505,7 +621,7 @@ function test_microphysics1M(FT)
 
                 micro = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
                 thermo = (; ρ, T)
-                tmp1 = CM1.conv_q_sno_to_q_vap(CMP.SublimationOnly(), mp, tps, micro, thermo)
+                tmp1 = CM1.conv_q_sno_to_q_vap(CMP.SnowSublimation(), mp, tps, micro, thermo)
                 TT.@test tmp1 ≈ ref_val[cnt] rtol = 1e-2
             end
         end
@@ -543,7 +659,7 @@ function test_microphysics1M(FT)
 
                 micro = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
                 thermo = (; ρ, T)
-                tmp1 = CM1.conv_q_sno_to_q_vap(CMP.DepositionSublimation(), mp, tps, micro, thermo)
+                tmp1 = CM1.conv_q_sno_to_q_vap(CMP.SnowDepositionSublimation(), mp, tps, micro, thermo)
                 TT.@test tmp1 ≈ ref_val[cnt] rtol = 1e-2
             end
         end
@@ -589,34 +705,34 @@ function test_microphysics1M(FT)
         ρ = FT(1.2)
         q_icl = FT(1e-4)
         mp_melt = CMP.Microphysics1MParams(FT;
-            options = CMP.Microphysics1MOptions(cloud_ice_melt = CMP.CloudIceMeltToLiquid()),
+            options = CMP.Microphysics1MOptions(cloud_ice_melt = CMP.CloudIceMelt()),
         )
         micro = (; q_tot = FT(0), q_lcl = FT(0), q_icl, q_rai = FT(0), q_sno = FT(0))
         thermo = (; ρ, T)
-        melt_rate = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMeltToLiquid(), mp_melt, tps, micro, thermo)
+        melt_rate = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp_melt, tps, micro, thermo)
         TT.@test melt_rate > 0
 
         # no cloud ice → no melt
         micro_0 = (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
-        TT.@test CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMeltToLiquid(), mp_melt, tps, micro_0, thermo) ≈ FT(0)
+        TT.@test CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp_melt, tps, micro_0, thermo) ≈ FT(0)
 
         # T < T_freeze → no melt
         thermo_cold = (; ρ, T = T_freeze - FT(2))
-        TT.@test CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMeltToLiquid(), mp_melt, tps, micro, thermo_cold) ≈ FT(0)
+        TT.@test CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp_melt, tps, micro, thermo_cold) ≈ FT(0)
 
         # more ice → higher melt rate
         thermo_warm = (; ρ, T = T_freeze + FT(5))
         micro_s = (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(1e-5), q_rai = FT(0), q_sno = FT(0))
         micro_l = (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(1e-3), q_rai = FT(0), q_sno = FT(0))
-        rate_small = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMeltToLiquid(), mp_melt, tps, micro_s, thermo_warm)
-        rate_large = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMeltToLiquid(), mp_melt, tps, micro_l, thermo_warm)
+        rate_small = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp_melt, tps, micro_s, thermo_warm)
+        rate_large = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp_melt, tps, micro_l, thermo_warm)
         TT.@test rate_large > rate_small
 
         # warmer T → higher melt rate
         thermo_w = (; ρ, T = T_freeze + FT(10))
         thermo_c = (; ρ, T = T_freeze + FT(1))
-        rate_warm = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMeltToLiquid(), mp_melt, tps, micro, thermo_w)
-        rate_cool = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMeltToLiquid(), mp_melt, tps, micro, thermo_c)
+        rate_warm = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp_melt, tps, micro, thermo_w)
+        rate_cool = CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp_melt, tps, micro, thermo_c)
         TT.@test rate_warm > rate_cool
 
         # NoCloudIceMelt returns zero

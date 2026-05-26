@@ -15,6 +15,7 @@
 
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.HetIceNucleation as CMI_het
@@ -58,9 +59,11 @@ nothing #hide
 # Finally we check the values of the rain autoconversion timescales
 # and the corresponding rain formation rates.
 qₗ = FT(1e-3)
-default_acnv = CM1.conv_q_lcl_to_q_rai(default.acnv1M, qₗ) # Rain autoconversion rate
-overwrite_acnv = CM1.conv_q_lcl_to_q_rai(overwrite.acnv1M, qₗ) # Rain autoconversion rate
-overwrite_acnv2 = CM1.conv_q_lcl_to_q_rai(overwrite2.acnv1M, qₗ) # Rain autoconversion rate
+default_acnv = CO.logistic_function_integral(qₗ, default.acnv1M.q_threshold, default.acnv1M.k) / default.acnv1M.τ # Rain autoconversion rate
+overwrite_acnv =
+    CO.logistic_function_integral(qₗ, overwrite.acnv1M.q_threshold, overwrite.acnv1M.k) / overwrite.acnv1M.τ # Rain autoconversion rate
+overwrite_acnv2 =
+    CO.logistic_function_integral(qₗ, overwrite2.acnv1M.q_threshold, overwrite2.acnv1M.k) / overwrite2.acnv1M.τ # Rain autoconversion rate
 
 @info("Default:", default.acnv1M.τ, default_acnv)
 @info("Overwrite:", overwrite.acnv1M.τ, overwrite_acnv)

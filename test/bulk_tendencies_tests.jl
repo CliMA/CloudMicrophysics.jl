@@ -222,14 +222,49 @@ function test_bulk_microphysics_1m_tendencies(FT)
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        # Compute autoconversion separately
-        S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(rain.acnv1M, q_lcl, true)
+        # Compute autoconversion separately using the same option-dispatched function
+        micro_acnv = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
+        thermo_acnv = (; ρ, T)
+        S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversion1M(), mp, tps, micro_acnv, thermo_acnv)
 
         # Rain tendency should be positive and include autoconversion
         @test tendencies.dq_rai_dt > FT(0)
         # Autoconversion should be a major component of rain formation
         # (in the absence of rain, there's no accretion, so it should be close)
         @test abs(tendencies.dq_rai_dt - S_acnv_lcl) / S_acnv_lcl < FT(0.1)
+    end
+
+    @testset "BulkMicrophysicsTendencies - Autoconversion component (PrescribedNd)" begin
+        # Same check as above but using the variable-timescale 2M autoconversion option
+        # (RainAutoconversionPrescribedNd), which uses mp.autoconv_2M.{τ,α,Nc}.
+        mp_2m = CMP.Microphysics1MParams(FT;
+            options = CMP.Microphysics1MOptions(
+                rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
+            ),
+        )
+
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)  # warm, no ice processes
+        q_tot = FT(0.015)
+        q_lcl = FT(2e-3)
+        q_icl = FT(0)
+        q_rai = FT(0)
+        q_sno = FT(0)
+
+        tendencies_2m = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics1Moment(),
+            mp_2m, tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+
+        # Compute autoconversion separately using the option-dispatched function
+        micro_acnv = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
+        thermo_acnv = (; ρ, T)
+        S_acnv_2m = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversionPrescribedNd(), mp_2m, tps, micro_acnv, thermo_acnv)
+
+        # Rain tendency should be positive and dominated by autoconversion
+        @test tendencies_2m.dq_rai_dt > FT(0)
+        @test abs(tendencies_2m.dq_rai_dt - S_acnv_2m) / S_acnv_2m < FT(0.1)
     end
 
     @testset "BulkMicrophysicsTendencies - Subsaturated evaporation" begin
@@ -557,7 +592,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         micro_s = (; q_tot, q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno)
         thermo_s = (; ρ, T)
         S_melt = CM1.conv_q_sno_to_q_rai(CMP.SnowMelt(), mp, tps, micro_s, thermo_s)
-        S_subl = CM1.conv_q_sno_to_q_vap(CMP.DepositionSublimation(), mp, tps, micro_s, thermo_s)
+        S_subl = CM1.conv_q_sno_to_q_vap(CMP.SnowDepositionSublimation(), mp, tps, micro_s, thermo_s)
 
         # Calculate α
         T_frz = TDI.T_freeze(tps)

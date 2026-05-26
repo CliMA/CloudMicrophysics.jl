@@ -22,7 +22,6 @@ function integrate_bulk_microphysics_reference(
     q_sno0,
     t_end;
     dt = 0.1,
-    N_lcl = zero(ρ),
 )
     FT = typeof(q_tot)
     nsteps = Int(round(t_end / dt))
@@ -55,7 +54,6 @@ function integrate_bulk_microphysics_reference(
             q_icl[i],
             q_rai[i],
             q_sno[i],
-            N_lcl,
         )
 
         q_lcl[i + 1] = q_lcl[i] + FT(dt) * rates.dq_lcl_dt
@@ -93,7 +91,6 @@ function integrate_bulk_microphysics_linearized_one_step(
     q_sno0,
     t_end;
     nsub = 1,
-    N_lcl = zero(ρ),
 )
     FT = typeof(q_tot)
 
@@ -129,7 +126,6 @@ function integrate_bulk_microphysics_linearized_one_step(
             q_rai[i],
             q_sno[i],
             Δt_sub,
-            N_lcl,
         )
 
         q_lcl[i + 1] = q_lcl[i] + Δt_sub * rates.dq_lcl_dt
@@ -194,7 +190,6 @@ function integrate_bulk_microphysics_instantaneous_one_step(
         q_icl0,
         q_rai0,
         q_sno0,
-        N_lcl,
     )
 
     Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)

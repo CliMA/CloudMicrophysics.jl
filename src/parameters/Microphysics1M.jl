@@ -1,4 +1,4 @@
-export CloudLiquid, CloudIce, Rain, Snow, CollisionEff
+export CloudLiquid, CloudIce, Rain, Snow, CollisionEff, VarTimescaleAcnv
 
 """
     ParticlePDFSnow{FT}
@@ -423,4 +423,33 @@ function CollisionEff(td::CP.ParamDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return CollisionEff(; parameters...)
+end
+
+"""
+    VarTimescaleAcnv{FT}
+
+Parameters for the variable-timescale rain autoconversion scheme used in the 1-moment
+microphysics scheme, following Azimi et al. (2023).
+Active when `RainAutoconversionPrescribedNd` is selected in `Microphysics1MOptions`.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct VarTimescaleAcnv{FT} <: Precipitation2MType
+    "Autoconversion timescale [s]"
+    τ::FT
+    "Powerlaw coefficient relating timescale to droplet number [-]"
+    α::FT
+    "Prescribed cloud droplet number concentration [1/m³]"
+    Nc::FT
+end
+
+function VarTimescaleAcnv(td::CP.ParamDict)
+    name_map = (;
+        :rain_autoconversion_timescale => :τ,
+        :Variable_time_scale_autoconversion_coeff_alpha => :α,
+        :prescribed_cloud_droplet_number_concentration => :Nc,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return VarTimescaleAcnv(; parameters...)
 end

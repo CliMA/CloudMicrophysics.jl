@@ -51,13 +51,11 @@ function test_microphysics2M(FT)
         TT.@test CM2.accretion(KK2000, q_lcl, q_rai, ρ) != NaN
         TT.@test CM2.accretion(B1994, q_lcl, q_rai, ρ) != NaN
         TT.@test CM2.accretion(TC1980, q_lcl, q_rai) != NaN
-        TT.@test CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ, N_d) != NaN
 
         # output should be zero if either q_liq or q_rai are zero
         q_lcl = FT(0)
         q_rai = FT(1e-6)
 
-        TT.@test CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ, N_d) == FT(0)
         TT.@test CM2.conv_q_lcl_to_q_rai(KK2000, q_lcl, ρ, N_d) == FT(0)
         TT.@test CM2.conv_q_lcl_to_q_rai(B1994, q_lcl, ρ, N_d) == FT(0)
         TT.@test CM2.conv_q_lcl_to_q_rai(TC1980, q_lcl, ρ, N_d) == FT(0)
@@ -71,9 +69,6 @@ function test_microphysics2M(FT)
         TT.@test CM2.accretion(KK2000, q_lcl, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(B1994, q_lcl, q_rai, ρ) == FT(0)
         TT.@test CM2.accretion(TC1980, q_lcl, q_rai) == FT(0)
-
-        TT.@test CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ, N_d) >
-                 CM2.conv_q_lcl_to_q_rai(VarTSc, q_lcl, ρ, 10 * N_d)
 
         # far from threshold points, autoconversion with and without smooth transition should
         # be approximately equal
