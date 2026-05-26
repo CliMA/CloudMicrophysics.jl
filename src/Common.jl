@@ -305,7 +305,7 @@ end
     # Table B3 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
-    As = A[2] * log_ρᵢ^2 − A[3] * log_ρᵢ + A[1]
+    As = A[2] * log_ρᵢ^2−A[3] * log_ρᵢ + A[1]
     Bs = 1 / (B[1] + B[2] * log_ρᵢ + B[3] / sqrt_ρᵢ)
     Cs = C[1] + C[2] * exp(C[3] * ρᵢ) + C[4] * sqrt_ρᵢ
     Es = E[1] - E[2] * log_ρᵢ^2 + E[3] * sqrt_ρᵢ

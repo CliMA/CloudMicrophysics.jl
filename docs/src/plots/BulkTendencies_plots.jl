@@ -44,6 +44,7 @@ function integrate_bulk_microphysics_reference(
 
     for i in 1:nsteps
         rates = BMT.bulk_microphysics_tendencies(
+            BMT.Instantaneous(),
             cm,
             mp,
             tps,
@@ -114,7 +115,7 @@ function integrate_bulk_microphysics_linearized_one_step(
     Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
 
     for i in 1:nsub
-        rates = BMT._average_bulk_microphysics_tendencies(
+        rates = BMT._linearized_implicit_step(
             cm,
             mp,
             tps,
@@ -180,6 +181,7 @@ function integrate_bulk_microphysics_instantaneous_one_step(
     T[1] = T0
 
     rates = BMT.bulk_microphysics_tendencies(
+        BMT.Instantaneous(),
         cm,
         mp,
         tps,
