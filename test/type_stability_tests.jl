@@ -70,6 +70,7 @@ function run_type_stability_tests()
 
             tendencies_1M =
                 BMT.bulk_microphysics_tendencies.(
+                    Ref(BMT.Instantaneous()),
                     Ref(BMT.Microphysics1Moment()),
                     Ref(mp1),
                     Ref(tps),
@@ -80,6 +81,45 @@ function run_type_stability_tests()
             val1 = tendencies_1M[1]
             for k in keys(val1)
                 @test getproperty(val1, k) isa FT
+            end
+
+            # --- 1-Moment (LinearizedAverage — used by ClimaAtmos) ---
+            Δt = fill(FT(1), N)
+            tendencies_1M_lin =
+                BMT.bulk_microphysics_tendencies.(
+                    Ref(BMT.LinearizedAverage()),
+                    Ref(BMT.Microphysics1Moment()),
+                    Ref(mp1),
+                    Ref(tps),
+                    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+                )
+
+            @test tendencies_1M_lin isa Vector
+            val1_lin = tendencies_1M_lin[1]
+            for k in keys(val1_lin)
+                @test getproperty(val1_lin, k) isa FT
+            end
+
+            # --- 1-Moment (InstantaneousVerbose — diagnostics) ---
+            tendencies_1M_verbose =
+                BMT.bulk_microphysics_tendencies.(
+                    Ref(BMT.InstantaneousVerbose()),
+                    Ref(BMT.Microphysics1Moment()),
+                    Ref(mp1),
+                    Ref(tps),
+                    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+                )
+
+            @test tendencies_1M_verbose isa Vector
+            val1_v = tendencies_1M_verbose[1]
+            # Must have both aggregated tendencies and individual source terms
+            @test haskey(val1_v, :dq_lcl_dt)
+            @test haskey(val1_v, :S_phase_change_vap_lcl)
+            for k in keys(val1_v)
+                v = getproperty(val1_v, k)
+                if v isa AbstractFloat
+                    @test v isa FT
+                end
             end
 
             # --- 2-Moment (Warm Rain) ---

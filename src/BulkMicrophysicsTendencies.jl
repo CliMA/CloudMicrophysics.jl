@@ -37,8 +37,11 @@ export MicrophysicsScheme,
     Microphysics0Moment,
     Microphysics1Moment,
     Microphysics2Moment,
-    bulk_microphysics_tendencies,
-    average_bulk_microphysics_tendencies
+    TendencyMode,
+    Instantaneous,
+    InstantaneousVerbose,
+    LinearizedAverage,
+    bulk_microphysics_tendencies
 
 #####
 ##### Singleton types for dispatch
@@ -76,65 +79,59 @@ This unified scheme handles:
 """
 struct Microphysics2Moment <: MicrophysicsScheme end
 
-# --- Helper Functions ---
+# --- Tendency output mode dispatch ---
 
+"""
+    TendencyMode
+
+Abstract type for selecting the output mode of `bulk_microphysics_tendencies`.
+"""
+abstract type TendencyMode end
+
+"""
+    Instantaneous <: TendencyMode
+
+Return raw nonlinear tendencies from a single evaluation of all microphysical
+processes (no linearization, no time-averaging).
+"""
+struct Instantaneous <: TendencyMode end
+
+"""
+    InstantaneousVerbose <: TendencyMode
+
+Return all individual source terms alongside aggregated `dq_*_dt` tendencies.
+Useful for model diagnostics. Only works with instantaneous (nonlinear) evaluation.
+"""
+struct InstantaneousVerbose <: TendencyMode end
+
+"""
+    LinearizedAverage <: TendencyMode
+
+Return time-averaged tendencies computed via repeated linearized implicit substeps.
+This is the mode used operationally by ClimaAtmos.
+"""
+struct LinearizedAverage <: TendencyMode end
 
 # --- 1-Moment Microphysics ---
 
+# --- Internal helpers ---
+
 """
-    bulk_microphysics_tendencies(
-        ::Microphysics1Moment, mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
-    )
+Compute all individual 1-moment microphysics source terms in a single pass.
 
-Compute all 1-moment microphysics tendencies in one fused call.
+This is the **single source of truth** for which microphysical processes are
+called and with what arguments. Both the raw tendency aggregation and the
+linearized operator construction consume this output.
 
-Returns a NamedTuple with all source/sink terms for hydrometeor species.
-This is a pure function of local thermodynamic state, suitable for:
-- Point quadrature over subgrid-scale (T, q_tot) distributions
-- GPU kernel evaluation
-- Unit testing in isolation
+Naming convention: `S_process_species1_species2`
+ - process: physical mechanism (phase_change, acnv, accr, melt, accr_melt, accr_freeze)
+ - species1, species2: interacting pair (not from/to)
+ - `_cold` / `_warm` suffix for two-sided collision arms (inactive arm = zero)
 
-# Arguments
-- `mp`: NamedTuple of microphysics parameters with fields:
-  - `cloud.liquid`: CloudLiquid parameters
-  - `cloud.ice`: CloudIce parameters
-  - `precip.rain`: Rain parameters
-  - `precip.snow`: Snow parameters
-  - `collision`: CollisionEff parameters
-  - `air_properties`: AirProperties parameters
-  - `terminal_velocity`: Blk1MVelType parameters
-  - `autoconv_2M`: VarTimescaleAcnv or Nothing (built when `RainAutoconversionPrescribedNd` is selected;
-    includes the prescribed cloud droplet number concentration `Nc`)
-  - `options`: Microphysics1MOptions (selects parameterization variants, including
-    `rain_autoconversion` to choose between 1M Kessler or VarTimescale 2M)
-- `tps`: Thermodynamics parameters
-- `ρ`: Air density [kg/m³]
-- `T`: Temperature [K]
-- `q_tot`: Total water specific content [kg/kg]
-- `q_lcl`: Cloud liquid water specific content [kg/kg]
-- `q_icl`: Cloud ice specific content [kg/kg]
-- `q_rai`: Rain specific content [kg/kg]
-- `q_sno`: Snow specific content [kg/kg]
-
-# Returns
-`NamedTuple` with fields:
-- `dq_lcl_dt`: Cloud liquid tendency [kg/kg/s]
-- `dq_icl_dt`: Cloud ice tendency [kg/kg/s]
-- `dq_rai_dt`: Rain tendency [kg/kg/s]
-- `dq_sno_dt`: Snow tendency [kg/kg/s]
-
-# Input Validation
-- Negative specific contents are clamped to zero for robustness against numerical errors.
-
-# Notes
-- This function does NOT apply timestep-dependent limiters to prevent negative concentrations.
-  Limiters depend on timestep `dt` and should be applied by the caller after computing tendencies.
-- The cloud liquid autoconversion variant (1M Kessler vs. VarTimescale 2M) is selected
-  via `mp.options.rain_autoconversion`. When `RainAutoconversionPrescribedNd` is selected,
-  the prescribed droplet concentration `mp.autoconv_2M.Nc` is used automatically.
+Returns a `NamedTuple` of ~19 scalar source terms.  All two-sided collision
+processes are pre-routed by temperature, so consumers never need `is_warm`.
 """
-@inline function bulk_microphysics_tendencies(
+@inline function _microphysics_source_terms(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
@@ -146,112 +143,108 @@ This is a pure function of local thermodynamic state, suitable for:
     q_rai = UT.clamp_to_nonneg(q_rai)
     q_sno = UT.clamp_to_nonneg(q_sno)
 
-    # Unpack microphysics parameter container
+    FT = typeof(q_tot)
     opts = mp.options
 
     # Construct state tuples (reused across all process calls)
     micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
     thermo = (; ρ, T)
 
-    # Initialize tendencies
-    dq_lcl_dt = zero(T)
-    dq_icl_dt = zero(T)
-    dq_rai_dt = zero(T)
-    dq_sno_dt = zero(T)
+    # --- Phase change: vapor ↔ cloud condensate (bidirectional, ±) ---
+    S_phase_change_vap_lcl = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo)
+    S_phase_change_vap_icl = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo)
 
-    # --- Cloud condensate formation (non-equilibrium) ---
-
-    # Condensation/evaporation of cloud liquid
-    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo)
-    dq_lcl_dt += S_lcl_cond
-
-    # Deposition/sublimation of cloud ice
-    S_icl_dep = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo)
-    dq_icl_dt += S_icl_dep
-
-    # --- Autoconversion (cloud → precipitation) ---
-
-    # Cloud liquid → rain
-    S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(opts.rain_autoconversion, mp, tps, micro, thermo)
-    dq_lcl_dt -= S_acnv_lcl
-    dq_rai_dt += S_acnv_lcl
-
-    # Cloud ice → snow
-    S_acnv_icl = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo)
-    dq_icl_dt -= S_acnv_icl
-    dq_sno_dt += S_acnv_icl
+    # --- Autoconversion (cloud → precipitation, ≥ 0) ---
+    S_acnv_lcl_rai = CM1.conv_q_lcl_to_q_rai(opts.rain_autoconversion, mp, tps, micro, thermo)
+    S_acnv_icl_sno = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo)
 
     # --- Accretion (collisions between species) ---
-
     is_warm = T >= mp.precip.snow.T_freeze
 
     # Cloud liquid + rain → rain
     S_accr_lcl_rai = CM1.accretion(opts.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
-    dq_lcl_dt -= S_accr_lcl_rai
-    dq_rai_dt += S_accr_lcl_rai
 
-    # Cloud liquid + snow → snow (cold) or rain (warm) + thermal melt
+    # Cloud liquid + snow: product goes to sno (cold) or rai (warm), plus thermal melt
     (; S_accr, S_melt) = CM1.accretion(opts.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
-    dq_lcl_dt -= S_accr
-    dq_sno_dt += ifelse(is_warm, zero(T), S_accr)
-    dq_rai_dt += ifelse(is_warm, S_accr, zero(T))
-    dq_sno_dt -= S_melt
-    dq_rai_dt += S_melt
+    S_accr_lcl_sno_cold = ifelse(is_warm, zero(FT), S_accr)    # lcl → sno (cold)
+    S_accr_lcl_sno_warm = ifelse(is_warm, S_accr, zero(FT))    # lcl → rai (warm)
+    S_accr_melt_lcl_sno = S_melt                                # thermal melt of sno from warm lcl (already zero when cold)
 
-    # Cloud ice + rain → snow (ice-side sink); coupled rain-sink arm applied together
+    # Cloud ice + rain → snow (ice-side sink)
     S_accr_icl_rai = CM1.accretion(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo)
-    dq_icl_dt -= S_accr_icl_rai
-    dq_sno_dt += S_accr_icl_rai
 
-    # Rain + cloud ice → snow (rain sink): toggled by cloud_ice_rain_accretion
-    S_accr_rai_icl =
+    # Rain frozen in cloud ice + rain collision → snow (rain sink)
+    S_accr_freeze_icl_rai =
         CM1.accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.collision,
-            micro.q_icl, micro.q_rai, ρ) *
+            q_icl, q_rai, ρ) *
         (opts.cloud_ice_rain_accretion isa CMP.CloudIceRainAccretion)
-    dq_rai_dt -= S_accr_rai_icl
-    dq_sno_dt += S_accr_rai_icl
 
     # Cloud ice + snow → snow
     S_accr_icl_sno = CM1.accretion(opts.cloud_ice_snow_accretion, mp, tps, micro, thermo)
-    dq_icl_dt -= S_accr_icl_sno
-    dq_sno_dt += S_accr_icl_sno
 
-    # Rain-snow collisions (temperature-dependent)
-    # Cold: rain → snow; Warm: snow → rain — combined per tendency variable
+    # Rain-snow collisions: split into cold/warm arms (inactive arm = zero)
     (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(opts.rain_snow_accretion, mp, tps, micro, thermo)
-    dq_rai_dt += ifelse(is_warm, S_sno_rai, -S_rai_sno)
-    dq_sno_dt += ifelse(is_warm, -S_sno_rai, S_rai_sno)
-    # Thermal melting by warm rain (S_melt = α * S_rai_sno; α = 0 when cold)
-    dq_sno_dt -= ifelse(is_warm, S_melt, zero(T))
-    dq_rai_dt += ifelse(is_warm, S_melt, zero(T))
+    S_accr_rai_sno_cold = ifelse(is_warm, zero(FT), S_rai_sno) # cold arm: rai freezes → sno
+    S_accr_rai_sno_warm = ifelse(is_warm, S_sno_rai, zero(FT)) # warm arm: sno melts → rai
+    S_accr_melt_rai_sno = ifelse(is_warm, S_melt, zero(FT))    # thermal melt of sno from warm rai
 
-    # --- Evaporation and sublimation ---
-
-    # Rain evaporation
-    S_evap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_condensation_evaporation, mp, tps, micro, thermo)
-    dq_rai_dt += S_evap_rai  # negative tendency (evaporation)
-
-    # Snow sublimation (or sublimation + deposition, depending on option)
-    S_subl_sno = CM1.conv_q_sno_to_q_vap(opts.snow_deposition_sublimation, mp, tps, micro, thermo)
-    dq_sno_dt += S_subl_sno
+    # --- Phase change: precipitation ↔ vapor ---
+    S_phase_change_vap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_condensation_evaporation, mp, tps, micro, thermo)
+    S_phase_change_vap_sno = CM1.conv_q_sno_to_q_vap(opts.snow_deposition_sublimation, mp, tps, micro, thermo)
 
     # --- Melting ---
+    S_melt_icl_lcl = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo)
+    S_melt_sno_rai = CM1.conv_q_sno_to_q_rai(opts.snow_melt, mp, tps, micro, thermo)
 
-    # Cloud ice melt → cloud liquid
-    S_melt_icl = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo)
-    dq_icl_dt -= S_melt_icl
-    dq_lcl_dt += S_melt_icl
+    return (;
+        S_phase_change_vap_lcl, S_phase_change_vap_icl,
+        S_acnv_lcl_rai, S_acnv_icl_sno,
+        S_accr_lcl_rai, S_accr_lcl_sno_cold, S_accr_lcl_sno_warm, S_accr_melt_lcl_sno,
+        S_accr_icl_rai, S_accr_freeze_icl_rai, S_accr_icl_sno,
+        S_accr_rai_sno_cold, S_accr_rai_sno_warm, S_accr_melt_rai_sno,
+        S_phase_change_vap_rai, S_phase_change_vap_sno,
+        S_melt_icl_lcl, S_melt_sno_rai,
+    )
+end
 
-    # Snow melt → rain
-    S_melt_sno = CM1.conv_q_sno_to_q_rai(opts.snow_melt, mp, tps, micro, thermo)
-    dq_sno_dt -= S_melt_sno
-    dq_rai_dt += S_melt_sno
+"""
+Aggregate individual source terms into the four hydrometeor tendency totals.
+
+This is the **single location** where the sign convention of source terms
+to tendency accumulators is defined.  All temperature-dependent routing is
+pre-applied in `_microphysics_source_terms` (cold/warm arms), so every term
+here appears with a fixed sign — no `ifelse` branching.
+"""
+@inline function _aggregate_tendencies(src)
+    dq_lcl_dt =
+        src.S_phase_change_vap_lcl - src.S_acnv_lcl_rai - src.S_accr_lcl_rai -
+        src.S_accr_lcl_sno_cold - src.S_accr_lcl_sno_warm + src.S_melt_icl_lcl
+
+    dq_icl_dt =
+        src.S_phase_change_vap_icl - src.S_acnv_icl_sno - src.S_accr_icl_rai -
+        src.S_accr_icl_sno - src.S_melt_icl_lcl
+
+    dq_rai_dt =
+        src.S_acnv_lcl_rai + src.S_accr_lcl_rai +
+        src.S_accr_lcl_sno_warm + src.S_accr_melt_lcl_sno -
+        src.S_accr_freeze_icl_rai -
+        src.S_accr_rai_sno_cold + src.S_accr_rai_sno_warm + src.S_accr_melt_rai_sno +
+        src.S_phase_change_vap_rai + src.S_melt_sno_rai
+
+    dq_sno_dt =
+        src.S_acnv_icl_sno +
+        src.S_accr_lcl_sno_cold - src.S_accr_melt_lcl_sno +
+        src.S_accr_icl_rai + src.S_accr_freeze_icl_rai +
+        src.S_accr_icl_sno +
+        src.S_accr_rai_sno_cold - src.S_accr_rai_sno_warm - src.S_accr_melt_rai_sno +
+        src.S_phase_change_vap_sno - src.S_melt_sno_rai
 
     return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
 end
 
 """
-Construct a local linear approximation of 1-moment microphysics tendencies:
+Construct a local linear approximation of 1-moment microphysics tendencies
+from pre-computed source terms:
 
     dq/dt ≈ M * q + e
 
@@ -262,33 +255,10 @@ using a donor-based linearization:
 
 All coefficients use `D = S / max(q_min, q_donor)` for robustness.
 
-With this formulation, sink terms behave like exponential decays over a timestep
-in the implicit solve. The resulting operator is sparse and only stores the
-nonzero entries needed by the specialized solver.
-
 Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
 """
-@inline function _bulk_microphysics_linearized_operator(
-    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
-)
-    ρ = UT.clamp_to_nonneg(ρ)
-    q_tot = UT.clamp_to_nonneg(q_tot)
-    q_lcl = UT.clamp_to_nonneg(q_lcl)
-    q_icl = UT.clamp_to_nonneg(q_icl)
-    q_rai = UT.clamp_to_nonneg(q_rai)
-    q_sno = UT.clamp_to_nonneg(q_sno)
-
-    opts = mp.options
-
-    # Construct state tuples (reused across all process calls)
-    micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
-    thermo = (; ρ, T)
-
-    FT = promote_type(
-        typeof(ρ), typeof(T), typeof(q_tot), typeof(q_lcl),
-        typeof(q_icl), typeof(q_rai), typeof(q_sno),
-    )
+@inline function _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+    FT = typeof(src.S_phase_change_vap_lcl)
 
     M11 = zero(FT)
     M12 = zero(FT)
@@ -304,122 +274,88 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     e2 = zero(FT)
     e4 = zero(FT)
 
-    # minimum specific humidity threshold for regularizing S/q
-    q_min = TDI.TD.Parameters.q_min(tps)
-
-    # ------------------------------------------------------------
-    # Vapor -> cloud condensate: constant sources
-    # ------------------------------------------------------------
-    S_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo)
-    D = S_lcl_cond / max(q_min, q_lcl)
-    is_source = S_lcl_cond >= zero(FT)
-    e1 += ifelse(is_source, S_lcl_cond, zero(FT))
+    # --- Phase change: vapor ↔ cloud condensate ---
+    D = src.S_phase_change_vap_lcl / max(q_min, q_lcl)
+    is_source = src.S_phase_change_vap_lcl >= zero(FT)
+    e1 += ifelse(is_source, src.S_phase_change_vap_lcl, zero(FT))
     M11 += ifelse(is_source, zero(FT), D)
 
-    S_icl_dep = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo)
-    D = S_icl_dep / max(q_min, q_icl)
-    is_source = S_icl_dep >= zero(FT)
-    e2 += ifelse(is_source, S_icl_dep, zero(FT))
+    D = src.S_phase_change_vap_icl / max(q_min, q_icl)
+    is_source = src.S_phase_change_vap_icl >= zero(FT)
+    e2 += ifelse(is_source, src.S_phase_change_vap_icl, zero(FT))
     M22 += ifelse(is_source, zero(FT), D)
 
-    # ------------------------------------------------------------
-    # Cloud ice melt: ice → cloud liquid
-    # ------------------------------------------------------------
-    S_melt_icl = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo)
-    D = S_melt_icl / max(q_min, q_icl)
+    # --- Melt: ice cloud → liquid cloud ---
+    D = src.S_melt_icl_lcl / max(q_min, q_icl)
     M22 -= D
     M12 += D
 
-    # ------------------------------------------------------------
-    # Autoconversion: donor-based transfer
-    # ------------------------------------------------------------
-    S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(opts.rain_autoconversion, mp, tps, micro, thermo)
-    D = S_acnv_lcl / max(q_min, q_lcl)
+    # --- Autoconversion: donor-based transfer ---
+    D = src.S_acnv_lcl_rai / max(q_min, q_lcl)
     M11 -= D
     M31 += D
 
-    S_acnv_icl = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo)
-    D = S_acnv_icl / max(q_min, q_icl)
+    D = src.S_acnv_icl_sno / max(q_min, q_icl)
     M22 -= D
     M42 += D
 
-    # ------------------------------------------------------------
-    # Accretion: donor-based transfer
-    # ------------------------------------------------------------
-    is_warm = T >= mp.precip.snow.T_freeze
-
-    S_accr_lcl_rai = CM1.accretion(opts.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
-    D = S_accr_lcl_rai / max(q_min, q_lcl)
+    # --- Accretion: donor-based transfer ---
+    D = src.S_accr_lcl_rai / max(q_min, q_lcl)
     M11 -= D
     M31 += D
 
-    (; S_accr, S_melt) = CM1.accretion(opts.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
-    D = S_accr / max(q_min, q_lcl)
-    M11 -= D
-    M31 += ifelse(is_warm, D, zero(FT))
-    M41 += ifelse(is_warm, zero(FT), D)
+    # lcl + sno accretion (cold/warm arms already zeroed)
+    D_cold = src.S_accr_lcl_sno_cold / max(q_min, q_lcl)
+    D_warm = src.S_accr_lcl_sno_warm / max(q_min, q_lcl)
+    M11 -= D_cold + D_warm
+    M31 += D_warm           # warm: lcl → rai
+    M41 += D_cold           # cold: lcl → sno
 
-    D = S_melt / max(q_min, q_sno)
+    # thermal melt of sno from warm lcl
+    D = src.S_accr_melt_lcl_sno / max(q_min, q_sno)
     M44 -= D
     M34 += D
 
-    S_accr_icl_rai = CM1.accretion(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo)
-    D = S_accr_icl_rai / max(q_min, q_icl)
+    D = src.S_accr_icl_rai / max(q_min, q_icl)
     M22 -= D
     M42 += D
 
-    S_accr_icl_sno = CM1.accretion(opts.cloud_ice_snow_accretion, mp, tps, micro, thermo)
-    D = S_accr_icl_sno / max(q_min, q_icl)
+    D = src.S_accr_icl_sno / max(q_min, q_icl)
     M22 -= D
     M42 += D
 
-    # Rain sink arm: coupled to cloud_ice_rain_accretion
-    S_accr_rai_icl =
-        CM1.accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.collision,
-            q_icl, q_rai, ρ) *
-        (opts.cloud_ice_rain_accretion isa CMP.CloudIceRainAccretion)
-    D = S_accr_rai_icl / max(q_min, q_rai)
+    # rain frozen in icl + rai collision
+    D = src.S_accr_freeze_icl_rai / max(q_min, q_rai)
     M33 -= D
     M43 += D
 
-    (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(opts.rain_snow_accretion, mp, tps, micro, thermo)
+    # warm arm: sno melts → rai (already zero when cold)
+    D = src.S_accr_rai_sno_warm / max(q_min, q_sno)
+    M44 -= D
+    M34 += D
 
-    # snow → rain (warm arm)
-    D = S_sno_rai / max(q_min, q_sno)
-    M44 -= ifelse(is_warm, D, zero(FT))
-    M34 += ifelse(is_warm, D, zero(FT))
+    # thermal melt of sno from warm rai (already zero when cold)
+    D = src.S_accr_melt_rai_sno / max(q_min, q_sno)
+    M44 -= D
+    M34 += D
 
-    # thermal melt of snow by warm rain
-    D = S_melt / max(q_min, q_sno)
-    M44 -= ifelse(is_warm, D, zero(FT))
-    M34 += ifelse(is_warm, D, zero(FT))
+    # cold arm: rai freezes → sno (already zero when warm)
+    D = src.S_accr_rai_sno_cold / max(q_min, q_rai)
+    M33 -= D
+    M43 += D
 
-    # rain → snow (cold arm)
-    D = S_rai_sno / max(q_min, q_rai)
-    M33 -= ifelse(is_warm, zero(FT), D)
-    M43 += ifelse(is_warm, zero(FT), D)
-
-    # ------------------------------------------------------------
-    # Rain evaporation: sink to vapor (always zero or negative)
-    # ------------------------------------------------------------
-    S_evap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_condensation_evaporation, mp, tps, micro, thermo)
-    D = (-S_evap_rai) / max(q_min, q_rai)
+    # --- Rain phase change: sink to vapor (always zero or negative) ---
+    D = (-src.S_phase_change_vap_rai) / max(q_min, q_rai)
     M33 -= D
 
-    # ------------------------------------------------------------
-    # Snow sublimation/deposition (generic: handles both options)
-    # ------------------------------------------------------------
-    S_subl_sno = CM1.conv_q_sno_to_q_vap(opts.snow_deposition_sublimation, mp, tps, micro, thermo)
-    D = S_subl_sno / max(q_min, q_sno)
-    is_source = S_subl_sno >= zero(FT)
-    e4 += ifelse(is_source, S_subl_sno, zero(FT))
+    # --- Snow phase change: deposition/sublimation ---
+    D = src.S_phase_change_vap_sno / max(q_min, q_sno)
+    is_source = src.S_phase_change_vap_sno >= zero(FT)
+    e4 += ifelse(is_source, src.S_phase_change_vap_sno, zero(FT))
     M44 += ifelse(is_source, zero(FT), D)
 
-    # ------------------------------------------------------------
-    # Snow melt: snow -> rain
-    # ------------------------------------------------------------
-    S_melt_sno = CM1.conv_q_sno_to_q_rai(opts.snow_melt, mp, tps, micro, thermo)
-    D = S_melt_sno / max(q_min, q_sno)
+    # --- Snow melt: snow → rain ---
+    D = src.S_melt_sno_rai / max(q_min, q_sno)
     M44 -= D
     M34 += D
 
@@ -448,17 +384,19 @@ The system uses a sparse structure specific to the 1-moment microphysics model.
 Because sinks are linearized as `-D q`, they are effectively integrated as
 exponential decays over the substep.
 """
-@inline function _average_bulk_microphysics_tendencies(
+@inline function _linearized_implicit_step(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
 )
 
     FT = typeof(q_tot)
 
-    lin = _bulk_microphysics_linearized_operator(
+    src = _microphysics_source_terms(
         Microphysics1Moment(), mp, tps,
         ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
+    q_min = TDI.TD.Parameters.q_min(tps)
+    lin = _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
 
     invΔt = one(FT) / Δt
 
@@ -504,7 +442,90 @@ exponential decays over the substep.
     return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
 end
 
+# --- Public API: bulk_microphysics_tendencies with TendencyMode dispatch ---
+
 """
+    bulk_microphysics_tendencies(
+        ::Instantaneous, ::Microphysics1Moment, mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    )
+
+Compute all 1-moment microphysics tendencies in one fused call.
+
+Returns a NamedTuple with all source/sink terms for hydrometeor species.
+This is a pure function of local thermodynamic state, suitable for:
+- Point quadrature over subgrid-scale (T, q_tot) distributions
+- GPU kernel evaluation
+- Unit testing in isolation
+
+# Arguments
+- `mp`: Microphysics1MParams parameter container
+- `tps`: Thermodynamics parameters
+- `ρ`: Air density [kg/m³]
+- `T`: Temperature [K]
+- `q_tot`: Total water specific content [kg/kg]
+- `q_lcl`: Cloud liquid water specific content [kg/kg]
+- `q_icl`: Cloud ice specific content [kg/kg]
+- `q_rai`: Rain specific content [kg/kg]
+- `q_sno`: Snow specific content [kg/kg]
+
+# Returns
+`NamedTuple` with fields:
+- `dq_lcl_dt`: Cloud liquid tendency [kg/kg/s]
+- `dq_icl_dt`: Cloud ice tendency [kg/kg/s]
+- `dq_rai_dt`: Rain tendency [kg/kg/s]
+- `dq_sno_dt`: Snow tendency [kg/kg/s]
+
+# Notes
+- Negative specific contents are clamped to zero for robustness.
+- Does NOT apply timestep-dependent limiters.
+"""
+@inline function bulk_microphysics_tendencies(
+    ::Instantaneous, ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+)
+    src = _microphysics_source_terms(
+        Microphysics1Moment(), mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    )
+    return _aggregate_tendencies(src)
+end
+
+"""
+    bulk_microphysics_tendencies(
+        ::InstantaneousVerbose, ::Microphysics1Moment, mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    )
+
+Compute all 1-moment microphysics tendencies and return both aggregated
+tendencies (`dq_*_dt`) and all individual source terms (`S_*`).
+
+Useful for model diagnostics. The `dq_*_dt` fields are identical to those
+returned by `Instantaneous()`.
+
+# Returns
+`NamedTuple` with all fields from `Instantaneous()` plus individual source
+terms: `S_phase_change_vap_lcl`, `S_phase_change_vap_icl`, `S_acnv_lcl_rai`,
+`S_acnv_icl_sno`, etc.
+"""
+@inline function bulk_microphysics_tendencies(
+    ::InstantaneousVerbose, ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+)
+    src = _microphysics_source_terms(
+        Microphysics1Moment(), mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    )
+    agg = _aggregate_tendencies(src)
+    return merge(agg, src)
+end
+
+"""
+    bulk_microphysics_tendencies(
+        ::LinearizedAverage, ::Microphysics1Moment, mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+    )
+
 Compute average 1-moment microphysics tendencies over `Δt` using repeated
 linearized implicit substeps.
 
@@ -518,8 +539,16 @@ full interval divided by `Δt`.
 
 Increasing `nsub` improves how well the method captures nonlinear changes in the
 active microphysical processes, including regime changes near freezing.
+
+# Returns
+`NamedTuple` with fields:
+- `dq_lcl_dt`: Cloud liquid tendency [kg/kg/s]
+- `dq_icl_dt`: Cloud ice tendency [kg/kg/s]
+- `dq_rai_dt`: Rain tendency [kg/kg/s]
+- `dq_sno_dt`: Snow tendency [kg/kg/s]
 """
-@inline function average_bulk_microphysics_tendencies(
+@inline function bulk_microphysics_tendencies(
+    ::LinearizedAverage,
     cm::Microphysics1Moment,
     mp::CMP.Microphysics1MParams,
     tps,
@@ -546,7 +575,7 @@ active microphysical processes, including regime changes near freezing.
     Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
 
     for _ in 1:nsub
-        rates = _average_bulk_microphysics_tendencies(
+        rates = _linearized_implicit_step(
             cm,
             mp,
             tps,

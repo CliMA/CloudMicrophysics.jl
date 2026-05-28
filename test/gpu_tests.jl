@@ -383,9 +383,21 @@ end
     i = @index(Global, Linear)
     CM1M = BMT.Microphysics1Moment()
     output[i] = BMT.bulk_microphysics_tendencies(
-        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        BMT.Instantaneous(), CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
     )
 end
+
+@kernel inbounds = true function test_average_bulk_tendencies_1m_kernel!(
+    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+)
+    i = @index(Global, Linear)
+    CM1M = BMT.Microphysics1Moment()
+    output[i] = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
+        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        Δt[i],
+    )
+end
+
 
 
 @kernel inbounds = true function test_bulk_tendencies_2m_warm_kernel!(
@@ -1092,6 +1104,16 @@ function test_gpu(FT)
             TT.@test all(isfinite, tendencies)
         end
 
+        # 1M linearized-averaged tests
+        (; output) = setup_output(ndrange, DT)
+        Δt = constant_data(FT(1.0); ndrange)
+        kernel! = test_average_bulk_tendencies_1m_kernel!(backend, work_groups)
+        TT.@testset "1M average" begin
+            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+        end
 
         # 2M warm rain tests
         DT = @NamedTuple{

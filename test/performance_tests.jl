@@ -16,6 +16,7 @@ import CloudMicrophysics.MicrophysicsNonEq as CMN
 import CloudMicrophysics.Microphysics0M as CM0
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.Nucleation as HN
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Parameters as CMP
@@ -272,6 +273,30 @@ function benchmark_test(FT)
         1200,
     )
     bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
+
+    @info "1-Moment Bulk Tendencies"
+    CM1M = BMT.Microphysics1Moment()
+    Δt = FT(1)
+    bench_press(
+        @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
+        BMT.bulk_microphysics_tendencies,
+        (BMT.Instantaneous(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno),
+        5000,
+    )
+    bench_press(
+        @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
+        BMT.bulk_microphysics_tendencies,
+        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt),
+        5000,
+    )
+    bench_press(
+        @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
+        BMT.bulk_microphysics_tendencies,
+        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt, 3),
+        15000,
+    )
+
+
 
     @info "2-Moment Scheme"
     for sb in [sb2006, sb2006_no_limiters]
