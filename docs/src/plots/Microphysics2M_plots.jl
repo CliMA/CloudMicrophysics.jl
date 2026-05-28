@@ -20,7 +20,7 @@ const SB2006 = CMP.SB2006(FT)
 
 const mp_1m = CMP.Microphysics1MParams(FT)
 
-const ce = CMP.CollisionEff(FT)
+const E_lcl_rai = mp_1m.options.cloud_liquid_rain_accretion.e
 
 const liquid = CMP.CloudLiquid(FT)
 const rain = CMP.Rain(FT)
@@ -65,7 +65,7 @@ q_lcl_SB2006 = [
 ]
 q_lcl_K1969 = [
     CM1.conv_q_lcl_to_q_rai(
-        CMP.RainAutoconversion1M(), mp_1m, nothing,
+        CMP.Kessler1M(ClimaParams.create_toml_dict(FT)), mp_1m, nothing,
         (; q_tot = FT(0), q_lcl = q, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0)),
         nothing,
     ) for q in q_lcl_range
@@ -103,7 +103,7 @@ accSB2006_q_lcl = [
     q_lcl in q_lcl_range
 ]
 accK1969_q_lcl = [
-    CM1.accretion(liquid, rain, blk1mvel.rain, ce, q_lcl, q_rai, ρ_air) for
+    CM1.accretion(liquid, rain, blk1mvel.rain, E_lcl_rai, q_lcl, q_rai, ρ_air) for
     q_lcl in q_lcl_range
 ]
 
@@ -117,7 +117,7 @@ accSB2006_q_rai = [
     q_rai in q_rai_range
 ]
 accK1969_q_rai = [
-    CM1.accretion(liquid, rain, blk1mvel.rain, ce, q_lcl, q_rai, ρ_air) for
+    CM1.accretion(liquid, rain, blk1mvel.rain, E_lcl_rai, q_lcl, q_rai, ρ_air) for
     q_rai in q_rai_range
 ]
 

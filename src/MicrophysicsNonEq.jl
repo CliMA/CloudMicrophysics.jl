@@ -22,28 +22,13 @@ export INP_limiter
 export dqcld_dT
 export gamma_helper
 
-const CondEvap = Union{CMP.CloudLiquid, CMP.CondEvap2M}
-const SubDep = Union{CMP.CloudIce, CMP.SubDep2M}
-
 """
-    τ_relax(liquid::CloudLiquid)
-    τ_relax(ice::CloudIce)
+    τ_relax(ice, air_properties, frostenberg, q_icl, T)
 
-Returns the relaxation timescale for phase change processes.
-
-# Arguments
-- `liquid::CloudLiquid` or `ice::CloudIce` - cloud condensate parameters struct
-
-# Returns
-- Relaxation timescale [s] for condensation/evaporation (liquid) or
-  deposition/sublimation (ice)
-
-an option to calculate ice relaxation timescale through
-the Frostenberg et al., (2023). See DOI: 10.5194/acp-23-10883-2023
-parameterization that approximates ice droplet number from temperature.
+Computes the deposition relaxation timescale through
+the Frostenberg et al., (2023) parameterization.
+See DOI: 10.5194/acp-23-10883-2023
 """
-@inline τ_relax(p::CondEvap) = p.τ_relax
-@inline τ_relax(p::SubDep) = p.τ_relax
 @inline function τ_relax(
     (; ρᵢ)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties,
     ip::CMP.Frostenberg2023, q_icl, T,
@@ -51,13 +36,6 @@ parameterization that approximates ice droplet number from temperature.
     FT = eltype(ρᵢ)
     # Get the estimated number of INPs
     N_icl = exp(IN.INP_concentration_mean(ip, T))
-
-    # TODO - edge cases
-    # q_icl is zero, but we still want to compute a timescale
-    # assume some sort of minimal crystal size?
-
-    # q_icl is not zero but N_icl is zero
-    # Get N from q_icl by assuming minimal crystal size
 
     # Compute the radius assuming spherical particles and
     # mono-modal distribution
@@ -111,14 +89,15 @@ Computes the thermodynamic adjustment factor Γ.
 end
 
 """
-    conv_q_vap_to_q_lcl(::ConstantTimescaleCloudLiquidFormation, mp, tps, micro, thermo)
+    conv_q_vap_to_q_lcl(opt::CloudLiquidFormation, mp, tps, micro, thermo)
+    conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo)
 
 Computes cloud liquid tendency from condensation and evaporation using the formulation from
 Morrison & Grabowski (2008), https://doi.org/10.1175/2007JAS2374.1, and
 Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 
 # Arguments
-- `option`: `ConstantTimescaleCloudLiquidFormation()`
+- `opt`: `CloudLiquidFormation(...)` or `nothing` (disabled)
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -127,12 +106,13 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 # Returns
 - Cloud condensate tendency [kg/kg/s]
 """
+@inline conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 function conv_q_vap_to_q_lcl(
-    ::CMP.ConstantTimescaleCloudLiquidFormation, mp, tps::TDI.PS, micro, thermo,
+    opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo,
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    τ = τ_relax(mp.cloud.liquid)
+    τ = opt.τ_relax
 
     Rᵥ = TDI.Rᵥ(tps)
     Lᵥ = TDI.Lᵥ(tps, T)
@@ -156,15 +136,16 @@ function conv_q_vap_to_q_lcl(
 end
 
 """
-    conv_q_vap_to_q_icl(::ConstantTimescaleCloudIceFormation, mp, tps, micro, thermo)
-    conv_q_vap_to_q_icl(::TemperatureDependentCloudIceFormation, mp, tps, micro, thermo)
+    conv_q_vap_to_q_icl(opt::ConstantTimescale, mp, tps, micro, thermo)
+    conv_q_vap_to_q_icl(opt::TemperatureDependent, mp, tps, micro, thermo)
+    conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo)
 
 Computes cloud ice tendency from deposition and sublimation using the formulation from
 Morrison & Grabowski (2008), https://doi.org/10.1175/2007JAS2374.1, and
 Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 
 # Arguments
-- `option`: `ConstantTimescaleCloudIceFormation()` or `TemperatureDependentCloudIceFormation()`
+- `opt`: `ConstantTimescale(...)`, `TemperatureDependent(...)`, or `nothing` (disabled)
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -173,12 +154,13 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 # Returns
 - Cloud condensate tendency [kg/kg/s]
 """
+@inline conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 function conv_q_vap_to_q_icl(
-    ::CMP.ConstantTimescaleCloudIceFormation, mp, tps::TDI.PS, micro, thermo,
+    opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo,
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    τ = τ_relax(mp.cloud.ice)
+    τ = opt.τ_relax
 
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)
@@ -203,12 +185,12 @@ function conv_q_vap_to_q_icl(
     return ifelse(limiter, zero(tendency), tendency)
 end
 function conv_q_vap_to_q_icl(
-    ::CMP.TemperatureDependentCloudIceFormation, mp, tps::TDI.PS, micro, thermo,
+    opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo,
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    τ_sub = τ_relax(mp.cloud.ice)
-    τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, mp.frostenberg2023, q_icl, T)
+    τ_sub = opt.τ_relax
+    τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, opt.frostenberg, q_icl, T)
 
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)

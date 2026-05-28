@@ -123,6 +123,11 @@ This is the **single source of truth** for which microphysical processes are
 called and with what arguments. Both the raw tendency aggregation and the
 linearized operator construction consume this output.
 
+Constructs two `NamedTuple`s that are passed to all process functions
+(see `Microphysics1M` module docs for the full convention):
+- `micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)` — specific humidities (kg/kg)
+- `thermo = (; ρ, T)` — air density (kg/m³) and temperature (K)
+
 Naming convention: `S_process_species1_species2`
  - process: physical mechanism (phase_change, acnv, accr, melt, accr_melt, accr_freeze)
  - species1, species2: interacting pair (not from/to)
@@ -159,7 +164,7 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     S_acnv_icl_sno = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo)
 
     # --- Accretion (collisions between species) ---
-    is_warm = T >= mp.precip.snow.T_freeze
+    is_warm = T >= TDI.T_freeze(tps)
 
     # Cloud liquid + rain → rain
     S_accr_lcl_rai = CM1.accretion(opts.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
@@ -174,10 +179,7 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     S_accr_icl_rai = CM1.accretion(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo)
 
     # Rain frozen in cloud ice + rain collision → snow (rain sink)
-    S_accr_freeze_icl_rai =
-        CM1.accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.collision,
-            q_icl, q_rai, ρ) *
-        (opts.cloud_ice_rain_accretion isa CMP.CloudIceRainAccretion)
+    S_accr_freeze_icl_rai = CM1.accretion_rain_sink(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo)
 
     # Cloud ice + snow → snow
     S_accr_icl_sno = CM1.accretion(opts.cloud_ice_snow_accretion, mp, tps, micro, thermo)
@@ -701,11 +703,10 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_rai_dt = zero(FT)
 
     # --- Condensation of vapor / evaporation of cloud liquid water ---
-    mp_mock = (; cloud = (; liquid = condevap))
     micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
     thermo_mock = (; ρ, T)
     ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl(
-        CMP.ConstantTimescaleCloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock,
+        CMP.CloudLiquidFormation(condevap.τ_relax), nothing, tps, micro_mock, thermo_mock,
     )
     ∂ₜn_lcl_cond = zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation
     dq_lcl_dt += ∂ₜq_lcl_cond

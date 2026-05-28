@@ -10,7 +10,7 @@ import CloudMicrophysics.Microphysics1M as CM1
 FT = Float64
 
 function Marshall_Palmer_distribution(
-    (; pdf, mass)::CMP.Rain{FT},
+    (; pdf, mass)::CMP.Rain,
     q::FT,
     ρ::FT,
     r::FT,

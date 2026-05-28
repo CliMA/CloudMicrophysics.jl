@@ -1,7 +1,7 @@
 export Microphysics1MParams, CloudPhaseParams1M, PrecipPhaseParams1M
 
 """
-    CloudPhaseParams1M{FT, LCL, ICL}
+    CloudPhaseParams1M{LCL, ICL}
 
 Parameters for cloud-phase (non-precipitating) hydrometeors in 1-moment scheme.
 
@@ -18,13 +18,13 @@ Base.show(io::IO, mime::MIME"text/plain", x::CloudPhaseParams1M) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    PrecipPhaseParams1M{FT, RAI, SNO}
+    PrecipPhaseParams1M{RAI, SNO}
 
 Parameters for precipitating hydrometeors in 1-moment scheme.
 
 # Fields
-- `rain::RAI`: Rain — rain parameters (includes autoconversion)
-- `snow::SNO`: Snow — snow parameters (includes autoconversion)
+- `rain::RAI`: Rain — rain parameters
+- `snow::SNO`: Snow — snow parameters
 """
 @kwdef struct PrecipPhaseParams1M{RAI, SNO} <: ParametersType
     rain::RAI
@@ -35,28 +35,29 @@ Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    Microphysics1MParams{OPT, CP, PP, CE, AP, VL, VA, FR}
+    Microphysics1MParams{OPT, CP, PP, AP, VL}
 
 Unified parameter container for 1-moment bulk microphysics.
 
+Process-specific parameters (relaxation timescales, autoconversion thresholds,
+collision efficiencies) live inside the option types in `options`.
+Shared parameters (particle size distributions, air properties, terminal velocities)
+are stored directly.
+
 # Fields
-- `options::OPT`: Microphysics1MOptions — process configuration (selects parameterization variants)
+- `options::OPT`: Microphysics1MOptions — process configuration (carries process-specific parameters)
 - `cloud::CP`: CloudPhaseParams1M — cloud liquid and ice parameters
 - `precip::PP`: PrecipPhaseParams1M — rain and snow parameters
-- `collision::CE`: CollisionEff — collision efficiencies between species
 - `air_properties::AP`: AirProperties — air properties (diffusivities, thermal conductivity)
 - `terminal_velocity::VL`: Blk1MVelType — terminal velocity parameters for rain and snow
-- `autoconv_2M::VA`: VarTimescaleAcnv or Nothing — 2M autoconversion parameters including prescribed Nc (built when `RainAutoconversionPrescribedNd` is selected)
-- `frostenberg2023::FR`: Frostenberg 2023 INP parameters or Nothing (built when `INPDependentIceFormation` is selected)
 
 # Constructors
 
-    Microphysics1MParams(::Type{FT}; options = Microphysics1MOptions())
-    Microphysics1MParams(toml_dict::CP.ParamDict; options = Microphysics1MOptions())
+    Microphysics1MParams(::Type{FT}; options_kwargs...)
+    Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
 
 Create a `Microphysics1MParams` from a float type or a ClimaParams TOML dictionary.
-The `options` keyword argument selects parameterization variants; sub-parameters
-(`autoconv_2M`, `frostenberg2023`) are conditionally built based on the chosen options.
+Pass keyword arguments to override individual options.
 
 # Example
 ```julia
@@ -65,72 +66,44 @@ using CloudMicrophysics.Parameters as CMP
 # Create 1M parameters with default (baseline) settings
 mp = CMP.Microphysics1MParams(Float64)
 
-# Create with INP-dependent ice formation and cloud ice melt
+# Create with temperature-dependent ice formation and cloud ice melt disabled
 mp = CMP.Microphysics1MParams(Float64;
-    options = CMP.Microphysics1MOptions(
-        cloud_ice_formation  = CMP.TemperatureDependentCloudIceFormation(),
-        cloud_ice_melt = CMP.CloudIceMelt(),
-    ),
-)
-
-# Create with 2M autoconversion
-mp = CMP.Microphysics1MParams(Float64;
-    options = CMP.Microphysics1MOptions(
-        rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
-    ),
+    cloud_ice_formation = CMP.TemperatureDependent(toml_dict),
+    cloud_ice_melt = nothing,
 )
 ```
 """
-@kwdef struct Microphysics1MParams{OPT, CP, PP, CE, AP, VL, VA, FR} <: ParametersType
+@kwdef struct Microphysics1MParams{OPT, CP, PP, AP, VL} <: ParametersType
     options::OPT
     cloud::CP
     precip::PP
-    collision::CE
     air_properties::AP
     terminal_velocity::VL
-    autoconv_2M::VA
-    frostenberg2023::FR
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    Microphysics1MParams(toml_dict::CP.ParamDict; options = Microphysics1MOptions())
+    Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
 
 Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 
 # Arguments
 - `toml_dict`: ClimaParams parameter dictionary
-- `options`: Process configuration (default: baseline behavior)
+- `options_kwargs...`: Keyword arguments forwarded to `Microphysics1MOptions`
 """
-function Microphysics1MParams(toml_dict::CP.ParamDict; options = Microphysics1MOptions())
-    # Conditional construction driven by options
-    autoconv_2M =
-        options.rain_autoconversion isa RainAutoconversionPrescribedNd ?
-        VarTimescaleAcnv(toml_dict) : nothing
-    frostenberg2023 =
-        options.cloud_ice_formation isa TemperatureDependentCloudIceFormation ?
-        Frostenberg2023(toml_dict) : nothing
-
+function Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
     return Microphysics1MParams(;
-        # Process options
-        options,
-        # Cloud phase parameters
+        options = Microphysics1MOptions(toml_dict; options_kwargs...),
         cloud = CloudPhaseParams1M(;
             liquid = CloudLiquid(toml_dict),
             ice = CloudIce(toml_dict),
         ),
-        # Precipitation phase parameters
         precip = PrecipPhaseParams1M(;
             rain = Rain(toml_dict),
             snow = Snow(toml_dict),
         ),
-        # Shared physics parameters
-        collision = CollisionEff(toml_dict),
         air_properties = AirProperties(toml_dict),
         terminal_velocity = Blk1MVelType(toml_dict),
-        # Conditionally built parameters
-        autoconv_2M,
-        frostenberg2023,
     )
 end

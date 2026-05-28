@@ -40,13 +40,16 @@ N_d_range = range(1e7, stop = 1e9, length = 1000)
 ρ_air = 1.0 # kg m^-3
 N_d = 1e8
 
+mp = CMP.Microphysics1MParams(CP.create_toml_dict(FT))
+acnv = mp.options.rain_autoconversion.acnv1M
+
 q_lcl_K1969 = [
-    max(0, q_lcl - rain[1].acnv1M.q_threshold) / rain[1].acnv1M.τ
+    max(0, q_lcl - acnv.q_threshold) / acnv.τ
     for q_lcl in q_lcl_range
 ]
 q_lcl_K1969_s = [
-    CO.logistic_function_integral(q_lcl, rain[1].acnv1M.q_threshold, rain[1].acnv1M.k) /
-    rain[1].acnv1M.τ
+    CO.logistic_function_integral(q_lcl, acnv.q_threshold, acnv.k) /
+    acnv.τ
     for q_lcl in q_lcl_range
 ]
 

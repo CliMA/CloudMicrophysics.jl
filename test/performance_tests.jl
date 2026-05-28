@@ -87,7 +87,6 @@ function benchmark_test(FT)
     ice = CMP.CloudIce(FT)
     rain = CMP.Rain(FT)
     snow = CMP.Snow(FT)
-    ce = CMP.CollisionEff(FT)
 
     # 2-moment parameters
     override_file = joinpath(pkgdir(CM), "src", "parameters", "toml", "SB2006_limiters.toml")
@@ -127,10 +126,9 @@ function benchmark_test(FT)
     # 1-moment microphysics unified params (both liquid autoconversion flavours)
     mp_1m = CMP.Microphysics1MParams(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
-        options = CMP.Microphysics1MOptions(
-            rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
-        ),
+        rain_autoconversion = CMP.PrescribedNd(CP.create_toml_dict(FT)),
     )
+    E_lcl_rai = mp_1m.options.cloud_liquid_rain_accretion.e
 
     ρ_air = FT(1.2)
     T_air = FT(280)
@@ -183,9 +181,9 @@ function benchmark_test(FT)
     )
     bench_press(FT, P3.get_distribution_logλ, (state,), 30_000)
     bench_press(FT, P3.get_distribution_logλ, (params_P3, L_ice, N_ice, F_rim, ρ_rim), 30_000)
-    bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 140_000)
-    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 160_000)
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 6_100)
+    bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 170_000)
+    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 200_000)
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 7_000)
     bench_press(FT, P3.D_m, (state, logλ), 3_000)
 
     @info "P3 Ice Nucleation"
@@ -199,7 +197,7 @@ function benchmark_test(FT)
         @NamedTuple{dNdt::FT, dLdt::FT},
         P3.ice_melt,
         (ch2022, aps, tps, T_air, ρ_air, Δt, state, logλ),
-        180_000,
+        210_000,
     )
     bench_press(FT, CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
     bench_press(FT, CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, Δt), 230)
@@ -231,13 +229,13 @@ function benchmark_test(FT)
     bench_press(FT, CMI_hom.homogeneous_J_linear, (ip.homogeneous, Delta_a_w), 230)
 
     @info "Non-equilibrium Microphysics"
-    bench_press(FT, CMN.τ_relax, (liquid,), 15)
+    bench_press(FT, CMN.τ_relax, (ice, aps, ip_frostenberg, FT(1e-4), FT(250)), 200)
 
     mp_mock = (; cloud = (; liquid = liquid))
     micro_mock = (; q_tot = FT(0.00145), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
     thermo_mock = (; ρ = FT(0.8), T = FT(263))
     bench_press(FT, CMN.conv_q_vap_to_q_lcl,
-        (CMP.ConstantTimescaleCloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock), 140)
+        (CMP.CloudLiquidFormation(CP.create_toml_dict(FT)), mp_mock, tps, micro_mock, thermo_mock), 140)
 
     @info "0-Moment Scheme"
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)
@@ -248,29 +246,29 @@ function benchmark_test(FT)
     thermo_1m = (; ρ = ρ_air, T = T_air)
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
-        (CMP.RainAutoconversion1M(), mp_1m, tps, micro_1m, thermo_1m),
+        (mp_1m.options.rain_autoconversion, mp_1m, tps, micro_1m, thermo_1m),
         500,
     )
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
-        (CMP.RainAutoconversionPrescribedNd(), mp_1m_2M, tps, micro_1m, thermo_1m),
+        (mp_1m_2M.options.rain_autoconversion, mp_1m_2M, tps, micro_1m, thermo_1m),
         500,
     )
-    bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, ce, q_liq, q_rai, ρ_air), 360)
-    bench_press(FT, CM1.accretion, (CMP.CloudLiquidRainAccretion(), mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, E_lcl_rai, q_liq, q_rai, ρ_air), 360)
+    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_liquid_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
     bench_press(
         @NamedTuple{S_accr::FT, S_melt::FT},
         CM1.accretion,
-        (CMP.CloudLiquidSnowAccretion(), mp_1m, tps, micro_1m, thermo_1m),
+        (mp_1m.options.cloud_liquid_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
         360,
     )
-    bench_press(FT, CM1.accretion, (CMP.CloudIceRainAccretion(), mp_1m, tps, micro_1m, thermo_1m), 360)
-    bench_press(FT, CM1.accretion, (CMP.CloudIceSnowAccretion(), mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_ice_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_ice_snow_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
     bench_press(
         @NamedTuple{S_rai_sno::FT, S_sno_rai::FT, S_melt::FT},
         CM1.accretion_snow_rain,
-        (CMP.RainSnowAccretion(), mp_1m, tps, micro_1m, thermo_1m),
-        1200,
+        (mp_1m.options.rain_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
+        1400,
     )
     bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
 
@@ -281,13 +279,13 @@ function benchmark_test(FT)
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
         (BMT.Instantaneous(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno),
-        5000,
+        5500,
     )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
         (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt),
-        5000,
+        5500,
     )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},

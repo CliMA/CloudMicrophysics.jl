@@ -15,6 +15,27 @@ distribution. Microphysical process rates are derived by integrating particle-sc
 physics (terminal velocities, collision kernels, mass transfer) over these assumed
 distributions.
 
+# Common argument conventions
+
+All option-dispatched process functions share the signature
+`process(opt, mp, tps, micro, thermo)`, where:
+
+- `opt`: process option type (dispatches which parameterization to use)
+- `mp`: `Microphysics1MParams` — unified parameter container
+- `tps`: thermodynamics parameters (from Thermodynamics.jl)
+- `micro`: `NamedTuple` of specific humidities (kg/kg):
+  - `q_tot` — total water specific humidity
+  - `q_lcl` — cloud liquid water specific humidity
+  - `q_icl` — cloud ice specific humidity
+  - `q_rai` — rain specific humidity
+  - `q_sno` — snow specific humidity
+- `thermo`: `NamedTuple` of thermodynamic state:
+  - `ρ` — air density (kg/m³)
+  - `T` — temperature (K)
+
+Not all processes use every field; each extracts only the fields it needs.
+When a process is disabled (option = `nothing`), it returns zero.
+
 Based on:
   - Kessler (1995) - https://doi.org/10.1016/0169-8095(94)00090-Z
   - Grabowski (1998) - https://doi.org/10.1175/1520-0469(1998)055<3283:TCRMOL>2.0.CO;2
@@ -46,25 +67,6 @@ abstract type AbstractSnowShape end
 struct Oblate <: AbstractSnowShape end
 struct Prolate <: AbstractSnowShape end
 
-"""
-    Ec(type_1, type_2, ce)
-
-Returns the collision efficiency (Ec) for two colliding species.
-
-Collision efficiency represents the fraction of geometric collisions that result
-in coalescence (0 ≤ Ec ≤ 1). A value of 1 means all collisions lead to merging,
-while lower values account for particles bouncing apart.
-
-# Arguments
-- `type_1`, `type_2`: types of colliding species (CloudLiquid, CloudIce, Rain, Snow)
-- `ce`: collision efficiency parameters struct
-"""
-@inline Ec(::CMP.CloudLiquid, ::CMP.Rain, (; e_lcl_rai)::CMP.CollisionEff) = e_lcl_rai
-@inline Ec(::CMP.CloudLiquid, ::CMP.Snow, (; e_lcl_sno)::CMP.CollisionEff) = e_lcl_sno
-@inline Ec(::CMP.CloudIce, ::CMP.Rain, (; e_icl_rai)::CMP.CollisionEff) = e_icl_rai
-@inline Ec(::CMP.CloudIce, ::CMP.Snow, (; e_icl_sno)::CMP.CollisionEff) = e_icl_sno
-@inline Ec(::CMP.Rain, ::CMP.Snow, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
-@inline Ec(::CMP.Snow, ::CMP.Rain, (; e_rai_sno)::CMP.CollisionEff) = e_rai_sno
 
 """
     get_n0(pdf::ParticlePDFSnow, q_sno, ρ)
@@ -210,7 +212,7 @@ Fall velocity of individual particles is parameterized:
 - Mass-weighted terminal velocity [m/s]
 """
 @inline function terminal_velocity(
-    (; pdf, mass)::Union{CMP.Rain{FT}, CMP.Snow{FT}},
+    (; pdf, mass)::Union{CMP.Rain, CMP.Snow},
     vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
     ρ::FT,
     q::FT,
@@ -233,7 +235,7 @@ Fall velocity of individual particles is parameterized:
 end
 
 @inline function terminal_velocity(
-    (; pdf, mass)::CMP.Rain{FT},
+    (; pdf, mass)::CMP.Rain,
     vel::CMP.Chen2022VelTypeRain{FT},
     ρₐ::FT,
     q::FT,
@@ -257,7 +259,7 @@ end
 end
 
 @inline function terminal_velocity(
-    (; pdf, mass, area, ρᵢ, aspr)::CMP.Snow{FT},
+    (; pdf, mass, area, ρᵢ, aspr)::CMP.Snow,
     vel::CMP.Chen2022VelTypeLargeIce{FT},
     ρₐ::FT,
     q::FT,
@@ -287,7 +289,7 @@ end
 end
 
 @inline function terminal_velocity(
-    (; pdf, mass, area, ρᵢ, gamma_aspect_oblate, gamma_aspect_prolate)::CMP.Snow{FT},
+    (; pdf, mass, area, ρᵢ, gamma_aspect_oblate, gamma_aspect_prolate)::CMP.Snow,
     vel::CMP.Chen2022VelTypeLargeIce{FT},
     ρₐ::FT,
     q::FT,
@@ -317,23 +319,23 @@ end
 end
 
 """
-    conv_q_lcl_to_q_rai(::NoRainAutoconversion, mp, tps, micro, thermo)
-    conv_q_lcl_to_q_rai(::RainAutoconversion1M, mp, tps, micro, thermo)
-    conv_q_lcl_to_q_rai(::RainAutoconversionPrescribedNd, mp, tps, micro, thermo)
+    conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo)
+    conv_q_lcl_to_q_rai(::Kessler1M, mp, tps, micro, thermo)
+    conv_q_lcl_to_q_rai(::PrescribedNd, mp, tps, micro, thermo)
 
 Returns the rain tendency due to autoconversion of cloud liquid, dispatching on
 the option stored in `Microphysics1MOptions`.
 
-**NoRainAutoconversion**: returns zero (autoconversion disabled).
+**Nothing**: returns zero (autoconversion disabled).
 
-**RainAutoconversion1M**: Kessler (1995) 1-moment threshold autoconversion
+**Kessler1M**: Kessler (1995) 1-moment threshold autoconversion
 (smooth logistic transition), https://doi.org/10.1016/0169-8095(94)00090-Z.
 
-**RainAutoconversionPrescribedNd**: Variable-timescale autoconversion following Azimi (2023),
-using the prescribed cloud droplet number concentration `mp.autoconv_2M.Nc`.
+**PrescribedNd**: Variable-timescale autoconversion following Azimi (2023),
+using the prescribed cloud droplet number concentration.
 
 # Arguments
-- `option`: `NoRainAutoconversion()`, `RainAutoconversion1M()`, or `RainAutoconversionPrescribedNd()`
+- `option`: `nothing`, `Kessler1M(...)`, or `PrescribedNd(...)`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters (unused, kept for uniform interface)
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -342,56 +344,55 @@ using the prescribed cloud droplet number concentration `mp.autoconv_2M.Nc`.
 # Returns
 - Rain autoconversion rate [kg/kg/s]
 """
-@inline conv_q_lcl_to_q_rai(::CMP.NoRainAutoconversion, mp, tps, micro, thermo) = zero(micro.q_lcl)
+@inline conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo) = zero(micro.q_lcl)
 
-@inline function conv_q_lcl_to_q_rai(::CMP.RainAutoconversion1M, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
-    (; τ, q_threshold, k) = mp.precip.rain.acnv1M
+    (; τ, q_threshold, k) = opt.acnv1M
     return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ
 end
 
-@inline function conv_q_lcl_to_q_rai(::CMP.RainAutoconversionPrescribedNd, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_rai(opt::CMP.PrescribedNd, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
-    # Use the prescribed number concentration stored as a parameter
-    N_d = mp.autoconv_2M.Nc
-    (; τ, α) = mp.autoconv_2M
-    return max(0, q_lcl) / (τ * (N_d / 100_000_000)^α)
+    (; τ, α, Nc) = opt.autoconv
+    return max(0, q_lcl) / (τ * (Nc / 100_000_000)^α)
 end
 
 """
-    conv_q_icl_to_q_sno(::NoSnowAutoconversion, mp, tps, micro, thermo)
-    conv_q_icl_to_q_sno(::SnowAutoconversionNoSupersaturation, mp, tps, micro, thermo)
-    conv_q_icl_to_q_sno(::SnowAutoconversionWithSupersaturation, mp, tps, micro, thermo)
+    conv_q_icl_to_q_sno(::Nothing, mp, tps, micro, thermo)
+    conv_q_icl_to_q_sno(opt::NoSupersaturation, mp, tps, micro, thermo)
+    conv_q_icl_to_q_sno(opt::WithSupersaturation, mp, tps, micro, thermo)
 
 Returns the snow tendency due to autoconversion from cloud ice.
 
-**NoSnowAutoconversion**: returns zero (snow autoconversion disabled).
+**Nothing**: returns zero (snow autoconversion disabled).
 
-**SnowAutoconversionNoSupersaturation**: Simplified Kessler-type threshold autoconversion,
+**NoSupersaturation**: Simplified Kessler-type threshold autoconversion,
 for use in simulations without supersaturation (e.g., with saturation adjustment).
 
-**SnowAutoconversionWithSupersaturation**: Supersaturation-dependent autoconversion following
+**WithSupersaturation**: Supersaturation-dependent autoconversion following
 Harrington et al. (1995) and Kaul et al. (2015).
 
 # Arguments
-- `option`: `NoSnowAutoconversion()`, `SnowAutoconversionNoSupersaturation()`, or `SnowAutoconversionWithSupersaturation()`
+- `opt`: `nothing`, `NoSupersaturation(...)`, or `WithSupersaturation(...)`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline conv_q_icl_to_q_sno(::CMP.NoSnowAutoconversion, mp, tps, micro, thermo) = zero(micro.q_icl)
+@inline conv_q_icl_to_q_sno(::Nothing, mp, tps, micro, thermo) = zero(micro.q_icl)
 
-@inline function conv_q_icl_to_q_sno(::CMP.SnowAutoconversionNoSupersaturation, mp, tps, micro, thermo)
-    (; τ, q_threshold, k) = mp.precip.snow.acnv1M
+@inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo)
+    (; τ, q_threshold, k) = opt.acnv1M
     q_icl = micro.q_icl
     return CO.logistic_function_integral(q_icl, q_threshold, k) / τ
 end
 
-@inline function conv_q_icl_to_q_sno(::CMP.SnowAutoconversionWithSupersaturation, mp, tps, micro, thermo)
+@inline function conv_q_icl_to_q_sno(opt::CMP.WithSupersaturation, mp, tps, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    (; r_ice_snow, pdf, mass) = mp.cloud.ice
+    r_ice_snow = opt.r_ice_snow
+    (; pdf, mass) = mp.cloud.ice
     aps = mp.air_properties
     FT = eltype(ρ)
     acnv_rate = FT(0)
@@ -413,7 +414,7 @@ end
 end
 
 """
-    warm_accretion_melt_factor(tps, sno, T)
+    warm_accretion_melt_factor(tps, T)
 
 Ratio of sensible heat from warm collected liquid to latent heat for melting:
 `α = cv_l / L_f × (T - T_freeze)`, returning 0 when `T ≤ T_freeze`.
@@ -422,31 +423,28 @@ Used by `accretion(::CloudLiquidSnowAccretion, ...)` and
 `accretion_snow_rain(::RainSnowAccretion, ...)` to compute the thermal melt
 contribution of warm liquid on snow.
 """
-@inline function warm_accretion_melt_factor(tps, sno, T)
+@inline function warm_accretion_melt_factor(tps, T)
     L_f = TDI.Lf(tps, T)
     cv_l = TDI.cv_l(tps)
-    ΔT = T - sno.T_freeze
-    is_cold = (T <= sno.T_freeze)
+    T_freeze = TDI.T_freeze(tps)
+    ΔT = T - T_freeze
+    is_cold = (T <= T_freeze)
     return ifelse(is_cold, zero(T), cv_l / L_f * ΔT)
 end
 
 """
-    accretion(cloud::CloudCondensateType, precip::PrecipitationType, vel, ce, q_clo, q_pre, ρ)
+    accretion(cloud, precip, vel, E, q_clo, q_pre, ρ)
 
 Returns the source of precipitating water (rain or snow) due to collisions
 with cloud water (liquid or ice).
 
-!!! note "Internal use only"
-    This low-level positional-argument kernel is kept for internal dispatch.
-    Prefer the option-dispatched API:
-    `accretion(::CloudLiquidRainAccretion, mp, tps, micro, thermo)`,
-    `accretion(::CloudLiquidSnowAccretion, mp, tps, micro, thermo)`, etc.
+Internal low-level kernel. Prefer the option-dispatched API.
 
 # Arguments
 - `cloud`: type for cloud water or cloud ice
 - `precip`: type for rain or snow
-- `vel`: terminal velocity parameters (Blk1MVelTypeRain or Blk1MVelTypeSnow, contains `gamma_accr`)
-- `ce`: collision efficiency parameters
+- `vel`: terminal velocity parameters
+- `E`: collision efficiency
 - `q_clo`: cloud liquid water or cloud ice specific content
 - `q_pre`: rain or snow specific content
 - `ρ`: air density
@@ -455,7 +453,7 @@ with cloud water (liquid or ice).
     cloud::CMP.CloudCondensateType,
     precip::CMP.PrecipitationType,
     vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
-    ce::CMP.CollisionEff,
+    E::FT,
     q_clo::FT,
     q_pre::FT,
     ρ::FT,
@@ -472,7 +470,6 @@ with cloud water (liquid or ice).
         (; a0, ae, χa, Δa) = precip.area
 
         λ_inv = lambda_inverse(precip.pdf, precip.mass, q_pre, ρ)
-        E = Ec(cloud, precip, ce)
 
         # gamma_accr = SF.gamma(ae + ve + Δa + Δv + 1) (pre-computed in vel)
         accr_rate =
@@ -482,19 +479,15 @@ with cloud water (liquid or ice).
     return accr_rate
 end
 
-# accretion_rain_sink(rain, ice, vel, ce, q_icl, q_rai, ρ)
+# accretion_rain_sink(rain, ice, vel, E, q_icl, q_rai, ρ)
 #
 # Returns the sink of rain water (partial source of snow) due to collisions
 # with cloud ice.
-#
-# Internal use only: this low-level positional-argument kernel is kept for
-# internal dispatch. Prefer `accretion_rain_sink(::CloudIceRainAccretion,
-# mp, tps, micro, thermo)` (via BulkMicrophysicsTendencies).
 @inline function accretion_rain_sink(
-    rain::CMP.Rain{FT},
-    ice::CMP.CloudIce{FT},
+    rain::CMP.Rain,
+    ice::CMP.CloudIce,
     vel::CMP.Blk1MVelTypeRain{FT},
-    ce::CMP.CollisionEff,
+    E::FT,
     q_icl::FT,
     q_rai::FT,
     ρ::FT,
@@ -510,8 +503,6 @@ end
         (; r0, m0, me, Δm, χm) = rain.mass
         (; χv, ve, Δv) = vel
         (; a0, ae, χa, Δa) = rain.area
-
-        E = Ec(ice, rain, ce)
 
         λ_inv = lambda_inverse(rain.pdf, rain.mass, q_rai, ρ)
 
@@ -550,9 +541,10 @@ deviations are proportional to the mean fall velocities, with coefficient
 @inline function accretion_snow_rain(
     type_i::CMP.PrecipitationType,
     type_j::CMP.PrecipitationType,
-    blk1mveltype_ti::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
-    blk1mveltype_tj::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
-    ce::CMP.CollisionEff,
+    blk1mveltype_ti,
+    blk1mveltype_tj,
+    E_ij::FT,
+    coeff_disp::FT,
     q_i::FT,
     q_j::FT,
     ρ::FT,
@@ -567,8 +559,6 @@ deviations are proportional to the mean fall velocities, with coefficient
         (; r0, m0, me, Δm, χm, gamma_coeff) = type_j.mass
         δ = me + Δm
 
-        E_ij = Ec(type_i, type_j, ce)
-
         λ_i_inv = lambda_inverse(type_i.pdf, type_i.mass, q_i, ρ)
         λ_j_inv = lambda_inverse(type_j.pdf, type_j.mass, q_j, ρ)
 
@@ -577,8 +567,8 @@ deviations are proportional to the mean fall velocities, with coefficient
 
         # Add simple parameterization for velocity dispersion, assuming that fall velocity 
         # standard deviations are proportional to the mean fall velocities, with coefficient 
-        # ce.coeff_disp
-        Δv_eff = sqrt((v_ti - v_tj)^2 + ce.coeff_disp * (v_ti^2 + v_tj^2))
+        # coeff_disp
+        Δv_eff = sqrt((v_ti - v_tj)^2 + coeff_disp * (v_ti^2 + v_tj^2))
 
         # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms.
         # gamma_coeff = Γ(δ + 1) is pre-computed.
@@ -594,124 +584,109 @@ deviations are proportional to the mean fall velocities, with coefficient
 end
 
 """
-    accretion(::NoCloudLiquidRainAccretion, mp, tps, micro, thermo)
-    accretion(::CloudLiquidRainAccretion, mp, tps, micro, thermo)
-    accretion(::NoCloudLiquidSnowAccretion, mp, tps, micro, thermo)
-    accretion(::CloudLiquidSnowAccretion, mp, tps, micro, thermo)
-    accretion(::NoCloudIceRainAccretion, mp, tps, micro, thermo)
-    accretion(::CloudIceRainAccretion, mp, tps, micro, thermo)
-    accretion(::NoCloudIceSnowAccretion, mp, tps, micro, thermo)
-    accretion(::CloudIceSnowAccretion, mp, tps, micro, thermo)
-    accretion_snow_rain(::NoRainSnowAccretion, mp, tps, micro, thermo)
-    accretion_snow_rain(::RainSnowAccretion, mp, tps, micro, thermo)
+    accretion(::Nothing, mp, tps, micro, thermo)
+    accretion(opt::CloudLiquidRainAccretion, mp, tps, micro, thermo)
+    accretion(opt::CloudLiquidSnowAccretion, mp, tps, micro, thermo)
+    accretion(opt::CloudIceRainAccretion, mp, tps, micro, thermo)
+    accretion(opt::CloudIceSnowAccretion, mp, tps, micro, thermo)
+    accretion_snow_rain(::Nothing, mp, tps, micro, thermo)
+    accretion_snow_rain(opt::RainSnowAccretion, mp, tps, micro, thermo)
 
 Option-dispatched accretion wrappers. All extract parameters from `mp` and
 delegate to the corresponding low-level Marshall-Palmer kernels.
-The `No*` variants return zero without computing anything.
-
-**`CloudLiquidRainAccretion`**: cloud liquid × rain → rain.  
-Returns a scalar rate [kg/kg/s].
-
-**`CloudLiquidSnowAccretion`**: cloud liquid × snow → snow (cold) or rain (warm).  
-Also computes the thermal melt contribution `α * S_accr` via
-`warm_accretion_melt_factor`.  
-Returns `(; S_accr, S_melt)` [kg/kg/s].
-
-**`CloudIceRainAccretion`**: cloud ice × rain → snow.  
-Also calls the coupled rain-sink kernel (rain + cloud ice → snow) internally;
-see `BulkMicrophysicsTendencies` for how both arms are applied.  
-Returns a scalar rate [kg/kg/s].
-
-**`CloudIceSnowAccretion`**: cloud ice × snow → snow.  
-Returns a scalar rate [kg/kg/s].
-
-**`RainSnowAccretion`**: both rain–snow collision arms plus thermal melt.  
-Cold arm: `S_rai_sno` (snow is collector, rain freezes → snow).  
-Warm arm: `S_sno_rai` (rain is collector, snow melts → rain).  
-Melt: `S_melt = α * S_rai_sno` (additional snow melt from warm rain).  
-Returns `(; S_rai_sno, S_sno_rai, S_melt)` [kg/kg/s].
+`nothing` variants return zero without computing anything.
 
 # Arguments
-- `option`: one of the option singletons above
-- `mp`: `Microphysics1MParams` (cloud, precip, collision, terminal_velocity, air_properties)
-- `tps`: thermodynamics parameters (used for `warm_accretion_melt_factor`)
+- `opt`: accretion option type (carries collision efficiency) or `nothing`
+- `mp`: `Microphysics1MParams`
+- `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline accretion(::CMP.NoCloudLiquidRainAccretion, mp, tps, micro, thermo) = zero(thermo.T)
+# Nothing dispatch: scalar zero for simple accretion, NamedTuple for processes
+# that return NamedTuple shapes. Since `nothing` is a singleton, we can't dispatch
+# differently on it by process. BMT calls accretion() for scalar-result processes
+# and directly destructures for NamedTuple processes. We provide the scalar zero
+# here; NamedTuple-returning processes are handled in BMT by checking `nothing` directly.
+@inline accretion(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
-@inline function accretion(::CMP.CloudLiquidRainAccretion, mp, tps, micro, thermo)
+@inline function accretion(opt::CMP.CloudLiquidRainAccretion, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion(mp.cloud.liquid, mp.precip.rain, mp.terminal_velocity.rain, mp.collision, q_lcl, q_rai, ρ)
+    return accretion(mp.cloud.liquid, mp.precip.rain, mp.terminal_velocity.rain, opt.e, q_lcl, q_rai, ρ)
 end
 
-@inline accretion(::CMP.NoCloudLiquidSnowAccretion, mp, tps, micro, thermo) =
-    (; S_accr = zero(thermo.T), S_melt = zero(thermo.T))
-
-@inline function accretion(::CMP.CloudLiquidSnowAccretion, mp, tps, micro, thermo)
+@inline function accretion(opt::CMP.CloudLiquidSnowAccretion, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     q_sno = micro.q_sno
     ρ = thermo.ρ
     T = thermo.T
-    S = accretion(mp.cloud.liquid, mp.precip.snow, mp.terminal_velocity.snow, mp.collision, q_lcl, q_sno, ρ)
-    α = warm_accretion_melt_factor(tps, mp.precip.snow, T)
+    S = accretion(mp.cloud.liquid, mp.precip.snow, mp.terminal_velocity.snow, opt.e, q_lcl, q_sno, ρ)
+    α = warm_accretion_melt_factor(tps, T)
     return (; S_accr = S, S_melt = α * S)
 end
 
-@inline accretion(::CMP.NoCloudIceRainAccretion, mp, tps, micro, thermo) = zero(thermo.T)
-
-@inline function accretion(::CMP.CloudIceRainAccretion, mp, tps, micro, thermo)
+@inline function accretion(opt::CMP.CloudIceRainAccretion, mp, tps, micro, thermo)
     q_icl = micro.q_icl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion(mp.cloud.ice, mp.precip.rain, mp.terminal_velocity.rain, mp.collision, q_icl, q_rai, ρ)
+    return accretion(mp.cloud.ice, mp.precip.rain, mp.terminal_velocity.rain, opt.e, q_icl, q_rai, ρ)
 end
 
-@inline accretion(::CMP.NoCloudIceSnowAccretion, mp, tps, micro, thermo) = zero(thermo.T)
-
-@inline function accretion(::CMP.CloudIceSnowAccretion, mp, tps, micro, thermo)
+@inline function accretion(opt::CMP.CloudIceSnowAccretion, mp, tps, micro, thermo)
     q_icl = micro.q_icl
     q_sno = micro.q_sno
     ρ = thermo.ρ
-    return accretion(mp.cloud.ice, mp.precip.snow, mp.terminal_velocity.snow, mp.collision, q_icl, q_sno, ρ)
+    return accretion(mp.cloud.ice, mp.precip.snow, mp.terminal_velocity.snow, opt.e, q_icl, q_sno, ρ)
 end
 
-@inline accretion_snow_rain(::CMP.NoRainSnowAccretion, mp, tps, micro, thermo) =
+@inline accretion_snow_rain(::Nothing, mp, tps, micro, thermo) =
     (; S_rai_sno = zero(thermo.T), S_sno_rai = zero(thermo.T), S_melt = zero(thermo.T))
 
-@inline function accretion_snow_rain(::CMP.RainSnowAccretion, mp, tps, micro, thermo)
+@inline function accretion_snow_rain(opt::CMP.RainSnowAccretion, mp, tps, micro, thermo)
     q_rai = micro.q_rai
     q_sno = micro.q_sno
     ρ = thermo.ρ
     T = thermo.T
     vel = mp.terminal_velocity
-    ce = mp.collision
     sno = mp.precip.snow
     rai = mp.precip.rain
     # cold arm: snow is collector, rain freezes → snow
-    S_rai_sno = accretion_snow_rain(sno, rai, vel.snow, vel.rain, ce, q_sno, q_rai, ρ)
+    S_rai_sno = accretion_snow_rain(sno, rai, vel.snow, vel.rain, opt.e, opt.coeff_disp, q_sno, q_rai, ρ)
     # warm arm: rain is collector, snow melts → rain
-    S_sno_rai = accretion_snow_rain(rai, sno, vel.rain, vel.snow, ce, q_rai, q_sno, ρ)
-    α = warm_accretion_melt_factor(tps, sno, T)
+    S_sno_rai = accretion_snow_rain(rai, sno, vel.rain, vel.snow, opt.e, opt.coeff_disp, q_rai, q_sno, ρ)
+    α = warm_accretion_melt_factor(tps, T)
     return (; S_rai_sno, S_sno_rai, S_melt = α * S_rai_sno)
+end
+
+# Rain sink arm of cloud ice + rain accretion
+@inline accretion_rain_sink(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
+
+@inline function accretion_rain_sink(opt::CMP.CloudIceRainAccretion, mp, tps, micro, thermo)
+    q_icl = micro.q_icl
+    q_rai = micro.q_rai
+    ρ = thermo.ρ
+    return accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, opt.e, q_icl, q_rai, ρ)
 end
 
 """
 Returns the tendency due to rain evaporation.
 Ventilation factor parameterization follows Seifert and Beheng (2006).
 
+Returns the tendency due to rain evaporation.
+Ventilation factor parameterization follows Seifert and Beheng (2006).
+
 Only evaporation is considered (sub-saturated over liquid); result is clamped ≤ 0.
 
 # Arguments
-- `option`: `NoRainCondensationEvaporation()` or `RainEvaporation()`
+- `opt`: `RainEvaporation()` or `nothing`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline conv_q_rai_to_q_vap(::CMP.NoRainCondensationEvaporation, mp, tps, micro, thermo) = zero(thermo.T)
+@inline conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
 @inline function conv_q_rai_to_q_vap(::CMP.RainEvaporation, mp, tps, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
@@ -753,35 +728,27 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
 end
 
 """
-    conv_q_sno_to_q_vap(::NoSnowDepositionSublimation, mp, tps, micro, thermo)
-    conv_q_sno_to_q_vap(::SnowSublimation, mp, tps, micro, thermo)
-    conv_q_sno_to_q_vap(::SnowDepositionSublimation, mp, tps, micro, thermo)
+    conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo)
+    conv_q_sno_to_q_vap(::SublimationOnly, mp, tps, micro, thermo)
+    conv_q_sno_to_q_vap(::DepositionAndSublimation, mp, tps, micro, thermo)
 
 Returns the tendency due to snow sublimation or sublimation+deposition.
 Ventilation factor parameterization follows Seifert and Beheng (2006).
 
-**NoSnowDepositionSublimation**: returns zero (process disabled).
-
-**SnowSublimation**: only sublimation (S < 0 over ice) is computed;
-deposition is handled separately by non-equilibrium relaxation.
-
-**SnowDepositionSublimation**: both sublimation and deposition are computed
-in the Marshall-Palmer integral.
-
 # Arguments
-- `option`: `NoSnowDepositionSublimation()`, `SnowSublimation()`, or `SnowDepositionSublimation()`
+- `opt`: `nothing`, `SublimationOnly()`, or `DepositionAndSublimation()`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline conv_q_sno_to_q_vap(::CMP.NoSnowDepositionSublimation, mp, tps, micro, thermo) = zero(thermo.T)
+@inline conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
-@inline function conv_q_sno_to_q_vap(::CMP.SnowSublimation, mp, tps, micro, thermo)
+@inline function conv_q_sno_to_q_vap(::CMP.SublimationOnly, mp, tps, micro, thermo)
     return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo))
 end
 
-@inline function conv_q_sno_to_q_vap(::CMP.SnowDepositionSublimation, mp, tps, micro, thermo)
+@inline function conv_q_sno_to_q_vap(::CMP.DepositionAndSublimation, mp, tps, micro, thermo)
     return _snow_subl_dep_rate(mp, tps, micro, thermo)
 end
 
@@ -824,24 +791,19 @@ end
 
 
 """
-    conv_q_icl_to_q_lcl(::NoCloudIceMelt, mp, tps, micro, thermo)
+    conv_q_icl_to_q_lcl(::Nothing, mp, tps, micro, thermo)
     conv_q_icl_to_q_lcl(::CloudIceMelt, mp, tps, micro, thermo)
 
 Returns the tendency due to cloud ice melt.
 
-**NoCloudIceMelt**: returns zero (cloud ice melt disabled).
-
-**CloudIceMelt**: melts cloud ice to cloud liquid above freezing,
-parameterized as diffusional growth of ice crystals.
-
 # Arguments
-- `option`: `NoCloudIceMelt()` or `CloudIceMelt()`
+- `opt`: `CloudIceMelt()` or `nothing`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline conv_q_icl_to_q_lcl(::CMP.NoCloudIceMelt, mp, tps, micro, thermo) = zero(thermo.T)
+@inline conv_q_icl_to_q_lcl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
 @inline function conv_q_icl_to_q_lcl(::CMP.CloudIceMelt, mp, tps, micro, thermo)
     q_icl = micro.q_icl
@@ -862,32 +824,29 @@ parameterized as diffusional growth of ice crystals.
 end
 
 """
-    conv_q_sno_to_q_rai(::NoSnowMelt, mp, tps, micro, thermo)
+    conv_q_sno_to_q_rai(::Nothing, mp, tps, micro, thermo)
     conv_q_sno_to_q_rai(::SnowMelt, mp, tps, micro, thermo)
 
 Returns the tendency due to snow melt.
 
-**NoSnowMelt**: returns zero (snow melt disabled).
-
-**SnowMelt**: melts snow to rain above freezing.
-
 # Arguments
-- `option`: `NoSnowMelt()` or `SnowMelt()`
+- `opt`: `SnowMelt()` or `nothing`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
-@inline conv_q_sno_to_q_rai(::CMP.NoSnowMelt, mp, tps, micro, thermo) = zero(thermo.T)
+@inline conv_q_sno_to_q_rai(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
 @inline function conv_q_sno_to_q_rai(::CMP.SnowMelt, mp, tps, micro, thermo)
     q_sno = micro.q_sno
     (; ρ, T) = thermo
-    (; T_freeze, pdf, mass, vent) = mp.precip.snow
+    (; pdf, mass, vent) = mp.precip.snow
     vel = mp.terminal_velocity.snow
     aps = mp.air_properties
     FT = eltype(ρ)
     snow_melt_rate = FT(0)
+    T_freeze = TDI.T_freeze(tps)
 
     if (q_sno > UT.ϵ_numerics(FT) && T > T_freeze)
         (; ν_air, D_vapor, K_therm) = aps

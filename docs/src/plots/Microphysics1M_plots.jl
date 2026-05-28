@@ -16,7 +16,8 @@ rain = CMP.Rain(FT)
 snow = CMP.Snow(FT)
 Chen2022 = CMP.Chen2022VelType(FT)
 Blk1MVel = CMP.Blk1MVelType(FT)
-ce = CMP.CollisionEff(FT)
+import ClimaParams
+
 mp = CMP.Microphysics1MParams(FT)
 
 # eq. 5b in [Grabowski1996](@cite)
@@ -68,20 +69,20 @@ T = 273.15
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_lcl or q_icl [g/kg]", ylabel = "autoconversion rate [1/s]", limits)
 mp_ss = CMP.Microphysics1MParams(FT;
-    options = CMP.Microphysics1MOptions(snow_autoconversion = CMP.SnowAutoconversionWithSupersaturation()),
+    snow_autoconversion = CMP.WithSupersaturation(ClimaParams.create_toml_dict(FT)),
 )
 q_icl_to_q_sno_rate = function (T)
     map(q_icl_range) do q_icl
         micro = (; q_tot, q_lcl = FT(0), q_icl, q_rai, q_sno)
         thermo = (; ρ = ρ_air, T)
-        CM1.conv_q_icl_to_q_sno(CMP.SnowAutoconversionWithSupersaturation(), mp_ss, tps, micro, thermo)
+        CM1.conv_q_icl_to_q_sno(mp_ss.options.snow_autoconversion, mp_ss, tps, micro, thermo)
     end
 end
 MK.lines!(
     q_lcl_range * 1e3,
     [
         CM1.conv_q_lcl_to_q_rai(
-            CMP.RainAutoconversion1M(), mp, tps,
+            mp.options.rain_autoconversion, mp, tps,
             (; q_tot, q_lcl = q, q_icl, q_rai, q_sno),
             (; ρ = ρ_air, T),
         ) for q in q_lcl_range
@@ -101,7 +102,7 @@ MK.lines!(
     q_rain_range * 1e3,
     [
         CM1.accretion(
-            CMP.CloudLiquidRainAccretion(), mp, tps,
+            mp.options.cloud_liquid_rain_accretion, mp, tps,
             (; q_tot, q_lcl, q_icl, q_rai = q_rai_val, q_sno),
             (; ρ = ρ_air, T),
         ) for q_rai_val in q_rain_range
@@ -112,7 +113,7 @@ MK.lines!(
     q_rain_range * 1e3,
     [
         CM1.accretion(
-            CMP.CloudIceRainAccretion(), mp, tps,
+            mp.options.cloud_ice_rain_accretion, mp, tps,
             (; q_tot, q_lcl, q_icl, q_rai = q_rai_val, q_sno),
             (; ρ = ρ_air, T),
         ) for q_rai_val in q_rain_range
@@ -122,7 +123,7 @@ MK.lines!(
 MK.lines!(
     q_snow_range * 1e3,
     [
-        CM1.accretion(CMP.CloudLiquidSnowAccretion(), mp, tps,
+        CM1.accretion(mp.options.cloud_liquid_snow_accretion, mp, tps,
             (; q_tot, q_lcl, q_icl, q_rai, q_sno = q_sno_val),
             (; ρ = ρ_air, T),
         ).S_accr for q_sno_val in q_snow_range
@@ -132,7 +133,7 @@ MK.lines!(
 MK.lines!(
     q_snow_range * 1e3,
     [
-        CM1.accretion(CMP.CloudIceSnowAccretion(), mp, tps,
+        CM1.accretion(mp.options.cloud_ice_snow_accretion, mp, tps,
             (; q_tot, q_lcl, q_icl, q_rai, q_sno = q_sno_val),
             (; ρ = ρ_air, T),
         ) for q_sno_val in q_snow_range
@@ -151,8 +152,9 @@ fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_rain or q_snow [g/kg]", ylabel = "accretion rain sink rate [1/s]", limits)
 _accr_rain_sink(q_icl_val) = [
     CM1.accretion_rain_sink(
-        mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.collision,
-        q_icl_val, q_rai_val, ρ_air,
+        mp.options.cloud_ice_rain_accretion, mp, tps,
+        (; q_tot, q_lcl, q_icl = q_icl_val, q_rai = q_rai_val, q_sno),
+        (; ρ = ρ_air, T),
     ) for q_rai_val in q_rain_range
 ] # hide
 MK.lines!(q_rain_range * 1e3, _accr_rain_sink(1e-6), label = "q_icl = 1e-6")
@@ -166,7 +168,7 @@ fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_rain [g/kg]", ylabel = "snow-rain accretion rate [1/s] T>0", limits)
 _accr_snow_rain_warm(q_sno_val) = [
     CM1.accretion_snow_rain(
-        CMP.RainSnowAccretion(), mp, tps,
+        mp.options.rain_snow_accretion, mp, tps,
         (; q_tot, q_lcl, q_icl, q_rai = q_rai_val, q_sno = q_sno_val),
         (; ρ = ρ_air, T),
     ).S_sno_rai for q_rai_val in q_rain_range
@@ -182,7 +184,7 @@ fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_snow [g/kg]", ylabel = "snow-rain accretion rate [1/s] T<0", limits)
 _accr_snow_rain_cold(q_sno_val) = [
     CM1.accretion_snow_rain(
-        CMP.RainSnowAccretion(), mp, tps,
+        mp.options.rain_snow_accretion, mp, tps,
         (; q_tot, q_lcl, q_icl, q_rai, q_sno = q_sno_val),
         (; ρ = ρ_air, T),
     ).S_rai_sno for q_rai_val in q_snow_range
@@ -214,7 +216,7 @@ MK.lines!(
     q_rain_range * 1e3,
     (
         q_rai -> CM1.conv_q_rai_to_q_vap(
-            CMP.RainEvaporation(), mp, tps,
+            mp.options.rain_condensation_evaporation, mp, tps,
             (; q_tot, q_lcl = q_lcl - q_rai, q_icl, q_rai, q_sno),
             (; ρ, T),
         )
@@ -248,7 +250,7 @@ R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl)
 rate =
     (
         q_sno -> CM1.conv_q_sno_to_q_vap(
-            CMP.SnowDepositionSublimation(), mp, tps,
+            mp.options.snow_deposition_sublimation, mp, tps,
             (; q_tot, q_lcl, q_icl = q_icl - q_sno, q_rai, q_sno),
             (; ρ, T),
         )
@@ -273,7 +275,7 @@ R = TDI.Rₘ(tps, q_tot, q_lcl + q_rai, q_icl)
 rate =
     (
         q_sno -> CM1.conv_q_sno_to_q_vap(
-            CMP.SnowDepositionSublimation(), mp, tps,
+            mp.options.snow_deposition_sublimation, mp, tps,
             (; q_tot, q_lcl, q_icl = q_icl - q_sno, q_rai, q_sno),
             (; ρ, T),
         )
@@ -291,7 +293,7 @@ ax = MK.Axis(fig[1, 1]; xlabel = "q_snow [g/kg]", ylabel = "snow melt rate [1/s]
 T = 273.15
 _snow_melt(ΔT) = map(
     q_sno -> CM1.conv_q_sno_to_q_rai(
-        CMP.SnowMelt(),
+        mp.options.snow_melt,
         mp,
         tps,
         (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno),

@@ -30,7 +30,7 @@ nothing #hide
 # of the parameter we are changing. In a typical application, this step would be done
 # via the calibration algorithm searching for optimal parameters values.
 # We create a second struct with changed parameters based on the `override_dict.toml` file.
-const default = CMP.Rain(FT)
+const default_mp = CMP.Microphysics1MParams(FT)
 
 override_file = joinpath("override_dict.toml")
 open(override_file, "w") do io
@@ -40,7 +40,7 @@ open(override_file, "w") do io
 end
 toml_dict = CP.create_toml_dict(FT; override_file)
 isfile(override_file) && rm(override_file; force = true)
-const overwrite = CMP.Rain(toml_dict)
+const overwrite_mp = CMP.Microphysics1MParams(toml_dict)
 
 nothing #hide
 
@@ -52,22 +52,28 @@ override_file = Dict(
         Dict("value" => 13, "type" => "float"),
 )
 toml_dict2 = CP.create_toml_dict(FT; override_file)
-const overwrite2 = CMP.Rain(toml_dict2)
+const overwrite2_mp = CMP.Microphysics1MParams(toml_dict2)
 
 nothing #hide
 
 # Finally we check the values of the rain autoconversion timescales
 # and the corresponding rain formation rates.
+# The autoconversion parameters now live in the option types inside `Microphysics1MParams`.
 qₗ = FT(1e-3)
-default_acnv = CO.logistic_function_integral(qₗ, default.acnv1M.q_threshold, default.acnv1M.k) / default.acnv1M.τ # Rain autoconversion rate
-overwrite_acnv =
-    CO.logistic_function_integral(qₗ, overwrite.acnv1M.q_threshold, overwrite.acnv1M.k) / overwrite.acnv1M.τ # Rain autoconversion rate
-overwrite_acnv2 =
-    CO.logistic_function_integral(qₗ, overwrite2.acnv1M.q_threshold, overwrite2.acnv1M.k) / overwrite2.acnv1M.τ # Rain autoconversion rate
+default_acnv_p = default_mp.options.rain_autoconversion.acnv1M
+default_acnv = CO.logistic_function_integral(qₗ, default_acnv_p.q_threshold, default_acnv_p.k) / default_acnv_p.τ
 
-@info("Default:", default.acnv1M.τ, default_acnv)
-@info("Overwrite:", overwrite.acnv1M.τ, overwrite_acnv)
-@info("Overwrite from dict:", overwrite2.acnv1M.τ, overwrite_acnv2)
+overwrite_acnv_p = overwrite_mp.options.rain_autoconversion.acnv1M
+overwrite_acnv =
+    CO.logistic_function_integral(qₗ, overwrite_acnv_p.q_threshold, overwrite_acnv_p.k) / overwrite_acnv_p.τ
+
+overwrite2_acnv_p = overwrite2_mp.options.rain_autoconversion.acnv1M
+overwrite_acnv2 =
+    CO.logistic_function_integral(qₗ, overwrite2_acnv_p.q_threshold, overwrite2_acnv_p.k) / overwrite2_acnv_p.τ
+
+@info("Default:", default_acnv_p.τ, default_acnv)
+@info("Overwrite:", overwrite_acnv_p.τ, overwrite_acnv)
+@info("Overwrite from dict:", overwrite2_acnv_p.τ, overwrite_acnv2)
 
 # ## Dispatching over parameter types
 

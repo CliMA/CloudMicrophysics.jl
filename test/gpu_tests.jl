@@ -75,7 +75,7 @@ ArrayType = CuArray
 end
 
 @kernel inbounds = true function test_noneq_micro_kernel!(
-    lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s,
+    lcl, icl, tps, clf, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s,
 )
     i = @index(Global, Linear)
     FT = eltype(tps)
@@ -84,7 +84,7 @@ end
     micro_mock = (; q_tot = qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno)
     thermo_mock = (; ρ = ρ[i], T = T[i])
     S_cond = CMN.conv_q_vap_to_q_lcl(
-        CMP.ConstantTimescaleCloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock,
+        clf, mp_mock, tps, micro_mock, thermo_mock,
     )
     output[i] = (; S_cond)
 end
@@ -137,30 +137,30 @@ end
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ql[i]), q_lcl = ql[i], q_icl = zero(ql[i]), q_rai = zero(ql[i]), q_sno = zero(ql[i]))
     thermo = (; ρ = zero(ql[i]), T = zero(ql[i]))
-    output[i] = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversion1M(), mp, tps, micro, thermo)
+    output[i] = CM1.conv_q_lcl_to_q_rai(mp.options.rain_autoconversion, mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_1_moment_micro_acnv2M_kernel!(mp, tps, output, ql)
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ql[i]), q_lcl = ql[i], q_icl = zero(ql[i]), q_rai = zero(ql[i]), q_sno = zero(ql[i]))
     thermo = (; ρ = zero(ql[i]), T = zero(ql[i]))
-    output[i] = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversionPrescribedNd(), mp, tps, micro, thermo)
+    output[i] = CM1.conv_q_lcl_to_q_rai(mp.options.rain_autoconversion, mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_1_moment_micro_accretion_kernel!(
-    lcl, rain, icl, snow, ce, blk1mvel, output, ρ, qi, qs, ql, qr,
+    lcl, rain, icl, snow, e_lr, e_is, e_ls, e_ir, e_rs, coeff_disp, blk1mvel, output, ρ, qi, qs, ql, qr,
 )
     i = @index(Global, Linear)
-    liq_rai = CM1.accretion(lcl, rain, blk1mvel.rain, ce, ql[i], qr[i], ρ[i])
-    ice_sno = CM1.accretion(icl, snow, blk1mvel.snow, ce, qi[i], qs[i], ρ[i])
-    liq_sno = CM1.accretion(lcl, snow, blk1mvel.snow, ce, ql[i], qs[i], ρ[i])
-    ice_rai = CM1.accretion(icl, rain, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
-    rai_sink = CM1.accretion_rain_sink(rain, icl, blk1mvel.rain, ce, qi[i], qr[i], ρ[i])
+    liq_rai = CM1.accretion(lcl, rain, blk1mvel.rain, e_lr, ql[i], qr[i], ρ[i])
+    ice_sno = CM1.accretion(icl, snow, blk1mvel.snow, e_is, qi[i], qs[i], ρ[i])
+    liq_sno = CM1.accretion(lcl, snow, blk1mvel.snow, e_ls, ql[i], qs[i], ρ[i])
+    ice_rai = CM1.accretion(icl, rain, blk1mvel.rain, e_ir, qi[i], qr[i], ρ[i])
+    rai_sink = CM1.accretion_rain_sink(rain, icl, blk1mvel.rain, e_ir, qi[i], qr[i], ρ[i])
     sno_rai = CM1.accretion_snow_rain(
-        snow, rain, blk1mvel.snow, blk1mvel.rain, ce, qs[i], qr[i], ρ[i],
+        snow, rain, blk1mvel.snow, blk1mvel.rain, e_rs, coeff_disp, qs[i], qr[i], ρ[i],
     )
     rai_sno = CM1.accretion_snow_rain(
-        rain, snow, blk1mvel.rain, blk1mvel.snow, ce, qr[i], qs[i], ρ[i],
+        rain, snow, blk1mvel.rain, blk1mvel.snow, e_rs, coeff_disp, qr[i], qs[i], ρ[i],
     )
     output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, rai_sink, sno_rai, rai_sno)
 end
@@ -171,14 +171,12 @@ end
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ρ[i]), q_lcl = ql[i], q_icl = qi[i], q_rai = qr[i], q_sno = qs[i])
     thermo = (; ρ = ρ[i], T = T[i])
-    liq_rai = CM1.accretion(CMP.CloudLiquidRainAccretion(), mp, tps, micro, thermo)
-    liq_sno = CM1.accretion(CMP.CloudLiquidSnowAccretion(), mp, tps, micro, thermo).S_accr
-    ice_rai = CM1.accretion(CMP.CloudIceRainAccretion(), mp, tps, micro, thermo)
-    ice_sno = CM1.accretion(CMP.CloudIceSnowAccretion(), mp, tps, micro, thermo)
-    # rain-sink is now internal (coupled to CloudIceRainAccretion), so use low-level kernel directly
-    rai_sink = CM1.accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.collision,
-        micro.q_icl, micro.q_rai, ρ[i])
-    r_sr = CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mp, tps, micro, thermo)
+    liq_rai = CM1.accretion(mp.options.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
+    liq_sno = CM1.accretion(mp.options.cloud_liquid_snow_accretion, mp, tps, micro, thermo).S_accr
+    ice_rai = CM1.accretion(mp.options.cloud_ice_rain_accretion, mp, tps, micro, thermo)
+    ice_sno = CM1.accretion(mp.options.cloud_ice_snow_accretion, mp, tps, micro, thermo)
+    rai_sink = CM1.accretion_rain_sink(mp.options.cloud_ice_rain_accretion, mp, tps, micro, thermo)
+    r_sr = CM1.accretion_snow_rain(mp.options.rain_snow_accretion, mp, tps, micro, thermo)
     output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, rai_sink,
         sno_rai = r_sr.S_rai_sno, rai_sno = r_sr.S_sno_rai)
 end
@@ -188,7 +186,7 @@ end
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ρ[i]), q_lcl = zero(ρ[i]), q_icl = zero(ρ[i]), q_rai = zero(ρ[i]), q_sno = qs[i])
     thermo = (; ρ = ρ[i], T = T[i])
-    output[i] = CM1.conv_q_sno_to_q_rai(CMP.SnowMelt(), mp, tps, micro, thermo)
+    output[i] = CM1.conv_q_sno_to_q_rai(mp.options.snow_melt, mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_2_moment_acnv_kernel!(
@@ -462,7 +460,13 @@ function test_gpu(FT)
     icl = CMP.CloudIce(FT)
     rain = CMP.Rain(FT)
     snow = CMP.Snow(FT)
-    ce = CMP.CollisionEff(FT)
+    mp = CMP.Microphysics1MParams(FT)
+    opts = mp.options
+    e_lr = opts.cloud_liquid_rain_accretion.e
+    e_is = opts.cloud_ice_snow_accretion.e
+    e_ls = opts.cloud_liquid_snow_accretion.e
+    e_ir = opts.cloud_ice_rain_accretion.e
+    e_rs = opts.rain_snow_accretion.e
 
     # Terminal velocity
     blk1mvel = CMP.Blk1MVelType(FT)
@@ -483,9 +487,7 @@ function test_gpu(FT)
     mp_0m = CMP.Microphysics0MParams(FT)
     mp_1m = CMP.Microphysics1MParams(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
-        options = CMP.Microphysics1MOptions(
-            rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
-        ),
+        rain_autoconversion = CMP.PrescribedNd(CP.create_toml_dict(FT)),
     )
     mp_2m_warm = CMP.Microphysics2MParams(FT; with_ice = false)
     mp_2m_p3 = CMP.Microphysics2MParams(FT; with_ice = true)
@@ -544,8 +546,9 @@ function test_gpu(FT)
         qᵢ = ArrayType([FT(0.003)])
         qᵢ_s = ArrayType([FT(0.002)])
 
+        clf = CMP.CloudLiquidFormation(CP.create_toml_dict(FT))
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
-        kernel!(lcl, icl, tps, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
+        kernel!(lcl, icl, tps, clf, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
         (; S_cond) = Array(output)[1]
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         TT.@test S_cond ≈ FT(3.76347635339803e-5)
@@ -624,7 +627,7 @@ function test_gpu(FT)
         # Both inputs are above threshold so both should give positive autoconversion
         TT.@test all(x -> x > 0, out)
 
-        # RainAutoconversionPrescribedNd: variable-timescale autoconversion
+        # PrescribedNd: variable-timescale autoconversion
         bad_value = -99999.99
         (; output, ndrange) = setup_output(2, FT, bad_value)
         ql = ArrayType([FT(2e-3), FT(0)])
@@ -653,8 +656,28 @@ function test_gpu(FT)
         ql = ArrayType([FT(0), FT(5e-4)])
         qr = ArrayType([FT(0), FT(5e-4)])
 
+        coeff_disp = mp.options.rain_snow_accretion.coeff_disp
         kernel! = test_1_moment_micro_accretion_kernel!(backend, work_groups)
-        kernel!(lcl, rain, icl, snow, ce, blk1mvel, output, ρ, qi, qs, ql, qr; ndrange)
+        kernel!(
+            lcl,
+            rain,
+            icl,
+            snow,
+            e_lr,
+            e_is,
+            e_ls,
+            e_ir,
+            e_rs,
+            coeff_disp,
+            blk1mvel,
+            output,
+            ρ,
+            qi,
+            qs,
+            ql,
+            qr;
+            ndrange,
+        )
         out0, out1 = Array(output)
 
         # test 1-moment accretion is callable and returns a reasonable value

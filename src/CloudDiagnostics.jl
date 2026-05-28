@@ -28,7 +28,7 @@ Normalized by the reflectivty of 1 millimiter drop in a volume of 1m3.
 The values are clipped at -150 dBZ.
 """
 function radar_reflectivity_1M(
-    (; pdf, mass)::CMP.Rain{FT},
+    (; pdf, mass)::CMP.Rain,
     q::FT,
     ρ::FT,
 ) where {FT}
