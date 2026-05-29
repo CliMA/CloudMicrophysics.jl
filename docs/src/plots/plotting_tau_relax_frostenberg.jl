@@ -25,8 +25,10 @@ q_icl_labels = ["0", "10⁻⁸", "10⁻⁶", "10⁻⁴", "10⁻²"]
 # Air density (representative value for mid-troposphere)
 ρ = FT(0.8)
 
-# Sublimation timescale (constant)
-τ_sub = CMNe.τ_relax(ice)
+import ClimaParams as CP
+
+# Sublimation timescale (constant, from ClimaParams defaults)
+τ_sub = CMP.ConstantTimescale(CP.create_toml_dict(FT)).τ_relax
 
 # Compute the effective timescale used in conv_q_vap_to_q_icl:
 #   T < T_freeze (deposition):  τ_dep × Γᵢ  (Frostenberg τ with thermodynamic correction)

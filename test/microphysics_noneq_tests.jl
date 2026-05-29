@@ -16,8 +16,12 @@ function test_microphysics_noneq(FT)
     Ch2022 = CMP.Chen2022VelType(FT)
 
     TT.@testset "τ_relax" begin
-        TT.@test CMNe.τ_relax(liquid) ≈ FT(10)
-        TT.@test CMNe.τ_relax(ice) ≈ FT(10)
+        # Default τ_relax values come from the option structs
+        td = ClimaParams.create_toml_dict(FT)
+        clf = CMP.CloudLiquidFormation(td)
+        cif = CMP.ConstantTimescale(td)
+        TT.@test clf.τ_relax ≈ FT(10)
+        TT.@test cif.τ_relax ≈ FT(10)
     end
 
     TT.@testset "τ_relax Frostenberg" begin
@@ -33,8 +37,7 @@ function test_microphysics_noneq(FT)
 
     TT.@testset "CondEvap_DepSub" begin
 
-        τ_liq = CMNe.τ_relax(liquid)
-        τ_ice = CMNe.τ_relax(ice)
+
 
         ρ = FT(0.8)
         T = FT(273 - 10)
@@ -48,7 +51,7 @@ function test_microphysics_noneq(FT)
         #! format: off
         # Test helpers
         _conv_lcl(q_tot, q_lcl, q_icl, ρ, T) = CMNe.conv_q_vap_to_q_lcl(
-            CMP.ConstantTimescaleCloudLiquidFormation(),
+            CMP.CloudLiquidFormation(FT(10)),
             (; cloud = (; liquid = liquid)),
             tps,
             (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0)),
@@ -56,7 +59,7 @@ function test_microphysics_noneq(FT)
         )
 
         _conv_icl(q_tot, q_lcl, q_icl, ρ, T) = CMNe.conv_q_vap_to_q_icl(
-            CMP.ConstantTimescaleCloudIceFormation(),
+            CMP.ConstantTimescale(FT(10)),
             (; cloud = (; ice = ice)),
             tps,
             (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0)),
@@ -64,7 +67,7 @@ function test_microphysics_noneq(FT)
         )
 
         _conv_icl_dep(q_tot, q_lcl, q_icl, ρ, T) = CMNe.conv_q_vap_to_q_icl(
-            CMP.TemperatureDependentCloudIceFormation(),
+            CMP.TemperatureDependent(FT(10), frs),
             (; cloud = (; ice = ice), air_properties = aps, frostenberg2023 = frs),
             tps,
             (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0)),
@@ -106,37 +109,39 @@ function test_microphysics_noneq(FT)
         TT.@test _conv_icl(FT(0.5 * qᵥ_si_w), FT(0), FT(0.001), ρ, T_warm) <= FT(0)
 
         # --- Asymmetric τ_dep ≠ τ_sub ---
-        # Faster sublimation (smaller τ_sub) should give a larger magnitude sublimation rate
-        # We simulate this by changing the mp ice struct
-        ice_base = CMP.CloudIce(FT)
-        ice_slow = CMP.CloudIce(ice_base.pdf, ice_base.mass, ice_base.r0, ice_base.r_ice_snow, FT(100), ice_base.ρᵢ, ice_base.r_eff, ice_base.N_0)
-        ice_fast = CMP.CloudIce(ice_base.pdf, ice_base.mass, ice_base.r0, ice_base.r_ice_snow, FT(1), ice_base.ρᵢ, ice_base.r_eff, ice_base.N_0)
+        # Faster sublimation (smaller τ_relax) should give a larger magnitude sublimation rate
+        # We test by creating ConstantTimescale options with different τ_relax values
+        opt_fast = CMP.ConstantTimescale(FT(1))
+        opt_slow = CMP.ConstantTimescale(FT(100))
         
-        function _conv_icl_custom(ice_mock, q_tot, q_lcl, q_icl, ρ, T)
+        function _conv_icl_custom(opt, q_tot, q_lcl, q_icl, ρ, T)
             CMNe.conv_q_vap_to_q_icl(
-                CMP.ConstantTimescaleCloudIceFormation(),
-                (; cloud = (; ice = ice_mock)),
+                opt,
+                (; cloud = (; ice = ice)),
                 tps,
                 (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0)),
                 (; ρ, T)
             )
         end
-        sub_fast = _conv_icl_custom(ice_fast, FT(0.5 * qᵥ_si), FT(0), FT(0.001), ρ, T)
-        sub_slow = _conv_icl_custom(ice_slow, FT(0.5 * qᵥ_si), FT(0), FT(0.001), ρ, T)
+        sub_fast = _conv_icl_custom(opt_fast, FT(0.5 * qᵥ_si), FT(0), FT(0.001), ρ, T)
+        sub_slow = _conv_icl_custom(opt_slow, FT(0.5 * qᵥ_si), FT(0), FT(0.001), ρ, T)
         TT.@test sub_fast < sub_slow  # faster sublimation → more negative
 
-        # Deposition rate with TemperatureDependentCloudIceFormation should depend only on τ_dep, not τ_sub
-        function _conv_icl_dep_custom(ice_mock, q_tot, q_lcl, q_icl, ρ, T)
+        # Deposition rate with TemperatureDependent should depend only on τ_dep, not τ_sub
+        # TemperatureDependent uses opt.τ_relax for sublimation but Frostenberg for deposition
+        opt_td_fast = CMP.TemperatureDependent(FT(1), frs)
+        opt_td_slow = CMP.TemperatureDependent(FT(100), frs)
+        function _conv_icl_dep_custom(opt, q_tot, q_lcl, q_icl, ρ, T)
             CMNe.conv_q_vap_to_q_icl(
-                CMP.TemperatureDependentCloudIceFormation(),
-                (; cloud = (; ice = ice_mock), air_properties = aps, frostenberg2023 = frs),
+                opt,
+                (; cloud = (; ice = ice), air_properties = aps, frostenberg2023 = frs),
                 tps,
                 (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0)),
                 (; ρ, T)
             )
         end
-        dep_a = _conv_icl_dep_custom(ice_fast, FT(1.5 * qᵥ_si), FT(0), FT(0), ρ, T)
-        dep_b = _conv_icl_dep_custom(ice_slow, FT(1.5 * qᵥ_si), FT(0), FT(0), ρ, T)
+        dep_a = _conv_icl_dep_custom(opt_td_fast, FT(1.5 * qᵥ_si), FT(0), FT(0), ρ, T)
+        dep_b = _conv_icl_dep_custom(opt_td_slow, FT(1.5 * qᵥ_si), FT(0), FT(0), ρ, T)
         TT.@test dep_a ≈ dep_b  # τ_sub doesn't affect deposition
 
         #! format: on

@@ -20,14 +20,15 @@ nothing #hide
 # about the solver interface.
 function rain_formation(dY, Y, p, t)
     FT = eltype(Y) # Floating point precision type
-    (; ρₐ, rain, liquid, ce, v_term) = p # Additional parameters passed through p
+    (; ρₐ, mp, liquid, rain, v_term) = p # Additional parameters passed through p
 
     qₗ = Y[1] # Cloud water specific content
     qᵣ = Y[2] # Rain water specific content
 
-    (; τ, q_threshold, k) = rain.acnv1M
+    E = mp.options.cloud_liquid_rain_accretion.e  # Collision efficiency
+    (; τ, q_threshold, k) = mp.options.rain_autoconversion.acnv1M
     acnv = CO.logistic_function_integral(qₗ, q_threshold, k) / τ # Rain autoconversion rate
-    accr = CM1.accretion(liquid, rain, v_term.rain, ce, qₗ, qᵣ, ρₐ) # Rain accretion rate
+    accr = CM1.accretion(liquid, rain, v_term.rain, E, qₗ, qᵣ, ρₐ) # Rain accretion rate
 
     dY[1] = -acnv - accr # Add the tendecies for cloud water
     dY[2] = acnv + accr  # and rain
@@ -41,10 +42,10 @@ FT = Float32
 
 rain = CMP.Rain(FT) # Rain drop parameters for the 1-moment scheme
 liquid = CMP.CloudLiquid(FT) # Cloud droplet parameters for the 1-moment scheme
-ce = CMP.CollisionEff(FT) # Collision efficiencies
+mp = CMP.Microphysics1MParams(FT) # 1-moment microphysics parameters (includes options)
 v_term = CMP.Blk1MVelType(FT) # Terminal velocity parameters
 ρₐ = FT(1) # Air density
-p = (; ρₐ, rain, liquid, ce, v_term)
+p = (; ρₐ, mp, liquid, rain, v_term)
 
 nothing #hide
 

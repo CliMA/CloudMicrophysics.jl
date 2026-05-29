@@ -129,7 +129,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
     ice = mp.cloud.ice
     rain = mp.precip.rain
     snow = mp.precip.snow
-    ce = mp.collision
+    E_lcl_sno = mp.options.cloud_liquid_snow_accretion.e
     aps = mp.air_properties
     vel = mp.terminal_velocity
 
@@ -224,7 +224,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # Compute autoconversion separately using the same option-dispatched function
         micro_acnv = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
         thermo_acnv = (; ρ, T)
-        S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversion1M(), mp, tps, micro_acnv, thermo_acnv)
+        S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(mp.options.rain_autoconversion, mp, tps, micro_acnv, thermo_acnv)
 
         # Rain tendency should be positive and include autoconversion
         @test tendencies.dq_rai_dt > FT(0)
@@ -235,11 +235,9 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
     @testset "BulkMicrophysicsTendencies - Autoconversion component (PrescribedNd)" begin
         # Same check as above but using the variable-timescale 2M autoconversion option
-        # (RainAutoconversionPrescribedNd), which uses mp.autoconv_2M.{τ,α,Nc}.
+        # (PrescribedNd), which uses the prescribed {τ,α,Nc}.
         mp_2m = CMP.Microphysics1MParams(FT;
-            options = CMP.Microphysics1MOptions(
-                rain_autoconversion = CMP.RainAutoconversionPrescribedNd(),
-            ),
+            rain_autoconversion = CMP.PrescribedNd(CP.create_toml_dict(FT)),
         )
 
         ρ = FT(1.2)
@@ -259,7 +257,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # Compute autoconversion separately using the option-dispatched function
         micro_acnv = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
         thermo_acnv = (; ρ, T)
-        S_acnv_2m = CM1.conv_q_lcl_to_q_rai(CMP.RainAutoconversionPrescribedNd(), mp_2m, tps, micro_acnv, thermo_acnv)
+        S_acnv_2m = CM1.conv_q_lcl_to_q_rai(mp_2m.options.rain_autoconversion, mp_2m, tps, micro_acnv, thermo_acnv)
 
         # Rain tendency should be positive and dominated by autoconversion
         @test tendencies_2m.dq_rai_dt > FT(0)
@@ -330,7 +328,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
 
         # Verify accretion is happening by checking snow growth
         # (cloud liquid tendency may be positive overall due to condensation)
-        S_accr = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
+        S_accr = CM1.accretion(liquid, snow, vel.snow, E_lcl_sno, q_lcl, q_sno, ρ)
         @test S_accr > FT(0)  # Accretion is occurring
 
         # Snow should increase (riming + deposition)
@@ -356,7 +354,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         )
 
         # Verify accretion is happening
-        S_accr = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
+        S_accr = CM1.accretion(liquid, snow, vel.snow, E_lcl_sno, q_lcl, q_sno, ρ)
         @test S_accr > FT(0)  # Accretion is occurring
 
         # Rain should increase (from accretion + snow melt)
@@ -587,11 +585,11 @@ function test_bulk_microphysics_1m_tendencies(FT)
         )
 
         # Calculate individual components
-        S_accr = CM1.accretion(liquid, snow, vel.snow, ce, q_lcl, q_sno, ρ)
+        S_accr = CM1.accretion(liquid, snow, vel.snow, E_lcl_sno, q_lcl, q_sno, ρ)
         micro_s = (; q_tot, q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno)
         thermo_s = (; ρ, T)
         S_melt = CM1.conv_q_sno_to_q_rai(CMP.SnowMelt(), mp, tps, micro_s, thermo_s)
-        S_subl = CM1.conv_q_sno_to_q_vap(CMP.SnowDepositionSublimation(), mp, tps, micro_s, thermo_s)
+        S_subl = CM1.conv_q_sno_to_q_vap(CMP.DepositionAndSublimation(), mp, tps, micro_s, thermo_s)
 
         # Calculate α
         T_frz = TDI.T_freeze(tps)
