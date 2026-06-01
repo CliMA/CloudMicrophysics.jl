@@ -1,4 +1,4 @@
-export CloudLiquid, CloudIce, Rain, Snow, CollisionEff, VarTimescaleAcnv
+export CloudLiquid, CloudIce, Rain, Snow, VarTimescaleAcnv
 
 """
     ParticlePDFSnow{FT}
@@ -133,8 +133,6 @@ The parameters and type for cloud liquid water condensate
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct CloudLiquid{FT} <: CloudCondensateType
-    "condensation evaporation non_equil microphysics relaxation timescale [s]"
-    τ_relax::FT
     "water density [kg/m³]"
     ρw::FT
     "effective radius [m]"
@@ -143,11 +141,10 @@ $(DocStringExtensions.FIELDS)
     N_0::FT
 end
 ShowMethods.field_units(::CloudLiquid) =
-    (; τ_relax = "s", ρw = "kg/m³", r_eff = "m", N_0 = "1/m³")
+    (; ρw = "kg/m³", r_eff = "m", N_0 = "1/m³")
 
 function CloudLiquid(toml_dict::CP.ParamDict)
     name_map = (;
-        :condensation_evaporation_timescale => :τ_relax,
         :density_liquid_water => :ρw,
         :liquid_cloud_effective_radius => :r_eff,
         :cloud_liquid_sedimentation_number_concentration => :N_0,
@@ -157,7 +154,7 @@ function CloudLiquid(toml_dict::CP.ParamDict)
 end
 
 """
-    CloudIce{FT, MS}
+    CloudIce{FT, PD, MS}
 
 The parameters and type for cloud ice condensate
 
@@ -169,12 +166,6 @@ $(DocStringExtensions.FIELDS)
     pdf::PD
     "a struct with mass size relation parameters"
     mass::MS
-    "particle length scale [m]"
-    r0::FT
-    "ice snow threshold radius [m]"
-    r_ice_snow::FT
-    "deposition sublimation non_equil microphysics relaxation timescale [s]"
-    τ_relax::FT
     "cloud ice apparent density [kg/m³]"
     ρᵢ::FT
     "effective radius [m]"
@@ -183,23 +174,19 @@ $(DocStringExtensions.FIELDS)
     N_0::FT
 end
 ShowMethods.field_units(::CloudIce) =
-    (; r0 = "m", r_ice_snow = "m", τ_relax = "s", ρᵢ = "kg/m³", r_eff = "m", N_0 = "1/m³")
+    (; ρᵢ = "kg/m³", r_eff = "m", N_0 = "1/m³")
 
 function CloudIce(toml_dict::CP.ParamDict)
     name_map = (;
         :cloud_ice_apparent_density => :ρᵢ,
-        :cloud_ice_crystals_length_scale => :r0,
         :cloud_ice_size_distribution_coefficient_n0 => :n0,
-        :cloud_ice_mass_size_relation_coefficient_me => :me,
-        :ice_snow_threshold_radius => :r_ice_snow,
-        :sublimation_deposition_timescale => :τ_relax,
         :ice_cloud_effective_radius => :r_eff,
         :cloud_ice_sedimentation_number_concentration => :N_0,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
     mass = ParticleMass(CloudIce, toml_dict)
     pdf = ParticlePDFIceRain(p.n0)
-    return CloudIce(; pdf, mass, p.r0, p.r_ice_snow, p.τ_relax, p.ρᵢ, p.r_eff, p.N_0)
+    return CloudIce(; pdf, mass, p.ρᵢ, p.r_eff, p.N_0)
 end
 
 function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
@@ -217,39 +204,27 @@ function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
 end
 
 """
-    Rain{FT, MS, AR, VT, AC}
+    Rain{FT, PD, MS, AR, VT}
 
 The parameters and type for rain
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Rain{FT, PD, MS, AR, VT, AC} <: PrecipitationType
+@kwdef struct Rain{PD, MS, AR, VT} <: PrecipitationType
     "a struct with size distribution parameters"
     pdf::PD
     "a struct with mass size relation parameters"
     mass::MS
-    "a struct with cross section size relation parameers"
+    "a struct with cross section size relation parameters"
     area::AR
     "a struct with ventilation coefficients"
     vent::VT
-    "a struct with cloud water to rain autoconversion parameters"
-    acnv1M::AC
-    "particle length scale [m]"
-    r0::FT
 end
-ShowMethods.field_units(::Rain) = (; r0 = "m")
 
 function Rain(toml_dict::CP.ParamDict)
     name_map = (;
-        :density_liquid_water => :ρ,
-        :rain_drop_length_scale => :r0,
         :rain_drop_size_distribution_coefficient_n0 => :n0,
-        :rain_mass_size_relation_coefficient_me => :me,
-        :rain_cross_section_size_relation_coefficient_ae => :ae,
-        :rain_autoconversion_timescale => :τ,
-        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold,
-        :threshold_smooth_transition_steepness => :k,
         :rain_ventilation_coefficient_a => :a,
         :rain_ventilation_coefficient_b => :b,
     )
@@ -259,8 +234,6 @@ function Rain(toml_dict::CP.ParamDict)
         area = ParticleArea(Rain, toml_dict),
         pdf = ParticlePDFIceRain(p.n0),
         vent = Ventilation(p.a, p.b),
-        acnv1M = Acnv1M(p.τ, p.q_threshold, p.k),
-        p.r0,
     )
 end
 
@@ -291,30 +264,24 @@ function ParticleArea(::Type{Rain}, td::CP.ParamDict)
 end
 
 """
-    Snow{FT, PD, MS, AR, VT, AP, AC}
+    Snow{FT, PD, MS, AR, VT, AP}
 
 The parameters and type for snow
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Snow{FT, PD, MS, AR, VT, AP, AC} <: PrecipitationType
+@kwdef struct Snow{FT, PD, MS, AR, VT, AP} <: PrecipitationType
     "a struct with size distribution parameters"
     pdf::PD
     "a struct with mass size relation parameters"
     mass::MS
-    "a struct with cross section size relation parameers"
+    "a struct with cross section size relation parameters"
     area::AR
     "a struct with ventilation coefficients"
     vent::VT
     "a struct with aspect ratio parameters"
     aspr::AP
-    "a struct with ice to snow autoconversion parameters"
-    acnv1M::AC
-    "particle length scale [m]"
-    r0::FT
-    "freezing temperature of water [K]"
-    T_freeze::FT
     "snow apparent density [kg/m3]"
     ρᵢ::FT
     "pre-computed gamma(α+4)/6 for oblate aspect ratio [-]"
@@ -325,12 +292,7 @@ end
 
 function Snow(toml_dict::CP.ParamDict)
     name_map = (;
-        :cloud_ice_crystals_length_scale => :r0,
         :snow_apparent_density => :ρᵢ,
-        :snow_autoconversion_timescale => :τ,
-        :cloud_ice_specific_humidity_autoconversion_threshold => :q_threshold,
-        :threshold_smooth_transition_steepness => :k,
-        :temperature_water_freeze => :T_freeze,
         :snow_flake_size_distribution_coefficient_mu => :μ,
         :snow_flake_size_distribution_coefficient_nu => :ν,
         :snow_ventilation_coefficient_a => :a,
@@ -356,8 +318,7 @@ function Snow(toml_dict::CP.ParamDict)
         area,
         vent = Ventilation(p.a, p.b),
         aspr = SnowAspectRatio(p.ϕ, p.κ),
-        acnv1M = Acnv1M(p.τ, p.q_threshold, p.k),
-        p.r0, p.T_freeze, p.ρᵢ,
+        p.ρᵢ,
         gamma_aspect_oblate = SF.gamma(α_oblate + 4) / SF.gamma(FT(4)),
         gamma_aspect_prolate = SF.gamma(α_prolate + 4) / SF.gamma(FT(4)),
     )
@@ -389,41 +350,7 @@ function ParticleArea(::Type{Snow}, toml_dict::CP.ParamDict)
     return ParticleArea(; a0, p.ae, p.Δa, p.χa)
 end
 
-"""
-    CollisionEff{FT}
 
-Collision efficiency parameters for the 1-moment scheme
-
-# Fields
-$(DocStringExtensions.FIELDS)
-"""
-@kwdef struct CollisionEff{FT} <: ParametersType
-    "cloud liquid-rain collision efficiency [-]"
-    e_lcl_rai::FT
-    "cloud liquid-snow collision efficiency [-]"
-    e_lcl_sno::FT
-    "cloud ice-rain collision efficiency [-]"
-    e_icl_rai::FT
-    "cloud ice-snow collision efficiency [-]"
-    e_icl_sno::FT
-    "rain-snow collision efficiency [-]"
-    e_rai_sno::FT
-    "rain-snow velocity dispersion coefficient [-]"
-    coeff_disp::FT
-end
-
-function CollisionEff(td::CP.ParamDict)
-    name_map = (;
-        :cloud_liquid_rain_collision_efficiency => :e_lcl_rai,
-        :cloud_liquid_snow_collision_efficiency => :e_lcl_sno,
-        :cloud_ice_rain_collision_efficiency => :e_icl_rai,
-        :cloud_ice_snow_collision_efficiency => :e_icl_sno,
-        :rain_snow_collision_efficiency => :e_rai_sno,
-        :rain_snow_velocity_dispersion_coefficient => :coeff_disp,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return CollisionEff(; parameters...)
-end
 
 """
     VarTimescaleAcnv{FT}
