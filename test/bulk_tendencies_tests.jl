@@ -1318,7 +1318,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         N_ice = n_ice * ρ
         F_rim = q_rim / q_ice
         ρ_rim = q_rim * ρ / (b_rim * ρ)
-        state = CM.P3Scheme.get_state(p3; F_rim, ρ_rim, L_ice, N_ice)
+        state = CM.P3Scheme.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
@@ -1364,7 +1364,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         N_ice = n_ice * ρ
         F_rim = q_rim / q_ice
         ρ_rim = q_rim * ρ / (b_rim * ρ)
-        state = CM.P3Scheme.get_state(p3; F_rim, ρ_rim, L_ice, N_ice)
+        state = CM.P3Scheme.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
@@ -1408,7 +1408,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         N_ice = n_ice * ρ
         F_rim = q_rim / q_ice
         ρ_rim = q_rim * ρ / (b_rim * ρ)
-        state = CM.P3Scheme.get_state(p3; F_rim, ρ_rim, L_ice, N_ice)
+        state = CM.P3Scheme.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(
@@ -1455,7 +1455,7 @@ function test_bulk_microphysics_p3_tendencies(FT)
         N_ice = n_ice * ρ
         F_rim = q_rim / q_ice
         ρ_rim = q_rim * ρ / (b_rim * ρ)
-        state = CM.P3Scheme.get_state(p3; F_rim, ρ_rim, L_ice, N_ice)
+        state = CM.P3Scheme.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
         logλ = CM.P3Scheme.get_distribution_logλ(state)
 
         tendencies = BMT.bulk_microphysics_tendencies(

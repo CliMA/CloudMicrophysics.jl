@@ -419,6 +419,23 @@ end
     )
 end
 
+@kernel inbounds = true function test_P3_get_distribution_logλ_kernel!(
+    p3_params, output, L_ice, N_ice, F_rim, ρ_rim,
+)
+    i = @index(Global, Linear)
+    state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
+    output[i] = P3.get_distribution_logλ(state)
+end
+
+@kernel inbounds = true function test_P3_ice_self_collection_kernel!(
+    p3_params, vel_params, aps, tps, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ, T,
+)
+    i = @index(Global, Linear)
+    state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
+    logλ = P3.get_distribution_logλ(state)
+    output[i] = P3.ice_self_collection(state, logλ, aps, tps, vel_params, ρₐ[i], T[i])
+end
+
 """
     setup_output(dims, FT)
 Helper function for GPU tests. Allocates an array of type `FT` with dimensions

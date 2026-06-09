@@ -165,13 +165,12 @@ CMP.LocalRimeDensity
 
 ```@docs
 P3Scheme.P3State
-P3Scheme.get_state
+P3Scheme.state_from_prognostic
 ```
 
 ### State relationships
 
 ```@docs
-P3Scheme.get_thresholds_ρ_g
 P3Scheme.get_ρ_d
 P3Scheme.get_ρ_g
 P3Scheme.get_D_th
@@ -207,6 +206,7 @@ P3Scheme.get_distribution_logλ
 P3Scheme.logN′ice
 P3Scheme.size_distribution(::P3Scheme.P3State, _)
 P3Scheme.loggamma_inc_moment
+P3Scheme.gamma_inc_moment
 P3Scheme.loggamma_moment
 P3Scheme.logmass_gamma_moment
 P3Scheme.logLdivN
@@ -257,6 +257,7 @@ P3Scheme.∫liquid_ice_collisions
 
 ```@docs
 P3Scheme.integrate
+P3Scheme.subintervals
 P3Scheme.ChebyshevGauss
 P3Scheme.integral_bounds
 ```
@@ -382,6 +383,11 @@ Utilities.clamp_to_nonneg
 Utilities.ϵ_numerics
 Utilities.ϵ_numerics_2M_M
 Utilities.ϵ_numerics_2M_N
+Utilities.ϵ_numerics_P3_B
+Utilities.rime_mass_fraction
+Utilities.rime_density
+Utilities.sgs_weight_function
+Utilities.unrolled_logsumexp
 ```
 
 # Common utility functions

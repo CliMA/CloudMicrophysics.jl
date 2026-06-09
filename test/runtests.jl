@@ -23,5 +23,6 @@ TT.@testset "All tests" begin
     include("ice_nucleation_calibration.jl")
     include("ventilation_tests.jl")
     include("DistributionTools_tests.jl")
+    include("unrolled_logsumexp.jl")
 end
 nothing

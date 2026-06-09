@@ -56,10 +56,10 @@ function ice_terminal_velocity_number_weighted(
     velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
     use_aspect_ratio = true, p = 1e-6, ∫kwargs...,
 )
-    (; N_ice, L_ice) = state
+    (; ρn_ice, ρq_ice) = state
     # TODO - do we want to swicth to ϵ_numerics(FT)
-    if N_ice < eps(one(N_ice)) || L_ice < eps(one(L_ice))
-        return zero(N_ice)
+    if ρn_ice < eps(one(ρn_ice)) || ρq_ice < eps(one(ρq_ice))
+        return zero(ρn_ice)
     end
 
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; use_aspect_ratio)
@@ -69,14 +69,7 @@ function ice_terminal_velocity_number_weighted(
     number_weighted_integrand(D) = n(D) * v_term(D)
 
     bnds = integral_bounds(state, logλ; p)
-    return integrate(number_weighted_integrand, bnds...; ∫kwargs...) / N_ice
-end
-function ice_terminal_velocity_number_weighted(
-    velocity_params::CMP.Chen2022VelType, ρₐ, params::CMP.ParametersP3, L_ice, N_ice, F_rim, ρ_rim, logλ;
-    use_aspect_ratio = true, ∫kwargs...,
-)
-    state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
-    return ice_terminal_velocity_number_weighted(velocity_params, ρₐ, state, logλ; use_aspect_ratio, ∫kwargs...)
+    return integrate(number_weighted_integrand, bnds, quad) / ρn_ice
 end
 
 """
@@ -101,10 +94,10 @@ function ice_terminal_velocity_mass_weighted(
     velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
     use_aspect_ratio = true, p = 1e-6, ∫kwargs...,
 )
-    (; N_ice, L_ice) = state
+    (; ρn_ice, ρq_ice) = state
     # TODO - do we want to swicth to ϵ_numerics(FT)
-    if N_ice < eps(one(N_ice)) || L_ice < eps(one(L_ice))
-        return zero(L_ice)
+    if ρn_ice < eps(one(ρn_ice)) || ρq_ice < eps(one(ρq_ice))
+        return zero(ρq_ice)
     end
 
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; use_aspect_ratio)
@@ -114,12 +107,43 @@ function ice_terminal_velocity_mass_weighted(
     mass_weighted_integrand(D) = n(D) * v_term(D) * ice_mass(state, D)
 
     bnds = integral_bounds(state, logλ; p)
-    return integrate(mass_weighted_integrand, bnds...; ∫kwargs...) / L_ice
+    return integrate(mass_weighted_integrand, bnds, quad) / ρq_ice
 end
-function ice_terminal_velocity_mass_weighted(
-    velocity_params::CMP.Chen2022VelType, ρₐ, params::CMP.ParametersP3, L_ice, N_ice, F_rim, ρ_rim, logλ;
-    use_aspect_ratio = true, ∫kwargs...,
+
+"""
+    ice_terminal_velocity_number_weighted_from_prognostic(
+        velocity_params, ρₐ, params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, logλ; kw...
+    )
+
+Pointwise wrapper that takes the *raw prognostic* P3 ice state
+(`ρq_ice`, `ρn_ice`, `ρq_rim`, `ρb_rim`) and returns the number-weighted
+mean ice terminal velocity. Builds the per-cell `P3State` via
+[`state_from_prognostic`](@ref), so `F_rim` is regularised to
+`[0, 1 - eps(FT)]` and `ρ_rim` is clamped to `[0, 0.8 ρ_l]`.
+
+Designed for `@.`-broadcast use from a host (CA, KiD, etc.) where the
+state must be reconstructed from prognostic variables every cell.
+"""
+@inline function ice_terminal_velocity_number_weighted_from_prognostic(
+    velocity_params, ρₐ, params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, logλ; kw...,
 )
-    state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
-    return ice_terminal_velocity_mass_weighted(velocity_params, ρₐ, state, logλ; use_aspect_ratio, ∫kwargs...)
+    state = state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    return ice_terminal_velocity_number_weighted(velocity_params, ρₐ, state, logλ; kw...)
+end
+
+"""
+    ice_terminal_velocity_mass_weighted_from_prognostic(
+        velocity_params, ρₐ, params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, logλ; kw...
+    )
+
+Mass-weighted counterpart to
+[`ice_terminal_velocity_number_weighted_from_prognostic`](@ref). Builds
+the per-cell `P3State` via the regularised
+[`state_from_prognostic`](@ref).
+"""
+@inline function ice_terminal_velocity_mass_weighted_from_prognostic(
+    velocity_params, ρₐ, params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, logλ; kw...,
+)
+    state = state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    return ice_terminal_velocity_mass_weighted(velocity_params, ρₐ, state, logλ; kw...)
 end

@@ -42,7 +42,7 @@ function p3_relations_plot()
 	function lines_and_vlines!(ax, state, color)
 		lines!(ax, D_range * mm, P3.ϕᵢ.(state, D_range); color)
 
-		(; D_th, D_gr, D_cr) = P3.get_thresholds_ρ_g(state)
+		(; D_th, D_gr, D_cr) = state
 		vlines!(ax, D_th * mm; linestyle = (:dot, :loose), color = :gray)
 		vlines!(ax, D_gr * mm; linestyle = :dash, color)
 		vlines!(ax, D_cr * mm; linestyle = :dashdot, color)
@@ -53,7 +53,7 @@ function p3_relations_plot()
 	F_rims = [0.0, 0.5, 0.8]
 	for (i, F_rim) in enumerate(F_rims)
 		color = cl[i]
-		state = P3.get_state(params; F_rim, ρ_rim = ρ_rim₀, L_ice = FT(0), N_ice = FT(0))
+		state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim₀)
 		lines_and_vlines!(ax1L, state, color)
 	end
 
@@ -62,7 +62,7 @@ function p3_relations_plot()
 	ρ_rims = [200.0, 400.0, 800.0]
 	for (i, ρ_rim) in enumerate(ρ_rims)
 		color = cl[i]
-		state = P3.get_state(params; F_rim = F_rim₀, ρ_rim, L_ice = FT(0), N_ice = FT(0))
+		state = P3.P3State(params, FT(0), FT(0), F_rim₀, ρ_rim)
 		lines_and_vlines!(ax1R, state, color)
 	end
 

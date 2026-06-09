@@ -7,7 +7,7 @@ Compute the log of the ice particle number concentration at diameter `D` given t
 """
 function logN′ice(state::P3State, logλ)
     μ = get_μ(state, logλ)
-    log_N₀ = get_logN₀(state.N_ice, μ, logλ)
+    log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
     return function logN′(D)
         logD = log(D)
         log_N₀ + μ * logD - exp(logλ + logD)
@@ -74,8 +74,11 @@ function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     FT = eltype(logλ)
     D₁ < D₂ || return log(FT(0))  # return log(0) if D₁ ≥ D₂
     z = k + μ + 1
-    (_, q_D₁) = SF.gamma_inc(z, exp(logλ) * D₁)
-    (_, q_D₂) = SF.gamma_inc(z, exp(logλ) * D₂)
+    # NOTE: We use `LogExpFunctions.xexpy(D, logλ)` to compute `λD = D * exp(logλ)`.
+    # When `logλ` is large, `exp(logλ) = Inf`, so the naive product `D * exp(logλ)`
+    # yields `0 * Inf = NaN` when `D = 0`. `xexpy` correctly returns `0` in that case.
+    (_, q_D₁) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₁, logλ))
+    (_, q_D₂) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₂, logλ))
     return -z * logλ + SF.loggamma(z) + log(q_D₁ - q_D₂) + log(FT(scale))
 end
 
@@ -138,12 +141,12 @@ Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state` and `logλ`.
 - For `n = 1`, this evaluates to the (unnormalized) mass-weighted mean particle size, see [`D_m`](@ref)
 """
 function logmass_gamma_moment(state::P3State, μ, logλ; n = 0)
-    segments = get_segments(state)
-    return LogExpFunctions.logsumexp(
-        let (D_min, D_max) = segment, (a, b) = ice_mass_coeffs(state, (D_min + D_max) / 2)
-            loggamma_inc_moment(D_min, D_max, μ, logλ, b + n, a)
-        end for segment in segments
-    )
+    bnds = segment_boundaries(state)
+    moments = UU.unrolled_map(subintervals(bnds)) do (D_lo, D_hi)
+        (a, b) = ice_mass_coeffs(state, (D_lo + D_hi) / 2)
+        loggamma_inc_moment(D_lo, D_hi, μ, logλ, b + n, a)
+    end
+    return UT.unrolled_logsumexp(moments)
 end
 
 """
@@ -222,11 +225,11 @@ where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
 - `logλ_min`: The minimum value of the search bounds [log(1/m)], default is `log(1e1)`
 - `logλ_max`: The maximum value of the search bounds [log(1/m)], default is `log(1e7)`
 """
-function get_distribution_logλ(
-    state::P3State{FT}; logλ_min = log(1e1), logλ_max = log(1e7),
-) where {FT}
-    (iszero(state.N_ice) || iszero(state.L_ice)) && return log(zero(FT))
-    target_log_LdN = log(state.L_ice) - log(state.N_ice)
+function get_distribution_logλ(state, logλ_min = 2, logλ_max = 17)
+    FT = eltype(state)
+    (; ρn_ice, ρq_ice) = state
+    (iszero(ρn_ice) || iszero(ρq_ice)) && return log(zero(ρq_ice))
+    target_log_LdN = log(ρq_ice) - log(ρn_ice)
 
     shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
 
@@ -239,10 +242,6 @@ function get_distribution_logλ(
         50,
     )
     return sol.root  # logλ
-end
-function get_distribution_logλ(params::CMP.ParametersP3, L_ice, N_ice, F_rim, ρ_rim; kwargs...)
-    state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
-    return get_distribution_logλ(state; kwargs...)
 end
 
 """
@@ -257,7 +256,7 @@ Find all solutions for `logλ` given the `state` ([`P3State`](@ref)), `L`, and `
 """
 function get_distribution_logλ_all_solutions(state::P3State)
     # Find bounds by evaluating function incrementally, then apply root finding with bounds above and below zero-point
-    target_log_LdN = log(state.L_ice) - log(state.N_ice)
+    target_log_LdN = log(state.ρq_ice) - log(state.ρn_ice)
 
     shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
 
