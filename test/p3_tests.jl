@@ -227,6 +227,38 @@ function test_shape_solver(FT)
                 end
             end
         end
+
+        @testset "Shape solver - robustness across physical inputs" begin
+            params = CMP.ParametersP3(FT)
+
+            # Regression test: this specific `(L_ice, N_ice, F_rim, ρ_rim)`
+            # triggered a NaN return under the previous `SecantMethod`-based
+            # solver because a secant step extrapolated outside the search
+            # interval into a region where `logLdivN` is not finite. The
+            # bracketing `BrentsMethod` must return a finite, positive
+            # `logλ` strictly inside the search bounds.
+            logλ = P3.get_distribution_logλ(
+                P3.P3State(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800)),
+            )
+            @test isfinite(logλ)
+            @test FT(2) < logλ < FT(17)
+
+            # Broader sweep covering typical P3 microphysics inputs.
+            # All entries must give a finite `logλ` within the search bounds.
+            for L_ice in (FT(1e-6), FT(1e-5), FT(2.366e-5), FT(1e-4), FT(1e-3))
+                for N_ice in (FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))
+                    for F_rim in (FT(0), FT(0.2), FT(0.5), FT(0.8), FT(0.95))
+                        for ρ_rim in (FT(200), FT(400), FT(600), FT(800))
+                            logλ = P3.get_distribution_logλ(
+                                P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim),
+                            )
+                            @test isfinite(logλ)
+                            @test FT(2) ≤ logλ ≤ FT(17)
+                        end
+                    end
+                end
+            end
+        end
     end
 end
 
@@ -442,10 +474,10 @@ function test_numerical_integrals(FT)
         quad = P3.ChebyshevGauss(10)
         f(x) = x^4
         # test that integration gives the correct result
-        num_int = P3.integrate(f, 0, 1; quad)
+        num_int = P3.integrate(f, 0, 1, quad)
         @test num_int ≈ 0.2 rtol = 0.1
         # test that increasing the number of points improves the accuracy
-        num_int2 = P3.integrate(f, 0, 1; quad = P3.ChebyshevGauss(100))
+        num_int2 = P3.integrate(f, 0, 1, P3.ChebyshevGauss(100))
         @test abs(num_int2 - 0.2) < abs(num_int - 0.2)
     end
 
@@ -463,7 +495,7 @@ function test_numerical_integrals(FT)
             # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
             N′ = P3.size_distribution(state, logλ)
             bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
-            N_estim_cheb = P3.integrate(N′, bnds...)
+            N_estim_cheb = P3.integrate(N′, bnds)
             @test N_ice ≈ N_estim_cheb rtol = 1e-5
 
             # Compare with quadgk
@@ -478,8 +510,8 @@ function test_numerical_integrals(FT)
             v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
             g(D) = v_term(D) * N′(D)
             gm(D) = g(D) * P3.ice_mass(state, D)
-            vel_N_estim_cheb = P3.integrate(g, bnds...; quad = P3.ChebyshevGauss(10)) / N_ice
-            vel_m_estim_cheb = P3.integrate(gm, bnds...; quad = P3.ChebyshevGauss(10)) / L_ice
+            vel_N_estim_cheb = P3.integrate(g, bnds, P3.ChebyshevGauss(10)) / N_ice
+            vel_m_estim_cheb = P3.integrate(gm, bnds, P3.ChebyshevGauss(10)) / L_ice
             @test vel_N ≈ vel_N_estim_cheb rtol = 0.005
             @test vel_m ≈ vel_m_estim_cheb rtol = 0.05
 
@@ -494,7 +526,7 @@ function test_numerical_integrals(FT)
             # Dₘ comparisons
             D_m = P3.D_m(state, logλ)
             D_m_func(D) = D * P3.ice_mass(state, D) * N′(D) / L_ice
-            D_m_estim_cheb = P3.integrate(D_m_func, bnds...; quad = P3.ChebyshevGauss(100))
+            D_m_estim_cheb = P3.integrate(D_m_func, bnds, P3.ChebyshevGauss(100))
             @test D_m ≈ D_m_estim_cheb rtol = 5e-4
 
             # Compare with quadgk
@@ -791,24 +823,65 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test ∫𝟙_wet_M_col <= ∫M_col
 
         # Smoke tests, aka: Check that rates don't change with new commits.
-        @test QCFRZ ≈ 5.896461256143756e-7
-        @test QCSHD ≈ 2.1524666896731723e-9
+        @test QCFRZ ≈ 5.89686152717295e-7
+        @test QCSHD ≈ 2.075334534409237e-9
         @test NCCOL ≈ 60226.258f0
-        @test QRFRZ ≈ 6.714895f-5
-        @test QRSHD ≈ 3.8582691347226165e-6
-        @test NRCOL ≈ 172.92946f0
-        @test ∫M_col ≈ 7.160729f-5
-        @test BCCOL ≈ 3.696840912942794e-9
-        @test BRCOL ≈ 4.2099646f-7
-        @test ∫𝟙_wet_M_col ≈ 1.58113f-5
+        @test QRFRZ ≈ 6.646808312782509e-5
+        @test QRSHD ≈ 3.656428833353944e-6
+        @test NRCOL ≈ 172.79896499770385
+        @test ∫M_col ≈ 7.071627344843075e-5
+        @test BCCOL ≈ 3.6970918665661123e-9
+        @test BRCOL ≈ 4.1672779390485956e-7
+        @test ∫𝟙_wet_M_col ≈ 1.561091379329206e-5
 
         ### Test the bulk source function
+        state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
         rates = P3.bulk_liquid_ice_collision_sources(
-            params, logλ, Lᵢ, Nᵢ, F_rim, ρ_rim,
+            state, logλ,
             psd_c, psd_r, L_c, N_c, L_r, N_r,
-            aps, tps, vel_params, ρₐ, T,
+            aps, tps, vel_params, ρₐ, T;
+            quad = P3.ChebyshevGauss(50),
         )
         @test eltype(rates) == FT  # check type stability
+    end
+end
+
+function test_p3_ice_self_collection(FT)
+    params = CMP.ParametersP3(FT)
+    vel_params = CMP.Chen2022VelType(FT)
+    aps = CMP.AirProperties(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+
+    (; T_freeze) = params
+
+    ρₐ = FT(1.2)
+    qᵢ = FT(1e-4)
+    Lᵢ = qᵢ * ρₐ
+    Nᵢ = FT(2e5) * ρₐ
+    F_rim = FT(0.8)
+    ρ_rim = FT(800)
+
+    state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+    logλ = P3.get_distribution_logλ(state)
+    T = T_freeze - FT(5)  # 5K below freezing
+
+    @testset "ice self-collection rate" begin
+        # Call the new ice self-collection parameterization
+        rates = P3.ice_self_collection(state, logλ, aps, tps, vel_params, ρₐ, T; quad = P3.ChebyshevGauss(50))
+        @test eltype(rates) == FT  # check type stability
+
+        # Self-collection should represent a positive loss rate
+        @test rates.dNdt > 0
+
+        # Test edge case with virtually zero L_ice and N_ice
+        state_zero = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)
+        logλ_zero = P3.get_distribution_logλ(state_zero)
+        rates_zero =
+            P3.ice_self_collection(state_zero, logλ_zero, aps, tps, vel_params, ρₐ, T; quad = P3.ChebyshevGauss(50))
+        @test rates_zero.dNdt == 0
+
+        # TODO: compare against an analytically derived reference
+        # For a simple size distribution and uniform velocity difference, one could compute analytical dNdt.
     end
 end
 
@@ -831,5 +904,6 @@ end
 
     # bulk liquid-ice collisions and related processes
     test_p3_bulk_liquid_ice_collisions(FT)
+    test_p3_ice_self_collection(FT)
 end
 nothing

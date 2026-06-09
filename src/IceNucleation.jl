@@ -6,6 +6,10 @@ Parameterization for heterogenous cloud ice nucleation.
 module HetIceNucleation
 
 import ..Parameters as CMP
+import CloudMicrophysics.ThermodynamicsInterface as TDI
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.DistributionTools as DT
+import CloudMicrophysics.Utilities as UT
 
 export dust_activated_number_fraction
 export MohlerDepositionRate
@@ -15,6 +19,10 @@ export P3_deposition_N_i
 export P3_het_N_i
 export INP_concentration_frequency
 export INP_concentration_mean
+export liquid_freezing_rate
+export f23_immersion_limit_rate
+export f23_deposition_rate
+export n_active
 
 """
     dust_activated_number_fraction(dust, ip, Si, T)
@@ -238,6 +246,299 @@ function INP_concentration_mean((; T_freeze)::CMP.Frostenberg2023, T)
     T_celsius = min(T - T_freeze, 0)
     return 9log(-T_celsius / 10)  # = log((-T_celsius / 10)^9)
 end
+
+"""
+    liquid_freezing_rate(parameterization, pdf, tps, q_rai, ρ, N_rai, T)
+
+Compute the rate of liquid water freezing into ice.
+
+# Arguments
+ - `parameterization`: The [`CMP.RainFreezing`](@ref) parameterization.
+ - `pdf`: The liquid water particle size distribution (PSD) PDF.
+ - `tps`: Thermodynamics parameters.
+ - `q`: Liquid water specific content [kg(water) kg⁻¹(air)].
+ - `ρ`: Air density [kg(air) m⁻³(air)].
+ - `N`: Liquid water number concentration [m⁻³(air)].
+ - `T`: Air temperature [K].
+
+# Returns
+ - A `NamedTuple` with the fields:
+    + `∂ₜn_frz`: Specific number freezing rate [kg⁻¹(air) s⁻¹].
+    + `∂ₜq_frz`: Specific mass freezing rate [kg(water) kg⁻¹(air) s⁻¹].
+"""
+function liquid_freezing_rate(parameterization::CMP.RainFreezing, pdf, tps, q, ρ, N, T)
+    FT = eltype(q)
+    T_freeze = TDI.TD.Parameters.T_freeze(tps)
+    (; ρw) = pdf  # [kg(water) m⁻³(water)]
+    n = N / ρ     # specific number concentration [kg⁻¹(air)]
+
+    # Solve for the pdf parameters
+    (; Dr_mean) = CM2.pdf_rain_parameters(pdf, q, ρ, N)
+
+    # Bigg (1953) volumetric freezing rate:
+    J_bigg = parameterization(T, T_freeze)  # [m⁻³(water) s⁻¹]
+
+    # Diameter PSD moments via exponential_Mⁿ:
+    #   M_D^k = ∫ D^k n(D) dD
+    # The freezing probability per unit time for a single drop of diameter D
+    # is J_drop(D) = J_bigg * V(D) = J_bigg * (π/6) * D³  [s⁻¹].
+
+    # Number freezing rate per kg air:  ∂n/∂t = ∫ J_drop(D) n(D) dD
+    #                                         = J_bigg * (π/6) * M_D³
+    M_D³ = DT.exponential_Mⁿ(Dr_mean, n, 3)  # [m³ · kg⁻¹(air)]
+
+    # Mass freezing rate per kg air:    ∂q/∂t = ∫ x(D) * J_drop(D) n(D) dD
+    #                                         = J_bigg * ρw * (π/6)² * M_D⁶
+    M_D⁶ = DT.exponential_Mⁿ(Dr_mean, n, 6)  # [m⁶ · kg⁻¹(air)]
+
+    V_1 = FT(π) / 6
+    ∂ₜn_frz = J_bigg * V_1 * M_D³         # [kg⁻¹(air) s⁻¹]   — specific
+    ∂ₜq_frz = J_bigg * ρw * V_1^2 * M_D⁶  # [kg(water) kg⁻¹(air) s⁻¹]  — specific
+
+    # Return the computed rate only if N and L are (essentially) non-zero, and T is colder than -4°C.
+    # Otherwise, return zero.
+    ϵₘ, ϵₙ = UT.ϵ_numerics_2M_M(FT), UT.ϵ_numerics_2M_N(FT)
+    cond = (n > ϵₙ) & (q > ϵₘ) & (T < T_freeze - 4)
+    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(n))
+    ∂ₜq_frz = ifelse(cond, ∂ₜq_frz, zero(q))
+
+    return (; ∂ₜn_frz, ∂ₜq_frz)
+end
+
+"""
+    liquid_freezing_rate(parameterization, pdf::CMP.CloudParticlePDF_SB2006, tps, q, ρ, N, T)
+
+Compute the rate of cloud-droplet immersion freezing into ice using the same
+Bigg (1953) kinetics as the rain version, but integrated over the
+generalized-gamma cloud-droplet PSD (SB2006).
+
+The cloud PSD in diameter is
+
+```
+n(D) = N₀c · D^νcD · exp(-λc · D^μcD)   ,   νcD = 3νc + 2,  μcD = 3μc.
+```
+
+Bigg's per-drop freezing probability is `J_bigg(T) · (π/6) · D³`. Integrating
+against the PSD gives closed-form number- and mass-freezing rates:
+
+```
+∂ₜn_frz = J_bigg · (π/6)   · M_D³(N₀c, λc, νcD, μcD)
+∂ₜq_frz = J_bigg · ρw · (π/6)² · M_D⁶(N₀c, λc, νcD, μcD)
+```
+
+with `M_Dᵏ` the kth diameter moment computed by
+`generalized_gamma_Mⁿ`. Volume-weighting → bigger drops freeze
+first, captured analytically; no numerical PSD integration required.
+
+# Arguments
+ - `parameterization`: The [`CMP.RainFreezing`](@ref) parameterization
+   (Bigg / Barklie-Gokhale parameters; the `Rain` in the name is historical —
+   the kinetics apply to any liquid-drop PSD).
+ - `pdf`: The [`CMP.CloudParticlePDF_SB2006`](@ref) cloud-droplet PSD.
+ - `tps`: Thermodynamics parameters.
+ - `q`: Cloud-liquid specific content [kg(water) kg⁻¹(air)].
+ - `ρ`: Air density [kg(air) m⁻³(air)].
+ - `N`: Cloud-droplet number concentration [m⁻³(air)].
+ - `T`: Air temperature [K].
+
+# Returns
+ - A `NamedTuple` with the fields:
+    + `∂ₜn_frz`: Specific number freezing rate [kg⁻¹(air) s⁻¹].
+    + `∂ₜq_frz`: Specific mass freezing rate [kg(water) kg⁻¹(air) s⁻¹].
+"""
+function liquid_freezing_rate(
+    parameterization::CMP.RainFreezing, pdf::CMP.CloudParticlePDF_SB2006,
+    tps, q, ρ, N, T,
+)
+    FT = eltype(q)
+    T_freeze = TDI.TD.Parameters.T_freeze(tps)
+    (; ρw) = pdf
+    n = N / ρ     # specific number concentration [kg⁻¹(air)]
+
+    # Solve for the diameter-space PDF parameters.
+    (; λc, νcD, μcD) = CM2.pdf_cloud_parameters(pdf, q, ρ, N)
+
+    # Bigg (1953) volumetric freezing rate per unit drop water volume.
+    J_bigg = parameterization(T, T_freeze)  # [m⁻³(water) s⁻¹]
+
+    # Diameter moments via the closed-form generalized-gamma formula.
+    # When N or L is essentially zero, `pdf_cloud_parameters` returns
+    # `λc = Inf`, which makes `B^(-k/μ) → 0`, so the moments vanish — no
+    # extra guard needed.
+    M_D³ = DT.generalized_gamma_Mⁿ(νcD, μcD, λc, n, 3)  # [m³ · kg⁻¹(air)]
+    M_D⁶ = DT.generalized_gamma_Mⁿ(νcD, μcD, λc, n, 6)  # [m⁶ · kg⁻¹(air)]
+
+    V_1 = FT(π) / 6
+    ∂ₜn_frz = J_bigg * V_1 * M_D³          # [kg⁻¹(air) s⁻¹]
+    ∂ₜq_frz = J_bigg * ρw * V_1^2 * M_D⁶   # [kg(water) kg⁻¹(air) s⁻¹]
+
+    # Same gates as the rain branch: non-trivial number/mass and T < -4 °C.
+    ϵₘ, ϵₙ = UT.ϵ_numerics_2M_M(FT), UT.ϵ_numerics_2M_N(FT)
+    cond = (n > ϵₙ) & (q > ϵₘ) & (T < T_freeze - 4)
+    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(n))
+    ∂ₜq_frz = ifelse(cond, ∂ₜq_frz, zero(q))
+
+    return (; ∂ₜn_frz, ∂ₜq_frz)
+end
+
+"""
+    f23_immersion_limit_rate(f23_params, T, ρ; τ, inpc_log_shift, n_active)
+
+Compute the **F23-INPC-imposed upper limit** on the cloud-droplet immersion
+freezing number rate.
+
+The Frostenberg 2023 climatology specifies a target INP concentration `INPC(T)`
+in air [m⁻³(air)]. Treating that target as a budget that should be activated
+on a relaxation timescale `τ`, the maximum number of crystals nucleated per
+kg of air per second is
+
+```
+∂ₜn_lim = max(0, INPC(T)/ρ - n_active) / τ.
+```
+
+`n_active` is the depletion proxy supplied by the host (see
+`AbstractINPDepletion` and [`n_active`](@ref)): with the
+`NIceProxyDepletion` model the host passes `n_ice` (or pass zero to
+recover the no-depletion form).
+
+This is the "INPC-only" leg of Pathway 2 — the cap that forces the realized
+immersion-freezing rate to fall below pure Bigg kinetics in clean-air or
+low-q_lcl regimes. Combined with [`liquid_freezing_rate`](@ref) on the cloud
+PSD, the realized Pathway-2 rate is `min(bigg, ∂ₜn_lim)`.
+
+# Arguments
+ - `f23_params`: The [`CMP.Frostenberg2023`](@ref) parameters.
+ - `T`: Air temperature [K].
+ - `ρ`: Air density [kg(air) m⁻³(air)].
+
+# Keyword arguments
+ - `τ`: Relaxation timescale [s] (default `300`).
+ - `inpc_log_shift`: Additive shift to `log(INPC)` (e.g. an OU-SIF stochastic
+   excursion). Default `0`.
+ - `n_active`: Depletion proxy [kg⁻¹(air)] (default `0`, i.e. no depletion;
+   recovers the no-memory cap).
+
+# Returns
+ - A `NamedTuple` `(; ∂ₜn_frz)` — the specific number freezing-rate cap
+   [kg⁻¹(air) s⁻¹]. Zero when `T ≥ T_freeze`.
+"""
+function f23_immersion_limit_rate(
+    f23_params::CMP.Frostenberg2023, T, ρ;
+    τ = oftype(T, 300), inpc_log_shift = zero(T),
+    n_active = zero(T),
+)
+    T ≥ f23_params.T_freeze && return (; ∂ₜn_frz = zero(T))
+    log_inpc = INP_concentration_mean(f23_params, T) + inpc_log_shift
+    INPC_per_kg = exp(log_inpc) / ρ                  # [kg⁻¹(air)]
+    ∂ₜn_frz = max(zero(T), INPC_per_kg - n_active) / τ # [kg⁻¹(air) s⁻¹]
+    return (; ∂ₜn_frz)
+end
+
+"""
+    f23_deposition_rate(f23_params, tps, T, ρ, q_vap, n_ice;
+                        τ, inpc_log_shift, T_thresh, S_i_thresh, ρ_i, D_nuc)
+
+Compute the **F23 deposition nucleation rate** (Pathway 1).
+
+The rate is the Frostenberg 2023 INP concentration (treated as a budget)
+relaxed toward depletion at `n_ice` over timescale `τ`:
+
+```
+∂ₜn_frz = max(0, INPC(T)/ρ - n_ice) / τ
+```
+
+Each newly nucleated crystal is assigned a starter mass
+
+```
+m_starter = (π/6) · ρ_i · D_nuc³
+```
+
+(default ≈ 4.8e-13 kg for a 10 μm solid-ice crystal). The mass tendency is
+the implied mass injection, capped by half the local vapor excess over
+ice saturation per relaxation window — this prevents the channel from
+sourcing more vapor than physically available when OU-SIF excursions push
+INPC above the local supply:
+
+```
+q_excess = max(0, q_vap - q_sat_ice)
+∂ₜq_frz  = min(m_starter · ∂ₜn_frz,  ½ q_excess / τ)
+```
+
+`q_sat_ice` is computed internally from `tps` via
+`TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)`.
+
+Two physical gates close both rates outside the activation window:
+
+  - `T < T_thresh` (default `T_freeze - 15 K`, i.e. -15 °C): below this
+    temperature deposition nucleation is active.
+  - `S_i ≡ q_vap/q_sat_ice - 1 > S_i_thresh` (default 5 %): ice
+    supersaturation is required for vapor to nucleate onto INPs.
+
+The `n_ice` argument is a proxy for already-activated INPs; in a Phillips-
+style framework it would be replaced by an explicit prognostic
+`N_INP_active`.
+
+# Arguments
+ - `f23_params`: The [`CMP.Frostenberg2023`](@ref) parameters.
+ - `tps`: Thermodynamics parameters (used for the ice-saturation curve).
+ - `T`: Air temperature [K].
+ - `ρ`: Air density [kg(air) m⁻³(air)].
+ - `q_vap`: Water-vapor specific content [kg(vap) kg⁻¹(air)].
+ - `n_ice`: Specific ice-crystal number concentration [kg⁻¹(air)] (proxy
+   for already-activated INPs).
+
+# Keyword arguments
+ - `τ`: Relaxation timescale [s] (default `300`).
+ - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
+ - `T_thresh`: Activation temperature threshold [K] (default
+   `f23_params.T_freeze - 15`).
+ - `S_i_thresh`: Activation ice-supersaturation threshold (default `0.05`).
+ - `ρ_i`: Solid-ice density used for the starter mass [kg/m³] (default
+   `916.7`).
+ - `D_nuc`: Nascent crystal diameter [m] (default `10e-6`, the small-D
+   tail of the P3 distribution).
+
+# Returns
+ - A `NamedTuple` `(; ∂ₜn_frz, ∂ₜq_frz)` with the specific number rate
+   [kg⁻¹(air) s⁻¹] and specific mass rate [kg(ice) kg⁻¹(air) s⁻¹]. Zero
+   outside the activation window.
+"""
+function f23_deposition_rate(
+    f23_params::CMP.Frostenberg2023, tps, T, ρ, q_tot, q_liq, q_ice, n_ice; m_nuc,
+    T_thresh = f23_params.T_freeze - 15, S_i_thresh = oftype(f23_params.T_freeze, 0.05),
+    τ_act = 300, inpc_log_shift = 0,
+)
+    q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    q_vap = TDI.q_vap(q_tot, q_liq, q_ice)
+    S_i = q_vap / q_sat_ice - 1
+    # Activation gates.
+    gated = (T < T_thresh) & (S_i > S_i_thresh)
+    # Nucleation rate, limited by ambient INP availability and relaxation time τ_act.
+    log_inpc = INP_concentration_mean(f23_params, T) + inpc_log_shift
+    INPC_per_kg = exp(log_inpc) / ρ
+    ∂ₜn_frz = max(0, INPC_per_kg - n_ice) / τ_act
+    ∂ₜn_frz = ifelse(gated, ∂ₜn_frz, zero(∂ₜn_frz))
+    # Vapor-excess cap on the implied mass injection.
+    q_excess = max(0, q_vap - q_sat_ice)
+    # Implied mass injection, capped by half the local vapor excess per relaxation window.
+    ∂ₜq_frz = min(m_nuc * ∂ₜn_frz, q_excess / (2τ_act))
+    return (; ∂ₜn_frz, ∂ₜq_frz)
+end
+
+# ---------------------------------------------------------------------------
+# F23 INP-activation memory dispatch
+# ---------------------------------------------------------------------------
+
+"""
+    n_active(model::CMP.AbstractINPDepletion, n_ice)
+
+Return the depletion proxy `n_active` to subtract from the F23 INPC
+target in [`f23_deposition_rate`](@ref) and any analogous INPC-budgeted
+rate. For `NIceProxyDepletion` (the only model currently provided) this
+is the in-cell ice number `n_ice`. (A prognostic activation-memory model
+returning a host-supplied tracer is deferred to a follow-up PR.)
+"""
+@inline n_active(::CMP.NIceProxyDepletion, n_ice) = n_ice
 
 end # end module
 

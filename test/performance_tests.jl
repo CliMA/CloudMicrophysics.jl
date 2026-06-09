@@ -179,6 +179,11 @@ function benchmark_test(FT)
         200,  # ns; loose enough for slower CI hardware (≈120 ns observed)
     )
     bench_press(FT, P3.get_distribution_logλ, (state,), 30_000)
+    # The weighted-velocity integrals build a nested terminal-velocity closure
+    # that escapes into `integrate`. With `ice_particle_terminal_velocity`
+    # returning a single (concretely-typed) closure, this path is type-stable
+    # on both 1.10 and 1.12 and allocates nothing — keep the default zero
+    # allocation/memory budget so a future closure regression is caught here.
     bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 170_000)
     bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 200_000)
     bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 7_000)
@@ -318,7 +323,7 @@ function benchmark_test(FT)
         bench_press(@NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT},
             P3.bulk_liquid_ice_collision_sources,
             (
-                params_P3, logλ, L_ice, N_ice, F_rim, ρ_rim,
+                state, logλ,
                 sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,
                 aps, tps, ch2022,
                 ρ_air, T_air,

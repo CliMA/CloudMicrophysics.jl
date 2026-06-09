@@ -287,7 +287,7 @@ function ParametersP3(toml_dict::CP.ParamDict; slope_law = :powerlaw)
     @assert slope_law in (:constant, :powerlaw)
     params = CP.get_parameter_values(toml_dict,
         (;
-            :density_ice_water => :ρ_i,
+            :density_ice_water => :ρ_i,  # TODO: Use `WaterProperties` struct for ice and liquid water density
             :density_liquid_water => :ρ_l,
             :temperature_water_freeze => :T_freeze,
             :P3_wet_growth_timescale => :τ_wet,

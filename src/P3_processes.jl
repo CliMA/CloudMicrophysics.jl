@@ -33,12 +33,13 @@ function het_ice_nucleation(
     # We could consider making it a function of the droplet size distribution
     A_aer = FT(1e-10)
 
-    dNdt = J * A_aer * N_lcl
-    dLdt = J * A_aer * q_lcl * ρₐ
+    # NaN guard: if ABIFM returns a non-finite J for a degenerate input,
+    # treat non-finite J as "no nucleation" (0 rate), consistent with
+    # the physical limit of an unresolvable state.
+    JA_aer = ifelse(isfinite(J), J * A_aer, zero(J))
 
-    # nucleation rates are always positive definite...
-    dNdt = max(0, dNdt)
-    dLdt = max(0, dLdt)
+    dNdt = max(0, JA_aer * N_lcl)
+    dLdt = max(0, JA_aer * q_lcl * ρₐ)
 
     return (; dNdt, dLdt)
 end
@@ -56,14 +57,14 @@ end
  - `logλ`: the log of the slope parameter [log(1/m)]
 
 # Keyword arguments
- - `∫kwargs...`: Additional keyword arguments passed to the quadrature rule
+ - `quad`: quadrature rule, default is `ChebyshevGauss(100)`
 
 Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
 """
 function ice_melt(
     velocity_params, aps::CMP.AirProperties, tps::TDI.PS,
     Tₐ, ρₐ, state::P3State, logλ;
-    ∫kwargs...,
+    quad = ChebyshevGauss(100),
 )
     # Note: process not dependent on `F_liq`
     # (we want ice core shape params)
@@ -81,9 +82,8 @@ function ice_melt(
     # Integrate
     fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
     bnds = integral_bounds(state, logλ; p = 1e-6)
-    dLdt = fac * integrate(bnds...; ∫kwargs...) do D
-        ∂ice_mass_∂D(state, D) * F_v(D) * N′(D) / D
-    end
+    melt_integrand = D -> ∂ice_mass_∂D(state, D) * F_v(D) * N′(D) / D
+    dLdt_unclamped = fac * integrate(melt_integrand, bnds, quad)
 
     # only consider melting (not fusion)
     dLdt = max(0, dLdt_unclamped)
@@ -171,9 +171,21 @@ function compute_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state)
         )
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
     F_v = CO.ventilation_factor(state.params.vent, aps, v_term)
+    # Musil (1970) dry-growth formula: the denominator `(L_f - cp_l·ΔT)`
+    # represents the *net* latent heat per unit mass available to freeze a
+    # colliding droplet. At Tₐ ≲ 220 K (ΔT ≳ L_f/cp_l ≈ 53 K with
+    # T-dependent L_f, see Eq. A7 in Musil 1970), the denominator flips
+    # sign, making `max_freeze_rate < 0` — which is unphysical. Cold air
+    # is *further from* the dry/wet-growth transition, not closer to it:
+    # the physical answer is `f_frz → 1` (every colliding droplet
+    # freezes). We enforce that by returning `floatmax(FT)` when the
+    # denominator is non-positive, so `min(∂ₜM_col, ∂ₜM_max) = ∂ₜM_col` and
+    # `f_frz = 1`.
+    denom = L_f - cp_l * ΔT
     function max_freeze_rate(Dᵢ)
         Tₐ ≥ T_frz && return zero(Dᵢ)  # No collisional freezing above the freezing temperature
-        return 2 * (π * Dᵢ) * F_v(Dᵢ) * (K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat) / (L_f - cp_l * ΔT)
+        denom > 0 || return floatmax(typeof(Dᵢ))
+        return 2 * (π * Dᵢ) * F_v(Dᵢ) * (K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat) / denom
     end
     return max_freeze_rate
 end
@@ -239,7 +251,7 @@ function compute_local_rime_density(velocity_params, ρₐ, T, state)
 end
 
 """
-    get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwargs...)
+    get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; [quad])
 
 Returns a function `liquid_integrals(Dᵢ)` that computes the liquid particle integrals
     for a given ice particle diameter `Dᵢ`.
@@ -252,7 +264,7 @@ Returns a function `liquid_integrals(Dᵢ)` that computes the liquid particle in
 - `liq_bounds`: integration bounds for liquid particles
 
 # Keyword arguments
-- `∫kwargs...`: Additional keyword arguments passed to the quadrature rule
+- `quad`: quadrature rule, default is `ChebyshevGauss(100)`
 
 # Notes
 The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col, ∂ₜB_col)`
@@ -261,10 +273,10 @@ The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col
 - `∂ₜM_col`: mass collision rate [kg/s]
 - `∂ₜB_col`: rime volume collision rate [m³/s]
 """
-function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwargs...)
+function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; quad = ChebyshevGauss(100))
     function liquid_integrals(Dᵢ)
-        (∂ₜN_col, ∂ₜM_col, ∂ₜB_col) = integrate(liq_bounds...; ∫kwargs...) do D
-            return SA.SVector(
+        integrand =
+            D -> SA.SVector(
                 # ∂ₜN_col = ∫ ∂ₜV ⋅ n ⋅ dD
                 ∂ₜV(Dᵢ, D) * n(D),
                 # ∂ₜM_col = ∫ ∂ₜV ⋅ n ⋅ m_liq ⋅ dD
@@ -272,7 +284,7 @@ function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; ∫kwarg
                 # ∂ₜB_col = ∫ ∂ₜV ⋅ n ⋅ m_liq / ρ′_rim ⋅ dD
                 ∂ₜV(Dᵢ, D) * n(D) * m_liq(D) / ρ′_rim(Dᵢ, D),
             )
-        end
+        (∂ₜN_col, ∂ₜM_col, ∂ₜB_col) = integrate(integrand, liq_bounds, quad)
         return ∂ₜN_col, ∂ₜM_col, ∂ₜB_col
     end
     return liquid_integrals
@@ -280,7 +292,7 @@ end
 
 """
     ∫liquid_ice_collisions(
-        n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; ∫kwargs...
+        n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; [quad]
     )
 
 Computes the bulk collision rate integrands between ice and liquid particles.
@@ -293,12 +305,12 @@ Computes the bulk collision rate integrands between ice and liquid particles.
 - `ice_bounds`: integration bounds for ice particles, from [`integral_bounds`](@ref)
 
 # Keyword arguments
-- `∫kwargs...`: Additional keyword arguments passed to the quadrature rule
+- `quad`: quadrature rule, default is `ChebyshevGauss(100)`
 
 # Returns
 A tuple of 8 integrands, see [`∫liquid_ice_collisions`](@ref) for details.
 """
-function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; ∫kwargs...)
+function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = ChebyshevGauss(100))
     function liquid_ice_collisions_integrands(Dᵢ)
         # Inner integrals over liquid particle diameters
         ∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col = cloud_integrals(Dᵢ)
@@ -327,13 +339,13 @@ function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integr
             n * 𝟙_wet * ∂ₜM_col,          # ∫𝟙_wet_M_col, wet growth indicator
         )
     end
-    return integrate(liquid_ice_collisions_integrands, ice_bounds...; ∫kwargs...)
+    return integrate(liquid_ice_collisions_integrands, ice_bounds, quad)
 end
 
 """
     ∫liquid_ice_collisions(
         state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
-        aps, tps, vel, ρₐ, T, m_liq
+        aps, tps, vel, ρₐ, T, m_liq; [quad]
     )
 
 Compute key liquid-ice collision rates and quantities. Used by [`bulk_liquid_ice_collision_sources`](@ref).
@@ -354,6 +366,9 @@ Compute key liquid-ice collision rates and quantities. Used by [`bulk_liquid_ice
 - `T`: temperature [K]
 - `m_liq`: liquid particle mass function `m_liq(D)`
 
+# Keyword arguments
+- `quad`: A `QuadratureRule` instance
+
 # Returns
 A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col)`, where:
 1. `QCFRZ` - Cloud mass collision rate due to freezing [kg/s]
@@ -370,7 +385,7 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫�
 function ∫liquid_ice_collisions(
     state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
-    aps, tps, vel, ρₐ, T, m_liq; ∫kwargs...,
+    aps, tps, vel, ρₐ, T, m_liq; quad,
 )
     FT = eltype(state)
 
@@ -382,8 +397,8 @@ function ∫liquid_ice_collisions(
     # Initialize integration buffers by evaluating a representative integral
     p = FT(0.00001)
     ice_bounds = integral_bounds(state, logλ; p)
-    bounds_c = CM2.get_size_distribution_bounds(psd_c, L_c, ρₐ, N_c, p)
-    bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r, ρₐ, N_r, p)
+    bounds_c = CM2.get_size_distribution_bounds(psd_c, L_c / ρₐ, ρₐ, N_c, p)
+    bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r / ρₐ, ρₐ, N_r, p)
 
     # Integrand components
     # NOTE: We assume collision efficiency, shape (spherical), and terminal velocity is the
@@ -392,10 +407,10 @@ function ∫liquid_ice_collisions(
     ρ′_rim = compute_local_rime_density(vel, ρₐ, T, state)  # ρ′_rim(Dᵢ, Dₗ)
     ∂ₜM_max = compute_max_freeze_rate(aps, tps, vel, ρₐ, T, state)  # ∂ₜM_max(Dᵢ)
 
-    cloud_integrals = get_liquid_integrals(n_c, ∂ₜV, m_liq, ρ′_rim, bounds_c; ∫kwargs...)  # (∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col)
-    rain_integrals = get_liquid_integrals(n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r; ∫kwargs...)  # (∂ₜN_r_col, ∂ₜM_r_col, ∂ₜB_r_col)
+    cloud_integrals = get_liquid_integrals(n_c, ∂ₜV, m_liq, ρ′_rim, bounds_c; quad)  # (∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col)
+    rain_integrals = get_liquid_integrals(n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r; quad)  # (∂ₜN_r_col, ∂ₜM_r_col, ∂ₜB_r_col)
 
-    return ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; ∫kwargs...)
+    return ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad)
 end
 
 """
@@ -436,25 +451,22 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
 7. `∂ₜB_rim`: rime volume tendency [m³/m³/s]
 """
 function bulk_liquid_ice_collision_sources(
-    params, logλ, L_ice, N_ice, F_rim, ρ_rim,
+    state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
-    aps, tps, vel, ρₐ, T; ∫kwargs...,
+    aps, tps, vel, ρₐ, T; quad = ChebyshevGauss(100),
 )
-    FT = eltype(params)
-    (; τ_wet, ρ_i) = params
+    FT = eltype(state)
+    (; τ_wet, ρ_i) = state.params
     D_shd = FT(1e-3) # 1mm  # TODO: Externalize this parameter
 
     ρw = psd_c.ρw
     @assert ρw == psd_r.ρw "Cloud and rain should have the same liquid water density"
     m_liq(Dₗ) = ρw * CO.volume_sphere_D(Dₗ)
 
-    # state = get_state(params; L_ice, N_ice, F_rim, ρ_rim)
-    state = P3State(params, L_ice, N_ice, F_rim, ρ_rim)
-
     rates = ∫liquid_ice_collisions(
         state, logλ,
         psd_c, psd_r, L_c, N_c, L_r, N_r,
-        aps, tps, vel, ρₐ, T, m_liq; ∫kwargs...,
+        aps, tps, vel, ρₐ, T, m_liq; quad,
     )
     (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫∂ₜM_col, BCCOL, BRCOL, ∫𝟙_wet_M_col) = rates
 
@@ -487,4 +499,76 @@ function bulk_liquid_ice_collision_sources(
     return @NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT}(
         (∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, ∂ₜL_ice, ∂ₜB_rim)
     )
+end
+
+
+function collision_cross_section_ice_ice(state, D_1, D_2)
+    r_eff(D) = √(ice_area(state, D) / π)
+    return π * (r_eff(D_1) + r_eff(D_2))^2  # collision cross section
+end
+
+"""
+    volumetric_ice_ice_collision_rate_integrand(state, velocity_params, ρₐ)
+
+Returns a function that computes the volumetric collision rate integrand for ice-ice collisions [m³/s].
+
+# Arguments
+- `state`: [`P3State`](@ref)
+- `velocity_params`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density
+
+# Returns
+A function `(D_1, D_2) -> E * K * |vᵢ(D_1) - vᵢ(D_2)|` where:
+- `D_1` and `D_2` are the (maximum) diameters of the ice particles
+- `E` is the collision efficiency
+- `K` is the collision cross section
+- `vᵢ` is the terminal velocity of ice particles
+"""
+function volumetric_ice_ice_collision_rate_integrand(velocity_params, ρₐ, state)
+    v_ice = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
+    function integrand(D_1::FT, D_2::FT) where {FT}
+        E = FT(1)  # Collision efficiency
+        K = collision_cross_section_ice_ice(state, D_1, D_2)
+        return E * K * abs(v_ice(D_1) - v_ice(D_2))
+    end
+    return integrand
+end
+
+"""
+    ice_self_collection(state, logλ, vel, ρₐ; [quad])
+
+Computes the ice self-collection (aggregation) rate, which decreases the ice number concentration
+while leaving mass, rime mass, and rime volume unchanged.
+
+# Arguments
+- `state`: [`P3State`](@ref)
+- `logλ`: the log of the slope parameter [log(1/m)]
+- `vel`: the velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
+- `ρₐ`: air density [kg/m³]
+
+# Keyword arguments
+- `quad`: quadrature rule, default is `ChebyshevGauss(100)`
+
+# Returns
+A `NamedTuple` of `(; dNdt)`, where:
+1. `dNdt`: ice number concentration tendency due to self-collection [1/m³/s] (always positive or zero, represents a loss rate)
+"""
+function ice_self_collection(state, logλ, vel, ρₐ; quad = ChebyshevGauss(100))
+    n_i = DT.size_distribution(state, logλ)
+    ∂ₜV = volumetric_ice_ice_collision_rate_integrand(vel, ρₐ, state)
+
+    p = eps(one(ρₐ))
+    ice_bounds = integral_bounds(state, logλ; p)
+
+    function inner_integral(D_1)
+        integrand = D_2 -> ∂ₜV(D_1, D_2) * n_i(D_2)
+        rate_at_D1 = integrate(integrand, ice_bounds, quad)
+        return rate_at_D1 * n_i(D_1)
+    end
+
+    total_rate = integrate(inner_integral, ice_bounds, quad)
+
+    # The 0.5 factor accounts for double-counting in self-collection
+    dNdt = (1 // 2) * total_rate
+    return (; dNdt)
 end

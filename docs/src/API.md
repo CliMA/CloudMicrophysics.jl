@@ -330,6 +330,10 @@ HetIceNucleation.P3_deposition_N_i
 HetIceNucleation.P3_het_N_i
 HetIceNucleation.INP_concentration_frequency
 HetIceNucleation.INP_concentration_mean
+HetIceNucleation.f23_deposition_rate
+HetIceNucleation.f23_immersion_limit_rate
+HetIceNucleation.liquid_freezing_rate
+HetIceNucleation.n_active
 ```
 
 ## Parameters

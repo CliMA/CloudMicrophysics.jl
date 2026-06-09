@@ -413,9 +413,17 @@ end
 )
     i = @index(Global, Linear)
     CM2M = BMT.Microphysics2Moment()
+    # The 2M+P3 entry point takes `logλ` explicitly; compute it from the P3
+    # prognostic state (matches host-side usage, see bulk_tendencies_tests.jl).
+    L_ice = q_ice[i] * ρ[i]
+    N_ice = n_ice[i] * ρ[i]
+    F_rim = q_rim[i] / q_ice[i]
+    ρ_rim = q_rim[i] * ρ[i] / (b_rim[i] * ρ[i])
+    state = P3.P3State(mp.ice.scheme, L_ice, N_ice, F_rim, ρ_rim)
+    logλ = P3.get_distribution_logλ(state)
     output[i] = BMT.bulk_microphysics_tendencies(
         CM2M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
-        q_ice[i], n_ice[i], q_rim[i], b_rim[i],
+        q_ice[i], n_ice[i], q_rim[i], b_rim[i], logλ,
     )
 end
 
@@ -428,12 +436,12 @@ end
 end
 
 @kernel inbounds = true function test_P3_ice_self_collection_kernel!(
-    p3_params, vel_params, aps, tps, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ, T,
+    p3_params, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ,
 )
     i = @index(Global, Linear)
     state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
     logλ = P3.get_distribution_logλ(state)
-    output[i] = P3.ice_self_collection(state, logλ, aps, tps, vel_params, ρₐ[i], T[i])
+    output[i] = P3.ice_self_collection(state, logλ, vel_params, ρₐ[i])
 end
 
 """
@@ -499,6 +507,9 @@ function test_gpu(FT)
     TC1980 = CMP.TC1980(FT)
     LD2004 = CMP.LD2004(FT)
     VarTSc = CMP.VarTimescaleAcnv(FT)
+
+    # P3 microphysics
+    p3_params = CMP.ParametersP3(FT)
 
     # Bulk microphysics parameters
     mp_0m = CMP.Microphysics0MParams(FT)
@@ -1156,11 +1167,11 @@ function test_gpu(FT)
         end
 
         # 2M warm rain tests
-        DT = @NamedTuple{
+        DT_warm = @NamedTuple{
             dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
-            dq_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
+            dq_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT, dn_lcl_activation_dt::FT,
         }
-        (; output) = setup_output(ndrange, DT)
+        (; output) = setup_output(ndrange, DT_warm)
         n_lcl = constant_data(FT(1e8); ndrange)
         n_rai = constant_data(FT(1e6); ndrange)
 
@@ -1173,7 +1184,12 @@ function test_gpu(FT)
             TT.@test iszero(tendencies.dq_ice_dt)  # Ice tendency is zero for warm-only
         end
 
-        # 2M+P3 tests
+        # 2M+P3 tests (the P3 path additionally returns `dn_ice_dt`)
+        DT_p3 = @NamedTuple{
+            dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
+            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT, dn_lcl_activation_dt::FT,
+        }
+        (; output) = setup_output(ndrange, DT_p3)
         q_ice = constant_data(FT(0.3e-3); ndrange)
         n_ice = constant_data(FT(1e5); ndrange)
         q_rim = constant_data(FT(0.1e-3); ndrange)
@@ -1188,6 +1204,46 @@ function test_gpu(FT)
             TT.@test !iszero(tendencies.dq_ice_dt)
         end
     end  # TT.@testset "Bulk microphysics tendencies kernels"
+
+    TT.@testset "P3 get_distribution_logλ" begin
+        p3_params = CMP.ParametersP3(FT)
+
+        (; output, ndrange) = setup_output(10, FT)
+
+        L_ice = constant_data(FT(1e-4); ndrange)
+        N_ice = constant_data(FT(1e4); ndrange)
+        F_rim = constant_data(FT(0.5); ndrange)
+        ρ_rim = constant_data(FT(400); ndrange)
+
+        kernel! = test_P3_get_distribution_logλ_kernel!(backend, work_groups)
+        kernel!(p3_params, output, L_ice, N_ice, F_rim, ρ_rim; ndrange)
+        out = Array(output)
+
+        TT.@test allequal(out)
+        logλ = out[1]
+        TT.@test isfinite(logλ)
+        TT.@test logλ > 0  # λ > 1 for physical ice distributions
+    end
+
+    TT.@testset "P3 ice_self_collection" begin
+        DT = @NamedTuple{dNdt::FT}
+        (; output, ndrange) = setup_output(10, DT)
+
+        L_ice = constant_data(FT(1e-4); ndrange)
+        N_ice = constant_data(FT(1e4); ndrange)
+        F_rim = constant_data(FT(0.5); ndrange)
+        ρ_rim = constant_data(FT(400); ndrange)
+        ρₐ = constant_data(FT(1.2); ndrange)
+
+        kernel! = test_P3_ice_self_collection_kernel!(backend, work_groups)
+        kernel!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ; ndrange)
+        out = Array(output)
+
+        TT.@test allequal(out)
+        res = out[1]
+        TT.@test isfinite(res.dNdt)
+        TT.@test res.dNdt > 0
+    end
 end  # function test_gpu(FT)
 
 TT.@testset "GPU tests ($FT)" for FT in (Float64, Float32)

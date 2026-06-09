@@ -1,4 +1,6 @@
 
+abstract type QuadratureRule end
+
 """
     integrate(f, a, b, quad = ChebyshevGauss(100))
 
@@ -48,7 +50,7 @@
  functions with mild singularities at the interval endpoints.
  Ref: https://en.wikipedia.org/wiki/Chebyshev–Gauss_quadrature
 """
-function integrate(f, a, b; quad = ChebyshevGauss(100))
+@inline function integrate(f::F, a::T, b::T, quad::QuadratureRule = ChebyshevGauss(100)) where {F, T}
     FT = eltype(float(a))
     # Pre-compute transformation parameters
     scale_factor = (b - a) / 2
@@ -149,7 +151,7 @@ If we are interested in only the integral of `f(x)`, we can instead integrate `g
 - https://en.wikipedia.org/wiki/Chebyshev–Gauss_quadrature
 - https://en.wikipedia.org/wiki/Gaussian_quadrature
 """
-struct ChebyshevGauss
+struct ChebyshevGauss <: QuadratureRule
     n::Int
 end
 Base.broadcastable(quad::ChebyshevGauss) = (quad,)
