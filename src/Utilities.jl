@@ -164,6 +164,10 @@ Mirrors the `sgs_weight_function` in `ClimaAtmos.jl/src/utils/variable_manipulat
         zero(a)
     elseif a > min(1, 42 * a_half)   # autodiff generates NaNs when a is large
         one(a)
+    elseif 4 * a < eps(typeof(a))
+        # 1 - a rounds to 1, making atanh(-1) = -Inf: the value is 0 either
+        # way, but autodiff generates NaNs (mirrors the upper guard)
+        zero(a)
     else
         (1 + tanh(2 * atanh(1 - 2 * (1 - a)^(-1 / log2(1 - a_half))))) / 2
     end

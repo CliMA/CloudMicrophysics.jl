@@ -11,8 +11,11 @@ This struct bundles the P3 parameterizations `params`, the provided rime state
 # Construction
 
 Two positional, broadcast-friendly, GPU-clean entry points; both wrap the
-6-field inner constructor and auto-compute `thresholds` so the cached
-derivatives stay consistent with the rime state.
+default inner constructor and auto-compute `thresholds` so the cached
+derivatives stay consistent with the rime state. The field type `FT` is the
+promotion of the four state inputs' types — so e.g. `ForwardDiff.Dual`
+prognostics yield a Dual-valued state over plain-float `params` — while
+mixed-type direct construction of the full field set errors.
 
   - `P3State(params, L_ice, N_ice, F_rim, ρ_rim)` — direct construction
     from explicit `(F_rim, ρ_rim)`. Used by tests, audit prototypes, and
@@ -60,14 +63,19 @@ end
 # (the "no graupel regime" sentinel). Downstream code is expected to
 # gate on the unrimed branch before reading those fields.
 function P3State(params::CMP.ParametersP3, ρq_ice, ρn_ice, F_rim, ρ_rim)
-    FT = eltype(ρq_ice)
+    # The state's FT is the promotion of the four inputs' types; all fields
+    # are pinned to it (params-derived values like `D_th` are plain floats,
+    # and partial AD seeding can leave the inputs themselves mixed). This is
+    # what keeps the constructor differentiable — Dual prognostics over
+    # plain-float params — without promotion machinery in the struct itself.
+    FT = promote_type(typeof(ρq_ice), typeof(ρn_ice), typeof(F_rim), typeof(ρ_rim))
     (; mass, ρ_i) = params
     ρ_d = get_ρ_d(mass, F_rim, ρ_rim)
     ρ_g = get_ρ_g(F_rim, ρ_rim, ρ_d)
     D_th = get_D_th(mass, ρ_i)
     D_gr = ifelse(iszero(F_rim), FT(Inf), get_D_gr(mass, ρ_g))
     D_cr = ifelse(iszero(F_rim), FT(Inf), get_D_cr(mass, F_rim, ρ_g))
-    return P3State(params, ρq_ice, ρn_ice, F_rim, ρ_rim, ρ_g, D_th, D_gr, D_cr)
+    return P3State(params, FT.((ρq_ice, ρn_ice, F_rim, ρ_rim, ρ_g, D_th, D_gr, D_cr))...)
 end
 
 Base.show(io::IO, mime::MIME"text/plain", x::P3State) =
@@ -292,20 +300,23 @@ Return the coefficients for the ice mass power law at diameter `D`.
 """
 function ice_mass_coeffs(state::P3State, D)
     (; params, F_rim, ρ_g, D_th, D_gr, D_cr) = state
-    FT = eltype(D)
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
+    # Pin every branch to one tuple type: under AD the state is Dual-valued
+    # while α_va/β_va stay plain floats, and mixed branch returns would box
+    # per quadrature node.
+    FT = promote_type(eltype(state), eltype(D))
 
     return if D < D_th       # small spherical ice
-        (ρ_i * π / 6, FT(3))
+        (FT(ρ_i * π / 6), FT(3))
     elseif iszero(F_rim)     # large nonspherical unrimed ice
-        (α_va, β_va)
+        (FT(α_va), FT(β_va))
     elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
-        (α_va, β_va)
+        (FT(α_va), FT(β_va))
     elseif D_gr ≤ D < D_cr   # graupel (rimed)
-        (ρ_g * π / 6, FT(3))
+        (FT(ρ_g * π / 6), FT(3))
     else # D_cr ≤ D          # partially rimed ice
-        (α_va / (1 - F_rim), β_va)
+        (FT(α_va / (1 - F_rim)), FT(β_va))
     end
 end
 

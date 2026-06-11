@@ -116,6 +116,7 @@ Microphysics2M.number_decrease_for_mass_limit
 DistributionTools
 DistributionTools.generalized_gamma_quantile
 DistributionTools.generalized_gamma_cdf
+DistributionTools.gamma_inc_inv
 DistributionTools.exponential_cdf
 DistributionTools.exponential_quantile
 ```

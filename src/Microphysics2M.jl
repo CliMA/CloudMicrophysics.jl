@@ -746,7 +746,8 @@ end
 
 Returns the approximation of an incomplete gamma function for a ∈ {-1.0, -0.101}, and x in [0.067 1.82]
 """
-function Γ_incl(a::FT, x::FT) where {FT}
+function Γ_incl(a, x)
+    FT = promote_type(typeof(a), typeof(x))
     #return exp(-x) / ((FT(1.5) - FT(0.54) * a) * x^(FT(0.46) - FT(0.75) * a))
     return exp(-x) / (
         (FT(0.33) - FT(0.7) * a) * x^(FT(0.08) - FT(0.93) * a) +
