@@ -10,7 +10,7 @@ Random.seed!(42)
 @testset "logsumexp NTuple{4}" begin
 
     @testset "random Float64 values" begin
-        for _ = 1:100
+        for _ in 1:100
             for N in 4:16:84
                 t = Tuple(randn(N))
                 @test @inferred(unrolled_logsumexp(t)) ≈ logsumexp(t)
@@ -19,7 +19,7 @@ Random.seed!(42)
     end
 
     @testset "random Float32 values" begin
-        for _ = 1:100
+        for _ in 1:100
             for N in 4:16:84
                 t = Tuple(randn(Float32, N))
                 @test @inferred(unrolled_logsumexp(t)) ≈ logsumexp(t)

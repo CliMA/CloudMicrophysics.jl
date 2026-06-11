@@ -325,7 +325,7 @@ function test_heterogeneous_ice_nucleation(FT)
         TT.@test r_active.∂ₜq_frz > FT(0)
         # When the starter-mass term is the binding constraint (large
         # q_excess), ∂ₜq_frz = m_nuc · ∂ₜn_frz exactly:
-        TT.@test r_active.∂ₜq_frz ≈ m_nuc * r_active.∂ₜn_frz   rtol = sqrt(eps(FT))
+        TT.@test r_active.∂ₜq_frz ≈ m_nuc * r_active.∂ₜn_frz rtol = sqrt(eps(FT))
 
         # n_ice = INPC ⇒ depleted to zero ⇒ both n and q rates vanish
         INPC_at_T = exp(CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)) / ρ
@@ -390,7 +390,7 @@ function test_heterogeneous_ice_nucleation(FT)
             m_nuc = FT(1e3),  # absurd m_nuc forces vapor cap to bind
             T_thresh = FT(2000), S_i_thresh = FT(-2), τ_act,
         )
-        TT.@test r_capped.∂ₜq_frz ≈ q_excess_tiny / (2τ_act)   rtol = sqrt(eps(FT))
+        TT.@test r_capped.∂ₜq_frz ≈ q_excess_tiny / (2τ_act) rtol = sqrt(eps(FT))
 
         # Type stability
         TT.@test eltype(r_active.∂ₜn_frz) == FT

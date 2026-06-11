@@ -101,7 +101,7 @@ function get_rcemipii_grid(::Type{FT}) where {FT}
     z_mesh = rcemipii_z_mesh(FT)
     x_max = y_max = 96_000
     grid = CC.CommonGrids.Box3DGrid(FT;
-        z_elem = z_elem = length(z_mesh.faces) - 1, z_mesh,
+        z_elem =  z_elem = length(z_mesh.faces) - 1 , z_mesh,
         x_min = 0, x_max, y_min = 0, y_max, z_min = 0, z_max = 33_000,
         periodic_x = true, periodic_y = true,
         n_quad_points = 3 + 1, x_elem = 4, y_elem = 4,
@@ -134,7 +134,7 @@ p3_logλ_3d(::Type{FT}) where {FT} = p3_logλ(FT, get_rcemipii_center_space(FT))
 function p3_logλ(::Type{FT}, space) where {FT}
     (; params, L_ice, N_ice, F_rim, ρ_rim, logλ) = get_p3_fields(FT, space)
     @. logλ = P3.get_distribution_logλ(
-        P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
+        P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim),
     )
     return logλ
 end
