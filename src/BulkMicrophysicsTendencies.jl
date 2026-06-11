@@ -34,6 +34,8 @@ import ..P3Scheme as CMP3
 import ..HetIceNucleation as CM_HetIce
 import ...ThermodynamicsInterface as TDI
 import ..Common as CO
+import ForwardDiff as FD
+import StaticArrays as SA
 
 export MicrophysicsScheme,
     Microphysics0Moment,
@@ -43,6 +45,7 @@ export MicrophysicsScheme,
     Instantaneous,
     InstantaneousVerbose,
     LinearizedAverage,
+    RosenbrockAverage,
     bulk_microphysics_tendencies
 
 #####
@@ -113,6 +116,16 @@ Return time-averaged tendencies computed via repeated linearized implicit subste
 This is the mode used operationally by ClimaAtmos.
 """
 struct LinearizedAverage <: TendencyMode end
+
+"""
+    RosenbrockAverage <: TendencyMode
+
+Return time-averaged tendencies computed via repeated linearized-implicit
+(Rosenbrock-Euler) substeps, linearizing with the exact `ForwardDiff` Jacobian
+of the limited pointwise tendency at each substep. Implemented for the
+2-moment + P3 configuration.
+"""
+struct RosenbrockAverage <: TendencyMode end
 
 # --- 1-Moment Microphysics ---
 
@@ -1155,5 +1168,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
         dn_lcl_activation_dt)
 end
+
+include("BMT_rosenbrock.jl")
 
 end # module BulkMicrophysicsTendencies

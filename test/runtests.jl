@@ -27,6 +27,7 @@ TT.@testset "All tests" begin
     include("ventilation_tests.jl")
     include("ad_compat_tests.jl")
     include("return_type_tests.jl")
+    include("rosenbrock_mode_tests.jl")
     include("DistributionTools_tests.jl")
     include("unrolled_logsumexp.jl")
 end
