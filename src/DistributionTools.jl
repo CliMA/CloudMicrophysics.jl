@@ -10,6 +10,7 @@ Mostly used for the 2-moment microphysics.
 """
 module DistributionTools
 
+import ForwardDiff as FD
 import SpecialFunctions as SF
 import LogExpFunctions as LEF
 import CloudMicrophysics.Utilities as UT

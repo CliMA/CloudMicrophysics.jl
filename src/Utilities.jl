@@ -11,6 +11,20 @@ import SpecialFunctions as SF
 import ForwardDiff as FD
 
 export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
+export promote_typeof
+
+"""
+    promote_typeof(args...)
+
+The common promoted type of the arguments' types.
+
+Use it to type early returns and fallback values from all the arguments the
+main-path result derives from. Typing them from a single argument
+(`FT = eltype(q_tot)`-style) makes the function's return a union when a
+caller mixes plain floats with `ForwardDiff.Dual`s (or float widths) across
+arguments — non-concrete, heap-boxed, and silent.
+"""
+@inline promote_typeof(args...) = Base.promote_typeof(args...)
 export unrolled_logsumexp
 export sgs_weight_function, rime_mass_fraction, rime_density
 export gamma_inc, gamma_inc_inv
@@ -381,6 +395,10 @@ Mirrors the `sgs_weight_function` in `ClimaAtmos.jl/src/utils/variable_manipulat
         zero(a)
     elseif a > min(1, 42 * a_half)   # autodiff generates NaNs when a is large
         one(a)
+    elseif 4 * a < eps(typeof(a))
+        # 1 - a rounds to 1, making atanh(-1) = -Inf: the value is 0 either
+        # way, but autodiff generates NaNs (mirrors the upper guard)
+        zero(a)
     else
         (1 + tanh(2 * atanh(1 - 2 * (1 - a)^(-1 / log2(1 - a_half))))) / 2
     end
@@ -402,10 +420,10 @@ zero when `denominator` is below machine precision.
     ϵ = eps(typeof(denominator))^2,
 )
     weight = sgs_weight_function(denominator, half)
-    return ifelse(
-        denominator < ϵ, zero(numerator),
-        weight * numerator / denominator,
-    )
+    # zero of the promoted type: a single-argument zero makes the return a
+    # union when numerator and denominator mix plain floats with Duals
+    z = zero(promote_typeof(numerator, denominator))
+    return ifelse(denominator < ϵ, z, weight * numerator / denominator)
 end
 
 """

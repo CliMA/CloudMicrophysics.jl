@@ -24,6 +24,8 @@ TT.@testset "All tests" begin
     include("aerosol_activation_calibration.jl")
     include("ice_nucleation_calibration.jl")
     include("ventilation_tests.jl")
+    include("ad_compat_tests.jl")
+    include("return_type_tests.jl")
     include("DistributionTools_tests.jl")
     include("gamma_inc_tests.jl")
     include("unrolled_logsumexp.jl")
