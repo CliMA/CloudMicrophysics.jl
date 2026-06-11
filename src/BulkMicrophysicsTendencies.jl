@@ -150,7 +150,7 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     q_rai = UT.clamp_to_nonneg(q_rai)
     q_sno = UT.clamp_to_nonneg(q_sno)
 
-    FT = typeof(q_tot)
+    FT = UT.promote_typeof(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
     opts = mp.options
 
     # Construct state tuples (reused across all process calls)

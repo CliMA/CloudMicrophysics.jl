@@ -85,7 +85,7 @@ Compute `log(Iᵏ)` where `Iᵏ` is the following integral:
 
 """
 function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
-    FT = eltype(logλ)
+    FT = float(UT.promote_typeof(D₁, D₂, μ, logλ))
     D₁ < D₂ || return log(FT(0))  # return log(0) if D₁ ≥ D₂
     z = k + μ + 1
     # NOTE: We use `LogExpFunctions.xexpy(D, logλ)` to compute `λD = D * exp(logλ)`.

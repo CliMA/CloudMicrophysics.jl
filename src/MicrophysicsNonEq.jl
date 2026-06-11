@@ -33,7 +33,7 @@ See DOI: 10.5194/acp-23-10883-2023
     (; ρᵢ)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties,
     ip::CMP.Frostenberg2023, q_icl, T,
 )
-    FT = eltype(ρᵢ)
+    FT = UT.promote_typeof(q_icl, T, ρᵢ)
     # Get the estimated number of INPs
     N_icl = exp(IN.INP_concentration_mean(ip, T))
 
