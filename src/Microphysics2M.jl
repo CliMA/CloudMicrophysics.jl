@@ -398,7 +398,10 @@ function autoconversion(
     x_lcl = min(x_star, L_lcl / N_lcl)
     q_rai = max(0, q_rai)
     τ = 1 - q_lcl / (q_lcl + q_rai)  # Eq. (5) from SB2006
-    ϕ_au = A * τ^a * (1 - τ^a)^b
+    # τ^a has a vertical tangent at τ = 0; the ifelse keeps the ForwardDiff
+    # derivative w.r.t. q_rai finite at q_rai = 0 (and the code branch-free)
+    ϵM = UT.ϵ_numerics_2M_M(FT)
+    ϕ_au = ifelse(q_rai < ϵM, zero(τ), A * τ^a * (1 - τ^a)^b)
 
     dL_rai_dt =
         kcc / 20 / x_star * (νc + 2) * (νc + 4) / (νc + 1)^2 *
