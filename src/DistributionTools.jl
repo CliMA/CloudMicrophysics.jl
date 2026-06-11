@@ -10,6 +10,7 @@ Mostly used for the 2-moment microphysics.
 """
 module DistributionTools
 
+import ForwardDiff as FD
 import SpecialFunctions as SF
 import LogExpFunctions as LEF
 
@@ -42,8 +43,53 @@ Calculate the quantile (inverse cumulative distribution function) for a
 """
 function generalized_gamma_quantile(ν, μ, B, Y)
     # Compute the inverse of the regularized incomplete gamma function
-    z = SF.gamma_inc_inv((ν + 1) / μ, Y, 1 - Y)
+    z = gamma_inc_inv((ν + 1) / μ, Y, 1 - Y)
     return (z / B)^(1 / μ)
+end
+
+"""
+    gamma_inc_inv(a, p, q)
+
+Inverse of the regularized lower incomplete gamma function: the `x` such that
+`P(a, x) = p` (with `q = 1 - p`). Forwards to `SF.gamma_inc_inv`, and adds a
+`ForwardDiff.Dual` method (which `SpecialFunctions` lacks) by differentiating
+the defining identity, a special case of the
+[implicit function theorem](https://en.wikipedia.org/wiki/Implicit_function_theorem):
+
+    P(a, x(a, p)) = p   ⟹   ∂ₓP ⋅ ∂x/∂p = 1,   ∂ₐP + ∂ₓP ⋅ ∂x/∂a = 0
+
+so with `∂ₓP(a, x) = x^(a-1) e^(-x) / Γ(a)`,
+
+    ∂x/∂p = 1 / ∂ₓP(a, x),   ∂x/∂a = -∂ₐP / ∂ₓP
+
+`∂ₐP` has no closed form; if (and only if) `a` carries derivatives, it is
+obtained by central differencing the forward map in `a` — using the smaller
+of `(P, Q)`, which keeps relative accuracy in both tails. The redundant `q`
+slot is treated symmetrically, `∂x = ½ ∂x/∂p ⋅ (∂p - ∂q)`, which composes
+correctly for callers passing `(Y, 1 - Y)` regardless of which slot carries
+derivatives.
+"""
+gamma_inc_inv(a::Real, p::Real, q::Real) = _gamma_inc_inv(promote(a, p, q)...)
+
+_gamma_inc_inv(a::Real, p::Real, q::Real) = SF.gamma_inc_inv(a, p, q)
+
+function _gamma_inc_inv(a::FD.Dual{T}, p::FD.Dual{T}, q::FD.Dual{T}) where {T}
+    av, pv, qv = FD.value(a), FD.value(p), FD.value(q)
+    x = SF.gamma_inc_inv(av, pv, qv)
+    dxdp = exp(SF.loggamma(av) + x - (av - 1) * log(x))
+    da, dp, dq = FD.partials(a), FD.partials(p), FD.partials(q)
+    dxda = if iszero(da)
+        zero(dxdp)
+    else
+        h = cbrt(eps(typeof(av))) * max(one(av), abs(av))
+        # difference the smaller of (P, Q): the larger one saturates at the
+        # resolution of `one(av)` in its tail, quantizing the difference
+        p_ph, q_ph = SF.gamma_inc(av + h, x)
+        p_mh, q_mh = SF.gamma_inc(av - h, x)
+        dPda = ifelse(pv ≤ qv, (p_ph - p_mh), -(q_ph - q_mh)) / 2h
+        -dPda * dxdp
+    end
+    return FD.Dual{T}(x, dxda * da + dxdp / 2 * (dp - dq))
 end
 
 """

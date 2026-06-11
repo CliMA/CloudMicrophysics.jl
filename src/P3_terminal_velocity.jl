@@ -57,7 +57,7 @@ function ice_terminal_velocity_number_weighted(
     (; ρn_ice, ρq_ice) = state
     # TODO - do we want to swicth to ϵ_numerics(FT)
     if ρn_ice < eps(one(ρn_ice)) || ρq_ice < eps(one(ρq_ice))
-        return zero(ρn_ice)
+        return zero(promote_type(eltype(state), UT.promote_typeof(ρₐ, logλ)))
     end
 
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; use_aspect_ratio)
@@ -96,7 +96,7 @@ function ice_terminal_velocity_mass_weighted(
     (; ρn_ice, ρq_ice) = state
     # TODO - do we want to swicth to ϵ_numerics(FT)
     if ρn_ice < eps(one(ρn_ice)) || ρq_ice < eps(one(ρq_ice))
-        return zero(ρq_ice)
+        return zero(promote_type(eltype(state), UT.promote_typeof(ρₐ, logλ)))
     end
 
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; use_aspect_ratio)

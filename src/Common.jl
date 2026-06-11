@@ -154,7 +154,8 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
 # Returns
 - Integral of logistic function (same units as x)
 """
-@inline function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT}
+@inline function logistic_function_integral(x, x_0, k)
+    FT = UT.promote_typeof(x, x_0, k)
     # Branchless GPU-compatible implementation
     x = max(FT(0), x)
     x_safe = max(x, UT.ϵ_numerics(FT))
@@ -372,7 +373,8 @@ Assumes exponential size distribution (μ=0).
 # Returns
 - Bulk fall speed component [m/s]
 """
-@inline function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where {FT}
+@inline function Chen2022_exponential_pdf(a, b, c, λ_inv, k::Int)
+    FT = UT.promote_typeof(a, b, c, λ_inv)
     # μ = 0 for exponential distribution, δ = k + 1
     δ = FT(k + 1)
     return a * exp(-δ * log(λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / SF.gamma(δ)
