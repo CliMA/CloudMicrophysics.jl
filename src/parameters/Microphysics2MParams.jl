@@ -52,7 +52,7 @@ which constructs the parameterization with components:
 - `rain_freezing` = [`RainFreezing`](@ref)
 
 """
-@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM} <: ParametersType
+@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM, Q} <: ParametersType
     "The core P3 scheme parameters"
     scheme::P3
     "The terminal velocity parameterization"
@@ -71,12 +71,18 @@ which constructs the parameterization with components:
     immersion-cap rates. (A prognostic activation-memory model is deferred
     to a follow-up PR.)"
     inp_depletion_model::INPDM = NIceProxyDepletion()
-    "Number of Chebyshev-Gauss nodes used for size-distribution integrals
+    "Number of quadrature nodes used for size-distribution integrals
     (deposition / sublimation, melting, riming, ice-rain collection,
     sedimentation). Lower → faster, slightly less accurate. Default 100
     matches the original P3 paper sensitivity studies; n_elem=128 KiD runs
     show ~5× speed-up at qorder=40 with negligible bulk error."
     quadrature_order::Int = 100
+    "Pre-constructed quadrature rule for the size-distribution integrals,
+    built once (host-side) from `quadrature_order` via
+    [`Quadrature.build_quadrature`](@ref) and reused in the (GPU) hot loop.
+    It is `isbits` (`GaussLegendre`/`ChebyshevGauss`), so it ships to device
+    kernels with no per-call construction. See [`Quadrature.GaussLegendre`](@ref)."
+    quad::Q = QUAD.build_quadrature(Float64, quadrature_order)
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -93,6 +99,10 @@ P3IceParams(toml_dict::CP.ParamDict;
     rain_freezing = RainFreezing(toml_dict),
     inp_depletion_model,
     quadrature_order,
+    # Build the quadrature in the working float type, so its nodes/weights
+    # adopt the integrand's eltype (a Float64 rule would leak Float64 into the
+    # Float32 collision integrals). Construction is host-side and one-shot.
+    quad = QUAD.build_quadrature(CP.float_type(toml_dict), quadrature_order),
 )
 
 """

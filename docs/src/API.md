@@ -256,9 +256,12 @@ P3Scheme.∫liquid_ice_collisions
 ### Supporting integral methods
 
 ```@docs
+Quadrature
 P3Scheme.integrate
 P3Scheme.subintervals
 P3Scheme.ChebyshevGauss
+Quadrature.GaussLegendre
+Quadrature.build_quadrature
 P3Scheme.integral_bounds
 ```
 

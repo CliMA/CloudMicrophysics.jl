@@ -68,7 +68,21 @@ Compute `log(Iᵏ)` where `Iᵏ` is the following integral:
     `Γ(z) ⋅ (q_D₁ - q_D₂) / λ^z`
  In log-space, this is:
     `- z log(λ) + logΓ(z) + log(q_D₁ - q_D₂)`
- 
+
+ !!! note "Log/linear twin"
+     [`gamma_inc_moment`](@ref) (just below) is the **linear-space**
+     sibling of this function: it returns the same incomplete-gamma
+     partial moment `Γ(z)(q_D₁−q_D₂)/λ^z` *without* the `log`. The
+     closed-form rain-inner collision split (`closed_rain_inner_NM`,
+     `P3_processes.jl`) needs the linear form because it accumulates
+     **sign-alternating** addends (the `±sgn` split pieces and the
+     `vᵢ_part − v_part` subtraction) that cannot be done under a `log`
+     / `logsumexp`. The two are kept adjacent so the pair stays in
+     sync (P1-2). `Common.Chen2022_exponential_pdf` is the *full-domain*
+     `[0,∞)` 1M analogue (complete, not incomplete, gamma) — not a
+     drop-in for the closed form, which needs *partial* `[D₁,D₂]`
+     moments because of the velocity-crossover `D*` split.
+
 """
 function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     FT = eltype(logλ)
@@ -80,6 +94,53 @@ function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     (_, q_D₁) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₁, logλ))
     (_, q_D₂) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₂, logλ))
     return -z * logλ + SF.loggamma(z) + log(q_D₁ - q_D₂) + log(FT(scale))
+end
+
+"""
+    gamma_inc_moment(D₁, D₂, p, α)
+
+`∫_{D₁}^{D₂} D^p e^{-α D} dD = α^{-(p+1)} Γ(p+1) [Q(p+1,αD₁) − Q(p+1,αD₂)]`
+with `Q` the regularized upper incomplete gamma.
+
+The **linear-space twin** of [`loggamma_inc_moment`](@ref) (same
+`Γ(z)(q_{D₁}−q_{D₂})/λ^z`, `z = p+1` reduction, without the `log` and
+without `loggamma_inc_moment`'s `logλ`/`xexpy` overflow guard, which is
+unneeded here — the closed-form slopes `α0=1/D̄r`, `αⱼ=α0+cⱼ` are plain
+positive scalars well inside range). Used by the closed-form rain-inner
+collision split (`closed_rain_inner_NM`, `P3_processes.jl`), whose
+**sign-alternating** addends cannot be accumulated under a `log` /
+`logsumexp` — see the "Log/linear twin" note on
+[`loggamma_inc_moment`](@ref). Keep the two adjacent and in sync (P1-2).
+
+`Common.Chen2022_exponential_pdf` is the *full-domain* `[0,∞)` 1M
+analogue (complete gamma); it is **not** a drop-in here because the
+velocity-crossover `D*` split needs *partial* `[D₁,D₂]` (incomplete)
+moments.
+
+Returns `0` if `D₂ ≤ D₁`. Returns `NaN` if `α ≤ 0` (a mis-set slope);
+for the dispatched `(SB2006, Chen)` bundle `α > 0` is an invariant
+(`D̄r > 0`, Chen rain `cⱼ > 0`) so that branch is unreachable, and
+`get_liquid_integrals_rain_closed` folds any non-finite result to `0`
+as a defensive belt-and-suspenders (P1-1). `z = p+1 > 0` is likewise
+guaranteed (Chen rain `Bⱼ > 0`, `bounds_r` lower > 0) so `SF.gamma(z)`
+is always finite (P2-2). `p+1` is a Float64 constant — the `Dual`
+enters only via `gamma_inc`'s **2nd** argument (AD-safe, A2).
+"""
+@inline function gamma_inc_moment(D₁, D₂, p, α)
+    # AD-generic working type: promotes Float64 (e.g. a Float64 D₁/D₂
+    # quadrature endpoint) and a `Dual` slope `α` (Dual via state/PSD
+    # params) to the Dual so the partial moment differentiates. `p` is
+    # a plain Float64/Int exponent (z = p+1 stays a non-Dual constant —
+    # the A2-safe `gamma_inc` 2nd-arg-only pattern; never a Dual 1st arg).
+    T = float(promote_type(typeof(D₁), typeof(D₂), typeof(α)))
+    D₂ > D₁ || return zero(T)
+    α > 0 || return T(NaN)
+    z = p + 1  # > 0: Chen rain Bⱼ>0 & bounds_r lower>0 ⇒ SF.gamma(z) finite
+    (_, q1) = SF.gamma_inc(z, α * D₁)
+    (_, q2) = SF.gamma_inc(z, α * D₂)
+    # Float64 * Dual / Dual auto-promotes to the Dual `T` (the `zero(T)`
+    # / `T(NaN)` early returns are why `T` is computed explicitly).
+    return SF.gamma(z) * (q1 - q2) / α^z
 end
 
 """

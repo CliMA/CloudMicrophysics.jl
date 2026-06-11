@@ -59,129 +59,159 @@ function generate_column_states(::Type{FT}) where {FT}
 
     # 1. Warm, cloudy, no ice, no rain — pure activation/condensation
     let ρ = FT(1.2), T = FT(290)
-        push!(states, (;
-            ρ, T,
-            q_tot = q_vs_l(T, ρ) + FT(1e-3),
-            q_lcl = FT(1e-3), n_lcl = FT(1e8),
-            q_rai = FT(0),    n_rai = FT(0),
-            q_ice = FT(0),    n_ice = FT(0),
-            q_rim = FT(0),    b_rim = FT(0),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = q_vs_l(T, ρ) + FT(1e-3),
+                q_lcl = FT(1e-3), n_lcl = FT(1e8),
+                q_rai = FT(0), n_rai = FT(0),
+                q_ice = FT(0), n_ice = FT(0),
+                q_rim = FT(0), b_rim = FT(0),
+            ),
+        )
     end
 
     # 2. Warm, heavy rain, no cloud
     let ρ = FT(1.1), T = FT(285)
-        push!(states, (;
-            ρ, T,
-            q_tot = q_vs_l(T, ρ) + FT(5e-4),
-            q_lcl = FT(0),    n_lcl = FT(0),
-            q_rai = FT(5e-4), n_rai = FT(1e4),
-            q_ice = FT(0),    n_ice = FT(0),
-            q_rim = FT(0),    b_rim = FT(0),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = q_vs_l(T, ρ) + FT(5e-4),
+                q_lcl = FT(0), n_lcl = FT(0),
+                q_rai = FT(5e-4), n_rai = FT(1e4),
+                q_ice = FT(0), n_ice = FT(0),
+                q_rim = FT(0), b_rim = FT(0),
+            ),
+        )
     end
 
     # 3. Freezing-level mixed phase, light ice, no rime
     let ρ = FT(0.9), T = FT(270)
-        push!(states, (;
-            ρ, T,
-            q_tot = q_vs_l(T, ρ) + FT(1e-4) + FT(1e-5),
-            q_lcl = FT(1e-4), n_lcl = FT(1e8),
-            q_rai = FT(0),    n_rai = FT(0),
-            q_ice = FT(1e-5), n_ice = FT(1e5),
-            q_rim = FT(0),    b_rim = FT(0),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = q_vs_l(T, ρ) + FT(1e-4) + FT(1e-5),
+                q_lcl = FT(1e-4), n_lcl = FT(1e8),
+                q_rai = FT(0), n_rai = FT(0),
+                q_ice = FT(1e-5), n_ice = FT(1e5),
+                q_rim = FT(0), b_rim = FT(0),
+            ),
+        )
     end
 
     # 4. Cold cirrus, trace ice, no rain, no cloud
     let ρ = FT(0.5), T = FT(240)
-        push!(states, (;
-            ρ, T,
-            q_tot = q_vs_i(T, ρ) + FT(1e-6),
-            q_lcl = FT(0),    n_lcl = FT(0),
-            q_rai = FT(0),    n_rai = FT(0),
-            q_ice = FT(1e-6), n_ice = FT(1e5),
-            q_rim = FT(0),    b_rim = FT(0),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = q_vs_i(T, ρ) + FT(1e-6),
+                q_lcl = FT(0), n_lcl = FT(0),
+                q_rai = FT(0), n_rai = FT(0),
+                q_ice = FT(1e-6), n_ice = FT(1e5),
+                q_rim = FT(0), b_rim = FT(0),
+            ),
+        )
     end
 
     # 5. Heavy riming regime
     let ρ = FT(0.85), T = FT(265)
-        push!(states, (;
-            ρ, T,
-            q_tot = q_vs_l(T, ρ) + FT(5e-4) + FT(5e-4),
-            q_lcl = FT(5e-4), n_lcl = FT(1e8),
-            q_rai = FT(2e-4), n_rai = FT(1e4),
-            q_ice = FT(5e-4), n_ice = FT(1e5),
-            q_rim = FT(1e-4), b_rim = FT(1e-4 / 300),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = q_vs_l(T, ρ) + FT(5e-4) + FT(5e-4),
+                q_lcl = FT(5e-4), n_lcl = FT(1e8),
+                q_rai = FT(2e-4), n_rai = FT(1e4),
+                q_ice = FT(5e-4), n_ice = FT(1e5),
+                q_rim = FT(1e-4), b_rim = FT(1e-4 / 300),
+            ),
+        )
     end
 
     # 6. Dry subsaturated, no condensate — evaporation regime
     let ρ = FT(1.0), T = FT(290)
-        push!(states, (;
-            ρ, T,
-            q_tot = FT(0.5) * q_vs_l(T, ρ),
-            q_lcl = FT(0),    n_lcl = FT(0),
-            q_rai = FT(1e-4), n_rai = FT(1e4),
-            q_ice = FT(0),    n_ice = FT(0),
-            q_rim = FT(0),    b_rim = FT(0),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = FT(0.5) * q_vs_l(T, ρ),
+                q_lcl = FT(0), n_lcl = FT(0),
+                q_rai = FT(1e-4), n_rai = FT(1e4),
+                q_ice = FT(0), n_ice = FT(0),
+                q_rim = FT(0), b_rim = FT(0),
+            ),
+        )
     end
 
     # 7. Just below 273 K — melting threshold with heavy ice
     let ρ = FT(1.0), T = FT(272.5)
-        push!(states, (;
-            ρ, T,
-            q_tot = q_vs_l(T, ρ) + FT(1e-3),
-            q_lcl = FT(0),    n_lcl = FT(0),
-            q_rai = FT(0),    n_rai = FT(0),
-            q_ice = FT(1e-3), n_ice = FT(5e4),
-            q_rim = FT(0),    b_rim = FT(0),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = q_vs_l(T, ρ) + FT(1e-3),
+                q_lcl = FT(0), n_lcl = FT(0),
+                q_rai = FT(0), n_rai = FT(0),
+                q_ice = FT(1e-3), n_ice = FT(5e4),
+                q_rim = FT(0), b_rim = FT(0),
+            ),
+        )
     end
 
     # 8. Just above 273 K — melting active
     let ρ = FT(1.0), T = FT(274.0)
-        push!(states, (;
-            ρ, T,
-            q_tot = q_vs_l(T, ρ) + FT(1e-3),
-            q_lcl = FT(0),    n_lcl = FT(0),
-            q_rai = FT(0),    n_rai = FT(0),
-            q_ice = FT(1e-3), n_ice = FT(5e4),
-            q_rim = FT(0),    b_rim = FT(0),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = q_vs_l(T, ρ) + FT(1e-3),
+                q_lcl = FT(0), n_lcl = FT(0),
+                q_rai = FT(0), n_rai = FT(0),
+                q_ice = FT(1e-3), n_ice = FT(5e4),
+                q_rim = FT(0), b_rim = FT(0),
+            ),
+        )
     end
 
     # 9. Strong supersaturation over ice, no liquid
     let ρ = FT(0.7), T = FT(250)
-        push!(states, (;
-            ρ, T,
-            q_tot = FT(1.5) * q_vs_i(T, ρ),
-            q_lcl = FT(0),    n_lcl = FT(0),
-            q_rai = FT(0),    n_rai = FT(0),
-            q_ice = FT(1e-5), n_ice = FT(1e5),
-            q_rim = FT(0),    b_rim = FT(0),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = FT(1.5) * q_vs_i(T, ρ),
+                q_lcl = FT(0), n_lcl = FT(0),
+                q_rai = FT(0), n_rai = FT(0),
+                q_ice = FT(1e-5), n_ice = FT(1e5),
+                q_rim = FT(0), b_rim = FT(0),
+            ),
+        )
     end
 
     # 10. Mixed-phase mid-troposphere with rain + ice
     let ρ = FT(0.8), T = FT(268)
-        push!(states, (;
-            ρ, T,
-            q_tot = q_vs_l(T, ρ) + FT(3e-4) + FT(3e-4),
-            q_lcl = FT(3e-4), n_lcl = FT(1e8),
-            q_rai = FT(1e-4), n_rai = FT(5e3),
-            q_ice = FT(3e-4), n_ice = FT(1e5),
-            q_rim = FT(1e-5), b_rim = FT(1e-5 / 400),
-        ))
+        push!(
+            states,
+            (;
+                ρ, T,
+                q_tot = q_vs_l(T, ρ) + FT(3e-4) + FT(3e-4),
+                q_lcl = FT(3e-4), n_lcl = FT(1e8),
+                q_rai = FT(1e-4), n_rai = FT(5e3),
+                q_ice = FT(3e-4), n_ice = FT(1e5),
+                q_rim = FT(1e-5), b_rim = FT(1e-5 / 400),
+            ),
+        )
     end
 
     return states
 end
 
 function compare_with_reference(tendencies_ref, tendencies_n, tol;
-        mass_scale = 1e-12, report = false)
+    mass_scale = 1e-12, report = false)
     fail_count = 0
     for field in keys(tendencies_ref)
         a = getfield(tendencies_ref, field)
@@ -216,9 +246,9 @@ function test_quadrature_order_sweep(FT)
 
     orders_and_tol = [
         (100, FT(2e-3)),
-        (50,  FT(5e-3)),
-        (25,  FT(5e-2)),
-        (15,  FT(2e-1)),
+        (50, FT(5e-3)),
+        (25, FT(5e-2)),
+        (15, FT(2e-1)),
     ]
     reference_n = 200
 

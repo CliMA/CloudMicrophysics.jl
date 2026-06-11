@@ -958,7 +958,14 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ice_nucleation = mp.ice.ice_nucleation
     inp_depletion_model = mp.ice.inp_depletion_model
 
-    quad = CMP3.ChebyshevGauss(mp.ice.quadrature_order)
+    # Quadrature for the P3 size-distribution integrals. The rule is built
+    # once (host-side, from `quadrature_order`) and stored on `P3IceParams`,
+    # so here it is just read — no per-cell construction inside this (GPU)
+    # kernel. GaussLegendre is selected for the orders where it is
+    # meaningfully more accurate than ChebyshevGauss on the smooth integrands
+    # (≈20× lower error on the dominant ice-rain collision integral; see
+    # `Quadrature.build_quadrature` / `GaussLegendre`), otherwise ChebyshevGauss.
+    quad = mp.ice.quad
 
     # Only compute ice processes if there is ice mass/number present
     if q_ice > ϵₘ && n_ice > ϵₙ
