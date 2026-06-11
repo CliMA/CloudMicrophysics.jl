@@ -208,8 +208,11 @@ function compute_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state)
     # `f_frz = 1`.
     denom = L_f - cp_l * ΔT
     function max_freeze_rate(Dᵢ)
-        Tₐ ≥ T_frz && return zero(Dᵢ)  # No collisional freezing above the freezing temperature
-        denom > 0 || return floatmax(typeof(Dᵢ))
+        # fallback values typed by the promotion of the node and the captured state
+        # (mixed plain/Dual under differentiation)
+        FT = UT.promote_typeof(Dᵢ, ΔT, Δρᵥ_sat, denom)
+        Tₐ ≥ T_frz && return zero(FT)  # No collisional freezing above the freezing temperature
+        denom > 0 || return floatmax(FT)
         return 2 * (π * Dᵢ) * F_v(Dᵢ) * (K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat) / denom
     end
     return max_freeze_rate
@@ -381,7 +384,7 @@ function get_liquid_integrals_rain_closed(
     psd_r::CMP.RainParticlePDF_SB2006, vel::CMP.Chen2022VelType,
     n_r, ρₐ, L_r, N_r, state, ∂ₜV, m_liq, ρ′_rim, bounds_r; quad,
 )
-    FT = eltype(state)
+    FT = promote_type(eltype(state), UT.promote_typeof(ρₐ, L_r, N_r))
     ρw = psd_r.ρw
     (; N₀r, Dr_mean) = CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
     ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, ρₐ)
@@ -593,7 +596,7 @@ function bulk_liquid_ice_collision_sources(
     psd_c, psd_r, L_c, N_c, L_r, N_r,
     aps, tps, vel, ρₐ, T; quad = ChebyshevGauss(100),
 )
-    FT = eltype(state)
+    FT = promote_type(eltype(state), UT.promote_typeof(L_c, N_c, L_r, N_r, ρₐ, T))
     (; τ_wet, ρ_i) = state.params
     D_shd = FT(1e-3) # 1mm  # TODO: Externalize this parameter
 

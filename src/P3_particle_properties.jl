@@ -10,7 +10,7 @@ This struct bundles the P3 parameterizations `params`, the provided rime state
 
 # Construction
 
-  - [`state_from_prognostic`](@ref): Main entry point. 
+  - [`state_from_prognostic`](@ref): Main entry point.
     Accepts the volumetric prognostic variables `(ρq_ice, ρn_ice, ρq_rim, ρb_rim)`,
     regularises them into `(F_rim, ρ_rim)`, and returns the constructed state.
 
@@ -41,14 +41,14 @@ struct P3State{FT, PARAMS <: CMP.ParametersP3}
 end
 
 function P3State(params::CMP.ParametersP3, ρq_ice, ρn_ice, F_rim, ρ_rim)
-    FT = eltype(ρq_ice)
+    FT = UT.promote_typeof(ρq_ice, ρn_ice, F_rim, ρ_rim)
     (; mass, ρ_i) = params
     ρ_d = get_ρ_d(mass, F_rim, ρ_rim)
     ρ_g = get_ρ_g(F_rim, ρ_rim, ρ_d)
     D_th = get_D_th(mass, ρ_i)
     D_gr = ifelse(iszero(F_rim), FT(Inf), get_D_gr(mass, ρ_g))
     D_cr = ifelse(iszero(F_rim), FT(Inf), get_D_cr(mass, F_rim, ρ_g))
-    return P3State(params, ρq_ice, ρn_ice, F_rim, ρ_rim, ρ_g, D_th, D_gr, D_cr)
+    return P3State(params, FT.((ρq_ice, ρn_ice, F_rim, ρ_rim, ρ_g, D_th, D_gr, D_cr))...)
 end
 
 Base.show(io::IO, mime::MIME"text/plain", x::P3State) =
@@ -253,22 +253,22 @@ Return the coefficients for the ice mass power law at diameter `D`.
  - `(a, b)`: coefficients for the ice mass power law, `a D^b`
 """
 function ice_mass_coeffs(state::P3State, D)
+    FT = promote_type(eltype(state), eltype(D))
     (; params, F_rim, ρ_g, D_th, D_gr, D_cr) = state
-    FT = eltype(D)
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
-
-    return if D < D_th       # small spherical ice
-        (ρ_i * π / 6, FT(3))
+    a, b = if D < D_th       # small spherical ice
+        (ρ_i * π / 6, 3)
     elseif iszero(F_rim)     # large nonspherical unrimed ice
         (α_va, β_va)
     elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
         (α_va, β_va)
     elseif D_gr ≤ D < D_cr   # graupel (rimed)
-        (ρ_g * π / 6, FT(3))
+        (ρ_g * π / 6, 3)
     else # D_cr ≤ D          # partially rimed ice
         (α_va / (1 - F_rim), β_va)
     end
+    return FT(a), FT(b)
 end
 
 """
@@ -372,5 +372,5 @@ function ϕᵢ(state::P3State, D)
     ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
     #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
 
-    return ifelse(D == 0, FT(0), ϕ_ob)
+    return ifelse(D == 0, zero(ϕ_ob), ϕ_ob)
 end
