@@ -13,10 +13,13 @@ Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 EnsembleKalmanProcesses = "aa8a2aa5-91d8-4396-bcef-d4f2ec43552d"
 EvoTrees = "f6006082-12f8-11e9-0c9c-0d5d367ab1e5"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 JET = "c3a54625-cd67-489e-a8e7-0a5a0ff4e31b"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LogExpFunctions = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
+LoweredCodeUtils = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
 MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
 MLJFlux = "094fc8d1-fd35-5302-93ea-dabda2abf845"
 MLJModels = "d491faf4-2d78-11e9-2867-c94bc002c0b7"
@@ -30,4 +33,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 KernelAbstractions = "0.9"
+# JET 0.11.3 does not precompile against LoweredCodeUtils 3.6 (add_active_gotos!
+# signature change). TODO: drop the bound once JET supports LCU 3.6.
+LoweredCodeUtils = "3.2 - 3.5"
 MLJFlux = "0.4 - 0.6"

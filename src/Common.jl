@@ -401,7 +401,11 @@ Needed for numerical integrals in the P3 scheme.
 function particle_terminal_velocity(velocity_params::CMP.TerminalVelocityType, ρs...)
     (ai, bi, ci) = Chen2022_vel_coeffs(velocity_params, ρs...)
     v_terms = Chen2022_monodisperse_pdf.(ai, bi, ci)  # tuple of functions
-    v_term(D) = unrolled_sum(v_term -> v_term(D), v_terms)
+    # NB: name the closure arg `vt` (not `v_term`) — shadowing the enclosing
+    # `v_term` derails Julia 1.11 inference (the unrolled map infers
+    # `NTuple{N, Any}`, forcing runtime dispatch / allocations and breaking
+    # GPU compilation of callers like `liquid_integrals`).
+    v_term(D) = unrolled_sum(vt -> vt(D), v_terms)
     return v_term
 end
 

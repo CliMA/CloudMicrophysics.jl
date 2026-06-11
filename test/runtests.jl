@@ -8,6 +8,7 @@ TT.@testset "All tests" begin
     include("microphysics0M_tests.jl")
     include("microphysics1M_tests.jl")
     include("bulk_tendencies_tests.jl")
+    include("bulk_tendencies_quadrature_tests.jl")
     include("type_stability_tests.jl")
     include("microphysics2M_tests.jl")
     include("microphysics_noneq_tests.jl")
@@ -17,11 +18,13 @@ TT.@testset "All tests" begin
     include("nucleation_unit_tests.jl")
     include("precipitation_susceptibility_tests.jl")
     include("p3_tests.jl")
+    include("p3_shape_solver_warmstart_tests.jl")
     include("aqua.jl")
     include("performance_tests.jl")
     include("aerosol_activation_calibration.jl")
     include("ice_nucleation_calibration.jl")
     include("ventilation_tests.jl")
     include("DistributionTools_tests.jl")
+    include("unrolled_logsumexp.jl")
 end
 nothing

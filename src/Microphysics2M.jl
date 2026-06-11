@@ -66,7 +66,21 @@ Return the parameters of the rain drop diameter distribution
  - A `NamedTuple` with the fields `(; N₀r, Dr_mean, xr_mean)`
 """
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ, ρₐ, Nᵣ)
-    (iszero(Nᵣ) && iszero(qᵣ)) && return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
+    FT = eltype(qᵣ)
+    # Degenerate-input guard. The unlimited PDF inverts `xr_mean = Lᵣ/Nᵣ`
+    # and `Dr_mean = 1/cbrt(π·ρw/xr_mean)`; if EITHER `Nᵣ` or `qᵣ` is
+    # non-positive (which explicit RK sub-stages transiently produce when
+    # number is depleted faster than mass, or vice-versa) the result is a
+    # *negative* `Dr_mean` — finite and non-zero, so it slips past the
+    # downstream `iszero(Dr_mean)` checks and makes `exponential_quantile`
+    # throw `DomainError("Mean parameter must be positive")`. Return zero
+    # params instead (consumers already special-case `iszero(N₀r)`). The old
+    # guard only fired when BOTH were zero (`&&`); broaden to `||` with the
+    # same `ϵ` thresholds as the cloud PDF's `log_pdf_cloud_parameters_mass`
+    # guard (these `ϵ = eps(FT) > 0`, so all non-positive inputs are caught).
+    # Strict no-op for physically valid (above-ϵ) inputs.
+    (Nᵣ < UT.ϵ_numerics_2M_N(FT) || qᵣ < UT.ϵ_numerics_2M_M(FT)) &&
+        return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
     (; ρw) = pdf_r
     Lᵣ = ρₐ * qᵣ
 
@@ -320,10 +334,15 @@ end
 function get_size_distribution_bounds(
     pdf::CMP.CloudParticlePDF_SB2006, q, ρₐ, N, p = eps(eltype(q)),
 )
+    FT = eltype(q)
     (; λc, νcD, μcD) = pdf_cloud_parameters(pdf, q, ρₐ, N)
 
-    D_min = DT.generalized_gamma_quantile(νcD, μcD, λc, p)
-    D_max = DT.generalized_gamma_quantile(νcD, μcD, λc, 1 - p)
+    # `generalized_gamma_quantile` calls `SF.gamma_inc_inv`, which returns
+    # Float64 regardless of input type; pin the bounds back to `eltype(q)` so
+    # downstream integration nodes stay in the working precision (matches the
+    # rain method above and the ice `integral_bounds` `FT(...)` conversion).
+    D_min = FT(DT.generalized_gamma_quantile(νcD, μcD, λc, p))
+    D_max = FT(DT.generalized_gamma_quantile(νcD, μcD, λc, 1 - p))
     return D_min, D_max
 end
 
@@ -874,6 +893,43 @@ function number_decrease_for_mass_limit((; τ)::CMP.NumberAdjustmentHorn2012, x_
     # Avoid NaN when both q and x_min are 0
     N_max = iszero(x_min) ? oftype(q, Inf) : ρ * q / x_min
     return min(0, N_max - N) / τ
+end
+
+"""
+    number_tendency_from_mass_limits(params, q, n)
+
+Compute the specific number tendency (rate of change) to relax the mean 
+particle mass, `x = q / n` [kg], towards the physical bounds `[x_min, x_max]` 
+[kg].
+
+The relaxation tendency is given by
+
+    ∂n/∂t = (n_target - n) / τ
+
+where `n_target` is the specific number that corresponds to the nearest
+valid mean particle mass,
+
+    n_target = q / clamp(x, x_min, x_max)
+
+# Arguments
+  - `params`: Number concentration adjustment parameters, a `NamedTuple` with fields:
+    + `x_min`: Minimum allowed mean particle mass [kg]
+    + `x_max`: Maximum allowed mean particle mass [kg]
+    + `τ`: Relaxation timescale [s]
+  - `q`: Specific mass (mass mixing ratio) [kg/kg]
+  - `n`: Specific number (number mixing ratio) [1/kg]
+
+# Returns
+- The rate of change of specific number [1/(kg·s)] needed to bring the mean mass within the valid bounds.
+"""
+function number_tendency_from_mass_limits((; x_min, x_max, τ), q, n)
+    # The mean particle mass is x = q / n.
+    # When q == 0, the target n is zero (no mass -> no particles).
+    # Otherwise, n_target is bounded between q / x_max and q / x_min.
+    # This also naturally handles x_min == 0 (where q / x_min yields Inf).
+    ϵₘ = UT.ϵ_numerics_2M_M(typeof(q))
+    n_target = ifelse(q < ϵₘ, zero(n), clamp(n, q / x_max, q / x_min))
+    return (n_target - n) / τ
 end
 
 # Additional double moment autoconversion and accretion parametrizations:

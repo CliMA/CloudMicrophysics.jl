@@ -106,6 +106,46 @@ function MorrisonMilbrandt2014(td::CP.ParamDict)
     return MorrisonMilbrandt2014(; parameters...)
 end
 
+export RainFreezing
+
+"""
+    RainFreezing{FT}
+
+Parameters for heterogeneous (Bigg-type) immersion freezing of rain drops.
+
+Stores the empirical Barklie-Gokhale (1959) / Bigg (1953) parameters
+used by Morrison & Milbrandt (2015).
+
+# Fields
+$(DocStringExtensions.FIELDS)
+
+# Callable interface
+
+    (rf::RainFreezing)(T, T₀) → het_B * 10⁶ * exp(het_a * (T₀ - T))
+
+Returns the volumetric freezing rate in SI units [m⁻³ s⁻¹].
+The stored `het_B` is in [cm⁻³ s⁻¹]; the factor 10⁶ converts cm³ → m³.
+"""
+@kwdef struct RainFreezing{FT} <: ParametersType
+    "empirical parameter [°C⁻¹]"
+    het_a::FT
+    "water-type dependent parameter [cm⁻³ s⁻¹]"
+    het_B::FT
+end
+
+function RainFreezing(td::CP.ParamDict)
+    name_map = (;
+        :BarklieGokhale1959_a_parameter => :het_a,
+        :BarklieGokhale1959_B_parameter => :het_B,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return RainFreezing(; parameters...)
+end
+
+# Callable: returns the Bigg (1953) volumetric freezing rate [m⁻³(water) s⁻¹]
+# het_B is stored in [cm⁻³ s⁻¹]; multiply by 10⁶ to convert to [m⁻³(water) s⁻¹].
+(rf::RainFreezing)(T, T₀) = rf.het_B * 1_000_000 * exp(rf.het_a * (T₀ - T))
+
 """
     IceNucleationParameters{FT, DEP, HOM, P3_type}
 
@@ -158,3 +198,56 @@ function Frostenberg2023(td::CP.ParamDict)
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return Frostenberg2023(; parameters...)
 end
+
+# ---------------------------------------------------------------------------
+# F23 INP-activation memory models
+# ---------------------------------------------------------------------------
+
+export AbstractINPDepletion, NIceProxyDepletion
+
+"""
+    AbstractINPDepletion
+
+Abstract type for the model of how F23 INP-activation budgets are
+"depleted" within an air parcel. Choose a concrete subtype to control
+the value subtracted from the F23 INPC target in the F23 deposition and
+immersion-cap rates:
+
+```
+∂ₜn_frz = max(0, INPC(T)/ρ - n_active) / τ_act
+```
+
+where `n_active` is supplied by the host. The depletion model also
+carries `τ_act`, the F23 activation relaxation timescale, so the host
+doesn't need to wire that knob separately. The model selects how the
+host sources `n_active`:
+
+- [`NIceProxyDepletion`](@ref): use existing `n_ice` (zero memory).
+
+(A prognostic activation-memory model with a finite decay timescale lived
+here previously and is deferred to a follow-up PR.)
+"""
+abstract type AbstractINPDepletion end
+
+"""
+    NIceProxyDepletion{FT}
+
+Use the in-cell ice number `n_ice` as the depletion proxy for F23
+activation. This is the legacy / always-on form: a column with no ice
+sees the full INPC target; activation events do not by themselves
+deplete the budget on a memory timescale, but the ice they create
+proxies "INPs already used" downstream until that ice sublimates,
+sediments out, or melts.
+
+Conflates two physically distinct counts: "ice in column" and
+"INPs already activated in this air parcel". Drop a fresh anvil into
+clean air below it and the F23 channel artificially shuts off.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+struct NIceProxyDepletion{FT} <: AbstractINPDepletion
+    "F23 activation relaxation timescale [s] (default `300`)"
+    τ_act::FT
+end
+NIceProxyDepletion(; τ_act = 300) = NIceProxyDepletion(τ_act)

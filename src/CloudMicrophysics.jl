@@ -2,6 +2,12 @@ module CloudMicrophysics
 
 include("show.jl")
 
+# Quadrature rules are defined before `Parameters` so that a constructed
+# quadrature object can be stored on a parameter struct (host-side, once) and
+# shipped to GPU kernels, rather than rebuilt inside a kernel.
+include("Quadrature.jl")
+import .Quadrature
+
 include("parameters/Parameters.jl")
 import .Parameters
 const CMP = Parameters
@@ -22,10 +28,10 @@ include("Microphysics2M.jl")
 include("IceNucleation.jl")
 include("P3.jl")
 include("MicrophysicsNonEq.jl")
-include("BulkMicrophysicsTendencies.jl")
 include("CloudDiagnostics.jl")
 include("AerosolModel.jl")
 include("AerosolActivation.jl")
+include("BulkMicrophysicsTendencies.jl")
 include("Nucleation.jl")
 include("PrecipitationSusceptibility.jl")
 include("ArtifactCalling.jl")
