@@ -274,7 +274,7 @@ The P3 variables `F_rim` and `ρ_rim` are computed in a regularised way
 function get_distribution_logλ_from_prognostic(
     params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, args...,
 )
-    state = get_state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    state = state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
     return get_distribution_logλ(state, args...)
 end
 
