@@ -677,6 +677,38 @@ end
 # --- 2-Moment Microphysics Helper Functions ---
 
 """
+    activation_source(scheme, tps, ρ, T, q_tot, q_lcl, q_ice, n_lcl, w, p)
+
+Return the cloud-droplet number source `dn_lcl_activation_dt` [kg⁻¹ air / s]
+implied by the activation `scheme` at the given local state.
+
+All arguments are passed by value so the function is pure and suitable for
+both broadcast and GPU kernels; inputs not needed by a particular scheme
+(e.g. `w`, `p` for [`CMP.DiagnosticNc`](@ref)) are simply ignored.
+
+# Arguments
+- `scheme`: activation scheme; dispatch target.
+- `tps`: thermodynamics parameters.
+- `ρ`, `T`, `q_tot`, `q_lcl`, `q_ice`: local thermodynamic state.
+- `n_lcl`: cloud-droplet number per mass of air [kg⁻¹].
+- `w`: vertical velocity [m/s] (for supersaturation-driven schemes).
+- `p`: pressure [Pa] (for supersaturation-driven schemes).
+"""
+@inline function activation_source(
+    ::CMP.NoActivation, tps, ρ, T, q_tot, q_lcl, q_ice, n_lcl, w, p,
+)
+    return zero(n_lcl)
+end
+
+@inline function activation_source(
+    scheme::CMP.DiagnosticNc, tps, ρ, T, q_tot, q_lcl, q_ice, n_lcl, w, p,
+)
+    FT = UT.promote_typeof(n_lcl, q_lcl)
+    target = ifelse(q_lcl > FT(scheme.q_thresh), FT(scheme.N_c), zero(FT))
+    return (target - n_lcl) / FT(scheme.τ_relax)
+end
+
+"""
     warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
 
 Internal helper function that computes core 2M warm rain processes:
@@ -721,11 +753,13 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_rai_dt = zero(FT)
 
     # --- Aerosol activation ---
-    # No activation source: the active schemes (e.g. diagnostic-Nc)
-    # will appear in a follow-up PR.
-    # The `w`, `p` ambient inputs (which the active schemes needed) are kept as
-    # trailing defaults for that re-add.
-    dn_lcl_activation_dt = zero(FT)
+    # `w`, `p` are the per-cell ambient inputs that supersaturation-driven
+    # schemes will need; positional so the call site can `@.`-broadcast.
+    # `NoActivation`/`DiagnosticNc` ignore them.
+    dn_lcl_activation_dt = activation_source(
+        warm_rain.activation_scheme, tps, ρ, T, q_tot, q_lcl, q_ice, n_lcl, w, p,
+    )
+    dn_lcl_dt += dn_lcl_activation_dt
 
     # --- Condensation of vapor / evaporation of cloud liquid water ---
     micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
