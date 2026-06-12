@@ -388,6 +388,7 @@ Lightweight numerical utility functions shared across modules.
 ```@docs
 Utilities
 Utilities.clamp_to_nonneg
+Utilities.promote_typeof
 Utilities.ϵ_numerics
 Utilities.ϵ_numerics_2M_M
 Utilities.ϵ_numerics_2M_N

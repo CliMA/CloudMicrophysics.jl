@@ -787,7 +787,9 @@ function rain_evaporation(
     (; pdf_r, evap)::CMP.SB2006, aps::CMP.AirProperties, tps::TDI.PS,
     q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T,
 )
-    FT = eltype(q_tot)
+    # the early return below must match the main path's type for any mix of
+    # plain-float and Dual arguments
+    FT = UT.promote_typeof(q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
     ϵₘ = UT.ϵ_numerics_2M_M(FT)
     ϵₙ = UT.ϵ_numerics_2M_N(FT)
 

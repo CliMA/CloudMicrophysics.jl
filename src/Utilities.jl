@@ -9,6 +9,20 @@ module Utilities
 import UnrolledUtilities as UU
 
 export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
+export promote_typeof
+
+"""
+    promote_typeof(args...)
+
+The common promoted type of the arguments' types.
+
+Use it to type early returns and sentinel values from all the arguments the
+main-path result derives from. Typing them from a single argument
+(`FT = eltype(q_tot)`-style) makes the function's return a union when a
+caller mixes plain floats with `ForwardDiff.Dual`s (or float widths) across
+arguments — non-concrete, heap-boxed, and silent.
+"""
+@inline promote_typeof(args...) = promote_type(map(typeof, args)...)
 export unrolled_logsumexp
 export sgs_weight_function, rime_mass_fraction, rime_density
 

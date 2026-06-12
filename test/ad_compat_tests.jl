@@ -70,6 +70,22 @@ function test_ad_compatibility(FT)
         @test CM2.Γ_incl(FT(-0.25), FT(0.5)) isa FT
     end
 
+    @testset "rain_evaporation is concretely typed for mixed arguments ($FT)" begin
+        # the early return (no rain / supersaturated) must have the same type
+        # as the main path when species are Duals over a plain-float q_tot —
+        # a union here heap-boxes every call in the Jacobian hot loop
+        sb = mp.warm_rain.seifert_beheng
+        aps = mp.warm_rain.air_properties
+        z = D(0, 0)
+        # subsaturated (main path) and supersaturated (early return) states
+        for (q_tot, T) in ((FT(0.005), FT(288)), (FT(0.02), FT(288)))
+            t = @inferred CM2.rain_evaporation(
+                sb, aps, tps, q_tot, D(2e-4, 1), z, D(1e-4, 1), z, FT(1.05), D(4e4, 1), T,
+            )
+            @test all(v -> v isa FD.Dual, values(t))
+        end
+    end
+
     @testset "BMT 2M+P3 Jacobian w.r.t. the 8 species ($FT)" begin
         function rhs(x, ρ, T, q_tot, logλ)
             t = BMT.bulk_microphysics_tendencies(
