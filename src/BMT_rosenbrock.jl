@@ -215,3 +215,165 @@ fields as the `Instantaneous` entry (without the activation diagnostic).
         Tuple(rates),
     )
 end
+
+#####
+##### 1M Rosenbrock-Euler substepping (`RosenbrockAverage`)
+#####
+
+"""
+    MicroState1M{FT}
+
+The four prognostic 1M species as a `StaticArrays.FieldVector`: vector algebra
+for substep updates and linear solves, named fields for readability. Internal
+to the [`RosenbrockAverage`](@ref) implementation, mirroring
+[`MicroState2MP3`](@ref) at dimension 4 (1M carries no number species).
+"""
+struct MicroState1M{FT} <: SA.FieldVector{4, FT}
+    q_lcl::FT
+    q_icl::FT
+    q_rai::FT
+    q_sno::FT
+end
+SA.similar_type(::Type{<:MicroState1M}, ::Type{FT}, ::SA.Size{(4,)}) where {FT} =
+    MicroState1M{FT}
+
+"""
+    _instantaneous_1m_tendency(mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+
+The raw instantaneous 1M tendency projected onto the four prognostic species:
+the unlimited process rates of the `Microphysics1Moment` `Instantaneous` entry
+(`_microphysics_source_terms` aggregated by `_aggregate_tendencies`), without
+timestep-dependent clipping.
+
+This is the function the 1M Rosenbrock step differentiates — the same raw RHS
+the hand-built `LinearizedAverage` donor-linearizes (the hand operator is the
+system matrix of a donor-modified problem, not `∂f/∂q`). The shipped 1M
+`LinearizedAverage` applies no supersaturation cap or coupled-sink limiter, so
+differentiating the raw tendency is the faithful counterpart of that scheme.
+"""
+@inline function _instantaneous_1m_tendency(mp, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+)
+    src = _microphysics_source_terms(Microphysics1Moment(), mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    )
+    return _aggregate_tendencies(src)
+end
+
+"""
+    Raw1MTendency(mp, tps, ρ, T, q_tot)
+
+Callable bundling the frozen per-substep context; applying it to the species
+vector evaluates [`_instantaneous_1m_tendency`](@ref). A top-level struct
+rather than a closure, so `ForwardDiff` differentiates a concretely-typed
+callable, mirroring [`Instantaneous2MP3Tendency`](@ref).
+
+The frozen `q_tot` is promoted to the state's element type at the call so a
+zero-partial Dual is exact for the constant and the promotion-keyed fallback
+returns in the 1M kernels stay concretely typed (a no-op in the primal pass);
+`T` and `ρ` stay plain because they feed working-type computations that must
+remain floats. The differentiability of the 1M kernels w.r.t. the mass
+channels (with `ρ`/`T`/params held float) is provided by their AD-readiness:
+the collected/collecting masses are unconstrained relative to the parameter
+type, so a Dual working type flows through without a parameter-type converter.
+"""
+struct Raw1MTendency{P, H, F}
+    mp::P
+    tps::H
+    ρ::F
+    T::F
+    q_tot::F
+end
+@inline function (g::Raw1MTendency)(x::SA.StaticVector{4})
+    (q_lcl, q_icl, q_rai, q_sno) = x
+    tend = _instantaneous_1m_tendency(g.mp, g.tps,
+        g.ρ, g.T, eltype(x)(g.q_tot),
+        q_lcl, q_icl, q_rai, q_sno,
+    )
+    return MicroState1M(tend.dq_lcl_dt, tend.dq_icl_dt, tend.dq_rai_dt, tend.dq_sno_dt)
+end
+
+"""
+    _rosenbrock_channel_mask(x::MicroState1M)
+
+Diagonal of the channel projection `P` for the 1M state: 1 for healthy
+channels, 0 for near-empty ones (mass below `1e-10`, per channel: liquid, ice,
+rain, snow). With no number species the mask is the four mass channels
+directly. See the [`MicroState2MP3`](@ref) method for the role of `P` in
+[`_rosenbrock_update`](@ref).
+"""
+@inline function _rosenbrock_channel_mask(x::MicroState1M{FT}) where {FT}
+    ϵ_empty = FT(1e-10)
+    lcl = ifelse(x.q_lcl < ϵ_empty, zero(FT), one(FT))
+    icl = ifelse(x.q_icl < ϵ_empty, zero(FT), one(FT))
+    rai = ifelse(x.q_rai < ϵ_empty, zero(FT), one(FT))
+    sno = ifelse(x.q_sno < ϵ_empty, zero(FT), one(FT))
+    return MicroState1M(lcl, icl, rai, sno)
+end
+
+"""
+    bulk_microphysics_tendencies(::RosenbrockAverage, ::Microphysics1Moment,
+        mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1)
+
+Compute average 1M microphysics tendencies over `Δt` using `nsub`
+linearized-implicit (Rosenbrock-Euler) substeps of the raw instantaneous
+tendency. A separate option from the hand-built `LinearizedAverage`: this
+linearizes with the exact `ForwardDiff` Jacobian of the raw tendency at each
+substep instead of a donor-cell-modified system matrix.
+
+# Algorithm
+
+For each substep of `h = Δt / nsub`:
+
+1. Evaluate the raw tendency `f` ([`_instantaneous_1m_tendency`](@ref)) and its
+   exact 4×4 Jacobian `J` via `ForwardDiff` at the current state.
+2. Advance with [`_rosenbrock_update`](@ref): solve `(I/h - P J P) Δx = f` in
+   equilibrated variables, where the projection `P` from
+   [`_rosenbrock_channel_mask`](@ref) routes near-empty channels to forward
+   Euler.
+3. Update the local temperature from the latent heating of the realized
+   increments, matching the `LinearizedAverage` 1M convention (constant latent
+   heats, liquid+rain on `L_v`, ice+snow on `L_s`).
+
+A non-finite state or Jacobian falls back to a forward-Euler substep of the raw
+tendency; `q_tot` is held fixed across substeps. The discrete safeguards are
+h-free conditioning and projection (channel mask, equilibration, positivity
+clamp), not model terms.
+
+Returns the net change in the species over `Δt` divided by `Δt`, in the same
+fields as the `Instantaneous` entry.
+"""
+@inline function bulk_microphysics_tendencies(::RosenbrockAverage, cm::Microphysics1Moment,
+    mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+)
+    FT = typeof(q_tot)
+    nsub_eff = max(Int(nsub), 1)
+    h = Δt / FT(nsub_eff)
+    Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+    Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+
+    x = MicroState1M{FT}(q_lcl, q_icl, q_rai, q_sno)
+    x₀ = x
+    Tsub = T
+    for _ in 1:nsub_eff
+        g = Raw1MTendency(mp, tps, ρ, Tsub, q_tot)
+        f = g(x)
+        x_prev = x
+        x = if all(isfinite, x)
+            J = FD.jacobian(g, x)
+            z = _rosenbrock_channel_mask(x)
+            all(isfinite, J) ? _rosenbrock_update(x, f, J, z, h) : _euler_update(x, f, h)
+        else
+            _euler_update(x, f, h)
+        end
+        Δ = x - x_prev
+        Tsub += Lv_over_cp * (Δ.q_lcl + Δ.q_rai) + Ls_over_cp * (Δ.q_icl + Δ.q_sno)
+    end
+
+    rates = (x - x₀) / Δt
+    return (;
+        dq_lcl_dt = rates.q_lcl, dq_icl_dt = rates.q_icl,
+        dq_rai_dt = rates.q_rai, dq_sno_dt = rates.q_sno,
+    )
+end
