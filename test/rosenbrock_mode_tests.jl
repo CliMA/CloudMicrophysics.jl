@@ -8,10 +8,10 @@ import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import StaticArrays: SVector
 
-# `RosenbrockAverage` substeps the limited pointwise 2M+P3 tendency with a
-# linearized-implicit (Rosenbrock-Euler) update. The reference for accuracy
-# tests is a finely-resolved forward-Euler integration of the same limited
-# tendency (identical limiting, T update, and frozen logλ/q_tot semantics).
+# `RosenbrockAverage` substeps the raw instantaneous pointwise 2M+P3 tendency
+# with a linearized-implicit (Rosenbrock-Euler) update. The reference for
+# accuracy tests is a finely-resolved forward-Euler integration of the same
+# raw tendency (identical T update and frozen logλ/q_tot semantics).
 
 function explicit_reference(mp, tps, ρ, T, q_tot, x0, logλ, Δt, nsub)
     FT = typeof(q_tot)
@@ -20,7 +20,7 @@ function explicit_reference(mp, tps, ρ, T, q_tot, x0, logλ, Δt, nsub)
     Tsub = T
     cp_d = TDI.TD.Parameters.cp_d(tps)
     for _ in 1:nsub
-        g = BMT.Limited2MP3Tendency(mp, tps, ρ, Tsub, q_tot, logλ, h)
+        g = BMT.Instantaneous2MP3Tendency(mp, tps, ρ, Tsub, q_tot, logλ)
         f = g(x)
         xp = x
         x = max.(x .+ h .* f, zero(FT))
@@ -54,23 +54,27 @@ function test_rosenbrock_mode(FT)
     # x = [q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim]
     regimes = (
         (; name = "warm rain", ρ = FT(1.05), T = FT(288), q_tot = FT(0.015),
-            x = FT[4e-4, 8e7, 2.1e-3, 5e4, 0, 0, 0, 0], logλ = FT(-Inf), tol = 0.05),
+            x = FT[4e-4, 8e7, 2.1e-3, 5e4, 0, 0, 0, 0], logλ = FT(-Inf), tol = 0.002),
         (; name = "mixed phase", ρ = FT(0.78), T = FT(273.5), q_tot = FT(0.009),
-            x = FT[2e-4, 5e7, 1e-4, 4e4, 1e-4, 2e5, 4e-5, 6e-8], logλ = nothing, tol = 0.15),
+            x = FT[2e-4, 5e7, 1e-4, 4e4, 1e-4, 2e5, 4e-5, 6e-8], logλ = nothing, tol = 0.07),
         (; name = "ice sublimation", ρ = FT(0.45), T = FT(253), q_tot = FT(4e-4),
-            x = FT[0, 0, 0, 0, 8e-4, 5e5, 5e-4, 9e-7], logλ = nothing, tol = 0.05),
+            x = FT[0, 0, 0, 0, 8e-4, 5e5, 5e-4, 9e-7], logλ = nothing, tol = 0.012),
     )
 
     # Per-species scales with physical floors: collapsing species (reference
-    # depleted to ~0) would otherwise dominate a plain relative metric
-    floors = SVector{8, FT}(1e-9, 1e-1, 1e-9, 1e-1, 1e-9, 1e-1, 1e-10, 1e-13)
+    # depleted to ~0) would otherwise dominate a plain relative metric. The
+    # rime channels (q_rim, b_rim) carry genesis-scale floors: once ice has
+    # melted away, single-precision leaves an O(1e-7) coupled volume/mass
+    # residual that is physically negligible but unbounded against an
+    # eps-scale floor.
+    floors = SVector{8, FT}(1e-9, 1e-1, 1e-9, 1e-1, 1e-9, 1e-1, 1e-8, 1e-6)
     err_metric(x, x_ref, x0) = maximum(abs.(x .- x_ref) ./ (abs.(x0) .+ abs.(x_ref) .+ floors))
 
     @testset "RosenbrockAverage vs fine explicit reference ($FT)" begin
         Δt = FT(10)
         for r in regimes
             logλ = isnothing(r.logλ) ? consistent_logλ(r.ρ, r.x) : r.logλ
-            x_ref = explicit_reference(mp, tps, r.ρ, r.T, r.q_tot, r.x, logλ, Δt, 512)
+            x_ref = explicit_reference(mp, tps, r.ρ, r.T, r.q_tot, r.x, logλ, Δt, 2048)
             x0 = SVector{8, FT}(r.x...)
             err(x) = err_metric(x, x_ref, x0)
             errs = [err(step(r.x, r.ρ, r.T, r.q_tot, logλ, Δt, n)) for n in (1, 4, 16)]
@@ -122,17 +126,18 @@ function test_rosenbrock_mode(FT)
 
     @testset "near-empty channels take the explicit path ($FT)" begin
         # condensed masses in (eps, 1e-10) produce finite but enormous
-        # Jacobian rows through the coupled-sink limiter; the linearized
-        # update fabricates phantom droplet number that substep refinement
-        # cannot remove. The channel mask must route such channels to
-        # forward Euler: the result has to track the explicit reference.
-        # spin-up from a band state is a fast transient, so same-nsub
-        # trajectories legitimately differ at first order; the bug signature
-        # is droplet number decades beyond the fine reference (~1.2e6 here;
-        # the unmasked Jacobian gave ~7e9)
+        # Jacobian rows from the steep dependence of the raw process rates
+        # on a near-zero channel; the linearized update fabricates phantom
+        # droplet number that substep refinement cannot remove. The channel
+        # mask must route such channels to forward Euler: the result has to
+        # track the explicit reference. spin-up from a band state is a fast
+        # transient, so same-nsub trajectories legitimately differ at first
+        # order; the bug signature is droplet number orders of magnitude
+        # beyond the fine reference (~2.6e5 here; the unmasked Jacobian gave
+        # ~7e9)
         x_band = FT[1e-13, 1e2, 0, 0, 0, 0, 0, 0]
         Δt = FT(60)
-        x_ref = explicit_reference(mp, tps, FT(1), FT(288), FT(0.02), x_band, FT(-Inf), Δt, 512)
+        x_ref = explicit_reference(mp, tps, FT(1), FT(288), FT(0.02), x_band, FT(-Inf), Δt, 2048)
         x16 = step(x_band, FT(1), FT(288), FT(0.02), FT(-Inf), Δt, 16)
         @test all(isfinite, x16)
         @test x16[2] < 10 * x_ref[2]
