@@ -122,7 +122,7 @@ struct LinearizedAverage <: TendencyMode end
 
 Return time-averaged tendencies computed via repeated linearized-implicit
 (Rosenbrock-Euler) substeps, linearizing with the exact `ForwardDiff` Jacobian
-of the limited pointwise tendency at each substep. Implemented for the
+of the raw instantaneous pointwise tendency at each substep. Implemented for the
 2-moment + P3 configuration.
 """
 struct RosenbrockAverage <: TendencyMode end
