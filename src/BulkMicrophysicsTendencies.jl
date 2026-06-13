@@ -47,6 +47,7 @@ export MicrophysicsScheme,
     LinearizedAverage,
     RosenbrockAverage,
     RosenbrockAverageVerbose,
+    RosenbrockAverageImplicitT,
     bulk_microphysics_tendencies
 
 #####
@@ -143,6 +144,29 @@ folded into the per-process tendencies. A diagnostic-only path: it may allocate
 (unlike the non-verbose hot loop) and is not used in the model time step.
 """
 struct RosenbrockAverageVerbose <: TendencyMode end
+
+"""
+    RosenbrockAverageImplicitT <: TendencyMode
+
+Return time-averaged tendencies computed like [`RosenbrockAverage`](@ref), but
+with the local temperature promoted into the implicitly-solved state. The
+[`RosenbrockAverage`](@ref) substep loop advances `T` EXPLICITLY between
+substeps from the latent heat of the realized species increment, so `∂f/∂T` is
+outside the species-only Jacobian and the
+vapor → latent-heat → temperature → saturation → exchange-flux loop is
+operator-split; at coarse substeps that split feedback overshoots and rings
+about the saturation limit (decaying, but visible as saturation sign flips).
+
+This mode augments the state with `T` as a final component and differentiates a
+joint species+temperature tendency, so the latent-heating row and the
+Clausius-Clapeyron column `∂f/∂T` (the saturation-dependence of the relaxation
+rates) enter the Jacobian. The thermal feedback then sits inside the same
+L-stable one-stage Rosenbrock solve as the species exchange, and the
+operator-split ringing is removed — no separate between-substep `T` update is
+done. Implemented for the 1-moment and the 2-moment + P3 configurations; a
+separate option from [`RosenbrockAverage`](@ref), which is left unchanged.
+"""
+struct RosenbrockAverageImplicitT <: TendencyMode end
 
 # --- 1-Moment Microphysics ---
 

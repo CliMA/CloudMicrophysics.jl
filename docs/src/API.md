@@ -137,6 +137,7 @@ BulkMicrophysicsTendencies.InstantaneousVerbose
 BulkMicrophysicsTendencies.LinearizedAverage
 BulkMicrophysicsTendencies.RosenbrockAverage
 BulkMicrophysicsTendencies.RosenbrockAverageVerbose
+BulkMicrophysicsTendencies.RosenbrockAverageImplicitT
 BulkMicrophysicsTendencies.bulk_microphysics_tendencies
 ```
 

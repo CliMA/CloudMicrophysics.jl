@@ -30,6 +30,7 @@ TT.@testset "All tests" begin
     include("rosenbrock_mode_tests.jl")
     include("rosenbrock_1m_tests.jl")
     include("rosenbrock_verbose_tests.jl")
+    include("rosenbrock_implicit_t_tests.jl")
     include("DistributionTools_tests.jl")
     include("unrolled_logsumexp.jl")
 end

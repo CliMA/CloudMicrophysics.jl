@@ -927,3 +927,336 @@ A diagnostic path: it may allocate; the non-verbose hot loop is untouched.
     clamp_correction = Δx_clamp_sum / Δt
     return merge(net, (; processes, clamp_correction))
 end
+
+#####
+##### Implicit-temperature Rosenbrock-Euler substepping (`RosenbrockAverageImplicitT`)
+#####
+
+"""
+    MicroState2MP3T{FT}
+
+The eight prognostic 2M+P3 species plus the local temperature `T` as a
+`StaticArrays.FieldVector`, the augmented state of the
+[`RosenbrockAverageImplicitT`](@ref) 2M+P3 entry. Mirrors
+[`MicroState2MP3`](@ref) with `T` appended as the final component, so the
+species ordering of the leading eight-component block is unchanged and the
+species-only kernels see the same layout.
+
+Carrying `T` in the state makes it a differentiation variable: the
+species+temperature Jacobian then holds the latent-heating row and the
+Clausius-Clapeyron column `∂f/∂T` that the species-only solve splits off into
+an explicit between-substep update.
+"""
+struct MicroState2MP3T{FT} <: SA.FieldVector{9, FT}
+    q_lcl::FT
+    n_lcl::FT
+    q_rai::FT
+    n_rai::FT
+    q_ice::FT
+    n_ice::FT
+    q_rim::FT
+    b_rim::FT
+    T::FT
+end
+SA.similar_type(::Type{<:MicroState2MP3T}, ::Type{FT}, ::SA.Size{(9,)}) where {FT} =
+    MicroState2MP3T{FT}
+
+"""
+    _latent_heating_rate_2mp3(tps, T, dq_lcl_dt, dq_rai_dt, dq_ice_dt)
+
+The temperature tendency `dT/dt` from the latent heat of the 2M+P3 phase-change
+rates: `(Lᵥ·(dq_lcl_dt + dq_rai_dt) + Lₛ·dq_ice_dt) / cp_d`, the rate form of
+the explicit between-substep update of [`RosenbrockAverage`](@ref) (which adds
+`(Lᵥ·(Δq_lcl + Δq_rai) + Lₛ·Δq_ice) / cp_d` from the realized increment `Δ`).
+Liquid and rain mass condensing/evaporating release/absorb the latent heat of
+vaporization `Lᵥ`; ice mass depositing/sublimating (net of melting/freezing,
+which the P3 ice mass balance already nets) releases/absorbs the latent heat of
+sublimation `Lₛ`. The latent heats are evaluated at `max(150, T)`, matching the
+floor the explicit update applies, so an explicit forward-Euler integration of
+the augmented tendency reproduces the [`RosenbrockAverage`](@ref) trajectory.
+
+Written as a function of `T` (through `Lᵥ`, `Lₛ`) and of the rates (which depend
+on `T` through the saturation specific humidities) so that, with `T` carried in
+the augmented state, `ForwardDiff` differentiates the full
+temperature → saturation → exchange-flux → latent-heating loop into the
+Jacobian.
+"""
+@inline function _latent_heating_rate_2mp3(tps, T, dq_lcl_dt, dq_rai_dt, dq_ice_dt)
+    cp_d = TDI.TD.Parameters.cp_d(tps)
+    T_safe = max(oftype(T, 150), T)
+    return (TDI.Lᵥ(tps, T_safe) * (dq_lcl_dt + dq_rai_dt) + TDI.Lₛ(tps, T_safe) * dq_ice_dt) / cp_d
+end
+
+"""
+    Instantaneous2MP3TTendency(mp, tps, ρ, q_tot, logλ)
+
+Callable bundling the frozen per-substep context for the augmented 2M+P3
+state; applying it to a [`MicroState2MP3T`](@ref) evaluates the eight species
+tendencies ([`_instantaneous_2mp3_tendency`](@ref)) at the state's own `T` and
+appends the latent-heating tendency `dT/dt`
+([`_latent_heating_rate_2mp3`](@ref)) as the ninth component. A top-level struct
+rather than a closure, so `ForwardDiff` differentiates a concretely-typed
+callable, mirroring [`Instantaneous2MP3Tendency`](@ref).
+
+Unlike [`Instantaneous2MP3Tendency`](@ref), `T` is NOT frozen context: it is
+taken from the state, so the partial w.r.t. the ninth component flows through
+the saturation specific humidities (the Clausius-Clapeyron feedback) and the
+temperature-dependent latent heats. `ρ`, `q_tot`, and `logλ` are frozen across
+substeps exactly as in the species-only entry; `q_tot` is promoted to the
+state's element type at the call so the constant carries a zero partial and the
+promotion-keyed fallback returns stay concretely typed.
+"""
+struct Instantaneous2MP3TTendency{P, H, F}
+    mp::P
+    tps::H
+    ρ::F
+    q_tot::F
+    logλ::F
+end
+@inline function (g::Instantaneous2MP3TTendency)(x::SA.StaticVector{9})
+    (q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, T) = x
+    tend = _instantaneous_2mp3_tendency(g.mp, g.tps,
+        g.ρ, T, eltype(x)(g.q_tot),
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, g.logλ,
+    )
+    dT_dt = _latent_heating_rate_2mp3(g.tps, T, tend.dq_lcl_dt, tend.dq_rai_dt, tend.dq_ice_dt)
+    return MicroState2MP3T(
+        tend.dq_lcl_dt, tend.dn_lcl_dt, tend.dq_rai_dt, tend.dn_rai_dt,
+        tend.dq_ice_dt, tend.dn_ice_dt, tend.dq_rim_dt, tend.db_rim_dt, dT_dt,
+    )
+end
+
+"""
+    _rosenbrock_channel_mask(x::MicroState2MP3T)
+
+Diagonal of the channel projection `P` for the augmented 2M+P3 state: the eight
+species channels gated exactly as the species-only
+[`MicroState2MP3`](@ref) method (liquid, rain, ice+rime below `1e-10` → forward
+Euler), and the temperature channel ALWAYS present (`1`). `T` is ~250 K, far
+above the `1e-10` near-empty threshold, so it is never masked: its row of the
+Rosenbrock system always participates implicitly, which is the entire point of
+this mode.
+"""
+@inline function _rosenbrock_channel_mask(x::MicroState2MP3T{FT}) where {FT}
+    ϵ_empty = FT(1e-10)
+    liq = ifelse(x.q_lcl < ϵ_empty, zero(FT), one(FT))
+    rai = ifelse(x.q_rai < ϵ_empty, zero(FT), one(FT))
+    ice = ifelse(x.q_ice < ϵ_empty, zero(FT), one(FT))
+    return MicroState2MP3T(liq, liq, rai, rai, ice, ice, ice, ice, one(FT))
+end
+
+"""
+    bulk_microphysics_tendencies(::RosenbrockAverageImplicitT, ::Microphysics2Moment,
+        mp, tps, ρ, T, q_tot,
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
+        Δt, nsub = 1)
+
+Compute average 2M+P3 microphysics tendencies over `Δt` using `nsub`
+linearized-implicit (Rosenbrock-Euler) substeps with the temperature promoted
+into the implicitly-solved state.
+
+# Algorithm
+
+For each substep of `h = Δt / nsub`:
+
+1. Evaluate the augmented tendency `f` ([`Instantaneous2MP3TTendency`](@ref)) —
+   the eight species rates plus the latent-heating `dT/dt` — and its exact 9×9
+   Jacobian `J` via `ForwardDiff` at the current `(species, T)` state. The
+   Jacobian now carries `∂f/∂T` (the saturation feedback) and the
+   latent-heating row.
+2. Advance with [`_rosenbrock_update`](@ref) over the 9-vector: the kernel is
+   dimension-generic, so `N = 9` plugs in unchanged. The channel projection
+   ([`_rosenbrock_channel_mask`](@ref)) keeps `T` always implicit; equilibration
+   `S = |x| + h|f| + ϵ` gives `T` its own ~250-scale row, so the species/T scale
+   split (now spanning ~9-12 orders) stays conditioned even in Float32.
+
+No separate between-substep `T` update is done: `T` evolves inside the solve, so
+the vapor → latent-heat → temperature → saturation → exchange-flux feedback is
+integrated implicitly rather than operator-split. A non-finite state or Jacobian
+falls back to a forward-Euler substep of the augmented tendency. `logλ` and
+`q_tot` are held fixed across substeps. The discrete safeguards are h-free
+conditioning and projection (channel mask, equilibration, positivity clamp on
+the species), not model terms.
+
+Returns the net change in the species over `Δt` divided by `Δt`, in the same
+fields as the [`RosenbrockAverage`](@ref) entry; the implicit `T` evolution is
+internal and not returned (the macro scheme owns the energy update).
+"""
+@inline function bulk_microphysics_tendencies(::RosenbrockAverageImplicitT, cm::Microphysics2Moment,
+    mp::CMP.Microphysics2MParams{WR, ICE}, tps,
+    ρ, T, q_tot,
+    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
+    Δt, nsub = 1,
+) where {WR, ICE <: CMP.P3IceParams}
+    FT = typeof(q_tot)
+    nsub_eff = max(Int(nsub), 1)
+    h = Δt / FT(nsub_eff)
+
+    g = Instantaneous2MP3TTendency(mp, tps, ρ, q_tot, logλ)
+    x = MicroState2MP3T{FT}(q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, T)
+    x₀ = x
+    for _ in 1:nsub_eff
+        f = g(x)
+        x = if all(isfinite, x)
+            J = FD.jacobian(g, x)
+            z = _rosenbrock_channel_mask(x)
+            all(isfinite, J) ? _rosenbrock_update(x, f, J, z, h) : _euler_update(x, f, h)
+        else
+            _euler_update(x, f, h)
+        end
+    end
+
+    rates = (x - x₀) / Δt
+    return NamedTuple{(
+        :dq_lcl_dt, :dn_lcl_dt, :dq_rai_dt, :dn_rai_dt,
+        :dq_ice_dt, :dn_ice_dt, :dq_rim_dt, :db_rim_dt,
+    )}(
+        (rates.q_lcl, rates.n_lcl, rates.q_rai, rates.n_rai,
+        rates.q_ice, rates.n_ice, rates.q_rim, rates.b_rim),
+    )
+end
+
+#####
+##### Implicit-temperature 1M Rosenbrock-Euler substepping (`RosenbrockAverageImplicitT`)
+#####
+
+"""
+    MicroState1MT{FT}
+
+The four prognostic 1M species plus the local temperature `T` as a
+`StaticArrays.FieldVector`, the augmented state of the
+[`RosenbrockAverageImplicitT`](@ref) 1M entry. Mirrors [`MicroState1M`](@ref)
+with `T` appended as the final component, so the four-species block keeps its
+ordering and the species-only kernels see the same layout.
+"""
+struct MicroState1MT{FT} <: SA.FieldVector{5, FT}
+    q_lcl::FT
+    q_icl::FT
+    q_rai::FT
+    q_sno::FT
+    T::FT
+end
+SA.similar_type(::Type{<:MicroState1MT}, ::Type{FT}, ::SA.Size{(5,)}) where {FT} =
+    MicroState1MT{FT}
+
+"""
+    Raw1MTTendency(mp, tps, ρ, q_tot, Lv_over_cp, Ls_over_cp)
+
+Callable bundling the frozen per-substep context for the augmented 1M state;
+applying it to a [`MicroState1MT`](@ref) evaluates the four species tendencies
+([`_instantaneous_1m_tendency`](@ref)) at the state's own `T` and appends the
+latent-heating tendency `dT/dt = Lv_over_cp·(dq_lcl_dt + dq_rai_dt) +
+Ls_over_cp·(dq_icl_dt + dq_sno_dt)` as the fifth component. This is the rate form
+of the explicit between-substep update of the [`RosenbrockAverage`](@ref) 1M
+entry (which adds `Lv_over_cp·(Δq_lcl + Δq_rai) + Ls_over_cp·(Δq_icl + Δq_sno)`
+from the realized increment `Δ`), so an explicit forward-Euler integration of the
+augmented tendency reproduces the [`RosenbrockAverage`](@ref) 1M trajectory. The
+constant `Lv_over_cp`, `Ls_over_cp` mirror the 1M convention (constant latent
+heats, liquid+rain on `L_v`, ice+snow on `L_s`); the temperature dependence of
+the feedback enters only through the saturation-dependent rates, exactly as in the
+explicit update.
+
+A top-level struct rather than a closure, so `ForwardDiff` differentiates a
+concretely-typed callable, mirroring [`Raw1MTendency`](@ref). Unlike that functor
+`T` is NOT frozen context: it is taken from the state, so the fifth-component
+partial flows through the saturation specific humidities. `ρ` and `q_tot` are
+frozen across substeps; `q_tot` is promoted to the state's element type at the
+call so the constant carries a zero partial.
+"""
+struct Raw1MTTendency{P, H, F}
+    mp::P
+    tps::H
+    ρ::F
+    q_tot::F
+    Lv_over_cp::F
+    Ls_over_cp::F
+end
+@inline function (g::Raw1MTTendency)(x::SA.StaticVector{5})
+    (q_lcl, q_icl, q_rai, q_sno, T) = x
+    tend = _instantaneous_1m_tendency(g.mp, g.tps,
+        g.ρ, T, eltype(x)(g.q_tot),
+        q_lcl, q_icl, q_rai, q_sno,
+    )
+    dT_dt =
+        eltype(x)(g.Lv_over_cp) * (tend.dq_lcl_dt + tend.dq_rai_dt) +
+        eltype(x)(g.Ls_over_cp) * (tend.dq_icl_dt + tend.dq_sno_dt)
+    return MicroState1MT(tend.dq_lcl_dt, tend.dq_icl_dt, tend.dq_rai_dt, tend.dq_sno_dt, dT_dt)
+end
+
+"""
+    _rosenbrock_channel_mask(x::MicroState1MT)
+
+Diagonal of the channel projection `P` for the augmented 1M state: the four mass
+channels gated exactly as the species-only [`MicroState1M`](@ref) method (below
+`1e-10` → forward Euler), and the temperature channel ALWAYS present (`1`). `T`
+is ~250 K, far above the near-empty threshold, so it is never masked and its row
+always participates implicitly.
+"""
+@inline function _rosenbrock_channel_mask(x::MicroState1MT{FT}) where {FT}
+    ϵ_empty = FT(1e-10)
+    lcl = ifelse(x.q_lcl < ϵ_empty, zero(FT), one(FT))
+    icl = ifelse(x.q_icl < ϵ_empty, zero(FT), one(FT))
+    rai = ifelse(x.q_rai < ϵ_empty, zero(FT), one(FT))
+    sno = ifelse(x.q_sno < ϵ_empty, zero(FT), one(FT))
+    return MicroState1MT(lcl, icl, rai, sno, one(FT))
+end
+
+"""
+    bulk_microphysics_tendencies(::RosenbrockAverageImplicitT, ::Microphysics1Moment,
+        mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1)
+
+Compute average 1M microphysics tendencies over `Δt` using `nsub`
+linearized-implicit (Rosenbrock-Euler) substeps with the temperature promoted
+into the implicitly-solved state. The 1M counterpart of the 2M+P3
+[`RosenbrockAverageImplicitT`](@ref) entry, and the implicit-`T` companion of the
+species-only [`RosenbrockAverage`](@ref) 1M entry.
+
+# Algorithm
+
+For each substep of `h = Δt / nsub`:
+
+1. Evaluate the augmented tendency `f` ([`Raw1MTTendency`](@ref)) — the four
+   species rates plus the latent-heating `dT/dt` — and its exact 5×5 Jacobian `J`
+   via `ForwardDiff` at the current `(species, T)` state, so the Jacobian carries
+   `∂f/∂T` and the latent-heating row.
+2. Advance with [`_rosenbrock_update`](@ref) over the 5-vector (the kernel is
+   dimension-generic, `N = 5`). The channel projection keeps `T` always implicit;
+   equilibration gives `T` its own ~250-scale row.
+
+No separate between-substep `T` update is done. A non-finite state or Jacobian
+falls back to a forward-Euler substep; `q_tot` is held fixed across substeps.
+
+Returns the net change in the species over `Δt` divided by `Δt`, in the same
+fields as the [`RosenbrockAverage`](@ref) 1M entry; the implicit `T` evolution is
+internal and not returned.
+"""
+@inline function bulk_microphysics_tendencies(::RosenbrockAverageImplicitT, cm::Microphysics1Moment,
+    mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+)
+    FT = typeof(q_tot)
+    nsub_eff = max(Int(nsub), 1)
+    h = Δt / FT(nsub_eff)
+    Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+    Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+
+    g = Raw1MTTendency(mp, tps, ρ, q_tot, Lv_over_cp, Ls_over_cp)
+    x = MicroState1MT{FT}(q_lcl, q_icl, q_rai, q_sno, T)
+    x₀ = x
+    for _ in 1:nsub_eff
+        f = g(x)
+        x = if all(isfinite, x)
+            J = FD.jacobian(g, x)
+            z = _rosenbrock_channel_mask(x)
+            all(isfinite, J) ? _rosenbrock_update(x, f, J, z, h) : _euler_update(x, f, h)
+        else
+            _euler_update(x, f, h)
+        end
+    end
+
+    rates = (x - x₀) / Δt
+    return (;
+        dq_lcl_dt = rates.q_lcl, dq_icl_dt = rates.q_icl,
+        dq_rai_dt = rates.q_rai, dq_sno_dt = rates.q_sno,
+    )
+end
