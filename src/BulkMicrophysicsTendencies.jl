@@ -46,6 +46,7 @@ export MicrophysicsScheme,
     InstantaneousVerbose,
     LinearizedAverage,
     RosenbrockAverage,
+    RosenbrockAverageVerbose,
     bulk_microphysics_tendencies
 
 #####
@@ -127,6 +128,21 @@ of the raw instantaneous pointwise tendency at each substep. Implemented for the
 hand-built `LinearizedAverage` (which uses a donor-cell-modified system matrix).
 """
 struct RosenbrockAverage <: TendencyMode end
+
+"""
+    RosenbrockAverageVerbose <: TendencyMode
+
+Diagnostic companion to [`RosenbrockAverage`](@ref): returns the same net
+averaged tendencies plus a post-solve per-process attribution. Each substep's
+Rosenbrock solve is linear in the raw tendency, so each process's instantaneous
+contribution `f_p` pushed through the same equilibrated solve operator yields a
+realized per-process increment `Δx_p`, and `Σ_p Δx_p` equals the substep's
+unclamped increment exactly. The positivity clamp is not linear, so its effect
+is reported as a separate, non-attributable clamp-correction term rather than
+folded into the per-process tendencies. A diagnostic-only path: it may allocate
+(unlike the non-verbose hot loop) and is not used in the model time step.
+"""
+struct RosenbrockAverageVerbose <: TendencyMode end
 
 # --- 1-Moment Microphysics ---
 
