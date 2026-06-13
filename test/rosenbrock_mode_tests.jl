@@ -147,7 +147,7 @@ function test_rosenbrock_mode(FT)
         logλ_m = consistent_logλ(FT(0.45), x_mixb)
         xm = step(x_mixb, FT(0.45), FT(253), FT(4e-4), logλ_m, FT(10), 16)
         @test all(isfinite, xm)
-        @test xm[2] < FT(1e6)  # no multi-decade phantom droplet number
+        @test xm[2] < FT(1e6)  # no phantom droplet number orders of magnitude above the reference
     end
 end
 

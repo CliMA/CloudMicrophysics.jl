@@ -115,14 +115,15 @@ Forward-Euler substep, floored at zero.
 @inline _euler_update(x, f, h) = max.(x .+ h .* f, 0)
 
 """
-    _rosenbrock_update(x, f, J, h)
+    _rosenbrock_update(x, f, J, z, h)
 
 One linearized-implicit (Rosenbrock-Euler) substep: solve
 
     (I/h - P J P) Δx = f
 
 and return `max.(x + Δx, 0)`, where `P = Diagonal(z)` is the channel
-projection of [`_rosenbrock_channel_mask`](@ref). The system is solved in
+projection built from the per-scheme channel mask `z` (e.g.
+[`_rosenbrock_channel_mask`](@ref) for 2M+P3). The system is solved in
 equilibrated variables: with `S = Diagonal(|x| + h |f| + ϵ)` the similarity
 transform `S⁻¹ A S` is O(1)-conditioned — the raw rows span ~9 orders of
 magnitude (number vs mass species), and an unscaled Float32 factorization
@@ -130,16 +131,15 @@ bleeds roundoff from the large rows into empty species as phantom mass.
 Equilibration is exact in exact arithmetic and keeps roundoff relative to
 each species' own scale.
 """
-@inline function _rosenbrock_update(x::MicroState2MP3{FT}, f, J, h) where {FT}
-    I₈ = one(SA.SMatrix{8, 8, FT})
-    z = _rosenbrock_channel_mask(x)
+@inline function _rosenbrock_update(x::SA.StaticVector{N, FT}, f, J, z, h) where {N, FT}
+    Iₙ = one(SA.SMatrix{N, N, FT})
     s = abs.(x) .+ h .* abs.(f) .+ eps(FT)
     # dense diagonal matrices: an `SDiagonal` wrapper here defeats the
     # optimizer's static-array stack allocation (heap spills per substep)
-    P = I₈ .* z'
-    S = I₈ .* s'
-    S⁻¹ = I₈ .* inv.(s)'
-    A = I₈ / h - S⁻¹ * (P * J * P) * S
+    P = Iₙ .* z'
+    S = Iₙ .* s'
+    S⁻¹ = Iₙ .* inv.(s)'
+    A = Iₙ / h - S⁻¹ * (P * J * P) * S
     Δx = S * (A \ (S⁻¹ * f))
     return max.(x .+ Δx, 0)
 end
@@ -197,7 +197,8 @@ fields as the `Instantaneous` entry (without the activation diagnostic).
         x_prev = x
         x = if all(isfinite, x)
             J = FD.jacobian(g, x)
-            all(isfinite, J) ? _rosenbrock_update(x, f, J, h) : _euler_update(x, f, h)
+            z = _rosenbrock_channel_mask(x)
+            all(isfinite, J) ? _rosenbrock_update(x, f, J, z, h) : _euler_update(x, f, h)
         else
             _euler_update(x, f, h)
         end
