@@ -67,18 +67,6 @@ Return the parameters of the rain drop diameter distribution
 """
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ, ρₐ, Nᵣ)
     FT = eltype(qᵣ)
-    # Degenerate-input guard. The unlimited PDF inverts `xr_mean = Lᵣ/Nᵣ`
-    # and `Dr_mean = 1/cbrt(π·ρw/xr_mean)`; if EITHER `Nᵣ` or `qᵣ` is
-    # non-positive (which explicit RK sub-stages transiently produce when
-    # number is depleted faster than mass, or vice-versa) the result is a
-    # *negative* `Dr_mean` — finite and non-zero, so it slips past the
-    # downstream `iszero(Dr_mean)` checks and makes `exponential_quantile`
-    # throw `DomainError("Mean parameter must be positive")`. Return zero
-    # params instead (consumers already special-case `iszero(N₀r)`). The old
-    # guard only fired when BOTH were zero (`&&`); broaden to `||` with the
-    # same `ϵ` thresholds as the cloud PDF's `log_pdf_cloud_parameters_mass`
-    # guard (these `ϵ = eps(FT) > 0`, so all non-positive inputs are caught).
-    # Strict no-op for physically valid (above-ϵ) inputs.
     (Nᵣ < UT.ϵ_numerics_2M_N(FT) || qᵣ < UT.ϵ_numerics_2M_M(FT)) &&
         return (; N₀r = zero(Nᵣ), Dr_mean = zero(qᵣ), xr_mean = zero(qᵣ))
     (; ρw) = pdf_r

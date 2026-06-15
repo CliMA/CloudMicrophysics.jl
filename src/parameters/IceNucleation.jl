@@ -127,7 +127,7 @@ Returns the volumetric freezing rate in SI units [m⁻³ s⁻¹].
 The stored `het_B` is in [cm⁻³ s⁻¹]; the factor 10⁶ converts cm³ → m³.
 """
 @kwdef struct RainFreezing{FT} <: ParametersType
-    "empirical parameter [°C⁻¹]"
+    "empirical parameter [°K⁻¹]"
     het_a::FT
     "water-type dependent parameter [cm⁻³ s⁻¹]"
     het_B::FT
@@ -136,7 +136,7 @@ end
 function RainFreezing(td::CP.ParamDict)
     name_map = (;
         :BarklieGokhale1959_a_parameter => :het_a,
-        :BarklieGokhale1959_B_parameter => :het_B,
+        :BarklieGokhale1959_B_parameter => :het_B,  # TODO: Fix units in CP, then here
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return RainFreezing(; parameters...)
@@ -203,31 +203,7 @@ end
 # F23 INP-activation memory models
 # ---------------------------------------------------------------------------
 
-export AbstractINPDepletion, NIceProxyDepletion
-
-"""
-    AbstractINPDepletion
-
-Abstract type for the model of how F23 INP-activation budgets are
-"depleted" within an air parcel. Choose a concrete subtype to control
-the value subtracted from the F23 INPC target in the F23 deposition and
-immersion-cap rates:
-
-```
-∂ₜn_frz = max(0, INPC(T)/ρ - n_active) / τ_act
-```
-
-where `n_active` is supplied by the host. The depletion model also
-carries `τ_act`, the F23 activation relaxation timescale, so the host
-doesn't need to wire that knob separately. The model selects how the
-host sources `n_active`:
-
-- [`NIceProxyDepletion`](@ref): use existing `n_ice` (zero memory).
-
-(A prognostic activation-memory model with a finite decay timescale lived
-here previously and is deferred to a follow-up PR.)
-"""
-abstract type AbstractINPDepletion end
+export NIceProxyDepletion
 
 """
     NIceProxyDepletion{FT}
@@ -246,7 +222,7 @@ clean air below it and the F23 channel artificially shuts off.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct NIceProxyDepletion{FT} <: AbstractINPDepletion
+struct NIceProxyDepletion{FT}
     "F23 activation relaxation timescale [s] (default `300`)"
     τ_act::FT
 end
