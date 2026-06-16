@@ -118,6 +118,54 @@ We obtain the following expression for $ρ_d$
   \frac{(β_{va} - 2)(k - 1)}{(1 - F_{rim}) k - 1} - (1 - F_{rim})
 }
 ```
+
+!!! details "Click here to see a numerically stable form"
+    Evaluated directly, this expression loses accuracy as ``F_{rim} → 0``. In that limit ``k → 1`` and
+    ``(1 - F_{rim}) k → 1``, so the ratio ``(k - 1) / ((1 - F_{rim}) k - 1)`` is ``0/0``. In `Float32` the
+    resulting cancellation drives the computed ``ρ_d``, and therefore ``ρ_g``, negative. We rewrite the
+    expression so that the cancellation is removed.
+
+    Let ``F_u = 1 - F_{rim}`` be the unrimed fraction, let ``L = \log F_u``, and let ``p = 1 / (3 - β_{va})``,
+    so that ``k = F_u^{-p}`` and ``(1 - F_{rim}) k = F_u^{1 - p}``. Every power of the form ``F_u^a - 1`` is
+    equal to ``e^{aL} - 1``. We write these through the relative exponential functions
+
+    ```math
+    φ(a) = \frac{e^{aL} - 1}{aL} = \mathrm{exprel}_1(aL), \qquad
+    ψ(a) = \frac{e^{aL} - 1 - aL}{(aL)^2} = \mathrm{exprel}_2(aL),
+    ```
+
+    both of which stay finite and accurate as ``L → 0``. Using ``β_{va} - 2 = -(1 - p) / p``, the denominator
+    of ``ρ_d`` becomes ``φ(-p) / φ(1 - p) - F_u``. Both the numerator ``ρ_{rim} F_{rim}`` and the denominator
+    are proportional to ``L`` as ``F_{rim} → 0``, so we factor ``L`` out of each. With ``F_{rim} = -L\,φ(1)``
+    and ``φ(-p) - φ(1 - p) = L\,[-p\,ψ(-p) - (1 - p)\,ψ(1 - p)]``, the denominator divided by ``L`` is
+
+    ```math
+    G = \big[-p\,ψ(-p) - (1 - p)\,ψ(1 - p)\big] - φ(1 - p)\,φ(1),
+    ```
+
+    which tends to ``-3/2`` as ``F_{rim} → 0``. The factor ``L`` cancels, and we are left with
+
+    ```math
+    ρ_d = -\frac{ρ_{rim}\,φ(1)\,φ(1 - p)}{G}.
+    ```
+
+    This form has no subtraction of nearly equal numbers, so it stays accurate in `Float32`, and ``ρ_g``
+    stays positive for every physical input without any clipping. The functions ``\mathrm{exprel}_1`` and
+    ``\mathrm{exprel}_2`` (implemented by the internal `exprel` function) use a Taylor series at small
+    arguments, where the closed forms would themselves cancel.
+
+    The figure below shows the relative error of ``ρ_g`` in `Float32`, against a reference computed in
+    `BigFloat`, for both the direct evaluation and this rewrite. The direct form is order-one wrong at small
+    rime fractions and only reaches `Float32` precision near ``F_{rim} = 0.35``, while the rewrite stays at
+    the precision floor across the whole range.
+
+    ```@example
+    include("plots/P3RhoDStability.jl")
+
+    nothing # hide
+    ```
+    ![](P3RhoDStability.svg)
+
 Given $ρ_d$, we can obtain $ρ_g$, $D_{gr}$, and $D_{cr}$ using the expressions above. Depending on the value of $ρ_{rim}$ and $F_{rim}$, 
   these thresholds and densities obtain a range of values, as shown in the plot below.
 
