@@ -135,6 +135,44 @@ Return `true` if the particle is unrimed, i.e. `F_rim = 0`.
 """
 isunrimed(state::P3State) = iszero(state.F_rim)
 
+exprel_coeffs(n, k) = 1 // factorial(n + k)  # exprelₖ series coefficient = 1/(n+k)!
+
+@inline exprel1(x) = expm1(x) / x            # exprel₁ = (exp(x)-1)/x
+@inline _exprel2(x) = (expm1(x) - x) / (x * x)
+@inline _exprel2_small(x) = evalpoly(x, ntuple(np1 -> exprel_coeffs(np1 - 1, 2), Val(8)))
+@inline function exprel2(x)                  # exprel₂ = (exp(x)-1-x)/x²
+    abs(x) < 1 // 5 && return _exprel2_small(x)
+    return _exprel2(x)
+end
+
+"""
+    exprel(x, ::Val{k})
+
+Compute the relative exponential `exprelₖ(x) = Σₙ xⁿ/(n+k)!`.
+
+# Arguments
+- `x`: real argument.
+- `k`: order of the function, passed as `Val(k)`.
+
+# Details
+
+`exprelₖ` is one of the `φ`-functions `φₖ(x)` that appear in exponential integrators.
+It is implemented for `k = 1` (`(eˣ-1)/x`) and `k = 2` (`(eˣ-1-x)/x²`); other values of `k`
+throw an `ArgumentError`. For `k = 2` at small `|x|`, a Taylor series is used to avoid
+catastrophic loss of precision near `x = 0`.
+
+The value `k` is passed as `Val(k)`, so the order resolves at compile time.
+
+# References
+- [Exponential integrators](https://en.wikipedia.org/wiki/Exponential_integrator)
+- [Niesen & Wright (2009), A Krylov subspace algorithm for evaluating the φ-functions appearing in exponential integrators](https://arxiv.org/abs/0907.4631)
+"""
+@inline function exprel(x, ::Val{k}) where {k}
+    k == 1 && return exprel1(x)
+    k == 2 && return exprel2(x)
+    throw(ArgumentError("exprel is only implemented for k = 1 and k = 2"))
+end
+
 """
     get_ρ_d(mass::MassPowerLaw, F_rim, ρ_rim)
     get_ρ_d(state::P3State)
@@ -142,6 +180,9 @@ isunrimed(state::P3State) = iszero(state.F_rim)
 Exact solution for the density of the unrimed portion of the particle as
     function of the rime mass fraction `F_rim`, mass power law parameters `mass`,
     and rime density `ρ_rim`.
+
+For the derivation of the numerically stable form used here, see the P3 scheme
+documentation ([Assumed particle size relationships](@ref)).
 
 # Arguments
 - `mass`: [`CMP.MassPowerLaw`](@ref) parameters
@@ -165,14 +206,17 @@ julia> mass = CMP.MassPowerLaw(CP.create_toml_dict(FT));
 julia> F_rim, ρ_rim = FT(0.5), FT(916.7);
 
 julia> ρ_d = P3.get_ρ_d(mass, F_rim, ρ_rim)
-488.9120789986412
+488.9120789986414
 ```
 """
 function get_ρ_d((; β_va)::CMP.MassPowerLaw, F_rim, ρ_rim)
-    k = (1 - F_rim)^(-1 / (3 - β_va))
-    num = ρ_rim * F_rim
-    den = (β_va - 2) * (k - 1) / ((1 - F_rim) * k - 1) - (1 - F_rim)
-    return num / den
+    p = 1 / (3 - β_va)
+    logFᵤ = log1p(-F_rim)            # = log(1 - F_rim)
+    φ₁ = exprel(logFᵤ, Val(1))
+    φ₁₋ₚ = exprel((1 - p) * logFᵤ, Val(1))
+    H = -p * exprel(-p * logFᵤ, Val(2)) - (1 - p) * exprel((1 - p) * logFᵤ, Val(2))
+    G = H - φ₁₋ₚ * φ₁
+    return -(ρ_rim * φ₁ * φ₁₋ₚ) / G
 end
 get_ρ_d((; params, F_rim, ρ_rim)::P3State) = get_ρ_d(params.mass, F_rim, ρ_rim)
 
