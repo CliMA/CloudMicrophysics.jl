@@ -17,6 +17,14 @@ substeps from the latent heat of the realized increment.
 `RosenbrockAverage` is parameterized by three independent option families:
 
 - **`Jacobian`** — the matrix `J` used in the substep solve.
+  - `DonorJacobian` — the donor-based linearization `M`: each transfer is linearized in its donor species,
+    vapor sources enter as a constant, and rates are floored by `max(q_min, q_donor)`. This is the matrix the
+    operational `LinearizedAverage` mode uses.
+  - `CoupledDonorJacobian` — the donor-based matrix with the vapor-competition (Wegener–Bergeron–Findeisen)
+    coupling added. The donor-based linearization keeps only donor-species slopes; restoring the dependence of
+    each rate on the shared vapor specific content recovers the cross-species coupling and corrects the sign of
+    the snow-from-cloud-liquid entry. The direct condensate dependence of the rates (rain ventilation, the
+    availability terms) is not recovered; use `ExactJacobian` for the full derivative.
   - `ExactJacobian` — the exact tendency derivative, formed with `ForwardDiff`.
 
 - **`GrowthTreatment`** — how the positive (growth) diagonal of `J` enters the implicit operator.
@@ -29,21 +37,25 @@ substeps from the latent heat of the realized increment.
   - `EndStateSaturationAdjustment` — scale the increment so the latent-heated end state does not cross ice
     saturation (see below).
 
-The supported preset configuration is:
+Three preset configurations are supported:
 
 | preset | Jacobian | growth | limiter |
 |---|---|---|---|
+| `rosenbrock_donor()` | `DonorJacobian` | `ImplicitGrowth` | `NoLimiter` |
+| `rosenbrock_coupled()` | `CoupledDonorJacobian` | `ImplicitGrowth` | `NoLimiter` |
 | `rosenbrock_exact()` | `ExactJacobian` | `ExplicitGrowthDiagonal` | `EndStateSaturationAdjustment` |
 
-On the two-moment + P3 model only `ExactJacobian` is available; use `rosenbrock_exact()`.
+`rosenbrock_donor()` reproduces `LinearizedAverage` (the operational donor-based scheme), now expressed within
+the unified framework; in `Float64` the two agree to round-off. On the two-moment + P3 model only
+`ExactJacobian` is available (there is no donor-based matrix there); use `rosenbrock_exact()`.
 
 ### Extending the framework
 
-To add a new Jacobian, define `struct MyJacobian <: Jacobian end` and a `_species_mask(::MyJacobian, ::GrowthTreatment)`
-method (returning a `x -> z` species projection). A new growth treatment is a `GrowthTreatment` subtype plus an
-`_apply_growth(::MyGrowth, J)` method; a new limiter is a `TendencyLimiter` subtype plus an
-`_apply_limiter(::MyLimiter, x, Δ, ...)` method. The substep driver dispatches on the option types at compile time,
-so a configured mode resolves with no run-time branch.
+To add a new Jacobian, define `struct MyJacobian <: Jacobian end` and the methods `_jacobian_provider(::MyJacobian)`
+(returning a `(g, x) -> J` provider) and `_species_mask(::MyJacobian, ::GrowthTreatment)`. A new growth treatment
+is a `GrowthTreatment` subtype plus an `_apply_growth(::MyGrowth, J)` method; a new limiter is a `TendencyLimiter`
+subtype plus an `_apply_limiter(::MyLimiter, x, Δ, ...)` method. The substep driver dispatches on the option types
+at compile time, so a configured mode resolves with no run-time branch.
 
 ## The coarse-step deposition instability
 
@@ -56,14 +68,14 @@ linear operator does not see): snow is over-deposited far past the available vap
 spurious temperature excursion, and the state goes non-physical. With the exact Jacobian this crash occurs at
 every coarse time step in the single-column convective test.
 
-### What cures it
+### What resolves it
 
 The exact preset removes the growth mode from the implicit operator and bounds the now-explicit growth by the
 physical saturation limit:
 
 - **`ExplicitGrowthDiagonal`** zeros the positive diagonal, so the implicit operator carries only non-positive
-  modes and is well-conditioned at any substep size. The exact off-diagonal couplings are retained, so accuracy
-  at cold, supersaturated cells is good.
+  modes and is well-conditioned at any substep size. The exact off-diagonal couplings (which the donor-based
+  matrix drops) are retained, so accuracy at cold, supersaturated cells is better than the donor scheme.
 - **`EndStateSaturationAdjustment`** scales the substep increment by the largest `s ∈ [0, 1]` for which the
   latent-heated end state stays at or above ice saturation. It acts only on cells that begin at or above
   saturation (a subsaturated, evaporating or sublimating cell cannot over-deposit, so its increment is returned
@@ -79,7 +91,7 @@ exact scheme robust across the resolved time-step envelope.
     precipitation at coarse time steps. Two or more substeps recover accurate precipitation; the saturation
     adjustment is then rarely active.
 
-## Approaches that did not cure the instability
+## Approaches that did not resolve the instability
 
 These were tried and are not part of the supported framework; they are recorded here because the failure modes
 are instructive.

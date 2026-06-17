@@ -50,6 +50,10 @@ import ..Common as CO
 import ..Parameters as CMP
 import ..Utilities as UT
 
+# The specific-content arguments of the kernels below are left unconstrained
+# relative to the parameter type `FT` so a `ForwardDiff.Dual` working type flows
+# through, and zero-branch results are typed by `UT.promote_typeof` to stay
+# concrete under mixed Dual/float arguments. Uniform-`FT` calls are unchanged.
 
 export terminal_velocity,
     conv_q_lcl_to_q_rai,
@@ -80,8 +84,8 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 - `q_sno`: snow specific content (snow only)
 - `ρ`: air density (snow only)
 """
-@inline get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT} =
-    q_sno > UT.ϵ_numerics(FT) ? μ * (ρ * q_sno)^ν : zero(FT)
+@inline get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno, ρ) where {FT} =
+    q_sno > UT.ϵ_numerics(FT) ? μ * (ρ * q_sno)^ν : zero(UT.promote_typeof(q_sno, ρ, μ))
 @inline get_n0((; n0)::CMP.ParticlePDFIceRain{FT}, args...) where {FT} = n0
 
 """
@@ -125,15 +129,16 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     #(; pdf, mass)::Union{CMP.Snow{FT}, CMP.Rain{FT}, CMP.CloudIce{FT}},
     pdf::Union{CMP.ParticlePDFIceRain{FT}, CMP.ParticlePDFSnow{FT}},
     mass::CMP.ParticleMass{FT},
-    q::FT,
-    ρ::FT,
+    q,
+    ρ,
 ) where {FT}
+    R = UT.promote_typeof(q, ρ, mass.r0)
     # size distribution
-    n0::FT = get_n0(pdf, q, ρ)
+    n0 = get_n0(pdf, q, ρ)
     # mass(size)
     (; r0, m0, me, Δm, χm, gamma_coeff) = mass
 
-    λ_inv = FT(0)
+    λ_inv = zero(R)
     if q > UT.ϵ_numerics(FT) && ρ > UT.ϵ_numerics(FT)
         # Note: Julia compiles x^y to exp(y * log(x))
         # gamma_coeff is pre-computed in ParticleMass constructor for GPU performance
@@ -214,8 +219,8 @@ Fall velocity of individual particles is parameterized:
 @inline function terminal_velocity(
     (; pdf, mass)::Union{CMP.Rain, CMP.Snow},
     vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
-    ρ::FT,
-    q::FT,
+    ρ,
+    q,
 ) where {FT}
     if q > UT.ϵ_numerics(FT)
         # terminal_velocity(size)
@@ -230,7 +235,7 @@ Fall velocity of individual particles is parameterized:
         # gamma_coeff = SF.gamma(me + Δm + 1) (pre-computed in mass)
         return χv * v0 * (λ_inv / r0)^(ve + Δv) * gamma_term / gamma_coeff
     else
-        return FT(0)
+        return zero(UT.promote_typeof(ρ, q, vel.χv))
     end
 end
 
@@ -395,7 +400,7 @@ end
     (; pdf, mass) = mp.cloud.ice
     aps = mp.air_properties
     FT = eltype(ρ)
-    acnv_rate = FT(0)
+    acnv_rate = zero(UT.promote_typeof(q_icl, q_lcl, q_rai, q_sno, ρ))
     S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
     # Only allow ice autoconversion below freezing with positive supersaturation
@@ -454,16 +459,16 @@ Internal low-level kernel. Prefer the option-dispatched API.
     precip::CMP.PrecipitationType,
     vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
     E::FT,
-    q_clo::FT,
-    q_pre::FT,
-    ρ::FT,
+    q_clo,
+    q_pre,
+    ρ,
 ) where {FT}
 
-    accr_rate = FT(0)
+    accr_rate = zero(UT.promote_typeof(q_clo, q_pre, ρ, E))
     if (q_clo > UT.ϵ_numerics(FT) && q_pre > UT.ϵ_numerics(FT))
 
-        n0::FT = get_n0(precip.pdf, q_pre, ρ)
-        v0::FT = get_v0(vel, ρ)
+        n0 = get_n0(precip.pdf, q_pre, ρ)
+        v0 = get_v0(vel, ρ)
 
         (; r0) = precip.mass
         (; χv, ve, Δv, gamma_accr) = vel
@@ -488,11 +493,11 @@ end
     ice::CMP.CloudIce,
     vel::CMP.Blk1MVelTypeRain{FT},
     E::FT,
-    q_icl::FT,
-    q_rai::FT,
-    ρ::FT,
+    q_icl,
+    q_rai,
+    ρ,
 ) where {FT}
-    accr_rate = FT(0)
+    accr_rate = zero(UT.promote_typeof(q_icl, q_rai, ρ, E))
     if (q_icl > UT.ϵ_numerics(FT) && q_rai > UT.ϵ_numerics(FT))
 
         n0_ice = get_n0(ice.pdf)
@@ -545,12 +550,12 @@ deviations are proportional to the mean fall velocities, with coefficient
     blk1mveltype_tj,
     E_ij::FT,
     coeff_disp::FT,
-    q_i::FT,
-    q_j::FT,
-    ρ::FT,
+    q_i,
+    q_j,
+    ρ,
 ) where {FT}
 
-    accr_rate = FT(0)
+    accr_rate = zero(UT.promote_typeof(q_i, q_j, ρ, E_ij))
     if (q_i > UT.ϵ_numerics(FT) && q_j > UT.ϵ_numerics(FT))
 
         n0_i = get_n0(type_i.pdf, q_i, ρ)
@@ -695,7 +700,7 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     vel = mp.terminal_velocity.rain
     aps = mp.air_properties
     FT = eltype(ρ)
-    evap_rate = FT(0)
+    evap_rate = zero(UT.promote_typeof(q_rai, q_lcl, q_icl, q_sno, ρ))
 
     if q_rai > UT.ϵ_numerics(FT)
         S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
@@ -760,7 +765,7 @@ end
     vel = mp.terminal_velocity.snow
     aps = mp.air_properties
     FT = eltype(ρ)
-    subl_rate = FT(0)
+    subl_rate = zero(UT.promote_typeof(q_sno, q_lcl, q_icl, q_rai, ρ))
 
     if q_sno > UT.ϵ_numerics(FT)
         (; ν_air, D_vapor) = aps
@@ -811,7 +816,7 @@ Returns the tendency due to cloud ice melt.
     (; pdf, mass) = mp.cloud.ice
     (; K_therm) = mp.air_properties
     FT = eltype(ρ)
-    cloud_ice_melt_rate = FT(0)
+    cloud_ice_melt_rate = zero(UT.promote_typeof(q_icl, ρ))
     T_freeze = TDI.T_freeze(tps)
 
     if (q_icl > UT.ϵ_numerics(FT) && T > T_freeze)
@@ -845,7 +850,7 @@ Returns the tendency due to snow melt.
     vel = mp.terminal_velocity.snow
     aps = mp.air_properties
     FT = eltype(ρ)
-    snow_melt_rate = FT(0)
+    snow_melt_rate = zero(UT.promote_typeof(q_sno, ρ))
     T_freeze = TDI.T_freeze(tps)
 
     if (q_sno > UT.ϵ_numerics(FT) && T > T_freeze)
