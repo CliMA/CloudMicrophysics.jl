@@ -46,6 +46,7 @@ export MicrophysicsScheme,
     InstantaneousVerbose,
     LinearizedAverage,
     RosenbrockAverage,
+    Verbose,
     Jacobian,
     DonorJacobian,
     CoupledDonorJacobian,
@@ -255,6 +256,20 @@ and the end-state saturation adjustment.
 """
 rosenbrock_exact() =
     RosenbrockAverage(ExactJacobian(), ExplicitGrowthDiagonal(), EndStateSaturationAdjustment())
+
+"""
+    Verbose(mode) <: TendencyMode
+
+Diagnostic wrapper returning, alongside the net tendencies, the per-process
+tendencies realized by the implicit solve of `mode`. Each process is attributed
+through the same substep factorization, so the per-process tendencies sum to the
+net of the unlimited solve; for a `mode` with a `TendencyLimiter`, the wrapped net
+excludes the limiter. This is a diagnostic path, separate from the model time
+step.
+"""
+struct Verbose{M <: TendencyMode} <: TendencyMode
+    mode::M
+end
 
 # --- 1-Moment Microphysics ---
 
