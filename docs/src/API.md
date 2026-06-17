@@ -67,7 +67,7 @@ Microphysics2M
 
 ```@autodocs
 Modules = [Parameters]
-Pages   = ["Microphysics2M.jl", "Microphysics2MParams.jl"]
+Pages   = ["Microphysics2M.jl", "Microphysics2MParams.jl", "ActivationSchemes.jl"]
 ```
 
 ## Size distributions
@@ -136,6 +136,7 @@ BulkMicrophysicsTendencies.Instantaneous
 BulkMicrophysicsTendencies.InstantaneousVerbose
 BulkMicrophysicsTendencies.LinearizedAverage
 BulkMicrophysicsTendencies.bulk_microphysics_tendencies
+BulkMicrophysicsTendencies.activation_source
 ```
 
 # P3 scheme
