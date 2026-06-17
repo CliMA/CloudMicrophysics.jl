@@ -45,7 +45,7 @@ end
  - `temp` - Temperature (K)
  - `params` - NamedTuple parameter set obtained from ClimaParams.
 Calculates the rate of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation for a single timestep (1/m³/s).
-The particle formation rate is parameterized using data from the CLOUD experiment, through neutral and ion-induced channels.
+The particle formation rate is parameterized using data from the CLOUD experiment, through neutral and ion-induced pathways.
 This is an implementation of Dunne et al 1016 doi:10.1126/science.aaf2649 Appendix 8-10
 """
 function h2so4_nucleation_rate(
