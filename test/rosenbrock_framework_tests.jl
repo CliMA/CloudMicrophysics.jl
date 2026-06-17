@@ -3,6 +3,8 @@ using Test
 import JET
 import BenchmarkTools as BT
 
+import ClimaParams as CP
+import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.P3Scheme as P3
@@ -12,7 +14,7 @@ import StaticArrays: SVector
 # The unified `RosenbrockAverage{Jacobian, GrowthTreatment, TendencyLimiter}`
 # framework: presets (`rosenbrock_donor`, `rosenbrock_coupled`,
 # `rosenbrock_exact`), the keyword constructor, the `LinearizedAverage` ≡ donor
-# equivalence on the 1M model, and the 2M+P3 `ExactJacobian`-only contract.
+# equivalence, the `Verbose` wrapper, and the 2M+P3 `ExactJacobian`-only contract.
 
 net_vec_1m(t) = SVector(t.dq_lcl_dt, t.dq_icl_dt, t.dq_rai_dt, t.dq_sno_dt)
 
@@ -74,11 +76,23 @@ function test_framework_1m(FT)
             @test all(isfinite, net_vec_1m(t))
         end
     end
-end
 
-# The unified `RosenbrockAverage` framework on the two-moment + P3 model:
-# `rosenbrock_exact()` gives finite tendencies, and a non-Exact
-# `RosenbrockAverage` throws (only `ExactJacobian` is supported there).
+    @testset "Verbose(rosenbrock_donor()) per-process sums to net ($FT)" begin
+        rtol = FT == Float64 ? FT(1e-10) : FT(1e-4)
+        for r in regimes, nsub in (1, 4, 16)
+            Δt = FT(20)
+            v = BMT.bulk_microphysics_tendencies(
+                BMT.Verbose(BMT.rosenbrock_donor()), BMT.Microphysics1Moment(), mp, tps,
+                r.ρ, r.T, r.q_tot, r.x..., Δt, nsub,
+            )
+            net = net_vec_1m(v)
+            recon = SVector((sum(values(v.processes)) + v.clamp_correction)...)
+            @test all(isfinite, recon)
+            scale = maximum(abs.(net)) + eps(FT)
+            @test maximum(abs.(recon - net)) ≤ rtol * scale
+        end
+    end
+end
 
 function test_framework_2m(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
@@ -106,11 +120,7 @@ function test_framework_2m(FT)
     end
 
     @testset "non-Exact RosenbrockAverage on Microphysics2Moment throws ($FT)" begin
-        non_exact = (
-            BMT.RosenbrockAverage(BMT.DonorJacobian(), BMT.ImplicitGrowth(), BMT.NoLimiter()),
-            BMT.RosenbrockAverage(BMT.CoupledDonorJacobian(), BMT.ImplicitGrowth(), BMT.NoLimiter()),
-        )
-        for mode in non_exact
+        for mode in (BMT.rosenbrock_donor(), BMT.rosenbrock_coupled())
             @test_throws ArgumentError BMT.bulk_microphysics_tendencies(
                 mode, BMT.Microphysics2Moment(), mp, tps,
                 ρ, T, q_tot, x..., logλ, FT(60), 4,
