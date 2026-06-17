@@ -71,24 +71,23 @@ which constructs the parameterization with components:
     immersion-cap rates. (A prognostic activation-memory model is deferred
     to a follow-up PR.)"
     inp_depletion_model::INPDM = NIceProxyDepletion()
-    "Number of quadrature nodes used for size-distribution integrals
-    (deposition / sublimation, melting, riming, ice-rain collection,
-    sedimentation). Lower → faster, slightly less accurate. Default 100
-    matches the original P3 paper sensitivity studies; n_elem=128 KiD runs
-    show ~5× speed-up at qorder=40 with negligible bulk error."
-    quadrature_order::Int = 100
-    "Pre-constructed quadrature rule for the size-distribution integrals,
-    built once (host-side) from `quadrature_order` via
-    [`Quadrature.build_quadrature`](@ref) and reused in the (GPU) hot loop.
-    It is `isbits` (`GaussLegendre`/`ChebyshevGauss`), so it ships to device
-    kernels with no per-call construction. See [`Quadrature.GaussLegendre`](@ref)."
-    quad::Q = QUAD.build_quadrature(Float64, quadrature_order)
+    "Quadrature scheme used for the size-distribution integrals (deposition /
+    sublimation, melting, riming, ice-rain collection, sedimentation). The
+    scheme — with its parameters, notably the order — is the choice; pass
+    e.g. `Quadrature.ChebyshevGauss(n)` or `Quadrature.GaussLegendre(FT, n)`
+    (see [`Quadrature.build_quadrature`](@ref) for the element-type
+    materialization the toml constructor applies). Lower order → faster,
+    slightly less accurate; `ChebyshevGauss(100)` matches the original P3
+    paper sensitivity studies, and n_elem=128 KiD runs show ~5× speed-up at
+    `GaussLegendre(40)` with negligible bulk error. The object is `isbits`
+    and reused in the (GPU) hot loop with no per-call construction."
+    quad::Q = QUAD.ChebyshevGauss(100)
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 P3IceParams(toml_dict::CP.ParamDict;
-    is_limited = true, quadrature_order::Int = 100,
+    is_limited = true, quadrature = QUAD.ChebyshevGauss(100),
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = P3IceParams(;
     scheme = ParametersP3(toml_dict),
@@ -98,11 +97,10 @@ P3IceParams(toml_dict::CP.ParamDict;
     ice_nucleation = Frostenberg2023(toml_dict),
     rain_freezing = RainFreezing(toml_dict),
     inp_depletion_model,
-    quadrature_order,
-    # Build the quadrature in the working float type, so its nodes/weights
+    # Materialize the scheme in the working float type, so its nodes/weights
     # adopt the integrand's eltype (a Float64 rule would leak Float64 into the
     # Float32 collision integrals). Construction is host-side and one-shot.
-    quad = QUAD.build_quadrature(CP.float_type(toml_dict), quadrature_order),
+    quad = QUAD.build_quadrature(CP.float_type(toml_dict), quadrature),
 )
 
 """
@@ -147,13 +145,13 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 """
 Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true,
-    quadrature_order::Int = 100,
+    quadrature = QUAD.ChebyshevGauss(100),
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = Microphysics2MParams(;
     # Warm rain parameters (always present)
     warm_rain = WarmRainParams2M(toml_dict; is_limited),
     # Optional ice phase parameters
     ice = with_ice ?
-          P3IceParams(toml_dict; is_limited, quadrature_order, inp_depletion_model) :
+          P3IceParams(toml_dict; is_limited, quadrature, inp_depletion_model) :
           nothing,
 )

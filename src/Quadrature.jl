@@ -192,7 +192,7 @@ nodes/weights as `SVector{N, FT}`, so per-`integrate` access is a static lookup
 a GPU kernel.
 
 Arbitrary orders `n ≥ 1` are supported (the order is the type parameter `N`).
-`40` is the ClimaAtmos production `quadrature_order`.
+`40` is the ClimaAtmos production order.
 
 # GPU / type-stability
 
@@ -254,26 +254,24 @@ end
 GaussLegendre(n::Int) = GaussLegendre(Float64, n)
 
 """
-    build_quadrature(FT, quadrature_order)
+    build_quadrature(FT, scheme::QuadratureRule)
 
-Select and **construct** the quadrature rule for the P3 size-distribution
-integrals from a single `quadrature_order` knob, in element type `FT`. This is
-the host-side, one-shot builder; the returned object is `isbits` and stored on a
+Materialize the quadrature `scheme` for the P3 size-distribution integrals in
+element type `FT`. The scheme — with its parameters, notably the order — is
+the caller's choice. [`ChebyshevGauss`](@ref) has closed-form nodes and passes
+through unchanged; [`GaussLegendre`](@ref) is rebuilt so its stored
+nodes/weights adopt `FT` (a Float64 rule would leak Float64 into Float32
+integrals). Host-side and one-shot; the result is `isbits` and stored on a
 parameter struct for reuse in the (GPU) hot loop.
 
-Gauss-Legendre is preferred for the orders where it is meaningfully more
-accurate than Chebyshev-Gauss on the smooth P3 integrands (≈20× lower error on
-the dominant ice-rain collision integral at matched `n`; see [`GaussLegendre`](@ref)),
-namely `quadrature_order ∈ {16, 32, 40, 64}` (incl. the ClimaAtmos production
-order 40). Any other order falls back to [`ChebyshevGauss`](@ref), preserving the
-default behaviour for non-preferred orders.
+Scheme guidance: at matched order, Gauss-Legendre is substantially more
+accurate on the smooth P3 integrands (≈20× lower error on the dominant
+ice-rain collision integral; see [`GaussLegendre`](@ref)); Chebyshev-Gauss
+remains the conservative default (the cusp-limited `ice_self_collection`
+diagonal is quadrature-limited under both schemes).
 """
-function build_quadrature(::Type{FT}, quadrature_order::Int) where {FT}
-    return if quadrature_order in (16, 32, 40, 64)
-        GaussLegendre(FT, quadrature_order)
-    else
-        ChebyshevGauss(quadrature_order)
-    end
-end
+build_quadrature(::Type{FT}, scheme::ChebyshevGauss) where {FT} = scheme
+build_quadrature(::Type{FT}, scheme::GaussLegendre) where {FT} =
+    GaussLegendre(FT, scheme.n)
 
 end # module Quadrature

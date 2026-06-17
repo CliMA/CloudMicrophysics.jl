@@ -3,13 +3,14 @@ using Test
 import ClimaParams as CP
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Quadrature as QUAD
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 """
-Sweep test for the P3-ice quadrature order. `quadrature_order` now lives
-on `P3IceParams`, so the sweep is over `Microphysics2MParams(FT;
-with_ice = true, quadrature_order = n)`.
+Sweep test for the P3-ice quadrature resolution. The quadrature scheme
+(with its order) lives on `P3IceParams`, so the sweep is over
+`Microphysics2MParams(FT; with_ice = true, quadrature = ChebyshevGauss(n))`.
 
 Issue 011 measured the worst-case relative error of one single integral
 (`bulk_liquid_ice_collision_sources`) across 5 states and 7 orders, and
@@ -240,9 +241,9 @@ end
 
 function test_quadrature_order_sweep(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    # `quadrature_order` now lives on `P3IceParams`, so building one
+    # the quadrature scheme lives on `P3IceParams`, so building one
     # `Microphysics2MParams` per order keeps the sweep clean.
-    make_mp(n) = CMP.Microphysics2MParams(FT; with_ice = true, quadrature_order = n)
+    make_mp(n) = CMP.Microphysics2MParams(FT; with_ice = true, quadrature = QUAD.ChebyshevGauss(n))
 
     orders_and_tol = [
         (100, FT(2e-3)),
@@ -295,7 +296,23 @@ function test_quadrature_order_sweep(FT)
     end
 end
 
-@testset "BMT quadrature-order kwarg (Float64)" begin
+@testset "BMT quadrature-scheme kwarg (Float64)" begin
     test_quadrature_order_sweep(Float64)
+end
+
+@testset "quadrature scheme choice and materialization" begin
+    for FT in (Float32, Float64)
+        # GaussLegendre: rebuilt in the working float type at the given order
+        mp_gl = CMP.Microphysics2MParams(FT; with_ice = true, quadrature = QUAD.GaussLegendre(40))
+        @test mp_gl.ice.quad isa QUAD.GaussLegendre{FT, 40}
+        # ChebyshevGauss: closed-form nodes, passes through unchanged
+        mp_cg = CMP.Microphysics2MParams(FT; with_ice = true, quadrature = QUAD.ChebyshevGauss(64))
+        @test mp_cg.ice.quad isa QUAD.ChebyshevGauss
+        @test mp_cg.ice.quad.n == 64
+    end
+    # default preserves the previous behavior
+    mp = CMP.Microphysics2MParams(Float64; with_ice = true)
+    @test mp.ice.quad isa QUAD.ChebyshevGauss
+    @test mp.ice.quad.n == 100
 end
 nothing
