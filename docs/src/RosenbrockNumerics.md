@@ -34,8 +34,8 @@ substeps from the latent heat of the realized increment.
 
 - **`TendencyLimiter`** — a limiter applied to the realized substep increment.
   - `NoLimiter`.
-  - `EndStateSaturationAdjustment` — scale the increment so the latent-heated end state does not cross ice
-    saturation (see below).
+  - `EndStateSaturationAdjustment` — scale the increment so the latent-heated end state does not cross saturation
+    over its more-supersaturated phase, `max(S_ice, S_liq)` (see below).
 
 Three preset configurations are supported:
 
@@ -80,10 +80,11 @@ physical saturation limit:
   modes and is well-conditioned at any substep size. The exact off-diagonal couplings (which the donor-based
   matrix drops) are retained, so accuracy at cold, supersaturated cells is better than the donor scheme.
 - **`EndStateSaturationAdjustment`** scales the substep increment by the largest `s ∈ [0, 1]` for which the
-  latent-heated end state stays at or above ice saturation. It acts only on cells that begin at or above
-  saturation (a subsaturated, evaporating or sublimating cell cannot over-deposit, so its increment is returned
-  unchanged). It is a no-op at fine substeps and engages only when the full step would cross saturation. The
-  bisection count is set from the float precision.
+  latent-heated end state stays at or above saturation over its more-supersaturated phase (`max(S_ice, S_liq)`;
+  see the next section). It acts only on cells that begin at or above saturation (a subsaturated, evaporating or
+  sublimating cell cannot over-deposit, so its increment is returned unchanged). It is a no-op at fine substeps
+  and engages only when the full step would cross saturation. The bisection count is set from the float
+  precision.
 
 Both pieces are required: zeroing the growth diagonal alone leaves the explicit growth unbounded at the coarsest
 single-substep steps, and the saturation adjustment supplies the missing nonlinear bound. Together they make the
@@ -93,6 +94,44 @@ exact scheme robust across the resolved time-step envelope.
     At a single substep the explicit growth is bounded only by the saturation adjustment, which over-produces
     precipitation at coarse time steps. Two or more substeps recover accurate precipitation; the saturation
     adjustment is then rarely active.
+
+## The mixed-phase saturation criterion
+
+A cell has two saturation thresholds, over liquid and over ice, and the condensation and deposition processes draw
+on a single shared vapor reservoir. `EndStateSaturationAdjustment` limits the increment on the **more-supersaturated
+phase**, `max(S_ice, S_liq)`: it keeps the latent-heated end state at or above the saturation of whichever phase
+carries the larger supersaturation. Equivalently the vapor floor is the *lower* of the two saturation specific
+humidities, since the smaller `q_sat` is the larger supersaturation.
+
+The two saturation curves cross at the freezing point (panel (c) below). Below freezing `q_sat_ice < q_sat_liq`, so
+ice carries the larger supersaturation and the criterion binds on ice — reducing exactly to the ice-saturation
+limit that bounds the deposition instability, so the cold behaviour is unchanged. Above freezing the curves swap
+and the criterion binds on liquid; an ice-only limit there would stop vapor depletion early and leave the cell
+supersaturated over liquid, suppressing warm cloud, which binding on the more-supersaturated phase avoids.
+
+A single 0-D parcel that exchanges vapor with cloud liquid and cloud ice only (no collection or precipitation)
+isolates the mixed-phase physics behind the two thresholds. Cloud liquid is kinetically fast and cloud ice slow, so
+while liquid is present it pins the vapor near water saturation (panel (a), `S_liq ≈ 0`); the parcel stays
+supersaturated over ice (`S_ice > 0`) and ice deposits, drawing mass from the evaporating liquid (panel (b)) — the
+Wegener–Bergeron–Findeisen transfer. Only once the liquid is exhausted does the vapor relax to ice saturation
+(`S_ice → 0`). The drawdown from water saturation to ice saturation is therefore inherently a multi-step process at
+the resolved time step.
+
+```@example
+include("plots/SatAdjustmentWBF_plots.jl")
+```
+![](SatAdjustmentWBF.svg)
+
+Binding on `max(S_ice, S_liq)` is a single shared scalar on the whole increment, which is what keeps the limiter
+stable: scaling processes independently breaks the coupling between paired transfers and the shared vapor draw. The
+criterion binds the correct phase wherever a single phase grows from vapor — ice only (the cold deposition cells,
+where it reduces to the ice limit) or liquid only (warm cells). When both phases are supersaturated below freezing,
+a vigorous mixed-phase updraft core, the criterion binds on the ice floor (the more-supersaturated phase there) and
+so condenses the co-present, still-growing liquid past its own saturation in a single step rather than transferring
+it gradually. A fully per-phase floor — binding on the first growing phase to saturate and letting the slower phase
+relax over subsequent steps — would represent the gradual transfer more faithfully and is a candidate refinement.
+The distinction is inactive at fine substeps, where the limiter rarely engages, and does not affect the cold
+instability resolution, which is set by the ice floor.
 
 ## Approaches that did not resolve the instability
 
