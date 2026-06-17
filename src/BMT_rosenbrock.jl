@@ -672,10 +672,10 @@ end
     _apply_limiter(limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
 
 Limit the substep increment `d` at state `x`. [`NoLimiter`](@ref) returns `d`.
-[`EndStateSaturationAdjustment`](@ref), for a cell at or above ice saturation
-whose full-increment end state would drop below it, scales `d` by `s ∈ [0, 1]`
-to keep the latent-heated end state at or above ice saturation; otherwise it
-returns `d`.
+[`EndStateSaturationAdjustment`](@ref), for a cell at or above saturation over its
+more-supersaturated phase whose full-increment end state would drop below it, scales
+`d` by `s ∈ [0, 1]` to keep that latent-heated end state at or above saturation over
+that phase; otherwise it returns `d`.
 """
 @inline _apply_limiter(::NoLimiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps) = d
 
@@ -688,24 +688,23 @@ precision of `FT`.
 @inline _saturation_bisection_count(::Type{FT}) where {FT} = ceil(Int, -log2(eps(FT)))
 
 """
-    _saturation_bisection(Sice, latent, x, d, Tsub)
+    _saturation_bisection(Ssat, latent, x, d, Tsub)
 
-Scale the increment `d` at state `x` so the latent-heated end state stays at or
-above ice saturation, for a state that begins at or above it; return `d`
-unchanged otherwise. `Sice(x, T)` and `latent(d)` close over the substep
-context.
+Scale the increment `d` at state `x` so the latent-heated end state keeps
+`Ssat >= 0`, for a state that begins with `Ssat >= 0`; return `d` unchanged
+otherwise. `Ssat(x, T)` and `latent(d)` close over the substep context.
 """
 @inline function _saturation_bisection(
-    Sice::FS, latent::FL, x::SA.StaticVector{N, FT}, d, Tsub,
+    Ssat::FS, latent::FL, x::SA.StaticVector{N, FT}, d, Tsub,
 ) where {FS, FL, N, FT}
     xf = max.(x .+ d, 0)
-    if Sice(x, Tsub) >= 0 && Sice(xf, Tsub + latent(xf .- x)) < 0
+    if Ssat(x, Tsub) >= 0 && Ssat(xf, Tsub + latent(xf .- x)) < 0
         lo = zero(FT)
         hi = one(FT)
         for _ in 1:_saturation_bisection_count(FT)
             s = (lo + hi) / 2
             xs = max.(x .+ s .* d, 0)
-            if Sice(xs, Tsub + latent(xs .- x)) >= 0
+            if Ssat(xs, Tsub + latent(xs .- x)) >= 0
                 lo = s
             else
                 hi = s
@@ -720,19 +719,24 @@ end
     x::MicroState1M{FT}, d::MicroState1M{FT},
     ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps,
 ) where {FT}
-    Sice(xx, TT) =
-        TDI.supersaturation_over_ice(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_icl + xx.q_sno, ρ, TT)
+    Ssat(xx, TT) = max(
+        TDI.supersaturation_over_ice(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_icl + xx.q_sno, ρ, TT),
+        TDI.supersaturation_over_liquid(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_icl + xx.q_sno, ρ, TT),
+    )
     latent(dd) = Lv_over_cp * (dd.q_lcl + dd.q_rai) + Ls_over_cp * (dd.q_icl + dd.q_sno)
-    return _saturation_bisection(Sice, latent, x, d, Tsub)
+    return _saturation_bisection(Ssat, latent, x, d, Tsub)
 end
 
 @inline function _apply_limiter(::EndStateSaturationAdjustment,
     x::MicroState2MP3{FT}, d::MicroState2MP3{FT},
     ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps,
 ) where {FT}
-    Sice(xx, TT) = TDI.supersaturation_over_ice(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_ice, ρ, TT)
+    Ssat(xx, TT) = max(
+        TDI.supersaturation_over_ice(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_ice, ρ, TT),
+        TDI.supersaturation_over_liquid(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_ice, ρ, TT),
+    )
     latent(dd) = Lv_over_cp * (dd.q_lcl + dd.q_rai) + Ls_over_cp * dd.q_ice
-    return _saturation_bisection(Sice, latent, x, d, Tsub)
+    return _saturation_bisection(Ssat, latent, x, d, Tsub)
 end
 
 "Exact ForwardDiff Jacobian provider for [`_rosenbrock_average_1m`](@ref)."
