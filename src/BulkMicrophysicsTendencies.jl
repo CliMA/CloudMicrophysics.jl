@@ -205,9 +205,10 @@ struct NoLimiter <: TendencyLimiter end
 """
     EndStateSaturationAdjustment <: TendencyLimiter
 
-Scale a substep increment so the latent-heated end state stays at or above ice
-saturation, for cells that begin at or above saturation. Derived and analyzed in
-the P3 numerics documentation.
+Scale a substep increment so the latent-heated end state stays at or above
+saturation over its more-supersaturated phase (ice when ice dominates, liquid when
+liquid dominates), for cells that begin at or above saturation. Derived and analyzed
+in the Rosenbrock substepping documentation.
 """
 struct EndStateSaturationAdjustment <: TendencyLimiter end
 
