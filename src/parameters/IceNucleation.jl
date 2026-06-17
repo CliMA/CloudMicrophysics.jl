@@ -217,7 +217,7 @@ sediments out, or melts.
 
 Conflates two physically distinct counts: "ice in column" and
 "INPs already activated in this air parcel". Drop a fresh anvil into
-clean air below it and the F23 channel artificially shuts off.
+clean air below it and the F23 parameterization artificially shuts off.
 
 # Fields
 $(DocStringExtensions.FIELDS)
