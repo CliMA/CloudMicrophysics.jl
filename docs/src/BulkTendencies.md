@@ -153,3 +153,23 @@ This demonstrates that the linearized implicit substepping method provides a con
 
 - Average (implicit) bulk tendencies are currently implemented **only for the one-moment microphysics scheme**.
 - For other microphysics schemes, only **instantaneous bulk tendencies** are available at present.
+
+## Rosenbrock-averaged tendencies (2M+P3)
+
+For the 2-moment + P3 configuration, `RosenbrockAverage` replaces the hand-built linearization above with the exact Jacobian of the fused tendency, obtained by forward-mode automatic differentiation. The interval ``\Delta t`` is divided into `nsub` substeps of length ``h``, and each substep performs one linearized-implicit (Rosenbrock–Euler) update of the eight prognostic species ``x = (q_{\mathrm{lcl}}, n_{\mathrm{lcl}}, q_{\mathrm{rai}}, n_{\mathrm{rai}}, q_{\mathrm{ice}}, n_{\mathrm{ice}}, q_{\mathrm{rim}}, b_{\mathrm{rim}})``:
+
+```math
+\left(\frac{I}{h} - P J P\right) \Delta x = f(x), \qquad x \leftarrow \max(x + \Delta x,\, 0)
+```
+
+where ``f`` is the **raw instantaneous tendency** — the unmodified `Microphysics2Moment` process rates, with no timestep-dependent clipping — and ``J = \partial f / \partial x`` is its exact 8×8 `ForwardDiff` Jacobian.
+
+The differentiated tendency is the model physics, not a stabilized variant of it. The P3 condensation/deposition scheme is an analytic time-averaged relaxation [MorrisonMilbrandt2015](@cite) with no tendency clip; a supersaturation cap and ``1/h`` sink limits are explicit-Euler stabilization devices, not physical terms. They are unnecessary here because the one-stage Rosenbrock update is L-stable: it damps the stiff vapor-exchange subsystem monotonically, so the saturation overshoot and oscillation those limiters suppress cannot occur. They also degrade the solution: ``1/h`` tendency clips inject ``h``-independent error and break convergence under refinement [Wan2020](@cite), and a saturation clip structurally forbids the mixed-phase quasi-steady vapor pressure, which lies between liquid and ice saturation [KorolevMazin2003](@cite).
+
+The discrete stabilization steps are therefore conditioning and projection devices, all ``h``-free and applied to the linear solve rather than to the physics:
+
+- **Species projection** ``P = \mathrm{Diag}(z)``: species whose condensed mass is below ``10^{-10}`` are projected out of the Jacobian. Their rows of ``I/h - PJP`` reduce to the identity, so the solve returns exactly a forward-Euler update for those species while active species stay implicit — an IMEX-style splitting at species granularity. Near-empty species otherwise produce finite but very large Jacobian entries whose linearized steady state produces spurious number concentrations that substep refinement cannot remove.
+- **Equilibration** ``S = \mathrm{Diag}(|x| + h|f| + \epsilon)``: the linear system is solved as ``S^{-1} A S`` so the rows, which span roughly nine orders of magnitude across number and mass species, become O(1)-conditioned. This keeps single-precision roundoff relative to each species' own scale; an unscaled Float32 factorization deposits roundoff from the large rows into empty species as spurious mass.
+- **Positivity clamp** ``x \leftarrow \max(x + \Delta x, 0)``: a projection onto the physical nonnegative orthant after each substep.
+
+The local temperature is advanced each substep from the latent heating of the realized increments. `logλ` and `q_tot` are held fixed across the interval, matching the explicit-substepping semantics; non-finite states or Jacobians fall back to forward-Euler substeps of the raw tendency. The implicit update makes the stiff ice-process path insensitive to the substep length; at very large substeps (``h \gtrsim 100`` s) the single linearization carries the usual first-order error of a one-stage method, so increase `nsub` to refine.

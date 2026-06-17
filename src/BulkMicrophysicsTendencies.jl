@@ -56,6 +56,8 @@ export MicrophysicsScheme,
     TendencyLimiter,
     NoLimiter,
     EndStateSaturationAdjustment,
+    rosenbrock_donor,
+    rosenbrock_coupled,
     rosenbrock_exact,
     bulk_microphysics_tendencies
 
@@ -145,7 +147,7 @@ abstract type Jacobian end
     DonorJacobian <: Jacobian
 
 The donor-based linearization of the tendency: each transfer is linearized in its
-donor species and rate-floored.
+donor species and rate-floored. The matrix [`LinearizedAverage`](@ref) uses.
 """
 struct DonorJacobian <: Jacobian end
 
@@ -212,13 +214,14 @@ struct EndStateSaturationAdjustment <: TendencyLimiter end
 
 """
     RosenbrockAverage(jacobian, growth, limiter) <: TendencyMode
-    RosenbrockAverage(; jacobian = ExactJacobian(), growth = ExplicitGrowthDiagonal(), limiter = EndStateSaturationAdjustment())
+    RosenbrockAverage(; jacobian = DonorJacobian(), growth = ImplicitGrowth(), limiter = NoLimiter())
 
 Time-averaged tendencies from repeated linearized-implicit (Rosenbrock-Euler)
 substeps. The [`Jacobian`](@ref), [`GrowthTreatment`](@ref), and
 [`TendencyLimiter`](@ref) options select the substep matrix, the growth-diagonal
-treatment, and the increment limiter. See [`rosenbrock_exact`](@ref) for the
-supported configuration.
+treatment, and the increment limiter. See [`rosenbrock_donor`](@ref),
+[`rosenbrock_coupled`](@ref), and [`rosenbrock_exact`](@ref) for the supported
+configurations.
 """
 struct RosenbrockAverage{J <: Jacobian, G <: GrowthTreatment, L <: TendencyLimiter} <: TendencyMode
     jacobian::J
@@ -226,10 +229,25 @@ struct RosenbrockAverage{J <: Jacobian, G <: GrowthTreatment, L <: TendencyLimit
     limiter::L
 end
 RosenbrockAverage(;
-    jacobian = ExactJacobian(),
-    growth = ExplicitGrowthDiagonal(),
-    limiter = EndStateSaturationAdjustment(),
+    jacobian = DonorJacobian(),
+    growth = ImplicitGrowth(),
+    limiter = NoLimiter(),
 ) = RosenbrockAverage(jacobian, growth, limiter)
+
+"""
+    rosenbrock_donor()
+
+[`RosenbrockAverage`](@ref) with the donor-based Jacobian. Reproduces
+[`LinearizedAverage`](@ref) within the unified framework.
+"""
+rosenbrock_donor() = RosenbrockAverage(DonorJacobian(), ImplicitGrowth(), NoLimiter())
+
+"""
+    rosenbrock_coupled()
+
+[`RosenbrockAverage`](@ref) with the coupled donor-based Jacobian.
+"""
+rosenbrock_coupled() = RosenbrockAverage(CoupledDonorJacobian(), ImplicitGrowth(), NoLimiter())
 
 """
     rosenbrock_exact()
@@ -502,81 +520,6 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     )
 end
 
-"""
-Compute time-averaged 1-moment microphysics tendencies over a single linearized substep.
-
-Solves the linearized implicit system
-
-    (q* - q⁰) / Δt = M q* + e
-
-and returns the average tendency
-
-    dq/dt = (q* - q⁰) / Δt.
-
-The system uses a sparse structure specific to the 1-moment microphysics model.
-`q_lcl` and `q_icl` as well as `q_rai` and `q_sno` are solved from a coupled 2×2 system.
-
-Because sinks are linearized as `-D q`, they are effectively integrated as
-exponential decays over the substep.
-"""
-@inline function _linearized_implicit_step(
-    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
-)
-
-    FT = typeof(q_tot)
-
-    src = _microphysics_source_terms(
-        Microphysics1Moment(), mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
-    )
-    q_min = TDI.TD.Parameters.q_min(tps)
-    lin = _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
-
-    invΔt = one(FT) / Δt
-
-    # A = I/Δt - M
-    a11 = invΔt - lin.M11
-    a12 = -lin.M12
-    a22 = invΔt - lin.M22
-    a31 = -lin.M31
-    a33 = invΔt - lin.M33
-    a34 = -lin.M34
-    a41 = -lin.M41
-    a42 = -lin.M42
-    a43 = -lin.M43
-    a44 = invΔt - lin.M44
-
-    # rhs = e + q_0/Δt
-    # e3 = 0 by the 1m model
-    b1 = lin.e1 + invΔt * q_lcl
-    b2 = lin.e2 + invΔt * q_icl
-    b3 = invΔt * q_rai
-    b4 = lin.e4 + invΔt * q_sno
-
-    # Solve 2×2 system for q_lcl, q_icl (coupled via ice melt M12)
-    det12 = a11 * a22  # a21 = 0
-    q_lcl_new = (b1 * a22 - a12 * b2) / det12
-    q_icl_new = a11 * b2 / det12
-
-    # Reduced 2x2 system for q_rai_new, q_sno_new
-    r3 = muladd(-a31, q_lcl_new, b3)
-    r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
-
-    det = muladd(-a34, a43, a33 * a44)
-    # det is a positive number because a44 and a33 are positive (greater than invΔt)
-    # and a34 and a43 are non-positive so we don't need to safeguard division by det.
-    q_rai_new = (r3 * a44 - a34 * r4) / det
-    q_sno_new = (a33 * r4 - r3 * a43) / det
-
-    dq_lcl_dt = (q_lcl_new - q_lcl) * invΔt
-    dq_icl_dt = (q_icl_new - q_icl) * invΔt
-    dq_rai_dt = (q_rai_new - q_rai) * invΔt
-    dq_sno_dt = (q_sno_new - q_sno) * invΔt
-
-    return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
-end
-
 # --- Public API: bulk_microphysics_tendencies with TendencyMode dispatch ---
 
 """
@@ -662,18 +605,8 @@ end
     )
 
 Compute average 1-moment microphysics tendencies over `Δt` using repeated
-linearized implicit substeps.
-
-The interval `Δt` is divided into `nsub` equal substeps. At each substep, a local
-linearized microphysics system is rebuilt from the current state and solved
-implicitly for cloud liquid, cloud ice, rain, and snow. Temperature is then
-updated from the latent heating implied by the substep tendencies.
-
-The returned tendencies are the net change in the hydrometeor species over the
-full interval divided by `Δt`.
-
-Increasing `nsub` improves how well the method captures nonlinear changes in the
-active microphysical processes, including regime changes near freezing.
+linearized implicit substeps. Forwards to [`rosenbrock_donor`](@ref), the
+donor-based configuration of [`RosenbrockAverage`](@ref).
 
 # Returns
 `NamedTuple` with fields:
@@ -682,67 +615,13 @@ active microphysical processes, including regime changes near freezing.
 - `dq_rai_dt`: Rain tendency [kg/kg/s]
 - `dq_sno_dt`: Snow tendency [kg/kg/s]
 """
-@inline function bulk_microphysics_tendencies(
-    ::LinearizedAverage,
-    cm::Microphysics1Moment,
-    mp::CMP.Microphysics1MParams,
-    tps,
-    ρ,
-    T,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    Δt,
-    nsub = 1,
+@inline bulk_microphysics_tendencies(
+    ::LinearizedAverage, cm::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+) = bulk_microphysics_tendencies(
+    rosenbrock_donor(), cm, mp, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub,
 )
-    FT = typeof(q_tot)
-
-    q_lcl_0 = q_lcl
-    q_icl_0 = q_icl
-    q_rai_0 = q_rai
-    q_sno_0 = q_sno
-
-    Δt_sub = Δt / FT(nsub)
-
-    Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
-    Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
-
-    for _ in 1:nsub
-        rates = _linearized_implicit_step(
-            cm,
-            mp,
-            tps,
-            ρ,
-            T,
-            q_tot,
-            q_lcl,
-            q_icl,
-            q_rai,
-            q_sno,
-            Δt_sub,
-        )
-
-        q_lcl += rates.dq_lcl_dt * Δt_sub
-        q_icl += rates.dq_icl_dt * Δt_sub
-        q_rai += rates.dq_rai_dt * Δt_sub
-        q_sno += rates.dq_sno_dt * Δt_sub
-
-        T +=
-            (
-                Lv_over_cp * (rates.dq_lcl_dt + rates.dq_rai_dt) +
-                Ls_over_cp * (rates.dq_icl_dt + rates.dq_sno_dt)
-            ) * Δt_sub
-    end
-
-    dq_lcl_dt = (q_lcl - q_lcl_0) / Δt
-    dq_icl_dt = (q_icl - q_icl_0) / Δt
-    dq_rai_dt = (q_rai - q_rai_0) / Δt
-    dq_sno_dt = (q_sno - q_sno_0) / Δt
-
-    return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
-end
 
 
 # --- 0-Moment Microphysics ---
