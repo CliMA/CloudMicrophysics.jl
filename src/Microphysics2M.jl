@@ -253,7 +253,12 @@ Return `n(D)`, a function that computes the size distribution for rain particles
 """
 function DT.size_distribution(pdf::CMP.RainParticlePDF_SB2006, q, ρₐ, N)
     (; N₀r, Dr_mean) = pdf_rain_parameters(pdf, q, ρₐ, N)
-    return n(D) = ifelse(iszero(N₀r), zero(N₀r), N₀r * exp(-D / Dr_mean))
+    # zero the active value (not N₀r) so the closure is type-concrete under mixed Dual/plain D
+    function n(D)
+        v = N₀r * exp(-D / Dr_mean)
+        return ifelse(iszero(N₀r), zero(v), v)
+    end
+    return n
 end
 
 """
@@ -274,7 +279,12 @@ The size distribution is given by:
 """
 function DT.size_distribution(pdf::CMP.CloudParticlePDF_SB2006, q, ρₐ, N)
     (; logN₀c, λc, νcD, μcD) = pdf_cloud_parameters(pdf, q, ρₐ, N)
-    return n(D) = ifelse(logN₀c == -Inf, zero(logN₀c), exp(logN₀c + νcD * log(D) - λc * D^μcD))
+    # zero the active value (not logN₀c) so the closure is type-concrete under mixed Dual/plain D
+    function n(D)
+        v = exp(logN₀c + νcD * log(D) - λc * D^μcD)
+        return ifelse(logN₀c == -Inf, zero(v), v)
+    end
+    return n
 end
 
 """
