@@ -47,6 +47,9 @@ export MicrophysicsScheme,
     LinearizedAverage,
     RosenbrockAverage,
     Verbose,
+    ActivationDiagnostic,
+    WithActivationDiagnostic,
+    NoActivationDiagnostic,
     Jacobian,
     DonorJacobian,
     CoupledDonorJacobian,
@@ -132,6 +135,45 @@ Return time-averaged tendencies computed via repeated linearized implicit subste
 This is the mode used operationally by ClimaAtmos.
 """
 struct LinearizedAverage <: TendencyMode end
+
+"""
+    ActivationDiagnostic
+
+Selects whether the 2-moment `bulk_microphysics_tendencies` return includes the
+`dn_lcl_activation_dt` diagnostic field.
+"""
+abstract type ActivationDiagnostic end
+
+"""
+    WithActivationDiagnostic <: ActivationDiagnostic
+
+Append `dn_lcl_activation_dt` to the 2-moment tendency return.
+"""
+struct WithActivationDiagnostic <: ActivationDiagnostic end
+
+"""
+    NoActivationDiagnostic <: ActivationDiagnostic
+
+Omit `dn_lcl_activation_dt` from the 2-moment tendency return (the default).
+"""
+struct NoActivationDiagnostic <: ActivationDiagnostic end
+
+@inline assemble_two_moment_return(
+    ::NoActivationDiagnostic,
+    dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+    dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt, _,
+) = (;
+    dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+    dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
+)
+@inline assemble_two_moment_return(
+    ::WithActivationDiagnostic,
+    dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+    dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt, dn_lcl_activation_dt,
+) = (;
+    dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+    dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt, dn_lcl_activation_dt,
+)
 
 """
     Jacobian
@@ -903,6 +945,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     q_ice, n_ice, q_rim, b_rim, logλ,
     inpc_log_shift = zero(ρ),
     w = zero(ρ), p = zero(ρ),
+    act_diag::ActivationDiagnostic = NoActivationDiagnostic(),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = eltype(ρ)
     ϵₘ = UT.ϵ_numerics_2M_M(FT)
@@ -1078,9 +1121,12 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     # Aerosol activation is folded into `warm_rain_tendencies_2m` above —
     # `dn_lcl_activation_dt` from `warm` is already included in `dn_lcl_dt`.
 
-    return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+    return assemble_two_moment_return(
+        act_diag,
+        dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
         dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
-        dn_lcl_activation_dt)
+        dn_lcl_activation_dt,
+    )
 end
 
 include("BMT_rosenbrock.jl")

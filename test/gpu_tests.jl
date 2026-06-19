@@ -1201,10 +1201,11 @@ function test_gpu(FT)
             TT.@test iszero(tendencies.dq_ice_dt)  # Ice tendency is zero for warm-only
         end
 
-        # 2M+P3 tests (the P3 path additionally returns `dn_ice_dt`)
+        # 2M+P3 tests (the P3 path additionally returns `dn_ice_dt`; the
+        # dn_lcl_activation_dt diagnostic is omitted by default)
         DT_p3 = @NamedTuple{
             dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
-            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT, dn_lcl_activation_dt::FT,
+            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
         }
         (; output) = setup_output(ndrange, DT_p3)
         q_ice = constant_data(FT(0.3e-3); ndrange)

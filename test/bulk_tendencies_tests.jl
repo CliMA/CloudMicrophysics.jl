@@ -1294,8 +1294,20 @@ function test_bulk_microphysics_p3_tendencies(FT)
             q_ice, n_ice, q_rim, b_rim, logλ,
         )
 
-        # Check that we get the expected NamedTuple type
+        # By default the dn_lcl_activation_dt diagnostic is omitted (8 fields)
         @test tendencies isa @NamedTuple{
+            dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
+            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
+        }
+
+        # WithActivationDiagnostic() appends the dn_lcl_activation_dt diagnostic
+        tendencies_diag = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics2Moment(), mp, tps, ρ, T, q_tot,
+            q_lcl, n_lcl, q_rai, n_rai,
+            q_ice, n_ice, q_rim, b_rim, logλ,
+            zero(FT), zero(FT), zero(FT), BMT.WithActivationDiagnostic(),
+        )
+        @test tendencies_diag isa @NamedTuple{
             dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
             dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
             dn_lcl_activation_dt::FT,
