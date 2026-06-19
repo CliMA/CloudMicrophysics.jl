@@ -1204,7 +1204,7 @@ function test_gpu(FT)
         # 2M+P3 tests (the P3 path additionally returns `dn_ice_dt`)
         DT_p3 = @NamedTuple{
             dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
-            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT, dn_lcl_activation_dt::FT,
+            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
         }
         (; output) = setup_output(ndrange, DT_p3)
         q_ice = constant_data(FT(0.3e-3); ndrange)

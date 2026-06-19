@@ -90,7 +90,11 @@ function test_framework_1m(FT)
             (S_liq(xe, Te, ρ, qt), S_ice(xe, Te, ρ, qt))
         end
         exact = BMT.rosenbrock_exact()
-        unlimited = BMT.RosenbrockAverage(BMT.ExactJacobian(), BMT.ExplicitGrowthDiagonal(), BMT.NoLimiter())
+        unlimited = BMT.RosenbrockAverage(;
+            jacobian = BMT.ExactJacobian(),
+            growth = BMT.ExplicitGrowthDiagonal(),
+            limiter = BMT.NoLimiter(),
+        )
         tol = FT == Float64 ? FT(1e-3) : FT(3e-2)
         # warm, liquid-supersaturated, coarse single step
         let ρ = FT(1.0), T = T_frz + FT(8), qt = FT(0.022), x = FT[1e-4, 0, 1e-4, 0], Δt = FT(240)

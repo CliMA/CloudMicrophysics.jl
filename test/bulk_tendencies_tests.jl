@@ -1298,7 +1298,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
         @test tendencies isa @NamedTuple{
             dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
             dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
-            dn_lcl_activation_dt::FT,
         }
     end
 end

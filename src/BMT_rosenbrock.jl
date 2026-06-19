@@ -381,14 +381,14 @@ bulk_microphysics_tendencies(::RosenbrockAverage, ::Microphysics2Moment, args...
 )
 
 """
-    bulk_microphysics_tendencies(::RosenbrockAverage, ::Microphysics2Moment,
+    bulk_microphysics_tendencies(mode::RosenbrockAverage, ::Microphysics2Moment,
         mp, tps, ρ, T, q_tot,
         q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
-        Δt, nsub = 1)
+        Δt, nsub = mode.n_substeps)
 
 Compute average 2M+P3 microphysics tendencies over `Δt` using `nsub`
 linearized-implicit (Rosenbrock-Euler) substeps of the raw instantaneous
-tendency.
+tendency. `nsub` defaults to the mode's `n_substeps`.
 
 # Algorithm
 
@@ -414,8 +414,7 @@ fields as the `Instantaneous` entry (without the activation diagnostic).
 @inline function bulk_microphysics_tendencies(mode::RosenbrockAverage{ExactJacobian}, cm::Microphysics2Moment,
     mp::CMP.Microphysics2MParams{WR, ICE}, tps,
     ρ, T, q_tot,
-    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
-    Δt, nsub = 1,
+    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ, Δt, nsub = mode.n_substeps,
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = typeof(q_tot)
     nsub_eff = max(Int(nsub), 1)
@@ -598,14 +597,14 @@ snow). See the [`MicroState2MP3`](@ref) method for the role of `P` in
 end
 
 """
-    bulk_microphysics_tendencies(::RosenbrockAverage, ::Microphysics1Moment,
-        mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1)
+    bulk_microphysics_tendencies(mode::RosenbrockAverage, ::Microphysics1Moment,
+        mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = mode.n_substeps)
 
 Compute average 1M microphysics tendencies over `Δt` using `nsub`
 linearized-implicit (Rosenbrock-Euler) substeps of the raw instantaneous
-tendency. The [`Jacobian`](@ref), [`GrowthTreatment`](@ref), and
-[`TendencyLimiter`](@ref) options of `mode` select the substep matrix, the
-growth-diagonal treatment, and the increment limiter.
+tendency. `nsub` defaults to the mode's `n_substeps`. The [`Jacobian`](@ref),
+[`GrowthTreatment`](@ref), and [`TendencyLimiter`](@ref) options of `mode` select
+the substep matrix, the growth-diagonal treatment, and the increment limiter.
 
 # Algorithm
 
@@ -628,7 +627,7 @@ fields as the `Instantaneous` entry.
 """
 @inline bulk_microphysics_tendencies(mode::RosenbrockAverage, ::Microphysics1Moment,
     mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1) =
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = mode.n_substeps) =
     _rosenbrock_average_1m(mode, mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub)
 
 # ---- Shared 1M driver + Jacobian/mask/growth/limiter resolvers ----
@@ -762,10 +761,10 @@ solve.
     _rosenbrock_average_1m(mode, mp, tps, ρ, T, q_tot,
                            q_lcl, q_icl, q_rai, q_sno, Δt, nsub)
 
-Shared 1M Rosenbrock-average substep driver. The substep loop, equilibration,
-positivity clamp, and explicit between-substep `T` update are fixed; the
-[`RosenbrockAverage`](@ref) `mode` selects the Jacobian, the growth treatment,
-and the increment limiter through [`_jacobian_provider`](@ref),
+Shared 1M Rosenbrock-average substep driver over `nsub` substeps. The substep
+loop, equilibration, positivity clamp, and explicit between-substep `T` update
+are fixed; the [`RosenbrockAverage`](@ref) `mode` selects the Jacobian, the
+growth treatment, and the increment limiter through [`_jacobian_provider`](@ref),
 [`_species_mask`](@ref), [`_apply_growth`](@ref), and [`_apply_limiter`](@ref).
 """
 @inline function _rosenbrock_average_1m(
@@ -970,7 +969,7 @@ end
     bulk_microphysics_tendencies(v::Verbose, ::Microphysics2Moment,
         mp, tps, ρ, T, q_tot,
         q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
-        Δt, nsub = 1)
+        Δt, nsub = v.mode.n_substeps)
 
 Diagnostic 2M+P3 Rosenbrock averaged tendency with post-solve per-process
 attribution. Runs the substep loop of the wrapped
@@ -996,8 +995,8 @@ This is a diagnostic path, separate from the non-verbose entry.
     v::Verbose{<:RosenbrockAverage{ExactJacobian}}, cm::Microphysics2Moment,
     mp::CMP.Microphysics2MParams{WR, ICE}, tps,
     ρ, T, q_tot,
-    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
-    Δt, nsub = 1,
+    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ, Δt,
+    nsub = v.mode.n_substeps,
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = typeof(q_tot)
     mode = v.mode
@@ -1038,7 +1037,7 @@ end
 
 """
     bulk_microphysics_tendencies(v::Verbose, ::Microphysics1Moment,
-        mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1)
+        mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = v.mode.n_substeps)
 
 Diagnostic 1M Rosenbrock averaged tendency with post-solve per-process
 attribution. Runs the substep loop of the wrapped [`RosenbrockAverage`](@ref)
@@ -1062,7 +1061,7 @@ This is a diagnostic path, separate from the non-verbose entry.
 @inline function bulk_microphysics_tendencies(
     v::Verbose{<:RosenbrockAverage}, cm::Microphysics1Moment,
     mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = v.mode.n_substeps,
 )
     FT = typeof(q_tot)
     mode = v.mode
@@ -1099,4 +1098,257 @@ This is a diagnostic path, separate from the non-verbose entry.
     processes = map(Δxp_i -> Δxp_i / Δt, Δxp_sum)
     clamp_correction = Δx_clamp_sum / Δt
     return merge(net, (; processes, clamp_correction))
+end
+
+#####
+##### 2M+P3 forward-Euler substepping (`SubsteppedAverage`)
+#####
+
+"""
+    _coupled_sink_limit_factor(S1, S2, q1, q2, dt, n = 3)
+
+Uniform scaling factor in `[0, 1]` for two coupled sink tendencies `S1`, `S2`
+that deplete `q1`, `q2`: each species may lose at most `q / (dt n)` per step.
+Returns `1` unless a tendency is a sink that would over-deplete its species.
+"""
+@inline function _coupled_sink_limit_factor(S1, S2, q1, q2, dt, n = 3)
+    M1 = max(zero(q1), q1) / dt / n
+    M2 = max(zero(q2), q2) / dt / n
+    f1 = ifelse(S1 < zero(S1) && -S1 > M1, M1 / (-S1), one(S1))
+    f2 = ifelse(S2 < zero(S2) && -S2 > M2, M2 / (-S2), one(S2))
+    return min(f1, f2)
+end
+
+"""
+    _apply_2m_satadj_limit(t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt)
+
+Cap the net 2M+P3 condensation/deposition tendencies so a single step cannot
+overshoot saturation. The liquid channel `(dq_lcl_dt + dq_rai_dt)` is capped
+against the analytic condensation increment; the ice channel
+`(dq_ice_dt + dq_rim_dt)` is then capped against the deposition increment from
+the vapor remaining after the liquid step. Each channel is scaled by a common,
+sign-preserving ratio in `[0, 1]`.
+"""
+@inline function _apply_2m_satadj_limit(t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt)
+    (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+        dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt) = t
+    FT = typeof(T)
+    T_safe = max(FT(150), T)
+
+    # Vapor diagnosed from total water minus condensate (no q_sno in P3 here).
+    q_vap = max(zero(FT), q_tot - q_lcl - q_rai - q_ice)
+
+    Rv = TDI.Rᵥ(tps)
+    cp_d = TDI.TD.Parameters.cp_d(tps)
+    L_v = TDI.Lᵥ(tps, T_safe)
+    L_s = TDI.Lₛ(tps, T_safe)
+    qv_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T_safe, ρ)
+    qv_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T_safe, ρ)
+
+    qcon_satadj =
+        (q_vap - qv_sat_liq) /
+        (1 + L_v^2 * qv_sat_liq / (cp_d * Rv * T_safe^2)) / dt
+
+    # Liquid: cap |dq_lcl_dt + dq_rai_dt| against qcon_satadj.
+    net_liq = dq_lcl_dt + dq_rai_dt
+    target_liq = if net_liq > 0
+        min(net_liq, max(zero(FT), qcon_satadj))
+    elseif net_liq < 0
+        max(net_liq, min(zero(FT), qcon_satadj))
+    else
+        zero(FT)
+    end
+    ratio_liq = ifelse(abs(net_liq) > eps(FT), target_liq / net_liq, one(FT))
+    ratio_liq = clamp(ratio_liq, zero(FT), one(FT))
+    dq_lcl_dt *= ratio_liq
+    dq_rai_dt *= ratio_liq
+    dn_lcl_dt *= ratio_liq
+    dn_rai_dt *= ratio_liq
+
+    # Ice: same idea using the vapor remaining after the liquid step.
+    qv_after_liq = max(zero(FT), q_vap - target_liq * dt)
+    qdep_satadj =
+        (qv_after_liq - qv_sat_ice) /
+        (1 + L_s^2 * qv_sat_ice / (cp_d * Rv * T_safe^2)) / dt
+    net_ice = dq_ice_dt + dq_rim_dt
+    target_ice = if net_ice > 0
+        min(net_ice, max(zero(FT), qdep_satadj))
+    elseif net_ice < 0
+        max(net_ice, min(zero(FT), qdep_satadj))
+    else
+        zero(FT)
+    end
+    ratio_ice = ifelse(abs(net_ice) > eps(FT), target_ice / net_ice, one(FT))
+    ratio_ice = clamp(ratio_ice, zero(FT), one(FT))
+    dq_ice_dt *= ratio_ice
+    dq_rim_dt *= ratio_ice
+    dn_ice_dt *= ratio_ice
+    db_rim_dt *= ratio_ice
+
+    return (;
+        dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
+        dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
+    )
+end
+
+"""
+    _satadj_2m(limiter, t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt)
+
+Apply the saturation-adjustment cap [`_apply_2m_satadj_limit`](@ref) when
+`limiter` is [`EndStateSaturationAdjustment`](@ref); return `t` unchanged for
+[`NoLimiter`](@ref) (the implicit Jacobian handles stability).
+"""
+@inline _satadj_2m(::NoLimiter, t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt) = t
+@inline _satadj_2m(::EndStateSaturationAdjustment, t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt) =
+    _apply_2m_satadj_limit(t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt)
+
+"""
+    _limited_2m_tendency(limiter, mp, tps, ρ, T, q_tot,
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ, dt)
+
+The raw 2M+P3 bulk tendency ([`_instantaneous_2mp3_tendency`](@ref)) capped by
+the saturation-adjustment limiter (per `limiter`) and the coupled-sink limiter
+on the warm-rain mass/number pairs.
+"""
+@inline function _limited_2m_tendency(limiter, mp, tps, ρ, T, q_tot,
+    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ, dt,
+)
+    t = _instantaneous_2mp3_tendency(mp, tps, ρ, T, q_tot,
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
+    )
+    t = _satadj_2m(limiter, t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt)
+    f_liq = _coupled_sink_limit_factor(t.dq_lcl_dt, t.dn_lcl_dt, q_lcl, n_lcl, dt)
+    f_rai = _coupled_sink_limit_factor(t.dq_rai_dt, t.dn_rai_dt, q_rai, n_rai, dt)
+    return (;
+        dq_lcl_dt = t.dq_lcl_dt * f_liq, dn_lcl_dt = t.dn_lcl_dt * f_liq,
+        dq_rai_dt = t.dq_rai_dt * f_rai, dn_rai_dt = t.dn_rai_dt * f_rai,
+        dq_ice_dt = t.dq_ice_dt, dn_ice_dt = t.dn_ice_dt,
+        dq_rim_dt = t.dq_rim_dt, db_rim_dt = t.db_rim_dt,
+    )
+end
+
+"""
+    bulk_microphysics_tendencies(mode::SubsteppedAverage, ::Microphysics2Moment,
+        mp, tps, ρ, T, q_tot,
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
+        Δt, nsub = mode.n_substeps)
+
+Compute average 2M+P3 microphysics tendencies over `Δt` by forward-Euler-ing the
+limited bulk tendency over `nsub` substeps of `Δt / nsub` (`nsub` defaults to the
+mode's `n_substeps`).
+
+# Algorithm
+
+For each substep, the limited tendency ([`_limited_2m_tendency`](@ref)) advances
+the eight prognostic species by forward Euler; `logλ` is held fixed, `q_tot` is
+conserved, and a local temperature evolves via latent heating so the
+saturation-adjustment cap sees the corrected saturation deficit. Reduces to the
+single-shot limited tendency when `nsub ≤ 1`.
+
+Returns the net change in the species over `Δt` divided by `Δt`, in the same
+fields as the `Instantaneous` entry (without the activation diagnostic).
+"""
+@inline function bulk_microphysics_tendencies(mode::SubsteppedAverage, cm::Microphysics2Moment,
+    mp::CMP.Microphysics2MParams{WR, ICE}, tps,
+    ρ, T, q_tot,
+    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ, Δt, nsub = mode.n_substeps,
+) where {WR, ICE <: CMP.P3IceParams}
+    FT = typeof(T)
+    limiter = mode.limiter
+    nsub_eff = max(Int(nsub), 1)
+    if nsub_eff <= 1
+        return _limited_2m_tendency(limiter, mp, tps, ρ, T, q_tot,
+            q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ, Δt,
+        )
+    end
+    h = Δt / FT(nsub_eff)
+    cp_d = TDI.TD.Parameters.cp_d(tps)
+    qlcl, nlcl, qrai, nrai = q_lcl, n_lcl, q_rai, n_rai
+    qice, nice, qrim, brim = q_ice, n_ice, q_rim, b_rim
+    Tsub = T
+    for _ in 1:nsub_eff
+        t = _limited_2m_tendency(limiter, mp, tps, ρ, Tsub, q_tot,
+            qlcl, nlcl, qrai, nrai, qice, nice, qrim, brim, logλ, h,
+        )
+        qlcl += h * t.dq_lcl_dt
+        nlcl += h * t.dn_lcl_dt
+        qrai += h * t.dq_rai_dt
+        nrai += h * t.dn_rai_dt
+        qice += h * t.dq_ice_dt
+        nice += h * t.dn_ice_dt
+        qrim += h * t.dq_rim_dt
+        brim += h * t.db_rim_dt
+        T_safe = max(FT(150), Tsub)
+        L_v = TDI.Lᵥ(tps, T_safe)
+        L_s = TDI.Lₛ(tps, T_safe)
+        Tsub += h * (L_v * (t.dq_lcl_dt + t.dq_rai_dt) + L_s * t.dq_ice_dt) / cp_d
+    end
+    return (;
+        dq_lcl_dt = (qlcl - q_lcl) / Δt, dn_lcl_dt = (nlcl - n_lcl) / Δt,
+        dq_rai_dt = (qrai - q_rai) / Δt, dn_rai_dt = (nrai - n_rai) / Δt,
+        dq_ice_dt = (qice - q_ice) / Δt, dn_ice_dt = (nice - n_ice) / Δt,
+        dq_rim_dt = (qrim - q_rim) / Δt, db_rim_dt = (brim - b_rim) / Δt,
+    )
+end
+
+"""
+    bulk_microphysics_tendencies(mode::SubsteppedAverage, ::Microphysics1Moment,
+        mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = mode.n_substeps)
+
+Compute average 1-moment microphysics tendencies over `Δt` by forward-Euler-ing
+the raw bulk tendency over `nsub` substeps of `Δt / nsub` (`nsub` defaults to the
+mode's `n_substeps`). This is the explicit forward-Euler counterpart to the
+linearized-implicit [`LinearizedAverage`](@ref)/[`RosenbrockAverage`](@ref) 1M
+modes. `q_tot` is conserved, a local temperature evolves via latent heating, and
+each substep's increment is passed through the mode's [`TendencyLimiter`](@ref)
+([`EndStateSaturationAdjustment`](@ref) bisects the increment to keep the
+latent-heated end state from overshooting saturation; [`NoLimiter`](@ref) skips
+it). 1M carries no number species, so there is no coupled-sink limiter;
+positivity is the per-substep clamp.
+
+Returns the same `NamedTuple` fields as the 1M `Instantaneous` entry.
+"""
+@inline bulk_microphysics_tendencies(mode::SubsteppedAverage, ::Microphysics1Moment,
+    mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = mode.n_substeps) =
+    _substepped_average_1m(mode, mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub)
+
+"""
+    _substepped_average_1m(mode, mp, tps, ρ, T, q_tot,
+                           q_lcl, q_icl, q_rai, q_sno, Δt, nsub)
+
+Shared 1M forward-Euler substep-average driver over `nsub` substeps. Mirrors
+[`_rosenbrock_average_1m`](@ref) but takes the explicit Euler increment instead
+of a linearized-implicit solve; the [`SubsteppedAverage`](@ref) `mode` selects
+the increment limiter through [`_apply_limiter`](@ref).
+"""
+@inline function _substepped_average_1m(
+    mode::SubsteppedAverage, mp::CMP.Microphysics1MParams, tps, ρ, T, q_tot,
+    q_lcl, q_icl, q_rai, q_sno, Δt, nsub,
+)
+    FT = typeof(q_tot)
+    nsub_eff = max(Int(nsub), 1)
+    h = Δt / FT(nsub_eff)
+    Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+    Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+
+    x = MicroState1M{FT}(q_lcl, q_icl, q_rai, q_sno)
+    x₀ = x
+    Tsub = T
+    for _ in 1:nsub_eff
+        g = Raw1MTendency(mp, tps, ρ, Tsub, q_tot)
+        f = g(x)
+        x_prev = x
+        d = _euler_update(x, f, h) - x
+        d = _apply_limiter(mode.limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
+        x = max.(x .+ d, 0)
+        Δ = x - x_prev
+        Tsub += Lv_over_cp * (Δ.q_lcl + Δ.q_rai) + Ls_over_cp * (Δ.q_icl + Δ.q_sno)
+    end
+
+    rates = (x - x₀) / Δt
+    return (;
+        dq_lcl_dt = rates.q_lcl, dq_icl_dt = rates.q_icl,
+        dq_rai_dt = rates.q_rai, dq_sno_dt = rates.q_sno,
+    )
 end

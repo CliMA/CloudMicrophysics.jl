@@ -46,6 +46,7 @@ export MicrophysicsScheme,
     InstantaneousVerbose,
     LinearizedAverage,
     RosenbrockAverage,
+    SubsteppedAverage,
     Verbose,
     Jacobian,
     DonorJacobian,
@@ -127,11 +128,14 @@ struct InstantaneousVerbose <: TendencyMode end
 
 """
     LinearizedAverage <: TendencyMode
+    LinearizedAverage(; n_substeps = 1)
 
-Return time-averaged tendencies computed via repeated linearized implicit substeps.
-This is the mode used operationally by ClimaAtmos.
+Return time-averaged tendencies computed over `Δt` via `n_substeps` repeated
+linearized-implicit substeps. This is the mode used operationally by ClimaAtmos.
 """
-struct LinearizedAverage <: TendencyMode end
+Base.@kwdef struct LinearizedAverage <: TendencyMode
+    n_substeps::Int = 1
+end
 
 """
     Jacobian
@@ -213,50 +217,73 @@ in the Rosenbrock substepping documentation.
 struct EndStateSaturationAdjustment <: TendencyLimiter end
 
 """
-    RosenbrockAverage(jacobian, growth, limiter) <: TendencyMode
-    RosenbrockAverage(; jacobian = DonorJacobian(), growth = ImplicitGrowth(), limiter = NoLimiter())
+    RosenbrockAverage(jacobian, growth, limiter, n_substeps) <: TendencyMode
+    RosenbrockAverage(; jacobian = DonorJacobian(), growth = ImplicitGrowth(),
+        limiter = NoLimiter(), n_substeps = 1)
 
-Time-averaged tendencies from repeated linearized-implicit (Rosenbrock-Euler)
-substeps. The [`Jacobian`](@ref), [`GrowthTreatment`](@ref), and
-[`TendencyLimiter`](@ref) options select the substep matrix, the growth-diagonal
-treatment, and the increment limiter. See [`rosenbrock_donor`](@ref),
-[`rosenbrock_coupled`](@ref), and [`rosenbrock_exact`](@ref) for the supported
-configurations.
+Time-averaged tendencies over `Δt` from `n_substeps` repeated linearized-implicit
+(Rosenbrock-Euler) substeps. The [`Jacobian`](@ref), [`GrowthTreatment`](@ref),
+and [`TendencyLimiter`](@ref) options select the substep matrix, the
+growth-diagonal treatment, and the increment limiter. See
+[`rosenbrock_donor`](@ref), [`rosenbrock_coupled`](@ref), and
+[`rosenbrock_exact`](@ref) for the supported configurations.
 """
 struct RosenbrockAverage{J <: Jacobian, G <: GrowthTreatment, L <: TendencyLimiter} <: TendencyMode
     jacobian::J
     growth::G
     limiter::L
+    n_substeps::Int
 end
 RosenbrockAverage(;
     jacobian = DonorJacobian(),
     growth = ImplicitGrowth(),
     limiter = NoLimiter(),
-) = RosenbrockAverage(jacobian, growth, limiter)
+    n_substeps = 1,
+) = RosenbrockAverage(jacobian, growth, limiter, n_substeps)
 
 """
-    rosenbrock_donor()
+    rosenbrock_donor(; n_substeps = 1)
 
 [`RosenbrockAverage`](@ref) with the donor-based Jacobian. Reproduces
 [`LinearizedAverage`](@ref) within the unified framework.
 """
-rosenbrock_donor() = RosenbrockAverage(DonorJacobian(), ImplicitGrowth(), NoLimiter())
+rosenbrock_donor(; n_substeps = 1) =
+    RosenbrockAverage(DonorJacobian(), ImplicitGrowth(), NoLimiter(), n_substeps)
 
 """
-    rosenbrock_coupled()
+    rosenbrock_coupled(; n_substeps = 1)
 
 [`RosenbrockAverage`](@ref) with the coupled donor-based Jacobian.
 """
-rosenbrock_coupled() = RosenbrockAverage(CoupledDonorJacobian(), ImplicitGrowth(), NoLimiter())
+rosenbrock_coupled(; n_substeps = 1) =
+    RosenbrockAverage(CoupledDonorJacobian(), ImplicitGrowth(), NoLimiter(), n_substeps)
 
 """
-    rosenbrock_exact()
+    rosenbrock_exact(; n_substeps = 1)
 
 [`RosenbrockAverage`](@ref) with the exact Jacobian, an explicit growth diagonal,
 and the end-state saturation adjustment.
 """
-rosenbrock_exact() =
-    RosenbrockAverage(ExactJacobian(), ExplicitGrowthDiagonal(), EndStateSaturationAdjustment())
+rosenbrock_exact(; n_substeps = 1) =
+    RosenbrockAverage(ExactJacobian(), ExplicitGrowthDiagonal(), EndStateSaturationAdjustment(), n_substeps)
+
+"""
+    SubsteppedAverage <: TendencyMode
+    SubsteppedAverage(; n_substeps = 1, limiter = EndStateSaturationAdjustment())
+
+Time-averaged 2M+P3 tendencies over `Δt` from `n_substeps` forward-Euler
+substeps of the raw bulk tendency. Each substep applies a coupled-sink limiter
+(so paired mass/number sinks cannot deplete a species below zero) and, when
+`limiter` is [`EndStateSaturationAdjustment`](@ref), the saturation-adjustment
+cap on net condensation/deposition; [`NoLimiter`](@ref) skips the cap (e.g. for
+implicit timestepping, where the Jacobian handles stability). `logλ` is held
+fixed across substeps, `q_tot` is conserved, and a local temperature evolves via
+latent heating so the cap sees the corrected saturation deficit.
+"""
+Base.@kwdef struct SubsteppedAverage{L <: TendencyLimiter} <: TendencyMode
+    n_substeps::Int = 1
+    limiter::L = EndStateSaturationAdjustment()
+end
 
 """
     Verbose(mode) <: TendencyMode
@@ -609,13 +636,14 @@ end
 
 """
     bulk_microphysics_tendencies(
-        ::LinearizedAverage, ::Microphysics1Moment, mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+        mode::LinearizedAverage, ::Microphysics1Moment, mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = mode.n_substeps,
     )
 
-Compute average 1-moment microphysics tendencies over `Δt` using repeated
-linearized implicit substeps. Forwards to [`rosenbrock_donor`](@ref), the
-donor-based configuration of [`RosenbrockAverage`](@ref).
+Compute average 1-moment microphysics tendencies over `Δt` using
+`mode.n_substeps` repeated linearized-implicit substeps. Forwards to
+[`rosenbrock_donor`](@ref), the donor-based configuration of
+[`RosenbrockAverage`](@ref).
 
 # Returns
 `NamedTuple` with fields:
@@ -625,11 +653,11 @@ donor-based configuration of [`RosenbrockAverage`](@ref).
 - `dq_sno_dt`: Snow tendency [kg/kg/s]
 """
 @inline bulk_microphysics_tendencies(
-    ::LinearizedAverage, cm::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+    mode::LinearizedAverage, cm::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = mode.n_substeps,
 ) = bulk_microphysics_tendencies(
-    rosenbrock_donor(), cm, mp, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub,
+    rosenbrock_donor(; n_substeps = nsub), cm, mp, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
 )
 
 
@@ -947,7 +975,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dn_lcl_dt = warm.dn_lcl_dt
     dq_rai_dt = warm.dq_rai_dt
     dn_rai_dt = warm.dn_rai_dt
-    dn_lcl_activation_dt = warm.dn_lcl_activation_dt
 
     # --- P3 Ice Processes
     p3 = mp.ice.scheme
@@ -1075,12 +1102,11 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dq_rim_dt += rain_frz.∂ₜq_frz
     db_rim_dt += rain_frz.∂ₜq_frz / p3.ρ_i  # ρ_i = 916.7 kg m⁻³, the density of solid bulk ice
 
-    # Aerosol activation is folded into `warm_rain_tendencies_2m` above —
-    # `dn_lcl_activation_dt` from `warm` is already included in `dn_lcl_dt`.
+    # Aerosol activation is folded into `dn_lcl_dt` by `warm_rain_tendencies_2m`
+    # above; it is not reported as a separate diagnostic field.
 
     return (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
-        dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
-        dn_lcl_activation_dt)
+        dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt)
 end
 
 include("BMT_rosenbrock.jl")
