@@ -1122,12 +1122,9 @@ end
 """
     _apply_2m_satadj_limit(t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt)
 
-Cap the net 2M+P3 condensation/deposition tendencies so a single step cannot
-overshoot saturation. The liquid channel `(dq_lcl_dt + dq_rai_dt)` is capped
-against the analytic condensation increment; the ice channel
-`(dq_ice_dt + dq_rim_dt)` is then capped against the deposition increment from
-the vapor remaining after the liquid step. Each channel is scaled by a common,
-sign-preserving ratio in `[0, 1]`.
+Scale the net 2M+P3 condensation and deposition tendencies in `t` so a single
+step does not overshoot saturation. See the Rosenbrock substepping
+documentation.
 """
 @inline function _apply_2m_satadj_limit(t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt)
     (; dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt,
@@ -1194,9 +1191,9 @@ end
 """
     _satadj_2m(limiter, t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt)
 
-Apply the saturation-adjustment cap [`_apply_2m_satadj_limit`](@ref) when
+Apply the saturation-adjustment limiter [`_apply_2m_satadj_limit`](@ref) when
 `limiter` is [`EndStateSaturationAdjustment`](@ref); return `t` unchanged for
-[`NoLimiter`](@ref) (the implicit Jacobian handles stability).
+[`NoLimiter`](@ref).
 """
 @inline _satadj_2m(::NoLimiter, t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt) = t
 @inline _satadj_2m(::EndStateSaturationAdjustment, t, tps, T, ρ, q_tot, q_lcl, q_rai, q_ice, dt) =
@@ -1206,7 +1203,7 @@ Apply the saturation-adjustment cap [`_apply_2m_satadj_limit`](@ref) when
     _limited_2m_tendency(limiter, mp, tps, ρ, T, q_tot,
         q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ, dt)
 
-The raw 2M+P3 bulk tendency ([`_instantaneous_2mp3_tendency`](@ref)) capped by
+The raw 2M+P3 bulk tendency ([`_instantaneous_2mp3_tendency`](@ref)) limited by
 the saturation-adjustment limiter (per `limiter`) and the coupled-sink limiter
 on the warm-rain mass/number pairs.
 """
@@ -1233,17 +1230,10 @@ end
         q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
         Δt, nsub = mode.n_substeps)
 
-Compute average 2M+P3 microphysics tendencies over `Δt` by forward-Euler-ing the
-limited bulk tendency over `nsub` substeps of `Δt / nsub` (`nsub` defaults to the
-mode's `n_substeps`).
-
-# Algorithm
-
-For each substep, the limited tendency ([`_limited_2m_tendency`](@ref)) advances
-the eight prognostic species by forward Euler; `logλ` is held fixed, `q_tot` is
-conserved, and a local temperature evolves via latent heating so the
-saturation-adjustment cap sees the corrected saturation deficit. Reduces to the
-single-shot limited tendency when `nsub ≤ 1`.
+Compute average 2M+P3 microphysics tendencies over `Δt` from `nsub` forward-Euler
+substeps of the limited bulk tendency ([`_limited_2m_tendency`](@ref); `nsub`
+defaults to the mode's `n_substeps`). See the Rosenbrock substepping
+documentation.
 
 Returns the net change in the species over `Δt` divided by `Δt`, in the same
 fields as the `Instantaneous` entry (without the activation diagnostic).
@@ -1295,16 +1285,12 @@ end
     bulk_microphysics_tendencies(mode::SubsteppedAverage, ::Microphysics1Moment,
         mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = mode.n_substeps)
 
-Compute average 1-moment microphysics tendencies over `Δt` by forward-Euler-ing
-the raw bulk tendency over `nsub` substeps of `Δt / nsub` (`nsub` defaults to the
-mode's `n_substeps`). This is the explicit forward-Euler counterpart to the
-linearized-implicit [`LinearizedAverage`](@ref)/[`RosenbrockAverage`](@ref) 1M
-modes. `q_tot` is conserved, a local temperature evolves via latent heating, and
-each substep's increment is passed through the mode's [`TendencyLimiter`](@ref)
-([`EndStateSaturationAdjustment`](@ref) bisects the increment to keep the
-latent-heated end state from overshooting saturation; [`NoLimiter`](@ref) skips
-it). 1M carries no number species, so there is no coupled-sink limiter;
-positivity is the per-substep clamp.
+Compute average 1-moment microphysics tendencies over `Δt` from `nsub`
+forward-Euler substeps of the raw bulk tendency, with the per-substep increment
+limited by the mode's [`TendencyLimiter`](@ref) (`nsub` defaults to the mode's
+`n_substeps`). The explicit forward-Euler counterpart to the linearized-implicit
+[`LinearizedAverage`](@ref) and [`RosenbrockAverage`](@ref) 1M modes. See the
+Rosenbrock substepping documentation.
 
 Returns the same `NamedTuple` fields as the 1M `Instantaneous` entry.
 """

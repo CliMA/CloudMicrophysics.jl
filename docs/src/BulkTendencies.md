@@ -66,19 +66,19 @@ The system has a fixed sparse structure:
 
 ```math
 \begin{bmatrix}
-a_{11} & 0      & 0      & 0 \\
+a_{11} & a_{12} & 0      & 0 \\
 0      & a_{22} & 0      & 0 \\
 a_{31} & 0      & a_{33} & a_{34} \\
 a_{41} & a_{42} & a_{43} & a_{44}
 \end{bmatrix}
 ```
 
-This allows an efficient solve:
+The entry $a_{12}$ is the melting of cloud ice into cloud liquid, which couples the $q_{\mathrm{lcl}}$ row to $q_{\mathrm{icl}}$; below freezing it is zero. This allows an efficient solve:
 
--  $q_{\mathrm{lcl}}$ and $q_{\mathrm{icl}}$ are solved independently (scalar solves)
--  $q_{\mathrm{rai}}$ and $q_{\mathrm{sno}}$ are solved as a **2×2 system**
+-  $q_{\mathrm{icl}}$ is a scalar solve, and $q_{\mathrm{lcl}}$ follows from it by back-substitution
+-  $q_{\mathrm{rai}}$ and $q_{\mathrm{sno}}$ are solved as a $2\times2$ system
 
-This avoids forming or inverting a full dense matrix and is efficient on both CPU and GPU.
+This avoids forming or inverting a full dense matrix.
 
 ---
 
@@ -93,6 +93,8 @@ A single linearization assumes the operator $M$ is constant over the timestep. T
   - update $q$ and temperature
 
 As `nsub` increases, the solution approaches the nonlinear evolution of the system.
+
+The same substep structure also admits a purely explicit variant, in which each substep takes a forward-Euler step of the raw tendency rather than a linearized-implicit solve. That variant is `SubsteppedAverage`; the two are contrasted in [Implicit versus explicit averaging](@ref) below.
 
 ---
 
@@ -109,6 +111,44 @@ Within each timestep, we assume that **thermodynamic variables such as density a
 ```
 
 This is consistent with the microphysics-only update and avoids coupling to a full thermodynamic solve.
+
+---
+
+## Tendency modes
+
+`bulk_microphysics_tendencies` selects its output through a `TendencyMode` argument. The modes fall into three groups:
+
+- **Instantaneous evaluation.** `Instantaneous` returns the raw pointwise tendency from a single evaluation of all processes, with no linearization and no time-averaging. `InstantaneousVerbose` additionally returns every individual source term for diagnostics. These take no ``\Delta t``.
+
+- **Linearized-implicit averaging.** `LinearizedAverage` and `RosenbrockAverage` return tendencies averaged over ``\Delta t`` from `nsub` linearized-implicit (Rosenbrock-Euler) substeps, each solving the system in [Linearized implicit solve](@ref). `LinearizedAverage` is the donor-based scheme described above and is the configuration used operationally by ClimaAtmos; it forwards to the donor preset of `RosenbrockAverage`. `RosenbrockAverage` exposes the matrix, growth-diagonal, and limiter choices documented in [Linearized-implicit options](@ref).
+
+- **Explicit averaging.** `SubsteppedAverage` returns tendencies averaged over ``\Delta t`` from `nsub` forward-Euler substeps of the raw tendency — the explicit counterpart of the linearized-implicit modes.
+
+The `Verbose(mode)` wrapper returns, alongside the net tendencies, the per-process contributions realized by the implicit solve of `mode`, attributed through the same substep factorization so that they sum to the net of the unlimited solve.
+
+## Implicit versus explicit averaging
+
+`SubsteppedAverage` shares the substep loop, the fixed-``\log\lambda`` and conserved-``q_{\mathrm{tot}}`` assumptions, the latent-heating temperature update, and the positivity clamp of the linearized-implicit modes. The two differ only in how each substep advances the state:
+
+- `LinearizedAverage` / `RosenbrockAverage` solve the linearized-implicit increment ``\left(I/h - J\right)\Delta = f(x)``.
+- `SubsteppedAverage` takes the forward-Euler increment ``\Delta = h\, f(x)``.
+
+The implicit solve is unconditionally stable for the linear decay modes it captures: a depletion process linearized as ``\dot q = -D q`` decays monotonically over the substep for any ``h`` (cf. [Donor-based linearization](@ref)). The forward-Euler increment of the same process, ``q \leftarrow q (1 - h D)``, oscillates and diverges once ``h D > 2``, so the explicit average requires ``h`` small relative to the fastest process time scale ``1/D``. For the stiff depletion processes that motivate averaging — evaporation, sublimation, melting — this can demand many substeps, whereas the implicit average stays stable at one. The example below shows that explicit substepping with the raw tendency does not converge even at ten substeps for the near-freezing case, while the linearized-implicit average is already accurate at `nsub = 2`.
+
+Because the forward-Euler step has no implicit damping of its own, `SubsteppedAverage` carries a per-substep limiter to bound the otherwise-unstable increments:
+
+- A coupled-sink limiter scales paired mass and number sinks together (per the warm-rain pairs ``(q_{\mathrm{lcl}}, n_{\mathrm{lcl}})`` and ``(q_{\mathrm{rai}}, n_{\mathrm{rai}})``) so neither member depletes its species below zero within the substep.
+- When the limiter is `EndStateSaturationAdjustment`, a saturation-adjustment limiter on the net condensation/deposition prevents a single explicit step from overshooting saturation. With `NoLimiter` this limiter is omitted, which is appropriate when the increment is taken inside an outer implicit timestepper that supplies the stability.
+
+`SubsteppedAverage` reduces to the single-shot limited tendency when ``n_{\mathrm{sub}} \le 1``.
+
+### Consistency of the increment limiter
+
+For the substepped average to converge to the pointwise trajectory as ``h \to 0``, its limiter must be *consistent*: the correction it applies must vanish as the substep shrinks, so that it changes only steps that would otherwise cross saturation and leaves the converged solution unbiased. The one-moment `SubsteppedAverage` and both linearized-implicit averages use the same consistent limiter: a bisection that scales the whole increment only when the full latent-heated end state would cross saturation over its more-supersaturated phase, and is inactive otherwise (see [Increment scaling (`RosenbrockAverage`, `SubsteppedAverage` one-moment)](@ref)). It vanishes as ``h \to 0``, so these modes converge in the warm-rain, cold/ice, and mixed-phase regimes.
+
+The two-moment + P3 `SubsteppedAverage` uses a different saturation-adjustment limiter: it scales each phase's tendencies by an analytic saturation-mass ratio rather than by the bisected end-state factor (see [Analytic condensation/deposition bound (`SubsteppedAverage` two-moment + P3)](@ref)). That ratio is not proportional to ``h``, so the limiter does not vanish under refinement and biases the converged solution in mixed-phase cells: it zeros the ice-melting sink while passing the rain-number source from that melting, over-producing rain number in mixed-cold states, and it carries no per-substep positivity floor, so ice can be driven negative in mixed-warm states. Warm-rain and cold/ice two-moment + P3 states are unaffected. Making this limiter ``h``-consistent and adding a per-substep positivity floor — so two-moment + P3 explicit averaging is both inexpensive and convergent — is being addressed.
+
+The two families are appropriate in different settings. The linearized-implicit average is preferred when stability at coarse time steps is the priority and the cost of forming and solving the substep system is acceptable; it is the operational one-moment choice. The explicit average is cheaper per substep — no Jacobian, no linear solve — but for the two-moment + P3 scheme the linearized-implicit `rosenbrock_exact` (`ExactJacobian` with `ExplicitGrowthDiagonal` and `EndStateSaturationAdjustment`) is roughly an order of magnitude more expensive per microphysics evaluation than the explicit `SubsteppedAverage`; amortized against the rest of a host-model step this difference is typically much smaller, so at the full-step level the cost difference is often modest. The numerics that motivate `rosenbrock_exact` — the coarse-step deposition instability and the mixed-phase saturation criterion — are detailed in [Bulk-tendency averaging: modes and numerics](@ref).
 
 ---
 
@@ -151,25 +191,13 @@ This demonstrates that the linearized implicit substepping method provides a con
 
 ## Current limitations
 
-- Average (implicit) bulk tendencies are currently implemented **only for the one-moment microphysics scheme**.
-- For other microphysics schemes, only **instantaneous bulk tendencies** are available at present.
+- The donor-based linearization, and hence `LinearizedAverage`, is implemented only for the one-moment scheme. The one-moment scheme also supports the donor, coupled-donor, and exact configurations of `RosenbrockAverage`, and the explicit `SubsteppedAverage`.
+- On the two-moment + P3 model there is no donor-based matrix, so averaged tendencies use either the exact-Jacobian `RosenbrockAverage` (`rosenbrock_exact`) or the explicit `SubsteppedAverage`. The zero-moment scheme provides instantaneous tendencies only.
 
 ## Rosenbrock-averaged tendencies (2M+P3)
 
-For the 2-moment + P3 configuration, `RosenbrockAverage` replaces the hand-built linearization above with the exact Jacobian of the fused tendency, obtained by forward-mode automatic differentiation. The interval ``\Delta t`` is divided into `nsub` substeps of length ``h``, and each substep performs one linearized-implicit (Rosenbrock–Euler) update of the eight prognostic species ``x = (q_{\mathrm{lcl}}, n_{\mathrm{lcl}}, q_{\mathrm{rai}}, n_{\mathrm{rai}}, q_{\mathrm{ice}}, n_{\mathrm{ice}}, q_{\mathrm{rim}}, b_{\mathrm{rim}})``:
+For the two-moment + P3 configuration the linearized-implicit average uses the exact Jacobian of the fused tendency, obtained by forward-mode automatic differentiation, because there is no donor-based matrix there. This is the `rosenbrock_exact` preset, `RosenbrockAverage` with `ExactJacobian`, `ExplicitGrowthDiagonal`, and `EndStateSaturationAdjustment`. The interval ``\Delta t`` is divided into `nsub` substeps of length ``h``, and each substep performs one linearized-implicit (Rosenbrock-Euler) update of the eight prognostic species ``x = (q_{\mathrm{lcl}}, n_{\mathrm{lcl}}, q_{\mathrm{rai}}, n_{\mathrm{rai}}, q_{\mathrm{ice}}, n_{\mathrm{ice}}, q_{\mathrm{rim}}, b_{\mathrm{rim}})`` of the form ``\left(I/h - P J P\right) \Delta x = f(x)`` followed by a positivity clamp, where ``f`` is the raw instantaneous tendency and ``J`` is its exact ``8\times8`` `ForwardDiff` Jacobian.
 
-```math
-\left(\frac{I}{h} - P J P\right) \Delta x = f(x), \qquad x \leftarrow \max(x + \Delta x,\, 0)
-```
+The end-state saturation-adjustment limiter is part of this preset and is required, not optional. The two-moment + P3 ice-deposition tendency carries an autocatalytic growth mode whose positive Jacobian diagonal makes the implicit operator lose positive-definiteness once the substep is coarse relative to the growth time scale; the single substep then overshoots the nonlinear saturation limit, which the linear operator does not see, and the state goes non-physical. `ExplicitGrowthDiagonal` removes that growth mode from the implicit operator and `EndStateSaturationAdjustment` supplies the missing nonlinear bound. Both are needed: zeroing the growth diagonal alone leaves the now-explicit growth unbounded at the coarsest single substep, so the saturation adjustment is what keeps it physical. This is why the L-stability of the one-stage linearized-implicit step does not by itself remove the limiter: that stability covers only the linear modes the operator captures, not the nonlinear vapor-depletion shutoff.
 
-where ``f`` is the **raw instantaneous tendency** — the unmodified `Microphysics2Moment` process rates, with no timestep-dependent clipping — and ``J = \partial f / \partial x`` is its exact 8×8 `ForwardDiff` Jacobian.
-
-The differentiated tendency is the model physics, not a stabilized variant of it. The P3 condensation/deposition scheme is an analytic time-averaged relaxation [MorrisonMilbrandt2015](@cite) with no tendency clip; a supersaturation cap and ``1/h`` sink limits are explicit-Euler stabilization devices, not physical terms. They are unnecessary here because the one-stage Rosenbrock update is L-stable: it damps the stiff vapor-exchange subsystem monotonically, so the saturation overshoot and oscillation those limiters suppress cannot occur. They also degrade the solution: ``1/h`` tendency clips inject ``h``-independent error and break convergence under refinement [Wan2020](@cite), and a saturation clip structurally forbids the mixed-phase quasi-steady vapor pressure, which lies between liquid and ice saturation [KorolevMazin2003](@cite).
-
-The discrete stabilization steps are therefore conditioning and projection devices, all ``h``-free and applied to the linear solve rather than to the physics:
-
-- **Species projection** ``P = \mathrm{Diag}(z)``: species whose condensed mass is below ``10^{-10}`` are projected out of the Jacobian. Their rows of ``I/h - PJP`` reduce to the identity, so the solve returns exactly a forward-Euler update for those species while active species stay implicit — an IMEX-style splitting at species granularity. Near-empty species otherwise produce finite but very large Jacobian entries whose linearized steady state produces spurious number concentrations that substep refinement cannot remove.
-- **Equilibration** ``S = \mathrm{Diag}(|x| + h|f| + \epsilon)``: the linear system is solved as ``S^{-1} A S`` so the rows, which span roughly nine orders of magnitude across number and mass species, become O(1)-conditioned. This keeps single-precision roundoff relative to each species' own scale; an unscaled Float32 factorization deposits roundoff from the large rows into empty species as spurious mass.
-- **Positivity clamp** ``x \leftarrow \max(x + \Delta x, 0)``: a projection onto the physical nonnegative orthant after each substep.
-
-The local temperature is advanced each substep from the latent heating of the realized increments. `logλ` and `q_tot` are held fixed across the interval, matching the explicit-substepping semantics; non-finite states or Jacobians fall back to forward-Euler substeps of the raw tendency. The implicit update makes the stiff ice-process path insensitive to the substep length; at very large substeps (``h \gtrsim 100`` s) the single linearization carries the usual first-order error of a one-stage method, so increase `nsub` to refine.
+The full treatment — the substep semantics, the equilibrated linear solve, the species projection ``P``, the growth-diagonal and limiter options, the coarse-step deposition instability, the mixed-phase saturation criterion (``\max(S_{\mathrm{ice}}, S_{\mathrm{liq}})``), and the convergence behaviour under substep refinement — is in [Bulk-tendency averaging: modes and numerics](@ref). At a single substep the explicit growth is bounded only by the saturation adjustment, which over-produces precipitation at coarse time steps; two or more substeps recover accurate precipitation and the saturation adjustment is then rarely active.

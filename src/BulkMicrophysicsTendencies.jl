@@ -209,10 +209,8 @@ struct NoLimiter <: TendencyLimiter end
 """
     EndStateSaturationAdjustment <: TendencyLimiter
 
-Scale a substep increment so the latent-heated end state stays at or above
-saturation over its more-supersaturated phase (ice when ice dominates, liquid when
-liquid dominates), for cells that begin at or above saturation. Derived and analyzed
-in the Rosenbrock substepping documentation.
+Scale a substep increment so the latent-heated end state does not overshoot
+saturation. See the Rosenbrock substepping documentation.
 """
 struct EndStateSaturationAdjustment <: TendencyLimiter end
 
@@ -271,14 +269,9 @@ rosenbrock_exact(; n_substeps = 1) =
     SubsteppedAverage <: TendencyMode
     SubsteppedAverage(; n_substeps = 1, limiter = EndStateSaturationAdjustment())
 
-Time-averaged 2M+P3 tendencies over `Δt` from `n_substeps` forward-Euler
-substeps of the raw bulk tendency. Each substep applies a coupled-sink limiter
-(so paired mass/number sinks cannot deplete a species below zero) and, when
-`limiter` is [`EndStateSaturationAdjustment`](@ref), the saturation-adjustment
-cap on net condensation/deposition; [`NoLimiter`](@ref) skips the cap (e.g. for
-implicit timestepping, where the Jacobian handles stability). `logλ` is held
-fixed across substeps, `q_tot` is conserved, and a local temperature evolves via
-latent heating so the cap sees the corrected saturation deficit.
+Time-averaged tendencies over `Δt` from `n_substeps` forward-Euler substeps of
+the raw bulk tendency, with the per-substep increment limited by `limiter`. See
+the Rosenbrock substepping documentation.
 """
 Base.@kwdef struct SubsteppedAverage{L <: TendencyLimiter} <: TendencyMode
     n_substeps::Int = 1
