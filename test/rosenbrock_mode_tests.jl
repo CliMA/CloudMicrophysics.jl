@@ -94,6 +94,47 @@ function test_rosenbrock_mode(FT)
         end
     end
 
+    @testset "SubsteppedAverage EndStateSaturationAdjustment converges (mixed phase, $FT)" begin
+        # The explicit SubsteppedAverage now shares the consistent, h-vanishing
+        # EndStateSaturationAdjustment limiter (and per-substep positivity floor)
+        # with rosenbrock_exact, so under substep refinement it converges toward the
+        # same saturation-adjusted trajectory instead of plateauing as the old
+        # h-independent analytic saturation-mass-ratio limiter did. Being explicit
+        # forward-Euler it needs more substeps than the implicit Rosenbrock mode to
+        # clear the stiff mixed-phase regime, so refinement is checked across the
+        # convergent range (n = 16 -> 256) against a fine rosenbrock_exact reference.
+        sub = BMT.SubsteppedAverage(; limiter = BMT.EndStateSaturationAdjustment())
+        rex = BMT.rosenbrock_exact()
+        Δtc = FT(10)
+        r = regimes[2]  # mixed phase
+        logλc = consistent_logλ(r.ρ, r.x)
+        stepmode(m, nsub) =
+            SVector{8, FT}(r.x...) .+
+            Δtc .* SVector(
+                values(
+                    BMT.bulk_microphysics_tendencies(
+                        m, BMT.Microphysics2Moment(), mp, tps,
+                        r.ρ, r.T, r.q_tot, r.x..., logλc, Δtc, nsub,
+                    ),
+                )...,
+            )
+        x0 = SVector{8, FT}(r.x...)
+        x_ref = stepmode(rex, 512)  # convergent linearized-implicit reference
+        err(x) = err_metric(x, x_ref, x0)
+        errs = [err(stepmode(sub, n)) for n in (16, 64, 256)]
+        @test all(isfinite, errs)
+        # converges toward the reference under refinement (the old h-independent
+        # analytic limiter plateaued at an O(1) error here)
+        @test errs[3] < errs[1]
+        @test errs[3] < (FT == Float64 ? FT(0.05) : FT(0.2))
+        # correct converged rain number (the old limiter over-produced n_rai ~8.7x)
+        @test isapprox(stepmode(sub, 256)[4], x_ref[4]; rtol = FT(0.05))
+        # per-substep positivity floor: no negative species out of the substep loop
+        x_sub = stepmode(sub, 64)
+        tol = eps(FT) .* (abs.(x0) .+ Δtc .* abs.((x_sub .- x0) ./ Δtc))
+        @test all(x_sub .>= -tol)
+    end
+
     @testset "degenerate and trivial states ($FT)" begin
         # all-zero state: near-empty species mask -> explicit substeps -> exactly zero
         t0 = BMT.bulk_microphysics_tendencies(

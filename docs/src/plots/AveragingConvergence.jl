@@ -13,15 +13,16 @@ const SVector = BMT.SA.SVector
 # evaluated over the same Δt with a range of substep counts and the relative
 # end-state error against the reference is reported.
 #
-# rosenbrock_exact uses the end-state saturation adjustment, a uniform-increment
-# bisection that activates only when a substep would cross saturation and so
-# vanishes as the substep length h -> 0. It is consistent and converges in every
-# regime. SubsteppedAverage uses the analytic saturation-mass-ratio limiter,
-# which scales the tendency by an h-independent factor and does not vanish as
-# h -> 0. The warm-rain panel shows both converging; the mixed-phase panel shows
-# rosenbrock_exact converging while SubsteppedAverage plateaus at a finite error,
-# the consistency-limiter distinction. A fix that makes the SubsteppedAverage
-# limiter h-consistent and adds a per-substep positivity floor is being pursued.
+# Both modes use the same consistent end-state saturation adjustment, a
+# uniform-increment bisection that activates only when a substep would cross
+# saturation and so vanishes as the substep length h -> 0, plus a per-substep
+# positivity floor that also vanishes under refinement. Both therefore converge
+# in every regime. They differ in how many substeps they need: the
+# linearized-implicit rosenbrock_exact damps the stiff modes and converges at
+# few substeps, while the explicit forward-Euler SubsteppedAverage needs h small
+# relative to the fastest process time scale. The warm-rain panel shows both
+# converging; the mixed-phase panel shows rosenbrock_exact converging at few
+# substeps while SubsteppedAverage converges more slowly through the stiff regime.
 
 const FT = Float64
 
@@ -40,9 +41,13 @@ consistent_logλ(ρ, x) = P3.get_distribution_logλ(
 scales = FT[4e-4, 8e7, 2.1e-3, 5e4, 8e-4, 5e5, 5e-4, 9e-7]
 relerr(x, xref) = maximum(abs.(x .- xref) ./ scales)
 
-step(mode, ρ, T, qtot, x0, logλ, n) = SVector{8, FT}(x0...) .+ Δt .* SVector(values(
-    BMT.bulk_microphysics_tendencies(mode, BMT.Microphysics2Moment(), mp2, tps,
-        ρ, T, qtot, x0..., logλ, Δt, n))...)
+step(mode, ρ, T, qtot, x0, logλ, n) =
+    SVector{8, FT}(x0...) .+
+    Δt .* SVector(
+        values(
+            BMT.bulk_microphysics_tendencies(mode, BMT.Microphysics2Moment(), mp2, tps,
+                ρ, T, qtot, x0..., logλ, Δt, n))...,
+    )
 
 # warm-rain state: liquid and rain only, no ice
 ρw, Tw, qtotw = FT(1.05), FT(288), FT(0.015)
@@ -73,9 +78,9 @@ err_sub_m, err_ros_m = errors(ρm, Tm, qtotm, x0m, logλm)
 # ---- figure ----
 fig = Figure(size = (900, 400))
 
-for (col, (title, err_sub, err_ros, annotate_plateau)) in enumerate((
-    ("2M + P3 warm rain (Δt = 30 s)", err_sub_w, err_ros_w, false),
-    ("2M + P3 mixed phase (Δt = 30 s)", err_sub_m, err_ros_m, true),
+for (col, (title, err_sub, err_ros)) in enumerate((
+    ("2M + P3 warm rain (Δt = 30 s)", err_sub_w, err_ros_w),
+    ("2M + P3 mixed phase (Δt = 30 s)", err_sub_m, err_ros_m),
 ))
     ax = Axis(
         fig[1, col];
@@ -89,17 +94,6 @@ for (col, (title, err_sub, err_ros, annotate_plateau)) in enumerate((
         label = "rosenbrock_exact", color = :black)
     scatterlines!(ax, nsubs, max.(err_sub, eps(FT));
         label = "SubsteppedAverage (satadj)", color = :firebrick)
-    # Annotate the mixed-phase plateau: the SubsteppedAverage saturation
-    # adjustment is not h-consistent, so its error does not vanish with refinement.
-    if annotate_plateau
-        text!(
-            ax, nsubs[end ÷ 2], err_sub[end];
-            text = "plateau (limiter not h-consistent)",
-            color = :firebrick,
-            align = (:center, :bottom),
-            fontsize = 11,
-        )
-    end
     axislegend(ax; position = :lb)
 end
 

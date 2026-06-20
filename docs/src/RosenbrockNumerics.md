@@ -86,8 +86,9 @@ one-moment scheme and the explicit [`SubsteppedAverage`](@ref CloudMicrophysics.
 (with the saturation-adjustment limiter) by default for the two-moment + P3 scheme;
 [`rosenbrock_exact`](@ref CloudMicrophysics.BulkMicrophysicsTendencies.rosenbrock_exact) is the
 linearized-implicit alternative for the two-moment + P3 scheme, used when stability at coarse time steps
-is the priority. The default explicit `SubsteppedAverage` is inexpensive but its saturation-adjustment
-limiter is not yet consistent under substep refinement in mixed-phase cells (see
+is the priority. Both use the same consistent saturation-adjustment limiter and converge under substep
+refinement; the explicit `SubsteppedAverage` is cheaper per substep but, being forward Euler, needs more
+substeps than `rosenbrock_exact` to clear the stiff mixed-phase regime (see
 [Convergence under substep refinement](@ref)).
 
 ## Substep semantics common to all averaging modes
@@ -244,76 +245,39 @@ the substep driver then dispatches on the new type with no further changes.
 A cell has two saturation thresholds, over liquid and over ice, and the condensation and deposition
 processes draw on a single shared vapor reservoir. The end-state saturation-adjustment limiter prevents a
 single substep increment from overshooting that reservoir into a non-physical, strongly supersaturated or
-subsaturated state. It enters two of the modes, with two distinct implementations of the same idea: a
-uniform-increment bisection (used by `RosenbrockAverage` and one-moment `SubsteppedAverage`) and an
-analytic saturation-mass ratio (used by two-moment + P3 `SubsteppedAverage`). The distinction matters for
-convergence under substep refinement — only the bisection form vanishes as the substep length ``h \to 0``
-(see [Convergence under substep refinement](@ref)).
+subsaturated state. There is one implementation — a uniform-increment bisection on the more-supersaturated
+phase ``\max(S_\mathrm{ice}, S_\mathrm{liq})`` — shared by every averaging mode: both `RosenbrockAverage`
+(hence `rosenbrock_exact`) and `SubsteppedAverage`, in the one-moment and the two-moment + P3 schemes alike.
+Because the correction it applies vanishes as the substep length ``h \to 0``, the modes that use it converge
+under substep refinement (see [Convergence under substep refinement](@ref)).
 
-### Increment scaling (`RosenbrockAverage`, `SubsteppedAverage` one-moment)
+### Increment scaling
 
-For the one-moment scheme and for the two-moment + P3 `RosenbrockAverage` path, the limiter scales the whole
-substep increment by a single shared scalar ``s \in [0, 1]``. It acts only on a cell that begins at or above
-saturation over its more-supersaturated phase and whose full-increment latent-heated end state would drop
-below it; such a cell would over-deposit or over-condense in one step. The retained fraction is the largest
-``s`` for which the scaled, latent-heated end state stays at or above saturation over the more-supersaturated
-phase ``\max(S_\mathrm{ice}, S_\mathrm{liq})``, found by bisection to the precision of the floating-point
-type. A cell that begins subsaturated (evaporating or sublimating) cannot over-deposit, so its increment is
-returned unchanged, and the limiter is a no-op at fine substeps where the full step does not cross
-saturation.
+The limiter scales the whole substep increment by a single shared scalar ``s \in [0, 1]``. It acts only on a
+cell that begins at or above saturation over its more-supersaturated phase and whose full-increment
+latent-heated end state would drop below it; such a cell would over-deposit or over-condense in one step. The
+retained fraction is the largest ``s`` for which the scaled, latent-heated end state stays at or above
+saturation over the more-supersaturated phase ``\max(S_\mathrm{ice}, S_\mathrm{liq})``, found by bisection to
+the precision of the floating-point type. A cell that begins subsaturated (evaporating or sublimating) cannot
+over-deposit, so its increment is returned unchanged, and the limiter is a no-op at fine substeps where the
+full step does not cross saturation.
 
 Because this form acts only on substeps whose full increment would cross saturation and returns the
 increment unchanged otherwise, the correction it applies vanishes as ``h \to 0``: it is *consistent*, so
-the modes that use it converge to the unlimited pointwise trajectory under substep refinement (see
+every mode that uses it converges to the unlimited pointwise trajectory under substep refinement (see
 [Consistency of the increment limiter](@ref) and [Convergence under substep refinement](@ref)).
 
 Scaling the increment by one shared scalar — rather than scaling processes independently — is what keeps the
 limiter stable: independent scaling breaks the coupling between paired transfers and the shared vapor draw.
 
-### Analytic condensation/deposition bound (`SubsteppedAverage` two-moment + P3)
+### Positivity
 
-For the explicit two-moment + P3 [`SubsteppedAverage`](@ref
-CloudMicrophysics.BulkMicrophysicsTendencies.SubsteppedAverage) path, the limiter bounds the net
-condensation/deposition rate against the analytic saturation-adjustment rate instead of bisecting the
-increment. The net liquid rate ``(\dot q_\mathrm{lcl} + \dot q_\mathrm{rai})`` is bounded against
-
-```math
-\dot q_\mathrm{con} = \frac{q_\mathrm{vap} - q_\mathrm{sat}^\mathrm{liq}}
-{1 + \dfrac{L_v^2\, q_\mathrm{sat}^\mathrm{liq}}{c_p\, R_v\, T^2}} \,\frac{1}{h},
-```
-
-the rate that, with the accompanying latent heating, brings the vapor to liquid saturation over the
-substep of length ``h``. The net ice rate ``(\dot q_\mathrm{ice} + \dot q_\mathrm{rim})`` is then bounded
-against the deposition analogue, formed with ``L_s`` and ``q_\mathrm{sat}^\mathrm{ice}`` and evaluated on
-the vapor remaining after the liquid step,
-
-```math
-\dot q_\mathrm{dep} = \frac{q_\mathrm{vap}^\text{after liq} - q_\mathrm{sat}^\mathrm{ice}}
-{1 + \dfrac{L_s^2\, q_\mathrm{sat}^\mathrm{ice}}{c_p\, R_v\, T^2}} \,\frac{1}{h}.
-```
-
-Here ``R_v`` is the water-vapor gas constant, and ``q_\mathrm{sat}^\mathrm{liq}``, ``q_\mathrm{sat}^\mathrm{ice}``
-are the saturation specific contents over liquid and ice. Each phase's tendencies are scaled by a common,
-sign-preserving ratio in ``[0, 1]`` so the mass and the paired number tendency are reduced together. The
-liquid step is taken first and the remaining vapor passed to the ice step, so the two phases compete for one
-reservoir rather than each seeing the full vapor. (``q_\mathrm{rim}`` is the rimed-mass content of the P3
-ice and adds to the ice deposition sink alongside ``q_\mathrm{ice}``; the rate operates on the net
-``\dot q_\mathrm{ice} + \dot q_\mathrm{rim}``.)
-
-Unlike the bisection form, this analytic bound scales the *rate* by a ratio that is independent of ``h``
-for the part it limits, so it does not vanish as ``h \to 0``: it is not consistent under substep
-refinement. The consequence for the two-moment + P3 explicit average is examined in
-[Convergence under substep refinement](@ref); it is unbiased for warm-rain and cold/ice states but biases
-mixed-phase states, and a consistent replacement is being pursued.
-
-### The coupled mass/number sink limiter
-
-The two-moment scheme carries paired mass and number species. Independently clamping a mass sink and its
-number sink would change the mean particle mass non-physically. The coupled-sink limiter instead scales a
-paired (mass, number) sink by a single factor so neither species is depleted below ``q / (\Delta t\, n)`` in
-a substep, applied to the warm-rain cloud and rain mass/number pairs in the explicit two-moment + P3 path.
-The one-moment scheme carries no number species, so it has no coupled-sink limiter; positivity there is the
-per-substep clamp.
+Positivity is enforced separately from the saturation adjustment, as a per-substep floor: every species is
+clamped to nonnegative values after each substep update (``\max(x, 0)``), for the explicit and the
+linearized-implicit modes and for both schemes. In the two-moment scheme this floors each paired mass and
+number species independently; the floor keeps the mean particle mass well-defined because a number content
+that reaches zero takes the mass to zero on the same substep. There is no separate coupled mass/number sink
+limiter.
 
 ## The coarse-step deposition instability
 
@@ -403,23 +367,22 @@ the correction the limiter applies vanishes as ``h \to 0``. A limiter that does 
 changes the converged solution and biases the mode away from the pointwise trajectory, however many
 substeps are taken.
 
-[`rosenbrock_exact`](@ref CloudMicrophysics.BulkMicrophysicsTendencies.rosenbrock_exact) uses the
-uniform-increment bisection limiter, which is consistent: it acts only on a substep whose full increment
-would cross saturation and returns the increment unchanged otherwise, so its correction vanishes as
-``h \to 0``. It therefore converges in every regime — warm-rain, cold/ice, and mixed-phase. Its
-linearized-implicit substep also damps the stiff decay and vapor-exchange modes, so it stays bounded and
-refines smoothly from coarse ``h``.
+All averaging modes use the same consistent uniform-increment bisection limiter: it acts only on a substep
+whose full increment would cross saturation and returns the increment unchanged otherwise, so its correction
+vanishes as ``h \to 0``, paired with a per-substep positivity floor that also vanishes under refinement.
+They therefore converge in every regime — warm-rain, cold/ice, and mixed-phase — for both the one-moment and
+the two-moment + P3 schemes.
 
-The explicit [`SubsteppedAverage`](@ref CloudMicrophysics.BulkMicrophysicsTendencies.SubsteppedAverage)
-behaves differently between schemes. For the one-moment scheme it uses the same consistent bisection
-limiter and converges in every regime. For the two-moment + P3 scheme it uses the analytic
-saturation-mass-ratio limiter, whose ratio is independent of ``h`` for the part it limits and so does not
-vanish under refinement. Warm-rain and cold/ice two-moment + P3 states still converge, but mixed-phase
-states do not: in a mixed-cold cell the limiter zeros the ice-melting sink while passing the rain-number
-source produced by that melting, over-producing rain number, and it carries no per-substep positivity
-floor, so ice can be driven negative in a mixed-warm cell. The figure below shows both modes converging in
-the warm-rain regime and `rosenbrock_exact` converging while `SubsteppedAverage` plateaus at a finite error
-in the mixed-phase regime.
+The modes differ in how many substeps they need. The
+[`rosenbrock_exact`](@ref CloudMicrophysics.BulkMicrophysicsTendencies.rosenbrock_exact) linearized-implicit
+substep damps the stiff decay and vapor-exchange modes, so it stays bounded and refines smoothly from coarse
+``h`` — it is accurate at few substeps even in the stiff mixed-phase regime. The explicit
+[`SubsteppedAverage`](@ref CloudMicrophysics.BulkMicrophysicsTendencies.SubsteppedAverage) is forward Euler,
+with no implicit damping, so it needs ``h`` small relative to the fastest process time scale; in the stiff
+mixed-phase regime it needs many more substeps than `rosenbrock_exact` to reach the same accuracy, but it
+converges to the same saturation-adjusted trajectory. The figure below shows both modes converging in the
+warm-rain regime, and in the mixed-phase regime `rosenbrock_exact` converging at few substeps while
+`SubsteppedAverage` converges more slowly.
 
 ```@example
 include("plots/AveragingConvergence.jl")
@@ -429,18 +392,18 @@ include("plots/AveragingConvergence.jl")
 
 Relative end-state error against a finely substepped reference versus the number of substeps, at ``\Delta t
 = 30\ \mathrm{s}``, for the two-moment + P3 scheme. Left: a warm-rain state, where both modes converge.
-Right: a mixed-phase state near freezing, where `rosenbrock_exact` (consistent bisection limiter) converges
-while `SubsteppedAverage` (analytic saturation-mass-ratio limiter) plateaus at a finite error because its
-limiter does not vanish under refinement.
+Right: a mixed-phase state near freezing, where both modes converge to the same trajectory but the
+linearized-implicit `rosenbrock_exact` converges at far fewer substeps than the explicit `SubsteppedAverage`,
+which is forward Euler and must resolve the stiff regime.
 
 This is a real accuracy-versus-cost trade-off. `rosenbrock_exact` forms an exact Jacobian by `ForwardDiff`
 and solves a linear system each substep, so a single microphysics tendency evaluation is roughly an order of
 magnitude more expensive than the explicit `SubsteppedAverage`. In a host model this per-evaluation cost is
 amortized against the dynamics, transport, and other physics of the step, so the increase in full-step wall
-time is typically much smaller, and is negligible where microphysics is a small fraction of the step. Making the two-moment + P3 `SubsteppedAverage`
-limiter ``h``-consistent and adding a per-substep positivity floor — so the inexpensive explicit average is
-also convergent in mixed-phase states — is being addressed; see
-[Consistency of the increment limiter](@ref).
+time is typically much smaller, and is negligible where microphysics is a small fraction of the step.
+`SubsteppedAverage` is cheaper per substep but needs more of them in stiff regimes; `rosenbrock_exact` is
+preferred when stability or accuracy at coarse substep counts matters (see
+[Consistency of the increment limiter](@ref)).
 
 ## Approaches that did not resolve the instability
 
