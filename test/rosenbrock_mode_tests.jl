@@ -95,14 +95,8 @@ function test_rosenbrock_mode(FT)
     end
 
     @testset "SubsteppedAverage EndStateSaturationAdjustment converges (mixed phase, $FT)" begin
-        # The explicit SubsteppedAverage now shares the consistent, h-vanishing
-        # EndStateSaturationAdjustment limiter (and per-substep positivity floor)
-        # with rosenbrock_exact, so under substep refinement it converges toward the
-        # same saturation-adjusted trajectory instead of plateauing as the old
-        # h-independent analytic saturation-mass-ratio limiter did. Being explicit
-        # forward-Euler it needs more substeps than the implicit Rosenbrock mode to
-        # clear the stiff mixed-phase regime, so refinement is checked across the
-        # convergent range (n = 16 -> 256) against a fine rosenbrock_exact reference.
+        # SubsteppedAverage with the EndStateSaturationAdjustment limiter converges
+        # toward a fine rosenbrock_exact reference under substep refinement.
         sub = BMT.SubsteppedAverage(; limiter = BMT.EndStateSaturationAdjustment())
         rex = BMT.rosenbrock_exact()
         Δtc = FT(10)
@@ -123,13 +117,12 @@ function test_rosenbrock_mode(FT)
         err(x) = err_metric(x, x_ref, x0)
         errs = [err(stepmode(sub, n)) for n in (16, 64, 256)]
         @test all(isfinite, errs)
-        # converges toward the reference under refinement (the old h-independent
-        # analytic limiter plateaued at an O(1) error here)
+        # converges under refinement
         @test errs[3] < errs[1]
         @test errs[3] < (FT == Float64 ? FT(0.05) : FT(0.2))
-        # correct converged rain number (the old limiter over-produced n_rai ~8.7x)
+        # converged rain number
         @test isapprox(stepmode(sub, 256)[4], x_ref[4]; rtol = FT(0.05))
-        # per-substep positivity floor: no negative species out of the substep loop
+        # per-substep positivity floor
         x_sub = stepmode(sub, 64)
         tol = eps(FT) .* (abs.(x0) .+ Δtc .* abs.((x_sub .- x0) ./ Δtc))
         @test all(x_sub .>= -tol)

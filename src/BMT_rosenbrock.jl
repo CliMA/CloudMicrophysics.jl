@@ -1116,9 +1116,9 @@ on all eight species and the increment limited by the mode's
 [`TendencyLimiter`](@ref) (`nsub` defaults to the mode's `n_substeps`). The explicit
 forward-Euler counterpart to the linearized-implicit [`RosenbrockAverage`](@ref)
 2M+P3 mode: it shares the uniform-increment, `h`-consistent
-[`EndStateSaturationAdjustment`](@ref) limiter and the per-substep positivity floor,
-so it converges under substep refinement in every regime. `logλ` and `q_tot` are
-held fixed across substeps. See the Rosenbrock substepping documentation.
+[`EndStateSaturationAdjustment`](@ref) limiter and the per-substep positivity floor.
+`logλ` and `q_tot` are held fixed across substeps. See the Rosenbrock substepping
+documentation.
 
 Returns the net change in the species over `Δt` divided by `Δt`, in the same fields
 as the `Instantaneous` entry (without the activation diagnostic).
