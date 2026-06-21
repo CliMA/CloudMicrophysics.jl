@@ -168,6 +168,17 @@ struct ExactJacobian{C} <: Jacobian end
 ExactJacobian() = ExactJacobian{1}()
 
 """
+    ManualJacobian <: Jacobian
+
+A hand-built 2M+P3 substep Jacobian: the stiff condensation/deposition and
+number-adjustment couplings carried as closed-form analytic derivatives, the
+warm-rain and freezing transfers as donor-based linearizations, and the
+quadrature ice-collision couplings dropped. Avoids the `ForwardDiff` pass and
+its `gamma_inc` shape-derivative block.
+"""
+struct ManualJacobian <: Jacobian end
+
+"""
     GrowthTreatment
 
 Abstract type selecting how the positive (growth) diagonal of the Jacobian
@@ -259,6 +270,15 @@ and the end-state saturation adjustment.
 """
 rosenbrock_exact() =
     RosenbrockAverage(ExactJacobian(), ExplicitGrowthDiagonal(), EndStateSaturationAdjustment())
+
+"""
+    rosenbrock_manual()
+
+[`RosenbrockAverage`](@ref) with the hand-built 2M+P3 [`ManualJacobian`](@ref),
+implicit growth, and the end-state saturation adjustment.
+"""
+rosenbrock_manual() =
+    RosenbrockAverage(ManualJacobian(), ImplicitGrowth(), EndStateSaturationAdjustment())
 
 """
     Verbose(mode) <: TendencyMode
