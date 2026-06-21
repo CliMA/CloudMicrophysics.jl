@@ -159,11 +159,13 @@ of the exact derivative restored.
 struct CoupledDonorJacobian <: Jacobian end
 
 """
-    ExactJacobian <: Jacobian
+    ExactJacobian{C} <: Jacobian
 
-The exact derivative of the tendency, formed with `ForwardDiff`.
+The exact derivative of the tendency, formed with `ForwardDiff`. `C` is the
+number of partials seeded per pass; `ExactJacobian()` defaults to `C = 1`.
 """
-struct ExactJacobian <: Jacobian end
+struct ExactJacobian{C} <: Jacobian end
+ExactJacobian() = ExactJacobian{1}()
 
 """
     GrowthTreatment

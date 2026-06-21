@@ -5,6 +5,7 @@ authors = ["Climate Modeling Alliance"]
 
 [deps]
 ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
+DiffResults = "163ba53b-c6d8-5494-b064-1a9d43ac40c5"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
 ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
@@ -27,6 +28,7 @@ EmulatorModelsExt = ["DataFrames", "MLJ"]
 [compat]
 ClimaParams = "1.0.18"
 DataFrames = "1.6"
+DiffResults = "1"
 DocStringExtensions = "0.8, 0.9"
 FastGaussQuadrature = "1"
 ForwardDiff = "0.10, 1"
