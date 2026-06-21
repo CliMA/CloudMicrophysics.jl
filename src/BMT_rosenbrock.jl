@@ -424,10 +424,10 @@ fields as the `Instantaneous` entry (without the activation diagnostic).
     Tsub = T
     for _ in 1:nsub_eff
         g = Instantaneous2MP3Tendency(mp, tps, ρ, Tsub, q_tot, logλ)
-        f = g(x)
         x_prev = x
         if all(isfinite, x)
-            J = _apply_growth(mode.growth, FD.jacobian(g, x))
+            f, J_raw = _tendency_and_jacobian(mode.jacobian, g, x)
+            J = _apply_growth(mode.growth, J_raw)
             z = _species_mask(mode.jacobian, mode.growth)(x)
             d = if all(isfinite, J)
                 _rosenbrock_update(x, f, J, z, h) - x
@@ -437,6 +437,7 @@ fields as the `Instantaneous` entry (without the activation diagnostic).
             d = _apply_limiter(mode.limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
             x = max.(x .+ d, 0)
         else
+            f = g(x)
             x = _euler_update(x, f, h)
         end
         Δ = x - x_prev
@@ -743,6 +744,33 @@ end
 @inline _ad_jacobian_1m(g, x) = FD.jacobian(g, x)
 
 """
+    _tendency_and_jacobian(jacobian, g, x)
+
+The raw substep tendency `f = g(x)` and the substep Jacobian (before the growth
+treatment) for a [`Jacobian`](@ref) option, returned as `(f, J)`.
+
+For [`ExactJacobian`](@ref) the primal `f` and the `N×N` Jacobian are both
+obtained from `ForwardDiff`. The donor-based matrices ([`DonorJacobian`](@ref),
+[`CoupledDonorJacobian`](@ref)) produce no tendency by-product, so `f = g(x)` is
+evaluated separately.
+"""
+@inline function _tendency_and_jacobian(::ExactJacobian, g, x::SA.FieldVector{N, FT}) where {N, FT}
+    Tag = typeof(FD.Tag(g, FT))
+    dx = SA.SVector(
+        ntuple(i -> FD.Dual{Tag}(x[i], ntuple(s -> ifelse(s == i, one(FT), zero(FT)), Val(N))...), Val(N)),
+    )
+    y = g(dx)
+    f = typeof(x)(ntuple(i -> @inbounds(FD.value(y[i])), Val(N))...)
+    J = SA.SMatrix{N, N, FT}(
+        ntuple(k -> @inbounds(FD.partials(y[(k - 1) % N + 1], (k - 1) ÷ N + 1)), Val(N * N)),
+    )
+    return f, J
+end
+@inline _tendency_and_jacobian(::DonorJacobian, g, x) = (g(x), _jacobian_1m_linearized(g, x))
+@inline _tendency_and_jacobian(::CoupledDonorJacobian, g, x) =
+    (g(x), _jacobian_1m_coupled(g, x))
+
+"""
     _full_species_mask(x)
 
 The all-ones species projection: every species stays in the implicit
@@ -770,7 +798,6 @@ and the increment limiter through [`_jacobian_provider`](@ref),
     h = Δt / FT(nsub_eff)
     Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
     Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
-    jacobian = _jacobian_provider(mode.jacobian)
     mask = _species_mask(mode.jacobian, mode.growth)
 
     x = MicroState1M{FT}(q_lcl, q_icl, q_rai, q_sno)
@@ -778,10 +805,10 @@ and the increment limiter through [`_jacobian_provider`](@ref),
     Tsub = T
     for _ in 1:nsub_eff
         g = Raw1MTendency(mp, tps, ρ, Tsub, q_tot)
-        f = g(x)
         x_prev = x
         if all(isfinite, x)
-            J = _apply_growth(mode.growth, jacobian(g, x))
+            f, J_raw = _tendency_and_jacobian(mode.jacobian, g, x)
+            J = _apply_growth(mode.growth, J_raw)
             z = mask(x)
             d = if all(isfinite, J)
                 _rosenbrock_update(x, f, J, z, h) - x
@@ -791,6 +818,7 @@ and the increment limiter through [`_jacobian_provider`](@ref),
             d = _apply_limiter(mode.limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
             x = max.(x .+ d, 0)
         else
+            f = g(x)
             x = _euler_update(x, f, h)
         end
         Δ = x - x_prev
