@@ -361,7 +361,6 @@ Return the density of a particle with diameter `D`
 # Notes:
  The density of nonspherical particles is assumed to be the particle mass divided
  by the volume of a sphere with the same D [MorrisonMilbrandt2015](@cite).
- Needed for aspect ratio calculation, so we assume zero liquid fraction.
 """
 ice_density(state::P3State, D) = ice_mass(state, D) / CO.volume_sphere_D(D)
 
@@ -413,28 +412,57 @@ function ice_area(state::P3State, D)
 end
 
 """
+    ϕ_material_density(state::P3State, D)
+
+Return the material density of the ice particle's solid at diameter `D`, used in
+the aspect-ratio closure [`ϕᵢ`](@ref). This is `ρ_i` in every mass regime except
+graupel (`D_gr ≤ D < D_cr`), where it is the graupel density `ρ_g`.
+
+This is the density of the actual solid material, not the size-dependent effective
+density `mᵢ / Vsphere(D)` returned by [`ice_density`](@ref); see the
+[P3 documentation](@ref "Aspect ratio") for the distinction.
+"""
+function ϕ_material_density(state::P3State, D)
+    (; params, F_rim, ρ_g, D_th, D_gr, D_cr) = state
+    (; ρ_i) = params
+    return if D < D_th       # small spherical ice
+        ρ_i
+    elseif iszero(F_rim)     # large nonspherical unrimed ice
+        ρ_i
+    elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
+        ρ_i
+    elseif D_gr ≤ D < D_cr   # graupel (rimed) — solid is the graupel mixture
+        ρ_g
+    else # D_cr ≤ D          # partially rimed ice
+        ρ_i
+    end
+end
+
+"""
     ϕᵢ(state::P3State, D)
 
-Returns the aspect ratio (ϕ) for an ice particle with diameter `D`
+Return the oblate aspect ratio `ϕ = 3√π mᵢ / (4 ρ aᵢ^{3/2})` (`κ = 1/3`) for an
+ice particle of maximum dimension `D`, with mass `mᵢ = ice_mass(state, D)`,
+projected area `aᵢ = ice_area(state, D)`, and material density
+`ρ = ϕ_material_density(state, D)`. Assumes zero liquid fraction.
 
 # Arguments
  - `state`: The [`P3State`](@ref)
  - `D`: maximum dimension of ice particle [m]
 
-# Notes
- The density of nonspherical particles is assumed to be equal to the particle mass
- divided by the volume of a spherical particle with the same D_max [MorrisonMilbrandt2015](@cite).
- Assuming zero liquid fraction and oblate shape.
+See also [`ϕ_material_density`](@ref) and the
+[aspect-ratio section of the P3 documentation](@ref "Aspect ratio") for the
+spheroid derivation and the residual `ϕ > 1` band above `D_th`.
 """
 function ϕᵢ(state::P3State, D)
     FT = eltype(D)
     mᵢ = ice_mass(state, D)
     aᵢ = ice_area(state, D)
-    ρᵢ = mᵢ / CO.volume_sphere_D(D)
+    ρ = ϕ_material_density(state, D)
 
-    # TODO - prolate or oblate?
-    ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
-    #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
+    # Oblate aspect ratio (κ = 1/3); no clamp (see P3 documentation).
+    ϕ_ob = 3 * sqrt(FT(π)) * mᵢ / (4 * ρ * aᵢ^FT(1.5))
+    #ϕ_pr = 16 * ρ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2)  # prolate, κ = -1/6
 
     return ifelse(D == 0, zero(ϕ_ob), ϕ_ob)
 end

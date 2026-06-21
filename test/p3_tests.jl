@@ -151,11 +151,18 @@ function test_thresholds_solver(FT)
         @test P3.ice_density(state, D_3) ≈ ρ_g
         @test P3.ice_density(state, D_cr) ≈ 383.33480937
 
-        # test aspect ratio
-        @test P3.ϕᵢ(state, D_1) ≈ 1
-        @test P3.ϕᵢ(state, D_2) ≈ 1
-        @test P3.ϕᵢ(state, D_3) ≈ 1
-        @test P3.ϕᵢ(state, D_cr) ≈ 1
+        # test aspect ratio (oblate ϕ = 3√π m / (4 ρ A^{3/2}), ρ the per-regime
+        # material density — see `P3.ϕᵢ`)
+        aspect_ratio_closed(ρ, D) = 3 * sqrt(FT(π)) * P3.ice_mass(state, D) /
+                                    (4 * ρ * P3.ice_area(state, D)^FT(1.5))
+        @test P3.ϕᵢ(state, D_1) ≈ 1                              # D < D_th: spherical
+        @test P3.ϕᵢ(state, D_2) ≈ aspect_ratio_closed(ρ_i, D_2)  # dense nonspherical
+        @test P3.ϕᵢ(state, D_2) < 1                              # oblate
+        @test P3.ϕᵢ(state, D_3) ≈ 1                              # graupel: spherical (ρ_g)
+        @test P3.ϕᵢ(state, D_cr) ≈ aspect_ratio_closed(ρ_i, D_cr)  # partially rimed
+        @test P3.ϕᵢ(state, D_cr) < 1                             # oblate
+        # residual ϕ > 1 band just above D_th (area discontinuity, see `P3.ϕᵢ`)
+        @test 1 < P3.ϕᵢ(state, D_th * FT(1.001)) < FT(1.3)
 
         # test F_rim = 0 and D > D_th
         state′ = P3.P3State(params, L_ice, N_ice, FT(0), ρ_rim)
@@ -288,9 +295,9 @@ function test_particle_terminal_velocities(FT)
         end
 
         use_aspect_ratio = true
-        # Allow for a D falling into every regime of the P3 Scheme
+        # one D per P3 regime; `cbrt(ϕ) ≤ 1` slows the nonspherical sizes
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
-        expected = [0.08109, 0.4115, 0.79121, 1.155, 1.487]
+        expected = [0.08109, 0.38381, 0.79121, 1.155, 1.1477]
         v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
         for i in axes(Ds, 1)
             D = Ds[i]
@@ -362,12 +369,12 @@ function test_bulk_terminal_velocities(FT)
         # A failing test indicates that the code has changed.
         # But if the changes are intentional, the reference values can be updated.
 
-        # Liquid fraction = 0
-
-        ref_v_n = [3.6459501724701835, 2.619088950728837]
-        ref_v_n_ϕ = [3.6459501724701835, 2.619088950728837]
-        ref_v_m = [7.7881075425985085, 5.797674122909204]
-        ref_v_m_ϕ = [7.7881075425985085, 5.797674122909204]
+        # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
+        # their aspect-off counterparts (`cbrt(ϕ) < 1`).
+        ref_v_n = [3.6455965543902313, 2.6191751753689676]
+        ref_v_n_ϕ = [1.5220897078108258, 1.4657437111832599]
+        ref_v_m = [7.788078822467314, 5.797659107369625]
+        ref_v_m_ϕ = [2.4276464073340747, 2.3683345554597124]
 
         for (k, F_rim) in enumerate(F_rims)
             state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
@@ -638,11 +645,11 @@ function test_p3_melting(FT)
         # A failing test indicates that the code has changed.
         # But if the changes are intentional, the reference values can be updated.
         if FT == Float64
-            ref_dNdt = FT(171964.6981857982)
-            ref_dLdt = FT(8.59823490928991e-5)
+            ref_dNdt = FT(172097.54090180367)
+            ref_dLdt = FT(8.604877045090183e-5)
         else
-            ref_dNdt = FT(172119.73f0)
-            ref_dLdt = FT(8.605987f-5)
+            ref_dNdt = FT(172265.67f0)
+            ref_dLdt = FT(8.613284f-5)
         end
         @test rate.dNdt ≈ ref_dNdt
         @test rate.dLdt ≈ ref_dLdt
@@ -650,11 +657,11 @@ function test_p3_melting(FT)
         T_vwarm = FT(273.15 + 0.1)
         rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, state, logλ)
         if FT == Float64
-            ref_vwarm_dNdt = FT(1.7186681756049155e6)
-            ref_vwarm_dLdt = FT(8.593340878024577e-4)
+            ref_vwarm_dNdt = FT(1.7199958466371913e6)
+            ref_vwarm_dLdt = FT(8.599979233185957e-4)
         else
-            ref_vwarm_dNdt = FT(1.7187735f6)
-            ref_vwarm_dLdt = FT(8.5938675f-4)
+            ref_vwarm_dNdt = FT(1.7201018f6)
+            ref_vwarm_dLdt = FT(8.6005084f-4)
         end
         @test rate.dNdt ≈ ref_vwarm_dNdt
         @test rate.dLdt ≈ ref_vwarm_dLdt
@@ -843,16 +850,18 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test ∫𝟙_wet_M_col <= ∫M_col
 
         # Smoke tests, aka: Check that rates don't change with new commits.
-        @test QCFRZ ≈ 5.896863092839358e-7
-        @test QCSHD ≈ 2.0751779677755477e-9
-        @test NCCOL ≈ 60226.258f0
-        @test QRFRZ ≈ 6.646668860364814e-5
-        @test QRSHD ≈ 3.656020049360021e-6
-        @test NRCOL ≈ 172.79635393801874
-        @test ∫M_col ≈ 7.07144701402599e-5
-        @test BCCOL ≈ 3.6970928481751446e-9
-        @test BRCOL ≈ 4.1672975327107236e-7
-        @test ∫𝟙_wet_M_col ≈ 1.5610504852731748e-5
+        # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
+        # reference values.
+        @test QCFRZ ≈ 5.943946584599112e-7 rtol = 5e-4
+        @test QCSHD ≈ 2.075177967775549e-9 rtol = 5e-4
+        @test NCCOL ≈ 60666.71757403923 rtol = 5e-4
+        @test QRFRZ ≈ 6.643908012388803e-5 rtol = 5e-4
+        @test QRSHD ≈ 3.6560200493600237e-6 rtol = 5e-4
+        @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
+        @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
+        @test BCCOL ≈ 3.726612278745525e-9 rtol = 5e-4
+        @test BRCOL ≈ 4.1655665705603506e-7 rtol = 5e-4
+        @test ∫𝟙_wet_M_col ≈ 1.5610504852731748e-5 rtol = 5e-4
 
         ### Test the bulk source function
         state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)

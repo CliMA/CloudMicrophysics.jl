@@ -354,8 +354,42 @@ An alternative parameterization for $μ$ is a constant value:
 We use the Chen et al. [Chen2022](@cite) velocity parameterization,
   see [here](https://clima.github.io/CloudMicrophysics.jl/dev/TerminalVelocity.html#Chen-et.-al.-2022) for details.
 
+### Aspect ratio
+
+We model the ice particle as an oblate spheroid of maximum dimension $D$, projected
+area $a_i = $ `ice_area(state, D)`, and mass $m_i = $ `ice_mass(state, D)`. Writing
+the equatorial diameter as $a = 2\sqrt{a_i/π}$ and the polar diameter as $c = ϕ\,a$,
+and equating the spheroid mass $ρ\,(π/6)\,a^2 c$ to $m_i$ gives the oblate aspect
+ratio ($κ = 1/3$)
+
+```math
+ϕ = \frac{3 \sqrt{π}\, m_i}{4\, ρ\, a_i^{3/2}},
+```
+
+where $ρ$ is the particle's material density [`ϕ_material_density`](@ref) — the
+density of the solid the particle is made of ($ρ_i$, or $ρ_g$ for graupel) — not the
+size-dependent effective density $m_i / V_{sphere}(D)$ [`ice_density`](@ref). Using
+the effective density would cancel the particle mass and pin $ϕ ≡ 1$, disabling the
+$\sqrt[3]{ϕ}$ fall-speed correction in [`ice_particle_terminal_velocity`](@ref).
+
+Within each mass regime the material density is constant, so $ϕ$ tracks $m_i / a_i^{3/2}$.
+In the spherical regimes ($D < D_{th}$, and graupel $D_{gr} ≤ D < D_{cr}$) the mass and
+area are exactly spherical, so $ϕ = 1$. In the dense-nonspherical regime $ϕ < 1$ (oblate)
+and decreases with $D$, slowing large unrimed ice.
+
+!!! note "Residual $ϕ > 1$ band just above $D_{th}$"
+    $ϕ$ can slightly exceed 1 (peak $≈ 1.2$) in a narrow size band immediately above
+    $D_{th}$. This is not a sign error: it is caused by the area discontinuity at
+    $D_{th}$, where the projected area drops from the spherical law $(π/4) D^2$ to the
+    nonspherical law $γ D^σ$ while the mass stays continuous. The smaller area inflates
+    $m_i / a_i^{3/2}$ just past the threshold. $\sqrt[3]{ϕ}$ remains finite and bounded
+    there ($\sqrt[3]{1.2} ≈ 1.06$), so no clamp is applied. Reconciling the mass and area
+    laws at $D_{th}$ (so the area is continuous too) is a separate area power-law item,
+    left untouched here.
+
 The figure below shows the implied aspect ratio for different particle size regimes.
-Note that $ϕ = 1$ corresponds to spherical particles (small spherical ice ($D < D_{th}$) and graupel ($D_{gr} < D < D_{cr}$)).
+Note that $ϕ = 1$ corresponds to spherical particles (small spherical ice ($D < D_{th}$) and graupel ($D_{gr} < D < D_{cr}$)),
+and that $ϕ$ exceeds 1 in a narrow band just above $D_{th}$ (the area discontinuity noted above; a follow-on item).
 ```@example
 include("plots/P3AspectRatioPlot.jl")
 

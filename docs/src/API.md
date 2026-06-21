@@ -204,6 +204,7 @@ P3Scheme.ice_mass
 P3Scheme.ice_density
 P3Scheme.∂ice_mass_∂D
 P3Scheme.ice_area
+P3Scheme.ϕ_material_density
 P3Scheme.ϕᵢ
 ```
 
