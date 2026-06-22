@@ -638,9 +638,15 @@ The entries are tiered:
     freezing, linearized in their donor species through `D = rate /
     max(floor, q_donor)` reusing the per-process rates of
     [`_per_process_2mp3`](@ref).
-  - Tier 3 (dropped): the quadrature liquid-ice collision, ice aggregation, and
-    ice-melt couplings are kept in `f` but omitted from `J` (no `gamma_inc`
-    shape derivative is taken).
+  - Tier 3 (coupled donor): the mixed-phase quadrature transfers, donor-linearized
+    through `D = rate / max(floor, x_donor)` with `−D` on the donor diagonal and
+    `+D` on the receiver off-diagonal (the [`_linearize`](@ref) recipe), reusing the
+    per-process rates of [`_per_process_2mp3`](@ref). The ice→rain melt transfer
+    (mass donor `q_ice`, number donor `n_ice`, rim mass/volume on their own donors)
+    is the dominant one: without it the rain melt source integrates ~explicitly and
+    diverges with the step. The liquid-ice collision cloud/rain sinks self-limit on
+    their own donors. No `gamma_inc` shape derivative is taken — the quadrature rate
+    is frozen and only the donor dependence is linearized.
 """
 @inline function _jacobian_2mp3_manual(
     g::Instantaneous2MP3Tendency, x::MicroState2MP3{FT},
@@ -805,17 +811,56 @@ The entries are tiered:
     nrai_nrai += pp.rain_freezing.n_rai * dnrai
     nice_nrai = pp.rain_freezing.n_ice * dnrai
 
-    # Tier 3 (liquid-ice collision, ice aggregation, ice melt): omitted from J.
+    #####
+    ##### Tier 3 — coupled donor linearization of the mixed-phase quadrature transfers
+    #####
+    # The dominant mixed-phase coupling is the ice→rain melt source; without it the
+    # rain source integrates ~explicitly and runs away. Donor-linearize each transfer
+    # of primal rate `S` from donor `d` to receiver `r` as `D = S/max(floor, x_d)`
+    # with `−D` on the donor diagonal and `+D` on the (r, d) off-diagonal (the 1M
+    # `_linearize` recipe), reusing the per-process rates of `_per_process_2mp3`. No
+    # `gamma_inc` shape derivative is taken: the quadrature rate is held frozen and
+    # only the donor dependence is linearized, so the receiver source self-limits as
+    # the donor empties within the implicit step.
+    rai_ice = o
+    nrai_nice = o
+    rim_rim = o
+    brim_brim = o
+
+    # ice melt (ice → rain): mass donor q_ice, number donor n_ice; the rim mass and
+    # volume drain on their own donors. The melt vector is signed +source into rain /
+    # −sink out of ice, so each `pp.ice_melting.<species>` already carries the rate.
+    dice = 1 / max(q_floor, q_ice)
+    dnice = 1 / max(n_floor, n_ice)
+    drim = 1 / max(q_floor, q_rim)
+    dbrim = 1 / max(n_floor, b_rim)
+    D_melt_q = pp.ice_melting.q_rai * dice   # ≥ 0
+    ice_ice -= D_melt_q
+    rai_ice += D_melt_q
+    D_melt_n = pp.ice_melting.n_rai * dnice  # ≥ 0
+    nice_nice -= D_melt_n
+    nrai_nice += D_melt_n
+    rim_rim += pp.ice_melting.q_rim * drim   # rim mass sink (donor q_rim)
+    brim_brim += pp.ice_melting.b_rim * dbrim # rime volume sink (donor b_rim)
+
+    # liquid-ice collision (cloud/rain → ice): the cloud and rain mass/number sinks
+    # self-limit on their own donors. Only the donor sinks are linearized; the small
+    # ice wet-growth / riming receivers are left to the melt brake that bounds them.
+    dlcl_c = 1 / max(q_floor, q_lcl)
+    dnlcl_c = 1 / max(n_floor, n_lcl)
+    lcl_lcl += min(pp.liquid_ice_collision.q_lcl, o) * dlcl_c
+    nlcl_nlcl += min(pp.liquid_ice_collision.n_lcl, o) * dnlcl_c
+    nrai_nrai += min(pp.liquid_ice_collision.n_rai, o) * dnrai
 
     return _jacobian_2mp3(FT;
         lcl_lcl, lcl_rai, lcl_ice,
         nlcl_lcl, nlcl_nlcl,
-        rai_lcl, rai_rai,
-        nrai_nlcl, nrai_rai, nrai_nrai,
+        rai_lcl, rai_rai, rai_ice,
+        nrai_nlcl, nrai_rai, nrai_nrai, nrai_nice,
         ice_lcl, ice_rai, ice_ice,
         nice_lcl, nice_nlcl, nice_rai, nice_nrai, nice_ice, nice_nice,
-        rim_lcl, rim_rai, rim_ice,
-        brim_lcl, brim_rai, brim_ice,
+        rim_lcl, rim_rai, rim_ice, rim_rim,
+        brim_lcl, brim_rai, brim_ice, brim_brim,
     )
 end
 
