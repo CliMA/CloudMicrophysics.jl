@@ -10,20 +10,9 @@ This struct bundles the P3 parameterizations `params`, the provided rime state
 
 # Construction
 
-Two positional, broadcast-friendly, GPU-clean entry points; both wrap the
-6-field inner constructor and auto-compute `thresholds` so the cached
-derivatives stay consistent with the rime state.
-
-  - `P3State(params, L_ice, N_ice, F_rim, ρ_rim)` — direct construction
-    from explicit `(F_rim, ρ_rim)`. Used by tests, audit prototypes, and
-    documentation plots that want exact rime-state inputs. **Performs no
-    validation.** Out-of-range inputs (`F_rim ∉ [0, 1)`, `ρ_rim ∉ [0,
-    ρ_l]`) produce a state whose downstream evaluation typically yields
-    NaN or non-physical values.
-  - [`state_from_prognostic`](@ref) — production / upstream-model entry
-    point. Accepts the volumetric prognostic variables `(ρq_ice,
-    ρn_ice, ρq_rim, ρb_rim)`, regularises them into `(F_rim, ρ_rim)`,
-    and returns the constructed state.
+  - [`state_from_prognostic`](@ref): Main entry point. 
+    Accepts the volumetric prognostic variables `(ρq_ice, ρn_ice, ρq_rim, ρb_rim)`,
+    regularises them into `(F_rim, ρ_rim)`, and returns the constructed state.
 
 # Fields
 $(FIELDS)
@@ -51,14 +40,6 @@ struct P3State{FT, PARAMS <: CMP.ParametersP3}
     D_cr::FT
 end
 
-# Positional 5-arg constructor — derives the cached thresholds and
-# graupel density from `(F_rim, ρ_rim)`. The production hot path
-# (`state_from_prognostic`) wraps this with input regularisation;
-# tests / docs call this directly with explicit `(F_rim, ρ_rim)`.
-#
-# When `F_rim = 0`, `ρ_g` collapses to `NaN` and `D_gr = D_cr = Inf`
-# (the "no graupel regime" sentinel). Downstream code is expected to
-# gate on the unrimed branch before reading those fields.
 function P3State(params::CMP.ParametersP3, ρq_ice, ρn_ice, F_rim, ρ_rim)
     FT = eltype(ρq_ice)
     (; mass, ρ_i) = params
@@ -80,33 +61,31 @@ ShowMethods.field_units(::P3State) = (;
 """
     state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
 
-Construct a [`P3State`](@ref) from the volumetric prognostic ice
-variables directly, computing the (clamped, regularised) rime mass
-fraction and rime density. **The production / upstream-model entry
-point.** Positional and broadcast-friendly.
+Construct a [`P3State`](@ref) from the volumetric prognostic ice variables directly, 
+computing the (clamped, regularised) rime mass fraction and rime density.
 
-The regularised ratios come from `Utilities.rime_mass_fraction` and
-`Utilities.rime_density`, which smoothly go to zero when their
-denominators are near machine precision — avoiding the hard discontinuity
-at `q_ice = ϵ` / `b_rim = ϵ`. The upper clamps `F_rim < 1 − ε` and
+The regularised ratios come from [`UT.rime_mass_fraction`](@ref) and
+[`UT.rime_density`](@ref), which smoothly go to zero when their
+denominators are near machine precision, avoiding the discontinuity
+at `q_ice = ϵ` / `b_rim = ϵ`. The upper clamps `F_rim < 1 - ε` and
 `ρ_rim ≤ 0.8·ρ_l ≈ 730 kg/m³` keep the result inside the domain of validity
 of the threshold formulas evaluated by the [`P3State`](@ref) constructor.
 
 !!! note "TODO — revisit the `ρ_rim ≤ 0.8·ρ_l` cap"
-    The closed-form graupel density `ρ_g = F_rim·ρ_rim + (1−F_rim)·ρ_d`
+    The closed-form graupel density `ρ_g = F_rim·ρ_rim + (1-F_rim)·ρ_d`
     can mathematically exceed `ρ_l` — `ρ_d` (the unrimed portion's
     density, [`get_ρ_d`](@ref)) is linear in `ρ_rim` with no built-in
     upper clamp, so feeding `ρ_rim` near `ρ_l` can produce `ρ_g > ρ_l`.
     That breaks the threshold ordering `D_th < D_gr < D_cr` that the P3
-    partitioning assumes (`D_gr ∝ (6α_va/(π·ρ_g))^{1/(3−β_va)}` shrinks
-    as `ρ_g` grows; eventually `D_gr < D_th`). The 0.8 cushion keeps
-    `ρ_g` comfortably below `ρ_l` for the realistic `(F_rim, ρ_rim)`
-    regime — Macklin-type rime-density formulations rarely give
-    `ρ_rim > 700 kg/m³` anyway, so the cushion costs us nothing
-    physically. To lift the cap to `ρ_l` we'd need to (i) explicitly
-    bound `ρ_g` (e.g. `min(ρ_g, ρ_l)`) or rederive `ρ_d` so it's
-    monotone-bounded by `ρ_l`, and (ii) accept that bulk rime densities
-    800–917 kg/m³ are off the calibration domain of the original P3 fit.
+    partitioning assumes (`D_gr ∝ (6α_va/(π·ρ_g))^{1/(3-β_va)}` shrinks
+    as `ρ_g` grows; eventually `D_gr < D_th`). The 0.8-factor keeps
+    `ρ_g` comfortably below `ρ_l` for the realistic `(F_rim, ρ_rim)` regime.
+    Rime Density formulations structured like Macklin (1962) rarely give
+    `ρ_rim > 700 kg/m³` anyway, so the upper bound is usually inert.
+    To lift the cap to `ρ_l` we'd need to (i) explicitly bound `ρ_g` 
+    (e.g. `min(ρ_g, ρ_l)`) or rederive `ρ_d` so it's monotone-bounded by
+    `ρ_l`, and (ii) accept that bulk rime densities 800-917 kg/m³ are off
+    the calibration domain of the original P3 fit.
 
 # Arguments
 - `params`: [`CMP.ParametersP3`](@ref)
@@ -118,7 +97,7 @@ of the threshold formulas evaluated by the [`P3State`](@ref) constructor.
 function state_from_prognostic(params::CMP.ParametersP3, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
     FT = eltype(ρq_ice)
     F_rim = min(UT.rime_mass_fraction(ρq_rim, ρq_ice), one(FT) - eps(FT))
-    ρ_rim = min(UT.rime_density(ρq_rim, ρb_rim), FT(0.8) * params.ρ_l)
+    ρ_rim = min(UT.rime_density(ρq_rim, ρb_rim), FT(0.8) * params.ρ_l)  # TODO: Make this limit configurable
     return P3State(params, ρq_ice, ρn_ice, F_rim, ρ_rim)
 end
 
@@ -147,23 +126,6 @@ Exact solution for the density of the unrimed portion of the particle as
 
 # Returns
 - `ρ_d`: density of the unrimed portion of the particle [kg/m³]
-
-# Examples
-
-```jldoctest
-julia> import CloudMicrophysics.Parameters as CMP,
-              ClimaParams as CP,
-              CloudMicrophysics.P3Scheme as P3
-
-julia> FT = Float64;
-
-julia> mass = CMP.MassPowerLaw(CP.create_toml_dict(FT));
-
-julia> F_rim, ρ_rim = FT(0.5), FT(916.7);
-
-julia> ρ_d = P3.get_ρ_d(mass, F_rim, ρ_rim)
-488.9120789986412
-```
 """
 function get_ρ_d((; β_va)::CMP.MassPowerLaw, F_rim, ρ_rim)
     k = (1 - F_rim)^(-1 / (3 - β_va))
@@ -248,8 +210,8 @@ get_D_cr(mass::CMP.MassPowerLaw, F_rim, ρ_g) = _get_threshold(mass, ρ_g * (1 -
 """
     segment_boundaries(state::P3State, D_min = 0, D_max = Inf)
 
-Return the flat 5-tuple `(D_min, D_th, D_gr, D_cr, D_max)` of P3 mass-
-regime boundaries clamped into the requested integration window
+Return the 5-tuple `(D_min, D_th, D_gr, D_cr, D_max)` of P3 mass-regime
+boundaries clamped into the requested integration window
 `[D_min, D_max]`. Suitable as the `bnds` argument to
 [`integrate`](@ref) / [`subintervals`](@ref).
 

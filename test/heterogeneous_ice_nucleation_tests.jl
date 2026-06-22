@@ -250,25 +250,25 @@ function test_heterogeneous_ice_nucleation(FT)
         τ = FT(300)
 
         # Above T_freeze: zero
-        r_warm = CMI_het.f23_immersion_limit_rate(
+        r_warm = CMI_het.immersion_limit_rate(
             ip_frostenberg, T_freeze + FT(0.1), ρ; τ,
         )
         TT.@test r_warm.∂ₜn_frz == FT(0)
 
         # Cold T: rate is positive and matches INPC/(ρ·τ)
         T_cold = T_freeze - FT(20)
-        r_cold = CMI_het.f23_immersion_limit_rate(ip_frostenberg, T_cold, ρ; τ)
+        r_cold = CMI_het.immersion_limit_rate(ip_frostenberg, T_cold, ρ; τ)
         INPC_expected = exp(CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)) / ρ / τ
         TT.@test r_cold.∂ₜn_frz ≈ INPC_expected rtol = sqrt(eps(FT))
 
         # Colder ⇒ larger rate
-        r_colder = CMI_het.f23_immersion_limit_rate(
+        r_colder = CMI_het.immersion_limit_rate(
             ip_frostenberg, T_freeze - FT(30), ρ; τ,
         )
         TT.@test r_colder.∂ₜn_frz > r_cold.∂ₜn_frz
 
         # log_inpc_shift > 0 ⇒ larger rate
-        r_shifted = CMI_het.f23_immersion_limit_rate(
+        r_shifted = CMI_het.immersion_limit_rate(
             ip_frostenberg, T_cold, ρ; τ, inpc_log_shift = FT(1),
         )
         TT.@test r_shifted.∂ₜn_frz ≈ r_cold.∂ₜn_frz * exp(FT(1)) rtol = sqrt(eps(FT))
@@ -295,7 +295,7 @@ function test_heterogeneous_ice_nucleation(FT)
         # Strict defaults are picked up automatically when not overridden.
         T_test = T_freeze - FT(20)   # below the -15 °C strict gate
         q_sat_test = TDI.saturation_vapor_specific_content_over_ice(tps, T_test, ρ)
-        r_default = CMI_het.f23_deposition_rate(
+        r_default = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_test, ρ, 2 * q_sat_test, FT(0), FT(0), n_ice;
             m_nuc, τ_act,
         )
@@ -303,7 +303,7 @@ function test_heterogeneous_ice_nucleation(FT)
         # And they're closed at T = -10 °C (above the -15 °C gate)
         T_warm_test = T_freeze - FT(10)
         q_sat_warm_test = TDI.saturation_vapor_specific_content_over_ice(tps, T_warm_test, ρ)
-        r_default_closed = CMI_het.f23_deposition_rate(
+        r_default_closed = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_warm_test, ρ, 2 * q_sat_warm_test, FT(0), FT(0), n_ice;
             m_nuc, τ_act,
         )
@@ -316,7 +316,7 @@ function test_heterogeneous_ice_nucleation(FT)
         T_cold = T_freeze - FT(20)
         q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T_cold, ρ)
         q_vap_super = 2 * q_sat_ice          # S_i ≈ 1.0
-        r_active = CMI_het.f23_deposition_rate(
+        r_active = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_cold, ρ, q_vap_super, FT(0), FT(0), n_ice;
             m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
             τ_act,
@@ -329,7 +329,7 @@ function test_heterogeneous_ice_nucleation(FT)
 
         # n_ice = INPC ⇒ depleted to zero ⇒ both n and q rates vanish
         INPC_at_T = exp(CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)) / ρ
-        r_depleted = CMI_het.f23_deposition_rate(
+        r_depleted = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_cold, ρ, q_vap_super, FT(0), FT(0), INPC_at_T;
             m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
             τ_act,
@@ -343,7 +343,7 @@ function test_heterogeneous_ice_nucleation(FT)
         T_warm = T_freeze - FT(10)
         q_sat_warm = TDI.saturation_vapor_specific_content_over_ice(tps, T_warm, ρ)
         q_vap_super_warm = 2 * q_sat_warm
-        r_T_gate = CMI_het.f23_deposition_rate(
+        r_T_gate = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_warm, ρ, q_vap_super_warm, FT(0), FT(0), n_ice;
             m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
             τ_act,
@@ -353,7 +353,7 @@ function test_heterogeneous_ice_nucleation(FT)
 
         # Subsaturated wrt ice ⇒ both rates zero (S_i gate closed, and
         # the vapor cap independently zeros ∂ₜq_frz).
-        r_sub = CMI_het.f23_deposition_rate(
+        r_sub = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_cold, ρ, FT(0.5) * q_sat_ice, FT(0), FT(0), n_ice;
             m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
             τ_act,
@@ -362,7 +362,7 @@ function test_heterogeneous_ice_nucleation(FT)
         TT.@test r_sub.∂ₜq_frz == FT(0)
 
         # Tunable thresholds: warming the T_thresh opens the warm-side gate
-        r_relaxed = CMI_het.f23_deposition_rate(
+        r_relaxed = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_warm, ρ, q_vap_super_warm, FT(0), FT(0), n_ice;
             m_nuc, T_thresh = T_freeze - FT(5), S_i_thresh = S_i_thresh_default,
             τ_act,
@@ -371,7 +371,7 @@ function test_heterogeneous_ice_nucleation(FT)
         TT.@test r_relaxed.∂ₜq_frz > FT(0)
 
         # Permissive thresholds (used by BMT) ⇒ always passes the gate
-        r_permissive = CMI_het.f23_deposition_rate(
+        r_permissive = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_warm, ρ, q_vap_super_warm, FT(0), FT(0), n_ice;
             m_nuc, T_thresh = FT(2000), S_i_thresh = FT(-2), τ_act,
         )
@@ -385,7 +385,7 @@ function test_heterogeneous_ice_nucleation(FT)
         q_sat_super = TDI.saturation_vapor_specific_content_over_ice(tps, T_super, ρ)
         q_vap_tiny_excess = q_sat_super * FT(1.001)   # S_i = 0.001
         q_excess_tiny = q_vap_tiny_excess - q_sat_super
-        r_capped = CMI_het.f23_deposition_rate(
+        r_capped = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_super, ρ, q_vap_tiny_excess, FT(0), FT(0), FT(0);
             m_nuc = FT(1e3),  # absurd m_nuc forces vapor cap to bind
             T_thresh = FT(2000), S_i_thresh = FT(-2), τ_act,

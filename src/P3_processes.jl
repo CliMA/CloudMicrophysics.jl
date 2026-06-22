@@ -93,10 +93,35 @@ function ice_melt(
     return (; dNdt, dLdt)
 end
 
-function collision_cross_section_ice_liquid(state, Dᵢ, Dₗ)
-    rᵢ_eff(Dᵢ) = √(ice_area(state, Dᵢ) / π)
-    return π * (rᵢ_eff(Dᵢ) + Dₗ / 2)^2  # collision cross section
-end
+"""
+    collision_cross_section_ice_liquid_coeffs(rᵢ)
+    collision_cross_section_ice_liquid_coeffs(state, Dᵢ)
+
+Monomial coefficients `(k₀, k₁, k₂)` of the ice-liquid collision cross-section as
+a polynomial in the liquid diameter `Dₗ`,
+
+```math
+σ(Dᵢ, Dₗ) = π (rᵢ + Dₗ/2)² = k₀ + k₁ Dₗ + k₂ Dₗ²,
+```
+
+with `k₀ = π rᵢ²`, `k₁ = π rᵢ`, `k₂ = π/4`, where the ice effective radius
+is `rᵢ = √(ice_area(state, Dᵢ)/π)`; see [`ice_area`](@ref).
+
+Used in [`collision_cross_section_ice_liquid`](@ref)
+"""
+@inline collision_cross_section_ice_liquid_coeffs(rᵢ::FT) where {FT} =
+    (π * rᵢ^2, π * rᵢ, FT(π / 4))
+@inline collision_cross_section_ice_liquid_coeffs(state, Dᵢ) =
+    collision_cross_section_ice_liquid_coeffs(√(ice_area(state, Dᵢ) / π))
+
+"""
+    collision_cross_section_ice_liquid(state, Dᵢ, Dₗ)
+
+Ice-liquid collision cross-section [m²], `π (rᵢ(Dᵢ) + Dₗ/2)²`, evaluated by
+Horner from the shared [`collision_cross_section_ice_liquid_coeffs`](@ref).
+"""
+collision_cross_section_ice_liquid(state, Dᵢ, Dₗ) =
+    evalpoly(Dₗ, collision_cross_section_ice_liquid_coeffs(state, Dᵢ))
 
 """
     volumetric_collision_rate_integrand(state, velocity_params, ρₐ)
@@ -290,213 +315,69 @@ function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; quad = C
     return liquid_integrals
 end
 
-# ---------------------------------------------------------------------------
-# Closed-form rain inner integral  (A3 / issue 003 / A4 Phase 3)
-#
-# The rain SB2006 PSD is pure-exponential `n_r(D)=N₀r e^{-D/Dr_mean}`
-# and Chen-2022 rain `v_l(D)=Σⱼ Aⱼ D^{Bⱼ} e^{-Cⱼ D}`; the cross-section
-# is a degree-2 poly in `Dₗ`. The only obstruction `|v_i(Dᵢ)−v_l(Dₗ)|`
-# is removed EXACTLY by splitting the inner integral at the velocity
-# crossover `D*(Dᵢ)` where `v_l(D*)=v_i(Dᵢ)`. Each piece is a finite sum
-# of regularized-incomplete-gamma moments. This is exact (no physical
-# approximation); the only numeric is the scalar `D*` root, found to
-# ~1e-12 — far tighter than the ~1e-3 bulk-tendency budget. Validated
-# vs ChebyshevGauss(1024): max relerr 5.4e-6 (N) / 2.0e-6 (M) over a
-# 1944-cell grid; AD-clean under the frozen-logλ/Float64-param regime
-# (`gamma_inc` 2nd-arg only). B-rim stays numerical (piecewise-rational
-# `1/ρ′_rim`). See `audits/p3_audit/A3_closed_form_reductions.md` §4.
-
-# The shared incomplete-gamma partial-moment kernel `gamma_inc_moment`
-# (the linear-space twin of `loggamma_inc_moment`, used by the
-# `closed_rain_inner_NM` sign-alternating split) is defined next to
-# `loggamma_inc_moment` in `P3_size_distribution.jl` so the log/linear
-# pair stays co-located and in sync (P1-2). See its docstring there.
-
 """
     crossover_diameter(v_target, v_l, D_min, D_max)
 
-`D* ∈ [D_min,D_max]` with `v_l(D*) = v_target`, by bisection.
-`v_l` is the rain terminal-velocity callable, passed in from the
-**canonical** CM API `CO.particle_terminal_velocity(vel.rain, ρₐ)` —
-the *exact same* Chen-2022 rain `v(D)` the numerical fallback uses in
-`volumetric_collision_rate_integrand` / `compute_local_rime_density`
-(`v_liq = CO.particle_terminal_velocity(velocity_params.rain, ρₐ)`).
-Reusing that callable here (rather than re-rolling the
-`CO.Chen2022_monodisperse_pdf` summation) guarantees the closed-form
-root solve cannot silently diverge from CM's Chen rain law if that
-table/form ever changes.
-Returns `D_min` if `v_target ≤ v_l(D_min)` / `D_max` if
-`v_target ≥ v_l(D_max)` (the `|·|` never flips in the bracket).
-Chen-2022 rain `v_l` is monotone except a tiny ρₐ-dependent dimple at
-`D≈5–9 mm` with rel amplitude ≤1e-4 at the extreme PSD tail; measured
-single-`D*` worst-case error ≤1.4e-6 (below the bulk budget), so a
-single root is used. See A3 §3.4 for the general (deep-dimple /
-non-Chen) multi-root fallback (defensive — not reached for Chen rain).
+Find the diameter `D` in `[D_min, D_max]` where `v_l(D) = v_target`
 """
-function crossover_diameter(
-    v_target, v_l::F, D_min, D_max;
-    tol = nothing, max_iters::Int = 60,
-) where {F}
-    # AD-generic: `v_target` (∝ v̄ᵢ, Dual via state) and the bracket
-    # `D_min,D_max` (Dual via the rain PSD) need not share a type — work
-    # in their promotion (the over-tie was the latent AD blocker, P1-3).
-    T = float(promote_type(typeof(v_target), typeof(D_min), typeof(D_max)))
-    tol_ = tol === nothing ? T(1e-12) : T(tol)
-    D_min, D_max = T(D_min), T(D_max)
+function crossover_diameter(v_target, v_l::F, D_min, D_max) where {F}
+    FT = float(promote_type(typeof(v_target), typeof(D_min), typeof(D_max)))
     f(D) = v_l(D) - v_target
-    flo, fhi = f(D_min), f(D_max)
-    flo > 0 && return D_min          # v_target below the bracket — no flip
-    fhi < 0 && return D_max          # v_target above the bracket — no flip
-    a, b = D_min, D_max
-    for _ in 1:max_iters
-        m = (a + b) / 2
-        fm = f(m)
-        b - a < tol_ * max(b, one(T)) && return m
-        if (flo < 0) == (fm < 0)
-            a, flo = m, fm
-        else
-            b, fhi = m, fm
-        end
-    end
-    return (a + b) / 2
-end
-
-"""
-    closed_rain_inner_NM(Dᵢ, v_i_at_Dᵢ, v_l, rᵢ, ρ_w, ai, bi, ci,
-                         D_min, D_max, N₀r, D̄r)
-
-Closed-form `(∂ₜN_col, ∂ₜM_col)` for the rain inner integral at one
-outer `Dᵢ`. `rᵢ = √(ice_area(state,Dᵢ)/π)`; `v_l` is the canonical
-rain terminal-velocity callable `CO.particle_terminal_velocity(vel.rain,
-ρₐ)` (reused for the `D*` crossover root — see [`crossover_diameter`]);
-`(ai,bi,ci) = CO.Chen2022_vel_coeffs(vel.rain, ρₐ)` are the *same* Chen
-coefficients that callable is built from, kept here because the closed
-form's `αⱼ=α0+cⱼ` exponent merge and the `Aⱼ`/`Bⱼ+m` partial-moment
-weights need the per-term `(aⱼ,bⱼ,cⱼ)` split, for which CM exposes no
-existing API (`CO.Chen2022_exponential_pdf` is the *full-domain* `[0,∞)`
-1M analogue — not a drop-in here, the `D*` split needs *partial* moments).
-Rain PSD `n_r(D)=N₀r e^{-D/D̄r}`.
-"""
-function closed_rain_inner_NM(
-    Dᵢ, v_i_at_Dᵢ, v_l::F, rᵢ, ρ_w, ai, bi, ci, D_min, D_max, N₀r, D̄r,
-) where {F}
-    # AD-generic working type. In the implicit-2M+P3 Jacobian (A2) the
-    # `Dᵢ` quadrature node is Float64 while the state/PSD-derived inputs
-    # (`v̄ᵢ, rᵢ, N₀r, D̄r`, the split bounds) are `Dual`; the inputs are a
-    # *mix* of Float64 and Dual, so the working type is their promotion
-    # (no `where {T}` over-tie — that was the latent AD blocker the
-    # harness's central-FD evidence masked; P1-3 / P1-test gap 2).
-    T = float(
-        promote_type(
-            typeof(v_i_at_Dᵢ), typeof(rᵢ), typeof(ρ_w),
-            typeof(D_min), typeof(D_max), typeof(N₀r), typeof(D̄r),
-            eltype(ai),
-        ),
+    sol = RS.find_zero(f,
+        RS.BrentsMethod(FT(D_min), FT(D_max)), RS.CompactSolution(),
+        RS.SolutionTolerance(FT(1e-12)), 60,
     )
-    # `Tp` is the *non-Dual* exponent type (the Chen-coeff float type):
-    # the `gamma_inc_moment` moment order `p` (hence `z = p+1`) MUST stay
-    # a plain float, never a `Dual` — that is exactly the A2-safe
-    # `SF.gamma_inc(z, α·D)` "2nd-arg-Dual only" invariant (a Dual
-    # *first* arg `z` hits the missing `_gamma_inc` rule). The
-    # cross-section / Chen / m_liq exponents are physical constants and
-    # are never differentiated, so this is correct, not a workaround.
-    Tp = float(eltype(ai))
-    K0 = T(π) * rᵢ^2
-    K1 = T(π) * rᵢ
-    K2 = T(π) / 4
-    α0 = inv(D̄r)
-    Dstar = crossover_diameter(v_i_at_Dᵢ, v_l, D_min, D_max)
-    mfac = ρ_w * T(π) / 6
-    # `Tt`/`Tpt` are passed as `::Type` ARGUMENTS, not captured from the
-    # enclosing scope. A computed *type value* (`T`, `Tp` above) captured by an
-    # inner closure is boxed by Julia as `::DataType` (it loses its `Type{FT}`
-    # precision), which makes `zero(Tt)`, `Tpt(0)`, … infer `::Any` and widens
-    # this closure's return to `Tuple{Any,Any}` — the root of the 1.10 JET
-    # failures and the GPU dynamic-dispatch / mpfr InvalidIRError on the
-    # closed-form rain path. Taking them as type arguments keeps them concrete.
-    function piece_NM(::Type{Tt}, ::Type{Tpt}, a, b, sgn) where {Tt, Tpt}
-        b > a || return (zero(Tt), zero(Tt))
-        vi_part_N =
-            sgn * v_i_at_Dᵢ *
-            (
-                K0 * gamma_inc_moment(a, b, Tpt(0), α0) +
-                K1 * gamma_inc_moment(a, b, Tpt(1), α0) +
-                K2 * gamma_inc_moment(a, b, Tpt(2), α0)
-            )
-        vi_part_M =
-            sgn * v_i_at_Dᵢ * mfac *
-            (
-                K0 * gamma_inc_moment(a, b, Tpt(3), α0) +
-                K1 * gamma_inc_moment(a, b, Tpt(4), α0) +
-                K2 * gamma_inc_moment(a, b, Tpt(5), α0)
-            )
-        v_part_N = zero(Tt)
-        v_part_M = zero(Tt)
-        @inbounds for j in eachindex(ai)
-            αj = α0 + ci[j]
-            Aj = ai[j]
-            Bj = bi[j]
-            v_part_N +=
-                -sgn * Aj *
-                (
-                    K0 * gamma_inc_moment(a, b, Bj, αj) +
-                    K1 * gamma_inc_moment(a, b, Bj + Tpt(1), αj) +
-                    K2 * gamma_inc_moment(a, b, Bj + Tpt(2), αj)
-                )
-            v_part_M +=
-                -sgn * Aj * mfac *
-                (
-                    K0 * gamma_inc_moment(a, b, Bj + Tpt(3), αj) +
-                    K1 * gamma_inc_moment(a, b, Bj + Tpt(4), αj) +
-                    K2 * gamma_inc_moment(a, b, Bj + Tpt(5), αj)
-                )
-        end
-        return (vi_part_N + v_part_N, vi_part_M + v_part_M)
-    end
-    lower = piece_NM(T, Tp, D_min, Dstar, +one(T))
-    upper = piece_NM(T, Tp, Dstar, D_max, -one(T))
-    return (N₀r * (lower[1] + upper[1]), N₀r * (lower[2] + upper[2]))
+    return sol.root
 end
 
 """
-    get_liquid_integrals_rain_closed(psd_r, vel, n_r, ρₐ, L_r, N_r, state,
-                                     ∂ₜV, m_liq, ρ′_rim, bounds_r; quad)
+    closed_rain_inner_NM(
+        Dᵢ, v_i_at_Dᵢ, v_l, rᵢ, ρw, ai, bi, ci, D_min, D_max, N₀r, Dr_mean,
+    )
 
-Closed-form rain inner integrals: a `liquid_integrals(Dᵢ)` returning
-`(∂ₜN_col, ∂ₜM_col, ∂ₜB_col)` where N and M are the exact incomplete-
-gamma closed form and B-rim falls back to the numerical 1-D `integrate`
-(piecewise-rational `1/ρ′_rim`; see A3 §4 — deliberately not closed).
-Dispatched only for `(RainParticlePDF_SB2006, Chen2022VelType)`.
+Closed-form `(∂ₜN_col, ∂ₜM_col)` for the rain inner integral at one outer `Dᵢ`.
+"""
+function closed_rain_inner_NM(Dᵢ, v_i_at_Dᵢ, v_l::F, rᵢ, ρw, ai, bi, ci, D_min, D_max, N₀r, Dr_mean) where {F}
+    FT = float(eltype(ai))
+    λ = inv(Dr_mean)  # rain PSD slope: n_r(D) ∝ e^{-λ D}
+    Dstar = crossover_diameter(v_i_at_Dᵢ, v_l, D_min, D_max)
 
-The Chen-2022 rain `v_l` callable is sourced from the **canonical** CM
-API `CO.particle_terminal_velocity(vel.rain, ρₐ)` — the *same*
-construction the numerical fallback uses (`volumetric_collision_rate_
-integrand`, `compute_local_rime_density`) — so the closed path tracks
-any future change to CM's Chen law instead of forking from it. The
-B-rim quadrature reuses the **passed-in `n_r` closure** (identical to
-the numerical path's `∂ₜV·n_r·m_liq/ρ′_rim` integrand) rather than
-re-deriving `N₀r e^{-D/D̄r}` by hand.
+    # Compute rain PSD incomplete moments weighted by ice-liquid collision
+    # cross-section `K`, and sedimentation velocity difference `|vᵢ - vₗ|`
+    coeffs = collision_cross_section_ice_liquid_coeffs(rᵢ)
+    Iᵖ(a, b, p, α) = UU.unrolled_sum(
+        k * gamma_inc_moment(a, b, p + i - 1, α) for (i, k) in enumerate(coeffs)
+    )
+    function flux(a, b, p)  # ≡ ∫ₐᵇ K(Dᵢ, Dₗ) ⋅ (vᵢ(Dᵢ) - vₗ(Dₗ)) ⋅ n_r(Dₗ) dDₗ
+        s = v_i_at_Dᵢ * Iᵖ(a, b, p, λ)  # vᵢ ⋅ ∫ₐᵇ K ⋅ n_r dDₗ
+        s -= UU.unrolled_mapreduce(+, ai, bi, ci) do aⱼ, bⱼ, cⱼ  # - ∫ₐᵇ K ⋅ vₗ ⋅ n_r dDₗ
+            aⱼ * Iᵖ(a, b, p + bⱼ, λ + cⱼ)
+        end
+        return s
+    end
+    crossing(p) = flux(D_min, Dstar, p) - flux(Dstar, D_max, p)  # sign flip at Dstar
+    mfac = ρw * CO.volume_sphere_D(one(FT))  # m_liq(D) = mfac Dₗ³
+    return (N₀r * crossing(FT(0)), N₀r * mfac * crossing(FT(3)))  # number: D⁰, mass: D³
+end
 
-`α0 = inv(Dr_mean) > 0` is an invariant of the `(SB2006, Chen)`
-bundle (`Dr_mean > 0` for any valid SB2006 PSD, Chen rain `cⱼ > 0` ⇒
-`αⱼ = α0+cⱼ > 0`), so `gamma_inc_moment`'s `α≤0` NaN sentinel is
-unreachable here. As a belt-and-suspenders matching the numerical
-fallback's robustness (and the `iszero(N₀r)` guard above — one NaN
-cell would otherwise abort a whole TRMM column), a degenerate
-non-finite `(N,M)` is folded to `(0,0)` rather than NaN-poisoning the
-outer integral.
+"""
+    get_liquid_integrals_rain_closed(
+        psd_r::RainParticlePDF_SB2006, vel::Chen2022VelType,
+        n_r, ρₐ, L_r, N_r, state, ∂ₜV, m_liq, ρ′_rim, bounds_r; quad
+    )
+
+Returns a function `liquid_integrals(Dᵢ) -> (∂ₜN_col, ∂ₜM_col, ∂ₜB_col)` 
+where N and M are the exact incomplete-gamma closed form and 
+B_rim is computed by quadrature
 """
 function get_liquid_integrals_rain_closed(
     psd_r::CMP.RainParticlePDF_SB2006, vel::CMP.Chen2022VelType,
     n_r, ρₐ, L_r, N_r, state, ∂ₜV, m_liq, ρ′_rim, bounds_r; quad,
 )
     FT = eltype(state)
-    ρ_w = psd_r.ρw
+    ρw = psd_r.ρw
     (; N₀r, Dr_mean) = CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
     ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, ρₐ)
-    # Canonical Chen-2022 rain v(D) — the exact same callable the
-    # numerical fallback builds (`v_liq = CO.particle_terminal_velocity(
-    # velocity_params.rain, ρₐ)`, see volumetric_collision_rate_integrand).
     v_l = CO.particle_terminal_velocity(vel.rain, ρₐ)
     v_i = ice_particle_terminal_velocity(vel, ρₐ, state)
     D_min, D_max = bounds_r
@@ -504,21 +385,15 @@ function get_liquid_integrals_rain_closed(
         if iszero(N₀r) || !(D_max > D_min)
             return (zero(FT), zero(FT), zero(FT))
         end
-        vi_Dᵢ = v_i(Dᵢ)
+        v_i_at_Dᵢ = v_i(Dᵢ)
         rᵢ = sqrt(ice_area(state, Dᵢ) / FT(π))
         ∂ₜN_col, ∂ₜM_col = closed_rain_inner_NM(
-            FT(Dᵢ), vi_Dᵢ, v_l, rᵢ, ρ_w, ai, bi, ci,
+            FT(Dᵢ), v_i_at_Dᵢ, v_l, rᵢ, ρw, ai, bi, ci,
             D_min, D_max, N₀r, Dr_mean,
         )
-        # Degrade like the numerical path (→0) instead of propagating a
-        # NaN through the outer 10-tuple if a degenerate state ever made
-        # the unreachable `α≤0` sentinel fire (see docstring / P1-1).
         if !(isfinite(∂ₜN_col) && isfinite(∂ₜM_col))
             return (zero(FT), zero(FT), zero(FT))
         end
-        # B-rim: piecewise-rational `1/ρ′_rim` — keep numerical (A3 §4).
-        # Reuse the passed-in `n_r` closure (identical integrand to the
-        # numerical `get_liquid_integrals` B-rim) — no hand re-derivation.
         ∂ₜB_col = integrate(
             D -> ∂ₜV(Dᵢ, D) * n_r(D) * m_liq(D) / ρ′_rim(Dᵢ, D),
             bounds_r,
@@ -529,8 +404,6 @@ function get_liquid_integrals_rain_closed(
     return liquid_integrals
 end
 
-# Dispatch: closed form for the SB2006-exp × Chen-2022 bundle, else the
-# existing numerical path (behavior byte-unchanged for other bundles).
 _rain_inner_integrals(
     psd_r::CMP.RainParticlePDF_SB2006, vel::CMP.Chen2022VelType,
     n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r, ρₐ, L_r, N_r, state; quad,
@@ -661,10 +534,8 @@ function ∫liquid_ice_collisions(
     ∂ₜM_max = compute_max_freeze_rate(aps, tps, vel, ρₐ, T, state)  # ∂ₜM_max(Dᵢ)
 
     cloud_integrals = get_liquid_integrals(n_c, ∂ₜV, m_liq, ρ′_rim, bounds_c; quad)  # (∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col)
-    # Rain inner: exact closed form for the (SB2006-exp PSD, Chen-2022)
-    # bundle (N,M via incomplete gamma; B-rim numerical). Numerical
-    # fallback for any other PSD/velocity type. Cloud inner + outer axis
-    # unchanged (compose with GL40). See A3 §4 / A4 Phase 3 / issue 003.
+    # Rain inner: exact closed form for the (SB2006-exp PSD, Chen-2022) pair
+    # Numerical fallback for any other PSD/velocity type.
     rain_integrals = _rain_inner_integrals(
         psd_r, vel, n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r,
         ρₐ, L_r, N_r, state; quad,

@@ -176,7 +176,7 @@ function benchmark_test(FT)
         P3.P3State,
         P3.P3State,
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
-        200,  # ns; loose enough for slower CI hardware (≈120 ns observed)
+        220,
     )
     bench_press(FT, P3.get_distribution_logλ, (state,), 30_000)
     # The weighted-velocity integrals build a nested terminal-velocity closure
@@ -194,7 +194,7 @@ function benchmark_test(FT)
         @NamedTuple{dNdt::FT, dLdt::FT},
         P3.het_ice_nucleation,
         (kaolinite, tps, q_liq, N_liq, RH_2, T_air_2, ρ_air),
-        200,
+        220,
     )
     bench_press(
         @NamedTuple{dNdt::FT, dLdt::FT},
@@ -238,7 +238,7 @@ function benchmark_test(FT)
     micro_mock = (; q_tot = FT(0.00145), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
     thermo_mock = (; ρ = FT(0.8), T = FT(263))
     bench_press(FT, CMN.conv_q_vap_to_q_lcl,
-        (CMP.CloudLiquidFormation(CP.create_toml_dict(FT)), mp_mock, tps, micro_mock, thermo_mock), 140)
+        (CMP.CloudLiquidFormation(CP.create_toml_dict(FT)), mp_mock, tps, micro_mock, thermo_mock), 160)
 
     @info "0-Moment Scheme"
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)

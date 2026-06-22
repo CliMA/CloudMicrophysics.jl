@@ -38,12 +38,6 @@ function test_p3_state_creation(FT)
         # Test thresholds for rimed state
         (; D_th, D_gr, D_cr) = state_rimed
         @test D_th < D_gr < D_cr
-
-        # Note: `P3State` no longer validates `F_rim ∈ [0, 1)` or
-        # `ρ_rim ∈ [0, ρ_l]` at construction. Production input regularisation
-        # lives in `state_from_prognostic` (clamps via `min(...)`); test code
-        # is expected to pass valid `(F_rim, ρ_rim)` directly. See the
-        # `P3State` docstring.
     end
 end
 
@@ -60,10 +54,6 @@ function test_thresholds_solver(FT)
         N_ice = FT(1e6)
         ρ_rim_good = (FT(200), FT(400), FT(800)) # representative ρ_rim values
         F_rim_good = (FT(0.5), FT(0.8), FT(0.95)) # representative F_rim values
-
-        # Note: `P3State` no longer asserts `F_rim ∈ [0, 1)` or
-        # `ρ_rim ∈ [0, ρ_l]`. Domain enforcement happens upstream in
-        # `state_from_prognostic` via clamps. Tests pass valid inputs.
 
         # Test if the P3 scheme solution satisifies the conditions
         # from eqs. 14-17 in Morrison and Milbrandt 2015
@@ -658,9 +648,6 @@ function test_p3_melting(FT)
 
         T_vwarm = FT(273.15 + 0.1)
         rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, state, logλ)
-
-        # Uncapped melt rate (dt/availability limiting removed): the raw rate
-        # exceeds the available L/N. Reference values are output from the code.
         if FT == Float64
             ref_vwarm_dNdt = FT(1.7186681756049155e6)
             ref_vwarm_dLdt = FT(8.593340878024577e-4)
@@ -912,68 +899,13 @@ function test_p3_ice_self_collection(FT)
     end
 end
 
-# Closed-form rain-inner liquid-ice collision integral (A3 / issue 003).
-# The exact incomplete-gamma reduction of the rain inner {N,M} for the
-# (RainParticlePDF_SB2006, Chen2022VelType) bundle, validated vs a
-# high-order numerical reference; plus the dispatch fallback contract.
 function test_p3_closed_form_rain_inner(FT)
-    @testset "P3 closed-form rain inner (N,M)" begin
-        params = CMP.ParametersP3(FT)
-        vel = CMP.Chen2022VelType(FT)
-        sb = CMP.SB2006(FT)
-        psd_r = sb.pdf_r
-        ρₐ = FT(1)
-        ρ_w = psd_r.ρw
-        p = eltype(params)(1e-5)
-        m_liq(D) = ρ_w * FT(π) / 6 * D^3
-        # rtol ≫ the measured ~5.4e-6 (N) / 2.0e-6 (M) closed-vs-CG(1024)
-        # margin (and the FT=Float32 round-off floor), so the test is a
-        # robust regression guard, not a brittle exact-digits check.
-        rtol = FT == Float64 ? FT(1e-3) : FT(2e-2)
-        ref_n = FT == Float64 ? 1024 : 256
-        for (L_ice, N_ice, F_rim, ρ_rim) in (
-                (1e-3, 1e6, 0.5, 500),
-                (1e-2, 1e8, 0.95, 800),
-                (1e-5, 1e4, 0.0, 200),
-            ),
-            (L_r, N_r) in ((1e-6, 1e4), (1e-4, 1e3), (2e-3, 5e2))
-
-            state = P3.P3State(
-                params, FT(L_ice), FT(N_ice), FT(F_rim), FT(ρ_rim),
-            )
-            n_r = DT.size_distribution(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r))
-            ∂ₜV = P3.volumetric_collision_rate_integrand(vel, ρₐ, state)
-            ρ′_rim = P3.compute_local_rime_density(vel, ρₐ, FT(270), state)
-            bnds = CM2.get_size_distribution_bounds(
-                psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p,
-            )
-            bnds[2] > bnds[1] || continue
-            rc = P3.get_liquid_integrals_rain_closed(
-                psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
-                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
-            )
-            rn = P3.get_liquid_integrals(
-                n_r, ∂ₜV, m_liq, ρ′_rim, bnds;
-                quad = P3.ChebyshevGauss(ref_n),
-            )
-            for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
-                Nc, Mc, _ = rc(Dᵢ)
-                Nr, Mr, _ = rn(Dᵢ)
-                @test isapprox(Nc, Nr; rtol)
-                @test isapprox(Mc, Mr; rtol)
-            end
-        end
-    end
-
-    # P1-test gap 1: lock the closed-vs-numerical-fallback contract on
-    # the *typed* bundle itself. The B-rim output now reuses the same
-    # `n_r` closure the numerical path uses (P1-5), so on the typed
-    # `(SB2006,Chen)` bundle the closed path's B-rim must equal the
-    # numerical path's B-rim *exactly* at matched quadrature, and N/M
-    # must agree to the closed-form accuracy margin. This proves the
-    # P0-1 canonical-Chen-API swap is numerically equivalent (same
-    # physical law) and that B-rim is a verbatim dedup, not a re-roll.
-    @testset "P3 closed vs numerical fallback (typed bundle)" begin
+    # The closed form is the exact analytic reduction of the rain inner integral.
+    # Testset checks:
+    #  - N and M matches an adaptive (QuadGK) reference numerical quadrature
+    #  - correctness of the rime volume quadrature
+    #  - smoke test for collision cross section
+    @testset "P3 closed-form rain inner (N, M, B) + cross-section coeffs" begin
         params = CMP.ParametersP3(FT)
         vel = CMP.Chen2022VelType(FT)
         psd_r = CMP.SB2006(FT).pdf_r
@@ -981,62 +913,60 @@ function test_p3_closed_form_rain_inner(FT)
         ρ_w = psd_r.ρw
         p = eltype(params)(1e-5)
         m_liq(D) = ρ_w * FT(π) / 6 * D^3
-        rtolNM = FT == Float64 ? FT(1e-3) : FT(2e-2)
-        ref_n = FT == Float64 ? 1024 : 256
-        for (L_ice, N_ice, F_rim, ρ_rim) in
-            ((1e-3, 1e6, 0.5, 500), (1e-2, 1e8, 0.95, 800)),
-            (L_r, N_r) in ((1e-4, 1e3), (2e-3, 5e2))
+        rtol = FT == Float64 ? FT(1e-10) : FT(1e-3)
+        qrtol = FT == Float64 ? FT(1e-12) : FT(1e-7)
+        v_l = CO.particle_terminal_velocity(vel.rain, ρₐ)
+        for (L_ice, N_ice, F_rim, ρ_rim) in (
+                (1e-3, 1e6, 0.5, 500),
+                (1e-2, 1e8, 0.95, 800),
+                (1e-5, 1e4, 0.0, 200),
+            ),
+            (L_r, N_r) in ((1e-6, 1e4), (1e-4, 1e3), (2e-3, 5e2))
 
-            state =
-                P3.P3State(params, FT(L_ice), FT(N_ice), FT(F_rim), FT(ρ_rim))
+            state = P3.P3State(params, FT(L_ice), FT(N_ice), FT(F_rim), FT(ρ_rim))
             n_r = DT.size_distribution(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r))
             ∂ₜV = P3.volumetric_collision_rate_integrand(vel, ρₐ, state)
             ρ′_rim = P3.compute_local_rime_density(vel, ρₐ, FT(270), state)
-            bnds = CM2.get_size_distribution_bounds(
-                psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p,
-            )
-            bnds[2] > bnds[1] || continue
-            # B-rim: closed path reuses `n_r` → must match the numerical
-            # path's B-rim *exactly* at the SAME quadrature order.
+            D_min, D_max = bnds = CM2.get_size_distribution_bounds(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p)
+            D_max > D_min || continue
             rc = P3.get_liquid_integrals_rain_closed(
                 psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
                 m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
             )
-            rn_match = P3.get_liquid_integrals(
-                n_r, ∂ₜV, m_liq, ρ′_rim, bnds;
-                quad = P3.ChebyshevGauss(40),
+            rn = P3.get_liquid_integrals(  # numerical fallback
+                n_r, ∂ₜV, m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
             )
-            rn_ref = P3.get_liquid_integrals(
-                n_r, ∂ₜV, m_liq, ρ′_rim, bnds;
-                quad = P3.ChebyshevGauss(ref_n),
-            )
-            for Dᵢ in FT.(10 .^ range(-5, -2; length = 4))
+            v_i = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
+            for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
+                vi = v_i(Dᵢ)
+                Dstar = P3.crossover_diameter(vi, v_l, D_min, D_max)
+
+                # N, M: closed form vs adaptive reference
                 Nc, Mc, Bc = rc(Dᵢ)
-                _, _, Bm = rn_match(Dᵢ)
-                Nr, Mr, _ = rn_ref(Dᵢ)
-                # B-rim is the same integrand & quadrature ⇒ identical.
-                @test isapprox(Bc, Bm; rtol = sqrt(eps(FT)))
-                # N,M: closed form vs high-order numerical reference.
-                @test isapprox(Nc, Nr; rtol = rtolNM)
-                @test isapprox(Mc, Mr; rtol = rtolNM)
+                σ(D) = P3.collision_cross_section_ice_liquid(state, Dᵢ, D)
+                gN(D) = σ(D) * abs(vi - v_l(D)) * n_r(D)
+                Nref = QGK.quadgk(gN, D_min, Dstar, D_max; rtol = qrtol)[1]
+                Mref = QGK.quadgk(D -> gN(D) * m_liq(D), D_min, Dstar, D_max; rtol = qrtol)[1]
+                @test isapprox(Nc, Nref; rtol)
+                @test isapprox(Mc, Mref; rtol)
+
+                # B: closed quadrature vs numerical fallback at the same order
+                @test isapprox(Bc, rn(Dᵢ)[3]; rtol = sqrt(eps(FT)))
+
+                # smoke test: collision cross section has form: `π(rᵢ + Dₗ/2)²`, with rᵢ derived from `P3.ice_area`
+                rᵢ = sqrt(P3.ice_area(state, Dᵢ) / FT(π))
+                K = P3.collision_cross_section_ice_liquid_coeffs(state, Dᵢ)
+                @test K == P3.collision_cross_section_ice_liquid_coeffs(rᵢ)
+                @test evalpoly(Dstar, K) ≈ FT(π) * (rᵢ + Dstar / 2)^2
+                @test evalpoly(D_max, K) ≈ FT(π) * (rᵢ + D_max / 2)^2
             end
         end
     end
 
-    # P1-test gap 2: in-suite ForwardDiff AD smoke. The headline
-    # justification of the closed form (vs the numerical `abs` path) is
-    # AD-cleanliness under the A2 regime: in the implicit 2M+P3
-    # Jacobian the `Dᵢ` quadrature node is a Float64 constant and the
-    # `Dual` enters only through the *state-dependent* physical inputs
-    # (`v̄ᵢ`, `rᵢ`, `D̄r`, `N₀r`) — `gamma_inc(z, α·D)` with `z`=Float64
-    # const, Dual in the 2nd arg only (A2-safe). The D* velocity-split
-    # removes the `|v̄ᵢ−v_l|` kink, so `closed_rain_inner_NM` is C¹ in
-    # each of these inputs. We now `import ForwardDiff` (added to
-    # `test/Project.toml`) and check `FD.derivative` is finite and
-    # matches a central finite difference for each differentiated
-    # input — promoting the previously harness-only AD evidence
-    # (`A3_rain_inner_ad_smoothness.jl`) into the suite.
-    @testset "P3 closed-form ForwardDiff AD smoke (v̄ᵢ,rᵢ,D̄r,N₀r)" begin
+    # AD smoke test for the closed form.
+    # find D where ice/liquid sedimentation velocities are equal,
+    # separate the integrals, then check that closed form is correct.
+    @testset "P3 closed-form ForwardDiff AD smoke (v_i,r_i,Dr,N₀r)" begin
         vel = CMP.Chen2022VelType(FT)
         psd_r = CMP.SB2006(FT).pdf_r
         ρₐ = FT(1)
@@ -1046,33 +976,19 @@ function test_p3_closed_form_rain_inner(FT)
         L_r, N_r = FT(1e-4), FT(1e3)
         (; N₀r, Dr_mean) =
             CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
-        Dᵢ0 = FT(3e-3)              # Float64 quadrature node (real path)
+        Dᵢ0 = FT(3e-3)
         rᵢ0 = FT(1e-3)
         vi0 = FT(3.0)
         D_min, D_max = FT(1e-5), FT(5e-3)
-        # The headline AD-cleanliness claim — finite derivative, no
-        # `gamma_inc`-1st-arg-Dual MethodError, mixed Float64/Dual
-        # accepted — is asserted for BOTH FT. The *tight* FD-agreement
-        # is checked only for Float64: several M-moment derivatives are
-        # O(1e-5) values formed from cancelling O(1) incomplete-gamma
-        # terms, and a central FD of the bisection root, both of which
-        # are at the Float32 round-off floor (≈1e-7 rel) — not a defect
-        # of the closed form (Float64 agrees to ≤1e-11). The Float64
-        # numerical check is the meaningful AD↔FD regression guard;
-        # Float32 only guards "AD runs cleanly and is finite".
-        check_fd = FT == Float64
         rtolAD = FT(1e-4)
-        # N (out index 1) and M (out index 2) vs each differentiated
-        # input; `closed_rain_inner_NM(Dᵢ, v̄ᵢ, v_l, rᵢ, ρ_w, ai,bi,ci,
-        #                              D_min, D_max, N₀r, D̄r)`.
         cases = (
-            ("v̄ᵢ", vi0,
+            ("v_i", vi0,
                 x -> P3.closed_rain_inner_NM(Dᵢ0, x, v_l, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
-            ("rᵢ", rᵢ0,
+            ("r_i", rᵢ0,
                 x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, x, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
-            ("D̄r", Dr_mean,
+            ("Dr", Dr_mean,
                 x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, x)),
             ("N₀r", N₀r,
@@ -1082,28 +998,17 @@ function test_p3_closed_form_rain_inner(FT)
         for (_, x0, g) in cases, idx in (1, 2)
             f(x) = g(x)[idx]
             d_ad = FD.derivative(f, x0)
-            @test isfinite(d_ad)        # AD-clean (both FT)
-            if check_fd
+            @test isfinite(d_ad)  # check that AD works
+            if FT == Float64
                 h = max(abs(x0) * FT(1e-5), FT(1e-12))
                 d_fd = (f(x0 + h) - f(x0 - h)) / (2h)
-                @test isapprox(d_ad, d_fd; rtol = rtolAD,
-                    atol = 100 * eps(FT) *
-                           max(abs(d_ad), abs(d_fd), one(FT)))
+                @test isapprox(d_ad, d_fd;
+                    rtol = rtolAD,
+                    atol = 100 * eps(FT) * max(abs(d_ad), abs(d_fd), one(FT)),
+                )
             end
         end
-        # D* root differentiability. The fixed-iteration bisection is
-        # (by construction) AD-insensitive to its `v_target` — its
-        # branch comparisons discard the Dual, so FD-through-bisection
-        # returns ∂D*/∂v̄ᵢ = 0. That is the *correct* "frozen-D*-per-step"
-        # behaviour (A2: D* is frozen exactly like logλ). It is SAFE for
-        # the closed form because the split integrand is **continuous at
-        # D*** (v̄ᵢ−v_l(D*)=0 there) ⇒ the Leibniz boundary term
-        # `integrand(D*)·∂D*` vanishes regardless of ∂D* — which is why
-        # the `v̄ᵢ` cases above already match FD to ~1e-12 with a frozen
-        # root. Confirm both: (a) FD through the bisection is 0/finite
-        # (frozen-root), and (b) the elementary IFT the differentiated
-        # path *would* use, ∂D*/∂v̄ᵢ = 1/v_l′(D*), is correct (a central
-        # FD of the root vs the AD-clean elementary `v_l′`).
+        # Check that the crossover diameter is differentiable
         v_tgt = (v_l(D_min) + v_l(D_max)) / 2
         dDstar_bisect = FD.derivative(
             vt -> P3.crossover_diameter(vt, v_l, D_min, D_max), v_tgt,
@@ -1112,11 +1017,8 @@ function test_p3_closed_form_rain_inner(FT)
         Dstar = P3.crossover_diameter(v_tgt, v_l, D_min, D_max)
         vlp = FD.derivative(v_l, Dstar)          # v_l′ elementary, AD-clean
         @test isfinite(vlp) && vlp > 0
-        # IFT correctness via a central FD of the root — Float64 only:
-        # the bisection root is only accurate to ~eps(FT), so a FD over
-        # it is at the Float32 round-off floor (≈7% rel) while Float64
-        # confirms ∂D*/∂v̄ᵢ = 1/v_l′(D*) to <1e-3.
-        if check_fd
+        # Check that it matches a numerical derivative
+        if FT == Float64
             hv = abs(v_tgt) * FT(1e-6)
             dDstar_fd =
                 (
@@ -1128,17 +1030,13 @@ function test_p3_closed_form_rain_inner(FT)
         end
     end
 
-    # P1-test gap 3: D*-at-bracket-end edges. Drive `crossover_diameter`
-    # past the rain velocity band so it must return D_min (v̄ᵢ below the
-    # whole band ⇒ lower piece empty) and D_max (v̄ᵢ above ⇒ upper piece
-    # empty). Result must stay finite and the absent-crossover case must
-    # collapse one split piece to zero (exercised via the public closed
-    # path with synthetic `v̄ᵢ` targets through `closed_rain_inner_NM`).
-    @testset "P3 closed-form D*-at-bracket-end (v̄ᵢ outside band)" begin
+    # Check edge cases (e.g. ice velocity > liquid velocity for all sizes)
+    # still returns the correct result
+    @testset "P3 closed-form D*-at-bracket-end (v_i outside band)" begin
         vel = CMP.Chen2022VelType(FT)
         v_l = CO.particle_terminal_velocity(vel.rain, FT(1))
         D_min, D_max = FT(1e-5), FT(5e-3)
-        # v̄ᵢ far below v_l(D_min) ⇒ D* = D_min ; far above ⇒ D* = D_max.
+        # v_i far below v_l(D_min) ⇒ D* = D_min ; far above ⇒ D* = D_max.
         @test P3.crossover_diameter(FT(-1), v_l, D_min, D_max) == D_min
         @test P3.crossover_diameter(FT(1e6), v_l, D_min, D_max) == D_max
         # An interior target lands strictly inside the bracket.
@@ -1146,13 +1044,13 @@ function test_p3_closed_form_rain_inner(FT)
         Dstar = P3.crossover_diameter(v_mid, v_l, D_min, D_max)
         @test D_min <= Dstar <= D_max
         @test isapprox(v_l(Dstar), v_mid; rtol = FT(1e-4))
-        # Full closed path with v̄ᵢ outside the band stays finite and the
+        # Full closed path with v_i outside the band stays finite and the
         # absent-crossover side collapses (one piece zero).
-        rᵢ = FT(2e-4)
+        r_i = FT(2e-4)
         ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, FT(1))
-        for v̄ᵢ in (FT(-1), FT(1e6))
+        for v_i in (FT(-1), FT(1e6))
             N, M = P3.closed_rain_inner_NM(
-                FT(1e-3), v̄ᵢ, v_l, rᵢ, FT(1000), ai, bi, ci,
+                FT(1e-3), v_i, v_l, r_i, FT(1000), ai, bi, ci,
                 D_min, D_max, FT(1e7), FT(5e-4),
             )
             @test isfinite(N) && isfinite(M)
@@ -1160,13 +1058,6 @@ function test_p3_closed_form_rain_inner(FT)
     end
 
     @testset "P3 closed-form dispatch fallback (non-Chen / non-SB2006)" begin
-        # A non-(RainParticlePDF_SB2006, Chen2022VelType) bundle must
-        # select the numerical `get_liquid_integrals` path (byte-unchanged
-        # behavior for other bundles). We assert method-table dispatch:
-        # the typed first/second args resolve to the closed-form method;
-        # any other first/second args resolve to the `::Any,::Any`
-        # numerical-fallback method. The trailing args are placeholders
-        # (only the first two participate in dispatch selection).
         params = CMP.ParametersP3(FT)
         vel = CMP.Chen2022VelType(FT)
         psd_r = CMP.SB2006(FT).pdf_r
@@ -1175,10 +1066,8 @@ function test_p3_closed_form_rain_inner(FT)
             identity, (a, b) -> a, identity, identity, identity,
             FT(1), FT(1e-4), FT(1e3), state,
         )
-        m_closed =
-            which(P3._rain_inner_integrals, typeof((psd_r, vel, rest...)))
-        m_fallback =
-            which(P3._rain_inner_integrals, typeof((1.0, 2.0, rest...)))
+        m_closed = which(P3._rain_inner_integrals, typeof((psd_r, vel, rest...)))
+        m_fallback = which(P3._rain_inner_integrals, typeof((1.0, 2.0, rest...)))
         # closed-form method: first two params are the typed bundle
         @test m_closed.sig.parameters[2] <: CMP.RainParticlePDF_SB2006
         @test m_closed.sig.parameters[3] <: CMP.Chen2022VelType

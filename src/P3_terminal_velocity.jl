@@ -5,13 +5,6 @@
 Returns a single-argument function `v_term(D)` that gives the Chen 2022
 terminal velocity of an ice particle of maximum dimension `D`.
 
-The size-independent coefficient work (`Chen2022_vel_coeffs` and
-monodisperse-PDF construction for both small- and large-ice regimes) is
-done once at call time; the returned closure only does the per-`D`
-evaluation and — if `use_aspect_ratio = true` — the aspect-ratio
-correction `cbrt(ϕᵢ(state, D))`. `ϕᵢ(state, D)` is O(1) because `state`
-caches the regime thresholds.
-
 # Arguments
  - `velocity_params`: A [`CMP.Chen2022VelType`](@ref)
  - `ρₐ`: Air density [kg/m³]
@@ -26,19 +19,9 @@ caches the regime thresholds.
     FT = typeof(ρₐ)
     (; small_ice, large_ice) = velocity_params
     D_cutoff = small_ice.cutoff
-    ρᵢ = FT(916.7)
+    ρᵢ = FT(916.7)  # TODO: Use parameter
     v_term_small = CO.particle_terminal_velocity(small_ice, ρₐ, ρᵢ)
     v_term_large = CO.particle_terminal_velocity(large_ice, ρₐ, ρᵢ)
-
-    # Return ONE closure (not one of two closures chosen by `use_aspect_ratio`).
-    # A `use_aspect_ratio ? closureA : closureB` return makes the closure's
-    # *type* depend on a runtime value and adds a closure-nesting layer; when
-    # that closure is composed into an integrand (`n(D) * v_term(D)`) Julia 1.10
-    # inference exceeds its closure-recursion limit and falls back to `::Any`,
-    # which poisons `integrate` (runtime dispatch / boxing on CPU, InvalidIRError
-    # on GPU). Folding the aspect-ratio choice into a scalar branch *inside* the
-    # single closure keeps the return type concrete (`use_aspect_ratio` is
-    # constant-propagated through this `@inline`).
     v_term(D) =
         let vₜ = D <= D_cutoff ? v_term_small(D) : v_term_large(D)
             use_aspect_ratio ? cbrt(ϕᵢ(state, D)) * vₜ : vₜ
