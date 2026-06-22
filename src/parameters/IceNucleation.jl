@@ -87,9 +87,9 @@ $(DocStringExtensions.FIELDS)
     c₂::FT
     "T₀"
     T₀::FT
-    "heterogeneous freezing parameter a [°C^-1]"
+    "heterogeneous freezing parameter a [K⁻¹]"
     het_a::FT
-    "heterogeneous freezing parameter B [cm^-3 s^-1]"
+    "heterogeneous freezing parameter B [m⁻³ s⁻¹]"
     het_B::FT
 end
 
@@ -121,30 +121,28 @@ $(DocStringExtensions.FIELDS)
 
 # Callable interface
 
-    (rf::RainFreezing)(T, T₀) → het_B * 10⁶ * exp(het_a * (T₀ - T))
+    (rf::RainFreezing)(T, T₀) → het_B * exp(het_a * (T₀ - T))
 
-Returns the volumetric freezing rate in SI units [m⁻³ s⁻¹].
-The stored `het_B` is in [cm⁻³ s⁻¹]; the factor 10⁶ converts cm³ → m³.
+Compute the volumetric freezing rate [m⁻³ s⁻¹]
 """
 @kwdef struct RainFreezing{FT} <: ParametersType
-    "empirical parameter [°K⁻¹]"
+    "empirical parameter [K⁻¹]"
     het_a::FT
-    "water-type dependent parameter [cm⁻³ s⁻¹]"
+    "water-type dependent parameter [m⁻³ s⁻¹]"
     het_B::FT
 end
 
 function RainFreezing(td::CP.ParamDict)
     name_map = (;
         :BarklieGokhale1959_a_parameter => :het_a,
-        :BarklieGokhale1959_B_parameter => :het_B,  # TODO: Fix units in CP, then here
+        :BarklieGokhale1959_B_parameter => :het_B,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return RainFreezing(; parameters...)
 end
 
 # Callable: returns the Bigg (1953) volumetric freezing rate [m⁻³(water) s⁻¹]
-# het_B is stored in [cm⁻³ s⁻¹]; multiply by 10⁶ to convert to [m⁻³(water) s⁻¹].
-(rf::RainFreezing)(T, T₀) = rf.het_B * 1_000_000 * exp(rf.het_a * (T₀ - T))
+(rf::RainFreezing)(T, T₀) = rf.het_B * exp(rf.het_a * (T₀ - T))
 
 """
     IceNucleationParameters{FT, DEP, HOM, P3_type}

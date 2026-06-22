@@ -1003,7 +1003,7 @@ function test_gpu(FT)
                 FT(0.0002736160475969029)
             else
                 # loss of precision due to
-                # `exp(-B * V_l_converted * Δt * exp(a * Tₛ))` -> 0.9999999 (Float32)
+                # `exp(-het_B * V_l * Δt * exp(het_a * Tₛ))` -> 0.9999999 (Float32)
                 # instead of 0.9999998631919762 (Float64).
                 FT(0.00023841858f0)
             end

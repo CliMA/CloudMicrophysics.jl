@@ -172,8 +172,8 @@ Compute number of ice crystals formed from heterogeneous condensation freezing
 
 # Arguments
  - `ip`: The [`CMP.MorrisonMilbrandt2014`](@ref) paramterization, where:
-    + `het_a`: empirical parameter [C⁻¹]
-    + `het_B`: water-type dependent parameter [cm⁻³ s⁻¹]
+    + `het_a`: empirical parameter [K⁻¹]
+    + `het_B`: water-type dependent parameter [m⁻³ s⁻¹]
     + `T₀`: freezing temperature [K]
  - `T`: air temperature [K],
  - `Nₗ`: number of droplets [m⁻³],
@@ -200,9 +200,8 @@ Nᵤ(t) = N₀ exp(-B Vₗ [exp(aTₛ)] t)
 ```
 """
 function P3_het_N_i((; het_a, het_B, T₀)::CMP.MorrisonMilbrandt2014, T, Nₗ, Vₗ, Δt)
-    Vₗ_cm³ = Vₗ * 1_000_000  # converted from m^3 to cm^3
     Tₛ = T₀ - T
-    return Nₗ * (1 - exp(-het_B * Vₗ_cm³ * Δt * exp(het_a * Tₛ)))
+    return Nₗ * (1 - exp(-het_B * Vₗ * Δt * exp(het_a * Tₛ)))
 end
 
 """
