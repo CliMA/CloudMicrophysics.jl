@@ -10,20 +10,27 @@ Parameters for 2-moment warm rain processes (Seifert-Beheng 2006).
 - `air_properties::AP`: AirProperties — air properties for evaporation
 - `condevap::CE`: MM2015 cond-evap relaxation timescale
 - `subdep::SD`: MM2015 sub-dep relaxation timescale
+- `activation_scheme::AS`: aerosol → cloud-droplet activation closure
+  (defaults to [`NoActivation`](@ref); set to e.g. [`DiagnosticNc`](@ref)
+  to enable activation in the fused 2M tendency).
 """
-@kwdef struct WarmRainParams2M{SB, AP, CE, SD} <: ParametersType
+@kwdef struct WarmRainParams2M{SB, AP, CE, SD, AS <: AbstractActivationScheme} <: ParametersType
     seifert_beheng::SB
     air_properties::AP
     condevap::CE
     subdep::SD
+    activation_scheme::AS = NoActivation()
 end
 # Construct WarmRainParams2M from a ClimaParams TOML dictionary
-WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true) =
+WarmRainParams2M(toml_dict::CP.ParamDict; is_limited = true,
+    activation_scheme::AbstractActivationScheme = NoActivation(),
+) =
     WarmRainParams2M(;
         seifert_beheng = SB2006(toml_dict; is_limited),
         air_properties = AirProperties(toml_dict),
         condevap = CondEvap2M(toml_dict),
         subdep = SubDep2M(toml_dict),
+        activation_scheme,
     )
 
 Base.show(io::IO, mime::MIME"text/plain", x::WarmRainParams2M) =
@@ -146,10 +153,11 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true,
     quadrature = QUAD.ChebyshevGauss(100),
+    activation_scheme = NoActivation(),
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = Microphysics2MParams(;
     # Warm rain parameters (always present)
-    warm_rain = WarmRainParams2M(toml_dict; is_limited),
+    warm_rain = WarmRainParams2M(toml_dict; is_limited, activation_scheme),
     # Optional ice phase parameters
     ice = with_ice ?
           P3IceParams(toml_dict; is_limited, quadrature, inp_depletion_model) :

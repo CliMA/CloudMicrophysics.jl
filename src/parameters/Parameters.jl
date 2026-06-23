@@ -49,6 +49,7 @@ include("MicrophysicsP3.jl")
 include("TerminalVelocity.jl")
 
 # Unified parameter containers
+include("ActivationSchemes.jl")
 include("Microphysics0MParams.jl")
 include("Microphysics1MOptions.jl")
 include("Microphysics1MParams.jl")
