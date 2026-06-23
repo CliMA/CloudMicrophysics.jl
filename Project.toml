@@ -25,7 +25,7 @@ MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
 EmulatorModelsExt = ["DataFrames", "MLJ"]
 
 [compat]
-ClimaParams = "1"
+ClimaParams = "1.0.18"
 DataFrames = "1.6"
 DocStringExtensions = "0.8, 0.9"
 FastGaussQuadrature = "1"
