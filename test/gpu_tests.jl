@@ -441,7 +441,7 @@ end
     state = P3.P3State(mp.ice.scheme, L_ice, N_ice, F_rim, ρ_rim)
     logλ = P3.get_distribution_logλ(state)
     output[i] = BMT.bulk_microphysics_tendencies(
-        BMT.RosenbrockAverage(), BMT.Microphysics2Moment(), mp, tps,
+        BMT.rosenbrock_exact(), BMT.Microphysics2Moment(), mp, tps,
         ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
         q_ice[i], n_ice[i], q_rim[i], b_rim[i], logλ, Δt[i], 2,
     )
