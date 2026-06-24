@@ -13,6 +13,7 @@ module DistributionTools
 import ForwardDiff as FD
 import SpecialFunctions as SF
 import LogExpFunctions as LEF
+import ..Utilities as UT
 
 """
     size_distribution(args...; kwargs...)
@@ -63,11 +64,11 @@ so with `∂ₓP(a, x) = x^(a-1) e^(-x) / Γ(a)`,
     ∂x/∂p = 1 / ∂ₓP(a, x),   ∂x/∂a = -∂ₐP / ∂ₓP
 
 `∂ₐP` has no closed form; if (and only if) `a` carries derivatives, it is
-obtained by central differencing the forward map in `a` — using the smaller
-of `(P, Q)`, which keeps relative accuracy in both tails. The redundant `q`
-slot is treated symmetrically, `∂x = ½ ∂x/∂p ⋅ (∂p - ∂q)`, which composes
-correctly for callers passing `(Y, 1 - Y)` regardless of which slot carries
-derivatives.
+obtained by a forward difference of the forward map in `a` against the known
+base value (`P(a, x) = p`, `Q(a, x) = q`), differencing the smaller of
+`(P, Q)`. The redundant `q` slot is treated symmetrically,
+`∂x = ½ ∂x/∂p ⋅ (∂p - ∂q)`, which composes correctly for callers passing
+`(Y, 1 - Y)` regardless of which slot carries derivatives.
 """
 gamma_inc_inv(a::Real, p::Real, q::Real) = _gamma_inc_inv(promote(a, p, q)...)
 
@@ -81,12 +82,10 @@ function _gamma_inc_inv(a::FD.Dual{T}, p::FD.Dual{T}, q::FD.Dual{T}) where {T}
     dxda = if iszero(da)
         zero(dxdp)
     else
-        h = cbrt(eps(typeof(av))) * max(one(av), abs(av))
-        # difference the smaller of (P, Q): the larger one saturates at the
-        # resolution of `one(av)` in its tail, quantizing the difference
+        h = sqrt(eps(typeof(av)))
+        # forward difference the smaller of (P, Q) against its base value
         p_ph, q_ph = SF.gamma_inc(av + h, x)
-        p_mh, q_mh = SF.gamma_inc(av - h, x)
-        dPda = ifelse(pv ≤ qv, (p_ph - p_mh), -(q_ph - q_mh)) / 2h
+        dPda = ifelse(pv ≤ qv, p_ph - pv, -(q_ph - qv)) / h
         -dPda * dxdp
     end
     return FD.Dual{T}(x, dxda * da + dxdp / 2 * (dp - dq))
@@ -222,7 +221,7 @@ Calculate the nth moment of an exponential distribution parameterized in the for
  - `Mⁿ`: The nth physical moment of the distribution
 """
 function exponential_Mⁿ(D_mean, N, n)
-    return N * factorial(n) * D_mean^n
+    return N * UT.fac(n) * D_mean^n
 end
 
 end # module DistributionTools

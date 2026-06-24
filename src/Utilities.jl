@@ -10,6 +10,7 @@ import UnrolledUtilities as UU
 
 export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
 export promote_typeof
+export fac
 
 """
     promote_typeof(args...)
@@ -39,6 +40,13 @@ Compatible with dual numbers (AD) and GPUs.
 - `max(zero(x), x)`
 """
 @inline clamp_to_nonneg(x) = max(zero(x), x)
+
+"""
+    fac(n)
+
+Integer factorial `n!`, valid for `0 ≤ n ≤ 20`.
+"""
+@inline fac(n) = prod(1:n; init = one(n))
 
 """
     ϵ_numerics(FT)

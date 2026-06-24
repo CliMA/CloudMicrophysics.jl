@@ -133,7 +133,7 @@ p3_logλ_3d(::Type{FT}) where {FT} = p3_logλ(FT, get_rcemipii_center_space(FT))
 
 function p3_logλ(::Type{FT}, space) where {FT}
     (; params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, logλ) = get_p3_fields(FT, space)
-    @. logλ = get_distribution_logλ_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    @. logλ = P3.get_distribution_logλ_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
     return logλ
 end
 

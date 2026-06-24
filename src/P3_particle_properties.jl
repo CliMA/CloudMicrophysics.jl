@@ -48,7 +48,11 @@ function P3State(params::CMP.ParametersP3, ρq_ice, ρn_ice, F_rim, ρ_rim)
     D_th = get_D_th(mass, ρ_i)
     D_gr = ifelse(iszero(F_rim), FT(Inf), get_D_gr(mass, ρ_g))
     D_cr = ifelse(iszero(F_rim), FT(Inf), get_D_cr(mass, F_rim, ρ_g))
-    return P3State(params, FT.((ρq_ice, ρn_ice, F_rim, ρ_rim, ρ_g, D_th, D_gr, D_cr))...)
+    return P3State(
+        params,
+        FT(ρq_ice), FT(ρn_ice), FT(F_rim), FT(ρ_rim),
+        FT(ρ_g), FT(D_th), FT(D_gr), FT(D_cr),
+    )
 end
 
 Base.show(io::IO, mime::MIME"text/plain", x::P3State) =
@@ -111,13 +115,12 @@ Return `true` if the particle is unrimed, i.e. `F_rim = 0`.
 """
 isunrimed(state::P3State) = iszero(state.F_rim)
 
-exprel_coeffs(n, k) = 1 // factorial(n + k)  # exprelₖ series coefficient = 1/(n+k)!
-
 @inline exprel1(x) = expm1(x) / x            # exprel₁ = (exp(x)-1)/x
 @inline _exprel2(x) = (expm1(x) - x) / (x * x)
-@inline _exprel2_small(x) = evalpoly(x, ntuple(np1 -> exprel_coeffs(np1 - 1, 2), Val(8)))
+@inline _exprel2_small(x) =
+    evalpoly(x, ntuple(i -> inv(oftype(x, UT.fac(i + 1))), Val(8)))
 @inline function exprel2(x)                  # exprel₂ = (exp(x)-1-x)/x²
-    abs(x) < 1 // 5 && return _exprel2_small(x)
+    abs(x) < oftype(x, 1 / 5) && return _exprel2_small(x)
     return _exprel2(x)
 end
 
