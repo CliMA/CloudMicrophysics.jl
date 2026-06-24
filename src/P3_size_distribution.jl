@@ -20,7 +20,10 @@ concentration at diameter `D`, for the [`P3State`](@ref) `state` and log-slope `
 function logN′ice(state::P3State, logλ)
     μ = get_μ(state, logλ)
     log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
-    return P3LogNumberFunctor(log_N₀, μ, logλ)
+    # Promote to a common type: differentiating w.r.t. the ice number makes
+    # `log_N₀` a `Dual` while `μ` (a function of the fixed `logλ`) stays a plain
+    # float, and `P3LogNumberFunctor` stores both in a single field type.
+    return P3LogNumberFunctor(promote(log_N₀, μ)..., logλ)
 end
 
 # Callable returned by `size_distribution`: `n(D) = exp(logN′(D))`.

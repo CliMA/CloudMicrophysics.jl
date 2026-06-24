@@ -116,7 +116,6 @@ Microphysics2M.number_decrease_for_mass_limit
 DistributionTools
 DistributionTools.generalized_gamma_quantile
 DistributionTools.generalized_gamma_cdf
-DistributionTools.gamma_inc_inv
 DistributionTools.exponential_cdf
 DistributionTools.exponential_quantile
 ```
@@ -399,6 +398,7 @@ Utilities.rime_mass_fraction
 Utilities.rime_density
 Utilities.sgs_weight_function
 Utilities.unrolled_logsumexp
+Utilities.fac
 ```
 
 # Common utility functions
