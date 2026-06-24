@@ -8,6 +8,7 @@ import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.DistributionTools as DT
 import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.ThermodynamicsInterface as TDI
+import CloudMicrophysics.Utilities as UT
 import ForwardDiff as FD
 import SpecialFunctions as SF
 
@@ -166,6 +167,39 @@ end
         @test isfinite(logλ)
         @test logλ == P3.get_distribution_logλ(st)
     end
+end
+
+@testset "safe_call typed fallback" begin
+    # the closure is not evaluated on the fallback branch
+    risky(x) = UT.safe_call(x > 0) do
+        sqrt(x)
+    end
+    @test risky(4.0) == 2.0
+    @test risky(-1.0) == 0.0
+
+    # a value-threshold fires at the degenerate point: the fallback derivative
+    # is a clean zero, not a NaN
+    g(x) = UT.safe_call(x > eps(typeof(x))) do
+        inv(x)
+    end
+    @test g(0.0) == 0.0
+    @test FD.derivative(g, 0.0) == 0.0
+    @test FD.derivative(g, 2.0) ≈ -0.25
+
+    # the fallback shares the element type the closure produces, so the result
+    # is concrete when arguments mix floats and `Dual`s
+    h(a, b) = UT.safe_call(a > 0) do
+        a / b
+    end
+    @test h(1.0, 2.0) === 0.5
+    @test @inferred(FD.derivative(x -> h(x, 2.0), -1.0)) === 0.0
+
+    # a non-default `otherwise`
+    k(x) = UT.safe_call(x > 0; otherwise = one) do
+        sqrt(x)
+    end
+    @test k(4.0) == 2.0
+    @test k(-1.0) == 1.0
 end
 
 test_ad_compatibility(Float64)
