@@ -60,8 +60,9 @@ struct DoublePrecision <: Precision end
 @inline _beta_maxit(::DoublePrecision) = 350
 @inline _erf_maxit(::SinglePrecision) = 35
 @inline _erf_maxit(::DoublePrecision) = 80
-@inline _inv_maxit(::SinglePrecision) = 6
-@inline _inv_maxit(::DoublePrecision) = 12
+# With the convergence break, these are safety bounds; Halley needs ~4 steps.
+@inline _inv_maxit(::SinglePrecision) = 12
+@inline _inv_maxit(::DoublePrecision) = 20
 
 # ---------------------------------------------------------------------------
 # loggamma / gamma  (Lanczos g = 7), valid for real arguments via reflection.
@@ -311,6 +312,7 @@ Invert the regularized lower incomplete gamma: return `x` with `P(a,x) = p`
     _gamma_inc_inv(T(a), T(p), precision(T))
 end
 @inline function _gamma_inc_inv(a::T, p::T, pr::Precision) where {T}
+    tol = eps(_underlying(precision(T)))
     lga = _loggamma_pos(a)
     x = _gii_guess(a, p, lga)
     @inbounds for _ in 1:_inv_maxit(pr)
@@ -319,7 +321,12 @@ end
         fp = exp(logfp)                 # P'(a,x) > 0
         dx = f / fp
         fr = ((a - one(T)) / x - one(T))   # f''/f'
-        x -= dx / (one(T) - T(0.5) * dx * fr)   # Halley step
+        step = dx / (one(T) - T(0.5) * dx * fr)   # Halley step
+        x -= step
+        # Halley converges cubically, so a relative step of √eps leaves a
+        # remaining error of ~eps^(3/2) (machine precision); √eps also sits
+        # above the inner `gamma_inc` noise floor, so the break fires reliably.
+        abs(step) <= sqrt(tol) * abs(x) && break
     end
     x
 end
