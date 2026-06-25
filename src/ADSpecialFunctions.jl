@@ -167,8 +167,8 @@ Compute the regularized lower/upper incomplete gamma functions
 `(P(a,x), Q(a,x))` (matches `SpecialFunctions.gamma_inc`). `a > 0`, `x ≥ 0`.
 """
 @inline function gamma_inc(a, x)
-    T = promote_type(typeof(a), typeof(x))
-    _gamma_inc(T(a), T(x), precision(T))
+    af, xf = promote(float(a), float(x))
+    _gamma_inc(af, xf, precision(af))
 end
 @inline function _gamma_inc(a::T, x::T, p::Precision) where {T}
     n = _gamma_maxit(p)
@@ -225,8 +225,8 @@ Compute the regularized incomplete beta `(I_x(a,b), 1 - I_x(a,b))`
 (matches `SpecialFunctions.beta_inc`). `a,b > 0`, `0 ≤ x ≤ 1`.
 """
 @inline function beta_inc(a, b, x)
-    T = promote_type(typeof(a), typeof(b), typeof(x))
-    _beta_inc(T(a), T(b), T(x), precision(T))
+    af, bf, xf = promote(float(a), float(b), float(x))
+    _beta_inc(af, bf, xf, precision(af))
 end
 @inline function _beta_inc(a::T, b::T, x::T, p::Precision) where {T}
     x <= zero(T) && return (zero(T), one(T))
@@ -308,8 +308,8 @@ Invert the regularized lower incomplete gamma: return `x` with `P(a,x) = p`
 `0 < p < 1`. AD-able in both `a` and `p`.
 """
 @inline function gamma_inc_inv(a, p)
-    T = promote_type(typeof(a), typeof(p))
-    _gamma_inc_inv(T(a), T(p), precision(T))
+    af, pf = promote(float(a), float(p))
+    _gamma_inc_inv(af, pf, precision(af))
 end
 @inline function _gamma_inc_inv(a::T, p::T, pr::Precision) where {T}
     tol = eps(_underlying(precision(T)))
