@@ -20,6 +20,9 @@ function accretion end
 
 include("Utilities.jl")
 include("ThermodynamicsInterface.jl")
+# AD-compatible, GPU-lean special functions (additive; not yet wired into the
+# microphysics paths). See `ADSpecialFunctions` for the accuracy/AD contract.
+include("ADSpecialFunctions.jl")
 include("Common.jl")
 include("DistributionTools.jl")
 include("Microphysics0M.jl")
