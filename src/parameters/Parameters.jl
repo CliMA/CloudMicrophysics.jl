@@ -10,6 +10,8 @@ using DocStringExtensions
 import ClimaParams as CP
 import SpecialFunctions as SF
 import CloudMicrophysics: ShowMethods
+import CloudMicrophysics.Quadrature  # bind the module name (docstring @refs resolve here)
+import CloudMicrophysics.Quadrature as QUAD
 
 # Super-types (dispatch, broadcasting, etc...)
 include("AbstractTypes.jl")

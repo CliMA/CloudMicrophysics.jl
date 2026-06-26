@@ -87,9 +87,9 @@ $(DocStringExtensions.FIELDS)
     c₂::FT
     "T₀"
     T₀::FT
-    "heterogeneous freezing parameter a [°C^-1]"
+    "heterogeneous freezing parameter a [K⁻¹]"
     het_a::FT
-    "heterogeneous freezing parameter B [cm^-3 s^-1]"
+    "heterogeneous freezing parameter B [m⁻³ s⁻¹]"
     het_B::FT
 end
 
@@ -105,6 +105,44 @@ function MorrisonMilbrandt2014(td::CP.ParamDict)
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return MorrisonMilbrandt2014(; parameters...)
 end
+
+export RainFreezing
+
+"""
+    RainFreezing{FT}
+
+Parameters for heterogeneous (Bigg-type) immersion freezing of rain drops.
+
+Stores the empirical Barklie-Gokhale (1959) / Bigg (1953) parameters
+used by Morrison & Milbrandt (2015).
+
+# Fields
+$(DocStringExtensions.FIELDS)
+
+# Callable interface
+
+    (rf::RainFreezing)(T, T₀) → het_B * exp(het_a * (T₀ - T))
+
+Compute the volumetric freezing rate [m⁻³ s⁻¹]
+"""
+@kwdef struct RainFreezing{FT} <: ParametersType
+    "empirical parameter [K⁻¹]"
+    het_a::FT
+    "water-type dependent parameter [m⁻³ s⁻¹]"
+    het_B::FT
+end
+
+function RainFreezing(td::CP.ParamDict)
+    name_map = (;
+        :BarklieGokhale1959_a_parameter => :het_a,
+        :BarklieGokhale1959_B_parameter => :het_B,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return RainFreezing(; parameters...)
+end
+
+# Callable: returns the Bigg (1953) volumetric freezing rate [m⁻³(water) s⁻¹]
+(rf::RainFreezing)(T, T₀) = rf.het_B * exp(rf.het_a * (T₀ - T))
 
 """
     IceNucleationParameters{FT, DEP, HOM, P3_type}
@@ -158,3 +196,32 @@ function Frostenberg2023(td::CP.ParamDict)
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return Frostenberg2023(; parameters...)
 end
+
+# ---------------------------------------------------------------------------
+# F23 INP-activation memory models
+# ---------------------------------------------------------------------------
+
+export NIceProxyDepletion
+
+"""
+    NIceProxyDepletion{FT}
+
+Use the in-cell ice number `n_ice` as the depletion proxy for F23
+activation. This is the legacy / always-on form: a column with no ice
+sees the full INPC target; activation events do not by themselves
+deplete the budget on a memory timescale, but the ice they create
+proxies "INPs already used" downstream until that ice sublimates,
+sediments out, or melts.
+
+Conflates two physically distinct counts: "ice in column" and
+"INPs already activated in this air parcel". Drop a fresh anvil into
+clean air below it and the F23 channel artificially shuts off.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+struct NIceProxyDepletion{FT}
+    "F23 activation relaxation timescale [s] (default `300`)"
+    τ_act::FT
+end
+NIceProxyDepletion(; τ_act = 300) = NIceProxyDepletion(τ_act)

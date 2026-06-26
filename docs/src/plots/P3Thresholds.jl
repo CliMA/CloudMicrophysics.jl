@@ -11,7 +11,7 @@ params = CMP.ParametersP3(FT)
 F_rims = FT.(0.0:0.01:0.9)
 ρ_rims = FT.(200.0:10.0:900.0)
 
-get_state2(F_rim, ρ_rim) = P3.get_state(params; F_rim, ρ_rim, L_ice = FT(0), N_ice = FT(0))
+get_state2(F_rim, ρ_rim) = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)
 
 states = get_state2.(F_rims, ρ_rims')
 
@@ -27,7 +27,7 @@ for (i, key) in enumerate(thresh_keys)
         ""
     end
     ax = Makie.Axis(fig[i, 1], xlabel = "F_rim", ylabel = "ρ_rim", title = title)
-    threshold = getproperty.(P3.get_thresholds_ρ_g.(states), key) * 1e3
+    threshold = getproperty.(states, key) * 1e3
     hm = Makie.heatmap!(ax, F_rims, ρ_rims, threshold)
     Makie.Colorbar(fig[i, 2], hm, label = "mm")
 end
@@ -37,7 +37,7 @@ end
 for (i, key) in enumerate(ρ_keys)
     ax = Makie.Axis(fig[i, 3], xlabel = "F_rim", ylabel = "ρ_rim", title = string(key))
     density = if key == :ρ_g
-        getproperty.(P3.get_thresholds_ρ_g.(states), key)
+        getproperty.(states, key)
     else # :ρ_d
         P3.get_ρ_d.(states)
     end

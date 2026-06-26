@@ -30,7 +30,7 @@ function get_values(
         for j in 1:y_resolution
             F_rim = F_rims[i]
             ρ_rim = ρ_rims[j]
-            state = P3.get_state(params; F_rim, ρ_rim, L_ice = L, N_ice = N)
+            state = P3.P3State(params, L, N, F_rim, ρ_rim)
             logλ = P3.get_distribution_logλ(state)
             V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio = false)
             V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio = true)
@@ -38,7 +38,7 @@ function get_values(
             D_m_regimes[i, j] = D_m[i, j]
             ϕᵢ[i, j] = P3.ϕᵢ(state, D_m[i, j])
 
-            (; D_th, D_gr, D_cr) = P3.get_thresholds_ρ_g(state)
+            (; D_th, D_gr, D_cr) = state
             # plot the regimes
             if D_th > D_m[i, j]
                 # small spherical ice

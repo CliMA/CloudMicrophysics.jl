@@ -38,7 +38,7 @@ Makie.save("P3SlopeParameterizations_power_law.svg", fig)
 function make_multiple_solutions_plot()
     L_known = 2.39e-4
     N_known = 1e5
-    state = P3.get_state(params; F_rim = 0.0, ρ_rim = 400.0, L_ice = L_known, N_ice = N_known)
+    state = P3.P3State(params, L_known, N_known, 0.0, 400.0)
     target_logLdN = log(L_known) - log(N_known)
     shape_problem(logλ) = P3.logLdivN(state, logλ) - target_logLdN
     shape_sol = shape_problem.(logλs)
