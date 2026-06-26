@@ -165,12 +165,13 @@ function log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
     L = ρₐ * q
     # If L or N are (essentially) zero, return `A=0` (no number per mass), `B=∞` (zero mass "length" scale)
     (N < UT.ϵ_numerics_2M_N(FT) || L < UT.ϵ_numerics_2M_M(FT)) && return (log(zero(N)), log(1 / zero(q)))
-    (; νc, μc) = pdf_c
+    (; νc, μc, loggamma_z1, loggamma_z2) = pdf_c
     logx̄ = log(L / N)
     z1 = (νc + 1) / μc
-    z2 = (νc + 2) / μc
-    logB = -μc * (logx̄ + SF.loggamma(z1) - SF.loggamma(z2))
-    logA = log(μc) + log(N) + z1 * logB - SF.loggamma(z1)
+    # loggamma_z1 = SF.loggamma(z1) (pre-computed in pdf_c)
+    # loggamma_z2 = SF.loggamma(z2) (pre-computed in pdf_c)
+    logB = -μc * (logx̄ + loggamma_z1 - loggamma_z2)
+    logA = log(μc) + log(N) + z1 * logB - loggamma_z1
     return (logA, logB)
 end
 
@@ -795,8 +796,8 @@ function rain_evaporation(
     a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^(-2 // 3)
     b_vent_0 = bv * Γ_incl(-1 // 2 + 3 // 2 * β, t_star) / FT(6)^(β / 2 - 1 // 2)
 
-    a_vent_1 = av * SF.gamma(FT(2)) / cbrt(FT(6))
-    b_vent_1 = bv * SF.gamma(5 // 2 + 3 // 2 * β) / FT(6)^(β / 2 + 1 // 2)
+    a_vent_1 = evap.a_vent_1
+    b_vent_1 = evap.b_vent_1
 
     N_Re = α * xr_mean^β * sqrt(ρ0 / ρ) * Dr / ν_air
     Fv0 = a_vent_0 + b_vent_0 * cbrt(ν_air / D_vapor) * sqrt(N_Re)

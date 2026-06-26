@@ -6,7 +6,11 @@ ClimaComms.@import_required_backends
 # Needed for parameters
 import ClimaParams as CP
 
+# Reference implementation for the fast incomplete-gamma approximations
+import SpecialFunctions as SF
+
 # Modules to test
+import CloudMicrophysics.Utilities as UT
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.AerosolModel as AM
@@ -442,6 +446,16 @@ end
     state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
     logλ = P3.get_distribution_logλ(state)
     output[i] = P3.ice_self_collection(state, logλ, vel_params, ρₐ[i])
+end
+
+# Evaluates the fast incomplete-gamma approximations on the device. This is the
+# load-bearing check that `SF.loggamma` / `SF.gamma`, called inside
+# `Utilities._gamma_inc`, compile and run on the GPU.
+@kernel inbounds = true function test_gamma_inc_kernel!(output, a, x, p, q)
+    i = @index(Global, Linear)
+    P, Q = UT.gamma_inc(a[i], x[i])
+    x_inv = UT.gamma_inc_inv(a[i], p[i], q[i])
+    output[i] = (; P, Q, x_inv)
 end
 
 """
@@ -1254,6 +1268,41 @@ function test_gpu(FT)
         res = out[1]
         TT.@test isfinite(res.dNdt)
         TT.@test res.dNdt > 0
+    end
+
+    TT.@testset "incomplete gamma (UT vs SpecialFunctions) on device" begin
+        # Direct comparison of the fast `UT.gamma_inc` / `UT.gamma_inc_inv`
+        # against `SpecialFunctions`, evaluated ON the GPU. This validates both
+        # the accuracy of the approximation and — the load-bearing assumption of
+        # the whole exercise — that `SF.loggamma`/`SF.gamma` (still called inside
+        # `_gamma_inc`) actually compile and run on the device.
+        #
+        # `p` values are dyadic so that `q = 1 - p` is exact and `SF.gamma_inc_inv`
+        # (which requires `p + q == 1`) accepts the host reference unchanged.
+        avals = FT[1, 1.5, 2, 2.5, 3.5, 5, 7.5]
+        xvals = FT[0.1, 0.5, 1, 2.5, 5, 8, 12]
+        pvals = FT[0.03125, 0.125, 0.25, 0.5, 0.75, 0.875, 0.96875]
+        a_d = ArrayType(avals)
+        x_d = ArrayType(xvals)
+        p_d = ArrayType(pvals)
+        q_d = ArrayType(FT(1) .- pvals)
+
+        DT = @NamedTuple{P::FT, Q::FT, x_inv::FT}
+        (; output, ndrange) = setup_output(length(avals), DT)
+        kernel! = test_gamma_inc_kernel!(backend, work_groups)
+        kernel!(output, a_d, x_d, p_d, q_d; ndrange)
+        out = Array(output)
+
+        # native-FT approximation is less precise than the Float64-backed SF
+        atol_PQ = FT == Float32 ? FT(2e-5) : FT(1e-6)
+        rtol_inv = FT == Float32 ? FT(2e-4) : FT(1e-5)
+        for i in eachindex(avals)
+            P_sf, Q_sf = SF.gamma_inc(avals[i], xvals[i])
+            TT.@test isapprox(out[i].P, P_sf; atol = atol_PQ)
+            TT.@test isapprox(out[i].Q, Q_sf; atol = atol_PQ)
+            x_sf = SF.gamma_inc_inv(avals[i], pvals[i], FT(1) - pvals[i])
+            TT.@test isapprox(out[i].x_inv, x_sf; rtol = rtol_inv, atol = rtol_inv)
+        end
     end
 end  # function test_gpu(FT)
 

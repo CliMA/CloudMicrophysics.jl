@@ -375,7 +375,13 @@ Assumes exponential size distribution (μ=0).
 @inline function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where {FT}
     # μ = 0 for exponential distribution, δ = k + 1
     δ = FT(k + 1)
-    return a * exp(-δ * log(λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / SF.gamma(δ)
+    # Γ(δ) for integer δ is just (δ-1)! — avoid calling SF.gamma.
+    # `k` must be a small literal at every call site (0..3): it constant-folds,
+    # keeping `factorial` off the GPU and away from its overflow/throw branches.
+    # We use ifelse rather than `factorial(k)` to avoid host memory table lookups
+    # (`_fact_table`) on the GPU which cause illegal memory access errors.
+    gamma_delta = ifelse(k == 3, FT(6), ifelse(k == 2, FT(2), FT(1)))
+    return a * exp(-δ * log(λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / gamma_delta
 end
 
 """

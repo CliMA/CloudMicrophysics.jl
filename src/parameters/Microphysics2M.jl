@@ -409,6 +409,10 @@ $(DocStringExtensions.FIELDS)
     xc_max::FT
     "Cloud liquid water density [kg/m3]"
     ρw::FT
+    "pre-computed loggamma((νc + 1) / μc)"
+    loggamma_z1::FT
+    "pre-computed loggamma((νc + 2) / μc)"
+    loggamma_z2::FT
 end
 
 function CloudParticlePDF_SB2006(td::CP.ParamDict)
@@ -420,7 +424,12 @@ function CloudParticlePDF_SB2006(td::CP.ParamDict)
         :density_liquid_water => :ρw,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return CloudParticlePDF_SB2006(; parameters...)
+    (; νc, μc) = parameters
+    z1 = (νc + 1) / μc
+    z2 = (νc + 2) / μc
+    loggamma_z1 = SF.loggamma(z1)
+    loggamma_z2 = SF.loggamma(z2)
+    return CloudParticlePDF_SB2006(; parameters..., loggamma_z1, loggamma_z2)
 end
 
 """
@@ -566,6 +575,10 @@ $(DocStringExtensions.FIELDS)
     β::FT
     "Reference air density [kg/m3]"
     ρ0::FT
+    "pre-computed av * Γ(2) / 6^(1/3) = av / cbrt(6)"
+    a_vent_1::FT
+    "pre-computed bv * Γ(5/2 + 3β/2) / 6^(β/2 + 1/2)"
+    b_vent_1::FT
 end
 
 function EvaporationSB2006(td::CP.ParamDict)
@@ -577,7 +590,10 @@ function EvaporationSB2006(td::CP.ParamDict)
         :SB2006_reference_air_density => :ρ0,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return EvaporationSB2006(; parameters...)
+    (; av, bv, β) = parameters
+    a_vent_1 = av / cbrt(typeof(av)(6))
+    b_vent_1 = bv * SF.gamma(typeof(bv)(5 // 2) + typeof(bv)(3 // 2) * β) / typeof(bv)(6)^(β / 2 + typeof(bv)(1 // 2))
+    return EvaporationSB2006(; parameters..., a_vent_1, b_vent_1)
 end
 
 """

@@ -501,14 +501,15 @@ end
         n0 = get_n0(rain.pdf, q_rai, ρ)
         v0 = get_v0(vel, ρ)
         (; r0, m0, me, Δm, χm) = rain.mass
-        (; χv, ve, Δv) = vel
+        (; χv, ve, Δv, gamma_accr_rain_sink) = vel
         (; a0, ae, χa, Δa) = rain.area
 
         λ_inv = lambda_inverse(rain.pdf, rain.mass, q_rai, ρ)
 
+        # gamma_accr_rain_sink = SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) (pre-computed in vel)
         accr_rate =
             E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv * λ_ice_inv * λ_inv *
-            SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) /
+            gamma_accr_rain_sink /
             (r0 / λ_inv)^FT(me + ae + ve + Δm + Δa + Δv)
     end
     return accr_rate

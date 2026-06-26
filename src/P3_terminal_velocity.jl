@@ -1,4 +1,18 @@
 
+# Callable returned by `ice_particle_terminal_velocity`: piecewise small/large-ice
+# Chen 2022 velocity with optional aspect-ratio correction.
+struct P3IceParticleVelocityFunctor{FT, VS, VL, S} <: Function
+    v_term_small::VS
+    v_term_large::VL
+    D_cutoff::FT
+    state::S
+    use_aspect_ratio::Bool
+end
+@inline function (f::P3IceParticleVelocityFunctor)(D)
+    vₜ = D <= f.D_cutoff ? f.v_term_small(D) : f.v_term_large(D)
+    return f.use_aspect_ratio ? cbrt(ϕᵢ(f.state, D)) * vₜ : vₜ
+end
+
 """
     ice_particle_terminal_velocity(velocity_params, ρₐ, state::P3State; [use_aspect_ratio])
 
@@ -22,12 +36,15 @@ terminal velocity of an ice particle of maximum dimension `D`.
     ρᵢ = FT(916.7)  # TODO: Use parameter
     v_term_small = CO.particle_terminal_velocity(small_ice, ρₐ, ρᵢ)
     v_term_large = CO.particle_terminal_velocity(large_ice, ρₐ, ρᵢ)
-    v_term(D) =
-        let vₜ = D <= D_cutoff ? v_term_small(D) : v_term_large(D)
-            use_aspect_ratio ? cbrt(ϕᵢ(state, D)) * vₜ : vₜ
-        end
-    return v_term
+    return P3IceParticleVelocityFunctor(v_term_small, v_term_large, D_cutoff, state, use_aspect_ratio)
 end
+
+struct P3NumberWeightedIntegrand{N, V} <: Function
+    n::N
+    v_term::V
+end
+@inline (f::P3NumberWeightedIntegrand)(D) = f.n(D) * f.v_term(D)
+
 """
     ice_terminal_velocity_number_weighted(
         velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
@@ -64,11 +81,18 @@ function ice_terminal_velocity_number_weighted(
     n = DT.size_distribution(state, logλ)
 
     # ∫n(D) v(D) dD
-    number_weighted_integrand(D) = n(D) * v_term(D)
+    number_weighted_integrand = P3NumberWeightedIntegrand(n, v_term)
 
     bnds = integral_bounds(state, logλ; p)
     return integrate(number_weighted_integrand, bnds, quad) / ρn_ice
 end
+
+struct P3MassWeightedIntegrand{N, V, S} <: Function
+    n::N
+    v_term::V
+    state::S
+end
+@inline (f::P3MassWeightedIntegrand)(D) = f.n(D) * f.v_term(D) * ice_mass(f.state, D)
 
 """
     ice_terminal_velocity_mass_weighted(velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ; [use_aspect_ratio], [∫kwargs...])
@@ -103,7 +127,7 @@ function ice_terminal_velocity_mass_weighted(
     n = DT.size_distribution(state, logλ)  # Number concentration at diameter D
 
     # ∫n(D) m(D) v(D) dD
-    mass_weighted_integrand(D) = n(D) * v_term(D) * ice_mass(state, D)
+    mass_weighted_integrand = P3MassWeightedIntegrand(n, v_term, state)
 
     bnds = integral_bounds(state, logλ; p)
     return integrate(mass_weighted_integrand, bnds, quad) / ρq_ice
