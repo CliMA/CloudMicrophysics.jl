@@ -113,7 +113,9 @@ function effective_radius_2M((; pdf_c, pdf_r)::CMP.SB2006, q_lcl, q_rai, N_lcl, 
     M3_r = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C
 
     # 2nd moment in radius = (2/3)rd moment in mass
-    n_mass = 2 // 3
+    # (use a Float, not a Rational: a rational exponent forces a runtime
+    #  Rational{Int64}/gcd construction in GPU kernels)
+    n_mass = FT(2) / 3
     M2_c = notvalid(Bc) ? FT(0) : DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_lcl, n_mass) / C^(n_mass)
     M2_r = notvalid(Br) ? FT(0) : DT.generalized_gamma_Mⁿ(νr, μr, Br, N_rai, n_mass) / C^(n_mass)
 
