@@ -34,7 +34,7 @@ Fᵣ = FT(0.8)
 label1 = "ρₐ=$ρₐ kg/m³, Fᵣ=$Fᵣ, ρᵣ=$(Int(ρᵣ)) kg/m³"
 state = P3.P3State(params, Lᵢ, Nᵢ, Fᵣ, ρᵣ)
 logλ = P3.get_distribution_logλ(state)
-melt1 = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ)
+melt1 = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
 dLdt1 = getfield.(melt1, :dLdt)
 dNdt1 = getfield.(melt1, :dNdt)
 
@@ -42,7 +42,7 @@ Fᵣ = FT(0.2)
 label2 = "ρₐ=$ρₐ kg/m³, Fᵣ=$Fᵣ, ρᵣ=$(Int(ρᵣ)) kg/m³"
 state = P3.P3State(params, Lᵢ, Nᵢ, Fᵣ, ρᵣ)
 logλ = P3.get_distribution_logλ(state)
-melt2 = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ)
+melt2 = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
 dLdt2 = getfield.(melt2, :dLdt)
 dNdt2 = getfield.(melt2, :dNdt)
 
@@ -50,7 +50,7 @@ dNdt2 = getfield.(melt2, :dNdt)
 label3 = "ρₐ=$ρₐ kg/m³, Fᵣ=$Fᵣ, ρᵣ=$(Int(ρᵣ)) kg/m³"
 state = P3.P3State(params, Lᵢ, Nᵢ, Fᵣ, ρᵣ)
 logλ = P3.get_distribution_logλ(state)
-melt3 = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ)
+melt3 = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
 dLdt3 = getfield.(melt3, :dLdt)
 dNdt3 = getfield.(melt3, :dNdt)
 
@@ -58,7 +58,7 @@ dNdt3 = getfield.(melt3, :dNdt)
 label4 = "ρₐ=$ρₐ kg/m³, Fᵣ=$Fᵣ, ρᵣ=$(Int(ρᵣ)) kg/m³"
 state = P3.P3State(params, Lᵢ, Nᵢ, Fᵣ, ρᵣ)
 logλ = P3.get_distribution_logλ(state)
-melt4 = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ)
+melt4 = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
 dLdt4 = getfield.(melt4, :dLdt)
 dNdt4 = getfield.(melt4, :dNdt)
 

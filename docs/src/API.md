@@ -189,6 +189,7 @@ P3Scheme.ice_mass
 P3Scheme.ice_density
 P3Scheme.∂ice_mass_∂D
 P3Scheme.ice_area
+P3Scheme.ϕ_material_density
 P3Scheme.ϕᵢ
 ```
 
@@ -261,7 +262,6 @@ P3Scheme.integrate
 P3Scheme.subintervals
 P3Scheme.ChebyshevGauss
 Quadrature.GaussLegendre
-Quadrature.build_quadrature
 P3Scheme.integral_bounds
 ```
 

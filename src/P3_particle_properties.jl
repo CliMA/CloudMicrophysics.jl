@@ -305,6 +305,33 @@ function weighted_average(f_a, a, b)
 end
 
 """
+    regime_value(state::P3State, D, small, unrimed, dense_rimed, graupel, partially_rimed)
+
+Select the value for the P3 mass/area regime that the maximum dimension `D` falls in:
+ - `small`:             small spherical ice     (`D < D_th`),
+ - `unrimed`:           large unrimed ice       (`F_rim = 0` ∧ `D_th ≤ D`),
+ - `dense_rimed`:       dense rimed ice         (`D_th ≤ D < D_gr`),
+ - `graupel`:           graupel (rimed)         (`D_gr ≤ D < D_cr`),
+ - `partially_rimed`:   partially rimed ice     (`D_cr ≤ D`).
+
+The five values are positional, in the order above, and share a type.
+"""
+@inline function regime_value(
+    state::P3State, D,
+    small::T, unrimed::T, dense_rimed::T, graupel::T, partially_rimed::T,
+) where {T}
+    (; F_rim, D_th, D_gr, D_cr) = state
+    #! format: off
+    return ifelse(D < D_th,      small,             # small spherical ice
+           ifelse(iszero(F_rim), unrimed,           # large nonspherical unrimed ice
+           ifelse(D < D_gr,      dense_rimed,       # dense nonspherical rimed ice
+           ifelse(D < D_cr,      graupel,           # graupel (rimed)
+                                 partially_rimed,   # partially rimed ice
+    ))))
+    #! format: on
+end
+
+"""
     ice_mass_coeffs(state::P3State, D)
 
 Return the coefficients for the ice mass power law at diameter `D`.
@@ -318,21 +345,15 @@ Return the coefficients for the ice mass power law at diameter `D`.
 """
 function ice_mass_coeffs(state::P3State, D)
     FT = promote_type(eltype(state), eltype(D))
-    (; params, F_rim, ρ_g, D_th, D_gr, D_cr) = state
+    (; params, F_rim, ρ_g) = state
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
-    a, b = if D < D_th       # small spherical ice
-        (ρ_i * π / 6, 3)
-    elseif iszero(F_rim)     # large nonspherical unrimed ice
-        (α_va, β_va)
-    elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
-        (α_va, β_va)
-    elseif D_gr ≤ D < D_cr   # graupel (rimed)
-        (ρ_g * π / 6, 3)
-    else # D_cr ≤ D          # partially rimed ice
-        (α_va / (1 - F_rim), β_va)
-    end
-    return FT(a), FT(b)
+    m_sphere(ρ) = (FT(ρ * π / 6), FT(3))   # spherical mass ∝ ρ (π/6) D³
+    m_power(a) = (FT(a), FT(β_va))         # power-law mass ∝ a D^β_va
+    return regime_value(state, D,
+        m_sphere(ρ_i), m_power(α_va), m_power(α_va), m_sphere(ρ_g),
+        m_power(α_va / (1 - F_rim)),
+    )
 end
 
 """
@@ -361,7 +382,6 @@ Return the density of a particle with diameter `D`
 # Notes:
  The density of nonspherical particles is assumed to be the particle mass divided
  by the volume of a sphere with the same D [MorrisonMilbrandt2015](@cite).
- Needed for aspect ratio calculation, so we assume zero liquid fraction.
 """
 ice_density(state::P3State, D) = ice_mass(state, D) / CO.volume_sphere_D(D)
 
@@ -395,46 +415,61 @@ Return the cross-sectional area of a particle based on where it falls in the
  - `D`: maximum particle dimension [m]
 """
 function ice_area(state::P3State, D)
-    (; params, F_rim, D_th, D_gr, D_cr) = state
+    (; params, F_rim) = state
     (; γ, σ) = params.area
-    spherical_area(D) = D^2 * π / 4
-    nonspherical_area(D) = γ * D^σ
-    return if D < D_th       # small spherical ice
-        spherical_area(D)
-    elseif iszero(F_rim)     # large nonspherical unrimed ice
-        nonspherical_area(D)
-    elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
-        nonspherical_area(D)
-    elseif D_gr ≤ D < D_cr   # graupel (rimed)
-        spherical_area(D)
-    else # D_cr ≤ D          # partially rimed ice
-        weighted_average(F_rim, spherical_area(D), nonspherical_area(D))
-    end
+    spherical = D^2 * π / 4
+    nonspherical = γ * D^σ
+    return regime_value(state, D,
+        spherical, nonspherical, nonspherical, spherical,
+        weighted_average(F_rim, spherical, nonspherical),
+    )
+end
+
+"""
+    ϕ_material_density(state::P3State, D)
+
+Return the material density of the ice particle's solid at diameter `D`, used in
+the aspect-ratio closure [`ϕᵢ`](@ref). This is `ρ_i` in every mass regime except
+graupel (`D_gr ≤ D < D_cr`), where it is the graupel density `ρ_g`.
+
+This is the density of the actual solid material, not the size-dependent effective
+density `mᵢ / Vsphere(D)` returned by [`ice_density`](@ref); see the
+[P3 documentation](@ref "Aspect ratio") for the distinction.
+"""
+function ϕ_material_density(state::P3State, D)
+    (; params, ρ_g) = state
+    (; ρ_i) = params
+    # small, unrimed, dense_rimed → ρ_i; graupel → ρ_g; partially_rimed → ρ_i
+    return regime_value(state, D, ρ_i, ρ_i, ρ_i, ρ_g, ρ_i)
 end
 
 """
     ϕᵢ(state::P3State, D)
 
-Returns the aspect ratio (ϕ) for an ice particle with diameter `D`
+Return the oblate aspect ratio `ϕ = 3√π mᵢ / (4 ρ aᵢ^{3/2})` (`κ = 1/3`) for an
+ice particle of maximum dimension `D`, with mass `mᵢ = ice_mass(state, D)`,
+projected area `aᵢ = ice_area(state, D)`, and material density
+`ρ = ϕ_material_density(state, D)`. Assumes zero liquid fraction.
 
 # Arguments
  - `state`: The [`P3State`](@ref)
  - `D`: maximum dimension of ice particle [m]
 
-# Notes
- The density of nonspherical particles is assumed to be equal to the particle mass
- divided by the volume of a spherical particle with the same D_max [MorrisonMilbrandt2015](@cite).
- Assuming zero liquid fraction and oblate shape.
+See also [`ϕ_material_density`](@ref) and the
+[aspect-ratio section of the P3 documentation](@ref "Aspect ratio") for the
+spheroid derivation and the residual `ϕ > 1` band above `D_th`.
 """
 function ϕᵢ(state::P3State, D)
     FT = eltype(D)
     mᵢ = ice_mass(state, D)
     aᵢ = ice_area(state, D)
-    ρᵢ = mᵢ / CO.volume_sphere_D(D)
+    ρ = ϕ_material_density(state, D)
 
-    # TODO - prolate or oblate?
-    ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
-    #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
+    # Oblate aspect ratio (κ = 1/3); no clamp (see P3 documentation).
+    # `aᵢ^{3/2}` written as `aᵢ * sqrt(aᵢ)`: a hardware sqrt and a multiply
+    # instead of a runtime-exponent power call, evaluated per quadrature node.
+    ϕ_ob = 3 * sqrt(FT(π)) * mᵢ / (4 * ρ * aᵢ * sqrt(aᵢ))
+    #ϕ_pr = 16 * ρ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2)  # prolate, κ = -1/6
 
     return ifelse(D == 0, zero(ϕ_ob), ϕ_ob)
 end

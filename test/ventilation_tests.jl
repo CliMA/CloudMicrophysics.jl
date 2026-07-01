@@ -21,7 +21,8 @@ function test_ventilation_factor(FT)
         vent_factor = CO.ventilation_factor(vent, aps, v_term)
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         calc_vents = vent_factor.(Ds)
-        smoke_vents = [0.91818553, 1.3191912, 1.7451854, 2.1598392, 2.5553002]
+        # `cbrt(ϕ) ≤ 1` lowers the ventilation factor in the nonspherical regimes
+        smoke_vents = [0.91818553, 1.3007127, 1.7451854, 2.1598392, 2.3396184]
         for (calc_vent, smoke_vent) in zip(calc_vents, smoke_vents)
             TT.@test calc_vent ≈ smoke_vent rtol = 1e-6
         end

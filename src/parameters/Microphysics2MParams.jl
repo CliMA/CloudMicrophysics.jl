@@ -39,11 +39,9 @@ $(DocStringExtensions.FIELDS)
 
 # Constructor
 
-The main constructor is
-```
-P3IceParams(toml_dict::CP.ParamDict; is_limited = true)
-```
-which constructs the parameterization with components:
+    P3IceParams(toml_dict::CP.ParamDict; is_limited = true, quad, inp_depletion_model)
+
+builds the components:
 - `scheme` = [`ParametersP3`](@ref)
 - `terminal_velocity` = [`Chen2022VelType`](@ref)
 - `cloud_pdf` = [`CloudParticlePDF_SB2006`](@ref)
@@ -51,6 +49,12 @@ which constructs the parameterization with components:
 - `ice_nucleation` = [`Frostenberg2023`](@ref)
 - `rain_freezing` = [`RainFreezing`](@ref)
 
+# Keyword arguments
+- `is_limited`: use limited rain size-distribution parameters. By default, `true`.
+- `quad`: the size-distribution `Quadrature.QuadratureRule`. By default,
+  `Quadrature.GaussLegendre(FT, 12)`.
+- `inp_depletion_model`: the F23 INP-activation depletion model. By default,
+  [`NIceProxyDepletion`](@ref).
 """
 @kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM, Q} <: ParametersType
     "The core P3 scheme parameters"
@@ -71,24 +75,17 @@ which constructs the parameterization with components:
     immersion-cap rates. (A prognostic activation-memory model is deferred
     to a follow-up PR.)"
     inp_depletion_model::INPDM = NIceProxyDepletion()
-    "Number of quadrature nodes used for size-distribution integrals
+    "Quadrature rule for the size-distribution integrals
     (deposition / sublimation, melting, riming, ice-rain collection,
-    sedimentation). Lower → faster, slightly less accurate. Default 100
-    matches the original P3 paper sensitivity studies; n_elem=128 KiD runs
-    show ~5× speed-up at qorder=40 with negligible bulk error."
-    quadrature_order::Int = 100
-    "Pre-constructed quadrature rule for the size-distribution integrals,
-    built once (host-side) from `quadrature_order` via
-    [`Quadrature.build_quadrature`](@ref) and reused in the (GPU) hot loop.
-    It is `isbits` (`GaussLegendre`/`ChebyshevGauss`), so it ships to device
-    kernels with no per-call construction. See [`Quadrature.GaussLegendre`](@ref)."
-    quad::Q = QUAD.build_quadrature(Float64, quadrature_order)
+    sedimentation). See also [`Quadrature.GaussLegendre`](@ref)."
+    quad::Q = QUAD.GaussLegendre(Float64, 12)
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 P3IceParams(toml_dict::CP.ParamDict;
-    is_limited = true, quadrature_order::Int = 100,
+    is_limited = true,
+    quad = QUAD.GaussLegendre(CP.float_type(toml_dict), 12),
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = P3IceParams(;
     scheme = ParametersP3(toml_dict),
@@ -98,11 +95,7 @@ P3IceParams(toml_dict::CP.ParamDict;
     ice_nucleation = Frostenberg2023(toml_dict),
     rain_freezing = RainFreezing(toml_dict),
     inp_depletion_model,
-    quadrature_order,
-    # Build the quadrature in the working float type, so its nodes/weights
-    # adopt the integrand's eltype (a Float64 rule would leak Float64 into the
-    # Float32 collision integrals). Construction is host-side and one-shot.
-    quad = QUAD.build_quadrature(CP.float_type(toml_dict), quadrature_order),
+    quad,
 )
 
 """
@@ -136,24 +129,30 @@ Base.show(io::IO, mime::MIME"text/plain", x::Microphysics2MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true)
+    Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true, quad, inp_depletion_model)
 
 Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 
 # Arguments
-- `toml_dict`: ClimaParams parameter dictionary
-- `with_ice`: Include P3 ice-phase parameters (default: false)
-- `is_limited`: Use limited rain size distribution parameters (default: true)
+- `toml_dict`: ClimaParams parameter dictionary.
+
+# Keyword arguments
+- `with_ice`: include P3 ice-phase parameters. By default, `false`.
+- `is_limited`: use limited rain size-distribution parameters. By default, `true`.
+- `quad`: the size-distribution `Quadrature.QuadratureRule` passed to
+  [`P3IceParams`](@ref) when `with_ice`. By default, `Quadrature.GaussLegendre(FT, 12)`.
+- `inp_depletion_model`: the F23 INP-activation depletion model passed to
+  [`P3IceParams`](@ref) when `with_ice`. By default, [`NIceProxyDepletion`](@ref).
 """
 Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true,
-    quadrature_order::Int = 100,
+    quad = QUAD.GaussLegendre(CP.float_type(toml_dict), 12),
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = Microphysics2MParams(;
     # Warm rain parameters (always present)
     warm_rain = WarmRainParams2M(toml_dict; is_limited),
     # Optional ice phase parameters
     ice = with_ice ?
-          P3IceParams(toml_dict; is_limited, quadrature_order, inp_depletion_model) :
+          P3IceParams(toml_dict; is_limited, quad, inp_depletion_model) :
           nothing,
 )

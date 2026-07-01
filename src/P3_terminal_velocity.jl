@@ -1,22 +1,35 @@
 
+"""
+    AspectRatioTreatment
+
+Type-based selector for the ice terminal-velocity aspect-ratio correction:
+`UseAspectRatio` applies the `cbrt(ϕᵢ)` factor, `NoAspectRatio`
+omits it.
+"""
+abstract type AspectRatioTreatment end
+struct UseAspectRatio <: AspectRatioTreatment end
+struct NoAspectRatio <: AspectRatioTreatment end
+
 # Callable returned by `ice_particle_terminal_velocity`: piecewise small/large-ice
-# Chen 2022 velocity with optional aspect-ratio correction.
-struct P3IceParticleVelocityFunctor{FT, VS, VL, S} <: Function
+# Chen 2022 velocity with the aspect-ratio correction selected by `AspectRatioTreatment`.
+struct P3IceParticleVelocityFunctor{FT, VS, VL, S, AR <: AspectRatioTreatment} <: Function
     v_term_small::VS
     v_term_large::VL
     D_cutoff::FT
     state::S
-    use_aspect_ratio::Bool
+    aspect_ratio::AR
 end
+@inline _apply_aspect_ratio(::UseAspectRatio, state, D, vₜ) = cbrt(ϕᵢ(state, D)) * vₜ
+@inline _apply_aspect_ratio(::NoAspectRatio, state, D, vₜ) = vₜ
 @inline function (f::P3IceParticleVelocityFunctor)(D)
     vₜ = D <= f.D_cutoff ? f.v_term_small(D) : f.v_term_large(D)
-    return f.use_aspect_ratio ? cbrt(ϕᵢ(f.state, D)) * vₜ : vₜ
+    return _apply_aspect_ratio(f.aspect_ratio, f.state, D, vₜ)
 end
 
 """
-    ice_particle_terminal_velocity(velocity_params, ρₐ, state::P3State; [use_aspect_ratio])
+    ice_particle_terminal_velocity(velocity_params, ρₐ, state::P3State; [aspect_ratio])
 
-Returns a single-argument function `v_term(D)` that gives the Chen 2022
+Return a single-argument function `v_term(D)` that gives the Chen 2022
 terminal velocity of an ice particle of maximum dimension `D`.
 
 # Arguments
@@ -25,10 +38,10 @@ terminal velocity of an ice particle of maximum dimension `D`.
  - `state`: A [`P3State`](@ref)
 
 # Keyword arguments
- - `use_aspect_ratio`: include the aspect-ratio correction (default `true`)
+ - `aspect_ratio`: an `AspectRatioTreatment`; by default `UseAspectRatio`.
 """
 @inline function ice_particle_terminal_velocity(
-    velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State; use_aspect_ratio = true,
+    velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State; aspect_ratio = UseAspectRatio(),
 )
     FT = typeof(ρₐ)
     (; small_ice, large_ice) = velocity_params
@@ -36,7 +49,7 @@ terminal velocity of an ice particle of maximum dimension `D`.
     ρᵢ = FT(916.7)  # TODO: Use parameter
     v_term_small = CO.particle_terminal_velocity(small_ice, ρₐ, ρᵢ)
     v_term_large = CO.particle_terminal_velocity(large_ice, ρₐ, ρᵢ)
-    return P3IceParticleVelocityFunctor(v_term_small, v_term_large, D_cutoff, state, use_aspect_ratio)
+    return P3IceParticleVelocityFunctor(v_term_small, v_term_large, D_cutoff, state, aspect_ratio)
 end
 
 struct P3NumberWeightedIntegrand{N, V} <: Function
@@ -48,7 +61,7 @@ end
 """
     ice_terminal_velocity_number_weighted(
         velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
-        [use_aspect_ratio], [p], [quad],
+        [aspect_ratio], [p], [quad],
     )
 
 Return the terminal velocity of the number-weighted mean ice particle size.
@@ -60,16 +73,15 @@ Return the terminal velocity of the number-weighted mean ice particle size.
 - `logλ`: The log of the slope parameter [log(1/m)]
 
 # Keyword arguments
- - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
-    of particle aspect ratio on its terminal velocity (default: `true`)
+ - `aspect_ratio`: an `AspectRatioTreatment`; by default `UseAspectRatio`
  - `p`: Tolerance parameter for the integral bounds. Default is 1e-6.
- - `quad`: Quadrature rule, default is `ChebyshevGauss(100)`
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 See also [`ice_terminal_velocity_mass_weighted`](@ref)
 """
 function ice_terminal_velocity_number_weighted(
     velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
-    use_aspect_ratio = true, p = 1e-6, quad = ChebyshevGauss(100),
+    aspect_ratio = UseAspectRatio(), p = 1e-6, quad,
 )
     (; ρn_ice, ρq_ice) = state
     # TODO - do we want to swicth to ϵ_numerics(FT)
@@ -77,13 +89,13 @@ function ice_terminal_velocity_number_weighted(
         return zero(promote_type(eltype(state), UT.promote_typeof(ρₐ, logλ)))
     end
 
-    v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; use_aspect_ratio)
+    v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; aspect_ratio)
     n = DT.size_distribution(state, logλ)
 
     # ∫n(D) v(D) dD
     number_weighted_integrand = P3NumberWeightedIntegrand(n, v_term)
 
-    bnds = integral_bounds(state, logλ; p)
+    bnds = velocity_integral_bounds(state, logλ, v_term.D_cutoff; p)
     return integrate(number_weighted_integrand, bnds, quad) / ρn_ice
 end
 
@@ -95,7 +107,7 @@ end
 @inline (f::P3MassWeightedIntegrand)(D) = f.n(D) * f.v_term(D) * ice_mass(f.state, D)
 
 """
-    ice_terminal_velocity_mass_weighted(velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ; [use_aspect_ratio], [∫kwargs...])
+    ice_terminal_velocity_mass_weighted(velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ; [aspect_ratio], [∫kwargs...])
 
 Return the terminal velocity of the mass-weighted mean ice particle size.
 
@@ -106,16 +118,15 @@ Return the terminal velocity of the mass-weighted mean ice particle size.
 - `logλ`: The log of the slope parameter [log(1/m)]
 
 # Keyword arguments
- - `use_aspect_ratio`: Bool flag set to `true` if we want to consider the effects
-    of particle aspect ratio on its terminal velocity (default: `true`)
+ - `aspect_ratio`: an `AspectRatioTreatment`; by default `UseAspectRatio`
  - `p`: Tolerance parameter for the integral bounds. Default is 1e-6.
- - `quad`: Quadrature rule, default is `ChebyshevGauss(100)`
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 See also [`ice_terminal_velocity_number_weighted`](@ref)
 """
 function ice_terminal_velocity_mass_weighted(
     velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
-    use_aspect_ratio = true, p = 1e-6, quad = ChebyshevGauss(100),
+    aspect_ratio = UseAspectRatio(), p = 1e-6, quad,
 )
     (; ρn_ice, ρq_ice) = state
     # TODO - do we want to swicth to ϵ_numerics(FT)
@@ -123,13 +134,13 @@ function ice_terminal_velocity_mass_weighted(
         return zero(promote_type(eltype(state), UT.promote_typeof(ρₐ, logλ)))
     end
 
-    v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; use_aspect_ratio)
+    v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; aspect_ratio)
     n = DT.size_distribution(state, logλ)  # Number concentration at diameter D
 
     # ∫n(D) m(D) v(D) dD
     mass_weighted_integrand = P3MassWeightedIntegrand(n, v_term, state)
 
-    bnds = integral_bounds(state, logλ; p)
+    bnds = velocity_integral_bounds(state, logλ, v_term.D_cutoff; p)
     return integrate(mass_weighted_integrand, bnds, quad) / ρq_ice
 end
 
