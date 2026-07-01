@@ -20,7 +20,10 @@ concentration at diameter `D`, for the [`P3State`](@ref) `state` and log-slope `
 function logN′ice(state::P3State, logλ)
     μ = get_μ(state, logλ)
     log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
-    return P3LogNumberFunctor(log_N₀, μ, logλ)
+    # Promote to a common type: differentiating w.r.t. the ice number makes
+    # `log_N₀` a `Dual` while `μ` (a function of the fixed `logλ`) stays a plain
+    # float, and `P3LogNumberFunctor` stores both in a single field type.
+    return P3LogNumberFunctor(promote(log_N₀, μ)..., logλ)
 end
 
 # Callable returned by `size_distribution`: `n(D) = exp(logN′(D))`.
@@ -87,7 +90,7 @@ Compute `log(Iᵏ)` where `Iᵏ` is the following integral:
 See also [`gamma_inc_moment`](@ref)
 """
 function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
-    FT = eltype(logλ)
+    FT = UT.promote_typeof(D₁, D₂, μ, logλ)
     D₁ < D₂ || return log(FT(0))  # return log(0) if D₁ ≥ D₂
     z = k + μ + 1
     # `λ⋅D ≡ xexpy(D, logλ) ≡ D * exp(logλ)` (numerically stable)
@@ -321,7 +324,7 @@ The P3 variables `F_rim` and `ρ_rim` are computed in a regularised way
 function get_distribution_logλ_from_prognostic(
     params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, args...,
 )
-    state = get_state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    state = state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
     return get_distribution_logλ(state, args...)
 end
 

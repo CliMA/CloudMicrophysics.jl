@@ -177,7 +177,7 @@ Calculate the nth moment of an exponential distribution parameterized in the for
  - `Mⁿ`: The nth physical moment of the distribution
 """
 function exponential_Mⁿ(D_mean, N, n)
-    return N * factorial(n) * D_mean^n
+    return N * UT.fac(n) * D_mean^n
 end
 
 end # module DistributionTools

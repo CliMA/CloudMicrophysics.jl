@@ -115,10 +115,10 @@ get_rcemipii_center_space(::Type{FT}) where {FT} = CC.Spaces.CenterExtrudedFinit
 
 get_p3_fields(::Type{FT}, space) where {FT} = (;
     params = CMP.ParametersP3(FT),
-    L_ice = ones(space) .* FT(1e-4),   # [kg/m³] ice mass content
-    N_ice = ones(space) .* FT(1e4),    # [1/m³]  ice number concentration
-    F_rim = zeros(space),              # [-]     rime mass fraction (no rime)
-    ρ_rim = zeros(space),              # [kg/m³] rime density      (no rime)
+    ρq_ice = ones(space) .* FT(1e-4),   # [kg/m³] ice mass content,
+    ρn_ice = ones(space) .* FT(1e4),    # [1/m³]  ice number concentration,
+    ρq_rim = zeros(space),              # [kg/m³] rime mass content (no rime)
+    ρb_rim = zeros(space),              # [-]  rime volume (no rime)
     logλ = zeros(space),               # cache field for the result
 )
 
@@ -132,10 +132,8 @@ p3_logλ_1d(::Type{FT}) where {FT} = p3_logλ(FT, make_column(FT))
 p3_logλ_3d(::Type{FT}) where {FT} = p3_logλ(FT, get_rcemipii_center_space(FT))
 
 function p3_logλ(::Type{FT}, space) where {FT}
-    (; params, L_ice, N_ice, F_rim, ρ_rim, logλ) = get_p3_fields(FT, space)
-    @. logλ = P3.get_distribution_logλ(
-        P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim),
-    )
+    (; params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, logλ) = get_p3_fields(FT, space)
+    @. logλ = P3.get_distribution_logλ_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
     return logλ
 end
 

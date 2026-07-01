@@ -387,6 +387,7 @@ Lightweight numerical utility functions shared across modules.
 ```@docs
 Utilities
 Utilities.clamp_to_nonneg
+Utilities.promote_typeof
 Utilities.ϵ_numerics
 Utilities.ϵ_numerics_2M_M
 Utilities.ϵ_numerics_2M_N
@@ -397,6 +398,7 @@ Utilities.rime_mass_fraction
 Utilities.rime_density
 Utilities.sgs_weight_function
 Utilities.unrolled_logsumexp
+Utilities.fac
 ```
 
 # Common utility functions

@@ -458,6 +458,13 @@ end
     output[i] = (; P, Q, x_inv)
 end
 
+@kernel inbounds = true function test_rain_freezing_kernel!(
+    rf, pdf_r, tps, output, q, ρ, N, T,
+)
+    i = @index(Global, Linear)
+    output[i] = CMI_het.liquid_freezing_rate(rf, pdf_r, tps, q[i], ρ[i], N[i], T[i])
+end
+
 """
     setup_output(dims, FT)
 Helper function for GPU tests. Allocates an array of type `FT` with dimensions
@@ -1056,6 +1063,27 @@ function test_gpu(FT)
             TT.@test J_cubic ≈ FT(2.66194650334444e12)
             # test homogeneous_J_linear is callable and returns a reasonable value
             TT.@test J_linear ≈ FT(7.156568123338207e11)
+        end
+
+        TT.@testset "CMI_het.liquid_freezing_rate (rain, Bigg)" begin
+            DT = @NamedTuple{∂ₜn_frz::FT, ∂ₜq_frz::FT}
+            (; output, ndrange) = setup_output(1, DT)
+
+            rf = CMP.RainFreezing(CP.create_toml_dict(FT))
+            pdf_r = CMP.RainParticlePDF_SB2006_limited(CP.create_toml_dict(FT))
+            T_freeze = TDI.TD.Parameters.T_freeze(tps)
+
+            q = ArrayType([FT(1e-4)])
+            ρ = ArrayType([FT(1)])
+            N = ArrayType([FT(1e3)])
+            T = ArrayType([T_freeze - FT(20)])
+
+            kernel! = test_rain_freezing_kernel!(backend, work_groups)
+            kernel!(rf, pdf_r, tps, output, q, ρ, N, T; ndrange)
+            out = Array(output)[1]
+
+            TT.@test isfinite(out.∂ₜn_frz) && out.∂ₜn_frz > FT(0)
+            TT.@test isfinite(out.∂ₜq_frz) && out.∂ₜq_frz > FT(0)
         end
     end  # TT.@testset "Ice nucleation kernels"
 

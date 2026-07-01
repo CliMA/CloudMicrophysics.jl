@@ -117,10 +117,11 @@ Integrate the function `f` over each subinterval of the integration bounds, `bnd
 @inline function integrate(
     f::F, bnds::NTuple{N, T}, quad::QuadratureRule = ChebyshevGauss(100),
 ) where {F, N, T}
-    pairs = UU.unrolled_map(subintervals(bnds)) do (a, b)
-        integrate(f, a, b, quad)
+    @inbounds result = integrate(f, bnds[1], bnds[2], quad)
+    @inbounds for i in 2:(N - 1)
+        result += integrate(f, bnds[i], bnds[i + 1], quad)
     end
-    return UU.unrolled_sum(pairs)
+    return result
 end
 
 # ---------------------------------------------------------------------------
