@@ -655,7 +655,23 @@ end
     v0_j = get_v0(blk1mveltype_tj, ρ)
     λ_i_inv = lambda_inverse(type_i.pdf, type_i.mass, q_i, ρ)
     λ_j_inv = lambda_inverse(type_j.pdf, type_j.mass, q_j, ρ)
-    return accretion_snow_rain(type_i, type_j, blk1mveltype_ti, blk1mveltype_tj, E_ij, coeff_disp, q_i, q_j, ρ, n0_i, n0_j, v0_i, v0_j, λ_i_inv, λ_j_inv)
+    return accretion_snow_rain(
+        type_i,
+        type_j,
+        blk1mveltype_ti,
+        blk1mveltype_tj,
+        E_ij,
+        coeff_disp,
+        q_i,
+        q_j,
+        ρ,
+        n0_i,
+        n0_j,
+        v0_i,
+        v0_j,
+        λ_i_inv,
+        λ_j_inv,
+    )
 end
 
 """
@@ -685,41 +701,120 @@ delegate to the corresponding low-level Marshall-Palmer kernels.
 # here; NamedTuple-returning processes are handled in BMT by checking `nothing` directly.
 @inline accretion(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function accretion(opt::CMP.CloudLiquidRainAccretion, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function accretion(
+    opt::CMP.CloudLiquidRainAccretion,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     q_lcl = micro.q_lcl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion(mp.cloud.liquid, mp.precip.rain, mp.terminal_velocity.rain, opt.e, q_lcl, q_rai, ρ, sd.n0_rai, sd.v0_rai, sd.λ_inv_rai)
+    return accretion(
+        mp.cloud.liquid,
+        mp.precip.rain,
+        mp.terminal_velocity.rain,
+        opt.e,
+        q_lcl,
+        q_rai,
+        ρ,
+        sd.n0_rai,
+        sd.v0_rai,
+        sd.λ_inv_rai,
+    )
 end
 
-@inline function accretion(opt::CMP.CloudLiquidSnowAccretion, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function accretion(
+    opt::CMP.CloudLiquidSnowAccretion,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     q_lcl = micro.q_lcl
     q_sno = micro.q_sno
     ρ = thermo.ρ
     T = thermo.T
-    S = accretion(mp.cloud.liquid, mp.precip.snow, mp.terminal_velocity.snow, opt.e, q_lcl, q_sno, ρ, sd.n0_sno, sd.v0_sno, sd.λ_inv_sno)
+    S = accretion(
+        mp.cloud.liquid,
+        mp.precip.snow,
+        mp.terminal_velocity.snow,
+        opt.e,
+        q_lcl,
+        q_sno,
+        ρ,
+        sd.n0_sno,
+        sd.v0_sno,
+        sd.λ_inv_sno,
+    )
     α = warm_accretion_melt_factor(tps, T)
     return (; S_accr = S, S_melt = α * S)
 end
 
-@inline function accretion(opt::CMP.CloudIceRainAccretion, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function accretion(
+    opt::CMP.CloudIceRainAccretion,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     q_icl = micro.q_icl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion(mp.cloud.ice, mp.precip.rain, mp.terminal_velocity.rain, opt.e, q_icl, q_rai, ρ, sd.n0_rai, sd.v0_rai, sd.λ_inv_rai)
+    return accretion(
+        mp.cloud.ice,
+        mp.precip.rain,
+        mp.terminal_velocity.rain,
+        opt.e,
+        q_icl,
+        q_rai,
+        ρ,
+        sd.n0_rai,
+        sd.v0_rai,
+        sd.λ_inv_rai,
+    )
 end
 
-@inline function accretion(opt::CMP.CloudIceSnowAccretion, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function accretion(
+    opt::CMP.CloudIceSnowAccretion,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     q_icl = micro.q_icl
     q_sno = micro.q_sno
     ρ = thermo.ρ
-    return accretion(mp.cloud.ice, mp.precip.snow, mp.terminal_velocity.snow, opt.e, q_icl, q_sno, ρ, sd.n0_sno, sd.v0_sno, sd.λ_inv_sno)
+    return accretion(
+        mp.cloud.ice,
+        mp.precip.snow,
+        mp.terminal_velocity.snow,
+        opt.e,
+        q_icl,
+        q_sno,
+        ρ,
+        sd.n0_sno,
+        sd.v0_sno,
+        sd.λ_inv_sno,
+    )
 end
 
 @inline accretion_snow_rain(::Nothing, mp, tps, micro, thermo, sd = nothing) =
     (; S_rai_sno = zero(thermo.T), S_sno_rai = zero(thermo.T), S_melt = zero(thermo.T))
 
-@inline function accretion_snow_rain(opt::CMP.RainSnowAccretion, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function accretion_snow_rain(
+    opt::CMP.RainSnowAccretion,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     q_rai = micro.q_rai
     q_sno = micro.q_sno
     ρ = thermo.ρ
@@ -727,8 +822,40 @@ end
     vel = mp.terminal_velocity
     sno = mp.precip.snow
     rai = mp.precip.rain
-    S_rai_sno = accretion_snow_rain(sno, rai, vel.snow, vel.rain, opt.e, opt.coeff_disp, q_sno, q_rai, ρ, sd.n0_sno, sd.n0_rai, sd.v0_sno, sd.v0_rai, sd.λ_inv_sno, sd.λ_inv_rai)
-    S_sno_rai = accretion_snow_rain(rai, sno, vel.rain, vel.snow, opt.e, opt.coeff_disp, q_rai, q_sno, ρ, sd.n0_rai, sd.n0_sno, sd.v0_rai, sd.v0_sno, sd.λ_inv_rai, sd.λ_inv_sno)
+    S_rai_sno = accretion_snow_rain(
+        sno,
+        rai,
+        vel.snow,
+        vel.rain,
+        opt.e,
+        opt.coeff_disp,
+        q_sno,
+        q_rai,
+        ρ,
+        sd.n0_sno,
+        sd.n0_rai,
+        sd.v0_sno,
+        sd.v0_rai,
+        sd.λ_inv_sno,
+        sd.λ_inv_rai,
+    )
+    S_sno_rai = accretion_snow_rain(
+        rai,
+        sno,
+        vel.rain,
+        vel.snow,
+        opt.e,
+        opt.coeff_disp,
+        q_rai,
+        q_sno,
+        ρ,
+        sd.n0_rai,
+        sd.n0_sno,
+        sd.v0_rai,
+        sd.v0_sno,
+        sd.λ_inv_rai,
+        sd.λ_inv_sno,
+    )
     α = warm_accretion_melt_factor(tps, T)
     return (; S_rai_sno, S_sno_rai, S_melt = α * S_rai_sno)
 end
@@ -736,11 +863,31 @@ end
 # Rain sink arm of cloud ice + rain accretion
 @inline accretion_rain_sink(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function accretion_rain_sink(opt::CMP.CloudIceRainAccretion, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function accretion_rain_sink(
+    opt::CMP.CloudIceRainAccretion,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     q_icl = micro.q_icl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, opt.e, q_icl, q_rai, ρ, sd.n0_icl, sd.λ_inv_icl, sd.n0_rai, sd.v0_rai, sd.λ_inv_rai)
+    return accretion_rain_sink(
+        mp.precip.rain,
+        mp.cloud.ice,
+        mp.terminal_velocity.rain,
+        opt.e,
+        q_icl,
+        q_rai,
+        ρ,
+        sd.n0_icl,
+        sd.λ_inv_icl,
+        sd.n0_rai,
+        sd.v0_rai,
+        sd.λ_inv_rai,
+    )
 end
 
 """
@@ -761,7 +908,14 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
 """
 @inline conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function conv_q_rai_to_q_vap(::CMP.RainEvaporation, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function conv_q_rai_to_q_vap(
+    ::CMP.RainEvaporation,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     (; pdf, mass, vent) = mp.precip.rain
@@ -816,11 +970,25 @@ Ventilation factor parameterization follows Seifert and Beheng (2006).
 """
 @inline conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function conv_q_sno_to_q_vap(::CMP.SublimationOnly, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function conv_q_sno_to_q_vap(
+    ::CMP.SublimationOnly,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo, sd))
 end
 
-@inline function conv_q_sno_to_q_vap(::CMP.DepositionAndSublimation, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function conv_q_sno_to_q_vap(
+    ::CMP.DepositionAndSublimation,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     return _snow_subl_dep_rate(mp, tps, micro, thermo, sd)
 end
 
@@ -878,7 +1046,14 @@ Returns the tendency due to cloud ice melt.
 """
 @inline conv_q_icl_to_q_lcl(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function conv_q_icl_to_q_lcl(::CMP.CloudIceMelt, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function conv_q_icl_to_q_lcl(
+    ::CMP.CloudIceMelt,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = _size_dist_cache(mp, micro, thermo),
+)
     q_icl = micro.q_icl
     (; ρ, T) = thermo
     (; pdf, mass) = mp.cloud.ice

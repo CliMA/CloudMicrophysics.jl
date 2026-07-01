@@ -263,7 +263,11 @@ function ice_mass_coeffs(state::P3State, D)
     cond2 = unrimed || D < D_gr
     cond3 = D < D_cr
 
-    a = ifelse(cond1, FT(ρ_i * π / 6), ifelse(cond2, α_va, ifelse(cond3, FT(ρ_g * π / 6), α_va / max(1 - F_rim, UT.ϵ_numerics_P3_B(FT)))))
+    a = ifelse(
+        cond1,
+        FT(ρ_i * π / 6),
+        ifelse(cond2, α_va, ifelse(cond3, FT(ρ_g * π / 6), α_va / max(1 - F_rim, UT.ϵ_numerics_P3_B(FT)))),
+    )
     b = ifelse(cond1, FT(3), ifelse(cond2, β_va, ifelse(cond3, FT(3), β_va)))
     return (a, b)
 end
@@ -338,7 +342,11 @@ function ice_area(state::P3State, D)
     cond2 = unrimed || D < D_gr
     cond3 = D < D_cr
 
-    return ifelse(cond1, s_area, ifelse(cond2, ns_area, ifelse(cond3, s_area, weighted_average(F_rim, s_area, ns_area))))
+    return ifelse(
+        cond1,
+        s_area,
+        ifelse(cond2, ns_area, ifelse(cond3, s_area, weighted_average(F_rim, s_area, ns_area))),
+    )
 end
 
 """

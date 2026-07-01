@@ -182,7 +182,7 @@ function log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
     # loggamma_z2 = SF.loggamma(z2) (pre-computed in pdf_c)
     logB = -μc * (logx̄ + loggamma_z1 - loggamma_z2)
     logA = log(μc) + log(safe_N) + z1 * logB - loggamma_z1
-    
+
     cond = N < UT.ϵ_numerics_2M_N(FT) || q < UT.ϵ_numerics_2M_M(FT)
     return (ifelse(cond, oftype(logA, -Inf), logA), ifelse(cond, oftype(logB, Inf), logB))
 end
@@ -578,7 +578,7 @@ function rain_breakup(
     (; xr_mean) = pdf_rain_parameters(pdf, safe_q_rai, ρ, safe_N_rai)
     Dr = cbrt(xr_mean * 6 / (π * ρw))  # mean volume raindrop diameter
     ΔD = Dr - Deq
-    
+
     Φ_br = ifelse(Dr < Dr_th, FT(-1), ifelse(Dr ≤ Deq, kbr * ΔD, exp(κbr * ΔD) - 1))
     dN_rai_dt_br = -(Φ_br + 1) * dN_rai_dt_sc  # Eq. (13) from SB2006
 
@@ -641,7 +641,7 @@ function cloud_terminal_velocity(
     safe_N_liq = max(N_liq, UT.ϵ_numerics_2M_N(FT))
     (; Bc) = pdf_cloud_parameters_mass(pdf_c, safe_q_liq, ρₐ, safe_N_liq)
 
-    terminal_velocity_prefactor = FT(1 / 18) * (6 / ρw / π)^(2 // 3) * (ρw / ρₐ - 1) * grav / ν_air
+    terminal_velocity_prefactor = FT(1 / 18) * cbrt((FT(6) / ρw / FT(π))^2) * (ρw / ρₐ - 1) * grav / ν_air
     vt0 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, safe_N_liq, FT(2 / 3)) / safe_N_liq
     vt1 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, safe_N_liq, FT(5 / 3)) / ρₐ / safe_q_liq
 
@@ -681,7 +681,7 @@ function rain_terminal_velocity(
 
     vt0 = max(0, sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR * Dr_mean)))
     vt1 = max(0, sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR * Dr_mean)^4))
-    
+
     cond_N = N_rai < UT.ϵ_numerics_2M_N(FT)
     cond_q = q_rai < UT.ϵ_numerics_2M_M(FT)
     return (ifelse(cond_N, FT(0), vt0), ifelse(cond_q, FT(0), vt1))
@@ -783,9 +783,9 @@ function rain_evaporation(
     (; xr_mean) = pdf_rain_parameters(pdf_r, safe_q_rai, ρ, safe_N_rai)
     Dr = cbrt(6 * xr_mean / (π * ρw))
 
-    t_star = cbrt(6 * x_star / xr_mean)
-    a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^(-2 // 3)
-    b_vent_0 = bv * Γ_incl(-1 // 2 + 3 // 2 * β, t_star) / FT(6)^(β / 2 - 1 // 2)
+    t_star = cbrt(FT(6) * x_star / xr_mean)
+    a_vent_0 = evap.a_vent_0_coeff * Γ_incl(FT(-1), t_star)
+    b_vent_0 = evap.b_vent_0_coeff * Γ_incl(evap.β_va, t_star)
 
     a_vent_1 = evap.a_vent_1
     b_vent_1 = evap.b_vent_1

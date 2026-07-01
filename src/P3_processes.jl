@@ -437,7 +437,14 @@ Computes the bulk collision rate integrands between ice and liquid particles.
 # Returns
 A tuple of 8 integrands, see [`∫liquid_ice_collisions`](@ref) for details.
 """
-@inline function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = ChebyshevGauss(100))
+@inline function ∫liquid_ice_collisions(
+    n_i,
+    ∂ₜM_max,
+    cloud_integrals,
+    rain_integrals,
+    ice_bounds;
+    quad = ChebyshevGauss(100),
+)
     function liquid_ice_collisions_integrands(Dᵢ)
         # Inner integrals over liquid particle diameters
         ∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col = cloud_integrals(Dᵢ)
@@ -680,6 +687,7 @@ A `NamedTuple` of `(; dNdt)`, where:
     total_rate = integrate(inner_integral, ice_bounds, quad)
 
     # The 0.5 factor accounts for double-counting in self-collection
-    dNdt = (1 // 2) * total_rate
+    FT = eltype(state)
+    dNdt = FT(0.5) * total_rate
     return (; dNdt)
 end
