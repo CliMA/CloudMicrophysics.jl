@@ -9,6 +9,8 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.MicrophysicsNonEq as CMN
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.P3Scheme as P3
+import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
+import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 """
     A helper function to create a ClimaCore 1d column space
@@ -137,6 +139,47 @@ function p3_logλ(::Type{FT}, space) where {FT}
     return logλ
 end
 
+# Specific prognostic state for a rimed mixed-phase 2M+P3 cell.
+get_2mp3_fields(::Type{FT}, space) where {FT} = (;
+    mp = CMP.Microphysics2MParams(FT; with_ice = true),
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT),
+    ρ = ones(space) .* FT(1.2),          # [kg/m³] air density
+    q_tot = ones(space) .* FT(0.015),    # [kg/kg]
+    q_lcl = ones(space) .* FT(1e-3),     # [kg/kg]
+    n_lcl = ones(space) .* FT(1e8 / 1.2),  # [1/kg]
+    q_rai = ones(space) .* FT(1e-4),     # [kg/kg]
+    n_rai = ones(space) .* FT(1e5 / 1.2),  # [1/kg]
+    q_ice = ones(space) .* FT(1e-4),     # [kg/kg]
+    n_ice = ones(space) .* FT(2e5 / 1.2),  # [1/kg]
+    q_rim = ones(space) .* FT(0.3e-4),   # [kg/kg]  F_rim = 0.3
+    b_rim = ones(space) .* FT(5e-8),     # [m³/kg]
+)
+
+bmt_2mp3_1d(::Type{FT}) where {FT} = bmt_2mp3(FT, make_column(FT))
+
+bmt_2mp3_3d(::Type{FT}) where {FT} = bmt_2mp3(FT, get_rcemipii_center_space(FT))
+
+function bmt_2mp3(::Type{FT}, space) where {FT}
+    (; mp, tps, ρ, q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim) =
+        get_2mp3_fields(FT, space)
+    T = ones(space) .* (TDI.TD.Parameters.T_freeze(tps) - FT(5))
+    logλ = @. P3.get_distribution_logλ_from_prognostic(
+        mp.ice.scheme, ρ * q_ice, ρ * n_ice, ρ * q_rim, ρ * b_rim,
+    )
+    mode = BMT.rosenbrock_exact()
+    cm = BMT.Microphysics2Moment()
+    Δt = FT(60)
+    nsub = 1
+    tendency(ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ) =
+        BMT.bulk_microphysics_tendencies(
+            mode, cm, mp, tps, ρ, T, q_tot,
+            q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ, Δt, nsub,
+        )
+    return @. tendency(
+        ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
+    )
+end
+
 
 import Test as TT
 
@@ -148,6 +191,14 @@ TT.@testset "ClimaCore GPU inference failure $nD $FT" for nD in ("1D", "3D"), FT
     TT.@testset "P3 logλ" begin
         p3_logλ_nd = nD == "1D" ? p3_logλ_1d : p3_logλ_3d
         p3_logλ_nd(FT)
+    end
+    TT.@testset "bulk microphysics tendencies (2M+P3 Rosenbrock)" begin
+        if VERSION >= v"1.12"
+            bmt_2mp3_nd = nD == "1D" ? bmt_2mp3_1d : bmt_2mp3_3d
+            bmt_2mp3_nd(FT)
+        else
+            TT.@test_broken VERSION >= v"1.12"
+        end
     end
 end
 
