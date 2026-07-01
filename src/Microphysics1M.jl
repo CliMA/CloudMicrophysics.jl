@@ -460,6 +460,13 @@ contribution of warm liquid on snow.
     return ifelse(is_cold, zero(T), cv_l / L_f * ΔT)
 end
 
+# Gating convention for the process-rate kernels below: the rate is computed
+# unconditionally and then gated with `ifelse(cond, rate, zero(FT))` instead of an
+# `if` guard, so the kernel stays branchless (no warp divergence) on the GPU. The
+# `max(x, ϵ_numerics)` clamps on denominators (e.g. `lambda_inverse`'s floor, the
+# Schmidt-number guard) keep the discarded `ifelse` branch finite — important for
+# ForwardDiff/Dual gradients and to avoid Inf/NaN handling cost.
+
 """
     accretion(cloud, precip, vel, E, q_clo, q_pre, ρ, n0, v0, λ_inv)
 
@@ -477,12 +484,6 @@ Internal low-level kernel. Prefer the option-dispatched API.
 - `q_pre`: rain or snow specific content
 - `ρ`: air density
 """
-# Gating convention for the process-rate kernels below: the rate is computed
-# unconditionally and then gated with `ifelse(cond, rate, zero(FT))` instead of an
-# `if` guard, so the kernel stays branchless (no warp divergence) on the GPU. The
-# `max(x, ϵ_numerics)` clamps on denominators (e.g. `lambda_inverse`'s floor, the
-# Schmidt-number guard) keep the discarded `ifelse` branch finite — important for
-# ForwardDiff/Dual gradients and to avoid Inf/NaN handling cost.
 @inline function accretion(
     cloud::CMP.CloudCondensateType,
     precip::CMP.PrecipitationType,
