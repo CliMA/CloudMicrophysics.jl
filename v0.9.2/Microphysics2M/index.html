@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>2-moment precipitation microphysics · CloudMicrophysics.jl</title><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.045/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.13.24/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../"><img src="../assets/logo.svg" alt="CloudMicrophysics.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../">CloudMicrophysics.jl</a></span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../Microphysics0M/">0-moment precipitation microphysics</a></li><li><a class="tocitem" href="../Microphysics1M/">1-moment precipitation microphysics</a></li><li class="is-active"><a class="tocitem" href>2-moment precipitation microphysics</a><ul class="internal"><li><a class="tocitem" href="#Autoconversion"><span>Autoconversion</span></a></li><li><a class="tocitem" href="#Accretion"><span>Accretion</span></a></li><li><a class="tocitem" href="#Example-figures"><span>Example figures</span></a></li></ul></li><li><a class="tocitem" href="../MicrophysicsNonEq/">Non-equilibrium cloud formation</a></li><li><a class="tocitem" href="../ThresholdsTransition/">Smooth transition at thresholds</a></li><li><a class="tocitem" href="../AerosolActivation/">Aerosol activation</a></li><li><a class="tocitem" href="../ARG2000_example/">ARG2000 activation example</a></li><li><a class="tocitem" href="../API/">API</a></li><li><a class="tocitem" href="../References/">References</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>2-moment precipitation microphysics</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>2-moment precipitation microphysics</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/CliMA/CloudMicrophysics.jl/blob/main/docs/src/Microphysics2M.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Microphysics-2M"><a class="docs-heading-anchor" href="#Microphysics-2M">Microphysics 2M</a><a id="Microphysics-2M-1"></a><a class="docs-heading-anchor-permalink" href="#Microphysics-2M" title="Permalink"></a></h1><p>The <code>Microphysics2M.jl</code> module provides 2-moment bulk parameterization of   autoconversion and accretion rates. Rain autoconversion defines the rate of transfer form cloud liquid water to   rain water due to collisions between cloud droplets. Rain accretion defines the rate of transfer from cloud liquid water to   rain water due to collisions between cloud droplets and rain drops. The rates are implemented after Table 1 from <a href="../References/#Wood2005">R. Wood (2005)</a>   and are based on the works of   <a href="../References/#KhairoutdinovKogan2000">M. Khairoutdinov, Y. Kogan (2000)</a>,   <a href="../References/#Beheng1994">K.D. Beheng (1994)</a>,   <a href="../References/#TripoliCotton1980">G.J. Tripoli, W.R. Cotton (1980)</a> and   <a href="../References/#LiuDaum2004">Y. Liu, P.H. Daum (2004)</a> respectively. From the above works:   (i) the <a href="../References/#KhairoutdinovKogan2000">M. Khairoutdinov, Y. Kogan (2000)</a> parameterisation is based   on a fit to drop spectrum resolving scheme and designed to work   for stratocumulus topped boundary layers,   (ii) the <a href="../References/#Beheng1994">K.D. Beheng (1994)</a> parameterisation is based on a fit   to stochastic collection equation,   (iii) the <a href="../References/#TripoliCotton1980">G.J. Tripoli, W.R. Cotton (1980)</a> parameterisation is developed   for a deep convective case, and   (iv) the <a href="../References/#LiuDaum2004">Y. Liu, P.H. Daum (2004)</a> parameterisation is derived to   include the effects of relative dispersion   of the cloud droplet size distribution on precipitation formation rates   and assumes a modified gamma distribution.</p><p>The microphysics variables are expressed as specific humidities [kg/kg]:</p><ul><li><code>q_liq</code> - cloud water specific humidity,</li><li><code>q_rai</code> - rain specific humidity.</li></ul><p>The default values of free parameters are defined in   <a href="https://github.com/CliMA/CLIMAParameters.jl">CLIMAParameters</a>   and can be overwritten using the <code>toml</code> files.</p><h2 id="Autoconversion"><a class="docs-heading-anchor" href="#Autoconversion">Autoconversion</a><a id="Autoconversion-1"></a><a class="docs-heading-anchor-permalink" href="#Autoconversion" title="Permalink"></a></h2><h3 id="Khairoutdinov-and-Kogan-(2000)"><a class="docs-heading-anchor" href="#Khairoutdinov-and-Kogan-(2000)">Khairoutdinov and Kogan (2000)</a><a id="Khairoutdinov-and-Kogan-(2000)-1"></a><a class="docs-heading-anchor-permalink" href="#Khairoutdinov-and-Kogan-(2000)" title="Permalink"></a></h3><p class="math-container">\[\begin{equation}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} = A \; q_{liq}^a \; N_d^b \; \rho^c
+\end{equation}\]</p><p>where:</p><ul><li><span>$q_{liq}$</span> is the cloud liquid water specific humidity,</li><li><span>$N_d$</span> is the cloud droplet concentration,</li><li><span>$\rho$</span> is the air density,</li></ul><p>and the default free parameter values are:</p><table><tr><th style="text-align: right">symbol</th><th style="text-align: right">default value</th></tr><tr><td style="text-align: right"><span>$A$</span></td><td style="text-align: right"><span>$7.42 \times 10^{13}$</span></td></tr><tr><td style="text-align: right"><span>$a$</span></td><td style="text-align: right"><span>$2.47$</span></td></tr><tr><td style="text-align: right"><span>$b$</span></td><td style="text-align: right"><span>$-1.79$</span></td></tr><tr><td style="text-align: right"><span>$c$</span></td><td style="text-align: right"><span>$-1.47$</span></td></tr></table><h3 id="Beheng-(1994)"><a class="docs-heading-anchor" href="#Beheng-(1994)">Beheng (1994)</a><a id="Beheng-(1994)-1"></a><a class="docs-heading-anchor-permalink" href="#Beheng-(1994)" title="Permalink"></a></h3><p class="math-container">\[\begin{equation}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} = \frac{C \; d^a \; (q_{liq} \rho)^b \; N_d^c}{\rho}
+\end{equation}\]</p><p>where:</p><ul><li><span>$q_{liq}$</span> is the cloud liquid water specific humidity,</li><li><span>$N_d$</span> is the cloud droplet number concentration,</li></ul><p>and the default free parameter values are:</p><table><tr><th style="text-align: right">symbol</th><th style="text-align: right">default value</th></tr><tr><td style="text-align: right"><span>$C$</span></td><td style="text-align: right"><span>$3 \times 10^{34}$</span></td></tr><tr><td style="text-align: right"><span>$a$</span></td><td style="text-align: right"><span>$-1.7$</span></td></tr><tr><td style="text-align: right"><span>$b$</span></td><td style="text-align: right"><span>$4.7$</span></td></tr><tr><td style="text-align: right"><span>$c$</span></td><td style="text-align: right"><span>$-3.3$</span></td></tr><tr><td style="text-align: right"><span>$d$</span></td><td style="text-align: right"><span>$9.9$</span> for <span>$N_d &lt; 200 cm^{-3}$</span>,  <span>$3.9$</span> for <span>$N_d &gt; 200 cm ^{-3}$</span></td></tr></table><h3 id="Tripoli-and-Cotton-(1980)"><a class="docs-heading-anchor" href="#Tripoli-and-Cotton-(1980)">Tripoli and Cotton (1980)</a><a id="Tripoli-and-Cotton-(1980)-1"></a><a class="docs-heading-anchor-permalink" href="#Tripoli-and-Cotton-(1980)" title="Permalink"></a></h3><p class="math-container">\[\begin{equation}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
+    D \; q_{liq}^a \; N_d^b \; \mathrm{H}(q_{liq} - q_{liq\_threshold})
+\end{equation}\]</p><p>where:</p><ul><li><span>$q_{liq}$</span> is the cloud liquid water specific humidity,</li><li><span>$q_{liq_threshold}$</span> is the cloud liquid to rain water threshold,</li><li><span>$N_d$</span> is the cloud droplet number concentration,</li><li><span>$\mathrm{H}(x)$</span> is the Heaviside step function.</li></ul><p>The cloud liquid to rain water autoconversion threshold is defined   assuming spherical liquid water drops of radius equal to <span>$7 \mu m$</span>:</p><p class="math-container">\[\begin{equation}
+  q_{liq\_threshold} = \frac{4}{3} \pi \rho_w N_d r_{cm}^3
+\end{equation}\]</p><p>where:</p><ul><li><span>$\rho_w$</span> is the liquid water density,</li></ul><p>and the default free parameter values are:</p><table><tr><th style="text-align: right">symbol</th><th style="text-align: right">default value</th></tr><tr><td style="text-align: right"><span>$D$</span></td><td style="text-align: right"><span>$3268$</span></td></tr><tr><td style="text-align: right"><span>$a$</span></td><td style="text-align: right"><span>$\frac{7}{3}$</span></td></tr><tr><td style="text-align: right"><span>$b$</span></td><td style="text-align: right"><span>$\frac{-1}{3}$</span></td></tr><tr><td style="text-align: right"><span>$r_{cm}$</span></td><td style="text-align: right"><span>$7 \times 10^{-6} m$</span></td></tr></table><h3 id="Liu-and-Daum-(2004)"><a class="docs-heading-anchor" href="#Liu-and-Daum-(2004)">Liu and Daum (2004)</a><a id="Liu-and-Daum-(2004)-1"></a><a class="docs-heading-anchor-permalink" href="#Liu-and-Daum-(2004)" title="Permalink"></a></h3><p class="math-container">\[\begin{equation}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
+    \frac{E \; (q_{liq} \; \rho)^3 \; \mathrm{H}(R_6 - R_{6C})}{N_d \; \rho}
+\end{equation}\]</p><p>where:</p><ul><li><span>$q_{liq}$</span> is the cloud liquid water specific humidity,</li><li><span>$N_d$</span> is the cloud droplet number concentration,</li><li><span>$\rho$</span> is the air density.</li></ul><p>The parameterisation is formulated using mean volume radius   <span>$r_{vol}$</span> expressed in <span>$\mu m$</span> which we compute as</p><p class="math-container">\[\begin{equation}
+    r_{vol} = \left(\frac{\rho q_{liq}}{4/3 \pi \; \rho_w \; N_d}\right)^{1/3} 10^6
+\end{equation}\]</p><p>where:</p><ul><li><span>$\rho_w$</span> is the liquid water density.</li></ul><p>Then the <span>$R_6$</span> and <span>$R_{6C}$</span> are defined as</p><ul><li><span>$R_6 = \beta_6 \; r_{vol}$</span></li><li><span>$R_{6C} = \frac{R_{C0}}{(q_{liq} \rho)^{1/6} R_6^{1/2}}$</span></li><li><span>$\beta_6 = \left( \frac{r_{vol} + 3}{r_{vol}} \right)^{1/3}$</span></li><li><span>$E = E_0 \beta_6^6$</span></li></ul><table><tr><th style="text-align: right">symbol</th><th style="text-align: right">default value</th></tr><tr><td style="text-align: right"><span>$R_{C0}$</span></td><td style="text-align: right"><span>$7.5$</span></td></tr><tr><td style="text-align: right"><span>$E_0$</span></td><td style="text-align: right"><span>$1.08 \times 10^{10}$</span></td></tr></table><h2 id="Accretion"><a class="docs-heading-anchor" href="#Accretion">Accretion</a><a id="Accretion-1"></a><a class="docs-heading-anchor-permalink" href="#Accretion" title="Permalink"></a></h2><h3 id="Khairoutdinov-and-Kogan-(2000)-2"><a class="docs-heading-anchor" href="#Khairoutdinov-and-Kogan-(2000)-2">Khairoutdinov and Kogan (2000)</a><a class="docs-heading-anchor-permalink" href="#Khairoutdinov-and-Kogan-(2000)-2" title="Permalink"></a></h3><p class="math-container">\[\begin{equation}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; (q_{liq} q_{rai})^a \; \rho^b
+\end{equation}\]</p><p>where:</p><ul><li><span>$q_{liq}$</span> is the cloud liquid water specific humidity,</li><li><span>$q_{rai}$</span> is the rain water specific humidity,</li><li><span>$\rho$</span>    is the air density,</li></ul><p>and the default free parameter values are:</p><table><tr><th style="text-align: right">symbol</th><th style="text-align: right">default value</th></tr><tr><td style="text-align: right"><span>$A$</span></td><td style="text-align: right"><span>$67$</span></td></tr><tr><td style="text-align: right"><span>$a$</span></td><td style="text-align: right"><span>$1.15$</span></td></tr><tr><td style="text-align: right"><span>$b$</span></td><td style="text-align: right"><span>$-1.3$</span></td></tr></table><h3 id="Beheng-(1994)-2"><a class="docs-heading-anchor" href="#Beheng-(1994)-2">Beheng (1994)</a><a class="docs-heading-anchor-permalink" href="#Beheng-(1994)-2" title="Permalink"></a></h3><p class="math-container">\[\begin{equation}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; q_{liq} \; q_{rai} \; \rho
+\end{equation}\]</p><p>where:</p><ul><li><span>$q_{liq}$</span> is the cloud liquid water specific humidity,</li><li><span>$q_{rai}$</span> is the rain specific humidity,</li><li><span>$\rho$</span>    is the air density,</li></ul><p>and the default free parameter values are:</p><table><tr><th style="text-align: right">symbol</th><th style="text-align: right">default value</th></tr><tr><td style="text-align: right"><span>$A$</span></td><td style="text-align: right"><span>$6$</span></td></tr></table><h3 id="Tripoli-and-Cotton-(1980)-2"><a class="docs-heading-anchor" href="#Tripoli-and-Cotton-(1980)-2">Tripoli and Cotton (1980)</a><a class="docs-heading-anchor-permalink" href="#Tripoli-and-Cotton-(1980)-2" title="Permalink"></a></h3><p class="math-container">\[\begin{equation}
+  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; q_{liq} \; q_{rai}
+\end{equation}\]</p><p>where:</p><ul><li><span>$q_{liq}$</span> is cloud liquid water specific humidity</li><li><span>$q_{rai}$</span> is rain specific humidity</li></ul><p>and the default free parameter values are:</p><table><tr><th style="text-align: right">symbol</th><th style="text-align: right">default value</th></tr><tr><td style="text-align: right"><span>$A$</span></td><td style="text-align: right"><span>$4.7$</span></td></tr></table><h2 id="Example-figures"><a class="docs-heading-anchor" href="#Example-figures">Example figures</a><a id="Example-figures-1"></a><a class="docs-heading-anchor-permalink" href="#Example-figures" title="Permalink"></a></h2><pre><code class="language-julia hljs">using CairoMakie
+CairoMakie.activate!(type = &quot;svg&quot;)
+
+import CloudMicrophysics
+import CLIMAParameters
+
+const CMT = CloudMicrophysics.CommonTypes
+const CM1 = CloudMicrophysics.Microphysics1M
+const CM2 = CloudMicrophysics.Microphysics2M
+const CP = CLIMAParameters
+const CMP = CloudMicrophysics.Parameters
+
+include(joinpath(pkgdir(CloudMicrophysics), &quot;test&quot;, &quot;create_parameters.jl&quot;))
+FT = Float64
+toml_dict = CP.create_toml_dict(FT; dict_type = &quot;alias&quot;)
+const param_set = cloud_microphysics_parameters(toml_dict)
+thermo_params = CMP.thermodynamics_params(param_set)
+
+const liquid = CMT.LiquidType()
+const rain = CMT.RainType()
+
+const KK2000 = CMT.KK2000Type()
+const B1994  = CMT.B1994Type()
+const TC1980 = CMT.TC1980Type()
+const LD2004 = CMT.LD2004Type()
+
+include(joinpath(pkgdir(CloudMicrophysics), &quot;docs&quot;, &quot;src&quot;, &quot;Wooddata.jl&quot;))
+
+# Example values
+q_liq_range = range(1e-8, stop=1e-3, length=1000)
+q_rai_range = range(1e-8, stop=1e-3, length=1000)
+N_d_range = range(1e7, stop=1e9, length=1000)
+q_liq = 5e-4
+q_rai = 5e-4
+ρ_air = 1.0 # kg m^-3
+
+q_liq_KK2000 = [CM2.conv_q_liq_to_q_rai(param_set, KK2000, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_B1994 = [CM2.conv_q_liq_to_q_rai(param_set, B1994, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_TC1980 = [CM2.conv_q_liq_to_q_rai(param_set, TC1980, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_LD2004 = [CM2.conv_q_liq_to_q_rai(param_set, LD2004, q_liq, ρ_air, N_d = 1e8) for q_liq in q_liq_range]
+q_liq_K1969 = [CM1.conv_q_liq_to_q_rai(param_set, q_liq) for q_liq in q_liq_range]
+
+N_d_KK2000 = [CM2.conv_q_liq_to_q_rai(param_set, KK2000, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_B1994 = [CM2.conv_q_liq_to_q_rai(param_set, B1994, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_TC1980 = [CM2.conv_q_liq_to_q_rai(param_set, TC1980, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+N_d_LD2004 = [CM2.conv_q_liq_to_q_rai(param_set, LD2004, 5e-4, ρ_air, N_d = N_d) for N_d in N_d_range]
+
+accKK2000_q_liq = [CM2.accretion(param_set, KK2000, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
+accB1994_q_liq = [CM2.accretion(param_set, B1994, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
+accTC1980_q_liq = [CM2.accretion(param_set, TC1980, q_liq, q_rai) for q_liq in q_liq_range]
+accK1969_q_liq = [CM1.accretion(param_set, liquid, rain, q_liq, q_rai, ρ_air) for q_liq in q_liq_range]
+
+accKK2000_q_rai = [CM2.accretion(param_set, KK2000, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
+accB1994_q_rai = [CM2.accretion(param_set, B1994, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
+accTC1980_q_rai = [CM2.accretion(param_set, TC1980, q_liq, q_rai) for q_rai in q_rai_range]
+accK1969_q_rai = [CM1.accretion(param_set, liquid, rain, q_liq, q_rai, ρ_air) for q_rai in q_rai_range]
+
+fig = Figure()
+
+ax1 = Axis(fig[1, 1]; yscale = log10)
+ax2 = Axis(fig[1, 2]; xscale = log10, yscale = log10)
+ax3 = Axis(fig[2, 1]; yscale = log10)
+ax4 = Axis(fig[2, 2]; yscale = log10)
+
+ylims!(ax1, [1e-13, 1e-5])
+ylims!(ax2, [1e-13, 1e-5])
+ylims!(ax3, [1e-7, 5e-6])
+ylims!(ax4, [1e-7, 5e-6])
+
+fig = Figure()
+
+ax1 = Axis(fig[1, 1]; yscale = log10)
+ax2 = Axis(fig[1, 2]; xscale = log10, yscale = log10)
+ax3 = Axis(fig[2, 1]; yscale = log10)
+ax4 = Axis(fig[2, 2]; yscale = log10)
+
+ylims!(ax1, [1e-13, 1e-5])
+ylims!(ax2, [1e-13, 1e-5])
+ylims!(ax3, [1e-7, 5e-6])
+ylims!(ax4, [1e-7, 5e-6])
+
+l1 = lines!(ax1, q_liq_range * 1e3, q_liq_KK2000,    color = :red)
+l2 = lines!(ax1, q_liq_range * 1e3, q_liq_B1994,     color = :green)
+l3 = lines!(ax1, q_liq_range * 1e3, q_liq_TC1980,    color = :blue)
+l4 = lines!(ax1, q_liq_range * 1e3, q_liq_LD2004,    color = :purple)
+l5 = lines!(ax1, q_liq_range * 1e3, q_liq_K1969,     color = :black)
+l6 = lines!(ax1, KK2000_x_q_liq,    KK2000_y_q_liq,  color = :red, linestyle = :dash)
+l7 = lines!(ax1, B1994_x_q_liq,     B1994_y_q_liq,   color = :green, linestyle = :dash)
+l8 = lines!(ax1, TC1980_x_q_liq,    TC1980_y_q_liq,  color = :blue, linestyle = :dash)
+l9 = lines!(ax1, LD2004_x_q_liq,    LD2004_y_q_liq,  color = :purple, linestyle = :dash)
+
+l10 = lines!(ax2, N_d_range * 1e-6, N_d_KK2000, color = :red)
+l11 = lines!(ax2, N_d_range * 1e-6, N_d_B1994, color = :green)
+l12 = lines!(ax2, N_d_range * 1e-6, N_d_TC1980, color = :blue)
+l13 = lines!(ax2, N_d_range * 1e-6, N_d_LD2004, color = :purple)
+l14 = lines!(ax2, KK2000_x_N_d, KK2000_y_N_d, color = :red, linestyle = :dash)
+l15 = lines!(ax2, B1994_x_N_d, B1994_y_N_d, color = :green, linestyle = :dash)
+l16 = lines!(ax2, TC1980_x_N_d, TC1980_y_N_d, color = :blue, linestyle = :dash)
+l17 = lines!(ax2, LD2004_x_N_d, LD2004_y_N_d, color = :purple, linestyle = :dash)
+
+l18 = lines!(ax3, q_liq_range * 1e3, accKK2000_q_liq, color = :red)
+l19 = lines!(ax3, q_liq_range * 1e3, accB1994_q_liq, color = :green)
+l20 = lines!(ax3, q_liq_range * 1e3, accTC1980_q_liq, color = :blue)
+l21 = lines!(ax3, q_liq_range * 1e3, accK1969_q_liq, color = :black)
+
+l22 = lines!(ax4, q_rai_range * 1e3, accKK2000_q_rai, color = :red)
+l23 = lines!(ax4, q_rai_range * 1e3, accB1994_q_rai, color = :green)
+l24 = lines!(ax4, q_rai_range * 1e3, accTC1980_q_rai, color = :blue)
+l25 = lines!(ax4, q_rai_range * 1e3, accK1969_q_rai, color = :black)
+
+ax1.xlabel = &quot;q_liq [g/kg]&quot;
+ax1.ylabel = &quot;autoconversion rate [1/s]&quot;
+ax2.xlabel = &quot;N_d [1/cm3]&quot;
+ax2.ylabel = &quot;autoconversion rate [1/s]&quot;
+ax3.xlabel = &quot;q_liq [g/kg] (q_rai = 0.5 g/kg)&quot;
+ax3.ylabel = &quot;accretion rate [1/s]&quot;
+ax4.xlabel = &quot;q_rai [g/kg] (q_liq = 0.5 g/kg)&quot;
+ax4.ylabel = &quot;accretion rate [1/s]&quot;
+
+Legend(
+    fig[1, 3],
+    [l1, l2, l3, l4, l5, l6, l7, l8, l9],
+    [&quot;KK2000&quot;, &quot;B1994&quot;, &quot;TC1980&quot;, &quot;LD2004&quot;, &quot;K1969&quot;, &quot;Wood_KK2000&quot;, &quot;Wood_B1994&quot;, &quot;Wood_TC1980&quot;, &quot;Wood_LD2004&quot;]
+)
+save(&quot;Autoconversion_accretion.svg&quot;, fig)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">CairoMakie.Screen{SVG}
+</code></pre><p><img src="../Autoconversion_accretion.svg" alt/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../Microphysics1M/">« 1-moment precipitation microphysics</a><a class="docs-footer-nextpage" href="../MicrophysicsNonEq/">Non-equilibrium cloud formation »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 0.27.23 on <span class="colophon-date" title="Friday 28 October 2022 15:11">Friday 28 October 2022</span>. Using Julia version 1.8.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
