@@ -9,8 +9,8 @@ struct P3IceParticleVelocityFunctor{FT, VS, VL, S} <: Function
     use_aspect_ratio::Bool
 end
 @inline function (f::P3IceParticleVelocityFunctor)(D)
-    vₜ = D <= f.D_cutoff ? f.v_term_small(D) : f.v_term_large(D)
-    return f.use_aspect_ratio ? cbrt(ϕᵢ(f.state, D)) * vₜ : vₜ
+    vₜ = ifelse(D <= f.D_cutoff, f.v_term_small(D), f.v_term_large(D))
+    return ifelse(f.use_aspect_ratio, cbrt(ϕᵢ(f.state, D)) * vₜ, vₜ)
 end
 
 """
