@@ -248,12 +248,12 @@ function run_gpu_performance_benchmarks(FT)
         ρ_rim = constant_data(FT(400.0); ndrange)
 
         kernel_p3! = benchmark_p3_kernel!(backend, work_groups)
-        t_compile_p3 = @elapsed kernel_p3!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρ; ndrange)
+        t_compile_p3 = @elapsed kernel_p3!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρ_arr; ndrange)
         KernelAbstractions.synchronize(backend)
         @info "P3 Kernel first call (compile + run time): $(round(t_compile_p3, digits=4)) seconds"
 
         b_p3 = BT.@benchmark (
-            $kernel_p3!($p3_params, $Ch2022, $output, $L_ice, $N_ice, $F_rim, $ρ_rim, $ρ; ndrange = $ndrange);
+            $kernel_p3!($p3_params, $Ch2022, $output, $L_ice, $N_ice, $F_rim, $ρ_rim, $ρ_arr; ndrange = $ndrange);
             KernelAbstractions.synchronize($backend)
         )
         @info "P3 Kernel runtime benchmark:" BT.minimum(b_p3)
