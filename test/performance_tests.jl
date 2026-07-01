@@ -184,9 +184,20 @@ function benchmark_test(FT)
     # returning a single (concretely-typed) closure, this path is type-stable
     # on both 1.10 and 1.12 and allocates nothing — keep the default zero
     # allocation/memory budget so a future closure regression is caught here.
-    bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 170_000)
-    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 200_000)
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 7_000)
+    _glq = P3.GaussLegendre(FT, 12)
+    bench_press(
+        FT,
+        (a, b, c, d) -> P3.ice_terminal_velocity_number_weighted(a, b, c, d; quad = _glq),
+        (ch2022, ρ_air, state, logλ),
+        170_000,
+    )
+    bench_press(
+        FT,
+        (a, b, c, d) -> P3.ice_terminal_velocity_mass_weighted(a, b, c, d; quad = _glq),
+        (ch2022, ρ_air, state, logλ),
+        200_000,
+    )
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1), P3.ChebyshevGauss(100)), 7_000)
     bench_press(FT, P3.D_m, (state, logλ), 3_000)
 
     @info "P3 Ice Nucleation"
@@ -198,7 +209,7 @@ function benchmark_test(FT)
     )
     bench_press(
         @NamedTuple{dNdt::FT, dLdt::FT},
-        P3.ice_melt,
+        (vp, ap, tp, T, ρ, st, lλ) -> P3.ice_melt(vp, ap, tp, T, ρ, st, lλ; quad = _glq),
         (ch2022, aps, tps, T_air, ρ_air, state, logλ),
         150_000,
     )
@@ -327,7 +338,8 @@ function benchmark_test(FT)
         # allocations. TODO: drop the gate once CI runs >= 1.12.
         if VERSION >= v"1.12"
             bench_press(@NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT},
-                P3.bulk_liquid_ice_collision_sources,
+                (st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T) ->
+                    P3.bulk_liquid_ice_collision_sources(st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T; quad = _glq),
                 (
                     state, logλ,
                     sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,

@@ -43,6 +43,20 @@ function integral_bounds(state::P3State{FT}, logλ; p, moment_order = 0) where {
 end
 
 """
+    velocity_integral_bounds(state::P3State, logλ, D_cutoff; p, moment_order = 0)
+
+Compute the integration bounds for a velocity-weighted P3 integral: the
+mass-regime [`integral_bounds`](@ref) with the Chen 2022 small/large-ice velocity
+breakpoint `D_cutoff` clamped into `[D_min, D_max]` and re-sorted, so the `v(D)`
+kink lands on a subinterval boundary. Returns a fixed 6-tuple.
+"""
+function velocity_integral_bounds(state::P3State{FT}, logλ, D_cutoff; p, moment_order = 0) where {FT}
+    bnds = integral_bounds(state, logλ; p, moment_order)
+    D_c = clamp(FT(D_cutoff), first(bnds), last(bnds))
+    return Tuple(SA.sort(SA.SVector(bnds..., D_c)))
+end
+
+"""
     D_m(state::P3State, logλ)
 
 Compute the mass weighted mean particle size [m]

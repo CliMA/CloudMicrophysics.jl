@@ -57,14 +57,14 @@ end
  - `logλ`: the log of the slope parameter [log(1/m)]
 
 # Keyword arguments
- - `quad`: quadrature rule, default is `ChebyshevGauss(100)`
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
 """
 function ice_melt(
     velocity_params, aps::CMP.AirProperties, tps::TDI.PS,
     Tₐ, ρₐ, state::P3State, logλ;
-    quad = ChebyshevGauss(100),
+    quad,
 )
     # Note: process not dependent on `F_liq`
     # (we want ice core shape params)
@@ -292,7 +292,7 @@ Returns a function `liquid_integrals(Dᵢ)` that computes the liquid particle in
 - `liq_bounds`: integration bounds for liquid particles
 
 # Keyword arguments
-- `quad`: quadrature rule, default is `ChebyshevGauss(100)`
+- `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 # Notes
 The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col, ∂ₜB_col)`
@@ -301,7 +301,7 @@ The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col
 - `∂ₜM_col`: mass collision rate [kg/s]
 - `∂ₜB_col`: rime volume collision rate [m³/s]
 """
-function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; quad = ChebyshevGauss(100))
+function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; quad)
     function liquid_integrals(Dᵢ)
         integrand =
             D -> SA.SVector(
@@ -440,12 +440,12 @@ Computes the bulk collision rate integrands between ice and liquid particles.
 - `ice_bounds`: integration bounds for ice particles, from [`integral_bounds`](@ref)
 
 # Keyword arguments
-- `quad`: quadrature rule, default is `ChebyshevGauss(100)`
+- `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 # Returns
 A tuple of 8 integrands, see [`∫liquid_ice_collisions`](@ref) for details.
 """
-function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = ChebyshevGauss(100))
+function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad)
     function liquid_ice_collisions_integrands(Dᵢ)
         # Inner integrals over liquid particle diameters
         ∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col = cloud_integrals(Dᵢ)
@@ -593,7 +593,7 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
 function bulk_liquid_ice_collision_sources(
     state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
-    aps, tps, vel, ρₐ, T; quad = ChebyshevGauss(100),
+    aps, tps, vel, ρₐ, T; quad,
 )
     FT = promote_type(eltype(state), UT.promote_typeof(L_c, N_c, L_r, N_r, ρₐ, T))
     (; τ_wet, ρ_i) = state.params
@@ -687,28 +687,34 @@ while leaving mass, rime mass, and rime volume unchanged.
 - `ρₐ`: air density [kg/m³]
 
 # Keyword arguments
-- `quad`: quadrature rule, default is `ChebyshevGauss(100)`
+- `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 # Returns
 A `NamedTuple` of `(; dNdt)`, where:
 1. `dNdt`: ice number concentration tendency due to self-collection [1/m³/s] (always positive or zero, represents a loss rate)
 """
-function ice_self_collection(state, logλ, vel, ρₐ; quad = ChebyshevGauss(100))
+function ice_self_collection(state, logλ, vel, ρₐ; quad)
     n_i = DT.size_distribution(state, logλ)
     ∂ₜV = volumetric_ice_ice_collision_rate_integrand(vel, ρₐ, state)
 
     p = eps(one(ρₐ))
-    ice_bounds = integral_bounds(state, logλ; p)
+    ice_bounds = velocity_integral_bounds(state, logλ, vel.small_ice.cutoff; p)
+    D_min, D_max = ice_bounds[1], ice_bounds[end]
 
     function inner_integral(D_1)
+        # Inner integral over D_2 ∈ [D_1, D_max] (the upper triangle). Its
+        # subinterval boundaries are the P3 regime breakpoints restricted to that
+        # window: clamping each breakpoint up to D_1 drops those below it to
+        # zero-width (no-op) subintervals.
         integrand = D_2 -> ∂ₜV(D_1, D_2) * n_i(D_2)
-        rate_at_D1 = integrate(integrand, ice_bounds, quad)
-        return rate_at_D1 * n_i(D_1)
+        D_lo = clamp(D_1, D_min, D_max)
+        inner_bounds = map(D -> max(D, D_lo), ice_bounds)
+        return integrate(integrand, inner_bounds, quad) * n_i(D_1)
     end
 
-    total_rate = integrate(inner_integral, ice_bounds, quad)
-
-    # The 0.5 factor accounts for double-counting in self-collection
-    dNdt = (1 // 2) * total_rate
+    # The collision integrand is symmetric under `D_1 ↔ D_2`, so the triangle
+    # integral times two equals the full-square integral; that factor of two
+    # cancels the `1/2` self-collection double-counting factor.
+    dNdt = integrate(inner_integral, ice_bounds, quad)
     return (; dNdt)
 end
