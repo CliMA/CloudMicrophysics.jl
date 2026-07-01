@@ -86,7 +86,11 @@ end
     return (FD.Dual{T}(P, z), FD.Dual{T}(Q, z))
 end
 
-@inline function _gamma_inc(a::FT, x::FT) where {FT <: Real}
+# `lΓa = SF.loggamma(a)` is passed in so callers that evaluate this repeatedly for a
+# fixed `a` (e.g. the Halley loop in `_gamma_inc_inv`) compute the expensive loggamma
+# once instead of every iteration. The 2-arg form computes it for one-off callers.
+@inline _gamma_inc(a::FT, x::FT) where {FT <: Real} = _gamma_inc(a, x, SF.loggamma(a))
+@inline function _gamma_inc(a::FT, x::FT, lΓa::FT) where {FT <: Real}
     if x <= 0
         return (zero(FT), one(FT))
     elseif isinf(x)
@@ -95,7 +99,7 @@ end
 
     # factor = x^a * e^-x / Gamma(a)
     # Using loggamma for numerical stability
-    factor = exp(a * log(x) - x - SF.loggamma(a))
+    factor = exp(a * log(x) - x - lΓa)
     maxiters = FT === Float32 ? 20 : 30
 
     if x < a + 1
@@ -215,11 +219,14 @@ end
     # Halley's method
     # Use Q-q residual when p > 0.5 to avoid catastrophic cancellation
     use_q = p > FT(0.5)
+    # loggamma(a) is loop-invariant, so compute once and thread it into `_gamma_inc`
+    # and the derivative below (was recomputed ~2×/iteration, up to ~30×/call).
+    lΓa = SF.loggamma(a)
     for i in 1:15
-        P, Q = _gamma_inc(a, x)
+        P, Q = _gamma_inc(a, x, lΓa)
         f = use_q ? Q - q : P - p
         # Derivative: dP/dx = x^(a-1) e^-x / Gamma(a), dQ/dx = -dP/dx
-        fprime = exp((a - 1) * log(x) - x - SF.loggamma(a))
+        fprime = exp((a - 1) * log(x) - x - lΓa)
         # When using Q-q, the derivative is -fprime
         fprime = use_q ? -fprime : fprime
         if fprime == 0

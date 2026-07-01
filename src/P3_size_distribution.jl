@@ -1,14 +1,14 @@
 import CloudMicrophysics.DistributionTools: size_distribution
 
 # Callable returned by `logN′ice`: evaluates `log(N′(D))` for a fixed state and slope.
-struct P3LogNumberFunctor{FT, T} <: Function
+struct P3LogNumberFunctor{FT} <: Function
     log_N₀::FT
     μ::FT
-    logλ::T
+    λ::FT
 end
 @inline function (f::P3LogNumberFunctor)(D)
     logD = log(D)
-    return f.log_N₀ + f.μ * logD - exp(f.logλ + logD)
+    return f.log_N₀ + f.μ * logD - f.λ * D
 end
 
 """
@@ -23,7 +23,8 @@ function logN′ice(state::P3State, logλ)
     # Promote to a common type: differentiating w.r.t. the ice number makes
     # `log_N₀` a `Dual` while `μ` (a function of the fixed `logλ`) stays a plain
     # float, and `P3LogNumberFunctor` stores both in a single field type.
-    return P3LogNumberFunctor(promote(log_N₀, μ)..., logλ)
+    λ = exp(logλ)
+    return P3LogNumberFunctor(promote(log_N₀, μ)..., λ)
 end
 
 # Callable returned by `size_distribution`: `n(D) = exp(logN′(D))`.

@@ -157,48 +157,53 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
     thermo = (; ρ, T)
 
+    # Size-distribution / fall-speed quantities (λ⁻¹, n₀, v₀ for rain/snow/ice) are
+    # pow/exp-heavy and shared by several processes per species: compute once and pass
+    # to each process via its `sd` argument so they are not recomputed per process.
+    sd = CM1._size_dist_cache(mp, micro, thermo)
+
     # --- Phase change: vapor ↔ cloud condensate (bidirectional, ±) ---
     S_phase_change_vap_lcl = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo)
     S_phase_change_vap_icl = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo)
 
     # --- Autoconversion (cloud → precipitation, ≥ 0) ---
     S_acnv_lcl_rai = CM1.conv_q_lcl_to_q_rai(opts.rain_autoconversion, mp, tps, micro, thermo)
-    S_acnv_icl_sno = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo)
+    S_acnv_icl_sno = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo, sd)
 
     # --- Accretion (collisions between species) ---
     is_warm = T >= TDI.T_freeze(tps)
 
     # Cloud liquid + rain → rain
-    S_accr_lcl_rai = CM1.accretion(opts.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
+    S_accr_lcl_rai = CM1.accretion(opts.cloud_liquid_rain_accretion, mp, tps, micro, thermo, sd)
 
     # Cloud liquid + snow: product goes to sno (cold) or rai (warm), plus thermal melt
-    (; S_accr, S_melt) = CM1.accretion(opts.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
+    (; S_accr, S_melt) = CM1.accretion(opts.cloud_liquid_snow_accretion, mp, tps, micro, thermo, sd)
     S_accr_lcl_sno_cold = ifelse(is_warm, zero(FT), S_accr)    # lcl → sno (cold)
     S_accr_lcl_sno_warm = ifelse(is_warm, S_accr, zero(FT))    # lcl → rai (warm)
     S_accr_melt_lcl_sno = S_melt                                # thermal melt of sno from warm lcl (already zero when cold)
 
     # Cloud ice + rain → snow (ice-side sink)
-    S_accr_icl_rai = CM1.accretion(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo)
+    S_accr_icl_rai = CM1.accretion(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd)
 
     # Rain frozen in cloud ice + rain collision → snow (rain sink)
-    S_accr_freeze_icl_rai = CM1.accretion_rain_sink(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo)
+    S_accr_freeze_icl_rai = CM1.accretion_rain_sink(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd)
 
     # Cloud ice + snow → snow
-    S_accr_icl_sno = CM1.accretion(opts.cloud_ice_snow_accretion, mp, tps, micro, thermo)
+    S_accr_icl_sno = CM1.accretion(opts.cloud_ice_snow_accretion, mp, tps, micro, thermo, sd)
 
     # Rain-snow collisions: split into cold/warm arms (inactive arm = zero)
-    (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(opts.rain_snow_accretion, mp, tps, micro, thermo)
+    (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(opts.rain_snow_accretion, mp, tps, micro, thermo, sd)
     S_accr_rai_sno_cold = ifelse(is_warm, zero(FT), S_rai_sno) # cold arm: rai freezes → sno
     S_accr_rai_sno_warm = ifelse(is_warm, S_sno_rai, zero(FT)) # warm arm: sno melts → rai
     S_accr_melt_rai_sno = ifelse(is_warm, S_melt, zero(FT))    # thermal melt of sno from warm rai
 
     # --- Phase change: precipitation ↔ vapor ---
-    S_phase_change_vap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_condensation_evaporation, mp, tps, micro, thermo)
-    S_phase_change_vap_sno = CM1.conv_q_sno_to_q_vap(opts.snow_deposition_sublimation, mp, tps, micro, thermo)
+    S_phase_change_vap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_condensation_evaporation, mp, tps, micro, thermo, sd)
+    S_phase_change_vap_sno = CM1.conv_q_sno_to_q_vap(opts.snow_deposition_sublimation, mp, tps, micro, thermo, sd)
 
     # --- Melting ---
-    S_melt_icl_lcl = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo)
-    S_melt_sno_rai = CM1.conv_q_sno_to_q_rai(opts.snow_melt, mp, tps, micro, thermo)
+    S_melt_icl_lcl = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo, sd)
+    S_melt_sno_rai = CM1.conv_q_sno_to_q_rai(opts.snow_melt, mp, tps, micro, thermo, sd)
 
     return (;
         S_phase_change_vap_lcl, S_phase_change_vap_icl,

@@ -48,6 +48,16 @@ function generalized_gamma_quantile(ν, μ, B, Y)
 end
 
 """
+    generalized_gamma_quantile_unit_μ(ν, B, Y)
+
+Quantile for the `μ == 1` special case of [`generalized_gamma_quantile`](@ref).
+With `μ = 1`, `(z/B)^(1/μ)` collapses to `z/B`, avoiding a runtime `pow` of the
+form `x^1`. Used on the hot P3 `integral_bounds` path (which always passes `μ = 1`).
+"""
+@inline generalized_gamma_quantile_unit_μ(ν, B, Y) =
+    UT.gamma_inc_inv(ν + 1, Y, 1 - Y) / B
+
+"""
     generalized_gamma_cdf(ν, μ, B, x)
 
 Calculate the cumulative distribution function (CDF) for a generalized gamma distribution
