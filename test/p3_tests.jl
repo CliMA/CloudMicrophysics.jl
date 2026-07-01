@@ -518,7 +518,8 @@ function test_numerical_integrals(FT)
             N′ = P3.size_distribution(state, logλ)
             bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
             N_estim_cheb = P3.integrate(N′, bnds)
-            @test N_ice ≈ N_estim_cheb rtol = 1e-5
+            N_tol = FT == Float32 ? 2e-5 : 1e-5  # native-FT gamma_inc slightly less precise than Float64-backed SF
+            @test N_ice ≈ N_estim_cheb rtol = N_tol
 
             # Compare with quadgk
             N_estim_qgk = QGK.quadgk(N′, bnds...)[1]

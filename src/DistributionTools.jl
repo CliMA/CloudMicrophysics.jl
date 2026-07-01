@@ -12,6 +12,7 @@ module DistributionTools
 
 import SpecialFunctions as SF
 import LogExpFunctions as LEF
+import CloudMicrophysics.Utilities as UT
 
 """
     size_distribution(args...; kwargs...)
@@ -42,7 +43,7 @@ Calculate the quantile (inverse cumulative distribution function) for a
 """
 function generalized_gamma_quantile(ν, μ, B, Y)
     # Compute the inverse of the regularized incomplete gamma function
-    z = SF.gamma_inc_inv((ν + 1) / μ, Y, 1 - Y)
+    z = UT.gamma_inc_inv((ν + 1) / μ, Y, 1 - Y)
     return (z / B)^(1 / μ)
 end
 
@@ -71,7 +72,7 @@ function generalized_gamma_cdf(ν, μ, B, x)
     x ≤ 0 && return zero(x)
 
     # Compute the regularized incomplete gamma function
-    p, _ = SF.gamma_inc((ν + 1) / μ, B * x^μ)
+    p, _ = UT.gamma_inc((ν + 1) / μ, B * x^μ)
     return p
 end
 

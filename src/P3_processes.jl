@@ -323,9 +323,10 @@ Find the diameter `D` in `[D_min, D_max]` where `v_l(D) = v_target`
 function crossover_diameter(v_target, v_l::F, D_min, D_max) where {F}
     FT = float(promote_type(typeof(v_target), typeof(D_min), typeof(D_max)))
     f(D) = v_l(D) - v_target
+    maxiters = FT === Float32 ? 8 : 10
     sol = RS.find_zero(f,
         RS.BrentsMethod(FT(D_min), FT(D_max)), RS.CompactSolution(),
-        RS.SolutionTolerance(FT(1e-12)), 60,
+        FixedIterations{FT}(), maxiters,
     )
     return sol.root
 end

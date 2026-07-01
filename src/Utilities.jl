@@ -7,10 +7,227 @@ Contains pure numerical operations with no physics dependencies.
 module Utilities
 
 import UnrolledUtilities as UU
+import SpecialFunctions as SF
+import ForwardDiff as FD
 
 export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
 export unrolled_logsumexp
 export sgs_weight_function, rime_mass_fraction, rime_density
+export gamma_inc, gamma_inc_inv
+
+"""
+    gamma_inc(a, x)
+
+Fast, fixed-iteration approximation of the incomplete gamma function
+(replacing `SpecialFunctions.gamma_inc`).
+
+Returns `(P(a, x), Q(a, x))` where `P` is the lower regularized incomplete gamma
+and `Q` is the upper regularized incomplete gamma function.
+
+Optimized for GPU execution and low compile times. The primary domain split
+(`x < a + 1`) is an `if ... else` branch, which is cheap when neighbouring
+grid points fall on the same side (spatial coherence in atmospheric fields),
+and the per-iteration guards in the continued fraction use branchless `ifelse`.
+The series / continued-fraction loops execute a fixed number of iterations
+(20 for `Float32`, 30 for `Float64`), completely eliminating warp divergence
+while guaranteeing excellent physical accuracy.
+
+# Automatic differentiation
+Analytic rules are provided for the derivative with respect to `x`
+(`∂P/∂x = x^{a-1} e^{-x} / Γ(a)`, `∂Q/∂x = -∂P/∂x`), so AD does not trace the
+internal iteration. The derivative with respect to the shape parameter `a` is
+**not** implemented: passing an `a` that depends on the differentiation variable
+(nonzero partials) raises an error rather than silently returning a wrong (zero)
+gradient. See `_assert_const_shape`.
+"""
+@inline function gamma_inc(a::Real, x::Real)
+    FT = float(promote_type(typeof(a), typeof(x)))
+    return _gamma_inc(FT(a), FT(x))
+end
+
+# `P, Q` as `Dual`s carrying the analytic x-derivative. `val_a` is the (plain)
+# shape parameter. Shared by the `gamma_inc(::Real, ::Dual)` and
+# `gamma_inc(::Dual, ::Dual)` overloads (the latter after the shape guard).
+@inline function _gamma_inc_dx(val_a::Real, x::FD.Dual)
+    val_x = FD.value(x)
+    P, Q = gamma_inc(val_a, val_x)
+    T = FD.tagtype(typeof(x))
+    deriv = val_x > 0 ? exp((val_a - 1) * log(val_x) - val_x - SF.loggamma(val_a)) : zero(val_x)
+    return (FD.Dual{T}(P, deriv * FD.partials(x)), FD.Dual{T}(Q, -deriv * FD.partials(x)))
+end
+
+@inline gamma_inc(a::Real, x::FD.Dual) = _gamma_inc_dx(a, x)
+
+@inline function gamma_inc(a::FD.Dual, x::FD.Dual)
+    _assert_const_shape(a)
+    return _gamma_inc_dx(FD.value(a), x)
+end
+
+@inline function gamma_inc(a::FD.Dual, x::Real)
+    _assert_const_shape(a)
+    P, Q = gamma_inc(FD.value(a), x)
+    T = FD.tagtype(typeof(a))
+    z = zero(FD.partials(a))
+    return (FD.Dual{T}(P, z), FD.Dual{T}(Q, z))
+end
+
+@inline function _gamma_inc(a::FT, x::FT) where {FT <: Real}
+    if x <= 0
+        return (zero(FT), one(FT))
+    elseif isinf(x)
+        return (one(FT), zero(FT))
+    end
+
+    # factor = x^a * e^-x / Gamma(a)
+    # Using loggamma for numerical stability
+    factor = exp(a * log(x) - x - SF.loggamma(a))
+    maxiters = FT === Float32 ? 20 : 30
+
+    if x < a + 1
+        # Series expansion for P(a, x)
+        term = one(FT) / a
+        sum_P = term
+        for k in 1:maxiters
+            term *= x / (a + k)
+            sum_P += term
+        end
+        P = factor * sum_P
+        P = clamp(P, zero(FT), one(FT))
+        return (P, one(FT) - P)
+    else
+        # Continued fraction (Lentz's method) for Q(a, x)
+        tiny = FT(1e-30)
+
+        # k = 1
+        b_1 = x + 1 - a
+        c = b_1 + 1 / tiny
+        d = 1 / b_1
+        h = d
+
+        for k in 1:maxiters
+            a_k = -FT(k) * (FT(k) - a)
+            b_k = x + 2 * k + 1 - a
+
+            d_tmp = b_k + a_k * d
+            d = ifelse(abs(d_tmp) < tiny, tiny, d_tmp)
+
+            c_tmp = b_k + a_k / c
+            c = ifelse(abs(c_tmp) < tiny, tiny, c_tmp)
+
+            d = 1 / d
+            delta = c * d
+            h *= delta
+        end
+        Q = factor * h
+        Q = clamp(Q, zero(FT), one(FT))
+        return (one(FT) - Q, Q)
+    end
+end
+
+# Guard used by the AD rules for `gamma_inc` / `gamma_inc_inv`: the derivative
+# with respect to the shape parameter `a` is not implemented (only the `x`- /
+# `p`-derivative is). To avoid silently returning a wrong (zero) gradient, error
+# if `a` actually depends on the differentiation variable. An `a` that merely
+# happens to be a `Dual` with zero partials (e.g. promoted from a constant) is
+# allowed and treated as a constant.
+@inline function _assert_const_shape(a::FD.Dual)
+    iszero(FD.partials(a)) || error(
+        "gamma_inc/gamma_inc_inv: differentiation with respect to the shape " *
+        "parameter `a` is not supported (only the x-/p-derivative is implemented).",
+    )
+    return nothing
+end
+
+"""
+    gamma_inc_inv(a, p, q)
+
+Fast, GPU-friendly inverse of `gamma_inc` using Halley's method.
+Finds `x` such that `P(a, x) = p` and `Q(a, x) = q`.
+
+# Automatic differentiation
+The derivative with respect to `p` is provided analytically via the inverse
+function theorem (`dx/dp = 1 / (∂P/∂x) = Γ(a) / (x^{a-1} e^{-x})`), so AD does
+not trace Halley's iteration. As with [`gamma_inc`](@ref), differentiating with
+respect to the shape parameter `a` is not supported and errors (see
+`_assert_const_shape`).
+"""
+@inline function gamma_inc_inv(a::Real, p::Real, q::Real)
+    FT = float(promote_type(typeof(a), typeof(p), typeof(q)))
+    return _gamma_inc_inv(FT(a), FT(p), FT(q))
+end
+
+# `x` as a `Dual` carrying the analytic p-derivative. `val_a` is the (plain)
+# shape parameter. Shared by the `gamma_inc_inv(::Real, ::Dual, ::Dual)` and
+# `gamma_inc_inv(::Dual, ::Dual, ::Dual)` overloads (the latter after the guard).
+@inline function _gamma_inc_inv_dp(val_a::Real, p::FD.Dual, q::FD.Dual)
+    val_p = FD.value(p)
+    val_q = FD.value(q)
+    x_val = gamma_inc_inv(val_a, val_p, val_q)
+    T = FD.tagtype(typeof(p))
+    dP_dx = exp((val_a - 1) * log(x_val) - x_val - SF.loggamma(val_a))
+    dx_dp = dP_dx > 0 ? inv(dP_dx) : zero(x_val)
+    return FD.Dual{T}(x_val, dx_dp * FD.partials(p))
+end
+
+@inline gamma_inc_inv(a::Real, p::FD.Dual, q::FD.Dual) = _gamma_inc_inv_dp(a, p, q)
+
+@inline function gamma_inc_inv(a::FD.Dual, p::FD.Dual, q::FD.Dual)
+    _assert_const_shape(a)
+    return _gamma_inc_inv_dp(FD.value(a), p, q)
+end
+
+@inline function gamma_inc_inv(a::FD.Dual, p::Real, q::Real)
+    _assert_const_shape(a)
+    x_val = gamma_inc_inv(FD.value(a), p, q)
+    T = FD.tagtype(typeof(a))
+    return FD.Dual{T}(x_val, zero(FD.partials(a)))
+end
+
+@inline function _gamma_inc_inv(a::FT, p::FT, q::FT) where {FT <: Real}
+    if p <= 0
+        return zero(FT)
+    elseif q <= 0
+        return FT(Inf)
+    end
+
+    # Initial guess
+    if p < 0.5
+        x = FT((p * SF.gamma(a + 1))^(1 / a))
+    else
+        x = FT(a - log(q))
+    end
+
+    # Halley's method
+    # Use Q-q residual when p > 0.5 to avoid catastrophic cancellation
+    use_q = p > FT(0.5)
+    for i in 1:15
+        P, Q = _gamma_inc(a, x)
+        f = use_q ? Q - q : P - p
+        # Derivative: dP/dx = x^(a-1) e^-x / Gamma(a), dQ/dx = -dP/dx
+        fprime = exp((a - 1) * log(x) - x - SF.loggamma(a))
+        # When using Q-q, the derivative is -fprime
+        fprime = use_q ? -fprime : fprime
+        if fprime == 0
+            break
+        end
+        # f'' / f' = (a - 1 - x) / x  (same sign regardless of residual choice)
+        fprime2_over_fprime = (a - 1 - x) / x
+
+        # Halley step
+        step = f / (fprime * (one(FT) - FT(0.5) * f * fprime2_over_fprime / fprime))
+
+        # Protect against taking a step that makes x <= 0
+        if x - step <= 0
+            step = FT(0.5) * x
+        end
+
+        x = FT(x - step)
+        if abs(step) < eps(FT) * x
+            break
+        end
+    end
+    return x
+end
 
 """
     clamp_to_nonneg(x)

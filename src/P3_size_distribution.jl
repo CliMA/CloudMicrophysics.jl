@@ -1,18 +1,33 @@
 import CloudMicrophysics.DistributionTools: size_distribution
 
+# Callable returned by `logN′ice`: evaluates `log(N′(D))` for a fixed state and slope.
+struct P3LogNumberFunctor{FT, T} <: Function
+    log_N₀::FT
+    μ::FT
+    logλ::T
+end
+@inline function (f::P3LogNumberFunctor)(D)
+    logD = log(D)
+    return f.log_N₀ + f.μ * logD - exp(f.logλ + logD)
+end
+
 """
     logN′ice(state, logλ)
 
-Compute the log of the ice particle number concentration at diameter `D` given the distribution `dist`
+Return a callable that computes `log(N′(D))`, the log of the ice particle number
+concentration at diameter `D`, for the [`P3State`](@ref) `state` and log-slope `logλ`.
 """
 function logN′ice(state::P3State, logλ)
     μ = get_μ(state, logλ)
     log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
-    return function logN′(D)
-        logD = log(D)
-        log_N₀ + μ * logD - exp(logλ + logD)
-    end
+    return P3LogNumberFunctor(log_N₀, μ, logλ)
 end
+
+# Callable returned by `size_distribution`: `n(D) = exp(logN′(D))`.
+struct P3SizeDistributionFunctor{F} <: Function
+    logN′::F
+end
+@inline (f::P3SizeDistributionFunctor)(D) = exp(f.logN′(D))
 
 """
     size_distribution(state::P3State, logλ)
@@ -23,7 +38,7 @@ Return `n(D)`, a function that computes the size distribution for ice particles 
 - `state`: The [`P3State`](@ref)
 - `logλ`: The log of the slope parameter [log(1/m)]
 """
-DT.size_distribution(state::P3State, logλ) = exp ∘ logN′ice(state, logλ)
+DT.size_distribution(state::P3State, logλ) = P3SizeDistributionFunctor(logN′ice(state, logλ))
 
 ### ------------------------------------------------ ###
 ### ----- Obtaining P3 distribution parameters ----- ###
@@ -61,7 +76,7 @@ Compute `log(Iᵏ)` where `Iᵏ` is the following integral:
  with the transformation `x = λD`, and `z = μ+k+1`, each term can be written as:
     `∫_{Dᵢ}^∞ G(D) D^k dD = ∫_{λDᵢ}^∞ x^z e^{-x} dx / λ^z = Γ(z, λDᵢ) / λ^z`
  where `Γ(z, λDᵢ) = q ⋅ Γ(z)` and `q` is the incomplete gamma function ratio given by
-    `(_, q) = SF.gamma_inc(z, x)`.
+    `(_, q) = UT.gamma_inc(z, x)`.
  This means that the integral `∫_{Dᵢ}^∞ G(D) D^k dD` is computed as:
     `Γ(z) ⋅ q / λ^z`
  The full integral from `D₁` to `D₂` is then:
@@ -76,9 +91,13 @@ function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     D₁ < D₂ || return log(FT(0))  # return log(0) if D₁ ≥ D₂
     z = k + μ + 1
     # `λ⋅D ≡ xexpy(D, logλ) ≡ D * exp(logλ)` (numerically stable)
-    (_, q_D₁) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₁, logλ))
-    (_, q_D₂) = SF.gamma_inc(z, LogExpFunctions.xexpy(D₂, logλ))
-    return -z * logλ + SF.loggamma(z) + log(q_D₁ - q_D₂) + log(FT(scale))
+    x1 = LogExpFunctions.xexpy(D₁, logλ)
+    x2 = LogExpFunctions.xexpy(D₂, logλ)
+    (p1, q1) = UT.gamma_inc(z, x1)
+    (p2, q2) = UT.gamma_inc(z, x2)
+    Δq = x2 < z + 1 ? p2 - p1 : q1 - q2
+    Δq = max(Δq, eps(FT))
+    return -z * logλ + SF.loggamma(z) + log(Δq) + log(FT(scale))
 end
 
 """
@@ -96,9 +115,13 @@ See also [`loggamma_inc_moment`](@ref)
     D₂ > D₁ || return zero(FT)
     α > 0 || return FT(NaN)
     z = p + 1
-    (_, q1) = SF.gamma_inc(z, α * D₁)
-    (_, q2) = SF.gamma_inc(z, α * D₂)
-    return SF.gamma(z) * (q1 - q2) / α^z
+    x1 = α * D₁
+    x2 = α * D₂
+    (p1, q1) = UT.gamma_inc(z, x1)
+    (p2, q2) = UT.gamma_inc(z, x2)
+    Δq = x2 < z + 1 ? p2 - p1 : q1 - q2
+    Δq = max(Δq, zero(FT))
+    return SF.gamma(z) * Δq / α^z
 end
 
 """
@@ -206,6 +229,20 @@ function get_logN₀(N_ice, μ, logλ)
 end
 
 """
+    FixedIterations{FT}()
+
+A `RootSolvers.AbstractTolerance` whose convergence predicate is always `false`,
+so the bracketing solver never exits early and always runs the full iteration
+budget. This makes the iteration count independent of the input, eliminating
+warp divergence from data-dependent early-exit on the GPU (at the cost of the
+warm-start speedup — a tighter initial bracket improves accuracy but not the
+iteration count). The iteration budget itself is calibrated empirically; see
+[`get_distribution_logλ`](@ref).
+"""
+struct FixedIterations{FT} <: RS.AbstractTolerance{FT} end
+@inline (::FixedIterations)(x1, x2, y) = false
+
+"""
     get_distribution_logλ(state, [logλ_guess, logλ_min, logλ_max])
 
 Solve for the distribution parameters given the state, and the mass (`L`) and number (`N`) concentrations.
@@ -230,12 +267,11 @@ This algorithm solves for `logλ = log(λ)` and `log_N₀ = log(N₀)`
 where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
     The procedure is decribed in detail in [the P3 docs](@ref "Parameterizations for the slope parameter \$μ\$").
 
-
 # Arguments
 - `state`: The [`P3State`](@ref)
 - `logλ_guess`: Optional initial guess
-- `logλ_min`: The minimum value of the search bounds [log(1/m)], default is `log(1e1)`
-- `logλ_max`: The maximum value of the search bounds [log(1/m)], default is `log(1e7)`
+- `logλ_min`: The minimum value of the search bounds [log(1/m)], default is `2`
+- `logλ_max`: The maximum value of the search bounds [log(1/m)], default is `17`
 """
 function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, logλ_max = 17)
     FT = eltype(state)
@@ -254,12 +290,23 @@ function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, log
     (lo, f_lo, hi, f_hi) =
         _narrow_bracket(shape_problem, lo, f_lo, hi, f_hi, logλ_guess)
 
+    # Fixed iteration count (no early-exit) keeps GPU warps convergent. The
+    # branchless Brent's method converges rapidly, and the shape problem
+    # `logLdivN(logλ)` is close to linear over the [2,17] bracket, so these
+    # counts empirically reach excellent accuracy across sampled physical
+    # states. This is an EMPIRICAL, curvature-dependent result, NOT a guaranteed
+    # tolerance: a strongly-curved shape function (e.g. a future `get_μ` law)
+    # could leave the root under-resolved with no runtime signal (the solver's
+    # `converged` flag is unused). Accuracy is guarded end-to-end by the
+    # `N ≈ ∫N′ dD` integral checks in `test/p3_tests.jl`; revisit the budget if
+    # those tighten or the slope law changes.
+    maxiters = FT === Float32 ? 8 : 10
     sol = RS.find_zero(
         shape_problem,
         RS.BrentsMethod(lo, hi),
         RS.CompactSolution(),
-        RS.RelativeSolutionTolerance(eps(FT)),
-        100,
+        FixedIterations{FT}(),
+        maxiters,
     )
     return sol.root  # logλ
 end
@@ -281,10 +328,20 @@ end
 @inline _narrow_bracket(_sp, lo, f_lo, hi, f_hi, ::Nothing) = (lo, f_lo, hi, f_hi)
 @inline function _narrow_bracket(shape_problem, lo, f_lo, hi, f_hi, p::Real)
     p_ = oftype(lo, p)
-    (isfinite(p_) && lo < p_ < hi) || return (lo, f_lo, hi, f_hi)
-    f_p = shape_problem(p_)
-    isfinite(f_p) || return (lo, f_lo, hi, f_hi)
-    return f_lo * f_p < 0 ? (lo, f_lo, p_, f_p) : (p_, f_p, hi, f_hi)
+    valid = isfinite(p_) & (lo < p_ < hi)
+    p_clean = ifelse(valid, p_, lo)
+    f_p = shape_problem(p_clean)
+    valid &= isfinite(f_p)
+
+    left = valid & (f_lo * f_p < 0)
+    right = valid & !left
+
+    new_hi = ifelse(left, p_clean, hi)
+    new_f_hi = ifelse(left, f_p, f_hi)
+    new_lo = ifelse(right, p_clean, lo)
+    new_f_lo = ifelse(right, f_p, f_lo)
+
+    return (new_lo, new_f_lo, new_hi, new_f_hi)
 end
 
 """

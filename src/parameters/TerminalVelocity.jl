@@ -30,6 +30,8 @@ $(DocStringExtensions.FIELDS)
     gamma_term::FT
     "pre-computed gamma(ae + ve + Δa + Δv + 1) for accretion [-]"
     gamma_accr::FT
+    "pre-computed gamma(me + ae + ve + Δm + Δa + Δv + 1) for accretion_rain_sink [-]"
+    gamma_accr_rain_sink::FT
 end
 
 function Blk1MVelTypeRain(td::CP.ParamDict)
@@ -56,7 +58,8 @@ function Blk1MVelTypeRain(td::CP.ParamDict)
     gamma_vent = SF.gamma((parameters.ve + parameters.Δv + 5) / 2)
     gamma_term = SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1)
     gamma_accr = SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1)
-    return Blk1MVelTypeRain(; parameters..., gamma_vent, gamma_term, gamma_accr)
+    gamma_accr_rain_sink = SF.gamma(mass_p.me + area_p.ae + parameters.ve + mass_p.Δm + area_p.Δa + parameters.Δv + 1)
+    return Blk1MVelTypeRain(; parameters..., gamma_vent, gamma_term, gamma_accr, gamma_accr_rain_sink)
 end
 
 """
