@@ -66,6 +66,238 @@ end
 end
 
 """
+    _per_process_2mp3(mp, tps, ρ, T, q_tot,
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ)
+
+Decompose the raw instantaneous 2M+P3 tendency into per-process contributions,
+each a [`MicroState2MP3`](@ref) over the eight prognostic species, returned as a
+`NamedTuple`. Replays the process calls of the warm-rain + P3 ice
+[`bulk_microphysics_tendencies`](@ref) entry in the same order with the same
+intermediate quantities, routing each process into its own species vector. The
+sum over the returned processes equals the full raw tendency
+[`_instantaneous_2mp3_tendency`](@ref) evaluates.
+
+Evaluated at the primal state only: it supplies the per-process right-hand
+sides `f_p` for the linear post-solve attribution and is not differentiated.
+"""
+@inline function _per_process_2mp3(mp::CMP.Microphysics2MParams{WR, ICE}, tps,
+    ρ, T, q_tot,
+    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
+) where {WR, ICE <: CMP.P3IceParams}
+    FT = eltype(ρ)
+    ϵₘ = UT.ϵ_numerics_2M_M(FT)
+    ϵₙ = UT.ϵ_numerics_2M_N(FT)
+    # Clamp negative inputs to zero, matching the entry.
+    ρ = UT.clamp_to_nonneg(ρ)
+    q_tot = UT.clamp_to_nonneg(q_tot)
+    q_lcl = UT.clamp_to_nonneg(q_lcl)
+    q_rai = UT.clamp_to_nonneg(q_rai)
+    n_lcl = UT.clamp_to_nonneg(n_lcl)
+    n_rai = UT.clamp_to_nonneg(n_rai)
+    q_ice = UT.clamp_to_nonneg(q_ice)
+    n_ice = UT.clamp_to_nonneg(n_ice)
+    q_rim = UT.clamp_to_nonneg(q_rim)
+    b_rim = UT.clamp_to_nonneg(b_rim)
+
+    o = zero(FT)
+    # builder for a per-process vector in the (q_lcl, n_lcl, q_rai, n_rai,
+    # q_ice, n_ice, q_rim, b_rim) order shared with the entry's accumulators
+    Z() = MicroState2MP3(o, o, o, o, o, o, o, o)
+
+    # Volumetric quantities for P3 functions (entry convention).
+    L_lcl = q_lcl * ρ
+    L_rai = q_rai * ρ
+    N_lcl = n_lcl * ρ
+    N_rai = n_rai * ρ
+    L_ice = q_ice * ρ
+    N_ice = n_ice * ρ
+    L_rim = q_rim * ρ
+    B_rim = b_rim * ρ
+    state = CMP3.state_from_prognostic(mp.ice.scheme, L_ice, N_ice, L_rim, B_rim)
+
+    aps = mp.warm_rain.air_properties
+    subdep = mp.warm_rain.subdep
+
+    #####
+    ##### Warm-rain processes (mirrors `warm_rain_tendencies_2m`)
+    #####
+    warm_rain = mp.warm_rain
+    sb = warm_rain.seifert_beheng
+    condevap = warm_rain.condevap
+    N_lcl_wr = ρ * n_lcl
+    N_rai_wr = ρ * n_rai
+
+    # activation (cloud number only): no activation source
+    dn_lcl_activation_dt = o
+    activation = MicroState2MP3(o, dn_lcl_activation_dt, o, o, o, o, o, o)
+
+    # cloud condensation / evaporation (cloud mass only; number neglected)
+    micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
+    thermo_mock = (; ρ, T)
+    ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl(
+        CMP.CloudLiquidFormation(condevap.τ_relax), nothing, tps, micro_mock, thermo_mock,
+    )
+    cloud_condevap = MicroState2MP3(∂ₜq_lcl_cond, o, o, o, o, o, o, o)
+
+    # rain evaporation (rain mass + number)
+    evap = CM2.rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_ice, q_rai, zero(q_ice), ρ, N_rai_wr, T)
+    rain_evap = MicroState2MP3(o, o, evap.∂ₜq_rai, evap.∂ₜρn_rai / ρ, o, o, o, o)
+
+    # autoconversion (cloud → rain, mass + number)
+    acnv = CM2.autoconversion(sb.acnv, sb.pdf_c, q_lcl, q_rai, ρ, N_lcl_wr)
+    autoconv = MicroState2MP3(
+        acnv.dq_lcl_dt, acnv.dN_lcl_dt / ρ, acnv.dq_rai_dt, acnv.dN_rai_dt / ρ, o, o, o, o,
+    )
+
+    # cloud self-collection (cloud number only)
+    ∂ₜN_lcl_sc = CM2.cloud_liquid_self_collection(sb.acnv, sb.pdf_c, q_lcl, ρ, acnv.dN_lcl_dt)
+    cloud_selfcol = MicroState2MP3(o, ∂ₜN_lcl_sc / ρ, o, o, o, o, o, o)
+
+    # accretion (cloud → rain, mass; cloud number)
+    accr = CM2.accretion(sb, q_lcl, q_rai, ρ, N_lcl_wr)
+    accretion_wr = MicroState2MP3(accr.dq_lcl_dt, accr.dN_lcl_dt / ρ, accr.dq_rai_dt, o, o, o, o, o)
+
+    # rain self-collection (rain number only)
+    ∂ₜN_rai_sc = CM2.rain_self_collection(sb.pdf_r, sb.self, q_rai, ρ, N_rai_wr)
+    rain_selfcol = MicroState2MP3(o, o, o, ∂ₜN_rai_sc / ρ, o, o, o, o)
+
+    # rain breakup (rain number only)
+    ∂ₜN_rai_br = CM2.rain_breakup(sb.pdf_r, sb.brek, q_rai, ρ, N_rai_wr, ∂ₜN_rai_sc)
+    rain_breakup = MicroState2MP3(o, o, o, ∂ₜN_rai_br / ρ, o, o, o, o)
+
+    # number adjustment for mass limits (cloud, then rain)
+    numadj_lcl = (; sb.numadj.τ, x_min = sb.pdf_c.xc_min, x_max = sb.pdf_c.xc_max)
+    ∂ₜn_lcl_numadj = CM2.number_tendency_from_mass_limits(numadj_lcl, q_lcl, n_lcl)
+    cloud_numadj = MicroState2MP3(o, ∂ₜn_lcl_numadj, o, o, o, o, o, o)
+    numadj_rai = (; sb.numadj.τ, x_min = sb.pdf_r.xr_min, x_max = sb.pdf_r.xr_max)
+    ∂ₜn_rai_numadj = CM2.number_tendency_from_mass_limits(numadj_rai, q_rai, n_rai)
+    rain_numadj = MicroState2MP3(o, o, o, ∂ₜn_rai_numadj, o, o, o, o)
+
+    #####
+    ##### P3 ice processes (mirrors the warm-rain + P3 ice entry)
+    #####
+    p3 = mp.ice.scheme
+    vel = mp.ice.terminal_velocity
+    pdf_c = mp.ice.cloud_pdf
+    pdf_r = mp.ice.rain_pdf
+    ice_nucleation = mp.ice.ice_nucleation
+    inp_depletion_model = mp.ice.inp_depletion_model
+    quad = mp.ice.quad
+
+    # liquid-ice collision, ice aggregation, ice melting
+    if q_ice > ϵₘ && n_ice > ϵₙ
+        coll = CMP3.bulk_liquid_ice_collision_sources(
+            state, logλ, pdf_c, pdf_r, L_lcl, N_lcl, L_rai, N_rai, aps, tps, vel, ρ, T;
+            quad,
+        )
+        liquid_ice_collision = MicroState2MP3(
+            coll.∂ₜq_c, coll.∂ₜN_c / ρ, coll.∂ₜq_r, coll.∂ₜN_r / ρ,
+            coll.∂ₜL_ice / ρ, o, coll.∂ₜL_rim / ρ, coll.∂ₜB_rim / ρ,
+        )
+
+        S_ice_agg = CMP3.ice_self_collection(state, logλ, vel, ρ; quad)
+        ice_aggregation = MicroState2MP3(o, o, o, o, o, -S_ice_agg.dNdt / ρ, o, o)
+
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        melt = ifelse(T > T_freeze,
+            CMP3.ice_melt(vel, aps, tps, T, ρ, state, logλ; quad),
+            (; dNdt = zero(ρ), dLdt = zero(ρ)),
+        )
+        ∂ₜq_ice_melt = melt.dLdt / ρ
+        ∂ₜn_ice_melt = melt.dNdt / ρ
+        ∂ₜq_rim_melt = -∂ₜq_ice_melt * state.F_rim
+        ∂ₜb_rim_melt = ifelse(state.ρ_rim > 0, -∂ₜq_ice_melt * state.F_rim / state.ρ_rim, zero(FT))
+        ice_melting = MicroState2MP3(
+            o, o, ∂ₜq_ice_melt, ∂ₜn_ice_melt, -∂ₜq_ice_melt, -∂ₜn_ice_melt,
+            ∂ₜq_rim_melt, ∂ₜb_rim_melt,
+        )
+    else
+        liquid_ice_collision = Z()
+        ice_aggregation = Z()
+        ice_melting = Z()
+    end
+
+    # F23 deposition nucleation (pristine ice, F_rim = 0)
+    τ_act = inp_depletion_model.τ_act
+    D_nuc = FT(10e-6)
+    m_nuc = p3.ρ_i * CO.volume_sphere_D(D_nuc)
+    n_active = CM_HetIce.n_active(inp_depletion_model, n_ice)
+    f23_dep = CM_HetIce.deposition_rate(
+        ice_nucleation, tps, T, ρ, q_tot, q_lcl + q_rai, q_ice, n_active;
+        m_nuc, τ_act, inpc_log_shift = zero(ρ),
+    )
+    f23_deposition = MicroState2MP3(o, o, o, o, f23_dep.∂ₜq_frz, f23_dep.∂ₜn_frz, o, o)
+
+    # Bigg immersion freezing of cloud drops (fully-rimed embryo graupel)
+    cld_bigg = CM_HetIce.liquid_freezing_rate(mp.ice.rain_freezing, pdf_c, tps, q_lcl, ρ, N_lcl, T)
+    cld_cap = CM_HetIce.immersion_limit_rate(
+        ice_nucleation, T, ρ; τ = τ_act, inpc_log_shift = zero(ρ), n_active,
+    )
+    ∂ₜn_imm = min(cld_bigg.∂ₜn_frz, cld_cap.∂ₜn_frz)
+    ∂ₜq_imm = ifelse(cld_bigg.∂ₜn_frz > 0, cld_bigg.∂ₜq_frz * ∂ₜn_imm / cld_bigg.∂ₜn_frz, zero(FT))
+    bigg_immersion = MicroState2MP3(
+        -∂ₜq_imm, -∂ₜn_imm, o, o, ∂ₜq_imm, ∂ₜn_imm, ∂ₜq_imm, ∂ₜq_imm / p3.ρ_i,
+    )
+
+    # ice deposition / sublimation (rim drains on the sublimation branch only)
+    n_per_q_ice = ifelse(q_ice > ϵₘ, n_ice / q_ice, zero(n_ice))
+    micro_mock_ice = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
+    ∂ₜq_ice_dep = CMNonEq.conv_q_vap_to_q_icl(
+        CMP.ConstantTimescale(subdep.τ_relax), nothing, tps, micro_mock_ice, thermo_mock,
+    )
+    ∂ₜq_ice_dep = ifelse(T > tps.T_freeze, min(∂ₜq_ice_dep, zero(T)), ∂ₜq_ice_dep)
+    ∂ₜn_ice_dep = ifelse(∂ₜq_ice_dep < 0, n_per_q_ice * ∂ₜq_ice_dep, zero(∂ₜq_ice_dep))
+    ∂ₜq_ice_sub = min(∂ₜq_ice_dep, 0)
+    ∂ₜq_rim_sub = ∂ₜq_ice_sub * state.F_rim
+    ∂ₜb_rim_sub = ifelse(state.ρ_rim > 0, ∂ₜq_ice_sub * state.F_rim / state.ρ_rim, zero(FT))
+    ice_depsub = MicroState2MP3(o, o, o, o, ∂ₜq_ice_dep, ∂ₜn_ice_dep, ∂ₜq_rim_sub, ∂ₜb_rim_sub)
+
+    # ice number adjustment for mass limits
+    numadj = (; τ = FT(100), x_min = FT(1e-12), x_max = FT(1e-5))
+    ∂ₜn_ice_numadj = CM2.number_tendency_from_mass_limits(numadj, q_ice, n_ice)
+    ice_numadj = MicroState2MP3(o, o, o, o, o, ∂ₜn_ice_numadj, o, o)
+
+    # rain heterogeneous freezing (Bigg; frozen rain fully rimed)
+    rain_frz = CM_HetIce.liquid_freezing_rate(mp.ice.rain_freezing, pdf_r, tps, q_rai, ρ, N_rai, T)
+    rain_freezing = MicroState2MP3(
+        o, o, -rain_frz.∂ₜq_frz, -rain_frz.∂ₜn_frz,
+        rain_frz.∂ₜq_frz, rain_frz.∂ₜn_frz, rain_frz.∂ₜq_frz, rain_frz.∂ₜq_frz / p3.ρ_i,
+    )
+
+    return (;
+        activation, cloud_condevap, rain_evap, autoconv, cloud_selfcol,
+        accretion = accretion_wr, rain_selfcol, rain_breakup, cloud_numadj, rain_numadj,
+        liquid_ice_collision, ice_aggregation, ice_melting, f23_deposition,
+        bigg_immersion, ice_depsub, ice_numadj, rain_freezing,
+    )
+end
+
+"""
+    Verbose2MP3Tendency(mp, tps, ρ, T, q_tot, logλ)
+
+Per-process companion to [`Instantaneous2MP3Tendency`](@ref): applying it to
+the species vector returns a `NamedTuple` of per-process tendency contributions
+(each a [`MicroState2MP3`](@ref)) via [`_per_process_2mp3`](@ref), instead of
+only their sum. Evaluated at the primal state only, it supplies the right-hand
+sides `f_p` for the linear post-solve attribution.
+"""
+struct Verbose2MP3Tendency{P, H, F}
+    mp::P
+    tps::H
+    ρ::F
+    T::F
+    q_tot::F
+    logλ::F
+end
+@inline function (g::Verbose2MP3Tendency)(x::SA.StaticVector{8, FT}) where {FT}
+    (q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim) = x
+    return _per_process_2mp3(g.mp, g.tps,
+        g.ρ, g.T, FT(g.q_tot),
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, g.logλ,
+    )
+end
+
+"""
     _rosenbrock_species_mask(x)
 
 Diagonal of the species projection matrix `P` used by
@@ -285,6 +517,67 @@ end
         q_lcl, q_icl, q_rai, q_sno,
     )
     return MicroState1M(tend.dq_lcl_dt, tend.dq_icl_dt, tend.dq_rai_dt, tend.dq_sno_dt)
+end
+
+"""
+    _per_process_1m(src)
+
+Project each individual 1M source term onto the four prognostic species as a
+[`MicroState1M`](@ref) `(q_lcl, q_icl, q_rai, q_sno)`, returning a `NamedTuple`
+of these per-process contribution vectors. The signs match
+[`_aggregate_tendencies`](@ref), so the sum over the returned processes equals
+the aggregated raw tendency the [`Raw1MTendency`](@ref) functor evaluates. Used
+by the verbose post-solve attribution to supply the per-process right-hand sides
+`f_p`.
+"""
+@inline function _per_process_1m(src)
+    FT = typeof(src.S_phase_change_vap_lcl)
+    o = zero(FT)
+    return (;
+        phase_change_vap_lcl = MicroState1M(src.S_phase_change_vap_lcl, o, o, o),
+        phase_change_vap_icl = MicroState1M(o, src.S_phase_change_vap_icl, o, o),
+        acnv_lcl_rai = MicroState1M(-src.S_acnv_lcl_rai, o, src.S_acnv_lcl_rai, o),
+        acnv_icl_sno = MicroState1M(o, -src.S_acnv_icl_sno, o, src.S_acnv_icl_sno),
+        accr_lcl_rai = MicroState1M(-src.S_accr_lcl_rai, o, src.S_accr_lcl_rai, o),
+        accr_lcl_sno_cold = MicroState1M(-src.S_accr_lcl_sno_cold, o, o, src.S_accr_lcl_sno_cold),
+        accr_lcl_sno_warm = MicroState1M(-src.S_accr_lcl_sno_warm, o, src.S_accr_lcl_sno_warm, o),
+        accr_melt_lcl_sno = MicroState1M(o, o, src.S_accr_melt_lcl_sno, -src.S_accr_melt_lcl_sno),
+        accr_icl_rai = MicroState1M(o, -src.S_accr_icl_rai, o, src.S_accr_icl_rai),
+        accr_freeze_icl_rai = MicroState1M(o, o, -src.S_accr_freeze_icl_rai, src.S_accr_freeze_icl_rai),
+        accr_icl_sno = MicroState1M(o, -src.S_accr_icl_sno, o, src.S_accr_icl_sno),
+        accr_rai_sno_cold = MicroState1M(o, o, -src.S_accr_rai_sno_cold, src.S_accr_rai_sno_cold),
+        accr_rai_sno_warm = MicroState1M(o, o, src.S_accr_rai_sno_warm, -src.S_accr_rai_sno_warm),
+        accr_melt_rai_sno = MicroState1M(o, o, src.S_accr_melt_rai_sno, -src.S_accr_melt_rai_sno),
+        phase_change_vap_rai = MicroState1M(o, o, src.S_phase_change_vap_rai, o),
+        phase_change_vap_sno = MicroState1M(o, o, o, src.S_phase_change_vap_sno),
+        melt_icl_lcl = MicroState1M(src.S_melt_icl_lcl, -src.S_melt_icl_lcl, o, o),
+        melt_sno_rai = MicroState1M(o, o, src.S_melt_sno_rai, -src.S_melt_sno_rai),
+    )
+end
+
+"""
+    Verbose1MTendency(mp, tps, ρ, T, q_tot)
+
+Per-process companion to [`Raw1MTendency`](@ref): applying it to the species
+vector returns a `NamedTuple` of per-process tendency contributions (each a
+[`MicroState1M`](@ref)) via [`_per_process_1m`](@ref), instead of only their
+sum. Evaluated at the primal state only, it supplies the right-hand sides `f_p`
+for the linear post-solve attribution.
+"""
+struct Verbose1MTendency{P, H, F}
+    mp::P
+    tps::H
+    ρ::F
+    T::F
+    q_tot::F
+end
+@inline function (g::Verbose1MTendency)(x::SA.StaticVector{4, FT}) where {FT}
+    (q_lcl, q_icl, q_rai, q_sno) = x
+    src = _microphysics_source_terms(Microphysics1Moment(), g.mp, g.tps,
+        g.ρ, g.T, FT(g.q_tot),
+        q_lcl, q_icl, q_rai, q_sno,
+    )
+    return _per_process_1m(src)
 end
 
 """
@@ -610,4 +903,195 @@ recovered; use [`ExactJacobian`](@ref) for the full derivative.
         wbf[1], wbf[2], wbf[3], wbf[4],
     )
     return Jdonor + coupling
+end
+
+#####
+##### Verbose post-solve per-process attribution (`Verbose`)
+#####
+
+"""
+    _rosenbrock_substep_verbose(g, g_verbose, J, z, x, h)
+
+One Rosenbrock-Euler substep with post-solve per-process attribution. Returns
+`(x_new, Δx_processes, Δx_clamp)`:
+
+- `x_new` — the realized next state, identical to the non-verbose
+  [`_rosenbrock_update`](@ref) / [`_euler_update`](@ref) at the same inputs.
+- `Δx_processes` — a `NamedTuple` of per-process realized increments `Δx_p`
+  (each a state vector), keyed by the verbose functor `g_verbose`'s processes.
+- `Δx_clamp` — the positivity clamp correction `(x_new − x) − Σ_p Δx_p` as a
+  state vector.
+
+The substep update is linear in the raw tendency, so each process's
+contribution `f_p` (from `g_verbose`, summing to `g(x)`) pushed through the same
+solve gives `Σ_p Δx_p` equal to the unclamped increment `Δx`. The positivity
+clamp is not linear, so its correction `Δx_clamp` is returned separately. `J`
+and `z` are the substep Jacobian (with the growth treatment applied) and the
+species mask.
+
+Not `@inline`d: its own specialization keeps the verbose functor call analyzed
+with the concrete `MicroState{N, FT}` state type, avoiding a JET tuple-broadcast
+false report in the shared P3 state constructor under inlining.
+"""
+function _rosenbrock_substep_verbose(g, g_verbose, J, z, x::SA.StaticVector{N, FT}, h) where {N, FT}
+    f = g(x)
+    fp = g_verbose(x)
+    if all(isfinite, x) && all(isfinite, J)
+        S, S⁻¹, A = _rosenbrock_system(x, f, J, z, h)
+        Δx = _rosenbrock_solve(S, S⁻¹, A, f)
+        Δxp = map(fp_i -> _rosenbrock_solve(S, S⁻¹, A, fp_i), fp)
+        x_new = max.(x .+ Δx, 0)
+        return x_new, Δxp, (x_new - x) - Δx
+    end
+    Δx = h .* f
+    Δxp = map(fp_i -> h .* fp_i, fp)
+    x_new = max.(x .+ Δx, 0)
+    return x_new, Δxp, (x_new - x) - Δx
+end
+
+"""
+    _per_process_zero_accumulator(g_verbose, x)
+
+Zero-valued per-process accumulator matching the `NamedTuple` shape the verbose
+functor `g_verbose` returns at state `x`: each process slot set to `zero(x)`.
+Initializes the per-substep accumulation in the verbose averaged entries. Not
+`@inline`d, for the same reason as [`_rosenbrock_substep_verbose`](@ref).
+"""
+function _per_process_zero_accumulator(g_verbose, x::SA.StaticVector)
+    return map(_ -> zero(x), g_verbose(x))
+end
+
+"""
+    bulk_microphysics_tendencies(v::Verbose, ::Microphysics2Moment,
+        mp, tps, ρ, T, q_tot,
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
+        Δt, nsub = 1)
+
+Diagnostic 2M+P3 Rosenbrock averaged tendency with post-solve per-process
+attribution. Runs the substep loop of the wrapped
+[`RosenbrockAverage`](@ref) mode and accumulates the per-process realized
+increments ([`_per_process_2mp3`](@ref)) and the positivity clamp correction
+through [`_rosenbrock_substep_verbose`](@ref). The per-process attribution uses
+the unlimited solve; the increment limiter is not applied here.
+
+Returns a `NamedTuple` with:
+
+- `dq_lcl_dt, dn_lcl_dt, dq_rai_dt, dn_rai_dt, dq_ice_dt, dn_ice_dt, dq_rim_dt,
+  db_rim_dt` — the net averaged tendencies.
+- `processes` — a `NamedTuple` of per-process realized averaged tendencies
+  (accumulated `Σ_substeps Δx_p / Δt`), each a [`MicroState2MP3`](@ref).
+- `clamp_correction` — the non-attributable positivity-clamp tendency
+  (accumulated `Σ_substeps Δx_clamp / Δt`), a [`MicroState2MP3`](@ref).
+
+By construction `Σ_p processes_p + clamp_correction` equals the net averaged
+state change `(x − x₀) / Δt` to the roundoff of the per-substep linear solve.
+This is a diagnostic path, separate from the non-verbose entry.
+"""
+@inline function bulk_microphysics_tendencies(
+    v::Verbose{<:RosenbrockAverage{ExactJacobian}}, cm::Microphysics2Moment,
+    mp::CMP.Microphysics2MParams{WR, ICE}, tps,
+    ρ, T, q_tot,
+    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
+    Δt, nsub = 1,
+) where {WR, ICE <: CMP.P3IceParams}
+    FT = typeof(q_tot)
+    mode = v.mode
+    nsub_eff = max(Int(nsub), 1)
+    h = Δt / FT(nsub_eff)
+    cp_d = TDI.TD.Parameters.cp_d(tps)
+
+    x = MicroState2MP3{FT}(q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim)
+    x₀ = x
+    Tsub = T
+    Δxp_sum = _per_process_zero_accumulator(Verbose2MP3Tendency(mp, tps, ρ, Tsub, q_tot, logλ), x)
+    Δx_clamp_sum = zero(x)
+    for _ in 1:nsub_eff
+        g = Instantaneous2MP3Tendency(mp, tps, ρ, Tsub, q_tot, logλ)
+        gv = Verbose2MP3Tendency(mp, tps, ρ, Tsub, q_tot, logλ)
+        J = _apply_growth(mode.growth, FD.jacobian(g, x))
+        z = _species_mask(mode.jacobian, mode.growth)(x)
+        x_prev = x
+        x, Δxp, Δx_clamp = _rosenbrock_substep_verbose(g, gv, J, z, x, h)
+        Δxp_sum = map(+, Δxp_sum, Δxp)
+        Δx_clamp_sum += Δx_clamp
+        Δ = x - x_prev
+        T_safe = max(150, Tsub)
+        Tsub += (TDI.Lᵥ(tps, T_safe) * (Δ.q_lcl + Δ.q_rai) + TDI.Lₛ(tps, T_safe) * Δ.q_ice) / cp_d
+    end
+
+    rates = (x - x₀) / Δt
+    net = NamedTuple{(
+        :dq_lcl_dt, :dn_lcl_dt, :dq_rai_dt, :dn_rai_dt,
+        :dq_ice_dt, :dn_ice_dt, :dq_rim_dt, :db_rim_dt,
+    )}(
+        Tuple(rates),
+    )
+    processes = map(Δxp_i -> Δxp_i / Δt, Δxp_sum)
+    clamp_correction = Δx_clamp_sum / Δt
+    return merge(net, (; processes, clamp_correction))
+end
+
+"""
+    bulk_microphysics_tendencies(v::Verbose, ::Microphysics1Moment,
+        mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1)
+
+Diagnostic 1M Rosenbrock averaged tendency with post-solve per-process
+attribution. Runs the substep loop of the wrapped [`RosenbrockAverage`](@ref)
+mode and accumulates the per-process realized increments
+([`_per_process_1m`](@ref)) and the positivity clamp correction through
+[`_rosenbrock_substep_verbose`](@ref). The per-process attribution uses the
+unlimited solve; the increment limiter is not applied here.
+
+Returns a `NamedTuple` with:
+
+- `dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt` — the net averaged tendencies.
+- `processes` — a `NamedTuple` of per-process realized averaged tendencies
+  (accumulated `Σ_substeps Δx_p / Δt`), each a [`MicroState1M`](@ref).
+- `clamp_correction` — the non-attributable positivity-clamp tendency
+  (accumulated `Σ_substeps Δx_clamp / Δt`), a [`MicroState1M`](@ref).
+
+By construction `Σ_p processes_p + clamp_correction` equals the net averaged
+state change `(x − x₀) / Δt` to the roundoff of the per-substep linear solve.
+This is a diagnostic path, separate from the non-verbose entry.
+"""
+@inline function bulk_microphysics_tendencies(
+    v::Verbose{<:RosenbrockAverage}, cm::Microphysics1Moment,
+    mp::CMP.Microphysics1MParams, tps,
+    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+)
+    FT = typeof(q_tot)
+    mode = v.mode
+    nsub_eff = max(Int(nsub), 1)
+    h = Δt / FT(nsub_eff)
+    Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+    Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+    jacobian = _jacobian_provider(mode.jacobian)
+    mask = _species_mask(mode.jacobian, mode.growth)
+
+    x = MicroState1M{FT}(q_lcl, q_icl, q_rai, q_sno)
+    x₀ = x
+    Tsub = T
+    Δxp_sum = _per_process_zero_accumulator(Verbose1MTendency(mp, tps, ρ, Tsub, q_tot), x)
+    Δx_clamp_sum = zero(x)
+    for _ in 1:nsub_eff
+        g = Raw1MTendency(mp, tps, ρ, Tsub, q_tot)
+        gv = Verbose1MTendency(mp, tps, ρ, Tsub, q_tot)
+        J = _apply_growth(mode.growth, jacobian(g, x))
+        z = mask(x)
+        x_prev = x
+        x, Δxp, Δx_clamp = _rosenbrock_substep_verbose(g, gv, J, z, x, h)
+        Δxp_sum = map(+, Δxp_sum, Δxp)
+        Δx_clamp_sum += Δx_clamp
+        Δ = x - x_prev
+        Tsub += Lv_over_cp * (Δ.q_lcl + Δ.q_rai) + Ls_over_cp * (Δ.q_icl + Δ.q_sno)
+    end
+
+    rates = (x - x₀) / Δt
+    net = (;
+        dq_lcl_dt = rates.q_lcl, dq_icl_dt = rates.q_icl,
+        dq_rai_dt = rates.q_rai, dq_sno_dt = rates.q_sno,
+    )
+    processes = map(Δxp_i -> Δxp_i / Δt, Δxp_sum)
+    clamp_correction = Δx_clamp_sum / Δt
+    return merge(net, (; processes, clamp_correction))
 end
