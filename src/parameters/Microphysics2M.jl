@@ -583,8 +583,8 @@ $(DocStringExtensions.FIELDS)
     a_vent_0_coeff::FT
     "pre-computed bv / 6^(β/2 - 1/2)"
     b_vent_0_coeff::FT
-    "pre-computed -1/2 + 3β/2"
-    β_va::FT
+    "pre-computed incomplete-gamma exponent for the 0th ventilation moment: -1/2 + 3β/2"
+    β_vent_0::FT
 end
 
 function EvaporationSB2006(td::CP.ParamDict)
@@ -602,8 +602,8 @@ function EvaporationSB2006(td::CP.ParamDict)
     b_vent_1 = bv * SF.gamma(FT(5 // 2) + FT(3 // 2) * β) / FT(6)^(β / 2 + FT(1 // 2))
     a_vent_0_coeff = av * cbrt(FT(36))
     b_vent_0_coeff = bv / FT(6)^(β / 2 - FT(0.5))
-    β_va = FT(-0.5) + FT(1.5) * β
-    return EvaporationSB2006(; parameters..., a_vent_1, b_vent_1, a_vent_0_coeff, b_vent_0_coeff, β_va)
+    β_vent_0 = FT(-0.5) + FT(1.5) * β
+    return EvaporationSB2006(; parameters..., a_vent_1, b_vent_1, a_vent_0_coeff, b_vent_0_coeff, β_vent_0)
 end
 
 """

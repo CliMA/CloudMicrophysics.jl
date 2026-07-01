@@ -783,7 +783,7 @@ function rain_evaporation(
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
     (; ν_air, D_vapor) = aps
-    (; av, bv, α, β, ρ0) = evap
+    (; α, β, ρ0) = evap
     ρw = pdf_r.ρw
     x_star = pdf_r.xr_min
     G = CO.G_func_liquid(aps, tps, T)
@@ -796,7 +796,7 @@ function rain_evaporation(
 
     t_star = cbrt(FT(6) * x_star / xr_mean)
     a_vent_0 = evap.a_vent_0_coeff * Γ_incl(FT(-1), t_star)
-    b_vent_0 = evap.b_vent_0_coeff * Γ_incl(evap.β_va, t_star)
+    b_vent_0 = evap.b_vent_0_coeff * Γ_incl(evap.β_vent_0, t_star)
 
     a_vent_1 = evap.a_vent_1
     b_vent_1 = evap.b_vent_1
