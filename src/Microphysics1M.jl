@@ -82,7 +82,7 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 """
 @inline function get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT}
     safe_q_sno = max(q_sno, UT.ϵ_numerics(FT))
-    return ifelse(q_sno > UT.ϵ_numerics(FT), μ * (ρ * safe_q_sno)^ν, zero(FT))
+    return ifelse(q_sno > UT.ϵ_numerics(FT), (@fastmath μ * (ρ * safe_q_sno)^ν), zero(FT))
 end
 @inline get_n0((; n0)::CMP.ParticlePDFIceRain{FT}, args...) where {FT} = n0
 
@@ -99,9 +99,11 @@ Guards against unphysical density ratios (ρ > ρw) that would cause sqrt of neg
 - `ρ`: air density (rain only)
 """
 @inline function get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain{FT}, ρ::FT) where {FT}
-    # Guard against ρ > ρw (unphysical but could occur from numerical errors)
-    density_factor = max(ρw / ρ - 1, zero(FT))
-    return sqrt(FT(8 / 3) / C_drag * density_factor * grav * r0)
+    @fastmath begin
+        # Guard against ρ > ρw (unphysical but could occur from numerical errors)
+        density_factor = max(ρw / ρ - 1, zero(FT))
+        return sqrt(FT(8 / 3) / C_drag * density_factor * grav * r0)
+    end
 end
 @inline get_v0((; v0)::CMP.Blk1MVelTypeSnow{FT}, args...) where {FT} = v0
 
@@ -146,8 +148,10 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     # ParticleMass constructor for GPU performance.
     qp = UT.clamp_to_nonneg(q)
     ρp = UT.clamp_to_nonneg(ρ)
-    denom = χm * m0 * max(n0, UT.ϵ_numerics(FT)) * gamma_coeff
-    λ_inv = (ρp * qp * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
+    @fastmath begin
+        denom = χm * m0 * max(n0, UT.ϵ_numerics(FT)) * gamma_coeff
+        λ_inv = (ρp * qp * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
+    end
     return max(r0 * FT(1e-5), λ_inv)
 end
 
@@ -233,7 +237,7 @@ Fall velocity of individual particles is parameterized:
 
     # gamma_term = SF.gamma(me + ve + Δm + Δv + 1) (pre-computed in vel)
     # gamma_coeff = SF.gamma(me + Δm + 1) (pre-computed in mass)
-    fall_w = χv * v0 * (λ_inv / r0)^(ve + Δv) * gamma_term / gamma_coeff
+    fall_w = @fastmath χv * v0 * (λ_inv / r0)^(ve + Δv) * gamma_term / gamma_coeff
     return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
 
@@ -354,7 +358,7 @@ using the prescribed cloud droplet number concentration.
 @inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     (; τ, q_threshold, k) = opt.acnv1M
-    return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ
+    return @fastmath CO.logistic_function_integral(q_lcl, q_threshold, k) / τ
 end
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.PrescribedNd, mp, tps, micro, thermo)
@@ -414,7 +418,7 @@ Harrington et al. (1995) and Kaul et al. (2015).
 @inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo, sd = nothing)
     (; τ, q_threshold, k) = opt.acnv1M
     q_icl = micro.q_icl
-    return CO.logistic_function_integral(q_icl, q_threshold, k) / τ
+    return @fastmath CO.logistic_function_integral(q_icl, q_threshold, k) / τ
 end
 
 @inline function conv_q_icl_to_q_sno(
@@ -461,7 +465,7 @@ contribution of warm liquid on snow.
     T_freeze = TDI.T_freeze(tps)
     ΔT = T - T_freeze
     is_cold = (T <= T_freeze)
-    return ifelse(is_cold, zero(T), cv_l / L_f * ΔT)
+    return ifelse(is_cold, zero(T), @fastmath(cv_l / L_f * ΔT))
 end
 
 # Gating convention for the process-rate kernels below: the rate is computed
@@ -506,8 +510,8 @@ Internal low-level kernel. Prefer the option-dispatched API.
 
     # gamma_accr = SF.gamma(ae + ve + Δa + Δv + 1) (pre-computed in vel)
     accr_rate =
-        q_clo * E * n0 * a0 * v0 * χa * χv * λ_inv *
-        gamma_accr / (r0 / λ_inv)^(ae + ve + Δa + Δv)
+        @fastmath q_clo * E * n0 * a0 * v0 * χa * χv * λ_inv *
+                  gamma_accr / (r0 / λ_inv)^(ae + ve + Δa + Δv)
 
     cond = q_clo > UT.ϵ_numerics(FT) && q_pre > UT.ϵ_numerics(FT)
     return ifelse(cond, accr_rate, zero(FT))
@@ -552,9 +556,9 @@ end
 
     # gamma_accr_rain_sink = SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) (pre-computed in vel)
     accr_rate =
-        E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv * λ_ice_inv * λ_inv *
-        gamma_accr_rain_sink /
-        (r0 / λ_inv)^FT(me + ae + ve + Δm + Δa + Δv)
+        @fastmath E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv * λ_ice_inv * λ_inv *
+                  gamma_accr_rain_sink /
+                  (r0 / λ_inv)^FT(me + ae + ve + Δm + Δa + Δv)
 
     cond = q_icl > UT.ϵ_numerics(FT) && q_rai > UT.ϵ_numerics(FT)
     return ifelse(cond, accr_rate, zero(FT))
@@ -624,20 +628,22 @@ deviations are proportional to the mean fall velocities, with coefficient
     v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i, v0_i, λ_i_inv)
     v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j, v0_j, λ_j_inv)
 
-    # Add simple parameterization for velocity dispersion, assuming that fall velocity
-    # standard deviations are proportional to the mean fall velocities, with coefficient
-    # coeff_disp
-    Δv_eff = sqrt((v_ti - v_tj)^2 + coeff_disp * (v_ti^2 + v_tj^2))
+    @fastmath begin
+        # Add simple parameterization for velocity dispersion, assuming that fall velocity
+        # standard deviations are proportional to the mean fall velocities, with coefficient
+        # coeff_disp
+        Δv_eff = sqrt((v_ti - v_tj)^2 + coeff_disp * (v_ti^2 + v_tj^2))
 
-    # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms.
-    # gamma_coeff = Γ(δ + 1) is pre-computed.
-    accr_rate =
-        FT(π) / ρ * n0_i * n0_j * m0 * χm * E_ij * Δv_eff * gamma_coeff /
-        r0^δ * (
-            2 * λ_i_inv^3 * λ_j_inv^(δ + 1) +
-            2 * (δ + 1) * λ_i_inv^2 * λ_j_inv^(δ + 2) +
-            (δ + 2) * (δ + 1) * λ_i_inv * λ_j_inv^(δ + 3)
-        )
+        # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms.
+        # gamma_coeff = Γ(δ + 1) is pre-computed.
+        accr_rate =
+            FT(π) / ρ * n0_i * n0_j * m0 * χm * E_ij * Δv_eff * gamma_coeff /
+            r0^δ * (
+                2 * λ_i_inv^3 * λ_j_inv^(δ + 1) +
+                2 * (δ + 1) * λ_i_inv^2 * λ_j_inv^(δ + 2) +
+                (δ + 2) * (δ + 1) * λ_i_inv * λ_j_inv^(δ + 3)
+            )
+    end
 
     cond = q_i > UT.ϵ_numerics(FT) && q_j > UT.ϵ_numerics(FT)
     return ifelse(cond, accr_rate, zero(FT))
@@ -942,17 +948,19 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     a_vent = vent.a
     b_vent = vent.b
 
-    Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
+    @fastmath begin
+        Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
 
-    evap_rate =
-        4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
-        (
-            a_vent +
-            b_vent * cbrt(Sc) /
-            (r0 / λ_inv)^((ve + Δv) / 2) *
-            sqrt(2 * v0 * χv / ν_air * λ_inv) *
-            gamma_vent
-        )
+        evap_rate =
+            4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
+            (
+                a_vent +
+                b_vent * cbrt(Sc) /
+                (r0 / λ_inv)^((ve + Δv) / 2) *
+                sqrt(2 * v0 * χv / ν_air * λ_inv) *
+                gamma_vent
+            )
+    end
 
     cond = q_rai > UT.ϵ_numerics(FT) && S < FT(0)
     return min(zero(FT), ifelse(cond, evap_rate, zero(FT)))
@@ -1019,17 +1027,19 @@ end
     a_vent = vent.a
     b_vent = vent.b
 
-    Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
+    @fastmath begin
+        Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
 
-    subl_rate =
-        4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
-        (
-            a_vent +
-            b_vent * cbrt(Sc) /
-            (r0 / λ_inv)^((ve + Δv) / 2) *
-            sqrt(2 * v0 * χv / ν_air * λ_inv) *
-            gamma_vent
-        )
+        subl_rate =
+            4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
+            (
+                a_vent +
+                b_vent * cbrt(Sc) /
+                (r0 / λ_inv)^((ve + Δv) / 2) *
+                sqrt(2 * v0 * χv / ν_air * λ_inv) *
+                gamma_vent
+            )
+    end
 
     cond = q_sno > UT.ϵ_numerics(FT)
     return ifelse(cond, subl_rate, zero(FT))
@@ -1069,7 +1079,7 @@ Returns the tendency due to cloud ice melt.
     L = TDI.Lf(tps, T)
     (; n0) = pdf
     λ_inv = sd.λ_inv_icl
-    cloud_ice_melt_rate = 4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^2
+    cloud_ice_melt_rate = @fastmath 4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^2
 
     cond = q_icl > UT.ϵ_numerics(FT) && T > T_freeze
     return ifelse(cond, cloud_ice_melt_rate, zero(FT))
@@ -1120,18 +1130,20 @@ Returns the tendency due to snow melt.
     a_vent = vent.a
     b_vent = vent.b
 
-    # Schmidt number (guard against division by near-zero D_vapor)
-    Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
+    @fastmath begin
+        # Schmidt number (guard against division by near-zero D_vapor)
+        Sc = ν_air / max(D_vapor, UT.ϵ_numerics(FT))
 
-    snow_melt_rate =
-        4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^2 *
-        (
-            a_vent +
-            b_vent * cbrt(Sc) /
-            (r0 / λ_inv)^((ve + Δv) / 2) *
-            sqrt(2 * v0 * χv / ν_air * λ_inv) *
-            gamma_vent
-        )
+        snow_melt_rate =
+            4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^2 *
+            (
+                a_vent +
+                b_vent * cbrt(Sc) /
+                (r0 / λ_inv)^((ve + Δv) / 2) *
+                sqrt(2 * v0 * χv / ν_air * λ_inv) *
+                gamma_vent
+            )
+    end
 
     cond = q_sno > UT.ϵ_numerics(FT) && T > T_freeze
     return ifelse(cond, snow_melt_rate, zero(FT))

@@ -131,9 +131,9 @@ function test_ad_compatibility(FT)
             J_fd = similar(J)
             for j in 1:8
                 h = 1e-6 * r.x[j]
-                xp = copy(r.x);
+                xp = copy(r.x)
                 xp[j] += h
-                xm = copy(r.x);
+                xm = copy(r.x)
                 xm[j] -= h
                 J_fd[:, j] = (f(xp) - f(xm)) / 2h
             end

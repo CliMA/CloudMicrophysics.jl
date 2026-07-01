@@ -159,17 +159,17 @@ function run_gpu_performance_benchmarks(FT)
             end
         end
 
-        a = FT(2.5);
-        x = FT(3.0);
-        p = FT(0.6);
+        a = FT(2.5)
+        x = FT(3.0)
+        p = FT(0.6)
         q = FT(0.4)
         b_sf = BT.@benchmark SF.gamma_inc($a, $x)
         b_ut = BT.@benchmark UT.gamma_inc($a, $x)
-        @info "gamma_inc benchmark (SF vs UT):" SF=BT.minimum(b_sf) UT=BT.minimum(b_ut)
+        @info "gamma_inc benchmark (SF vs UT):" SF = BT.minimum(b_sf) UT = BT.minimum(b_ut)
 
         b_inv_sf = BT.@benchmark SF.gamma_inc_inv($a, $p, $q)
         b_inv_ut = BT.@benchmark UT.gamma_inc_inv($a, $p, $q)
-        @info "gamma_inc_inv benchmark (SF vs UT):" SF=BT.minimum(b_inv_sf) UT=BT.minimum(b_inv_ut)
+        @info "gamma_inc_inv benchmark (SF vs UT):" SF = BT.minimum(b_inv_sf) UT = BT.minimum(b_inv_ut)
     end
 
     # 2. Kernel Benchmarks (1-Moment BMT, 2-Moment BMT, P3)

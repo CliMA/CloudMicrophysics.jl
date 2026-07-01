@@ -283,90 +283,92 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     e2 = zero(FT)
     e4 = zero(FT)
 
-    # --- Phase change: vapor ↔ cloud condensate ---
-    D = src.S_phase_change_vap_lcl / max(q_min, q_lcl)
-    is_source = src.S_phase_change_vap_lcl >= zero(FT)
-    e1 += ifelse(is_source, src.S_phase_change_vap_lcl, zero(FT))
-    M11 += ifelse(is_source, zero(FT), D)
+    @fastmath begin
+        # --- Phase change: vapor ↔ cloud condensate ---
+        D = src.S_phase_change_vap_lcl / max(q_min, q_lcl)
+        is_source = src.S_phase_change_vap_lcl >= zero(FT)
+        e1 += ifelse(is_source, src.S_phase_change_vap_lcl, zero(FT))
+        M11 += ifelse(is_source, zero(FT), D)
 
-    D = src.S_phase_change_vap_icl / max(q_min, q_icl)
-    is_source = src.S_phase_change_vap_icl >= zero(FT)
-    e2 += ifelse(is_source, src.S_phase_change_vap_icl, zero(FT))
-    M22 += ifelse(is_source, zero(FT), D)
+        D = src.S_phase_change_vap_icl / max(q_min, q_icl)
+        is_source = src.S_phase_change_vap_icl >= zero(FT)
+        e2 += ifelse(is_source, src.S_phase_change_vap_icl, zero(FT))
+        M22 += ifelse(is_source, zero(FT), D)
 
-    # --- Melt: ice cloud → liquid cloud ---
-    D = src.S_melt_icl_lcl / max(q_min, q_icl)
-    M22 -= D
-    M12 += D
+        # --- Melt: ice cloud → liquid cloud ---
+        D = src.S_melt_icl_lcl / max(q_min, q_icl)
+        M22 -= D
+        M12 += D
 
-    # --- Autoconversion: donor-based transfer ---
-    D = src.S_acnv_lcl_rai / max(q_min, q_lcl)
-    M11 -= D
-    M31 += D
+        # --- Autoconversion: donor-based transfer ---
+        D = src.S_acnv_lcl_rai / max(q_min, q_lcl)
+        M11 -= D
+        M31 += D
 
-    D = src.S_acnv_icl_sno / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
+        D = src.S_acnv_icl_sno / max(q_min, q_icl)
+        M22 -= D
+        M42 += D
 
-    # --- Accretion: donor-based transfer ---
-    D = src.S_accr_lcl_rai / max(q_min, q_lcl)
-    M11 -= D
-    M31 += D
+        # --- Accretion: donor-based transfer ---
+        D = src.S_accr_lcl_rai / max(q_min, q_lcl)
+        M11 -= D
+        M31 += D
 
-    # lcl + sno accretion (cold/warm arms already zeroed)
-    D_cold = src.S_accr_lcl_sno_cold / max(q_min, q_lcl)
-    D_warm = src.S_accr_lcl_sno_warm / max(q_min, q_lcl)
-    M11 -= D_cold + D_warm
-    M31 += D_warm           # warm: lcl → rai
-    M41 += D_cold           # cold: lcl → sno
+        # lcl + sno accretion (cold/warm arms already zeroed)
+        D_cold = src.S_accr_lcl_sno_cold / max(q_min, q_lcl)
+        D_warm = src.S_accr_lcl_sno_warm / max(q_min, q_lcl)
+        M11 -= D_cold + D_warm
+        M31 += D_warm           # warm: lcl → rai
+        M41 += D_cold           # cold: lcl → sno
 
-    # thermal melt of sno from warm lcl
-    D = src.S_accr_melt_lcl_sno / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
+        # thermal melt of sno from warm lcl
+        D = src.S_accr_melt_lcl_sno / max(q_min, q_sno)
+        M44 -= D
+        M34 += D
 
-    D = src.S_accr_icl_rai / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
+        D = src.S_accr_icl_rai / max(q_min, q_icl)
+        M22 -= D
+        M42 += D
 
-    D = src.S_accr_icl_sno / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
+        D = src.S_accr_icl_sno / max(q_min, q_icl)
+        M22 -= D
+        M42 += D
 
-    # rain frozen in icl + rai collision
-    D = src.S_accr_freeze_icl_rai / max(q_min, q_rai)
-    M33 -= D
-    M43 += D
+        # rain frozen in icl + rai collision
+        D = src.S_accr_freeze_icl_rai / max(q_min, q_rai)
+        M33 -= D
+        M43 += D
 
-    # warm arm: sno melts → rai (already zero when cold)
-    D = src.S_accr_rai_sno_warm / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
+        # warm arm: sno melts → rai (already zero when cold)
+        D = src.S_accr_rai_sno_warm / max(q_min, q_sno)
+        M44 -= D
+        M34 += D
 
-    # thermal melt of sno from warm rai (already zero when cold)
-    D = src.S_accr_melt_rai_sno / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
+        # thermal melt of sno from warm rai (already zero when cold)
+        D = src.S_accr_melt_rai_sno / max(q_min, q_sno)
+        M44 -= D
+        M34 += D
 
-    # cold arm: rai freezes → sno (already zero when warm)
-    D = src.S_accr_rai_sno_cold / max(q_min, q_rai)
-    M33 -= D
-    M43 += D
+        # cold arm: rai freezes → sno (already zero when warm)
+        D = src.S_accr_rai_sno_cold / max(q_min, q_rai)
+        M33 -= D
+        M43 += D
 
-    # --- Rain phase change: sink to vapor (always zero or negative) ---
-    D = (-src.S_phase_change_vap_rai) / max(q_min, q_rai)
-    M33 -= D
+        # --- Rain phase change: sink to vapor (always zero or negative) ---
+        D = (-src.S_phase_change_vap_rai) / max(q_min, q_rai)
+        M33 -= D
 
-    # --- Snow phase change: deposition/sublimation ---
-    D = src.S_phase_change_vap_sno / max(q_min, q_sno)
-    is_source = src.S_phase_change_vap_sno >= zero(FT)
-    e4 += ifelse(is_source, src.S_phase_change_vap_sno, zero(FT))
-    M44 += ifelse(is_source, zero(FT), D)
+        # --- Snow phase change: deposition/sublimation ---
+        D = src.S_phase_change_vap_sno / max(q_min, q_sno)
+        is_source = src.S_phase_change_vap_sno >= zero(FT)
+        e4 += ifelse(is_source, src.S_phase_change_vap_sno, zero(FT))
+        M44 += ifelse(is_source, zero(FT), D)
 
-    # --- Snow melt: snow → rain ---
-    D = src.S_melt_sno_rai / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
+        # --- Snow melt: snow → rain ---
+        D = src.S_melt_sno_rai / max(q_min, q_sno)
+        M44 -= D
+        M34 += D
+    end
 
     return (
         M11 = M11, M12 = M12, M22 = M22,
@@ -392,8 +394,14 @@ The system uses a sparse structure specific to the 1-moment microphysics model.
 
 Because sinks are linearized as `-D q`, they are effectively integrated as
 exponential decays over the substep.
+
+`@noinline` is a deliberate GPU register-pressure device-function barrier: this function
+returns only 4 Float32, which keeps the call cheap, while preventing the ClimaAtmos.jl SGS
+quadrature evaluator (which calls this ~9 times per grid column) from inlining all 9 copies
+into one giant kernel. Measured -26% device time (255→154 regs) on the reference longrun
+config — do not remove without re-profiling.
 """
-@inline function _linearized_implicit_step(
+@noinline function _linearized_implicit_step(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
 )
@@ -407,46 +415,48 @@ exponential decays over the substep.
     q_min = TDI.TD.Parameters.q_min(tps)
     lin = _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
 
-    invΔt = one(FT) / Δt
+    @fastmath begin
+        invΔt = one(FT) / Δt
 
-    # A = I/Δt - M
-    a11 = invΔt - lin.M11
-    a12 = -lin.M12
-    a22 = invΔt - lin.M22
-    a31 = -lin.M31
-    a33 = invΔt - lin.M33
-    a34 = -lin.M34
-    a41 = -lin.M41
-    a42 = -lin.M42
-    a43 = -lin.M43
-    a44 = invΔt - lin.M44
+        # A = I/Δt - M
+        a11 = invΔt - lin.M11
+        a12 = -lin.M12
+        a22 = invΔt - lin.M22
+        a31 = -lin.M31
+        a33 = invΔt - lin.M33
+        a34 = -lin.M34
+        a41 = -lin.M41
+        a42 = -lin.M42
+        a43 = -lin.M43
+        a44 = invΔt - lin.M44
 
-    # rhs = e + q_0/Δt
-    # e3 = 0 by the 1m model
-    b1 = lin.e1 + invΔt * q_lcl
-    b2 = lin.e2 + invΔt * q_icl
-    b3 = invΔt * q_rai
-    b4 = lin.e4 + invΔt * q_sno
+        # rhs = e + q_0/Δt
+        # e3 = 0 by the 1m model
+        b1 = lin.e1 + invΔt * q_lcl
+        b2 = lin.e2 + invΔt * q_icl
+        b3 = invΔt * q_rai
+        b4 = lin.e4 + invΔt * q_sno
 
-    # Solve 2×2 system for q_lcl, q_icl (coupled via ice melt M12)
-    det12 = a11 * a22  # a21 = 0
-    q_lcl_new = (b1 * a22 - a12 * b2) / det12
-    q_icl_new = a11 * b2 / det12
+        # Solve 2×2 system for q_lcl, q_icl (coupled via ice melt M12)
+        det12 = a11 * a22  # a21 = 0
+        q_lcl_new = (b1 * a22 - a12 * b2) / det12
+        q_icl_new = a11 * b2 / det12
 
-    # Reduced 2x2 system for q_rai_new, q_sno_new
-    r3 = muladd(-a31, q_lcl_new, b3)
-    r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
+        # Reduced 2x2 system for q_rai_new, q_sno_new
+        r3 = muladd(-a31, q_lcl_new, b3)
+        r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
 
-    det = muladd(-a34, a43, a33 * a44)
-    # det is a positive number because a44 and a33 are positive (greater than invΔt)
-    # and a34 and a43 are non-positive so we don't need to safeguard division by det.
-    q_rai_new = (r3 * a44 - a34 * r4) / det
-    q_sno_new = (a33 * r4 - r3 * a43) / det
+        det = muladd(-a34, a43, a33 * a44)
+        # det is a positive number because a44 and a33 are positive (greater than invΔt)
+        # and a34 and a43 are non-positive so we don't need to safeguard division by det.
+        q_rai_new = (r3 * a44 - a34 * r4) / det
+        q_sno_new = (a33 * r4 - r3 * a43) / det
 
-    dq_lcl_dt = (q_lcl_new - q_lcl) * invΔt
-    dq_icl_dt = (q_icl_new - q_icl) * invΔt
-    dq_rai_dt = (q_rai_new - q_rai) * invΔt
-    dq_sno_dt = (q_sno_new - q_sno) * invΔt
+        dq_lcl_dt = (q_lcl_new - q_lcl) * invΔt
+        dq_icl_dt = (q_icl_new - q_icl) * invΔt
+        dq_rai_dt = (q_rai_new - q_rai) * invΔt
+        dq_sno_dt = (q_sno_new - q_sno) * invΔt
+    end
 
     return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
 end

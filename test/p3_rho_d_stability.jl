@@ -28,6 +28,7 @@ end
         @test ρ_g ≈ Float32(ρ_g_ref(BigFloat(F_rim), BigFloat(ρ_rim))) rtol = 1.0f-5
     end
     # The value and its derivative with respect to F_rim stay finite under ForwardDiff in Float32.
-    g(x) = (ρ_d = P3.get_ρ_d(mass, x, 4.0f2); P3.get_ρ_g(x, 4.0f2, ρ_d))
+    g(x) = (ρ_d = P3.get_ρ_d(mass, x, 4.0f2);
+        P3.get_ρ_g(x, 4.0f2, ρ_d))
     @test isfinite(FD.derivative(g, 1.0f-4))
 end
