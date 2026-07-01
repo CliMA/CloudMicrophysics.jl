@@ -61,7 +61,7 @@ end
 
 Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
 """
-function ice_melt(
+@inline function ice_melt(
     velocity_params, aps::CMP.AirProperties, tps::TDI.PS,
     Tₐ, ρₐ, state::P3State, logλ;
     quad = ChebyshevGauss(100),
@@ -298,17 +298,17 @@ The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col
 - `∂ₜM_col`: mass collision rate [kg/s]
 - `∂ₜB_col`: rime volume collision rate [m³/s]
 """
-function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; quad = ChebyshevGauss(100))
+@inline function get_liquid_integrals(n, ∂ₜV, m_liq, ρ′_rim, liq_bounds; quad = ChebyshevGauss(100))
     function liquid_integrals(Dᵢ)
-        integrand =
-            D -> SA.SVector(
-                # ∂ₜN_col = ∫ ∂ₜV ⋅ n ⋅ dD
-                ∂ₜV(Dᵢ, D) * n(D),
-                # ∂ₜM_col = ∫ ∂ₜV ⋅ n ⋅ m_liq ⋅ dD
-                ∂ₜV(Dᵢ, D) * n(D) * m_liq(D),
-                # ∂ₜB_col = ∫ ∂ₜV ⋅ n ⋅ m_liq / ρ′_rim ⋅ dD
-                ∂ₜV(Dᵢ, D) * n(D) * m_liq(D) / ρ′_rim(Dᵢ, D),
-            )
+        integrand = D -> begin
+            V_val = ∂ₜV(Dᵢ, D)
+            n_val = n(D)
+            m_val = m_liq(D)
+            term1 = V_val * n_val
+            term2 = term1 * m_val
+            term3 = term2 / ρ′_rim(Dᵢ, D)
+            return SA.SVector(term1, term2, term3)
+        end
         (∂ₜN_col, ∂ₜM_col, ∂ₜB_col) = integrate(integrand, liq_bounds, quad)
         return ∂ₜN_col, ∂ₜM_col, ∂ₜB_col
     end
@@ -371,7 +371,7 @@ Returns a function `liquid_integrals(Dᵢ) -> (∂ₜN_col, ∂ₜM_col, ∂ₜB
 where N and M are the exact incomplete-gamma closed form and 
 B_rim is computed by quadrature
 """
-function get_liquid_integrals_rain_closed(
+@inline function get_liquid_integrals_rain_closed(
     psd_r::CMP.RainParticlePDF_SB2006, vel::CMP.Chen2022VelType,
     n_r, ρₐ, L_r, N_r, state, ∂ₜV, m_liq, ρ′_rim, bounds_r; quad,
 )
@@ -405,14 +405,14 @@ function get_liquid_integrals_rain_closed(
     return liquid_integrals
 end
 
-_rain_inner_integrals(
+@inline _rain_inner_integrals(
     psd_r::CMP.RainParticlePDF_SB2006, vel::CMP.Chen2022VelType,
     n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r, ρₐ, L_r, N_r, state; quad,
 ) = get_liquid_integrals_rain_closed(
     psd_r, vel, n_r, ρₐ, L_r, N_r, state, ∂ₜV, m_liq, ρ′_rim, bounds_r;
     quad,
 )
-_rain_inner_integrals(
+@inline _rain_inner_integrals(
     ::Any, ::Any,
     n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r, ρₐ, L_r, N_r, state; quad,
 ) = get_liquid_integrals(n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r; quad)
@@ -437,7 +437,7 @@ Computes the bulk collision rate integrands between ice and liquid particles.
 # Returns
 A tuple of 8 integrands, see [`∫liquid_ice_collisions`](@ref) for details.
 """
-function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = ChebyshevGauss(100))
+@inline function ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = ChebyshevGauss(100))
     function liquid_ice_collisions_integrands(Dᵢ)
         # Inner integrals over liquid particle diameters
         ∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col = cloud_integrals(Dᵢ)
@@ -509,7 +509,7 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫�
 7. `BRCOL` - Rain rime volume source [m³/m³/s]
 8. `∫𝟙_wet_M_col` - Wet growth indicator [kg/s]
 """
-function ∫liquid_ice_collisions(
+@inline function ∫liquid_ice_collisions(
     state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
     aps, tps, vel, ρₐ, T, m_liq; quad,
@@ -582,7 +582,7 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
 6. `∂ₜL_ice`: ice water content tendency [kg/m³/s]
 7. `∂ₜB_rim`: rime volume tendency [m³/m³/s]
 """
-function bulk_liquid_ice_collision_sources(
+@inline function bulk_liquid_ice_collision_sources(
     state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
     aps, tps, vel, ρₐ, T; quad = ChebyshevGauss(100),
@@ -633,39 +633,6 @@ function bulk_liquid_ice_collision_sources(
     )
 end
 
-
-function collision_cross_section_ice_ice(state, D_1, D_2)
-    r_eff(D) = √(ice_area(state, D) / π)
-    return π * (r_eff(D_1) + r_eff(D_2))^2  # collision cross section
-end
-
-"""
-    volumetric_ice_ice_collision_rate_integrand(state, velocity_params, ρₐ)
-
-Returns a function that computes the volumetric collision rate integrand for ice-ice collisions [m³/s].
-
-# Arguments
-- `state`: [`P3State`](@ref)
-- `velocity_params`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
-- `ρₐ`: air density
-
-# Returns
-A function `(D_1, D_2) -> E * K * |vᵢ(D_1) - vᵢ(D_2)|` where:
-- `D_1` and `D_2` are the (maximum) diameters of the ice particles
-- `E` is the collision efficiency
-- `K` is the collision cross section
-- `vᵢ` is the terminal velocity of ice particles
-"""
-function volumetric_ice_ice_collision_rate_integrand(velocity_params, ρₐ, state)
-    v_ice = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
-    function integrand(D_1::FT, D_2::FT) where {FT}
-        E = FT(1)  # Collision efficiency
-        K = collision_cross_section_ice_ice(state, D_1, D_2)
-        return E * K * abs(v_ice(D_1) - v_ice(D_2))
-    end
-    return integrand
-end
-
 """
     ice_self_collection(state, logλ, vel, ρₐ; [quad])
 
@@ -685,16 +652,28 @@ while leaving mass, rime mass, and rime volume unchanged.
 A `NamedTuple` of `(; dNdt)`, where:
 1. `dNdt`: ice number concentration tendency due to self-collection [1/m³/s] (always positive or zero, represents a loss rate)
 """
-function ice_self_collection(state, logλ, vel, ρₐ; quad = ChebyshevGauss(100))
+@inline function ice_self_collection(state, logλ, vel, ρₐ; quad = ChebyshevGauss(100))
     n_i = DT.size_distribution(state, logλ)
-    ∂ₜV = volumetric_ice_ice_collision_rate_integrand(vel, ρₐ, state)
+    v_ice = ice_particle_terminal_velocity(vel, ρₐ, state)
 
     p = eps(one(ρₐ))
     ice_bounds = integral_bounds(state, logλ; p)
 
     function inner_integral(D_1)
-        integrand = D_2 -> ∂ₜV(D_1, D_2) * n_i(D_2)
-        rate_at_D1 = integrate(integrand, ice_bounds, quad)
+        v1 = v_ice(D_1)
+        r1 = sqrt(ice_area(state, D_1) / π)
+        integrand = D_2 -> begin
+            v2 = v_ice(D_2)
+            r2 = sqrt(ice_area(state, D_2) / π)
+            K = π * (r1 + r2)^2
+            return K * abs(v1 - v2) * n_i(D_2)
+        end
+        # Split the inner integral at the |v1 - v2| cusp (D_2 = D_1, where the relative
+        # fall speed vanishes and the integrand has a kink). Each half is then smooth, so
+        # the quadrature converges like the other (cusp-free) P3 integrals rather than
+        # being cusp-limited, letting a much lower node count reach target accuracy.
+        D_lo, D_hi = first(ice_bounds), last(ice_bounds)
+        rate_at_D1 = integrate(integrand, (D_lo, D_1), quad) + integrate(integrand, (D_1, D_hi), quad)
         return rate_at_D1 * n_i(D_1)
     end
 

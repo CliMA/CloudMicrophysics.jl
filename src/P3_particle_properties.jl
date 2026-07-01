@@ -258,17 +258,14 @@ function ice_mass_coeffs(state::P3State, D)
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
 
-    return if D < D_th       # small spherical ice
-        (ρ_i * π / 6, FT(3))
-    elseif iszero(F_rim)     # large nonspherical unrimed ice
-        (α_va, β_va)
-    elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
-        (α_va, β_va)
-    elseif D_gr ≤ D < D_cr   # graupel (rimed)
-        (ρ_g * π / 6, FT(3))
-    else # D_cr ≤ D          # partially rimed ice
-        (α_va / (1 - F_rim), β_va)
-    end
+    unrimed = iszero(F_rim)
+    cond1 = D < D_th
+    cond2 = unrimed || D < D_gr
+    cond3 = D < D_cr
+
+    a = ifelse(cond1, FT(ρ_i * π / 6), ifelse(cond2, α_va, ifelse(cond3, FT(ρ_g * π / 6), α_va / max(1 - F_rim, UT.ϵ_numerics_P3_B(FT)))))
+    b = ifelse(cond1, FT(3), ifelse(cond2, β_va, ifelse(cond3, FT(3), β_va)))
+    return (a, b)
 end
 
 """
@@ -333,19 +330,15 @@ Return the cross-sectional area of a particle based on where it falls in the
 function ice_area(state::P3State, D)
     (; params, F_rim, D_th, D_gr, D_cr) = state
     (; γ, σ) = params.area
-    spherical_area(D) = D^2 * π / 4
-    nonspherical_area(D) = γ * D^σ
-    return if D < D_th       # small spherical ice
-        spherical_area(D)
-    elseif iszero(F_rim)     # large nonspherical unrimed ice
-        nonspherical_area(D)
-    elseif D_th ≤ D < D_gr   # dense nonspherical rimed ice
-        nonspherical_area(D)
-    elseif D_gr ≤ D < D_cr   # graupel (rimed)
-        spherical_area(D)
-    else # D_cr ≤ D          # partially rimed ice
-        weighted_average(F_rim, spherical_area(D), nonspherical_area(D))
-    end
+    s_area = D^2 * π / 4
+    ns_area = γ * D^σ
+
+    unrimed = iszero(F_rim)
+    cond1 = D < D_th
+    cond2 = unrimed || D < D_gr
+    cond3 = D < D_cr
+
+    return ifelse(cond1, s_area, ifelse(cond2, ns_area, ifelse(cond3, s_area, weighted_average(F_rim, s_area, ns_area))))
 end
 
 """
@@ -362,14 +355,15 @@ Returns the aspect ratio (ϕ) for an ice particle with diameter `D`
  divided by the volume of a spherical particle with the same D_max [MorrisonMilbrandt2015](@cite).
  Assuming zero liquid fraction and oblate shape.
 """
-function ϕᵢ(state::P3State, D)
+@inline function ϕᵢ(state::P3State, D)
     FT = eltype(D)
-    mᵢ = ice_mass(state, D)
     aᵢ = ice_area(state, D)
-    ρᵢ = mᵢ / CO.volume_sphere_D(D)
+    vol = CO.volume_sphere_D(D)
 
     # TODO - prolate or oblate?
-    ϕ_ob = min(1, 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^FT(1.5))) # κ =  1/3
+    # aᵢ^1.5 = aᵢ*sqrt(aᵢ): a runtime-float pow (which also incurs an f32→f64
+    # promotion) becomes one hardware sqrt + a mul. Evaluated per quadrature node.
+    ϕ_ob = min(1, 3 * sqrt(FT(π)) * vol / (4 * (aᵢ * sqrt(aᵢ)))) # κ =  1/3
     #ϕ_pr = max(1, 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2))       # κ = -1/6
 
     return ifelse(D == 0, FT(0), ϕ_ob)

@@ -1,14 +1,14 @@
 import CloudMicrophysics.DistributionTools: size_distribution
 
 # Callable returned by `logN′ice`: evaluates `log(N′(D))` for a fixed state and slope.
-struct P3LogNumberFunctor{FT, T} <: Function
+struct P3LogNumberFunctor{FT} <: Function
     log_N₀::FT
     μ::FT
-    logλ::T
+    λ::FT
 end
 @inline function (f::P3LogNumberFunctor)(D)
     logD = log(D)
-    return f.log_N₀ + f.μ * logD - exp(f.logλ + logD)
+    return f.log_N₀ + f.μ * logD - f.λ * D
 end
 
 """
@@ -20,7 +20,8 @@ concentration at diameter `D`, for the [`P3State`](@ref) `state` and log-slope `
 function logN′ice(state::P3State, logλ)
     μ = get_μ(state, logλ)
     log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
-    return P3LogNumberFunctor(log_N₀, μ, logλ)
+    λ = exp(logλ)
+    return P3LogNumberFunctor(log_N₀, μ, λ)
 end
 
 # Callable returned by `size_distribution`: `n(D) = exp(logN′(D))`.

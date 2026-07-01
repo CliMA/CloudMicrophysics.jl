@@ -73,10 +73,13 @@ which constructs the parameterization with components:
     inp_depletion_model::INPDM = NIceProxyDepletion()
     "Number of quadrature nodes used for size-distribution integrals
     (deposition / sublimation, melting, riming, ice-rain collection,
-    sedimentation). Lower → faster, slightly less accurate. Default 100
-    matches the original P3 paper sensitivity studies; n_elem=128 KiD runs
-    show ~5× speed-up at qorder=40 with negligible bulk error."
-    quadrature_order::Int = 100
+    sedimentation). Lower → faster, slightly less accurate. Default 16
+    auto-selects Gauss-Legendre (see [`Quadrature.build_quadrature`](@ref)),
+    giving < 0.5% worst-case error vs a 200-node reference on the full P3
+    tendency vector. The `ice_self_collection` cusp (the historical accuracy
+    limiter) is now split at the |Δv|=0 diagonal, so this low node count
+    suffices; bump to 32 for < 0.2% if extra margin is wanted."
+    quadrature_order::Int = 16
     "Pre-constructed quadrature rule for the size-distribution integrals,
     built once (host-side) from `quadrature_order` via
     [`Quadrature.build_quadrature`](@ref) and reused in the (GPU) hot loop.
@@ -88,7 +91,7 @@ Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 P3IceParams(toml_dict::CP.ParamDict;
-    is_limited = true, quadrature_order::Int = 100,
+    is_limited = true, quadrature_order::Int = 16,
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = P3IceParams(;
     scheme = ParametersP3(toml_dict),
@@ -147,7 +150,7 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 """
 Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true,
-    quadrature_order::Int = 100,
+    quadrature_order::Int = 16,
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = Microphysics2MParams(;
     # Warm rain parameters (always present)
