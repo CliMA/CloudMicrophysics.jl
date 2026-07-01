@@ -71,7 +71,7 @@ temperature for a given phase of water.
 - `T` - temperature [K]
 """
 @inline function dqcld_dT(qᵥ_sat, L, Rᵥ, T)
-    return qᵥ_sat * (L / (Rᵥ * T^2) - 1 / T)
+    return @fastmath qᵥ_sat * (L / (Rᵥ * T^2) - 1 / T)
 end
 
 """
@@ -85,7 +85,7 @@ Computes the thermodynamic adjustment factor Γ.
 - `dqcld_dT` - derivative of saturation specific humidity with respect to temperature [kg/kg/K]
 """
 @inline function gamma_helper(L, cₚ_air, dqcld_dT)
-    return 1 + (L / cₚ_air) * dqcld_dT
+    return @fastmath 1 + (L / cₚ_air) * dqcld_dT
 end
 
 """
@@ -128,7 +128,7 @@ function conv_q_vap_to_q_lcl(
     timescale = τ * Γₗ
 
     # compute the tendency
-    return ifelse(
+    return @fastmath ifelse(
         sat_excess < 0,
         -min(-sat_excess, max(0, q_lcl)) / timescale,
         sat_excess / timescale,
@@ -176,7 +176,7 @@ function conv_q_vap_to_q_icl(
     timescale = τ * Γᵢ
 
     # compute the tendency
-    tendency = ifelse(
+    tendency = @fastmath ifelse(
         sat_excess < 0,
         -min(-sat_excess, max(0, q_icl)) / timescale,
         sat_excess / timescale,
