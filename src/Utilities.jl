@@ -13,6 +13,7 @@ import ForwardDiff as FD
 export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
 export promote_typeof
 export fac
+export safe_call
 
 """
     promote_typeof(args...)
@@ -26,6 +27,19 @@ caller mixes plain floats with `ForwardDiff.Dual`s (or float widths) across
 arguments — non-concrete, heap-boxed, and silent.
 """
 @inline promote_typeof(args...) = Base.promote_typeof(args...)
+
+"""
+    safe_call(f, cond; otherwise = zero)
+
+Return `f()` when `cond` is `true`, and `otherwise(FT)` when `cond` is `false`,
+where `FT` is the inferred return type of `f`. `f` is evaluated only when `cond`
+is `true`.
+"""
+@inline function safe_call(f::F, cond; otherwise = zero) where {F}
+    FT = Core.Compiler.return_type(f, Tuple{})
+    cond ? f() : otherwise(FT)
+end
+
 export unrolled_logsumexp
 export sgs_weight_function, rime_mass_fraction, rime_density
 export gamma_inc, gamma_inc_inv
