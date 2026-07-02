@@ -184,9 +184,16 @@ function benchmark_test(FT)
     # returning a single (concretely-typed) closure, this path is type-stable
     # on both 1.10 and 1.12 and allocates nothing — keep the default zero
     # allocation/memory budget so a future closure regression is caught here.
-    bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 170_000)
-    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 200_000)
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 7_000)
+    _glq = P3.GaussLegendre(FT, 12)
+    bench_press(
+        FT, (a, b, c, d) -> P3.ice_terminal_velocity_number_weighted(a, b, c, d; quad = _glq), 
+        (ch2022, ρ_air, state, logλ), 170_000
+    )
+    bench_press(
+        FT, (a, b, c, d) -> P3.ice_terminal_velocity_mass_weighted(a, b, c, d; quad = _glq),
+        (ch2022, ρ_air, state, logλ), 200_000,
+    )
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1), P3.ChebyshevGauss(100)), 7_000)
     bench_press(FT, P3.D_m, (state, logλ), 3_000)
 
     @info "P3 Ice Nucleation"
@@ -198,7 +205,7 @@ function benchmark_test(FT)
     )
     bench_press(
         @NamedTuple{dNdt::FT, dLdt::FT},
-        P3.ice_melt,
+        (vp, ap, tp, T, ρ, st, lλ) -> P3.ice_melt(vp, ap, tp, T, ρ, st, lλ; quad = _glq),
         (ch2022, aps, tps, T_air, ρ_air, state, logλ),
         150_000,
     )
@@ -320,20 +327,23 @@ function benchmark_test(FT)
         bench_press(FT, CMD.effective_radius_2M, (sb, q_liq, q_rai, N_liq, N_rai, ρ_air), 2000)
 
         @info "P3 Collisions"
-        # Julia <= 1.11 inference exceeds its depth budget on this collision
-        # assembly, widening intermediates to Any (runtime dispatch + boxing;
-        # correct but unoptimized), so the JET and allocation assertions fail
-        # spuriously there. 1.12 resolves the chain: zero JET reports, zero
-        # allocations. TODO: drop the gate once CI runs >= 1.12.
+        # Gated to Julia >= 1.12: on <= 1.11 the deep collision assembly exceeds
+        # the inference depth budget, widening intermediates to Any (runtime
+        # dispatch), which fails the JET assertion. The kernel is allocation-free
+        # on the GPU (enforced by the bulk_microphysics_tendencies GPU test); on
+        # the CPU the nested double-integral integrands are heap-boxed, so a small
+        # memory/allocation budget is allowed here while the JET (type-stability)
+        # and timing assertions are enforced.
         if VERSION >= v"1.12"
             bench_press(@NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT},
-                P3.bulk_liquid_ice_collision_sources,
+                (st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T) ->
+                    P3.bulk_liquid_ice_collision_sources(st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T; quad = _glq),
                 (
                     state, logλ,
                     sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,
                     aps, tps, ch2022,
                     ρ_air, T_air,
-                ), 1e9)
+                ), 1e9, 1024, 64)
         end
     end
     bench_press(FT, CMD.effective_radius_Liu_Hallet_97, (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai), 300)

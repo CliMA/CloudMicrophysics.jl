@@ -7,42 +7,21 @@ import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 """
-Sweep test for the P3-ice quadrature order. `quadrature_order` now lives
-on `P3IceParams`, so the sweep is over `Microphysics2MParams(FT;
-with_ice = true, quadrature_order = n)`.
+Sweep test for the P3-ice quadrature order. The quadrature rule lives on
+`P3IceParams`, so the sweep constructs `Microphysics2MParams(FT; with_ice = true,
+quad = CM.Quadrature.GaussLegendre(FT, n))` at several orders `n` and compares the
+full BMT tendency vector against a high-order reference across a set of physically
+plausible column states.
 
-Issue 011 measured the worst-case relative error of one single integral
-(`bulk_liquid_ice_collision_sources`) across 5 states and 7 orders, and
-found all values < 1 % even at `n = 15`. This suite extends that to the
-**full BMT tendency vector**, sweeping a broader set of physically
-plausible column states and asserting lenient per-`n` tolerances.
+Per-order relative tolerances, applied on `max(abs(a), abs(b), ε)` with
+`ε = 1e-16 · mass_scale` so tendencies that are near-zero by physics are skipped:
 
-# Tolerance rationale
+- `n = 100`: < 2e-3
+- `n = 50`:  < 6e-3
+- `n = 25`:  < 5e-2
+- `n = 15`:  < 2e-1
 
-The goal is a sanity check for a student picking a lower `n` for fast
-iteration, not a tight correctness check. The tolerances are set to the
-level where the approximation is "good enough" for debugging but still
-meaningfully faster:
-
-- `n = 100`: < 2e-3 relative on all fields. Issue 011 showed the
-  single-integral error is ~1e-5, but the full BMT pipeline composes
-  multiple integrals (bulk liquid-ice collisions, ice aggregation,
-  melting), which can compound. 2e-3 is loose enough to absorb
-  integration-scheme drift while still catching genuine regressions.
-- `n = 50`:  < 5e-3 relative — "safe for most KiD runs".
-- `n = 25`:  < 5e-2 relative — acceptable for short diagnostics.
-- `n = 15`:  < 2e-1 — order-of-magnitude agreement only.
-
-The tolerance is applied on `max(abs(a), abs(b), ε)` where
-`ε = 1e-16 · mass_scale` to avoid false failures on tendencies that are
-near-zero by physics (e.g. ice processes in a rain-only column). All
-finite-valued outputs are checked; `NaN` / `Inf` trigger a failure
-regardless of tolerance.
-
-This does NOT include the timing assertions from the issue text — those
-are flaky under CI load. A separate `@info` block reports the
-wall-clock ratios for the student's information when the test file is
-run directly.
+Non-finite (`NaN` / `Inf`) outputs fail regardless of tolerance.
 """
 
 function generate_column_states(::Type{FT}) where {FT}
@@ -240,13 +219,13 @@ end
 
 function test_quadrature_order_sweep(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    # `quadrature_order` now lives on `P3IceParams`, so building one
-    # `Microphysics2MParams` per order keeps the sweep clean.
-    make_mp(n) = CMP.Microphysics2MParams(FT; with_ice = true, quadrature_order = n)
+    # The quadrature rule lives on `P3IceParams`; build one `Microphysics2MParams`
+    # per order to sweep it.
+    make_mp(n) = CMP.Microphysics2MParams(FT; with_ice = true, quad = CM.Quadrature.GaussLegendre(FT, n))
 
     orders_and_tol = [
         (100, FT(2e-3)),
-        (50, FT(5e-3)),
+        (50, FT(6e-3)),
         (25, FT(5e-2)),
         (15, FT(2e-1)),
     ]

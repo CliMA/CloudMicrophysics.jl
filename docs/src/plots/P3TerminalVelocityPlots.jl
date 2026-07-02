@@ -27,6 +27,7 @@ function get_values(
     D_m = zeros(x_resolution, y_resolution)
     D_m_regimes = zeros(x_resolution, y_resolution)
     ϕᵢ = zeros(x_resolution, y_resolution)
+    quad = P3.GaussLegendre(FT, 12)
 
     for i in 1:x_resolution
         for j in 1:y_resolution
@@ -35,8 +36,8 @@ function get_values(
             state = P3.P3State(params, L, N, F_rim, ρ_rim)
             state_noar = P3.P3State(params_noar, L, N, F_rim, ρ_rim)
             logλ = P3.get_distribution_logλ(state)
-            V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state_noar, logλ)
-            V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ)
+            V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state_noar, logλ; quad)
+            V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; quad)
             D_m[i, j] = P3.D_m(state, logλ)
             D_m_regimes[i, j] = D_m[i, j]
             ϕᵢ[i, j] = P3.ϕᵢ(state, D_m[i, j])

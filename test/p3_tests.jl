@@ -370,10 +370,10 @@ function test_bulk_terminal_velocities(FT)
 
         # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
         # their aspect-off counterparts (`cbrt(ϕ) < 1`).
-        ref_v_n = [3.64194720794662, 2.6191026241691695]
-        ref_v_n_ϕ = [1.523425288986299, 1.4660573287073728]
+        ref_v_n = [3.646059575504377, 2.6191026241691695]
+        ref_v_n_ϕ = [1.5223915218714987, 1.4656564581919258]
         ref_v_m = [7.788114224053879, 5.797675366222473]
-        ref_v_m_ϕ = [2.4275080186932736, 2.3681842506505544]
+        ref_v_m_ϕ = [2.427666066669716, 2.3683439025452544]
 
         params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
         for (k, F_rim) in enumerate(F_rims)
