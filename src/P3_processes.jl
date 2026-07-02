@@ -390,18 +390,19 @@ B_rim is computed by quadrature
     v_l = CO.particle_terminal_velocity(vel.rain, ρₐ)
     v_i = ice_particle_terminal_velocity(vel, ρₐ, state)
     D_min, D_max = bounds_r
+    zero_rates = (zero(FT), zero(FT), zero(FT))
     function liquid_integrals(Dᵢ)
         if iszero(N₀r) || !(D_max > D_min)
-            return (zero(FT), zero(FT), zero(FT))
+            return zero_rates
         end
         v_i_at_Dᵢ = v_i(Dᵢ)
-        rᵢ = sqrt(ice_area(state, Dᵢ) / FT(π))
+        rᵢ = sqrt(ice_area(state, Dᵢ) / π)
         ∂ₜN_col, ∂ₜM_col = closed_rain_inner_NM(
-            FT(Dᵢ), v_i_at_Dᵢ, v_l, rᵢ, ρw, ai, bi, ci,
+            Dᵢ, v_i_at_Dᵢ, v_l, rᵢ, ρw, ai, bi, ci,
             D_min, D_max, N₀r, Dr_mean,
         )
         if !(isfinite(∂ₜN_col) && isfinite(∂ₜM_col))
-            return (zero(FT), zero(FT), zero(FT))
+            return zero_rates
         end
         ∂ₜB_col = integrate(
             D -> ∂ₜV(Dᵢ, D) * n_r(D) * m_liq(D) / ρ′_rim(Dᵢ, D),
