@@ -572,6 +572,24 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫�
     ρ′_rim = compute_local_rime_density(vel, ρₐ, T, state)  # ρ′_rim(Dᵢ, Dₗ)
     ∂ₜM_max = compute_max_freeze_rate(aps, tps, vel, ρₐ, T, state)  # ∂ₜM_max(Dᵢ)
 
+    # The freeze/shed partition and the wet-growth indicator change branch at the
+    # wet-growth onset diameter, so the onset is a subinterval boundary of the
+    # outer integral
+    (D_wet₁, D_wet₂) = wet_growth_onset_diameter(
+        psd_c, psd_r, vel, v_i, v_l, ∂ₜM_max, state,
+        L_c, N_c, L_r, N_r, ρₐ, bounds_r,
+        first(ice_bounds), last(ice_bounds),
+    )
+    ice_bounds = Tuple(
+        SA.sort(
+            SA.SVector(
+                ice_bounds...,
+                clamp(D_wet₁, first(ice_bounds), last(ice_bounds)),
+                clamp(D_wet₂, first(ice_bounds), last(ice_bounds)),
+            ),
+        ),
+    )
+
     cloud_integrals = get_liquid_integrals(n_c, ∂ₜV, m_liq, ρ′_rim, bounds_c; quad, v_i, v_l)  # (∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col)
     # Rain inner: exact closed form for the (SB2006-exp PSD, Chen-2022) pair
     # Numerical fallback for any other PSD/velocity type.
@@ -582,6 +600,109 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫�
 
     return ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad)
 end
+
+"""
+    wet_growth_onset_diameter(
+        psd_c, psd_r, vel, v_i, v_l, ∂ₜM_max, state,
+        L_c, N_c, L_r, N_r, ρₐ, bounds_r, D_lo, D_hi,
+    )
+
+Return up to two ice diameters in `[D_lo, D_hi]` where the collected liquid
+mass rate balances the freeze limit `∂ₜM_max` (the boundaries of the wet-growth
+window; `D_lo` stands in for absent crossings). The balance is
+evaluated in closed form: the cloud collection term neglects the droplet fall
+speed relative to the ice fall speed, making it a polynomial moment of the
+cloud size distribution, and the rain term is the closed-form mass component
+from [`closed_rain_inner_NM`](@ref). Crossings are located on a log-spaced
+scan of the interval and refined by fixed-iteration bisection.
+
+The closed form applies to the (`CMP.CloudParticlePDF_SB2006`,
+`CMP.RainParticlePDF_SB2006`, `CMP.Chen2022VelType`) combination; for any
+other combination `(D_lo, D_lo)` is returned.
+"""
+function wet_growth_onset_diameter(
+    psd_c::CMP.CloudParticlePDF_SB2006, psd_r::CMP.RainParticlePDF_SB2006, vel::CMP.Chen2022VelType,
+    v_i, v_l, ∂ₜM_max, state,
+    L_c, N_c, L_r, N_r, ρₐ, bounds_r, D_lo, D_hi,
+)
+    FT = promote_type(eltype(state), UT.promote_typeof(L_c, N_c, L_r, N_r, ρₐ))
+    πFT = FT(π)
+    # Cloud collection with the droplet fall speed neglected:
+    #   ∫ K(D, Dₗ) n_c(Dₗ) m_liq(Dₗ) dDₗ = ∑ⱼ Kⱼ(rᵢ) (ρw π/6) M⁽ʲ⁺³⁾,
+    # with K quadratic in Dₗ and M⁽ᵏ⁾ the cloud size-distribution moments
+    (; λc, νcD, μcD) = CM2.pdf_cloud_parameters(psd_c, L_c / ρₐ, ρₐ, N_c)
+    ρw = psd_c.ρw
+    mfac = ρw * CO.volume_sphere_D(one(FT))
+    M₃ = mfac * DT.generalized_gamma_Mⁿ(νcD, μcD, λc, N_c, 3)
+    M₄ = mfac * DT.generalized_gamma_Mⁿ(νcD, μcD, λc, N_c, 4)
+    M₅ = mfac * DT.generalized_gamma_Mⁿ(νcD, μcD, λc, N_c, 5)
+
+    (; N₀r, Dr_mean) = CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
+    ai_t, bi_t, ci_t = CO.Chen2022_vel_coeffs(vel.rain, ρₐ)
+    ai, bi, ci = SA.SVector(ai_t), SA.SVector(bi_t), SA.SVector(ci_t)
+    D_min_r, D_max_r = bounds_r
+    rain_active = !iszero(N₀r) && (D_max_r > D_min_r)
+
+    function excess_mass_rate(D)
+        v = v_i(D)
+        rᵢ = sqrt(ice_area(state, D) / πFT)
+        (k₀, k₁, k₂) = collision_cross_section_ice_liquid_coeffs(rᵢ)
+        cloud_rate = v * (k₀ * M₃ + k₁ * M₄ + k₂ * M₅)
+        rain_rate = if rain_active
+            Dstar = crossover_diameter(v, v_l, D_min_r, D_max_r)
+            (_, ∂ₜM_col_r) = closed_rain_inner_NM(
+                v, Dstar, rᵢ, ρw, ai, bi, ci, D_min_r, D_max_r, N₀r, Dr_mean,
+            )
+            ifelse(isfinite(∂ₜM_col_r), ∂ₜM_col_r, zero(∂ₜM_col_r))
+        else
+            zero(v)
+        end
+        return cloud_rate + rain_rate - ∂ₜM_max(D)
+    end
+    # The balance can cross twice (a wet-growth window: collection outgrows the
+    # freeze limit at intermediate sizes and falls behind again at large sizes),
+    # so locate sign changes on a log-spaced grid, then bisect each crossing.
+    # Fixed-iteration bisection in log diameter: the mass rates span many orders
+    # of magnitude over the interval, which stalls secant-type steps.
+    llo, lhi = log(FT(D_lo)), log(FT(D_hi))
+    n_scan = 16
+    Δl = (lhi - llo) / n_scan
+    maxiters = FT === Float32 ? 16 : 24
+    function bisect_crossing(l₁, g₁, l₂)
+        for _ in 1:maxiters
+            lmid = (l₁ + l₂) / 2
+            g_mid = excess_mass_rate(exp(lmid))
+            same = g_mid * g₁ > 0
+            l₁ = ifelse(same, lmid, l₁)
+            g₁ = ifelse(same, g_mid, g₁)
+            l₂ = ifelse(same, l₂, lmid)
+        end
+        return exp((l₁ + l₂) / 2)
+    end
+    onset₁ = FT(D_lo)
+    onset₂ = FT(D_lo)
+    l_prev = llo
+    g_prev = excess_mass_rate(FT(D_lo))
+    for i in 1:n_scan
+        l = llo + i * Δl
+        g = excess_mass_rate(exp(l))
+        if g * g_prev < 0
+            root = bisect_crossing(l_prev, g_prev, l)
+            if onset₁ == FT(D_lo)
+                onset₁ = root
+            elseif onset₂ == FT(D_lo)
+                onset₂ = root
+            end
+        end
+        l_prev = l
+        g_prev = g
+    end
+    return onset₁, onset₂
+end
+wet_growth_onset_diameter(
+    psd_c, psd_r, vel, v_i, v_l, ∂ₜM_max, state,
+    L_c, N_c, L_r, N_r, ρₐ, bounds_r, D_lo, D_hi,
+) = (D_lo, D_lo)
 
 """
     bulk_liquid_ice_collision_sources(

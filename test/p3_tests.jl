@@ -855,16 +855,16 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Smoke tests, aka: Check that rates don't change with new commits.
         # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
         # reference values.
-        @test QCFRZ ≈ 5.942439070312668e-7 rtol = 5e-4
-        @test QCSHD ≈ 2.0761198593560244e-9 rtol = 5e-4
-        @test NCCOL ≈ 60651.35649132401 rtol = 5e-4
-        @test QRFRZ ≈ 6.64295105903061e-5 rtol = 5e-4
-        @test QRSHD ≈ 3.64983632601479e-6 rtol = 5e-4
-        @test NRCOL ≈ 172.61819652435122 rtol = 5e-4
-        @test ∫M_col ≈ 7.067566694321151e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.725667128722677e-9 rtol = 5e-4
-        @test BRCOL ≈ 4.164859599145927e-7 rtol = 5e-4
-        @test ∫𝟙_wet_M_col ≈ 1.704310456059433e-5 rtol = 5e-4
+        @test QCFRZ ≈ 5.942471550989089e-7 rtol = 5e-4
+        @test QCSHD ≈ 2.0728862241368704e-9 rtol = 5e-4
+        @test NCCOL ≈ 60651.35670910096 rtol = 5e-4
+        @test QRFRZ ≈ 6.642674674038379e-5 rtol = 5e-4
+        @test QRSHD ≈ 3.6526001759370415e-6 rtol = 5e-4
+        @test NRCOL ≈ 172.61819652435105 rtol = 5e-4
+        @test ∫M_col ≈ 7.067566695764388e-5 rtol = 5e-4
+        @test BCCOL ≈ 3.725687492783128e-9 rtol = 5e-4
+        @test BRCOL ≈ 4.164686317018988e-7 rtol = 5e-4
+        @test ∫𝟙_wet_M_col ≈ 1.5520362321253953e-5 rtol = 5e-4
 
         ### Test the bulk source function
         state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
