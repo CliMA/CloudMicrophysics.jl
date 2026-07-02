@@ -913,7 +913,7 @@ function test_p3_ice_self_collection(FT)
         rates32 = P3.ice_self_collection(state, logλ, vel_params, ρₐ; quad = quad32)
         n_i = DT.size_distribution(state, logλ)
         v_i = P3.ice_particle_terminal_velocity(vel_params, ρₐ, state)
-        bnds = P3.velocity_integral_bounds(state, logλ, vel_params.small_ice.cutoff; p = eps(one(ρₐ)))
+        bnds = P3.velocity_integral_bounds(state, logλ, v_i; p = eps(one(ρₐ)))
         square = P3.integrate(
             D₁ -> begin
                 v₁ = v_i(D₁)
@@ -961,14 +961,14 @@ function test_p3_closed_form_rain_inner(FT)
             ρ′_rim = P3.compute_local_rime_density(vel, ρₐ, FT(270), state)
             D_min, D_max = bnds = CM2.get_size_distribution_bounds(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p)
             D_max > D_min || continue
-            v_i = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
+            v_i = ∂ₜV.v_i
             rc = P3.get_liquid_integrals_rain_closed(
-                psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
-                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40), v_i, v_l,
+                psd_r, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
+                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
             )
             rn = P3.get_liquid_integrals(  # numerical fallback
                 n_r, ∂ₜV, m_liq, ρ′_rim, bnds;
-                quad = P3.ChebyshevGauss(40), v_i, v_l,
+                quad = P3.ChebyshevGauss(40),
             )
             for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
                 vi = v_i(Dᵢ)
@@ -1096,18 +1096,14 @@ function test_p3_closed_form_rain_inner(FT)
         vel = CMP.Chen2022VelType(FT)
         psd_r = CMP.SB2006(FT).pdf_r
         state = P3.P3State(params, FT(1e-3), FT(1e6), FT(0.5), FT(500))
-        rest = (
-            identity, (a, b) -> a, identity, identity, identity,
-            FT(1), FT(1e-4), FT(1e3), state,
-        )
-        m_closed = which(P3._rain_inner_integrals, typeof((psd_r, vel, rest...)))
-        m_fallback = which(P3._rain_inner_integrals, typeof((1.0, 2.0, rest...)))
-        # closed-form method: first two params are the typed bundle
+        ∂ₜV = P3.volumetric_collision_rate_integrand(vel, FT(1), state)
+        rest = (identity, identity, (FT(0), FT(1)), FT(1), FT(1e-4), FT(1e3), state)
+        # closed-form eligibility: SB2006 rain PSD with a Chen velocity curve on the kernel
+        m_closed = which(P3._rain_inner_integrals, typeof((psd_r, identity, ∂ₜV, rest...)))
+        m_fallback = which(P3._rain_inner_integrals, typeof((1.0, identity, identity, rest...)))
         @test m_closed.sig.parameters[2] <: CMP.RainParticlePDF_SB2006
-        @test m_closed.sig.parameters[3] <: CMP.Chen2022VelType
-        # fallback method: first two params are ::Any (Any === Any)
+        @test m_closed.sig.parameters[4] <: P3.VolumetricCollisionRate{<:Any, <:Any, <:CO.Chen2022VelocityCurve}
         @test m_fallback.sig.parameters[2] === Any
-        @test m_fallback.sig.parameters[3] === Any
         # and the two methods are distinct (no accidental ambiguity merge)
         @test m_closed !== m_fallback
     end

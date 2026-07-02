@@ -21,6 +21,16 @@ end
 end
 
 """
+    velocity_breakpoints(v_term)
+
+Diameters where the terminal-velocity closure `v_term` changes functional form.
+Integrals with `v_term` in the integrand place these on subinterval boundaries,
+see [`velocity_integral_bounds`](@ref).
+"""
+velocity_breakpoints(f::P3IceParticleVelocityFunctor) = (f.D_cutoff,)
+velocity_breakpoints(::CO.Chen2022VelocityCurve) = ()
+
+"""
     ice_particle_terminal_velocity(velocity_params, ρₐ, state::P3State)
 
 Return a single-argument function `v_term(D)` that gives the Chen 2022
@@ -80,13 +90,13 @@ function ice_terminal_velocity_number_weighted(
 
     # ∫n(D) v(D) dD, normalized by the number concentration
     number_weighted_integrand = P3NumberWeightedIntegrand(n, v_term)
-    bnds = velocity_integral_bounds(state, logλ, v_term.D_cutoff; p)
+    bnds = velocity_integral_bounds(state, logλ, v_term; p)
     integ = integrate(number_weighted_integrand, bnds, quad)
 
     # A degenerate ice state (ρn_ice or ρq_ice below ϵ) integrates to zero over
-    # zero-width bounds; clip the denominator and select zero to avoid 0/0.
+    # zero-width bounds; select zero in place of the degenerate ratio.
     below_ϵ = (ρn_ice < eps(one(ρn_ice))) | (ρq_ice < eps(one(ρq_ice)))
-    result = integ / ifelse(below_ϵ, one(ρn_ice), ρn_ice)
+    result = integ / ρn_ice  # non-finite for a degenerate state; discarded below
     return ifelse(below_ϵ, zero(result), result)
 end
 
@@ -124,13 +134,13 @@ function ice_terminal_velocity_mass_weighted(
 
     # ∫n(D) m(D) v(D) dD, normalized by the mass concentration
     mass_weighted_integrand = P3MassWeightedIntegrand(n, v_term, state)
-    bnds = velocity_integral_bounds(state, logλ, v_term.D_cutoff; p)
+    bnds = velocity_integral_bounds(state, logλ, v_term; p)
     integ = integrate(mass_weighted_integrand, bnds, quad)
 
     # A degenerate ice state (ρn_ice or ρq_ice below ϵ) integrates to zero over
-    # zero-width bounds; clip the denominator and select zero to avoid 0/0.
+    # zero-width bounds; select zero in place of the degenerate ratio.
     below_ϵ = (ρn_ice < eps(one(ρn_ice))) | (ρq_ice < eps(one(ρq_ice)))
-    result = integ / ifelse(below_ϵ, one(ρq_ice), ρq_ice)
+    result = integ / ρq_ice  # non-finite for a degenerate state; discarded below
     return ifelse(below_ϵ, zero(result), result)
 end
 

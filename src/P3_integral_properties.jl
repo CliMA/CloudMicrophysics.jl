@@ -49,17 +49,18 @@ Compute the integration bounds for the P3 size distribution,
 end
 
 """
-    velocity_integral_bounds(state::P3State, logλ, D_cutoff; p, moment_order = 0)
+    velocity_integral_bounds(state::P3State, logλ, v_term; p, moment_order = 0)
 
 Compute the integration bounds for a velocity-weighted P3 integral: the
-mass-regime [`integral_bounds`](@ref) with the Chen 2022 small/large-ice velocity
-breakpoint `D_cutoff` clamped into `[D_min, D_max]` and re-sorted, so that
-breakpoint coincides with a subinterval boundary. Returns a fixed-length tuple.
+mass-regime [`integral_bounds`](@ref) with the [`velocity_breakpoints`](@ref)
+of the terminal-velocity closure `v_term` clamped into `[D_min, D_max]` and
+re-sorted, so each breakpoint coincides with a subinterval boundary. Returns a
+fixed-length tuple.
 """
-function velocity_integral_bounds(state::P3State{FT}, logλ, D_cutoff; p, moment_order = 0) where {FT}
+function velocity_integral_bounds(state::P3State{FT}, logλ, v_term::V; p, moment_order = 0) where {FT, V}
     bnds = integral_bounds(state, logλ; p, moment_order)
-    D_c = clamp(FT(D_cutoff), first(bnds), last(bnds))
-    return Tuple(SA.sort(SA.SVector(bnds..., D_c)))
+    breaks = map(D -> clamp(FT(D), first(bnds), last(bnds)), velocity_breakpoints(v_term))
+    return Tuple(SA.sort(SA.SVector(bnds..., breaks...)))
 end
 
 """

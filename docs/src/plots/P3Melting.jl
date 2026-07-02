@@ -9,7 +9,7 @@ FT = Float64
 # parameters
 params = CMP.ParametersP3(FT; slope_law = :constant)
 vel = CMP.Chen2022VelType(FT)
-quad = P3.GaussLegendre(FT, 12)
+quad = CMP.Microphysics2MParams(FT; with_ice = true).ice.quad  # the package default rule
 aps = CMP.AirProperties(FT)
 tps = TDI.PS(FT)
 

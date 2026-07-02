@@ -221,6 +221,7 @@ These methods integrate over the particle size distribution.
 P3Scheme.D_m
 P3Scheme.ice_particle_terminal_velocity
 P3Scheme.ice_terminal_velocity_number_weighted
+P3Scheme.ice_terminal_velocity_number_weighted_from_prognostic
 P3Scheme.ice_terminal_velocity_mass_weighted
 ```
 
@@ -247,11 +248,17 @@ P3Scheme.bulk_liquid_ice_collision_sources
 Supporting methods:
 
 ```@docs
+P3Scheme.VolumetricCollisionRate
 P3Scheme.volumetric_collision_rate_integrand
 P3Scheme.compute_max_freeze_rate
 P3Scheme.compute_local_rime_density
 P3Scheme.get_liquid_integrals
 P3Scheme.crossing_integral_bounds
+P3Scheme.crossover_diameter
+P3Scheme.closed_rain_inner_NM
+P3Scheme.collision_cross_section_ice_liquid
+P3Scheme.collision_cross_section_ice_liquid_coeffs
+P3Scheme.wet_growth_onset_diameter
 P3Scheme.∫liquid_ice_collisions
 ```
 
@@ -265,6 +272,7 @@ P3Scheme.ChebyshevGauss
 Quadrature.GaussLegendre
 P3Scheme.integral_bounds
 P3Scheme.velocity_integral_bounds
+P3Scheme.velocity_breakpoints
 ```
 
 # Aerosol model
@@ -407,6 +415,8 @@ Utilities.fac
 
 ```@docs
 Common
+Common.Chen2022VelocityCurve
+Common.particle_terminal_velocity
 Common.G_func_liquid
 Common.G_func_ice
 Common.logistic_function

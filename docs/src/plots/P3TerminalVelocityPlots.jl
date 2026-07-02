@@ -27,7 +27,7 @@ function get_values(
     D_m = zeros(x_resolution, y_resolution)
     D_m_regimes = zeros(x_resolution, y_resolution)
     ϕᵢ = zeros(x_resolution, y_resolution)
-    quad = P3.GaussLegendre(FT, 12)
+    quad = CMP.Microphysics2MParams(FT; with_ice = true).ice.quad  # the package default rule
 
     for i in 1:x_resolution
         for j in 1:y_resolution
