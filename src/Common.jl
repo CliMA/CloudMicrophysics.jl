@@ -47,7 +47,7 @@ numerical robustness.
 @inline function G_func_liquid(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
-    T::FT,
+    T,
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lᵥ(tps, T)
@@ -86,7 +86,7 @@ numerical robustness.
 @inline function G_func_ice(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
-    T::FT,
+    T,
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lₛ(tps, T)

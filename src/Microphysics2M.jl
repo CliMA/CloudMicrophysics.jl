@@ -83,9 +83,9 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ,
     # three extra selects are far cheaper than a data-dependent branch (cf. PR #749).
     cond = Nᵣ < UT.ϵ_numerics_2M_N(FT) || qᵣ < UT.ϵ_numerics_2M_M(FT)
     return (;
-        N₀r = ifelse(cond, zero(Nᵣ), N₀r),
-        Dr_mean = ifelse(cond, zero(qᵣ), Dr_mean),
-        xr_mean = ifelse(cond, zero(qᵣ), xr_mean),
+        N₀r = ifelse(cond, zero(N₀r), N₀r),
+        Dr_mean = ifelse(cond, zero(Dr_mean), Dr_mean),
+        xr_mean = ifelse(cond, zero(xr_mean), xr_mean),
     )
 end
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρₐ, Nᵣ)
@@ -104,9 +104,9 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρ
     Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
     cond = Nᵣ < UT.ϵ_numerics_2M_N(FT) && qᵣ < UT.ϵ_numerics_2M_M(FT)
     return (;
-        N₀r = ifelse(cond, zero(Nᵣ), N₀r),
-        Dr_mean = ifelse(cond, zero(qᵣ), Dr_mean),
-        xr_mean = ifelse(cond, zero(qᵣ), xr_mean),
+        N₀r = ifelse(cond, zero(N₀r), N₀r),
+        Dr_mean = ifelse(cond, zero(Dr_mean), Dr_mean),
+        xr_mean = ifelse(cond, zero(xr_mean), xr_mean),
     )
 end
 

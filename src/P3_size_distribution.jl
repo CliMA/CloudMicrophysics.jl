@@ -28,7 +28,7 @@ function logN′ice(state::P3State, logλ)
     # `log_N₀` a `Dual` while `μ` (a function of the fixed `logλ`) stays a plain
     # float, and `P3LogNumberFunctor` stores both in a single field type.
     λ = exp(logλ)
-    return P3LogNumberFunctor(promote(log_N₀, μ)..., λ)
+    return P3LogNumberFunctor(promote(log_N₀, μ, λ)...)
 end
 
 # Callable returned by `size_distribution`: `n(D) = exp(logN′(D))`.
