@@ -965,14 +965,15 @@ function test_p3_closed_form_rain_inner(FT)
             ρ′_rim = P3.compute_local_rime_density(vel, ρₐ, FT(270), state)
             D_min, D_max = bnds = CM2.get_size_distribution_bounds(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p)
             D_max > D_min || continue
+            v_i = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
             rc = P3.get_liquid_integrals_rain_closed(
                 psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
-                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40), v_i, v_l,
             )
             rn = P3.get_liquid_integrals(  # numerical fallback
-                n_r, ∂ₜV, m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                n_r, ∂ₜV, m_liq, ρ′_rim, bnds;
+                quad = P3.ChebyshevGauss(40), v_i, v_l,
             )
-            v_i = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
             for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
                 vi = v_i(Dᵢ)
                 Dstar = P3.crossover_diameter(vi, v_l, D_min, D_max)
@@ -1012,23 +1013,23 @@ function test_p3_closed_form_rain_inner(FT)
         L_r, N_r = FT(1e-4), FT(1e3)
         (; N₀r, Dr_mean) =
             CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
-        Dᵢ0 = FT(3e-3)
         rᵢ0 = FT(1e-3)
         vi0 = FT(3.0)
         D_min, D_max = FT(1e-5), FT(5e-3)
         rtolAD = FT(1e-4)
+        Dstar0 = P3.crossover_diameter(vi0, v_l, D_min, D_max)
         cases = (
             ("v_i", vi0,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, x, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(x, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
             ("r_i", rᵢ0,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, x, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, x, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
             ("Dr", Dr_mean,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, x)),
             ("N₀r", N₀r,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, x, Dr_mean)),
         )
         for (_, x0, g) in cases, idx in (1, 2)
@@ -1085,8 +1086,9 @@ function test_p3_closed_form_rain_inner(FT)
         r_i = FT(2e-4)
         ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, FT(1))
         for v_i in (FT(-1), FT(1e6))
+            Dstar_i = P3.crossover_diameter(v_i, v_l, D_min, D_max)
             N, M = P3.closed_rain_inner_NM(
-                FT(1e-3), v_i, v_l, r_i, FT(1000), ai, bi, ci,
+                v_i, Dstar_i, r_i, FT(1000), ai, bi, ci,
                 D_min, D_max, FT(1e7), FT(5e-4),
             )
             @test isfinite(N) && isfinite(M)

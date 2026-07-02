@@ -251,6 +251,7 @@ P3Scheme.volumetric_collision_rate_integrand
 P3Scheme.compute_max_freeze_rate
 P3Scheme.compute_local_rime_density
 P3Scheme.get_liquid_integrals
+P3Scheme.crossing_integral_bounds
 P3Scheme.∫liquid_ice_collisions
 ```
 
@@ -263,6 +264,7 @@ P3Scheme.subintervals
 P3Scheme.ChebyshevGauss
 Quadrature.GaussLegendre
 P3Scheme.integral_bounds
+P3Scheme.velocity_integral_bounds
 ```
 
 # Aerosol model
