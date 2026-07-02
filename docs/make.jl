@@ -102,10 +102,6 @@ makedocs(
     sitename = "CloudMicrophysics.jl",
     format = format,
     checkdocs = :exports,
-    # Docstrings cross-reference internal helpers (e.g. the Rosenbrock substep
-    # functions) that are not part of the exported API and so have no `@docs`
-    # entry; keep those `@ref`s as warnings rather than build errors.
-    warnonly = [:cross_references],
     modules = [CloudMicrophysics],
     pages = pages,
     plugins = [bib, links],
