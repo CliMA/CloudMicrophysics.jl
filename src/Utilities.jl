@@ -274,8 +274,8 @@ end
 #   - `ϵ_numerics_P3_B` = eps(FT)                                — same, for the P3
 #     rime-volume (B_rim) variable.
 # The ~6 orders of magnitude gap reflects the different roles (underflow-avoiding
-# floor vs. relative-precision threshold), not an oversight. If a scheme needs a
-# different value, change it here rather than at the call sites.
+# floor vs. relative-precision threshold). If a scheme needs a different value, 
+# change it here rather than at the call sites.
 # ---------------------------------------------------------------------------
 
 """

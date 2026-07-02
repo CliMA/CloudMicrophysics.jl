@@ -682,11 +682,16 @@ A `NamedTuple` of `(; dNdt)`, where:
     function inner_integral(D_1)
         v1 = v_ice(D_1)
         r1 = sqrt(ice_area(state, D_1) / π)
+        # Volumetric collision rate integrand: E · K · |v₁ − v₂| · n(D₂)
+        # where E = 1 (collision efficiency),
+        #       K = π (r₁ + r₂)² is the geometric collision cross-section,
+        #       |v₁ − v₂| is the differential sedimentation speed,
+        #       r = √(A/π) is the effective radius from projected ice area A.
         integrand = D_2 -> begin
             v2 = v_ice(D_2)
             r2 = sqrt(ice_area(state, D_2) / π)
-            K = π * (r1 + r2)^2
-            return K * abs(v1 - v2) * n_i(D_2)
+            K = π * (r1 + r2)^2                    # collision cross section
+            return K * abs(v1 - v2) * n_i(D_2)     # E = 1 implied
         end
         # Split the inner integral at the |v1 - v2| cusp (D_2 = D_1, where the relative
         # fall speed vanishes and the integrand has a kink). Each half is then smooth, so

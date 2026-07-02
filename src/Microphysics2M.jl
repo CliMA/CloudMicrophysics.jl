@@ -591,6 +591,9 @@ function rain_breakup(
     Dr = cbrt(xr_mean * 6 / (π * ρw))  # mean volume raindrop diameter
     ΔD = Dr - Deq
 
+    # Dr < Dr_th:  below the threshold diameter, breakup is neglected
+    # Dr ≤ Deq:    below the equilibrium diameter, breakup is a linear function
+    # Dr > Deq:    above the equilibrium diameter, breakup is an exponential function
     Φ_br = ifelse(Dr < Dr_th, FT(-1), ifelse(Dr ≤ Deq, kbr * ΔD, exp(κbr * ΔD) - 1))
     dN_rai_dt_br = -(Φ_br + 1) * dN_rai_dt_sc  # Eq. (13) from SB2006
 
@@ -707,6 +710,7 @@ function rain_terminal_velocity(
     safe_N_rai = max(N_rai, UT.ϵ_numerics_2M_N(FT))
     (; Dr_mean) = pdf_rain_parameters(pdf_r, safe_q_rai, ρ, safe_N_rai)
 
+    # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
     vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 0))
     vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 3))
 
