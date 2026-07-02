@@ -50,11 +50,6 @@ import ..Common as CO
 import ..Parameters as CMP
 import ..Utilities as UT
 
-# The specific-content arguments of the kernels below are left unconstrained
-# relative to the parameter type `FT` so a `ForwardDiff.Dual` working type flows
-# through, and zero-branch results are typed by `UT.promote_typeof` to stay
-# concrete under mixed Dual/float arguments. Uniform-`FT` calls are unchanged.
-
 export terminal_velocity,
     conv_q_lcl_to_q_rai,
     conv_q_icl_to_q_sno,

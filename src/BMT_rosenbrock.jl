@@ -340,11 +340,11 @@ fields as the `Instantaneous` entry.
 
 The substep Jacobian provider `(g, x) -> SMatrix` for a [`Jacobian`](@ref)
 option: [`_jacobian_1m_linearized`](@ref) for [`DonorJacobian`](@ref),
-[`_jacobian_1m_relinearized`](@ref) for [`CoupledDonorJacobian`](@ref), and
+[`_jacobian_1m_coupled`](@ref) for [`CoupledDonorJacobian`](@ref), and
 [`_ad_jacobian_1m`](@ref) for [`ExactJacobian`](@ref).
 """
 @inline _jacobian_provider(::DonorJacobian) = _jacobian_1m_linearized
-@inline _jacobian_provider(::CoupledDonorJacobian) = _jacobian_1m_relinearized
+@inline _jacobian_provider(::CoupledDonorJacobian) = _jacobian_1m_coupled
 @inline _jacobian_provider(::ExactJacobian) = _ad_jacobian_1m
 
 """
@@ -394,13 +394,17 @@ precision of `FT`.
 """
 @inline _saturation_bisection_count(::Type{FT}) where {FT} = ceil(Int, -log2(eps(FT)))
 
-@inline function _apply_limiter(::EndStateSaturationAdjustment,
-    x::MicroState1M{FT}, d::MicroState1M{FT},
-    ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps,
-) where {FT}
-    Sice(xx, TT) =
-        TDI.supersaturation_over_ice(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_icl + xx.q_sno, ρ, TT)
-    latent(dd) = Lv_over_cp * (dd.q_lcl + dd.q_rai) + Ls_over_cp * (dd.q_icl + dd.q_sno)
+"""
+    _saturation_bisection(Sice, latent, x, d, Tsub)
+
+Scale the increment `d` at state `x` so the latent-heated end state stays at or
+above ice saturation, for a state that begins at or above it; return `d`
+unchanged otherwise. `Sice(x, T)` and `latent(d)` close over the substep
+context.
+"""
+@inline function _saturation_bisection(
+    Sice::FS, latent::FL, x::SA.StaticVector{N, FT}, d, Tsub,
+) where {FS, FL, N, FT}
     xf = max.(x .+ d, 0)
     if Sice(x, Tsub) >= 0 && Sice(xf, Tsub + latent(xf .- x)) < 0
         lo = zero(FT)
@@ -420,27 +424,22 @@ precision of `FT`.
 end
 
 @inline function _apply_limiter(::EndStateSaturationAdjustment,
+    x::MicroState1M{FT}, d::MicroState1M{FT},
+    ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps,
+) where {FT}
+    Sice(xx, TT) =
+        TDI.supersaturation_over_ice(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_icl + xx.q_sno, ρ, TT)
+    latent(dd) = Lv_over_cp * (dd.q_lcl + dd.q_rai) + Ls_over_cp * (dd.q_icl + dd.q_sno)
+    return _saturation_bisection(Sice, latent, x, d, Tsub)
+end
+
+@inline function _apply_limiter(::EndStateSaturationAdjustment,
     x::MicroState2MP3{FT}, d::MicroState2MP3{FT},
     ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps,
 ) where {FT}
     Sice(xx, TT) = TDI.supersaturation_over_ice(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_ice, ρ, TT)
     latent(dd) = Lv_over_cp * (dd.q_lcl + dd.q_rai) + Ls_over_cp * dd.q_ice
-    xf = max.(x .+ d, 0)
-    if Sice(x, Tsub) >= 0 && Sice(xf, Tsub + latent(xf .- x)) < 0
-        lo = zero(FT)
-        hi = one(FT)
-        for _ in 1:_saturation_bisection_count(FT)
-            s = (lo + hi) / 2
-            xs = max.(x .+ s .* d, 0)
-            if Sice(xs, Tsub + latent(xs .- x)) >= 0
-                lo = s
-            else
-                hi = s
-            end
-        end
-        return lo .* d
-    end
-    return d
+    return _saturation_bisection(Sice, latent, x, d, Tsub)
 end
 
 "Exact ForwardDiff Jacobian provider for [`_rosenbrock_average_1m`](@ref)."
@@ -580,7 +579,7 @@ coupling with respect to `q_tot`.
 end
 
 """
-    _jacobian_1m_relinearized(g::Raw1MTendency, x::MicroState1M)
+    _jacobian_1m_coupled(g::Raw1MTendency, x::MicroState1M)
 
 Coupled donor-based Jacobian provider for [`_rosenbrock_average_1m`](@ref): the
 donor-based matrix [`_jacobian_1m_linearized`](@ref) with the vapor-competition
@@ -594,7 +593,7 @@ and added to each receiver row. The direct condensate dependence of the rates
 (for example rain ventilation and the condensate availability terms) is not
 recovered; use [`ExactJacobian`](@ref) for the full derivative.
 """
-@inline function _jacobian_1m_relinearized(g::Raw1MTendency, x::MicroState1M{FT}) where {FT}
+@inline function _jacobian_1m_coupled(g::Raw1MTendency, x::MicroState1M{FT}) where {FT}
     Jdonor = _jacobian_1m_linearized(g, x)
     dS_dq_tot = FD.derivative(qt -> _vapor_exchange_rates(g, x, qt), FT(g.q_tot))
     wbf = -dS_dq_tot

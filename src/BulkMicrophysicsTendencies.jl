@@ -137,9 +137,8 @@ struct LinearizedAverage <: TendencyMode end
 
 Abstract type selecting the matrix used in each linearized-implicit substep of
 [`RosenbrockAverage`](@ref). The supported types and how to add another are
-described in the P3 numerics documentation. Only [`ExactJacobian`](@ref) has a
-`bulk_microphysics_tendencies` method; the donor-based options are reserved for
-1-moment support.
+described in the P3 numerics documentation. The 1-moment scheme supports all
+three options; the 2M+P3 scheme supports only [`ExactJacobian`](@ref).
 """
 abstract type Jacobian end
 
@@ -147,7 +146,7 @@ abstract type Jacobian end
     DonorJacobian <: Jacobian
 
 The donor-based linearization of the tendency: each transfer is linearized in its
-donor species and rate-floored. The matrix [`LinearizedAverage`](@ref) uses.
+donor species and rate-floored. The matrix used by [`LinearizedAverage`](@ref).
 """
 struct DonorJacobian <: Jacobian end
 
