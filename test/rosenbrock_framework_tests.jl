@@ -105,7 +105,9 @@ function test_framework_1m(FT)
         # cold, ice-supersaturated, coarse single step
         let ρ = FT(0.9), T = T_frz - FT(20), qt = FT(2.0e-3), x = FT[0, 1e-4, 0, 1e-4], Δt = FT(240)
             _, Si_exact = end_state_S(exact, ρ, T, qt, x, Δt, 1)
+            _, Si_unlim = end_state_S(unlimited, ρ, T, qt, x, Δt, 1)
             @test abs(Si_exact) < tol
+            @test Si_unlim < -tol
         end
     end
 
