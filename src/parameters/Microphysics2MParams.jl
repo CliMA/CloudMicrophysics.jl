@@ -51,7 +51,7 @@ builds the components:
 
 # Keyword arguments
 - `is_limited`: use limited rain size-distribution parameters. By default, `true`.
-- `quadrature_order`: order of the default `Quadrature.GaussLegendre` rule. By default, `12`.
+- `quadrature_order`: order of the default `Quadrature.GaussLegendre` rule. By default, `6`.
 - `quad`: the size-distribution `Quadrature.QuadratureRule`. By default,
   `Quadrature.GaussLegendre(FT, quadrature_order)`. Pass this to use a rule other
   than Gauss-Legendre.
@@ -80,14 +80,14 @@ builds the components:
     "Quadrature rule for the size-distribution integrals
     (deposition / sublimation, melting, riming, ice-rain collection,
     sedimentation). See also [`Quadrature.GaussLegendre`](@ref)."
-    quad::Q = QUAD.GaussLegendre(Float64, 12)
+    quad::Q = QUAD.GaussLegendre(Float64, 6)
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 P3IceParams(toml_dict::CP.ParamDict;
     is_limited = true,
-    quadrature_order = 12,
+    quadrature_order = 6,
     quad = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = P3IceParams(;
@@ -143,7 +143,7 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 - `with_ice`: include P3 ice-phase parameters. By default, `false`.
 - `is_limited`: use limited rain size-distribution parameters. By default, `true`.
 - `quadrature_order`: order of the default `Quadrature.GaussLegendre` rule passed to
-  [`P3IceParams`](@ref) when `with_ice`. By default, `12`.
+  [`P3IceParams`](@ref) when `with_ice`. By default, `6`.
 - `quad`: the size-distribution `Quadrature.QuadratureRule` passed to
   [`P3IceParams`](@ref) when `with_ice`. By default,
   `Quadrature.GaussLegendre(FT, quadrature_order)`.
@@ -152,7 +152,7 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 """
 Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true,
-    quadrature_order = 12,
+    quadrature_order = 6,
     quad = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
     inp_depletion_model = NIceProxyDepletion(τ_act = 300),
 ) = Microphysics2MParams(;

@@ -20,8 +20,15 @@ Per-order relative tolerances, applied on `max(abs(a), abs(b), ε)` with
 - `n = 50`:  < 6e-3
 - `n = 25`:  < 5e-2
 - `n = 15`:  < 2e-1
+- `n = 12`:  < 5e-3
+- `n = 8`:   < 5e-3
+- `n = 7`:   < 1e-2
+- `n = 6`:   < 2e-2
 
-Non-finite (`NaN` / `Inf`) outputs fail regardless of tolerance.
+The `n ≤ 12` rows hold because the integrand breakpoints (velocity crossing,
+decay scale) keep low orders accurate; the state set includes graupel/hail
+cores for this reason. Non-finite (`NaN` / `Inf`) outputs fail regardless of
+tolerance.
 """
 
 function generate_column_states(::Type{FT}) where {FT}
@@ -228,12 +235,35 @@ function test_quadrature_order_sweep(FT)
         (50, FT(6e-3)),
         (25, FT(5e-2)),
         (15, FT(2e-1)),
+        # With the velocity-crossing and decay-scale breakpoints, low orders
+        # stay accurate down to the default order (8), including in the
+        # large-mean-size states below. See #741.
+        (12, FT(5e-3)),
+        (8, FT(5e-3)),
+        (7, FT(1e-2)),
+        (6, FT(2e-2)),
     ]
     reference_n = 200
 
     mp_ref = make_mp(reference_n)
     states = generate_column_states(FT)
     @test length(states) >= 10
+    # Graupel/hail cores: large mean particle size, so the size-distribution
+    # tail spans several decades of particle diameter.
+    for (F_rim, ρ_rim, n_ice) in ((0.8, 600.0, 100.0), (0.8, 600.0, 20.0), (0.95, 800.0, 50.0))
+        q_ice = 1e-3
+        q_rim = F_rim * q_ice
+        push!(
+            states,
+            (;
+                ρ = FT(0.9), T = FT(262.0), q_tot = FT(4e-3),
+                q_lcl = FT(2e-4), n_lcl = FT(5e7),
+                q_rai = FT(2e-4), n_rai = FT(2e4),
+                q_ice = FT(q_ice), n_ice = FT(n_ice),
+                q_rim = FT(q_rim), b_rim = FT(q_rim / ρ_rim),
+            ),
+        )
+    end
 
     @testset "Quadrature order sweep" begin
         for (idx, s) in enumerate(states)
