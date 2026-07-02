@@ -744,6 +744,8 @@ function test_microphysics2M(FT)
         TT.@test CM2.number_tendency_from_mass_limits(numadj_nt, q, n_high) ≈ (q / x_min - n_high) / τ
         # q ≈ 0: target is zero number
         TT.@test CM2.number_tendency_from_mass_limits(numadj_nt, FT(0), n_inrange) ≈ -n_inrange / τ
+        # x_min = 0: q / x_min is Inf, so the lower-bound relaxation never fires
+        TT.@test CM2.number_tendency_from_mass_limits((; x_min = FT(0), x_max, τ), q, n_high) ≈ FT(0)
     end
 end
 

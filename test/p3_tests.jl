@@ -911,8 +911,27 @@ function test_p3_ice_self_collection(FT)
             P3.ice_self_collection(state_zero, logλ_zero, vel_params, ρₐ; quad = P3.GaussLegendre(FT, 12))
         @test rates_zero.dNdt == 0
 
-        # TODO: compare against an analytically derived reference
-        # For a simple size distribution and uniform velocity difference, one could compute analytical dNdt.
+        # Cross-check the triangular domain against the full-square double
+        # integral, where the ½ factor counts each unordered pair once
+        quad32 = P3.GaussLegendre(FT, 32)
+        rates32 = P3.ice_self_collection(state, logλ, vel_params, ρₐ; quad = quad32)
+        n_i = DT.size_distribution(state, logλ)
+        v_i = P3.ice_particle_terminal_velocity(vel_params, ρₐ, state)
+        bnds = P3.velocity_integral_bounds(state, logλ, vel_params.small_ice.cutoff; p = eps(one(ρₐ)))
+        square = P3.integrate(
+            D₁ -> begin
+                v₁ = v_i(D₁)
+                collision_rate =
+                    D₂ -> P3.collision_cross_section_ice_ice(state, D₁, D₂) * abs(v₁ - v_i(D₂)) * n_i(D₂)
+                # Split the inner integral at D₂ = D₁, where |v₁ - v(D₂)| is not smooth
+                inner =
+                    P3.integrate(collision_rate, (first(bnds), D₁), quad32) +
+                    P3.integrate(collision_rate, (D₁, last(bnds)), quad32)
+                n_i(D₁) * inner
+            end,
+            bnds, quad32,
+        )
+        @test rates32.dNdt ≈ square / 2 rtol = 0.05
     end
 end
 
