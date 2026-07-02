@@ -105,9 +105,9 @@ exact scheme robust across the resolved time-step envelope.
 ## The mixed-phase saturation criterion
 
 A cell has two saturation thresholds, over liquid and over ice, and the condensation and deposition processes draw
-on a single shared vapor reservoir. `EndStateSaturationAdjustment` limits the increment on the **more-supersaturated
-phase**, `max(S_ice, S_liq)`: it keeps the latent-heated end state at or above the saturation of whichever phase
-carries the larger supersaturation. Equivalently the vapor floor is the *lower* of the two saturation specific
+on a single shared vapor reservoir. `EndStateSaturationAdjustment` limits the increment on the more-supersaturated
+phase, `max(S_ice, S_liq)`: it keeps the latent-heated end state at or above the saturation of whichever phase
+carries the larger supersaturation. Equivalently the vapor floor is the lower of the two saturation specific
 humidities, since the smaller `q_sat` is the larger supersaturation.
 
 The two saturation curves cross at the freezing point (panel (c) below). Below freezing `q_sat_ice < q_sat_liq`, so
