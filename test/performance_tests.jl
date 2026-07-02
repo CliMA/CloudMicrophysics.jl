@@ -332,6 +332,37 @@ function benchmark_test(FT)
                 ρ_air, T_air,
             ), 1e7)
     end
+
+    @info "2M+P3 bulk tendencies"
+    mp_2mp3 = CMP.Microphysics2MParams(FT; with_ice = true)
+    q_lcl_bmt = FT(1e-3)
+    n_lcl_bmt = FT(1e8)
+    q_rai_bmt = FT(2e-4)
+    n_rai_bmt = FT(1e6)
+    q_ice_bmt = FT(3e-4)
+    n_ice_bmt = FT(1e5)
+    q_rim_bmt = FT(1e-4)
+    b_rim_bmt = FT(1e-10)
+    state_bmt = P3.state_from_prognostic(
+        mp_2mp3.ice.scheme,
+        ρ_air * q_ice_bmt, ρ_air * n_ice_bmt, ρ_air * q_rim_bmt, ρ_air * b_rim_bmt,
+    )
+    logλ_bmt = P3.get_distribution_logλ(state_bmt)
+    bench_press(
+        @NamedTuple{
+            dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
+            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
+            dn_lcl_activation_dt::FT,
+        },
+        BMT.bulk_microphysics_tendencies,
+        (
+            BMT.Microphysics2Moment(), mp_2mp3, tps, ρ_air, T_air, q_tot,
+            q_lcl_bmt, n_lcl_bmt, q_rai_bmt, n_rai_bmt,
+            q_ice_bmt, n_ice_bmt, q_rim_bmt, b_rim_bmt, logλ_bmt,
+        ),
+        3e7,
+    )
+
     bench_press(FT, CMD.effective_radius_Liu_Hallet_97, (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai), 300)
     bench_press(
         FT, CM2.number_tendency_from_mass_limits,
