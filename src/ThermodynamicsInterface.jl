@@ -89,6 +89,14 @@ saturation_vapor_specific_content_over_liquid(tps::PS, T, ρ) =
 saturation_vapor_specific_content_over_ice(tps::PS, T, ρ) =
     TD.q_vap_saturation(tps, T, ρ, TD.Ice())
 
+# Variants taking a precomputed saturation vapor pressure `p_vs` (over the
+# relevant phase). These let callers that already hold `p_vs` avoid recomputing
+# the expensive `saturation_vapor_pressure` (log + exp). Bit-for-bit identical
+# to the phase-dispatched versions above, which internally reduce to
+# `q_vap_from_p_vap(tps, T, ρ, p_vs)`.
+saturation_vapor_specific_content(tps::PS, T, ρ, p_vs) =
+    TD.q_vap_from_p_vap(tps, T, ρ, p_vs)
+
 """
     supersaturation_over_liquid(tps, qₜ, qₗ, qᵢ, ρ, T)
     supersaturation_over_ice(tps, qₜ, qₗ, qᵢ, ρ, T)
@@ -122,6 +130,15 @@ end
 function supersaturation_over_ice(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
     return TD.supersaturation(tps, qᵥ, ρ, T, TD.Ice())
+end
+
+# Variants taking a precomputed saturation vapor pressure `p_vs` (over the
+# relevant phase), avoiding a redundant `saturation_vapor_pressure` evaluation.
+# `TD.supersaturation(tps, qᵥ, ρ, T, p_vs)` is the same primitive the
+# phase-dispatched versions above reduce to, so these are bit-for-bit identical.
+function supersaturation(tps::PS, qₜ, qₗ, qᵢ, ρ, T, p_vs)
+    qᵥ = q_vap(qₜ, qₗ, qᵢ)
+    return TD.supersaturation(tps, qᵥ, ρ, T, p_vs)
 end
 
 end

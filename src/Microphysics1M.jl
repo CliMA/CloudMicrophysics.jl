@@ -688,8 +688,19 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
 @inline conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
+@inline conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo, p_vs_liq) = zero(thermo.T)
 
-@inline function conv_q_rai_to_q_vap(::CMP.RainEvaporation, mp, tps, micro, thermo)
+# Convenience method: compute the saturation vapor pressure over liquid, then
+# delegate to the variant below. Callers that already hold `p_vs_liq` (e.g. the
+# bulk tendency driver, which reuses it across several processes) should call
+# the 6-argument method directly to avoid recomputing it.
+@inline conv_q_rai_to_q_vap(opt::CMP.RainEvaporation, mp, tps, micro, thermo) =
+    conv_q_rai_to_q_vap(
+        opt, mp, tps, micro, thermo,
+        TDI.saturation_vapor_pressure_over_liquid(tps, thermo.T),
+    )
+
+@inline function conv_q_rai_to_q_vap(::CMP.RainEvaporation, mp, tps, micro, thermo, p_vs_liq)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     (; pdf, mass, vent) = mp.precip.rain
@@ -699,11 +710,11 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     evap_rate = FT(0)
 
     if q_rai > UT.ϵ_numerics(FT)
-        S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
+        S = TDI.supersaturation(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_vs_liq)
 
         if S < FT(0)
             (; ν_air, D_vapor) = aps
-            G = CO.G_func_liquid(aps, tps, T)
+            G = CO.G_func_liquid(aps, tps, T, p_vs_liq)
             n0 = get_n0(pdf, q_rai, ρ)
             v0 = get_v0(vel, ρ)
             (; χv, ve, Δv, gamma_vent) = vel
@@ -744,17 +755,33 @@ Ventilation factor parameterization follows Seifert and Beheng (2006).
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
 @inline conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
+@inline conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo, p_vs_ice) = zero(thermo.T)
 
-@inline function conv_q_sno_to_q_vap(::CMP.SublimationOnly, mp, tps, micro, thermo)
-    return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo))
+@inline function conv_q_sno_to_q_vap(::CMP.SublimationOnly, mp, tps, micro, thermo, p_vs_ice)
+    return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo, p_vs_ice))
 end
+@inline conv_q_sno_to_q_vap(opt::CMP.SublimationOnly, mp, tps, micro, thermo) =
+    conv_q_sno_to_q_vap(
+        opt, mp, tps, micro, thermo,
+        TDI.saturation_vapor_pressure_over_ice(tps, thermo.T),
+    )
 
-@inline function conv_q_sno_to_q_vap(::CMP.DepositionAndSublimation, mp, tps, micro, thermo)
-    return _snow_subl_dep_rate(mp, tps, micro, thermo)
+@inline function conv_q_sno_to_q_vap(
+    ::CMP.DepositionAndSublimation, mp, tps, micro, thermo, p_vs_ice,
+)
+    return _snow_subl_dep_rate(mp, tps, micro, thermo, p_vs_ice)
 end
+@inline conv_q_sno_to_q_vap(opt::CMP.DepositionAndSublimation, mp, tps, micro, thermo) =
+    conv_q_sno_to_q_vap(
+        opt, mp, tps, micro, thermo,
+        TDI.saturation_vapor_pressure_over_ice(tps, thermo.T),
+    )
 
 """Internal helper: snow sublimation/deposition physics kernel."""
-@inline function _snow_subl_dep_rate(mp, tps, micro, thermo)
+@inline _snow_subl_dep_rate(mp, tps, micro, thermo) = _snow_subl_dep_rate(
+    mp, tps, micro, thermo, TDI.saturation_vapor_pressure_over_ice(tps, thermo.T),
+)
+@inline function _snow_subl_dep_rate(mp, tps, micro, thermo, p_vs_ice)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     (; pdf, mass, vent) = mp.precip.snow
@@ -765,8 +792,8 @@ end
 
     if q_sno > UT.ϵ_numerics(FT)
         (; ν_air, D_vapor) = aps
-        S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
-        G = CO.G_func_ice(aps, tps, T)
+        S = TDI.supersaturation(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_vs_ice)
+        G = CO.G_func_ice(aps, tps, T, p_vs_ice)
         n0 = get_n0(pdf, q_sno, ρ)
         v0 = get_v0(vel, ρ)
         (; r0) = mass

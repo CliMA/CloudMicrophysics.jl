@@ -107,8 +107,16 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 - Cloud condensate tendency [kg/kg/s]
 """
 @inline conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
+@inline conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo, p_vs_liq) = zero(thermo.T)
+# Convenience method: compute the saturation vapor pressure over liquid, then
+# delegate to the variant taking a precomputed `p_vs_liq`.
+@inline conv_q_vap_to_q_lcl(opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo) =
+    conv_q_vap_to_q_lcl(
+        opt, mp, tps, micro, thermo,
+        TDI.saturation_vapor_pressure_over_liquid(tps, thermo.T),
+    )
 function conv_q_vap_to_q_lcl(
-    opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo,
+    opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo, p_vs_liq,
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
@@ -119,7 +127,7 @@ function conv_q_vap_to_q_lcl(
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
 
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
-    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+    qᵥ_sat_liq = TDI.saturation_vapor_specific_content(tps, T, ρ, p_vs_liq)
 
     dqsl_dT = dqcld_dT(qᵥ_sat_liq, Lᵥ, Rᵥ, T)
     Γₗ = gamma_helper(Lᵥ, cₚ_air, dqsl_dT)
@@ -155,8 +163,16 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 - Cloud condensate tendency [kg/kg/s]
 """
 @inline conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
+@inline conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo, p_vs_ice) = zero(thermo.T)
+# Convenience method: compute the saturation vapor pressure over ice, then
+# delegate to the variant taking a precomputed `p_vs_ice`.
+@inline conv_q_vap_to_q_icl(opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo) =
+    conv_q_vap_to_q_icl(
+        opt, mp, tps, micro, thermo,
+        TDI.saturation_vapor_pressure_over_ice(tps, thermo.T),
+    )
 function conv_q_vap_to_q_icl(
-    opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo,
+    opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo, p_vs_ice,
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
@@ -167,7 +183,7 @@ function conv_q_vap_to_q_icl(
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
 
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
-    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content(tps, T, ρ, p_vs_ice)
 
     dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
     Γᵢ = gamma_helper(Lₛ, cₚ_air, dqsi_dT)
@@ -184,6 +200,11 @@ function conv_q_vap_to_q_icl(
     limiter = INP_limiter(tendency, tps, T)
     return ifelse(limiter, zero(tendency), tendency)
 end
+# `TemperatureDependent` ice formation has no precomputed-`p_vs` specialization;
+# fall back to recomputing the saturation pressure internally (off the hot path).
+@inline conv_q_vap_to_q_icl(
+    opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo, p_vs_ice,
+) = conv_q_vap_to_q_icl(opt, mp, tps, micro, thermo)
 function conv_q_vap_to_q_icl(
     opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo,
 )
