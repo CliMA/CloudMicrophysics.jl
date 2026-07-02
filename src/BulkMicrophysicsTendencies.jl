@@ -172,8 +172,10 @@ struct ExactJacobian <: Jacobian end
 A hand-built 2M+P3 substep Jacobian: the stiff condensation/deposition and
 number-adjustment couplings carried as closed-form analytic derivatives, the
 warm-rain and freezing transfers as donor-based linearizations, and the
-quadrature ice-collision couplings dropped. Avoids the `ForwardDiff` pass and
-its `gamma_inc` shape-derivative block.
+mixed-phase quadrature transfers (ice melt, liquid-ice collision)
+donor-linearized on their own donor species with the quadrature rates held
+frozen. Avoids the `ForwardDiff` pass and its `gamma_inc` shape-derivative
+block.
 """
 struct ManualJacobian <: Jacobian end
 

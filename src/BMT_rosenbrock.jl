@@ -774,13 +774,13 @@ The entries are tiered:
     rim_rim += pp.ice_melting.q_rim * drim   # rim mass sink (donor q_rim)
     brim_brim += pp.ice_melting.b_rim * dbrim # rime volume sink (donor b_rim)
 
-    # liquid-ice collision (cloud/rain → ice): the cloud and rain mass/number sinks
-    # self-limit on their own donors. Only the donor sinks are linearized; the small
-    # ice wet-growth / riming receivers are left to the melt brake that bounds them.
-    dlcl_c = 1 / max(q_floor, q_lcl)
-    dnlcl_c = 1 / max(n_floor, n_lcl)
-    lcl_lcl += min(pp.liquid_ice_collision.q_lcl, o) * dlcl_c
-    nlcl_nlcl += min(pp.liquid_ice_collision.n_lcl, o) * dnlcl_c
+    # liquid-ice collision (cloud/rain → ice): the cloud and rain mass/number
+    # sinks self-limit on their own donors. Only the donor sinks are linearized;
+    # the ice-side receivers are bounded by the equilibrated update and its
+    # positivity clamp.
+    lcl_lcl += min(pp.liquid_ice_collision.q_lcl, o) * dlcl
+    nlcl_nlcl += min(pp.liquid_ice_collision.n_lcl, o) * dnlcl
+    rai_rai += min(pp.liquid_ice_collision.q_rai, o) * drai
     nrai_nrai += min(pp.liquid_ice_collision.n_rai, o) * dnrai
 
     return _jacobian_2mp3(FT;

@@ -94,6 +94,31 @@ function test_rosenbrock_mode(FT)
         end
     end
 
+    @testset "rosenbrock_manual() vs fine explicit reference ($FT)" begin
+        # Riming-active mixed-phase state: the frozen quadrature rates of the
+        # manual Jacobian bound its accuracy relative to the exact Jacobian,
+        # and the donor-linearized collision sinks keep refinement monotone
+        manual = BMT.RosenbrockAverage(
+            BMT.ManualJacobian(), BMT.ExplicitGrowthDiagonal(), BMT.NoLimiter(),
+        )
+        Δt = FT(10)
+        r = (; ρ = FT(0.78), T = TDI.T_freeze(tps) - FT(8), q_tot = FT(0.006),
+            x = FT[2e-4, 5e7, 2e-4, 8e4, 3e-4, 4e5, 1e-4, 1.5e-7])
+        logλ = consistent_logλ(r.ρ, r.x)
+        x_ref = explicit_reference(mp, tps, r.ρ, r.T, r.q_tot, r.x, logλ, Δt, 2048)
+        x0 = SVector{8, FT}(r.x...)
+        errs = map((1, 4, 16)) do n
+            t = BMT.bulk_microphysics_tendencies(
+                manual, BMT.Microphysics2Moment(), mp, tps,
+                r.ρ, r.T, r.q_tot, r.x..., logλ, Δt, n,
+            )
+            err_metric(x0 .+ Δt .* SVector(values(t)...), x_ref, x0)
+        end
+        @test all(isfinite, errs)
+        @test errs[3] ≤ errs[1] * (1 + sqrt(eps(FT)))
+        @test errs[3] < (FT == Float64 ? FT(0.5) : FT(1))
+    end
+
     @testset "degenerate and trivial states ($FT)" begin
         # all-zero state: near-empty species mask -> explicit substeps -> exactly zero
         t0 = BMT.bulk_microphysics_tendencies(
