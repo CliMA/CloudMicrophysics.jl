@@ -9,12 +9,19 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.ThermodynamicsInterface as TDI
+import CloudMicrophysics.MicrophysicsNonEq as CMNonEq
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.HetIceNucleation as CM_HetIce
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.Utilities as UT
+import ForwardDiff as FD
 import StaticArrays: SVector
 
 # The unified `RosenbrockAverage{Jacobian, GrowthTreatment, TendencyLimiter}`
 # framework: presets (`rosenbrock_donor`, `rosenbrock_coupled`,
-# `rosenbrock_exact`), the keyword constructor, the `LinearizedAverage` ≡ donor
-# equivalence, the `Verbose` wrapper, and the 2M+P3 `ExactJacobian`-only contract.
+# `rosenbrock_exact`, `rosenbrock_manual`), the keyword constructor, the
+# `LinearizedAverage` ≡ donor equivalence, the `Verbose` wrapper, and the 2M+P3
+# `ExactJacobian`/`ManualJacobian` contract.
 
 net_vec_1m(t) = SVector(t.dq_lcl_dt, t.dq_icl_dt, t.dq_rai_dt, t.dq_sno_dt)
 
@@ -132,6 +139,7 @@ function test_framework_2m(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     mp = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true)
     p3 = mp.ice.scheme
+    T_frz = TDI.T_freeze(tps)
 
     consistent_logλ(ρ, x) =
         P3.get_distribution_logλ(P3.state_from_prognostic(p3, ρ * x[5], ρ * x[6], ρ * x[7], ρ * x[8]))
@@ -151,6 +159,269 @@ function test_framework_2m(FT)
             )
             @test all(isfinite, values(t))
         end
+    end
+
+    @testset "rosenbrock_manual() on Microphysics2Moment works ($FT)" begin
+        for nsub in (1, 2, 8), Δt in (FT(60), FT(300))
+            t = BMT.bulk_microphysics_tendencies(
+                BMT.rosenbrock_manual(), BMT.Microphysics2Moment(), mp, tps,
+                ρ, T, q_tot, x..., logλ, Δt, nsub,
+            )
+            @test all(isfinite, values(t))
+        end
+    end
+
+    @testset "_jacobian_2mp3_manual Tier-1 closed-form entries match ForwardDiff ($FT)" begin
+        # Validates the closed-form Tier-1 pieces (`_condevap_derivs`, the
+        # ice-number sublimation pathway, the F23 pathway, and `_numadj_derivs`)
+        # against ForwardDiff of the primal functions they linearize, across the
+        # branches `_jacobian_2mp3_manual` selects between. Full-matrix agreement
+        # is not asserted here: Tier 2 (donor-diagonal) and Tier 3 (dropped
+        # quadrature couplings) are approximations by design. See #743 EVIDENCE.
+        rtol = FT == Float64 ? FT(1e-9) : FT(1e-2)
+        atol = FT == Float64 ? FT(1e-12) : FT(1e-6)
+        qmin = UT.ϵ_numerics_2M_M(FT)
+
+        cp_l = TDI.TD.Parameters.cp_l(tps)
+        cp_v = TDI.TD.Parameters.cp_v(tps)
+        cp_i = TDI.TD.Parameters.cp_i(tps)
+        dcp_dliq = cp_l - cp_v
+        dcp_dice = cp_i - cp_v
+        τ_l = mp.warm_rain.condevap.τ_relax
+        τ_i = mp.warm_rain.subdep.τ_relax
+
+        micro(v) = (; q_tot = v[5], q_lcl = v[1], q_icl = v[3], q_rai = v[2], q_sno = zero(v[1]))
+
+        function condevap_manual_and_fd(ρ, T, q_tot, q_lcl, q_rai, q_ice, is_ice)
+            τ = is_ice ? τ_i : τ_l
+            L = is_ice ? TDI.Lₛ(tps, T) : TDI.Lᵥ(tps, T)
+            qᵥ_sat =
+                is_ice ?
+                TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ) :
+                TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+            dqs_dT = CMNonEq.dqcld_dT(qᵥ_sat, L, TDI.Rᵥ(tps), T)
+            cp_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_ice)
+            Γ = CMNonEq.gamma_helper(L, cp_air, dqs_dT)
+            sat_excess = TDI.q_vap(q_tot, q_lcl + q_rai, q_ice) - qᵥ_sat
+            q_limit = is_ice ? q_ice : q_lcl
+            d = BMT._condevap_derivs(τ, sat_excess, Γ, cp_air, L, dqs_dT, q_limit, is_ice, dcp_dliq, dcp_dice)
+            dep_active = !(is_ice && (T > T_frz) && (sat_excess > 0))
+            manual = dep_active ? [d.∂s_liq, d.∂s_rai, d.∂s_ice] : zeros(FT, 3)
+            h(v) =
+                if is_ice
+                    raw = CMNonEq.conv_q_vap_to_q_icl(CMP.ConstantTimescale(τ), nothing, tps, micro(v), (; ρ, T))
+                    ifelse(T > T_frz, min(raw, zero(raw)), raw)
+                else
+                    CMNonEq.conv_q_vap_to_q_lcl(CMP.CloudLiquidFormation(τ), nothing, tps, micro(v), (; ρ, T))
+                end
+            fd = FD.gradient(h, FT[q_lcl, q_rai, q_ice, zero(q_ice), q_tot])[1:3]
+            return manual, fd, dep_active
+        end
+
+        # cap_binds true/false for cloud and ice; dep_suppressed for ice.
+        condevap_states = (
+            (;
+                ρ = FT(1.0),
+                T = FT(290),
+                q_tot = FT(0.02),
+                q_lcl = FT(2e-4),
+                q_rai = FT(1e-4),
+                q_ice = FT(1e-4),
+                is_ice = false,
+            ),   # cloud, vapor branch (limit_binds=false)
+            (;
+                ρ = FT(0.9),
+                T = FT(290),
+                q_tot = FT(0.0005),
+                q_lcl = FT(2e-5),
+                q_rai = FT(2e-5),
+                q_ice = FT(1e-8),
+                is_ice = false,
+            ), # cloud, limited branch (limit_binds=true)
+            (;
+                ρ = FT(0.9),
+                T = FT(260),
+                q_tot = FT(0.008),
+                q_lcl = FT(2e-4),
+                q_rai = FT(1e-4),
+                q_ice = FT(1e-4),
+                is_ice = true,
+            ),   # ice, dep active, vapor branch
+            (;
+                ρ = FT(0.9),
+                T = FT(250),
+                q_tot = FT(0.0003),
+                q_lcl = FT(2e-5),
+                q_rai = FT(2e-5),
+                q_ice = FT(1e-8),
+                is_ice = true,
+            ),  # ice, dep active, limited branch
+            (;
+                ρ = FT(0.9),
+                T = FT(280),
+                q_tot = FT(0.02),
+                q_lcl = FT(2e-4),
+                q_rai = FT(1e-4),
+                q_ice = FT(1e-4),
+                is_ice = true,
+            ),    # ice, dep_suppressed
+        )
+        dep_active_flags = Bool[]
+        for s in condevap_states
+            manual, fd, dep_active = condevap_manual_and_fd(s.ρ, s.T, s.q_tot, s.q_lcl, s.q_rai, s.q_ice, s.is_ice)
+            push!(dep_active_flags, dep_active)
+            @test all(isapprox.(manual, fd; rtol, atol))
+        end
+        # confirm both branches of `dep_active` were exercised
+        @test any(dep_active_flags)
+        @test any(!f for f in dep_active_flags)
+
+        # ice-number sublimation pathway: n_per_q · ∂ₜq_ice_dep, active only when
+        # subsaturated (sublimating) with q_ice above the numerics floor.
+        function n_sub_manual_and_fd(ρ, T, q_tot, q_lcl, q_rai, q_ice, n_ice)
+            qᵥ_sat = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+            dqs_dT = CMNonEq.dqcld_dT(qᵥ_sat, TDI.Lₛ(tps, T), TDI.Rᵥ(tps), T)
+            cp_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_ice)
+            Γ = CMNonEq.gamma_helper(TDI.Lₛ(tps, T), cp_air, dqs_dT)
+            sat_excess = TDI.q_vap(q_tot, q_lcl + q_rai, q_ice) - qᵥ_sat
+            ci = BMT._condevap_derivs(
+                τ_i,
+                sat_excess,
+                Γ,
+                cp_air,
+                TDI.Lₛ(tps, T),
+                dqs_dT,
+                q_ice,
+                true,
+                dcp_dliq,
+                dcp_dice,
+            )
+            dep_active = !((T > T_frz) && (sat_excess > 0))
+            raw = CMNonEq.conv_q_vap_to_q_icl(CMP.ConstantTimescale(τ_i), nothing, tps,
+                (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice)), (; ρ, T))
+            ∂ₜq_ice_dep = ifelse(T > T_frz, min(raw, zero(raw)), raw)
+            n_sub_active = ∂ₜq_ice_dep < 0 && q_ice > qmin && dep_active
+            n_per_q = n_ice / max(qmin, q_ice)
+            manual =
+                n_sub_active ?
+                [
+                    n_per_q * ci.∂s_liq,
+                    n_per_q * ci.∂s_rai,
+                    n_per_q * (ci.∂s_ice - ∂ₜq_ice_dep / max(qmin, q_ice)),
+                    ∂ₜq_ice_dep / max(qmin, q_ice),
+                ] :
+                zeros(FT, 4)
+            h(v) = begin
+                raw_h = CMNonEq.conv_q_vap_to_q_icl(CMP.ConstantTimescale(τ_i), nothing, tps,
+                    (; q_tot, q_lcl = v[1], q_icl = v[3], q_rai = v[2], q_sno = zero(v[1])), (; ρ, T))
+                dqdep = ifelse(T > T_frz, min(raw_h, zero(raw_h)), raw_h)
+                n_per_q_h = v[4] / max(qmin, v[3])
+                ifelse(dqdep < 0, n_per_q_h * dqdep, zero(dqdep))
+            end
+            fd = FD.gradient(h, FT[q_lcl, q_rai, q_ice, n_ice])
+            return manual, fd, n_sub_active
+        end
+        n_sub_states = (
+            (;
+                ρ = FT(0.9),
+                T = FT(250),
+                q_tot = FT(0.0005),
+                q_lcl = FT(2e-5),
+                q_rai = FT(2e-5),
+                q_ice = FT(1e-5),
+                n_ice = FT(1e-3),
+            ), # subsaturated ⇒ active
+            (;
+                ρ = FT(0.9),
+                T = FT(260),
+                q_tot = FT(0.008),
+                q_lcl = FT(2e-4),
+                q_rai = FT(1e-4),
+                q_ice = FT(1e-4),
+                n_ice = FT(1e-3),
+            ),  # supersaturated (growth) ⇒ inactive
+        )
+        # The nice_ice component subtracts two comparable-magnitude terms
+        # (∂s_ice and ∂ₜq_ice_dep / q_ice); the residual is amplified by
+        # n_ice / q_ice, loosening the achievable tolerance relative to the
+        # other Tier-1 entries.
+        atol_nsub = FT == Float64 ? FT(1e-9) : FT(1e-3)
+        for s in n_sub_states
+            manual, fd, nsa = n_sub_manual_and_fd(s.ρ, s.T, s.q_tot, s.q_lcl, s.q_rai, s.q_ice, s.n_ice)
+            @test all(isapprox.(manual, fd; rtol, atol = atol_nsub))
+        end
+        @test n_sub_manual_and_fd(n_sub_states[1]...)[3]
+        @test !n_sub_manual_and_fd(n_sub_states[2]...)[3]
+
+        # F23 deposition-nucleation number pathway.
+        ice_nucleation = mp.ice.ice_nucleation
+        τ_act = mp.ice.inp_depletion_model.τ_act
+        D_nuc = FT(10e-6)
+        m_nuc = p3.ρ_i * CO.volume_sphere_D(D_nuc)
+        function f23_manual_and_fd(ρ, T, q_tot, q_liq, q_ice, n_ice)
+            h(n) = CM_HetIce.deposition_rate(
+                ice_nucleation,
+                tps,
+                T,
+                ρ,
+                q_tot,
+                q_liq,
+                q_ice,
+                n;
+                m_nuc,
+                τ_act,
+                inpc_log_shift = zero(ρ),
+            ).∂ₜn_frz
+            fd = FD.derivative(h, n_ice)
+            f23_active = h(n_ice) > 0
+            manual = f23_active ? -1 / τ_act : zero(FT)
+            return manual, fd, f23_active
+        end
+        f23_active_state =
+            (; ρ = FT(0.9), T = FT(250), q_tot = FT(0.005), q_liq = FT(2e-4), q_ice = FT(1e-4), n_ice = FT(1e2))
+        f23_inactive_state =
+            (; ρ = FT(0.9), T = FT(290), q_tot = FT(0.02), q_liq = FT(2e-4), q_ice = FT(1e-4), n_ice = FT(2e5))
+        for s in (f23_active_state, f23_inactive_state)
+            manual, fd, _ = f23_manual_and_fd(s.ρ, s.T, s.q_tot, s.q_liq, s.q_ice, s.n_ice)
+            @test isapprox(manual, fd; rtol, atol)
+        end
+        @test f23_manual_and_fd(f23_active_state...)[3]
+        @test !f23_manual_and_fd(f23_inactive_state...)[3]
+
+        # `_numadj_derivs` against `CM2.number_tendency_from_mass_limits`, across
+        # the interior/low/high/empty regimes, for the cloud, rain, and ice bounds.
+        sb = mp.warm_rain.seifert_beheng
+        numadj_species = (
+            (sb.pdf_c.xc_min, sb.pdf_c.xc_max, sb.numadj.τ),
+            (sb.pdf_r.xr_min, sb.pdf_r.xr_max, sb.numadj.τ),
+            (FT(1e-12), FT(1e-5), FT(100)),
+        )
+        for (x_min, x_max, τ) in numadj_species
+            q = FT(2e-4)
+            n_mid = q / sqrt(x_min * x_max)
+            for (q_test, n_test) in (
+                (q, q / x_max * FT(0.5)),  # low clamp
+                (q, n_mid),                # interior
+                (q, q / x_min * FT(2)),    # high clamp
+                (qmin / 2, n_mid),         # empty
+            )
+                manual = collect(BMT._numadj_derivs(FT, q_test, n_test, x_min, x_max, τ, qmin))
+                h(v) = CM2.number_tendency_from_mass_limits((; x_min, x_max, τ), v[1], v[2])
+                fd = FD.gradient(h, FT[q_test, n_test])
+                @test all(isapprox.(manual, fd; rtol, atol))
+            end
+        end
+
+        # The full 8×8 `_jacobian_2mp3_manual(g, x)` does not match
+        # `FD.jacobian(g, x)` to the commit's stated ~3e-12: whenever ice,
+        # cloud, and rain are simultaneously present, the dropped Tier-3
+        # quadrature collision couplings and the approximate Tier-2
+        # donor-diagonal couplings dominate the disagreement (measured up to
+        # ~2e13 absolute in the base regime below). See EVIDENCE.md (#743).
+        # g = BMT.Instantaneous2MP3Tendency(mp, tps, ρ, T, q_tot, logλ)
+        # Jm = BMT._jacobian_2mp3_manual(g, BMT.MicroState2MP3{FT}(x...))
+        # Jf = FD.jacobian(g, BMT.MicroState2MP3{FT}(x...))
+        # @test isapprox(Jm, Jf; rtol, atol)
     end
 
     @testset "non-Exact RosenbrockAverage on Microphysics2Moment throws ($FT)" begin

@@ -155,6 +155,7 @@ Internal Rosenbrock substep helpers:
 
 ```@docs
 BulkMicrophysicsTendencies.Instantaneous2MP3Tendency
+BulkMicrophysicsTendencies.ManualJacobian
 BulkMicrophysicsTendencies.MicroState1M
 BulkMicrophysicsTendencies.MicroState2MP3
 BulkMicrophysicsTendencies.Raw1MTendency
@@ -163,6 +164,7 @@ BulkMicrophysicsTendencies._euler_update
 BulkMicrophysicsTendencies._full_species_mask
 BulkMicrophysicsTendencies._instantaneous_1m_tendency
 BulkMicrophysicsTendencies._instantaneous_2mp3_tendency
+BulkMicrophysicsTendencies._jacobian_2mp3_manual
 BulkMicrophysicsTendencies._per_process_1m
 BulkMicrophysicsTendencies._per_process_2mp3
 BulkMicrophysicsTendencies._rosenbrock_solve
@@ -171,6 +173,7 @@ BulkMicrophysicsTendencies._rosenbrock_substep_verbose
 BulkMicrophysicsTendencies._rosenbrock_system
 BulkMicrophysicsTendencies._rosenbrock_update
 BulkMicrophysicsTendencies._species_mask
+BulkMicrophysicsTendencies.rosenbrock_manual
 ```
 
 # P3 scheme
