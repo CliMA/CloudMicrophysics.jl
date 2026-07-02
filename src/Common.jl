@@ -289,6 +289,7 @@ See [Chen2022](@cite) for more details.
 """
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
     (; ρ0, a, a3_pow, b, b_ρ, c) = coeffs
+    ρₐ = max(ρₐ, zero(ρₐ))
     # Table B1
     q = exp(ρ0 * ρₐ)
     ai = (a[1] * q, a[2] * q, a[3] * q * ρₐ^a3_pow)
@@ -303,6 +304,7 @@ end
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeSmallIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G) = coeffs
+    ρₐ = max(ρₐ, zero(ρₐ))
     # Table B3 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
@@ -325,6 +327,7 @@ end
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G, H) = coeffs
+    ρₐ = max(ρₐ, zero(ρₐ))
     # Table B5 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
