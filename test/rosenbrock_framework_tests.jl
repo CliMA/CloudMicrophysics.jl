@@ -47,6 +47,14 @@ function test_framework_2m(FT)
             )
         end
     end
+
+    @testset "RosenbrockAverage on warm-rain-only parameters throws ($FT)" begin
+        mp_warm = CMP.Microphysics2MParams(FT; with_ice = false)
+        @test_throws "requires P3 ice parameters" BMT.bulk_microphysics_tendencies(
+            BMT.rosenbrock_exact(), BMT.Microphysics2Moment(), mp_warm, tps,
+            ρ, T, q_tot, x..., logλ, FT(60), 4,
+        )
+    end
 end
 
 test_framework_2m(Float64)

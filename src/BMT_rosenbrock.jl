@@ -221,6 +221,15 @@ bulk_microphysics_tendencies(::RosenbrockAverage, ::Microphysics2Moment, args...
     ),
 )
 
+bulk_microphysics_tendencies(
+    ::RosenbrockAverage, ::Microphysics2Moment,
+    mp::CMP.Microphysics2MParams{WR, Nothing}, args...,
+) where {WR} = throw(
+    ArgumentError(
+        "RosenbrockAverage on Microphysics2Moment requires P3 ice parameters (with_ice = true)",
+    ),
+)
+
 """
     bulk_microphysics_tendencies(::RosenbrockAverage, ::Microphysics2Moment,
         mp, tps, ρ, T, q_tot,
