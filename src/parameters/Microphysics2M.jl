@@ -579,6 +579,12 @@ $(DocStringExtensions.FIELDS)
     a_vent_1::FT
     "pre-computed bv * Γ(5/2 + 3β/2) / 6^(β/2 + 1/2)"
     b_vent_1::FT
+    "pre-computed av * 6^(2/3) = av * cbrt(36)"
+    a_vent_0_coeff::FT
+    "pre-computed bv / 6^(β/2 - 1/2)"
+    b_vent_0_coeff::FT
+    "pre-computed incomplete-gamma exponent for the 0th ventilation moment: -1/2 + 3β/2"
+    β_vent_0::FT
 end
 
 function EvaporationSB2006(td::CP.ParamDict)
@@ -591,9 +597,13 @@ function EvaporationSB2006(td::CP.ParamDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     (; av, bv, β) = parameters
-    a_vent_1 = av / cbrt(typeof(av)(6))
-    b_vent_1 = bv * SF.gamma(typeof(bv)(5 // 2) + typeof(bv)(3 // 2) * β) / typeof(bv)(6)^(β / 2 + typeof(bv)(1 // 2))
-    return EvaporationSB2006(; parameters..., a_vent_1, b_vent_1)
+    FT = typeof(av)
+    a_vent_1 = av / cbrt(FT(6))
+    b_vent_1 = bv * SF.gamma(FT(5 // 2) + FT(3 // 2) * β) / FT(6)^(β / 2 + FT(1 // 2))
+    a_vent_0_coeff = av * cbrt(FT(36))
+    b_vent_0_coeff = bv / FT(6)^(β / 2 - FT(0.5))
+    β_vent_0 = FT(-0.5) + FT(1.5) * β
+    return EvaporationSB2006(; parameters..., a_vent_1, b_vent_1, a_vent_0_coeff, b_vent_0_coeff, β_vent_0)
 end
 
 """

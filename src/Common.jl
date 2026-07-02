@@ -47,7 +47,7 @@ numerical robustness.
 @inline function G_func_liquid(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
-    T::FT,
+    T,
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lᵥ(tps, T)
@@ -86,7 +86,7 @@ numerical robustness.
 @inline function G_func_ice(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
-    T::FT,
+    T,
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lₛ(tps, T)
@@ -355,7 +355,10 @@ end
  - `pdf(D)`: The monodisperse particle distribution function as a function of diameter, `D`, in [m/s].
 """
 @inline function Chen2022_monodisperse_pdf(a, b, c)
-    return pdf(D) = a * D^b * exp(-c * D)
+    # Fuse D^b * exp(-c*D) = exp(b*log(D) - c*D) into a single exp (D^b alone is a
+    # pow = log+exp for runtime-float b, so this drops one exp per term). Evaluated
+    # per quadrature node in the P3 velocity integrands, the hottest GPU path.
+    return pdf(D) = a * exp(muladd(b, log(D), -c * D))
 end
 
 """
@@ -480,8 +483,9 @@ See e.g., Seifert and Beheng (2006), https://doi.org/10.1007/s00703-005-0112-4, 
     (; aᵥ, bᵥ) = vent
     (; ν_air, D_vapor) = aps
     N_sc = ν_air / D_vapor           # Schmidt number
+    cbrt_N_sc = cbrt(N_sc)           # loop-invariant over D; hoist out of F_v
     N_Re(D) = D * v_term(D) / ν_air  # Reynolds number
-    F_v(D) = aᵥ + bᵥ * cbrt(N_sc) * sqrt(N_Re(D))  # Ventilation factor
+    F_v(D) = aᵥ + bᵥ * cbrt_N_sc * sqrt(N_Re(D))  # Ventilation factor
     return F_v
 end
 

@@ -67,33 +67,47 @@ Return the parameters of the rain drop diameter distribution
 """
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ, ρₐ, Nᵣ)
     FT = UT.promote_typeof(qᵣ, ρₐ, Nᵣ)
-    (Nᵣ < UT.ϵ_numerics_2M_N(FT) || qᵣ < UT.ϵ_numerics_2M_M(FT)) &&
-        return (; N₀r = zero(FT), Dr_mean = zero(FT), xr_mean = zero(FT))
     (; ρw) = pdf_r
-    Lᵣ = ρₐ * qᵣ
+    safe_qᵣ = max(qᵣ, UT.ϵ_numerics_2M_M(FT))
+    safe_Nᵣ = max(Nᵣ, UT.ϵ_numerics_2M_N(FT))
+    Lᵣ = ρₐ * safe_qᵣ
 
-    xr_mean = Lᵣ / Nᵣ
+    xr_mean = Lᵣ / safe_Nᵣ
     λr = cbrt(π * ρw / xr_mean)
-    N₀r = λr * Nᵣ
+    N₀r = λr * safe_Nᵣ
 
     Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
-    return (; N₀r, Dr_mean, xr_mean)
+    # The predicate is evaluated once into `cond`; the three `ifelse`es are predicated
+    # selects reusing it, not three re-evaluations. This replaces an early-return branch,
+    # so all warp lanes stay on one instruction stream (no GPU warp divergence) — the
+    # three extra selects are far cheaper than a data-dependent branch (cf. PR #749).
+    cond = Nᵣ < UT.ϵ_numerics_2M_N(FT) || qᵣ < UT.ϵ_numerics_2M_M(FT)
+    return (;
+        N₀r = ifelse(cond, zero(N₀r), N₀r),
+        Dr_mean = ifelse(cond, zero(Dr_mean), Dr_mean),
+        xr_mean = ifelse(cond, zero(xr_mean), xr_mean),
+    )
 end
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρₐ, Nᵣ)
     FT = UT.promote_typeof(qᵣ, ρₐ, Nᵣ)
-    (Nᵣ < UT.ϵ_numerics_2M_N(FT) && qᵣ < UT.ϵ_numerics_2M_M(FT)) &&
-        return (; N₀r = zero(FT), Dr_mean = zero(FT), xr_mean = zero(FT))
     (; xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
-    Lᵣ = ρₐ * max(0, qᵣ)
+    safe_qᵣ = max(qᵣ, UT.ϵ_numerics_2M_M(FT))
+    safe_Nᵣ = max(Nᵣ, UT.ϵ_numerics_2M_N(FT))
+    Lᵣ = ρₐ * safe_qᵣ
 
     # Sequence of limiting steps in Seifert and Beheng 2006:
-    x̃r = clamp(Lᵣ / Nᵣ, xr_min, xr_max)  # Eq. (94)
-    N₀r = clamp(Nᵣ * cbrt(π * ρw / x̃r), N0_min, N0_max)  # Eq. (95)
+    x̃r = clamp(Lᵣ / safe_Nᵣ, xr_min, xr_max)  # Eq. (94)
+    N₀r = clamp(safe_Nᵣ * cbrt(π * ρw / x̃r), N0_min, N0_max)  # Eq. (95)
     λr = clamp(sqrt(sqrt(π * ρw * N₀r / Lᵣ)), λ_min, λ_max)  # Eq. (96)
     xr_mean = clamp(Lᵣ * λr / N₀r, xr_min, xr_max)  # Eq. (97)
 
     Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
-    return (; N₀r, Dr_mean, xr_mean)
+    cond = Nᵣ < UT.ϵ_numerics_2M_N(FT) && qᵣ < UT.ϵ_numerics_2M_M(FT)
+    return (;
+        N₀r = ifelse(cond, zero(N₀r), N₀r),
+        Dr_mean = ifelse(cond, zero(Dr_mean), Dr_mean),
+        xr_mean = ifelse(cond, zero(xr_mean), xr_mean),
+    )
 end
 
 """
@@ -162,18 +176,19 @@ That is,
 """
 function log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
     FT = UT.promote_typeof(q, ρₐ, N)
-    L = ρₐ * q
-    # If L or N are (essentially) zero, return `A=0` (no number per mass), `B=∞` (zero mass "length" scale)
-    (N < UT.ϵ_numerics_2M_N(FT) || L < UT.ϵ_numerics_2M_M(FT)) &&
-        return (log(zero(FT)), log(1 / zero(FT)))
+    safe_q = max(q, UT.ϵ_numerics_2M_M(FT))
+    safe_N = max(N, UT.ϵ_numerics_2M_N(FT))
+    L = ρₐ * safe_q
     (; νc, μc, loggamma_z1, loggamma_z2) = pdf_c
-    logx̄ = log(L / N)
+    logx̄ = log(L / safe_N)
     z1 = (νc + 1) / μc
     # loggamma_z1 = SF.loggamma(z1) (pre-computed in pdf_c)
     # loggamma_z2 = SF.loggamma(z2) (pre-computed in pdf_c)
     logB = -μc * (logx̄ + loggamma_z1 - loggamma_z2)
-    logA = log(μc) + log(N) + z1 * logB - loggamma_z1
-    return (logA, logB)
+    logA = log(μc) + log(safe_N) + z1 * logB - loggamma_z1
+
+    cond = N < UT.ϵ_numerics_2M_N(FT) || q < UT.ϵ_numerics_2M_M(FT)
+    return (ifelse(cond, oftype(logA, -Inf), logA), ifelse(cond, oftype(logB, Inf), logB))
 end
 
 """
@@ -383,21 +398,18 @@ function autoconversion(
     acnv::CMP.AcnvSB2006, pdf_c::CMP.CloudParticlePDF_SB2006, q_lcl, q_rai, ρ, N_lcl,
 )
     FT = UT.promote_typeof(q_lcl, q_rai, ρ, N_lcl)
-    ϵM, ϵN = UT.ϵ_numerics_2M_M(FT), UT.ϵ_numerics_2M_N(FT)
-    if q_lcl < ϵM || N_lcl < ϵN
-        return LclRaiRates{FT}()
-    end
-
     (; kcc, x_star, ρ0, A, a, b) = acnv
     (; νc) = pdf_c
 
-    L_lcl = ρ * q_lcl
-    x_lcl = min(x_star, L_lcl / N_lcl)
-    q_rai = max(0, q_rai)
-    τ = 1 - q_lcl / (q_lcl + q_rai)  # Eq. (5) from SB2006
+    safe_q_lcl = max(q_lcl, UT.ϵ_numerics_2M_M(FT))
+    safe_N_lcl = max(N_lcl, UT.ϵ_numerics_2M_N(FT))
+    L_lcl = ρ * safe_q_lcl
+    x_lcl = min(x_star, L_lcl / safe_N_lcl)
+    safe_q_rai = max(0, q_rai)
+    τ = 1 - safe_q_lcl / (safe_q_lcl + safe_q_rai)  # Eq. (5) from SB2006
     # τ^a has a vertical tangent at τ = 0; the ifelse keeps the ForwardDiff
     # derivative w.r.t. q_rai finite at q_rai = 0 (and the code branch-free)
-    ϕ_au = ifelse(q_rai < ϵM, zero(τ), A * τ^a * (1 - τ^a)^b)
+    ϕ_au = ifelse(q_rai < UT.ϵ_numerics_2M_M(FT), zero(τ), A * τ^a * (1 - τ^a)^b)
 
     dL_rai_dt =
         kcc / 20 / x_star * (νc + 2) * (νc + 4) / (νc + 1)^2 *
@@ -406,11 +418,12 @@ function autoconversion(
     dL_lcl_dt = -dL_rai_dt
     dN_lcl_dt = -2 * dN_rai_dt
 
+    cond = q_lcl < UT.ϵ_numerics_2M_M(FT) || N_lcl < UT.ϵ_numerics_2M_N(FT)
     return LclRaiRates(
-        dq_lcl_dt = dL_lcl_dt / ρ,
-        dN_lcl_dt = dN_lcl_dt,
-        dq_rai_dt = dL_rai_dt / ρ,
-        dN_rai_dt = dN_rai_dt,
+        dq_lcl_dt = ifelse(cond, zero(FT), dL_lcl_dt / ρ),
+        dN_lcl_dt = ifelse(cond, zero(FT), dN_lcl_dt),
+        dq_rai_dt = ifelse(cond, zero(FT), dL_rai_dt / ρ),
+        dN_rai_dt = ifelse(cond, zero(FT), dN_rai_dt),
     )
 end
 
@@ -431,17 +444,16 @@ Compute accretion rate
     collisions between raindrops and cloud droplets (accretion)
 """
 function accretion((; accr)::CMP.SB2006, q_lcl, q_rai, ρ, N_lcl)
-
     FT = UT.promote_typeof(q_lcl, q_rai, ρ, N_lcl)
-    if q_lcl < UT.ϵ_numerics_2M_M(FT) || q_rai < UT.ϵ_numerics_2M_M(FT) || N_lcl < UT.ϵ_numerics_2M_N(FT)
-        return LclRaiRates{FT}()
-    end
-
     (; kcr, τ0, ρ0, c) = accr
-    L_lcl = ρ * q_lcl
-    L_rai = ρ * q_rai
-    x_lcl = L_lcl / N_lcl
-    τ = 1 - q_lcl / (q_lcl + q_rai)  # Eq. (5) from SB2006
+    safe_q_lcl = max(q_lcl, UT.ϵ_numerics_2M_M(FT))
+    safe_q_rai = max(q_rai, UT.ϵ_numerics_2M_M(FT))
+    safe_N_lcl = max(N_lcl, UT.ϵ_numerics_2M_N(FT))
+
+    L_lcl = ρ * safe_q_lcl
+    L_rai = ρ * safe_q_rai
+    x_lcl = L_lcl / safe_N_lcl
+    τ = 1 - safe_q_lcl / (safe_q_lcl + safe_q_rai)  # Eq. (5) from SB2006
     ϕ_ac = (τ / (τ + τ0))^c          # Eq. (8) from SB2006
 
     dL_rai_dt = kcr * L_lcl * L_rai * ϕ_ac * sqrt(ρ0 / ρ)  # Eq. (7) from SB2006
@@ -449,11 +461,12 @@ function accretion((; accr)::CMP.SB2006, q_lcl, q_rai, ρ, N_lcl)
     dL_lcl_dt = -dL_rai_dt
     dN_lcl_dt = dL_lcl_dt / x_lcl
 
+    cond = q_lcl < UT.ϵ_numerics_2M_M(FT) || q_rai < UT.ϵ_numerics_2M_M(FT) || N_lcl < UT.ϵ_numerics_2M_N(FT)
     return LclRaiRates(
-        dq_lcl_dt = dL_lcl_dt / ρ,
-        dN_lcl_dt = dN_lcl_dt,
-        dq_rai_dt = dL_rai_dt / ρ,
-        dN_rai_dt = dN_rai_dt,
+        dq_lcl_dt = ifelse(cond, zero(FT), dL_lcl_dt / ρ),
+        dN_lcl_dt = ifelse(cond, zero(FT), dN_lcl_dt),
+        dq_rai_dt = ifelse(cond, zero(FT), dL_rai_dt / ρ),
+        dN_rai_dt = ifelse(cond, zero(FT), dN_rai_dt),
     )
 end
 
@@ -477,18 +490,15 @@ function cloud_liquid_self_collection(
     acnv::CMP.AcnvSB2006, pdf_c::CMP.CloudParticlePDF_SB2006, q_lcl, ρ, dN_lcl_dt_au,
 )
     FT = UT.promote_typeof(q_lcl, ρ, dN_lcl_dt_au)
-    if q_lcl < UT.ϵ_numerics_2M_M(FT)
-        return FT(0)
-    end
     (; kcc, ρ0) = acnv
     (; νc) = pdf_c
 
     L_lcl = ρ * q_lcl
-
     # Eq. (9) from SB2006
     dN_lcl_dt_sc = -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * L_lcl^2 - dN_lcl_dt_au
 
-    return dN_lcl_dt_sc
+    cond = q_lcl < UT.ϵ_numerics_2M_M(FT)
+    return ifelse(cond, FT(0), dN_lcl_dt_sc)
 end
 
 """
@@ -537,19 +547,17 @@ function rain_self_collection(
     pdf::CMP.RainParticlePDF_SB2006, self::CMP.SelfColSB2006, q_rai, ρ, N_rai,
 )
     FT = UT.promote_typeof(q_rai, ρ, N_rai)
-
-    if q_rai < UT.ϵ_numerics_2M_M(FT) || N_rai < UT.ϵ_numerics_2M_N(FT)
-        return FT(0)
-    end
-
     (; krr, κrr, d) = self
     (; ρ0) = pdf
 
-    L_rai = ρ * q_rai
-    (; Br) = pdf_rain_parameters_mass(pdf, q_rai, ρ, N_rai)
+    safe_q_rai = max(q_rai, UT.ϵ_numerics_2M_M(FT))
+    safe_N_rai = max(N_rai, UT.ϵ_numerics_2M_N(FT))
+    L_rai = ρ * safe_q_rai
+    (; Br) = pdf_rain_parameters_mass(pdf, safe_q_rai, ρ, safe_N_rai)
     dN_rai_dt_sc = -krr * N_rai * L_rai * √(ρ0 / ρ) * (1 + κrr / Br)^d  # Eq. (11) from SB2006
 
-    return dN_rai_dt_sc
+    cond = q_rai < UT.ϵ_numerics_2M_M(FT) || N_rai < UT.ϵ_numerics_2M_N(FT)
+    return ifelse(cond, FT(0), dN_rai_dt_sc)
 end
 
 """
@@ -573,25 +581,24 @@ function rain_breakup(
     pdf::CMP.RainParticlePDF_SB2006, brek::CMP.BreakupSB2006, q_rai, ρ, N_rai, dN_rai_dt_sc,
 )
     FT = UT.promote_typeof(q_rai, ρ, N_rai, dN_rai_dt_sc)
-
-    if q_rai < UT.ϵ_numerics_2M_M(FT) || N_rai < UT.ϵ_numerics_2M_N(FT)
-        return FT(0)
-    end
     (; Deq, Dr_th, kbr, κbr) = brek
     (; ρw) = pdf
-    (; xr_mean) = pdf_rain_parameters(pdf, q_rai, ρ, N_rai)
+
+    safe_q_rai = max(q_rai, UT.ϵ_numerics_2M_M(FT))
+    safe_N_rai = max(N_rai, UT.ϵ_numerics_2M_N(FT))
+
+    (; xr_mean) = pdf_rain_parameters(pdf, safe_q_rai, ρ, safe_N_rai)
     Dr = cbrt(xr_mean * 6 / (π * ρw))  # mean volume raindrop diameter
     ΔD = Dr - Deq
-    Φ_br = if Dr < Dr_th  # Below the threshold diameter, breakup is neglected
-        FT(-1)
-    elseif Dr ≤ Deq  # Below the equilibrium diameter, breakup is parameterized as a linear function
-        kbr * ΔD
-    else
-        exp(κbr * ΔD) - 1  # Above the equilibrium diameter, breakup is parameterized as an exponential function
-    end
+
+    # Dr < Dr_th:  below the threshold diameter, breakup is neglected
+    # Dr ≤ Deq:    below the equilibrium diameter, breakup is a linear function
+    # Dr > Deq:    above the equilibrium diameter, breakup is an exponential function
+    Φ_br = ifelse(Dr < Dr_th, FT(-1), ifelse(Dr ≤ Deq, kbr * ΔD, exp(κbr * ΔD) - 1))
     dN_rai_dt_br = -(Φ_br + 1) * dN_rai_dt_sc  # Eq. (13) from SB2006
 
-    return dN_rai_dt_br
+    cond = q_rai < UT.ϵ_numerics_2M_M(FT) || N_rai < UT.ϵ_numerics_2M_N(FT)
+    return ifelse(cond, FT(0), dN_rai_dt_br)
 end
 
 """
@@ -644,24 +651,17 @@ function cloud_terminal_velocity(
     q_liq, ρₐ, N_liq,
 )
     FT = UT.promote_typeof(q_liq, ρₐ, N_liq)
-
-    if N_liq < UT.ϵ_numerics_2M_N(FT) || q_liq < UT.ϵ_numerics_2M_M(FT)
-        return (FT(0), FT(0))
-    end
-
     (; νc, μc) = pdf_c
-    (; Bc) = pdf_cloud_parameters_mass(pdf_c, q_liq, ρₐ, N_liq)
+    safe_q_liq = max(q_liq, UT.ϵ_numerics_2M_M(FT))
+    safe_N_liq = max(N_liq, UT.ϵ_numerics_2M_N(FT))
+    (; Bc) = pdf_cloud_parameters_mass(pdf_c, safe_q_liq, ρₐ, safe_N_liq)
 
-    terminal_velocity_prefactor = FT(1 / 18) * (6 / ρw / π)^(2 // 3) * (ρw / ρₐ - 1) * grav / ν_air
-    vt0 =
-        N_liq < UT.ϵ_numerics_2M_N(FT) ? FT(0) :
-        terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(2 / 3)) / N_liq
-    vt1 =
-        q_liq < UT.ϵ_numerics_2M_M(FT) ? FT(0) :
-        terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_liq, FT(5 / 3)) / ρₐ / q_liq
+    terminal_velocity_prefactor = FT(1 / 18) * cbrt((FT(6) / ρw / FT(π))^2) * (ρw / ρₐ - 1) * grav / ν_air
+    vt0 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, safe_N_liq, FT(2 / 3)) / safe_N_liq
+    vt1 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, safe_N_liq, FT(5 / 3)) / ρₐ / safe_q_liq
 
-    return (vt0, vt1)
-
+    cond = N_liq < UT.ϵ_numerics_2M_N(FT) || q_liq < UT.ϵ_numerics_2M_M(FT)
+    return (ifelse(cond, FT(0), vt0), ifelse(cond, FT(0), vt1))
 end
 
 """
@@ -687,37 +687,36 @@ function rain_terminal_velocity(
     (; pdf_r)::CMP.SB2006, (; ρ0, aR, bR, cR)::CMP.SB2006VelType, q_rai, ρ, N_rai,
 )
     FT = UT.promote_typeof(q_rai, ρ, N_rai)
-    # TODO: Input argument list needs to be redesigned
+    safe_q_rai = max(q_rai, UT.ϵ_numerics_2M_M(FT))
+    safe_N_rai = max(N_rai, UT.ϵ_numerics_2M_N(FT))
 
-    (; Dr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
+    (; Dr_mean) = pdf_rain_parameters(pdf_r, safe_q_rai, ρ, safe_N_rai)
     _pa0, _pb0, _pa1, _pb1 =
         _sb_rain_terminal_velocity_helper(pdf_r, 1 / Dr_mean, aR, bR, cR)
 
-    vt0 =
-        N_rai < UT.ϵ_numerics_2M_N(FT) ? FT(0) :
-        max(0, sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR * Dr_mean)))
-    vt1 =
-        q_rai < UT.ϵ_numerics_2M_M(FT) ? FT(0) :
-        max(0, sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR * Dr_mean)^4))
-    return (vt0, vt1)
+    vt0 = max(0, sqrt(ρ0 / ρ) * (aR * _pa0 - bR * _pb0 / (1 + cR * Dr_mean)))
+    vt1 = max(0, sqrt(ρ0 / ρ) * (aR * _pa1 - bR * _pb1 / (1 + cR * Dr_mean)^4))
+
+    cond_N = N_rai < UT.ϵ_numerics_2M_N(FT)
+    cond_q = q_rai < UT.ϵ_numerics_2M_M(FT)
+    return (ifelse(cond_N, FT(0), vt0), ifelse(cond_q, FT(0), vt1))
 end
 function rain_terminal_velocity(
     (; pdf_r)::CMP.SB2006, vel::CMP.Chen2022VelTypeRain, q_rai, ρ, N_rai,
 )
     FT = UT.promote_typeof(q_rai, ρ, N_rai)
-    # coefficients from Table B1 from Chen et. al. 2022
     aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρ)
-    # size distribution parameter
-    (; Dr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
+    safe_q_rai = max(q_rai, UT.ϵ_numerics_2M_M(FT))
+    safe_N_rai = max(N_rai, UT.ϵ_numerics_2M_N(FT))
+    (; Dr_mean) = pdf_rain_parameters(pdf_r, safe_q_rai, ρ, safe_N_rai)
 
-    # eq 20 from Chen et al 2022
+    # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
     vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 0))
     vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 3))
 
-    vt0 = N_rai < UT.ϵ_numerics_2M_N(FT) ? FT(0) : max(0, vt0)
-    vt3 = q_rai < UT.ϵ_numerics_2M_M(FT) ? FT(0) : max(0, vt3)
-    # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
-    return (vt0, vt3)
+    cond_N = N_rai < UT.ϵ_numerics_2M_N(FT)
+    cond_q = q_rai < UT.ϵ_numerics_2M_M(FT)
+    return (ifelse(cond_N, FT(0), max(0, vt0)), ifelse(cond_q, FT(0), max(0, vt3)))
 end
 function _sb_rain_terminal_velocity_helper(
     ::CMP.RainParticlePDF_SB2006_limited, λr, aR, bR, cR,
@@ -789,40 +788,42 @@ function rain_evaporation(
     ϵₘ = UT.ϵ_numerics_2M_M(FT)
     ϵₙ = UT.ϵ_numerics_2M_N(FT)
 
-    ∂ₜρn_rai = FT(0)
-    ∂ₜq_rai = FT(0)
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
-    # If there are no raindrops or conditions are supersaturated, no evaporation occurs
-    (N_rai ≤ ϵₙ || S ≥ 0) && return (; ∂ₜρn_rai, ∂ₜq_rai)
-
     (; ν_air, D_vapor) = aps
-    (; av, bv, α, β, ρ0) = evap
+    (; α, β, ρ0) = evap
     ρw = pdf_r.ρw
     x_star = pdf_r.xr_min
     G = CO.G_func_liquid(aps, tps, T)
 
-    (; xr_mean) = pdf_rain_parameters(pdf_r, q_rai, ρ, N_rai)
+    safe_q_rai = max(q_rai, ϵₘ)
+    safe_N_rai = max(N_rai, ϵₙ)
+
+    (; xr_mean) = pdf_rain_parameters(pdf_r, safe_q_rai, ρ, safe_N_rai)
     Dr = cbrt(6 * xr_mean / (π * ρw))
 
-    t_star = cbrt(6 * x_star / xr_mean)
-    a_vent_0 = av * Γ_incl(FT(-1), t_star) / FT(6)^(-2 // 3)
-    b_vent_0 = bv * Γ_incl(-1 // 2 + 3 // 2 * β, t_star) / FT(6)^(β / 2 - 1 // 2)
+    t_star = cbrt(FT(6) * x_star / xr_mean)
+    a_vent_0 = evap.a_vent_0_coeff * Γ_incl(FT(-1), t_star)
+    b_vent_0 = evap.b_vent_0_coeff * Γ_incl(evap.β_vent_0, t_star)
 
     a_vent_1 = evap.a_vent_1
     b_vent_1 = evap.b_vent_1
 
     N_Re = α * xr_mean^β * sqrt(ρ0 / ρ) * Dr / ν_air
-    Fv0 = a_vent_0 + b_vent_0 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
-    Fv1 = a_vent_1 + b_vent_1 * cbrt(ν_air / D_vapor) * sqrt(N_Re)
+    # cbrt(Schmidt) and sqrt(Reynolds) are identical for both ventilation moments, so compute once
+    # (libm cbrt is not reliably CSE'd across the two uses).
+    cbrt_Sc = cbrt(ν_air / max(D_vapor, UT.ϵ_numerics(FT)))
+    sqrt_N_Re = sqrt(N_Re)
+    Fv0 = a_vent_0 + b_vent_0 * cbrt_Sc * sqrt_N_Re
+    Fv1 = a_vent_1 + b_vent_1 * cbrt_Sc * sqrt_N_Re
 
-    ∂ₜρn_rai = min(0, 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean)
-    ∂ₜq_rai = min(0, 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
+    ∂ₜρn_rai = min(zero(FT), 2 * FT(π) * G * S * N_rai * Dr * Fv0 / xr_mean)
+    ∂ₜq_rai = min(zero(FT), 2 * FT(π) * G * S * N_rai * Dr * Fv1 / ρ)
 
     # When xr = 0, ∂ₜρn_rai becomes NaN. We replace NaN with 0 which is the limit of
     # ∂ₜρn_rai for xr -> 0.
-    ∂ₜρn_rai = ifelse(xr_mean / x_star < eps(FT), FT(0), ∂ₜρn_rai)
-    ∂ₜq_rai = ifelse(q_rai < ϵₘ, FT(0), ∂ₜq_rai)
+    ∂ₜρn_rai = ifelse(q_rai < ϵₘ || xr_mean / x_star < eps(FT) || N_rai ≤ ϵₙ || S ≥ 0, FT(0), ∂ₜρn_rai)
+    ∂ₜq_rai = ifelse(q_rai < ϵₘ || N_rai ≤ ϵₙ || S ≥ 0, FT(0), ∂ₜq_rai)
 
     return (; ∂ₜρn_rai, ∂ₜq_rai)
 end
@@ -847,8 +848,8 @@ Uses the same approximation pattern as
 )
     FT = eltype(q_tot)
     result = rain_evaporation(sb, aps, tps, q_tot, q_lcl, q_icl, q_rai, q_sno, ρ, N_rai, T)
-    ∂N_rai = N_rai > UT.ϵ_numerics_2M_N(FT) ? result.∂ₜρn_rai / N_rai : zero(result.∂ₜρn_rai)
-    ∂q_rai = q_rai > UT.ϵ_numerics_2M_M(FT) ? result.∂ₜq_rai / q_rai : zero(result.∂ₜq_rai)
+    ∂N_rai = ifelse(N_rai > UT.ϵ_numerics_2M_N(FT), result.∂ₜρn_rai / N_rai, zero(result.∂ₜρn_rai))
+    ∂q_rai = ifelse(q_rai > UT.ϵ_numerics_2M_M(FT), result.∂ₜq_rai / q_rai, zero(result.∂ₜq_rai))
     return (; ∂N_rai, ∂q_rai)
 end
 

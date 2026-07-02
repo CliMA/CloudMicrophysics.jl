@@ -11,6 +11,8 @@ import ClimaParams as CP
 # Modules to test
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.ThermodynamicsInterface as TDI
+const TD = TDI.TD
+import Random
 import CloudMicrophysics.AerosolModel as AM
 import CloudMicrophysics.AerosolActivation as AA
 import CloudMicrophysics.Common as CO
@@ -34,28 +36,24 @@ else
     @info "No CUDA GPU found. GPU Performance Tests running on CPU fallback via KernelAbstractions" backend ArrayType
 end
 
-@kernel inbounds = true function benchmark_1m_accretion_kernel!(
-    lcl, rain, icl, snow, e_lr, e_is, e_ls, e_ir, e_rs, coeff_disp, blk1mvel, output, ρ, qi, qs, ql, qr,
+@kernel inbounds = true function benchmark_1m_bulk_tendencies_kernel!(
+    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
     i = @index(Global, Linear)
-    liq_rai = CM1.accretion(lcl, rain, blk1mvel.rain, e_lr, ql[i], qr[i], ρ[i])
-    ice_sno = CM1.accretion(icl, snow, blk1mvel.snow, e_is, qi[i], qs[i], ρ[i])
-    liq_sno = CM1.accretion(lcl, snow, blk1mvel.snow, e_ls, ql[i], qs[i], ρ[i])
-    ice_rai = CM1.accretion(icl, rain, blk1mvel.rain, e_ir, qi[i], qr[i], ρ[i])
-    sno_rai = CM1.accretion_snow_rain(
-        snow, rain, blk1mvel.snow, blk1mvel.rain, e_rs, coeff_disp, qs[i], qr[i], ρ[i],
+    output[i] = BMT.bulk_microphysics_tendencies(
+        BMT.Instantaneous(), BMT.Microphysics1Moment(), mp, tps,
+        ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
     )
-    output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, sno_rai)
 end
 
-@kernel inbounds = true function benchmark_2m_kernel!(
-    KK2000, B1994, TC1980, LD2004, output, ql, qr, ρ, Nd,
+@kernel inbounds = true function benchmark_2m_bulk_tendencies_kernel!(
+    mp, tps, output, ρ, T, q_tot, q_lcl, q_rai, n_lcl, n_rai,
 )
     i = @index(Global, Linear)
-    S_LD2004 = CM2.conv_q_lcl_to_q_rai(LD2004, ql[i], ρ[i], Nd[i])
-    S_KK2000 = CM2.accretion(KK2000, ql[i], qr[i], ρ[i])
-    S_B1994 = CM2.accretion(B1994, ql[i], qr[i], ρ[i])
-    output[i] = (; S_LD2004, S_KK2000, S_B1994)
+    output[i] = BMT.bulk_microphysics_tendencies(
+        BMT.Microphysics2Moment(), mp, tps,
+        ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
+    )
 end
 
 @kernel inbounds = true function benchmark_p3_kernel!(
@@ -77,6 +75,64 @@ end
 function constant_data(value; ndrange)
     FT = eltype(value)
     return fill!(allocate(backend, FT, ndrange), value)
+end
+
+function generate_atmospheric_states(N_states, FT, tps)
+    # Construct realistic atmospheric states using DecayingTemperatureProfile
+    z_arr = FT.(range(0, 15000, length = N_states))
+    profile = TD.TemperatureProfiles.DecayingTemperatureProfile{FT}(tps, FT(300), FT(215))
+    RH_arr = FT.(range(0.05, 1.05, length = N_states))
+    rng = Random.MersenneTwister(1234)
+
+    T_vec = Vector{FT}(undef, N_states)
+    ρ_vec = Vector{FT}(undef, N_states)
+    q_tot_vec = Vector{FT}(undef, N_states)
+    q_lcl_vec = Vector{FT}(undef, N_states)
+    q_icl_vec = Vector{FT}(undef, N_states)
+    q_rai_vec = Vector{FT}(undef, N_states)
+    q_sno_vec = Vector{FT}(undef, N_states)
+
+    for i in 1:N_states
+        T, p = profile(tps, z_arr[i])
+        T_vec[i] = T
+        RH = RH_arr[i]
+
+        q_vap = TD.q_vap_from_RH(tps, p, T, RH, TD.Liquid())
+        ρ = TD.air_density(tps, T, p, q_vap, zero(FT), zero(FT))
+        ρ_vec[i] = ρ
+
+        q_sat_liq = TD.q_vap_saturation(tps, T, ρ, TD.Liquid())
+        q_sat_ice = TD.q_vap_saturation(tps, T, ρ, TD.Ice())
+
+        # Construct liquid and ice condensates from supersaturation + random noise
+        excess_liq = max(zero(FT), q_vap - q_sat_liq)
+        excess_ice = max(zero(FT), q_vap - q_sat_ice)
+
+        noise_lcl = FT(rand(rng, FT) * 1e-4)
+        noise_icl = FT(rand(rng, FT) * 1e-4)
+        noise_rai = FT(rand(rng, FT) * 1e-4)
+        noise_sno = FT(rand(rng, FT) * 1e-4)
+
+        q_lcl = excess_liq + noise_lcl
+        q_icl = excess_ice + noise_icl
+
+        q_lcl_vec[i] = q_lcl
+        q_icl_vec[i] = q_icl
+        q_rai_vec[i] = noise_rai
+        q_sno_vec[i] = noise_sno
+
+        q_tot_vec[i] = q_vap + q_lcl + q_icl + noise_rai + noise_sno
+    end
+
+    return (
+        T = ArrayType(T_vec),
+        ρ = ArrayType(ρ_vec),
+        q_tot = ArrayType(q_tot_vec),
+        q_lcl = ArrayType(q_lcl_vec),
+        q_icl = ArrayType(q_icl_vec),
+        q_rai = ArrayType(q_rai_vec),
+        q_sno = ArrayType(q_sno_vec),
+    )
 end
 
 function run_gpu_performance_benchmarks(FT)
@@ -116,122 +172,88 @@ function run_gpu_performance_benchmarks(FT)
         @info "gamma_inc_inv benchmark (SF vs UT):" SF=BT.minimum(b_inv_sf) UT=BT.minimum(b_inv_ut)
     end
 
-    # 2. Kernel Benchmarks (1-Moment, 2-Moment, P3)
+    # 2. Kernel Benchmarks (1-Moment BMT, 2-Moment BMT, P3)
     TT.@testset "Kernel Performance & Compile Time ($FT)" begin
-        # 1-Moment setup
-        lcl = CMP.CloudLiquid(FT)
-        icl = CMP.CloudIce(FT)
-        rain = CMP.Rain(FT)
-        snow = CMP.Snow(FT)
-        mp = CMP.Microphysics1MParams(FT)
-        opts = mp.options
-        e_lr = opts.cloud_liquid_rain_accretion.e
-        e_is = opts.cloud_ice_snow_accretion.e
-        e_ls = opts.cloud_liquid_snow_accretion.e
-        e_ir = opts.cloud_ice_rain_accretion.e
-        e_rs = opts.rain_snow_accretion.e
-        coeff_disp = opts.rain_snow_accretion.coeff_disp
-        blk1mvel = CMP.Blk1MVelType(FT)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+        N_states = 1024
+        states = generate_atmospheric_states(N_states, FT, tps)
 
-        DT1 = @NamedTuple{liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT, sno_rai::FT}
-        (; output, ndrange) = setup_output(1000, DT1)
-        ρ = constant_data(FT(1.2); ndrange)
-        qi = constant_data(FT(5e-4); ndrange)
-        qs = constant_data(FT(5e-4); ndrange)
-        ql = constant_data(FT(5e-4); ndrange)
-        qr = constant_data(FT(5e-4); ndrange)
+        # 1-Moment Bulk Tendencies setup (realistic atmospheric states)
+        mp_bulk = CMP.Microphysics1MParams(FT)
+        DT_bulk = @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT}
+        (; output, ndrange) = setup_output(N_states, DT_bulk)
 
-        kernel_1m! = benchmark_1m_accretion_kernel!(backend, work_groups)
+        T_arr = states.T
+        ρ_arr = states.ρ
+        q_tot_arr = states.q_tot
+        q_lcl_arr = states.q_lcl
+        q_icl_arr = states.q_icl
+        q_rai_arr = states.q_rai
+        q_sno_arr = states.q_sno
 
-        # Measure compile time (first execution)
-        t_compile_1m = @elapsed kernel_1m!(
-            lcl,
-            rain,
-            icl,
-            snow,
-            e_lr,
-            e_is,
-            e_ls,
-            e_ir,
-            e_rs,
-            coeff_disp,
-            blk1mvel,
-            output,
-            ρ,
-            qi,
-            qs,
-            ql,
-            qr;
-            ndrange,
+        kernel_1m_bulk! = benchmark_1m_bulk_tendencies_kernel!(backend, work_groups)
+        t_compile_1m_bulk = @elapsed kernel_1m_bulk!(
+            mp_bulk, tps, output, ρ_arr, T_arr, q_tot_arr, q_lcl_arr, q_icl_arr, q_rai_arr, q_sno_arr; ndrange,
         )
         KernelAbstractions.synchronize(backend)
-        @info "1-Moment Accretion Kernel first call (compile + run time): $(round(t_compile_1m, digits=4)) seconds"
+        @info "1-Moment Bulk Tendencies Kernel first call (compile + run time): $(round(t_compile_1m_bulk, digits=4)) seconds"
 
-        b_1m = BT.@benchmark (
-            $kernel_1m!(
-                $lcl,
-                $rain,
-                $icl,
-                $snow,
-                $e_lr,
-                $e_is,
-                $e_ls,
-                $e_ir,
-                $e_rs,
-                $coeff_disp,
-                $blk1mvel,
-                $output,
-                $ρ,
-                $qi,
-                $qs,
-                $ql,
-                $qr;
+        b_1m_bulk = BT.@benchmark (
+            $kernel_1m_bulk!(
+                $mp_bulk, $tps, $output, $ρ_arr, $T_arr, $q_tot_arr, $q_lcl_arr, $q_icl_arr, $q_rai_arr, $q_sno_arr;
                 ndrange = $ndrange,
             );
             KernelAbstractions.synchronize($backend)
         )
-        @info "1-Moment Accretion Kernel runtime benchmark:" BT.minimum(b_1m)
+        @info "1-Moment Bulk Tendencies Kernel runtime benchmark:" BT.minimum(b_1m_bulk)
 
-        # 2-Moment setup
-        KK2000 = CMP.KK2000(FT)
-        B1994 = CMP.B1994(FT)
-        TC1980 = CMP.TC1980(FT)
-        LD2004 = CMP.LD2004(FT)
+        # 2-Moment Bulk Tendencies setup (warm rain only, realistic atmospheric states)
+        mp_2m = CMP.Microphysics2MParams(FT)
+        DT_2m_bulk = @NamedTuple{
+            dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
+            dq_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT, dn_lcl_activation_dt::FT,
+        }
+        (; output, ndrange) = setup_output(N_states, DT_2m_bulk)
 
-        DT2 = @NamedTuple{S_LD2004::FT, S_KK2000::FT, S_B1994::FT}
-        (; output, ndrange) = setup_output(1000, DT2)
-        Nd = constant_data(FT(1e8); ndrange)
+        # Realistic number concentrations for cloud and rain
+        n_lcl_arr = constant_data(FT(1e8); ndrange)   # typical cloud droplet number
+        n_rai_arr = constant_data(FT(1e4); ndrange)   # typical raindrop number
 
-        kernel_2m! = benchmark_2m_kernel!(backend, work_groups)
-        t_compile_2m = @elapsed kernel_2m!(KK2000, B1994, TC1980, LD2004, output, ql, qr, ρ, Nd; ndrange)
+        kernel_2m_bulk! = benchmark_2m_bulk_tendencies_kernel!(backend, work_groups)
+        t_compile_2m_bulk = @elapsed kernel_2m_bulk!(
+            mp_2m, tps, output, ρ_arr, T_arr, q_tot_arr, q_lcl_arr, q_rai_arr, n_lcl_arr, n_rai_arr; ndrange,
+        )
         KernelAbstractions.synchronize(backend)
-        @info "2-Moment Kernel first call (compile + run time): $(round(t_compile_2m, digits=4)) seconds"
+        @info "2-Moment Bulk Tendencies Kernel first call (compile + run time): $(round(t_compile_2m_bulk, digits=4)) seconds"
 
-        b_2m = BT.@benchmark (
-            $kernel_2m!($KK2000, $B1994, $TC1980, $LD2004, $output, $ql, $qr, $ρ, $Nd; ndrange = $ndrange);
+        b_2m_bulk = BT.@benchmark (
+            $kernel_2m_bulk!(
+                $mp_2m, $tps, $output, $ρ_arr, $T_arr, $q_tot_arr, $q_lcl_arr, $q_rai_arr, $n_lcl_arr, $n_rai_arr;
+                ndrange = $ndrange,
+            );
             KernelAbstractions.synchronize($backend)
         )
-        @info "2-Moment Kernel runtime benchmark:" BT.minimum(b_2m)
+        @info "2-Moment Bulk Tendencies Kernel runtime benchmark:" BT.minimum(b_2m_bulk)
 
         # P3 setup
         p3_params = CMP.ParametersP3(FT)
         Ch2022 = CMP.Chen2022VelType(FT)
 
         DT3 = @NamedTuple{logλ::FT, sc::@NamedTuple{dNdt::FT}}
-        (; output, ndrange) = setup_output(1000, DT3)
-        L_ice = constant_data(FT(5e-4 * 1.2); ndrange)
+        (; output, ndrange) = setup_output(N_states, DT3)
+        L_ice = ArrayType(states.ρ .* states.q_icl)
 
         N_ice = constant_data(FT(1e8 * 1.2); ndrange)
         F_rim = constant_data(FT(0.95); ndrange)
         ρ_rim = constant_data(FT(400.0); ndrange)
 
         kernel_p3! = benchmark_p3_kernel!(backend, work_groups)
-        t_compile_p3 = @elapsed kernel_p3!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρ; ndrange)
+        t_compile_p3 = @elapsed kernel_p3!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρ_arr; ndrange)
         KernelAbstractions.synchronize(backend)
         @info "P3 Kernel first call (compile + run time): $(round(t_compile_p3, digits=4)) seconds"
 
         b_p3 = BT.@benchmark (
-            $kernel_p3!($p3_params, $Ch2022, $output, $L_ice, $N_ice, $F_rim, $ρ_rim, $ρ; ndrange = $ndrange);
+            $kernel_p3!($p3_params, $Ch2022, $output, $L_ice, $N_ice, $F_rim, $ρ_rim, $ρ_arr; ndrange = $ndrange);
             KernelAbstractions.synchronize($backend)
         )
         @info "P3 Kernel runtime benchmark:" BT.minimum(b_p3)
