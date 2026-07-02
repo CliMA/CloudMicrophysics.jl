@@ -40,9 +40,9 @@ function test_rosenbrock_1m_mode(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     mp = CMP.Microphysics1MParams(FT)
 
-    function ros_step(x0, ρ, T, q_tot, Δt, nsub)
+    function ros_step(mode, x0, ρ, T, q_tot, Δt, nsub)
         t = BMT.bulk_microphysics_tendencies(
-            BMT.RosenbrockAverage(), BMT.Microphysics1Moment(), mp, tps,
+            mode, BMT.Microphysics1Moment(), mp, tps,
             ρ, T, q_tot, x0..., Δt, nsub,
         )
         return SVector{4, FT}(x0...) .+ Δt .* SVector(values(t)...)
@@ -75,16 +75,27 @@ function test_rosenbrock_1m_mode(FT)
 
     @testset "1M RosenbrockAverage vs fine explicit reference ($FT)" begin
         Δt = FT(20)
+        # The reference is the unlimited raw tendency, so compare limiter-free
+        # modes; `rosenbrock_exact()`'s saturation adjustment converges to a
+        # different (limited) solution near saturation and is covered by the
+        # saturation tests in rosenbrock_framework_tests.jl.
+        modes = (
+            BMT.rosenbrock_donor(),
+            BMT.rosenbrock_coupled(),
+            BMT.RosenbrockAverage(BMT.ExactJacobian(), BMT.ExplicitGrowthDiagonal(), BMT.NoLimiter()),
+        )
         for r in regimes
             x_ref = explicit_reference_1m(mp, tps, r.ρ, r.T, r.q_tot, r.x, Δt, 4096)
             x0 = SVector{4, FT}(r.x...)
             err(x) = err_metric(x, x_ref, x0)
-            errs = [err(ros_step(r.x, r.ρ, r.T, r.q_tot, Δt, n)) for n in (1, 4, 16)]
-            @test all(isfinite, errs)
-            # accuracy improves under substep refinement, with slack for
-            # coarse-nsub non-monotonicity in a stiff species
-            @test errs[3] ≤ max(errs[1], FT(1e-3)) * (1 + sqrt(eps(FT)))
-            @test errs[3] < (FT == Float64 ? r.tol : 2 * r.tol)
+            for mode in modes
+                errs = [err(ros_step(mode, r.x, r.ρ, r.T, r.q_tot, Δt, n)) for n in (1, 4, 16)]
+                @test all(isfinite, errs)
+                # accuracy improves under substep refinement, with slack for
+                # coarse-nsub non-monotonicity in a stiff species
+                @test errs[3] ≤ max(errs[1], FT(1e-3)) * (1 + sqrt(eps(FT)))
+                @test errs[3] < (FT == Float64 ? r.tol : 2 * r.tol)
+            end
         end
     end
 
@@ -96,7 +107,7 @@ function test_rosenbrock_1m_mode(FT)
         for r in regimes
             x_ref = explicit_reference_1m(mp, tps, r.ρ, r.T, r.q_tot, r.x, Δt, 4096)
             x0 = SVector{4, FT}(r.x...)
-            x_ros = ros_step(r.x, r.ρ, r.T, r.q_tot, Δt, 16)
+            x_ros = ros_step(BMT.rosenbrock_donor(), r.x, r.ρ, r.T, r.q_tot, Δt, 16)
             x_lin = lin_step(r.x, r.ρ, r.T, r.q_tot, Δt, 16)
             @test all(isfinite, x_lin)
             # both within the regime tolerance of the shared reference
@@ -108,13 +119,13 @@ function test_rosenbrock_1m_mode(FT)
     @testset "1M degenerate and trivial states ($FT)" begin
         # all-zero state: near-empty species mask -> explicit substeps -> zero
         t0 = BMT.bulk_microphysics_tendencies(
-            BMT.RosenbrockAverage(), BMT.Microphysics1Moment(), mp, tps,
+            BMT.rosenbrock_donor(), BMT.Microphysics1Moment(), mp, tps,
             FT(1), FT(273), FT(0), FT(0), FT(0), FT(0), FT(0), FT(60), 4,
         )
         @test all(iszero, values(t0))
         # nsub defaults to 1 and accepts the trailing-argument form
         t1 = BMT.bulk_microphysics_tendencies(
-            BMT.RosenbrockAverage(), BMT.Microphysics1Moment(), mp, tps,
+            BMT.rosenbrock_donor(), BMT.Microphysics1Moment(), mp, tps,
             FT(1.2), FT(278), FT(0.012), FT(5e-4), FT(2e-4), FT(3e-4), FT(3e-4), FT(60),
         )
         @test all(isfinite, values(t1))
@@ -129,7 +140,7 @@ function test_rosenbrock_1m_mode(FT)
                 (FT(0.6), T_frz - FT(12), FT(0.005)),
             )
                 t = BMT.bulk_microphysics_tendencies(
-                    BMT.RosenbrockAverage(), BMT.Microphysics1Moment(), mp, tps,
+                    BMT.rosenbrock_donor(), BMT.Microphysics1Moment(), mp, tps,
                     ρ, T, q_tot, x_stress..., Δt, nsub,
                 )
                 x1 = SVector{4, FT}(x_stress...) .+ Δt .* SVector(values(t)...)
@@ -154,7 +165,7 @@ function test_rosenbrock_1m_mode(FT)
         T = T_frz + FT(10)
         q_tot = FT(0.02)
         x_ref = explicit_reference_1m(mp, tps, ρ, T, q_tot, x_band, Δt, 4096)
-        x16 = ros_step(x_band, ρ, T, q_tot, Δt, 16)
+        x16 = ros_step(BMT.rosenbrock_donor(), x_band, ρ, T, q_tot, Δt, 16)
         @test all(isfinite, x16)
         @test x16[1] < max(FT(10) * x_ref[1], FT(1e-9))
     end
@@ -172,7 +183,7 @@ if VERSION >= v"1.12"
             tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
             mp = CMP.Microphysics1MParams(FT)
             call() = BMT.bulk_microphysics_tendencies(
-                BMT.RosenbrockAverage(), BMT.Microphysics1Moment(), mp, tps,
+                BMT.rosenbrock_donor(), BMT.Microphysics1Moment(), mp, tps,
                 FT(1.2), FT(278), FT(0.012),
                 FT(5e-4), FT(2e-4), FT(3e-4), FT(3e-4), FT(20), 4,
             )
@@ -181,7 +192,7 @@ if VERSION >= v"1.12"
             rep = JET.report_call(
                 BMT.bulk_microphysics_tendencies,
                 typeof.((
-                    BMT.RosenbrockAverage(), BMT.Microphysics1Moment(), mp, tps,
+                    BMT.rosenbrock_donor(), BMT.Microphysics1Moment(), mp, tps,
                     FT(1.2), FT(278), FT(0.012),
                     FT(5e-4), FT(2e-4), FT(3e-4), FT(3e-4), FT(20), 4,
                 )),
