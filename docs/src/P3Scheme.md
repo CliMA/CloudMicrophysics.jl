@@ -354,8 +354,42 @@ An alternative parameterization for $μ$ is a constant value:
 We use the Chen et al. [Chen2022](@cite) velocity parameterization,
   see [here](https://clima.github.io/CloudMicrophysics.jl/dev/TerminalVelocity.html#Chen-et.-al.-2022) for details.
 
+### Aspect ratio
+
+The ice particle is modeled as an oblate spheroid of solid material with maximum
+dimension $D$, projected area $a_i = $ `ice_area(state, D)`, and mass
+$m_i = $ `ice_mass(state, D)`. With equatorial diameter $a = 2\sqrt{a_i/π}$ and polar
+diameter $c = ϕ\,a$, the spheroid encloses the volume $(π/6)\,a^2 c$ and holds the mass
+$ρ\,(π/6)\,a^2 c$, where $ρ$ is the material density `ϕ_material_density`: the density
+of the solid the particle consists of in its mass regime ($ρ_i$ for ice, $ρ_g$ for
+graupel). Equating this mass to $m_i$ gives the oblate aspect ratio
+
+```math
+ϕ = \frac{3 \sqrt{π}\, m_i}{4\, ρ\, a_i^{3/2}}.
+```
+
+The aspect ratio is a statement about particle shape: it measures how far the solid
+material filling the spheroid falls short of a sphere of the same projected area. The
+density in this relation is therefore the density of the solid, which is constant
+within each mass regime, and $ϕ$ tracks $m_i / a_i^{3/2}$. In the spherical regimes
+($D < D_{th}$, and graupel $D_{gr} ≤ D < D_{cr}$) the mass and area laws are exactly
+spherical and $ϕ = 1$. In the dense-nonspherical regime $ϕ < 1$ (oblate) and decreases
+with $D$, slowing large unrimed ice through the $\sqrt[3]{ϕ}$ factor in
+`ice_particle_terminal_velocity`.
+
+!!! note "Residual $ϕ > 1$ band just above $D_{th}$"
+    $ϕ$ can slightly exceed 1 (peak $≈ 1.2$) in a narrow size band immediately above
+    $D_{th}$. This is not a sign error: it is caused by the area discontinuity at
+    $D_{th}$, where the projected area drops from the spherical law $(π/4) D^2$ to the
+    nonspherical law $γ D^σ$ while the mass stays continuous. The smaller area inflates
+    $m_i / a_i^{3/2}$ just past the threshold. $\sqrt[3]{ϕ}$ remains finite and bounded
+    there ($\sqrt[3]{1.2} ≈ 1.06$), so the value is used as-is. Making the area law
+    continuous at $D_{th}$, which would remove the band, is a property of the area
+    power law itself.
+
 The figure below shows the implied aspect ratio for different particle size regimes.
-Note that $ϕ = 1$ corresponds to spherical particles (small spherical ice ($D < D_{th}$) and graupel ($D_{gr} < D < D_{cr}$)).
+Note that $ϕ = 1$ corresponds to spherical particles (small spherical ice ($D < D_{th}$) and graupel ($D_{gr} < D < D_{cr}$)),
+and that $ϕ$ exceeds 1 in a narrow band just above $D_{th}$ (the area discontinuity noted above; a follow-on item).
 ```@example
 include("plots/P3AspectRatioPlot.jl")
 
@@ -403,7 +437,7 @@ To allow for the modeling of mixed-phase particles with P3, a new prognostic var
 Liquid fraction, analogous to ``F_{rim}`` for rime, is defined ``F_{liq} = \frac{L_{liq}}{L_{p3, tot}}``
   where ``L_{p3, tot} = L_{ice} + L_{liq}`` and where ``L_{ice}`` is the solid ice mass content which includes
   rime mass content and mass grown by vapor deposition. This is important notably for
-  ``F_{rim} = \frac{L_{rim}}{L_{ice}}`` — which differs now from ``F_{rim} = \frac{L_{rim}}{L_{p3, tot}}``
+  ``F_{rim} = \frac{L_{rim}}{L_{ice}}``, which differs from ``F_{rim} = \frac{L_{rim}}{L_{p3, tot}}``
   because we want to normalize only by solid ice mass content for ``F_{rim}``.
 
 Based on Fig. 1 from [Choletteetal2019](@cite), we can expect the accumulation of liquid on an ice core to increase

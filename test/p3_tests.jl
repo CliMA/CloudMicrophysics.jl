@@ -151,11 +151,18 @@ function test_thresholds_solver(FT)
         @test P3.ice_density(state, D_3) ≈ ρ_g
         @test P3.ice_density(state, D_cr) ≈ 383.33480937
 
-        # test aspect ratio
-        @test P3.ϕᵢ(state, D_1) ≈ 1
-        @test P3.ϕᵢ(state, D_2) ≈ 1
-        @test P3.ϕᵢ(state, D_3) ≈ 1
-        @test P3.ϕᵢ(state, D_cr) ≈ 1
+        # test aspect ratio (oblate ϕ = 3√π m / (4 ρ A^{3/2}), ρ the per-regime
+        # material density, see `P3.ϕᵢ`)
+        aspect_ratio_closed(ρ, D) = 3 * sqrt(FT(π)) * P3.ice_mass(state, D) /
+                                    (4 * ρ * P3.ice_area(state, D)^FT(1.5))
+        @test P3.ϕᵢ(state, D_1) ≈ 1                              # D < D_th: spherical
+        @test P3.ϕᵢ(state, D_2) ≈ aspect_ratio_closed(ρ_i, D_2)  # dense nonspherical
+        @test P3.ϕᵢ(state, D_2) < 1                              # oblate
+        @test P3.ϕᵢ(state, D_3) ≈ 1                              # graupel: spherical (ρ_g)
+        @test P3.ϕᵢ(state, D_cr) ≈ aspect_ratio_closed(ρ_i, D_cr)  # partially rimed
+        @test P3.ϕᵢ(state, D_cr) < 1                             # oblate
+        # residual ϕ > 1 band just above D_th (area discontinuity, see `P3.ϕᵢ`)
+        @test 1 < P3.ϕᵢ(state, D_th * FT(1.001)) < FT(1.3)
 
         # test F_rim = 0 and D > D_th
         state′ = P3.P3State(params, L_ice, N_ice, FT(0), ρ_rim)
@@ -274,12 +281,12 @@ function test_particle_terminal_velocities(FT)
     @testset "Smoke tests for ice particle terminal vel from Chen 2022" begin
         F_rim = FT(0.5)
         ρ_rim = FT(500)
-        state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)
-        use_aspect_ratio = false
+        params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
+        state = P3.P3State(params_noar, FT(0), FT(0), F_rim, ρ_rim)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.08109, 0.4115, 0.7912, 1.1550, 1.4871]
-        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -287,11 +294,11 @@ function test_particle_terminal_velocities(FT)
             @test vel ≈ expected[i] rtol = 1e-3
         end
 
-        use_aspect_ratio = true
-        # Allow for a D falling into every regime of the P3 Scheme
+        state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)  # aspect_ratio = Oblate() default
+        # one D per P3 regime; `cbrt(ϕ) ≤ 1` slows the nonspherical sizes
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
-        expected = [0.08109, 0.4115, 0.79121, 1.155, 1.487]
-        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
+        expected = [0.08109, 0.38381, 0.79121, 1.155, 1.1477]
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -304,23 +311,22 @@ function test_particle_terminal_velocities(FT)
         F_rim = FT(0.5)
         F_liq = FT(0.5)  # TODO: Broken test since it assumes `F_liq != 0`
         ρ_rim = FT(500)
-        state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)
-        use_aspect_ratio = true
+        state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)  # aspect_ratio = Oblate() default
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.13192, 0.50457, 0.90753, 1.3015, 1.6757]
-        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
             @test vel >= 0
             @test_broken vel ≈ expected[i] rtol = 1e-3  # TODO: Implement `F_liq != 0`
         end
-        use_aspect_ratio = false
+        state = P3.P3State(CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio()), FT(0), FT(0), F_rim, ρ_rim)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.13191, 0.50457, 0.90753, 1.301499, 1.67569]
-        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -346,15 +352,15 @@ function test_bulk_terminal_velocities(FT)
 
         state₀ = P3.P3State(params, FT(0), N_ice, FT(0.5), ρ_rim)
         logλ = P3.get_distribution_logλ(state₀)
-        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ)
-        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ)
+        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
+        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
         @test iszero(vel_n₀)
         @test iszero(vel_m₀)
 
         state₀ = P3.P3State(params, L_ice, FT(0), FT(0.5), ρ_rim)
         logλ = P3.get_distribution_logλ(state₀)
-        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ)
-        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ)
+        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
+        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
         @test iszero(vel_n₀)
         @test iszero(vel_m₀)
 
@@ -362,21 +368,23 @@ function test_bulk_terminal_velocities(FT)
         # A failing test indicates that the code has changed.
         # But if the changes are intentional, the reference values can be updated.
 
-        # Liquid fraction = 0
+        # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
+        # their aspect-off counterparts (`cbrt(ϕ) < 1`).
+        ref_v_n = [3.64194720794662, 2.6191026241691695]
+        ref_v_n_ϕ = [1.523425288986299, 1.4660573287073728]
+        ref_v_m = [7.788114224053879, 5.797675366222473]
+        ref_v_m_ϕ = [2.4275080186932736, 2.3681842506505544]
 
-        ref_v_n = [3.6459501724701835, 2.619088950728837]
-        ref_v_n_ϕ = [3.6459501724701835, 2.619088950728837]
-        ref_v_m = [7.7881075425985085, 5.797674122909204]
-        ref_v_m_ϕ = [7.7881075425985085, 5.797674122909204]
-
+        params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
         for (k, F_rim) in enumerate(F_rims)
             state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
+            state_noar = P3.P3State(params_noar, L_ice, N_ice, F_rim, ρ_rim)
             logλ = P3.get_distribution_logλ(state)
-            args = (Chen2022, ρ_a, state, logλ)
-            vel_n = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = false)
-            vel_m = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = false)
-            vel_n_ϕ = P3.ice_terminal_velocity_number_weighted(args...; use_aspect_ratio = true)
-            vel_m_ϕ = P3.ice_terminal_velocity_mass_weighted(args...; use_aspect_ratio = true)
+            quad = P3.GaussLegendre(FT, 12)
+            vel_n = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state_noar, logλ; quad)
+            vel_m = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state_noar, logλ; quad)
+            vel_n_ϕ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ; quad)
+            vel_m_ϕ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; quad)
 
             # number weighted
             @test vel_n > 0
@@ -451,7 +459,7 @@ function test_bulk_terminal_velocities(FT)
 end
 
 function test_numerical_integrals(FT)
-    params = CMP.ParametersP3(FT)
+    params = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
     Chen2022 = CMP.Chen2022VelType(FT)
 
     N_ice = FT(1e8)
@@ -459,7 +467,6 @@ function test_numerical_integrals(FT)
     ρ_rim = FT(500)
     F_rims = FT[0, 0.5]
     ρ_a = FT(1.2)
-    use_aspect_ratio = false
     ps = [1e-3, 1e-6]
 
     @testset "Chebyshev-Gauss quadrature" begin
@@ -517,7 +524,7 @@ function test_numerical_integrals(FT)
             # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
             N′ = P3.size_distribution(state, logλ)
             bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
-            N_estim_cheb = P3.integrate(N′, bnds)
+            N_estim_cheb = P3.integrate(N′, bnds, P3.ChebyshevGauss(100))
             N_tol = FT == Float32 ? 2e-5 : 1e-5  # native-FT gamma_inc slightly less precise than Float64-backed SF
             @test N_ice ≈ N_estim_cheb rtol = N_tol
 
@@ -527,10 +534,16 @@ function test_numerical_integrals(FT)
 
 
             # Bulk velocity comparison
-            vel_N = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio, p)
-            vel_m = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio, p)
+            vel_N = P3.ice_terminal_velocity_number_weighted(
+                Chen2022, ρ_a, state, logλ;
+                p, quad = P3.GaussLegendre(FT, 12),
+            )
+            vel_m = P3.ice_terminal_velocity_mass_weighted(
+                Chen2022, ρ_a, state, logλ;
+                p, quad = P3.GaussLegendre(FT, 12),
+            )
 
-            v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state; use_aspect_ratio)
+            v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
             g(D) = v_term(D) * N′(D)
             gm(D) = g(D) * P3.ice_mass(state, D)
             vel_N_estim_cheb = P3.integrate(g, bnds, P3.ChebyshevGauss(10)) / N_ice
@@ -623,13 +636,13 @@ function test_p3_melting(FT)
 
         T_cold = FT(273.15 - 0.01)
 
-        rate = P3.ice_melt(vel, aps, tps, T_cold, ρₐ, state, logλ)
+        rate = P3.ice_melt(vel, aps, tps, T_cold, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
 
         @test rate.dNdt == 0
         @test rate.dLdt == 0
 
         T_warm = FT(273.15 + 0.01)
-        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state, logλ)
+        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
 
         @test rate.dNdt >= 0
         @test rate.dLdt >= 0
@@ -638,23 +651,23 @@ function test_p3_melting(FT)
         # A failing test indicates that the code has changed.
         # But if the changes are intentional, the reference values can be updated.
         if FT == Float64
-            ref_dNdt = FT(171964.6981857982)
-            ref_dLdt = FT(8.59823490928991e-5)
+            ref_dNdt = FT(172084.75278912345)
+            ref_dLdt = FT(8.604237639456172e-5)
         else
-            ref_dNdt = FT(172119.73f0)
-            ref_dLdt = FT(8.605987f-5)
+            ref_dNdt = FT(172265.67f0)
+            ref_dLdt = FT(8.613284f-5)
         end
         @test rate.dNdt ≈ ref_dNdt
         @test rate.dLdt ≈ ref_dLdt
 
         T_vwarm = FT(273.15 + 0.1)
-        rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, state, logλ)
+        rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
         if FT == Float64
-            ref_vwarm_dNdt = FT(1.7186681756049155e6)
-            ref_vwarm_dLdt = FT(8.593340878024577e-4)
+            ref_vwarm_dNdt = FT(1.7198680382990765e6)
+            ref_vwarm_dLdt = FT(8.599340191495382e-4)
         else
-            ref_vwarm_dNdt = FT(1.7187735f6)
-            ref_vwarm_dLdt = FT(8.5938675f-4)
+            ref_vwarm_dNdt = FT(1.7201018f6)
+            ref_vwarm_dLdt = FT(8.6005084f-4)
         end
         @test rate.dNdt ≈ ref_vwarm_dNdt
         @test rate.dLdt ≈ ref_vwarm_dLdt
@@ -723,8 +736,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         ρ′_rim(Dᵢ, D) = 500     # Constant rime density
         liq_bounds = ice_bounds = (FT(0), FT(1))
         Dᵢ = FT(2.5)
-        cloud_integrals = P3.get_liquid_integrals(n_c, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.ChebyshevGauss(100))
-        rain_integrals = P3.get_liquid_integrals(n_r, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.ChebyshevGauss(100))
+        cloud_integrals = P3.get_liquid_integrals(n_c, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.GaussLegendre(FT, 12))
+        rain_integrals = P3.get_liquid_integrals(n_r, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.GaussLegendre(FT, 12))
 
         # Test with known analytical result, noting e.g. that:
         # ∫₀¹ Dᵢ * D * exp(-D) * D³ dD = ∫₀¹ D⁴ * exp(-D) dD = γ(5, 1) [lower incomplete gamma function]
@@ -744,7 +757,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
 
         # Zero liquid content (n(D) = 0)
         n_zero(D) = FT(0)
-        integrals_n0 = P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds)
+        integrals_n0 = P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.GaussLegendre(FT, 12))
         result = integrals_n0(Dᵢ)
         @test all(iszero, result)
 
@@ -756,7 +769,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Mock functions
         ∂ₜM_max(Dᵢ) = FT(0.04)  # Small max freeze rate
         rates = P3.∫liquid_ice_collisions(
-            n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds,
+            n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
         )
         @test all(x -> x isa FT, rates)  # check type stability
         @test all(>(0), rates)  # check positivity
@@ -780,22 +793,23 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Zero ice content
         n_i_zero(Dᵢ) = FT(0)
         rates = P3.∫liquid_ice_collisions(
-            n_i_zero, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds,
+            n_i_zero, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
         )
         @test all(iszero, rates)
 
         # Zero liquid content
         n_zero = Returns(FT(0))
-        zero_liq_integrals = P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds)
+        zero_liq_integrals =
+            P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.GaussLegendre(FT, 12))
         rates = P3.∫liquid_ice_collisions(
-            n_i, ∂ₜM_max, zero_liq_integrals, zero_liq_integrals, ice_bounds,
+            n_i, ∂ₜM_max, zero_liq_integrals, zero_liq_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
         )
         @test all(iszero, rates)
 
         # No freezing (above freezing temperature)
         ∂ₜM_max_zero(Dᵢ) = FT(0)
         rates = P3.∫liquid_ice_collisions(
-            n_i, ∂ₜM_max_zero, cloud_integrals, rain_integrals, ice_bounds,
+            n_i, ∂ₜM_max_zero, cloud_integrals, rain_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
         )
         QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
         @test QCFRZ == 0  # No cloud freezing
@@ -831,7 +845,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         rates = P3.∫liquid_ice_collisions(
             state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
             aps, tps, vel_params, ρₐ, T, m_l;
-            quad = P3.ChebyshevGauss(50),
+            quad = P3.GaussLegendre(FT, 12),
         )
         @test eltype(rates) == FT  # check type stability
 
@@ -843,16 +857,18 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test ∫𝟙_wet_M_col <= ∫M_col
 
         # Smoke tests, aka: Check that rates don't change with new commits.
-        @test QCFRZ ≈ 5.896863092839358e-7
-        @test QCSHD ≈ 2.0751779677755477e-9
-        @test NCCOL ≈ 60226.258f0
-        @test QRFRZ ≈ 6.646668860364814e-5
-        @test QRSHD ≈ 3.656020049360021e-6
-        @test NRCOL ≈ 172.79635393801874
-        @test ∫M_col ≈ 7.07144701402599e-5
-        @test BCCOL ≈ 3.6970928481751446e-9
-        @test BRCOL ≈ 4.1672975327107236e-7
-        @test ∫𝟙_wet_M_col ≈ 1.5610504852731748e-5
+        # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
+        # reference values.
+        @test QCFRZ ≈ 5.943946584599112e-7 rtol = 5e-4
+        @test QCSHD ≈ 2.0534323233754524e-9 rtol = 5e-4
+        @test NCCOL ≈ 60666.71757403923 rtol = 5e-4
+        @test QRFRZ ≈ 6.640489628336987e-5 rtol = 5e-4
+        @test QRSHD ≈ 3.6744506329509328e-6 rtol = 5e-4
+        @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
+        @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
+        @test BCCOL ≈ 3.726612278745525e-9 rtol = 5e-4
+        @test BRCOL ≈ 4.163318251255413e-7 rtol = 5e-4
+        @test ∫𝟙_wet_M_col ≈ 1.3659847784932352e-5 rtol = 5e-4
 
         ### Test the bulk source function
         state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
@@ -860,7 +876,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
             state, logλ,
             psd_c, psd_r, L_c, N_c, L_r, N_r,
             aps, tps, vel_params, ρₐ, T;
-            quad = P3.ChebyshevGauss(50),
+            quad = P3.GaussLegendre(FT, 12),
         )
         @test eltype(rates) == FT  # check type stability
     end
@@ -882,7 +898,7 @@ function test_p3_ice_self_collection(FT)
 
     @testset "ice self-collection rate" begin
         # Call the new ice self-collection parameterization
-        rates = P3.ice_self_collection(state, logλ, vel_params, ρₐ; quad = P3.ChebyshevGauss(50))
+        rates = P3.ice_self_collection(state, logλ, vel_params, ρₐ; quad = P3.GaussLegendre(FT, 12))
         @test eltype(rates) == FT  # check type stability
 
         # Self-collection should represent a positive loss rate
@@ -892,7 +908,7 @@ function test_p3_ice_self_collection(FT)
         state_zero = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)
         logλ_zero = P3.get_distribution_logλ(state_zero)
         rates_zero =
-            P3.ice_self_collection(state_zero, logλ_zero, vel_params, ρₐ; quad = P3.ChebyshevGauss(50))
+            P3.ice_self_collection(state_zero, logλ_zero, vel_params, ρₐ; quad = P3.GaussLegendre(FT, 12))
         @test rates_zero.dNdt == 0
 
         # TODO: compare against an analytically derived reference

@@ -621,9 +621,9 @@ function test_microphysics2M(FT)
             TT.@test ND_psd == ND
 
             # Sanity checks for specific contents for rain
-            qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max) * k_m / ρₐ
-            qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max) / ρₐ
-            qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max) * k_m / ρₐ
+            qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max, P3.ChebyshevGauss(100)) * k_m / ρₐ
+            qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max, P3.ChebyshevGauss(100)) / ρₐ
+            qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max, P3.ChebyshevGauss(100)) * k_m / ρₐ
             TT.@test qD ≈ qᵣ rtol = 6e-4
             TT.@test qx ≈ qᵣ rtol = 5e-4
             TT.@test qD_psd == qD
@@ -701,16 +701,16 @@ function test_microphysics2M(FT)
 
 
         # Sanity checks of specific content and number concentration with mass distribution
-        Nx = P3.integrate(Mⁿ(0, f_x), x_min, x_max)
-        qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max) / ρₐ
+        Nx = P3.integrate(Mⁿ(0, f_x), x_min, x_max, P3.ChebyshevGauss(100))
+        qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max, P3.ChebyshevGauss(100)) / ρₐ
         TT.@test qx ≈ qₗ rtol = 2e-5
         TT.@test Nx ≈ Nₗ rtol = 1e-5
 
         # Sanity checks of specific content and number concentration with diameter distribution
-        ND = P3.integrate(Mⁿ(0, f_D), D_min, D_max)
-        ND_psd = P3.integrate(Mⁿ(0, psd), D_min, D_max)
-        qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max) * k_m / ρₐ
-        qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max) * k_m / ρₐ
+        ND = P3.integrate(Mⁿ(0, f_D), D_min, D_max, P3.ChebyshevGauss(100))
+        ND_psd = P3.integrate(Mⁿ(0, psd), D_min, D_max, P3.ChebyshevGauss(100))
+        qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max, P3.ChebyshevGauss(100)) * k_m / ρₐ
+        qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max, P3.ChebyshevGauss(100)) * k_m / ρₐ
         TT.@test ND ≈ Nₗ rtol = 1e-5
         TT.@test ND_psd ≈ Nₗ rtol = 1e-5
         TT.@test qD ≈ qₗ rtol = 2e-5
@@ -730,24 +730,20 @@ function test_microphysics2M(FT)
         N_low = FT(1e2)        # 1/m³
         N_inrange = FT(1e4)    # 1/m³
         N_high = FT(1e7)       # 1/m³
-        N_veryhigh = FT(1e15)  # 1/m³
 
-        # Action
-        dN_dt_low = (ρ * q / x_max - N_low) / τ
-        dN_dt_high = (ρ * q / x_min - N_high) / τ
-
-        # Test
-        TT.@test CM2.number_increase_for_mass_limit(NumAdj, x_max, q, ρ, N_low) ≈ dN_dt_low
-        TT.@test CM2.number_increase_for_mass_limit(NumAdj, x_max, q, ρ, N_inrange) ≈ FT(0)
-        TT.@test CM2.number_increase_for_mass_limit(NumAdj, x_max, q, ρ, N_high) ≈ FT(0)
-        TT.@test CM2.number_increase_for_mass_limit(NumAdj, x_max, FT(0), ρ, N_inrange) ≈ FT(0)
-
-        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, x_min, q, ρ, N_low) ≈ FT(0)
-        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, x_min, q, ρ, N_inrange) ≈ FT(0)
-        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, x_min, q, ρ, N_high) ≈ dN_dt_high
-        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, x_min, FT(0), ρ, N_inrange) ≈ -N_inrange / τ
-        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, FT(0), q, ρ, N_veryhigh) ≈ FT(0)
-        TT.@test CM2.number_decrease_for_mass_limit(NumAdj, FT(0), FT(0), ρ, N_veryhigh) ≈ FT(0)
+        # number_tendency_from_mass_limits relaxes the mean mass x = q / n into
+        # [x_min, x_max], covering both the upper (increase) and lower (decrease)
+        # bounds. Work in specific quantities: q [kg/kg], n [1/kg].
+        numadj_nt = (; x_min, x_max, τ)
+        n_low, n_inrange, n_high = N_low / ρ, N_inrange / ρ, N_high / ρ
+        # x > x_max: relax up towards q / x_max (positive tendency)
+        TT.@test CM2.number_tendency_from_mass_limits(numadj_nt, q, n_low) ≈ (q / x_max - n_low) / τ
+        # x within [x_min, x_max]: no adjustment
+        TT.@test CM2.number_tendency_from_mass_limits(numadj_nt, q, n_inrange) ≈ FT(0)
+        # x < x_min: relax down towards q / x_min (negative tendency)
+        TT.@test CM2.number_tendency_from_mass_limits(numadj_nt, q, n_high) ≈ (q / x_min - n_high) / τ
+        # q ≈ 0: target is zero number
+        TT.@test CM2.number_tendency_from_mass_limits(numadj_nt, FT(0), n_inrange) ≈ -n_inrange / τ
     end
 end
 
