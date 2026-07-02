@@ -380,12 +380,9 @@ Assumes exponential size distribution (μ=0).
     FT = UT.promote_typeof(a, b, c, λ_inv)
     # μ = 0 for exponential distribution, δ = k + 1
     δ = FT(k + 1)
-    # Γ(δ) for integer δ is just (δ-1)! — avoid calling SF.gamma.
-    # `k` must be a small literal at every call site (0..3): it constant-folds,
-    # keeping `factorial` off the GPU and away from its overflow/throw branches.
-    # We use ifelse rather than `factorial(k)` to avoid host memory table lookups
-    # (`_fact_table`) on the GPU which cause illegal memory access errors.
-    gamma_delta = ifelse(k == 3, FT(6), ifelse(k == 2, FT(2), FT(1)))
+    # Γ(δ) = k! for integer δ = k + 1. `UT.fac` computes the product directly;
+    # `Base.factorial` reads a host-memory table, which is not GPU-compatible.
+    gamma_delta = FT(UT.fac(k))
     return a * exp(-δ * log(λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / gamma_delta
 end
 

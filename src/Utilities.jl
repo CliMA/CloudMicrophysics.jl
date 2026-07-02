@@ -298,9 +298,14 @@ argument of `cbrt`/`log`/`^` finite, not to decide whether a tracer is present
 """
     fac(n)
 
-Integer factorial `n!`, valid for `0 ≤ n ≤ 20`.
+Integer factorial `n!`. Throws a `DomainError` unless `0 ≤ n ≤ 20`, the range
+representable in `Int64`.
 """
-@inline fac(n) = prod(1:n; init = one(n))
+@inline function fac(n)
+    # 21! overflows Int64, so restrict to 0 ≤ n ≤ 20
+    0 ≤ n ≤ 20 || throw(DomainError(n, "fac(n) is defined for 0 ≤ n ≤ 20"))
+    return prod(1:n; init = one(n))
+end
 
 """
     ϵ_numerics(FT)
