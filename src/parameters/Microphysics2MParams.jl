@@ -132,7 +132,7 @@ Base.show(io::IO, mime::MIME"text/plain", x::Microphysics2MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true, quad, inp_depletion_model)
+    Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true, quadrature_order, quad, inp_depletion_model)
 
 Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 
