@@ -1239,22 +1239,15 @@ function test_gpu(FT)
 
         kernel! = test_bulk_tendencies_2m_p3_kernel!(backend, work_groups)
         TT.@testset "2M+P3" begin
-            if VERSION < v"1.12"
-                # The collision path exceeds Julia <= 1.11's inference depth, so this
-                # kernel does not compile there (InvalidIRError: dynamic dispatch).
-                # 1.12 inference resolves it. TODO: fix once GPU CI is >= 1.12.
-                TT.@test_broken VERSION >= v"1.12"
-            else
-                kernel!(
-                    mp_2m_p3, tps, output, ρ, T, q_tot,
-                    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim;
-                    ndrange,
-                )
-                TT.@test allequal(Array(output))
-                tendencies = Array(output)[1]
-                TT.@test all(isfinite, tendencies)
-                TT.@test !iszero(tendencies.dq_ice_dt)
-            end
+            kernel!(
+                mp_2m_p3, tps, output, ρ, T, q_tot,
+                q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim;
+                ndrange,
+            )
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+            TT.@test !iszero(tendencies.dq_ice_dt)
         end
     end  # TT.@testset "Bulk microphysics tendencies kernels"
 

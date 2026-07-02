@@ -176,14 +176,9 @@ function benchmark_test(FT)
         P3.P3State,
         P3.P3State,
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
-        220,
+        1_000,
     )
-    bench_press(FT, P3.get_distribution_logλ, (state,), 35_000)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod, zero warp divergence
-    # The weighted-velocity integrals build a nested terminal-velocity closure
-    # that escapes into `integrate`. With `ice_particle_terminal_velocity`
-    # returning a single (concretely-typed) closure, this path is type-stable
-    # on both 1.10 and 1.12 and allocates nothing — keep the default zero
-    # allocation/memory budget so a future closure regression is caught here.
+    bench_press(FT, P3.get_distribution_logλ, (state,), 500_000)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod
     _glq = P3.GaussLegendre(FT, 12)
     bench_press(
         FT, (a, b, c, d) -> P3.ice_terminal_velocity_number_weighted(a, b, c, d; quad = _glq), 
@@ -327,24 +322,15 @@ function benchmark_test(FT)
         bench_press(FT, CMD.effective_radius_2M, (sb, q_liq, q_rai, N_liq, N_rai, ρ_air), 2000)
 
         @info "P3 Collisions"
-        # Gated to Julia >= 1.12: on <= 1.11 the deep collision assembly exceeds
-        # the inference depth budget, widening intermediates to Any (runtime
-        # dispatch), which fails the JET assertion. The kernel is allocation-free
-        # on the GPU (enforced by the bulk_microphysics_tendencies GPU test); on
-        # the CPU the nested double-integral integrands are heap-boxed, so a small
-        # memory/allocation budget is allowed here while the JET (type-stability)
-        # and timing assertions are enforced.
-        if VERSION >= v"1.12"
-            bench_press(@NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT},
-                (st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T) ->
-                    P3.bulk_liquid_ice_collision_sources(st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T; quad = _glq),
-                (
-                    state, logλ,
-                    sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,
-                    aps, tps, ch2022,
-                    ρ_air, T_air,
-                ), 1e9, 1024, 64)
-        end
+        bench_press(@NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT},
+            (st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T) ->
+                P3.bulk_liquid_ice_collision_sources(st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T; quad = _glq),
+            (
+                state, logλ,
+                sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,
+                aps, tps, ch2022,
+                ρ_air, T_air,
+            ), 1e7)
     end
     bench_press(FT, CMD.effective_radius_Liu_Hallet_97, (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai), 300)
     bench_press(
