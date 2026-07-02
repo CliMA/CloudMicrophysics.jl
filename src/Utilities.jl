@@ -86,11 +86,11 @@ end
     return (FD.Dual{T}(P, z), FD.Dual{T}(Q, z))
 end
 
-# `lΓa = SF.loggamma(a)` is passed in so callers that evaluate this repeatedly for a
+# `loggamma_a = SF.loggamma(a)` is passed in so callers that evaluate this repeatedly for a
 # fixed `a` (e.g. the Halley loop in `_gamma_inc_inv`) compute the expensive loggamma
 # once instead of every iteration. The 2-arg form computes it for one-off callers.
 @inline _gamma_inc(a::FT, x::FT) where {FT <: Real} = _gamma_inc(a, x, SF.loggamma(a))
-@inline function _gamma_inc(a::FT, x::FT, lΓa::FT) where {FT <: Real}
+@inline function _gamma_inc(a::FT, x::FT, loggamma_a::FT) where {FT <: Real}
     if x <= 0
         return (zero(FT), one(FT))
     elseif isinf(x)
@@ -99,7 +99,7 @@ end
 
     # factor = x^a * e^-x / Gamma(a)
     # Using loggamma for numerical stability
-    factor = exp(a * log(x) - x - lΓa)
+    factor = exp(a * log(x) - x - loggamma_a)
     maxiters = FT === Float32 ? 20 : 30
 
     if x < a + 1
@@ -221,12 +221,12 @@ end
     use_q = p > FT(0.5)
     # loggamma(a) is loop-invariant, so compute once and thread it into `_gamma_inc`
     # and the derivative below (was recomputed ~2×/iteration, up to ~30×/call).
-    lΓa = SF.loggamma(a)
+    loggamma_a = SF.loggamma(a)
     for i in 1:15
-        P, Q = _gamma_inc(a, x, lΓa)
+        P, Q = _gamma_inc(a, x, loggamma_a)
         f = use_q ? Q - q : P - p
         # Derivative: dP/dx = x^(a-1) e^-x / Gamma(a), dQ/dx = -dP/dx
-        fprime = exp((a - 1) * log(x) - x - lΓa)
+        fprime = exp((a - 1) * log(x) - x - loggamma_a)
         # When using Q-q, the derivative is -fprime
         fprime = use_q ? -fprime : fprime
         if fprime == 0
@@ -251,11 +251,41 @@ end
     return x
 end
 
+# ---------------------------------------------------------------------------
+# Small-number handling: two distinct roles, kept deliberately separate.
+#
+# 1. Domain sanitization (NOT a physical threshold): `clamp_to_nonneg` and the
+#    `max(x, ϵ)` floors on arguments of `cbrt`/`log`/`^`. These only keep an
+#    expression finite (e.g. so the *discarded* branch of a branchless
+#    `ifelse(cond, rate, 0)` cannot produce Inf/NaN, which matters for
+#    ForwardDiff gradients). They do not decide whether a tracer is "present".
+#
+# 2. Physical thresholds: the `ϵ_numerics*` functions below, used as `q > ϵ`
+#    gates that treat a tracer as absent. There is exactly one threshold per
+#    moment class, always called from here so the value has a single source of
+#    truth (no bare literals/zeros scattered across the schemes).
+#
+# The threshold values intentionally differ by moment class:
+#   - `ϵ_numerics`      = cbrt(floatmin(FT))  (≈3.8e-13 @ f32) — a floatmin-derived
+#     floor, sized so cbrt/pow arguments stay above `floatmin` (its cube is
+#     `floatmin`). Used by the 1-moment scheme.
+#   - `ϵ_numerics_2M_*` = eps(FT)             (≈1.2e-7  @ f32) — a relative round-off
+#     threshold for the 2-moment mass/number variables.
+#   - `ϵ_numerics_P3_B` = eps(FT)                                — same, for the P3
+#     rime-volume (B_rim) variable.
+# The ~6 orders of magnitude gap reflects the different roles (underflow-avoiding
+# floor vs. relative-precision threshold), not an oversight. If a scheme needs a
+# different value, change it here rather than at the call sites.
+# ---------------------------------------------------------------------------
+
 """
     clamp_to_nonneg(x)
 
-Clamp values to be non-negative.
-Compatible with dual numbers (AD) and GPUs.
+Clamp values to be non-negative. Compatible with dual numbers (AD) and GPUs.
+
+This is **domain sanitization**, not a physical threshold: use it to keep an
+argument of `cbrt`/`log`/`^` finite, not to decide whether a tracer is present
+(use the `ϵ_numerics*` gates for that).
 
 # Arguments
 - `x`: value to clamp
@@ -275,30 +305,32 @@ Integer factorial `n!`, valid for `0 ≤ n ≤ 20`.
 """
     ϵ_numerics(FT)
 
-Smallest number that is different than zero for the purpose of microphysics
-computations. Returns `cbrt(floatmin(FT))` to avoid underflow issues.
+Physical smallness threshold for the **1-moment** scheme: below this a tracer is
+treated as absent. Returns `cbrt(floatmin(FT))`, a floatmin-derived floor that
+also keeps `cbrt`/`^` arguments above `floatmin`. See the note above for how this
+relates to the 2-moment/P3 thresholds.
 """
 @inline ϵ_numerics(FT) = cbrt(floatmin(FT))
 
 """
     ϵ_numerics_2M_M(FT)
 
-Numerical epsilon for 2-moment mass calculations.
+Physical smallness threshold for **2-moment mass** variables (`eps(FT)`).
 """
 @inline ϵ_numerics_2M_M(FT) = eps(FT)
 
 """
     ϵ_numerics_2M_N(FT)
 
-Numerical epsilon for 2-moment number calculations.
+Physical smallness threshold for **2-moment number** variables (`eps(FT)`).
 """
 @inline ϵ_numerics_2M_N(FT) = eps(FT)
 
 """
     ϵ_numerics_P3_B(FT)
 
-Numerical epsilon for P3 bulk microphysics mass calculations
-    relating to rim volume, B_rim.
+Physical smallness threshold for the **P3** rime-volume variable `B_rim`
+(`eps(FT)`).
 """
 @inline ϵ_numerics_P3_B(FT) = eps(FT)
 

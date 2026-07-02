@@ -135,15 +135,17 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     # mass(size)
     (; r0, m0, me, Δm, χm, gamma_coeff) = mass
 
-    # Branchless: clamp q, ρ to non-negative and floor the n0 denominator (for snow,
-    # n0 ∝ q^ν → 0 as q → 0) so the ratio stays finite instead of 0/0. As q → 0 the
-    # base → 0, so λ_inv → 0 and is clamped to the r0*1e-5 floor below. This matches the
-    # old `if q > ϵ` guard to within that floor for all physically relevant q, with no
-    # warp divergence (cf. PR #749).
+    # Domain sanitization only (NOT a physical threshold): `clamp_to_nonneg` on q, ρ
+    # and the `max(n0, ϵ)` floor keep the ratio finite instead of 0/0 (for snow,
+    # n0 ∝ q^ν → 0 as q → 0). As q → 0 the base → 0, so λ_inv → 0 and is clamped to the
+    # r0*1e-5 floor below, keeping λ_inv (a denominator in the rate formulas) finite so
+    # the *discarded* branch of each caller's `ifelse(q > ϵ_numerics, rate, 0)` gate
+    # cannot produce Inf/NaN. The physical "tracer absent" decision lives in those
+    # caller gates, not here.
     # Note: Julia compiles x^y to exp(y * log(x)); gamma_coeff is pre-computed in the
     # ParticleMass constructor for GPU performance.
-    qp = max(q, zero(FT))
-    ρp = max(ρ, zero(FT))
+    qp = UT.clamp_to_nonneg(q)
+    ρp = UT.clamp_to_nonneg(ρ)
     denom = χm * m0 * max(n0, UT.ϵ_numerics(FT)) * gamma_coeff
     λ_inv = (ρp * qp * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
     return max(r0 * FT(1e-5), λ_inv)
@@ -361,14 +363,16 @@ end
     return max(0, q_lcl) / (τ * (Nc / 100_000_000)^α)
 end
 
-# Size-distribution / fall-speed quantities shared across the 1-moment process rates.
+# Size-distribution / fall-speed parameters shared across the 1-moment process rates.
 # `lambda_inverse` (a `pow`), snow `get_n0` (a `pow`) and `get_v0` are each reused by
 # several processes for the same hydrometeor species, so computing them once per cell
 # avoids redundant transcendentals that the compiler cannot eliminate across the
-# (inlined) per-process calls. `BulkMicrophysicsTendencies` builds this once and threads
-# it to the process functions below via their optional `sd` argument; standalone callers
-# omit it and the default rebuilds it, and the compiler then drops the fields they don't use.
-@inline function _size_dist_cache(mp, micro, thermo)
+# (inlined) per-process calls. This is the "compute once and pass" pattern:
+# `BulkMicrophysicsTendencies` builds this once per cell and threads it to the process
+# functions below via their optional `sd` argument. The `sd = size_distr_parameters(...)`
+# default is evaluated only for standalone callers that omit it, so there is no repeated
+# computation on the BMT hot path; for such callers the compiler drops the unused fields.
+@inline function size_distr_parameters(mp, micro, thermo)
     (; q_rai, q_sno, q_icl) = micro
     ρ = thermo.ρ
     return (;
@@ -414,7 +418,7 @@ Harrington et al. (1995) and Kaul et al. (2015).
 end
 
 @inline function conv_q_icl_to_q_sno(
-    opt::CMP.WithSupersaturation, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo),
+    opt::CMP.WithSupersaturation, mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo),
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
@@ -708,7 +712,7 @@ delegate to the corresponding low-level Marshall-Palmer kernels.
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     q_lcl = micro.q_lcl
     q_rai = micro.q_rai
@@ -733,7 +737,7 @@ end
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     q_lcl = micro.q_lcl
     q_sno = micro.q_sno
@@ -761,7 +765,7 @@ end
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     q_icl = micro.q_icl
     q_rai = micro.q_rai
@@ -786,7 +790,7 @@ end
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     q_icl = micro.q_icl
     q_sno = micro.q_sno
@@ -814,7 +818,7 @@ end
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     q_rai = micro.q_rai
     q_sno = micro.q_sno
@@ -870,7 +874,7 @@ end
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     q_icl = micro.q_icl
     q_rai = micro.q_rai
@@ -915,7 +919,7 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
@@ -977,7 +981,7 @@ Ventilation factor parameterization follows Seifert and Beheng (2006).
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo, sd))
 end
@@ -988,13 +992,13 @@ end
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     return _snow_subl_dep_rate(mp, tps, micro, thermo, sd)
 end
 
 """Internal helper: snow sublimation/deposition physics kernel."""
-@inline function _snow_subl_dep_rate(mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function _snow_subl_dep_rate(mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo))
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     (; pdf, mass, vent) = mp.precip.snow
@@ -1053,7 +1057,7 @@ Returns the tendency due to cloud ice melt.
     tps,
     micro,
     thermo,
-    sd = _size_dist_cache(mp, micro, thermo),
+    sd = size_distr_parameters(mp, micro, thermo),
 )
     q_icl = micro.q_icl
     (; ρ, T) = thermo
@@ -1086,7 +1090,7 @@ Returns the tendency due to snow melt.
 """
 @inline conv_q_sno_to_q_rai(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function conv_q_sno_to_q_rai(::CMP.SnowMelt, mp, tps, micro, thermo, sd = _size_dist_cache(mp, micro, thermo))
+@inline function conv_q_sno_to_q_rai(::CMP.SnowMelt, mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo))
     q_sno = micro.q_sno
     (; ρ, T) = thermo
     (; pdf, mass, vent) = mp.precip.snow

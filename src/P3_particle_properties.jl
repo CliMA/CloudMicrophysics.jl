@@ -322,6 +322,11 @@ function ice_mass_coeffs(state::P3State, D)
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
 
+    # Four particle-size-based regimes (Morrison & Milbrandt 2015), selected in order:
+    #   cond1  (D < D_th)                : small spherical ice, m = ρ_i·(π/6)·D³
+    #   cond2  (unrimed || D < D_gr)     : dense nonspherical ice, m = α_va·D^β_va
+    #   cond3  (D < D_cr)                : graupel (rimed spherical), m = ρ_g·(π/6)·D³
+    #   else   (D ≥ D_cr)               : partially rimed, m = α_va/(1-F_rim)·D^β_va
     unrimed = iszero(F_rim)
     cond1 = D < D_th
     cond2 = unrimed || D < D_gr
@@ -398,9 +403,14 @@ Return the cross-sectional area of a particle based on where it falls in the
 function ice_area(state::P3State, D)
     (; params, F_rim, D_th, D_gr, D_cr) = state
     (; γ, σ) = params.area
-    s_area = D^2 * π / 4
-    ns_area = γ * D^σ
+    s_area = D^2 * π / 4  # spherical cross-sectional area
+    ns_area = γ * D^σ     # nonspherical area–dimension power law
 
+    # Same four regimes as `ice_mass_coeffs` (Morrison & Milbrandt 2015):
+    #   cond1  (D < D_th)            : small spherical ice        → s_area
+    #   cond2  (unrimed || D < D_gr) : dense nonspherical ice     → ns_area
+    #   cond3  (D < D_cr)            : graupel (rimed spherical)  → s_area
+    #   else   (D ≥ D_cr)           : partially rimed → F_rim-weighted blend of the two
     unrimed = iszero(F_rim)
     cond1 = D < D_th
     cond2 = unrimed || D < D_gr

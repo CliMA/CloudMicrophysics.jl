@@ -451,6 +451,11 @@ A tuple of 8 integrands, see [`∫liquid_ice_collisions`](@ref) for details.
     cloud_integrals,
     rain_integrals,
     ice_bounds;
+    # Chebyshev–Gauss (not the Gauss–Legendre default used elsewhere):
+    # this integrand has √-type endpoint/weight behavior that Gauss–Legendre resolves
+    # poorly, so a higher node count is used here. TODO: run the same convergence check
+    # used for the Gauss-Legendre default and lower this to the smallest node count within
+    # tolerance.
     quad = ChebyshevGauss(100),
 )
     function liquid_ice_collisions_integrands(Dᵢ)

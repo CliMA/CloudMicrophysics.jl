@@ -160,7 +160,7 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     # Size-distribution / fall-speed quantities (λ⁻¹, n₀, v₀ for rain/snow/ice) are
     # pow/exp-heavy and shared by several processes per species: compute once and pass
     # to each process via its `sd` argument so they are not recomputed per process.
-    sd = CM1._size_dist_cache(mp, micro, thermo)
+    sd = CM1.size_distr_parameters(mp, micro, thermo)
 
     # --- Phase change: vapor ↔ cloud condensate (bidirectional, ±) ---
     S_phase_change_vap_lcl = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo)

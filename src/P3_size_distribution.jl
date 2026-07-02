@@ -1,6 +1,10 @@
 import CloudMicrophysics.DistributionTools: size_distribution
 
 # Callable returned by `logN′ice`: evaluates `log(N′(D))` for a fixed state and slope.
+# We store `λ = exp(logλ)` (computed once when the functor is built) rather than `logλ`
+# so the slope term is a single multiply `λ * D` in the quadrature hot loop, instead of
+# `exp(logλ + logD)` (a transcendental per evaluation). `logD = log(D)` is still needed
+# for the `μ * logD` term.
 struct P3LogNumberFunctor{FT} <: Function
     log_N₀::FT
     μ::FT

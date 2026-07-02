@@ -77,6 +77,10 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ,
     N₀r = λr * safe_Nᵣ
 
     Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
+    # The predicate is evaluated once into `cond`; the three `ifelse`es are predicated
+    # selects reusing it, not three re-evaluations. This replaces an early-return branch,
+    # so all warp lanes stay on one instruction stream (no GPU warp divergence) — the
+    # three extra selects are far cheaper than a data-dependent branch (cf. PR #749).
     cond = Nᵣ < UT.ϵ_numerics_2M_N(FT) || qᵣ < UT.ϵ_numerics_2M_M(FT)
     return (;
         N₀r = ifelse(cond, zero(Nᵣ), N₀r),

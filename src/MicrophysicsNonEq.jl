@@ -246,7 +246,9 @@ function terminal_velocity(
 ) where {FT}
     # Stokes law: v(D) = C * D^2, valid for D < ~80 μm (Re < 1)
     v_term = CO.particle_terminal_velocity(vel, ρₐ)
-    safe_q = max(q, zero(FT))
+    # `clamp_to_nonneg` is domain sanitization for the cbrt below (keeps the discarded
+    # ifelse branch finite); the physical threshold is the `q > ϵ_numerics` gate.
+    safe_q = UT.clamp_to_nonneg(q)
     # Mean volume diameter from assumed number concentration
     D = cbrt(FT(6 / π) * ρₐ * safe_q / N_0 / ρw)
     fall_w = v_term(D)
@@ -260,7 +262,9 @@ function terminal_velocity(
     q::FT,
 ) where {FT}
     v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
-    safe_q = max(q, zero(FT))
+    # `clamp_to_nonneg` is domain sanitization for the cbrt below (keeps the discarded
+    # ifelse branch finite); the physical threshold is the `q > ϵ_numerics` gate.
+    safe_q = UT.clamp_to_nonneg(q)
     # Mean volume diameter from assumed number concentration
     D = cbrt(FT(6 / π) * ρₐ * safe_q / N_0 / ρᵢ)
     fall_w = max(FT(0), v_term(D))
