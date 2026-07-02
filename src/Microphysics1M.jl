@@ -1090,7 +1090,14 @@ Returns the tendency due to snow melt.
 """
 @inline conv_q_sno_to_q_rai(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function conv_q_sno_to_q_rai(::CMP.SnowMelt, mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo))
+@inline function conv_q_sno_to_q_rai(
+    ::CMP.SnowMelt,
+    mp,
+    tps,
+    micro,
+    thermo,
+    sd = size_distr_parameters(mp, micro, thermo),
+)
     q_sno = micro.q_sno
     (; ρ, T) = thermo
     (; pdf, mass, vent) = mp.precip.snow
