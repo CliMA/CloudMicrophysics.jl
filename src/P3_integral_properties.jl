@@ -41,7 +41,11 @@ Compute the integration bounds for the P3 size distribution,
 
     # Only integrate up to the maximum diameter, `D_max`, including intermediate thresholds
     # If `F_rim` is very close to 1, `D_cr` may be greater than `D_max`, in which case it is disregarded.
-    return segment_boundaries(state, D_min, D_max)
+    bnds = segment_boundaries(state, D_min, D_max)
+    # `D_max` sits `log(1/p)` decay lengths into the size-distribution tail; a
+    # breakpoint at the decay scale keeps each subinterval resolvable at low order
+    D_e = clamp(3 / λ, D_min, D_max)
+    return Tuple(SA.sort(SA.SVector(bnds..., D_e)))
 end
 
 """
@@ -50,7 +54,7 @@ end
 Compute the integration bounds for a velocity-weighted P3 integral: the
 mass-regime [`integral_bounds`](@ref) with the Chen 2022 small/large-ice velocity
 breakpoint `D_cutoff` clamped into `[D_min, D_max]` and re-sorted, so that
-breakpoint coincides with a subinterval boundary. Returns a fixed 6-tuple.
+breakpoint coincides with a subinterval boundary. Returns a fixed-length tuple.
 """
 function velocity_integral_bounds(state::P3State{FT}, logλ, D_cutoff; p, moment_order = 0) where {FT}
     bnds = integral_bounds(state, logλ; p, moment_order)

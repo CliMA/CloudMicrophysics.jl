@@ -518,19 +518,15 @@ function test_numerical_integrals(FT)
             logλ = P3.get_distribution_logλ(state)
 
             # Number concentration comparison
-            # Note: To achieve sufficient accuracy, we need to substantially
-            # increase the `order` of the quadrature rule, and set `rtol=0`.
-            # The `rtol` settings essentially forces max evaluations of the method.
-            # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
             N′ = P3.size_distribution(state, logλ)
             bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
-            N_estim_cheb = P3.integrate(N′, bnds, P3.ChebyshevGauss(100))
+            N_estim_gl = P3.integrate(N′, bnds, P3.GaussLegendre(FT, 32))
             N_tol = FT == Float32 ? 2e-5 : 1e-5  # native-FT gamma_inc slightly less precise than Float64-backed SF
-            @test N_ice ≈ N_estim_cheb rtol = N_tol
+            @test N_ice ≈ N_estim_gl rtol = N_tol
 
             # Compare with quadgk
             N_estim_qgk = QGK.quadgk(N′, bnds...)[1]
-            @test N_estim_cheb ≈ N_estim_qgk rtol = 1e-5
+            @test N_estim_gl ≈ N_estim_qgk rtol = 1e-5
 
 
             # Bulk velocity comparison
@@ -546,28 +542,28 @@ function test_numerical_integrals(FT)
             v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
             g(D) = v_term(D) * N′(D)
             gm(D) = g(D) * P3.ice_mass(state, D)
-            vel_N_estim_cheb = P3.integrate(g, bnds, P3.ChebyshevGauss(10)) / N_ice
-            vel_m_estim_cheb = P3.integrate(gm, bnds, P3.ChebyshevGauss(10)) / L_ice
-            @test vel_N ≈ vel_N_estim_cheb rtol = 0.005
-            @test vel_m ≈ vel_m_estim_cheb rtol = 0.05
+            vel_N_estim_gl = P3.integrate(g, bnds, P3.GaussLegendre(FT, 32)) / N_ice
+            vel_m_estim_gl = P3.integrate(gm, bnds, P3.GaussLegendre(FT, 32)) / L_ice
+            @test vel_N ≈ vel_N_estim_gl rtol = 0.005
+            @test vel_m ≈ vel_m_estim_gl rtol = 0.05
 
             # Compare with quadgk
             vel_N_estim_qgk = QGK.quadgk(g, bnds...)[1] / N_ice
             vel_m_estim_qgk = QGK.quadgk(gm, bnds...)[1] / L_ice
 
-            @test vel_N_estim_cheb ≈ vel_N_estim_qgk rtol = 0.005
-            @test vel_m_estim_cheb ≈ vel_m_estim_qgk rtol = 0.05
+            @test vel_N_estim_gl ≈ vel_N_estim_qgk rtol = 0.005
+            @test vel_m_estim_gl ≈ vel_m_estim_qgk rtol = 0.05
 
 
             # Dₘ comparisons
             D_m = P3.D_m(state, logλ)
             D_m_func(D) = D * P3.ice_mass(state, D) * N′(D) / L_ice
-            D_m_estim_cheb = P3.integrate(D_m_func, bnds, P3.ChebyshevGauss(100))
-            @test D_m ≈ D_m_estim_cheb rtol = 5e-4
+            D_m_estim_gl = P3.integrate(D_m_func, bnds, P3.GaussLegendre(FT, 32))
+            @test D_m ≈ D_m_estim_gl rtol = 5e-4
 
             # Compare with quadgk
             D_m_estim_qgk = QGK.quadgk(D_m_func, bnds...)[1]
-            @test D_m_estim_cheb ≈ D_m_estim_qgk rtol = 5e-4
+            @test D_m_estim_gl ≈ D_m_estim_qgk rtol = 5e-4
         end
     end
 end
@@ -859,16 +855,16 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Smoke tests, aka: Check that rates don't change with new commits.
         # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
         # reference values.
-        @test QCFRZ ≈ 5.943946584599112e-7 rtol = 5e-4
-        @test QCSHD ≈ 2.0534323233754524e-9 rtol = 5e-4
-        @test NCCOL ≈ 60666.71757403923 rtol = 5e-4
-        @test QRFRZ ≈ 6.640489628336987e-5 rtol = 5e-4
-        @test QRSHD ≈ 3.6744506329509328e-6 rtol = 5e-4
-        @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
-        @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.726612278745525e-9 rtol = 5e-4
-        @test BRCOL ≈ 4.163318251255413e-7 rtol = 5e-4
-        @test ∫𝟙_wet_M_col ≈ 1.3659847784932352e-5 rtol = 5e-4
+        @test QCFRZ ≈ 5.942439070312668e-7 rtol = 5e-4
+        @test QCSHD ≈ 2.0761198593560244e-9 rtol = 5e-4
+        @test NCCOL ≈ 60651.35649132401 rtol = 5e-4
+        @test QRFRZ ≈ 6.64295105903061e-5 rtol = 5e-4
+        @test QRSHD ≈ 3.64983632601479e-6 rtol = 5e-4
+        @test NRCOL ≈ 172.61819652435122 rtol = 5e-4
+        @test ∫M_col ≈ 7.067566694321151e-5 rtol = 5e-4
+        @test BCCOL ≈ 3.725667128722677e-9 rtol = 5e-4
+        @test BRCOL ≈ 4.164859599145927e-7 rtol = 5e-4
+        @test ∫𝟙_wet_M_col ≈ 1.704310456059433e-5 rtol = 5e-4
 
         ### Test the bulk source function
         state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
