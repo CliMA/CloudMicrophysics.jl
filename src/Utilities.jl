@@ -151,8 +151,8 @@ end
 # allowed and treated as a constant.
 @inline function _assert_const_shape(a::FD.Dual)
     iszero(FD.partials(a)) || error(
-        "gamma_inc/gamma_inc_inv: differentiation with respect to the shape " *
-        "parameter `a` is not supported (only the x-/p-derivative is implemented).",
+        "gamma_inc/gamma_inc_inv: differentiation with respect to the shape \
+        parameter `a` is not supported (only the x-/p-derivative is implemented).",
     )
     return nothing
 end
