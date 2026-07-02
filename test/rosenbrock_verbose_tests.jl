@@ -74,6 +74,36 @@ function test_rosenbrock_verbose_2m(FT)
             @test maximum(abs.(recon - net)) ≤ rtol * scale
         end
     end
+
+    @testset "2M verbose net equals non-verbose net ($FT)" begin
+        # A limiter-free exact-Jacobian mode: the verbose net is the same
+        # unlimited solve net as the non-verbose mode
+        unlimited = BMT.RosenbrockAverage(
+            BMT.ExactJacobian(), BMT.ExplicitGrowthDiagonal(), BMT.NoLimiter(),
+        )
+        Δt = FT(60)
+        for r in regimes, nsub in (1, 4)
+            logλ = isnothing(r.logλ) ? consistent_logλ(r.ρ, r.x) : r.logλ
+            v = BMT.bulk_microphysics_tendencies(
+                BMT.Verbose(unlimited), BMT.Microphysics2Moment(), mp, tps,
+                r.ρ, r.T, r.q_tot, r.x..., logλ, Δt, nsub,
+            )
+            nv = BMT.bulk_microphysics_tendencies(
+                unlimited, BMT.Microphysics2Moment(), mp, tps,
+                r.ρ, r.T, r.q_tot, r.x..., logλ, Δt, nsub,
+            )
+            @test net_vec_2m(v) == net_vec_2m(nv)
+        end
+    end
+
+    @testset "2M verbose on a non-Exact Jacobian throws ($FT)" begin
+        r = regimes[2]
+        logλ = consistent_logλ(r.ρ, r.x)
+        @test_throws ArgumentError BMT.bulk_microphysics_tendencies(
+            BMT.Verbose(BMT.rosenbrock_donor()), BMT.Microphysics2Moment(), mp, tps,
+            r.ρ, r.T, r.q_tot, r.x..., logλ, FT(60), 4,
+        )
+    end
 end
 
 function test_rosenbrock_verbose_1m(FT)

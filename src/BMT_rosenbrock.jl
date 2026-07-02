@@ -955,6 +955,13 @@ function _per_process_zero_accumulator(g_verbose, x::SA.StaticVector)
     return map(_ -> zero(x), g_verbose(x))
 end
 
+bulk_microphysics_tendencies(::Verbose{<:RosenbrockAverage}, ::Microphysics2Moment, args...) =
+    throw(
+        ArgumentError(
+            "Verbose on the 2M+P3 model supports only ExactJacobian; use Verbose(rosenbrock_exact())",
+        ),
+    )
+
 """
     bulk_microphysics_tendencies(v::Verbose, ::Microphysics2Moment,
         mp, tps, ρ, T, q_tot,
@@ -1002,7 +1009,13 @@ This is a diagnostic path, separate from the non-verbose entry.
     for _ in 1:nsub_eff
         g = Instantaneous2MP3Tendency(mp, tps, ρ, Tsub, q_tot, logλ)
         gv = Verbose2MP3Tendency(mp, tps, ρ, Tsub, q_tot, logλ)
-        J = _apply_growth(mode.growth, FD.jacobian(g, x))
+        # Match the wrapped mode: differentiate only at a finite state; a
+        # non-finite Jacobian routes the substep to the Euler fallback.
+        J = if all(isfinite, x)
+            _apply_growth(mode.growth, FD.jacobian(g, x))
+        else
+            FT(NaN) * one(SA.SMatrix{8, 8, FT})
+        end
         z = _species_mask(mode.jacobian, mode.growth)(x)
         x_prev = x
         x, Δxp, Δx_clamp = _rosenbrock_substep_verbose(g, gv, J, z, x, h)
@@ -1070,7 +1083,13 @@ This is a diagnostic path, separate from the non-verbose entry.
     for _ in 1:nsub_eff
         g = Raw1MTendency(mp, tps, ρ, Tsub, q_tot)
         gv = Verbose1MTendency(mp, tps, ρ, Tsub, q_tot)
-        J = _apply_growth(mode.growth, jacobian(g, x))
+        # Match the wrapped mode: differentiate only at a finite state; a
+        # non-finite Jacobian routes the substep to the Euler fallback.
+        J = if all(isfinite, x)
+            _apply_growth(mode.growth, jacobian(g, x))
+        else
+            FT(NaN) * one(SA.SMatrix{4, 4, FT})
+        end
         z = mask(x)
         x_prev = x
         x, Δxp, Δx_clamp = _rosenbrock_substep_verbose(g, gv, J, z, x, h)
