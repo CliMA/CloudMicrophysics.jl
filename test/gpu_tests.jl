@@ -399,6 +399,17 @@ end
     )
 end
 
+@kernel inbounds = true function test_rosenbrock_bulk_tendencies_1m_kernel!(
+    mode, mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+)
+    i = @index(Global, Linear)
+    CM1M = BMT.Microphysics1Moment()
+    output[i] = BMT.bulk_microphysics_tendencies(
+        mode, CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        Δt[i], 2,
+    )
+end
+
 
 
 @kernel inbounds = true function test_bulk_tendencies_2m_warm_kernel!(
@@ -1220,6 +1231,18 @@ function test_gpu(FT)
         kernel! = test_average_bulk_tendencies_1m_kernel!(backend, work_groups)
         TT.@testset "1M average" begin
             kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+        end
+
+        # 1M Rosenbrock modes
+        kernel! = test_rosenbrock_bulk_tendencies_1m_kernel!(backend, work_groups)
+        TT.@testset "1M Rosenbrock $mode" for mode in (
+            BMT.rosenbrock_donor(), BMT.rosenbrock_coupled(), BMT.rosenbrock_exact(),
+        )
+            (; output) = setup_output(ndrange, DT)
+            kernel!(mode, mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
