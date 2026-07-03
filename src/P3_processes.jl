@@ -423,7 +423,7 @@ The velocities and the rain velocity-curve coefficients come from the
     ρw = psd_r.ρw
     (; N₀r, Dr_mean) = CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
     (; v_i, v_l) = ∂ₜV
-    ai, bi, ci = SA.SVector(v_l.ai), SA.SVector(v_l.bi), SA.SVector(v_l.ci)
+    ai, bi, ci = map(SA.SVector, CO.Chen2022_vel_coeffs(v_l))
     D_min, D_max = bounds_r
     zero_rates = (zero(FT), zero(FT), zero(FT))
     function liquid_integrals(Dᵢ)
@@ -648,7 +648,7 @@ function wet_growth_onset_diameter(
     M₅ = mfac * DT.generalized_gamma_Mⁿ(νcD, μcD, λc, N_c, 5)
 
     (; N₀r, Dr_mean) = CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
-    ai, bi, ci = SA.SVector(v_l.ai), SA.SVector(v_l.bi), SA.SVector(v_l.ci)
+    ai, bi, ci = map(SA.SVector, CO.Chen2022_vel_coeffs(v_l))
     D_min_r, D_max_r = bounds_r
     rain_active = !iszero(N₀r) && (D_max_r > D_min_r)
 
