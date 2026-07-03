@@ -23,13 +23,61 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.CloudDiagnostics as CMD
 import Profile
 
+# Timing bounds below are scaled by a measured machine-speed factor.
+
+# Fixed scalar workload, dominated by transcendental functions, for measuring
+# the machine-speed factor.
+function calibration_workload(x)
+    FT = typeof(x)
+    s = zero(FT)
+    for _ in 1:256
+        x = FT(0.5) + FT(0.25) * (one(FT) + sin(x))
+        s += exp(-x) + log1p(x) + sqrt(x) + cbrt(x) + x^FT(1.5)
+    end
+    return s
+end
+
+# Minimum runtime of `calibration_workload(1.0)` on the reference machine, in nanoseconds.
+const REFERENCE_CALIBRATION_NS = 12_200.0
+
+# Upper limit on the machine-speed factor applied to timing bounds.
+const MAX_SPEED_FACTOR = 20.0
+
+# Machine-speed tolerance multiplier for the upper bound, measured once per suite.
+const SPEED_FACTOR = Ref(1.0)
+
+# Machine-speed multiplier for the lower bound, measured once per suite.
+# The upper factor is clamped to [1, MAX_SPEED_FACTOR] so slower machines gain
+# headroom. The lower bound instead tracks machines faster than the reference,
+# where the raw factor drops below one; clamping to
+# [1 / MAX_SPEED_FACTOR, MAX_SPEED_FACTOR] keeps it proportional to measured time
+# so it does not trip on a fast machine.
+const SPEED_FACTOR_LOWER = Ref(1.0)
+
+function measure_speed_factor()
+    trial = BT.@benchmark calibration_workload($(1.0)) samples = 100 evals = 100
+    raw = BT.minimum(trial).time / REFERENCE_CALIBRATION_NS
+    return clamp(raw, 1.0, MAX_SPEED_FACTOR)
+end
+
+function measure_speed_factor_lower()
+    trial = BT.@benchmark calibration_workload($(1.0)) samples = 100 evals = 100
+    raw = BT.minimum(trial).time / REFERENCE_CALIBRATION_NS
+    return clamp(raw, 1.0 / MAX_SPEED_FACTOR, MAX_SPEED_FACTOR)
+end
+
+# Timing is two-sided: the upper bound catches regressions; the lower bound
+# (min_expected_time ≈ one third of the fastest measured time, 0 for
+# jitter-dominated sub-50 ns calls) flags a genuine speedup so the bounds get
+# retuned.
 function bench_press(
     type,
     foo,
     args,
-    min_run_time,  # minimum allowed run time, in nanoseconds
+    min_run_time,  # upper bound on run time, in nanoseconds
     min_memory = 0.0,
-    min_allocs = 0.0,
+    min_allocs = 0.0;
+    min_expected_time = 0.0,  # lower bound on run time, in nanoseconds; 0 disables
 )
     @info "Testing $foo"
 
@@ -44,7 +92,7 @@ function bench_press(
     show(stdout, MIME("text/plain"), trail)
     println("\n")
 
-    TT.@test BT.minimum(trail).time < min_run_time
+    TT.@test min_expected_time * SPEED_FACTOR_LOWER[] < BT.minimum(trail).time < min_run_time * SPEED_FACTOR[]
     TT.@test trail.memory <= min_memory
 
     if !(trail.allocs <= min_allocs)
@@ -77,7 +125,7 @@ end
 function benchmark_test(FT)
 
     @info "Artifacts"
-    bench_press(String, AFC.AIDA_ice_nucleation, ("in05_17_aida.edf"), 50_000, 30_000, 300)
+    bench_press(String, AFC.AIDA_ice_nucleation, ("in05_17_aida.edf"), 14_000, 30_000, 300; min_expected_time = 2_900)
 
     # 0-moment parameters
     p0m = CMP.Parameters0M(FT)
@@ -176,73 +224,94 @@ function benchmark_test(FT)
         P3.P3State,
         P3.P3State,
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
-        220,
+        200,
+        min_expected_time = 35,
     )
-    bench_press(FT, P3.get_distribution_logλ, (state,), 35_000)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod, zero warp divergence
+    bench_press(FT, P3.get_distribution_logλ, (state,), 35_000; min_expected_time = 3_500)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod, zero warp divergence
     # The weighted-velocity integrals build a nested terminal-velocity closure
     # that escapes into `integrate`. With `ice_particle_terminal_velocity`
     # returning a single (concretely-typed) closure, this path is type-stable
     # on both 1.10 and 1.12 and allocates nothing — keep the default zero
     # allocation/memory budget so a future closure regression is caught here.
-    bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 170_000)
-    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 200_000)
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 7_000)
-    bench_press(FT, P3.D_m, (state, logλ), 3_000)
+    bench_press(
+        FT,
+        P3.ice_terminal_velocity_number_weighted,
+        (ch2022, ρ_air, state, logλ),
+        30_000;
+        min_expected_time = 4_700,
+    )
+    bench_press(
+        FT,
+        P3.ice_terminal_velocity_mass_weighted,
+        (ch2022, ρ_air, state, logλ),
+        35_000;
+        min_expected_time = 4_800,
+    )
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 4_500; min_expected_time = 400)
+    bench_press(FT, P3.D_m, (state, logλ), 3_000; min_expected_time = 310)
 
     @info "P3 Ice Nucleation"
     bench_press(
         @NamedTuple{dNdt::FT, dLdt::FT},
         P3.het_ice_nucleation,
         (kaolinite, tps, q_liq, N_liq, RH_2, T_air_2, ρ_air),
-        220,
+        140,
+        min_expected_time = 21,
     )
     bench_press(
         @NamedTuple{dNdt::FT, dLdt::FT},
         P3.ice_melt,
         (ch2022, aps, tps, T_air, ρ_air, state, logλ),
-        150_000,
+        35_000,
+        min_expected_time = 5_100,
     )
-    bench_press(FT, CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
-    bench_press(FT, CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, FT(25)), 230)
+    bench_press(FT, CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 18)
+    bench_press(FT, CMI_het.P3_het_N_i, (ip.p3, T_air_cold, N_liq, V_liq, FT(25)), 30)
 
     @info "Cloud/Ice Terminal Velocity (Non-Eq)"
-    bench_press(FT, CMN.terminal_velocity, (liquid, stokes_vel, ρ_air, q_liq), 350)
-    bench_press(FT, CMN.terminal_velocity, (ice, ch2022.small_ice, ρ_air, q_ice), 400)
+    bench_press(FT, CMN.terminal_velocity, (liquid, stokes_vel, ρ_air, q_liq), 35)
+    bench_press(FT, CMN.terminal_velocity, (ice, ch2022.small_ice, ρ_air, q_ice), 300; min_expected_time = 51)
 
     @info "Precipitation Terminal Velocity (1M)"
-    bench_press(FT, CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 850)
-    bench_press(FT, CM1.terminal_velocity, (snow, ch2022.large_ice, ρ_air, q_sno), 850)
+    bench_press(FT, CM1.terminal_velocity, (rain, ch2022.rain, ρ_air, q_rai), 600; min_expected_time = 110)
+    bench_press(FT, CM1.terminal_velocity, (snow, ch2022.large_ice, ρ_air, q_sno), 600; min_expected_time = 100)
 
     @info "Aerosol Activation"
-    bench_press(FT, AA.total_N_activated, (ap, aer_distr, aps, tps, T_air, p_air, w_air, q_tot, FT(0), FT(0)), 1300)
+    bench_press(
+        FT,
+        AA.total_N_activated,
+        (ap, aer_distr, aps, tps, T_air, p_air, w_air, q_tot, FT(0), FT(0)),
+        500;
+        min_expected_time = 94,
+    )
 
     @info "Common Functions"
-    bench_press(FT, CO.H2SO4_soln_saturation_vapor_pressure, (H2SO4_prs, x_sulph, T_air_cold), 50)
-    bench_press(FT, CO.a_w_xT, (H2SO4_prs, tps, x_sulph, T_air_cold), 230)
-    bench_press(FT, CO.a_w_eT, (tps, e, T_air_cold), 230)
-    bench_press(FT, CO.a_w_ice, (tps, T_air_cold), 230)
+    bench_press(FT, CO.H2SO4_soln_saturation_vapor_pressure, (H2SO4_prs, x_sulph, T_air_cold), 20)
+    bench_press(FT, CO.a_w_xT, (H2SO4_prs, tps, x_sulph, T_air_cold), 70)
+    bench_press(FT, CO.a_w_eT, (tps, e, T_air_cold), 50)
+    bench_press(FT, CO.a_w_ice, (tps, T_air_cold), 100)
 
     @info "Ice Nucleation"
-    bench_press(FT, CMI_het.dust_activated_number_fraction, (desert_dust, ip.deposition, S_ice, T_air_2), 50)
-    bench_press(FT, CMI_het.MohlerDepositionRate, (desert_dust, ip.deposition, S_ice, T_air_2, dSi_dt, N_aer), 80)
-    bench_press(FT, CMI_het.deposition_J, (kaolinite, Delta_a_w), 230)
-    bench_press(FT, CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 230)
-    bench_press(FT, CMI_het.INP_concentration_frequency, (ip_frostenberg, INPC, T_air_cold), 150)
-    bench_press(FT, CMI_hom.homogeneous_J_cubic, (ip.homogeneous, Delta_a_w), 230)
-    bench_press(FT, CMI_hom.homogeneous_J_linear, (ip.homogeneous, Delta_a_w), 230)
+    bench_press(FT, CMI_het.dust_activated_number_fraction, (desert_dust, ip.deposition, S_ice, T_air_2), 20)
+    bench_press(FT, CMI_het.MohlerDepositionRate, (desert_dust, ip.deposition, S_ice, T_air_2, dSi_dt, N_aer), 14)
+    bench_press(FT, CMI_het.deposition_J, (kaolinite, Delta_a_w), 50)
+    bench_press(FT, CMI_het.ABIFM_J, (desert_dust, Delta_a_w), 50)
+    bench_press(FT, CMI_het.INP_concentration_frequency, (ip_frostenberg, INPC, T_air_cold), 70)
+    bench_press(FT, CMI_hom.homogeneous_J_cubic, (ip.homogeneous, Delta_a_w), 60)
+    bench_press(FT, CMI_hom.homogeneous_J_linear, (ip.homogeneous, Delta_a_w), 50)
 
     @info "Non-equilibrium Microphysics"
-    bench_press(FT, CMN.τ_relax, (ice, aps, ip_frostenberg, FT(1e-4), FT(250)), 300)
+    bench_press(FT, CMN.τ_relax, (ice, aps, ip_frostenberg, FT(1e-4), FT(250)), 90)
 
     mp_mock = (; cloud = (; liquid = liquid))
     micro_mock = (; q_tot = FT(0.00145), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
     thermo_mock = (; ρ = FT(0.8), T = FT(263))
     bench_press(FT, CMN.conv_q_vap_to_q_lcl,
-        (CMP.CloudLiquidFormation(CP.create_toml_dict(FT)), mp_mock, tps, micro_mock, thermo_mock), 160)
+        (CMP.CloudLiquidFormation(CP.create_toml_dict(FT)), mp_mock, tps, micro_mock, thermo_mock), 70)
 
     @info "0-Moment Scheme"
-    bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)
-    bench_press(FT, CM0.∂remove_precipitation_∂q_tot, (p0m, q_liq, q_ice), 12)
+    bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 14)
+    bench_press(FT, CM0.∂remove_precipitation_∂q_tot, (p0m, q_liq, q_ice), 14)
 
     @info "1-Moment Scheme"
     micro_1m = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
@@ -250,30 +319,47 @@ function benchmark_test(FT)
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
         (mp_1m.options.rain_autoconversion, mp_1m, tps, micro_1m, thermo_1m),
-        500,
+        100,
     )
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
         (mp_1m_2M.options.rain_autoconversion, mp_1m_2M, tps, micro_1m, thermo_1m),
-        500,
+        16,
     )
-    bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, E_lcl_rai, q_liq, q_rai, ρ_air), 360)
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_liquid_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(
+        FT,
+        CM1.accretion,
+        (liquid, rain, blk1mvel.rain, E_lcl_rai, q_liq, q_rai, ρ_air),
+        140;
+        min_expected_time = 21,
+    )
+    bench_press(
+        FT, CM1.accretion, (mp_1m.options.cloud_liquid_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 300;
+        min_expected_time = 53,
+    )
     bench_press(
         @NamedTuple{S_accr::FT, S_melt::FT},
         CM1.accretion,
         (mp_1m.options.cloud_liquid_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
-        360,
+        300,
+        min_expected_time = 51,
     )
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_ice_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_ice_snow_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(
+        FT, CM1.accretion, (mp_1m.options.cloud_ice_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 300;
+        min_expected_time = 53,
+    )
+    bench_press(
+        FT, CM1.accretion, (mp_1m.options.cloud_ice_snow_accretion, mp_1m, tps, micro_1m, thermo_1m), 300;
+        min_expected_time = 53,
+    )
     bench_press(
         @NamedTuple{S_rai_sno::FT, S_sno_rai::FT, S_melt::FT},
         CM1.accretion_snow_rain,
         (mp_1m.options.rain_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
-        1400,
+        600,
+        min_expected_time = 100,
     )
-    bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
+    bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 120)
 
     @info "1-Moment Bulk Tendencies"
     CM1M = BMT.Microphysics1Moment()
@@ -282,19 +368,22 @@ function benchmark_test(FT)
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
         (BMT.Instantaneous(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno),
-        5500,
+        1500,
+        min_expected_time = 230,
     )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
         (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt),
-        5500,
+        1500,
+        min_expected_time = 230,
     )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
         (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt, 3),
-        18000,
+        4000,
+        min_expected_time = 710,
     )
 
 
@@ -305,19 +394,30 @@ function benchmark_test(FT)
             @NamedTuple{au::CM2.LclRaiRates{FT}, sc::FT},
             CM2.autoconversion_and_cloud_liquid_self_collection,
             (sb, q_liq, q_rai, ρ_air, N_liq),
-            300,
+            140,
+            min_expected_time = 22,
         )
-        bench_press(@NamedTuple{sc::FT, br::FT}, CM2.rain_self_collection_and_breakup, (sb, q_rai, ρ_air, N_rai), 1200)
+        bench_press(
+            @NamedTuple{sc::FT, br::FT}, CM2.rain_self_collection_and_breakup, (sb, q_rai, ρ_air, N_rai), 180;
+            min_expected_time = 18,
+        )
         bench_press(
             @NamedTuple{∂ₜρn_rai::FT, ∂ₜq_rai::FT},
             CM2.rain_evaporation,
             (sb, aps, tps, q_tot, q_liq, q_ice, q_rai, q_sno, ρ_air, N_rai, T_air),
-            2000,
+            400,
+            min_expected_time = 66,
         )
-        bench_press(Tuple{FT, FT}, CM2.rain_terminal_velocity, (sb, sb2006vel, q_rai, ρ_air, N_rai), 700)
-        bench_press(Tuple{FT, FT}, CM2.rain_terminal_velocity, (sb, ch2022.rain, q_rai, ρ_air, N_rai), 2200)
-        bench_press(FT, CMD.radar_reflectivity_2M, (sb, q_liq, q_rai, N_liq, N_rai, ρ_air), 2000)
-        bench_press(FT, CMD.effective_radius_2M, (sb, q_liq, q_rai, N_liq, N_rai, ρ_air), 2000)
+        bench_press(Tuple{FT, FT}, CM2.rain_terminal_velocity, (sb, sb2006vel, q_rai, ρ_air, N_rai), 120)
+        bench_press(
+            Tuple{FT, FT},
+            CM2.rain_terminal_velocity,
+            (sb, ch2022.rain, q_rai, ρ_air, N_rai),
+            800;
+            min_expected_time = 150,
+        )
+        bench_press(FT, CMD.radar_reflectivity_2M, (sb, q_liq, q_rai, N_liq, N_rai, ρ_air), 400; min_expected_time = 68)
+        bench_press(FT, CMD.effective_radius_2M, (sb, q_liq, q_rai, N_liq, N_rai, ρ_air), 600; min_expected_time = 95)
 
         @info "P3 Collisions"
         # Julia <= 1.11 inference exceeds its depth budget on this collision
@@ -333,24 +433,34 @@ function benchmark_test(FT)
                     sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,
                     aps, tps, ch2022,
                     ρ_air, T_air,
-                ), 1e9)
+                ), 17_000_000; min_expected_time = 2_700_000)
         end
     end
-    bench_press(FT, CMD.effective_radius_Liu_Hallet_97, (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai), 300)
-    bench_press(FT, CM2.number_increase_for_mass_limit, (sb2006.numadj, FT(5e-6), q_rai, ρ_air, N_rai), 50)
-    bench_press(FT, CM2.number_decrease_for_mass_limit, (sb2006.numadj, FT(2.6e-10), q_rai, ρ_air, N_rai), 50)
+    bench_press(FT, CMD.effective_radius_Liu_Hallet_97, (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai), 50)
+    bench_press(FT, CM2.number_increase_for_mass_limit, (sb2006.numadj, FT(5e-6), q_rai, ρ_air, N_rai), 16)
+    bench_press(FT, CM2.number_decrease_for_mass_limit, (sb2006.numadj, FT(2.6e-10), q_rai, ρ_air, N_rai), 14)
 
     @info "Homogeneous Nucleation"
     bench_press(
         @NamedTuple{binary_rate::FT, ternary_rate::FT},
         HN.h2so4_nucleation_rate,
         (FT(1e12), FT(1), FT(1), FT(208), h2so4_nuc),
-        470,
+        250,
+        min_expected_time = 37,
     )
-    bench_press(FT, HN.organic_nucleation_rate, (FT(0), FT(1e3), FT(1e3), FT(1e3), FT(300), FT(1), organ_nuc), 850)
-    bench_press(FT, HN.organic_and_h2so4_nucleation_rate, (FT(2.6e6), FT(1), FT(1), FT(300), FT(1), mixed_nuc), 120)
+    bench_press(
+        FT,
+        HN.organic_nucleation_rate,
+        (FT(0), FT(1e3), FT(1e3), FT(1e3), FT(300), FT(1), organ_nuc),
+        160;
+        min_expected_time = 25,
+    )
+    bench_press(FT, HN.organic_and_h2so4_nucleation_rate, (FT(2.6e6), FT(1), FT(1), FT(300), FT(1), mixed_nuc), 25)
 end
 
+SPEED_FACTOR[] = measure_speed_factor()
+SPEED_FACTOR_LOWER[] = measure_speed_factor_lower()
+@info "Machine-speed factor: $(SPEED_FACTOR[]) (lower bound: $(SPEED_FACTOR_LOWER[]))"
 TT.@testset "Performance Tests ($FT)" for FT in (Float64, Float32)
     benchmark_test(FT)
 end
