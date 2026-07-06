@@ -80,8 +80,10 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 - `q_sno`: snow specific content (snow only)
 - `ρ`: air density (snow only)
 """
-@inline get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT} =
-    q_sno > UT.ϵ_numerics(FT) ? μ * (ρ * q_sno)^ν : zero(FT)
+@inline function get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT}
+    safe_q_sno = max(q_sno, UT.ϵ_numerics(FT))
+    return ifelse(q_sno > UT.ϵ_numerics(FT), μ * (ρ * safe_q_sno)^ν, zero(FT))
+end
 @inline get_n0((; n0)::CMP.ParticlePDFIceRain{FT}, args...) where {FT} = n0
 
 """
@@ -133,12 +135,19 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     # mass(size)
     (; r0, m0, me, Δm, χm, gamma_coeff) = mass
 
-    λ_inv = FT(0)
-    if q > UT.ϵ_numerics(FT) && ρ > UT.ϵ_numerics(FT)
-        # Note: Julia compiles x^y to exp(y * log(x))
-        # gamma_coeff is pre-computed in ParticleMass constructor for GPU performance
-        λ_inv = (ρ * q * r0^(me + Δm) / (χm * m0 * n0 * gamma_coeff))^(1 / (me + Δm + 1))
-    end
+    # Domain sanitization only (NOT a physical threshold): `clamp_to_nonneg` on q, ρ
+    # and the `max(n0, ϵ)` floor keep the ratio finite instead of 0/0 (for snow,
+    # n0 ∝ q^ν → 0 as q → 0). As q → 0 the base → 0, so λ_inv → 0 and is clamped to the
+    # r0*1e-5 floor below, keeping λ_inv (a denominator in the rate formulas) finite so
+    # the *discarded* branch of each caller's `ifelse(q > ϵ_numerics, rate, 0)` gate
+    # cannot produce Inf/NaN. The physical "tracer absent" decision lives in those
+    # caller gates, not here.
+    # Note: Julia compiles x^y to exp(y * log(x)); gamma_coeff is pre-computed in the
+    # ParticleMass constructor for GPU performance.
+    qp = UT.clamp_to_nonneg(q)
+    ρp = UT.clamp_to_nonneg(ρ)
+    denom = χm * m0 * max(n0, UT.ϵ_numerics(FT)) * gamma_coeff
+    λ_inv = (ρp * qp * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
     return max(r0 * FT(1e-5), λ_inv)
 end
 
@@ -216,22 +225,27 @@ Fall velocity of individual particles is parameterized:
     vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
     ρ::FT,
     q::FT,
+    v0::FT,
+    λ_inv::FT,
 ) where {FT}
-    if q > UT.ϵ_numerics(FT)
-        # terminal_velocity(size)
-        (; χv, ve, Δv, gamma_term) = vel
-        v0 = get_v0(vel, ρ)
-        # mass(size)
-        (; r0, me, Δm, χm, gamma_coeff) = mass
-        # size distribution
-        λ_inv = lambda_inverse(pdf, mass, q, ρ)
+    (; χv, ve, Δv, gamma_term) = vel
+    (; r0, me, Δm, χm, gamma_coeff) = mass
 
-        # gamma_term = SF.gamma(me + ve + Δm + Δv + 1) (pre-computed in vel)
-        # gamma_coeff = SF.gamma(me + Δm + 1) (pre-computed in mass)
-        return χv * v0 * (λ_inv / r0)^(ve + Δv) * gamma_term / gamma_coeff
-    else
-        return FT(0)
-    end
+    # gamma_term = SF.gamma(me + ve + Δm + Δv + 1) (pre-computed in vel)
+    # gamma_coeff = SF.gamma(me + Δm + 1) (pre-computed in mass)
+    fall_w = χv * v0 * (λ_inv / r0)^(ve + Δv) * gamma_term / gamma_coeff
+    return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
+end
+
+@inline function terminal_velocity(
+    precip::Union{CMP.Rain, CMP.Snow},
+    vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
+    ρ::FT,
+    q::FT,
+) where {FT}
+    v0 = get_v0(vel, ρ)
+    λ_inv = lambda_inverse(precip.pdf, precip.mass, q, ρ)
+    return terminal_velocity(precip, vel, ρ, q, v0, λ_inv)
 end
 
 @inline function terminal_velocity(
@@ -240,22 +254,19 @@ end
     ρₐ::FT,
     q::FT,
 ) where {FT}
-    fall_w = FT(0)
-    if q > UT.ϵ_numerics(FT)
-        # coefficients from Table B1 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
-        # size distribution parameter
-        λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
-        λ_inv_diameter = 2 * λ_inv_radius
-        # eq 20 from Chen et al 2022 (loop unrolled for GPU performance)
-        fall_w =
-            CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-            CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3) +
-            CO.Chen2022_exponential_pdf(aiu[3], bi[3], ciu[3], λ_inv_diameter, 3)
-        # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
-        fall_w = max(FT(0), fall_w)
-    end
-    return fall_w
+    # coefficients from Table B1 from Chen et. al. 2022
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
+    # size distribution parameter
+    λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
+    λ_inv_diameter = 2 * λ_inv_radius
+    # eq 20 from Chen et al 2022 (loop unrolled for GPU performance)
+    fall_w =
+        CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
+        CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3) +
+        CO.Chen2022_exponential_pdf(aiu[3], bi[3], ciu[3], λ_inv_diameter, 3)
+    # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
+    fall_w = max(FT(0), fall_w)
+    return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
 
 @inline function terminal_velocity(
@@ -264,28 +275,25 @@ end
     ρₐ::FT,
     q::FT,
 ) where {FT}
-    fall_w = FT(0)
     # We assume the B4 table coeffs for snow and B2 table coeffs for cloud ice.
     # Instead we should do partial integrals
     # from D=125um to D=625um using B2 and D=625um to inf using B4.
-    if q > UT.ϵ_numerics(FT)
-        # coefficients from Table B4 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
-        # size distribution parameter
-        λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
-        λ_inv_diameter = 2 * λ_inv_radius
+    # coefficients from Table B4 from Chen et. al. 2022
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
+    # size distribution parameter
+    λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
+    λ_inv_diameter = 2 * λ_inv_radius
 
-        # As a next step, we could keep ϕ(r) under the integrals
-        # assume oblate shape and aspect ratio
-        (; ϕ, κ) = aspr
+    # As a next step, we could keep ϕ(r) under the integrals
+    # assume oblate shape and aspect ratio
+    (; ϕ, κ) = aspr
 
-        # eq 20 from Chen 2022 (loop unrolled for GPU performance)
-        fall_w =
-            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-            ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
-        fall_w = max(FT(0), fall_w)
-    end
-    return fall_w
+    # eq 20 from Chen 2022 (loop unrolled for GPU performance)
+    fall_w =
+        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
+        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
+    fall_w = max(FT(0), fall_w)
+    return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
 
 @inline function terminal_velocity(
@@ -295,27 +303,24 @@ end
     q::FT,
     snow_shape::AbstractSnowShape,
 ) where {FT}
-    fall_w = FT(0)
     # see comments above about B2 vs B4 coefficients
-    if q > UT.ϵ_numerics(FT)
-        # coefficients from Table B4 from Chen et. al. 2022
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
-        # size distribution parameter
-        λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
-        λ_inv_diameter = 2 * λ_inv_radius
-        # Compute the mass weighted average aspect ratio ϕ_av
-        # As a next step, we could keep ϕ(r) under the integrals
-        (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
-        # Use pre-computed gamma_aspect from Snow struct
-        gamma_aspect = snow_shape isa Oblate ? gamma_aspect_oblate : gamma_aspect_prolate
-        ϕ_av = ϕ₀ * λ_inv_radius^α * gamma_aspect
-        # eq 20 from Chen 2022 (loop unrolled for GPU performance)
-        fall_w =
-            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-            ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
-        fall_w = max(FT(0), fall_w)
-    end
-    return fall_w
+    # coefficients from Table B4 from Chen et. al. 2022
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
+    # size distribution parameter
+    λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
+    λ_inv_diameter = 2 * λ_inv_radius
+    # Compute the mass weighted average aspect ratio ϕ_av
+    # As a next step, we could keep ϕ(r) under the integrals
+    (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
+    # Use pre-computed gamma_aspect from Snow struct
+    gamma_aspect = snow_shape isa Oblate ? gamma_aspect_oblate : gamma_aspect_prolate
+    ϕ_av = ϕ₀ * λ_inv_radius^α * gamma_aspect
+    # eq 20 from Chen 2022 (loop unrolled for GPU performance)
+    fall_w =
+        ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
+        ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
+    fall_w = max(FT(0), fall_w)
+    return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
 
 """
@@ -356,6 +361,30 @@ end
     q_lcl = micro.q_lcl
     (; τ, α, Nc) = opt.autoconv
     return max(0, q_lcl) / (τ * (Nc / 100_000_000)^α)
+end
+
+# Size-distribution / fall-speed parameters shared across the 1-moment process rates.
+# `lambda_inverse` (a `pow`), snow `get_n0` (a `pow`) and `get_v0` are each reused by
+# several processes for the same hydrometeor species, so computing them once per cell
+# avoids redundant transcendentals that the compiler cannot eliminate across the
+# (inlined) per-process calls. This is the "compute once and pass" pattern:
+# `BulkMicrophysicsTendencies` builds this once per cell and threads it to the process
+# functions below via their optional `sd` argument. The `sd = size_distr_parameters(...)`
+# default is evaluated only for standalone callers that omit it, so there is no repeated
+# computation on the BMT hot path; for such callers the compiler drops the unused fields.
+@inline function size_distr_parameters(mp, micro, thermo)
+    (; q_rai, q_sno, q_icl) = micro
+    ρ = thermo.ρ
+    return (;
+        λ_inv_rai = lambda_inverse(mp.precip.rain.pdf, mp.precip.rain.mass, q_rai, ρ),
+        n0_rai = get_n0(mp.precip.rain.pdf, q_rai, ρ),
+        v0_rai = get_v0(mp.terminal_velocity.rain, ρ),
+        λ_inv_sno = lambda_inverse(mp.precip.snow.pdf, mp.precip.snow.mass, q_sno, ρ),
+        n0_sno = get_n0(mp.precip.snow.pdf, q_sno, ρ),
+        v0_sno = get_v0(mp.terminal_velocity.snow, ρ),
+        λ_inv_icl = lambda_inverse(mp.cloud.ice.pdf, mp.cloud.ice.mass, q_icl, ρ),
+        n0_icl = get_n0(mp.cloud.ice.pdf),
+    )
 end
 
 """
@@ -688,19 +717,8 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
 @inline conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
-@inline conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo, p_vs_liq) = zero(thermo.T)
 
-# Convenience method: compute the saturation vapor pressure over liquid, then
-# delegate to the variant below. Callers that already hold `p_vs_liq` (e.g. the
-# bulk tendency driver, which reuses it across several processes) should call
-# the 6-argument method directly to avoid recomputing it.
-@inline conv_q_rai_to_q_vap(opt::CMP.RainEvaporation, mp, tps, micro, thermo) =
-    conv_q_rai_to_q_vap(
-        opt, mp, tps, micro, thermo,
-        TDI.saturation_vapor_pressure_over_liquid(tps, thermo.T),
-    )
-
-@inline function conv_q_rai_to_q_vap(::CMP.RainEvaporation, mp, tps, micro, thermo, p_vs_liq)
+@inline function conv_q_rai_to_q_vap(::CMP.RainEvaporation, mp, tps, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     (; pdf, mass, vent) = mp.precip.rain
@@ -710,11 +728,11 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     evap_rate = FT(0)
 
     if q_rai > UT.ϵ_numerics(FT)
-        S = TDI.supersaturation(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_vs_liq)
+        S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
         if S < FT(0)
             (; ν_air, D_vapor) = aps
-            G = CO.G_func_liquid(aps, tps, T, p_vs_liq)
+            G = CO.G_func_liquid(aps, tps, T)
             n0 = get_n0(pdf, q_rai, ρ)
             v0 = get_v0(vel, ρ)
             (; χv, ve, Δv, gamma_vent) = vel
@@ -755,33 +773,17 @@ Ventilation factor parameterization follows Seifert and Beheng (2006).
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
 @inline conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
-@inline conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo, p_vs_ice) = zero(thermo.T)
 
-@inline function conv_q_sno_to_q_vap(::CMP.SublimationOnly, mp, tps, micro, thermo, p_vs_ice)
-    return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo, p_vs_ice))
+@inline function conv_q_sno_to_q_vap(::CMP.SublimationOnly, mp, tps, micro, thermo)
+    return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo))
 end
-@inline conv_q_sno_to_q_vap(opt::CMP.SublimationOnly, mp, tps, micro, thermo) =
-    conv_q_sno_to_q_vap(
-        opt, mp, tps, micro, thermo,
-        TDI.saturation_vapor_pressure_over_ice(tps, thermo.T),
-    )
 
-@inline function conv_q_sno_to_q_vap(
-    ::CMP.DepositionAndSublimation, mp, tps, micro, thermo, p_vs_ice,
-)
-    return _snow_subl_dep_rate(mp, tps, micro, thermo, p_vs_ice)
+@inline function conv_q_sno_to_q_vap(::CMP.DepositionAndSublimation, mp, tps, micro, thermo)
+    return _snow_subl_dep_rate(mp, tps, micro, thermo)
 end
-@inline conv_q_sno_to_q_vap(opt::CMP.DepositionAndSublimation, mp, tps, micro, thermo) =
-    conv_q_sno_to_q_vap(
-        opt, mp, tps, micro, thermo,
-        TDI.saturation_vapor_pressure_over_ice(tps, thermo.T),
-    )
 
 """Internal helper: snow sublimation/deposition physics kernel."""
-@inline _snow_subl_dep_rate(mp, tps, micro, thermo) = _snow_subl_dep_rate(
-    mp, tps, micro, thermo, TDI.saturation_vapor_pressure_over_ice(tps, thermo.T),
-)
-@inline function _snow_subl_dep_rate(mp, tps, micro, thermo, p_vs_ice)
+@inline function _snow_subl_dep_rate(mp, tps, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     (; pdf, mass, vent) = mp.precip.snow
@@ -792,8 +794,8 @@ end
 
     if q_sno > UT.ϵ_numerics(FT)
         (; ν_air, D_vapor) = aps
-        S = TDI.supersaturation(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_vs_ice)
-        G = CO.G_func_ice(aps, tps, T, p_vs_ice)
+        S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
+        G = CO.G_func_ice(aps, tps, T)
         n0 = get_n0(pdf, q_sno, ρ)
         v0 = get_v0(vel, ρ)
         (; r0) = mass

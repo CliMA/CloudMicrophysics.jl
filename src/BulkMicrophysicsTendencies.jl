@@ -157,19 +157,9 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
     thermo = (; ρ, T)
 
-    # Saturation vapor pressures over liquid and ice at (ρ, T). Each is the
-    # single most expensive primitive in this routine (a log + exp), and only
-    # two distinct values exist here (over liquid at T, over ice at T). Compute
-    # each once and thread it into every process that needs it, instead of
-    # letting each recompute its own — this routine is evaluated N²·nsubs times
-    # per cell in the SGS-quadrature environment path, so the redundant
-    # saturation evaluations dominated the kernel.
-    p_vs_liq = TDI.saturation_vapor_pressure_over_liquid(tps, T)
-    p_vs_ice = TDI.saturation_vapor_pressure_over_ice(tps, T)
-
     # --- Phase change: vapor ↔ cloud condensate (bidirectional, ±) ---
-    S_phase_change_vap_lcl = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo, p_vs_liq)
-    S_phase_change_vap_icl = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo, p_vs_ice)
+    S_phase_change_vap_lcl = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo)
+    S_phase_change_vap_icl = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo)
 
     # --- Autoconversion (cloud → precipitation, ≥ 0) ---
     S_acnv_lcl_rai = CM1.conv_q_lcl_to_q_rai(opts.rain_autoconversion, mp, tps, micro, thermo)
@@ -203,8 +193,8 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     S_accr_melt_rai_sno = ifelse(is_warm, S_melt, zero(FT))    # thermal melt of sno from warm rai
 
     # --- Phase change: precipitation ↔ vapor ---
-    S_phase_change_vap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_condensation_evaporation, mp, tps, micro, thermo, p_vs_liq)
-    S_phase_change_vap_sno = CM1.conv_q_sno_to_q_vap(opts.snow_deposition_sublimation, mp, tps, micro, thermo, p_vs_ice)
+    S_phase_change_vap_rai = CM1.conv_q_rai_to_q_vap(opts.rain_condensation_evaporation, mp, tps, micro, thermo)
+    S_phase_change_vap_sno = CM1.conv_q_sno_to_q_vap(opts.snow_deposition_sublimation, mp, tps, micro, thermo)
 
     # --- Melting ---
     S_melt_icl_lcl = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo)
@@ -382,172 +372,26 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
 end
 
 """
-Fused source-term evaluation + linearization for the 1-moment implicit substep.
+`@noinline` register barrier around the source-term evaluation + linearization
+of one 1-moment implicit substep.
 
-Computes each microphysics source term and immediately folds it into the sparse
-linearization accumulators (`M`, `e`), in the **exact same order** as the
-separate `_microphysics_source_terms` + `_linearize` pair, so the result is
-bit-for-bit identical. Fusing avoids ever materializing the 18-element source-term
-`NamedTuple`, which cuts the number of values simultaneously live.
-
-Marked `@noinline` so that this large computation compiles as its own device
-function: it is the dominant register consumer inside the SGS-quadrature
-environment kernel (`set_microphysics_tendency_cache!` L924), which is pinned at
-the 255-register hard cap (12.5% occupancy). Isolating it behind a function
-barrier lets the surrounding evaluator hold far less live state, so the goal is
-to lift the register/occupancy limit rather than to reduce arithmetic.
-
-Clamped states feed the process rates (matching `_microphysics_source_terms`);
-the raw `q_*` arguments feed the `max(q_min, q_*)` linearization denominators
-(matching `_linearize`).
+`_microphysics_source_terms` (the 18 process rates) and `_linearize` (the sparse
+`M`/`e` accumulators) are the dominant register consumers inside the
+SGS-quadrature environment kernel (`set_microphysics_tendency_cache!` L924),
+which is pinned at the 255-register hard cap (12.5% occupancy). Compiling them as
+their own device function keeps the surrounding quadrature evaluator from holding
+all of that live state at once. Numerically identical to calling the two inline.
 """
 @noinline function _fused_linearize(
     mp::CMP.Microphysics1MParams, tps,
     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
-    FT = typeof(q_tot)
-    opts = mp.options
+    src = _microphysics_source_terms(
+        Microphysics1Moment(), mp, tps,
+        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    )
     q_min = TDI.TD.Parameters.q_min(tps)
-
-    # Clamp negative inputs to zero for the process-rate state (robustness),
-    # matching `_microphysics_source_terms`.
-    micro = (;
-        q_tot = UT.clamp_to_nonneg(q_tot),
-        q_lcl = UT.clamp_to_nonneg(q_lcl),
-        q_icl = UT.clamp_to_nonneg(q_icl),
-        q_rai = UT.clamp_to_nonneg(q_rai),
-        q_sno = UT.clamp_to_nonneg(q_sno),
-    )
-    thermo = (; ρ = UT.clamp_to_nonneg(ρ), T)
-
-    # Two distinct saturation vapor pressures (see `_microphysics_source_terms`).
-    p_vs_liq = TDI.saturation_vapor_pressure_over_liquid(tps, T)
-    p_vs_ice = TDI.saturation_vapor_pressure_over_ice(tps, T)
-
-    M11 = zero(FT); M12 = zero(FT); M22 = zero(FT)
-    M31 = zero(FT); M33 = zero(FT); M34 = zero(FT)
-    M41 = zero(FT); M42 = zero(FT); M43 = zero(FT); M44 = zero(FT)
-    e1 = zero(FT); e2 = zero(FT); e4 = zero(FT)
-
-    # --- Phase change: vapor → cloud liquid ---
-    S = CMNonEq.conv_q_vap_to_q_lcl(opts.cloud_liquid_formation, mp, tps, micro, thermo, p_vs_liq)
-    D = S / max(q_min, q_lcl)
-    is_source = S >= zero(FT)
-    e1 += ifelse(is_source, S, zero(FT))
-    M11 += ifelse(is_source, zero(FT), D)
-
-    # --- Phase change: vapor → cloud ice ---
-    S = CMNonEq.conv_q_vap_to_q_icl(opts.cloud_ice_formation, mp, tps, micro, thermo, p_vs_ice)
-    D = S / max(q_min, q_icl)
-    is_source = S >= zero(FT)
-    e2 += ifelse(is_source, S, zero(FT))
-    M22 += ifelse(is_source, zero(FT), D)
-
-    # --- Melt: cloud ice → cloud liquid ---
-    S = CM1.conv_q_icl_to_q_lcl(opts.cloud_ice_melt, mp, tps, micro, thermo)
-    D = S / max(q_min, q_icl)
-    M22 -= D
-    M12 += D
-
-    # --- Autoconversion: cloud liquid → rain ---
-    S = CM1.conv_q_lcl_to_q_rai(opts.rain_autoconversion, mp, tps, micro, thermo)
-    D = S / max(q_min, q_lcl)
-    M11 -= D
-    M31 += D
-
-    # --- Autoconversion: cloud ice → snow ---
-    S = CM1.conv_q_icl_to_q_sno(opts.snow_autoconversion, mp, tps, micro, thermo)
-    D = S / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
-
-    is_warm = T >= TDI.T_freeze(tps)
-
-    # --- Accretion: cloud liquid + rain → rain ---
-    S = CM1.accretion(opts.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
-    D = S / max(q_min, q_lcl)
-    M11 -= D
-    M31 += D
-
-    # --- Accretion: cloud liquid + snow (cold → sno, warm → rai; plus melt) ---
-    (; S_accr, S_melt) = CM1.accretion(opts.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
-    S_accr_lcl_sno_cold = ifelse(is_warm, zero(FT), S_accr)
-    S_accr_lcl_sno_warm = ifelse(is_warm, S_accr, zero(FT))
-    S_accr_melt_lcl_sno = S_melt
-    D_cold = S_accr_lcl_sno_cold / max(q_min, q_lcl)
-    D_warm = S_accr_lcl_sno_warm / max(q_min, q_lcl)
-    M11 -= D_cold + D_warm
-    M31 += D_warm
-    M41 += D_cold
-
-    # thermal melt of sno from warm lcl
-    D = S_accr_melt_lcl_sno / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
-
-    # --- Accretion: cloud ice + rain → snow (ice-side sink) ---
-    S = CM1.accretion(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo)
-    D = S / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
-
-    # --- Accretion: cloud ice + snow → snow ---
-    S = CM1.accretion(opts.cloud_ice_snow_accretion, mp, tps, micro, thermo)
-    D = S / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
-
-    # --- Rain frozen in icl + rai collision → snow (rain sink) ---
-    S = CM1.accretion_rain_sink(opts.cloud_ice_rain_accretion, mp, tps, micro, thermo)
-    D = S / max(q_min, q_rai)
-    M33 -= D
-    M43 += D
-
-    # --- Rain-snow collisions (cold/warm arms + thermal melt) ---
-    (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(opts.rain_snow_accretion, mp, tps, micro, thermo)
-    S_accr_rai_sno_cold = ifelse(is_warm, zero(FT), S_rai_sno)
-    S_accr_rai_sno_warm = ifelse(is_warm, S_sno_rai, zero(FT))
-    S_accr_melt_rai_sno = ifelse(is_warm, S_melt, zero(FT))
-
-    # warm arm: sno melts → rai
-    D = S_accr_rai_sno_warm / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
-
-    # thermal melt of sno from warm rai
-    D = S_accr_melt_rai_sno / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
-
-    # cold arm: rai freezes → sno
-    D = S_accr_rai_sno_cold / max(q_min, q_rai)
-    M33 -= D
-    M43 += D
-
-    # --- Rain phase change: sink to vapor ---
-    S = CM1.conv_q_rai_to_q_vap(opts.rain_condensation_evaporation, mp, tps, micro, thermo, p_vs_liq)
-    D = (-S) / max(q_min, q_rai)
-    M33 -= D
-
-    # --- Snow phase change: deposition/sublimation ---
-    S = CM1.conv_q_sno_to_q_vap(opts.snow_deposition_sublimation, mp, tps, micro, thermo, p_vs_ice)
-    D = S / max(q_min, q_sno)
-    is_source = S >= zero(FT)
-    e4 += ifelse(is_source, S, zero(FT))
-    M44 += ifelse(is_source, zero(FT), D)
-
-    # --- Snow melt: snow → rain ---
-    S = CM1.conv_q_sno_to_q_rai(opts.snow_melt, mp, tps, micro, thermo)
-    D = S / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
-
-    return (
-        M11 = M11, M12 = M12, M22 = M22,
-        M31 = M31, M33 = M33, M34 = M34,
-        M41 = M41, M42 = M42, M43 = M43, M44 = M44,
-        e1 = e1, e2 = e2, e4 = e4,
-    )
+    return _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
 end
 
 """
@@ -574,9 +418,9 @@ exponential decays over the substep.
 
     FT = typeof(q_tot)
 
-    # Fused source-term evaluation + linearization (bit-for-bit with the separate
-    # `_microphysics_source_terms` + `_linearize` pair, but without materializing
-    # the 18-element source-term tuple, and behind an `@noinline` register barrier).
+    # Source-term evaluation + linearization behind an `@noinline` register
+    # barrier (numerically identical to calling the two inline). Isolating this
+    # heavy computation raises occupancy in the register-capped L924 kernel.
     lin = _fused_linearize(mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
 
     invΔt = one(FT) / Δt

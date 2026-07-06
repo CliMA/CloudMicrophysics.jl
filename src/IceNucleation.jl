@@ -266,7 +266,7 @@ Compute the rate of liquid water freezing into ice.
     + `∂ₜq_frz`: Specific mass freezing rate [kg(water) kg⁻¹(air) s⁻¹].
 """
 function liquid_freezing_rate(opt::CMP.RainFreezing, pdf, tps, q, ρ, N, T)
-    FT = eltype(q)
+    FT = float(UT.promote_typeof(q, ρ, N, T))
     T_freeze = TDI.TD.Parameters.T_freeze(tps)
     (; ρw) = pdf  # [kg(water) m⁻³(water)]
     n = N / ρ     # specific number concentration [kg⁻¹(air)]
@@ -298,8 +298,8 @@ function liquid_freezing_rate(opt::CMP.RainFreezing, pdf, tps, q, ρ, N, T)
     # Otherwise, return zero.
     ϵₘ, ϵₙ = UT.ϵ_numerics_2M_M(FT), UT.ϵ_numerics_2M_N(FT)
     cond = (n > ϵₙ) & (q > ϵₘ) & (T < T_freeze - 4)
-    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(n))
-    ∂ₜq_frz = ifelse(cond, ∂ₜq_frz, zero(q))
+    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(FT))
+    ∂ₜq_frz = ifelse(cond, ∂ₜq_frz, zero(FT))
 
     return (; ∂ₜn_frz, ∂ₜq_frz)
 end
@@ -351,7 +351,7 @@ function liquid_freezing_rate(
     opt::CMP.RainFreezing, pdf::CMP.CloudParticlePDF_SB2006,
     tps, q, ρ, N, T,
 )
-    FT = eltype(q)
+    FT = float(UT.promote_typeof(q, ρ, N, T))
     T_freeze = TDI.TD.Parameters.T_freeze(tps)
     (; ρw) = pdf
     n = N / ρ     # specific number concentration [kg⁻¹(air)]
@@ -375,8 +375,8 @@ function liquid_freezing_rate(
     # Check non-trivial number/mass and that T < -4 °C.
     ϵₘ, ϵₙ = UT.ϵ_numerics_2M_M(FT), UT.ϵ_numerics_2M_N(FT)
     cond = (n > ϵₙ) & (q > ϵₘ) & (T < T_freeze - 4)  # TODO: Make a parameter.
-    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(n))
-    ∂ₜq_frz = ifelse(cond, ∂ₜq_frz, zero(q))
+    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(FT))
+    ∂ₜq_frz = ifelse(cond, ∂ₜq_frz, zero(FT))
 
     return (; ∂ₜn_frz, ∂ₜq_frz)
 end

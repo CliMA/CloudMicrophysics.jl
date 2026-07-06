@@ -31,11 +31,13 @@ Compute the integration bounds for the P3 size distribution,
 # Returns
 - `bnds`: The integration bounds (a `Tuple`), for use in numerical integration (c.f. [`integrate`](@ref)).
 """
-function integral_bounds(state::P3State{FT}, logλ; p, moment_order = 0) where {FT}
+@inline function integral_bounds(state::P3State{FT}, logλ; p, moment_order = 0) where {FT}
     # Get reduced lower and upper bounds from quantiles
     k = get_μ(state, logλ) + moment_order
-    D_min = DT.generalized_gamma_quantile(k, FT(1), exp(logλ), FT(p))
-    D_max = DT.generalized_gamma_quantile(k, FT(1), exp(logλ), FT(1 - p))
+    λ = exp(logλ)
+    # μ == 1 here, so use the unit-μ quantile (avoids a `(z/λ)^1` runtime pow per bound)
+    D_min = DT.generalized_gamma_quantile_unit_μ(k, λ, FT(p))
+    D_max = DT.generalized_gamma_quantile_unit_μ(k, λ, FT(1 - p))
 
     # Only integrate up to the maximum diameter, `D_max`, including intermediate thresholds
     # If `F_rim` is very close to 1, `D_cr` may be greater than `D_max`, in which case it is disregarded.

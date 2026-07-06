@@ -9,8 +9,8 @@ struct P3IceParticleVelocityFunctor{FT, VS, VL, S} <: Function
     use_aspect_ratio::Bool
 end
 @inline function (f::P3IceParticleVelocityFunctor)(D)
-    vₜ = D <= f.D_cutoff ? f.v_term_small(D) : f.v_term_large(D)
-    return f.use_aspect_ratio ? cbrt(ϕᵢ(f.state, D)) * vₜ : vₜ
+    vₜ = ifelse(D <= f.D_cutoff, f.v_term_small(D), f.v_term_large(D))
+    return ifelse(f.use_aspect_ratio, cbrt(ϕᵢ(f.state, D)) * vₜ, vₜ)
 end
 
 """
@@ -74,7 +74,7 @@ function ice_terminal_velocity_number_weighted(
     (; ρn_ice, ρq_ice) = state
     # TODO - do we want to swicth to ϵ_numerics(FT)
     if ρn_ice < eps(one(ρn_ice)) || ρq_ice < eps(one(ρq_ice))
-        return zero(ρn_ice)
+        return zero(promote_type(eltype(state), UT.promote_typeof(ρₐ, logλ)))
     end
 
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; use_aspect_ratio)
@@ -120,7 +120,7 @@ function ice_terminal_velocity_mass_weighted(
     (; ρn_ice, ρq_ice) = state
     # TODO - do we want to swicth to ϵ_numerics(FT)
     if ρn_ice < eps(one(ρn_ice)) || ρq_ice < eps(one(ρq_ice))
-        return zero(ρq_ice)
+        return zero(promote_type(eltype(state), UT.promote_typeof(ρₐ, logλ)))
     end
 
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state; use_aspect_ratio)

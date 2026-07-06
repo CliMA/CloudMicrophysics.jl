@@ -44,20 +44,14 @@ numerical robustness.
 - Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
 - This prevents NaN/Inf propagation from near-zero denominators
 """
-@inline G_func_liquid(air_props::CMP.AirProperties{FT}, tps::TDI.PS, T::FT) where {FT} =
-    G_func_liquid(air_props, tps, T, TDI.saturation_vapor_pressure_over_liquid(tps, T))
-
-# Variant taking a precomputed saturation vapor pressure over liquid `p_vs`,
-# avoiding a redundant `saturation_vapor_pressure` evaluation when the caller
-# already holds it. Bit-for-bit identical to the 3-argument version.
 @inline function G_func_liquid(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
-    T::FT,
-    p_vs::FT,
+    T,
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lᵥ(tps, T)
+    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 
     # Guard against division by zero
     p_vs_safe = max(p_vs, UT.ϵ_numerics(FT))
@@ -89,20 +83,14 @@ numerical robustness.
 - Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
 - This prevents NaN/Inf propagation from near-zero denominators
 """
-@inline G_func_ice(air_props::CMP.AirProperties{FT}, tps::TDI.PS, T::FT) where {FT} =
-    G_func_ice(air_props, tps, T, TDI.saturation_vapor_pressure_over_ice(tps, T))
-
-# Variant taking a precomputed saturation vapor pressure over ice `p_vs`,
-# avoiding a redundant `saturation_vapor_pressure` evaluation when the caller
-# already holds it. Bit-for-bit identical to the 3-argument version.
 @inline function G_func_ice(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
-    T::FT,
-    p_vs::FT,
+    T,
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lₛ(tps, T)
+    p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T)
 
     # Guard against division by zero
     p_vs_safe = max(p_vs, UT.ϵ_numerics(FT))
@@ -166,7 +154,8 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
 # Returns
 - Integral of logistic function (same units as x)
 """
-@inline function logistic_function_integral(x::FT, x_0::FT, k::FT) where {FT}
+@inline function logistic_function_integral(x, x_0, k)
+    FT = UT.promote_typeof(x, x_0, k)
     # Branchless GPU-compatible implementation
     x = max(FT(0), x)
     x_safe = max(x, UT.ϵ_numerics(FT))
@@ -366,7 +355,10 @@ end
  - `pdf(D)`: The monodisperse particle distribution function as a function of diameter, `D`, in [m/s].
 """
 @inline function Chen2022_monodisperse_pdf(a, b, c)
-    return pdf(D) = a * D^b * exp(-c * D)
+    # Fuse D^b * exp(-c*D) = exp(b*log(D) - c*D) into a single exp (D^b alone is a
+    # pow = log+exp for runtime-float b, so this drops one exp per term). Evaluated
+    # per quadrature node in the P3 velocity integrands, the hottest GPU path.
+    return pdf(D) = a * exp(muladd(b, log(D), -c * D))
 end
 
 """
@@ -384,7 +376,8 @@ Assumes exponential size distribution (μ=0).
 # Returns
 - Bulk fall speed component [m/s]
 """
-@inline function Chen2022_exponential_pdf(a::FT, b::FT, c::FT, λ_inv::FT, k::Int) where {FT}
+@inline function Chen2022_exponential_pdf(a, b, c, λ_inv, k::Int)
+    FT = UT.promote_typeof(a, b, c, λ_inv)
     # μ = 0 for exponential distribution, δ = k + 1
     δ = FT(k + 1)
     # Γ(δ) for integer δ is just (δ-1)! — avoid calling SF.gamma.
@@ -490,8 +483,9 @@ See e.g., Seifert and Beheng (2006), https://doi.org/10.1007/s00703-005-0112-4, 
     (; aᵥ, bᵥ) = vent
     (; ν_air, D_vapor) = aps
     N_sc = ν_air / D_vapor           # Schmidt number
+    cbrt_N_sc = cbrt(N_sc)           # loop-invariant over D; hoist out of F_v
     N_Re(D) = D * v_term(D) / ν_air  # Reynolds number
-    F_v(D) = aᵥ + bᵥ * cbrt(N_sc) * sqrt(N_Re(D))  # Ventilation factor
+    F_v(D) = aᵥ + bᵥ * cbrt_N_sc * sqrt(N_Re(D))  # Ventilation factor
     return F_v
 end
 

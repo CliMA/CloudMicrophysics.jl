@@ -33,13 +33,14 @@ See DOI: 10.5194/acp-23-10883-2023
     (; ρᵢ)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties,
     ip::CMP.Frostenberg2023, q_icl, T,
 )
-    FT = eltype(ρᵢ)
+    FT = UT.promote_typeof(q_icl, T, ρᵢ)
     # Get the estimated number of INPs
     N_icl = exp(IN.INP_concentration_mean(ip, T))
 
     # Compute the radius assuming spherical particles and
     # mono-modal distribution
-    r = N_icl > UT.ϵ_numerics(FT) ? cbrt((3 * q_icl) / (4 * FT(π) * N_icl * ρᵢ)) : zero(FT)
+    safe_N_icl = max(N_icl, UT.ϵ_numerics(FT))
+    r = ifelse(N_icl > UT.ϵ_numerics(FT), cbrt((3 * q_icl) / (4 * FT(π) * safe_N_icl * ρᵢ)), zero(FT))
     r0 = FT(1e-6)
     r_safe = max(r, r0)
 
@@ -107,17 +108,8 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 - Cloud condensate tendency [kg/kg/s]
 """
 @inline conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
-@inline conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo, p_vs_liq) = zero(thermo.T)
-# Convenience method: compute the saturation vapor pressure over liquid, then
-# delegate to the variant taking a precomputed `p_vs_liq`.
-@inline conv_q_vap_to_q_lcl(opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo) =
-    conv_q_vap_to_q_lcl(
-        opt, mp, tps, micro, thermo,
-        TDI.saturation_vapor_pressure_over_liquid(tps, thermo.T),
-    )
-function conv_q_vap_to_q_lcl(
-    opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo, p_vs_liq,
-)
+@inline function conv_q_vap_to_q_lcl(
+    opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     τ = opt.τ_relax
@@ -125,9 +117,9 @@ function conv_q_vap_to_q_lcl(
     Rᵥ = TDI.Rᵥ(tps)
     Lᵥ = TDI.Lᵥ(tps, T)
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
-
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
-    qᵥ_sat_liq = TDI.saturation_vapor_specific_content(tps, T, ρ, p_vs_liq)
+
+    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
 
     dqsl_dT = dqcld_dT(qᵥ_sat_liq, Lᵥ, Rᵥ, T)
     Γₗ = gamma_helper(Lᵥ, cₚ_air, dqsl_dT)
@@ -163,17 +155,8 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 - Cloud condensate tendency [kg/kg/s]
 """
 @inline conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
-@inline conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo, p_vs_ice) = zero(thermo.T)
-# Convenience method: compute the saturation vapor pressure over ice, then
-# delegate to the variant taking a precomputed `p_vs_ice`.
-@inline conv_q_vap_to_q_icl(opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo) =
-    conv_q_vap_to_q_icl(
-        opt, mp, tps, micro, thermo,
-        TDI.saturation_vapor_pressure_over_ice(tps, thermo.T),
-    )
-function conv_q_vap_to_q_icl(
-    opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo, p_vs_ice,
-)
+@inline function conv_q_vap_to_q_icl(
+    opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     τ = opt.τ_relax
@@ -181,9 +164,9 @@ function conv_q_vap_to_q_icl(
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
-
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
-    qᵥ_sat_ice = TDI.saturation_vapor_specific_content(tps, T, ρ, p_vs_ice)
+
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
 
     dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
     Γᵢ = gamma_helper(Lₛ, cₚ_air, dqsi_dT)
@@ -200,14 +183,8 @@ function conv_q_vap_to_q_icl(
     limiter = INP_limiter(tendency, tps, T)
     return ifelse(limiter, zero(tendency), tendency)
 end
-# `TemperatureDependent` ice formation has no precomputed-`p_vs` specialization;
-# fall back to recomputing the saturation pressure internally (off the hot path).
-@inline conv_q_vap_to_q_icl(
-    opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo, p_vs_ice,
-) = conv_q_vap_to_q_icl(opt, mp, tps, micro, thermo)
-function conv_q_vap_to_q_icl(
-    opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo,
-)
+@inline function conv_q_vap_to_q_icl(
+    opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     τ_sub = opt.τ_relax
@@ -216,8 +193,8 @@ function conv_q_vap_to_q_icl(
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
-
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
+
     qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
 
     dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
@@ -267,15 +244,15 @@ function terminal_velocity(
     ρₐ::FT,
     q::FT,
 ) where {FT}
-    fall_w = FT(0)
-    if q > UT.ϵ_numerics(FT)
-        # Stokes law: v(D) = C * D^2, valid for D < ~80 μm (Re < 1)
-        v_term = CO.particle_terminal_velocity(vel, ρₐ)
-        # Mean volume diameter from assumed number concentration
-        D = cbrt(FT(6 / π) * ρₐ * q / N_0 / ρw)
-        fall_w = v_term(D)
-    end
-    return fall_w
+    # Stokes law: v(D) = C * D^2, valid for D < ~80 μm (Re < 1)
+    v_term = CO.particle_terminal_velocity(vel, ρₐ)
+    # `clamp_to_nonneg` is domain sanitization for the cbrt below (keeps the discarded
+    # ifelse branch finite); the physical threshold is the `q > ϵ_numerics` gate.
+    safe_q = UT.clamp_to_nonneg(q)
+    # Mean volume diameter from assumed number concentration
+    D = cbrt(FT(6 / π) * ρₐ * safe_q / N_0 / ρw)
+    fall_w = v_term(D)
+    return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
 
 function terminal_velocity(
@@ -284,14 +261,14 @@ function terminal_velocity(
     ρₐ::FT,
     q::FT,
 ) where {FT}
-    fall_w = FT(0)
-    if q > UT.ϵ_numerics(FT)
-        v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
-        # Mean volume diameter from assumed number concentration
-        D = cbrt(FT(6 / π) * ρₐ * q / N_0 / ρᵢ)
-        fall_w = max(FT(0), v_term(D))
-    end
-    return fall_w
+    v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
+    # `clamp_to_nonneg` is domain sanitization for the cbrt below (keeps the discarded
+    # ifelse branch finite); the physical threshold is the `q > ϵ_numerics` gate.
+    safe_q = UT.clamp_to_nonneg(q)
+    # Mean volume diameter from assumed number concentration
+    D = cbrt(FT(6 / π) * ρₐ * safe_q / N_0 / ρᵢ)
+    fall_w = max(FT(0), v_term(D))
+    return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
 
 end #module MicrophysicsNonEq.jl
