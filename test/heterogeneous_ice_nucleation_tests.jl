@@ -243,6 +243,41 @@ function test_heterogeneous_ice_nucleation(FT)
         ) == FT(0)
     end
 
+    TT.@testset "Frostenberg a/b coefficients" begin
+
+        # a and b are the calibratable coefficients of Eq. (1) and must actually
+        # enter the mean (regression: they were previously ignored, so the mean
+        # was independent of a and b).
+        T_cold = ip_frostenberg.T_freeze - FT(20)
+        μ_default = CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)
+
+        # at the a = b = 1 defaults we recover the marine-dataset curve
+        T_celsius = min(T_cold - ip_frostenberg.T_freeze, FT(0))
+        TT.@test μ_default ≈ log((-T_celsius / 10)^9)
+
+        # a rescales INPC (log(a · INPC) is the normal variate), so the mean
+        # log(INPC) shifts by -log(a)
+        ip_a = CMP.Frostenberg2023{FT}(;
+            σ = ip_frostenberg.σ,
+            a = FT(2),
+            b = ip_frostenberg.b,
+            T_freeze = ip_frostenberg.T_freeze,
+        )
+        TT.@test CMI_het.INP_concentration_mean(ip_a, T_cold) ≈
+                 μ_default - log(FT(2))
+
+        # b rescales the (negative) temperature argument, shifting the mean by
+        # +9 log(b)
+        ip_b = CMP.Frostenberg2023{FT}(;
+            σ = ip_frostenberg.σ,
+            a = ip_frostenberg.a,
+            b = FT(2),
+            T_freeze = ip_frostenberg.T_freeze,
+        )
+        TT.@test CMI_het.INP_concentration_mean(ip_b, T_cold) ≈
+                 μ_default + 9 * log(FT(2))
+    end
+
     TT.@testset "F23 immersion limit rate" begin
 
         T_freeze = ip_frostenberg.T_freeze
