@@ -628,6 +628,7 @@ In contrast to eq.(\ref{eq:mass_rate}), now we are taking into account
 ```math
 \begin{equation}
   \frac{dm}{dt} = 4 \pi \, r \, (S - 1) \, G(T) \, F(r)
+\label{eq:mass_rate2}
 \end{equation}
 ```
 
