@@ -469,17 +469,6 @@ function test_numerical_integrals(FT)
     ρ_a = FT(1.2)
     ps = [1e-3, 1e-6]
 
-    @testset "Chebyshev-Gauss quadrature" begin
-        quad = P3.ChebyshevGauss(10)
-        f(x) = x^4
-        # test that integration gives the correct result
-        num_int = P3.integrate(f, 0, 1, quad)
-        @test num_int ≈ 0.2 rtol = 0.1
-        # test that increasing the number of points improves the accuracy
-        num_int2 = P3.integrate(f, 0, 1, P3.ChebyshevGauss(100))
-        @test abs(num_int2 - 0.2) < abs(num_int - 0.2)
-    end
-
     @testset "Gauss-Legendre quadrature" begin
         quad = P3.GaussLegendre(16)
         # exact for polynomials up to degree 2n-1 (here deg 4 ≤ 31)
@@ -964,11 +953,11 @@ function test_p3_closed_form_rain_inner(FT)
             v_i = ∂ₜV.v_i
             rc = P3.get_liquid_integrals_rain_closed(
                 psd_r, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
-                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                m_liq, ρ′_rim, bnds; quad = P3.GaussLegendre(FT, 6),
             )
             rn = P3.get_liquid_integrals(  # numerical fallback
                 n_r, ∂ₜV, m_liq, ρ′_rim, bnds;
-                quad = P3.ChebyshevGauss(40),
+                quad = P3.GaussLegendre(FT, 6),
             )
             for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
                 vi = v_i(Dᵢ)

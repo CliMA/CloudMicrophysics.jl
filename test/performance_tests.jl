@@ -188,7 +188,7 @@ function benchmark_test(FT)
         FT, (a, b, c, d) -> P3.ice_terminal_velocity_mass_weighted(a, b, c, d; quad = _glq),
         (ch2022, ρ_air, state, logλ), 200_000,
     )
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1), P3.ChebyshevGauss(100)), 7_000)
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1), P3.GaussLegendre(FT, 6)), 7_000)
     bench_press(FT, P3.D_m, (state, logλ), 20_000)
 
     @info "P3 Ice Nucleation"
