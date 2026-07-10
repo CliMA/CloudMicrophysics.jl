@@ -33,8 +33,7 @@ export autoconversion,
     rain_self_collection_and_breakup,
     size_distribution,
     get_size_distribution_bounds,
-    number_increase_for_mass_limit,
-    number_decrease_for_mass_limit
+    number_tendency_from_mass_limits
 
 """
     pdf_rain_parameters(pdf_r, qᵣ, ρₐ, Nᵣ)
@@ -851,52 +850,6 @@ Uses the same approximation pattern as
     ∂N_rai = ifelse(N_rai > UT.ϵ_numerics_2M_N(FT), result.∂ₜρn_rai / N_rai, zero(result.∂ₜρn_rai))
     ∂q_rai = ifelse(q_rai > UT.ϵ_numerics_2M_M(FT), result.∂ₜq_rai / q_rai, zero(result.∂ₜq_rai))
     return (; ∂N_rai, ∂q_rai)
-end
-
-"""
-    number_increase_for_mass_limit(numadj, x_max, q, ρ, N)
-
-Compute the tendency (rate of change) of number concentration `N` required to ensure that
-the mean particle mass `x = ρq / N` does not exceed the upper limit `x_max`. Returns a positive
-tendency when the mean mass is too high (`x > x_max`), and zero otherwise.
-The method is based on Horn (2012, DOI: [10.5194/gmd-5-345-2012](https://doi.org/10.5194/gmd-5-345-2012)).
-
-# Arguments
-- `numadj`: Number concentration adjustment parameters ([CMP.NumberAdjustmentHorn2012](@ref))
-- `q`: Mass mixing ratio [kg/kg]
-- `ρ`: Air density [kg/m³]
-- `N`: Number concentration [1/m³]
-- `x_max`: Maximum allowed mean particle mass [kg]
-
-# Returns
-- The rate of change of number concentration [1/(m³·s)] needed to bring the mean mass within the upper bound.
-"""
-number_increase_for_mass_limit((; τ)::CMP.NumberAdjustmentHorn2012, x_max, q, ρ, N) =
-    max(0, ρ * q / x_max - N) / τ
-
-"""
-    number_decrease_for_mass_limit(numadj, x_min, q, ρ, N)
-
-Compute the tendency (rate of change) of number concentration `N` required to ensure that
-the mean particle mass `x = ρq / N` does not fall below the lower limit `x_min`. Returns a negative
-tendency when the mean mass is too low (`x < x_min`), and zero otherwise.
-The method is based on Horn (2012, DOI: [10.5194/gmd-5-345-2012](https://doi.org/10.5194/gmd-5-345-2012)).
-
-# Arguments
-- `numadj`: Number concentration adjustment parameters ([CMP.NumberAdjustmentHorn2012](@ref))
-- `q`: Mass mixing ratio [kg/kg]
-- `ρ`: Air density [kg/m³]
-- `N`: Number concentration [1/m³]
-- `x_min`: Minimum allowed mean particle mass [kg]
-
-# Returns
-- The rate of change of number concentration [1/(m³·s)] needed to bring the mean mass within the lower bound.
-"""
-function number_decrease_for_mass_limit((; τ)::CMP.NumberAdjustmentHorn2012, x_min, q, ρ, N)
-    # Avoid NaN when both q and x_min are 0
-    FT = UT.promote_typeof(q, ρ, N)
-    N_max = iszero(x_min) ? FT(Inf) : FT(ρ * q / x_min)
-    return min(0, N_max - N) / τ
 end
 
 """

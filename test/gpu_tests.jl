@@ -222,13 +222,12 @@ function SB2006_2M_kernel(aps, tps, SB2006, SB2006Vel, qt, ql, qr, Nl, Nr, ρ, T
     rain_scoll = CM2.rain_self_collection_and_breakup(SB2006, qr, ρ, Nr)
     rain_vel = CM2.rain_terminal_velocity(SB2006, SB2006Vel, qr, ρ, Nr)
     rain_evap = CM2.rain_evaporation(SB2006, aps, tps, qt, ql, FT(0), qr, FT(0), ρ, Nr, T)
-    num_incr_mass_limit =
-        CM2.number_increase_for_mass_limit(SB2006.numadj, SB2006.pdf_r.xr_max, qr, ρ, Nr)
-    num_decr_mass_limit =
-        CM2.number_decrease_for_mass_limit(SB2006.numadj, SB2006.pdf_r.xr_min, qr, ρ, Nr)
+    num_mass_limit = CM2.number_tendency_from_mass_limits(
+        (; x_min = SB2006.pdf_r.xr_min, x_max = SB2006.pdf_r.xr_max, SB2006.numadj.τ), qr, Nr / ρ,
+    )
     return (;
         lcl_aconv_scoll, accr, rain_scoll, rain_vel,
-        rain_evap, num_incr_mass_limit, num_decr_mass_limit,
+        rain_evap, num_mass_limit,
     )
 end
 
@@ -835,7 +834,7 @@ function test_gpu(FT)
             TT.@test allequal(out)
             tendencies = out[1]
 
-            (; lcl_aconv_scoll, accr, rain_scoll, rain_vel, rain_evap, num_incr_mass_limit, num_decr_mass_limit) =
+            (; lcl_aconv_scoll, accr, rain_scoll, rain_vel, rain_evap, num_mass_limit) =
                 tendencies
 
             TT.@test isapprox(lcl_aconv_scoll.au.dq_lcl_dt, FT(-5.742569998787898e-7), rtol = 1e-6)
@@ -863,8 +862,9 @@ function test_gpu(FT)
                 TT.@test isapprox(rain_evap.∂ₜρn_rai, FT(-56716.556198709244), rtol = 1e-6)
                 TT.@test isapprox(rain_evap.∂ₜq_rai, FT(-0.00010034697555076008), rtol = 1e-6)
             end
-            TT.@test isapprox(num_incr_mass_limit, FT(0), rtol = 1e-6)
-            TT.@test isapprox(num_decr_mass_limit, FT(-7.692307e4), rtol = 1e-6)
+            # combined mass-limit tendency (specific): the x_min bound is active,
+            # equal to the old volumetric decrease divided by ρ = 1.2
+            TT.@test isapprox(num_mass_limit, FT(-7.692307e4 / 1.2), rtol = 1e-5)
         end
     end
 

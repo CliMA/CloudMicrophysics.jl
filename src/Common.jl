@@ -289,6 +289,7 @@ See [Chen2022](@cite) for more details.
 """
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
     (; ρ0, a, a3_pow, b, b_ρ, c) = coeffs
+    ρₐ = max(ρₐ, zero(ρₐ))
     # Table B1
     q = exp(ρ0 * ρₐ)
     ai = (a[1] * q, a[2] * q, a[3] * q * ρₐ^a3_pow)
@@ -303,6 +304,7 @@ end
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeSmallIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G) = coeffs
+    ρₐ = max(ρₐ, zero(ρₐ))
     # Table B3 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
@@ -325,6 +327,7 @@ end
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G, H) = coeffs
+    ρₐ = max(ρₐ, zero(ρₐ))
     # Table B5 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
@@ -344,6 +347,38 @@ end
     ciu = ci .* 1000
     return (aiu, bi, ciu)
 end
+
+"""
+    Chen2022VelocityCurve(velocity_params, ρₐ)
+    Chen2022VelocityCurve(velocity_params, ρₐ, ρᵢ)
+    Chen2022VelocityCurve(ai, bi, ci)
+
+Callable holding the Chen 2022 terminal-velocity coefficients `(ai, bi, ci)`,
+from [`Chen2022_vel_coeffs`](@ref) evaluated at air density `ρₐ` (and apparent
+ice density `ρᵢ` for the small/large-ice tables). Evaluating it at a diameter
+`D` returns `∑ₖ aₖ D^bₖ exp(-cₖ D)` [m/s].
+"""
+struct Chen2022VelocityCurve{N, FT}
+    ai::NTuple{N, FT}
+    bi::NTuple{N, FT}
+    ci::NTuple{N, FT}
+    # The implicit constructor leaves `FT` unbound for empty coefficient tuples
+    Chen2022VelocityCurve{N, FT}(ai, bi, ci) where {N, FT} = new{N, FT}(ai, bi, ci)
+end
+function Chen2022VelocityCurve(velocity_params::CMP.TerminalVelocityType, ρₐ)
+    (ai, bi, ci) = Chen2022_vel_coeffs(velocity_params, ρₐ)
+    return Chen2022VelocityCurve(ai, bi, ci)
+end
+function Chen2022VelocityCurve(velocity_params::CMP.TerminalVelocityType, ρₐ, ρᵢ)
+    (ai, bi, ci) = Chen2022_vel_coeffs(velocity_params, ρₐ, ρᵢ)
+    return Chen2022VelocityCurve(ai, bi, ci)
+end
+function Chen2022VelocityCurve(ai::NTuple{N, Any}, bi::NTuple{N, Any}, ci::NTuple{N, Any}) where {N}
+    FT = promote_type(map(typeof, ai)..., map(typeof, bi)..., map(typeof, ci)...)
+    return Chen2022VelocityCurve{N, FT}(map(FT, ai), map(FT, bi), map(FT, ci))
+end
+@inline (v::Chen2022VelocityCurve)(D) =
+    unrolled_sum(abc -> abc[1] * D^abc[2] * exp(-abc[3] * D), map(tuple, v.ai, v.bi, v.ci))
 
 """
     Chen2022_monodisperse_pdf(a, b, c)
@@ -380,12 +415,9 @@ Assumes exponential size distribution (μ=0).
     FT = UT.promote_typeof(a, b, c, λ_inv)
     # μ = 0 for exponential distribution, δ = k + 1
     δ = FT(k + 1)
-    # Γ(δ) for integer δ is just (δ-1)! — avoid calling SF.gamma.
-    # `k` must be a small literal at every call site (0..3): it constant-folds,
-    # keeping `factorial` off the GPU and away from its overflow/throw branches.
-    # We use ifelse rather than `factorial(k)` to avoid host memory table lookups
-    # (`_fact_table`) on the GPU which cause illegal memory access errors.
-    gamma_delta = ifelse(k == 3, FT(6), ifelse(k == 2, FT(2), FT(1)))
+    # Γ(δ) = k! for integer δ = k + 1. `UT.fac` computes the product directly;
+    # `Base.factorial` reads a host-memory table, which is not GPU-compatible.
+    gamma_delta = FT(UT.fac(k))
     return a * exp(-δ * log(λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / gamma_delta
 end
 
@@ -409,16 +441,8 @@ Needed for numerical integrals in the P3 scheme.
 !!! note
     We use the same terminal velocity parametrization for cloud and rain water.
 """
-function particle_terminal_velocity(velocity_params::CMP.TerminalVelocityType, ρs...)
-    (ai, bi, ci) = Chen2022_vel_coeffs(velocity_params, ρs...)
-    v_terms = Chen2022_monodisperse_pdf.(ai, bi, ci)  # tuple of functions
-    # NB: name the closure arg `vt` (not `v_term`) — shadowing the enclosing
-    # `v_term` derails Julia 1.11 inference (the unrolled map infers
-    # `NTuple{N, Any}`, forcing runtime dispatch / allocations and breaking
-    # GPU compilation of callers like `liquid_integrals`).
-    v_term(D) = unrolled_sum(vt -> vt(D), v_terms)
-    return v_term
-end
+particle_terminal_velocity(velocity_params::CMP.TerminalVelocityType, ρs...) =
+    Chen2022VelocityCurve(velocity_params, ρs...)
 
 """
     particle_terminal_velocity(velocity_params::CMP.StokesRegimeVelType{FT}, ρ::FT)

@@ -882,10 +882,11 @@ The tendencies are applied over a relaxation timescale ``\tau``, following the m
 ```
 This correction increases ``N`` when droplets are too heavy (i.e., ``x > x_{max}``) and decreases ``N`` when they are too light (``x < x_{min}``), while applying no correction when ``x`` lies within bounds.
 
-This formulation is implemented as two separate functions:
-- `number_increase_for_mass_limit`: returns the rate needed to increase `N` when particles are too heavy (`x > x_{max}`).
-- `number_decrease_for_mass_limit`: returns the rate needed to decrease `N` when particles are too light (`x < x_{min}`).
-No correction is applied when x lies within bounds. The default parameter value is
+This formulation is implemented in `number_tendency_from_mass_limits`, which relaxes
+the mean mass ``x = q / n`` towards the nearest bound: it increases ``N`` when
+particles are too heavy (``x > x_{max}``), decreases ``N`` when they are too light
+(``x < x_{min}``), and applies no correction when ``x`` lies within bounds. The
+default parameter value is
 
 |   symbol   | default value                       |
 |------------|-------------------------------------|

@@ -106,8 +106,7 @@ Microphysics2M.rain_terminal_velocity
 Microphysics2M.rain_evaporation
 Microphysics2M.∂rain_evaporation_∂N_rai_∂q_rai
 Microphysics2M.conv_q_lcl_to_q_rai
-Microphysics2M.number_increase_for_mass_limit
-Microphysics2M.number_decrease_for_mass_limit
+Microphysics2M.number_tendency_from_mass_limits
 ```
 
 ## Distribution tools for 2-moment microphysics
@@ -159,6 +158,7 @@ CMP.SlopePowerLaw{Float64}
 CMP.SlopeConstant{Float64}
 CMP.VentilationFactor
 CMP.LocalRimeDensity
+CMP.AspectRatio
 ```
 
 ## Obtain particle state
@@ -189,6 +189,7 @@ P3Scheme.ice_mass
 P3Scheme.ice_density
 P3Scheme.∂ice_mass_∂D
 P3Scheme.ice_area
+P3Scheme.ϕ_material_density
 P3Scheme.ϕᵢ
 ```
 

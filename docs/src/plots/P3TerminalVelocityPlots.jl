@@ -7,9 +7,11 @@ import CairoMakie: Makie
 FT = Float64
 
 params = CMP.ParametersP3(FT; slope_law = :constant)
+params_noar = CMP.ParametersP3(FT; slope_law = :constant, aspect_ratio = CMP.NoAspectRatio())
 
 function get_values(
     params::CMP.ParametersP3,
+    params_noar::CMP.ParametersP3,
     Chen2022::CMP.Chen2022VelType,
     L::FT,
     N::FT,
@@ -31,9 +33,10 @@ function get_values(
             F_rim = F_rims[i]
             ρ_rim = ρ_rims[j]
             state = P3.P3State(params, L, N, F_rim, ρ_rim)
+            state_noar = P3.P3State(params_noar, L, N, F_rim, ρ_rim)
             logλ = P3.get_distribution_logλ(state)
-            V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio = false)
-            V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; use_aspect_ratio = true)
+            V_m[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state_noar, logλ)
+            V_m_ϕ[i, j] = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ)
             D_m[i, j] = P3.D_m(state, logλ)
             D_m_regimes[i, j] = D_m[i, j]
             ϕᵢ[i, j] = P3.ϕᵢ(state, D_m[i, j])
@@ -100,11 +103,11 @@ function figure_2()
     yres = 100
 
     (F_rims, ρ_rims, D_m_regimes_s, D_m_s, ϕᵢ_s, V_m_s, V_m_ϕ_s) =
-        get_values(params, Chen2022, L_s, N_s, ρ_a, xres, yres)
+        get_values(params, params_noar, Chen2022, L_s, N_s, ρ_a, xres, yres)
     (F_rimm, ρ_rimm, D_m_regimes_m, D_m_m, ϕᵢ_m, V_m_m, V_m_ϕ_m) =
-        get_values(params, Chen2022, L_m, N_m, ρ_a, xres, yres)
+        get_values(params, params_noar, Chen2022, L_m, N_m, ρ_a, xres, yres)
     (F_riml, ρ_riml, D_m_regimes_l, D_m_l, ϕᵢ_l, V_m_l, V_m_ϕ_l) =
-        get_values(params, Chen2022, L_l, N_l, ρ_a, xres, yres)
+        get_values(params, params_noar, Chen2022, L_l, N_l, ρ_a, xres, yres)
 
     ### PLOT ###
     fig = Makie.Figure()

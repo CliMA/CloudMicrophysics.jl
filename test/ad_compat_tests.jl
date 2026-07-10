@@ -5,6 +5,7 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.P3Scheme as P3
+import CloudMicrophysics.Common as CO
 import CloudMicrophysics.DistributionTools as DT
 import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.ThermodynamicsInterface as TDI
@@ -83,6 +84,22 @@ function test_ad_compatibility(FT)
                 sb, aps, tps, q_tot, D(2e-4, 1), z, D(1e-4, 1), z, FT(1.05), D(4e4, 1), T,
             )
             @test all(v -> v isa FD.Dual, values(t))
+        end
+    end
+
+    @testset "terminal velocity promotes mixed coefficient tuples ($FT)" begin
+        # A Dual air or ice density makes only some Chen 2022 coefficients Dual
+        vel = mp.ice.terminal_velocity
+        ρₐ = D(1.2, 1)
+        for v_term in (
+            CO.particle_terminal_velocity(vel.rain, ρₐ),
+            CO.particle_terminal_velocity(vel.small_ice, ρₐ, FT(916.7)),
+            CO.particle_terminal_velocity(vel.large_ice, ρₐ, FT(916.7)),
+            CO.particle_terminal_velocity(vel.small_ice, ρₐ, D(916.7, 0)),
+        )
+            vt = v_term(FT(1e-3))
+            @test vt isa FD.Dual
+            @test isfinite(FD.value(vt))
         end
     end
 

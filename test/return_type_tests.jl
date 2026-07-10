@@ -81,8 +81,10 @@ end
     @test concrete_for_all_mixes(P3.ϕᵢ, (P(st),), 1)
     # ice terminal velocities: plain state, Dual ρₐ (fallback previously typed
     # off the state alone). Keyword wrapper -> probe the positional core.
+    _glq = P3.GaussLegendre(FT64, 12)
     for f in (P3.ice_terminal_velocity_number_weighted, P3.ice_terminal_velocity_mass_weighted)
-        rts = Base.return_types(f, Tuple{P(mp.ice.terminal_velocity), D8, P(st), FT64})
+        g = (vp, ρ, s, l) -> f(vp, ρ, s, l; quad = _glq)
+        rts = Base.return_types(g, Tuple{P(mp.ice.terminal_velocity), D8, P(st), FT64})
         @test all(isconcretetype, rts)
     end
 

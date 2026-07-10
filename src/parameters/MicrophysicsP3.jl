@@ -238,6 +238,18 @@ function ((; a, b, c, ρ_ice)::LocalRimeDensity)(Rᵢ)
     return ρ′_rim
 end
 
+"""
+    AspectRatio
+
+Aspect-ratio treatment for the ice terminal-velocity correction. Each subtype
+is a functor `(state, D)` returning the multiplicative velocity factor:
+`Oblate` returns `cbrt(ϕᵢ(state, D))`, `NoAspectRatio` returns `1`.
+The functor methods are defined in `P3Scheme`, where `ϕᵢ` is available.
+"""
+abstract type AspectRatio end
+struct Oblate <: AspectRatio end
+struct NoAspectRatio <: AspectRatio end
+
 ### ----------------------------- ###
 ### --- TOP-LEVEL CONSTRUCTOR --- ###
 ### ----------------------------- ###
@@ -252,7 +264,7 @@ From Morrison and Milbrandt (2015) [MorrisonMilbrandt2015](@cite)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct ParametersP3{FT, SLOPELAW <: SlopeLaw} <: ParametersType
+@kwdef struct ParametersP3{FT, SLOPELAW <: SlopeLaw, AR <: AspectRatio} <: ParametersType
     "Mass-size relation, e.g. [`MassPowerLaw`](@ref)"
     mass::MassPowerLaw{FT}
     "Area-size relation, e.g. [`AreaPowerLaw`](@ref)"
@@ -271,19 +283,22 @@ $(DocStringExtensions.FIELDS)
     ρ_l::FT
     "Water freeze temperature [`K`]"
     T_freeze::FT
+    "Terminal-velocity aspect-ratio treatment, an [`AspectRatio`](@ref)"
+    aspect_ratio::AR = Oblate()
 end
 
 """
-    ParametersP3(toml_dict::CP.ParamDict; [slope_law = :powerlaw])
+    ParametersP3(toml_dict::CP.ParamDict; [slope_law = :powerlaw], [aspect_ratio = Oblate()])
 
 Create a `ParametersP3` object from a `ClimaParams` TOML dictionary.
 
 # Arguments
 - `toml_dict::CP.ParamDict`: A `ClimaParams` TOML dictionary
 - `slope_law`: Slope law to use (`:constant` or, by default, `:powerlaw`)
+- `aspect_ratio`: an [`AspectRatio`](@ref); by default, `Oblate()`
 
 """
-function ParametersP3(toml_dict::CP.ParamDict; slope_law = :powerlaw)
+function ParametersP3(toml_dict::CP.ParamDict; slope_law = :powerlaw, aspect_ratio = Oblate())
     @assert slope_law in (:constant, :powerlaw)
     params = CP.get_parameter_values(toml_dict,
         (;
@@ -298,6 +313,7 @@ function ParametersP3(toml_dict::CP.ParamDict; slope_law = :powerlaw)
         slope = slope_law == :powerlaw ? SlopePowerLaw(toml_dict) : SlopeConstant(toml_dict),
         vent = VentilationFactor(toml_dict),
         ρ_rim_local = LocalRimeDensity(toml_dict),
+        aspect_ratio,
         params...,
     )
 end
