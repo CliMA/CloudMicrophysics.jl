@@ -370,15 +370,17 @@ end
 
 """
     closed_rain_inner_NM(
-        v_i_at_Dᵢ, Dstar, rᵢ, ρw, ai, bi, ci, D_min, D_max, N₀r, Dr_mean,
+        v_i_at_Dᵢ, Dstar, rᵢ, ρw, terms, D_min, D_max, N₀r, Dr_mean,
     )
 
 Closed-form `(∂ₜN_col, ∂ₜM_col)` for the rain inner integral at one outer ice
 diameter, where `v_i_at_Dᵢ` is the ice particle terminal velocity there and
-`Dstar` the fall-speed crossing from [`crossover_diameter`](@ref).
+`Dstar` the fall-speed crossing from [`crossover_diameter`](@ref). `terms` are
+the rain velocity-curve coefficient triples `(aₖ, bₖ, cₖ)` from
+[`CO.Chen2022_vel_coeffs`](@ref).
 """
-function closed_rain_inner_NM(v_i_at_Dᵢ, Dstar, rᵢ, ρw, ai, bi, ci, D_min, D_max, N₀r, Dr_mean)
-    FT = float(eltype(ai))
+function closed_rain_inner_NM(v_i_at_Dᵢ, Dstar, rᵢ, ρw, terms, D_min, D_max, N₀r, Dr_mean)
+    FT = float(eltype(eltype(terms)))
     λ = inv(Dr_mean)  # rain PSD slope: n_r(D) ∝ e^{-λ D}
 
     # Compute rain PSD incomplete moments weighted by ice-liquid collision
@@ -393,8 +395,8 @@ function closed_rain_inner_NM(v_i_at_Dᵢ, Dstar, rᵢ, ρw, ai, bi, ci, D_min, 
     end
     function flux(a, b, p)  # ≡ ∫ₐᵇ K(Dᵢ, Dₗ) ⋅ (vᵢ(Dᵢ) - vₗ(Dₗ)) ⋅ n_r(Dₗ) dDₗ
         s = v_i_at_Dᵢ * Iᵖ(a, b, p, λ)  # vᵢ ⋅ ∫ₐᵇ K ⋅ n_r dDₗ
-        @inbounds for j in eachindex(ai)  # - ∫ₐᵇ K ⋅ vₗ ⋅ n_r dDₗ
-            s -= ai[j] * Iᵖ(a, b, p + bi[j], λ + ci[j])
+        for (aₖ, bₖ, cₖ) in terms  # - ∫ₐᵇ K ⋅ vₗ ⋅ n_r dDₗ
+            s -= aₖ * Iᵖ(a, b, p + bₖ, λ + cₖ)
         end
         return s
     end
@@ -423,7 +425,7 @@ The velocities and the rain velocity-curve coefficients come from the
     ρw = psd_r.ρw
     (; N₀r, Dr_mean) = CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
     (; v_i, v_l) = ∂ₜV
-    ai, bi, ci = map(SA.SVector, CO.Chen2022_vel_coeffs(v_l))
+    terms = CO.Chen2022_vel_coeffs(v_l)
     D_min, D_max = bounds_r
     zero_rates = (zero(FT), zero(FT), zero(FT))
     function liquid_integrals(Dᵢ)
@@ -434,7 +436,7 @@ The velocities and the rain velocity-curve coefficients come from the
         rᵢ = sqrt(ice_area(state, Dᵢ) / π)
         Dstar = crossover_diameter(v_i_at_Dᵢ, v_l, D_min, D_max)
         ∂ₜN_col, ∂ₜM_col = closed_rain_inner_NM(
-            v_i_at_Dᵢ, Dstar, rᵢ, ρw, ai, bi, ci,
+            v_i_at_Dᵢ, Dstar, rᵢ, ρw, terms,
             D_min, D_max, N₀r, Dr_mean,
         )
         if !(isfinite(∂ₜN_col) && isfinite(∂ₜM_col))
@@ -648,7 +650,7 @@ function wet_growth_onset_diameter(
     M₅ = mfac * DT.generalized_gamma_Mⁿ(νcD, μcD, λc, N_c, 5)
 
     (; N₀r, Dr_mean) = CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
-    ai, bi, ci = map(SA.SVector, CO.Chen2022_vel_coeffs(v_l))
+    terms = CO.Chen2022_vel_coeffs(v_l)
     D_min_r, D_max_r = bounds_r
     rain_active = !iszero(N₀r) && (D_max_r > D_min_r)
 
@@ -660,7 +662,7 @@ function wet_growth_onset_diameter(
         rain_rate = if rain_active
             Dstar = crossover_diameter(v, v_l, D_min_r, D_max_r)
             (_, ∂ₜM_col_r) = closed_rain_inner_NM(
-                v, Dstar, rᵢ, ρw, ai, bi, ci, D_min_r, D_max_r, N₀r, Dr_mean,
+                v, Dstar, rᵢ, ρw, terms, D_min_r, D_max_r, N₀r, Dr_mean,
             )
             ifelse(isfinite(∂ₜM_col_r), ∂ₜM_col_r, zero(∂ₜM_col_r))
         else

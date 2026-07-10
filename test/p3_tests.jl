@@ -993,7 +993,7 @@ function test_p3_closed_form_rain_inner(FT)
         psd_r = CMP.SB2006(FT).pdf_r
         ρₐ = FT(1)
         ρ_w = psd_r.ρw
-        ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, ρₐ)
+        terms = CO.Chen2022_vel_coeffs(vel.rain, ρₐ)
         v_l = CO.particle_terminal_velocity(vel.rain, ρₐ)
         L_r, N_r = FT(1e-4), FT(1e3)
         (; N₀r, Dr_mean) =
@@ -1006,16 +1006,16 @@ function test_p3_closed_form_rain_inner(FT)
         cases = (
             ("v_i", vi0,
                 x -> P3.closed_rain_inner_NM(x, Dstar0, rᵢ0, ρ_w,
-                    ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
+                    terms, D_min, D_max, N₀r, Dr_mean)),
             ("r_i", rᵢ0,
                 x -> P3.closed_rain_inner_NM(vi0, Dstar0, x, ρ_w,
-                    ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
+                    terms, D_min, D_max, N₀r, Dr_mean)),
             ("Dr", Dr_mean,
                 x -> P3.closed_rain_inner_NM(vi0, Dstar0, rᵢ0, ρ_w,
-                    ai, bi, ci, D_min, D_max, N₀r, x)),
+                    terms, D_min, D_max, N₀r, x)),
             ("N₀r", N₀r,
                 x -> P3.closed_rain_inner_NM(vi0, Dstar0, rᵢ0, ρ_w,
-                    ai, bi, ci, D_min, D_max, x, Dr_mean)),
+                    terms, D_min, D_max, x, Dr_mean)),
         )
         for (_, x0, g) in cases, idx in (1, 2)
             f(x) = g(x)[idx]
@@ -1069,11 +1069,11 @@ function test_p3_closed_form_rain_inner(FT)
         # Full closed path with v_i outside the band stays finite and the
         # absent-crossover side collapses (one piece zero).
         r_i = FT(2e-4)
-        ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, FT(1))
+        terms = CO.Chen2022_vel_coeffs(vel.rain, FT(1))
         for v_i in (FT(-1), FT(1e6))
             Dstar_i = P3.crossover_diameter(v_i, v_l, D_min, D_max)
             N, M = P3.closed_rain_inner_NM(
-                v_i, Dstar_i, r_i, FT(1000), ai, bi, ci,
+                v_i, Dstar_i, r_i, FT(1000), terms,
                 D_min, D_max, FT(1e7), FT(5e-4),
             )
             @test isfinite(N) && isfinite(M)

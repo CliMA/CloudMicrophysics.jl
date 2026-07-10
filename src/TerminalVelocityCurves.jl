@@ -18,8 +18,10 @@ Compute the coefficients for the Chen 2022 terminal velocity parametrization.
 
 See [Chen2022](@cite) for more details.
 
-The method on a [`Chen2022VelocityCurve`](@ref) returns the `(ai, bi, ci)`
-coefficient tuples of the curve terms.
+# Returns
+- `terms::NTuple{N, NTuple{3, FT}}`: the per-term coefficient triples
+  `(aₖ, bₖ, cₖ)` of the velocity curve. The method on a
+  [`Chen2022VelocityCurve`](@ref) returns the stored `terms` directly.
 """
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
     (; ρ0, a, a3_pow, b, b_ρ, c) = coeffs
@@ -32,7 +34,7 @@ coefficient tuples of the curve terms.
     # unit conversions
     aiu = ai .* 1000 .^ bi
     ciu = ci .* 1000
-    return (aiu, bi, ciu)
+    return map(tuple, aiu, bi, ciu)
 end
 
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeSmallIce, ρₐ, ρᵢ)
@@ -55,7 +57,7 @@ end
     # unit conversions
     aiu = ai .* 1000 .^ bi
     ciu = ci .* 1000
-    return (aiu, bi, ciu)
+    return map(tuple, aiu, bi, ciu)
 end
 
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
@@ -79,13 +81,13 @@ end
     # unit conversions
     aiu = ai .* 1000 .^ bi
     ciu = ci .* 1000
-    return (aiu, bi, ciu)
+    return map(tuple, aiu, bi, ciu)
 end
 
 """
     Chen2022VelocityCurve(velocity_params, ρₐ)
     Chen2022VelocityCurve(velocity_params, ρₐ, ρᵢ)
-    Chen2022VelocityCurve(ai, bi, ci)
+    Chen2022VelocityCurve(terms)
 
 Callable holding the Chen 2022 terminal-velocity coefficients as
 `terms::NTuple{N, NTuple{3, FT}}` of `(aₖ, bₖ, cₖ)`, from
@@ -99,23 +101,19 @@ struct Chen2022VelocityCurve{N, FT}
     Chen2022VelocityCurve{N, FT}(terms) where {N, FT} = new{N, FT}(terms)
 end
 function Chen2022VelocityCurve(velocity_params::CMP.TerminalVelocityType, ρₐ)
-    (ai, bi, ci) = Chen2022_vel_coeffs(velocity_params, ρₐ)
-    return Chen2022VelocityCurve(ai, bi, ci)
+    return Chen2022VelocityCurve(Chen2022_vel_coeffs(velocity_params, ρₐ))
 end
 function Chen2022VelocityCurve(velocity_params::CMP.TerminalVelocityType, ρₐ, ρᵢ)
-    (ai, bi, ci) = Chen2022_vel_coeffs(velocity_params, ρₐ, ρᵢ)
-    return Chen2022VelocityCurve(ai, bi, ci)
+    return Chen2022VelocityCurve(Chen2022_vel_coeffs(velocity_params, ρₐ, ρᵢ))
 end
-function Chen2022VelocityCurve(ai::NTuple{N, Any}, bi::NTuple{N, Any}, ci::NTuple{N, Any}) where {N}
-    FT = promote_type(map(typeof, ai)..., map(typeof, bi)..., map(typeof, ci)...)
-    terms = map(tuple, map(FT, ai), map(FT, bi), map(FT, ci))
-    return Chen2022VelocityCurve{N, FT}(terms)
+function Chen2022VelocityCurve(terms::NTuple{N, NTuple{3, Any}}) where {N}
+    FT = promote_type(map(t -> promote_type(map(typeof, t)...), terms)...)
+    return Chen2022VelocityCurve{N, FT}(map(t -> map(FT, t), terms))
 end
 @inline (v::Chen2022VelocityCurve)(D) =
     unrolled_sum(t -> t[1] * D^t[2] * exp(-t[3] * D), v.terms)
 
-@inline Chen2022_vel_coeffs(v::Chen2022VelocityCurve) =
-    (map(t -> t[1], v.terms), map(t -> t[2], v.terms), map(t -> t[3], v.terms))
+@inline Chen2022_vel_coeffs(v::Chen2022VelocityCurve) = v.terms
 
 """
     Chen2022_monodisperse_pdf(a, b, c)

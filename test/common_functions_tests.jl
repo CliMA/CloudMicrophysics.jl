@@ -125,7 +125,10 @@ function test_Chen_coefficients(FT)
     ice = CMP.CloudIce(FT)
 
     TT.@testset "Chen terminal velocity rain (B1)" begin
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs(Ch2022.rain, ρ)
+        terms = CO.Chen2022_vel_coeffs(Ch2022.rain, ρ)
+        aiu = map(t -> t[1], terms)
+        bi = map(t -> t[2], terms)
+        ciu = map(t -> t[3], terms)
 
         TT.@test all(
             isapprox.(
@@ -151,7 +154,10 @@ function test_Chen_coefficients(FT)
     end
 
     TT.@testset "Chen terminal velocity small ice (B2)" begin
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs(Ch2022.small_ice, ρ, ice.ρᵢ)
+        terms = CO.Chen2022_vel_coeffs(Ch2022.small_ice, ρ, ice.ρᵢ)
+        aiu = map(t -> t[1], terms)
+        bi = map(t -> t[2], terms)
+        ciu = map(t -> t[3], terms)
 
         TT.@test all(
             isapprox.(aiu, [312.9777159510928, -316.5335670126842], rtol = tol),
@@ -163,7 +169,10 @@ function test_Chen_coefficients(FT)
     end
 
     TT.@testset "Chen terminal velocity large ice (B4)" begin
-        aiu, bi, ciu = CO.Chen2022_vel_coeffs(Ch2022.large_ice, ρ, snow.ρᵢ)
+        terms = CO.Chen2022_vel_coeffs(Ch2022.large_ice, ρ, snow.ρᵢ)
+        aiu = map(t -> t[1], terms)
+        bi = map(t -> t[2], terms)
+        ciu = map(t -> t[3], terms)
 
         TT.@test all(
             isapprox.(aiu, [51.86069839334009, -1.394567234046072], rtol = tol),

@@ -255,15 +255,14 @@ end
     q::FT,
 ) where {FT}
     # coefficients from Table B1 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
+    terms = CO.Chen2022_vel_coeffs(vel, ρₐ)
     # size distribution parameter
     λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
     λ_inv_diameter = 2 * λ_inv_radius
-    # eq 20 from Chen et al 2022 (loop unrolled for GPU performance)
-    fall_w =
-        CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-        CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3) +
-        CO.Chen2022_exponential_pdf(aiu[3], bi[3], ciu[3], λ_inv_diameter, 3)
+    # eq 20 from Chen et al 2022
+    fall_w = sum(map(terms) do (a, b, c)
+        CO.Chen2022_exponential_pdf(a, b, c, λ_inv_diameter, 3)
+    end)
     # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
     fall_w = max(FT(0), fall_w)
     return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
@@ -279,7 +278,7 @@ end
     # Instead we should do partial integrals
     # from D=125um to D=625um using B2 and D=625um to inf using B4.
     # coefficients from Table B4 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
+    terms = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
     # size distribution parameter
     λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
     λ_inv_diameter = 2 * λ_inv_radius
@@ -288,10 +287,10 @@ end
     # assume oblate shape and aspect ratio
     (; ϕ, κ) = aspr
 
-    # eq 20 from Chen 2022 (loop unrolled for GPU performance)
-    fall_w =
-        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
+    # eq 20 from Chen 2022
+    fall_w = sum(map(terms) do (a, b, c)
+        ϕ^κ * CO.Chen2022_exponential_pdf(a, b, c, λ_inv_diameter, 3)
+    end)
     fall_w = max(FT(0), fall_w)
     return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
@@ -305,7 +304,7 @@ end
 ) where {FT}
     # see comments above about B2 vs B4 coefficients
     # coefficients from Table B4 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
+    terms = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
     # size distribution parameter
     λ_inv_radius::FT = lambda_inverse(pdf, mass, q, ρₐ)
     λ_inv_diameter = 2 * λ_inv_radius
@@ -315,10 +314,10 @@ end
     # Use pre-computed gamma_aspect from Snow struct
     gamma_aspect = snow_shape isa Oblate ? gamma_aspect_oblate : gamma_aspect_prolate
     ϕ_av = ϕ₀ * λ_inv_radius^α * gamma_aspect
-    # eq 20 from Chen 2022 (loop unrolled for GPU performance)
-    fall_w =
-        ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-        ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
+    # eq 20 from Chen 2022
+    fall_w = sum(map(terms) do (a, b, c)
+        ϕ_av^κ * CO.Chen2022_exponential_pdf(a, b, c, λ_inv_diameter, 3)
+    end)
     fall_w = max(FT(0), fall_w)
     return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
