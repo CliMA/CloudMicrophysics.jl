@@ -77,6 +77,40 @@ function test_framework_1m(FT)
         end
     end
 
+    @testset "EndStateSaturationAdjustment limits the more-supersaturated phase ($FT)" begin
+        Lv = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+        Ls = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+        S_liq(x, T, ρ, qt) = TDI.supersaturation_over_liquid(tps, qt, x[1] + x[3], x[2] + x[4], ρ, T)
+        S_ice(x, T, ρ, qt) = TDI.supersaturation_over_ice(tps, qt, x[1] + x[3], x[2] + x[4], ρ, T)
+        function end_state_S(mode, ρ, T, qt, x, Δt, nsub)
+            d = net_vec_1m(
+                BMT.bulk_microphysics_tendencies(
+                    mode, BMT.Microphysics1Moment(), mp, tps, ρ, T, qt, x..., Δt, nsub,
+                ),
+            )
+            xe = x .+ Δt .* d
+            Te = T + Lv * ((xe[1] - x[1]) + (xe[3] - x[3])) + Ls * ((xe[2] - x[2]) + (xe[4] - x[4]))
+            (S_liq(xe, Te, ρ, qt), S_ice(xe, Te, ρ, qt))
+        end
+        exact = BMT.rosenbrock_exact()
+        unlimited = BMT.RosenbrockAverage(BMT.ExactJacobian(), BMT.ExplicitGrowthDiagonal(), BMT.NoLimiter())
+        tol = FT == Float64 ? FT(1e-3) : FT(3e-2)
+        # warm, liquid-supersaturated, coarse single step
+        let ρ = FT(1.0), T = T_frz + FT(8), qt = FT(0.022), x = FT[1e-4, 0, 1e-4, 0], Δt = FT(240)
+            Sl_exact, _ = end_state_S(exact, ρ, T, qt, x, Δt, 1)
+            Sl_unlim, _ = end_state_S(unlimited, ρ, T, qt, x, Δt, 1)
+            @test abs(Sl_exact) < tol
+            @test Sl_unlim < -tol
+        end
+        # cold, ice-supersaturated, coarse single step
+        let ρ = FT(0.9), T = T_frz - FT(20), qt = FT(2.0e-3), x = FT[0, 1e-4, 0, 1e-4], Δt = FT(240)
+            _, Si_exact = end_state_S(exact, ρ, T, qt, x, Δt, 1)
+            _, Si_unlim = end_state_S(unlimited, ρ, T, qt, x, Δt, 1)
+            @test abs(Si_exact) < tol
+            @test Si_unlim < -tol
+        end
+    end
+
     @testset "Verbose(rosenbrock_donor()) per-process sums to net ($FT)" begin
         rtol = FT == Float64 ? FT(1e-10) : FT(1e-4)
         for r in regimes, nsub in (1, 4, 16)
