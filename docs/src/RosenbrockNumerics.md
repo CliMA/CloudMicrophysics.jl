@@ -45,16 +45,23 @@ method (returning a `x -> z` species projection). A new growth treatment is a `G
 `_apply_limiter(::MyLimiter, x, Δ, ...)` method. The substep driver dispatches on the option types at compile time,
 so a configured mode resolves with no run-time branch.
 
-## The coarse-step deposition instability
+## The coarse-step ice-growth instability
 
-At a cold, ice-supersaturated state the ice-deposition tendency has an autocatalytic growth mode: the snow
-deposition rate increases with snow content (collector self-gain), a positive Jacobian diagonal of order
-`+5 × 10⁻² s⁻¹` (time scale ≈ 20 s). With the exact Jacobian and `ImplicitGrowth`, the implicit operator
-`I/h − J` loses positive-definiteness once the growth eigenvalue exceeds `1/h`, i.e. once the substep is coarse
-relative to the growth time scale. The single substep then overshoots the nonlinear saturation limit (which the
-linear operator does not see): snow is over-deposited far past the available vapor, the latent heating drives a
-spurious temperature excursion, and the state goes non-physical. With the exact Jacobian this crash occurs at
-every coarse time step in the single-column convective test.
+At a cold, ice-supersaturated state carrying supercooled cloud liquid, the ice-growth tendency has an
+autocatalytic mode: rime mass grows by collecting cloud droplets, and denser rimed particles fall faster and
+sweep out more liquid, so the rime-mass tendency increases with rime mass. The exact Jacobian carries this as a
+positive diagonal in the rime-mass (`q_rim`) row. At a representative state — `ρ = 1.0` kg m⁻³, `T = 263` K,
+`q_tot = 10⁻²`, `q_lcl = 2 × 10⁻³`, `n_lcl = 10⁸` m⁻³, `q_ice = 2 × 10⁻³`, `n_ice = 10⁴` m⁻³, unrimed, ice
+supersaturation `S_ice ≈ 1.8` — the diagonal is `+5 × 10⁻² s⁻¹` (time scale ≈ 20 s, identical in `Float32` and
+`Float64`), and it grows past `10⁻¹ s⁻¹` at colder, more liquid-rich states. The mode requires supercooled
+liquid: with the same ice state but no cloud liquid the rime-mass diagonal falls to order `10⁻⁵ s⁻¹`, and the
+pure-deposition diagonal is negative there (vapor depletion opposes further deposition). With the exact Jacobian
+and `ImplicitGrowth`, the implicit operator `I/h − J` loses positive-definiteness once the growth eigenvalue
+exceeds `1/h`, i.e. once the substep is coarse relative to the growth time scale. The single substep then
+overshoots the nonlinear limit the linear operator does not see: ice is over-grown past the available condensate,
+the latent heating drives a spurious temperature excursion, and the state goes non-physical. This crash is a
+property of the single-column convective configuration, not of an isolated cell; the growth diagonal above is an
+isolated-cell measurement, but the crash itself appears only in the coupled single-column run.
 
 ### What cures it
 
@@ -81,21 +88,19 @@ exact scheme robust across the resolved time-step envelope.
 
 ## Approaches that did not cure the instability
 
-These were tried and are not part of the supported framework; they are recorded here because the failure modes
-are instructive.
+These were tried and are not part of the supported framework.
 
 - **Field-of-values growth clamp** (a uniform diagonal shift bringing the operator's rightmost eigenvalue to
   `α/h`). It stabilizes the linear operator but does not bound the single-step explicit overshoot of the
   nonlinear source as it approaches saturation: the crash is a saturation overshoot, not an operator
-  amplification, so the clamp only delays it. With `α` near one the near-singular resolvent it leaves actually
-  amplifies the deposition into a larger overshoot.
-- **Diagonal growth clamp** (cap each positive diagonal at `α/h`). A cheaper variant of the above with the same
-  limitation, and capping a positive diagonal balanced by off-diagonal structure can itself destabilize an
-  otherwise-stable step.
+  amplification, so the shift only delays it. With `α` near one the near-singular resolvent it leaves amplifies
+  the growth into a larger overshoot.
+- **Diagonal growth clamp** (limit each positive diagonal to `α/h`). It shares the same limitation, and limiting
+  a positive diagonal balanced by off-diagonal structure can itself destabilize an otherwise-stable step.
 - **Smooth species mask** (a differentiable replacement for the near-empty species mask). At coarse single
-  substeps it routes activating ice and liquid species to a forward-Euler step, which itself overshoots
-  the fast deposition.
-- **Implicit temperature** (promoting `T` into the implicitly solved state). It removes the operator-split
-  ringing of the between-substep temperature update, but the dominant brake on the growth — the nonlinear vapor
-  depletion — is not linear, so a linear implicit temperature feedback does not bound the deposition overshoot
-  at fixed coarse substeps.
+  substeps it routes activating ice and liquid species to a forward-Euler step, which itself overshoots the fast
+  growth.
+- **Implicit temperature** (promoting `T` into the implicitly solved state). It removes the error of the
+  operator-split between-substep temperature update, but the dominant brake on the growth — the nonlinear
+  condensate depletion — is not linear, so a linear implicit temperature feedback does not bound the growth
+  overshoot at fixed coarse substeps.

@@ -134,8 +134,7 @@ end
 
 # Analytic ForwardDiff partials of `M(D₁, D₂, p, α) = ∫_{D₁}^{D₂} Dᵖ e^{-αD} dD`:
 # `∂M/∂D₁ = -D₁ᵖ e^{-αD₁}`, `∂M/∂D₂ = D₂ᵖ e^{-αD₂}`, `∂M/∂α = -M(D₁, D₂, p+1, α)`.
-# The value is taken from the plain-`Real` method on the argument values, so the
-# derivative does not trace the difference of near-equal incomplete gammas.
+# The value is taken from the plain-`Real` method on the argument values.
 @inline function gamma_inc_moment(D₁, D₂, p, α::FD.Dual{T}) where {T}
     v₁ = FD.value(T, D₁)
     v₂ = FD.value(T, D₂)

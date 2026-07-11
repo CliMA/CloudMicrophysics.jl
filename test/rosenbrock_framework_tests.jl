@@ -1,5 +1,7 @@
 using Test
 
+import JET
+
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.P3Scheme as P3
@@ -57,5 +59,40 @@ function test_framework_2m(FT)
     end
 end
 
+function _framework_exact_call(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    mp = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true)
+    p3 = mp.ice.scheme
+    st = P3.state_from_prognostic(
+        p3, FT(0.78) * FT(1e-4), FT(0.78) * FT(2e5), FT(0.78) * FT(4e-5), FT(0.78) * FT(6e-8),
+    )
+    logλ = P3.get_distribution_logλ(st)
+    call() = BMT.bulk_microphysics_tendencies(
+        BMT.rosenbrock_exact(), BMT.Microphysics2Moment(), mp, tps,
+        FT(0.78), FT(273.5), FT(0.009),
+        FT(2e-4), FT(5e7), FT(1e-4), FT(4e4), FT(1e-4), FT(2e5), FT(4e-5), FT(6e-8),
+        logλ, FT(60), 4,
+    )
+    return call
+end
+
+function test_framework_exact_inference(FT)
+    call = _framework_exact_call(FT)
+    call()
+    @testset "rosenbrock_exact() inference and allocations ($FT)" begin
+        @test (@inferred call()) isa NamedTuple
+        JET.@test_opt call()
+        @test (@allocated call()) == 0
+    end
+end
+
 test_framework_2m(Float64)
 test_framework_2m(Float32)
+
+# The differentiated 2M+P3 path is type-stable and allocation-free only on Julia
+# >= 1.12 (the inference-depth limit behind the other >= 1.12 perf assertions;
+# see performance_tests.jl).
+if VERSION >= v"1.12"
+    test_framework_exact_inference(Float64)
+    test_framework_exact_inference(Float32)
+end
