@@ -259,6 +259,7 @@ P3Scheme.closed_rain_inner_NM
 P3Scheme.collision_cross_section_ice_liquid
 P3Scheme.collision_cross_section_ice_liquid_coeffs
 P3Scheme.collision_cross_section_ice_ice
+P3Scheme.ice_self_collection
 P3Scheme.wet_growth_onset_diameter
 P3Scheme.∫liquid_ice_collisions
 ```
