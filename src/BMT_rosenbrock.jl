@@ -66,6 +66,16 @@ end
 end
 
 """
+    _ice_numadj_params(FT)
+
+The `(τ, x_min, x_max)` bounds for the ice number adjustment, shared between
+the primal tendency ([`_per_process_2mp3`](@ref)) and its Jacobian
+([`_jacobian_2mp3_manual`](@ref)).
+"""
+@inline _ice_numadj_params(::Type{FT}) where {FT} =
+    (; τ = FT(100), x_min = FT(1e-12), x_max = FT(1e-5))
+
+"""
     _per_process_2mp3(mp, tps, ρ, T, q_tot,
         q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ)
 
@@ -253,7 +263,7 @@ sides `f_p` for the linear post-solve attribution and is not differentiated.
     ice_depsub = MicroState2MP3(o, o, o, o, ∂ₜq_ice_dep, ∂ₜn_ice_dep, ∂ₜq_rim_sub, ∂ₜb_rim_sub)
 
     # ice number adjustment for mass limits
-    numadj = (; τ = FT(100), x_min = FT(1e-12), x_max = FT(1e-5))
+    numadj = _ice_numadj_params(FT)
     ∂ₜn_ice_numadj = CM2.number_tendency_from_mass_limits(numadj, q_ice, n_ice)
     ice_numadj = MicroState2MP3(o, o, o, o, o, ∂ₜn_ice_numadj, o, o)
 
@@ -376,7 +386,7 @@ end
 
 bulk_microphysics_tendencies(::RosenbrockAverage, ::Microphysics2Moment, args...) = throw(
     ArgumentError(
-        "RosenbrockAverage on the 2M+P3 model supports only ExactJacobian; use rosenbrock_exact()",
+        "RosenbrockAverage on the 2M+P3 model supports only ExactJacobian or ManualJacobian; use rosenbrock_exact() or rosenbrock_manual()",
     ),
 )
 
@@ -401,12 +411,14 @@ tendency. See the [Rosenbrock-average microphysics substepping](@ref)
 documentation page for the substep algorithm.
 
 `logλ` and `q_tot` are held fixed across substeps. The 2M+P3 model supports
-only [`ExactJacobian`](@ref); the donor-based matrix is 1M-only.
+[`ExactJacobian`](@ref) and [`ManualJacobian`](@ref); the donor-based matrix
+([`DonorJacobian`](@ref)/[`CoupledDonorJacobian`](@ref)) is 1M-only.
 
 Returns the net change in the species over `Δt` divided by `Δt`, in the same
 fields as the `Instantaneous` entry (without the activation diagnostic).
 """
-@inline function bulk_microphysics_tendencies(mode::RosenbrockAverage{ExactJacobian}, cm::Microphysics2Moment,
+@inline function bulk_microphysics_tendencies(
+    mode::RosenbrockAverage{<:Union{ExactJacobian, ManualJacobian}}, cm::Microphysics2Moment,
     mp::CMP.Microphysics2MParams{WR, ICE}, tps,
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
@@ -452,6 +464,311 @@ fields as the `Instantaneous` entry (without the activation diagnostic).
     )}(
         Tuple(rates),
     )
+end
+
+@inline _tendency_and_jacobian(::ManualJacobian, g::Instantaneous2MP3Tendency, x) =
+    (g(x), _jacobian_2mp3_manual(g, x))
+
+"""
+    _jacobian_2mp3(FT; lcl_lcl, lcl_rai, ..., brim_brim)
+
+Assemble the 8×8 Jacobian of the 2M+P3 tendency over the state
+`(q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim)` from named
+species-pair entries: keyword `<receiver>_<donor>` is
+`∂(d<receiver>/dt)/∂<donor>`. The species short names are
+`lcl`/`nlcl`/`rai`/`nrai`/`ice`/`nice`/`rim`/`brim`. Entries not supplied are
+zero. Centralizes the index layout so the hand-built Jacobian is filled by
+physical coupling name rather than numeric `[i, j]` position, mirroring
+[`_jacobian_1m`](@ref).
+"""
+@inline _jacobian_2mp3(::Type{FT};
+    lcl_lcl = zero(FT), lcl_nlcl = zero(FT), lcl_rai = zero(FT), lcl_nrai = zero(FT),
+    lcl_ice = zero(FT), lcl_nice = zero(FT), lcl_rim = zero(FT), lcl_brim = zero(FT),
+    nlcl_lcl = zero(FT), nlcl_nlcl = zero(FT), nlcl_rai = zero(FT), nlcl_nrai = zero(FT),
+    nlcl_ice = zero(FT), nlcl_nice = zero(FT), nlcl_rim = zero(FT), nlcl_brim = zero(FT),
+    rai_lcl = zero(FT), rai_nlcl = zero(FT), rai_rai = zero(FT), rai_nrai = zero(FT),
+    rai_ice = zero(FT), rai_nice = zero(FT), rai_rim = zero(FT), rai_brim = zero(FT),
+    nrai_lcl = zero(FT), nrai_nlcl = zero(FT), nrai_rai = zero(FT), nrai_nrai = zero(FT),
+    nrai_ice = zero(FT), nrai_nice = zero(FT), nrai_rim = zero(FT), nrai_brim = zero(FT),
+    ice_lcl = zero(FT), ice_nlcl = zero(FT), ice_rai = zero(FT), ice_nrai = zero(FT),
+    ice_ice = zero(FT), ice_nice = zero(FT), ice_rim = zero(FT), ice_brim = zero(FT),
+    nice_lcl = zero(FT), nice_nlcl = zero(FT), nice_rai = zero(FT), nice_nrai = zero(FT),
+    nice_ice = zero(FT), nice_nice = zero(FT), nice_rim = zero(FT), nice_brim = zero(FT),
+    rim_lcl = zero(FT), rim_nlcl = zero(FT), rim_rai = zero(FT), rim_nrai = zero(FT),
+    rim_ice = zero(FT), rim_nice = zero(FT), rim_rim = zero(FT), rim_brim = zero(FT),
+    brim_lcl = zero(FT), brim_nlcl = zero(FT), brim_rai = zero(FT), brim_nrai = zero(FT),
+    brim_ice = zero(FT), brim_nice = zero(FT), brim_rim = zero(FT), brim_brim = zero(FT),
+) where {FT} = SA.SMatrix{8, 8, FT}(
+    # column-major: each column is a donor, each row a receiver d<recv>/dt
+    lcl_lcl, nlcl_lcl, rai_lcl, nrai_lcl, ice_lcl, nice_lcl, rim_lcl, brim_lcl,       # ∂/∂q_lcl
+    lcl_nlcl, nlcl_nlcl, rai_nlcl, nrai_nlcl, ice_nlcl, nice_nlcl, rim_nlcl, brim_nlcl, # ∂/∂n_lcl
+    lcl_rai, nlcl_rai, rai_rai, nrai_rai, ice_rai, nice_rai, rim_rai, brim_rai,       # ∂/∂q_rai
+    lcl_nrai, nlcl_nrai, rai_nrai, nrai_nrai, ice_nrai, nice_nrai, rim_nrai, brim_nrai, # ∂/∂n_rai
+    lcl_ice, nlcl_ice, rai_ice, nrai_ice, ice_ice, nice_ice, rim_ice, brim_ice,       # ∂/∂q_ice
+    lcl_nice, nlcl_nice, rai_nice, nrai_nice, ice_nice, nice_nice, rim_nice, brim_nice, # ∂/∂n_ice
+    lcl_rim, nlcl_rim, rai_rim, nrai_rim, ice_rim, nice_rim, rim_rim, brim_rim,       # ∂/∂q_rim
+    lcl_brim, nlcl_brim, rai_brim, nrai_brim, ice_brim, nice_brim, rim_brim, brim_brim, # ∂/∂b_rim
+)
+
+"""
+    _condevap_derivs(τ, sat_excess, Γ, cp_air, L, dqs_dT, q_limit, limit_is_ice,
+        dcp_dliq, dcp_dice)
+
+The three closed-form derivatives `(∂s_liq, ∂s_rai, ∂s_ice)` of a relaxation
+condensate tendency with respect to the liquid donor, the rain donor, and the
+ice donor, matching the active primal branch of
+[`CMNonEq.conv_q_vap_to_q_lcl`](@ref) / [`CMNonEq.conv_q_vap_to_q_icl`](@ref):
+
+```
+∂ₜq = ifelse(sat_excess < 0, -min(-sat_excess, max(0, q_limit)) / (τ·Γ),
+             sat_excess / (τ·Γ))
+```
+
+`q_limit` is the donor's own mass (`q_lcl` for cloud, `q_ice` for ice, selected
+by `limit_is_ice`); `limit_binds` selects between the vapor and limited branches
+of `∂ₜq`.
+"""
+@inline function _condevap_derivs(
+    τ, sat_excess, Γ, cp_air, L, dqs_dT, q_limit, limit_is_ice, dcp_dliq, dcp_dice,
+)
+    FT = typeof(sat_excess)
+    τΓ = τ * Γ
+    # ∂(1/(τΓ))/∂q = -(τ/(τΓ)²)·∂Γ/∂q, ∂Γ/∂q = -(L·dqs_dT/cp²)·∂cp/∂q
+    dΓ_dliq = -(L * dqs_dT / cp_air^2) * dcp_dliq
+    dΓ_dice = -(L * dqs_dT / cp_air^2) * dcp_dice
+    dinv_dliq = -dΓ_dliq * τ / τΓ^2
+    dinv_dice = -dΓ_dice * τ / τΓ^2
+    limit_binds = (sat_excess < 0) & (-sat_excess > max(zero(FT), q_limit))
+    # Vapor branch: ∂ₜq = sat_excess/(τΓ), ∂sat_excess/∂q = -1 on every donor.
+    v_liq = -1 / τΓ + sat_excess * dinv_dliq
+    v_ice = -1 / τΓ + sat_excess * dinv_dice
+    # Limited branch: ∂ₜq = -q_limit/(τΓ). Only the limit species (q_lcl for
+    # cloud, q_ice for ice) carries the -1/(τΓ) self term; q_rai is never the
+    # limit. Every donor keeps the -q_limit·∂(1/(τΓ)) Γ term.
+    limit_self = 1 / τΓ
+    c_liq = -q_limit * dinv_dliq - ifelse(limit_is_ice, zero(FT), limit_self)
+    c_rai = -q_limit * dinv_dliq
+    c_ice = -q_limit * dinv_dice - ifelse(limit_is_ice, limit_self, zero(FT))
+    ∂s_liq = ifelse(limit_binds, c_liq, v_liq)
+    ∂s_rai = ifelse(limit_binds, c_rai, v_liq)
+    ∂s_ice = ifelse(limit_binds, c_ice, v_ice)
+    return (; ∂s_liq, ∂s_rai, ∂s_ice)
+end
+
+"""
+    _jacobian_2mp3_manual(g::Instantaneous2MP3Tendency, x::MicroState2MP3)
+
+The hand-built 2M+P3 substep Jacobian for [`ManualJacobian`](@ref), evaluated at
+the same `(ρ, Tsub, q_tot, logλ, x)` as the raw tendency `f = g(x)`.
+
+The entries are tiered:
+
+  - Tier 1 (closed-form): cloud condensation/evaporation, ice
+    deposition/sublimation (with the ice-number sublimation pathway and the rim
+    drain), the four number adjustments, and the F23 deposition-nucleation number
+    pathway. The supersaturation block carries the autocatalytic vapor brake
+    `∂q_vap/∂q_condensate = −1` and the relaxation `−1/(τ·Γ)` couplings.
+  - Tier 2 (donor-diagonal): autoconversion, accretion, cloud/rain
+    self-collection, breakup, rain evaporation, Bigg immersion, and rain
+    freezing, linearized in their donor species through `D = rate /
+    max(floor, q_donor)` reusing the per-process rates of
+    [`_per_process_2mp3`](@ref).
+  - Tier 3 (dropped): the quadrature liquid-ice collision, ice aggregation, and
+    ice-melt couplings are kept in `f` but omitted from `J` (no `gamma_inc`
+    shape derivative is taken).
+"""
+@inline function _jacobian_2mp3_manual(
+    g::Instantaneous2MP3Tendency, x::MicroState2MP3{FT},
+) where {FT}
+    mp = g.mp
+    tps = g.tps
+    ρ = g.ρ
+    T = g.T
+    q_tot = FT(g.q_tot)
+    logλ = g.logλ
+
+    (; q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim) = x
+    o = zero(FT)
+    # ϵₘ matches the entry's `n_ice/q_ice` and number-adjustment guards
+    qmin = UT.ϵ_numerics_2M_M(FT)
+    # donor floor for the Tier-2 linearizations (the 1M donor recipe's `q_min`)
+    q_floor = FT(TDI.TD.Parameters.q_min(tps))
+    n_floor = q_floor
+
+    # per-process primal rates (Tier-2 donor coefficients reuse these)
+    pp = _per_process_2mp3(mp, tps, ρ, T, q_tot,
+        q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ)
+
+    # --- shared thermodynamic constants (T, ρ, q_tot frozen in the substep) ---
+    Rᵥ = TDI.Rᵥ(tps)
+    Lᵥ = TDI.Lᵥ(tps, T)
+    Lₛ = TDI.Lₛ(tps, T)
+    cp_v = TDI.TD.Parameters.cp_v(tps)
+    cp_l = TDI.TD.Parameters.cp_l(tps)
+    cp_i = TDI.TD.Parameters.cp_i(tps)
+    T_freeze = TDI.T_freeze(tps)
+    cp_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_ice)
+    # ∂cp_m/∂q: q_liq = q_lcl + q_rai, q_ice = q_ice (entry convention)
+    dcp_dliq = cp_l - cp_v  # ∂cp_m/∂q_lcl = ∂cp_m/∂q_rai
+    dcp_dice = cp_i - cp_v  # ∂cp_m/∂q_ice
+    qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_ice)
+
+    #####
+    ##### Tier 1 — closed-form stiff couplings
+    #####
+
+    # cloud condensation / evaporation (row q_lcl), branch matched to the primal
+    τ_l = mp.warm_rain.condevap.τ_relax
+    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+    dqsl_dT = CMNonEq.dqcld_dT(qᵥ_sat_liq, Lᵥ, Rᵥ, T)
+    Γₗ = CMNonEq.gamma_helper(Lᵥ, cp_air, dqsl_dT)
+    sat_excess_l = qᵥ - qᵥ_sat_liq
+    cl = _condevap_derivs(τ_l, sat_excess_l, Γₗ, cp_air, Lᵥ, dqsl_dT, q_lcl, false, dcp_dliq, dcp_dice)
+    lcl_lcl = cl.∂s_liq
+    lcl_rai = cl.∂s_rai
+    lcl_ice = cl.∂s_ice
+
+    # ice deposition / sublimation (rows q_ice, n_ice, q_rim, b_rim)
+    τ_i = mp.warm_rain.subdep.τ_relax
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    dqsi_dT = CMNonEq.dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
+    Γᵢ = CMNonEq.gamma_helper(Lₛ, cp_air, dqsi_dT)
+    sat_excess_i = qᵥ - qᵥ_sat_ice
+    ci = _condevap_derivs(τ_i, sat_excess_i, Γᵢ, cp_air, Lₛ, dqsi_dT, q_ice, true, dcp_dliq, dcp_dice)
+    # Above freezing the INP limiter zeros a positive (deposition) tendency and the
+    # entry caps it at zero, so the derivative survives only on the sublimation
+    # branch (sat_excess_i ≤ 0); the sublimation/cap branch of `ci` is unchanged.
+    dep_suppressed = (T > T_freeze) & (sat_excess_i > 0)
+    dep_active = !dep_suppressed
+    ice_lcl = ifelse(dep_active, ci.∂s_liq, o)
+    ice_rai = ifelse(dep_active, ci.∂s_rai, o)
+    ice_ice = ifelse(dep_active, ci.∂s_ice, o)
+
+    # ice number sublimation pathway: ∂ₜn_ice_dep = (n_ice/q_ice)·∂ₜq_ice_dep,
+    # active only on the sublimation branch (∂ₜq_ice_dep < 0)
+    ∂ₜq_ice_dep = pp.ice_depsub.q_ice
+    n_sub_active = ∂ₜq_ice_dep < 0 && q_ice > qmin && dep_active
+    n_per_q = n_ice / max(qmin, q_ice)
+    # ∂(n/q·∂ₜq)/∂q = (n/q)·∂(∂ₜq)/∂q − (n/q²)·∂ₜq ;  ∂(n/q·∂ₜq)/∂n = (1/q)·∂ₜq
+    nice_lcl = ifelse(n_sub_active, n_per_q * ice_lcl, o)
+    nice_rai = ifelse(n_sub_active, n_per_q * ice_rai, o)
+    nice_ice = ifelse(n_sub_active, n_per_q * (ice_ice - ∂ₜq_ice_dep / max(qmin, q_ice)), o)
+    nice_nice = ifelse(n_sub_active, ∂ₜq_ice_dep / max(qmin, q_ice), o)
+
+    # Rim-drain couplings on the sublimation branch are dropped from J (Tier 3).
+    rim_lcl = o
+    rim_rai = o
+    rim_ice = o
+    brim_lcl = o
+    brim_rai = o
+    brim_ice = o
+
+    # F23 deposition nucleation number pathway: ∂ₜn_frz = max(0, INPC/ρ − n_ice)/τ_act
+    # (n_active = n_ice here); active arm ⇒ ∂/∂n_ice = −1/τ_act.
+    τ_act = mp.ice.inp_depletion_model.τ_act
+    f23_n = pp.f23_deposition.n_ice
+    f23_active = f23_n > 0
+    nice_nice += ifelse(f23_active, -1 / τ_act, o)
+
+    # number adjustments (cloud, rain, ice): closed-form, see
+    # `number_tendency_from_mass_limits`. Interior ⇒ 0; clamped low/high ⇒
+    # ∂/∂n = −1/τ, ∂/∂q = 1/(x_bound·τ).
+    sb = mp.warm_rain.seifert_beheng
+    (nlcl_lcl, nlcl_nlcl) =
+        _numadj_derivs(FT, q_lcl, n_lcl, sb.pdf_c.xc_min, sb.pdf_c.xc_max, sb.numadj.τ, qmin)
+    (nrai_rai, nrai_nrai) =
+        _numadj_derivs(FT, q_rai, n_rai, sb.pdf_r.xr_min, sb.pdf_r.xr_max, sb.numadj.τ, qmin)
+    numadj_ice = _ice_numadj_params(FT)
+    (nice_ice_adj, nice_nice_adj) =
+        _numadj_derivs(FT, q_ice, n_ice, numadj_ice.x_min, numadj_ice.x_max, numadj_ice.τ, qmin)
+    nice_ice += nice_ice_adj
+    nice_nice += nice_nice_adj
+
+    #####
+    ##### Tier 2 — donor-diagonal linearizations of the warm-rain + freezing transfers
+    #####
+    # accumulators that receive only Tier-2 contributions (Tier-1 left them zero)
+    rai_lcl = o
+    rai_rai = o
+    nrai_nlcl = o
+    # each process column = process tendency vector / max(floor, donor); mass
+    # pathways routed by the mass donor, number pathways by the number donor.
+    dlcl = 1 / max(q_floor, q_lcl)
+    drai = 1 / max(q_floor, q_rai)
+    dnlcl = 1 / max(n_floor, n_lcl)
+    dnrai = 1 / max(n_floor, n_rai)
+
+    # rain evaporation: q_rai, n_rai sinks (donors q_rai, n_rai)
+    rai_rai += pp.rain_evap.q_rai * drai
+    nrai_nrai += pp.rain_evap.n_rai * dnrai
+
+    # autoconversion: mass donor q_lcl, number donor n_lcl
+    lcl_lcl += pp.autoconv.q_lcl * dlcl
+    rai_lcl += pp.autoconv.q_rai * dlcl
+    nlcl_nlcl += pp.autoconv.n_lcl * dnlcl
+    nrai_nlcl += pp.autoconv.n_rai * dnlcl
+
+    # cloud self-collection: n_lcl sink, donor n_lcl
+    nlcl_nlcl += pp.cloud_selfcol.n_lcl * dnlcl
+
+    # accretion: mass donor q_lcl, number donor n_lcl
+    lcl_lcl += pp.accretion.q_lcl * dlcl
+    rai_lcl += pp.accretion.q_rai * dlcl
+    nlcl_nlcl += pp.accretion.n_lcl * dnlcl
+
+    # rain self-collection + breakup: n_rai, donor n_rai
+    nrai_nrai += pp.rain_selfcol.n_rai * dnrai
+    nrai_nrai += pp.rain_breakup.n_rai * dnrai
+
+    # Bigg immersion (cloud → ice): mass donor q_lcl, number donor n_lcl
+    lcl_lcl += pp.bigg_immersion.q_lcl * dlcl
+    ice_lcl += pp.bigg_immersion.q_ice * dlcl
+    rim_lcl += pp.bigg_immersion.q_rim * dlcl
+    brim_lcl += pp.bigg_immersion.b_rim * dlcl
+    nlcl_nlcl += pp.bigg_immersion.n_lcl * dnlcl
+    nice_nlcl = pp.bigg_immersion.n_ice * dnlcl
+
+    # rain freezing (rain → ice): mass donor q_rai, number donor n_rai
+    rai_rai += pp.rain_freezing.q_rai * drai
+    ice_rai += pp.rain_freezing.q_ice * drai
+    rim_rai += pp.rain_freezing.q_rim * drai
+    brim_rai += pp.rain_freezing.b_rim * drai
+    nrai_nrai += pp.rain_freezing.n_rai * dnrai
+    nice_nrai = pp.rain_freezing.n_ice * dnrai
+
+    # Tier 3 (liquid-ice collision, ice aggregation, ice melt): omitted from J.
+
+    return _jacobian_2mp3(FT;
+        lcl_lcl, lcl_rai, lcl_ice,
+        nlcl_lcl, nlcl_nlcl,
+        rai_lcl, rai_rai,
+        nrai_nlcl, nrai_rai, nrai_nrai,
+        ice_lcl, ice_rai, ice_ice,
+        nice_lcl, nice_nlcl, nice_rai, nice_nrai, nice_ice, nice_nice,
+        rim_lcl, rim_rai, rim_ice,
+        brim_lcl, brim_rai, brim_ice,
+    )
+end
+
+"""
+    _numadj_derivs(FT, q, n, x_min, x_max, τ, qmin)
+
+The two non-zero closed-form derivatives `(∂q, ∂n)` of
+[`CM2.number_tendency_from_mass_limits`](@ref) `∂ₜn = (n_target − n)/τ` with
+`n_target = clamp(n, q/x_max, q/x_min)`: interior (no clamp) ⇒ both zero; the
+low clamp `n_target = q/x_max` ⇒ `(1/(x_max·τ), −1/τ)`; the high clamp
+`n_target = q/x_min` ⇒ `(1/(x_min·τ), −1/τ)`; the empty arm `q < qmin`
+(`n_target = 0`) ⇒ `(0, −1/τ)`.
+"""
+@inline function _numadj_derivs(::Type{FT}, q, n, x_min, x_max, τ, qmin) where {FT}
+    empty = q < qmin
+    lo = q / x_max
+    hi = q / x_min
+    clamp_low = !empty && n < lo
+    clamp_high = !empty && n > hi
+    ∂q = ifelse(clamp_low, 1 / (x_max * τ), ifelse(clamp_high, 1 / (x_min * τ), zero(FT)))
+    ∂n = ifelse(empty || clamp_low || clamp_high, -1 / τ, zero(FT))
+    return (∂q, ∂n)
 end
 
 #####
@@ -649,12 +966,15 @@ The species projection `x -> z` for a [`Jacobian`](@ref) and
 flooring, so every species stays implicit ([`_full_species_mask`](@ref)). An
 explicit growth diagonal removes the unbounded growth of the exact Jacobian, so
 its species stay implicit too; the exact Jacobian with implicit growth uses the
-near-empty mask ([`_rosenbrock_species_mask`](@ref)).
+near-empty mask ([`_rosenbrock_species_mask`](@ref)). The manual Jacobian drops
+the unbounded quadrature growth couplings (Tier 3), so it stays on the full mask
+under either growth treatment.
 """
 @inline _species_mask(::DonorJacobian, ::GrowthTreatment) = _full_species_mask
 @inline _species_mask(::CoupledDonorJacobian, ::GrowthTreatment) = _full_species_mask
 @inline _species_mask(::ExactJacobian, ::ExplicitGrowthDiagonal) = _full_species_mask
 @inline _species_mask(::ExactJacobian, ::ImplicitGrowth) = _rosenbrock_species_mask
+@inline _species_mask(::ManualJacobian, ::GrowthTreatment) = _full_species_mask
 
 """
     _apply_growth(growth, J)
