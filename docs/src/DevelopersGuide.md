@@ -206,3 +206,25 @@ Add a comment of what you are testing and use `@test` to create your test.
 The GPU tests are ran twice: for `Float64` and `Float32`.
 Similar as with performance tests, some trial and error is needed
   to find good tolerances for both options.
+
+### P3 quadrature error study
+
+The P3 scheme evaluates its size-distribution integrals with a Gauss-Legendre
+rule whose default order is recorded in `src/parameters/Microphysics2MParams.jl`.
+The study that supports the default lives in `test/p3_quadrature_error_study.jl`:
+it measures the relative error of every quadrature-consuming P3 quantity against
+a high-order reference, across a set of physically plausible column states, and
+attributes it to the transport components (sedimentation velocities, melt), the
+components proportional to the collision efficiency, and the full bulk tendency
+vector.
+
+Run it from the repository root with
+
+```
+julia --project=test -e 'include("test/p3_quadrature_error_study.jl");
+                         run_quadrature_error_study()'
+```
+
+Rerun the study when changing the quadrature rule, the integral bounds or
+breakpoints, or the P3 process integrands, and revisit the default order and the
+tolerances in `test/bulk_tendencies_quadrature_tests.jl` accordingly.
