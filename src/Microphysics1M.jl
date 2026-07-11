@@ -50,7 +50,6 @@ import ..Common as CO
 import ..Parameters as CMP
 import ..Utilities as UT
 
-
 export terminal_velocity,
     conv_q_lcl_to_q_rai,
     conv_q_icl_to_q_sno,
@@ -80,9 +79,10 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 - `q_sno`: snow specific content (snow only)
 - `ρ`: air density (snow only)
 """
-@inline function get_n0((; ν, μ)::CMP.ParticlePDFSnow{FT}, q_sno::FT, ρ::FT) where {FT}
-    safe_q_sno = max(q_sno, UT.ϵ_numerics(FT))
-    return ifelse(q_sno > UT.ϵ_numerics(FT), μ * (ρ * safe_q_sno)^ν, zero(FT))
+@inline function get_n0((; ν, μ)::CMP.ParticlePDFSnow, q_sno, ρ)
+    FT = UT.promote_typeof(q_sno, ρ, μ)
+    ϵ = UT.ϵ_numerics(FT)
+    ifelse(q_sno > ϵ, μ * (ρ * max(q_sno, ϵ))^ν, zero(FT))
 end
 @inline get_n0((; n0)::CMP.ParticlePDFIceRain{FT}, args...) where {FT} = n0
 
@@ -124,14 +124,12 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
 - `λ⁻¹`: inverse rate parameter [m]
 """
 @inline function lambda_inverse(
-    #(; pdf, mass)::Union{CMP.Snow{FT}, CMP.Rain{FT}, CMP.CloudIce{FT}},
-    pdf::Union{CMP.ParticlePDFIceRain{FT}, CMP.ParticlePDFSnow{FT}},
-    mass::CMP.ParticleMass{FT},
-    q::FT,
-    ρ::FT,
-) where {FT}
+    pdf::Union{CMP.ParticlePDFIceRain, CMP.ParticlePDFSnow}, mass::CMP.ParticleMass, q, ρ,
+)
+    FT = UT.promote_typeof(q, ρ, mass.r0)
+    ϵ = UT.ϵ_numerics(FT)
     # size distribution
-    n0::FT = get_n0(pdf, q, ρ)
+    n0 = get_n0(pdf, q, ρ)
     # mass(size)
     (; r0, m0, me, Δm, χm, gamma_coeff) = mass
 
@@ -144,10 +142,10 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     # caller gates, not here.
     # Note: Julia compiles x^y to exp(y * log(x)); gamma_coeff is pre-computed in the
     # ParticleMass constructor for GPU performance.
-    qp = UT.clamp_to_nonneg(q)
-    ρp = UT.clamp_to_nonneg(ρ)
-    denom = χm * m0 * max(n0, UT.ϵ_numerics(FT)) * gamma_coeff
-    λ_inv = (ρp * qp * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
+    q⁺ = UT.clamp_to_nonneg(q)
+    ρ⁺ = UT.clamp_to_nonneg(ρ)
+    denom = χm * m0 * max(n0, ϵ) * gamma_coeff
+    λ_inv = (q⁺ * ρ⁺ * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
     return max(r0 * FT(1e-5), λ_inv)
 end
 
@@ -222,38 +220,35 @@ Fall velocity of individual particles is parameterized:
 """
 @inline function terminal_velocity(
     (; pdf, mass)::Union{CMP.Rain, CMP.Snow},
-    vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
-    ρ::FT,
-    q::FT,
-    v0::FT,
-    λ_inv::FT,
-) where {FT}
+    vel::Union{CMP.Blk1MVelTypeRain, CMP.Blk1MVelTypeSnow},
+    ρ, q, v0, λ_inv,
+)
+    FT = UT.promote_typeof(ρ, q, v0, λ_inv)
+    ϵ = UT.ϵ_numerics(FT)
     (; χv, ve, Δv, gamma_term) = vel
     (; r0, me, Δm, χm, gamma_coeff) = mass
 
     # gamma_term = SF.gamma(me + ve + Δm + Δv + 1) (pre-computed in vel)
     # gamma_coeff = SF.gamma(me + Δm + 1) (pre-computed in mass)
     fall_w = χv * v0 * (λ_inv / r0)^(ve + Δv) * gamma_term / gamma_coeff
-    return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
+    return ifelse(q > ϵ, fall_w, zero(FT))
 end
 
 @inline function terminal_velocity(
     precip::Union{CMP.Rain, CMP.Snow},
-    vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
-    ρ::FT,
-    q::FT,
-) where {FT}
+    vel::Union{CMP.Blk1MVelTypeRain, CMP.Blk1MVelTypeSnow},
+    ρ, q,
+)
     v0 = get_v0(vel, ρ)
     λ_inv = lambda_inverse(precip.pdf, precip.mass, q, ρ)
     return terminal_velocity(precip, vel, ρ, q, v0, λ_inv)
 end
 
 @inline function terminal_velocity(
-    (; pdf, mass)::CMP.Rain,
-    vel::CMP.Chen2022VelTypeRain{FT},
-    ρₐ::FT,
-    q::FT,
-) where {FT}
+    (; pdf, mass)::CMP.Rain, vel::CMP.Chen2022VelTypeRain,
+    ρₐ, q,
+)
+    FT = UT.promote_typeof(ρₐ, q)
     # coefficients from Table B1 from Chen et. al. 2022
     aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ)
     # size distribution parameter
@@ -489,17 +484,12 @@ Internal low-level kernel. Prefer the option-dispatched API.
 - `ρ`: air density
 """
 @inline function accretion(
-    cloud::CMP.CloudCondensateType,
+    ::CMP.CloudCondensateType,
     precip::CMP.PrecipitationType,
-    vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
-    E::FT,
-    q_clo::FT,
-    q_pre::FT,
-    ρ::FT,
-    n0::FT,
-    v0::FT,
-    λ_inv::FT,
-) where {FT}
+    vel::Union{CMP.Blk1MVelTypeRain, CMP.Blk1MVelTypeSnow},
+    E, q_clo, q_pre, ρ, n0, v0, λ_inv,
+)
+    FT = UT.promote_typeof(q_clo, q_pre, ρ, n0, v0, λ_inv)
     (; r0) = precip.mass
     (; χv, ve, Δv, gamma_accr) = vel
     (; a0, ae, χa, Δa) = precip.area
@@ -514,14 +504,11 @@ Internal low-level kernel. Prefer the option-dispatched API.
 end
 
 @inline function accretion(
-    cloud::CMP.CloudCondensateType,
-    precip::CMP.PrecipitationType,
-    vel::Union{CMP.Blk1MVelTypeRain{FT}, CMP.Blk1MVelTypeSnow{FT}},
-    E::FT,
-    q_clo::FT,
-    q_pre::FT,
-    ρ::FT,
-) where {FT}
+    cloud::CMP.CloudCondensateType, precip::CMP.PrecipitationType,
+    vel::Union{CMP.Blk1MVelTypeRain, CMP.Blk1MVelTypeSnow},
+    E, q_clo, q_pre, ρ,
+)
+    FT = UT.promote_typeof(q_clo, q_pre, ρ, E)
     n0::FT = get_n0(precip.pdf, q_pre, ρ)
     v0::FT = get_v0(vel, ρ)
     λ_inv = lambda_inverse(precip.pdf, precip.mass, q_pre, ρ)
@@ -533,19 +520,10 @@ end
 # Returns the sink of rain water (partial source of snow) due to collisions
 # with cloud ice.
 @inline function accretion_rain_sink(
-    rain::CMP.Rain,
-    ice::CMP.CloudIce,
-    vel::CMP.Blk1MVelTypeRain{FT},
-    E::FT,
-    q_icl::FT,
-    q_rai::FT,
-    ρ::FT,
-    n0_ice::FT,
-    λ_ice_inv::FT,
-    n0::FT,
-    v0::FT,
-    λ_inv::FT,
-) where {FT}
+    rain::CMP.Rain, ice::CMP.CloudIce, vel::CMP.Blk1MVelTypeRain,
+    E, q_icl, q_rai, ρ, n0_ice, λ_ice_inv, n0, v0, λ_inv,
+)
+    FT = UT.promote_typeof(q_icl, q_rai, ρ, n0_ice, λ_ice_inv, n0, v0, λ_inv)
     (; r0, m0, me, Δm, χm) = rain.mass
     (; χv, ve, Δv, gamma_accr_rain_sink) = vel
     (; a0, ae, χa, Δa) = rain.area
@@ -561,14 +539,10 @@ end
 end
 
 @inline function accretion_rain_sink(
-    rain::CMP.Rain,
-    ice::CMP.CloudIce,
-    vel::CMP.Blk1MVelTypeRain{FT},
-    E::FT,
-    q_icl::FT,
-    q_rai::FT,
-    ρ::FT,
-) where {FT}
+    rain::CMP.Rain, ice::CMP.CloudIce, vel::CMP.Blk1MVelTypeRain,
+    E, q_icl, q_rai, ρ,
+)
+    FT = UT.promote_typeof(q_icl, q_rai, ρ, E)
     n0_ice = get_n0(ice.pdf)
     λ_ice_inv = lambda_inverse(ice.pdf, ice.mass, q_icl, ρ)
     n0 = get_n0(rain.pdf, q_rai, ρ)
@@ -602,22 +576,11 @@ deviations are proportional to the mean fall velocities, with coefficient
 - `ρ`: air density [kg/m³]
 """
 @inline function accretion_snow_rain(
-    type_i::CMP.PrecipitationType,
-    type_j::CMP.PrecipitationType,
-    blk1mveltype_ti,
-    blk1mveltype_tj,
-    E_ij::FT,
-    coeff_disp::FT,
-    q_i::FT,
-    q_j::FT,
-    ρ::FT,
-    n0_i::FT,
-    n0_j::FT,
-    v0_i::FT,
-    v0_j::FT,
-    λ_i_inv::FT,
-    λ_j_inv::FT,
-) where {FT}
+    type_i::CMP.PrecipitationType, type_j::CMP.PrecipitationType,
+    blk1mveltype_ti, blk1mveltype_tj,
+    E_ij, coeff_disp, q_i, q_j, ρ, n0_i, n0_j, v0_i, v0_j, λ_i_inv, λ_j_inv,
+)
+    FT = UT.promote_typeof(q_i, q_j, ρ, n0_i, n0_j, v0_i, v0_j, λ_i_inv, λ_j_inv)
     (; r0, m0, me, Δm, χm, gamma_coeff) = type_j.mass
     δ = me + Δm
 
@@ -732,11 +695,7 @@ delegate to the corresponding low-level Marshall-Palmer kernels.
 end
 
 @inline function accretion(
-    opt::CMP.CloudLiquidSnowAccretion,
-    mp,
-    tps,
-    micro,
-    thermo,
+    opt::CMP.CloudLiquidSnowAccretion, mp, tps, micro, thermo,
     sd = size_distr_parameters(mp, micro, thermo),
 )
     q_lcl = micro.q_lcl
@@ -744,68 +703,36 @@ end
     ρ = thermo.ρ
     T = thermo.T
     S = accretion(
-        mp.cloud.liquid,
-        mp.precip.snow,
-        mp.terminal_velocity.snow,
-        opt.e,
-        q_lcl,
-        q_sno,
-        ρ,
-        sd.n0_sno,
-        sd.v0_sno,
-        sd.λ_inv_sno,
+        mp.cloud.liquid, mp.precip.snow, mp.terminal_velocity.snow, opt.e, q_lcl, q_sno, ρ,
+        sd.n0_sno, sd.v0_sno, sd.λ_inv_sno,
     )
     α = warm_accretion_melt_factor(tps, T)
     return (; S_accr = S, S_melt = α * S)
 end
 
 @inline function accretion(
-    opt::CMP.CloudIceRainAccretion,
-    mp,
-    tps,
-    micro,
-    thermo,
+    opt::CMP.CloudIceRainAccretion, mp, tps, micro, thermo,
     sd = size_distr_parameters(mp, micro, thermo),
 )
     q_icl = micro.q_icl
     q_rai = micro.q_rai
     ρ = thermo.ρ
     return accretion(
-        mp.cloud.ice,
-        mp.precip.rain,
-        mp.terminal_velocity.rain,
-        opt.e,
-        q_icl,
-        q_rai,
-        ρ,
-        sd.n0_rai,
-        sd.v0_rai,
-        sd.λ_inv_rai,
+        mp.cloud.ice, mp.precip.rain, mp.terminal_velocity.rain, opt.e, q_icl, q_rai, ρ,
+        sd.n0_rai, sd.v0_rai, sd.λ_inv_rai,
     )
 end
 
 @inline function accretion(
-    opt::CMP.CloudIceSnowAccretion,
-    mp,
-    tps,
-    micro,
-    thermo,
+    opt::CMP.CloudIceSnowAccretion, mp, tps, micro, thermo,
     sd = size_distr_parameters(mp, micro, thermo),
 )
     q_icl = micro.q_icl
     q_sno = micro.q_sno
     ρ = thermo.ρ
     return accretion(
-        mp.cloud.ice,
-        mp.precip.snow,
-        mp.terminal_velocity.snow,
-        opt.e,
-        q_icl,
-        q_sno,
-        ρ,
-        sd.n0_sno,
-        sd.v0_sno,
-        sd.λ_inv_sno,
+        mp.cloud.ice, mp.precip.snow, mp.terminal_velocity.snow, opt.e, q_icl, q_sno, ρ,
+        sd.n0_sno, sd.v0_sno, sd.λ_inv_sno,
     )
 end
 
@@ -813,12 +740,7 @@ end
     (; S_rai_sno = zero(thermo.T), S_sno_rai = zero(thermo.T), S_melt = zero(thermo.T))
 
 @inline function accretion_snow_rain(
-    opt::CMP.RainSnowAccretion,
-    mp,
-    tps,
-    micro,
-    thermo,
-    sd = size_distr_parameters(mp, micro, thermo),
+    opt::CMP.RainSnowAccretion, mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo),
 )
     q_rai = micro.q_rai
     q_sno = micro.q_sno
@@ -828,38 +750,12 @@ end
     sno = mp.precip.snow
     rai = mp.precip.rain
     S_rai_sno = accretion_snow_rain(
-        sno,
-        rai,
-        vel.snow,
-        vel.rain,
-        opt.e,
-        opt.coeff_disp,
-        q_sno,
-        q_rai,
-        ρ,
-        sd.n0_sno,
-        sd.n0_rai,
-        sd.v0_sno,
-        sd.v0_rai,
-        sd.λ_inv_sno,
-        sd.λ_inv_rai,
+        sno, rai, vel.snow, vel.rain, opt.e, opt.coeff_disp, q_sno, q_rai, ρ,
+        sd.n0_sno, sd.n0_rai, sd.v0_sno, sd.v0_rai, sd.λ_inv_sno, sd.λ_inv_rai,
     )
     S_sno_rai = accretion_snow_rain(
-        rai,
-        sno,
-        vel.rain,
-        vel.snow,
-        opt.e,
-        opt.coeff_disp,
-        q_rai,
-        q_sno,
-        ρ,
-        sd.n0_rai,
-        sd.n0_sno,
-        sd.v0_rai,
-        sd.v0_sno,
-        sd.λ_inv_rai,
-        sd.λ_inv_sno,
+        rai, sno, vel.rain, vel.snow, opt.e, opt.coeff_disp, q_rai, q_sno, ρ,
+        sd.n0_rai, sd.n0_sno, sd.v0_rai, sd.v0_sno, sd.λ_inv_rai, sd.λ_inv_sno,
     )
     α = warm_accretion_melt_factor(tps, T)
     return (; S_rai_sno, S_sno_rai, S_melt = α * S_rai_sno)
@@ -914,11 +810,7 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
 @inline conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
 @inline function conv_q_rai_to_q_vap(
-    ::CMP.RainEvaporation,
-    mp,
-    tps,
-    micro,
-    thermo,
+    ::CMP.RainEvaporation, mp, tps, micro, thermo,
     sd = size_distr_parameters(mp, micro, thermo),
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
@@ -926,7 +818,7 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     (; pdf, mass, vent) = mp.precip.rain
     vel = mp.terminal_velocity.rain
     aps = mp.air_properties
-    FT = eltype(ρ)
+    FT = UT.promote_typeof(q_rai, q_lcl, q_icl, q_sno, ρ)
 
     S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
 
@@ -1004,7 +896,7 @@ end
     (; pdf, mass, vent) = mp.precip.snow
     vel = mp.terminal_velocity.snow
     aps = mp.air_properties
-    FT = eltype(ρ)
+    FT = UT.promote_typeof(q_sno, q_lcl, q_icl, q_rai, ρ)
 
     (; ν_air, D_vapor) = aps
     S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
@@ -1063,7 +955,7 @@ Returns the tendency due to cloud ice melt.
     (; ρ, T) = thermo
     (; pdf, mass) = mp.cloud.ice
     (; K_therm) = mp.air_properties
-    FT = eltype(ρ)
+    FT = UT.promote_typeof(q_icl, ρ)
     T_freeze = TDI.T_freeze(tps)
 
     L = TDI.Lf(tps, T)
@@ -1103,7 +995,7 @@ Returns the tendency due to snow melt.
     (; pdf, mass, vent) = mp.precip.snow
     vel = mp.terminal_velocity.snow
     aps = mp.air_properties
-    FT = eltype(ρ)
+    FT = UT.promote_typeof(q_sno, ρ)
     T_freeze = TDI.T_freeze(tps)
 
     (; ν_air, D_vapor, K_therm) = aps

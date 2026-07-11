@@ -144,6 +144,8 @@ BulkMicrophysicsTendencies.ExplicitGrowthDiagonal
 BulkMicrophysicsTendencies.TendencyLimiter
 BulkMicrophysicsTendencies.NoLimiter
 BulkMicrophysicsTendencies.EndStateSaturationAdjustment
+BulkMicrophysicsTendencies.rosenbrock_donor
+BulkMicrophysicsTendencies.rosenbrock_coupled
 BulkMicrophysicsTendencies.rosenbrock_exact
 BulkMicrophysicsTendencies.bulk_microphysics_tendencies
 ```
@@ -151,12 +153,14 @@ BulkMicrophysicsTendencies.bulk_microphysics_tendencies
 Internal Rosenbrock substep helpers:
 
 ```@docs
+BulkMicrophysicsTendencies.MicroState2MP3
 BulkMicrophysicsTendencies._full_species_mask
 BulkMicrophysicsTendencies._instantaneous_2mp3_tendency
 BulkMicrophysicsTendencies._rosenbrock_solve
 BulkMicrophysicsTendencies._rosenbrock_species_mask
 BulkMicrophysicsTendencies._rosenbrock_system
 BulkMicrophysicsTendencies._rosenbrock_update
+BulkMicrophysicsTendencies._species_mask
 ```
 
 # P3 scheme
