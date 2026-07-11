@@ -112,7 +112,7 @@ humidities, since the smaller `q_sat` is the larger supersaturation.
 
 The two saturation curves cross at the freezing point (panel (c) below). Below freezing `q_sat_ice < q_sat_liq`, so
 ice carries the larger supersaturation and the criterion binds on ice — reducing exactly to the ice-saturation
-limit that bounds the deposition instability, so the cold behaviour is unchanged. Above freezing the curves swap
+limit that bounds the ice-growth instability, so the cold behaviour is unchanged. Above freezing the curves swap
 and the criterion binds on liquid; an ice-only limit there would stop vapor depletion early and leave the cell
 supersaturated over liquid, suppressing warm cloud, which binding on the more-supersaturated phase avoids.
 
