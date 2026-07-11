@@ -238,24 +238,11 @@ bulk_microphysics_tendencies(
 
 Compute average 2M+P3 microphysics tendencies over `Δt` using `nsub`
 linearized-implicit (Rosenbrock-Euler) substeps of the raw instantaneous
-tendency.
+tendency. See the [Rosenbrock-average microphysics substepping](@ref)
+documentation page for the substep algorithm.
 
-# Algorithm
-
-For each substep of `h = Δt / nsub`:
-
-1. Evaluate the raw tendency `f` ([`_instantaneous_2mp3_tendency`](@ref)) and
-   its exact 8×8 Jacobian `J` via `ForwardDiff` at the current state.
-2. Advance with [`_rosenbrock_update`](@ref): solve `(I/h - P J P) Δx = f`
-   in equilibrated variables, where the projection `P` routes near-empty
-   species to forward Euler.
-3. Update the local temperature from the latent heating of the realized
-   increments.
-
-A non-finite state or Jacobian falls back to a forward-Euler substep of the
-raw tendency. `logλ` and `q_tot` are held fixed across substeps.
-
-The 2M+P3 model supports only [`ExactJacobian`](@ref).
+`logλ` and `q_tot` are held fixed across substeps. The 2M+P3 model supports
+only [`ExactJacobian`](@ref).
 
 Returns the net change in the species over `Δt` divided by `Δt`, in the same
 fields as the `Instantaneous` entry (without the activation diagnostic).
