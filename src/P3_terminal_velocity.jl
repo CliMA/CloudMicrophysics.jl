@@ -8,16 +8,17 @@ const NoAspectRatio = CMP.NoAspectRatio
 @inline (::NoAspectRatio)(state, D) = one(D)
 
 # Callable returned by `ice_particle_terminal_velocity`: piecewise small/large-ice
-# Chen 2022 velocity scaled by the aspect-ratio factor from `state.params`.
-struct P3IceParticleVelocityFunctor{FT, VS, VL, S} <: Function
+# Chen 2022 velocity scaled by the aspect-ratio factor.
+struct P3IceParticleVelocityFunctor{FT, VS, VL, AR, S} <: Function
     v_term_small::VS
     v_term_large::VL
     D_cutoff::FT
+    aspect_ratio::AR
     state::S
 end
 @inline function (f::P3IceParticleVelocityFunctor)(D)
     vₜ = ifelse(D <= f.D_cutoff, f.v_term_small(D), f.v_term_large(D))
-    return vₜ * f.state.params.aspect_ratio(f.state, D)
+    return vₜ * f.aspect_ratio(f.state, D)
 end
 
 """
@@ -51,7 +52,8 @@ aspect-ratio factor selected by `state.params.aspect_ratio`.
     ρᵢ = FT(916.7)  # TODO: Use parameter
     v_term_small = CO.particle_terminal_velocity(small_ice, ρₐ, ρᵢ)
     v_term_large = CO.particle_terminal_velocity(large_ice, ρₐ, ρᵢ)
-    return P3IceParticleVelocityFunctor(v_term_small, v_term_large, D_cutoff, state)
+    aspect_ratio = state.params.aspect_ratio
+    return P3IceParticleVelocityFunctor(v_term_small, v_term_large, D_cutoff, aspect_ratio, state)
 end
 
 struct P3NumberWeightedIntegrand{N, V} <: Function

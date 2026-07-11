@@ -704,14 +704,14 @@ function rain_terminal_velocity(
     (; pdf_r)::CMP.SB2006, vel::CMP.Chen2022VelTypeRain, q_rai, ρ, N_rai,
 )
     FT = UT.promote_typeof(q_rai, ρ, N_rai)
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρ)
+    terms = CO.Chen2022_vel_coeffs(vel, ρ)
     safe_q_rai = max(q_rai, UT.ϵ_numerics_2M_M(FT))
     safe_N_rai = max(N_rai, UT.ϵ_numerics_2M_N(FT))
     (; Dr_mean) = pdf_rain_parameters(pdf_r, safe_q_rai, ρ, safe_N_rai)
 
     # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
-    vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 0))
-    vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 3))
+    vt0 = sum(map(t -> CO.Chen2022_exponential_pdf(t..., Dr_mean, 0), terms))
+    vt3 = sum(map(t -> CO.Chen2022_exponential_pdf(t..., Dr_mean, 3), terms))
 
     cond_N = N_rai < UT.ϵ_numerics_2M_N(FT)
     cond_q = q_rai < UT.ϵ_numerics_2M_M(FT)
