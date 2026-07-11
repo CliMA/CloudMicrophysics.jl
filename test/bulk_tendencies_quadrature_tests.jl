@@ -7,208 +7,35 @@ import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 
 """
-Sweep test for the P3-ice quadrature order. `quadrature_order` now lives
-on `P3IceParams`, so the sweep is over `Microphysics2MParams(FT;
-with_ice = true, quadrature_order = n)`.
+Sweep test for the P3-ice quadrature order. The quadrature rule lives on
+`P3IceParams`, so the sweep constructs `Microphysics2MParams(FT; with_ice = true,
+quad = CM.Quadrature.GaussLegendre(FT, n))` at several orders `n` and compares the
+full BMT tendency vector against a high-order reference across a set of physically
+plausible column states.
 
-Issue 011 measured the worst-case relative error of one single integral
-(`bulk_liquid_ice_collision_sources`) across 5 states and 7 orders, and
-found all values < 1 % even at `n = 15`. This suite extends that to the
-**full BMT tendency vector**, sweeping a broader set of physically
-plausible column states and asserting lenient per-`n` tolerances.
+Per-order relative tolerances, applied on `max(abs(a), abs(b), ε)` with
+`ε = 1e-16 · mass_scale` so tendencies that are near-zero by physics are skipped:
 
-# Tolerance rationale
+- `n = 100`: < 2e-3
+- `n = 50`:  < 6e-3
+- `n = 25`:  < 5e-2
+- `n = 15`:  < 2e-1
+- `n = 12`:  < 5e-3
+- `n = 8`:   < 5e-3
+- `n = 7`:   < 1e-2
+- `n = 6`:   < 2e-2
 
-The goal is a sanity check for a student picking a lower `n` for fast
-iteration, not a tight correctness check. The tolerances are set to the
-level where the approximation is "good enough" for debugging but still
-meaningfully faster:
+The `n ≤ 12` rows hold because the integrand breakpoints (velocity crossing,
+decay scale) keep low orders accurate; the state set includes graupel/hail
+cores for this reason. Non-finite (`NaN` / `Inf`) outputs fail regardless of
+tolerance.
 
-- `n = 100`: < 2e-3 relative on all fields. Issue 011 showed the
-  single-integral error is ~1e-5, but the full BMT pipeline composes
-  multiple integrals (bulk liquid-ice collisions, ice aggregation,
-  melting), which can compound. 2e-3 is loose enough to absorb
-  integration-scheme drift while still catching genuine regressions.
-- `n = 50`:  < 5e-3 relative — "safe for most KiD runs".
-- `n = 25`:  < 5e-2 relative — acceptable for short diagnostics.
-- `n = 15`:  < 2e-1 — order-of-magnitude agreement only.
-
-The tolerance is applied on `max(abs(a), abs(b), ε)` where
-`ε = 1e-16 · mass_scale` to avoid false failures on tendencies that are
-near-zero by physics (e.g. ice processes in a rain-only column). All
-finite-valued outputs are checked; `NaN` / `Inf` trigger a failure
-regardless of tolerance.
-
-This does NOT include the timing assertions from the issue text — those
-are flaky under CI load. A separate `@info` block reports the
-wall-clock ratios for the student's information when the test file is
-run directly.
+The tolerances lock in the error study in `p3_quadrature_error_study.jl`
+(included below for the shared state set); rerun that study when changing the
+quadrature rule, integral bounds, or P3 process integrands.
 """
 
-function generate_column_states(::Type{FT}) where {FT}
-    # A hand-curated collection of physically plausible (ρ, T, q_*) states
-    # spanning the regimes the Jouan kinematic column experiences. Each row
-    # is a NamedTuple fed directly into `bulk_microphysics_tendencies`.
-
-    # Saturation-vapor helper (local)
-    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    q_vs_l(T, ρ) = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
-    q_vs_i(T, ρ) = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-
-    states = NamedTuple[]
-
-    # 1. Warm, cloudy, no ice, no rain — pure activation/condensation
-    let ρ = FT(1.2), T = FT(290)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = q_vs_l(T, ρ) + FT(1e-3),
-                q_lcl = FT(1e-3), n_lcl = FT(1e8),
-                q_rai = FT(0), n_rai = FT(0),
-                q_ice = FT(0), n_ice = FT(0),
-                q_rim = FT(0), b_rim = FT(0),
-            ),
-        )
-    end
-
-    # 2. Warm, heavy rain, no cloud
-    let ρ = FT(1.1), T = FT(285)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = q_vs_l(T, ρ) + FT(5e-4),
-                q_lcl = FT(0), n_lcl = FT(0),
-                q_rai = FT(5e-4), n_rai = FT(1e4),
-                q_ice = FT(0), n_ice = FT(0),
-                q_rim = FT(0), b_rim = FT(0),
-            ),
-        )
-    end
-
-    # 3. Freezing-level mixed phase, light ice, no rime
-    let ρ = FT(0.9), T = FT(270)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = q_vs_l(T, ρ) + FT(1e-4) + FT(1e-5),
-                q_lcl = FT(1e-4), n_lcl = FT(1e8),
-                q_rai = FT(0), n_rai = FT(0),
-                q_ice = FT(1e-5), n_ice = FT(1e5),
-                q_rim = FT(0), b_rim = FT(0),
-            ),
-        )
-    end
-
-    # 4. Cold cirrus, trace ice, no rain, no cloud
-    let ρ = FT(0.5), T = FT(240)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = q_vs_i(T, ρ) + FT(1e-6),
-                q_lcl = FT(0), n_lcl = FT(0),
-                q_rai = FT(0), n_rai = FT(0),
-                q_ice = FT(1e-6), n_ice = FT(1e5),
-                q_rim = FT(0), b_rim = FT(0),
-            ),
-        )
-    end
-
-    # 5. Heavy riming regime
-    let ρ = FT(0.85), T = FT(265)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = q_vs_l(T, ρ) + FT(5e-4) + FT(5e-4),
-                q_lcl = FT(5e-4), n_lcl = FT(1e8),
-                q_rai = FT(2e-4), n_rai = FT(1e4),
-                q_ice = FT(5e-4), n_ice = FT(1e5),
-                q_rim = FT(1e-4), b_rim = FT(1e-4 / 300),
-            ),
-        )
-    end
-
-    # 6. Dry subsaturated, no condensate — evaporation regime
-    let ρ = FT(1.0), T = FT(290)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = FT(0.5) * q_vs_l(T, ρ),
-                q_lcl = FT(0), n_lcl = FT(0),
-                q_rai = FT(1e-4), n_rai = FT(1e4),
-                q_ice = FT(0), n_ice = FT(0),
-                q_rim = FT(0), b_rim = FT(0),
-            ),
-        )
-    end
-
-    # 7. Just below 273 K — melting threshold with heavy ice
-    let ρ = FT(1.0), T = FT(272.5)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = q_vs_l(T, ρ) + FT(1e-3),
-                q_lcl = FT(0), n_lcl = FT(0),
-                q_rai = FT(0), n_rai = FT(0),
-                q_ice = FT(1e-3), n_ice = FT(5e4),
-                q_rim = FT(0), b_rim = FT(0),
-            ),
-        )
-    end
-
-    # 8. Just above 273 K — melting active
-    let ρ = FT(1.0), T = FT(274.0)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = q_vs_l(T, ρ) + FT(1e-3),
-                q_lcl = FT(0), n_lcl = FT(0),
-                q_rai = FT(0), n_rai = FT(0),
-                q_ice = FT(1e-3), n_ice = FT(5e4),
-                q_rim = FT(0), b_rim = FT(0),
-            ),
-        )
-    end
-
-    # 9. Strong supersaturation over ice, no liquid
-    let ρ = FT(0.7), T = FT(250)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = FT(1.5) * q_vs_i(T, ρ),
-                q_lcl = FT(0), n_lcl = FT(0),
-                q_rai = FT(0), n_rai = FT(0),
-                q_ice = FT(1e-5), n_ice = FT(1e5),
-                q_rim = FT(0), b_rim = FT(0),
-            ),
-        )
-    end
-
-    # 10. Mixed-phase mid-troposphere with rain + ice
-    let ρ = FT(0.8), T = FT(268)
-        push!(
-            states,
-            (;
-                ρ, T,
-                q_tot = q_vs_l(T, ρ) + FT(3e-4) + FT(3e-4),
-                q_lcl = FT(3e-4), n_lcl = FT(1e8),
-                q_rai = FT(1e-4), n_rai = FT(5e3),
-                q_ice = FT(3e-4), n_ice = FT(1e5),
-                q_rim = FT(1e-5), b_rim = FT(1e-5 / 400),
-            ),
-        )
-    end
-
-    return states
-end
+include("p3_quadrature_error_study.jl")
 
 function compare_with_reference(tendencies_ref, tendencies_n, tol;
     mass_scale = 1e-12, report = false)
@@ -240,21 +67,32 @@ end
 
 function test_quadrature_order_sweep(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    # `quadrature_order` now lives on `P3IceParams`, so building one
-    # `Microphysics2MParams` per order keeps the sweep clean.
-    make_mp(n) = CMP.Microphysics2MParams(FT; with_ice = true, quadrature_order = n)
+    # The quadrature rule lives on `P3IceParams`; build one `Microphysics2MParams`
+    # per order to sweep it.
+    make_mp(n) = CMP.Microphysics2MParams(FT; with_ice = true, quad = CM.Quadrature.GaussLegendre(FT, n))
 
     orders_and_tol = [
         (100, FT(2e-3)),
-        (50, FT(5e-3)),
+        (50, FT(6e-3)),
         (25, FT(5e-2)),
         (15, FT(2e-1)),
+        # With the velocity-crossing and decay-scale breakpoints, low orders
+        # stay accurate down to the default order (8), including in the
+        # large-mean-size states below. See #741.
+        (12, FT(5e-3)),
+        (8, FT(5e-3)),
+        (7, FT(1e-2)),
+        (6, FT(2e-2)),
     ]
     reference_n = 200
 
     mp_ref = make_mp(reference_n)
     states = generate_column_states(FT)
     @test length(states) >= 10
+    append!(
+        states,
+        hail_core_states(FT, ((0.8, 600.0, 100.0), (0.8, 600.0, 20.0), (0.95, 800.0, 50.0))),
+    )
 
     @testset "Quadrature order sweep" begin
         for (idx, s) in enumerate(states)
