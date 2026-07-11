@@ -49,6 +49,9 @@ Three preset configurations are supported:
 the unified framework; in `Float64` the two agree to round-off. On the two-moment + P3 model only
 `ExactJacobian` is available (there is no donor-based matrix there); use `rosenbrock_exact()`.
 
+The `Verbose(mode)` wrapper additionally returns the per-process tendencies realized by the implicit solve,
+attributed through the same substep factorization so that they sum to the net of the unlimited solve.
+
 ### Extending the framework
 
 To add a new Jacobian, define `struct MyJacobian <: Jacobian end` and the methods `_jacobian_provider(::MyJacobian)`
