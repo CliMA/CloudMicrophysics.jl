@@ -132,6 +132,26 @@ See also [`loggamma_inc_moment`](@ref)
     return SF.gamma(z) * Δq / α^z
 end
 
+# Analytic ForwardDiff partials of `M(D₁, D₂, p, α) = ∫_{D₁}^{D₂} Dᵖ e^{-αD} dD`:
+# `∂M/∂D₁ = -D₁ᵖ e^{-αD₁}`, `∂M/∂D₂ = D₂ᵖ e^{-αD₂}`, `∂M/∂α = -M(D₁, D₂, p+1, α)`.
+# The value is taken from the plain-`Real` method on the argument values.
+@inline function gamma_inc_moment(D₁, D₂, p, α::FD.Dual{T}) where {T}
+    v₁ = FD.value(T, D₁)
+    v₂ = FD.value(T, D₂)
+    vα = FD.value(T, α)
+    M = gamma_inc_moment(v₁, v₂, p, vα)
+    ∂D₁ = -v₁^p * exp(-vα * v₁)
+    ∂D₂ = v₂^p * exp(-vα * v₂)
+    ∂α = -gamma_inc_moment(v₁, v₂, p + 1, vα)
+    Z = zero(FD.partials(α))
+    part = ∂D₁ * _moment_partials(T, Z, D₁) + ∂D₂ * _moment_partials(T, Z, D₂) + ∂α * FD.partials(α)
+    return FD.Dual{T}(M, part)
+end
+
+# Partials of an argument with respect to tag `T`; a non-`Dual` argument contributes `Z`.
+@inline _moment_partials(::Type{T}, Z, x::FD.Dual{T}) where {T} = FD.partials(x)
+@inline _moment_partials(::Type{T}, Z, x) where {T} = Z
+
 """
     loggamma_moment(μ, logλ; [k = 0], [scale = 1])
 

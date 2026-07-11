@@ -34,6 +34,8 @@ import ..P3Scheme as CMP3
 import ..HetIceNucleation as CM_HetIce
 import ...ThermodynamicsInterface as TDI
 import ..Common as CO
+import ForwardDiff as FD
+import StaticArrays as SA
 
 export MicrophysicsScheme,
     Microphysics0Moment,
@@ -43,6 +45,18 @@ export MicrophysicsScheme,
     Instantaneous,
     InstantaneousVerbose,
     LinearizedAverage,
+    RosenbrockAverage,
+    Jacobian,
+    DonorJacobian,
+    CoupledDonorJacobian,
+    ExactJacobian,
+    GrowthTreatment,
+    ImplicitGrowth,
+    ExplicitGrowthDiagonal,
+    TendencyLimiter,
+    NoLimiter,
+    EndStateSaturationAdjustment,
+    rosenbrock_exact,
     bulk_microphysics_tendencies
 
 #####
@@ -90,6 +104,8 @@ Abstract type for selecting the output mode of `bulk_microphysics_tendencies`.
 """
 abstract type TendencyMode end
 
+Base.broadcastable(m::TendencyMode) = tuple(m)
+
 """
     Instantaneous <: TendencyMode
 
@@ -113,6 +129,116 @@ Return time-averaged tendencies computed via repeated linearized implicit subste
 This is the mode used operationally by ClimaAtmos.
 """
 struct LinearizedAverage <: TendencyMode end
+
+"""
+    Jacobian
+
+Abstract type selecting the matrix used in each linearized-implicit substep of
+[`RosenbrockAverage`](@ref). The supported types and how to add another are
+described in the P3 numerics documentation. Only [`ExactJacobian`](@ref) has a
+`bulk_microphysics_tendencies` method; the donor-based options are reserved for
+1-moment support.
+"""
+abstract type Jacobian end
+
+"""
+    DonorJacobian <: Jacobian
+
+The donor-based linearization of the tendency: each transfer is linearized in its
+donor species and rate-floored.
+"""
+struct DonorJacobian <: Jacobian end
+
+"""
+    CoupledDonorJacobian <: Jacobian
+
+The donor-based linearization with the vapor-competition and collector couplings
+of the exact derivative restored.
+"""
+struct CoupledDonorJacobian <: Jacobian end
+
+"""
+    ExactJacobian <: Jacobian
+
+The exact derivative of the tendency, formed with `ForwardDiff`.
+"""
+struct ExactJacobian <: Jacobian end
+
+"""
+    GrowthTreatment
+
+Abstract type selecting how the positive (growth) diagonal of the Jacobian
+enters the implicit operator.
+"""
+abstract type GrowthTreatment end
+
+"""
+    ImplicitGrowth <: GrowthTreatment
+
+Use the Jacobian unchanged.
+"""
+struct ImplicitGrowth <: GrowthTreatment end
+
+"""
+    ExplicitGrowthDiagonal <: GrowthTreatment
+
+Zero the positive diagonal of the Jacobian, so a growth mode is taken explicitly
+and only the decay diagonal remains in the implicit operator.
+"""
+struct ExplicitGrowthDiagonal <: GrowthTreatment end
+
+"""
+    TendencyLimiter
+
+Abstract type selecting a limiter applied to the realized substep increment.
+"""
+abstract type TendencyLimiter end
+
+"""
+    NoLimiter <: TendencyLimiter
+
+Apply no limiter to the increment.
+"""
+struct NoLimiter <: TendencyLimiter end
+
+"""
+    EndStateSaturationAdjustment <: TendencyLimiter
+
+Scale a substep increment so the latent-heated end state stays at or above ice
+saturation, for cells that begin at or above saturation. Derived and analyzed in
+the P3 numerics documentation.
+"""
+struct EndStateSaturationAdjustment <: TendencyLimiter end
+
+"""
+    RosenbrockAverage(jacobian, growth, limiter) <: TendencyMode
+    RosenbrockAverage(; jacobian = ExactJacobian(), growth = ExplicitGrowthDiagonal(), limiter = EndStateSaturationAdjustment())
+
+Time-averaged tendencies from repeated linearized-implicit (Rosenbrock-Euler)
+substeps. The [`Jacobian`](@ref), [`GrowthTreatment`](@ref), and
+[`TendencyLimiter`](@ref) options select the substep matrix, the growth-diagonal
+treatment, and the increment limiter. See [`rosenbrock_exact`](@ref) for the
+supported configuration.
+"""
+struct RosenbrockAverage{J <: Jacobian, G <: GrowthTreatment, L <: TendencyLimiter} <: TendencyMode
+    jacobian::J
+    growth::G
+    limiter::L
+end
+RosenbrockAverage(;
+    jacobian = ExactJacobian(),
+    growth = ExplicitGrowthDiagonal(),
+    limiter = EndStateSaturationAdjustment(),
+) = RosenbrockAverage(jacobian, growth, limiter)
+
+"""
+    rosenbrock_exact()
+
+[`RosenbrockAverage`](@ref) with the exact Jacobian, an explicit growth diagonal,
+and the end-state saturation adjustment.
+"""
+rosenbrock_exact() =
+    RosenbrockAverage(ExactJacobian(), ExplicitGrowthDiagonal(), EndStateSaturationAdjustment())
 
 # --- 1-Moment Microphysics ---
 
@@ -1068,5 +1194,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
         dn_lcl_activation_dt)
 end
+
+include("BMT_rosenbrock.jl")
 
 end # module BulkMicrophysicsTendencies

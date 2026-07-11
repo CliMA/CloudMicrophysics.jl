@@ -452,7 +452,10 @@ Mirrors the `sgs_weight_function` in `ClimaAtmos.jl/src/utils/variable_manipulat
         # way, but autodiff generates NaNs (mirrors the upper guard)
         zero(a)
     else
-        (1 + tanh(2 * atanh(1 - 2 * (1 - a)^(-1 / log2(1 - a_half))))) / 2
+        # (1 + tanh(2 * atanh(u))) / 2 = (u + 1)^2 / (2 * (1 + u^2)), with
+        # u = 1 - 2 * (1 - a)^(-1 / log2(1 - a_half)).
+        u = 1 - 2 * (1 - a)^(-1 / log2(1 - a_half))
+        (u + 1)^2 / (2 * (1 + u^2))
     end
 end
 
