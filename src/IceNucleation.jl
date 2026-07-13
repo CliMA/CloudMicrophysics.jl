@@ -231,8 +231,8 @@ Calculate the mean log(INPC) as a function of temperature.
 # Arguments
   - `params`: The [`CMP.Frostenberg2023`](@ref) INPC(T) distribution parameters, including
     + `T_freeze`: freezing temperature [K]
-    + `a`: INPC normalization coefficient [m³]
     + `b`: temperature normalization coefficient [°C⁻¹]
+    + `log_a`: log of the INPC normalization coefficient `a` [m³]
   - `T`: air temperature [K]
 
 Following Eq. (1) of [Frostenberg2023](@cite), `log(a · INPC)` is normally
@@ -247,9 +247,9 @@ the marine-dataset curve `log((-T_celsius / 10)^9)`.
 
 For details see: [Frostenberg2023](@cite), doi.org/10.5194/acp-23-10883-2023
 """
-function INP_concentration_mean((; T_freeze, a, b)::CMP.Frostenberg2023, T)
+function INP_concentration_mean((; T_freeze, b, log_a)::CMP.Frostenberg2023, T)
     T_celsius = min(T - T_freeze, 0)
-    return 9log(-b * T_celsius / 10) - log(a)  # = log((-b * T_celsius / 10)^9) - log(a)
+    return 9log(-b * T_celsius / 10) - log_a  # = log((-b * T_celsius / 10)^9) - log(a)
 end
 
 """
