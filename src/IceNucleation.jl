@@ -231,19 +231,25 @@ Calculate the mean log(INPC) as a function of temperature.
 # Arguments
   - `params`: The [`CMP.Frostenberg2023`](@ref) INPC(T) distribution parameters, including
     + `T_freeze`: freezing temperature [K]
+    + `b`: temperature normalization coefficient [°C⁻¹]
+    + `log_a`: log of the INPC normalization coefficient `a` [m³]
   - `T`: air temperature [K]
 
-The mean `log(INPC)` is given by:
+Following Eq. (1) of [Frostenberg2023](@cite), `log(a · INPC)` is normally
+distributed with mean `μ(T) = log(-(b · T_celsius / 10)^9)`, so the mean
+`log(INPC)` returned here is
 ```
-μ(T) = log(-(T_celsius / 10)^9)
+μ(T) - log(a) = 9 log(-b · T_celsius / 10) - log(a)
 ```
-with the corresponding INPC obtained by exponentiating: `exp(μ(T))`.
+with the corresponding INPC obtained by exponentiating. The parameters `a` and
+`b` are read from `ClimaParams`; at their defaults `a = b = 1` this reduces to
+the marine-dataset curve `log((-T_celsius / 10)^9)`.
 
 For details see: [Frostenberg2023](@cite), doi.org/10.5194/acp-23-10883-2023
 """
-function INP_concentration_mean((; T_freeze)::CMP.Frostenberg2023, T)
+function INP_concentration_mean((; T_freeze, b, log_a)::CMP.Frostenberg2023, T)
     T_celsius = min(T - T_freeze, 0)
-    return 9log(-T_celsius / 10)  # = log((-T_celsius / 10)^9)
+    return 9log(-b * T_celsius / 10) - log_a  # = log((-b * T_celsius / 10)^9) - log(a)
 end
 
 """

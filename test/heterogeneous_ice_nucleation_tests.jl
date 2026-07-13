@@ -243,6 +243,36 @@ function test_heterogeneous_ice_nucleation(FT)
         ) == FT(0)
     end
 
+    TT.@testset "Frostenberg a/b coefficients" begin
+
+        # T_celsius = -20
+        T_cold = ip_frostenberg.T_freeze - FT(20)
+
+        # a = b = 1 defaults
+        TT.@test CMI_het.INP_concentration_mean(ip_frostenberg, T_cold) ≈
+                 FT(6.238324625039508)
+
+        # a shifts the mean by -log(a)
+        ip_a = CMP.Frostenberg2023{FT}(;
+            σ = ip_frostenberg.σ,
+            a = FT(2),
+            b = ip_frostenberg.b,
+            T_freeze = ip_frostenberg.T_freeze,
+        )
+        TT.@test CMI_het.INP_concentration_mean(ip_a, T_cold) ≈
+                 FT(5.545177444479562)
+
+        # b shifts the mean by +9 log(b)
+        ip_b = CMP.Frostenberg2023{FT}(;
+            σ = ip_frostenberg.σ,
+            a = ip_frostenberg.a,
+            b = FT(2),
+            T_freeze = ip_frostenberg.T_freeze,
+        )
+        TT.@test CMI_het.INP_concentration_mean(ip_b, T_cold) ≈
+                 FT(12.476649250079015)
+    end
+
     TT.@testset "F23 immersion limit rate" begin
 
         T_freeze = ip_frostenberg.T_freeze
