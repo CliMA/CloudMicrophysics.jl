@@ -7,7 +7,7 @@ CloudMicrophysics.jl provides a library of cloud microphysics and aerosol parame
 | **Documentation** | [![stable][docs-stable-img]][docs-stable-url] [![dev][docs-dev-img]][docs-dev-url] |
 | **Version**       | [![version][version-img]][version-url]                      |
 | **License**       | [![license][license-img]][license-url]                      |
-| **Tests**         | [![gha ci][gha-ci-img]][gha-ci-url] [![buildkite][bk-ci-img]][bk-ci-url] |
+| **Tests**         | [![gha ci][gha-ci-img]][gha-ci-url]                         |
 | **Code Coverage** | [![codecov][codecov-img]][codecov-url]                      |
 | **Downloads**     | [![Downloads][dlt-img]][dlt-url]                            |
 
@@ -25,9 +25,6 @@ CloudMicrophysics.jl provides a library of cloud microphysics and aerosol parame
 
 [gha-ci-img]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/ci.yml/badge.svg
 [gha-ci-url]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/ci.yml
-
-[bk-ci-img]: https://badge.buildkite.com/3cb0b055755b7a26cb3414577da1d8d3d52c6376484491fb07.svg?branch=main
-[bk-ci-url]: https://buildkite.com/clima/cloudmicrophysics-ci/builds?branch=main
 
 [codecov-img]: https://codecov.io/gh/CliMA/CloudMicrophysics.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/CliMA/CloudMicrophysics.jl
