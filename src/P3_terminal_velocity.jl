@@ -21,6 +21,16 @@ end
 end
 
 """
+    velocity_breakpoints(v_term)
+
+Diameters where the terminal-velocity closure `v_term` changes functional form.
+Integrals with `v_term` in the integrand place these on subinterval boundaries,
+see [`velocity_integral_bounds`](@ref).
+"""
+velocity_breakpoints(f::P3IceParticleVelocityFunctor) = (f.D_cutoff,)
+velocity_breakpoints(::CO.Chen2022VelocityCurve) = ()
+
+"""
     ice_particle_terminal_velocity(velocity_params, ρₐ, state::P3State)
 
 Return a single-argument function `v_term(D)` that gives the Chen 2022
@@ -66,28 +76,28 @@ Return the terminal velocity of the number-weighted mean ice particle size.
 
 # Keyword arguments
  - `p`: Tolerance parameter for the integral bounds. Default is 1e-6.
- - `quad`: Quadrature rule, default is `ChebyshevGauss(100)`
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 See also [`ice_terminal_velocity_mass_weighted`](@ref)
 """
 function ice_terminal_velocity_number_weighted(
     velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
-    p = 1e-6, quad = ChebyshevGauss(100),
+    p = 1e-6, quad,
 )
     (; ρn_ice, ρq_ice) = state
-    # TODO - do we want to swicth to ϵ_numerics(FT)
-    if ρn_ice < eps(one(ρn_ice)) || ρq_ice < eps(one(ρq_ice))
-        return zero(promote_type(eltype(state), UT.promote_typeof(ρₐ, logλ)))
-    end
-
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
     n = DT.size_distribution(state, logλ)
 
-    # ∫n(D) v(D) dD
+    # ∫n(D) v(D) dD, normalized by the number concentration
     number_weighted_integrand = P3NumberWeightedIntegrand(n, v_term)
+    bnds = velocity_integral_bounds(state, logλ, v_term; p)
+    integ = integrate(number_weighted_integrand, bnds, quad)
 
-    bnds = integral_bounds(state, logλ; p)
-    return integrate(number_weighted_integrand, bnds, quad) / ρn_ice
+    # A degenerate ice state (ρn_ice or ρq_ice below ϵ) integrates to zero over
+    # zero-width bounds; select zero in place of the degenerate ratio.
+    below_ϵ = (ρn_ice < eps(one(ρn_ice))) | (ρq_ice < eps(one(ρq_ice)))
+    result = integ / ρn_ice  # non-finite for a degenerate state; discarded below
+    return ifelse(below_ϵ, zero(result), result)
 end
 
 struct P3MassWeightedIntegrand{N, V, S} <: Function
@@ -110,28 +120,28 @@ Return the terminal velocity of the mass-weighted mean ice particle size.
 
 # Keyword arguments
  - `p`: Tolerance parameter for the integral bounds. Default is 1e-6.
- - `quad`: Quadrature rule, default is `ChebyshevGauss(100)`
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 See also [`ice_terminal_velocity_number_weighted`](@ref)
 """
 function ice_terminal_velocity_mass_weighted(
     velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
-    p = 1e-6, quad = ChebyshevGauss(100),
+    p = 1e-6, quad,
 )
     (; ρn_ice, ρq_ice) = state
-    # TODO - do we want to swicth to ϵ_numerics(FT)
-    if ρn_ice < eps(one(ρn_ice)) || ρq_ice < eps(one(ρq_ice))
-        return zero(promote_type(eltype(state), UT.promote_typeof(ρₐ, logλ)))
-    end
-
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
-    n = DT.size_distribution(state, logλ)  # Number concentration at diameter D
+    n = DT.size_distribution(state, logλ)
 
-    # ∫n(D) m(D) v(D) dD
+    # ∫n(D) m(D) v(D) dD, normalized by the mass concentration
     mass_weighted_integrand = P3MassWeightedIntegrand(n, v_term, state)
+    bnds = velocity_integral_bounds(state, logλ, v_term; p)
+    integ = integrate(mass_weighted_integrand, bnds, quad)
 
-    bnds = integral_bounds(state, logλ; p)
-    return integrate(mass_weighted_integrand, bnds, quad) / ρq_ice
+    # A degenerate ice state (ρn_ice or ρq_ice below ϵ) integrates to zero over
+    # zero-width bounds; select zero in place of the degenerate ratio.
+    below_ϵ = (ρn_ice < eps(one(ρn_ice))) | (ρq_ice < eps(one(ρq_ice)))
+    result = integ / ρq_ice  # non-finite for a degenerate state; discarded below
+    return ifelse(below_ϵ, zero(result), result)
 end
 
 """

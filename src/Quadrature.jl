@@ -30,7 +30,7 @@ export QuadratureRule, ChebyshevGauss, GaussLegendre, integrate
 abstract type QuadratureRule end
 
 """
-    integrate(f, a, b, quad = ChebyshevGauss(100))
+    integrate(f, a, b, quad)
 
  Approximate the definite integral ∫ₐᵇ f(x) dx using the quadrature rule `quad`.
 
@@ -52,14 +52,12 @@ abstract type QuadratureRule end
 # Arguments
  - `f`: Function to integrate
  - `a`, `b`: Integration bounds. Note: if `a ≥ b`, or `a` or `b` is `NaN`, `zero(f(a))` is returned.
-
-# Keyword arguments
- - `quad`: Quadrature scheme, default: `ChebyshevGauss(100)`
+ - `quad`: Quadrature scheme (a `QuadratureRule`).
 
 # Returns
  Approximation to the definite integral ∫ₐᵇ f(x) dx
 """
-@inline function integrate(f::F, a::T, b::T, quad::QuadratureRule = ChebyshevGauss(100)) where {F, T}
+@inline function integrate(f::F, a::T, b::T, quad::QuadratureRule) where {F, T}
     FT = eltype(float(a))
     # Pre-compute transformation parameters
     scale_factor = (b - a) / 2
@@ -102,21 +100,19 @@ dispatch.
     UU.unrolled_map(tuple, Base.front(bnds), Base.tail(bnds))
 
 """
-    integrate(f, bnds, quad = ChebyshevGauss(100))
+    integrate(f, bnds, quad)
 
 Integrate the function `f` over each subinterval of the integration bounds, `bnds`.
 
 # Arguments
  - `f`: Function to integrate
  - `bnds`: A tuple of bounds, `(a, b, c, d, ...)`
- - `quad`: Quadrature scheme, default: `ChebyshevGauss(100)`
+ - `quad`: Quadrature scheme (a `QuadratureRule`).
 
  The integral is computed as the sum of the integrals over each subinterval,
  `(a, b), (b, c), (c, d), ...` — see [`subintervals`](@ref).
 """
-@inline function integrate(
-    f::F, bnds::NTuple{N, T}, quad::QuadratureRule = ChebyshevGauss(100),
-) where {F, N, T}
+@inline function integrate(f::F, bnds::NTuple{N, T}, quad::QuadratureRule) where {F, N, T}
     @inbounds result = integrate(f, bnds[1], bnds[2], quad)
     @inbounds for i in 2:(N - 1)
         result += integrate(f, bnds[i], bnds[i + 1], quad)
@@ -193,7 +189,7 @@ nodes/weights as `SVector{N, FT}`, so per-`integrate` access is a static lookup
 a GPU kernel.
 
 Arbitrary orders `n ≥ 1` are supported (the order is the type parameter `N`).
-`40` is the ClimaAtmos production `quadrature_order`.
+`40` is the ClimaAtmos production order.
 
 # GPU / type-stability
 
@@ -204,14 +200,14 @@ construction; the object is built host-side once and shipped to the device, so
 
 # Accuracy vs `ChebyshevGauss`
 
-At matched `n`, Gauss-Legendre is substantially more accurate on the smooth P3
+At matched `n`, Gauss-Legendre is more accurate on the smooth P3
 size-distribution integrals (e.g. ~20× lower error than `ChebyshevGauss(40)` on
 the dominant ice-rain collision integral, verified against an adaptive QuadGK
-reference) at equal cost. It is **not** uniformly better on the cusp-limited
-`ice_self_collection` diagonal — there both schemes are quadrature-limited at low
-`n` and the structural remedy is a diagonal split, not the scheme. The
-production default therefore remains `ChebyshevGauss`; switch a call site to
-`GaussLegendre` deliberately where the integrand is smooth.
+reference) at equal cost, and it is the default rule on the P3 parameters. The
+`ice_self_collection` diagonal `D_1 = D_2` was the one integrand where a fixed
+rule stalled; with that diagonal restricted to a subinterval boundary (see
+`ice_self_collection`) the integrand is smooth on each subinterval and
+Gauss-Legendre converges geometrically there too.
 
 # Available methods
 
@@ -253,28 +249,5 @@ function GaussLegendre(::Type{FT}, n::Int) where {FT}
     return GaussLegendre{FT, n}(n, nodes, weights)
 end
 GaussLegendre(n::Int) = GaussLegendre(Float64, n)
-
-"""
-    build_quadrature(FT, quadrature_order)
-
-Select and **construct** the quadrature rule for the P3 size-distribution
-integrals from a single `quadrature_order` knob, in element type `FT`. This is
-the host-side, one-shot builder; the returned object is `isbits` and stored on a
-parameter struct for reuse in the (GPU) hot loop.
-
-Gauss-Legendre is preferred for the orders where it is meaningfully more
-accurate than Chebyshev-Gauss on the smooth P3 integrands (≈20× lower error on
-the dominant ice-rain collision integral at matched `n`; see [`GaussLegendre`](@ref)),
-namely `quadrature_order ∈ {16, 32, 40, 64}` (incl. the ClimaAtmos production
-order 40). Any other order falls back to [`ChebyshevGauss`](@ref), preserving the
-default behaviour for non-preferred orders.
-"""
-function build_quadrature(::Type{FT}, quadrature_order::Int) where {FT}
-    return if quadrature_order in (16, 32, 40, 64)
-        GaussLegendre(FT, quadrature_order)
-    else
-        ChebyshevGauss(quadrature_order)
-    end
-end
 
 end # module Quadrature

@@ -370,10 +370,10 @@ function test_bulk_terminal_velocities(FT)
 
         # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
         # their aspect-off counterparts (`cbrt(ϕ) < 1`).
-        ref_v_n = [3.64194720794662, 2.6191026241691695]
-        ref_v_n_ϕ = [1.523425288986299, 1.4660573287073728]
+        ref_v_n = [3.646059575504377, 2.6191026241691695]
+        ref_v_n_ϕ = [1.5223915218714987, 1.4656564581919258]
         ref_v_m = [7.788114224053879, 5.797675366222473]
-        ref_v_m_ϕ = [2.4275080186932736, 2.3681842506505544]
+        ref_v_m_ϕ = [2.427666066669716, 2.3683439025452544]
 
         params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
         for (k, F_rim) in enumerate(F_rims)
@@ -469,17 +469,6 @@ function test_numerical_integrals(FT)
     ρ_a = FT(1.2)
     ps = [1e-3, 1e-6]
 
-    @testset "Chebyshev-Gauss quadrature" begin
-        quad = P3.ChebyshevGauss(10)
-        f(x) = x^4
-        # test that integration gives the correct result
-        num_int = P3.integrate(f, 0, 1, quad)
-        @test num_int ≈ 0.2 rtol = 0.1
-        # test that increasing the number of points improves the accuracy
-        num_int2 = P3.integrate(f, 0, 1, P3.ChebyshevGauss(100))
-        @test abs(num_int2 - 0.2) < abs(num_int - 0.2)
-    end
-
     @testset "Gauss-Legendre quadrature" begin
         quad = P3.GaussLegendre(16)
         # exact for polynomials up to degree 2n-1 (here deg 4 ≤ 31)
@@ -518,19 +507,15 @@ function test_numerical_integrals(FT)
             logλ = P3.get_distribution_logλ(state)
 
             # Number concentration comparison
-            # Note: To achieve sufficient accuracy, we need to substantially
-            # increase the `order` of the quadrature rule, and set `rtol=0`.
-            # The `rtol` settings essentially forces max evaluations of the method.
-            # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
             N′ = P3.size_distribution(state, logλ)
             bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
-            N_estim_cheb = P3.integrate(N′, bnds, P3.ChebyshevGauss(100))
+            N_estim_gl = P3.integrate(N′, bnds, P3.GaussLegendre(FT, 32))
             N_tol = FT == Float32 ? 2e-5 : 1e-5  # native-FT gamma_inc slightly less precise than Float64-backed SF
-            @test N_ice ≈ N_estim_cheb rtol = N_tol
+            @test N_ice ≈ N_estim_gl rtol = N_tol
 
             # Compare with quadgk
             N_estim_qgk = QGK.quadgk(N′, bnds...)[1]
-            @test N_estim_cheb ≈ N_estim_qgk rtol = 1e-5
+            @test N_estim_gl ≈ N_estim_qgk rtol = 1e-5
 
 
             # Bulk velocity comparison
@@ -546,28 +531,28 @@ function test_numerical_integrals(FT)
             v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
             g(D) = v_term(D) * N′(D)
             gm(D) = g(D) * P3.ice_mass(state, D)
-            vel_N_estim_cheb = P3.integrate(g, bnds, P3.ChebyshevGauss(10)) / N_ice
-            vel_m_estim_cheb = P3.integrate(gm, bnds, P3.ChebyshevGauss(10)) / L_ice
-            @test vel_N ≈ vel_N_estim_cheb rtol = 0.005
-            @test vel_m ≈ vel_m_estim_cheb rtol = 0.05
+            vel_N_estim_gl = P3.integrate(g, bnds, P3.GaussLegendre(FT, 32)) / N_ice
+            vel_m_estim_gl = P3.integrate(gm, bnds, P3.GaussLegendre(FT, 32)) / L_ice
+            @test vel_N ≈ vel_N_estim_gl rtol = 0.005
+            @test vel_m ≈ vel_m_estim_gl rtol = 0.05
 
             # Compare with quadgk
             vel_N_estim_qgk = QGK.quadgk(g, bnds...)[1] / N_ice
             vel_m_estim_qgk = QGK.quadgk(gm, bnds...)[1] / L_ice
 
-            @test vel_N_estim_cheb ≈ vel_N_estim_qgk rtol = 0.005
-            @test vel_m_estim_cheb ≈ vel_m_estim_qgk rtol = 0.05
+            @test vel_N_estim_gl ≈ vel_N_estim_qgk rtol = 0.005
+            @test vel_m_estim_gl ≈ vel_m_estim_qgk rtol = 0.05
 
 
             # Dₘ comparisons
             D_m = P3.D_m(state, logλ)
             D_m_func(D) = D * P3.ice_mass(state, D) * N′(D) / L_ice
-            D_m_estim_cheb = P3.integrate(D_m_func, bnds, P3.ChebyshevGauss(100))
-            @test D_m ≈ D_m_estim_cheb rtol = 5e-4
+            D_m_estim_gl = P3.integrate(D_m_func, bnds, P3.GaussLegendre(FT, 32))
+            @test D_m ≈ D_m_estim_gl rtol = 5e-4
 
             # Compare with quadgk
             D_m_estim_qgk = QGK.quadgk(D_m_func, bnds...)[1]
-            @test D_m_estim_cheb ≈ D_m_estim_qgk rtol = 5e-4
+            @test D_m_estim_gl ≈ D_m_estim_qgk rtol = 5e-4
         end
     end
 end
@@ -859,16 +844,16 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Smoke tests, aka: Check that rates don't change with new commits.
         # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
         # reference values.
-        @test QCFRZ ≈ 5.943946584599112e-7 rtol = 5e-4
-        @test QCSHD ≈ 2.0534323233754524e-9 rtol = 5e-4
-        @test NCCOL ≈ 60666.71757403923 rtol = 5e-4
-        @test QRFRZ ≈ 6.640489628336987e-5 rtol = 5e-4
-        @test QRSHD ≈ 3.6744506329509328e-6 rtol = 5e-4
-        @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
-        @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.726612278745525e-9 rtol = 5e-4
-        @test BRCOL ≈ 4.163318251255413e-7 rtol = 5e-4
-        @test ∫𝟙_wet_M_col ≈ 1.3659847784932352e-5 rtol = 5e-4
+        @test QCFRZ ≈ 5.942471550989089e-7 rtol = 5e-4
+        @test QCSHD ≈ 2.0728862241368704e-9 rtol = 5e-4
+        @test NCCOL ≈ 60651.35670910096 rtol = 5e-4
+        @test QRFRZ ≈ 6.642674674038379e-5 rtol = 5e-4
+        @test QRSHD ≈ 3.6526001759370415e-6 rtol = 5e-4
+        @test NRCOL ≈ 172.61819652435105 rtol = 5e-4
+        @test ∫M_col ≈ 7.067566695764388e-5 rtol = 5e-4
+        @test BCCOL ≈ 3.725687492783128e-9 rtol = 5e-4
+        @test BRCOL ≈ 4.164686317018988e-7 rtol = 5e-4
+        @test ∫𝟙_wet_M_col ≈ 1.5520362321253953e-5 rtol = 5e-4
 
         ### Test the bulk source function
         state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
@@ -911,8 +896,27 @@ function test_p3_ice_self_collection(FT)
             P3.ice_self_collection(state_zero, logλ_zero, vel_params, ρₐ; quad = P3.GaussLegendre(FT, 12))
         @test rates_zero.dNdt == 0
 
-        # TODO: compare against an analytically derived reference
-        # For a simple size distribution and uniform velocity difference, one could compute analytical dNdt.
+        # Cross-check the triangular domain against the full-square double
+        # integral, where the ½ factor counts each unordered pair once
+        quad32 = P3.GaussLegendre(FT, 32)
+        rates32 = P3.ice_self_collection(state, logλ, vel_params, ρₐ; quad = quad32)
+        n_i = DT.size_distribution(state, logλ)
+        v_i = P3.ice_particle_terminal_velocity(vel_params, ρₐ, state)
+        bnds = P3.velocity_integral_bounds(state, logλ, v_i; p = eps(one(ρₐ)))
+        square = P3.integrate(
+            D₁ -> begin
+                v₁ = v_i(D₁)
+                collision_rate =
+                    D₂ -> P3.collision_cross_section_ice_ice(state, D₁, D₂) * abs(v₁ - v_i(D₂)) * n_i(D₂)
+                # Split the inner integral at D₂ = D₁, where |v₁ - v(D₂)| is not smooth
+                inner =
+                    P3.integrate(collision_rate, (first(bnds), D₁), quad32) +
+                    P3.integrate(collision_rate, (D₁, last(bnds)), quad32)
+                n_i(D₁) * inner
+            end,
+            bnds, quad32,
+        )
+        @test rates32.dNdt ≈ square / 2 rtol = 0.05
     end
 end
 
@@ -946,14 +950,15 @@ function test_p3_closed_form_rain_inner(FT)
             ρ′_rim = P3.compute_local_rime_density(vel, ρₐ, FT(270), state)
             D_min, D_max = bnds = CM2.get_size_distribution_bounds(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p)
             D_max > D_min || continue
+            v_i = ∂ₜV.v_i
             rc = P3.get_liquid_integrals_rain_closed(
-                psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
-                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                psd_r, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
+                m_liq, ρ′_rim, bnds; quad = P3.GaussLegendre(FT, 6),
             )
             rn = P3.get_liquid_integrals(  # numerical fallback
-                n_r, ∂ₜV, m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                n_r, ∂ₜV, m_liq, ρ′_rim, bnds;
+                quad = P3.GaussLegendre(FT, 6),
             )
-            v_i = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
             for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
                 vi = v_i(Dᵢ)
                 Dstar = P3.crossover_diameter(vi, v_l, D_min, D_max)
@@ -993,23 +998,23 @@ function test_p3_closed_form_rain_inner(FT)
         L_r, N_r = FT(1e-4), FT(1e3)
         (; N₀r, Dr_mean) =
             CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
-        Dᵢ0 = FT(3e-3)
         rᵢ0 = FT(1e-3)
         vi0 = FT(3.0)
         D_min, D_max = FT(1e-5), FT(5e-3)
         rtolAD = FT(1e-4)
+        Dstar0 = P3.crossover_diameter(vi0, v_l, D_min, D_max)
         cases = (
             ("v_i", vi0,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, x, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(x, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
             ("r_i", rᵢ0,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, x, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, x, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
             ("Dr", Dr_mean,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, x)),
             ("N₀r", N₀r,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, x, Dr_mean)),
         )
         for (_, x0, g) in cases, idx in (1, 2)
@@ -1066,8 +1071,9 @@ function test_p3_closed_form_rain_inner(FT)
         r_i = FT(2e-4)
         ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, FT(1))
         for v_i in (FT(-1), FT(1e6))
+            Dstar_i = P3.crossover_diameter(v_i, v_l, D_min, D_max)
             N, M = P3.closed_rain_inner_NM(
-                FT(1e-3), v_i, v_l, r_i, FT(1000), ai, bi, ci,
+                v_i, Dstar_i, r_i, FT(1000), ai, bi, ci,
                 D_min, D_max, FT(1e7), FT(5e-4),
             )
             @test isfinite(N) && isfinite(M)
@@ -1079,18 +1085,14 @@ function test_p3_closed_form_rain_inner(FT)
         vel = CMP.Chen2022VelType(FT)
         psd_r = CMP.SB2006(FT).pdf_r
         state = P3.P3State(params, FT(1e-3), FT(1e6), FT(0.5), FT(500))
-        rest = (
-            identity, (a, b) -> a, identity, identity, identity,
-            FT(1), FT(1e-4), FT(1e3), state,
-        )
-        m_closed = which(P3._rain_inner_integrals, typeof((psd_r, vel, rest...)))
-        m_fallback = which(P3._rain_inner_integrals, typeof((1.0, 2.0, rest...)))
-        # closed-form method: first two params are the typed bundle
+        ∂ₜV = P3.volumetric_collision_rate_integrand(vel, FT(1), state)
+        rest = (identity, identity, (FT(0), FT(1)), FT(1), FT(1e-4), FT(1e3), state)
+        # closed-form eligibility: SB2006 rain PSD with a Chen velocity curve on the kernel
+        m_closed = which(P3._rain_inner_integrals, typeof((psd_r, identity, ∂ₜV, rest...)))
+        m_fallback = which(P3._rain_inner_integrals, typeof((1.0, identity, identity, rest...)))
         @test m_closed.sig.parameters[2] <: CMP.RainParticlePDF_SB2006
-        @test m_closed.sig.parameters[3] <: CMP.Chen2022VelType
-        # fallback method: first two params are ::Any (Any === Any)
+        @test m_closed.sig.parameters[4] <: P3.VolumetricCollisionRate{<:Any, <:Any, <:CO.Chen2022VelocityCurve}
         @test m_fallback.sig.parameters[2] === Any
-        @test m_fallback.sig.parameters[3] === Any
         # and the two methods are distinct (no accidental ambiguity merge)
         @test m_closed !== m_fallback
     end

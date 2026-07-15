@@ -439,12 +439,12 @@ end
 end
 
 @kernel inbounds = true function test_P3_ice_self_collection_kernel!(
-    p3_params, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ,
+    p3_params, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ, quad,
 )
     i = @index(Global, Linear)
     state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
     logλ = P3.get_distribution_logλ(state)
-    output[i] = P3.ice_self_collection(state, logλ, vel_params, ρₐ[i])
+    output[i] = P3.ice_self_collection(state, logλ, vel_params, ρₐ[i]; quad)
 end
 
 # Evaluates the fast incomplete-gamma approximations on the device. This is the
@@ -1239,22 +1239,15 @@ function test_gpu(FT)
 
         kernel! = test_bulk_tendencies_2m_p3_kernel!(backend, work_groups)
         TT.@testset "2M+P3" begin
-            if VERSION < v"1.12"
-                # The collision path exceeds Julia <= 1.11's inference depth, so this
-                # kernel does not compile there (InvalidIRError: dynamic dispatch).
-                # 1.12 inference resolves it. TODO: fix once GPU CI is >= 1.12.
-                TT.@test_broken VERSION >= v"1.12"
-            else
-                kernel!(
-                    mp_2m_p3, tps, output, ρ, T, q_tot,
-                    q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim;
-                    ndrange,
-                )
-                TT.@test allequal(Array(output))
-                tendencies = Array(output)[1]
-                TT.@test all(isfinite, tendencies)
-                TT.@test !iszero(tendencies.dq_ice_dt)
-            end
+            kernel!(
+                mp_2m_p3, tps, output, ρ, T, q_tot,
+                q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim;
+                ndrange,
+            )
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+            TT.@test !iszero(tendencies.dq_ice_dt)
         end
     end  # TT.@testset "Bulk microphysics tendencies kernels"
 
@@ -1289,7 +1282,7 @@ function test_gpu(FT)
         ρₐ = constant_data(FT(1.2); ndrange)
 
         kernel! = test_P3_ice_self_collection_kernel!(backend, work_groups)
-        kernel!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ; ndrange)
+        kernel!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ, P3.GaussLegendre(FT, 12); ndrange)
         out = Array(output)
 
         TT.@test allequal(out)
