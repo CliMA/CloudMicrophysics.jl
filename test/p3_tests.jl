@@ -711,19 +711,36 @@ function test_p3_bulk_liquid_ice_collisions(FT)
     end
 
     @testset "local rime density" begin
-        Tₐ = T_freeze - 1 // 10
-        ρ′_rim_func = P3.compute_local_rime_density(vel_params, ρₐ, Tₐ, state)
-        @test ρ′_rim_func(D̄, D̄) ≈ FT(159.5) rtol = 1e-6
-
         a, b, c = 51, 114, -11 // 2 # coeffs for Eq. 17 in Cober and List (1993), converted to [kg / m³]
         ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2  # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
         ρ_ice = FT(916.7)  # density of solid bulk ice
-
         ρ_rim_local = params.ρ_rim_local
 
         @test ρ_rim_local(1) == ρ′_rim_CL93(1)
+        @test ρ_rim_local(2) == ρ′_rim_CL93(2)
+        @test ρ_rim_local(4) == ρ′_rim_CL93(4)
+        @test ρ_rim_local(6) == ρ′_rim_CL93(6)
         @test ρ_rim_local(8) == ρ′_rim_CL93(8)
+        @test ρ_rim_local(10) ≈ (ρ′_rim_CL93(8) + ρ_ice) / 2  # linear interpolation, 8 < Rᵢ ≤ 12
         @test ρ_rim_local(12) == ρ_ice
+        @test ρ_rim_local(0) == ρ′_rim_CL93(1)   # Rᵢ clamped to [1, 12]
+        @test ρ_rim_local(-5) == ρ′_rim_CL93(1)
+        @test ρ_rim_local(20) == ρ_ice
+
+        # Subfreezing Rᵢ is positive, so ρ′_rim densifies toward ρ_ice as T → T_freeze
+        Dₗ = FT(200e-6)
+        ρ′_rim(T) = P3.compute_local_rime_density(vel_params, ρₐ, FT(T), state)(D̄, Dₗ)
+        ρ_subfreezing = ρ′_rim.((240, 250, 260, 265, 270))
+        @test issorted(ρ_subfreezing)   # densifies toward ρ_ice as T → T_freeze
+        @test all(ρ_subfreezing .≥ ρ′_rim_CL93(1))
+        @test all(ρ_subfreezing .≤ ρ_ice)
+        @test ρ′_rim(240) ≈ FT(294.188) rtol = 1e-4
+
+        # At and above T_freeze, T°C bounded below 0 ⟹ Rᵢ → clamp(12) → ρ_ice; finite, no NaN
+        for T in (T_freeze, T_freeze + 1 // 10, T_freeze + 5)
+            @test ρ′_rim(T) ≈ ρ_ice
+        end
+        @test !isnan(P3.compute_local_rime_density(vel_params, ρₐ, T_freeze, state)(D̄, D̄))
     end
 
     @testset "∫liquid_ice_collisions" begin
@@ -866,8 +883,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test QRSHD ≈ 3.6744506329509328e-6 rtol = 5e-4
         @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
         @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.726612278745525e-9 rtol = 5e-4
-        @test BRCOL ≈ 4.163318251255413e-7 rtol = 5e-4
+        @test BCCOL ≈ 3.508183075042488e-9 rtol = 5e-4
+        @test BRCOL ≈ 7.244274484995898e-8 rtol = 5e-4
         @test ∫𝟙_wet_M_col ≈ 1.3659847784932352e-5 rtol = 5e-4
 
         ### Test the bulk source function

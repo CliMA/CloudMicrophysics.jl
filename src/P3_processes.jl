@@ -238,10 +238,10 @@ A function that computes the local rime density [kg/m³] using the equation:
 ```
 where
 ```math
-R_i = \\frac{ 10^6 ⋅ D_{liq} ⋅ |v_{liq} - v_{ice}| }{ 2 T_{sfc} }
+R_i = -\\frac{ 10^6 ⋅ D_{liq} ⋅ |v_{liq} - v_{ice}| }{ 2 T_{sfc} }
 ```
-and ``T_{sfc}`` is the surface temperature [°C], ``D_{liq}`` is the liquid particle
-diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
+and ``T_{sfc} < 0`` is the sub-zero surface temperature [°C], ``D_{liq}`` is the liquid
+particle diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
 So the units of ``R_i`` are [m² s⁻¹ °C⁻¹]. The units of ``ρ'_{rim}`` are [kg/m³].
 
 We assume for simplicity that ``T_{sfc}`` equals ``T``, the ambient air temperature.
@@ -257,6 +257,8 @@ See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity
  See also the P3 fortran code, `microphy_p3.f90`, Line 3315-3323,
  which extends the range of the calculation to ``R_i ≤ 12``, the upper limit of which
  then equals the solid bulk ice density, ``ρ_ice = 916.7 kg/m^3``.
+ The sub-zero bound on ``T_{sfc}`` also follows the fortran code, Line 3380
+ (`iTc = 1/min(-0.001, Tc)`).
 
  Note that Morrison & Milbrandt (2015) [MorrisonMilbrandt2015](@cite) only uses this
  parameterization for collisions with cloud droplets.
@@ -265,14 +267,15 @@ See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity
 """
 function compute_local_rime_density(velocity_params, ρₐ, T, state)
     (; T_freeze, ρ_rim_local) = state.params
-    T°C = T - T_freeze  # Convert to °C
-    μm = 1_000_000  # Note: m to μm factor, c.f. units of rₘ in Eq. 16 in Cober and List (1993)
+    # Sub-zero surface temperature [°C], bounded strictly below 0°C
+    T°C = min(T - T_freeze, -oftype(T_freeze, 1e-3))
+    μm = 1_000_000  # m to μm factor, c.f. units of rₘ in Eq. 16 in Cober and List (1993)
 
     v_ice = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
     v_liq = CO.particle_terminal_velocity(velocity_params.rain, ρₐ)
     function ρ′_rim(Dᵢ, Dₗ)
         v_term = abs(v_ice(Dᵢ) - v_liq(Dₗ))
-        Rᵢ = (Dₗ * μm * v_term) / (2 * T°C)  # Eq. 16 in Cober and List (1993). Note: no `-` due to absolute value in v_term
+        Rᵢ = -(Dₗ * μm * v_term) / (2 * T°C)  # Eq. 16 in Cober and List (1993)
         return ρ_rim_local(Rᵢ)
     end
     return ρ′_rim
