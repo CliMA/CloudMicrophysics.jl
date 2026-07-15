@@ -58,8 +58,8 @@ numerical robustness.
     D_vapor_safe = max(D_vapor, UT.ϵ_numerics(FT))
     K_therm_safe = max(K_therm, UT.ϵ_numerics(FT))
 
-    return 1 /
-           (L / K_therm_safe / T * (L / R_v / T - 1) + R_v * T / D_vapor_safe / p_vs_safe)
+    return @fastmath 1 /
+                     (L / K_therm_safe / T * (L / R_v / T - 1) + R_v * T / D_vapor_safe / p_vs_safe)
 end
 
 """
@@ -97,8 +97,8 @@ numerical robustness.
     D_vapor_safe = max(D_vapor, UT.ϵ_numerics(FT))
     K_therm_safe = max(K_therm, UT.ϵ_numerics(FT))
 
-    return 1 /
-           (L / K_therm_safe / T * (L / R_v / T - 1) + R_v * T / D_vapor_safe / p_vs_safe)
+    return @fastmath 1 /
+                     (L / K_therm_safe / T * (L / R_v / T - 1) + R_v * T / D_vapor_safe / p_vs_safe)
 end
 
 """
@@ -163,10 +163,10 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
 
     # translation of the curve in x and y to enforce zero at x = 0
     # Using log1mexp for numerical stability: log1mexp(x) = log(1 - exp(x))
-    trnslt = -LEF.log1mexp(-k) / k
-    kt = k * (x_safe / x_0_safe - 1 + trnslt)
+    trnslt = @fastmath -LEF.log1mexp(-k) / k
+    kt = @fastmath k * (x_safe / x_0_safe - 1 + trnslt)
     # log1pexp handles all kt values correctly
-    result = (LEF.log1pexp(kt) / k - trnslt) * x_0_safe
+    result = @fastmath (LEF.log1pexp(kt) / k - trnslt) * x_0_safe
 
     # Handle edge cases: if x ≈ 0, return 0; if x_0 ≈ 0, return x
     return ifelse(x < UT.ϵ_numerics(FT), FT(0), ifelse(x_0 < UT.ϵ_numerics(FT), x, result))
