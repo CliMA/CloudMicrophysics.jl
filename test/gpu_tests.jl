@@ -79,12 +79,15 @@ ArrayType = CuArray
 end
 
 @kernel inbounds = true function test_noneq_micro_kernel!(
-    lcl, icl, tps, clf, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s,
+    lcl, icl, tps, clf, τ_relax, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s,
 )
     i = @index(Global, Linear)
     FT = eltype(tps)
     q_lcl = q_icl = q_rai = q_sno = FT(0) # set to zero in this test
-    mp_mock = (; cloud = (; liquid = lcl))
+    mp_mock = (;
+        cloud = (; liquid = lcl),
+        process_params = (; cloud_liquid_formation = (; τ_relax)),
+    )
     micro_mock = (; q_tot = qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno)
     thermo_mock = (; ρ = ρ[i], T = T[i])
     S_cond = CMN.conv_q_vap_to_q_lcl(
@@ -535,7 +538,7 @@ function test_gpu(FT)
     mp_0m = CMP.Microphysics0MParams(FT)
     mp_1m = CMP.Microphysics1MParams(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
-        rain_autoconversion = CMP.PrescribedNd(CP.create_toml_dict(FT)),
+        rain_autoconversion = CMP.PrescribedNd(),
     )
     mp_2m_warm = CMP.Microphysics2MParams(FT; with_ice = false)
     mp_2m_p3 = CMP.Microphysics2MParams(FT; with_ice = true)
@@ -594,9 +597,10 @@ function test_gpu(FT)
         qᵢ = ArrayType([FT(0.003)])
         qᵢ_s = ArrayType([FT(0.002)])
 
-        clf = CMP.CloudLiquidFormation(CP.create_toml_dict(FT))
+        clf = CMP.CloudLiquidFormation()
+        τ_relax = CMP.Microphysics1MParams(FT).process_params.cloud_liquid_formation.τ_relax
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
-        kernel!(lcl, icl, tps, clf, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
+        kernel!(lcl, icl, tps, clf, τ_relax, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
         (; S_cond) = Array(output)[1]
         # test that nonequilibrium cloud formation is callable and returns a reasonable value
         TT.@test S_cond ≈ FT(3.76347635339803e-5)
@@ -704,7 +708,7 @@ function test_gpu(FT)
         ql = ArrayType([FT(0), FT(5e-4)])
         qr = ArrayType([FT(0), FT(5e-4)])
 
-        coeff_disp = mp.options.rain_snow_accretion.coeff_disp
+        coeff_disp = mp.process_params.rain_snow_accretion.coeff_disp
         kernel! = test_1_moment_micro_accretion_kernel!(backend, work_groups)
         kernel!(
             lcl,

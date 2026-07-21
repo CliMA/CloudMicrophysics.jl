@@ -28,7 +28,8 @@ q_icl_labels = ["0", "10⁻⁸", "10⁻⁶", "10⁻⁴", "10⁻²"]
 import ClimaParams as CP
 
 # Sublimation timescale (constant, from ClimaParams defaults)
-τ_sub = CMP.ConstantTimescale(CP.create_toml_dict(FT)).τ_relax
+params_1m = CMP.Microphysics1MParams(CP.create_toml_dict(FT))
+τ_sub = params_1m.process_params.cloud_ice_formation.τ_relax
 
 # Compute the effective timescale used in conv_q_vap_to_q_icl:
 #   T < T_freeze (deposition):  τ_dep × Γᵢ  (Frostenberg τ with thermodynamic correction)

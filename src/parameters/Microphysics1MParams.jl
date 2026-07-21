@@ -35,17 +35,20 @@ Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    Microphysics1MParams{OPT, CP, PP, AP, VL}
+    Microphysics1MParams{OPT, PPR, CP, PP, AP, VL}
 
 Unified parameter container for 1-moment bulk microphysics.
 
-Process-specific parameters (relaxation timescales, autoconversion thresholds,
-collision efficiencies) live inside the option types in `options`.
-Shared parameters (particle size distributions, air properties, terminal velocities)
-are stored directly.
+Process selection (which variant of each process runs) lives in `options`, and
+is parameter-free. The parameter values each selected variant needs
+(relaxation timescales, autoconversion thresholds, collision efficiencies) live
+in `process_params`, whose fields mirror `options` one-to-one. Shared parameters
+(particle size distributions, air properties, terminal velocities) are stored
+directly.
 
 # Fields
-- `options::OPT`: Microphysics1MOptions — process configuration (carries process-specific parameters)
+- `options::OPT`: Microphysics1MOptions — process selection (no parameters)
+- `process_params::PPR`: per-process parameter data matching `options` (or `nothing` for parameter-free/disabled processes)
 - `cloud::CP`: CloudPhaseParams1M — cloud liquid and ice parameters
 - `precip::PP`: PrecipPhaseParams1M — rain and snow parameters
 - `air_properties::AP`: AirProperties — air properties (diffusivities, thermal conductivity)
@@ -68,13 +71,14 @@ mp = CMP.Microphysics1MParams(Float64)
 
 # Create with temperature-dependent ice formation and cloud ice melt disabled
 mp = CMP.Microphysics1MParams(Float64;
-    cloud_ice_formation = CMP.TemperatureDependent(toml_dict),
+    cloud_ice_formation = CMP.TemperatureDependent(),
     cloud_ice_melt = nothing,
 )
 ```
 """
-@kwdef struct Microphysics1MParams{OPT, CP, PP, AP, VL} <: ParametersType
+@kwdef struct Microphysics1MParams{OPT, PPR, CP, PP, AP, VL} <: ParametersType
     options::OPT
+    process_params::PPR
     cloud::CP
     precip::PP
     air_properties::AP
@@ -93,8 +97,10 @@ Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 - `options_kwargs...`: Keyword arguments forwarded to `Microphysics1MOptions`
 """
 function Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
+    options = Microphysics1MOptions(; options_kwargs...)
     return Microphysics1MParams(;
-        options = Microphysics1MOptions(toml_dict; options_kwargs...),
+        options,
+        process_params = microphysics_1m_process_params(toml_dict, options),
         cloud = CloudPhaseParams1M(;
             liquid = CloudLiquid(toml_dict),
             ice = CloudIce(toml_dict),

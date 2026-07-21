@@ -129,7 +129,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
     ice = mp.cloud.ice
     rain = mp.precip.rain
     snow = mp.precip.snow
-    E_lcl_sno = mp.options.cloud_liquid_snow_accretion.e
+    E_lcl_sno = mp.process_params.cloud_liquid_snow_accretion.e
     aps = mp.air_properties
     vel = mp.terminal_velocity
 
@@ -237,7 +237,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # Same check as above but using the variable-timescale 2M autoconversion option
         # (PrescribedNd), which uses the prescribed {τ,α,Nc}.
         mp_2m = CMP.Microphysics1MParams(FT;
-            rain_autoconversion = CMP.PrescribedNd(CP.create_toml_dict(FT)),
+            rain_autoconversion = CMP.PrescribedNd(),
         )
 
         ρ = FT(1.2)

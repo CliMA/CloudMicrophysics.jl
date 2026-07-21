@@ -69,7 +69,7 @@ T = 273.15
 fig = MK.Figure()
 ax = MK.Axis(fig[1, 1]; xlabel = "q_lcl or q_icl [g/kg]", ylabel = "autoconversion rate [1/s]", limits)
 mp_ss = CMP.Microphysics1MParams(FT;
-    snow_autoconversion = CMP.WithSupersaturation(ClimaParams.create_toml_dict(FT)),
+    snow_autoconversion = CMP.WithSupersaturation(),
 )
 q_icl_to_q_sno_rate = function (T)
     map(q_icl_range) do q_icl
