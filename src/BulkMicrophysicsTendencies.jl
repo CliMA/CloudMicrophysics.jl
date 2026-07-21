@@ -718,7 +718,7 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     # --- Condensation of vapor / evaporation of cloud liquid water ---
     micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
     thermo_mock = (; ρ, T)
-    ∂ₜq_lcl_cond = CMNonEq._conv_q_vap_to_q_lcl(
+    ∂ₜq_lcl_cond = CMNonEq._conv_q_vap_to_q_lcl_const(
         condevap.τ_relax, tps, micro_mock, thermo_mock,
     )
     ∂ₜn_lcl_cond = zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation

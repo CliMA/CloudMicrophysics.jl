@@ -48,7 +48,7 @@ function test_microphysics_noneq(FT)
 
         #! format: off
         # Test helpers (call the timescale kernels directly with an explicit τ)
-        _conv_lcl(q_tot, q_lcl, q_icl, ρ, T) = CMNe._conv_q_vap_to_q_lcl(
+        _conv_lcl(q_tot, q_lcl, q_icl, ρ, T) = CMNe._conv_q_vap_to_q_lcl_const(
             FT(10),
             tps,
             (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0)),

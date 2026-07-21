@@ -39,12 +39,11 @@ Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
 
 Unified parameter container for 1-moment bulk microphysics.
 
-Process selection (which variant of each process runs) lives in `options`, and
-is parameter-free. The parameter values each selected variant needs
-(relaxation timescales, autoconversion thresholds, collision efficiencies) live
-in `process_params`, whose fields mirror `options` one-to-one. Shared parameters
-(particle size distributions, air properties, terminal velocities) are stored
-directly.
+Process selection (which variant of each process runs) lives in `options`. The
+parameter values each selected variant needs (relaxation timescales,
+autoconversion thresholds, collision efficiencies) live in `process_params`,
+whose fields mirror `options`. Shared parameters (particle size distributions,
+air properties, terminal velocities) are stored directly.
 
 # Fields
 - `options::OPT`: Microphysics1MOptions — process selection (no parameters)

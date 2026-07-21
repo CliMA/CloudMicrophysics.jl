@@ -252,19 +252,7 @@ opts = CMP.Microphysics1MOptions(; rain_autoconversion = CMP.PrescribedNd())
 ```
 """
 @kwdef struct Microphysics1MOptions{
-    CLF,
-    CIF,
-    CIM,
-    RA,
-    SA,
-    RCE,
-    SDS,
-    SM,
-    CLRA,
-    CLSA,
-    CIRA,
-    CISA,
-    RSA,
+    CLF, CIF, CIM, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA,
 }
     "cloud liquid formation option"
     cloud_liquid_formation::CLF = CloudLiquidFormation()
@@ -307,8 +295,6 @@ and for options that carry no parameters. The result is stored in the matching
 field of `Microphysics1MParams.process_params` and read back at call time by
 the process's tendency function.
 """
-# Default: disabled processes and any parameter-free option contribute a
-# `nothing` slot. Parameter-carrying options override this below.
 process_params_for(::Nothing, ::CP.ParamDict) = nothing
 process_params_for(::MicrophysicsOption, ::CP.ParamDict) = nothing
 
@@ -405,3 +391,23 @@ microphysics_1m_process_params(td::CP.ParamDict, o::Microphysics1MOptions) = (;
     cloud_ice_snow_accretion = process_params_for(o.cloud_ice_snow_accretion, td),
     rain_snow_accretion = process_params_for(o.rain_snow_accretion, td),
 )
+
+# ═══════════════════════════════════════════════════════════════════
+# Deprecated TOML-dict constructors
+#
+# Option types no longer carry parameters, so they take no TOML dict.
+# These shims keep downstream callers that still pass `toml_dict`
+# working (the argument is ignored). Drop the argument to migrate.
+# ═══════════════════════════════════════════════════════════════════
+@deprecate CloudLiquidFormation(::CP.ParamDict) CloudLiquidFormation() false
+@deprecate ConstantTimescale(::CP.ParamDict) ConstantTimescale() false
+@deprecate TemperatureDependent(::CP.ParamDict) TemperatureDependent() false
+@deprecate Kessler1M(::CP.ParamDict) Kessler1M() false
+@deprecate PrescribedNd(::CP.ParamDict) PrescribedNd() false
+@deprecate NoSupersaturation(::CP.ParamDict) NoSupersaturation() false
+@deprecate WithSupersaturation(::CP.ParamDict) WithSupersaturation() false
+@deprecate CloudLiquidRainAccretion(::CP.ParamDict) CloudLiquidRainAccretion() false
+@deprecate CloudLiquidSnowAccretion(::CP.ParamDict) CloudLiquidSnowAccretion() false
+@deprecate CloudIceRainAccretion(::CP.ParamDict) CloudIceRainAccretion() false
+@deprecate CloudIceSnowAccretion(::CP.ParamDict) CloudIceSnowAccretion() false
+@deprecate RainSnowAccretion(::CP.ParamDict) RainSnowAccretion() false

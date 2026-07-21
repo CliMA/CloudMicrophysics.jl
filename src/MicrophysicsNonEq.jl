@@ -110,13 +110,11 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 @inline conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 @inline conv_q_vap_to_q_lcl(
     ::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo) =
-    _conv_q_vap_to_q_lcl(
+    _conv_q_vap_to_q_lcl_const(
         mp.process_params.cloud_liquid_formation.τ_relax, tps, micro, thermo)
 
-# Kernel for `conv_q_vap_to_q_lcl`: condensation/evaporation tendency for a given
-# constant relaxation timescale `τ`. Callable directly with any `τ` (e.g. reused
-# by the 2-moment warm-rain scheme with its own timescale).
-@inline function _conv_q_vap_to_q_lcl(τ, tps::TDI.PS, micro, thermo)
+# Kernel for `conv_q_vap_to_q_lcl`with a constant relaxation timescale `τ`.
+@inline function _conv_q_vap_to_q_lcl_const(τ, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
 

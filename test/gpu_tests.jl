@@ -509,12 +509,12 @@ function test_gpu(FT)
     rain = CMP.Rain(FT)
     snow = CMP.Snow(FT)
     mp = CMP.Microphysics1MParams(FT)
-    opts = mp.options
-    e_lr = opts.cloud_liquid_rain_accretion.e
-    e_is = opts.cloud_ice_snow_accretion.e
-    e_ls = opts.cloud_liquid_snow_accretion.e
-    e_ir = opts.cloud_ice_rain_accretion.e
-    e_rs = opts.rain_snow_accretion.e
+    pp = mp.process_params
+    e_lr = pp.cloud_liquid_rain_accretion.e
+    e_is = pp.cloud_ice_snow_accretion.e
+    e_ls = pp.cloud_liquid_snow_accretion.e
+    e_ir = pp.cloud_ice_rain_accretion.e
+    e_rs = pp.rain_snow_accretion.e
 
     # Terminal velocity
     blk1mvel = CMP.Blk1MVelType(FT)
@@ -598,7 +598,7 @@ function test_gpu(FT)
         qᵢ_s = ArrayType([FT(0.002)])
 
         clf = CMP.CloudLiquidFormation()
-        τ_relax = CMP.Microphysics1MParams(FT).process_params.cloud_liquid_formation.τ_relax
+        τ_relax = mp_1m.process_params.cloud_liquid_formation.τ_relax
         kernel! = test_noneq_micro_kernel!(backend, work_groups)
         kernel!(lcl, icl, tps, clf, τ_relax, output, ρ, T, qᵥ_sl, qᵢ, qᵢ_s; ndrange)
         (; S_cond) = Array(output)[1]

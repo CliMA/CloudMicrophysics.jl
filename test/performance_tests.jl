@@ -236,7 +236,7 @@ function benchmark_test(FT)
 
     mp_mock = (;
         cloud = (; liquid = liquid),
-        process_params = CMP.Microphysics1MParams(FT).process_params,
+        process_params = mp_1m.process_params,
     )
     micro_mock = (; q_tot = FT(0.00145), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
     thermo_mock = (; ρ = FT(0.8), T = FT(263))
