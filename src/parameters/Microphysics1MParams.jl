@@ -39,15 +39,19 @@ Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
 
 Unified parameter container for 1-moment bulk microphysics.
 
-Process selection (which variant of each process runs) lives in `options`. The
-parameter values each selected variant needs (relaxation timescales,
-autoconversion thresholds, collision efficiencies) live in `process_params`,
-whose fields mirror `options`. Shared parameters (particle size distributions,
-air properties, terminal velocities) are stored directly.
+`options` selects which variant of each process runs. The parameter values each
+selected variant needs live in `process_params`, whose fields mirror `options`
+one-to-one. For example, `options.rain_autoconversion = Kessler1M()` picks the
+Kessler scheme, and its `τ`, threshold, and `k` live in
+`process_params.rain_autoconversion`. Turning a process off with `nothing` (e.g.
+`options.cloud_ice_melt = nothing`) gives it a `nothing` slot in
+`process_params`, as does any option that needs no parameters. Shared parameters
+(particle size distributions, air properties, terminal velocities) are stored
+directly.
 
 # Fields
-- `options::OPT`: Microphysics1MOptions — process selection (no parameters)
-- `process_params::PPR`: per-process parameter data matching `options` (or `nothing` for parameter-free/disabled processes)
+- `options::OPT`: Microphysics1MOptions — process selection
+- `process_params::PPR`: parameter data for each selected process, mirroring `options` (`nothing` when a process is disabled with `nothing` or needs no parameters)
 - `cloud::CP`: CloudPhaseParams1M — cloud liquid and ice parameters
 - `precip::PP`: PrecipPhaseParams1M — rain and snow parameters
 - `air_properties::AP`: AirProperties — air properties (diffusivities, thermal conductivity)

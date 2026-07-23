@@ -391,23 +391,3 @@ microphysics_1m_process_params(td::CP.ParamDict, o::Microphysics1MOptions) = (;
     cloud_ice_snow_accretion = process_params_for(o.cloud_ice_snow_accretion, td),
     rain_snow_accretion = process_params_for(o.rain_snow_accretion, td),
 )
-
-# ═══════════════════════════════════════════════════════════════════
-# Deprecated TOML-dict constructors
-#
-# Option types no longer carry parameters, so they take no TOML dict.
-# These shims keep downstream callers that still pass `toml_dict`
-# working (the argument is ignored). Drop the argument to migrate.
-# ═══════════════════════════════════════════════════════════════════
-@deprecate CloudLiquidFormation(::CP.ParamDict) CloudLiquidFormation() false
-@deprecate ConstantTimescale(::CP.ParamDict) ConstantTimescale() false
-@deprecate TemperatureDependent(::CP.ParamDict) TemperatureDependent() false
-@deprecate Kessler1M(::CP.ParamDict) Kessler1M() false
-@deprecate PrescribedNd(::CP.ParamDict) PrescribedNd() false
-@deprecate NoSupersaturation(::CP.ParamDict) NoSupersaturation() false
-@deprecate WithSupersaturation(::CP.ParamDict) WithSupersaturation() false
-@deprecate CloudLiquidRainAccretion(::CP.ParamDict) CloudLiquidRainAccretion() false
-@deprecate CloudLiquidSnowAccretion(::CP.ParamDict) CloudLiquidSnowAccretion() false
-@deprecate CloudIceRainAccretion(::CP.ParamDict) CloudIceRainAccretion() false
-@deprecate CloudIceSnowAccretion(::CP.ParamDict) CloudIceSnowAccretion() false
-@deprecate RainSnowAccretion(::CP.ParamDict) RainSnowAccretion() false

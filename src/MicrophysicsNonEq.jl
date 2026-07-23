@@ -113,7 +113,7 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
     _conv_q_vap_to_q_lcl_const(
         mp.process_params.cloud_liquid_formation.τ_relax, tps, micro, thermo)
 
-# Kernel for `conv_q_vap_to_q_lcl`with a constant relaxation timescale `τ`.
+# Kernel for `conv_q_vap_to_q_lcl` with a constant relaxation timescale `τ`.
 @inline function _conv_q_vap_to_q_lcl_const(τ, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
