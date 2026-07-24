@@ -51,7 +51,9 @@ directly.
 
 # Fields
 - `options::OPT`: Microphysics1MOptions — process selection
-- `process_params::PPR`: parameter data for each selected process, mirroring `options` (`nothing` when a process is disabled with `nothing` or needs no parameters)
+- `process_params::PPR`: parameter data for each selected process, mirroring
+  `options` (`nothing` when a process is disabled with `nothing` or needs no
+  parameters)
 - `cloud::CP`: CloudPhaseParams1M — cloud liquid and ice parameters
 - `precip::PP`: PrecipPhaseParams1M — rain and snow parameters
 - `air_properties::AP`: AirProperties — air properties (diffusivities, thermal conductivity)

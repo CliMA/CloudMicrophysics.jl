@@ -77,7 +77,8 @@ abstract type SnowDepositionSublimation <: MicrophysicsOption end
     CloudLiquidFormation <: MicrophysicsOption
 
 Constant relaxation timescale for liquid condensation and evaporation.
-Parameters (`τ_relax`) are stored in `process_params.cloud_liquid_formation`.
+Parameters (`τ_relax`) are stored in `process_params.cloud_liquid_formation` in
+[`Microphysics1MParams`](@ref).
 """
 struct CloudLiquidFormation <: MicrophysicsOption end
 
@@ -89,7 +90,8 @@ struct CloudLiquidFormation <: MicrophysicsOption end
     ConstantTimescale <: CloudIceFormation
 
 Constant relaxation timescale for ice deposition and sublimation.
-Parameters (`τ_relax`) are stored in `process_params.cloud_ice_formation`.
+Parameters (`τ_relax`) are stored in `process_params.cloud_ice_formation` in
+[`Microphysics1MParams`](@ref).
 """
 struct ConstantTimescale <: CloudIceFormation end
 
@@ -98,7 +100,7 @@ struct ConstantTimescale <: CloudIceFormation end
 
 INP-dependent Frostenberg (2023) timescale for deposition,
 with constant timescale for sublimation. Parameters (`τ_relax`, `frostenberg`)
-are stored in `process_params.cloud_ice_formation`.
+are stored in `process_params.cloud_ice_formation` in [`Microphysics1MParams`](@ref).
 """
 struct TemperatureDependent <: CloudIceFormation end
 
@@ -111,7 +113,7 @@ struct TemperatureDependent <: CloudIceFormation end
 
 1-moment Kessler autoconversion of cloud liquid to rain.
 Parameters (an `Acnv1M` with `τ`, `q_threshold`, `k`) are stored in
-`process_params.rain_autoconversion`.
+`process_params.rain_autoconversion` in [`Microphysics1MParams`](@ref).
 """
 struct Kessler1M <: RainAutoconversion end
 
@@ -120,7 +122,7 @@ struct Kessler1M <: RainAutoconversion end
 
 Variable-timescale autoconversion using prescribed cloud droplet number Nc.
 Parameters (a `VarTimescaleAcnv` with `τ`, `α`, `Nc`) are stored in
-`process_params.rain_autoconversion`.
+`process_params.rain_autoconversion` in [`Microphysics1MParams`](@ref).
 """
 struct PrescribedNd <: RainAutoconversion end
 
@@ -133,7 +135,7 @@ struct PrescribedNd <: RainAutoconversion end
 
 Simplified autoconversion of cloud ice to snow without supersaturation dependence.
 Parameters (an `Acnv1M` with `τ`, `q_threshold`, `k`) are stored in
-`process_params.snow_autoconversion`.
+`process_params.snow_autoconversion` in [`Microphysics1MParams`](@ref).
 """
 struct NoSupersaturation <: SnowAutoconversion end
 
@@ -141,7 +143,8 @@ struct NoSupersaturation <: SnowAutoconversion end
     WithSupersaturation <: SnowAutoconversion
 
 Harrington/Kaul autoconversion of cloud ice to snow with supersaturation dependence.
-Parameters (`r_ice_snow`) are stored in `process_params.snow_autoconversion`.
+Parameters (`r_ice_snow`) are stored in `process_params.snow_autoconversion` in
+[`Microphysics1MParams`](@ref).
 """
 struct WithSupersaturation <: SnowAutoconversion end
 
@@ -154,7 +157,7 @@ struct WithSupersaturation <: SnowAutoconversion end
 
 Cloud liquid + rain → rain (Marshall-Palmer kernel).
 Parameters (collision efficiency `e`) are stored in
-`process_params.cloud_liquid_rain_accretion`.
+`process_params.cloud_liquid_rain_accretion` in [`Microphysics1MParams`](@ref).
 """
 struct CloudLiquidRainAccretion <: MicrophysicsOption end
 
@@ -164,7 +167,7 @@ struct CloudLiquidRainAccretion <: MicrophysicsOption end
 Cloud liquid + snow → snow/rain depending on temperature
 (includes warm-rain melt contribution).
 Parameters (collision efficiency `e`) are stored in
-`process_params.cloud_liquid_snow_accretion`.
+`process_params.cloud_liquid_snow_accretion` in [`Microphysics1MParams`](@ref).
 """
 struct CloudLiquidSnowAccretion <: MicrophysicsOption end
 
@@ -174,7 +177,7 @@ struct CloudLiquidSnowAccretion <: MicrophysicsOption end
 Cloud ice + rain → snow (Marshall-Palmer kernel).
 The coupled rain-sink arm (rain + cloud ice → snow) is toggled automatically.
 Parameters (collision efficiency `e`) are stored in
-`process_params.cloud_ice_rain_accretion`.
+`process_params.cloud_ice_rain_accretion` in [`Microphysics1MParams`](@ref).
 """
 struct CloudIceRainAccretion <: MicrophysicsOption end
 
@@ -183,7 +186,7 @@ struct CloudIceRainAccretion <: MicrophysicsOption end
 
 Cloud ice + snow → snow (Marshall-Palmer kernel).
 Parameters (collision efficiency `e`) are stored in
-`process_params.cloud_ice_snow_accretion`.
+`process_params.cloud_ice_snow_accretion` in [`Microphysics1MParams`](@ref).
 """
 struct CloudIceSnowAccretion <: MicrophysicsOption end
 
@@ -193,7 +196,7 @@ struct CloudIceSnowAccretion <: MicrophysicsOption end
 Snow-rain collisions: both temperature pathways
 (cold: rain→snow, warm: snow→rain) plus thermal melt.
 Parameters (collision efficiency `e`, velocity dispersion `coeff_disp`) are
-stored in `process_params.rain_snow_accretion`.
+stored in `process_params.rain_snow_accretion` in [`Microphysics1MParams`](@ref).
 """
 struct RainSnowAccretion <: MicrophysicsOption end
 
