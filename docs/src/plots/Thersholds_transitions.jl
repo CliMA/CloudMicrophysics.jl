@@ -41,7 +41,7 @@ N_d_range = range(1e7, stop = 1e9, length = 1000)
 N_d = 1e8
 
 mp = CMP.Microphysics1MParams(CP.create_toml_dict(FT))
-acnv = mp.options.rain_autoconversion.acnv1M
+acnv = mp.process_params.rain_autoconversion
 
 q_lcl_K1969 = [
     max(0, q_lcl - acnv.q_threshold) / acnv.τ

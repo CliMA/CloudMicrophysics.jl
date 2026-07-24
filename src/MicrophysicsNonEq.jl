@@ -98,7 +98,7 @@ Morrison & Grabowski (2008), https://doi.org/10.1175/2007JAS2374.1, and
 Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 
 # Arguments
-- `opt`: `CloudLiquidFormation(...)` or `nothing` (disabled)
+- `opt`: `CloudLiquidFormation()` or `nothing` (disabled)
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -108,11 +108,15 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 - Cloud condensate tendency [kg/kg/s]
 """
 @inline conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
-@inline function conv_q_vap_to_q_lcl(
-    opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo)
+@inline conv_q_vap_to_q_lcl(
+    ::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo) =
+    _conv_q_vap_to_q_lcl_const(
+        mp.process_params.cloud_liquid_formation.τ_relax, tps, micro, thermo)
+
+# Kernel for `conv_q_vap_to_q_lcl` with a constant relaxation timescale `τ`.
+@inline function _conv_q_vap_to_q_lcl_const(τ, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    τ = opt.τ_relax
 
     Rᵥ = TDI.Rᵥ(tps)
     Lᵥ = TDI.Lᵥ(tps, T)
@@ -145,7 +149,7 @@ Morrison & Grabowski (2008), https://doi.org/10.1175/2007JAS2374.1, and
 Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 
 # Arguments
-- `opt`: `ConstantTimescale(...)`, `TemperatureDependent(...)`, or `nothing` (disabled)
+- `opt`: `ConstantTimescale()`, `TemperatureDependent()`, or `nothing` (disabled)
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -155,11 +159,15 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 - Cloud condensate tendency [kg/kg/s]
 """
 @inline conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
-@inline function conv_q_vap_to_q_icl(
-    opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo)
+@inline conv_q_vap_to_q_icl(
+    ::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo) =
+    _conv_q_vap_to_q_icl_const(
+        mp.process_params.cloud_ice_formation.τ_relax, tps, micro, thermo)
+
+# Kernel for `conv_q_vap_to_q_icl` with a constant relaxation timescale `τ`
+@inline function _conv_q_vap_to_q_icl_const(τ, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    τ = opt.τ_relax
 
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)
@@ -184,11 +192,12 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
     return ifelse(limiter, zero(tendency), tendency)
 end
 @inline function conv_q_vap_to_q_icl(
-    opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
+    ::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    τ_sub = opt.τ_relax
-    τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, opt.frostenberg, q_icl, T)
+    pp = mp.process_params.cloud_ice_formation
+    τ_sub = pp.τ_relax
+    τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, pp.frostenberg, q_icl, T)
 
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)

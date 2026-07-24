@@ -52,12 +52,13 @@ function generate_cond_evap_rate(::HydrostaticBalance_qₗ_z)
     dt = 1; title *= "dt=$(dt)s, "
     τ_relax = 1; title *= "τ_relax=$(τ_relax)s, "
     cm_params = CM.Parameters.CloudLiquid(FT)
-    clf = CMP.CloudLiquidFormation(FT(τ_relax))
+    clf = CMP.CloudLiquidFormation()
 
     data = broadcast(qₗ, T) do q_lcl, temp
         CMNe.conv_q_vap_to_q_lcl(
             clf,
-            (; cloud = (; liquid = cm_params)),
+            (; cloud = (; liquid = cm_params),
+                process_params = (; cloud_liquid_formation = (; τ_relax = FT(τ_relax)))),
             thp,
             (; q_tot = qₜ, q_lcl, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ),
             (; ρ, T = temp)
@@ -92,12 +93,13 @@ function generate_cond_evap_rate(::Range_qₗ_T)
     dt = 1; title *= "dt=$(dt)s, "
     τ_relax = 1; title *= "τ_relax=$(τ_relax)s, "
     cm_params = CM.Parameters.CloudLiquid(FT)
-    clf = CMP.CloudLiquidFormation(FT(τ_relax))
+    clf = CMP.CloudLiquidFormation()
 
     data = broadcast(qₗ, T') do q_lcl, temp
         CMNe.conv_q_vap_to_q_lcl(
             clf,
-            (; cloud = (; liquid = cm_params)),
+            (; cloud = (; liquid = cm_params),
+                process_params = (; cloud_liquid_formation = (; τ_relax = FT(τ_relax)))),
             thp,
             (; q_tot = qₜ, q_lcl, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ),
             (; ρ, T = temp)

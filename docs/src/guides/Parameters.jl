@@ -58,16 +58,16 @@ nothing #hide
 
 # Finally we check the values of the rain autoconversion timescales
 # and the corresponding rain formation rates.
-# The autoconversion parameters now live in the option types inside `Microphysics1MParams`.
+# The autoconversion parameters live in `process_params` inside `Microphysics1MParams`.
 qₗ = FT(1e-3)
-default_acnv_p = default_mp.options.rain_autoconversion.acnv1M
+default_acnv_p = default_mp.process_params.rain_autoconversion
 default_acnv = CO.logistic_function_integral(qₗ, default_acnv_p.q_threshold, default_acnv_p.k) / default_acnv_p.τ
 
-overwrite_acnv_p = overwrite_mp.options.rain_autoconversion.acnv1M
+overwrite_acnv_p = overwrite_mp.process_params.rain_autoconversion
 overwrite_acnv =
     CO.logistic_function_integral(qₗ, overwrite_acnv_p.q_threshold, overwrite_acnv_p.k) / overwrite_acnv_p.τ
 
-overwrite2_acnv_p = overwrite2_mp.options.rain_autoconversion.acnv1M
+overwrite2_acnv_p = overwrite2_mp.process_params.rain_autoconversion
 overwrite_acnv2 =
     CO.logistic_function_integral(qₗ, overwrite2_acnv_p.q_threshold, overwrite2_acnv_p.k) / overwrite2_acnv_p.τ
 

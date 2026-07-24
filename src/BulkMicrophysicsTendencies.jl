@@ -718,8 +718,8 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     # --- Condensation of vapor / evaporation of cloud liquid water ---
     micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
     thermo_mock = (; ρ, T)
-    ∂ₜq_lcl_cond = CMNonEq.conv_q_vap_to_q_lcl(
-        CMP.CloudLiquidFormation(condevap.τ_relax), nothing, tps, micro_mock, thermo_mock,
+    ∂ₜq_lcl_cond = CMNonEq._conv_q_vap_to_q_lcl_const(
+        condevap.τ_relax, tps, micro_mock, thermo_mock,
     )
     ∂ₜn_lcl_cond = zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation
     dq_lcl_dt += ∂ₜq_lcl_cond
@@ -1026,8 +1026,8 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     # Deposition/sublimation of cloud ice
     micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
     thermo_mock = (; ρ, T)
-    ∂ₜq_ice_dep = CMNonEq.conv_q_vap_to_q_icl(
-        CMP.ConstantTimescale(subdep.τ_relax), nothing, tps, micro_mock, thermo_mock,
+    ∂ₜq_ice_dep = CMNonEq._conv_q_vap_to_q_icl_const(
+        subdep.τ_relax, tps, micro_mock, thermo_mock,
     )
     # No ice deposition above freezing (lack of INPs)
     ∂ₜq_ice_dep = ifelse(T > tps.T_freeze, min(∂ₜq_ice_dep, zero(T)), ∂ₜq_ice_dep)
