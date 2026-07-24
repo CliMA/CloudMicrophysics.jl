@@ -26,6 +26,10 @@ export Microphysics1MOptions,
     MicrophysicsOption
 
 Abstract type for all microphysics process options.
+
+Option types are empty singletons that select which variant of a process runs.
+The parameter values a variant needs live in the `process_params` field of
+[`Microphysics1MParams`](@ref), built by [`process_params_for`](@ref).
 """
 abstract type MicrophysicsOption end
 
@@ -70,265 +74,131 @@ abstract type SnowDepositionSublimation <: MicrophysicsOption end
 # ═══════════════════════════════════════════════════════════════════
 
 """
-    CloudLiquidFormation{FT} <: MicrophysicsOption
+    CloudLiquidFormation <: MicrophysicsOption
 
 Constant relaxation timescale for liquid condensation and evaporation.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (`τ_relax`) are stored in `process_params.cloud_liquid_formation` in
+[`Microphysics1MParams`](@ref).
 """
-struct CloudLiquidFormation{FT} <: MicrophysicsOption
-    "condensation/evaporation non-equilibrium relaxation timescale [s]"
-    τ_relax::FT
-end
-
-function CloudLiquidFormation(td::CP.ParamDict)
-    name_map = (; :condensation_evaporation_timescale => :τ_relax)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return CloudLiquidFormation(p.τ_relax)
-end
+struct CloudLiquidFormation <: MicrophysicsOption end
 
 # ═══════════════════════════════════════════════════════════════════
 # Cloud ice formation variants
 # ═══════════════════════════════════════════════════════════════════
 
 """
-    ConstantTimescale{FT} <: CloudIceFormation
+    ConstantTimescale <: CloudIceFormation
 
 Constant relaxation timescale for ice deposition and sublimation.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (`τ_relax`) are stored in `process_params.cloud_ice_formation` in
+[`Microphysics1MParams`](@ref).
 """
-struct ConstantTimescale{FT} <: CloudIceFormation
-    "deposition/sublimation non-equilibrium relaxation timescale [s]"
-    τ_relax::FT
-end
-
-function ConstantTimescale(td::CP.ParamDict)
-    name_map = (; :sublimation_deposition_timescale => :τ_relax)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return ConstantTimescale(p.τ_relax)
-end
+struct ConstantTimescale <: CloudIceFormation end
 
 """
-    TemperatureDependent{FT, FR} <: CloudIceFormation
+    TemperatureDependent <: CloudIceFormation
 
 INP-dependent Frostenberg (2023) timescale for deposition,
-with constant timescale for sublimation.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+with constant timescale for sublimation. Parameters (`τ_relax`, `frostenberg`)
+are stored in `process_params.cloud_ice_formation` in [`Microphysics1MParams`](@ref).
 """
-struct TemperatureDependent{FT, FR} <: CloudIceFormation
-    "sublimation arm: constant relaxation timescale [s]"
-    τ_relax::FT
-    "Frostenberg (2023) INP parameters for deposition"
-    frostenberg::FR
-end
-
-function TemperatureDependent(td::CP.ParamDict)
-    name_map = (; :sublimation_deposition_timescale => :τ_relax)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return TemperatureDependent(p.τ_relax, Frostenberg2023(td))
-end
+struct TemperatureDependent <: CloudIceFormation end
 
 # ═══════════════════════════════════════════════════════════════════
 # Rain autoconversion variants
 # ═══════════════════════════════════════════════════════════════════
 
 """
-    Kessler1M{AC} <: RainAutoconversion
+    Kessler1M <: RainAutoconversion
 
 1-moment Kessler autoconversion of cloud liquid to rain.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (an `Acnv1M` with `τ`, `q_threshold`, `k`) are stored in
+`process_params.rain_autoconversion` in [`Microphysics1MParams`](@ref).
 """
-struct Kessler1M{AC} <: RainAutoconversion
-    "autoconversion parameters (τ, q_threshold, k)"
-    acnv1M::AC
-end
-
-function Kessler1M(td::CP.ParamDict)
-    name_map = (;
-        :rain_autoconversion_timescale => :τ,
-        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold,
-        :threshold_smooth_transition_steepness => :k,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Kessler1M(Acnv1M(p.τ, p.q_threshold, p.k))
-end
+struct Kessler1M <: RainAutoconversion end
 
 """
-    PrescribedNd{VA} <: RainAutoconversion
+    PrescribedNd <: RainAutoconversion
 
 Variable-timescale autoconversion using prescribed cloud droplet number Nc.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (a `VarTimescaleAcnv` with `τ`, `α`, `Nc`) are stored in
+`process_params.rain_autoconversion` in [`Microphysics1MParams`](@ref).
 """
-struct PrescribedNd{VA} <: RainAutoconversion
-    "variable-timescale autoconversion parameters (τ, α, Nc)"
-    autoconv::VA
-end
-
-function PrescribedNd(td::CP.ParamDict)
-    return PrescribedNd(VarTimescaleAcnv(td))
-end
+struct PrescribedNd <: RainAutoconversion end
 
 # ═══════════════════════════════════════════════════════════════════
 # Snow autoconversion variants
 # ═══════════════════════════════════════════════════════════════════
 
 """
-    NoSupersaturation{AC} <: SnowAutoconversion
+    NoSupersaturation <: SnowAutoconversion
 
 Simplified autoconversion of cloud ice to snow without supersaturation dependence.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (an `Acnv1M` with `τ`, `q_threshold`, `k`) are stored in
+`process_params.snow_autoconversion` in [`Microphysics1MParams`](@ref).
 """
-struct NoSupersaturation{AC} <: SnowAutoconversion
-    "autoconversion parameters (τ, q_threshold, k)"
-    acnv1M::AC
-end
-
-function NoSupersaturation(td::CP.ParamDict)
-    name_map = (;
-        :snow_autoconversion_timescale => :τ,
-        :cloud_ice_specific_humidity_autoconversion_threshold => :q_threshold,
-        :threshold_smooth_transition_steepness => :k,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return NoSupersaturation(Acnv1M(p.τ, p.q_threshold, p.k))
-end
+struct NoSupersaturation <: SnowAutoconversion end
 
 """
-    WithSupersaturation{FT} <: SnowAutoconversion
+    WithSupersaturation <: SnowAutoconversion
 
 Harrington/Kaul autoconversion of cloud ice to snow with supersaturation dependence.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (`r_ice_snow`) are stored in `process_params.snow_autoconversion` in
+[`Microphysics1MParams`](@ref).
 """
-struct WithSupersaturation{FT} <: SnowAutoconversion
-    "ice-snow threshold radius [m]"
-    r_ice_snow::FT
-end
-
-function WithSupersaturation(td::CP.ParamDict)
-    name_map = (; :ice_snow_threshold_radius => :r_ice_snow)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return WithSupersaturation(p.r_ice_snow)
-end
+struct WithSupersaturation <: SnowAutoconversion end
 
 # ═══════════════════════════════════════════════════════════════════
 # Accretion (single variant each → concrete type = process name)
 # ═══════════════════════════════════════════════════════════════════
 
 """
-    CloudLiquidRainAccretion{FT} <: MicrophysicsOption
+    CloudLiquidRainAccretion <: MicrophysicsOption
 
 Cloud liquid + rain → rain (Marshall-Palmer kernel).
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (collision efficiency `e`) are stored in
+`process_params.cloud_liquid_rain_accretion` in [`Microphysics1MParams`](@ref).
 """
-struct CloudLiquidRainAccretion{FT} <: MicrophysicsOption
-    "collision efficiency [-]"
-    e::FT
-end
-
-function CloudLiquidRainAccretion(td::CP.ParamDict)
-    name_map = (; :cloud_liquid_rain_collision_efficiency => :e)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return CloudLiquidRainAccretion(p.e)
-end
+struct CloudLiquidRainAccretion <: MicrophysicsOption end
 
 """
-    CloudLiquidSnowAccretion{FT} <: MicrophysicsOption
+    CloudLiquidSnowAccretion <: MicrophysicsOption
 
 Cloud liquid + snow → snow/rain depending on temperature
 (includes warm-rain melt contribution).
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (collision efficiency `e`) are stored in
+`process_params.cloud_liquid_snow_accretion` in [`Microphysics1MParams`](@ref).
 """
-struct CloudLiquidSnowAccretion{FT} <: MicrophysicsOption
-    "collision efficiency [-]"
-    e::FT
-end
-
-function CloudLiquidSnowAccretion(td::CP.ParamDict)
-    name_map = (; :cloud_liquid_snow_collision_efficiency => :e)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return CloudLiquidSnowAccretion(p.e)
-end
+struct CloudLiquidSnowAccretion <: MicrophysicsOption end
 
 """
-    CloudIceRainAccretion{FT} <: MicrophysicsOption
+    CloudIceRainAccretion <: MicrophysicsOption
 
 Cloud ice + rain → snow (Marshall-Palmer kernel).
 The coupled rain-sink arm (rain + cloud ice → snow) is toggled automatically.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (collision efficiency `e`) are stored in
+`process_params.cloud_ice_rain_accretion` in [`Microphysics1MParams`](@ref).
 """
-struct CloudIceRainAccretion{FT} <: MicrophysicsOption
-    "collision efficiency [-]"
-    e::FT
-end
-
-function CloudIceRainAccretion(td::CP.ParamDict)
-    name_map = (; :cloud_ice_rain_collision_efficiency => :e)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return CloudIceRainAccretion(p.e)
-end
+struct CloudIceRainAccretion <: MicrophysicsOption end
 
 """
-    CloudIceSnowAccretion{FT} <: MicrophysicsOption
+    CloudIceSnowAccretion <: MicrophysicsOption
 
 Cloud ice + snow → snow (Marshall-Palmer kernel).
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (collision efficiency `e`) are stored in
+`process_params.cloud_ice_snow_accretion` in [`Microphysics1MParams`](@ref).
 """
-struct CloudIceSnowAccretion{FT} <: MicrophysicsOption
-    "collision efficiency [-]"
-    e::FT
-end
-
-function CloudIceSnowAccretion(td::CP.ParamDict)
-    name_map = (; :cloud_ice_snow_collision_efficiency => :e)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return CloudIceSnowAccretion(p.e)
-end
+struct CloudIceSnowAccretion <: MicrophysicsOption end
 
 """
-    RainSnowAccretion{FT} <: MicrophysicsOption
+    RainSnowAccretion <: MicrophysicsOption
 
 Snow-rain collisions: both temperature pathways
 (cold: rain→snow, warm: snow→rain) plus thermal melt.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+Parameters (collision efficiency `e`, velocity dispersion `coeff_disp`) are
+stored in `process_params.rain_snow_accretion` in [`Microphysics1MParams`](@ref).
 """
-struct RainSnowAccretion{FT} <: MicrophysicsOption
-    "collision efficiency [-]"
-    e::FT
-    "velocity dispersion coefficient [-]"
-    coeff_disp::FT
-end
-
-function RainSnowAccretion(td::CP.ParamDict)
-    name_map = (;
-        :rain_snow_collision_efficiency => :e,
-        :rain_snow_velocity_dispersion_coefficient => :coeff_disp,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return RainSnowAccretion(p.e, p.coeff_disp)
-end
+struct RainSnowAccretion <: MicrophysicsOption end
 
 # ═══════════════════════════════════════════════════════════════════
 # Snow deposition/sublimation variants
@@ -371,68 +241,156 @@ $(DocStringExtensions.FIELDS)
 ```julia
 using CloudMicrophysics.Parameters as CMP
 
-# Default options require TOML dict for parametric types
-(i.e. for populating the free parameter values)
-opts = CMP.Microphysics1MOptions(toml_dict)
+# Default options
+opts = CMP.Microphysics1MOptions()
 
 # Disable cloud ice melt and snow melt:
-opts = CMP.Microphysics1MOptions(toml_dict;
+opts = CMP.Microphysics1MOptions(;
     cloud_ice_melt = nothing,
     snow_melt = nothing,
 )
+
+# Switch rain autoconversion to the prescribed-Nd variant:
+opts = CMP.Microphysics1MOptions(; rain_autoconversion = CMP.PrescribedNd())
 ```
 """
-@kwdef struct Microphysics1MOptions{CLF, CIF, CIM, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA}
+@kwdef struct Microphysics1MOptions{
+    CLF, CIF, CIM, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA,
+}
     "cloud liquid formation option"
-    cloud_liquid_formation::CLF
+    cloud_liquid_formation::CLF = CloudLiquidFormation()
     "cloud ice formation option"
-    cloud_ice_formation::CIF
+    cloud_ice_formation::CIF = ConstantTimescale()
     "cloud ice melting option"
-    cloud_ice_melt::CIM
+    cloud_ice_melt::CIM = CloudIceMelt()
     "rain autoconversion option"
-    rain_autoconversion::RA
+    rain_autoconversion::RA = Kessler1M()
     "cloud ice to snow autoconversion option"
-    snow_autoconversion::SA
+    snow_autoconversion::SA = NoSupersaturation()
     "rain condensation/evaporation option"
-    rain_condensation_evaporation::RCE
+    rain_condensation_evaporation::RCE = RainEvaporation()
     "snow sublimation/deposition option"
-    snow_deposition_sublimation::SDS
+    snow_deposition_sublimation::SDS = DepositionAndSublimation()
     "snow melting option"
-    snow_melt::SM
+    snow_melt::SM = SnowMelt()
     "cloud liquid + rain accretion option"
-    cloud_liquid_rain_accretion::CLRA
+    cloud_liquid_rain_accretion::CLRA = CloudLiquidRainAccretion()
     "cloud liquid + snow accretion option"
-    cloud_liquid_snow_accretion::CLSA
+    cloud_liquid_snow_accretion::CLSA = CloudLiquidSnowAccretion()
     "cloud ice + rain accretion option (also toggles rain sink arm)"
-    cloud_ice_rain_accretion::CIRA
+    cloud_ice_rain_accretion::CIRA = CloudIceRainAccretion()
     "cloud ice + snow accretion option"
-    cloud_ice_snow_accretion::CISA
+    cloud_ice_snow_accretion::CISA = CloudIceSnowAccretion()
     "rain-snow collisions option"
-    rain_snow_accretion::RSA
+    rain_snow_accretion::RSA = RainSnowAccretion()
 end
 
-"""
-    Microphysics1MOptions(toml_dict::CP.ParamDict; kwargs...)
+# ═══════════════════════════════════════════════════════════════════
+# Process parameters: option → parameter data
+# ═══════════════════════════════════════════════════════════════════
 
-Create a `Microphysics1MOptions` with default options and their parameters populated
-from the TOML dictionary. Override individual options via keyword arguments.
 """
-function Microphysics1MOptions(toml_dict::CP.ParamDict; kwargs...)
-    defaults = (;
-        cloud_liquid_formation = CloudLiquidFormation(toml_dict),
-        cloud_ice_formation = ConstantTimescale(toml_dict),
-        cloud_ice_melt = CloudIceMelt(),
-        rain_autoconversion = Kessler1M(toml_dict),
-        snow_autoconversion = NoSupersaturation(toml_dict),
-        rain_condensation_evaporation = RainEvaporation(),
-        snow_deposition_sublimation = DepositionAndSublimation(),
-        snow_melt = SnowMelt(),
-        cloud_liquid_rain_accretion = CloudLiquidRainAccretion(toml_dict),
-        cloud_liquid_snow_accretion = CloudLiquidSnowAccretion(toml_dict),
-        cloud_ice_rain_accretion = CloudIceRainAccretion(toml_dict),
-        cloud_ice_snow_accretion = CloudIceSnowAccretion(toml_dict),
-        rain_snow_accretion = RainSnowAccretion(toml_dict),
+    process_params_for(option, toml_dict)
+
+Return the parameter data that the selected process `option` needs, read from
+`toml_dict`. Returns `nothing` for disabled processes (`option === nothing`)
+and for options that carry no parameters. The result is stored in the matching
+field of `Microphysics1MParams.process_params` and read back at call time by
+the process's tendency function.
+"""
+process_params_for(::Nothing, ::CP.ParamDict) = nothing
+process_params_for(::MicrophysicsOption, ::CP.ParamDict) = nothing
+
+function process_params_for(::CloudLiquidFormation, td::CP.ParamDict)
+    name_map = (; :condensation_evaporation_timescale => :τ_relax)
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::ConstantTimescale, td::CP.ParamDict)
+    name_map = (; :sublimation_deposition_timescale => :τ_relax)
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::TemperatureDependent, td::CP.ParamDict)
+    name_map = (; :sublimation_deposition_timescale => :τ_relax)
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return (; τ_relax = p.τ_relax, frostenberg = Frostenberg2023(td))
+end
+
+function process_params_for(::Kessler1M, td::CP.ParamDict)
+    name_map = (;
+        :rain_autoconversion_timescale => :τ,
+        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold,
+        :threshold_smooth_transition_steepness => :k,
     )
-    merged = merge(defaults, NamedTuple(kwargs))
-    return Microphysics1MOptions(; merged...)
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return Acnv1M(p.τ, p.q_threshold, p.k)
 end
+
+process_params_for(::PrescribedNd, td::CP.ParamDict) = VarTimescaleAcnv(td)
+
+function process_params_for(::NoSupersaturation, td::CP.ParamDict)
+    name_map = (;
+        :snow_autoconversion_timescale => :τ,
+        :cloud_ice_specific_humidity_autoconversion_threshold => :q_threshold,
+        :threshold_smooth_transition_steepness => :k,
+    )
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return Acnv1M(p.τ, p.q_threshold, p.k)
+end
+
+function process_params_for(::WithSupersaturation, td::CP.ParamDict)
+    name_map = (; :ice_snow_threshold_radius => :r_ice_snow)
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::CloudLiquidRainAccretion, td::CP.ParamDict)
+    name_map = (; :cloud_liquid_rain_collision_efficiency => :e)
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::CloudLiquidSnowAccretion, td::CP.ParamDict)
+    name_map = (; :cloud_liquid_snow_collision_efficiency => :e)
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::CloudIceRainAccretion, td::CP.ParamDict)
+    name_map = (; :cloud_ice_rain_collision_efficiency => :e)
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::CloudIceSnowAccretion, td::CP.ParamDict)
+    name_map = (; :cloud_ice_snow_collision_efficiency => :e)
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::RainSnowAccretion, td::CP.ParamDict)
+    name_map = (;
+        :rain_snow_collision_efficiency => :e,
+        :rain_snow_velocity_dispersion_coefficient => :coeff_disp,
+    )
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+"""
+    microphysics_1m_process_params(toml_dict, options)
+
+Assemble the `process_params` container for [`Microphysics1MParams`](@ref) by
+mapping each field of `options` through [`process_params_for`](@ref). The result
+mirrors the `options` fields one-to-one.
+"""
+microphysics_1m_process_params(td::CP.ParamDict, o::Microphysics1MOptions) = (;
+    cloud_liquid_formation = process_params_for(o.cloud_liquid_formation, td),
+    cloud_ice_formation = process_params_for(o.cloud_ice_formation, td),
+    cloud_ice_melt = process_params_for(o.cloud_ice_melt, td),
+    rain_autoconversion = process_params_for(o.rain_autoconversion, td),
+    snow_autoconversion = process_params_for(o.snow_autoconversion, td),
+    rain_condensation_evaporation = process_params_for(o.rain_condensation_evaporation, td),
+    snow_deposition_sublimation = process_params_for(o.snow_deposition_sublimation, td),
+    snow_melt = process_params_for(o.snow_melt, td),
+    cloud_liquid_rain_accretion = process_params_for(o.cloud_liquid_rain_accretion, td),
+    cloud_liquid_snow_accretion = process_params_for(o.cloud_liquid_snow_accretion, td),
+    cloud_ice_rain_accretion = process_params_for(o.cloud_ice_rain_accretion, td),
+    cloud_ice_snow_accretion = process_params_for(o.cloud_ice_snow_accretion, td),
+    rain_snow_accretion = process_params_for(o.rain_snow_accretion, td),
+)

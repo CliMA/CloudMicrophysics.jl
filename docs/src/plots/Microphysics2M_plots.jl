@@ -20,7 +20,7 @@ const SB2006 = CMP.SB2006(FT)
 
 const mp_1m = CMP.Microphysics1MParams(FT)
 
-const E_lcl_rai = mp_1m.options.cloud_liquid_rain_accretion.e
+const E_lcl_rai = mp_1m.process_params.cloud_liquid_rain_accretion.e
 
 const liquid = CMP.CloudLiquid(FT)
 const rain = CMP.Rain(FT)
@@ -65,7 +65,7 @@ q_lcl_SB2006 = [
 ]
 q_lcl_K1969 = [
     CM1.conv_q_lcl_to_q_rai(
-        CMP.Kessler1M(ClimaParams.create_toml_dict(FT)), mp_1m, nothing,
+        CMP.Kessler1M(), mp_1m, nothing,
         (; q_tot = FT(0), q_lcl = q, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0)),
         nothing,
     ) for q in q_lcl_range

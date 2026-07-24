@@ -25,8 +25,8 @@ function rain_formation(dY, Y, p, t)
     qₗ = Y[1] # Cloud water specific content
     qᵣ = Y[2] # Rain water specific content
 
-    E = mp.options.cloud_liquid_rain_accretion.e  # Collision efficiency
-    (; τ, q_threshold, k) = mp.options.rain_autoconversion.acnv1M
+    E = mp.process_params.cloud_liquid_rain_accretion.e  # Collision efficiency
+    (; τ, q_threshold, k) = mp.process_params.rain_autoconversion
     acnv = CO.logistic_function_integral(qₗ, q_threshold, k) / τ # Rain autoconversion rate
     accr = CM1.accretion(liquid, rain, v_term.rain, E, qₗ, qᵣ, ρₐ) # Rain accretion rate
 

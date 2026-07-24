@@ -126,9 +126,9 @@ function benchmark_test(FT)
     # 1-moment microphysics unified params (both liquid autoconversion flavours)
     mp_1m = CMP.Microphysics1MParams(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
-        rain_autoconversion = CMP.PrescribedNd(CP.create_toml_dict(FT)),
+        rain_autoconversion = CMP.PrescribedNd(),
     )
-    E_lcl_rai = mp_1m.options.cloud_liquid_rain_accretion.e
+    E_lcl_rai = mp_1m.process_params.cloud_liquid_rain_accretion.e
 
     ρ_air = FT(1.2)
     T_air = FT(280)
@@ -234,11 +234,14 @@ function benchmark_test(FT)
     @info "Non-equilibrium Microphysics"
     bench_press(FT, CMN.τ_relax, (ice, aps, ip_frostenberg, FT(1e-4), FT(250)), 300)
 
-    mp_mock = (; cloud = (; liquid = liquid))
+    mp_mock = (;
+        cloud = (; liquid = liquid),
+        process_params = mp_1m.process_params,
+    )
     micro_mock = (; q_tot = FT(0.00145), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
     thermo_mock = (; ρ = FT(0.8), T = FT(263))
     bench_press(FT, CMN.conv_q_vap_to_q_lcl,
-        (CMP.CloudLiquidFormation(CP.create_toml_dict(FT)), mp_mock, tps, micro_mock, thermo_mock), 160)
+        (CMP.CloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock), 160)
 
     @info "0-Moment Scheme"
     bench_press(FT, CM0.remove_precipitation, (p0m, q_liq, q_ice), 12)

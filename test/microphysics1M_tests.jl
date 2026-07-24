@@ -198,8 +198,8 @@ function test_microphysics1M(FT)
 
     TT.@testset "RainAutoconversion" begin
 
-        q_lcl_threshold = mp.options.rain_autoconversion.acnv1M.q_threshold
-        τ_acnv_rai = mp.options.rain_autoconversion.acnv1M.τ
+        q_lcl_threshold = mp.process_params.rain_autoconversion.q_threshold
+        τ_acnv_rai = mp.process_params.rain_autoconversion.τ
 
         micro_s = (; q_tot = FT(0), q_lcl = FT(0.5) * q_lcl_threshold,
             q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
@@ -221,7 +221,7 @@ function test_microphysics1M(FT)
     TT.@testset "RainAutoconversion2M" begin
         # Variable-timescale autoconversion (PrescribedNd)
         mp_2m = CMP.Microphysics1MParams(FT;
-            rain_autoconversion = CMP.PrescribedNd(CP.create_toml_dict(FT)),
+            rain_autoconversion = CMP.PrescribedNd(),
         )
         thermo = (; ρ = FT(1), T = FT(280))
 
@@ -235,8 +235,8 @@ function test_microphysics1M(FT)
 
         # Positive cloud liquid → positive rate
         q_lcl = FT(2e-3)
-        N_d = mp_2m.options.rain_autoconversion.autoconv.Nc
-        (; τ, α) = mp_2m.options.rain_autoconversion.autoconv
+        N_d = mp_2m.process_params.rain_autoconversion.Nc
+        (; τ, α) = mp_2m.process_params.rain_autoconversion
         micro = (; q_tot = FT(0), q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
         rate = CM1.conv_q_lcl_to_q_rai(mp_2m.options.rain_autoconversion, mp_2m, tps, micro, thermo)
         TT.@test rate > FT(0)
@@ -260,8 +260,8 @@ function test_microphysics1M(FT)
 
     TT.@testset "SnowAutoconversionNoSupersat" begin
 
-        q_icl_threshold = mp.options.snow_autoconversion.acnv1M.q_threshold
-        τ_acnv_sno = mp.options.snow_autoconversion.acnv1M.τ
+        q_icl_threshold = mp.process_params.snow_autoconversion.q_threshold
+        τ_acnv_sno = mp.process_params.snow_autoconversion.τ
 
         # Below threshold → rate near zero (uses logistic smoothing)
         q_icl_small = FT(0.5) * q_icl_threshold
@@ -290,7 +290,7 @@ function test_microphysics1M(FT)
 
         # Use mp with WithSupersaturation
         mp_ss = CMP.Microphysics1MParams(FT;
-            snow_autoconversion = CMP.WithSupersaturation(CP.create_toml_dict(FT)),
+            snow_autoconversion = CMP.WithSupersaturation(),
         )
 
         # above freezing temperatures -> no snow
@@ -350,7 +350,7 @@ function test_microphysics1M(FT)
         q_rain_range = range(FT(1e-8), stop = FT(5e-3), length = 10)
         ρ_air, q_liq, q_tot = FT(1.2), FT(5e-4), FT(20e-3)
 
-        E_lcl_rai = mp.options.cloud_liquid_rain_accretion.e
+        E_lcl_rai = mp.process_params.cloud_liquid_rain_accretion.e
         for q_rai in q_rain_range
             if q_rai > eps(FT)
                 TT.@test CM1.accretion(
@@ -388,12 +388,12 @@ function test_microphysics1M(FT)
         q_liq = FT(5e-4)
         q_rai = FT(5e-4)
 
-        E_lcl_rai = mp.options.cloud_liquid_rain_accretion.e
-        E_lcl_sno = mp.options.cloud_liquid_snow_accretion.e
-        E_icl_rai = mp.options.cloud_ice_rain_accretion.e
-        E_icl_sno = mp.options.cloud_ice_snow_accretion.e
-        E_rai_sno = mp.options.rain_snow_accretion.e
-        coeff_disp = mp.options.rain_snow_accretion.coeff_disp
+        E_lcl_rai = mp.process_params.cloud_liquid_rain_accretion.e
+        E_lcl_sno = mp.process_params.cloud_liquid_snow_accretion.e
+        E_icl_rai = mp.process_params.cloud_ice_rain_accretion.e
+        E_icl_sno = mp.process_params.cloud_ice_snow_accretion.e
+        E_rai_sno = mp.process_params.rain_snow_accretion.e
+        coeff_disp = mp.process_params.rain_snow_accretion.coeff_disp
 
         TT.@test CM1.accretion(
             liquid,
