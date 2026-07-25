@@ -25,7 +25,7 @@ MK.set_theme!(MK.theme_minimal())
 
 # default Kessler1M autoconversion parameters (populated from ClimaParams TOML)
 acnv0 = mp.options.rain_autoconversion.acnv1M
-τ₀, q_thr₀, k₀ = acnv0.τ, acnv0.q_threshold, acnv0.k
+τ₀, q_thr₀, k₀ = acnv0.τ, acnv0.q_threshold, FT(1)  # k₀ overridden from ClimaParams default (10) to 1
 @info "Default rain autoconversion parameters" τ₀ q_thr₀ k₀
 
 # rate curve for a given Acnv1M parameter struct.
@@ -40,9 +40,12 @@ acnv_rate(acnv) = map(q_lcl_range) do q
 end
 
 # one-at-a-time parameter sweeps (keep the other two at their defaults)
-τ_values     = FT[250, 500, 1000, 2000, 4000]       # autoconversion timescale [s]
-q_thr_values = FT[1e-4, 2.5e-4, 5e-4, 1e-3, 2e-3]   # threshold [kg/kg]
-k_values     = FT[1, 2, 5, 10, 20]                  # smooth-transition steepness [-]
+# 5 points geometrically spaced from 1/5x to 5x the default, i.e. multipliers
+# 0.2, ~0.447, 1, ~2.236, 5 (equal log-spacing, symmetric around the default)
+mult = FT(5) .^ range(-1, 1, length = 5)
+τ_values     = τ₀     .* mult   # autoconversion timescale [s]
+q_thr_values = q_thr₀ .* mult   # threshold [kg/kg]
+k_values     = k₀     .* mult   # smooth-transition steepness [-]
 
 fig = MK.Figure(size = (1350, 430))
 axs = [MK.Axis(fig[1, i]; xlabel = "q_lcl [g/kg]", limits) for i in 1:3]
@@ -51,22 +54,22 @@ axs[1].title = "τ varied (q_thr = $(q_thr₀ * 1e3) g/kg, k = $(k₀))"
 axs[2].title = "q_thr varied (τ = $(τ₀) s, k = $(k₀))"
 axs[3].title = "k varied (τ = $(τ₀) s, q_thr = $(q_thr₀ * 1e3) g/kg)"
 
-for τ in τ_values
+for (τ, m) in zip(τ_values, mult)
     MK.lines!(
         axs[1], q_lcl_range * 1e3, acnv_rate(CMP.Acnv1M{FT}(τ, q_thr₀, k₀));
-        label = "τ = $(Int(τ)) s",
+        label = "τ = $(round(τ, sigdigits=3)) s ($(round(m, digits=2))x)",
     )
 end
-for q_thr in q_thr_values
+for (q_thr, m) in zip(q_thr_values, mult)
     MK.lines!(
         axs[2], q_lcl_range * 1e3, acnv_rate(CMP.Acnv1M{FT}(τ₀, q_thr, k₀));
-        label = "q_thr = $(q_thr * 1e3) g/kg",
+        label = "q_thr = $(round(q_thr * 1e3, sigdigits=3)) g/kg ($(round(m, digits=2))x)",
     )
 end
-for k in k_values
+for (k, m) in zip(k_values, mult)
     MK.lines!(
         axs[3], q_lcl_range * 1e3, acnv_rate(CMP.Acnv1M{FT}(τ₀, q_thr₀, k));
-        label = "k = $(Int(k))",
+        label = "k = $(round(k, sigdigits=3)) ($(round(m, digits=2))x)",
     )
 end
 foreach(ax -> MK.axislegend(ax; position = :lt), axs)
