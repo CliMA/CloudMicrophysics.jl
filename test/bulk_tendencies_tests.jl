@@ -224,7 +224,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # Compute autoconversion separately using the same option-dispatched function
         micro_acnv = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
         thermo_acnv = (; ρ, T)
-        S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(mp.options.rain_autoconversion, mp, tps, micro_acnv, thermo_acnv)
+        S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro_acnv, thermo_acnv)
 
         # Rain tendency should be positive and include autoconversion
         @test tendencies.dq_rai_dt > FT(0)
@@ -257,7 +257,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         # Compute autoconversion separately using the option-dispatched function
         micro_acnv = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
         thermo_acnv = (; ρ, T)
-        S_acnv_2m = CM1.conv_q_lcl_to_q_rai(mp_2m.options.rain_autoconversion, mp_2m, tps, micro_acnv, thermo_acnv)
+        S_acnv_2m = CM1.conv_q_lcl_to_q_rai(mp_2m.processes.rain_autoconversion, mp_2m, tps, micro_acnv, thermo_acnv)
 
         # Rain tendency should be positive and dominated by autoconversion
         @test tendencies_2m.dq_rai_dt > FT(0)

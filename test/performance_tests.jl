@@ -252,28 +252,28 @@ function benchmark_test(FT)
     thermo_1m = (; ρ = ρ_air, T = T_air)
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
-        (mp_1m.options.rain_autoconversion, mp_1m, tps, micro_1m, thermo_1m),
+        (mp_1m.processes.rain_autoconversion, mp_1m, tps, micro_1m, thermo_1m),
         500,
     )
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
-        (mp_1m_2M.options.rain_autoconversion, mp_1m_2M, tps, micro_1m, thermo_1m),
+        (mp_1m_2M.processes.rain_autoconversion, mp_1m_2M, tps, micro_1m, thermo_1m),
         500,
     )
     bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, E_lcl_rai, q_liq, q_rai, ρ_air), 360)
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_liquid_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_liquid_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
     bench_press(
         @NamedTuple{S_accr::FT, S_melt::FT},
         CM1.accretion,
-        (mp_1m.options.cloud_liquid_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
+        (mp_1m.processes.cloud_liquid_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
         360,
     )
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_ice_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_ice_snow_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_ice_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_ice_snow_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
     bench_press(
         @NamedTuple{S_rai_sno::FT, S_sno_rai::FT, S_melt::FT},
         CM1.accretion_snow_rain,
-        (mp_1m.options.rain_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
+        (mp_1m.processes.rain_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
         1400,
     )
     bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)
