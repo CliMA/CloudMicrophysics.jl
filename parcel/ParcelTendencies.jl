@@ -254,11 +254,13 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
         qₜ = qᵥ + qₗ + qᵢ
 
-        mp_mock = (; cloud = (; liquid))
+        τ_relax = CMP.Microphysics1MParams(FT).process_params.cloud_liquid_formation.τ_relax
+        mp_mock = (; cloud = (; liquid),
+            process_params = (; cloud_liquid_formation = (; τ_relax)))
         micro_mock = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = FT(0), q_sno = FT(0))
         thermo_mock = (; ρ = ρ_air, T = T)
         cond_rate = MNE.conv_q_vap_to_q_lcl(
-            CMP.CloudLiquidFormation(CMP.CP.create_toml_dict(FT)), mp_mock, tps, micro_mock, thermo_mock,
+            CMP.CloudLiquidFormation(), mp_mock, tps, micro_mock, thermo_mock,
         )
 
         # Using same limiter as ClimaAtmos for now
@@ -317,11 +319,14 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     if qᵥ + qᵢ > FT(0)
         qₜ = qᵥ + qₗ + qᵢ
 
-        mp_mock = (; cloud = (; ice), frostenberg2023 = ip, air_properties = aps)
+        τ_relax = CMP.Microphysics1MParams(FT).process_params.cloud_ice_formation.τ_relax
+        mp_mock = (; cloud = (; ice), air_properties = aps,
+            process_params = (;
+                cloud_ice_formation = (; τ_relax, frostenberg = ip)))
         micro_mock = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = FT(0), q_sno = FT(0))
         thermo_mock = (; ρ = ρ_air, T = T)
         dep_rate = MNE.conv_q_vap_to_q_icl(
-            CMP.TemperatureDependent(CMP.CP.create_toml_dict(FT)), mp_mock, tps, micro_mock, thermo_mock,
+            CMP.TemperatureDependent(), mp_mock, tps, micro_mock, thermo_mock,
         )
 
         # Using same limiter as ClimaAtmos for now

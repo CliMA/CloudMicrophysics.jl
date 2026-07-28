@@ -340,7 +340,7 @@ the option stored in `Microphysics1MOptions`.
 using the prescribed cloud droplet number concentration.
 
 # Arguments
-- `option`: `nothing`, `Kessler1M(...)`, or `PrescribedNd(...)`
+- `option`: `nothing`, `Kessler1M()`, or `PrescribedNd()`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters (unused, kept for uniform interface)
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -351,15 +351,15 @@ using the prescribed cloud droplet number concentration.
 """
 @inline conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo) = zero(micro.q_lcl)
 
-@inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_rai(::CMP.Kessler1M, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
-    (; τ, q_threshold, k) = opt.acnv1M
+    (; τ, q_threshold, k) = mp.process_params.rain_autoconversion
     return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ
 end
 
-@inline function conv_q_lcl_to_q_rai(opt::CMP.PrescribedNd, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_rai(::CMP.PrescribedNd, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
-    (; τ, α, Nc) = opt.autoconv
+    (; τ, α, Nc) = mp.process_params.rain_autoconversion
     return max(0, q_lcl) / (τ * (Nc / 100_000_000)^α)
 end
 
@@ -403,7 +403,7 @@ for use in simulations without supersaturation (e.g., with saturation adjustment
 Harrington et al. (1995) and Kaul et al. (2015).
 
 # Arguments
-- `opt`: `nothing`, `NoSupersaturation(...)`, or `WithSupersaturation(...)`
+- `opt`: `nothing`, `NoSupersaturation()`, or `WithSupersaturation()`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -411,16 +411,16 @@ Harrington et al. (1995) and Kaul et al. (2015).
 """
 @inline conv_q_icl_to_q_sno(::Nothing, mp, tps, micro, thermo) = zero(micro.q_icl)
 
-@inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo)
-    (; τ, q_threshold, k) = opt.acnv1M
+@inline function conv_q_icl_to_q_sno(::CMP.NoSupersaturation, mp, tps, micro, thermo)
+    (; τ, q_threshold, k) = mp.process_params.snow_autoconversion
     q_icl = micro.q_icl
     return CO.logistic_function_integral(q_icl, q_threshold, k) / τ
 end
 
-@inline function conv_q_icl_to_q_sno(opt::CMP.WithSupersaturation, mp, tps, micro, thermo)
+@inline function conv_q_icl_to_q_sno(::CMP.WithSupersaturation, mp, tps, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    r_ice_snow = opt.r_ice_snow
+    r_ice_snow = mp.process_params.snow_autoconversion.r_ice_snow
     (; pdf, mass) = mp.cloud.ice
     aps = mp.air_properties
     FT = eltype(ρ)
@@ -627,7 +627,7 @@ delegate to the corresponding low-level Marshall-Palmer kernels.
 `nothing` variants return zero without computing anything.
 
 # Arguments
-- `opt`: accretion option type (carries collision efficiency) or `nothing`
+- `opt`: accretion option type (selects the process) or `nothing`
 - `mp`: `Microphysics1MParams`
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -640,41 +640,41 @@ delegate to the corresponding low-level Marshall-Palmer kernels.
 # here; NamedTuple-returning processes are handled in BMT by checking `nothing` directly.
 @inline accretion(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
-@inline function accretion(opt::CMP.CloudLiquidRainAccretion, mp, tps, micro, thermo)
+@inline function accretion(::CMP.CloudLiquidRainAccretion, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion(mp.cloud.liquid, mp.precip.rain, mp.terminal_velocity.rain, opt.e, q_lcl, q_rai, ρ)
+    return accretion(mp.cloud.liquid, mp.precip.rain, mp.terminal_velocity.rain, mp.process_params.cloud_liquid_rain_accretion.e, q_lcl, q_rai, ρ)
 end
 
-@inline function accretion(opt::CMP.CloudLiquidSnowAccretion, mp, tps, micro, thermo)
+@inline function accretion(::CMP.CloudLiquidSnowAccretion, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     q_sno = micro.q_sno
     ρ = thermo.ρ
     T = thermo.T
-    S = accretion(mp.cloud.liquid, mp.precip.snow, mp.terminal_velocity.snow, opt.e, q_lcl, q_sno, ρ)
+    S = accretion(mp.cloud.liquid, mp.precip.snow, mp.terminal_velocity.snow, mp.process_params.cloud_liquid_snow_accretion.e, q_lcl, q_sno, ρ)
     α = warm_accretion_melt_factor(tps, T)
     return (; S_accr = S, S_melt = α * S)
 end
 
-@inline function accretion(opt::CMP.CloudIceRainAccretion, mp, tps, micro, thermo)
+@inline function accretion(::CMP.CloudIceRainAccretion, mp, tps, micro, thermo)
     q_icl = micro.q_icl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion(mp.cloud.ice, mp.precip.rain, mp.terminal_velocity.rain, opt.e, q_icl, q_rai, ρ)
+    return accretion(mp.cloud.ice, mp.precip.rain, mp.terminal_velocity.rain, mp.process_params.cloud_ice_rain_accretion.e, q_icl, q_rai, ρ)
 end
 
-@inline function accretion(opt::CMP.CloudIceSnowAccretion, mp, tps, micro, thermo)
+@inline function accretion(::CMP.CloudIceSnowAccretion, mp, tps, micro, thermo)
     q_icl = micro.q_icl
     q_sno = micro.q_sno
     ρ = thermo.ρ
-    return accretion(mp.cloud.ice, mp.precip.snow, mp.terminal_velocity.snow, opt.e, q_icl, q_sno, ρ)
+    return accretion(mp.cloud.ice, mp.precip.snow, mp.terminal_velocity.snow, mp.process_params.cloud_ice_snow_accretion.e, q_icl, q_sno, ρ)
 end
 
 @inline accretion_snow_rain(::Nothing, mp, tps, micro, thermo) =
     (; S_rai_sno = zero(thermo.T), S_sno_rai = zero(thermo.T), S_melt = zero(thermo.T))
 
-@inline function accretion_snow_rain(opt::CMP.RainSnowAccretion, mp, tps, micro, thermo)
+@inline function accretion_snow_rain(::CMP.RainSnowAccretion, mp, tps, micro, thermo)
     q_rai = micro.q_rai
     q_sno = micro.q_sno
     ρ = thermo.ρ
@@ -682,10 +682,11 @@ end
     vel = mp.terminal_velocity
     sno = mp.precip.snow
     rai = mp.precip.rain
+    (; e, coeff_disp) = mp.process_params.rain_snow_accretion
     # cold arm: snow is collector, rain freezes → snow
-    S_rai_sno = accretion_snow_rain(sno, rai, vel.snow, vel.rain, opt.e, opt.coeff_disp, q_sno, q_rai, ρ)
+    S_rai_sno = accretion_snow_rain(sno, rai, vel.snow, vel.rain, e, coeff_disp, q_sno, q_rai, ρ)
     # warm arm: rain is collector, snow melts → rain
-    S_sno_rai = accretion_snow_rain(rai, sno, vel.rain, vel.snow, opt.e, opt.coeff_disp, q_rai, q_sno, ρ)
+    S_sno_rai = accretion_snow_rain(rai, sno, vel.rain, vel.snow, e, coeff_disp, q_rai, q_sno, ρ)
     α = warm_accretion_melt_factor(tps, T)
     return (; S_rai_sno, S_sno_rai, S_melt = α * S_rai_sno)
 end
@@ -693,11 +694,11 @@ end
 # Rain sink arm of cloud ice + rain accretion
 @inline accretion_rain_sink(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
-@inline function accretion_rain_sink(opt::CMP.CloudIceRainAccretion, mp, tps, micro, thermo)
+@inline function accretion_rain_sink(::CMP.CloudIceRainAccretion, mp, tps, micro, thermo)
     q_icl = micro.q_icl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, opt.e, q_icl, q_rai, ρ)
+    return accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.process_params.cloud_ice_rain_accretion.e, q_icl, q_rai, ρ)
 end
 
 """
