@@ -644,7 +644,15 @@ delegate to the corresponding low-level Marshall-Palmer kernels.
     q_lcl = micro.q_lcl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion(mp.cloud.liquid, mp.precip.rain, mp.terminal_velocity.rain, mp.process_params.cloud_liquid_rain_accretion.e, q_lcl, q_rai, ρ)
+    return accretion(
+        mp.cloud.liquid,
+        mp.precip.rain,
+        mp.terminal_velocity.rain,
+        mp.process_params.cloud_liquid_rain_accretion.e,
+        q_lcl,
+        q_rai,
+        ρ,
+    )
 end
 
 @inline function accretion(::CMP.CloudLiquidSnowAccretion, mp, tps, micro, thermo)
@@ -652,7 +660,15 @@ end
     q_sno = micro.q_sno
     ρ = thermo.ρ
     T = thermo.T
-    S = accretion(mp.cloud.liquid, mp.precip.snow, mp.terminal_velocity.snow, mp.process_params.cloud_liquid_snow_accretion.e, q_lcl, q_sno, ρ)
+    S = accretion(
+        mp.cloud.liquid,
+        mp.precip.snow,
+        mp.terminal_velocity.snow,
+        mp.process_params.cloud_liquid_snow_accretion.e,
+        q_lcl,
+        q_sno,
+        ρ,
+    )
     α = warm_accretion_melt_factor(tps, T)
     return (; S_accr = S, S_melt = α * S)
 end
@@ -661,14 +677,30 @@ end
     q_icl = micro.q_icl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion(mp.cloud.ice, mp.precip.rain, mp.terminal_velocity.rain, mp.process_params.cloud_ice_rain_accretion.e, q_icl, q_rai, ρ)
+    return accretion(
+        mp.cloud.ice,
+        mp.precip.rain,
+        mp.terminal_velocity.rain,
+        mp.process_params.cloud_ice_rain_accretion.e,
+        q_icl,
+        q_rai,
+        ρ,
+    )
 end
 
 @inline function accretion(::CMP.CloudIceSnowAccretion, mp, tps, micro, thermo)
     q_icl = micro.q_icl
     q_sno = micro.q_sno
     ρ = thermo.ρ
-    return accretion(mp.cloud.ice, mp.precip.snow, mp.terminal_velocity.snow, mp.process_params.cloud_ice_snow_accretion.e, q_icl, q_sno, ρ)
+    return accretion(
+        mp.cloud.ice,
+        mp.precip.snow,
+        mp.terminal_velocity.snow,
+        mp.process_params.cloud_ice_snow_accretion.e,
+        q_icl,
+        q_sno,
+        ρ,
+    )
 end
 
 @inline accretion_snow_rain(::Nothing, mp, tps, micro, thermo) =
@@ -698,7 +730,15 @@ end
     q_icl = micro.q_icl
     q_rai = micro.q_rai
     ρ = thermo.ρ
-    return accretion_rain_sink(mp.precip.rain, mp.cloud.ice, mp.terminal_velocity.rain, mp.process_params.cloud_ice_rain_accretion.e, q_icl, q_rai, ρ)
+    return accretion_rain_sink(
+        mp.precip.rain,
+        mp.cloud.ice,
+        mp.terminal_velocity.rain,
+        mp.process_params.cloud_ice_rain_accretion.e,
+        q_icl,
+        q_rai,
+        ρ,
+    )
 end
 
 """
