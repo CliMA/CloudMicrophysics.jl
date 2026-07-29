@@ -347,6 +347,46 @@ An alternative rain autoconversion option with a prescribed cloud droplet
     This is the simplest possible autoconversion parameterization.
     See for example [Wood2005](@cite) Table 1 for other simple choices.
 
+### Velocity-dependent autoconversion
+
+The `VelocityDependent` variant extends the above Kessler autoconversion with a
+timescale that smoothly transitions between a slow stratiform regime and a
+fast convective regime as a function of air vertical velocity ``|w|``.
+
+A steep sigmoidal blending factor is defined as
+
+```math
+\begin{equation}
+  f(w) = \frac{w^4}{w^4 + w_0^4}
+\end{equation}
+```
+where ``w_0`` is the blending velocity scale. The blending factor
+is symmetric in ``w``, equals 0 at ``w = 0``, and approaches 1 for
+``|w| \gg w_0``. The effective autoconversion timescale is then
+
+```math
+\begin{equation}
+  \tau_\text{acnv_rain}(w) = \tau_\text{slow} + (\tau_\text{fast} - \tau_\text{slow}) \, f(w)
+\end{equation}
+```
+
+and the autoconversion rate is
+
+```math
+\begin{equation}
+  \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{acnv} \approx
+    \frac{max(0, q_\text{lcl} - q_\text{lcl_threshold})}{\tau_\text{acnv_rain}(w)}
+\end{equation}
+```
+
+|    symbol                       |         definition                                          | units           | default value              |
+|---------------------------------|-------------------------------------------------------------|-----------------|----------------------------|
+|``\tau_\text{slow}``             | stratiform (quiescent) autoconversion timescale             | ``s``           | ``14400``  (~4 hours)      |
+|``\tau_\text{fast}``             | convective autoconversion timescale                         | ``s``           | ``900``    (~15 minutes)   |
+|``w_0``                          | blending velocity scale                                     | ``m/s``         | ``1.5``                    |
+|``q_\text{lcl_threshold}``       | autoconversion threshold (same as Kessler1M)                | -               | ``5 \cdot 10^{-4}``        |
+|``k``                            | logistic transition steepness (same as Kessler1M)           | -               | ``10``                     |
+
 ## Snow autoconversion
 
 Snow autoconversion defines the rate of conversion form cloud ice to snow due
@@ -813,6 +853,7 @@ include("plots/Microphysics1M_plots.jl")
 ```
 
 ![](autoconversion_rate.svg)
+![](velocity_dependent_autoconversion.svg)
 ![](accretion_rate.svg)
 ![](accretion_rain_sink_rate.svg)
 ![](accretion_snow_rain_below_freeze.svg)
