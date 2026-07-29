@@ -784,7 +784,7 @@ Compute the evaporation of raindrop number and mass.
   - `T`: air temperature [K]
 
 # Returns
-  - A NamedTuple `(; ∂ₜρn_rai, ∂ₜq_rai)` with 
+  - A NamedTuple `(; ∂ₜρn_rai, ∂ₜq_rai)` with
     + `∂ₜρn_rai`: tendency of raindrops number density [m⁻³ s⁻¹]
     + `∂ₜq_rai`: tendency of rain water specific content [kg kg⁻¹ s⁻¹]
 
@@ -868,8 +868,8 @@ end
 """
     number_tendency_from_mass_limits(params, q, n)
 
-Compute the specific number tendency (rate of change) to relax the mean 
-particle mass, `x = q / n` [kg], towards the physical bounds `[x_min, x_max]` 
+Compute the specific number tendency (rate of change) to relax the mean
+particle mass, `x = q / n` [kg], towards the physical bounds `[x_min, x_max]`
 [kg].
 
 The relaxation tendency is given by
@@ -908,7 +908,6 @@ end
 # - Beheng (1994)
 # - Tripoli and Cotton (1980)
 # - Liu and Daum (2004)
-# - variable timescale autoconversion Azimi (2023)
 
 """
     conv_q_lcl_to_q_rai(scheme, q_lcl, ρ, N_d, smooth_transition = false)

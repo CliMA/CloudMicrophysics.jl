@@ -9,6 +9,7 @@ export Microphysics1MOptions,
     RainAutoconversion,
     Kessler1M,
     PrescribedNd,
+    VelocityDependent,
     SnowAutoconversion,
     NoSupersaturation,
     WithSupersaturation,
@@ -54,7 +55,7 @@ abstract type CloudIceFormation <: MicrophysicsOption end
     RainAutoconversion <: MicrophysicsOption
 
 Abstract type for rain autoconversion methods.
-See subtypes: [`Kessler1M`](@ref), [`PrescribedNd`](@ref).
+See subtypes: [`Kessler1M`](@ref), [`PrescribedNd`](@ref), [`VelocityDependent`](@ref).
 """
 abstract type RainAutoconversion <: MicrophysicsOption end
 
@@ -141,6 +142,17 @@ Parameters (a `VarTimescaleAcnv` with `τ`, `α`, `Nc`) are stored in
 `process_params.rain_autoconversion` in [`Microphysics1MParams`](@ref).
 """
 struct PrescribedNd <: RainAutoconversion end
+
+"""
+    VelocityDependent <: RainAutoconversion
+
+Velocity-dependent autoconversion: Kessler logistic form with a timescale that
+varies smoothly with vertical velocity magnitude `|w|`.
+Parameters (a [`VelDepAcnv`](@ref) with `τ_slow`, `τ_fast`, `q_threshold`,
+`w_0`, `k`) are stored in `process_params.rain_autoconversion` in
+[`Microphysics1MParams`](@ref).
+"""
+struct VelocityDependent <: RainAutoconversion end
 
 # ═══════════════════════════════════════════════════════════════════
 # Snow autoconversion variants
@@ -394,6 +406,8 @@ function process_params_for(::Kessler1M, td::CP.ParamDict)
 end
 
 process_params_for(::PrescribedNd, td::CP.ParamDict) = VarTimescaleAcnv(td)
+
+process_params_for(::VelocityDependent, td::CP.ParamDict) = VelDepAcnv(td)
 
 function process_params_for(::NoSupersaturation, td::CP.ParamDict)
     name_map = (;

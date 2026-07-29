@@ -55,6 +55,7 @@ import ..Utilities as UT
 
 export terminal_velocity,
     conv_q_lcl_to_q_rai,
+    rain_autoconversion_timescale,
     conv_q_icl_to_q_sno,
     accretion,
     accretion_rain_sink,
@@ -384,9 +385,43 @@ end
 end
 
 """
+    rain_autoconversion_timescale(option, mp, w)
+
+Return the effective autoconversion timescale `τ` [s] for the selected
+`RainAutoconversion` variant.  This is a diagnostic helper for use in
+atmospheric models (e.g. ClimaAtmos).
+
+# Arguments
+- `option`: rain autoconversion option (dispatches the variant)
+- `mp`: `Microphysics1MParams` parameter container
+- `w`: air vertical velocity [m/s] (only used by `VelocityDependent`;
+  ignored by other variants)
+
+# Returns
+- `τ::FT`: effective autoconversion timescale [s]
+"""
+@inline rain_autoconversion_timescale(::Nothing, mp, w = 0) = eltype(mp)(Inf)
+
+@inline function rain_autoconversion_timescale(::CMP.Kessler1M, mp, w = 0)
+    return mp.process_params.rain_autoconversion.τ
+end
+
+@inline function rain_autoconversion_timescale(::CMP.PrescribedNd, mp, w = 0)
+    (; τ, α, Nc) = mp.process_params.rain_autoconversion
+    return τ * (Nc / 100_000_000)^α
+end
+
+@inline function rain_autoconversion_timescale(::CMP.VelocityDependent, mp, w)
+    (; τ_slow, τ_fast, w_0) = mp.process_params.rain_autoconversion
+    f = w^4 / (w^4 + w_0^4)
+    return τ_slow + (τ_fast - τ_slow) * f
+end
+
+"""
     conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo)
     conv_q_lcl_to_q_rai(::Kessler1M, mp, tps, micro, thermo)
     conv_q_lcl_to_q_rai(::PrescribedNd, mp, tps, micro, thermo)
+    conv_q_lcl_to_q_rai(::VelocityDependent, mp, tps, micro, thermo)
 
 Returns the rain tendency due to autoconversion of cloud liquid, dispatching on
 the option stored in `Microphysics1MOptions`.
@@ -399,12 +434,15 @@ the option stored in `Microphysics1MOptions`.
 **PrescribedNd**: Variable-timescale autoconversion following Azimi (2023),
 using the prescribed cloud droplet number concentration.
 
+**VelocityDependent**: Kessler logistic form with a velocity-dependent timescale
+that smoothly interpolates between slow stratiform regime and fast convective regime.
+
 # Arguments
-- `opt`: `nothing`, `Kessler1M()`, or `PrescribedNd()`
+- `opt`: `nothing`, `Kessler1M()`, `PrescribedNd()`, or `VelocityDependent()`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters (unused, kept for uniform interface)
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
-- `thermo`: thermodynamic state `(; ρ, T)` (unused for 1M, kept for uniform interface)
+- `thermo`: thermodynamic state `(; ρ, T, w)`
 
 # Returns
 - Rain autoconversion rate [kg/kg/s]
@@ -414,15 +452,25 @@ using the prescribed cloud droplet number concentration.
 @inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.Acnv1M, opt, :rain_autoconversion)
-    (; τ, q_threshold, k) = pp
-    return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ
+    (; q_threshold, k) = pp
+    τ_acnv = rain_autoconversion_timescale(opt, mp)
+    return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ_acnv
 end
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.PrescribedNd, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
-    (; τ, α, Nc) = pp
-    return max(0, q_lcl) / (τ * (Nc / 100_000_000)^α)
+    τ_acnv = rain_autoconversion_timescale(opt, mp)
+    return max(0, q_lcl) / τ_acnv
+end
+
+@inline function conv_q_lcl_to_q_rai(opt::CMP.VelocityDependent, mp, tps, micro, thermo)
+    q_lcl = micro.q_lcl
+    w = thermo.w
+    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.VelDepAcnv, opt, :rain_autoconversion)
+    (; q_threshold, k) = pp
+    τ_acnv = rain_autoconversion_timescale(opt, mp, w)
+    return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ_acnv
 end
 
 # Size-distribution / fall-speed parameters shared across the 1-moment process rates.
