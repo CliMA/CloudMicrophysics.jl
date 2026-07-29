@@ -1,4 +1,4 @@
-export CloudLiquid, CloudIce, Rain, Snow, VarTimescaleAcnv
+export CloudLiquid, CloudIce, Rain, Snow, VarTimescaleAcnv, VelDepAcnv
 
 """
     ParticlePDFSnow{FT}
@@ -380,3 +380,54 @@ function VarTimescaleAcnv(td::CP.ParamDict)
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return VarTimescaleAcnv(; parameters...)
 end
+
+"""
+    VelDepAcnv{FT}
+
+Parameters for the velocity-dependent rain autoconversion scheme used in the
+1-moment microphysics scheme. Active when `VelocityDependent` is selected in
+`Microphysics1MOptions`.
+
+The autoconversion rate uses the Kessler logistic functional form with
+velocity-dependent timescale and threshold, interpolating between a slow
+(quiescent) and fast (convective) regime:
+
+    f = w² / (w² + w_0²)
+    1/τ(w) = (1 - f) / τ_0 + f / τ_1
+    q_threshold(w) = f · Δq_threshold   (updrafts only; 0 for downdrafts)
+    rate = logistic_function_integral(q_lcl, q_threshold, k) / τ(w)
+
+# Fields
+\$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct VelDepAcnv{FT} <: ParametersType
+    "Baseline (quiescent) autoconversion timescale [s] (calibrated from KK2000 at N_d ≈ 500/cm³)"
+    τ_0::FT
+    "Fast (convective) autoconversion timescale [s] (matches Kessler1M)"
+    τ_1::FT
+    "Threshold for the fast regime [kg/kg] (matches Kessler1M q_threshold)"
+    Δq_threshold::FT
+    "Velocity scale [m/s] (Chen2022 terminal velocity of 1mm raindrop)"
+    w_0::FT
+    "Threshold smooth transition steepness [-]"
+    k::FT
+end
+
+function VelDepAcnv(td::CP.ParamDict)
+    FT = CP.float_type(td)
+    # Read parameters that already exist in ClimaParams
+    name_map = (;
+        :rain_autoconversion_timescale => :τ_1,
+        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :Δq_threshold,
+        :threshold_smooth_transition_steepness => :k,
+    )
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return VelDepAcnv(;
+        τ_0 = FT(1290483.3407756744),    # [s] calibrated from KK2000 at N_d = 500/cm³
+        τ_1 = p.τ_1,                      # [s] Kessler1M calibrated timescale
+        Δq_threshold = p.Δq_threshold,    # [kg/kg] Kessler1M threshold
+        w_0 = FT(4.0),                    # [m/s] Chen2022 1mm raindrop terminal velocity
+        k = p.k,
+    )
+end
+

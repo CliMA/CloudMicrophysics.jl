@@ -327,6 +327,7 @@ end
     conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo)
     conv_q_lcl_to_q_rai(::Kessler1M, mp, tps, micro, thermo)
     conv_q_lcl_to_q_rai(::PrescribedNd, mp, tps, micro, thermo)
+    conv_q_lcl_to_q_rai(::VelocityDependent, mp, tps, micro, thermo)
 
 Returns the rain tendency due to autoconversion of cloud liquid, dispatching on
 the option stored in `Microphysics1MOptions`.
@@ -339,12 +340,20 @@ the option stored in `Microphysics1MOptions`.
 **PrescribedNd**: Variable-timescale autoconversion following Azimi (2023),
 using the prescribed cloud droplet number concentration.
 
+**VelocityDependent**: Kessler logistic form that smoothly interpolates between
+a slow quiescent regime (τ_0, no threshold) and a fast convective regime
+(τ_1, Kessler-like threshold) using `f = w²/(w² + w_0²)`. The inverse
+timescales are blended: `1/τ = (1-f)/τ_0 + f/τ_1`. The threshold appears only
+in updrafts. At `w = 0` the rate approximates KK2000 with N_d ≈ 500/cm³;
+at large `|w|` it converges to Kessler1M.
+Requires `thermo = (; ρ, T, w)`.
+
 # Arguments
-- `option`: `nothing`, `Kessler1M()`, or `PrescribedNd()`
+- `option`: `nothing`, `Kessler1M()`, `PrescribedNd()`, or `VelocityDependent()`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters (unused, kept for uniform interface)
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
-- `thermo`: thermodynamic state `(; ρ, T)` (unused for 1M, kept for uniform interface)
+- `thermo`: thermodynamic state `(; ρ, T)` or `(; ρ, T, w)` for `VelocityDependent`
 
 # Returns
 - Rain autoconversion rate [kg/kg/s]
@@ -362,6 +371,27 @@ end
     (; τ, α, Nc) = mp.process_params.rain_autoconversion
     return max(0, q_lcl) / (τ * (Nc / 100_000_000)^α)
 end
+
+@inline function conv_q_lcl_to_q_rai(::CMP.VelocityDependent, mp, tps, micro, thermo)
+    q_lcl = micro.q_lcl
+    w = thermo.w
+    (; τ_0, τ_1, Δq_threshold, w_0, k) = mp.process_params.rain_autoconversion
+    FT = eltype(q_lcl)
+
+    # Smooth blending factor: 0 at w=0, → 1 for |w| ≫ w_0
+    f = w^2 / (w^2 + w_0^2)
+
+    # Effective inverse timescale: harmonic interpolation of rates
+    # Since 1/τ_1 ≫ 1/τ_0, the fast regime dominates as soon as f is non-negligible
+    inv_τ = (1 - f) / τ_0 + f / τ_1
+
+    # Threshold: scales with f for updrafts only (branchless)
+    w_pos = max(FT(0), w)
+    q_threshold = Δq_threshold * w_pos^2 / (w^2 + w_0^2)
+
+    return CO.logistic_function_integral(q_lcl, q_threshold, k) * inv_τ
+end
+
 
 # Size-distribution / fall-speed parameters shared across the 1-moment process rates.
 # `lambda_inverse` (a `pow`), snow `get_n0` (a `pow`) and `get_v0` are each reused by

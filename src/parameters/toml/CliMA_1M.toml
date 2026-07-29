@@ -21,3 +21,12 @@ value = 2.997519288341676
 
 [rain_ventilation_coefficient_b]
 value = 0.9779279811508783
+
+[velocity_dependent_autoconversion_timescale]
+value = 1290483.3407756744
+
+[velocity_dependent_autoconversion_threshold_sensitivity]
+value = 5e-4
+
+[velocity_dependent_autoconversion_velocity_scale]
+value = 4.0
