@@ -68,13 +68,15 @@ function run_type_stability_tests()
             q_rai = fill(FT(1e-4), N)
             q_sno = fill(FT(1e-4), N)
 
+            w = fill(FT(0), N)
+
             tendencies_1M =
                 BMT.bulk_microphysics_tendencies.(
                     Ref(BMT.Instantaneous()),
                     Ref(BMT.Microphysics1Moment()),
                     Ref(mp1),
                     Ref(tps),
-                    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+                    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
                 )
 
             @test tendencies_1M isa Vector
@@ -91,7 +93,7 @@ function run_type_stability_tests()
                     Ref(BMT.Microphysics1Moment()),
                     Ref(mp1),
                     Ref(tps),
-                    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+                    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
                 )
 
             @test tendencies_1M_lin isa Vector
@@ -107,7 +109,7 @@ function run_type_stability_tests()
                     Ref(BMT.Microphysics1Moment()),
                     Ref(mp1),
                     Ref(tps),
-                    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+                    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
                 )
 
             @test tendencies_1M_verbose isa Vector
@@ -122,6 +124,34 @@ function run_type_stability_tests()
                 end
             end
 
+            # --- 1-Moment (Kessler1M with velocity-dependent regime values) ---
+            mp1_vd = CMP.Microphysics1MParams(
+                CP.create_toml_dict(FT;
+                    override_file = Dict(
+                        "rain_autoconversion_timescale_stratiform" => Dict("value" => 14400.0, "type" => "float"),
+                        "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform" =>
+                            Dict("value" => 1e-3, "type" => "float"),
+                    ),
+                ),
+            )
+            w_vd = fill(FT(3), N)
+
+            tendencies_1M_vd =
+                BMT.bulk_microphysics_tendencies.(
+                    Ref(BMT.Instantaneous()),
+                    Ref(BMT.Microphysics1Moment()),
+                    Ref(mp1_vd),
+                    Ref(tps),
+                    ρ, T, w_vd, q_tot, q_lcl, q_icl, q_rai, q_sno,
+                )
+
+            @test tendencies_1M_vd isa Vector
+            val1_vd = tendencies_1M_vd[1]
+            for k in keys(val1_vd)
+                @test getproperty(val1_vd, k) isa FT
+            end
+
+            # --- 2-Moment (Warm Rain) ---
             # --- 2-Moment (Warm Rain) ---
             mp2_warm = CMP.Microphysics2MParams(FT; with_ice = false)
 

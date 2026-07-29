@@ -87,9 +87,11 @@ function test_microphysics_noneq(FT)
         # identical to the prescribed-number timescale evaluated with N_0 = N_ice(T)
         ice_N1 = CMP.CloudIce(; ice.pdf, ice.mass, ice.ρᵢ, ice.r_eff, N_0 = N1)
         TT.@test τ1 ≈ CMNe.τ_relax(ice_N1, aps, q_icl, ρ)
-        # hours at -10 °C for a typical ice content (seconds for N_0 = 5e8 m⁻³)
+        # hours at -10 °C for a typical ice content, versus seconds for a dense prescribed
+        # number (5e8 m⁻³; compared explicitly so the test does not depend on the ClimaParams default)
         TT.@test FT(3600) < τ1 < FT(24 * 3600)
-        TT.@test τ1 > FT(100) * CMNe.τ_relax(ice, aps, q_icl, ρ)
+        ice_dense = CMP.CloudIce(; ice.pdf, ice.mass, ice.ρᵢ, ice.r_eff, N_0 = FT(5e8))
+        TT.@test τ1 > FT(100) * CMNe.τ_relax(ice_dense, aps, q_icl, ρ)
     end
 
     TT.@testset "TemperatureDependentIceNumber conv_q_vap_to_q_icl" begin

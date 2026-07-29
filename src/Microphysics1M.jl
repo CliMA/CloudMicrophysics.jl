@@ -55,6 +55,8 @@ import ..Utilities as UT
 
 export terminal_velocity,
     conv_q_lcl_to_q_rai,
+    rain_autoconversion_timescale,
+    rain_autoconversion_threshold,
     conv_q_icl_to_q_sno,
     accretion,
     accretion_rain_sink,
@@ -383,6 +385,77 @@ end
     return pp
 end
 
+# Rain autoconversion parameters, checked against the selected option: a mismatched combination
+# (e.g. `Kessler1M()` with `PrescribedNd` parameters) raises an `ArgumentError` from every entry
+# point below instead of silently reading the wrong fields.
+@inline _rain_acnv_params(opt::CMP.Kessler1M, mp) =
+    _consistent_params(mp.process_params.rain_autoconversion, CMP.KesslerAcnv, opt, :rain_autoconversion)
+@inline _rain_acnv_params(opt::CMP.PrescribedNd, mp) =
+    _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
+
+# Steep, even blending factor f(w) = w⁴ / (w⁴ + w_0⁴): 0 at rest, 1/2 at |w| = w_0, → 1 for |w| ≫ w_0.
+@inline _velocity_blend(w, w_0) = w^4 / (w^4 + w_0^4)
+
+"""
+    rain_autoconversion_timescale(option, mp, w = 0)
+
+Return the effective autoconversion timescale `τ` in s for the selected
+`RainAutoconversion` variant. Also a diagnostic helper for atmospheric models
+(e.g. ClimaAtmos).
+
+# Arguments
+- `option`: rain autoconversion option (dispatches the variant)
+- `mp`: `Microphysics1MParams` parameter container; its `rain_autoconversion` process
+  parameters must belong to `option`, otherwise an `ArgumentError` is thrown
+- `w`: vertical velocity of the subdomain in m/s; required by `Kessler1M`, where
+  `τ(w) = τ_slow + (τ_fast - τ_slow) w⁴ / (w⁴ + w_0⁴)`, and ignored by `PrescribedNd`
+
+# Returns
+- `τ::FT`: effective autoconversion timescale in s; `Inf` when autoconversion is disabled
+"""
+@inline rain_autoconversion_timescale(::Nothing, mp, w = 0) = eltype(mp)(Inf)
+
+@inline function rain_autoconversion_timescale(opt::CMP.PrescribedNd, mp, w = 0)
+    (; τ, α, Nc) = _rain_acnv_params(opt, mp)
+    return τ * (Nc / 100_000_000)^α
+end
+
+@inline function rain_autoconversion_timescale(opt::CMP.Kessler1M, mp, w)
+    (; τ_slow, τ_fast, w_0) = _rain_acnv_params(opt, mp)
+    return τ_slow + (τ_fast - τ_slow) * _velocity_blend(w, w_0)
+end
+
+"""
+    rain_autoconversion_threshold(option, mp, w = 0)
+
+Return the effective autoconversion threshold `q_threshold` in kg/kg for the
+selected `RainAutoconversion` variant. Also a diagnostic helper for atmospheric
+models (e.g. ClimaAtmos).
+
+# Arguments
+- `option`: rain autoconversion option (dispatches the variant)
+- `mp`: `Microphysics1MParams` parameter container; its `rain_autoconversion` process
+  parameters must belong to `option`, otherwise an `ArgumentError` is thrown
+- `w`: vertical velocity of the subdomain in m/s; required by `Kessler1M`, where
+  `q_threshold(w) = q_threshold_slow + (q_threshold_fast - q_threshold_slow) w⁴ / (w⁴ + w_0⁴)`,
+  and ignored by `PrescribedNd`
+
+# Returns
+- `q_threshold::FT`: effective autoconversion threshold in kg/kg; `Inf` when autoconversion is
+  disabled, `0` for `PrescribedNd`, which converts all cloud liquid
+"""
+@inline rain_autoconversion_threshold(::Nothing, mp, w = 0) = eltype(mp)(Inf)
+
+@inline function rain_autoconversion_threshold(opt::CMP.PrescribedNd, mp, w = 0)
+    _rain_acnv_params(opt, mp)  # consistency check only; the rate is ∝ max(0, q_lcl)
+    return zero(eltype(mp))
+end
+
+@inline function rain_autoconversion_threshold(opt::CMP.Kessler1M, mp, w)
+    (; q_threshold_slow, q_threshold_fast, w_0) = _rain_acnv_params(opt, mp)
+    return q_threshold_slow + (q_threshold_fast - q_threshold_slow) * _velocity_blend(w, w_0)
+end
+
 """
     conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo)
     conv_q_lcl_to_q_rai(::Kessler1M, mp, tps, micro, thermo)
@@ -394,17 +467,27 @@ the option stored in `Microphysics1MOptions`.
 **Nothing**: returns zero (autoconversion disabled).
 
 **Kessler1M**: Kessler (1995) 1-moment threshold autoconversion
-(smooth logistic transition), https://doi.org/10.1016/0169-8095(94)00090-Z.
+(smooth logistic transition), https://doi.org/10.1016/0169-8095(94)00090-Z, with the
+threshold and the timescale given by [`rain_autoconversion_threshold`](@ref) and
+[`rain_autoconversion_timescale`](@ref): each blends between a quiescent (stratiform) and a
+convective value with the vertical velocity `thermo.w` (see [`CMP.KesslerAcnv`](@ref)). With
+equal slow and fast values (the defaults) the rate is the classic velocity-independent
+Kessler rate; setting the timescales and/or the thresholds apart switches on the
+corresponding velocity dependence.
 
 **PrescribedNd**: Variable-timescale autoconversion following Azimi (2023),
 using the prescribed cloud droplet number concentration.
+
+A mismatch between the option and the parameters stored in `mp` raises an `ArgumentError`.
 
 # Arguments
 - `opt`: `nothing`, `Kessler1M()`, or `PrescribedNd()`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters (unused, kept for uniform interface)
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
-- `thermo`: thermodynamic state `(; ρ, T)` (unused for 1M, kept for uniform interface)
+- `thermo`: thermodynamic state `(; ρ, T, w)`; `w` is the vertical velocity of the subdomain
+  (updraft, environment, or grid mean) for which the rate is evaluated. It is required by
+  `Kessler1M` and not read by `PrescribedNd`.
 
 # Returns
 - Rain autoconversion rate [kg/kg/s]
@@ -412,17 +495,15 @@ using the prescribed cloud droplet number concentration.
 @inline conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo) = zero(micro.q_lcl)
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
-    q_lcl = micro.q_lcl
-    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.Acnv1M, opt, :rain_autoconversion)
-    (; τ, q_threshold, k) = pp
-    return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ
+    (; k) = _rain_acnv_params(opt, mp)
+    (; w) = thermo
+    q_thr = rain_autoconversion_threshold(opt, mp, w)
+    τ_acnv = rain_autoconversion_timescale(opt, mp, w)
+    return CO.logistic_function_integral(micro.q_lcl, q_thr, k) / τ_acnv
 end
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.PrescribedNd, mp, tps, micro, thermo)
-    q_lcl = micro.q_lcl
-    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
-    (; τ, α, Nc) = pp
-    return max(0, q_lcl) / (τ * (Nc / 100_000_000)^α)
+    return max(0, micro.q_lcl) / rain_autoconversion_timescale(opt, mp)
 end
 
 # Size-distribution / fall-speed parameters shared across the 1-moment process rates.

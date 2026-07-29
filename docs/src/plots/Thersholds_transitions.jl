@@ -41,15 +41,18 @@ N_d_range = range(1e7, stop = 1e9, length = 1000)
 N_d = 1e8
 
 mp = CMP.Microphysics1MParams(CP.create_toml_dict(FT))
-acnv = mp.process_params.rain_autoconversion
+# Kessler threshold and timescale for quiescent air (w = 0)
+acnv_q_threshold = CM1.rain_autoconversion_threshold(mp.processes.rain_autoconversion, mp, FT(0))
+acnv_τ = CM1.rain_autoconversion_timescale(mp.processes.rain_autoconversion, mp, FT(0))
+acnv_k = mp.process_params.rain_autoconversion.k
 
 q_lcl_K1969 = [
-    max(0, q_lcl - acnv.q_threshold) / acnv.τ
+    max(0, q_lcl - acnv_q_threshold) / acnv_τ
     for q_lcl in q_lcl_range
 ]
 q_lcl_K1969_s = [
-    CO.logistic_function_integral(q_lcl, acnv.q_threshold, acnv.k) /
-    acnv.τ
+    CO.logistic_function_integral(q_lcl, acnv_q_threshold, acnv_k) /
+    acnv_τ
     for q_lcl in q_lcl_range
 ]
 

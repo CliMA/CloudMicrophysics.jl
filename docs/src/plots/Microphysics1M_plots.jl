@@ -84,7 +84,7 @@ MK.lines!(
         CM1.conv_q_lcl_to_q_rai(
             mp.processes.rain_autoconversion, mp, tps,
             (; q_tot, q_lcl = q, q_icl, q_rai, q_sno),
-            (; ρ = ρ_air, T),
+            (; ρ = ρ_air, T, w = FT(0)),
         ) for q in q_lcl_range
     ],
     label = "Rain",
@@ -385,3 +385,62 @@ for (N_0_val, lbl) in [
 end
 MK.axislegend(ax; position = :lt)
 MK.save("het_freezing_rate_vs_T.svg", fig) # hide
+
+# velocity-dependent Kessler autoconversion: τ(w), q_threshold(w) and rate vs w
+# (illustrative quiescent-regime values that differ from the convective ones)
+toml_vd = ClimaParams.create_toml_dict(FT;
+    override_file = Dict(
+        "rain_autoconversion_timescale_stratiform" => Dict("value" => 14400.0, "type" => "float"),
+        "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform" =>
+            Dict("value" => 1e-3, "type" => "float"),
+    ),
+)
+mp_vd = CMP.Microphysics1MParams(toml_vd)
+w_range = range(FT(-6), stop = FT(6), length = 200)
+
+fig = MK.Figure(size = (1200, 400))
+
+ax1 = MK.Axis(fig[1, 1];
+    xlabel = "w [m/s]",
+    ylabel = "τ(w) [hours]",
+    title = "Effective autoconversion timescale",
+)
+τ_vals = [
+    CM1.rain_autoconversion_timescale(
+        mp_vd.processes.rain_autoconversion, mp_vd, w,
+    ) / 3600 for w in w_range
+]
+MK.lines!(ax1, collect(w_range), τ_vals)
+
+ax2 = MK.Axis(fig[1, 2];
+    xlabel = "w [m/s]",
+    ylabel = "q_threshold(w) [g/kg]",
+    title = "Effective autoconversion threshold",
+)
+qt_vals = [
+    CM1.rain_autoconversion_threshold(
+        mp_vd.processes.rain_autoconversion, mp_vd, w,
+    ) * 1000 for w in w_range
+]
+MK.lines!(ax2, collect(w_range), qt_vals)
+
+ax3 = MK.Axis(fig[1, 3];
+    xlabel = "w [m/s]",
+    ylabel = "autoconversion rate [1/s]",
+    title = "Autoconversion rate",
+)
+for (q, lab) in [(FT(5e-4), "q_lcl = 0.5 g/kg"),
+    (FT(1e-3), "q_lcl = 1.0 g/kg"),
+    (FT(2e-3), "q_lcl = 2.0 g/kg")]
+    rates = [
+        CM1.conv_q_lcl_to_q_rai(
+            mp_vd.processes.rain_autoconversion, mp_vd, tps,
+            (; q_tot = FT(0), q_lcl = q, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0)),
+            (; ρ = FT(1.2), T = FT(280), w = w),
+        ) for w in w_range
+    ]
+    MK.lines!(ax3, collect(w_range), rates; label = lab)
+end
+MK.axislegend(ax3; position = :ct)
+
+MK.save("velocity_dependent_autoconversion.svg", fig) # hide

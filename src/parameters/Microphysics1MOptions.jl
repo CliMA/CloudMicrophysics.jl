@@ -141,9 +141,12 @@ struct TemperatureDependentIceNumber <: CloudIceFormation end
 """
     Kessler1M <: RainAutoconversion
 
-1-moment Kessler autoconversion of cloud liquid to rain.
-Parameters (an `Acnv1M` with `τ`, `q_threshold`, `k`) are stored in
-`process_params.rain_autoconversion` in [`Microphysics1MParams`](@ref).
+1-moment Kessler autoconversion of cloud liquid to rain: the smooth logistic transition of
+`q_lcl` across a threshold, divided by a timescale. The threshold and the timescale may each
+depend on the air vertical velocity `w`.
+Parameters (a [`KesslerAcnv`](@ref) with `τ_slow`, `τ_fast`, `q_threshold_slow`,
+`q_threshold_fast`, `w_0`, `k`) are stored in `process_params.rain_autoconversion` in
+[`Microphysics1MParams`](@ref).
 """
 struct Kessler1M <: RainAutoconversion end
 
@@ -400,15 +403,7 @@ function process_params_for(::HomogeneousAndHeterogeneous, td::CP.ParamDict)
     )
 end
 
-function process_params_for(::Kessler1M, td::CP.ParamDict)
-    name_map = (;
-        :rain_autoconversion_timescale => :τ,
-        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold,
-        :threshold_smooth_transition_steepness => :k,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Acnv1M(p.τ, p.q_threshold, p.k)
-end
+process_params_for(::Kessler1M, td::CP.ParamDict) = KesslerAcnv(td)
 
 process_params_for(::PrescribedNd, td::CP.ParamDict) = VarTimescaleAcnv(td)
 

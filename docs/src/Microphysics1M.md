@@ -319,18 +319,48 @@ It is parameterized following
 ```math
 \begin{equation}
   \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{acnv} =
-    \frac{f(q_\text{lcl}, q_\text{lcl_threshold}, k)}{\tau_\text{acnv_rain}}
+    \frac{f(q_\text{lcl}, q_\text{lcl_threshold}(w), k)}{\tau_\text{acnv_rain}(w)}
     \approx
-    \frac{max(0, q_\text{lcl} - q_\text{lcl_threshold})}{\tau_\text{acnv_rain}}
+    \frac{max(0, q_\text{lcl} - q_\text{lcl_threshold}(w))}{\tau_\text{acnv_rain}(w)}
 \end{equation}
 ```
 
 where:
 
 - ``q_\text{lcl}`` - cloud liquid water specific content,
-- ``\tau_\text{acnv_rain}`` - timescale,
-- ``q_\text{lcl_threshold}`` - autoconversion threshold,
-- ``k`` - threshold smoothing steepness.
+- ``\tau_\text{acnv_rain}(w)`` - timescale,
+- ``q_\text{lcl_threshold}(w)`` - autoconversion threshold,
+- ``k`` - threshold smoothing steepness,
+- ``w`` - vertical velocity of the subdomain in which the parameterization is evaluated.
+
+The timescale and the threshold may each depend on the vertical velocity.
+Both transition smoothly between a quiescent (stratiform) regime and a convective
+regime as a function of ``|w|``, with the steep sigmoidal blending factor
+
+```math
+\begin{equation}
+  f(w) = \frac{w^4}{w^4 + w_0^4}
+\end{equation}
+```
+where ``w_0`` is the blending velocity scale. The blending factor
+is symmetric in ``w``, equals 0 at ``w = 0``, and approaches 1 for
+``|w| \gg w_0``. The effective timescale and threshold are
+
+```math
+\begin{align}
+  \tau_\text{acnv_rain}(w) &= \tau_\text{slow} + (\tau_\text{fast} - \tau_\text{slow}) \, f(w) \\
+  q_\text{lcl_threshold}(w) &= q_\text{threshold,slow} + (q_\text{threshold,fast} - q_\text{threshold,slow}) \, f(w)
+\end{align}
+```
+
+The behaviour is selected through the parameter values alone (the option is `Kessler1M`
+in all cases):
+
+- ``\tau_\text{fast} = \tau_\text{slow}`` and ``q_\text{threshold,fast} = q_\text{threshold,slow}``
+  (the default values) give the classic velocity-independent Kessler scheme,
+- ``\tau_\text{fast} \neq \tau_\text{slow}`` gives a velocity-dependent timescale,
+- ``q_\text{threshold,fast} \neq q_\text{threshold,slow}`` gives a velocity-dependent threshold,
+- setting both pairs apart makes both velocity-dependent.
 
 An alternative rain autoconversion option with a prescribed cloud droplet
   number concentration ``N_c`` is also available
@@ -813,6 +843,7 @@ include("plots/Microphysics1M_plots.jl")
 ```
 
 ![](autoconversion_rate.svg)
+![](velocity_dependent_autoconversion.svg)
 ![](accretion_rate.svg)
 ![](accretion_rain_sink_rate.svg)
 ![](accretion_snow_rain_below_freeze.svg)

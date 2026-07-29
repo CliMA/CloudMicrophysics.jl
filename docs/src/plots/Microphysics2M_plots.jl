@@ -67,7 +67,7 @@ q_lcl_K1969 = [
     CM1.conv_q_lcl_to_q_rai(
         CMP.Kessler1M(), mp_1m, nothing,
         (; q_tot = FT(0), q_lcl = q, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0)),
-        nothing,
+        (; ρ = ρ_air, T = FT(288), w = FT(0)),
     ) for q in q_lcl_range
 ]
 

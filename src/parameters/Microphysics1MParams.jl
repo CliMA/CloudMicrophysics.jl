@@ -42,7 +42,7 @@ Unified parameter container for 1-moment bulk microphysics.
 `processes` selects which variant of each process runs. The parameter values each
 selected variant needs live in `process_params`, whose fields mirror `processes`
 one-to-one. For example, `processes.rain_autoconversion = Kessler1M()` picks the
-Kessler scheme, and its `τ`, threshold, and `k` live in
+Kessler scheme, and its timescales, thresholds, velocity scale, and `k` live in
 `process_params.rain_autoconversion`. Turning a process off with `nothing` (e.g.
 `processes.cloud_ice_melt = nothing`) gives it a `nothing` slot in
 `process_params`, as does any option that needs no parameters. Shared parameters
@@ -91,6 +91,7 @@ mp = CMP.Microphysics1MParams(Float64;
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
+Base.eltype(mp::Microphysics1MParams) = eltype(mp.cloud.liquid)
 
 """
     Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
