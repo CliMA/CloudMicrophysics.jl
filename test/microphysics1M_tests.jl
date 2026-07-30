@@ -302,8 +302,10 @@ function test_microphysics1M(FT)
         # Negative w → faster rate and zero threshold (clamped)
         rate_wn4 = CM1.conv_q_lcl_to_q_rai(mp_vd.options.rain_autoconversion, mp_vd, tps, micro,
             (; ρ = FT(1), T = FT(280), w = FT(-4)))
-        # At w = -w_0: τ = τ_0 / 2, threshold = 0, so rate ≈ q_lcl / (τ_0 / 2) = 2 * q_lcl / τ_0
-        TT.@test rate_wn4 ≈ FT(2) * q_lcl / τ_0 rtol = FT(0.01)
+        # At w = -w_0: f = 0.5, inv_τ = 0.5/τ_0 + 0.5/τ_1 ≈ 0.5/τ_1 (since τ_1 ≪ τ_0)
+        # threshold = 0, so rate ≈ q_lcl * 0.5/τ_1
+        τ_1 = mp_vd.process_params.rain_autoconversion.τ_1
+        TT.@test rate_wn4 ≈ q_lcl * (FT(0.5) / τ_0 + FT(0.5) / τ_1) rtol = FT(0.01)
         TT.@test rate_wn4 > rate_w0
 
         # Order-of-magnitude match with KK2000 at N_d = 500/cm³, w = 0

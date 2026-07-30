@@ -284,19 +284,19 @@ function benchmark_test(FT)
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
-        (BMT.Instantaneous(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno),
+        (BMT.Instantaneous(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, q_liq, q_ice, q_rai, q_sno),
         5500,
     )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
-        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt),
+        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, q_liq, q_ice, q_rai, q_sno, Δt),
         5500,
     )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
-        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt, 3),
+        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, q_liq, q_ice, q_rai, q_sno, Δt, 3),
         18000,
     )
 
