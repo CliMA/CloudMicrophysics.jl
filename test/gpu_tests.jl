@@ -144,14 +144,14 @@ end
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ql[i]), q_lcl = ql[i], q_icl = zero(ql[i]), q_rai = zero(ql[i]), q_sno = zero(ql[i]))
     thermo = (; ρ = zero(ql[i]), T = zero(ql[i]))
-    output[i] = CM1.conv_q_lcl_to_q_rai(mp.options.rain_autoconversion, mp, tps, micro, thermo)
+    output[i] = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_1_moment_micro_acnv2M_kernel!(mp, tps, output, ql)
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ql[i]), q_lcl = ql[i], q_icl = zero(ql[i]), q_rai = zero(ql[i]), q_sno = zero(ql[i]))
     thermo = (; ρ = zero(ql[i]), T = zero(ql[i]))
-    output[i] = CM1.conv_q_lcl_to_q_rai(mp.options.rain_autoconversion, mp, tps, micro, thermo)
+    output[i] = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_1_moment_micro_accretion_kernel!(
@@ -178,12 +178,12 @@ end
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ρ[i]), q_lcl = ql[i], q_icl = qi[i], q_rai = qr[i], q_sno = qs[i])
     thermo = (; ρ = ρ[i], T = T[i])
-    liq_rai = CM1.accretion(mp.options.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
-    liq_sno = CM1.accretion(mp.options.cloud_liquid_snow_accretion, mp, tps, micro, thermo).S_accr
-    ice_rai = CM1.accretion(mp.options.cloud_ice_rain_accretion, mp, tps, micro, thermo)
-    ice_sno = CM1.accretion(mp.options.cloud_ice_snow_accretion, mp, tps, micro, thermo)
-    rai_sink = CM1.accretion_rain_sink(mp.options.cloud_ice_rain_accretion, mp, tps, micro, thermo)
-    r_sr = CM1.accretion_snow_rain(mp.options.rain_snow_accretion, mp, tps, micro, thermo)
+    liq_rai = CM1.accretion(mp.processes.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
+    liq_sno = CM1.accretion(mp.processes.cloud_liquid_snow_accretion, mp, tps, micro, thermo).S_accr
+    ice_rai = CM1.accretion(mp.processes.cloud_ice_rain_accretion, mp, tps, micro, thermo)
+    ice_sno = CM1.accretion(mp.processes.cloud_ice_snow_accretion, mp, tps, micro, thermo)
+    rai_sink = CM1.accretion_rain_sink(mp.processes.cloud_ice_rain_accretion, mp, tps, micro, thermo)
+    r_sr = CM1.accretion_snow_rain(mp.processes.rain_snow_accretion, mp, tps, micro, thermo)
     output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, rai_sink,
         sno_rai = r_sr.S_rai_sno, rai_sno = r_sr.S_sno_rai)
 end
@@ -193,7 +193,7 @@ end
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ρ[i]), q_lcl = zero(ρ[i]), q_icl = zero(ρ[i]), q_rai = zero(ρ[i]), q_sno = qs[i])
     thermo = (; ρ = ρ[i], T = T[i])
-    output[i] = CM1.conv_q_sno_to_q_rai(mp.options.snow_melt, mp, tps, micro, thermo)
+    output[i] = CM1.conv_q_sno_to_q_rai(mp.processes.snow_melt, mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_2_moment_acnv_kernel!(
