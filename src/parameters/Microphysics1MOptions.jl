@@ -130,16 +130,21 @@ struct PrescribedNd <: RainAutoconversion end
 """
     VelocityDependent <: RainAutoconversion
 
-Velocity-dependent autoconversion: Kessler logistic form with timescale and
-threshold that depend on air vertical velocity `w`.
+Velocity-dependent autoconversion: Kessler logistic form with a timescale that
+varies smoothly with vertical velocity magnitude `|w|`.
 
-    rate = logistic_function_integral(q_lcl, q_threshold(w), k) / τ(w)
+    f = w⁴ / (w⁴ + w_0⁴)
+    τ(w) = τ_slow + (τ_fast - τ_slow) · f
+    rate = logistic_function_integral(q_lcl, q_threshold, k) / τ(w)
 
-where `τ(w) = τ_0 / (1 + |w| / w_0)` and `q_threshold(w) = max(0, Δq_threshold * w / w_0)`.
+The threshold `q_threshold` is fixed (identical to Kessler1M); only the
+timescale interpolates between a slow quiescent value and a fast convective
+value as `|w|` increases.
 
 Callers must include `w` in the thermodynamic state: `thermo = (; ρ, T, w)`.
-Parameters (a [`VelDepAcnv`](@ref) with `τ_0`, `Δq_threshold`, `w_0`, `k`) are stored in
-`process_params.rain_autoconversion` in [`Microphysics1MParams`](@ref).
+Parameters (a [`VelDepAcnv`](@ref) with `τ_slow`, `τ_fast`, `q_threshold`,
+`w_0`, `k`) are stored in `process_params.rain_autoconversion` in
+[`Microphysics1MParams`](@ref).
 """
 struct VelocityDependent <: RainAutoconversion end
 

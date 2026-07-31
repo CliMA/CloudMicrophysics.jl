@@ -259,62 +259,115 @@ function test_microphysics1M(FT)
     end
 
     TT.@testset "RainAutoconversionVelocityDependent" begin
-        # Velocity-dependent autoconversion
+        # Velocity-dependent autoconversion (timescale varies with |w|)
         mp_vd = CMP.Microphysics1MParams(FT;
             rain_autoconversion = CMP.VelocityDependent(),
         )
-        (; τ_0, Δq_threshold, w_0, k) = mp_vd.process_params.rain_autoconversion
+        (; τ_slow, τ_fast, q_threshold, w_0, k) = mp_vd.process_params.rain_autoconversion
 
         # Zero cloud liquid → zero rate (any w)
         micro_0 = (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
         thermo_0 = (; ρ = FT(1), T = FT(280), w = FT(0))
-        TT.@test CM1.conv_q_lcl_to_q_rai(mp_vd.options.rain_autoconversion, mp_vd, tps, micro_0, thermo_0) == FT(0)
+        TT.@test CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro_0, thermo_0) == FT(0)
 
         thermo_w5 = (; ρ = FT(1), T = FT(280), w = FT(5))
-        TT.@test CM1.conv_q_lcl_to_q_rai(mp_vd.options.rain_autoconversion, mp_vd, tps, micro_0, thermo_w5) == FT(0)
+        TT.@test CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro_0, thermo_w5) == FT(0)
 
-        # Positive cloud liquid, w = 0 → positive rate (no threshold at w = 0)
+        # Positive cloud liquid, w = 0 → rate uses τ_slow
         q_lcl = FT(1e-3)
         micro = (; q_tot = FT(0), q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
-        rate_w0 = CM1.conv_q_lcl_to_q_rai(mp_vd.options.rain_autoconversion, mp_vd, tps, micro, thermo_0)
+        rate_w0 = CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro, thermo_0)
         TT.@test rate_w0 > FT(0)
 
-        # At w = 0, rate ≈ q_lcl / τ_0 (no threshold, logistic integral ≈ q_lcl)
-        TT.@test rate_w0 ≈ q_lcl / τ_0 rtol = FT(0.01)
+        # At w = 0, f = 0 so τ_eff = τ_slow
+        rate_expected = CMC.logistic_function_integral(q_lcl, q_threshold, k) / τ_slow
+        TT.@test rate_w0 ≈ rate_expected rtol = FT(1e-10)
 
-        # Increasing |w| → faster rate (smaller effective τ) for w > 0
-        # At moderate w, the speedup from smaller τ dominates the threshold increase
-        rate_w1 = CM1.conv_q_lcl_to_q_rai(mp_vd.options.rain_autoconversion, mp_vd, tps, micro,
+        # Increasing |w| → faster rate (smaller effective τ)
+        rate_w1 = CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro,
             (; ρ = FT(1), T = FT(280), w = FT(1)))
-        rate_w4 = CM1.conv_q_lcl_to_q_rai(mp_vd.options.rain_autoconversion, mp_vd, tps, micro,
-            (; ρ = FT(1), T = FT(280), w = FT(4)))
+        rate_w3 = CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro,
+            (; ρ = FT(1), T = FT(280), w = FT(3)))
+        rate_w5 = CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro,
+            (; ρ = FT(1), T = FT(280), w = FT(5)))
         TT.@test rate_w1 > rate_w0
+        TT.@test rate_w3 > rate_w1
+        TT.@test rate_w5 > rate_w3
 
-        # At w = w_0 = 4 m/s, threshold = Δq_threshold = 5e-4, which is half of q_lcl = 1e-3
-        # so the threshold effect partly offsets the faster τ. The rate should still be positive.
-        TT.@test rate_w4 > FT(0)
-
-        # Downdraft at same |w| gives faster rate than updraft (no threshold in downdraft)
-        rate_wn1 = CM1.conv_q_lcl_to_q_rai(mp_vd.options.rain_autoconversion, mp_vd, tps, micro,
+        # Symmetric in sign of w: same rate for ±w
+        rate_wn1 = CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro,
             (; ρ = FT(1), T = FT(280), w = FT(-1)))
-        TT.@test rate_wn1 > rate_w1  # downdraft faster than updraft at same |w|
+        rate_wn3 = CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro,
+            (; ρ = FT(1), T = FT(280), w = FT(-3)))
+        TT.@test rate_wn1 ≈ rate_w1
+        TT.@test rate_wn3 ≈ rate_w3
 
-        # Negative w → faster rate and zero threshold (clamped)
-        rate_wn4 = CM1.conv_q_lcl_to_q_rai(mp_vd.options.rain_autoconversion, mp_vd, tps, micro,
-            (; ρ = FT(1), T = FT(280), w = FT(-4)))
-        # At w = -w_0: f = 0.5, inv_τ = 0.5/τ_0 + 0.5/τ_1 ≈ 0.5/τ_1 (since τ_1 ≪ τ_0)
-        # threshold = 0, so rate ≈ q_lcl * 0.5/τ_1
-        τ_1 = mp_vd.process_params.rain_autoconversion.τ_1
-        TT.@test rate_wn4 ≈ q_lcl * (FT(0.5) / τ_0 + FT(0.5) / τ_1) rtol = FT(0.01)
-        TT.@test rate_wn4 > rate_w0
-
-        # Order-of-magnitude match with KK2000 at N_d = 500/cm³, w = 0
-        # KK2000: A * q_lcl^a * N_d^b * ρ^c ≈ 7.75e-10 for q_lcl = 1e-3, ρ = 1
-        kk2000_rate = FT(7.42e13) * q_lcl^FT(2.47) * FT(500e6)^FT(-1.79) * FT(1)^FT(-1.47)
-        TT.@test log10(rate_w0) ≈ log10(kk2000_rate) atol = FT(1)  # within 1 order of magnitude
+        # At large |w|, τ_eff → τ_fast
+        rate_w10 = CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro,
+            (; ρ = FT(1), T = FT(280), w = FT(10)))
+        rate_fast = CMC.logistic_function_integral(q_lcl, q_threshold, k) / τ_fast
+        TT.@test rate_w10 ≈ rate_fast rtol = FT(0.01)
 
     end
 
+    TT.@testset "rain_autoconversion_timescale" begin
+        # Kessler1M: returns constant τ
+        τ_kessler = CM1.rain_autoconversion_timescale(
+            mp.processes.rain_autoconversion, mp, FT(0),
+        )
+        TT.@test τ_kessler == mp.process_params.rain_autoconversion.τ
+        # Kessler1M: independent of w
+        TT.@test CM1.rain_autoconversion_timescale(
+            mp.processes.rain_autoconversion, mp, FT(5),
+        ) == τ_kessler
+
+        # PrescribedNd: returns τ * (Nc/1e8)^α
+        mp_nd = CMP.Microphysics1MParams(FT;
+            rain_autoconversion = CMP.PrescribedNd(),
+        )
+        (; τ, α, Nc) = mp_nd.process_params.rain_autoconversion
+        τ_nd = CM1.rain_autoconversion_timescale(
+            mp_nd.processes.rain_autoconversion, mp_nd, FT(0),
+        )
+        TT.@test τ_nd ≈ τ * (Nc / FT(1e8))^α
+
+        # VelocityDependent: τ varies with |w|
+        mp_vd = CMP.Microphysics1MParams(FT;
+            rain_autoconversion = CMP.VelocityDependent(),
+        )
+        (; τ_slow, τ_fast) = mp_vd.process_params.rain_autoconversion
+        # w = 0 → τ_slow
+        TT.@test CM1.rain_autoconversion_timescale(
+            mp_vd.processes.rain_autoconversion, mp_vd, FT(0),
+        ) == τ_slow
+        # large |w| → τ_fast
+        τ_large = CM1.rain_autoconversion_timescale(
+            mp_vd.processes.rain_autoconversion, mp_vd, FT(100),
+        )
+        TT.@test τ_large ≈ τ_fast rtol = FT(1e-4)
+        # Symmetric in w
+        TT.@test CM1.rain_autoconversion_timescale(
+            mp_vd.processes.rain_autoconversion, mp_vd, FT(3),
+        ) ≈ CM1.rain_autoconversion_timescale(
+            mp_vd.processes.rain_autoconversion, mp_vd, FT(-3),
+        )
+        # Monotonically decreasing with |w|
+        τ_w1 = CM1.rain_autoconversion_timescale(
+            mp_vd.processes.rain_autoconversion, mp_vd, FT(1),
+        )
+        τ_w3 = CM1.rain_autoconversion_timescale(
+            mp_vd.processes.rain_autoconversion, mp_vd, FT(3),
+        )
+        TT.@test τ_slow > τ_w1 > τ_w3 > τ_fast
+
+        # Nothing (disabled): returns Inf
+        mp_off = CMP.Microphysics1MParams(FT;
+            rain_autoconversion = nothing,
+        )
+        TT.@test CM1.rain_autoconversion_timescale(
+            mp_off.processes.rain_autoconversion, mp_off, FT(0),
+        ) == FT(Inf)
+    end
     TT.@testset "SnowAutoconversionNoSupersat" begin
 
         q_icl_threshold = mp.process_params.snow_autoconversion.q_threshold

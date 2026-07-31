@@ -53,6 +53,7 @@ import ..Utilities as UT
 
 export terminal_velocity,
     conv_q_lcl_to_q_rai,
+    rain_autoconversion_timescale,
     conv_q_icl_to_q_sno,
     accretion,
     accretion_rain_sink,
@@ -375,21 +376,53 @@ end
 @inline function conv_q_lcl_to_q_rai(::CMP.VelocityDependent, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     w = thermo.w
-    (; τ_0, τ_1, Δq_threshold, w_0, k) = mp.process_params.rain_autoconversion
-    FT = eltype(q_lcl)
+    (; τ_slow, τ_fast, q_threshold, w_0, k) = mp.process_params.rain_autoconversion
 
     # Smooth blending factor: 0 at w=0, → 1 for |w| ≫ w_0
-    f = w^2 / (w^2 + w_0^2)
+    # w⁴ gives a steep transition so that |w| < w_0 stays slow and |w| > 2w_0 is fast
+    w2 = w * w
+    w0_2 = w_0 * w_0
+    f = (w2 * w2) / (w2 * w2 + w0_2 * w0_2)
 
-    # Effective inverse timescale: harmonic interpolation of rates
-    # Since 1/τ_1 ≫ 1/τ_0, the fast regime dominates as soon as f is non-negligible
-    inv_τ = (1 - f) / τ_0 + f / τ_1
+    # Effective timescale: interpolate from slow (quiescent) to fast (convective)
+    τ_eff = τ_slow + (τ_fast - τ_slow) * f
 
-    # Threshold: scales with f for updrafts only (branchless)
-    w_pos = max(FT(0), w)
-    q_threshold = Δq_threshold * w_pos^2 / (w^2 + w_0^2)
+    return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ_eff
+end
 
-    return CO.logistic_function_integral(q_lcl, q_threshold, k) * inv_τ
+"""
+    rain_autoconversion_timescale(option, mp, w)
+
+Return the effective autoconversion timescale `τ` [s] for the selected
+`RainAutoconversion` variant.  This is a diagnostic helper for use in
+atmospheric models (e.g. ClimaAtmos).
+
+# Arguments
+- `option`: rain autoconversion option (dispatches the variant)
+- `mp`: `Microphysics1MParams` parameter container
+- `w`: air vertical velocity [m/s] (only used by `VelocityDependent`;
+  ignored by other variants)
+
+# Returns
+- `τ::FT`: effective autoconversion timescale [s]
+"""
+@inline rain_autoconversion_timescale(::Nothing, mp, w) = typeof(w)(Inf)
+
+@inline function rain_autoconversion_timescale(::CMP.Kessler1M, mp, w)
+    return mp.process_params.rain_autoconversion.τ
+end
+
+@inline function rain_autoconversion_timescale(::CMP.PrescribedNd, mp, w)
+    (; τ, α, Nc) = mp.process_params.rain_autoconversion
+    return τ * (Nc / 100_000_000)^α
+end
+
+@inline function rain_autoconversion_timescale(::CMP.VelocityDependent, mp, w)
+    (; τ_slow, τ_fast, w_0) = mp.process_params.rain_autoconversion
+    w2 = w * w
+    w0_2 = w_0 * w_0
+    f = (w2 * w2) / (w2 * w2 + w0_2 * w0_2)
+    return τ_slow + (τ_fast - τ_slow) * f
 end
 
 
