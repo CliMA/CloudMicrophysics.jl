@@ -1,0 +1,49 @@
+name: Downstream
+on:
+  push:
+    branches: [main]
+    tags: '*'
+  pull_request:
+
+# Needed to allow julia-actions/cache to delete old caches that it has created
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trmm:
+    name: Downstream ClimaAtmos.jl
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+      - uses: julia-actions/cache@v3
+      - uses: actions/checkout@v7
+        with:
+          repository: 'CliMA/ClimaAtmos.jl'
+          path: ClimaAtmos.jl
+      - run: |
+          julia --color=yes --project=ClimaAtmos.jl -e 'using Pkg; Pkg.instantiate(); Pkg.develop(; path = ".")'
+          julia --color=yes --project=ClimaAtmos.jl -e '
+            import ClimaComms; ClimaComms.@import_required_backends
+            import ClimaAtmos as CA
+            import Random; Random.seed!(1234)
+
+            config = CA.AtmosConfig(
+                [
+                    "ClimaAtmos.jl/config/common_configs/diagnostics_column_progedmf_1M.yml",
+                    "ClimaAtmos.jl/config/model_configs/prognostic_edmfx_trmm_column.yml",
+                ];
+                job_id = "prognostic_edmfx_trmm_column",
+            )
+            simulation = CA.get_simulation(config)
+            sol_res = CA.solve_atmos!(simulation)
+            sol_res.ret_code == :simulation_crashed &&
+                error("prognostic_edmfx_trmm_column crashed")'

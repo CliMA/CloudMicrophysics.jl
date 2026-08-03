@@ -176,9 +176,9 @@ function benchmark_test(FT)
         P3.P3State,
         P3.P3State,
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
-        220,
+        400,
     )
-    bench_press(FT, P3.get_distribution_logλ, (state,), 100_000)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod, zero warp divergence
+    bench_press(FT, P3.get_distribution_logλ, (state,), 220_000)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod, zero warp divergence
     # The weighted-velocity integrals build a nested terminal-velocity closure
     # that escapes into `integrate`. With `ice_particle_terminal_velocity`
     # returning a single (concretely-typed) closure, this path is type-stable
@@ -187,7 +187,7 @@ function benchmark_test(FT)
     bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 170_000)
     bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 200_000)
     bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 7_000)
-    bench_press(FT, P3.D_m, (state, logλ), 8_000)
+    bench_press(FT, P3.D_m, (state, logλ), 18_000)
 
     @info "P3 Ice Nucleation"
     bench_press(
@@ -252,28 +252,28 @@ function benchmark_test(FT)
     thermo_1m = (; ρ = ρ_air, T = T_air)
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
-        (mp_1m.options.rain_autoconversion, mp_1m, tps, micro_1m, thermo_1m),
+        (mp_1m.processes.rain_autoconversion, mp_1m, tps, micro_1m, thermo_1m),
         500,
     )
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
-        (mp_1m_2M.options.rain_autoconversion, mp_1m_2M, tps, micro_1m, thermo_1m),
+        (mp_1m_2M.processes.rain_autoconversion, mp_1m_2M, tps, micro_1m, thermo_1m),
         500,
     )
-    bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, E_lcl_rai, q_liq, q_rai, ρ_air), 360)
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_liquid_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, E_lcl_rai, q_liq, q_rai, ρ_air), 650)
+    bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_liquid_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 650)
     bench_press(
         @NamedTuple{S_accr::FT, S_melt::FT},
         CM1.accretion,
-        (mp_1m.options.cloud_liquid_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
-        360,
+        (mp_1m.processes.cloud_liquid_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
+        650,
     )
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_ice_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
-    bench_press(FT, CM1.accretion, (mp_1m.options.cloud_ice_snow_accretion, mp_1m, tps, micro_1m, thermo_1m), 360)
+    bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_ice_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 650)
+    bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_ice_snow_accretion, mp_1m, tps, micro_1m, thermo_1m), 650)
     bench_press(
         @NamedTuple{S_rai_sno::FT, S_sno_rai::FT, S_melt::FT},
         CM1.accretion_snow_rain,
-        (mp_1m.options.rain_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
+        (mp_1m.processes.rain_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
         1400,
     )
     bench_press(FT, CMD.radar_reflectivity_1M, (rain, q_rai, ρ_air), 300)

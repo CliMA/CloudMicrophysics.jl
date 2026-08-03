@@ -39,20 +39,20 @@ Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
 
 Unified parameter container for 1-moment bulk microphysics.
 
-`options` selects which variant of each process runs. The parameter values each
-selected variant needs live in `process_params`, whose fields mirror `options`
-one-to-one. For example, `options.rain_autoconversion = Kessler1M()` picks the
+`processes` selects which variant of each process runs. The parameter values each
+selected variant needs live in `process_params`, whose fields mirror `processes`
+one-to-one. For example, `processes.rain_autoconversion = Kessler1M()` picks the
 Kessler scheme, and its `τ`, threshold, and `k` live in
 `process_params.rain_autoconversion`. Turning a process off with `nothing` (e.g.
-`options.cloud_ice_melt = nothing`) gives it a `nothing` slot in
+`processes.cloud_ice_melt = nothing`) gives it a `nothing` slot in
 `process_params`, as does any option that needs no parameters. Shared parameters
 (particle size distributions, air properties, terminal velocities) are stored
 directly.
 
 # Fields
-- `options::OPT`: Microphysics1MOptions — process selection
+- `processes::OPT`: Microphysics1MOptions — process selection
 - `process_params::PPR`: parameter data for each selected process, mirroring
-  `options` (`nothing` when a process is disabled with `nothing` or needs no
+  `processes` (`nothing` when a process is disabled with `nothing` or needs no
   parameters)
 - `cloud::CP`: CloudPhaseParams1M — cloud liquid and ice parameters
 - `precip::PP`: PrecipPhaseParams1M — rain and snow parameters
@@ -82,7 +82,7 @@ mp = CMP.Microphysics1MParams(Float64;
 ```
 """
 @kwdef struct Microphysics1MParams{OPT, PPR, CP, PP, AP, VL} <: ParametersType
-    options::OPT
+    processes::OPT
     process_params::PPR
     cloud::CP
     precip::PP
@@ -102,10 +102,10 @@ Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 - `options_kwargs...`: Keyword arguments forwarded to `Microphysics1MOptions`
 """
 function Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
-    options = Microphysics1MOptions(; options_kwargs...)
+    processes = Microphysics1MOptions(; options_kwargs...)
     return Microphysics1MParams(;
-        options,
-        process_params = microphysics_1m_process_params(toml_dict, options),
+        processes,
+        process_params = microphysics_1m_process_params(toml_dict, processes),
         cloud = CloudPhaseParams1M(;
             liquid = CloudLiquid(toml_dict),
             ice = CloudIce(toml_dict),
