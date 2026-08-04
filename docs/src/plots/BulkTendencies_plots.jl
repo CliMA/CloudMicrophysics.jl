@@ -15,6 +15,7 @@ function integrate_bulk_microphysics_reference(
     tps,
     ρ,
     T0,
+    w,
     q_tot,
     q_lcl0,
     q_icl0,
@@ -50,6 +51,7 @@ function integrate_bulk_microphysics_reference(
             tps,
             ρ,
             T[i],
+            w,
             q_tot,
             q_lcl[i],
             q_icl[i],
@@ -85,6 +87,7 @@ function integrate_bulk_microphysics_linearized_one_step(
     tps,
     ρ,
     T0,
+    w,
     q_tot,
     q_lcl0,
     q_icl0,
@@ -121,6 +124,7 @@ function integrate_bulk_microphysics_linearized_one_step(
             tps,
             ρ,
             T[i],
+            w,
             q_tot,
             q_lcl[i],
             q_icl[i],
@@ -156,6 +160,7 @@ function integrate_bulk_microphysics_instantaneous_one_step(
     tps,
     ρ,
     T0,
+    w,
     q_tot,
     q_lcl0,
     q_icl0,
@@ -187,6 +192,7 @@ function integrate_bulk_microphysics_instantaneous_one_step(
         tps,
         ρ,
         T0,
+        w,
         q_tot,
         q_lcl0,
         q_icl0,
@@ -243,23 +249,23 @@ function plot_bulk_microphysics_linearized_convergence(;
     q_tot = q_vap0 + q_lcl0 + q_icl0 + q_rai0 + q_sno0
 
     ref = integrate_bulk_microphysics_reference(
-        cm, mp, tps, ρ, T0, q_tot, q_lcl0, q_icl0, q_rai0, q_sno0, FT(t_end);
+        cm, mp, tps, ρ, T0, FT(0), q_tot, q_lcl0, q_icl0, q_rai0, q_sno0, FT(t_end);
         dt = FT(dt_ref),
     )
 
     nolin = integrate_bulk_microphysics_reference(
-        cm, mp, tps, ρ, T0, q_tot, q_lcl0, q_icl0, q_rai0, q_sno0, FT(t_end);
+        cm, mp, tps, ρ, T0, FT(0), q_tot, q_lcl0, q_icl0, q_rai0, q_sno0, FT(t_end);
         dt = FT(t_end / nsubs[end]),
     )
 
     inst = integrate_bulk_microphysics_instantaneous_one_step(
-        cm, mp, tps, ρ, T0, q_tot, q_lcl0, q_icl0, q_rai0, q_sno0, FT(t_end),
+        cm, mp, tps, ρ, T0, FT(0), q_tot, q_lcl0, q_icl0, q_rai0, q_sno0, FT(t_end),
     )
 
     runs = Dict{Int, Any}()
     for nsub in nsubs
         runs[nsub] = integrate_bulk_microphysics_linearized_one_step(
-            cm, mp, tps, ρ, T0, q_tot, q_lcl0, q_icl0, q_rai0, q_sno0, FT(t_end);
+            cm, mp, tps, ρ, T0, FT(0), q_tot, q_lcl0, q_icl0, q_rai0, q_sno0, FT(t_end);
             nsub = nsub,
         )
     end

@@ -1,4 +1,4 @@
-export CloudLiquid, CloudIce, Rain, Snow, VarTimescaleAcnv
+export CloudLiquid, CloudIce, Rain, Snow, VarTimescaleAcnv, VelDepAcnv
 
 """
     ParticlePDFSnow{FT}
@@ -380,3 +380,54 @@ function VarTimescaleAcnv(td::CP.ParamDict)
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return VarTimescaleAcnv(; parameters...)
 end
+
+"""
+    VelDepAcnv{FT}
+
+Parameters for the velocity-dependent rain autoconversion scheme used in the
+1-moment microphysics scheme. Active when `VelocityDependent` is selected in
+`Microphysics1MOptions`.
+
+The autoconversion rate uses the Kessler logistic functional form with a
+velocity-dependent timescale that interpolates smoothly between a slow
+(quiescent) and fast (convective) regime based on `|w|`:
+
+    f = w⁴ / (w⁴ + w_0⁴)          (steep smooth step, symmetric in w)
+    τ(w) = τ_slow + (τ_fast - τ_slow) · f
+    rate = logistic_function_integral(q_lcl, q_threshold, k) / τ(w)
+
+The threshold `q_threshold` is fixed (same as Kessler1M); only the timescale
+varies with vertical velocity.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct VelDepAcnv{FT} <: ParametersType
+    "Slow autoconversion timescale for quiescent conditions [s]"
+    τ_slow::FT
+    "Fast autoconversion timescale for strong vertical motions [s]"
+    τ_fast::FT
+    "Condensate specific content autoconversion threshold [kg/kg]"
+    q_threshold::FT
+    "Velocity scale for blending [m/s]"
+    w_0::FT
+    "Threshold smooth transition steepness [-]"
+    k::FT
+end
+
+function VelDepAcnv(td::CP.ParamDict)
+    FT = CP.float_type(td)
+    name_map = (;
+        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold,
+        :threshold_smooth_transition_steepness => :k,
+    )
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return VelDepAcnv(;
+        τ_slow = FT(14400),         # [s] ~4 hours (quiescent)
+        τ_fast = FT(900),           # [s] ~15 minutes (convective)
+        q_threshold = p.q_threshold,
+        w_0 = FT(1.5),             # [m/s] blending velocity scale
+        k = p.k,
+    )
+end
+

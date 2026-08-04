@@ -37,12 +37,12 @@ else
 end
 
 @kernel inbounds = true function benchmark_1m_bulk_tendencies_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    mp, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
     i = @index(Global, Linear)
     output[i] = BMT.bulk_microphysics_tendencies(
         BMT.Instantaneous(), BMT.Microphysics1Moment(), mp, tps,
-        ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        ρ[i], T[i], w[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
     )
 end
 
@@ -192,15 +192,16 @@ function run_gpu_performance_benchmarks(FT)
         q_sno_arr = states.q_sno
 
         kernel_1m_bulk! = benchmark_1m_bulk_tendencies_kernel!(backend, work_groups)
+        w_arr = ArrayType(zeros(FT, ndrange))
         t_compile_1m_bulk = @elapsed kernel_1m_bulk!(
-            mp_bulk, tps, output, ρ_arr, T_arr, q_tot_arr, q_lcl_arr, q_icl_arr, q_rai_arr, q_sno_arr; ndrange,
+            mp_bulk, tps, output, ρ_arr, T_arr, w_arr, q_tot_arr, q_lcl_arr, q_icl_arr, q_rai_arr, q_sno_arr; ndrange,
         )
         KernelAbstractions.synchronize(backend)
         @info "1-Moment Bulk Tendencies Kernel first call (compile + run time): $(round(t_compile_1m_bulk, digits=4)) seconds"
 
         b_1m_bulk = BT.@benchmark (
             $kernel_1m_bulk!(
-                $mp_bulk, $tps, $output, $ρ_arr, $T_arr, $q_tot_arr, $q_lcl_arr, $q_icl_arr, $q_rai_arr, $q_sno_arr;
+                $mp_bulk, $tps, $output, $ρ_arr, $T_arr, $w_arr, $q_tot_arr, $q_lcl_arr, $q_icl_arr, $q_rai_arr, $q_sno_arr;
                 ndrange = $ndrange,
             );
             KernelAbstractions.synchronize($backend)

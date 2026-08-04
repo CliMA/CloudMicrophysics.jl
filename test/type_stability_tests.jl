@@ -68,13 +68,15 @@ function run_type_stability_tests()
             q_rai = fill(FT(1e-4), N)
             q_sno = fill(FT(1e-4), N)
 
+            w = fill(FT(0), N)
+
             tendencies_1M =
                 BMT.bulk_microphysics_tendencies.(
                     Ref(BMT.Instantaneous()),
                     Ref(BMT.Microphysics1Moment()),
                     Ref(mp1),
                     Ref(tps),
-                    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+                    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
                 )
 
             @test tendencies_1M isa Vector
@@ -91,7 +93,7 @@ function run_type_stability_tests()
                     Ref(BMT.Microphysics1Moment()),
                     Ref(mp1),
                     Ref(tps),
-                    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+                    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
                 )
 
             @test tendencies_1M_lin isa Vector
@@ -107,7 +109,7 @@ function run_type_stability_tests()
                     Ref(BMT.Microphysics1Moment()),
                     Ref(mp1),
                     Ref(tps),
-                    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+                    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
                 )
 
             @test tendencies_1M_verbose isa Vector

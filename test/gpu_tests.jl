@@ -382,22 +382,22 @@ end
 end
 
 @kernel inbounds = true function test_bulk_tendencies_1m_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    mp, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
     i = @index(Global, Linear)
     CM1M = BMT.Microphysics1Moment()
     output[i] = BMT.bulk_microphysics_tendencies(
-        BMT.Instantaneous(), CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        BMT.Instantaneous(), CM1M, mp, tps, ρ[i], T[i], w[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
     )
 end
 
 @kernel inbounds = true function test_average_bulk_tendencies_1m_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+    mp, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
 )
     i = @index(Global, Linear)
     CM1M = BMT.Microphysics1Moment()
     output[i] = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
-        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        CM1M, mp, tps, ρ[i], T[i], w[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
         Δt[i],
     )
 end
@@ -1194,8 +1194,9 @@ function test_gpu(FT)
         q_sno = constant_data(FT(0.1e-3); ndrange)
 
         kernel! = test_bulk_tendencies_1m_kernel!(backend, work_groups)
+        w = constant_data(FT(0); ndrange)
         TT.@testset "1M" begin
-            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
+            kernel!(mp_1m, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
@@ -1206,7 +1207,7 @@ function test_gpu(FT)
         Δt = constant_data(FT(1.0); ndrange)
         kernel! = test_average_bulk_tendencies_1m_kernel!(backend, work_groups)
         TT.@testset "1M average" begin
-            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
+            kernel!(mp_1m, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
