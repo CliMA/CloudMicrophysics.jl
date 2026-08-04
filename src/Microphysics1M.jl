@@ -545,15 +545,15 @@ end
 end
 
 """
-    accretion_snow_rain(type_i::PrecipitationType, type_j::PrecipitationType, blk1mveltype_ti, blk1mveltype_tj, ce, q_i, q_j, ρ)
+    accretion_snow_rain(type_i::PrecipitationType, type_j::PrecipitationType, blk1mveltype_ti, blk1mveltype_tj, E_ij, coeff_disp, q_i, q_j, ρ)
 
 Returns the accretion rate when rain and snow collide.
 Collisions result in snow for T < T_freeze and rain for T > T_freeze.
 
 Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)², with
-a velocity dispersion correction that assumes that fall velocity standard 
+a velocity dispersion correction that assumes that fall velocity standard
 deviations are proportional to the mean fall velocities, with coefficient
-`ce.coeff_disp`.
+`coeff_disp`.
 
 !!! note "Internal use only"
     This low-level positional-argument kernel is kept for internal dispatch.
@@ -564,7 +564,8 @@ deviations are proportional to the mean fall velocities, with coefficient
 - `type_i`: snow (T < T_freeze) or rain (T > T_freeze)
 - `type_j`: rain (T < T_freeze) or snow (T > T_freeze)  
 - `blk1mveltype_ti`, `blk1mveltype_tj`: 1M terminal velocity parameters
-- `ce`: collision efficiency parameters (contains `e_rai_sno`, `coeff_disp`)
+- `E_ij`: collision efficiency between the two species
+- `coeff_disp`: velocity dispersion coefficient
 - `q_i`, `q_j`: specific contents of snow or rain [kg/kg]
 - `ρ`: air density [kg/m³]
 """
@@ -592,8 +593,12 @@ deviations are proportional to the mean fall velocities, with coefficient
         λ_i_inv = lambda_inverse(type_i.pdf, type_i.mass, q_i, ρ)
         λ_j_inv = lambda_inverse(type_j.pdf, type_j.mass, q_j, ρ)
 
-        v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i)
-        v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j)
+        # Reuse the λ_inv computed above: the 4-arg `terminal_velocity` would recompute
+        # `lambda_inverse` (a `pow`) and `get_v0` internally, which is pure duplicate work
+        # in this hot guarded path. Bit-for-bit — the 4-arg form just forwards to this one
+        # after computing these same two quantities.
+        v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i, get_v0(blk1mveltype_ti, ρ), λ_i_inv)
+        v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j, get_v0(blk1mveltype_tj, ρ), λ_j_inv)
 
         # Add simple parameterization for velocity dispersion, assuming that fall velocity 
         # standard deviations are proportional to the mean fall velocities, with coefficient 
@@ -795,7 +800,7 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
                 )
         end
     end
-    return min(0, evap_rate)
+    return min(zero(FT), evap_rate)
 end
 
 """
@@ -816,7 +821,7 @@ Ventilation factor parameterization follows Seifert and Beheng (2006).
 @inline conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
 @inline function conv_q_sno_to_q_vap(::CMP.SublimationOnly, mp, tps, micro, thermo)
-    return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo))
+    return min(zero(thermo.T), _snow_subl_dep_rate(mp, tps, micro, thermo))
 end
 
 @inline function conv_q_sno_to_q_vap(::CMP.DepositionAndSublimation, mp, tps, micro, thermo)
