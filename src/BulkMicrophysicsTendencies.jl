@@ -157,53 +157,48 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
     thermo = (; ρ, T)
 
-    # Size-distribution / fall-speed quantities (λ⁻¹, n₀, v₀ for rain/snow/ice) are
-    # pow/exp-heavy and shared by several processes per species: compute once and pass
-    # to each process via its `sd` argument so they are not recomputed per process.
-    sd = CM1.size_distr_parameters(mp, micro, thermo)
-
     # --- Phase change: vapor ↔ cloud condensate (bidirectional, ±) ---
     S_phase_change_vap_lcl = CMNonEq.conv_q_vap_to_q_lcl(procs.cloud_liquid_formation, mp, tps, micro, thermo)
     S_phase_change_vap_icl = CMNonEq.conv_q_vap_to_q_icl(procs.cloud_ice_formation, mp, tps, micro, thermo)
 
     # --- Autoconversion (cloud → precipitation, ≥ 0) ---
     S_acnv_lcl_rai = CM1.conv_q_lcl_to_q_rai(procs.rain_autoconversion, mp, tps, micro, thermo)
-    S_acnv_icl_sno = CM1.conv_q_icl_to_q_sno(procs.snow_autoconversion, mp, tps, micro, thermo, sd)
+    S_acnv_icl_sno = CM1.conv_q_icl_to_q_sno(procs.snow_autoconversion, mp, tps, micro, thermo)
 
     # --- Accretion (collisions between species) ---
     is_warm = T >= TDI.T_freeze(tps)
 
     # Cloud liquid + rain → rain
-    S_accr_lcl_rai = CM1.accretion(procs.cloud_liquid_rain_accretion, mp, tps, micro, thermo, sd)
+    S_accr_lcl_rai = CM1.accretion(procs.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
 
     # Cloud liquid + snow: product goes to sno (cold) or rai (warm), plus thermal melt
-    (; S_accr, S_melt) = CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo, sd)
+    (; S_accr, S_melt) = CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
     S_accr_lcl_sno_cold = ifelse(is_warm, zero(FT), S_accr)    # lcl → sno (cold)
     S_accr_lcl_sno_warm = ifelse(is_warm, S_accr, zero(FT))    # lcl → rai (warm)
     S_accr_melt_lcl_sno = S_melt                                # thermal melt of sno from warm lcl (already zero when cold)
 
     # Cloud ice + rain → snow (ice-side sink)
-    S_accr_icl_rai = CM1.accretion(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd)
+    S_accr_icl_rai = CM1.accretion(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo)
 
     # Rain frozen in cloud ice + rain collision → snow (rain sink)
-    S_accr_freeze_icl_rai = CM1.accretion_rain_sink(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd)
+    S_accr_freeze_icl_rai = CM1.accretion_rain_sink(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo)
 
     # Cloud ice + snow → snow
-    S_accr_icl_sno = CM1.accretion(procs.cloud_ice_snow_accretion, mp, tps, micro, thermo, sd)
+    S_accr_icl_sno = CM1.accretion(procs.cloud_ice_snow_accretion, mp, tps, micro, thermo)
 
     # Rain-snow collisions: split into cold/warm arms (inactive arm = zero)
-    (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(procs.rain_snow_accretion, mp, tps, micro, thermo, sd)
+    (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(procs.rain_snow_accretion, mp, tps, micro, thermo)
     S_accr_rai_sno_cold = ifelse(is_warm, zero(FT), S_rai_sno) # cold arm: rai freezes → sno
     S_accr_rai_sno_warm = ifelse(is_warm, S_sno_rai, zero(FT)) # warm arm: sno melts → rai
     S_accr_melt_rai_sno = ifelse(is_warm, S_melt, zero(FT))    # thermal melt of sno from warm rai
 
     # --- Phase change: precipitation ↔ vapor ---
-    S_phase_change_vap_rai = CM1.conv_q_rai_to_q_vap(procs.rain_condensation_evaporation, mp, tps, micro, thermo, sd)
-    S_phase_change_vap_sno = CM1.conv_q_sno_to_q_vap(procs.snow_deposition_sublimation, mp, tps, micro, thermo, sd)
+    S_phase_change_vap_rai = CM1.conv_q_rai_to_q_vap(procs.rain_condensation_evaporation, mp, tps, micro, thermo)
+    S_phase_change_vap_sno = CM1.conv_q_sno_to_q_vap(procs.snow_deposition_sublimation, mp, tps, micro, thermo)
 
     # --- Melting ---
-    S_melt_icl_lcl = CM1.conv_q_icl_to_q_lcl(procs.cloud_ice_melt, mp, tps, micro, thermo, sd)
-    S_melt_sno_rai = CM1.conv_q_sno_to_q_rai(procs.snow_melt, mp, tps, micro, thermo, sd)
+    S_melt_icl_lcl = CM1.conv_q_icl_to_q_lcl(procs.cloud_ice_melt, mp, tps, micro, thermo)
+    S_melt_sno_rai = CM1.conv_q_sno_to_q_rai(procs.snow_melt, mp, tps, micro, thermo)
 
     return (;
         S_phase_change_vap_lcl, S_phase_change_vap_icl,
@@ -393,7 +388,15 @@ The system uses a sparse structure specific to the 1-moment microphysics model.
 Because sinks are linearized as `-D q`, they are effectively integrated as
 exponential decays over the substep.
 """
-@inline function _linearized_implicit_step(
+# `@noinline` is deliberate: this per-substep solver inlines the heavy
+# `_microphysics_source_terms` (transcendental-laden 1M process rates). When it is
+# inlined into the SGS-quadrature environment kernel
+# (`set_microphysics_tendency_cache!`, evaluated 9 quadrature points × nsubs_quad
+# substeps) its large live state pushes that register-bound kernel to the 255-reg
+# cap and spills. Forcing it to a separate device function acts as a register
+# barrier — only the 4 returned scalars cross it — freeing registers in the caller.
+# Bit-for-bit: changes only inlining, not arithmetic.
+@noinline function _linearized_implicit_step(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
 )
