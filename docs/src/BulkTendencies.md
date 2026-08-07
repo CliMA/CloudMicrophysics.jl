@@ -60,6 +60,35 @@ The average tendency is then:
 
 ---
 
+## Vapor-budget cap on vapor → condensate sources
+
+Vapor → condensate processes (condensation on cloud liquid, deposition on
+cloud ice, deposition on snow — the positive contributions to `e_1`, `e_2`,
+`e_4`) are treated as constant sources over the substep. If their combined
+rate is fast enough, an unlimited substep can drive `q_v` below saturation
+or even negative. To prevent this, all three positive `e` terms are
+uniformly scaled by
+
+```math
+\alpha = \min\!\left(1,\; \frac{\max(0,\, q_v - q^\star_{\min})}
+                                 {\Delta t\;(e_1 + e_2 + e_4)}\right),
+\qquad
+q^\star_{\min} = \min\!\bigl(q^\star_{\mathrm{liq}}, q^\star_{\mathrm{ice}}\bigr),
+```
+
+so that `q_v` cannot be driven below `q^\star_{\min}` over one substep.
+Preserving the common scale factor `\alpha` keeps the relative rates of the
+three processes unchanged. Sinks (`M` blocks) are unaffected.
+
+- Below freezing: `q^\star_{\min} = q^\star_{\mathrm{ice}}`, the natural
+  ice-saturation floor (permits the Bergeron process to drive `q_v` below
+  liquid saturation).
+- Above freezing: `q^\star_{\min} = q^\star_{\mathrm{liq}}`, so the liquid
+  floor is enforced (mathematical `q^\star_{\mathrm{ice}}` is unphysical
+  there).
+
+---
+
 ## Sparse 4×4 structure
 
 The system has a fixed sparse structure:
