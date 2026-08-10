@@ -412,6 +412,19 @@ exponential decays over the substep.
 
     invΔt = one(FT) / Δt
 
+    # Cap vap→condensate sources jointly so the substep cannot drive
+    # `q_v` below `min(q_sat_liq, q_sat_ice)`. Preserves relative rates.
+    q_sat_min = min(
+        TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ),
+        TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ),
+    )
+    q_v = q_tot - q_lcl - q_icl - q_rai - q_sno
+    α = min(
+        one(FT),
+        max(zero(FT), q_v - q_sat_min) * invΔt /
+        max(lin.e1 + lin.e2 + lin.e4, eps(FT)),
+    )
+
     # A = I/Δt - M
     a11 = invΔt - lin.M11
     a12 = -lin.M12
@@ -424,12 +437,12 @@ exponential decays over the substep.
     a43 = -lin.M43
     a44 = invΔt - lin.M44
 
-    # rhs = e + q_0/Δt
+    # rhs = e + q_0/Δt (vap→condensate `e` terms scaled by `α` above)
     # e3 = 0 by the 1m model
-    b1 = lin.e1 + invΔt * q_lcl
-    b2 = lin.e2 + invΔt * q_icl
+    b1 = α * lin.e1 + invΔt * q_lcl
+    b2 = α * lin.e2 + invΔt * q_icl
     b3 = invΔt * q_rai
-    b4 = lin.e4 + invΔt * q_sno
+    b4 = α * lin.e4 + invΔt * q_sno
 
     # Solve 2×2 system for q_lcl, q_icl (coupled via ice melt M12)
     det12 = a11 * a22  # a21 = 0
