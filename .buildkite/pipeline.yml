@@ -53,3 +53,18 @@ steps:
     agents:
       slurm_gpus: 1
       slurm_time: 00:15:00
+
+  # Compile-only: reads register count, spill bytes and the occupancy ceiling off
+  # the compiled kernels without launching them. Deterministic (no timing), so it
+  # gates on hard thresholds without flaking under GPU contention. Catches
+  # register-pressure regressions in the hot microphysics kernels, which throttle
+  # occupancy well before they ever show up as spilling.
+  - label: ":chart_with_upwards_trend: GPU kernel resource regressions"
+    key: "gpu_kernel_resources"
+    command:
+      - "julia --project=test --color=yes test/gpu_kernel_resources.jl"
+    env:
+      CLIMACOMMS_DEVICE: "CUDA"
+    agents:
+      slurm_gpus: 1
+      slurm_time: 00:15:00
