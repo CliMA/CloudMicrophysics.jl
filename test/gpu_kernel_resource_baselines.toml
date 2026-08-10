@@ -1,0 +1,20 @@
+
+[sm_80-cuda13_0_0-julia1_11_5."Microphysics2Moment (Float64)"]
+spill_bytes = 744
+maxthreads = 512
+registers = 118
+
+[sm_80-cuda13_0_0-julia1_11_5."Microphysics2Moment (Float32)"]
+spill_bytes = 384
+maxthreads = 896
+registers = 70
+
+[sm_80-cuda13_0_0-julia1_11_5."Microphysics1Moment / Instantaneous (Float64)"]
+spill_bytes = 240
+maxthreads = 384
+registers = 158
+
+[sm_80-cuda13_0_0-julia1_11_5."Microphysics1Moment / Instantaneous (Float32)"]
+spill_bytes = 136
+maxthreads = 896
+registers = 71
