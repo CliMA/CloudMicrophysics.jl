@@ -143,7 +143,7 @@ function target_resources(kernel, args...)
     io = IOBuffer()
     # `dump_module = true` is load-bearing; see the header note.
     CUDA.code_ptx(io, kernel, tt; cap = TARGET_CAP, kernel = true,
-                  dump_module = true)
+        dump_module = true)
     ptx_file = tempname() * ".ptx"
     write(ptx_file, String(take!(io)))
 
@@ -216,8 +216,8 @@ function run_kernel_resource_tests(FT)
         # defined; contents are irrelevant since the kernel is never launched.
         out = CUDA.CuArray{DT}(undef, N)
         check("Microphysics1Moment / Instantaneous ($FT)", ("1M", FT),
-              bulk_1m_kernel!, out, CMP.Microphysics1MParams(FT), tps,
-              ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+            bulk_1m_kernel!, out, CMP.Microphysics1MParams(FT), tps,
+            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
     end
 
     TT.@testset "2-moment bulk tendencies kernel resources ($FT)" begin
@@ -227,8 +227,8 @@ function run_kernel_resource_tests(FT)
         }
         out = CUDA.CuArray{DT}(undef, N)
         check("Microphysics2Moment ($FT)", ("2M", FT),
-              bulk_2m_kernel!, out, CMP.Microphysics2MParams(FT), tps,
-              ρ, T, q_tot, q_lcl, q_rai, n_lcl, n_rai)
+            bulk_2m_kernel!, out, CMP.Microphysics2MParams(FT), tps,
+            ρ, T, q_tot, q_lcl, q_rai, n_lcl, n_rai)
     end
 end
 
