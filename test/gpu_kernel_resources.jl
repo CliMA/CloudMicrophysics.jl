@@ -124,6 +124,12 @@ end
 
 # --- Measurement -------------------------------------------------------------
 
+# PTX ISA versions to fall back through, newest first, when the default choice is
+# rejected. Only used on toolchain mismatch; see `target_resources`. Floor is 7.0:
+# sm_80 was introduced in PTX ISA 7.0, and ptxas rejects `-arch=sm_80` outright
+# for anything older (verified: 6.5 and 6.2 both fail).
+const PTX_ISA_FALLBACKS = [v"8.5", v"8.3", v"8.2", v"8.0", v"7.8", v"7.5", v"7.0"]
+
 """
     find_ptxas()
 
@@ -185,19 +191,40 @@ function target_resources(kernel, args...)
 
     ok, log = emit_and_assemble(ptxas, kernel, tt)
 
-    # CUDA.jl selects the PTX ISA from the *driver*, which can outrun the
-    # `ptxas` binary actually available: a CI agent reported
+    # CUDA.jl stamps the PTX ISA from the *runtime*, which can outrun the `ptxas`
+    # binary actually available: a CI agent with a 12.8 runtime reported
     #   "Unsupported .version 8.7; current version is '8.2'"
-    # with a 12.8 runtime. Rather than hunt for a newer assembler (there may not
-    # be one) or hardcode a version table, take ptxas at its word and re-emit at
-    # the ISA it reports supporting. Lowering the ISA does not change the target
-    # architecture, so the resulting numbers remain sm_80 numbers.
+    # so re-emit lower. Naming the exact ISA ptxas reported is not enough --
+    # `code_ptx` rejects any ISA newer than *LLVM* supports ("Requested PTX ISA
+    # 8.2 is not supported by LLVM 16.0.6"), and neither ceiling is queryable
+    # without reaching into CUDA.jl internals. So walk candidates downwards and
+    # take the first that clears both.
+    #
+    # This does not change the generated code. CUDA.jl always has LLVM emit at
+    # LLVM's own highest ISA (`llvm_ptx = maximum(llvm_ptxs)`, independent of the
+    # request) and only rewrites the `.version` directive afterwards. Lowering
+    # the request therefore changes one line of text, not a single instruction --
+    # and `-arch` still pins the architecture, so these stay sm_80 numbers.
+    # Measured on an A100 with CUDA 13.0: the 1M Float64 kernel gives 158
+    # registers / 240 B stack at the default ISA and identically at 7.8, 7.5 and
+    # 7.0. (On Julia 1.11's LLVM 16.0.6 the ceiling is 7.8, so that is where CI
+    # lands.)
     if !ok
         m = match(r"current version is '(\d+\.\d+)'", log)
-        if m !== nothing
-            supported = VersionNumber(m.captures[1])
-            @info "Re-emitting PTX at the ISA this ptxas supports" supported
-            ok, log = emit_and_assemble(ptxas, kernel, tt; ptx = supported)
+        ceiling = m === nothing ? nothing : VersionNumber(m.captures[1])
+        for isa in PTX_ISA_FALLBACKS
+            ceiling !== nothing && isa > ceiling && continue
+            try
+                ok, log = emit_and_assemble(ptxas, kernel, tt; ptx = isa)
+            catch err
+                # LLVM cannot target this ISA; try an older one.
+                @debug "PTX ISA $isa unavailable" err
+                continue
+            end
+            if ok
+                @info "Re-emitted at a lower PTX ISA (codegen unchanged)" isa
+                break
+            end
         end
     end
 
