@@ -45,8 +45,10 @@ zero spill. Do not read the stack frame numbers as spill.
 The numbers below are for `TARGET_ARCH` and were measured with the CUDA version
 recorded in `BASELINE_CUDA`. Pinning the architecture removes GPU-to-GPU
 variation but not toolkit variation: a different ptxas can still allocate
-differently, so on a mismatched CUDA version the test reports and skips rather
-than failing on a difference it cannot attribute.
+differently. On a mismatched CUDA version the test warns but STILL GATES --
+skipping there is how this file once ran zero assertions on CI while reporting
+success. A toolkit-caused difference then surfaces as a failure carrying both
+numbers, which is diagnosable.
 
 Run with:
     CLIMACOMMS_DEVICE=CUDA julia --project=test test/gpu_kernel_resources.jl
@@ -148,13 +150,6 @@ end
 grab(re, s) = (m = match(re, s); m === nothing ? -1 : parse(Int, m[1]))
 
 """
-    target_resources(kernel, args...)
-
-Compile `kernel(args...)` for `TARGET_ARCH` and return the resources ptxas
-assigned. The kernel is never launched, and never loaded onto the local device --
-which is what allows a foreign architecture to be targeted.
-"""
-"""
     emit_and_assemble(ptxas, kernel, tt; ptx)
 
 Emit PTX for `TARGET_CAP` and run `ptxas`. Returns `(ok, log)`.
@@ -174,6 +169,13 @@ function emit_and_assemble(ptxas, kernel, tt; ptx = nothing)
     return success(proc), String(take!(err)) * String(take!(out))
 end
 
+"""
+    target_resources(kernel, args...)
+
+Compile `kernel(args...)` for `TARGET_ARCH` and return the resources ptxas
+assigned. The kernel is never launched, and never loaded onto the local device --
+which is what allows a foreign architecture to be targeted.
+"""
 function target_resources(kernel, args...)
     ptxas = find_ptxas()
     ptxas === nothing && return nothing
