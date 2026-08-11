@@ -122,7 +122,28 @@ end
 
 # --- Measurement -------------------------------------------------------------
 
-find_ptxas() = Sys.which("ptxas")
+"""
+    find_ptxas()
+
+Prefer the `ptxas` CUDA.jl itself uses. It must match the PTX ISA that
+`code_ptx` emits, and a `ptxas` found on PATH need not: on a CI agent whose
+system CUDA was older than CUDA.jl's runtime, `Sys.which("ptxas")` produced
+
+    fatal : Unsupported .version 8.7; current version is '8.2'
+
+for every kernel, which silently reduced this whole file to a no-op.
+"""
+function find_ptxas()
+    for f in (() -> only(CUDA.ptxas().exec), () -> Sys.which("ptxas"))
+        p = try
+            f()
+        catch
+            nothing
+        end
+        p !== nothing && isfile(p) && return p
+    end
+    return nothing
+end
 
 grab(re, s) = (m = match(re, s); m === nothing ? -1 : parse(Int, m[1]))
 
@@ -170,7 +191,11 @@ toolkit_matches() = CUDA.runtime_version().major == BASELINE_CUDA.major
 function check(name, key, kernel, args...)
     res = target_resources(kernel, args...)
     if res === nothing
-        @warn "Skipping $name: could not compile for $TARGET_ARCH (ptxas missing?)"
+        # Deliberately a failure, not a skip. An earlier version warned and
+        # returned, so a broken toolchain produced "0 tests, all passed" -- a
+        # gate that silently protects nothing is worse than one that complains.
+        @error "Could not measure $TARGET_ARCH resources for $name; see ptxas log above"
+        TT.@test false
         return nothing
     end
     ref = BASELINES[key]
@@ -182,14 +207,16 @@ function check(name, key, kernel, args...)
       spill       = $(res.spill_stores) st / $(res.spill_loads) ld bytes
     """
 
-    if !toolkit_matches()
-        @warn """
-        CUDA $(CUDA.runtime_version()) differs from the CUDA $(BASELINE_CUDA) the
-        baselines were measured with; reporting only. Re-measure and update
-        BASELINES (and BASELINE_CUDA) if this toolkit is the new normal.
-        """ kernel = name
-        return nothing
-    end
+    # A differing CUDA version is noted but does NOT disable the gate. Skipping
+    # here is how this file previously ran zero assertions on CI (whose CUDA is
+    # 12.8 against baselines measured on 13.0) while still reporting success.
+    # If a toolkit really does allocate differently, that surfaces as a failure
+    # carrying both numbers, which is diagnosable; silence is not.
+    toolkit_matches() || @warn """
+    CUDA $(CUDA.runtime_version()) differs from CUDA $(BASELINE_CUDA), which the
+    baselines were measured with. Still gating. If this fails on registers only
+    and the delta is small, re-measure on this toolkit and add a baseline set.
+    """ kernel = name
 
     TT.@test res.registers <= ref.registers + REG_SLACK
     TT.@test res.stack_frame <= ref.stack_frame + STACK_SLACK
