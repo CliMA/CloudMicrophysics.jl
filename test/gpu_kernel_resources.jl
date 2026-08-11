@@ -18,7 +18,7 @@ registers for sm_80 and 175 for sm_60 from identical source. That makes results
 from a CI agent's GPU meaningless as a gate on the hardware production runs on.
 
 So this test does not measure the local GPU at all. It compiles each kernel for
-`TARGET_ARCH` (sm_80, A100 -- what CliMA actually runs science on) via
+`TARGET_ARCH` (sm_80, A100, etc.) via
 `code_ptx(...; cap)` and reads the resource usage back from `ptxas -v`. Any
 CUDA-capable GPU can host the test; the numbers describe an A100 regardless.
 Verified on an A100 (CUDA 13.0): this path reproduces `CUDA.registers` exactly
@@ -45,16 +45,16 @@ zero spill. Do not read the stack frame numbers as spill.
 Unconstrained, none of these kernels spill -- so `spill == 0` asserts something
 that holds trivially and cannot catch a regression. The kernel this gate exists
 for behaves quite differently in production: reached through a ClimaCore
-broadcast in ClimaAtmos it sits at the 255-register cap and spilled 24.5% of its
+broadcast in ClimaAtmos it sits at the 255-register cap and spilled ~25% of its
 memory traffic before being fixed. A standalone one-thread-per-point kernel does
 not reproduce that pressure.
 
-So each kernel is ALSO compiled under `ptxas -maxrregcount=<budget>`, with the
-budget just above where it starts spilling. That measures how much register
+So each kernel is also assembled repeatedly under `ptxas -maxrregcount=N`, walking
+N down until it spills. That onset is a direct measure of how much register
 pressure the function itself wants -- the property that pushed the real kernel
-over -- and makes zero spill a live assertion. It is a proxy for the broadcast
-context, not a reproduction of it; faithfully reproducing it would require
-ClimaCore in this package's test environment, and CloudMicrophysics sits
+over -- and it moves long before the unconstrained register count does. It is a
+proxy for the broadcast context, not a reproduction of it; reproducing it would
+need ClimaCore in this package's test environment, and CloudMicrophysics sits
 upstream of ClimaAtmos.
 
 ## Baselines
@@ -100,26 +100,32 @@ const MAX_REGS = 255
 #   13.0  clima's A100s, where the science runs happen
 #   12.8  the central cluster's CI agents (P100 hosts; the target is still sm_80)
 #
-# `budget` is the tripwire: a register budget passed to ptxas as -maxrregcount,
-# chosen to sit just above where each kernel starts spilling, so that ZERO spill
-# there is a live assertion rather than a trivially true one. Measured onsets on
-# 13.0 (highest budget at which ptxas still spills): 1M F64 160, 2M F64 112,
-# 1M F32 67, 2M F32 62. Note spill is not strictly monotonic in the budget --
-# 2M F64 spills 4 B at 112, nothing at 110 and 108, then 4 B again at 106 --
-# hence the margin above the highest observed spilling budget rather than a
-# value hugging the onset.
+# `onset` is the highest register budget at which ptxas still spills the kernel:
+# a direct measure of how much register pressure the function wants. Gating on it
+# is what makes spilling a live signal -- unconstrained, none of these kernels
+# spill at all, so `spill == 0` alone asserts nothing.
+#
+# It is recorded PER TOOLKIT, and must be: the untouched 2M kernels spill under
+# 12.8 at budgets where 13.0 does not, purely because ptxas allocates differently
+# (122 vs 118 registers unconstrained). A shared budget would report that as a
+# regression, which is exactly the confusion the per-toolkit split exists to
+# prevent. `onset = nothing` means not yet measured on that toolkit: the test
+# reports the measured value and tells you to record it, and keeps gating
+# everything else.
 const TOOLKIT_BASELINES = Dict(
+    # Measured on clima's A100s.
     v"13.0" => Dict(
-        ("1M", Float64) => (registers = 158, stack_frame = 240, spill = 0, budget = 168),
-        ("2M", Float64) => (registers = 118, stack_frame = 744, spill = 0, budget = 120),
-        ("1M", Float32) => (registers = 71, stack_frame = 136, spill = 0, budget = 75),
-        ("2M", Float32) => (registers = 74, stack_frame = 384, spill = 0, budget = 70),
+        ("1M", Float64) => (registers = 158, stack_frame = 240, spill = 0, onset = 160),
+        ("2M", Float64) => (registers = 118, stack_frame = 744, spill = 0, onset = 112),
+        ("1M", Float32) => (registers = 71, stack_frame = 136, spill = 0, onset = 67),
+        ("2M", Float32) => (registers = 74, stack_frame = 384, spill = 0, onset = 62),
     ),
+    # Registers and stack from a CI run; onsets not yet measured on this toolkit.
     v"12.8" => Dict(
-        ("1M", Float64) => (registers = 156, stack_frame = 240, spill = 0, budget = 168),
-        ("2M", Float64) => (registers = 122, stack_frame = 744, spill = 0, budget = 120),
-        ("1M", Float32) => (registers = 62, stack_frame = 136, spill = 0, budget = 75),
-        ("2M", Float32) => (registers = 80, stack_frame = 384, spill = 0, budget = 70),
+        ("1M", Float64) => (registers = 156, stack_frame = 240, spill = 0, onset = nothing),
+        ("2M", Float64) => (registers = 122, stack_frame = 744, spill = 0, onset = nothing),
+        ("1M", Float32) => (registers = 62, stack_frame = 136, spill = 0, onset = nothing),
+        ("2M", Float32) => (registers = 80, stack_frame = 384, spill = 0, onset = nothing),
     ),
 )
 
@@ -131,9 +137,8 @@ version falls back to the newest set sharing its major version, and an unknown
 major to the newest set overall -- warning, but still gating. Skipping is how
 this file once ran zero assertions on CI while reporting success.
 
-The tripwire budgets are deliberately NOT re-tuned per toolkit: "does not spill
-at budget N" is the assertion, and if a toolkit genuinely needs a different N
-that is itself worth surfacing as a failure rather than absorbing silently.
+Spill onsets ARE per toolkit; see the note above TOOLKIT_BASELINES for why
+sharing them across toolkits produces false regressions.
 """
 function baseline_set()
     v = CUDA.runtime_version()
@@ -152,6 +157,8 @@ end
 const REG_SLACK = 8
 const STACK_SLACK = 64
 const SPILL_TOLERANCE = 0
+# Onsets jitter a little with inference, like registers do.
+const ONSET_SLACK = 8
 
 # --- Kernels -----------------------------------------------------------------
 # Plain CUDA.jl kernels, one thread per grid point, mirroring how these functions
@@ -213,23 +220,30 @@ end
 grab(re, s) = (m = match(re, s); m === nothing ? -1 : parse(Int, m[1]))
 
 """
-    emit_and_assemble(ptxas, kernel, tt; ptx, maxregs)
+    emit_ptx(kernel, tt; ptx)
 
-Emit PTX for `TARGET_CAP` and run `ptxas`. Returns `(ok, log)`. `maxregs` caps
-registers per thread via `-maxrregcount`, which is what makes spilling
-measurable: unconstrained, these kernels never spill and the spill assertion is
-vacuous.
+Emit PTX for `TARGET_CAP` and return the file path. Emission is separated from
+assembly because finding a kernel's spill onset means assembling the SAME PTX at
+many register budgets; re-emitting each time would dominate the runtime.
 """
-function emit_and_assemble(ptxas, kernel, tt; ptx = nothing, maxregs = nothing)
+function emit_ptx(kernel, tt; ptx = nothing)
     io = IOBuffer()
     kwargs = (; cap = TARGET_CAP, kernel = true, dump_module = true)
     # `dump_module = true` is load-bearing; see the header note.
     CUDA.code_ptx(io, kernel, tt; (ptx === nothing ? kwargs : (; kwargs..., ptx))...)
-    ptx_file = tempname() * ".ptx"
-    write(ptx_file, String(take!(io)))
+    path = tempname() * ".ptx"
+    write(path, String(take!(io)))
+    return path
+end
 
-    out = IOBuffer()
-    err = IOBuffer()
+"""
+    assemble(ptxas, ptx_file; maxregs)
+
+Run `ptxas`, returning `(ok, log)`. `maxregs` caps registers per thread via
+`-maxrregcount`, which is what makes spilling measurable at all.
+"""
+function assemble(ptxas, ptx_file; maxregs = nothing)
+    out, err = IOBuffer(), IOBuffer()
     budget = maxregs === nothing ? `` : `-maxrregcount=$maxregs`
     cmd = `$ptxas -arch=$TARGET_ARCH $budget -v -o $(tempname()).cubin $ptx_file`
     proc = run(pipeline(ignorestatus(cmd); stdout = out, stderr = err))
@@ -237,107 +251,119 @@ function emit_and_assemble(ptxas, kernel, tt; ptx = nothing, maxregs = nothing)
 end
 
 """
-    target_resources(kernel, args...)
+    resolve_ptx(ptxas, kernel, tt)
 
-Compile `kernel(args...)` for `TARGET_ARCH` and return the resources ptxas
-assigned. The kernel is never launched, and never loaded onto the local device --
-which is what allows a foreign architecture to be targeted.
+Emit PTX that this `ptxas` accepts, returning `(path, log)` from the
+unconstrained assembly, or `nothing`.
+
+CUDA.jl stamps the PTX ISA from the *runtime*, which can outrun the `ptxas`
+binary actually available: a CI agent with a 12.8 runtime reported
+"Unsupported .version 8.7; current version is '8.2'". Naming the exact ISA ptxas
+reported is not enough -- `code_ptx` rejects any ISA newer than *LLVM* supports
+("Requested PTX ISA 8.2 is not supported by LLVM 16.0.6"), and neither ceiling is
+queryable without reaching into CUDA.jl internals. So walk candidates downwards
+and take the first that clears both.
+
+This does not change the generated code. CUDA.jl always has LLVM emit at LLVM's
+own highest ISA (`llvm_ptx = maximum(llvm_ptxs)`, independent of the request) and
+only rewrites the `.version` directive afterwards, and `-arch` still pins the
+architecture. Verified on an A100 with CUDA 13.0: the 1M Float64 kernel gives 158
+registers / 240 B stack at the default ISA and identically at 7.8, 7.5 and 7.0.
 """
-function target_resources(kernel, args...; maxregs = nothing)
-    ptxas = find_ptxas()
-    ptxas === nothing && return nothing
+function resolve_ptx(ptxas, kernel, tt)
+    path = emit_ptx(kernel, tt)
+    ok, log = assemble(ptxas, path)
+    ok && return path, log
 
-    gargs = map(CUDA.cudaconvert, args)
-    tt = Tuple{map(Core.Typeof, gargs)...}
-
-    ok, log = emit_and_assemble(ptxas, kernel, tt; maxregs)
-
-    # CUDA.jl stamps the PTX ISA from the *runtime*, which can outrun the `ptxas`
-    # binary actually available: a CI agent with a 12.8 runtime reported
-    #   "Unsupported .version 8.7; current version is '8.2'"
-    # so re-emit lower. Naming the exact ISA ptxas reported is not enough --
-    # `code_ptx` rejects any ISA newer than *LLVM* supports ("Requested PTX ISA
-    # 8.2 is not supported by LLVM 16.0.6"), and neither ceiling is queryable
-    # without reaching into CUDA.jl internals. So walk candidates downwards and
-    # take the first that clears both.
-    #
-    # This does not change the generated code. CUDA.jl always has LLVM emit at
-    # LLVM's own highest ISA (`llvm_ptx = maximum(llvm_ptxs)`, independent of the
-    # request) and only rewrites the `.version` directive afterwards. Lowering
-    # the request therefore changes one line of text, not a single instruction --
-    # and `-arch` still pins the architecture, so these stay sm_80 numbers.
-    # Measured on an A100 with CUDA 13.0: the 1M Float64 kernel gives 158
-    # registers / 240 B stack at the default ISA and identically at 7.8, 7.5 and
-    # 7.0. (On Julia 1.11's LLVM 16.0.6 the ceiling is 7.8, so that is where CI
-    # lands.)
-    if !ok
-        m = match(r"current version is '(\d+\.\d+)'", log)
-        ceiling = m === nothing ? nothing : VersionNumber(m.captures[1])
-        # NB: not named `isa` -- that is an infix operator, so `@info "..." isa`
-        # followed by `break` parses as the single expression
-        # `@info "..." isa break`, swallowing the loop exit into the log call.
-        for isa_ver in PTX_ISA_FALLBACKS
-            ceiling !== nothing && isa_ver > ceiling && continue
-            try
-                ok, log =
-                    emit_and_assemble(ptxas, kernel, tt; ptx = isa_ver, maxregs)
-            catch err
-                # LLVM cannot target this ISA; try an older one.
-                @debug "PTX ISA $isa_ver unavailable" err
-                continue
-            end
-            if ok
-                @info "Re-emitted at a lower PTX ISA (codegen unchanged)" isa_ver
-                break
-            end
+    m = match(r"current version is '(\d+\.\d+)'", log)
+    ceiling = m === nothing ? nothing : VersionNumber(m.captures[1])
+    # NB: not named `isa` -- that is an infix operator, so `@info "..." isa`
+    # followed by `break` parses as the single expression `@info "..." isa break`,
+    # swallowing the loop exit into the log call.
+    for isa_ver in PTX_ISA_FALLBACKS
+        ceiling !== nothing && isa_ver > ceiling && continue
+        local candidate
+        try
+            candidate = emit_ptx(kernel, tt; ptx = isa_ver)
+        catch err
+            # LLVM cannot target this ISA; try an older one.
+            @debug "PTX ISA $isa_ver unavailable" err
+            continue
+        end
+        ok, log = assemble(ptxas, candidate)
+        if ok
+            @info "Re-emitted at a lower PTX ISA (codegen unchanged)" isa_ver
+            return candidate, log
         end
     end
 
-    if !ok
-        @warn "ptxas failed; cannot measure $TARGET_ARCH resources" log
-        return nothing
-    end
+    @warn "ptxas failed; cannot measure $TARGET_ARCH resources" log
+    return nothing
+end
 
-    return (
-        registers = grab(r"Used (\d+) registers", log),
-        stack_frame = max(grab(r"(\d+) bytes stack frame", log), 0),
-        spill_stores = max(grab(r"(\d+) bytes spill stores", log), 0),
-        spill_loads = max(grab(r"(\d+) bytes spill loads", log), 0),
-    )
+parse_resources(log) = (
+    registers = grab(r"Used (\d+) registers", log),
+    stack_frame = max(grab(r"(\d+) bytes stack frame", log), 0),
+    spill_stores = max(grab(r"(\d+) bytes spill stores", log), 0),
+    spill_loads = max(grab(r"(\d+) bytes spill loads", log), 0),
+)
+
+"""
+    spill_onset(ptxas, ptx_file, start)
+
+The highest register budget at which `ptxas` still spills this kernel -- a direct
+measure of how much register pressure the function wants, and the property that
+makes the real kernel spill inside a ClimaCore broadcast.
+
+Scans downward rather than bisecting: spill is not monotonic in the budget. The
+2M Float64 kernel spills 4 B at 112, nothing at 110 and 108, then 4 B again at
+106, so a bisection would land on whichever side it happened to probe.
+"""
+function spill_onset(ptxas, ptx_file, start)
+    for b in start:-2:32
+        ok, log = assemble(ptxas, ptx_file; maxregs = b)
+        ok || continue
+        max(grab(r"(\d+) bytes spill stores", log), 0) > 0 && return b
+    end
+    return nothing
 end
 
 function check(name, key, kernel, args...)
     baseline_version, baselines, exact = baseline_set()
     ref = baselines[key]
 
-    res = target_resources(kernel, args...)
-    if res === nothing
+    ptxas = find_ptxas()
+    if ptxas === nothing
         # Deliberately a failure, not a skip. An earlier version warned and
         # returned, so a broken toolchain produced "0 tests, all passed" -- a
         # gate that silently protects nothing is worse than one that complains.
-        @error "Could not measure $TARGET_ARCH resources for $name; see ptxas log above"
+        @error "No ptxas found; cannot measure $TARGET_ARCH resources for $name"
         TT.@test false
         return nothing
     end
 
-    # The tripwire. Unconstrained, none of these kernels spill, so asserting
-    # zero spill there protects nothing. Re-compiling under a register budget
-    # just above each kernel's measured spill onset makes the assertion live: a
-    # change that raises register appetite spills here long before it moves the
-    # unconstrained register count enough to trip REG_SLACK.
-    budgeted = target_resources(kernel, args...; maxregs = ref.budget)
-    if budgeted === nothing
-        @error "Could not measure $TARGET_ARCH resources for $name at budget $(ref.budget)"
+    gargs = map(CUDA.cudaconvert, args)
+    tt = Tuple{map(Core.Typeof, gargs)...}
+    resolved = resolve_ptx(ptxas, kernel, tt)
+    if resolved === nothing
+        @error "Could not measure $TARGET_ARCH resources for $name; see ptxas log above"
         TT.@test false
         return nothing
     end
+    ptx_file, log = resolved
+    res = parse_resources(log)
+
+    # Start the scan above the unconstrained allocation: the onset can sit ABOVE
+    # it, because under -maxrregcount ptxas changes strategy and can spill at a
+    # budget it would not otherwise need (1M Float64: 158 unconstrained, onset 160).
+    onset = spill_onset(ptxas, ptx_file, res.registers + 40)
 
     @info """
     $name  [compiled for $TARGET_ARCH, baselines from CUDA $baseline_version]
       registers   = $(res.registers) / $MAX_REGS   (baseline $(ref.registers))
       stack frame = $(res.stack_frame) bytes       (baseline $(ref.stack_frame))
       spill       = $(res.spill_stores) st / $(res.spill_loads) ld bytes
-      at budget $(ref.budget): $(budgeted.registers) regs, spill $(budgeted.spill_stores) st / $(budgeted.spill_loads) ld bytes
+      spill onset = $(something(onset, "none")) registers   (baseline $(something(ref.onset, "unrecorded")))
     """
 
     # An unmatched toolkit is noted but does NOT disable the gate. Skipping here
@@ -353,10 +379,26 @@ function check(name, key, kernel, args...)
 
     TT.@test res.registers <= ref.registers + REG_SLACK
     TT.@test res.stack_frame <= ref.stack_frame + STACK_SLACK
-    # Unconstrained these never spill, so this stays as a floor...
+    # Unconstrained these never spill, so this is a floor, not a live assertion.
     TT.@test res.spill_stores <= ref.spill + SPILL_TOLERANCE
-    # ...and this is the assertion with teeth.
-    TT.@test budgeted.spill_stores == 0
+
+    # The live one: how hard the kernel has to be squeezed before it spills.
+    if ref.onset === nothing
+        # Gating an onset against another toolkit's number is precisely the bug
+        # this replaced -- the untouched 2M kernels spilled at CUDA 13.0's budgets
+        # under 12.8 purely because ptxas allocates differently. Report instead of
+        # asserting against a baseline we do not have; everything else still gates.
+        @warn """
+        No spill-onset baseline for CUDA $(CUDA.runtime_version()). Measured
+        $(something(onset, "none")) for this kernel -- record `onset = $(something(onset, "nothing"))`
+        in its TOOLKIT_BASELINES entry to gate it.
+        """ kernel = name
+    elseif onset === nothing
+        # Never spilled in the window: strictly better than baseline.
+        @info "No spill found down to a 32-register budget" kernel = name
+    else
+        TT.@test onset <= ref.onset + ONSET_SLACK
+    end
     return nothing
 end
 
