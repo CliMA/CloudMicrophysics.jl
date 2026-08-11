@@ -154,17 +154,16 @@ Compile `kernel(args...)` for `TARGET_ARCH` and return the resources ptxas
 assigned. The kernel is never launched, and never loaded onto the local device --
 which is what allows a foreign architecture to be targeted.
 """
-function target_resources(kernel, args...)
-    ptxas = find_ptxas()
-    ptxas === nothing && return nothing
+"""
+    emit_and_assemble(ptxas, kernel, tt; ptx)
 
-    gargs = map(CUDA.cudaconvert, args)
-    tt = Tuple{map(Core.Typeof, gargs)...}
-
+Emit PTX for `TARGET_CAP` and run `ptxas`. Returns `(ok, log)`.
+"""
+function emit_and_assemble(ptxas, kernel, tt; ptx = nothing)
     io = IOBuffer()
+    kwargs = (; cap = TARGET_CAP, kernel = true, dump_module = true)
     # `dump_module = true` is load-bearing; see the header note.
-    CUDA.code_ptx(io, kernel, tt; cap = TARGET_CAP, kernel = true,
-        dump_module = true)
+    CUDA.code_ptx(io, kernel, tt; (ptx === nothing ? kwargs : (; kwargs..., ptx))...)
     ptx_file = tempname() * ".ptx"
     write(ptx_file, String(take!(io)))
 
@@ -172,8 +171,35 @@ function target_resources(kernel, args...)
     err = IOBuffer()
     cmd = `$ptxas -arch=$TARGET_ARCH -v -o $(tempname()).cubin $ptx_file`
     proc = run(pipeline(ignorestatus(cmd); stdout = out, stderr = err))
-    log = String(take!(err)) * String(take!(out))
-    if !success(proc)
+    return success(proc), String(take!(err)) * String(take!(out))
+end
+
+function target_resources(kernel, args...)
+    ptxas = find_ptxas()
+    ptxas === nothing && return nothing
+
+    gargs = map(CUDA.cudaconvert, args)
+    tt = Tuple{map(Core.Typeof, gargs)...}
+
+    ok, log = emit_and_assemble(ptxas, kernel, tt)
+
+    # CUDA.jl selects the PTX ISA from the *driver*, which can outrun the
+    # `ptxas` binary actually available: a CI agent reported
+    #   "Unsupported .version 8.7; current version is '8.2'"
+    # with a 12.8 runtime. Rather than hunt for a newer assembler (there may not
+    # be one) or hardcode a version table, take ptxas at its word and re-emit at
+    # the ISA it reports supporting. Lowering the ISA does not change the target
+    # architecture, so the resulting numbers remain sm_80 numbers.
+    if !ok
+        m = match(r"current version is '(\d+\.\d+)'", log)
+        if m !== nothing
+            supported = VersionNumber(m.captures[1])
+            @info "Re-emitting PTX at the ISA this ptxas supports" supported
+            ok, log = emit_and_assemble(ptxas, kernel, tt; ptx = supported)
+        end
+    end
+
+    if !ok
         @warn "ptxas failed; cannot measure $TARGET_ARCH resources" log
         return nothing
     end
