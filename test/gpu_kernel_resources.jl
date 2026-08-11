@@ -212,17 +212,20 @@ function target_resources(kernel, args...)
     if !ok
         m = match(r"current version is '(\d+\.\d+)'", log)
         ceiling = m === nothing ? nothing : VersionNumber(m.captures[1])
-        for isa in PTX_ISA_FALLBACKS
-            ceiling !== nothing && isa > ceiling && continue
+        # NB: not named `isa` -- that is an infix operator, so `@info "..." isa`
+        # followed by `break` parses as the single expression
+        # `@info "..." isa break`, swallowing the loop exit into the log call.
+        for isa_ver in PTX_ISA_FALLBACKS
+            ceiling !== nothing && isa_ver > ceiling && continue
             try
-                ok, log = emit_and_assemble(ptxas, kernel, tt; ptx = isa)
+                ok, log = emit_and_assemble(ptxas, kernel, tt; ptx = isa_ver)
             catch err
                 # LLVM cannot target this ISA; try an older one.
-                @debug "PTX ISA $isa unavailable" err
+                @debug "PTX ISA $isa_ver unavailable" err
                 continue
             end
             if ok
-                @info "Re-emitted at a lower PTX ISA (codegen unchanged)" isa
+                @info "Re-emitted at a lower PTX ISA (codegen unchanged)" isa_ver
                 break
             end
         end
