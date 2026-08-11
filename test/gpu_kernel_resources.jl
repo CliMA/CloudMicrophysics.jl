@@ -50,12 +50,28 @@ memory traffic before being fixed. A standalone one-thread-per-point kernel does
 not reproduce that pressure.
 
 So each kernel is also assembled repeatedly under `ptxas -maxrregcount=N`, walking
-N down until it spills. That onset is a direct measure of how much register
-pressure the function itself wants -- the property that pushed the real kernel
-over -- and it moves long before the unconstrained register count does. It is a
-proxy for the broadcast context, not a reproduction of it; reproducing it would
-need ClimaCore in this package's test environment, and CloudMicrophysics sits
-upstream of ClimaAtmos.
+N down until it spills. That budget is recorded as the kernel's `onset`.
+
+READ THE ONSET CAREFULLY -- it is NOT "the register count below which this kernel
+would spill", and it is NOT comparable to the unconstrained register count. It is
+the highest budget at which ptxas's *constrained* allocator spills, and that
+allocator is a different algorithm, not a truncation of the unconstrained one. On
+an A100 with CUDA 13.0 the 1M Float64 kernel shows this plainly:
+
+    unconstrained        158 registers, 0 spill
+    -maxrregcount=162    159 registers, 0 spill     <- uses MORE than unconstrained
+    -maxrregcount=160    160 registers, 12 B spill  <- uses more AND spills
+    -maxrregcount=158    158 registers, 12 B spill
+
+which is why an onset can legitimately exceed the unconstrained count (the 2M
+kernels do exactly that on CUDA 12.8: 122 registers, onset 128). Nothing is wrong
+when that happens.
+
+What the onset is good for is comparison against ITSELF on the same toolkit: it
+moves when the function's register pressure changes, and it moves long before the
+unconstrained count does. Treat it as a regression signal, not as a physical
+register requirement. It reproduced exactly across separate runs on 13.0
+(160/112/67/62), which is what makes it usable as a gate.
 
 ## Baselines
 
@@ -100,10 +116,11 @@ const MAX_REGS = 255
 #   13.0  clima's A100s, where the science runs happen
 #   12.8  the central cluster's CI agents (P100 hosts; the target is still sm_80)
 #
-# `onset` is the highest register budget at which ptxas still spills the kernel:
-# a direct measure of how much register pressure the function wants. Gating on it
-# is what makes spilling a live signal -- unconstrained, none of these kernels
-# spill at all, so `spill == 0` alone asserts nothing.
+# `onset` is the highest -maxrregcount budget at which ptxas still spills the
+# kernel. Gating on it is what makes spilling a live signal -- unconstrained, none
+# of these kernels spill at all, so `spill == 0` alone asserts nothing. See the
+# header: it is NOT comparable to the unconstrained register count, and may
+# exceed it.
 #
 # It is recorded PER TOOLKIT, and must be: the untouched 2M kernels spill under
 # 12.8 at budgets where 13.0 does not, purely because ptxas allocates differently
@@ -120,12 +137,12 @@ const TOOLKIT_BASELINES = Dict(
         ("1M", Float32) => (registers = 71, stack_frame = 136, spill = 0, onset = 67),
         ("2M", Float32) => (registers = 74, stack_frame = 384, spill = 0, onset = 62),
     ),
-    # Registers and stack from a CI run; onsets not yet measured on this toolkit.
+    # Measured on the central cluster's CI agents.
     v"12.8" => Dict(
-        ("1M", Float64) => (registers = 156, stack_frame = 240, spill = 0, onset = nothing),
-        ("2M", Float64) => (registers = 122, stack_frame = 744, spill = 0, onset = nothing),
-        ("1M", Float32) => (registers = 62, stack_frame = 136, spill = 0, onset = nothing),
-        ("2M", Float32) => (registers = 80, stack_frame = 384, spill = 0, onset = nothing),
+        ("1M", Float64) => (registers = 156, stack_frame = 240, spill = 0, onset = 154),
+        ("2M", Float64) => (registers = 122, stack_frame = 744, spill = 0, onset = 128),
+        ("1M", Float32) => (registers = 62, stack_frame = 136, spill = 0, onset = 58),
+        ("2M", Float32) => (registers = 80, stack_frame = 384, spill = 0, onset = 70),
     ),
 )
 
@@ -363,7 +380,7 @@ function check(name, key, kernel, args...)
       registers   = $(res.registers) / $MAX_REGS   (baseline $(ref.registers))
       stack frame = $(res.stack_frame) bytes       (baseline $(ref.stack_frame))
       spill       = $(res.spill_stores) st / $(res.spill_loads) ld bytes
-      spill onset = $(something(onset, "none")) registers   (baseline $(something(ref.onset, "unrecorded")))
+      spill onset = $(something(onset, "none")) (-maxrregcount budget, not a register count)   (baseline $(something(ref.onset, "unrecorded")))
     """
 
     # An unmatched toolkit is noted but does NOT disable the gate. Skipping here
