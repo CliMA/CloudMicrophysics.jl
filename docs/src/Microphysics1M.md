@@ -26,7 +26,7 @@ The coefficients are defined in the
   [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package
   and are shown in the table below.
 For rain and ice they correspond to spherical liquid water drops
-  and ice particles, respectively.
+  and spherical ice particles, respectively.
 There is no assumed particle shape for snow, and the relationships are
   empirical.
 
