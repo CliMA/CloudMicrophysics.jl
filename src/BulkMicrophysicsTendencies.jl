@@ -635,14 +635,15 @@ end
 # --- 0-Moment Microphysics ---
 """
     bulk_microphysics_tendencies(::Microphysics0Moment, mp, tps, T, q_lcl, q_icl)
-    bulk_microphysics_tendencies(::Microphysics0Moment, mp, tps, T, q_lcl, q_icl, q_vap_sat)
+    bulk_microphysics_tendencies(::Microphysics0Moment, mp, tps, T, q_lcl, q_icl, q_tot, q_vap_sat)
 
 Compute 0-moment microphysics tendencies in one fused call.
 
 Returns the total water tendency `dq_tot_dt` (a scalar, in kg/kg/s) from precipitation removal.
 
 The first form uses the fixed condensate threshold `qc_0`;
-the second form uses the supersaturation threshold `S_0 * q_vap_sat`.
+the second form removes total water in excess of the relative humidity
+threshold `(1 + S_0) * q_vap_sat` (and ignores `q_lcl` and `q_icl`).
 
 # Arguments
 - `mp`: Microphysics0MParams (contains τ_precip, qc_0, S_0)
@@ -650,6 +651,7 @@ the second form uses the supersaturation threshold `S_0 * q_vap_sat`.
 - `T`: Temperature [K]
 - `q_lcl`: Cloud liquid specific content [kg/kg]
 - `q_icl`: Cloud ice specific content [kg/kg]
+- `q_tot`: (second method only) Total water specific humidity [kg/kg]
 - `q_vap_sat`: (second method only) Saturation specific humidity [kg/kg]
 
 # Notes
@@ -671,11 +673,13 @@ end
     T,
     q_lcl,
     q_icl,
+    q_tot,
     q_vap_sat,
 )
     q_lcl = UT.clamp_to_nonneg(q_lcl)
     q_icl = UT.clamp_to_nonneg(q_icl)
-    dq_tot_dt = CM0.remove_precipitation(mp.precip, q_lcl, q_icl, q_vap_sat)
+    dq_tot_dt =
+        CM0.remove_precipitation(mp.precip, q_lcl, q_icl, q_tot, q_vap_sat)
     return dq_tot_dt
 end
 
