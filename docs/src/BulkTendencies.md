@@ -95,7 +95,7 @@ The system has a fixed sparse structure:
 
 ```math
 \begin{bmatrix}
-a_{11} & 0      & 0      & 0 \\
+a_{11} & a_{12} & 0      & 0 \\
 0      & a_{22} & 0      & 0 \\
 a_{31} & 0      & a_{33} & a_{34} \\
 a_{41} & a_{42} & a_{43} & a_{44}
@@ -104,7 +104,8 @@ a_{41} & a_{42} & a_{43} & a_{44}
 
 This allows an efficient solve:
 
--  $q_{\mathrm{lcl}}$ and $q_{\mathrm{icl}}$ are solved independently (scalar solves)
+-  $q_{\mathrm{lcl}}$ and $q_{\mathrm{icl}}$ are solved as an upper-triangular
+   **2×2 system** (coupled through cloud ice melt via $a_{12}$)
 -  $q_{\mathrm{rai}}$ and $q_{\mathrm{sno}}$ are solved as a **2×2 system**
 
 This avoids forming or inverting a full dense matrix and is efficient on both CPU and GPU.
@@ -137,6 +138,9 @@ Within each timestep, we assume that **thermodynamic variables such as density a
 \frac{L_s}{c_p} \left(\dot{q}_{\mathrm{icl}} + \dot{q}_{\mathrm{sno}}\right)
 ```
 
+Here ``L_v`` and ``L_s`` are the constant reference latent heats
+  (at the thermodynamic reference temperature) and ``c_p`` is the
+  dry-air specific heat capacity.
 This is consistent with the microphysics-only update and avoids coupling to a full thermodynamic solve.
 
 ---
@@ -162,7 +166,7 @@ The figure compares:
 -  $q_{\mathrm{tot}} = 13\,\mathrm{g/kg}$
 -  $q_{\mathrm{lcl}} = q_{\mathrm{rai}} = 1\,\mathrm{g/kg}$
 -  $q_{\mathrm{icl}} = q_{\mathrm{sno}} = 0.5\,\mathrm{g/kg}$
--  $T = 278\,\mathrm{K}$
+-  $T = 278.15\,\mathrm{K}$
 
 These conditions activate multiple processes simultaneously (liquid, ice, rain, and snow interactions) and are close to freezing, making the case strongly nonlinear.
 

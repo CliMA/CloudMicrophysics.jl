@@ -409,9 +409,9 @@ kg of air per second is
  - `ρ`: Air density [kg(air) m⁻³(air)].
 
 # Keyword arguments
- - `τ`: Relaxation timescale [s] (default `300`).
- - `inpc_log_shift`: Additive shift to `log(INPC)` Default `0`.
- - `n_active`: Depletion proxy [kg⁻¹(air)]
+ - `τ`: Relaxation timescale `[s]` (default `300`).
+ - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
+ - `n_active`: Depletion proxy [kg⁻¹(air)].
 
 # Returns
  - A `NamedTuple` `(; ∂ₜn_frz)` — the specific number freezing-rate cap
@@ -431,32 +431,27 @@ end
 
 """
     deposition_rate(
-        opt::CMP.Frostenberg2023, tps, T, ρ, q_vap, n_ice;
-        τ, inpc_log_shift, T_thresh, S_i_thresh, ρ_i, D_nuc,
+        opt::CMP.Frostenberg2023, tps, T, ρ, q_tot, q_liq, q_ice, n_ice;
+        m_nuc, T_thresh, S_i_thresh, τ_act, inpc_log_shift,
     )
 
 Compute the Frostenberg 2023 deposition nucleation rate
 
 The rate is the Frostenberg 2023 INP concentration (treated as a budget)
-relaxed toward depletion at `n_ice` over timescale `τ`:
+relaxed toward depletion at `n_ice` over timescale `τ_act`:
 
 ```
-∂ₜn_frz = max(0, INPC(T)/ρ - n_ice) / τ
+∂ₜn_frz = max(0, INPC(T)/ρ - n_ice) / τ_act
 ```
 
-Each newly nucleated crystal is assigned a starter mass
-
-```
-m_starter = (π/6) · ρ_i · D_nuc³
-```
-
-(default ≈ 4.8e-13 kg for a 10 μm solid-ice crystal). The mass tendency is
-the implied mass injection, capped by half the local vapor excess over
-ice saturation per relaxation window:
+Each newly nucleated crystal is assigned the starter mass `m_nuc`
+(e.g. `(π/6) · ρ_i · D_nuc³ ≈ 4.8e-13` kg for a 10 μm solid-ice crystal).
+The mass tendency is the implied mass injection, capped by half the local
+vapor excess over ice saturation per relaxation window:
 
 ```
 q_excess = max(0, q_vap - q_sat_ice)
-∂ₜq_frz  = min(m_starter · ∂ₜn_frz,  ½ q_excess / τ)
+∂ₜq_frz  = min(m_nuc · ∂ₜn_frz,  ½ q_excess / τ_act)
 ```
 
 Conditions for activation:
@@ -471,17 +466,18 @@ Conditions for activation:
  - `tps`: Thermodynamics parameters (used for the ice-saturation curve).
  - `T`: Air temperature [K].
  - `ρ`: Air density [kg(air) m⁻³(air)].
- - `q_vap`: Water-vapor specific content [kg(vap) kg⁻¹(air)].
- - `n_ice`: Specific ice-crystal number concentration [kg⁻¹(air)] (proxy
+ - `q_tot`: Total water specific content [kg kg⁻¹(air)].
+ - `q_liq`: Liquid water specific content [kg kg⁻¹(air)].
+ - `q_ice`: Ice specific content [kg kg⁻¹(air)].
+ - `n_ice`: Specific ice-crystal number concentration `[kg⁻¹(air)]` (proxy
    for already-activated INPs).
 
 # Keyword arguments
- - `τ`: Relaxation timescale [s] (default `300`).
- - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
- - `T_thresh`: Activation temperature threshold [K] (default `opt.T_freeze - 15`).
+ - `m_nuc`: Starter mass assigned to each newly nucleated crystal [kg].
+ - `T_thresh`: Activation temperature threshold `[K]` (default `opt.T_freeze - 15`).
  - `S_i_thresh`: Activation ice-supersaturation threshold (default `0.05`).
- - `ρ_i`: Solid-ice density used for the starter mass [kg/m³] (default `916.7`).
- - `D_nuc`: Nascent crystal diameter [m] (default `10e-6`, the small-D tail of the P3 distribution).
+ - `τ_act`: Relaxation timescale `[s]` (default `300`).
+ - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
 
 # Returns
  - A `NamedTuple` `(; ∂ₜn_frz, ∂ₜq_frz)` with the specific number rate

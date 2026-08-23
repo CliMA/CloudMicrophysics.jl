@@ -223,7 +223,7 @@ clean air below it and the F23 channel artificially shuts off.
 $(DocStringExtensions.FIELDS)
 """
 struct NIceProxyDepletion{FT}
-    "F23 activation relaxation timescale [s] (default `300`)"
+    "F23 activation relaxation timescale `[s]` (default `300`)"
     τ_act::FT
 end
 NIceProxyDepletion(; τ_act = 300) = NIceProxyDepletion(τ_act)

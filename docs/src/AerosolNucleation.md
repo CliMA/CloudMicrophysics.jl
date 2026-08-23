@@ -12,13 +12,17 @@ The `Nucleation.jl` module contains parameterizations of different nucleation pa
 - pure organic nucleation, from [Kirkby2016](@cite),
 - organic with sulfuric acid nucleation, from [Riccobono2014](@cite).
 The parameterizations are based on the [CLOUD](https://en.wikipedia.org/wiki/CLOUD_experiment)
-  experiments at CERN and return nucleation rates for 1.7nm particles
+  experiments at CERN and return nucleation rates for 1.7 nm particles
 
 !!! note
      In the below documentation we show the rates as described in the original papers
      with concentrations in units of ``cm^{-3}`` (or additionally normalized by reference concentrations)
      and the nucleation rates in units of ``cm^{-3} s^{-1}``.
-     Our actual implementation uses only base SI units.
+     Our implementation accepts most inputs in base SI units and converts
+     them internally to the units of the empirical fits.
+     Exceptions are the ion concentration (assumed to be in ``cm^{-3}``)
+     and the particle diameters in the apparent nucleation rate
+     (assumed to be in ``nm``).
 
 !!! note
      One of the highlights of CLOUD measurements is the incorporation of ion-induced nucleation.
@@ -106,9 +110,9 @@ where:
 
 The ``k_{MT,O_3}`` ``k_{MT,OH}`` are functions of temperature T given by:
 ```math
-k_{MT,O_3} = 8.05 \; 10^{-16} \; exp(444/T)
+k_{MT,O_3} = 8.05 \; 10^{-16} \; exp(-640/T)
 \\
-k_{MT,OH} = 1.2 \; 10^{-11} \; exp(444/T)
+k_{MT,OH} = 1.2 \; 10^{-11} \; exp(440/T)
 ```
 
 ### Example plots
@@ -165,7 +169,7 @@ The parameter ``\gamma`` is parameterized as:
 \gamma = \frac{1}{m + 1} \; \left[\left(\frac{d_x}{d_1}\right)^{(m + 1)} - 1\right]
 ```
 where:
- - ``m`` can be prescribed as a constant value between -1.5 and -1.9 or computed as
+ - ``m`` is computed as
 ```math
 m = \frac{log(CG(d_x) / CG(d_1))}{(log(d_x / d_1)}
 ```

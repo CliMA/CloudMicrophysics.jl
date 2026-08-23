@@ -59,6 +59,10 @@ function h2so4_nucleation_rate(
     # Change units from 1/m³ to 1/cm³
     h2so4_conc *= FT(1e-6)
     nh3_conc *= FT(1e-6)
+    # TODO: `negative_ion_conc` enters the fit unconverted, so the caller
+    # must pass it in 1/cm³ while the other concentrations are in 1/m³
+    # (the fitted coefficients assume [n⁻] in 1/cm³). Either convert it
+    # here like the others or document the mixed input units in the API.
 
     # Reference concentration for h2so4 and nh3 (Units: 1e6/cm³)
     ref_conc = FT(1e6)
@@ -198,7 +202,12 @@ function organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
     # Convert bioOxOrg and k_H2SO4org from 1/m³ to 1/cm³
     k_H2SO4org = FT(1e-6) * params.k_H2SO4org
     bioOxOrg *= FT(1e-6)
-    # Convert from 1/m³ to 10⁶/cm³
+    # TODO: `h2so4_conc` enters the fit unconverted (1/m³) while
+    # `bioOxOrg` and `k_H2SO4org` are converted to the 1/cm³ units of the
+    # Riccobono et al. (2014) fit, so the rate mixes unit systems. Check
+    # the intended units of `h2so4_conc` and of `k_H2SO4org` in
+    # ClimaParams, and make the conversions consistent (the disabled line
+    # below is the missing conversion if 1/cm³ is intended).
     # h2so4_conc *= 1e-6
     rate = FT(0.5) * k_H2SO4org * h2so4_conc^2 * bioOxOrg
     # Convert from 1/cm³/s to 1/m³/s

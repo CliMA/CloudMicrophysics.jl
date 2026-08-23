@@ -180,9 +180,11 @@ Parameterized processes include:
 - accretion,
 - evaporation of rain water,
 - sublimation, vapor deposition and melting of snow,
+- melting of cloud ice,
 - sedimentation of rain and snow with mass weighted average terminal velocity
-    (cloud water and cloud ice are part of the working fluid and
-    do not sediment).
+    (within the 1-moment scheme, cloud water and cloud ice are part of the
+    working fluid and do not sediment; see the non-equilibrium cloud
+    formation scheme for cloud condensate sedimentation).
 
 Parameters used in the parameterization are defined in
   [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package.
@@ -194,13 +196,14 @@ They consist of:
 |``\tau_\text{acnv_snow}``   | cloud ice to snow autoconversion timescale                  | ``s``                    | ``10^2``               |                                  |
 |``q_\text{lcl_threshold}``  | cloud liquid to rain water autoconversion threshold         | -                        | ``5 \cdot 10^{-4}``    | eq (5a) [Grabowski1996](@cite)   |
 |``q_\text{icl_threshold}``  | cloud ice snow autoconversion threshold                     | -                        | ``1 \cdot 10^{-6}``    |                                  |
+|``k``                       | threshold smoothing steepness for autoconversion            | -                        | ``10``                 |                                  |
 |``r_{is}``                  | threshold particle radius between ice and snow              | ``m``                    | ``62.5 \cdot 10^{-6}`` | abstract [Harrington1995](@cite) |
 |``E_{lr}``                  | collision efficiency between rain drops and cloud droplets  | -                        | ``0.8``                | eq (16a) [Grabowski1998](@cite)  |
 |``E_{ls}``                  | collision efficiency between snow and cloud droplets        | -                        | ``0.1``                | Appendix B [Rutledge1983](@cite) |
 |``E_{ir}``                  | collision efficiency between rain drops and cloud ice       | -                        | ``1``                  | Appendix B [Rutledge1984](@cite)    |
 |``E_{is}``                  | collision efficiency between snow and cloud ice             | -                        | ``0.1``                | bottom page 3649 [Morrison2008](@cite) |
 |``E_{rs}``                  | collision efficiency between rain drops and snow            | -                        | ``1``                  | top page 3650 [Morrison2008](@cite)    |
-|``a_\text{vent}^{rai}, b_\text{vent}^{rai}``  | rain drop ventilation factor coefficients | -                        | ``1.5 \;``,``\; 0.53`` | chosen such that at ``q_{tot}=15 g/kg`` and ``T=288K`` the evap. rate is close to empirical evap. rate in [Grabowski1996](@cite) |
+|``a_\text{vent}^{rai}, b_\text{vent}^{rai}``  | rain drop ventilation factor coefficients | -                        | ``1.5 \;``,``\; 0.53`` | chosen such that at ``q_{tot}=15 \, g/kg`` and ``T=288 \, K`` the evap. rate is close to empirical evap. rate in [Grabowski1996](@cite) |
 |``a_\text{vent}^{sno}, b_\text{vent}^{sno}``  | snow ventilation factor coefficients      | -                        | ``0.65 \;``,``\; 0.44``| eq (A19) [Kaul2015](@cite)       |
 |``K_\text{thermo}``         | thermal conductivity of air                                 | ``\frac{J}{m \; s \; K}``| ``2.4 \cdot 10^{-2}``  |                                  |
 |``\nu_\text{air}``          | kinematic viscosity of air                                  | ``\frac{m^2}{s}``        | ``1.6 \cdot 10^{-5}``  |                                  |
@@ -304,11 +307,15 @@ For snow, for simplicity, we first compute the
 Rain autoconversion defines the rate of conversion form cloud liquid water
   to rain water due to collisions between cloud droplets.
 It is parameterized following
-  [Kessler1995](@cite):
+  [Kessler1995](@cite), with the hard threshold replaced by its smooth
+  logistic-integral approximation ``f`` described in
+  [Smooth transition at thresholds](@ref):
 
 ```math
 \begin{equation}
   \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{acnv} =
+    \frac{f(q_\text{lcl}, q_\text{lcl_threshold}, k)}{\tau_\text{acnv_rain}}
+    \approx
     \frac{max(0, q_\text{lcl} - q_\text{lcl_threshold})}{\tau_\text{acnv_rain}}
 \end{equation}
 ```
@@ -317,14 +324,22 @@ where:
 
 - ``q_\text{lcl}`` - cloud liquid water specific content,
 - ``\tau_\text{acnv_rain}`` - timescale,
-- ``q_\text{lcl_threshold}`` - autoconversion threshold.
+- ``q_\text{lcl_threshold}`` - autoconversion threshold,
+- ``k`` - threshold smoothing steepness.
+
+An alternative rain autoconversion option with a prescribed cloud droplet
+  number concentration ``N_c`` is also available
+  (`PrescribedNd`, following Azimi et al. (2023)):
+```math
+\begin{equation}
+  \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{acnv} =
+    \frac{max(0, q_\text{lcl})}{\tau_\text{acnv_rain} \, (N_c / 10^8)^{\alpha}}
+\end{equation}
+```
 
 !!! note
     This is the simplest possible autoconversion parameterization.
-    It would be great to implement others and test the impact on precipitation.
-    See for example
-    [Wood2005](@cite)
-    Table 1 for other simple choices.
+    See for example [Wood2005](@cite) Table 1 for other simple choices.
 
 ## Snow autoconversion
 
@@ -404,14 +419,22 @@ Finally the snow autoconversion rate is computed as
     For functions proposed for different crystal habitats see
     [Harrington1995](@cite) Appendix B.
 
+The deposition-driven autoconversion rate is applied only when cloud ice
+  is present, the air is supersaturated over ice (``S > 1``), and the
+  temperature is below freezing; otherwise the rate is zero.
+
 We also have a simplified version of snow autoconversion rate,
   to be used in modeling configurations that
   don't allow supersaturation to be present in the computational domain.
-It is formulated similarly to the rain autoconversion:
+It is formulated similarly to the rain autoconversion,
+  again using the smooth logistic-integral approximation ``f`` of the
+  hard threshold (see [Smooth transition at thresholds](@ref)):
 
 ```math
 \begin{equation}
   \left. \frac{d \, q_{sno}}{dt} \right|_\text{acnv} =
+    \frac{f(q_\text{icl}, q_\text{icl_threshold}, k)}{\tau_\text{acnv_snow}}
+    \approx
     \frac{max(0, q_{icl} - q_\text{icl_threshold})}{\tau_\text{acnv_snow}}
 \end{equation}
 ```
@@ -420,7 +443,8 @@ where:
 
 - ``q_{icl}`` - cloud ice specific content,
 - ``\tau_\text{acnv_snow}`` - timescale,
-- ``q_\text{icl_threshold}`` - autoconversion threshold.
+- ``q_\text{icl_threshold}`` - autoconversion threshold,
+- ``k`` - threshold smoothing steepness.
 
 ## Accretion
 
@@ -574,7 +598,7 @@ The eq.(\ref{eq:accr_sr1}) can then be integrated as:
 \left. \frac{d \, q_i}{dt} \right|_{accr} & =
     \frac{1}{\rho} \, \pi \, n_0^{i} \, n_0^{j} \,
     m_0^j \, \chi_m^j \, \left(\frac{1}{r_0^j}\right)^{m_e^j + \Delta_m^j}
-    \, E_{ij} \left| v_{ti} - v_{tj} \right|
+    \, E_{ij} \Delta v_{eff}
     \int_0^\infty \int_0^\infty
     (r_i + r_j)^2
     r_{j}^{m_e^j + \Delta_m^j} \,
@@ -637,6 +661,10 @@ where:
 - ``F(r)`` is the rain drop ventilation factor
    defined in (\ref{eq:ventil_factor})
 - saturation S is computed over water or ice
+
+For snow, both deposition (``S > 1``) and sublimation (``S < 1``) are
+  allowed by default; a `SublimationOnly` option is also available that
+  clamps the rate to be non-positive (sublimation only).
 
 The final integral is:
 
@@ -719,15 +747,13 @@ If ``T > T_\text{freeze}``, we integrate (\ref{eq:snow_melt}) from ``0`` to ``\i
 
 ## Derivative of the tendency
 
-For implicit time integration, we also provide the derivative of the tendency
-  with respect to precipitation species rain and snow.
-
-For snow deposition, sublimation and melting and rain evaporation,
-  the derivative ``\partial S / \partial q`` is approximated as ``S / q``,
-  where ``S`` is the tendency and ``q`` is the precipitation specific content
-  (``q_{rai}`` for rain, ``q_{sno}`` for snow).
-All the derivatives of collision processes such as autoconversion and accretion
-  are for now neglected.
+For implicit time integration, the process rates are linearized with respect
+  to the water categories using a donor-based approximation
+  ``\partial S / \partial q \approx S / q``,
+  where ``S`` is the tendency and ``q`` is the specific content of the
+  category the process depletes.
+This linearization is implemented in the bulk tendencies module;
+  see the Bulk tendencies documentation page for details.
 
 
 ## Example figures

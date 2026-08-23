@@ -58,7 +58,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct AreaPowerLaw{FT} <: ParametersType
-    "Scale [`μm^(2-σ)`]"
+    "Scale [`m^(2-σ)`]"
     γ::FT
     "Power [`-`]"
     σ::FT
@@ -194,8 +194,8 @@ The parameterization is given by:
 ```math
 ρ'_{rim} = a + b R_i + c R_i^2, \\quad 1 ≤ R_i ≤ 8,
 ```
-The range is extended to `R_i ≤ 12`, by linearly interpolating between 
-`ρ′_rim(8)` and `ρ_ice = 900 kg/m³`. The latter is the solid bulk ice density.
+The range is extended to `R_i ≤ 12`, by linearly interpolating between
+`ρ′_rim(8)` and `ρ_ice = 916.7 kg/m³`. The latter is the solid bulk ice density.
 
 For calculating Rᵢ, see [`compute_local_rime_density`](@ref CloudMicrophysics.P3Scheme.compute_local_rime_density).
 """

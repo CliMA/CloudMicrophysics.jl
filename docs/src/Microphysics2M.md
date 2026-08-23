@@ -1,7 +1,7 @@
 # Microphysics 2M
 
-The `Microphysics2M.jl` module provides 2-moment warm rain bulk parameterization of cloud microphysical processes including autoconversion, accretion, cloud droplets and raindrops self-collection, raindrops breakup, mean terminal velocity and rain evaporation. Autoconversion defines the rate of transfer from cloud liquid water to rain water due to collisions between cloud droplets. Accretion defines the rate of transfer from cloud liquid water to rain water due to collisions between cloud droplets and rain drops. Cloud self-collection defines the rate of change of cloud droplets number density due to collisions between cloud droplets, and similarly, rain self-collection defines the rate of change of raindrops number density due to collsions between raindrops. Rain drops breakup defines the rate of new raindrops production due to the disintegration of larger raindrops. Mean terminal velocity represents the mean fall speed of raindrops, and rain evaporation describes the rate of the transformation of rainwater to water vapor. Specifically, `Microphysics2M.jl` implements:
- - the double-moment [SeifertBeheng2006](@cite) parametrization, which includes autoconversion, accretion, cloud and rain self-collection rates, breakup, terminal velocity and evaporation;
+The `Microphysics2M.jl` module provides 2-moment warm rain bulk parameterization of cloud microphysical processes including autoconversion, accretion, cloud droplets and raindrops self-collection, raindrops breakup, mean terminal velocity and rain evaporation. Autoconversion defines the rate of transfer from cloud liquid water to rain water due to collisions between cloud droplets. Accretion defines the rate of transfer from cloud liquid water to rain water due to collisions between cloud droplets and rain drops. Cloud self-collection defines the rate of change of cloud droplets number density due to collisions between cloud droplets, and similarly, rain self-collection defines the rate of change of raindrops number density due to collisions between raindrops. Rain drops breakup defines the rate of new raindrops production due to the disintegration of larger raindrops. Mean terminal velocity represents the mean fall speed of raindrops, and rain evaporation describes the rate of the transformation of rainwater to water vapor. Specifically, `Microphysics2M.jl` implements:
+ - the double-moment [SeifertBeheng2006](@cite) parameterization, which includes autoconversion, accretion, cloud and rain self-collection rates, breakup, terminal velocity and evaporation;
  - and other double-moment autoconversion and accretions schemes from [Wood2005](@cite) based on the works of [KhairoutdinovKogan2000](@cite), [Beheng1994](@cite), [TripoliCotton1980](@cite) and [LiuDaum2004](@cite).
 
 The microphysics variables are expressed as specific contents [kg substance / kg air] and number densities [1 / m$^3$ air]:
@@ -13,14 +13,14 @@ The default values of free parameters are defined in
   [ClimaParams](https://github.com/CliMA/ClimaParams.jl)
   and can be overwritten using the `toml` files.
 
-## The Seifert and Beheng (2006) parametrization
+## The Seifert and Beheng (2006) parameterization
 
-The [SeifertBeheng2006](@cite) parametrization provides process rates for autoconversion, accretion, self-collection of cloud droplets and raindrops, raindrops breakup, raindrops mean fall speed, and rain evaporation. This parametrization is directly derived from the stochastic collection equation (SCE) with a piecewise polynomial collsion kernel.
+The [SeifertBeheng2006](@cite) parameterization provides process rates for autoconversion, accretion, self-collection of cloud droplets and raindrops, raindrops breakup, raindrops mean fall speed, and rain evaporation. This parameterization is directly derived from the stochastic collection equation (SCE) with a piecewise polynomial collision kernel.
 It assumes
 - a generalized gamma distribution for cloud droplets (as a function of mass)
 - an exponential distribution for raindrops (as a function of diameter)
 
-The piece-wise polynomial collection kernel, used for the derivation of the parametrization, is given by:
+The piece-wise polynomial collection kernel, used for the derivation of the parameterization, is given by:
 ```math
 \begin{align}
     K(x,y) =
@@ -39,9 +39,16 @@ where ``x`` [kg] and ``y`` [kg] are drop masses and ``x^*`` [kg] is the mass thr
 |``k_{cr}``     | ``5.25`` m$^3$ kg$^{-1}$ s$^{-1}$              |
 |``k_{rr}``     | ``7.12`` m$^3$ kg$^{-1}$ s$^{-1}$              |
 |``κ_{rr}``     | ``60.7`` kg$^{-1/3}$                           |
-|``x^*``        | ``6.54 × 10^{-11}`` kg                         |
+|``x^*``        | ``2.6 × 10^{-10}`` kg                          |
 
-Assuming spherical raindrops, the mass ``x`` is related to the drop radius ``r`` by ``x = \frac{4π}{3}ρ_w r^3``, then the default value of ``x^*=6.54\times 10^{-11}`` kg corresponds to the drop radius ``r^* ≈ 25`` μm.
+Assuming spherical raindrops, the mass ``x`` is related to the drop radius ``r`` by ``x = \frac{4π}{3}ρ_w r^3``, then the default value of ``x^*=2.6\times 10^{-10}`` kg corresponds to the drop radius ``r^* ≈ 40`` μm.
+
+!!! note
+    The original [SeifertBeheng2006](@cite) paper uses
+    ``x^* = 6.54\times 10^{-11}`` kg (``r^* ≈ 25`` μm).
+    This value, together with the corresponding size distribution limiters,
+    is provided in the `SB2006_limiters.toml` override file and is used
+    in the tests that compare against the paper.
 
 ### Assumed size distributions
 
@@ -138,7 +145,7 @@ where ``x(D) = k_m D^3 = \tfrac{π}{6} ρ_w D^3``, and ``ρ_w`` is the density o
 ```
 
 !!! note "Undeveloped cloud droplet spectrum"
-    In the derivation of the parametrization, it is assumed that the cloud droplet distribution
+    In the derivation of the parameterization, it is assumed that the cloud droplet distribution
     ``f_c(x)`` does not contain a significant number of droplets with masses almost equal
     or larger than ``x^*``. This is reffered to as the undeveloped cloud droplet spectrum assumption.
     Similarly the raindrop distribution does not contain a significant number of rain drops
@@ -317,7 +324,7 @@ The function ``ϕ_\text{acnv}(τ)`` is used to correct the autoconversion rate f
 \end{equation}
 ```
 where
-  - ``τ = 1 - \tfrac{q_{lcl}}{q_{lcl} + q_{rai}}`` is a dimensionless internal time scale with ``q_{rai}`` being the cloud liquid water specific content.
+  - ``τ = 1 - \tfrac{q_{lcl}}{q_{lcl} + q_{rai}}`` is a dimensionless internal time scale with ``q_{rai}`` being the rain water specific content.
 
 The default free parameter values are:
 
@@ -345,7 +352,7 @@ and the rate of change of liquid water specific content and cloud droplets numbe
 \end{align}
 ```
 !!! note
-    The Seifert and Beheng parametrization is formulated for the rate of change of liquid water content ``L = ρ q``. Here, we assume constant ``ρ`` and divide the rates by ``ρ`` to derive the equations for the rate of change of specific contents.
+    The Seifert and Beheng parameterization is formulated for the rate of change of liquid water content ``L = ρ q``. Here, we assume constant ``ρ`` and divide the rates by ``ρ`` to derive the equations for the rate of change of specific contents.
 
 ### Accretion
 An approximation for the accretion rate is obtained by directly evaluating the integral:
@@ -357,7 +364,7 @@ An approximation for the accretion rate is obtained by directly evaluating the i
 Similar to the autoconversion rate, the accretion rate is modified by a universal function. Thus, the rate of change of rain specific content by accretion becomes
 ```math
 \begin{align}
-  \left. \frac{∂ q_{rai}}{∂t} \right|_\text{accr} = & \frac{k_{cr}}{ρ} (q_{lcl} ρ) (q_{rai} ρ) ϕ_\text{accr}(τ),\nonumber\\
+  \left. \frac{∂ q_{rai}}{∂t} \right|_\text{accr} = & \frac{k_{cr}}{ρ} (q_{lcl} ρ) (q_{rai} ρ) ϕ_\text{accr}(τ) \left(\frac{ρ_0}{ρ}\right)^{1/2},\nonumber\\
    = & k_r ρ q_{lcl} q_{rai} ϕ_\text{accr}(τ) \left(\frac{ρ_0}{ρ}\right)^{1/2},
 \end{align}
 ```
@@ -368,7 +375,7 @@ where:
   - ``ρ_0`` is the air density at surface conditions,
   - ``k_{cr}`` is the cloud-rain collection kernel constant.
 
-The universal function ``ϕ_\text{accr}(τ)`` is used to correct the accretion rate for the assumption of collsion efficiency being one. Fitting to numerical solutions of the SCE obtains:
+The universal function ``ϕ_\text{accr}(τ)`` is used to correct the accretion rate for the assumption of collision efficiency being one. Fitting to numerical solutions of the SCE obtains:
 ```math
 \begin{equation}
   ϕ_\text{accr}(τ) = \left(\frac{τ}{τ+τ_0}\right)^c,
@@ -391,7 +398,7 @@ The rate of change of raindrops number density by accretion is zero, and the rat
   \left. \frac{∂N_{lcl}}{∂t} \right|_\text{accr} = \frac{ρ}{\overline{x}_c} \left. \frac{∂q_{lcl}}{∂t} \right|_\text{accr},
 \end{align}
 ```
-where ``\overline{x}_c = \tfrac{q_{lcl}}{N_{lcl}}`` is the cloud droplet mean mass.
+where ``\overline{x}_c = \tfrac{q_{lcl} ρ}{N_{lcl}}`` is the cloud droplet mean mass.
 
 ### Cloud droplet self-collection
 
@@ -400,9 +407,9 @@ An approximation for the self-collection rate of cloud droplets is obtained by t
 \begin{align}
    \left. \frac{∂N_{lcl}}{∂t} \right|_\text{sc}
      &= \left. \frac{∂N_{lcl}}{∂t} \right|_\text{acnv, sc}
-      - \left. \frac{∂q_{rai}}{∂t} \right|_\text{acnv}\nonumber\\
+      - \left. \frac{∂N_{lcl}}{∂t} \right|_\text{acnv}\nonumber\\
      &= - \frac{1}{2}∫_{x=0}^{∞}∫_{y=0}^{∞} f_c(x) f_c(y) K(x,y) dy dx
-        - \left. \frac{d \, q_{rai}}{dt} \right|_\text{acnv}.
+        - \left. \frac{∂N_{lcl}}{∂t} \right|_\text{acnv}.
 \end{align}
 ```
 Direct evaluation of the integral results in the following approximation of the rate of change of cloud droplets number density due to self-collection
@@ -450,7 +457,7 @@ The default constant value is:
 |``d``       | ``-5``                              |
 
 !!! note
-    In the paper ``d=-9`` which seems to be a mistake! Evaluating the integral for derving the self-collection rate results in ``d=-5``.
+    In the paper ``d=-9``, which appears to be a typographical error. Evaluating the integral for deriving the self-collection rate results in ``d=-5``.
 
 !!! note
     For the same numerical instabilities which in the paper are mentioned for terminal velocity and evaporation, here for rain self-collection, the value of ``\lambda_r`` is bounded within a range. In fact we first compute the bounded ``\lambda_r`` based on drop diameter by the algorithm given in the paper and then convert it to ``\lambda_r`` based on mass (the conversion can be done by multiplying to a constant value).
@@ -486,11 +493,12 @@ The default free parameter values are:
 |``\overline{D}_{eq}``       | ``0.9 \times 10^{-3}  \, m``        |
 
 !!! note
-    In the paper for ``\overline{D}_{eq} < \overline{D}_r`` the equation ``\Phi_{br}(\Delta \overline{D}_r) = 2 exp(\kappa_{br} \Delta \overline{D}_r) -1`` is given. This equations seems to be missing parentheses as the equation must be continuous at ``\Delta \overline{D}_r = 0`` as shown in Fig. 2 of the paper.
+    In the paper for ``\overline{D}_{eq} < \overline{D}_r`` the equation ``\Phi_{br}(\Delta \overline{D}_r) = 2 exp(\kappa_{br} \Delta \overline{D}_r) -1`` is given. This equation seems to be missing parentheses, as the equation must be continuous at ``\Delta \overline{D}_r = 0`` as shown in Fig. 2 of the paper.
+    TODO: the implementation currently uses ``exp(\kappa_{br} \Delta \overline{D}_r) - 1``, without the factor of 2. Both forms are continuous at ``\Delta \overline{D}_r = 0`` but differ by a factor of 2 in the breakup rate; this discrepancy between the docs and the code remains to be resolved.
 
 ### Rain evaporation
 
-The parametrization of rain evaporation is obtained by considering the time scale of evaporation of individual raindrops:
+The parameterization of rain evaporation is obtained by considering the time scale of evaporation of individual raindrops:
 ```math
 \begin{equation}
   \tau_{eva} = \frac{x_r}{\frac{dx_r}{dt}\bigg|_{eva}} = \frac{x_r}{2 \pi G_{lv}(T, p) S D_r(x_r) F_v(x_r)},
@@ -531,7 +539,7 @@ with
 !!! note
     For ``k = 0`` the integral for computing the mean evaporation rate does not converge. In this case it is reasonable to change the lower bound of the integral to ``x=x^*``. The results remain the same except that the Gamma functions in the equations for ``a_{vent,\, 0}`` and ``b_{vent,\, 0}``, which are ``\Gamma(-1)`` and ``\Gamma(-1/2+3\beta_r/2)``, are replaced by the upper incomplete gamma function ``\Gamma(-1, (6 x^* / \overline{x}_r)^{1/3})`` and ``\Gamma(-1/2+3\beta_r/2, (6 x^* / \overline{x}_r)^{1/3})``, respectively. This issue and the suggested workaround are not mentioned in the paper.
 
-The two-moment parametrization of evaporation suffers from the similar numerical instability issues as the sedimentation scheme. Thus, the same limiting algorithm as the sedimentation scheme is applied here to bound size distribution parameters. These limited parameters are then used to compute the mean raindrop mass by the following equation:
+The two-moment parameterization of evaporation suffers from the similar numerical instability issues as the sedimentation scheme. Thus, the same limiting algorithm as the sedimentation scheme is applied here to bound size distribution parameters. These limited parameters are then used to compute the mean raindrop mass by the following equation:
 ```math
 \begin{equation}
   \overline{x}_r = max \left(\overline{x}_{r,\, min} , min \left(\overline{x}_{r,\, max} , \frac{\rho q_{rai} \lambda_r}{N_0}\right)\right).
@@ -546,7 +554,7 @@ The default free parameter values are:
 |``a_v``                     | ``0.78``                                        |
 |``b_v``                     | ``0.308``                                       |
 |``\alpha_r``                | ``159 \, m \cdot s^{-1} \cdot kg^{-\beta_r}``   |
-|``\alpha_r``                | ``0.266``                                       |
+|``\beta_r``                 | ``0.266``                                       |
 
 !!! note
     In our implementation we approximate the incomplete gamma function in order to get good
@@ -580,7 +588,7 @@ Evaluating the integral results in
 \label{eq:SBTerminalVelocity}
 \end{equation}
 ```
-where ``\lambda_r`` is the raindrop size distribution parameter (based on diameter): ``\lambda_r = (\phi \rho_w/\overline{x}_r)^{1/3}``. To avoid numerical instabilities, especially when ``N_{rai} \rightarrow 0`` and ``q_{rai} \rightarrow 0``, ``\lambda_r`` is bounded. The limiting algorithm is as follows:
+where ``\lambda_r`` is the raindrop size distribution parameter (based on diameter): ``\lambda_r = (\pi \rho_w/\overline{x}_r)^{1/3}``. To avoid numerical instabilities, especially when ``N_{rai} \rightarrow 0`` and ``q_{rai} \rightarrow 0``, ``\lambda_r`` is bounded. The limiting algorithm is as follows:
 ```math
 \begin{align}
 \widetilde{x}_r &= \max \left[ \overline{x}_{r,\, \min} , \min \left(\overline{x}_{r,\, \max} , \frac{\rho q_{rai}}{N_{rai}}\right)\right] ,\\
@@ -606,12 +614,20 @@ The default parameter values are:
 |``a_R``                     | ``9.65 \, m \cdot s^{-1}``          |
 |``b_R``                     | ``10.3 \, m \cdot s^{-1}``          |
 |``c_R``                     | ``600 \, m^{-1}``                   |
-|``\overline{x}_{r,\, \min}`` | ``6.54 \times 10^{-11} \, m``        |
-|``\overline{x}_{r,\, \max}`` | ``5 \times 10^{-6}  \, m``          |
-|``N_{0,\, \min}``            | ``3.5 \times 10^{5}  \, m^{-4}``    |
-|``N_{0,\, \max}``            | ``2 \times 10^{10}  \, m^{-4}``      |
+|``\overline{x}_{r,\, \min}`` | ``2.6 \times 10^{-10} \, kg``       |
+|``\overline{x}_{r,\, \max}`` | ``5 \times 10^{-6}  \, kg``         |
+|``N_{0,\, \min}``            | ``2.5 \times 10^{5}  \, m^{-4}``    |
+|``N_{0,\, \max}``            | ``2 \times 10^{7}  \, m^{-4}``      |
 |``\lambda_{\min}``           | ``1 \times 10^{3}  \, m^{-1}``      |
-|``\lambda_{\max}``           | ``4 \times 10^{4}  \, m^{-1}``      |
+|``\lambda_{\max}``           | ``1 \times 10^{4}  \, m^{-1}``      |
+
+!!! note
+    The `SB2006_limiters.toml` override file (used in tests comparing
+    against [SeifertBeheng2006](@cite)) sets
+    ``\overline{x}_{r,\,\min} = 6.54 \times 10^{-11}`` kg,
+    ``N_{0,\,\min} = 3.5 \times 10^{5}`` m``^{-4}``,
+    ``N_{0,\,\max} = 2 \times 10^{11}`` m``^{-4}``, and
+    ``\lambda_{\max} = 4 \times 10^{4}`` m``^{-1}``.
 
 Below we compare number-weighted (left) and mass-weighted (right) terminal velocities
   for the original parameterization of SB2006 [SeifertBeheng2006](@cite)
@@ -669,14 +685,14 @@ The other autoconversion and accretion rates in the `Microphysics2M.jl` module
   [TripoliCotton1980](@cite) and
   [LiuDaum2004](@cite) respectively.
 From the above works:
-  (i) the [KhairoutdinovKogan2000](@cite) parameterisation is based
+  (i) the [KhairoutdinovKogan2000](@cite) parameterization is based
   on a fit to drop spectrum resolving scheme and designed to work
   for stratocumulus topped boundary layers,
-  (ii) the [Beheng1994](@cite) parameterisation is based on a fit
+  (ii) the [Beheng1994](@cite) parameterization is based on a fit
   to stochastic collection equation,
-  (iii) the [TripoliCotton1980](@cite) parameterisation is developed
+  (iii) the [TripoliCotton1980](@cite) parameterization is developed
   for a deep convective case, and
-  (iv) the [LiuDaum2004](@cite) parameterisation is derived to
+  (iv) the [LiuDaum2004](@cite) parameterization is derived to
   include the effects of relative dispersion
   of the cloud droplet size distribution on precipitation formation rates
   and assumes a modified gamma distribution.
@@ -745,11 +761,12 @@ The cloud liquid to rain water autoconversion threshold is defined
   assuming spherical liquid water drops of radius equal to ``7 \mu m``:
 ```math
 \begin{equation}
-  q_{lcl\_threshold} = \frac{4}{3} \pi \rho_w N_d r_{cm}^3
+  q_{lcl\_threshold} = \frac{4}{3} \pi \frac{\rho_w}{\rho} N_d r_{cm}^3
 \end{equation}
 ```
 where:
   - ``\rho_w`` is the liquid water density,
+  - ``\rho`` is the air density,
 
 and the default free parameter values are:
 
@@ -773,7 +790,7 @@ where:
   - ``N_d`` is the cloud droplet number concentration,
   - ``\rho`` is the air density.
 
-The parameterisation is formulated using mean volume radius
+The parameterization is formulated using mean volume radius
   ``r_{vol}`` expressed in ``\mu m`` which we compute as
 ```math
 \begin{equation}
@@ -795,6 +812,10 @@ Then the ``R_6`` and ``R_{6C}`` are defined as
 |``E_0``     | ``1.08 \times 10^{10}``   |
 
 #### Auto-conversion with time scale depending on number density
+
+This scheme is implemented in the `Microphysics1M` module
+  (option `PrescribedNd`), as it prescribes the cloud droplet number
+  concentration rather than treating it prognostically.
 
 ```math
 \begin{equation}
@@ -892,10 +913,10 @@ default parameter value is
 |------------|-------------------------------------|
 |``\tau``    | ``100 \, s``                        |
 
-The adjustment is assumed to exchange number concentration with a background reservoir of cloud condensation nuclei (CCN), so that any increase in droplet number is accompanied by a corresponding decrease in CCN number, and vice versa:
-```math
-\frac{\partial N_{CCN}}{\partial t} = -\frac{\partial N}{\partial t}
-```
+The function returns only the number concentration tendency
+  ``\partial N / \partial t``; the host model is responsible for any
+  compensating adjustment of other budgets (for example a background
+  reservoir of cloud condensation nuclei).
 
 !!! note
     In the reference paper, this approach is given for the number concentration of cloud droplets; however, the same formulation can also be used for raindrops.

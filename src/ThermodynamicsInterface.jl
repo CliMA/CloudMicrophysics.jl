@@ -67,7 +67,6 @@ p2q(tps::PS, T, ρ, pᵥ) = TD.q_vap_from_p_vap(tps, T, ρ, pᵥ)
 q2p(tps::PS, T, ρ, qᵥ) = qᵥ * ρ * Rᵥ(tps) * T
 
 # Get air density from temperature, pressure and water content
-# (only used in tests)
 air_density(tps::PS, T, p, q_tot, q_liq, q_ice) =
     TD.air_density(tps, T, p, q_tot, q_liq, q_ice)
 

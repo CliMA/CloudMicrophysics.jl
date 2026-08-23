@@ -7,7 +7,7 @@ The `IceNucleation.jl` module includes:
     via deposition of water vapor,
   - water activity based parameterization of immersion freezing,
   - water activity based parameterization of homogeneous freezing,
-  - parametrization of temperature-dependent aerosol-independent ice nucleating particles concentration for immersion freezing.
+  - parameterization of temperature-dependent aerosol-independent ice nucleating particles concentration for immersion freezing.
 
 The parameterization for deposition on dust particles is an implementation of
   the empirical formulae from [Mohler2006](@cite)
@@ -16,7 +16,7 @@ The parameterization for deposition on dust particles is an implementation of
   The parameterization for immersion freezing is an implementation of [KnopfAlpert2013](@cite)
   and is valid for droplets containing sulphuric acid.
   The parameterization for homogeneous freezing is an implementation of [Koop2000](@cite).
-  The parametrization for ice nucleating particles concentration for immersion freezing is an implementation of [Frostenberg2023](@cite).
+  The parameterization for ice nucleating particles concentration for immersion freezing is an implementation of [Frostenberg2023](@cite).
 
 !!! note
 
@@ -71,7 +71,8 @@ The water activity based deposition nucleation model is analagous to ABIFM
   dependent on the water activity criterion, ``\Delta  a_w``, and aerosol type.
   The form of this empirical parameterization is taken from [KnopfAlpert2013](@cite).
   Currently, we have parameters for kaolinite, feldspar, and ferrihydrite derived
-  from [China2017](@cite) and [Alpert2022](@cite).
+  from [China2017](@cite) and [Alpert2022](@cite), as well as for illite,
+  Arizona Test Dust, Saharan dust, Asian dust, and a generic dust type.
 
 ```math
 \begin{equation}
@@ -101,12 +102,15 @@ The P3 scheme as described in [MorrisonMilbrandt2015](@cite) follows
   ambient temperature.
 ```math
 \begin{equation}
-  N_i = 0.005 exp[0.304(T_0 - T)]
+  N_i = 0.005 \, exp[0.304(T_0 - T)]
 \end{equation}
 ```
-Where ``T_0 = 273.15K`` and ``T`` is the ambient temperature.
+Where ``T_0 = 273.15 \, K``, ``T`` is the ambient temperature, and ``N_i``
+  is the number of ice crystals per liter of air
+  (the implementation returns the value converted to ``m^{-3}``
+  and returns zero for ``T \geq T_0``).
 Because the parameterization is prone to overpredict at low temperatures,
-  ``N_i = N_i(T = 233K)`` for all values of ``N_i`` at which ``T < 233K``.
+  ``N_i = N_i(T = 233 \, K)`` for all values of ``N_i`` at which ``T < 233 \, K``.
 
 ## Immersion Freezing
 ### ABIFM for Sulphuric Acid Containing Droplets
@@ -119,7 +123,8 @@ Water Activity-Based Immersion Freezing Model (ABFIM)
   soluble material. When immersed in water, the soluble material diffuses into the liquid water
   to create a sulphuric acid solution.
 
-Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
+Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite)
+  and related studies (depending on the aerosol type),
   the heterogeneous nucleation rate coefficient in units of ``cm^{-2}s^{-1}``
   can be determined by the linear equation
 ```math
@@ -127,8 +132,9 @@ Using empirical coefficients, ``m`` and ``c``, from [KnopfAlpert2013](@cite),
   log_{10}J_{ABIFM} = m \Delta a_w + c
 \end{equation}
 ```
-A parameterization for ``\Delta a_w`` can be found in `Common.jl`. More information on
-  it can be found in the `Water Activity` section. ``m`` and ``c`` here are different
+The water activity functions needed to compute ``\Delta a_w`` can be found
+  in `Common.jl`. More information on
+  them can be found in the `Water Activity` section. ``m`` and ``c`` here are different
   from the ``m`` and ``c`` parameters for deposition nucleation.
 
 !!! note
@@ -195,18 +201,21 @@ Heterogeneous freezing in the P3 scheme as described in [MorrisonMilbrandt2015](
 \end{equation}
 ```
 where `a` and `B` are parameters taken from [BarklieGokhale1959](@cite) for
-  rainwater as 0.65 and 2e-4 respectively. `T_s` is the difference between
-  273.15K and ambient temperature. `V_l` is the volume of droplets to be
+  rainwater as ``0.65`` and ``2 \times 10^{-4} \, cm^{-3}``
+  (``200 \, m^{-3}`` in the implementation), respectively.
+  `T_s` is the difference between
+  273.15 K and ambient temperature. `V_l` is the volume of droplets to be
   frozen and `\Delta t` is timestep in which freezing occurs.
 
 ## Homogeneous Freezing
 ### Homogeneous Freezing for Sulphuric Acid Containing Droplets
 Homogeneous freezing occurs when supercooled liquid droplets freeze on their own.
-  Closly based off [Koop2000](@cite), this parameterization determines a homoegneous nucleation
-  rate coefficient, ``J_{hom}``, using water activity. The change in water activity,
-  ``\Delta a_w(c,T,P)``, can be found in `Common.jl` and is described in the
-  `Water Activity section`. It is then used to empirically calculate ``J_{hom}(\Delta a_w)``
-  with units of ``cm^{-3}s^{-1}``.
+  Closely based on [Koop2000](@cite), this parameterization determines a homogeneous nucleation
+  rate coefficient, ``J_{hom}``, using water activity. The water activity functions
+  needed to compute ``\Delta a_w(c,T,P)`` can be found in `Common.jl` and are described in the
+  `Water Activity` section. It is then used to empirically calculate ``J_{hom}(\Delta a_w)``.
+  The fit below is in units of ``cm^{-3}s^{-1}``;
+  the implementation converts the result to ``m^{-3}s^{-1}``.
 
 The nucleation rate coefficient is determined with the cubic function from [Koop2000](@cite)
 ```math
@@ -214,7 +223,8 @@ The nucleation rate coefficient is determined with the cubic function from [Koop
   logJ_{hom} = -906.7 + 8502 \Delta a_w - 26924(\Delta a_w)^2 + 29180(\Delta a_w)^3
 \end{equation}
 ```
-This parameterization is valid only when ``0.26 < \Delta a_w < 0.36`` and ``185K < T < 235K``.
+This parameterization is valid only when ``0.26 < \Delta a_w < 0.34`` and ``185 \, K < T < 235 \, K``.
+The implementation throws a domain error when ``\Delta a_w`` is outside this range.
 
 ### Homogeneous Freezing Example Figures
 Here is a comparison of our parameterization of ``J_{hom}`` compared to Koop 2000 as
@@ -228,10 +238,10 @@ include("plots/HomFreezingPlots.jl")
 ![](HomFreezingPlots.svg)
 
 It should be noted that the Koop 2000
-  parameterization is only valid for temperatures up to 240K and a temperature-dependent max
-  pressure. The max valid pressure becomes negative around 237K, so the Koop 2000 parameterizaiton
-  should not be valid beyond 237K. For this reason, we limit the curve from [Spichtinger2023](@cite)
-  to 237K.
+  parameterization is only valid for temperatures up to 240 K and a temperature-dependent max
+  pressure. The max valid pressure becomes negative around 237 K, so the Koop 2000 parameterization
+  should not be valid beyond 237 K. For this reason, we limit the curve from [Spichtinger2023](@cite)
+  to 237 K.
 
 Multiple sulphuric acid concentrations, ``x``,
   are plotted since the actual concentration used in literature values is unspecified.
@@ -278,11 +288,11 @@ The P3 heterogeneous parameterization also shows much more ICNC than any of the 
   should be noted that the P3 parameterization does not distinguish between immersion freezing,
   contact freezing, etc.
 
-The P3 scheme allows homogeneous freezing to freeze all droplets at temperatures equal to or less than 233.15K. No homogeneous freezing occurs at warmer temperatures.
+The P3 scheme allows homogeneous freezing to freeze all droplets at temperatures equal to or less than 233.15 K. No homogeneous freezing occurs at warmer temperatures.
 
 ## INP Concentration Frequency
 
-With this parametrization, the concentration of ice nucleating particles (INPs) is found based on the relative frequency distribution, which depends on the temperature, but does not depend on aerosol types. It is based on [Frostenberg2023](@cite) and is derived from measurements, for marine
+With this parameterization, the concentration of ice nucleating particles (INPs) is found based on the relative frequency distribution, which depends on the temperature, but does not depend on aerosol types. It is based on [Frostenberg2023](@cite) and is derived from measurements, for marine
 data sets. It is a lognormal distribution, described by
 
 ```math

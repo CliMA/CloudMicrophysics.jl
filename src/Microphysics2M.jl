@@ -593,6 +593,11 @@ function rain_breakup(
     # Dr < Dr_th:  below the threshold diameter, breakup is neglected
     # Dr ≤ Deq:    below the equilibrium diameter, breakup is a linear function
     # Dr > Deq:    above the equilibrium diameter, breakup is an exponential function
+    # TODO: the exponential branch disagrees with the docs. SB2006 Eq. (13)
+    # prints 2 exp(κbr ΔD) - 1, which is discontinuous at ΔD = 0;
+    # docs/src/Microphysics2M.md reads it as 2 (exp(κbr ΔD) - 1), while the
+    # code uses exp(κbr ΔD) - 1. Both amended forms are continuous but
+    # differ by a factor of 2. Decide which is intended and align the docs.
     Φ_br = ifelse(Dr < Dr_th, FT(-1), ifelse(Dr ≤ Deq, kbr * ΔD, exp(κbr * ΔD) - 1))
     dN_rai_dt_br = -(Φ_br + 1) * dN_rai_dt_sc  # Eq. (13) from SB2006
 
@@ -833,13 +838,12 @@ end
 Returns the leading-order derivatives of the rain evaporation tendencies with
 respect to rain specific content `q_rai` and rain number concentration N_rai.
 
-Uses the same approximation pattern as
-`Microphysics1M.∂evaporation_sublimation_∂q_precip`:
+Uses a donor-based leading-order approximation:
 - ∂(∂ₜρn_rai/ρ)/∂N_rai ≈ ∂ₜρn_rai / N_rai  (number tendency, first)
 - ∂(∂ₜq_rai)/∂q_rai ≈ ∂ₜq_rai / q_rai  (mass tendency, second)
 
 # Returns
-`NamedTuple` with fields `(; ∂tendency_∂N_rai, ∂tendnecy_∂q_rai)`.
+`NamedTuple` with fields `(; ∂N_rai, ∂q_rai)`.
 """
 @inline function ∂rain_evaporation_∂N_rai_∂q_rai(
     sb::CMP.SB2006, aps::CMP.AirProperties, tps::TDI.PS,

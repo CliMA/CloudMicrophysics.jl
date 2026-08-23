@@ -30,7 +30,7 @@ function rain_formation(dY, Y, p, t)
     acnv = CO.logistic_function_integral(qₗ, q_threshold, k) / τ # Rain autoconversion rate
     accr = CM1.accretion(liquid, rain, v_term.rain, E, qₗ, qᵣ, ρₐ) # Rain accretion rate
 
-    dY[1] = -acnv - accr # Add the tendecies for cloud water
+    dY[1] = -acnv - accr # Add the tendencies for cloud water
     dY[2] = acnv + accr  # and rain
 end
 

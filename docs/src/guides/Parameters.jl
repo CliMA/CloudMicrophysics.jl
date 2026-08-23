@@ -45,7 +45,7 @@ const overwrite_mp = CMP.Microphysics1MParams(toml_dict)
 nothing #hide
 
 # Overwriting the parameters can also be done using dictionaries instead of toml files.
-# As an example we create a dictionary were we define a different value of the
+# As an example we create a dictionary where we define a different value of the
 # rain autoconversion time scale and create another parameter struct based on it.
 override_file = Dict(
     "rain_autoconversion_timescale" =>
@@ -77,7 +77,7 @@ overwrite_acnv2 =
 
 # ## Dispatching over parameter types
 
-# `CloudMicrophysics.jl` `Parameters` module introduces type hierarchy that is used to
+# The `CloudMicrophysics.jl` `Parameters` module introduces a type hierarchy that is used to
 # dispatch over different parameterization options and inputs.
 # For example `ABIFM_J` accepts `Illite` or `Kaolinite`
 # as input type and will return immersion freezing nucleation rate coefficient
@@ -91,9 +91,9 @@ J2 = CMI_het.ABIFM_J(aerosol2, Δa_w)
 
 @info("ABIFM derived J: ", J1, J2)
 
-# Similarily, the 2 moment microphysics offers different rain autoconversion
+# Similarly, the 2-moment microphysics offers different rain autoconversion
 # formulations based on parameterizations from the literature.
-# We can chose between them based on the free parameters type that is passed in as argument.
+# We can choose between them based on the free parameters type that is passed in as argument.
 
 const KK2000 = CMP.KK2000(FT)  # Khairoutdinov and Kogan (2000)
 const B1994 = CMP.B1994(FT)    # Beheng (1994)

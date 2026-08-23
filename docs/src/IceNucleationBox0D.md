@@ -21,6 +21,10 @@ where
 
 ``A_{d}`` is currently assumed to be either constant among all droplets
 or sampled from a lognormal distribution with user defined mean and width.
+In the variable ``A_d`` case, freezing is treated stochastically per droplet:
+each droplet ``j`` freezes within a timestep ``\Delta t`` with probability
+``P_j = 1 - \exp(-A_j \, J \, \Delta t)``, sampled from a Binomial
+distribution, rather than through the deterministic rate equation above.
 
 In the plots below, we first reproduce Fig. 4 from [Alpert2016](@cite)
   by computing the apparent and actual nucleation rates based on the paper defined
