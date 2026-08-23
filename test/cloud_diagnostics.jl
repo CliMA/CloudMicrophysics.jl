@@ -110,7 +110,7 @@ function test_cloud_diagnostics(FT)
             wtr,
             ρ_air,
             q_lcl,
-            FT(100),
+            FT(1e8),
             FT(0),
             FT(0),
         ) == CMD.effective_radius_Liu_Hallet_97(wtr, ρ_air, q_lcl)

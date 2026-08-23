@@ -134,7 +134,7 @@ end
 
 Returns effective radius using the "1/3" power law from Liu and Hallett (1997).
 If not provided by the user, it is assumed that there is no rain present and that
-the cloud droplet number concentration is 100 1/cm3.
+the cloud droplet number concentration is 1e8 1/m3 (100 1/cm3).
 """
 function effective_radius_Liu_Hallet_97(
     (; ρw)::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
@@ -164,7 +164,7 @@ function effective_radius_Liu_Hallet_97(
         wtr::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
         ρ_air::FT,
         q_lcl::FT,
-        FT(100),
+        FT(1e8),
         FT(0),
         FT(0),
     )
