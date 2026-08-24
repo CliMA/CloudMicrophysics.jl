@@ -56,7 +56,8 @@ end
         [p], [quad],
     )
 
-Return the terminal velocity of the number-weighted mean ice particle size.
+Return the number-weighted mean terminal velocity of the ice particle
+size distribution, `∫ n(D) v(D) dD / N`.
 
 # Arguments
 - `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters
@@ -98,9 +99,13 @@ end
 @inline (f::P3MassWeightedIntegrand)(D) = f.n(D) * f.v_term(D) * ice_mass(f.state, D)
 
 """
-    ice_terminal_velocity_mass_weighted(velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ; [∫kwargs...])
+    ice_terminal_velocity_mass_weighted(
+        velocity_params::CMP.Chen2022VelType, ρₐ, state::P3State, logλ;
+        [p], [quad],
+    )
 
-Return the terminal velocity of the mass-weighted mean ice particle size.
+Return the mass-weighted mean terminal velocity of the ice particle
+size distribution, `∫ n(D) m(D) v(D) dD / L`.
 
 # Arguments
 - `velocity_params`: A [`CMP.Chen2022VelType`](@ref) with terminal velocity parameters

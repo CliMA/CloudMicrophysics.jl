@@ -48,8 +48,8 @@ Compute vapor specific content from total water and condensed phase specific con
 - `q_tot`: Total water specific content [kg/kg]
 - `q_liq` or `q_lcl`: Liquid water specific content [kg/kg]
 - `q_ice` or `q_icl`: Ice specific content [kg/kg]
-- `q_rai`: Rain specific content [kg/kg] (5-argument version only)
-- `q_sno`: Snow specific content [kg/kg] (5-argument version only)
+- `q_rai`: Rain specific content `[kg/kg]` (5-argument version only)
+- `q_sno`: Snow specific content `[kg/kg]` (5-argument version only)
 
 # Returns
 - Vapor specific content [kg/kg], clamped to be non-negative

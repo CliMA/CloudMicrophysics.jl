@@ -1,5 +1,7 @@
 """
-    Module for functions shared by different parameterizations.
+    Common
+
+Module for functions shared by different parameterizations.
 """
 module Common
 
@@ -38,7 +40,7 @@ numerical robustness.
 - `T`: air temperature [K]
 
 # Returns
-- G function for liquid [kg/m²/s/Pa]
+- G function for liquid [kg/m/s]
 
 # Notes
 - Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
@@ -77,7 +79,7 @@ numerical robustness.
 - `T`: air temperature [K]
 
 # Returns
-- G function for ice [kg/m²/s/Pa]
+- G function for ice [kg/m/s]
 
 # Notes
 - Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
@@ -102,7 +104,9 @@ numerical robustness.
 end
 
 """
-    A Heaviside step function
+    heaviside(x)
+
+Return the Heaviside step function of `x`: `1` for `x > 0`, `0` otherwise.
 """
 @inline heaviside(x::FT) where {FT} = FT(x > 0)
 
@@ -285,6 +289,10 @@ Compute the coefficients for the Chen 2022 terminal velocity parametrization.
  - `ρᵢ`: apparent density of ice particles [kg/m³],
     only used for [`CMP.Chen2022VelTypeSmallIce`](@ref) and [`CMP.Chen2022VelTypeLargeIce`](@ref)
 
+# Returns
+ - A tuple `(aiu, bi, ciu)` of coefficient tuples, with `aiu` and `ciu`
+   converted to SI units.
+
 See [Chen2022](@cite) for more details.
 """
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
@@ -383,11 +391,14 @@ end
 """
     Chen2022_monodisperse_pdf(a, b, c)
 
+Return the Chen et al. (2022) terminal velocity term for a single particle.
+
 # Arguments
  - `a`, `b`, `c`: free parameters defined in [Chen2022](@cite)
 
 # Returns
- - `pdf(D)`: The monodisperse particle distribution function as a function of diameter, `D`, in [m/s].
+ - `pdf(D)`: a function of diameter `D` returning `a Dᵇ exp(-cD)`,
+   one addend of the particle terminal velocity [m/s].
 """
 @inline function Chen2022_monodisperse_pdf(a, b, c)
     # Fuse D^b * exp(-c*D) = exp(b*log(D) - c*D) into a single exp (D^b alone is a
@@ -404,7 +415,7 @@ following Chen et al. (2022), https://doi.org/10.1016/j.atmosres.2022.106171.
 Assumes exponential size distribution (μ=0).
 
 # Arguments
-- `a`, `b`, `c`: free parameters defined in Chen et al. (2022)
+ - `a`, `b`, `c`: free parameters defined in Chen et al. (2022)
  - `λ_inv`: inverse of the size distribution parameter [m]
  - `k`: size distribution moment for which we compute the bulk fall speed
 
@@ -445,13 +456,15 @@ particle_terminal_velocity(velocity_params::CMP.TerminalVelocityType, ρs...) =
     Chen2022VelocityCurve(velocity_params, ρs...)
 
 """
-    particle_terminal_velocity(velocity_params::CMP.StokesRegimeVelType{FT}, ρ::FT)
+    particle_terminal_velocity(velocity_params::CMP.StokesRegimeVelType, ρ)
 
- - `velocity_params` - set with free parameters
- - `ρ` - air density
+Return a function `v_term(D)` that computes the analytical fall speed of a
+cloud droplet as a function of its size (diameter, `D`) in the Stokes
+regime (Re < 1).
 
-Returns a function `v_term(D)` that computes the analytical fall speed of a cloud droplet as a function of
-its size (diameter, `D`) in the Stokes regime (Re < 1)
+# Arguments
+ - `velocity_params`: set with free parameters
+ - `ρ`: air density
 """
 function particle_terminal_velocity(velocity_params::CMP.StokesRegimeVelType, ρ)
     (; ρw, grav, ν_air) = velocity_params

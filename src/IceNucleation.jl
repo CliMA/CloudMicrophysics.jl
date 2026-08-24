@@ -52,7 +52,7 @@ function dust_activated_number_fraction(
 end
 
 """
-    MohlerDepositionRate(dust, ip, S_i, T, dSi_dt, N_aer)
+    MohlerDepositionRate(dust, ip, Si, T, dSi_dt, N_aer)
 
 Calculate the cloud ice nucleation rate from deposition.
 
@@ -79,15 +79,19 @@ end
 """
     deposition_J(dust, Δa_w)
 
-Calculate the deposition nucleation rate coefficient, `J` [m⁻² s⁻¹]
-for different minerals in liquid droplets.
+Calculate the deposition nucleation rate coefficient, `J` [m⁻² s⁻¹],
+for water vapor deposition onto different dust and mineral aerosol types.
 
 # Arguments
-  - `dust`: a struct with dust parameters
+  - `dust`: a struct with dust parameters (supported types: feldspar,
+    ferrihydrite, kaolinite, illite, Arizona Test Dust, Saharan dust,
+    Asian dust, and generic dust)
   - `Δa_w`: change in water activity [unitless].
 
+# Returns
+ - `J` [m⁻² s⁻¹]; zero for unsupported aerosol types.
+
 See [China2017](@cite) for details on the parameterization.
-Returns zero for unsupported aerosol types.
 """
 function deposition_J(
     dust::Union{
@@ -147,7 +151,7 @@ Calculate the number of ice crystals nucleated via deposition nucleation with un
  - `T`: air temperature [K].
 
 # Returns
- - `Nᵢ`: number of ice crystals nucleated via deposition nucleation with units of m^-3.
+ - `Nᵢ`: number of ice crystals nucleated via deposition nucleation with units of m⁻³.
 
 From Thompson et al 2004 eqn 2 as used in Morrison & Milbrandt 2015,
 
@@ -253,7 +257,7 @@ function INP_concentration_mean((; T_freeze, b, log_a)::CMP.Frostenberg2023, T)
 end
 
 """
-    liquid_freezing_rate(opt, pdf, tps, q_rai, ρ, N_rai, T)
+    liquid_freezing_rate(opt, pdf, tps, q, ρ, N, T)
 
 Compute the rate of liquid water freezing into ice.
 
@@ -339,8 +343,8 @@ Volume-weighting → bigger drops freeze first
 
 # Arguments
  - `opt`: The [`CMP.RainFreezing`](@ref) parameterization
-   (Bigg / Barklie-Gokhale parameters; the `Rain` in the name is historical —
-   the kinetics apply to any liquid-drop PSD).
+   (Bigg / Barklie-Gokhale parameters; despite the type name, the kinetics
+   apply to any liquid-drop PSD).
  - `pdf`: The [`CMP.CloudParticlePDF_SB2006`](@ref) cloud-droplet PSD.
  - `tps`: Thermodynamics parameters.
  - `q`: Cloud-liquid specific content [kg(water) kg⁻¹(air)].
@@ -516,8 +520,7 @@ end
 Return the depletion proxy `n_active` to subtract from the F23 INPC
 target in [`deposition_rate`](@ref) and any analogous INPC-budgeted
 rate. For `NIceProxyDepletion` (the only model currently provided) this
-is the in-cell ice number `n_ice`. (A prognostic activation-memory model
-returning a host-supplied tracer is deferred to a follow-up PR.)
+is the in-cell ice number `n_ice`.
 """
 @inline n_active(::CMP.NIceProxyDepletion, n_ice) = n_ice
 

@@ -41,7 +41,12 @@ $(DocStringExtensions.FIELDS)
 
 The main constructor is
 ```
-P3IceParams(toml_dict::CP.ParamDict; is_limited = true)
+P3IceParams(
+    toml_dict::CP.ParamDict;
+    is_limited = true,
+    quadrature_order = 16,
+    inp_depletion_model = NIceProxyDepletion(τ_act = 300),
+)
 ```
 which constructs the parameterization with components:
 - `scheme` = [`ParametersP3`](@ref)
@@ -66,18 +71,17 @@ which constructs the parameterization with components:
     "The rain freezing parameters (Bigg-type immersion freezing)"
     rain_freezing::RF
     "Model for F23 INP-activation depletion. Currently only
-    [`NIceProxyDepletion`](@ref) (legacy n_ice-as-proxy form) is provided;
+    [`NIceProxyDepletion`](@ref) (n_ice-as-proxy form) is provided;
     it sets the value subtracted from `INPC(T)/ρ` in the F23 deposition +
-    immersion-cap rates. (A prognostic activation-memory model is deferred
-    to a follow-up PR.)"
+    immersion-cap rates."
     inp_depletion_model::INPDM = NIceProxyDepletion()
     "Number of quadrature nodes used for size-distribution integrals
     (deposition / sublimation, melting, riming, ice-rain collection,
     sedimentation). Lower → faster, slightly less accurate. Default 16
     auto-selects Gauss-Legendre (see [`Quadrature.build_quadrature`](@ref)),
     giving < 0.5% worst-case error vs a 200-node reference on the full P3
-    tendency vector. The `ice_self_collection` cusp (the historical accuracy
-    limiter) is now split at the |Δv|=0 diagonal, so this low node count
+    tendency vector. The `ice_self_collection` cusp is split at the |Δv|=0
+    diagonal, so this low node count
     suffices; bump to 32 for < 0.2% if extra margin is wanted."
     quadrature_order::Int = 16
     "Pre-constructed quadrature rule for the size-distribution integrals,
@@ -109,6 +113,7 @@ P3IceParams(toml_dict::CP.ParamDict;
 )
 
 """
+    Microphysics2MParams{WR, ICE}
 
 Unified parameter container for 2-moment microphysics.
 

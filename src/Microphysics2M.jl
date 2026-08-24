@@ -44,7 +44,7 @@ Return the parameters of the rain drop diameter distribution
 
  where
  - `D` is the diameter of the raindrop,
- - `N_0` [1/m³] is the number concentration of raindrops,
+ - `N_0` [1/m⁴] is the intercept parameter of the distribution,
  - `Dr_mean` [m] is the mean diameter of the raindrops.
 
  Note: in SB2006, Eq. (83) the distribution is given as:
@@ -57,7 +57,7 @@ Return the parameters of the rain drop diameter distribution
  - `pdf_r`: struct containing size distribution parameters for rain.
         Can either be [`CMP.RainParticlePDF_SB2006_notlimited`](@ref) or [`CMP.RainParticlePDF_SB2006_limited`](@ref).
         For the latter, the values for `N_0`, `Dr_mean`, and `xr_mean` are limited to be within provided ranges.
- - `qᵣ`: mass of rain water [kg]
+ - `qᵣ`: rain water specific content [kg/kg]
  - `ρₐ`: air density [kg/m³]
  - `Nᵣ`: number of rain drops [1/m³]
 
@@ -121,22 +121,27 @@ As a function of diameter, the size distribution is given by:
 In terms of mass (`x`), the size distribution is given by:
 
     f(x) = n(D(x)) * ∂D∂x(x)
-         = N₀ * exp(-D(x) / Dr_mean) * 2 / (π * ρw) * x^(-2/3)
-         = N₀ * 2 / (π * ρw) * x^(-2/3) * exp(- (6 / (π * ρw))^(1/3) / Dr_mean * x^(1/3))
+         = N₀ * exp(-D(x) / Dr_mean) * (6 / (π * ρw))^(1/3) / 3 * x^(-2/3)
+         = N₀ / 3 * (6 / (π * ρw))^(1/3) * x^(-2/3) * exp(- (6 / (π * ρw))^(1/3) / Dr_mean * x^(1/3))
 
  where
  - `D(x) = (6x / (π * ρw))^(1/3)` is the diameter of a raindrop of mass `x`.
- - `∂D∂x(x) = (6 / (π * ρw))^(1/3) * x^(-2/3)` is the derivative of the diameter with respect to the mass.
+ - `∂D∂x(x) = (6 / (π * ρw))^(1/3) / 3 * x^(-2/3)` is the derivative of the diameter with respect to the mass.
 
 If we write the general form of the size distribution as:
 
     f(x) = A * x^ν * exp(-B * x^μ)
 
  then we have that:
- - `A = N₀ * 2 / (π * ρw)`
+ - `A = N₀ / 3 * (6 / (π * ρw))^(1/3)`
  - `B = (6 / (π * ρw))^(1/3) / Dr_mean`
  - `ν = -2/3`
  - `μ = 1/3`
+
+# Returns
+ - A `NamedTuple` with the fields `(; Ar, Br)`, where `Ar = A` and `Br = B`
+   expressed via the mean raindrop mass:
+   `Ar = Nᵣ * (6 / xr_mean)^(1/3) / 3` and `Br = (6 / xr_mean)^(1/3)`.
 """
 function pdf_rain_parameters_mass(pdf_r::CMP.RainParticlePDF_SB2006, qᵣ, ρₐ, Nᵣ)
     (; xr_mean) = pdf_rain_parameters(pdf_r, qᵣ, ρₐ, Nᵣ)
@@ -222,7 +227,8 @@ where
  - `N`: Number concentration of the particle [1/m³]
 
 # Returns
- - `(logN₀c, λc, νcD, μcD)`: Parameters of the generalized gamma distribution in terms of diameter
+ - A `NamedTuple` with the fields `(; logN₀c, λc, νcD, μcD)`:
+   Parameters of the generalized gamma distribution in terms of diameter
 """
 function pdf_cloud_parameters(pdf_c, q, ρₐ, N)
     FT = UT.promote_typeof(q, ρₐ, N)
@@ -315,22 +321,22 @@ function size_distribution_value(pdf, q, ρₐ, N, D)
 end
 
 """
-    get_size_distribution_bounds(pdf, q, ρₐ, N, p)
+    get_size_distribution_bounds(pdf, q, ρₐ, N, p = eps(eltype(q)))
 
-Return the minimum and maximum diameters of a cloud or rain particle such that
-the size distribution is within (1 - p) to (p) probability of the true size distribution.
+Return the minimum and maximum diameters of a cloud or rain particle,
+set at the `p`-th and `(1 - p)`-th quantiles of the size distribution.
 
 # Arguments
  - `pdf`: Size distribution parameters for cloud or rain,
     [`CMP.RainParticlePDF_SB2006`](@ref) or [`CMP.CloudParticlePDF_SB2006`](@ref)
- - `q`: mass mixing ratio of cloud or rain water
+ - `q`: specific content of cloud or rain water [kg/kg]
  - `ρₐ`: density of air
- - `N`: number mixing ratio of cloud or rain
- - `p`: probability level (0 ≤ p ≤ 1)
+ - `N`: number concentration of cloud or rain drops [1/m³]
+ - `p`: probability level (0 ≤ p ≤ 1), default is `eps(eltype(q))`
 
 # Returns
- - `D_min, D_max`: minimum and maximum diameters of a cloud or rain particle such that
-    the size distribution is within (1 - p) to (p) probability of the true size distribution.
+ - `D_min, D_max`: minimum and maximum diameters of a cloud or rain particle,
+    at the `p`-th and `(1 - p)`-th quantiles of the size distribution.
     All inputs and output diameters are in base SI units.
     The bounds are calculated through quantile functions of the size distribution.
 """
@@ -427,12 +433,13 @@ function autoconversion(
 end
 
 """
-    accretion(accr, q_lcl, q_rai, ρ, N_lcl)
+    accretion(scheme::CMP.SB2006, q_lcl, q_rai, ρ, N_lcl)
 
 Compute accretion rate
 
 # Arguments
- - `accr`: Accretion parameters, [`CMP.AccrSB2006`](@ref)
+ - `scheme`: [`CMP.SB2006`](@ref) 2-moment scheme parameters
+   (the accretion parameters [`CMP.AccrSB2006`](@ref) are taken from its `accr` field)
  - `q_lcl`: Cloud liquid water specific content [kg/kg]
  - `q_rai`: Rain water specific content [kg/kg]
  - `ρ`: Air density [kg/m³]
@@ -669,23 +676,25 @@ function cloud_terminal_velocity(
 end
 
 """
-    rain_terminal_velocity(SB2006, vel, q_rai, ρ, N_rai)
+    rain_terminal_velocity(scheme::CMP.SB2006, vel, q_rai, ρ, N_rai)
 
 Compute the raindrops terminal velocity.
 
 # Arguments
- - `pdf_r`: Rain size distribution parameters, [`CMP.RainParticlePDF_SB2006`](@ref)
- - `vel`: Terminal velocity parameters, [`CMP.Chen2022VelTypeRain`](@ref)
+ - `scheme`: [`CMP.SB2006`](@ref) 2-moment scheme parameters
+   (the rain size distribution parameters are taken from its `pdf_r` field)
+ - `vel`: Terminal velocity parameters,
+   [`CMP.SB2006VelType`](@ref) or [`CMP.Chen2022VelTypeRain`](@ref)
  - `q_rai`: Rain water specific content
  - `ρ`: Air density
  - `N_rai`: Raindrops number density
 
 # Returns
-A tuple containing the number and mass weigthed mean fall velocities of raindrops in [m/s].
-Assuming an exponential size distribution from Seifert and Beheng 2006 for `scheme == SB2006Type`
-Fall velocity of individual rain drops is parameterized:
- - assuming an empirical relation similar to Rogers (1993) for `velo_scheme == SB2006VelType`
- - following Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171 for `velo_scheme == Chen2022Type`
+A tuple containing the number and mass weighted mean fall velocities of raindrops in [m/s],
+assuming an exponential size distribution from Seifert and Beheng 2006.
+The fall velocity of individual rain drops is parameterized:
+ - assuming an empirical relation similar to Rogers (1993) for `vel::CMP.SB2006VelType`,
+ - following Chen et. al 2022, DOI: 10.1016/j.atmosres.2022.106171 for `vel::CMP.Chen2022VelTypeRain`.
 """
 function rain_terminal_velocity(
     (; pdf_r)::CMP.SB2006, (; ρ0, aR, bR, cR)::CMP.SB2006VelType, q_rai, ρ, N_rai,
@@ -902,24 +911,24 @@ end
 # - variable timescale autoconversion Azimi (2023)
 
 """
-    conv_q_lcl_to_q_rai(acnv, q_lcl, ρ, N_d; smooth_transition)
+    conv_q_lcl_to_q_rai(scheme, q_lcl, ρ, N_d, smooth_transition = false)
 
- - `acnv` - 2-moment rain autoconversion parameterization
+Compute the `q_rai` tendency due to collisions between cloud droplets
+(autoconversion).
+
+# Arguments
+ - `scheme` - autoconversion scheme parameters
+   (the autoconversion parameters are taken from its `acnv` field):
+   - Khairoutdinov and Kogan (2000) for `scheme::CMP.KK2000`
+   - Beheng (1994) for `scheme::CMP.B1994`
+   - Tripoli and Cotton (1980) for `scheme::CMP.TC1980`
+   - Liu and Daum (2004) for `scheme::CMP.LD2004`
  - `q_lcl` - cloud liquid water specific content
  - `ρ` - air density
  - `N_d` - prescribed cloud droplet number concentration
-
-Returns the q_rai tendency due to collisions between cloud droplets
-(autoconversion), parametrized following:
- - Khairoutdinov and Kogan (2000) for `scheme == KK2000Type`
- - Beheng (1994) for `scheme == B1994Type`
- - Tripoli and Cotton (1980) for `scheme == TC1980Type`
- - Liu and Daum (2004) for `scheme ==LD2004Type`
-
-The `Beheng1994Type`, `TC1980Type` and `LD2004Type` of schemes
-additionally accept `smooth_transition` flag that
-smoothes their thershold behaviour if set to `true`.
-The default value is `false`.
+ - `smooth_transition` - for the `CMP.B1994`, `CMP.TC1980` and `CMP.LD2004`
+   schemes, an optional flag that smoothes their threshold behavior if set
+   to `true`. The default value is `false`.
 """
 function conv_q_lcl_to_q_rai((; acnv)::CMP.KK2000, q_lcl, ρ, N_d)
     q_lcl = max(0, q_lcl)
@@ -971,17 +980,21 @@ function conv_q_lcl_to_q_rai(
     end
 end
 """
-    accretion(accretion_scheme, q_lcl, q_rai, ρ)
+    accretion(scheme::CMP.KK2000, q_lcl, q_rai, ρ)
+    accretion(scheme::CMP.B1994, q_lcl, q_rai, ρ)
+    accretion(scheme::CMP.TC1980, q_lcl, q_rai)
 
- - `accretion_scheme` - type for 2-moment rain accretion parameterization
+Compute the accretion rate of rain.
+
+# Arguments
+ - `scheme` - accretion scheme parameters
+   (the accretion parameters are taken from its `accr` field):
+   - Khairoutdinov and Kogan (2000) for `scheme::CMP.KK2000`
+   - Beheng (1994) for `scheme::CMP.B1994`
+   - Tripoli and Cotton (1980) for `scheme::CMP.TC1980`
  - `q_lcl` - cloud liquid water specific content
  - `q_rai` - rain water specific content
- - `ρ` - air density (for `KK2000Type` and `Beheng1994Type`)
-
- Returns the accretion rate of rain, parametrized following
- - Khairoutdinov and Kogan (2000) for `scheme == KK2000Type`
- - Beheng (1994) for `scheme == B1994Type`
- - Tripoli and Cotton (1980) for `scheme == TC1980Type`
+ - `ρ` - air density (for `CMP.KK2000` and `CMP.B1994` only)
 """
 function accretion((; accr)::CMP.KK2000, q_lcl, q_rai, ρ)
     q_lcl = max(0, q_lcl)

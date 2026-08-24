@@ -1,4 +1,6 @@
 """
+    MicrophysicsNonEq
+
 Non-equilibrium bulk microphysics scheme for cloud condensate formation.
 
 Implements relaxation-to-equilibrium approach for:

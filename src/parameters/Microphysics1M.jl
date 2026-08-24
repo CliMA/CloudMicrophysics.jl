@@ -18,13 +18,13 @@ end
 """
     ParticlePDFIceRain{FT}
 
-A struct with snow size distribution parameters
+A struct with cloud ice or rain size distribution parameters
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
 struct ParticlePDFIceRain{FT} <: ParametersType
-    "Size distribution coefficient [1/m4]"
+    "size distribution coefficient [1/m⁴]"
     n0::FT
 end
 
@@ -204,7 +204,7 @@ function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
 end
 
 """
-    Rain{FT, PD, MS, AR, VT}
+    Rain{PD, MS, AR, VT}
 
 The parameters and type for rain
 
@@ -282,7 +282,7 @@ $(DocStringExtensions.FIELDS)
     vent::VT
     "a struct with aspect ratio parameters"
     aspr::AP
-    "snow apparent density [kg/m3]"
+    "snow apparent density [kg/m³]"
     ρᵢ::FT
     "pre-computed gamma(α+4)/6 for oblate aspect ratio [-]"
     gamma_aspect_oblate::FT
@@ -357,7 +357,7 @@ end
 
 Parameters for the variable-timescale rain autoconversion scheme used in the 1-moment
 microphysics scheme, following Azimi et al. (2023).
-Active when `RainAutoconversionPrescribedNd` is selected in `Microphysics1MOptions`.
+Active when `PrescribedNd` is selected in `Microphysics1MOptions`.
 
 # Fields
 $(DocStringExtensions.FIELDS)

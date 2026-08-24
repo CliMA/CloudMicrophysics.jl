@@ -37,16 +37,19 @@ function apparent_nucleation_rate(
 end
 
 """
-    h2so4_nucleation_rate(h2so4_conc, nh3_conc, negative_ion_conc, temp)
+    h2so4_nucleation_rate(h2so4_conc, nh3_conc, negative_ion_conc, temp, params)
 
  - `h2so4_conc` - Concentration of h2so4 (1/m³)
  - `nh3_conc` - Concentration of nh3 (1/m³)
- - `negative_ion_conc` - Concentration of negative ions (1/m³)
+ - `negative_ion_conc` - Concentration of negative ions (1/cm³; passed to the
+   fit unconverted, see the TODO in the function body)
  - `temp` - Temperature (K)
  - `params` - NamedTuple parameter set obtained from ClimaParams.
-Calculates the rate of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation for a single timestep (1/m³/s).
+
+Calculates the rates of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation
+and returns them as a `NamedTuple` `(; binary_rate, ternary_rate)` (1/m³/s).
 The particle formation rate is parameterized using data from the CLOUD experiment, through neutral and ion-induced channels.
-This is an implementation of Dunne et al 1016 doi:10.1126/science.aaf2649 Appendix 8-10
+This is an implementation of Dunne et al 2016 doi:10.1126/science.aaf2649 Appendix 8-10
 """
 function h2so4_nucleation_rate(
     h2so4_conc,
@@ -161,9 +164,11 @@ function organic_nucleation_rate_hom_prescribed(
 end
 
 """
-    organic_and_h2so4_nucleation_rate(h2so4_conc monoterpene_conc, OH_conc, temp, condensation_sink, params)
+    organic_and_h2so4_nucleation_rate(h2so4_conc, monoterpene_conc, OH_conc, temp, condensation_sink, params)
 
-- `h2so4_conc` - Concentration of sulfuric acid (1/m³)
+- `h2so4_conc` - Concentration of sulfuric acid
+  (currently passed to the fit unconverted, see the TODO in
+  `organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed`)
 - `monoterpene_conc` - Concentration of monoterpenes (1/m³)
 - `OH_conc` - Concentration of OH (1/m³)
 - `temp` - Temperature (K)

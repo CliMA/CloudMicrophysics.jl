@@ -1,5 +1,5 @@
 """
-    Cloud diagnostics
+    CloudDiagnostics
 
  - radar reflectivity (1-moment and 2-moment)
  - effective radius  (1-moment and 2-moment)
@@ -24,7 +24,7 @@ import ..Utilities as UT
 
 Returns logarithmic radar reflectivity for the 1-moment microphysics
 based on the assumed rain particle size distribution.
-Normalized by the reflectivty of 1 millimiter drop in a volume of 1m3.
+Normalized by the reflectivity of a 1 millimeter drop in a volume of 1 m³.
 The values are clipped at -150 dBZ.
 """
 function radar_reflectivity_1M(
@@ -47,17 +47,17 @@ end
 """
     radar_reflectivity_2M(structs, q_lcl, q_rai, N_lcl, N_rai, ρ_air)
 
-    - `structs` - structs microphysics 2-moment with SB2006 cloud droplets
-                  and raindrops size distributions parameters
-    - `q_lcl` - cloud liquid water specific content
-    - `q_rai` - rain water specific content
-    - `N_lcl` - cloud droplet number density
-    - `N_rai` - rain droplet number density
-    - `ρ_air` - air density
+ - `structs` - structs microphysics 2-moment with SB2006 cloud droplets
+   and raindrops size distributions parameters
+ - `q_lcl` - cloud liquid water specific content
+ - `q_rai` - rain water specific content
+ - `N_lcl` - cloud droplet number density
+ - `N_rai` - rain droplet number density
+ - `ρ_air` - air density
 
 Returns logarithmic radar reflectivity for the 2-moment microphysics SB2006
-based on the assumed cloud and rain particle size distribuions.
-Normalized by the reflectivty of 1 millimiter drop in a volume of 1m3.
+based on the assumed cloud and rain particle size distributions.
+Normalized by the reflectivity of a 1 millimeter drop in a volume of 1 m³.
 The values are clipped at -150 dBZ.
 """
 function radar_reflectivity_2M((; pdf_c, pdf_r)::CMP.SB2006, q_lcl, q_rai, N_lcl, N_rai, ρ_air)
@@ -85,13 +85,13 @@ end
 """
     effective_radius_2M(structs, q_lcl, q_rai, N_lcl, N_rai, ρ_air)
 
-    - `structs` - structs with SB2006 cloud droplets and raindrops
-                size distribution parameters
-    - `q_lcl` - cloud liquid water specific content
-    - `q_rai` - rain water specific content
-    - `N_lcl` - cloud droplet number density
-    - `N_rai` - rain droplet number density
-    - `ρ_air` - air density
+ - `structs` - structs with SB2006 cloud droplets and raindrops
+   size distribution parameters
+ - `q_lcl` - cloud liquid water specific content
+ - `q_rai` - rain water specific content
+ - `N_lcl` - cloud droplet number density
+ - `N_rai` - rain droplet number density
+ - `ρ_air` - air density
 
 Returns effective radius for the 2-moment microphysics scheme.
 Computed based on the assumed cloud and rain particle size distributions.
@@ -123,14 +123,15 @@ function effective_radius_2M((; pdf_c, pdf_r)::CMP.SB2006, q_lcl, q_rai, N_lcl, 
 end
 
 """
-    effective_radius_Liu_Hallet_97(q_lcl, q_rai, N_lcl, N_rai, ρ_air, ρ_w)
+    effective_radius_Liu_Hallet_97(wtr, ρ_air, q_lcl, N_lcl, q_rai, N_rai)
+    effective_radius_Liu_Hallet_97(wtr, ρ_air, q_lcl)
 
-    - `q_lcl` - cloud water specific content
-    - `q_rai` - rain water specific content
-    - `N_lcl` - cloud droplet number density
-    - `N_rai` - rain droplet number density
-    - `ρ_air` - air density
-    - `ρ_w` - water density
+ - `wtr` - a struct with water properties (contains the water density `ρw`)
+ - `ρ_air` - air density
+ - `q_lcl` - cloud water specific content
+ - `N_lcl` - cloud droplet number density
+ - `q_rai` - rain water specific content
+ - `N_rai` - rain droplet number density
 
 Returns effective radius using the "1/3" power law from Liu and Hallett (1997).
 If not provided by the user, it is assumed that there is no rain present and that
@@ -173,7 +174,7 @@ end
 """
     effective_radius_const(cloud_params)
 
-  - cloud_params - a struct with cloud liquid or cloud ice parameters
+  - `cloud_params` - a struct with cloud liquid or cloud ice parameters
 
 Returns a constant assumed effective radius for clouds
 """

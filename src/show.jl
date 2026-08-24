@@ -3,9 +3,9 @@ This module contains methods for showing parameter structs in a human-friendly w
 
 # Main show methods
 
-- [`verbose_show_type_and_fields(io::IO, ::MIME"text/plain", x; kw...)`](@ref)
-- [`compact_show_type_and_fields(io::IO, ::MIME"text/plain", x; kw...)`](@ref)
-- [`parseable_show_with_fields_no_type_header(io::IO, x; kw...)`](@ref)
+- [`verbose_show_type_and_fields`](@ref)
+- [`compact_show_type_and_fields`](@ref)
+- [`parseable_show_with_fields_no_type_header`](@ref)
 
 The verbose and compact methods display multiline and singleline representations
 of the contents of the structs in a human-friendly way. The parseable method
@@ -138,7 +138,10 @@ function verbose_show_type_and_fields(io::IO, mime::MIME"text/plain", x; with_mo
 end
 
 """
-    compact_show_type_and_fields(io::IO, ::MIME"text/plain", x; kw...)
+    compact_show_type_and_fields(
+        io::IO, ::MIME"text/plain", x;
+        with_units, with_kwargs, with_module_prefix, skip_fields_by_value,
+    )
 
 Print a compact one-line representation of `x`: `TypeName(field = value, ...)`.
 
@@ -187,7 +190,7 @@ function compact_show_type_and_fields(io::IO, ::MIME"text/plain", x;
 end
 
 """
-	parseable_show_with_fields_no_type_header(io::IO, x; kw...)
+    parseable_show_with_fields_no_type_header(io::IO, x; kw...)
 
 Print a parseable (copy-pasteable) one-line representation of `x`.
 Thin wrapper around [`compact_show_type_and_fields`](@ref) with
@@ -269,7 +272,8 @@ you should not need to define `Base.show` for it.
 """
 field_units(_) = nothing
 
-"Print unit annotation for field `k` based on the units spec."
+"Print unit annotation for field `k` based on the units spec; the fallback
+for a missing spec prints nothing."
 _print_unit(::IO, _, _) = nothing
 function _print_unit(io::IO, units::NamedTuple, k::Symbol)
     unit = haskey(units, k) ? units[k] : "-"

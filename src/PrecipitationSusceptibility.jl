@@ -9,6 +9,8 @@ export precipitation_susceptibility_autoconversion
 export precipitation_susceptibility_accretion
 
 """
+    precip_susceptibility_rates{FT}
+
 A structure containing the logarithmic derivatives of the production of
 precipitation with respect to the specific contents and number
 densities of cloud liquid water and rain water.
@@ -21,7 +23,7 @@ densities of cloud liquid water and rain water.
 end
 
 """
-    precipitation_susceptibility_autoconversion(param_set, scheme, q_lcl, q_rai, ρ, N_lcl)
+    precipitation_susceptibility_autoconversion(scheme, q_lcl, q_rai, ρ, N_lcl)
 
 - `scheme` - type for 2-moment rain autoconversion parameterization
 - `q_lcl` - cloud liquid water specific content
@@ -51,9 +53,9 @@ function precipitation_susceptibility_autoconversion(
 end
 
 """
-    precipitation_susceptibility_accretion(param_set, scheme, q_lcl, q_rai, ρ, N_lcl)
+    precipitation_susceptibility_accretion(scheme, q_lcl, q_rai, ρ, N_lcl)
 
-- `scheme` - type for 2-moment rain autoconversion parameterization
+- `scheme` - type for 2-moment rain accretion parameterization
 - `q_lcl` - cloud liquid water specific content
 - `q_rai` - rain water specific content
 - `ρ` - air density
