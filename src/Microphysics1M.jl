@@ -236,6 +236,13 @@ Fall velocity of individual particles is parameterized:
 
 # Returns
 - Mass-weighted terminal velocity [m/s]
+
+# Notes
+- The `q > ϵ_numerics` presence gate returns exactly 0 for absent tracers,
+  while the fall speed just above the gate is finite (about 0.4 m/s in
+  Float32), so `v_t` is discontinuous there. The associated mass flux
+  `q v_t` is below 1e-13 kg/kg m/s, so physically negligible, but treat `v_t`
+  near the gate with care.
 """
 @inline function terminal_velocity(
     (; pdf, mass)::Union{CMP.Rain, CMP.Snow},
@@ -292,10 +299,10 @@ end
     ρₐ,
     q,
 )
-    # We assume the B4 table coeffs for snow and B2 table coeffs for cloud ice.
+    # We assume the B5 table coeffs for snow and B3 table coeffs for cloud ice.
     # Instead we should do partial integrals
-    # from D=125um to D=625um using B2 and D=625um to inf using B4.
-    # coefficients from Table B4 from Chen et. al. 2022
+    # from D=125um to D=625um using B3 and D=625um to inf using B5.
+    # coefficients from Table B5 from Chen et. al. 2022
     aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
     # size distribution parameter
     λ_inv_radius = lambda_inverse(pdf, mass, q, ρₐ)
@@ -320,8 +327,8 @@ end
     q,
     snow_shape::AbstractSnowShape,
 )
-    # see comments above about B2 vs B4 coefficients
-    # coefficients from Table B4 from Chen et. al. 2022
+    # see comments above about B3 vs B5 coefficients
+    # coefficients from Table B5 from Chen et. al. 2022
     aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
     # size distribution parameter
     λ_inv_radius = lambda_inverse(pdf, mass, q, ρₐ)
@@ -341,6 +348,24 @@ end
         ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
     fall_w = UT.clamp_to_nonneg(fall_w)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
+end
+
+# The option argument selects the parameterization, but the shape of
+# `mp.process_params` is fixed by the options `mp` was constructed with.
+# This guard turns an option/parameter mismatch into an actionable error
+# instead of an obscure field-access failure; the `isa` check folds away at
+# compile time when the types are consistent.
+@noinline _throw_option_params_mismatch(opt, pp, field::Symbol) = throw(
+    ArgumentError(
+        "$(typeof(opt)) requires `mp.process_params.$field` built for this " *
+        "option, got $(typeof(pp)). Construct the parameters with the " *
+        "matching option, e.g. " *
+        "`Microphysics1MParams(FT; $field = $(nameof(typeof(opt)))())`.",
+    ),
+)
+@inline function _consistent_params(pp, ::Type{T}, opt, field::Symbol) where {T}
+    pp isa T || _throw_option_params_mismatch(opt, pp, field)
+    return pp
 end
 
 """
@@ -371,15 +396,17 @@ using the prescribed cloud droplet number concentration.
 """
 @inline conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo) = zero(micro.q_lcl)
 
-@inline function conv_q_lcl_to_q_rai(::CMP.Kessler1M, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
-    (; τ, q_threshold, k) = mp.process_params.rain_autoconversion
+    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.Acnv1M, opt, :rain_autoconversion)
+    (; τ, q_threshold, k) = pp
     return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ
 end
 
-@inline function conv_q_lcl_to_q_rai(::CMP.PrescribedNd, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_rai(opt::CMP.PrescribedNd, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
-    (; τ, α, Nc) = mp.process_params.rain_autoconversion
+    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
+    (; τ, α, Nc) = pp
     return max(0, q_lcl) / (τ * (Nc / 100_000_000)^α)
 end
 
@@ -431,8 +458,9 @@ Harrington et al. (1995) and Kaul et al. (2015).
 """
 @inline conv_q_icl_to_q_sno(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(micro.q_icl)
 
-@inline function conv_q_icl_to_q_sno(::CMP.NoSupersaturation, mp, tps, micro, thermo, sd = nothing)
-    (; τ, q_threshold, k) = mp.process_params.snow_autoconversion
+@inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo, sd = nothing)
+    pp = _consistent_params(mp.process_params.snow_autoconversion, CMP.Acnv1M, opt, :snow_autoconversion)
+    (; τ, q_threshold, k) = pp
     q_icl = micro.q_icl
     return CO.logistic_function_integral(q_icl, q_threshold, k) / τ
 end
@@ -442,7 +470,11 @@ end
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    r_ice_snow = mp.process_params.snow_autoconversion.r_ice_snow
+    pp = _consistent_params(
+        mp.process_params.snow_autoconversion, NamedTuple{(:r_ice_snow,)},
+        CMP.WithSupersaturation(), :snow_autoconversion,
+    )
+    r_ice_snow = pp.r_ice_snow
     (; pdf, mass) = mp.cloud.ice
     aps = mp.air_properties
     FT = eltype(ρ)
@@ -469,7 +501,7 @@ end
     warm_accretion_melt_factor(tps, T)
 
 Ratio of sensible heat from warm collected liquid to latent heat for melting:
-`α = cv_l / L_f × (T - T_freeze)`, returning 0 when `T ≤ T_freeze`.
+`α = cp_l / L_f × (T - T_freeze)`, returning 0 when `T ≤ T_freeze`.
 
 Used by `accretion(::CloudLiquidSnowAccretion, ...)` and
 `accretion_snow_rain(::RainSnowAccretion, ...)` to compute the thermal melt
@@ -477,11 +509,11 @@ contribution of warm liquid on snow.
 """
 @inline function warm_accretion_melt_factor(tps, T)
     L_f = TDI.Lf(tps, T)
-    cv_l = TDI.cv_l(tps)
+    cp_l = TDI.cp_l(tps)
     T_freeze = TDI.T_freeze(tps)
     ΔT = T - T_freeze
     is_cold = (T <= T_freeze)
-    return ifelse(is_cold, zero(T), cv_l / L_f * ΔT)
+    return ifelse(is_cold, zero(T), cp_l / L_f * ΔT)
 end
 
 # Gating convention for the process-rate kernels below: the rate is computed
@@ -1045,7 +1077,13 @@ end
     thermo,
     sd = size_distr_parameters(mp, micro, thermo),
 )
-    return _snow_subl_dep_rate(mp, tps, micro, thermo, sd)
+    rate = _snow_subl_dep_rate(mp, tps, micro, thermo, sd)
+    # No deposition above freezing: ice does not grow by vapor deposition
+    # in the melting regime, even if the air is supersaturated over ice
+    # (possible for transient supersaturation spikes). Sublimation stays
+    # active at all temperatures.
+    is_warm = thermo.T > TDI.T_freeze(tps)
+    return ifelse(is_warm, min(0, rate), rate)
 end
 
 """Internal helper: snow sublimation/deposition physics kernel."""
