@@ -102,6 +102,11 @@ function test_microphysics1M(FT)
         TT.@test v_bigger_prolate > vt_prolate
         # both shapes give reasonable velocities (within an order of magnitude of each other)
         TT.@test 0.1 < vt_oblate / vt_prolate < 10
+
+        # reference values. `ϕ` is a function of diameter, so the mass-weighted
+        # ⟨ϕ⟩ must use the diameter-based slope: checking here for consistency.
+        TT.@test vt_oblate ≈ FT(1.6992) rtol = 1e-4
+        TT.@test vt_prolate ≈ FT(1.4875) rtol = 1e-4
     end
 
     TT.@testset "1M_microphysics - 1M snow terminal velocity" begin
