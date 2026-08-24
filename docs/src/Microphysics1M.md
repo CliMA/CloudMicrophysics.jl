@@ -297,6 +297,11 @@ where ``\delta = 4`` for the case of an exponential size distribution and the ma
 For snow, for simplicity, we first compute the
   mass-weighted mean aspect ratio over the size distribution of particles ``\phi_\text{avg}``
   and then treat this as constant when computing the group terminal velocity.
+The aspect ratio is obtained by inverting the assumed mass and area laws for
+  the particle thickness at the bulk ice density, as in the P3 scheme.
+Because the mass and area laws are independent parameterizations,
+  ``\phi_\text{avg}`` is an effective parameter of the [Chen2022](@cite)
+  velocity correction rather than a true geometric aspect ratio.
 
 !!! note
     For snow, we only use the B5 coefficients from [Chen2022](@cite).
@@ -330,6 +335,7 @@ where:
 An alternative rain autoconversion option with a prescribed cloud droplet
   number concentration ``N_c`` is also available
   (`PrescribedNd`, following Azimi et al. (2023)):
+
 ```math
 \begin{equation}
   \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{acnv} =
@@ -757,7 +763,6 @@ For implicit time integration, the process rates are linearized with respect
 This linearization is implemented in the bulk tendencies module;
   see the Bulk tendencies documentation page for details.
 
-
 ## Example figures
 
 ```@example
@@ -772,6 +777,3 @@ include("plots/Microphysics1M_plots.jl")
 ![](rain_evaporation_rate.svg)
 ![](snow_sublimation_deposition_rate.svg)
 ![](snow_melt_rate.svg)
-
-
-
