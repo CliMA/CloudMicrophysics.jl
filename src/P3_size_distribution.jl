@@ -23,7 +23,13 @@ concentration at diameter `D`, for the [`P3State`](@ref) `state` and log-slope `
 """
 function logN′ice(state::P3State, logλ)
     μ = get_μ(state, logλ)
-    log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
+    (; ρn_ice) = state
+    # Without ice number, the distribution is zero (log(N₀) = -Inf). The substitute `ρn_ice = 1`
+    # keeps `get_logN₀` and its ForwardDiff partials finite in the discarded branch.
+    present = FD.value(ρn_ice) > zero(FD.value(ρn_ice))
+    ρn_ice_safe = ifelse(present, ρn_ice, one(ρn_ice))
+    log_N₀_safe = get_logN₀(ρn_ice_safe, μ, logλ)
+    log_N₀ = ifelse(present, log_N₀_safe, oftype(log_N₀_safe, -Inf))
     # Promote to a common type: differentiating w.r.t. the ice number makes
     # `log_N₀` a `Dual` while `μ` (a function of the fixed `logλ`) stays a plain
     # float, and `P3LogNumberFunctor` stores both in a single field type.
@@ -104,7 +110,9 @@ function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     (p1, q1) = UT.gamma_inc(z, x1)
     (p2, q2) = UT.gamma_inc(z, x2)
     Δq = x2 < z + 1 ? p2 - p1 : q1 - q2
-    Δq = max(Δq, eps(FT))
+    # `Δq ≥ 0` analytically but can round below zero. The floor keeps `log(Δq)` and its
+    # derivative finite.
+    Δq = max(Δq, floatmin(FT))
     return -z * logλ + SF.loggamma(z) + log(Δq) + log(FT(scale))
 end
 
@@ -135,8 +143,8 @@ end
 """
     loggamma_moment(μ, logλ; [k = 0], [scale = 1])
 
-Compute `log(scale ⋅ ∫_0^∞ G(D) D^k dD)`, 
- where `G(D) ≡ D^μ e^{-λD}` is the (unnormalized) gamma kernel, 
+Compute `log(scale ⋅ ∫_0^∞ G(D) D^k dD)`,
+ where `G(D) ≡ D^μ e^{-λD}` is the (unnormalized) gamma kernel,
  `k` is an arbitrary exponent, and `scale` is a scale factor.
 
 # Arguments
@@ -233,11 +241,12 @@ Compute `log(N₀)` given `N_ice`, `μ`, and `logλ`,
 - `N_ice`: The number concentration [1/m³]
 - `μ`: The shape parameter [`-`]
 - `logλ`: The log of the slope parameter [log(1/m)]
+
+Requires `N_ice > 0`.
 """
 function get_logN₀(N_ice, μ, logλ)
     logNdivN₀ = loggamma_moment(μ, logλ; k = 0)
-    logN₀ = log(N_ice) - logNdivN₀
-    return logN₀
+    return log(N_ice) - logNdivN₀
 end
 
 """
@@ -247,12 +256,50 @@ A `RootSolvers.AbstractTolerance` whose convergence predicate is always `false`,
 so the bracketing solver never exits early and always runs the full iteration
 budget. This makes the iteration count independent of the input, eliminating
 warp divergence from data-dependent early-exit on the GPU (at the cost of the
-warm-start speedup — a tighter initial bracket improves accuracy but not the
-iteration count). The iteration budget itself is calibrated empirically; see
-[`get_distribution_logλ`](@ref).
+warm-start speedup - a tighter initial bracket improves accuracy but not the
+iteration count). Each caller sets its own iteration budget.
 """
 struct FixedIterations{FT} <: RS.AbstractTolerance{FT} end
 @inline (::FixedIterations)(x1, x2, y) = false
+
+"""
+    _mean_mass_target_logλ(state, a, b, target_mass)
+
+Solve `log(target_mass) = log(a) + loggamma(b+μ+1) - loggamma(μ+1) - b·logλ` for `logλ`, where
+`μ = get_μ(state, logλ)`, by a fixed-point iteration with a fixed step count.
+
+`(a, b)` are the coefficients of the ice mass power law `a D^b` in the regime that contains
+`target_mass`. The solution is exact when the whole distribution lies in that regime.
+"""
+@inline function _mean_mass_target_logλ(state, a, b, target_mass)
+    FT = eltype(state)
+    log_target = log(target_mass)
+    logλ = (log(a) + SF.loggamma(b + 1) - log_target) / b  # μ = 0 seed
+    for _ in 1:3
+        μ = get_μ(state, logλ)
+        logλ = (log(a) + SF.loggamma(b + μ + 1) - SF.loggamma(μ + 1) - log_target) / b
+    end
+    return logλ
+end
+
+"""
+    _derived_logλ_bracket(state)
+
+Default search bounds `(logλ_min, logλ_max)` of [`get_distribution_logλ`](@ref).
+
+`logλ_max` is the slope at which the mean particle mass equals
+[`ice_mean_particle_mass_min`](@ref). Such small particles are small spherical ice, so
+`logλ_max` does not depend on `F_rim` or `ρ_rim`. `logλ_min = 2`.
+"""
+@inline function _derived_logλ_bracket(state::P3State)
+    FT = eltype(state)
+    p3 = state.params
+    mass_min = ice_mean_particle_mass_min(p3)
+    (a_small, b_small) = ice_mass_coeffs(state, zero(FT))
+    logλ_max = _mean_mass_target_logλ(state, a_small, b_small, mass_min)
+    margin = FT(100) * eps(FT)  # rounding margin
+    return (FT(2), logλ_max + margin)
+end
 
 """
     get_distribution_logλ(state, [logλ_guess, logλ_min, logλ_max])
@@ -281,38 +328,46 @@ where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
 
 # Arguments
 - `state`: The [`P3State`](@ref)
-- `logλ_guess`: Optional initial guess
-- `logλ_min`: The minimum value of the search bounds [log(1/m)], default is `2`
-- `logλ_max`: The maximum value of the search bounds [log(1/m)], default is `17`
+- `logλ_guess`: Optional initial guess, which narrows the search bounds but does not change
+  the iteration count
+- `logλ_min`, `logλ_max`: The search bounds [log(1/m)]. By default, `logλ_min = 2`, and
+  `logλ_max` is the slope at which the mean particle mass equals the mass of a newly nucleated
+  crystal.
 """
-function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, logλ_max = 17)
+function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = nothing, logλ_max = nothing)
     FT = eltype(state)
-    ϵₘ = UT.ϵ_numerics_2M_M(FT)
-    ϵₙ = UT.ϵ_numerics_2M_N(FT)
     (; ρn_ice, ρq_ice) = state
-    (ρn_ice < ϵₙ || ρq_ice < ϵₘ) && return log(zero(ρq_ice))
+    lo, hi = if logλ_min === nothing || logλ_max === nothing
+        (dlo, dhi) = _derived_logλ_bracket(state)
+        (logλ_min === nothing ? dlo : FT(logλ_min), logλ_max === nothing ? dhi : FT(logλ_max))
+    else
+        (FT(logλ_min), FT(logλ_max))
+    end
+    # Without ice mass, the limit of vanishing mean particle mass is the smallest particles, `hi`
+    if ρq_ice <= 0 && ρn_ice > 0
+        return hi
+    end
+
+    # Two logs instead of the log of the ratio, which can underflow to zero in Float32
     target_log_LdN = log(ρq_ice) - log(ρn_ice)
 
     shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
-    lo, hi = FT(logλ_min), FT(logλ_max)
     f_lo, f_hi = shape_problem(lo), shape_problem(hi)
     if !isfinite(f_lo) || !isfinite(f_hi) || f_lo * f_hi > 0
+        # `logLdivN` decreases in `logλ`, so an infinite target selects a bound by its sign:
+        # vanishing mean mass (-Inf) gives `hi`, no number (+Inf) gives `lo`, and 0/0 (NaN) gives `hi`
+        if !isfinite(target_log_LdN)
+            isnan(target_log_LdN) && return hi
+            return target_log_LdN > 0 ? lo : hi
+        end
         return abs(f_lo) ≤ abs(f_hi) ? lo : hi
     end
     (lo, f_lo, hi, f_hi) =
         _narrow_bracket(shape_problem, lo, f_lo, hi, f_hi, logλ_guess)
 
-    # Fixed iteration count (no early-exit) keeps GPU warps convergent. The
-    # branchless Brent's method converges rapidly, and the shape problem
-    # `logLdivN(logλ)` is close to linear over the [2,17] bracket, so these
-    # counts empirically reach excellent accuracy across sampled physical
-    # states. This is an EMPIRICAL, curvature-dependent result, NOT a guaranteed
-    # tolerance: a strongly-curved shape function (e.g. a future `get_μ` law)
-    # could leave the root under-resolved with no runtime signal (the solver's
-    # `converged` flag is unused). Accuracy is guarded end-to-end by the
-    # `N ≈ ∫N′ dD` integral checks in `test/p3_tests.jl`; revisit the budget if
-    # those tighten or the slope law changes.
-    maxiters = FT === Float32 ? 8 : 10
+    # A fixed iteration count (no early exit) keeps GPU warps convergent. The counts reach the
+    # rounding floor of `logLdivN` at each precision; `test/p3_tests.jl` asserts the residual.
+    maxiters = FT === Float32 ? 10 : 12
     sol = RS.find_zero(
         shape_problem,
         RS.BrentsMethod(lo, hi),
@@ -320,7 +375,7 @@ function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, log
         FixedIterations{FT}(),
         maxiters,
     )
-    return sol.root  # logλ
+    return clamp(sol.root, lo, hi)  # logλ, within the search bounds
 end
 
 """
