@@ -7,7 +7,7 @@ import CloudMicrophysics.ThermodynamicsInterface as TDI
 FT = Float64
 
 # parameters
-params = CMP.ParametersP3(FT; slope_law = :constant)
+params = CMP.ParametersP3(FT)
 vel = CMP.Chen2022VelType(FT)
 aps = CMP.AirProperties(FT)
 tps = TDI.PS(FT)

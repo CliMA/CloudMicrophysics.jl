@@ -1,11 +1,11 @@
+###
+### P3 terminal velocity functions
+###
 
-# The aspect-ratio types live in `CMP` (`ParametersP3` stores the choice); the
-# functor methods live here, where `ϕᵢ` is defined.
-const AspectRatio = CMP.AspectRatio
-const Oblate = CMP.Oblate
-const NoAspectRatio = CMP.NoAspectRatio
-@inline (::Oblate)(state, D) = cbrt(ϕᵢ(state, D))
-@inline (::NoAspectRatio)(state, D) = one(D)
+# `ParametersP3` stores the aspect-ratio choice, but the functor methods need `ϕᵢ`,
+# which is defined in this module, so the methods are defined here.
+@inline (::CMP.Oblate)(state, D) = cbrt(ϕᵢ(state, D))
+@inline (::CMP.NoAspectRatio)(state, D) = one(D)
 
 # Callable returned by `ice_particle_terminal_velocity`: piecewise small/large-ice
 # Chen 2022 velocity scaled by the aspect-ratio factor from `state.params`.
