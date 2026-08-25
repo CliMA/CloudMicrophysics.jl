@@ -1266,7 +1266,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     pdf_c = mp.ice.cloud_pdf
     pdf_r = mp.ice.rain_pdf
     ice_nucleation = mp.ice.ice_nucleation
-    inp_depletion_model = mp.ice.inp_depletion_model
     quad = mp.ice.quad
 
     # Only compute ice processes if there is ice mass/number present
@@ -1308,34 +1307,27 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         db_rim_dt -= ifelse(state.ρ_rim > 0, ∂ₜq_ice_melt * state.F_rim / state.ρ_rim, zero(FT))
     end
 
-    # --- Ice nucleation (F23 + Bigg)
-    τ_act = inp_depletion_model.τ_act
-    # Vapor deposition nucleation size. TODO: put into ClimaParams.
-    D_nuc = FT(10e-6)  # 10 μm nascent crystal - small-D tail of the P3
-    m_nuc = p3.ρ_i * CO.volume_sphere_D(D_nuc)
-
-    # F23 INP-activation depletion proxy.
-    n_active = CM_HetIce.n_active(inp_depletion_model, n_ice)
-
-    # --- deposition nucleation (vapor → pristine ice)
-    dep = CM_HetIce.deposition_rate(
-        ice_nucleation, tps, T, ρ, q_tot, q_lcl + q_rai, q_ice, n_active;
-        m_nuc, τ_act, inpc_log_shift,
-    )
+    # --- Ice nucleation: deposition onto the INP target spectrum, and immersion freezing
+    # Deposition nucleation of pristine ice (F_rim = 0) supplies both moments at the nascent
+    # crystal mass. The depletion proxy, the seed delivery time and the liquid grouping for the
+    # saturation ratio are owned by the rate function; see `HetIceNucleation.deposition_rate`.
+    micro_dep = (; q_tot, q_lcl, q_rai, q_ice, n_ice)
+    thermo_dep = (; ρ, T)
+    dep = CM_HetIce.deposition_rate(ice_nucleation, mp, tps, micro_dep, thermo_dep)
 
     dn_ice_dt += dep.∂ₜn_frz
     dq_ice_dt += dep.∂ₜq_frz
     # No contribution to q_rim, b_rim — pristine deposition crystals have F_rim = 0.
 
-    # --- F23-bounded Bigg immersion freezing of cloud drops
-    cld_bigg = CM_HetIce.liquid_freezing_rate(
-        mp.ice.rain_freezing, pdf_c, tps, q_lcl, ρ, N_lcl, T,
+    # --- Freezing of cloud drops, on the SAME composition rain gets: Bigg immersion and Koop
+    # homogeneous in parallel, then the kinetic stages, with no ice-nucleating-particle budget
+    # above either; see `HetIceNucleation.cloud_freezing_rate`.
+    cld_frz = CM_HetIce.cloud_freezing_rate(
+        mp.ice.rain_freezing, mp.ice.homogeneous, p3.vent, aps, tps,
+        pdf_c, q_lcl, ρ, N_lcl, T, TDI.q_vap(q_tot, q_lcl + q_rai, q_ice),
     )
-    cld_cap = CM_HetIce.immersion_limit_rate(
-        ice_nucleation, T, ρ; τ = τ_act, inpc_log_shift, n_active,
-    )
-    ∂ₜn_imm = min(cld_bigg.∂ₜn_frz, cld_cap.∂ₜn_frz)
-    ∂ₜq_imm = ifelse(cld_bigg.∂ₜn_frz > 0, cld_bigg.∂ₜq_frz * ∂ₜn_imm / cld_bigg.∂ₜn_frz, zero(FT))
+    ∂ₜn_imm = cld_frz.∂ₜn_frz
+    ∂ₜq_imm = cld_frz.∂ₜq_frz
 
     # Drain liquid:
     dq_lcl_dt -= ∂ₜq_imm
@@ -1375,8 +1367,14 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ∂ₜn_ice_numadj = CM2.number_tendency_from_mass_limits(numadj, q_ice, n_ice)
     dn_ice_dt += ∂ₜn_ice_numadj
 
-    # --- Rain Heterogeneous Freezing (Bigg 1953)
-    rain_frz = CM_HetIce.liquid_freezing_rate(mp.ice.rain_freezing, pdf_r, tps, q_rai, ρ, N_rai, T)
+    # --- Rain freezing: Bigg immersion and Koop homogeneous in parallel, then the kinetic
+    # stages, integrated over the raindrop size distribution; see
+    # `HetIceNucleation.rain_freezing_rate`.
+    rain_frz = CM_HetIce.rain_freezing_rate(
+        mp.ice.rain_freezing, mp.ice.homogeneous, p3.vent, aps, tps,
+        mp.warm_rain.seifert_beheng.evap, pdf_r, q_rai, ρ, N_rai, T,
+        TDI.q_vap(q_tot, q_lcl + q_rai, q_ice),
+    )
 
     # Rain → ice (frozen rain is fully rimed, per MM15)
     dq_rai_dt -= rain_frz.∂ₜq_frz

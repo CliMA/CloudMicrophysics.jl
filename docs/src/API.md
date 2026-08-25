@@ -179,6 +179,7 @@ CMP.SlopeConstant{Float64}
 CMP.VentilationFactor
 CMP.LocalRimeDensity
 CMP.AspectRatio
+CMP.ice_seed
 CMP.SmoothSlopePowerLaw
 CMP.DEFAULT_SLOPE_LAW
 CMP.DEFAULT_ASPECT_RATIO
@@ -360,6 +361,18 @@ HetIceNucleation.deposition_rate
 HetIceNucleation.immersion_limit_rate
 HetIceNucleation.liquid_freezing_rate
 HetIceNucleation.n_active
+HetIceNucleation.is_active
+HetIceNucleation.delivery_rate
+HetIceNucleation.cloud_freezing_rate
+HetIceNucleation.rain_freezing_rate
+HetIceNucleation.rain_freezing_quadrature
+HetIceNucleation.RAIN_FREEZING_QUADRATURE_ORDER
+HetIceNucleation.CLOUD_FREEZING_QUADRATURE_ORDER
+HetIceNucleation.homogeneous_freezing_rate_coefficient
+HetIceNucleation.drop_freezing_dendrite_timescale
+HetIceNucleation.drop_freezing_heat_timescale
+HetIceNucleation.DENDRITE_GROWTH_VELOCITY
+HetIceNucleation.PRANDTL_NUMBER_AIR
 ```
 
 ## Parameters

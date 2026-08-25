@@ -1,6 +1,7 @@
 export ParametersP3
 export MassPowerLaw, AreaPowerLaw, SlopePowerLaw, SmoothSlopePowerLaw, SlopeConstant, VentilationFactor
 export DEFAULT_SLOPE_LAW, DEFAULT_ASPECT_RATIO
+export ice_seed
 
 ### ----------------------------- ###
 ### --- SUB-PARAMETERIZATIONS --- ###
@@ -402,6 +403,8 @@ $(DocStringExtensions.FIELDS)
     τ_wet::FT
     "Ice number-concentration adjustment timescale [`s`]"
     τ_numadj::FT
+    "Diameter of a nascent ice crystal [`m`]; see [`ice_seed`](@ref)"
+    D_nuc::FT
     "Cloud ice density [`kg m⁻³`]"
     ρ_i::FT
     "Cloud liquid water density [`kg m⁻³`]"
@@ -440,6 +443,7 @@ function ParametersP3(toml_dict::CP.ParamDict;
             :temperature_water_freeze => :T_freeze,
             :P3_wet_growth_timescale => :τ_wet,
             :P3_ice_number_adjustment_timescale => :τ_numadj,
+            :P3_ice_nucleation_diameter => :D_nuc,
         ), "CloudMicrophysics")
     slope = if slope_law == :powerlaw
         SlopePowerLaw(toml_dict)
@@ -464,6 +468,40 @@ end
 ### ----- UTILS ----- ###
 ### ----------------- ###
 
+"""
+    ice_seed(p3)
+
+The nascent ice crystal: the smallest particle the scheme creates, as the three quantities
+its consumers need.
+
+# Arguments
+ - `p3`: the [`ParametersP3`](@ref) scheme parameters.
+
+# Returns
+ - A `NamedTuple` `(; m_nuc, r_nuc, ρ_i)`:
+    + `m_nuc`: the mass of one nascent crystal [kg], `ρ_i (π/6) D_nuc³`, a solid ice sphere
+      of the nascent diameter.
+    + `r_nuc`: the nascent radius [m], `D_nuc/2`.
+    + `ρ_i`: the solid ice density [kg m⁻³] the mass is built from.
+
+This is the SINGLE SOURCE for the nascent crystal, and it is deliberately shared rather
+than restated per process. Its consumers are the deposition nucleation starter mass and
+seed delivery time, the lower bound of the ice number adjustment and the presence predicate
+that goes with it, the orphan-ice drain timescale, the upper edge of the shape-solve
+bracket, and the conduction-limited melt-fraction bound. Each of those is an argument about
+the smallest particle in the population, so they must move together: a number adjustment
+whose lower mass bound differed from the mass at which crystals are created would adjust a
+freshly nucleated population on the step it was created.
+
+Only the diameter is a free parameter (`P3_ice_nucleation_diameter`); the mass and the
+radius are derived here so that no consumer can hold its own copy of the relation.
+"""
+@inline function ice_seed((; D_nuc, ρ_i)::ParametersP3)
+    r_nuc = D_nuc / 2
+    m_nuc = ρ_i * π * D_nuc^3 / 6
+    return (; m_nuc, r_nuc, ρ_i)
+end
+
 # Unit annotations for verbose show (used by ShowMethods.verbose_show_type_and_fields)
 ShowMethods.field_units(::MassPowerLaw) = (; α_va = "kg m^(-β_va)")
 ShowMethods.field_units(::AreaPowerLaw) = (; γ = "m^(2-σ)")
@@ -471,4 +509,4 @@ ShowMethods.field_units(::SlopePowerLaw) = (; a = "m^b")
 ShowMethods.field_units(::SmoothSlopePowerLaw) = (; a = "m^b")
 ShowMethods.field_units(::LocalRimeDensity) = (; ρ_ice = "kg m⁻³")
 ShowMethods.field_units(::ParametersP3) =
-    (; τ_wet = "s", τ_numadj = "s", ρ_i = "kg m⁻³", ρ_l = "kg m⁻³", T_freeze = "K")
+    (; τ_wet = "s", τ_numadj = "s", D_nuc = "m", ρ_i = "kg m⁻³", ρ_l = "kg m⁻³", T_freeze = "K")

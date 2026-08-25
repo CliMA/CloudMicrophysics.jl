@@ -16,6 +16,7 @@ TT.@testset "All tests" begin
     include("common_functions_tests.jl")
     include("common_types_tests.jl")
     include("nucleation_unit_tests.jl")
+    include("nucleation_baseline_tests.jl")
     include("precipitation_susceptibility_tests.jl")
     include("p3_tests.jl")
     include("p3_rho_d_stability.jl")

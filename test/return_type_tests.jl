@@ -72,10 +72,13 @@ end
     )
     @test concrete_for_all_mixes(CO.logistic_function_integral, (), 3)
     @test concrete_for_all_mixes(UT._regularised_ratio, (), 3)
+    # τ_relax is the Frostenberg (2023) deposition timescale of the 1M non-equilibrium path
+    # and takes that spectrum explicitly; the P3 default target is Cooper from this unit on.
     @test concrete_for_all_mixes(
         CMNonEq.τ_relax,
-        (P(CMP.CloudIce(FT64)), P(CMP.AirProperties(FT64)), P(mp.ice.ice_nucleation)), 3,
+        (P(CMP.CloudIce(FT64)), P(CMP.AirProperties(FT64)), P(CMP.Frostenberg2023(FT64))), 3,
     )
+    # The prescribed-ice-number method takes no spectrum at all.
     @test concrete_for_all_mixes(
         CMNonEq.τ_relax,
         (P(CMP.CloudIce(FT64)), P(CMP.AirProperties(FT64))), 2,

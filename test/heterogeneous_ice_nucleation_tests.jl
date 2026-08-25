@@ -348,7 +348,7 @@ function test_heterogeneous_ice_nucleation(FT)
         q_vap_super = 2 * q_sat_ice          # S_i ≈ 1.0
         r_active = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_cold, ρ, q_vap_super, FT(0), FT(0), n_ice;
-            m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
+            m_nuc,
             τ_act,
         )
         TT.@test r_active.∂ₜn_frz > FT(0)
@@ -356,12 +356,16 @@ function test_heterogeneous_ice_nucleation(FT)
         # When the starter-mass term is the binding constraint (large
         # q_excess), ∂ₜq_frz = m_nuc · ∂ₜn_frz exactly:
         TT.@test r_active.∂ₜq_frz ≈ m_nuc * r_active.∂ₜn_frz rtol = sqrt(eps(FT))
+        # and the number is then the bare INP-budget relaxation, bit for bit: the
+        # vapor cap must not touch the branch it does not bind on.
+        INPC_at_T_cold = exp(CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)) / ρ
+        TT.@test r_active.∂ₜn_frz == max(FT(0), INPC_at_T_cold - n_ice) / τ_act
 
         # n_ice = INPC ⇒ depleted to zero ⇒ both n and q rates vanish
         INPC_at_T = exp(CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)) / ρ
         r_depleted = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_cold, ρ, q_vap_super, FT(0), FT(0), INPC_at_T;
-            m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
+            m_nuc,
             τ_act,
         )
         TT.@test r_depleted.∂ₜn_frz == FT(0)
@@ -381,11 +385,23 @@ function test_heterogeneous_ice_nucleation(FT)
         TT.@test r_T_gate.∂ₜn_frz == FT(0)
         TT.@test r_T_gate.∂ₜq_frz == FT(0)
 
+        # at and above freezing the rate is zero in both moments
+        for T_above in (T_freeze, T_freeze + FT(2))
+            q_sat_above =
+                TDI.saturation_vapor_specific_content_over_ice(tps, T_above, ρ)
+            r_above = CMI_het.deposition_rate(
+                ip_frostenberg, tps, T_above, ρ, 2 * q_sat_above, FT(0), FT(0), n_ice;
+                m_nuc, τ_act,
+            )
+            TT.@test r_above.∂ₜn_frz == FT(0)
+            TT.@test r_above.∂ₜq_frz == FT(0)
+        end
+
         # Subsaturated wrt ice ⇒ both rates zero (S_i gate closed, and
         # the vapor cap independently zeros ∂ₜq_frz).
         r_sub = CMI_het.deposition_rate(
             ip_frostenberg, tps, T_cold, ρ, FT(0.5) * q_sat_ice, FT(0), FT(0), n_ice;
-            m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
+            m_nuc,
             τ_act,
         )
         TT.@test r_sub.∂ₜn_frz == FT(0)
@@ -452,12 +468,19 @@ function test_heterogeneous_ice_nucleation(FT)
         TT.@test r_colder.∂ₜn_frz > r_cold.∂ₜn_frz
         TT.@test r_colder.∂ₜq_frz > r_cold.∂ₜq_frz
 
-        # Above −4 °C gate ⇒ both rates zero
+        # 2 K of supercooling: freezing is available, and small
         r_warm = CMI_het.liquid_freezing_rate(
             rf, pdf_c, tps, q_lcl, ρ, N_lcl, T_freeze - FT(2),
         )
-        TT.@test r_warm.∂ₜn_frz == FT(0)
-        TT.@test r_warm.∂ₜq_frz == FT(0)
+        TT.@test r_warm.∂ₜn_frz > FT(0)
+        TT.@test r_warm.∂ₜq_frz > FT(0)   # paired, as every source must be
+        TT.@test r_warm.∂ₜn_frz < r_cold.∂ₜn_frz   # and small: the rolloff toward ΔT = 0
+
+        r_not_supercooled = CMI_het.liquid_freezing_rate(
+            rf, pdf_c, tps, q_lcl, ρ, N_lcl, T_freeze,
+        )
+        TT.@test r_not_supercooled.∂ₜn_frz == FT(0)
+        TT.@test r_not_supercooled.∂ₜq_frz == FT(0)
 
         # Zero N or q ⇒ both rates zero
         r_zero_N = CMI_het.liquid_freezing_rate(rf, pdf_c, tps, q_lcl, ρ, FT(0), T_cold)
@@ -483,7 +506,101 @@ function test_heterogeneous_ice_nucleation(FT)
     end
 end
 
+# The shared activity condition reproduces the expression it replaced, except in the band 0 <= ΔT < 4 K.
+function test_liquid_freezing_gate_is_shared(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    T_freeze = TDI.TD.Parameters.T_freeze(tps)
+    ϵₘ = CM.Utilities.ϵ_numerics_2M_M(FT)
+    ϵₙ = CM.Utilities.ϵ_numerics_2M_N(FT)
+    # the condition before the change, as the control
+    old(q, n, T) = (n > ϵₙ) & (q > ϵₘ) & (T < T_freeze - 4)
+    band(T) = (T >= T_freeze - 4) & (T < T_freeze)   # the band the derived gate opens
+
+    TT.@testset "the liquid-freezing gate is one shared definition [FT=$FT]" begin
+        # each clause straddled: mass present/absent, number present/absent, and the temperature
+        # gate from well below to above freezing including its exact boundary
+        qs = FT[0, ϵₘ, nextfloat(ϵₘ), 1e-6, 1e-3]
+        ns = FT[0, ϵₙ, nextfloat(ϵₙ), 1e3, 1e8]
+        Ts = FT[T_freeze - 40, T_freeze - 4.001, T_freeze - 4, T_freeze - 3.999,
+            T_freeze - 1, T_freeze, T_freeze + 5]
+        n_true = 0
+        n_opened = 0
+        for q in qs, n in ns, T in Ts
+            got = CMI_het._liquid_freezing_is_active(FT, q, n, T, T_freeze)
+            present = (n > ϵₙ) & (q > ϵₘ)
+            if present & band(T)
+                TT.@test got && !old(q, n, T)
+                n_opened += 1
+            else
+                # everywhere else the gate is bit-identical to what it replaced
+                TT.@test got === old(q, n, T)
+            end
+            n_true += got
+        end
+        TT.@test n_opened > 0        # the band has to be sampled, or the change is untested
+        TT.@test n_true > 0
+        TT.@test n_true < length(qs) * length(ns) * length(Ts)
+    end
+end
+
+# Composed liquid freezing over ΔT, both categories, both precisions: nonnegative, exactly zero at
+# ΔT <= 0, monotone nondecreasing in supercooling, and the capped J does not exceed the uncapped one.
+function test_liquid_freezing_composition_safety(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    T_freeze = TDI.TD.Parameters.T_freeze(tps)
+    mp = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true)
+    p3 = mp.ice.scheme
+    aps = mp.warm_rain.air_properties
+    evap = mp.warm_rain.seifert_beheng.evap
+    hom = mp.ice.homogeneous
+    ρ, qᵥ = FT(0.9), FT(3e-3)
+    q_r, N_r = FT(1e-4), FT(1e3)
+    q_c, N_c = FT(1e-4), FT(1e8)
+
+    ΔTs = vcat(FT[-5, -1, 0], FT(10) .^ range(FT(-6), log10(FT(8)); length = 24))
+
+    TT.@testset "composed liquid freezing is monotone in supercooling [FT=$FT]" begin
+        prev_rain, prev_cloud = FT(-Inf), FT(-Inf)
+        n_pos = 0
+        for ΔT in ΔTs
+            T = T_freeze - ΔT
+            r = CMI_het.rain_freezing_rate(
+                mp.ice.rain_freezing, hom, p3.vent, aps, tps, evap, mp.ice.rain_pdf,
+                q_r, ρ, N_r, T, qᵥ)
+            c = CMI_het.cloud_freezing_rate(
+                mp.ice.rain_freezing, hom, p3.vent, aps, tps, mp.ice.cloud_pdf,
+                q_c, ρ, N_c, T, qᵥ)
+
+            for v in (r.∂ₜn_frz, r.∂ₜq_frz, c.∂ₜn_frz, c.∂ₜq_frz)
+                TT.@test isfinite(v)
+                TT.@test v >= 0
+            end
+            # Immersion freezing of cloud droplets is Bigg alone: no ice-nucleating-particle
+            # budget bounds the heterogeneous coefficient, so there is no capped-versus-uncapped
+            # pair to compare. What survives is that the coefficient is a rate.
+            TT.@test c.J_het >= 0
+
+            if ΔT <= 0
+                # EXACT zero, which is what the derived gate buys: no freezing of water that is
+                # not supercooled, in either category, at either precision
+                TT.@test r.∂ₜn_frz == 0 && r.∂ₜq_frz == 0
+                TT.@test c.∂ₜn_frz == 0 && c.∂ₜq_frz == 0
+            else
+                n_pos += (r.∂ₜn_frz > 0) + (c.∂ₜn_frz > 0)
+                # monotone nondecreasing in supercooling
+                TT.@test r.∂ₜn_frz >= prev_rain * (1 - sqrt(eps(FT)))
+                TT.@test c.∂ₜn_frz >= prev_cloud * (1 - sqrt(eps(FT)))
+                prev_rain, prev_cloud = r.∂ₜn_frz, c.∂ₜn_frz
+            end
+        end
+        # the sweep must produce freezing somewhere, or the monotonicity assertions are vacuous
+        TT.@test n_pos > 0
+    end
+end
+
 TT.@testset "Heterogeneous Ice Nucleation Tests ($FT)" for FT in (Float64, Float32)
     test_heterogeneous_ice_nucleation(FT)
+    test_liquid_freezing_gate_is_shared(FT)
+    test_liquid_freezing_composition_safety(FT)
 end
 nothing

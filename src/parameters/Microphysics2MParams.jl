@@ -64,8 +64,10 @@ which constructs the parameterization with components:
 - `terminal_velocity` = [`Chen2022VelType`](@ref)
 - `cloud_pdf` = [`CloudParticlePDF_SB2006`](@ref)
 - `rain_pdf` = [`RainParticlePDF_SB2006`](@ref)
-- `ice_nucleation` = [`Frostenberg2023`](@ref)
+- `ice_nucleation` = [`ExponentialSupercoolingINP`](@ref), the Cooper (1986) deposition
+  target spectrum; [`Frostenberg2023`](@ref) is selectable as a non-default option
 - `rain_freezing` = [`RainFreezing`](@ref)
+- `homogeneous` = [`Koop2000`](@ref)
 
 # Keyword arguments
 - `is_limited`: use limited rain size-distribution parameters (default: true)
@@ -83,7 +85,7 @@ which constructs the parameterization with components:
   Gauss-Legendre.
 
 """
-@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM, Q} <: ParametersType
+@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, HOM, INPDM, Q} <: ParametersType
     "The core P3 scheme parameters"
     scheme::P3
     "The terminal velocity parameterization"
@@ -92,14 +94,20 @@ which constructs the parameterization with components:
     cloud_pdf::PDc
     "The rain drop size distribution"
     rain_pdf::PDr
-    "The ice nucleation parameters (empirical INP closure)"
+    "The deposition nucleation target spectrum, an [`AbstractINPTargetSpectrum`](@ref)"
     ice_nucleation::HET
-    "The rain freezing parameters (Bigg-type immersion freezing)"
+    "The rain freezing parameters (Bigg-type immersion freezing), also used for the
+    cloud-droplet immersion line"
     rain_freezing::RF
-    "Model for F23 INP-activation depletion. Currently only
-    [`NIceProxyDepletion`](@ref) (n_ice-as-proxy form) is provided;
-    it sets the value subtracted from `INPC(T)/ρ` in the F23 deposition +
-    immersion-cap rates."
+    "The homogeneous freezing parameters, [`Koop2000`](@ref), composed alongside the
+    heterogeneous coefficient in [`HetIceNucleation.rain_freezing_rate`](@ref) and
+    [`HetIceNucleation.cloud_freezing_rate`](@ref)"
+    homogeneous::HOM
+    "Depletion proxy model for the deposition nucleation target. Currently only
+    [`NIceProxyDepletion`](@ref) (legacy n_ice-as-proxy form) is provided; it sets the
+    value subtracted from the target concentration in
+    [`HetIceNucleation.deposition_rate`](@ref). (A prognostic activation-memory model is
+    deferred to a follow-up PR.)"
     inp_depletion_model::INPDM = NIceProxyDepletion()
     "Quadrature rule for the size-distribution integrals
     (deposition / sublimation, melting, riming, ice-rain collection,
@@ -113,7 +121,7 @@ P3IceParams(toml_dict::CP.ParamDict;
     is_limited = true,
     quadrature_order = 6,
     quad = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
-    inp_depletion_model = NIceProxyDepletion(τ_act = 300),
+    inp_depletion_model = NIceProxyDepletion(),
     slope_law = DEFAULT_SLOPE_LAW,
     aspect_ratio = DEFAULT_ASPECT_RATIO,
 ) = P3IceParams(;
@@ -127,8 +135,9 @@ P3IceParams(toml_dict::CP.ParamDict;
     terminal_velocity = Chen2022VelType(toml_dict),
     cloud_pdf = CloudParticlePDF_SB2006(toml_dict),
     rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited),
-    ice_nucleation = Frostenberg2023(toml_dict),
+    ice_nucleation = ExponentialSupercoolingINP(toml_dict),
     rain_freezing = RainFreezing(toml_dict),
+    homogeneous = Koop2000(toml_dict),
     inp_depletion_model,
     quad,
 )
@@ -187,7 +196,7 @@ Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true,
     quadrature_order = 6,
     quad = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
-    inp_depletion_model = NIceProxyDepletion(τ_act = 300),
+    inp_depletion_model = NIceProxyDepletion(),
     slope_law = DEFAULT_SLOPE_LAW,
     aspect_ratio = DEFAULT_ASPECT_RATIO,
 ) = Microphysics2MParams(;

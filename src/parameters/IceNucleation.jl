@@ -203,30 +203,132 @@ function Frostenberg2023(td::CP.ParamDict)
 end
 
 # ---------------------------------------------------------------------------
-# F23 INP-activation memory models
+# INP target spectra for the deposition nucleation slot
+# ---------------------------------------------------------------------------
+
+export AbstractINPTargetSpectrum
+export ExponentialSupercoolingINP
+
+"""
+    AbstractINPTargetSpectrum
+
+The super-type for the parameterizations that supply a TARGET ice nucleating particle
+concentration to the deposition nucleation slot.
+
+A concrete subtype answers three questions, and nothing else:
+
+  - what the target concentration is, through the callable `(inp)(T)` → `N_t` [m⁻³];
+  - where the closure is active, through
+    `HetIceNucleation.is_active(inp, T, S_i)`;
+  - how fast the deficit is delivered, through
+    `HetIceNucleation.delivery_rate(inp, mp, tps, T, S_i)` [s⁻¹].
+
+The deficit-relaxation rate form itself belongs to the slot and is shared, so a new
+spectrum is added by writing those three methods rather than a fourth rate body.
+The slot is `HetIceNucleation.deposition_rate`.
+"""
+abstract type AbstractINPTargetSpectrum <: ParametersType end
+
+"""
+    ExponentialSupercoolingINP{FT}
+
+An ice nucleating particle spectrum that is exponential in supercooling, with a ceiling:
+
+```math
+N_t(T) = \\min\\big(a \\exp(b (T_0 - T)),\\ N_{max}\\big)
+```
+
+The shipped values are those of Cooper (1986) in the form given by Thompson et al. (2004)
+and used by Morrison and Milbrandt (2015) appendix C(a). Fletcher (1962) is the same law
+with different coefficients; Meyers et al. (1992) is a different law, exponential in
+supersaturation rather than in supercooling.
+
+`T_thr` and `S_thr` are the activation window: the closure is active where the air is
+colder than `T_thr` and supersaturated with respect to ice by at least `S_thr`. Both
+belong to the spectrum rather than to the slot, because they state where the fit is
+claimed to hold.
+
+The window and the ceiling are the reference P3 implementation's, which applies the same
+law as
+
+```fortran
+! module_mp_p3.f90 (WRF 4.6.0)
+if (t(i,k).lt.258.15 .and. supi_cld.ge.0.05) then
+   dum = 0.005*exp(0.304*(273.15-t(i,k)))*1000.*inv_rho(i,k)
+   dum = min(dum,100.e3*inv_rho(i,k)*SCF(k))
+```
+
+so `a = 0.005 · 1000 = 5` m⁻³, `b = 0.304` K⁻¹, `T_thr = 258.15` K, `S_thr = 0.05` and
+`N_max = 1.0e5` m⁻³, which is the Fortran's 100 per liter. `SCF` is the subgrid cloud
+fraction and is one where subgrid cloud fraction is not used. The ceiling distinguishes
+this closure from
+[`MorrisonMilbrandt2014`](@ref)'s `P3_deposition_N_i`, which clamps the temperature instead
+and so tops out an order of magnitude higher.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+
+# Callable interface
+
+    (inp::ExponentialSupercoolingINP)(T) → min(a exp(b (T₀ - T)), N_max)
+
+The target ice nucleating particle concentration [m⁻³].
+"""
+@kwdef struct ExponentialSupercoolingINP{FT} <: AbstractINPTargetSpectrum
+    "prefactor [m⁻³]"
+    a::FT
+    "exponent coefficient [K⁻¹]"
+    b::FT
+    "reference (freezing) temperature [K]"
+    T₀::FT
+    "ceiling on the target concentration [m⁻³]"
+    N_max::FT
+    "activation temperature threshold [K]"
+    T_thr::FT
+    "activation ice-supersaturation threshold [-]"
+    S_thr::FT
+end
+
+function ExponentialSupercoolingINP(td::CP.ParamDict)
+    name_map = (;
+        :P3_cooper_deposition_prefactor => :a,
+        :P3_cooper_deposition_exponent_coefficient => :b,
+        :temperature_water_freeze => :T₀,
+        :P3_cooper_deposition_max_concentration => :N_max,
+        :P3_cooper_deposition_temperature_threshold => :T_thr,
+        :P3_cooper_deposition_ice_supersaturation_threshold => :S_thr,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return ExponentialSupercoolingINP(; parameters...)
+end
+
+# Callable: the target ice nucleating particle concentration [m⁻³]
+((; a, b, T₀, N_max)::ExponentialSupercoolingINP)(T) = min(a * exp(b * (T₀ - T)), N_max)
+
+ShowMethods.field_units(::ExponentialSupercoolingINP) =
+    (; a = "m⁻³", b = "K⁻¹", T₀ = "K", N_max = "m⁻³", T_thr = "K")
+
+# ---------------------------------------------------------------------------
+# INP-activation memory models
 # ---------------------------------------------------------------------------
 
 export NIceProxyDepletion
 
 """
-    NIceProxyDepletion{FT}
+    NIceProxyDepletion
 
-Use the in-cell ice number `n_ice` as the depletion proxy for F23
-activation. In this form, a column with no ice
-sees the full INPC target; activation events do not by themselves
+Use the in-cell ice number `n_ice` as the depletion proxy for INP
+activation. This is the legacy / always-on form: a column with no ice
+sees the full INP target; activation events do not by themselves
 deplete the budget on a memory timescale, but the ice they create
 proxies "INPs already used" downstream until that ice sublimates,
 sediments out, or melts.
 
 Conflates two physically distinct counts: "ice in column" and
 "INPs already activated in this air parcel". Drop a fresh anvil into
-clean air below it and the F23 channel artificially shuts off.
+clean air below it and the deposition channel artificially shuts off.
 
-# Fields
-$(DocStringExtensions.FIELDS)
+The delivery rate is the closure's, not this model's: see
+`HetIceNucleation.delivery_rate`.
 """
-struct NIceProxyDepletion{FT}
-    "F23 activation relaxation timescale `[s]` (default `300`)"
-    τ_act::FT
-end
-NIceProxyDepletion(; τ_act = 300) = NIceProxyDepletion(τ_act)
+struct NIceProxyDepletion end

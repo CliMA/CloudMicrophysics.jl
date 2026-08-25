@@ -175,39 +175,19 @@ below `T_freeze`.
 end
 
 """
-    ICE_NUCLEATION_DIAMETER(FT)
-
-Diameter of a nascent deposition-nucleation ice crystal [m]: the small-`D` tail of the P3
-distribution, and the size at which `HetIceNucleation.deposition_rate` injects new crystals.
-
-Single source of truth for the nucleation size, so that every quantity derived from it moves
-together. TODO: put into ClimaParams.
-"""
-@inline ICE_NUCLEATION_DIAMETER(::Type{FT}) where {FT} = FT(10e-6)
-
-"""
-    ice_nucleation_mass(p3)
-
-Mass of one nascent deposition-nucleation ice crystal [kg], `ρ_i (π/6) D_nuc³` with `D_nuc` from
-[`ICE_NUCLEATION_DIAMETER`](@ref). This is the smallest particle mass the scheme can create.
-"""
-@inline ice_nucleation_mass(p3) =
-    p3.ρ_i * CO.volume_sphere_D(ICE_NUCLEATION_DIAMETER(typeof(p3.ρ_i)))
-
-"""
     ice_mean_particle_mass_min(p3)
     ice_mean_particle_mass_max(FT)
 
 Bounds of the physical mean ice particle mass range [kg], shared by the ice number adjustment and
 by the melt number rate.
 
-The lower bound is [`ice_nucleation_mass`](@ref) rather than a literal of its own, so a numerical
-guard cannot end up above the size the scheme nucleates at. It previously read `1e-12` kg,
-annotated "~10 μm crystal" but in fact a 12.77 μm solid-ice sphere and 2.08x the nucleation mass
-`4.7998e-13` kg, which made the guard active on freshly nucleated populations: reading
-`n > q / x_min`, the adjustment relaxed the number toward 48% of what nucleation had just supplied
-while conserving the mass. Derived, a population of fresh crystals sits exactly ON the bound, where
-`clamp` is inert.
+The lower bound is the nucleation mass of [`CMP.ice_seed`](@ref) rather than a literal of its
+own, so a numerical guard cannot end up above the size the scheme nucleates at. It previously
+read a `1e-12` kg literal, annotated "~10 μm crystal" but in fact a 12.77 μm solid-ice sphere,
+which made the guard active on freshly nucleated populations: reading `n > q / x_min`, the
+adjustment relaxed the number toward a fraction of what nucleation had just supplied while
+conserving the mass. Derived from the same single source the deposition slot nucleates at, a
+population of fresh crystals sits exactly ON the bound, where `clamp` is inert.
 
 The upper bound is a REGULARIZATION TARGET rather than a physical ceiling: it is the mean mass the
 number adjustment relaxes an over-massive population toward, and real populations exceed it. It is
@@ -222,7 +202,7 @@ Nothing else reads this bound: the shape solver's own bracket is derived from th
 (see [`_derived_logλ_bracket`](@ref), whose docstring records why the two edges are different
 kinds of quantity), so this value moves the number adjustment and nothing else.
 """
-@inline ice_mean_particle_mass_min(p3) = ice_nucleation_mass(p3)
+@inline ice_mean_particle_mass_min(p3) = CMP.ice_seed(p3).m_nuc
 @inline ice_mean_particle_mass_max(::Type{FT}) where {FT} = FT(1e-4)
 
 """
@@ -323,13 +303,12 @@ nucleation size,
 
 zero at and below `T_freeze`. A fractional melt rate above this bound removes latent heat
 faster than conduction supplies it to the smallest particle the scheme creates by nucleation,
-so the bound is a property of the air and of [`ICE_NUCLEATION_DIAMETER`](@ref).
+so the bound is a property of the air and of the nascent crystal, [`CMP.ice_seed`](@ref).
 """
 @inline function ice_melt_fraction_limit(aps::CMP.AirProperties, tps::TDI.PS, p3, Tₐ)
     (; K_therm) = aps
     L_f = TDI.Lf(tps, Tₐ)
-    FT = typeof(p3.ρ_i)
-    r_min = ICE_NUCLEATION_DIAMETER(FT) / 2
+    r_min = CMP.ice_seed(p3).r_nuc
     ΔT = max(Tₐ - p3.T_freeze, 0)
     fac = 3 * K_therm / (p3.ρ_i * r_min^2 * L_f)
     inv_τ = fac * ΔT
@@ -453,18 +432,20 @@ riming and the other liquid-ice collisions, aggregation, and melting - i.e. when
 moment is strictly positive and the mass moment carries at least one nucleated crystal's worth of
 mass for that number:
 
-    (ρq_ice / ice_nucleation_mass > ρn_ice) & (ρn_ice > 0)
+    (ρq_ice / m_nuc > ρn_ice) & (ρn_ice > 0)
+
+with `m_nuc` the nascent crystal mass of [`CMP.ice_seed`](@ref).
 
 This is a presence test on the two moments, not a smallness threshold on the mass. A fixed
 mixing-ratio threshold such as `ϵ_numerics_2M_M(FT) = eps(FT)` sits at 1.1920929e-7 kg/kg at
 Float32 and at 2.2e-16 at Float64, so it switches melting, riming and aggregation off
 discontinuously at a physical loading at one precision and at an unreachable one at the other -
 precision dependence that is not rounding. The scaled mass test keeps precision independence: it
-moves with `ρn_ice` and with [`ice_nucleation_mass`](@ref) rather than fixing a mixing-ratio
-threshold, so a trace population passes as soon as its crystals carry their birth mass, at either
-precision. The mass side is formed as a quotient because the product
-`ρn_ice * ice_nucleation_mass` underflows Float32 at trace number, where the test would degrade
-to `ρq_ice > 0`; the quotient stays normal over the full Float32 range of `ρq_ice`.
+moves with `ρn_ice` and with the nucleation mass rather than fixing a mixing-ratio threshold, so
+a trace population passes as soon as its crystals carry their birth mass, at either precision.
+The mass side is formed as a quotient because the product `ρn_ice * m_nuc` underflows Float32 at
+trace number, where the test would degrade to `ρq_ice > 0`; the quotient stays normal over the
+full Float32 range of `ρq_ice`.
 
 Both moments enter because all three rates are integrals of the ice size distribution
 `N′(D) ∝ ρn_ice`. With `ρn_ice = 0` the distribution is identically zero, so the rates are zero by
@@ -477,7 +458,7 @@ physical target, and the number adjustment already relaxes the number toward
 every process this predicate controls is well posed on either side.
 """
 @inline ice_population_is_present(state::P3State) =
-    (state.ρq_ice / ice_nucleation_mass(state.params) > state.ρn_ice) &
+    (state.ρq_ice / CMP.ice_seed(state.params).m_nuc > state.ρn_ice) &
     (state.ρn_ice > 0)
 
 """
