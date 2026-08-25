@@ -83,6 +83,7 @@ Pages   = ["Microphysics2M.jl", "Microphysics2MParams.jl"]
 ```@docs
 Microphysics2M.pdf_cloud_parameters
 Microphysics2M.pdf_rain_parameters
+CMP.RainParticlePDF_SB2006_windowed
 Microphysics2M.pdf_cloud_parameters_mass
 Microphysics2M.pdf_rain_parameters_mass
 Microphysics2M.log_pdf_cloud_parameters_mass
@@ -113,6 +114,13 @@ Microphysics2M.rain_evaporation
 Microphysics2M.∂rain_evaporation_∂N_rai_∂q_rai
 Microphysics2M.conv_q_lcl_to_q_rai
 Microphysics2M.number_tendency_from_mass_limits
+Microphysics2M.rain_equilibrium_number
+Microphysics2M.rain_number_relaxation
+Microphysics2M.orphan_mass_drain
+Microphysics2M.orphan_mass_drain_ice
+Microphysics2M.orphan_mass_inv_timescale
+Microphysics2M.orphan_mass_inv_timescale_ice
+Microphysics2M.activation_droplet_mass
 ```
 
 ## Distribution tools for 2-moment microphysics

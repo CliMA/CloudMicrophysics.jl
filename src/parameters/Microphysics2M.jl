@@ -282,21 +282,30 @@ end
 
 Abstract type for the size distribution parameters of rain particles
 
-See [`RainParticlePDF_SB2006_limited`](@ref) and [`RainParticlePDF_SB2006_notlimited`](@ref)
-for the concrete types. These can be constructed with:
+See [`RainParticlePDF_SB2006_windowed`](@ref), [`RainParticlePDF_SB2006_notlimited`](@ref)
+and [`RainParticlePDF_SB2006_limited`](@ref) for the concrete types:
+
 ```julia
-RainParticlePDF_SB2006(toml_dict; is_limited = true) # -> RainParticlePDF_SB2006_limited
+RainParticlePDF_SB2006(toml_dict; is_limited = true)  # -> RainParticlePDF_SB2006_windowed
 
 RainParticlePDF_SB2006(toml_dict; is_limited = false) # -> RainParticlePDF_SB2006_notlimited
 ```
-where `toml_dict` is a `CP.ParamDict` containing the parameters for the size
-distribution, and `is_limited` is a boolean indicating whether to use the
-limited or not limited version of the size distribution.
+
+where `is_limited` selects whether the mean drop mass is bounded. Limiting MEANS the single
+mean-mass window: one bound, on one physical quantity, with `λ` and `N₀` inheriting their ranges
+through the exponential-PSD identities. See `docs/src/RainDropWindow.md`.
+
+[`RainParticlePDF_SB2006_limited`](@ref), the SB2006 Eq. 94-97 clamp cascade, is RETIRED and is
+no longer what `is_limited = true` builds. It is reachable only by naming it, so that the
+comparison arms and the tests that characterise it keep working, and it should not be selected
+for a run: where any of its three clamps binds it returns a triple describing no distribution
+consistent with the state's own moments, and the campaign's Jacobian sign guarantee for the
+rain-number row does not hold on it (see [`Microphysics2M.rain_number_relaxation`](@ref CloudMicrophysics.Microphysics2M.rain_number_relaxation)).
 """
 abstract type RainParticlePDF_SB2006 <: ParametersType end
 RainParticlePDF_SB2006(toml_dict::CP.ParamDict; is_limited = true) =
     is_limited ?
-    RainParticlePDF_SB2006_limited(toml_dict) :
+    RainParticlePDF_SB2006_windowed(toml_dict) :
     RainParticlePDF_SB2006_notlimited(toml_dict)
 
 Base.show(io::IO, mime::MIME"text/plain", x::RainParticlePDF_SB2006) =
@@ -387,8 +396,92 @@ function RainParticlePDF_SB2006_notlimited(td::CP.ParamDict)
     return RainParticlePDF_SB2006_notlimited(; parameters...)
 end
 
+"""
+    RainParticlePDF_SB2006_windowed
+
+Rain size distribution parameters carrying a single bound, on the mean drop mass
+`x̄ ∈ [xr_min, xr_max]`. Same fields as [`RainParticlePDF_SB2006_notlimited`](@ref);
+the difference is in [`Microphysics2M.pdf_rain_parameters`](@ref CloudMicrophysics.Microphysics2M.pdf_rain_parameters), where `λ` and `N₀` inherit
+their ranges from the mean-mass window through the exponential-PSD identities
+instead of being clamped to windows of their own.
+
+The two bounds are derived rather than prescribed:
+
+  - `xr_min` is the SB2006 cloud/rain separation mass `x*`. A raindrop is by
+    definition heavier than the mass at which the scheme calls it one.
+  - `xr_max` follows from a tail-mass criterion against the largest
+    hydrodynamically stable drop. See `docs/src/RainDropWindow.md`, which
+    regenerates the number from the criterion.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct RainParticlePDF_SB2006_windowed{FT} <: RainParticlePDF_SB2006
+    "Raindrop size distribution coefficient νr"
+    νr::FT
+    "Raindrop size distribution coefficient μr"
+    μr::FT
+    "Raindrop minimum mass"
+    xr_min::FT
+    "Raindrop maximum mass"
+    xr_max::FT
+    "Cloud liquid water density [kg/m3]"
+    ρw::FT
+    "Reference air density [kg/m3]"
+    ρ0::FT
+end
+
+function RainParticlePDF_SB2006_windowed(td::CP.ParamDict)
+    name_map = (;
+        :SB2006_rain_distribution_coeff_nu => :νr,
+        :SB2006_rain_distribution_coeff_mu => :μr,
+        :SB2006_raindrops_min_mass => :xr_min,
+        :SB2006_raindrops_max_mass => :xr_max,
+        :density_liquid_water => :ρw,
+        :SB2006_reference_air_density => :ρ0,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return RainParticlePDF_SB2006_windowed(; parameters...)
+end
+
 islimited(::RainParticlePDF_SB2006_limited) = true
+islimited(::RainParticlePDF_SB2006_windowed) = true
 islimited(::RainParticlePDF_SB2006_notlimited) = false
+
+"""
+    RainInterceptRange
+
+The observational plausibility range of the rain intercept `N₀`, carried as a DIAGNOSTIC and
+nothing else. Marshall-Palmer's `8e6` m⁻⁴ sits inside it.
+
+[SeifertBeheng2006](@cite) uses this range as a clamp inside the PSD inversion, where it is what
+corrupts states that are entirely within the sanctioned mean-mass range: `N₀` scales with `N_r` at
+fixed mean mass, so it pins on ordinary heavy rain and leaves a distribution describing a
+different number of drops than the state has.
+[`RainParticlePDF_SB2006_windowed`](@ref) retires the clamp, and this type is where its
+observational content goes instead. It is deliberately NOT a field of that PDF: the window's
+premise is one bound on one quantity in one place, and a second range sitting inside the same
+struct is the thing a later author reaches for. Nothing in the inversion and no process rate
+consumes this type.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct RainInterceptRange{FT} <: ParametersType
+    "Lower end of the plausible raindrop intercept N₀ [1/m⁴]"
+    N0_min::FT
+    "Upper end of the plausible raindrop intercept N₀ [1/m⁴]"
+    N0_max::FT
+end
+
+function RainInterceptRange(td::CP.ParamDict)
+    name_map = (;
+        :SB2006_raindrops_size_distribution_coeff_N0_min => :N0_min,
+        :SB2006_raindrops_size_distribution_coeff_N0_max => :N0_max,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return RainInterceptRange(; parameters...)
+end
 
 """
     CloudParticlePDF_SB2006
@@ -658,11 +751,14 @@ $(DocStringExtensions.FIELDS)
     numadj::NA
 end
 
-# Construct SB2006 from a ClimaParams TOML dict
-SB2006(toml_dict::CP.ParamDict; is_limited = true) =
+# Construct SB2006 from a ClimaParams TOML dict. `rain_pdf` is forwarded rather than
+# left to `RainParticlePDF_SB2006` so that a variant outside the `is_limited` boolean
+# (currently `RainParticlePDF_SB2006_windowed`) can be selected from the host.
+SB2006(toml_dict::CP.ParamDict; is_limited = true,
+    rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited)) =
     SB2006(;
         pdf_c = CloudParticlePDF_SB2006(toml_dict),
-        pdf_r = RainParticlePDF_SB2006(toml_dict; is_limited),
+        pdf_r = rain_pdf,
         acnv = AcnvSB2006(toml_dict),
         accr = AccrSB2006(toml_dict),
         self = SelfColSB2006(toml_dict),

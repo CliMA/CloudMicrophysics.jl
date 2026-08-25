@@ -11,6 +11,7 @@ module Microphysics2M
 
 import SpecialFunctions as SF
 import RootSolvers as RS
+import ForwardDiff as FD
 
 import ..ThermodynamicsInterface as TDI
 import ..Common as CO
@@ -20,7 +21,8 @@ import ..Utilities as UT
 
 import ..DistributionTools: size_distribution
 
-export autoconversion,
+export activation_droplet_mass,
+    autoconversion,
     accretion,
     cloud_liquid_self_collection,
     autoconversion_and_cloud_liquid_self_collection,
@@ -31,9 +33,15 @@ export autoconversion,
     rain_self_collection,
     rain_breakup,
     rain_self_collection_and_breakup,
+    rain_equilibrium_number,
+    rain_number_relaxation,
     size_distribution,
     get_size_distribution_bounds,
-    number_tendency_from_mass_limits
+    number_tendency_from_mass_limits,
+    orphan_mass_drain,
+    orphan_mass_drain_ice,
+    orphan_mass_inv_timescale,
+    orphan_mass_inv_timescale_ice
 
 """
     pdf_rain_parameters(pdf_r, qᵣ, ρₐ, Nᵣ)
@@ -54,9 +62,9 @@ Return the parameters of the rain drop diameter distribution
  where `λ_r ≡ 1 / Dr_mean` [1/m] is the inverse of the mean diameter of the raindrops.
 
 # Arguments
- - `pdf_r`: struct containing size distribution parameters for rain.
-        Can either be [`CMP.RainParticlePDF_SB2006_notlimited`](@ref) or [`CMP.RainParticlePDF_SB2006_limited`](@ref).
-        For the latter, the values for `N_0`, `Dr_mean`, and `xr_mean` are limited to be within provided ranges.
+ - `pdf_r`: struct containing size distribution parameters for rain, one of
+        [`CMP.RainParticlePDF_SB2006_notlimited`](@ref) (the honest inversion) or
+        [`CMP.RainParticlePDF_SB2006_windowed`](@ref) (one bound, on the mean drop mass).
  - `qᵣ`: rain water specific content [kg/kg]
  - `ρₐ`: air density [kg/m³]
  - `Nᵣ`: number of rain drops [1/m³]
@@ -78,7 +86,7 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ,
     Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
     # The predicate is evaluated once into `cond`; the three `ifelse`es are predicated
     # selects reusing it, not three re-evaluations. This replaces an early-return branch,
-    # so all warp lanes stay on one instruction stream (no GPU warp divergence) — the
+    # so all warp lanes stay on one instruction stream (no GPU warp divergence) - the
     # three extra selects are far cheaper than a data-dependent branch (cf. PR #749).
     cond = Nᵣ < UT.ϵ_numerics_2M_N(FT) || qᵣ < UT.ϵ_numerics_2M_M(FT)
     return (;
@@ -87,6 +95,7 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_notlimited, qᵣ,
         xr_mean = ifelse(cond, zero(xr_mean), xr_mean),
     )
 end
+
 function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρₐ, Nᵣ)
     FT = UT.promote_typeof(qᵣ, ρₐ, Nᵣ)
     (; xr_min, xr_max, N0_min, N0_max, λ_min, λ_max, ρw) = pdf_r
@@ -102,6 +111,26 @@ function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_limited, qᵣ, ρ
 
     Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
     cond = Nᵣ < UT.ϵ_numerics_2M_N(FT) && qᵣ < UT.ϵ_numerics_2M_M(FT)
+    return (;
+        N₀r = ifelse(cond, zero(N₀r), N₀r),
+        Dr_mean = ifelse(cond, zero(Dr_mean), Dr_mean),
+        xr_mean = ifelse(cond, zero(xr_mean), xr_mean),
+    )
+end
+function pdf_rain_parameters(pdf_r::CMP.RainParticlePDF_SB2006_windowed, qᵣ, ρₐ, Nᵣ)
+    FT = UT.promote_typeof(qᵣ, ρₐ, Nᵣ)
+    (; xr_min, xr_max, ρw) = pdf_r
+    safe_qᵣ = max(qᵣ, UT.ϵ_numerics_2M_M(FT))
+    safe_Nᵣ = max(Nᵣ, UT.ϵ_numerics_2M_N(FT))
+    Lᵣ = ρₐ * safe_qᵣ
+
+    xr_mean = clamp(Lᵣ / safe_Nᵣ, xr_min, xr_max)
+    Nᵣ_bounded = Lᵣ / xr_mean
+    λr = cbrt(π * ρw / xr_mean)
+    N₀r = λr * Nᵣ_bounded
+
+    Dr_mean = 1 / λr  # The inverse of λr is the mean diameter of the raindrops (units: `m`)
+    cond = Nᵣ < UT.ϵ_numerics_2M_N(FT) || qᵣ < UT.ϵ_numerics_2M_M(FT)
     return (;
         N₀r = ifelse(cond, zero(N₀r), N₀r),
         Dr_mean = ifelse(cond, zero(Dr_mean), Dr_mean),
@@ -151,6 +180,53 @@ function pdf_rain_parameters_mass(pdf_r::CMP.RainParticlePDF_SB2006, qᵣ, ρₐ
 end
 
 """
+    activation_droplet_mass(pdf_c)
+
+Mass of a freshly activated cloud droplet [kg], the smallest droplet the size distribution
+resolves. Doubles as the floor on the mean droplet mass in
+[`log_pdf_cloud_parameters_mass`](@ref) and as the mass a droplet activation source pairs with
+its number tendency.
+
+# Arguments
+- `pdf_c`: [`CMP.CloudParticlePDF_SB2006`](@ref)
+
+# Returns
+- Activation droplet mass [kg]
+"""
+@inline activation_droplet_mass(pdf_c) = pdf_c.xc_min
+
+"""
+    cloud_mean_droplet_mass_and_number(pdf_c, q, ρₐ, N)
+
+Return `(x̄, N_eff)`: the cloud mean droplet mass bounded to
+`[activation_droplet_mass(pdf_c), xc_max]`, and the droplet number consistent with it. At the
+upper bound the number is rescaled to `ρₐ q / xc_max`, the same choice
+[`pdf_rain_parameters`](@ref) makes for rain; at the lower bound `N` is returned unchanged, since
+a mass-preserving rescale there would return zero droplets for a mass-free, number-carrying
+population. `N_eff` equals `max(N, ϵ_numerics_2M_N)` wherever the upper bound does not bind.
+
+# Arguments
+ - `pdf_c`: Size distribution parameters for cloud droplets, [`CMP.CloudParticlePDF_SB2006`](@ref)
+ - `q`: Liquid mass content [kg/kg]
+ - `ρₐ`: Air density [kg/m³]
+ - `N`: Number concentration of the particle [1/m³]
+
+# Returns
+ - `(x̄, N_eff)`: mean droplet mass [kg] within `[xc_min, xc_max]`, and the number [1/m³]
+   consistent with it
+"""
+function cloud_mean_droplet_mass_and_number(pdf_c, q, ρₐ, N)
+    FT = UT.promote_typeof(q, ρₐ, N)
+    (; xc_max) = pdf_c
+    safe_N = max(N, UT.ϵ_numerics_2M_N(FT))
+    L = ρₐ * UT.clamp_to_nonneg(q)
+    x_raw = L / safe_N
+    x̄ = clamp(x_raw, FT(activation_droplet_mass(pdf_c)), FT(xc_max))
+    N_eff = ifelse(x_raw > FT(xc_max), L / FT(xc_max), safe_N)
+    return (x̄, N_eff)
+end
+
+"""
     log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
 
 Return the log of the parameters of the generalized gamma distribution of the form
@@ -169,6 +245,16 @@ That is,
     log(B) = - μ [ log(x̄) + logΓ(z₁) - logΓ(z₂) ]
     log(A) = log(μ) + log(N) + z₁ * log(B) - logΓ(z₁)
 
+The distribution is degenerate when `N` falls below [`UT.ϵ_numerics_2M_N`](@ref); `logA = -Inf`
+and `logB = Inf` then send every moment to zero. Presence is decided by `N` alone rather than by
+`q`, since a two-moment category with `N` droplets and negligible mass content is a real
+population still acquiring its mass, not a degenerate one.
+
+The mean droplet mass is bounded to `[activation_droplet_mass(pdf_c), xc_max]` through
+[`cloud_mean_droplet_mass_and_number`](@ref). `xc_max` = 2.6e-10 kg is, at liquid-water density,
+a sphere of 79 μm, the raindrop minimum and the diameter at which
+[`CMP.StokesRegimeVelType`](@ref)'s creeping-flow fall-speed law stops being valid.
+
 # Arguments
  - `pdf_c`: Size distribution parameters for cloud droplets, [`CMP.CloudParticlePDF_SB2006`](@ref)
  - `q`: Liquid mass content [kg/kg]
@@ -180,18 +266,16 @@ That is,
 """
 function log_pdf_cloud_parameters_mass(pdf_c, q, ρₐ, N)
     FT = UT.promote_typeof(q, ρₐ, N)
-    safe_q = max(q, UT.ϵ_numerics_2M_M(FT))
-    safe_N = max(N, UT.ϵ_numerics_2M_N(FT))
-    L = ρₐ * safe_q
     (; νc, μc, loggamma_z1, loggamma_z2) = pdf_c
-    logx̄ = log(L / safe_N)
+    x̄, N_eff = cloud_mean_droplet_mass_and_number(pdf_c, q, ρₐ, N)
+    logx̄ = log(x̄)
     z1 = (νc + 1) / μc
     # loggamma_z1 = SF.loggamma(z1) (pre-computed in pdf_c)
     # loggamma_z2 = SF.loggamma(z2) (pre-computed in pdf_c)
     logB = -μc * (logx̄ + loggamma_z1 - loggamma_z2)
-    logA = log(μc) + log(safe_N) + z1 * logB - loggamma_z1
+    logA = log(μc) + log(N_eff) + z1 * logB - loggamma_z1
 
-    cond = N < UT.ϵ_numerics_2M_N(FT) || q < UT.ϵ_numerics_2M_M(FT)
+    cond = N < UT.ϵ_numerics_2M_N(FT)
     return (ifelse(cond, oftype(logA, -Inf), logA), ifelse(cond, oftype(logB, Inf), logB))
 end
 
@@ -240,6 +324,69 @@ function pdf_cloud_parameters(pdf_c, q, ρₐ, N)
     λc = exp(logBc) * k_m^μc
     return (; logN₀c, λc, νcD = 3νc + 2, μcD = 3μc)
 end
+
+"""
+    cloud_condensation_timescale(pdf_c, aps, tps, Tₐ, ρₐ, q_lcl, N_lcl)
+
+Compute the condensation relaxation timescale of the cloud droplet population
+from its capacitance integral,
+
+```math
+τ_{cond} = \\frac{ρₐ q_{v,sl}}{2π G_l ∫ D n(D) dD},
+```
+
+with spherical capacitance `C = D/2` and unit ventilation. The diameter moment
+of the generalized gamma distribution is closed form,
+`∫ D n(D) dD = N₀/μ λ^{-(ν+2)/μ} Γ((ν+2)/μ)`. The timescale diverges as the
+population vanishes and shrinks as the integrated droplet surface grows.
+
+# Arguments
+ - `pdf_c`: cloud droplet size distribution parameters, [`CMP.CloudParticlePDF_SB2006`](@ref)
+ - `aps`: [`CMP.AirProperties`](@ref)
+ - `tps`: thermodynamics parameters
+ - `Tₐ`: temperature (K)
+ - `ρₐ`: air density
+ - `q_lcl`: cloud liquid mass content [kg/kg]
+ - `N_lcl`: cloud droplet number concentration [1/m³]
+
+# Returns
+- Condensation timescale [s], bounded above at [`CLOUD_COND_TIMESCALE_MAX`](@ref). A value at
+  the bound means the capacitance integral underflowed and there is no population to relax; test
+  with [`cloud_condensation_is_degenerate`](@ref) rather than comparing to a literal.
+"""
+@inline function cloud_condensation_timescale(
+    pdf_c::CMP.CloudParticlePDF_SB2006, aps::CMP.AirProperties, tps::TDI.PS,
+    Tₐ, ρₐ, q_lcl, N_lcl,
+)
+    FT = UT.promote_typeof(q_lcl, ρₐ, N_lcl, Tₐ)
+    G = CO.G_func_liquid(aps, tps, Tₐ)
+    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, Tₐ, ρₐ)
+    (; logN₀c, λc, νcD, μcD) = pdf_cloud_parameters(pdf_c, q_lcl, ρₐ, N_lcl)
+    z = (νcD + 2) / μcD
+    log_moment = logN₀c - log(μcD) - z * log(λc) + SF.loggamma(z)
+    denom = 2 * FT(π) * G * exp(log_moment)
+    return min(ρₐ * qᵥ_sat_liq / max(denom, floatmin(FT)), CLOUD_COND_TIMESCALE_MAX(FT))
+end
+
+"""
+    CLOUD_COND_TIMESCALE_MAX(FT)
+
+Upper bound on the cloud condensation/evaporation relaxation timescale [s], applied by
+[`cloud_condensation_timescale`](@ref) as the droplet population vanishes. A returned value at
+this bound signals a degenerate population, not a slow relaxation; use
+[`cloud_condensation_is_degenerate`](@ref) to detect it.
+"""
+@inline CLOUD_COND_TIMESCALE_MAX(::Type{FT}) where {FT} = FT(1e10)
+
+"""
+    cloud_condensation_is_degenerate(τ_cond)
+
+`true` when `τ_cond` from [`cloud_condensation_timescale`](@ref) sits at
+[`CLOUD_COND_TIMESCALE_MAX`](@ref): the capacitance integral underflowed and the
+condensation/evaporation rate is exactly zero.
+"""
+@inline cloud_condensation_is_degenerate(τ_cond::FT) where {FT} =
+    τ_cond >= CLOUD_COND_TIMESCALE_MAX(FT)
 
 """
     log_size_distribution_mass(pdf::CMP.CloudParticlePDF_SB2006, q_c, ρₐ, N_c)
@@ -343,9 +490,9 @@ set at the `p`-th and `(1 - p)`-th quantiles of the size distribution.
 function get_size_distribution_bounds(
     pdf::CMP.RainParticlePDF_SB2006, q, ρₐ, N, p = eps(eltype(q)),
 )
-    FT = UT.promote_typeof(q, ρₐ, N)
+    FT = UT.promote_typeof(q, ρₐ, N, p)
     (; Dr_mean) = pdf_rain_parameters(pdf, q, ρₐ, N)
-    iszero(Dr_mean) && return (FT(0), FT(0))
+    (isfinite(Dr_mean) && Dr_mean > 0) || return (FT(0), FT(0))
     D_min = DT.exponential_quantile(Dr_mean, p)
     D_max = DT.exponential_quantile(Dr_mean, 1 - p)
     return D_min, D_max
@@ -353,8 +500,9 @@ end
 function get_size_distribution_bounds(
     pdf::CMP.CloudParticlePDF_SB2006, q, ρₐ, N, p = eps(eltype(q)),
 )
-    FT = UT.promote_typeof(q, ρₐ, N)
+    FT = UT.promote_typeof(q, ρₐ, N, p)
     (; λc, νcD, μcD) = pdf_cloud_parameters(pdf, q, ρₐ, N)
+    (isfinite(λc) && λc > 0 && μcD > 0) || return (FT(0), FT(0))
     D_min = FT(DT.generalized_gamma_quantile(νcD, μcD, λc, p))
     D_max = FT(DT.generalized_gamma_quantile(νcD, μcD, λc, 1 - p))
     return D_min, D_max
@@ -381,6 +529,21 @@ densities of cloud liquid water and rain water.
 end
 LclRaiRates(dq_lcl_dt, dN_lcl_dt, dq_rai_dt, dN_rai_dt) =
     LclRaiRates(promote(dq_lcl_dt, dN_lcl_dt, dq_rai_dt, dN_rai_dt)...)
+
+"""
+    mean_mass_bound_factor(x, x_max; onset = 1 // 2)
+
+Factor in `[0, 1]` for a mean-particle-mass-dependent rate: `1` for
+`x ≤ onset * x_max`, decreasing smoothly (continuous value and slope) to `0`
+as `x` increases from `onset * x_max` to `x_max`, and identically `0` for
+`x ≥ x_max`.
+"""
+@inline function mean_mass_bound_factor(x, x_max; onset = 1 // 2)
+    FT = UT.promote_typeof(x, x_max)
+    r = x / x_max
+    s = clamp((r - FT(onset)) / (1 - FT(onset)), zero(FT), one(FT))
+    return 1 - s^2 * (3 - 2 * s)
+end
 
 """
     autoconversion(acnv, pdf_c, q_lcl, q_rai, ρ, N_lcl)
@@ -410,15 +573,20 @@ function autoconversion(
     safe_N_lcl = max(N_lcl, UT.ϵ_numerics_2M_N(FT))
     L_lcl = ρ * safe_q_lcl
     x_lcl = min(x_star, L_lcl / safe_N_lcl)
+    bound_factor = mean_mass_bound_factor(L_lcl / safe_N_lcl, x_star)
     safe_q_rai = max(0, q_rai)
     τ = 1 - safe_q_lcl / (safe_q_lcl + safe_q_rai)  # Eq. (5) from SB2006
     # τ^a has a vertical tangent at τ = 0; the ifelse keeps the ForwardDiff
     # derivative w.r.t. q_rai finite at q_rai = 0 (and the code branch-free)
     ϕ_au = ifelse(q_rai < UT.ϵ_numerics_2M_M(FT), zero(τ), A * τ^a * (1 - τ^a)^b)
 
+    # Eq. (4) from SB2006, scaled by `bound_factor` so the whole event rate
+    # (mass and number together) vanishes continuously as the mean droplet
+    # mass approaches `x_star` from below, instead of saturating at a fixed
+    # value once `x_lcl` reaches the `min(x_star, ...)` clamp above.
     dL_rai_dt =
         kcc / 20 / x_star * (νc + 2) * (νc + 4) / (νc + 1)^2 *
-        L_lcl^2 * x_lcl^2 * (1 + ϕ_au / (1 - τ)^2) * ρ0 / ρ  # Eq. (4) from SB2006
+        L_lcl^2 * x_lcl^2 * (1 + ϕ_au / (1 - τ)^2) * ρ0 / ρ * bound_factor
     dN_rai_dt = dL_rai_dt / x_star
     dL_lcl_dt = -dL_rai_dt
     dN_lcl_dt = -2 * dN_rai_dt
@@ -477,7 +645,7 @@ function accretion((; accr)::CMP.SB2006, q_lcl, q_rai, ρ, N_lcl)
 end
 
 """
-    cloud_liquid_self_collection(acnv, pdf_c, q_lcl, ρ, dN_lcl_dt_au)
+    cloud_liquid_self_collection(acnv, pdf_c, q_lcl, ρ, N_lcl, dN_lcl_dt_au)
 
 Compute cloud liquid self-collection rate
 
@@ -486,6 +654,7 @@ Compute cloud liquid self-collection rate
  - `pdf_c`: Cloud size distribution parameters, [`CMP.CloudParticlePDF_SB2006`](@ref)
  - `q_lcl`: Cloud liquid water specific content [kg/kg]
  - `ρ`: Air density [kg/m³]
+ - `N_lcl`: Cloud droplet number density [1/m³]
  - `dN_lcl_dt_au`: Rate of change of cloud droplets number density due to autoconversion [1/m³/s]
 
 # Returns
@@ -493,15 +662,18 @@ Compute cloud liquid self-collection rate
     that produce larger cloud droplets (self-collection)
 """
 function cloud_liquid_self_collection(
-    acnv::CMP.AcnvSB2006, pdf_c::CMP.CloudParticlePDF_SB2006, q_lcl, ρ, dN_lcl_dt_au,
+    acnv::CMP.AcnvSB2006, pdf_c::CMP.CloudParticlePDF_SB2006, q_lcl, ρ, N_lcl, dN_lcl_dt_au,
 )
-    FT = UT.promote_typeof(q_lcl, ρ, dN_lcl_dt_au)
-    (; kcc, ρ0) = acnv
+    FT = UT.promote_typeof(q_lcl, ρ, N_lcl, dN_lcl_dt_au)
+    (; kcc, ρ0, x_star) = acnv
     (; νc) = pdf_c
 
     L_lcl = ρ * q_lcl
-    # Eq. (9) from SB2006
-    dN_lcl_dt_sc = -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * L_lcl^2 - dN_lcl_dt_au
+    safe_N_lcl = max(N_lcl, UT.ϵ_numerics_2M_N(FT))
+    bound_factor = mean_mass_bound_factor(L_lcl / safe_N_lcl, x_star)
+    # Eq. (9) from SB2006, scaled by `bound_factor` so the sink vanishes
+    # continuously as the mean droplet mass approaches `x_star` from below.
+    dN_lcl_dt_sc = -kcc * (νc + 2) / (νc + 1) * (ρ0 / ρ) * L_lcl^2 * bound_factor - dN_lcl_dt_au
 
     cond = q_lcl < UT.ϵ_numerics_2M_M(FT)
     return ifelse(cond, FT(0), dN_lcl_dt_sc)
@@ -528,7 +700,7 @@ function autoconversion_and_cloud_liquid_self_collection(
 )
 
     au = autoconversion(acnv, pdf_c, q_lcl, q_rai, ρ, N_lcl)
-    sc = cloud_liquid_self_collection(acnv, pdf_c, q_lcl, ρ, au.dN_lcl_dt)
+    sc = cloud_liquid_self_collection(acnv, pdf_c, q_lcl, ρ, N_lcl, au.dN_lcl_dt)
 
     return (; au, sc)
 end
@@ -638,6 +810,97 @@ function rain_self_collection_and_breakup(
 end
 
 """
+    rain_equilibrium_number(brek, pdf_r, q_rai, ρ)
+
+The rain number density `N_eq` [1/m³] at which self-collection and breakup balance:
+`L_rai / x_eq`, with `x_eq = (π/6) ρw Deq³` the mass of a drop at the SB2006 fitted
+collisional-equilibrium mean-volume diameter `Deq`.
+
+`N_eq` is defined for every `L_rai ≥ 0` and is exactly zero on an empty state, so a relaxation
+toward it cannot manufacture number without mass and needs no special empty-state arm.
+"""
+@inline function rain_equilibrium_number(
+    brek::CMP.BreakupSB2006, pdf_r::CMP.RainParticlePDF_SB2006, q_rai, ρ,
+)
+    FT = UT.promote_typeof(q_rai, ρ)
+    return ρ * q_rai / _rain_equilibrium_mass(FT, brek, pdf_r)
+end
+
+"""Mass of a drop at the collisional-equilibrium mean-volume diameter, `x_eq = (π/6) ρw Deq³`."""
+@inline _rain_equilibrium_mass(::Type{FT}, brek, pdf_r) where {FT} =
+    FT(π) / 6 * FT(pdf_r.ρw) * FT(brek.Deq)^3
+
+"""
+    rain_number_relaxation(pdf_r, self, brek, q_rai, ρ, N_rai)
+
+Write the SB2006 self-collection/breakup pair as a relaxation toward the equilibrium number
+density,
+
+    ∂ₜN_rai = -(N_rai - N_eq(L)) / τ_eff,    τ_eff = (N_eq - N_rai) / f,
+
+where `f = sc + br` is the pair's net number tendency and `N_eq` is
+[`rain_equilibrium_number`](@ref). `∂ₜN_rai` equals `sc + br` exactly; `1/τ_eff` supplies the
+Jacobian's diagonal entry `∂(∂ₜN_rai)/∂N_rai = -1/τ_eff`.
+
+At `N_rai = N_eq` the quotient is `0/0`; the removable limit is the linearization of the pair at
+equilibrium,
+
+    1/τ_relax(L) = (κ Deq / 3) k_rr √(ρ0/ρ) (1 + κrr/Br(x_eq))^d L,
+
+with `κ = κbr` above `Deq` and `κ = kbr` below, matching the breakup fit's two branches (C¹ kink
+at `Deq`).
+
+Requires a rain PSD whose parameters are honest functions of `(L, N)`, i.e. `λ` and `N₀` not
+clamped independently of the state's own moments; both concrete `RainParticlePDF_SB2006`
+variants satisfy this by construction.
+
+# Arguments
+ - `pdf_r`: rain size distribution parameters, [`CMP.RainParticlePDF_SB2006`](@ref)
+ - `self`: rain self-collection parameters, [`CMP.SelfColSB2006`](@ref)
+ - `brek`: rain breakup parameters, [`CMP.BreakupSB2006`](@ref)
+ - `q_rai`: rain water specific content [kg/kg]
+ - `ρ`: air density [kg/m³]
+ - `N_rai`: raindrop number density [1/m³]
+
+# Returns
+ - `(; ∂ₜN_rai, N_eq, inv_τ_eff)`, the pair's net number tendency [1/(m³ s)], the equilibrium
+   number density [1/m³], and the relaxation rate `1/τ_eff` [1/s].
+"""
+@inline function rain_number_relaxation(
+    pdf_r::CMP.RainParticlePDF_SB2006, self::CMP.SelfColSB2006, brek::CMP.BreakupSB2006,
+    q_rai, ρ, N_rai,
+)
+    FT = UT.promote_typeof(q_rai, ρ, N_rai)
+    (; krr, κrr, d) = self
+    (; Deq, kbr, κbr) = brek
+    (; ρ0) = pdf_r
+
+    sc = rain_self_collection(pdf_r, self, q_rai, ρ, N_rai)
+    br = rain_breakup(pdf_r, brek, q_rai, ρ, N_rai, sc)
+    ∂ₜN_rai = sc + br
+
+    N_eq = rain_equilibrium_number(brek, pdf_r, q_rai, ρ)
+    Δ = N_eq - N_rai
+
+    Br_eq = cbrt(6 / _rain_equilibrium_mass(FT, brek, pdf_r))
+    κ = ifelse(Δ ≥ 0, κbr, kbr)
+    inv_τ_lin =
+        κ * Deq / 3 * krr * sqrt(ρ0 / ρ) * (1 + κrr / Br_eq)^d * (ρ * q_rai)
+
+    near_eq = abs(Δ) ≤ sqrt(eps(FT)) * N_eq
+    inv_τ_eff = ifelse(near_eq, inv_τ_lin, ∂ₜN_rai / ifelse(near_eq, one(FT), Δ))
+    # Nonnegative for an honest PSD (see the docstring); floored for robustness against any
+    # future `RainParticlePDF_SB2006` variant. `∂ₜN_rai` is unaffected either way.
+    inv_τ_eff = max(zero(FT), inv_τ_eff)
+
+    inv_τ_eff = ifelse(
+        q_rai < UT.ϵ_numerics_2M_M(FT) || N_rai < UT.ϵ_numerics_2M_N(FT),
+        zero(FT), inv_τ_eff,
+    )
+    return (; ∂ₜN_rai, N_eq, inv_τ_eff)
+end
+
+"""
     cloud_terminal_velocity(pdf_c, vel_params, q_liq, ρₐ, N_liq)
 
 Compute the number-averaged and mass-averaged terminal velocities of cloud droplets
@@ -666,10 +929,21 @@ function cloud_terminal_velocity(
     safe_q_liq = max(q_liq, UT.ϵ_numerics_2M_M(FT))
     safe_N_liq = max(N_liq, UT.ϵ_numerics_2M_N(FT))
     (; Bc) = pdf_cloud_parameters_mass(pdf_c, safe_q_liq, ρₐ, safe_N_liq)
+    # BOTH halves of the canonicalized pair, because the distribution is built from both.
+    # `log_pdf_cloud_parameters_mass` forms `logB` from `x̄` and `logA` from `N_eff`, so the
+    # distribution these moments integrate carries a mass concentration of `x̄ * N_eff` and NOT
+    # `ρₐ q`. The two agree wherever the upper bound binds, since there `N_eff = L / xc_max` and
+    # `x̄ = xc_max`. They do not agree where the LOWER bound binds: `x̄` is raised to the
+    # activation droplet mass while the number is left alone, so `x̄ * N_eff` exceeds `ρₐ q` and
+    # normalising the mass-weighted moment by the latter divides a bounded numerator by an
+    # unbounded denominator. Measured on a state with 1.66e-6 kg/kg of cloud liquid, that returned
+    # a fall speed of 21884 m/s where rain was 6.10 and ice 2.08.
+    x̄, N_eff = cloud_mean_droplet_mass_and_number(pdf_c, safe_q_liq, ρₐ, safe_N_liq)
+    L_eff = x̄ * N_eff
 
     terminal_velocity_prefactor = FT(1 / 18) * cbrt((FT(6) / ρw / FT(π))^2) * (ρw / ρₐ - 1) * grav / ν_air
-    vt0 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, safe_N_liq, FT(2 / 3)) / safe_N_liq
-    vt1 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, safe_N_liq, FT(5 / 3)) / ρₐ / safe_q_liq
+    vt0 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_eff, FT(2 / 3)) / N_eff
+    vt1 = terminal_velocity_prefactor * DT.generalized_gamma_Mⁿ(νc, μc, Bc, N_eff, FT(5 / 3)) / L_eff
 
     cond = N_liq < UT.ϵ_numerics_2M_N(FT) || q_liq < UT.ϵ_numerics_2M_M(FT)
     return (ifelse(cond, FT(0), vt0), ifelse(cond, FT(0), vt1))
@@ -731,6 +1005,23 @@ function rain_terminal_velocity(
     cond_q = q_rai < UT.ϵ_numerics_2M_M(FT)
     return (ifelse(cond_N, FT(0), max(0, vt0)), ifelse(cond_q, FT(0), max(0, vt3)))
 end
+# The `SB2006VelType` moment factors. The individual-drop fit `v = aR - bR exp(-cR D)` is
+# NEGATIVE below the diameter where it crosses zero, so the honest bulk moments integrate only
+# over the range where it is positive; that is the second method below, shared by the windowed
+# and unbounded variants. The cascade variant returns the UNTRUNCATED factors instead, which is
+# not a variant of the limiting at all but a second, undocumented difference riding along with
+# it.
+#
+# The truncated form is the implementation. The untruncated method exists only to keep the
+# cascade reproducing what it has always produced, and it retires when the cascade does. It is
+# not a supported alternative and nothing new should dispatch to it. Production sedimentation
+# uses `Chen2022VelTypeRain`, so the stakes are documentation rather than results, but the
+# asymmetry must not persist silently: any golden that moves on a `SB2006VelType` path when the
+# default distribution changes then has TWO causes, the limiting and this truncation, not one.
+#
+# Dispatching the truncated form on the ABSTRACT `RainParticlePDF_SB2006` is what collapses
+# them, because the cascade type is a subtype of it and is silently caught. The methods are
+# therefore written against the concrete types.
 function _sb_rain_terminal_velocity_helper(
     ::CMP.RainParticlePDF_SB2006_limited, λr, aR, bR, cR,
 )
@@ -738,7 +1029,11 @@ function _sb_rain_terminal_velocity_helper(
     return (FT(1), FT(1), FT(1), FT(1))
 end
 function _sb_rain_terminal_velocity_helper(
-    ::CMP.RainParticlePDF_SB2006_notlimited, λr, aR, bR, cR,
+    ::Union{
+        CMP.RainParticlePDF_SB2006_notlimited,
+        CMP.RainParticlePDF_SB2006_windowed,
+    },
+    λr, aR, bR, cR,
 )
     # Integrate velocity of particles over a range of r with
     # positive terminal velocity (v = aR - bR exp(-lambda D))
@@ -866,7 +1161,7 @@ Uses a donor-based leading-order approximation:
 end
 
 """
-    number_tendency_from_mass_limits(params, q, n)
+    number_tendency_from_mass_limits(params, q, n, sat_excess = 0)
 
 Compute the specific number tendency (rate of change) to relax the mean
 particle mass, `x = q / n` [kg], towards the physical bounds `[x_min, x_max]`
@@ -881,6 +1176,19 @@ valid mean particle mass,
 
     n_target = q / clamp(x, x_min, x_max)
 
+for `q > 0`. At `q ≤ 0` the mean mass does not exist and the target is decided by `sat_excess`
+instead: `n_target = n` where the vapor is in excess, and `n_target = 0` where it is not. This
+follows the number-concentration exchange with a background reservoir of cloud condensation
+nuclei, `∂N_CCN/∂t = -∂N/∂t` (see the Number concentration adjustment section of the
+`Microphysics2M` documentation, and [Horn2012](@cite)): draining number at zero mass returns
+droplets to that reservoir, which happens only once the air can no longer sustain them
+(subsaturation), not merely because a clamp zeroed their mass.
+
+Only the sign of `sat_excess` is read, through `FD.value`, since the excess is state-dependent
+and differentiating the branch itself would put a spurious derivative of a switch into the
+Jacobian. The default `sat_excess = 0` drains at zero mass; the retention arm is currently
+supplied for cloud droplets only.
+
 # Arguments
   - `params`: Number concentration adjustment parameters, a `NamedTuple` with fields:
     + `x_min`: Minimum allowed mean particle mass [kg]
@@ -888,19 +1196,143 @@ valid mean particle mass,
     + `τ`: Relaxation timescale [s]
   - `q`: Specific mass (mass mixing ratio) [kg/kg]
   - `n`: Specific number (number mixing ratio) [1/kg]
+  - `sat_excess`: Vapor specific content in excess of saturation over the
+    species' own phase [kg/kg]. Only its sign is used.
 
 # Returns
 - The rate of change of specific number [1/(kg·s)] needed to bring the mean mass within the valid bounds.
 """
-function number_tendency_from_mass_limits((; x_min, x_max, τ), q, n)
-    # The mean particle mass is x = q / n.
-    # When q == 0, the target n is zero (no mass -> no particles).
-    # Otherwise, n_target is bounded between q / x_max and q / x_min.
-    # This also naturally handles x_min == 0 (where q / x_min yields Inf).
+function number_tendency_from_mass_limits(
+    (; x_min, x_max, τ), q, n, sat_excess = zero(q); invent_from_zero = true,
+)
+    # `q > 0` is a presence test, not a smallness threshold: `q/x_max` is a positive number at
+    # every positive mass, so a smallness threshold on that arm would relax `n` up from zero and
+    # manufacture particles at the largest mass the window allows. The orphan mass at `q ≤ 0` is
+    # drained separately, as mass, by `orphan_mass_drain` and `orphan_mass_drain_ice`.
+    # `invent_from_zero` keeps the previous behavior (relax `n` up from zero at any positive mass)
+    # for callers whose corner doctrine is undecided; every production caller passes `false`.
     FT = UT.promote_typeof(q, n)
-    ϵₘ = UT.ϵ_numerics_2M_M(FT)
-    n_target = ifelse(q < ϵₘ, zero(FT), clamp(n, q / x_max, q / x_min))
+    orphan = !invent_from_zero & !(FD.value(n) > zero(FT))
+    n_target = ifelse(
+        orphan,
+        zero(FT),
+        ifelse(
+            q > zero(FT),
+            clamp(FT(n), q / x_max, q / x_min),
+            ifelse(FD.value(sat_excess) > 0, FT(n), zero(FT)),
+        ),
+    )
     return (n_target - n) / τ
+end
+
+"""
+    orphan_mass_drain(aps, tps, Tₐ, ρₐ, q, x_min, ρ_w, sat_excess)
+
+The mass tendency [kg/kg/s] that removes orphan condensate - mass whose number
+concentration is absent, so no particle carries it - by evaporating it to vapor at the rate a
+population of minimum-mass particles would evaporate at:
+
+    ∂ₜq = -q / τ_orphan,     1/τ_orphan = 2π G D_min (q_sat - qᵥ) / (x_min q_sat)
+
+`D_min` is the diameter of a particle of mass `x_min`. This is the condensation closure's own
+`∂ₜq = (qᵥ - q_sat)/τ` evaluated at the number `N = ρₐ q / x_min` that makes the mean mass
+exactly `x_min`; `N` cancels out of the result, so no invented population number reaches any
+rate. Minimum mass gives the largest surface-to-mass ratio and thus the fastest possible
+evaporation; ventilation is omitted, which can only make the drain slower than the true rate.
+
+The drain is zero at or above saturation: droplet activation supplies a real number there, and
+the orphan mass is adopted by the population that arrives within an activation timescale.
+"""
+@inline function orphan_mass_drain(
+    aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, q, x_min, ρ_w, sat_excess,
+)
+    inv_τ = orphan_mass_inv_timescale(aps, tps, Tₐ, ρₐ, x_min, ρ_w, sat_excess)
+    return -UT.clamp_to_nonneg(q) * inv_τ
+end
+
+"""
+    orphan_mass_drain_ice(aps, tps, Tₐ, ρₐ, q, x_min, ρ_i, sat_excess)
+
+The ice-phase [`orphan_mass_drain`](@ref): the same minimum-mass relaxation with the vapor
+diffusivity and saturation taken over ice, so orphan ice mass sublimates to vapor at the rate
+a population of nucleation-mass crystals would. `sat_excess` is the vapor excess over ice
+saturation; at or above ice saturation the drain is zero and the mass is left in place until
+a number source, transport, or drying air resolves it.
+"""
+@inline function orphan_mass_drain_ice(
+    aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, q, x_min, ρ_i, sat_excess,
+)
+    inv_τ = orphan_mass_inv_timescale_ice(aps, tps, Tₐ, ρₐ, x_min, ρ_i, sat_excess)
+    return -UT.clamp_to_nonneg(q) * inv_τ
+end
+
+"""
+    orphan_mass_inv_timescale(aps, tps, Tₐ, ρₐ, x_min, ρ_w, sat_excess)
+
+`1/τ_orphan` [1/s] of [`orphan_mass_drain`](@ref), which is the whole of that
+rate's mass dependence-free part. Split out because the substep's manual Jacobian
+carries `-1/τ_orphan` as an exact diagonal and has to read the same number the
+primal rate was built from; a linearization recomputing its own copy is how f and
+J drift apart. The ice phase shares the expression through
+[`orphan_mass_inv_timescale_ice`](@ref), differing only in the diffusional growth
+factor and the saturation reference.
+"""
+@inline function orphan_mass_inv_timescale(
+    aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, x_min, ρ_w, sat_excess,
+)
+    G = CO.G_func_liquid(aps, tps, Tₐ)
+    qᵥ_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, Tₐ, ρₐ)
+    return _orphan_mass_inv_timescale(G, qᵥ_sat, x_min, ρ_w, sat_excess)
+end
+
+"""
+    orphan_mass_inv_timescale_ice(aps, tps, Tₐ, ρₐ, x_min, ρ_i, sat_excess)
+
+`1/τ_orphan` [1/s] of [`orphan_mass_drain_ice`](@ref), split out for the manual
+Jacobian exactly as [`orphan_mass_inv_timescale`](@ref) is for the warm phase.
+"""
+@inline function orphan_mass_inv_timescale_ice(
+    aps::CMP.AirProperties, tps::TDI.PS, Tₐ, ρₐ, x_min, ρ_i, sat_excess,
+)
+    G = CO.G_func_ice(aps, tps, Tₐ)
+    qᵥ_sat = TDI.saturation_vapor_specific_content_over_ice(tps, Tₐ, ρₐ)
+    return _orphan_mass_inv_timescale(G, qᵥ_sat, x_min, ρ_i, sat_excess)
+end
+
+@inline function _orphan_mass_inv_timescale(G, qᵥ_sat, x_min, ρ_x, sat_excess)
+    FT = UT.promote_typeof(G, qᵥ_sat, sat_excess)
+    D_min = cbrt(6 * FT(x_min) / (FT(π) * FT(ρ_x)))
+    subsaturation = max(-sat_excess, zero(FT)) / max(qᵥ_sat, floatmin(FT))
+    return 2 * FT(π) * G * D_min * subsaturation / FT(x_min)
+end
+
+"""
+    number_bounded_by_mass_limits((; x_min, x_max), q, n, sat_excess = 0;
+        invent_from_zero = true)
+
+Specific number bounded by the mean-particle-mass limits `[x_min, x_max]` [kg]:
+`clamp(n, q / x_max, q / x_min)` for `q > 0`, and at `q ≤ 0` the number itself where
+`sat_excess` is positive, zero where it is not. This is the `n_target` of
+[`number_tendency_from_mass_limits`](@ref) exactly, so process rates evaluated at this number
+are consistent with the adjusted mean mass:
+
+    number_tendency_from_mass_limits(p, q, n, s) ==
+        (number_bounded_by_mass_limits(p, q, n, s) - n) / τ
+"""
+function number_bounded_by_mass_limits(
+    (; x_min, x_max), q, n, sat_excess = zero(q); invent_from_zero = true,
+)
+    FT = UT.promote_typeof(q, n)
+    orphan = !invent_from_zero & !(FD.value(n) > zero(FT))
+    return ifelse(
+        orphan,
+        zero(FT),
+        ifelse(
+            q > zero(FT),
+            clamp(FT(n), q / x_max, q / x_min),
+            ifelse(FD.value(sat_excess) > 0, FT(n), zero(FT)),
+        ),
+    )
 end
 
 # Additional double moment autoconversion and accretion parametrizations:

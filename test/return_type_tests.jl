@@ -51,7 +51,7 @@ end
     @test concrete_for_all_mixes(CM2.get_size_distribution_bounds, (P(sb.pdf_c),), 3)
     @test concrete_for_all_mixes(CM2.autoconversion, (P(sb.acnv), P(sb.pdf_c)), 4)
     @test concrete_for_all_mixes(CM2.accretion, (P(sb),), 4)
-    @test concrete_for_all_mixes(CM2.cloud_liquid_self_collection, (P(sb.acnv), P(sb.pdf_c)), 3)
+    @test concrete_for_all_mixes(CM2.cloud_liquid_self_collection, (P(sb.acnv), P(sb.pdf_c)), 4)
     @test concrete_for_all_mixes(CM2.rain_self_collection, (P(sb.pdf_r), P(sb.self)), 3)
     @test concrete_for_all_mixes(CM2.rain_breakup, (P(sb.pdf_r), P(sb.brek)), 4)
     @test concrete_for_all_mixes(CM2.rain_self_collection_and_breakup, (P(sb),), 3)

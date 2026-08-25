@@ -969,10 +969,35 @@ end
 # --- 2-Moment Microphysics Helper Functions ---
 
 """
-    warm_rain_tendencies_2m(
-        warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai,
-        w = zero(ρ), p = zero(ρ),
+    _bare_rate_conv_q_vap_to_q_lcl(τ, tps, micro, thermo)
+
+The phase-change rate `sat_excess / τ` toward saturation over liquid, with the evaporation
+branch bounded by the donor content.
+
+`τ` here is a DERIVED diffusional growth timescale, [`CM2.cloud_condensation_timescale`](@ref),
+rather than a phenomenological closure parameter, and that is what decides the form. The
+cell-scale relaxation `ds/dt = -Γ s / τ` comes out of the coupled mass and energy bookkeeping on
+its own, so folding the psychrometric factor `Γ` into `τ` at this call site would apply that
+correction a second time. The shared [`CMNonEq.conv_q_vap_to_q_lcl`](@ref) closes over a
+phenomenological relaxation timescale instead and keeps the fold, which is the right pairing
+there: a prescribed constant is given its cleanest meaning as a uniform supersaturation-relaxation
+time. The boundary is which `τ`, not which call site.
+"""
+@inline function _bare_rate_conv_q_vap_to_q_lcl(τ, tps, micro, thermo)
+    (; q_lcl) = micro
+    (; ρ, T) = thermo
+    qᵥ = TDI.q_vap(micro.q_tot, micro.q_lcl + micro.q_rai, micro.q_icl + micro.q_sno)
+    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+    sat_excess = qᵥ - qᵥ_sat_liq
+    return ifelse(
+        sat_excess < 0,
+        -min(-sat_excess, max(0, q_lcl)) / τ,
+        sat_excess / τ,
     )
+end
+
+"""
+    warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
 
 Internal helper function that computes 2M warm rain processes:
 cloud condensation/evaporation, autoconversion, self-collection, accretion,
@@ -1011,7 +1036,6 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     # Unpack parameters
     sb = warm_rain.seifert_beheng
     aps = warm_rain.air_properties
-    condevap = warm_rain.condevap
 
     # Convert to number densities for CM2 functions
     N_lcl = ρ * n_lcl
@@ -1028,11 +1052,18 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_lcl_activation_dt = zero(FT)
 
     # --- Condensation of vapor / evaporation of cloud liquid water ---
+    # The relaxation timescale follows the droplet population's capacitance integral, so the
+    # unbounded timescale diverges as the population vanishes. `cloud_condensation_timescale`
+    # caps it at `CLOUD_COND_TIMESCALE_MAX` to stay finite, and `sat_excess / τ_max` is not zero,
+    # so an existence threshold is required here. The same rate and the same gate serve the
+    # per-process decomposition, whose sum has to equal what this entry returns.
     micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
     thermo_mock = (; ρ, T)
-    ∂ₜq_lcl_cond = CMNonEq._conv_q_vap_to_q_lcl_const(
-        condevap.τ_relax, tps, micro_mock, thermo_mock,
-    )
+    τ_cond = CM2.cloud_condensation_timescale(sb.pdf_c, aps, tps, T, ρ, q_lcl, N_lcl)
+    ∂ₜq_lcl_cond = _bare_rate_conv_q_vap_to_q_lcl(τ_cond, tps, micro_mock, thermo_mock)
+    # No droplets, no surfaces: condensation AND evaporation are both exactly zero.
+    ∂ₜq_lcl_cond = ifelse(
+        CM2.cloud_condensation_is_degenerate(τ_cond), zero(∂ₜq_lcl_cond), ∂ₜq_lcl_cond)
     ∂ₜn_lcl_cond = zero(∂ₜq_lcl_cond)  # neglect number change from condensation/evaporation
     dq_lcl_dt += ∂ₜq_lcl_cond
     dn_lcl_dt += ∂ₜn_lcl_cond
@@ -1050,7 +1081,7 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
     dn_rai_dt += acnv.dN_rai_dt / ρ
 
     # --- Cloud liquid self-collection ---
-    ∂ₜN_lcl_sc = CM2.cloud_liquid_self_collection(sb.acnv, sb.pdf_c, q_lcl, ρ, acnv.dN_lcl_dt)
+    ∂ₜN_lcl_sc = CM2.cloud_liquid_self_collection(sb.acnv, sb.pdf_c, q_lcl, ρ, N_lcl, acnv.dN_lcl_dt)
     dn_lcl_dt += ∂ₜN_lcl_sc / ρ
 
     # --- Accretion ---

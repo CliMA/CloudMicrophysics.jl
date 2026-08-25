@@ -891,12 +891,14 @@ function test_gpu(FT)
             TT.@test isapprox(accr.dq_rai_dt, FT(6.358926e-6), rtol = 1e-6)
             TT.@test isapprox(accr.dN_rai_dt, FT(0.0), rtol = 1e-6)
             if SB == SB2006
-                TT.@test isapprox(rain_scoll.sc, FT(-21187.494), rtol = 1e-6)
-                TT.@test isapprox(rain_scoll.br, FT(14154.027), rtol = 1e-6)
-                TT.@test isapprox(rain_vel[1], FT(0.9868878), rtol = 1e-6)
-                TT.@test isapprox(rain_vel[2], FT(4.517734), rtol = 1e-6)
-                TT.@test isapprox(rain_evap.∂ₜρn_rai, FT(-260791.30068415933), rtol = 1e-6)
-                TT.@test isapprox(rain_evap.∂ₜq_rai, FT(-0.003709529301871412), rtol = 1e-6)
+                # The windowed rain distribution is the default: at this state the mean drop
+                # sits below the breakup threshold, so breakup is exactly zero.
+                TT.@test isapprox(rain_scoll.sc, FT(-38841.72938241551), rtol = 1e-6)
+                TT.@test rain_scoll.br == FT(0)
+                TT.@test isapprox(rain_vel[1], FT(0.02053568783308189), rtol = 1e-6)
+                TT.@test isapprox(rain_vel[2], FT(0.40780485009430684), rtol = 1e-6)
+                TT.@test isapprox(rain_evap.∂ₜρn_rai, FT(-148920.48911980147), rtol = 1e-6)
+                TT.@test isapprox(rain_evap.∂ₜq_rai, FT(-0.00018761436442205092), rtol = 1e-6)
             end
             if SB == SB2006_no_limiters
                 TT.@test isapprox(rain_scoll.sc, FT(-40447.855), rtol = 1e-6)
