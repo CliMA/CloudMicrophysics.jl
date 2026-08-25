@@ -16,7 +16,7 @@ using CloudMicrophysics.BulkMicrophysicsTendencies
 
 # For 1-moment microphysics
 tendencies = bulk_microphysics_tendencies(
-    Microphysics1Moment(), mp, tps,
+    Instantaneous(), Microphysics1Moment(), mp, tps,
     ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno
 )
 (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt) = tendencies
@@ -135,7 +135,7 @@ Naming convention: `S_process_species1_species2`
  - species1, species2: interacting pair (not from/to)
  - `_cold` / `_warm` suffix for two-sided collision arms (inactive arm = zero)
 
-Returns a `NamedTuple` of ~19 scalar source terms.  All two-sided collision
+Returns a `NamedTuple` of 18 scalar source terms.  All two-sided collision
 processes are pre-routed by temperature, so consumers never need `is_warm`.
 """
 @inline function _microphysics_source_terms(
@@ -474,7 +474,7 @@ end
 
 Compute all 1-moment microphysics tendencies in one fused call.
 
-Returns a NamedTuple with all source/sink terms for hydrometeor species.
+Returns a NamedTuple with the aggregated tendency for each water category.
 This is a pure function of local thermodynamic state, suitable for:
 - Point quadrature over subgrid-scale (T, q_tot) distributions
 - GPU kernel evaluation
@@ -682,20 +682,31 @@ end
 # --- 2-Moment Microphysics Helper Functions ---
 
 """
-    warm_rain_tendencies_2m(sb, q_lcl, q_rai, ρ, n_lcl, n_rai)
+    warm_rain_tendencies_2m(
+        warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai,
+        w = zero(ρ), p = zero(ρ),
+    )
 
 Internal helper function that computes 2M warm rain processes:
-autoconversion, self-collection, accretion, and rain breakup.
+cloud condensation/evaporation, autoconversion, self-collection, accretion,
+rain breakup, rain evaporation, and number adjustment for mass limits.
 
 Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
 
 # Arguments
-- `sb`: SB2006 parameters
+- `warm_rain`: warm-rain parameters (contains the SB2006 scheme, air
+  properties, and condensation/evaporation options)
+- `tps`: Thermodynamics parameters
+- `T`: Temperature (K)
+- `q_tot`: Total water specific content (kg/kg)
 - `q_lcl`: Cloud liquid specific content (kg/kg)
 - `q_rai`: Rain specific content (kg/kg)
+- `q_ice`: Ice specific content (kg/kg)
 - `ρ`: Air density (kg/m³)
 - `n_lcl`: Cloud droplet number per kg air (1/kg)
 - `n_rai`: Rain number per kg air (1/kg)
+- `w`: Vertical velocity (m/s), default `0`
+- `p`: Air pressure (Pa), default `0`
 
 # Returns
 `NamedTuple` with warm rain tendencies:
@@ -703,6 +714,7 @@ Used by both warm-only and warm+ice dispatch methods to reduce code duplication.
 - `dq_rai_dt`: Rain mass tendency (kg/kg/s)
 - `dn_lcl_dt`: Cloud number tendency (1/kg/s)
 - `dn_rai_dt`: Rain number tendency (1/kg/s)
+- `dn_lcl_activation_dt`: Cloud number activation tendency (1/kg/s)
 """
 @inline function warm_rain_tendencies_2m(
     warm_rain, tps, T, q_tot, q_lcl, q_rai, q_ice, ρ, n_lcl, n_rai,
@@ -787,14 +799,16 @@ end
 """
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
-        mp::Microphysics2MParams{WR, Nothing},
+        mp::Microphysics2MParams{WR, Nothing}, tps,
         ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
+        q_ice = 0, n_ice = 0, q_rim = 0, b_rim = 0, logλ = 0,
+        inpc_log_shift = 0, w = 0, p = 0,
     )
 
 Compute 2-moment **warm rain only** microphysics tendencies (Seifert-Beheng 2006).
 
 This method is type-stable and GPU-optimized for warm rain processes only.
-For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR, <:P3IceParams}`.
+For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{WR, <:P3IceParams}`.
 
 # Arguments
 - `mp`: Microphysics2MParams with `mp.ice == nothing` (warm rain only)
@@ -806,6 +820,10 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
 - `n_lcl`: Cloud droplet number per kg air (1/kg)
 - `q_rai`: Rain specific content (kg/kg)
 - `n_rai`: Rain number per kg air (1/kg)
+- `q_ice`, `n_ice`, `q_rim`, `b_rim`, `logλ`: (optional, default `0`)
+  ice-state placeholders, accepted for interface uniformity and unused here
+- `inpc_log_shift`, `w`, `p`: (optional, default `0`) INP-concentration log
+  shift, vertical velocity (m/s), and air pressure (Pa)
 
 # Returns
 `NamedTuple` with warm rain tendency fields:
@@ -816,6 +834,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{FT, WR
 - `dq_ice_dt`: Ice tendency (always zero for warm-only)
 - `dq_rim_dt`: Rime mass tendency (always zero for warm-only)
 - `db_rim_dt`: Rime volume tendency (always zero for warm-only)
+- `dn_lcl_activation_dt`: Cloud number activation tendency (1/kg/s)
 """
 @inline function bulk_microphysics_tendencies(  # TODO: Delete this function
     ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, Nothing}, tps,
@@ -856,9 +875,10 @@ end
 """
     bulk_microphysics_tendencies(
         ::Microphysics2Moment,
-        mp::Microphysics2MParams{FT, WR, <:P3IceParams},
+        mp::Microphysics2MParams{WR, <:P3IceParams}, tps,
         ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
         q_ice, n_ice, q_rim, b_rim, logλ,
+        inpc_log_shift = 0, w = 0, p = 0,
     )
 
 Compute 2-moment **warm rain + P3 ice** microphysics tendencies.
@@ -877,13 +897,16 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `n_lcl`: Cloud droplet number per kg air (1/kg)
 - `q_rai`: Rain specific content (kg/kg)
 - `n_rai`: Rain number per kg air (1/kg)
+- `q_ice`: Ice specific content (kg/kg)
+- `n_ice`: Ice number per kg air (1/kg)
+- `q_rim`: Rime mass (kg/kg)
+- `b_rim`: Rime volume (m³/kg)
+- `logλ`: Log of P3 distribution slope parameter, log(1/m)
 
-## Optional (P3 ice state)
-- `q_ice`: Ice specific content (kg/kg), default = 0
-- `n_ice`: Ice number per kg air (1/kg), default = 0
-- `q_rim`: Rime mass (kg/kg), default = 0
-- `b_rim`: Rime volume (m³/kg), default = 0
-- `logλ`: Log of P3 distribution slope parameter, log(1/m), default = 0
+## Optional
+- `inpc_log_shift`: Additive shift to log(INPC) (default `0`)
+- `w`: Vertical velocity (m/s), default `0`
+- `p`: Air pressure (Pa), default `0`
 
 # Returns
 `NamedTuple` with all tendency fields:
@@ -892,8 +915,10 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `dq_rai_dt`: Rain tendency (kg/kg/s)
 - `dn_rai_dt`: Rain number tendency (1/kg/s)
 - `dq_ice_dt`: Ice tendency (kg/kg/s)
+- `dn_ice_dt`: Ice number tendency (1/kg/s)
 - `dq_rim_dt`: Rime mass tendency (kg/kg/s)
 - `db_rim_dt`: Rime volume tendency (m³/kg/s)
+- `dn_lcl_activation_dt`: Cloud number activation tendency (1/kg/s)
 """
 @inline function bulk_microphysics_tendencies(
     ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, ICE}, tps,

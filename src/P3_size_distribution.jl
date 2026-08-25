@@ -160,12 +160,11 @@ end
     get_μ(slope::CMP.SlopeLaw, logλ)
     get_μ(state::P3State, logλ)
     
-Compute the slope parameter μ
+Compute the shape parameter μ
 
 # Arguments
 - `slope`: [`CMP.SlopeLaw`](@ref) object, or
-- `state`: [`P3State`](@ref) object, or
-- `params`: [`CMP.ParametersP3`](@ref) object
+- `state`: [`P3State`](@ref) object
 - `logλ`: The log of the slope parameter [log(1/m)]
 """
 get_μ((; a, b, c, μ_max)::CMP.SlopePowerLaw, logλ) = clamp(a * exp(logλ)^b - c, 0, μ_max)
@@ -173,9 +172,9 @@ get_μ((; μ)::CMP.SlopeConstant, logλ...) = μ
 get_μ((; params)::P3State, logλ) = get_μ(params.slope, logλ)
 
 """
-    logmass_gamma_moment(state, logλ; [n=0])
+    logmass_gamma_moment(state::P3State, μ, logλ; n = 0)
 
-Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state` and `logλ`.
+Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state`, `μ`, and `logλ`.
     This is the log of the `n`-th moment of the mass-weighted PSD.
 
 # Arguments
@@ -218,12 +217,12 @@ end
 """
     get_logN₀(N_ice, μ, logλ)
 
-Compute `log(N₀)` given the `state`, `N`, and `logλ`,
+Compute `log(N₀)` given `N_ice`, `μ`, and `logλ`,
 
         N  = N₀ ∫ G(D) dD
-    log N₀ = log N - log(∫G(D) dD) 
+    log N₀ = log N - log(∫G(D) dD)
            = log(N) - log( ∫D^μ e^{-λD} dD )
-           = log(N) - M⁰
+           = log(N) - log(M⁰)
 
 # Arguments
 - `N_ice`: The number concentration [1/m³]
@@ -260,10 +259,10 @@ The assumed distribution is of the form
 ```math
 N′(D) = N₀ D^μ e^{-λD}
 ```
-where `N′(D)` is the number concentration at diameter `D` and `μ` is the slope parameter.
-    The slope parameter is parameterized, e.g. [`CMP.SlopePowerLaw`](@ref) or [`CMP.SlopeConstant`](@ref).
+where `N′(D)` is the number concentration at diameter `D` and `μ` is the shape parameter.
+    The shape parameter is parameterized, e.g. [`CMP.SlopePowerLaw`](@ref) or [`CMP.SlopeConstant`](@ref).
 
-This algorithm solves for `logλ = log(λ)` and `log_N₀ = log(N₀)`
+This algorithm solves for `logλ = log(λ)`
     given `L_ice` and `N_ice` by solving the equations:
 
 ```math
@@ -320,9 +319,10 @@ function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, log
 end
 
 """
-    get_distribution_logλ_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    get_distribution_logλ_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, args...)
 
-Compute `log(λ)` for P3, using prognostic ice variables directly
+Compute `log(λ)` for P3, using prognostic ice variables directly.
+Trailing `args...` are forwarded to [`get_distribution_logλ`](@ref).
 
 The P3 variables `F_rim` and `ρ_rim` are computed in a regularised way
 """
@@ -359,7 +359,7 @@ Find all solutions for `logλ` given the `state` ([`P3State`](@ref)), `L`, and `
 
 !!! note "Usage"
     This function is experimental, and usually only relevant for the
-    [`SlopePowerLaw`](@ref) parameterization, which can have multiple solutions
+    [`CMP.SlopePowerLaw`](@ref) parameterization, which can have multiple solutions
     for `logλ` for a given `log_L` and `log_N`.
 """
 function get_distribution_logλ_all_solutions(state::P3State)

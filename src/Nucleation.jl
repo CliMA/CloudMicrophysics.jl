@@ -37,16 +37,19 @@ function apparent_nucleation_rate(
 end
 
 """
-    h2so4_nucleation_rate(h2so4_conc, nh3_conc, negative_ion_conc, temp)
+    h2so4_nucleation_rate(h2so4_conc, nh3_conc, negative_ion_conc, temp, params)
 
  - `h2so4_conc` - Concentration of h2so4 (1/m³)
  - `nh3_conc` - Concentration of nh3 (1/m³)
- - `negative_ion_conc` - Concentration of negative ions (1/m³)
+ - `negative_ion_conc` - Concentration of negative ions (1/cm³; passed to the
+   fit unconverted, see the TODO in the function body)
  - `temp` - Temperature (K)
  - `params` - NamedTuple parameter set obtained from ClimaParams.
-Calculates the rate of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation for a single timestep (1/m³/s).
+
+Calculates the rates of binary H2SO4-H2O and ternary H2SO4-H2O-NH3 nucleation
+and returns them as a `NamedTuple` `(; binary_rate, ternary_rate)` (1/m³/s).
 The particle formation rate is parameterized using data from the CLOUD experiment, through neutral and ion-induced channels.
-This is an implementation of Dunne et al 1016 doi:10.1126/science.aaf2649 Appendix 8-10
+This is an implementation of Dunne et al 2016 doi:10.1126/science.aaf2649 Appendix 8-10
 """
 function h2so4_nucleation_rate(
     h2so4_conc,
@@ -59,6 +62,10 @@ function h2so4_nucleation_rate(
     # Change units from 1/m³ to 1/cm³
     h2so4_conc *= FT(1e-6)
     nh3_conc *= FT(1e-6)
+    # TODO: `negative_ion_conc` enters the fit unconverted, so the caller
+    # must pass it in 1/cm³ while the other concentrations are in 1/m³
+    # (the fitted coefficients assume [n⁻] in 1/cm³). Either convert it
+    # here like the others or document the mixed input units in the API.
 
     # Reference concentration for h2so4 and nh3 (Units: 1e6/cm³)
     ref_conc = FT(1e6)
@@ -157,9 +164,11 @@ function organic_nucleation_rate_hom_prescribed(
 end
 
 """
-    organic_and_h2so4_nucleation_rate(h2so4_conc monoterpene_conc, OH_conc, temp, condensation_sink, params)
+    organic_and_h2so4_nucleation_rate(h2so4_conc, monoterpene_conc, OH_conc, temp, condensation_sink, params)
 
-- `h2so4_conc` - Concentration of sulfuric acid (1/m³)
+- `h2so4_conc` - Concentration of sulfuric acid
+  (currently passed to the fit unconverted, see the TODO in
+  `organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed`)
 - `monoterpene_conc` - Concentration of monoterpenes (1/m³)
 - `OH_conc` - Concentration of OH (1/m³)
 - `temp` - Temperature (K)
@@ -198,7 +207,12 @@ function organic_and_h2so4_nucleation_rate_bioOxOrg_prescribed(
     # Convert bioOxOrg and k_H2SO4org from 1/m³ to 1/cm³
     k_H2SO4org = FT(1e-6) * params.k_H2SO4org
     bioOxOrg *= FT(1e-6)
-    # Convert from 1/m³ to 10⁶/cm³
+    # TODO: `h2so4_conc` enters the fit unconverted (1/m³) while
+    # `bioOxOrg` and `k_H2SO4org` are converted to the 1/cm³ units of the
+    # Riccobono et al. (2014) fit, so the rate mixes unit systems. Check
+    # the intended units of `h2so4_conc` and of `k_H2SO4org` in
+    # ClimaParams, and make the conversions consistent (the disabled line
+    # below is the missing conversion if 1/cm³ is intended).
     # h2so4_conc *= 1e-6
     rate = FT(0.5) * k_H2SO4org * h2so4_conc^2 * bioOxOrg
     # Convert from 1/cm³/s to 1/m³/s

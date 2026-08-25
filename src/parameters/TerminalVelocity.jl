@@ -36,6 +36,12 @@ end
 
 function Blk1MVelTypeRain(td::CP.ParamDict)
     vel_map = (;
+        # TODO: rain's `r0` maps to `snow_flake_length_scale`, while the rain
+        # mass and area power laws map to `rain_drop_length_scale`
+        # (Microphysics1M.jl). Both are 1e-3 m in ClimaParams, so the two agree
+        # numerically today; calibrating `rain_drop_length_scale` alone would
+        # leave `get_v0` scaling rain fall speeds by the snow value. Confirm
+        # which length scale is intended here and map to it.
         :snow_flake_length_scale => :r0,
         :rain_terminal_velocity_size_relation_coefficient_ve => :ve,
         :rain_terminal_velocity_size_relation_coefficient_delv => :Δv,
@@ -148,8 +154,11 @@ The type for precipitation terminal velocity in the Stokes regime (Re < 1)
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct StokesRegimeVelType{FT} <: TerminalVelocityType
+    "liquid water density [kg/m³]"
     ρw::FT
+    "kinematic viscosity of air [m²/s]"
     ν_air::FT
+    "gravitational acceleration [m/s²]"
     grav::FT
 end
 
@@ -172,12 +181,19 @@ The type for precipitation terminal velocity from Seifert and Beheng 2006
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct SB2006VelType{FT} <: TerminalVelocityType
+    "reference air density [kg/m³]"
     ρ0::FT
+    "raindrop terminal velocity coefficient aR [m/s]"
     aR::FT
+    "raindrop terminal velocity coefficient bR [m/s]"
     bR::FT
+    "raindrop terminal velocity coefficient cR [1/m]"
     cR::FT
+    "liquid water density [kg/m³]"
     ρw::FT
+    "kinematic viscosity of air [m²/s]"
     ν_air::FT
+    "gravitational acceleration [m/s²]"
     grav::FT
 end
 
@@ -239,7 +255,7 @@ end
     Chen2022VelTypeLargeIce
 
 The type for precipitation terminal velocity from Chen et al 2022 for large ice.
-See Table B4 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
+See Table B5 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 
 # Fields
 $(DocStringExtensions.FIELDS)
@@ -286,11 +302,17 @@ DOI: 10.1016/j.atmosres.2022.106171
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct Chen2022VelTypeRain{FT, N} <: TerminalVelocityType
+    "reference air density coefficient [m³/kg]"
     ρ0::FT
+    "velocity coefficients a [-]"
     a::NTuple{N, FT}
+    "power on air density in the third a coefficient [-]"
     a3_pow::FT
+    "velocity coefficients b [-]"
     b::NTuple{N, FT}
+    "air density correction to the b coefficients [m³/kg]"
     b_ρ::FT
+    "velocity coefficients c [1/mm]"
     c::NTuple{N, FT}
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelTypeRain) =
@@ -317,14 +339,17 @@ end
 
 The type for precipitation terminal velocity from Chen et al 2022
 DOI: 10.1016/j.atmosres.2022.106171
-(defined for rain, snow and cloud ice)
+(defined for rain, small ice, and large ice)
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct Chen2022VelType{R, SI, LI} <: TerminalVelocityType
+    "rain terminal velocity parameters"
     rain::R
+    "small ice terminal velocity parameters"
     small_ice::SI
+    "large ice terminal velocity parameters"
     large_ice::LI
 end
 Chen2022VelType(toml_dict::CP.ParamDict) =

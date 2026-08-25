@@ -18,7 +18,7 @@ distributions.
 # Common argument conventions
 
 All option-dispatched process functions share the signature
-`process(opt, mp, tps, micro, thermo)`, where:
+`process(opt, mp, tps, micro, thermo[, sd])`, where:
 
 - `opt`: process option type (dispatches which parameterization to use)
 - `mp`: `Microphysics1MParams` — unified parameter container
@@ -32,6 +32,8 @@ All option-dispatched process functions share the signature
 - `thermo`: `NamedTuple` of thermodynamic state:
   - `ρ` — air density (kg/m³)
   - `T` — temperature (K)
+- `sd`: (optional) precomputed size-distribution and fall-speed parameters,
+  default `size_distr_parameters(mp, micro, thermo)`
 
 Not all processes use every field; each extracts only the fields it needs.
 When a process is disabled (option = `nothing`), it returns zero.
@@ -198,6 +200,7 @@ end
     terminal_velocity(precip::Rain, vel::Chen2022VelTypeRain, ρ, q)
     terminal_velocity(precip::Snow, vel::Chen2022VelTypeLargeIce, ρ, q)
     terminal_velocity(precip::Snow, vel::Chen2022VelTypeLargeIce, ρ, q, snow_shape)
+    terminal_velocity(precip, vel::Union{Blk1MVelTypeRain, Blk1MVelTypeSnow}, ρ, q, v0, λ_inv)
 
 Returns the mass-weighted average terminal velocity assuming a Marshall-Palmer
 distribution of particles (Ogura and Takahashi, 1971).
@@ -216,6 +219,8 @@ Fall velocity of individual particles is parameterized:
 - `ρ`: air density [kg/m³]
 - `q`: rain or snow specific content [kg/kg]
 - `snow_shape`: (optional) assumed snow shape (Oblate or Prolate)
+- `v0`, `λ_inv`: (kernel form only) precomputed fall-speed scale and inverse
+  slope of the size distribution
 
 # Returns
 - Mass-weighted terminal velocity [m/s]
@@ -340,7 +345,7 @@ the option stored in `Microphysics1MOptions`.
 using the prescribed cloud droplet number concentration.
 
 # Arguments
-- `option`: `nothing`, `Kessler1M()`, or `PrescribedNd()`
+- `opt`: `nothing`, `Kessler1M()`, or `PrescribedNd()`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters (unused, kept for uniform interface)
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -473,11 +478,14 @@ end
 
 """
     accretion(cloud, precip, vel, E, q_clo, q_pre, ρ, n0, v0, λ_inv)
+    accretion(cloud, precip, vel, E, q_clo, q_pre, ρ)
 
 Returns the source of precipitating water (rain or snow) due to collisions
 with cloud water (liquid or ice).
 
 Internal low-level kernel. Prefer the option-dispatched API.
+The 7-argument form computes `n0`, `v0`, and `λ_inv` from the size
+distribution before calling the 10-argument kernel.
 
 # Arguments
 - `cloud`: type for cloud water or cloud ice
@@ -487,6 +495,8 @@ Internal low-level kernel. Prefer the option-dispatched API.
 - `q_clo`: cloud liquid water or cloud ice specific content
 - `q_pre`: rain or snow specific content
 - `ρ`: air density
+- `n0`, `v0`, `λ_inv`: (kernel form only) precomputed size-distribution
+  intercept, fall-speed scale, and inverse slope
 """
 @inline function accretion(
     cloud::CMP.CloudCondensateType,
@@ -578,15 +588,25 @@ end
 end
 
 """
-    accretion_snow_rain(type_i::PrecipitationType, type_j::PrecipitationType, blk1mveltype_ti, blk1mveltype_tj, ce, q_i, q_j, ρ)
+    accretion_snow_rain(
+        type_i, type_j, blk1mveltype_ti, blk1mveltype_tj,
+        E_ij, coeff_disp, q_i, q_j, ρ,
+        n0_i, n0_j, v0_i, v0_j, λ_i_inv, λ_j_inv,
+    )
+    accretion_snow_rain(
+        type_i, type_j, blk1mveltype_ti, blk1mveltype_tj,
+        E_ij, coeff_disp, q_i, q_j, ρ,
+    )
 
 Returns the accretion rate when rain and snow collide.
 Collisions result in snow for T < T_freeze and rain for T > T_freeze.
+The 9-argument form computes the size-distribution and fall-speed
+parameters before calling the full kernel.
 
 Uses geometric collision kernel assumption: a(r_i, r_j) = π(r_i + r_j)², with
 a velocity dispersion correction that assumes that fall velocity standard
 deviations are proportional to the mean fall velocities, with coefficient
-`ce.coeff_disp`.
+`coeff_disp`.
 
 !!! note "Internal use only"
     This low-level positional-argument kernel is kept for internal dispatch.
@@ -597,9 +617,13 @@ deviations are proportional to the mean fall velocities, with coefficient
 - `type_i`: snow (T < T_freeze) or rain (T > T_freeze)
 - `type_j`: rain (T < T_freeze) or snow (T > T_freeze)
 - `blk1mveltype_ti`, `blk1mveltype_tj`: 1M terminal velocity parameters
-- `ce`: collision efficiency parameters (contains `e_rai_sno`, `coeff_disp`)
+- `E_ij`: collision efficiency
+- `coeff_disp`: velocity dispersion coefficient
 - `q_i`, `q_j`: specific contents of snow or rain [kg/kg]
 - `ρ`: air density [kg/m³]
+- `n0_i`, `n0_j`, `v0_i`, `v0_j`, `λ_i_inv`, `λ_j_inv`: (kernel form only)
+  precomputed size-distribution intercepts, fall-speed scales, and inverse
+  slopes for both species
 """
 @inline function accretion_snow_rain(
     type_i::CMP.PrecipitationType,
@@ -690,7 +714,7 @@ end
 
 Option-dispatched accretion wrappers. All extract parameters from `mp` and
 delegate to the corresponding low-level Marshall-Palmer kernels.
-`nothing` variants return zero without computing anything.
+`nothing` variants return zeros without computing anything.
 
 # Arguments
 - `opt`: accretion option type (selects the process) or `nothing`
@@ -698,6 +722,12 @@ delegate to the corresponding low-level Marshall-Palmer kernels.
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
 - `thermo`: thermodynamic state `(; ρ, T)`
+
+# Returns
+- `accretion(::CloudLiquidSnowAccretion, ...)` returns `(; S_accr, S_melt)`;
+  the other `accretion` methods return a scalar rate.
+- `accretion_snow_rain` returns `(; S_rai_sno, S_sno_rai, S_melt)`
+  (a NamedTuple of zeros for the `nothing` variant).
 """
 # Nothing dispatch: scalar zero for simple accretion, NamedTuple for processes
 # that return NamedTuple shapes. Since `nothing` is a singleton, we can't dispatch
@@ -897,8 +927,8 @@ end
 end
 
 """
-Returns the tendency due to rain evaporation.
-Ventilation factor parameterization follows Seifert and Beheng (2006).
+    conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo)
+    conv_q_rai_to_q_vap(opt::RainEvaporation, mp, tps, micro, thermo)
 
 Returns the tendency due to rain evaporation.
 Ventilation factor parameterization follows Seifert and Beheng (2006).

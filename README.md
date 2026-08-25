@@ -23,8 +23,8 @@ CloudMicrophysics.jl provides a library of cloud microphysics and aerosol parame
 [license-img]: https://img.shields.io/badge/license-Apache%202.0-blue.svg
 [license-url]: https://github.com/CliMA/CloudMicrophysics.jl/blob/main/LICENSE
 
-[gha-ci-img]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/ci.yml/badge.svg
-[gha-ci-url]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/ci.yml
+[gha-ci-img]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/ci.yml/badge.svg?branch=main
+[gha-ci-url]: https://github.com/CliMA/CloudMicrophysics.jl/actions/workflows/ci.yml?query=branch%3Amain
 
 [codecov-img]: https://codecov.io/gh/CliMA/CloudMicrophysics.jl/branch/main/graph/badge.svg
 [codecov-url]: https://codecov.io/gh/CliMA/CloudMicrophysics.jl
@@ -32,9 +32,34 @@ CloudMicrophysics.jl provides a library of cloud microphysics and aerosol parame
 [dlt-img]: https://img.shields.io/badge/dynamic/json?url=http%3A%2F%2Fjuliapkgstats.com%2Fapi%2Fv1%2Ftotal_downloads%2FCloudMicrophysics&query=total_requests&label=Downloads
 [dlt-url]: https://juliapkgstats.com/pkg/CloudMicrophysics
 
-## Quick Start
+## Features
 
-### Installation
+### Bulk Microphysics Schemes
+
+- **0-moment scheme**: Simple precipitation removal
+- **1-moment scheme**: Marshall-Palmer distributions for rain and snow
+- **2-moment scheme**: [Seifert & Beheng (2006)](https://doi.org/10.1007/s00703-005-0112-4) with mass and number concentration
+- **P3 scheme**: [Morrison & Milbrandt (2015)](https://doi.org/10.1175/JAS-D-14-0065.1) predicted particle properties for ice
+
+### Ice Nucleation
+
+- **Heterogeneous nucleation**: Deposition, immersion freezing ([ABIFM](https://doi.org/10.5194/acp-12-9817-2012))
+- **Homogeneous nucleation**: [Koop et al. (2000)](https://doi.org/10.1038/35020537) parameterization
+- **INP distributions**: [Frostenberg et al. (2023)](https://doi.org/10.5194/acp-23-10883-2023)
+
+### Aerosol Processes
+
+- **Aerosol activation**: [Abdul-Razzak & Ghan (2000)](https://doi.org/10.1029/1999JD901161) parameterization
+- **Aerosol nucleation**: H₂SO₄ and organic nucleation pathways
+- **Aerosol model**: Modal distributions with κ-Köhler theory
+
+### High Performance
+
+- **Type-stable** and **GPU-compatible** (CUDA.jl, AMDGPU.jl)
+- **AD-compatible** (ForwardDiff.jl) for differentiable physics
+- Optimized for minimal allocations
+
+## Installation
 
 ```julia
 using Pkg
@@ -42,10 +67,9 @@ Pkg.add("CloudMicrophysics")
 Pkg.add("ClimaParams")
 ```
 
-### Basic Usage
+## Quick Example
 
 ```julia
-import CloudMicrophysics as CM
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.Parameters as CMP
 
@@ -58,47 +82,6 @@ vel = CMP.Blk1MVelType(Float64).rain
 q_rai = 1e-3 # rain specific content [kg/kg]
 v_term = CM1.terminal_velocity(rain, vel, ρ, q_rai)
 ```
-
-### Running tests locally
-```julia
-# Load additional packages needed for tests
-julia --project=test
-
-# Enter Package Manager and develop locally
-julia>]
-pkg> dev .
-pkg> instantiate
-
-# Run the tests
-julia> include("test/runtests.jl")
-```
-
-## Key Features
-
-### 🌧️ **Bulk Microphysics Schemes**
-
-- **0-moment scheme**: Simple precipitation removal
-- **1-moment scheme**: Marshall-Palmer distributions for rain and snow
-- **2-moment scheme**: [Seifert & Beheng (2006)](https://doi.org/10.1007/s00703-005-0112-4) with mass and number concentration
-- **P3 scheme**: Predicted particle properties for ice
-
-### 🧊 **Ice Nucleation**
-
-- **Heterogeneous nucleation**: Deposition, immersion freezing ([ABIFM](https://doi.org/10.5194/acp-12-9817-2012))
-- **Homogeneous nucleation**: [Koop et al. (2000)](https://doi.org/10.1038/35020537) parameterization
-- **INP distributions**: [Frostenberg et al. (2023)](https://doi.org/10.5194/acp-23-10883-2023)
-
-### 💨 **Aerosol Processes**
-
-- **Aerosol activation**: [Abdul-Razzak & Ghan (2000)](https://doi.org/10.1029/1999JD901161) parameterization
-- **Aerosol nucleation**: H₂SO₄ and organic nucleation pathways
-- **Aerosol model**: Modal distributions with κ-Köhler theory
-
-### ⚡ **High Performance**
-
-- **Type-stable** and **GPU-compatible** (CUDA.jl, AMDGPU.jl)
-- **AD-compatible** (ForwardDiff.jl) for differentiable physics
-- Optimized for minimal allocations
 
 ## Documentation
 
@@ -114,6 +97,18 @@ CloudMicrophysics.jl is used throughout the [CliMA](https://github.com/CliMA) ec
 - [KinematicDriver](https://github.com/CliMA/KinematicDriver.jl) - 1D/2D kinematic framework
 - [Thermodynamics](https://github.com/CliMA/Thermodynamics.jl) - Moist thermodynamics
 
-## Getting Help
+## Contributing
 
-For questions, check the [documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) or open an issue on [GitHub](https://github.com/CliMA/CloudMicrophysics.jl).
+Contributions are welcome. See the [Developer's Guide](https://clima.github.io/CloudMicrophysics.jl/dev/DevelopersGuide/) and [`AGENTS.md`](AGENTS.md), which points to the shared CliMA developer guides in [`docs/dev-guides/`](docs/dev-guides/).
+
+To run the test suite locally:
+
+```julia
+julia --project=test
+julia>]
+pkg> dev .
+pkg> instantiate
+julia> include("test/runtests.jl")
+```
+
+For questions, check the [documentation](https://clima.github.io/CloudMicrophysics.jl/dev/) or open an issue on [GitHub](https://github.com/CliMA/CloudMicrophysics.jl/issues).

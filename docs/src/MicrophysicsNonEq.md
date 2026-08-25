@@ -26,34 +26,6 @@ They consist of:
     while the sublimation timescale ``\tau_{sub}`` remains at the constant
     ``\tau_i``.
 
-## Simple condensation/evaporation and deposition/sublimation
-
-Condensation/evaporation of cloud liquid water and
-deposition/sublimation of cloud ice are parameterized
-  as a relaxation to equilibrium value at the current time step.
-The equilibrium value is obtained based on a prescribed phase partition function
-  that divides the available excess water vapor between liquid and ice
-  (based on temperature).
-```math
-\begin{equation}
-  \left. \frac{d \, q_{lcl}}{dt} \right|_{cond, evap} = \frac{q^{eq}_{lcl} - q_{lcl}}{\tau_{l}}; \;\;\;\;\;\;\;
-  \left. \frac{d \, q_{icl}}{dt} \right|_{dep, sub}   = \frac{q^{eq}_{icl} - q_{icl}}{\tau_{i}}
-\end{equation}
-```
-where:
- - ``q^{eq}_{lcl}, q^{eq}_{icl}`` - liquid and ice water specific content in equilibrium at current temperature and
-   assuming some phase partition function based on temperature
- - ``q_{lcl}, q_{icl}`` - current liquid water and ice specific content,
- - ``\tau_{l}, \tau_{i}`` - relaxation timescales.
-
-!!! note
-    Both ``\tau_{l}`` and ``\tau_{i}`` are assumed to be constant.
-    It would be great to make the relaxation time a function of
-    available condensation nuclei, turbulence intensity, etc.
-    See works by [prof Raymond Shaw](https://www.mtu.edu/physics/department/faculty/shaw/)
-    for hints.
-    In particular, [Desai2019](@cite).
-
 ## Condensation/evaporation and deposition/sublimation from Morrison and Milbrandt 2015
 
 Condensation/evaporation and deposition/sublimation rates are based on
@@ -99,6 +71,27 @@ where:
 - ``c_p`` is the specific heat of air at constant pressure,
 - ``R_v`` is the gas constant of water vapor,
 - ``L_v`` and ``L_s`` is the latent heat of vaporization and sublimation.
+
+When the air is subsaturated, the evaporation and sublimation rates are
+  additionally limited by the available condensate:
+```math
+\begin{equation}
+   \left. \frac{d \, q_{k}}{dt} \right|_{evap, sub} =
+   - \frac{\min(q_{sk} - q_{vap}, \; \max(0, q_{k}))}{\tau_k \Gamma_k},
+   \;\;\;\;\;\;\; k \in \{lcl, icl\}.
+\end{equation}
+```
+For the ice tendency, an additional INP limiter suppresses deposition
+  (positive tendency) at temperatures above freezing, where no ice
+  nucleating particles (INPs) are available.
+This limiter applies to both the constant and the temperature-dependent
+  relaxation timescale options.
+
+!!! note
+    Both ``\tau_{l}`` and ``\tau_{i}`` are assumed to be constant by default.
+    Making the relaxation timescales functions of available condensation
+    nuclei, turbulence intensity, and other environmental conditions is
+    left for future work; see for example [Desai2019](@cite).
 
 Note that these forms of condensation/sublimation and deposition/sublimation
   are equivalent to those described in the adiabatic parcel model with some rearrangements and assumptions.
@@ -187,9 +180,6 @@ where:
 - ``\tau_{sub}`` is a constant sublimation timescale (default: ``\tau_i = 10\,s``),
 - ``\Delta q = q_{vap} - q_{si}`` is the saturation excess.
 
-An additional INP limiter suppresses deposition (positive tendency) at
-  temperatures above freezing, where no INPs are available.
-
 ```@example
 include("plots/plotting_tau_relax_frostenberg.jl")
 ```
@@ -197,16 +187,19 @@ include("plots/plotting_tau_relax_frostenberg.jl")
 
 ## Cloud condensate sedimentation
 
-We use the Chen et al. [Chen2022](@cite) parameterization for cloud liquid and cloud ice sedimentation velocities.
+We use the analytical Stokes-regime terminal velocity for cloud liquid droplets
+  and the Chen et al. [Chen2022](@cite) parameterization
+  (with the coefficients for small ice particles)
+  for cloud ice sedimentation velocities.
 In the 1-moment precipitation scheme, we assume that cloud condensate is a continuous field
   and doesn't introduce an explicit particle size distribution.
 For simplicity, we assume a monodisperse size distribution
-  and compute the group terminal velocity based on the volume radius
+  and compute the group terminal velocity based on the volume diameter
   and prescribed number concentration:
 
 ```math
 \begin{equation}
-  D_{vol} = \frac{\rho_{air} q}{N \rho}
+  D_{vol} = \left( \frac{6 \, \rho_{air} \, q}{\pi \, N \, \rho} \right)^{1/3}
 \end{equation}
 ```
 where:
@@ -223,8 +216,7 @@ The sedimentation velocity then is
 ```
 
 !!! note
-    We are using the B1 coefficients from Chen et al. [Chen2022](@cite) to compute
-    the cloud condensate velocities. They were fitted for larger particle sizes.
-    To mitigate the resulting errors, we multiply by a correction factor.
-    We should instead find a parameterization that was designed for the cloud droplet
-    size range.
+    The Chen et al. [Chen2022](@cite) coefficients used for cloud ice
+    were fitted for small ice particles (below 625 μm).
+    The Stokes-regime formula used for cloud liquid is valid for small
+    droplets, where the drag is dominated by viscous forces.

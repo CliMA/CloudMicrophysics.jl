@@ -398,7 +398,7 @@ microphysics_1m_process_params(td::CP.ParamDict, o::Microphysics1MOptions) = (;
 # ═══════════════════════════════════════════════════════════════════
 # Deprecated TOML-dict constructors
 #
-# Option types no longer carry parameters, so they take no TOML dict.
+# Option types carry no parameters, so they take no TOML dict.
 # These shims keep downstream callers that still pass `toml_dict`
 # working (the argument is ignored). Drop the argument to migrate.
 # ═══════════════════════════════════════════════════════════════════

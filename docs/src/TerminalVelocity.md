@@ -9,8 +9,10 @@
 The above terminal velocities need to be averaged over the assumed
   particle size distributions, to get the mass- or number-weighted
   group terminal velocities used in the bulks schemes:
- - In the non-equilibrium microphysics, we use the Chen et al. [Chen2022](@cite) parameterization and assume a
-   monodisperse size distribution to obtain the cloud liquid and cloud ice sedimentation velocities.
+ - In the non-equilibrium microphysics, we assume a monodisperse size distribution
+   and use the analytical Stokes-regime terminal velocity for cloud liquid and
+   the Chen et al. [Chen2022](@cite) parameterization (small ice coefficients)
+   for cloud ice sedimentation velocities.
  - In 1M microphysics, we assume an exponential size distribution for rain and snow
    and use the power-law formulation when deriving process rates such as accretion.
    The Chen et al. [Chen2022](@cite) terminal velocity is available in 1-moment scheme

@@ -52,9 +52,7 @@ abstract type QuadratureRule end
 # Arguments
  - `f`: Function to integrate
  - `a`, `b`: Integration bounds. Note: if `a ≥ b`, or `a` or `b` is `NaN`, `zero(f(a))` is returned.
-
-# Keyword arguments
- - `quad`: Quadrature scheme, default: `ChebyshevGauss(100)`
+ - `quad`: (optional) Quadrature scheme, default: `ChebyshevGauss(100)`
 
 # Returns
  Approximation to the definite integral ∫ₐᵇ f(x) dx
@@ -87,7 +85,7 @@ abstract type QuadratureRule end
 end
 
 """
-    subintervals(bnds::NTuple{N, T}) -> NTuple{N-1, NTuple{2, T}}
+    subintervals(bnds::NTuple)
 
 Pair adjacent elements of a flat boundary tuple into the consecutive
 subintervals they delimit:
@@ -235,15 +233,8 @@ Base.broadcastable(quad::GaussLegendre) = (quad,)
 @inline weight(q::GaussLegendre, i::FT, n) where {FT} = @inbounds q.weights[Int(i)]
 @inline inv_weight_fun(::GaussLegendre, y) = one(y)
 
-"""
-    GaussLegendre(FT, n)
-
-Construct the `n`-point Gauss-Legendre rule with element type `FT`.
-
-Nodes/weights are computed in `Float64` (`FastGaussQuadrature.gausslegendre`)
-and converted to `FT`. This is the host-side, one-shot construction path; it is
-**not** meant to be called inside a GPU kernel.
-"""
+# Host-side, one-shot construction path (see the `GaussLegendre` docstring);
+# not meant to be called inside a GPU kernel.
 function GaussLegendre(::Type{FT}, n::Int) where {FT}
     n ≥ 1 || error("GaussLegendre: order n=$n must be ≥ 1")
     # Compute in Float64 for accuracy, then convert to FT.

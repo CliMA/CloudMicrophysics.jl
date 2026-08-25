@@ -121,7 +121,7 @@ M^3_r = M^1_x / C
 where
  - ``C = \frac{4}{3} π ρ_w`` relates radius to mass for a spherical particle, ``x = C r^3``.
 
-Similarly, the 2nd moment in radius, ``M^2_r`` equals the "2/3rd" moment in mass, ``M^2_x``,
+Similarly, the 2nd moment in radius, ``M^2_r``, is related to the "2/3rd" moment in mass, ``M_x^{2/3}``,
 ```math
 \begin{equation}
 M_r^2 = M_x^\frac{2}{3} / C^\frac{2}{3}

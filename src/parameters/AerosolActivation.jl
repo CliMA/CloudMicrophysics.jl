@@ -20,7 +20,7 @@ $(DocStringExtensions.FIELDS)
     ρ_i::FT
     "surface tension of water [N/m]"
     σ::FT
-    "gravitational_acceleration [m/s2]"
+    "gravitational acceleration [m/s2]"
     g::FT
     "scaling coefficient in Abdul-Razzak and Ghan 2000 [-]"
     f1::FT

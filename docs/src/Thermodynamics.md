@@ -19,15 +19,20 @@ It is crucial to understand those assumptions when choosing a parameterization
 
 ## Additional functions and parameters
 
-Needed by the `CloudMIcrophysics.jl` library:
+Needed by the `CloudMicrophysics.jl` library:
   - Gas constants for dry air and water vapor
   - Gas constant for moist air
+  - Freezing temperature
   - Latent heats of vaporization, fusion and sublimation
-  - Specific heat capacity under constant pressure for moist air
+  - Specific heat capacities of moist air (under constant pressure)
+    and of liquid water and ice
+  - Internal energy of liquid water and ice
+  - Liquid fraction as a function of temperature
   - Saturation vapor pressure and supersaturation over liquid and ice
   - Water vapor specific content
+    (including from relative humidity over liquid)
   - Specific content from partial pressure and partial pressure from specific content
+  - Air density
 
 Needed in tests and examples shown in the documentation
   - Gravitational constant (only used in the adiabatic parcel example)
-  - Air density (only used in tests)

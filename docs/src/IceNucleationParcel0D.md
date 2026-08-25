@@ -122,7 +122,7 @@ The crux of the problem is modeling the ``\frac{dq_l}{dt}`` and ``\frac{dq_i}{dt
   for different homogeneous and heterogeneous ice nucleation paths.
 
 ## Supported size distributions
-Currently, the parcel model supports monodisperse and gamma size distributions of cloud droplets and ice crystals, and solves prognostic equations for the cloud water and cloud ice specific contents (`q_l`, `q_i`) and number concentrations (`N_l`, `N_i`). Additionally, a `monodisperseMix` option is now supported for cloud liquid droplets. This allows representing the droplet population as a mixture of two monodisperse modes: one corresponding to an initial set of preexisting droplets, and the other representing droplets formed through activation during the simulation. This feature enables more realistic treatment of scenarios involving preexisting hydrometeors.
+Currently, the parcel model supports monodisperse and gamma size distributions of cloud droplets and ice crystals, and solves prognostic equations for the cloud water and cloud ice specific contents (`q_l`, `q_i`) and number concentrations (`N_l`, `N_i`). Additionally, a `"MonodisperseMix"` option is now supported for cloud liquid droplets. This allows representing the droplet population as a mixture of two monodisperse modes: one corresponding to an initial set of preexisting droplets, and the other representing droplets formed through activation during the simulation. This feature enables more realistic treatment of scenarios involving preexisting hydrometeors.
 
 For a monodisperse size distribution of cloud droplets or ice crystals
 ```math
@@ -225,7 +225,8 @@ For a case of a spherical ice particle growing through water vapor deposition
 where:
  - ``r_i`` is the ice particle radius,
  - ``\alpha_m`` is the accommodation coefficient that takes into account the fact that not all water vapor molecules
-     that arrive at the particle surface will join the growing crystal,
+     that arrive at the particle surface will join the growing crystal
+     (assumed equal to 1 in the implementation),
  - ``G_i(T) = \left(\frac{L_s}{KT} \left(\frac{L_s}{R_v T} - 1 \right) + \frac{R_v T}{e_{si} D} \right)^{-1}``
      combines the effects of thermal conductivity and water diffusivity,
 
@@ -238,7 +239,7 @@ where:
 It follows that
 ```math
 \begin{equation}
-  \frac{dq_i}{dt} = \frac{1}{\rho_a} \alpha_m 4 \pi (S_i - 1) G_i(T) N_{act} \bar{r}
+  \frac{dq_i}{dt} = \frac{1}{\rho_a} 4 \pi (S_i - 1) G_i(T) N_{act} \bar{r}
 \end{equation}
 ```
 where:
@@ -246,12 +247,12 @@ where:
 
 ### Deposition Nucleation on dust particles
 There are multiple ways of running deposition nucleation in the parcel.
-  `"MohlerAF_Deposition"` will trigger an activated fraction approach
-  from [Mohler2006](@cite). `"MohlerRate_Deposition"` will trigger a
+  `"MohlerAF"` will trigger an activated fraction approach
+  from [Mohler2006](@cite). `"MohlerRate"` will trigger a
   nucleation rate approach from [Mohler2006](@cite). For both approaches,
   there is no nucleation if saturation over ice exceeds 1.35 as conditions
   above this value will result in nucleation in a different mode.
-  `"ActivityBasedDeposition"` will trigger a water activity based approach
+  `"ABDINM"` will trigger a water activity based approach
   from [Alpert2022](@cite). In this approach, ice production rate ``P_{ice, depo}``
   is calculated from
 ```math
@@ -299,7 +300,7 @@ The parcel also includes ice nucleation parameterizations used in
   from Cooper (1986). The heterogeneous freezing parameterization, which
   follows Bigg(1953) with parameters from Barklie aand Gokhale (1959), is
   treated as immersion freezing in the parcel. Homogeneous freezing happens
-  instantaneously at 233.15K.
+  instantaneously at 233.15 K.
 
 ### Frostenberg et al. 2023 Immersion Freezing
 An immersion freezing parameterization based on [Frostenberg2023](@cite) is also available.
@@ -308,7 +309,7 @@ The concentration of ice nucleating particles (INPC) depends only on air tempera
 New ice crystals are created if the INPC exceeds the existing concentration of ice crystals,
   provided there are sufficient numbers of cloud liquid droplets to freeze.
 
-Three different implementations of this parametrization are used in the parcel model:
+Three different implementations of this parameterization are used in the parcel model:
 - `mean` - in which INPC is equal to its mean value defined in [Frostenberg2023](@cite).
 - `random` - in which INPC is sampled randomly from the distribution defined in [Frostenberg2023](@cite).
   The number of model time steps between sampling is set by `sampling_interval`.
@@ -365,7 +366,7 @@ where ``z_t \sim N(0,1)`` is a standard normal random variable.
 
 Here we show various example simulation results from the adiabatic parcel
   model. This includes examples with deposition nucleation on dust,
-  liquid processes only, immersion freezing with condensation and deposition growth,
+  liquid processes only,
   and homogeneous freezing with deposition growth.
 
 First, we check that aerosol activation works reasonably within the parcel.
@@ -377,7 +378,7 @@ First, we check that aerosol activation works reasonably within the parcel.
 
 The following examples show ice nucleation, starting with deposition
   freezing on dust.
-The model is run three times using the `"MohlerAF_Deposition"` approach
+The model is run three times using the `"MohlerAF"` approach
   for 30 minutes simulation time, (shown by three different colors on the plot).
 Between each run the specific humidity is changed,
   while keeping all other state variables the same as at the last time step
@@ -385,13 +386,13 @@ Between each run the specific humidity is changed,
 The prescribed vertical velocity is equal to 3.5 cm/s.
 
 Supersaturation is plotted for both liquid (solid lines) and ice (dashed lines).
-The pale blue line uses the `"MohlerRate_Deposition"` approach.
+The pale blue line uses the `"MohlerRate"` approach.
   We only run it for the first GCM timestep because the rate approach requires
   the change in ice saturation over time. With the discontinuous jump in saturation,
   the parameterization is unable to determine a proper nucleation rate. When we force
   the initial ice crystal number concentration for this simulation to match
-  that in the `"MohlerAF_Deposition"` approach, we obtain the same results as
-  in the `"MohlerAF_Deposition"` approach for the first GCM timestep.
+  that in the `"MohlerAF"` approach, we obtain the same results as
+  in the `"MohlerAF"` approach for the first GCM timestep.
 
 ```@example
 using Suppressor: @suppress #hide
@@ -402,10 +403,10 @@ end # hide
 ![](cirrus_box.svg)
 
 The water activity based parameterization for deposition nucleation shows
-  similar outcomes when compared to the `"MohlerRate_Deposition"` approach.
-  Here, we run the parcel for 100 secs for all available aerosol types. The
-  solid lines correspond to the `"MohlerRate_Deposition"` approach while the
-  dashed lines correspond to `"ActivityBasedDeposition"`. Note that there
+  similar outcomes when compared to the `"MohlerRate"` approach.
+  Here, we run the parcel for 100 s for all available aerosol types. The
+  solid lines correspond to the `"MohlerRate"` approach while the
+  dashed lines correspond to `"ABDINM"`. Note that there
   is no common aerosol type between the two parameterizations.
 
 ```@example

@@ -45,11 +45,11 @@ Compute the integration bounds for the P3 size distribution,
 end
 
 """
-    D_m(state::P3State, logλ)
+    D_m(state, logλ)
 
 Compute the mass weighted mean particle size [m]
 
-# Parameters
+# Arguments
  - `state`: [`P3State`](@ref) object
  - `logλ`: The log of the slope parameter [log(1/m)]
 """

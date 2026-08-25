@@ -6,7 +6,7 @@ State of the P3 scheme.
 
 This struct bundles the P3 parameterizations `params`, the provided rime state
 (`F_rim`, `ρ_rim`), and the cached derived threshold variables
-`thresholds = (; D_th, D_gr, D_cr, ρ_g)` — computed once at construction.
+`D_th`, `D_gr`, `D_cr`, and `ρ_g` — computed once at construction.
 
 # Construction
 
@@ -27,7 +27,7 @@ struct P3State{FT, PARAMS <: CMP.ParametersP3}
     ρn_ice::FT
     "Rime mass fraction"
     F_rim::FT
-    "Rime density"
+    "Rime density [kg/m³]"
     ρ_rim::FT
 
     "Graupel density [kg/m³] — `NaN` when `F_rim = 0` (no graupel regime)"
@@ -202,6 +202,7 @@ get_ρ_d((; params, F_rim, ρ_rim)::P3State) = get_ρ_d(params.mass, F_rim, ρ_r
 """
     get_ρ_g(F_rim, ρ_rim, ρ_d)
     get_ρ_g(mass::MassPowerLaw, F_rim, ρ_rim)
+    get_ρ_g(state::P3State)
 
 Return the density of total (deposition + rime) ice mass for graupel [kg/m³]
 
@@ -245,6 +246,7 @@ _get_threshold((; α_va, β_va)::CMP.MassPowerLaw, ρ) = (6α_va / (π * ρ))^(1
 
 """
     get_D_th(mass::MassPowerLaw, ρ_i)
+    get_D_th(params::ParametersP3)
 
 Return the critical size separating spherical and nonspherical ice [meters]
 
@@ -359,7 +361,7 @@ function ice_mass_coeffs(state::P3State, D)
 end
 
 """
-    ice_mass(state, D)
+    ice_mass(state::P3State, D)
 
 Return the mass of a particle with diameter `D`
 
