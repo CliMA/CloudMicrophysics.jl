@@ -182,6 +182,9 @@ function benchmark_test(FT)
     @info "P3 Scheme"
     state = P3.P3State(params_P3, L_ice, N_ice, F_rim, ρ_rim)
     logλ = P3.get_distribution_logλ(state)
+    # the prognostic rime volume this state was built from: wet-growth densification takes it
+    # rather than reconstructing it from the state's clamped and tapered quotient
+    B_rim_bench = L_ice * F_rim / ρ_rim
     bench_press(
         P3.P3State,
         P3.P3State,
@@ -354,21 +357,19 @@ function benchmark_test(FT)
         bench_press(FT, CMD.effective_radius_2M, (sb, q_liq, q_rai, N_liq, N_rai, ρ_air), 2000)
 
         @info "P3 Collisions"
-        # Julia <= 1.11 inference exceeds its depth budget on this collision
-        # assembly, widening intermediates to Any (runtime dispatch + boxing;
-        # correct but unoptimized), so the JET and allocation assertions fail
-        # spuriously there. 1.12 resolves the chain: zero JET reports, zero
-        # allocations. TODO: drop the gate once CI runs >= 1.12.
-        if VERSION >= v"1.12"
-            bench_press(@NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT},
-                P3.bulk_liquid_ice_collision_sources,
-                (
-                    state, logλ,
-                    sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,
-                    aps, tps, ch2022,
-                    ρ_air, T_air,
-                ), 1e9)
-        end
+        bench_press(
+            @NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT,
+                ∂ₜq_c_frz::FT, ∂ₜq_c_shd::FT, ∂ₜq_r_frz::FT, ∂ₜq_r_shd::FT,
+                ∂ₜB_rim_c::FT, ∂ₜB_rim_r::FT, f_shd::FT},
+            (st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T) ->
+                P3.bulk_liquid_ice_collision_sources(st, lλ, pc, pr, Lc, Nc, Lr, Nr, ap, tp, vp, ρ, T;
+                    B_rim = B_rim_bench, quad = _glq),
+            (
+                state, logλ,
+                sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,
+                aps, tps, ch2022,
+                ρ_air, T_air,
+            ), 1e7)
     end
     bench_press(FT, CMD.effective_radius_Liu_Hallet_97, (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai), 300)
     bench_press(

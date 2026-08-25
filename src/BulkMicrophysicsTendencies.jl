@@ -1275,7 +1275,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         # --- Liquid-ice collisions
         coll = CMP3.bulk_liquid_ice_collision_sources(
             state, logλ, pdf_c, pdf_r, L_lcl, N_lcl, L_rai, N_rai, aps, tps, vel, ρ, T;
-            quad,
+            B_rim, quad,
         )
         dq_lcl_dt += coll.∂ₜq_c
         dq_rai_dt += coll.∂ₜq_r

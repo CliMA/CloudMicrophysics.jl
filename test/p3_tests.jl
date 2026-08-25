@@ -1274,7 +1274,13 @@ function test_p3_bulk_liquid_ice_collisions(FT)
     @testset "local rime density" begin
         Tₐ = T_freeze - 1 // 10
         ρ′_rim_func = P3.compute_local_rime_density(vel_params, ρₐ, Tₐ, state)
-        @test ρ′_rim_func(D̄, D̄) ≈ FT(159.5) rtol = 1e-6
+        # Corrected for the Cober-List sign fix (previously pinned at the Rᵢ = 1 floor, 159.5).
+        @test ρ′_rim_func(D̄, D̄) ≈ FT(282.8765520969483) rtol = 2e-4
+
+        # Rᵢ > 0 for T < T_freeze, so ρ′_rim densifies toward ρ_ice as T → T_freeze.
+        Dₗ = FT(200e-6)
+        ρ′_rim(T) = P3.compute_local_rime_density(vel_params, ρₐ, FT(T), state)(D̄, Dₗ)
+        @test issorted(ρ′_rim.((240, 250, 260, 265, 270)))
 
         a, b, c = 51, 114, -11 // 2 # coeffs for Eq. 17 in Cober and List (1993), converted to [kg / m³]
         ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2  # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
@@ -1335,13 +1341,14 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test all(x -> x isa FT, rates)  # check type stability
         @test all(>(0), rates)  # check positivity
 
-        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL = rates
 
         # Mass conservation: QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
         @test QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
 
-        # Wet growth indicator should be ≤ total collision rate
-        @test ∫𝟙_wet_M_col <= ∫M_col
+        # The shed fraction, which replaced the wet growth indicator as the densification
+        # driver, is bounded by the total collision rate at every state
+        @test QCSHD + QRSHD <= ∫M_col
 
         # Since we specified identical size distributions, we expect:
         @test QCFRZ == QRFRZ
@@ -1372,13 +1379,12 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         rates = P3.∫liquid_ice_collisions(
             n_i, ∂ₜM_max_zero, cloud_integrals, rain_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
         )
-        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL = rates
         @test QCFRZ == 0  # No cloud freezing
         @test QRFRZ == 0  # No rain freezing
         @test QCSHD > 0  # All cloud particles should shed
         @test QRSHD > 0  # All rain particles should freeze
         @test QCSHD + QRSHD == ∫M_col  # All collisions should result shedding
-        @test ∫𝟙_wet_M_col == ∫M_col  # Above freezing, collisions at all sizes are wet
     end
 
     @testset "Bulk liquid-ice collisions" begin
@@ -1410,29 +1416,26 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         )
         @test eltype(rates) == FT  # check type stability
 
-        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL = rates
 
         # Basic sanity checks
         @test all(rates .>= 0)
         @test QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
-        @test ∫𝟙_wet_M_col <= ∫M_col
+        @test QCSHD + QRSHD <= ∫M_col
 
         # Smoke tests, aka: Check that rates don't change with new commits.
         # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
         # reference values.
-        @test QCFRZ ≈ 5.943946584599112e-7 rtol = 5e-4
-        # QCSHD, QRSHD and ∫𝟙_wet_M_col regenerated for the velocity-aware integration bounds;
-        # the other seven are within tolerance of their previous values. Old values, for audit:
-        #   QCSHD 2.0534323233754524e-9, QRSHD 3.6744506329509328e-6, ∫𝟙_wet_M_col 1.3659847784932352e-5
-        @test QCSHD ≈ 2.0702099007021667e-9 rtol = 5e-4
-        @test NCCOL ≈ 60666.71757403923 rtol = 5e-4
-        @test QRFRZ ≈ 6.640489628336987e-5 rtol = 5e-4
-        @test QRSHD ≈ 3.649838651816965e-6 rtol = 5e-4
-        @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
-        @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.726612278745525e-9 rtol = 5e-4
-        @test BRCOL ≈ 4.163318251255413e-7 rtol = 5e-4
-        @test ∫𝟙_wet_M_col ≈ 1.7043100985839804e-5 rtol = 5e-4
+        @test QCFRZ ≈ 5.942471550989089e-7 rtol = 5e-4
+        @test QCSHD ≈ 2.07611985935298e-9 rtol = 5e-4
+        @test NCCOL ≈ 60651.35670910096 rtol = 5e-4
+        @test QRFRZ ≈ 6.642674674038379e-5 rtol = 5e-4
+        @test QRSHD ≈ 3.64983632601479e-6 rtol = 5e-4
+        @test NRCOL ≈ 172.61819652435105 rtol = 5e-4
+        @test ∫M_col ≈ 7.067566695764388e-5 rtol = 5e-4
+        # BCCOL, BRCOL updated for the Cober-List sign fix in compute_local_rime_density.
+        @test BCCOL ≈ 3.50892649473301e-9 rtol = 5e-4
+        @test BRCOL ≈ 7.247197349759124e-8 rtol = 5e-4
 
         ### Test the bulk source function
         state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
@@ -1440,9 +1443,97 @@ function test_p3_bulk_liquid_ice_collisions(FT)
             state, logλ,
             psd_c, psd_r, L_c, N_c, L_r, N_r,
             aps, tps, vel_params, ρₐ, T;
-            quad = P3.GaussLegendre(FT, 12),
+            B_rim = Lᵢ * F_rim / ρ_rim, quad = P3.GaussLegendre(FT, 12),
         )
         @test eltype(rates) == FT  # check type stability
+    end
+
+    # Wet-growth densification relaxes the `(L_rim, B_rim)` pair toward the fully-soaked solid
+    # endpoint `(ρq_ice, ρq_ice/ρ_i)`. It took the rime volume as `ρq_ice·F_rim/ρ_rim`,
+    # reconstructed from the state's CLAMPED and tapered quotient, rather than the prognostic
+    # volume it was called with. On a consistent state the two are identical; where the
+    # `ρ_rim ≤ ρ_i` clamp binds the reconstruction returns the volume the CLAMP implies, which
+    # is the endpoint's own volume, so the increment's implied density is pinned at exactly ρ_i
+    # and the term has no excess left to remove. With the prognostic volume the increment's
+    # implied density falls strictly BELOW ρ_i there, making wet growth the one process that
+    # actively pulls an above-ρ_i quotient back down whenever it fires.
+    @testset "wet-growth densification uses the prognostic rime volume" begin
+        toml_dict = CP.create_toml_dict(FT)
+        psd_c = CMP.CloudParticlePDF_SB2006(toml_dict)
+        psd_r = CMP.RainParticlePDF_SB2006_limited(toml_dict)
+        L_c, N_c, L_r, N_r = FT(1e-3), FT(1e8), FT(1e-4), FT(1e6)
+        T = T_freeze - FT(5)
+        ρ_i = params.ρ_i
+        τ_wet = params.τ_wet
+        quad = P3.GaussLegendre(FT, 12)
+        L_rim = Lᵢ * F_rim
+
+        collide(st, lλ, B) = P3.bulk_liquid_ice_collision_sources(
+            st, lλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
+            aps, tps, vel_params, ρₐ, T; B_rim = B, quad,
+        )
+        # the replaced expression, verbatim, as the control
+        recon_B(st) = st.ρ_rim > 0 ? st.ρq_ice * st.F_rim / st.ρ_rim : zero(FT)
+        # the collision integrals a state carries, to split QIWET/BIWET off the returned totals
+        integrals(st, lλ) = P3.∫liquid_ice_collisions(
+            st, lλ, psd_c, psd_r, L_c, N_c, L_r, N_r, aps, tps, vel_params, ρₐ, T,
+            D -> psd_c.ρw * CO.volume_sphere_D(D); quad,
+        )
+
+        # the convexity condition the mediant argument needs, at production settings: the
+        # one-step update is a convex combination of the pair and the endpoint only for
+        # `f_shd·h/τ_wet < 1`, and `f_shd ≤ 1` because the shed mass is a part of the
+        # collected mass
+        st = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+        lλ = P3.get_distribution_logλ(st)
+        r = integrals(st, lλ)
+        f_shd = (r[2] + r[5]) / r[7]
+        @test 0 < f_shd <= 1
+        h = FT(2)   # the production box step
+        @test f_shd * h / τ_wet < 1
+        @test h / τ_wet ≈ FT(0.02) rtol = 8 * eps(FT)
+
+        # bit-identical on a consistent state: the reconstruction IS the prognostic volume there
+        @test st.ρ_rim ≈ ρ_rim rtol = 8 * eps(FT)   # neither clamp nor taper binds at 800 kg/m³
+        @test all(Tuple(collide(st, lλ, L_rim / ρ_rim)) .=== Tuple(collide(st, lλ, recon_B(st))))
+
+        # above solid ice: the constructor clamps ρ_rim to ρ_i, so the reconstruction is blind to
+        # the excess. The prognostic volume is smaller, so more volume is added and the
+        # increment's implied density is strictly below ρ_i - it pulls the quotient down.
+        recon_B_rims = FT[]
+        prog_BIWETs = FT[]
+        for δ in FT[1e-3, 2e-2]
+            B_hard = L_rim / (ρ_i * (1 + δ))
+            st_h = P3.state_from_prognostic(params, Lᵢ, Nᵢ, L_rim, B_hard)
+            @test st_h.ρ_rim ≈ ρ_i rtol = 8 * eps(FT)     # the clamp binds ...
+            @test st_h.ρ_rim < ρ_i * (1 + δ / 2)          # ... and it is the clamp, not the raw
+            lλ_h = P3.get_distribution_logλ(st_h)
+            r_h = integrals(st_h, lλ_h)
+            QCFRZ, QRFRZ, BCCOL, BRCOL = r_h[1], r_h[4], r_h[8], r_h[9]
+
+            prog = collide(st_h, lλ_h, B_hard)
+            recon = collide(st_h, lλ_h, recon_B(st_h))
+            @test prog.∂ₜB_rim > recon.∂ₜB_rim    # strictly more restoring
+            @test prog.∂ₜL_rim == recon.∂ₜL_rim   # and the mass slot does not move
+
+            QIWET = prog.∂ₜL_rim - (QCFRZ + QRFRZ)
+            BIWET_p = prog.∂ₜB_rim - (BCCOL + BRCOL)
+            BIWET_r = recon.∂ₜB_rim - (BCCOL + BRCOL)
+            @test QIWET > 0 && BIWET_p > 0 && BIWET_r > 0
+            # the reconstruction pins the increment at exactly the endpoint density ...
+            @test QIWET / BIWET_r ≈ ρ_i rtol = 1e-3
+            # ... while the prognostic volume puts it strictly below, by a margin that grows
+            # with the excess: ρ_i(1 − F_rim)/(1 − F_rim/(1 + δ))
+            @test QIWET / BIWET_p ≈ ρ_i * (1 - F_rim) / (1 - F_rim / (1 + δ)) rtol = 1e-3
+            @test QIWET / BIWET_p < ρ_i * (1 - δ / 8)
+            push!(recon_B_rims, recon.∂ₜB_rim)
+            push!(prog_BIWETs, prog.∂ₜB_rim)
+        end
+        # the sharpest form of the defect: two states with DIFFERENT prognostic rime volumes but
+        # the same clamped quotient densify identically under the reconstruction and differently
+        # under the prognostic volume. The clamp, not the state, was setting the rate.
+        @test recon_B_rims[1] ≈ recon_B_rims[2] rtol = 1e-3
+        @test prog_BIWETs[1] != prog_BIWETs[2]
     end
 end
 
@@ -1475,8 +1566,27 @@ function test_p3_ice_self_collection(FT)
             P3.ice_self_collection(state_zero, logλ_zero, vel_params, ρₐ; quad = P3.GaussLegendre(FT, 12))
         @test rates_zero.dNdt == 0
 
-        # TODO: compare against an analytically derived reference
-        # For a simple size distribution and uniform velocity difference, one could compute analytical dNdt.
+        # Cross-check the triangular domain against the full-square double
+        # integral, where the ½ factor counts each unordered pair once
+        quad32 = P3.GaussLegendre(FT, 32)
+        rates32 = P3.ice_self_collection(state, logλ, vel_params, ρₐ; quad = quad32)
+        n_i = DT.size_distribution(state, logλ)
+        v_i = P3.ice_particle_terminal_velocity(vel_params, ρₐ, state)
+        bnds = P3.velocity_integral_bounds(state, logλ, v_i; p = eps(one(ρₐ)))
+        square = P3.integrate(
+            D₁ -> begin
+                v₁ = v_i(D₁)
+                collision_rate =
+                    D₂ -> P3.collision_cross_section_ice_ice(state, D₁, D₂) * abs(v₁ - v_i(D₂)) * n_i(D₂)
+                # Split the inner integral at D₂ = D₁, where |v₁ - v(D₂)| is not smooth
+                inner =
+                    P3.integrate(collision_rate, (first(bnds), D₁), quad32) +
+                    P3.integrate(collision_rate, (D₁, last(bnds)), quad32)
+                n_i(D₁) * inner
+            end,
+            bnds, quad32,
+        )
+        @test rates32.dNdt ≈ square / 2 rtol = 0.05
     end
 end
 
@@ -1510,14 +1620,15 @@ function test_p3_closed_form_rain_inner(FT)
             ρ′_rim = P3.compute_local_rime_density(vel, ρₐ, FT(270), state)
             D_min, D_max = bnds = CM2.get_size_distribution_bounds(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p)
             D_max > D_min || continue
+            v_i = ∂ₜV.v_i
             rc = P3.get_liquid_integrals_rain_closed(
-                psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
-                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                psd_r, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
+                m_liq, ρ′_rim, bnds; quad = P3.GaussLegendre(FT, 6),
             )
             rn = P3.get_liquid_integrals(  # numerical fallback
-                n_r, ∂ₜV, m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                n_r, ∂ₜV, m_liq, ρ′_rim, bnds;
+                quad = P3.GaussLegendre(FT, 6),
             )
-            v_i = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
             for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
                 vi = v_i(Dᵢ)
                 Dstar = P3.crossover_diameter(vi, v_l, D_min, D_max)
@@ -1557,23 +1668,23 @@ function test_p3_closed_form_rain_inner(FT)
         L_r, N_r = FT(1e-4), FT(1e3)
         (; N₀r, Dr_mean) =
             CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
-        Dᵢ0 = FT(3e-3)
         rᵢ0 = FT(1e-3)
         vi0 = FT(3.0)
         D_min, D_max = FT(1e-5), FT(5e-3)
         rtolAD = FT(1e-4)
+        Dstar0 = P3.crossover_diameter(vi0, v_l, D_min, D_max)
         cases = (
             ("v_i", vi0,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, x, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(x, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
             ("r_i", rᵢ0,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, x, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, x, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
             ("Dr", Dr_mean,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, N₀r, x)),
             ("N₀r", N₀r,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
+                x -> P3.closed_rain_inner_NM(vi0, Dstar0, rᵢ0, ρ_w,
                     ai, bi, ci, D_min, D_max, x, Dr_mean)),
         )
         for (_, x0, g) in cases, idx in (1, 2)
@@ -1630,8 +1741,9 @@ function test_p3_closed_form_rain_inner(FT)
         r_i = FT(2e-4)
         ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, FT(1))
         for v_i in (FT(-1), FT(1e6))
+            Dstar_i = P3.crossover_diameter(v_i, v_l, D_min, D_max)
             N, M = P3.closed_rain_inner_NM(
-                FT(1e-3), v_i, v_l, r_i, FT(1000), ai, bi, ci,
+                v_i, Dstar_i, r_i, FT(1000), ai, bi, ci,
                 D_min, D_max, FT(1e7), FT(5e-4),
             )
             @test isfinite(N) && isfinite(M)
@@ -1643,18 +1755,14 @@ function test_p3_closed_form_rain_inner(FT)
         vel = CMP.Chen2022VelType(FT)
         psd_r = CMP.SB2006(FT).pdf_r
         state = P3.P3State(params, FT(1e-3), FT(1e6), FT(0.5), FT(500))
-        rest = (
-            identity, (a, b) -> a, identity, identity, identity,
-            FT(1), FT(1e-4), FT(1e3), state,
-        )
-        m_closed = which(P3._rain_inner_integrals, typeof((psd_r, vel, rest...)))
-        m_fallback = which(P3._rain_inner_integrals, typeof((1.0, 2.0, rest...)))
-        # closed-form method: first two params are the typed bundle
+        ∂ₜV = P3.volumetric_collision_rate_integrand(vel, FT(1), state)
+        rest = (identity, identity, (FT(0), FT(1)), FT(1), FT(1e-4), FT(1e3), state)
+        # closed-form eligibility: SB2006 rain PSD with a Chen velocity curve on the kernel
+        m_closed = which(P3._rain_inner_integrals, typeof((psd_r, identity, ∂ₜV, rest...)))
+        m_fallback = which(P3._rain_inner_integrals, typeof((1.0, identity, identity, rest...)))
         @test m_closed.sig.parameters[2] <: CMP.RainParticlePDF_SB2006
-        @test m_closed.sig.parameters[3] <: CMP.Chen2022VelType
-        # fallback method: first two params are ::Any (Any === Any)
+        @test m_closed.sig.parameters[4] <: P3.VolumetricCollisionRate{<:Any, <:Any, <:CO.Chen2022VelocityCurve}
         @test m_fallback.sig.parameters[2] === Any
-        @test m_fallback.sig.parameters[3] === Any
         # and the two methods are distinct (no accidental ambiguity merge)
         @test m_closed !== m_fallback
     end
@@ -1799,6 +1907,76 @@ function test_p3_rime_density_bounds(FT)
     end
 end
 
+# `compute_local_rime_density` no longer bounds the surface temperature below zero. As the
+# supercooling vanishes the riming index diverges, and `LocalRimeDensity` saturates it at
+# `RIME_DENSITY_Rᵢ_MAX`, which returns the solid bulk ice density; at and above the melting point
+# the same limit is selected directly. `rime_density_at` is exercised with the velocity difference
+# supplied explicitly, so the sweep is over (Dₗ, v, T°C) rather than over the velocity laws.
+function test_local_rime_density_wet_growth_limit(FT)
+    params = CMP.ParametersP3(FT)
+    ρ_rim_local = params.ρ_rim_local
+    T_freeze = FT(params.T_freeze)
+    ρ_ice = ρ_rim_local(FT(CMP.RIME_DENSITY_Rᵢ_MAX))
+    ρ_lowest = ρ_rim_local(FT(CMP.RIME_DENSITY_Rᵢ_MIN))
+    μm = 1_000_000
+
+    # The retired bound, as the reference the sweep is compared against.
+    T°C_bound = -FT(1e-3)
+    bounded(T°C, v, Dₗ) = ρ_rim_local(-(Dₗ * μm * v) / (2 * min(T°C, T°C_bound)))
+    free(T°C, v, Dₗ) =
+        P3.rime_density_at(P3.RimeDensityRate(ρ_rim_local, T°C, identity, identity), v, Dₗ)
+
+    # Below this the bounded form has not yet reached RIME_DENSITY_Rᵢ_MAX, so the two forms can
+    # differ; above it the consumer saturates first and the bound decides nothing.
+    Dv_shadow = 2 * abs(T°C_bound) * CMP.RIME_DENSITY_Rᵢ_MAX / μm
+
+    Dₗs = FT[0, 1e-6, 20e-6, 200e-6, 3e-3]
+    vs = FT[0, 1e-2, 1e-1, 1, 5, 20]
+    T°Cs = FT[-40, -10, -4.2, -1, -1e-3, -1e-4, 0, 1e-4, 1, 5]
+
+    @testset "local rime density reaches the wet-growth limit" begin
+        @test Dv_shadow ≈ FT(2.4e-8)
+
+        @testset "finite and inside the parameterization's range everywhere" begin
+            for T°C in T°Cs, v in vs, Dₗ in Dₗs
+                ρ′ = free(T°C, v, Dₗ)
+                @test isfinite(ρ′)
+                @test ρ_lowest ≤ ρ′ ≤ ρ_ice
+            end
+        end
+
+        @testset "identical to the bounded form wherever the bound decided nothing" begin
+            for T°C in T°Cs, v in vs, Dₗ in Dₗs
+                if T°C ≤ T°C_bound || Dₗ * v ≥ Dv_shadow
+                    @test free(T°C, v, Dₗ) === bounded(T°C, v, Dₗ)
+                end
+            end
+        end
+
+        @testset "the melting point and above return the wet-growth limit" begin
+            for T°C in FT[0, 1e-4, 1, 5], v in vs, Dₗ in Dₗs
+                @test free(T°C, v, Dₗ) === ρ_ice
+            end
+        end
+
+        @testset "densifies toward solid ice as the supercooling vanishes" begin
+            for v in FT[1e-2, 1, 5], Dₗ in FT[1e-6, 20e-6, 200e-6]
+                @test issorted([free(T°C, v, Dₗ) for T°C in FT[-40, -20, -10, -1, -1e-3, 0]])
+            end
+        end
+
+        # A finite returned value does not imply finite partials; the discarded arm of the select
+        # divides by zero at the melting point.
+        @testset "no non-finite value or partial through ForwardDiff" begin
+            for v in vs, Dₗ in Dₗs, Δ in FT[-10, -1, -1e-3, 0, 1]
+                f(t) = free(t - T_freeze, v, Dₗ)
+                @test isfinite(f(T_freeze + Δ))
+                @test isfinite(FD.derivative(f, T_freeze + Δ))
+            end
+        end
+    end
+end
+
 function test_gamma_inc_Q_chain_ice_channel(FT)
     @testset "gamma_inc Q-chain: the ice channel's Q(1,x) is its own boundary term" begin
         # The chain's recurrence denominators, `invΓ[k] = 1/Γ(zf0 + k)`.
@@ -1838,6 +2016,54 @@ function test_gamma_inc_Q_chain_ice_channel(FT)
     end
 end
 
+function test_ice_sticking_efficiency(FT)
+    @testset "the ice sticking efficiency reproduces the reference at its kinks and its ends" begin
+        p3 = CMP.ParametersP3(FT)
+        e = (T, F) -> P3.ice_sticking_efficiency(p3, FT(T), FT(F))
+        (; e_cold, e_warm, T_cold, F_rim_lo, F_rim_hi) = p3.sticking
+        T_frz = p3.T_freeze
+
+        @testset "the temperature ramp, both saturated ends exact" begin
+            @test e(T_cold - 20, 0) == e_cold        # saturated cold: exact, not merely close
+            @test e(T_cold, 0) == e_cold             # the cold kink itself
+            @test e(T_frz, 0) == e_warm              # the warm kink
+            @test e(T_frz + 20, 0) == e_warm         # saturated warm
+            # the reference's own arithmetic, written as it writes it: a linear ramp over the
+            # 20 K span. It hard-codes the reciprocal span as 0.05; we derive it, so this asserts
+            # the two agree at the values the reference ships.
+            for T in (255.0, 260.0, 265.0, 270.0)
+                ref = 0.001 + (T - 253.15) * (0.3 - 0.001) * 0.05
+                @test e(T, 0) ≈ FT(ref) rtol = sqrt(eps(FT))
+            end
+        end
+
+        @testset "the rime shutoff, zero above the cutoff exactly" begin
+            @test e(T_frz, 0) == e_warm                       # unrimed: no reduction
+            @test e(T_frz, F_rim_lo) == e_warm                # the lower kink
+            @test e(T_frz, F_rim_hi) == 0                     # the upper kink: EXACTLY zero
+            @test e(T_frz, 0.95) == 0                         # above it: exactly zero, not small
+            @test e(T_frz, 1) == 0
+            mid = (F_rim_lo + F_rim_hi) / 2                   # halfway down the ramp
+            @test e(T_frz, mid) ≈ e_warm / 2 rtol = sqrt(eps(FT))
+        end
+
+        @testset "the two factors multiply, and the shutoff wins everywhere" begin
+            # a cold, heavily rimed particle is shut off by EITHER factor; the product must be zero
+            # rather than merely small, because the shutoff is exact.
+            @test e(T_cold - 10, 0.95) == 0
+            # and away from the ends the product is the two factors' own product
+            @test e(263.15, 0.75) ≈ e(263.15, 0) * FT(0.5) rtol = sqrt(eps(FT))
+        end
+
+        @testset "it is bounded by construction over a wide sweep" begin
+            for T in range(FT(200), FT(300); length = 21), F in range(FT(0), FT(1); length = 11)
+                v = e(T, F)
+                @test 0 <= v <= e_warm
+            end
+        end
+    end
+end
+
 @testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation
     test_p3_state_creation(FT)
@@ -1851,6 +2077,7 @@ end
     test_shape_solver(FT)
     test_numerical_integrals(FT)
     test_gamma_inc_Q_chain_ice_channel(FT)
+    test_ice_sticking_efficiency(FT)
 
     # velocity
     test_particle_terminal_velocities(FT)
@@ -1864,5 +2091,6 @@ end
     test_p3_bulk_liquid_ice_collisions(FT)
     test_p3_ice_self_collection(FT)
     test_p3_closed_form_rain_inner(FT)
+    test_local_rime_density_wet_growth_limit(FT)
 end
 nothing
