@@ -341,6 +341,30 @@ With this choice, it appears that some values of $\log(L/N)$ gives rise to multi
 
 ![](P3SlopeParameterizations_multiple_solutions.svg)
 
+#### $μ$ as a smoothed power law in $λ$
+
+The multiple solutions above originate at the two kinks of the hard clamp, where $μ(λ)$ is only $C^0$: the abrupt onset of the rising branch makes $\log(L/N)$ locally increase with $λ$, so the shape map $λ \mapsto \log(L/N)$ is no longer monotone.
+[`SmoothSlopePowerLaw`](@ref CloudMicrophysics.Parameters.SmoothSlopePowerLaw) replaces the two clamps with $C^\infty$ transitions of a single sharpness $κ$:
+
+```math
+μ(λ) = M_{μ_{max}}\big(M_0(a λ^b - c)\big), \qquad
+M_0(x) = \frac{1}{κ}\log\!\big(1 + e^{κ x}\big), \qquad
+M_{μ_{max}}(x) = μ_{max} - \frac{1}{κ}\log\!\big(1 + e^{κ (μ_{max} - x)}\big),
+```
+
+where $M_0$ is a smooth $\max(x, 0)$ (softplus) and $M_{μ_{max}}$ a smooth $\min(x, μ_{max})$.
+The corner width in $μ$ is of order $1/κ$; as $κ \to \infty$ the parameterization converges pointwise to the hard-clamped [`SlopePowerLaw`](@ref CloudMicrophysics.Parameters.SlopePowerLaw), and the interior branch $a λ^b - c$ is recovered away from the corners for any $κ$.
+
+The shape map is single-valued when $\log(L/N)$ is strictly monotone in $\log λ$, i.e.
+
+```math
+\frac{\partial}{\partial \log λ}\, \log(L/N) < 0
+\quad\text{for all } (F_{rim}, ρ_{rim}) \text{ and } \log λ \in [2, 17].
+```
+
+The maximum of this derivative over the physical range increases with $κ$ and crosses zero at a critical sharpness $κ_c$; the default $κ$ is set below $κ_c$ with a safety factor so that the criterion holds with a margin, in both `Float32` and `Float64`.
+The binding corner is the lower ($μ = 0$) kink of unrimed ice.
+
 #### $μ$ as a constant
 
 An alternative parameterization for $μ$ is a constant value:
@@ -849,21 +873,34 @@ include("plots/P3ImmersionFreezing.jl")
 
 ### Melting
 
-Melting rate is derived in the same way as in the
-  [1-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-melt).
+Melting follows the conduction approximation with spherical capacitance ``C = D/2``,
+  as in [MorrisonMilbrandt2015](@cite): a particle of diameter ``D`` melts at
+```math
+\frac{dm}{dt} = \frac{2 \pi \, D \, K_\mathrm{thermo} \, F_v(D)}{L_f} \left(T - T_\mathrm{freeze}\right).
+```
 We assume the same ventilation factor parameterization as in [SeifertBeheng2006](@cite),
   and use the terminal velocity parameterization from [Chen2022](@cite).
-The ``dm/dD`` derivative is computed for each P3 size regime.
 The bulk melting rate is computed by numerically integrating over the particle size distribution:
 ```math
 \left. \frac{dL}{dt} \right|_\mathrm{melt} 
-= \frac{4 \, K_\mathrm{thermo}}{L_f} \left(T - T_\mathrm{freeze}\right)
-  \int_{0}^{\infty} \frac{dm(D)}{dD} \frac{F_v(D) N(D)}{D} \mathrm{d}D
+= \frac{2 \pi \, K_\mathrm{thermo}}{L_f} \left(T - T_\mathrm{freeze}\right)
+  \int_{0}^{\infty} D \, F_v(D) \, N(D) \, \mathrm{d}D
 ```
-The melting rate for number concentration is assumed to be proportional to the ice content melting rate.
+This is the same capacitance integral as the vapor deposition timescale.
+The vapor diffusion contribution in subsaturated air of [MorrisonMilbrandt2015](@cite) is not included.
+The melting rate for number concentration is proportional to the ice content melting rate,
+  through a shared fractional melting rate
 ```math
-\left. \frac{dN}{dt} \right|_\mathrm{melt} = \frac{N}{L} \left. \frac{dL}{dt} \right|_\mathrm{melt}
+\left. \frac{dN}{dt} \right|_\mathrm{melt} = N \, f_\mathrm{melt}, \qquad
+f_\mathrm{melt} = \min\left(
+  \frac{1}{L} \left. \frac{dL}{dt} \right|_\mathrm{melt}, \;
+  \frac{3 \, K_\mathrm{thermo} \left(T - T_\mathrm{freeze}\right)}{\rho_i \, r_\mathrm{min}^2 \, L_f}
+\right),
 ```
+where the upper bound is the conduction-limited melting rate of a solid-ice sphere at the
+  nucleation size ``r_\mathrm{min} = D_\mathrm{nuc}/2``,
+  the smallest particle the scheme creates by nucleation.
+The same fraction drains the rime mass and rime volume.
 
 ```@example
 include("plots/P3Melting.jl")

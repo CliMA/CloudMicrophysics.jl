@@ -412,6 +412,7 @@ CloudDiagnostics.radar_reflectivity_2M
 CloudDiagnostics.effective_radius_const
 CloudDiagnostics.effective_radius_Liu_Hallet_97
 CloudDiagnostics.effective_radius_2M
+CloudDiagnostics.effective_radius_P3
 ```
 
 # Common Parameters

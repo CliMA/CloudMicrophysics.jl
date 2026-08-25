@@ -205,7 +205,14 @@ This demonstrates that the linearized implicit substepping method provides a con
 
 ---
 
-## Current limitations
+## Averaged tendencies beyond the one-moment scheme
 
-- Average (implicit) bulk tendencies are currently implemented **only for the one-moment microphysics scheme**.
-- For other microphysics schemes, only **instantaneous bulk tendencies** are available at present.
+The donor-based linearization above is the one-moment scheme's averaging mode. The two-moment
+scheme with P3 ice averages over a substep march instead, with a Rosenbrock update per substep and
+a Jacobian of the fused tendency rather than a hand-built donor recipe. That path, its two Jacobian
+modes and the ancillary treatments it shares with the instantaneous entry point are documented in
+[Rosenbrock-average microphysics substepping](@ref). Both schemes reach it through the same `bulk_microphysics_tendencies`
+entry point and the same substep driver, so there is one implementation of the clamps, the gates and
+the orphan drains rather than one per mode.
+
+For the zero-moment scheme only instantaneous bulk tendencies are available.

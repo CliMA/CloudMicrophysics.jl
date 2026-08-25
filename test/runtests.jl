@@ -10,6 +10,7 @@ TT.@testset "All tests" begin
     include("microphysics1M_tests.jl")
     include("bulk_tendencies_tests.jl")
     include("bulk_tendencies_quadrature_tests.jl")
+    include("p3_comprehensive_battery_quadrature_tests.jl")
     include("type_stability_tests.jl")
     include("microphysics2M_tests.jl")
     include("microphysics_noneq_tests.jl")

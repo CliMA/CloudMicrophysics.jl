@@ -5,6 +5,8 @@ import ClimaParams as CP
 
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.CloudDiagnostics as CMD
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.P3Scheme as P3
 
 function test_cloud_diagnostics(FT)
 
@@ -144,6 +146,98 @@ function test_cloud_diagnostics(FT)
         TT.@test CMD.effective_radius_const(cloud_liquid) == FT(14e-6)
         TT.@test CMD.effective_radius_const(cloud_ice) == FT(25e-6)
     end
+
+    TT.@testset "rain intercept plausibility is a flag and only a flag" begin
+        # The N₀ range is retired as a clamp under the mean-mass window and kept as a
+        # diagnostic. The two halves asserted here are that it FLAGS the states the cascade
+        # would have rewritten, and that it rewrites nothing itself.
+        rng = CMP.RainInterceptRange(toml_dict)
+        win = CMP.RainParticlePDF_SB2006_windowed(toml_dict)
+        ρ = FT(1)
+        (; N0_min, N0_max) = rng
+
+        # sparse large drops: below the range. The design note's worked example.
+        r = CMD.rain_intercept_plausibility(rng, win, FT(1.5e-4), ρ, FT(30))
+        TT.@test r.below && !r.above
+        TT.@test r.N₀r < N0_min
+
+        # many small drops: above the range. The window caps N₀ at `cbrt(π ρw/x_min)·L/x_min`,
+        # so clearing `N0_max` needs a heavy loading sitting on the small-drop edge.
+        r = CMD.rain_intercept_plausibility(rng, win, FT(1e-3), ρ, FT(1e9))
+        TT.@test r.above && !r.below
+        TT.@test r.N₀r > N0_max
+
+        # an ordinary population inside the range is not flagged either way
+        r = CMD.rain_intercept_plausibility(rng, win, FT(1e-4), ρ, FT(3e3))
+        TT.@test !r.below && !r.above
+        TT.@test N0_min <= r.N₀r <= N0_max
+
+        # an empty population has no distribution to call implausible
+        for (q, N) in ((FT(0), FT(0)), (FT(0), FT(1e4)), (FT(1e-4), FT(0)))
+            r = CMD.rain_intercept_plausibility(rng, win, q, ρ, N)
+            TT.@test !r.below && !r.above
+        end
+
+        # THE RIDER: flagging is not clamping. The reported intercept is the inversion's own,
+        # and evaluating the diagnostic leaves the PSD parameters bit-identical.
+        for (q, N) in ((FT(1.5e-4), FT(30)), (FT(1e-3), FT(1e9)), (FT(1e-3), FT(1e4)))
+            before = CM2.pdf_rain_parameters(win, q, ρ, N)
+            r = CMD.rain_intercept_plausibility(rng, win, q, ρ, N)
+            after = CM2.pdf_rain_parameters(win, q, ρ, N)
+            TT.@test r.N₀r === before.N₀r
+            TT.@test before === after
+            # and a flagged intercept is reported as it is, not clamped into the range
+            if r.below || r.above
+                TT.@test !(N0_min <= r.N₀r <= N0_max)
+            end
+        end
+    end
+    TT.@testset "P3 ice effective radius" begin
+        p3 = CMP.ParametersP3(FT)
+        quad = P3.GaussLegendre(FT, 12)
+        ρ_i = p3.ρ_i
+
+        # Below `D_th` every particle is a solid ice sphere, so the ratio of ice volume to
+        # projected area of the gamma distribution `N′ = N₀ Dᵘ exp(-λ D)` reduces to
+        # `r_e = (μ + 3) / (2 λ)`. That closed form is the reference, so this pins the
+        # quadrature against analysis rather than against a stored number.
+        ρq_ice, ρn_ice = FT(1e-5), FT(1e7)
+        state = P3.state_from_prognostic(p3, ρq_ice, ρn_ice, FT(0), FT(0))
+        logλ = P3.get_distribution_logλ(state)
+        μ = P3.get_μ(state, logλ)
+        r_e = CMD.effective_radius_P3(state, logλ; quad)
+        TT.@test r_e ≈ (μ + 3) / (2 * exp(logλ)) rtol = FT(0.02)
+        # ... and the reference is only the reference where the regime holds, so the state
+        # is asserted to be inside it rather than assumed to be.
+        TT.@test (6 * ρq_ice / ρn_ice / (π * ρ_i))^FT(1 / 3) < state.D_th
+
+        # a larger mean particle mass gives a larger effective radius
+        coarser = P3.state_from_prognostic(p3, ρq_ice, ρn_ice / 8, FT(0), FT(0))
+        TT.@test CMD.effective_radius_P3(
+            coarser, P3.get_distribution_logλ(coarser); quad,
+        ) > r_e
+
+        # rimed states stay finite and positive
+        rimed = P3.state_from_prognostic(p3, ρq_ice, ρn_ice, FT(5e-6), FT(1e-8))
+        r_rimed = CMD.effective_radius_P3(rimed, P3.get_distribution_logλ(rimed); quad)
+        TT.@test isfinite(r_rimed) && r_rimed > FT(0)
+
+        # a massless state has no area to divide by
+        empty = P3.state_from_prognostic(p3, FT(0), ρn_ice, FT(0), FT(0))
+        TT.@test CMD.effective_radius_P3(
+            empty, P3.get_distribution_logλ(empty); quad,
+        ) == FT(0)
+
+        # Mass without number: the distribution is identically zero, so the result is zero
+        # for any slope, including the placeholder value a host caches where ice number is
+        # absent. A consumer falling back on a non-positive return therefore never reads a
+        # radius derived from that placeholder.
+        no_number = P3.state_from_prognostic(p3, ρq_ice, FT(0), FT(0), FT(0))
+        for logλ_absent in (FT(2), P3.get_distribution_logλ(no_number))
+            TT.@test CMD.effective_radius_P3(no_number, logλ_absent; quad) == FT(0)
+        end
+    end
+
 end
 
 TT.@testset "Cloud Diagnostics Tests ($FT)" for FT in (Float64, Float32)

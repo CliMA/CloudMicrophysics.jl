@@ -2,7 +2,7 @@
     CloudDiagnostics
 
  - radar reflectivity (1-moment and 2-moment)
- - effective radius  (1-moment and 2-moment)
+ - effective radius  (1-moment, 2-moment and P3)
 """
 module CloudDiagnostics
 
@@ -11,8 +11,10 @@ import SpecialFunctions as SF
 import ..Parameters as CMP
 import ..Microphysics1M as CM1
 import ..Microphysics2M as CM2
+import ..P3Scheme as P3
 import ..DistributionTools as DT
 import ..Common as CO
+import ..Quadrature as QD
 import ..Utilities as UT
 
 """
@@ -123,6 +125,48 @@ function effective_radius_2M((; pdf_c, pdf_r)::CMP.SB2006, q_lcl, q_rai, N_lcl, 
 end
 
 """
+    effective_radius_P3(state, logλ; quad)
+
+Compute the effective radius of the P3 ice size distribution,
+
+```math
+r_e = \\frac{3}{4} \\frac{ρq_{ice} / ρ_i}{\\int aᵢ(D) N'(D) dD},
+```
+
+the ratio of ice volume to the projected area of the population, where the ice volume is
+the ice water content over the solid ice density `ρ_i` and `aᵢ = ice_area(state, D)`.
+
+The numerator is the PROGNOSTIC ice mass rather than its quadrature reconstruction, so
+only the area moment is integrated. The two are not interchangeable: the mass is a state
+variable the scheme conserves, while its reconstruction carries the quadrature's own
+error, and a radius formed as the ratio of two integrals would let that error move the
+optical properties of a cell whose mass never changed.
+
+The result has no consumer inside CloudMicrophysics. It exists for a host computing ice
+optical properties from the particle size distribution rather than from a prescribed
+radius, which is what makes the four-moment P3 ice structure visible to radiation at all.
+
+# Arguments
+ - `state`: a [`P3Scheme.P3State`](@ref) object
+ - `logλ`: the log of the slope parameter [log(1/m)]
+
+# Keyword Arguments
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
+
+# Returns
+ - Effective radius [m], or zero where the area integral vanishes, following the
+   convention of [`effective_radius_2M`](@ref).
+"""
+@inline function effective_radius_P3(state::P3.P3State, logλ; quad)
+    FT = eltype(state)
+    N′ = DT.size_distribution(state, logλ)
+    bnds = P3.integral_bounds(state, logλ; p = FT(1e-6))
+    ∫aN = QD.integrate(D -> P3.ice_area(state, D) * N′(D), bnds, quad)
+    V = state.ρq_ice / state.params.ρ_i
+    return ∫aN > FT(0) ? FT(3) / 4 * V / ∫aN : FT(0)
+end
+
+"""
     effective_radius_Liu_Hallet_97(wtr, ρ_air, q_lcl, N_lcl, q_rai, N_rai)
     effective_radius_Liu_Hallet_97(wtr, ρ_air, q_lcl)
 
@@ -183,6 +227,44 @@ function effective_radius_const(cloud_params::CMP.CloudLiquid{FT}) where {FT}
 end
 function effective_radius_const(cloud_params::CMP.CloudIce{FT}) where {FT}
     return cloud_params.r_eff
+end
+
+"""
+    rain_intercept_plausibility(range, pdf_r, q_rai, ρ_air, N_rai)
+
+Report whether the rain intercept `N₀` implied by the state falls outside its observational
+plausibility range, WITHOUT touching the state or any rate.
+
+[SeifertBeheng2006](@cite) applies this range as a clamp inside the PSD inversion. Under
+[`CMP.RainParticlePDF_SB2006_windowed`](@ref) the only bound is on the mean drop mass, and the
+intercept range keeps its observational content here instead: a state that leaves the range is
+reported and integrated unchanged, rather than being silently rewritten into one that does not
+describe it.
+
+An out-of-range intercept is not by itself an error. `N₀ = λ N_r` grows with the drop number at
+fixed mean size, so ordinary heavy rain with many drops leaves the upper end and sparse large-drop
+populations leave the lower end; what the flag identifies is where the SB2006 cascade WOULD have
+intervened, which makes it the natural diagnostic for auditing the difference between the two.
+
+# Arguments
+ - `range`: the plausibility range, [`CMP.RainInterceptRange`](@ref)
+ - `pdf_r`: rain size distribution parameters, [`CMP.RainParticlePDF_SB2006`](@ref)
+ - `q_rai`: rain water specific content [kg/kg]
+ - `ρ_air`: air density [kg/m³]
+ - `N_rai`: raindrop number density [1/m³]
+
+# Returns
+ - `(; N₀r, below, above)`: the implied intercept [1/m⁴] and the two out-of-range flags. Both
+   flags are `false` on an empty population, where the inversion returns a zero intercept and
+   there is no distribution to call implausible.
+"""
+function rain_intercept_plausibility(
+    (; N0_min, N0_max)::CMP.RainInterceptRange,
+    pdf_r::CMP.RainParticlePDF_SB2006, q_rai, ρ_air, N_rai,
+)
+    (; N₀r) = CM2.pdf_rain_parameters(pdf_r, q_rai, ρ_air, N_rai)
+    populated = N₀r > 0
+    return (; N₀r, below = populated & (N₀r < N0_min), above = populated & (N₀r > N0_max))
 end
 
 end # end module
