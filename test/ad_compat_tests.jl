@@ -47,9 +47,9 @@ function test_ad_compatibility(FT)
     end
 
     @testset "regularised ratios stay NaN-free across tiny denominators ($FT)" begin
-        # below ~eps(FT)/4 the sgs_weight_function sigmoid hits atanh(-1):
-        # the weight is 0 either way, but the partials were NaN. Sweep
-        # denominators across that band for both regularised ratios.
+        # The regularised ratios must stay differentiable as the denominator
+        # approaches zero, where the presence test switches. Sweep denominators
+        # across that band for both ratios.
         for denom in (eps(FT)^2, eps(FT) / 8, eps(FT), sqrt(eps(FT)), FT(1e-9))
             std = P3.state_from_prognostic(p3, D(denom, 1), D(10, 0), D(denom / 10, 1), D(denom / 10, 1))
             # the regularised ratios must always be differentiable
@@ -125,8 +125,8 @@ function test_ad_compatibility(FT)
                 x = FT[2e-4, 5e7, 1e-4, 4e4, 1e-4, 2e5, 4e-5, 6e-8], logλ = nothing),
             (; name = "ice heavy", ρ = FT(0.45), T = FT(233), q_tot = FT(0.003),
                 x = FT[1e-6, 1e6, 1e-12, 1e-2, 8e-4, 5e5, 5e-4, 9e-7], logλ = nothing),
-            # sub-threshold ice with b_rim in the regularised-ratio band that
-            # previously produced NaN partials via sgs_weight_function
+            # sub-threshold ice with b_rim inside the band where the
+            # regularised ratios switch on their presence test
             (; name = "cloud edge", ρ = FT(0.7), T = FT(263), q_tot = FT(0.005),
                 x = FT[1e-5, 1e7, 1e-6, 1e3, 3e-8, 30, 1e-8, 2.5e-11], logλ = nothing),
         )
@@ -149,9 +149,9 @@ function test_ad_compatibility(FT)
             J_fd = similar(J)
             for j in 1:8
                 h = 1e-6 * r.x[j]
-                xp = copy(r.x);
+                xp = copy(r.x)
                 xp[j] += h
-                xm = copy(r.x);
+                xm = copy(r.x)
                 xm[j] -= h
                 J_fd[:, j] = (f(xp) - f(xm)) / 2h
             end
@@ -173,6 +173,24 @@ function test_ad_compatibility(FT)
         f_b = x -> rhs(x, FT(0.45), FT(233), FT(0.003), logλ_b)
         @test all(isfinite, f_b(x_boundary))
         @test all(isfinite, FD.jacobian(f_b, x_boundary))
+
+        # `wet_growth_onset_diameter` refines by an inverse-quadratic step whose residual
+        # differences reach Float32 rounding error over this band of `q_ice`, and the
+        # partials of the onset diameter propagate into the collision quadrature bounds.
+        # The `F_rim = 0` case is the control: with no rime there is no wet-growth balance
+        # to locate, so the refinement never runs.
+        @testset "rimed ice has finite Jacobians across the wet-growth band" begin
+            ρ_b, T_b, qt_b = FT(0.7), FT(263), FT(0.005)
+            for q_ice in FT[3e-5, 1e-5, 3e-6, 1e-6, 1e-7, 3e-8], F_rim in FT[1 // 3, 0]
+                q_rim = F_rim * q_ice
+                b_rim = q_rim / FT(400)   # a 400 kg/m³ rime density
+                x_b = FT[1e-5, 1e7, 1e-6, 1e3, q_ice, 30, q_rim, b_rim]
+                logλ_w = consistent_logλ(ρ_b, x_b)
+                f_w = y -> rhs(y, ρ_b, T_b, qt_b, logλ_w)
+                @test all(isfinite, f_w(x_b))
+                @test all(isfinite, FD.jacobian(f_w, x_b))
+            end
+        end
     end
 end
 
