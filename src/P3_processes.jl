@@ -316,7 +316,7 @@ The function `liquid_integrals(Dᵢ)` returns a tuple `(∂ₜN_col, ∂ₜM_col
             term1 = V_val * n_val
             term2 = term1 * m_val
             term3 = term2 / ρ′_rim(Dᵢ, D)
-            return SA.SVector(term1, term2, term3)
+            return SA.SVector((term1, term2, term3))
         end
         (∂ₜN_col, ∂ₜM_col, ∂ₜB_col) = integrate(integrand, liq_bounds, quad)
         return ∂ₜN_col, ∂ₜM_col, ∂ₜB_col
@@ -482,7 +482,7 @@ see the method below for the definition of each entry.
         n = n_i(Dᵢ)
         # Integrating over `Dᵢ` gives another unit of `[m]`, so `[X / s / m]` --> `[X / s]`
         # ∂ₜX = ∫ ∂ₜX(Dᵢ) nᵢ(Dᵢ) dDᵢ
-        return SA.SVector(
+        return SA.SVector((
             n * ∂ₜM_c_col * f_frz,        # QCFRZ
             n * ∂ₜM_c_col * (1 - f_frz),  # QCSHD
             n * ∂ₜN_c_col,                # NCCOL
@@ -493,7 +493,7 @@ see the method below for the definition of each entry.
             n * ∂ₜB_c_col * f_frz,        # BCCOL,       ∂ₜB_rim source
             n * ∂ₜB_r_col * f_frz,        # BRCOL,       ∂ₜB_rim source
             n * 𝟙_wet * ∂ₜM_col,          # ∫𝟙_wet_M_col, wet growth indicator
-        )
+        ))
     end
     return integrate(liquid_ice_collisions_integrands, ice_bounds, quad)
 end

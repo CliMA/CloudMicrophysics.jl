@@ -724,8 +724,8 @@ function rain_terminal_velocity(
     (; Dr_mean) = pdf_rain_parameters(pdf_r, safe_q_rai, ρ, safe_N_rai)
 
     # It should be (ϕ^κ * vt0, ϕ^κ * vt3), but for rain drops ϕ = 1 and κ = 0
-    vt0 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 0))
-    vt3 = sum(CO.Chen2022_exponential_pdf.(aiu, bi, ciu, Dr_mean, 3))
+    vt0 = sum(map((a, b, c) -> CO.Chen2022_exponential_pdf(a, b, c, Dr_mean, 0), aiu, bi, ciu))
+    vt3 = sum(map((a, b, c) -> CO.Chen2022_exponential_pdf(a, b, c, Dr_mean, 3), aiu, bi, ciu))
 
     cond_N = N_rai < UT.ϵ_numerics_2M_N(FT)
     cond_q = q_rai < UT.ϵ_numerics_2M_M(FT)
