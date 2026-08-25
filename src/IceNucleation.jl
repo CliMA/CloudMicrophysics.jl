@@ -1302,6 +1302,12 @@ end
 
 Freeze cloud droplets with the SAME composition rain gets, evaluated at cloud sizes.
 
+!!! note
+    This is the Frostenberg 2023 immersion-mode INP spectrum standing in the
+    deposition slot, retained as a non-default option. It is not the default
+    deposition parameterization; see the
+    [`CMP.AbstractINPTargetSpectrum`](@ref) method above.
+
 # Arguments
  - `opt`: the [`CMP.RainFreezing`](@ref) parameterization, for the Bigg volumetric rate. The
    `Rain` in the name is historical; the kinetics apply to any liquid drop.
@@ -1514,6 +1520,42 @@ what is evaluated.
 end
 
 """
+    (inp::CMP.Frostenberg2023)(T)
+
+The target ice nucleating particle concentration [m⁻³] of the Frostenberg 2023
+climatology, the mean of its lognormal INPC(T) distribution
+([`INP_concentration_mean`](@ref)) exponentiated back out of log space.
+
+The future stochastic reading of the spectrum adds an additive shift to this
+log-mean before exponentiating (`inpc_log_shift`, deferred to that commit); the
+value here is that shift at its present default of zero, so no extra term
+appears.
+"""
+@inline (inp::CMP.Frostenberg2023)(T) = exp(INP_concentration_mean(inp, T))
+
+"""
+    is_active(inp::CMP.Frostenberg2023, T, S_i)
+
+The Frostenberg 2023 activation window: below freezing, and not subsaturated with
+respect to ice.
+
+The two literals this carried, colder than 15 K below freezing and supersaturated by
+more than 5 percent, are GONE. They were the default closure's values and not this
+spectrum's, which has no threshold at either quantity, and the docstring that called
+them the closure's own defaults was wrong. Their removal is what makes the rate
+continuous in both `T` and `S_i` across the two former thresholds.
+
+The subsaturation floor states the window rather than doing the limiting: the shared
+[`delivery_rate`](@ref) carries `max(S_i, 0)`, so the rate already falls continuously to
+zero as saturation is approached from above, which is the role the retired vapor-excess
+cap played and which a gate cannot play continuously. The boundary
+point `S_i == 0` is inside the window by the letter of the ruling; nothing physical
+turns on it, and a strict `S_i > 0` would differ only there.
+"""
+@inline is_active(inp::CMP.Frostenberg2023, T, S_i) =
+    (T < inp.T_freeze) & (S_i >= zero(S_i))
+
+"""
     deposition_rate(inp::CMP.AbstractINPTargetSpectrum, mp, tps, micro, thermo)
     deposition_rate(::Nothing, mp, tps, micro, thermo)
 
@@ -1572,87 +1614,6 @@ end
 
 @inline deposition_rate(::Nothing, mp, tps, micro, thermo) =
     (; ∂ₜn_frz = zero(thermo.ρ), ∂ₜq_frz = zero(thermo.ρ))
-
-"""
-    deposition_rate(
-        opt::CMP.Frostenberg2023, tps, T, ρ, q_tot, q_liq, q_ice, n_ice;
-        m_nuc, T_thresh, S_i_thresh, τ_act, inpc_log_shift,
-    )
-
-Compute the Frostenberg 2023 deposition nucleation rate
-
-The rate is the Frostenberg 2023 INP concentration (treated as a budget)
-relaxed toward depletion at `n_ice` over timescale `τ_act`:
-
-```
-∂ₜn_frz = max(0, INPC(T)/ρ - n_ice) / τ_act
-```
-
-Each newly nucleated crystal is assigned a starter mass `m_nuc`. The mass
-tendency is the implied mass injection, capped by half the local vapor excess
-over ice saturation per relaxation window:
-
-```
-q_excess = max(0, q_vap - q_sat_ice)
-∂ₜq_frz  = min(m_nuc · ∂ₜn_frz,  ½ q_excess / τ_act)
-```
-
-Conditions for activation:
-
-  - `T < T_thresh` (default `T_freeze - 15 K`, i.e. -15 °C): below this
-    temperature deposition nucleation is active.
-  - `S_i ≡ q_vap/q_sat_ice - 1 > S_i_thresh` (default 5 %): ice
-    supersaturation is required for vapor to nucleate onto INPs.
-
-!!! note
-    This is the Frostenberg 2023 immersion-mode INP spectrum standing in the
-    deposition slot, retained as a non-default option. It is not the default
-    deposition parameterization; see the
-    [`CMP.AbstractINPTargetSpectrum`](@ref) method above.
-
-# Arguments
- - `opt`: The [`CMP.Frostenberg2023`](@ref) parameters.
- - `tps`: Thermodynamics parameters (used for the ice-saturation curve).
- - `T`: Air temperature [K].
- - `ρ`: Air density [kg(air) m⁻³(air)].
- - `q_tot`, `q_liq`, `q_ice`: total-water, liquid and ice specific contents
-   [kg(water) kg⁻¹(air)], from which the vapor content is formed.
- - `n_ice`: Specific ice-crystal number concentration [kg⁻¹(air)] (proxy
-   for already-activated INPs).
-
-# Keyword arguments
- - `m_nuc`: Starter mass of a nascent crystal [kg].
- - `T_thresh`: Activation temperature threshold [K] (default `opt.T_freeze - 15`).
- - `S_i_thresh`: Activation ice-supersaturation threshold (default `0.05`).
- - `τ_act`: Relaxation timescale [s] (default `300`).
- - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
-
-# Returns
- - A `NamedTuple` `(; ∂ₜn_frz, ∂ₜq_frz)` with the specific number rate
-   [kg⁻¹(air) s⁻¹] and specific mass rate [kg(ice) kg⁻¹(air) s⁻¹]. Zero
-   outside the activation window.
-"""
-function deposition_rate(
-    opt::CMP.Frostenberg2023, tps, T, ρ, q_tot, q_liq, q_ice, n_ice; m_nuc,
-    T_thresh = opt.T_freeze - 15, S_i_thresh = oftype(opt.T_freeze, 0.05),
-    τ_act = 300, inpc_log_shift = 0,  # TODO: Put these in ClimaParams
-)
-    q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-    q_vap = TDI.q_vap(q_tot, q_liq, q_ice)
-    S_i = q_vap / q_sat_ice - 1
-    # Activation conditions
-    cond = (T < T_thresh) & (S_i > S_i_thresh)
-    # Nucleation rate, limited by ambient INP availability and relaxation time τ_act.
-    log_inpc = INP_concentration_mean(opt, T) + inpc_log_shift
-    INPC_per_kg = exp(log_inpc) / ρ
-    ∂ₜn_frz = max(0, INPC_per_kg - n_ice) / τ_act
-    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(∂ₜn_frz))
-    # Vapor-excess cap on the implied mass injection.
-    q_excess = max(0, q_vap - q_sat_ice)
-    # Implied mass injection, capped by half the local vapor excess per relaxation window.
-    ∂ₜq_frz = min(m_nuc * ∂ₜn_frz, q_excess / (2τ_act))
-    return (; ∂ₜn_frz, ∂ₜq_frz)
-end
 
 # ---------------------------------------------------------------------------
 # INP-activation memory dispatch

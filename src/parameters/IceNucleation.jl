@@ -169,39 +169,6 @@ IceNucleationParameters(toml_dict::CP.ParamDict) =
     )
 
 
-"""
-    Frostenberg2023{FT}
-
-Parameters for frequency distribution of INP concentration
-DOI: 10.5194/acp-23-10883-2023
-
-# Fields
-$(DocStringExtensions.FIELDS)
-"""
-@kwdef struct Frostenberg2023{FT} <: ParametersType
-    "standard deviation"
-    σ::FT
-    "coefficient"
-    a::FT
-    "coefficient"
-    b::FT
-    "freezing temperature [K]"
-    T_freeze::FT
-    "log of the coefficient `a`"
-    log_a::FT = log(a)
-end
-
-function Frostenberg2023(td::CP.ParamDict)
-    name_map = (;
-        :Frostenberg2023_standard_deviation => :σ,
-        :Frostenberg2023_a_coefficient => :a,
-        :Frostenberg2023_b_coefficient => :b,
-        :temperature_water_freeze => :T_freeze,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Frostenberg2023(; parameters...)
-end
-
 # ---------------------------------------------------------------------------
 # INP target spectra for the deposition nucleation slot
 # ---------------------------------------------------------------------------
@@ -307,6 +274,85 @@ end
 
 ShowMethods.field_units(::ExponentialSupercoolingINP) =
     (; a = "m⁻³", b = "K⁻¹", T₀ = "K", N_max = "m⁻³", T_thr = "K")
+
+"""
+    Frostenberg2023{FT}
+
+The Frostenberg et al. (2023) immersion-mode ice-nucleating-particle climatology,
+standing in as a selectable, non-default target spectrum for the deposition
+nucleation slot. `log(a · INPC)` is normally distributed about a temperature-dependent
+mean; see [`HetIceNucleation.INP_concentration_mean`](@ref) for that mean and
+[`HetIceNucleation.INP_concentration_frequency`](@ref) for the full distribution.
+DOI: 10.5194/acp-23-10883-2023
+
+Retained because it is the basis of future work on an ice-nucleating-particle tracer
+and on a stochastic reading of the spectrum; it is not the default for either the
+deposition or the immersion slot (see [`ExponentialSupercoolingINP`](@ref) and
+[`HetIceNucleation.cloud_freezing_rate`](@ref)), so this entry is reachable only
+when a configuration selects it explicitly.
+
+The underlying climatology is fitted over roughly 0 to -38 °C, and the deposition
+slot's window ([`HetIceNucleation.is_active`](@ref)) is below freezing and not
+subsaturated with respect to ice, so the whole of the fitted range reaches the slot.
+The two literals that once narrowed it further, colder than 15 K below freezing and
+ice supersaturation above 5%, were the DEFAULT closure's values rather than this
+spectrum's, and they are gone; the delivery rate carries `max(S_i, 0)` instead, so
+the approach to saturation is continuous rather than gated.
+
+There is no immersion counterpart to point a caller at. Immersion freezing takes no
+INP budget in the shipped scheme ([`HetIceNucleation.cloud_freezing_rate`](@ref)),
+and [`HetIceNucleation.immersion_limit_rate`](@ref) is retained for the future
+INP-tracer work rather than selected by any configuration.
+
+The target `(inp)(T)` is unbounded below the fitted range: `log(a · INPC)` grows as
+`9 log(-b T_celsius / 10)` with no ceiling, so nothing stops a caller from evaluating
+it far colder than -38 °C, where the value is extrapolation rather than fit. A
+version of the deposition entry that predates this interface capped the mass this
+target could inject at half the local vapor excess per relaxation window; besides
+bounding the mass moment, that cap was an implicit guard on exactly this
+extrapolation, because it was the states far outside the fitted range where it
+would have bound. The shared [`HetIceNucleation.deposition_rate`](@ref) body every
+target spectrum now shares has no equivalent (it sets the mass moment from the
+number moment unconditionally, by design), so that guard is gone: a configuration
+that selects this spectrum somewhere far colder than -38 °C is extrapolating the
+fit with nothing left to catch it.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+
+# Callable interface
+
+    (inp::Frostenberg2023)(T) → exp(INP_concentration_mean(inp, T))
+
+The target ice nucleating particle concentration [m⁻³], defined in
+`HetIceNucleation` alongside [`HetIceNucleation.is_active`](@ref) and
+[`HetIceNucleation.delivery_rate`](@ref) so the three methods of the
+[`AbstractINPTargetSpectrum`](@ref) interface stay together with the
+[`HetIceNucleation.INP_concentration_mean`](@ref) they share.
+"""
+@kwdef struct Frostenberg2023{FT} <: AbstractINPTargetSpectrum
+    "standard deviation"
+    σ::FT
+    "coefficient"
+    a::FT
+    "coefficient"
+    b::FT
+    "freezing temperature [K]"
+    T_freeze::FT
+    "log of the coefficient `a`"
+    log_a::FT = log(a)
+end
+
+function Frostenberg2023(td::CP.ParamDict)
+    name_map = (;
+        :Frostenberg2023_standard_deviation => :σ,
+        :Frostenberg2023_a_coefficient => :a,
+        :Frostenberg2023_b_coefficient => :b,
+        :temperature_water_freeze => :T_freeze,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return Frostenberg2023(; parameters...)
+end
 
 # ---------------------------------------------------------------------------
 # INP-activation memory models
