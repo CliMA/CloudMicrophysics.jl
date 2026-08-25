@@ -14,7 +14,7 @@ function get_ρ_d_direct(::Type{FT}, F_rim, ρ_rim, β_va) where {FT}
 end
 
 @testset "P3 get_ρ_d Float32 stability (small rime fraction)" begin
-    mass = CMP.ParametersP3(Float32).mass
+    mass = CMP.MassPowerLaw(Float32)
     βva = mass.β_va
     ρ_g_ref(F_rim, ρ_rim) =
         P3.get_ρ_g(F_rim, ρ_rim, get_ρ_d_direct(BigFloat, F_rim, ρ_rim, BigFloat(βva)))
