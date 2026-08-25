@@ -305,6 +305,7 @@ AerosolModel
 AerosolModel.Mode_B
 AerosolModel.Mode_κ
 AerosolModel.AerosolDistribution
+AerosolModel.aerosol_distribution
 ```
 
 ## Parameters
@@ -338,6 +339,9 @@ AerosolActivation.N_activated_per_mode
 AerosolActivation.M_activated_per_mode
 AerosolActivation.total_N_activated
 AerosolActivation.total_M_activated
+AerosolActivation.∂N_activated_∂S
+AerosolActivation.cloud_droplet_activation_rate
+AerosolActivation.ACTIVATION_MIN_UPDRAFT
 ```
 
 ## Parameters

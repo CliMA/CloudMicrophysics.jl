@@ -25,6 +25,7 @@ tendencies = bulk_microphysics_tendencies(
 module BulkMicrophysicsTendencies
 
 import ..Parameters as CMP
+import ..AerosolActivation as CMAA
 import ..Utilities as UT
 import ..Microphysics0M as CM0
 import ..Microphysics1M as CM1

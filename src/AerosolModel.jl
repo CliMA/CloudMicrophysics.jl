@@ -105,4 +105,34 @@ AerosolDistribution(modes::Union{Mode_κ, Mode_B}...) =
 Base.broadcastable(x::AerosolDistribution) = tuple(x)
 n_modes(d::AerosolDistribution) = length(d.modes)
 
+"""
+    aerosol_distribution(pa::CMP.PrescribedAerosol)
+
+The two-mode [`AerosolDistribution`](@ref) described by a
+[`CMP.PrescribedAerosol`](@ref) parameter set: one single-component `Mode_κ` per mode.
+
+Built at the point of use rather than stored, because the parameter module is loaded before this
+one and cannot hold a `Mode_κ`. Both modes are `isbits` and share a concrete type, which is what
+`mean_hygroscopicity_parameter` dispatches on, so the construction compiles away inside a GPU
+kernel.
+
+The volume and mass mixing ratios are one and the molar mass zero, as they are for any
+single-component mode: the κ-Köhler path reads only `vol_mix_ratio` and `kappa`. A zero molar
+mass makes `M_activated_per_mode` return zero, so the mass-activation entry points are not
+available on a distribution built this way.
+"""
+function aerosol_distribution(pa::CMP.PrescribedAerosol{FT}) where {FT}
+    one_component = (one(FT),)
+    no_molar_mass = (zero(FT),)
+    accum = Mode_κ(
+        pa.r_dry_accum, pa.stdev_accum, pa.N_accum,
+        one_component, one_component, no_molar_mass, (pa.κ_accum,),
+    )
+    coarse = Mode_κ(
+        pa.r_dry_coarse, pa.stdev_coarse, pa.N_coarse,
+        one_component, one_component, no_molar_mass, (pa.κ_coarse,),
+    )
+    return AerosolDistribution(accum, coarse)
+end
+
 end

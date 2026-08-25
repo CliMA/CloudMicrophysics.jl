@@ -2,6 +2,7 @@ import Test as TT
 
 TT.@testset "All tests" begin
     include("aerosol_activation_tests.jl")
+    include("aerosol_activation_rate_tests.jl")
     include("artifact_calling_tests.jl")
     include("heterogeneous_ice_nucleation_tests.jl")
     include("homogeneous_ice_nucleation_tests.jl")

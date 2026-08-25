@@ -479,10 +479,47 @@ The entries are tiered:
         (; x_min = sb.pdf_r.xr_min, x_max = sb.pdf_r.xr_max),
         UT.clamp_to_nonneg(q_rai), UT.clamp_to_nonneg(n_rai))
 
-    # droplet activation (rows n_lcl and q_lcl) contributes no entries until the warm-rain
-    # parameters carry an aerosol and an activation closure.
-    nlcl_rai = o
-    nlcl_ice = o
+    # droplet activation (rows n_lcl and q_lcl): the relaxation
+    # `∂ₜn = (n_act(S) − n)/τ_act(S)` and its paired mass `∂ₜq = x_seed ∂ₜn`.
+    #
+    # Three entries, all Tier 1, all derived rather than donor-linearized, because at the
+    # supersaturations that make activation fire `1/τ_act` reaches tens of inverse seconds
+    # against an implicit diagonal of `I/h = 0.5` at `h = 2` s. An entry two orders above `1/h`
+    # decides the accepted increment by itself, and left out it would degrade the source to
+    # explicit at exactly the moment it is stiffest.
+    #
+    #   ∂(∂ₜn)/∂n     = −1/τ_act                       the relaxation diagonal
+    #   ∂(∂ₜq)/∂n     = −x_seed/τ_act                  the pairing row: the mass follows the number
+    #   ∂(∂ₜn)/∂q_x   = ∂(∂ₜn)/∂S · ∂S/∂q_x            the vapor brake
+    #
+    # `S = q_vap/q_sat_liq − 1` and `q_vap = q_tot − (q_lcl + q_rai) − q_ice` with `q_tot` frozen
+    # in the substep, so `∂S/∂q_x = −1/q_sat_liq` on each of the three condensate donors and the
+    # entry is NEGATIVE: growing condensate consumes the supersaturation that activation feeds
+    # on. `∂(∂ₜn)/∂S` is supplied in closed form by the rate function, which carries both the
+    # `∂n_act/∂S` term and the `∂(1/τ_act)/∂S` term.
+    #
+    # Deliberately dropped, and both for the same reason: they are derivatives of the PARCEL
+    # branch `S_max(w)`, through `α`, `γ` and the air density. That branch is selected only where
+    # it exceeds the ambient supersaturation, the rate function reports which branch is live, and
+    # the couplings are gated off when it is. `∂/∂T` is dropped with every other temperature
+    # derivative in this 8-slot matrix, where `T` is frozen.
+    act_j = CMAA.cloud_droplet_activation_rate(
+        mp.warm_rain.activation, mp.warm_rain.aerosol, mp.warm_rain.air_properties, tps,
+        T, g.p, g.w, ρ, q_tot,
+        UT.clamp_to_nonneg(q_lcl) + UT.clamp_to_nonneg(q_rai), UT.clamp_to_nonneg(q_ice),
+        UT.clamp_to_nonneg(n_lcl), CM2.activation_droplet_mass(sb.pdf_c),
+    )
+    x_seed = FT(CM2.activation_droplet_mass(sb.pdf_c))
+    nlcl_nlcl += -act_j.inv_τ_act
+    lcl_nlcl += -x_seed * act_j.inv_τ_act
+    ∂S = ifelse(act_j.outside_parcel_regime, -1 / max(act_j.qᵥ_sat, eps(FT)), o)
+    act_dq = act_j.∂ₜn_∂S * ∂S
+    nlcl_lcl += act_dq
+    nlcl_rai = act_dq
+    nlcl_ice = act_dq
+    lcl_lcl += x_seed * act_dq
+    lcl_rai += x_seed * act_dq
+    lcl_ice += x_seed * act_dq
 
     #####
     ##### Tier 2: donor-diagonal linearizations of the warm-rain and freezing transfers

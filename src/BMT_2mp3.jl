@@ -266,10 +266,31 @@ quadrature.
     #####
     warm_rain = mp.warm_rain
 
-    # Droplet activation: cloud number AND the mass those droplets carry. The source is zero
-    # until the warm-rain parameters carry an aerosol and an activation closure; the slot is
-    # kept so that the fold order of the rates is fixed.
-    activation = MicroState2MP3(o, o, o, o, o, o, o, o)
+    # Droplet activation: cloud number AND the mass those droplets carry.
+    #
+    # A nucleation-class source, so it obeys the same rule the ice-side deposition nucleation
+    # source obeys: both moments together, at the per-particle mass of the new particles. Each
+    # droplet arrives at `CM2.activation_droplet_mass`, which IS the size distribution's minimum
+    # droplet mass by derivation rather than by coincidence - the smallest resolvable droplet is
+    # a freshly activated one - and which is exactly a 1 μm droplet and exactly the activation
+    # radius the rate's diffusional timescale is built on. Supplying number alone leaves the
+    # category in a state the scheme has no size for, and the number adjustment below then
+    # correctly drains it, so the population never establishes itself.
+    #
+    # Inside the substep this co-evolves with condensation in one implicit solve, so the
+    # supersaturation it activates at is the one the newly grown droplets have already drawn
+    # down.
+    #
+    # `w` and `p` reach the parcel branch of the activation supersaturation only. The ambient
+    # branch does not depend on them, so this fires at their defaults wherever the air is
+    # supersaturated over liquid, and it is inert only where it is not or where the prescribed
+    # aerosol has no particles.
+    act = CMAA.cloud_droplet_activation_rate(
+        warm_rain.activation, warm_rain.aerosol, aps, tps,
+        T, p, w, ρ, q_tot, q_lcl + q_rai, q_ice, n_lcl,
+        CM2.activation_droplet_mass(sb.pdf_c),
+    )
+    activation = MicroState2MP3(act.∂ₜq_lcl, act.∂ₜn_lcl, o, o, o, o, o, o)
 
     # cloud condensation / evaporation (cloud mass only; number neglected).
     #

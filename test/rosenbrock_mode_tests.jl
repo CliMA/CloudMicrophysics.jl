@@ -5145,3 +5145,268 @@ function test_logl_refresh(FT)
 end
 test_logl_refresh(Float64)
 test_logl_refresh(Float32)
+
+# Droplet activation as a per-process slot of the substep.
+#
+# Activation used to be a host-side source added to `dn_lcl_dt` after the substep returned. It
+# supplied number alone, and the number adjustment then correctly drained the unsupported number,
+# so a cold start could never establish a liquid phase: in a 48 h RCEMIP-II box, across 75,776
+# cells at four times in two runs, not one cell carried both liquid mass and liquid number.
+#
+# Inside the substep it is a nucleation-class source under the same rule the F23 ice pathway
+# follows: both moments together, at the per-particle mass of the new particles. What is asserted:
+#
+#   - the pairing, exactly: `dq = x_seed dn`, and no other species slot moves;
+#   - the gate, exactly: the Jacobian entry that only activation writes is zero exactly where the
+#     rate is zero and carries `-x_seed/tau_act` where it is not;
+#   - the relaxation target: the rate vanishes at `n = N_act(S)` and is positive below it;
+#   - the closed-form derivatives the Jacobian carries agree with ForwardDiff of the rate itself;
+#   - the bootstrap, which is the whole point: one substep call at dt = 2 s on a supersaturated
+#     droplet-free state acquires BOTH number and mass;
+#   - totality: no throw and no non-finite value on a hostile input sweep, because
+#     `max_supersaturation` throws a `DomainError` at negative updraft and returns `NaN` at zero;
+#   - inertness at `w = 0`, so the change is separable from everything else in the substep.
+function test_droplet_activation_is_a_paired_source(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    # An explicit aerosol, because the default is `nothing` and computes zero activation
+    # by having no method at all: `cloud_droplet_activation_rate` dispatches on
+    # `PrescribedAerosol`. A test of the activation source has to supply one.
+    mp = CMP.Microphysics2MParams(
+        FT; with_ice = true, is_limited = true, aerosol = CMP.PrescribedAerosol(FT),
+    )
+    p3 = mp.ice.scheme
+    sb = mp.warm_rain.seifert_beheng
+    aps = mp.warm_rain.air_properties
+    acp = mp.warm_rain.activation
+    pa = mp.warm_rain.aerosol
+    ad = CM.AerosolModel.aerosol_distribution(pa)
+    x_seed = sb.pdf_c.xc_min
+
+    ρ = FT(0.9)
+    T = FT(290)
+    p = FT(9e4)
+    w = FT(0.5)
+    qᵥ_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+    q_tot = FT(1.26) * qᵥ_sat
+
+    empty_state = P3.state_from_prognostic(p3, FT(0), FT(0), FT(0), FT(0))
+    logλ₀ = P3.get_distribution_logλ(empty_state)
+    pp_at(q_lcl, n_lcl; qt = q_tot, ww = w, pp_ = p) = _per_process_2mp3(
+        mp, tps, ρ, T, qt, q_lcl, n_lcl, FT(0), FT(0), FT(0), FT(0), FT(0), FT(0),
+        logλ₀, ww, pp_)
+    rate_at(q_liq, q_ice, n_lcl; qt = q_tot, ww = w, pp_ = p) =
+        CM.AerosolActivation.cloud_droplet_activation_rate(
+            acp, pa, aps, tps, T, pp_, ww, ρ, qt, q_liq, q_ice, n_lcl, x_seed)
+
+    @testset "droplet activation is a paired source [FT=$FT]" begin
+        # EQUAL BY DERIVATION. The birth mass and the closure's mean-mass floor are one quantity,
+        # and the assertion is that they are the SAME NUMBER read through the SAME function, not
+        # two literals that happen to agree today. The identity against `xc_min` is asserted too,
+        # which is what makes the unification inert: it moved no value.
+        @testset "the birth mass and the closure floor are one derived quantity" begin
+            xa = CM2.activation_droplet_mass(sb.pdf_c)
+            @test xa === sb.pdf_c.xc_min                 # the unification moves no literal
+            @test xa === FT(x_seed)                      # what the pairing pays per droplet
+            # and what the closure floors the mean droplet mass at: a mass-free population's PSD
+            # must imply exactly this mean mass, which is the floor doing the work
+            n_probe = FT(1e7) / ρ
+            logA, logB = CM2.log_pdf_cloud_parameters_mass(sb.pdf_c, FT(0), ρ, ρ * n_probe)
+            (; νc, μc, loggamma_z1, loggamma_z2) = sb.pdf_c
+            x̄_implied = exp(-log(exp(logB)) / μc - loggamma_z1 + loggamma_z2)
+            @test x̄_implied ≈ xa rtol = sqrt(eps(FT))
+            # a 1 micron droplet, which is the physical statement the derivation rests on
+            r = cbrt(3 * Float64(xa) / (4 * π * Float64(sb.pdf_c.ρw)))
+            @test 0.9e-6 < r < 1.1e-6
+        end
+
+        # THE VALIDITY REGIME IS OBSERVABLE. `outside_parcel_regime` is the per-cell signal that a
+        # host or an analysis counts to learn whether a run is spending its time where the ARG
+        # parcel closure is valid. Asserted in both directions rather than only the interesting one.
+        @testset "the parcel-validity regime is reported per cell" begin
+            # far above any parcel maximum: the box's own condition, S = 0.26 against S_max ~ 0.002
+            @test rate_at(FT(0), FT(0), FT(0)).outside_parcel_regime
+            # barely saturated with a strong updraft: the parcel term wins and the closure is valid
+            marginal = rate_at(FT(0), FT(0), FT(0); qt = FT(1.000001) * qᵥ_sat, ww = FT(3))
+            @test !marginal.outside_parcel_regime
+            # and the signal tracks the branch the vapour coupling is gated on
+            @test rate_at(FT(0), FT(0), FT(0)).∂ₜn_∂S > 0
+        end
+
+        @testset "the pairing is exact and touches nothing else" begin
+            for n_lcl in FT[0, 1e4, 1e6]
+                a = pp_at(FT(0), n_lcl).activation
+                @test a.n_lcl > 0
+                @test a.q_lcl === FT(x_seed) * a.n_lcl
+                @test all(iszero, (a.q_rai, a.n_rai, a.q_ice, a.n_ice, a.q_rim, a.b_rim))
+            end
+        end
+
+        # `lcl_nlcl` is the only Jacobian entry no other process writes, so it isolates activation.
+        @testset "the Jacobian entry is gated with the rate" begin
+            x = BMT.MicroState2MP3{FT}(0, 0, 0, 0, 0, 0, 0, 0)
+            g = BMT.Instantaneous2MP3Tendency(mp, tps, ρ, T, q_tot, logλ₀, w, p)
+            (pp, rs) = _per_process_2mp3_and_riming(
+                mp, tps, ρ, T, q_tot, Tuple(x)..., logλ₀, w, p)
+            J = BMT._jacobian_2mp3_manual(g, x, pp, rs)
+            act = rate_at(FT(0), FT(0), FT(0))
+            @test act.inv_τ_act > 0
+            @test J[1, 2] ≈ -FT(x_seed) * act.inv_τ_act rtol = sqrt(eps(FT))
+            @test all(isfinite, J)
+
+            # subsaturated: no activation, and the entry goes with it
+            q_tot_dry = FT(0.5) * qᵥ_sat
+            g_dry = BMT.Instantaneous2MP3Tendency(mp, tps, ρ, T, q_tot_dry, logλ₀, w, p)
+            (pp_dry, rs_dry) = _per_process_2mp3_and_riming(
+                mp, tps, ρ, T, q_tot_dry, Tuple(x)..., logλ₀, w, p)
+            @test all(iszero, Tuple(pp_dry.activation))
+            J_dry = BMT._jacobian_2mp3_manual(g_dry, x, pp_dry, rs_dry)
+            @test J_dry[1, 2] == 0
+        end
+
+        @testset "the rate relaxes toward N_act and vanishes there" begin
+            S_amb = q_tot / qᵥ_sat - 1
+            n_act = CM.AerosolActivation.total_N_activated(acp, ad, T, S_amb) / ρ
+            @test n_act > 0
+            @test rate_at(FT(0), FT(0), n_act).∂ₜn_lcl == 0
+            @test rate_at(FT(0), FT(0), FT(2) * n_act).∂ₜn_lcl == 0
+            @test rate_at(FT(0), FT(0), n_act / 2).∂ₜn_lcl > 0
+            # and the target is approached from below, not overshot
+            @test rate_at(FT(0), FT(0), n_act / 2).∂ₜn_lcl <
+                  rate_at(FT(0), FT(0), FT(0)).∂ₜn_lcl
+        end
+
+        # The two closed-form derivatives the Jacobian carries, against ForwardDiff of the rate.
+        # Evaluated at a populated state so no clamp sits on a kink.
+        @testset "the carried derivatives agree with ForwardDiff" begin
+            q_liq, q_ice, n_lcl = FT(1e-6), FT(0), FT(1e6) / ρ
+            act = rate_at(q_liq, q_ice, n_lcl)
+            @test act.∂ₜn_lcl > 0
+            @test act.outside_parcel_regime
+            fn(v) = rate_at(v[1], v[2], v[3]).∂ₜn_lcl
+            grad = FD.gradient(fn, FT[q_liq, q_ice, n_lcl])
+            rtol = FT === Float32 ? FT(2e-2) : FT(1e-6)
+            @test grad[3] ≈ -act.inv_τ_act rtol = rtol
+            @test grad[1] ≈ -act.∂ₜn_∂S / act.qᵥ_sat rtol = rtol
+            @test grad[2] ≈ -act.∂ₜn_∂S / act.qᵥ_sat rtol = rtol
+            @test grad[1] < 0   # growing condensate brakes activation
+        end
+
+        # THE PRODUCTION PATH ACTUALLY RECEIVES THE UPDRAFT. This is a regression guard, and it
+        # exists because the rebase onto the landed riming work nearly lost the thread: that work
+        # refactored `_per_process_2mp3` into `_per_process_2mp3_and_riming` at the same lines
+        # where the `w`/`p` arguments are passed, and resolving the conflict in favour of the
+        # newer, larger change silently drops them.
+        #
+        # A de-threaded build is NOT caught by any inertness assertion, because activation is not
+        # gated on the updraft: it fires from the ambient supersaturation at `w = 0`, so the
+        # bootstrap test below still passes. What a de-threaded build loses is the PARCEL branch
+        # alone. So the guard has to be a state where the parcel branch is the one that matters -
+        # barely saturated, strong updraft - driven through `_tendency_and_jacobian`, which IS the
+        # production ManualJacobian entry point rather than a convenient stand-in.
+        @testset "the ManualJacobian path receives the host updraft" begin
+            q_marginal = FT(1.000001) * qᵥ_sat
+            x0 = BMT.MicroState2MP3{FT}(0, 0, 0, 0, 0, 0, 0, 0)
+            rising = BMT.Instantaneous2MP3Tendency(mp, tps, ρ, T, q_marginal, logλ₀, FT(3), p)
+            still = BMT.Instantaneous2MP3Tendency(mp, tps, ρ, T, q_marginal, logλ₀, FT(0), FT(0))
+            f_rising, J_rising = BMT._tendency_and_jacobian(BMT.ManualJacobian(), rising, x0)
+            f_still, _ = BMT._tendency_and_jacobian(BMT.ManualJacobian(), still, x0)
+            # the updraft has to REACH the rate through the production entry point
+            @test f_rising.n_lcl > f_still.n_lcl
+            @test f_rising.q_lcl > f_still.q_lcl
+            # and the pairing survives the trip
+            @test f_rising.q_lcl ≈ FT(x_seed) * f_rising.n_lcl rtol = sqrt(eps(FT))
+            @test all(isfinite, J_rising)
+
+            # THE SECOND ROUTE. `_tendency_and_jacobian` calls the INNER
+            # `_per_process_2mp3_and_riming` directly, so the assertions above leave the WRAPPER
+            # `_per_process_2mp3` unguarded - and the same auto-merge that threaded w and p onto
+            # the inner function left the wrapper without them, which would have run every wrapper
+            # caller at w = p = 0. Two independent routes to one silent disable, so two guards.
+            rising_v = BMT.Verbose2MP3Tendency(mp, tps, ρ, T, q_marginal, logλ₀, FT(3), p)
+            still_v = BMT.Verbose2MP3Tendency(mp, tps, ρ, T, q_marginal, logλ₀, FT(0), FT(0))
+            @test rising_v(x0).activation.n_lcl > still_v(x0).activation.n_lcl
+            @test rising_v(x0).activation.q_lcl ≈ FT(x_seed) * rising_v(x0).activation.n_lcl rtol =
+                sqrt(eps(FT))
+        end
+
+        # THE BOOTSTRAP. One substep call, dt = 2 s, on a supersaturated droplet-free state.
+        @testset "one substep bootstraps both moments from nothing" begin
+            out = BMT.bulk_microphysics_tendencies(
+                BMT.rosenbrock_manual(), BMT.Microphysics2Moment(), mp, tps,
+                ρ, T, q_tot,
+                FT(0), FT(0), FT(0), FT(0), FT(0), FT(0), FT(0), FT(0), logλ₀,
+                FT(2), 1, w, p,
+            )
+            @test out.dn_lcl_dt > 0
+            @test out.dq_lcl_dt > 0
+            @test all(isfinite, Base.front(values(out)))
+            # the state one step on is a population the scheme has a size for
+            n_end = FT(2) * out.dn_lcl_dt
+            q_end = FT(2) * out.dq_lcl_dt
+            @test q_end / n_end >= FT(x_seed) * (1 - sqrt(eps(FT)))
+            # and it does not spend more water than the cell holds
+            @test q_end < q_tot
+        end
+
+        # The updraft reaches ONLY the adiabatic-parcel branch. Activation is not gated on it,
+        # and that is the whole point: an updraft gate is what kept this box from ever forming a
+        # cloud while it sat at 20 to 26 percent supersaturation with a resolved surface wind of
+        # 0.09 m/s. What IS inert is a subsaturated cell and an aerosol population with no
+        # particles, both asserted below and in the totality sweep.
+        @testset "the updraft gates the parcel branch, not the source" begin
+            for n_lcl in FT[0, 1e6]
+                a_still = pp_at(FT(0), n_lcl; ww = FT(0), pp_ = FT(0)).activation
+                @test a_still.n_lcl > 0          # supersaturated: it fires with no updraft at all
+                @test a_still.q_lcl === FT(x_seed) * a_still.n_lcl
+                a_down = pp_at(FT(0), n_lcl; ww = FT(-3), pp_ = p).activation
+                @test a_down.n_lcl > 0           # and in a downdraft, finitely, with no throw
+                @test isfinite(a_down.n_lcl)
+            end
+            # A subsaturated cell activates nothing, whatever the updraft. The parcel branch is
+            # admitted only at or above liquid saturation: the ARG calculation asks what peak a
+            # parcel rising through CLOUD BASE reaches and assumes it starts saturated, so in
+            # subsaturated air it would return a positive peak for a parcel that never reaches
+            # saturation, and would fire over most of a domain.
+            for ww in FT[0, 1, 10]
+                a_dry = pp_at(FT(0), FT(1e6); qt = FT(0.5) * qᵥ_sat, ww = ww).activation
+                @test all(iszero, Tuple(a_dry))
+            end
+            # and the parcel branch is what the updraft adds: in air that is barely saturated,
+            # a strong updraft activates more than a still cell does
+            q_marginal = FT(1.000001) * qᵥ_sat
+            still = pp_at(FT(0), FT(0); qt = q_marginal, ww = FT(0), pp_ = p).activation
+            rising = pp_at(FT(0), FT(0); qt = q_marginal, ww = FT(3), pp_ = p).activation
+            @test rising.n_lcl > still.n_lcl
+        end
+
+        # `max_supersaturation` throws a DomainError on a negative updraft or on a state whose
+        # condensate exceeds its total water, and returns NaN at exactly zero updraft. Inside a
+        # GPU kernel a throw aborts the whole kernel and hides the state that caused it, so the
+        # rate must be total on every input the host can deliver, not merely on physical ones.
+        @testset "the rate is total on a hostile input sweep" begin
+            for ww in FT[-5, -1e-9, 0, 1e-9, 1e-4, 0.5, 20],
+                pp_ in FT[-1e4, 0, 1e-3, 9e4],
+                qt in FT[-1e-3, 0, 1e-6, q_tot, 1],
+                q_liq in FT[0, 1e-4, 1],
+                n_lcl in FT[0, 1e3, 1e12]
+
+                a = rate_at(q_liq, FT(1e-5), n_lcl; qt, ww, pp_ = pp_)
+                @test isfinite(a.∂ₜn_lcl) && a.∂ₜn_lcl >= 0
+                @test isfinite(a.∂ₜq_lcl) && a.∂ₜq_lcl >= 0
+                @test isfinite(a.inv_τ_act) && isfinite(a.∂ₜn_∂S)
+            end
+            # an aerosol population with no particles activates nothing, finitely
+            pa0 = CMP.PrescribedAerosol{FT}(;
+                r_dry_accum = pa.r_dry_accum, stdev_accum = pa.stdev_accum,
+                N_accum = FT(0), κ_accum = pa.κ_accum,
+                r_dry_coarse = pa.r_dry_coarse, stdev_coarse = pa.stdev_coarse,
+                N_coarse = FT(0), κ_coarse = pa.κ_coarse)
+            a0 = CM.AerosolActivation.cloud_droplet_activation_rate(
+                acp, pa0, aps, tps, T, p, w, ρ, q_tot, FT(0), FT(0), FT(0), x_seed)
+            @test a0.∂ₜn_lcl == 0
+            @test a0.∂ₜq_lcl == 0
+        end
+    end
+end
+test_droplet_activation_is_a_paired_source(Float32)
+test_droplet_activation_is_a_paired_source(Float64)
