@@ -22,7 +22,7 @@ end
 
 
 # Power law parameterization
-params = CMP.ParametersP3(FT)
+params = CMP.ParametersP3(FT; slope_law = :powerlaw)
 slope_power_law = params.slope
 
 log_λ_from_μ(spl::CMP.SlopePowerLaw, μ) = log((μ + spl.c) / spl.a) / spl.b

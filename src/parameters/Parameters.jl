@@ -12,6 +12,9 @@ import SpecialFunctions as SF
 import CloudMicrophysics: ShowMethods
 import CloudMicrophysics.Quadrature  # bind the module name (docstring @refs resolve here)
 import CloudMicrophysics.Quadrature as QUAD
+# For the device-adaptation rules on the parameter structs that carry a lookup-table
+# quadrature; see the `Adapt.@adapt_structure` calls in `Microphysics2MParams.jl`.
+import Adapt
 
 # Super-types (dispatch, broadcasting, etc...)
 include("AbstractTypes.jl")

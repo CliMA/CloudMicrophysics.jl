@@ -370,10 +370,19 @@ function test_bulk_terminal_velocities(FT)
 
         # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
         # their aspect-off counterparts (`cbrt(ϕ) < 1`).
-        ref_v_n = [3.64194720794662, 2.6191026241691695]
-        ref_v_n_ϕ = [1.523425288986299, 1.4660573287073728]
-        ref_v_m = [7.788114224053879, 5.797675366222473]
-        ref_v_m_ϕ = [2.4275080186932736, 2.3681842506505544]
+        # Reference values regenerated when `SmoothSlopePowerLaw` became the default slope law.
+        # The smoothed law is not a pure regularization: a softplus differs from a hard clamp
+        # everywhere, by log(2)/κ = 0.259 in μ at the corners, and the hard μ sits AT a corner over
+        # most of the search bracket, so every size-distribution moment moves. Measured shift here:
+        # 4e-4 to 2e-3 relative, against rtols of 5e-5 to 1e-4. Old values, for audit:
+        #   ref_v_n   = [3.64194720794662,   2.6191026241691695]
+        #   ref_v_n_ϕ = [1.523425288986299,  1.4660573287073728]
+        #   ref_v_m   = [7.788114224053879,  5.797675366222473]
+        #   ref_v_m_ϕ = [2.4275080186932736, 2.3681842506505544]
+        ref_v_n = [3.6457122112616465, 2.623040690844402]
+        ref_v_n_ϕ = [1.5248570268487953, 1.4683523701880776]
+        ref_v_m = [7.780799250932574, 5.789500414632324]
+        ref_v_m_ϕ = [2.4264746455606385, 2.366835949588931]
 
         params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
         for (k, F_rim) in enumerate(F_rims)
@@ -437,7 +446,10 @@ function test_bulk_terminal_velocities(FT)
         # end
     end
     @testset "Mass-weighted mean diameters" begin
-        ref_vals = [0.005397144197921535, 0.0033368960364578005]
+        # Regenerated with the same default-slope-law change documented in the terminal-velocity
+        # testset above. Old values, for audit:
+        #   ref_vals = [0.005397144197921535, 0.0033368960364578005]
+        ref_vals = [0.005388435466357483, 0.0033291124145735426]
         for (F_rim, ref_val) in zip(F_rims, ref_vals)
             state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
             logλ = P3.get_distribution_logλ(state)

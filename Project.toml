@@ -4,6 +4,7 @@ version = "0.41.0"
 authors = ["Climate Modeling Alliance"]
 
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
 DocStringExtensions = "ffbed154-4ef7-542d-bbb7-c09d3a79fcae"
 FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
@@ -25,6 +26,7 @@ MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
 EmulatorModelsExt = ["DataFrames", "MLJ"]
 
 [compat]
+Adapt = "3, 4"
 ClimaParams = "1.1.13"
 DataFrames = "1.6"
 DocStringExtensions = "0.8, 0.9"
