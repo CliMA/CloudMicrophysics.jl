@@ -1,0 +1,4 @@
+[P3_ice_number_adjustment_timescale]
+value = 50
+type = "float"
+description = "Timescale for the ice number-concentration adjustment toward the bounds on mean ice particle mass in the P3 scheme (s). Independent of Horn2012_number_concentration_adjustment_timescale, the equivalent warm-phase key."

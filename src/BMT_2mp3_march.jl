@@ -42,6 +42,18 @@ between the tendency and the Jacobian instead of replaying them once for each.
     return (sum(values(pp)), _jacobian_2mp3_manual(g, x, pp, rs))
 end
 
+"""
+    _per_process_rates(g::Instantaneous2MP3Tendency, x)
+
+The bare [`p3_2m_process_rates`](@ref) breakdown at `x`, in [`MicroState2MP3`](@ref)'s own
+eight-species space. See [`_per_process_rates`](@ref) for when this is reached.
+"""
+@inline function _per_process_rates(g::Instantaneous2MP3Tendency, x::SA.StaticVector{8})
+    micro, thermo = _substep_context(g, x)
+    pp, _ = p3_2m_process_rates(g.mp, g.tps, micro, thermo)
+    return pp
+end
+
 #####
 ##### Temperature as a state variable
 #####
@@ -331,6 +343,26 @@ kernels independently.
 end
 
 """
+    _per_process_rates(g::Temperature2MP3Tendency, y)
+
+The [`p3_2m_process_rates`](@ref) breakdown at `y`, extended one component per process with
+that process's own latent-heating row ([`_latent_heating`](@ref)), so the temperature
+contribution of a process reaches the sink alongside its mass contribution. Linear in the
+per-process rate, exactly as [`_temperature_2mp3_tendency`](@ref)'s summed one is, so the
+per-process temperature rows sum to the same net latent heating. See
+[`_per_process_rates`](@ref) for when this is reached.
+"""
+@inline function _per_process_rates(g::Temperature2MP3Tendency, y::SA.StaticVector{9})
+    micro, thermo = _substep_context(g, y)
+    pp, _ = p3_2m_process_rates(g.mp, g.tps, micro, thermo)
+    ctx = _phase_relaxation_context(g.mp, g.tps, micro, thermo)
+    return map(
+        s -> MicroState2MP3T(Tuple(s)..., _latent_heating(ctx.Lᵥ, ctx.Lₛ, ctx.cp_air, s)),
+        pp,
+    )
+end
+
+"""
     _apply_limiter(::EndStateSaturationAdjustment, x::MicroState2MP3T, d, ρ, Tsub,
                    q_tot, Lv_over_cp, Ls_over_cp, tps)
 
@@ -342,8 +374,15 @@ already includes its own temperature component, marched by the same linear solve
 produced the mass increment, so the adjustment reads the end-state temperature off the
 state instead of approximating it. `Lv_over_cp` and `Ls_over_cp` are consequently
 unused and are kept only so the driver calls every limiter the same way.
+
+See [`_apply_limiter_diag`](@ref) for the scale-factor-exposing form.
 """
-@inline function _apply_limiter(::EndStateSaturationAdjustment,
+@inline _apply_limiter(::EndStateSaturationAdjustment, x::MicroState2MP3T, d::SA.StaticVector{9},
+    ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps,
+) = first(_apply_limiter_diag(
+    EndStateSaturationAdjustment(), x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps))
+
+@inline function _apply_limiter_diag(::EndStateSaturationAdjustment,
     x::MicroState2MP3T{FT}, d::SA.StaticVector{9},
     ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps,
 ) where {FT}
@@ -352,7 +391,7 @@ unused and are kept only so the driver calls every limiter the same way.
         TDI.supersaturation_over_liquid(tps, q_tot, xx.q_lcl + xx.q_rai, xx.q_ice, ρ, TT),
     )
     latent(dd) = dd.T
-    return _saturation_bisection(Ssat, latent, x, d, Tsub)
+    return _saturation_bisection_diag(Ssat, latent, x, d, Tsub)
 end
 
 #####
@@ -426,8 +465,11 @@ end
 """
     record!(sink, ctx)
 
-Hand one substep's context to a diagnostic sink. The production march passes
-`nothing`, for which this is a no-op that compiles away, so the physics path and the
+Hand one substep's context to a diagnostic sink. [`_rosenbrock_substep_diag`](@ref) calls
+this once per substep, with `sink` unchanged from whatever [`_march_2mp3`](@ref) was given.
+The production entries pass [`NullSink`](@ref); this method covers `_march_2mp3`'s own
+`sink = nothing` default, for a caller that marches without importing `NullSink` at all.
+Either way `record!`'s body is empty, so it compiles away and the physics path and the
 diagnostic path are the same code and cannot diverge.
 """
 @inline record!(::Nothing, ctx) = nothing
@@ -485,10 +527,8 @@ a loop of its own.
         g = _substep_tendency(x, mp, tps, ρ, Tsub, q_tot, logλ_sub, w, p)
         x_prev = x
         x, diag = _rosenbrock_substep_diag(
-            mode, g, x, h, q_tot, ρ, Tsub, Lv_over_cp, Ls_over_cp, tps, ρ_min, ρ_max)
-        T_pre = Tsub
+            mode, g, x, h, q_tot, ρ, Tsub, Lv_over_cp, Ls_over_cp, tps, ρ_min, ρ_max, sink)
         Tsub = _marched_temperature(x, x_prev, tps, q_tot, Tsub)
-        record!(sink, (; x, x_prev, T_pre, T_post = Tsub, logλ = logλ_sub, h, diag))
     end
     return x
 end
@@ -534,16 +574,18 @@ ice fall speeds being the ones in view, changes no signature and no host unpacki
     )
 
 """
-    _rosenbrock_average_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p)
+    _rosenbrock_average_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p,
+        sink = nothing)
 
 March `x₀` with [`_march_2mp3`](@ref) and return the average tendency over `Δt` in the
 carrier of [`_rosenbrock_average_carrier`](@ref). Shared by the entries of both
-substep states.
+substep states. `sink` passes straight through to [`_march_2mp3`](@ref); the production
+entries pass [`NullSink`](@ref).
 """
 @inline function _rosenbrock_average_2mp3(
-    mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p,
+    mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink = nothing,
 )
-    x = _march_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p)
+    x = _march_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink)
     return _rosenbrock_average_carrier(_species_increment(x - x₀) / Δt, (;))
 end
 
@@ -589,18 +631,21 @@ for the substep algorithm.
 Returns the fixed-shape carrier of [`_rosenbrock_average_carrier`](@ref). The
 temperature the substeps marched is not returned: the host derives its own from the
 species tendencies.
+
+`sink` is production's [`NullSink`](@ref) by default; [`Verbose`](@ref) and
+[`Trace`](@ref) pass their own through this same keyword.
 """
 @inline function bulk_microphysics_tendencies(
     mode::RosenbrockAverage{TemperatureCoupledJacobian}, cm::Microphysics2Moment,
     mp::CMP.Microphysics2MParams{WR, ICE}, tps,
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
-    Δt, nsub = 1, w = zero(ρ), p = zero(ρ),
+    Δt, nsub = 1, w = zero(ρ), p = zero(ρ); sink = NullSink(),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = typeof(q_tot)
     y₀ = MicroState2MP3T{FT}(q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, T)
     return _rosenbrock_average_2mp3(
-        mode, mp, tps, ρ, FT(T), q_tot, y₀, FT(logλ), Δt, nsub, FT(w), FT(p))
+        mode, mp, tps, ρ, FT(T), q_tot, y₀, FT(logλ), Δt, nsub, FT(w), FT(p), sink)
 end
 
 """
@@ -622,16 +667,19 @@ refreshed from the marched state, as they are there. The donor-based matrices
 ([`DonorJacobian`](@ref), [`CoupledDonorJacobian`](@ref)) are 1M-only.
 
 Returns the fixed-shape carrier of [`_rosenbrock_average_carrier`](@ref).
+
+`sink` is production's [`NullSink`](@ref) by default; [`Verbose`](@ref) and
+[`Trace`](@ref) pass their own through this same keyword.
 """
 @inline function bulk_microphysics_tendencies(
     mode::RosenbrockAverage{<:Union{ExactJacobian, ManualJacobian}}, cm::Microphysics2Moment,
     mp::CMP.Microphysics2MParams{WR, ICE}, tps,
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
-    Δt, nsub = 1, w = zero(ρ), p = zero(ρ),
+    Δt, nsub = 1, w = zero(ρ), p = zero(ρ); sink = NullSink(),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = typeof(q_tot)
     x₀ = MicroState2MP3{FT}(q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim)
     return _rosenbrock_average_2mp3(
-        mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, FT(w), FT(p))
+        mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, FT(w), FT(p), sink)
 end

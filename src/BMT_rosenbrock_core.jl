@@ -98,6 +98,28 @@ this one method gives a state both.
 function _condensate_phases end
 
 """
+    _per_process_rates(g, x)
+
+The per-process breakdown of one substep's tendency evaluation `g(x)`, in the state's own
+space, for a [`VerboseSink`](@ref) to attribute the increment against.
+
+Generic declaration only; each substep tendency callable supplies its own method, because
+the breakdown comes from that callable's own process-rate function and, for a state that
+carries a temperature component, that state's own latent-heating map.
+
+Reached only through [`_recorded_processes`](@ref), so it costs a second evaluation of the
+process rates beyond whatever [`_tendency_and_jacobian`](@ref) already needed, and only on
+a [`VerboseSink`](@ref) run - never on the production path, where `_recorded_processes`
+dispatches the request away without calling this at all. This is what keeps the attribution
+free of any knowledge of the [`Jacobian`](@ref) option: [`ExactJacobian`](@ref)'s method
+never forms `pp` at all, and [`ManualJacobian`](@ref)'s and
+[`TemperatureCoupledJacobian`](@ref)'s discard the `pp` their own Jacobian construction
+already computed, so this is one place either mode reaches for it, keyed on the tendency
+callable rather than on the Jacobian.
+"""
+function _per_process_rates end
+
+"""
     _condensate_total(x)
 
 Condensed-water content of a substep state, the sum of its two
@@ -175,10 +197,16 @@ Forward-Euler substep, floored at zero.
 @inline _euler_update(x, f, h) = max.(x .+ h .* f, 0)
 
 """
-    _water_bounded_increment(x, d, q_tot)
+    _water_bounded_increment_diag(x, d, q_tot)
 
-The increment `d` scaled so the condensate it produces stays within the cell's total water
-`q_tot`, which the vapor budget cannot exceed.
+[`_water_bounded_increment`](@ref)'s full computation, returning `(σ .* d, σ)`: the
+scaled increment and the scale factor `σ` itself, the water bound's contribution to a
+[`VerboseSink`](@ref)'s `α_w`. `_water_bounded_increment` is `first ∘
+_water_bounded_increment_diag`, so recording `σ` costs no second pass over the condensate
+totals.
+
+The increment `d` is scaled so the condensate it produces stays within the cell's total
+water `q_tot`, which the vapor budget cannot exceed.
 
 Used on the substep's two explicit fallback branches. Both span the whole substep width, so
 a stiff phase-change rate can convert far more mass than the cell holds, and the resulting
@@ -187,18 +215,37 @@ fallback produces states worse than the ones it was reached to rescue. The conde
 is linear in the increment, so the scale factor is exact rather than iterative, and it is
 one whenever the step is already admissible.
 """
-@inline function _water_bounded_increment(x::SA.StaticVector{N, FT}, d, q_tot) where {N, FT}
+@inline function _water_bounded_increment_diag(x::SA.StaticVector{N, FT}, d, q_tot) where {N, FT}
     c₀ = _condensate_total(x)
     c₁ = _condensate_total(x .+ d)
     over = (c₁ > FT(q_tot)) & (c₁ > c₀)
     σ = ifelse(over, clamp((FT(q_tot) - c₀) / (c₁ - c₀), zero(FT), one(FT)), one(FT))
-    return σ .* d
+    return σ .* d, σ
 end
 
-# No bound where the caller supplies no water budget: the 1M substep and the
-# temperature-coupled entry keep the bare explicit step.
-@inline _bounded_explicit_step(x, d, ::Nothing) = d
-@inline _bounded_explicit_step(x, d, q_tot) = _water_bounded_increment(x, d, q_tot)
+"""
+    _water_bounded_increment(x, d, q_tot)
+
+The scaled increment of [`_water_bounded_increment_diag`](@ref), without its scale factor.
+"""
+@inline _water_bounded_increment(x, d, q_tot) = first(_water_bounded_increment_diag(x, d, q_tot))
+
+"""
+    _bounded_explicit_step_diag(x, d, q_tot)
+
+[`_bounded_explicit_step`](@ref)'s full computation, returning `(d′, α_w)`. No bound where
+the caller supplies no water budget - the 1M substep and the temperature-coupled entry keep
+the bare explicit step, at `α_w = 1` - otherwise [`_water_bounded_increment_diag`](@ref).
+"""
+@inline _bounded_explicit_step_diag(x, d, ::Nothing) = (d, one(eltype(d)))
+@inline _bounded_explicit_step_diag(x, d, q_tot) = _water_bounded_increment_diag(x, d, q_tot)
+
+"""
+    _bounded_explicit_step(x, d, q_tot)
+
+The scaled increment of [`_bounded_explicit_step_diag`](@ref), without its scale factor.
+"""
+@inline _bounded_explicit_step(x, d, q_tot) = first(_bounded_explicit_step_diag(x, d, q_tot))
 
 """
     _rosenbrock_system(x, f, J, z, h)
@@ -263,12 +310,25 @@ end
     _rosenbrock_update_diag(x, f, J, z, h, q_tot = nothing,
         ρ_min = nothing, ρ_max = nothing)
 
-[`_rosenbrock_update`](@ref)'s full computation, returning `(x_new, A)` where `A` is the
-equilibrated system matrix [`_rosenbrock_system`](@ref) built and
-[`_rosenbrock_solve`](@ref) inverted for this update. `_rosenbrock_update` is
-`first ∘ _rosenbrock_update_diag`, so recording `A` for a diagnostic caller costs no second
-call to `_rosenbrock_system`: production and any diagnostic run the identical single
-build-and-solve.
+The substep's full computation, returning `(x_new, A, W, α_w)`:
+
+- `A`: the equilibrated system matrix [`_rosenbrock_system`](@ref) built and
+  [`_rosenbrock_solve`](@ref) inverted for this update, valid whenever this function is
+  reached (see [`_rosenbrock_substep_diag`](@ref) for when that is).
+- `W`: the [`SubstepOperator`](@ref) whose solve actually produced the accepted increment -
+  [`EquilibratedSolve`](@ref) wrapping this same system when the solved increment passed
+  [`_solve_increment_acceptable`](@ref), [`ExplicitStep`](@ref) when it did not and the
+  explicit `h f` replaced it. `A` is still returned in the second case (a near-singular
+  system is still the system that was built), but `W` is not `EquilibratedSolve` there,
+  because production did not solve against it for the increment it accepted; a sink that
+  attributed against `A` regardless would be attributing an increment the substep never
+  took.
+- `α_w`: the water bound's rescale of whichever increment `W` names, from
+  [`_bounded_explicit_step_diag`](@ref).
+
+Production takes `first` of this, so recording `A`, `W` and `α_w` for a diagnostic caller
+costs no second call to `_rosenbrock_system`: production and any diagnostic run the
+identical single build-and-solve.
 
 A caller supplies the rime density bounds explicitly. The rime-pair projection inside
 [`_apply_positivity_floor`](@ref) divides by them, so a convenience wrapper that defaulted
@@ -280,32 +340,48 @@ them to `nothing` would be unusable for any state carrying rime.
 ) where {N, FT}
     S, S⁻¹, A = _rosenbrock_system(x, f, J, z, h)
     Δx = _rosenbrock_solve(S, S⁻¹, A, f)
-    Δx_raw = _solve_increment_acceptable(S⁻¹ * Δx, S⁻¹ * f, h) ? Δx : h .* f
+    solved = _solve_increment_acceptable(S⁻¹ * Δx, S⁻¹ * f, h)
+    Δx_raw = solved ? Δx : h .* f
     # Bound BOTH branches, not only the rejected one. The accepted increment is the path
     # the damage takes: `_rosenbrock_system` equilibrates, so a near-singular system's
     # diagonal spike scales out of `_solve_increment_acceptable` and the huge increment is
     # ACCEPTED, minting condensate orders beyond the cell's total water. The positivity
     # floor below bounds sign and not magnitude, and the saturation limiter bisects on
     # supersaturation rather than on the water budget, so nothing else catches it.
-    Δx = _bounded_explicit_step(x, Δx_raw, q_tot)
-    return _apply_positivity_floor(x, Δx, ρ_min, ρ_max), A
+    Δx_bounded, α_w = _bounded_explicit_step_diag(x, Δx_raw, q_tot)
+    x_new = _apply_positivity_floor(x, Δx_bounded, ρ_min, ρ_max)
+    W = solved ? EquilibratedSolve(S, S⁻¹, A) : ExplicitStep(h)
+    return x_new, A, W, α_w
 end
 
 # ---- The increment limiter ----
 
 """
-    _apply_limiter(limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
+    _apply_limiter_diag(limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
 
-Limit the substep increment `d` at state `x`. [`NoLimiter`](@ref) returns `d`.
-[`EndStateSaturationAdjustment`](@ref), for a cell at or above saturation over its
-more-supersaturated phase whose full-increment end state would drop below it, scales `d` by
-`s ∈ [0, 1]` to keep that latent-heated end state at or above saturation over that phase;
-otherwise it returns `d`.
+[`_apply_limiter`](@ref)'s full computation, returning `(d′, α_l)`: the limited increment
+and the scale factor `α_l` it was rescaled by, a [`VerboseSink`](@ref)'s other scalar
+alongside [`_bounded_explicit_step_diag`](@ref)'s `α_w`. `_apply_limiter` is
+`first ∘ _apply_limiter_diag`.
+
+[`NoLimiter`](@ref) returns `(d, 1)`. [`EndStateSaturationAdjustment`](@ref), for a cell at
+or above saturation over its more-supersaturated phase whose full-increment end state would
+drop below it, scales `d` by `α_l ∈ [0, 1]` to keep that latent-heated end state at or above
+saturation over that phase; otherwise `α_l = 1`.
 
 The limiter reads the state only through [`_condensate_phases`](@ref), so it serves every
 substep state that supplies that split.
 """
-@inline _apply_limiter(::NoLimiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps) = d
+@inline _apply_limiter_diag(::NoLimiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps) =
+    (d, one(eltype(d)))
+
+"""
+    _apply_limiter(limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
+
+The limited increment of [`_apply_limiter_diag`](@ref), without its scale factor.
+"""
+@inline _apply_limiter(limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps) =
+    first(_apply_limiter_diag(limiter, x, d, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps))
 
 """
     _saturation_bisection_count(FT)
@@ -315,13 +391,16 @@ Number of bisection iterations to resolve a fraction in `[0, 1]` to the precisio
 @inline _saturation_bisection_count(::Type{FT}) where {FT} = ceil(Int, -log2(eps(FT)))
 
 """
-    _saturation_bisection(Ssat, latent, x, d, Tsub)
+    _saturation_bisection_diag(Ssat, latent, x, d, Tsub)
 
-Scale the increment `d` at state `x` so the latent-heated end state keeps `Ssat >= 0`, for
-a state that begins with `Ssat >= 0`; return `d` unchanged otherwise. `Ssat(x, T)` and
-`latent(d)` close over the substep context.
+[`_saturation_bisection`](@ref)'s full computation, returning `(d′, s)`: the scaled
+increment and the scale factor `s` itself. `Ssat(x, T)` and `latent(d)` close over the
+substep context.
+
+Scales the increment `d` at state `x` so the latent-heated end state keeps `Ssat >= 0`, for
+a state that begins with `Ssat >= 0`, at `s = 1` otherwise.
 """
-@inline function _saturation_bisection(
+@inline function _saturation_bisection_diag(
     Ssat::FS, latent::FL, x::SA.StaticVector{N, FT}, d, Tsub,
 ) where {FS, FL, N, FT}
     xf = max.(x .+ d, 0)
@@ -337,12 +416,20 @@ a state that begins with `Ssat >= 0`; return `d` unchanged otherwise. `Ssat(x, T
                 hi = s
             end
         end
-        return lo .* d
+        return lo .* d, lo
     end
-    return d
+    return d, one(FT)
 end
 
-@inline function _apply_limiter(::EndStateSaturationAdjustment,
+"""
+    _saturation_bisection(Ssat, latent, x, d, Tsub)
+
+The scaled increment of [`_saturation_bisection_diag`](@ref), without its scale factor.
+"""
+@inline _saturation_bisection(Ssat, latent, x, d, Tsub) =
+    first(_saturation_bisection_diag(Ssat, latent, x, d, Tsub))
+
+@inline function _apply_limiter_diag(::EndStateSaturationAdjustment,
     x::SA.StaticVector{N, FT}, d::SA.StaticVector{N, FT},
     ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps,
 ) where {N, FT}
@@ -357,14 +444,14 @@ end
         dq_liq, dq_ice = _condensate_phases(dd)
         return Lv_over_cp * dq_liq + Ls_over_cp * dq_ice
     end
-    return _saturation_bisection(Ssat, latent, x, d, Tsub)
+    return _saturation_bisection_diag(Ssat, latent, x, d, Tsub)
 end
 
 # ---- One substep ----
 
 """
     _rosenbrock_substep_diag(mode, g, x, h, q_tot, ρ, Tsub, Lv_over_cp, Ls_over_cp, tps,
-        ρ_min = nothing, ρ_max = nothing)
+        ρ_min = nothing, ρ_max = nothing, sink = nothing)
 
 [`_rosenbrock_substep`](@ref)'s full computation, returning `(x_new, diag)` where `diag` is
 the substep's own internals: the tendency `f` and post-growth Jacobian `J` evaluated at `x`,
@@ -381,10 +468,21 @@ purely so `diag`'s type does not vary with control flow; the `NaN` is a marker, 
 fact. A consumer MUST gate on `accepted`, never on `isnan(J[i, j])` - `accepted` is
 authoritative and `isnan` would go silently wrong if a finite linearization were ever
 corrupted some other way, or if the sentinel value changed.
+
+`sink` observes this substep through [`record!`](@ref): this function builds the context
+([`_record_context`](@ref)) - the per-process rates ([`_recorded_processes`](@ref),
+[`_per_process_rates`](@ref)), the [`SubstepOperator`](@ref) `W` whose solve actually
+produced the accepted increment ([`_rosenbrock_update_diag`](@ref)'s or, on either fallback
+branch, [`ExplicitStep`](@ref)), the water bound's and the limiter's scale factors, and the
+accepted increment `x_new - x` - and hands it to `sink`. Production's default `sink =
+nothing` resolves to the no-op `record!(::Nothing, ctx)`, so this costs production nothing
+by construction: `_recorded_processes` never calls its `per_process` argument for a
+non-[`VerboseSink`](@ref), and `record!`'s empty body on the no-op sinks leaves the whole
+context unused, which the compiler removes along with everything built only to feed it.
 """
 @inline function _rosenbrock_substep_diag(
     mode::RosenbrockAverage, g, x::SA.StaticVector{N, FT}, h, q_tot, ρ, Tsub,
-    Lv_over_cp, Ls_over_cp, tps, ρ_min = nothing, ρ_max = nothing,
+    Lv_over_cp, Ls_over_cp, tps, ρ_min = nothing, ρ_max = nothing, sink = nothing,
 ) where {N, FT}
     A_absent = SA.SMatrix{N, N, FT}(ntuple(_ -> FT(NaN), Val(N * N)))
     if all(isfinite, x)
@@ -392,9 +490,9 @@ corrupted some other way, or if the sentinel value changed.
         J = _apply_growth(mode.growth, J_raw)
         z = _species_mask(mode.jacobian, mode.growth)(x)
         accepted = all(isfinite, J)
-        d_raw, A = if accepted
-            x1, Amat = _rosenbrock_update_diag(x, f, J, z, h, q_tot, ρ_min, ρ_max)
-            (x1 - x, Amat)
+        d_raw, A, W, α_w = if accepted
+            x1, Amat, W1, α_w1 = _rosenbrock_update_diag(x, f, J, z, h, q_tot, ρ_min, ρ_max)
+            (x1 - x, Amat, W1, α_w1)
         else
             # Bound this branch too: the linearization is unusable here, so the bare
             # explicit step spans the whole substep width and a stiff phase-change rate
@@ -403,18 +501,24 @@ corrupted some other way, or if the sentinel value changed.
             # can leave it non-finite where the primal is fine; fall back to the primal
             # tendency rather than propagating NaN through the substep state.
             f_safe = all(isfinite, f) ? f : g(x)
-            (_bounded_explicit_step(x, _euler_update(x, f_safe, h) - x, q_tot), A_absent)
+            d1, α_w1 = _bounded_explicit_step_diag(x, _euler_update(x, f_safe, h) - x, q_tot)
+            (d1, A_absent, ExplicitStep(h), α_w1)
         end
-        d_limited = _apply_limiter(mode.limiter, x, d_raw, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
+        d_limited, α_l = _apply_limiter_diag(
+            mode.limiter, x, d_raw, ρ, Tsub, q_tot, Lv_over_cp, Ls_over_cp, tps)
         limiter_correction_vec = d_limited .- d_raw
         limiter_correction = maximum(abs.(limiter_correction_vec))
         x_new = _apply_positivity_floor(x, d_limited, ρ_min, ρ_max)
+        pp = _recorded_processes(sink, () -> _per_process_rates(g, x))
+        record!(sink, _record_context(pp, W, h, α_w, α_l, x_new - x))
         diag = (; f, J, A, accepted, limiter_engaged = limiter_correction > zero(FT),
             limiter_correction, limiter_correction_vec)
         return x_new, diag
     else
         f = g(x)
         x_new = _euler_update(x, f, h)
+        pp = _recorded_processes(sink, () -> _per_process_rates(g, x))
+        record!(sink, _record_context(pp, ExplicitStep(h), h, one(FT), one(FT), x_new - x))
         J_absent = SA.SMatrix{N, N, FT}(ntuple(_ -> FT(NaN), Val(N * N)))
         diag = (; f, J = J_absent, A = A_absent, accepted = false, limiter_engaged = false,
             limiter_correction = zero(FT), limiter_correction_vec = zero(x))
@@ -424,7 +528,7 @@ end
 
 """
     _rosenbrock_substep(mode, g, x, h, q_tot, ρ, Tsub, Lv_over_cp, Ls_over_cp, tps,
-        ρ_min = nothing, ρ_max = nothing)
+        ρ_min = nothing, ρ_max = nothing, sink = nothing)
 
 One substep of the Rosenbrock-Euler average at state `x`: the accepted-vs-rejected Jacobian
 branch with its `f_safe` primal fallback, the water bound, the increment limiter, and the
