@@ -827,96 +827,6 @@ terms: `S_phase_change_vap_lcl`, `S_phase_change_vap_icl`, `S_acnv_lcl_rai`,
     return merge(agg, src)
 end
 
-"""
-    bulk_microphysics_tendencies(
-        ::LinearizedAverage, ::Microphysics1Moment, mp, tps,
-        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
-    )
-
-Compute average 1-moment microphysics tendencies over `Δt` using repeated
-linearized implicit substeps.
-
-The interval `Δt` is divided into `nsub` equal substeps. At each substep, a local
-linearized microphysics system is rebuilt from the current state and solved
-implicitly for cloud liquid, cloud ice, rain, and snow. Temperature is then
-updated from the latent heating implied by the substep tendencies.
-
-The returned tendencies are the net change in the hydrometeor species over the
-full interval divided by `Δt`.
-
-Increasing `nsub` improves how well the method captures nonlinear changes in the
-active microphysical processes, including regime changes near freezing.
-
-# Returns
-`NamedTuple` with fields:
-- `dq_lcl_dt`: Cloud liquid tendency [kg/kg/s]
-- `dq_icl_dt`: Cloud ice tendency [kg/kg/s]
-- `dq_rai_dt`: Rain tendency [kg/kg/s]
-- `dq_sno_dt`: Snow tendency [kg/kg/s]
-"""
-@inline function bulk_microphysics_tendencies(
-    ::LinearizedAverage,
-    cm::Microphysics1Moment,
-    mp::CMP.Microphysics1MParams,
-    tps,
-    ρ,
-    T,
-    w,
-    q_tot,
-    q_lcl,
-    q_icl,
-    q_rai,
-    q_sno,
-    Δt::AbstractFloat,
-    nsub::Integer = 1,
-)
-    FT = typeof(q_tot)
-
-    q_lcl_0 = q_lcl
-    q_icl_0 = q_icl
-    q_rai_0 = q_rai
-    q_sno_0 = q_sno
-
-    Δt_sub = Δt / FT(nsub)
-
-    Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
-    Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
-
-    for _ in 1:nsub
-        rates = _linearized_implicit_step(
-            cm,
-            mp,
-            tps,
-            ρ,
-            T,
-            w,
-            q_tot,
-            q_lcl,
-            q_icl,
-            q_rai,
-            q_sno,
-            Δt_sub,
-        )
-
-        q_lcl += rates.dq_lcl_dt * Δt_sub
-        q_icl += rates.dq_icl_dt * Δt_sub
-        q_rai += rates.dq_rai_dt * Δt_sub
-        q_sno += rates.dq_sno_dt * Δt_sub
-
-        T +=
-            (
-                Lv_over_cp * (rates.dq_lcl_dt + rates.dq_rai_dt) +
-                Ls_over_cp * (rates.dq_icl_dt + rates.dq_sno_dt)
-            ) * Δt_sub
-    end
-
-    dq_lcl_dt = (q_lcl - q_lcl_0) / Δt
-    dq_icl_dt = (q_icl - q_icl_0) / Δt
-    dq_rai_dt = (q_rai - q_rai_0) / Δt
-    dq_sno_dt = (q_sno - q_sno_0) / Δt
-
-    return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
-end
 
 
 # --- 0-Moment Microphysics ---
@@ -1395,5 +1305,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 end
 
 include("BMT_rosenbrock_core.jl")
+include("BMT_1m.jl")
 
 end # module BulkMicrophysicsTendencies
