@@ -175,9 +175,9 @@ end
 
 function test_shape_solver(FT)
 
-    slope_laws = (:constant, :powerlaw)
-    for slope_law in slope_laws
-        params = CMP.ParametersP3(FT; slope_law)
+    slope_laws = (CMP.SlopeConstant(FT), CMP.SlopePowerLaw(FT))
+    for slope in slope_laws
+        params = CMP.ParametersP3(FT; slope)
 
         @testset "Shape parameters - nonlinear solver" begin
             # -- First, test limiting behavior: `N_ice = L_ice = 0` --
@@ -370,10 +370,10 @@ function test_bulk_terminal_velocities(FT)
 
         # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
         # their aspect-off counterparts (`cbrt(ϕ) < 1`).
-        ref_v_n = [3.64194720794662, 2.6191026241691695]
-        ref_v_n_ϕ = [1.523425288986299, 1.4660573287073728]
-        ref_v_m = [7.788114224053879, 5.797675366222473]
-        ref_v_m_ϕ = [2.4275080186932736, 2.3681842506505544]
+        ref_v_n = [3.6457122112616465, 2.623040690844402]
+        ref_v_n_ϕ = [1.5248570268487953, 1.4683523701880776]
+        ref_v_m = [7.780799250932574, 5.789500414632324]
+        ref_v_m_ϕ = [2.4264746455606385, 2.366835949588931]
 
         params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
         for (k, F_rim) in enumerate(F_rims)
@@ -437,7 +437,7 @@ function test_bulk_terminal_velocities(FT)
         # end
     end
     @testset "Mass-weighted mean diameters" begin
-        ref_vals = [0.005397144197921535, 0.0033368960364578005]
+        ref_vals = [0.005388435466357483, 0.0033291124145735426]
         for (F_rim, ref_val) in zip(F_rims, ref_vals)
             state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
             logλ = P3.get_distribution_logλ(state)
@@ -713,7 +713,15 @@ function test_p3_bulk_liquid_ice_collisions(FT)
     @testset "local rime density" begin
         Tₐ = T_freeze - 1 // 10
         ρ′_rim_func = P3.compute_local_rime_density(vel_params, ρₐ, Tₐ, state)
-        @test ρ′_rim_func(D̄, D̄) ≈ FT(159.5) rtol = 1e-6
+        @test ρ′_rim_func(D̄, D̄) ≈ FT(282.8765520969483) rtol = 2e-4
+
+        # Rᵢ > 0 for T < T_freeze, so ρ′_rim densifies toward ρ_ice as T → T_freeze.
+        Dₗ = FT(200e-6)
+        ρ′_rim(T) = P3.compute_local_rime_density(vel_params, ρₐ, FT(T), state)(D̄, Dₗ)
+        @test issorted(ρ′_rim.((240, 250, 260, 265, 270)))
+        # At and above T_freeze, the solid-ice (wet-growth) limit
+        @test ρ′_rim(T_freeze) ≈ FT(916.7)
+        @test ρ′_rim(T_freeze + 5) ≈ FT(916.7)
 
         a, b, c = 51, 114, -11 // 2 # coeffs for Eq. 17 in Cober and List (1993), converted to [kg / m³]
         ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2  # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
@@ -866,8 +874,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test QRSHD ≈ 3.6744506329509328e-6 rtol = 5e-4
         @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
         @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.726612278745525e-9 rtol = 5e-4
-        @test BRCOL ≈ 4.163318251255413e-7 rtol = 5e-4
+        @test BCCOL ≈ 3.508183075042488e-9 rtol = 5e-4
+        @test BRCOL ≈ 7.244274484995898e-8 rtol = 5e-4
         @test ∫𝟙_wet_M_col ≈ 1.3659847784932352e-5 rtol = 5e-4
 
         ### Test the bulk source function

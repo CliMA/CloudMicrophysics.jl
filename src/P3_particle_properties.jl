@@ -43,14 +43,21 @@ end
 function P3State(params::CMP.ParametersP3, ρq_ice, ρn_ice, F_rim, ρ_rim)
     FT = UT.promote_typeof(ρq_ice, ρn_ice, F_rim, ρ_rim)
     (; mass, ρ_i) = params
+    # Clamp to the physical domain
+    ρq_ice = UT.clamp_to_nonneg(FT(ρq_ice))
+    ρn_ice = UT.clamp_to_nonneg(FT(ρn_ice))
+    F_rim = clamp(FT(F_rim), FT(0), FT(1) - eps(FT))
+    # ρ_rim ≤ ρ_i gives ρ_g ≤ ρ_i, which the threshold ordering D_th ≤ D_gr requires
+    ρ_rim = clamp(FT(ρ_rim), FT(0), ρ_i)
     ρ_d = get_ρ_d(mass, F_rim, ρ_rim)
-    ρ_g = get_ρ_g(F_rim, ρ_rim, ρ_d)
+    # A floor far below any physical density keeps log(ρ_g) finite in states with almost no mass
+    ρ_g = max(get_ρ_g(F_rim, ρ_rim, ρ_d), oftype(F_rim, 1e-4))
     D_th = get_D_th(mass, ρ_i)
     D_gr = ifelse(iszero(F_rim), FT(Inf), get_D_gr(mass, ρ_g))
     D_cr = ifelse(iszero(F_rim), FT(Inf), get_D_cr(mass, F_rim, ρ_g))
     return P3State(
         params,
-        FT(ρq_ice), FT(ρn_ice), FT(F_rim), FT(ρ_rim),
+        ρq_ice, ρn_ice, F_rim, ρ_rim,
         FT(ρ_g), FT(D_th), FT(D_gr), FT(D_cr),
     )
 end
@@ -65,31 +72,11 @@ ShowMethods.field_units(::P3State) = (;
 """
     state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
 
-Construct a [`P3State`](@ref) from the volumetric prognostic ice variables directly, 
-computing the (clamped, regularised) rime mass fraction and rime density.
+Construct a [`P3State`](@ref) from the prognostic ice variables.
 
-The regularised ratios come from [`UT.rime_mass_fraction`](@ref) and
-[`UT.rime_density`](@ref), which smoothly go to zero when their
-denominators are near machine precision, avoiding the discontinuity
-at `q_ice = ϵ` / `b_rim = ϵ`. The upper clamps `F_rim < 1 - ε` and
-`ρ_rim ≤ 0.8·ρ_l ≈ 730 kg/m³` keep the result inside the domain of validity
-of the threshold formulas evaluated by the [`P3State`](@ref) constructor.
-
-!!! note "TODO — revisit the `ρ_rim ≤ 0.8·ρ_l` cap"
-    The closed-form graupel density `ρ_g = F_rim·ρ_rim + (1-F_rim)·ρ_d`
-    can mathematically exceed `ρ_l` — `ρ_d` (the unrimed portion's
-    density, [`get_ρ_d`](@ref)) is linear in `ρ_rim` with no built-in
-    upper clamp, so feeding `ρ_rim` near `ρ_l` can produce `ρ_g > ρ_l`.
-    That breaks the threshold ordering `D_th < D_gr < D_cr` that the P3
-    partitioning assumes (`D_gr ∝ (6α_va/(π·ρ_g))^{1/(3-β_va)}` shrinks
-    as `ρ_g` grows; eventually `D_gr < D_th`). The 0.8-factor keeps
-    `ρ_g` comfortably below `ρ_l` for the realistic `(F_rim, ρ_rim)` regime.
-    Rime Density formulations structured like Macklin (1962) rarely give
-    `ρ_rim > 700 kg/m³` anyway, so the upper bound is usually inert.
-    To lift the cap to `ρ_l` we'd need to (i) explicitly bound `ρ_g` 
-    (e.g. `min(ρ_g, ρ_l)`) or rederive `ρ_d` so it's monotone-bounded by
-    `ρ_l`, and (ii) accept that bulk rime densities 800-917 kg/m³ are off
-    the calibration domain of the original P3 fit.
+The rime volume `ρb_rim` is moved to the nearest value for which the bulk rime density
+`ρq_rim / ρb_rim` lies between `ρ′_rim(1)`, the smallest Cober and List (1993) local rime
+density, and the solid-ice density `ρ_i` (see [`UT.nearest_admissible_b`](@ref)).
 
 # Arguments
 - `params`: [`CMP.ParametersP3`](@ref)
@@ -99,9 +86,13 @@ of the threshold formulas evaluated by the [`P3State`](@ref) constructor.
 - `ρb_rim`: rime volume concentration [m³/m³]
 """
 function state_from_prognostic(params::CMP.ParametersP3, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
-    FT = eltype(ρq_ice)
-    F_rim = min(UT.rime_mass_fraction(ρq_rim, ρq_ice), one(FT) - eps(FT))
-    ρ_rim = min(UT.rime_density(ρq_rim, ρb_rim), FT(0.8) * params.ρ_l)  # TODO: Make this limit configurable
+    (; ρ_rim_local, ρ_i) = params
+    ρq_ice = UT.clamp_to_nonneg(ρq_ice)
+    ρn_ice = UT.clamp_to_nonneg(ρn_ice)
+    ρq_rim = UT.clamp_to_nonneg(ρq_rim)
+    ρb_rim = UT.nearest_admissible_b(ρq_rim, ρb_rim, ρ_rim_local(one(ρ_i)), ρ_i)
+    F_rim = UT.rime_mass_fraction(ρq_rim, ρq_ice)
+    ρ_rim = UT.rime_density(ρq_rim, ρb_rim)
     return P3State(params, ρq_ice, ρn_ice, F_rim, ρ_rim)
 end
 
@@ -112,8 +103,11 @@ Base.broadcastable(state::P3State) = tuple(state)
     isunrimed(state::P3State)
 
 Return `true` if the particle is unrimed, i.e. `F_rim = 0`.
+
+The test uses the value of `F_rim`, so that a ForwardDiff dual number with a zero value and
+nonzero partials also counts as unrimed.
 """
-isunrimed(state::P3State) = iszero(state.F_rim)
+isunrimed(state::P3State) = iszero(FD.value(state.F_rim))
 
 @inline exprel1(x) = expm1(x) / x            # exprel₁ = (exp(x)-1)/x
 @inline _exprel2(x) = (expm1(x) - x) / (x * x)
@@ -242,7 +236,9 @@ where for the different thresholds, `ρ` is:
 - `params`: [`CMP.MassPowerLaw`](@ref) parameters
 - `ρ`: (ice/graupel) density [kg/m³]
 """
-_get_threshold((; α_va, β_va)::CMP.MassPowerLaw, ρ) = (6α_va / (π * ρ))^(1 / (3 - β_va))
+# A floor on ρ far below any physical density keeps the fractional power finite
+_get_threshold((; α_va, β_va)::CMP.MassPowerLaw, ρ) =
+    (6α_va / (π * max(ρ, oftype(ρ, 1e-4))))^(1 / (3 - β_va))
 
 """
     get_D_th(mass::MassPowerLaw, ρ_i)

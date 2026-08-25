@@ -1,5 +1,5 @@
 export ParametersP3
-export MassPowerLaw, AreaPowerLaw, SlopePowerLaw, SlopeConstant, VentilationFactor
+export MassPowerLaw, AreaPowerLaw, SlopePowerLaw, SmoothSlopePowerLaw, SlopeConstant, VentilationFactor
 
 ### ----------------------------- ###
 ### --- SUB-PARAMETERIZATIONS --- ###
@@ -123,6 +123,50 @@ function SlopePowerLaw(toml_dict::CP.ParamDict)
 end
 
 """
+    SmoothSlopePowerLaw{FT}
+
+Slope parameter μ as a power law in slope λ, identical to [`SlopePowerLaw`](@ref)
+but with the `0 ≤ μ ≤ μ_max` limiters applied as smooth transitions of sharpness `κ`:
+
+```math
+μ(λ) = M_{μ_{max}}\\big(M_0(a λ^b - c)\\big)
+```
+
+where `M_0(x) = κ^{-1} \\log(1 + e^{κ x})` is a smooth `max(x, 0)` and
+`M_{μ_{max}}(x) = μ_{max} - κ^{-1} \\log(1 + e^{κ (μ_{max} - x)})` is a smooth
+`min(x, μ_{max})`. The corner width in μ is of order `1/κ`; as `κ → ∞`, `μ(λ)`
+converges to the hard-clamped [`SlopePowerLaw`](@ref).
+
+A part of the [`ParametersP3`](@ref) parameter set.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct SmoothSlopePowerLaw{FT} <: SlopeLaw
+    "Scale [`m^b`]"
+    a::FT
+    "Power [`-`]"
+    b::FT
+    "Offset [`-`]"
+    c::FT
+    "Upper limiter [`-`]"
+    μ_max::FT
+    "Corner sharpness [`-`]"
+    κ::FT
+end
+function SmoothSlopePowerLaw(toml_dict::CP.ParamDict)
+    name_map = (;
+        :Heymsfield_mu_coeff1 => :a,
+        :Heymsfield_mu_coeff2 => :b,
+        :Heymsfield_mu_coeff3 => :c,
+        :Heymsfield_mu_cutoff => :μ_max,
+        :P3_mu_smoothing_sharpness => :κ,
+    )
+    params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    return SmoothSlopePowerLaw(; params...)
+end
+
+"""
     SlopeConstant{FT}
 
 Slope parameter μ as a constant:
@@ -223,6 +267,7 @@ function LocalRimeDensity(toml_dict::CP.ParamDict)
     return LocalRimeDensity(; params...)
 end
 function ((; a, b, c, ρ_ice)::LocalRimeDensity)(Rᵢ)
+    # TODO: make the Rᵢ bounds ClimaParams parameters
     Rᵢ = clamp(Rᵢ, 1, 12)  # P3 fortran code, microphy_p3.f90, Line 3315 clamps to 1 ≤ Rᵢ ≤ 12
 
     # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
@@ -287,22 +332,21 @@ $(DocStringExtensions.FIELDS)
     "Water freeze temperature [`K`]"
     T_freeze::FT
     "Terminal-velocity aspect-ratio treatment, an [`AspectRatio`](@ref)"
-    aspect_ratio::AR = Oblate()
+    aspect_ratio::AR
 end
 
 """
-    ParametersP3(toml_dict::CP.ParamDict; [slope_law = :powerlaw], [aspect_ratio = Oblate()])
+    ParametersP3(toml_dict::CP.ParamDict)
 
 Create a `ParametersP3` object from a `ClimaParams` TOML dictionary.
 
 # Arguments
 - `toml_dict::CP.ParamDict`: A `ClimaParams` TOML dictionary
-- `slope_law`: Slope law to use (`:constant` or, by default, `:powerlaw`)
-- `aspect_ratio`: an [`AspectRatio`](@ref); by default, `Oblate()`
 
+# Keyword Arguments
+- `opts...`: Keyword arguments to override any default parameterizations
 """
-function ParametersP3(toml_dict::CP.ParamDict; slope_law = :powerlaw, aspect_ratio = Oblate())
-    @assert slope_law in (:constant, :powerlaw)
+function ParametersP3(toml_dict::CP.ParamDict; opts...)
     params = CP.get_parameter_values(toml_dict,
         (;
             :density_ice_water => :ρ_i,  # TODO: Use `WaterProperties` struct for ice and liquid water density
@@ -313,11 +357,12 @@ function ParametersP3(toml_dict::CP.ParamDict; slope_law = :powerlaw, aspect_rat
     return ParametersP3(;
         mass = MassPowerLaw(toml_dict),
         area = AreaPowerLaw(toml_dict),
-        slope = slope_law == :powerlaw ? SlopePowerLaw(toml_dict) : SlopeConstant(toml_dict),
+        slope = SmoothSlopePowerLaw(toml_dict),
         vent = VentilationFactor(toml_dict),
         ρ_rim_local = LocalRimeDensity(toml_dict),
-        aspect_ratio,
+        aspect_ratio = Oblate(),
         params...,
+        opts...,  # override any defaults
     )
 end
 
@@ -329,6 +374,7 @@ end
 ShowMethods.field_units(::MassPowerLaw) = (; α_va = "kg m^(-β_va)")
 ShowMethods.field_units(::AreaPowerLaw) = (; γ = "m^(2-σ)")
 ShowMethods.field_units(::SlopePowerLaw) = (; a = "m^b")
+ShowMethods.field_units(::SmoothSlopePowerLaw) = (; a = "m^b")
 ShowMethods.field_units(::LocalRimeDensity) = (; ρ_ice = "kg m⁻³")
 ShowMethods.field_units(::ParametersP3) =
     (; τ_wet = "s", ρ_i = "kg m⁻³", ρ_l = "kg m⁻³", T_freeze = "K")
