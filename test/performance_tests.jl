@@ -194,8 +194,15 @@ function benchmark_test(FT)
     # returning a single (concretely-typed) closure, this path is type-stable
     # on both 1.10 and 1.12 and allocates nothing — keep the default zero
     # allocation/memory budget so a future closure regression is caught here.
-    bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 170_000)
-    bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 200_000)
+    quad = P3.ChebyshevGauss(100)
+    bench_press(
+        FT, (a, b, c, d) -> P3.ice_terminal_velocity_number_weighted(a, b, c, d; quad),
+        (ch2022, ρ_air, state, logλ), 170_000,
+    )
+    bench_press(
+        FT, (a, b, c, d) -> P3.ice_terminal_velocity_mass_weighted(a, b, c, d; quad),
+        (ch2022, ρ_air, state, logλ), 200_000,
+    )
     bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1), P3.ChebyshevGauss(100)), 7_000)
     bench_press(FT, P3.D_m, (state, logλ), 18_000)
 
