@@ -45,10 +45,39 @@ function het_ice_nucleation(
 end
 
 """
-    ice_melt(velocity_params, aps, tps, Tₐ, ρₐ, state, logλ; quad)
+    _ventilation_from(velocity_params, aps, ρₐ, state, logλ, quad)
 
-Compute the melting rates of ice content and number concentration
-  (QIMLT in [MorrisonMilbrandt2015](@cite)).
+Dispatch point for the ventilation integral: evaluate it by quadrature when `quad` is a
+quadrature rule, or read it from a lookup table when the mode's carrier holds one. Both
+consumers of the ventilation integral call this rather than integrating directly, because a
+quadrature rule integrates an integrand, while a table replaces the whole integral and is
+keyed on the state, which by the point of integration has already been captured into closures.
+"""
+@inline _ventilation_from(velocity_params, aps, ρₐ, state, logλ, quad) =
+    ice_ventilation_integral(velocity_params, aps, ρₐ, state, logλ; quad)
+
+"""
+    ice_ventilation_integral(velocity_params, aps, ρₐ, state, logλ; quad)
+
+The ventilation integral `∫ D · F_v(D) · N′(D) dD` over the ice size distribution, shared by
+[`ice_melt`](@ref) and [`ice_deposition_timescale`](@ref), which differ only in the scalar
+prefactor each applies to it: `2πK/L_f · ΔT` for melt, `2πG` and `qᵥ_sat_ice` for deposition.
+
+Temperature enters neither consumer through this integral: it enters only through those
+prefactors, which is why a four-axis table in `(x̄, F_rim, ρ_rim, ρₐ)` can serve both without a
+temperature axis.
+"""
+@inline function ice_ventilation_integral(velocity_params, aps::CMP.AirProperties, ρₐ, state::P3State, logλ; quad)
+    (; vent) = state.params
+    v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
+    F_v = CO.ventilation_factor(vent, aps, v_term)
+    N′ = size_distribution(state, logλ)
+    bnds = velocity_integral_bounds(state, logλ, v_term; p = 1e-6)
+    integrate(D -> D * F_v(D) * N′(D), bnds, quad)
+end
+
+"""
+    ice_melt(velocity_params, aps, tps, Tₐ, ρₐ, state, logλ; ∫kwargs...)
 
 # Arguments
  - `velocity_params`: [`CMP.Chen2022VelType`](@ref)
@@ -60,42 +89,89 @@ Compute the melting rates of ice content and number concentration
  - `logλ`: the log of the slope parameter [log(1/m)]
 
 # Keyword arguments
- - `quad`: quadrature rule, default is `ChebyshevGauss(100)`
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
-# Returns
-A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
-  concentration [1/m³/s] and ice content [kg/m³/s].
+Returns the melting rate of ice (QIMLT in [MorrisonMilbrandt2015](@cite)) as
+`(; dNdt, dLdt, melt_frac, ∂dNdt_∂T, ∂dLdt_∂T, ∂melt_frac_∂T)`, the number and mass melting
+rates, the fractional ice-mass melting rate they share, and the derivatives of all three with
+respect to `Tₐ`.
+
+`melt_frac` is [`ice_melt_fraction`](@ref): `dLdt / ρq_ice`, bounded above by
+[`ice_melt_fraction_limit`](@ref). The number melting rate is `ρn_ice * melt_frac`, and the
+same fraction drains the rime pair at the caller, so number and rime leave at one bounded
+fraction.
+
+The mass rate is the conduction approximation with spherical capacitance ``C = D/2``,
+
+```math
+\\frac{dL}{dt} = \\frac{2 π K_{therm} (Tₐ - T_{freeze})}{L_f} ∫ D \\, F_v(D) \\, N'(D) \\, dD,
+```
+
+the same capacitance integral as `ice_deposition_timescale`, following
+Morrison and Milbrandt (2015). The vapor diffusion contribution in subsaturated air of
+Morrison and Milbrandt (2015) is not included.
+
+The conduction integral carries no temperature dependence at all, and the prefactor
+`2 π K_therm (Tₐ - T_freeze) / L_f(Tₐ)` depends on temperature only through the excess and
+through `L_f`, which is linear with slope `cp_l - cp_i`. Both derivatives are therefore exact
+and need no division by the temperature excess. Dropping the `L_f` term instead would cost
+`(cp_l - cp_i)/L_f ≈ 6e-3` per K of excess, which is 6% at 10 K.
 """
 @inline function ice_melt(
     velocity_params, aps::CMP.AirProperties, tps::TDI.PS,
     Tₐ, ρₐ, state::P3State, logλ;
-    quad = ChebyshevGauss(100),
+    quad,
 )
     # Note: process not dependent on `F_liq`
     # (we want ice core shape params)
     # Get constants
+    FT = eltype(state)
     (; K_therm) = aps
     L_f = TDI.Lf(tps, Tₐ)
 
     (; ρq_ice, ρn_ice) = state
-    (; T_freeze, vent) = state.params
+    (; T_freeze) = state.params
 
-    v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
-    F_v = CO.ventilation_factor(vent, aps, v_term)
-    N′ = size_distribution(state, logλ)
-
-    # Integrate
-    fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
-    bnds = integral_bounds(state, logλ; p = 1e-6)
-    melt_integrand = D -> ∂ice_mass_∂D(state, D) * F_v(D) * N′(D) / D
-    dLdt_unclamped = fac * integrate(melt_integrand, bnds, quad)
+    # The ventilation integral is shared with `ice_deposition_timescale`; the temperature
+    # dependence is entirely in the prefactors below.
+    ΔT = Tₐ - T_freeze
+    fac₀ = 2 * FT(π) * K_therm / L_f
+    fac = fac₀ * ΔT
+    ∂L_f_∂T = TDI.TD.Parameters.cp_l(tps) - TDI.TD.Parameters.cp_i(tps)
+    ∂fac_∂T = fac₀ * (1 - ΔT * ∂L_f_∂T / L_f)
+    ∫melt = _ventilation_from(velocity_params, aps, ρₐ, state, logλ, quad)
+    dLdt_unclamped = fac * ∫melt
 
     # only consider melting (not fusion)
     dLdt = max(0, dLdt_unclamped)
-    # compute change of N_ice proportional to change in mass
-    dNdt = ρn_ice / ρq_ice * dLdt
+    ∂dLdt_∂T = ifelse(dLdt > 0, ∂fac_∂T * ∫melt, zero(dLdt))
 
-    return (; dNdt, dLdt)
+    # One fractional loss for all four ice slots: number here, the rime pair at the caller.
+    # The number rate follows the identity `dNdt = ρn_ice * (dLdt / ρq_ice)`, with the
+    # fraction bounded by the conduction-limited melt rate of a nucleation-size particle.
+    (; frac, ∂frac_∂T) =
+        ice_melt_fraction(aps, tps, state.params, Tₐ, ρq_ice, dLdt, ∂dLdt_∂T)
+    dNdt = ρn_ice * frac
+    ∂dNdt_∂T = ρn_ice * ∂frac_∂T
+
+    return (;
+        dNdt, dLdt, melt_frac = frac,
+        ∂dNdt_∂T, ∂dLdt_∂T, ∂melt_frac_∂T = ∂frac_∂T,
+    )
+end
+
+"""
+    zero_ice_melt(ρₐ)
+
+The [`ice_melt`](@ref) return with every rate and derivative zero, for temperatures at or
+below `T_freeze`.
+"""
+@inline function zero_ice_melt(ρₐ)
+    o = zero(ρₐ)
+    return (;
+        dNdt = o, dLdt = o, melt_frac = o,
+        ∂dNdt_∂T = o, ∂dLdt_∂T = o, ∂melt_frac_∂T = o,
+    )
 end
 
 """
@@ -232,6 +308,177 @@ Branchless, so it costs the same on every lane of a warp.
     br = UT.nearest_admissible_b(qr, FT(ρb_rim), ρ_rim_min, ρ_rim_max)
     return (q, n, qr, br)
 end
+
+"""
+    ice_melt_fraction_limit(aps, tps, p3, Tₐ)
+
+Upper bound on the fractional ice melt rate [1/s] and its exact temperature derivative, as
+`(; inv_τ, ∂inv_τ_∂T)`: the conduction-limited melt rate of a solid-ice sphere at the
+nucleation size,
+
+```math
+1/τ = \\frac{3 K_{therm} (Tₐ - T_{freeze})}{ρ_i r_{min}^2 L_f(Tₐ)},
+\\qquad r_{min} = D_{nuc} / 2,
+```
+
+zero at and below `T_freeze`. A fractional melt rate above this bound removes latent heat
+faster than conduction supplies it to the smallest particle the scheme creates by nucleation,
+so the bound is a property of the air and of [`ICE_NUCLEATION_DIAMETER`](@ref).
+"""
+@inline function ice_melt_fraction_limit(aps::CMP.AirProperties, tps::TDI.PS, p3, Tₐ)
+    (; K_therm) = aps
+    L_f = TDI.Lf(tps, Tₐ)
+    FT = typeof(p3.ρ_i)
+    r_min = ICE_NUCLEATION_DIAMETER(FT) / 2
+    ΔT = max(Tₐ - p3.T_freeze, 0)
+    fac = 3 * K_therm / (p3.ρ_i * r_min^2 * L_f)
+    inv_τ = fac * ΔT
+    ∂L_f_∂T = TDI.TD.Parameters.cp_l(tps) - TDI.TD.Parameters.cp_i(tps)
+    ∂inv_τ_∂T = ifelse(ΔT > 0, fac * (1 - ΔT * ∂L_f_∂T / L_f), zero(inv_τ))
+    return (; inv_τ, ∂inv_τ_∂T)
+end
+
+"""
+    ice_melt_fraction(aps, tps, p3, Tₐ, ρq_ice, dLdt, ∂dLdt_∂T = zero(dLdt))
+
+Fractional ice melt rate [1/s] and its temperature derivative, `(; frac, ∂frac_∂T)`:
+`dLdt / ρq_ice` bounded above by [`ice_melt_fraction_limit`](@ref), and zero where the ice
+mass is absent. The quotient alone is unbounded as `ρq_ice` vanishes while the melt integral
+stays positive; the bound keeps the fraction at what conduction can melt of the smallest
+particle. Shared by the melt number rate and the rime drain, so the number and both rime
+moments leave at one fraction.
+
+The value is bounded on both branches. Its derivative with respect to `ρq_ice` on the
+quotient branch is `-dLdt / ρq_ice²`, which grows without bound as the mass vanishes and can
+overflow Float32 at trace mass even where the value sits below the bound; a consumer
+differentiating through this function there relies on its own non-finite handling.
+"""
+@inline function ice_melt_fraction(
+    aps::CMP.AirProperties, tps::TDI.PS, p3, Tₐ, ρq_ice, dLdt, ∂dLdt_∂T = zero(dLdt),
+)
+    lim = ice_melt_fraction_limit(aps, tps, p3, Tₐ)
+    quot = UT.guarded_quotient(dLdt, ρq_ice)
+    ∂quot_∂T = UT.guarded_quotient(∂dLdt_∂T, ρq_ice)
+    limited = quot > lim.inv_τ
+    # `oftype` keeps the selection type stable under automatic differentiation: the limit is
+    # independent of the species state, so its state partials are zero, which `convert`
+    # supplies.
+    frac = ifelse(limited, oftype(quot, lim.inv_τ), quot)
+    ∂frac_∂T = ifelse(limited, oftype(∂quot_∂T, lim.∂inv_τ_∂T), ∂quot_∂T)
+    return (; frac, ∂frac_∂T)
+end
+
+"""
+    ice_deposition_timescale(velocity_params, aps, tps, Tₐ, ρₐ, state, logλ; quad)
+
+Compute the vapor deposition relaxation timescale of the ice population from
+its capacitance integral,
+
+```math
+τ_{dep} = \\frac{ρₐ q_{v,si}}{2π G_i ∫ D F_v(D) N'(D) dD},
+```
+
+with spherical capacitance `C = D/2`, following Morrison and Milbrandt (2015).
+The timescale diverges as the population vanishes and shrinks as the
+integrated particle surface grows.
+
+# Arguments
+ - `velocity_params`: [`CMP.Chen2022VelType`](@ref)
+ - `aps`: [`CMP.AirProperties`](@ref)
+ - `tps`: thermodynamics parameters
+ - `Tₐ`: temperature (K)
+ - `ρₐ`: air density
+ - `state`: a [`P3State`](@ref) object
+ - `logλ`: the log of the slope parameter [log(1/m)]
+
+# Keyword arguments
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
+
+# Returns
+- Deposition timescale [s], bounded above at [`ICE_DEP_TIMESCALE_MAX`](@ref) to stay finite.
+  **A returned value equal to that bound means the capacitance integral underflowed, i.e. the
+  population cannot support the relaxation at all.** It does NOT mean "a very slow but real
+  relaxation": the unbounded quotient diverges there, and callers that form `deficit / τ` will
+  otherwise mint condensate at `deficit / ICE_DEP_TIMESCALE_MAX` on a state with no particles.
+  Test with [`ice_deposition_is_degenerate`](@ref) rather than comparing to a literal.
+"""
+@inline function ice_deposition_timescale(
+    velocity_params, aps::CMP.AirProperties, tps::TDI.PS,
+    Tₐ, ρₐ, state::P3State, logλ;
+    quad,
+)
+    FT = eltype(state)
+
+    G = CO.G_func_ice(aps, tps, Tₐ)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, Tₐ, ρₐ)
+
+    ∫DFvN = _ventilation_from(velocity_params, aps, ρₐ, state, logλ, quad)
+
+    denom = 2 * FT(π) * G * ∫DFvN
+    return min(ρₐ * qᵥ_sat_ice / max(denom, floatmin(FT)), ICE_DEP_TIMESCALE_MAX(FT))
+end
+
+"""
+    ICE_DEP_TIMESCALE_MAX(FT)
+
+Upper bound on the ice deposition/sublimation relaxation timescale [s], applied by
+[`ice_deposition_timescale`](@ref) to keep it finite as the ice population vanishes.
+
+Reaching this bound is a **degenerate** outcome, not a slow one. The unbounded timescale is
+`ρₐ q_{v,sat,ice} / (2π G ∫ D F_v N′ dD)`, and the integral goes to zero with the population, so the
+quotient diverges. Capping it makes the value finite but leaves `deficit / τ` finite too, which is a
+mass source on a state that has no particles to deposit onto. Use
+[`ice_deposition_is_degenerate`](@ref) to detect it and zero the rate.
+"""
+@inline ICE_DEP_TIMESCALE_MAX(::Type{FT}) where {FT} = FT(1e10)
+
+"""
+    ice_deposition_is_degenerate(τ_dep)
+
+`true` when `τ_dep` from [`ice_deposition_timescale`](@ref) sits at
+[`ICE_DEP_TIMESCALE_MAX`](@ref), meaning the capacitance integral underflowed and there is no
+population to deposit onto or sublimate from, so the physical rate is exactly zero.
+
+Named rather than written inline so the bound is compared against its own definition at every call
+site instead of a repeated literal.
+"""
+@inline ice_deposition_is_degenerate(τ_dep::FT) where {FT} =
+    τ_dep >= ICE_DEP_TIMESCALE_MAX(FT)
+
+"""
+    ice_population_is_present(state)
+
+`true` when the ice population can support the mixed-phase process rates that integrate over it -
+riming and the other liquid-ice collisions, aggregation, and melting - i.e. when the number
+moment is strictly positive and the mass moment carries at least one nucleated crystal's worth of
+mass for that number:
+
+    (ρq_ice / ice_nucleation_mass > ρn_ice) & (ρn_ice > 0)
+
+This is a presence test on the two moments, not a smallness threshold on the mass. A fixed
+mixing-ratio threshold such as `ϵ_numerics_2M_M(FT) = eps(FT)` sits at 1.1920929e-7 kg/kg at
+Float32 and at 2.2e-16 at Float64, so it switches melting, riming and aggregation off
+discontinuously at a physical loading at one precision and at an unreachable one at the other -
+precision dependence that is not rounding. The scaled mass test keeps precision independence: it
+moves with `ρn_ice` and with [`ice_nucleation_mass`](@ref) rather than fixing a mixing-ratio
+threshold, so a trace population passes as soon as its crystals carry their birth mass, at either
+precision. The mass side is formed as a quotient because the product
+`ρn_ice * ice_nucleation_mass` underflows Float32 at trace number, where the test would degrade
+to `ρq_ice > 0`; the quotient stays normal over the full Float32 range of `ρq_ice`.
+
+Both moments enter because all three rates are integrals of the ice size distribution
+`N′(D) ∝ ρn_ice`. With `ρn_ice = 0` the distribution is identically zero, so the rates are zero by
+construction - and the `ρn_ice > 0` conjunct is what keeps mass-without-number states absent,
+where the mass test alone reads positive at any `ρq_ice`; that mass is the ice orphan drain's to
+remove, not the integrals' to melt or rime. With less than one crystal's mass per particle the
+mean particle mass sits below the smallest particle the scheme can create, the shape solve has no
+physical target, and the number adjustment already relaxes the number toward
+`ρq_ice / ice_mean_particle_mass_min`; a population of fresh crystals sits on the boundary, where
+every process this predicate controls is well posed on either side.
+"""
+@inline ice_population_is_present(state::P3State) =
+    (state.ρq_ice / ice_nucleation_mass(state.params) > state.ρn_ice) &
+    (state.ρn_ice > 0)
 
 """
     collision_cross_section_ice_liquid_coeffs(rᵢ)

@@ -78,15 +78,58 @@ q_vap_from_RH_over_liquid(tps::PS, p, T, RH) =
 ###
 ### Supersaturations
 ###
+
+"""
+    SATURATION_DOMAIN_T_FLOOR
+
+The [`saturation_domain_T`](@ref) floor, 100 K, derived from where the
+saturation vapor pressure itself stays numerically normal rather than from
+atmospheric plausibility alone: its Clausius-Clapeyron exponent diverges as
+`T -> 0`, underflowing to exactly zero below about 40 K and crossing from
+`Float32` subnormal to normal near 55 K, and a quantity built by dividing by
+that pressure - supersaturation among them - returns `Inf` rather than a
+finite value at a lower floor. 100 K carries a comfortable margin above that
+threshold at both `Float32` and `Float64`, while staying below the coldest
+terrestrial atmospheric temperatures, so it remains inert on physical states.
+
+The value is therefore calibrated to a terrestrial atmosphere. An atmosphere
+whose temperatures approach 100 K needs it revisited, together with the
+underflow sweep it derives from.
+"""
+const SATURATION_DOMAIN_T_FLOOR = 100
+
+"""
+    saturation_domain_T(T)
+
+`T` floored to the domain on which the saturation functions are defined. They
+evaluate a log of the temperature, so a non-positive `T` throws a `DomainError`
+rather than returning a value a caller can act on. A microphysics substep can
+carry its temperature below the domain transiently, on the latent release of an
+extreme condensate increment; flooring here keeps the saturation quantities
+finite so the substep's own limiter and fallback resolve the step, and keeps the
+kernels free of reachable throws for the GPU.
+"""
+@inline saturation_domain_T(T) = max(T, oftype(float(T), SATURATION_DOMAIN_T_FLOOR))
+
+"""
+    saturation_domain_floor_engaged(T)
+
+`true` if [`saturation_domain_T`](@ref) floors `T`, i.e. `T` is below
+[`SATURATION_DOMAIN_T_FLOOR`](@ref). A pure, GPU- and AD-safe predicate:
+counting how often it holds over a record, rather than arguing inertness once,
+is what keeps the floor's inertness claim measurable as the record grows.
+"""
+@inline saturation_domain_floor_engaged(T) = T < oftype(float(T), SATURATION_DOMAIN_T_FLOOR)
+
 saturation_vapor_pressure_over_liquid(tps::PS, T) =
-    TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+    TD.saturation_vapor_pressure(tps, saturation_domain_T(T), TD.Liquid())
 saturation_vapor_pressure_over_ice(tps::PS, T) =
-    TD.saturation_vapor_pressure(tps, T, TD.Ice())
+    TD.saturation_vapor_pressure(tps, saturation_domain_T(T), TD.Ice())
 
 saturation_vapor_specific_content_over_liquid(tps::PS, T, ρ) =
-    TD.q_vap_saturation(tps, T, ρ, TD.Liquid())
+    TD.q_vap_saturation(tps, saturation_domain_T(T), ρ, TD.Liquid())
 saturation_vapor_specific_content_over_ice(tps::PS, T, ρ) =
-    TD.q_vap_saturation(tps, T, ρ, TD.Ice())
+    TD.q_vap_saturation(tps, saturation_domain_T(T), ρ, TD.Ice())
 
 """
     supersaturation_over_liquid(tps, qₜ, qₗ, qᵢ, ρ, T)
@@ -116,11 +159,11 @@ negative humidity inputs while preserving AD compatibility.
 """
 function supersaturation_over_liquid(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
-    return TD.supersaturation(tps, qᵥ, ρ, T, TD.Liquid())
+    return TD.supersaturation(tps, qᵥ, ρ, saturation_domain_T(T), TD.Liquid())
 end
 function supersaturation_over_ice(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
-    return TD.supersaturation(tps, qᵥ, ρ, T, TD.Ice())
+    return TD.supersaturation(tps, qᵥ, ρ, saturation_domain_T(T), TD.Ice())
 end
 
 end

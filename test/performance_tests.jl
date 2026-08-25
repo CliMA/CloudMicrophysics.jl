@@ -209,8 +209,11 @@ function benchmark_test(FT)
         220,
     )
     bench_press(
-        @NamedTuple{dNdt::FT, dLdt::FT},
-        P3.ice_melt,
+        @NamedTuple{
+            dNdt::FT, dLdt::FT, melt_frac::FT,
+            ∂dNdt_∂T::FT, ∂dLdt_∂T::FT, ∂melt_frac_∂T::FT,
+        },
+        (vp, ap, tp, T, ρ, st, lλ) -> P3.ice_melt(vp, ap, tp, T, ρ, st, lλ; quad = _glq),
         (ch2022, aps, tps, T_air, ρ_air, state, logλ),
         150_000,
     )

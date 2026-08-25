@@ -302,8 +302,13 @@ Compute the coefficients for the Chen 2022 terminal velocity parametrization.
 See [Chen2022](@cite) for more details.
 """
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
+    FT = eltype(coeffs)
     (; ρ0, a, a3_pow, b, b_ρ, c) = coeffs
-    ρₐ = max(ρₐ, zero(ρₐ))
+    # `a3_pow` is negative (-0.47335), so the floor must be POSITIVE: flooring to zero
+    # leaves `ρₐ^a3_pow` equal to `Inf` whenever the host delivers a non-positive air
+    # density. The small-ice and large-ice methods below already floor to this value,
+    # for this reason; the rain method was left behind.
+    ρₐ = max(ρₐ, FT(1e-4))
     # Table B1
     q = exp(ρ0 * ρₐ)
     ai = (a[1] * q, a[2] * q, a[3] * q * ρₐ^a3_pow)
@@ -315,7 +320,17 @@ end
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeSmallIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G) = coeffs
-    ρₐ = max(ρₐ, zero(ρₐ))
+    # The ice-density exponent `As` is negative, so `ρₐ` is floored to a small positive
+    # value: a zero or negative sub-domain density would give non-finite coefficients.
+    ρₐ = max(ρₐ, FT(1e-4))
+    # `ρᵢ` needs the same protection and did not have it: it feeds `log` and `sqrt`
+    # directly below, so a non-positive apparent ice density throws a DomainError rather
+    # than returning a non-finite value. Unreachable from the P3 path, which hardcodes
+    # `ρᵢ = 916.7`, but `Microphysics1M`'s snow-with-shape method passes a derived
+    # density. The floor makes the coefficients finite, not physical: no Chen fit is
+    # valid at 1e-4 kg/m³, and a physical lower bound for an ice density is a separate
+    # question from this guard.
+    ρᵢ = max(ρᵢ, FT(1e-4))
     # Table B3 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
@@ -335,7 +350,18 @@ end
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G, H) = coeffs
-    ρₐ = max(ρₐ, zero(ρₐ))
+    # The ice-density exponent `Al` can be non-positive, so `ρₐ` is floored to a small
+    # positive value: a zero or negative sub-domain density would give non-finite coefficients.
+    ρₐ = max(ρₐ, FT(1e-4))
+    # Same protection for `ρᵢ`, which feeds `log` and `sqrt` below and additionally appears
+    # as `C[2]/log_ρᵢ`, `C[3]/ρᵢ` and `G[3]/sqrt_ρᵢ`. See the SmallIce method for why this
+    # is a finiteness guard rather than a physical bound. NOTE, measured: at this floor the
+    # LargeIce coefficients OVERFLOW to Inf, because `ρᵢ` enters as `exp(C[3]/ρᵢ)` and
+    # `exp(B[2]*log(ρᵢ)^2)`. The floor therefore converts an aborting DomainError into a
+    # non-finite value that the host's finiteness guards can catch - a real improvement inside a
+    # GPU kernel - but it does NOT yield usable coefficients, and a physical lower bound for an
+    # ice density remains an open decision.
+    ρᵢ = max(ρᵢ, FT(1e-4))
     # Table B5 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
@@ -382,8 +408,12 @@ function Chen2022VelocityCurve(ai::NTuple{N, Any}, bi::NTuple{N, Any}, ci::NTupl
     FT = promote_type(map(typeof, ai)..., map(typeof, bi)..., map(typeof, ci)...)
     return Chen2022VelocityCurve{N, FT}(map(FT, ai), map(FT, bi), map(FT, ci))
 end
-@inline (v::Chen2022VelocityCurve)(D) =
-    unrolled_sum(abc -> abc[1] * D^abc[2] * exp(-abc[3] * D), map(tuple, v.ai, v.bi, v.ci))
+@inline function (v::Chen2022VelocityCurve)(D)
+    # Shared `log(D)` fuses each term's `D^b * exp(-c*D)` into one `exp`, as in
+    # `Chen2022_monodisperse_pdf`.
+    logD = log(D)
+    return unrolled_sum(abc -> abc[1] * exp(muladd(abc[2], logD, -abc[3] * D)), map(tuple, v.ai, v.bi, v.ci))
+end
 
 """
     Chen2022_monodisperse_pdf(a, b, c)
@@ -499,27 +529,42 @@ See also [`volume_sphere_D`](@ref).
 
 """
     ventilation_factor(vent, aps, v_term)
+    ventilation_factor(vent, aps, v_term, N_x)
 
 Returns a function that computes the ventilation factor for a particle as a function of its diameter.
 
 The ventilation factor parameterizes the increase in the mass and heat exchange for falling particles.
 See e.g., Seifert and Beheng (2006), https://doi.org/10.1007/s00703-005-0112-4, Eq. (24).
 
+The dimensionless group under the cube root is the SCHMIDT number for a mass-transfer
+problem and the PRANDTL number for a heat-transfer problem; the two enter the same
+boundary-layer correlation and differ only in which diffusivity the momentum diffusivity is
+measured against. The three-argument form supplies the Schmidt number and is the mass-transfer
+case, which is what every consumer wants except the conduction term of
+`HetIceNucleation.drop_freezing_heat_timescale`; the four-argument form lets that one pass
+[`HetIceNucleation.PRANDTL_NUMBER_AIR`](@ref CloudMicrophysics.HetIceNucleation.PRANDTL_NUMBER_AIR) instead. The three-argument form is a call to the
+four-argument one with the identical arithmetic, so its result is unchanged bit for bit.
+
 # Arguments
 - `vent`: ventilation parameterization constants (contains `aᵥ`, `bᵥ`)
 - `aps`: air properties parameters (contains `ν_air`, `D_vapor`)
 - `v_term`: function `v_term(D)` that returns terminal velocity [m/s] for diameter D [m]
+- `N_x`: the dimensionless transport group entering the cube root; the three-argument form
+  uses the Schmidt number `ν_air / D_vapor`
 
 # Returns
 - `F_v(D)`: ventilation factor function (dimensionless)
 """
 @inline function ventilation_factor(vent, aps, v_term)
-    (; aᵥ, bᵥ) = vent
     (; ν_air, D_vapor) = aps
-    N_sc = ν_air / D_vapor           # Schmidt number
-    cbrt_N_sc = cbrt(N_sc)           # loop-invariant over D; hoist out of F_v
+    return ventilation_factor(vent, aps, v_term, ν_air / D_vapor)  # Schmidt number
+end
+@inline function ventilation_factor(vent, aps, v_term, N_x)
+    (; aᵥ, bᵥ) = vent
+    (; ν_air) = aps
+    cbrt_N_x = cbrt(N_x)             # loop-invariant over D; hoist out of F_v
     N_Re(D) = D * v_term(D) / ν_air  # Reynolds number
-    F_v(D) = aᵥ + bᵥ * cbrt_N_sc * sqrt(N_Re(D))  # Ventilation factor
+    F_v(D) = aᵥ + bᵥ * cbrt_N_x * sqrt(N_Re(D))  # Ventilation factor
     return F_v
 end
 

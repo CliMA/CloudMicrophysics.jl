@@ -1057,44 +1057,181 @@ function test_p3_melting(FT)
 
         state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
         logλ = P3.get_distribution_logλ(state)
+        quad = P3.GaussLegendre(FT, 12)
 
         T_cold = FT(273.15 - 0.01)
 
-        rate = P3.ice_melt(vel, aps, tps, T_cold, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
+        rate = P3.ice_melt(vel, aps, tps, T_cold, ρₐ, state, logλ; quad)
 
         @test rate.dNdt == 0
         @test rate.dLdt == 0
 
         T_warm = FT(273.15 + 0.01)
-        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
+        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state, logλ; quad)
 
         @test rate.dNdt >= 0
         @test rate.dLdt >= 0
 
-        # NOTE: All reference values are output from the code.
-        # A failing test indicates that the code has changed.
-        # But if the changes are intentional, the reference values can be updated.
-        if FT == Float64
-            ref_dNdt = FT(172084.75278912345)
-            ref_dLdt = FT(8.604237639456172e-5)
-        else
-            ref_dNdt = FT(172265.67f0)
-            ref_dLdt = FT(8.613284f-5)
-        end
-        @test rate.dNdt ≈ ref_dNdt
-        @test rate.dLdt ≈ ref_dLdt
+        # Smallest-particle fractional bound: 3 K_therm ΔT / (ρᵢ r² L_f) at r = 5e-6 m.
+        # Reference values: dLdt = 1.1819847754471943e-7 (F64) / 1.18313906e-7 (F32),
+        # dNdt = 236.39695508943885 (F64) / 236.62782 (F32).
+        ΔT = T_warm - params.T_freeze
+        L_f = TDI.Lf(tps, T_warm)
+        frac_bound = 3 * aps.K_therm * ΔT / (params.ρ_i * FT(5e-6)^2 * L_f)
+        frac_rate = rate.dLdt / Lᵢ
+        @test frac_rate < frac_bound
+        @test frac_rate > frac_bound / 10^4
 
+        # The number melting rate is `ρn_ice * melt_frac`, `melt_frac` bounded by
+        # `ice_melt_fraction_limit`. At this state the unbounded fraction `dLdt / ρq_ice`
+        # sits about two orders below the bound, so the bound is dormant and `melt_frac` is
+        # the plain quotient.
+        lim = P3.ice_melt_fraction_limit(aps, tps, params, T_warm)
+        @test rate.dNdt == state.ρn_ice * rate.melt_frac
+        @test rate.melt_frac == rate.dLdt / state.ρq_ice
+        @test rate.melt_frac < lim.inv_τ
+
+        # The melt integral is temperature independent, so rates at two temperatures
+        # differ exactly by the prefactor ratio ΔT / L_f(T).
         T_vwarm = FT(273.15 + 0.1)
-        rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
-        if FT == Float64
-            ref_vwarm_dNdt = FT(1.7198680382990765e6)
-            ref_vwarm_dLdt = FT(8.599340191495382e-4)
-        else
-            ref_vwarm_dNdt = FT(1.7201018f6)
-            ref_vwarm_dLdt = FT(8.6005084f-4)
+        # Reference values before the melt-rate correction of 2026-08-06:
+        #   dLdt = 8.599340191495382e-4 (F64) / 8.6005084e-4 (F32)
+        #   dNdt = 1.7198680382990765e6 (F64) / 1.7201018e6 (F32)
+        rate_vwarm = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, state, logλ; quad)
+        ΔT_ratio = (T_vwarm - params.T_freeze) / ΔT
+        L_f_ratio = L_f / TDI.Lf(tps, T_vwarm)
+        @test rate_vwarm.dLdt / rate.dLdt ≈ ΔT_ratio * L_f_ratio rtol = sqrt(eps(FT))
+        @test rate_vwarm.dNdt / rate.dNdt ≈ ΔT_ratio * L_f_ratio rtol = sqrt(eps(FT))
+
+        # The bound at ten times the excess is ten times larger and the corrected `dLdt`
+        # keeps the unbounded fraction well below it there too, so the bound stays dormant.
+        lim_vwarm = P3.ice_melt_fraction_limit(aps, tps, params, T_vwarm)
+        @test rate_vwarm.dNdt == state.ρn_ice * rate_vwarm.melt_frac
+        @test rate_vwarm.melt_frac == rate_vwarm.dLdt / state.ρq_ice
+        @test rate_vwarm.melt_frac < lim_vwarm.inv_τ
+    end
+
+    @testset "Melt conduction kernel matches the deposition capacitance integral" begin
+        params = CMP.ParametersP3(FT)
+        vel = CMP.Chen2022VelType(FT)
+        aps = CMP.AirProperties(FT)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+        quad = P3.GaussLegendre(FT, 12)
+
+        ρₐ = FT(1.2)
+        Lᵢ = FT(1e-4) * ρₐ
+        Nᵢ = FT(2e5) * ρₐ
+        state = P3.P3State(params, Lᵢ, Nᵢ, FT(0.8), FT(800))
+        logλ = P3.get_distribution_logλ(state)
+
+        T_warm = FT(273.15 + 0.01)
+        ΔT = T_warm - params.T_freeze
+        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state, logλ; quad)
+
+        # `ice_deposition_timescale` computes the same capacitance integral
+        # `∫ D F_v(D) N′(D) dD` on the same state; invert it and check that `dLdt`
+        # applies the Mason prefactor `2π K_therm ΔT / L_f` to the same integral.
+        τ_dep = P3.ice_deposition_timescale(vel, aps, tps, T_warm, ρₐ, state, logλ; quad)
+        @test !P3.ice_deposition_is_degenerate(τ_dep)
+        G = CO.G_func_ice(aps, tps, T_warm)
+        qᵥ_sat = TDI.saturation_vapor_specific_content_over_ice(tps, T_warm, ρₐ)
+        ∫DFvN = ρₐ * qᵥ_sat / (2 * FT(π) * G * τ_dep)
+        L_f = TDI.Lf(tps, T_warm)
+        @test rate.dLdt ≈ 2 * FT(π) * aps.K_therm * ΔT / L_f * ∫DFvN rtol = sqrt(eps(FT))
+
+        # The implemented prefactor against hand Mason arithmetic,
+        # dm/dt = 2π D K_therm ΔT F_v / L_f at F_v = 1, ΔT = 0.01 K,
+        # K_therm = 0.024 W/m/K, L_f(273.16 K) = 333600 J/kg:
+        #   2π ⋅ 0.024 / 333600 = 4.5203e-7 kg m⁻¹ K⁻¹ s⁻¹
+        #   D =  20 μm: dm/dt = 4.5203e-7 ⋅ 0.01 ⋅ 20e-6  = 9.0406e-14 kg/s
+        #   D = 100 μm: dm/dt = 4.5203e-7 ⋅ 0.01 ⋅ 100e-6 = 4.5203e-13 kg/s
+        #   D =   1 mm: dm/dt = 4.5203e-7 ⋅ 0.01 ⋅ 1e-3   = 4.5203e-12 kg/s
+        c_perK = rate.dLdt / ∫DFvN / ΔT  # the prefactor `2π K_therm / L_f` as implemented
+        for (D, dm_dt) in (
+            (FT(20e-6), FT(9.0406e-14)),
+            (FT(100e-6), FT(4.5203e-13)),
+            (FT(1e-3), FT(4.5203e-12)),
+        )
+            @test c_perK * ΔT * D ≈ dm_dt rtol = 1e-3
         end
-        @test rate.dNdt ≈ ref_vwarm_dNdt
-        @test rate.dLdt ≈ ref_vwarm_dLdt
+    end
+
+    @testset "Melting rate scaling" begin
+        params = CMP.ParametersP3(FT)
+        vel = CMP.Chen2022VelType(FT)
+        aps = CMP.AirProperties(FT)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+        quad = P3.GaussLegendre(FT, 12)
+
+        ρₐ = FT(1.2)
+        Lᵢ = FT(1e-4) * ρₐ
+        Nᵢ = FT(2e5) * ρₐ
+        F_rim = FT(0.8)
+        ρ_rim = FT(800)
+        state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+        logλ = P3.get_distribution_logλ(state)
+
+        # Doubling the temperature excess doubles the rate, up to the L_f(T) factor
+        ΔT = FT(1)
+        T₁ = params.T_freeze + ΔT
+        T₂ = params.T_freeze + 2 * ΔT
+        rate₁ = P3.ice_melt(vel, aps, tps, T₁, ρₐ, state, logλ; quad)
+        rate₂ = P3.ice_melt(vel, aps, tps, T₂, ρₐ, state, logλ; quad)
+        @test rate₂.dLdt / rate₁.dLdt ≈ 2 * TDI.Lf(tps, T₁) / TDI.Lf(tps, T₂) rtol = sqrt(eps(FT))
+
+        # The rate is linear in the distribution amplitude at fixed shape: doubling
+        # both moments at the same `logλ` doubles `dLdt`
+        state2x = P3.P3State(params, 2 * Lᵢ, 2 * Nᵢ, F_rim, ρ_rim)
+        rate2x = P3.ice_melt(vel, aps, tps, T₁, ρₐ, state2x, logλ; quad)
+        @test rate2x.dLdt ≈ 2 * rate₁.dLdt rtol = sqrt(eps(FT))
+    end
+
+    @testset "Melting number rate follows the bounded shared fraction" begin
+        # `dNdt = ρn_ice * melt_frac` with `melt_frac = min(dLdt / ρq_ice,
+        # ice_melt_fraction_limit)`: the zero-mass state melts no number (previously
+        # `dLdt / x_min` through the floored mean mass), and populated states satisfy the
+        # identity at the true mean mass, bounded.
+        params = CMP.ParametersP3(FT)
+        vel = CMP.Chen2022VelType(FT)
+        aps = CMP.AirProperties(FT)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+        quad = P3.GaussLegendre(FT, 12)
+
+        ρₐ = FT(1.2)
+        Nᵢ = FT(2e5) * ρₐ
+        F_rim = FT(0.8)
+        ρ_rim = FT(800)
+        T_warm = FT(273.15 + 0.01)
+        lim = P3.ice_melt_fraction_limit(aps, tps, params, T_warm)
+        logλ = P3.get_distribution_logλ(P3.P3State(params, FT(1e-4) * ρₐ, Nᵢ, F_rim, ρ_rim))
+
+        # Ice mass underflows to zero while number and the slope state survive: with no mass
+        # there is no fraction, so the number rate is zero rather than `dLdt / x_min`.
+        state₀ = P3.P3State(params, FT(0), Nᵢ, F_rim, ρ_rim)
+        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state₀, logλ; quad)
+        @test rate.melt_frac == 0
+        @test rate.dNdt == 0
+        @test isfinite(rate.dLdt)
+
+        # A populated state melts number in proportion to the fraction of its mass melted,
+        # with the fraction bounded by the conduction limit of the nucleation size.
+        state₁ = P3.P3State(params, FT(1.2e-3), FT(12), F_rim, ρ_rim)
+        logλ₁ = P3.get_distribution_logλ(state₁)
+        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state₁, logλ₁; quad)
+        @test isfinite(rate.dNdt)
+        @test rate.dNdt == state₁.ρn_ice * rate.melt_frac
+        @test rate.melt_frac <= lim.inv_τ
+        @test rate.melt_frac ==
+              min(rate.dLdt / state₁.ρq_ice, lim.inv_τ)
+
+        # At a depleted ρn_ice the same identity holds: the number rate tracks the fraction,
+        # not a floored or ceilinged mean mass.
+        state_lown = P3.P3State(params, FT(1.2e-3), FT(1e-3), F_rim, ρ_rim)
+        logλ_lown = P3.get_distribution_logλ(state_lown)
+        rate_lown = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state_lown, logλ_lown; quad)
+        @test isfinite(rate_lown.dNdt)
+        @test rate_lown.dNdt == state_lown.ρn_ice * rate_lown.melt_frac
+        @test rate_lown.melt_frac <= lim.inv_τ
     end
 end
 
