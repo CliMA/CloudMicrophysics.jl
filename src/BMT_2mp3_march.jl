@@ -25,6 +25,23 @@ relaxation context and the Jacobian alike, therefore reads it from one place.
     return micro, thermo
 end
 
+"""
+    _tendency_and_jacobian(::ManualJacobian, g::Instantaneous2MP3Tendency, x)
+
+The raw tendency and the [`ManualJacobian`](@ref) substep matrix from a single
+[`p3_2m_process_rates`](@ref) evaluation: the tendency is the component-wise sum of
+the per-process breakdown, and [`_jacobian_2mp3_manual`](@ref) consumes the same
+breakdown for its donor coefficients. This shares the mixed-phase quadrature kernels
+between the tendency and the Jacobian instead of replaying them once for each.
+"""
+@inline function _tendency_and_jacobian(
+    ::ManualJacobian, g::Instantaneous2MP3Tendency, x::SA.StaticVector{8},
+)
+    micro, thermo = _substep_context(g, x)
+    pp, rs = p3_2m_process_rates(g.mp, g.tps, micro, thermo)
+    return (sum(values(pp)), _jacobian_2mp3_manual(g, x, pp, rs))
+end
+
 #####
 ##### Temperature as a state variable
 #####
@@ -536,7 +553,7 @@ end
 
 bulk_microphysics_tendencies(::RosenbrockAverage, ::Microphysics2Moment, args...) = throw(
     ArgumentError(
-        "RosenbrockAverage on the 2M+P3 model supports only TemperatureCoupledJacobian or ExactJacobian; use rosenbrock_manual_temperature() or rosenbrock_exact()",
+        "RosenbrockAverage on the 2M+P3 model supports only TemperatureCoupledJacobian, ManualJacobian or ExactJacobian; use rosenbrock_manual_temperature(), rosenbrock_manual() or rosenbrock_exact()",
     ),
 )
 
@@ -587,7 +604,7 @@ species tendencies.
 end
 
 """
-    bulk_microphysics_tendencies(mode::RosenbrockAverage{ExactJacobian},
+    bulk_microphysics_tendencies(mode::RosenbrockAverage{<:Union{ExactJacobian, ManualJacobian}},
         ::Microphysics2Moment, mp, tps, ρ, T, q_tot,
         q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
         Δt, nsub = 1, w = zero(ρ), p = zero(ρ))
@@ -607,7 +624,7 @@ refreshed from the marched state, as they are there. The donor-based matrices
 Returns the fixed-shape carrier of [`_rosenbrock_average_carrier`](@ref).
 """
 @inline function bulk_microphysics_tendencies(
-    mode::RosenbrockAverage{ExactJacobian}, cm::Microphysics2Moment,
+    mode::RosenbrockAverage{<:Union{ExactJacobian, ManualJacobian}}, cm::Microphysics2Moment,
     mp::CMP.Microphysics2MParams{WR, ICE}, tps,
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, logλ,
