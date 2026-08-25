@@ -1,0 +1,4 @@
+[P3_mu_smoothing_sharpness]
+value = 2.68
+type = "float"
+description = "Corner sharpness κ of the smooth 0 ≤ μ ≤ μ_max limiters in the P3 SmoothSlopePowerLaw slope parameterization (unitless). Larger κ approaches the hard-clamped SlopePowerLaw; the default is set below the critical value at which log(L/N) loses strict monotonicity in λ."

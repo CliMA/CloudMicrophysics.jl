@@ -77,7 +77,7 @@ function test_warmstart_correctness(FT)
         end
     end
 
-    # Zero-ice edge case: both paths should return `log(0)` regardless of guess.
+    # Zero-ice edge case: both paths return the same finite bound regardless of guess.
     @testset "warm-start zero-ice edge [FT=$FT]" begin
         state0 = P3.P3State(params, FT(0), FT(0), FT(0), FT(500))
         @test P3.get_distribution_logλ(state0) === P3.get_distribution_logλ(state0, FT(10))

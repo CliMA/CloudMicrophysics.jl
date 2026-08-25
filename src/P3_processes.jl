@@ -99,6 +99,141 @@ A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
 end
 
 """
+    ICE_NUCLEATION_DIAMETER(FT)
+
+Diameter of a nascent deposition-nucleation ice crystal [m]: the small-`D` tail of the P3
+distribution, and the size at which `HetIceNucleation.deposition_rate` injects new crystals.
+
+Single source of truth for the nucleation size, so that every quantity derived from it moves
+together. TODO: put into ClimaParams.
+"""
+@inline ICE_NUCLEATION_DIAMETER(::Type{FT}) where {FT} = FT(10e-6)
+
+"""
+    ice_nucleation_mass(p3)
+
+Mass of one nascent deposition-nucleation ice crystal [kg], `ρ_i (π/6) D_nuc³` with `D_nuc` from
+[`ICE_NUCLEATION_DIAMETER`](@ref). This is the smallest particle mass the scheme can create.
+"""
+@inline ice_nucleation_mass(p3) =
+    p3.ρ_i * CO.volume_sphere_D(ICE_NUCLEATION_DIAMETER(typeof(p3.ρ_i)))
+
+"""
+    ice_mean_particle_mass_min(p3)
+    ice_mean_particle_mass_max(FT)
+
+Bounds of the physical mean ice particle mass range [kg], shared by the ice number adjustment and
+by the melt number rate.
+
+The lower bound is [`ice_nucleation_mass`](@ref) rather than a literal of its own, so a numerical
+guard cannot end up above the size the scheme nucleates at. It previously read `1e-12` kg,
+annotated "~10 μm crystal" but in fact a 12.77 μm solid-ice sphere and 2.08x the nucleation mass
+`4.7998e-13` kg, which made the guard active on freshly nucleated populations: reading
+`n > q / x_min`, the adjustment relaxed the number toward 48% of what nucleation had just supplied
+while conserving the mass. Derived, a population of fresh crystals sits exactly ON the bound, where
+`clamp` is inert.
+
+The upper bound is a REGULARIZATION TARGET rather than a physical ceiling: it is the mean mass the
+number adjustment relaxes an over-massive population toward, and real populations exceed it. It is
+raised here from `1e-5` kg, which is a solid-ice sphere of 2.75 mm, to `1e-4` kg, which is 5.93 mm,
+because graupel and small hail routinely carry a mean mass above the smaller value and the
+adjustment was therefore acting on ordinary ice rather than on degenerate states. Two independent
+records agree on the size of the effect: a gen-2 production pin census over `219,086` populated
+cells found mean masses to `0.0011` kg, over a hundred times the old target, and on a 48 km
+restart `6.4` percent of populated cells sat above `1e-5` kg against `0.1` percent above `1e-4`,
+so the raise removes the adjustment from about ninety-eight percent of the cells it was reaching.
+Nothing else reads this bound: the shape solver's own bracket is derived from the LOWER bound
+(see [`_derived_logλ_bracket`](@ref), whose docstring records why the two edges are different
+kinds of quantity), so this value moves the number adjustment and nothing else.
+"""
+@inline ice_mean_particle_mass_min(p3) = ice_nucleation_mass(p3)
+@inline ice_mean_particle_mass_max(::Type{FT}) where {FT} = FT(1e-4)
+
+"""
+    ice_moments_are_admissible(p3, ρq_ice, ρn_ice)
+
+Whether the ice mass and ice number describe a population the scheme can represent: both
+positive, and the mean particle mass they imply inside
+`[ice_mean_particle_mass_min, ice_mean_particle_mass_max]`.
+
+The single source of the admissibility question, so that a host masking its prognostic state and
+[`admissible_ice_moments`](@ref) repairing it cannot come to different answers. Written as two
+products rather than as a quotient, so no division is taken and no guard on a vanishing number is
+needed; the one state it therefore misreads is a mean mass below the floor in a cell whose mass is
+itself below the smallest normal float, more than twenty orders under a single micron-sized
+crystal.
+"""
+@inline function ice_moments_are_admissible(p3, ρq_ice, ρn_ice)
+    FT = UT.promote_typeof(ρq_ice, ρn_ice)
+    o = zero(FT)
+    x_min = FT(ice_mean_particle_mass_min(p3))
+    x_max = ice_mean_particle_mass_max(FT)
+    return (ρq_ice > o) & (ρn_ice > o) &
+           (ρn_ice * x_min <= ρq_ice) & (ρq_ice <= ρn_ice * x_max)
+end
+
+"""
+    admissible_ice_moments(p3, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+
+The four P3 ice moments projected onto the admissible set, returned in the order they were given.
+
+A quartet is admissible when it is entirely zero, or when the mass and the number are both
+positive and the mean particle mass they imply lies inside the physical range
+`[ice_mean_particle_mass_min, ice_mean_particle_mass_max]`. Where it is not, all four moments are
+set to zero: the mass has a reservoir and the number does not, so evacuating the category is the
+only repair that invents nothing. In a host carrying total water and total energy the ice becomes
+vapour through the `q_tot` identity and the sublimation enthalpy leaves the sensible heat by
+itself, so a cell repaired this way cools by the right amount with no bookkeeping of its own.
+
+The rime pair is a SUB-PARTITION and is never the trigger: a negative rime mass says the rime
+partition is wrong, not that the ice is not there, so it is projected the way
+[`state_from_prognostic`](@ref) projects it rather than deleting the ice that carries it. On a
+48 km record the two are not close: the pair test fires on cells holding `0.008` percent of the
+domain ice, while evacuating on a negative rime mass instead would have taken `0.125` percent.
+
+**This is a HOST-side repair and is deliberately not what the kernel does with the same state.**
+`p3_2m_process_rates` clamps every moment it reads and then treats positive mass with no number as
+ORPHAN ICE, draining it as mass at the rate a population of nucleation-mass crystals would and only
+where the air is subsaturated with respect to ice. That gate is right, and the substep march can
+still produce an orphan mid-step, so the drain keeps its work. What the kernel cannot do is
+guarantee the invariant to everything else that reads the prognostic state: the diagnostics, the
+presence masks and transport all read `Y.c` directly, which is why the ice-number diagnostic
+carries a clamp of its own "for display only". This function is what lets that clamp be the
+scheme's contract instead of each reader's local patch.
+
+The admissibility question itself is [`ice_moments_are_admissible`](@ref), so a host that masks
+its own prognostic state with the predicate and a caller that repairs a quartet with this function
+cannot disagree about WHICH STATES ARE ADMISSIBLE. That is a statement about classification and
+not about arithmetic: the two agree on every finite state, and on a non-finite one this function
+leaves the moment non-finite rather than repairing it, because a non-finite moment reports a
+numerical failure rather than an inadmissible physical state and the host's own whole-state check
+is what should see it.
+
+Branchless, so it costs the same on every lane of a warp.
+"""
+@inline function admissible_ice_moments(p3, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    FT = UT.promote_typeof(ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    o = zero(FT)
+    # A MULTIPLIER rather than a select, so a non-finite moment stays non-finite: `NaN * 0` is
+    # `NaN` while `ifelse` would write a real zero over it. A non-finite moment reports a numerical
+    # failure rather than an inadmissible physical state, and this function projects a physical
+    # state; laundering the first into a plausible zero destroys the only evidence that something
+    # upstream broke, and defeats the host's own whole-state non-finite check. Every other
+    # sanitizing step on this surface already propagates it: `clamp_to_nonneg` is `max(zero, x)`,
+    # which is what `state_from_prognostic` and the kernel entry apply.
+    mask = ifelse(ice_moments_are_admissible(p3, ρq_ice, ρn_ice), one(FT), o)
+    q = FT(ρq_ice) * mask
+    n = FT(ρn_ice) * mask
+    # The rime mass cannot exceed the ice mass that carries it, and cannot be negative; the rime
+    # volume then follows its pair onto the density cone, which returns zero of its own accord
+    # once the rime mass is zero.
+    qr = clamp(FT(ρq_rim) * mask, o, q)
+    (ρ_rim_min, ρ_rim_max) = rime_density_bounds(p3)
+    br = UT.nearest_admissible_b(qr, FT(ρb_rim), ρ_rim_min, ρ_rim_max)
+    return (q, n, qr, br)
+end
+
+"""
     collision_cross_section_ice_liquid_coeffs(rᵢ)
     collision_cross_section_ice_liquid_coeffs(state, Dᵢ)
 

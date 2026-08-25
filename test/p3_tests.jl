@@ -180,10 +180,23 @@ function test_shape_solver(FT)
         params = CMP.ParametersP3(FT; slope_law)
 
         @testset "Shape parameters - nonlinear solver" begin
-            # -- First, test limiting behavior: `N_ice = L_ice = 0` --
+            # -- First, test limiting behavior: `N_ice = L_ice = 0`. With no ice
+            # the mass floor freezes the target's mass term at its ϵ-limit and
+            # the number term goes to `-Inf`, so the solver returns a finite,
+            # bounded logλ (the C0-continuous limit across onset) via the
+            # bracket fallback below. --
             state = P3.P3State(params, FT(0), FT(0), FT(0.5), FT(500))
             logλ = P3.get_distribution_logλ(state)
-            @test logλ == -Inf
+            (dlo, dhi) = P3._derived_logλ_bracket(state)
+            @test isfinite(logλ)
+            @test dlo <= logλ <= dhi
+            # `ρq_ice = ρn_ice = 0` returns the derived `logλ_max` exactly: the target is
+            # `NaN`, read off directly rather than inferred from `NaN ≤ NaN` (false, which
+            # selected the same endpoint before this was made explicit). Card #9's own
+            # ruling: 0/0 carries no information, so it is read at the small-particle
+            # (`x_min`) end for consistency with the number-keyed presence mask - a stated
+            # choice, not a derivation.
+            @test logλ == dhi
             # --
 
             # initialize test values:
@@ -236,11 +249,11 @@ function test_shape_solver(FT)
             # interval into a region where `logLdivN` is not finite. The
             # bracketing `BrentsMethod` must return a finite, positive
             # `logλ` strictly inside the search bounds.
-            logλ = P3.get_distribution_logλ(
-                P3.P3State(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800)),
-            )
+            state_regr = P3.P3State(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800))
+            logλ = P3.get_distribution_logλ(state_regr)
+            (dlo_regr, dhi_regr) = P3._derived_logλ_bracket(state_regr)
             @test isfinite(logλ)
-            @test FT(2) < logλ < FT(17)
+            @test dlo_regr < logλ < dhi_regr
 
             # Broader sweep covering typical P3 microphysics inputs.
             # All entries must give a finite `logλ` within the search bounds.
@@ -248,16 +261,212 @@ function test_shape_solver(FT)
                 for N_ice in (FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))
                     for F_rim in (FT(0), FT(0.2), FT(0.5), FT(0.8), FT(0.95))
                         for ρ_rim in (FT(200), FT(400), FT(600), FT(800))
-                            logλ = P3.get_distribution_logλ(
-                                P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim),
-                            )
+                            state_sweep = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
+                            logλ = P3.get_distribution_logλ(state_sweep)
+                            (dlo_sweep, dhi_sweep) = P3._derived_logλ_bracket(state_sweep)
                             @test isfinite(logλ)
-                            @test FT(2) ≤ logλ ≤ FT(17)
+                            @test dlo_sweep ≤ logλ ≤ dhi_sweep
                         end
                     end
                 end
             end
         end
+    end
+
+    @testset "No-bracket fallback direction" begin
+        params = CMP.ParametersP3(FT)
+        L_ice = FT(0.22)
+        N_ice = FT(1e6)
+        F_rim = FT(0.5)
+        ρ_rim = FT(800)
+        # Every state in this testset shares `(F_rim, ρ_rim)`, and `_derived_logλ_bracket`
+        # depends on `params`/`F_rim`/`ρ_rim` only (not on `q_ice`/`n_ice`), so the derived
+        # bounds are computed once and reused.
+        (dlo, dhi) = P3._derived_logλ_bracket(P3.P3State(params, FT(1e-4), FT(1e6), F_rim, ρ_rim))
+
+        # (1) Mass-free, number-carrying: the early return, exact.
+        state = P3.P3State(params, FT(0), N_ice, F_rim, ρ_rim)
+        @test P3.get_distribution_logλ(state) == dhi
+
+        # (2) The Float32-underflow entrance: `ρq_ice` a positive subnormal such that
+        # `ρq_ice / ρn_ice` rounds to exactly zero at this precision, giving the same
+        # `-Inf` target as (1) without triggering the early return (`ρq_ice > 0` here).
+        # Only reachable at Float32 by construction - `1e-45 / 1e3` is a representable, if
+        # tiny, Float64 - so this is scoped to the precision where it occurs.
+        if FT == Float32
+            q_sub = FT(1e-45)  # subnormal Float32; `q_sub / FT(1e3)` underflows to 0.0
+            @test iszero(q_sub / FT(1e3))
+            state_sub = P3.P3State(params, q_sub, FT(1e3), F_rim, ρ_rim)
+            @test P3.get_distribution_logλ(state_sub) == dhi
+        end
+
+        # (3) The opposite direction: populated mass, absent number (`ρn_ice = 0`) gives
+        # target `+Inf` and the smallest logλ - the same endpoint the unfixed code already
+        # returned here, now explicit rather than an `abs(-Inf) ≤ abs(-Inf)` accident.
+        state_noN = P3.P3State(params, L_ice, FT(0), F_rim, ρ_rim)
+        @test P3.get_distribution_logλ(state_noN) == dlo
+
+        # (4) A finite but unbracketable target (mean mass far below the nucleation mass)
+        # is unaffected by this fix - still the nearest-representable-bound comparison, not
+        # the new direction-aware branch. `m̄ = 2e-45 kg` is the campaign's own measured
+        # no-valid-shape example.
+        m̄ = FT(2e-45)
+        state_unbr = P3.P3State(params, N_ice * m̄, N_ice, F_rim, ρ_rim)
+        logλ_unbr = P3.get_distribution_logλ(state_unbr)
+        @test logλ_unbr == dhi  # nearest bound to a target this far below the bracket's range
+    end
+
+    @testset "Derived bracket: asymmetric design (card #9)" begin
+        # logλ_max (the small-mass, physical-floor end) is provably state-independent (the
+        # small-spherical-ice regime's coefficients do not depend on F_rim/ρ_rim) -
+        # regression-pinned across the derivation battery, not merely asserted once.
+        # logλ_min stays the literal `2` at every state - a pin census on the gen-2 record
+        # found deriving it from `ice_mean_particle_mass_max` (a regularization target, not a
+        # physical ceiling) regressed pinning from 0.00% to 0.17%, so this end is retained
+        # rather than derived (`notes/logl-derived-bracket-design.md`'s asymmetric revision).
+        dhi_vals = FT[]
+        dlo_vals = FT[]
+        for F_rim in FT.((0, 0.5, 0.9, 0.99)), ρ_rim in FT.((50, 200, 500, 900))
+            params = CMP.ParametersP3(FT)
+            q_rim = F_rim > 0 ? F_rim / (1 - F_rim) * FT(1e-4) : FT(0)
+            b_rim = F_rim > 0 ? q_rim / ρ_rim : FT(0)
+            state = P3.state_from_prognostic(params, FT(1e-4), FT(1e6), q_rim, b_rim)
+            (dlo, dhi) = P3._derived_logλ_bracket(state)
+            push!(dhi_vals, dhi)
+            push!(dlo_vals, dlo)
+        end
+        @test allequal(dhi_vals)
+        @test all(==(FT(2)), dlo_vals)
+    end
+
+    @testset "C0 consistency at both degenerate corners (card #9)" begin
+        # A physical sequence approaching either corner must converge to the SAME value the
+        # corner's own degenerate return gives, with no jump - the requirement the derived
+        # bracket exists to satisfy at a principled value rather than the bare literal `17`/`2`.
+        params = CMP.ParametersP3(FT)
+        q_ice, F_rim, ρ_rim = FT(1e-4), FT(0.5), FT(800)
+
+        # Mass-free corner: q_ice -> 0 at fixed n_ice. The degenerate return is the early-return
+        # path (`ρq_ice <= 0`); the sequence approaches it from `ρq_ice > 0`.
+        n_ice = FT(1e6)
+        (dlo_q, dhi_q) = P3._derived_logλ_bracket(P3.P3State(params, q_ice, n_ice, F_rim, ρ_rim))
+        for q_ice_test in FT[1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 0]
+            st = P3.P3State(params, q_ice_test, n_ice, F_rim, ρ_rim)
+            @test P3.get_distribution_logλ(st) == dhi_q
+        end
+
+        # Number-free corner: n_ice -> 0 at fixed q_ice. `lo` is the retained literal `2` under
+        # the asymmetric design (not state-dependent), but the C0 requirement is unchanged: no
+        # early return covers this direction, so the sequence must still converge to `lo` with
+        # no jump through the non-finite-target branch (`target_log_LdN = +Inf → lo`).
+        (dlo_n, dhi_n) = P3._derived_logλ_bracket(P3.P3State(params, q_ice, FT(1e6), F_rim, ρ_rim))
+        for n_ice_test in FT[1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 0]
+            st = P3.P3State(params, q_ice, n_ice_test, F_rim, ρ_rim)
+            @test P3.get_distribution_logλ(st) == dlo_n
+        end
+    end
+
+    # The fixed iteration budget in `get_distribution_logλ` is sized so the
+    # returned root reaches each precision's own rounding floor. Nothing else in
+    # the suite constrains the residual: the `N ≈ ∫N′ dD` checks in
+    # `test_numerical_integrals` balance for any root, because `logN₀` is derived
+    # from the returned `logλ`. So assert the residual directly, in the units it
+    # is consumed in. `logLdivN` is `log(L/N)`, i.e. the log of the mean particle
+    # mass, so `expm1` of the residual is the relative error in the mean mass
+    # that sets terminal velocity and every size-dependent rate.
+    #
+    # The states are the measured hard cases: heavily rimed small ice at low rime
+    # density, where the worst error was 7.4e-2 (hard law) / 2.3e-2 (smoothed) at
+    # the old Float32 budget of 8 iterations. The 1% bound has margin over the
+    # measured Float32 floor of 1.28e-3, which both slope laws share. Bounding
+    # the residual, not the root, is deliberate: the root is at the rounding
+    # floor and its low bits are not a guarantee.
+    @testset "Shape solver residual at the hard states" begin
+        L_ice = FT(1e-4)
+        for slope_law in (:constant, :powerlaw, :smooth_powerlaw)
+            params = CMP.ParametersP3(FT; slope_law)
+            for m̄ in FT.((1e-9, 1e-10, 1e-8)),
+                F_rim in FT.((0.9, 0.99)),
+                ρ_rim in FT.((50, 200, 900))
+
+                state = P3.P3State(params, L_ice, L_ice / m̄, F_rim, ρ_rim)
+                logλ = P3.get_distribution_logλ(state)
+                (dlo_hard, dhi_hard) = P3._derived_logλ_bracket(state)
+                # Skip the states the bracket does not contain, where the solver
+                # returns the nearer endpoint by design rather than a root.
+                (dlo_hard < logλ < dhi_hard) || continue
+                # Read the target off the state, as the solver does, rather than
+                # from `m̄`, so the assertion does not also depend on the state
+                # constructor reproducing the requested moments exactly.
+                target = log(state.ρq_ice) - log(state.ρn_ice)
+                residual = P3.logLdivN(state, logλ) - target
+                @test abs(expm1(residual)) < FT(0.01)
+            end
+        end
+    end
+
+    @testset "loggamma_inc_moment cancellation term" begin
+        # `Δq` is a difference of two regularized incomplete gamma
+        # evaluations that can round to zero or slightly negative when the
+        # two diameters are close together. Value and derivative must stay
+        # finite regardless of which branch the clamp takes.
+        D₁ = FT(1e-4)
+        D₂ = nextfloat(D₁)
+        for μ in FT.((0, 2, 6)), logλ in FT.((5, 10, 15)), k in (0, 2)
+            val = P3.loggamma_inc_moment(D₁, D₂, μ, logλ, k)
+            @test !isnan(val)
+            d = FD.derivative(x -> P3.loggamma_inc_moment(D₁, x, μ, logλ, k), D₂)
+            @test !isnan(d)
+        end
+
+        # The genuinely zero-width segment (`D₁ = D₂`) returns `log(0)`
+        # through the early exit above the clamp, unaffected by it.
+        @test P3.loggamma_inc_moment(D₁, D₁, FT(2), FT(10)) == log(FT(0))
+    end
+
+    @testset "Shape solver - number term at absent and trace population" begin
+        params = CMP.ParametersP3(FT)
+        ρq_ice = FT(1e-4)
+        ρ_rim = FT(500)
+        logλ(ρn_ice) = P3.get_distribution_logλ(
+            P3.P3State(params, ρq_ice, ρn_ice, FT(0.5), ρ_rim),
+        )
+
+        # Absent number: the target diverges and the solver falls back to a
+        # bracket endpoint (value and, since the fallback returns a
+        # zero-partial constant, derivative both finite).
+        (dlo_at, dhi_at) = P3._derived_logλ_bracket(P3.P3State(params, ρq_ice, FT(1), FT(0.5), ρ_rim))
+        logλ0 = logλ(FT(0))
+        @test isfinite(logλ0) && dlo_at <= logλ0 <= dhi_at
+        @test !isnan(FD.derivative(logλ, FT(0)))
+
+        # A trace population far below `eps(FT)`, where an `eps(FT)`-tied
+        # floor would substitute a value independent of `ρn_ice` and would
+        # differ by tens of orders of magnitude in `log` between precisions.
+        # `floatmin(FT)` does not bind here, so the target reads the true
+        # value at both precisions.
+        ρn_trace = FT(1e-20)
+        @test max(ρn_trace, floatmin(FT)) == ρn_trace
+        @test isfinite(logλ(ρn_trace))
+        @test !isnan(FD.derivative(logλ, ρn_trace))
+    end
+
+    @testset "size distribution presence gate at an absent number" begin
+        # `get_logN₀` requires a present `N_ice` (its own docstring states the
+        # precondition); this tests its caller's gate directly, at the level
+        # of the size distribution itself, isolated from the velocity and
+        # quadrature machinery built on top of it.
+        params = CMP.ParametersP3(FT)
+        state0 = P3.P3State(params, FT(1e-4), FT(0), FT(0.5), FT(500))
+        logλ0 = FT(10)
+        n = P3.size_distribution(state0, logλ0)
+        @test iszero(n(FT(1e-4)))
+
+        nD(ρn_ice) = P3.size_distribution(
+            P3.P3State(params, FT(1e-4), ρn_ice, FT(0.5), FT(500)), logλ0,
+        )(FT(1e-4))
+        d = FD.derivative(nD, FT(0))
+        @test !isnan(d)
     end
 end
 
@@ -1108,9 +1317,117 @@ function test_p3_closed_form_rain_inner(FT)
     end
 end
 
+# The host-side admissibility repair. Every case is a state the 48 km record actually carries,
+# and the assertions are about the CONTRACT (what comes back is admissible, and what was already
+# admissible is untouched bit for bit) rather than about the particular numbers.
+function test_admissible_ice_moments(FT)
+    @testset "admissible_ice_moments" begin
+        p3 = CMP.ParametersP3(FT)
+        x_min = P3.ice_mean_particle_mass_min(p3)
+        x_max = P3.ice_mean_particle_mass_max(FT)
+        (ρ_rim_min, ρ_rim_max) = P3.rime_density_bounds(p3)
+        A(q, n, qr, br) = P3.admissible_ice_moments(p3, FT(q), FT(n), FT(qr), FT(br))
+        is_admissible((q, n, qr, br)) =
+            (q == 0 && n == 0 && qr == 0 && br == 0) || (
+                q > 0 && n > 0 && n * x_min <= q && q <= n * x_max &&
+                0 <= qr <= q && (qr == 0 ? br == 0 : ρ_rim_min <= qr / br <= ρ_rim_max)
+            )
+
+        # A healthy in-cone state passes through untouched, bit for bit. This is the assertion
+        # that keeps the repair from being a trajectory change in the cells that carry the ice.
+        healthy = (8.0352e-4, 4.2395e6, 5.0772e-4, 1.2282e-6)
+        @test A(healthy...) === map(FT, healthy)
+        @test is_admissible(A(healthy...))
+
+        # ORPHAN MASS: number destroyed by transport, mass real. The whole quartet goes, and the
+        # rime goes with it rather than being left behind ice that no longer exists.
+        orphan = A(1.112e-5, -2.6966e-1, 1.0891e-5, 1.3275e-8)
+        @test all(iszero, orphan)
+        @test is_admissible(orphan)
+
+        # ORPHAN NUMBER: the mirror corner, fifty times more common on the record. Nothing is
+        # deleted that has mass, because there is none.
+        @test all(iszero, A(0, 9.965e4, 0, 0))
+        @test all(iszero, A(-1e-12, 1e3, 0, 0))
+
+        # Mean mass ABOVE the regularisation target: evacuated, and the boundary is inclusive so
+        # a state sitting exactly on it survives.
+        n_ref = FT(1e3)
+        @test all(iszero, A(2 * n_ref * x_max, n_ref, 0, 0))
+        on_max = A(n_ref * x_max, n_ref, 0, 0)
+        @test on_max[1] > 0 && is_admissible(on_max)
+
+        # Mean mass BELOW the nucleation mass: also inadmissible, and a freshly nucleated
+        # population sits exactly ON that bound, where the test must be inert. This is the same
+        # property the lower bound's own docstring claims, asserted here against the repair.
+        @test all(iszero, A(n_ref * x_min / 2, n_ref, 0, 0))
+        on_min = A(n_ref * x_min, n_ref, 0, 0)
+        @test on_min[1] > 0 && is_admissible(on_min)
+
+        # THE RIME PAIR IS NEVER THE TRIGGER. A negative rime mass on an otherwise healthy state
+        # is projected, and the ice that carries it survives; deleting it instead would have cost
+        # sixteen times more ice mass on the record than the pair test does.
+        q, n = FT(1e-5), FT(1e3)
+        (qi, ni, qr, br) = A(q, n, -1e-9, -1e-11)
+        @test qi == q && ni == n            # the ice is untouched
+        @test qr == 0 && br == 0            # the rime partition is emptied, not the ice
+        # a rime mass over the ice mass it partitions is clipped to it, not passed on
+        (_, _, qr2, br2) = A(q, n, 10 * q, 1e-8)
+        @test qr2 == q
+        @test ρ_rim_min <= qr2 / br2 <= ρ_rim_max
+
+        # IDEMPOTENT, which is what makes it safe to call every step: the output of the repair is
+        # a fixed point of it.
+        for st in ((1.112e-5, -2.6966e-1, 1.0891e-5, 1.3275e-8), healthy,
+            (1e-5, 1e3, -1e-9, -1e-11), (0, 9.965e4, 0, 0), (2e-2, 1e3, 0, 0))
+            once = A(st...)
+            @test P3.admissible_ice_moments(p3, once...) === once
+            @test is_admissible(once)
+        end
+
+        # THE PREDICATE AND THE REPAIR ARE ONE QUESTION. A host masks its prognostic state with
+        # the predicate and the kernel repairs a quartet with the function; if they could
+        # disagree, the host would hand the kernel a state the kernel would then change. Asserted
+        # over a grid that straddles both bounds and both signs rather than at chosen points.
+        for q in FT[-1e-9, 0, 1e-20, 1e-8, 1e-5, 1e-2]
+            for n in FT[-1e3, 0, 1e-20, 1e-3, 1e3, 1e6]
+                ok = P3.ice_moments_are_admissible(p3, q, n)
+                (qa, na, _, _) = P3.admissible_ice_moments(p3, q, n, FT(0), FT(0))
+                @test ok == (qa > 0)
+                @test ok ? (qa === q && na === n) : (qa == 0 && na == 0)
+            end
+        end
+
+        # A NON-FINITE MOMENT SURVIVES THE REPAIR. It reports a numerical failure rather than
+        # an inadmissible physical state, and the host's whole-state non-finite check is what
+        # should see it; a select would write a real zero over it and destroy the only evidence
+        # that something upstream broke. This is the assertion that stops the multiply being
+        # turned back into a select by a reader who sees only that both give zero on a finite
+        # inadmissible state.
+        for bad in (FT(NaN), FT(Inf), FT(-Inf))
+            (q1, n1, qr1, br1) =
+                P3.admissible_ice_moments(p3, bad, FT(1e3), FT(1e-6), FT(1e-8))
+            @test !isfinite(q1)
+            (q2, n2, qr2, br2) =
+                P3.admissible_ice_moments(p3, FT(1e-5), bad, FT(1e-6), FT(1e-8))
+            @test !isfinite(n2)
+        end
+        # And the predicate rejects a non-finite moment, so the mask is zero there: it is the
+        # multiply and not the classification that carries the value through.
+        @test !P3.ice_moments_are_admissible(p3, FT(NaN), FT(1e3))
+        @test !P3.ice_moments_are_admissible(p3, FT(1e-5), FT(NaN))
+
+        # No allocation and no branch divergence: the repair is a multiply by a mask, not a
+        # conditional. The mask is also what leaves a non-finite moment non-finite.
+        @test 0 == @allocated P3.admissible_ice_moments(
+            p3, FT(1e-5), FT(1e3), FT(1e-6), FT(1e-8))
+    end
+end
+
 @testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation
     test_p3_state_creation(FT)
+    test_admissible_ice_moments(FT)
 
     # numerics
     test_thresholds_solver(FT)
