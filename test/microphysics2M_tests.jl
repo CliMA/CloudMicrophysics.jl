@@ -435,12 +435,9 @@ function test_microphysics2M(FT)
         TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
         TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
 
-        TT.@test CM2.rain_terminal_velocity(
-            SB2006, SB2006Vel, q_rai, ρ, FT(0),
-        )[1] ≈ 0 atol = eps(FT)
-        TT.@test CM2.rain_terminal_velocity(
-            SB2006, SB2006Vel, FT(0), ρ, N_rai,
-        )[2] ≈ 0 atol = eps(FT)
+        # both velocities should vanish when either moment is zero
+        TT.@test CM2.rain_terminal_velocity(SB2006, SB2006Vel, q_rai, ρ, FT(0)) == (0, 0)
+        TT.@test CM2.rain_terminal_velocity(SB2006, SB2006Vel, FT(0), ρ, N_rai) == (0, 0)
     end
 
     TT.@testset "2M_microphysics - Seifert and Beheng 2006 modified rain terminal velocity without limiters" begin
@@ -473,12 +470,9 @@ function test_microphysics2M(FT)
         TT.@test vt_rai[1] ≈ vt0 rtol = 1e-6
         TT.@test vt_rai[2] ≈ vt1 rtol = 1e-6
 
-        TT.@test CM2.rain_terminal_velocity(
-            SB2006_no_limiters, SB2006Vel, q_rai, ρ, FT(0),
-        )[1] ≈ 0 atol = eps(FT)
-        TT.@test CM2.rain_terminal_velocity(
-            SB2006_no_limiters, SB2006Vel, FT(0), ρ, N_rai,
-        )[2] ≈ 0 atol = eps(FT)
+        # both velocities should vanish when either moment is zero
+        TT.@test CM2.rain_terminal_velocity(SB2006_no_limiters, SB2006Vel, q_rai, ρ, FT(0)) == (0, 0)
+        TT.@test CM2.rain_terminal_velocity(SB2006_no_limiters, SB2006Vel, FT(0), ρ, N_rai) == (0, 0)
     end
 
     TT.@testset "2M_microphysics - Chen 2022 rain terminal velocity" begin
@@ -497,12 +491,9 @@ function test_microphysics2M(FT)
             TT.@test vt_rai[1] ≈ 1.0738503635546666
             TT.@test vt_rai[2] ≈ 4.00592218028957
 
-            TT.@test CM2.rain_terminal_velocity(
-                SB, Chen2022Vel, q_rai, ρ, FT(0),
-            )[1] ≈ 0 atol = eps(FT)
-            TT.@test CM2.rain_terminal_velocity(
-                SB, Chen2022Vel, FT(0), ρ, N_rai,
-            )[2] ≈ 0 atol = eps(FT)
+            # both velocities vanish when either moment is degenerate
+            TT.@test CM2.rain_terminal_velocity(SB, Chen2022Vel, q_rai, ρ, FT(0)) == (0, 0)
+            TT.@test CM2.rain_terminal_velocity(SB, Chen2022Vel, FT(0), ρ, N_rai) == (0, 0)
 
             TT.@test v_bigger[1] > vt_rai[1]
             TT.@test v_bigger[2] > vt_rai[2]
