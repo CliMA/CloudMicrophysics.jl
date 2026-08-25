@@ -441,6 +441,30 @@ end
     )
 end
 
+@kernel inbounds = true function test_bulk_tendencies_2m_p3_rosenbrock_kernel!(
+    mode, mp, tps, output, ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, Δt,
+)
+    i = @index(Global, Linear)
+    L_ice = q_ice[i] * ρ[i]
+    N_ice = n_ice[i] * ρ[i]
+    F_rim = q_rim[i] / q_ice[i]
+    ρ_rim = q_rim[i] * ρ[i] / (b_rim[i] * ρ[i])
+    state = P3.P3State(mp.ice.scheme, L_ice, N_ice, F_rim, ρ_rim)
+    logλ = P3.get_distribution_logλ(state)
+    # The Rosenbrock entry returns a fixed-shape carrier: the eight species
+    # tendencies, the host's `dn_lcl_activation_dt` slot and an `extras`
+    # `NamedTuple`. Store the species tendencies, which are the marched quantities.
+    t = BMT.bulk_microphysics_tendencies(
+        mode, BMT.Microphysics2Moment(), mp, tps,
+        ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
+        q_ice[i], n_ice[i], q_rim[i], b_rim[i], logλ, Δt[i], 2,
+    )
+    output[i] = (;
+        t.dq_lcl_dt, t.dn_lcl_dt, t.dq_rai_dt, t.dn_rai_dt,
+        t.dq_ice_dt, t.dn_ice_dt, t.dq_rim_dt, t.db_rim_dt,
+    )
+end
+
 @kernel inbounds = true function test_P3_get_distribution_logλ_kernel!(
     p3_params, output, L_ice, N_ice, F_rim, ρ_rim,
 )
@@ -1306,6 +1330,41 @@ function test_gpu(FT)
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
             TT.@test !iszero(tendencies.dq_ice_dt)
+        end
+
+        # 2M+P3 Rosenbrock-averaged tests (8 prognostic fields, no diagnostics)
+        DT_ros = @NamedTuple{
+            dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
+            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT,
+        }
+        (; output) = setup_output(ndrange, DT_ros)
+        Δt_ros = constant_data(FT(60); ndrange)
+        kernel! = test_bulk_tendencies_2m_p3_rosenbrock_kernel!(backend, work_groups)
+        TT.@testset "2M+P3 Rosenbrock average" begin
+            # The production mode, whose march allocates nothing.
+            kernel!(
+                BMT.rosenbrock_manual(), mp_2m_p3, tps, output, ρ, T, q_tot, q_lcl, n_lcl,
+                q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, Δt_ros;
+                ndrange,
+            )
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+            # The exact Jacobian differentiates the primal with ForwardDiff and allocates
+            # about 120 KB per call on the CPU, which the GPU compiler rejects as a GC
+            # allocation (InvalidIRError: gpu_gc_pool_alloc). Broken until that path is
+            # allocation-free.
+            exact_compiles = try
+                kernel!(
+                    BMT.rosenbrock_exact(), mp_2m_p3, tps, output, ρ, T, q_tot, q_lcl, n_lcl,
+                    q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, Δt_ros;
+                    ndrange,
+                )
+                true
+            catch
+                false
+            end
+            TT.@test_broken exact_compiles
         end
     end  # TT.@testset "Bulk microphysics tendencies kernels"
 
