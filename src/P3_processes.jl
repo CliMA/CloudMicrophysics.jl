@@ -60,17 +60,30 @@ Compute the melting rates of ice content and number concentration
  - `logλ`: the log of the slope parameter [log(1/m)]
 
 # Keyword arguments
- - `quad`: quadrature rule, default is `ChebyshevGauss(100)`
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 # Returns
 A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
   concentration [1/m³/s] and ice content [kg/m³/s].
+
+A particle melts by heat conduction at `dm/dt = 2π D K_therm (Tₐ - T_freeze) F_v(D) / L_f`,
+for capacitance ``C = D/2`` and without the vapor diffusion contribution in subsaturated air.
+Mass and number melt at the same fractional rate, that of the size distribution,
+
+```math
+f = \\frac{∫ \\frac{dm}{dt} N'(D) \\, dD}{∫ m(D) N'(D) \\, dD}, \\qquad
+\\frac{dL}{dt} = L f, \\qquad \\frac{dN}{dt} = N f.
+```
+
+The denominator equals `L` when `logλ` solves the shape problem, and it keeps both rates
+consistent with the ice when the shape solve returns a bound of its search interval.
 """
 @inline function ice_melt(
     velocity_params, aps::CMP.AirProperties, tps::TDI.PS,
     Tₐ, ρₐ, state::P3State, logλ;
-    quad = ChebyshevGauss(100),
+    quad,
 )
+    FT = eltype(state)
     # Note: process not dependent on `F_liq`
     # (we want ice core shape params)
     # Get constants
@@ -85,17 +98,15 @@ A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
     N′ = size_distribution(state, logλ)
 
     # Integrate
-    fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
-    bnds = integral_bounds(state, logλ; p = 1e-6)
-    melt_integrand = D -> ∂ice_mass_∂D(state, D) * F_v(D) * N′(D) / D
-    dLdt_unclamped = fac * integrate(melt_integrand, bnds, quad)
+    bnds = velocity_integral_bounds(state, logλ, v_term; p = 1e-6)
+    ∫DFvN = integrate(D -> D * F_v(D) * N′(D), bnds, quad)
 
     # only consider melting (not fusion)
-    dLdt = max(0, dLdt_unclamped)
-    # compute change of N_ice proportional to change in mass
-    dNdt = ρn_ice / ρq_ice * dLdt
-
-    return (; dNdt, dLdt)
+    ΔT = max(Tₐ - T_freeze, 0)
+    distribution_melt_rate = 2 * FT(π) * K_therm * ΔT / L_f * ∫DFvN  # ∫ dm/dt N′ dD
+    distribution_mass = ρn_ice * exp(logLdivN(state, logλ))  # ∫ m N′ dD
+    melt_frac = UT.guarded_quotient(distribution_melt_rate, distribution_mass)
+    return (; dNdt = ρn_ice * melt_frac, dLdt = ρq_ice * melt_frac)
 end
 
 """
