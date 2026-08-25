@@ -15,6 +15,7 @@ MicrophysicsNonEq.τ_vap_to_q_lcl
 MicrophysicsNonEq.τ_vap_to_q_icl
 MicrophysicsNonEq.ice_number_concentration
 MicrophysicsNonEq.INP_limiter
+MicrophysicsNonEq.wet_surface_deposition_limiter
 MicrophysicsNonEq.terminal_velocity
 MicrophysicsNonEq.dqcld_dT
 MicrophysicsNonEq.gamma_helper

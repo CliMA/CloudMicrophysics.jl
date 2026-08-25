@@ -23,6 +23,7 @@ export conv_q_vap_to_q_icl
 export τ_vap_to_q_lcl
 export τ_vap_to_q_icl
 export INP_limiter
+export wet_surface_deposition_limiter
 export dqcld_dT
 export gamma_helper
 
@@ -115,12 +116,13 @@ end
 end
 
 """
-    INP_limiter(tendency, tps, T)
+    wet_surface_deposition_limiter(tendency, tps, T)
 
-Returns `true` when ice deposition should be suppressed:
-positive tendency (deposition) at T > T_freeze (no INPs available).
+Returns `true` when ice deposition should be suppressed: a positive tendency,
+meaning deposition, above the freezing point. A particle surface above freezing
+is wet, and vapor deposits onto liquid rather than onto ice.
 """
-@inline function INP_limiter(tendency, tps, T)
+@inline function wet_surface_deposition_limiter(tendency, tps, T)
     return T > TDI.T_freeze(tps) && tendency > zero(tendency)
 end
 
@@ -290,7 +292,7 @@ end
         -min(-sat_excess, Γᵢ * max(0, q_icl)) / timescale,
         sat_excess / timescale,
     )
-    limiter = INP_limiter(tendency, tps, T)
+    limiter = wet_surface_deposition_limiter(tendency, tps, T)
     return ifelse(limiter, zero(tendency), tendency)
 end
 @inline function conv_q_vap_to_q_icl(
@@ -321,7 +323,7 @@ end
         -min(-sat_excess, Γᵢ * max(0, q_icl)) / sublimation_timescale,
         sat_excess / deposition_timescale,
     )
-    limiter = INP_limiter(tendency, tps, T)
+    limiter = wet_surface_deposition_limiter(tendency, tps, T)
     return ifelse(limiter, zero(tendency), tendency)
 end
 
