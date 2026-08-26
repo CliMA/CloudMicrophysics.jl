@@ -169,11 +169,20 @@ and particle diameter φ(D) = φ₀ D^α.
 Also returns the coefficient κ for the aspect ratio in Chen et al. (2022)
 terminal velocity parameterization (κ=1/3 for oblate, κ=-1/6 for prolate).
 
+The spheroid relations invert the mass and area laws for the particle
+thickness at the given density. Because those laws are independent
+parameterizations, the resulting φ is an effective parameter of the
+Chen et al. (2022) velocity correction rather than a true geometric
+aspect ratio. Callers pass the bulk ice density (as the P3 scheme does
+for the same relation), which keeps the mass-weighted φ of the Oblate
+option below 1 and makes both shape options consistent with the
+prescribed-φ default to within about 20%.
+
 # Arguments
 - `snow_shape`: assumed snow particle shape (Oblate or Prolate)
 - `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`, `gamma_coeff`)
 - `area`: area(radius) parameters (contains `a0`, `ae`, `Δa`, `χa`)
-- `ρᵢ`: particle density
+- `ρᵢ`: bulk ice density [kg/m³]
 """
 @inline function aspect_ratio_coeffs(
     snow_shape::Oblate,
@@ -321,7 +330,7 @@ end
 end
 
 @inline function terminal_velocity(
-    (; pdf, mass, area, ρᵢ, gamma_aspect_oblate, gamma_aspect_prolate)::CMP.Snow,
+    (; pdf, mass, area, ρᵢ, ρᵢ_bulk, gamma_aspect_oblate, gamma_aspect_prolate)::CMP.Snow,
     vel::CMP.Chen2022VelTypeLargeIce,
     ρₐ,
     q,
@@ -335,7 +344,12 @@ end
     λ_inv_diameter = 2 * λ_inv_radius
     # Compute the mass weighted average aspect ratio ϕ_av
     # As a next step, we could keep ϕ(D) under the integrals
-    (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ)
+    # The spheroid relation takes the BULK ice density (as in P3), not the
+    # snow apparent density ρᵢ that feeds the Chen coefficients: with
+    # ρᵢ = 100 kg/m³, the mass/area laws would imply ϕ > 1 at all mass-bearing
+    # sizes, outside the domain of Chen's oblate correction, and the two
+    # snow-shape options disagree with the prescribed-ϕ default by 2-3x.
+    (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ_bulk)
     # Use pre-computed gamma_aspect from Snow struct
     gamma_aspect = snow_shape isa Oblate ? gamma_aspect_oblate : gamma_aspect_prolate
     # `aspect_ratio_coeffs` defines ϕ as a function of diameter, ϕ(D) = ϕ₀ D^α

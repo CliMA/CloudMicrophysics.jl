@@ -282,8 +282,10 @@ $(DocStringExtensions.FIELDS)
     vent::VT
     "a struct with aspect ratio parameters"
     aspr::AP
-    "snow apparent density [kg/m³]"
+    "snow apparent density [kg/m³], used in the Chen et al. (2022) coefficients"
     ρᵢ::FT
+    "bulk ice density [kg/m³], used in the spheroid aspect-ratio relation"
+    ρᵢ_bulk::FT
     "pre-computed gamma(α+4)/6 for oblate aspect ratio [-]"
     gamma_aspect_oblate::FT
     "pre-computed gamma(α+4)/6 for prolate aspect ratio [-]"
@@ -293,6 +295,7 @@ end
 function Snow(toml_dict::CP.ParamDict)
     name_map = (;
         :snow_apparent_density => :ρᵢ,
+        :density_ice_water => :ρᵢ_bulk,
         :snow_flake_size_distribution_coefficient_mu => :μ,
         :snow_flake_size_distribution_coefficient_nu => :ν,
         :snow_ventilation_coefficient_a => :a,
@@ -319,6 +322,7 @@ function Snow(toml_dict::CP.ParamDict)
         vent = Ventilation(p.a, p.b),
         aspr = SnowAspectRatio(p.ϕ, p.κ),
         p.ρᵢ,
+        p.ρᵢ_bulk,
         gamma_aspect_oblate = SF.gamma(α_oblate + 4) / SF.gamma(FT(4)),
         gamma_aspect_prolate = SF.gamma(α_prolate + 4) / SF.gamma(FT(4)),
     )

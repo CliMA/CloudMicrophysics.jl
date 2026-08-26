@@ -105,8 +105,15 @@ function test_microphysics1M(FT)
 
         # reference values. `ϕ` is a function of diameter, so the mass-weighted
         # ⟨ϕ⟩ must use the diameter-based slope: checking here for consistency.
-        TT.@test vt_oblate ≈ FT(1.6992) rtol = 1e-4
-        TT.@test vt_prolate ≈ FT(1.4875) rtol = 1e-4
+        # The values assume the bulk ice density in the spheroid relation.
+        TT.@test vt_oblate ≈ FT(0.81191) rtol = 1e-4
+        TT.@test vt_prolate ≈ FT(0.71074) rtol = 1e-4
+
+        # with the bulk ice density in the spheroid relation, both shape
+        # options must stay consistent with the prescribed-ϕ default
+        vt_default = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno)
+        TT.@test 0.8 < vt_oblate / vt_default < 1.25
+        TT.@test 0.8 < vt_prolate / vt_default < 1.25
     end
 
     TT.@testset "1M_microphysics - 1M snow terminal velocity" begin
