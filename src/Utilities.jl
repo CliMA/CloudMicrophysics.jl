@@ -310,13 +310,17 @@ end
 
 """
     ϵ_numerics(FT)
+    ϵ_numerics(x::Real)
 
 Physical smallness threshold for the **1-moment** scheme: below this a tracer is
-treated as absent. Returns `cbrt(floatmin(FT))`, a floatmin-derived floor that
-also keeps `cbrt`/`^` arguments above `floatmin`. See the note above for how this
-relates to the 2-moment/P3 thresholds.
+treated as absent. Returns `cbrt(floatmin(float(FT)))`, a floatmin-derived floor
+that also keeps `cbrt`/`^` arguments above `floatmin`. The `float` guard maps
+integer types to their float counterpart, so gates accept integer inputs. The
+value method keys the threshold to the argument's own type, `ϵ_numerics(q)`.
+See the note above for how this relates to the 2-moment/P3 thresholds.
 """
-@inline ϵ_numerics(FT) = cbrt(floatmin(FT))
+@inline ϵ_numerics(FT) = cbrt(floatmin(float(FT)))
+@inline ϵ_numerics(x::Real) = ϵ_numerics(typeof(x))
 
 """
     ϵ_numerics_2M_M(FT)

@@ -283,8 +283,8 @@ Compute the coefficients for the Chen 2022 terminal velocity parametrization.
 # Arguments
  - `coeffs`: a struct with terminal velocity free parameters
     - [`CMP.Chen2022VelTypeRain`](@ref): Fetch from Table B1
-    - [`CMP.Chen2022VelTypeSmallIce`](@ref): Fetch from Table B2
-    - [`CMP.Chen2022VelTypeLargeIce`](@ref): Fetch from Table B4
+    - [`CMP.Chen2022VelTypeSmallIce`](@ref): Fetch from Table B3
+    - [`CMP.Chen2022VelTypeLargeIce`](@ref): Fetch from Table B5
  - `ρₐ`: air density [kg/m³]
  - `ρᵢ`: apparent density of ice particles [kg/m³],
     only used for [`CMP.Chen2022VelTypeSmallIce`](@ref) and [`CMP.Chen2022VelTypeLargeIce`](@ref)
@@ -322,7 +322,7 @@ end
     Es = E[1] - E[2] * log_ρᵢ^2 + E[3] * sqrt_ρᵢ
     Fs = -exp(F[1] - F[2] * log_ρᵢ^2 + F[3] * log_ρᵢ)
     Gs = 1 / (G[1] + G[2] / log_ρᵢ - G[3] * log_ρᵢ / ρᵢ)
-    # Table B2
+    # Table B3
     ai = (Es * ρₐ^As, Fs * ρₐ^As)
     bi = (Bs + ρₐ * Cs, Bs + ρₐ * Cs)
     ci = (FT(0), Gs)
@@ -346,7 +346,7 @@ end
     Fl = F[1] + F[2] * log_ρᵢ - exp(log(-F[3]) - ρᵢ)
     Gl = 1 / (G[1] + G[2] * log_ρᵢ * sqrt_ρᵢ + G[3] / sqrt_ρᵢ)
     Hl = H[1] + H[2] * ρᵢ^2 * sqrt_ρᵢ + exp(log(-H[3]) - ρᵢ)  # ρᵢ^(5/2) = ρᵢ^2 * sqrt(ρᵢ)
-    # Table B4
+    # Table B5
     ai = (Bl * ρₐ^Al, El * ρₐ^Al * exp(Hl * ρₐ))
     bi = (Cl, Fl)
     ci = (FT(0), Gl)

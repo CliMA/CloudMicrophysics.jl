@@ -299,8 +299,8 @@ For snow, for simplicity, we first compute the
   and then treat this as constant when computing the group terminal velocity.
 
 !!! note
-    For snow, we only use the B4 coefficients from [Chen2022](@cite).
-    We should switch to doing partial integrals and include also the B2 coefficients.
+    For snow, we only use the B5 coefficients from [Chen2022](@cite).
+    We should switch to doing partial integrals and include also the B3 coefficients.
 
 ## Rain autoconversion
 
@@ -663,8 +663,10 @@ where:
 - saturation S is computed over water or ice
 
 For snow, both deposition (``S > 1``) and sublimation (``S < 1``) are
-  allowed by default; a `SublimationOnly` option is also available that
-  clamps the rate to be non-positive (sublimation only).
+  allowed by default, except that deposition is suppressed above freezing,
+  where ice does not grow by vapor deposition;
+  a `SublimationOnly` option is also available that
+  clamps the rate to be non-positive (sublimation only) at all temperatures.
 
 The final integral is:
 

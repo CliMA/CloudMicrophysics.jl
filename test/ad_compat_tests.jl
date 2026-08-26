@@ -8,6 +8,7 @@ import CloudMicrophysics.P3Scheme as P3
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.DistributionTools as DT
 import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ForwardDiff as FD
 import SpecialFunctions as SF
@@ -187,3 +188,134 @@ end
 
 test_ad_compatibility(Float64)
 test_ad_compatibility(Float32)
+
+# ForwardDiff compatibility of the 1-moment process rates. The 1M kernels take
+# parameters (plain floats) and state alongside each other, so a `::FT ...
+# where {FT}` signature would bind both to one type and reject a `Dual`
+# state; the rates are duck-typed instead, with `zero(rate)` fallbacks and
+# value-keyed `ϵ_numerics` gates.
+function test_ad_compatibility_1M(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    mp = CMP.Microphysics1MParams(FT)
+    mpS = CMP.Microphysics1MParams(FT; snow_autoconversion = CMP.WithSupersaturation())
+    chen = CMP.Chen2022VelType(FT)
+    rain, snow = mp.precip.rain, mp.precip.snow
+    ρ0, T_cold, T_warm = FT(1.2), FT(270), FT(280)
+    state(q) = (; q_tot = q + FT(5e-3), q_lcl = q, q_icl = q, q_rai = q, q_sno = q)
+
+    # (name, f) pairs differentiated w.r.t. a single scalar
+    rates_q = (
+        (
+            "accretion lcl-rai",
+            q -> CM1.accretion(CMP.CloudLiquidRainAccretion(), mp, tps, state(q), (; ρ = ρ0, T = T_cold)),
+        ),
+        (
+            "accretion icl-sno",
+            q -> CM1.accretion(CMP.CloudIceSnowAccretion(), mp, tps, state(q), (; ρ = ρ0, T = T_cold)),
+        ),
+        (
+            "accretion rain sink",
+            q -> CM1.accretion_rain_sink(CMP.CloudIceRainAccretion(), mp, tps, state(q), (; ρ = ρ0, T = T_cold)),
+        ),
+        (
+            "accretion snow-rain",
+            q ->
+                CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mp, tps, state(q), (; ρ = ρ0, T = T_cold)).S_rai_sno,
+        ),
+        ("snow melt", q -> CM1.conv_q_sno_to_q_rai(CMP.SnowMelt(), mp, tps, state(q), (; ρ = ρ0, T = T_warm))),
+        ("cloud ice melt", q -> CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp, tps, state(q), (; ρ = ρ0, T = T_warm))),
+        (
+            "rain autoconversion",
+            q -> CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mp, tps, state(q), (; ρ = ρ0, T = T_cold)),
+        ),
+        (
+            "snow autoconversion",
+            q -> CM1.conv_q_icl_to_q_sno(CMP.NoSupersaturation(), mp, tps, state(q), (; ρ = ρ0, T = T_cold)),
+        ),
+        (
+            "snow autoconversion supersat",
+            q -> CM1.conv_q_icl_to_q_sno(CMP.WithSupersaturation(), mpS, tps, state(q), (; ρ = ρ0, T = T_cold)),
+        ),
+        ("v_t rain blk1m", q -> CM1.terminal_velocity(rain, mp.terminal_velocity.rain, ρ0, q)),
+        ("v_t snow blk1m", q -> CM1.terminal_velocity(snow, mp.terminal_velocity.snow, ρ0, q)),
+        ("v_t rain Chen", q -> CM1.terminal_velocity(rain, chen.rain, ρ0, q)),
+        ("v_t snow Chen", q -> CM1.terminal_velocity(snow, chen.large_ice, ρ0, q)),
+        ("v_t snow Oblate", q -> CM1.terminal_velocity(snow, chen.large_ice, ρ0, q, CM1.Oblate())),
+        ("v_t snow Prolate", q -> CM1.terminal_velocity(snow, chen.large_ice, ρ0, q, CM1.Prolate())),
+        ("lambda_inverse", q -> CM1.lambda_inverse(rain.pdf, rain.mass, q, ρ0)),
+    )
+
+    @testset "1M ForwardDiff w.r.t. q, $name ($FT)" for (name, f) in rates_q
+        q0 = FT(1e-4)
+        d = FD.derivative(f, q0)
+        @test isfinite(d)
+        # value must be unchanged by seeding a Dual
+        @test FD.value(f(FD.Dual{:ad_1m}(q0, one(FT)))) ≈ f(q0) rtol = 10 * eps(FT)
+        # Agreement with a central difference. `cbrt(eps)` is the step that
+        # balances truncation against round-off. The tolerance is set by the
+        # difference quotient's accuracy, not the derivative's: where |f'|
+        # is large relative to |f| (the Chen velocities, f' ~ 8e3 with
+        # f ~ O(1)) cancellation leaves ~0.2% in Float32. An AD defect (a
+        # dropped term or a wrong chain rule) is an O(1) relative error, so
+        # 1% still catches every failure mode this test exists to catch.
+        # The atol scales with the observed magnitudes so the comparison
+        # stays meaningful for small derivatives.
+        h = q0 * cbrt(eps(FT))
+        fd = (f(q0 + h) - f(q0 - h)) / (2h)
+        rtol_fd = FT === Float32 ? FT(1e-2) : FT(1e-4)
+        @test d ≈ fd rtol = rtol_fd atol = rtol_fd * max(abs(d), abs(fd))
+    end
+
+    # The Dual now arrives through a *different* argument than above, which
+    # a single-argument `eltype(q)` would type incorrectly.
+    rates_ρ = (
+        ("v_t rain blk1m", r -> CM1.terminal_velocity(rain, mp.terminal_velocity.rain, r, FT(1e-4))),
+        ("v_t rain Chen", r -> CM1.terminal_velocity(rain, chen.rain, r, FT(1e-4))),
+        ("v_t snow Chen", r -> CM1.terminal_velocity(snow, chen.large_ice, r, FT(1e-4))),
+        ("v_t snow Oblate", r -> CM1.terminal_velocity(snow, chen.large_ice, r, FT(1e-4), CM1.Oblate())),
+        ("lambda_inverse", r -> CM1.lambda_inverse(rain.pdf, rain.mass, FT(1e-4), r)),
+        ("get_v0", r -> CM1.get_v0(mp.terminal_velocity.rain, r)),
+    )
+    @testset "1M ForwardDiff w.r.t. ρ, $name ($FT)" for (name, f) in rates_ρ
+        @test isfinite(FD.derivative(f, ρ0))
+    end
+    @testset "1M ForwardDiff w.r.t. ρ, sign and guards ($FT)" begin
+        # denser air slows the fall speed
+        @test FD.derivative(r -> CM1.terminal_velocity(rain, mp.terminal_velocity.rain, r, FT(1e-4)), ρ0) < 0
+        # the ρ ≥ ρw density guard must not poison the derivative
+        ρw = mp.terminal_velocity.rain.ρw
+        @test isfinite(FD.derivative(r -> CM1.get_v0(mp.terminal_velocity.rain, r), ρw))
+        @test isfinite(FD.derivative(r -> CM1.get_v0(mp.terminal_velocity.rain, r), 2 * ρw))
+    end
+
+    # Process rates must stay concretely typed with Dual state and plain
+    # thermo (kernel-level argument mixes are swept in return_type_tests.jl).
+    @testset "1M rates concretely typed under Dual state ($FT)" begin
+        DT = FD.Dual{:ad_1m, FT, 1}
+        for (opt, f) in (
+            (CMP.CloudLiquidRainAccretion(), CM1.accretion),
+            (CMP.RainSnowAccretion(), CM1.accretion_snow_rain),
+            (CMP.CloudIceRainAccretion(), CM1.accretion_rain_sink),
+            (CMP.RainEvaporation(), CM1.conv_q_rai_to_q_vap),
+            (CMP.DepositionAndSublimation(), CM1.conv_q_sno_to_q_vap),
+            (CMP.SnowMelt(), CM1.conv_q_sno_to_q_rai),
+            (CMP.CloudIceMelt(), CM1.conv_q_icl_to_q_lcl),
+            (CMP.Kessler1M(), CM1.conv_q_lcl_to_q_rai),
+        )
+            rts = Base.return_types(
+                f,
+                Tuple{
+                    typeof(opt),
+                    typeof(mp),
+                    typeof(tps),
+                    NamedTuple{(:q_tot, :q_lcl, :q_icl, :q_rai, :q_sno), NTuple{5, DT}},
+                    NamedTuple{(:ρ, :T), NTuple{2, FT}},
+                },
+            )
+            @test length(rts) == 1 && isconcretetype(rts[1])
+        end
+    end
+end
+
+test_ad_compatibility_1M(Float64)
+test_ad_compatibility_1M(Float32)

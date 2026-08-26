@@ -102,6 +102,11 @@ function test_microphysics1M(FT)
         TT.@test v_bigger_prolate > vt_prolate
         # both shapes give reasonable velocities (within an order of magnitude of each other)
         TT.@test 0.1 < vt_oblate / vt_prolate < 10
+
+        # reference values. `ϕ` is a function of diameter, so the mass-weighted
+        # ⟨ϕ⟩ must use the diameter-based slope: checking here for consistency.
+        TT.@test vt_oblate ≈ FT(1.6992) rtol = 1e-4
+        TT.@test vt_prolate ≈ FT(1.4875) rtol = 1e-4
     end
 
     TT.@testset "1M_microphysics - 1M snow terminal velocity" begin
@@ -256,6 +261,38 @@ function test_microphysics1M(FT)
         # q_lcl = 2e-3, default PrescribedNd Nc ~1e8
         TT.@test rate ≈ FT(2e-6) rtol = 1e-3
 
+    end
+
+    TT.@testset "OptionParamsMismatch" begin
+        # passing an option inconsistent with how `mp` was built must fail
+        # with an actionable error, not an obscure field-access failure
+        mpS = CMP.Microphysics1MParams(FT; snow_autoconversion = CMP.WithSupersaturation())
+        mpNd = CMP.Microphysics1MParams(FT; rain_autoconversion = CMP.PrescribedNd())
+        micro = (; q_tot = FT(1e-2), q_lcl = FT(1e-3), q_icl = FT(1e-3), q_rai = FT(0), q_sno = FT(0))
+        thermo = (; ρ = FT(1.2), T = FT(260))
+        TT.@test_throws ArgumentError CM1.conv_q_icl_to_q_sno(CMP.WithSupersaturation(), mp, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.conv_q_icl_to_q_sno(CMP.NoSupersaturation(), mpS, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_rai(CMP.PrescribedNd(), mp, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mpNd, tps, micro, thermo)
+        # matched combinations still work
+        TT.@test CM1.conv_q_icl_to_q_sno(CMP.WithSupersaturation(), mpS, tps, micro, thermo) isa FT
+        TT.@test CM1.conv_q_lcl_to_q_rai(CMP.PrescribedNd(), mpNd, tps, micro, thermo) isa FT
+    end
+
+    TT.@testset "NoSnowDepositionAboveFreezing" begin
+        # strongly ice-supersaturated air just above freezing: deposition must
+        # be suppressed (only sublimation or zero), while the same state below
+        # freezing deposits
+        micro = (; q_tot = FT(2e-2), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(1e-3))
+        warm = (; ρ = FT(1.2), T = FT(274))
+        cold = (; ρ = FT(1.2), T = FT(272))
+        dep_warm = CM1.conv_q_sno_to_q_vap(CMP.DepositionAndSublimation(), mp, tps, micro, warm)
+        dep_cold = CM1.conv_q_sno_to_q_vap(CMP.DepositionAndSublimation(), mp, tps, micro, cold)
+        TT.@test dep_warm <= 0
+        TT.@test dep_cold > 0
+        # sublimation stays active above freezing
+        dry = (; q_tot = FT(1e-4), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(1e-3))
+        TT.@test CM1.conv_q_sno_to_q_vap(CMP.DepositionAndSublimation(), mp, tps, dry, warm) < 0
     end
 
     TT.@testset "SnowAutoconversionNoSupersat" begin
@@ -637,11 +674,12 @@ function test_microphysics1M(FT)
 
     TT.@testset "SnowSublimation and Deposition" begin
         # Regression test: keep results constant when code changes
-        # Uses DepositionSublimation() and original reference values that include deposition
+        # Uses DepositionSublimation(). Above freezing, deposition is
+        # suppressed (zero), while sublimation stays active.
         cnt = 0
         ref_val = [
             FT(-1.9756907119482267e-7),
-            FT(1.9751292385808357e-7),
+            FT(0),
             FT(-1.6641552112891826e-7),
             FT(1.663814937710236e-7),
         ]
