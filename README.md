@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/src/assets/logo.svg" alt="CloudMicrophysics.jl Logo" width="140" height="113">
+</div>
+
 # CloudMicrophysics.jl
 
 CloudMicrophysics.jl provides a library of cloud microphysics and aerosol parameterizations for the [CliMA Earth System Model](https://clima.caltech.edu). It implements bulk microphysics schemes for cloud formation, precipitation, and aerosol processes, designed for high-performance climate simulations.
