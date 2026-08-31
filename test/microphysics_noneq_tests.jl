@@ -25,12 +25,32 @@ function test_microphysics_noneq(FT)
     TT.@testset "τ_relax Frostenberg" begin
         q_icl = FT(1e-4)
         T_cold = FT(250)
-        τ_frs = CMNe.τ_relax(ice, aps, frs, q_icl, T_cold)
+        ρ_frs = FT(0.8)
+        τ_frs = CMNe.τ_relax(ice, aps, frs, q_icl, T_cold, ρ_frs)
         TT.@test τ_frs > FT(0)
         TT.@test isfinite(τ_frs)
         # Increasing ice content should decrease τ (larger crystals → faster relaxation)
-        τ_frs_more = CMNe.τ_relax(ice, aps, frs, FT(10) * q_icl, T_cold)
+        τ_frs_more = CMNe.τ_relax(ice, aps, frs, FT(10) * q_icl, T_cold, ρ_frs)
         TT.@test τ_frs_more < τ_frs
+    end
+
+    TT.@testset "τ_relax PrescribedIceNumber" begin
+        q_icl = FT(1e-4)
+        ρ_pin = FT(0.8)
+
+        # Basic smoke test
+        τ_pin = CMNe.τ_relax(ice, aps, q_icl, ρ_pin)
+        TT.@test τ_pin > FT(0)
+        TT.@test isfinite(τ_pin)
+
+        # Increasing ice content should decrease τ (larger crystals → faster relaxation)
+        τ_pin_more = CMNe.τ_relax(ice, aps, FT(10) * q_icl, ρ_pin)
+        TT.@test τ_pin_more < τ_pin
+
+        # Higher density (same q) → more ice mass per m³ → larger r
+        # Since τ = 1/(4π D_v N_0 r) with N_0 fixed, larger r → smaller τ
+        τ_dense = CMNe.τ_relax(ice, aps, q_icl, FT(1.2))
+        TT.@test τ_dense < τ_pin
     end
 
     TT.@testset "CondEvap_DepSub" begin
@@ -137,6 +157,43 @@ function test_microphysics_noneq(FT)
         TT.@test dep_a ≈ dep_b  # τ_sub doesn't affect deposition
 
         #! format: on
+    end
+
+    TT.@testset "PrescribedIceNumber conv_q_vap_to_q_icl" begin
+        ρ = FT(0.8)
+        T = FT(273 - 10)
+
+        pᵥ_si = TDI.saturation_vapor_pressure_over_ice(tps, T)
+        qᵥ_si = TDI.p2q(tps, T, ρ, pᵥ_si)
+
+        #! format: off
+        _conv_pin(q_tot, q_lcl, q_icl, ρ, T) = CMNe.conv_q_vap_to_q_icl(
+            CMP.PrescribedIceNumber(),
+            (; cloud = (; ice), air_properties = aps, process_params = (;)),
+            tps,
+            (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0)),
+            (; ρ, T)
+        )
+        #! format: on
+
+        # Sign tests
+        TT.@test _conv_pin(FT(0.5 * qᵥ_si), FT(0), FT(0), ρ, T) == FT(0)
+        TT.@test _conv_pin(FT(1.5 * qᵥ_si), FT(0), FT(0), ρ, T) > FT(0)
+        TT.@test _conv_pin(qᵥ_si, FT(0), FT(0), ρ, T) ≈ FT(0)
+
+        # INP limiter: above freezing, positive ice deposition should be zero
+        T_warm = FT(280)
+        pᵥ_si_w = TDI.saturation_vapor_pressure_over_ice(tps, T_warm)
+        qᵥ_si_w = TDI.p2q(tps, T_warm, ρ, pᵥ_si_w)
+        TT.@test _conv_pin(FT(1.5 * qᵥ_si_w), FT(0), FT(0), ρ, T_warm) == FT(0)
+
+        # Ice sublimation above freezing should NOT be limited
+        TT.@test _conv_pin(FT(0.5 * qᵥ_si_w), FT(0), FT(0.001), ρ, T_warm) <= FT(0)
+
+        # The tendency should differ from a constant-timescale result (τ depends on q_icl, ρ)
+        rate_a = _conv_pin(FT(1.5 * qᵥ_si), FT(0), FT(1e-5), ρ, T)
+        rate_b = _conv_pin(FT(1.5 * qᵥ_si), FT(0), FT(1e-3), ρ, T)
+        TT.@test rate_a != rate_b  # timescale changes with q_icl
     end
 
 
