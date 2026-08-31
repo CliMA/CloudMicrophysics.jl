@@ -4,7 +4,7 @@ export H2S04NucleationParameters,
 """
     H2S04NucleationParameters{FT}
 
-Parameters for pure sulfuric acid nucleation from Dunne et al 1016
+Parameters for pure sulfuric acid nucleation from Dunne et al 2016
 DOI:10.1126/science.aaf2649
 
 # Fields
@@ -62,7 +62,7 @@ end
 
 
 """
-OrganicNucleationParameters{FT}
+    OrganicNucleationParameters{FT}
 
 Parameters for pure organic nucleation from Kirkby 2016
 DOI: 10.1038/nature17953
@@ -103,7 +103,7 @@ function OrganicNucleationParameters(td::CP.ParamDict)
 end
 
 """
-MixedNucleationParameters{FT}
+    MixedNucleationParameters{FT}
 
 Parameters for mixed organic and sulfuric acid nucleation from Riccobono et al 2014
 DOI:10.1126/science.1243527

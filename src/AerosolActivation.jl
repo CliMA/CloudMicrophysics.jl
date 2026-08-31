@@ -1,11 +1,13 @@
 """
-    Aerosol activation scheme, which includes:
+    AerosolActivation
 
-  - mean hygroscopicity for each mode of the aerosol size distribution
-  - critical supersaturation for each mode of the aerosol size distribution
-  - maximum supersaturation
-  - total number of particles actived
-  - total mass of particles actived
+Aerosol activation scheme, which includes:
+
+- mean hygroscopicity for each mode of the aerosol size distribution
+- critical supersaturation for each mode of the aerosol size distribution
+- maximum supersaturation
+- total number of particles activated
+- total mass of particles activated
 """
 module AerosolActivation
 
@@ -97,7 +99,7 @@ end
 """
     critical_supersaturation(ap, ad, T)
 
-  - `ap` - a set with aerosol activation parameters
+  - `ap` - a struct with aerosol activation parameters
   - `ad` - a struct with aerosol distribution
   - `T` - air temperature
 
@@ -119,6 +121,7 @@ end
 
 """
     max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
+    max_supersaturation(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
 
   - `ap`  - a struct with aerosol activation parameters
   - `ad`  - a struct with aerosol distribution
@@ -215,6 +218,7 @@ end
 
 """
     N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
+    N_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
 
   - `ap`  - a struct with aerosol activation parameters
   - `ad`  - aerosol distribution struct
@@ -274,6 +278,7 @@ end
 
 """
     M_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
+    M_activated_per_mode(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
 
   - `ap`  - a struct with aerosol activation parameters
   - `ad`  - a struct with aerosol distribution parameters
@@ -336,6 +341,7 @@ end
 
 """
     total_N_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
+    total_N_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
 
   - `ap` - a struct with aerosol activation parameters
   - `ad` - aerosol distribution struct
@@ -385,6 +391,7 @@ end
 
 """
     total_M_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice, N_liq, N_ice)
+    total_M_activated(ap, ad, aip, tps, T, p, w, q_tot, q_liq, q_ice)
 
   - `ap` - a struct with aerosol activation parameters
   - `ad` - aerosol distribution struct

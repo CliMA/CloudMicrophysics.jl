@@ -52,7 +52,7 @@ function dust_activated_number_fraction(
 end
 
 """
-    MohlerDepositionRate(dust, ip, S_i, T, dSi_dt, N_aer)
+    MohlerDepositionRate(dust, ip, Si, T, dSi_dt, N_aer)
 
 Calculate the cloud ice nucleation rate from deposition.
 
@@ -79,15 +79,19 @@ end
 """
     deposition_J(dust, Δa_w)
 
-Calculate the deposition nucleation rate coefficient, `J` [m⁻² s⁻¹]
-for different minerals in liquid droplets.
+Calculate the deposition nucleation rate coefficient, `J` [m⁻² s⁻¹],
+for water vapor deposition onto different dust and mineral aerosol types.
 
 # Arguments
-  - `dust`: a struct with dust parameters
+  - `dust`: a struct with dust parameters (supported types: feldspar,
+    ferrihydrite, kaolinite, illite, Arizona Test Dust, Saharan dust,
+    Asian dust, and generic dust)
   - `Δa_w`: change in water activity [unitless].
 
+# Returns
+ - `J` [m⁻² s⁻¹]; zero for unsupported aerosol types.
+
 See [China2017](@cite) for details on the parameterization.
-Returns zero for unsupported aerosol types.
 """
 function deposition_J(
     dust::Union{
@@ -147,7 +151,7 @@ Calculate the number of ice crystals nucleated via deposition nucleation with un
  - `T`: air temperature [K].
 
 # Returns
- - `Nᵢ`: number of ice crystals nucleated via deposition nucleation with units of m^-3.
+ - `Nᵢ`: number of ice crystals nucleated via deposition nucleation with units of m⁻³.
 
 From Thompson et al 2004 eqn 2 as used in Morrison & Milbrandt 2015,
 
@@ -253,7 +257,7 @@ function INP_concentration_mean((; T_freeze, b, log_a)::CMP.Frostenberg2023, T)
 end
 
 """
-    liquid_freezing_rate(opt, pdf, tps, q_rai, ρ, N_rai, T)
+    liquid_freezing_rate(opt, pdf, tps, q, ρ, N, T)
 
 Compute the rate of liquid water freezing into ice.
 
@@ -339,8 +343,8 @@ Volume-weighting → bigger drops freeze first
 
 # Arguments
  - `opt`: The [`CMP.RainFreezing`](@ref) parameterization
-   (Bigg / Barklie-Gokhale parameters; the `Rain` in the name is historical —
-   the kinetics apply to any liquid-drop PSD).
+   (Bigg / Barklie-Gokhale parameters; despite the type name, the kinetics
+   apply to any liquid-drop PSD).
  - `pdf`: The [`CMP.CloudParticlePDF_SB2006`](@ref) cloud-droplet PSD.
  - `tps`: Thermodynamics parameters.
  - `q`: Cloud-liquid specific content [kg(water) kg⁻¹(air)].
@@ -409,9 +413,9 @@ kg of air per second is
  - `ρ`: Air density [kg(air) m⁻³(air)].
 
 # Keyword arguments
- - `τ`: Relaxation timescale [s] (default `300`).
- - `inpc_log_shift`: Additive shift to `log(INPC)` Default `0`.
- - `n_active`: Depletion proxy [kg⁻¹(air)]
+ - `τ`: Relaxation timescale `[s]` (default `300`).
+ - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
+ - `n_active`: Depletion proxy [kg⁻¹(air)].
 
 # Returns
  - A `NamedTuple` `(; ∂ₜn_frz)` — the specific number freezing-rate cap
@@ -431,32 +435,27 @@ end
 
 """
     deposition_rate(
-        opt::CMP.Frostenberg2023, tps, T, ρ, q_vap, n_ice;
-        τ, inpc_log_shift, T_thresh, S_i_thresh, ρ_i, D_nuc,
+        opt::CMP.Frostenberg2023, tps, T, ρ, q_tot, q_liq, q_ice, n_ice;
+        m_nuc, T_thresh, S_i_thresh, τ_act, inpc_log_shift,
     )
 
 Compute the Frostenberg 2023 deposition nucleation rate
 
 The rate is the Frostenberg 2023 INP concentration (treated as a budget)
-relaxed toward depletion at `n_ice` over timescale `τ`:
+relaxed toward depletion at `n_ice` over timescale `τ_act`:
 
 ```
-∂ₜn_frz = max(0, INPC(T)/ρ - n_ice) / τ
+∂ₜn_frz = max(0, INPC(T)/ρ - n_ice) / τ_act
 ```
 
-Each newly nucleated crystal is assigned a starter mass
-
-```
-m_starter = (π/6) · ρ_i · D_nuc³
-```
-
-(default ≈ 4.8e-13 kg for a 10 μm solid-ice crystal). The mass tendency is
-the implied mass injection, capped by half the local vapor excess over
-ice saturation per relaxation window:
+Each newly nucleated crystal is assigned the starter mass `m_nuc`
+(e.g. `(π/6) · ρ_i · D_nuc³ ≈ 4.8e-13` kg for a 10 μm solid-ice crystal).
+The mass tendency is the implied mass injection, capped by half the local
+vapor excess over ice saturation per relaxation window:
 
 ```
 q_excess = max(0, q_vap - q_sat_ice)
-∂ₜq_frz  = min(m_starter · ∂ₜn_frz,  ½ q_excess / τ)
+∂ₜq_frz  = min(m_nuc · ∂ₜn_frz,  ½ q_excess / τ_act)
 ```
 
 Conditions for activation:
@@ -471,17 +470,18 @@ Conditions for activation:
  - `tps`: Thermodynamics parameters (used for the ice-saturation curve).
  - `T`: Air temperature [K].
  - `ρ`: Air density [kg(air) m⁻³(air)].
- - `q_vap`: Water-vapor specific content [kg(vap) kg⁻¹(air)].
- - `n_ice`: Specific ice-crystal number concentration [kg⁻¹(air)] (proxy
+ - `q_tot`: Total water specific content [kg kg⁻¹(air)].
+ - `q_liq`: Liquid water specific content [kg kg⁻¹(air)].
+ - `q_ice`: Ice specific content [kg kg⁻¹(air)].
+ - `n_ice`: Specific ice-crystal number concentration `[kg⁻¹(air)]` (proxy
    for already-activated INPs).
 
 # Keyword arguments
- - `τ`: Relaxation timescale [s] (default `300`).
- - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
- - `T_thresh`: Activation temperature threshold [K] (default `opt.T_freeze - 15`).
+ - `m_nuc`: Starter mass assigned to each newly nucleated crystal [kg].
+ - `T_thresh`: Activation temperature threshold `[K]` (default `opt.T_freeze - 15`).
  - `S_i_thresh`: Activation ice-supersaturation threshold (default `0.05`).
- - `ρ_i`: Solid-ice density used for the starter mass [kg/m³] (default `916.7`).
- - `D_nuc`: Nascent crystal diameter [m] (default `10e-6`, the small-D tail of the P3 distribution).
+ - `τ_act`: Relaxation timescale `[s]` (default `300`).
+ - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
 
 # Returns
  - A `NamedTuple` `(; ∂ₜn_frz, ∂ₜq_frz)` with the specific number rate
@@ -520,8 +520,7 @@ end
 Return the depletion proxy `n_active` to subtract from the F23 INPC
 target in [`deposition_rate`](@ref) and any analogous INPC-budgeted
 rate. For `NIceProxyDepletion` (the only model currently provided) this
-is the in-cell ice number `n_ice`. (A prognostic activation-memory model
-returning a host-supplied tracer is deferred to a follow-up PR.)
+is the in-cell ice number `n_ice`.
 """
 @inline n_active(::CMP.NIceProxyDepletion, n_ice) = n_ice
 

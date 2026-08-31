@@ -1,11 +1,11 @@
 # # Getting started
 
 # This guide shows how to call a function from `CloudMicrophysics.jl` package.
-# Please consult our [README](https://github.com/CliMA/CloudMicrophysics.jl?tab=readme-ov-file#installation-and-running-instructions)
+# Please consult our [README](https://github.com/CliMA/CloudMicrophysics.jl?tab=readme-ov-file#installation)
 # for the CloudMicrophysics.jl installation instructions.
 
-# In this guide will call the `accretion` function that parameterizes the growth of rain drops
-# through collisions with cloud droples.
+# In this guide we call the `accretion` function that parameterizes the growth of rain drops
+# through collisions with cloud droplets.
 # Check the [API documentation](https://clima.github.io/CloudMicrophysics.jl/dev/API/#CloudMicrophysics.Microphysics2M.accretion)
 # and the [parameterization documentation](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics2M/#Accretion)
 # for more details.

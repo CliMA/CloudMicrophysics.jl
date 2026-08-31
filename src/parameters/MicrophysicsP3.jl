@@ -58,7 +58,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct AreaPowerLaw{FT} <: ParametersType
-    "Scale [`μm^(2-σ)`]"
+    "Scale [`m^(2-σ)`]"
     γ::FT
     "Power [`-`]"
     σ::FT
@@ -186,18 +186,21 @@ end
 Local rime density parameterization based on Cober and List (1993) [CoberList1993](@cite),
 Eq. 16 and 17.
 
-Given an instance `ρ′_rim::LocalRimeDensity`, obtain the local rime density 
-for a given Rᵢ [m² s⁻¹ °C⁻¹] by calling `ρ′_rim(Rᵢ)`.
+Given an instance `ρ′_rim::LocalRimeDensity`, obtain the local rime density
+for a given Rᵢ [μm m s⁻¹ °C⁻¹] by calling `ρ′_rim(Rᵢ)`.
 
 The parameterization is given by:
 
 ```math
 ρ'_{rim} = a + b R_i + c R_i^2, \\quad 1 ≤ R_i ≤ 8,
 ```
-The range is extended to `R_i ≤ 12`, by linearly interpolating between 
-`ρ′_rim(8)` and `ρ_ice = 900 kg/m³`. The latter is the solid bulk ice density.
+The range is extended to `R_i ≤ 12`, by linearly interpolating between
+`ρ′_rim(8)` and `ρ_ice = 916.7 kg/m³`. The latter is the solid bulk ice density.
 
 For calculating Rᵢ, see [`compute_local_rime_density`](@ref CloudMicrophysics.P3Scheme.compute_local_rime_density).
+
+# Fields
+$(DocStringExtensions.FIELDS)
 """
 @kwdef struct LocalRimeDensity{FT} <: ParametersType
     "Constant coefficient"
@@ -324,7 +327,7 @@ end
 
 # Unit annotations for verbose show (used by ShowMethods.verbose_show_type_and_fields)
 ShowMethods.field_units(::MassPowerLaw) = (; α_va = "kg m^(-β_va)")
-ShowMethods.field_units(::AreaPowerLaw) = (; γ = "μm^(2-σ)")
+ShowMethods.field_units(::AreaPowerLaw) = (; γ = "m^(2-σ)")
 ShowMethods.field_units(::SlopePowerLaw) = (; a = "m^b")
 ShowMethods.field_units(::LocalRimeDensity) = (; ρ_ice = "kg m⁻³")
 ShowMethods.field_units(::ParametersP3) =

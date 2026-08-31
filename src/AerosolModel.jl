@@ -1,10 +1,12 @@
 """
-    A container for information on aerosol size distribution
-    and chemical properties.
+    AerosolModel
 
-    The size distribution is a sum of lognormal internally mixed modes.
-    The chemical composition can be expressed using kappa parameter
-    or hygroscopicity parameter B.
+A container for information on aerosol size distribution
+and chemical properties.
+
+The size distribution is a sum of lognormal internally mixed modes.
+The chemical composition can be expressed using kappa parameter
+or hygroscopicity parameter B.
 """
 module AerosolModel
 
@@ -89,6 +91,7 @@ or of type Mode_κ (Petters and Kreidenweis 2007).
 # Constructors
 
     AerosolDistribution(modes::T)
+    AerosolDistribution(modes::Union{Mode_κ, Mode_B}...)
 """
 struct AerosolDistribution{T} <: CMP.AerosolDistributionType
 

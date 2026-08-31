@@ -72,20 +72,20 @@ end
 """
     MorrisonMilbrandt2014{FT}
 
-Parameters for ice nucleation from  Morrison & Milbrandt 2014
+Parameters for ice nucleation from Morrison & Milbrandt (2015)
 DOI: 10.1175/JAS-D-14-0065.1
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct MorrisonMilbrandt2014{FT} <: ParametersType
-    "Cutoff temperature for deposition nucleation [K]"
+    "Cutoff temperature for deposition nucleation `[K]`; maps to the ClimaParams homogeneous nucleation temperature, 233 K"
     T_dep_thres::FT
     "coefficient [-]"
     c₁::FT
     "coefficient [-]"
     c₂::FT
-    "T₀"
+    "freezing temperature of water [K]"
     T₀::FT
     "heterogeneous freezing parameter a [K⁻¹]"
     het_a::FT
@@ -145,7 +145,7 @@ end
 (rf::RainFreezing)(T, T₀) = rf.het_B * exp(rf.het_a * (T₀ - T))
 
 """
-    IceNucleationParameters{FT, DEP, HOM, P3_type}
+    IceNucleationParameters{DEP, HOM, P3_type}
 
 Parameters for ice nucleation
 
@@ -153,8 +153,11 @@ Parameters for ice nucleation
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct IceNucleationParameters{DEP, HOM, P3_type} <: ParametersType
+    "deposition nucleation parameters, e.g. [`Mohler2006`](@ref)"
     deposition::DEP
+    "homogeneous nucleation parameters, e.g. [`Koop2000`](@ref)"
     homogeneous::HOM
+    "P3 ice nucleation parameters, e.g. [`MorrisonMilbrandt2014`](@ref)"
     p3::P3_type
 end
 
@@ -209,7 +212,7 @@ export NIceProxyDepletion
     NIceProxyDepletion{FT}
 
 Use the in-cell ice number `n_ice` as the depletion proxy for F23
-activation. This is the legacy / always-on form: a column with no ice
+activation. In this form, a column with no ice
 sees the full INPC target; activation events do not by themselves
 deplete the budget on a memory timescale, but the ice they create
 proxies "INPs already used" downstream until that ice sublimates,
@@ -223,7 +226,7 @@ clean air below it and the F23 channel artificially shuts off.
 $(DocStringExtensions.FIELDS)
 """
 struct NIceProxyDepletion{FT}
-    "F23 activation relaxation timescale [s] (default `300`)"
+    "F23 activation relaxation timescale `[s]` (default `300`)"
     τ_act::FT
 end
 NIceProxyDepletion(; τ_act = 300) = NIceProxyDepletion(τ_act)

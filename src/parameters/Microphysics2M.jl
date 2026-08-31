@@ -101,7 +101,7 @@ $(DocStringExtensions.FIELDS)
     d_low::FT
     "Autoconversion coeff d_high"
     d_high::FT
-    "Threshold for smooth tranistion steepness"
+    "Threshold for smooth transition steepness"
     k::FT
 end
 
@@ -152,9 +152,9 @@ DOI: 10.1016/0169-8095(94)90020-5
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct B1994{AV, AR} <: Precipitation2MType
-    "Autoconversion coeff C"
+    "Autoconversion parameters"
     acnv::AV
-    "Autoconversion coeff a"
+    "Accretion parameters"
     accr::AR
 end
 
@@ -182,7 +182,7 @@ $(DocStringExtensions.FIELDS)
     me_liq::FT
     "Autoconversion coefficient m0_liq_coeff"
     m0_liq_coeff::FT
-    "Threshold for smooth tranistion steepness"
+    "Threshold for smooth transition steepness"
     k::FT
 end
 
@@ -262,7 +262,7 @@ $(DocStringExtensions.FIELDS)
     E_0::FT
     "liquid water density [kg/m3]"
     ρ_w::FT
-    "Threshold for smooth tranistion steepness"
+    "Threshold for smooth transition steepness"
     k::FT
 end
 
@@ -306,7 +306,7 @@ Base.show(io::IO, mime::MIME"text/plain", x::RainParticlePDF_SB2006) =
     RainParticlePDF_SB2006_limited
 
 Rain size distribution parameters from SB2006 including the limiters
-on drop maximum mass and the size distribution coefficinets N0 and lambda
+on drop maximum mass and the size distribution coefficients N0 and lambda
 
 # Fields
 $(DocStringExtensions.FIELDS)
@@ -352,7 +352,7 @@ function RainParticlePDF_SB2006_limited(td::CP.ParamDict)
 end
 
 """
-    RainParticlePDF_SB2006
+    RainParticlePDF_SB2006_notlimited
 
 Rain size distribution parameters from SB2006 but without the limiters
 
@@ -405,7 +405,7 @@ $(DocStringExtensions.FIELDS)
     μc::FT
     "Cloud droplets minimum mass"
     xc_min::FT
-    "Cloud droplets maximum mass"
+    "Cloud droplets maximum mass (equals the SB2006 minimum raindrop mass)"
     xc_max::FT
     "Cloud liquid water density [kg/m3]"
     ρw::FT
@@ -535,9 +535,9 @@ Rain breakup parameters from SB2006
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct BreakupSB2006{FT} <: ParametersType
-    "Raindrop equilibrium mean diamater"
+    "Raindrop equilibrium mean diameter"
     Deq::FT
-    "Raindrop breakup mean diamater threshold"
+    "Raindrop breakup mean diameter threshold"
     Dr_th::FT
     "Raindrops breakup coefficient kbr"
     kbr::FT
@@ -631,7 +631,7 @@ end
     SB2006
 
 The type and parameters for 2-moment precipitation formation by
-Seifert and Beheng (2006). The pdf_r type choses between running with or without
+Seifert and Beheng (2006). The pdf_r type chooses between running with or without
 limiters on raindrop size distribution parameters
 
 DOI: 10.1007/s00703-005-0112-4
@@ -672,8 +672,16 @@ SB2006(toml_dict::CP.ParamDict; is_limited = true) =
     )
 
 
-### vapor condensation / liquid evaporation
+"""
+    CondEvap2M{FT}
+
+Relaxation parameters for 2-moment vapor condensation / liquid evaporation
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
 @kwdef struct CondEvap2M{FT} <: ParametersType
+    "condensation/evaporation relaxation timescale [s]"
     τ_relax::FT
 end
 
@@ -683,8 +691,16 @@ function CondEvap2M(td::CP.ParamDict)
     return CondEvap2M(; parameters...)
 end
 
-### vapor sublimation / ice deposition
+"""
+    SubDep2M{FT}
+
+Relaxation parameters for 2-moment vapor deposition / ice sublimation
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
 @kwdef struct SubDep2M{FT} <: ParametersType
+    "deposition/sublimation relaxation timescale [s]"
     τ_relax::FT
 end
 

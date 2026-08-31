@@ -211,12 +211,13 @@ Parcel state vector (all variables are in base SI units):
  - t     - time in seconds since the beginning of the simulation
 
 The parcel parameters struct comes with default values that can be overwritten:
- - deposition - string with deposition ice nucleation parameterization choice ["None" (default), "MohlerAF", "MohlerRate", "ActivityBased", "P3_dep"]
- - heterogeneous - string with heterogeneous ice nucleation parameterization choice ["None" (default), "ImmersionFreezing", "P3_het"]
- - homogeneous - string with homogeneous ice nucleation parameterization choice ["None" (default), "ActivityBased", "P3_hom"]
+ - deposition - string with deposition ice nucleation parameterization choice ["None" (default), "MohlerAF", "MohlerRate", "ABDINM", "P3_dep"]
+ - heterogeneous - string with heterogeneous ice nucleation parameterization choice ["None" (default), "ABIFM", "P3_het", "Frostenberg_random", "Frostenberg_mean", "Frostenberg_stochastic"]
+ - homogeneous - string with homogeneous ice nucleation parameterization choice ["None" (default), "ABHOM", "P3_hom"]
  - condensation_growth - string with condensation/evaporation options for cloud droplets ["None" (default), "Condensation"]
  - deposition_growth - string with deposition/sublimation options for ice crystals ["None" (default), "Deposition"]
- - size_distribution - string with cloud droplet and ice crystal size disribution choice ["Monodisperse" (default), "Gamma"]
+ - liq_size_distribution - string with cloud droplet size distribution choice ["Monodisperse" (default), "Gamma", "MonodisperseMix"]
+ - ice_size_distribution - string with ice crystal size distribution choice ["Monodisperse" (default), "Gamma"]
  - aerosol - a struct with aerosol parameters required by the nucleation parameterizations, see CloudMicrophysics documentation for all the options. The default is an Empty struct.
  - wps, aps, tps, ips, H₂SO₄ps - structs with additional free parameters needed by the parameterizations. By default we use the values stored in ClimaParams.jl. See CloudMicrophysics docs for more details.
  - const_dt - model timestep [s]. Parcel model is using a simple Euler timestepper. Default value is 1 s

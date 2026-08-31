@@ -1,8 +1,9 @@
 """
     Utilities
 
-Lightweight numerical utility functions shared across CloudMicrophysics modules.
-Contains pure numerical operations with no physics dependencies.
+Lightweight numerical utility functions shared across CloudMicrophysics
+modules, plus regularised helpers for derived quantities such as the rime
+mass fraction and rime density.
 """
 module Utilities
 
@@ -219,8 +220,8 @@ end
     # Halley's method
     # Use Q-q residual when p > 0.5 to avoid catastrophic cancellation
     use_q = p > FT(0.5)
-    # loggamma(a) is loop-invariant, so compute once and thread it into `_gamma_inc`
-    # and the derivative below (was recomputed ~2×/iteration, up to ~30×/call).
+    # loggamma(a) is loop-invariant, so compute once and thread it into
+    # `_gamma_inc` and the derivative below rather than recomputing per call.
     loggamma_a = SF.loggamma(a)
     for i in 1:15
         P, Q = _gamma_inc(a, x, loggamma_a)
@@ -309,13 +310,17 @@ end
 
 """
     ϵ_numerics(FT)
+    ϵ_numerics(x::Real)
 
 Physical smallness threshold for the **1-moment** scheme: below this a tracer is
-treated as absent. Returns `cbrt(floatmin(FT))`, a floatmin-derived floor that
-also keeps `cbrt`/`^` arguments above `floatmin`. See the note above for how this
-relates to the 2-moment/P3 thresholds.
+treated as absent. Returns `cbrt(floatmin(float(FT)))`, a floatmin-derived floor
+that also keeps `cbrt`/`^` arguments above `floatmin`. The `float` guard maps
+integer types to their float counterpart, so gates accept integer inputs. The
+value method keys the threshold to the argument's own type, `ϵ_numerics(q)`.
+See the note above for how this relates to the 2-moment/P3 thresholds.
 """
-@inline ϵ_numerics(FT) = cbrt(floatmin(FT))
+@inline ϵ_numerics(FT) = cbrt(floatmin(float(FT)))
+@inline ϵ_numerics(x::Real) = ϵ_numerics(typeof(x))
 
 """
     ϵ_numerics_2M_M(FT)
@@ -421,11 +426,13 @@ Used as the interpolation weight in regularised divisions so the result stays
 well-defined and smoothly blends toward zero when the denominator is small.
 
 Key properties:
-- `w(a) = 0` for `a ≤ 0`.
-- `w(a) = 1` for `a ≥ 1`.
+- `w(a) = 0` for `a ≤ 0` (and for `4a` below machine precision, to guard
+  autodiff).
+- `w(a) = 1` for `a ≥ min(1, 42 a_half)` (the upper guard keeps autodiff
+  finite; for small `a_half` the weight saturates before `a = 1`).
 - `w(a_half) = 0.5`.
-- Continuously differentiable; derivatives vanish at `a = 0` and `a = 1` so
-  the blend is smooth.
+- Continuously differentiable away from the guard cutoffs; derivatives
+  vanish at `a = 0` and `a = 1` so the blend is smooth.
 - Grows very rapidly near `a_half`, very slowly elsewhere.
 
 Construction: for `a ∈ (0, 1)`, a bounded sigmoid is built by composing `tanh`
@@ -464,7 +471,9 @@ regularisation so the result stays finite when `denominator` is zero
 or very small.
 
 Returns `weight(denominator) * numerator / denominator`, falling to
-zero when `denominator` is below machine precision.
+zero when `denominator < ϵ` (default `ϵ = eps(typeof(denominator))^2`);
+`half` (default `eps(typeof(denominator))`) is the denominator value at
+which the blending weight equals 0.5.
 """
 @inline function _regularised_ratio(
     numerator, denominator,
@@ -479,7 +488,7 @@ zero when `denominator` is below machine precision.
 end
 
 """
-    rime_mass_fraction(q_rim, q_ice, q_ice_half)
+    rime_mass_fraction(q_rim, q_ice, kw...)
 
 Regularised rime mass fraction `F_rim = q_rim / q_ice` that stays finite when
 `q_ice` is zero or very small, with the result clamped to `[0, 1]` via
@@ -488,14 +497,14 @@ Regularised rime mass fraction `F_rim = q_rim / q_ice` that stays finite when
 # Arguments
 - `q_rim`: rime specific mass `[kg rim / kg air]`.
 - `q_ice`: total ice specific mass `[kg ice / kg air]`.
-- `q_ice_half`: value of `q_ice` at which the blending weight equals 0.5
-  (default `eps(typeof(q_ice))`).
+- `kw...`: optional trailing arguments forwarded to
+  `_regularised_ratio` (`half`, then `ϵ`).
 """
 @inline rime_mass_fraction(q_rim, q_ice, kw...) =
     _regularised_ratio(min(q_rim, q_ice), q_ice, kw...)
 
 """
-    rime_density(q_rim, b_rim, b_rim_half)
+    rime_density(q_rim, b_rim, kw...)
 
 Regularised rime density `ρ_rim = q_rim / b_rim` that stays finite when
 `b_rim` is zero or very small.
@@ -503,8 +512,8 @@ Regularised rime density `ρ_rim = q_rim / b_rim` that stays finite when
 # Arguments
 - `q_rim`: rime specific mass `[kg rim / kg air]`.
 - `b_rim`: rime specific volume `[m³ rim / kg air]`.
-- `b_rim_half`: value of `b_rim` at which the blending weight equals 0.5
-  (default `eps(typeof(b_rim))`).
+- `kw...`: optional trailing arguments forwarded to
+  `_regularised_ratio` (`half`, then `ϵ`).
 """
 @inline rime_density(q_rim, b_rim, kw...) = _regularised_ratio(q_rim, b_rim, kw...)
 

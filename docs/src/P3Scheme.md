@@ -201,7 +201,7 @@ N'(D) = N_{0} D^μ e^{-λ D}
 where:
  -  $N'$   [m$^{-4}$]   $~~~~~$ is the number concentration,
  -  $D~~$  [m]      $~~~~~~~~~$ is the maximum particle dimension,
- -  $N_0$  [m$^{-5 - μ}$]   $~$ is the intercept parameter,
+ -  $N_0$  [m$^{-4 - μ}$]   $~$ is the intercept parameter,
  -  $μ~~~$ [--]     $~~~~~~~~~$ is the shape parameter,
  -  $λ~~~$ [m$^{-1}$]   $~~~~~$ is the slope parameter.
 
@@ -467,7 +467,7 @@ A(D, F_{liq}) &= (1 - F_liq) A(D, F_{liq} = 0) + F_{liq} A_{liq}(D)
 \end{align*}
 ```
 
-where ``m_{liq}(D) = \frac{π}{6} ρ_{liq} D^3`` and ``A_{liq}(D) = π D^2``.
+where ``m_{liq}(D) = \frac{π}{6} ρ_{liq} D^3`` and ``A_{liq}(D) = \frac{π}{4} D^2``.
 
 When calculating shape parameters and integrating over the particle size distribution (PSD), it is important to
   keep in mind whether the desired moment of the PSD is tied only to ice (in which case we concern ourselves with the
@@ -523,7 +523,7 @@ At a high level, we can categorize the microphysical process rates that affect t
 | $\textcolor{pink}{\textsf{MLT}}$    | Melting of ice |
 | $\textcolor{orange}{\textsf{SLF}}$    | Self-collection of ice |
 
-The scheme is coupled to the 2-moment Morrison & Milbrandt (2015) warm rain microphysics scheme with non-equilibrium moisture.
+The scheme is coupled to the 2-moment Seifert & Beheng (2006) warm rain microphysics scheme with non-equilibrium moisture.
 Some of the "P3 processes" naturally affect the 2-moment prognostic variables, and will be described in the following sections.
 At a high level, the processes enter as sources and sinks of the prognostic variables, as follows:
 
@@ -555,11 +555,13 @@ Ice phase:
                           %)
     &&                        \textcolor{lime}{+ \text{DEP}}
     \\ 
-  S_{N_{ice}} &= % NUC - SUB
+  S_{N_{ice}} &= % NUC - SUB - MLT - SLF
                               \textcolor{magenta}{\text{NUC}} 
     &&\phantom{               \textcolor{brown}{+ \text{COL}} }
     &&\phantom{ + F_{rim} ( } 
                               \textcolor{lime}{ - \text{SUB}}
+    &&                        \textcolor{pink}{ - \text{MLT}}
+                              \textcolor{orange}{ - \text{SLF}}
     \\ 
   S_{B_{rim}} &=
                               \textcolor{magenta}{\text{NUC}}
@@ -609,7 +611,7 @@ Ice phase:
               \\
   S_{N_{ice}} &= 0
               \\
-  S_{B_{rim}} &= \textcolor{brown}{\text{BCFRZ} + \text{BRFRZ} + \text{BIWET}} 
+  S_{B_{rim}} &= \textcolor{brown}{\text{BCCOL} + \text{BRCOL} + \text{BIWET}} 
               \\
 \end{align*}
 ```
@@ -666,7 +668,7 @@ The maximum freezing rate is based on Musil (1970) [Musil1970](@cite),
  The maximum freezing rate [kg/s] is computed as
 ```math
 ∂_t\mathcal{M}_\text{max}(D_i) 
-  = 2π D_i F_v(D_i) \frac{- K_t ΔT + L_v D_v Δρ_{v,\text{sat}}}{L_f + C_p ΔT}
+  = 2π D_i F_v(D_i) \frac{K_t ΔT + L_v D_v Δρ_{v,\text{sat}}}{L_f - C_p ΔT}
 ```
 where the first term in the numerator is the heat transfer rate to the air surrounding the hailstone,
  and the second term is evaporative cooling. The denominator is the heat that must be dissipated by the hailstone.
@@ -727,18 +729,24 @@ We assume that all shed droplets are shed at some fixed diameter $D_\text{shd}$.
     The corresponding bulk source to rain mass and number is
     ```math
     \begin{align*}
-    \textcolor{brown}{\text{QRSHD}} 
-    &= ∫_0^∞                           ∂_t\mathcal{M}_\text{shd}(D_i) N'_i(D_i) \mathrm{d}D_i
-    = ∫_0^∞ (1 - f_{\text{frz}}(D_i)) ∂_t\mathcal{M}_\text{col}(D_i) N'_i(D_i) \mathrm{d}D_i \\
-    &= ∫_0^∞ ∂_t\mathcal{M}_\text{col}(D_i) N'_i(D_i) \mathrm{d}D_i - (\textcolor{brown}{\text{QCFRZ} + \text{QRFRZ}})
+    \textcolor{brown}{\text{QCSHD}}
+    &= ∫_0^∞ (1 - f_{\text{frz}}(D_i)) ∂_t\mathcal{M}_\text{c,col}(D_i) N'_i(D_i) \mathrm{d}D_i
     \\
-    \textcolor{brown}{\text{NRSHD}} &= ∫_0^∞ ∂_t\mathcal{N}_\text{shd} N'_i(D_i) \mathrm{d}D_i
-    = ∫_0^∞ \frac{∂_t\mathcal{M}_\text{shd}}{m(D_\text{shd})}          N'_i(D_i) \mathrm{d}D_i
-    = \frac{\textcolor{brown}{\text{QRSHD}}}{m(D_\text{shd})},
+    \textcolor{brown}{\text{QRSHD}}
+    &= ∫_0^∞ (1 - f_{\text{frz}}(D_i)) ∂_t\mathcal{M}_\text{r,col}(D_i) N'_i(D_i) \mathrm{d}D_i
+    \\
+    \textcolor{brown}{\text{NRSHD}}
+    &= \frac{\textcolor{brown}{\text{QRSHD}}}{m(D_\text{shd})},
     \end{align*}
     ```
-    Note that because we assume that any shed droplets are rain, the shedding process
-    does not affect the rain mass.
+    Because we assume that any shed droplets are rain, the shed cloud water
+    ``\text{QCSHD}`` is a source of rain mass, while the shed rain water
+    ``\text{QRSHD}`` returns to the rain category and does not change the
+    rain mass.
+    The shed drops re-enter rain at the shedding diameter ``D_\text{shd}``,
+    which gives the rain number source ``\text{NRSHD}``
+    (the corresponding number source from shed cloud water is currently
+    neglected).
 
 Finally, how does this affect the rime volume? 
 
@@ -763,7 +771,7 @@ The change in rime volume is given by the change in mass divided by some rime de
     \end{cases}
     \end{align}
     ```
-    where $ρ^* = 900$ kg/m³ is the density of solid bulk ice, and $a_\text{CL}, b_\text{CL}, c_\text{CL}$ are the coefficients for the Cober & List (1993) parameterization [CoberList1993](@cite).
+    where $ρ^* = 916.7$ kg/m³ is the density of solid bulk ice, and $a_\text{CL}, b_\text{CL}, c_\text{CL}$ are the coefficients for the Cober & List (1993) parameterization [CoberList1993](@cite).
     The $R_i$ quantity is limited to the range $1 ≤ R_i ≤ 12$.
     Their values are $a_\text{CL} = 51$, $b_\text{CL} = 114$, and $c_\text{CL} = -5.5$.
 
@@ -792,7 +800,7 @@ f_\text{wet}
 }, \\
 &= \frac{
   ∫_0^∞ \mathbb{1}_\text{wet}(D_i) ⋅ ∂_t \mathcal{M}_{col}(D_i) N'(D_i) \mathrm{d}D_i
-}{\textcolor{brown}{\text{QCCOL} + \text{QRCOL} + \text{QRSHD}}
+}{\textcolor{brown}{\text{QCFRZ} + \text{QCSHD} + \text{QRFRZ} + \text{QRSHD}}
 },
 \end{align*}
 ```
@@ -817,22 +825,22 @@ Immersion freezing is parameterized based on water activity and follows the ABIF
   parameterization from [KnopfAlpert2013](@cite).
 See also the derivation notes about different
   [ice nucleation parameterizations](https://clima.github.io/CloudMicrophysics.jl/dev/IceNucleation/).
-The immersion freezing nucleation rate is computed by numerically integrating
-  over the distribution of cloud droplets given by the 2-moment warm rain
-  microphysics scheme from [SeifertBeheng2006](@cite).
-The rate is limited by the available cloud droplet number concentration
-  and water content.
+The immersion freezing nucleation rates for ice number and ice content are
+  computed from the available cloud droplet number concentration and
+  cloud water content:
 ```math
-\frac{dN}{dt} = \int_{0}^{D_\textrm{max}} \! J_\textrm{ABIFM} A_a(D) N'(D) \mathrm{d}D
+\frac{dN}{dt} = J_\textrm{ABIFM} \, A_a \, N_{lcl}
 ```
 ```math
-\frac{dQ}{dt} = \int_{0}^{D_\textrm{max}} \! J_\textrm{ABIFM} A_a(D) N'(D) m(D) \mathrm{d}D
+\frac{dL}{dt} = J_\textrm{ABIFM} \, A_a \, q_{lcl} \, \rho_a
 ```
 where
-- ``J_\textrm{ABIFM}`` - is the immersion freezing nucleation rate,
-- ``A_a(D)`` - is the assumed surface area of insoluble ice nucleating particles,
-- ``N'(D)`` - number distribution of cloud droplets,
-- ``m(D)`` - assumed mass of a cloud droplet as a function of its diameter.
+- ``J_\textrm{ABIFM}`` - is the immersion freezing nucleation rate coefficient,
+- ``A_a`` - is the assumed surface area of insoluble ice nucleating particles
+  per droplet (currently a constant ``10^{-10}`` m``^2``),
+- ``N_{lcl}`` and ``q_{lcl}`` - cloud droplet number concentration and
+  cloud water specific content,
+- ``\rho_a`` - air density.
 
 ```@example
 include("plots/P3ImmersionFreezing.jl")
@@ -856,7 +864,6 @@ The melting rate for number concentration is assumed to be proportional to the i
 ```math
 \left. \frac{dN}{dt} \right|_\mathrm{melt} = \frac{N}{L} \left. \frac{dL}{dt} \right|_\mathrm{melt}
 ```
-Both rates are limited by the total available ice content and number concentration divided by model time step length.
 
 ```@example
 include("plots/P3Melting.jl")
@@ -865,8 +872,6 @@ include("plots/P3Melting.jl")
 
 ## Acknowledgments
 
-Click on the P3 mascot duck to be taken to the repository
-  in which the authors of [MorrisonMilbrandt2015](@cite) and others
-  have implemented the P3 scheme in Fortran!
-
-[![P3 mascot](assets/p3_mascot.png)](https://github.com/P3-microphysics/P3-microphysics)
+The reference Fortran implementation of the P3 scheme, developed by the authors
+  of [MorrisonMilbrandt2015](@cite) and others, is available in the
+  [P3-microphysics repository](https://github.com/P3-microphysics/P3-microphysics).

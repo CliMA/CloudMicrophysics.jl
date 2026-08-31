@@ -48,8 +48,8 @@ Compute vapor specific content from total water and condensed phase specific con
 - `q_tot`: Total water specific content [kg/kg]
 - `q_liq` or `q_lcl`: Liquid water specific content [kg/kg]
 - `q_ice` or `q_icl`: Ice specific content [kg/kg]
-- `q_rai`: Rain specific content [kg/kg] (5-argument version only)
-- `q_sno`: Snow specific content [kg/kg] (5-argument version only)
+- `q_rai`: Rain specific content `[kg/kg]` (5-argument version only)
+- `q_sno`: Snow specific content `[kg/kg]` (5-argument version only)
 
 # Returns
 - Vapor specific content [kg/kg], clamped to be non-negative
@@ -67,7 +67,6 @@ p2q(tps::PS, T, ρ, pᵥ) = TD.q_vap_from_p_vap(tps, T, ρ, pᵥ)
 q2p(tps::PS, T, ρ, qᵥ) = qᵥ * ρ * Rᵥ(tps) * T
 
 # Get air density from temperature, pressure and water content
-# (only used in tests)
 air_density(tps::PS, T, p, q_tot, q_liq, q_ice) =
     TD.air_density(tps, T, p, q_tot, q_liq, q_ice)
 

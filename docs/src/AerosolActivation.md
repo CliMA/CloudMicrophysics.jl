@@ -3,8 +3,9 @@
 The `AerosolActivation.jl` module contains parameterization
   of activation of aerosol particles into cloud droplets
   via deposition of water vapor.
-Accompanying it, is the `AerosolDistribution.jl` module, which contains
-  information about the aerosol size distribution and chemical properties.
+Accompanying it, is the `AerosolModel.jl` module, which defines the
+  `AerosolDistribution` type describing
+  the aerosol size distribution and chemical properties.
 The parameterization computes the total activated number and mass
   from a given aerosol size distribution.
 It is based on [Köhler theory](https://en.wikipedia.org/wiki/K%C3%B6hler_theory)
@@ -47,6 +48,7 @@ When using the kappa formulation, one has to specify fewer parameters.
 |``\sigma``            | geometric standard deviation                      | ``-``               |
 |``N_{tot}``           | total number concentration                        | ``m^{-3}``          |
 |``r_{vol}``           | component volume mixing ratio                     | ``-``               |
+|``r_{mass}``          | component mass mixing ratio                       | ``-``               |
 |``M_a``               | molar mass                                        | ``kg \, mol^{-1}``  |
 |``\kappa``            | kappa parameter                                   | ``-``               |
 
@@ -61,7 +63,7 @@ When using the kappa formulation, one has to specify fewer parameters.
 
 Hygroscopicity describes the impact of solute on aerosol efficiency in taking up
   water vapor from the environment (i.e. the [Raoult's law](https://en.wikipedia.org/wiki/Raoult%27s_law)).
-The parametrization accepts two ways of describing it, either using the
+The parameterization accepts two ways of describing it, either using the
   ``B`` parameter or ``\kappa`` parameter.
 The ``B`` parameter is defined in eq. (3) in [Abdul-RazzakandGhan2000](@cite):
 
@@ -222,8 +224,9 @@ where:
 
 ## Number and mass of activated particles
 
-The total number ``N_{act}`` and mass ``M_{act}`` of activated aerosol particles
-  can be computed by integrating their size distribution
+The total number ``N_{act}`` of activated aerosol particles, and the
+  activated mass fraction expressed through the mode-average molar mass
+  ``M_{act}``, can be computed by integrating their size distribution
   starting from the smallest activated size.
 Following the derivations of
   [Abdul-Razzaketal1998](@cite) and [Abdul-RazzakandGhan2000](@cite)
@@ -242,7 +245,8 @@ M_{act} = \sum_{i = 1}^{I} M_{i}\frac{1}{2}\bigg[1 - \mathrm{erf}\bigg(u_{i} - \
 ```
 where:
 
-  - ``M_i`` is the average molar mass of aerosol particles in mode ``i``,
+  - ``M_i`` is the average molar mass of aerosol particles in mode ``i``
+    (weighted by the component mass mixing ratios),
   - ``u_i`` is given in equation (15) in [Abdul-RazzakandGhan2000](@cite).
 
 ```math
@@ -281,7 +285,7 @@ The CloudMicrophysics package offers an advanced feature for predicting the aero
 
 In addition, we provide functionality and a demonstration for re-training the free parameters of the traditional ARG activation scheme using Ensemble Kalman Processes. This functionality is showcased in `test/aerosol_activation_calibration.jl`.
 
-Using ML emulators or calibration with Ensemble Kalman Processes for predicting aerosol activation is provided through an extension to the main package. This extension will be loaded with `CloudMicrophysics.jl` if both `MLJ.jl`, `DataFrames.jl`, and `EnsembleKalmanProcesses.jl` are loaded by the user as well.
+Using ML emulators or calibration with Ensemble Kalman Processes for predicting aerosol activation is provided through an extension to the main package. This extension will be loaded with `CloudMicrophysics.jl` if both `MLJ.jl` and `DataFrames.jl` are loaded by the user as well.
 
 ## Modification for Local Supersaturation with Preexisting Hydrometeors
 

@@ -45,7 +45,10 @@ function het_ice_nucleation(
 end
 
 """
-    ice_melt(velocity_params, aps, tps, Tₐ, ρₐ, state, logλ; ∫kwargs...)
+    ice_melt(velocity_params, aps, tps, Tₐ, ρₐ, state, logλ; quad)
+
+Compute the melting rates of ice content and number concentration
+  (QIMLT in [MorrisonMilbrandt2015](@cite)).
 
 # Arguments
  - `velocity_params`: [`CMP.Chen2022VelType`](@ref)
@@ -59,7 +62,9 @@ end
 # Keyword arguments
  - `quad`: quadrature rule, default is `ChebyshevGauss(100)`
 
-Returns the melting rate of ice (QIMLT in Morrison and Mildbrandt (2015)).
+# Returns
+A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
+  concentration [1/m³/s] and ice content [kg/m³/s].
 """
 @inline function ice_melt(
     velocity_params, aps::CMP.AirProperties, tps::TDI.PS,
@@ -124,15 +129,15 @@ collision_cross_section_ice_liquid(state, Dᵢ, Dₗ) =
     evalpoly(Dₗ, collision_cross_section_ice_liquid_coeffs(state, Dᵢ))
 
 """
-    volumetric_collision_rate_integrand(state, velocity_params, ρₐ)
+    volumetric_collision_rate_integrand(velocity_params, ρₐ, state)
 
 Returns a function that computes the volumetric collision rate integrand for ice-liquid collisions [m³/s].
 The returned function takes ice and liquid particle diameters as arguments.
 
 # Arguments
-- `state`: [`P3State`](@ref)
 - `velocity_params`: velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
 - `ρₐ`: air density
+- `state`: [`P3State`](@ref)
 
 # Returns
 A function `(D_ice, D_liq) -> E * K * |vᵢ - vₗ|` where:
@@ -242,7 +247,8 @@ R_i = \\frac{ 10^6 ⋅ D_{liq} ⋅ |v_{liq} - v_{ice}| }{ 2 T_{sfc} }
 ```
 and ``T_{sfc}`` is the surface temperature [°C], ``D_{liq}`` is the liquid particle
 diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
-So the units of ``R_i`` are [m² s⁻¹ °C⁻¹]. The units of ``ρ'_{rim}`` are [kg/m³].
+With the ``10^6`` factor converting ``D_{liq}`` from [m] to [μm], the units of
+``R_i`` are [μm m s⁻¹ °C⁻¹]. The units of ``ρ'_{rim}`` are [kg/m³].
 
 We assume for simplicity that ``T_{sfc}`` equals ``T``, the ambient air temperature.
 For real graupel, ``T_{sfc}`` is slightly higher than ``T`` due to latent heat release
@@ -436,15 +442,17 @@ Computes the bulk collision rate integrands between ice and liquid particles.
 # Arguments
 - `n_i`: ice particle size distribution function n_i(D)
 - `∂ₜM_max`: maximum freezing rate function ∂ₜM_max(Dᵢ)
-- `cloud_integrals`: an instance of [`get_liquid_integrals`](@ref) for cloud particles
-- `rain_integrals`: an instance of [`get_liquid_integrals`](@ref) for rain particles
+- `cloud_integrals`: inner liquid integrals for cloud particles, e.g. from [`get_liquid_integrals`](@ref)
+- `rain_integrals`: inner liquid integrals for rain particles, e.g. from [`get_liquid_integrals`](@ref) or `get_liquid_integrals_rain_closed`
 - `ice_bounds`: integration bounds for ice particles, from [`integral_bounds`](@ref)
 
 # Keyword arguments
 - `quad`: quadrature rule, default is `ChebyshevGauss(100)`
 
 # Returns
-A tuple of 8 integrands, see [`∫liquid_ice_collisions`](@ref) for details.
+A 10-element vector of integrated rates,
+`(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col)`;
+see the method below for the definition of each entry.
 """
 @inline function ∫liquid_ice_collisions(
     n_i,
@@ -493,7 +501,7 @@ end
 """
     ∫liquid_ice_collisions(
         state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
-        aps, tps, vel, ρₐ, T, m_liq; [quad]
+        aps, tps, vel, ρₐ, T, m_liq; quad,
     )
 
 Compute key liquid-ice collision rates and quantities. Used by [`bulk_liquid_ice_collision_sources`](@ref).
@@ -515,7 +523,7 @@ Compute key liquid-ice collision rates and quantities. Used by [`bulk_liquid_ice
 - `m_liq`: liquid particle mass function `m_liq(D)`
 
 # Keyword arguments
-- `quad`: A `QuadratureRule` instance
+- `quad`: A `QuadratureRule` instance (required)
 
 # Returns
 A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col)`, where:
@@ -524,11 +532,11 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫�
 3. `NCCOL` - Cloud number collision rate [1/s]
 4. `QRFRZ` - Rain mass collision rate due to freezing [kg/s]
 5. `QRSHD` - Rain mass collision rate due to shedding [kg/s]
-4. `NRCOL` - Rain number collision rate [1/s]
-5. `∫M_col` - Total collision rate [kg/s]
-6. `BCCOL` - Cloud rime volume source [m³/m³/s]
-7. `BRCOL` - Rain rime volume source [m³/m³/s]
-8. `∫𝟙_wet_M_col` - Wet growth indicator [kg/s]
+6. `NRCOL` - Rain number collision rate [1/s]
+7. `∫M_col` - Total collision rate [kg/s]
+8. `BCCOL` - Cloud rime volume source [m³/m³/s]
+9. `BRCOL` - Rain rime volume source [m³/m³/s]
+10. `∫𝟙_wet_M_col` - Wet growth indicator [kg/s]
 """
 @inline function ∫liquid_ice_collisions(
     state, logλ,
@@ -568,19 +576,16 @@ end
 
 """
     bulk_liquid_ice_collision_sources(
-        params, logλ, L_ice, F_rim, ρ_rim,
+        state, logλ,
         psd_c, psd_r, L_c, N_c, L_r, N_r,
-        aps, tps, vel, ρₐ, T,
+        aps, tps, vel, ρₐ, T; quad,
     )
 
 Computes the bulk rates for ice and liquid particle collisions.
 
 # Arguments
-- `params`: the [`CMP.ParametersP3`](@ref)
+- `state`: [`P3State`](@ref)
 - `logλ`: the log of the slope parameter [log(1/m)]
-- `L_ice`: ice water content [kg/m³]
-- `F_rim`: riming fraction
-- `ρ_rim`: rime density [kg/m³]
 - `psd_c`: a [`CMP.CloudParticlePDF_SB2006`](@ref)
 - `psd_r`: a [`CMP.RainParticlePDF_SB2006`](@ref)
 - `L_c`: cloud liquid water content [kg/m³]
@@ -592,6 +597,9 @@ Computes the bulk rates for ice and liquid particle collisions.
 - `vel`: the velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
 - `ρₐ`: air density [kg/m³]
 - `T`: temperature [K]
+
+# Keyword arguments
+- `quad`: quadrature rule, default is `ChebyshevGauss(100)`
 
 # Returns
 A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, ∂ₜL_ice, ∂ₜB_rim)`, where:
@@ -671,7 +679,7 @@ while leaving mass, rime mass, and rime volume unchanged.
 
 # Returns
 A `NamedTuple` of `(; dNdt)`, where:
-1. `dNdt`: ice number concentration tendency due to self-collection [1/m³/s] (always positive or zero, represents a loss rate)
+1. `dNdt`: ice number concentration tendency due to self-collection `[1/m³/s]` (always positive or zero, represents a loss rate)
 """
 @inline function ice_self_collection(state, logλ, vel, ρₐ; quad = ChebyshevGauss(100))
     n_i = DT.size_distribution(state, logλ)

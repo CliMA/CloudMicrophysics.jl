@@ -5,6 +5,7 @@ import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.MicrophysicsNonEq as CMNonEq
 import CloudMicrophysics.DistributionTools as DT
 import CloudMicrophysics.P3Scheme as P3
@@ -107,4 +108,35 @@ end
     # leaves (Microphysics1M.jl) carry their own single-argument-typed
     # returns. The 1M leaves share this pattern and are out of scope for
     # this 2M/P3 sweep (the BMT-level source-terms FT is fixed).
+end
+
+@testset "1M kernels are concretely typed under mixed Dual/plain args" begin
+    mp1 = CMP.Microphysics1MParams(FT64)
+    chen = CMP.Chen2022VelType(FT64)
+    rain, snow, ice = mp1.precip.rain, mp1.precip.snow, mp1.cloud.ice
+    velr, vels = mp1.terminal_velocity.rain, mp1.terminal_velocity.snow
+
+    P = typeof
+    @test concrete_for_all_mixes(CM1.get_n0, (P(snow.pdf),), 2)
+    @test concrete_for_all_mixes(CM1.get_v0, (P(velr),), 1)
+    @test concrete_for_all_mixes(CM1.lambda_inverse, (P(rain.pdf), P(rain.mass)), 2)
+    @test concrete_for_all_mixes(CM1.lambda_inverse, (P(snow.pdf), P(snow.mass)), 2)
+    @test concrete_for_all_mixes(CM1.terminal_velocity, (P(rain), P(velr)), 2)
+    @test concrete_for_all_mixes(CM1.terminal_velocity, (P(snow), P(vels)), 2)
+    @test concrete_for_all_mixes(CM1.terminal_velocity, (P(rain), P(velr)), 4)
+    @test concrete_for_all_mixes(CM1.terminal_velocity, (P(rain), P(chen.rain)), 2)
+    @test concrete_for_all_mixes(CM1.terminal_velocity, (P(snow), P(chen.large_ice)), 2)
+    @test concrete_for_all_mixes(
+        CM1.terminal_velocity, (P(snow), P(chen.large_ice)), 2; post = (P(CM1.Oblate()),),
+    )
+    @test concrete_for_all_mixes(
+        CM1.terminal_velocity, (P(snow), P(chen.large_ice)), 2; post = (P(CM1.Prolate()),),
+    )
+    @test concrete_for_all_mixes(CM1.accretion, (P(mp1.cloud.liquid), P(rain), P(velr)), 7)
+    # the full kernels: 9 and 11 numeric arguments respectively
+    @test concrete_for_all_mixes(CM1.accretion_rain_sink, (P(rain), P(ice), P(velr)), 9)
+    @test concrete_for_all_mixes(CM1.accretion_snow_rain, (P(snow), P(rain), P(vels), P(velr)), 11)
+    # and their argument-computing wrappers
+    @test concrete_for_all_mixes(CM1.accretion_rain_sink, (P(rain), P(ice), P(velr)), 4)
+    @test concrete_for_all_mixes(CM1.accretion_snow_rain, (P(snow), P(rain), P(vels), P(velr)), 5)
 end

@@ -2,9 +2,9 @@
 
 ## Using Artifacts
 Calling the artifact needs to be done in the `CloudMicrophysics` source code so that the 
-    `Artifact.toml` file can be seen. The file containing the list of artifacts is
+    `Artifacts.toml` file can be seen. The file containing the list of artifacts is
     `ArtifactCalling.jl`. To call an artifact in a certain file outside of the `src` folder,
-    simply call the calling function just as you would other functions in the source code.
+    call the calling function as you would other functions in the source code.
     For example:
     
 ```

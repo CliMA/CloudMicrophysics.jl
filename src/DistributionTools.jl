@@ -112,12 +112,12 @@ function generalized_gamma_Mⁿ(ν, μ, B, N, n)
 end
 
 """
-   exponential_cdf(D_mean, D)
+    exponential_cdf(D_mean, D)
 
 Calculate the cumulative distribution function (CDF) for an exponential distribution
 parameterized in the form:
 
-   n(D) = N₀ * exp(-D / D_mean)
+    n(D) = N₀ * exp(-D / D_mean)
 
 where N₀ is a normalizing constant such that the total probability is 1.
 
@@ -149,8 +149,8 @@ parameterized in the form:
 where N₀ is a normalizing constant such that the total probability is 1.
 
 # Arguments
-- `Y`: The probability level (0 ≤ Y ≤ 1) for which to compute the quantile
 - `D_mean`: The mean value of the distribution
+- `Y`: The probability level (0 ≤ Y ≤ 1) for which to compute the quantile
 
 # Returns
 - `D`: The value D such that P(X ≤ D) = Y

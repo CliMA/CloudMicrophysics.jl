@@ -1,13 +1,20 @@
 # Water Activity
 
 The `Common.jl` module includes
-  a parameterization for difference in water activity between a H2SO4
-  solution droplet and ice. This can be used in immersion and homogeneous
-  freezing parameterizations of nucleation rate coefficient, ``J``.
-  The parameterization is based on [Baumgartner2022](@cite), [Koop2000](@cite),
+  parameterizations of the water activity of a ``H_2SO_4``
+  solution droplet and of ice. Their difference,
+```math
+\begin{equation}
+  \Delta a_w = a_w - a_{w,ice},
+\end{equation}
+```
+  is used in immersion and homogeneous
+  freezing parameterizations of the nucleation rate coefficient, ``J``.
+  The parameterizations are based on [Baumgartner2022](@cite), [Koop2000](@cite),
   and [Luo1995](@cite).
 
-  and the water activity of ice at the same temperature, ``a_{w,ice}(T)``. When the
+Here ``a_w`` is the water activity of the solution droplet
+  and ``a_{w,ice}(T)`` is the water activity of ice at the same temperature. When the
   droplet is in equilibrium with its surroundings, ``a_w`` is equivalent to relative
   humidity. Otherwise, a parameterization can be found in the `Common.jl` file and
   comes from [Koop2002](@cite),
@@ -25,7 +32,7 @@ where ``p_{sol}`` is saturated vapor pressure of water above solution, ``p_{sat}
   is saturated vapor pressure above pure liquid water, and ``p_{i,sat}`` is saturated
   vapor pressure above ice. ``p_{sol}`` is determined in mbar using a parameterization
   for supercooled, binary ``H_2SO_4/H_2O`` solution from [Luo1995](@cite) which is only
-  valid for ``185K < T < 235K``:
+  valid for ``185 \, K < T < 235 \, K``:
 ```math
 \begin{equation}
   ln(p_{sol}) = 23.306 - 5.3465x + 12xw_h - 8.19xw_h^2 + \frac{1}{T}(-5814 + 928.9x - 1876.7xw_h)
@@ -39,10 +46,10 @@ where ``x`` is the weight fraction of sulphuric acid in the droplets
 !!! note
 
     There is a need to find a parameterization for p_{sol}
-    at temperatures warmer than 235K for mixed phase clouds.
+    at temperatures warmer than 235 K for mixed phase clouds.
 
 For now, the equation used to find water activity of a droplet at equilibrium at
-  temperatures warmer than 235K is taken from [Baumgartner2022](@cite) equation 4:
+  temperatures warmer than 235 K is taken from [Baumgartner2022](@cite) equation 4:
 ```math
 \begin{equation}
   a_w = S_i \frac{p_{i,sat}(T)}{p_{sat}(T)}
