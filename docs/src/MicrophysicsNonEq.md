@@ -83,11 +83,21 @@ When the air is subsaturated, the evaporation and sublimation rates are
    \;\;\;\;\;\;\; k \in \{lcl, icl\}.
 \end{equation}
 ```
-For the ice tendency, an additional INP limiter suppresses deposition
-  (positive tendency) at temperatures above freezing, where no ice
-  nucleating particles (INPs) are available.
-This limiter applies to both the constant and the temperature-dependent
-  relaxation timescale options.
+Two temperature-based limiters are applied to the tendencies:
+
+1. **INP limiter (ice)**: Ice deposition (positive tendency) is suppressed
+   at temperatures above freezing (``T > T_{freeze}``), where no ice
+   nucleating particles (INPs) are available.
+   Ice sublimation (negative tendency) is unaffected.
+
+2. **Homogeneous limiter (liquid)**: Liquid condensation (positive tendency)
+   is suppressed at temperatures below the homogeneous nucleation
+   threshold (``T < T_{hom} \approx 233\,\text{K}``), where all liquid
+   water would freeze instantaneously.
+   Liquid evaporation (negative tendency) is unaffected, allowing
+   any remaining cloud water to dissipate.
+
+Both limiters apply to all relaxation timescale options.
 
 !!! note
     Both ``\tau_{l}`` and ``\tau_{i}`` are assumed to be constant by default.
@@ -128,41 +138,32 @@ include("plots/NonEqCondEvapRate.jl")
 
 ## [Ice relaxation timescale — prescribed ice number](@id ice-relaxation-timescale-prescribed-ice-number)
 
-Instead of using a constant ice relaxation timescale, the `PrescribedIceNumber`
-  option derives ``\tau_i`` from the fixed cloud-ice number concentration
-  ``N_0`` stored in `CloudIce` (the same value used for cloud-ice sedimentation).
+`PrescribedIceNumber` option derives the relaxation timescale ``\tau_i``
+  based on the prescribed cloud-ice number concentration ``N_0``.
 
-The number concentration ``N_0`` is stored in volumetric units (``1/\text{m}^3``).
-For the radius computation it is converted to specific units:
 ```math
 \begin{equation}
-  n = N_0 / \rho
-\end{equation}
-```
-where ``\rho`` is the air density.
-
-Given ``n`` and the cloud ice specific content ``q_{icl}`` (kg/kg),
-  the mean crystal radius is computed assuming spherical ice particles
-  with a monodisperse size distribution:
-```math
-\begin{equation}
-  r = \left(\frac{3 \, q_{icl}}{4 \pi \, n \, \rho_i}\right)^{1/3}
-\end{equation}
-```
-A minimum radius ``r_0 = 1\,\mu m`` is enforced.
-
-The relaxation timescale uses the volumetric ``N_0`` (``1/\text{m}^3``)
-  to keep the result in seconds:
-```math
-\begin{equation}
-  \tau_{i} = \frac{1}{4 \pi \, D_v \, N_0 \, r_{safe}}
+  \tau_{i} = \frac{1}{4 \pi \, D_v \, N_0 \, r}
 \end{equation}
 ```
 where ``D_v`` is the water vapor diffusivity (``\text{m}^2/\text{s}``)
-  and ``r_{safe} = \max(r, r_0)``.
+  and ``r`` is the ice crystal radius.
 
-Unlike the `TemperatureDependent` (Frostenberg) option, this approach uses the
-  **same timescale for both deposition and sublimation**.
+Assuming a mono-disperse distribution and spherical ice crystals we estimate
+  the radius as
+```math
+\begin{equation}
+  r = max \left(\left(\frac{3 \, q_{icl} \, \rho }{4 \pi \, N_0 \, \rho_i}\right)^{1/3} \, , \, r_0 \right)
+\end{equation}
+```
+where ``\rho`` is the air density,
+      ``q_{icl} is cloud ice specific humidity,
+      and ``\rho_i`` is the ice density.
+A minimum radius ``r_0 = 1\,\mu m`` is enforced.
+
+Figure below show the relaxation timescale for different assumed number concentrations and
+  cloud ice specific humidities. The constant timescale at low cloud ice values is the
+  result of the minimum assumed particle radius.
 
 ```@example
 include("plots/plotting_tau_relax_prescribed_N0.jl")
@@ -177,6 +178,9 @@ The constant ice relaxation timescale ``\tau_i`` can be replaced with
   parameterization of ice nucleating particle (INP) concentrations.
 This makes the deposition timescale physically dependent on the
   number of available INPs and the ice crystal size.
+This could be a good approximation at cold temperatures, but should not be
+  used as a sole timescale due to the importance of ice-multiplication processes
+  in warmer temperatures.
 
 The INP number concentration is estimated as a function of temperature:
 ```math

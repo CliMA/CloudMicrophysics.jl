@@ -63,6 +63,7 @@ export terminal_velocity,
     conv_q_sno_to_q_vap,
     conv_q_icl_to_q_lcl,
     conv_q_sno_to_q_rai,
+    conv_q_lcl_to_q_icl,
     lambda_inverse
 
 abstract type AbstractSnowShape end
@@ -531,9 +532,9 @@ contribution of warm liquid on snow.
 end
 
 # Gating convention for the process-rate kernels below: the rate is computed
-# unconditionally and then gated with `ifelse(cond, rate, zero(rate))`, so the 
-# kernel stays branchless on the GPU. `zero(rate)` types the fallback from the 
-# live branch, so both `ifelse` arms agree for any argument mix (plain floats, 
+# unconditionally and then gated with `ifelse(cond, rate, zero(rate))`, so the
+# kernel stays branchless on the GPU. `zero(rate)` types the fallback from the
+# live branch, so both `ifelse` arms agree for any argument mix (plain floats,
 # ForwardDiff Duals). The `max(x, ϵ_numerics)` clamps on denominators (e.g.,
 # `lambda_inverse`'s floor, the Schmidt-number guard) keep the discarded
 # `ifelse` branch finite (important for ForwardDiff/Dual gradients and to
@@ -1176,6 +1177,74 @@ Returns the tendency due to cloud ice melt.
 
     cond = q_icl > UT.ϵ_numerics(q_icl) && T > T_freeze
     return ifelse(cond, cloud_ice_melt_rate, zero(cloud_ice_melt_rate))
+end
+
+"""
+    conv_q_lcl_to_q_icl(::Nothing, mp, tps, micro, thermo)
+    conv_q_lcl_to_q_icl(::Homogeneous, mp, tps, micro, thermo)
+    conv_q_lcl_to_q_icl(::Heterogeneous, mp, tps, micro, thermo)
+    conv_q_lcl_to_q_icl(::HomogeneousAndHeterogeneous, mp, tps, micro, thermo)
+
+Returns the tendency to cloud ice from freezing of cloud liquid.
+
+# Arguments
+- `opt`: `Homogeneous()`, `Heterogeneous()`, `HomogeneousAndHereogeneous() or `nothing`
+- `mp`: 1-moment microphysics parameters
+- `tps`: thermodynamics parameters
+- `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
+- `thermo`: thermodynamic state `(; ρ, T)`
+
+Homogeneous freezing: all cloud liquid freezes to ice below T_hom on a
+short relaxation timescale τ_hom.
+
+Heterogeneous freezing is based on Bigg 1953 immersion freezing:
+cloud liquid freezes to ice between T_hom and T_freeze.
+Droplet volume is based on prescribed cloud droplet number concentration.
+"""
+@inline conv_q_lcl_to_q_icl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
+
+@inline function conv_q_lcl_to_q_icl(::CMP.Homogeneous, mp, tps, micro, thermo)
+    q_lcl = micro.q_lcl
+    T = thermo.T
+    FT = UT.promote_typeof(q_lcl, T)
+
+    pp = mp.process_params.cloud_liquid_freezing
+    T_hom = pp.T_hom
+    τ_hom = pp.τ_hom
+    has_liquid = q_lcl > UT.ϵ_numerics(FT)
+
+    rate = q_lcl / τ_hom
+
+    return ifelse(has_liquid & (T < T_hom), rate, zero(FT))
+end
+
+@inline function conv_q_lcl_to_q_icl(::CMP.Heterogeneous, mp, tps, micro, thermo)
+    q_lcl = micro.q_lcl
+    (; ρ, T) = thermo
+    FT = UT.promote_typeof(q_lcl, ρ, T)
+
+    T_freeze = TDI.T_freeze(tps)
+    Bigg = mp.process_params.cloud_liquid_freezing
+
+    # Cloud liquid properties
+    (; ρw, N_0) = mp.cloud.liquid
+
+    # Guard: no freezing if no liquid or T ≥ T_freeze
+    has_liquid = q_lcl > UT.ϵ_numerics(FT) && N_0 > UT.ϵ_numerics(FT)
+    below_freezing = T < T_freeze
+
+    # Mean droplet volume from prescribed N_0 (1/m³) and q_lcl (kg/kg)
+    V_drop = ρ * q_lcl / N_0 / ρw  # m³
+
+    # Bigg freezing rate (Reisner et al. 1998, eq. A22)
+    rate = Bigg.B * (exp(Bigg.A * (T_freeze - T)) - 1) * V_drop * q_lcl
+
+    return ifelse(has_liquid & below_freezing, rate, zero(FT))
+end
+
+@inline function conv_q_lcl_to_q_icl(::CMP.HomogeneousAndHeterogeneous, mp, tps, micro, thermo)
+    return conv_q_lcl_to_q_icl(CMP.Homogeneous(), mp, tps, micro, thermo) +
+           conv_q_lcl_to_q_icl(CMP.Heterogeneous(), mp, tps, micro, thermo)
 end
 
 """

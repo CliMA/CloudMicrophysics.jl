@@ -48,6 +48,7 @@ Microphysics1M.conv_q_rai_to_q_vap
 Microphysics1M.conv_q_sno_to_q_vap
 Microphysics1M.conv_q_icl_to_q_lcl
 Microphysics1M.conv_q_sno_to_q_rai
+Microphysics1M.conv_q_lcl_to_q_icl
 ```
 
 ## Parameters

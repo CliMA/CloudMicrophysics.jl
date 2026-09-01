@@ -21,7 +21,10 @@ export Microphysics1MOptions,
     CloudLiquidSnowAccretion,
     CloudIceRainAccretion,
     CloudIceSnowAccretion,
-    RainSnowAccretion
+    RainSnowAccretion,
+    Homogeneous,
+    Heterogeneous,
+    HomogeneousAndHeterogeneous
 
 """
     MicrophysicsOption
@@ -236,19 +239,41 @@ struct CloudIceMelt <: MicrophysicsOption end
 """Snow melts to rain above freezing."""
 struct SnowMelt <: MicrophysicsOption end
 
+"""
+    Homogeneous <: MicrophysicsOption
+
+All cloud liquid freezes to ice below the homogeneous nucleation temperature
+(T < T_hom ≈ 233 K) on a short relaxation timescale.
+"""
+struct Homogeneous <: MicrophysicsOption end
+
+"""
+    Heterogeneous <: MicrophysicsOption
+
+Cloud liquid freezing to cloud ice via Bigg (1953) immersion freezing
+for T < T_freeze, using the Reisner et al. (1998) parameterization.
+Droplet volume is based on prescribed cloud droplet number concentration.
+"""
+struct Heterogeneous <: MicrophysicsOption end
+
+"""
+    HomogeneousAndHeterogeneous <: MicrophysicsOption
+
+Both homogeneous and heterogeneous cloud liquid freezing are active.
+"""
+struct HomogeneousAndHeterogeneous <: MicrophysicsOption end
+
 # ═══════════════════════════════════════════════════════════════════
 # Options struct
 # ═══════════════════════════════════════════════════════════════════
 
 """
-    Microphysics1MOptions{CLF, CIF, CIM, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA}
+    Microphysics1MOptions{CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA}
 
 Process configuration for 1-moment microphysics.
-Each field selects a variant for one microphysical process.
-Set a field to `nothing` to disable the process entirely.
 
-# Fields
-$(DocStringExtensions.FIELDS)
+Each field selects a process variant (a concrete `MicrophysicsOption` subtype).
+Set any field to `nothing` to disable that process entirely.
 
 # Example
 ```julia
@@ -268,7 +293,7 @@ opts = CMP.Microphysics1MOptions(; rain_autoconversion = CMP.PrescribedNd())
 ```
 """
 @kwdef struct Microphysics1MOptions{
-    CLF, CIF, CIM, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA,
+    CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA,
 }
     "cloud liquid formation option"
     cloud_liquid_formation::CLF = CloudLiquidFormation()
@@ -276,6 +301,8 @@ opts = CMP.Microphysics1MOptions(; rain_autoconversion = CMP.PrescribedNd())
     cloud_ice_formation::CIF = ConstantTimescale()
     "cloud ice melting option"
     cloud_ice_melt::CIM = CloudIceMelt()
+    "cloud liquid freezing option"
+    cloud_liquid_freezing::CLFr = HomogeneousAndHeterogeneous()
     "rain autoconversion option"
     rain_autoconversion::RA = Kessler1M()
     "cloud ice to snow autoconversion option"
@@ -315,7 +342,10 @@ process_params_for(::Nothing, ::CP.ParamDict) = nothing
 process_params_for(::MicrophysicsOption, ::CP.ParamDict) = nothing
 
 function process_params_for(::CloudLiquidFormation, td::CP.ParamDict)
-    name_map = (; :condensation_evaporation_timescale => :τ_relax)
+    name_map = (;
+        :condensation_evaporation_timescale => :τ_relax,
+        :temperature_homogenous_nucleation => :T_hom,
+    )
     return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
 end
 
@@ -328,6 +358,29 @@ function process_params_for(::TemperatureDependent, td::CP.ParamDict)
     name_map = (; :sublimation_deposition_timescale => :τ_relax)
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return (; τ_relax = p.τ_relax, frostenberg = Frostenberg2023(td))
+end
+
+function process_params_for(::Homogeneous, td::CP.ParamDict)
+    name_map = (;
+        :temperature_homogenous_nucleation => :T_hom,
+        :homogeneous_freezing_timescale => :τ_hom,
+    )
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::Heterogeneous, td::CP.ParamDict)
+    name_map = (;
+        :Reisner_et_al_A_parameter => :A,
+        :Reisner_et_al_B_parameter => :B,
+    )
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+end
+
+function process_params_for(::HomogeneousAndHeterogeneous, td::CP.ParamDict)
+    return (;
+        process_params_for(Homogeneous(), td)...,
+        process_params_for(Heterogeneous(), td)...,
+    )
 end
 
 function process_params_for(::Kessler1M, td::CP.ParamDict)
@@ -396,6 +449,7 @@ microphysics_1m_process_params(td::CP.ParamDict, o::Microphysics1MOptions) = (;
     cloud_liquid_formation = process_params_for(o.cloud_liquid_formation, td),
     cloud_ice_formation = process_params_for(o.cloud_ice_formation, td),
     cloud_ice_melt = process_params_for(o.cloud_ice_melt, td),
+    cloud_liquid_freezing = process_params_for(o.cloud_liquid_freezing, td),
     rain_autoconversion = process_params_for(o.rain_autoconversion, td),
     snow_autoconversion = process_params_for(o.snow_autoconversion, td),
     rain_condensation_evaporation = process_params_for(o.rain_condensation_evaporation, td),
