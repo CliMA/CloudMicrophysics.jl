@@ -232,7 +232,7 @@ function benchmark_test(FT)
     bench_press(FT, CMI_hom.homogeneous_J_linear, (ip.homogeneous, Delta_a_w), 230)
 
     @info "Non-equilibrium Microphysics"
-    bench_press(FT, CMN.τ_relax, (ice, aps, ip_frostenberg, FT(1e-4), FT(250)), 300)
+    bench_press(FT, CMN.τ_relax, (ice, aps, ip_frostenberg, FT(1e-4), FT(250), FT(0.8)), 300)
 
     mp_mock = (;
         cloud = (; liquid = liquid),

@@ -25,29 +25,59 @@ export dqcld_dT
 export gamma_helper
 
 """
-    τ_relax(ice, air_properties, frostenberg, q_icl, T)
+    τ_relax(ice, air_properties, q_icl, ρ)
+    τ_relax(ice, air_properties, frostenberg, q_icl, T, ρ)
 
-Computes the deposition relaxation timescale through
-the Frostenberg et al., (2023) parameterization.
+Computes the deposition/sublimation relaxation timescale.
+
+The first method uses the prescribed cloud-ice number concentration
+`N_0` from `CloudIce`; the second derives the ice-crystal
+number from the Frostenberg et al. (2023) INP parameterization.
 See DOI: 10.5194/acp-23-10883-2023
+
+Arguments:
+  - cloud microphysics and air parameters
+  - q_icl [kg/kg] - cloud ice specific humidity
+  - T [K] - air temperature (Frostenberg only)
+  - ρ [kg/m³] - air density
 """
 @inline function τ_relax(
-    (; ρᵢ)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties,
-    ip::CMP.Frostenberg2023, q_icl, T,
+    (; ρᵢ, N_0)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties, q_icl, ρ,
 )
-    FT = UT.promote_typeof(q_icl, T, ρᵢ)
-    # Get the estimated number of INPs
-    N_icl = exp(IN.INP_concentration_mean(ip, T))
+    FT = UT.promote_typeof(q_icl, N_0, ρᵢ)
+
+    # Convert N_0 from 1/m³ to 1/kg for the radius computation
+    N_specific = N_0 / ρ
 
     # Compute the radius assuming spherical particles and
-    # mono-modal distribution
-    safe_N_icl = max(N_icl, UT.ϵ_numerics(FT))
-    r = ifelse(N_icl > UT.ϵ_numerics(FT), cbrt((3 * q_icl) / (4 * FT(π) * safe_N_icl * ρᵢ)), zero(FT))
-    r0 = FT(1e-6)
+    # mono-modal distribution (q in kg/kg, N in 1/kg)
+    r = cbrt((3 * q_icl) / (4 * FT(π) * N_specific * ρᵢ))
+    r0 = FT(1e-6) # TODO - make a parameter
     r_safe = max(r, r0)
 
-    # Compute the relaxation timescale
-    τ = (4 * FT(π) * D_vapor * N_icl * r_safe)^(-1)
+    # Compute the relaxation timescale (D_vapor in m²/s, N in 1/m³, r in m → τ in s)
+    τ = (4 * FT(π) * D_vapor * N_0 * r_safe)^(-1)
+    return τ
+end
+@inline function τ_relax(
+    (; ρᵢ)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties,
+    ip::CMP.Frostenberg2023, q_icl, T, ρ,
+)
+    FT = UT.promote_typeof(q_icl, T, ρᵢ, ρ)
+    # Get the estimated number of INPs in 1/m³
+    N_vol = exp(IN.INP_concentration_mean(ip, T))
+    # Convert to 1/kg for the radius computation
+    N_icl = N_vol / ρ
+
+    # Compute the radius assuming spherical particles and
+    # mono-modal distribution (q in kg/kg, N in 1/kg)
+    safe_N_icl = max(N_icl, UT.ϵ_numerics(FT))
+    r = ifelse(N_icl > UT.ϵ_numerics(FT), cbrt((3 * q_icl) / (4 * FT(π) * safe_N_icl * ρᵢ)), zero(FT))
+    r0 = FT(1e-6) # TODO - make a parameter
+    r_safe = max(r, r0)
+
+    # Compute the relaxation timescale (D_vapor in m²/s, N in 1/m³, r in m → τ in s)
+    τ = (4 * FT(π) * D_vapor * N_vol * r_safe)^(-1)
     return τ
 end
 
@@ -143,6 +173,7 @@ end
 
 """
     conv_q_vap_to_q_icl(opt::ConstantTimescale, mp, tps, micro, thermo)
+    conv_q_vap_to_q_icl(opt::PrescribedIceNumber, mp, tps, micro, thermo)
     conv_q_vap_to_q_icl(opt::TemperatureDependent, mp, tps, micro, thermo)
     conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo)
 
@@ -151,7 +182,7 @@ Morrison & Grabowski (2008), https://doi.org/10.1175/2007JAS2374.1, and
 Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 
 # Arguments
-- `opt`: `ConstantTimescale()`, `TemperatureDependent()`, or `nothing` (disabled)
+- `opt`: `ConstantTimescale()`, PrescribedIceNumber(), `TemperatureDependent()`, or `nothing` (disabled)
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -165,6 +196,13 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
     ::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo) =
     _conv_q_vap_to_q_icl_const(
         mp.process_params.cloud_ice_formation.τ_relax, tps, micro, thermo)
+@inline function conv_q_vap_to_q_icl(
+    ::CMP.PrescribedIceNumber, mp, tps::TDI.PS, micro, thermo)
+    (; q_icl) = micro
+    (; ρ) = thermo
+    τ = τ_relax(mp.cloud.ice, mp.air_properties, q_icl, ρ)
+    return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo)
+end
 
 # Kernel for `conv_q_vap_to_q_icl` with a constant relaxation timescale `τ`
 @inline function _conv_q_vap_to_q_icl_const(τ, tps::TDI.PS, micro, thermo)
@@ -199,7 +237,7 @@ end
     (; ρ, T) = thermo
     pp = mp.process_params.cloud_ice_formation
     τ_sub = pp.τ_relax
-    τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, pp.frostenberg, q_icl, T)
+    τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, pp.frostenberg, q_icl, T, ρ)
 
     Rᵥ = TDI.Rᵥ(tps)
     Lₛ = TDI.Lₛ(tps, T)

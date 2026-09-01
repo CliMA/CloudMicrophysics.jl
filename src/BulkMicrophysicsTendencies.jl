@@ -176,8 +176,13 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     # Cloud liquid + rain → rain
     S_accr_lcl_rai = CM1.accretion(procs.cloud_liquid_rain_accretion, mp, tps, micro, thermo, sd)
 
-    # Cloud liquid + snow: product goes to sno (cold) or rai (warm), plus thermal melt
-    (; S_accr, S_melt) = CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo, sd)
+    # Cloud liquid + snow: product goes to sno (cold) or rai (warm), plus thermal melt.
+    # The previous accretion versions return a single number, this one has to return a tuple.
+    (; S_accr, S_melt) = if isnothing(procs.cloud_liquid_snow_accretion)
+        (; S_accr = zero(FT), S_melt = zero(FT))
+    else
+        CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo, sd)
+    end
     S_accr_lcl_sno_cold = ifelse(is_warm, zero(FT), S_accr)    # lcl → sno (cold)
     S_accr_lcl_sno_warm = ifelse(is_warm, S_accr, zero(FT))    # lcl → rai (warm)
     S_accr_melt_lcl_sno = S_melt                                # thermal melt of sno from warm lcl (already zero when cold)

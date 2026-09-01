@@ -3,6 +3,7 @@ export Microphysics1MOptions,
     CloudLiquidFormation,
     CloudIceFormation,
     ConstantTimescale,
+    PrescribedIceNumber,
     TemperatureDependent,
     CloudIceMelt,
     RainAutoconversion,
@@ -41,7 +42,8 @@ abstract type MicrophysicsOption end
     CloudIceFormation <: MicrophysicsOption
 
 Abstract type for cloud ice formation (deposition/sublimation) methods.
-See subtypes: [`ConstantTimescale`](@ref), [`TemperatureDependent`](@ref).
+See subtypes: [`ConstantTimescale`](@ref), [`PrescribedIceNumber`](@ref),
+[`TemperatureDependent`](@ref).
 """
 abstract type CloudIceFormation <: MicrophysicsOption end
 
@@ -96,11 +98,22 @@ Parameters (`τ_relax`) are stored in `process_params.cloud_ice_formation` in
 struct ConstantTimescale <: CloudIceFormation end
 
 """
+    PrescribedIceNumber <: CloudIceFormation
+
+Ice deposition/sublimation timescale derived from the prescribed cloud-ice
+number concentration `N_0` in `CloudIce` (the same `N_0` used for
+sedimentation).  Both deposition and sublimation use the dynamically
+computed timescale.  No additional process parameters are required.
+"""
+struct PrescribedIceNumber <: CloudIceFormation end
+
+"""
     TemperatureDependent <: CloudIceFormation
 
 INP-dependent Frostenberg (2023) timescale for deposition,
 with constant timescale for sublimation. Parameters (`τ_relax`, `frostenberg`)
-are stored in `process_params.cloud_ice_formation` in [`Microphysics1MParams`](@ref).
+are stored in `process_params.cloud_ice_formation` in
+[`Microphysics1MParams`](@ref).
 """
 struct TemperatureDependent <: CloudIceFormation end
 
@@ -404,6 +417,7 @@ microphysics_1m_process_params(td::CP.ParamDict, o::Microphysics1MOptions) = (;
 # ═══════════════════════════════════════════════════════════════════
 @deprecate CloudLiquidFormation(::CP.ParamDict) CloudLiquidFormation() false
 @deprecate ConstantTimescale(::CP.ParamDict) ConstantTimescale() false
+@deprecate PrescribedIceNumber(::CP.ParamDict) PrescribedIceNumber() false
 @deprecate TemperatureDependent(::CP.ParamDict) TemperatureDependent() false
 @deprecate Kessler1M(::CP.ParamDict) Kessler1M() false
 @deprecate PrescribedNd(::CP.ParamDict) PrescribedNd() false
