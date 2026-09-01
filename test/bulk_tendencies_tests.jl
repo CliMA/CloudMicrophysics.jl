@@ -1,4 +1,5 @@
 using Test
+import Random
 
 import ClimaParams as CP
 
@@ -697,6 +698,66 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
 
         @test lin isa NamedTuple
+    end
+
+    @testset "_fused_linearize is bit-for-bit identical to the unfused pair" begin
+        # `_linearized_implicit_step` calls `_fused_linearize`, while
+        # `_microphysics_source_terms` + `_linearize` remain as the readable
+        # reference. The fusion is a register-pressure change only: it folds
+        # each source term into the accumulators at its point of computation
+        # rather than materializing all eighteen first, in the same order, so
+        # no floating-point sum is reassociated. This test is what keeps the
+        # two implementations from silently diverging.
+        q_min = TDI.TD.Parameters.q_min(tps)
+        Random.seed!(20260831)
+
+        # The sweep is wide but reports a single verdict: asserting per trial
+        # per accumulator would add tens of thousands of `@test`s to a file
+        # that otherwise has a few hundred, drowning any other failure.
+        # `first_mismatch` carries enough to reproduce a failure directly.
+        first_mismatch = nothing
+        n_mismatch = 0
+
+        for trial in 1:2000
+            ρ = FT(0.05) + FT(1.4) * rand(FT)
+            T = FT(180) + FT(140) * rand(FT)
+            q_tot = rand(FT) * FT(0.03)
+            q_lcl = rand(FT) < FT(0.35) ? zero(FT) : rand(FT) * FT(2e-3)
+            q_icl = rand(FT) < FT(0.35) ? zero(FT) : rand(FT) * FT(2e-3)
+            q_rai = rand(FT) < FT(0.45) ? zero(FT) : rand(FT) * FT(1e-3)
+            q_sno = rand(FT) < FT(0.45) ? zero(FT) : rand(FT) * FT(1e-3)
+            # Exercise the negative-input clamping on both sides.
+            trial % 11 == 0 && (q_lcl = -q_lcl)
+            trial % 13 == 0 && (q_rai = -q_rai)
+
+            src = BMT._microphysics_source_terms(
+                BMT.Microphysics1Moment(),
+                mp, tps,
+                ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            )
+            ref = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+            got = BMT._fused_linearize(
+                mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, q_min,
+            )
+
+            keys(got) == keys(ref) || error(
+                "_fused_linearize returned $(keys(got)), expected $(keys(ref))",
+            )
+            for k in keys(ref)
+                a = getproperty(ref, k)
+                b = getproperty(got, k)
+                # `===` rather than `≈`: the claim is bit-for-bit, not close.
+                ((a === b) || (isnan(a) && isnan(b))) && continue
+                n_mismatch += 1
+                if isnothing(first_mismatch)
+                    first_mismatch =
+                        (; k, ref = a, fused = b, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+                end
+            end
+        end
+
+        @test n_mismatch == 0
+        isnothing(first_mismatch) || @info "first mismatch" first_mismatch
     end
 
     @testset "_linearize (via _microphysics_source_terms) - Warm rain-only structure" begin
