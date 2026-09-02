@@ -50,7 +50,7 @@ for (j, q_icl) in enumerate(q_icl_values)
 
         if T < T_freeze
             # Deposition branch: τ_dep × Γᵢ
-            τ_dep = CMNe.τ_relax(ice, aps, frs, q_icl, T)
+            τ_dep = CMNe.τ_relax(ice, aps, frs, q_icl, T, ρ)
             τ_data[i, j] = τ_dep * Γᵢ
         else
             # Sublimation branch: τ_sub × Γᵢ

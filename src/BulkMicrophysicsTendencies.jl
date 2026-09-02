@@ -171,8 +171,17 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     # Cloud liquid + rain → rain
     S_accr_lcl_rai = CM1.accretion(procs.cloud_liquid_rain_accretion, mp, tps, micro, thermo)
 
-    # Cloud liquid + snow: product goes to sno (cold) or rai (warm), plus thermal melt
-    (; S_accr, S_melt) = CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
+    # Cloud liquid + snow: product goes to sno (cold) or rai (warm), plus thermal melt.
+    # The previous accretion versions return a single number, this one has to return a tuple.
+    # Merge note: upstream's `nothing` guard is kept; its `sd` argument is not,
+    # because this branch deliberately removes the hoisted size-distribution
+    # struct so each process recomputes what it needs (see docs/learnings.md §6.5
+    # -- holding `sd` live across all 18 processes is what costs the registers).
+    (; S_accr, S_melt) = if isnothing(procs.cloud_liquid_snow_accretion)
+        (; S_accr = zero(FT), S_melt = zero(FT))
+    else
+        CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
+    end
     S_accr_lcl_sno_cold = ifelse(is_warm, zero(FT), S_accr)    # lcl → sno (cold)
     S_accr_lcl_sno_warm = ifelse(is_warm, S_accr, zero(FT))    # lcl → rai (warm)
     S_accr_melt_lcl_sno = S_melt                                # thermal melt of sno from warm lcl (already zero when cold)
@@ -477,8 +486,14 @@ Returns the same `NamedTuple` of nonzero `M` and `e` entries as `_linearize`.
     M31 += D
 
     # lcl + sno accretion: one call supplies the cold arm, the warm arm, and the
-    # thermal melt, so all three stay live across the next three blocks.
-    (; S_accr, S_melt) = CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
+    # thermal melt, so all three stay live across the next three blocks. The
+    # `nothing` guard mirrors `_microphysics_source_terms`; the two must agree
+    # here or the equivalence test in test/bulk_tendencies_tests.jl fails.
+    (; S_accr, S_melt) = if isnothing(procs.cloud_liquid_snow_accretion)
+        (; S_accr = zero(FT), S_melt = zero(FT))
+    else
+        CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo)
+    end
     S_accr_lcl_sno_cold = ifelse(is_warm, zero(FT), S_accr)
     S_accr_lcl_sno_warm = ifelse(is_warm, S_accr, zero(FT))
     D_cold = S_accr_lcl_sno_cold / max(q_min, q_lcl)

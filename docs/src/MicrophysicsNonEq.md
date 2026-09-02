@@ -21,10 +21,12 @@ They consist of:
 
 !!! note
     For ice, the deposition timescale ``\tau_{dep}`` can optionally be computed
-    from the [Frostenberg2023](@cite) INP parameterization (see
-    [below](@ref ice-relaxation-timescale-frostenberg-et-al-2023)),
-    while the sublimation timescale ``\tau_{sub}`` remains at the constant
-    ``\tau_i``.
+    from the prescribed cloud-ice number concentration ``N_0`` (see
+    [below](@ref ice-relaxation-timescale-prescribed-ice-number)) or from the
+    [Frostenberg2023](@cite) INP parameterization (see
+    [below](@ref ice-relaxation-timescale-frostenberg-et-al-2023)).
+    With the Frostenberg option, the sublimation timescale ``\tau_{sub}`` remains
+    at the constant ``\tau_i``.
 
 ## Condensation/evaporation and deposition/sublimation from Morrison and Milbrandt 2015
 
@@ -123,6 +125,49 @@ include("plots/NonEqCondEvapRate.jl")
 ```
 ![](condensation_evaporation_ql_z.svg)
 ![](condensation_evaporation_ql_T.svg)
+
+## [Ice relaxation timescale — prescribed ice number](@id ice-relaxation-timescale-prescribed-ice-number)
+
+Instead of using a constant ice relaxation timescale, the `PrescribedIceNumber`
+  option derives ``\tau_i`` from the fixed cloud-ice number concentration
+  ``N_0`` stored in `CloudIce` (the same value used for cloud-ice sedimentation).
+
+The number concentration ``N_0`` is stored in volumetric units (``1/\text{m}^3``).
+For the radius computation it is converted to specific units:
+```math
+\begin{equation}
+  n = N_0 / \rho
+\end{equation}
+```
+where ``\rho`` is the air density.
+
+Given ``n`` and the cloud ice specific content ``q_{icl}`` (kg/kg),
+  the mean crystal radius is computed assuming spherical ice particles
+  with a monodisperse size distribution:
+```math
+\begin{equation}
+  r = \left(\frac{3 \, q_{icl}}{4 \pi \, n \, \rho_i}\right)^{1/3}
+\end{equation}
+```
+A minimum radius ``r_0 = 1\,\mu m`` is enforced.
+
+The relaxation timescale uses the volumetric ``N_0`` (``1/\text{m}^3``)
+  to keep the result in seconds:
+```math
+\begin{equation}
+  \tau_{i} = \frac{1}{4 \pi \, D_v \, N_0 \, r_{safe}}
+\end{equation}
+```
+where ``D_v`` is the water vapor diffusivity (``\text{m}^2/\text{s}``)
+  and ``r_{safe} = \max(r, r_0)``.
+
+Unlike the `TemperatureDependent` (Frostenberg) option, this approach uses the
+  **same timescale for both deposition and sublimation**.
+
+```@example
+include("plots/plotting_tau_relax_prescribed_N0.jl")
+```
+![](tau_relax_prescribed_N0.svg)
 
 ## [Ice relaxation timescale — Frostenberg et al. (2023)](@id ice-relaxation-timescale-frostenberg-et-al-2023)
 

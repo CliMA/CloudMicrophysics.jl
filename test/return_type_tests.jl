@@ -74,7 +74,11 @@ end
     @test concrete_for_all_mixes(UT._regularised_ratio, (), 2)
     @test concrete_for_all_mixes(
         CMNonEq.τ_relax,
-        (P(CMP.CloudIce(FT64)), P(CMP.AirProperties(FT64)), P(mp.ice.ice_nucleation)), 2,
+        (P(CMP.CloudIce(FT64)), P(CMP.AirProperties(FT64)), P(mp.ice.ice_nucleation)), 3,
+    )
+    @test concrete_for_all_mixes(
+        CMNonEq.τ_relax,
+        (P(CMP.CloudIce(FT64)), P(CMP.AirProperties(FT64))), 2,
     )
     @test concrete_for_all_mixes(P3.loggamma_inc_moment, (), 4)
     # P3 aspect ratio: plain state with Dual D and vice versa
