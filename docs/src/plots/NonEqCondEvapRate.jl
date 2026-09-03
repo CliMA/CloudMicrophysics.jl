@@ -58,7 +58,7 @@ function generate_cond_evap_rate(::HydrostaticBalance_qₗ_z)
         CMNe.conv_q_vap_to_q_lcl(
             clf,
             (; cloud = (; liquid = cm_params),
-                process_params = (; cloud_liquid_formation = (; τ_relax = FT(τ_relax)))),
+                process_params = (; cloud_liquid_formation = (; τ_relax = FT(τ_relax), T_hom = FT(233)))),
             thp,
             (; q_tot = qₜ, q_lcl, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ),
             (; ρ, T = temp)
@@ -99,7 +99,7 @@ function generate_cond_evap_rate(::Range_qₗ_T)
         CMNe.conv_q_vap_to_q_lcl(
             clf,
             (; cloud = (; liquid = cm_params),
-                process_params = (; cloud_liquid_formation = (; τ_relax = FT(τ_relax)))),
+                process_params = (; cloud_liquid_formation = (; τ_relax = FT(τ_relax), T_hom = FT(233)))),
             thp,
             (; q_tot = qₜ, q_lcl, q_icl = qᵢ, q_rai = qᵣ, q_sno = qₛ),
             (; ρ, T = temp)

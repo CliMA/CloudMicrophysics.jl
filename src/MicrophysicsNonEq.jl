@@ -92,6 +92,17 @@ positive tendency (deposition) at T > T_freeze (no INPs available).
 end
 
 """
+    homogeneous_limiter(tendency, T, T_hom)
+
+Returns `true` when liquid condensation should be suppressed:
+positive tendency (condensation) at T < T_hom (all liquid freezes
+homogeneously below this temperature).
+"""
+@inline function homogeneous_limiter(tendency, T, T_hom)
+    return T < T_hom && tendency > zero(tendency)
+end
+
+"""
     dqcld_dT(qᵥ_sat, L, Rᵥ, T)
 
 Computes the derivative of the saturation specific humidity with respect to
@@ -143,10 +154,12 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 @inline conv_q_vap_to_q_lcl(
     ::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo) =
     _conv_q_vap_to_q_lcl_const(
-        mp.process_params.cloud_liquid_formation.τ_relax, tps, micro, thermo)
+        mp.process_params.cloud_liquid_formation.τ_relax,
+        tps, micro, thermo;
+        T_hom = mp.process_params.cloud_liquid_formation.T_hom)
 
 # Kernel for `conv_q_vap_to_q_lcl` with a constant relaxation timescale `τ`.
-@inline function _conv_q_vap_to_q_lcl_const(τ, tps::TDI.PS, micro, thermo)
+@inline function _conv_q_vap_to_q_lcl_const(τ, tps::TDI.PS, micro, thermo; T_hom = typeof(τ)(-Inf))
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
 
@@ -164,11 +177,13 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
     timescale = τ * Γₗ
 
     # compute the tendency
-    return ifelse(
+    tendency = ifelse(
         sat_excess < 0,
         -min(-sat_excess, max(0, q_lcl)) / timescale,
         sat_excess / timescale,
     )
+    limiter = homogeneous_limiter(tendency, T, T_hom)
+    return ifelse(limiter, zero(tendency), tendency)
 end
 
 """

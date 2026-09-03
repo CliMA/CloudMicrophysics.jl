@@ -210,6 +210,9 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     S_melt_icl_lcl = CM1.conv_q_icl_to_q_lcl(procs.cloud_ice_melt, mp, tps, micro, thermo, sd)
     S_melt_sno_rai = CM1.conv_q_sno_to_q_rai(procs.snow_melt, mp, tps, micro, thermo, sd)
 
+    # --- Freezing ---
+    S_freeze_lcl_icl = CM1.conv_q_lcl_to_q_icl(procs.cloud_liquid_freezing, mp, tps, micro, thermo)
+
     return (;
         S_phase_change_vap_lcl, S_phase_change_vap_icl,
         S_acnv_lcl_rai, S_acnv_icl_sno,
@@ -218,6 +221,7 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
         S_accr_rai_sno_cold, S_accr_rai_sno_warm, S_accr_melt_rai_sno,
         S_phase_change_vap_rai, S_phase_change_vap_sno,
         S_melt_icl_lcl, S_melt_sno_rai,
+        S_freeze_lcl_icl,
     )
 end
 
@@ -232,11 +236,13 @@ here appears with a fixed sign — no `ifelse` branching.
 @inline function _aggregate_tendencies(src)
     dq_lcl_dt =
         src.S_phase_change_vap_lcl - src.S_acnv_lcl_rai - src.S_accr_lcl_rai -
-        src.S_accr_lcl_sno_cold - src.S_accr_lcl_sno_warm + src.S_melt_icl_lcl
+        src.S_accr_lcl_sno_cold - src.S_accr_lcl_sno_warm + src.S_melt_icl_lcl -
+        src.S_freeze_lcl_icl
 
     dq_icl_dt =
         src.S_phase_change_vap_icl - src.S_acnv_icl_sno - src.S_accr_icl_rai -
-        src.S_accr_icl_sno - src.S_melt_icl_lcl
+        src.S_accr_icl_sno - src.S_melt_icl_lcl +
+        src.S_freeze_lcl_icl
 
     dq_rai_dt =
         src.S_acnv_lcl_rai + src.S_accr_lcl_rai +
@@ -276,6 +282,7 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
 
     M11 = zero(FT)
     M12 = zero(FT)
+    M21 = zero(FT)
     M22 = zero(FT)
     M31 = zero(FT)
     M33 = zero(FT)
@@ -303,6 +310,11 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     D = src.S_melt_icl_lcl / max(q_min, q_icl)
     M22 -= D
     M12 += D
+
+    # --- Freeze: liquid cloud → ice cloud ---
+    D = src.S_freeze_lcl_icl / max(q_min, q_lcl)
+    M11 -= D
+    M21 += D
 
     # --- Autoconversion: donor-based transfer ---
     D = src.S_acnv_lcl_rai / max(q_min, q_lcl)
@@ -374,7 +386,7 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     M34 += D
 
     return (
-        M11 = M11, M12 = M12, M22 = M22,
+        M11 = M11, M12 = M12, M21 = M21, M22 = M22,
         M31 = M31, M33 = M33, M34 = M34,
         M41 = M41, M42 = M42, M43 = M43, M44 = M44,
         e1 = e1, e2 = e2, e4 = e4,
@@ -430,6 +442,7 @@ exponential decays over the substep.
     # A = I/Δt - M
     a11 = invΔt - lin.M11
     a12 = -lin.M12
+    a21 = -lin.M21
     a22 = invΔt - lin.M22
     a31 = -lin.M31
     a33 = invΔt - lin.M33
@@ -446,18 +459,17 @@ exponential decays over the substep.
     b3 = invΔt * q_rai
     b4 = α * lin.e4 + invΔt * q_sno
 
-    # Solve 2×2 system for q_lcl, q_icl (coupled via ice melt M12)
-    det12 = a11 * a22  # a21 = 0
+    # Solve 2×2 system for q_lcl, q_icl (coupled via ice melt M12 and liquid freezing M21)
+    det12 = muladd(-a12, a21, a11 * a22)
     q_lcl_new = (b1 * a22 - a12 * b2) / det12
-    q_icl_new = a11 * b2 / det12
+    q_icl_new = (a11 * b2 - a21 * b1) / det12
 
     # Reduced 2x2 system for q_rai_new, q_sno_new
     r3 = muladd(-a31, q_lcl_new, b3)
     r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
 
     det = muladd(-a34, a43, a33 * a44)
-    # det is a positive number because a44 and a33 are positive (greater than invΔt)
-    # and a34 and a43 are non-positive so we don't need to safeguard division by det.
+    # det is a positive because a33a44 is guaranteed to be larger than a34a43
     q_rai_new = (r3 * a44 - a34 * r4) / det
     q_sno_new = (a33 * r4 - r3 * a43) / det
 

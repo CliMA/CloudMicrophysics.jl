@@ -306,3 +306,82 @@ MK.lines!(q_snow_range * 1e3, _snow_melt(4), label = "T = 4°C")
 MK.lines!(q_snow_range * 1e3, _snow_melt(6), label = "T = 6°C")
 MK.axislegend(ax; position = :lt)
 MK.save("snow_melt_rate.svg", fig) # hide
+
+# heterogeneous freezing rate figure
+fig = MK.Figure()
+ax = MK.Axis(fig[1, 1];
+    xlabel = "q_lcl [g/kg]",
+    ylabel = "het. freezing rate [1/s]",
+    limits = (0, q_max * 1e3, 0, nothing),
+)
+T_het = FT(273.15 - 15)  # −15°C
+thermo_het = (; ρ = ρ_air, T = T_het)
+function _het_freeze(N_0_val)
+    liq_N0 = CMP.CloudLiquid(;
+        ρw = mp.cloud.liquid.ρw,
+        r_eff = mp.cloud.liquid.r_eff,
+        N_0 = N_0_val,
+    )
+    mp_N0 = CMP.Microphysics1MParams(;
+        processes = mp.processes,
+        process_params = mp.process_params,
+        cloud = CMP.CloudPhaseParams1M(; liquid = liq_N0, ice = mp.cloud.ice),
+        precip = mp.precip,
+        air_properties = mp.air_properties,
+        terminal_velocity = mp.terminal_velocity,
+    )
+    return map(q_lcl_range) do q
+        micro = (; q_tot, q_lcl = q, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        CM1.conv_q_lcl_to_q_icl(
+            CMP.Heterogeneous(), mp_N0, tps, micro, thermo_het,
+        )
+    end
+end
+for (N_0_val, lbl) in [
+    (FT(1e7), "N₀ = 10⁷ m⁻³"),
+    (FT(1e8), "N₀ = 10⁸ m⁻³"),
+    (FT(5e8), "N₀ = 5×10⁸ m⁻³"),
+]
+    MK.lines!(q_lcl_range * 1e3, _het_freeze(N_0_val), label = lbl)
+end
+MK.axislegend(ax; position = :lt)
+MK.save("het_freezing_rate.svg", fig) # hide
+
+# heterogeneous freezing rate vs temperature figure
+T_range = range(FT(273-40), stop = FT(273), length = 100)
+q_lcl_fixed = FT(1e-4)
+fig = MK.Figure()
+ax = MK.Axis(fig[1, 1];
+    xlabel = "T [K]",
+    ylabel = "het. freezing rate [1/s]",
+)
+function _het_freeze_vs_T(N_0_val)
+    liq_N0 = CMP.CloudLiquid(;
+        ρw = mp.cloud.liquid.ρw,
+        r_eff = mp.cloud.liquid.r_eff,
+        N_0 = N_0_val,
+    )
+    mp_N0 = CMP.Microphysics1MParams(;
+        processes = mp.processes,
+        process_params = mp.process_params,
+        cloud = CMP.CloudPhaseParams1M(; liquid = liq_N0, ice = mp.cloud.ice),
+        precip = mp.precip,
+        air_properties = mp.air_properties,
+        terminal_velocity = mp.terminal_velocity,
+    )
+    micro = (; q_tot, q_lcl = q_lcl_fixed, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+    return map(T_range) do T
+        CM1.conv_q_lcl_to_q_icl(
+            CMP.Heterogeneous(), mp_N0, tps, micro, (; ρ = ρ_air, T),
+        )
+    end
+end
+for (N_0_val, lbl) in [
+    (FT(1e7), "N₀ = 10⁷ m⁻³"),
+    (FT(1e8), "N₀ = 10⁸ m⁻³"),
+    (FT(5e8), "N₀ = 5×10⁸ m⁻³"),
+]
+    MK.lines!(T_range, _het_freeze_vs_T(N_0_val), label = lbl)
+end
+MK.axislegend(ax; position = :lt)
+MK.save("het_freezing_rate_vs_T.svg", fig) # hide

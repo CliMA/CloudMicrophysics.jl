@@ -68,11 +68,13 @@ function test_microphysics_noneq(FT)
 
         #! format: off
         # Test helpers (call the timescale kernels directly with an explicit τ)
+        T_hom = FT(233)
         _conv_lcl(q_tot, q_lcl, q_icl, ρ, T) = CMNe._conv_q_vap_to_q_lcl_const(
             FT(10),
             tps,
             (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0)),
-            (; ρ, T)
+            (; ρ, T);
+            T_hom,
         )
 
         _conv_icl(q_tot, q_lcl, q_icl, ρ, T) = CMNe._conv_q_vap_to_q_icl_const(
@@ -124,6 +126,15 @@ function test_microphysics_noneq(FT)
         TT.@test _conv_lcl(FT(1.5 * qᵥ_sl_w), FT(0), FT(0), ρ, T_warm) > FT(0)
         # Ice sublimation (negative tendency) above freezing should NOT be limited
         TT.@test _conv_icl(FT(0.5 * qᵥ_si_w), FT(0), FT(0.001), ρ, T_warm) <= FT(0)
+
+        # --- Homogeneous limiter: below T_hom, positive liquid condensation should be zero ---
+        T_cold = FT(220) # well below T_hom ≈ 233 K
+        pᵥ_sl_c = TDI.saturation_vapor_pressure_over_liquid(tps, T_cold)
+        qᵥ_sl_c = TDI.p2q(tps, T_cold, ρ, pᵥ_sl_c)
+        # Supersaturated w.r.t. liquid below T_hom → would condense, but limiter zeros it
+        TT.@test _conv_lcl(FT(1.5 * qᵥ_sl_c), FT(0), FT(0), ρ, T_cold) == FT(0)
+        # Liquid evaporation below T_hom should NOT be limited
+        TT.@test _conv_lcl(FT(0.5 * qᵥ_sl_c), FT(0.001), FT(0), ρ, T_cold) < FT(0)
 
         # --- Asymmetric τ_dep ≠ τ_sub ---
         # Faster sublimation (smaller τ_relax) should give a larger magnitude sublimation rate

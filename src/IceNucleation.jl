@@ -114,7 +114,7 @@ Compute the heterogeneous ice nucleation rate coefficient, `J` [m⁻² s⁻¹]
 
 # Arguments
  - `dust`: The given mineral in liquid solution; currently supports:
-    + `DesertDust`, `Illite`, `Kaolinite`, `Dust`, `ArizonaTestDust`, 
+    + `DesertDust`, `Illite`, `Kaolinite`, `Dust`, `ArizonaTestDust`,
       `MiddleEasternDust`, `AsianDust`
     + all other `AerosolType`s are not supported and will return zero
  - `Δa_w`: change in water activity [unitless].

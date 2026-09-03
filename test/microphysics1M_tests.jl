@@ -793,6 +793,87 @@ function test_microphysics1M(FT)
 
     end
 
+    TT.@testset "Homogeneous freezing" begin
+
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        ρ = FT(1.2)
+        q_lcl = FT(1e-4)
+        mp_frz = CMP.Microphysics1MParams(FT;
+            cloud_liquid_freezing = CMP.Homogeneous(),
+        )
+        micro = (; q_tot = FT(0.01), q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+
+        # Above T_hom → zero
+        thermo_warm = (; ρ, T = FT(250))
+        TT.@test CM1.conv_q_lcl_to_q_icl(
+            CMP.Homogeneous(), mp_frz, tps, micro, thermo_warm) ≈ FT(0)
+
+        # Below T_hom → q_lcl / τ_hom
+        T_hom_test = FT(220)
+        thermo_hom = (; ρ, T = T_hom_test)
+        τ_hom = mp_frz.process_params.cloud_liquid_freezing.τ_hom
+        rate_hom = CM1.conv_q_lcl_to_q_icl(
+            CMP.Homogeneous(), mp_frz, tps, micro, thermo_hom)
+        TT.@test rate_hom > FT(0)
+        TT.@test rate_hom ≈ q_lcl / τ_hom
+
+        # No liquid → zero
+        micro_0 = (; q_tot = FT(0.01), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        TT.@test CM1.conv_q_lcl_to_q_icl(
+            CMP.Homogeneous(), mp_frz, tps, micro_0, thermo_hom) ≈ FT(0)
+
+        # nothing returns zero
+        TT.@test CM1.conv_q_lcl_to_q_icl(nothing, mp, tps, micro, thermo_hom) == FT(0)
+
+    end
+
+    TT.@testset "Heterogeneous freezing" begin
+
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        ρ = FT(1.2)
+        q_lcl = FT(1e-4)
+        mp_frz = CMP.Microphysics1MParams(FT;
+            cloud_liquid_freezing = CMP.HomogeneousAndHeterogeneous(),
+        )
+        micro = (; q_tot = FT(0.01), q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+
+        # Above freezing → zero
+        thermo_warm = (; ρ, T = T_freeze + FT(5))
+        TT.@test CM1.conv_q_lcl_to_q_icl(
+            CMP.Heterogeneous(), mp_frz, tps, micro, thermo_warm) ≈ FT(0)
+
+        # Heterogeneous regime (T < T_freeze)
+        T_het = T_freeze - FT(15)  # -15°C
+        thermo_het = (; ρ, T = T_het)
+        rate_het = CM1.conv_q_lcl_to_q_icl(
+            CMP.Heterogeneous(), mp_frz, tps, micro, thermo_het)
+        TT.@test rate_het > FT(0)
+
+        # No liquid → zero
+        micro_0 = (; q_tot = FT(0.01), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        TT.@test CM1.conv_q_lcl_to_q_icl(
+            CMP.Heterogeneous(), mp_frz, tps, micro_0, thermo_het) ≈ FT(0)
+
+        # More liquid → higher rate
+        micro_s = (; q_tot = FT(0.01), q_lcl = FT(1e-5), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        micro_l = (; q_tot = FT(0.01), q_lcl = FT(1e-3), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        rate_small = CM1.conv_q_lcl_to_q_icl(
+            CMP.Heterogeneous(), mp_frz, tps, micro_s, thermo_het)
+        rate_large = CM1.conv_q_lcl_to_q_icl(
+            CMP.Heterogeneous(), mp_frz, tps, micro_l, thermo_het)
+        TT.@test rate_large > rate_small
+
+        # Colder → higher het rate
+        thermo_cold = (; ρ, T = T_freeze - FT(25))
+        rate_cold = CM1.conv_q_lcl_to_q_icl(
+            CMP.Heterogeneous(), mp_frz, tps, micro, thermo_cold)
+        TT.@test rate_cold > rate_het
+
+        # nothing returns zero
+        TT.@test CM1.conv_q_lcl_to_q_icl(nothing, mp, tps, micro, thermo_het) == FT(0)
+
+    end
+
 end
 
 TT.@testset "Microphysics 1M Tests ($FT)" for FT in (Float64, Float32)

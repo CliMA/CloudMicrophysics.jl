@@ -86,7 +86,7 @@ end
     q_lcl = q_icl = q_rai = q_sno = FT(0) # set to zero in this test
     mp_mock = (;
         cloud = (; liquid = lcl),
-        process_params = (; cloud_liquid_formation = (; τ_relax)),
+        process_params = (; cloud_liquid_formation = (; τ_relax, T_hom = FT(233))),
     )
     micro_mock = (; q_tot = qᵥ_sl[i], q_lcl, q_icl, q_rai, q_sno)
     thermo_mock = (; ρ = ρ[i], T = T[i])

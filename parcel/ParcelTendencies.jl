@@ -254,9 +254,9 @@ function condensation(params::NonEqCondParams, PSD, state, ρ_air)
 
         qₜ = qᵥ + qₗ + qᵢ
 
-        τ_relax = CMP.Microphysics1MParams(FT).process_params.cloud_liquid_formation.τ_relax
+        clf_params = CMP.Microphysics1MParams(FT).process_params.cloud_liquid_formation
         mp_mock = (; cloud = (; liquid),
-            process_params = (; cloud_liquid_formation = (; τ_relax)))
+            process_params = (; cloud_liquid_formation = clf_params))
         micro_mock = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = FT(0), q_sno = FT(0))
         thermo_mock = (; ρ = ρ_air, T = T)
         cond_rate = MNE.conv_q_vap_to_q_lcl(

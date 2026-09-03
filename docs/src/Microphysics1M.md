@@ -752,6 +752,49 @@ If ``T > T_\text{freeze}``, we integrate (\ref{eq:snow_melt}) from ``0`` to ``\i
     \right)
 \end{equation}
 ```
+## Cloud liquid freezing
+
+Cloud liquid droplets can freeze to cloud ice through
+homogeneous or heterogeneous (involving aerosol particles) pathways.
+
+### Homogeneous freezing (``T < T_{hom}``)
+
+Below the homogeneous nucleation temperature (``T_{hom} \approx 233\,\text{K}``),
+all remaining cloud liquid freezes rapidly on a short relaxation timescale
+``\tau_{hom}``:
+
+```math
+\begin{equation}
+  \left. \frac{dq_{lcl}}{dt} \right|_\text{hom} = -\frac{q_{lcl}}{\tau_{hom}}
+\end{equation}
+```
+### Heterogeneous (immersion) freezing (``T < T_{freeze}``)
+
+Below the freezing temperature, cloud droplets freeze via
+[Bigg1953](@cite) immersion freezing kinetics following the
+[Reisner1998](@cite) eq. A22 parameterization.
+The freezing rate depends on droplet volume and supercooling:
+
+```math
+\begin{equation}
+  \left. \frac{dq_{lcl}}{dt} \right|_\text{het} =
+    -B \left[\exp\!\bigl(A\,(T_\text{freeze} - T)\bigr) - 1\right]
+    \cdot V_\text{drop} \cdot q_{lcl}
+\end{equation}
+```
+
+where the free parameters are:
+- ``A = 0.66\,\text{K}^{-1}`` (`Reisner_et_al_A_parameter`)
+- ``B = 100\,\text{m}^{-3}\,\text{s}^{-1}`` (`Reisner_et_al_B_parameter`)
+
+Since the 1-moment scheme does not track droplet number, a prescribed cloud
+droplet number concentration ``N_0`` defines the mean droplet volume:
+
+```math
+\begin{equation}
+  V_\text{drop} = \frac{q_{lcl} \, \rho}{\rho_w \, N_0}
+\end{equation}
+```
 
 ## Derivative of the tendency
 
@@ -777,3 +820,5 @@ include("plots/Microphysics1M_plots.jl")
 ![](rain_evaporation_rate.svg)
 ![](snow_sublimation_deposition_rate.svg)
 ![](snow_melt_rate.svg)
+![](het_freezing_rate.svg)
+![](het_freezing_rate_vs_T.svg)
