@@ -11,7 +11,7 @@ import UnrolledUtilities as UU
 import SpecialFunctions as SF
 import ForwardDiff as FD
 
-export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
+export clamp_to_nonneg, sqrt_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
 export promote_typeof
 export fac
 
@@ -295,6 +295,22 @@ argument of `cbrt`/`log`/`^` finite, not to decide whether a tracer is present
 - `max(zero(x), x)`
 """
 @inline clamp_to_nonneg(x) = max(zero(x), x)
+
+"""
+    sqrt_nonneg(x)
+
+`sqrt` for arguments that are non-negative by construction (sums of squares,
+products of positive parameters).
+
+`Base.sqrt` guards `x < 0` with a `throw`. On GPU that dead throw path still
+materializes a stack-allocated `DomainError` (32 B of local memory per thread)
+in every kernel that inlines a `sqrt`. For floats this calls the exact IEEE
+`sqrt` intrinsic directly, so results are bit-identical to `Base.sqrt` for
+`x ≥ 0` and `NaN` (instead of an error) for `x < 0`. Other number types
+(e.g. `ForwardDiff.Dual`) fall back to `Base.sqrt`.
+"""
+@inline sqrt_nonneg(x::Union{Float32, Float64}) = Base.Math.sqrt_llvm(x)
+@inline sqrt_nonneg(x) = sqrt(x)
 
 """
     fac(n)
