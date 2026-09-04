@@ -41,6 +41,7 @@ Microphysics1M.get_n0
 Microphysics1M.lambda_inverse
 Microphysics1M.terminal_velocity
 Microphysics1M.conv_q_lcl_to_q_rai
+Microphysics1M.rain_autoconversion_timescale
 Microphysics1M.conv_q_icl_to_q_sno
 Microphysics1M.accretion
 Microphysics1M.accretion_snow_rain
