@@ -275,15 +275,58 @@ function test_microphysics1M(FT)
         # with an actionable error, not an obscure field-access failure
         mpS = CMP.Microphysics1MParams(FT; snow_autoconversion = CMP.WithSupersaturation())
         mpNd = CMP.Microphysics1MParams(FT; rain_autoconversion = CMP.PrescribedNd())
-        micro = (; q_tot = FT(1e-2), q_lcl = FT(1e-3), q_icl = FT(1e-3), q_rai = FT(0), q_sno = FT(0))
+        mpHom = CMP.Microphysics1MParams(FT; cloud_liquid_freezing = CMP.Homogeneous())
+        mpHet = CMP.Microphysics1MParams(FT; cloud_liquid_freezing = CMP.Heterogeneous())
+        mpOff = CMP.Microphysics1MParams(FT;
+            cloud_liquid_rain_accretion = nothing,
+            cloud_liquid_snow_accretion = nothing,
+            cloud_ice_rain_accretion = nothing,
+            cloud_ice_snow_accretion = nothing,
+            rain_snow_accretion = nothing,
+        )
+        micro = (; q_tot = FT(1e-2), q_lcl = FT(1e-3), q_icl = FT(1e-3), q_rai = FT(1e-4), q_sno = FT(1e-4))
         thermo = (; ρ = FT(1.2), T = FT(260))
         TT.@test_throws ArgumentError CM1.conv_q_icl_to_q_sno(CMP.WithSupersaturation(), mp, tps, micro, thermo)
         TT.@test_throws ArgumentError CM1.conv_q_icl_to_q_sno(CMP.NoSupersaturation(), mpS, tps, micro, thermo)
         TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_rai(CMP.PrescribedNd(), mp, tps, micro, thermo)
         TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mpNd, tps, micro, thermo)
+        # freezing: the combined option needs both parameter sets, each
+        # single option rejects the other's parameters (but accepts the
+        # combined ones, see below)
+        TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_icl(CMP.Homogeneous(), mpHet, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_icl(CMP.Heterogeneous(), mpHom, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_icl(
+            CMP.HomogeneousAndHeterogeneous(),
+            mpHom,
+            tps,
+            micro,
+            thermo,
+        )
+        TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_icl(
+            CMP.HomogeneousAndHeterogeneous(),
+            mpHet,
+            tps,
+            micro,
+            thermo,
+        )
+        # single-variant processes: disabled in `mp` but called with the option
+        TT.@test_throws ArgumentError CM1.accretion(CMP.CloudLiquidRainAccretion(), mpOff, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.accretion(CMP.CloudLiquidSnowAccretion(), mpOff, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.accretion(CMP.CloudIceRainAccretion(), mpOff, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.accretion(CMP.CloudIceSnowAccretion(), mpOff, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.accretion_rain_sink(CMP.CloudIceRainAccretion(), mpOff, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mpOff, tps, micro, thermo)
         # matched combinations still work
         TT.@test CM1.conv_q_icl_to_q_sno(CMP.WithSupersaturation(), mpS, tps, micro, thermo) isa FT
         TT.@test CM1.conv_q_lcl_to_q_rai(CMP.PrescribedNd(), mpNd, tps, micro, thermo) isa FT
+        TT.@test CM1.conv_q_lcl_to_q_icl(CMP.Homogeneous(), mpHom, tps, micro, thermo) isa FT
+        TT.@test CM1.conv_q_lcl_to_q_icl(CMP.Heterogeneous(), mpHet, tps, micro, thermo) isa FT
+        TT.@test CM1.conv_q_lcl_to_q_icl(CMP.HomogeneousAndHeterogeneous(), mp, tps, micro, thermo) isa FT
+        # a single freezing arm evaluated on the combined parameters
+        TT.@test CM1.conv_q_lcl_to_q_icl(CMP.Homogeneous(), mp, tps, micro, thermo) isa FT
+        TT.@test CM1.conv_q_lcl_to_q_icl(CMP.Heterogeneous(), mp, tps, micro, thermo) isa FT
+        TT.@test CM1.accretion(CMP.CloudLiquidRainAccretion(), mp, tps, micro, thermo) isa FT
+        TT.@test CM1.accretion_snow_rain(CMP.RainSnowAccretion(), mp, tps, micro, thermo).S_rai_sno isa FT
     end
 
     TT.@testset "NoSnowDepositionAboveFreezing" begin
@@ -562,9 +605,21 @@ function test_microphysics1M(FT)
         TT.@test CM1.accretion(mp.processes.cloud_ice_snow_accretion, mp, tps, micro_zero, thermo_warm) == FT(0)
         TT.@test CM1.accretion(mp.processes.cloud_liquid_snow_accretion, mp, tps, micro_zero, thermo_warm).S_accr ==
                  FT(0)
-        TT.@test CM1.accretion_snow_rain(mp.processes.rain_snow_accretion, mp, tps, micro_zero, thermo_warm).S_rai_sno ==
+        TT.@test CM1.accretion_snow_rain(
+            mp.processes.rain_snow_accretion,
+            mp,
+            tps,
+            micro_zero,
+            thermo_warm,
+        ).S_rai_sno ==
                  FT(0)
-        TT.@test CM1.accretion_snow_rain(mp.processes.rain_snow_accretion, mp, tps, micro_zero, thermo_warm).S_sno_rai ==
+        TT.@test CM1.accretion_snow_rain(
+            mp.processes.rain_snow_accretion,
+            mp,
+            tps,
+            micro_zero,
+            thermo_warm,
+        ).S_sno_rai ==
                  FT(0)
     end
 

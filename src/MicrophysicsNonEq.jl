@@ -151,12 +151,13 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 - Cloud condensate tendency [kg/kg/s]
 """
 @inline conv_q_vap_to_q_lcl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
-@inline conv_q_vap_to_q_lcl(
-    ::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo) =
-    _conv_q_vap_to_q_lcl_const(
-        mp.process_params.cloud_liquid_formation.τ_relax,
-        tps, micro, thermo;
-        T_hom = mp.process_params.cloud_liquid_formation.T_hom)
+@inline function conv_q_vap_to_q_lcl(
+    opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo)
+    pp = UT.consistent_params(
+        mp.process_params.cloud_liquid_formation, (:τ_relax, :T_hom), opt, :cloud_liquid_formation,
+    )
+    return _conv_q_vap_to_q_lcl_const(pp.τ_relax, tps, micro, thermo; T_hom = pp.T_hom)
+end
 
 # Kernel for `conv_q_vap_to_q_lcl` with a constant relaxation timescale `τ`.
 @inline function _conv_q_vap_to_q_lcl_const(τ, tps::TDI.PS, micro, thermo; T_hom = typeof(τ)(-Inf))
@@ -207,10 +208,11 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 - Cloud condensate tendency [kg/kg/s]
 """
 @inline conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
-@inline conv_q_vap_to_q_icl(
-    ::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo) =
-    _conv_q_vap_to_q_icl_const(
-        mp.process_params.cloud_ice_formation.τ_relax, tps, micro, thermo)
+@inline function conv_q_vap_to_q_icl(
+    opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo)
+    pp = UT.consistent_params(mp.process_params.cloud_ice_formation, (:τ_relax,), opt, :cloud_ice_formation)
+    return _conv_q_vap_to_q_icl_const(pp.τ_relax, tps, micro, thermo)
+end
 @inline function conv_q_vap_to_q_icl(
     ::CMP.PrescribedIceNumber, mp, tps::TDI.PS, micro, thermo)
     (; q_icl) = micro
@@ -247,10 +249,12 @@ end
     return ifelse(limiter, zero(tendency), tendency)
 end
 @inline function conv_q_vap_to_q_icl(
-    ::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
+    opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    pp = mp.process_params.cloud_ice_formation
+    pp = UT.consistent_params(
+        mp.process_params.cloud_ice_formation, (:τ_relax, :frostenberg), opt, :cloud_ice_formation,
+    )
     τ_sub = pp.τ_relax
     τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, pp.frostenberg, q_icl, T, ρ)
 
