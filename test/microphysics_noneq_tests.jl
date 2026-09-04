@@ -207,6 +207,26 @@ function test_microphysics_noneq(FT)
         TT.@test rate_a != rate_b  # timescale changes with q_icl
     end
 
+    TT.@testset "OptionParamsMismatch" begin
+        # passing an option inconsistent with how `mp` was built must fail
+        # with an actionable error, not an obscure field-access failure (or a
+        # silent success: TemperatureDependent params also carry `τ_relax`)
+        mp = CMP.Microphysics1MParams(FT)
+        mpTD = CMP.Microphysics1MParams(FT; cloud_ice_formation = CMP.TemperatureDependent())
+        mpPIN = CMP.Microphysics1MParams(FT; cloud_ice_formation = CMP.PrescribedIceNumber())
+        mpNoLiq = CMP.Microphysics1MParams(FT; cloud_liquid_formation = nothing)
+        micro = (; q_tot = FT(1e-2), q_lcl = FT(1e-3), q_icl = FT(1e-3), q_rai = FT(0), q_sno = FT(0))
+        thermo = (; ρ = FT(0.8), T = FT(263))
+        TT.@test_throws ArgumentError CMNe.conv_q_vap_to_q_icl(CMP.ConstantTimescale(), mpTD, tps, micro, thermo)
+        TT.@test_throws ArgumentError CMNe.conv_q_vap_to_q_icl(CMP.ConstantTimescale(), mpPIN, tps, micro, thermo)
+        TT.@test_throws ArgumentError CMNe.conv_q_vap_to_q_icl(CMP.TemperatureDependent(), mp, tps, micro, thermo)
+        TT.@test_throws ArgumentError CMNe.conv_q_vap_to_q_lcl(CMP.CloudLiquidFormation(), mpNoLiq, tps, micro, thermo)
+        # matched combinations still work
+        TT.@test CMNe.conv_q_vap_to_q_icl(CMP.ConstantTimescale(), mp, tps, micro, thermo) isa FT
+        TT.@test CMNe.conv_q_vap_to_q_icl(CMP.TemperatureDependent(), mpTD, tps, micro, thermo) isa FT
+        TT.@test CMNe.conv_q_vap_to_q_lcl(CMP.CloudLiquidFormation(), mp, tps, micro, thermo) isa FT
+    end
+
 
 
     TT.@testset "Cloud condensate sedimentation - liquid" begin
