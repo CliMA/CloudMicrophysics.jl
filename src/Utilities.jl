@@ -14,6 +14,7 @@ import ForwardDiff as FD
 export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
 export promote_typeof
 export fac
+export consistent_params
 
 """
     promote_typeof(args...)
@@ -307,6 +308,63 @@ representable in `Int64`.
     0 ≤ n ≤ 20 || throw(DomainError(n, "fac(n) is defined for 0 ≤ n ≤ 20"))
     return prod(1:n; init = one(n))
 end
+
+"""
+    consistent_params(pp, T::Type, opt, field)
+    consistent_params(pp, fields::Tuple{Vararg{Symbol}}, opt, field)
+    consistent_params(pp, alternatives::Tuple{Vararg{Tuple{Vararg{Symbol}}}}, opt, field)
+
+Check that `pp = mp.process_params.<field>` holds the parameters the process
+option `opt` needs, and return `pp` unchanged.
+
+The option argument selects the parameterization, but the shape of
+`mp.process_params` is fixed by the options `mp` was constructed with. This
+guard turns an option/parameter mismatch into an actionable `ArgumentError`
+instead of an obscure field-access failure (or a silent success when an
+unrelated parameter set happens to share a field name).
+
+- `T::Type`: require `pp isa T` (parameter structs such as `Acnv1M`).
+- `fields`: require `pp` to be a `NamedTuple` with exactly these fields, in
+  any order (`ClimaParams.get_parameter_values` does not preserve the
+  `name_map` order, so matching on `NamedTuple{(:a, :b)}` would be brittle).
+- `alternatives`: like `fields`, but accept any one of several key sets (e.g.
+  a single freezing arm may run on the combined
+  `HomogeneousAndHeterogeneous` parameters).
+
+All checks fold away at compile time when the types are consistent; the
+throwing branch is `@noinline` so its string formatting stays out of the caller.
+"""
+@inline function consistent_params(pp, ::Type{T}, opt, field::Symbol) where {T}
+    pp isa T || _throw_option_params_mismatch(opt, pp, field, T)
+    return pp
+end
+@inline function consistent_params(pp, fields::Tuple{Vararg{Symbol}}, opt, field::Symbol)
+    _has_exactly_fields(pp, fields) || _throw_option_params_mismatch(opt, pp, field, fields)
+    return pp
+end
+@inline function consistent_params(pp, alternatives::Tuple{Vararg{Tuple{Vararg{Symbol}}}}, opt, field::Symbol)
+    UU.unrolled_any(fields -> _has_exactly_fields(pp, fields), alternatives) ||
+        _throw_option_params_mismatch(opt, pp, field, alternatives)
+    return pp
+end
+
+# `pp` must be a NamedTuple whose key set equals `fields` (order-insensitive)
+@inline _has_exactly_fields(pp, fields) = false
+@inline _has_exactly_fields(::NamedTuple{K}, fields::NTuple{N, Symbol}) where {K, N} =
+    length(K) == N && UU.unrolled_all(in(K), fields)
+
+_describe_expected(expected::Tuple{Vararg{Tuple}}) =
+    "a NamedTuple with fields " * join(map(string, expected), " or ")
+_describe_expected(expected::Tuple) = "a NamedTuple with fields $expected"
+_describe_expected(expected) = "$expected"
+@noinline _throw_option_params_mismatch(opt, pp, field::Symbol, expected) = throw(
+    ArgumentError(
+        "$(typeof(opt)) requires `mp.process_params.$field` built for this " *
+        "option (expected $(_describe_expected(expected)), got $(typeof(pp))). " *
+        "Construct the parameters with the matching option, e.g. " *
+        "`Microphysics1MParams(FT; $field = $(nameof(typeof(opt)))())`.",
+    ),
+)
 
 """
     ϵ_numerics(FT)
