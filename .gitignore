@@ -23,6 +23,8 @@ docs/build/
 docs/site/
 # ignore output from Literate.jl
 docs/src/guides/literated/
+# ignore output from docs/generate_parameters_reference.jl
+docs/src/generated/
 
 # Deps
 Manifest.toml
