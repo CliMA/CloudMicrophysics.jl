@@ -1205,18 +1205,20 @@ delegates to the rule it holds instead of being handed to a second integral as t
     a.quad_corr === nothing ? _plain_rule(quad) : a.quad_corr
 
 @inline _assemble(::PartitionedOuter, n_i, ∂ₜM_max, comb, ice_bounds, ice_bounds_plain,
-    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r; quad) =
+    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T; quad) =
     ∫liquid_ice_collisions_combined(n_i, ∂ₜM_max, comb, ice_bounds; quad)
 
 @inline function _assemble(a::SplitCorrection, n_i, ∂ₜM_max, comb, ice_bounds, ice_bounds_plain,
-    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r; quad)
+    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T; quad)
     balance = hybrid_wet_balance(psd_c, psd_r, ∂ₜV, ∂ₜM_max, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r)
     # The full range keeps the velocity subintervals and drops only the wet onsets: the split does
     # not need them, and leaving them in would make the surrogate integral depend on a locator it no
     # longer uses.
     return _split_positional(
         n_i, ∂ₜM_max, comb, ice_bounds_plain, balance, quad, _correction_rule(a, quad),
-        a.n_scan, a.n_bisect, nothing,
+        a.n_scan, a.n_bisect,
+        _liqice_full_range(
+            quad, state, ρₐ, psd_c, L_c, N_c, psd_r, L_r, N_r, T, ∂ₜM_max, ice_bounds_plain),
     )
 end
 
@@ -1281,7 +1283,7 @@ to be sufficient for the correction against a converged reference.
 """
 @inline function ∫liquid_ice_collisions_split(
     n_i, ∂ₜM_max, combined_integrals, ice_bounds, balance;
-    quad, quad_corr, n_scan::Int = 4, n_bisect::Int = 4,
+    quad, quad_corr, n_scan::Int = 4, n_bisect::Int = 4, full_range = nothing,
 )
     D_lo, D_hi = first(ice_bounds), last(ice_bounds)
     FT = typeof(FD.value(D_lo))
@@ -1291,7 +1293,12 @@ to be sufficient for the correction against a converged reference.
     is_warm = iszero(FD.value(∂ₜM_max(sqrt(D_lo * D_hi))))
     M̄ = ifelse(is_warm, zero(FT), floatmax(FT))
     ∂ₜM̄_max = _ -> M̄
-    acc = ∫liquid_ice_collisions_combined(n_i, ∂ₜM̄_max, combined_integrals, ice_bounds; quad)
+    # The full range with the surrogate partition is the only part of this assembly a table can
+    # hold; the corrections below run on their own rule in every mode.
+    acc =
+        full_range === nothing ?
+        ∫liquid_ice_collisions_combined(n_i, ∂ₜM̄_max, combined_integrals, ice_bounds; quad) :
+        full_range
     segments = wet_set_bracket(balance, D_lo, D_hi; n_scan, n_bisect)
     for (a, b) in segments
         acc =
@@ -1345,7 +1352,7 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, wh
 @inline function ∫liquid_ice_collisions(
     state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
-    aps, tps, vel, ρₐ, T, m_liq; quad, assembly = PartitionedOuter(),
+    aps, tps, vel, ρₐ, T, m_liq; quad, assembly = _default_liqice_assembly(quad),
 )
     FT = eltype(state)
 
@@ -1392,7 +1399,7 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, wh
 
     return _∫liquid_ice_collisions_inner(
         psd_r, n_c, n_r, n_i, ∂ₜV, ρ′_rim, m_liq, ∂ₜM_max,
-        bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state; quad,
+        bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state, T; quad,
         assembly, psd_c, L_c, N_c, ice_bounds_plain,
     )
 end
@@ -1403,22 +1410,22 @@ end
 @inline function _∫liquid_ice_collisions_inner(
     psd_r::CMP.RainParticlePDF_SB2006, n_c, n_r, n_i,
     ∂ₜV::VolumetricCollisionRate{<:Any, <:Any, <:CO.Chen2022VelocityCurve},
-    ρ′_rim::RimeDensityRate, m_liq, ∂ₜM_max, bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state; quad,
-    assembly = PartitionedOuter(), psd_c = nothing, L_c = nothing, N_c = nothing,
+    ρ′_rim::RimeDensityRate, m_liq, ∂ₜM_max, bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state, T; quad,
+    assembly = _default_liqice_assembly(quad), psd_c = nothing, L_c = nothing, N_c = nothing,
     ice_bounds_plain = ice_bounds,
 )
     combined_integrals = get_combined_liquid_integrals(
         psd_r, n_c, n_r, ρₐ, L_r, N_r, state, ∂ₜV, m_liq, ρ′_rim, bounds_c, bounds_r; quad,
     )
     return _assemble(assembly, n_i, ∂ₜM_max, combined_integrals, ice_bounds, ice_bounds_plain,
-        psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r; quad)
+        psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T; quad)
 end
 # Numerical fallback for any other PSD/velocity type: cloud and rain inner integrals
 # evaluated by two independent `get_liquid_integrals`/`_rain_inner_integrals` closures.
 @inline function _∫liquid_ice_collisions_inner(
     psd_r, n_c, n_r, n_i, ∂ₜV, ρ′_rim, m_liq, ∂ₜM_max,
-    bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state; quad,
-    assembly = PartitionedOuter(), psd_c = nothing, L_c = nothing, N_c = nothing,
+    bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state, T; quad,
+    assembly = _default_liqice_assembly(quad), psd_c = nothing, L_c = nothing, N_c = nothing,
     ice_bounds_plain = ice_bounds,
 )
     # The split assembly is defined for the combined-integral path alone, because its correction
@@ -1476,7 +1483,22 @@ function hybrid_wet_balance(
     ai, bi, ci = SA.SVector(v_l.ai), SA.SVector(v_l.bi), SA.SVector(v_l.ci)
     D_min_r, D_max_r = bounds_r
     rain_live = !iszero(FD.value(N₀r)) && D_max_r > D_min_r
-    rain_setup = closed_rain_inner_NM_setup(ai, bi, ci, D_min_r, D_max_r, inv(Dr_mean))
+    # The rate is guarded because `Dr_mean` is a zero SENTINEL for a degenerate rain population, so
+    # `inv(Dr_mean)` is `Inf` there and the setup's own `!(α > 0)` guard does not fire on it. The
+    # bounds are `(0, 0)` at the same states, so the products are `Inf * 0`. At 161 of the 802
+    # ice-bearing states of the 2026-08-16 AMIP battery this returned a non-finite setup that
+    # `rain_live` then discarded; see degenerate-rain-sentinel-chain (37). `ifelse` keeps the lane
+    # branchless, which is what the surrounding code requires, and leaves every arm evaluable
+    # rather than relying on the consumer to discard a NaN. No result changes.
+    #
+    # The fallback is `one` of the RATE rather than of `FT`, so both arms carry one type. `FT` is
+    # promoted from the state as well as the liquid moments, so a dual-valued state with plain
+    # liquid inputs would make `one(FT)` a dual and the other arm plain, and an `ifelse` whose arms
+    # differ in type is decided at runtime; the same hazard is written out in
+    # `liquid_ice_collisions_bulk_partition`.
+    inv_Dr = inv(Dr_mean)
+    λ_r = ifelse(rain_live, inv_Dr, one(inv_Dr))
+    rain_setup = closed_rain_inner_NM_setup(ai, bi, ci, D_min_r, D_max_r, λ_r)
     function balance(Dᵢ)
         v = v_i(Dᵢ)
         rᵢ = sqrt(ice_area(state, Dᵢ) / πFT)
@@ -1499,8 +1521,8 @@ end
 """
     wet_set_bracket(g, D_lo, D_hi; n_scan, n_bisect)
 
-The subintervals of `[D_lo, D_hi]` on which the balance `g` is positive, as an `SVector` of
-`(lo, hi)` pairs padded to two entries with degenerate ones.
+The subintervals of `[D_lo, D_hi]` on which the balance `g` is positive, as a three-element tuple of
+`(lo, hi)` pairs, the unused ones degenerate at `(D_lo, D_lo)`.
 
 The balance is scanned at `n_scan` points in log diameter and each sign change is refined by
 `n_bisect` bisections, so the cost is `n_scan + 1 + n_bisect * (crossings)` evaluations of `g`. A
@@ -1539,22 +1561,22 @@ The default of 4 points and 4 bisections is what bracket-budget (3) measured to 
     # positive balance. Two crossings at most is what the scan can return, and bracket-budget (3)
     # found no state with more.
     #
-    # The three are written out rather than formed by `ntuple(3) do k ... end`, which captures `g`,
-    # `pts` and `D_lo` in a closure that `ntuple` applies recursively. That is a simplification and
-    # NOT a fix for anything: it was written to clear a device fault and, measured, it does not.
+    # The three segments are written out rather than formed by `ntuple(3) do k ... end`, whose
+    # closure `ntuple` applies recursively.
     #
-    # THE FAULT IS STILL OPEN. `SplitCorrection` reached from a thin per-lane wrapper faults with
-    # `ERROR_MISALIGNED_ADDRESS` on an A100 at 205312 lanes, on a plain `GaussLegendre(6)` rule and
-    # on a table carrier alike, each on its own clean context; the same assembly reached through
-    # `bulk_microphysics_tendencies` completes, so it depends on the enclosing kernel. Rewriting
-    # this function flat changed none of that. No CPU test sees it, and `PartitionedOuter` and
-    # `BulkPartition` never reach this code.
+    # This assembly faults on a GPU and this rewrite does not fix it. Measured on an A100 at 205312
+    # lanes, `SplitCorrection` called from a per-lane wrapper raises `ERROR_MISALIGNED_ADDRESS` on a
+    # plain `GaussLegendre(6)` rule and on a table carrier, while the same assembly reached through
+    # `bulk_microphysics_tendencies` at the same lane count completes. A misaligned address is a
+    # sticky CUDA error, so one faulting launch reports as several unless each arm runs in its own
+    # process. `PartitionedOuter` and `BulkPartition` do not reach this code.
     #
-    # What remains untested is the depth below: `wet_set_bracket` calls `g` about `n_scan +
-    # n_scan*n_bisect + 3` times per lane, and each call runs a Brent solve inside
-    # `crossover_diameter` and an incomplete-gamma chain inside `closed_rain_inner_NM`. Comparing
-    # `n_scan = n_bisect = 1` against `4` separates a local-memory depth problem from the balance
-    # closure itself.
+    # The fault is not this construct. Bisected on an A100, it arrives with the SECOND
+    # `gamma_inc_moment_channel_setup` held live in a lane: one passes, two fault, and every
+    # argument passes on its own. `hybrid_wet_balance` holds three, one per Chen velocity term,
+    # which is why this assembly meets it. The same three are live inside
+    # `bulk_microphysics_tendencies` without faulting, so what remains unexplained is why the
+    # enclosing kernel decides it.
     (r₁, r₂) = roots
     rlo, rhi = min(r₁, r₂), max(r₁, r₂)
     return (
