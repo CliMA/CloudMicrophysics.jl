@@ -15,6 +15,7 @@ import StaticArrays as SA
 import UnrolledUtilities as UU
 
 import ClimaParams as CP
+import Adapt
 
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Parameters as CMP
@@ -38,5 +39,6 @@ include("P3_size_distribution.jl")
 include("P3_integral_properties.jl")
 include("P3_terminal_velocity.jl")
 include("P3_processes.jl")
+include("P3_lut.jl")
 
 end

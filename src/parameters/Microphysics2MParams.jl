@@ -70,7 +70,7 @@ The main constructor is
 ```
 P3IceParams(toml_dict::CP.ParamDict; is_limited = true, slope_law = DEFAULT_SLOPE_LAW,
     aspect_ratio = DEFAULT_ASPECT_RATIO, quadrature_order = 6,
-    quad = Quadrature.GaussLegendre(FT, quadrature_order))
+    quad = Quadrature.GaussLegendre(FT, quadrature_order), inp_depletion_model)
 ```
 which constructs the parameterization with components:
 - `scheme` = [`ParametersP3`](@ref), built with `slope_law` and `aspect_ratio`
@@ -124,11 +124,21 @@ which constructs the parameterization with components:
     inp_depletion_model::INPDM = NIceProxyDepletion()
     "Quadrature rule for the size-distribution integrals
     (deposition / sublimation, melting, riming, ice-rain collection,
-    sedimentation). See also [`Quadrature.GaussLegendre`](@ref)."
+    sedimentation). See also [`Quadrature.GaussLegendre`](@ref).
+    A [`P3Scheme.P3TabulatedQuadrature`](@ref) may be passed instead, to replace
+    selected size-distribution integrals with a lookup table."
     quad::Q = QUAD.GaussLegendre(Float64, 6)
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
+
+# `quad` may be a `P3Scheme.P3TabulatedQuadrature`, which holds device arrays. It reaches a
+# kernel inside this struct rather than as a broadcast argument of its own, captured by
+# closures at many call sites; `Adapt` returns a struct with no rule unchanged and does not
+# visit its interior, so every layer between `ClimaAtmosParameters` and the carrier needs one.
+# Adapting a rule with no rule of its own is the identity, so this is free for every other
+# quadrature.
+Adapt.@adapt_structure P3IceParams
 
 P3IceParams(toml_dict::CP.ParamDict;
     is_limited = true,
@@ -187,11 +197,14 @@ end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics2MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
+# The middle link of the adaptation chain described at `P3IceParams` above.
+Adapt.@adapt_structure Microphysics2MParams
+
 """
     Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true,
         slope_law = DEFAULT_SLOPE_LAW, aspect_ratio = DEFAULT_ASPECT_RATIO,
         quadrature_order = 6, quad = Quadrature.GaussLegendre(FT, quadrature_order),
-        aerosol = nothing)
+        inp_depletion_model, aerosol = nothing)
 
 Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 
@@ -199,6 +212,8 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 - `toml_dict`: ClimaParams parameter dictionary
 - `with_ice`: Include P3 ice-phase parameters (default: false)
 - `is_limited`: Use limited rain size distribution parameters (default: true)
+- `inp_depletion_model`: the F23 INP-activation depletion model passed to
+  [`P3IceParams`](@ref) when `with_ice`. By default, [`NIceProxyDepletion`](@ref).
 - `slope_law`, `aspect_ratio`: passed to [`P3IceParams`](@ref) when `with_ice`, which
   forwards them to [`ParametersP3`](@ref). Defaults are [`DEFAULT_SLOPE_LAW`](@ref)
   and [`DEFAULT_ASPECT_RATIO`](@ref), named once there.
@@ -211,13 +226,12 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
   configuration that specifies cloud condensation nuclei passes a [`PrescribedAerosol`](@ref).
 """
 Microphysics2MParams(toml_dict::CP.ParamDict;
-    with_ice = false, is_limited = true,
+    with_ice = false, is_limited = true, aerosol = nothing,
     quadrature_order = 6,
     quad = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
     inp_depletion_model = NIceProxyDepletion(),
     slope_law = DEFAULT_SLOPE_LAW,
     aspect_ratio = DEFAULT_ASPECT_RATIO,
-    aerosol = nothing,
     rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited),
 ) = Microphysics2MParams(;
     # One `rain_pdf` object reaches both halves rather than each building its own from the
