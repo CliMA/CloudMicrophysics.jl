@@ -5146,6 +5146,97 @@ end
 test_logl_refresh(Float64)
 test_logl_refresh(Float32)
 
+# The six sedimentation velocities are computed inside the tendency call and averaged over the
+# substep march.
+#
+# They used to be a host fill, evaluated once per model step on the state as the host held it.
+# That is wrong twice over and neither is a matter of degree. A host cannot see a substep, so at
+# any substep count above one a species sediments with the fall speed of a distribution the
+# microphysics has already moved away from; and a host cannot see the kernel's canonicalization,
+# so a velocity and a rate could be evaluated on two different states in the same cell. Both are
+# closed by construction once the velocity is sampled beside the tendency that shares its state.
+function test_substep_fall_speeds(FT)
+    @testset "the sedimentation velocities come out of the march [FT=$FT]" begin
+        mp = CMP.Microphysics2MParams(FT; with_ice = true)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+        mode = BMT.rosenbrock_manual_temperature()
+        sb = mp.warm_rain.seifert_beheng
+        ρ = FT(1.05)
+        T = FT(263)
+        q_tot = FT(4e-3)
+        Δt = FT(60)
+        x = BMT.MicroState2MP3{FT}(
+            FT(2e-4), FT(8e7), FT(1e-4), FT(5e4),
+            FT(3e-4), FT(1e5), FT(1e-4), FT(2e-7))
+        logλ = BMT._refreshed_logλ(mp, ρ, x)
+        call(state, nsub) = BMT.bulk_microphysics_tendencies(
+            mode, BMT.Microphysics2Moment(), mp, tps, ρ, T, q_tot,
+            state..., BMT._refreshed_logλ(mp, ρ, state), Δt, nsub,
+        )
+
+        # (1) THE ACCEPTANCE RUNG. At one substep the six values are EXACTLY what the six public
+        # entry points return at the entry state and the entry shape parameter, so this pins both
+        # which functions are called and which state they are called on. Bit equality is available
+        # here because a one-substep average is the sample itself.
+        v = call(x, 1).extras
+        st = P3.state_from_prognostic(
+            mp.ice.scheme, ρ * x.q_ice, ρ * x.n_ice, ρ * x.q_rim, ρ * x.b_rim)
+        @test v.v_ice_n === P3.ice_terminal_velocity_number_weighted(
+            mp.ice.terminal_velocity, ρ, st, logλ; quad = mp.ice.quad)
+        @test v.v_ice_m === P3.ice_terminal_velocity_mass_weighted(
+            mp.ice.terminal_velocity, ρ, st, logλ; quad = mp.ice.quad)
+        @test (v.v_lcl_n, v.v_lcl_m) === CM2.cloud_terminal_velocity(
+            sb.pdf_c, mp.warm_rain.cloud_velocity, x.q_lcl, ρ, ρ * x.n_lcl)
+        @test (v.v_rai_n, v.v_rai_m) === CM2.rain_terminal_velocity(
+            sb, mp.warm_rain.rain_velocity, x.q_rai, ρ, ρ * x.n_rai)
+        @test all(isfinite, values(v))
+        @test all(≥(FT(0)), values(v))
+
+        # (2) THE AVERAGE IS OVER SUBSTEPS, which is the whole point and the half a value-free
+        # rung would miss: at three substeps the state moves under the march, so the average must
+        # differ from the entry-state sample. Without this the entry could be sampling `x₀` three
+        # times and pass everything else.
+        v3 = call(x, 3).extras
+        @test any(k -> v3[k] != v[k], keys(v))
+        @test all(isfinite, values(v3))
+
+        # (3) THE STATE IT SEES IS THE CANONICALIZED ONE, not the state as handed in. A negative
+        # warm moment is not a distribution, and the primal clamps it before evaluating any rate;
+        # the velocity has to be evaluated on the same clamped state or a cell can sediment with a
+        # velocity from one state while its mass changes at the rate of another.
+        neg = BMT.MicroState2MP3{FT}(
+            -FT(1e-6), x.n_lcl, x.q_rai, -FT(1e3), x.q_ice, x.n_ice, x.q_rim, x.b_rim)
+        clamped = BMT.MicroState2MP3{FT}(
+            zero(FT), x.n_lcl, x.q_rai, zero(FT), x.q_ice, x.n_ice, x.q_rim, x.b_rim)
+        vn = call(neg, 1).extras
+        vc = call(clamped, 1).extras
+        @test vn.v_lcl_n === vc.v_lcl_n && vn.v_lcl_m === vc.v_lcl_m
+        @test vn.v_rai_n === vc.v_rai_n && vn.v_rai_m === vc.v_rai_m
+
+        # (4) FINITE AT THE DEGENERATE STATES THE MARCH REACHES, which is what makes sampling
+        # every substep admissible: mid-march the slots are not guaranteed to describe a
+        # population.
+        for degenerate in (
+            BMT.MicroState2MP3{FT}(zero(FT), zero(FT), zero(FT), zero(FT),
+                zero(FT), zero(FT), zero(FT), zero(FT)),               # an empty cell
+            BMT.MicroState2MP3{FT}(zero(FT), FT(1e8), zero(FT), FT(1e4),
+                zero(FT), FT(1e5), zero(FT), zero(FT)),                # numbers, no mass
+            BMT.MicroState2MP3{FT}(x.q_lcl, x.n_lcl, x.q_rai, x.n_rai,
+                x.q_ice, x.n_ice, -FT(1e-9), -FT(1e-12)),              # an inadmissible rime pair
+        )
+            @test all(isfinite, values(call(degenerate, 2).extras))
+        end
+
+        # (5) AND IT ALLOCATES NOTHING, since it runs per cell on a device. The minimum over
+        # repeats is what is asserted: a single `@allocated` reading of the same call has been
+        # observed at 32, 80 and 224 bytes on this machine and at zero on the next.
+        call(x, 2)
+        @test minimum(_ -> @allocated(call(x, 2)), 1:50) == 0
+    end
+end
+test_substep_fall_speeds(Float64)
+test_substep_fall_speeds(Float32)
+
 # Droplet activation as a per-process slot of the substep.
 #
 # Activation used to be a host-side source added to `dn_lcl_dt` after the substep returned. It

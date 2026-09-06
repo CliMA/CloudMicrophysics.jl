@@ -410,10 +410,72 @@ reach, including degenerate ones: [`CMP3.state_from_prognostic`](@ref) projects 
 rime pair onto its admissible cone, and [`CMP3.get_distribution_logλ`](@ref) returns
 the correct bracket end where the mean mass is degenerate rather than an arbitrary one.
 """
-@inline function _refreshed_logλ(mp, ρ, x::Union{MicroState2MP3, MicroState2MP3T})
-    state = CMP3.state_from_prognostic(
+@inline _refreshed_logλ(mp, ρ, x::Union{MicroState2MP3, MicroState2MP3T}) =
+    last(_ice_state_and_logλ(mp, ρ, x))
+
+"""
+    _ice_state(mp, ρ, x)
+
+The P3 ice state of the substep state `x`, from its four ice slots.
+
+Built once per substep and shared by the shape refresh and the fall speeds, so a rate and
+a velocity cannot be evaluated on two different ice states.
+"""
+@inline _ice_state(mp, ρ, x::Union{MicroState2MP3, MicroState2MP3T}) =
+    CMP3.state_from_prognostic(
         mp.ice.scheme, ρ * x.q_ice, ρ * x.n_ice, ρ * x.q_rim, ρ * x.b_rim)
-    return CMP3.get_distribution_logλ(state)
+
+"""
+    _ice_state_and_logλ(mp, ρ, x)
+
+The ice state of `x` and its re-solved shape parameter, as a pair, so the state the solve
+already built is returned rather than rebuilt by the caller.
+"""
+@inline function _ice_state_and_logλ(mp, ρ, x::Union{MicroState2MP3, MicroState2MP3T})
+    state = _ice_state(mp, ρ, x)
+    return (state, CMP3.get_distribution_logλ(state))
+end
+
+"""
+    _substep_fall_speeds(mp, ρ, x, state, logλ)
+
+The six sedimentation velocities [m/s] at one substep state, as
+`(v_lcl_n, v_lcl_m, v_rai_n, v_rai_m, v_ice_n, v_ice_m)`: cloud liquid, rain and P3 ice,
+each number-weighted then mass-weighted, all positive downward.
+
+They are evaluated on the substep's OWN state and its own ice shape parameter, which is
+the whole reason they are computed here rather than by the host. A host fill reads the
+step-entry state, so at any substep count above one the velocity a species sediments with
+belongs to a distribution the microphysics has already moved away from; and it reads the
+state as the host holds it rather than as the kernel canonicalizes it, so a velocity and a
+rate could be evaluated on two different states in the same cell. Both are structural
+rather than incidental: no host-side fill can see a substep, and none can see the clamps.
+
+The canonicalization is the primal's own
+([`p3_2m_process_rates`](@ref)): the air density takes the positive floor
+[`AIR_DENSITY_FLOOR`](@ref), because it sits in a denominator of the Stokes prefactor and
+of every specific-to-volumetric conversion here, and the four warm moments take the
+non-negative clamp. The ice quartet needs neither, [`CMP3.state_from_prognostic`](@ref)
+clamping the moments and projecting the rime pair onto its density cone already.
+"""
+@inline function _substep_fall_speeds(mp, ρ, x, state, logλ)
+    sb = mp.warm_rain.seifert_beheng
+    ρₐ = _floored_air_density(ρ)
+    q_lcl = UT.clamp_to_nonneg(x.q_lcl)
+    q_rai = UT.clamp_to_nonneg(x.q_rai)
+    # The warm entries take a NUMBER CONCENTRATION where the substep state carries a
+    # specific number, which is the same conversion the primal makes at every warm rate.
+    N_lcl = ρₐ * UT.clamp_to_nonneg(x.n_lcl)
+    N_rai = ρₐ * UT.clamp_to_nonneg(x.n_rai)
+    v_lcl_n, v_lcl_m =
+        CM2.cloud_terminal_velocity(sb.pdf_c, mp.warm_rain.cloud_velocity, q_lcl, ρₐ, N_lcl)
+    v_rai_n, v_rai_m =
+        CM2.rain_terminal_velocity(sb, mp.warm_rain.rain_velocity, q_rai, ρₐ, N_rai)
+    v_ice_n = CMP3.ice_terminal_velocity_number_weighted(
+        mp.ice.terminal_velocity, ρₐ, state, logλ; quad = mp.ice.quad)
+    v_ice_m = CMP3.ice_terminal_velocity_mass_weighted(
+        mp.ice.terminal_velocity, ρₐ, state, logλ; quad = mp.ice.quad)
+    return (v_lcl_n, v_lcl_m, v_rai_n, v_rai_m, v_ice_n, v_ice_m)
 end
 
 """
@@ -478,7 +540,8 @@ diagnostic path are the same code and cannot diverge.
     _march_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink = nothing)
 
 The 2M+P3 Rosenbrock-Euler march from `x₀` over `Δt` in `nsub` substeps, returning the
-final state.
+final state and the substep-averaged sedimentation velocities
+([`_substep_fall_speeds`](@ref)) as an `SVector{6}`.
 
 One implementation serves both substep states. The state type selects the tendency
 callable ([`_substep_tendency`](@ref)), the temperature policy
@@ -505,6 +568,7 @@ a loop of its own.
 
     x = x₀
     Tsub = T
+    v_acc = zero(SA.SVector{6, FT})
     for i in 1:nsub_eff
         # THE SHAPE PARAMETER IS REFRESHED FROM THE MARCHED STATE, every substep.
         #
@@ -523,14 +587,21 @@ a loop of its own.
         # belongs to the entry state, so this spends no solve where the answer is in hand
         # and is exactly inert at `nsub == 1`, where there is no later substep for a stale
         # shape to reach.
-        logλ_sub = i == 1 ? logλ : _refreshed_logλ(mp, ρ, x)
+        state_sub, logλ_sub =
+            i == 1 ? (_ice_state(mp, ρ, x), logλ) : _ice_state_and_logλ(mp, ρ, x)
+        # THE FALL SPEEDS ARE SAMPLED HERE, on the state the substep is about to act on and
+        # with that substep's own shape parameter, and averaged over the march. The substeps
+        # are uniform in length, `h = Δt / nsub_eff`, so the arithmetic mean IS the time
+        # average over `Δt` and no weighting is owed. Sampling at loop entry rather than at
+        # loop exit is what pairs each velocity with the state its own tendency saw.
+        v_acc = v_acc + SA.SVector{6, FT}(_substep_fall_speeds(mp, ρ, x, state_sub, logλ_sub))
         g = _substep_tendency(x, mp, tps, ρ, Tsub, q_tot, logλ_sub, w, p)
         x_prev = x
         x, diag = _rosenbrock_substep_diag(
             mode, g, x, h, q_tot, ρ, Tsub, Lv_over_cp, Ls_over_cp, tps, ρ_min, ρ_max, sink)
         Tsub = _marched_temperature(x, x_prev, tps, q_tot, Tsub)
     end
-    return x
+    return (x, v_acc / FT(nsub_eff))
 end
 
 """
@@ -559,9 +630,14 @@ substep: its number source is already inside `dn_lcl_dt` and its paired mass ins
 field is kept rather than removed so the returned shape still matches the host's cache
 type.
 
-`extras` holds substep by-products that are not tendencies. It is empty today. The
-slot exists now so that adding one, the final marched `logλ` and the substep-averaged
-ice fall speeds being the ones in view, changes no signature and no host unpacking.
+`extras` holds substep by-products that are not tendencies: the six substep-averaged
+sedimentation velocities `v_lcl_n`, `v_lcl_m`, `v_rai_n`, `v_rai_m`, `v_ice_n` and
+`v_ice_m` [m/s], all positive downward, from [`_substep_fall_speeds`](@ref).
+
+They ride here rather than beside the tendencies because they are not tendencies: a host
+applies them to a state, where it integrates the eight rates. Keeping them in a
+`NamedTuple` of its own is also what let them arrive without changing this function's
+signature or any host unpacking, which is what the slot was cut for.
 """
 @inline _rosenbrock_average_carrier(rates::MicroState2MP3{FT}, extras::NamedTuple) where {FT} =
     (;
@@ -585,8 +661,15 @@ entries pass [`NullSink`](@ref).
 @inline function _rosenbrock_average_2mp3(
     mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink = nothing,
 )
-    x = _march_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink)
-    return _rosenbrock_average_carrier(_species_increment(x - x₀) / Δt, (;))
+    x, v̄ = _march_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink)
+    return _rosenbrock_average_carrier(
+        _species_increment(x - x₀) / Δt,
+        (;
+            v_lcl_n = v̄[1], v_lcl_m = v̄[2],
+            v_rai_n = v̄[3], v_rai_m = v̄[4],
+            v_ice_n = v̄[5], v_ice_m = v̄[6],
+        ),
+    )
 end
 
 #####
@@ -628,9 +711,9 @@ state's ice shape parameter and is refreshed from the marched state at every lat
 substep. See the [Rosenbrock-average microphysics substepping](@ref) documentation page
 for the substep algorithm.
 
-Returns the fixed-shape carrier of [`_rosenbrock_average_carrier`](@ref). The
-temperature the substeps marched is not returned: the host derives its own from the
-species tendencies.
+Returns the fixed-shape carrier of [`_rosenbrock_average_carrier`](@ref), whose `extras`
+carry the six substep-averaged sedimentation velocities. The temperature the substeps
+marched is not returned: the host derives its own from the species tendencies.
 
 `sink` is production's [`NullSink`](@ref) by default; [`Verbose`](@ref) and
 [`Trace`](@ref) pass their own through this same keyword.
