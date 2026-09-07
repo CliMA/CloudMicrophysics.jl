@@ -1448,6 +1448,127 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test eltype(rates) == FT  # check type stability
     end
 
+    # The entry states that shed drops re-enter rain at `D_shd`. What makes that the assumption the
+    # code applies, rather than one it merely states, is that the drops it adds carry a mean mass of
+    # `m(D_shd)`. That is one identity and it is asserted here without a tolerance beyond floating
+    # point, because it is the whole content of the assumption.
+    @testset "the shed stream re-enters rain at the shedding diameter" begin
+        toml_dict = CP.create_toml_dict(FT)
+        psd_c = CMP.CloudParticlePDF_SB2006(toml_dict)
+        # The SHIPPED rain distribution, which `RainParticlePDF_SB2006` builds in both branches of
+        # `is_limited`. The testset above this one names `RainParticlePDF_SB2006_limited`, the
+        # retired Eq. 94-97 clamp cascade that nothing constructs by default, and copying that here
+        # would characterise the entry on a distribution no run uses.
+        psd_r = CMP.RainParticlePDF_SB2006(toml_dict)
+        ρw = psd_c.ρw
+        m_l(Dₗ) = ρw * CO.volume_sphere_D(Dₗ)
+        m_shd = m_l(FT(1e-3))
+        quad = P3.GaussLegendre(FT, 12)
+        state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+        B = Lᵢ * F_rim / ρ_rim
+
+        rates(L_c, N_c, L_r, N_r, T) = P3.bulk_liquid_ice_collision_sources(
+            state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
+            aps, tps, vel_params, ρₐ, T; B_rim = B, quad,
+        )
+        chan(L_c, N_c, L_r, N_r, T) = P3.∫liquid_ice_collisions(
+            state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
+            aps, tps, vel_params, ρₐ, T, m_l; quad,
+        )
+
+        # Both donors present, above and below freezing, and cloud-heavy as well as rain-heavy, so
+        # the identity is checked where the two shares are very different rather than only where
+        # they are comparable.
+        discriminated = 0
+        for (L_c, N_c, L_r, N_r) in (
+            (FT(1e-3), FT(1e8), FT(1e-4), FT(1e6)),
+            (FT(5e-3), FT(1e8), FT(1e-6), FT(1e3)),
+            (FT(1e-5), FT(1e7), FT(3e-3), FT(1e5)),
+        )
+            for T in (T_freeze - FT(5), T_freeze + FT(2))
+                r = rates(L_c, N_c, L_r, N_r, T)
+                (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, M_col, BCCOL, BRCOL) =
+                    chan(L_c, N_c, L_r, N_r, T)
+                # The shedding source is asserted through the tendency it enters rather than
+                # recovered from it. `∂ₜN_r = -NRCOL + NRSHD` and `NRCOL` is the larger of the two
+                # at most states, so `∂ₜN_r + NRCOL` cancels and reports the identity to about ten
+                # units in the last place rather than to one. Comparing the whole tendency against
+                # its own definition carries the same cancellation on both sides, and the absolute
+                # tolerance is scaled by the larger term because the difference is what cancels.
+                shed_mass = QCSHD + QRSHD
+                NRSHD = shed_mass / m_shd
+                # `∂ₜN_r = -NRCOL + NRSHD`, and `NRCOL` is the larger term at most states, so
+                # every assertion here undoes a cancellation whose noise floor is `eps` times that
+                # larger term.
+                noise = eps(FT) * max(NRCOL, NRSHD, one(FT))
+                @test r.∂ₜN_r ≈ -NRCOL + NRSHD atol = 8 * noise
+                # The assertion above passes for any NRSHD; this one fixes WHICH mass it is formed
+                # from. Dividing only the rain donor's share, which is what the entry did before,
+                # gives `-NRCOL + QRSHD/m_shd`, so the two forms differ by exactly `QCSHD/m_shd`.
+                # That difference is only resolvable where it clears the cancellation floor, which
+                # at Float32 with a large NRCOL it does not always do; the count below requires the
+                # loop to contain states where it does, rather than each state to be one.
+                rain_only = -NRCOL + QRSHD / m_shd
+                signal = QCSHD / m_shd
+                if signal > 8 * noise
+                    @test !isapprox(r.∂ₜN_r, rain_only; atol = 8 * noise)
+                    @test r.∂ₜN_r - rain_only ≈ signal rtol = sqrt(eps(FT)) atol = 8 * noise
+                    discriminated += 1
+                end
+            end
+        end
+
+        # The loop must contain at least one state where the two forms are told apart, or the
+        # `signal > 8 * noise` guard has silently disabled the only assertion that fixes which mass
+        # the rain number is formed from.
+        @test discriminated > 0
+
+        # THE WIRING, which no other assertion reaches. `bulk_liquid_ice_collision_sources` gains an
+        # `assembly` keyword and `BMT_2mp3` resolves it from `P3IceParams.liqice_partition`; without
+        # this, reverting that one line leaves every host model on the per-particle closure and the
+        # suite green. The two closures are compared through the parameter set, at a state where
+        # they differ.
+        let toml2 = CP.create_toml_dict(FT)
+            mp_pw = CMP.Microphysics2MParams(toml2; with_ice = true, quadrature_order = 12)
+            mp_bk = CMP.Microphysics2MParams(toml2; with_ice = true, quadrature_order = 12,
+                liqice_partition = P3.BulkPartition())
+            @test mp_pw.ice.liqice_partition === nothing
+            @test mp_bk.ice.liqice_partition isa P3.BulkPartition
+            src(mp) = P3.bulk_liquid_ice_collision_sources(
+                state, logλ, mp.ice.cloud_pdf, mp.ice.rain_pdf,
+                FT(8e-3), FT(1e8), FT(4e-3), FT(1e6),
+                aps, tps, mp.ice.terminal_velocity, ρₐ, T_freeze - FT(2); B_rim = B,
+                quad = mp.ice.quad,
+                assembly = P3._liqice_partition(mp.ice.liqice_partition, mp.ice.quad))
+            pw = src(mp_pw)
+            bk = src(mp_bk)
+            # `∫min(a,b) ≤ min(∫a,∫b)`: the bulk form freezes at least as much, so it sheds at most
+            # as much. The two must not be the same number at this state, or the field is inert.
+            @test bk.∂ₜL_ice >= (1 - sqrt(eps(FT))) * pw.∂ₜL_ice
+            @test bk.f_shd <= pw.f_shd
+            @test bk.f_shd != pw.f_shd
+        end
+
+        # The case the earlier form could not express. With no rain population every rain term
+        # vanishes, so the shed mass is entirely the cloud donor's; the entry must still add rain
+        # mass and the rain number that goes with it, at the same diameter. Above freezing nothing
+        # freezes, so the whole collection is shed and the state is unambiguous.
+        let L_c = FT(1e-3), N_c = FT(1e8), T = T_freeze + FT(2)
+            r = rates(L_c, N_c, zero(FT), zero(FT), T)
+            (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, M_col, BCCOL, BRCOL) =
+                chan(L_c, N_c, zero(FT), zero(FT), T)
+            @test QRSHD == 0 && NRCOL == 0      # nothing to collect from an absent population
+            @test QCSHD > 0                     # and the cloud donor is shedding
+            @test r.∂ₜq_r > 0                   # so rain gains mass
+            @test r.∂ₜN_r > 0                   # and must gain number with it
+            # `NRCOL` is exactly zero here, so `∂ₜN_r` IS the shedding source and the mean mass of
+            # the drops the entry adds can be read off it with nothing to cancel. This is the one
+            # place the identity is exact, and it is the case the earlier form could not express.
+            @test NRCOL == 0
+            @test QCSHD / r.∂ₜN_r ≈ m_shd rtol = 8 * eps(FT)
+        end
+    end
+
     # The reference P3 code compares the collected mass with the freezing capacity ONCE for the
     # population; this entry compares them at every ice diameter. `BulkPartition` is the first
     # closure written as a selectable option, so what is asserted here is the property that

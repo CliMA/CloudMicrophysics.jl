@@ -2051,7 +2051,9 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
 1. `∂ₜq_c`: cloud liquid water content tendency [kg/kg/s]
 2. `∂ₜq_r`: rain water content tendency [kg/kg/s]
 3. `∂ₜN_c`: cloud number concentration tendency [1/m³/s]
-4. `∂ₜN_r`: rain number concentration tendency [1/m³/s]
+4. `∂ₜN_r`: rain number concentration tendency [1/m³/s]. The shedding source in it is the whole
+   shed mass over one shed drop, `(QCSHD + QRSHD)/m(D_shd)`, so the drops the entry adds have a
+   mean mass of exactly `m(D_shd)` whichever donor supplied the water
 5. `∂ₜL_rim`: riming mass tendency [kg/m³/s]
 6. `∂ₜL_ice`: ice water content tendency [kg/m³/s]
 7. `∂ₜB_rim`: rime volume tendency [m³/m³/s]
@@ -2128,10 +2130,27 @@ CloudMicrophysics.BulkMicrophysicsTendencies._jacobian_2mp3_manual), takes 8-12.
     f_shd = (iszero(FD.value(∫∂ₜM_col)) || !is_subfreezing) ? zero(∫∂ₜM_col) :
             (QCSHD + QRSHD) / ∫∂ₜM_col
 
-    # Shedding of rain
-    # QRSHD = ∫∂ₜM_col - (QCFRZ + QRFRZ)
-    NRSHD = QRSHD / m_liq(D_shd)
-    # NCSHD = QCSHD / m_liq(D_shd)
+    # Shedding: each donor's shed mass re-enters rain, so each supplies rain number.
+    #
+    # The shed stream carries mass `QCSHD + QRSHD` into rain, `QCSHD` as new mass and `QRSHD` as
+    # mass that never left it, and it carries that mass as drops of diameter `D_shd`. Its number is
+    # therefore the whole shed mass over one shed drop, and the implied mean mass of the drops the
+    # entry adds is exactly `m_liq(D_shd)`, which is what the assumption above says.
+    #
+    # Dividing only the rain donor's share was the earlier form, and it does not shed at `D_shd`.
+    # With mass `QCSHD + QRSHD` and number `QRSHD/m_liq(D_shd)` the implied drop mass is
+    # `m_liq(D_shd)·(1 + QCSHD/QRSHD)`, an effective diameter `D_shd·(1 + QCSHD/QRSHD)^(1/3)` set
+    # by which donor happened to supply the water. Measured on the 2026-08-16 AMIP battery above
+    # freezing, that was 1.0005 mm at the median, 1.845 mm at p95 and 9.75 mm at the worst state,
+    # the last past the drop-breakup limit and 97 times `xr_max`. At a state collecting cloud with
+    # no rain population the earlier form put mass into rain with exactly zero number, which was
+    # 133 of the 802 states of that battery; see shed-number-donor-asymmetry (34).
+    #
+    # Mass is untouched by this: `QCSHD` was already a rain mass source and `QRSHD` already never
+    # left the rain mass, so only the number moves. `m_liq(D_shd)` lies inside the SB2006
+    # admissible rain range, so drops added at that size cannot drive the rain mean mass out of its
+    # clamp.
+    NRSHD = (QCSHD + QRSHD) / m_liq(D_shd)
 
     # Densification of rime: relax the `(L_rim, B_rim)` pair toward the fully-soaked solid
     # endpoint `(ρq_ice, ρq_ice/ρ_i)`, whose implied density is `ρ_i`. For `f_shd·h/τ_wet < 1`

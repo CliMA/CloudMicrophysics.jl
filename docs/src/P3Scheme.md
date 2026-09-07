@@ -602,9 +602,10 @@ Ice phase:
 
 !!! note "Differences with Morrison & Milbrandt (2015)"
     There are numerous differences between the P3 scheme in Morrison & Milbrandt (2015) and the P3 scheme in this package:
-    - the maximum freezing rate (wet growth limit) is computed at the particle level, instead of as a bulk process
+    - the maximum freezing rate (wet growth limit) is computed at the particle level by default, instead of as a bulk process. [`P3Scheme.BulkPartition`](@ref) selects the reference's population-level comparison instead, keeping this scheme's own capacity
     - changes in rime volume due to (dry) collisions with cloud and rain are computed at the particle level, with a local rime density evaluated as a function of both the liquid and ice particle diameters
     - in the wet growth regime, the densification process is computed as a rapidly adjusting bulk process, instead of instantenous particle-level densification. We also scale by the fraction of the mass rate that undergoes wet growth.
+    - shed liquid re-enters rain at ``D_\text{shd}`` at every temperature, and both donors supply the rain number. The reference applies the conversion to both donors below freezing, and above freezing supplies it for collected cloud water while declining it for collected rain, on the ground that snow is not expected to shed there. We do not make that distinction. The reference's own comment at that line allows that more heavily rimed ice would be expected to shed in those conditions, and the size assumption is the same one in both regimes.
 
 
 Below, we describe the different processes in more detail.
@@ -760,17 +761,20 @@ We assume that all shed droplets are shed at some fixed diameter $D_\text{shd}$.
     &= ∫_0^∞ (1 - f_{\text{frz}}(D_i)) ∂_t\mathcal{M}_\text{r,col}(D_i) N'_i(D_i) \mathrm{d}D_i
     \\
     \textcolor{brown}{\text{NRSHD}}
-    &= \frac{\textcolor{brown}{\text{QRSHD}}}{m(D_\text{shd})},
+    &= \frac{\textcolor{brown}{\text{QCSHD}} + \textcolor{brown}{\text{QRSHD}}}{m(D_\text{shd})},
     \end{align*}
     ```
     Because we assume that any shed droplets are rain, the shed cloud water
     ``\text{QCSHD}`` is a source of rain mass, while the shed rain water
     ``\text{QRSHD}`` returns to the rain category and does not change the
     rain mass.
-    The shed drops re-enter rain at the shedding diameter ``D_\text{shd}``,
-    which gives the rain number source ``\text{NRSHD}``
-    (the corresponding number source from shed cloud water is currently
-    neglected).
+    Both re-enter rain at the shedding diameter ``D_\text{shd}``, so the rain
+    number source ``\text{NRSHD}`` is formed from the whole shed mass and not
+    from one donor's share. That is what makes the assumption stated above the
+    one the scheme applies: the drops it adds carry a mean mass of exactly
+    ``m(D_\text{shd})``. Dividing only ``\text{QRSHD}`` would give them a mean
+    mass of ``m(D_\text{shd})(1 + \text{QCSHD}/\text{QRSHD})`` instead, and no
+    drops at all where the state collects cloud with no rain population.
 
 Finally, how does this affect the rime volume? 
 
