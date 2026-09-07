@@ -70,7 +70,8 @@ The main constructor is
 ```
 P3IceParams(toml_dict::CP.ParamDict; is_limited = true, slope_law = DEFAULT_SLOPE_LAW,
     aspect_ratio = DEFAULT_ASPECT_RATIO, quadrature_order = 6,
-    quad = Quadrature.GaussLegendre(FT, quadrature_order), inp_depletion_model)
+    quad = Quadrature.GaussLegendre(FT, quadrature_order), liqice_partition = nothing,
+    inp_depletion_model)
 ```
 which constructs the parameterization with components:
 - `scheme` = [`ParametersP3`](@ref), built with `slope_law` and `aspect_ratio`
@@ -96,9 +97,11 @@ which constructs the parameterization with components:
 - `quad`: the size-distribution `Quadrature.QuadratureRule` (default:
   `Quadrature.GaussLegendre(FT, quadrature_order)`). Pass this to use a rule other than
   Gauss-Legendre.
+- `liqice_partition`: the liquid-ice collision closure (default: `nothing`, the per-particle
+  partition). Pass `P3Scheme.BulkPartition()` for the reference P3 code's bulk partition.
 
 """
-@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, HOM, INPDM, Q} <: ParametersType
+@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, HOM, INPDM, Q, LIA} <: ParametersType
     "The core P3 scheme parameters"
     scheme::P3
     "The terminal velocity parameterization"
@@ -128,6 +131,17 @@ which constructs the parameterization with components:
     A [`P3Scheme.P3TabulatedQuadrature`](@ref) may be passed instead, to replace
     selected size-distribution integrals with a lookup table."
     quad::Q = QUAD.GaussLegendre(Float64, 6)
+    "How the liquid-ice collision entry partitions collected mass between freezing and
+    shedding, or `nothing` to let the quadrature decide. `nothing` selects a per-particle
+    partition, [`P3Scheme.PartitionedOuter`](@ref) with a plain rule and
+    [`P3Scheme.SplitCorrection`](@ref) with a carrier holding the liquid-ice tables, which are
+    two forms of one closure. [`P3Scheme.BulkPartition`](@ref) selects the reference P3 code's
+    partition instead, keeping this scheme's own freezing capacity: it compares the collected mass
+    with that capacity once for the
+    whole population rather than at every ice diameter. That is a choice of physics rather than of
+    numerics, and is made
+    here rather than through `quad`, which carries the numerics."
+    liqice_partition::LIA = nothing
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -144,6 +158,7 @@ P3IceParams(toml_dict::CP.ParamDict;
     is_limited = true,
     quadrature_order = 6,
     quad = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
+    liqice_partition = nothing,
     inp_depletion_model = NIceProxyDepletion(),
     slope_law = DEFAULT_SLOPE_LAW,
     aspect_ratio = DEFAULT_ASPECT_RATIO,
@@ -164,6 +179,7 @@ P3IceParams(toml_dict::CP.ParamDict;
     homogeneous = Koop2000(toml_dict),
     inp_depletion_model,
     quad,
+    liqice_partition,
 )
 
 """
@@ -204,7 +220,7 @@ Adapt.@adapt_structure Microphysics2MParams
     Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true,
         slope_law = DEFAULT_SLOPE_LAW, aspect_ratio = DEFAULT_ASPECT_RATIO,
         quadrature_order = 6, quad = Quadrature.GaussLegendre(FT, quadrature_order),
-        inp_depletion_model, aerosol = nothing)
+        liqice_partition = nothing, inp_depletion_model, aerosol = nothing)
 
 Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 
@@ -221,6 +237,8 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
   [`P3IceParams`](@ref) when `with_ice` (default: 6)
 - `quad`: the size-distribution `Quadrature.QuadratureRule` passed to
   [`P3IceParams`](@ref) when `with_ice` (default: `Quadrature.GaussLegendre(FT, quadrature_order)`)
+- `liqice_partition`: the liquid-ice collision closure passed to [`P3IceParams`](@ref) when
+  `with_ice` (default: `nothing`, the per-particle partition)
 - `aerosol`: the aerosol population droplet activation draws on, passed to
   [`WarmRainParams2M`](@ref). By default `nothing`, which computes zero activation; a
   configuration that specifies cloud condensation nuclei passes a [`PrescribedAerosol`](@ref).
@@ -229,6 +247,7 @@ Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true, aerosol = nothing,
     quadrature_order = 6,
     quad = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
+    liqice_partition = nothing,
     inp_depletion_model = NIceProxyDepletion(),
     slope_law = DEFAULT_SLOPE_LAW,
     aspect_ratio = DEFAULT_ASPECT_RATIO,
@@ -240,7 +259,7 @@ Microphysics2MParams(toml_dict::CP.ParamDict;
     warm_rain = WarmRainParams2M(toml_dict; is_limited, aerosol, rain_pdf),
     # Optional ice phase parameters
     ice = with_ice ?
-          P3IceParams(toml_dict; is_limited, quad, inp_depletion_model,
+          P3IceParams(toml_dict; is_limited, quad, liqice_partition, inp_depletion_model,
         slope_law, aspect_ratio, rain_pdf) :
           nothing,
 )

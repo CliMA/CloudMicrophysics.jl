@@ -471,6 +471,132 @@ function test_p3_lut_liqice_path(FT)
     end
 end
 
+function test_p3_lut_bulk_partition_path(FT)
+    TT.@testset "the tabulated bulk partition reads the tables and integrates nothing" begin
+        # `BulkPartition` applies its partition after the outer integral, so the six stored
+        # integrals are the whole of what it needs from the ice population and the freezing
+        # capacity is the ventilation integral times a scalar. Both already have tables, so this
+        # closure adds none - which is the claim under test here, together with the reconstruction
+        # of the nine channels from the six.
+        params = CMP.ParametersP3(FT)
+        vel = CMP.Chen2022VelType(FT)
+        aps = CMP.AirProperties(FT)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+        mp = CMP.Microphysics2MParams(FT; with_ice = true)
+        pdf_c, pdf_r = mp.ice.cloud_pdf, mp.ice.rain_pdf
+        rule = P3.GaussLegendre(FT, 6)
+        rb = P3.rime_density_bounds(params)
+        common = (; nx = 4, nf = 3, nr = 3, na = 3, nl = 4,
+            logx̄_lo = FT(log10(1e-11)), logx̄_hi = FT(log10(1e-6)),
+            ρ_rim_lo = FT(rb[1]), ρ_rim_hi = FT(rb[2]),
+            logρₐ_lo = FT(log10(0.4)), logρₐ_hi = FT(log10(1.2)))
+        xc = (; logx̄l_lo = FT(log10(pdf_c.xc_min)), logx̄l_hi = FT(log10(pdf_c.xc_max)))
+        xr = (; logx̄l_lo = FT(log10(pdf_r.xr_min)), logx̄l_hi = FT(log10(pdf_r.xr_max)))
+        iT = (; invT_lo = FT(-1 / 40), invT_hi = FT(-1 / 0.5))
+        lgc = P3.LiqIceTableGrid(; common..., xc...)
+        lgr = P3.LiqIceTableGrid(; common..., xr...)
+        bgc = P3.LiqIceBrimTableGrid(; common..., nt = 3, xc..., iT...)
+        bgr = P3.LiqIceBrimTableGrid(; common..., nt = 3, xr..., iT...)
+        m_liq(Dₗ) = pdf_c.ρw * CM.Common.volume_sphere_D(Dₗ)
+        icegrid = test_grid(FT, params)
+        carrier = P3.p3_lut_carrier(params, vel, aps, icegrid; quad = rule,
+            outputs = (:liqice,),
+            liqice_grid_cloud = lgc, liqice_grid_rain = lgr,
+            liqice_brim_grid_cloud = bgc, liqice_brim_grid_rain = bgr,
+            psd_c = pdf_c, psd_r = pdf_r, m_liq, T_freeze = params.T_freeze)
+
+        # The carrier decides the numerics and the parameter set the physics, so a carrier that
+        # would select the split assembly leaves an explicitly requested bulk partition alone.
+        TT.@test P3._liqice_partition(nothing, carrier) isa P3.SplitCorrection
+        TT.@test P3._liqice_partition(nothing, rule) isa P3.PartitionedOuter
+        TT.@test P3._liqice_partition(P3.BulkPartition(), carrier) isa P3.BulkPartition
+        TT.@test P3._liqice_partition(P3.BulkPartition(), rule) isa P3.BulkPartition
+        ice_b = CMP.P3IceParams(FT; liqice_partition = P3.BulkPartition())
+        TT.@test P3._liqice_partition(ice_b.liqice_partition, ice_b.quad) isa P3.BulkPartition
+        TT.@test CMP.P3IceParams(FT).liqice_partition === nothing
+
+        # At a grid node the interpolation is exact, so the residual between the two paths is not
+        # the table's fit. It is not the six-to-nine reconstruction either: the rain table is
+        # GENERATED with the numerical `get_liquid_integrals`, while the entry's combined path uses
+        # the exact `closed_rain_inner_NM`, so the two differ on the rain channels by the
+        # generator's own inner-quadrature error before any reconstruction happens. The tolerance
+        # below therefore bounds that difference and not the reconstruction, and it is the reason a
+        # tighter one would fail. The freezing capacity is the same quadrature on both sides,
+        # because this carrier holds no ventilation table.
+        ax(lo, hi, n, k) = n == 1 ? lo : lo + (hi - lo) * FT(k) / FT(n - 1)
+        lx = ax(lgc.logx̄_lo, lgc.logx̄_hi, lgc.nx, 1)
+        fr = ax(lgc.F_rim_lo, lgc.F_rim_hi, lgc.nf, 1)
+        rr = ax(lgc.ρ_rim_lo, lgc.ρ_rim_hi, lgc.nr, 1)
+        la = ax(lgc.logρₐ_lo, lgc.logρₐ_hi, lgc.na, 1)
+        lxc = ax(lgc.logx̄l_lo, lgc.logx̄l_hi, lgc.nl, 1)
+        lxr = ax(lgr.logx̄l_lo, lgr.logx̄l_hi, lgr.nl, 1)
+        # The temperature axis is GEOMETRIC in |T°C|, not uniform in 1/T°C, so its node is
+        # `_logT_axis_value` and not `ax`. These tests assert that the table reproduces the entry AT
+        # A NODE, which requires computing the node the way the fill computes it; with `ax` the
+        # evaluation point is an interior point and the assertion picks up interpolation error
+        # instead. See the comment on `_logT_axis_value`.
+        iTn = P3._logT_axis_value(bgc.invT_lo, bgc.invT_hi, bgc.nt, 0)
+        ρn = one(FT)
+        ρa_n = exp10(la)
+        q_ice = exp10(lx) * ρn
+        st_n = P3.state_from_prognostic(params, q_ice, ρn, fr * q_ice, fr * q_ice / rr)
+        lgn = P3.get_distribution_logλ(st_n)
+        T_n = 1 / iTn + params.T_freeze
+        q_ref = FT(1e-4)
+        Nc_n = ρa_n * q_ref / exp10(lxc)
+        Nr_n = ρa_n * q_ref / exp10(lxr)
+        argn = (st_n, lgn, pdf_c, pdf_r, exp10(lxc) * Nc_n, Nc_n, exp10(lxr) * Nr_n, Nr_n,
+            aps, tps, vel, ρa_n, T_n, m_liq)
+        bulk_tab = P3.∫liquid_ice_collisions(argn...; quad = carrier, assembly = P3.BulkPartition())
+        bulk_ref = P3.∫liquid_ice_collisions(argn...; quad = rule, assembly = P3.BulkPartition())
+        for i in 1:9
+            TT.@test bulk_tab[i] ≈ bulk_ref[i] rtol = 1e-3
+        end
+        # The partition is applied outside the integral, so the two halves of each species sum
+        # back to its collected mass with no tolerance beyond the arithmetic.
+        for v in (bulk_tab, bulk_ref)
+            TT.@test v[7] ≈ v[1] + v[2] + v[4] + v[5] rtol = sqrt(eps(FT))
+        end
+
+        # The freezing capacity read from the ventilation table is the same quantity, now carrying
+        # that table's interpolation error as well. At `rtol = 0.2` on a deliberately tiny grid this
+        # cannot separate a wired-wrong seam from a coarse grid; what it does establish is that the
+        # tabulated capacity is present, finite, positive and of the right order, which a seam
+        # reading the wrong table or the wrong axis would not be.
+        carrier_v = P3.p3_lut_carrier(params, vel, aps, icegrid; quad = rule,
+            outputs = (:liqice, :vent),
+            liqice_grid_cloud = lgc, liqice_grid_rain = lgr,
+            liqice_brim_grid_cloud = bgc, liqice_brim_grid_rain = bgr,
+            psd_c = pdf_c, psd_r = pdf_r, m_liq, T_freeze = params.T_freeze)
+        TT.@test carrier_v.vent !== nothing
+        W_tab = P3.bulk_max_freeze_rate(aps, tps, vel, ρa_n, T_n, st_n, lgn; quad = carrier_v)
+        W_ref = P3.bulk_max_freeze_rate(aps, tps, vel, ρa_n, T_n, st_n, lgn; quad = rule)
+        TT.@test W_tab > 0 && isfinite(W_tab)
+        TT.@test W_tab ≈ W_ref rtol = 0.2
+
+        # Which assembly subdivides the outer range at the wet-growth onsets, with the real
+        # arguments rather than the generic fallback's. `PartitionedOuter` evaluates the partition
+        # inside the integral and must keep the subdivision; the other two integrate a
+        # partition-free integrand and must not pay for it. Calling the fallback with a bare tuple
+        # would hold for every assembly and could not detect `PartitionedOuter` losing its
+        # subdivision, which is the regression this refactor makes possible.
+        let ρa2 = one(FT), T2 = FT(263.15)
+            st2 = P3.state_from_prognostic(params, FT(1e-3), FT(1e5), FT(5e-4), FT(1e-6))
+            lg2 = P3.get_distribution_logλ(st2)
+            L_c2, N_c2, L_r2, N_r2 = FT(1e-3), FT(1e8), FT(1e-4), FT(1e6)
+            ∂ₜV2 = P3.volumetric_collision_rate_integrand(vel, ρa2, st2)
+            ∂ₜM2 = P3.compute_max_freeze_rate(aps, tps, vel, ρa2, T2, st2)
+            br2 = CM.Microphysics2M.get_size_distribution_bounds(pdf_r, L_r2 / ρa2, ρa2, N_r2, FT(1e-5))
+            ib2 = P3.velocity_integral_bounds(st2, lg2, ∂ₜV2.v_i; p = FT(1e-5))
+            sub(a) = P3._subdivide_at_wet_onsets(a, ib2, pdf_c, pdf_r, ∂ₜV2, ∂ₜM2, st2,
+                L_c2, N_c2, L_r2, N_r2, ρa2, br2)
+            TT.@test length(sub(P3.PartitionedOuter())) == length(ib2) + 2
+            TT.@test sub(P3.SplitCorrection()) === ib2
+            TT.@test sub(P3.BulkPartition()) === ib2
+        end
+    end
+end
+
 TT.@testset "P3 lookup-table mode ($FT)" for FT in (Float64, Float32)
     test_p3_lut_off_mode_bit_identical(FT)
     test_p3_lut_untabulated_terms_bit_identical(FT)
@@ -481,5 +607,6 @@ TT.@testset "P3 lookup-table mode ($FT)" for FT in (Float64, Float32)
     test_p3_lut_self_collection_table(FT)
     test_p3_lut_outputs(FT)
     test_p3_lut_liqice_path(FT)
+    test_p3_lut_bulk_partition_path(FT)
 end
 nothing

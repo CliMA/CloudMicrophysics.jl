@@ -1255,13 +1255,52 @@ nothing; a partial set therefore leaves the entry on its quadrature path.
 
 @inline function _liqice_full_range(q::P3TabulatedQuadrature, state, ρₐ, psd_c, L_c, N_c,
     psd_r, L_r, N_r, T, ∂ₜM_max, ice_bounds)
+    free = _liqice_free_integrals(q, state, ρₐ, psd_c, L_c, N_c, psd_r, L_r, N_r, T)
+    free === nothing && return nothing
+    (M_c, N_c_col, M_r, N_r_col, B_c, B_r) = Tuple(free)
+    FT = typeof(ρₐ)
+    # The same scalar test the split makes, so the two paths cannot disagree about which constant
+    # partition the full range carries.
+    D_lo, D_hi = first(ice_bounds), last(ice_bounds)
+    f = iszero(FD.value(∂ₜM_max(sqrt(D_lo * D_hi)))) ? zero(FT) : one(FT)
+    return SA.SVector(
+        M_c * f, M_c * (1 - f), N_c_col,
+        M_r * f, M_r * (1 - f), N_r_col,
+        M_c + M_r, B_c * f, B_r * f,
+    )
+end
+
+"""
+    _liqice_free_integrals(quad, state, ρₐ, psd_c, L_c, N_c, psd_r, L_r, N_r, T)
+
+The six partition-free liquid-ice collision integrals read from the tables, in the order
+
+    (∫n_i ∂ₜM_c, ∫n_i ∂ₜN_c, ∫n_i ∂ₜM_r, ∫n_i ∂ₜN_r, ∫n_i ∂ₜB_c, ∫n_i ∂ₜB_r),
+
+or `nothing` when they are not all present. [`P3Scheme.∫liquid_ice_free_integrals`](@ref) is the
+same six by quadrature, and the two are interchangeable at the seam.
+
+These six are the whole of what the liquid-ice tables hold. Both consumers reach them here:
+[`_liqice_full_range`](@ref) applies the split assembly's constant partition to them, and
+[`P3Scheme.BulkPartition`](@ref) applies the reference scheme's bulk partition.
+
+The stored integrals are per unit ice number and per unit liquid number, both being first-degree
+homogeneous, so each is multiplied by `ρn_ice` and its own species' number.
+
+All four tables are required together. The six come from one interleaved integrand, so reading some
+from tables and integrating for the rest would run the same quadrature and save nothing; a partial
+set therefore leaves the entry on its quadrature path.
+"""
+@inline _liqice_free_integrals(quad, state, ρₐ, psd_c, L_c, N_c, psd_r, L_r, N_r, T) = nothing
+
+@inline function _liqice_free_integrals(q::P3TabulatedQuadrature, state, ρₐ, psd_c, L_c, N_c,
+    psd_r, L_r, N_r, T)
     (
         q.liqice_col_cloud === nothing || q.liqice_col_rain === nothing ||
         q.liqice_brim_cloud === nothing || q.liqice_brim_rain === nothing
     ) && return nothing
     (; ρq_ice, ρn_ice) = state
     ((ρq_ice > 0) & (ρn_ice > 0)) || return nothing
-    FT = typeof(ρₐ)
     x̄ = ρq_ice / ρn_ice
     x̄_c = L_c / N_c
     x̄_r = L_r / N_r
@@ -1272,21 +1311,7 @@ nothing; a partial set therefore leaves the entry on its quadrature path.
     Br = lookup(q.liqice_brim_rain, x̄, state.F_rim, state.ρ_rim, ρₐ, x̄_r, T°C)
     sc = ρn_ice * N_c
     sr = ρn_ice * N_r
-    M_c = Mc * sc
-    N_c_col = Nc * sc
-    M_r = Mr * sr
-    N_r_col = Nr * sr
-    B_c = Bc * sc
-    B_r = Br * sr
-    # The same scalar test the split makes, so the two paths cannot disagree about which constant
-    # partition the full range carries.
-    D_lo, D_hi = first(ice_bounds), last(ice_bounds)
-    f = iszero(FD.value(∂ₜM_max(sqrt(D_lo * D_hi)))) ? zero(FT) : one(FT)
-    return SA.SVector(
-        M_c * f, M_c * (1 - f), N_c_col,
-        M_r * f, M_r * (1 - f), N_r_col,
-        M_c + M_r, B_c * f, B_r * f,
-    )
+    return SA.SVector(Mc * sc, Nc * sc, Mr * sr, Nr * sr, Bc * sc, Br * sr)
 end
 
 
@@ -1302,6 +1327,20 @@ them, so the carrier selects it. A carrier without them keeps the default, and s
 rule.
 """
 @inline _default_liqice_assembly(quad) = PartitionedOuter()
+"""
+    _liqice_partition(choice, quad)
+
+The assembly a host model's `P3IceParams.liqice_partition` selects: the field's value where it
+names one, and [`_default_liqice_assembly`](@ref) where it is `nothing`.
+
+The two are separate because the field carries the physics choice and the quadrature carries the
+numerics.
+A parameter set that names no closure gets the per-particle one in whichever of its two forms the
+quadrature can evaluate, which is what every configuration built before the bulk closure existed
+asks for.
+"""
+@inline _liqice_partition(choice, quad) = choice
+@inline _liqice_partition(::Nothing, quad) = _default_liqice_assembly(quad)
 @inline _default_liqice_assembly(q::P3TabulatedQuadrature) =
     (
         q.liqice_col_cloud === nothing || q.liqice_col_rain === nothing ||

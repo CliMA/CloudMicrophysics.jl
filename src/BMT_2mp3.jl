@@ -397,7 +397,7 @@ quadrature.
     if CMP3.ice_population_is_present(state)
         coll = CMP3.bulk_liquid_ice_collision_sources(
             state, logλ, pdf_c, pdf_r, L_lcl, N_lcl, L_rai, N_rai, aps, tps, vel, ρ, T;
-            B_rim, quad,
+            B_rim, quad, assembly = CMP3._liqice_partition(mp.ice.liqice_partition, quad),
         )
         liquid_ice_collision = MicroState2MP3(
             coll.∂ₜq_c, coll.∂ₜN_c / ρ, coll.∂ₜq_r, coll.∂ₜN_r / ρ,

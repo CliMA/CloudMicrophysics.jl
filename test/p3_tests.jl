@@ -1448,6 +1448,73 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test eltype(rates) == FT  # check type stability
     end
 
+    # The reference P3 code compares the collected mass with the freezing capacity ONCE for the
+    # population; this entry compares them at every ice diameter. `BulkPartition` is the first
+    # closure written as a selectable option, so what is asserted here is the property that
+    # separates the two rather than a reference value: `∫min(a,b) ≤ min(∫a,∫b)` at every state,
+    # which is why the bulk form freezes at least as much and sheds at most as much.
+    @testset "the bulk partition is the reference closure and freezes at least as much" begin
+        toml_dict = CP.create_toml_dict(FT)
+        psd_c = CMP.CloudParticlePDF_SB2006(toml_dict)
+        psd_r = CMP.RainParticlePDF_SB2006_limited(toml_dict)
+        m_l(Dₗ) = psd_c.ρw * CO.volume_sphere_D(Dₗ)
+        quad = P3.GaussLegendre(FT, 12)
+        state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+
+        chan(L_c, N_c, L_r, N_r, T, asm) = P3.∫liquid_ice_collisions(
+            state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
+            aps, tps, vel_params, ρₐ, T, m_l; quad, assembly = asm,
+        )
+
+        # A liquid loading heavy enough that the capacity binds, so the two closures are
+        # compared where they differ rather than where both freeze everything.
+        for (L_c, N_c, L_r, N_r) in (
+            (FT(1e-3), FT(1e8), FT(1e-4), FT(1e6)),
+            (FT(8e-3), FT(1e8), FT(4e-3), FT(1e6)),
+        )
+            for ΔT in (FT(1), FT(5), FT(20))
+                T = T_freeze - ΔT
+                bulk = chan(L_c, N_c, L_r, N_r, T, P3.BulkPartition())
+                pw = chan(L_c, N_c, L_r, N_r, T, P3.PartitionedOuter())
+
+                # Every channel is a rate out of a liquid species, so none is negative, and the
+                # two halves of each species sum back to what that species contributed.
+                @test all(bulk .>= 0)
+                @test bulk[7] ≈ bulk[1] + bulk[2] + bulk[4] + bulk[5] rtol = sqrt(eps(FT))
+
+                # The partition is applied outside the integral, so the collected mass itself is
+                # the same integral in both closures and differs only by the quadrature.
+                @test bulk[7] ≈ pw[7] rtol = 1e-3
+
+                # `∫min(a,b) ≤ min(∫a,∫b)`: the inequality that makes these two closures
+                # different physics rather than two evaluations of one.
+                @test bulk[1] + bulk[4] >= (1 - sqrt(eps(FT))) * (pw[1] + pw[4])
+                @test bulk[2] + bulk[5] <= (1 + sqrt(eps(FT))) * (pw[2] + pw[5])
+            end
+        end
+
+        # At and above freezing the capacity is exactly zero, so the whole collection is shed and
+        # no rime volume is deposited - the same limit the per-particle closure reaches, and the
+        # one the wet-growth densification gate depends on.
+        warm = chan(FT(1e-3), FT(1e8), FT(1e-4), FT(1e6), T_freeze + FT(1), P3.BulkPartition())
+        @test warm[1] == 0 && warm[4] == 0 && warm[8] == 0 && warm[9] == 0
+        @test warm[2] + warm[5] ≈ warm[7] rtol = sqrt(eps(FT))
+
+        # The bulk freezing capacity is the ventilation integral times a scalar, so it is the
+        # population integral of the per-particle rate and not a separate parameterization.
+        for ΔT in (FT(1), FT(5), FT(20))
+            T = T_freeze - ΔT
+            W = P3.bulk_max_freeze_rate(aps, tps, vel_params, ρₐ, T, state, logλ; quad)
+            ∂ₜM_max = P3.compute_max_freeze_rate(aps, tps, vel_params, ρₐ, T, state)
+            n_i = P3.size_distribution(state, logλ)
+            bnds = P3.velocity_integral_bounds(
+                state, logλ, P3.ice_particle_terminal_velocity(vel_params, ρₐ, state); p = 1e-6)
+            @test W ≈ P3.integrate(D -> n_i(D) * ∂ₜM_max(D), bnds, quad) rtol = 1e-5
+        end
+        @test P3.bulk_max_freeze_rate(
+            aps, tps, vel_params, ρₐ, T_freeze + FT(1), state, logλ; quad) == 0
+    end
+
     # Wet-growth densification relaxes the `(L_rim, B_rim)` pair toward the fully-soaked solid
     # endpoint `(ρq_ice, ρq_ice/ρ_i)`. It took the rime volume as `ρq_ice·F_rim/ρ_rim`,
     # reconstructed from the state's CLAMPED and tapered quotient, rather than the prognostic

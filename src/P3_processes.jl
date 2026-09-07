@@ -542,6 +542,33 @@ volumetric_collision_rate_integrand(velocity_params, ρₐ, state) = VolumetricC
 )
 
 """
+    _max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
+
+The two size-independent scalars of the Musil (1970) maximum freezing rate, and the freezing
+temperature the guards read: the numerator `K ΔT + Lᵥ D_v Δρ_sat` and the denominator
+`L_f - c_pl ΔT`.
+
+[`compute_max_freeze_rate`](@ref) and [`bulk_max_freeze_rate`](@ref) are the same rate against
+different weights, `2π D F_v(D)` at one diameter and `2π ∫ D F_v(D) n_i(D) dD` over the
+population, so the thermodynamics is written once here rather than once in each.
+"""
+@inline function _max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
+    (; D_vapor, K_therm) = aps
+    cp_l = TDI.cp_l(tps)
+    T_frz = TDI.T_freeze(tps)
+    Lᵥ = TDI.Lᵥ(tps, Tₐ)
+    L_f = TDI.Lf(tps, Tₐ)
+    Tₛ = T_frz  # the surface of the ice particle is assumed to be at the freezing temperature
+    ΔT = Tₛ - Tₐ  # temperature difference between the surface of the ice particle and the air
+    Δρᵥ_sat =
+        ρₐ * (  # saturation vapor density difference between the surface of the ice particle and the air
+            TDI.p2q(tps, Tₛ, ρₐ, TDI.saturation_vapor_pressure_over_ice(tps, Tₛ)) -
+            TDI.p2q(tps, Tₐ, ρₐ, TDI.saturation_vapor_pressure_over_ice(tps, Tₐ))
+        )
+    return (K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat, L_f - cp_l * ΔT, T_frz, ΔT, Δρᵥ_sat)
+end
+
+"""
     compute_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state)
 
 Returns a function `max_freeze_rate(Dᵢ)` that returns the maximum possible freezing rate [kg/s]
@@ -562,18 +589,7 @@ balanced by the latent heat of fusion.
 From Eq (A7) in Musil (1970), [Musil1970](@cite).
 """
 function compute_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state)
-    (; D_vapor, K_therm) = aps
-    cp_l = TDI.cp_l(tps)
-    T_frz = TDI.T_freeze(tps)
-    Lᵥ = TDI.Lᵥ(tps, Tₐ)
-    L_f = TDI.Lf(tps, Tₐ)
-    Tₛ = T_frz  # the surface of the ice particle is assumed to be at the freezing temperature
-    ΔT = Tₛ - Tₐ  # temperature difference between the surface of the ice particle and the air
-    Δρᵥ_sat =
-        ρₐ * (  # saturation vapor density difference between the surface of the ice particle and the air
-            TDI.p2q(tps, Tₛ, ρₐ, TDI.saturation_vapor_pressure_over_ice(tps, Tₛ)) -
-            TDI.p2q(tps, Tₐ, ρₐ, TDI.saturation_vapor_pressure_over_ice(tps, Tₐ))
-        )
+    (num, denom, T_frz, ΔT, Δρᵥ_sat) = _max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
     v_term = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
     F_v = CO.ventilation_factor(state.params.vent, aps, v_term)
     # Musil (1970) dry-growth formula: the denominator `(L_f - cp_l·ΔT)`
@@ -586,17 +602,64 @@ function compute_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state)
     # freezes). We enforce that by returning `floatmax(FT)` when the
     # denominator is non-positive, so `min(∂ₜM_col, ∂ₜM_max) = ∂ₜM_col` and
     # `f_frz = 1`.
-    denom = L_f - cp_l * ΔT
     function max_freeze_rate(Dᵢ)
         # fallback values typed by the promotion of the node and the captured state
         # (mixed plain/Dual under differentiation)
         FT = UT.promote_typeof(Dᵢ, ΔT, Δρᵥ_sat, denom)
         # `rate` is non-finite when `denom ≤ 0`; the selection below discards it
-        rate = 2 * (π * Dᵢ) * F_v(Dᵢ) * (K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat) / denom
+        rate = 2 * (π * Dᵢ) * F_v(Dᵢ) * num / denom
         # zero above the freezing temperature; floatmax when denom ≤ 0 (see above)
         return ifelse(Tₐ ≥ T_frz, zero(FT), ifelse(denom > 0, FT(rate), floatmax(FT)))
     end
     return max_freeze_rate
+end
+
+"""
+    bulk_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state, logλ; quad)
+
+The maximum freezing rate of the ice population [kg/m³/s], `∫ n_i(D) ∂ₜM_max(D) dD`, which is the
+quantity [`BulkPartition`](@ref) compares once with the bulk collection rate.
+
+# It is not the reference scheme's `qwgrth`
+
+`BulkPartition` takes the reference's partition and keeps this scheme's own capacity. The two
+capacities differ in the vapour source, this one using saturation over ice at both temperatures
+where the reference uses the ambient vapour, and in the conduction term, where the reference's
+expression multiplies `2π/L_f` into the vapour summand alone and so adds two terms whose units
+differ by one specific energy. This is the population integral of `compute_max_freeze_rate`, which
+is the Musil (1970) rate with the factor on the whole bracket.
+
+# It needs no integral of its own
+
+`∂ₜM_max(D) = 2π D F_v(D) · (K ΔT + Lᵥ D_v Δρ_sat) / (L_f − c_pl ΔT)` is the diameter times the
+ventilation factor times a scalar that does not depend on the diameter, so its population
+integral is that scalar times the ventilation integral `∫ D F_v(D) n_i(D) dD` that deposition
+and melting already take. It is therefore reached through `_ventilation_from`: where the
+mode's carrier holds the ventilation table, the bulk freezing capacity is a table read, and where
+it does not, it is the one-dimensional integral those two processes take anyway.
+
+That integral is taken over its own tail truncation, `p = 1e-6`, rather than the collision
+entry's `p = 1e-5`. Sharing the integral is what lets the capacity be read from a table that
+already exists, and the two truncations differ only in the far tail of the same distribution.
+
+# The guards
+
+Both guards of [`compute_max_freeze_rate`](@ref) carry over unchanged, because they are properties
+of the scalars rather than of the weight: exactly zero at and above the freezing temperature, and
+`floatmax` where the denominator is non-positive, which is the `f_frz = 1` limit at very cold
+temperatures. The result is clamped at zero as the reference's `qwgrth = max(qwgrth, 0)` is, so
+the bulk frozen fraction `min(1, W/∫M_col)` lies in `[0, 1]` with no further test.
+"""
+@inline function bulk_max_freeze_rate(aps, tps, velocity_params, ρₐ, Tₐ, state, logλ; quad)
+    (num, denom, T_frz, ΔT, Δρᵥ_sat) = _max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
+    ∫DFvN = _ventilation_from(velocity_params, aps, ρₐ, state, logλ, quad)
+    FT = UT.promote_typeof(∫DFvN, ΔT, Δρᵥ_sat, denom)
+    # `rate` is non-finite when `denom ≤ 0`; the selection below discards it
+    rate = 2 * π * ∫DFvN * num / denom
+    return ifelse(
+        Tₐ ≥ T_frz, zero(FT),
+        ifelse(denom > 0, max(FT(rate), zero(FT)), floatmax(FT)),
+    )
 end
 
 """
@@ -1147,11 +1210,82 @@ closure, e.g. [`get_combined_liquid_integrals`](@ref).
 end
 
 """
+    ∫liquid_ice_free_integrals(n_i, combined_integrals, ice_bounds; quad)
+
+The six partition-free liquid-ice collision integrals,
+
+    (∫n_i ∂ₜM_c, ∫n_i ∂ₜN_c, ∫n_i ∂ₜM_r, ∫n_i ∂ₜN_r, ∫n_i ∂ₜB_c, ∫n_i ∂ₜB_r),
+
+in the order `_liqice_free_integrals` stores them, so the table and the quadrature are
+interchangeable at the seam.
+
+This is what [`BulkPartition`](@ref) integrates. Six components rather than the nine of
+[`∫liquid_ice_collisions_combined`](@ref), because the partition is applied afterwards and the
+freeze and shed halves of a channel are not yet separate quantities. `ice_bounds` is the
+unsubdivided range: with no partition in the integrand there is no kink to subdivide at.
+"""
+@inline function ∫liquid_ice_free_integrals(n_i, combined_integrals, ice_bounds; quad)
+    function liquid_ice_free_integrands(Dᵢ)
+        ∂ₜN_c_col, ∂ₜM_c_col, ∂ₜB_c_col, ∂ₜN_r_col, ∂ₜM_r_col, ∂ₜB_r_col = combined_integrals(Dᵢ)
+        n = n_i(Dᵢ)
+        return SA.SVector(
+            n * ∂ₜM_c_col, n * ∂ₜN_c_col, n * ∂ₜM_r_col, n * ∂ₜN_r_col, n * ∂ₜB_c_col, n * ∂ₜB_r_col,
+        )
+    end
+    return integrate(liquid_ice_free_integrands, ice_bounds, quad)
+end
+
+"""
+    liquid_ice_collisions_bulk_partition(free, W)
+
+The nine channels of [`∫liquid_ice_collisions`](@ref) from the six partition-free integrals `free`
+and the bulk freezing capacity `W` of [`bulk_max_freeze_rate`](@ref), under the reference scheme's
+bulk partition; see [`BulkPartition`](@ref).
+
+`f_frz = min(1, W / ∫M_col)` is one number for the population, and the reference's shed excess
+`max(0, ∫M_col − W)` apportioned by mass share is `(1 − f_frz)` times each donor's collected mass,
+so the two forms are the same arithmetic written differently.
+
+`f_frz` is one where nothing is collected, which is the value that leaves every channel at the zero
+it already is, and one where `W` is `floatmax`, which is the very cold limit
+[`bulk_max_freeze_rate`](@ref) returns.
+"""
+@inline function liquid_ice_collisions_bulk_partition(free, W)
+    (M_c, N_c_col, M_r, N_r_col, B_c, B_r) = Tuple(free)
+    ∂ₜM_col = M_c + M_r
+    # The two branches are promoted to one type before the selection. `W` can be wider than the
+    # stored integrals, when the capacity carries a dual and the tables do not, and a ternary whose
+    # arms differ in type would then return one of two `SVector` element types decided by a runtime
+    # test on the rate.
+    FTf = UT.promote_typeof(∂ₜM_col, W)
+    one_f = one(FTf)
+    f_frz = iszero(FD.value(∂ₜM_col)) ? one_f : min(one_f, FTf(W) / FTf(∂ₜM_col))
+    return SA.SVector(
+        M_c * f_frz,        # QCFRZ
+        M_c * (1 - f_frz),  # QCSHD
+        N_c_col,            # NCCOL
+        M_r * f_frz,        # QRFRZ
+        M_r * (1 - f_frz),  # QRSHD
+        N_r_col,            # NRCOL
+        ∂ₜM_col,            # ∫M_col
+        B_c * f_frz,        # BCCOL
+        B_r * f_frz,        # BRCOL
+    )
+end
+
+"""
     PartitionedOuter()
     SplitCorrection(; n_scan = 4, n_bisect = 4)
     SplitCorrection(quad_corr; n_scan = 4, n_bisect = 4)
+    BulkPartition()
 
 How [`∫liquid_ice_collisions`](@ref) assembles its nine channels.
+
+The first two compute the same physics and the third does not. `PartitionedOuter` and
+`SplitCorrection` both apply the per-particle freeze/shed partition of Musil (1970) at every ice
+diameter, and agree to quadrature error. `BulkPartition` applies the reference scheme's partition,
+which compares the collected mass with the freezing capacity once for the whole population; it is
+a different closure and is documented at [`BulkPartition`](@ref).
 
 `PartitionedOuter` is the form the entry has always had: the freeze/shed partition is evaluated
 inside the outer integral, and the two wet-growth onset diameters are inserted as subinterval
@@ -1180,6 +1314,19 @@ with it rather than the other way round. A caller wanting a different correction
 """
 struct PartitionedOuter end
 
+"""
+    SplitCorrection(; n_scan = 4, n_bisect = 4)
+    SplitCorrection(quad_corr; n_scan = 4, n_bisect = 4)
+
+The per-particle freeze/shed closure of [`PartitionedOuter`](@ref), assembled as a full-range
+integral that carries a constant partition plus a correction on the wet set.
+
+The two assemblies compute the same closure and agree to quadrature error. This one is the form a
+lookup table can hold, because its full-range part carries no partition and so does not depend on
+the liquid magnitudes or the temperature. `n_scan` and `n_bisect` set the bracket that locates the
+wet set; the correction rule defaults to the rule the entry is already integrating with. See
+[`PartitionedOuter`](@ref) for the full description of all three assemblies.
+"""
 struct SplitCorrection{Q}
     n_scan::Int
     n_bisect::Int
@@ -1190,6 +1337,61 @@ SplitCorrection(; n_scan::Int = 4, n_bisect::Int = 4, quad_corr = nothing) =
     SplitCorrection(n_scan, n_bisect, quad_corr)
 SplitCorrection(quad_corr::QuadratureRule; kwargs...) =
     SplitCorrection(; quad_corr, kwargs...)
+
+"""
+    BulkPartition()
+
+The freeze/shed partition of the reference P3 code, applied once to the whole ice population
+rather than at every ice diameter.
+
+# The closure
+
+The reference forms the bulk freezing capacity `qwgrth` and the bulk collection
+`qccol + qrcol`, sheds the excess `max(0, qccol + qrcol − qwgrth)` and apportions it between the
+two donors by mass share (`microphy_p3.f90`, the wet-growth block). Written as a frozen fraction
+that is one number for the population,
+
+    f_frz = min(1, W / ∫M_col),      W = ∫ n_i(D) ∂ₜM_max(D) dD,
+
+every channel is a partition-free integral times `f_frz` or `1 − f_frz`. The per-particle form
+this entry uses by default instead takes `min(∂ₜM_col(D), ∂ₜM_max(D))` at each diameter.
+
+# Why it is cheap
+
+`f_frz` is a scalar formed after the outer integral, so the six partition-free integrals
+
+    ∫ n_i ∂ₜM_c dD   ∫ n_i ∂ₜN_c dD   ∫ n_i ∂ₜB_c dD
+    ∫ n_i ∂ₜM_r dD   ∫ n_i ∂ₜN_r dD   ∫ n_i ∂ₜB_r dD
+
+are the whole of what depends on the ice population, and they are exactly the six a lookup table
+already holds; see `_liqice_free_integrals`. `W` is the ventilation integral times a scalar
+([`bulk_max_freeze_rate`](@ref)), and that table already exists as well. With all five present the
+tabulated form of this assembly reads five tables and integrates nothing: no wet set to locate, no
+bracket, no correction, and no subdivision of the outer range, because the integrand carries no
+partition and so no kink. With the four liquid-ice tables and no ventilation table it still avoids
+the outer rule and integrates the ventilation term live.
+
+The per-particle partition admits none of that. `min` at each diameter does not factor out of the
+integral, so its tabulated form must locate the wet set and integrate a correction over it, which
+is where its cost sits.
+
+# The two closures are not interchangeable
+
+For each diameter `min(a, b) ≤ a` and `≤ b`, so the bulk form freezes at least as much as the
+per-particle form, and the two agree only where the balance `∫M_col / W` is far from one. Measured
+on the 802-state 2026-08-16 AMIP replay battery at GaussLegendre order 64 in Float64, 4 of the 57
+subfreezing states with a positive collision rate shed under the per-particle partition and 1 under
+the bulk one, and the bulk form freezes 5.67 percent more of the subfreezing collected mass once
+one state is excluded whose collision rate is three orders above every other; with that state
+included the difference is 0.045 percent, because it decides every mass-weighted statistic on that
+battery on its own.
+
+The two closures also place the wet set differently, the per-particle one reaching the small-ice end
+where a crystal smaller than the droplets it collects has a collection rate independent of its own
+size. Selecting this assembly is a physics choice and is made through `P3IceParams`, not through the
+quadrature.
+"""
+struct BulkPartition end
 
 """
     _plain_rule(quad)
@@ -1204,12 +1406,103 @@ delegates to the rule it holds instead of being handed to a second integral as t
 @inline _correction_rule(a::SplitCorrection, quad) =
     a.quad_corr === nothing ? _plain_rule(quad) : a.quad_corr
 
+"""
+    _liqice_tabulated(assembly, quad, state, logλ, ρₐ, psd_c, L_c, N_c, psd_r, L_r, N_r,
+                      aps, tps, vel, T)
+
+The nine channels straight from the tables, for the one assembly that needs nothing else, and
+`nothing` for every other case.
+
+[`BulkPartition`](@ref) applies its partition after the outer integral, so its whole dependence on
+the ice population is the six stored integrals of `_liqice_free_integrals`, and its whole dependence
+on the temperature is the bulk freezing capacity, which is the ventilation integral times a scalar.
+The lane therefore has nothing to integrate over the ice range, and it is answered here rather than
+in `_assemble` so that it does not first build what it will not use: two liquid size distributions,
+the collision-rate and rime-density closures, three sets of integration bounds, and the rain
+channel's incomplete-gamma setup, which the combined integrand computes eagerly when it is
+constructed.
+
+The test is on the four liquid-ice tables alone, which is what `_liqice_free_integrals` checks. A
+carrier holding those four and no ventilation table takes this path and `bulk_max_freeze_rate` then
+integrates the ventilation term live, which is one one-dimensional integral rather than the outer
+rule this path avoids. A lane is free of quadrature only when the ventilation table is present too.
+
+`nothing` comes back on a plain quadrature rule, on a carrier missing any of the four liquid-ice
+tables, and on a state with no ice population, and the entry then takes its ordinary path.
+"""
+@inline _liqice_tabulated(assembly, quad, state, logλ, ρₐ, psd_c, L_c, N_c, psd_r, L_r, N_r,
+    aps, tps, vel, T) = nothing
+@inline function _liqice_tabulated(::BulkPartition, quad, state, logλ, ρₐ, psd_c, L_c, N_c,
+    psd_r, L_r, N_r, aps, tps, vel, T)
+    free = _liqice_free_integrals(quad, state, ρₐ, psd_c, L_c, N_c, psd_r, L_r, N_r, T)
+    free === nothing && return nothing
+    return liquid_ice_collisions_bulk_partition(
+        free, bulk_max_freeze_rate(aps, tps, vel, ρₐ, T, state, logλ; quad))
+end
+
+"""
+    _subdivide_at_wet_onsets(assembly, ice_bounds, psd_c, psd_r, ∂ₜV, ∂ₜM_max, state,
+                             L_c, N_c, L_r, N_r, ρₐ, bounds_r)
+
+`ice_bounds` with the two wet-growth onset diameters inserted as subinterval boundaries, for the
+one assembly whose integrand has a kink there.
+
+[`PartitionedOuter`](@ref) evaluates the freeze/shed partition inside the outer integral, so the
+onsets are where its integrand changes branch and the quadrature must not straddle them.
+[`SplitCorrection`](@ref) and [`BulkPartition`](@ref) both integrate a partition-free integrand
+over the plain range and apply the partition outside it, so for them the onsets are neither used
+nor computed: locating them costs a Brent solve and a pair of moment evaluations for a subdivision
+that is never read.
+"""
+@inline function _subdivide_at_wet_onsets(::PartitionedOuter, ice_bounds, psd_c, psd_r, ∂ₜV,
+    ∂ₜM_max, state, L_c, N_c, L_r, N_r, ρₐ, bounds_r)
+    (D_wet₁, D_wet₂) = wet_growth_onset_diameter(
+        psd_c, psd_r, ∂ₜV, ∂ₜM_max, state,
+        L_c, N_c, L_r, N_r, ρₐ, bounds_r,
+        first(ice_bounds), last(ice_bounds),
+    )
+    return Tuple(
+        SA.sort(
+            SA.SVector(
+                ice_bounds...,
+                clamp(D_wet₁, first(ice_bounds), last(ice_bounds)),
+                clamp(D_wet₂, first(ice_bounds), last(ice_bounds)),
+            ),
+        ),
+    )
+end
+@inline _subdivide_at_wet_onsets(assembly, ice_bounds, args...) = ice_bounds
+
+"""
+    _bulk_capacity(assembly, aps, tps, vel, ρₐ, T, state, logλ; quad)
+
+The bulk freezing capacity [`bulk_max_freeze_rate`](@ref) for [`BulkPartition`](@ref), and
+`nothing` for the two per-particle assemblies, which have no use for it.
+
+It is formed in the entry rather than in the assembly because the thermodynamic parameters and
+`logλ` are the entry's arguments and reach no deeper.
+"""
+@inline _bulk_capacity(assembly, aps, tps, vel, ρₐ, T, state, logλ; quad) = nothing
+@inline _bulk_capacity(::BulkPartition, aps, tps, vel, ρₐ, T, state, logλ; quad) =
+    bulk_max_freeze_rate(aps, tps, vel, ρₐ, T, state, logλ; quad)
+
 @inline _assemble(::PartitionedOuter, n_i, ∂ₜM_max, comb, ice_bounds, ice_bounds_plain,
-    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T; quad) =
+    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T, W_bulk; quad) =
     ∫liquid_ice_collisions_combined(n_i, ∂ₜM_max, comb, ice_bounds; quad)
 
+@inline function _assemble(::BulkPartition, n_i, ∂ₜM_max, comb, ice_bounds, ice_bounds_plain,
+    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T, W_bulk; quad)
+    # The quadrature form. The tabulated one never reaches here: `_liqice_tabulated`
+    # answers it in the entry, before the integrand this method would use exists.
+    #
+    # One outer rule over the unsubdivided range, because the integrand carries no partition and
+    # therefore no kink to subdivide at.
+    return liquid_ice_collisions_bulk_partition(
+        ∫liquid_ice_free_integrals(n_i, comb, ice_bounds_plain; quad), W_bulk)
+end
+
 @inline function _assemble(a::SplitCorrection, n_i, ∂ₜM_max, comb, ice_bounds, ice_bounds_plain,
-    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T; quad)
+    psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T, W_bulk; quad)
     balance = hybrid_wet_balance(psd_c, psd_r, ∂ₜV, ∂ₜM_max, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r)
     # The full range keeps the velocity subintervals and drops only the wet onsets: the split does
     # not need them, and leaving them in would make the surrogate integral depend on a locator it no
@@ -1356,6 +1649,14 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, wh
 )
     FT = eltype(state)
 
+    # The tabulated bulk closure needs the state and nothing else, so it is answered before any of
+    # the machinery below is built; see `_liqice_tabulated` for what that machinery is and
+    # why none of it applies. Every other combination of assembly and quadrature returns `nothing`
+    # here and carries on.
+    tabulated = _liqice_tabulated(assembly, quad, state, logλ, ρₐ, psd_c, L_c, N_c,
+        psd_r, L_r, N_r, aps, tps, vel, T)
+    tabulated === nothing || return tabulated
+
     # Particle size distributions
     n_c = DT.size_distribution(psd_c, L_c / ρₐ, ρₐ, N_c)  # n_c(Dₗ)
     n_r = DT.size_distribution(psd_r, L_r / ρₐ, ρₐ, N_r)  # n_r(Dₗ)
@@ -1382,25 +1683,18 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, wh
     # does not put there, and collapsing the velocity subintervals instead would give away the
     # subdivision that the `min(v, v_term_ice_max)` cap requires.
     ice_bounds_plain = ice_bounds
-    (D_wet₁, D_wet₂) = wet_growth_onset_diameter(
-        psd_c, psd_r, ∂ₜV, ∂ₜM_max, state,
+    ice_bounds = _subdivide_at_wet_onsets(
+        assembly, ice_bounds, psd_c, psd_r, ∂ₜV, ∂ₜM_max, state,
         L_c, N_c, L_r, N_r, ρₐ, bounds_r,
-        first(ice_bounds), last(ice_bounds),
     )
-    ice_bounds = Tuple(
-        SA.sort(
-            SA.SVector(
-                ice_bounds...,
-                clamp(D_wet₁, first(ice_bounds), last(ice_bounds)),
-                clamp(D_wet₂, first(ice_bounds), last(ice_bounds)),
-            ),
-        ),
-    )
+
+    # One scalar for the whole population, and only where the assembly asks for it.
+    W_bulk = _bulk_capacity(assembly, aps, tps, vel, ρₐ, T, state, logλ; quad)
 
     return _∫liquid_ice_collisions_inner(
         psd_r, n_c, n_r, n_i, ∂ₜV, ρ′_rim, m_liq, ∂ₜM_max,
         bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state, T; quad,
-        assembly, psd_c, L_c, N_c, ice_bounds_plain,
+        assembly, psd_c, L_c, N_c, ice_bounds_plain, W_bulk,
     )
 end
 
@@ -1412,13 +1706,13 @@ end
     ∂ₜV::VolumetricCollisionRate{<:Any, <:Any, <:CO.Chen2022VelocityCurve},
     ρ′_rim::RimeDensityRate, m_liq, ∂ₜM_max, bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state, T; quad,
     assembly = _default_liqice_assembly(quad), psd_c = nothing, L_c = nothing, N_c = nothing,
-    ice_bounds_plain = ice_bounds,
+    ice_bounds_plain = ice_bounds, W_bulk = nothing,
 )
     combined_integrals = get_combined_liquid_integrals(
         psd_r, n_c, n_r, ρₐ, L_r, N_r, state, ∂ₜV, m_liq, ρ′_rim, bounds_c, bounds_r; quad,
     )
     return _assemble(assembly, n_i, ∂ₜM_max, combined_integrals, ice_bounds, ice_bounds_plain,
-        psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T; quad)
+        psd_c, psd_r, ∂ₜV, state, L_c, N_c, ρₐ, bounds_r, L_r, N_r, T, W_bulk; quad)
 end
 # Numerical fallback for any other PSD/velocity type: cloud and rain inner integrals
 # evaluated by two independent `get_liquid_integrals`/`_rain_inner_integrals` closures.
@@ -1426,14 +1720,15 @@ end
     psd_r, n_c, n_r, n_i, ∂ₜV, ρ′_rim, m_liq, ∂ₜM_max,
     bounds_c, bounds_r, ice_bounds, ρₐ, L_r, N_r, state, T; quad,
     assembly = _default_liqice_assembly(quad), psd_c = nothing, L_c = nothing, N_c = nothing,
-    ice_bounds_plain = ice_bounds,
+    ice_bounds_plain = ice_bounds, W_bulk = nothing,
 )
     # The split assembly is defined for the combined-integral path alone, because its correction
-    # needs the closed-form rain term that only that path builds. A caller that asks for it on the
-    # generic path is asking for something this method cannot supply, and saying so is better than
-    # returning the partitioned result under the other name.
+    # needs the closed-form rain term that only that path builds, and the bulk partition because
+    # its six free integrals are the combined integrand's own components. A caller that asks for
+    # either on the generic path is asking for something this method cannot supply, and saying so
+    # is better than returning the partitioned result under the other name.
     assembly isa PartitionedOuter ||
-        error("∫liquid_ice_collisions_split needs the SB2006 rain path; got $(typeof(psd_r))")
+        error("$(typeof(assembly)) needs the SB2006 rain path; got $(typeof(psd_r))")
     cloud_integrals = get_liquid_integrals(n_c, ∂ₜV, m_liq, ρ′_rim, bounds_c; quad)
     rain_integrals = _rain_inner_integrals(
         psd_r, n_r, ∂ₜV, m_liq, ρ′_rim, bounds_r, ρₐ, L_r, N_r, state; quad,
@@ -1737,6 +2032,10 @@ Computes the bulk rates for ice and liquid particle collisions.
 - `vel`: the velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
 - `ρₐ`: air density [kg/m³]
 - `T`: temperature [K]
+- `assembly`: how [`∫liquid_ice_collisions`](@ref) assembles its nine channels, one of
+  [`PartitionedOuter`](@ref), [`SplitCorrection`](@ref) and [`BulkPartition`](@ref). The default
+  follows the quadrature, which is the numerics choice; `BulkPartition` is a different closure and
+  is selected through `P3IceParams`.
 - `B_rim`: the PROGNOSTIC rime volume concentration [m³/m³]. Wet-growth densification relaxes
   the `(L_rim, B_rim)` pair toward the fully-soaked solid endpoint, so it needs the prognostic
   volume rather than `L_rim/ρ_rim` reconstructed from the state's clamped and tapered quotient.
@@ -1787,7 +2086,7 @@ CloudMicrophysics.BulkMicrophysicsTendencies._jacobian_2mp3_manual), takes 8-12.
 @inline function bulk_liquid_ice_collision_sources(
     state, logλ,
     psd_c, psd_r, L_c, N_c, L_r, N_r,
-    aps, tps, vel, ρₐ, T; B_rim, quad,
+    aps, tps, vel, ρₐ, T; B_rim, quad, assembly = _default_liqice_assembly(quad),
 )
     # `B_rim` is included in the promotion: it is a keyword, easy to miss, and
     # differentiating w.r.t. it alone (holding every other argument at plain `Float64`) is
@@ -1806,7 +2105,7 @@ CloudMicrophysics.BulkMicrophysicsTendencies._jacobian_2mp3_manual), takes 8-12.
     rates = ∫liquid_ice_collisions(
         state, logλ,
         psd_c, psd_r, L_c, N_c, L_r, N_r,
-        aps, tps, vel, ρₐ, T, m_liq; quad,
+        aps, tps, vel, ρₐ, T, m_liq; quad, assembly,
     )
     (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫∂ₜM_col, BCCOL, BRCOL) = rates
 
