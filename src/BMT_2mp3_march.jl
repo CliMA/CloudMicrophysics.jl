@@ -431,9 +431,11 @@ a velocity cannot be evaluated on two different ice states.
 The ice state of `x` and its re-solved shape parameter, as a pair, so the state the solve
 already built is returned rather than rebuilt by the caller.
 """
-@inline function _ice_state_and_logλ(mp, ρ, x::Union{MicroState2MP3, MicroState2MP3T})
+@inline function _ice_state_and_logλ(
+    mp, ρ, x::Union{MicroState2MP3, MicroState2MP3T}, logλ_guess = nothing,
+)
     state = _ice_state(mp, ρ, x)
-    return (state, CMP3.get_distribution_logλ(state))
+    return (state, CMP3.get_distribution_logλ(state, logλ_guess))
 end
 
 """
@@ -540,8 +542,9 @@ diagnostic path are the same code and cannot diverge.
     _march_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink = nothing)
 
 The 2M+P3 Rosenbrock-Euler march from `x₀` over `Δt` in `nsub` substeps, returning the
-final state and the substep-averaged sedimentation velocities
-([`_substep_fall_speeds`](@ref)) as an `SVector{6}`.
+final state, the substep-averaged sedimentation velocities
+([`_substep_fall_speeds`](@ref)) as an `SVector{6}`, and the last substep's shape
+parameter for the next call to start from.
 
 One implementation serves both substep states. The state type selects the tendency
 callable ([`_substep_tendency`](@ref)), the temperature policy
@@ -568,6 +571,7 @@ a loop of its own.
 
     x = x₀
     Tsub = T
+    logλ_guess = logλ
     v_acc = zero(SA.SVector{6, FT})
     for i in 1:nsub_eff
         # THE SHAPE PARAMETER IS REFRESHED FROM THE MARCHED STATE, every substep.
@@ -587,8 +591,23 @@ a loop of its own.
         # belongs to the entry state, so this spends no solve where the answer is in hand
         # and is exactly inert at `nsub == 1`, where there is no later substep for a stale
         # shape to reach.
-        state_sub, logλ_sub =
-            i == 1 ? (_ice_state(mp, ρ, x), logλ) : _ice_state_and_logλ(mp, ρ, x)
+        # THE SHAPE PARAMETER IS SOLVED AT EVERY SUBSTEP INCLUDING THE FIRST, seeded by the
+        # value passed in. `logλ` is a WARM START and never physics truth: it narrows the
+        # bracket the solve searches, and the solve is what the substep acts on.
+        #
+        # The solve count does not change, which is the argument for it. The host used to
+        # solve once on the entry state and pass the answer in, and the march refreshed at
+        # every LATER substep, so both arrangements pay `nsub` solves; what changes is that
+        # the host no longer has to solve at all, and the value it passes can be last step's
+        # marched shape rather than a fresh solve of its own.
+        #
+        # The solve runs a fixed iteration count with no early exit, so a guess buys accuracy
+        # rather than speed, and its budget reaches the rounding floor of both float types
+        # from a COLD start. That is what makes a stale guess admissible and the arrangement
+        # restart-safe: a guess that is wrong costs accuracy the budget then recovers, where
+        # a shape parameter that is wrong is integrated against.
+        state_sub, logλ_sub = _ice_state_and_logλ(mp, ρ, x, logλ_guess)
+        logλ_guess = logλ_sub
         # THE FALL SPEEDS ARE SAMPLED HERE, on the state the substep is about to act on and
         # with that substep's own shape parameter, and averaged over the march. The substeps
         # are uniform in length, `h = Δt / nsub_eff`, so the arithmetic mean IS the time
@@ -601,7 +620,7 @@ a loop of its own.
             mode, g, x, h, q_tot, ρ, Tsub, Lv_over_cp, Ls_over_cp, tps, ρ_min, ρ_max, sink)
         Tsub = _marched_temperature(x, x_prev, tps, q_tot, Tsub)
     end
-    return (x, v_acc / FT(nsub_eff))
+    return (x, v_acc / FT(nsub_eff), logλ_guess)
 end
 
 """
@@ -632,7 +651,15 @@ type.
 
 `extras` holds substep by-products that are not tendencies: the six substep-averaged
 sedimentation velocities `v_lcl_n`, `v_lcl_m`, `v_rai_n`, `v_rai_m`, `v_ice_n` and
-`v_ice_m` [m/s], all positive downward, from [`_substep_fall_speeds`](@ref).
+`v_ice_m` [m/s], all positive downward, from [`_substep_fall_speeds`](@ref); and `logλ`,
+the last substep's ice shape parameter.
+
+`logλ` is returned as a WARM START for the next call and is never physics truth. Each
+substep solves its own, seeded by the one before, so a host that stores this and hands it
+back is saving the solve a narrower bracket rather than supplying an answer. That is why it
+is admissible for the host to store it across a step in which transport has moved the state:
+a guess that is stale costs accuracy the fixed iteration budget then recovers, where a shape
+parameter that is stale is integrated against.
 
 They ride here rather than beside the tendencies because they are not tendencies: a host
 applies them to a state, where it integrates the eight rates. Keeping them in a
@@ -661,13 +688,14 @@ entries pass [`NullSink`](@ref).
 @inline function _rosenbrock_average_2mp3(
     mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink = nothing,
 )
-    x, v̄ = _march_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink)
+    x, v̄, logλ_out = _march_2mp3(mode, mp, tps, ρ, T, q_tot, x₀, logλ, Δt, nsub, w, p, sink)
     return _rosenbrock_average_carrier(
         _species_increment(x - x₀) / Δt,
         (;
             v_lcl_n = v̄[1], v_lcl_m = v̄[2],
             v_rai_n = v̄[3], v_rai_m = v̄[4],
             v_ice_n = v̄[5], v_ice_m = v̄[6],
+            logλ = logλ_out,
         ),
     )
 end
@@ -706,9 +734,10 @@ in sequence.
 
 `q_tot` is held fixed across substeps, and so are the host vertical velocity `w` and
 air pressure `p`, which only droplet activation reads and only through the
-adiabatic-parcel branch of the supersaturation it activates at. `logλ` is the entry
-state's ice shape parameter and is refreshed from the marched state at every later
-substep. See the [Rosenbrock-average microphysics substepping](@ref) documentation page
+adiabatic-parcel branch of the supersaturation it activates at. `logλ` is a GUESS at the
+ice shape parameter, not the shape parameter itself: every substep solves its own, seeded
+by the one before and the first by this argument, and the last substep's value is returned
+through `extras` for the next call to start from. See the [Rosenbrock-average microphysics substepping](@ref) documentation page
 for the substep algorithm.
 
 Returns the fixed-shape carrier of [`_rosenbrock_average_carrier`](@ref), whose `extras`

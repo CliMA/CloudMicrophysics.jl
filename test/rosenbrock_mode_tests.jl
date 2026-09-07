@@ -5175,16 +5175,23 @@ function test_substep_fall_speeds(FT)
         )
 
         # (1) THE ACCEPTANCE RUNG. At one substep the six values are EXACTLY what the six public
-        # entry points return at the entry state and the entry shape parameter, so this pins both
-        # which functions are called and which state they are called on. Bit equality is available
-        # here because a one-substep average is the sample itself.
+        # entry points return at the entry state and at the shape parameter that substep
+        # SOLVED, so this pins both which functions are called and which state they are called
+        # on. Bit equality is available here because a one-substep average is the sample itself.
+        #
+        # The reference solve takes the same guess the call passes. It has to: the substep
+        # solves its own shape parameter seeded by that guess, and a guess narrows the bracket,
+        # so a solve from a different guess lands a few bits away. Comparing against the guess
+        # ITSELF, as this rung did while the argument was the shape parameter rather than a
+        # start for it, asserts the retired contract.
         v = call(x, 1).extras
         st = P3.state_from_prognostic(
             mp.ice.scheme, ρ * x.q_ice, ρ * x.n_ice, ρ * x.q_rim, ρ * x.b_rim)
+        logλ_solved = P3.get_distribution_logλ(st, logλ)
         @test v.v_ice_n === P3.ice_terminal_velocity_number_weighted(
-            mp.ice.terminal_velocity, ρ, st, logλ; quad = mp.ice.quad)
+            mp.ice.terminal_velocity, ρ, st, logλ_solved; quad = mp.ice.quad)
         @test v.v_ice_m === P3.ice_terminal_velocity_mass_weighted(
-            mp.ice.terminal_velocity, ρ, st, logλ; quad = mp.ice.quad)
+            mp.ice.terminal_velocity, ρ, st, logλ_solved; quad = mp.ice.quad)
         @test (v.v_lcl_n, v.v_lcl_m) === CM2.cloud_terminal_velocity(
             sb.pdf_c, mp.warm_rain.cloud_velocity, x.q_lcl, ρ, ρ * x.n_lcl)
         @test (v.v_rai_n, v.v_rai_m) === CM2.rain_terminal_velocity(
@@ -5236,6 +5243,61 @@ function test_substep_fall_speeds(FT)
 end
 test_substep_fall_speeds(Float64)
 test_substep_fall_speeds(Float32)
+
+# The ice shape parameter is a warm start rather than physics truth.
+#
+# It used to be solved once by the host on the entry state and passed in as the first
+# substep's shape, with the march refreshing it only from the second substep on. Now every
+# substep solves its own, seeded by the value passed in, and the last one is returned. The
+# SOLVE COUNT IS UNCHANGED, which is the point: the host paid one and the march paid
+# `nsub - 1`, and the march now pays `nsub` while the host pays none.
+function test_shape_warm_start(FT)
+    @testset "the shape parameter is a warm start, not an input [FT=$FT]" begin
+        mp = CMP.Microphysics2MParams(FT; with_ice = true)
+        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+        mode = BMT.rosenbrock_manual_temperature()
+        ρ, T, q_tot, Δt = FT(1.05), FT(263), FT(4e-3), FT(60)
+        x = BMT.MicroState2MP3{FT}(
+            FT(2e-4), FT(8e7), FT(1e-4), FT(5e4),
+            FT(3e-4), FT(1e5), FT(1e-4), FT(2e-7))
+        exact = BMT._refreshed_logλ(mp, ρ, x)
+        call(guess, nsub) = BMT.bulk_microphysics_tendencies(
+            mode, BMT.Microphysics2Moment(), mp, tps, ρ, T, q_tot,
+            x..., guess, Δt, nsub,
+        )
+
+        # (1) THE ARGUMENT IS A GUESS, NOT AN ANSWER. A wildly wrong one gives the same
+        # tendency as the exact one, because the substep solves rather than trusting it.
+        # This is the assertion that fails on the old contract, where the first substep
+        # integrated whatever it was handed.
+        good, bad = call(exact, 1), call(FT(2), 1)
+        for k in (:dq_ice_dt, :dn_ice_dt, :dq_rim_dt, :db_rim_dt)
+            @test good[k] ≈ bad[k] rtol = sqrt(eps(FT))
+        end
+
+        # (2) AND IT COMES BACK, so a host can hand it to the next call. At one substep the
+        # returned value is the solve on the entry state itself.
+        @test call(exact, 1).extras.logλ ≈ exact rtol = sqrt(eps(FT))
+        @test isfinite(call(exact, 3).extras.logλ)
+
+        # (3) THE RETURNED VALUE IS THE LAST SUBSTEP'S, not the entry state's, whenever the
+        # march moves the ice. Without this the slot could be returning its own input.
+        @test call(exact, 3).extras.logλ != exact
+
+        # (4) FINITE FROM A DEGENERATE GUESS AND AT A DEGENERATE STATE, which is what makes
+        # a stored guess safe to carry across a step the host has since moved.
+        for guess in (FT(2), FT(30), exact)
+            @test isfinite(call(guess, 2).extras.logλ)
+        end
+        empty = BMT.MicroState2MP3{FT}(
+            zero(FT), zero(FT), zero(FT), zero(FT), zero(FT), zero(FT), zero(FT), zero(FT))
+        r = BMT.bulk_microphysics_tendencies(
+            mode, BMT.Microphysics2Moment(), mp, tps, ρ, T, q_tot, empty..., FT(2), Δt, 2)
+        @test isfinite(r.extras.logλ)
+    end
+end
+test_shape_warm_start(Float64)
+test_shape_warm_start(Float32)
 
 # Droplet activation as a per-process slot of the substep.
 #
