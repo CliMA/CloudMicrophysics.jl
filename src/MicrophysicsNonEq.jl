@@ -178,10 +178,12 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
     sat_excess = qᵥ - qᵥ_sat_liq
     timescale = τ * Γₗ
 
-    # compute the tendency
+    # compute the tendency; the evaporation branch is bounded so that the relaxation
+    # target q + S τ = q - min(-sat_excess/Γ, q) never removes more liquid than exists
+    # and never more than closes the vapor deficit (Γ accounts for the cooling)
     tendency = ifelse(
         sat_excess < 0,
-        -min(-sat_excess, max(0, q_lcl)) / timescale,
+        -min(-sat_excess, Γₗ * max(0, q_lcl)) / timescale,
         sat_excess / timescale,
     )
     limiter = homogeneous_limiter(tendency, T, T_hom)
@@ -239,10 +241,12 @@ end
     sat_excess = qᵥ - qᵥ_sat_ice
     timescale = τ * Γᵢ
 
-    # compute the tendency
+    # compute the tendency; the sublimation branch is bounded so that the relaxation
+    # target q + S τ = q - min(-sat_excess/Γ, q) never removes more ice than exists
+    # and never more than closes the vapor deficit (Γ accounts for the cooling)
     tendency = ifelse(
         sat_excess < 0,
-        -min(-sat_excess, max(0, q_icl)) / timescale,
+        -min(-sat_excess, Γᵢ * max(0, q_icl)) / timescale,
         sat_excess / timescale,
     )
     limiter = INP_limiter(tendency, tps, T)
@@ -270,10 +274,10 @@ end
     sublimation_timescale = τ_sub * Γᵢ
     deposition_timescale = τ_dep * Γᵢ
 
-    # compute the tendency
+    # compute the tendency (sublimation bounded as in `_conv_q_vap_to_q_icl_const`)
     tendency = ifelse(
         sat_excess < 0,
-        -min(-sat_excess, max(0, q_icl)) / sublimation_timescale,
+        -min(-sat_excess, Γᵢ * max(0, q_icl)) / sublimation_timescale,
         sat_excess / deposition_timescale,
     )
     limiter = INP_limiter(tendency, tps, T)
