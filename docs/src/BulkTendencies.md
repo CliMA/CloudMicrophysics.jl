@@ -21,9 +21,27 @@ Each microphysical process is linearized with respect to its **donor species**:
   S \;\rightarrow\; D \, q_{\text{donor}}, \quad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
   ```
 
-- Vapor → condensate sources are treated as **constant sources** (added to $e$)
+- Vapor ↔ cloud condensate phase changes (condensation/evaporation of cloud
+  liquid, deposition/sublimation of cloud ice) are treated as **implicit
+  relaxations** toward their equilibrium. The non-equilibrium schemes compute
+  $S = (q^\star - q)/\tau$ for a relaxation timescale $\tau$ (returned by
+  `τ_vap_to_q_lcl` / `τ_vap_to_q_icl`; $q^\star = q + S\tau$ already includes
+  the latent-heat factor $\Gamma$ and the available-condensate bound), so we write
+  ```math
+  \frac{dq}{dt} = S - \frac{q^{new} - q}{\tau}
+  ```
+  i.e. $-1/\tau$ on the diagonal of $M$, the drive $S$ (either sign) in $e$, and
+  a hold term $h = q/\tau$ on the right-hand side. The substep result
+  $\Delta q = S\,\Delta t/(1 + \Delta t/\tau)$ can never overshoot $q^\star$,
+  for any $\Delta t/\tau$, and reduces to a plain explicit source when
+  $\Delta t \ll \tau$. This matters when $\tau$ is a few seconds (e.g.
+  `PrescribedIceNumber` with a large prescribed ice number concentration), where
+  treating the source as a constant produced a deposition/sublimation flip-flop.
 
-- Condensate → vapor sinks are treated as **linear sinks**:
+- Vapor → snow deposition is treated as a **constant source** (added to $e$)
+
+- Other condensate sinks (snow sublimation, rain evaporation) are treated as
+  **linear sinks**:
   ```math
   S \;\rightarrow\; -D q
   ```
@@ -43,13 +61,13 @@ which corresponds to **exponential decay over the timestep**, providing strong n
 For a timestep $\Delta t$, we solve the linearized system implicitly:
 
 ```math
-\frac{q^\star - q^0}{\Delta t} = M q^\star + e
+\frac{q^\star - q^0}{\Delta t} = M q^\star + e + h
 ```
 
 which gives:
 
 ```math
-\left(I/\Delta t - M\right) q^\star = e + q^0/\Delta t
+\left(I/\Delta t - M\right) q^\star = e + h + q^0/\Delta t
 ```
 
 The average tendency is then:
@@ -64,21 +82,24 @@ The average tendency is then:
 
 Vapor → condensate processes (condensation on cloud liquid, deposition on
 cloud ice, deposition on snow — the positive contributions to `e_1`, `e_2`,
-`e_4`) are treated as constant sources over the substep. If their combined
-rate is fast enough, an unlimited substep can drive `q_v` below saturation
-or even negative. To prevent this, all three positive `e` terms are
-uniformly scaled by
+`e_4`) together consume vapor. If their combined rate is fast enough, an
+unlimited substep can drive `q_v` below saturation or even negative. To
+prevent this, the positive drives are uniformly scaled by
 
 ```math
 \alpha = \min\!\left(1,\; \frac{\max(0,\, q_v - q^\star_{\min})}
-                                 {\Delta t\;(e_1 + e_2 + e_4)}\right),
+                                 {d_1 + d_2 + d_4}\right),
 \qquad
 q^\star_{\min} = \min\!\bigl(q^\star_{\mathrm{liq}}, q^\star_{\mathrm{ice}}\bigr),
 ```
 
-so that `q_v` cannot be driven below `q^\star_{\min}` over one substep.
-Preserving the common scale factor `\alpha` keeps the relative rates of the
-three processes unchanged. Sinks (`M` blocks) are unaffected.
+where $d_i$ is the vapor each source would consume over the substep as
+realized by the solver: $d_i = e_i^+/(1/\Delta t + 1/\tau_i)$ for the implicitly
+relaxed cloud terms (which equals $e_i^+ \Delta t$ when $\tau_i \to \infty$) and
+$d_4 = e_4 \Delta t$ for snow. This keeps `q_v` from being driven below
+`q^\star_{\min}` over one substep while preserving the relative rates of the
+three processes. Negative drives (evaporation/sublimation), the hold terms
+`h`, and the sinks (`M` blocks) are unaffected.
 
 - Below freezing: `q^\star_{\min} = q^\star_{\mathrm{ice}}`, the natural
   ice-saturation floor (permits the Bergeron process to drive `q_v` below

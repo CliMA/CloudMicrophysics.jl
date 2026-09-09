@@ -135,7 +135,8 @@ Naming convention: `S_process_species1_species2`
  - species1, species2: interacting pair (not from/to)
  - `_cold` / `_warm` suffix for two-sided collision arms (inactive arm = zero)
 
-Returns a `NamedTuple` of 18 scalar source terms.  All two-sided collision
+Returns a `NamedTuple` of 18 scalar source terms plus the two relaxation timescales
+`τ_phase_change_vap_lcl` / `τ_phase_change_vap_icl` used by the linearized solver.  All two-sided collision
 processes are pre-routed by temperature, so consumers never need `is_warm`.
 """
 @inline function _microphysics_source_terms(
@@ -165,6 +166,10 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     # --- Phase change: vapor ↔ cloud condensate (bidirectional, ±) ---
     S_phase_change_vap_lcl = CMNonEq.conv_q_vap_to_q_lcl(procs.cloud_liquid_formation, mp, tps, micro, thermo)
     S_phase_change_vap_icl = CMNonEq.conv_q_vap_to_q_icl(procs.cloud_ice_formation, mp, tps, micro, thermo)
+    # Relaxation timescales (without Γ) of the two phase changes above; `Inf` when disabled.
+    # Used by the linearized solver to integrate the relaxation implicitly.
+    τ_phase_change_vap_lcl = CMNonEq.τ_vap_to_q_lcl(procs.cloud_liquid_formation, mp, tps, micro, thermo)
+    τ_phase_change_vap_icl = CMNonEq.τ_vap_to_q_icl(procs.cloud_ice_formation, mp, tps, micro, thermo)
 
     # --- Autoconversion (cloud → precipitation, ≥ 0) ---
     S_acnv_lcl_rai = CM1.conv_q_lcl_to_q_rai(procs.rain_autoconversion, mp, tps, micro, thermo)
@@ -215,6 +220,7 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
 
     return (;
         S_phase_change_vap_lcl, S_phase_change_vap_icl,
+        τ_phase_change_vap_lcl, τ_phase_change_vap_icl,
         S_acnv_lcl_rai, S_acnv_icl_sno,
         S_accr_lcl_rai, S_accr_lcl_sno_cold, S_accr_lcl_sno_warm, S_accr_melt_lcl_sno,
         S_accr_icl_rai, S_accr_freeze_icl_rai, S_accr_icl_sno,
@@ -270,14 +276,23 @@ from pre-computed source terms:
 
 using a donor-based linearization:
 - donor → receiver transfers are represented as `D * q_donor`
-- vapor → condensate sources are treated as constants (`e`)
-- condensate sinks are treated as linear sinks (`-D * q`)
+- vapor ↔ cloud condensate phase changes are relaxations toward their
+  equilibrium, `S = (q* - q)/τ`; their exact integral over the substep,
+  `S Δt / (1 + Δt/τ)`, is fed to the system as a constant drive (either sign)
+  in `e`. The substep therefore cannot overshoot `q*` for any `Δt/τ`, other
+  processes acting on the same row are not compensated by spurious vapor
+  exchange, and for `Δt ≪ τ` the plain explicit source is recovered. This
+  matters when τ is a few seconds (e.g. `PrescribedIceNumber` with a large
+  prescribed `N_0`), where a constant source over the substep produced a
+  deposition/sublimation flip-flop.
+- vapor → snow deposition is treated as a constant source (`e`)
+- other condensate sinks are treated as linear sinks (`-D * q`)
 
-All coefficients use `D = S / max(q_min, q_donor)` for robustness.
+All `D` coefficients use `D = S / max(q_min, q_donor)` for robustness.
 
 Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
 """
-@inline function _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+@inline function _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
     FT = typeof(src.S_phase_change_vap_lcl)
 
     M11 = zero(FT)
@@ -295,16 +310,14 @@ Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
     e2 = zero(FT)
     e4 = zero(FT)
 
-    # --- Phase change: vapor ↔ cloud condensate ---
-    D = src.S_phase_change_vap_lcl / max(q_min, q_lcl)
-    is_source = src.S_phase_change_vap_lcl >= zero(FT)
-    e1 += ifelse(is_source, src.S_phase_change_vap_lcl, zero(FT))
-    M11 += ifelse(is_source, zero(FT), D)
-
-    D = src.S_phase_change_vap_icl / max(q_min, q_icl)
-    is_source = src.S_phase_change_vap_icl >= zero(FT)
-    e2 += ifelse(is_source, src.S_phase_change_vap_icl, zero(FT))
-    M22 += ifelse(is_source, zero(FT), D)
+    # --- Phase change: vapor ↔ cloud condensate (pre-integrated relaxation) ---
+    # The non-equilibrium schemes relax the condensate toward q* = q + S τ at rate
+    # 1/τ (τ excludes Γ, which is already inside S; `Inf` when the process is
+    # disabled, which makes the factor below 1). The exact change over the substep
+    # is S Δt / (1 + Δt/τ); feeding it as a constant drive keeps the substep from
+    # crossing q* for any Δt/τ and leaves the other processes on the row untouched.
+    e1 += src.S_phase_change_vap_lcl / (one(FT) + Δt / max(src.τ_phase_change_vap_lcl, eps(FT)))
+    e2 += src.S_phase_change_vap_icl / (one(FT) + Δt / max(src.τ_phase_change_vap_icl, eps(FT)))
 
     # --- Melt: ice cloud → liquid cloud ---
     D = src.S_melt_icl_lcl / max(q_min, q_icl)
@@ -408,7 +421,9 @@ The system uses a sparse structure specific to the 1-moment microphysics model.
 `q_lcl` and `q_icl` as well as `q_rai` and `q_sno` are solved from a coupled 2×2 system.
 
 Because sinks are linearized as `-D q`, they are effectively integrated as
-exponential decays over the substep.
+exponential decays over the substep. The vapor ↔ cloud condensate drives in `e`
+are pre-integrated over the substep (see `_linearize`) and can have either sign;
+only their positive parts are subject to the vapor-budget cap `α`.
 """
 @inline function _linearized_implicit_step(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
@@ -422,21 +437,27 @@ exponential decays over the substep.
         ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
     q_min = TDI.TD.Parameters.q_min(tps)
-    lin = _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+    lin = _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
 
     invΔt = one(FT) / Δt
 
     # Cap vap→condensate sources jointly so the substep cannot drive
     # `q_v` below `min(q_sat_liq, q_sat_ice)`. Preserves relative rates.
+    # Only the positive (source) parts of the cloud-condensate drives are capped;
+    # the negative (sink) parts are not.
     q_sat_min = min(
         TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ),
         TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ),
     )
     q_v = q_tot - q_lcl - q_icl - q_rai - q_sno
+    e1p = max(zero(FT), lin.e1)
+    e1n = min(zero(FT), lin.e1)
+    e2p = max(zero(FT), lin.e2)
+    e2n = min(zero(FT), lin.e2)
     α = min(
         one(FT),
         max(zero(FT), q_v - q_sat_min) * invΔt /
-        max(lin.e1 + lin.e2 + lin.e4, eps(FT)),
+        max(e1p + e2p + lin.e4, eps(FT)),
     )
 
     # A = I/Δt - M
@@ -452,10 +473,10 @@ exponential decays over the substep.
     a43 = -lin.M43
     a44 = invΔt - lin.M44
 
-    # rhs = e + q_0/Δt (vap→condensate `e` terms scaled by `α` above)
+    # rhs = e + q_0/Δt (positive vap→condensate drives scaled by `α` above)
     # e3 = 0 by the 1m model
-    b1 = α * lin.e1 + invΔt * q_lcl
-    b2 = α * lin.e2 + invΔt * q_icl
+    b1 = α * e1p + e1n + invΔt * q_lcl
+    b2 = α * e2p + e2n + invΔt * q_icl
     b3 = invΔt * q_rai
     b4 = α * lin.e4 + invΔt * q_sno
 
@@ -537,7 +558,8 @@ end
     )
 
 Compute all 1-moment microphysics tendencies and return both aggregated
-tendencies (`dq_*_dt`) and all individual source terms (`S_*`).
+tendencies (`dq_*_dt`), all individual source terms (`S_*`) and the two
+`τ_phase_change_vap_*` relaxation timescales.
 
 Useful for model diagnostics. The `dq_*_dt` fields are identical to those
 returned by `Instantaneous()`.

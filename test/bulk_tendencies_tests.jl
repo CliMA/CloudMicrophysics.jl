@@ -660,7 +660,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
 
         @test isfinite(lin.M11)
         @test isfinite(lin.M12)
@@ -694,7 +694,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
 
         @test lin isa NamedTuple
     end
@@ -721,7 +721,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
 
         @test lin.M33 <= FT(0)
         @test lin.M11 == FT(0)
@@ -758,7 +758,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
 
         @test lin.M34 > FT(0)
         @test lin.M44 < FT(0)
@@ -769,6 +769,56 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test lin.M41 == FT(0)
         @test lin.M42 == FT(0)
         @test lin.M43 == FT(0)
+    end
+
+    @testset "LinearizedAverage - stiff vapor↔ice relaxation (PrescribedIceNumber) does not cross saturation" begin
+        # With the default N_0 = 5e8 m⁻³ the deposition/sublimation timescale is 1-7 s,
+        # far below a 60 s substep. Pre-integrating the relaxation over the substep must
+        # bring the parcel toward ice saturation without crossing it; treating the
+        # instantaneous rate as a constant source produced a period-2
+        # deposition/sublimation flip-flop with ±1 K temperature swings in supercooled clouds.
+        mp_presc = CMP.Microphysics1MParams(FT; cloud_ice_formation = CMP.PrescribedIceNumber())
+        Lv = TDI.TD.Parameters.LH_v0(tps)
+        Ls = TDI.TD.Parameters.LH_s0(tps)
+        cp = TDI.TD.Parameters.cp_d(tps)
+        Δt = FT(60)
+        ρ = FT(0.79)
+        cases = (
+            (FT(265), FT(1.10), FT(0), FT(0)),        # deposition leg, no liquid
+            (FT(265), FT(0.90), FT(0), FT(3e-4)),     # sublimation leg, plenty of ice
+            (FT(250), FT(1.15), FT(2e-4), FT(1e-6)),  # mixed phase (liquid evaporates while ice grows)
+        )
+        for (T, RHi, q_lcl, q_icl) in cases
+            q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+            q_tot = RHi * q_sat_ice + q_lcl + q_icl
+            τ = CMNonEq.τ_relax(mp_presc.cloud.ice, mp_presc.air_properties, q_icl, ρ)
+            @test Δt / τ > FT(5)  # the regime under test is genuinely stiff
+            r = BMT.bulk_microphysics_tendencies(
+                BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
+                mp_presc, tps, ρ, T, q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 1,
+            )
+            q_lcl_new = q_lcl + r.dq_lcl_dt * Δt
+            q_icl_new = q_icl + r.dq_icl_dt * Δt
+            q_rai_new = r.dq_rai_dt * Δt
+            q_sno_new = r.dq_sno_dt * Δt
+            T_new = T + (Lv / cp * (r.dq_lcl_dt + r.dq_rai_dt) + Ls / cp * (r.dq_icl_dt + r.dq_sno_dt)) * Δt
+            q_v_new = q_tot - q_lcl_new - q_icl_new - q_rai_new - q_sno_new
+            RHi_new = q_v_new / TDI.saturation_vapor_specific_content_over_ice(tps, T_new, ρ)
+            @test all(isfinite, (q_lcl_new, q_icl_new, q_rai_new, q_sno_new, T_new))
+            @test q_icl_new >= FT(0)
+            @test q_lcl_new >= FT(0)
+            # The parcel must approach ice saturation from its initial side and not
+            # cross it (2% tolerance for the first-order Γ linearization of the
+            # latent-heat feedback). Other processes (e.g. ice → snow autoconversion
+            # in the sublimation leg) may legitimately stop it short of saturation.
+            if RHi > 1
+                @test RHi_new >= FT(0.98)
+                q_lcl == 0 && @test RHi_new <= RHi
+            else
+                @test RHi_new <= FT(1.02)
+                @test RHi_new >= RHi
+            end
+        end
     end
 
     @testset "_linearized_implicit_step - Finiteness checks" begin
@@ -859,7 +909,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min)
+        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
 
         tendencies = BMT._linearized_implicit_step(
             BMT.Microphysics1Moment(),
