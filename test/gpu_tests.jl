@@ -154,6 +154,14 @@ end
     output[i] = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro, thermo)
 end
 
+@kernel inbounds = true function test_1_moment_veldep_acnv_kernel!(mp, tps, output, ql, w)
+    i = @index(Global, Linear)
+    FT = eltype(ql)
+    micro = (; q_tot = zero(FT), q_lcl = ql[i], q_icl = zero(FT), q_rai = zero(FT), q_sno = zero(FT))
+    thermo = (; ρ = FT(1), T = FT(280), w = w[i])
+    output[i] = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro, thermo)
+end
+
 @kernel inbounds = true function test_1_moment_micro_accretion_kernel!(
     lcl, rain, icl, snow, e_lr, e_is, e_ls, e_ir, e_rs, coeff_disp, blk1mvel, output, ρ, qi, qs, ql, qr,
 )
@@ -382,22 +390,22 @@ end
 end
 
 @kernel inbounds = true function test_bulk_tendencies_1m_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    mp, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
     i = @index(Global, Linear)
     CM1M = BMT.Microphysics1Moment()
     output[i] = BMT.bulk_microphysics_tendencies(
-        BMT.Instantaneous(), CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        BMT.Instantaneous(), CM1M, mp, tps, ρ[i], T[i], w[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
     )
 end
 
 @kernel inbounds = true function test_average_bulk_tendencies_1m_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+    mp, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
 )
     i = @index(Global, Linear)
     CM1M = BMT.Microphysics1Moment()
     output[i] = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
-        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        CM1M, mp, tps, ρ[i], T[i], w[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
         Δt[i],
     )
 end
@@ -539,6 +547,9 @@ function test_gpu(FT)
     mp_1m = CMP.Microphysics1MParams(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
         rain_autoconversion = CMP.PrescribedNd(),
+    )
+    mp_1m_vd = CMP.Microphysics1MParams(FT;
+        rain_autoconversion = CMP.VelocityDependent(),
     )
     mp_2m_warm = CMP.Microphysics2MParams(FT; with_ice = false)
     mp_2m_p3 = CMP.Microphysics2MParams(FT; with_ice = true)
@@ -695,6 +706,25 @@ function test_gpu(FT)
         TT.@test out[2] == FT(0)
         # Regression: q_lcl = 2e-3 with default autoconv_2M.Nc ≈ 1e8 → ≈ 2e-6
         TT.@test out[1] ≈ FT(2e-6) rtol = 1e-3
+
+        # VelocityDependent autoconversion
+        bad_value = -99999.99
+        (; output, ndrange) = setup_output(3, FT, bad_value)
+        ql = ArrayType([FT(1e-3), FT(1e-3), FT(0)])
+        w_arr = ArrayType([FT(0), FT(5), FT(3)])
+
+        kernel! = test_1_moment_veldep_acnv_kernel!(backend, work_groups)
+        kernel!(mp_1m_vd, tps, output, ql, w_arr; ndrange)
+        out = Array(output)
+
+        # Sanity checks
+        TT.@test !any(isequal(out, FT(bad_value)))
+        # q_lcl = 1e-3, w = 0 → positive rate (slow timescale)
+        TT.@test out[1] > FT(0)
+        # q_lcl = 1e-3, w = 5 → faster rate than w = 0
+        TT.@test out[2] > out[1]
+        # q_lcl = 0 → zero rate regardless of w
+        TT.@test out[3] == FT(0)
 
         DT = @NamedTuple{
             liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT,
@@ -1194,8 +1224,9 @@ function test_gpu(FT)
         q_sno = constant_data(FT(0.1e-3); ndrange)
 
         kernel! = test_bulk_tendencies_1m_kernel!(backend, work_groups)
+        w = constant_data(FT(0); ndrange)
         TT.@testset "1M" begin
-            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
+            kernel!(mp_1m, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
@@ -1206,7 +1237,18 @@ function test_gpu(FT)
         Δt = constant_data(FT(1.0); ndrange)
         kernel! = test_average_bulk_tendencies_1m_kernel!(backend, work_groups)
         TT.@testset "1M average" begin
-            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
+            kernel!(mp_1m, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+        end
+
+        # 1M VelocityDependent with nonzero w
+        (; output) = setup_output(ndrange, DT)
+        w_vd = constant_data(FT(3.0); ndrange)
+        kernel_vd! = test_bulk_tendencies_1m_kernel!(backend, work_groups)
+        TT.@testset "1M VelocityDependent" begin
+            kernel_vd!(mp_1m_vd, tps, output, ρ, T, w_vd, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
