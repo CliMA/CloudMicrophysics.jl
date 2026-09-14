@@ -340,7 +340,7 @@ function plot_bulk_microphysics_linearized_convergence(;
         ax.topspinevisible = true
         ax.bottomspinevisible = true
     end
-    axislegend(ax1, position = :lt, framevisible = false)
+    axislegend(ax1, position = :rb, framevisible = false)
     rowgap!(fig.layout, 10)
     colgap!(fig.layout, 10)
 

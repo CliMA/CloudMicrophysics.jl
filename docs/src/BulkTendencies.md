@@ -21,9 +21,33 @@ Each microphysical process is linearized with respect to its **donor species**:
   S \;\rightarrow\; D \, q_{\text{donor}}, \quad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
   ```
 
-- Vapor → condensate sources are treated as **constant sources** (added to $e$)
+- Vapor ↔ cloud condensate phase changes (condensation/evaporation of cloud liquid, deposition/sublimation of cloud ice)
+  are relaxations toward equilibrium. The scheme computes $S = (q^\star - q)/\tau$ for a relaxation timescale $\tau$.
+  $q^\star = q + S\tau$ already includes the latent-heat factor $\Gamma$ and the available-condensate bound.
+  Their transfer over the substep is the time average of the relaxation,
+    see [MorrisonMilbrandt2015](@cite) Appendix C.
+  ```math
+  \Delta q = S\,\tau\,\bigl(1 - e^{-\Delta t/\tau}\bigr)
+           = S\,\Delta t\,\varphi(\Delta t/\tau), \qquad
+  \varphi(x) = \frac{1 - e^{-x}}{x},
+  ```
+  The substep never crosses $q^\star$ for any $\Delta t/\tau$ and the
+  instantaneous rate is recovered for $\Delta t \ll \tau$. A source
+  ($\Delta q > 0$) is added to $e$ as a non-negative constant. A sink
+  ($\Delta q < 0$) is added to $M$ as an implicit decay $-D\,q$ with
+  $D = |\Delta q| / \bigl(\max(q + \Delta q, q_{\min})\,\Delta t\bigr)$, which
+  removes exactly $|\Delta q|$ when acting alone (the $q_{\min}$ floor keeps $D$
+  finite when the whole pool sublimates), keeps $q \ge 0$ when combined with
+  the other sinks, and, unlike a plain $S/q$ decay, does not remove all the
+  condensate when $\tau \ll \Delta t$. This matters when $\tau$ is a few
+  seconds (e.g. `PrescribedIceNumber` with a large prescribed ice number
+  concentration), where treating the instantaneous rate as a constant over the
+  substep produced a deposition/sublimation flip-flop.
 
-- Condensate → vapor sinks are treated as **linear sinks**:
+- Vapor → snow deposition is treated as a constant source (added to $e$)
+
+- Other condensate sinks (snow sublimation, rain evaporation) are treated as
+  linear sinks:
   ```math
   S \;\rightarrow\; -D q
   ```
@@ -34,7 +58,7 @@ With this formulation, sink terms take the form:
 \frac{dq}{dt} = -D q
 ```
 
-which corresponds to **exponential decay over the timestep**, providing strong numerical stability.
+which corresponds to exponential decay over the timestep, providing strong numerical stability.
 
 ---
 
@@ -63,11 +87,10 @@ The average tendency is then:
 ## Vapor-budget cap on vapor → condensate sources
 
 Vapor → condensate processes (condensation on cloud liquid, deposition on
-cloud ice, deposition on snow — the positive contributions to `e_1`, `e_2`,
-`e_4`) are treated as constant sources over the substep. If their combined
-rate is fast enough, an unlimited substep can drive `q_v` below saturation
-or even negative. To prevent this, all three positive `e` terms are
-uniformly scaled by
+cloud ice, deposition on snow — the non-negative constants `e_1`, `e_2`, `e_4`)
+together consume vapor over the substep. If their combined rate is fast enough,
+an unlimited substep can drive `q_v` below saturation or even negative. To
+prevent this, all three `e` terms are uniformly scaled by
 
 ```math
 \alpha = \min\!\left(1,\; \frac{\max(0,\, q_v - q^\star_{\min})}
@@ -96,7 +119,7 @@ The system has a fixed sparse structure:
 ```math
 \begin{bmatrix}
 a_{11} & a_{12} & 0      & 0 \\
-0      & a_{22} & 0      & 0 \\
+a_{21} & a_{22} & 0      & 0 \\
 a_{31} & 0      & a_{33} & a_{34} \\
 a_{41} & a_{42} & a_{43} & a_{44}
 \end{bmatrix}
@@ -104,8 +127,8 @@ a_{41} & a_{42} & a_{43} & a_{44}
 
 This allows an efficient solve:
 
--  $q_{\mathrm{lcl}}$ and $q_{\mathrm{icl}}$ are solved as an upper-triangular
-   **2×2 system** (coupled through cloud ice melt via $a_{12}$)
+-  $q_{\mathrm{lcl}}$ and $q_{\mathrm{icl}}$ are solved as a coupled **2×2 system**
+   (cloud ice melt via $a_{12}$, cloud liquid freezing via $a_{21}$)
 -  $q_{\mathrm{rai}}$ and $q_{\mathrm{sno}}$ are solved as a **2×2 system**
 
 This avoids forming or inverting a full dense matrix and is efficient on both CPU and GPU.
@@ -158,7 +181,7 @@ The figure compares:
 - a **nonlinear reference solution**, obtained using a finely substepped explicit integration
 - the **linearized implicit method** with different numbers of substeps (`nsub`)
 - a **single explicit update** using the instantaneous tendency at $t=0$
-- **explicit updates**, using the instantaneous tendency with $10$ substeps 
+- **explicit updates**, using the instantaneous tendency with $10$ substeps
 
 ### Initial conditions
 

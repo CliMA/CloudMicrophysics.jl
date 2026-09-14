@@ -75,14 +75,17 @@ where:
 - ``L_v`` and ``L_s`` is the latent heat of vaporization and sublimation.
 
 When the air is subsaturated, the evaporation and sublimation rates are
-  additionally limited by the available condensate:
+  additionally bounded by the available condensate, at most $q_k/\tau_k$:
 ```math
 \begin{equation}
    \left. \frac{d \, q_{k}}{dt} \right|_{evap, sub} =
-   - \frac{\min(q_{sk} - q_{vap}, \; \max(0, q_{k}))}{\tau_k \Gamma_k},
-   \;\;\;\;\;\;\; k \in \{lcl, icl\}.
+   - \frac{\min(q_{sk} - q_{vap}, \; \Gamma_k \max(0, q_{k}))}{\tau_k \Gamma_k},
+   \;\;\;\;\;\;\; k \in \{lcl, icl\},
 \end{equation}
 ```
+  so that the relaxation target $q_k + S_k \tau_k = q_k - \min\bigl((q_{sk} - q_{vap})/\Gamma_k,\; q_k\bigr)$
+  removes at most the condensate present and at most what closes the vapor deficit
+  once the evaporative cooling is accounted for.
 Two temperature-based limiters are applied to the tendencies:
 
 1. **INP limiter (ice)**: Ice deposition (positive tendency) is suppressed
@@ -157,7 +160,7 @@ Assuming a mono-disperse distribution and spherical ice crystals we estimate
 \end{equation}
 ```
 where ``\rho`` is the air density,
-      ``q_{icl} is cloud ice specific humidity,
+      ``q_{icl}`` is cloud ice specific humidity,
       and ``\rho_i`` is the ice density.
 A minimum radius ``r_0 = 1\,\mu m`` is enforced.
 
@@ -219,7 +222,7 @@ The ice tendency uses **different timescales** for deposition and sublimation:
   \left. \frac{d \, q_{icl}}{dt} \right|_{dep, sub} =
   \begin{cases}
     \dfrac{q_{vap} - q_{si}}{\tau_{dep} \, \Gamma_i} & \text{if } q_{vap} > q_{si} \text{ (deposition)} \\[10pt]
-    \dfrac{-\min(-\Delta q,\; q_{icl})}{\tau_{sub} \, \Gamma_i} & \text{if } q_{vap} \le q_{si} \text{ (sublimation)}
+    \dfrac{-\min(-\Delta q,\; \Gamma_i \, q_{icl})}{\tau_{sub} \, \Gamma_i} & \text{if } q_{vap} \le q_{si} \text{ (sublimation)}
   \end{cases}
 \end{equation}
 ```
