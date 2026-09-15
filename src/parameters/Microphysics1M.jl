@@ -189,6 +189,43 @@ function CloudIce(toml_dict::CP.ParamDict)
     return CloudIce(; pdf, mass, p.ρᵢ, p.r_eff, p.N_0)
 end
 
+"""
+    IceNumberTemperatureFit{FT}
+
+Parameters of the prescribed exponential temperature dependence of the cloud ice
+number concentration used by the `TemperatureDependentIceNumber` cloud ice
+formation option (see `MicrophysicsNonEq.ice_number_concentration`):
+
+    N_ice(T) = min(N_ref exp(a + b max(T_freeze - T, 0)), N_max)
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct IceNumberTemperatureFit{FT} <: ParametersType
+    "prefactor of the fit [1/m³]"
+    N_ref::FT
+    "intercept of the exponent [-]"
+    a::FT
+    "slope of the exponent [1/K]"
+    b::FT
+    "upper bound of the ice number concentration [1/m³]"
+    N_max::FT
+    "freezing temperature [K]"
+    T_freeze::FT
+end
+
+function IceNumberTemperatureFit(toml_dict::CP.ParamDict)
+    name_map = (;
+        :cloud_ice_number_temperature_fit_prefactor => :N_ref,
+        :cloud_ice_number_temperature_fit_intercept => :a,
+        :cloud_ice_number_temperature_fit_slope => :b,
+        :cloud_ice_number_max => :N_max,
+        :temperature_water_freeze => :T_freeze,
+    )
+    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    return IceNumberTemperatureFit(; p...)
+end
+
 function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
     name_map = (;
         :cloud_ice_apparent_density => :ρᵢ,
