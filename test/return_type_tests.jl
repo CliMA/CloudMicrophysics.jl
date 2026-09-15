@@ -71,7 +71,7 @@ end
         CO.Chen2022_exponential_pdf, (), 4; post = (Int,),
     )
     @test concrete_for_all_mixes(CO.logistic_function_integral, (), 3)
-    @test concrete_for_all_mixes(UT._regularised_ratio, (), 2)
+    @test concrete_for_all_mixes(UT._regularised_ratio, (), 3)
     @test concrete_for_all_mixes(
         CMNonEq.τ_relax,
         (P(CMP.CloudIce(FT64)), P(CMP.AirProperties(FT64)), P(mp.ice.ice_nucleation)), 3,
