@@ -22,7 +22,9 @@ They consist of:
 !!! note
     For ice, the deposition timescale ``\tau_{dep}`` can optionally be computed
     from the prescribed cloud-ice number concentration ``N_0`` (see
-    [below](@ref ice-relaxation-timescale-prescribed-ice-number)) or from the
+    [below](@ref ice-relaxation-timescale-prescribed-ice-number)), from a prescribed
+    temperature-dependent ice number concentration ``N_{ice}(T)`` (see
+    [below](@ref ice-relaxation-timescale-temperature-dependent-ice-number)), or from the
     [Frostenberg2023](@cite) INP parameterization (see
     [below](@ref ice-relaxation-timescale-frostenberg-et-al-2023)).
     With the Frostenberg option, the sublimation timescale ``\tau_{sub}`` remains
@@ -172,6 +174,45 @@ Figure below show the relaxation timescale for different assumed number concentr
 include("plots/plotting_tau_relax_prescribed_N0.jl")
 ```
 ![](tau_relax_prescribed_N0.svg)
+
+## [Ice relaxation timescale — temperature-dependent ice number](@id ice-relaxation-timescale-temperature-dependent-ice-number)
+
+The `TemperatureDependentIceNumber` option uses the same relaxation timescale as
+  the [prescribed ice number](@ref ice-relaxation-timescale-prescribed-ice-number),
+  ``\tau_i = 1 / (4 \pi \, D_v \, N_{ice} \, r)`` with
+  ``r = \max\left((3 \, q_{icl} \, \rho / (4 \pi \, N_{ice} \, \rho_i))^{1/3}, r_0\right)``,
+  but replaces the constant sedimentation number ``N_0`` by a prescribed function of temperature
+```math
+\begin{equation}
+  N_{ice}(T) = \min\!\left(N_{ref} \, \exp\!\left(a + b \, \max(T_{freeze} - T, 0)\right), \, N_{max}\right)
+\end{equation}
+```
+with default parameters ``N_{ref} = 10^3\,\text{m}^{-3}`` (the fit is formulated per liter; coefficients are an
+  in-house fit supplied by the model developers, not a published parameterization),
+  ``a = -2.80``, ``b = 0.262\,\text{K}^{-1}`` and ``N_{max} = 10^7\,\text{m}^{-3}``
+  (`cloud_ice_number_temperature_fit_prefactor`, `cloud_ice_number_temperature_fit_intercept`,
+  `cloud_ice_number_temperature_fit_slope`, `cloud_ice_number_max`).
+The same ``\tau_i`` is used for deposition and sublimation.
+
+| ``T`` [°C] | 0 | -10 | -20 | -30 | -40 | -50 |
+|:---|---:|---:|---:|---:|---:|---:|
+| ``N_{ice}`` [m⁻³] | 61 | 8.4e2 | 1.1e4 | 1.6e5 | 2.2e6 | 1e7 (cap) |
+| ``\tau_i`` for ``q_{icl} = 10^{-5}`` kg/kg, ``\rho = 0.8`` kg/m³ | 40 h | 7 h | 1.2 h | 13 min | 2 min | 50 s |
+
+Compared with a constant ``N_0 = 5 \times 10^8\,\text{m}^{-3}`` (``\tau_i`` of seconds at every
+  temperature), the timescale is hours in the mixed-phase range, so supercooled liquid is not
+  glaciated within a few time steps through the Wegener–Bergeron–Findeisen process, while at
+  cirrus temperatures the relaxation stays fast.
+Two consequences of the small ``N_{ice}`` at warm sub-zero temperatures: deposition onto ice-free
+  supersaturated air is very slow there (with ``q_{icl} \to 0`` the ``1\,\mu m`` radius floor gives
+  ``\tau_i`` of days), so in the mixed-phase range ice is seeded by the cloud-liquid freezing processes
+  or by sedimentation from above; and ``N_{ice}(T)`` enters only this timescale, while cloud-ice
+  sedimentation and the radiative effective radius keep their own number and size assumptions.
+
+```@example
+include("plots/plotting_tau_relax_temperature_dependent_N.jl")
+```
+![](tau_relax_temperature_dependent_N.svg)
 
 ## [Ice relaxation timescale — Frostenberg et al. (2023)](@id ice-relaxation-timescale-frostenberg-et-al-2023)
 

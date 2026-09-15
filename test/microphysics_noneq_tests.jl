@@ -12,6 +12,7 @@ function test_microphysics_noneq(FT)
     liquid = CMP.CloudLiquid(FT)
     aps = CMP.AirProperties(FT)
     frs = CMP.Frostenberg2023(FT)
+    fit = CMP.IceNumberTemperatureFit(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     Ch2022 = CMP.Chen2022VelType(FT)
 
@@ -51,6 +52,86 @@ function test_microphysics_noneq(FT)
         # Since τ = 1/(4π D_v N_0 r) with N_0 fixed, larger r → smaller τ
         τ_dense = CMNe.τ_relax(ice, aps, q_icl, FT(1.2))
         TT.@test τ_dense < τ_pin
+    end
+
+    TT.@testset "ice_number_concentration temperature fit" begin
+        T_freeze = fit.T_freeze
+        N_0C = CMNe.ice_number_concentration(fit, T_freeze)
+        TT.@test N_0C ≈ fit.N_ref * exp(fit.a)   # ~6e1 m⁻³ with the default fit
+        TT.@test N_0C isa FT
+        # held at the freezing-point value above freezing
+        TT.@test CMNe.ice_number_concentration(fit, T_freeze + FT(5)) == N_0C
+        # exponential increase toward colder temperatures: a factor exp(10 b) per 10 K
+        N_m10 = CMNe.ice_number_concentration(fit, T_freeze - FT(10))
+        N_m20 = CMNe.ice_number_concentration(fit, T_freeze - FT(20))
+        TT.@test N_0C < N_m10 < N_m20
+        TT.@test N_m10 / N_0C ≈ exp(10 * fit.b) rtol = FT(1e-5)
+        TT.@test N_m20 / N_m10 ≈ exp(10 * fit.b) rtol = FT(1e-5)
+        # cold-end cap
+        TT.@test CMNe.ice_number_concentration(fit, FT(200)) == fit.N_max
+    end
+
+    TT.@testset "τ_relax TemperatureDependentIceNumber" begin
+        q_icl = FT(1e-5)
+        ρ = FT(0.8)
+        T1, T2 = FT(263), FT(253)
+        τ1 = CMNe.τ_relax(ice, aps, fit, q_icl, T1, ρ)
+        τ2 = CMNe.τ_relax(ice, aps, fit, q_icl, T2, ρ)
+        TT.@test τ1 > FT(0) && isfinite(τ1)
+        TT.@test τ1 isa FT
+        TT.@test τ2 < τ1   # more crystals at colder T → faster relaxation
+        # above the 1 μm radius floor, τ ∝ N^(-2/3)
+        N1 = CMNe.ice_number_concentration(fit, T1)
+        N2 = CMNe.ice_number_concentration(fit, T2)
+        TT.@test τ2 / τ1 ≈ (N2 / N1)^(-FT(2) / 3) rtol = FT(1e-4)
+        # identical to the prescribed-number timescale evaluated with N_0 = N_ice(T)
+        ice_N1 = CMP.CloudIce(; ice.pdf, ice.mass, ice.ρᵢ, ice.r_eff, N_0 = N1)
+        TT.@test τ1 ≈ CMNe.τ_relax(ice_N1, aps, q_icl, ρ)
+        # hours at -10 °C for a typical ice content (seconds for N_0 = 5e8 m⁻³)
+        TT.@test FT(3600) < τ1 < FT(24 * 3600)
+        TT.@test τ1 > FT(100) * CMNe.τ_relax(ice, aps, q_icl, ρ)
+    end
+
+    TT.@testset "TemperatureDependentIceNumber conv_q_vap_to_q_icl" begin
+        ρ = FT(0.8)
+        T = FT(273 - 10)
+        qᵥ_si = TDI.p2q(tps, T, ρ, TDI.saturation_vapor_pressure_over_ice(tps, T))
+        mp_fit = (; cloud = (; ice), air_properties = aps, process_params = (; cloud_ice_formation = fit))
+        opt = CMP.TemperatureDependentIceNumber()
+
+        #! format: off
+        _conv(q_tot, q_icl, ρ, T) = CMNe.conv_q_vap_to_q_icl(
+            opt, mp_fit, tps,
+            (; q_tot, q_lcl = FT(0), q_icl, q_rai = FT(0), q_sno = FT(0)),
+            (; ρ, T),
+        )
+        #! format: on
+
+        # sign tests
+        TT.@test _conv(FT(1.5) * qᵥ_si, FT(0), ρ, T) > FT(0)
+        TT.@test _conv(FT(0.5) * qᵥ_si, FT(1e-4), ρ, T) < FT(0)
+        TT.@test _conv(FT(0.5) * qᵥ_si, FT(0), ρ, T) == FT(0)   # nothing to sublimate
+        TT.@test _conv(qᵥ_si, FT(0), ρ, T) ≈ FT(0)
+        TT.@test _conv(FT(1.5) * qᵥ_si, FT(1e-5), ρ, T) isa FT
+
+        # equals the constant-τ kernel evaluated at the fit's τ, which the accessor returns
+        micro = (; q_tot = FT(1.5) * qᵥ_si, q_lcl = FT(0), q_icl = FT(1e-5), q_rai = FT(0), q_sno = FT(0))
+        τ = CMNe.τ_vap_to_q_icl(opt, mp_fit, tps, micro, (; ρ, T))
+        TT.@test τ == CMNe.τ_relax(ice, aps, fit, micro.q_icl, T, ρ)
+        TT.@test _conv(micro.q_tot, micro.q_icl, ρ, T) ==
+                 CMNe._conv_q_vap_to_q_icl_const(τ, tps, micro, (; ρ, T))
+
+        # deposition per unit supersaturation is faster at colder temperatures (more crystals)
+        T2 = FT(273 - 20)
+        qᵥ_si2 = TDI.p2q(tps, T2, ρ, TDI.saturation_vapor_pressure_over_ice(tps, T2))
+        rate_per_excess(T_, q_si_) = _conv(FT(1.5) * q_si_, FT(1e-5), ρ, T_) / (FT(0.5) * q_si_)
+        TT.@test rate_per_excess(T2, qᵥ_si2) > rate_per_excess(T, qᵥ_si)
+
+        # INP limiter: no deposition above freezing; sublimation still allowed
+        T_warm = FT(280)
+        qᵥ_si_w = TDI.p2q(tps, T_warm, ρ, TDI.saturation_vapor_pressure_over_ice(tps, T_warm))
+        TT.@test _conv(FT(1.5) * qᵥ_si_w, FT(0), ρ, T_warm) == FT(0)
+        TT.@test _conv(FT(0.5) * qᵥ_si_w, FT(1e-3), ρ, T_warm) < FT(0)
     end
 
     TT.@testset "CondEvap_DepSub" begin

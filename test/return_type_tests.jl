@@ -143,4 +143,9 @@ end
     # and their argument-computing wrappers
     @test concrete_for_all_mixes(CM1.accretion_rain_sink, (P(rain), P(ice), P(velr)), 4)
     @test concrete_for_all_mixes(CM1.accretion_snow_rain, (P(snow), P(rain), P(vels), P(velr)), 5)
+    # non-equilibrium ice relaxation with the temperature-dependent ice number N_ice(T)
+    fit = CMP.IceNumberTemperatureFit(FT64)
+    aps = mp1.air_properties
+    @test concrete_for_all_mixes(CMNonEq.ice_number_concentration, (P(fit),), 1)
+    @test concrete_for_all_mixes(CMNonEq.τ_relax, (P(ice), P(aps), P(fit)), 3)
 end

@@ -29,27 +29,41 @@ export gamma_helper
 """
     τ_relax(ice, air_properties, q_icl, ρ)
     τ_relax(ice, air_properties, frostenberg, q_icl, T, ρ)
+    τ_relax(ice, air_properties, fit, q_icl, T, ρ)
 
 Computes the deposition/sublimation relaxation timescale.
 
 The first method uses the prescribed cloud-ice number concentration
 `N_0` from `CloudIce`; the second derives the ice-crystal
-number from the Frostenberg et al. (2023) INP parameterization.
-See DOI: 10.5194/acp-23-10883-2023
+number from the Frostenberg et al. (2023) INP parameterization
+(see DOI: 10.5194/acp-23-10883-2023); the third uses the prescribed
+temperature fit `N_ice(T)` of [`ice_number_concentration`](@ref).
 
 Arguments:
   - cloud microphysics and air parameters
   - q_icl [kg/kg] - cloud ice specific humidity
-  - T [K] - air temperature (Frostenberg only)
+  - T [K] - air temperature (Frostenberg and temperature-fit methods only)
   - ρ [kg/m³] - air density
 """
 @inline function τ_relax(
     (; ρᵢ, N_0)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties, q_icl, ρ,
 )
-    FT = UT.promote_typeof(q_icl, N_0, ρᵢ)
+    return _τ_relax(ρᵢ, D_vapor, N_0, q_icl, ρ)
+end
+@inline function τ_relax(
+    (; ρᵢ)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties,
+    fit::CMP.IceNumberTemperatureFit, q_icl, T, ρ,
+)
+    return _τ_relax(ρᵢ, D_vapor, ice_number_concentration(fit, T), q_icl, ρ)
+end
 
-    # Convert N_0 from 1/m³ to 1/kg for the radius computation
-    N_specific = N_0 / ρ
+# Kernel shared by the prescribed and the temperature-dependent ice number:
+# relaxation timescale for a given ice number concentration `N` [1/m³]
+@inline function _τ_relax(ρᵢ, D_vapor, N, q_icl, ρ)
+    FT = UT.promote_typeof(q_icl, N, ρᵢ)
+
+    # Convert N from 1/m³ to 1/kg for the radius computation
+    N_specific = N / ρ
 
     # Compute the radius assuming spherical particles and
     # mono-modal distribution (q in kg/kg, N in 1/kg)
@@ -58,8 +72,25 @@ Arguments:
     r_safe = max(r, r0)
 
     # Compute the relaxation timescale (D_vapor in m²/s, N in 1/m³, r in m → τ in s)
-    τ = (4 * FT(π) * D_vapor * N_0 * r_safe)^(-1)
+    τ = (4 * FT(π) * D_vapor * N * r_safe)^(-1)
     return τ
+end
+
+"""
+    ice_number_concentration(fit::IceNumberTemperatureFit, T)
+
+Cloud ice number concentration [1/m³] prescribed as a function of temperature
+`T` [K]: `N_ice(T) = min(N_ref exp(a + b ΔT), N_max)` with `ΔT = max(T_freeze - T, 0)`,
+i.e. the fit is held at its freezing-point value above `T_freeze` and capped at
+`N_max` at cold temperatures. With the default parameters (`N_ref = 1000 m⁻³`,
+`a = -2.80`, `b = 0.262 K⁻¹`, `N_max = 1e7 m⁻³`) this gives about 6e1 m⁻³ at 0 °C,
+8e2 at -10 °C, 1e4 at -20 °C, 2e6 at -40 °C and the cap below about -46 °C.
+"""
+@inline function ice_number_concentration(
+    (; N_ref, a, b, N_max, T_freeze)::CMP.IceNumberTemperatureFit, T,
+)
+    ΔT = max(T_freeze - T, zero(T))
+    return min(N_ref * exp(a + b * ΔT), N_max)
 end
 @inline function τ_relax(
     (; ρᵢ)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties,
@@ -194,6 +225,7 @@ end
     conv_q_vap_to_q_icl(opt::ConstantTimescale, mp, tps, micro, thermo)
     conv_q_vap_to_q_icl(opt::PrescribedIceNumber, mp, tps, micro, thermo)
     conv_q_vap_to_q_icl(opt::TemperatureDependent, mp, tps, micro, thermo)
+    conv_q_vap_to_q_icl(opt::TemperatureDependentIceNumber, mp, tps, micro, thermo)
     conv_q_vap_to_q_icl(::Nothing, mp, tps, micro, thermo)
 
 Computes cloud ice tendency from deposition and sublimation using the formulation from
@@ -201,7 +233,8 @@ Morrison & Grabowski (2008), https://doi.org/10.1175/2007JAS2374.1, and
 Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
 
 # Arguments
-- `opt`: `ConstantTimescale()`, PrescribedIceNumber(), `TemperatureDependent()`, or `nothing` (disabled)
+- `opt`: `ConstantTimescale()`, `PrescribedIceNumber()`, `TemperatureDependent()`,
+  `TemperatureDependentIceNumber()`, or `nothing` (disabled)
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -220,6 +253,14 @@ Morrison & Milbrandt (2015), https://doi.org/10.1175/JAS-D-14-0065.1.
     (; q_icl) = micro
     (; ρ) = thermo
     τ = τ_relax(mp.cloud.ice, mp.air_properties, q_icl, ρ)
+    return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo)
+end
+@inline function conv_q_vap_to_q_icl(
+    ::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo)
+    (; q_icl) = micro
+    (; ρ, T) = thermo
+    fit = mp.process_params.cloud_ice_formation
+    τ = τ_relax(mp.cloud.ice, mp.air_properties, fit, q_icl, T, ρ)
     return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo)
 end
 
@@ -322,7 +363,8 @@ deposition timescale otherwise, matching the tendency. See [`τ_vap_to_q_lcl`](@
 for how the timescale is used.
 
 # Arguments
-- `opt`: `ConstantTimescale()`, `PrescribedIceNumber()`, `TemperatureDependent()`, or `nothing`
+- `opt`: `ConstantTimescale()`, `PrescribedIceNumber()`, `TemperatureDependent()`,
+  `TemperatureDependentIceNumber()`, or `nothing`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -333,6 +375,11 @@ for how the timescale is used.
     mp.process_params.cloud_ice_formation.τ_relax
 @inline τ_vap_to_q_icl(::CMP.PrescribedIceNumber, mp, tps::TDI.PS, micro, thermo) =
     τ_relax(mp.cloud.ice, mp.air_properties, micro.q_icl, thermo.ρ)
+@inline τ_vap_to_q_icl(::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo) =
+    τ_relax(
+        mp.cloud.ice, mp.air_properties, mp.process_params.cloud_ice_formation,
+        micro.q_icl, thermo.T, thermo.ρ,
+    )
 @inline function τ_vap_to_q_icl(::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
