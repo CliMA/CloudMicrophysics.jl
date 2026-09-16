@@ -805,7 +805,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         q_tot = FT(0.9) * q_sat_ice + q_icl + q_sno
         r = BMT.bulk_microphysics_tendencies(
             BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
-            mp_presc, tps, ρ, T, q_tot, FT(0), q_icl, FT(0), q_sno, Δt, 1,
+            mp_presc, tps, ρ, T, FT(0), q_tot, FT(0), q_icl, FT(0), q_sno, Δt, 1,
         )
         q_icl_new = q_icl + r.dq_icl_dt * Δt
         q_sno_new = q_sno + r.dq_sno_dt * Δt
@@ -824,7 +824,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         q_tot2 = FT(0.4) * q_sat_ice + FT(5e-5)
         r2 = BMT.bulk_microphysics_tendencies(
             BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
-            mp_presc, tps, ρ, T, q_tot2, FT(0), FT(5e-5), FT(0), FT(0), Δt, 1,
+            mp_presc, tps, ρ, T, FT(0), q_tot2, FT(0), FT(5e-5), FT(0), FT(0), Δt, 1,
         )
         @test isfinite(r2.dq_icl_dt)
         @test FT(5e-5) + r2.dq_icl_dt * Δt >= FT(0)
@@ -854,7 +854,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             @test Δt / τ > FT(5)  # the regime under test is genuinely stiff
             r = BMT.bulk_microphysics_tendencies(
                 BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
-                mp_presc, tps, ρ, T, q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 1,
+                mp_presc, tps, ρ, T, FT(0), q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 1,
             )
             q_lcl_new = q_lcl + r.dq_lcl_dt * Δt
             q_icl_new = q_icl + r.dq_icl_dt * Δt

@@ -362,7 +362,14 @@ A steep sigmoidal blending factor is defined as
 ```
 where ``w_0`` is the blending velocity scale. The blending factor
 is symmetric in ``w``, equals 0 at ``w = 0``, and approaches 1 for
-``|w| \gg w_0``. The effective autoconversion timescale is then
+``|w| \gg w_0``. The fourth power is a modelling choice rather than a
+derived law: it makes the step steep but smooth (``f = 1/2`` at ``|w| = w_0``,
+``f \approx 0.06`` at ``w_0/2`` and ``f \approx 0.94`` at ``2 w_0``), even in ``w``
+so that downdrafts are treated like updrafts, and flat at ``w = 0`` so that
+weak vertical motions stay in the stratiform regime; a quadratic step would
+spread the transition over a much wider range of ``|w|`` and a higher power
+would approach a discontinuous switch. The effective autoconversion timescale
+is then
 
 ```math
 \begin{equation}
@@ -381,9 +388,9 @@ and the autoconversion rate is
 
 |    symbol                       |         definition                                          | units           | default value              |
 |---------------------------------|-------------------------------------------------------------|-----------------|----------------------------|
-|``\tau_\text{slow}``             | stratiform (quiescent) autoconversion timescale             | ``s``           | ``14400``  (~4 hours)      |
-|``\tau_\text{fast}``             | convective autoconversion timescale                         | ``s``           | ``900``    (~15 minutes)   |
-|``w_0``                          | blending velocity scale                                     | ``m/s``         | ``1.5``                    |
+|``\tau_\text{slow}``             | stratiform (quiescent) autoconversion timescale (`rain_autoconversion_timescale_stratiform`) | ``s``           | ``14400``  (~4 hours)      |
+|``\tau_\text{fast}``             | convective autoconversion timescale (`rain_autoconversion_timescale`, shared with Kessler1M) | ``s``           | ``1000``   (~17 minutes)   |
+|``w_0``                          | blending velocity scale (`rain_autoconversion_velocity_scale`) | ``m/s``         | ``1.5``                    |
 |``q_\text{lcl_threshold}``       | autoconversion threshold (same as Kessler1M)                | -               | ``5 \cdot 10^{-4}``        |
 |``k``                            | logistic transition steepness (same as Kessler1M)           | -               | ``10``                     |
 

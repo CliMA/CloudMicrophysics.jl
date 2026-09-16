@@ -397,22 +397,32 @@ atmospheric models (e.g. ClimaAtmos).
 - `w`: air vertical velocity [m/s] (only used by `VelocityDependent`;
   ignored by other variants)
 
+Throws an `ArgumentError` when the parameters stored in `mp` do not match
+`option` (e.g. `Kessler1M` with `PrescribedNd` parameters), like the
+tendency functions.
+
 # Returns
 - `τ::FT`: effective autoconversion timescale [s]
 """
 @inline rain_autoconversion_timescale(::Nothing, mp, w = 0) = eltype(mp)(Inf)
 
-@inline function rain_autoconversion_timescale(::CMP.Kessler1M, mp, w = 0)
-    return mp.process_params.rain_autoconversion.τ
+@inline function rain_autoconversion_timescale(opt::CMP.Kessler1M, mp, w = 0)
+    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.Acnv1M, opt, :rain_autoconversion)
+    return pp.τ
 end
 
-@inline function rain_autoconversion_timescale(::CMP.PrescribedNd, mp, w = 0)
-    (; τ, α, Nc) = mp.process_params.rain_autoconversion
+@inline function rain_autoconversion_timescale(opt::CMP.PrescribedNd, mp, w = 0)
+    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
+    (; τ, α, Nc) = pp
     return τ * (Nc / 100_000_000)^α
 end
 
-@inline function rain_autoconversion_timescale(::CMP.VelocityDependent, mp, w)
-    (; τ_slow, τ_fast, w_0) = mp.process_params.rain_autoconversion
+@inline function rain_autoconversion_timescale(opt::CMP.VelocityDependent, mp, w)
+    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.VelDepAcnv, opt, :rain_autoconversion)
+    (; τ_slow, τ_fast, w_0) = pp
+    # Even, smooth step in |w|: f = 1/2 at |w| = w_0, ≈ 0.06 at w_0/2 and ≈ 0.94 at 2 w_0, with zero
+    # slope at w = 0 so weak up- and downdrafts stay in the slow regime (a modelling choice, not a
+    # derived law; see the docs).
     f = w^4 / (w^4 + w_0^4)
     return τ_slow + (τ_fast - τ_slow) * f
 end

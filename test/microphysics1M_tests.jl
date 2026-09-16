@@ -418,6 +418,11 @@ function test_microphysics1M(FT)
         TT.@test CM1.rain_autoconversion_timescale(
             mp_off.processes.rain_autoconversion, mp_off, FT(0),
         ) == FT(Inf)
+
+        # Mismatched option/parameters throw (like the tendency functions)
+        TT.@test_throws ArgumentError CM1.rain_autoconversion_timescale(CMP.Kessler1M(), mp_nd, FT(0))
+        TT.@test_throws ArgumentError CM1.rain_autoconversion_timescale(CMP.PrescribedNd(), mp, FT(0))
+        TT.@test_throws ArgumentError CM1.rain_autoconversion_timescale(CMP.VelocityDependent(), mp, FT(0))
     end
 
     TT.@testset "SnowAutoconversionNoSupersat" begin

@@ -686,7 +686,7 @@ function test_gpu(FT)
 
         # Sanity checks for the GPU KernelAbstractions workflow
         # See https://github.com/CliMA/SurfaceFluxes.jl/issues/142
-        TT.@test !any(isequal(out, FT(bad_value)))
+        TT.@test !any(isequal(FT(bad_value)), out)
         # Both inputs are above threshold so both should give positive autoconversion
         TT.@test all(x -> x > 0, out)
 
@@ -700,7 +700,7 @@ function test_gpu(FT)
         out = Array(output)
 
         # Sanity checks
-        TT.@test !any(isequal(out, FT(bad_value)))
+        TT.@test !any(isequal(FT(bad_value)), out)
         # q_lcl = 2e-3 → positive rate; q_lcl = 0 → zero rate
         TT.@test out[1] > FT(0)
         TT.@test out[2] == FT(0)
@@ -718,7 +718,7 @@ function test_gpu(FT)
         out = Array(output)
 
         # Sanity checks
-        TT.@test !any(isequal(out, FT(bad_value)))
+        TT.@test !any(isequal(FT(bad_value)), out)
         # q_lcl = 1e-3, w = 0 → positive rate (slow timescale)
         TT.@test out[1] > FT(0)
         # q_lcl = 1e-3, w = 5 → faster rate than w = 0
