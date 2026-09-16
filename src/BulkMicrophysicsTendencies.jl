@@ -17,9 +17,13 @@ using CloudMicrophysics.BulkMicrophysicsTendencies
 # For 1-moment microphysics
 tendencies = bulk_microphysics_tendencies(
     Instantaneous(), Microphysics1Moment(), mp, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno
 )
 (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt) = tendencies
+```
+`w` is the air vertical velocity [m/s]; it is read only by the `VelocityDependent`
+rain autoconversion option and ignored by every other process.
+```julia
 ```
 """
 module BulkMicrophysicsTendencies
@@ -128,7 +132,7 @@ linearized operator construction consume this output.
 Constructs two `NamedTuple`s that are passed to all process functions
 (see `Microphysics1M` module docs for the full convention):
 - `micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)` — specific humidities (kg/kg)
-- `thermo = (; ρ, T)` — air density (kg/m³) and temperature (K)
+- `thermo = (; ρ, T, w)` — air density (kg/m³), temperature (K) and vertical velocity [m/s]
 
 Naming convention: `S_process_species1_species2`
  - process: physical mechanism (phase_change, acnv, accr, melt, accr_melt, accr_freeze)
@@ -141,7 +145,7 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
 """
 @inline function _microphysics_source_terms(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
@@ -151,12 +155,12 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     q_rai = UT.clamp_to_nonneg(q_rai)
     q_sno = UT.clamp_to_nonneg(q_sno)
 
-    FT = UT.promote_typeof(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    FT = UT.promote_typeof(ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
     procs = mp.processes
 
     # Construct state tuples (reused across all process calls)
     micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
-    thermo = (; ρ, T)
+    thermo = (; ρ, T, w)
 
     # Size-distribution / fall-speed quantities (λ⁻¹, n₀, v₀ for rain/snow/ice) are
     # pow/exp-heavy and shared by several processes per species: compute once and pass
@@ -455,14 +459,14 @@ sublimation are part of `M`.
 """
 @inline function _linearized_implicit_step(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
 )
 
     FT = typeof(q_tot)
 
     src = _microphysics_source_terms(
         Microphysics1Moment(), mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
     q_min = TDI.TD.Parameters.q_min(tps)
     lin = _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
@@ -529,7 +533,7 @@ end
 """
     bulk_microphysics_tendencies(
         ::Instantaneous, ::Microphysics1Moment, mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
 
 Compute all 1-moment microphysics tendencies in one fused call.
@@ -545,6 +549,7 @@ This is a pure function of local thermodynamic state, suitable for:
 - `tps`: Thermodynamics parameters
 - `ρ`: Air density [kg/m³]
 - `T`: Temperature [K]
+- `w`: air vertical velocity [m/s]
 - `q_tot`: Total water specific content [kg/kg]
 - `q_lcl`: Cloud liquid water specific content [kg/kg]
 - `q_icl`: Cloud ice specific content [kg/kg]
@@ -564,11 +569,11 @@ This is a pure function of local thermodynamic state, suitable for:
 """
 @inline function bulk_microphysics_tendencies(
     ::Instantaneous, ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
     src = _microphysics_source_terms(
         Microphysics1Moment(), mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
     return _aggregate_tendencies(src)
 end
@@ -576,7 +581,7 @@ end
 """
     bulk_microphysics_tendencies(
         ::InstantaneousVerbose, ::Microphysics1Moment, mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
 
 Compute all 1-moment microphysics tendencies and return both aggregated
@@ -593,11 +598,11 @@ terms: `S_phase_change_vap_lcl`, `S_phase_change_vap_icl`, `S_acnv_lcl_rai`,
 """
 @inline function bulk_microphysics_tendencies(
     ::InstantaneousVerbose, ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
     src = _microphysics_source_terms(
         Microphysics1Moment(), mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
     agg = _aggregate_tendencies(src)
     return merge(agg, src)
@@ -606,7 +611,7 @@ end
 """
     bulk_microphysics_tendencies(
         ::LinearizedAverage, ::Microphysics1Moment, mp, tps,
-        ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
+        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, nsub = 1,
     )
 
 Compute average 1-moment microphysics tendencies over `Δt` using repeated
@@ -637,13 +642,14 @@ active microphysical processes, including regime changes near freezing.
     tps,
     ρ,
     T,
+    w,
     q_tot,
     q_lcl,
     q_icl,
     q_rai,
     q_sno,
-    Δt,
-    nsub = 1,
+    Δt::AbstractFloat,  # typed so that a pre-0.41 call without `w` (which shifts `nsub::Int` into `Δt`) is a MethodError
+    nsub::Integer = 1,
 )
     FT = typeof(q_tot)
 
@@ -664,6 +670,7 @@ active microphysical processes, including regime changes near freezing.
             tps,
             ρ,
             T,
+            w,
             q_tot,
             q_lcl,
             q_icl,

@@ -91,6 +91,7 @@ mp = CMP.Microphysics1MParams(Float64;
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
+Base.eltype(mp::Microphysics1MParams) = eltype(mp.cloud.liquid)
 
 """
     Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)

@@ -347,6 +347,60 @@ An alternative rain autoconversion option with a prescribed cloud droplet
     This is the simplest possible autoconversion parameterization.
     See for example [Wood2005](@cite) Table 1 for other simple choices.
 
+### Velocity-dependent autoconversion
+
+The `VelocityDependent` variant extends the above Kessler autoconversion with a
+timescale that smoothly transitions between a slow stratiform regime and a
+fast convective regime as a function of air vertical velocity ``|w|``.
+
+``w`` is the vertical velocity of the air whose cloud water is being converted.
+In a host model with sub-grid drafts (e.g. an EDMF scheme) it should be the
+draft velocity of the updraft or environment being integrated; with the
+resolved grid-mean ``w`` of a GCM (a few cm/s) the blending factor is
+``\lesssim 10^{-5}`` and the option reduces to Kessler autoconversion with
+``\tau_\text{slow}``. Downdrafts count as convective as well (``f`` is even in ``w``).
+
+A steep sigmoidal blending factor is defined as
+
+```math
+\begin{equation}
+  f(w) = \frac{w^4}{w^4 + w_0^4}
+\end{equation}
+```
+where ``w_0`` is the blending velocity scale. The blending factor
+is symmetric in ``w``, equals 0 at ``w = 0``, and approaches 1 for
+``|w| \gg w_0``. The fourth power is a modelling choice rather than a
+derived law: it makes the step steep but smooth (``f = 1/2`` at ``|w| = w_0``,
+``f \approx 0.06`` at ``w_0/2`` and ``f \approx 0.94`` at ``2 w_0``), even in ``w``
+so that downdrafts are treated like updrafts, and flat at ``w = 0`` so that
+weak vertical motions stay in the stratiform regime; a quadratic step would
+spread the transition over a much wider range of ``|w|`` and a higher power
+would approach a discontinuous switch. The effective autoconversion timescale
+is then
+
+```math
+\begin{equation}
+  \tau_\text{acnv_rain}(w) = \tau_\text{slow} + (\tau_\text{fast} - \tau_\text{slow}) \, f(w)
+\end{equation}
+```
+
+and the autoconversion rate is
+
+```math
+\begin{equation}
+  \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{acnv} \approx
+    \frac{max(0, q_\text{lcl} - q_\text{lcl_threshold})}{\tau_\text{acnv_rain}(w)}
+\end{equation}
+```
+
+|    symbol                       |         definition                                          | units           | default value              |
+|---------------------------------|-------------------------------------------------------------|-----------------|----------------------------|
+|``\tau_\text{slow}``             | stratiform (quiescent) autoconversion timescale (`rain_autoconversion_timescale_stratiform`) | ``s``           | ``14400``  (~4 hours)      |
+|``\tau_\text{fast}``             | convective autoconversion timescale (`rain_autoconversion_timescale`, shared with Kessler1M) | ``s``           | ``1000``   (~17 minutes)   |
+|``w_0``                          | blending velocity scale (`rain_autoconversion_velocity_scale`) | ``m/s``         | ``1.5``                    |
+|``q_\text{lcl_threshold}``       | autoconversion threshold (same as Kessler1M)                | -               | ``5 \cdot 10^{-4}``        |
+|``k``                            | logistic transition steepness (same as Kessler1M)           | -               | ``10``                     |
+
 ## Snow autoconversion
 
 Snow autoconversion defines the rate of conversion form cloud ice to snow due
@@ -813,6 +867,7 @@ include("plots/Microphysics1M_plots.jl")
 ```
 
 ![](autoconversion_rate.svg)
+![](velocity_dependent_autoconversion.svg)
 ![](accretion_rate.svg)
 ![](accretion_rain_sink_rate.svg)
 ![](accretion_snow_rain_below_freeze.svg)
