@@ -353,6 +353,13 @@ The `VelocityDependent` variant extends the above Kessler autoconversion with a
 timescale that smoothly transitions between a slow stratiform regime and a
 fast convective regime as a function of air vertical velocity ``|w|``.
 
+``w`` is the vertical velocity of the air whose cloud water is being converted.
+In a host model with sub-grid drafts (e.g. an EDMF scheme) it should be the
+draft velocity of the updraft or environment being integrated; with the
+resolved grid-mean ``w`` of a GCM (a few cm/s) the blending factor is
+``\lesssim 10^{-5}`` and the option reduces to Kessler autoconversion with
+``\tau_\text{slow}``. Downdrafts count as convective as well (``f`` is even in ``w``).
+
 A steep sigmoidal blending factor is defined as
 
 ```math

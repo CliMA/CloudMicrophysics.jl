@@ -143,4 +143,8 @@ end
     # and their argument-computing wrappers
     @test concrete_for_all_mixes(CM1.accretion_rain_sink, (P(rain), P(ice), P(velr)), 4)
     @test concrete_for_all_mixes(CM1.accretion_snow_rain, (P(snow), P(rain), P(vels), P(velr)), 5)
+    # velocity-dependent rain autoconversion timescale: Dual/plain `w` with plain parameters
+    mp1_vd = CMP.Microphysics1MParams(FT64; rain_autoconversion = CMP.VelocityDependent())
+    @test concrete_for_all_mixes(CM1.rain_autoconversion_timescale, (P(CMP.VelocityDependent()), P(mp1_vd)), 1)
+    @test concrete_for_all_mixes(CM1.rain_autoconversion_timescale, (P(CMP.Kessler1M()), P(mp1)), 1)
 end

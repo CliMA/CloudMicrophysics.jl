@@ -787,6 +787,19 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test BMT._relaxation_transfer(S, FT(Inf), Δt) isa FT
     end
 
+    @testset "LinearizedAverage - pre-0.41 call without w is a MethodError, not silent misbinding" begin
+        mp_k = CMP.Microphysics1MParams(FT)
+        args = (FT(1.0), FT(280), FT(1e-2), FT(1e-3), FT(0), FT(0), FT(0))  # ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno
+        @test_throws MethodError BMT.bulk_microphysics_tendencies(
+            BMT.LinearizedAverage(), BMT.Microphysics1Moment(), mp_k, tps, args..., FT(60), 3,
+        )
+        r = BMT.bulk_microphysics_tendencies(
+            BMT.LinearizedAverage(), BMT.Microphysics1Moment(), mp_k, tps, args[1], args[2], FT(0), args[3:end]...,
+            FT(60), 3,
+        )
+        @test all(isfinite, (r.dq_lcl_dt, r.dq_icl_dt, r.dq_rai_dt, r.dq_sno_dt))
+    end
+
     @testset "LinearizedAverage - stiff sublimation with competing sinks: closes the deficit, q ≥ 0, no overshoot" begin
         # A 10 % subsaturated ice cloud, ice above the autoconversion threshold, snow present:
         # with N_0 = 5e8 m⁻³ the sublimation timescale is ~2 s against a 60 s substep. The

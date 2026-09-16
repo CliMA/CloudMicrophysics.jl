@@ -17,9 +17,13 @@ using CloudMicrophysics.BulkMicrophysicsTendencies
 # For 1-moment microphysics
 tendencies = bulk_microphysics_tendencies(
     Instantaneous(), Microphysics1Moment(), mp, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno
 )
 (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt) = tendencies
+```
+`w` is the air vertical velocity [m/s]; it is read only by the `VelocityDependent`
+rain autoconversion option and ignored by every other process.
+```julia
 ```
 """
 module BulkMicrophysicsTendencies
@@ -151,7 +155,7 @@ processes are pre-routed by temperature, so consumers never need `is_warm`.
     q_rai = UT.clamp_to_nonneg(q_rai)
     q_sno = UT.clamp_to_nonneg(q_sno)
 
-    FT = UT.promote_typeof(ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    FT = UT.promote_typeof(ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
     procs = mp.processes
 
     # Construct state tuples (reused across all process calls)
@@ -644,8 +648,8 @@ active microphysical processes, including regime changes near freezing.
     q_icl,
     q_rai,
     q_sno,
-    Δt,
-    nsub = 1,
+    Δt::AbstractFloat,  # typed so that a pre-0.41 call without `w` (which shifts `nsub::Int` into `Δt`) is a MethodError
+    nsub::Integer = 1,
 )
     FT = typeof(q_tot)
 

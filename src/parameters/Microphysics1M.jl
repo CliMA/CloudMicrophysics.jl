@@ -413,7 +413,7 @@ $(DocStringExtensions.FIELDS)
     τ_fast::FT
     "Condensate specific content autoconversion threshold [kg/kg]"
     q_threshold::FT
-    "Velocity scale for blending [m/s]"
+    "Velocity scale for blending [m/s], must be > 0"
     w_0::FT
     "Threshold smooth transition steepness [-]"
     k::FT
@@ -429,5 +429,9 @@ function VelDepAcnv(td::CP.ParamDict)
         :threshold_smooth_transition_steepness => :k,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    parameters.w_0 > 0 ||
+        throw(ArgumentError("rain_autoconversion_velocity_scale must be > 0 (w_0 = 0 gives 0/0 at w = 0)"))
+    (parameters.τ_slow > 0 && parameters.τ_fast > 0) ||
+        throw(ArgumentError("rain autoconversion timescales must be > 0"))
     return VelDepAcnv(; parameters...)
 end

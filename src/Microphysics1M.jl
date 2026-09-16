@@ -32,6 +32,8 @@ All option-dispatched process functions share the signature
 - `thermo`: `NamedTuple` of thermodynamic state:
   - `ρ` — air density (kg/m³)
   - `T` — temperature (K)
+  - `w` — air vertical velocity (m/s); read only by the `VelocityDependent` rain
+    autoconversion, so `thermo` may omit it for every other process/option
 - `sd`: (optional) precomputed size-distribution and fall-speed parameters,
   default `size_distr_parameters(mp, micro, thermo)`
 
@@ -394,8 +396,11 @@ atmospheric models (e.g. ClimaAtmos).
 # Arguments
 - `option`: rain autoconversion option (dispatches the variant)
 - `mp`: `Microphysics1MParams` parameter container
-- `w`: air vertical velocity [m/s] (only used by `VelocityDependent`;
-  ignored by other variants)
+- `w`: air vertical velocity [m/s] of the air whose cloud water is converted (only
+  used by `VelocityDependent`; ignored by other variants but always required, so a
+  call site cannot silently drop it). In a host with sub-grid drafts (e.g. EDMF)
+  this should be the draft velocity; with a resolved grid-mean `w` of a few cm/s
+  the `VelocityDependent` option reduces to Kessler with `τ_slow`.
 
 Throws an `ArgumentError` when the parameters stored in `mp` do not match
 `option` (e.g. `Kessler1M` with `PrescribedNd` parameters), like the
@@ -404,14 +409,14 @@ tendency functions.
 # Returns
 - `τ::FT`: effective autoconversion timescale [s]
 """
-@inline rain_autoconversion_timescale(::Nothing, mp, w = 0) = eltype(mp)(Inf)
+@inline rain_autoconversion_timescale(::Nothing, mp, w) = eltype(mp)(Inf)
 
-@inline function rain_autoconversion_timescale(opt::CMP.Kessler1M, mp, w = 0)
+@inline function rain_autoconversion_timescale(opt::CMP.Kessler1M, mp, w)
     pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.Acnv1M, opt, :rain_autoconversion)
     return pp.τ
 end
 
-@inline function rain_autoconversion_timescale(opt::CMP.PrescribedNd, mp, w = 0)
+@inline function rain_autoconversion_timescale(opt::CMP.PrescribedNd, mp, w)
     pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
     (; τ, α, Nc) = pp
     return τ * (Nc / 100_000_000)^α
@@ -452,7 +457,8 @@ that smoothly interpolates between slow stratiform regime and fast convective re
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters (unused, kept for uniform interface)
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
-- `thermo`: thermodynamic state `(; ρ, T, w)`
+- `thermo`: thermodynamic state `(; ρ, T, w)`; the `w` field is required only for
+  `VelocityDependent`
 
 # Returns
 - Rain autoconversion rate [kg/kg/s]
@@ -463,14 +469,14 @@ that smoothly interpolates between slow stratiform regime and fast convective re
     q_lcl = micro.q_lcl
     pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.Acnv1M, opt, :rain_autoconversion)
     (; q_threshold, k) = pp
-    τ_acnv = rain_autoconversion_timescale(opt, mp)
+    τ_acnv = rain_autoconversion_timescale(opt, mp, zero(q_lcl))
     return CO.logistic_function_integral(q_lcl, q_threshold, k) / τ_acnv
 end
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.PrescribedNd, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
-    pp = _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
-    τ_acnv = rain_autoconversion_timescale(opt, mp)
+    # option/parameter consistency is checked inside `rain_autoconversion_timescale`
+    τ_acnv = rain_autoconversion_timescale(opt, mp, zero(q_lcl))
     return max(0, q_lcl) / τ_acnv
 end
 

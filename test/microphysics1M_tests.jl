@@ -332,7 +332,7 @@ function test_microphysics1M(FT)
 
         # At w = 0, f = 0 so τ_eff = τ_slow
         rate_expected = CMC.logistic_function_integral(q_lcl, q_threshold, k) / τ_slow
-        TT.@test rate_w0 ≈ rate_expected rtol = FT(1e-10)
+        TT.@test rate_w0 == rate_expected   # f(0) is exactly 0
 
         # Increasing |w| → faster rate (smaller effective τ)
         rate_w1 = CM1.conv_q_lcl_to_q_rai(mp_vd.processes.rain_autoconversion, mp_vd, tps, micro,
@@ -417,7 +417,23 @@ function test_microphysics1M(FT)
         )
         TT.@test CM1.rain_autoconversion_timescale(
             mp_off.processes.rain_autoconversion, mp_off, FT(0),
-        ) == FT(Inf)
+        ) === FT(Inf)
+
+        # the blending factor is w^4/(w^4 + w_0^4): pin the exponent through f(w_0) = 1/2,
+        # f(w_0/2) = 1/17 and f(2 w_0) = 16/17 (only the fourth power gives all three)
+        (; w_0) = mp_vd.process_params.rain_autoconversion
+        τ_at(w) = CM1.rain_autoconversion_timescale(mp_vd.processes.rain_autoconversion, mp_vd, w)
+        TT.@test τ_slow > τ_fast   # default parameters: stratiform slower than convective
+        TT.@test τ_at(w_0) ≈ (τ_slow + τ_fast) / 2 rtol = sqrt(eps(FT))
+        TT.@test τ_at(w_0 / 2) ≈ τ_slow + (τ_fast - τ_slow) / 17 rtol = sqrt(eps(FT))
+        TT.@test τ_at(2 * w_0) ≈ τ_slow + (τ_fast - τ_slow) * 16 / 17 rtol = sqrt(eps(FT))
+        # invalid velocity scale is rejected when reading parameters
+        TT.@test_throws ArgumentError CMP.VelDepAcnv(
+            CP.create_toml_dict(
+                FT;
+                override_file = Dict("rain_autoconversion_velocity_scale" => Dict("value" => 0.0, "type" => "float")),
+            ),
+        )
 
         # Mismatched option/parameters throw (like the tendency functions)
         TT.@test_throws ArgumentError CM1.rain_autoconversion_timescale(CMP.Kessler1M(), mp_nd, FT(0))
