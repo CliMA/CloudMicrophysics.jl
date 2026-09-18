@@ -1,41 +1,29 @@
 # Microphysics NonEquilibrium
 
 The `MicrophysicsNonEq.jl` module describes a bulk parameterization of
-  diffusion of water vapor on cloud droplets and cloud ice crystals
-  modeled as a relaxation to equilibrium.
-
+  diffusion of water vapor and subsequent
+  condensation/evaporation to cloud droplets and deposition/sublimation to cloud ice crystals.
+The rates are based on the difference between the specific humidity and the
+  specific humidity at saturation over liquid and ice at the current temperature,
+  and is modeled as a relaxation towards equilibrium.
+This formulation is derived from [MorrisonGrabowski2008_supersat](@cite)
+  and [MorrisonMilbrandt2015](@cite).
 The cloud microphysics variables are expressed as specific contents:
   - `q_tot` - total water specific content,
   - `q_vap` - water vapor specific content (i.e., specific humidity),
   - `q_lcl` - cloud water specific content,
   - `q_icl` - cloud ice specific content,
 
-Parameters used in the parameterization are defined in
-  [ClimaParams.jl](https://github.com/CliMA/ClimaParams.jl) package.
-They consist of:
-
-|    symbol  |         definition                             | units | default value |
-|------------|------------------------------------------------|-------|---------------|
-|``\tau_{l}``| cloud water condensation/evaporation timescale | ``s`` | ``10``        |
-|``\tau_{i}``| cloud ice deposition/sublimation timescale     | ``s`` | ``10``        |
-
-!!! note
-    For ice, the deposition timescale ``\tau_{dep}`` can optionally be computed
-    from the prescribed cloud-ice number concentration ``N_0`` (see
-    [below](@ref ice-relaxation-timescale-prescribed-ice-number)) or from the
-    [Frostenberg2023](@cite) INP parameterization (see
-    [below](@ref ice-relaxation-timescale-frostenberg-et-al-2023)).
-    With the Frostenberg option, the sublimation timescale ``\tau_{sub}`` remains
-    at the constant ``\tau_i``.
-
-## Condensation/evaporation and deposition/sublimation from Morrison and Milbrandt 2015
-
-Condensation/evaporation and deposition/sublimation rates are based on
-  the difference between the specific humidity and the
-  specific humidity at saturation over liquid and ice at the current temperature.
-The process is modeled as a relaxation with a constant timescale.
-This formulation is derived from [MorrisonGrabowski2008_supersat](@cite)
-  and [MorrisonMilbrandt2015](@cite), but without imposing exponential time integrators.
+The timescale is assumed to be constant for cloud liquid.
+For cloud ice, there are a couple of options:
+  - constant timescale,
+  - timescale computed based on
+    [constant ice crystal number concentration](@ref ice-relaxation-timescale-prescribed-ice-number)
+  - timescale computed based on
+    [temperature dependent ice crystal number concentration](@ref ice-relaxation-timescale-temperature-dependent-ice-number)
+  - deposition timescale dependent on [Frostenberg2023](@cite)
+    [INP parameterization](@ref ice-relaxation-timescale-frostenberg-et-al-2023).
+    The sublimation timescale with the Frostenberg option remains constant.
 
 !!! note
     The [MorrisonGrabowski2008_supersat](@cite) and [MorrisonMilbrandt2015](@cite)
@@ -102,14 +90,8 @@ Two temperature-based limiters are applied to the tendencies:
 
 Both limiters apply to all relaxation timescale options.
 
-!!! note
-    Both ``\tau_{l}`` and ``\tau_{i}`` are assumed to be constant by default.
-    Making the relaxation timescales functions of available condensation
-    nuclei, turbulence intensity, and other environmental conditions is
-    left for future work; see for example [Desai2019](@cite).
-
-Note that these forms of condensation/sublimation and deposition/sublimation
-  are equivalent to those described in the adiabatic parcel model with some rearrangements and assumptions.
+The above forms of condensation/sublimation and deposition/sublimation
+    are equivalent to those described in the adiabatic parcel model with some rearrangements and assumptions.
 To see this, it is necessary to use the definitions of ``\tau``, ``q_{sl}``, and the thermal diffusivity ``D_v``:
 
 ```math
@@ -119,7 +101,8 @@ To see this, it is necessary to use the definitions of ``\tau``, ``q_{sl}``, and
   D_v = \frac{K}{\rho c_p}.
 \end{equation}
 ```
-If we then assume that the supersaturation ``S`` can be approximated by the specific contents (this is only exactly true for mass mixing ratios):
+If we then assume that the supersaturation ``S`` can be approximated by the specific contents
+  (this is only exactly true for mass mixing ratios):
 ```math
 \begin{equation}
     S_l = \frac{q_{vap}}{q_{sl}},
@@ -158,6 +141,7 @@ Assuming a mono-disperse distribution and spherical ice crystals we estimate
 \begin{equation}
   r = max \left(\left(\frac{3 \, q_{icl} \, \rho }{4 \pi \, N_0 \, \rho_i}\right)^{1/3} \, , \, r_0 \right)
 \end{equation}
+
 ```
 where ``\rho`` is the air density,
       ``q_{icl}`` is cloud ice specific humidity,
@@ -173,18 +157,43 @@ include("plots/plotting_tau_relax_prescribed_N0.jl")
 ```
 ![](tau_relax_prescribed_N0.svg)
 
+## [Ice relaxation timescale — temperature-dependent ice number](@id ice-relaxation-timescale-temperature-dependent-ice-number)
+
+The `TemperatureDependentIceNumber` option uses the same relaxation timescale formulae as
+  the [prescribed ice number](@ref ice-relaxation-timescale-prescribed-ice-number),
+  but replaces the constant assumed ice crystal number concentration``N_0``
+  by a prescribed function of temperature based on [Meyers1992](@cite)
+```math
+\begin{equation}
+  N_{ice}(T) = \min\!\left(N_{ref} \, \exp\!\left(a + b \, \max(T_{freeze} - T, 0)\right), \, N_{max}\right)
+\end{equation}
+```
+with default parameters
+  ``N_{ref} = 10^3\,\text{m}^{-3}``,
+  ``a = -2.80``,
+  ``b = 0.262\,\text{K}^{-1}``, and
+  ``N_{max} = 10^7\,\text{m}^{-3}``.
+
+The resulting timescale is hours in the mixed-phase range, so supercooled liquid is not
+  glaciated within a few time steps through the Wegener–Bergeron–Findeisen process, while at
+  cirrus temperatures the relaxation stays fast.
+The timescale is very slow at sub-zero temperatures and the deposition onto ice-free
+  supersaturated air is very slow there (with ``q_{icl} \to 0`` the ``1\,\mu m`` radius floor gives
+  ``\tau_i`` of days).
+
+```@example
+include("plots/plotting_tau_relax_temperature_dependent_N.jl")
+```
+![](tau_relax_temperature_dependent_N.svg)
+
 ## [Ice relaxation timescale — Frostenberg et al. (2023)](@id ice-relaxation-timescale-frostenberg-et-al-2023)
 
-The constant ice relaxation timescale ``\tau_i`` can be replaced with
-  a temperature-dependent timescale derived from the
-  Frostenberg et al. [Frostenberg2023](@cite)
-  parameterization of ice nucleating particle (INP) concentrations.
-This makes the deposition timescale physically dependent on the
-  number of available INPs and the ice crystal size.
+The ice relaxation timescale ``\tau_i`` can also be based on
+  a temperature-dependent parameterization of ice nucleating particle (INP) concentrations
+  from Frostenberg et al. [Frostenberg2023](@cite).
 This could be a good approximation at cold temperatures, but should not be
   used as a sole timescale due to the importance of ice-multiplication processes
   in warmer temperatures.
-
 The INP number concentration is estimated as a function of temperature:
 ```math
 \begin{equation}
@@ -192,30 +201,12 @@ The INP number concentration is estimated as a function of temperature:
 \end{equation}
 ```
 where ``\overline{\ln(\mathrm{INPC})}(T)`` is the mean log-INP concentration
-from the Frostenberg et al. (2023) parameterization.
-
-Given ``N_{icl}`` and the cloud ice specific content ``q_{icl}``,
-  the mean crystal radius is computed assuming spherical ice particles
-  with a monodisperse size distribution:
-```math
-\begin{equation}
-  r = \left(\frac{3 \, q_{icl}}{4 \pi \, N_{icl} \, \rho_i}\right)^{1/3}
-\end{equation}
-```
-A minimum radius ``r_0 = 1\,\mu m`` is enforced to avoid singularities
+  from the Frostenberg et al. (2023) parameterization.
+The timescale is computed in the same way as for constant and temperature
+  dependent ice crystal number concentration options.
+Similarly, a minimum radius ``r_0 = 1\,\mu m`` is enforced to avoid singularities
   when ``q_{icl} = 0`` or ``N_{icl} = 0``.
-
-The Frostenberg deposition timescale is then:
-```math
-\begin{equation}
-  \tau_{dep} = \frac{1}{4 \pi \, D_v \, N_{icl} \, r_{safe}}
-\end{equation}
-```
-where ``D_v`` is the water vapor diffusivity and ``r_{safe} = \max(r, r_0)``.
-
-### Asymmetric deposition and sublimation timescales
-
-The ice tendency uses **different timescales** for deposition and sublimation:
+This option however uses **different timescales** for deposition and sublimation:
 
 ```math
 \begin{equation}

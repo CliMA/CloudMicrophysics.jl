@@ -830,6 +830,52 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test FT(5e-5) + r2.dq_icl_dt * Δt >= FT(0)
     end
 
+    @testset "LinearizedAverage - TemperatureDependentIceNumber: slow deposition in mixed-phase conditions" begin
+        # With N_ice(T) ~ 8e2 m⁻³ at -10 °C the deposition timescale is hours, so a
+        # liquid-saturated supercooled cloud loses only a small fraction of its liquid per
+        # step; with the constant N_0 = 5e8 m⁻³ the vapor excess over ice saturation is
+        # deposited within the step and the liquid evaporates toward it (WBF glaciation).
+        # The net cloud-ice tendency is not tested: with deposition this slow, the ice sinks
+        # (autoconversion to snow) dominate it.
+        opt = CMP.TemperatureDependentIceNumber()
+        mp_fit = CMP.Microphysics1MParams(FT; cloud_ice_formation = opt)
+        mp_presc = CMP.Microphysics1MParams(FT; cloud_ice_formation = CMP.PrescribedIceNumber())
+        @test mp_fit.process_params.cloud_ice_formation isa CMP.IceNumberTemperatureFit
+        Δt = FT(180)
+        ρ = FT(0.8)
+        T = FT(263)
+        q_lcl = FT(2e-4)
+        q_icl = FT(1e-5)
+        q_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q_tot = q_sat_liq + q_lcl + q_icl   # liquid-saturated, hence supersaturated over ice
+        micro = (; q_tot, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0))
+        thermo = (; ρ, T)
+        τ = CMNonEq.τ_vap_to_q_icl(opt, mp_fit, tps, micro, thermo)
+        @test FT(3600) < τ < FT(48 * 3600)
+        # instantaneous deposition rates
+        S_dep = CMNonEq.conv_q_vap_to_q_icl(opt, mp_fit, tps, micro, thermo)
+        S_dep_presc = CMNonEq.conv_q_vap_to_q_icl(CMP.PrescribedIceNumber(), mp_presc, tps, micro, thermo)
+        @test S_dep > FT(0)
+        @test S_dep * Δt < FT(0.05) * q_lcl      # a few percent of the liquid mass per step at most
+        @test S_dep_presc > FT(100) * S_dep      # the constant N_0 deposits orders of magnitude faster
+        # coupled substep solver: finite tendencies, liquid survives the step
+        r = BMT.bulk_microphysics_tendencies(
+            BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
+            mp_fit, tps, ρ, T, q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 3,
+        )
+        @test all(isfinite, (r.dq_lcl_dt, r.dq_icl_dt, r.dq_rai_dt, r.dq_sno_dt))
+        q_lcl_new = q_lcl + r.dq_lcl_dt * Δt
+        @test q_lcl_new > FT(0.9) * q_lcl
+        # the same state with the default N_0 = 5e8 m⁻³ loses much more liquid in one step
+        r_presc = BMT.bulk_microphysics_tendencies(
+            BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
+            mp_presc, tps, ρ, T, q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 3,
+        )
+        q_lcl_new_presc = q_lcl + r_presc.dq_lcl_dt * Δt
+        @test q_lcl_new_presc < q_lcl_new
+        @test q_lcl - q_lcl_new_presc > FT(10) * max(q_lcl - q_lcl_new, FT(0))
+    end
+
     @testset "LinearizedAverage - stiff vapor↔ice relaxation (PrescribedIceNumber) does not cross saturation" begin
         # With the default N_0 = 5e8 m⁻³ the deposition/sublimation timescale is 1-7 s,
         # far below a 60 s substep. Using the time-averaged relaxation over the substep must

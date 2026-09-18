@@ -5,6 +5,7 @@ export Microphysics1MOptions,
     ConstantTimescale,
     PrescribedIceNumber,
     TemperatureDependent,
+    TemperatureDependentIceNumber,
     CloudIceMelt,
     RainAutoconversion,
     Kessler1M,
@@ -46,7 +47,7 @@ abstract type MicrophysicsOption end
 
 Abstract type for cloud ice formation (deposition/sublimation) methods.
 See subtypes: [`ConstantTimescale`](@ref), [`PrescribedIceNumber`](@ref),
-[`TemperatureDependent`](@ref).
+[`TemperatureDependent`](@ref), [`TemperatureDependentIceNumber`](@ref).
 """
 abstract type CloudIceFormation <: MicrophysicsOption end
 
@@ -119,6 +120,19 @@ are stored in `process_params.cloud_ice_formation` in
 [`Microphysics1MParams`](@ref).
 """
 struct TemperatureDependent <: CloudIceFormation end
+
+"""
+    TemperatureDependentIceNumber <: CloudIceFormation
+
+Ice deposition/sublimation timescale derived, as for [`PrescribedIceNumber`](@ref),
+from a cloud-ice number concentration and the resulting mean crystal radius, but
+with the number concentration a prescribed function of temperature,
+`N_ice(T) = min(N_ref exp(a + b max(T_freeze - T, 0)), N_max)`, instead of the constant
+sedimentation number `N_0`. Both deposition and sublimation use the same
+timescale. Parameters ([`IceNumberTemperatureFit`](@ref)) are stored in
+`process_params.cloud_ice_formation` in [`Microphysics1MParams`](@ref).
+"""
+struct TemperatureDependentIceNumber <: CloudIceFormation end
 
 # ═══════════════════════════════════════════════════════════════════
 # Rain autoconversion variants
@@ -359,6 +373,9 @@ function process_params_for(::TemperatureDependent, td::CP.ParamDict)
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return (; τ_relax = p.τ_relax, frostenberg = Frostenberg2023(td))
 end
+
+process_params_for(::TemperatureDependentIceNumber, td::CP.ParamDict) =
+    IceNumberTemperatureFit(td)
 
 function process_params_for(::Homogeneous, td::CP.ParamDict)
     name_map = (;
