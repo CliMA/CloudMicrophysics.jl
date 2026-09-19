@@ -57,6 +57,15 @@ function test_gamma_inc(FT)
                 check_derivative(p -> UT.gamma_inc_inv(a, p, FT(1) - p), p;
                     rtol = FT(1e-3), atol = FT(1e-4))
             end
+            # The x-derivative's own limit as `x -> Inf` is zero (the exponential
+            # decay dominates any polynomial term). `segment_boundaries`
+            # (P3_size_distribution.jl) always includes an unbounded final
+            # segment, so differentiating any P3 quantity through it reaches
+            # this point.
+            for a in avals
+                d = FD.derivative(x -> UT.gamma_inc(a, x)[1], FT(Inf))
+                TT.@test d == 0
+            end
         end
 
         TT.@testset "shape-parameter (`a`) derivative is rejected" begin
