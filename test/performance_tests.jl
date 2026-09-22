@@ -128,6 +128,16 @@ function benchmark_test(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
         rain_autoconversion = CMP.PrescribedNd(),
     )
+    # Kessler1M with different quiescent and convective regime values (velocity dependent)
+    mp_1m_vd = CMP.Microphysics1MParams(
+        CP.create_toml_dict(FT;
+            override_file = Dict(
+                "rain_autoconversion_timescale_stratiform" => Dict("value" => 14400.0, "type" => "float"),
+                "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform" =>
+                    Dict("value" => 1e-3, "type" => "float"),
+            ),
+        ),
+    )
     E_lcl_rai = mp_1m.process_params.cloud_liquid_rain_accretion.e
 
     ρ_air = FT(1.2)
@@ -249,7 +259,7 @@ function benchmark_test(FT)
 
     @info "1-Moment Scheme"
     micro_1m = (; q_tot, q_lcl = q_liq, q_icl = q_ice, q_rai, q_sno)
-    thermo_1m = (; ρ = ρ_air, T = T_air)
+    thermo_1m = (; ρ = ρ_air, T = T_air, w = FT(0))
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
         (mp_1m.processes.rain_autoconversion, mp_1m, tps, micro_1m, thermo_1m),
@@ -259,6 +269,22 @@ function benchmark_test(FT)
         FT, CM1.conv_q_lcl_to_q_rai,
         (mp_1m_2M.processes.rain_autoconversion, mp_1m_2M, tps, micro_1m, thermo_1m),
         500,
+    )
+    thermo_1m_w = (; ρ = ρ_air, T = T_air, w = FT(3))
+    bench_press(
+        FT, CM1.conv_q_lcl_to_q_rai,
+        (mp_1m_vd.processes.rain_autoconversion, mp_1m_vd, tps, micro_1m, thermo_1m_w),
+        500,
+    )
+    bench_press(
+        FT, CM1.rain_autoconversion_timescale,
+        (mp_1m_vd.processes.rain_autoconversion, mp_1m_vd, FT(3)),
+        50,
+    )
+    bench_press(
+        FT, CM1.rain_autoconversion_threshold,
+        (mp_1m_vd.processes.rain_autoconversion, mp_1m_vd, FT(3)),
+        50,
     )
     bench_press(FT, CM1.accretion, (liquid, rain, blk1mvel.rain, E_lcl_rai, q_liq, q_rai, ρ_air), 650)
     bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_liquid_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 650)
@@ -284,19 +310,19 @@ function benchmark_test(FT)
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
-        (BMT.Instantaneous(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno),
+        (BMT.Instantaneous(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, q_liq, q_ice, q_rai, q_sno),
         5500,
     )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
-        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt),
+        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, q_liq, q_ice, q_rai, q_sno, Δt),
         5500,
     )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
-        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, q_tot, q_liq, q_ice, q_rai, q_sno, Δt, 3),
+        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, q_liq, q_ice, q_rai, q_sno, Δt, 3),
         18000,
     )
 

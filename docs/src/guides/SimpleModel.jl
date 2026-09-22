@@ -26,7 +26,10 @@ function rain_formation(dY, Y, p, t)
     qᵣ = Y[2] # Rain water specific content
 
     E = mp.process_params.cloud_liquid_rain_accretion.e  # Collision efficiency
-    (; τ, q_threshold, k) = mp.process_params.rain_autoconversion
+    acnv_opt = mp.processes.rain_autoconversion # Kessler autoconversion option
+    q_threshold = CM1.rain_autoconversion_threshold(acnv_opt, mp, FT(0)) # Threshold for quiescent air (w = 0)
+    τ = CM1.rain_autoconversion_timescale(acnv_opt, mp, FT(0)) # Timescale for quiescent air (w = 0)
+    k = mp.process_params.rain_autoconversion.k # Threshold smoothing steepness
     acnv = CO.logistic_function_integral(qₗ, q_threshold, k) / τ # Rain autoconversion rate
     accr = CM1.accretion(liquid, rain, v_term.rain, E, qₗ, qᵣ, ρₐ) # Rain accretion rate
 

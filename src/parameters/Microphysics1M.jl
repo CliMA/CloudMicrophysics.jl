@@ -1,4 +1,4 @@
-export CloudLiquid, CloudIce, Rain, Snow, VarTimescaleAcnv
+export CloudLiquid, CloudIce, Rain, Snow, VarTimescaleAcnv, KesslerAcnv
 
 """
     ParticlePDFSnow{FT}
@@ -110,7 +110,8 @@ end
 """
     Acnv1M{FT}
 
-A struct with autoconversion parameters
+A struct with threshold autoconversion parameters (used for the snow autoconversion of
+cloud ice, `NoSupersaturation`). Rain autoconversion (`Kessler1M`) uses [`KesslerAcnv`](@ref).
 
 # Fields
 $(DocStringExtensions.FIELDS)
@@ -420,4 +421,53 @@ function VarTimescaleAcnv(td::CP.ParamDict)
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return VarTimescaleAcnv(; parameters...)
+end
+
+"""
+    KesslerAcnv{FT}
+
+Parameters of the 1-moment Kessler rain autoconversion.
+Active when `Kessler1M` is selected in in `Microphysics1MOptions`.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct KesslerAcnv{FT} <: ParametersType
+    "Autoconversion timescale for quiescent (stratiform) conditions [s]"
+    τ_slow::FT
+    "Autoconversion timescale for strong vertical motions (convective) [s]"
+    τ_fast::FT
+    "Autoconversion threshold for quiescent (stratiform) conditions [kg/kg]"
+    q_threshold_slow::FT
+    "Autoconversion threshold for strong vertical motions (convective) [kg/kg]"
+    q_threshold_fast::FT
+    "Velocity scale of the blending [m/s]"
+    w_0::FT
+    "Threshold smooth transition steepness [-]"
+    k::FT
+end
+
+function KesslerAcnv(td::CP.ParamDict)
+    # The convective ("fast") values use the original Kessler keys; the quiescent ("slow") values
+    # have their own `_stratiform` keys (ClimaParams >= 1.1.12), equal to the fast ones by default.
+    name_map = (;
+        :rain_autoconversion_timescale_stratiform => :τ_slow,
+        :rain_autoconversion_timescale => :τ_fast,
+        :cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform => :q_threshold_slow,
+        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold_fast,
+        :rain_autoconversion_velocity_scale => :w_0,
+        :threshold_smooth_transition_steepness => :k,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    parameters.w_0 > 0 ||
+        throw(ArgumentError("rain_autoconversion_velocity_scale (w_0) must be positive, got $(parameters.w_0)"))
+    (parameters.τ_slow > 0 && parameters.τ_fast > 0) ||
+        throw(
+            ArgumentError(
+                "rain autoconversion timescales must be positive, got τ_slow = $(parameters.τ_slow), τ_fast = $(parameters.τ_fast)",
+            ),
+        )
+    (parameters.q_threshold_slow >= 0 && parameters.q_threshold_fast >= 0) ||
+        throw(ArgumentError("rain autoconversion thresholds must be non-negative"))
+    return KesslerAcnv(; parameters...)
 end

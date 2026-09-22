@@ -143,14 +143,22 @@ end
 @kernel inbounds = true function test_1_moment_micro_acnv_kernel!(mp, tps, output, ql)
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ql[i]), q_lcl = ql[i], q_icl = zero(ql[i]), q_rai = zero(ql[i]), q_sno = zero(ql[i]))
-    thermo = (; ρ = zero(ql[i]), T = zero(ql[i]))
+    thermo = (; ρ = zero(ql[i]), T = zero(ql[i]), w = zero(ql[i]))
     output[i] = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro, thermo)
 end
 
 @kernel inbounds = true function test_1_moment_micro_acnv2M_kernel!(mp, tps, output, ql)
     i = @index(Global, Linear)
     micro = (; q_tot = zero(ql[i]), q_lcl = ql[i], q_icl = zero(ql[i]), q_rai = zero(ql[i]), q_sno = zero(ql[i]))
-    thermo = (; ρ = zero(ql[i]), T = zero(ql[i]))
+    thermo = (; ρ = zero(ql[i]), T = zero(ql[i]), w = zero(ql[i]))
+    output[i] = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro, thermo)
+end
+
+@kernel inbounds = true function test_1_moment_veldep_acnv_kernel!(mp, tps, output, ql, w)
+    i = @index(Global, Linear)
+    FT = eltype(ql)
+    micro = (; q_tot = zero(FT), q_lcl = ql[i], q_icl = zero(FT), q_rai = zero(FT), q_sno = zero(FT))
+    thermo = (; ρ = FT(1), T = FT(280), w = w[i])
     output[i] = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro, thermo)
 end
 
@@ -382,22 +390,22 @@ end
 end
 
 @kernel inbounds = true function test_bulk_tendencies_1m_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    mp, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
     i = @index(Global, Linear)
     CM1M = BMT.Microphysics1Moment()
     output[i] = BMT.bulk_microphysics_tendencies(
-        BMT.Instantaneous(), CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        BMT.Instantaneous(), CM1M, mp, tps, ρ[i], T[i], w[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
     )
 end
 
 @kernel inbounds = true function test_average_bulk_tendencies_1m_kernel!(
-    mp, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+    mp, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
 )
     i = @index(Global, Linear)
     CM1M = BMT.Microphysics1Moment()
     output[i] = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
-        CM1M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        CM1M, mp, tps, ρ[i], T[i], w[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
         Δt[i],
     )
 end
@@ -540,6 +548,16 @@ function test_gpu(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
         rain_autoconversion = CMP.PrescribedNd(),
     )
+    # Kessler1M with different quiescent and convective regime values (velocity dependent)
+    mp_1m_vd = CMP.Microphysics1MParams(
+        CP.create_toml_dict(FT;
+            override_file = Dict(
+                "rain_autoconversion_timescale_stratiform" => Dict("value" => 14400.0, "type" => "float"),
+                "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform" =>
+                    Dict("value" => 1e-3, "type" => "float"),
+            ),
+        ),
+    )
     mp_2m_warm = CMP.Microphysics2MParams(FT; with_ice = false)
     mp_2m_p3 = CMP.Microphysics2MParams(FT; with_ice = true)
 
@@ -619,8 +637,11 @@ function test_gpu(FT)
         qᵣ = ArrayType([FT(0.002)])
         qₛ = ArrayType([FT(0.001)])
 
+        # The Chen 2022 small-ice velocity depends on the prescribed ice number; the reference value below
+        # was computed with N_0 = 5e8 m⁻³, so pin it rather than rely on the ClimaParams default.
+        icl_dense = CMP.CloudIce(; icl.pdf, icl.mass, icl.ρᵢ, icl.r_eff, N_0 = FT(5e8))
         kernel! = test_chen2022_terminal_velocity_kernel!(backend, work_groups)
-        kernel!(lcl, icl, rain, snow, Ch2022, STVel, output, ρ, qₗ, qᵢ, qᵣ, qₛ; ndrange)
+        kernel!(lcl, icl_dense, rain, snow, Ch2022, STVel, output, ρ, qₗ, qᵢ, qᵣ, qₛ; ndrange)
         v_term = Array(output)[1]
 
         # test that terminal velocity is callable and returns a reasonable value
@@ -675,7 +696,7 @@ function test_gpu(FT)
 
         # Sanity checks for the GPU KernelAbstractions workflow
         # See https://github.com/CliMA/SurfaceFluxes.jl/issues/142
-        TT.@test !any(isequal(out, FT(bad_value)))
+        TT.@test !any(isequal(FT(bad_value)), out)
         # Both inputs are above threshold so both should give positive autoconversion
         TT.@test all(x -> x > 0, out)
 
@@ -689,12 +710,31 @@ function test_gpu(FT)
         out = Array(output)
 
         # Sanity checks
-        TT.@test !any(isequal(out, FT(bad_value)))
+        TT.@test !any(isequal(FT(bad_value)), out)
         # q_lcl = 2e-3 → positive rate; q_lcl = 0 → zero rate
         TT.@test out[1] > FT(0)
         TT.@test out[2] == FT(0)
         # Regression: q_lcl = 2e-3 with default autoconv_2M.Nc ≈ 1e8 → ≈ 2e-6
         TT.@test out[1] ≈ FT(2e-6) rtol = 1e-3
+
+        # Kessler1M autoconversion with velocity-dependent regime values
+        bad_value = -99999.99
+        (; output, ndrange) = setup_output(3, FT, bad_value)
+        ql = ArrayType([FT(1e-3), FT(1e-3), FT(0)])
+        w_arr = ArrayType([FT(0), FT(5), FT(3)])
+
+        kernel! = test_1_moment_veldep_acnv_kernel!(backend, work_groups)
+        kernel!(mp_1m_vd, tps, output, ql, w_arr; ndrange)
+        out = Array(output)
+
+        # Sanity checks
+        TT.@test !any(isequal(FT(bad_value)), out)
+        # q_lcl = 1e-3, w = 0 → positive rate (slow timescale)
+        TT.@test out[1] > FT(0)
+        # q_lcl = 1e-3, w = 5 → faster rate than w = 0
+        TT.@test out[2] > out[1]
+        # q_lcl = 0 → zero rate regardless of w
+        TT.@test out[3] == FT(0)
 
         DT = @NamedTuple{
             liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT,
@@ -1194,8 +1234,9 @@ function test_gpu(FT)
         q_sno = constant_data(FT(0.1e-3); ndrange)
 
         kernel! = test_bulk_tendencies_1m_kernel!(backend, work_groups)
+        w = constant_data(FT(0); ndrange)
         TT.@testset "1M" begin
-            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
+            kernel!(mp_1m, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
@@ -1206,7 +1247,18 @@ function test_gpu(FT)
         Δt = constant_data(FT(1.0); ndrange)
         kernel! = test_average_bulk_tendencies_1m_kernel!(backend, work_groups)
         TT.@testset "1M average" begin
-            kernel!(mp_1m, tps, output, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
+            kernel!(mp_1m, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
+            TT.@test allequal(Array(output))
+            tendencies = Array(output)[1]
+            TT.@test all(isfinite, tendencies)
+        end
+
+        # 1M Kessler1M with velocity-dependent regime values and nonzero w
+        (; output) = setup_output(ndrange, DT)
+        w_vd = constant_data(FT(3.0); ndrange)
+        kernel_vd! = test_bulk_tendencies_1m_kernel!(backend, work_groups)
+        TT.@testset "1M velocity-dependent Kessler" begin
+            kernel_vd!(mp_1m_vd, tps, output, ρ, T, w_vd, q_tot, q_lcl, q_icl, q_rai, q_sno; ndrange)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)

@@ -226,7 +226,7 @@ function test_ad_compatibility_1M(FT)
         ("cloud ice melt", q -> CM1.conv_q_icl_to_q_lcl(CMP.CloudIceMelt(), mp, tps, state(q), (; ρ = ρ0, T = T_warm))),
         (
             "rain autoconversion",
-            q -> CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mp, tps, state(q), (; ρ = ρ0, T = T_cold)),
+            q -> CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mp, tps, state(q), (; ρ = ρ0, T = T_cold, w = zero(ρ0))),
         ),
         (
             "snow autoconversion",
@@ -309,7 +309,7 @@ function test_ad_compatibility_1M(FT)
                     typeof(mp),
                     typeof(tps),
                     NamedTuple{(:q_tot, :q_lcl, :q_icl, :q_rai, :q_sno), NTuple{5, DT}},
-                    NamedTuple{(:ρ, :T), NTuple{2, FT}},
+                    NamedTuple{(:ρ, :T, :w), NTuple{3, FT}},
                 },
             )
             @test length(rts) == 1 && isconcretetype(rts[1])

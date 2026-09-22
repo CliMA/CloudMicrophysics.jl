@@ -208,26 +208,59 @@ function test_microphysics1M(FT)
         TT.@test subl_rate < 0
     end
 
-    TT.@testset "RainAutoconversion" begin
+    # `Kessler1M` parameters with explicit quiescent ("slow") and convective ("fast") regime
+    # values, so that the tests below do not depend on the ClimaParams defaults
+    # (equal slow and fast values = classic velocity-independent Kessler scheme).
+    kessler_toml(FT; τ_slow, τ_fast, q_slow, q_fast) = CP.create_toml_dict(FT;
+        override_file = Dict(
+            "rain_autoconversion_timescale_stratiform" => Dict("value" => τ_slow, "type" => "float"),
+            "rain_autoconversion_timescale" => Dict("value" => τ_fast, "type" => "float"),
+            "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform" =>
+                Dict("value" => q_slow, "type" => "float"),
+            "cloud_liquid_water_specific_humidity_autoconversion_threshold" =>
+                Dict("value" => q_fast, "type" => "float"),
+        ),
+    )
+    classic_toml(FT) = kessler_toml(FT; τ_slow = 1000.0, τ_fast = 1000.0, q_slow = 5e-4, q_fast = 5e-4)
+    regime_toml(FT) = kessler_toml(FT; τ_slow = 14400.0, τ_fast = 1000.0, q_slow = 1e-3, q_fast = 5e-4)
 
-        q_lcl_threshold = mp.process_params.rain_autoconversion.q_threshold
-        τ_acnv_rai = mp.process_params.rain_autoconversion.τ
+    TT.@testset "RainAutoconversion" begin
+        opt = mp.processes.rain_autoconversion
+        TT.@test opt isa CMP.Kessler1M
+        # quiescent-air (w = 0) threshold and timescale of the default parameters
+        q_lcl_threshold = CM1.rain_autoconversion_threshold(opt, mp, FT(0))
+        τ_acnv_rai = CM1.rain_autoconversion_timescale(opt, mp, FT(0))
+        TT.@test q_lcl_threshold == mp.process_params.rain_autoconversion.q_threshold_slow
+        TT.@test τ_acnv_rai == mp.process_params.rain_autoconversion.τ_slow
 
         micro_s = (; q_tot = FT(0), q_lcl = FT(0.5) * q_lcl_threshold,
             q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
         micro_b = (; q_tot = FT(0), q_lcl = FT(1.5) * q_lcl_threshold,
             q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
-        thermo = (; ρ = FT(1), T = FT(280))
+        thermo = (; ρ = FT(1), T = FT(280), w = FT(0))
 
         # Below threshold → near zero (smooth logistic)
-        TT.@test CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro_s, thermo) ≈
+        TT.@test CM1.conv_q_lcl_to_q_rai(opt, mp, tps, micro_s, thermo) ≈
                  FT(0.0) atol = 0.15 * q_lcl_threshold / τ_acnv_rai
 
         # Above threshold → ≈ 0.5 * q_threshold / τ (smooth logistic)
-        TT.@test CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro_b, thermo) ≈
+        TT.@test CM1.conv_q_lcl_to_q_rai(opt, mp, tps, micro_b, thermo) ≈
                  FT(0.5) * q_lcl_threshold / τ_acnv_rai atol =
             FT(0.15) * q_lcl_threshold / τ_acnv_rai
 
+        # classic Kessler: equal slow and fast values → independent of w
+        mp_c = CMP.Microphysics1MParams(classic_toml(FT))
+        (; τ_slow, τ_fast, q_threshold_slow, q_threshold_fast, k) = mp_c.process_params.rain_autoconversion
+        TT.@test τ_slow == τ_fast == FT(1000)
+        TT.@test q_threshold_slow == q_threshold_fast == FT(5e-4)
+        q_lcl = FT(1.5e-3)
+        micro = (; q_tot = FT(0), q_lcl, q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        ref = CMC.logistic_function_integral(q_lcl, q_threshold_fast, k) / τ_fast
+        for w in (FT(0), FT(0.5), FT(-2), FT(10))
+            TT.@test CM1.conv_q_lcl_to_q_rai(opt, mp_c, tps, micro, (; ρ = FT(1), T = FT(280), w)) == ref
+            TT.@test CM1.rain_autoconversion_timescale(opt, mp_c, w) == τ_fast
+            TT.@test CM1.rain_autoconversion_threshold(opt, mp_c, w) == q_threshold_fast
+        end
     end
 
     TT.@testset "RainAutoconversion2M" begin
@@ -235,7 +268,7 @@ function test_microphysics1M(FT)
         mp_2m = CMP.Microphysics1MParams(FT;
             rain_autoconversion = CMP.PrescribedNd(),
         )
-        thermo = (; ρ = FT(1), T = FT(280))
+        thermo = (; ρ = FT(1), T = FT(280), w = FT(0))
 
         # Zero cloud liquid → zero rate
         micro_0 = (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
@@ -276,11 +309,16 @@ function test_microphysics1M(FT)
         mpS = CMP.Microphysics1MParams(FT; snow_autoconversion = CMP.WithSupersaturation())
         mpNd = CMP.Microphysics1MParams(FT; rain_autoconversion = CMP.PrescribedNd())
         micro = (; q_tot = FT(1e-2), q_lcl = FT(1e-3), q_icl = FT(1e-3), q_rai = FT(0), q_sno = FT(0))
-        thermo = (; ρ = FT(1.2), T = FT(260))
+        thermo = (; ρ = FT(1.2), T = FT(260), w = FT(0))
         TT.@test_throws ArgumentError CM1.conv_q_icl_to_q_sno(CMP.WithSupersaturation(), mp, tps, micro, thermo)
         TT.@test_throws ArgumentError CM1.conv_q_icl_to_q_sno(CMP.NoSupersaturation(), mpS, tps, micro, thermo)
         TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_rai(CMP.PrescribedNd(), mp, tps, micro, thermo)
         TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mpNd, tps, micro, thermo)
+        # the diagnostic helpers check the option/parameter pairing too
+        TT.@test_throws ArgumentError CM1.rain_autoconversion_timescale(CMP.Kessler1M(), mpNd, FT(0))
+        TT.@test_throws ArgumentError CM1.rain_autoconversion_timescale(CMP.PrescribedNd(), mp, FT(0))
+        TT.@test_throws ArgumentError CM1.rain_autoconversion_threshold(CMP.Kessler1M(), mpNd, FT(0))
+        TT.@test_throws ArgumentError CM1.rain_autoconversion_threshold(CMP.PrescribedNd(), mp, FT(0))
         # matched combinations still work
         TT.@test CM1.conv_q_icl_to_q_sno(CMP.WithSupersaturation(), mpS, tps, micro, thermo) isa FT
         TT.@test CM1.conv_q_lcl_to_q_rai(CMP.PrescribedNd(), mpNd, tps, micro, thermo) isa FT
@@ -302,6 +340,115 @@ function test_microphysics1M(FT)
         TT.@test CM1.conv_q_sno_to_q_vap(CMP.DepositionAndSublimation(), mp, tps, dry, warm) < 0
     end
 
+    TT.@testset "RainAutoconversionVelocityDependence" begin
+        # Kessler1M with different quiescent and convective regime values
+        mp_vd = CMP.Microphysics1MParams(regime_toml(FT))
+        opt = mp_vd.processes.rain_autoconversion
+        TT.@test opt isa CMP.Kessler1M
+        TT.@test mp_vd.process_params.rain_autoconversion isa CMP.KesslerAcnv{FT}
+        (; τ_slow, τ_fast, q_threshold_slow, q_threshold_fast, w_0, k) = mp_vd.process_params.rain_autoconversion
+        TT.@test τ_slow > τ_fast > FT(0)
+        TT.@test q_threshold_slow > q_threshold_fast > FT(0)
+        th(w) = (; ρ = FT(1), T = FT(280), w = FT(w))
+        mic(q) = (; q_tot = FT(0), q_lcl = FT(q), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
+        rate(q, w) = CM1.conv_q_lcl_to_q_rai(opt, mp_vd, tps, mic(q), th(w))
+
+        # zero cloud liquid → zero rate for any w
+        TT.@test rate(0, 0) == FT(0)
+        TT.@test rate(0, 5) == FT(0)
+        # w = 0: quiescent timescale and threshold
+        q_lcl = FT(1.5e-3)
+        TT.@test rate(q_lcl, 0) ≈ CMC.logistic_function_integral(q_lcl, q_threshold_slow, k) / τ_slow rtol = FT(1e-10)
+        # |w| ≫ w_0: convective timescale and threshold
+        TT.@test rate(q_lcl, 20) ≈ CMC.logistic_function_integral(q_lcl, q_threshold_fast, k) / τ_fast rtol = FT(1e-3)
+        # even in w and increasing with |w| (shorter timescale and lower threshold)
+        TT.@test rate(q_lcl, -3) ≈ rate(q_lcl, 3)
+        TT.@test rate(q_lcl, 0) < rate(q_lcl, 1) < rate(q_lcl, 3) < rate(q_lcl, 5)
+        # half-way blend at |w| = w_0
+        TT.@test CM1.rain_autoconversion_timescale(opt, mp_vd, w_0) ≈ (τ_slow + τ_fast) / 2 rtol = FT(1e-6)
+        TT.@test CM1.rain_autoconversion_threshold(opt, mp_vd, w_0) ≈ (q_threshold_slow + q_threshold_fast) / 2 rtol =
+            FT(1e-6)
+
+        # switching one dependence off by equal regime values
+        mp_thr_only = CMP.Microphysics1MParams(
+            kessler_toml(FT; τ_slow = Float64(τ_fast), τ_fast = Float64(τ_fast),
+                q_slow = Float64(q_threshold_slow), q_fast = Float64(q_threshold_fast)),
+        )
+        TT.@test CM1.rain_autoconversion_timescale(opt, mp_thr_only, FT(0)) ==
+                 CM1.rain_autoconversion_timescale(opt, mp_thr_only, FT(5)) == τ_fast
+        TT.@test CM1.rain_autoconversion_threshold(opt, mp_thr_only, FT(5)) <
+                 CM1.rain_autoconversion_threshold(opt, mp_thr_only, FT(0))
+        mp_τ_only = CMP.Microphysics1MParams(
+            kessler_toml(FT; τ_slow = Float64(τ_slow), τ_fast = Float64(τ_fast),
+                q_slow = Float64(q_threshold_fast), q_fast = Float64(q_threshold_fast)),
+        )
+        TT.@test CM1.rain_autoconversion_threshold(opt, mp_τ_only, FT(0)) ==
+                 CM1.rain_autoconversion_threshold(opt, mp_τ_only, FT(5)) == q_threshold_fast
+        TT.@test CM1.rain_autoconversion_timescale(opt, mp_τ_only, FT(5)) <
+                 CM1.rain_autoconversion_timescale(opt, mp_τ_only, FT(0))
+
+        # a non-positive velocity scale is rejected (f(w) would be NaN at w = 0)
+        td_bad = CP.create_toml_dict(FT;
+            override_file = Dict("rain_autoconversion_velocity_scale" => Dict("value" => 0.0, "type" => "float")),
+        )
+        TT.@test_throws ArgumentError CMP.Microphysics1MParams(td_bad)
+        TT.@test_throws ArgumentError CMP.Microphysics1MParams(td_bad; rain_autoconversion = CMP.Kessler1M())
+        # ... but not when the option does not use it
+        TT.@test CMP.Microphysics1MParams(td_bad; rain_autoconversion = CMP.PrescribedNd()) isa
+                 CMP.Microphysics1MParams
+        TT.@test CMP.Microphysics1MParams(td_bad; rain_autoconversion = nothing) isa CMP.Microphysics1MParams
+    end
+    TT.@testset "rain_autoconversion_timescale" begin
+        # Kessler1M with equal regime values: constant τ, independent of w
+        mp_c = CMP.Microphysics1MParams(classic_toml(FT))
+        τ_kessler = CM1.rain_autoconversion_timescale(mp_c.processes.rain_autoconversion, mp_c, FT(0))
+        TT.@test τ_kessler == mp_c.process_params.rain_autoconversion.τ_fast
+        TT.@test CM1.rain_autoconversion_timescale(mp_c.processes.rain_autoconversion, mp_c, FT(5)) == τ_kessler
+        # PrescribedNd: τ * (Nc / 1e8)^α
+        mp_nd = CMP.Microphysics1MParams(FT; rain_autoconversion = CMP.PrescribedNd())
+        (; τ, α, Nc) = mp_nd.process_params.rain_autoconversion
+        TT.@test CM1.rain_autoconversion_timescale(mp_nd.processes.rain_autoconversion, mp_nd, FT(0)) ≈
+                 τ * (Nc / FT(1e8))^α
+        # Kessler1M with different regime values: τ_slow at rest, τ_fast for large |w|,
+        # even and monotone in |w|
+        mp_vd = CMP.Microphysics1MParams(regime_toml(FT))
+        opt = mp_vd.processes.rain_autoconversion
+        (; τ_slow, τ_fast) = mp_vd.process_params.rain_autoconversion
+        TT.@test CM1.rain_autoconversion_timescale(opt, mp_vd, FT(0)) == τ_slow
+        TT.@test CM1.rain_autoconversion_timescale(opt, mp_vd, FT(100)) ≈ τ_fast rtol = FT(1e-4)
+        TT.@test CM1.rain_autoconversion_timescale(opt, mp_vd, FT(3)) ≈
+                 CM1.rain_autoconversion_timescale(opt, mp_vd, FT(-3))
+        TT.@test τ_slow > CM1.rain_autoconversion_timescale(opt, mp_vd, FT(1)) >
+                 CM1.rain_autoconversion_timescale(opt, mp_vd, FT(3)) > τ_fast
+        # Nothing (disabled): Inf
+        mp_off = CMP.Microphysics1MParams(FT; rain_autoconversion = nothing)
+        TT.@test CM1.rain_autoconversion_timescale(mp_off.processes.rain_autoconversion, mp_off, FT(0)) == FT(Inf)
+    end
+
+    TT.@testset "rain_autoconversion_threshold" begin
+        # Kessler1M with equal regime values: constant q_threshold, independent of w
+        mp_c = CMP.Microphysics1MParams(classic_toml(FT))
+        q_thresh_kessler = CM1.rain_autoconversion_threshold(mp_c.processes.rain_autoconversion, mp_c, FT(0))
+        TT.@test q_thresh_kessler == mp_c.process_params.rain_autoconversion.q_threshold_fast
+        TT.@test CM1.rain_autoconversion_threshold(mp_c.processes.rain_autoconversion, mp_c, FT(5)) == q_thresh_kessler
+        # PrescribedNd: no threshold (rate ∝ max(0, q_lcl)) → 0
+        mp_nd = CMP.Microphysics1MParams(FT; rain_autoconversion = CMP.PrescribedNd())
+        TT.@test CM1.rain_autoconversion_threshold(mp_nd.processes.rain_autoconversion, mp_nd, FT(0)) == FT(0)
+        # Kessler1M with different regime values: q_slow at rest, q_fast for large |w|,
+        # even and monotone in |w|
+        mp_vd = CMP.Microphysics1MParams(regime_toml(FT))
+        opt = mp_vd.processes.rain_autoconversion
+        (; q_threshold_slow, q_threshold_fast) = mp_vd.process_params.rain_autoconversion
+        TT.@test CM1.rain_autoconversion_threshold(opt, mp_vd, FT(0)) == q_threshold_slow
+        TT.@test CM1.rain_autoconversion_threshold(opt, mp_vd, FT(100)) ≈ q_threshold_fast rtol = FT(1e-4)
+        TT.@test CM1.rain_autoconversion_threshold(opt, mp_vd, FT(3)) ≈
+                 CM1.rain_autoconversion_threshold(opt, mp_vd, FT(-3))
+        TT.@test q_threshold_slow > CM1.rain_autoconversion_threshold(opt, mp_vd, FT(1)) >
+                 CM1.rain_autoconversion_threshold(opt, mp_vd, FT(3)) > q_threshold_fast
+        # Nothing (disabled): Inf
+        mp_off = CMP.Microphysics1MParams(FT; rain_autoconversion = nothing)
+        TT.@test CM1.rain_autoconversion_threshold(mp_off.processes.rain_autoconversion, mp_off, FT(0)) == FT(Inf)
+    end
     TT.@testset "SnowAutoconversionNoSupersat" begin
 
         q_icl_threshold = mp.process_params.snow_autoconversion.q_threshold

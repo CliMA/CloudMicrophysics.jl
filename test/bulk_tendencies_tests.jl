@@ -4,6 +4,21 @@ import ClimaParams as CP
 
 import CloudMicrophysics as CM
 import CloudMicrophysics.Parameters as CMP
+
+"""
+    stiff_prescribed_ice_params(FT)
+
+`Microphysics1MParams` with `PrescribedIceNumber` and a dense prescribed ice number (5e8 m⁻³),
+the value the stiff vapor <-> ice relaxation tests below were written for. Pinned here so the
+tests do not depend on the ClimaParams default (1e5 m⁻³ since ClimaParams 1.1.12).
+"""
+function stiff_prescribed_ice_params(FT)
+    override = Dict(
+        "cloud_ice_sedimentation_number_concentration" => Dict("value" => 5.0e8, "type" => "float"),
+    )
+    td = CP.create_toml_dict(FT; override_file = override)
+    return CMP.Microphysics1MParams(td; cloud_ice_formation = CMP.PrescribedIceNumber())
+end
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.MicrophysicsNonEq as CMNonEq
@@ -150,7 +165,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Snow increases from ice autoconversion and accretion
@@ -172,7 +187,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Snow decreases due to melting (and sublimation)
@@ -194,7 +209,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Test that all tendencies are finite and well-defined
@@ -218,12 +233,12 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Compute autoconversion separately using the same option-dispatched function
         micro_acnv = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
-        thermo_acnv = (; ρ, T)
+        thermo_acnv = (; ρ, T, w = FT(0))
         S_acnv_lcl = CM1.conv_q_lcl_to_q_rai(mp.processes.rain_autoconversion, mp, tps, micro_acnv, thermo_acnv)
 
         # Rain tendency should be positive and include autoconversion
@@ -251,12 +266,12 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies_2m = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp_2m, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Compute autoconversion separately using the option-dispatched function
         micro_acnv = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
-        thermo_acnv = (; ρ, T)
+        thermo_acnv = (; ρ, T, w = FT(0))
         S_acnv_2m = CM1.conv_q_lcl_to_q_rai(mp_2m.processes.rain_autoconversion, mp_2m, tps, micro_acnv, thermo_acnv)
 
         # Rain tendency should be positive and dominated by autoconversion
@@ -281,7 +296,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Rain should decrease due to evaporation
@@ -301,7 +316,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         @test isfinite(tendencies.dq_lcl_dt)
@@ -323,7 +338,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Verify accretion is happening by checking snow growth
@@ -350,7 +365,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Verify accretion is happening
@@ -376,7 +391,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Rain should decrease (freezing onto snow)
@@ -398,7 +413,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Snow should decrease (melting from collision + thermal melt)
@@ -423,7 +438,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Snow should increase from deposition (conv_q_sno_to_q_vap returns positive for S > 0)
@@ -443,7 +458,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Ice tendency should be negative or zero (sublimation, not deposition)
@@ -464,7 +479,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies_cold = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ_cold, T_cold, q_tot_cold, FT(0), q_icl_cold, FT(0), q_sno_cold,
+            ρ_cold, T_cold, FT(0), q_tot_cold, FT(0), q_icl_cold, FT(0), q_sno_cold,
         )
         @test isfinite(tendencies_cold.dq_icl_dt)
         @test isfinite(tendencies_cold.dq_sno_dt)
@@ -479,7 +494,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies_warm = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ_warm, T_warm, q_tot_warm, q_lcl_warm, FT(0), q_rai_warm, FT(0),
+            ρ_warm, T_warm, FT(0), q_tot_warm, q_lcl_warm, FT(0), q_rai_warm, FT(0),
         )
         @test isfinite(tendencies_warm.dq_lcl_dt)
         @test isfinite(tendencies_warm.dq_rai_dt)
@@ -506,7 +521,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = @inferred BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
         @test tendencies isa NamedTuple{(:dq_lcl_dt, :dq_icl_dt, :dq_rai_dt, :dq_sno_dt), NTuple{4, FT}}
     end
@@ -526,7 +541,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Mass conservation: lcl + rai should sum to zero (autoconversion + accretion)
@@ -555,7 +570,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # Mass conservation: sno + rai should sum to approximately zero (pure melting)
@@ -581,7 +596,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, FT(0), FT(0), q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, FT(0), FT(0), q_sno,
         )
 
         # Calculate individual components
@@ -624,7 +639,7 @@ function test_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         # No precipitation can form without cloud condensate first
@@ -643,6 +658,20 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
     mp = CMP.Microphysics1MParams(FT)
     T_freeze = TDI.T_freeze(tps)
 
+    @testset "LinearizedAverage - stale call shape without w throws" begin
+        mp_stale = CMP.Microphysics1MParams(FT)
+        ρ = FT(1.2)
+        T = FT(280)
+        q_tot = FT(1e-3)
+        q_lcl = FT(2e-4)
+        Δt = FT(60)
+        # pre-#770 argument order (no w): Δt would receive an Integer -> must not run with shifted arguments
+        @test_throws MethodError BMT.bulk_microphysics_tendencies(
+            BMT.LinearizedAverage(), BMT.Microphysics1Moment(), mp_stale, tps,
+            ρ, T, q_tot, q_lcl, FT(0), FT(0), FT(0), Δt, 3,
+        )
+    end
+
     @testset "_linearize (via _microphysics_source_terms) - Finiteness checks" begin
         ρ = FT(1.2)
         T = T_freeze - FT(5)
@@ -657,7 +686,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         src = BMT._microphysics_source_terms(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
@@ -691,7 +720,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         src = @inferred BMT._microphysics_source_terms(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
@@ -718,7 +747,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         src = BMT._microphysics_source_terms(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
@@ -755,7 +784,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         src = BMT._microphysics_source_terms(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
@@ -793,7 +822,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # implicit sink must remove about the vapor deficit (not all the ice, as the plain
         # S/q decay does, which then overshoots to ~13 % supersaturation) while the other
         # sinks act, and the ice must stay non-negative.
-        mp_presc = CMP.Microphysics1MParams(FT; cloud_ice_formation = CMP.PrescribedIceNumber())
+        mp_presc = stiff_prescribed_ice_params(FT)
         Ls = TDI.TD.Parameters.LH_s0(tps)
         cp = TDI.TD.Parameters.cp_d(tps)
         Δt = FT(60)
@@ -805,7 +834,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         q_tot = FT(0.9) * q_sat_ice + q_icl + q_sno
         r = BMT.bulk_microphysics_tendencies(
             BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
-            mp_presc, tps, ρ, T, q_tot, FT(0), q_icl, FT(0), q_sno, Δt, 1,
+            mp_presc, tps, ρ, T, FT(0), q_tot, FT(0), q_icl, FT(0), q_sno, Δt, 1,
         )
         q_icl_new = q_icl + r.dq_icl_dt * Δt
         q_sno_new = q_sno + r.dq_sno_dt * Δt
@@ -824,7 +853,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         q_tot2 = FT(0.4) * q_sat_ice + FT(5e-5)
         r2 = BMT.bulk_microphysics_tendencies(
             BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
-            mp_presc, tps, ρ, T, q_tot2, FT(0), FT(5e-5), FT(0), FT(0), Δt, 1,
+            mp_presc, tps, ρ, T, FT(0), q_tot2, FT(0), FT(5e-5), FT(0), FT(0), Δt, 1,
         )
         @test isfinite(r2.dq_icl_dt)
         @test FT(5e-5) + r2.dq_icl_dt * Δt >= FT(0)
@@ -839,7 +868,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # (autoconversion to snow) dominate it.
         opt = CMP.TemperatureDependentIceNumber()
         mp_fit = CMP.Microphysics1MParams(FT; cloud_ice_formation = opt)
-        mp_presc = CMP.Microphysics1MParams(FT; cloud_ice_formation = CMP.PrescribedIceNumber())
+        mp_presc = stiff_prescribed_ice_params(FT)
         @test mp_fit.process_params.cloud_ice_formation isa CMP.IceNumberTemperatureFit
         Δt = FT(180)
         ρ = FT(0.8)
@@ -861,7 +890,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # coupled substep solver: finite tendencies, liquid survives the step
         r = BMT.bulk_microphysics_tendencies(
             BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
-            mp_fit, tps, ρ, T, q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 3,
+            mp_fit, tps, ρ, T, FT(0), q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 3,
         )
         @test all(isfinite, (r.dq_lcl_dt, r.dq_icl_dt, r.dq_rai_dt, r.dq_sno_dt))
         q_lcl_new = q_lcl + r.dq_lcl_dt * Δt
@@ -869,7 +898,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # the same state with the default N_0 = 5e8 m⁻³ loses much more liquid in one step
         r_presc = BMT.bulk_microphysics_tendencies(
             BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
-            mp_presc, tps, ρ, T, q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 3,
+            mp_presc, tps, ρ, T, FT(0), q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 3,
         )
         q_lcl_new_presc = q_lcl + r_presc.dq_lcl_dt * Δt
         @test q_lcl_new_presc < q_lcl_new
@@ -882,7 +911,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # bring the parcel toward ice saturation without crossing it; treating the
         # instantaneous rate as a constant source produced a period-2
         # deposition/sublimation flip-flop with ±1 K temperature swings in supercooled clouds.
-        mp_presc = CMP.Microphysics1MParams(FT; cloud_ice_formation = CMP.PrescribedIceNumber())
+        mp_presc = stiff_prescribed_ice_params(FT)
         Lv = TDI.TD.Parameters.LH_v0(tps)
         Ls = TDI.TD.Parameters.LH_s0(tps)
         cp = TDI.TD.Parameters.cp_d(tps)
@@ -900,7 +929,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             @test Δt / τ > FT(5)  # the regime under test is genuinely stiff
             r = BMT.bulk_microphysics_tendencies(
                 BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
-                mp_presc, tps, ρ, T, q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 1,
+                mp_presc, tps, ρ, T, FT(0), q_tot, q_lcl, q_icl, FT(0), FT(0), Δt, 1,
             )
             q_lcl_new = q_lcl + r.dq_lcl_dt * Δt
             q_icl_new = q_icl + r.dq_icl_dt * Δt
@@ -939,7 +968,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT._linearized_implicit_step(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
 
         @test isfinite(tendencies.dq_lcl_dt)
@@ -961,7 +990,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         tendencies = @inferred BMT._linearized_implicit_step(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
 
         @test tendencies isa NamedTuple{(:dq_lcl_dt, :dq_icl_dt, :dq_rai_dt, :dq_sno_dt), NTuple{4, FT}}
@@ -986,7 +1015,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             tendencies = BMT._linearized_implicit_step(
                 BMT.Microphysics1Moment(),
                 mp, tps,
-                ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, dts[i],
+                ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, dts[i],
             )
             rates[i] = tendencies.dq_rai_dt
         end
@@ -1011,7 +1040,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         src = BMT._microphysics_source_terms(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
@@ -1019,7 +1048,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT._linearized_implicit_step(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
 
         invΔt = one(FT) / Δt
@@ -1056,13 +1085,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         inst = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         avg = BMT._linearized_implicit_step(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, FT(1e-2),
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, FT(1e-2),
         )
 
         @test avg.dq_lcl_dt ≈ inst.dq_lcl_dt atol = FT(1e-8)
@@ -1088,13 +1117,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         inst = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         lin = BMT.bulk_microphysics_tendencies(
             BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, FT(1e-2),
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, FT(1e-2),
         )
 
         @test lin.dq_lcl_dt ≈ inst.dq_lcl_dt rtol = FT(5e-2)
@@ -1115,13 +1144,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         inst = BMT.bulk_microphysics_tendencies(
             BMT.Instantaneous(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
         lin = BMT.bulk_microphysics_tendencies(
             BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, FT(1e-2),
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, FT(1e-2),
         )
 
         @test lin.dq_lcl_dt ≈ inst.dq_lcl_dt rtol = FT(5e-2)
@@ -1144,7 +1173,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
 
         @test isfinite(tendencies.dq_lcl_dt)
@@ -1166,7 +1195,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         tendencies = @inferred BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
 
         @test tendencies isa NamedTuple{(:dq_lcl_dt, :dq_icl_dt, :dq_rai_dt, :dq_sno_dt), NTuple{4, FT}}
@@ -1185,7 +1214,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
 
         @test tendencies.dq_lcl_dt == FT(0)
@@ -1207,13 +1236,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         single = BMT._linearized_implicit_step(
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
 
         substepped = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 1,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 1,
         )
 
         @test substepped.dq_lcl_dt ≈ single.dq_lcl_dt atol = FT(100) * eps(FT)
@@ -1236,7 +1265,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
 
         @test tendencies.dq_sno_dt < FT(0)
@@ -1263,13 +1292,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         t1 = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 1,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 1,
         )
 
         t10 = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 10,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 10,
         )
 
         @test t10.dq_lcl_dt ≈ t1.dq_lcl_dt atol = FT(1e-10)
@@ -1291,7 +1320,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         tendencies = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(),
             BMT.Microphysics1Moment(),
             mp, tps,
-            ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 20,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, 20,
         )
 
         @test isfinite(tendencies.dq_lcl_dt)

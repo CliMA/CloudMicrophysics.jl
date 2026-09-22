@@ -38,6 +38,7 @@ function test_common_types_broadcasts(FT)
         CMP.ParticleArea{FT},
         CMP.Ventilation{FT},
         CMP.Acnv1M{FT},
+        CMP.KesslerAcnv{FT},
         CMP.CloudLiquid{FT},
         CMP.AcnvKK2000{FT},
         CMP.AccrKK2000{FT},

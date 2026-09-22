@@ -61,19 +61,22 @@ nothing #hide
 # The autoconversion parameters live in `process_params` inside `Microphysics1MParams`.
 qₗ = FT(1e-3)
 default_acnv_p = default_mp.process_params.rain_autoconversion
-default_acnv = CO.logistic_function_integral(qₗ, default_acnv_p.q_threshold, default_acnv_p.k) / default_acnv_p.τ
+default_acnv =
+    CO.logistic_function_integral(qₗ, default_acnv_p.q_threshold_fast, default_acnv_p.k) / default_acnv_p.τ_fast
 
 overwrite_acnv_p = overwrite_mp.process_params.rain_autoconversion
 overwrite_acnv =
-    CO.logistic_function_integral(qₗ, overwrite_acnv_p.q_threshold, overwrite_acnv_p.k) / overwrite_acnv_p.τ
+    CO.logistic_function_integral(qₗ, overwrite_acnv_p.q_threshold_fast, overwrite_acnv_p.k) /
+    overwrite_acnv_p.τ_fast
 
 overwrite2_acnv_p = overwrite2_mp.process_params.rain_autoconversion
 overwrite_acnv2 =
-    CO.logistic_function_integral(qₗ, overwrite2_acnv_p.q_threshold, overwrite2_acnv_p.k) / overwrite2_acnv_p.τ
+    CO.logistic_function_integral(qₗ, overwrite2_acnv_p.q_threshold_fast, overwrite2_acnv_p.k) /
+    overwrite2_acnv_p.τ_fast
 
-@info("Default:", default_acnv_p.τ, default_acnv)
-@info("Overwrite:", overwrite_acnv_p.τ, overwrite_acnv)
-@info("Overwrite from dict:", overwrite2_acnv_p.τ, overwrite_acnv2)
+@info("Default:", default_acnv_p.τ_fast, default_acnv)
+@info("Overwrite:", overwrite_acnv_p.τ_fast, overwrite_acnv)
+@info("Overwrite from dict:", overwrite2_acnv_p.τ_fast, overwrite_acnv2)
 
 # ## Dispatching over parameter types
 
