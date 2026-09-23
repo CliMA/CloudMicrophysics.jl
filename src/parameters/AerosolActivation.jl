@@ -35,22 +35,3 @@ $(DocStringExtensions.FIELDS)
     "power of (S_m^2 / (zeta + 3 * eta)) in Abdul-Razzak and Ghan 2000 [-]"
     p2::FT
 end
-
-function AerosolActivationParameters(td::CP.ParamDict)
-    name_map = (;
-        :molar_mass_water => :M_w,
-        :universal_gas_constant => :R,
-        :density_liquid_water => :ρ_w,
-        :density_ice_water => :ρ_i,
-        :surface_tension_water => :σ,
-        :gravitational_acceleration => :g,
-        :ARG2000_f_coeff_1 => :f1,
-        :ARG2000_f_coeff_2 => :f2,
-        :ARG2000_g_coeff_1 => :g1,
-        :ARG2000_g_coeff_2 => :g2,
-        :ARG2000_pow_1 => :p1,
-        :ARG2000_pow_2 => :p2,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return AerosolActivationParameters(; parameters...)
-end

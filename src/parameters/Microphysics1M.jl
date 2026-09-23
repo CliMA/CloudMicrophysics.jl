@@ -144,16 +144,6 @@ end
 ShowMethods.field_units(::CloudLiquid) =
     (; ρw = "kg/m³", r_eff = "m", N_0 = "1/m³")
 
-function CloudLiquid(toml_dict::CP.ParamDict)
-    name_map = (;
-        :density_liquid_water => :ρw,
-        :liquid_cloud_effective_radius => :r_eff,
-        :cloud_liquid_sedimentation_number_concentration => :N_0,
-    )
-    parameters = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
-    return CloudLiquid(; parameters...)
-end
-
 """
     CloudIce{FT, PD, MS}
 
@@ -178,13 +168,7 @@ ShowMethods.field_units(::CloudIce) =
     (; ρᵢ = "kg/m³", r_eff = "m", N_0 = "1/m³")
 
 function CloudIce(toml_dict::CP.ParamDict)
-    name_map = (;
-        :cloud_ice_apparent_density => :ρᵢ,
-        :cloud_ice_size_distribution_coefficient_n0 => :n0,
-        :ice_cloud_effective_radius => :r_eff,
-        :cloud_ice_sedimentation_number_concentration => :N_0,
-    )
-    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    p = make_params(toml_dict, name_map(CloudIce))
     mass = ParticleMass(CloudIce, toml_dict)
     pdf = ParticlePDFIceRain(p.n0)
     return CloudIce(; pdf, mass, p.ρᵢ, p.r_eff, p.N_0)
@@ -215,27 +199,8 @@ $(DocStringExtensions.FIELDS)
     T_freeze::FT
 end
 
-function IceNumberTemperatureFit(toml_dict::CP.ParamDict)
-    name_map = (;
-        :cloud_ice_number_temperature_fit_prefactor => :N_ref,
-        :cloud_ice_number_temperature_fit_intercept => :a,
-        :cloud_ice_number_temperature_fit_slope => :b,
-        :cloud_ice_number_max => :N_max,
-        :temperature_water_freeze => :T_freeze,
-    )
-    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
-    return IceNumberTemperatureFit(; p...)
-end
-
 function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
-    name_map = (;
-        :cloud_ice_apparent_density => :ρᵢ,
-        :cloud_ice_crystals_length_scale => :r0,
-        :cloud_ice_mass_size_relation_coefficient_me => :me,
-        :cloud_ice_mass_size_relation_coefficient_delm => :Δm,
-        :cloud_ice_mass_size_relation_coefficient_chim => :χm,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    p = make_params(td, name_map(ParticleMass, CloudIce))
     m0 = p.ρᵢ * p.r0^p.me * π * 4 / 3
     gamma_coeff = SF.gamma(p.me + p.Δm + 1)
     return ParticleMass(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
@@ -261,12 +226,7 @@ $(DocStringExtensions.FIELDS)
 end
 
 function Rain(toml_dict::CP.ParamDict)
-    name_map = (;
-        :rain_drop_size_distribution_coefficient_n0 => :n0,
-        :rain_ventilation_coefficient_a => :a,
-        :rain_ventilation_coefficient_b => :b,
-    )
-    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    p = make_params(toml_dict, name_map(Rain))
     return Rain(;
         mass = ParticleMass(Rain, toml_dict),
         area = ParticleArea(Rain, toml_dict),
@@ -276,27 +236,14 @@ function Rain(toml_dict::CP.ParamDict)
 end
 
 function ParticleMass(::Type{Rain}, td::CP.ParamDict)
-    name_map = (;
-        :density_liquid_water => :ρ,
-        :rain_drop_length_scale => :r0,
-        :rain_mass_size_relation_coefficient_me => :me,
-        :rain_mass_size_relation_coefficient_delm => :Δm,
-        :rain_mass_size_relation_coefficient_chim => :χm,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    p = make_params(td, name_map(ParticleMass, Rain))
     m0 = p.ρ * p.r0^p.me * π * 4 / 3
     gamma_coeff = SF.gamma(p.me + p.Δm + 1)
     return ParticleMass(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
 end
 
 function ParticleArea(::Type{Rain}, td::CP.ParamDict)
-    name_map = (;
-        :rain_drop_length_scale => :r0,
-        :rain_cross_section_size_relation_coefficient_ae => :ae,
-        :rain_cross_section_size_relation_coefficient_dela => :Δa,
-        :rain_cross_section_size_relation_coefficient_chia => :χa,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    p = make_params(td, name_map(ParticleArea, Rain))
     a0 = π * p.r0^p.ae
     return ParticleArea(; a0, p.ae, p.Δa, p.χa)
 end
@@ -331,17 +278,7 @@ $(DocStringExtensions.FIELDS)
 end
 
 function Snow(toml_dict::CP.ParamDict)
-    name_map = (;
-        :snow_apparent_density => :ρᵢ,
-        :density_ice_water => :ρᵢ_bulk,
-        :snow_flake_size_distribution_coefficient_mu => :μ,
-        :snow_flake_size_distribution_coefficient_nu => :ν,
-        :snow_ventilation_coefficient_a => :a,
-        :snow_ventilation_coefficient_b => :b,
-        :snow_aspect_ratio => :ϕ,
-        :snow_aspect_ratio_coefficient => :κ,
-    )
-    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    p = make_params(toml_dict, name_map(Snow))
 
     mass = ParticleMass(Snow, toml_dict)
     area = ParticleArea(Snow, toml_dict)
@@ -367,32 +304,18 @@ function Snow(toml_dict::CP.ParamDict)
 end
 
 function ParticleMass(::Type{Snow}, td::CP.ParamDict)
-    name_map = (;
-        :snow_flake_length_scale => :r0,
-        :snow_mass_size_relation_coefficient_me => :me,
-        :snow_mass_size_relation_coefficient_delm => :Δm,
-        :snow_mass_size_relation_coefficient_chim => :χm,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    p = make_params(td, name_map(ParticleMass, Snow))
     m0 = p.r0^p.me / 10
     gamma_coeff = SF.gamma(p.me + p.Δm + 1)
     return ParticleMass(; p.r0, m0, p.me, p.Δm, p.χm, gamma_coeff)
 end
 
 function ParticleArea(::Type{Snow}, toml_dict::CP.ParamDict)
-    name_map = (;
-        :snow_flake_length_scale => :r0,
-        :snow_cross_section_size_relation_coefficient => :ae,
-        :snow_cross_section_size_relation_coefficient_dela => :Δa,
-        :snow_cross_section_size_relation_coefficient_chia => :χa,
-    )
-    p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    p = make_params(toml_dict, name_map(ParticleArea, Snow))
     FT = CP.float_type(toml_dict)
     a0 = FT(0.3 * π * p.r0^p.ae)
     return ParticleArea(; a0, p.ae, p.Δa, p.χa)
 end
-
-
 
 """
     VarTimescaleAcnv{FT}
@@ -411,16 +334,6 @@ $(DocStringExtensions.FIELDS)
     α::FT
     "Prescribed cloud droplet number concentration [1/m³]"
     Nc::FT
-end
-
-function VarTimescaleAcnv(td::CP.ParamDict)
-    name_map = (;
-        :rain_autoconversion_timescale => :τ,
-        :Variable_time_scale_autoconversion_coeff_alpha => :α,
-        :prescribed_cloud_droplet_number_concentration => :Nc,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return VarTimescaleAcnv(; parameters...)
 end
 
 """
@@ -448,17 +361,7 @@ $(DocStringExtensions.FIELDS)
 end
 
 function KesslerAcnv(td::CP.ParamDict)
-    # The convective ("fast") values use the original Kessler keys; the quiescent ("slow") values
-    # have their own `_stratiform` keys (ClimaParams >= 1.1.12), equal to the fast ones by default.
-    name_map = (;
-        :rain_autoconversion_timescale_stratiform => :τ_slow,
-        :rain_autoconversion_timescale => :τ_fast,
-        :cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform => :q_threshold_slow,
-        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold_fast,
-        :rain_autoconversion_velocity_scale => :w_0,
-        :threshold_smooth_transition_steepness => :k,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    parameters = make_params(td, name_map(KesslerAcnv))
     parameters.w_0 > 0 ||
         throw(ArgumentError("rain_autoconversion_velocity_scale (w_0) must be positive, got $(parameters.w_0)"))
     (parameters.τ_slow > 0 && parameters.τ_fast > 0) ||

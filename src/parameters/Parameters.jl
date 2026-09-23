@@ -55,6 +55,9 @@ include("Microphysics1MParams.jl")
 include("Microphysics2MParams.jl")
 
 
+# ClimaParams name maps, generated constructors, and the summary used by the docs and tests
+include("name_maps.jl")
+
 ### Create methods that enables the creation of parameter types with a given float type
 ### for all subtypes of `ParametersType`
 ### e.g. `Microphysics1MParams(Float32)`

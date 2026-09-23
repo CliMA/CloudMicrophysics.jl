@@ -24,16 +24,3 @@ $(DocStringExtensions.FIELDS)
     "c coefficient for immersion freezing J [-]"
     ABIFM_c::FT
 end
-
-function DesertDust(td::CP.ParamDict)
-    name_map = (;
-        :Mohler2006_S0_warm_DesertDust => :S₀_warm,
-        :Mohler2006_S0_cold_DesertDust => :S₀_cold,
-        :Mohler2006_a_warm_DesertDust => :a_warm,
-        :Mohler2006_a_cold_DesertDust => :a_cold,
-        :AlpertKnopf2016_J_ABIFM_m_DesertDust => :ABIFM_m,
-        :AlpertKnopf2016_J_ABIFM_c_DesertDust => :ABIFM_c,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return DesertDust(; parameters...)
-end

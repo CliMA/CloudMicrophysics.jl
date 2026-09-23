@@ -258,10 +258,12 @@ end
     return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo)
 end
 @inline function conv_q_vap_to_q_icl(
-    ::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo)
+    opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo)
     (; q_icl) = micro
     (; ρ, T) = thermo
-    fit = mp.process_params.cloud_ice_formation
+    fit = UT.consistent_params(
+        mp.process_params.cloud_ice_formation, CMP.IceNumberTemperatureFit, opt, :cloud_ice_formation,
+    )
     τ = τ_relax(mp.cloud.ice, mp.air_properties, fit, q_icl, T, ρ)
     return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo)
 end
@@ -353,8 +355,10 @@ concentration (τ of a few seconds).
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
 @inline τ_vap_to_q_lcl(::Nothing, mp, tps::TDI.PS, micro, thermo) = typeof(thermo.T)(Inf)
-@inline τ_vap_to_q_lcl(::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo) =
-    mp.process_params.cloud_liquid_formation.τ_relax
+@inline τ_vap_to_q_lcl(opt::CMP.CloudLiquidFormation, mp, tps::TDI.PS, micro, thermo) =
+    UT.consistent_params(
+        mp.process_params.cloud_liquid_formation, (:τ_relax, :T_hom), opt, :cloud_liquid_formation,
+    ).τ_relax
 
 """
     τ_vap_to_q_icl(opt, mp, tps, micro, thermo)
@@ -375,19 +379,24 @@ for how the timescale is used.
 - `thermo`: thermodynamic state `(; ρ, T)`
 """
 @inline τ_vap_to_q_icl(::Nothing, mp, tps::TDI.PS, micro, thermo) = typeof(thermo.T)(Inf)
-@inline τ_vap_to_q_icl(::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo) =
-    mp.process_params.cloud_ice_formation.τ_relax
+@inline τ_vap_to_q_icl(opt::CMP.ConstantTimescale, mp, tps::TDI.PS, micro, thermo) =
+    UT.consistent_params(mp.process_params.cloud_ice_formation, (:τ_relax,), opt, :cloud_ice_formation).τ_relax
 @inline τ_vap_to_q_icl(::CMP.PrescribedIceNumber, mp, tps::TDI.PS, micro, thermo) =
     τ_relax(mp.cloud.ice, mp.air_properties, micro.q_icl, thermo.ρ)
-@inline τ_vap_to_q_icl(::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo) =
+@inline τ_vap_to_q_icl(opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo) =
     τ_relax(
-        mp.cloud.ice, mp.air_properties, mp.process_params.cloud_ice_formation,
+        mp.cloud.ice, mp.air_properties,
+        UT.consistent_params(
+            mp.process_params.cloud_ice_formation, CMP.IceNumberTemperatureFit, opt, :cloud_ice_formation,
+        ),
         micro.q_icl, thermo.T, thermo.ρ,
     )
-@inline function τ_vap_to_q_icl(::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
+@inline function τ_vap_to_q_icl(opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    pp = mp.process_params.cloud_ice_formation
+    pp = UT.consistent_params(
+        mp.process_params.cloud_ice_formation, (:τ_relax, :frostenberg), opt, :cloud_ice_formation,
+    )
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
     qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
     τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, pp.frostenberg, q_icl, T, ρ)

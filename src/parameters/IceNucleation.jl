@@ -17,15 +17,6 @@ $(DocStringExtensions.FIELDS)
     T_thr::FT
 end
 
-function Mohler2006(td::CP.ParamDict)
-    name_map = (;
-        :Mohler2006_maximum_allowed_Si => :Sᵢ_max,
-        :Mohler2006_threshold_T => :T_thr,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Mohler2006(; parameters...)
-end
-
 """
     Koop2000{FT}
 
@@ -54,21 +45,6 @@ $(DocStringExtensions.FIELDS)
     linear_c₂::FT
 end
 
-function Koop2000(td::CP.ParamDict)
-    name_map = (;
-        :Koop2000_min_delta_aw => :Δa_w_min,
-        :Koop2000_max_delta_aw => :Δa_w_max,
-        :Koop2000_J_hom_coeff1 => :c₁,
-        :Koop2000_J_hom_coeff2 => :c₂,
-        :Koop2000_J_hom_coeff3 => :c₃,
-        :Koop2000_J_hom_coeff4 => :c₄,
-        :Linear_J_hom_coeff1 => :linear_c₁,
-        :Linear_J_hom_coeff2 => :linear_c₂,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Koop2000(; parameters...)
-end
-
 """
     MorrisonMilbrandt2014{FT}
 
@@ -91,19 +67,6 @@ $(DocStringExtensions.FIELDS)
     het_a::FT
     "heterogeneous freezing parameter B [m⁻³ s⁻¹]"
     het_B::FT
-end
-
-function MorrisonMilbrandt2014(td::CP.ParamDict)
-    name_map = (;
-        :temperature_homogenous_nucleation => :T_dep_thres,
-        :Thompson2004_c1_Cooper => :c₁,
-        :Thompson2004_c2_Cooper => :c₂,
-        :temperature_water_freeze => :T₀,
-        :BarklieGokhale1959_a_parameter => :het_a,
-        :BarklieGokhale1959_B_parameter => :het_B,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return MorrisonMilbrandt2014(; parameters...)
 end
 
 export RainFreezing
@@ -130,15 +93,6 @@ Compute the volumetric freezing rate [m⁻³ s⁻¹]
     het_a::FT
     "water-type dependent parameter [m⁻³ s⁻¹]"
     het_B::FT
-end
-
-function RainFreezing(td::CP.ParamDict)
-    name_map = (;
-        :BarklieGokhale1959_a_parameter => :het_a,
-        :BarklieGokhale1959_B_parameter => :het_B,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return RainFreezing(; parameters...)
 end
 
 # Callable: returns the Bigg (1953) volumetric freezing rate [m⁻³(water) s⁻¹]
@@ -168,7 +122,6 @@ IceNucleationParameters(toml_dict::CP.ParamDict) =
         p3 = MorrisonMilbrandt2014(toml_dict),
     )
 
-
 """
     Frostenberg2023{FT}
 
@@ -189,17 +142,6 @@ $(DocStringExtensions.FIELDS)
     T_freeze::FT
     "log of the coefficient `a`"
     log_a::FT = log(a)
-end
-
-function Frostenberg2023(td::CP.ParamDict)
-    name_map = (;
-        :Frostenberg2023_standard_deviation => :σ,
-        :Frostenberg2023_a_coefficient => :a,
-        :Frostenberg2023_b_coefficient => :b,
-        :temperature_water_freeze => :T_freeze,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Frostenberg2023(; parameters...)
 end
 
 # ---------------------------------------------------------------------------

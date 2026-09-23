@@ -30,11 +30,7 @@ $(DocStringExtensions.FIELDS)
     β_va::FT
 end
 function MassPowerLaw(toml_dict::CP.ParamDict)
-    name_map = (;
-        :BF1995_mass_coeff_alpha => :α_va,
-        :BF1995_mass_exponent_beta => :β_va,
-    )
-    (; β_va) = p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    (; β_va) = p = make_params(toml_dict, name_map(MassPowerLaw))
     α_va = p.α_va * 10^(6 * β_va - 3)
     FT = CP.float_type(toml_dict)
     return MassPowerLaw{FT}(; α_va, β_va)
@@ -64,8 +60,7 @@ $(DocStringExtensions.FIELDS)
     σ::FT
 end
 function AreaPowerLaw(toml_dict::CP.ParamDict)
-    name_map = (; :M1996_area_coeff_gamma => :γ, :M1996_area_exponent_sigma => :σ)
-    params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
+    params = make_params(toml_dict, name_map(AreaPowerLaw))
     FT = CP.float_type(toml_dict)
     return AreaPowerLaw{FT}(; params...)
 end
@@ -111,16 +106,6 @@ $(DocStringExtensions.FIELDS)
     "Upper limiter [`-`]"
     μ_max::FT
 end
-function SlopePowerLaw(toml_dict::CP.ParamDict)
-    name_map = (;
-        :Heymsfield_mu_coeff1 => :a,
-        :Heymsfield_mu_coeff2 => :b,
-        :Heymsfield_mu_coeff3 => :c,
-        :Heymsfield_mu_cutoff => :μ_max,
-    )
-    params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
-    return SlopePowerLaw(; params...)
-end
 
 """
     SlopeConstant{FT}
@@ -139,11 +124,6 @@ $(DocStringExtensions.FIELDS)
 @kwdef struct SlopeConstant{FT} <: SlopeLaw
     "Slope parameter μ [`-`]"
     μ::FT
-end
-function SlopeConstant(toml_dict::CP.ParamDict)
-    name_map = (; :P3_constant_slope_parameterization_value => :μ)
-    params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
-    return SlopeConstant(; params...)
 end
 
 """
@@ -169,14 +149,6 @@ $(DocStringExtensions.FIELDS)
     aᵥ::FT
     "Linear coefficient in ventilation factor [`-`]"
     bᵥ::FT
-end
-function VentilationFactor(toml_dict::CP.ParamDict)
-    name_map = (;
-        :SB2006_ventilation_factor_coeff_av => :aᵥ,
-        :SB2006_ventilation_factor_coeff_bv => :bᵥ,
-    )
-    params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
-    return VentilationFactor(; params...)
 end
 
 """
@@ -211,16 +183,6 @@ $(DocStringExtensions.FIELDS)
     c::FT
     "Density of solid bulk ice [`kg m⁻³`]"
     ρ_ice::FT
-end
-function LocalRimeDensity(toml_dict::CP.ParamDict)
-    name_map = (;
-        :CL1993_local_rime_density_constant_coeff => :a,
-        :CL1993_local_rime_density_linear_coeff => :b,
-        :CL1993_local_rime_density_quadratic_coeff => :c,
-        :density_ice_water => :ρ_ice,
-    )
-    params = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
-    return LocalRimeDensity(; params...)
 end
 function ((; a, b, c, ρ_ice)::LocalRimeDensity)(Rᵢ)
     Rᵢ = clamp(Rᵢ, 1, 12)  # P3 fortran code, microphy_p3.f90, Line 3315 clamps to 1 ≤ Rᵢ ≤ 12
@@ -303,13 +265,7 @@ Create a `ParametersP3` object from a `ClimaParams` TOML dictionary.
 """
 function ParametersP3(toml_dict::CP.ParamDict; slope_law = :powerlaw, aspect_ratio = Oblate())
     @assert slope_law in (:constant, :powerlaw)
-    params = CP.get_parameter_values(toml_dict,
-        (;
-            :density_ice_water => :ρ_i,  # TODO: Use `WaterProperties` struct for ice and liquid water density
-            :density_liquid_water => :ρ_l,
-            :temperature_water_freeze => :T_freeze,
-            :P3_wet_growth_timescale => :τ_wet,
-        ), "CloudMicrophysics")
+    params = make_params(toml_dict, name_map(ParametersP3))
     return ParametersP3(;
         mass = MassPowerLaw(toml_dict),
         area = AreaPowerLaw(toml_dict),

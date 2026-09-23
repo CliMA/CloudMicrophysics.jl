@@ -26,46 +26,54 @@ description = "Rain formation timescale for the 1-moment microphysics scheme (s)
 On the `CloudMicrophysics.jl` side, the parameters of one parameterization are
   grouped in a struct that subtypes `ParametersType`, with a docstring per
   field, and a constructor that reads a `ClimaParams.ParamDict`.
-The constructor spells out the mapping from the long, unique ClimaParams
-  name to the short field name in a `name_map`:
+The mapping from the long, unique ClimaParams name to the short field name is
+  a *name map*, and all name maps live in one file,
+  `src/parameters/name_maps.jl`, as methods of
+  [`name_map`](@ref CloudMicrophysics.Parameters.name_map):
 
 ```julia
-struct Acnv1M{FT} <: ParametersType
-    "autoconversion timescale [s]"
-    τ::FT
-    "condensate specific content autoconversion threshold [-]"
-    q_threshold::FT
-    "threshold smooth transition steepness [-]"
-    k::FT
+@kwdef struct CloudLiquid{FT} <: ParametersType
+    "liquid water density [kg/m3]"
+    ρw::FT
+    "prescribed liquid cloud droplet effective radius [m]"
+    r_eff::FT
+    "prescribed cloud droplet number concentration [1/m3]"
+    N_0::FT
 end
 
-function process_params_for(::Kessler1M, td::CP.ParamDict)
-    name_map = (;
-        :rain_autoconversion_timescale => :τ,
-        :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold,
-        :threshold_smooth_transition_steepness => :k,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Acnv1M(p.τ, p.q_threshold, p.k)
-end
+# src/parameters/name_maps.jl
+name_map(::Type{CloudLiquid}) = (;
+    :density_liquid_water => :ρw,
+    :liquid_cloud_effective_radius => :r_eff,
+    :cloud_liquid_sedimentation_number_concentration => :N_0,
+)
 ```
 
-`CP.get_parameter_values` returns a `NamedTuple` with the values converted to
-  the float type of the dictionary, and tags each parameter as used by the
-  `"CloudMicrophysics"` component.
+For a struct like this one, whose constructor only reads the map and fills the
+  fields, the `ParamDict` constructor is generated from the map
+  (`CloudLiquid(td) = CloudLiquid(; make_params(td, name_map(CloudLiquid))...)`;
+  the struct is listed in `PLAIN_PARAMETER_TYPES`).
+Constructors that validate values, pre-compute derived fields (gamma-function
+  factors, unit rescaling) or compose other structs are written by hand next to
+  their struct, and read their parameters with
+  [`make_params`](@ref CloudMicrophysics.Parameters.make_params)`(td, name_map(T))`,
+  so that the name map stays the single list of what the struct reads.
+`make_params` (a thin wrapper of `CP.get_parameter_values`) returns a
+  `NamedTuple` with the values converted to the float type of the dictionary,
+  and tags each parameter as used by the `"CloudMicrophysics"` component.
 That tag is what lets ClimaParams report unused overrides and write a log of
   the parameters a simulation actually consumed
-  (see [Logging and reproducibility](@ref)).
-Some constructors post-process the values (for example pre-computing gamma
-  function factors, or rescaling a coefficient to SI units), so a field is not
-  always a verbatim copy of the TOML value.
-The [Parameter reference](generated/ParametersReference.md) always shows the
-  mapping as written in the constructor.
+  (see [Logging and reproducibility](@ref)), and what the test
+  `test/parameter_name_maps_tests.jl` uses to check that every name map matches
+  what its constructor reads.
+The [Parameter reference](generated/ParametersReference.md) is rendered from
+  the same name maps.
 
 ## Building parameter structs
 
-Every concrete `ParametersType` has two constructors, one taking a float type
-  and one taking a `ClimaParams.ParamDict`:
+Every struct with a name map has two constructors, one taking a float type
+  and one taking a `ClimaParams.ParamDict` (small building blocks such as
+  `Ventilation` or `ParticlePDFSnow` are only constructed by their containers):
 
 ```julia
 import ClimaParams as CP
@@ -198,17 +206,22 @@ This writes all used parameters (with their final values) to a TOML file that
    While prototyping it is fine to keep the value in a local override file
    and move it to ClimaParams as the last step.
 2. Add a field with a docstring to the parameter struct, and the
-   `:clima_name => :field` pair to the `name_map` of its constructor.
+   `:clima_name => :field` pair to `name_map(::Type{T})` in
+   `src/parameters/name_maps.jl`.
    Prefer a long, descriptive ClimaParams name (they must be unique across all
    CliMA packages) and a short field name that matches the notation of the
    documentation.
+   A new struct gets a `name_map` method and an entry in `parameter_groups()`;
+   add it to `PLAIN_PARAMETER_TYPES` if its constructor needs nothing beyond
+   the map, otherwise write the constructor by hand using
+   `make_params(td, name_map(T))`.
 3. If the parameter belongs to a new variant of a 1-moment process, add an
-   option type in `src/parameters/Microphysics1MOptions.jl`, a
-   `process_params_for` method returning its parameters, and a method of the
-   process function dispatching on the option.
+   option type in `src/parameters/Microphysics1MOptions.jl`, its `name_map`
+   (and an entry in `NAMEDTUPLE_OPTION_TYPES`, or a hand-written
+   `process_params_for` method), and a method of the process function
+   dispatching on the option.
 
 The [Parameter reference](generated/ParametersReference.md) picks up the new
-  entry automatically at the next documentation build.
-The generator also constructs every parameter struct and compares the
-  parameters it actually reads with the `name_map`s it finds in the source, so
-  a mapping that does not match the code fails the documentation build.
+  entry automatically at the next documentation build, and
+  `test/parameter_name_maps_tests.jl` fails if a name map lists a parameter the
+  constructor does not read, or the constructor reads one that no name map lists.
