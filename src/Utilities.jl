@@ -311,8 +311,8 @@ end
 
 """
     consistent_params(pp, T::Type, opt, field)
-    consistent_params(pp, fields::Tuple{Vararg{Symbol}}, opt, field)
-    consistent_params(pp, alternatives::Tuple{Vararg{Tuple{Vararg{Symbol}}}}, opt, field)
+    consistent_params(pp, fields::Tuple{Symbol, Vararg{Symbol}}, opt, field)
+    consistent_params(pp, alternatives::Tuple{Tuple{Vararg{Symbol}}, Vararg{Tuple{Vararg{Symbol}}}}, opt, field)
 
 Check that `pp = mp.process_params.<field>` holds the parameters the process
 option `opt` needs, and return `pp` unchanged.
@@ -324,12 +324,15 @@ instead of an obscure field-access failure (or a silent success when an
 unrelated parameter set happens to share a field name).
 
 - `T::Type`: require `pp isa T` (parameter structs such as `Acnv1M`).
-- `fields`: require `pp` to be a `NamedTuple` with exactly these fields, in
-  any order (`ClimaParams.get_parameter_values` does not preserve the
+- `fields`: require `pp` to be a `NamedTuple` with exactly these (one or more)
+  fields, in any order (`ClimaParams.get_parameter_values` does not preserve the
   `name_map` order, so matching on `NamedTuple{(:a, :b)}` would be brittle).
 - `alternatives`: like `fields`, but accept any one of several key sets (e.g.
   a single freezing arm may run on the combined
   `HomogeneousAndHeterogeneous` parameters).
+
+Both tuple methods require a non-empty tuple: the empty tuple `()` would match
+both signatures and make them ambiguous.
 
 All checks fold away at compile time when the types are consistent; the
 throwing branch is `@noinline` so its string formatting stays out of the caller.
@@ -338,11 +341,16 @@ throwing branch is `@noinline` so its string formatting stays out of the caller.
     pp isa T || _throw_option_params_mismatch(opt, pp, field, T)
     return pp
 end
-@inline function consistent_params(pp, fields::Tuple{Vararg{Symbol}}, opt, field::Symbol)
+@inline function consistent_params(pp, fields::Tuple{Symbol, Vararg{Symbol}}, opt, field::Symbol)
     _has_exactly_fields(pp, fields) || _throw_option_params_mismatch(opt, pp, field, fields)
     return pp
 end
-@inline function consistent_params(pp, alternatives::Tuple{Vararg{Tuple{Vararg{Symbol}}}}, opt, field::Symbol)
+@inline function consistent_params(
+    pp,
+    alternatives::Tuple{Tuple{Vararg{Symbol}}, Vararg{Tuple{Vararg{Symbol}}}},
+    opt,
+    field::Symbol,
+)
     UU.unrolled_any(fields -> _has_exactly_fields(pp, fields), alternatives) ||
         _throw_option_params_mismatch(opt, pp, field, alternatives)
     return pp
