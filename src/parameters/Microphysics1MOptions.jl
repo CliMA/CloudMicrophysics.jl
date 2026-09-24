@@ -358,43 +358,13 @@ the process's tendency function.
 process_params_for(::Nothing, ::CP.ParamDict) = nothing
 process_params_for(::MicrophysicsOption, ::CP.ParamDict) = nothing
 
-function process_params_for(::CloudLiquidFormation, td::CP.ParamDict)
-    name_map = (;
-        :condensation_evaporation_timescale => :τ_relax,
-        :temperature_homogenous_nucleation => :T_hom,
-    )
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
-
-function process_params_for(::ConstantTimescale, td::CP.ParamDict)
-    name_map = (; :sublimation_deposition_timescale => :τ_relax)
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
-
 function process_params_for(::TemperatureDependent, td::CP.ParamDict)
-    name_map = (; :sublimation_deposition_timescale => :τ_relax)
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    p = make_params(td, name_map(TemperatureDependent))
     return (; τ_relax = p.τ_relax, frostenberg = Frostenberg2023(td))
 end
 
 process_params_for(::TemperatureDependentIceNumber, td::CP.ParamDict) =
     IceNumberTemperatureFit(td)
-
-function process_params_for(::Homogeneous, td::CP.ParamDict)
-    name_map = (;
-        :temperature_homogenous_nucleation => :T_hom,
-        :homogeneous_freezing_timescale => :τ_hom,
-    )
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
-
-function process_params_for(::Heterogeneous, td::CP.ParamDict)
-    name_map = (;
-        :Reisner_et_al_A_parameter => :A,
-        :Reisner_et_al_B_parameter => :B,
-    )
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
 
 function process_params_for(::HomogeneousAndHeterogeneous, td::CP.ParamDict)
     return (;
@@ -408,46 +378,8 @@ process_params_for(::Kessler1M, td::CP.ParamDict) = KesslerAcnv(td)
 process_params_for(::PrescribedNd, td::CP.ParamDict) = VarTimescaleAcnv(td)
 
 function process_params_for(::NoSupersaturation, td::CP.ParamDict)
-    name_map = (;
-        :snow_autoconversion_timescale => :τ,
-        :cloud_ice_specific_humidity_autoconversion_threshold => :q_threshold,
-        :threshold_smooth_transition_steepness => :k,
-    )
-    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    p = make_params(td, name_map(NoSupersaturation))
     return Acnv1M(p.τ, p.q_threshold, p.k)
-end
-
-function process_params_for(::WithSupersaturation, td::CP.ParamDict)
-    name_map = (; :ice_snow_threshold_radius => :r_ice_snow)
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
-
-function process_params_for(::CloudLiquidRainAccretion, td::CP.ParamDict)
-    name_map = (; :cloud_liquid_rain_collision_efficiency => :e)
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
-
-function process_params_for(::CloudLiquidSnowAccretion, td::CP.ParamDict)
-    name_map = (; :cloud_liquid_snow_collision_efficiency => :e)
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
-
-function process_params_for(::CloudIceRainAccretion, td::CP.ParamDict)
-    name_map = (; :cloud_ice_rain_collision_efficiency => :e)
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
-
-function process_params_for(::CloudIceSnowAccretion, td::CP.ParamDict)
-    name_map = (; :cloud_ice_snow_collision_efficiency => :e)
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-end
-
-function process_params_for(::RainSnowAccretion, td::CP.ParamDict)
-    name_map = (;
-        :rain_snow_collision_efficiency => :e,
-        :rain_snow_velocity_dispersion_coefficient => :coeff_disp,
-    )
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
 end
 
 """

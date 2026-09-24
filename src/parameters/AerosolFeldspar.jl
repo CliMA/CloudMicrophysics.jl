@@ -15,12 +15,3 @@ $(DocStringExtensions.FIELDS)
     "c coefficient for deposition nucleation J [-]"
     deposition_c::FT
 end
-
-function Feldspar(td::CP.ParamDict)
-    name_map = (;
-        :Alpert2022_J_deposition_m_Feldspar => :deposition_m,
-        :Alpert2022_J_deposition_c_Feldspar => :deposition_c,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Feldspar(; parameters...)
-end

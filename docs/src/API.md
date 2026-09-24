@@ -35,6 +35,13 @@ Modules = [Parameters]
 Pages   = ["Microphysics0M.jl", "Microphysics0MParams.jl"]
 ```
 
+## Parameter name maps
+
+```@autodocs
+Modules = [Parameters]
+Pages   = ["name_maps.jl"]
+```
+
 # 1-moment precipitation microphysics
 
 ```@docs
@@ -406,6 +413,7 @@ Utilities.rime_density
 Utilities.sgs_weight_function
 Utilities.unrolled_logsumexp
 Utilities.fac
+Utilities.consistent_params
 ```
 
 # Common utility functions

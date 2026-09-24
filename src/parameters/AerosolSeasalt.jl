@@ -22,15 +22,3 @@ $(DocStringExtensions.FIELDS)
     "hygroscopicity parameter [-]"
     κ::FT
 end
-function Seasalt(td::CP.ParamDict)
-    name_map = (;
-        :seasalt_aerosol_molar_mass => :M,
-        :seasalt_aerosol_density => :ρ,
-        :seasalt_aerosol_osmotic_coefficient => :ϕ,
-        :seasalt_aerosol_ion_number => :ν,
-        :seasalt_aerosol_water_soluble_mass_fraction => :ϵ,
-        :seasalt_aerosol_kappa => :κ,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Seasalt(; parameters...)
-end

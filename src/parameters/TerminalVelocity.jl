@@ -35,37 +35,14 @@ $(DocStringExtensions.FIELDS)
 end
 
 function Blk1MVelTypeRain(td::CP.ParamDict)
-    vel_map = (;
-        # TODO: rain's `r0` maps to `snow_flake_length_scale`, while the rain
-        # mass and area power laws map to `rain_drop_length_scale`
-        # (Microphysics1M.jl). Both are 1e-3 m in ClimaParams, so the two agree
-        # numerically today; calibrating `rain_drop_length_scale` alone would
-        # leave `get_v0` scaling rain fall speeds by the snow value. Confirm
-        # which length scale is intended here and map to it.
-        :snow_flake_length_scale => :r0,
-        :rain_terminal_velocity_size_relation_coefficient_ve => :ve,
-        :rain_terminal_velocity_size_relation_coefficient_delv => :Δv,
-        :rain_terminal_velocity_size_relation_coefficient_chiv => :χv,
-        :density_liquid_water => :ρw,
-        :rain_drop_drag_coefficient => :C_drag,
-        :gravitational_acceleration => :grav,
+    p = make_params(td, name_map(Blk1MVelTypeRain))
+    gamma_vent = SF.gamma((p.ve + p.Δv + 5) / 2)
+    gamma_term = SF.gamma(p.me + p.ve + p.Δm + p.Δv + 1)
+    gamma_accr = SF.gamma(p.ae + p.ve + p.Δa + p.Δv + 1)
+    gamma_accr_rain_sink = SF.gamma(p.me + p.ae + p.ve + p.Δm + p.Δa + p.Δv + 1)
+    return Blk1MVelTypeRain(;
+        p.r0, p.ve, p.Δv, p.χv, p.ρw, p.C_drag, p.grav, gamma_vent, gamma_term, gamma_accr, gamma_accr_rain_sink,
     )
-    mass_map = (;
-        :rain_mass_size_relation_coefficient_me => :me,
-        :rain_mass_size_relation_coefficient_delm => :Δm,
-    )
-    area_map = (;
-        :rain_cross_section_size_relation_coefficient_ae => :ae,
-        :rain_cross_section_size_relation_coefficient_dela => :Δa,
-    )
-    parameters = CP.get_parameter_values(td, vel_map, "CloudMicrophysics")
-    mass_p = CP.get_parameter_values(td, mass_map, "CloudMicrophysics")
-    area_p = CP.get_parameter_values(td, area_map, "CloudMicrophysics")
-    gamma_vent = SF.gamma((parameters.ve + parameters.Δv + 5) / 2)
-    gamma_term = SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1)
-    gamma_accr = SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1)
-    gamma_accr_rain_sink = SF.gamma(mass_p.me + area_p.ae + parameters.ve + mass_p.Δm + area_p.Δa + parameters.Δv + 1)
-    return Blk1MVelTypeRain(; parameters..., gamma_vent, gamma_term, gamma_accr, gamma_accr_rain_sink)
 end
 
 """
@@ -97,30 +74,13 @@ $(DocStringExtensions.FIELDS)
 end
 
 function Blk1MVelTypeSnow(td::CP.ParamDict)
-    vel_map = (;
-        :snow_flake_length_scale => :r0,
-        :snow_terminal_velocity_size_relation_coefficient => :ve,
-        :snow_terminal_velocity_size_relation_coefficient_delv => :Δv,
-        :snow_terminal_velocity_size_relation_coefficient_chiv => :χv,
-    )
-    mass_map = (;
-        :snow_mass_size_relation_coefficient_me => :me,
-        :snow_mass_size_relation_coefficient_delm => :Δm,
-    )
-    area_map = (;
-        :snow_cross_section_size_relation_coefficient => :ae,
-        :snow_cross_section_size_relation_coefficient_dela => :Δa,
-    )
-    parameters = CP.get_parameter_values(td, vel_map, "CloudMicrophysics")
-    mass_p = CP.get_parameter_values(td, mass_map, "CloudMicrophysics")
-    area_p = CP.get_parameter_values(td, area_map, "CloudMicrophysics")
-
+    p = make_params(td, name_map(Blk1MVelTypeSnow))
     FT = CP.float_type(td)
-    v0 = FT(2^(9 / 4) * parameters.r0^parameters.ve)
-    gamma_vent = SF.gamma((parameters.ve + parameters.Δv + 5) / 2)
-    gamma_term = SF.gamma(mass_p.me + parameters.ve + mass_p.Δm + parameters.Δv + 1)
-    gamma_accr = SF.gamma(area_p.ae + parameters.ve + area_p.Δa + parameters.Δv + 1)
-    return Blk1MVelTypeSnow(; parameters..., v0, gamma_vent, gamma_term, gamma_accr)
+    v0 = FT(2^(9 / 4) * p.r0^p.ve)
+    gamma_vent = SF.gamma((p.ve + p.Δv + 5) / 2)
+    gamma_term = SF.gamma(p.me + p.ve + p.Δm + p.Δv + 1)
+    gamma_accr = SF.gamma(p.ae + p.ve + p.Δa + p.Δv + 1)
+    return Blk1MVelTypeSnow(; p.r0, p.ve, p.Δv, p.χv, v0, gamma_vent, gamma_term, gamma_accr)
 end
 
 """
@@ -162,16 +122,6 @@ $(DocStringExtensions.FIELDS)
     grav::FT
 end
 
-function StokesRegimeVelType(td::CP.ParamDict)
-    name_map = (;
-        :density_liquid_water => :ρw,
-        :kinematic_viscosity_of_air => :ν_air,
-        :gravitational_acceleration => :grav,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return StokesRegimeVelType(; parameters...)
-end
-
 """
     SB2006VelType
 
@@ -197,20 +147,6 @@ $(DocStringExtensions.FIELDS)
     grav::FT
 end
 
-function SB2006VelType(td::CP.ParamDict)
-    name_map = (;
-        :SB2006_reference_air_density => :ρ0,
-        :SB2006_raindrops_terminal_velocity_coeff_aR => :aR,
-        :SB2006_raindrops_terminal_velocity_coeff_bR => :bR,
-        :SB2006_raindrops_terminal_velocity_coeff_cR => :cR,
-        :density_liquid_water => :ρw,
-        :kinematic_viscosity_of_air => :ν_air,
-        :gravitational_acceleration => :grav,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return SB2006VelType(; parameters...)
-end
-
 """
     Chen2022VelTypeSmallIce
 
@@ -234,17 +170,7 @@ Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelTypeSmallIce) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 function Chen2022VelTypeSmallIce(td::CP.ParamDict)
-    # TODO: These should be array parameters.
-    name_map = (;
-        :Chen2022_table_B3_As => :A,
-        :Chen2022_table_B3_Bs => :B,
-        :Chen2022_table_B3_Cs => :C,
-        :Chen2022_table_B3_Es => :E,
-        :Chen2022_table_B3_Fs => :F,
-        :Chen2022_table_B3_Gs => :G,
-        :Chen2022_ice_cutoff => :cutoff,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    parameters = make_params(td, name_map(Chen2022VelTypeSmallIce))
     # hack!
     parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
     FT = CP.float_type(td)
@@ -273,18 +199,7 @@ $(DocStringExtensions.FIELDS)
 end
 
 function Chen2022VelTypeLargeIce(td::CP.ParamDict)
-    # TODO: These should be array parameters.
-    name_map = (;
-        :Chen2022_table_B5_Al => :A,
-        :Chen2022_table_B5_Bl => :B,
-        :Chen2022_table_B5_Cl => :C,
-        :Chen2022_table_B5_El => :E,
-        :Chen2022_table_B5_Fl => :F,
-        :Chen2022_table_B5_Gl => :G,
-        :Chen2022_table_B5_Hl => :H,
-        :Chen2022_ice_cutoff => :cutoff,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    parameters = make_params(td, name_map(Chen2022VelTypeLargeIce))
     # hack!
     parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
     FT = CP.float_type(td)
@@ -319,15 +234,7 @@ Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelTypeRain) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 function Chen2022VelTypeRain(td::CP.ParamDict)
-    name_map = (;
-        :Chen2022_table_B1_q_coeff => :ρ0,
-        :Chen2022_table_B1_ai => :a,
-        :Chen2022_table_B1_a3_pow_coeff => :a3_pow,
-        :Chen2022_table_B1_bi => :b,
-        :Chen2022_table_B1_b_rho_coeff => :b_ρ,
-        :Chen2022_table_B1_ci => :c,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    parameters = make_params(td, name_map(Chen2022VelTypeRain))
     # hack!
     parameters = map(p -> p isa Vector ? Tuple(p) : p, parameters)
     FT = CP.float_type(td)
