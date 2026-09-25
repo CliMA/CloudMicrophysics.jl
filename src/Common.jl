@@ -274,6 +274,12 @@ function a_w_ice(tps::TDI.PS, T::FT) where {FT}
            TDI.saturation_vapor_pressure_over_liquid(tps, T)
 end
 
+@inline function chen2022_coeffs_si(ai, bi, ci)
+    aiu = map((a, b) -> a * 1000^b, ai, bi)
+    ciu = map(c -> c * 1000, ci)
+    return (aiu, bi, ciu)
+end
+
 """
     Chen2022_vel_coeffs(coeffs, ρₐ)
     Chen2022_vel_coeffs(coeffs, ρₐ, ρᵢ)
@@ -303,10 +309,7 @@ See [Chen2022](@cite) for more details.
     ai = (a[1] * q, a[2] * q, a[3] * q * ρₐ^a3_pow)
     bi = (b[1] - b_ρ * ρₐ, b[2] - b_ρ * ρₐ, b[3] - b_ρ * ρₐ)
     ci = (c[1], c[2], c[3])
-    # unit conversions
-    aiu = ai .* 1000 .^ bi
-    ciu = ci .* 1000
-    return (aiu, bi, ciu)
+    return chen2022_coeffs_si(ai, bi, ci)
 end
 
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeSmallIce, ρₐ, ρᵢ)
@@ -326,10 +329,7 @@ end
     ai = (Es * ρₐ^As, Fs * ρₐ^As)
     bi = (Bs + ρₐ * Cs, Bs + ρₐ * Cs)
     ci = (FT(0), Gs)
-    # unit conversions
-    aiu = ai .* 1000 .^ bi
-    ciu = ci .* 1000
-    return (aiu, bi, ciu)
+    return chen2022_coeffs_si(ai, bi, ci)
 end
 
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
@@ -350,10 +350,7 @@ end
     ai = (Bl * ρₐ^Al, El * ρₐ^Al * exp(Hl * ρₐ))
     bi = (Cl, Fl)
     ci = (FT(0), Gl)
-    # unit conversions
-    aiu = ai .* 1000 .^ bi
-    ciu = ci .* 1000
-    return (aiu, bi, ciu)
+    return chen2022_coeffs_si(ai, bi, ci)
 end
 
 """
