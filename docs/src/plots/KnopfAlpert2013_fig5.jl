@@ -50,7 +50,7 @@ a_ice = [CMO.a_w_ice(tps, T) for T in T_range]
 J_ABIFM = @. CMI.ABIFM_J(illite, Δa_w) * 1e-4 # converted from SI units to cm^-2 s^-1
 
 # Plot results
-fig = MK.Figure(resolution = (800, 600))
+fig = MK.Figure(size = (800, 600))
 ax1 = MK.Axis(
     fig[1, 1],
     ylabel = "J_het [cm^-2 s^-1]",

@@ -5,7 +5,7 @@ import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
-include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
+using Parcel
 
 FT = Float32
 

@@ -1,4 +1,4 @@
-using Plots
+import CairoMakie as MK
 
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
@@ -7,42 +7,12 @@ import CloudMicrophysics.Nucleation as Nucleation
 FT = Float64
 params = CMP.H2S04NucleationParameters(FT)
 
-function plot_pure_h2so4_nucleation_rate(
-    h2so4_concentrations,
-    nh3_conc,
-    negative_ion_conc,
-    temp,
-    params,
-)
-    rates = map(h2so4_concentrations) do h2so4_conc
-        sum(
-            Nucleation.h2so4_nucleation_rate(
-                h2so4_conc * 1e6,
-                nh3_conc,
-                negative_ion_conc,
-                temp,
-                params,
-            ),
-        ) * 1e-6
+function pure_h2so4_nucleation_rate(h2so4_concentrations, nh3_conc, negative_ion_conc, temp, params)
+    return map(h2so4_concentrations) do h2so4_conc
+        sum(Nucleation.h2so4_nucleation_rate(h2so4_conc * 1e6, nh3_conc, negative_ion_conc, temp, params)) * 1e-6
     end
-    Plots.plot!(
-        # title = title,
-        h2so4_concentrations,
-        rates,
-        xaxis = :log,
-        yaxis = :log,
-        lw = 3,
-        ylims = (1e-4, 1e3),
-        ylabel = "Nucleation rate (cm⁻³ s⁻¹)",
-        xlabel = "[H2SO4] (cm⁻³)",
-        label = "$temp K",
-        palette = :Dark2_5,
-    )
-    return rates
-
 end
 
-Plots.plot()
 h2so4_concs = [
     10 .^ (5:0.125:7.5),
     10 .^ (5.5:0.125:8),
@@ -51,9 +21,6 @@ h2so4_concs = [
     10 .^ (7:0.125:9.3),
 ]
 temps = [208, 223, 248, 278, 292]
-for (temp, h2so4_conc) in zip(temps, h2so4_concs)
-    plot_pure_h2so4_nucleation_rate(h2so4_conc, 0, 0, temp, params)
-end
 
 dunne_points = (
     [
@@ -101,8 +68,24 @@ dunne_points = (
     ],
 )
 
-for points in dunne_points
-    Plots.plot!(points, label = "", seriestype = :scatter)
+colors = MK.Makie.to_colormap(:Dark2_5)
+fig = MK.Figure(size = (700, 500))
+ax = MK.Axis(
+    fig[1, 1];
+    xlabel = "[H2SO4] (cm⁻³)",
+    ylabel = "Nucleation rate (cm⁻³ s⁻¹)",
+    xscale = log10,
+    yscale = log10,
+)
+MK.ylims!(ax, 1e-4, 1e3)
+for (i, (temp, h2so4_conc)) in enumerate(zip(temps, h2so4_concs))
+    rates = pure_h2so4_nucleation_rate(h2so4_conc, 0, 0, temp, params)
+    MK.lines!(ax, h2so4_conc, rates; linewidth = 3, color = colors[i], label = "$temp K")
 end
-Plots.plot!(xticks = 10 .^ (5:10))
-Plots.svg("CLOUD_nucleation")
+# the measurements of Dunne et al. (2016), in the colors of the matching temperatures
+for (i, points) in enumerate(dunne_points)
+    MK.scatter!(ax, points; color = colors[i], strokecolor = :black, strokewidth = 1)
+end
+MK.axislegend(ax; position = :lb)
+MK.save("CLOUD_nucleation.svg", fig)
+nothing

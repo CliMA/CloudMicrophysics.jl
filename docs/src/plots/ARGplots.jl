@@ -1,4 +1,4 @@
-import Plots as PL
+import CairoMakie as MK
 
 import CloudMicrophysics as CM
 import CloudMicrophysics.AerosolModel as AM
@@ -51,8 +51,11 @@ end
 # Abdul-Razzak and Ghan 2000
 # https://doi.org/10.1029/1999JD901161
 function make_ARG_figX(X)
-    p1 = PL.plot()
-    p2 = PL.plot()
+    fig = MK.Figure(size = (800, 650))
+    ax1 = MK.Axis(fig[2, 1]; ylabel = "Mode 1 act frac", limits = (nothing, (0, 1)), yticks = 0:0.2:1)
+    ax2 = MK.Axis(fig[3, 1]; ylabel = "Mode 2 act frac", limits = (nothing, (0, 1)), yticks = 0:0.2:1)
+    MK.linkxaxes!(ax1, ax2)
+    MK.hidexdecorations!(ax1; grid = false)
 
     for v_B in (true, false)
         # mode 1 definitions
@@ -391,45 +394,21 @@ function make_ARG_figX(X)
             xvar = w
             xlabel = "Vertical velocity, w [m/s]"
         end
-        v_B ? label = "CliMA-B" : label = "CliMA-κ"
-        PL.plot!(
-            p1,
-            xvar,
-            act_frac1,
-            label = label,
-            ylim = [0, 1],
-            ylabel = "Mode 1 act frac",
-            title = "ARG2000 Fig " * string(X),
-        )
-        PL.plot!(
-            p2,
-            xvar,
-            act_frac2,
-            legend = false,
-            ylim = [0, 1],
-            xlabel = xlabel,
-            ylabel = "Mode 2 act frac",
-        )
+        label = v_B ? "CliMA-B" : "CliMA-κ"
+        color = v_B ? :dodgerblue : :orangered
+        ax2.xlabel = xlabel
+        MK.lines!(ax1, xvar, act_frac1; label, color, linewidth = 2)
+        MK.lines!(ax2, xvar, act_frac2; color, linewidth = 2)
         if v_B == false
-            PL.scatter!(
-                p1,
-                x1_obs,
-                y1_obs,
-                markercolor = :black,
-                label = "ARG2000 observations",
-            )
-            PL.plot!(
-                p1,
-                x1_param,
-                y1_param,
-                linecolor = :black,
-                label = "ARG2000 parameterization",
-            )
-            PL.scatter!(p2, x2_obs, y2_obs, markercolor = :black)
-            PL.plot!(p2, x2_param, y2_param, linecolor = :black)
+            MK.scatter!(ax1, x1_obs, y1_obs; color = :black, label = "ARG2000 observations")
+            MK.lines!(ax1, x1_param, y1_param; color = :black, linewidth = 2, label = "ARG2000 parameterization")
+            MK.scatter!(ax2, x2_obs, y2_obs; color = :black)
+            MK.lines!(ax2, x2_param, y2_param; color = :black, linewidth = 2)
         end
     end
 
-    PL.plot(p1, p2, layout = (2, 1))
-    PL.savefig("Abdul-Razzak_and_Ghan_fig_" * string(X) * ".svg")
+    MK.Label(fig[0, 1], "ARG2000 Fig " * string(X); fontsize = 20, font = :bold, tellwidth = false)
+    MK.Legend(fig[1, 1], ax1; orientation = :horizontal, framevisible = false, tellwidth = false)
+    MK.save("Abdul-Razzak_and_Ghan_fig_" * string(X) * ".svg", fig)
+    return nothing
 end

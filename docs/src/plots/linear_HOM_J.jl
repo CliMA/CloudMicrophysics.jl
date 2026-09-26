@@ -18,7 +18,7 @@ new_log10J =
     [linear_coeffs[2] * Delta_a + linear_coeffs[1] for Delta_a in Koop_Δa]
 
 # Plotting J vs Δa
-fig = MK.Figure(resolution = (800, 600), fontsize = 18)
+fig = MK.Figure(size = (800, 600), fontsize = 18)
 ax1 = MK.Axis(
     fig[1, 1],
     xlabel = "Δa_w [-]",

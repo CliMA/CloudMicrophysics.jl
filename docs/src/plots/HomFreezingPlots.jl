@@ -60,7 +60,7 @@ Baum_Delta_a = [0.26, 0.27, 0.28, 0.29, 0.3, 0.32, 0.33, 0.339]
 Baum_J = [4.25e-5, 0.306, 454.09, 2.06e5, 6.31e7, 1.8e12, 4.45e14, 1.69e17]
 
 # Plotting
-fig = MK.Figure(resolution = (800, 500))
+fig = MK.Figure(size = (800, 500))
 ax1 = MK.Axis(
     fig[1, 1],
     ylabel = "log10(J) with J in SI units",
