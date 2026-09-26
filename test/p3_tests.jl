@@ -180,10 +180,11 @@ function test_shape_solver(FT)
         params = CMP.ParametersP3(FT; slope)
 
         @testset "Shape parameters - nonlinear solver" begin
-            # -- First, test limiting behavior: `N_ice = L_ice = 0` --
+            # -- First, test limiting behavior: `N_ice = L_ice = 0` gives the upper bound --
             state = P3.P3State(params, FT(0), FT(0), FT(0.5), FT(500))
             logλ = P3.get_distribution_logλ(state)
-            @test logλ == -Inf
+            (dlo, dhi) = P3._derived_logλ_bracket(state)
+            @test logλ == dhi
             # --
 
             # initialize test values:
@@ -236,11 +237,11 @@ function test_shape_solver(FT)
             # interval into a region where `logLdivN` is not finite. The
             # bracketing `BrentsMethod` must return a finite, positive
             # `logλ` strictly inside the search bounds.
-            logλ = P3.get_distribution_logλ(
-                P3.P3State(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800)),
-            )
+            state_regr = P3.P3State(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800))
+            logλ = P3.get_distribution_logλ(state_regr)
+            (dlo_regr, dhi_regr) = P3._derived_logλ_bracket(state_regr)
             @test isfinite(logλ)
-            @test FT(2) < logλ < FT(17)
+            @test dlo_regr < logλ < dhi_regr
 
             # Broader sweep covering typical P3 microphysics inputs.
             # All entries must give a finite `logλ` within the search bounds.
@@ -248,16 +249,159 @@ function test_shape_solver(FT)
                 for N_ice in (FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))
                     for F_rim in (FT(0), FT(0.2), FT(0.5), FT(0.8), FT(0.95))
                         for ρ_rim in (FT(200), FT(400), FT(600), FT(800))
-                            logλ = P3.get_distribution_logλ(
-                                P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim),
-                            )
+                            state_sweep = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
+                            logλ = P3.get_distribution_logλ(state_sweep)
+                            (dlo_sweep, dhi_sweep) = P3._derived_logλ_bracket(state_sweep)
                             @test isfinite(logλ)
-                            @test FT(2) ≤ logλ ≤ FT(17)
+                            @test dlo_sweep ≤ logλ ≤ dhi_sweep
                         end
                     end
                 end
             end
         end
+    end
+
+    @testset "No-bracket fallback direction" begin
+        params = CMP.ParametersP3(FT)
+        L_ice = FT(0.22)
+        N_ice = FT(1e6)
+        F_rim = FT(0.5)
+        ρ_rim = FT(800)
+        # The bounds do not depend on the ice mass or number
+        (dlo, dhi) = P3._derived_logλ_bracket(P3.P3State(params, FT(1e-4), FT(1e6), F_rim, ρ_rim))
+
+        # (1) No mass, with number: the smallest particles
+        state = P3.P3State(params, FT(0), N_ice, F_rim, ρ_rim)
+        @test P3.get_distribution_logλ(state) == dhi
+
+        # (2) A subnormal Float32 mass, for which `ρq_ice / ρn_ice` underflows to zero
+        if FT == Float32
+            q_sub = FT(1e-45)  # subnormal Float32; `q_sub / FT(1e3)` underflows to 0.0
+            @test iszero(q_sub / FT(1e3))
+            state_sub = P3.P3State(params, q_sub, FT(1e3), F_rim, ρ_rim)
+            @test P3.get_distribution_logλ(state_sub) == dhi
+        end
+
+        # (3) Mass without number: the largest particles
+        state_noN = P3.P3State(params, L_ice, FT(0), F_rim, ρ_rim)
+        @test P3.get_distribution_logλ(state_noN) == dlo
+
+        # (4) A mean mass far below the nucleation mass has no root, and gives the nearer bound
+        m̄ = FT(2e-45)
+        state_unbr = P3.P3State(params, N_ice * m̄, N_ice, F_rim, ρ_rim)
+        logλ_unbr = P3.get_distribution_logλ(state_unbr)
+        @test logλ_unbr == dhi
+    end
+
+    @testset "Derived bracket" begin
+        # Neither bound depends on the rime state
+        dhi_vals = FT[]
+        dlo_vals = FT[]
+        for F_rim in FT.((0, 0.5, 0.9, 0.99)), ρ_rim in FT.((50, 200, 500, 900))
+            params = CMP.ParametersP3(FT)
+            q_rim = F_rim > 0 ? F_rim / (1 - F_rim) * FT(1e-4) : FT(0)
+            b_rim = F_rim > 0 ? q_rim / ρ_rim : FT(0)
+            state = P3.state_from_prognostic(params, FT(1e-4), FT(1e6), q_rim, b_rim)
+            (dlo, dhi) = P3._derived_logλ_bracket(state)
+            push!(dhi_vals, dhi)
+            push!(dlo_vals, dlo)
+        end
+        @test allequal(dhi_vals)
+        @test all(==(FT(2)), dlo_vals)
+    end
+
+    @testset "Continuity at the degenerate corners" begin
+        # A sequence of states that approaches a corner reaches the corner's own value
+        params = CMP.ParametersP3(FT)
+        q_ice, F_rim, ρ_rim = FT(1e-4), FT(0.5), FT(800)
+
+        # q_ice → 0 at fixed n_ice
+        n_ice = FT(1e6)
+        (dlo_q, dhi_q) = P3._derived_logλ_bracket(P3.P3State(params, q_ice, n_ice, F_rim, ρ_rim))
+        for q_ice_test in FT[1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 0]
+            st = P3.P3State(params, q_ice_test, n_ice, F_rim, ρ_rim)
+            @test P3.get_distribution_logλ(st) == dhi_q
+        end
+
+        # n_ice → 0 at fixed q_ice
+        (dlo_n, dhi_n) = P3._derived_logλ_bracket(P3.P3State(params, q_ice, FT(1e6), F_rim, ρ_rim))
+        for n_ice_test in FT[1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 0]
+            st = P3.P3State(params, q_ice, n_ice_test, F_rim, ρ_rim)
+            @test P3.get_distribution_logλ(st) == dlo_n
+        end
+    end
+
+    # The `N ≈ ∫N′ dD` checks hold for any root, since `logN₀` follows from `logλ`, so the
+    # residual is tested directly. `logLdivN` is the log of the mean particle mass, so `expm1` of
+    # the residual is its relative error. The states are heavily rimed small ice at low rime density.
+    @testset "Shape solver residual at the hard states" begin
+        L_ice = FT(1e-4)
+        for slope in (CMP.SlopeConstant(FT), CMP.SlopePowerLaw(FT), CMP.SmoothSlopePowerLaw(FT))
+            params = CMP.ParametersP3(FT; slope)
+            for m̄ in FT.((1e-9, 1e-10, 1e-8)),
+                F_rim in FT.((0.9, 0.99)),
+                ρ_rim in FT.((50, 200, 900))
+
+                state = P3.P3State(params, L_ice, L_ice / m̄, F_rim, ρ_rim)
+                logλ = P3.get_distribution_logλ(state)
+                (dlo_hard, dhi_hard) = P3._derived_logλ_bracket(state)
+                # Skip states without a root in the bounds
+                (dlo_hard < logλ < dhi_hard) || continue
+                target = log(state.ρq_ice) - log(state.ρn_ice)
+                residual = P3.logLdivN(state, logλ) - target
+                @test abs(expm1(residual)) < FT(0.01)
+            end
+        end
+    end
+
+    @testset "loggamma_inc_moment cancellation term" begin
+        # For close diameters, `Δq` can round to zero or below
+        D₁ = FT(1e-4)
+        D₂ = nextfloat(D₁)
+        for μ in FT.((0, 2, 6)), logλ in FT.((5, 10, 15)), k in (0, 2)
+            val = P3.loggamma_inc_moment(D₁, D₂, μ, logλ, k)
+            @test !isnan(val)
+            d = FD.derivative(x -> P3.loggamma_inc_moment(D₁, x, μ, logλ, k), D₂)
+            @test !isnan(d)
+        end
+
+        # A zero-width segment returns log(0)
+        @test P3.loggamma_inc_moment(D₁, D₁, FT(2), FT(10)) == log(FT(0))
+    end
+
+    @testset "Shape solver - number term at absent and trace population" begin
+        params = CMP.ParametersP3(FT)
+        ρq_ice = FT(1e-4)
+        ρ_rim = FT(500)
+        logλ(ρn_ice) = P3.get_distribution_logλ(
+            P3.P3State(params, ρq_ice, ρn_ice, FT(0.5), ρ_rim),
+        )
+
+        # Without number, the solver returns a bound, with a finite derivative
+        (dlo_at, dhi_at) = P3._derived_logλ_bracket(P3.P3State(params, ρq_ice, FT(1), FT(0.5), ρ_rim))
+        logλ0 = logλ(FT(0))
+        @test isfinite(logλ0) && dlo_at <= logλ0 <= dhi_at
+        @test !isnan(FD.derivative(logλ, FT(0)))
+
+        # A trace number far below `eps(FT)`
+        ρn_trace = FT(1e-20)
+        @test isfinite(logλ(ρn_trace))
+        @test !isnan(FD.derivative(logλ, ρn_trace))
+    end
+
+    @testset "size distribution presence gate at an absent number" begin
+        # Without number, the distribution and its derivative are zero and finite
+        params = CMP.ParametersP3(FT)
+        state0 = P3.P3State(params, FT(1e-4), FT(0), FT(0.5), FT(500))
+        logλ0 = FT(10)
+        n = P3.size_distribution(state0, logλ0)
+        @test iszero(n(FT(1e-4)))
+
+        nD(ρn_ice) = P3.size_distribution(
+            P3.P3State(params, FT(1e-4), ρn_ice, FT(0.5), FT(500)), logλ0,
+        )(FT(1e-4))
+        d = FD.derivative(nD, FT(0))
+        @test !isnan(d)
     end
 end
 

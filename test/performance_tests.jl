@@ -188,7 +188,7 @@ function benchmark_test(FT)
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
         1_000,
     )
-    bench_press(FT, P3.get_distribution_logλ, (state,), 500_000)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod
+    bench_press(FT, P3.get_distribution_logλ, (state,), 500_000)  # 12 (F64) / 10 (F32) FixedIterations BrentsMethod
     # The weighted-velocity integrals build a nested terminal-velocity closure
     # that escapes into `integrate`. With `ice_particle_terminal_velocity`
     # returning a single (concretely-typed) closure, this path is type-stable

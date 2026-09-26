@@ -20,6 +20,7 @@ TT.@testset "All tests" begin
     include("p3_tests.jl")
     include("p3_rho_d_stability.jl")
     include("p3_shape_solver_warmstart_tests.jl")
+    include("p3_smooth_slope_tests.jl")
     include("aqua.jl")
     include("performance_tests.jl")
     include("aerosol_activation_calibration.jl")

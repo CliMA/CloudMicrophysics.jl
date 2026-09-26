@@ -99,6 +99,14 @@ A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
 end
 
 """
+    ice_mean_particle_mass_min(p3)
+
+Smallest mean ice particle mass [kg], the mass of a newly nucleated crystal: a solid-ice sphere
+of diameter `p3.D_nuc`.
+"""
+@inline ice_mean_particle_mass_min((; ρ_i, D_nuc)::CMP.ParametersP3) = ρ_i * CO.volume_sphere_D(D_nuc)
+
+"""
     collision_cross_section_ice_liquid_coeffs(rᵢ)
     collision_cross_section_ice_liquid_coeffs(state, Dᵢ)
 

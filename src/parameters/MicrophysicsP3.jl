@@ -325,6 +325,8 @@ $(DocStringExtensions.FIELDS)
     ρ_rim_local::LocalRimeDensity{FT}
     "Wet growth time scale [`s`]"
     τ_wet::FT
+    "Diameter of a newly nucleated ice crystal [`m`]"
+    D_nuc::FT
     "Cloud ice density [`kg m⁻³`]"
     ρ_i::FT
     "Cloud liquid water density [`kg m⁻³`]"
@@ -353,6 +355,7 @@ function ParametersP3(toml_dict::CP.ParamDict; opts...)
             :density_liquid_water => :ρ_l,
             :temperature_water_freeze => :T_freeze,
             :P3_wet_growth_timescale => :τ_wet,
+            :P3_ice_nucleation_diameter => :D_nuc,
         ), "CloudMicrophysics")
     return ParametersP3(;
         mass = MassPowerLaw(toml_dict),
@@ -377,4 +380,4 @@ ShowMethods.field_units(::SlopePowerLaw) = (; a = "m^b")
 ShowMethods.field_units(::SmoothSlopePowerLaw) = (; a = "m^b")
 ShowMethods.field_units(::LocalRimeDensity) = (; ρ_ice = "kg m⁻³")
 ShowMethods.field_units(::ParametersP3) =
-    (; τ_wet = "s", ρ_i = "kg m⁻³", ρ_l = "kg m⁻³", T_freeze = "K")
+    (; τ_wet = "s", D_nuc = "m", ρ_i = "kg m⁻³", ρ_l = "kg m⁻³", T_freeze = "K")
