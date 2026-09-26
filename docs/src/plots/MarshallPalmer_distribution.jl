@@ -32,16 +32,13 @@ qᵣ_3 = FT(1.0e-3)
 
 r_range = range(25e-6, stop = 1e-2, length = 1000)
 
-n_r_0 =
-    [Marshall_Palmer_distribution(CMP.Rain(FT), qᵣ_0, ρ, r) for r in r_range]
-n_r_1 =
-    [Marshall_Palmer_distribution(CMP.Rain(FT), qᵣ_1, ρ, r) for r in r_range]
-n_r_2 =
-    [Marshall_Palmer_distribution(CMP.Rain(FT), qᵣ_2, ρ, r) for r in r_range]
-n_r_3 =
-    [Marshall_Palmer_distribution(CMP.Rain(FT), qᵣ_3, ρ, r) for r in r_range]
+rain = CMP.Rain(FT)
+n_r_0 = [Marshall_Palmer_distribution(rain, qᵣ_0, ρ, r) for r in r_range]
+n_r_1 = [Marshall_Palmer_distribution(rain, qᵣ_1, ρ, r) for r in r_range]
+n_r_2 = [Marshall_Palmer_distribution(rain, qᵣ_2, ρ, r) for r in r_range]
+n_r_3 = [Marshall_Palmer_distribution(rain, qᵣ_3, ρ, r) for r in r_range]
 
-fig = MK.Figure(resolution = (1100, 600))
+fig = MK.Figure(size = (1100, 600))
 ax1 = MK.Axis(
     fig[1, 1],
     title = "Marshall-Palmer distribution",
@@ -64,7 +61,8 @@ MK.lines!(ax2, r_range, n_r_0, label = "q⁰ᵣ = 10⁻⁵", color = :blue)
 MK.lines!(ax2, r_range, n_r_1, label = "q¹ᵣ = 2x10⁻⁴", color = :red)
 MK.lines!(ax2, r_range, n_r_2, label = "q²ᵣ = 10⁻⁴", color = :green)
 MK.lines!(ax2, r_range, n_r_3, label = "q³ᵣ = 10⁻³", color = :orange)
-MK.axislegend()
+MK.axislegend(ax2)
 
 MK.save("MarshallPalmer_distribution.svg", fig)
 #! format: on
+nothing

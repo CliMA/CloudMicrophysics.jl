@@ -84,7 +84,7 @@ function generate_cond_evap_rate(::Range_qₗ_T)
     qₗ = -10g_kg⁻¹:(0.01g_kg⁻¹):10g_kg⁻¹; xlabel = "liquid water humidity, q_liq (g/kg)"; x_suf = "ql"
 
     # y-axis, T
-    T = 240:0.01:273.15; ylabel = "Temperature (K)"; y_suf = "T"
+    T = 240:0.05:273.15; ylabel = "Temperature (K)"; y_suf = "T"
 
     # Fixed values
     qₜ_gkg = 10; qₜ = qₜ_gkg * g_kg⁻¹; title *= "qₜ=$(qₜ_gkg)g/kg, "

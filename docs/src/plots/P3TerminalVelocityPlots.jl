@@ -202,7 +202,7 @@ function figure_2()
     row += 1
     title = "Vₘ (ϕᵢ = 1) with small Dₘ"
     make_plots(row, 1, F_rims, ρ_rims; cfvals = V_m_s, cvals = D_m_s, title)
-    title = "Vₘ (ϕᵢ = 1) with medium Dₘ",
+    title = "Vₘ (ϕᵢ = 1) with medium Dₘ"
     make_plots(row, 2, F_rimm, ρ_rimm; cfvals = V_m_m, cvals = D_m_m, title)
     title = "Vₘ (ϕᵢ = 1) with large Dₘ"
     make_plots(row, 3, F_riml, ρ_riml; cfvals = V_m_l, cvals = D_m_l, title)

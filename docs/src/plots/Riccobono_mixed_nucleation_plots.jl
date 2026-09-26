@@ -1,4 +1,4 @@
-using Plots
+import CairoMakie as MK
 
 import ClimaParams as CP
 import CloudMicrophysics.Nucleation as Nucleation
@@ -18,12 +18,6 @@ nucleation_rates = map(bioOxOrg_concentrations) do bioOxOrg_conc
     ) * 1e6
 end
 
-Plots.plot(xaxis = :log, yaxis = :log, lw = 3)
-Plots.plot!(
-    bioOxOrg_concentrations,
-    nucleation_rates,
-    label = "Riccobono parameterization",
-)
 CLOUD_points = [
     (5360344.038850841, 0.09948622490099472),
     (8968652.585232794, 0.3074108277542233),
@@ -53,15 +47,24 @@ CLOUD_points = [
     (196732207.6712905, 2.987642282932369),
 ]
 
-Plots.plot!(
-    CLOUD_points,
-    seriestype = :scatter,
-    label = "CLOUD data",
-    ylabel = "Nucleation rate (cm⁻³ s⁻¹)",
+fig = MK.Figure(size = (700, 500))
+ax = MK.Axis(
+    fig[1, 1];
     xlabel = "[BioOxOrg] (cm⁻³)",
-    xlims = [10^5.4, 10^8.4],
-    ylims = [0.001, 10],
-    xticks = [1e6, 1e7, 1e8],
-    yticks = [0.01, 0.1, 1, 10],
+    ylabel = "Nucleation rate (cm⁻³ s⁻¹)",
+    xscale = log10,
+    yscale = log10,
 )
-Plots.svg("Riccobono_nucleation");
+MK.limits!(ax, 10^5.4, 10^8.4, 0.001, 10)
+MK.lines!(ax, bioOxOrg_concentrations, nucleation_rates; linewidth = 3, label = "Riccobono parameterization")
+MK.scatter!(
+    ax,
+    CLOUD_points;
+    color = MK.Makie.wong_colors()[2],
+    strokecolor = :black,
+    strokewidth = 1,
+    label = "CLOUD data",
+)
+MK.axislegend(ax; position = :lt)
+MK.save("Riccobono_nucleation.svg", fig)
+nothing

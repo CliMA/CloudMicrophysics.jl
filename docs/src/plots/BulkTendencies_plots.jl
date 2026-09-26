@@ -354,11 +354,12 @@ function plot_bulk_microphysics_linearized_convergence(;
 end
 
 colors = Makie.wong_colors()[[1, 2, 7, 3, 4, 5, 6]]
-set_theme!(palette = (color = colors,))
-fig = plot_bulk_microphysics_linearized_convergence(
-    FT = Float64,
-    t_end = 60.0,
-    dt_ref = 0.1,
-    nsubs = [1, 2, 5, 10],
-)
+fig = with_theme(palette = (color = colors,)) do
+    plot_bulk_microphysics_linearized_convergence(
+        FT = Float64,
+        t_end = 60.0,
+        dt_ref = 0.1,
+        nsubs = [1, 2, 5, 10],
+    )
+end
 save("bulk_microphysics_linearized_convergence.svg", fig)

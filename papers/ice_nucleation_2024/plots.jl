@@ -1,6 +1,6 @@
 import CairoMakie as MK
 
-include(joinpath(pkgdir(CM), "parcel", "ParcelCommon.jl"))
+using .Parcel  # defined by calibration.jl
 
 #! format: off
 

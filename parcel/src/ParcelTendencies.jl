@@ -51,7 +51,7 @@ function deposition_nucleation(params::MohlerAF, state, dY)
     Sᵢ = ξ(tps, T) * Sₗ
     FT = eltype(state)
     if Sᵢ >= ips.deposition.Sᵢ_max
-        @warn("Supersaturation exceeds Sᵢ_max. No dust will be activated.")
+        @warn "Supersaturation exceeds Sᵢ_max. No dust will be activated." maxlog = 1
     end
 
     AF =
@@ -73,7 +73,7 @@ function deposition_nucleation(params::MohlerRate, state, dY)
     dSᵢdt = ξ(tps, T) * dY[1]
 
     if Sᵢ >= ips.deposition.Sᵢ_max
-        @warn("Supersaturation exceeds Sᵢ_max. No dust will be activated.")
+        @warn "Supersaturation exceeds Sᵢ_max. No dust will be activated." maxlog = 1
         dNi_dt = FT(0)
     else
         dNi_dt = CMI_het.MohlerDepositionRate(
@@ -248,15 +248,14 @@ end
 function condensation(params::NonEqCondParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
-    (; tps, liquid, dt) = params
+    (; tps, liquid, dt, formation_params) = params
 
     if qᵥ + qₗ > FT(0)
 
         qₜ = qᵥ + qₗ + qᵢ
 
-        clf_params = CMP.Microphysics1MParams(FT).process_params.cloud_liquid_formation
         mp_mock = (; cloud = (; liquid),
-            process_params = (; cloud_liquid_formation = clf_params))
+            process_params = (; cloud_liquid_formation = formation_params))
         micro_mock = (; q_tot = qₜ, q_lcl = qₗ, q_icl = qᵢ, q_rai = FT(0), q_sno = FT(0))
         thermo_mock = (; ρ = ρ_air, T = T)
         cond_rate = MNE.conv_q_vap_to_q_lcl(
@@ -314,12 +313,11 @@ function deposition(params::NonEqDepParams, PSD, state, ρ_air)
     FT = eltype(state)
     (; T, qₗ, qᵥ, qᵢ) = state
 
-    (; tps, ice, aps, ip, dt) = params
+    (; tps, ice, aps, ip, dt, τ_relax) = params
 
     if qᵥ + qᵢ > FT(0)
         qₜ = qᵥ + qₗ + qᵢ
 
-        τ_relax = CMP.Microphysics1MParams(FT).process_params.cloud_ice_formation.τ_relax
         mp_mock = (; cloud = (; ice), air_properties = aps,
             process_params = (;
                 cloud_ice_formation = (; τ_relax, frostenberg = ip)))
