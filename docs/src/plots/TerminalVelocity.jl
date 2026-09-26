@@ -1,5 +1,4 @@
-import Plots as PL
-using Measures
+import CairoMakie as MK
 
 import ClimaParams as CP
 
@@ -175,48 +174,113 @@ bSt_lcl = [CM2.cloud_terminal_velocity(SB2006.pdf_c, STVel, q, ρ_air, N_lcl)[2]
 bCh_lcl = [CMNe.terminal_velocity(liquid, STVel, ρ_air, q) for q in q_range]
 bCh_icl = [CMNe.terminal_velocity(ice,    Chen2022.small_ice, ρ_air, q) for q in q_range]
 
-# individual particle comparison - cloud size range
-p1 = PL.scatter(D_Gunn_Kinzer_small * 1e6, u_Gunn_Kinzer_small * 1e2, ms = 3, color = 4, label = "Gunn and Kinzer (1949)")
-p1 = PL.plot!(D_r_range_small  * 1e6, M1_rain_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Rain 1M",   color = :skyblue1, margin=10mm)
-p1 = PL.plot!(D_r_range_small  * 1e6, M1_snow_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Snow 1M",   color = :plum)
-p1 = PL.plot!(D_r_range_small  * 1e6, ST_cloud_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Stokes",   color = :cadetblue, style = :dash)
-p1 = PL.plot!(D_r_range_small  * 1e6, SB_rain_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Rain SB",   color = :cadetblue)
-p1 = PL.plot!(D_r_range_small  * 1e6, Ch_rain_small * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Rain Chen", color = :blue)
-p1 = PL.plot!(D_r_range_small  * 1e6, Ch_snow_small         * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Snow Chen", color = :darkviolet)
-p1 = PL.plot!(D_r_range_small  * 1e6, Ch_snow_small_oblate  * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Snow Chen", color = :darkviolet, style = :dash)
-p1 = PL.plot!(D_r_range_small  * 1e6, Ch_snow_small_prolate * 1e2, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Snow Chen", color = :darkviolet, style = :dot)
-p1 = PL.plot!(D_r_range_small  * 1e6, Ch_icl_small * 1e2,  linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [cm/s]", label = "Ice Chen",  color = :orange)
-# individual particle comparison - precip size range
-p2 = PL.scatter(D_Gunn_Kinzer * 1e3, u_Gunn_Kinzer, ms = 3, color = 4, legend=false)
-p2 = PL.plot!(D_r_range * 1e3, M1_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :skyblue1)
-p2 = PL.plot!(D_r_range * 1e3, M1_snow, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :plum)
-p2 = PL.plot!(D_r_range * 1e3, ST_cloud, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [m/s]", legend=false, color = :cadetblue, style = :dash)
-p2 = PL.plot!(D_r_range * 1e3, SB_rain, linewidth = 3, xlabel = "D [um]", ylabel = "terminal velocity [m/s]", legend=false, color = :cadetblue)
-p2 = PL.plot!(D_r_range * 1e3, Ch_rain, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :blue)
-p2 = PL.plot!(D_r_range * 1e3, Ch_snow,         linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :darkviolet)
-p2 = PL.plot!(D_r_range * 1e3, Ch_snow_oblate,  linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :darkviolet, style = :dash)
-p2 = PL.plot!(D_r_range * 1e3, Ch_snow_prolate, linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :darkviolet, style = :dot)
-p2 = PL.plot!(D_r_range * 1e3, Ch_icl,  linewidth = 3, xlabel = "D [mm]", ylabel = "terminal velocity [m/s]", legend=false, color = :orange)
-p2 = PL.plot!(ylim=(-1.0, 11.0))
-# snow aspect ratio
-p3 = PL.plot(D_r_range  * 1e3,  Aspect_Ratio_oblate,  linewidth = 3, xlabel = "D [mm]", ylabel = "aspect ratio", label = "Snow aspect ratio oblate",  color = :darkviolet, ylim = (0, 100), style = :dash)
-p3 = PL.plot!(D_r_range * 1e3,  Aspect_Ratio_prolate, linewidth = 3, xlabel = "D [mm]", ylabel = "aspect ratio", label = "Snow aspect ratio prolate", color = :darkviolet, style = :dot)
-# group velocity comparison
-p4 = PL.plot(q_range * 1e3,  bSt_lcl * 100,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :cadetblue, label="Liq Stokes", margin=10mm)
-p4 = PL.plot!(q_range * 1e3,  bSt_N_lcl * 100,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :cadetblue, style = :dash, label="Liq Num Stokes")
-p4 = PL.plot!(q_range * 1e3,  bCh_lcl * 100,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :orange,      label="Liq Chen")
-p4 = PL.plot!(q_range * 1e3, bCh_icl * 100, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [cm/s]", color = :blue,     label="Ice Chen")
-
-p5 = PL.plot(q_range  * 1e3, bM1_rain, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :skyblue1,   label="Rain 1M")
-p5 = PL.plot!(q_range * 1e3, bM1_snow, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :plum,       label="Snow 1M")
-p5 = PL.plot!(q_range * 1e3, bCh_rain, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :blue,       label="Rain Chen")
-p5 = PL.plot!(q_range * 1e3, bCh_snow,         linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :darkviolet, label="Snow Chen")
-p5 = PL.plot!(q_range * 1e3, bCh_snow_oblate,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :darkviolet, label="Snow Chen", style = :dash)
-p5 = PL.plot!(q_range * 1e3, bCh_snow_prolate, linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :darkviolet, label="Snow Chen", style = :dot)
-p5 = PL.plot!(q_range * 1e3, bCh_lcl,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :green,      label="Liq Chen")
-p5 = PL.plot!(q_range * 1e3, bCh_icl,  linewidth = 3, xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", color = :orange,     label="Ice Chen")
-
-PL.plot(p1, p2, p3, p4, p5, layout = (2, 3), size = (1200, 750), dpi=400)
-PL.savefig("1M_individual_terminal_velocity_comparisons.svg")
-
 #! format: on
+
+fig = MK.Figure(size = (1200, 750))
+ax1 = MK.Axis(
+    fig[1, 1];
+    xlabel = "D [μm]",
+    ylabel = "terminal velocity [cm/s]",
+    title = "Individual particles, cloud sizes",
+)
+ax2 = MK.Axis(
+    fig[1, 2];
+    xlabel = "D [mm]",
+    ylabel = "terminal velocity [m/s]",
+    title = "Individual particles, precipitation sizes",
+)
+ax3 = MK.Axis(fig[1, 3]; xlabel = "D [mm]", ylabel = "aspect ratio", title = "Snow aspect ratio")
+ax4 = MK.Axis(
+    fig[2, 1];
+    xlabel = "q [g/kg]",
+    ylabel = "terminal velocity [cm/s]",
+    title = "Group velocity, cloud condensate",
+)
+ax5 =
+    MK.Axis(fig[2, 2]; xlabel = "q [g/kg]", ylabel = "terminal velocity [m/s]", title = "Group velocity, precipitation")
+
+# individual particle velocities; each entry is (label, cloud-size values, precipitation-size values, line attributes)
+individual = [
+    ("Rain 1M", M1_rain_small, M1_rain, (; color = :skyblue1)),
+    ("Snow 1M", M1_snow_small, M1_snow, (; color = :plum)),
+    ("Stokes", ST_cloud_small, ST_cloud, (; color = :cadetblue, linestyle = :dash)),
+    ("Rain SB", SB_rain_small, SB_rain, (; color = :cadetblue)),
+    ("Rain Chen", Ch_rain_small, Ch_rain, (; color = :blue)),
+    ("Snow Chen", Ch_snow_small, Ch_snow, (; color = :darkviolet)),
+    ("Snow Chen, oblate", Ch_snow_small_oblate, Ch_snow_oblate, (; color = :darkviolet, linestyle = :dash)),
+    ("Snow Chen, prolate", Ch_snow_small_prolate, Ch_snow_prolate, (; color = :darkviolet, linestyle = :dot)),
+    ("Ice Chen", Ch_icl_small, Ch_icl, (; color = :orange)),
+]
+MK.scatter!(ax1, D_Gunn_Kinzer_small * 1e6, u_Gunn_Kinzer_small * 1e2; color = :black, label = "Gunn and Kinzer (1949)")
+MK.scatter!(ax2, D_Gunn_Kinzer * 1e3, u_Gunn_Kinzer; color = :black, markersize = 7)
+for (label, v_small, v, attrs) in individual
+    MK.lines!(ax1, D_r_range_small * 1e6, v_small * 1e2; linewidth = 3, label, attrs...)
+    MK.lines!(ax2, D_r_range * 1e3, v; linewidth = 3, attrs...)
+end
+MK.ylims!(ax2, -1, 11)
+# the empty grid cell holds the legend shared by the two individual particle panels
+MK.Legend(fig[2, 3], ax1, "Individual particles"; framevisible = false, tellwidth = false)
+
+MK.lines!(
+    ax3,
+    D_r_range * 1e3,
+    Aspect_Ratio_oblate;
+    linewidth = 3,
+    color = :darkviolet,
+    linestyle = :dash,
+    label = "oblate",
+)
+MK.lines!(
+    ax3,
+    D_r_range * 1e3,
+    Aspect_Ratio_prolate;
+    linewidth = 3,
+    color = :darkviolet,
+    linestyle = :dot,
+    label = "prolate",
+)
+MK.ylims!(ax3, 0, 100)
+MK.axislegend(ax3; position = :rt, framevisible = false)
+
+MK.lines!(ax4, q_range * 1e3, bSt_lcl * 100; linewidth = 3, color = :cadetblue, label = "Liq Stokes")
+MK.lines!(
+    ax4,
+    q_range * 1e3,
+    bSt_N_lcl * 100;
+    linewidth = 3,
+    color = :cadetblue,
+    linestyle = :dash,
+    label = "Liq Num Stokes",
+)
+MK.lines!(ax4, q_range * 1e3, bCh_lcl * 100; linewidth = 3, color = :orange, label = "Liq Chen")
+MK.lines!(ax4, q_range * 1e3, bCh_icl * 100; linewidth = 3, color = :blue, label = "Ice Chen")
+MK.axislegend(ax4; position = (0.95, 0.6), framevisible = false, rowgap = 0, labelsize = 13)
+
+MK.lines!(ax5, q_range * 1e3, bM1_rain; linewidth = 3, color = :skyblue1, label = "Rain 1M")
+MK.lines!(ax5, q_range * 1e3, bM1_snow; linewidth = 3, color = :plum, label = "Snow 1M")
+MK.lines!(ax5, q_range * 1e3, bCh_rain; linewidth = 3, color = :blue, label = "Rain Chen")
+MK.lines!(ax5, q_range * 1e3, bCh_snow; linewidth = 3, color = :darkviolet, label = "Snow Chen")
+MK.lines!(
+    ax5,
+    q_range * 1e3,
+    bCh_snow_oblate;
+    linewidth = 3,
+    color = :darkviolet,
+    linestyle = :dash,
+    label = "Snow Chen, oblate",
+)
+MK.lines!(
+    ax5,
+    q_range * 1e3,
+    bCh_snow_prolate;
+    linewidth = 3,
+    color = :darkviolet,
+    linestyle = :dot,
+    label = "Snow Chen, prolate",
+)
+MK.lines!(ax5, q_range * 1e3, bCh_lcl; linewidth = 3, color = :green, label = "Liq Chen")
+MK.lines!(ax5, q_range * 1e3, bCh_icl; linewidth = 3, color = :orange, label = "Ice Chen")
+MK.axislegend(ax5; position = (0.95, 0.6), framevisible = false, rowgap = 0, labelsize = 13)
+
+MK.save("1M_individual_terminal_velocity_comparisons.svg", fig)
+nothing

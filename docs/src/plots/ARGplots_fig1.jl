@@ -78,3 +78,4 @@ fig = MK.with_theme(MK.theme_minimal(), linewidth = 2, fontsize = 14) do
 
     fig
 end
+nothing

@@ -26,14 +26,14 @@ a_w_ice_alternate = p_sat_ice ./ p_sol_0   # a_ice if sat vapor pressure over pu
 a_w_ice_μ = [exp((210368 + 131.438*T - (3.32373e6 /T) - 41729.1*log(T))/(8.31441*T)) for T in T_range]  # a_ice using chemical potential parameterization
 
 # Plotting. NOTE: all ".* -1" is only to flip x axis
-fig = MK.Figure(resolution = (800, 600))
+fig = MK.Figure(size = (800, 600))
 ax1 = MK.Axis(fig[1, 1], title = "Temperature vs Water Activity", ylabel = "T [K]", xlabel = "-a_w", limits = ((-1, -0.4), nothing))
 MK.lines!(ax1, a_w .* -1, T_range, label = "CM default a_w", color = :blue)
 MK.lines!(ax1, a_w_alternate .* -1, T_range, label = "a_w using p(0,T)", linestyle = :dash, color = :blue)
 MK.lines!(ax1, a_w_ice .* -1, T_range, label = "CM default a_w_ice", color = :green)
 MK.lines!(ax1, a_w_ice_alternate .* -1, T_range, label = "a_w_ice using p(0,T)", color = :green, linestyle = :dash)
 MK.lines!(ax1, a_w_ice_μ .* -1, T_range, label = "a_w_ice using μ", color = :lightgreen)
-MK.axislegend()
+MK.axislegend(ax1)
 
 MK.save("T_vs_wateractivity.svg", fig)
 #! format: on

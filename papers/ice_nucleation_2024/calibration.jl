@@ -10,7 +10,8 @@ import StatsBase as SB
 
 #! format: off
 # definition of the ODE problem for parcel model
-include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
+include(joinpath(pkgdir(CM), "parcel", "src", "Parcel.jl"))
+using .Parcel
 
 # Define model which wraps around parcel and overwrites calibrated parameters
 function run_model(p_list, IN_mode, coefficients, FT, IC_list; calibration = false, P3 = false)

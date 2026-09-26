@@ -11,6 +11,7 @@ import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
 
 FT = Float64
+RD.seed!(44)
 
 # AK 2016 data and the frozen fraction fit to data
 include(joinpath(pkgdir(CM), "box", "Alpert_Knopf_2016_data.jl"))
@@ -40,8 +41,7 @@ cooling_rate = FT(0.5 / 60) # K s^-1
 dt = (T[1] - T[2]) / cooling_rate
 
 # compute n_frz from frozen fraction
-n_frz = similar(T)
-n_frz[1] = FT(0)
+n_frz = zeros(FT, length(T))
 for it in range(2, length(n_frz) - 1)
     n_frz[it] = (ff[it] - ff[it - 1]) * N₀
 end
@@ -95,7 +95,7 @@ J_immer = @. CMI_het.ABIFM_J(aerosol, Δa) # m^-2 s^-1
 
 #! format: off
 # Plot results
-fig = MK.Figure(resolution = (1200, 400))
+fig = MK.Figure(size = (1200, 400))
 ax1 = MK.Axis(fig[1, 1], ylabel = "J_immer [cm^-2 s^-1]", xlabel = "Temperature [K]", yscale = log10)
 ax2 = MK.Axis(fig[1, 2], ylabel = "frozen fraction",      xlabel = "Temperature [K]")
 ax3 = MK.Axis(fig[1, 3], ylabel = "total A [cm^2]",       xlabel = "Temperature [K]", yscale = log10)

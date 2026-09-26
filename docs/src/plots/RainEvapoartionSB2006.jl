@@ -92,7 +92,7 @@ evap_qᵣ_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, _qᵣ, 
 evap_Nᵣ_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, _Nᵣ, T).∂ₜq_rai for _Nᵣ in Nᵣ_range]
 evap_T_3n = [CM2.rain_evaporation(SB2006, aps, tps, qₜ, qₗ, qᵢ, qᵣ, qₛ, ρ, Nᵣ, _T).∂ₜq_rai for _T in T_range]
 
-fig = MK.Figure(resolution = (800, 600))
+fig = MK.Figure(size = (800, 600))
 
 ax1 = MK.Axis(fig[1, 1], xlabel = "q_rain [g/kg]", ylabel = "evap rate [1/cm3/s]")
 ax2 = MK.Axis(fig[2, 1], xlabel = "N_rain [1/cm3]", ylabel = "evap rate [1/cm3/s]")
