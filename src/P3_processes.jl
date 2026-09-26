@@ -243,10 +243,10 @@ A function that computes the local rime density [kg/m³] using the equation:
 ```
 where
 ```math
-R_i = \\frac{ 10^6 ⋅ D_{liq} ⋅ |v_{liq} - v_{ice}| }{ 2 T_{sfc} }
+R_i = -\\frac{ 10^6 ⋅ D_{liq} ⋅ |v_{liq} - v_{ice}| }{ 2 T_{sfc} }
 ```
-and ``T_{sfc}`` is the surface temperature [°C], ``D_{liq}`` is the liquid particle
-diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
+and ``T_{sfc} < 0`` is the sub-zero surface temperature [°C], ``D_{liq}`` is the liquid
+particle diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
 With the ``10^6`` factor converting ``D_{liq}`` from [m] to [μm], the units of
 ``R_i`` are [μm m s⁻¹ °C⁻¹]. The units of ``ρ'_{rim}`` are [kg/m³].
 
@@ -263,6 +263,7 @@ See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity
  See also the P3 fortran code, `microphy_p3.f90`, Line 3315-3323,
  which extends the range of the calculation to ``R_i ≤ 12``, the upper limit of which
  then equals the solid bulk ice density, ``ρ_ice = 916.7 kg/m^3``.
+ At and above ``T_{sfc} = 0``, the local rime density is ``ρ_ice``.
 
  Note that Morrison & Milbrandt (2015) [MorrisonMilbrandt2015](@cite) only uses this
  parameterization for collisions with cloud droplets.
@@ -272,13 +273,15 @@ See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity
 function compute_local_rime_density(velocity_params, ρₐ, T, state)
     (; T_freeze, ρ_rim_local) = state.params
     T°C = T - T_freeze  # Convert to °C
-    μm = 1_000_000  # Note: m to μm factor, c.f. units of rₘ in Eq. 16 in Cober and List (1993)
+    μm = 1_000_000  # m to μm factor, c.f. units of rₘ in Eq. 16 in Cober and List (1993)
 
     v_ice = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
     v_liq = CO.particle_terminal_velocity(velocity_params.rain, ρₐ)
     function ρ′_rim(Dᵢ, Dₗ)
         v_term = abs(v_ice(Dᵢ) - v_liq(Dₗ))
-        Rᵢ = (Dₗ * μm * v_term) / (2 * T°C)  # Eq. 16 in Cober and List (1993). Note: no `-` due to absolute value in v_term
+        Rᵢ = -(Dₗ * μm * v_term) / (2 * T°C)  # Eq. 16 in Cober and List (1993), Rᵢ > 0 for T°C < 0
+        # At and above the melting point, select the solid-ice limit, Rᵢ = 12, directly
+        Rᵢ = ifelse(T°C < 0, Rᵢ, oftype(Rᵢ, 12))
         return ρ_rim_local(Rᵢ)
     end
     return ρ′_rim

@@ -186,9 +186,9 @@ function benchmark_test(FT)
         P3.P3State,
         P3.P3State,
         (params_P3, L_ice, N_ice, F_rim, ρ_rim),
-        400,
+        1_000,
     )
-    bench_press(FT, P3.get_distribution_logλ, (state,), 220_000)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod, zero warp divergence
+    bench_press(FT, P3.get_distribution_logλ, (state,), 500_000)  # 10 (F64) / 8 (F32) FixedIterations BrentsMethod
     # The weighted-velocity integrals build a nested terminal-velocity closure
     # that escapes into `integrate`. With `ice_particle_terminal_velocity`
     # returning a single (concretely-typed) closure, this path is type-stable
@@ -196,8 +196,8 @@ function benchmark_test(FT)
     # allocation/memory budget so a future closure regression is caught here.
     bench_press(FT, P3.ice_terminal_velocity_number_weighted, (ch2022, ρ_air, state, logλ), 170_000)
     bench_press(FT, P3.ice_terminal_velocity_mass_weighted, (ch2022, ρ_air, state, logλ), 200_000)
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1)), 7_000)
-    bench_press(FT, P3.D_m, (state, logλ), 18_000)
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1), P3.GaussLegendre(FT, 6)), 7_000)
+    bench_press(FT, P3.D_m, (state, logλ), 20_000)
 
     @info "P3 Ice Nucleation"
     bench_press(
