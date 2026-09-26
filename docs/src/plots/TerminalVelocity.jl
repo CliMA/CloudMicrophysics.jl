@@ -26,27 +26,16 @@ const Blk1MVel = CMP.Blk1MVelType(FT)
 const oblate = CM1.Oblate()
 const prolate = CM1.Prolate()
 
-function aspect_ratio_snow_1M_oblate(snow::CMP.Snow, D::FT) where {FT <: Real}
-    (; r0, m0, me, χm, Δm) = snow.mass
-    (; a0, ae, Δa, χa) = snow.area
-    ρᵢ = snow.ρᵢ
-
-    aᵢ = χa * a0 * (D / 2 / r0)^(ae + Δa)
-    mᵢ = χm * m0 * (D / 2 / r0)^(me + Δm)
-
-    return 3 * sqrt(FT(π)) * mᵢ / (4 * ρᵢ * aᵢ^(3 / 2))
-end
-function aspect_ratio_snow_1M_prolate(snow::CMP.Snow, D::FT) where {FT <: Real}
-    (; r0, m0, me, χm, Δm) = snow.mass
-    (; a0, ae, Δa, χa) = snow.area
-    ρᵢ = snow.ρᵢ
-
-    aᵢ = χa * a0 * (D / 2 / r0)^(ae + Δa)
-    mᵢ = χm * m0 * (D / 2 / r0)^(me + Δm)
-
-    return 16 * ρᵢ^2 * aᵢ^3 / (9 * FT(π) * mᵢ^2)
+# Aspect ratio ϕ(D) = ϕ₀ D^α of a snow particle with the given shape and the mass and
+# area laws of `snow`. As in `CM1.terminal_velocity`, the spheroid relation uses the
+# bulk ice density, not the snow apparent density.
+function snow_aspect_ratio(snow::CMP.Snow, shape, D)
+    (ϕ₀, α, _) = CM1.aspect_ratio_coeffs(shape, snow.mass, snow.area, snow.ρᵢ_bulk)
+    return ϕ₀ * D^α
 end
 
+# Terminal velocity of a snow particle with diameter D, with the prescribed aspect ratio
+# of `snow` or, if a shape is given, the aspect ratio of that shape
 function snow_terminal_velocity_individual_Chen(
     snow::CMP.Snow,
     velo_scheme::CMP.Chen2022VelTypeLargeIce,
@@ -58,26 +47,16 @@ function snow_terminal_velocity_individual_Chen(
     v_term = ϕ^κ * vₜ(D)
     return max(FT(0), v_term)
 end
-function snow_terminal_velocity_individual_Chen_oblate(
+function snow_terminal_velocity_individual_Chen(
     snow::CMP.Snow,
     velo_scheme::CMP.Chen2022VelTypeLargeIce,
     ρₐ::FT,
-    D_r::FT, #in m
+    D::FT, #in m
+    shape,
 ) where {FT <: Real}
     vₜ = CMO.particle_terminal_velocity(velo_scheme, ρₐ, snow.ρᵢ)
-    ϕ = aspect_ratio_snow_1M_oblate(snow, D_r)
-    v_term = ϕ^(1 // 3) * vₜ(D_r)
-    return max(FT(0), v_term)
-end
-function snow_terminal_velocity_individual_Chen_prolate(
-    snow::CMP.Snow,
-    velo_scheme::CMP.Chen2022VelTypeLargeIce,
-    ρₐ::FT,
-    D_r::FT, #in m
-) where {FT <: Real}
-    vₜ = CMO.particle_terminal_velocity(velo_scheme, ρₐ, snow.ρᵢ)
-    ϕ = aspect_ratio_snow_1M_prolate(snow, D_r)
-    v_term = ϕ^(-1 // 6) * vₜ(D_r)
+    (_, _, κ) = CM1.aspect_ratio_coeffs(shape, snow.mass, snow.area, snow.ρᵢ_bulk)
+    v_term = snow_aspect_ratio(snow, shape, D)^κ * vₜ(D)
     return max(FT(0), v_term)
 end
 
@@ -137,8 +116,8 @@ Ch_lcl_small = v_term_rain.(D_r_range_small)
 Ch_icl_small = v_term_small_ice.(D_r_range_small)
 Ch_rain_small = v_term_rain.(D_r_range_small)
 Ch_snow_small = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range_small]
-Ch_snow_small_oblate = [snow_terminal_velocity_individual_Chen_oblate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range_small]
-Ch_snow_small_prolate = [snow_terminal_velocity_individual_Chen_prolate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range_small]
+Ch_snow_small_oblate = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice, ρ_air, D_r, oblate) for D_r in D_r_range_small]
+Ch_snow_small_prolate = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice, ρ_air, D_r, prolate) for D_r in D_r_range_small]
 # velocity values for precip particle sizes
 ST_cloud = v_term_stokes.(D_r_range)
 SB_rain = [rain_terminal_velocity_individual_SB(SB2006Vel, ρ_air, D_r)                 for D_r in D_r_range]
@@ -148,20 +127,17 @@ Ch_lcl = v_term_rain.(D_r_range)
 Ch_icl = v_term_small_ice.(D_r_range)
 Ch_rain = v_term_rain.(D_r_range)
 Ch_snow = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range]
-Ch_snow_oblate  = [snow_terminal_velocity_individual_Chen_oblate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range]
-Ch_snow_prolate = [snow_terminal_velocity_individual_Chen_prolate(snow, Chen2022.large_ice, ρ_air, D_r) for D_r in D_r_range]
+Ch_snow_oblate  = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice, ρ_air, D_r, oblate) for D_r in D_r_range]
+Ch_snow_prolate = [snow_terminal_velocity_individual_Chen(snow, Chen2022.large_ice, ρ_air, D_r, prolate) for D_r in D_r_range]
 # obs data
 D_Gunn_Kinzer = [0.0, 0.078, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4, 3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8] .* 1e-3
 u_Gunn_Kinzer = [0.0, 18.0, 27, 72, 117, 162, 206, 247, 287, 327, 367, 403, 464, 517, 565, 609, 649, 690, 727, 757, 782, 806, 826, 844, 860, 872, 883, 892, 898, 903, 907, 909, 912, 914, 916, 917] ./ 100
 D_Gunn_Kinzer_small = [0.0, 0.078, 0.1] .* 1e-3
 u_Gunn_Kinzer_small = [0.0, 18.0, 27] ./ 100
 
-@info(aspect_ratio_snow_1M_oblate(snow, 317 * 1.0e-6))   # = 0.9999378568038546
-@info(aspect_ratio_snow_1M_prolate(snow, 317 * 1.0e-6))  # = 1.0001242979785816
-
 # aspect ratio plot
-Aspect_Ratio_oblate = [aspect_ratio_snow_1M_oblate(snow, D_r) for  D_r in D_r_range]
-Aspect_Ratio_prolate = [aspect_ratio_snow_1M_prolate(snow, D_r) for  D_r in D_r_range]
+Aspect_Ratio_oblate = [snow_aspect_ratio(snow, oblate, D_r) for  D_r in D_r_range]
+Aspect_Ratio_prolate = [snow_aspect_ratio(snow, prolate, D_r) for  D_r in D_r_range]
 # group velocity values
 bM1_rain = [CM1.terminal_velocity(rain, Blk1MVel.rain, ρ_air, q) for q in q_range]
 bM1_snow = [CM1.terminal_velocity(snow, Blk1MVel.snow, ρ_air, q) for q in q_range]
@@ -189,7 +165,7 @@ ax2 = MK.Axis(
     ylabel = "terminal velocity [m/s]",
     title = "Individual particles, precipitation sizes",
 )
-ax3 = MK.Axis(fig[1, 3]; xlabel = "D [mm]", ylabel = "aspect ratio", title = "Snow aspect ratio")
+ax3 = MK.Axis(fig[1, 3]; xlabel = "D [mm]", ylabel = "aspect ratio", title = "Snow aspect ratio", yscale = log10)
 ax4 = MK.Axis(
     fig[2, 1];
     xlabel = "q [g/kg]",
@@ -239,8 +215,9 @@ MK.lines!(
     linestyle = :dot,
     label = "prolate",
 )
-MK.ylims!(ax3, 0, 100)
-MK.axislegend(ax3; position = :rt, framevisible = false)
+MK.hlines!(ax3, 1; color = :gray, linewidth = 1)
+MK.ylims!(ax3, 1e-3, 1e3)
+MK.axislegend(ax3; position = :rc, framevisible = false)
 
 MK.lines!(ax4, q_range * 1e3, bSt_lcl * 100; linewidth = 3, color = :cadetblue, label = "Liq Stokes")
 MK.lines!(
