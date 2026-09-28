@@ -1,3 +1,4 @@
+import ClimaParams as CP
 import CloudMicrophysics
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.ThermodynamicsInterface as TDI
@@ -234,7 +235,14 @@ function plot_bulk_microphysics_linearized_convergence(;
     nsubs = [1, 2, 5, 10],
 )
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    mp = CMP.Microphysics1MParams(FT)
+    # the convergence figure compares the substep solver with the explicit reference, so the
+    # latent-heating limiter (which the explicit reference does not have) is disabled here
+    mp = CMP.Microphysics1MParams(
+        CP.create_toml_dict(
+            FT;
+            override_file = Dict("microphysics_max_latent_heating_rate" => Dict("value" => Inf, "type" => "float")),
+        ),
+    )
     cm = BMT.Microphysics1Moment()
 
     # Example initial condition

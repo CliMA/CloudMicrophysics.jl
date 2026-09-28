@@ -239,6 +239,8 @@ mp_with_N_0(N_0) = CMP.Microphysics1MParams(;
     precip = mp.precip,
     air_properties = mp.air_properties,
     terminal_velocity = mp.terminal_velocity,
+    max_latent_heating_rate = mp.max_latent_heating_rate,
+    joint_vapor_relaxation = mp.joint_vapor_relaxation,
 )
 q_tot_het = 15e-3
 heterogeneous_freezing(N_0, q_lcl, T) = CM1.conv_q_lcl_to_q_icl(
