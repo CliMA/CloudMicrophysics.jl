@@ -1,4 +1,4 @@
-using Plots
+import CairoMakie as MK
 
 import ClimaParams as CP
 import CloudMicrophysics.Parameters as CMP
@@ -12,20 +12,6 @@ HOM_concentrations = 10 .^ (6:0.125:8.7)
 rates = map(HOM_concentrations) do HOM_conc
     sum(Nucleation.organic_nucleation_rate_hom_prescribed(0, HOM_conc, params)) * 1e-6
 end
-
-Plots.plot()
-Plots.plot!(
-    # title = title,
-    HOM_concentrations,
-    rates,
-    xaxis = :log,
-    yaxis = :log,
-    lw = 3,
-    ylims = (1e-4, 1e3),
-    ylabel = "Nucleation rate (cm⁻³ s⁻¹)",
-    xlabel = "HOM (cm⁻³)",
-    label = "Kirkby parameterization",
-)
 
 Kirkby_points = [
     (2288812.4132151115, 0.0007608176801027033),
@@ -45,11 +31,24 @@ Kirkby_points = [
     (304770868.9495659, 14.532070496789618),
 ]
 
-
-Plots.plot!(
-    Kirkby_points,
-    xticks = 10 .^ (5:10),
-    seriestype = :scatter,
+fig = MK.Figure(size = (700, 500))
+ax = MK.Axis(
+    fig[1, 1];
+    xlabel = "HOM (cm⁻³)",
+    ylabel = "Nucleation rate (cm⁻³ s⁻¹)",
+    xscale = log10,
+    yscale = log10,
+)
+MK.ylims!(ax, 1e-4, 1e3)
+MK.lines!(ax, HOM_concentrations, rates; linewidth = 3, label = "Kirkby parameterization")
+MK.scatter!(
+    ax,
+    Kirkby_points;
+    color = MK.Makie.wong_colors()[2],
+    strokecolor = :black,
+    strokewidth = 1,
     label = "CLOUD Data",
 )
-Plots.svg("Kirkby_organic_nucleation");
+MK.axislegend(ax; position = :lt)
+MK.save("Kirkby_organic_nucleation.svg", fig)
+nothing

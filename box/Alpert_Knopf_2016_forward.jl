@@ -1,4 +1,5 @@
 import CairoMakie as MK
+import Random as RD
 
 import Thermodynamics as TD
 import CloudMicrophysics as CM
@@ -7,6 +8,7 @@ import CloudMicrophysics.Common as CMO
 import CloudMicrophysics.HetIceNucleation as CMI_het
 
 FT = Float64
+RD.seed!(44)
 
 # AK 2016 data and the frozen fraction fit to data
 include(joinpath(pkgdir(CM), "box", "Alpert_Knopf_2016_data.jl"))
@@ -66,7 +68,7 @@ ff_var = @. frozen_frac(sol_var[4, :], sol_var[3, :])
 
 #! format: off
 # Plot results
-fig = MK.Figure(resolution = (1200, 400))
+fig = MK.Figure(size = (1200, 400))
 ax1 = MK.Axis(fig[1, 1], ylabel = "J_immer [cm^-2 s^-1]", xlabel = "Temperature [K]", yscale = log10)
 ax2 = MK.Axis(fig[1, 2], ylabel = "frozen fraction",      xlabel = "Temperature [K]")
 ax3 = MK.Axis(fig[1, 3], ylabel = "total A [cm2]",        xlabel = "Temperature [K]", yscale = log10)

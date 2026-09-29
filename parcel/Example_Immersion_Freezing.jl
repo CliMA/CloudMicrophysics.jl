@@ -1,11 +1,11 @@
 import CairoMakie as MK
 
 import CloudMicrophysics as CM
+import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ClimaParams as CP
 
-# definition of the ODE problem for parcel model
-include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
+using Parcel
 FT = Float32
 # get free parameters
 tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)

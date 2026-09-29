@@ -1,8 +1,7 @@
-import Plots
+import CairoMakie as MK
 import CloudMicrophysics
 import ClimaParams
 
-const PL = Plots
 const CM1 = CloudMicrophysics.Microphysics1M
 const CM2 = CloudMicrophysics.Microphysics2M
 const CO = CloudMicrophysics.Common
@@ -18,15 +17,11 @@ LD2004 = []
 
 k_thrshld_stpnss_values = [5.0, 2.0, 12.0]
 for i in 1:3
-    override_file = joinpath("override_dict.toml")
-    open(override_file, "w") do io
-        println(io, "[threshold_smooth_transition_steepness]")
-        println(io, "alias = \"k_thrshld_stpnss\"")
-        println(io, "value = " * string(k_thrshld_stpnss_values[i]))
-        println(io, "type = \"float\"")
-    end
+    override_file = Dict(
+        "threshold_smooth_transition_steepness" =>
+            Dict("value" => k_thrshld_stpnss_values[i], "type" => "float"),
+    )
     toml_dict = CP.create_toml_dict(FT; override_file)
-    isfile(override_file) && rm(override_file; force = true)
 
     push!(rain, CMP.Rain(toml_dict))
     push!(B1994, CMP.B1994(toml_dict))
@@ -80,67 +75,38 @@ N_d_B1994_s = [
     N_d in N_d_range
 ]
 
-PL.plot(
-    q_lcl_range * 1e3,
-    q_lcl_K1969,
-    linewidth = 2,
-    xlabel = "q_lcl [g/kg]",
-    ylabel = "autoconversion rate [1/s]",
-    label = "K1969 without smoothing",
-)
-PL.plot!(
-    q_lcl_range * 1e3,
-    q_lcl_K1969_s,
-    linewidth = 2,
-    label = "K1969 with smoothing",
-)
-PL.savefig("q_lcl_K1969.svg") # hide
+# rates below the threshold are exactly zero, which a log axis cannot show
+positive(x) = x > 0 ? x : NaN
 
-PL.plot(
-    q_lcl_range * 1e3,
-    q_lcl_TC1980,
-    linewidth = 2,
-    xlabel = "q_lcl [g/kg]",
-    ylabel = "autoconversion rate [1/s]",
-    label = "TC1980 without smoothing",
-    yaxis = :log,
-    ylim = (1e-10, 1e-5),
-)
-PL.plot!(
-    q_lcl_range * 1e3,
-    q_lcl_TC1980_s,
-    linewidth = 2,
-    label = "TC1980 with smoothing",
-)
-PL.plot!(
-    q_lcl_range * 1e3,
-    q_lcl_LD2004,
-    linewidth = 2,
-    label = "LD2004 without smoothing",
-)
-PL.plot!(
-    q_lcl_range * 1e3,
-    q_lcl_LD2004_s,
-    linewidth = 2,
-    label = "LD2004 with smoothing",
-)
-PL.savefig("q_lcl_TC1980_LD2004.svg") # hide
+fig = MK.Figure(size = (700, 450))
+ax = MK.Axis(fig[1, 1]; xlabel = "q_lcl [g/kg]", ylabel = "autoconversion rate [1/s]")
+MK.lines!(ax, q_lcl_range * 1e3, q_lcl_K1969; linewidth = 2, label = "K1969 without smoothing")
+MK.lines!(ax, q_lcl_range * 1e3, q_lcl_K1969_s; linewidth = 2, label = "K1969 with smoothing")
+MK.axislegend(ax; position = :lt)
+MK.save("q_lcl_K1969.svg", fig)
 
-PL.plot(
-    N_d_range * 1e-6,
-    N_d_B1994,
-    linewidth = 2,
+fig = MK.Figure(size = (700, 450))
+ax = MK.Axis(fig[1, 1]; xlabel = "q_lcl [g/kg]", ylabel = "autoconversion rate [1/s]", yscale = log10)
+MK.lines!(ax, q_lcl_range * 1e3, positive.(q_lcl_TC1980); linewidth = 2, label = "TC1980 without smoothing")
+MK.lines!(ax, q_lcl_range * 1e3, positive.(q_lcl_TC1980_s); linewidth = 2, label = "TC1980 with smoothing")
+MK.lines!(ax, q_lcl_range * 1e3, positive.(q_lcl_LD2004); linewidth = 2, label = "LD2004 without smoothing")
+MK.lines!(ax, q_lcl_range * 1e3, positive.(q_lcl_LD2004_s); linewidth = 2, label = "LD2004 with smoothing")
+MK.ylims!(ax, 1e-10, 1e-5)
+MK.axislegend(ax; position = :rb)
+MK.save("q_lcl_TC1980_LD2004.svg", fig)
+
+fig = MK.Figure(size = (700, 450))
+ax = MK.Axis(
+    fig[1, 1];
     xlabel = "N_d [1/cm3]",
     ylabel = "autoconversion rate [1/s]",
-    label = "B1994 without smoothing",
-    xaxis = :log,
-    yaxis = :log,
-    ylim = (1e-13, 1e-5),
+    xscale = log10,
+    yscale = log10,
+    xticks = [10, 100, 1000],
 )
-PL.plot!(
-    N_d_range * 1e-6,
-    N_d_B1994_s,
-    linewidth = 2,
-    label = "B1994 with smoothing",
-)
-PL.savefig("N_d_B1994.svg") # hide
+MK.lines!(ax, N_d_range * 1e-6, positive.(N_d_B1994); linewidth = 2, label = "B1994 without smoothing")
+MK.lines!(ax, N_d_range * 1e-6, positive.(N_d_B1994_s); linewidth = 2, label = "B1994 with smoothing")
+MK.ylims!(ax, 1e-13, 1e-5)
+MK.axislegend(ax; position = :rt)
+MK.save("N_d_B1994.svg", fig)
+nothing

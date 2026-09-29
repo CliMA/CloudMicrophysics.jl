@@ -121,7 +121,7 @@ accK1969_q_rai = [
     q_rai in q_rai_range
 ]
 
-fig = Figure(resolution = (900, 600))
+fig = Figure(size = (900, 600))
 
 ax1 = Axis(fig[1, 1]; yscale = log10)
 ax2 = Axis(fig[1, 2]; xscale = log10, yscale = log10)

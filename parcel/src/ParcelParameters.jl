@@ -88,10 +88,11 @@ struct NonEqCondParams_simple{FT} <: CMP.ParametersType
     liquid::CMP.CloudLiquid{FT}
 end
 
-struct NonEqCondParams{FT} <: CMP.ParametersType
+struct NonEqCondParams{FT, P} <: CMP.ParametersType
     tps::TDP.ThermodynamicsParameters{FT}
     liquid::CMP.CloudLiquid{FT}
     dt::FT
+    formation_params::P
 end
 
 struct DepParams{FT} <: CMP.ParametersType
@@ -111,4 +112,5 @@ struct NonEqDepParams{FT} <: CMP.ParametersType
     aps::CMP.AirProperties{FT}
     ip::CMP.Frostenberg2023{FT}
     dt::FT
+    τ_relax::FT
 end

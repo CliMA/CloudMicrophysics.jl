@@ -7,7 +7,7 @@ import ClimaParams as CP
 
 FT = Float64
 
-include(joinpath(pkgdir(CM), "parcel", "Parcel.jl"))
+using Parcel
 
 # choosing a value for the ice relaxation timescale
 τ = FT(10)
@@ -21,7 +21,6 @@ override_file = Dict(
 override_toml_dict = CP.create_toml_dict(FT; override_file)
 liquid = CMP.CloudLiquid(override_toml_dict)
 ice = CMP.CloudIce(override_toml_dict)
-@info("relaxations:", liquid.τ_relax, ice.τ_relax)
 
 # Get free parameters
 tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)

@@ -1,4 +1,4 @@
-import Plots as PL
+import CairoMakie as MK
 
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Common as CO
@@ -45,24 +45,11 @@ KA13_log10J_obs = [
 KA13_Delta_a_param = [0.10256, 0.35692, 0.21949]
 KA13_log10J_param = [-4.91729, 8.97744, 1.44361]
 
-PL.plot(
-    Δa_w,
-    log10J_converted,
-    label = "CliMA",
-    xlabel = "Delta a_w [unitless]",
-    ylabel = "log10(J) [cm^-2 s^-1]",
-)
-PL.scatter!(
-    KA13_Delta_a_obs,
-    KA13_log10J_obs,
-    markercolor = :black,
-    label = "paper observations",
-)
-PL.plot!(
-    KA13_Delta_a_param,
-    KA13_log10J_param,
-    linecolor = :red,
-    label = "paper parameterization",
-)
-
-PL.savefig("Knopf_Alpert_fig_1.svg")
+fig = MK.Figure(size = (700, 500))
+ax = MK.Axis(fig[1, 1]; xlabel = "Delta a_w [unitless]", ylabel = "log10(J) [cm^-2 s^-1]")
+MK.lines!(ax, Δa_w, log10J_converted; label = "CliMA")
+MK.scatter!(ax, KA13_Delta_a_obs, KA13_log10J_obs; color = :black, label = "paper observations")
+MK.lines!(ax, KA13_Delta_a_param, KA13_log10J_param; color = :red, label = "paper parameterization")
+MK.axislegend(ax; position = :lt)
+MK.save("Knopf_Alpert_fig_1.svg", fig)
+nothing

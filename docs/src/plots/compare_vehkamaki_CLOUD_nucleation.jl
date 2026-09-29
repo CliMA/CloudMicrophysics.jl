@@ -1,4 +1,4 @@
-using Plots
+import CairoMakie as MK
 
 import ClimaParams as CP
 import CloudMicrophysics as CM
@@ -98,8 +98,7 @@ function vehkamaki_nucleation_timestep(rh, temp, so4)
 end
 
 
-function plot_vehk_cloud_comparison(humidities, temp, h2so4_concentrations)
-    Plots.plot()
+function plot_vehk_cloud_comparison(humidities, temp, h2so4_concentrations; ticks...)
     cloud_rates = map(h2so4_concentrations) do h2so4_concentration
         sum(
             Nucleation.h2so4_nucleation_rate(
@@ -111,38 +110,46 @@ function plot_vehk_cloud_comparison(humidities, temp, h2so4_concentrations)
             ),
         ) * 1e-6
     end
-    Plots.plot!(
+    fig = MK.Figure(size = (700, 500))
+    ax = MK.Axis(
+        fig[1, 1];
         title = "$temp K",
-        h2so4_concentrations,
-        cloud_rates,
-        xaxis = :log,
-        yaxis = :log,
-        lw = 3,
-        # ylims = (1e-4, 1e3),
-        label = "CLOUD",
-        ylabel = "Nucleation rate (cm⁻³ s⁻¹)",
         xlabel = "[H2SO4] (cm⁻³)",
+        ylabel = "Nucleation rate (cm⁻³ s⁻¹)",
+        xscale = log10,
+        yscale = log10,
+        ticks...,
     )
+    MK.lines!(ax, h2so4_concentrations, cloud_rates; linewidth = 3, label = "CLOUD")
     for rh in humidities
         vehk_rates = map(h2so4_concentrations) do x
             vehkamaki_nucleation_timestep(rh, temp, x * 1e6) / 1e6
         end
-        Plots.plot!(
+        MK.lines!(
+            ax,
             h2so4_concentrations,
-            vehk_rates,
-            lw = 3,
+            vehk_rates;
+            linewidth = 3,
             label = "Vehkamaki $(round(rh*100;digits=3))% RH",
         )
     end
-    Plots.plot!()
-    Plots.svg("CLOUD_Vehk_comparison_$temp")
+    MK.axislegend(ax; position = :lt)
+    MK.save("CLOUD_Vehk_comparison_$temp.svg", fig)
 end
 
 humidities = (0.55, 0.382)
 nh3_concentration = 0
 negative_ion_concentration = 0
-h2so4_concentrations = 8e9:1e7:3.7e10
-plot_vehk_cloud_comparison(humidities, 298, h2so4_concentrations)
+h2so4_concentrations = 10 .^ range(log10(8e9), log10(3.7e10), length = 200)
+# at 298 K the automatic log ticks fall on fractional powers of ten
+plot_vehk_cloud_comparison(
+    humidities,
+    298,
+    h2so4_concentrations;
+    xticks = ([1e10, 2e10, 3e10], [MK.rich("$(k)×10", MK.superscript("10")) for k in 1:3]),
+    yticks = (10.0 .^ (0:2:8), [MK.rich("10", MK.superscript(string(k))) for k in 0:2:8]),
+)
 humidities = (0.523, 0.382)
-h2so4_concentrations = 1e6:1e6:1e9
+h2so4_concentrations = 10 .^ range(6, 9, length = 200)
 plot_vehk_cloud_comparison(humidities, 236, h2so4_concentrations)
+nothing
