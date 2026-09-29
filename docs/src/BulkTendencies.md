@@ -2,45 +2,66 @@
 
 ## Linearized average tendencies
 
-Microphysical source terms can be stiff, especially for depletion processes such as evaporation, sublimation, and melting. To improve stability and allow larger timesteps, we introduce a **linearized implicit formulation** for computing *time-averaged bulk tendencies*.
+Microphysical source terms can be stiff, especially for depletion processes
+such as evaporation, sublimation, and melting. To improve stability and
+allow larger timesteps, we introduce a linearized implicit formulation
+for computing time-averaged bulk tendencies.
 
-The idea is to approximate the nonlinear microphysics tendencies locally as a linear system:
+The idea is to approximate the nonlinear microphysics tendencies as a linear system:
 
 ```math
 \frac{dq}{dt} \approx M q + e
 ```
 
-where $q = (q_{\mathrm{lcl}}, q_{\mathrm{icl}}, q_{\mathrm{rai}}, q_{\mathrm{sno}})$, and the matrix $M$ and vector $e$ are constructed from the instantaneous tendencies.
+where $q = (q_{\mathrm{lcl}}, q_{\mathrm{icl}}, q_{\mathrm{rai}}, q_{\mathrm{sno}})$,
+and the matrix $M$ and vector $e$ are constructed from the instantaneous tendencies.
 
 ### Donor-based linearization
 
-Each microphysical process is linearized with respect to its **donor species**:
-
-- Transfer processes (e.g. accretion, conversion):
-  ```math
-  S \;\rightarrow\; D \, q_{\text{donor}}, \quad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
-  ```
+Each microphysical process is linearized with respect to its donor species:
 
 - Vapor-driven phase changes (condensation/evaporation of cloud liquid,
   evaporation of rain, deposition/sublimation of cloud ice and of snow) are
-  relaxations of the vapor excess $\delta = q_v - q^\star$ over the saturation
-  of their phase, with instantaneous rate $S = c\,\delta$: $c = 1/(\tau\Gamma)$
-  for the cloud condensates, where $\tau$ is the process timescale and
-  $\Gamma = 1 + (L/c_p)\,dq^\star/dT$ accounts for the latent heat moving the
-  saturation, and $c = S/\delta$ for rain and snow, whose 1-moment rates are
-  linear in the excess. For one process acting alone the excess decays as
-  $d\delta/dt = -\Gamma c\,\delta = -\delta/\tau$ and the transfer over the
-  substep is the time average of that relaxation
+  relaxations of the vapor excess:
+  ```math
+  \delta = q_v - q^\star
+  ```
+  where $q^\star$ is the saturation specific humidity over liquid or ice.
+  Instantaneous rate of vapor transfer can be written as
+  ```math
+  S = c\,\delta
+  ```
+  For the cloud formation processes
+  ``math
+  c = \frac{1}{\tau \, \Gamma}
+  ```
+  where
+  $\tau$ is the process timescale, and
+  $\Gamma = 1 + (L/c_p)\,dq^\star/dT$ accounts for the latent heat moving the saturation.
+  For rain and snow processes
+  ```math
+  c = \frac{S}{\delta}
+  ```
+  whose 1-moment rates are linear in the vapor excess.
+
+  For one process acting alone the vapor excess decays as
+  ```math
+  d\frac{\delta}{dt} = -\Gamma c\,\delta = -\frac{\delta}{\tau}.
+  ```
+  The transfer over the substep is the time average of that relaxation
   ([MorrisonMilbrandt2015](@cite), Appendix C):
   ```math
   \Delta q = S\,\tau\,\bigl(1 - e^{-\Delta t/\tau}\bigr)
            = S\,\Delta t\,\varphi(\Delta t/\tau), \qquad
   \varphi(x) = \frac{1 - e^{-x}}{x}.
   ```
-  It never crosses the equilibrium for any $\Delta t/\tau$ and equals
-  $S\,\Delta t$ for $\Delta t \ll \tau$. With several processes on the same
-  vapor, each process changes the excess the others see, through the vapor it
-  takes and through its latent heat. The excess of the primary phase $p$ then
+  This formulation ensures that the solution does not cross the equilibrium for any $\Delta t/\tau$
+  and equals $S\,\Delta t$ for $\Delta t \ll \tau$.
+
+  With several processes acting on the same vapor reservoir,
+  each process changes the excess the others see, through the vapor it
+  takes and through its latent heat.
+  The excess of the primary phase $p$ then
   follows a relaxation with a combined rate and a constant drive,
   ```math
   \frac{d\delta_p}{dt} = A - \frac{\delta_p}{\tau}, \qquad
@@ -56,6 +77,11 @@ Each microphysical process is linearized with respect to its **donor species**:
   removes exactly $|\Delta q|$ when acting alone, keeps $q \ge 0$ together
   with the other sinks of the pool and shares the pool among them, and, unlike
   a plain $S/q$ decay, does not empty the pool when $\tau \ll \Delta t$.
+
+- Transfer processes (e.g. accretion, conversion):
+  ```math
+  S \;\rightarrow\; D \, q_{\text{donor}}, \quad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
+  ```
 
 - Fusion transfers (freezing and melting of cloud condensate, riming, the
   freeze/melt arms of the accretion processes, melting of snow) are donor decays
