@@ -128,13 +128,15 @@ function benchmark_test(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
         rain_autoconversion = CMP.PrescribedNd(),
     )
-    # Kessler1M with different quiescent and convective regime values (velocity dependent)
+    # Kessler1M with different quiescent and convective regime values (velocity dependent).
+    # τ_slow = 1000 s · 14.4 = 14400 s;  q_slow = 5·10⁻⁴ · 2.0 = 1·10⁻³.
     mp_1m_vd = CMP.Microphysics1MParams(
         CP.create_toml_dict(FT;
             override_file = Dict(
-                "rain_autoconversion_timescale_stratiform" => Dict("value" => 14400.0, "type" => "float"),
-                "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform" =>
-                    Dict("value" => 1e-3, "type" => "float"),
+                "rain_autoconversion_timescale_stratiform_scale" =>
+                    Dict("value" => 14.4, "type" => "float"),
+                "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform_scale" =>
+                    Dict("value" => 2.0, "type" => "float"),
             ),
         ),
     )

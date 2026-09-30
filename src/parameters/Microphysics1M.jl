@@ -449,16 +449,29 @@ end
 
 function KesslerAcnv(td::CP.ParamDict)
     # The convective ("fast") values use the original Kessler keys; the quiescent ("slow") values
-    # have their own `_stratiform` keys (ClimaParams >= 1.1.12), equal to the fast ones by default.
+    # are derived by multiplying with dimensionless scale factors that default to 1.0, so that
+    # by default the classic velocity-independent Kessler scheme is recovered (τ_slow = τ_fast,
+    # q_threshold_slow = q_threshold_fast).
     name_map = (;
-        :rain_autoconversion_timescale_stratiform => :τ_slow,
+        :rain_autoconversion_timescale_stratiform_scale => :τ_stratiform_scale,
         :rain_autoconversion_timescale => :τ_fast,
-        :cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform => :q_threshold_slow,
+        :cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform_scale =>
+            :q_threshold_stratiform_scale,
         :cloud_liquid_water_specific_humidity_autoconversion_threshold => :q_threshold_fast,
         :rain_autoconversion_velocity_scale => :w_0,
         :threshold_smooth_transition_steepness => :k,
     )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    raw = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    τ_slow = raw.τ_fast * raw.τ_stratiform_scale
+    q_threshold_slow = raw.q_threshold_fast * raw.q_threshold_stratiform_scale
+    parameters = (;
+        τ_slow,
+        τ_fast = raw.τ_fast,
+        q_threshold_slow,
+        q_threshold_fast = raw.q_threshold_fast,
+        w_0 = raw.w_0,
+        k = raw.k,
+    )
     parameters.w_0 > 0 ||
         throw(ArgumentError("rain_autoconversion_velocity_scale (w_0) must be positive, got $(parameters.w_0)"))
     (parameters.τ_slow > 0 && parameters.τ_fast > 0) ||
