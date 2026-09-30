@@ -31,46 +31,76 @@ Each microphysical process is linearized with respect to its donor species:
   ```math
   S = c\,\delta
   ```
-  For the cloud formation processes
-  ``math
-  c = \frac{1}{\tau \, \Gamma}
+  For cloud formation
+  ```math
+  c = \frac{1}{\tau \Gamma}
   ```
-  where
-  $\tau$ is the process timescale, and
-  $\Gamma = 1 + (L/c_p)\,dq^\star/dT$ accounts for the latent heat moving the saturation.
-  For rain and snow processes
+  follows from the relaxation timescale definition of the rate.
+  For rain and snow, the 1-moment rates have no clearly defined timescale, and
   ```math
   c = \frac{S}{\delta}
   ```
-  whose 1-moment rates are linear in the vapor excess.
+  is evaluated once per substep.
 
-  For one process acting alone the vapor excess decays as
+  ([MorrisonMilbrandt2015](@cite), Appendix C)
+
+  For a single process acting alone, the vapor excess decays as
   ```math
-  d\frac{\delta}{dt} = -\Gamma c\,\delta = -\frac{\delta}{\tau}.
+  \frac{d \delta}{dt} = \frac{dq_v}{dt} − \left(\frac{dq^\star}{dT} \right) \frac{dT}{dt}
   ```
-  The transfer over the substep is the time average of that relaxation
-  ([MorrisonMilbrandt2015](@cite), Appendix C):
+  Taking $dq_v/dt = −S$ and $dT/dt = (L/c_p) S$ results in
   ```math
-  \Delta q = S\,\tau\,\bigl(1 - e^{-\Delta t/\tau}\bigr)
-           = S\,\Delta t\,\varphi(\Delta t/\tau), \qquad
+  \frac{d \delta}{dt} = −\left(1 + \frac{L}{c_p} \frac{d q^\star}{dT} \right) S = − \Gamma S = - \frac{\delta}{\tau}.
+  ```
+  The solution of this differential equation is
+  ```math
+  \delta(t) = \delta_0 e^{−t/\tau}.
+  ```
+  The average saturation excess over the substep $ \bar\delta $ and the mass transfer $ \Delta q $ are
+  ```math
+  \bar\delta = \frac{1}{\Delta t}\int_0^{\Delta t} \delta(t)\,dt = \delta_0\,\varphi(\Delta t/\tau), \qquad
+  \Delta q = c\,\bar\delta\,\Delta t, \qquad
   \varphi(x) = \frac{1 - e^{-x}}{x}.
   ```
   This formulation ensures that the solution does not cross the equilibrium for any $\Delta t/\tau$
-  and equals $S\,\Delta t$ for $\Delta t \ll \tau$.
+    and equals $S\,\Delta t$ for $\Delta t \ll \tau$.
 
-  With several processes acting on the same vapor reservoir,
-  each process changes the excess the others see, through the vapor it
-  takes and through its latent heat.
-  The excess of the primary phase $p$ then
-  follows a relaxation with a combined rate and a constant drive,
+  When several processes are acting on the same vapor reservoir,
+  each process changes the excess the others see, through both vapor it takes and latent heating.
+  Because saturation vapor pressures over ice and liquid are different,
+  there are two vapor excesses and two states the model is relaxing towards.
   ```math
-  \frac{d\delta_p}{dt} = A - \frac{\delta_p}{\tau}, \qquad
-  \bar\delta_p = A\tau + (\delta_{p,0} - A\tau)\,\varphi(\Delta t/\tau), \qquad
-  \Delta q_k = c_k\,\bar\delta_k\,\Delta t,
+  \frac{d \delta_l}{dt} = −\Gamma_l c_l \delta_l − \Gamma_{il} c_i \delta_i, \qquad
+  \frac{d \delta_i}{dt} = −\Gamma_i c_i \delta_i − \Gamma_{li} c_l \delta_l
   ```
-  with $\tau$, $A$ and the excess of the other phase given in the section on
-  the joint relaxation below; for a single process $A = 0$ and
-  $1/\tau = \Gamma c$, which is the first formula. Sinks are clamped to their
+  where $\Gamma_{il} = 1 + (L_s/c_p) dq^\star_l / dT$ represents the
+  latent heating of the deposition/sublimation acting on the saturation over liquid,
+  $\Gamma_{li} = 1 + (L_v/c_p) dq^\star_i / dT$ represents the
+  latent heating of vaporization acting on the saturation over ice, and
+  $c_l$ and $c_i$ represent the sum of all liquid and ice process coefficients.
+
+  The two saturation excesses are separated by
+  ```math
+  \Delta s = q^\star_l − q^\star_i \ge 0
+  ```
+  ```math
+  \delta_i = \delta_l + \Delta s
+  ```
+
+  We can reorder this as
+  ```math
+  \frac{d \delta_l}{dt} = − \Gamma_{il} c_i \Delta s −\left(\Gamma_l c_l + \Gamma_{il} c_i \right) \delta_l = A - \frac{\delta_l}{\tau}
+  ```
+  where $ A $ represents the constant forcing that the ice phase processes exert on the vapor excess over liquid,
+  and $ \tau $ now represents the multi-process timescale.
+  The average saturation excess over the substep $\bar\delta_{l}$ and the mass transfer $\Delta q_{l}$ are
+  ```math
+  \bar\delta_l = A\tau + (\delta_{l,0} - A\tau)\,\varphi(\Delta t/\tau), \qquad
+  \Delta q_l = c_l\,\bar\delta_l\,\Delta t,
+  ```
+  With one process A = 0 and 1/τ = Γ c, and the second block reduces to the first line for line.
+
+  Sinks are clamped to their
   pools. A source ($\Delta q > 0$) is added to $e$ as a constant. A sink
   ($\Delta q < 0$) is added to $M$ as an implicit decay $-D\,q$ with
   $D = |\Delta q| / \bigl(\max(q + \Delta q, q_{\min})\,\Delta t\bigr)$, which
@@ -314,12 +344,6 @@ This is consistent with the microphysics-only update and avoids coupling to a fu
 ---
 
 ## Example figures
-
-```@example
-include("plots/BulkTendencies_plots.jl")
-```
-
-![](bulk_microphysics_linearized_convergence.svg)
 
 The figure compares:
 
