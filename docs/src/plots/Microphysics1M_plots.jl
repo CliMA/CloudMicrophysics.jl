@@ -272,9 +272,10 @@ end
 # with illustrative quiescent-regime values that differ from the convective ones
 toml_vd = ClimaParams.create_toml_dict(FT;
     override_file = Dict(
-        "rain_autoconversion_timescale_stratiform" => Dict("value" => 14400.0, "type" => "float"),
-        "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform" =>
-            Dict("value" => 1e-3, "type" => "float"),
+        "rain_autoconversion_timescale_stratiform_scale" =>
+            Dict("value" => 14.4, "type" => "float"),
+        "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform_scale" =>
+            Dict("value" => 2.0, "type" => "float"),
     ),
 )
 mp_vd = CMP.Microphysics1MParams(toml_vd)

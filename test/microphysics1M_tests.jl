@@ -210,19 +210,23 @@ function test_microphysics1M(FT)
 
     # `Kessler1M` parameters with explicit quiescent ("slow") and convective ("fast") regime
     # values, so that the tests below do not depend on the ClimaParams defaults
-    # (equal slow and fast values = classic velocity-independent Kessler scheme).
-    kessler_toml(FT; τ_slow, τ_fast, q_slow, q_fast) = CP.create_toml_dict(FT;
+    # (equal slow and fast values = classic velocity-independent Kessler scheme). The
+    # stratiform ("slow") values are set via multiplicative scales on the convective
+    # ("fast") values: τ_slow = τ_fast · τ_scale, q_slow = q_fast · q_scale.
+    kessler_toml(FT; τ_fast, τ_scale, q_fast, q_scale) = CP.create_toml_dict(FT;
         override_file = Dict(
-            "rain_autoconversion_timescale_stratiform" => Dict("value" => τ_slow, "type" => "float"),
-            "rain_autoconversion_timescale" => Dict("value" => τ_fast, "type" => "float"),
-            "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform" =>
-                Dict("value" => q_slow, "type" => "float"),
+            "rain_autoconversion_timescale_stratiform_scale" =>
+                Dict("value" => τ_scale, "type" => "float"),
+            "rain_autoconversion_timescale" =>
+                Dict("value" => τ_fast, "type" => "float"),
+            "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform_scale" =>
+                Dict("value" => q_scale, "type" => "float"),
             "cloud_liquid_water_specific_humidity_autoconversion_threshold" =>
                 Dict("value" => q_fast, "type" => "float"),
         ),
     )
-    classic_toml(FT) = kessler_toml(FT; τ_slow = 1000.0, τ_fast = 1000.0, q_slow = 5e-4, q_fast = 5e-4)
-    regime_toml(FT) = kessler_toml(FT; τ_slow = 14400.0, τ_fast = 1000.0, q_slow = 1e-3, q_fast = 5e-4)
+    classic_toml(FT) = kessler_toml(FT; τ_fast = 1000.0, τ_scale = 1.0, q_fast = 5e-4, q_scale = 1.0)
+    regime_toml(FT) = kessler_toml(FT; τ_fast = 1000.0, τ_scale = 14.4, q_fast = 5e-4, q_scale = 2.0)
 
     TT.@testset "RainAutoconversion" begin
         opt = mp.processes.rain_autoconversion
@@ -371,16 +375,21 @@ function test_microphysics1M(FT)
 
         # switching one dependence off by equal regime values
         mp_thr_only = CMP.Microphysics1MParams(
-            kessler_toml(FT; τ_slow = Float64(τ_fast), τ_fast = Float64(τ_fast),
-                q_slow = Float64(q_threshold_slow), q_fast = Float64(q_threshold_fast)),
+            kessler_toml(FT;
+                τ_fast = Float64(τ_fast), τ_scale = 1.0,
+                q_fast = Float64(q_threshold_fast),
+                q_scale = Float64(q_threshold_slow / q_threshold_fast),
+            ),
         )
         TT.@test CM1.rain_autoconversion_timescale(opt, mp_thr_only, FT(0)) ==
                  CM1.rain_autoconversion_timescale(opt, mp_thr_only, FT(5)) == τ_fast
         TT.@test CM1.rain_autoconversion_threshold(opt, mp_thr_only, FT(5)) <
                  CM1.rain_autoconversion_threshold(opt, mp_thr_only, FT(0))
         mp_τ_only = CMP.Microphysics1MParams(
-            kessler_toml(FT; τ_slow = Float64(τ_slow), τ_fast = Float64(τ_fast),
-                q_slow = Float64(q_threshold_fast), q_fast = Float64(q_threshold_fast)),
+            kessler_toml(FT;
+                τ_fast = Float64(τ_fast), τ_scale = Float64(τ_slow / τ_fast),
+                q_fast = Float64(q_threshold_fast), q_scale = 1.0,
+            ),
         )
         TT.@test CM1.rain_autoconversion_threshold(opt, mp_τ_only, FT(0)) ==
                  CM1.rain_autoconversion_threshold(opt, mp_τ_only, FT(5)) == q_threshold_fast
