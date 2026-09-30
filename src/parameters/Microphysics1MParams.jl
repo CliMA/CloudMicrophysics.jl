@@ -35,7 +35,7 @@ Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    Microphysics1MParams{OPT, PPR, CP, PP, AP, VL}
+    Microphysics1MParams{OPT, PPR, CP, PP, AP, VL, FT}
 
 Unified parameter container for 1-moment bulk microphysics.
 
@@ -58,6 +58,14 @@ directly.
 - `precip::PP`: PrecipPhaseParams1M — rain and snow parameters
 - `air_properties::AP`: AirProperties — air properties (diffusivities, thermal conductivity)
 - `terminal_velocity::VL`: Blk1MVelType — terminal velocity parameters for rain and snow
+- `max_latent_heating_rate::FT`: bound on the latent heating or cooling rate of the phase
+  changes within a substep of the `LinearizedAverage` solver [K/s], from ClimaParams
+  `microphysics_max_latent_heating_rate` (`inf` disables the limiter; must be positive)
+- `joint_vapor_relaxation::Bool`: whether the `LinearizedAverage` solver treats the vapor-driven
+  phase changes as one joint relaxation of the vapor excess (`true`, default) or relaxes each
+  process on its own from the initial excess (`false`, the pre-0.42 transfers under the same
+  vapor check and limiter, for comparison runs); optional ClimaParams
+  `microphysics_joint_vapor_relaxation` (`bool`), `true` when absent
 
 # Constructors
 
@@ -81,13 +89,17 @@ mp = CMP.Microphysics1MParams(Float64;
 )
 ```
 """
-@kwdef struct Microphysics1MParams{OPT, PPR, CP, PP, AP, VL} <: ParametersType
+@kwdef struct Microphysics1MParams{OPT, PPR, CP, PP, AP, VL, FT} <: ParametersType
     processes::OPT
     process_params::PPR
     cloud::CP
     precip::PP
     air_properties::AP
     terminal_velocity::VL
+    "Upper bound on the latent heating or cooling rate of all phase changes within a substep [K/s]; `Inf` disables the limiter"
+    max_latent_heating_rate::FT
+    "Whether the `LinearizedAverage` solver relaxes all vapor-driven phase changes jointly (`true`) or one process at a time (`false`)"
+    joint_vapor_relaxation::Bool
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -100,9 +112,15 @@ Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 
 # Arguments
 - `toml_dict`: ClimaParams parameter dictionary
+- `joint_vapor_relaxation`: see the struct docstring; defaults to the optional ClimaParams entry
+  `microphysics_joint_vapor_relaxation`, or `true`
 - `options_kwargs...`: Keyword arguments forwarded to `Microphysics1MOptions`
 """
-function Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
+function Microphysics1MParams(
+    toml_dict::CP.ParamDict;
+    joint_vapor_relaxation::Bool = _optional_bool_parameter(toml_dict, "microphysics_joint_vapor_relaxation", true),
+    options_kwargs...,
+)
     processes = Microphysics1MOptions(; options_kwargs...)
     return Microphysics1MParams(;
         processes,
@@ -117,5 +135,34 @@ function Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
         ),
         air_properties = AirProperties(toml_dict),
         terminal_velocity = Blk1MVelType(toml_dict),
+        max_latent_heating_rate = _validated_max_latent_heating_rate(
+            CP.get_parameter_values(
+                toml_dict,
+                "microphysics_max_latent_heating_rate",
+                "CloudMicrophysics",
+            ).microphysics_max_latent_heating_rate,
+        ),
+        joint_vapor_relaxation,
     )
+end
+
+"""
+    _optional_bool_parameter(toml_dict, name, default)
+
+Read the boolean parameter `name` from `toml_dict` if it is defined there (e.g. through an
+override file with `type = "bool"`), otherwise return `default`.
+"""
+function _optional_bool_parameter(toml_dict::CP.ParamDict, name::String, default::Bool)
+    haskey(toml_dict.data, name) || return default
+    return Bool(CP.get_parameter_values(toml_dict, name, "CloudMicrophysics")[Symbol(name)])
+end
+
+
+function _validated_max_latent_heating_rate(rate)
+    rate > 0 || throw(
+        ArgumentError(
+            "microphysics_max_latent_heating_rate must be positive (Inf disables the limiter), got $rate",
+        ),
+    )
+    return rate
 end

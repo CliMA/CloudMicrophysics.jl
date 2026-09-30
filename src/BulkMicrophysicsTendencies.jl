@@ -17,7 +17,7 @@ using CloudMicrophysics.BulkMicrophysicsTendencies
 # For 1-moment microphysics
 tendencies = bulk_microphysics_tendencies(
     Instantaneous(), Microphysics1Moment(), mp, tps,
-    ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno
 )
 (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt) = tendencies
 ```
@@ -269,20 +269,221 @@ here appears with a fixed sign — no `ifelse` branching.
 end
 
 """
+    _decay_transfer(D, q, Δt)
+
+Transfer over the substep of the implicit (backward Euler) decay `-D q`: `q D Δt / (1 + D Δt)`.
+"""
+@inline _decay_transfer(D, q, Δt) = q * D * Δt / (one(D) + D * Δt)
+
+"""
+    _relaxation_coefficient(S, τ, Γ, δ, tol)
+
+Coefficient `c` of a vapor ↔ cloud-condensate phase change written as `rate = c δ`, with `δ`
+the vapor excess over the saturation of that phase: `c = 1/(τ Γ)`, the non-equilibrium
+scheme's rate per unit excess when its pool is not limiting (the pool bound of the sink branch
+is a property of the transfer: the transfer is clamped to the pool and the implicit decay shares
+the pool among its sinks), or `0` when the process is disabled (`τ = Inf`) or its rate was zeroed by a switch
+or limiter (`S = 0` at `|δ| > tol`).
+"""
+@inline function _relaxation_coefficient(S, τ, Γ, δ, tol)
+    FT = typeof(S)
+    τ_c = clamp(τ, eps(FT), floatmax(FT))
+    c = ifelse(τ < floatmax(FT), one(FT) / (τ_c * Γ), zero(FT))
+    off = (S == zero(FT)) & (abs(δ) > tol)
+    return ifelse(off, zero(FT), c)
+end
+
+"""
+    _ratio_coefficient(S, δ, tol)
+
+Coefficient `c = S/δ` of a precipitation vapor exchange (rain evaporation, snow deposition
+or sublimation) whose 1-moment rate is linear in the vapor excess `δ`; `0` when the excess
+vanishes (`|δ| ≤ tol`) or the rate was zeroed by a switch. The 1-moment rain rate is a sink
+only (`conv_q_rai_to_q_vap` returns `min(0, ⋅)`); a positive rain rate would be accepted.
+"""
+@inline function _ratio_coefficient(S, δ, tol)
+    FT = typeof(S)
+    excess = abs(δ) > tol
+    return ifelse(excess, max(S / ifelse(excess, δ, one(FT)), zero(FT)), zero(FT))
+end
+
+"""
+    _averaged_excess(δ₀, A, invτ, Δt)
+
+Time average over `Δt` of the exact solution of `dδ/dt = A - δ/τ` (Morrison &
+Milbrandt 2015, eq. C5): `δ̄ = A τ + (δ₀ - A τ) (τ/Δt) (1 - e^{-Δt/τ})`. Reduces to
+`δ₀` when `invτ = 1/τ = 0` (no active process).
+"""
+@inline function _averaged_excess(δ₀, A, invτ, Δt)
+    FT = typeof(δ₀)
+    x = invτ * Δt                       # Δt/τ
+    active = x > eps(FT)                # for x ≤ eps the average is δ₀ to round-off
+    x_c = max(x, eps(FT))
+    τ = Δt / x_c
+    φ = -expm1(-x_c) / x_c
+    return ifelse(active, A * τ + (δ₀ - A * τ) * φ, δ₀)
+end
+
+"""
+    _joint_averaged_excesses(c_l, c_r, c_i, c_s, Γₗ, Γᵢ, κ_il, κ_li, δₗ, δᵢ, Δs, Δt)
+
+Substep-averaged vapor excesses over liquid and over ice saturation of the joint
+relaxation (see `_joint_vapor_transfers`), written in the excess of the primary phase.
+"""
+@inline function _joint_averaged_excesses(c_l, c_r, c_i, c_s, Γₗ, Γᵢ, κ_il, κ_li, δₗ, δᵢ, Δs, Δt)
+    FT = typeof(δₗ)
+    a = c_l + c_r
+    b = c_i + c_s
+    liquid_primary = Γₗ * a >= Γᵢ * b
+    Γp = ifelse(liquid_primary, Γₗ, Γᵢ)
+    κ = ifelse(liquid_primary, κ_il, κ_li)
+    Cp = ifelse(liquid_primary, a, b)
+    Cs = ifelse(liquid_primary, b, a)
+    δp = ifelse(liquid_primary, δₗ, δᵢ)
+    σ = ifelse(liquid_primary, one(FT), -one(FT))
+    invτ = Γp * Cp + κ * Cs
+    A = -σ * Δs * κ * Cs
+    δ̄p = _averaged_excess(δp, A, invτ, Δt)
+    δ̄s = δ̄p + σ * Δs
+    return (ifelse(liquid_primary, δ̄p, δ̄s), ifelse(liquid_primary, δ̄s, δ̄p))
+end
+
+"""
+    _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+
+Vapor content (with the same expression as the rate functions, so that a rate of exactly zero
+corresponds to a zero excess), saturations over liquid and ice, the latent-heat factors `Γ`
+(own phase) and `κ` (other phase acting on this saturation), and the quantities of the vapor
+check of `_linearized_implicit_step`: the lower saturation `q_smin`, its temperature derivative
+`λ_min`, the corresponding `Γ_min`, and the round-off tolerance `q_tol` for a vanishing excess.
+"""
+@inline function _saturation_state(tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    FT = typeof(q_tot)
+    qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
+    q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+    q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    Lᵥ = TDI.Lᵥ(tps, T)
+    Lₛ = TDI.Lₛ(tps, T)
+    Rᵥ = TDI.Rᵥ(tps)
+    cₚ = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
+    dqsl_dT = CMNonEq.dqcld_dT(q_sl, Lᵥ, Rᵥ, T)
+    dqsi_dT = CMNonEq.dqcld_dT(q_si, Lₛ, Rᵥ, T)
+    Γₗ = CMNonEq.gamma_helper(Lᵥ, cₚ, dqsl_dT)
+    Γᵢ = CMNonEq.gamma_helper(Lₛ, cₚ, dqsi_dT)
+    κ_il = CMNonEq.gamma_helper(Lₛ, cₚ, dqsl_dT)   # ice-phase latent heat acting on the liquid saturation
+    κ_li = CMNonEq.gamma_helper(Lᵥ, cₚ, dqsi_dT)   # liquid-phase latent heat acting on the ice saturation
+    ice_lower = q_si <= q_sl
+    q_smin = ifelse(ice_lower, q_si, q_sl)
+    λ_min = ifelse(ice_lower, dqsi_dT, dqsl_dT)
+    Γ_min = ifelse(ice_lower, Γᵢ, Γₗ)
+    q_tol = 8 * eps(FT) * max(q_sl, q_si)
+    return (; qᵥ, q_sl, q_si, Γₗ, Γᵢ, κ_il, κ_li, q_smin, λ_min, Γ_min, q_tol)
+end
+
+"""
     _relaxation_transfer(S, τ, Δt)
 
-Transfer over a substep `Δt` of a linear relaxation with instantaneous rate `S`
-and timescale `τ` (Morrison & Milbrandt 2015, Appendix C, eqs. C6-C7):
-`S τ (1 - exp(-Δt/τ))`, i.e. `S Δt φ(Δt/τ)` with `φ(x) = (1 - e⁻ˣ)/x`. It tends
-to `S Δt` for `Δt ≪ τ` (the instantaneous rate is recovered) and to `S τ` for
-`Δt ≫ τ` (the transfer saturates at the equilibrium amount, so the substep never
-overshoots the equilibrium). Only `x φ(x) = 1 - e⁻ˣ` is needed, so there is no
-division by `x`; `τ` is clamped to `[eps, floatmax]` so that a disabled process
-(`τ = Inf`, `S = 0`) yields `0` rather than `0 ⋅ Inf`.
+Transfer over the substep of a single relaxation with instantaneous rate `S` and timescale `τ`
+toward a fixed target: `S τ (1 - e^{-Δt/τ})` (Morrison & Milbrandt 2015, eq. C5, for one
+process); `S Δt` for `τ = Inf`; exactly zero for `S = 0`.
 """
 @inline function _relaxation_transfer(S, τ, Δt)
-    τ_c = clamp(τ, eps(typeof(τ)), floatmax(typeof(τ)))
-    return S * τ_c * -expm1(-Δt / τ_c)
+    FT = typeof(S)
+    τ_c = clamp(τ, eps(FT), floatmax(FT))
+    x = Δt / τ_c
+    return ifelse(x > eps(FT), S * τ_c * -expm1(-x), S * Δt)
+end
+
+"""
+    _independent_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+
+Transfers over the substep of the four vapor-driven phase changes with each process relaxing
+on its own from the initial excess (`joint_vapor_relaxation = false`): the cloud-liquid and
+cloud-ice transfers are the single-process time averages `S τ (1 - e^{-Δt/τ})`, the rain and
+snow transfers the constant `S Δt`; sinks are clamped to their pools. These are the transfers
+of CloudMicrophysics 0.40-0.41, here under the same vapor check, latent-heating limiter and
+positivity guard as the joint relaxation. Kept for comparison runs; with several fast processes
+competing for the same excess the processes do not see each other's latent heat and vapor
+uptake, which the joint relaxation corrects. Returns the same named tuple as
+`_joint_vapor_transfers`.
+"""
+@inline function _independent_vapor_transfers(src, tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+    st = _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    Δq_lcl = max(_relaxation_transfer(src.S_phase_change_vap_lcl, src.τ_phase_change_vap_lcl, Δt), -q_lcl)
+    Δq_icl = max(_relaxation_transfer(src.S_phase_change_vap_icl, src.τ_phase_change_vap_icl, Δt), -q_icl)
+    Δq_rai = max(src.S_phase_change_vap_rai * Δt, -q_rai)
+    Δq_sno = max(src.S_phase_change_vap_sno * Δt, -q_sno)
+    return (; Δq_lcl, Δq_rai, Δq_icl, Δq_sno, st.q_smin, st.λ_min, st.Γ_min, st.q_tol)
+end
+
+"""
+    _joint_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+
+Transfers over the substep of the four vapor-driven phase changes (cloud liquid
+condensation/evaporation, rain evaporation, cloud ice deposition/sublimation, snow
+deposition/sublimation), treated as ONE relaxation of
+the shared vapor excess with the latent-heat feedback of all of them (Morrison &
+Milbrandt 2015, Appendix C, eqs. C1-C7, extended to snow and rain).
+
+Each process has an instantaneous rate `c_k δ_k`, where `δ_k` is the excess over the
+saturation of its phase and `c_k` its rate per unit excess (`_relaxation_coefficient`,
+`_ratio_coefficient`). Pools are not tracked within the substep (as in Morrison & Milbrandt
+2015 and P3): sinks are clamped to their pools afterwards and the vapor check of
+`_linearized_implicit_step` removes the deposition an exhausted pool could not feed. Written in the excess
+`δ_p` of the primary phase (the phase
+with the larger excess-decay rate, so that the single-process limits are exact), with
+`δ_s = δ_p + σ (q*_liq - q*_ice)` for the other phase,
+
+    dδ_p/dt = A - δ_p/τ,   1/τ = Γ_p C_p + κ_sp C_s,   A = -σ (q*_liq - q*_ice) κ_sp C_s,
+
+where `C_p`, `C_s` sum the coefficients of the processes of each phase,
+`Γ_p = 1 + (L_p/c_p) dq*_p/dT`, and `κ_sp = 1 + (L_s/c_p) dq*_p/dT` is the effect of
+the secondary phase's latent heat on the primary saturation. `A` is the
+Wegener-Bergeron-Findeisen drive (liquid evaporating while ice deposits). `δ_p` is
+time-averaged exactly over the substep (`_averaged_excess`) and the transfers are
+`Δq_k = c_k δ̄_k Δt`, with sinks clamped to their pools. The saturation difference and
+the `Γ`, `κ` factors are held at their start-of-substep values (as in MM15); as in P3,
+pools are not tracked within the substep: the implicit solve shares each pool among its
+sinks and a Γ-consistent vapor check on the solved state (`_linearized_implicit_step`)
+removes any deposition that an exhausted pool could not feed.
+
+Returns the transfers `(; Δq_lcl, Δq_rai, Δq_icl, Δq_sno)` [kg/kg over the substep,
+positive = vapor → condensate] and, for the vapor check, the lower saturation
+`q_smin = min(q*_liq, q*_ice)`, its temperature derivative `λ_min`, the corresponding
+`Γ_min`, and the round-off tolerance `q_tol` used for the excesses.
+"""
+@inline function _joint_vapor_transfers(src, tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+    (; qᵥ, q_sl, q_si, Γₗ, Γᵢ, κ_il, κ_li, q_smin, λ_min, Γ_min, q_tol) =
+        _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    δₗ = qᵥ - q_sl
+    δᵢ = qᵥ - q_si
+    Δs = q_sl - q_si
+    S_l = src.S_phase_change_vap_lcl
+    S_i = src.S_phase_change_vap_icl
+    S_r = src.S_phase_change_vap_rai
+    S_s = src.S_phase_change_vap_sno
+    c_l = _relaxation_coefficient(S_l, src.τ_phase_change_vap_lcl, Γₗ, δₗ, q_tol)
+    c_i = _relaxation_coefficient(S_i, src.τ_phase_change_vap_icl, Γᵢ, δᵢ, q_tol)
+    c_r = _ratio_coefficient(S_r, δₗ, q_tol)
+    c_s = _ratio_coefficient(S_s, δᵢ, q_tol)
+    (δ̄ₗ, δ̄ᵢ) = _joint_averaged_excesses(c_l, c_r, c_i, c_s, Γₗ, Γᵢ, κ_il, κ_li, δₗ, δᵢ, Δs, Δt)
+    Δq_lcl = max(c_l * δ̄ₗ * Δt, -q_lcl)
+    Δq_rai = max(c_r * δ̄ₗ * Δt, -q_rai)
+    Δq_icl = max(c_i * δ̄ᵢ * Δt, -q_icl)
+    Δq_sno = max(c_s * δ̄ᵢ * Δt, -q_sno)
+    return (; Δq_lcl, Δq_rai, Δq_icl, Δq_sno, q_smin, λ_min, Γ_min, q_tol)
+end
+
+"""
+    _matched_decay(Δq, q, q_min, Δt)
+
+Implicit-decay coefficient that removes exactly `|Δq|` (`Δq ≤ 0`) from the pool `q` when
+acting alone: `D = |Δq| / ((q + Δq) Δt)`; `0` for `Δq ≥ 0`. The `q_min` floor keeps the
+coefficient finite when the whole pool is removed.
+"""
+@inline function _matched_decay(Δq, q, q_min, Δt)
+    FT = typeof(Δq)
+    return ifelse(Δq < zero(FT), -Δq / (max(q + Δq, q_min) * Δt), zero(FT))
 end
 
 """
@@ -293,145 +494,150 @@ from pre-computed source terms:
 
 using a donor-based linearization:
 - donor → receiver transfers are represented as `D * q_donor`
-- vapor ↔ cloud condensate phase changes are relaxations toward their
-  equilibrium, `S = (q* - q)/τ`. Their transfer over the substep is the time
-  average of the exact relaxation, `Δq = S Δt φ(Δt/τ)` with
-  `φ(x) = (1 - exp(-x))/x` (Morrison & Milbrandt 2015, Appendix C), so the
-  substep never crosses `q*` for any `Δt/τ` and the instantaneous rate is
-  recovered for `Δt ≪ τ`. A source (`Δq > 0`) enters `e` as a non-negative
-  constant. A sink (`Δq < 0`) enters `M` as an implicit decay `-D q` whose
-  coefficient, `D = |Δq| / ((q + Δq) Δt)`, removes exactly `|Δq|` when acting
-  alone; combined with other sinks it keeps `q ≥ 0`, and, unlike the plain
-  `S/q` decay, it does not over-sublimate when `τ ≪ Δt`. This matters when τ is
-  a few seconds (e.g. `PrescribedIceNumber` with a large prescribed `N_0`),
-  where feeding the instantaneous rate to the substep produced a
-  deposition/sublimation flip-flop.
-- vapor → snow deposition is treated as a constant source (`e`)
-- other condensate sinks are treated as linear sinks (`-D * q`)
+- the four vapor-driven phase changes (condensation/evaporation of cloud liquid,
+  evaporation of rain, deposition/sublimation of cloud ice and snow) are ONE joint,
+  Γ-consistent relaxation of the shared vapor excess (`_joint_vapor_transfers`,
+  Morrison & Milbrandt 2015, Appendix C). Their transfers `Δq` over the substep
+  are exact time averages, so they never cross the joint equilibrium for any
+  `Δt/τ` and recover the instantaneous rates for `Δt ≪ τ`. A source (`Δq > 0`)
+  enters `e` as a non-negative constant (scaled by `g`). A sink (`Δq < 0`)
+  enters `M` as an implicit decay `-D q` whose coefficient removes exactly
+  `|Δq|` when acting alone (`_matched_decay`); combined with other sinks it
+  keeps `q ≥ 0` and shares the pool among them. This matters when τ is a few
+  seconds (e.g. `PrescribedIceNumber` with a large prescribed `N_0`), where
+  independent relaxations of the same excess produced a deposition/sublimation
+  flip-flop.
+- the fusion transfers (freezing, melting, riming, and the freeze/melt arms of
+  accretion) and the collision/conversion transfers are linear sinks (`-D q`)
+  with `D = S / max(q_min, q_donor)`.
+- `g` scales the vapor sources and `s_lcl`, `s_icl`, `s_rai`, `s_sno` scale the
+  phase-change (vapor and fusion) decays of each donor; they are the Γ-consistent
+  vapor cap and the latent-heating limiter of `_linearized_implicit_step` (all 1
+  on the first pass). Collision/conversion transfers are never scaled.
 
-The other `D` coefficients use `D = S / max(q_min, q_donor)` for robustness.
-
-Returns a `NamedTuple` containing the nonzero entries of `M` and `e`.
+Returns a `NamedTuple` with the nonzero entries of `M` and `e`, and per donor the
+unscaled totals of its phase-change decays (`Dpc_*`) and of its collision/conversion
+decays (`Dcol_*`), used to compute the scaling factors.
 """
-@inline function _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
+@inline function _linearize(
+    src, jv, q_lcl, q_icl, q_rai, q_sno, q_min, Δt,
+    g = one(q_lcl), s_lcl = one(q_lcl), s_icl = one(q_lcl), s_rai = one(q_lcl), s_sno = one(q_lcl),
+)
     FT = typeof(src.S_phase_change_vap_lcl)
 
-    M11 = zero(FT)
-    M12 = zero(FT)
-    M21 = zero(FT)
-    M22 = zero(FT)
-    M31 = zero(FT)
-    M33 = zero(FT)
-    M34 = zero(FT)
-    M41 = zero(FT)
-    M42 = zero(FT)
-    M43 = zero(FT)
-    M44 = zero(FT)
-    e1 = zero(FT)
-    e2 = zero(FT)
-    e4 = zero(FT)
+    # --- Vapor-driven phase changes (joint relaxation): sources e, sinks as matched decays ---
+    src_lcl = max(zero(FT), jv.Δq_lcl) / Δt
+    src_icl = max(zero(FT), jv.Δq_icl) / Δt
+    src_rai = max(zero(FT), jv.Δq_rai) / Δt
+    src_sno = max(zero(FT), jv.Δq_sno) / Δt
+    snk_lcl = _matched_decay(jv.Δq_lcl, q_lcl, q_min, Δt)
+    snk_icl = _matched_decay(jv.Δq_icl, q_icl, q_min, Δt)
+    snk_rai = _matched_decay(jv.Δq_rai, q_rai, q_min, Δt)
+    snk_sno = _matched_decay(jv.Δq_sno, q_sno, q_min, Δt)
 
-    # --- Phase change: vapor ↔ cloud condensate (time-averaged relaxation) ---
-    # The non-equilibrium schemes relax the condensate toward q* = q + S τ at rate
-    # 1/τ (τ excludes Γ, which is already inside S; `Inf` when the process is
-    # disabled). Δq is the transfer over the substep (see `_relaxation_transfer`).
-    # A source enters `e` as a non-negative constant; a sink enters `M` as an
-    # implicit decay whose coefficient removes exactly |Δq| on its own
-    # (|Δq| ≤ |S| τ ≤ q by the tendency bound, so q + Δq ≥ 0 up to round-off; the
-    # `q_min` floor keeps the coefficient finite when the whole pool sublimates).
-    Δq = _relaxation_transfer(src.S_phase_change_vap_lcl, src.τ_phase_change_vap_lcl, Δt)
-    e1 += max(zero(Δq), Δq) / Δt
-    M11 -= ifelse(Δq < zero(Δq), -Δq / (max(q_lcl + Δq, q_min) * Δt), zero(Δq))
+    # --- Fusion transfers (donor-based decays carrying ±L_f) ---
+    D_melt_icl_lcl = src.S_melt_icl_lcl / max(q_min, q_icl)               # icl → lcl
+    D_freeze_lcl_icl = src.S_freeze_lcl_icl / max(q_min, q_lcl)           # lcl → icl
+    D_rime_lcl_sno = src.S_accr_lcl_sno_cold / max(q_min, q_lcl)          # lcl → sno (cold riming)
+    D_melt_lcl_sno = src.S_accr_melt_lcl_sno / max(q_min, q_sno)          # sno → rai (melt by warm lcl)
+    D_freeze_icl_rai = src.S_accr_freeze_icl_rai / max(q_min, q_rai)      # rai → sno (freezing on ice)
+    D_melt_rai_sno_warm = src.S_accr_rai_sno_warm / max(q_min, q_sno)     # sno → rai (warm collision)
+    D_melt_rai_sno = src.S_accr_melt_rai_sno / max(q_min, q_sno)          # sno → rai (melt by warm rai)
+    D_freeze_rai_sno_cold = src.S_accr_rai_sno_cold / max(q_min, q_rai)   # rai → sno (cold collision)
+    D_melt_sno_rai = src.S_melt_sno_rai / max(q_min, q_sno)               # sno → rai (melting)
 
-    Δq = _relaxation_transfer(src.S_phase_change_vap_icl, src.τ_phase_change_vap_icl, Δt)
-    e2 += max(zero(Δq), Δq) / Δt
-    M22 -= ifelse(Δq < zero(Δq), -Δq / (max(q_icl + Δq, q_min) * Δt), zero(Δq))
+    # --- Collision / conversion transfers (no latent heat) ---
+    D_acnv_lcl_rai = src.S_acnv_lcl_rai / max(q_min, q_lcl)
+    D_acnv_icl_sno = src.S_acnv_icl_sno / max(q_min, q_icl)
+    D_accr_lcl_rai = src.S_accr_lcl_rai / max(q_min, q_lcl)
+    D_accr_lcl_sno_warm = src.S_accr_lcl_sno_warm / max(q_min, q_lcl)     # lcl → rai (warm shedding)
+    D_accr_icl_rai = src.S_accr_icl_rai / max(q_min, q_icl)               # icl → sno
+    D_accr_icl_sno = src.S_accr_icl_sno / max(q_min, q_icl)               # icl → sno
 
-    # --- Melt: ice cloud → liquid cloud ---
-    D = src.S_melt_icl_lcl / max(q_min, q_icl)
-    M22 -= D
-    M12 += D
+    # per-donor totals (unscaled) for the vapor cap and the heating limiter
+    Dpc_lcl = snk_lcl + D_freeze_lcl_icl + D_rime_lcl_sno
+    Dpc_icl = snk_icl + D_melt_icl_lcl
+    Dpc_rai = snk_rai + D_freeze_icl_rai + D_freeze_rai_sno_cold
+    Dpc_sno = snk_sno + D_melt_lcl_sno + D_melt_rai_sno_warm + D_melt_rai_sno + D_melt_sno_rai
+    Dcol_lcl = D_acnv_lcl_rai + D_accr_lcl_rai + D_accr_lcl_sno_warm
+    Dcol_icl = D_acnv_icl_sno + D_accr_icl_rai + D_accr_icl_sno
+    Dcol_rai = zero(FT)
+    Dcol_sno = zero(FT)
 
-    # --- Freeze: liquid cloud → ice cloud ---
-    D = src.S_freeze_lcl_icl / max(q_min, q_lcl)
-    M11 -= D
-    M21 += D
+    # --- Assemble M and e (phase-change decays of donor k scaled by s_k, vapor sources by g) ---
+    e1 = g * src_lcl
+    e2 = g * src_icl
+    e3 = g * src_rai
+    e4 = g * src_sno
 
-    # --- Autoconversion: donor-based transfer ---
-    D = src.S_acnv_lcl_rai / max(q_min, q_lcl)
-    M11 -= D
-    M31 += D
-
-    D = src.S_acnv_icl_sno / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
-
-    # --- Accretion: donor-based transfer ---
-    D = src.S_accr_lcl_rai / max(q_min, q_lcl)
-    M11 -= D
-    M31 += D
-
-    # lcl + sno accretion (cold/warm arms already zeroed)
-    D_cold = src.S_accr_lcl_sno_cold / max(q_min, q_lcl)
-    D_warm = src.S_accr_lcl_sno_warm / max(q_min, q_lcl)
-    M11 -= D_cold + D_warm
-    M31 += D_warm           # warm: lcl → rai
-    M41 += D_cold           # cold: lcl → sno
-
-    # thermal melt of sno from warm lcl
-    D = src.S_accr_melt_lcl_sno / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
-
-    D = src.S_accr_icl_rai / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
-
-    D = src.S_accr_icl_sno / max(q_min, q_icl)
-    M22 -= D
-    M42 += D
-
-    # rain frozen in icl + rai collision
-    D = src.S_accr_freeze_icl_rai / max(q_min, q_rai)
-    M33 -= D
-    M43 += D
-
-    # warm arm: sno melts → rai (already zero when cold)
-    D = src.S_accr_rai_sno_warm / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
-
-    # thermal melt of sno from warm rai (already zero when cold)
-    D = src.S_accr_melt_rai_sno / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
-
-    # cold arm: rai freezes → sno (already zero when warm)
-    D = src.S_accr_rai_sno_cold / max(q_min, q_rai)
-    M33 -= D
-    M43 += D
-
-    # --- Rain phase change: sink to vapor (always zero or negative) ---
-    D = (-src.S_phase_change_vap_rai) / max(q_min, q_rai)
-    M33 -= D
-
-    # --- Snow phase change: deposition/sublimation ---
-    D = src.S_phase_change_vap_sno / max(q_min, q_sno)
-    is_source = src.S_phase_change_vap_sno >= zero(FT)
-    e4 += ifelse(is_source, src.S_phase_change_vap_sno, zero(FT))
-    M44 += ifelse(is_source, zero(FT), D)
-
-    # --- Snow melt: snow → rain ---
-    D = src.S_melt_sno_rai / max(q_min, q_sno)
-    M44 -= D
-    M34 += D
+    M11 = -(s_lcl * Dpc_lcl + Dcol_lcl)
+    M22 = -(s_icl * Dpc_icl + Dcol_icl)
+    M33 = -(s_rai * Dpc_rai + Dcol_rai)
+    M44 = -(s_sno * Dpc_sno + Dcol_sno)
+    M12 = s_icl * D_melt_icl_lcl                                             # icl → lcl
+    M21 = s_lcl * D_freeze_lcl_icl                                           # lcl → icl
+    M31 = D_acnv_lcl_rai + D_accr_lcl_rai + D_accr_lcl_sno_warm              # lcl → rai
+    M41 = s_lcl * D_rime_lcl_sno                                             # lcl → sno
+    M42 = D_acnv_icl_sno + D_accr_icl_rai + D_accr_icl_sno                   # icl → sno
+    M43 = s_rai * (D_freeze_icl_rai + D_freeze_rai_sno_cold)                 # rai → sno
+    M34 = s_sno * (D_melt_lcl_sno + D_melt_rai_sno_warm + D_melt_rai_sno + D_melt_sno_rai)   # sno → rai
 
     return (
         M11 = M11, M12 = M12, M21 = M21, M22 = M22,
         M31 = M31, M33 = M33, M34 = M34,
         M41 = M41, M42 = M42, M43 = M43, M44 = M44,
-        e1 = e1, e2 = e2, e4 = e4,
+        e1 = e1, e2 = e2, e3 = e3, e4 = e4,
+        Dpc_lcl = Dpc_lcl, Dpc_icl = Dpc_icl, Dpc_rai = Dpc_rai, Dpc_sno = Dpc_sno,
+        Dcol_lcl = Dcol_lcl, Dcol_icl = Dcol_icl, Dcol_rai = Dcol_rai, Dcol_sno = Dcol_sno,
     )
+end
+
+"""
+    _solve_linearized(lin, q_lcl, q_icl, q_rai, q_sno, Δt)
+
+Solve `(q* - q⁰)/Δt = M q* + e` for the sparse 4×4 structure of the 1-moment model:
+a coupled 2×2 block for (`q_lcl`, `q_icl`) and a reduced 2×2 block for (`q_rai`, `q_sno`).
+Returns the end-of-substep values.
+"""
+@inline function _solve_linearized(lin, q_lcl, q_icl, q_rai, q_sno, Δt)
+    FT = typeof(q_lcl)
+    invΔt = one(FT) / Δt
+    a11 = invΔt - lin.M11
+    a12 = -lin.M12
+    a21 = -lin.M21
+    a22 = invΔt - lin.M22
+    a31 = -lin.M31
+    a33 = invΔt - lin.M33
+    a34 = -lin.M34
+    a41 = -lin.M41
+    a42 = -lin.M42
+    a43 = -lin.M43
+    a44 = invΔt - lin.M44
+    b1 = lin.e1 + invΔt * q_lcl
+    b2 = lin.e2 + invΔt * q_icl
+    b3 = lin.e3 + invΔt * q_rai
+    b4 = lin.e4 + invΔt * q_sno
+    det12 = muladd(-a12, a21, a11 * a22)
+    q_lcl_new = (b1 * a22 - a12 * b2) / det12
+    q_icl_new = (a11 * b2 - a21 * b1) / det12
+    r3 = muladd(-a31, q_lcl_new, b3)
+    r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
+    det = muladd(-a34, a43, a33 * a44)
+    q_rai_new = (r3 * a44 - a34 * r4) / det
+    q_sno_new = (a33 * r4 - r3 * a43) / det
+    return (q_lcl_new, q_icl_new, q_rai_new, q_sno_new)
+end
+
+"""
+    _donor_limiter_scale(f, Dpc, Dcol, Δt)
+
+Common factor `s` for the phase-change decays of one donor such that their realized
+transfer over the substep, `q s Dpc Δt / (1 + (Dcol + s Dpc) Δt)`, is `f` times the
+unscaled one (`f ∈ (0, 1]`); `s = 1` for `f = 1`.
+"""
+@inline function _donor_limiter_scale(f, Dpc, Dcol, Δt)
+    FT = typeof(f)
+    return f * (one(FT) + Dcol * Δt) / (one(FT) + Dcol * Δt + (one(FT) - f) * Dpc * Δt)
 end
 
 """
@@ -445,84 +651,106 @@ and returns the average tendency
 
     dq/dt = (q* - q⁰) / Δt.
 
-The system uses a sparse structure specific to the 1-moment microphysics model.
-`q_lcl` and `q_icl` as well as `q_rai` and `q_sno` are solved from a coupled 2×2 system.
+The vapor-driven sources in `e` are the time-averaged transfers of the joint vapor
+relaxation (see `_linearize`; or, with `mp.joint_vapor_relaxation = false`, the per-process
+transfers of `_independent_vapor_transfers`); evaporation and sublimation are part of `M`. Two solves are
+done per substep. The first gives the realized transfers and heating. From them:
 
-Because sinks are linearized as `-D q`, they are effectively integrated as
-exponential decays over the substep. The vapor → cloud condensate sources in `e`
-are the time-averaged transfers over the substep (see `_linearize`); evaporation and
-sublimation are part of `M`.
+- **Γ-consistent vapor cap**: if the solved vapor would fall below the lower saturation
+  at the updated temperature (linearized, `q_smin + λ_min ΔT`), the vapor sources are
+  scaled by `1 - gap / (Γ_min Σe Δt)` (reducing deposition by `R` raises the vapor by `R`
+  and lowers the saturation by `(Γ_min - 1) R`). This replaces the former raw-excess cap
+  and, as in P3, removes deposition that a pool exhausted within the substep (e.g. liquid
+  taken by freezing) could not feed.
+- **Latent-heating limiter**: if the realized heating or cooling of all phase changes
+  (with the same latent-heat factors as the substep temperature update) exceeds
+  `max_latent_heating_rate × Δt`, the vapor sources and every donor's phase-change decays
+  are scaled to the bound (`_donor_limiter_scale`); collision/conversion transfers are not.
+
+The second solve applies both factors. Should the realized heating still exceed the bound
+(pools feeding each other), or the condensate grow by more than the available vapor, the
+substep tendencies are scaled uniformly (heating and the vapor budget are linear in them, so
+both bounds are then met exactly; the condensate pools are non-negative by construction of
+the implicit decays). Inputs are clamped to non-negative condensate. Returns `(; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)`;
+`_linearized_implicit_step_factors` returns the factors as well (`α_cap`, `f_lim`, `g_uniform`).
 """
 @inline function _linearized_implicit_step(
+    cm::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt::AbstractFloat,
+)
+    return _linearized_implicit_step_factors(cm, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt).rates
+end
+
+@inline function _linearized_implicit_step_factors(
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
     ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt::AbstractFloat,
 )
-
     FT = typeof(q_tot)
-
+    # non-negative pools (hosts may pass slightly negative reconstructed values)
+    q_lcl = max(q_lcl, zero(FT))
+    q_icl = max(q_icl, zero(FT))
+    q_rai = max(q_rai, zero(FT))
+    q_sno = max(q_sno, zero(FT))
     src = _microphysics_source_terms(
         Microphysics1Moment(), mp, tps,
         ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
     )
     q_min = TDI.TD.Parameters.q_min(tps)
-    lin = _linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
+    jv = if mp.joint_vapor_relaxation
+        _joint_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+    else
+        _independent_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+    end
+    lin = _linearize(src, jv, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
+    (q1_lcl, q1_icl, q1_rai, q1_sno) = _solve_linearized(lin, q_lcl, q_icl, q_rai, q_sno, Δt)
 
-    invΔt = one(FT) / Δt
+    # realized heating with the same factors as the substep temperature update
+    Lv_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+    Ls_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+    ΔT1 = Lv_cp * ((q1_lcl - q_lcl) + (q1_rai - q_rai)) + Ls_cp * ((q1_icl - q_icl) + (q1_sno - q_sno))
 
-    # Cap vap→condensate sources jointly so the substep cannot drive
-    # `q_v` below `min(q_sat_liq, q_sat_ice)`. Preserves relative rates.
-    q_sat_min = min(
-        TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ),
-        TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ),
+    # Γ-consistent vapor cap on the solved state
+    q_v1 = q_tot - q1_lcl - q1_icl - q1_rai - q1_sno
+    # lower saturation at the corrected temperature, linearized in ΔT: with the sources scaled by α the
+    # vapor rises by (1-α) Σe Δt and the floor falls by λ (1-α) Σe Δt L/cₚ, so the closed form below is the
+    # self-consistent solution of q_v(α) = floor(α) (hence Γ_min = 1 + λ L/cₚ in the denominator)
+    floor1 = jv.q_smin + jv.λ_min * ΔT1
+    gap = max(zero(FT), floor1 - q_v1)
+    Σe = (lin.e1 + lin.e2 + lin.e3 + lin.e4) * Δt
+    α = ifelse(Σe > jv.q_tol, max(zero(FT), one(FT) - gap / (jv.Γ_min * max(Σe, jv.q_tol))), one(FT))
+
+    # latent-heating limiter on the realized heating (after the cap)
+    ΔT_α = ΔT1 - (one(FT) - α) * (Lv_cp * (lin.e1 + lin.e3) + Ls_cp * (lin.e2 + lin.e4)) * Δt
+    ΔT_max = mp.max_latent_heating_rate * Δt
+    f = ifelse(abs(ΔT_α) > ΔT_max, ΔT_max / max(abs(ΔT_α), eps(FT)), one(FT))
+    s_lcl = _donor_limiter_scale(f, lin.Dpc_lcl, lin.Dcol_lcl, Δt)
+    s_icl = _donor_limiter_scale(f, lin.Dpc_icl, lin.Dcol_icl, Δt)
+    s_rai = _donor_limiter_scale(f, lin.Dpc_rai, lin.Dcol_rai, Δt)
+    s_sno = _donor_limiter_scale(f, lin.Dpc_sno, lin.Dcol_sno, Δt)
+
+    lin2 = _linearize(src, jv, q_lcl, q_icl, q_rai, q_sno, q_min, Δt, f * α, s_lcl, s_icl, s_rai, s_sno)
+    (q2_lcl, q2_icl, q2_rai, q2_sno) = _solve_linearized(lin2, q_lcl, q_icl, q_rai, q_sno, Δt)
+    # the per-donor scaling is exact for a donor whose pool is not refilled by another phase change; when
+    # pools feed each other (rain freezing on ice while snow melts) the realized heating can still exceed the
+    # bound, in which case all substep tendencies are scaled uniformly to it (exact: heating is linear in them)
+    ΔT2 = Lv_cp * ((q2_lcl - q_lcl) + (q2_rai - q_rai)) + Ls_cp * ((q2_icl - q_icl) + (q2_sno - q_sno))
+    g_heat = ifelse(abs(ΔT2) > ΔT_max, ΔT_max / max(abs(ΔT2), eps(FT)), one(FT))
+    # hard positivity guard for the vapor: the condensate may not grow by more than the vapor available
+    # (the condensate pools are non-negative by construction of the implicit decays)
+    Δq_cond = (q2_lcl - q_lcl) + (q2_icl - q_icl) + (q2_rai - q_rai) + (q2_sno - q_sno)
+    q_v0 = max(q_tot - (q_lcl + q_icl + q_rai + q_sno), zero(FT))
+    g_vap = ifelse(Δq_cond > q_v0, q_v0 / max(Δq_cond, eps(FT)), one(FT))
+    g = min(g_heat, g_vap)
+    g_invΔt = g / Δt
+    rates = (;
+        dq_lcl_dt = (q2_lcl - q_lcl) * g_invΔt,
+        dq_icl_dt = (q2_icl - q_icl) * g_invΔt,
+        dq_rai_dt = (q2_rai - q_rai) * g_invΔt,
+        dq_sno_dt = (q2_sno - q_sno) * g_invΔt,
     )
-    q_v = q_tot - q_lcl - q_icl - q_rai - q_sno
-    α = min(
-        one(FT),
-        max(zero(FT), q_v - q_sat_min) * invΔt /
-        max(lin.e1 + lin.e2 + lin.e4, eps(FT)),
-    )
-
-    # A = I/Δt - M
-    a11 = invΔt - lin.M11
-    a12 = -lin.M12
-    a21 = -lin.M21
-    a22 = invΔt - lin.M22
-    a31 = -lin.M31
-    a33 = invΔt - lin.M33
-    a34 = -lin.M34
-    a41 = -lin.M41
-    a42 = -lin.M42
-    a43 = -lin.M43
-    a44 = invΔt - lin.M44
-
-    # rhs = e + q_0/Δt (vap→condensate `e` terms scaled by `α` above)
-    # e3 = 0 by the 1m model
-    b1 = α * lin.e1 + invΔt * q_lcl
-    b2 = α * lin.e2 + invΔt * q_icl
-    b3 = invΔt * q_rai
-    b4 = α * lin.e4 + invΔt * q_sno
-
-    # Solve 2×2 system for q_lcl, q_icl (coupled via ice melt M12 and liquid freezing M21)
-    det12 = muladd(-a12, a21, a11 * a22)
-    q_lcl_new = (b1 * a22 - a12 * b2) / det12
-    q_icl_new = (a11 * b2 - a21 * b1) / det12
-
-    # Reduced 2x2 system for q_rai_new, q_sno_new
-    r3 = muladd(-a31, q_lcl_new, b3)
-    r4 = muladd(-a41, q_lcl_new, muladd(-a42, q_icl_new, b4))
-
-    det = muladd(-a34, a43, a33 * a44)
-    # det is a positive because a33a44 is guaranteed to be larger than a34a43
-    q_rai_new = (r3 * a44 - a34 * r4) / det
-    q_sno_new = (a33 * r4 - r3 * a43) / det
-
-    dq_lcl_dt = (q_lcl_new - q_lcl) * invΔt
-    dq_icl_dt = (q_icl_new - q_icl) * invΔt
-    dq_rai_dt = (q_rai_new - q_rai) * invΔt
-    dq_sno_dt = (q_sno_new - q_sno) * invΔt
-
-    return (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)
+    return (; rates, α_cap = α, f_lim = f, g_uniform = g)
 end
+
 
 # --- Public API: bulk_microphysics_tendencies with TendencyMode dispatch ---
 
