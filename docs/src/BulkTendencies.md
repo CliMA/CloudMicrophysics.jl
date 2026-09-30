@@ -22,7 +22,8 @@ Each microphysical process is linearized with respect to its donor species:
 
 - Vapor-driven phase changes (condensation/evaporation of cloud liquid,
   evaporation of rain, deposition/sublimation of cloud ice and of snow) are
-  relaxations of the vapor excess:
+  based on ([MorrisonMilbrandt2015](@cite), Appendix C).
+  They are written as relaxations of the vapor excess:
   ```math
   \delta = q_v - q^\star
   ```
@@ -33,21 +34,20 @@ Each microphysical process is linearized with respect to its donor species:
   ```
   For cloud formation
   ```math
-  c = \frac{1}{\tau \Gamma}
+  c_{lcl\,icl} = \frac{1}{\tau \Gamma}
   ```
   follows from the relaxation timescale definition of the rate.
+  $\Gamma$ is defined below.
   For rain and snow, the 1-moment rates have no clearly defined timescale, and
   ```math
-  c = \frac{S}{\delta}
+  c_{rai\,sno} = \frac{S}{\delta}
   ```
   is evaluated once per substep.
-
-  ([MorrisonMilbrandt2015](@cite), Appendix C)
-
   For a single process acting alone, the vapor excess decays as
   ```math
   \frac{d \delta}{dt} = \frac{dq_v}{dt} − \left(\frac{dq^\star}{dT} \right) \frac{dT}{dt}
   ```
+
   Taking $dq_v/dt = −S$ and $dT/dt = (L/c_p) S$ results in
   ```math
   \frac{d \delta}{dt} = −\left(1 + \frac{L}{c_p} \frac{d q^\star}{dT} \right) S = − \Gamma S = - \frac{\delta}{\tau}.
@@ -56,10 +56,11 @@ Each microphysical process is linearized with respect to its donor species:
   ```math
   \delta(t) = \delta_0 e^{−t/\tau}.
   ```
-  The average saturation excess over the substep $ \bar\delta $ and the mass transfer $ \Delta q $ are
+  The average saturation excess over the substep $ \bar\delta $ and, for example,
+  the mass transfer of cloud liquid water $ \Delta q_{lcl} $ are
   ```math
   \bar\delta = \frac{1}{\Delta t}\int_0^{\Delta t} \delta(t)\,dt = \delta_0\,\varphi(\Delta t/\tau), \qquad
-  \Delta q = c\,\bar\delta\,\Delta t, \qquad
+  \Delta q_{lcl} = c_{lcl}\,\bar\delta\,\Delta t, \qquad
   \varphi(x) = \frac{1 - e^{-x}}{x}.
   ```
   This formulation ensures that the solution does not cross the equilibrium for any $\Delta t/\tau$
@@ -77,7 +78,8 @@ Each microphysical process is linearized with respect to its donor species:
   latent heating of the deposition/sublimation acting on the saturation over liquid,
   $\Gamma_{li} = 1 + (L_v/c_p) dq^\star_i / dT$ represents the
   latent heating of vaporization acting on the saturation over ice, and
-  $c_l$ and $c_i$ represent the sum of all liquid and ice process coefficients.
+  $c_l = c_{lcl} + c_{rai}$ and $c_i = c_{icl} + c_{sno}$ represent
+  the sum of all liquid and ice process coefficients.
 
   The two saturation excesses are separated by
   ```math
@@ -91,40 +93,43 @@ Each microphysical process is linearized with respect to its donor species:
   ```math
   \frac{d \delta_l}{dt} = − \Gamma_{il} c_i \Delta s −\left(\Gamma_l c_l + \Gamma_{il} c_i \right) \delta_l = A - \frac{\delta_l}{\tau}
   ```
-  where $ A $ represents the constant forcing that the ice phase processes exert on the vapor excess over liquid,
-  and $ \tau $ now represents the multi-process timescale.
-  The average saturation excess over the substep $\bar\delta_{l}$ and the mass transfer $\Delta q_{l}$ are
+  where $A$ represents the constant forcing that the ice phase processes exert on the vapor excess over liquid,
+  and $\tau$ now represents the multi-process timescale.
+  The average saturation excess over liquid during the substep $\bar\delta_{l}$ and,
+  for example, the mass transfer $\Delta q_{lcl}$ are
   ```math
   \bar\delta_l = A\tau + (\delta_{l,0} - A\tau)\,\varphi(\Delta t/\tau), \qquad
-  \Delta q_l = c_l\,\bar\delta_l\,\Delta t,
+  \Delta q_{lcl} = c_{lcl}\,\bar\delta_l\,\Delta t,
   ```
-  With one process A = 0 and 1/τ = Γ c, and the second block reduces to the first line for line.
+  A similar equation can be written for the evolution of vapor excess over ice,
+  and other microphysics tracers.
+  With one process $A = 0$ and $1/\tau = \Gamma c$, and the $\bar\delta_l$
+  equation reduces to pure liquid process described above.
+  The CloudMicrophysics solver integrates the equation for the phase with the larger $\Gamma c$,
+  and computes the other one based on $\Delta s$.
 
-  Sinks are clamped to their
-  pools. A source ($\Delta q > 0$) is added to $e$ as a constant. A sink
-  ($\Delta q < 0$) is added to $M$ as an implicit decay $-D\,q$ with
-  $D = |\Delta q| / \bigl(\max(q + \Delta q, q_{\min})\,\Delta t\bigr)$, which
-  removes exactly $|\Delta q|$ when acting alone, keeps $q \ge 0$ together
-  with the other sinks of the pool and shares the pool among them, and, unlike
-  a plain $S/q$ decay, does not empty the pool when $\tau \ll \Delta t$.
+  The four vapor transfers (\Delta q_{lcl}, \Delta q_{icl}, \Delta q_{rai}, \Delta q_{sno})
+  enter the linear system as follows:
+  A source ($\Delta q > 0$) is added to $e$ as a constant.
+  A sink ($\Delta q < 0$) is limited by the available tracer amount, and
+  is added to $M$ as an implicit decay $-D\,q$ with
+  $D = |\Delta q| / \bigl(\max(q + \Delta q, q_{\min})\,\Delta t\bigr)$.
+  This removes exactly $|\Delta q|$ when acting alone, keeps $q \ge 0$ together
+  with the other sinks, and, unlike
+  a plain $S/q$ decay, does not empty the available tracer pool when $\tau \ll \Delta t$.
 
-- Transfer processes (e.g. accretion, conversion):
+- Transfer processes (e.g. accretion, conversion)
+  and fusion transfers (e.g. melting of cloud condensate, riming, freeze/melt part of the accretion process and snow melt)
+  are donor decays
   ```math
   S \;\rightarrow\; D \, q_{\text{donor}}, \quad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
   ```
-
-- Fusion transfers (freezing and melting of cloud condensate, riming, the
-  freeze/melt arms of the accretion processes, melting of snow) are donor decays
-  like the collision/conversion transfers above; their latent heat enters through
-  the substep temperature update and the latent-heating limiter.
-
-With this formulation, sink terms take the form:
-
-```math
-\frac{dq}{dt} = -D q
-```
-
-which corresponds to exponential decay over the timestep, providing strong numerical stability.
+  Fusion latent heat enters through the substep temperature update and the latent-heating limiter.
+  With this formulation, sink terms take the form:
+  ```math
+  \frac{dq}{dt} = -D q
+  ```
+  which corresponds to exponential decay over the timestep, providing strong numerical stability.
 
 ---
 
