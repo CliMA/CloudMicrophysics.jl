@@ -16,7 +16,7 @@ The idea is to approximate the nonlinear microphysics tendencies as a linear sys
 where $q = (q_{\mathrm{lcl}}, q_{\mathrm{icl}}, q_{\mathrm{rai}}, q_{\mathrm{sno}})$,
 and the matrix $M$ and vector $e$ are constructed from the instantaneous tendencies.
 
-### Donor-based linearization
+### Linearization
 
 Each microphysical process is linearized with respect to its donor species:
 
@@ -28,19 +28,24 @@ Each microphysical process is linearized with respect to its donor species:
   \delta = q_v - q^\star
   ```
   where $q^\star$ is the saturation specific humidity over liquid or ice.
-  Instantaneous rate of vapor transfer can be written as
+  The vapor excess evolves as
   ```math
-  S = c\,\delta
+  \frac{d \delta}{dt} = -\left(1 + \frac{L}{c_p} \frac{d q^\star}{dT} \right) S
+                      = -\Gamma\, c\, \delta = -\frac{\delta}{\tau}, \qquad
+  \frac{1}{\tau} = \Gamma\, c.
   ```
-  For cloud formation
+  where $S$ is the process rate, $L$ is the latent heat and $c_{p}$ is the specific heat.
+  For cloud liquid and ice the functional form of the rate follows $S = \frac{\delta}{\tau \Gamma}$,
+  and therefore
   ```math
-  c_{lcl\,icl} = \frac{1}{\tau \Gamma}
+  c_{lcl} = \frac{1}{\tau_{lcl} \Gamma_l}, \qquad
+  c_{icl} = \frac{1}{\tau_{icl} \Gamma_i}.
   ```
-  follows from the relaxation timescale definition of the rate.
-  $\Gamma$ is defined below.
-  For rain and snow, the 1-moment rates have no clearly defined timescale, and
+  For rain and snow $\tau = \frac{1}{\Gamma c}$ is the timescale implied by their rate,
+  and
   ```math
-  c_{rai\,sno} = \frac{S}{\delta}
+  c_{rai} = \frac{S_{rai}}{\delta_l}, \qquad
+  c_{sno} = \frac{S_{sno}}{\delta_i}
   ```
   is evaluated once per substep.
   For a single process acting alone, the vapor excess decays as
@@ -56,8 +61,8 @@ Each microphysical process is linearized with respect to its donor species:
   ```math
   \delta(t) = \delta_0 e^{−t/\tau}.
   ```
-  The average saturation excess over the substep $ \bar\delta $ and, for example,
-  the mass transfer of cloud liquid water $ \Delta q_{lcl} $ are
+  The average saturation excess over the substep $\bar\delta$ and, for example,
+  the mass transfer of cloud liquid water $\Delta q_{lcl}$ are
   ```math
   \bar\delta = \frac{1}{\Delta t}\int_0^{\Delta t} \delta(t)\,dt = \delta_0\,\varphi(\Delta t/\tau), \qquad
   \Delta q_{lcl} = c_{lcl}\,\bar\delta\,\Delta t, \qquad
@@ -103,12 +108,18 @@ Each microphysical process is linearized with respect to its donor species:
   ```
   A similar equation can be written for the evolution of vapor excess over ice,
   and other microphysics tracers.
+  ```math
+  \bar\delta_i = \bar\delta_l + \Delta s, \qquad
+  \Delta q_{rai} = c_{rai} \bar\delta_l \Delta t, \qquad
+  \Delta q_{icl} = c_{icl} \bar\delta_i \Delta t, \qquad
+  \Delta q_{sno} = c_{sno} \bar\delta_i \Delta t.
+  ```
   With one process $A = 0$ and $1/\tau = \Gamma c$, and the $\bar\delta_l$
   equation reduces to pure liquid process described above.
   The CloudMicrophysics solver integrates the equation for the phase with the larger $\Gamma c$,
   and computes the other one based on $\Delta s$.
 
-  The four vapor transfers (\Delta q_{lcl}, \Delta q_{icl}, \Delta q_{rai}, \Delta q_{sno})
+  The four vapor transfers ($\Delta q_{lcl}$, $\Delta q_{icl}$, $\Delta q_{rai}$, $\Delta q_{sno}$)
   enter the linear system as follows:
   A source ($\Delta q > 0$) is added to $e$ as a constant.
   A sink ($\Delta q < 0$) is limited by the available tracer amount, and
@@ -118,18 +129,30 @@ Each microphysical process is linearized with respect to its donor species:
   with the other sinks, and, unlike
   a plain $S/q$ decay, does not empty the available tracer pool when $\tau \ll \Delta t$.
 
-- Transfer processes (e.g. accretion, conversion)
-  and fusion transfers (e.g. melting of cloud condensate, riming, freeze/melt part of the accretion process and snow melt)
-  are donor decays
+- Transfer processes (accretion, conversion) and fusion transfers
+  (freezing, melting, riming, the freeze/melt parts of accretion, snow melt)
+  are linearized in their donor species
   ```math
-  S \;\rightarrow\; D \, q_{\text{donor}}, \quad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
+  S \;\rightarrow\; D\, q_{\text{donor}}, \qquad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
   ```
-  Fusion latent heat enters through the substep temperature update and the latent-heating limiter.
-  With this formulation, sink terms take the form:
+  The linearization supplies the coefficient to the implicit solve.
+  The implicit solve then gives the transfer as $\Delta q = −D q^\inf \Delta t$
+  with $q^\inf$ the end-of-substep donor content.
+  For a process acting alone on its pool,
   ```math
-  \frac{dq}{dt} = -D q
+  \Delta q = -\frac{S\,\Delta t}{1 + S\,\Delta t / q_0}
   ```
-  which corresponds to exponential decay over the timestep, providing strong numerical stability.
+  which never removes more than the pool $q_{0}$ and tends to $−S \Delta t$ when $S \Delta t \ll q_{0}$.
+  This is a backward-Euler decay $1 / (1 + D \Delta t)$,
+  not the exponential decay $e^{−D\Delta t}$ of the vapor relaxation.
+  Therefre the two $\Delta q$ formulas differ in form, but are both bounded and monotone.
+  Several sinks on one pool share it in proportion to their D. The receiving species gains $\Delta q$.
+  Fusion latent heat enters through the substep temperature update.
+
+In short, the CloudMicrophysics library provides $S$ rates of individual processes.
+The actual realized transfers are not those rates times $\Delta t$.
+The $\varphi$-averaging of the vapor processes, and the implicit solve
+for the donor decays replace $S \Delta t$ by bounded quantities.
 
 ---
 
@@ -155,68 +178,36 @@ The average tendency is then:
 
 ---
 
-## Joint Γ-consistent relaxation
+## Vapor and latent heating limiters
 
-Condensation on cloud liquid, evaporation of rain and deposition on cloud ice
-and snow draw on the same vapor, and the latent heat of each moves the
-saturation the others relax toward. Relaxing each process from the initial
-excess on its own over-deposits: in the glaciating updraft that motivated this
-change, three fast processes deposited about twice the consistent amount and
-sublimated it back the next substep.
+Additional considerations:
 
-Let $\delta_l = q_v - q^\star_l$, $\delta_i = q_v - q^\star_i$,
-$\Delta s = q^\star_l - q^\star_i$, $C_l = c_{lcl} + c_{rai}$,
-$C_i = c_{icl} + c_{sno}$, $\Gamma_p = 1 + (L_p/c_p)\,dq^\star_p/dT$ and
-$\kappa_{sp} = 1 + (L_s/c_p)\,dq^\star_p/dT$, the latent heat of phase $s$
-acting on the saturation of phase $p$. The vapor uptake of all four processes
-and their heating give
+- Vapor is not one of the prognostic variables.
+  When a vapor source (for example from evaporating cloud) exceeds
+  the available donor pool (i.e. the available cloud water),
+  the sink of cloud water is clamped, but the implied water vapor source is not.
+  Within a substep the joint relaxation knows the coefficients $c$
+  and the initial excesses, but not how much water each donor pool holds while the substep runs.
+  Cloud liquid evaporating is treated as able to supply vapor at the rate $c_{lcl} \delta_l$
+  for the whole substep, whether or not there is enough liquid.
+  The pool size enters only at the end, as the clamp of the transfer to minus the pool for the donor,
+  and in the implicit solve, which shares each pool among its sinks.
+  This leads to an imbalance between how much vapor the solver though was available and provided
+  to the other phase changes, and how much was actually depleted from the donor.
+  This imbalance residue is then split between the remaining phase changes.
 
-```math
-\frac{d\delta_l}{dt} = -\Gamma_l C_l\,\delta_l - \kappa_{il} C_i\,\delta_i, \qquad
-\frac{d\delta_i}{dt} = -\Gamma_i C_i\,\delta_i - \kappa_{li} C_l\,\delta_l ,
-```
+- Additionally, for the host model stability, one may want to limit the total
+  amount of heating the microphysics can provide.
 
-with $\Delta s$, $\Gamma$, $\kappa$ and the coefficients held at their
-start-of-substep values, so that $\delta_i = \delta_l + \Delta s$ throughout
-and one equation suffices. The primary phase $p$ is the one with the larger
-own decay rate $\Gamma_p C_p$ (a single active process is then integrated
-exactly), $s$ is the other, $\sigma = +1$ if liquid is primary and $-1$ if
-ice is. Substituting $\delta_s = \delta_p + \sigma\Delta s$,
+To address those issues each substep does two linear solves.
+The first solve gives the transfers of mass $\Delta q^1$ and the heating
+$\Delta T_1 = (L_v\,\Delta q^1_{\mathrm{liq}} + L_s\,\Delta q^1_{\mathrm{ice}})/c_p$
+Two factors are derived from it and applied in the second solve
+$\alpha$ - to address the vapor inconsistency and `f` to allow for heating limiters.
 
-```math
-\frac{d\delta_p}{dt} = A - \frac{\delta_p}{\tau}, \qquad
-\frac{1}{\tau} = \Gamma_p C_p + \kappa_{sp} C_s, \qquad
-A = -\sigma\,\Delta s\,\kappa_{sp} C_s ,
-```
+### Vapor limiter
 
-where $A$ is the Wegener-Bergeron-Findeisen drive (liquid evaporating while
-ice deposits). The exact average over the substep,
-$\bar\delta_p = A\tau + (\delta_{p,0} - A\tau)\,\varphi(\Delta t/\tau)$, gives
-$\bar\delta_s = \bar\delta_p + \sigma\Delta s$ and the transfers
-$\Delta q_k = c_k \bar\delta_k \Delta t$, sinks clamped to their pools. The
-average never crosses the equilibrium $A\tau$, so the transfers cannot
-overshoot the joint saturation for any $\Delta t/\tau$.
-
-Pools are not tracked within the substep (as in P3): the implicit solve shares
-each pool among its sinks and the vapor check below removes deposition that an
-exhausted pool could not feed. Consequences: the residue left after a complete
-evaporation still counts as a small vapor supply, so the air can stay a few
-per cent subsaturated over ice while the residue persists; a small cloud in dry
-air evaporates on the excess relaxation time rather than at the pool-bounded
-rate of the instantaneous scheme; and the split of an uptake between cloud ice
-and snow within one substep can differ from the finely resolved one while
-vapor and heating agree.
-
-## Vapor check and latent heating limiter
-
-Each substep does two linear solves. The first, with the transfers above,
-gives the realized transfers $\Delta q^1$ and the heating
-$\Delta T_1 = (L_v\,\Delta q^1_{\mathrm{liq}} + L_s\,\Delta q^1_{\mathrm{ice}})/c_p$,
-with the same latent-heat factors as the substep temperature update, so the
-fusion heat of freezing and melting is included. Two factors are derived from
-it and applied in the second solve.
-
-Vapor check. With $q^\star_{\min}$ the lower of the two saturations,
+With $q^\star_{\min}$ the lower of the two saturations,
 $\lambda_{\min} = dq^\star_{\min}/dT$ and $\Sigma e = \sum_k e_k \Delta t$ the
 vapor taken by the sources,
 
@@ -233,7 +224,9 @@ It removes the deposition that a pool exhausted within the substep (for
 example liquid taken by freezing) could not feed, and replaces the former
 raw-excess cap, which lacked $\Gamma$.
 
-Latent heating limiter. With $\Delta T_\alpha$ the heating after the vapor
+### Latent heating limiter
+
+With $\Delta T_\alpha$ the heating after the vapor
 check and $\Delta T_{\max}$ = `max_latent_heating_rate` × $\Delta t$
 (ClimaParams `microphysics_max_latent_heating_rate`, K/s, default 2 K per
 minute, `inf` disables, must be positive),
