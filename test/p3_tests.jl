@@ -823,61 +823,64 @@ function test_p3_het_freezing(FT)
 end
 
 function test_p3_melting(FT)
+    params = CMP.ParametersP3(FT)
+    vel = CMP.Chen2022VelType(FT)
+    aps = CMP.AirProperties(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    quad = P3.GaussLegendre(FT, 12)
+    (; T_freeze) = params
 
-    @testset "Melting Smoke Test" begin
+    ρₐ = FT(1.2)
+    Lᵢ = FT(1e-4) * ρₐ
+    Nᵢ = FT(2e5) * ρₐ
+    F_rim, ρ_rim = FT(0.8), FT(800)
+    state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+    logλ = P3.get_distribution_logλ(state)
+    melt(T, st = state, lg = logλ) = P3.ice_melt(vel, aps, tps, T, ρₐ, st, lg; quad)
 
-        params = CMP.ParametersP3(FT)
-        vel = CMP.Chen2022VelType(FT)
-        aps = CMP.AirProperties(FT)
-        tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    @testset "Melting by heat conduction" begin
+        # No melting at and below freezing
+        @test melt(T_freeze - FT(0.01)) == (; dNdt = FT(0), dLdt = FT(0))
+        @test melt(T_freeze) == (; dNdt = FT(0), dLdt = FT(0))
 
-        ρₐ = FT(1.2)
-        qᵢ = FT(1e-4)
-        Lᵢ = qᵢ * ρₐ
-        Nᵢ = FT(2e5) * ρₐ
-        F_rim = FT(0.8)
-        ρ_rim = FT(800)
+        # The mass rate is 2π K_therm ΔT / L_f ∫ D F_v N′ dD, checked with an independent quadrature
+        T = T_freeze + FT(1)
+        v_term = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
+        F_v = CO.ventilation_factor(params.vent, aps, v_term)
+        N′ = P3.size_distribution(state, logλ)
+        ∫DFvN = QGK.quadgk(D -> D * F_v(D) * N′(D), FT(0), 100 / exp(logλ))[1]
+        @test melt(T).dLdt ≈ 2 * FT(π) * aps.K_therm * (T - T_freeze) / TDI.Lf(tps, T) * ∫DFvN rtol = 1e-3
 
-        state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
-        logλ = P3.get_distribution_logλ(state)
+        # The rate is linear in ΔT / L_f(T)
+        T₂ = T_freeze + FT(2)
+        @test melt(T₂).dLdt / melt(T).dLdt ≈ 2 * TDI.Lf(tps, T) / TDI.Lf(tps, T₂) rtol = sqrt(eps(FT))
+    end
 
-        T_cold = FT(273.15 - 0.01)
+    @testset "Mass and number melt at the fractional rate of the size distribution" begin
+        T = T_freeze + FT(1)
+        rate = melt(T)
+        @test rate.dNdt / Nᵢ ≈ rate.dLdt / Lᵢ
 
-        rate = P3.ice_melt(vel, aps, tps, T_cold, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
+        # At a fixed shape, each rate scales with its own moment
+        rate_2L = melt(T, P3.P3State(params, 2 * Lᵢ, Nᵢ, F_rim, ρ_rim))
+        rate_2N = melt(T, P3.P3State(params, Lᵢ, 2 * Nᵢ, F_rim, ρ_rim))
+        @test rate_2L.dLdt ≈ 2 * rate.dLdt && rate_2L.dNdt ≈ rate.dNdt
+        @test rate_2N.dNdt ≈ 2 * rate.dNdt && rate_2N.dLdt ≈ rate.dLdt
 
-        @test rate.dNdt == 0
-        @test rate.dLdt == 0
+        # A mean particle mass below the nucleation mass puts the shape solve at its bound, where
+        # the size distribution holds more mass than the ice. Both moments still melt at the
+        # fractional rate of the distribution.
+        L_small = FT(1e-12)
+        state_small = P3.P3State(params, L_small, Nᵢ, F_rim, ρ_rim)
+        rate = melt(T, state_small, P3.get_distribution_logλ(state_small))
+        @test rate.dLdt / L_small ≈ rate.dNdt / Nᵢ
 
-        T_warm = FT(273.15 + 0.01)
-        rate = P3.ice_melt(vel, aps, tps, T_warm, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
-
-        @test rate.dNdt >= 0
-        @test rate.dLdt >= 0
-
-        # NOTE: All reference values are output from the code.
-        # A failing test indicates that the code has changed.
-        # But if the changes are intentional, the reference values can be updated.
-        if FT == Float64
-            ref_dNdt = FT(172084.75278912345)
-            ref_dLdt = FT(8.604237639456172e-5)
-        else
-            ref_dNdt = FT(172265.67f0)
-            ref_dLdt = FT(8.613284f-5)
-        end
-        @test rate.dNdt ≈ ref_dNdt
-        @test rate.dLdt ≈ ref_dLdt
-
-        T_vwarm = FT(273.15 + 0.1)
-        rate = P3.ice_melt(vel, aps, tps, T_vwarm, ρₐ, state, logλ; quad = P3.GaussLegendre(FT, 12))
-        if FT == Float64
-            ref_vwarm_dNdt = FT(1.7198680382990765e6)
-            ref_vwarm_dLdt = FT(8.599340191495382e-4)
-        else
-            ref_vwarm_dNdt = FT(1.7201018f6)
-            ref_vwarm_dLdt = FT(8.6005084f-4)
-        end
-        @test rate.dNdt ≈ ref_vwarm_dNdt
-        @test rate.dLdt ≈ ref_vwarm_dLdt
+        # Number without mass melts, and mass without number does not
+        state_n = P3.P3State(params, FT(0), Nᵢ, F_rim, ρ_rim)
+        rate = melt(T, state_n, P3.get_distribution_logλ(state_n))
+        @test rate.dLdt == 0 && rate.dNdt > 0
+        state_q = P3.P3State(params, Lᵢ, FT(0), F_rim, ρ_rim)
+        @test melt(T, state_q, P3.get_distribution_logλ(state_q)) == (; dNdt = FT(0), dLdt = FT(0))
     end
 end
 

@@ -855,21 +855,21 @@ include("plots/P3ImmersionFreezing.jl")
 
 ### Melting
 
-Melting rate is derived in the same way as in the
+Melting follows from heat conduction to the particles, as in the
   [1-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-melt).
-We assume the same ventilation factor parameterization as in [SeifertBeheng2006](@cite),
-  and use the terminal velocity parameterization from [Chen2022](@cite).
-The ``dm/dD`` derivative is computed for each P3 size regime.
-The bulk melting rate is computed by numerically integrating over the particle size distribution:
+A particle of diameter ``D`` and capacitance ``C = D/2`` melts at
 ```math
-\left. \frac{dL}{dt} \right|_\mathrm{melt} 
-= \frac{4 \, K_\mathrm{thermo}}{L_f} \left(T - T_\mathrm{freeze}\right)
-  \int_{0}^{\infty} \frac{dm(D)}{dD} \frac{F_v(D) N(D)}{D} \mathrm{d}D
+\frac{dm}{dt} = \frac{2 \pi D \, K_\mathrm{thermo}}{L_f} \left(T - T_\mathrm{freeze}\right) F_v(D),
 ```
-The melting rate for number concentration is assumed to be proportional to the ice content melting rate.
+with the ventilation factor of [SeifertBeheng2006](@cite) and the terminal velocity of [Chen2022](@cite).
+Mass and number melt at the same fractional rate, that of the particle size distribution:
 ```math
-\left. \frac{dN}{dt} \right|_\mathrm{melt} = \frac{N}{L} \left. \frac{dL}{dt} \right|_\mathrm{melt}
+f = \frac{\int_{0}^{\infty} \frac{dm}{dt} N(D) \, \mathrm{d}D}{\int_{0}^{\infty} m(D) N(D) \, \mathrm{d}D}, \qquad
+\left. \frac{dL}{dt} \right|_\mathrm{melt} = L f, \qquad
+\left. \frac{dN}{dt} \right|_\mathrm{melt} = N f.
 ```
+When the size distribution solves the shape problem, its mass equals ``L``, and ``L f`` is the integral of ``dm/dt`` over the distribution.
+When the shape solve returns a bound of its search interval, the distribution holds a different mass than ``L``, and both rates still follow from its fractional rate.
 
 ```@example
 include("plots/P3Melting.jl")
