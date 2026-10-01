@@ -1,7 +1,5 @@
 # Bulk Tendencies
 
-## Linearized average tendencies
-
 Microphysical source terms can be stiff, especially for depletion processes
 such as evaporation, sublimation, and melting. To improve stability and
 allow larger timesteps, we introduce a linearized implicit formulation
@@ -16,7 +14,7 @@ The idea is to approximate the nonlinear microphysics tendencies as a linear sys
 where $q = (q_{\mathrm{lcl}}, q_{\mathrm{icl}}, q_{\mathrm{rai}}, q_{\mathrm{sno}})$,
 and the matrix $M$ and vector $e$ are constructed from the instantaneous tendencies.
 
-### Linearization
+## Linearization
 
 Each microphysical process is linearized with respect to its donor species:
 
@@ -28,26 +26,7 @@ Each microphysical process is linearized with respect to its donor species:
   \delta = q_v - q^\star
   ```
   where $q^\star$ is the saturation specific humidity over liquid or ice.
-  The vapor excess evolves as
-  ```math
-  \frac{d \delta}{dt} = -\left(1 + \frac{L}{c_p} \frac{d q^\star}{dT} \right) S
-                      = -\Gamma\, c\, \delta = -\frac{\delta}{\tau}, \qquad
-  \frac{1}{\tau} = \Gamma\, c.
-  ```
-  where $S$ is the process rate, $L$ is the latent heat and $c_{p}$ is the specific heat.
-  For cloud liquid and ice the functional form of the rate follows $S = \frac{\delta}{\tau \Gamma}$,
-  and therefore
-  ```math
-  c_{lcl} = \frac{1}{\tau_{lcl} \Gamma_l}, \qquad
-  c_{icl} = \frac{1}{\tau_{icl} \Gamma_i}.
-  ```
-  For rain and snow $\tau = \frac{1}{\Gamma c}$ is the timescale implied by their rate,
-  and
-  ```math
-  c_{rai} = \frac{S_{rai}}{\delta_l}, \qquad
-  c_{sno} = \frac{S_{sno}}{\delta_i}
-  ```
-  is evaluated once per substep.
+
   For a single process acting alone, the vapor excess decays as
   ```math
   \frac{d \delta}{dt} = \frac{dq_v}{dt} − \left(\frac{dq^\star}{dT} \right) \frac{dT}{dt}
@@ -57,7 +36,22 @@ Each microphysical process is linearized with respect to its donor species:
   ```math
   \frac{d \delta}{dt} = −\left(1 + \frac{L}{c_p} \frac{d q^\star}{dT} \right) S = − \Gamma S = - \frac{\delta}{\tau}.
   ```
-  The solution of this differential equation is
+  where $L$ is the latent heat and $c_{p}$ is the specific heat.
+  For cloud liquid and ice to vapor transfers
+  the functional form of the rate is $S = \frac{\delta}{\tau \Gamma}$
+  We can define $c$ as the process coefficient:
+  ```math
+  c_{lcl} = \frac{1}{\tau_{lcl} \Gamma_l}, \qquad
+  c_{icl} = \frac{1}{\tau_{icl} \Gamma_i}.
+  ```
+  For rain and snow $\tau = \frac{1}{\Gamma c}$ is the timescale implied by their rate,
+  ```math
+  c_{rai} = \frac{S_{rai}}{\delta_l}, \qquad
+  c_{sno} = \frac{S_{sno}}{\delta_i},
+  ```
+  and is evaluated once per substep.
+
+  The solution of the differential equation for vapor excess is
   ```math
   \delta(t) = \delta_0 e^{−t/\tau}.
   ```
@@ -88,8 +82,9 @@ Each microphysical process is linearized with respect to its donor species:
 
   The two saturation excesses are separated by
   ```math
-  \Delta s = q^\star_l − q^\star_i \ge 0
+  \Delta s = q^\star_l − q^\star_i
   ```
+  The $\Delta s$ is positive below the triple point and negative above.
   ```math
   \delta_i = \delta_l + \Delta s
   ```
@@ -136,13 +131,13 @@ Each microphysical process is linearized with respect to its donor species:
   S \;\rightarrow\; D\, q_{\text{donor}}, \qquad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
   ```
   The linearization supplies the coefficient to the implicit solve.
-  The implicit solve then gives the transfer as $\Delta q = −D q^\inf \Delta t$
-  with $q^\inf$ the end-of-substep donor content.
+  The implicit solve then gives the transfer as $\Delta q = −D q^{n+1} \Delta t$
+  with $q^{n+1}$ the end-of-substep donor content.
   For a process acting alone on its pool,
   ```math
-  \Delta q = -\frac{S\,\Delta t}{1 + S\,\Delta t / q_0}
+  \Delta q = -\frac{S\,\Delta t}{1 + S\,\Delta t / q^n}
   ```
-  which never removes more than the pool $q_{0}$ and tends to $−S \Delta t$ when $S \Delta t \ll q_{0}$.
+  which never removes more than the pool $q^n}$ and tends to $−S \Delta t$ when $S \Delta t \ll q^n$.
   This is a backward-Euler decay $1 / (1 + D \Delta t)$,
   not the exponential decay $e^{−D\Delta t}$ of the vapor relaxation.
   Therefre the two $\Delta q$ formulas differ in form, but are both bounded and monotone.
@@ -161,19 +156,19 @@ for the donor decays replace $S \Delta t$ by bounded quantities.
 For a timestep $\Delta t$, we solve the linearized system implicitly:
 
 ```math
-\frac{q^\star - q^0}{\Delta t} = M q^\star + e
+\frac{q^{n+1} - q^n}{\Delta t} = M q^{n+1} + e
 ```
-
-which gives:
+where $q^n$ and $q^{n+1}$ are tracer values at the beginning and end of the substep.
+This results in
 
 ```math
-\left(I/\Delta t - M\right) q^\star = e + q^0/\Delta t
+\left(I/\Delta t - M\right) q^{n+1} = e + q^n/\Delta t
 ```
 
 The average tendency is then:
 
 ```math
-\overline{T} = \frac{q^\star - q^0}{\Delta t}
+\overline{T} = \frac{q^{n+1} - q^n}{\Delta t}
 ```
 
 ---
@@ -244,12 +239,14 @@ exactly $f$; collision and conversion transfers are not scaled.
 
 After the second solve, with $\Delta q^2$ its transfers, $\Delta T_2$ the
 corresponding heating, $\Delta q_{\mathrm{cond}} = \sum_k \Delta q^2_k$ and
-$q^0_v$ the initial vapor,
+$q^n_v$ the initial vapor,
 
 ```math
 g = \min\!\left(1, \frac{\Delta T_{\max}}{|\Delta T_2|}, \frac{q^0_v}{\Delta q_{\mathrm{cond}}}\right), \qquad
 \frac{dq_k}{dt} = g\,\frac{\Delta q^2_k}{\Delta t} .
 ```
+
+- In the limiter section Δq^1 and Δq^2 index the two solves. One sentence there, "q^{n+1} is the state after the second solve scaled by g", ties the two notations together.
 
 The uniform factor $g$ covers the cases the per-donor factors miss (pools that
 refill each other, such as rain freezing on cloud ice while snow melts) and
