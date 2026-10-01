@@ -96,7 +96,7 @@ See also [`gamma_inc_moment`](@ref)
 """
 function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     FT = UT.promote_typeof(D₁, D₂, μ, logλ)
-    D₁ < D₂ || return log(FT(0))  # return log(0) if D₁ ≥ D₂
+    D₁ < D₂ || return FT(-Inf)  # an empty segment
     z = k + μ + 1
     # `λ⋅D ≡ xexpy(D, logλ) ≡ D * exp(logλ)` (numerically stable)
     x1 = LogExpFunctions.xexpy(D₁, logλ)
@@ -104,7 +104,9 @@ function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     (p1, q1) = UT.gamma_inc(z, x1)
     (p2, q2) = UT.gamma_inc(z, x2)
     Δq = x2 < z + 1 ? p2 - p1 : q1 - q2
-    Δq = max(Δq, eps(FT))
+    # `Δq ≥ 0` analytically but can round below zero. The floor keeps `log(Δq)` and its
+    # derivative finite.
+    Δq = max(Δq, floatmin(FT))
     return -z * logλ + SF.loggamma(z) + log(Δq) + log(FT(scale))
 end
 
@@ -135,8 +137,8 @@ end
 """
     loggamma_moment(μ, logλ; [k = 0], [scale = 1])
 
-Compute `log(scale ⋅ ∫_0^∞ G(D) D^k dD)`, 
- where `G(D) ≡ D^μ e^{-λD}` is the (unnormalized) gamma kernel, 
+Compute `log(scale ⋅ ∫_0^∞ G(D) D^k dD)`,
+ where `G(D) ≡ D^μ e^{-λD}` is the (unnormalized) gamma kernel,
  `k` is an arbitrary exponent, and `scale` is a scale factor.
 
 # Arguments
@@ -233,11 +235,12 @@ Compute `log(N₀)` given `N_ice`, `μ`, and `logλ`,
 - `N_ice`: The number concentration [1/m³]
 - `μ`: The shape parameter [`-`]
 - `logλ`: The log of the slope parameter [log(1/m)]
+
+Without ice number, `log(N₀) = -Inf`, with zero derivatives.
 """
 function get_logN₀(N_ice, μ, logλ)
-    logNdivN₀ = loggamma_moment(μ, logλ; k = 0)
-    logN₀ = log(N_ice) - logNdivN₀
-    return logN₀
+    logN₀ = log(N_ice) - loggamma_moment(μ, logλ; k = 0)
+    return ifelse(N_ice ≥ floatmin(typeof(N_ice)), logN₀, oftype(logN₀, -Inf))
 end
 
 """
@@ -247,15 +250,35 @@ A `RootSolvers.AbstractTolerance` whose convergence predicate is always `false`,
 so the bracketing solver never exits early and always runs the full iteration
 budget. This makes the iteration count independent of the input, eliminating
 warp divergence from data-dependent early-exit on the GPU (at the cost of the
-warm-start speedup — a tighter initial bracket improves accuracy but not the
-iteration count). The iteration budget itself is calibrated empirically; see
-[`get_distribution_logλ`](@ref).
+warm-start speedup - a tighter initial bracket improves accuracy but not the
+iteration count). Each caller sets its own iteration budget.
 """
 struct FixedIterations{FT} <: RS.AbstractTolerance{FT} end
 @inline (::FixedIterations)(x1, x2, y) = false
 
 """
-    get_distribution_logλ(state, [logλ_guess, logλ_min, logλ_max])
+    _logλ_max(params::CMP.ParametersP3)
+
+The largest `logλ` of the shape solve: the slope at which the mean particle mass equals the mass
+of a newly nucleated crystal, a solid-ice sphere of diameter `D_nuc`.
+
+Small ice is spherical, `m(D) = (π/6) ρ_i D³`, so the mean particle mass is
+`(π/6) ρ_i Γ(μ + 4) / Γ(μ + 1) / λ³`. Equating it with `(π/6) ρ_i D_nuc³` gives
+
+```math
+λ_{max} D_{nuc} = \\sqrt[3]{(μ + 1)(μ + 2)(μ + 3)}, \\qquad μ = μ(λ_{max}).
+```
+
+One update from `μ = 0` solves this exactly while `μ` is constant at such small sizes, as it is
+for the default slope law, [`CMP.SmoothSlopePowerLaw`](@ref).
+"""
+@inline function _logλ_max((; slope, D_nuc)::CMP.ParametersP3)
+    logλ(μ) = log(cbrt((μ + 1) * (μ + 2) * (μ + 3)) / D_nuc)
+    return logλ(get_μ(slope, logλ(zero(D_nuc))))
+end
+
+"""
+    get_distribution_logλ(state, [logλ_guess])
 
 Solve for the distribution parameters given the state, and the mass (`L`) and number (`N`) concentrations.
 
@@ -281,20 +304,27 @@ where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
 
 # Arguments
 - `state`: The [`P3State`](@ref)
-- `logλ_guess`: Optional initial guess
-- `logλ_min`: The minimum value of the search bounds [log(1/m)], default is `2`
-- `logλ_max`: The maximum value of the search bounds [log(1/m)], default is `17`
+- `logλ_guess`: Optional initial guess, which narrows the search bounds but does not change
+  the iteration count
+
+The search bounds are `logλ = 2` and the slope at which the mean particle mass equals the mass of
+a newly nucleated crystal. Without ice mass, the result is the upper bound, the smallest
+particles. With mass but without number, it is the lower bound, the largest particles.
+
+The result is not differentiable with respect to the state. Hold `logλ` fixed when
+differentiating quantities that depend on it.
 """
-function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, logλ_max = 17)
+function get_distribution_logλ(state, logλ_guess = nothing)
     FT = eltype(state)
-    ϵₘ = UT.ϵ_numerics_2M_M(FT)
-    ϵₙ = UT.ϵ_numerics_2M_N(FT)
     (; ρn_ice, ρq_ice) = state
-    (ρn_ice < ϵₙ || ρq_ice < ϵₘ) && return log(zero(ρq_ice))
+    lo, hi = FT(2), FT(_logλ_max(state.params))
+    ρq_ice ≥ floatmin(FT) || return hi
+    ρn_ice ≥ floatmin(FT) || return lo
+
+    # Two logs instead of the log of the ratio, which can underflow to zero in Float32
     target_log_LdN = log(ρq_ice) - log(ρn_ice)
 
     shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
-    lo, hi = FT(logλ_min), FT(logλ_max)
     f_lo, f_hi = shape_problem(lo), shape_problem(hi)
     if !isfinite(f_lo) || !isfinite(f_hi) || f_lo * f_hi > 0
         return abs(f_lo) ≤ abs(f_hi) ? lo : hi
@@ -302,17 +332,9 @@ function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, log
     (lo, f_lo, hi, f_hi) =
         _narrow_bracket(shape_problem, lo, f_lo, hi, f_hi, logλ_guess)
 
-    # Fixed iteration count (no early-exit) keeps GPU warps convergent. The
-    # branchless Brent's method converges rapidly, and the shape problem
-    # `logLdivN(logλ)` is close to linear over the [2,17] bracket, so these
-    # counts empirically reach excellent accuracy across sampled physical
-    # states. This is an EMPIRICAL, curvature-dependent result, NOT a guaranteed
-    # tolerance: a strongly-curved shape function (e.g. a future `get_μ` law)
-    # could leave the root under-resolved with no runtime signal (the solver's
-    # `converged` flag is unused). Accuracy is guarded end-to-end by the
-    # `N ≈ ∫N′ dD` integral checks in `test/p3_tests.jl`; revisit the budget if
-    # those tighten or the slope law changes.
-    maxiters = FT === Float32 ? 8 : 10
+    # A fixed iteration count (no early exit) keeps GPU warps convergent. The counts reach the
+    # rounding floor of `logLdivN` at each precision; `test/p3_tests.jl` asserts the residual.
+    maxiters = FT === Float32 ? 10 : 12
     sol = RS.find_zero(
         shape_problem,
         RS.BrentsMethod(lo, hi),
@@ -320,7 +342,7 @@ function get_distribution_logλ(state, logλ_guess = nothing, logλ_min = 2, log
         FixedIterations{FT}(),
         maxiters,
     )
-    return sol.root  # logλ
+    return clamp(sol.root, lo, hi)  # logλ, within the search bounds
 end
 
 """
@@ -355,35 +377,4 @@ end
     new_f_lo = ifelse(right, f_p, f_lo)
 
     return (new_lo, new_f_lo, new_hi, new_f_hi)
-end
-
-"""
-    get_distribution_logλ_all_solutions(state)
-
-Find all solutions for `logλ` given the `state` ([`P3State`](@ref)), `L`, and `N`.
-
-!!! note "Usage"
-    This function is experimental, and usually only relevant for the
-    [`CMP.SlopePowerLaw`](@ref) parameterization, which can have multiple solutions
-    for `logλ` for a given `log_L` and `log_N`.
-"""
-function get_distribution_logλ_all_solutions(state::P3State)
-    # Find bounds by evaluating function incrementally, then apply root finding with bounds above and below zero-point
-    target_log_LdN = log(state.ρq_ice) - log(state.ρn_ice)
-
-    shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
-
-    Δλ = 0.01
-    λs = 10.0 .^ (2.0:Δλ:6.0)
-    logλ_bnds = Tuple[]
-    # Loop over λs and find where shape_problem changes sign
-    for i in 1:(length(λs) - 1)
-        if shape_problem(log(λs[i])) * shape_problem(log(λs[i + 1])) < 0
-            push!(logλ_bnds, (log(λs[i]), log(λs[i + 1])))
-        end
-    end
-
-    # Apply root finding with bounds above and below zero-point
-    logλs = [get_distribution_logλ(state, nothing, logλ_min, logλ_max) for (logλ_min, logλ_max) in logλ_bnds]
-    return logλs
 end

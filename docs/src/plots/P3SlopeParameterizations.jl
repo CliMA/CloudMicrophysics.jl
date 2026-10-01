@@ -1,6 +1,19 @@
 import CairoMakie: Makie
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.P3Scheme as P3
+import RootSolvers as RS
+
+# Every root of the shape solve on [10², 10⁶] m⁻¹: bracket each sign change of the residual on a
+# fine grid, and solve on each bracket
+function all_shape_solutions(state)
+    target_log_LdN = log(state.ρq_ice) - log(state.ρn_ice)
+    shape_problem(logλ) = P3.logLdivN(state, logλ) - target_log_LdN
+    logλ_grid = log.(10.0 .^ (2.0:0.01:6.0))
+    brackets = filter(collect(zip(logλ_grid[1:(end - 1)], logλ_grid[2:end]))) do (lo, hi)
+        shape_problem(lo) * shape_problem(hi) < 0
+    end
+    return [RS.find_zero(shape_problem, RS.BrentsMethod(lo, hi)).root for (lo, hi) in brackets]
+end
 
 FT = Float64
 
@@ -41,8 +54,8 @@ function make_multiple_solutions_plot(hard_params, smooth_params, λ_bnds)
     target_logLdN = log(L_known) - log(N_known)
     hard_shape_problem(logλ) = P3.logLdivN(hard_state, logλ) - target_logLdN
     smooth_shape_problem(logλ) = P3.logLdivN(smooth_state, logλ) - target_logLdN
-    hard_roots = P3.get_distribution_logλ_all_solutions(hard_state)
-    smooth_roots = P3.get_distribution_logλ_all_solutions(smooth_state)
+    hard_roots = all_shape_solutions(hard_state)
+    smooth_roots = all_shape_solutions(smooth_state)
     @assert length(hard_roots) == 3
     @assert length(smooth_roots) == 1
 
