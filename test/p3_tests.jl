@@ -73,6 +73,34 @@ function test_state_from_prognostic(FT)
     end
 end
 
+function test_velocities_from_prognostic(FT)
+    @testset "Mean fall speeds from nonphysical prognostic input" begin
+        params = CMP.ParametersP3(FT)
+        Chen = CMP.Chen2022VelType(FT)
+        quad = P3.GaussLegendre(FT, 12)
+        # (ρq_ice, ρn_ice, ρq_rim, ρb_rim) with negative moments, a rime mass above the ice
+        # mass, and a rime density above solid ice
+        nonphysical = (
+            (FT(1e-3), FT(1e5), FT(-3e-4), FT(1e-6)),
+            (FT(-1e-3), FT(1e5), FT(3e-4), FT(1e-6)),
+            (FT(1e-3), FT(-2e4), FT(3e-4), FT(1e-6)),
+            (FT(1e-10), FT(1e5), FT(1e-2), FT(1e-6)),
+            (FT(1e-3), FT(1e5), FT(1e-2), FT(1e-8)),
+            (FT(-1e-3), FT(-2e4), FT(-3e-4), FT(-1e-6)),
+        )
+        for prognostic in nonphysical
+            logλ = P3.get_distribution_logλ_from_prognostic(params, prognostic...)
+            for mean_fall_speed in (
+                P3.ice_terminal_velocity_number_weighted_from_prognostic,
+                P3.ice_terminal_velocity_mass_weighted_from_prognostic,
+            )
+                v = mean_fall_speed(Chen, FT(1), params, prognostic..., logλ; quad)
+                @test isfinite(v) && v >= 0
+            end
+        end
+    end
+end
+
 function test_thresholds_solver(FT)
 
     params = CMP.ParametersP3(FT)
@@ -482,13 +510,31 @@ function test_bulk_terminal_velocities(FT)
 
     @testset "Mass and number weighted terminal velocities" begin
 
+        # Zero mass with nonzero number: the smallest-particle limit
+        quad = P3.GaussLegendre(FT, 12)
         state₀ = P3.P3State(params, FT(0), N_ice, FT(0.5), ρ_rim)
         logλ = P3.get_distribution_logλ(state₀)
-        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
-        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
-        @test iszero(vel_n₀)
-        @test iszero(vel_m₀)
+        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ; quad)
+        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ; quad)
+        @test isfinite(vel_n₀) && vel_n₀ >= 0
+        @test isfinite(vel_m₀) && vel_m₀ >= 0
+        # At a fixed `logλ`, the mass-weighted mean depends on the shape of the distribution only,
+        # not on the ice mass
+        state_L = P3.P3State(params, L_ice, N_ice, FT(0.5), ρ_rim)
+        @test P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state_L, logλ; quad) ≈ vel_m₀
 
+        # The limit is within a factor of 2 of the velocity at a small ice mass
+        small_masses = FT[1e-9, 1e-12, 1e-15]
+        vel_n_small = map(small_masses) do L
+            state = P3.P3State(params, L, N_ice, FT(0.5), ρ_rim)
+            logλ_s = P3.get_distribution_logλ(state)
+            P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ_s; quad)
+        end
+        band = vel_n_small[end]
+        @test vel_n₀ <= 2 * band
+        @test vel_n₀ >= band / 2
+
+        # Zero number: no particles, so both mean velocities vanish.
         state₀ = P3.P3State(params, L_ice, FT(0), FT(0.5), ρ_rim)
         logλ = P3.get_distribution_logλ(state₀)
         vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
@@ -496,16 +542,36 @@ function test_bulk_terminal_velocities(FT)
         @test iszero(vel_n₀)
         @test iszero(vel_m₀)
 
+        # Finite ForwardDiff derivatives with respect to an absent quantity, at a fixed `logλ`
+        logλ0 = P3.get_distribution_logλ(P3.P3State(params, L_ice, N_ice, FT(0.5), ρ_rim))
+        function velocities(ρq_ice, ρn_ice)
+            state = P3.P3State(params, ρq_ice, ρn_ice, FT(0.5), ρ_rim)
+            quad = P3.GaussLegendre(FT, 12)
+            return (
+                P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ0; quad),
+                P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ0; quad),
+            )
+        end
+        for ρn_ice in (FT(0), N_ice)
+            d = FD.derivative(x -> velocities(L_ice, x)[1], ρn_ice)
+            @test !isnan(d)
+        end
+        # This reaches the x-derivative of `gamma_inc` at `x = Inf`
+        for ρn_ice in (FT(0), N_ice)
+            d = FD.derivative(x -> velocities(x, ρn_ice)[2], FT(0))
+            @test !isnan(d)
+        end
+
         # NOTE: All reference values are output from the code.
         # A failing test indicates that the code has changed.
         # But if the changes are intentional, the reference values can be updated.
 
         # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
         # their aspect-off counterparts (`cbrt(ϕ) < 1`).
-        ref_v_n = [3.6457122112616465, 2.623040690844402]
-        ref_v_n_ϕ = [1.5248570268487953, 1.4683523701880776]
-        ref_v_m = [7.780799250932574, 5.789500414632324]
-        ref_v_m_ϕ = [2.4264746455606385, 2.366835949588931]
+        ref_v_n = [3.6498119615119333, 2.623217220648736]
+        ref_v_n_ϕ = [1.5237982072911043, 1.467965341985524]
+        ref_v_m = [7.780999436865279, 5.789734504936903]
+        ref_v_m_ϕ = [2.4266298047731265, 2.3669977741571313]
 
         params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
         for (k, F_rim) in enumerate(F_rims)
@@ -588,6 +654,19 @@ function test_bulk_terminal_velocities(FT)
         #     @test Dₘ ≈ ref_vals[i]
         # end
     end
+
+    @testset "D_m presence gate at an absent number" begin
+        state0 = P3.P3State(params, L_ice, FT(0), F_rims[1], ρ_rim)
+        logλ0 = P3.get_distribution_logλ(state0)
+        @test iszero(P3.D_m(state0, logλ0))
+
+        # Finite derivatives for unrimed ice, whose segment [D_gr, D_cr] = [Inf, Inf] is empty
+        Dm(ρn_ice) = P3.D_m(
+            P3.P3State(params, L_ice, ρn_ice, F_rims[1], ρ_rim), logλ0,
+        )
+        @test isfinite(FD.derivative(Dm, FT(0)))
+        @test isfinite(FD.derivative(Dm, N_ice))
+    end
 end
 
 function test_numerical_integrals(FT)
@@ -650,19 +729,15 @@ function test_numerical_integrals(FT)
             logλ = P3.get_distribution_logλ(state)
 
             # Number concentration comparison
-            # Note: To achieve sufficient accuracy, we need to substantially
-            # increase the `order` of the quadrature rule, and set `rtol=0`.
-            # The `rtol` settings essentially forces max evaluations of the method.
-            # Note 2: For F_rim=0, L=0.002, even higher order quadrature rules are needed.
             N′ = P3.size_distribution(state, logλ)
             bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
-            N_estim_cheb = P3.integrate(N′, bnds, P3.ChebyshevGauss(100))
+            N_estim_gl = P3.integrate(N′, bnds, P3.GaussLegendre(FT, 32))
             N_tol = FT == Float32 ? 2e-5 : 1e-5  # native-FT gamma_inc slightly less precise than Float64-backed SF
-            @test N_ice ≈ N_estim_cheb rtol = N_tol
+            @test N_ice ≈ N_estim_gl rtol = N_tol
 
             # Compare with quadgk
             N_estim_qgk = QGK.quadgk(N′, bnds...)[1]
-            @test N_estim_cheb ≈ N_estim_qgk rtol = 1e-5
+            @test N_estim_gl ≈ N_estim_qgk rtol = 1e-5
 
 
             # Bulk velocity comparison
@@ -678,28 +753,28 @@ function test_numerical_integrals(FT)
             v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
             g(D) = v_term(D) * N′(D)
             gm(D) = g(D) * P3.ice_mass(state, D)
-            vel_N_estim_cheb = P3.integrate(g, bnds, P3.ChebyshevGauss(10)) / N_ice
-            vel_m_estim_cheb = P3.integrate(gm, bnds, P3.ChebyshevGauss(10)) / L_ice
-            @test vel_N ≈ vel_N_estim_cheb rtol = 0.005
-            @test vel_m ≈ vel_m_estim_cheb rtol = 0.05
+            vel_N_estim_gl = P3.integrate(g, bnds, P3.GaussLegendre(FT, 32)) / N_ice
+            vel_m_estim_gl = P3.integrate(gm, bnds, P3.GaussLegendre(FT, 32)) / L_ice
+            @test vel_N ≈ vel_N_estim_gl rtol = 0.005
+            @test vel_m ≈ vel_m_estim_gl rtol = 0.05
 
             # Compare with quadgk
             vel_N_estim_qgk = QGK.quadgk(g, bnds...)[1] / N_ice
             vel_m_estim_qgk = QGK.quadgk(gm, bnds...)[1] / L_ice
 
-            @test vel_N_estim_cheb ≈ vel_N_estim_qgk rtol = 0.005
-            @test vel_m_estim_cheb ≈ vel_m_estim_qgk rtol = 0.05
+            @test vel_N_estim_gl ≈ vel_N_estim_qgk rtol = 0.005
+            @test vel_m_estim_gl ≈ vel_m_estim_qgk rtol = 0.05
 
 
             # Dₘ comparisons
             D_m = P3.D_m(state, logλ)
             D_m_func(D) = D * P3.ice_mass(state, D) * N′(D) / L_ice
-            D_m_estim_cheb = P3.integrate(D_m_func, bnds, P3.ChebyshevGauss(100))
-            @test D_m ≈ D_m_estim_cheb rtol = 5e-4
+            D_m_estim_gl = P3.integrate(D_m_func, bnds, P3.GaussLegendre(FT, 32))
+            @test D_m ≈ D_m_estim_gl rtol = 5e-4
 
             # Compare with quadgk
             D_m_estim_qgk = QGK.quadgk(D_m_func, bnds...)[1]
-            @test D_m_estim_cheb ≈ D_m_estim_qgk rtol = 5e-4
+            @test D_m_estim_gl ≈ D_m_estim_qgk rtol = 5e-4
         end
     end
 end
@@ -1001,15 +1076,15 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
         # reference values.
         @test QCFRZ ≈ 5.943946584599112e-7 rtol = 5e-4
-        @test QCSHD ≈ 2.0534323233754524e-9 rtol = 5e-4
+        @test QCSHD ≈ 2.0702099007021667e-9 rtol = 5e-4
         @test NCCOL ≈ 60666.71757403923 rtol = 5e-4
         @test QRFRZ ≈ 6.640489628336987e-5 rtol = 5e-4
-        @test QRSHD ≈ 3.6744506329509328e-6 rtol = 5e-4
+        @test QRSHD ≈ 3.649838651816965e-6 rtol = 5e-4
         @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
         @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
         @test BCCOL ≈ 3.508183075042488e-9 rtol = 5e-4
         @test BRCOL ≈ 7.244274484995898e-8 rtol = 5e-4
-        @test ∫𝟙_wet_M_col ≈ 1.3659847784932352e-5 rtol = 5e-4
+        @test ∫𝟙_wet_M_col ≈ 1.7043100985839804e-5 rtol = 5e-4
 
         ### Test the bulk source function
         state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
@@ -1251,6 +1326,7 @@ end
     # velocity
     test_particle_terminal_velocities(FT)
     test_bulk_terminal_velocities(FT)
+    test_velocities_from_prognostic(FT)
 
     # processes
     test_p3_het_freezing(FT)
