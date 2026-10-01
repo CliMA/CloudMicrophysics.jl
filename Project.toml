@@ -1,6 +1,6 @@
 name = "CloudMicrophysics"
 uuid = "6a9e3e04-43cd-43ba-94b9-e8782df3c71b"
-version = "0.42.0"
+version = "0.43.0"
 authors = ["Climate Modeling Alliance"]
 
 [deps]
@@ -39,4 +39,4 @@ SpecialFunctions = "2.7.1"
 StaticArrays = "1.9"
 Thermodynamics = "0.15.4, 1"
 UnrolledUtilities = "0.1"
-julia = "1.11"
+julia = "1.10"
