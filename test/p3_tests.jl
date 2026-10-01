@@ -41,6 +41,38 @@ function test_p3_state_creation(FT)
     end
 end
 
+function test_state_from_prognostic(FT)
+    @testset "state_from_prognostic projects the rime pair onto the admissible densities" begin
+        params = CMP.ParametersP3(FT)
+        ρ_min, ρ_max = params.ρ_rim_local(one(FT)), params.ρ_i
+        ρq_ice, ρn_ice = FT(1e-3), FT(1e5)
+        # (ρq_rim, ρb_rim): admissible, too dense, too soft, mass without volume, negative
+        # volume, volume without mass, negative mass, no rime
+        rime_pairs = (
+            (FT(3e-4), FT(1e-6)), (FT(3e-4), FT(1e-8)), (FT(3e-4), FT(1e-5)), (FT(3e-4), FT(0)),
+            (FT(3e-4), FT(-1e-6)), (FT(0), FT(1e-6)), (FT(-3e-4), FT(1e-6)), (FT(0), FT(0)),
+        )
+        for (ρq_rim, ρb_rim) in rime_pairs
+            state = @inferred P3.state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+            if ρq_rim > 0
+                # The rime mass is kept, and the volume moves to the nearest admissible value
+                @test state.F_rim ≈ ρq_rim / ρq_ice
+                @test state.ρ_rim ≈ (ρb_rim > 0 ? clamp(ρq_rim / ρb_rim, ρ_min, ρ_max) : ρ_max)
+            else
+                @test state.F_rim == 0 && state.ρ_rim == 0
+            end
+            f_q(q) = P3.state_from_prognostic(params, ρq_ice, ρn_ice, q, ρb_rim).ρ_rim
+            f_b(b) = P3.state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, b).ρ_rim
+            @test isfinite(FD.derivative(f_q, ρq_rim))
+            @test isfinite(FD.derivative(f_b, ρb_rim))
+        end
+
+        # Negative ice mass and number are clamped to zero
+        state = P3.state_from_prognostic(params, -ρq_ice, -ρn_ice, FT(0), FT(0))
+        @test state.ρq_ice == 0 && state.ρn_ice == 0
+    end
+end
+
 function test_thresholds_solver(FT)
 
     params = CMP.ParametersP3(FT)
@@ -78,12 +110,15 @@ function test_thresholds_solver(FT)
             end
         end
 
-        # For very high rimed density, the thresholds are ill-defined. TODO: Investigate this
+        # A rime density above solid ice inverts the thresholds, D_gr < D_th. The `P3State`
+        # constructor bounds ρ_rim by ρ_i, which keeps them ordered.
         F_rim_bad = FT(0.93)
-        ρ_rim_bad = FT(975)
-        ρ_g_bad = P3.get_ρ_g(mass, F_rim_bad, ρ_rim_bad)
-        D_gr_bad = P3.get_D_gr(mass, ρ_g_bad)
-        @test_broken D_th < D_gr_bad
+        @test P3.get_D_gr(mass, P3.get_ρ_g(mass, F_rim_bad, FT(975))) < D_th
+        for ρ_rim in (FT(50), FT(400), ρ_i, FT(975), 2 * ρ_i)
+            state = P3.P3State(params, FT(1e-4), FT(1e6), F_rim_bad, ρ_rim)
+            @test state.ρ_rim == min(ρ_rim, ρ_i)
+            @test state.D_th ≤ state.D_gr ≤ state.D_cr
+        end
 
         # Check that the P3 scheme solution matches the published values
         # D_cr and D_gr vs Fig. 1a Morrison and Milbrandt 2015
@@ -175,9 +210,9 @@ end
 
 function test_shape_solver(FT)
 
-    slope_laws = (:constant, :powerlaw)
-    for slope_law in slope_laws
-        params = CMP.ParametersP3(FT; slope_law)
+    slope_laws = (CMP.SlopeConstant(FT), CMP.SlopePowerLaw(FT), CMP.SmoothSlopePowerLaw(FT))
+    for slope in slope_laws
+        params = CMP.ParametersP3(FT; slope)
 
         @testset "Shape parameters - nonlinear solver" begin
             # -- First, test limiting behavior: `N_ice = L_ice = 0` --
@@ -257,6 +292,30 @@ function test_shape_solver(FT)
                     end
                 end
             end
+        end
+    end
+end
+
+function test_smooth_slope_law(FT)
+    smooth = CMP.SmoothSlopePowerLaw(FT)
+    hard = CMP.SlopePowerLaw(FT)
+    logλs = FT.(range(2, 17; length = 3001))
+
+    @testset "SmoothSlopePowerLaw: a smooth, nondecreasing approximation of the hard limits" begin
+        for logλ in logλs
+            μ = P3.get_μ(smooth, logλ)
+            @test 0 ≤ μ ≤ smooth.μ_max
+            # A softplus corner deviates from the hard limit by at most log(2)/κ
+            @test abs(μ - P3.get_μ(hard, logλ)) ≤ log(FT(2)) / smooth.κ
+            @test FD.derivative(x -> P3.get_μ(smooth, x), logλ) ≥ 0
+        end
+    end
+
+    @testset "SmoothSlopePowerLaw: log(L/N) decreases strictly in logλ, so the shape solve has one root" begin
+        params = CMP.ParametersP3(FT; slope = smooth)
+        for F_rim in FT.((0, 0.2, 0.5, 0.8, 0.95)), ρ_rim in FT.((100, 400, 800))
+            state = P3.P3State(params, FT(1), FT(1), F_rim, ρ_rim)
+            @test all(<(0), diff(P3.logLdivN.(state, logλs)))
         end
     end
 end
@@ -370,10 +429,10 @@ function test_bulk_terminal_velocities(FT)
 
         # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
         # their aspect-off counterparts (`cbrt(ϕ) < 1`).
-        ref_v_n = [3.64194720794662, 2.6191026241691695]
-        ref_v_n_ϕ = [1.523425288986299, 1.4660573287073728]
-        ref_v_m = [7.788114224053879, 5.797675366222473]
-        ref_v_m_ϕ = [2.4275080186932736, 2.3681842506505544]
+        ref_v_n = [3.6457122112616465, 2.623040690844402]
+        ref_v_n_ϕ = [1.5248570268487953, 1.4683523701880776]
+        ref_v_m = [7.780799250932574, 5.789500414632324]
+        ref_v_m_ϕ = [2.4264746455606385, 2.366835949588931]
 
         params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
         for (k, F_rim) in enumerate(F_rims)
@@ -437,7 +496,7 @@ function test_bulk_terminal_velocities(FT)
         # end
     end
     @testset "Mass-weighted mean diameters" begin
-        ref_vals = [0.005397144197921535, 0.0033368960364578005]
+        ref_vals = [0.005388435466357483, 0.0033291124145735426]
         for (F_rim, ref_val) in zip(F_rims, ref_vals)
             state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
             logλ = P3.get_distribution_logλ(state)
@@ -713,7 +772,16 @@ function test_p3_bulk_liquid_ice_collisions(FT)
     @testset "local rime density" begin
         Tₐ = T_freeze - 1 // 10
         ρ′_rim_func = P3.compute_local_rime_density(vel_params, ρₐ, Tₐ, state)
-        @test ρ′_rim_func(D̄, D̄) ≈ FT(159.5) rtol = 1e-6
+        # In Float32, `Tₐ - T_freeze` = -0.1 K has a relative rounding error of about 1e-4
+        @test ρ′_rim_func(D̄, D̄) ≈ FT(282.8765520969483) rtol = 2e-4
+
+        # Rᵢ > 0 for T < T_freeze, so ρ′_rim densifies toward ρ_ice as T → T_freeze.
+        Dₗ = FT(200e-6)
+        ρ′_rim(T) = P3.compute_local_rime_density(vel_params, ρₐ, FT(T), state)(D̄, Dₗ)
+        @test issorted(ρ′_rim.((240, 250, 260, 265, 270)))
+        # At and above T_freeze, the solid-ice (wet-growth) limit
+        @test ρ′_rim(T_freeze) ≈ FT(916.7)
+        @test ρ′_rim(T_freeze + 5) ≈ FT(916.7)
 
         a, b, c = 51, 114, -11 // 2 # coeffs for Eq. 17 in Cober and List (1993), converted to [kg / m³]
         ρ′_rim_CL93(Rᵢ) = a + b * Rᵢ + c * Rᵢ^2  # Eq. 17 in Cober and List (1993), in [kg / m³], valid for 1 ≤ Rᵢ ≤ 8
@@ -866,8 +934,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test QRSHD ≈ 3.6744506329509328e-6 rtol = 5e-4
         @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
         @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.726612278745525e-9 rtol = 5e-4
-        @test BRCOL ≈ 4.163318251255413e-7 rtol = 5e-4
+        @test BCCOL ≈ 3.508183075042488e-9 rtol = 5e-4
+        @test BRCOL ≈ 7.244274484995898e-8 rtol = 5e-4
         @test ∫𝟙_wet_M_col ≈ 1.3659847784932352e-5 rtol = 5e-4
 
         ### Test the bulk source function
@@ -1099,10 +1167,12 @@ end
 @testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation
     test_p3_state_creation(FT)
+    test_state_from_prognostic(FT)
 
     # numerics
     test_thresholds_solver(FT)
     test_shape_solver(FT)
+    test_smooth_slope_law(FT)
     test_numerical_integrals(FT)
 
     # velocity

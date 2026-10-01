@@ -6,8 +6,8 @@ import CairoMakie: Makie
 
 FT = Float64
 
-params = CMP.ParametersP3(FT; slope_law = :constant)
-params_noar = CMP.ParametersP3(FT; slope_law = :constant, aspect_ratio = CMP.NoAspectRatio())
+params = CMP.ParametersP3(FT; slope = CMP.SlopeConstant(FT))
+params_noar = CMP.ParametersP3(FT; slope = CMP.SlopeConstant(FT), aspect_ratio = CMP.NoAspectRatio())
 
 function get_values(
     params::CMP.ParametersP3,

@@ -168,6 +168,11 @@ Compute the shape parameter μ
 - `logλ`: The log of the slope parameter [log(1/m)]
 """
 get_μ((; a, b, c, μ_max)::CMP.SlopePowerLaw, logλ) = clamp(a * exp(logλ)^b - c, 0, μ_max)
+function get_μ((; a, b, c, μ_max, κ)::CMP.SmoothSlopePowerLaw, logλ)
+    p = a * exp(logλ)^b - c
+    M₀ = LogExpFunctions.log1pexp(κ * p) / κ
+    return μ_max - LogExpFunctions.log1pexp(κ * (μ_max - M₀)) / κ
+end
 get_μ((; μ)::CMP.SlopeConstant, logλ...) = μ
 get_μ((; params)::P3State, logλ) = get_μ(params.slope, logλ)
 
