@@ -102,6 +102,13 @@ function run_type_stability_tests()
                 @test getproperty(val1_lin, k) isa FT
             end
 
+            # --- 1-Moment (LinearizedAverageVerbose, diagnostics) ---
+            val1_lin_v = BMT.bulk_microphysics_tendencies.(
+                BMT.LinearizedAverageVerbose(), BMT.Microphysics1Moment(), mp1, tps,
+                ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+            )[1]
+            @test all(v -> v isa FT, values(val1_lin_v))
+
             # --- 1-Moment (InstantaneousVerbose — diagnostics) ---
             tendencies_1M_verbose =
                 BMT.bulk_microphysics_tendencies.(
