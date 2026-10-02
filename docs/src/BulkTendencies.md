@@ -18,7 +18,7 @@ and the matrix $M$ and vector $e$ are constructed from the instantaneous tendenc
 
 Each microphysical process is linearized with respect to its donor species:
 
-- Vapor-driven phase changes (condensation/evaporation of cloud liquid,
+- Vapor phase changes (condensation/evaporation of cloud liquid,
   evaporation of rain, deposition/sublimation of cloud ice and of snow) are
   based on ([MorrisonMilbrandt2015](@cite), Appendix C).
   They are written as relaxations of the vapor excess:
@@ -137,7 +137,7 @@ Each microphysical process is linearized with respect to its donor species:
   ```math
   \Delta q = -\frac{S\,\Delta t}{1 + S\,\Delta t / q^n}
   ```
-  which never removes more than the pool $q^n}$ and tends to $−S \Delta t$ when $S \Delta t \ll q^n$.
+  which never removes more than the pool $q^{n}$ and tends to $−S \Delta t$ when $S \Delta t \ll q^n$.
   This is a backward-Euler decay $1 / (1 + D \Delta t)$,
   not the exponential decay $e^{−D\Delta t}$ of the vapor relaxation.
   Therefre the two $\Delta q$ formulas differ in form, but are both bounded and monotone.
@@ -177,39 +177,42 @@ The average tendency is then:
 
 Additional considerations:
 
-- Vapor is not one of the prognostic variables.
+- Minimizing the vapor residue bias.
+  Vapor is not one of the prognostic variables.
   When a vapor source (for example from evaporating cloud) exceeds
   the available donor pool (i.e. the available cloud water),
   the sink of cloud water is clamped, but the implied water vapor source is not.
-  Within a substep the joint relaxation knows the coefficients $c$
-  and the initial excesses, but not how much water each donor pool holds while the substep runs.
-  Cloud liquid evaporating is treated as able to supply vapor at the rate $c_{lcl} \delta_l$
-  for the whole substep, whether or not there is enough liquid.
+  That means tha within a substep, the joint relaxation solve knows the coefficients $c$
+  and the initial excesses, but does not how much water each donor pool holds while the substep runs.
+  Evaporating and sublimating is treated as able to supply vapor at the rate $c \delta_l$
+  for the whole substep, whether or not there is enough liquid, ice, rain or snow available.
   The pool size enters only at the end, as the clamp of the transfer to minus the pool for the donor,
   and in the implicit solve, which shares each pool among its sinks.
-  This leads to an imbalance between how much vapor the solver though was available and provided
-  to the other phase changes, and how much was actually depleted from the donor.
-  This imbalance residue is then split between the remaining phase changes.
+  This leads to an imbalance between how much vapor the solver thought was available and provided
+  to the other exponential phase changes, and how much was actually depleted from the donor.
 
 - Additionally, for the host model stability, one may want to limit the total
   amount of heating the microphysics can provide.
 
 To address those issues each substep does two linear solves.
 The first solve gives the transfers of mass $\Delta q^1$ and the heating
-$\Delta T_1 = (L_v\,\Delta q^1_{\mathrm{liq}} + L_s\,\Delta q^1_{\mathrm{ice}})/c_p$
+$\Delta T_1 = (L_v\,\Delta q^1_{\mathrm{liq}} + L_s\,\Delta q^1_{\mathrm{ice}})/c_p$.
 Two factors are derived from it and applied in the second solve
 $\alpha$ - to address the vapor inconsistency and `f` to allow for heating limiters.
 
 ### Vapor limiter
 
-With $q^\star_{\min}$ the lower of the two saturations,
-$\lambda_{\min} = dq^\star_{\min}/dT$ and $\Sigma e = \sum_k e_k \Delta t$ the
-vapor taken by the sources,
-
+We estimate vapor budget from vapor sources
+$\hat{S}_{vap}$ and tracer sources $\hat{S}_{cond}$.
 ```math
-\mathrm{gap} = q^\star_{\min} + \lambda_{\min}\Delta T_1 - q^1_v, \qquad
-\alpha = \max\!\left(0,\; 1 - \frac{\mathrm{gap}}{\Gamma_{\min}\,\Sigma e}\right)
-\quad \text{if } \mathrm{gap} > 0, \text{ else } \alpha = 1 .
+\hat{S}_{vap} = q^\star_{\min} + dq^\star_{\min}/dT \Delta T_1 - q^1_v, \qquad
+\hat{S}_{cond} = \Gamma_{min} \,\sum_k e_k \Delta t
+```
+with $q^\star_{\min}$ the lower of the two saturations.
+The correction factor $\alpha$ is defined as
+```math
+\alpha = \max\!\left(0,\; 1 - \frac{\hat{S}_{vap}}{\hat{S}_{cond}}\right)
+\quad \text{if } \hat{S}_{vap} > 0, \text{ else } \alpha = 1 .
 ```
 
 Scaling the vapor sources by $\alpha$ raises the vapor by $(1-\alpha)\Sigma e$
@@ -231,7 +234,7 @@ f = \min\!\left(1, \frac{\Delta T_{\max}}{|\Delta T_\alpha|}\right), \qquad
 s_k = \frac{f\,(1 + D^{c}_k \Delta t)}{1 + D^{c}_k \Delta t + (1 - f)\,D^{p}_k \Delta t} ,
 ```
 
-where $D^{p}_k$ is the sum of the phase-change decays of donor $k$ and
+where $D^{p}_{k}$ is the sum of the phase-change decays of donor $k$ and
 $D^{c}_k$ the sum of its collision/conversion decays. The vapor sources are
 scaled by $f$ and each donor's phase-change decays by $s_k$, which scales the
 realized transfer of a donor that is not refilled by another phase change by
@@ -339,6 +342,12 @@ This is consistent with the microphysics-only update and avoids coupling to a fu
 ---
 
 ## Example figures
+
+```@example
+include("plots/BulkTendencies_plots.jl")
+```
+
+![](bulk_microphysics_linearized_convergence.svg)
 
 The figure compares:
 
