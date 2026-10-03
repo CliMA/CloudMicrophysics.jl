@@ -441,7 +441,7 @@ $(DocStringExtensions.FIELDS)
     q_threshold_slow::FT
     "Autoconversion threshold for strong vertical motions (convective) [kg/kg]"
     q_threshold_fast::FT
-    "Velocity scale of the blending [m/s]"
+    "Velocity scale of the blending, f(w) = w₊²/(w₊² + w_0²) with w₊ = max(w, 0) [m/s]"
     w_0::FT
     "Threshold smooth transition steepness [-]"
     k::FT
