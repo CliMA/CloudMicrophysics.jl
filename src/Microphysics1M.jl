@@ -393,8 +393,20 @@ end
 @inline _rain_acnv_params(opt::CMP.PrescribedNd, mp) =
     _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
 
-# Steep, even blending factor f(w) = w⁴ / (w⁴ + w_0⁴): 0 at rest, 1/2 at |w| = w_0, → 1 for |w| ≫ w_0.
-@inline _velocity_blend(w, w_0) = w^4 / (w^4 + w_0^4)
+# Blending factor between the quiescent (stratiform) and the convective autoconversion regimes,
+#     f(w) = w₊² / (w₊² + w_0²),   w₊ = max(w, 0):
+# 0 in descending or still air, 1/2 at w = w_0, → 1 for w ≫ w_0. Only ascent counts: in rising,
+# saturated air condensation keeps feeding the droplet spectrum (adiabatic liquid water content and
+# drop size grow with height above cloud base) and rain forms efficiently; in sinking air nothing
+# new condenses and drops evaporate, so the quiescent regime applies regardless of |w|. The quadratic
+# onset places the transition inside the range of resolved and sub-domain ascent (w_0 of order
+# 0.01–0.1 m/s separates frontal ascent from gravity-wave noise; convective updrafts at ≳ 0.3 m/s
+# are fully in the fast regime). This is a one-moment closure: with a prognostic droplet number,
+# stronger ascent would also activate more droplets and could slow autoconversion.
+@inline function _velocity_blend(w, w_0)
+    w₊ = max(w, zero(w))
+    return w₊^2 / (w₊^2 + w_0^2)
+end
 
 """
     rain_autoconversion_timescale(option, mp, w = 0)
@@ -408,7 +420,8 @@ Return the effective autoconversion timescale `τ` in s for the selected
 - `mp`: `Microphysics1MParams` parameter container; its `rain_autoconversion` process
   parameters must belong to `option`, otherwise an `ArgumentError` is thrown
 - `w`: vertical velocity of the subdomain in m/s; required by `Kessler1M`, where
-  `τ(w) = τ_slow + (τ_fast - τ_slow) w⁴ / (w⁴ + w_0⁴)`, and ignored by `PrescribedNd`
+  `τ(w) = τ_slow + (τ_fast - τ_slow) w₊² / (w₊² + w_0²)` with `w₊ = max(w, 0)`, and ignored
+  by `PrescribedNd`
 
 # Returns
 - `τ::FT`: effective autoconversion timescale in s; `Inf` when autoconversion is disabled
@@ -437,8 +450,8 @@ models (e.g. ClimaAtmos).
 - `mp`: `Microphysics1MParams` parameter container; its `rain_autoconversion` process
   parameters must belong to `option`, otherwise an `ArgumentError` is thrown
 - `w`: vertical velocity of the subdomain in m/s; required by `Kessler1M`, where
-  `q_threshold(w) = q_threshold_slow + (q_threshold_fast - q_threshold_slow) w⁴ / (w⁴ + w_0⁴)`,
-  and ignored by `PrescribedNd`
+  `q_threshold(w) = q_threshold_slow + (q_threshold_fast - q_threshold_slow) w₊² / (w₊² + w_0²)`
+  with `w₊ = max(w, 0)`, and ignored by `PrescribedNd`
 
 # Returns
 - `q_threshold::FT`: effective autoconversion threshold in kg/kg; `Inf` when autoconversion is

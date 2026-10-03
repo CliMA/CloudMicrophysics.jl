@@ -335,16 +335,26 @@ where:
 
 The timescale and the threshold may each depend on the vertical velocity.
 Both transition smoothly between a quiescent (stratiform) regime and a convective
-regime as a function of ``|w|``, with the steep sigmoidal blending factor
+regime as a function of the *ascent* ``w_+ = \max(w, 0)``, with the blending factor
 
 ```math
 \begin{equation}
-  f(w) = \frac{w^4}{w^4 + w_0^4}
+  f(w) = \frac{w_+^2}{w_+^2 + w_0^2}
 \end{equation}
 ```
-where ``w_0`` is the blending velocity scale. The blending factor
-is symmetric in ``w``, equals 0 at ``w = 0``, and approaches 1 for
-``|w| \gg w_0``. The effective timescale and threshold are
+where ``w_0`` is the blending velocity scale. The blending factor equals 0 in
+still or descending air, 1/2 at ``w = w_0``, and approaches 1 for ``w \gg w_0``.
+Only ascent selects the convective regime: in rising saturated air condensation
+keeps feeding the droplet spectrum (the adiabatic liquid water content and the
+drop sizes grow with height above cloud base) and rain forms efficiently, whereas
+in sinking air nothing new condenses and drops evaporate, so the quiescent regime
+applies there whatever the magnitude of ``w``. The quadratic onset places the
+transition inside the range of resolved and sub-domain ascent (``w_0`` of order
+0.01–0.1 m/s separates frontal ascent from gravity-wave noise, while convective
+updrafts at a few tenths of a m/s and more are fully in the fast regime). This is
+a one-moment closure: with a prognostic droplet number, stronger ascent would also
+activate more droplets and could slow autoconversion. The effective timescale and
+threshold are
 
 ```math
 \begin{align}
