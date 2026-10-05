@@ -335,16 +335,16 @@ where:
 
 The timescale and the threshold may each depend on the vertical velocity.
 Both transition smoothly between a quiescent (stratiform) regime and a convective
-regime as a function of ``|w|``, with the steep sigmoidal blending factor
+regime as a function of the *ascent* ``w_+ = \max(w, 0)``, with the blending factor
 
 ```math
 \begin{equation}
-  f(w) = \frac{w^4}{w^4 + w_0^4}
+  f(w) = \frac{w_+^2}{w_+^2 + w_0^2}
 \end{equation}
 ```
-where ``w_0`` is the blending velocity scale. The blending factor
-is symmetric in ``w``, equals 0 at ``w = 0``, and approaches 1 for
-``|w| \gg w_0``. The effective timescale and threshold are
+where ``w_0`` is the blending velocity scale. The blending factor equals 0 in
+still or descending air, 1/2 at ``w = w_0``, and approaches 1 for ``w \gg w_0``.
+The effective timescale and threshold are
 
 ```math
 \begin{align}
