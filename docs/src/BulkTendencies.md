@@ -84,31 +84,107 @@ The average tendency is then:
 
 ---
 
-## Vapor-budget cap on vapor → condensate sources
+## Vapor and latent heating limiters
 
-Vapor → condensate processes (condensation on cloud liquid, deposition on
-cloud ice, deposition on snow — the non-negative constants `e_1`, `e_2`, `e_4`)
-together consume vapor over the substep. If their combined rate is fast enough,
-an unlimited substep can drive `q_v` below saturation or even negative. To
-prevent this, all three `e` terms are uniformly scaled by
+Two quantities are not part of the linear solve. Vapor is not one of its four
+unknowns, so the vapor budget of a substep is only known afterwards from
+$q_v = q_{tot} - \sum_k q_k$, and so is the latent heating of the substep. Each
+substep therefore does two linear solves. The first, with the transfers above,
+gives the realized transfers $\Delta q^1_k$ of the four species and the heating
 
 ```math
-\alpha = \min\!\left(1,\; \frac{\max(0,\, q_v - q^\star_{\min})}
-                                 {\Delta t\;(e_1 + e_2 + e_4)}\right),
-\qquad
-q^\star_{\min} = \min\!\bigl(q^\star_{\mathrm{liq}}, q^\star_{\mathrm{ice}}\bigr),
+\Delta T_1 = \frac{L_v \left(\Delta q^1_{lcl} + \Delta q^1_{rai}\right) + L_s \left(\Delta q^1_{icl} + \Delta q^1_{sno}\right)}{c_p},
 ```
 
-so that `q_v` cannot be driven below `q^\star_{\min}` over one substep.
-Preserving the common scale factor `\alpha` keeps the relative rates of the
-three processes unchanged. Sinks (`M` blocks) are unaffected.
+with the reference latent heats and the dry-air specific heat of the substep
+temperature update, so that the fusion heat of freezing and melting is included.
+Two factors are derived from it, $\alpha$ for the vapor and $f$ for the heating,
+and the system is solved a second time with them.
 
-- Below freezing: `q^\star_{\min} = q^\star_{\mathrm{ice}}`, the natural
-  ice-saturation floor (permits the Bergeron process to drive `q_v` below
-  liquid saturation).
-- Above freezing: `q^\star_{\min} = q^\star_{\mathrm{liq}}`, so the liquid
-  floor is enforced (mathematical `q^\star_{\mathrm{ice}}` is unphysical
-  there).
+### Vapor limiter
+
+A vapor source (condensation, deposition) relaxes the vapor toward the
+saturation of its phase and stops there. With consistent transfers the sources
+can therefore at most bring the vapor down to the lower of the two saturations,
+evaluated at the end-of-substep temperature. The solved vapor can end below it
+when a source was sized for vapor that is not there: the transfers are computed
+from the start-of-substep state, and the evaporation or sublimation that would
+have supplied vapor during the substep is clamped to its pool, or shared with
+other sinks in the implicit solve, while the deposition computed from the same
+state is not reduced.
+
+With $q^\star_{\min}$ the lower of the two saturations, $\lambda_{\min} = dq^\star_{\min}/dT$
+its slope, $\Gamma_{\min} = 1 + (L/c_p)\,\lambda_{\min}$ with the latent heat of that phase,
+$e_k$ the vapor sources of the linear system and $q^1_v$ the vapor after the first solve,
+the vapor shortfall and the vapor taken by the sources are
+
+```math
+\Delta q_{gap} = q^\star_{\min} + \lambda_{\min}\,\Delta T_1 - q^1_v, \qquad
+\Delta q_{src} = \sum_k e_k\,\Delta t,
+```
+
+and all vapor sources are scaled by
+
+```math
+\alpha = \max\!\left(0,\; 1 - \frac{\Delta q_{gap}}{\Gamma_{\min}\,\Delta q_{src}}\right)
+\quad \text{if } \Delta q_{gap} > 0 \text{ and } \Delta q_{src} > 0, \text{ else } \alpha = 1 .
+```
+
+Removing the fraction $1 - \alpha$ of the sources returns $(1 - \alpha)\,\Delta q_{src}$ of
+vapor and lowers the saturation by $(\Gamma_{\min} - 1)(1 - \alpha)\,\Delta q_{src}$ through
+the heating it removes, so with this $\alpha$ the vapor ends exactly on the lower
+saturation at the corrected temperature. This replaces the cap of earlier versions,
+which compared the sources with the excess at the start-of-substep temperature and
+therefore lacked $\Gamma$. The limiter never adds vapor: with no sources there is
+nothing to scale and subsaturated air is left to the evaporation and sublimation
+sinks. Vapor above the upper saturation is not limited either; it is removed by the
+sources of the next substep and poses no positivity risk.
+
+### Latent heating limiter
+
+With $\Delta T_\alpha$ the heating of the first solve after the vapor limiter,
+
+```math
+\Delta T_\alpha = \Delta T_1 - (1 - \alpha)\,\frac{L_v \left(e_{lcl} + e_{rai}\right) + L_s \left(e_{icl} + e_{sno}\right)}{c_p}\,\Delta t,
+```
+
+and $\Delta T_{\max}$ = `max_latent_heating_rate` × $\Delta t$ (ClimaParams
+`microphysics_max_latent_heating_rate`, K/s, default 2 K per minute, `inf`
+disables, must be positive),
+
+```math
+f = \min\!\left(1, \frac{\Delta T_{\max}}{|\Delta T_\alpha|}\right), \qquad
+s_k = \frac{f\,(1 + D^{c}_k \Delta t)}{1 + D^{c}_k \Delta t + (1 - f)\,D^{p}_k \Delta t} ,
+```
+
+where $D^{p}_k$ is the sum of the decays of donor $k$ that change phase
+(evaporation or sublimation, freezing, melting, riming) and $D^{c}_k$ the sum of
+its collision and conversion decays. In the second solve the vapor sources are
+scaled by $\alpha f$ and the phase-change decays of each donor by $s_k$, which
+scales the realized transfer of a donor that is not refilled by another phase
+change by exactly $f$; collision and conversion transfers are not scaled.
+
+After the second solve, with $\Delta q^2_k$ its transfers, $\Delta T_2$ the
+corresponding heating, $\Delta q_{cond} = \sum_k \Delta q^2_k$ the condensate growth
+and $q^0_v = \max(0, q_{tot} - \sum_k q^0_k)$ the initial vapor,
+
+```math
+g_T = \min\!\left(1, \frac{\Delta T_{\max}}{|\Delta T_2|}\right), \qquad
+g_v = \frac{q^0_v}{\Delta q_{cond}} \text{ if } \Delta q_{cond} > q^0_v, \text{ else } 1, \qquad
+g = \min(g_T, g_v), \qquad
+\frac{dq_k}{dt} = g\,\frac{\Delta q^2_k}{\Delta t} .
+```
+
+The uniform factor $g$ covers the cases the per-donor factors miss (pools that
+refill each other, such as rain freezing on cloud ice while snow melts) and
+bounds the condensate growth by the vapor available; heating and the vapor
+budget are linear in the tendencies, so both bounds are met exactly. With the
+implicit decays keeping every pool non-negative, no tracer can become negative
+in a substep however stiff the processes are. Because the limiter bounds a
+rate, it acts per substep: with fine substeps it can engage during the fast
+initial part of a relaxation that is below the bound when averaged over a
+longer substep. Condensate inputs are clamped to non-negative values before
+the solve.
 
 ---
 
