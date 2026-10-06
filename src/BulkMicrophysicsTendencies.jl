@@ -34,6 +34,8 @@ import ..P3Scheme as CMP3
 import ..HetIceNucleation as CM_HetIce
 import ...ThermodynamicsInterface as TDI
 import ..Common as CO
+import ForwardDiff as FD
+import StaticArrays as SA
 
 export MicrophysicsScheme,
     Microphysics0Moment,
@@ -43,6 +45,20 @@ export MicrophysicsScheme,
     Instantaneous,
     InstantaneousVerbose,
     LinearizedAverage,
+    RosenbrockAverage,
+    Verbose,
+    Jacobian,
+    DonorJacobian,
+    CoupledDonorJacobian,
+    ExactJacobian,
+    GrowthTreatment,
+    ImplicitGrowth,
+    ExplicitGrowthDiagonal,
+    TendencyLimiter,
+    NoLimiter,
+    EndStateSaturationAdjustment,
+    rosenbrock_coupled,
+    rosenbrock_exact,
     bulk_microphysics_tendencies
 
 #####
@@ -90,6 +106,11 @@ Abstract type for selecting the output mode of `bulk_microphysics_tendencies`.
 """
 abstract type TendencyMode end
 
+# A mode can carry configuration ([`RosenbrockAverage`](@ref) does), so it is not a
+# singleton in general and a host broadcasting a tendency call over its fields has to be
+# told to treat it as a scalar.
+Base.broadcastable(m::TendencyMode) = tuple(m)
+
 """
     Instantaneous <: TendencyMode
 
@@ -113,6 +134,208 @@ Return time-averaged tendencies computed via repeated linearized implicit subste
 This is the mode used operationally by ClimaAtmos.
 """
 struct LinearizedAverage <: TendencyMode end
+
+# --- The Rosenbrock-Euler substepping framework ---
+
+"""
+    Jacobian
+
+Abstract type selecting the matrix used in each linearized-implicit substep of
+[`RosenbrockAverage`](@ref). The supported types and how to add another are described in
+the microphysics numerics documentation. The 1-moment scheme supports the donor-based
+matrices and the exact derivative; the 2M+P3 scheme supports the exact derivative and the
+hand-built matrices.
+"""
+abstract type Jacobian end
+
+"""
+    DonorJacobian <: Jacobian
+
+The donor-based linearization of the tendency: each transfer is linearized in its donor
+species and rate-floored. The matrix used by [`LinearizedAverage`](@ref).
+"""
+struct DonorJacobian <: Jacobian end
+
+"""
+    CoupledDonorJacobian <: Jacobian
+
+The donor-based linearization with the vapor-competition and collector couplings of the
+exact derivative restored.
+"""
+struct CoupledDonorJacobian <: Jacobian end
+
+"""
+    ExactJacobian <: Jacobian
+
+The exact derivative of the tendency, formed with `ForwardDiff`.
+"""
+struct ExactJacobian <: Jacobian end
+
+"""
+    ManualJacobian <: Jacobian
+
+A hand-built 2M+P3 substep Jacobian: the stiff condensation/deposition and
+number-adjustment couplings carried as closed-form analytic derivatives, the warm-rain and
+freezing transfers as donor-based linearizations, and the mixed-phase quadrature transfers
+(ice melt, liquid-ice collision) donor-linearized on their own donor species with the
+quadrature rates held frozen. Avoids the `ForwardDiff` pass and its `gamma_inc`
+shape-derivative block.
+"""
+struct ManualJacobian <: Jacobian end
+
+"""
+    TemperatureCoupledJacobian <: Jacobian
+
+The [`ManualJacobian`](@ref) extended to the temperature-coupled substep state
+`(q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim, T)`. The phase-change rates carry
+their bare relaxation `−1/τ` (the psychrometric damping emerges from the coupled `(q, T)`
+block instead of the folded `−1/(τ·Γ)`), the temperature column carries the saturation
+shift `−∂q_sat/∂T / τ` and the melting rate's linear temperature dependence, and the
+temperature row is the latent-heating combination of the species rows.
+"""
+struct TemperatureCoupledJacobian <: Jacobian end
+
+"""
+    GrowthTreatment
+
+Abstract type selecting how the positive (growth) diagonal of the Jacobian enters the
+implicit operator.
+"""
+abstract type GrowthTreatment end
+
+"""
+    ImplicitGrowth <: GrowthTreatment
+
+Use the Jacobian unchanged.
+"""
+struct ImplicitGrowth <: GrowthTreatment end
+
+"""
+    ExplicitGrowthDiagonal <: GrowthTreatment
+
+Zero the positive diagonal of the Jacobian, so a growth mode is taken explicitly and only
+the decay diagonal remains in the implicit operator.
+"""
+struct ExplicitGrowthDiagonal <: GrowthTreatment end
+
+"""
+    TendencyLimiter
+
+Abstract type selecting a limiter applied to the realized substep increment.
+"""
+abstract type TendencyLimiter end
+
+"""
+    NoLimiter <: TendencyLimiter
+
+Apply no limiter to the increment.
+"""
+struct NoLimiter <: TendencyLimiter end
+
+"""
+    EndStateSaturationAdjustment <: TendencyLimiter
+
+Scale a substep increment so the latent-heated end state stays at or above saturation over
+its more-supersaturated phase (ice when ice dominates, liquid when liquid dominates), for
+cells that begin at or above saturation. Derived and analyzed in the Rosenbrock substepping
+documentation.
+"""
+struct EndStateSaturationAdjustment <: TendencyLimiter end
+
+"""
+    RosenbrockAverage(jacobian, growth, limiter) <: TendencyMode
+    RosenbrockAverage(; jacobian = DonorJacobian(), growth = ImplicitGrowth(),
+        limiter = NoLimiter())
+
+Time-averaged tendencies from repeated linearized-implicit (Rosenbrock-Euler) substeps. The
+[`Jacobian`](@ref), [`GrowthTreatment`](@ref) and [`TendencyLimiter`](@ref) options select
+the substep matrix, the growth-diagonal treatment and the increment limiter. See
+[`rosenbrock_coupled`](@ref), [`rosenbrock_exact`](@ref), [`rosenbrock_manual`](@ref) and
+[`rosenbrock_manual_temperature`](@ref) for the supported configurations.
+
+The positivity treatment of the substep increment is not an option here: it follows from
+the substep state, so a state whose components are not independent, such as the 2M+P3 rime
+mass/volume pair, carries its own floor.
+"""
+struct RosenbrockAverage{
+    J <: Jacobian, G <: GrowthTreatment, L <: TendencyLimiter,
+} <: TendencyMode
+    jacobian::J
+    growth::G
+    limiter::L
+end
+RosenbrockAverage(;
+    jacobian = DonorJacobian(),
+    growth = ImplicitGrowth(),
+    limiter = NoLimiter(),
+) = RosenbrockAverage(jacobian, growth, limiter)
+
+"""
+    rosenbrock_coupled()
+
+[`RosenbrockAverage`](@ref) with the coupled donor-based Jacobian.
+"""
+rosenbrock_coupled() = RosenbrockAverage(CoupledDonorJacobian(), ImplicitGrowth(), NoLimiter())
+
+"""
+    rosenbrock_exact()
+
+[`RosenbrockAverage`](@ref) with the exact Jacobian, an explicit growth diagonal, and the
+end-state saturation adjustment.
+"""
+rosenbrock_exact() =
+    RosenbrockAverage(ExactJacobian(), ExplicitGrowthDiagonal(), EndStateSaturationAdjustment())
+
+"""
+    rosenbrock_manual()
+
+[`RosenbrockAverage`](@ref) with the hand-built 2M+P3 [`ManualJacobian`](@ref), the
+explicit growth diagonal, and the end-state saturation adjustment.
+"""
+rosenbrock_manual() = RosenbrockAverage(
+    ManualJacobian(), ExplicitGrowthDiagonal(), EndStateSaturationAdjustment(),
+)
+
+"""
+    rosenbrock_manual_temperature()
+
+[`RosenbrockAverage`](@ref) on the temperature-coupled substep state with the
+[`TemperatureCoupledJacobian`](@ref), the explicit growth diagonal, and no increment
+limiter: temperature evolves implicitly inside each substep, so the saturation-overshoot
+adjustment is not required.
+"""
+rosenbrock_manual_temperature() =
+    RosenbrockAverage(TemperatureCoupledJacobian(), ExplicitGrowthDiagonal(), NoLimiter())
+
+"""
+    Verbose(mode) <: TendencyMode
+
+Diagnostic wrapper returning, alongside the net tendencies, the per-process tendencies
+realized by the implicit solve of `mode`. Each process is attributed through the same
+substep factorization, so the per-process tendencies sum to the net of the unlimited solve;
+for a `mode` with a [`TendencyLimiter`](@ref), the wrapped net excludes the limiter. This
+is a diagnostic path, separate from the model time step.
+"""
+struct Verbose{M <: TendencyMode} <: TendencyMode
+    mode::M
+end
+
+"""
+    Trace(mode) <: TendencyMode
+
+Diagnostic wrapper recording the full substep sequence of `mode`'s implicit solve: the
+state and the per-process rate breakdown evaluated at that same state, both taken AFTER
+each substep, one record per substep. The per-process rates answer "what is each process
+doing at the state this substep just reached", not an attribution of the increment that
+reached it (that question is [`Verbose`](@ref)'s). Calls the same substep physics
+production runs (`_rosenbrock_substep`) rather than a separate implementation, so a traced
+run cannot drift from what the model actually does. This is a diagnostic path, separate
+from the model time step; the number of substeps traced is a type parameter (`Val`), so
+tracing costs nothing on any entry that does not construct a `Trace`.
+"""
+struct Trace{M <: TendencyMode} <: TendencyMode
+    mode::M
+end
 
 # --- 1-Moment Microphysics ---
 
@@ -1170,5 +1393,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         dq_ice_dt, dn_ice_dt, dq_rim_dt, db_rim_dt,
         dn_lcl_activation_dt)
 end
+
+include("BMT_rosenbrock_core.jl")
 
 end # module BulkMicrophysicsTendencies
