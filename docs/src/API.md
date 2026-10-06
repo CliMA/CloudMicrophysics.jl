@@ -139,6 +139,7 @@ BulkMicrophysicsTendencies.TendencyMode
 BulkMicrophysicsTendencies.Instantaneous
 BulkMicrophysicsTendencies.InstantaneousVerbose
 BulkMicrophysicsTendencies.LinearizedAverage
+BulkMicrophysicsTendencies.LinearizedAverageVerbose
 BulkMicrophysicsTendencies.bulk_microphysics_tendencies
 ```
 

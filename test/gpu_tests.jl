@@ -410,6 +410,17 @@ end
     )
 end
 
+@kernel inbounds = true function test_average_bulk_tendencies_1m_verbose_kernel!(
+    mp, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
+)
+    i = @index(Global, Linear)
+    CM1M = BMT.Microphysics1Moment()
+    output[i] = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverageVerbose(),
+        CM1M, mp, tps, ρ[i], T[i], w[i], q_tot[i], q_lcl[i], q_icl[i], q_rai[i], q_sno[i],
+        Δt[i], 2,
+    ).S_acnv_lcl_rai
+end
+
 
 
 @kernel inbounds = true function test_bulk_tendencies_2m_warm_kernel!(
@@ -1254,6 +1265,19 @@ function test_gpu(FT)
             TT.@test allequal(Array(output))
             tendencies = Array(output)[1]
             TT.@test all(isfinite, tendencies)
+        end
+
+        # 1M LinearizedAverageVerbose: rate of one process
+        (; output) = setup_output(ndrange, FT)
+        kernel! = test_average_bulk_tendencies_1m_verbose_kernel!(backend, work_groups)
+        TT.@testset "1M average verbose" begin
+            kernel!(mp_1m, tps, output, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt; ndrange)
+            TT.@test allequal(Array(output))
+            inputs = map(x -> Array(x)[1], (ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt))
+            cpu = BMT.bulk_microphysics_tendencies(
+                BMT.LinearizedAverageVerbose(), BMT.Microphysics1Moment(), mp_1m, tps, inputs..., 2,
+            )
+            TT.@test Array(output)[1] ≈ cpu.S_acnv_lcl_rai
         end
 
         # 1M Kessler1M with velocity-dependent regime values and nonzero w

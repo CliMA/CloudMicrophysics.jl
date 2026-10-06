@@ -2,134 +2,184 @@
 
 ## Linearized average tendencies
 
-Microphysical source terms can be stiff, especially for depletion processes such as evaporation, sublimation, and melting. To improve stability and allow larger timesteps, we introduce a **linearized implicit formulation** for computing *time-averaged bulk tendencies*.
-
-The idea is to approximate the nonlinear microphysics tendencies locally as a linear system:
+The microphysics tendency of the condensate species $q = (q_{\mathrm{lcl}}, q_{\mathrm{icl}}, q_{\mathrm{rai}}, q_{\mathrm{sno}})$ is
 
 ```math
-\frac{dq}{dt} \approx M q + e
+\frac{dq}{dt} = f(q),
 ```
 
-where $q = (q_{\mathrm{lcl}}, q_{\mathrm{icl}}, q_{\mathrm{rai}}, q_{\mathrm{sno}})$, and the matrix $M$ and vector $e$ are constructed from the instantaneous tendencies.
+where $f$ is the sum of the instantaneous rates $S_p$ of the individual processes $p$.
+
+Some of these rates are stiff, especially those of depletion processes such as evaporation, sublimation and melting.
+To improve stability and allow larger time steps, the tendency is averaged over the model time step with a linearized implicit formulation, which approximates $f(q)$ locally by a linearized tendency:
+
+```math
+\frac{dq}{dt} \approx M q + e,
+```
+
+with the matrix $M$ and the vector $e$ constructed from the rates $S_p$.
+
+The model time step is divided into `nsub` equal substeps.
+Each substep:
+
+1. computes the rates $S_p$ at the current state and builds $M$ and $e$ from them by the donor-based linearization;
+2. scales the vapor sources in $e$ so that the substep does not reduce the vapor below saturation;
+3. takes a backward Euler step of the linearized tendency for $q$;
+4. updates the temperature from the latent heat of the change in $q$.
+
+The average tendency is the net change of $q$ over the model time step divided by its length.
+The following sections describe each part.
 
 ### Donor-based linearization
 
-Each microphysical process is linearized with respect to its **donor species**:
+Each process moves mass from a donor species, the species that loses mass, to a receiving species at the rate $S_p$.
+The linearization writes each rate according to its donor and receiver:
 
-- Transfer processes (e.g. accretion, conversion):
-  ```math
-  S \;\rightarrow\; D \, q_{\text{donor}}, \quad D = \frac{S}{\max(\epsilon, q_{\text{donor}})}
-  ```
+| Donor      | Receiver   | Linearized rate       | Entries                                                                            |
+| ---------- | ---------- | --------------------- | ---------------------------------------------------------------------------------- |
+| condensate | condensate | $D\,q_{\text{donor}}$ | $-D$ in $M_{\text{donor},\text{donor}}$, $D$ in $M_{\text{receiver},\text{donor}}$ |
+| condensate | vapor      | $D\,q_{\text{donor}}$ | $-D$ in $M_{\text{donor},\text{donor}}$                                             |
+| vapor      | condensate | $S_p$, constant       | $S_p$ in $e_{\text{receiver}}$                                                      |
 
-- Vapor ↔ cloud condensate phase changes (condensation/evaporation of cloud liquid, deposition/sublimation of cloud ice)
-  are relaxations toward equilibrium. The scheme computes $S = (q^\star - q)/\tau$ for a relaxation timescale $\tau$.
-  $q^\star = q + S\tau$ already includes the latent-heat factor $\Gamma$ and the available-condensate bound.
-  Their transfer over the substep is the time average of the relaxation,
-    see [MorrisonMilbrandt2015](@cite) Appendix C.
-  ```math
-  \Delta q = S\,\tau\,\bigl(1 - e^{-\Delta t/\tau}\bigr)
-           = S\,\Delta t\,\varphi(\Delta t/\tau), \qquad
-  \varphi(x) = \frac{1 - e^{-x}}{x},
-  ```
-  The substep never crosses $q^\star$ for any $\Delta t/\tau$ and the
-  instantaneous rate is recovered for $\Delta t \ll \tau$. A source
-  ($\Delta q > 0$) is added to $e$ as a non-negative constant. A sink
-  ($\Delta q < 0$) is added to $M$ as an implicit decay $-D\,q$ with
-  $D = |\Delta q| / \bigl(\max(q + \Delta q, q_{\min})\,\Delta t\bigr)$, which
-  removes exactly $|\Delta q|$ when acting alone (the $q_{\min}$ floor keeps $D$
-  finite when the whole pool sublimates), keeps $q \ge 0$ when combined with
-  the other sinks, and, unlike a plain $S/q$ decay, does not remove all the
-  condensate when $\tau \ll \Delta t$. This matters when $\tau$ is a few
-  seconds (e.g. `PrescribedIceNumber` with a large prescribed ice number
-  concentration), where treating the instantaneous rate as a constant over the
-  substep produced a deposition/sublimation flip-flop.
+Here $D \ge 0$ is the decay coefficient of the donor.
+The vapor is not part of $q$, so a loss to the vapor has no entry for its receiver, and a gain from the vapor enters $e$.
 
-- Vapor → snow deposition is treated as a constant source (added to $e$)
-
-- Other condensate sinks (snow sublimation, rain evaporation) are treated as
-  linear sinks:
-  ```math
-  S \;\rightarrow\; -D q
-  ```
-
-With this formulation, sink terms take the form:
+A sink of a species therefore takes the form
 
 ```math
-\frac{dq}{dt} = -D q
+\frac{dq}{dt} = -D q,
 ```
 
-which corresponds to exponential decay over the timestep, providing strong numerical stability.
+which corresponds to an exponential decay over the substep and keeps the species non-negative in the implicit step.
+
+The decay coefficients $D$ and the sources in $e$ are computed from the state at the start of each substep and are held constant over it.
+
+### Kinds of processes
+
+The 1-moment processes are of three kinds.
+
+- Transfers between two condensate species, such as accretion, autoconversion, melting and freezing.
+  A transfer from $q_{\text{donor}}$ to $q_{\text{receiver}}$ at the rate $S \ge 0$ contributes
+  ```math
+  \frac{dq_{\text{donor}}}{dt} = -S, \qquad \frac{dq_{\text{receiver}}}{dt} = S,
+  ```
+  and its donor is $q_{\text{donor}}$, with
+  ```math
+  D = \frac{S}{\max(q_{\min}, q_{\text{donor}})}.
+  ```
+
+- Exchanges between the vapor and a condensate species $q_{\text{cond}}$ in either direction, such as rain evaporation and snow deposition and sublimation.
+  An exchange at the rate $S$, positive from the vapor to $q_{\text{cond}}$, contributes $dq_{\text{cond}}/dt = S$, and the vapor changes by $-S$.
+  A gain ($S \ge 0$) has the vapor as its donor and adds $S$ to $e_{\text{cond}}$.
+  A loss has $q_{\text{cond}}$ as its donor, with
+  ```math
+  D = \frac{-S}{\max(q_{\min}, q_{\text{cond}})}.
+  ```
+
+- Relaxations of the cloud condensate toward equilibrium: the condensation and evaporation of cloud liquid, and the deposition and sublimation of cloud ice.
+  A relaxation contributes the same tendency as an exchange, but enters the linearized tendency through its transfer over the substep, as described in the next section.
+
+Here $q_{\min}$ is a small positive floor that keeps $D$ finite for a vanishing donor.
+
+### Relaxation of the cloud condensate
+
+The scheme computes the rate of a relaxation as $S = (q^\star - q_{\text{cond}})/\tau$, with the relaxation timescale $\tau$, where $q^\star = q_{\text{cond}} + S\tau$ is the condensate that the relaxation approaches.
+The rate $S$ includes two corrections, so $q^\star$ includes them as well: the latent heat of the phase change reduces the supersaturation that relaxes, through the factor $\Gamma = 1 + (L/c_p)\,dq_{\mathrm{sat}}/dT$, and evaporation or sublimation cannot remove more condensate than exists, so $q^\star \ge 0$.
+
+The transfer over the substep is the time average of the relaxation, see [MorrisonMilbrandt2015](@cite) Appendix C:
+
+```math
+\Delta q = S\,\tau\,\bigl(1 - e^{-\Delta t/\tau}\bigr)
+         = S\,\Delta t\,\varphi(\Delta t/\tau), \qquad
+\varphi(x) = \frac{1 - e^{-x}}{x}.
+```
+
+The substep never crosses $q^\star$ for any $\Delta t/\tau$, and the instantaneous rate is recovered for $\Delta t \ll \tau$.
+A gain ($\Delta q \ge 0$) adds $\Delta q / \Delta t$ to $e_{\text{cond}}$.
+A loss ($\Delta q < 0$) adds $-D$ to $M_{\text{cond},\text{cond}}$, with
+
+```math
+D = \frac{|\Delta q|}{\max(q_{\text{cond}} + \Delta q, q_{\min})\,\Delta t}.
+```
+
+This decay removes exactly $|\Delta q|$ when acting alone (the $q_{\min}$ floor keeps $D$ finite when the whole pool sublimates), keeps $q \ge 0$ when combined with the other sinks, and, unlike a plain $S/q$ decay, does not remove all the condensate when $\tau \ll \Delta t$.
+This matters when $\tau$ is a few seconds (e.g. `PrescribedIceNumber` with a large prescribed ice number concentration), where treating the instantaneous rate as a constant over the substep produced a deposition/sublimation flip-flop.
 
 ---
 
 ## Linearized implicit solve
 
-For a timestep $\Delta t$, we solve the linearized system implicitly:
+A substep of width $\Delta t$ starts from the species $q^n$ and solves the linearized tendency implicitly for the species $q^{n+1}$ at its end:
 
 ```math
-\frac{q^\star - q^0}{\Delta t} = M q^\star + e
+\frac{q^{n+1} - q^n}{\Delta t} = M q^{n+1} + \alpha e,
 ```
 
-which gives:
+where $\alpha \le 1$ scales the vapor sources, as described in the next section.
+This gives
 
 ```math
-\left(I/\Delta t - M\right) q^\star = e + q^0/\Delta t
+\left(I/\Delta t - M\right) q^{n+1} = \alpha e + q^n/\Delta t,
 ```
 
-The average tendency is then:
+and the average tendency over the substep is
 
 ```math
-\overline{T} = \frac{q^\star - q^0}{\Delta t}
+\overline{f} = \frac{q^{n+1} - q^n}{\Delta t}.
 ```
+
+Over the substep, a transfer moves mass at the rate $D\,q^{n+1}_{\text{donor}}$, and an exchange or a relaxation at the rate $\alpha s - D\,q^{n+1}_{\text{cond}}$, where $s$ is its entry in $e$.
+These rates sum to the average tendency, and `LinearizedAverageVerbose` returns their average over the substeps.
 
 ---
 
-## Vapor-budget cap on vapor → condensate sources
+## Vapor-budget limit on the vapor sources
 
-Vapor → condensate processes (condensation on cloud liquid, deposition on
-cloud ice, deposition on snow — the non-negative constants `e_1`, `e_2`, `e_4`)
-together consume vapor over the substep. If their combined rate is fast enough,
-an unlimited substep can drive `q_v` below saturation or even negative. To
-prevent this, all three `e` terms are uniformly scaled by
+The vapor sources in $e$, from condensation on cloud liquid and deposition on cloud ice and on snow, together consume vapor over the substep.
+If their combined rate is large enough, an unlimited substep can reduce the vapor $q_v$ below saturation, or even below zero.
+To prevent this, all three sources are scaled by the same factor
 
 ```math
-\alpha = \min\!\left(1,\; \frac{\max(0,\, q_v - q^\star_{\min})}
-                                 {\Delta t\;(e_1 + e_2 + e_4)}\right),
+\alpha = \min\!\left(1,\; \frac{\max(0,\, q_v - q_{\mathrm{sat},\min})}
+                                 {\Delta t\;(e_{\mathrm{lcl}} + e_{\mathrm{icl}} + e_{\mathrm{sno}})}\right),
 \qquad
-q^\star_{\min} = \min\!\bigl(q^\star_{\mathrm{liq}}, q^\star_{\mathrm{ice}}\bigr),
+q_{\mathrm{sat},\min} = \min\!\bigl(q_{\mathrm{sat,liq}}, q_{\mathrm{sat,ice}}\bigr),
 ```
 
-so that `q_v` cannot be driven below `q^\star_{\min}` over one substep.
-Preserving the common scale factor `\alpha` keeps the relative rates of the
-three processes unchanged. Sinks (`M` blocks) are unaffected.
+where $q_{\mathrm{sat,liq}}$ and $q_{\mathrm{sat,ice}}$ are the saturation specific contents over liquid and over ice.
+Then $q_v$ does not fall below $q_{\mathrm{sat},\min}$ over one substep.
+The common factor keeps the relative rates of the three processes unchanged, and the sinks in $M$ are unaffected.
 
-- Below freezing: `q^\star_{\min} = q^\star_{\mathrm{ice}}`, the natural
-  ice-saturation floor (permits the Bergeron process to drive `q_v` below
-  liquid saturation).
-- Above freezing: `q^\star_{\min} = q^\star_{\mathrm{liq}}`, so the liquid
-  floor is enforced (mathematical `q^\star_{\mathrm{ice}}` is unphysical
-  there).
+- Below freezing, $q_{\mathrm{sat},\min} = q_{\mathrm{sat,ice}}$, which allows the Bergeron process to reduce $q_v$ below liquid saturation.
+- Above freezing, $q_{\mathrm{sat},\min} = q_{\mathrm{sat,liq}}$, so the limit is liquid saturation.
+
 
 ---
 
 ## Sparse 4×4 structure
 
-The system has a fixed sparse structure:
+The matrix $A = I/\Delta t - M$ of the implicit solve has a fixed sparse structure,
 
 ```math
-\begin{bmatrix}
-a_{11} & a_{12} & 0      & 0 \\
-a_{21} & a_{22} & 0      & 0 \\
-a_{31} & 0      & a_{33} & a_{34} \\
-a_{41} & a_{42} & a_{43} & a_{44}
-\end{bmatrix}
+A =
+\left[
+\begin{array}{cc|cc}
+A_{\mathrm{lcl},\mathrm{lcl}} & A_{\mathrm{lcl},\mathrm{icl}} & 0 & 0 \\
+A_{\mathrm{icl},\mathrm{lcl}} & A_{\mathrm{icl},\mathrm{icl}} & 0 & 0 \\
+\hline
+A_{\mathrm{rai},\mathrm{lcl}} & 0 & A_{\mathrm{rai},\mathrm{rai}} & A_{\mathrm{rai},\mathrm{sno}} \\
+A_{\mathrm{sno},\mathrm{lcl}} & A_{\mathrm{sno},\mathrm{icl}} & A_{\mathrm{sno},\mathrm{rai}} & A_{\mathrm{sno},\mathrm{sno}}
+\end{array}
+\right].
 ```
 
+Melting and freezing couple the two cloud species, and the two precipitation species.
+Autoconversion and accretion move mass from the cloud to the precipitation species.
+No process transfers mass from a precipitation species to a cloud species, so the upper right block is zero.
 This allows an efficient solve:
 
 -  $q_{\mathrm{lcl}}$ and $q_{\mathrm{icl}}$ are solved as a coupled **2×2 system**
-   (cloud ice melt via $a_{12}$, cloud liquid freezing via $a_{21}$)
--  $q_{\mathrm{rai}}$ and $q_{\mathrm{sno}}$ are solved as a **2×2 system**
+-  $q_{\mathrm{rai}}$ and $q_{\mathrm{sno}}$ are then solved as a **2×2 system**, with the new cloud species as sources
 
 This avoids forming or inverting a full dense matrix and is efficient on both CPU and GPU.
 
@@ -137,14 +187,8 @@ This avoids forming or inverting a full dense matrix and is efficient on both CP
 
 ## Substepping
 
-A single linearization assumes the operator $M$ is constant over the timestep. To better capture nonlinear effects and regime changes (e.g. near freezing), we apply **substepping**:
-
-- Split the timestep into `nsub` substeps
-- At each substep:
-  - rebuild $M$ and $e$ from the updated state
-  - solve the linearized system
-  - update $q$ and temperature
-
+A single linearization assumes the operator $M$ is constant over the model time step.
+Substeps rebuild $M$ and $e$ from the updated state, which captures nonlinear effects and regime changes, for example near freezing.
 As `nsub` increases, the solution approaches the nonlinear evolution of the system.
 
 ---
@@ -165,6 +209,22 @@ Here ``L_v`` and ``L_s`` are the constant reference latent heats
   (at the thermodynamic reference temperature) and ``c_p`` is the
   dry-air specific heat capacity.
 This is consistent with the microphysics-only update and avoids coupling to a full thermodynamic solve.
+
+---
+
+## Processes in the code
+
+`_microphysics_source_terms` returns each 1-moment process as a term of its kind:
+
+| Kind                    | Constructor                           | Example |
+| ----------------------- | ------------------------------------- | ------- |
+| Transfer                | `Transfer(:Donor => :Receiver, S)`    | `Transfer(:q_lcl => :q_rai, S)`, autoconversion |
+| Exchange with the vapor | `VaporExchange(:Condensate, S)`       | `VaporExchange(:q_sno, S)`, deposition on snow  |
+| Relaxation              | `VaporRelaxation(:Condensate, S, τ)`  | `VaporRelaxation(:q_lcl, S, τ)`, condensation   |
+
+To add a process to the 1-moment scheme, compute its rate in `Microphysics1M` and add its term to `_microphysics_source_terms`.
+The instantaneous tendencies, the entries of $M$ and $e$, and the rate of the process in the verbose modes follow from the term.
+A transfer from a precipitation species to a cloud species is not supported, because the block solve assumes that the upper right block of $M$ is zero.
 
 ---
 

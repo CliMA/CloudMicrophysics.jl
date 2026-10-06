@@ -672,7 +672,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         )
     end
 
-    @testset "_linearize (via _microphysics_source_terms) - Finiteness checks" begin
+    @testset "donor_linearization (via _microphysics_source_terms) - Finiteness checks" begin
         ρ = FT(1.2)
         T = T_freeze - FT(5)
         q_tot = FT(0.015)
@@ -689,24 +689,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
+        lin = BMT.donor_linearization(src, BMT.Condensates1M(q_lcl, q_icl, q_rai, q_sno), q_min, FT(60))
 
-        @test isfinite(lin.M11)
-        @test isfinite(lin.M12)
-        @test isfinite(lin.M22)
-        @test isfinite(lin.M31)
-        @test isfinite(lin.M33)
-        @test isfinite(lin.M34)
-        @test isfinite(lin.M41)
-        @test isfinite(lin.M42)
-        @test isfinite(lin.M43)
-        @test isfinite(lin.M44)
-        @test isfinite(lin.e1)
-        @test isfinite(lin.e2)
-        @test isfinite(lin.e4)
+        @test all(isfinite, lin.M)
+        @test all(isfinite, lin.e)
     end
 
-    @testset "_linearize (via _microphysics_source_terms) - Type stability (@inferred)" begin
+    @testset "donor_linearization (via _microphysics_source_terms) - Type stability (@inferred)" begin
         ρ = FT(1.2)
         T = T_freeze + FT(7)
         q_tot = FT(0.01)
@@ -723,14 +712,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
+        lin = @inferred BMT.donor_linearization(src, BMT.Condensates1M(q_lcl, q_icl, q_rai, q_sno), q_min, FT(60))
 
-        @test lin isa NamedTuple
+        @test lin isa BMT.LinearizedTendency
     end
 
-    @testset "_linearize (via _microphysics_source_terms) - Warm rain-only structure" begin
-        # Warm rain-only case: only rain evaporation should contribute,
-        # so only M33 should be nonzero.
+    @testset "donor_linearization (via _microphysics_source_terms) - Warm rain-only structure" begin
+        # Warm rain-only case: only rain evaporation contributes, as a decay of rain
         ρ = FT(1.2)
         T = T_freeze + FT(15)
         q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
@@ -750,25 +738,16 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
+        lin = BMT.donor_linearization(src, BMT.Condensates1M(q_lcl, q_icl, q_rai, q_sno), q_min, FT(60))
 
-        @test lin.M33 <= FT(0)
-        @test lin.M11 == FT(0)
-        @test lin.M12 == FT(0)
-        @test lin.M22 == FT(0)
-        @test lin.M31 == FT(0)
-        @test lin.M34 == FT(0)
-        @test lin.M41 == FT(0)
-        @test lin.M42 == FT(0)
-        @test lin.M43 == FT(0)
-        @test lin.M44 == FT(0)
-        @test lin.e1 == FT(0)
-        @test lin.e2 == FT(0)
-        @test lin.e4 == FT(0)
+        @test lin[:q_rai, :q_rai] <= FT(0)
+        lin[:q_rai, :q_rai] = 0
+        @test all(iszero, lin.M)
+        @test all(iszero, lin.e)
     end
 
-    @testset "_linearize (via _microphysics_source_terms) - Warm pure snow melt structure" begin
-        # Warm snow-only case: snow melts to rain, so M44 < 0 and M34 > 0.
+    @testset "donor_linearization (via _microphysics_source_terms) - Warm pure snow melt structure" begin
+        # Warm snow-only case: snow melts to rain
         ρ = FT(1.2)
         T = T_freeze + FT(5)
 
@@ -787,17 +766,12 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, FT(60))
+        lin = BMT.donor_linearization(src, BMT.Condensates1M(q_lcl, q_icl, q_rai, q_sno), q_min, FT(60))
 
-        @test lin.M34 > FT(0)
-        @test lin.M44 < FT(0)
-        @test lin.M11 == FT(0)
-        @test lin.M12 == FT(0)
-        @test lin.M22 == FT(0)
-        @test lin.M31 == FT(0)
-        @test lin.M41 == FT(0)
-        @test lin.M42 == FT(0)
-        @test lin.M43 == FT(0)
+        @test lin[:q_rai, :q_sno] > FT(0)
+        @test lin[:q_sno, :q_sno] < FT(0)
+        lin[:q_rai, :q_sno] = lin[:q_sno, :q_sno] = 0
+        @test all(iszero, lin.M)
     end
 
     @testset "_relaxation_transfer limits" begin
@@ -1043,7 +1017,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
         )
 
-        lin = BMT._linearize(src, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
+        lin = BMT.donor_linearization(src, BMT.Condensates1M(q_lcl, q_icl, q_rai, q_sno), q_min, Δt)
 
         tendencies = BMT._linearized_implicit_step(
             BMT.Microphysics1Moment(),
@@ -1058,12 +1032,15 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         q_rai_new = q_rai + Δt * tendencies.dq_rai_dt
         q_sno_new = q_sno + Δt * tendencies.dq_sno_dt
 
-        @test (q_lcl_new - q_lcl) * invΔt ≈ lin.M11 * q_lcl_new + lin.M12 * q_icl_new + lin.e1 atol = FT(100) * eps(FT)
-        @test (q_icl_new - q_icl) * invΔt ≈ lin.M22 * q_icl_new + lin.e2 atol = FT(100) * eps(FT)
-        @test (q_rai_new - q_rai) * invΔt ≈ lin.M31 * q_lcl_new + lin.M33 * q_rai_new + lin.M34 * q_sno_new atol =
+        @test (q_lcl_new - q_lcl) * invΔt ≈
+              lin[:q_lcl, :q_lcl] * q_lcl_new + lin[:q_lcl, :q_icl] * q_icl_new + lin[:q_lcl] atol = FT(100) * eps(FT)
+        @test (q_icl_new - q_icl) * invΔt ≈ lin[:q_icl, :q_icl] * q_icl_new + lin[:q_icl] atol = FT(100) * eps(FT)
+        @test (q_rai_new - q_rai) * invΔt ≈
+              lin[:q_rai, :q_lcl] * q_lcl_new + lin[:q_rai, :q_rai] * q_rai_new + lin[:q_rai, :q_sno] * q_sno_new atol =
             FT(100) * eps(FT)
         @test (q_sno_new - q_sno) * invΔt ≈
-              lin.M41 * q_lcl_new + lin.M42 * q_icl_new + lin.M43 * q_rai_new + lin.M44 * q_sno_new + lin.e4 atol =
+              lin[:q_sno, :q_lcl] * q_lcl_new + lin[:q_sno, :q_icl] * q_icl_new + lin[:q_sno, :q_rai] * q_rai_new +
+              lin[:q_sno, :q_sno] * q_sno_new + lin[:q_sno] atol =
             FT(100) * eps(FT)
     end
 
@@ -1102,8 +1079,8 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
 
     @testset "LinearizedAverage small Δt agrees with Instantaneous (all species, warm)" begin
         # With all species active the linearized tendency should approach the
-        # instantaneous one as Δt → 0.  This cross-checks _aggregate_tendencies
-        # against _linearize: any sign or routing mismatch would show up here.
+        # instantaneous one as Δt → 0.  This cross-checks the sum of the process
+        # terms against their donor linearization.
         # Note: Δt must be small for linearization accuracy but not so small
         # that Float32 suffers catastrophic cancellation in (q_new - q_old)/Δt.
         ρ = FT(1.2)
@@ -1159,6 +1136,46 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test lin.dq_sno_dt ≈ inst.dq_sno_dt rtol = FT(5e-2)
     end
 
+    @testset "LinearizedAverageVerbose - process rates sum to the tendencies" begin
+        ρ = FT(1.2)
+        q_tot = FT(0.012)
+        q = (FT(3e-4), FT(5e-4), FT(2e-4), FT(4e-4))
+        with_rate(::BMT.Transfer{Donor, Receiver}, S) where {Donor, Receiver} = BMT.Transfer(Donor => Receiver, S)
+        with_rate(::Union{BMT.VaporExchange{Condensate}, BMT.VaporRelaxation{Condensate}}, S) where {Condensate} =
+            BMT.VaporExchange(Condensate, S)
+        for T in (T_freeze - FT(10), T_freeze + FT(4))
+            args = (BMT.Microphysics1Moment(), mp, tps, ρ, T, FT(0.5), q_tot, q...)
+            avg = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(), args..., FT(60), 3)
+            verbose = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverageVerbose(), args..., FT(60), 3)
+            inst = BMT.bulk_microphysics_tendencies(BMT.InstantaneousVerbose(), args...)
+            @test all(k -> haskey(inst, k), keys(verbose))
+            @test all(iszero, BMT.bulk_microphysics_tendencies(BMT.LinearizedAverageVerbose(), args..., FT(60), 0))
+            atol = 10 * eps(FT) * maximum(abs, values(avg))
+            @test all(map((a, v) -> isapprox(a, v; atol), avg, NamedTuple{keys(avg)}(verbose)))
+
+            src = BMT._microphysics_source_terms(args...)
+            terms = map(with_rate, src, NamedTuple{keys(src)}(verbose))
+            Σ = BMT.species_tendency(terms, BMT.Condensates1M{FT})
+            @test Σ ≈ BMT.Condensates1M(values(avg)...) atol = atol
+        end
+    end
+
+    @testset "_microphysics_source_terms - no transfer from a precipitation to a cloud species" begin
+        precip_to_cloud(::BMT.Transfer{Donor, Receiver}) where {Donor, Receiver} =
+            Donor in (:q_rai, :q_sno) && Receiver in (:q_lcl, :q_icl)
+        precip_to_cloud(_) = false
+        terms = BMT._microphysics_source_terms(
+            BMT.Microphysics1Moment(), mp, tps, FT(1.2), T_freeze, FT(0.5), FT(0.012),
+            FT(3e-4), FT(5e-4), FT(2e-4), FT(4e-4),
+        )
+        offending = filter(name -> precip_to_cloud(terms[name]), keys(terms))
+        isempty(offending) || @error """
+            The terms $offending transfer mass from a precipitation species to a cloud species.
+            `backward_euler_solve` assumes that no process does and ignores these transfers.
+            If they are intended, extend `backward_euler_solve` to solve the coupled 4×4 system.
+            """
+        @test isempty(offending)
+    end
 
     @testset "bulk_microphysics_tendencies(LinearizedAverage()) - Finiteness checks" begin
         ρ = FT(1.2)
