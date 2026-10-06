@@ -35,7 +35,7 @@ Base.show(io::IO, mime::MIME"text/plain", x::PrecipPhaseParams1M) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
 
 """
-    Microphysics1MParams{OPT, PPR, CP, PP, AP, VL}
+    Microphysics1MParams{OPT, PPR, CP, PP, AP, VL, FT}
 
 Unified parameter container for 1-moment bulk microphysics.
 
@@ -58,6 +58,9 @@ directly.
 - `precip::PP`: PrecipPhaseParams1M — rain and snow parameters
 - `air_properties::AP`: AirProperties — air properties (diffusivities, thermal conductivity)
 - `terminal_velocity::VL`: Blk1MVelType — terminal velocity parameters for rain and snow
+- `max_latent_heating_rate::FT`: bound on the latent heating or cooling rate of the phase
+  changes within a substep of the `LinearizedAverage` solver [K/s], from ClimaParams
+  `microphysics_max_latent_heating_rate` (`inf` disables the limiter; must be positive)
 
 # Constructors
 
@@ -81,13 +84,15 @@ mp = CMP.Microphysics1MParams(Float64;
 )
 ```
 """
-@kwdef struct Microphysics1MParams{OPT, PPR, CP, PP, AP, VL} <: ParametersType
+@kwdef struct Microphysics1MParams{OPT, PPR, CP, PP, AP, VL, FT} <: ParametersType
     processes::OPT
     process_params::PPR
     cloud::CP
     precip::PP
     air_properties::AP
     terminal_velocity::VL
+    "Upper bound on the latent heating or cooling rate of all phase changes within a substep [K/s]; `Inf` disables the limiter"
+    max_latent_heating_rate::FT
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -117,5 +122,21 @@ function Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
         ),
         air_properties = AirProperties(toml_dict),
         terminal_velocity = Blk1MVelType(toml_dict),
+        max_latent_heating_rate = _validated_max_latent_heating_rate(
+            CP.get_parameter_values(
+                toml_dict,
+                "microphysics_max_latent_heating_rate",
+                "CloudMicrophysics",
+            ).microphysics_max_latent_heating_rate,
+        ),
     )
+end
+
+function _validated_max_latent_heating_rate(rate)
+    rate > 0 || throw(
+        ArgumentError(
+            "microphysics_max_latent_heating_rate must be positive (Inf disables the limiter), got $rate",
+        ),
+    )
+    return rate
 end

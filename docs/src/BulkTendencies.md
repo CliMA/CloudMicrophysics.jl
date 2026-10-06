@@ -5,13 +5,15 @@
 The microphysics tendency of the condensate species $q = (q_{\mathrm{lcl}}, q_{\mathrm{icl}}, q_{\mathrm{rai}}, q_{\mathrm{sno}})$ is
 
 ```math
-\frac{dq}{dt} = f(q),
+\frac{dq}{dt} = F(q),
 ```
 
-where $f$ is the sum of the instantaneous rates $S_p$ of the individual processes $p$.
+where $F$ is the sum of the instantaneous rates $S_p$ of the individual processes $p$.
 
 Some of these rates are stiff, especially those of depletion processes such as evaporation, sublimation and melting.
-To improve stability and allow larger time steps, the tendency is averaged over the model time step with a linearized implicit formulation, which approximates $f(q)$ locally by a linearized tendency:
+To improve stability and allow larger time steps,
+  the tendency is averaged over the model time step with a linearized implicit formulation,
+  which approximates $F(q)$ locally by a linearized tendency:
 
 ```math
 \frac{dq}{dt} \approx M q + e,
@@ -22,10 +24,13 @@ with the matrix $M$ and the vector $e$ constructed from the rates $S_p$.
 The model time step is divided into `nsub` equal substeps.
 Each substep:
 
-1. computes the rates $S_p$ at the current state and builds $M$ and $e$ from them by the donor-based linearization;
-2. scales the vapor sources in $e$ so that the substep does not reduce the vapor below saturation;
-3. takes a backward Euler step of the linearized tendency for $q$;
-4. updates the temperature from the latent heat of the change in $q$.
+1. Computes the rates $S_p$ at the current state and builds $M$ and $e$ from them by the donor-based linearization.
+2. Takes a backward Euler step of the linearized tendency system for $q$.
+3. Derives from its result two limiters: $\alpha$ for the vapor budget and $f$ for the heating rate (and the per-donor factors $f_k$ based on $f$).
+4. Solves the same system again, with the limiters applied.
+5. Checks the realized heating and the condensate growth of the second step, and scales the tendencies uniformly by $g$
+   if a bound is still exceeded.
+6. Updates the temperature from the latent heat of the change in $q$.
 
 The average tendency is the net change of $q$ over the model time step divided by its length.
 The following sections describe each part.
@@ -109,50 +114,159 @@ This matters when $\tau$ is a few seconds (e.g. `PrescribedIceNumber` with a lar
 
 ## Linearized implicit solve
 
-A substep of width $\Delta t$ starts from the species $q^n$ and solves the linearized tendency implicitly for the species $q^{n+1}$ at its end:
+A substep of width $\Delta t$ starts from the species $q^n$ and solves
+the linearized tendency implicitly for the species $q^{n+1}$ at its end:
 
 ```math
-\frac{q^{n+1} - q^n}{\Delta t} = M q^{n+1} + \alpha e,
+\frac{q^{n+1} - q^n}{\Delta t} = M_{\mathrm{coll}}\, q^{n+1} + M_{\mathrm{phase}}\, \mathrm{diag}(f_k)\, q^{n+1} + \alpha f\, e ,
 ```
-
-where $\alpha \le 1$ scales the vapor sources, as described in the next section.
-This gives
+where $M = M_{\mathrm{coll}} + M_{\mathrm{phase}}$ is split into the collision and conversion decays $M_{\mathrm{coll}}$
+(autoconversion, accretion, shedding, which move mass within a phase) and the phase-change decays $M_{\mathrm{phase}}$
+(evaporation and sublimation, and the transfers between a liquid and an ice species: freezing, melting, riming),
+$\alpha \le 1$ limits the vapor sources,
+$f \le 1$ limits the heating from the phase changes, and
+$\mathrm{diag}(f_k)$, with $k$ over lcl, icl, rai, sno, holds the per-donor factors derived from $f$.
+The limiters are described in the next section.
+The step is taken twice.
+The first step uses $\alpha = f = 1$ and $f_k = 1$; its result gives the realized transfers and heating from which the limiters are computed.
+The second step applies them: the vapor sources are scaled by $\alpha f$,
+and in $M$ the decays of the terms that change phase are scaled per donor.
+The result of the second step advances the substep.
 
 ```math
-\left(I/\Delta t - M\right) q^{n+1} = \alpha e + q^n/\Delta t,
+\left(I/\Delta t - M_{\mathrm{coll}} - M_{\mathrm{phase}}\, \mathrm{diag}(f_k)\right) q^{n+1} = \alpha f\, e + q^n/\Delta t,
 ```
-
 and the average tendency over the substep is
 
 ```math
-\overline{f} = \frac{q^{n+1} - q^n}{\Delta t}.
+\overline{\dot{q}} = g \frac{q^{n+1} - q^n}{\Delta t},
 ```
+where $g \le 1$ is a uniform scaling factor applied when a bound is still exceeded after the second step.
 
-Over the substep, a transfer moves mass at the rate $D\,q^{n+1}_{\text{donor}}$, and an exchange or a relaxation at the rate $\alpha s - D\,q^{n+1}_{\text{cond}}$, where $s$ is its entry in $e$.
-These rates sum to the average tendency, and `LinearizedAverageVerbose` returns their average over the substeps.
+Over the substep,
+  a transfer moves mass at the rate $g\,D\,q^{n+1}_{\text{donor}}$,
+  with the additional factor $f_k$ of its donor if the transfer changes phase.
+An exchange or a relaxation moves mass at the rate $g \left(\alpha f\, e_{k} - f_{k}\,D\,q^{n+1}_k \right)$,
+  where $e_k$ is its entry in $e$.
+These rates sum to the average tendency $\overline{\dot{q}}$,
+  and `LinearizedAverageVerbose` returns their average over the substeps.
 
 ---
 
-## Vapor-budget limit on the vapor sources
+## Vapor and latent heating limiters
 
-The vapor sources in $e$, from condensation on cloud liquid and deposition on cloud ice and on snow, together consume vapor over the substep.
-If their combined rate is large enough, an unlimited substep can reduce the vapor $q_v$ below saturation, or even below zero.
-To prevent this, all three sources are scaled by the same factor
+Two quantities are not part of the linear solve: vapor and temperature.
+Vapor is diagnosed based on the other tracers $q_v = q_{\mathrm{tot}} - \sum_k q_k$.
+Change of the temperature is based on the solved phase changes
+```math
+\Delta T_1 = \frac{
+    L_v \left(\Delta q^1_{\mathrm{lcl}} + \Delta q^1_{\mathrm{rai}}\right) +
+    L_s \left(\Delta q^1_{\mathrm{icl}} + \Delta q^1_{\mathrm{sno}}\right)
+}{c_p},
+```
+where $\Delta q^1_k = q^1_k - q^n_k$ is the mass transfer of species $k$ in the first backward Euler step
+  (the superscript $1$ marks the first of the two backward Euler steps of the substep; $q^{n+1}$ is its end),
+$L_v$ and $L_s$ are the reference latent heats and $c_p$ the dry-air specific heat of the substep temperature update,
+so the fusion heat of freezing and melting is included.
+Two factors are derived from it, $\alpha$ for the vapor and $f$ for the heating,
+and the step is taken a second time with them.
+
+### Vapor limiter
+
+Vapor transfers relax the vapor toward the saturation over the phase of their condensate.
+In other words, the phase changes can bring the vapor down, at most,
+  to the lower of the liquid and ice saturation specific contents evaluated at the temperature at the end of the substep
+  (i.e. including the change caused by the latent heat released).
+The solved vapor can end below this limit when the vapor sources
+  were computed assuming more vapor than the substep provides:
+  (i) several sources relax the same excess, each computed from the whole of it;
+  (ii) an evaporation or sublimation that would have supplied vapor is clamped to its condensate pool;
+  (iii) or it is shared with the other sinks of that pool in the implicit step.
+With $q_{\mathrm{sat},\min}$ the lower of the two saturation specific contents, and
+  $\Delta T_1$, $q^1_v$ the temperature change and the vapor after the first backward Euler step,
+  the vapor shortfall is
+```math
+  \Delta q_{\mathrm{gap}} = q_{\mathrm{sat},\min} + \frac{dq_{\mathrm{sat},\min}}{dT}\,\Delta T_1 - q^1_v .
+```
+The vapor taken by the sources is
+```math
+  \Delta q_{\mathrm{src}} = \sum_k e_k\,\Delta t ,
+```
+where $e_k$ are the vapor sources of the linearized tendency.
+The sources are scaled by
+```math
+  \alpha = \max\!\left(0,\; 1 - \frac{\Delta q_{\mathrm{gap}}}{\Gamma_{\min}\,\Delta q_{\mathrm{src}}}\right)
+  \quad \text{if } \Delta q_{\mathrm{gap}} > 0 \text{ and } \Delta q_{\mathrm{src}} > 0, \text{ else } \alpha = 1 ,
+```
+(the second condition only avoids the division by zero when there are no sources; in the code a source sum below one ulp of the saturation content counts as zero)
+where $\Gamma_{\min} = 1 + (L/c_p)\,dq_{\mathrm{sat},\min}/dT$,
+  with the latent heat of the phase of the lower saturation and the same reference $L$ and dry-air $c_p$ as in $\Delta T_1$,
+  so that the scaled sources leave the vapor on the floor.
+
+Removing the fraction $1 - \alpha$ of the sources returns
+  $(1 - \alpha)\,\Delta q_{\mathrm{src}}$ of vapor and
+  lowers the saturation by $(\Gamma_{\min} - 1)(1 - \alpha)\,\Delta q_{\mathrm{src}}$
+  through the heating it removes,
+  so with this $\alpha$ the vapor ends exactly on the lower saturation at the corrected temperature.
+The limiter only reduces sources.
+In subsaturated air without vapor sources $\alpha = 1$ and the evaporation and sublimation sinks act unchanged; the limiter does not raise the vapor to saturation.
+Vapor above the upper saturation is not limited either, as it will be removed by the
+  sources of the next substep and poses no positivity risk.
+
+### Latent heating limiter
+
+The heating of the first step after applying the vapor limiter is equal to
 
 ```math
-\alpha = \min\!\left(1,\; \frac{\max(0,\, q_v - q_{\mathrm{sat},\min})}
-                                 {\Delta t\;(e_{\mathrm{lcl}} + e_{\mathrm{icl}} + e_{\mathrm{sno}})}\right),
-\qquad
-q_{\mathrm{sat},\min} = \min\!\bigl(q_{\mathrm{sat,liq}}, q_{\mathrm{sat,ice}}\bigr),
+\Delta T_\alpha = \Delta T_1 - (1 - \alpha)\,
+    \frac{
+      L_v \left(e_{\mathrm{lcl}} + e_{\mathrm{rai}}\right) +
+      L_s \left(e_{\mathrm{icl}} + e_{\mathrm{sno}}\right)
+    }{c_p}\,\Delta t,
+```
+and $\Delta T_{\max}$ = `max_latent_heating_rate` × $\Delta t$ is the allowed temperature change per substep
+  (ClimaParams `microphysics_max_latent_heating_rate`, K/s, default 2 K per minute; `inf` disables the limiter, the value must be positive).
+The bound is on a rate, so it does not vanish as $\Delta t \to 0$: it is a modelling choice that keeps one substep from heating or cooling
+  the host model by more than the bound, and the default is meant to be active in production, where it stays inactive in ordinary conditions.
+The tests of the relaxation itself disable it to compare against unlimited references.
+
+Then the heating limiter takes the form of
+```math
+f = \min\!\left(1, \frac{\Delta T_{\max}}{|\Delta T_\alpha|}\right), \qquad
+f_k = \frac{f\,(1 + D^{\mathrm{coll}}_k \Delta t)}{1 + D^{\mathrm{coll}}_k \Delta t + (1 - f)\,D^{\mathrm{phase}}_k \Delta t} ,
+```
+where $D^{\mathrm{phase}}_k$ is the sum of the decays of the terms of donor $k$ that change phase
+and $D^{\mathrm{coll}}_k$ the sum of its other decays, the column sums of $-M_{\mathrm{phase}}$ and $-M_{\mathrm{coll}}$.
+The formula for $f_k$ arises from scaling the realized backward Euler transfer of the donor by $f$,
+  and not just its coefficient: a weaker decay leaves a larger pool at the end of the step, so $f_k \le f$,
+  with equality when $f = 1$ or when the donor has no phase-change decay.
+
+In the second backward Euler step the vapor sources are scaled by $\alpha f$
+and the phase-changing decays of each donor by $f_k$; the collision and conversion decays are not scaled.
+
+### Uniform scaling
+
+After the second backward Euler step, with $\Delta q^2_k = q^{n+1}_k - q^n_k$ its transfers, $\Delta T_2$ the
+corresponding heating, $\Delta q_{\mathrm{cond}} = \sum_k \Delta q^2_k$ the condensate
+growth and $q^n_v = \max(0, q_{\mathrm{tot}} - \sum_k q^n_k)$ the initial vapor,
+
+```math
+g_T = \min\!\left(1, \frac{\Delta T_{\max}}{|\Delta T_2|}\right), \qquad
+g_v = \frac{q^n_v}{\Delta q_{\mathrm{cond}}} \text{ if } \Delta q_{\mathrm{cond}} > q^n_v, \text{ else } 1, \qquad
+g = \min(g_T, g_v), \qquad
+\overline{\dot{q}} = g\,\frac{q^{n+1} - q^n}{\Delta t} .
 ```
 
-where $q_{\mathrm{sat,liq}}$ and $q_{\mathrm{sat,ice}}$ are the saturation specific contents over liquid and over ice.
-Then $q_v$ does not fall below $q_{\mathrm{sat},\min}$ over one substep.
-The common factor keeps the relative rates of the three processes unchanged, and the sinks in $M$ are unaffected.
-
-- Below freezing, $q_{\mathrm{sat},\min} = q_{\mathrm{sat,ice}}$, which allows the Bergeron process to reduce $q_v$ below liquid saturation.
-- Above freezing, $q_{\mathrm{sat},\min} = q_{\mathrm{sat,liq}}$, so the limit is liquid saturation.
-
+The uniform factor $g$ covers the edge cases the above limiters miss
+  (pools that refill each other, such as rain freezing on cloud ice while snow melts)
+  and bounds the condensate growth by the vapor available.
+With the implicit decays keeping every pool non-negative,
+  no tracer can become negative in a substep however stiff the processes are.
+Heating and the vapor budget are linear in the tendencies, so both bounds are met exactly by this one factor,
+  which keeps the substep at two backward Euler steps.
+Because the heating limiter bounds a rate, it acts per substep: with fine substeps it can engage during the fast
+  initial part of a relaxation that is below the bound when averaged over a longer substep.
+Negative species are clamped to zero on input.
 
 ---
 
@@ -223,7 +337,7 @@ This is consistent with the microphysics-only update and avoids coupling to a fu
 | Relaxation              | `VaporRelaxation(:Condensate, S, τ)`  | `VaporRelaxation(:q_lcl, S, τ)`, condensation   |
 
 To add a process to the 1-moment scheme, compute its rate in `Microphysics1M` and add its term to `_microphysics_source_terms`.
-The instantaneous tendencies, the entries of $M$ and $e$, and the rate of the process in the verbose modes follow from the term.
+The instantaneous tendencies, the entries of $M$ and $e$, the rate of the process in the verbose modes and its treatment by the latent-heating limiter follow from the term: a transfer between a liquid and an ice species (`:q_lcl`, `:q_rai` versus `:q_icl`, `:q_sno`) and every exchange with the vapor change phase.
 A transfer from a precipitation species to a cloud species is not supported, because the block solve assumes that the upper right block of $M$ is zero.
 
 ---

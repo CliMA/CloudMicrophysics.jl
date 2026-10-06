@@ -12,12 +12,23 @@ import CloudMicrophysics.Parameters as CMP
 the value the stiff vapor <-> ice relaxation tests below were written for. Pinned here so the
 tests do not depend on the ClimaParams default (1e5 m⁻³ since ClimaParams 1.1.12).
 """
-function stiff_prescribed_ice_params(FT)
+function stiff_prescribed_ice_params(FT; max_latent_heating_rate = Inf, N_0 = 5.0e8)
     override = Dict(
-        "cloud_ice_sedimentation_number_concentration" => Dict("value" => 5.0e8, "type" => "float"),
+        "cloud_ice_sedimentation_number_concentration" => Dict("value" => N_0, "type" => "float"),
+        # the solver tests probe the relaxation itself; the latent-heating limiter has its own tests
+        "microphysics_max_latent_heating_rate" => Dict("value" => max_latent_heating_rate, "type" => "float"),
     )
     td = CP.create_toml_dict(FT; override_file = override)
     return CMP.Microphysics1MParams(td; cloud_ice_formation = CMP.PrescribedIceNumber())
+end
+
+"""
+1-moment parameters with the latent-heating limiter disabled, for the solver tests that compare
+against unlimited references; the limiter has its own tests.
+"""
+function params_1m_no_limiter(FT)
+    override = Dict("microphysics_max_latent_heating_rate" => Dict("value" => Inf, "type" => "float"))
+    return CMP.Microphysics1MParams(CP.create_toml_dict(FT; override_file = override))
 end
 import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.Microphysics1M as CM1
@@ -655,7 +666,7 @@ end
 function test_linearized_bulk_microphysics_1m_tendencies(FT)
 
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
-    mp = CMP.Microphysics1MParams(FT)
+    mp = params_1m_no_limiter(FT)
     T_freeze = TDI.T_freeze(tps)
 
     @testset "LinearizedAverage - stale call shape without w throws" begin
@@ -1344,6 +1355,307 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test isfinite(tendencies.dq_icl_dt)
         @test isfinite(tendencies.dq_rai_dt)
         @test isfinite(tendencies.dq_sno_dt)
+    end
+
+    @testset "limiter decay totals and _donor_limiter_scale" begin
+        Δt = FT(60)
+        q, Dpc, Dcol, f = FT(1e-3), FT(0.05), FT(0.01), FT(0.3)
+        s = BMT._donor_limiter_scale(f, Dpc, Dcol, Δt)
+        realized(sc) = q * sc * Dpc * Δt / (1 + (Dcol + sc * Dpc) * Δt)
+        @test realized(s) ≈ f * realized(one(FT)) rtol = FT(1e-5)
+        @test BMT._donor_limiter_scale(one(FT), Dpc, Dcol, Δt) == one(FT)
+        @test BMT._donor_limiter_scale(f, FT(0), Dcol, Δt) == f
+        @test (@inferred BMT._donor_limiter_scale(f, Dpc, Dcol, Δt)) isa FT
+        # phase classification of the terms: transfers between a liquid and an ice species change phase
+        @test BMT._changes_phase(BMT.Transfer(:q_lcl => :q_icl, FT(1)))
+        @test BMT._changes_phase(BMT.Transfer(:q_sno => :q_rai, FT(1)))
+        @test !BMT._changes_phase(BMT.Transfer(:q_lcl => :q_rai, FT(1)))
+        @test !BMT._changes_phase(BMT.Transfer(:q_icl => :q_sno, FT(1)))
+        @test BMT._changes_phase(BMT.VaporExchange(:q_sno, FT(1))) &&
+              BMT._changes_phase(BMT.VaporRelaxation(:q_lcl, FT(1), FT(1)))
+        # per-donor totals: the melting layer below (snow 3 g/kg melting into rain) has only phase-change decays of snow
+        qs = BMT.Condensates1M(FT(0), FT(0), FT(1e-3), FT(3e-3))
+        src = BMT._microphysics_source_terms(
+            BMT.Microphysics1Moment(), mp, tps, FT(1.1), T_freeze + FT(3), FT(0), FT(0.012), qs...,
+        )
+        (Dpc_tot, Dcol_tot) = @inferred BMT.limiter_decay_totals(src, qs, TDI.TD.Parameters.q_min(tps), Δt)
+        @test Dpc_tot.q_sno > FT(0) && Dcol_tot.q_sno == FT(0)
+        @test Dpc_tot.q_icl == FT(0) && Dcol_tot.q_lcl == FT(0)
+        lin = BMT.donor_linearization(src, qs, TDI.TD.Parameters.q_min(tps), Δt)
+        @test -lin[:q_sno, :q_sno] ≈ Dpc_tot.q_sno + Dcol_tot.q_sno rtol = FT(1e-6)
+    end
+
+    @testset "LinearizedAverage - latent heating limiter bounds every substep and conserves water" begin
+        # Glaciating updraft state of the AMIP blow-up (PrescribedIceNumber, N_0 = 5e8); with the bound at
+        # 0.005 K/s (0.2 K per 40 s substep) the
+        # heating of each substep must not exceed the bound (up to the implicit-decay approximation),
+        # all phase-change transfers scale together, and total water is unchanged. With the bound
+        # disabled (Inf) the limiter factor is 1.
+        mp_lim = stiff_prescribed_ice_params(FT; max_latent_heating_rate = 0.005)
+        mp_off = stiff_prescribed_ice_params(FT)
+        @test mp_lim.max_latent_heating_rate == FT(0.005)
+        @test isinf(mp_off.max_latent_heating_rate)
+        ρ = FT(0.6884);
+        T = FT(266.55)
+        q_tot = FT(8.129e-3);
+        q_lcl = FT(6.102e-4);
+        q_icl = FT(8.345e-4);
+        q_rai = FT(1.408e-5);
+        q_sno = FT(1.634e-3)
+        Δts = FT(40)
+        Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+        Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+        heating(r) = (Lv_over_cp * (r.dq_lcl_dt + r.dq_rai_dt) + Ls_over_cp * (r.dq_icl_dt + r.dq_sno_dt)) * Δts
+        r_lim = BMT._linearized_implicit_step(
+            BMT.Microphysics1Moment(),
+            mp_lim,
+            tps,
+            ρ,
+            T,
+            FT(0),
+            q_tot,
+            q_lcl,
+            q_icl,
+            q_rai,
+            q_sno,
+            Δts,
+        )
+        r_off = BMT._linearized_implicit_step(
+            BMT.Microphysics1Moment(),
+            mp_off,
+            tps,
+            ρ,
+            T,
+            FT(0),
+            q_tot,
+            q_lcl,
+            q_icl,
+            q_rai,
+            q_sno,
+            Δts,
+        )
+        @test heating(r_off) > FT(0.005) * Δts          # the limiter is needed for this state
+        @test heating(r_lim) <= FT(0.005) * Δts * FT(1.05)
+        @test heating(r_lim) > FT(0.5) * FT(0.005) * Δts # and it does not switch the processes off
+        # the limiter factor itself
+        args = (ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δts)
+        f_lim = BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_lim, tps, args...).f_lim
+        f_off = BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_off, tps, args...).f_lim
+        @test FT(0) < f_lim < FT(1)
+        @test f_off == FT(1)
+        # the realized heating sits on the bound (both solves share the linearization; the scale factors are exact
+        # for each donor alone, so the bound is met up to the coupling between donors)
+        @test heating(r_lim) ≈ FT(0.005) * Δts rtol = FT(0.05)
+        # gentle state: limiter inactive
+        T_w = T_freeze + FT(10);
+        q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T_w, FT(1.1))
+        gentle = (FT(1.1), T_w, FT(0), q_sl * FT(1.001) + FT(1e-4), FT(1e-4), FT(0), FT(0), FT(0), Δts)
+        @test BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_lim, tps, gentle...).f_lim == FT(1)
+        # water conservation: the tendencies redistribute water among the species (vapor implied)
+        for r in (r_lim, r_off)
+            @test all(isfinite, (r.dq_lcl_dt, r.dq_icl_dt, r.dq_rai_dt, r.dq_sno_dt))
+            @test q_lcl + r.dq_lcl_dt * Δts >= FT(0) && q_icl + r.dq_icl_dt * Δts >= FT(0)
+            @test q_rai + r.dq_rai_dt * Δts >= FT(0) && q_sno + r.dq_sno_dt * Δts >= FT(0)
+        end
+    end
+
+    @testset "LinearizedAverage - latent heating limiter in a melting layer (fusion-only cooling)" begin
+        # 276 K, saturated, snow 3 g/kg and rain 1 g/kg: melting cools ~1 K in a 60 s substep. With the bound
+        # 0.002 K/s the realized cooling must sit on the bound (-0.12 K), the melted water must still land in
+        # rain, and the vapor check must stay inactive (no vapor sources).
+        mp_lim = stiff_prescribed_ice_params(FT; max_latent_heating_rate = 0.002)
+        mp_off = stiff_prescribed_ice_params(FT)
+        ρ = FT(1);
+        T = FT(276)
+        q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q_lcl = FT(0);
+        q_icl = FT(0);
+        q_rai = FT(1e-3);
+        q_sno = FT(3e-3)
+        q_tot = q_sl + q_rai + q_sno
+        Δt = FT(60)
+        Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+        Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+        heating(r) = (Lv_over_cp * (r.dq_lcl_dt + r.dq_rai_dt) + Ls_over_cp * (r.dq_icl_dt + r.dq_sno_dt)) * Δt
+        args = (ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+        st_lim = BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_lim, tps, args...)
+        st_off = BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_off, tps, args...)
+        r_lim = st_lim.rates;
+        r_off = st_off.rates
+        @test heating(r_off) < -FT(0.5)                        # the bound is needed
+        @test st_off.f_lim == FT(1) && st_off.α_cap == FT(1)
+        @test FT(0) < st_lim.f_lim < FT(1)
+        @test st_lim.α_cap == FT(1)
+        @test heating(r_lim) ≈ -FT(0.002) * Δt rtol = FT(0.02)  # realized cooling on the bound
+        @test r_lim.dq_sno_dt < FT(0) && r_lim.dq_rai_dt > FT(0)
+        @test r_lim.dq_rai_dt ≈ -r_lim.dq_sno_dt rtol = FT(0.02)  # melted snow lands in rain
+        @test q_sno + r_lim.dq_sno_dt * Δt >= FT(0)
+    end
+
+    @testset "LinearizedAverage - default limiter (2 K/min) is inactive for an ordinary updraft" begin
+        mp_def = stiff_prescribed_ice_params(FT; max_latent_heating_rate = 2 / 60)
+        Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+        Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+        # warm updraft, 2 % supersaturated over liquid, one 60 s substep
+        ρ = FT(1);
+        T = FT(285)
+        q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q_lcl = FT(3e-4);
+        q_rai = FT(1e-4)
+        q_tot = FT(1.02) * q_sl + q_lcl + q_rai
+        Δt = FT(60)
+        heating(r, Δt) = (Lv_over_cp * (r.dq_lcl_dt + r.dq_rai_dt) + Ls_over_cp * (r.dq_icl_dt + r.dq_sno_dt)) * Δt
+        args = (ρ, T, FT(0), q_tot, q_lcl, FT(0), q_rai, FT(0), Δt)
+        st = BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_def, tps, args...)
+        @test st.f_lim == FT(1)
+        r = st.rates
+        ref = BMT.bulk_microphysics_tendencies(
+            BMT.LinearizedAverage(),
+            BMT.Microphysics1Moment(),
+            mp_def,
+            tps,
+            args...,
+            60,
+        )
+        @test FT(0) < heating(r, Δt) < FT(2 / 60) * Δt
+        @test heating(r, Δt) ≈ heating(ref, Δt) rtol = FT(0.02)
+        T1 = T + heating(r, Δt)
+        q_v = q_tot - (q_lcl + r.dq_lcl_dt * Δt) - (q_rai + r.dq_rai_dt * Δt)
+        @test q_v ≈ TDI.saturation_vapor_specific_content_over_liquid(tps, T1, ρ) rtol = FT(2e-3)  # Γ-consistent
+        @test r.dq_lcl_dt > FT(0) && r.dq_rai_dt > FT(0)       # cloud liquid condenses; rain grows by accretion (its 1M vapor exchange is evaporation only)
+    end
+
+    @testset "LinearizedAverage - negative condensate inputs are clamped; limiter parameter is validated" begin
+        mp = stiff_prescribed_ice_params(FT)
+        ρ = FT(0.8);
+        T = FT(250)
+        q_tot = FT(1.1) * TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+        r_neg = BMT._linearized_implicit_step(
+            BMT.Microphysics1Moment(), mp, tps, ρ, T, FT(0), q_tot, -FT(1e-6), -FT(1e-7), -FT(1e-8), -FT(1e-9),
+            FT(60),
+        )
+        r_zero = BMT._linearized_implicit_step(
+            BMT.Microphysics1Moment(), mp, tps, ρ, T, FT(0), q_tot, FT(0), FT(0), FT(0), FT(0), FT(60),
+        )
+        @test all(isfinite, values(r_neg))
+        @test all(k -> r_neg[k] == r_zero[k], keys(r_zero))   # no spurious source or sink from a negative pool
+        @test r_neg.dq_icl_dt > FT(0)                          # deposition onto (nucleating) ice proceeds
+        for bad in (0.0, -1.0, NaN)
+            @test_throws ArgumentError stiff_prescribed_ice_params(FT; max_latent_heating_rate = bad)
+        end
+        @test_throws ArgumentError CMP._validated_max_latent_heating_rate(FT(0))
+        @test CMP._validated_max_latent_heating_rate(FT(Inf)) == FT(Inf)
+    end
+
+    @testset "LinearizedAverage - latent heating limiter holds when rain and snow feed each other" begin
+        # 274 K with cloud ice, rain and snow: rain freezes on the ice (rai → sno) while the snow melts
+        # (sno → rai), two large opposing fusion transfers through pools that refill each other. The
+        # per-donor scaling alone can then miss the bound; the uniform fallback must enforce it.
+        mp_lim = stiff_prescribed_ice_params(FT; max_latent_heating_rate = 0.002)
+        ρ = FT(1);
+        T = FT(274)
+        q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q = (FT(1e-4), FT(5e-4), FT(1e-4), FT(1e-3))
+        q_tot = FT(1.03) * q_sl + sum(q)
+        Δts = FT(40)
+        Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+        Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+        heating(r) = (Lv_over_cp * (r.dq_lcl_dt + r.dq_rai_dt) + Ls_over_cp * (r.dq_icl_dt + r.dq_sno_dt)) * Δts
+        Tloc = T
+        engaged = false
+        for _ in 1:3
+            st = BMT._linearized_implicit_step_factors(
+                BMT.Microphysics1Moment(),
+                mp_lim,
+                tps,
+                ρ,
+                Tloc,
+                FT(0),
+                q_tot,
+                q...,
+                Δts,
+            )
+            r = st.rates
+            @test abs(heating(r)) <= FT(0.002) * Δts * (one(FT) + FT(1e-3))
+            engaged |= st.f_lim < one(FT)
+            q = (
+                q[1] + r.dq_lcl_dt * Δts,
+                q[2] + r.dq_icl_dt * Δts,
+                q[3] + r.dq_rai_dt * Δts,
+                q[4] + r.dq_sno_dt * Δts,
+            )
+            @test all(>=(-eps(FT)), q)
+            Tloc += heating(r)
+        end
+        @test engaged                                          # the bound was needed in at least one substep
+    end
+
+    @testset "LinearizedAverage - vapor check floor follows the saturation curve for a large substep heating" begin
+        # RH_ice 3 at 250 K with stiff ice: one 120 s substep heats ~3.8 K; the floor of the vapor check is
+        # linear in ΔT, so the vapor ends a few % below the new ice saturation (≤ 6 %; the default 2 K/min
+        # limiter keeps the substep heating, and hence this error, much smaller in production).
+        mp = stiff_prescribed_ice_params(FT)
+        ρ = FT(0.8);
+        T = FT(250)
+        q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+        q_icl = FT(1e-4)
+        q_tot = FT(3) * q_si + q_icl
+        Δt = FT(120)
+        Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
+        Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
+        st = BMT._linearized_implicit_step_factors(
+            BMT.Microphysics1Moment(),
+            mp,
+            tps,
+            ρ,
+            T,
+            FT(0),
+            q_tot,
+            FT(0),
+            q_icl,
+            FT(0),
+            FT(0),
+            Δt,
+        )
+        r = st.rates
+        ΔT = (Lv_over_cp * (r.dq_lcl_dt + r.dq_rai_dt) + Ls_over_cp * (r.dq_icl_dt + r.dq_sno_dt)) * Δt
+        q_v = q_tot - (q_icl + r.dq_icl_dt * Δt) - (r.dq_lcl_dt + r.dq_rai_dt + r.dq_sno_dt) * Δt
+        @test ΔT > FT(3)
+        @test st.α_cap < one(FT)                               # the check is what stops the deposition
+        q_si1 = TDI.saturation_vapor_specific_content_over_ice(tps, T + ΔT, ρ)
+        @test FT(0.94) * q_si1 <= q_v <= q_si1 * (one(FT) + FT(1e-3))
+    end
+
+    @testset "LinearizedAverage - hard positivity of every tracer under stiff processes" begin
+        # stiff processes on tiny pools from an almost dry or very moist atmosphere, huge substeps:
+        # condensate pools stay ≥ 0 (implicit decays) and the vapor stays ≥ 0 (uniform guard)
+        for Δt in (FT(1), FT(120), FT(3600))
+            mp = stiff_prescribed_ice_params(FT)
+            for (T, ρ, q) in (
+                (FT(250), FT(0.8), (FT(1e-3), FT(1e-6), FT(0), FT(0))),        # liquid in ice-subsaturated dry air
+                (FT(230), FT(0.5), (FT(3e-3), FT(1e-4), FT(1e-4), FT(1e-4))),  # homogeneous freezing + deposition
+                (FT(274), FT(1.0), (FT(1e-4), FT(5e-4), FT(1e-4), FT(3e-3))),  # melting churn above freezing
+            )
+                for q_v in (FT(0), FT(1e-7), FT(3) * TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ))
+                    q_tot = q_v + sum(q)
+                    r = BMT._linearized_implicit_step(BMT.Microphysics1Moment(), mp, tps, ρ, T, FT(0), q_tot, q..., Δt)
+                    q_new = q .+ (r.dq_lcl_dt, r.dq_icl_dt, r.dq_rai_dt, r.dq_sno_dt) .* Δt
+                    @test all(isfinite, q_new)
+                    @test all(>=(-eps(FT)), q_new)
+                    @test q_tot - sum(q_new) >= -FT(4) * eps(FT) * q_tot     # vapor never negative
+                end
+            end
+        end
+    end
+
+    @testset "_linearized_implicit_step_factors - Type stability (@inferred)" begin
+        mp = stiff_prescribed_ice_params(FT)
+        st = @inferred BMT._linearized_implicit_step_factors(
+            BMT.Microphysics1Moment(), mp, tps, FT(0.8), FT(250), FT(0), FT(1e-3), FT(1e-4), FT(1e-5), FT(1e-5),
+            FT(1e-5), FT(60),
+        )
+        @test st.α_cap isa FT && st.f_lim isa FT && st.g_uniform isa FT
+        @test all(v -> v isa FT, values(st.rates))
     end
 
 end
