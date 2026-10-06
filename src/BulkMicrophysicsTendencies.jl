@@ -150,6 +150,7 @@ SA.similar_type(::Type{<:Condensates1M}, ::Type{FT}, ::SA.Size{(4,)}) where {FT}
     Base.setindex(q, v, Base.fieldindex(Q, species))
 
 include("bulk_donor_step.jl")
+include("bulk_joint_relaxation.jl")
 
 # --- 1-Moment Microphysics ---
 
@@ -302,36 +303,6 @@ heat of the substep temperature update: `(L_v (Δq_lcl + Δq_rai) + L_s (Δq_icl
 end
 
 """
-    _saturation_floor(tps, ρ, T, q)
-
-Quantities of the vapor limiter of `linearized_step_1m`: the lower of the saturation specific
-contents over liquid and over ice, `q_smin`, its temperature derivative `λ_min`, the
-corresponding latent-heat factor `Γ_min = 1 + (L/cₚ) λ_min`, and the tolerance `q_tol` below
-which the summed vapor sources of a substep count as zero.
-
-`Γ_min` uses the reference latent heat and the dry-air heat capacity of the substep
-temperature update (`_latent_heating`), so that the sources scaled by the limiter leave the
-vapor on the floor; the slope `λ_min` is that of the saturation curve. `q_tol` is one ulp of
-the larger saturation content.
-"""
-@inline function _saturation_floor(tps::TDI.PS, ρ, T, q::Condensates1M)
-    FT = eltype(q)
-    q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
-    q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-    Rᵥ = TDI.Rᵥ(tps)
-    dqsl_dT = CMNonEq.dqcld_dT(q_sl, TDI.Lᵥ(tps, T), Rᵥ, T)
-    dqsi_dT = CMNonEq.dqcld_dT(q_si, TDI.Lₛ(tps, T), Rᵥ, T)
-    cp_d = TDI.TD.Parameters.cp_d(tps)
-    Γₗ = CMNonEq.gamma_helper(TDI.TD.Parameters.LH_v0(tps), cp_d, dqsl_dT)
-    Γᵢ = CMNonEq.gamma_helper(TDI.TD.Parameters.LH_s0(tps), cp_d, dqsi_dT)
-    (q_smin, λ_min, Γ_min) = ifelse(q_si <= q_sl, (q_si, dqsi_dT, Γᵢ), (q_sl, dqsl_dT, Γₗ))
-    # one ulp of the saturation content: the vapor gap carries that much round-off, so a source sum below it
-    # cannot be told from zero and the limiter is skipped (α = 1) instead of dividing by it
-    q_tol = eps(FT) * max(q_sl, q_si)
-    return (; q_smin, λ_min, Γ_min, q_tol)
-end
-
-"""
     linearized_step_1m(mp, tps, ρ, T, w, q_tot, q, Δt)
 
 Compute one linearized substep of width `Δt` for the 1-moment species `q`.
@@ -339,12 +310,17 @@ Compute one linearized substep of width `Δt` for the 1-moment species `q`.
 The substep returns the time-averaged tendencies of the species, the rate of each process
 over the substep, and the factors of its limiters.
 
-Two backward Euler steps are taken. The first, with the donor-based linearization of the
-process terms, gives the realized transfers and the realized heating of all phase changes
-(with the latent-heat factors of the substep temperature update, `_latent_heating`). From them:
+With the default option `JointVaporRelaxation` the four vapor-driven phase changes enter
+the linearization through the transfers solved by one joint, Γ-consistent relaxation of the
+shared vapor excess (`_joint_vapor_transfers`, Morrison & Milbrandt 2015, Appendix C), as
+[`JointVaporTransfer`](@ref) terms; with `PerProcessVaporRelaxation` the per-process terms
+stay as they are (`_vapor_terms`). Two backward Euler steps are then taken. The first, with
+the donor-based linearization of the terms, gives the realized transfers and the realized
+heating of all phase changes (with the latent-heat factors of the substep temperature
+update, `_latent_heating`). From them:
 
 - vapor limiter: if the solved vapor would fall below the lower saturation at the updated
-  temperature (linearized, `q_smin + λ_min ΔT`, `_saturation_floor`), the vapor sources are
+  temperature (linearized, `q_smin + λ_min ΔT`, `_saturation_state`), the vapor sources are
   scaled by `α_cap = 1 - gap / (Γ_min Σe Δt)` (reducing the sources by `R` raises the vapor by `R`
   and lowers the saturation by `(Γ_min - 1) R`). This removes deposition that a pool exhausted
   within the substep (e.g. liquid taken by freezing) could not feed.
@@ -374,9 +350,10 @@ construction of the implicit decays). Negative species are clamped to zero on in
     q = max.(q, zero(FT))   # non-negative pools (hosts may pass slightly negative reconstructed values)
     terms = _microphysics_source_terms(Microphysics1Moment(), mp, tps, ρ, T, w, q_tot, q...)
     q_min = TDI.TD.Parameters.q_min(tps)
+    (terms, sf) = _vapor_terms(mp.processes.vapor_relaxation, terms, tps, ρ, T, q_tot, q, Δt)
     lin = donor_linearization(terms, q, q_min, Δt)
     q1 = backward_euler_solve(lin, q, one(FT), Δt)
-    (; α_cap, f_lim, f_k) = _limiter_factors(mp, tps, terms, lin, q, q1, ρ, T, q_tot, q_min, Δt)
+    (; α_cap, f_lim, f_k) = _limiter_factors(mp, tps, terms, lin, q, q1, sf, q_tot, q_min, Δt)
 
     lin2 = donor_linearization(terms, q, q_min, Δt, f_k)
     q2 = backward_euler_solve(lin2, q, α_cap * f_lim, Δt)
@@ -388,21 +365,48 @@ construction of the implicit decays). Negative species are clamped to zero on in
 end
 
 """
-    _limiter_factors(mp, tps, terms, lin, q, q1, ρ, T, q_tot, q_min, Δt)
+    _vapor_terms(coupling, terms, tps, ρ, T, q_tot, q, Δt)
+
+The process terms of the substep and the saturation quantities of the vapor limiter
+(`q_smin`, `λ_min`, `Γ_min`, `q_tol`), for the option `coupling`:
+with `JointVaporRelaxation` the four vapor-driven phase changes are replaced by the
+[`JointVaporTransfer`](@ref) terms solved by `_joint_vapor_transfers`; with
+`PerProcessVaporRelaxation` the terms are returned unchanged.
+"""
+@inline function _vapor_terms(::CMP.JointVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
+    jv = _joint_vapor_transfers(terms, tps, ρ, T, q_tot, q..., Δt)
+    terms = merge(
+        terms,
+        (;
+            S_phase_change_vap_lcl = JointVaporTransfer(:q_lcl, jv.Δq_lcl),
+            S_phase_change_vap_icl = JointVaporTransfer(:q_icl, jv.Δq_icl),
+            S_phase_change_vap_rai = JointVaporTransfer(:q_rai, jv.Δq_rai),
+            S_phase_change_vap_sno = JointVaporTransfer(:q_sno, jv.Δq_sno),
+        ),
+    )
+    return (terms, (; jv.q_smin, jv.λ_min, jv.Γ_min, jv.q_tol))
+end
+@inline function _vapor_terms(::CMP.PerProcessVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
+    st = _saturation_state(tps, ρ, T, q_tot, q...)
+    return (terms, (; st.q_smin, st.λ_min, st.Γ_min, st.q_tol))
+end
+
+"""
+    _limiter_factors(mp, tps, terms, lin, q, q1, sf, q_tot, q_min, Δt)
 
 Factors of the vapor limiter and of the latent-heating limiter of `linearized_step_1m`,
-from the first backward Euler step `q1` of the linearization `lin` of `terms` at `q`:
+from the first backward Euler step `q1` of the linearization `lin` of `terms` at `q`, with the
+saturation quantities `sf` of the vapor limiter (`q_smin`, `λ_min`, `Γ_min`, `q_tol` of `_saturation_state`):
 `(; α_cap, f_lim, f_k)`, the scale of the vapor sources, the scale of the realized heating,
 and the per-donor scale of the phase-change decays ([`_donor_limiter_scale`](@ref)).
 """
-@inline function _limiter_factors(mp, tps, terms, lin, q, q1, ρ, T, q_tot, q_min, Δt)
+@inline function _limiter_factors(mp, tps, terms, lin, q, q1, sf, q_tot, q_min, Δt)
     FT = eltype(q)
     ΔT1 = _latent_heating(q1 - q, tps)
 
     # vapor limiter on the solved state: the sources may not leave less vapor than the lower
     # saturation at the corrected temperature (linearized in ΔT); scaling the sources by α raises
     # the vapor by (1-α) Σe and lowers the floor by (Γ_min-1)(1-α) Σe, hence Γ_min below
-    sf = _saturation_floor(tps, ρ, T, q)
     q_v1 = q_tot - sum(q1)
     gap = max(zero(FT), sf.q_smin + sf.λ_min * ΔT1 - q_v1)
     e = Condensates1M(lin.e...)
@@ -582,7 +586,8 @@ implicit substeps.
 The interval `Δt` is divided into `nsub` equal substeps. At each substep, the
 linearized tendency is rebuilt from the current state and solved implicitly for cloud
 liquid, cloud ice, rain, and snow, with a vapor limiter and a latent-heating limiter
-(`linearized_step_1m`). Temperature is then updated from the latent
+(`linearized_step_1m`), the vapor-driven phase changes relaxed jointly unless the option
+`vapor_relaxation = PerProcessVaporRelaxation()` is selected. Temperature is then updated from the latent
 heating implied by the substep tendencies. Increasing `nsub` improves how well the method
 captures nonlinear changes in the active microphysical processes, including regime changes
 near freezing.
