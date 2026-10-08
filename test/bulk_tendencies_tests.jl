@@ -2109,21 +2109,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
     end
 
     @testset "LinearizedAverage - per-process relaxation option (joint_vapor_relaxation = false)" begin
-        # plumbing: keyword, optional TOML entry, default
+        # plumbing: constructor keyword (a model configuration choice of the host), default true
         td = CP.create_toml_dict(
             FT;
             override_file = Dict("microphysics_max_latent_heating_rate" => Dict("value" => Inf, "type" => "float")),
         )
         @test CMP.Microphysics1MParams(td).joint_vapor_relaxation == true
         @test CMP.Microphysics1MParams(td; joint_vapor_relaxation = false).joint_vapor_relaxation == false
-        td_off = CP.create_toml_dict(
-            FT;
-            override_file = Dict(
-                "microphysics_max_latent_heating_rate" => Dict("value" => Inf, "type" => "float"),
-                "microphysics_joint_vapor_relaxation" => Dict("value" => false, "type" => "bool"),
-            ),
-        )
-        @test CMP.Microphysics1MParams(td_off).joint_vapor_relaxation == false
         mp_j = stiff_prescribed_ice_params(FT)
         mp_i = stiff_prescribed_ice_params(FT; joint = false)
         Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)

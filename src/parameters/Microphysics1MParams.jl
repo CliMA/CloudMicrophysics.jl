@@ -63,9 +63,9 @@ directly.
   `microphysics_max_latent_heating_rate` (`inf` disables the limiter; must be positive)
 - `joint_vapor_relaxation::Bool`: whether the `LinearizedAverage` solver treats the vapor-driven
   phase changes as one joint relaxation of the vapor excess (`true`, default) or relaxes each
-  process on its own from the initial excess (`false`, the transfers of 0.40 to 0.44 under the same
-  vapor check and limiter, for comparison runs); optional ClimaParams
-  `microphysics_joint_vapor_relaxation` (`bool`), `true` when absent
+  process on its own from the initial excess (`false`, the transfers of the previous solver under
+  the same vapor check and limiter, for comparison runs); a model configuration choice set by the
+  host through the constructor keyword, not a ClimaParams parameter
 
 # Constructors
 
@@ -112,13 +112,12 @@ Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 
 # Arguments
 - `toml_dict`: ClimaParams parameter dictionary
-- `joint_vapor_relaxation`: see the struct docstring; defaults to the optional ClimaParams entry
-  `microphysics_joint_vapor_relaxation`, or `true`
+- `joint_vapor_relaxation`: see the struct docstring (default `true`)
 - `options_kwargs...`: Keyword arguments forwarded to `Microphysics1MOptions`
 """
 function Microphysics1MParams(
     toml_dict::CP.ParamDict;
-    joint_vapor_relaxation::Bool = _optional_bool_parameter(toml_dict, "microphysics_joint_vapor_relaxation", true),
+    joint_vapor_relaxation::Bool = true,
     options_kwargs...,
 )
     processes = Microphysics1MOptions(; options_kwargs...)
@@ -144,17 +143,6 @@ function Microphysics1MParams(
         ),
         joint_vapor_relaxation,
     )
-end
-
-"""
-    _optional_bool_parameter(toml_dict, name, default)
-
-Read the boolean parameter `name` from `toml_dict` if it is defined there (e.g. through an
-override file with `type = "bool"`), otherwise return `default`.
-"""
-function _optional_bool_parameter(toml_dict::CP.ParamDict, name::String, default::Bool)
-    haskey(toml_dict.data, name) || return default
-    return Bool(CP.get_parameter_values(toml_dict, name, "CloudMicrophysics")[Symbol(name)])
 end
 
 

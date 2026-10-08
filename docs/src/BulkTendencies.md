@@ -192,8 +192,8 @@ $\Delta s$, the $\Gamma$ factors and the coefficients are held at their start-of
 The four transfers enter the linearization as prescribed transfers (`VaporTransfer`): a positive $\Delta q$ is a source $\Delta q/\Delta t$ in $e$, a negative one the matched decay of the previous section.
 
 For comparison runs, `Microphysics1MParams.joint_vapor_relaxation = false`
-(optional ClimaParams entry `microphysics_joint_vapor_relaxation`, type
-`bool`, `true` when absent) replaces the joint transfers by the single-process
+(a constructor keyword, `true` by default; the host exposes it as a model
+configuration option) replaces the joint transfers by the single-process
 transfers of each process ($S\,\tau_p\,(1 - e^{-\Delta t/\tau_p})$ for the cloud
 condensates, the implicit decay or constant source of an exchange for rain and snow)
 under the same limiters. With several fast processes on the same excess that branch
