@@ -256,8 +256,7 @@ struct JointVaporRelaxation <: MicrophysicsOption end
 """
     PerProcessVaporRelaxation <: MicrophysicsOption
 
-Each vapor-driven phase change relaxes on its own from the initial excess, as in the solver
-before the joint relaxation; for comparison runs.
+Each vapor-driven phase change relaxes on its own from the initial excess.
 """
 struct PerProcessVaporRelaxation <: MicrophysicsOption end
 

@@ -93,7 +93,6 @@ mp = CMP.Microphysics1MParams(Float64;
     terminal_velocity::VL
     "Upper bound on the latent heating or cooling rate of all phase changes within a substep [K/s]; `Inf` disables the limiter"
     max_latent_heating_rate::FT
-    "Whether the `LinearizedAverage` solver relaxes all vapor-driven phase changes jointly (`true`) or one process at a time (`false`)"
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
