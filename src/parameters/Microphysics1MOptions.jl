@@ -17,7 +17,6 @@ export Microphysics1MOptions,
     SnowDepositionSublimation,
     SublimationOnly,
     DepositionAndSublimation,
-    VaporRelaxationCoupling,
     JointVaporRelaxation,
     PerProcessVaporRelaxation,
     SnowMelt,
@@ -77,17 +76,6 @@ Abstract type for snow deposition/sublimation methods.
 See subtypes: [`SublimationOnly`](@ref), [`DepositionAndSublimation`](@ref).
 """
 abstract type SnowDepositionSublimation <: MicrophysicsOption end
-
-"""
-    VaporRelaxationCoupling <: MicrophysicsOption
-
-How the `LinearizedAverage` substep solver couples the vapor-driven phase changes
-(condensation and evaporation of cloud liquid, evaporation of rain, deposition and
-sublimation of cloud ice and snow) within a substep: [`JointVaporRelaxation`](@ref) or
-[`PerProcessVaporRelaxation`](@ref). A model configuration choice rather than a process;
-it has no parameters and cannot be disabled.
-"""
-abstract type VaporRelaxationCoupling <: MicrophysicsOption end
 
 # ═══════════════════════════════════════════════════════════════════
 # Cloud liquid formation (single variant → concrete type = process name)
@@ -258,20 +246,20 @@ struct SublimationOnly <: SnowDepositionSublimation end
 struct DepositionAndSublimation <: SnowDepositionSublimation end
 
 """
-    JointVaporRelaxation <: VaporRelaxationCoupling
+    JointVaporRelaxation <: MicrophysicsOption
 
 The four vapor-driven phase changes relax the shared vapor excess together, with the latent
 heat and vapor uptake of all of them (Morrison & Milbrandt 2015, Appendix C); the default.
 """
-struct JointVaporRelaxation <: VaporRelaxationCoupling end
+struct JointVaporRelaxation <: MicrophysicsOption end
 
 """
-    PerProcessVaporRelaxation <: VaporRelaxationCoupling
+    PerProcessVaporRelaxation <: MicrophysicsOption
 
 Each vapor-driven phase change relaxes on its own from the initial excess, as in the solver
 before the joint relaxation; for comparison runs.
 """
-struct PerProcessVaporRelaxation <: VaporRelaxationCoupling end
+struct PerProcessVaporRelaxation <: MicrophysicsOption end
 
 # ═══════════════════════════════════════════════════════════════════
 # Single-variant on/off processes (concrete type = process name)
@@ -322,7 +310,7 @@ Process configuration for 1-moment microphysics.
 Each field selects a process variant (a concrete `MicrophysicsOption` subtype).
 Set any field to `nothing` to disable that process entirely. The last field,
 `vapor_relaxation`, selects how the substep solver couples the vapor-driven phase changes
-([`VaporRelaxationCoupling`](@ref)); it is not a process and cannot be disabled.
+([`JointVaporRelaxation`](@ref) or [`PerProcessVaporRelaxation`](@ref)).
 
 # Example
 ```julia
@@ -372,7 +360,7 @@ opts = CMP.Microphysics1MOptions(; rain_autoconversion = CMP.PrescribedNd())
     cloud_ice_snow_accretion::CISA = CloudIceSnowAccretion()
     "rain-snow collisions option"
     rain_snow_accretion::RSA = RainSnowAccretion()
-    "coupling of the vapor-driven phase changes in the substep solver (not a process)"
+    "coupling of the vapor-driven phase changes in the substep solver"
     vapor_relaxation::VRC = JointVaporRelaxation()
 end
 

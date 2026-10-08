@@ -368,7 +368,7 @@ end
     _vapor_terms(coupling, terms, tps, ρ, T, q_tot, q, Δt)
 
 The process terms of the substep and the saturation quantities of the vapor limiter
-(`q_smin`, `λ_min`, `Γ_min`, `q_tol`), for the `VaporRelaxationCoupling` option `coupling`:
+(`q_smin`, `λ_min`, `Γ_min`, `q_tol`), for the option `coupling`:
 with `JointVaporRelaxation` the four vapor-driven phase changes are replaced by the
 [`JointVaporTransfer`](@ref) terms solved by `_joint_vapor_transfers`; with
 `PerProcessVaporRelaxation` the terms are returned unchanged.
