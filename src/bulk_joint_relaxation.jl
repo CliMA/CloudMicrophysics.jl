@@ -37,17 +37,17 @@ end
     _averaged_excess(δ₀, A, invτ, Δt)
 
 Time average over `Δt` of the exact solution of `dδ/dt = A - δ/τ` (Morrison &
-Milbrandt 2015, eq. C5): `δ̄ = A τ + (δ₀ - A τ) (τ/Δt) (1 - e^{-Δt/τ})`. Reduces to
-`δ₀` when `invτ = 1/τ = 0` (no active process).
+Milbrandt 2015, eq. C5): `δ̄ = A τ + (δ₀ - A τ) φ(Δt/τ)` with the factor `φ` of
+[`_relaxation_average_factor`](@ref), the same average as the single-process transfer of
+[`_relaxation_transfer`](@ref) (which is this with `A = 0`). Reduces to `δ₀` when
+`invτ = 1/τ = 0` (no active process).
 """
 @inline function _averaged_excess(δ₀, A, invτ, Δt)
     FT = typeof(δ₀)
     x = invτ * Δt                       # Δt/τ
     active = x > eps(FT)                # for x ≤ eps the average is δ₀ to round-off
-    x_c = max(x, eps(FT))
-    τ = Δt / x_c
-    φ = -expm1(-x_c) / x_c
-    return ifelse(active, A * τ + (δ₀ - A * τ) * φ, δ₀)
+    τ = Δt / max(x, eps(FT))
+    return ifelse(active, A * τ + (δ₀ - A * τ) * _relaxation_average_factor(x), δ₀)
 end
 
 """

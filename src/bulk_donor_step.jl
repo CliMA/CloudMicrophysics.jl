@@ -47,13 +47,28 @@ end
 end
 
 """
+    _relaxation_average_factor(x)
+
+`φ(x) = (1 - e^{-x}) / x` for `x = Δt/τ`: the time average over a substep of the exponential
+relaxation `e^{-t/τ}` relative to its initial value (Morrison & Milbrandt 2015, Appendix C).
+Tends to `1` for `x → 0` (the instantaneous rate is realized) and to `1/x` for `x ≫ 1` (the
+substep ends at the equilibrium); `1` within round-off of `x = 0`.
+"""
+@inline function _relaxation_average_factor(x)
+    FT = typeof(x)
+    x_c = max(x, eps(FT))
+    return ifelse(x > eps(FT), -expm1(-x_c) / x_c, one(FT))
+end
+
+"""
     _relaxation_transfer(S, τ, Δt)
 
 Return the transfer of a relaxation over a substep of width `Δt` [kg/kg].
 
 The relaxation `dq/dt = (q⋆ - q) / τ`, with the timescale `τ` [s], starts with the rate
 `S = (q⋆ - q) / τ` [kg/kg/s] and transfers
-`S τ (1 - exp(-Δt/τ))` over the substep (Morrison and Milbrandt, 2015, Appendix C):
+`S τ (1 - exp(-Δt/τ)) = S Δt φ(Δt/τ)` over the substep ([`_relaxation_average_factor`](@ref);
+Morrison and Milbrandt, 2015, Appendix C):
 - For `Δt ≪ τ`, the transfer tends to `S Δt`, the transfer at the instantaneous rate.
 - For `Δt ≫ τ`, the transfer tends to `S τ = q⋆ - q`,
   so the substep does not pass the equilibrium `q⋆`.
@@ -62,7 +77,7 @@ A disabled process has `S = 0` and `τ = Inf`, and its transfer is zero.
 """
 @inline function _relaxation_transfer(S, τ, Δt)
     τ_c = clamp(τ, eps(typeof(τ)), floatmax(typeof(τ)))
-    return S * τ_c * -expm1(-Δt / τ_c)
+    return S * Δt * _relaxation_average_factor(Δt / τ_c)
 end
 
 """
