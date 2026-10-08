@@ -288,15 +288,76 @@ the term of the inactive branch is zero.
 end
 
 """
+    _latent_heating(Δq, tps)
+
+Temperature change [K] from the latent heat of the species change `Δq`, a
+[`Condensates1M`](@ref) [kg/kg], with the reference latent heats and the dry-air specific
+heat of the substep temperature update: `(L_v (Δq_lcl + Δq_rai) + L_s (Δq_icl + Δq_sno)) / c_p`.
+"""
+@inline function _latent_heating(Δq::Condensates1M, tps)
+    cp_d = TDI.TD.Parameters.cp_d(tps)
+    Lv = TDI.TD.Parameters.LH_v0(tps)
+    Ls = TDI.TD.Parameters.LH_s0(tps)
+    return (Lv * (Δq.q_lcl + Δq.q_rai) + Ls * (Δq.q_icl + Δq.q_sno)) / cp_d
+end
+
+"""
+    _saturation_floor(tps, ρ, T, q)
+
+Quantities of the vapor limiter of `linearized_step_1m`: the lower of the saturation specific
+contents over liquid and over ice, `q_smin`, its temperature derivative `λ_min`, the
+corresponding latent-heat factor `Γ_min = 1 + (L/cₚ) λ_min`, and the tolerance `q_tol` below
+which the summed vapor sources of a substep count as zero.
+
+`Γ_min` uses the reference latent heat and the dry-air heat capacity of the substep
+temperature update (`_latent_heating`), so that the sources scaled by the limiter leave the
+vapor on the floor; the slope `λ_min` is that of the saturation curve. `q_tol` is one ulp of
+the larger saturation content.
+"""
+@inline function _saturation_floor(tps::TDI.PS, ρ, T, q::Condensates1M)
+    FT = eltype(q)
+    q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+    q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    Rᵥ = TDI.Rᵥ(tps)
+    dqsl_dT = CMNonEq.dqcld_dT(q_sl, TDI.Lᵥ(tps, T), Rᵥ, T)
+    dqsi_dT = CMNonEq.dqcld_dT(q_si, TDI.Lₛ(tps, T), Rᵥ, T)
+    cp_d = TDI.TD.Parameters.cp_d(tps)
+    Γₗ = CMNonEq.gamma_helper(TDI.TD.Parameters.LH_v0(tps), cp_d, dqsl_dT)
+    Γᵢ = CMNonEq.gamma_helper(TDI.TD.Parameters.LH_s0(tps), cp_d, dqsi_dT)
+    (q_smin, λ_min, Γ_min) = ifelse(q_si <= q_sl, (q_si, dqsi_dT, Γᵢ), (q_sl, dqsl_dT, Γₗ))
+    # one ulp of the saturation content: the vapor gap carries that much round-off, so a source sum below it
+    # cannot be told from zero and the limiter is skipped (α = 1) instead of dividing by it
+    q_tol = eps(FT) * max(q_sl, q_si)
+    return (; q_smin, λ_min, Γ_min, q_tol)
+end
+
+"""
     linearized_step_1m(mp, tps, ρ, T, w, q_tot, q, Δt)
 
 Compute one linearized substep of width `Δt` for the 1-moment species `q`.
 
-The substep returns the time-averaged tendencies of the species and the rate of each
-process over the substep.
+The substep returns the time-averaged tendencies of the species, the rate of each process
+over the substep, and the factors of its limiters.
 
-The vapor sources are scaled by a common factor `α ≤ 1`, so that the substep does not reduce
-the vapor below the smaller of its saturation contents over liquid and over ice.
+Two backward Euler steps are taken. The first, with the donor-based linearization of the
+process terms, gives the realized transfers and the realized heating of all phase changes
+(with the latent-heat factors of the substep temperature update, `_latent_heating`). From them:
+
+- vapor limiter: if the solved vapor would fall below the lower saturation at the updated
+  temperature (linearized, `q_smin + λ_min ΔT`, `_saturation_floor`), the vapor sources are
+  scaled by `α_cap = 1 - gap / (Γ_min Σe Δt)` (reducing the sources by `R` raises the vapor by `R`
+  and lowers the saturation by `(Γ_min - 1) R`). This removes deposition that a pool exhausted
+  within the substep (e.g. liquid taken by freezing) could not feed.
+- latent-heating limiter: if the realized heating or cooling of all phase changes exceeds
+  `max_latent_heating_rate × Δt`, the vapor sources are scaled by `f_lim` and the decays of every
+  donor's terms that change phase by the factor `f_k` of [`_donor_limiter_scale`](@ref), which
+  scales their realized transfer by `f_lim`; transfers within one phase are not scaled.
+
+The second step applies both factors. Should the realized heating still exceed the bound
+(pools feeding each other) or the condensate grow by more than the available vapor, the
+substep tendencies and rates are scaled uniformly by `g_uniform` (heating and the vapor budget are
+linear in them, so both bounds are then met exactly; the condensate pools are non-negative by
+construction of the implicit decays). Negative species are clamped to zero on input.
 
 # Arguments
 - `q`: species, as a [`Condensates1M`](@ref) [kg/kg].
@@ -304,27 +365,98 @@ the vapor below the smaller of its saturation contents over liquid and over ice.
 - The other arguments are those of `_microphysics_source_terms`.
 
 # Returns
-- `(; dq_dt, rates)`: the tendencies, as a [`Condensates1M`](@ref) [kg/kg/s], and the rate
-  of each process from [`donor_rates`](@ref) [kg/kg/s].
+- `(; dq_dt, rates, α_cap, f_lim, g_uniform)`: the tendencies, as a [`Condensates1M`](@ref)
+  [kg/kg/s], the rate of each process from [`donor_rates`](@ref) [kg/kg/s], and the factors of
+  the vapor limiter, the heating limiter and the uniform scaling [-].
 """
 @inline function linearized_step_1m(mp::CMP.Microphysics1MParams, tps, ρ, T, w, q_tot, q, Δt)
     FT = eltype(q)
+    q = max.(q, zero(FT))   # non-negative pools (hosts may pass slightly negative reconstructed values)
     terms = _microphysics_source_terms(Microphysics1Moment(), mp, tps, ρ, T, w, q_tot, q...)
     q_min = TDI.TD.Parameters.q_min(tps)
     lin = donor_linearization(terms, q, q_min, Δt)
+    q1 = backward_euler_solve(lin, q, one(FT), Δt)
+    (; α_cap, f_lim, f_k) = _limiter_factors(mp, tps, terms, lin, q, q1, ρ, T, q_tot, q_min, Δt)
 
-    invΔt = one(FT) / Δt
-    # Cap vap→condensate sources jointly so the substep cannot drive
-    # `q_v` below `min(q_sat_liq, q_sat_ice)`. Preserves relative rates.
-    q_sat_min = min(
-        TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ),
-        TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ),
+    lin2 = donor_linearization(terms, q, q_min, Δt, f_k)
+    q2 = backward_euler_solve(lin2, q, α_cap * f_lim, Δt)
+    g_uniform = _uniform_scale(mp, tps, q, q2, q_tot, Δt)
+
+    dq_dt = (q2 - q) * (g_uniform / Δt)
+    rates = UU.unrolled_map(r -> g_uniform * r, donor_rates(terms, q, q2, α_cap * f_lim, q_min, Δt, f_k))
+    return (; dq_dt, rates, α_cap, f_lim, g_uniform)
+end
+
+"""
+    _limiter_factors(mp, tps, terms, lin, q, q1, ρ, T, q_tot, q_min, Δt)
+
+Factors of the vapor limiter and of the latent-heating limiter of `linearized_step_1m`,
+from the first backward Euler step `q1` of the linearization `lin` of `terms` at `q`:
+`(; α_cap, f_lim, f_k)`, the scale of the vapor sources, the scale of the realized heating,
+and the per-donor scale of the phase-change decays ([`_donor_limiter_scale`](@ref)).
+"""
+@inline function _limiter_factors(mp, tps, terms, lin, q, q1, ρ, T, q_tot, q_min, Δt)
+    FT = eltype(q)
+    ΔT1 = _latent_heating(q1 - q, tps)
+
+    # vapor limiter on the solved state: the sources may not leave less vapor than the lower
+    # saturation at the corrected temperature (linearized in ΔT); scaling the sources by α raises
+    # the vapor by (1-α) Σe and lowers the floor by (Γ_min-1)(1-α) Σe, hence Γ_min below
+    sf = _saturation_floor(tps, ρ, T, q)
+    q_v1 = q_tot - sum(q1)
+    gap = max(zero(FT), sf.q_smin + sf.λ_min * ΔT1 - q_v1)
+    e = Condensates1M(lin.e...)
+    Σe = sum(e) * Δt
+    α_cap = ifelse(Σe > sf.q_tol, max(zero(FT), one(FT) - gap / (sf.Γ_min * max(Σe, sf.q_tol))), one(FT))
+
+    # latent-heating limiter on the realized heating (after the vapor limiter)
+    ΔT_α = ΔT1 - (one(FT) - α_cap) * _latent_heating(e, tps) * Δt
+    ΔT_max = mp.max_latent_heating_rate * Δt
+    f_lim = ifelse(abs(ΔT_α) > ΔT_max, ΔT_max / max(abs(ΔT_α), eps(FT)), one(FT))
+    (Dpc, Dcol) = limiter_decay_totals(terms, q, q_min, Δt)
+    f_k = _donor_limiter_scale.(f_lim, Dpc, Dcol, Δt)
+    return (; α_cap, f_lim, f_k)
+end
+
+"""
+    _uniform_scale(mp, tps, q, q2, q_tot, Δt)
+
+Uniform scale `g_uniform` of the substep tendencies of `linearized_step_1m` after its second
+backward Euler step `q2`: the smaller of the scale that bounds the realized heating by
+`max_latent_heating_rate × Δt` and the scale that keeps the condensate from growing by more
+than the available vapor; 1 when neither bound is exceeded.
+"""
+@inline function _uniform_scale(mp, tps, q, q2, q_tot, Δt)
+    FT = eltype(q)
+    # the per-donor scaling is exact for a donor whose pool is not refilled by another phase change; when
+    # pools feed each other (rain freezing on ice while snow melts) the realized heating can still exceed the
+    # bound, in which case all substep tendencies are scaled uniformly to it (exact: heating is linear in them)
+    ΔT2 = _latent_heating(q2 - q, tps)
+    ΔT_max = mp.max_latent_heating_rate * Δt
+    g_heat = ifelse(abs(ΔT2) > ΔT_max, ΔT_max / max(abs(ΔT2), eps(FT)), one(FT))
+    # hard positivity guard for the vapor: the condensate may not grow by more than the vapor available
+    # (the condensate pools are non-negative by construction of the implicit decays)
+    Δq_cond = sum(q2 - q)
+    q_v0 = max(q_tot - sum(q), zero(FT))
+    g_vap = ifelse(Δq_cond > q_v0, q_v0 / max(Δq_cond, eps(FT)), one(FT))
+    return min(g_heat, g_vap)
+end
+
+"""
+    _linearized_implicit_step_factors(
+        ::Microphysics1Moment, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
     )
-    q_v = q_tot - q.q_lcl - q.q_icl - q.q_rai - q.q_sno
-    α = min(one(FT), max(zero(FT), q_v - q_sat_min) * invΔt / max(sum(lin.e), eps(FT)))
 
-    q_new = backward_euler_solve(lin, q, α, Δt)
-    return (; dq_dt = (q_new - q) * invΔt, rates = donor_rates(terms, q, q_new, α, q_min, Δt))
+The tendencies of `linearized_step_1m` as `rates = (; dq_lcl_dt, dq_icl_dt, dq_rai_dt, dq_sno_dt)`
+[kg/kg/s] together with its factors `α_cap`, `f_lim` and `g_uniform` (for tests).
+"""
+@inline function _linearized_implicit_step_factors(
+    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt::AbstractFloat,
+)
+    q = Condensates1M(q_lcl, q_icl, q_rai, q_sno)
+    (; dq_dt, rates, α_cap, f_lim, g_uniform) = linearized_step_1m(mp, tps, ρ, T, w, q_tot, q, Δt)
+    return (; rates = _output_1m(LinearizedAverage(), dq_dt, rates), α_cap, f_lim, g_uniform)
 end
 
 """
@@ -353,13 +485,9 @@ return them as `(; q, T, increments)` with the increment of each process [kg/kg]
 The temperature changes by the latent heat of the species increments.
 """
 @inline function _substep_1m(mp, tps, ρ, T, w, q_tot, q, Δt_sub)
-    cp_d = TDI.TD.Parameters.cp_d(tps)
-    Lv = TDI.TD.Parameters.LH_v0(tps)
-    Ls = TDI.TD.Parameters.LH_s0(tps)
     (; dq_dt, rates) = linearized_step_1m(mp, tps, ρ, T, w, q_tot, q, Δt_sub)
-    (; q_lcl, q_rai, q_icl, q_sno) = dq_dt
     q += dq_dt * Δt_sub
-    T += (Lv * (q_lcl + q_rai) + Ls * (q_icl + q_sno)) / cp_d * Δt_sub
+    T += _latent_heating(dq_dt, tps) * Δt_sub
     return (; q, T, increments = UU.unrolled_map(r -> r * Δt_sub, rates))
 end
 
@@ -453,7 +581,8 @@ implicit substeps.
 
 The interval `Δt` is divided into `nsub` equal substeps. At each substep, the
 linearized tendency is rebuilt from the current state and solved implicitly for cloud
-liquid, cloud ice, rain, and snow. Temperature is then updated from the latent
+liquid, cloud ice, rain, and snow, with a vapor limiter and a latent-heating limiter
+(`linearized_step_1m`). Temperature is then updated from the latent
 heating implied by the substep tendencies. Increasing `nsub` improves how well the method
 captures nonlinear changes in the active microphysical processes, including regime changes
 near freezing.
