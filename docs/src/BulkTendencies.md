@@ -189,12 +189,12 @@ The code integrates the equation for the phase with the larger $\Gamma c$, which
 The average never crosses the equilibrium $A\tau$, so the transfers cannot overshoot the joint saturation for any $\Delta t/\tau$.
 $\Delta s$, the $\Gamma$ factors and the coefficients are held at their start-of-substep values.
 
-The four transfers enter the linearization as prescribed transfers (`VaporTransfer`): a positive $\Delta q$ is a source $\Delta q/\Delta t$ in $e$, a negative one the matched decay of the previous section.
+The four transfers solved this way enter the linearization as `JointVaporTransfer` terms: a positive $\Delta q$ is a source $\Delta q/\Delta t$ in $e$, a negative one the matched decay of the previous section.
 
-For comparison runs, `Microphysics1MParams.joint_vapor_relaxation = false`
-(a constructor keyword, `true` by default; the host exposes it as a model
-configuration option) replaces the joint transfers by the single-process
-transfers of each process ($S\,\tau_p\,(1 - e^{-\Delta t/\tau_p})$ for the cloud
+For comparison runs, the option `vapor_relaxation = PerProcessVaporRelaxation()` of
+`Microphysics1MOptions` (default `JointVaporRelaxation()`; a model configuration choice
+that the host exposes like the other process options) leaves the per-process terms of the
+previous section in place ($S\,\tau_p\,(1 - e^{-\Delta t/\tau_p})$ for the cloud
 condensates, the implicit decay or constant source of an exchange for rain and snow)
 under the same limiters. With several fast processes on the same excess that branch
 alternates between substeps: on the glaciating-updraft test state it deposits 1.30 K
@@ -455,7 +455,7 @@ This is consistent with the microphysics-only update and avoids coupling to a fu
 | Transfer                | `Transfer(:Donor => :Receiver, S)`    | `Transfer(:q_lcl => :q_rai, S)`, autoconversion |
 | Exchange with the vapor | `VaporExchange(:Condensate, S)`       | `VaporExchange(:q_sno, S)`, deposition on snow  |
 | Relaxation              | `VaporRelaxation(:Condensate, S, τ)`  | `VaporRelaxation(:q_lcl, S, τ)`, condensation   |
-| Prescribed transfer     | `VaporTransfer(:Condensate, Δq)`      | the joint relaxation's transfers in the substep |
+| Joint relaxation        | `JointVaporTransfer(:Condensate, Δq)` | the transfer solved by the joint relaxation     |
 
 To add a process to the 1-moment scheme, compute its rate in `Microphysics1M` and add its term to `_microphysics_source_terms`.
 The instantaneous tendencies, the entries of $M$ and $e$, the rate of the process in the verbose modes and its treatment by the latent-heating limiter follow from the term: a transfer between a liquid and an ice species (`:q_lcl`, `:q_rai` versus `:q_icl`, `:q_sno`) and every exchange with the vapor change phase.

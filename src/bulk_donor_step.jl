@@ -81,12 +81,12 @@ Whether `term` releases or absorbs latent heat: every exchange with the vapor do
 riming); a transfer within one phase (autoconversion, accretion, shedding) does not.
 """
 @inline _changes_phase(::Transfer{Donor, Receiver}) where {Donor, Receiver} = _is_ice(Donor) != _is_ice(Receiver)
-@inline _changes_phase(::Union{VaporExchange, VaporRelaxation, VaporTransfer}) = true
+@inline _changes_phase(::Union{VaporExchange, VaporRelaxation, JointVaporTransfer}) = true
 
 # decay scale of a term: the limiter factor `f_k` of its donor for the terms that change phase, 1 otherwise
 @inline _decay_scale(t::Transfer{Donor}, f_k) where {Donor} = ifelse(_changes_phase(t), f_k[Donor], one(f_k[Donor]))
 @inline _decay_scale(
-    ::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, VaporTransfer{Condensate}},
+    ::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, JointVaporTransfer{Condensate}},
     f_k,
 ) where {Condensate} =
     f_k[Condensate]
@@ -105,7 +105,7 @@ with the source `s` [kg/kg/s] and the decay `D` [1/s]:
 - `VaporRelaxation(:Condensate, S, τ)`: the transfer over the substep is
   `Δq = S τ (1 - exp(-Δt/τ))`; `s = Δq / Δt` if `Δq ≥ 0`, and
   `D = -Δq / (max(q[Condensate] + Δq, q_min) Δt)` otherwise.
-- `VaporTransfer(:Condensate, Δq)`: the same with the prescribed transfer `Δq`.
+- `JointVaporTransfer(:Condensate, Δq)`: the same with the transfer `Δq` solved by the joint relaxation.
 
 The optional `f_k`, a state like `q`, scales the decay `D` of a term that changes phase
 (`_changes_phase`) by the entry of its donor; it holds the per-donor factors of the
@@ -124,7 +124,7 @@ end
     Δq = _relaxation_transfer(t.S, t.τ, Δt)
     return _transfer_coefficients(Δq, q[Condensate], q_min, Δt, _decay_scale(t, f_k))
 end
-@inline donor_coefficients(t::VaporTransfer{Condensate}, q, q_min, Δt, f_k = one.(q)) where {Condensate} =
+@inline donor_coefficients(t::JointVaporTransfer{Condensate}, q, q_min, Δt, f_k = one.(q)) where {Condensate} =
     _transfer_coefficients(t.Δq, q[Condensate], q_min, Δt, _decay_scale(t, f_k))
 # source and matched decay of a transfer `Δq` over the substep, the decay scaled by `f`: the unscaled
 # decay removes exactly `|Δq|` when acting alone (the `q_min` floor keeps it finite when the whole pool is removed)
@@ -140,7 +140,8 @@ end
     return nothing
 end
 @inline function _add_donor_term!(
-    lin, t::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, VaporTransfer{Condensate}}, q, q_min, Δt, f_k,
+    lin, t::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, JointVaporTransfer{Condensate}}, q, q_min, Δt,
+    f_k,
 ) where {Condensate}
     (s, D) = donor_coefficients(t, q, q_min, Δt, f_k)
     lin[Condensate] += s
@@ -193,7 +194,8 @@ end
     )
 end
 @inline function _add_decay_total(
-    (Dpc, Dcol), t::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, VaporTransfer{Condensate}}, q, q_min,
+    (Dpc, Dcol), t::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, JointVaporTransfer{Condensate}}, q,
+    q_min,
     Δt,
 ) where {Condensate}
     (_, D) = donor_coefficients(t, q, q_min, Δt)
@@ -235,7 +237,8 @@ With the coefficients of [`donor_coefficients`](@ref) (scaled by the optional `f
     return D * q_new[Donor]
 end
 @inline function _donor_rate(
-    t::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, VaporTransfer{Condensate}}, q, q_new, α, q_min, Δt,
+    t::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, JointVaporTransfer{Condensate}}, q, q_new, α,
+    q_min, Δt,
     f_k,
 ) where {Condensate}
     (s, D) = donor_coefficients(t, q, q_min, Δt, f_k)

@@ -310,11 +310,11 @@ Compute one linearized substep of width `Δt` for the 1-moment species `q`.
 The substep returns the time-averaged tendencies of the species, the rate of each process
 over the substep, and the factors of its limiters.
 
-The four vapor-driven phase changes enter the linearization through their transfers over
-the substep ([`VaporTransfer`](@ref)): one joint, Γ-consistent relaxation of the shared
-vapor excess (`_joint_vapor_transfers`, Morrison & Milbrandt 2015, Appendix C), or, with
-`mp.joint_vapor_relaxation = false`, the per-process transfers of
-`_independent_vapor_transfers`. Two backward Euler steps are then taken. The first, with
+With the default option `JointVaporRelaxation` the four vapor-driven phase changes enter
+the linearization through the transfers solved by one joint, Γ-consistent relaxation of the
+shared vapor excess (`_joint_vapor_transfers`, Morrison & Milbrandt 2015, Appendix C), as
+[`JointVaporTransfer`](@ref) terms; with `PerProcessVaporRelaxation` the per-process terms
+stay as they are (`_vapor_terms`). Two backward Euler steps are then taken. The first, with
 the donor-based linearization of the terms, gives the realized transfers and the realized
 heating of all phase changes (with the latent-heat factors of the substep temperature
 update, `_latent_heating`). From them:
@@ -350,25 +350,10 @@ construction of the implicit decays). Negative species are clamped to zero on in
     q = max.(q, zero(FT))   # non-negative pools (hosts may pass slightly negative reconstructed values)
     terms = _microphysics_source_terms(Microphysics1Moment(), mp, tps, ρ, T, w, q_tot, q...)
     q_min = TDI.TD.Parameters.q_min(tps)
-    # transfers of the four vapor-driven phase changes over the substep, jointly or one process at
-    # a time; they replace the rate terms of these processes in the linearization
-    jv = if mp.joint_vapor_relaxation
-        _joint_vapor_transfers(terms, tps, ρ, T, q_tot, q..., Δt)
-    else
-        _independent_vapor_transfers(terms, tps, ρ, T, q_tot, q..., q_min, Δt)
-    end
-    terms = merge(
-        terms,
-        (;
-            S_phase_change_vap_lcl = VaporTransfer(:q_lcl, jv.Δq_lcl),
-            S_phase_change_vap_icl = VaporTransfer(:q_icl, jv.Δq_icl),
-            S_phase_change_vap_rai = VaporTransfer(:q_rai, jv.Δq_rai),
-            S_phase_change_vap_sno = VaporTransfer(:q_sno, jv.Δq_sno),
-        ),
-    )
+    (terms, sf) = _vapor_terms(mp.processes.vapor_relaxation, terms, tps, ρ, T, q_tot, q, Δt)
     lin = donor_linearization(terms, q, q_min, Δt)
     q1 = backward_euler_solve(lin, q, one(FT), Δt)
-    (; α_cap, f_lim, f_k) = _limiter_factors(mp, tps, terms, lin, q, q1, jv, q_tot, q_min, Δt)
+    (; α_cap, f_lim, f_k) = _limiter_factors(mp, tps, terms, lin, q, q1, sf, q_tot, q_min, Δt)
 
     lin2 = donor_linearization(terms, q, q_min, Δt, f_k)
     q2 = backward_euler_solve(lin2, q, α_cap * f_lim, Δt)
@@ -377,6 +362,33 @@ construction of the implicit decays). Negative species are clamped to zero on in
     dq_dt = (q2 - q) * (g_uniform / Δt)
     rates = UU.unrolled_map(r -> g_uniform * r, donor_rates(terms, q, q2, α_cap * f_lim, q_min, Δt, f_k))
     return (; dq_dt, rates, α_cap, f_lim, g_uniform)
+end
+
+"""
+    _vapor_terms(coupling, terms, tps, ρ, T, q_tot, q, Δt)
+
+The process terms of the substep and the saturation quantities of the vapor limiter
+(`q_smin`, `λ_min`, `Γ_min`, `q_tol`), for the `VaporRelaxationCoupling` option `coupling`:
+with `JointVaporRelaxation` the four vapor-driven phase changes are replaced by the
+[`JointVaporTransfer`](@ref) terms solved by `_joint_vapor_transfers`; with
+`PerProcessVaporRelaxation` the terms are returned unchanged.
+"""
+@inline function _vapor_terms(::CMP.JointVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
+    jv = _joint_vapor_transfers(terms, tps, ρ, T, q_tot, q..., Δt)
+    terms = merge(
+        terms,
+        (;
+            S_phase_change_vap_lcl = JointVaporTransfer(:q_lcl, jv.Δq_lcl),
+            S_phase_change_vap_icl = JointVaporTransfer(:q_icl, jv.Δq_icl),
+            S_phase_change_vap_rai = JointVaporTransfer(:q_rai, jv.Δq_rai),
+            S_phase_change_vap_sno = JointVaporTransfer(:q_sno, jv.Δq_sno),
+        ),
+    )
+    return (terms, (; jv.q_smin, jv.λ_min, jv.Γ_min, jv.q_tol))
+end
+@inline function _vapor_terms(::CMP.PerProcessVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
+    st = _saturation_state(tps, ρ, T, q_tot, q...)
+    return (terms, (; st.q_smin, st.λ_min, st.Γ_min, st.q_tol))
 end
 
 """
@@ -574,8 +586,8 @@ implicit substeps.
 The interval `Δt` is divided into `nsub` equal substeps. At each substep, the
 linearized tendency is rebuilt from the current state and solved implicitly for cloud
 liquid, cloud ice, rain, and snow, with a vapor limiter and a latent-heating limiter
-(`linearized_step_1m`), the vapor-driven phase changes relaxed jointly unless
-`mp.joint_vapor_relaxation = false`. Temperature is then updated from the latent
+(`linearized_step_1m`), the vapor-driven phase changes relaxed jointly unless the option
+`vapor_relaxation = PerProcessVaporRelaxation()` is selected. Temperature is then updated from the latent
 heating implied by the substep tendencies. Increasing `nsub` improves how well the method
 captures nonlinear changes in the active microphysical processes, including regime changes
 near freezing.

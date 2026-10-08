@@ -61,11 +61,6 @@ directly.
 - `max_latent_heating_rate::FT`: bound on the latent heating or cooling rate of the phase
   changes within a substep of the `LinearizedAverage` solver [K/s], from ClimaParams
   `microphysics_max_latent_heating_rate` (`inf` disables the limiter; must be positive)
-- `joint_vapor_relaxation::Bool`: whether the `LinearizedAverage` solver treats the vapor-driven
-  phase changes as one joint relaxation of the vapor excess (`true`, default) or relaxes each
-  process on its own from the initial excess (`false`, the transfers of the previous solver under
-  the same vapor check and limiter, for comparison runs); a model configuration choice set by the
-  host through the constructor keyword, not a ClimaParams parameter
 
 # Constructors
 
@@ -99,7 +94,6 @@ mp = CMP.Microphysics1MParams(Float64;
     "Upper bound on the latent heating or cooling rate of all phase changes within a substep [K/s]; `Inf` disables the limiter"
     max_latent_heating_rate::FT
     "Whether the `LinearizedAverage` solver relaxes all vapor-driven phase changes jointly (`true`) or one process at a time (`false`)"
-    joint_vapor_relaxation::Bool
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -112,12 +106,10 @@ Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 
 # Arguments
 - `toml_dict`: ClimaParams parameter dictionary
-- `joint_vapor_relaxation`: see the struct docstring (default `true`)
 - `options_kwargs...`: Keyword arguments forwarded to `Microphysics1MOptions`
 """
 function Microphysics1MParams(
     toml_dict::CP.ParamDict;
-    joint_vapor_relaxation::Bool = true,
     options_kwargs...,
 )
     processes = Microphysics1MOptions(; options_kwargs...)
@@ -141,7 +133,6 @@ function Microphysics1MParams(
                 "CloudMicrophysics",
             ).microphysics_max_latent_heating_rate,
         ),
-        joint_vapor_relaxation,
     )
 end
 

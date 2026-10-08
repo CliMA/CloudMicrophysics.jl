@@ -3,15 +3,6 @@
 #####
 
 """
-    _decay_transfer(D, q, Δt)
-
-Transfer over the substep of the implicit decay `-D q` acting alone on the pool `q`:
-`q D Δt / (1 + D Δt)`, the amount the backward Euler step removes; it tends to `q D Δt` for
-`D Δt ≪ 1` and never exceeds `q`.
-"""
-@inline _decay_transfer(D, q, Δt) = q * D * Δt / (one(D) + D * Δt)
-
-"""
     _relaxation_coefficient(S, τ, Γ, δ, tol)
 
 Coefficient `c` of a vapor ↔ cloud-condensate phase change written as `rate = c δ`, with `δ`
@@ -119,36 +110,6 @@ capacity of the rate functions.
     # one ulp of the saturation content: excesses and source sums below it cannot be told from zero
     q_tol = eps(FT) * max(q_sl, q_si)
     return (; qᵥ, q_sl, q_si, Γₗ, Γᵢ, κ_il, κ_li, q_smin, λ_min, Γ_min, q_tol)
-end
-
-"""
-    _independent_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
-
-Transfers over the substep of the four vapor-driven phase changes with each process relaxing
-on its own from the initial excess (`joint_vapor_relaxation = false`), with the same math as
-CloudMicrophysics 0.40 to 0.44: the cloud-liquid and cloud-ice transfers are the single-process
-time averages `S τ (1 - e^{-Δt/τ})` (`_relaxation_transfer`), rain evaporation and snow
-sublimation are the transfers realized by the implicit decay `D = |S| / max(q_min, q)` acting
-alone (`_decay_transfer`, so that the matched decay of `_linearize` reproduces that decay
-exactly), and snow deposition is the constant source `S Δt`; here under the same vapor limiter,
-latent-heating limiter and positivity guard as the joint relaxation. Kept for comparison runs;
-with several fast processes competing for the same excess the processes do not see each other's
-latent heat and vapor uptake, which the joint relaxation corrects. Returns the same named tuple
-as `_joint_vapor_transfers`.
-"""
-@inline function _independent_vapor_transfers(src, tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, q_min, Δt)
-    st = _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
-    Δq_lcl = max(_relaxation_transfer(src.S_phase_change_vap_lcl.S, src.S_phase_change_vap_lcl.τ, Δt), -q_lcl)
-    Δq_icl = max(_relaxation_transfer(src.S_phase_change_vap_icl.S, src.S_phase_change_vap_icl.τ, Δt), -q_icl)
-    S_rai = src.S_phase_change_vap_rai.S   # evaporation only (≤ 0)
-    S_sno = src.S_phase_change_vap_sno.S
-    Δq_rai = -_decay_transfer(-S_rai / max(q_min, q_rai), q_rai, Δt)
-    Δq_sno = ifelse(
-        S_sno >= zero(S_sno),
-        S_sno * Δt,
-        -_decay_transfer(-S_sno / max(q_min, q_sno), q_sno, Δt),
-    )
-    return (; Δq_lcl, Δq_rai, Δq_icl, Δq_sno, st.q_smin, st.λ_min, st.Γ_min, st.q_tol)
 end
 
 """

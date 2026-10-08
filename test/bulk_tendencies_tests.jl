@@ -20,7 +20,8 @@ function stiff_prescribed_ice_params(FT; max_latent_heating_rate = Inf, N_0 = 5.
     )
     τ_liq === nothing || (override["condensation_evaporation_timescale"] = Dict("value" => τ_liq, "type" => "float"))
     td = CP.create_toml_dict(FT; override_file = override)
-    return CMP.Microphysics1MParams(td; cloud_ice_formation = CMP.PrescribedIceNumber(), joint_vapor_relaxation = joint)
+    vapor_relaxation = joint ? CMP.JointVaporRelaxation() : CMP.PerProcessVaporRelaxation()
+    return CMP.Microphysics1MParams(td; cloud_ice_formation = CMP.PrescribedIceNumber(), vapor_relaxation)
 end
 
 """
@@ -1044,10 +1045,10 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         terms = merge(
             src,
             (;
-                S_phase_change_vap_lcl = BMT.VaporTransfer(:q_lcl, jv.Δq_lcl),
-                S_phase_change_vap_icl = BMT.VaporTransfer(:q_icl, jv.Δq_icl),
-                S_phase_change_vap_rai = BMT.VaporTransfer(:q_rai, jv.Δq_rai),
-                S_phase_change_vap_sno = BMT.VaporTransfer(:q_sno, jv.Δq_sno),
+                S_phase_change_vap_lcl = BMT.JointVaporTransfer(:q_lcl, jv.Δq_lcl),
+                S_phase_change_vap_icl = BMT.JointVaporTransfer(:q_icl, jv.Δq_icl),
+                S_phase_change_vap_rai = BMT.JointVaporTransfer(:q_rai, jv.Δq_rai),
+                S_phase_change_vap_sno = BMT.JointVaporTransfer(:q_sno, jv.Δq_sno),
             ),
         )
         lin = BMT.donor_linearization(terms, BMT.Condensates1M(q_lcl, q_icl, q_rai, q_sno), q_min, Δt)
@@ -1708,15 +1709,11 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
 
     @testset "joint relaxation helpers: decay transfer, averaged excess, coefficients" begin
         Δt = FT(60)
-        # implicit decay transfer q D Δt / (1 + D Δt): recovers the explicit amount for D Δt ≪ 1, never exceeds the pool
-        @test BMT._decay_transfer(FT(1e-4), FT(1e-3), Δt) ≈ FT(1e-3) * FT(1e-4) * Δt rtol = FT(1e-2)
-        @test BMT._decay_transfer(FT(1e3), FT(1e-3), Δt) < FT(1e-3)
-        @test BMT._decay_transfer(FT(0), FT(1e-3), Δt) == FT(0)
-        # matched decay of a prescribed transfer removes exactly |Δq| when acting alone
+        # matched decay of a solved transfer removes exactly |Δq| when acting alone (backward Euler removes q D Δt / (1 + D Δt))
         q, Δq = FT(1e-3), FT(-4e-4)
         (s_src, D) = BMT._transfer_coefficients(Δq, q, FT(1e-12), Δt)
         @test s_src == FT(0)
-        @test BMT._decay_transfer(D, q, Δt) ≈ -Δq rtol = FT(1e-5)
+        @test q * D * Δt / (1 + D * Δt) ≈ -Δq rtol = FT(1e-5)
         @test BMT._transfer_coefficients(-Δq, q, FT(1e-12), Δt) == (-Δq / Δt, FT(0))   # a source has no decay
         # exact time average of dδ/dt = A - δ/τ (MM15 C5)
         δ₀, A, τ = FT(1e-3), FT(-2e-6), FT(20)
@@ -2108,14 +2105,15 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test q_v ≈ TDI.saturation_vapor_specific_content_over_ice(tps, T + heating(r0), ρ) rtol = FT(2e-2)
     end
 
-    @testset "LinearizedAverage - per-process relaxation option (joint_vapor_relaxation = false)" begin
-        # plumbing: constructor keyword (a model configuration choice of the host), default true
+    @testset "LinearizedAverage - per-process relaxation option (PerProcessVaporRelaxation)" begin
+        # plumbing: an option of Microphysics1MOptions (a model configuration choice of the host), default joint
         td = CP.create_toml_dict(
             FT;
             override_file = Dict("microphysics_max_latent_heating_rate" => Dict("value" => Inf, "type" => "float")),
         )
-        @test CMP.Microphysics1MParams(td).joint_vapor_relaxation == true
-        @test CMP.Microphysics1MParams(td; joint_vapor_relaxation = false).joint_vapor_relaxation == false
+        @test CMP.Microphysics1MParams(td).processes.vapor_relaxation isa CMP.JointVaporRelaxation
+        @test CMP.Microphysics1MParams(td; vapor_relaxation = CMP.PerProcessVaporRelaxation()).processes.vapor_relaxation isa
+              CMP.PerProcessVaporRelaxation
         mp_j = stiff_prescribed_ice_params(FT)
         mp_i = stiff_prescribed_ice_params(FT; joint = false)
         Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
