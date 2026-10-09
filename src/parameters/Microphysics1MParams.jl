@@ -107,7 +107,10 @@ Create a `Microphysics1MParams` object from a ClimaParams TOML dictionary.
 - `toml_dict`: ClimaParams parameter dictionary
 - `options_kwargs...`: Keyword arguments forwarded to `Microphysics1MOptions`
 """
-function Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
+function Microphysics1MParams(
+    toml_dict::CP.ParamDict;
+    options_kwargs...,
+)
     processes = Microphysics1MOptions(; options_kwargs...)
     return Microphysics1MParams(;
         processes,
@@ -131,6 +134,7 @@ function Microphysics1MParams(toml_dict::CP.ParamDict; options_kwargs...)
         ),
     )
 end
+
 
 function _validated_max_latent_heating_rate(rate)
     rate > 0 || throw(

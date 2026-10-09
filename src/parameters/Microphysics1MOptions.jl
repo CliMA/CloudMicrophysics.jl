@@ -17,6 +17,8 @@ export Microphysics1MOptions,
     SnowDepositionSublimation,
     SublimationOnly,
     DepositionAndSublimation,
+    JointVaporRelaxation,
+    PerProcessVaporRelaxation,
     SnowMelt,
     CloudLiquidRainAccretion,
     CloudLiquidSnowAccretion,
@@ -243,6 +245,21 @@ struct SublimationOnly <: SnowDepositionSublimation end
 """Both sublimation (S < 0) and deposition (S > 0) in the Marshall-Palmer integral."""
 struct DepositionAndSublimation <: SnowDepositionSublimation end
 
+"""
+    JointVaporRelaxation <: MicrophysicsOption
+
+The four vapor-driven phase changes relax the shared vapor excess together, with the latent
+heat and vapor uptake of all of them (Morrison & Milbrandt 2015, Appendix C); the default.
+"""
+struct JointVaporRelaxation <: MicrophysicsOption end
+
+"""
+    PerProcessVaporRelaxation <: MicrophysicsOption
+
+Each vapor-driven phase change relaxes on its own from the initial excess.
+"""
+struct PerProcessVaporRelaxation <: MicrophysicsOption end
+
 # ═══════════════════════════════════════════════════════════════════
 # Single-variant on/off processes (concrete type = process name)
 # ═══════════════════════════════════════════════════════════════════
@@ -285,12 +302,14 @@ struct HomogeneousAndHeterogeneous <: MicrophysicsOption end
 # ═══════════════════════════════════════════════════════════════════
 
 """
-    Microphysics1MOptions{CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA}
+    Microphysics1MOptions{CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA, VRC}
 
 Process configuration for 1-moment microphysics.
 
 Each field selects a process variant (a concrete `MicrophysicsOption` subtype).
-Set any field to `nothing` to disable that process entirely.
+Set any field to `nothing` to disable that process entirely. The last field,
+`vapor_relaxation`, selects how the substep solver couples the vapor-driven phase changes
+([`JointVaporRelaxation`](@ref) or [`PerProcessVaporRelaxation`](@ref)).
 
 # Example
 ```julia
@@ -310,7 +329,7 @@ opts = CMP.Microphysics1MOptions(; rain_autoconversion = CMP.PrescribedNd())
 ```
 """
 @kwdef struct Microphysics1MOptions{
-    CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA,
+    CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA, VRC,
 }
     "cloud liquid formation option"
     cloud_liquid_formation::CLF = CloudLiquidFormation()
@@ -340,6 +359,8 @@ opts = CMP.Microphysics1MOptions(; rain_autoconversion = CMP.PrescribedNd())
     cloud_ice_snow_accretion::CISA = CloudIceSnowAccretion()
     "rain-snow collisions option"
     rain_snow_accretion::RSA = RainSnowAccretion()
+    "coupling of the vapor-driven phase changes in the substep solver"
+    vapor_relaxation::VRC = JointVaporRelaxation()
 end
 
 # ═══════════════════════════════════════════════════════════════════
