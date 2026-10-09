@@ -215,10 +215,10 @@ function test_shape_solver(FT)
         params = CMP.ParametersP3(FT; slope)
 
         @testset "Shape parameters - nonlinear solver" begin
-            # -- First, test limiting behavior: `N_ice = L_ice = 0` --
+            # -- First, test limiting behavior: `N_ice = L_ice = 0` gives the upper bound --
             state = P3.P3State(params, FT(0), FT(0), FT(0.5), FT(500))
             logλ = P3.get_distribution_logλ(state)
-            @test logλ == -Inf
+            @test logλ == P3._logλ_max(params)
             # --
 
             # initialize test values:
@@ -271,11 +271,9 @@ function test_shape_solver(FT)
             # interval into a region where `logLdivN` is not finite. The
             # bracketing `BrentsMethod` must return a finite, positive
             # `logλ` strictly inside the search bounds.
-            logλ = P3.get_distribution_logλ(
-                P3.P3State(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800)),
-            )
-            @test isfinite(logλ)
-            @test FT(2) < logλ < FT(17)
+            state_regr = P3.P3State(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800))
+            logλ = P3.get_distribution_logλ(state_regr)
+            @test FT(2) < logλ < P3._logλ_max(params)
 
             # Broader sweep covering typical P3 microphysics inputs.
             # All entries must give a finite `logλ` within the search bounds.
@@ -283,16 +281,91 @@ function test_shape_solver(FT)
                 for N_ice in (FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))
                     for F_rim in (FT(0), FT(0.2), FT(0.5), FT(0.8), FT(0.95))
                         for ρ_rim in (FT(200), FT(400), FT(600), FT(800))
-                            logλ = P3.get_distribution_logλ(
-                                P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim),
-                            )
-                            @test isfinite(logλ)
-                            @test FT(2) ≤ logλ ≤ FT(17)
+                            state_sweep = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
+                            logλ = P3.get_distribution_logλ(state_sweep)
+                            @test FT(2) ≤ logλ ≤ P3._logλ_max(params)
                         end
                     end
                 end
             end
         end
+    end
+
+    @testset "Upper bound of the shape solve" begin
+        # At the bound, the mean particle mass is that of a newly nucleated crystal
+        for slope in (CMP.SlopeConstant(FT), CMP.SlopePowerLaw(FT), CMP.SmoothSlopePowerLaw(FT))
+            params = CMP.ParametersP3(FT; slope)
+            state = P3.P3State(params, FT(1), FT(1), FT(0), FT(500))
+            m_nuc = params.ρ_i * FT(π) / 6 * params.D_nuc^3
+            @test P3.logLdivN(state, P3._logλ_max(params)) ≈ log(m_nuc) rtol = 8 * eps(FT)
+        end
+    end
+
+    @testset "Shape solver and size distribution without ice mass or number" begin
+        params = CMP.ParametersP3(FT)
+        (lo, hi) = (FT(2), P3._logλ_max(params))
+        state(q, n) = P3.P3State(params, q, n, FT(0.5), FT(500))
+        logλ(q, n) = P3.get_distribution_logλ(state(q, n))
+        N′(q, n) = P3.size_distribution(state(q, n), FT(10))(FT(1e-4))
+
+        # No mass gives the smallest particles, and mass without number the largest
+        @test logλ(FT(0), FT(0)) == hi
+        @test logλ(FT(0), FT(1e6)) == hi
+        @test logλ(FT(1e-4), FT(0)) == lo
+        # A subnormal mass counts as zero
+        @test logλ(nextfloat(FT(0)), FT(1e3)) == hi
+        # Without a root in the bounds, the nearer bound
+        @test logλ(FT(1e-20), FT(1e6)) == hi
+        @test logλ(FT(1e-4), FT(1e-20)) == lo
+        # Without number, the distribution is zero
+        @test iszero(N′(FT(1e-4), FT(0)))
+
+        # A dual number with a zero value is also empty, although ForwardDiff compares it as
+        # greater than zero when its partials are positive
+        dual0 = FD.Dual(FT(0), FT(1))
+        @test FD.value(logλ(dual0, FT(1e6))) == hi
+        @test FD.value(logλ(FT(1e-4), dual0)) == lo
+        @test isfinite(FD.derivative(x -> logλ(x, FT(1e6)), FT(0)))
+        @test isfinite(FD.derivative(x -> logλ(FT(1e-4), x), FT(0)))
+        @test isfinite(FD.derivative(x -> N′(FT(1e-4), x), FT(0)))
+    end
+
+    # The `N ≈ ∫N′ dD` checks hold for any root, since `logN₀` follows from `logλ`, so the
+    # residual is tested directly. `logLdivN` is the log of the mean particle mass, so `expm1` of
+    # the residual is its relative error. The states are heavily rimed small ice at low rime density.
+    @testset "Shape solver residual at the hard states" begin
+        L_ice = FT(1e-4)
+        for slope in (CMP.SlopeConstant(FT), CMP.SlopePowerLaw(FT), CMP.SmoothSlopePowerLaw(FT))
+            params = CMP.ParametersP3(FT; slope)
+            for m̄ in FT.((1e-9, 1e-10, 1e-8)),
+                F_rim in FT.((0.9, 0.99)),
+                ρ_rim in FT.((50, 200, 900))
+
+                state = P3.P3State(params, L_ice, L_ice / m̄, F_rim, ρ_rim)
+                logλ = P3.get_distribution_logλ(state)
+                @test FT(2) < logλ < P3._logλ_max(params)
+                target = log(state.ρq_ice) - log(state.ρn_ice)
+                residual = P3.logLdivN(state, logλ) - target
+                @test abs(expm1(residual)) < 256 * eps(FT)
+            end
+        end
+    end
+
+    @testset "loggamma_inc_moment cancellation term" begin
+        # For close diameters, `Δq` can round to zero or below
+        D₁ = FT(1e-4)
+        D₂ = nextfloat(D₁)
+        for μ in FT.((0, 2, 6)), logλ in FT.((5, 10, 15)), k in (0, 2)
+            val = P3.loggamma_inc_moment(D₁, D₂, μ, logλ, k)
+            @test !isnan(val)
+            d = FD.derivative(x -> P3.loggamma_inc_moment(D₁, x, μ, logλ, k), D₂)
+            @test !isnan(d)
+        end
+
+        # An empty segment, such as [D_gr, D_cr] = [Inf, Inf] for unrimed ice, contributes
+        # nothing, with zero derivatives
+        @test P3.loggamma_inc_moment(D₁, D₁, FT(2), FT(10)) == -Inf
+        @test iszero(FD.derivative(x -> P3.loggamma_inc_moment(D₁, D₁, FT(2), x), FT(10)))
     end
 end
 
