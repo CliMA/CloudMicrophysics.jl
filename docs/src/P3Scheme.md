@@ -328,18 +328,24 @@ typically with lower and upper limiters. In [MorrisonMilbrandt2015](@cite), the 
     6 & \text{if } μ > 6
 \end{cases}
 ```
-which looks like this:
+This hard-limited form is compared here with the smooth form, `SmoothSlopePowerLaw`, which `ParametersP3` uses by default:
 
 ```@example
 include("plots/P3SlopeParameterizations.jl")
 
 nothing # hide
 ```
-![](P3SlopeParameterizations_power_law.svg)
+![](P3SlopeParameterizations_slope_laws.svg)
 
-With this choice, it appears that some values of $\log(L/N)$ gives rise to multiple solutions for $λ$, as seen in the plot below. Each vertical line shows a different solution for $λ$ for a given value of $\log(L/N)$. The right panel shows the number concentration distribution $N'(D)$ for the different solutions.
+The vertical lines mark the transitions in the hard-limited relation.
+
+For the ice state shown here, the hard limits give three solutions for $\lambda$ at the same $\log(L/N)$.
+The smooth form gives one solution.
+The left panel marks the roots of each shape residual, and the right panel shows the corresponding number distributions $N'(D)$.
 
 ![](P3SlopeParameterizations_multiple_solutions.svg)
+
+The smooth form replaces the hard limits with smooth transitions, because the lower limit can make $\log(L/N)$ nonmonotonic in $\lambda$.
 
 #### $μ$ as a constant
 
