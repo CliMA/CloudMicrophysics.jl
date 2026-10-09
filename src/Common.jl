@@ -382,8 +382,11 @@ function Chen2022VelocityCurve(ai::NTuple{N, Any}, bi::NTuple{N, Any}, ci::NTupl
     FT = promote_type(map(typeof, ai)..., map(typeof, bi)..., map(typeof, ci)...)
     return Chen2022VelocityCurve{N, FT}(map(FT, ai), map(FT, bi), map(FT, ci))
 end
-@inline (v::Chen2022VelocityCurve)(D) =
-    unrolled_sum(abc -> abc[1] * D^abc[2] * exp(-abc[3] * D), map(tuple, v.ai, v.bi, v.ci))
+@inline function (v::Chen2022VelocityCurve)(D)
+    # One `exp` per term, D^b exp(-cD) = exp(b log(D) - cD)
+    logD = log(D)
+    return unrolled_sum(abc -> abc[1] * exp(muladd(abc[2], logD, -abc[3] * D)), map(tuple, v.ai, v.bi, v.ci))
+end
 
 """
     Chen2022_monodisperse_pdf(a, b, c)
