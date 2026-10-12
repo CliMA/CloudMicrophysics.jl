@@ -128,6 +128,10 @@ function benchmark_test(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
         rain_autoconversion = CMP.PrescribedNd(),
     )
+    mp_1m_kk = CMP.Microphysics1MParams(FT;
+        rain_autoconversion = CMP.KK2000Autoconversion(),
+        cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
+    )
     # Kessler1M with different quiescent and convective regime values (velocity dependent).
     # τ_slow = 1000 s · 14.4 = 14400 s;  q_slow = 5·10⁻⁴ · 2.0 = 1·10⁻³.
     mp_1m_vd = CMP.Microphysics1MParams(
@@ -270,6 +274,16 @@ function benchmark_test(FT)
     bench_press(
         FT, CM1.conv_q_lcl_to_q_rai,
         (mp_1m_2M.processes.rain_autoconversion, mp_1m_2M, tps, micro_1m, thermo_1m),
+        500,
+    )
+    bench_press(
+        FT, CM1.conv_q_lcl_to_q_rai,
+        (mp_1m_kk.processes.rain_autoconversion, mp_1m_kk, tps, micro_1m, thermo_1m),
+        500,
+    )
+    bench_press(
+        FT, CM1.accretion,
+        (mp_1m_kk.processes.cloud_liquid_rain_accretion, mp_1m_kk, tps, micro_1m, thermo_1m),
         500,
     )
     thermo_1m_w = (; ρ = ρ_air, T = T_air, w = FT(3))

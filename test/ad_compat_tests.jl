@@ -216,6 +216,10 @@ function test_ad_compatibility_1M(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     mp = CMP.Microphysics1MParams(FT)
     mpS = CMP.Microphysics1MParams(FT; snow_autoconversion = CMP.WithSupersaturation())
+    mpKK = CMP.Microphysics1MParams(FT;
+        rain_autoconversion = CMP.KK2000Autoconversion(),
+        cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
+    )
     chen = CMP.Chen2022VelType(FT)
     rain, snow = mp.precip.rain, mp.precip.snow
     ρ0, T_cold, T_warm = FT(1.2), FT(270), FT(280)
@@ -245,6 +249,20 @@ function test_ad_compatibility_1M(FT)
         (
             "rain autoconversion",
             q -> CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mp, tps, state(q), (; ρ = ρ0, T = T_cold, w = zero(ρ0))),
+        ),
+        (
+            "rain autoconversion KK2000",
+            q -> CM1.conv_q_lcl_to_q_rai(
+                CMP.KK2000Autoconversion(),
+                mpKK,
+                tps,
+                state(q),
+                (; ρ = ρ0, T = T_cold, w = zero(ρ0)),
+            ),
+        ),
+        (
+            "accretion KK2000",
+            q -> CM1.accretion(CMP.KK2000Accretion(), mpKK, tps, state(q), (; ρ = ρ0, T = T_cold)),
         ),
         (
             "snow autoconversion",
@@ -310,21 +328,23 @@ function test_ad_compatibility_1M(FT)
     # thermo (kernel-level argument mixes are swept in return_type_tests.jl).
     @testset "1M rates concretely typed under Dual state ($FT)" begin
         DT = FD.Dual{:ad_1m, FT, 1}
-        for (opt, f) in (
-            (CMP.CloudLiquidRainAccretion(), CM1.accretion),
-            (CMP.RainSnowAccretion(), CM1.accretion_snow_rain),
-            (CMP.CloudIceRainAccretion(), CM1.accretion_rain_sink),
-            (CMP.RainEvaporation(), CM1.conv_q_rai_to_q_vap),
-            (CMP.DepositionAndSublimation(), CM1.conv_q_sno_to_q_vap),
-            (CMP.SnowMelt(), CM1.conv_q_sno_to_q_rai),
-            (CMP.CloudIceMelt(), CM1.conv_q_icl_to_q_lcl),
-            (CMP.Kessler1M(), CM1.conv_q_lcl_to_q_rai),
+        for (opt, params, f) in (
+            (CMP.CloudLiquidRainAccretion(), mp, CM1.accretion),
+            (CMP.RainSnowAccretion(), mp, CM1.accretion_snow_rain),
+            (CMP.CloudIceRainAccretion(), mp, CM1.accretion_rain_sink),
+            (CMP.RainEvaporation(), mp, CM1.conv_q_rai_to_q_vap),
+            (CMP.DepositionAndSublimation(), mp, CM1.conv_q_sno_to_q_vap),
+            (CMP.SnowMelt(), mp, CM1.conv_q_sno_to_q_rai),
+            (CMP.CloudIceMelt(), mp, CM1.conv_q_icl_to_q_lcl),
+            (CMP.Kessler1M(), mp, CM1.conv_q_lcl_to_q_rai),
+            (CMP.KK2000Autoconversion(), mpKK, CM1.conv_q_lcl_to_q_rai),
+            (CMP.KK2000Accretion(), mpKK, CM1.accretion),
         )
             rts = Base.return_types(
                 f,
                 Tuple{
                     typeof(opt),
-                    typeof(mp),
+                    typeof(params),
                     typeof(tps),
                     NamedTuple{(:q_tot, :q_lcl, :q_icl, :q_rai, :q_sno), NTuple{5, DT}},
                     NamedTuple{(:ρ, :T, :w), NTuple{3, FT}},
