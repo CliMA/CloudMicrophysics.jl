@@ -75,6 +75,26 @@ end
 @inline VaporRelaxation(species::Symbol, S, τ) = VaporRelaxation{species, typeof(S)}(S, τ)
 
 """
+    JointVaporTransfer{Condensate, FT}
+    JointVaporTransfer(:Condensate, Δq)
+
+Exchange of mass between the vapor and the condensate species `Condensate` given by its
+transfer over the substep, `Δq` [kg/kg], positive from the vapor to `Condensate`, as solved by
+the joint relaxation of the vapor-driven phase changes (`_joint_vapor_transfers`), which
+relaxes the shared vapor excess with all four processes together.
+
+In the linearization a positive transfer is a source `Δq/Δt`, a negative one the matched
+implicit decay that removes exactly `|Δq|` when acting alone ([`donor_coefficients`](@ref)).
+
+# Fields
+- `Δq`: transfer over the substep, positive from the vapor to `Condensate` [kg/kg].
+"""
+struct JointVaporTransfer{Condensate, FT}
+    Δq::FT
+end
+@inline JointVaporTransfer(species::Symbol, Δq) = JointVaporTransfer{species, typeof(Δq)}(Δq)
+
+"""
     species_tendency(terms, Q)
 
 Sum the tendencies of `terms` into a state of the type `Q` [kg/kg/s].
