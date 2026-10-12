@@ -377,6 +377,21 @@ An alternative rain autoconversion option with a prescribed cloud droplet
     This is the simplest possible autoconversion parameterization.
     See for example [Wood2005](@cite) Table 1 for other simple choices.
 
+The [KhairoutdinovKogan2000](@cite) autoconversion of the 2-moment scheme is also
+  available as a 1-moment option (`KK2000Autoconversion`), with the cloud droplet
+  number concentration ``N_c`` prescribed
+  (ClimaParams `prescribed_cloud_droplet_number_concentration`) instead of predicted:
+
+```math
+\begin{equation}
+  \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{acnv} =
+    A \; \max(0, q_\text{lcl})^a \; N_c^b \; \rho^c
+\end{equation}
+```
+
+The coefficients ``A``, ``a``, ``b`` and ``c`` are those of the 2-moment scheme
+  (see [2-moment microphysics](Microphysics2M.md) for their default values).
+
 ## Snow autoconversion
 
 Snow autoconversion defines the rate of conversion form cloud ice to snow due
@@ -524,6 +539,18 @@ where:
 
 For the case of cloud liquid water and rain and cloud ice and snow collisions,
   the sink of cloud water becomes simply the source for precipitation.
+For cloud liquid water and rain, the [KhairoutdinovKogan2000](@cite) accretion rate
+  of the 2-moment scheme can be used instead of eq. (\ref{eq:accrfin})
+  (option `KK2000Accretion`):
+
+```math
+\begin{equation}
+  \left. \frac{d \, q_\text{rai}}{dt} \right|_\text{accr} =
+    A \; \left( \max(0, q_\text{lcl}) \, \max(0, q_\text{rai}) \right)^a \; \rho^b
+\end{equation}
+```
+
+with the coefficients ``A``, ``a`` and ``b`` of the 2-moment scheme.
 For the case of cloud liquid water and snow collisions
   for temperatures below freezing, the sink of cloud liquid water is
   a source for snow.
