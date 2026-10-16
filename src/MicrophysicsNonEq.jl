@@ -92,6 +92,50 @@ i.e. the fit is held at its freezing-point value above `T_freeze` and capped at
     ΔT = max(T_freeze - T, zero(T))
     return min(N_ref * exp(a + b * ΔT), N_max)
 end
+
+"""
+    ice_number_concentration(fit::IceNumberTemperatureFit, T, q_lcl, q_sno)
+
+Cloud ice number concentration [1/m³] for deposition including rime splintering
+(Hallett–Mossop secondary ice production): where cloud liquid and snow coexist
+(`q_lcl > q_HM` and `q_sno > q_HM`) the temperature fit `N_ice(T)` is raised to
+`max(N_ice(T), N_HM g(T))` with the triangular window
+`g(T) = max(0, 1 - |T - T_HM| / ΔT_HM)` (defaults: peak at -5 °C, half-width 2.5 K,
+i.e. the -2.5…-7.5 °C rime-splintering range). `N_HM = 0` recovers `N_ice(T)` exactly.
+"""
+@inline function ice_number_concentration(
+    fit::CMP.IceNumberTemperatureFit, T, q_lcl, q_sno,
+)
+    (; N_HM, T_HM, ΔT_HM, q_HM) = fit
+    N_T = ice_number_concentration(fit, T)
+    g = max(zero(T), one(T) - abs(T - T_HM) / ΔT_HM)
+    active = (q_lcl > q_HM) & (q_sno > q_HM)
+    return max(N_T, ifelse(active, N_HM * g, zero(N_HM)))
+end
+
+"""
+    τ_deposition_sublimation(fit, ice, air_properties, tps, micro, thermo)
+
+Relaxation timescale of the `TemperatureDependentIceNumber` option: the temperature-fit
+number for sublimation (vapor below ice saturation), the rime-splintering-augmented number
+for deposition. Shared by the tendency and by `τ_vap_to_q_icl` so the two stay consistent.
+"""
+@inline function τ_deposition_sublimation(
+    fit::CMP.IceNumberTemperatureFit, ice::CMP.CloudIce, aps::CMP.AirProperties, tps::TDI.PS, micro, thermo,
+)
+    (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
+    (; ρ, T) = thermo
+    (; ρᵢ) = ice
+    (; D_vapor) = aps
+    qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    N = ifelse(
+        qᵥ > qᵥ_sat_ice,
+        ice_number_concentration(fit, T, q_lcl, q_sno),
+        ice_number_concentration(fit, T),
+    )
+    return _τ_relax(ρᵢ, D_vapor, N, q_icl, ρ)
+end
 @inline function τ_relax(
     (; ρᵢ)::CMP.CloudIce, (; D_vapor)::CMP.AirProperties,
     ip::CMP.Frostenberg2023, q_icl, T, ρ,
@@ -260,7 +304,7 @@ end
     (; q_icl) = micro
     (; ρ, T) = thermo
     fit = mp.process_params.cloud_ice_formation
-    τ = τ_relax(mp.cloud.ice, mp.air_properties, fit, q_icl, T, ρ)
+    τ = τ_deposition_sublimation(fit, mp.cloud.ice, mp.air_properties, tps, micro, thermo)
     return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo)
 end
 
@@ -376,9 +420,8 @@ for how the timescale is used.
 @inline τ_vap_to_q_icl(::CMP.PrescribedIceNumber, mp, tps::TDI.PS, micro, thermo) =
     τ_relax(mp.cloud.ice, mp.air_properties, micro.q_icl, thermo.ρ)
 @inline τ_vap_to_q_icl(::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo) =
-    τ_relax(
-        mp.cloud.ice, mp.air_properties, mp.process_params.cloud_ice_formation,
-        micro.q_icl, thermo.T, thermo.ρ,
+    τ_deposition_sublimation(
+        mp.process_params.cloud_ice_formation, mp.cloud.ice, mp.air_properties, tps, micro, thermo,
     )
 @inline function τ_vap_to_q_icl(::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
