@@ -44,7 +44,8 @@ function bench_press(
     show(stdout, MIME("text/plain"), trail)
     println("\n")
 
-    TT.@test BT.minimum(trail).time < min_run_time
+    # Coverage instrumentation slows the code severalfold, so timings are only checked without it
+    TT.@test BT.minimum(trail).time < min_run_time skip = Base.JLOptions().code_coverage != 0
     TT.@test trail.memory <= min_memory
 
     if !(trail.allocs <= min_allocs)
