@@ -11,7 +11,7 @@ function ρ_d_direct(β_va, F_rim, ρ_rim)
     return ρ_rim * F_rim / den
 end
 
-mass = CMP.ParametersP3(Float32).mass
+mass = CMP.MassPowerLaw(Float32)
 β_va = mass.β_va
 ρ_rim = 400
 

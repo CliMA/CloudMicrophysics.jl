@@ -41,7 +41,28 @@ Compute the integration bounds for the P3 size distribution,
 
     # Only integrate up to the maximum diameter, `D_max`, including intermediate thresholds
     # If `F_rim` is very close to 1, `D_cr` may be greater than `D_max`, in which case it is disregarded.
-    return segment_boundaries(state, D_min, D_max)
+    bnds = segment_boundaries(state, D_min, D_max)
+    # A breakpoint at the decay scale of the size distribution keeps each subinterval resolvable
+    # at low order
+    D_e = clamp(3 / λ, D_min, D_max)
+    return Tuple(SA.sort(SA.SVector(bnds..., D_e)))
+end
+
+"""
+    velocity_integral_bounds(state::P3State, logλ, v_term; p, moment_order = 0)
+
+Compute the integration bounds for a velocity-weighted P3 integral
+
+This function returns the same integration bounds as [`integral_bounds`](@ref),
+  but with additional breakpoints that a terminal-velocity closure `v_term` may introduce,
+  see [`velocity_breakpoints`](@ref).
+
+See [`integral_bounds`](@ref) for a description of the arguments and return value.
+"""
+function velocity_integral_bounds(state::P3State{FT}, logλ, v_term::V; p, moment_order = 0) where {FT, V}
+    bnds = integral_bounds(state, logλ; p, moment_order)
+    breaks = map(D -> clamp(FT(D), first(bnds), last(bnds)), velocity_breakpoints(v_term))
+    return Tuple(SA.sort(SA.SVector(bnds..., breaks...)))
 end
 
 """

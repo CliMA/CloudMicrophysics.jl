@@ -60,17 +60,30 @@ Compute the melting rates of ice content and number concentration
  - `logλ`: the log of the slope parameter [log(1/m)]
 
 # Keyword arguments
- - `quad`: quadrature rule, default is `ChebyshevGauss(100)`
+ - `quad`: quadrature rule (a `Quadrature.QuadratureRule`)
 
 # Returns
 A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
   concentration [1/m³/s] and ice content [kg/m³/s].
+
+A particle melts by heat conduction at `dm/dt = 2π D K_therm (Tₐ - T_freeze) F_v(D) / L_f`,
+for capacitance ``C = D/2`` and without the vapor diffusion contribution in subsaturated air.
+Mass and number melt at the same fractional rate, that of the size distribution,
+
+```math
+f = \\frac{∫ \\frac{dm}{dt} N'(D) \\, dD}{∫ m(D) N'(D) \\, dD}, \\qquad
+\\frac{dL}{dt} = L f, \\qquad \\frac{dN}{dt} = N f.
+```
+
+The denominator equals `L` when `logλ` solves the shape problem, and it keeps both rates
+consistent with the ice when the shape solve returns a bound of its search interval.
 """
 @inline function ice_melt(
     velocity_params, aps::CMP.AirProperties, tps::TDI.PS,
     Tₐ, ρₐ, state::P3State, logλ;
-    quad = ChebyshevGauss(100),
+    quad,
 )
+    FT = eltype(state)
     # Note: process not dependent on `F_liq`
     # (we want ice core shape params)
     # Get constants
@@ -85,17 +98,15 @@ A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
     N′ = size_distribution(state, logλ)
 
     # Integrate
-    fac = 4 * K_therm / L_f * (Tₐ - T_freeze)
-    bnds = integral_bounds(state, logλ; p = 1e-6)
-    melt_integrand = D -> ∂ice_mass_∂D(state, D) * F_v(D) * N′(D) / D
-    dLdt_unclamped = fac * integrate(melt_integrand, bnds, quad)
+    bnds = velocity_integral_bounds(state, logλ, v_term; p = 1e-6)
+    ∫DFvN = integrate(D -> D * F_v(D) * N′(D), bnds, quad)
 
     # only consider melting (not fusion)
-    dLdt = max(0, dLdt_unclamped)
-    # compute change of N_ice proportional to change in mass
-    dNdt = ρn_ice / ρq_ice * dLdt
-
-    return (; dNdt, dLdt)
+    ΔT = max(Tₐ - T_freeze, 0)
+    distribution_melt_rate = 2 * FT(π) * K_therm * ΔT / L_f * ∫DFvN  # ∫ dm/dt N′ dD
+    distribution_mass = ρn_ice * exp(logLdivN(state, logλ))  # ∫ m N′ dD
+    melt_frac = UT.guarded_quotient(distribution_melt_rate, distribution_mass)
+    return (; dNdt = ρn_ice * melt_frac, dLdt = ρq_ice * melt_frac)
 end
 
 """
@@ -243,10 +254,10 @@ A function that computes the local rime density [kg/m³] using the equation:
 ```
 where
 ```math
-R_i = \\frac{ 10^6 ⋅ D_{liq} ⋅ |v_{liq} - v_{ice}| }{ 2 T_{sfc} }
+R_i = -\\frac{ 10^6 ⋅ D_{liq} ⋅ |v_{liq} - v_{ice}| }{ 2 T_{sfc} }
 ```
-and ``T_{sfc}`` is the surface temperature [°C], ``D_{liq}`` is the liquid particle
-diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
+and ``T_{sfc} < 0`` is the sub-zero surface temperature [°C], ``D_{liq}`` is the liquid
+particle diameter [m], ``v_{liq/ice}`` is the particle terminal velocity [m/s].
 With the ``10^6`` factor converting ``D_{liq}`` from [m] to [μm], the units of
 ``R_i`` are [μm m s⁻¹ °C⁻¹]. The units of ``ρ'_{rim}`` are [kg/m³].
 
@@ -263,6 +274,7 @@ See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity
  See also the P3 fortran code, `microphy_p3.f90`, Line 3315-3323,
  which extends the range of the calculation to ``R_i ≤ 12``, the upper limit of which
  then equals the solid bulk ice density, ``ρ_ice = 916.7 kg/m^3``.
+ At and above ``T_{sfc} = 0``, the local rime density is ``ρ_ice``.
 
  Note that Morrison & Milbrandt (2015) [MorrisonMilbrandt2015](@cite) only uses this
  parameterization for collisions with cloud droplets.
@@ -272,13 +284,15 @@ See also [`LocalRimeDensity`](@ref CloudMicrophysics.Parameters.LocalRimeDensity
 function compute_local_rime_density(velocity_params, ρₐ, T, state)
     (; T_freeze, ρ_rim_local) = state.params
     T°C = T - T_freeze  # Convert to °C
-    μm = 1_000_000  # Note: m to μm factor, c.f. units of rₘ in Eq. 16 in Cober and List (1993)
+    μm = 1_000_000  # m to μm factor, c.f. units of rₘ in Eq. 16 in Cober and List (1993)
 
     v_ice = ice_particle_terminal_velocity(velocity_params, ρₐ, state)
     v_liq = CO.particle_terminal_velocity(velocity_params.rain, ρₐ)
     function ρ′_rim(Dᵢ, Dₗ)
         v_term = abs(v_ice(Dᵢ) - v_liq(Dₗ))
-        Rᵢ = (Dₗ * μm * v_term) / (2 * T°C)  # Eq. 16 in Cober and List (1993). Note: no `-` due to absolute value in v_term
+        Rᵢ = -(Dₗ * μm * v_term) / (2 * T°C)  # Eq. 16 in Cober and List (1993), Rᵢ > 0 for T°C < 0
+        # At and above the melting point, select the solid-ice limit, Rᵢ = 12, directly
+        Rᵢ = ifelse(T°C < 0, Rᵢ, oftype(Rᵢ, 12))
         return ρ_rim_local(Rᵢ)
     end
     return ρ′_rim
