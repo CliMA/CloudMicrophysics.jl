@@ -199,6 +199,10 @@ formation option (see `MicrophysicsNonEq.ice_number_concentration`):
 
     N_ice(T) = min(N_ref exp(a + b max(T_freeze - T, 0)), N_max)
 
+With `N_HM > 0` the deposition number is raised to `max(N_ice(T), N_HM g(T))` where cloud
+liquid and snow coexist (rime splintering; `g` is a triangle of half-width `ΔT_HM` centred
+on `T_HM`), see `MicrophysicsNonEq.ice_number_concentration`.
+
 # Fields
 $(DocStringExtensions.FIELDS)
 """
@@ -213,6 +217,22 @@ $(DocStringExtensions.FIELDS)
     N_max::FT
     "freezing temperature [K]"
     T_freeze::FT
+    "rime-splintering (Hallett–Mossop) ice number concentration, applied to deposition where cloud liquid and snow coexist inside the temperature window [1/m³]; 0 disables"
+    N_HM::FT
+    "temperature of maximum rime-splintering efficiency [K]"
+    T_HM::FT
+    "half-width of the rime-splintering temperature window [K]"
+    ΔT_HM::FT
+    "minimum cloud liquid and snow specific humidity for rime splintering [kg/kg]"
+    q_HM::FT
+end
+
+# Optional parameter: the toml value when the key is present, otherwise `default`
+# (keeps the scheme off and the constructor usable with parameter files that predate it).
+function _optional_parameter(toml_dict::CP.ParamDict, name::String, default)
+    FT = CP.float_type(toml_dict)
+    haskey(toml_dict.data, name) || return FT(default)
+    return FT(CP.get_parameter_values(toml_dict, name, "CloudMicrophysics")[Symbol(name)])
 end
 
 function IceNumberTemperatureFit(toml_dict::CP.ParamDict)
@@ -224,7 +244,13 @@ function IceNumberTemperatureFit(toml_dict::CP.ParamDict)
         :temperature_water_freeze => :T_freeze,
     )
     p = CP.get_parameter_values(toml_dict, name_map, "CloudMicrophysics")
-    return IceNumberTemperatureFit(; p...)
+    return IceNumberTemperatureFit(;
+        p...,
+        N_HM = _optional_parameter(toml_dict, "hallett_mossop_ice_number", 0),
+        T_HM = _optional_parameter(toml_dict, "hallett_mossop_temperature", 268.15),
+        ΔT_HM = _optional_parameter(toml_dict, "hallett_mossop_temperature_halfwidth", 2.5),
+        q_HM = _optional_parameter(toml_dict, "hallett_mossop_min_specific_humidity", 1e-6),
+    )
 end
 
 function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)

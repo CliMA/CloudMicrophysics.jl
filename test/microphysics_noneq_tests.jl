@@ -119,7 +119,28 @@ function test_microphysics_noneq(FT)
         # equals the constant-τ kernel evaluated at the fit's τ, which the accessor returns
         micro = (; q_tot = FT(1.5) * qᵥ_si, q_lcl = FT(0), q_icl = FT(1e-5), q_rai = FT(0), q_sno = FT(0))
         τ = CMNe.τ_vap_to_q_icl(opt, mp_fit, tps, micro, (; ρ, T))
-        TT.@test τ == CMNe.τ_relax(ice, aps, fit, micro.q_icl, T, ρ)
+        TT.@test τ == CMNe.τ_relax(ice, aps, fit, micro.q_icl, T, ρ)   # N_HM = 0 by default: identical to the fit
+
+        # rime splintering (Hallett–Mossop): raises the deposition number inside the window where liquid and snow coexist
+        TT.@test fit.N_HM == FT(0)
+        fit_hm = CMP.IceNumberTemperatureFit{FT}(; N_ref = fit.N_ref, a = fit.a, b = fit.b, N_max = fit.N_max, T_freeze = fit.T_freeze,
+            N_HM = FT(1e5), T_HM = fit.T_freeze - FT(5), ΔT_HM = FT(2.5), q_HM = FT(1e-6))
+        T_hm = fit.T_freeze - FT(5)
+        N_T = CMNe.ice_number_concentration(fit_hm, T_hm)
+        TT.@test CMNe.ice_number_concentration(fit_hm, T_hm, FT(1e-4), FT(1e-4)) == max(N_T, FT(1e5))
+        TT.@test CMNe.ice_number_concentration(fit_hm, T_hm - FT(1.25), FT(1e-4), FT(1e-4)) == max(N_T, FT(5e4))   # half-way down the triangle
+        TT.@test CMNe.ice_number_concentration(fit_hm, T_hm - FT(3), FT(1e-4), FT(1e-4)) == CMNe.ice_number_concentration(fit_hm, T_hm - FT(3))  # outside the window
+        TT.@test CMNe.ice_number_concentration(fit_hm, T_hm, FT(0), FT(1e-4)) == N_T   # no liquid
+        TT.@test CMNe.ice_number_concentration(fit_hm, T_hm, FT(1e-4), FT(0)) == N_T   # no snow
+        TT.@test CMNe.ice_number_concentration(fit, T_hm, FT(1e-4), FT(1e-4)) == CMNe.ice_number_concentration(fit, T_hm)  # off by default
+        mp_hm = (; cloud = (; ice), air_properties = aps, process_params = (; cloud_ice_formation = fit_hm))
+        micro_hm = (; q_tot = FT(1.5) * TDI.p2q(tps, T_hm, ρ, TDI.saturation_vapor_pressure_over_ice(tps, T_hm)), q_lcl = FT(1e-4), q_icl = FT(1e-5), q_rai = FT(0), q_sno = FT(1e-4))
+        τ_hm = CMNe.τ_vap_to_q_icl(opt, mp_hm, tps, micro_hm, (; ρ, T = T_hm))
+        τ_fit = CMNe.τ_vap_to_q_icl(opt, mp_fit, tps, micro_hm, (; ρ, T = T_hm))
+        TT.@test τ_hm < τ_fit   # faster deposition
+        TT.@test CMNe.conv_q_vap_to_q_icl(opt, mp_hm, tps, micro_hm, (; ρ, T = T_hm)) > CMNe.conv_q_vap_to_q_icl(opt, mp_fit, tps, micro_hm, (; ρ, T = T_hm))
+        micro_sub = (; micro_hm..., q_tot = FT(0.5) * TDI.p2q(tps, T_hm, ρ, TDI.saturation_vapor_pressure_over_ice(tps, T_hm)))
+        TT.@test CMNe.τ_vap_to_q_icl(opt, mp_hm, tps, micro_sub, (; ρ, T = T_hm)) == CMNe.τ_vap_to_q_icl(opt, mp_fit, tps, micro_sub, (; ρ, T = T_hm))  # sublimation untouched
         TT.@test _conv(micro.q_tot, micro.q_icl, ρ, T) ==
                  CMNe._conv_q_vap_to_q_icl_const(τ, tps, micro, (; ρ, T))
 
