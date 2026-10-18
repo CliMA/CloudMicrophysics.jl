@@ -292,6 +292,38 @@ function test_bulk_microphysics_1m_tendencies(FT)
         @test abs(tendencies_2m.dq_rai_dt - S_acnv_2m) / S_acnv_2m < FT(0.1)
     end
 
+    @testset "BulkMicrophysicsTendencies - KK2000 autoconversion and accretion" begin
+        # Khairoutdinov and Kogan (2000) warm-rain collision rates with a prescribed droplet
+        # number as 1-moment options. In a warm, liquid-saturated state (no condensation, no
+        # rain evaporation, no ice) the instantaneous rain tendency is their sum.
+        mp_kk = CMP.Microphysics1MParams(FT;
+            rain_autoconversion = CMP.KK2000Autoconversion(),
+            cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
+        )
+        ρ = FT(1.2)
+        T = T_freeze + FT(10)
+        q_lcl = FT(2e-3)
+        q_icl = FT(0)
+        q_rai = FT(2e-4)
+        q_sno = FT(0)
+        # total water includes the precipitation species (q_vap = q_tot - q_lcl - q_icl - q_rai - q_sno)
+        q_sat = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        q_tot = q_sat + q_lcl + q_icl + q_rai + q_sno
+        micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
+        thermo = (; ρ, T, w = FT(0))
+        S_acnv = CM1.conv_q_lcl_to_q_rai(mp_kk.processes.rain_autoconversion, mp_kk, tps, micro, thermo)
+        S_accr = CM1.accretion(mp_kk.processes.cloud_liquid_rain_accretion, mp_kk, tps, micro, thermo)
+        @test S_acnv > 0 && S_accr > 0
+
+        tend = BMT.bulk_microphysics_tendencies(
+            BMT.Instantaneous(), BMT.Microphysics1Moment(),
+            mp_kk, tps,
+            ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno,
+        )
+        @test tend.dq_rai_dt ≈ S_acnv + S_accr rtol = FT(1e-3)
+        @test tend.dq_lcl_dt ≈ -(S_acnv + S_accr) rtol = FT(1e-3)
+    end
+
     @testset "BulkMicrophysicsTendencies - Subsaturated evaporation" begin
         # Test rain evaporation in subsaturated conditions
         ρ = FT(1.2)

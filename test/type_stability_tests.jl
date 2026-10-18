@@ -160,6 +160,25 @@ function run_type_stability_tests()
                 @test getproperty(val1_vd, k) isa FT
             end
 
+            # --- 1-Moment (KK2000 autoconversion and accretion, prescribed droplet number) ---
+            mp1_kk = CMP.Microphysics1MParams(FT;
+                rain_autoconversion = CMP.KK2000Autoconversion(),
+                cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
+            )
+            tendencies_1M_kk =
+                BMT.bulk_microphysics_tendencies.(
+                    Ref(BMT.Instantaneous()),
+                    Ref(BMT.Microphysics1Moment()),
+                    Ref(mp1_kk),
+                    Ref(tps),
+                    ρ, T, w_vd, q_tot, q_lcl, q_icl, q_rai, q_sno,
+                )
+            @test tendencies_1M_kk isa Vector
+            val1_kk = tendencies_1M_kk[1]
+            for k in keys(val1_kk)
+                @test getproperty(val1_kk, k) isa FT
+            end
+
             # --- 2-Moment (Warm Rain) ---
             # --- 2-Moment (Warm Rain) ---
             mp2_warm = CMP.Microphysics2MParams(FT; with_ice = false)

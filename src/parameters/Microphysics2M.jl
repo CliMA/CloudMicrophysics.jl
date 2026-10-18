@@ -3,20 +3,25 @@ export KK2000, B1994, TC1980, LD2004, SB2006
 """
     AcnvKK2000
 
-Khairoutdinov and Kogan (2000) autoconversion parameters
+Khairoutdinov and Kogan (2000) autoconversion parameters of the rate
+`A q_lcl^a (N_d / N_ref)^b (ρ / ρ_ref)^c` (see `Common.KK2000_autoconversion`).
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct AcnvKK2000{FT} <: ParametersType
-    "Autoconversion coefficient A"
+    "Rate coefficient A [1/s]"
     A::FT
-    "Autoconversion coefficient a"
+    "Exponent a of the cloud liquid specific content [-]"
     a::FT
-    "Autoconversion coefficient b"
+    "Exponent b of the droplet number concentration normalized by N_ref [-]"
     b::FT
-    "Autoconversion coefficient c"
+    "Exponent c of the air density normalized by ρ_ref [-]"
     c::FT
+    "Reference cloud droplet number concentration N_ref [1/m³]"
+    N_ref::FT
+    "Reference air density ρ_ref [kg/m³]"
+    ρ_ref::FT
 end
 
 function AcnvKK2000(td::CP.ParamDict)
@@ -25,26 +30,47 @@ function AcnvKK2000(td::CP.ParamDict)
         :KK2000_autoconversion_coeff_a => :a,
         :KK2000_autoconversion_coeff_b => :b,
         :KK2000_autoconversion_coeff_c => :c,
+        :KK2000_reference_cloud_droplet_number_concentration => :N_ref,
+        :KK2000_reference_air_density => :ρ_ref,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return AcnvKK2000(; parameters...)
 end
 
 """
+    KK2000_autoconversion_coefficient(acnv::AcnvKK2000, N_d)
+
+Rate coefficient `A (N_d / N_ref)^b` of the Khairoutdinov and Kogan (2000) autoconversion rate
+(`Common.KK2000_autoconversion`). It lives with the parameters so that
+[`Microphysics1MParams`](@ref) can evaluate it once at construction for a prescribed `N_d`.
+
+# Arguments
+- `acnv`: `AcnvKK2000` parameters (`A`, `b`, `N_ref`)
+- `N_d`: cloud droplet number concentration [1/m³]
+
+# Returns
+- Rate coefficient [1/s]
+"""
+@inline KK2000_autoconversion_coefficient(acnv::AcnvKK2000, N_d) = acnv.A * (N_d / acnv.N_ref)^acnv.b
+
+"""
     AccrKK2000
 
-Khairoutdinov and Kogan (2000) accretion parameters
+Khairoutdinov and Kogan (2000) accretion parameters of the rate
+`A (q_lcl q_rai)^a (ρ / ρ_ref)^b` (see `Common.KK2000_accretion`).
 
 # Fields
 $(DocStringExtensions.FIELDS)
 """
 @kwdef struct AccrKK2000{FT} <: ParametersType
-    "Accretion coefficient A"
+    "Rate coefficient A [1/s]"
     A::FT
-    "Accretion coefficient a"
+    "Exponent a of the product of cloud liquid and rain specific contents [-]"
     a::FT
-    "Accretion coefficient b"
+    "Exponent b of the air density normalized by ρ_ref [-]"
     b::FT
+    "Reference air density ρ_ref [kg/m³]"
+    ρ_ref::FT
 end
 
 function AccrKK2000(td::CP.ParamDict)
@@ -52,6 +78,7 @@ function AccrKK2000(td::CP.ParamDict)
         :KK2000_accretion_coeff_A => :A,
         :KK2000_accretion_coeff_a => :a,
         :KK2000_accretion_coeff_b => :b,
+        :KK2000_reference_air_density => :ρ_ref,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return AccrKK2000(; parameters...)

@@ -559,6 +559,11 @@ function test_gpu(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
         rain_autoconversion = CMP.PrescribedNd(),
     )
+    # Khairoutdinov and Kogan (2000) autoconversion and accretion with a prescribed droplet number
+    mp_1m_kk = CMP.Microphysics1MParams(FT;
+        rain_autoconversion = CMP.KK2000Autoconversion(),
+        cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
+    )
     # Kessler1M with different quiescent and convective regime values (velocity dependent).
     # Stratiform ("slow") values are scale factors on the convective ("fast") defaults:
     # τ_slow = 1000 s · 14.4 = 14400 s;  q_slow = 5·10⁻⁴ · 2.0 = 1·10⁻³.
@@ -750,6 +755,12 @@ function test_gpu(FT)
         # q_lcl = 0 → zero rate regardless of w
         TT.@test out[3] == FT(0)
 
+        # KK2000 autoconversion with a prescribed droplet number
+        kernel!(mp_1m_kk, tps, output, ql, w_arr; ndrange)
+        out = Array(output)
+        TT.@test out[1] > FT(0)
+        TT.@test out[3] == FT(0)
+
         DT = @NamedTuple{
             liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT,
             rai_sink::FT, sno_rai::FT, rai_sno::FT,
@@ -817,6 +828,12 @@ function test_gpu(FT)
         TT.@test out1_opt.sno_rai ≈ FT(2.466313958248222e-4)
         TT.@test out1_opt.rai_sno ≈ FT(6.830957197816771e-5)
 
+        # KK2000 cloud liquid + rain accretion
+        kernel_opt!(mp_1m_kk, tps, output, ρ, T_arr, qi, qs, ql, qr; ndrange)
+        out0_kk, out1_kk = Array(output)
+        TT.@test out0_kk.liq_rai == FT(0)
+        TT.@test out1_kk.liq_rai > FT(0)
+
         (; output, ndrange) = setup_output(3, FT)
 
         T_freeze = FT(273.15)
@@ -851,7 +868,7 @@ function test_gpu(FT)
             TT.@test S_LD2004 ≈ FT(1.6963072465911614e-6)
             TT.@test S_TC1980 ≈ FT(3.5482867084128596e-6)
             TT.@test S_B1994 ≈ FT(9.825462758968215e-7)
-            TT.@test S_KK2000 ≈ FT(5.855332513368727e-8)
+            TT.@test S_KK2000 ≈ FT(5.854386977448622e-8)
         end
 
         TT.@testset "accretion" begin
