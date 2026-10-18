@@ -166,10 +166,12 @@ struct PrescribedNd <: RainAutoconversion end
 """
     KK2000Autoconversion <: RainAutoconversion
 
-Khairoutdinov and Kogan (2000) autoconversion of cloud liquid to rain, `A q_lcl^a Nc^b ρ^c`,
-with the cloud droplet number concentration `Nc` prescribed (ClimaParams
+Khairoutdinov and Kogan (2000) autoconversion of cloud liquid to rain,
+`A q_lcl^a (Nc / N_ref)^b (ρ / ρ_ref)^c` (see `Common.KK2000_autoconversion`), with the cloud
+droplet number concentration `Nc` prescribed (ClimaParams
 `prescribed_cloud_droplet_number_concentration`, positive). Parameters
-(`(; scheme::KK2000, Nc)`) are stored in `process_params.rain_autoconversion` in
+`(; acnv::AcnvKK2000, Nc, A_Nc)`, where `A_Nc = A (Nc / N_ref)^b` is the rate coefficient
+evaluated once at construction, are stored in `process_params.rain_autoconversion` in
 [`Microphysics1MParams`](@ref).
 """
 struct KK2000Autoconversion <: RainAutoconversion end
@@ -197,7 +199,7 @@ Parameters (`r_ice_snow`) are stored in `process_params.snow_autoconversion` in
 struct WithSupersaturation <: SnowAutoconversion end
 
 # ═══════════════════════════════════════════════════════════════════
-# Accretion (single variant each → concrete type = process name)
+# Accretion (concrete type = process name; cloud liquid + rain has a second, KK2000 variant)
 # ═══════════════════════════════════════════════════════════════════
 
 """
@@ -213,8 +215,9 @@ struct CloudLiquidRainAccretion <: MicrophysicsOption end
     KK2000Accretion <: MicrophysicsOption
 
 Cloud liquid + rain → rain with the Khairoutdinov and Kogan (2000) accretion rate
-`A (q_lcl q_rai)^a ρ^b`. Parameters (a `KK2000`, the entries of the 2-moment scheme) are
-stored in `process_params.cloud_liquid_rain_accretion` in [`Microphysics1MParams`](@ref).
+`A (q_lcl q_rai)^a (ρ / ρ_ref)^b` (see `Common.KK2000_accretion`). Parameters (an
+`AccrKK2000`, shared with the 2-moment scheme) are stored in
+`process_params.cloud_liquid_rain_accretion` in [`Microphysics1MParams`](@ref).
 """
 struct KK2000Accretion <: MicrophysicsOption end
 
@@ -457,10 +460,11 @@ process_params_for(::Kessler1M, td::CP.ParamDict) = KesslerAcnv(td)
 process_params_for(::PrescribedNd, td::CP.ParamDict) = VarTimescaleAcnv(td)
 
 function process_params_for(::KK2000Autoconversion, td::CP.ParamDict)
-    name_map = (; :prescribed_cloud_droplet_number_concentration => :Nc)
-    (; Nc) = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    Nc > 0 || throw(ArgumentError("prescribed_cloud_droplet_number_concentration must be positive, got $Nc"))
-    return (; scheme = KK2000(td), Nc)
+    Nc = prescribed_cloud_droplet_number(td)
+    acnv = AcnvKK2000(td)
+    # `Nc` is fixed, so the rate coefficient A (Nc / N_ref)^b is evaluated once here
+    A_Nc = KK2000_autoconversion_coefficient(acnv, Nc)
+    return (; acnv, Nc, A_Nc)
 end
 
 function process_params_for(::NoSupersaturation, td::CP.ParamDict)
@@ -483,7 +487,7 @@ function process_params_for(::CloudLiquidRainAccretion, td::CP.ParamDict)
     return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
 end
 
-process_params_for(::KK2000Accretion, td::CP.ParamDict) = KK2000(td)
+process_params_for(::KK2000Accretion, td::CP.ParamDict) = AccrKK2000(td)
 
 function process_params_for(::CloudLiquidSnowAccretion, td::CP.ParamDict)
     name_map = (; :cloud_liquid_snow_collision_efficiency => :e)

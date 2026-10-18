@@ -930,9 +930,8 @@ Compute the `q_rai` tendency due to collisions between cloud droplets
    to `true`. The default value is `false`.
 """
 function conv_q_lcl_to_q_rai((; acnv)::CMP.KK2000, q_lcl, ρ, N_d)
-    q_lcl = max(0, q_lcl)
-    (; A, a, b, c) = acnv
-    return A * q_lcl^a * N_d^b * ρ^c
+    A_N = CMP.KK2000_autoconversion_coefficient(acnv, N_d)
+    return CO.KK2000_autoconversion(acnv, A_N, q_lcl, ρ)
 end
 function conv_q_lcl_to_q_rai((; acnv)::CMP.B1994, q_lcl, ρ, N_d, smooth_transition = false)
     q_lcl = max(0, q_lcl)
@@ -995,12 +994,7 @@ Compute the accretion rate of rain.
  - `q_rai` - rain water specific content
  - `ρ` - air density (for `CMP.KK2000` and `CMP.B1994` only)
 """
-function accretion((; accr)::CMP.KK2000, q_lcl, q_rai, ρ)
-    q_lcl = max(0, q_lcl)
-    q_rai = max(0, q_rai)
-    (; A, a, b) = accr
-    return A * (q_lcl * q_rai)^a * ρ^b
-end
+accretion((; accr)::CMP.KK2000, q_lcl, q_rai, ρ) = CO.KK2000_accretion(accr, q_lcl, q_rai, ρ)
 
 function accretion((; accr)::CMP.B1994, q_lcl, q_rai, ρ)
     q_lcl = max(0, q_lcl)

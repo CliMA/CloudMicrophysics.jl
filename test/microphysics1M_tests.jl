@@ -327,8 +327,24 @@ function test_microphysics1M(FT)
         mp_hi = CMP.Microphysics1MParams(td_hi; rain_autoconversion = CMP.KK2000Autoconversion())
         TT.@test CM1.conv_q_lcl_to_q_rai(opt, mp_hi, tps, state(FT(1e-3)), thermo) <
                  CM1.conv_q_lcl_to_q_rai(opt, mp_kk, tps, state(FT(1e-3)), thermo)
-        # no autoconversion threshold
+        # the rate, with its coefficient folded at construction, agrees with the 2-moment kernel
+        pp = mp_kk.process_params.rain_autoconversion
+        TT.@test CM1.conv_q_lcl_to_q_rai(opt, mp_kk, tps, state(FT(1e-3)), thermo) ≈
+                 CM.Microphysics2M.conv_q_lcl_to_q_rai(CMP.KK2000(FT), FT(1e-3), thermo.ρ, pp.Nc)
+        # a non-positive prescribed droplet number is rejected at construction, for both options
+        td_zero = CP.create_toml_dict(FT;
+            override_file = Dict(
+                "prescribed_cloud_droplet_number_concentration" => Dict("value" => 0, "type" => "float"),
+            ),
+        )
+        TT.@test_throws ArgumentError CMP.Microphysics1MParams(
+            td_zero;
+            rain_autoconversion = CMP.KK2000Autoconversion(),
+        )
+        TT.@test_throws ArgumentError CMP.Microphysics1MParams(td_zero; rain_autoconversion = CMP.PrescribedNd())
+        # no autoconversion threshold, and no state-independent timescale
         TT.@test CM1.rain_autoconversion_threshold(opt, mp_kk, FT(0)) == FT(0)
+        TT.@test_throws ArgumentError CM1.rain_autoconversion_timescale(opt, mp_kk, FT(0))
     end
 
     TT.@testset "AccretionKK2000" begin
@@ -341,8 +357,11 @@ function test_microphysics1M(FT)
         TT.@test CM1.accretion(opt, mp_kk, tps, state(FT(0), FT(1e-4)), thermo) == FT(0)
         TT.@test CM1.accretion(opt, mp_kk, tps, state(FT(1e-3), FT(0)), thermo) == FT(0)
         TT.@test CM1.accretion(opt, mp_kk, tps, state(FT(1e-3), FT(-1e-4)), thermo) == FT(0)
-        # q_lcl = 1e-3, q_rai = 1e-4, ρ = 1.1: A (q_lcl q_rai)^a ρ^b ≈ 5.3e-7 kg/kg/s
+        # q_lcl = 1e-3, q_rai = 1e-4, ρ = 1.1: A (q_lcl q_rai)^a (ρ / ρ_ref)^b ≈ 5.3e-7 kg/kg/s
         TT.@test CM1.accretion(opt, mp_kk, tps, state(FT(1e-3), FT(1e-4)), thermo) ≈ FT(5.3e-7) rtol = FT(0.02)
+        # the same kernel as the 2-moment scheme
+        TT.@test CM1.accretion(opt, mp_kk, tps, state(FT(1e-3), FT(1e-4)), thermo) ==
+                 CM.Microphysics2M.accretion(CMP.KK2000(FT), FT(1e-3), FT(1e-4), thermo.ρ)
     end
 
     TT.@testset "OptionParamsMismatch" begin
@@ -365,10 +384,15 @@ function test_microphysics1M(FT)
         TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_rai(CMP.KK2000Autoconversion(), mp, tps, micro, thermo)
         TT.@test_throws ArgumentError CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mpKK, tps, micro, thermo)
         TT.@test_throws ArgumentError CM1.rain_autoconversion_threshold(CMP.KK2000Autoconversion(), mp, FT(0))
+        # cloud liquid + rain accretion has two variants, checked the same way
+        mpKKaccr = CMP.Microphysics1MParams(FT; cloud_liquid_rain_accretion = CMP.KK2000Accretion())
+        TT.@test_throws ArgumentError CM1.accretion(CMP.KK2000Accretion(), mp, tps, micro, thermo)
+        TT.@test_throws ArgumentError CM1.accretion(CMP.CloudLiquidRainAccretion(), mpKKaccr, tps, micro, thermo)
         # matched combinations still work
         TT.@test CM1.conv_q_icl_to_q_sno(CMP.WithSupersaturation(), mpS, tps, micro, thermo) isa FT
         TT.@test CM1.conv_q_lcl_to_q_rai(CMP.PrescribedNd(), mpNd, tps, micro, thermo) isa FT
         TT.@test CM1.conv_q_lcl_to_q_rai(CMP.KK2000Autoconversion(), mpKK, tps, micro, thermo) isa FT
+        TT.@test CM1.accretion(CMP.KK2000Accretion(), mpKKaccr, tps, micro, thermo) isa FT
     end
 
     TT.@testset "NoSnowDepositionAboveFreezing" begin

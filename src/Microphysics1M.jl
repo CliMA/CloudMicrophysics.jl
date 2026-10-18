@@ -51,7 +51,6 @@ import ..ThermodynamicsInterface as TDI
 import ..Common as CO
 import ..Parameters as CMP
 import ..Utilities as UT
-import ..Microphysics2M as CM2
 
 
 export terminal_velocity,
@@ -395,9 +394,23 @@ end
     _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
 @inline _rain_acnv_params(opt::CMP.KK2000Autoconversion, mp) = _consistent_params(
     mp.process_params.rain_autoconversion,
-    NamedTuple{(:scheme, :Nc)},
+    NamedTuple{(:acnv, :Nc, :A_Nc)},
     opt,
     :rain_autoconversion,
+)
+
+# Cloud liquid + rain accretion parameters, checked against the selected option in the same way.
+@inline _cloud_liquid_rain_accr_params(opt::CMP.CloudLiquidRainAccretion, mp) = _consistent_params(
+    mp.process_params.cloud_liquid_rain_accretion,
+    NamedTuple{(:e,)},
+    opt,
+    :cloud_liquid_rain_accretion,
+)
+@inline _cloud_liquid_rain_accr_params(opt::CMP.KK2000Accretion, mp) = _consistent_params(
+    mp.process_params.cloud_liquid_rain_accretion,
+    CMP.AccrKK2000,
+    opt,
+    :cloud_liquid_rain_accretion,
 )
 
 # Blending factor between the quiescent (stratiform) and the convective autoconversion regimes,
@@ -413,6 +426,8 @@ end
 
 Return the effective autoconversion timescale `τ` in s for `Kessler1M` and
 `PrescribedNd`. Also a diagnostic helper for atmospheric models (e.g. ClimaAtmos).
+`KK2000Autoconversion` raises an `ArgumentError`: its rate is nonlinear in `q_lcl`, so no
+state-independent timescale exists.
 
 # Arguments
 - `option`: rain autoconversion option (dispatches the variant)
@@ -426,6 +441,15 @@ Return the effective autoconversion timescale `τ` in s for `Kessler1M` and
 - `τ::FT`: effective autoconversion timescale in s; `Inf` when autoconversion is disabled
 """
 @inline rain_autoconversion_timescale(::Nothing, mp, w = 0) = eltype(mp)(Inf)
+
+@inline function rain_autoconversion_timescale(::CMP.KK2000Autoconversion, mp, w = 0)
+    throw(
+        ArgumentError(
+            "KK2000Autoconversion has no state-independent autoconversion timescale: " *
+            "its rate A_Nc q_lcl^a (ρ / ρ_ref)^c is nonlinear in q_lcl",
+        ),
+    )
+end
 
 @inline function rain_autoconversion_timescale(opt::CMP.PrescribedNd, mp, w = 0)
     (; τ, α, Nc) = _rain_acnv_params(opt, mp)
@@ -496,8 +520,9 @@ corresponding velocity dependence.
 using the prescribed cloud droplet number concentration.
 
 **KK2000Autoconversion**: Khairoutdinov and Kogan (2000) autoconversion
-`A max(0, q_lcl)^a Nc^b ρ^c`, the 2-moment kernel evaluated with the prescribed cloud
-droplet number concentration `Nc`.
+`A_Nc q_lcl^a (ρ / ρ_ref)^c` with `q_lcl` floored at zero ([`CO.KK2000_autoconversion`](@ref),
+shared with the 2-moment scheme) and `A_Nc = A (Nc / N_ref)^b` evaluated once at construction
+from the prescribed cloud droplet number concentration `Nc`.
 
 A mismatch between the option and the parameters stored in `mp` raises an `ArgumentError`.
 
@@ -528,8 +553,8 @@ end
 end
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.KK2000Autoconversion, mp, tps, micro, thermo)
-    (; scheme, Nc) = _rain_acnv_params(opt, mp)
-    return CM2.conv_q_lcl_to_q_rai(scheme, micro.q_lcl, thermo.ρ, Nc)
+    (; acnv, A_Nc) = _rain_acnv_params(opt, mp)
+    return CO.KK2000_autoconversion(acnv, A_Nc, micro.q_lcl, thermo.ρ)
 end
 
 # Size-distribution / fall-speed parameters shared across the 1-moment process rates.
@@ -890,7 +915,9 @@ end
 Option-dispatched accretion wrappers. All extract parameters from `mp` and
 delegate to the corresponding low-level Marshall-Palmer kernels, except
 `KK2000Accretion`, the Khairoutdinov and Kogan (2000) cloud liquid + rain rate
-`A (max(0, q_lcl) max(0, q_rai))^a ρ^b` of the 2-moment scheme.
+`A (q_lcl q_rai)^a (ρ / ρ_ref)^b` with the contents floored at zero
+([`CO.KK2000_accretion`](@ref), shared with the 2-moment scheme). A cloud liquid + rain
+option paired with the parameters of the other variant raises an `ArgumentError`.
 `nothing` variants return zeros without computing anything.
 
 # Arguments
@@ -914,7 +941,7 @@ delegate to the corresponding low-level Marshall-Palmer kernels, except
 @inline accretion(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
 @inline function accretion(
-    ::CMP.CloudLiquidRainAccretion,
+    opt::CMP.CloudLiquidRainAccretion,
     mp,
     tps,
     micro,
@@ -928,7 +955,7 @@ delegate to the corresponding low-level Marshall-Palmer kernels, except
         mp.cloud.liquid,
         mp.precip.rain,
         mp.terminal_velocity.rain,
-        mp.process_params.cloud_liquid_rain_accretion.e,
+        _cloud_liquid_rain_accr_params(opt, mp).e,
         q_lcl,
         q_rai,
         ρ,
@@ -938,13 +965,8 @@ delegate to the corresponding low-level Marshall-Palmer kernels, except
     )
 end
 
-@inline accretion(::CMP.KK2000Accretion, mp, tps, micro, thermo, sd = nothing) =
-    CM2.accretion(
-        mp.process_params.cloud_liquid_rain_accretion,
-        micro.q_lcl,
-        micro.q_rai,
-        thermo.ρ,
-    )
+@inline accretion(opt::CMP.KK2000Accretion, mp, tps, micro, thermo, sd = nothing) =
+    CO.KK2000_accretion(_cloud_liquid_rain_accr_params(opt, mp), micro.q_lcl, micro.q_rai, thermo.ρ)
 
 @inline function accretion(
     ::CMP.CloudLiquidSnowAccretion,

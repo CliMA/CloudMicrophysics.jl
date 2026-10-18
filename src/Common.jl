@@ -24,6 +24,8 @@ export Chen2022_vel_coeffs
 export Chen2022_monodisperse_pdf
 export Chen2022_exponential_pdf
 export ventilation_factor
+export KK2000_autoconversion
+export KK2000_accretion
 
 """
     G_func_liquid(air_props, tps, T)
@@ -524,6 +526,52 @@ See e.g., Seifert and Beheng (2006), https://doi.org/10.1007/s00703-005-0112-4, 
     N_Re(D) = D * v_term(D) / ν_air  # Reynolds number
     F_v(D) = aᵥ + bᵥ * cbrt_N_sc * sqrt(N_Re(D))  # Ventilation factor
     return F_v
+end
+
+"""
+    KK2000_autoconversion(acnv, A_N, q_lcl, ρ)
+
+Khairoutdinov and Kogan (2000) autoconversion rate of cloud liquid to rain,
+`A_N max(0, q_lcl)^a (ρ / ρ_ref)^c`, with `A_N = A (N_d / N_ref)^b` from
+[`CMP.KK2000_autoconversion_coefficient`](@ref), a separate argument so that a prescribed
+`N_d` lets it be evaluated once per parameter set. The fit is from Khairoutdinov and Kogan (2000),
+https://doi.org/10.1175/1520-0493(2000)128<0229:ANCPPI>2.0.CO;2, with the air-density
+dependence of Wood (2005), Table 1, https://doi.org/10.1175/JAS3530.1. Shared by the
+1-moment scheme (prescribed `N_d`) and the 2-moment scheme (prognostic `N_d`).
+
+# Arguments
+- `acnv`: `AcnvKK2000` parameters (`a`, `c`, `ρ_ref`)
+- `A_N`: rate coefficient [1/s]
+- `q_lcl`: cloud liquid water specific content [kg/kg]
+- `ρ`: air density [kg/m³]
+
+# Returns
+- Rain autoconversion rate [kg/kg/s]
+"""
+@inline function KK2000_autoconversion(acnv, A_N, q_lcl, ρ)
+    (; a, c, ρ_ref) = acnv
+    return A_N * max(0, q_lcl)^a * (ρ / ρ_ref)^c
+end
+
+"""
+    KK2000_accretion(accr, q_lcl, q_rai, ρ)
+
+Khairoutdinov and Kogan (2000) accretion rate of cloud liquid by rain,
+`A (max(0, q_lcl) max(0, q_rai))^a (ρ / ρ_ref)^b`, with the air-density dependence of
+Wood (2005), Table 1. Shared by the 1-moment and 2-moment schemes.
+
+# Arguments
+- `accr`: `AccrKK2000` parameters (`A`, `a`, `b`, `ρ_ref`)
+- `q_lcl`: cloud liquid water specific content [kg/kg]
+- `q_rai`: rain water specific content [kg/kg]
+- `ρ`: air density [kg/m³]
+
+# Returns
+- Rain accretion rate [kg/kg/s]
+"""
+@inline function KK2000_accretion(accr, q_lcl, q_rai, ρ)
+    (; A, a, b, ρ_ref) = accr
+    return A * (max(0, q_lcl) * max(0, q_rai))^a * (ρ / ρ_ref)^b
 end
 
 end # module end

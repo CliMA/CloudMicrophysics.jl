@@ -868,7 +868,7 @@ function test_gpu(FT)
             TT.@test S_LD2004 ≈ FT(1.6963072465911614e-6)
             TT.@test S_TC1980 ≈ FT(3.5482867084128596e-6)
             TT.@test S_B1994 ≈ FT(9.825462758968215e-7)
-            TT.@test S_KK2000 ≈ FT(5.855332513368727e-8)
+            TT.@test S_KK2000 ≈ FT(5.854386977448622e-8)
         end
 
         TT.@testset "accretion" begin
