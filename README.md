@@ -21,8 +21,8 @@ CloudMicrophysics.jl provides a library of cloud microphysics and aerosol parame
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://CliMA.github.io/CloudMicrophysics.jl/dev/
 
-[version-img]: https://juliahub.com/docs/General/CloudMicrophysics/stable/version.svg
-[version-url]: https://juliahub.com/ui/Packages/General/CloudMicrophysics
+[version-img]: https://img.shields.io/github/v/release/CliMA/CloudMicrophysics.jl
+[version-url]: https://github.com/CliMA/CloudMicrophysics.jl/releases
 
 [license-img]: https://img.shields.io/badge/license-Apache%202.0-blue.svg
 [license-url]: https://github.com/CliMA/CloudMicrophysics.jl/blob/main/LICENSE
