@@ -342,8 +342,9 @@ function ice_mass_coeffs(state::P3State, D)
     (; params, F_rim, ρ_g) = state
     (; ρ_i) = params
     (; α_va, β_va) = params.mass
-    ϵB = UT.ϵ_numerics_P3_B(FT)
-    Fu = max(1 - F_rim, ϵB)  # unrimed fraction
+    # unrimed fraction; eps is the float resolution of 1 - F_rim near 1,
+    # so the floor acts only at F_rim = 1
+    Fu = max(1 - F_rim, eps(FT))
     #! format: off
     #                          small        unrimed  rimed  graupel      partially-rimed
     a = regime_value(state, D, ρ_i * π / 6, α_va,    α_va,  ρ_g * π / 6, α_va / Fu)

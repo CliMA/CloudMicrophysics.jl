@@ -222,7 +222,7 @@ function test_microphysics2M(FT)
             Lc = ρ * q_lcl
             Lr = ρ * q_rai
             xc = min(x_star, Lc / N_lcl)
-            τ = 1 - Lc / (Lc + Lr)
+            τ = Lr / (Lc + Lr)
             ϕ_au = 400 * τ^0.7 * (1 - τ^0.7)^3
             dqrdt_au =
                 kcc / 20 / x_star * (νc + 2) * (νc + 4) / (νc + 1)^2 *
@@ -298,7 +298,7 @@ function test_microphysics2M(FT)
             Lc = ρ * q_lcl
             Lr = ρ * q_rai
             xc = Lc / N_lcl
-            τ = 1 - Lc / (Lc + Lr)
+            τ = Lr / (Lc + Lr)
             ϕ_ac = (τ / (τ + 5e-5))^4
 
             dqrdt_ac = kcr * Lc * Lr * ϕ_ac * sqrt(ρ0 / ρ) / ρ
@@ -749,5 +749,38 @@ end
 
 TT.@testset "Microphysics 2M Tests ($FT)" for FT in (Float64, Float32)
     test_microphysics2M(FT)
+end
+
+function sb2006_float32_float64_rates(FT, q_lcl, q_rai)
+    override_file = joinpath(pkgdir(CM), "src", "parameters", "toml", "SB2006_limiters.toml")
+    SB2006 = CMP.SB2006(CP.create_toml_dict(FT; override_file))
+    ρ, N_lcl = FT(1), FT(1e8)
+    q_lcl, q_rai = FT(q_lcl), FT(q_rai)
+    N_rai = q_rai / FT(1e-9)
+    numadj = (; SB2006.numadj.τ, x_min = SB2006.pdf_r.xr_min, x_max = SB2006.pdf_r.xr_max)
+    return (;
+        acnv = CM2.autoconversion(SB2006.acnv, SB2006.pdf_c, q_lcl, q_rai, ρ, N_lcl).dq_rai_dt,
+        accr = CM2.accretion(SB2006, q_lcl, q_rai, ρ, N_lcl).dq_rai_dt,
+        sc_rai = CM2.rain_self_collection(SB2006.pdf_r, SB2006.self, q_rai, ρ, N_rai),
+        numadj_rai = CM2.number_tendency_from_mass_limits(numadj, q_rai, N_rai / ρ),
+        vt_lcl = CM2.cloud_terminal_velocity(SB2006.pdf_c, CMP.StokesRegimeVelType(FT), q_lcl, ρ, N_lcl)[2],
+        vt_rai = CM2.rain_terminal_velocity(SB2006, CMP.SB2006VelType(FT), q_rai, ρ, N_rai)[2],
+    )
+end
+
+TT.@testset "Microphysics 2M - Float32 agrees with Float64 at small contents" begin
+    for q_lcl in (1e-9, 1e-8, 1e-7, 1e-6, 1e-4), q_rai in (1e-9, 1e-8, 1e-7, 1e-6)
+        r32 = sb2006_float32_float64_rates(Float32, q_lcl, q_rai)
+        r64 = sb2006_float32_float64_rates(Float64, q_lcl, q_rai)
+        for k in keys(r64)
+            TT.@test r32[k] ≈ r64[k] rtol = 1e-4
+        end
+    end
+    # q_lcl ≪ q_rai
+    override_file = joinpath(pkgdir(CM), "src", "parameters", "toml", "SB2006_limiters.toml")
+    SB2006 = CMP.SB2006(CP.create_toml_dict(Float32; override_file))
+    au = CM2.autoconversion(SB2006.acnv, SB2006.pdf_c, 1.0f-12, 1.0f-2, 1.0f0, 1.0f8)
+    TT.@test all(isfinite, (au.dq_lcl_dt, au.dN_lcl_dt, au.dq_rai_dt, au.dN_rai_dt))
+    TT.@test au.dq_rai_dt >= 0
 end
 nothing

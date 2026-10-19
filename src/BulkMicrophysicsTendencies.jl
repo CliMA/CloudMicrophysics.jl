@@ -916,9 +916,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     w = zero(ρ), p = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = eltype(ρ)
-    ϵₘ = UT.ϵ_numerics_2M_M(FT)
-    ϵₙ = UT.ϵ_numerics_2M_N(FT)
-    ϵB = UT.ϵ_numerics_P3_B(FT)
+    ϵ = UT.ϵ_numerics(FT)
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)
@@ -970,7 +968,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     quad = mp.ice.quad
 
     # Only compute ice processes if there is ice mass/number present
-    if q_ice > ϵₘ && n_ice > ϵₙ
+    if q_ice > ϵ && n_ice > ϵ
 
         # --- Liquid-ice collisions
         coll = CMP3.bulk_liquid_ice_collision_sources(
@@ -1047,7 +1045,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     db_rim_dt += ∂ₜq_imm / p3.ρ_i  # solid-ice rime volume
 
     # --- Ice Sublimation / Deposition
-    n_per_q_ice = ifelse(q_ice > ϵₘ, n_ice / q_ice, zero(n_ice))
+    n_per_q_ice = ifelse(q_ice > ϵ, n_ice / q_ice, zero(n_ice))
     # Deposition/sublimation of cloud ice
     micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
     thermo_mock = (; ρ, T)
