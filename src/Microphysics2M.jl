@@ -587,6 +587,10 @@ Compute the raindrops number density tendency due to breakup of raindrops
  - `N_rai`: Raindrops number density
  - `dN_rai_dt_sc`: Rate of change of raindrops number density due to self-collection
 
+The mean raindrop mass is limited to the maximum mass `pdf.xr_max`, as in
+Eq. (94) of Seifert and Beheng (2006), also for the size distribution without
+limiters.
+
 # Returns
  - The raindrops number density tendency due to breakup of raindrops that produce
     smaller raindrops
@@ -596,14 +600,14 @@ function rain_breakup(
 )
     FT = UT.promote_typeof(q_rai, ρ, N_rai, dN_rai_dt_sc)
     (; Deq, Dr_th, kbr, κbr) = brek
-    (; ρw) = pdf
+    (; ρw, xr_max) = pdf
     ϵ = UT.ϵ_numerics(FT)
 
     safe_q_rai = max(q_rai, ϵ)
     safe_N_rai = max(N_rai, ϵ)
 
     (; xr_mean) = pdf_rain_parameters(pdf, safe_q_rai, ρ, safe_N_rai)
-    Dr = cbrt(xr_mean * 6 / (π * ρw))  # mean volume raindrop diameter
+    Dr = cbrt(min(xr_mean, xr_max) * 6 / (π * ρw))  # mean volume raindrop diameter
     ΔD = Dr - Deq
 
     # Dr < Dr_th:  below the threshold diameter, breakup is neglected

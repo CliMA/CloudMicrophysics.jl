@@ -376,6 +376,15 @@ function test_microphysics2M(FT)
             TT.@test br_rai ≈ FT(0) atol = eps(FT)
             TT.@test sc_br_rai.sc ≈ FT(0) atol = eps(FT)
             TT.@test sc_br_rai.br ≈ FT(0) atol = eps(FT)
+
+            # mean raindrop mass above xr_max without limiters
+            q_rai = FT(1e-4)
+            for N_rai in (FT(1e-6), FT(1e-2), FT(1))
+                CMP.islimited(SB.pdf_r) && continue
+                (; sc, br) = CM2.rain_self_collection_and_breakup(SB, q_rai, ρ, N_rai)
+                D_max = cbrt(SB.pdf_r.xr_max * 6 / (FT(π) * SB.pdf_r.ρw))
+                TT.@test br ≈ -exp(κbr * (D_max - Deq)) * sc rtol = 1e-5
+            end
         end
     end
 
