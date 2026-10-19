@@ -944,7 +944,9 @@ function conv_q_lcl_to_q_rai((; acnv)::CMP.B1994, q_lcl, ρ, N_d, smooth_transit
     else
         d = N_d >= N_0 ? d_low : d_high
     end
-    return C * d^a * (q_lcl * ρ)^b * N_d^c / ρ
+    ρ_0 = one(ρ)
+    N_ref = one(N_d)
+    return C * d^a * (q_lcl * (ρ / ρ_0))^b * (N_d / N_ref)^c / ρ
 end
 function conv_q_lcl_to_q_rai((; acnv)::CMP.TC1980, q_lcl, ρ, N_d, smooth_transition = false)
     #TODO - The original paper is actually formulated for mixing ratios, not specific contents
@@ -954,7 +956,8 @@ function conv_q_lcl_to_q_rai((; acnv)::CMP.TC1980, q_lcl, ρ, N_d, smooth_transi
     output =
         smooth_transition ? CO.logistic_function(q_lcl, q_liq_threshold, k) :
         CO.heaviside(q_lcl - q_liq_threshold)
-    return D * q_lcl^a * N_d^b * output
+    N_ref = one(N_d)
+    return D * q_lcl^a * (N_d / N_ref)^b * output
 end
 function conv_q_lcl_to_q_rai(
     (; ρ_w, R_6C_0, E_0, k)::CMP.LD2004, q_lcl, ρ, N_d, smooth_transition = false,

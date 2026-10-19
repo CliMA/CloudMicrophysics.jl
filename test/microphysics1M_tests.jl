@@ -94,6 +94,8 @@ function test_microphysics1M(FT)
         # test - regression values
         TT.@test vt_oblate > 0
         TT.@test vt_prolate > 0
+        TT.@test vt_oblate isa FT
+        TT.@test vt_prolate isa FT
         # zero input returns zero
         TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(0), CM1.Oblate()) ≈ 0 atol = eps(FT)
         TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(0), CM1.Prolate()) ≈ 0 atol = eps(FT)

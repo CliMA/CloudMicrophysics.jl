@@ -88,7 +88,8 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 @inline function get_n0((; ν, μ)::CMP.ParticlePDFSnow, q_sno, ρ)
     ϵ = UT.ϵ_numerics(q_sno)
     safe_q_sno = max(q_sno, ϵ)
-    n0 = μ * (ρ * safe_q_sno)^ν
+    ρ_0 = one(ρ)
+    n0 = μ * ((ρ / ρ_0) * safe_q_sno)^ν
     return ifelse(q_sno > ϵ, n0, zero(n0))
 end
 @inline get_n0((; n0)::CMP.ParticlePDFIceRain, args...) = n0
@@ -159,7 +160,7 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     qp = UT.clamp_to_nonneg(q)
     ρp = UT.clamp_to_nonneg(ρ)
     denom = χm * m0 * max(n0, UT.ϵ_numerics(n0)) * gamma_coeff
-    λ_inv = (ρp * qp * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
+    λ_inv = r0 * (ρp * qp / (denom * r0))^(1 / (me + Δm + 1))
     return max(r0 * FT(1e-5), λ_inv)
 end
 
@@ -168,7 +169,7 @@ end
     aspect_ratio_coeffs(snow_shape::Prolate, mass::ParticleMass, area::ParticleArea, ρᵢ)
 
 Returns coefficients of the implied power law relationship between aspect ratio
-and particle diameter φ(D) = φ₀ D^α.
+and nondimensional particle diameter φ(D) = φ₀ (D / (2 r₀))^α.
 Also returns the coefficient κ for the aspect ratio in Chen et al. (2022)
 terminal velocity parameterization (κ=1/3 for oblate, κ=-1/6 for prolate).
 
@@ -194,12 +195,14 @@ prescribed-φ default to within about 20%.
     ρᵢ,
 )
     FT = UT.promote_typeof(m0, a0)
-    # ϕ(r) = 3 * sqrt(FT(π)) * mᵢ(r) / (4 * ρᵢ * aᵢ(r)^(3/2)
+    # ϕ(r) = 3 * sqrt(FT(π)) * mᵢ(r) / (4 * ρᵢ * aᵢ(r)^(3/2))
     # Integer literals only: a `3 / 2` float literal would promote α (and
     # hence ϕ₀) to Float64, and α is reused as an exponent here and in
     # `terminal_velocity`
     α = me + Δm - 3 * (ae + Δa) / 2
-    ϕ₀ = 3 * sqrt(FT(π)) / 4 / ρᵢ * χm * m0 / (χa * a0)^FT(3 / 2) / (2 * r0)^α
+    a_ref = χa * a0 / r0^2
+    m_ref = χm * m0 / (ρᵢ * r0^3)
+    ϕ₀ = 3 * sqrt(FT(π)) / 4 * m_ref / (a_ref * sqrt(a_ref))
     κ = FT(1 / 3)
     return (; ϕ₀, α, κ)
 end
@@ -213,7 +216,9 @@ end
     FT = UT.promote_typeof(m0, a0)
     # ϕ(r) = 16 * ρᵢ^2 * aᵢ(r)^3 / (9 * π * mᵢ(r)^2)
     α = 3 * (ae + Δa) - 2 * (me + Δm)
-    ϕ₀ = 16 * ρᵢ^2 / 9 / FT(π) * (χa * a0)^3 / (χm * m0)^2 / (2 * r0)^α
+    a_ref = χa * a0 / r0^2
+    m_ref = χm * m0 / (ρᵢ * r0^3)
+    ϕ₀ = 16 * a_ref^3 / (9 * FT(π) * m_ref^2)
     κ = FT(-1 / 6)
     return (; ϕ₀, α, κ)
 end
@@ -355,10 +360,10 @@ end
     (ϕ₀, α, κ) = aspect_ratio_coeffs(snow_shape, mass, area, ρᵢ_bulk)
     # Use pre-computed gamma_aspect from Snow struct
     gamma_aspect = snow_shape isa Oblate ? gamma_aspect_oblate : gamma_aspect_prolate
-    # `aspect_ratio_coeffs` defines ϕ as a function of diameter, ϕ(D) = ϕ₀ D^α
-    # (ϕ₀ absorbs (2r0)^α), so the moment ⟨D^α⟩ uses the diameter-based slope.
-    # Using λ_inv_radius here instead drops a factor 2^α from ϕ_av.
-    ϕ_av = ϕ₀ * λ_inv_diameter^α * gamma_aspect
+    # `aspect_ratio_coeffs` defines ϕ as a function of nondimensional diameter,
+    # ϕ(D) = ϕ₀ (D / (2 r₀))^α, so the moment ⟨(D / (2 r₀))^α⟩ uses
+    # λ_inv_diameter / (2 r₀) = λ_inv_radius / r₀.
+    ϕ_av = ϕ₀ * (λ_inv_diameter / (2 * mass.r0))^α * gamma_aspect
     # eq 20 from Chen 2022 (loop unrolled for GPU performance)
     fall_w =
         ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
@@ -414,11 +419,11 @@ end
 )
 
 # Blending factor between the quiescent (stratiform) and the convective autoconversion regimes,
-#     f(w) = w₊² / (w₊² + w_0²),   w₊ = max(w, 0):
+#     f(w) = (w₊ / w_0)² / (1 + (w₊ / w_0)²),   w₊ = max(w, 0):
 # 0 in descending or still air, 1/2 at w = w_0, → 1 for w ≫ w_0.
 @inline function _velocity_blend(w, w_0)
-    w₊ = max(w, zero(w))
-    return w₊^2 / (w₊^2 + w_0^2)
+    r = max(w, zero(w)) / w_0
+    return r^2 / (one(r) + r^2)
 end
 
 """

@@ -26,12 +26,12 @@ const Blk1MVel = CMP.Blk1MVelType(FT)
 const oblate = CM1.Oblate()
 const prolate = CM1.Prolate()
 
-# Aspect ratio ϕ(D) = ϕ₀ D^α of a snow particle with the given shape and the mass and
-# area laws of `snow`. As in `CM1.terminal_velocity`, the spheroid relation uses the
-# bulk ice density, not the snow apparent density.
+# Aspect ratio ϕ(D) = ϕ₀ (D / (2 r₀))^α of a snow particle with the given shape and the
+# mass and area laws of `snow`. As in `CM1.terminal_velocity`, the spheroid relation uses
+# the bulk ice density, not the snow apparent density.
 function snow_aspect_ratio(snow::CMP.Snow, shape, D)
     (ϕ₀, α, _) = CM1.aspect_ratio_coeffs(shape, snow.mass, snow.area, snow.ρᵢ_bulk)
-    return ϕ₀ * D^α
+    return ϕ₀ * (D / (2 * snow.mass.r0))^α
 end
 
 # Terminal velocity of a snow particle with diameter D, with the prescribed aspect ratio
