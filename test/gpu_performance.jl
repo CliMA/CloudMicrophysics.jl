@@ -159,9 +159,9 @@ function run_gpu_performance_benchmarks(FT)
             end
         end
 
-        a = FT(2.5);
-        x = FT(3.0);
-        p = FT(0.6);
+        a = FT(2.5)
+        x = FT(3.0)
+        p = FT(0.6)
         q = FT(0.4)
         b_sf = BT.@benchmark SF.gamma_inc($a, $x)
         b_ut = BT.@benchmark UT.gamma_inc($a, $x)

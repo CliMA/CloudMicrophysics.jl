@@ -1450,12 +1450,12 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         mp_off = stiff_prescribed_ice_params(FT)
         @test mp_lim.max_latent_heating_rate == FT(0.005)
         @test isinf(mp_off.max_latent_heating_rate)
-        ρ = FT(0.6884);
+        ρ = FT(0.6884)
         T = FT(266.55)
-        q_tot = FT(8.129e-3);
-        q_lcl = FT(6.102e-4);
-        q_icl = FT(8.345e-4);
-        q_rai = FT(1.408e-5);
+        q_tot = FT(8.129e-3)
+        q_lcl = FT(6.102e-4)
+        q_icl = FT(8.345e-4)
+        q_rai = FT(1.408e-5)
         q_sno = FT(1.634e-3)
         Δts = FT(40)
         Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
@@ -1502,7 +1502,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # for each donor alone, so the bound is met up to the coupling between donors)
         @test heating(r_lim) ≈ FT(0.005) * Δts rtol = FT(0.05)
         # gentle state: limiter inactive
-        T_w = T_freeze + FT(10);
+        T_w = T_freeze + FT(10)
         q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T_w, FT(1.1))
         gentle = (FT(1.1), T_w, FT(0), q_sl * FT(1.001) + FT(1e-4), FT(1e-4), FT(0), FT(0), FT(0), Δts)
         @test BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_lim, tps, gentle...).f_lim == FT(1)
@@ -1520,12 +1520,12 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # rain, and the vapor check must stay inactive (no vapor sources).
         mp_lim = stiff_prescribed_ice_params(FT; max_latent_heating_rate = 0.002)
         mp_off = stiff_prescribed_ice_params(FT)
-        ρ = FT(1);
+        ρ = FT(1)
         T = FT(276)
         q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
-        q_lcl = FT(0);
-        q_icl = FT(0);
-        q_rai = FT(1e-3);
+        q_lcl = FT(0)
+        q_icl = FT(0)
+        q_rai = FT(1e-3)
         q_sno = FT(3e-3)
         q_tot = q_sl + q_rai + q_sno
         Δt = FT(60)
@@ -1535,7 +1535,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         args = (ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
         st_lim = BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_lim, tps, args...)
         st_off = BMT._linearized_implicit_step_factors(BMT.Microphysics1Moment(), mp_off, tps, args...)
-        r_lim = st_lim.rates;
+        r_lim = st_lim.rates
         r_off = st_off.rates
         @test heating(r_off) < -FT(0.5)                        # the bound is needed
         @test st_off.f_lim == FT(1) && st_off.α_cap == FT(1)
@@ -1553,10 +1553,10 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
         Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
         # warm updraft, 2 % supersaturated over liquid, one 60 s substep
-        ρ = FT(1);
+        ρ = FT(1)
         T = FT(285)
         q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
-        q_lcl = FT(3e-4);
+        q_lcl = FT(3e-4)
         q_rai = FT(1e-4)
         q_tot = FT(1.02) * q_sl + q_lcl + q_rai
         Δt = FT(60)
@@ -1580,7 +1580,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test q_v ≈ TDI.saturation_vapor_specific_content_over_liquid(tps, T1, ρ) rtol = FT(2e-3)  # Γ-consistent
         @test r.dq_lcl_dt > FT(0) && r.dq_rai_dt > FT(0)       # cloud liquid condenses; rain grows by accretion (its 1M vapor exchange is evaporation only)
         # glaciating updraft of the regression test, production substepping (3 x 40 s): default == disabled
-        ρg = FT(0.6884);
+        ρg = FT(0.6884)
         Tg = FT(266.55)
         argsg = (ρg, Tg, FT(0), FT(8.129e-3), FT(6.102e-4), FT(8.345e-4), FT(1.408e-5), FT(1.634e-3), FT(120))
         r_def = BMT.bulk_microphysics_tendencies(
@@ -1608,7 +1608,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
 
     @testset "LinearizedAverage - negative condensate inputs are clamped; limiter parameter is validated" begin
         mp = stiff_prescribed_ice_params(FT)
-        ρ = FT(0.8);
+        ρ = FT(0.8)
         T = FT(250)
         q_tot = FT(1.1) * TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
         r_neg = BMT._linearized_implicit_step(
@@ -1633,7 +1633,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # (sno → rai), two large opposing fusion transfers through pools that refill each other. The
         # per-donor scaling alone can then miss the bound; the uniform fallback must enforce it.
         mp_lim = stiff_prescribed_ice_params(FT; max_latent_heating_rate = 0.002)
-        ρ = FT(1);
+        ρ = FT(1)
         T = FT(274)
         q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
         q = (FT(1e-4), FT(5e-4), FT(1e-4), FT(1e-3))
@@ -1676,7 +1676,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # linear in ΔT, so the vapor ends a few % below the new ice saturation (≤ 6 %; the default 2 K/min
         # limiter keeps the substep heating, and hence this error, much smaller in production).
         mp = stiff_prescribed_ice_params(FT)
-        ρ = FT(0.8);
+        ρ = FT(0.8)
         T = FT(250)
         q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
         q_icl = FT(1e-4)
@@ -1772,7 +1772,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test BMT._ratio_coefficient(FT(2e-6), -FT(1e-4), tol) == FT(0)
         # joint averaged excesses: single-process limits and the saturation difference between the phases
         Γₗ, Γᵢ, κ_il, κ_li = FT(1.5), FT(1.3), FT(1.6), FT(1.2)
-        δₗ, Δs = FT(2e-4), FT(3e-4);
+        δₗ, Δs = FT(2e-4), FT(3e-4)
         δᵢ = δₗ + Δs
         c = FT(0.05)
         (δ̄ₗ, δ̄ᵢ) = BMT._joint_averaged_excesses(c, FT(0), FT(0), FT(0), Γₗ, Γᵢ, κ_il, κ_li, δₗ, δᵢ, Δs, Δt)
@@ -1797,12 +1797,12 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # (+2.5 / -2.6 / +2.8 K per 40 s substep). Cloud liquid, cloud ice and snow all compete for
         # the excess over ice saturation (S_ice ≈ 1.5) with τ_ice ≈ 1 s (PrescribedIceNumber, N_0 = 5e8).
         mp = stiff_prescribed_ice_params(FT)
-        ρ = FT(0.6884);
+        ρ = FT(0.6884)
         T = FT(266.55)
-        q_tot = FT(8.129e-3);
-        q_lcl = FT(6.102e-4);
-        q_icl = FT(8.345e-4);
-        q_rai = FT(1.408e-5);
+        q_tot = FT(8.129e-3)
+        q_lcl = FT(6.102e-4)
+        q_icl = FT(8.345e-4)
+        q_rai = FT(1.408e-5)
         q_sno = FT(1.634e-3)
         Δt = FT(120)
         Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
@@ -1825,14 +1825,14 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             args...,
             60,
         )
-        ΔT3 = heating(r3);
+        ΔT3 = heating(r3)
         ΔT60 = heating(r60)
         @test ΔT60 > FT(0.5)                      # a genuinely glaciating, heating updraft
         @test abs(ΔT3 - ΔT60) < FT(0.02) * ΔT60   # 3 substeps within 2 % of the converged step heating (measured 0.3 %)
         @test ΔT3 < FT(2.2)                        # the old solver gave ~2.7 K here (~2x the consistent amount)
         # every substep deposits (no deposit / sublimate / deposit alternation)
-        q = (q_lcl, q_icl, q_rai, q_sno);
-        Tloc = T;
+        q = (q_lcl, q_icl, q_rai, q_sno)
+        Tloc = T
         Δts = Δt / 3
         for _ in 1:3
             rates =
@@ -1856,13 +1856,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # evaporate while ice deposits, the vapor must stay between ice and liquid saturation,
         # and the step must converge with the number of substeps.
         mp = stiff_prescribed_ice_params(FT)
-        ρ = FT(0.8);
+        ρ = FT(0.8)
         T = T_freeze - FT(23)
         q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
         q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-        q_lcl = FT(3e-4);
-        q_icl = FT(1e-5);
-        q_rai = FT(0);
+        q_lcl = FT(3e-4)
+        q_icl = FT(1e-5)
+        q_rai = FT(0)
         q_sno = FT(0)
         q_tot = q_sl + q_lcl + q_icl
         Δt = FT(180)
@@ -1946,12 +1946,12 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # ice gain is a few % high, and the net heating, a small residual of the deposition heating and
         # the evaporation cooling, is compared with their size.
         mp = stiff_prescribed_ice_params(FT)
-        ρ = FT(0.8);
+        ρ = FT(0.8)
         T = FT(250)
         q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-        q_lcl = FT(5e-4);
-        q_icl = FT(1e-5);
-        q_rai = FT(0);
+        q_lcl = FT(5e-4)
+        q_icl = FT(1e-5)
+        q_rai = FT(0)
         q_sno = FT(0)
         q_tot = FT(0.95) * q_si + q_lcl + q_icl
         Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
@@ -2024,13 +2024,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # number of substeps and the step converges from below (the ice growth coefficient is held at its
         # start-of-substep value while the ice grows).
         mp = stiff_prescribed_ice_params(FT; N_0 = 1e5, τ_liq = 3.0)
-        ρ = FT(0.8);
+        ρ = FT(0.8)
         T = FT(250)
         q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
         q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-        q_lcl = FT(3e-4);
-        q_icl = FT(1e-5);
-        q_rai = FT(0);
+        q_lcl = FT(3e-4)
+        q_icl = FT(1e-5)
+        q_rai = FT(0)
         q_sno = FT(0)
         q_tot = q_sl + q_lcl + q_icl
         Δt = FT(180)
@@ -2066,12 +2066,12 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # step, and no pool may go negative. (The ice/snow split of the uptake differs from the converged one
         # within a single substep - pools are not tracked inside it - the vapor and heating do not.)
         mp = stiff_prescribed_ice_params(FT)
-        ρ = FT(0.8);
+        ρ = FT(0.8)
         T = FT(250)
         q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-        q_lcl = FT(2e-4);
-        q_icl = FT(3e-4);
-        q_rai = FT(0);
+        q_lcl = FT(2e-4)
+        q_icl = FT(3e-4)
+        q_rai = FT(0)
         q_sno = FT(2e-4)
         q_tot = FT(0.9) * q_si + q_lcl + q_icl + q_sno
         Δt = FT(60)
@@ -2088,7 +2088,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
                 args...,
                 n,
             )
-        r1 = run(1);
+        r1 = run(1)
         ref = run(600)
         @test heating(ref) < FT(0)                             # net cooling: the liquid evaporates
         @test abs(heating(r1) - heating(ref)) < FT(0.05) * abs(heating(ref))
@@ -2112,12 +2112,12 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # expression as the rate functions, otherwise a 1-ulp difference reads as 'rate zero at nonzero excess'
         # and disables the ice for the whole substep (the liquid then supplies vapor nobody takes up).
         mp = stiff_prescribed_ice_params(FT)
-        ρ = FT(0.8);
+        ρ = FT(0.8)
         T = FT(260)
         q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-        q_lcl = FT(1e-4);
-        q_icl = FT(1e-4);
-        q_rai = FT(0);
+        q_lcl = FT(1e-4)
+        q_icl = FT(1e-4)
+        q_rai = FT(0)
         q_sno = FT(1e-4)
         Δt = FT(120)
         Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
@@ -2127,7 +2127,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             BMT.Microphysics1Moment(), mp, tps, ρ, T, FT(0), q_tot, q_lcl, q_icl, q_rai, q_sno, Δt,
         )
         q_tot0 = q_si + q_lcl + q_icl + q_sno
-        r0 = step(q_tot0);
+        r0 = step(q_tot0)
         r1 = step(q_tot0 * (one(FT) + FT(1e-6)))
         @test heating(r0) > FT(0.005)                         # WBF: liquid evaporates, ice deposits, net heating
         @test abs(heating(r0) - heating(r1)) < FT(0.005)      # continuous in q_tot
@@ -2151,7 +2151,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         Lv_over_cp = TDI.TD.Parameters.LH_v0(tps) / TDI.TD.Parameters.cp_d(tps)
         Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
         # a single active process: the joint relaxation reduces exactly to the per-process time average
-        ρ = FT(1);
+        ρ = FT(1)
         T = FT(285)
         q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
         args = (ρ, T, FT(0), FT(1.02) * q_sl + FT(3e-4), FT(3e-4), FT(0), FT(0), FT(0), FT(60))
@@ -2164,14 +2164,14 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         # several stiff processes on the same excess (glaciating updraft): the per-process branch alternates
         # deposit / sublimate / deposit between substeps, the joint branch deposits monotonically; both stay
         # finite and non-negative (the same vapor check, limiter and positivity guard act on both)
-        ρ = FT(0.6884);
+        ρ = FT(0.6884)
         T = FT(266.55)
         q_tot = FT(8.129e-3)
         q0 = (FT(6.102e-4), FT(8.345e-4), FT(1.408e-5), FT(1.634e-3))
         Δts = FT(40)
         for (mp, label) in ((mp_j, :joint), (mp_i, :independent))
-            q = q0;
-            Tloc = T;
+            q = q0
+            Tloc = T
             ΔTs = FT[]
             for _ in 1:3
                 r = BMT._linearized_implicit_step(BMT.Microphysics1Moment(), mp, tps, ρ, Tloc, FT(0), q_tot, q..., Δts)
@@ -2179,7 +2179,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
                 q = q .+ dq
                 @test all(isfinite, q) && all(>=(FT(0)), q)
                 ΔT = Lv_over_cp * (dq[1] + dq[3]) + Ls_over_cp * (dq[2] + dq[4])
-                push!(ΔTs, ΔT);
+                push!(ΔTs, ΔT)
                 Tloc += ΔT
             end
             if label == :joint
