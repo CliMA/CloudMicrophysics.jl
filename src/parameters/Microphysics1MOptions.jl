@@ -184,7 +184,8 @@ struct KK2000Autoconversion <: RainAutoconversion end
     NoSupersaturation <: SnowAutoconversion
 
 Simplified autoconversion of cloud ice to snow without supersaturation dependence.
-Parameters (an `Acnv1M` with `τ`, `q_threshold`, `k`) are stored in
+Parameters (an `Acnv1M` with `τ`, `q_threshold`, `k` and the aggregation
+temperature sensitivity `α_T`) are stored in
 `process_params.snow_autoconversion` in [`Microphysics1MParams`](@ref).
 """
 struct NoSupersaturation <: SnowAutoconversion end
@@ -245,7 +246,8 @@ struct CloudIceRainAccretion <: MicrophysicsOption end
     CloudIceSnowAccretion <: MicrophysicsOption
 
 Cloud ice + snow → snow (Marshall-Palmer kernel).
-Parameters (collision efficiency `e`) are stored in
+Parameters (collision efficiency `e` and the aggregation temperature
+sensitivity `α_T`) are stored in
 `process_params.cloud_ice_snow_accretion` in [`Microphysics1MParams`](@ref).
 """
 struct CloudIceSnowAccretion <: MicrophysicsOption end
@@ -467,6 +469,24 @@ function process_params_for(::KK2000Autoconversion, td::CP.ParamDict)
     return (; acnv, Nc, A_Nc)
 end
 
+"""
+    _ice_aggregation_temperature_sensitivity(td)
+
+Aggregation temperature sensitivity `α_T` [1/K] read from the parameter
+dictionary. ClimaParams does not define `ice_aggregation_temperature_sensitivity`,
+so the value is `0` (no temperature dependence) unless a run-time override
+toml provides it; the lookup is by exact key, so a misspelled key is silently
+ignored. Replace with an unconditional `get_parameter_values` read once the
+parameter is promoted to ClimaParams.
+"""
+function _ice_aggregation_temperature_sensitivity(td::CP.ParamDict)
+    FT = CP.float_type(td)
+    haskey(td.data, "ice_aggregation_temperature_sensitivity") ||
+        return zero(FT)
+    name_map = (; :ice_aggregation_temperature_sensitivity => :α_T)
+    return CP.get_parameter_values(td, name_map, "CloudMicrophysics").α_T
+end
+
 function process_params_for(::NoSupersaturation, td::CP.ParamDict)
     name_map = (;
         :snow_autoconversion_timescale => :τ,
@@ -474,7 +494,8 @@ function process_params_for(::NoSupersaturation, td::CP.ParamDict)
         :threshold_smooth_transition_steepness => :k,
     )
     p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Acnv1M(p.τ, p.q_threshold, p.k)
+    α_T = _ice_aggregation_temperature_sensitivity(td)
+    return Acnv1M(p.τ, p.q_threshold, p.k, α_T)
 end
 
 function process_params_for(::WithSupersaturation, td::CP.ParamDict)
@@ -501,7 +522,9 @@ end
 
 function process_params_for(::CloudIceSnowAccretion, td::CP.ParamDict)
     name_map = (; :cloud_ice_snow_collision_efficiency => :e)
-    return CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    p = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    α_T = _ice_aggregation_temperature_sensitivity(td)
+    return (; p.e, α_T)
 end
 
 function process_params_for(::RainSnowAccretion, td::CP.ParamDict)

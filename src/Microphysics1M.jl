@@ -587,6 +587,32 @@ end
 end
 
 """
+    ice_aggregation_efficiency(tps, T, α_T)
+
+Temperature factor `E_agg(T) = exp(α_T min(0, T − T_freeze)) ∈ (0, 1]` of the
+ice–ice sticking efficiency, unity at and above freezing and decaying with
+cooling at the rate `α_T` [1/K], the form of the temperature-dependent
+collection efficiency of Lin, Farley and Orville (1983). `α_T = 0` gives
+`E_agg ≡ 1`. Multiplies the cloud-ice–snow collision efficiency in
+[`accretion`](@ref) and divides the cloud-ice autoconversion threshold in
+[`conv_q_icl_to_q_sno`](@ref) with `NoSupersaturation`.
+
+# Arguments
+- `tps`: thermodynamics parameters (for `T_freeze`)
+- `T`: air temperature [K]
+- `α_T`: temperature sensitivity [1/K]
+"""
+@inline function ice_aggregation_efficiency(tps, T, α_T)
+    FT = typeof(T)
+    α = FT(α_T)
+    return ifelse(
+        α == zero(FT),
+        one(FT),
+        exp(α * min(zero(FT), T - FT(TDI.T_freeze(tps)))),
+    )
+end
+
+"""
     conv_q_icl_to_q_sno(::Nothing, mp, tps, micro, thermo)
     conv_q_icl_to_q_sno(opt::NoSupersaturation, mp, tps, micro, thermo)
     conv_q_icl_to_q_sno(opt::WithSupersaturation, mp, tps, micro, thermo)
@@ -597,6 +623,9 @@ Returns the snow tendency due to autoconversion from cloud ice.
 
 **NoSupersaturation**: Simplified Kessler-type threshold autoconversion,
 for use in simulations without supersaturation (e.g., with saturation adjustment).
+The threshold is divided by the aggregation efficiency
+[`ice_aggregation_efficiency`](@ref), so colder cloud ice must accumulate more
+before it converts.
 
 **WithSupersaturation**: Supersaturation-dependent autoconversion following
 Harrington et al. (1995) and Kaul et al. (2015).
@@ -612,9 +641,11 @@ Harrington et al. (1995) and Kaul et al. (2015).
 
 @inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo, sd = nothing)
     pp = _consistent_params(mp.process_params.snow_autoconversion, CMP.Acnv1M, opt, :snow_autoconversion)
-    (; τ, q_threshold, k) = pp
+    (; τ, q_threshold, k, α_T) = pp
     q_icl = micro.q_icl
-    return CO.logistic_function_integral(q_icl, q_threshold, k) / τ
+    E_agg = ice_aggregation_efficiency(tps, thermo.T, α_T)
+    q_thr_eff = q_threshold / max(E_agg, UT.ϵ_numerics(q_threshold))
+    return CO.logistic_function_integral(q_icl, q_thr_eff, k) / τ
 end
 
 @inline function conv_q_icl_to_q_sno(
@@ -1037,11 +1068,13 @@ end
     q_icl = micro.q_icl
     q_sno = micro.q_sno
     ρ = thermo.ρ
+    (; e, α_T) = mp.process_params.cloud_ice_snow_accretion
+    e_eff = e * ice_aggregation_efficiency(tps, thermo.T, α_T)
     return accretion(
         mp.cloud.ice,
         mp.precip.snow,
         mp.terminal_velocity.snow,
-        mp.process_params.cloud_ice_snow_accretion.e,
+        e_eff,
         q_icl,
         q_sno,
         ρ,

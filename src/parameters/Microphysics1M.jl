@@ -123,7 +123,11 @@ struct Acnv1M{FT} <: ParametersType
     q_threshold::FT
     "threshold smooth transition steepness [-]"
     k::FT
+    "temperature sensitivity of ice aggregation efficiency [1/K]"
+    α_T::FT
 end
+Acnv1M(τ::FT, q_threshold::FT, k::FT) where {FT} =
+    Acnv1M(τ, q_threshold, k, zero(FT))
 
 """
     CloudLiquid{FT}

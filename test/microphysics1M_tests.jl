@@ -554,6 +554,33 @@ function test_microphysics1M(FT)
         ) ≈ FT(0.5) * q_icl_threshold / τ_acnv_sno atol =
             FT(0.15) * q_icl_threshold / τ_acnv_sno
 
+        # Temperature-dependent aggregation efficiency: unity at and above
+        # freezing, exp(α_T ΔT) below, and α_T = 0 reproduces the default.
+        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+        TT.@test CM1.ice_aggregation_efficiency(tps, T_freeze + FT(5), FT(0.012)) == FT(1)
+        TT.@test CM1.ice_aggregation_efficiency(tps, T_freeze, FT(0.012)) == FT(1)
+        TT.@test CM1.ice_aggregation_efficiency(tps, T_freeze - FT(20), FT(0.012)) ≈ exp(FT(-0.24))
+        TT.@test CM1.ice_aggregation_efficiency(tps, T_freeze - FT(20), FT(0)) == FT(1)
+        TT.@test CM1.ice_aggregation_efficiency(tps, T_freeze - FT(20), FT(0.012)) isa FT
+        td_αT = CP.create_toml_dict(FT;
+            override_file = Dict(
+                "ice_aggregation_temperature_sensitivity" => Dict("value" => 0.012, "type" => "float"),
+            ),
+        )
+        mp_αT = CMP.Microphysics1MParams(td_αT)
+        TT.@test mp_αT.process_params.snow_autoconversion.α_T == FT(0.012)
+        TT.@test mp_αT.process_params.cloud_ice_snow_accretion.α_T == FT(0.012)
+        TT.@test mp.process_params.snow_autoconversion.α_T == FT(0)
+        # The effective threshold grows as the efficiency falls, so the same
+        # q_icl converts more slowly in colder air and identically at freezing.
+        thermo_cold = (; ρ = FT(1), T = T_freeze - FT(40))
+        thermo_warm = (; ρ = FT(1), T = T_freeze)
+        rate_warm = CM1.conv_q_icl_to_q_sno(mp_αT.processes.snow_autoconversion, mp_αT, tps, micro_b, thermo_warm)
+        rate_cold = CM1.conv_q_icl_to_q_sno(mp_αT.processes.snow_autoconversion, mp_αT, tps, micro_b, thermo_cold)
+        TT.@test rate_warm ≈ CM1.conv_q_icl_to_q_sno(mp.processes.snow_autoconversion, mp, tps, micro_b, thermo_warm)
+        TT.@test rate_cold < rate_warm
+        TT.@test rate_cold isa FT
+
     end
 
     TT.@testset "SnowAutoconversion" begin
