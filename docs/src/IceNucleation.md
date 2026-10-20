@@ -297,7 +297,7 @@ data sets. It is a lognormal distribution, described by
 
 ```math
 \begin{equation}
-  D(\mu, \sigma^2) = \frac{1}{\sqrt{2 \pi} \sigma} exp \left(- \frac{[ln(a \cdot INPC) - \mu(T)]^2}{2 \sigma^2} \right),
+  D(\mu, \sigma^2) = \frac{1}{\sqrt{2 \pi} \sigma} exp \left(- \frac{[ln(INPC) - \mu(T)]^2}{2 \sigma^2} \right),
 \end{equation}
 ```
 where ``T`` is the temperature in degrees Celsius, ``INPC`` is the INP concentration in m``^{-3}`` and the temperature-dependent mean ``\mu(T)`` is given by
@@ -306,7 +306,7 @@ where ``T`` is the temperature in degrees Celsius, ``INPC`` is the INP concentra
   \mu(T) = ln(-(b \cdot T)^9 \times 10^{-9})
 \end{equation}
 ```
- ``\sigma^2`` is the variance, ``a`` and ``b`` are coefficients. The parameters defined in [Frostenberg2023](@cite) for marine data sets are ``\sigma=1.37``, ``a=1`` m``^3``, ``b=1``/C.
+ ``\sigma^2`` is the variance and ``b`` is a coefficient. The parameters defined in [Frostenberg2023](@cite) for marine data sets are ``\sigma=1.37`` and ``b=1``/C.
 
 !!! note
 

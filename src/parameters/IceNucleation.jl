@@ -182,8 +182,6 @@ $(DocStringExtensions.FIELDS)
     "standard deviation"
     σ::FT
     "coefficient"
-    a::FT
-    "coefficient"
     b::FT
     "freezing temperature [K]"
     T_freeze::FT
@@ -192,7 +190,6 @@ end
 function Frostenberg2023(td::CP.ParamDict)
     name_map = (;
         :Frostenberg2023_standard_deviation => :σ,
-        :Frostenberg2023_a_coefficient => :a,
         :Frostenberg2023_b_coefficient => :b,
         :temperature_water_freeze => :T_freeze,
     )
