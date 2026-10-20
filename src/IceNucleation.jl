@@ -242,11 +242,8 @@ Following Eq. (1) of [Frostenberg2023](@cite), the mean log(INPC) is
 ```
 μ(T) = 9 log(-b · T_celsius / 10)
 ```
-with the corresponding INPC obtained by exponentiating. Since
-`9 log(-b · T_celsius / 10) = 9 log(-T_celsius / 10) + 9 log(b)`, `b` already
-shifts the mean by a temperature-independent constant, so a `-log(a)` term
-would be a redundant (degenerate) degree of freedom and `a` is not used here.
-At the default `b = 1` this is the marine-dataset curve `log((-T_celsius / 10)^9)`.
+with the corresponding INPC obtained by exponentiating. At the default `b = 1`
+this is the marine-dataset curve `log((-T_celsius / 10)^9)`.
 
 For details see: [Frostenberg2023](@cite), doi.org/10.5194/acp-23-10883-2023
 """
