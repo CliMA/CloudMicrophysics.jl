@@ -236,24 +236,23 @@ Calculate the mean log(INPC) as a function of temperature.
   - `params`: The [`CMP.Frostenberg2023`](@ref) INPC(T) distribution parameters, including
     + `T_freeze`: freezing temperature [K]
     + `b`: temperature normalization coefficient [°C⁻¹]
-    + `log_a`: log of the INPC normalization coefficient `a` [m³]
   - `T`: air temperature [K]
 
-Following Eq. (1) of [Frostenberg2023](@cite), `log(a · INPC)` is normally
-distributed with mean `μ(T) = log(-(b · T_celsius / 10)^9)`, so the mean
-`log(INPC)` returned here is
+Following Eq. (1) of [Frostenberg2023](@cite), the mean log(INPC) is
 ```
-μ(T) - log(a) = 9 log(-b · T_celsius / 10) - log(a)
+μ(T) = 9 log(-b · T_celsius / 10)
 ```
-with the corresponding INPC obtained by exponentiating. The parameters `a` and
-`b` are read from `ClimaParams`; at their defaults `a = b = 1` this reduces to
-the marine-dataset curve `log((-T_celsius / 10)^9)`.
+with the corresponding INPC obtained by exponentiating. Since
+`9 log(-b · T_celsius / 10) = 9 log(-T_celsius / 10) + 9 log(b)`, `b` already
+shifts the mean by a temperature-independent constant, so a `-log(a)` term
+would be a redundant (degenerate) degree of freedom and `a` is not used here.
+At the default `b = 1` this is the marine-dataset curve `log((-T_celsius / 10)^9)`.
 
 For details see: [Frostenberg2023](@cite), doi.org/10.5194/acp-23-10883-2023
 """
-function INP_concentration_mean((; T_freeze, b, log_a)::CMP.Frostenberg2023, T)
+function INP_concentration_mean((; T_freeze, b)::CMP.Frostenberg2023, T)
     T_celsius = min(T - T_freeze, 0)
-    return 9log(-b * T_celsius / 10) - log_a  # = log((-b * T_celsius / 10)^9) - log(a)
+    return 9log(-b * T_celsius / 10)  # = log((-b * T_celsius / 10)^9)
 end
 
 """

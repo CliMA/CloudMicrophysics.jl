@@ -187,8 +187,6 @@ $(DocStringExtensions.FIELDS)
     b::FT
     "freezing temperature [K]"
     T_freeze::FT
-    "log of the coefficient `a`"
-    log_a::FT = log(a)
 end
 
 function Frostenberg2023(td::CP.ParamDict)

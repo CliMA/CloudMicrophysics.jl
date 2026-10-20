@@ -252,7 +252,7 @@ function test_heterogeneous_ice_nucleation(FT)
         TT.@test CMI_het.INP_concentration_mean(ip_frostenberg, T_cold) ≈
                  FT(6.238324625039508)
 
-        # a shifts the mean by -log(a)
+        # a does not shift the mean
         ip_a = CMP.Frostenberg2023{FT}(;
             σ = ip_frostenberg.σ,
             a = FT(2),
@@ -260,7 +260,7 @@ function test_heterogeneous_ice_nucleation(FT)
             T_freeze = ip_frostenberg.T_freeze,
         )
         TT.@test CMI_het.INP_concentration_mean(ip_a, T_cold) ≈
-                 FT(5.545177444479562)
+                 FT(6.238324625039508)
 
         # b shifts the mean by +9 log(b)
         ip_b = CMP.Frostenberg2023{FT}(;
