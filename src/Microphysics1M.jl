@@ -399,7 +399,7 @@ end
     _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
 @inline _rain_acnv_params(opt::CMP.KK2000Autoconversion, mp) = _consistent_params(
     mp.process_params.rain_autoconversion,
-    NamedTuple{(:acnv, :Nc, :A_Nc)},
+    NamedTuple{(:acnv, :Nc, :A_Nc, :A_Nc_slow, :q_threshold_slow, :q_threshold_fast, :w_0)},
     opt,
     :rain_autoconversion,
 )
@@ -488,7 +488,7 @@ models (e.g. ClimaAtmos).
 @inline rain_autoconversion_threshold(::Nothing, mp, w = 0) = eltype(mp)(Inf)
 
 @inline function rain_autoconversion_threshold(
-    opt::Union{CMP.PrescribedNd, CMP.KK2000Autoconversion},
+    opt::CMP.PrescribedNd,
     mp,
     w = 0,
 )
@@ -496,7 +496,11 @@ models (e.g. ClimaAtmos).
     return zero(eltype(mp))
 end
 
-@inline function rain_autoconversion_threshold(opt::CMP.Kessler1M, mp, w)
+@inline function rain_autoconversion_threshold(
+    opt::Union{CMP.Kessler1M, CMP.KK2000Autoconversion},
+    mp,
+    w = 0,
+)
     (; q_threshold_slow, q_threshold_fast, w_0) = _rain_acnv_params(opt, mp)
     return q_threshold_slow + (q_threshold_fast - q_threshold_slow) * _velocity_blend(w, w_0)
 end
@@ -525,9 +529,12 @@ corresponding velocity dependence.
 using the prescribed cloud droplet number concentration.
 
 **KK2000Autoconversion**: Khairoutdinov and Kogan (2000) autoconversion
-`A_Nc q_lcl^a (ρ / ρ_ref)^c` with `q_lcl` floored at zero ([`CO.KK2000_autoconversion`](@ref),
-shared with the 2-moment scheme) and `A_Nc = A (Nc / N_ref)^b` evaluated once at construction
-from the prescribed cloud droplet number concentration `Nc`.
+`A_eff(w) q_lcl^a (ρ / ρ_ref)^c` with `q_lcl` floored at zero ([`CO.KK2000_autoconversion`](@ref),
+shared with the 2-moment scheme), where `A_eff(w) = A_Nc_slow + (A_Nc - A_Nc_slow) f(thermo.w)`
+blends between the quiescent value `A_Nc_slow = A_Nc / τ_stratiform_scale` and the convective
+value `A_Nc = A (Nc / N_ref)^b` evaluated once at construction from the prescribed cloud droplet
+number concentration `Nc`. With `τ_stratiform_scale = 1` (the default), `A_eff(w) = A_Nc` is
+velocity-independent.
 
 A mismatch between the option and the parameters stored in `mp` raises an `ArgumentError`.
 
@@ -537,8 +544,8 @@ A mismatch between the option and the parameters stored in `mp` raises an `Argum
 - `tps`: thermodynamics parameters (unused, kept for uniform interface)
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
 - `thermo`: thermodynamic state `(; ρ, T, w)`; `w` is the vertical velocity of the subdomain
-  (updraft, environment, or grid mean) for which the rate is evaluated. It is required by
-  `Kessler1M` and not read by `PrescribedNd` or `KK2000Autoconversion`.
+  (updraft, environment, or grid mean) for which the rate is evaluated. It is read by
+  `Kessler1M` and `KK2000Autoconversion` and ignored by `PrescribedNd`.
 
 # Returns
 - Rain autoconversion rate [kg/kg/s]
@@ -558,8 +565,13 @@ end
 end
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.KK2000Autoconversion, mp, tps, micro, thermo)
-    (; acnv, A_Nc) = _rain_acnv_params(opt, mp)
-    return CO.KK2000_autoconversion(acnv, A_Nc, micro.q_lcl, thermo.ρ)
+    (; acnv, A_Nc, A_Nc_slow, q_threshold_slow, q_threshold_fast, w_0) = _rain_acnv_params(opt, mp)
+    blend = _velocity_blend(thermo.w, w_0)
+    A_eff = A_Nc_slow + (A_Nc - A_Nc_slow) * blend
+    q_thr = q_threshold_slow + (q_threshold_fast - q_threshold_slow) * blend
+    q_lcl_eff = (thermo.ρ / acnv.ρ_ref) * max(0, micro.q_lcl)
+    gate = ifelse(q_thr > 0, -expm1(-(q_lcl_eff / max(q_thr, eps(typeof(q_thr))))^2), one(q_lcl_eff))
+    return gate * CO.KK2000_autoconversion(acnv, A_eff, micro.q_lcl, thermo.ρ)
 end
 
 # Size-distribution / fall-speed parameters shared across the 1-moment process rates.

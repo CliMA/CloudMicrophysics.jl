@@ -347,6 +347,36 @@ function test_microphysics1M(FT)
         # no autoconversion threshold, and no state-independent timescale
         TT.@test CM1.rain_autoconversion_threshold(opt, mp_kk, FT(0)) == FT(0)
         TT.@test_throws ArgumentError CM1.rain_autoconversion_timescale(opt, mp_kk, FT(0))
+        # velocity-dependent blending between quiescent (A_Nc_slow) and convective (A_Nc)
+        td_vel = CP.create_toml_dict(FT;
+            override_file = Dict(
+                "rain_autoconversion_timescale_stratiform_scale" => Dict("value" => 10.0, "type" => "float"),
+                "rain_autoconversion_velocity_scale" => Dict("value" => 0.2, "type" => "float"),
+            ),
+        )
+        mp_vel = CMP.Microphysics1MParams(td_vel; rain_autoconversion = CMP.KK2000Autoconversion())
+        r_fast = CM1.conv_q_lcl_to_q_rai(opt, mp_kk, tps, state(FT(1e-3)), thermo)
+        r_w0 = CM1.conv_q_lcl_to_q_rai(opt, mp_vel, tps, state(FT(1e-3)), (; ρ = FT(1.1), T = FT(285), w = FT(0)))
+        r_whalf = CM1.conv_q_lcl_to_q_rai(opt, mp_vel, tps, state(FT(1e-3)), (; ρ = FT(1.1), T = FT(285), w = FT(0.2)))
+        r_whi = CM1.conv_q_lcl_to_q_rai(opt, mp_vel, tps, state(FT(1e-3)), (; ρ = FT(1.1), T = FT(285), w = FT(10.0)))
+        TT.@test r_w0 ≈ r_fast / FT(10)
+        TT.@test r_whalf ≈ FT(0.55) * r_fast
+        TT.@test r_whi ≈ r_fast rtol = FT(1e-3)
+        # smooth droplet-radius / critical-LWC gate with velocity-blended threshold
+        td_gate = CP.create_toml_dict(FT;
+            override_file = Dict(
+                "KK2000_autoconversion_q_lcl_threshold" => Dict("value" => 1.2e-4, "type" => "float"),
+                "cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform_scale" =>
+                    Dict("value" => 1.5, "type" => "float"),
+                "rain_autoconversion_velocity_scale" => Dict("value" => 0.2, "type" => "float"),
+            ),
+        )
+        mp_gate = CMP.Microphysics1MParams(td_gate; rain_autoconversion = CMP.KK2000Autoconversion())
+        TT.@test CM1.rain_autoconversion_threshold(opt, mp_gate, FT(0)) ≈ FT(1.8e-4)
+        TT.@test CM1.rain_autoconversion_threshold(opt, mp_gate, FT(20)) ≈ FT(1.2e-4) rtol = FT(1e-3)
+        r_thin_ungated = CM1.conv_q_lcl_to_q_rai(opt, mp_kk, tps, state(FT(8e-5)), thermo)
+        r_thin_gated = CM1.conv_q_lcl_to_q_rai(opt, mp_gate, tps, state(FT(8e-5)), thermo)
+        TT.@test r_thin_gated ≈ r_thin_ungated * (-expm1(-(FT(1.1) * FT(8e-5) / FT(1.8e-4))^2))
     end
 
     TT.@testset "AccretionKK2000" begin

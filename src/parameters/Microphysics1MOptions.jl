@@ -167,11 +167,17 @@ struct PrescribedNd <: RainAutoconversion end
     KK2000Autoconversion <: RainAutoconversion
 
 Khairoutdinov and Kogan (2000) autoconversion of cloud liquid to rain,
-`A q_lcl^a (Nc / N_ref)^b (ρ / ρ_ref)^c` (see `Common.KK2000_autoconversion`), with the cloud
-droplet number concentration `Nc` prescribed (ClimaParams
-`prescribed_cloud_droplet_number_concentration`, positive). Parameters
-`(; acnv::AcnvKK2000, Nc, A_Nc)`, where `A_Nc = A (Nc / N_ref)^b` is the rate coefficient
-evaluated once at construction, are stored in `process_params.rain_autoconversion` in
+`G(q_lcl, ρ, q_thr(w)) A_eff(w) q_lcl^a (ρ / ρ_ref)^c` (see
+`Common.KK2000_autoconversion`), with the cloud droplet number concentration
+`Nc` prescribed (ClimaParams `prescribed_cloud_droplet_number_concentration`,
+positive), the rate coefficient blended between a quiescent (stratiform) value
+`A_Nc_slow = A_Nc / τ_stratiform_scale` and the convective value
+`A_Nc = A (Nc / N_ref)^b` with vertical velocity `w` on scale `w_0`
+(ClimaParams `rain_autoconversion_timescale_stratiform_scale` and
+`rain_autoconversion_velocity_scale`), and an optional smooth critical-LWC gate
+with threshold blended between `q_threshold_slow` and `q_threshold_fast`.
+Parameters `(; acnv::AcnvKK2000, Nc, A_Nc, A_Nc_slow, q_threshold_slow,
+q_threshold_fast, w_0)` are stored in `process_params.rain_autoconversion` in
 [`Microphysics1MParams`](@ref).
 """
 struct KK2000Autoconversion <: RainAutoconversion end
@@ -464,9 +470,52 @@ process_params_for(::PrescribedNd, td::CP.ParamDict) = VarTimescaleAcnv(td)
 function process_params_for(::KK2000Autoconversion, td::CP.ParamDict)
     Nc = prescribed_cloud_droplet_number(td)
     acnv = AcnvKK2000(td)
-    # `Nc` is fixed, so the rate coefficient A (Nc / N_ref)^b is evaluated once here
+    name_map = (;
+        :rain_autoconversion_timescale_stratiform_scale => :τ_stratiform_scale,
+        :rain_autoconversion_velocity_scale => :w_0,
+    )
+    (; τ_stratiform_scale, w_0) = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    w_0 > 0 || throw(
+        ArgumentError("rain_autoconversion_velocity_scale (w_0) must be positive, got $w_0"),
+    )
+    τ_stratiform_scale > 0 || throw(
+        ArgumentError(
+            "rain_autoconversion_timescale_stratiform_scale must be positive, got $τ_stratiform_scale",
+        ),
+    )
+    # `Nc` is fixed, so the convective rate coefficient A (Nc / N_ref)^b and the quiescent
+    # (stratiform) value A_Nc / τ_stratiform_scale are evaluated once here
     A_Nc = KK2000_autoconversion_coefficient(acnv, Nc)
-    return (; acnv, Nc, A_Nc)
+    A_Nc_slow = A_Nc / τ_stratiform_scale
+    (q_threshold_slow, q_threshold_fast) = _kk2000_autoconversion_threshold(td)
+    return (; acnv, Nc, A_Nc, A_Nc_slow, q_threshold_slow, q_threshold_fast, w_0)
+end
+
+"""
+    _kk2000_autoconversion_threshold(td)
+
+Critical liquid-water thresholds `(q_threshold_slow, q_threshold_fast)` [kg/kg]
+for the smooth droplet-radius gate in 1-moment `KK2000Autoconversion`.
+ClimaParams does not define `KK2000_autoconversion_q_lcl_threshold`, so both
+thresholds default to `0` (gate disabled) unless a run-time override TOML
+provides `KK2000_autoconversion_q_lcl_threshold`; when provided, the quiescent
+threshold is `q_threshold_slow = q_threshold_fast * q_threshold_stratiform_scale`.
+"""
+function _kk2000_autoconversion_threshold(td::CP.ParamDict)
+    FT = CP.float_type(td)
+    haskey(td.data, "KK2000_autoconversion_q_lcl_threshold") ||
+        return (zero(FT), zero(FT))
+    name_map = (;
+        :KK2000_autoconversion_q_lcl_threshold => :q_threshold_fast,
+        :cloud_liquid_water_specific_humidity_autoconversion_threshold_stratiform_scale =>
+            :q_threshold_stratiform_scale,
+    )
+    (; q_threshold_fast, q_threshold_stratiform_scale) =
+        CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    q_threshold_slow = q_threshold_fast * q_threshold_stratiform_scale
+    (q_threshold_slow >= 0 && q_threshold_fast >= 0) ||
+        throw(ArgumentError("KK2000 rain autoconversion thresholds must be non-negative"))
+    return (q_threshold_slow, q_threshold_fast)
 end
 
 """
