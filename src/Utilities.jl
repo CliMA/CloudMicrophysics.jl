@@ -470,6 +470,7 @@ end
 
 """
     nearest_admissible_b(q, b_trial, ρ_min, ρ_max)
+    nearest_admissible_b(q, b_trial, (ρ_min, ρ_max))
 
 The value nearest `b_trial` whose ratio `q / b` lies in `[ρ_min, ρ_max]`, for a nonnegative `q`. 
 
@@ -485,5 +486,7 @@ Clamping the two independently can leave a positive `q` whose `b` has clipped to
 @inline function nearest_admissible_b(q, b_trial, ρ_min, ρ_max)
     return ifelse(q > 0, clamp(b_trial, q / ρ_max, q / ρ_min), zero(q))
 end
+@inline nearest_admissible_b(q, b_trial, (ρ_min, ρ_max)) =
+    nearest_admissible_b(q, b_trial, ρ_min, ρ_max)
 
 end # module

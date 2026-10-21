@@ -20,12 +20,7 @@ TT.@testset "Quality assurance - Aqua" begin
         # See: https://github.com/SciML/OrdinaryDiffEq.jl/issues/1750
         # Test that we're not introducing method ambiguities across deps
         ambs = Aqua.detect_ambiguities(CloudMicrophysics; recursive = true)
-        pkg_match(pkgname, pkdir::Nothing) = false
-        pkg_match(pkgname, pkdir::AbstractString) = occursin(pkgname, pkdir)
-        filter!(
-            x -> pkg_match("CloudMicrophysics", pkgdir(last(x).module)),
-            ambs,
-        )
+        filter!(x -> Base.moduleroot(last(x).module) === CloudMicrophysics, ambs)
 
         # If the number of ambiguities is less than the limit below,
         # then please lower the limit based on the new number of ambiguities.

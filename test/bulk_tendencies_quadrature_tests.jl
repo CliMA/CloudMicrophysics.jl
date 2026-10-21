@@ -258,32 +258,17 @@ function test_quadrature_order_sweep(FT)
 
     @testset "Quadrature order sweep" begin
         for (idx, s) in enumerate(states)
-            # Use a realistic logλ. For ice-bearing cells solve it; for
-            # others, logλ is unused by the ice branches.
-            logλ = if s.q_ice > FT(0) && s.n_ice > FT(0)
-                L_ice = s.q_ice * s.ρ
-                N_ice = s.n_ice * s.ρ
-                F_rim = iszero(s.q_ice) ? FT(0) : s.q_rim / max(s.q_ice, eps(FT))
-                ρ_rim = iszero(s.b_rim) ? FT(0) : s.q_rim / max(s.b_rim, eps(FT))
-                F_rim = min(F_rim, FT(0.99))
-                ρ_rim = clamp(ρ_rim, FT(0), FT(0.8) * mp_ref.ice.scheme.ρ_l)
-                state = CM.P3Scheme.P3State(mp_ref.ice.scheme, L_ice, N_ice, F_rim, ρ_rim)
-                CM.P3Scheme.get_distribution_logλ(state)
-            else
-                FT(0)
-            end
-
             ref = BMT.bulk_microphysics_tendencies(
                 BMT.Microphysics2Moment(), mp_ref, tps,
                 s.ρ, s.T, s.q_tot, s.q_lcl, s.n_lcl, s.q_rai, s.n_rai,
-                s.q_ice, s.n_ice, s.q_rim, s.b_rim, logλ,
+                s.q_ice, s.n_ice, s.q_rim, s.b_rim,
             )
             for (n, tol) in orders_and_tol
                 mp_n = make_mp(n)
                 t_n = BMT.bulk_microphysics_tendencies(
                     BMT.Microphysics2Moment(), mp_n, tps,
                     s.ρ, s.T, s.q_tot, s.q_lcl, s.n_lcl, s.q_rai, s.n_rai,
-                    s.q_ice, s.n_ice, s.q_rim, s.b_rim, logλ,
+                    s.q_ice, s.n_ice, s.q_rim, s.b_rim,
                 )
                 fails = compare_with_reference(ref, t_n, tol; report = true)
                 if fails != 0

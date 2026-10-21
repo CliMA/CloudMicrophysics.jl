@@ -11,13 +11,11 @@ params = CMP.ParametersP3(FT)
 F_rims = FT.(0.0:0.01:0.9)
 ρ_rims = FT.(200.0:10.0:900.0)
 
-get_state2(F_rim, ρ_rim) = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)
-
-states = get_state2.(F_rims, ρ_rims')
+particles = P3.P3Particles.(params, F_rims, ρ_rims')
 
 fig = Makie.Figure(size = (1200, 900), figure_padding = 20)
 
-D_th = round(P3.get_D_th(params) * 1e3, digits = 4) # mm
+D_th = round(P3.get_D_th(params.mass, params.ρ_i) * 1e3, digits = 4) # mm
 # Make a plot for each threshold
 thresh_keys = (:D_gr, :D_cr)
 for (i, key) in enumerate(thresh_keys)
@@ -27,7 +25,7 @@ for (i, key) in enumerate(thresh_keys)
         ""
     end
     ax = Makie.Axis(fig[i, 1], xlabel = "F_rim", ylabel = "ρ_rim", title = title)
-    threshold = getproperty.(states, key) * 1e3
+    threshold = getproperty.(particles, key) * 1e3
     hm = Makie.heatmap!(ax, F_rims, ρ_rims, threshold)
     Makie.Colorbar(fig[i, 2], hm, label = "mm")
 end
@@ -37,9 +35,9 @@ end
 for (i, key) in enumerate(ρ_keys)
     ax = Makie.Axis(fig[i, 3], xlabel = "F_rim", ylabel = "ρ_rim", title = string(key))
     density = if key == :ρ_g
-        getproperty.(states, key)
+        getproperty.(particles, key)
     else # :ρ_d
-        P3.get_ρ_d.(states)
+        P3.get_ρ_d.(params.mass, F_rims, ρ_rims')
     end
     hm = Makie.heatmap!(ax, F_rims, ρ_rims, density)
     Makie.Colorbar(fig[i, 4], hm, label = "kg/m³")

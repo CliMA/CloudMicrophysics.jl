@@ -17,17 +17,17 @@ end
     mass = CMP.MassPowerLaw(Float32)
     βva = mass.β_va
     ρ_g_ref(F_rim, ρ_rim) =
-        P3.get_ρ_g(F_rim, ρ_rim, get_ρ_d_direct(BigFloat, F_rim, ρ_rim, BigFloat(βva)))
+        P3.weighted_average(F_rim, ρ_rim, get_ρ_d_direct(BigFloat, F_rim, ρ_rim, BigFloat(βva)))
     for F_rim in (1.0f-7, 1.0f-6, 1.0f-5, 1.0f-4, 1.0f-3, 1.0f-2, 1.0f-1, 4.0f-1, 9.0f-1),
         ρ_rim in (1.0f0, 5.0f1, 4.0f2, 9.16f2)
 
         ρ_d = P3.get_ρ_d(mass, F_rim, ρ_rim)
-        ρ_g = P3.get_ρ_g(F_rim, ρ_rim, ρ_d)
+        ρ_g = P3.get_ρ_g(mass, F_rim, ρ_rim)
         @test ρ_g > 0           # The direct implementation produces negative numbers for some inputs.
         @test isfinite(ρ_d)
         @test ρ_g ≈ Float32(ρ_g_ref(BigFloat(F_rim), BigFloat(ρ_rim))) rtol = 1.0f-5
     end
     # The value and its derivative with respect to F_rim stay finite under ForwardDiff in Float32.
-    g(x) = (ρ_d = P3.get_ρ_d(mass, x, 4.0f2); P3.get_ρ_g(x, 4.0f2, ρ_d))
+    g(x) = P3.get_ρ_g(mass, x, 4.0f2)
     @test isfinite(FD.derivative(g, 1.0f-4))
 end

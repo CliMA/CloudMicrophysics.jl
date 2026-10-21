@@ -43,9 +43,9 @@ abstract type QuadratureRule end
  with Jacobian dx/dy = (b-a)/2, so that
 
      ∫ₐᵇ f(x) dx = (b-a)/2 ∫₋₁¹ f(x(y)) dy
-                 ≈ (b-a)/2 ∑ᵢ f(xᵢ) · inv_weight_fun(quad, yᵢ) · weight(quad, i, n)
+                 ≈ (b-a)/2 ∑ᵢ f(xᵢ) · inv_weight_fun(quad, yᵢ) · weight(quad, i)
 
- where `yᵢ = node(quad, i, n)`, `xᵢ = (b-a)yᵢ/2 + (a+b)/2`, and the
+ where `yᵢ = node(quad, i)`, `xᵢ = (b-a)yᵢ/2 + (a+b)/2`, and the
  `inv_weight_fun`/`weight` factors are rule-specific (see [`ChebyshevGauss`](@ref)
  and [`GaussLegendre`](@ref)).
 
@@ -58,7 +58,6 @@ abstract type QuadratureRule end
  Approximation to the definite integral ∫ₐᵇ f(x) dx
 """
 @inline function integrate(f::F, a::T, b::T, quad::QuadratureRule) where {F, T}
-    FT = eltype(float(a))
     # Pre-compute transformation parameters
     scale_factor = (b - a) / 2
     shift = (a + b) / 2
@@ -69,13 +68,13 @@ abstract type QuadratureRule end
     (; n) = quad
     for i in 1:n
         # Node on [-1, 1] interval
-        y = node(quad, FT(i), n)
+        y = node(quad, i)
 
         # Node on [a, b] interval
         x = scale_factor * y + shift
 
         # Total weight: rule-specific weight-function factor × wᵢ
-        w = inv_weight_fun(quad, y) * weight(quad, FT(i), n)
+        w = inv_weight_fun(quad, y) * weight(quad, i)
 
         # Accumulate: f(x) * inv_weight_fun(y) * wᵢ
         result += f(x) * w
@@ -126,20 +125,22 @@ end
 
 """
     ChebyshevGauss(n)
+    ChebyshevGauss(FT, n)
 
 Quadrature scheme for Chebyshev-Gauss quadrature of the first kind.
 
 # Arguments
+ - `FT`: float type of the nodes and weights; default `Float64`
  - `n`: Number of quadrature points
 
 # Available methods
 
-    node(::ChebyshevGauss, i::FT, n) where {FT}
-    weight(::ChebyshevGauss, i::FT, n) where {FT}
+    node(::ChebyshevGauss, i)
+    weight(::ChebyshevGauss, i)
     inv_weight_fun(::ChebyshevGauss, y)
 
-- `node(quad, i, n)`: Return the `i`-th node of the `n`-point Chebyshev-Gauss quadrature scheme.
-- `weight(quad, i, n)`: Return the `i`-th weight of the `n`-point Chebyshev-Gauss quadrature scheme.
+- `node(quad, i)`: Return the `i`-th node of the Chebyshev-Gauss quadrature scheme.
+- `weight(quad, i)`: Return the `i`-th weight of the Chebyshev-Gauss quadrature scheme.
 - `inv_weight_fun(quad, y)`: Return the inverse of the weight function `w(x)`.
 
 # Mathematical Background
@@ -159,13 +160,15 @@ If we are interested in only the integral of `f(x)`, we can instead integrate `g
 - https://en.wikipedia.org/wiki/Chebyshev–Gauss_quadrature
 - https://en.wikipedia.org/wiki/Gaussian_quadrature
 """
-struct ChebyshevGauss <: QuadratureRule
+struct ChebyshevGauss{FT} <: QuadratureRule
     n::Int
 end
+ChebyshevGauss(n::Int) = ChebyshevGauss(Float64, n)
+ChebyshevGauss(::Type{FT}, n::Int) where {FT} = ChebyshevGauss{FT}(n)
 Base.broadcastable(quad::ChebyshevGauss) = (quad,)
 
-@inline node(::ChebyshevGauss, i::FT, n) where {FT} = cospi((2float(FT(i)) - 1) / (2n))
-@inline weight(::ChebyshevGauss, i::FT, n) where {FT} = float(FT(π)) / n
+@inline node((; n)::ChebyshevGauss{FT}, i) where {FT} = cospi((2 * FT(i) - 1) / (2n))
+@inline weight((; n)::ChebyshevGauss{FT}, i) where {FT} = FT(π) / n
 @inline inv_weight_fun(::ChebyshevGauss, y) = √(1 - y^2)
 
 # ---------------------------------------------------------------------------
@@ -209,8 +212,8 @@ geometrically there too.
 
 # Available methods
 
-    node(::GaussLegendre, i, n)
-    weight(::GaussLegendre, i, n)
+    node(::GaussLegendre, i)
+    weight(::GaussLegendre, i)
     inv_weight_fun(::GaussLegendre, y)   # ≡ 1 (Legendre weight is 1 on [-1, 1])
 
 # References
@@ -225,8 +228,8 @@ struct GaussLegendre{FT, N} <: QuadratureRule
 end
 Base.broadcastable(quad::GaussLegendre) = (quad,)
 
-@inline node(q::GaussLegendre, i::FT, n) where {FT} = @inbounds q.nodes[Int(i)]
-@inline weight(q::GaussLegendre, i::FT, n) where {FT} = @inbounds q.weights[Int(i)]
+@inline node(q::GaussLegendre, i) = @inbounds q.nodes[i]
+@inline weight(q::GaussLegendre, i) = @inbounds q.weights[i]
 @inline inv_weight_fun(::GaussLegendre, y) = one(y)
 
 # Host-side, one-shot construction path (see the `GaussLegendre` docstring);

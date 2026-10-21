@@ -206,7 +206,6 @@ function run_type_stability_tests()
             n_ice = fill(FT(1e5), N)
             q_rim = fill(FT(1e-5), N)
             b_rim = fill(FT(1e-7), N)
-            logλ = fill(FT(0), N) # Not used if ice=0, but we test ice path
 
             tendencies_2M_p3 =
                 BMT.bulk_microphysics_tendencies.(
@@ -214,7 +213,7 @@ function run_type_stability_tests()
                     Ref(mp2_p3),
                     Ref(tps),
                     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
-                    q_ice, n_ice, q_rim, b_rim, logλ,
+                    q_ice, n_ice, q_rim, b_rim,
                 )
 
             @test tendencies_2M_p3 isa Vector

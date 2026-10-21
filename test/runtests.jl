@@ -19,7 +19,6 @@ TT.@testset "All tests" begin
     include("precipitation_susceptibility_tests.jl")
     include("p3_tests.jl")
     include("p3_rho_d_stability.jl")
-    include("p3_shape_solver_warmstart_tests.jl")
     include("aqua.jl")
     include("performance_tests.jl")
     include("aerosol_activation_calibration.jl")
