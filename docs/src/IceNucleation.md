@@ -281,6 +281,23 @@ Nucleation relaxes toward it on the timescale ``\tau`` of 300 s, ``k = 1 / \tau`
 The mass rate is at most half the vapor excess over ice saturation per relaxation time, ``\partial_t q_{frz} \leq \max(q_v - q_{sat,ice}, 0) / (2 \tau)``.
 The same relaxation bounds the number rate of cloud droplet immersion freezing, through [`CloudMicrophysics.HetIceNucleation.immersion_limit_rate`](@ref).
 
+### Cooper spectrum
+[`CloudMicrophysics.Parameters.ExponentialSupercoolingINP`](@ref) is the Cooper (1986) spectrum in the form of [Thompson2004](@cite), as in Appendix C of [MorrisonMilbrandt2015](@cite),
+```math
+\begin{equation}
+  N_t(T) = \min\left(a \exp(b (T_0 - T)), N_{max}\right),
+\end{equation}
+```
+active below ``T_{thr} = 258.15`` K at ``S_i \geq 0.05``, with the ceiling ``N_{max} = 10^5`` m⁻³ of the P3 reference implementation.
+Nucleation relaxes toward the target at the rate at which vapor deposition grows a newly nucleated crystal to its radius ``r_{nuc} = D_{nuc} / 2``.
+A crystal of radius ``r`` grows as ``r \, \partial_t r = G_{ice}(T) S_i / \rho_i``, with ``G_{ice}`` from [`CloudMicrophysics.Common.G_func_ice`](@ref), so
+```math
+\begin{equation}
+  k = \frac{2 G_{ice}(T) \max(S_i, 0)}{\rho_i r_{nuc}^2}.
+\end{equation}
+```
+This spectrum has no INP budget for immersion freezing, as in the P3 reference implementation.
+
 ### Stochastic spectrum
 [`CloudMicrophysics.Parameters.StochasticINPSpectrum`](@ref) shifts the log concentration of a base spectrum by ``s``, with a ceiling ``N_{max}`` and a lowest temperature ``T_{min}``,
 ```math
