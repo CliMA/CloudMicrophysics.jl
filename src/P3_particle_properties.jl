@@ -201,7 +201,7 @@ It is the mass of a newly nucleated crystal, a solid-ice sphere of diameter `D_n
 # Arguments
 - `params`: [`CMP.ParametersP3`](@ref)
 """
-@inline ice_mean_particle_mass_min((; ρ_i, D_nuc)) = ρ_i * CO.volume_sphere_D(D_nuc)
+@inline ice_mean_particle_mass_min(params) = CO.nucleated_ice_mass(params)
 
 """
     ice_mean_particle_mass_max(params)

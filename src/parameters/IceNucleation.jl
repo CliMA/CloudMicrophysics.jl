@@ -169,22 +169,52 @@ IceNucleationParameters(toml_dict::CP.ParamDict) =
     )
 
 
+# ---------------------------------------------------------------------------
+# INP target spectra for deposition nucleation
+# ---------------------------------------------------------------------------
+
+export INPTargetSpectrum
+
+"""
+    INPTargetSpectrum
+
+The supertype of the target ice nucleating particle (INP) concentrations of deposition nucleation.
+
+They enter `HetIceNucleation.deposition_rate`. A subtype defines
+
+  - the target concentration, `(inp)(T)` [m⁻³];
+  - the activation conditions, `HetIceNucleation.is_active(inp, T, S_i)`;
+  - the relaxation rate, `HetIceNucleation.delivery_rate(inp, mp, tps, T, S_i)` [s⁻¹].
+
+A subtype with an INP budget for immersion freezing defines a method of `HetIceNucleation.immersion_limit_rate`.
+"""
+abstract type INPTargetSpectrum <: ParametersType end
+
 """
     Frostenberg2023{FT}
 
 Parameters for frequency distribution of INP concentration
 DOI: 10.5194/acp-23-10883-2023
 
+As a target spectrum for deposition nucleation, its target is the median of the climatology, and it has an INP
+budget for immersion freezing, `HetIceNucleation.immersion_limit_rate`.
+
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Frostenberg2023{FT} <: ParametersType
+@kwdef struct Frostenberg2023{FT} <: INPTargetSpectrum
     "standard deviation"
     σ::FT
     "coefficient"
     b::FT
     "freezing temperature [K]"
     T_freeze::FT
+    "relaxation timescale of deposition nucleation and of the immersion budget [s]"
+    τ::FT
+    "temperature below which deposition nucleation is active [K]"
+    T_thr::FT
+    "ice supersaturation at and above which deposition nucleation is active [-]"
+    S_thr::FT
 end
 
 function Frostenberg2023(td::CP.ParamDict)
@@ -192,36 +222,68 @@ function Frostenberg2023(td::CP.ParamDict)
         :Frostenberg2023_standard_deviation => :σ,
         :Frostenberg2023_b_coefficient => :b,
         :temperature_water_freeze => :T_freeze,
+        :Frostenberg2023_deposition_relaxation_timescale => :τ,
+        :P3_cooper_deposition_temperature_threshold => :T_thr,
+        :P3_cooper_deposition_ice_supersaturation_threshold => :S_thr,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
     return Frostenberg2023(; parameters...)
 end
 
+export StochasticINPSpectrum
+
+"""
+    StochasticINPSpectrum{FT, S}
+
+A target spectrum that shifts the log concentration of the base spectrum `base`, with a ceiling and a lowest
+temperature:
+
+    (inp::StochasticINPSpectrum)(T) → min(exp(log(base(T)) + log_shift), N_max)
+
+Deposition nucleation is active where the base spectrum is active and `T ≥ T_min`. With `log_shift = 0` and an
+inactive ceiling and lowest temperature, the spectrum is the base spectrum.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct StochasticINPSpectrum{FT, S <: INPTargetSpectrum} <: INPTargetSpectrum
+    "the base spectrum, whose log concentration is shifted"
+    base::S
+    "the shift of the log concentration [-]"
+    log_shift::FT
+    "the lowest temperature at which the spectrum is active [K]"
+    T_min::FT
+    "the ceiling on the target concentration [m⁻³]"
+    N_max::FT
+end
+
+"""
+    StochasticINPSpectrum(toml_dict::CP.ParamDict; log_shift, T_min, N_max)
+
+A [`StochasticINPSpectrum`](@ref) on the [`Frostenberg2023`](@ref) base spectrum.
+"""
+function StochasticINPSpectrum(td::CP.ParamDict; log_shift, T_min, N_max)
+    FT = CP.float_type(td)
+    return StochasticINPSpectrum(;
+        base = Frostenberg2023(td), log_shift = FT(log_shift), T_min = FT(T_min), N_max = FT(N_max),
+    )
+end
+
+ShowMethods.field_units(::StochasticINPSpectrum) = (; log_shift = "-", T_min = "K", N_max = "m⁻³")
+
 # ---------------------------------------------------------------------------
-# F23 INP-activation memory models
+# Depletion models of the INP target
 # ---------------------------------------------------------------------------
 
 export NIceProxyDepletion
 
 """
-    NIceProxyDepletion{FT}
+    NIceProxyDepletion
 
-Use the in-cell ice number `n_ice` as the depletion proxy for F23
-activation. In this form, a column with no ice
-sees the full INPC target; activation events do not by themselves
-deplete the budget on a memory timescale, but the ice they create
-proxies "INPs already used" downstream until that ice sublimates,
-sediments out, or melts.
+Use the specific ice number `n_ice` of the cell state as the activated INP concentration.
 
-Conflates two physically distinct counts: "ice in column" and
-"INPs already activated in this air parcel". Drop a fresh anvil into
-clean air below it and the F23 channel artificially shuts off.
-
-# Fields
-$(DocStringExtensions.FIELDS)
+In this form, a column with no ice sees the full target, and the ice that nucleation creates counts as activated
+INPs until it sublimates, sediments out, or melts. It also counts ice that sedimented in from above, so ice falling
+into clean air below suppresses nucleation there.
 """
-struct NIceProxyDepletion{FT}
-    "F23 activation relaxation timescale `[s]` (default `300`)"
-    τ_act::FT
-end
-NIceProxyDepletion(; τ_act = 300) = NIceProxyDepletion(τ_act)
+struct NIceProxyDepletion end

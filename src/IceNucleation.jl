@@ -6,6 +6,7 @@ Parameterization for heterogenous cloud ice nucleation.
 module HetIceNucleation
 
 import ..Parameters as CMP
+import CloudMicrophysics.Common as CO
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.DistributionTools as DT
@@ -387,138 +388,130 @@ function liquid_freezing_rate(
     return (; ∂ₜn_frz, ∂ₜq_frz)
 end
 
+# ---------------------------------------------------------------------------
+# Deposition nucleation toward an INP target spectrum
+# ---------------------------------------------------------------------------
+
 """
-    immersion_limit_rate(opt::CMP.Frostenberg2023, T, ρ; τ, inpc_log_shift, n_active)
+    is_active(inp, T, S_i)
 
-Compute the F23-INPC-imposed upper limit on the cloud-droplet immersion freezing number rate.
+Return whether deposition nucleation proceeds for the INP target spectrum `inp`.
 
-The Frostenberg 2023 climatology specifies a target INP concentration `INPC(T)`
-in air [m⁻³(air)]. Treating that target as a budget that should be activated
-on a relaxation timescale `τ`, the maximum number of crystals nucleated per
-kg of air per second is
+`inp` is a [`CMP.INPTargetSpectrum`](@ref), at air temperature `T` [K] and ice supersaturation
+`S_i = q_vap/q_sat_ice - 1`.
+"""
+function is_active end
+
+"""
+    delivery_rate(inp, mp, tps, T, S_i)
+
+Return the rate [s⁻¹] at which the INP deficit of the target spectrum `inp` becomes ice crystals.
+
+The deficit is that between the target INP concentration of `inp` and the activated concentration.
+"""
+function delivery_rate end
+
+# Target concentrations [m⁻³]: the median of the Frostenberg 2023 climatology, and the base target with its log
+# shifted and with a ceiling
+@inline (inp::CMP.Frostenberg2023)(T) = exp(INP_concentration_mean(inp, T))
+@inline (inp::CMP.StochasticINPSpectrum)(T) = min(exp(log(inp.base(T)) + inp.log_shift), inp.N_max)
+
+@inline is_active(inp::CMP.Frostenberg2023, T, S_i) = (T < inp.T_thr) & (S_i >= inp.S_thr)
+@inline is_active(inp::CMP.StochasticINPSpectrum, T, S_i) = (T >= inp.T_min) & is_active(inp.base, T, S_i)
+
+@inline delivery_rate(inp::CMP.Frostenberg2023, mp, tps, T, S_i) = inv(oftype(T, inp.τ))
+@inline delivery_rate(inp::CMP.StochasticINPSpectrum, mp, tps, T, S_i) = delivery_rate(inp.base, mp, tps, T, S_i)
+
+# The mass rate of nucleated crystals of mass `m_nuc` at the number rate `∂ₜn_frz`; the Frostenberg 2023 rate is
+# at most half the vapor excess `q_excess` per relaxation time `1/k`
+@inline _nucleated_mass_rate(::CMP.INPTargetSpectrum, m_nuc, ∂ₜn_frz, q_excess, k) = m_nuc * ∂ₜn_frz
+@inline _nucleated_mass_rate(::CMP.Frostenberg2023, m_nuc, ∂ₜn_frz, q_excess, k) =
+    min(m_nuc * ∂ₜn_frz, q_excess * k / 2)
+@inline _nucleated_mass_rate(inp::CMP.StochasticINPSpectrum, m_nuc, ∂ₜn_frz, q_excess, k) =
+    _nucleated_mass_rate(inp.base, m_nuc, ∂ₜn_frz, q_excess, k)
+
+"""
+    deposition_rate(mp, tps, micro, thermo)
+
+Compute the deposition nucleation of pristine ice toward the INP target spectrum `mp.ice.ice_nucleation`.
+
+The nucleation relaxes the activated concentration toward the target concentration `N_t(T) = inp(T)` of the
+[`CMP.INPTargetSpectrum`](@ref) `inp`:
 
 ```
-∂ₜn_lim = max(0, INPC(T)/ρ - n_active) / τ.
+∂ₜn_frz = max(0, N_t(T)/ρ - n_active) ⋅ k   [kg⁻¹ s⁻¹]
+∂ₜq_frz = m_nuc ⋅ ∂ₜn_frz                   [kg kg⁻¹ s⁻¹]
 ```
 
-`n_active` is the depletion proxy; see [`n_active`](@ref).
+with `n_active` the activated concentration of the depletion model `mp.ice.inp_depletion_model` (see
+[`n_active`](@ref)), `k` the relaxation rate of `inp`, and `m_nuc` the mass of a newly nucleated crystal, a
+solid-ice sphere of the P3 diameter `D_nuc`. For [`CMP.Frostenberg2023`](@ref) and a spectrum based on it, the
+mass rate is at most half the vapor excess over ice saturation per relaxation time. Both rates are zero outside
+the activation conditions of `inp`. See the Ice Nucleation docs page.
 
 # Arguments
- - `opt`: The [`CMP.Frostenberg2023`](@ref) parameters.
- - `T`: Air temperature [K].
- - `ρ`: Air density [kg(air) m⁻³(air)].
-
-# Keyword arguments
- - `τ`: Relaxation timescale `[s]` (default `300`).
- - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
- - `n_active`: Depletion proxy [kg⁻¹(air)].
+ - `mp`: the [`CMP.Microphysics2MParams`](@ref) parameters with P3 ice.
+ - `tps`: thermodynamics parameters.
+ - `micro`: the contents per kg of air; the rate reads `q_tot`, `q_lcl`, `q_rai`, `q_ice` and the entries the
+   depletion model reads.
+ - `thermo`: the air state; the rate reads `ρ` and `T`.
 
 # Returns
- - A `NamedTuple` `(; ∂ₜn_frz)` — the specific number freezing-rate cap
-   [kg⁻¹(air) s⁻¹]. Zero when `T ≥ T_freeze`.
+ - `(; ∂ₜn_frz, ∂ₜq_frz)`, the specific number rate [kg⁻¹ s⁻¹] and mass rate [kg kg⁻¹ s⁻¹].
 """
-function immersion_limit_rate(
-    opt::CMP.Frostenberg2023, T, ρ;
-    τ = oftype(T, 300), inpc_log_shift = zero(T),
-    n_active = zero(T),
-)
-    T ≥ opt.T_freeze && return (; ∂ₜn_frz = zero(T))
-    log_inpc = INP_concentration_mean(opt, T) + inpc_log_shift
-    INPC_per_kg = exp(log_inpc) / ρ                  # [kg⁻¹(air)]
-    ∂ₜn_frz = max(zero(T), INPC_per_kg - n_active) / τ # [kg⁻¹(air) s⁻¹]
-    return (; ∂ₜn_frz)
-end
-
-"""
-    deposition_rate(
-        opt::CMP.Frostenberg2023, tps, T, ρ, q_tot, q_liq, q_ice, n_ice;
-        m_nuc, T_thresh, S_i_thresh, τ_act, inpc_log_shift,
-    )
-
-Compute the Frostenberg 2023 deposition nucleation rate
-
-The rate is the Frostenberg 2023 INP concentration (treated as a budget)
-relaxed toward depletion at `n_ice` over timescale `τ_act`:
-
-```
-∂ₜn_frz = max(0, INPC(T)/ρ - n_ice) / τ_act
-```
-
-Each newly nucleated crystal is assigned the starter mass `m_nuc`
-(e.g. `(π/6) · ρ_i · D_nuc³ ≈ 4.8e-13` kg for a 10 μm solid-ice crystal).
-The mass tendency is the implied mass injection, capped by half the local
-vapor excess over ice saturation per relaxation window:
-
-```
-q_excess = max(0, q_vap - q_sat_ice)
-∂ₜq_frz  = min(m_nuc · ∂ₜn_frz,  ½ q_excess / τ_act)
-```
-
-Conditions for activation:
-
-  - `T < T_thresh` (default `T_freeze - 15 K`, i.e. -15 °C): below this
-    temperature deposition nucleation is active.
-  - `S_i ≡ q_vap/q_sat_ice - 1 > S_i_thresh` (default 5 %): ice
-    supersaturation is required for vapor to nucleate onto INPs.
-
-# Arguments
- - `opt`: The [`CMP.Frostenberg2023`](@ref) parameters.
- - `tps`: Thermodynamics parameters (used for the ice-saturation curve).
- - `T`: Air temperature [K].
- - `ρ`: Air density [kg(air) m⁻³(air)].
- - `q_tot`: Total water specific content [kg kg⁻¹(air)].
- - `q_liq`: Liquid water specific content [kg kg⁻¹(air)].
- - `q_ice`: Ice specific content [kg kg⁻¹(air)].
- - `n_ice`: Specific ice-crystal number concentration `[kg⁻¹(air)]` (proxy
-   for already-activated INPs).
-
-# Keyword arguments
- - `m_nuc`: Starter mass assigned to each newly nucleated crystal [kg].
- - `T_thresh`: Activation temperature threshold `[K]` (default `opt.T_freeze - 15`).
- - `S_i_thresh`: Activation ice-supersaturation threshold (default `0.05`).
- - `τ_act`: Relaxation timescale `[s]` (default `300`).
- - `inpc_log_shift`: Additive shift to `log(INPC)` (default `0`).
-
-# Returns
- - A `NamedTuple` `(; ∂ₜn_frz, ∂ₜq_frz)` with the specific number rate
-   [kg⁻¹(air) s⁻¹] and specific mass rate [kg(ice) kg⁻¹(air) s⁻¹]. Zero
-   outside the activation window.
-"""
-function deposition_rate(
-    opt::CMP.Frostenberg2023, tps, T, ρ, q_tot, q_liq, q_ice, n_ice; m_nuc,
-    T_thresh = opt.T_freeze - 15, S_i_thresh = oftype(opt.T_freeze, 0.05),
-    τ_act = 300, inpc_log_shift = 0,  # TODO: Put these in ClimaParams
-)
+@inline function deposition_rate(mp, tps, micro, thermo)
+    inp = mp.ice.ice_nucleation
+    (; ρ, T) = thermo
     q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-    q_vap = TDI.q_vap(q_tot, q_liq, q_ice)
+    q_vap = TDI.q_vap(micro.q_tot, micro.q_lcl + micro.q_rai, micro.q_ice)
     S_i = q_vap / q_sat_ice - 1
-    # Activation conditions
-    cond = (T < T_thresh) & (S_i > S_i_thresh)
-    # Nucleation rate, limited by ambient INP availability and relaxation time τ_act.
-    log_inpc = INP_concentration_mean(opt, T) + inpc_log_shift
-    INPC_per_kg = exp(log_inpc) / ρ
-    ∂ₜn_frz = max(0, INPC_per_kg - n_ice) / τ_act
-    ∂ₜn_frz = ifelse(cond, ∂ₜn_frz, zero(∂ₜn_frz))
-    # Vapor-excess cap on the implied mass injection.
-    q_excess = max(0, q_vap - q_sat_ice)
-    # Implied mass injection, capped by half the local vapor excess per relaxation window.
-    ∂ₜq_frz = min(m_nuc * ∂ₜn_frz, q_excess / (2τ_act))
+    n_act = n_active(mp.ice.inp_depletion_model, micro)
+    m_nuc = CO.nucleated_ice_mass(mp.ice.scheme)
+    k = delivery_rate(inp, mp, tps, T, S_i)
+    ∂ₜn_frz = max(0, inp(T) / ρ - n_act) * k
+    ∂ₜn_frz = ifelse(is_active(inp, T, S_i), ∂ₜn_frz, zero(∂ₜn_frz))
+    ∂ₜq_frz = _nucleated_mass_rate(inp, m_nuc, ∂ₜn_frz, max(0, q_vap - q_sat_ice), k)
     return (; ∂ₜn_frz, ∂ₜq_frz)
 end
 
-# ---------------------------------------------------------------------------
-# F23 INP-activation memory dispatch
-# ---------------------------------------------------------------------------
+"""
+    immersion_limit_rate(inp, T, ρ; n_active = 0)
+
+Return the upper limit on the cloud droplet immersion freezing number rate from the INP budget of `inp`.
+
+The limit is `max(0, N_t(T)/ρ - n_active) / τ` [kg⁻¹ s⁻¹], as a `NamedTuple` `(; ∂ₜn_frz)`, with `N_t` the
+target concentration and `τ` the relaxation timescale of the [`CMP.INPTargetSpectrum`](@ref) `inp`,
+`ρ` the air density [kg m⁻³], and `n_active` the activated concentration [kg⁻¹].
+For [`CMP.Frostenberg2023`](@ref), the limit is zero at and above `T_freeze`.
+For a [`CMP.StochasticINPSpectrum`](@ref) on a Frostenberg 2023 base, `N_t` is the shifted target, and the limit
+is also zero below `T_min`.
+"""
+@inline function immersion_limit_rate(
+    inp::Union{CMP.Frostenberg2023, CMP.StochasticINPSpectrum{<:Any, <:CMP.Frostenberg2023}}, T, ρ;
+    n_active = zero(T),
+)
+    FT = UT.promote_typeof(T, ρ, n_active)
+    ∂ₜn_frz = max(zero(FT), inp(T) / ρ - n_active) / _budget_timescale(inp)
+    return (; ∂ₜn_frz = ifelse(_immersion_budget_is_open(inp, T), ∂ₜn_frz, zero(FT)))
+end
+
+@inline _budget_timescale(inp::CMP.Frostenberg2023) = inp.τ
+@inline _budget_timescale(inp::CMP.StochasticINPSpectrum) = _budget_timescale(inp.base)
+
+@inline _immersion_budget_is_open(inp::CMP.Frostenberg2023, T) = T < inp.T_freeze
+@inline _immersion_budget_is_open(inp::CMP.StochasticINPSpectrum, T) =
+    (T >= inp.T_min) & _immersion_budget_is_open(inp.base, T)
 
 """
-    n_active(model::CMP.NIceProxyDepletion, n_ice)
+    n_active(model, micro)
 
-Return the depletion proxy `n_active` to subtract from the F23 INPC
-target in [`deposition_rate`](@ref) and any analogous INPC-budgeted
-rate. For `NIceProxyDepletion` (the only model currently provided) this
-is the in-cell ice number `n_ice`.
+Return the specific concentration [kg⁻¹] of the ice nucleating particles already activated.
+
+[`deposition_rate`](@ref) and the immersion budget subtract it from the target concentration.
+`micro` holds the contents per kg of air.
+For [`CMP.NIceProxyDepletion`](@ref), it is the specific ice number `micro.n_ice`.
 """
-@inline n_active(::CMP.NIceProxyDepletion, n_ice) = n_ice
+@inline n_active(::CMP.NIceProxyDepletion, micro) = micro.n_ice
 
 end # end module
 

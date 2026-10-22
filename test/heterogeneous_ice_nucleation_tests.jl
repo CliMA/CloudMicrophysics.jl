@@ -257,6 +257,9 @@ function test_heterogeneous_ice_nucleation(FT)
             σ = ip_frostenberg.σ,
             b = FT(2),
             T_freeze = ip_frostenberg.T_freeze,
+            τ = ip_frostenberg.τ,
+            T_thr = ip_frostenberg.T_thr,
+            S_thr = ip_frostenberg.S_thr,
         )
         TT.@test CMI_het.INP_concentration_mean(ip_b, T_cold) ≈
                  FT(12.476649250079015)
@@ -266,154 +269,78 @@ function test_heterogeneous_ice_nucleation(FT)
 
         T_freeze = ip_frostenberg.T_freeze
         ρ = FT(1)
-        τ = FT(300)
 
         # Above T_freeze: zero
-        r_warm = CMI_het.immersion_limit_rate(
-            ip_frostenberg, T_freeze + FT(0.1), ρ; τ,
-        )
+        r_warm = CMI_het.immersion_limit_rate(ip_frostenberg, T_freeze + FT(0.1), ρ)
         TT.@test r_warm.∂ₜn_frz == FT(0)
 
         # Cold T: rate is positive and matches INPC/(ρ·τ)
         T_cold = T_freeze - FT(20)
-        r_cold = CMI_het.immersion_limit_rate(ip_frostenberg, T_cold, ρ; τ)
-        INPC_expected = exp(CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)) / ρ / τ
+        r_cold = CMI_het.immersion_limit_rate(ip_frostenberg, T_cold, ρ)
+        INPC_expected = exp(CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)) / ρ / ip_frostenberg.τ
         TT.@test r_cold.∂ₜn_frz ≈ INPC_expected rtol = sqrt(eps(FT))
 
         # Colder ⇒ larger rate
-        r_colder = CMI_het.immersion_limit_rate(
-            ip_frostenberg, T_freeze - FT(30), ρ; τ,
-        )
+        r_colder = CMI_het.immersion_limit_rate(ip_frostenberg, T_freeze - FT(30), ρ)
         TT.@test r_colder.∂ₜn_frz > r_cold.∂ₜn_frz
 
-        # log_inpc_shift > 0 ⇒ larger rate
-        r_shifted = CMI_het.immersion_limit_rate(
-            ip_frostenberg, T_cold, ρ; τ, inpc_log_shift = FT(1),
+        # A stochastic spectrum with log_shift = 1 ⇒ rate larger by exp(1); zero below T_min
+        ip_shifted = CMP.StochasticINPSpectrum(;
+            base = ip_frostenberg, log_shift = FT(1), T_min = T_freeze - FT(25), N_max = FT(Inf),
         )
+        r_shifted = CMI_het.immersion_limit_rate(ip_shifted, T_cold, ρ)
         TT.@test r_shifted.∂ₜn_frz ≈ r_cold.∂ₜn_frz * exp(FT(1)) rtol = sqrt(eps(FT))
+        TT.@test CMI_het.immersion_limit_rate(ip_shifted, T_freeze - FT(30), ρ).∂ₜn_frz == FT(0)
 
         # Type stability
         TT.@test eltype(r_cold.∂ₜn_frz) == FT
     end
 
-    TT.@testset "F23 deposition rate" begin
+    TT.@testset "Deposition nucleation toward an INP target spectrum" begin
+        mp = CMP.Microphysics2MParams(FT; with_ice = true)
+        f23 = mp.ice.ice_nucleation
+        m_nuc = CO.nucleated_ice_mass(mp.ice.scheme)
+        ρ = FT(0.8)
+        function rate(mp, T, S_i, n_ice)
+            q_vap = (1 + S_i) * TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+            micro = (; q_tot = q_vap, q_lcl = FT(0), q_rai = FT(0), q_ice = FT(0), n_ice)
+            return CMI_het.deposition_rate(mp, tps, micro, (; ρ, T))
+        end
+        with_spectrum(inp) = CMP.Microphysics2MParams(FT; with_ice = true, ice_nucleation = inp)
 
-        T_freeze = ip_frostenberg.T_freeze
-        ρ = FT(1)
-        τ_act = FT(300)
-        n_ice = FT(0)
-        ρ_i = FT(916.7)
-        D_nuc = FT(10e-6)
-        m_nuc = FT(π) / 6 * ρ_i * D_nuc^3
-        # Strict-MM15 defaults (these are now the function's defaults; we
-        # still pass them explicitly here to make the test setup
-        # self-documenting).
-        T_thresh_default = T_freeze - FT(15)
-        S_i_thresh_default = FT(0.05)
+        # Relaxation toward the median of the climatology over τ, with crystals of the nucleated mass
+        T, S_i, n_ice = FT(250), FT(0.2), FT(10)
+        r = rate(mp, T, S_i, n_ice)
+        ∂ₜn_ref = (f23(T) / ρ - n_ice) / f23.τ
+        TT.@test r.∂ₜn_frz > 0
+        TT.@test r.∂ₜn_frz ≈ ∂ₜn_ref rtol = 8 * eps(FT)
+        TT.@test r.∂ₜq_frz ≈ m_nuc * ∂ₜn_ref rtol = 8 * eps(FT)
+        TT.@test eltype(r.∂ₜn_frz) == FT && eltype(r.∂ₜq_frz) == FT
 
-        # Strict defaults are picked up automatically when not overridden.
-        T_test = T_freeze - FT(20)   # below the -15 °C strict gate
-        q_sat_test = TDI.saturation_vapor_specific_content_over_ice(tps, T_test, ρ)
-        r_default = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_test, ρ, 2 * q_sat_test, FT(0), FT(0), n_ice;
-            m_nuc, τ_act,
-        )
-        TT.@test r_default.∂ₜn_frz > FT(0)
-        # And they're closed at T = -10 °C (above the -15 °C gate)
-        T_warm_test = T_freeze - FT(10)
-        q_sat_warm_test = TDI.saturation_vapor_specific_content_over_ice(tps, T_warm_test, ρ)
-        r_default_closed = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_warm_test, ρ, 2 * q_sat_warm_test, FT(0), FT(0), n_ice;
-            m_nuc, τ_act,
-        )
-        TT.@test r_default_closed.∂ₜn_frz == FT(0)
+        # Zero once the activated concentration reaches the target
+        r_depleted = rate(mp, T, S_i, 2 * f23(T) / ρ)
+        TT.@test r_depleted.∂ₜn_frz == 0 && r_depleted.∂ₜq_frz == 0
 
-        # T_freeze - 20 °C, vapor strongly supersaturated wrt ice ⇒ both
-        # gates open. The function takes q_tot/q_liq/q_ice and computes
-        # q_vap internally, so we pass q_tot = q_vap_super, q_liq = 0,
-        # q_ice = 0.
-        T_cold = T_freeze - FT(20)
-        q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T_cold, ρ)
-        q_vap_super = 2 * q_sat_ice          # S_i ≈ 1.0
-        r_active = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_cold, ρ, q_vap_super, FT(0), FT(0), n_ice;
-            m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
-            τ_act,
-        )
-        TT.@test r_active.∂ₜn_frz > FT(0)
-        TT.@test r_active.∂ₜq_frz > FT(0)
-        # When the starter-mass term is the binding constraint (large
-        # q_excess), ∂ₜq_frz = m_nuc · ∂ₜn_frz exactly:
-        TT.@test r_active.∂ₜq_frz ≈ m_nuc * r_active.∂ₜn_frz rtol = sqrt(eps(FT))
+        # Active below T_thr at an ice supersaturation of at least S_thr
+        for (T, S_i) in ((f23.T_thr, FT(0.2)), (FT(250), FT(0.04)), (FT(250), FT(-0.1)))
+            r_inactive = rate(mp, T, S_i, FT(0))
+            TT.@test r_inactive.∂ₜn_frz == 0 && r_inactive.∂ₜq_frz == 0
+        end
+        TT.@test CMI_het.is_active(f23, FT(250), f23.S_thr)
 
-        # n_ice = INPC ⇒ depleted to zero ⇒ both n and q rates vanish
-        INPC_at_T = exp(CMI_het.INP_concentration_mean(ip_frostenberg, T_cold)) / ρ
-        r_depleted = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_cold, ρ, q_vap_super, FT(0), FT(0), INPC_at_T;
-            m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
-            τ_act,
-        )
-        TT.@test r_depleted.∂ₜn_frz == FT(0)
-        TT.@test r_depleted.∂ₜq_frz == FT(0)
+        # A stochastic spectrum shifts the log of the target, with a ceiling and a lowest temperature
+        shifted =
+            with_spectrum(CMP.StochasticINPSpectrum(; base = f23, log_shift = FT(1), T_min = FT(240), N_max = FT(Inf)))
+        TT.@test rate(shifted, T, S_i, FT(0)).∂ₜn_frz ≈ exp(FT(1)) * rate(mp, T, S_i, FT(0)).∂ₜn_frz rtol = 8 * eps(FT)
+        TT.@test rate(shifted, FT(239), S_i, FT(0)).∂ₜn_frz == 0
+        capped = with_spectrum(CMP.StochasticINPSpectrum(; base = f23, log_shift = FT(0), T_min = FT(0), N_max = FT(1)))
+        TT.@test rate(capped, T, S_i, FT(0)).∂ₜn_frz ≈ FT(1) / ρ / f23.τ rtol = 8 * eps(FT)
 
-        # T above the -15 °C gate ⇒ zero. Use q_vap super-saturated AT
-        # T_warm so we isolate the T-gate effect (otherwise S_i would
-        # also be < threshold).
-        T_warm = T_freeze - FT(10)
-        q_sat_warm = TDI.saturation_vapor_specific_content_over_ice(tps, T_warm, ρ)
-        q_vap_super_warm = 2 * q_sat_warm
-        r_T_gate = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_warm, ρ, q_vap_super_warm, FT(0), FT(0), n_ice;
-            m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
-            τ_act,
-        )
-        TT.@test r_T_gate.∂ₜn_frz == FT(0)
-        TT.@test r_T_gate.∂ₜq_frz == FT(0)
-
-        # Subsaturated wrt ice ⇒ both rates zero (S_i gate closed, and
-        # the vapor cap independently zeros ∂ₜq_frz).
-        r_sub = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_cold, ρ, FT(0.5) * q_sat_ice, FT(0), FT(0), n_ice;
-            m_nuc, T_thresh = T_thresh_default, S_i_thresh = S_i_thresh_default,
-            τ_act,
-        )
-        TT.@test r_sub.∂ₜn_frz == FT(0)
-        TT.@test r_sub.∂ₜq_frz == FT(0)
-
-        # Tunable thresholds: warming the T_thresh opens the warm-side gate
-        r_relaxed = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_warm, ρ, q_vap_super_warm, FT(0), FT(0), n_ice;
-            m_nuc, T_thresh = T_freeze - FT(5), S_i_thresh = S_i_thresh_default,
-            τ_act,
-        )
-        TT.@test r_relaxed.∂ₜn_frz > FT(0)
-        TT.@test r_relaxed.∂ₜq_frz > FT(0)
-
-        # Permissive thresholds (used by BMT) ⇒ always passes the gate
-        r_permissive = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_warm, ρ, q_vap_super_warm, FT(0), FT(0), n_ice;
-            m_nuc, T_thresh = FT(2000), S_i_thresh = FT(-2), τ_act,
-        )
-        TT.@test r_permissive.∂ₜn_frz > FT(0)
-        TT.@test r_permissive.∂ₜq_frz > FT(0)
-
-        # Vapor-excess cap: with an absurdly large m_nuc, the
-        # m_nuc·∂ₜn_frz term dominates and the q_excess cap should bind.
-        # Verify ∂ₜq_frz = q_excess/(2τ_act) exactly.
-        T_super = T_freeze - FT(20)
-        q_sat_super = TDI.saturation_vapor_specific_content_over_ice(tps, T_super, ρ)
-        q_vap_tiny_excess = q_sat_super * FT(1.001)   # S_i = 0.001
-        q_excess_tiny = q_vap_tiny_excess - q_sat_super
-        r_capped = CMI_het.deposition_rate(
-            ip_frostenberg, tps, T_super, ρ, q_vap_tiny_excess, FT(0), FT(0), FT(0);
-            m_nuc = FT(1e3),  # absurd m_nuc forces vapor cap to bind
-            T_thresh = FT(2000), S_i_thresh = FT(-2), τ_act,
-        )
-        TT.@test r_capped.∂ₜq_frz ≈ q_excess_tiny / (2τ_act) rtol = sqrt(eps(FT))
-
-        # Type stability
-        TT.@test eltype(r_active.∂ₜn_frz) == FT
-        TT.@test eltype(r_active.∂ₜq_frz) == FT
+        # The Frostenberg 2023 mass rate is at most half the vapor excess per relaxation time
+        dense =
+            with_spectrum(CMP.StochasticINPSpectrum(; base = f23, log_shift = FT(30), T_min = FT(0), N_max = FT(Inf)))
+        q_excess = S_i * TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+        TT.@test rate(dense, T, S_i, FT(0)).∂ₜq_frz ≈ q_excess / (2 * f23.τ) rtol = 8 * eps(FT)
     end
 
     TT.@testset "Cloud-droplet immersion freezing (Bigg + cloud PSD)" begin

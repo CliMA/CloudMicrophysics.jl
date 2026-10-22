@@ -504,6 +504,14 @@ See also [`volume_sphere_D`](@ref).
 @inline volume_sphere_R(R) = volume_sphere_D(2R)
 
 """
+    nucleated_ice_mass(p3)
+
+Return the mass [kg] of a newly nucleated ice crystal, a solid-ice sphere of the diameter `D_nuc` of the P3
+parameters `p3`.
+"""
+@inline nucleated_ice_mass((; ρ_i, D_nuc)::CMP.ParametersP3) = ρ_i * volume_sphere_D(D_nuc)
+
+"""
     ventilation_coefficients(vent, aps)
 
 Return the coefficients `(a, b)` of the ventilation factor `F_v(D) = a + b √(D v(D))` of [`ventilation_factor`](@ref).
