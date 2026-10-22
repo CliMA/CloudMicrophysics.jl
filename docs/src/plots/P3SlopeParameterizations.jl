@@ -6,13 +6,20 @@ import RootSolvers as RS
 # Every root of the shape solve on [10², 10⁶] m⁻¹: bracket each sign change of the residual on a
 # fine grid, and solve on each bracket
 function all_shape_solutions(state)
-    target_log_LdN = log(state.ρq_ice) - log(state.ρn_ice)
-    shape_problem(logλ) = P3.logLdivN(state, logλ) - target_log_LdN
+    target_log_LdN = log(state.ρq_ice) - log(state.dist.ρn)
+    shape_problem(logλ) = P3.logLdivN(state.particles, logλ) - target_log_LdN
     logλ_grid = log.(10.0 .^ (2.0:0.01:6.0))
     brackets = filter(collect(zip(logλ_grid[1:(end - 1)], logλ_grid[2:end]))) do (lo, hi)
         shape_problem(lo) * shape_problem(hi) < 0
     end
     return [RS.find_zero(shape_problem, RS.BrentsMethod(lo, hi)).root for (lo, hi) in brackets]
+end
+
+# The number distribution of `state` at the slope `logλ`
+function number_distribution(state, logλ)
+    μ = P3.get_μ(state.particles.params.slope, logλ)
+    logN₀ = P3.get_logN₀(state.dist.ρn, μ, logλ)
+    return D -> exp(logN₀ + μ * log(D) - exp(logλ) * D)
 end
 
 FT = Float64
@@ -49,11 +56,12 @@ Makie.save("P3SlopeParameterizations_slope_laws.svg", fig)
 function make_multiple_solutions_plot(hard_params, smooth_params, λ_bnds)
     L_known = 2.39e-4
     N_known = 1e5
-    hard_state = P3.P3State(hard_params, L_known, N_known, 0.0, 400.0)
-    smooth_state = P3.P3State(smooth_params, L_known, N_known, 0.0, 400.0)
+    quad = P3.GaussLegendre(FT, 16)
+    hard_state = P3.P3State(hard_params, quad, L_known, N_known, 0.0, 0.0)
+    smooth_state = P3.P3State(smooth_params, quad, L_known, N_known, 0.0, 0.0)
     target_logLdN = log(L_known) - log(N_known)
-    hard_shape_problem(logλ) = P3.logLdivN(hard_state, logλ) - target_logLdN
-    smooth_shape_problem(logλ) = P3.logLdivN(smooth_state, logλ) - target_logLdN
+    hard_shape_problem(logλ) = P3.logLdivN(hard_state.particles, logλ) - target_logLdN
+    smooth_shape_problem(logλ) = P3.logLdivN(smooth_state.particles, logλ) - target_logLdN
     hard_roots = all_shape_solutions(hard_state)
     smooth_roots = all_shape_solutions(smooth_state)
     @assert length(hard_roots) == 3
@@ -85,13 +93,13 @@ function make_multiple_solutions_plot(hard_params, smooth_params, λ_bnds)
         xlabel = "D (mm)", ylabel = "N′(D) (cm⁻⁴)",
         title = "Number distributions",
     )
-    Makie.vlines!(ax_psd, P3.get_D_th(hard_params) * m_to_mm; color = (:gray, 0.5))
+    Makie.vlines!(ax_psd, P3.get_D_th(hard_params.mass, hard_params.ρ_i) * m_to_mm; color = (:gray, 0.5))
     for (i, logλ) in enumerate(hard_roots)
-        N′ = P3.size_distribution(hard_state, logλ)
+        N′ = number_distribution(hard_state, logλ)
         Makie.lines!(ax_psd, Ds_mm, N′.(Ds) / m_to_cm^4;
             color = (:black, 0.5), label = i == 1 ? "Hard limits" : nothing)
     end
-    N′ = P3.size_distribution(smooth_state, only(smooth_roots))
+    N′ = P3.size_distribution(smooth_state.dist)
     Makie.lines!(ax_psd, Ds_mm, N′.(Ds) / m_to_cm^4; color = :royalblue, linewidth = 2, label = "Smooth default")
     Makie.axislegend(ax_psd; position = :rt)
 

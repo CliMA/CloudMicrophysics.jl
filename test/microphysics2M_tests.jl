@@ -618,9 +618,9 @@ function test_microphysics2M(FT)
             TT.@test DT.exponential_cdf(Dr_mean, D_max) ≈ 1 - p
 
             # Sanity checks for number concentrations for rain
-            ND = P3.integrate(f_D, D_min, D_max, P3.ChebyshevGauss(1000))
-            Nx = P3.integrate(f_x, x_min, x_max, P3.ChebyshevGauss(100_000))
-            ND_psd = P3.integrate(psd, D_min, D_max, P3.ChebyshevGauss(1000))
+            ND = P3.integrate(f_D, D_min, D_max, P3.ChebyshevGauss(FT, 1000))
+            Nx = P3.integrate(f_x, x_min, x_max, P3.ChebyshevGauss(FT, 100_000))
+            ND_psd = P3.integrate(psd, D_min, D_max, P3.ChebyshevGauss(FT, 1000))
             TT.@test ND ≈ Nᵣ rtol = 1e-6
             if FT == Float64
                 TT.@test Nx ≈ Nᵣ rtol = 7e-3
@@ -630,9 +630,9 @@ function test_microphysics2M(FT)
             TT.@test ND_psd == ND
 
             # Sanity checks for specific contents for rain
-            qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max, P3.ChebyshevGauss(100)) * k_m / ρₐ
-            qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max, P3.ChebyshevGauss(100)) / ρₐ
-            qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max, P3.ChebyshevGauss(100)) * k_m / ρₐ
+            qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max, P3.ChebyshevGauss(FT, 100)) * k_m / ρₐ
+            qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max, P3.ChebyshevGauss(FT, 100)) / ρₐ
+            qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max, P3.ChebyshevGauss(FT, 100)) * k_m / ρₐ
             TT.@test qD ≈ qᵣ rtol = 6e-4
             TT.@test qx ≈ qᵣ rtol = 5e-4
             TT.@test qD_psd == qD
@@ -710,16 +710,16 @@ function test_microphysics2M(FT)
 
 
         # Sanity checks of specific content and number concentration with mass distribution
-        Nx = P3.integrate(Mⁿ(0, f_x), x_min, x_max, P3.ChebyshevGauss(100))
-        qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max, P3.ChebyshevGauss(100)) / ρₐ
+        Nx = P3.integrate(Mⁿ(0, f_x), x_min, x_max, P3.ChebyshevGauss(FT, 100))
+        qx = P3.integrate(Mⁿ(1, f_x), x_min, x_max, P3.ChebyshevGauss(FT, 100)) / ρₐ
         TT.@test qx ≈ qₗ rtol = 2e-5
         TT.@test Nx ≈ Nₗ rtol = 1e-5
 
         # Sanity checks of specific content and number concentration with diameter distribution
-        ND = P3.integrate(Mⁿ(0, f_D), D_min, D_max, P3.ChebyshevGauss(100))
-        ND_psd = P3.integrate(Mⁿ(0, psd), D_min, D_max, P3.ChebyshevGauss(100))
-        qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max, P3.ChebyshevGauss(100)) * k_m / ρₐ
-        qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max, P3.ChebyshevGauss(100)) * k_m / ρₐ
+        ND = P3.integrate(Mⁿ(0, f_D), D_min, D_max, P3.ChebyshevGauss(FT, 100))
+        ND_psd = P3.integrate(Mⁿ(0, psd), D_min, D_max, P3.ChebyshevGauss(FT, 100))
+        qD = P3.integrate(Mⁿ(3, f_D), D_min, D_max, P3.ChebyshevGauss(FT, 100)) * k_m / ρₐ
+        qD_psd = P3.integrate(Mⁿ(3, psd), D_min, D_max, P3.ChebyshevGauss(FT, 100)) * k_m / ρₐ
         TT.@test ND ≈ Nₗ rtol = 1e-5
         TT.@test ND_psd ≈ Nₗ rtol = 1e-5
         TT.@test qD ≈ qₗ rtol = 2e-5

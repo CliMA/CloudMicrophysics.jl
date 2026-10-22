@@ -438,35 +438,28 @@ end
 )
     i = @index(Global, Linear)
     CM2M = BMT.Microphysics2Moment()
-    # The 2M+P3 entry point takes `logλ` explicitly; compute it from the P3
-    # prognostic state (matches host-side usage, see bulk_tendencies_tests.jl).
-    L_ice = q_ice[i] * ρ[i]
-    N_ice = n_ice[i] * ρ[i]
-    F_rim = q_rim[i] / q_ice[i]
-    ρ_rim = q_rim[i] * ρ[i] / (b_rim[i] * ρ[i])
-    state = P3.P3State(mp.ice.scheme, L_ice, N_ice, F_rim, ρ_rim)
-    logλ = P3.get_distribution_logλ(state)
     output[i] = BMT.bulk_microphysics_tendencies(
         CM2M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
-        q_ice[i], n_ice[i], q_rim[i], b_rim[i], logλ,
+        q_ice[i], n_ice[i], q_rim[i], b_rim[i],
     )
 end
 
-@kernel inbounds = true function test_P3_get_distribution_logλ_kernel!(
-    p3_params, output, L_ice, N_ice, F_rim, ρ_rim,
+@kernel inbounds = true function test_P3_distribution_logλ_kernel!(
+    p3_params, quad, output, L_ice, N_ice, F_rim, ρ_rim,
 )
     i = @index(Global, Linear)
-    state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
-    output[i] = P3.get_distribution_logλ(state)
+    ρq_rim = F_rim[i] * L_ice[i]
+    state = P3.P3State(p3_params, quad, L_ice[i], N_ice[i], ρq_rim, ρq_rim / ρ_rim[i])
+    output[i] = state.dist.logλ
 end
 
 @kernel inbounds = true function test_P3_ice_self_collection_kernel!(
-    p3_params, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ,
+    p3_params, quad, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ,
 )
     i = @index(Global, Linear)
-    state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
-    logλ = P3.get_distribution_logλ(state)
-    output[i] = P3.ice_self_collection(state, logλ, vel_params, ρₐ[i])
+    ρq_rim = F_rim[i] * L_ice[i]
+    state = P3.P3State(p3_params, quad, L_ice[i], N_ice[i], ρq_rim, ρq_rim / ρ_rim[i])
+    output[i] = P3.ice_self_collection(vel_params, state, ρₐ[i])
 end
 
 # Evaluates the fast incomplete-gamma approximations on the device. This is the
@@ -1358,8 +1351,9 @@ function test_gpu(FT)
         end
     end  # TT.@testset "Bulk microphysics tendencies kernels"
 
-    TT.@testset "P3 get_distribution_logλ" begin
+    TT.@testset "P3 distribution logλ" begin
         p3_params = CMP.ParametersP3(FT)
+        quad = P3.GaussLegendre(FT, 16)
 
         (; output, ndrange) = setup_output(10, FT)
 
@@ -1368,8 +1362,8 @@ function test_gpu(FT)
         F_rim = constant_data(FT(0.5); ndrange)
         ρ_rim = constant_data(FT(400); ndrange)
 
-        kernel! = test_P3_get_distribution_logλ_kernel!(backend, work_groups)
-        kernel!(p3_params, output, L_ice, N_ice, F_rim, ρ_rim; ndrange)
+        kernel! = test_P3_distribution_logλ_kernel!(backend, work_groups)
+        kernel!(p3_params, quad, output, L_ice, N_ice, F_rim, ρ_rim; ndrange)
         out = Array(output)
 
         TT.@test allequal(out)
@@ -1389,7 +1383,8 @@ function test_gpu(FT)
         ρₐ = constant_data(FT(1.2); ndrange)
 
         kernel! = test_P3_ice_self_collection_kernel!(backend, work_groups)
-        kernel!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ; ndrange)
+        quad = P3.GaussLegendre(FT, 16)
+        kernel!(p3_params, quad, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ; ndrange)
         out = Array(output)
 
         TT.@test allequal(out)

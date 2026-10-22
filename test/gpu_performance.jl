@@ -57,13 +57,13 @@ end
 end
 
 @kernel inbounds = true function benchmark_p3_kernel!(
-    p3_params, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ,
+    p3_params, quad, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ,
 )
     i = @index(Global, Linear)
-    state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
-    logλ = P3.get_distribution_logλ(state)
-    sc = P3.ice_self_collection(state, logλ, vel_params, ρₐ[i])
-    output[i] = (; logλ, sc)
+    ρq_rim = F_rim[i] * L_ice[i]
+    state = P3.P3State(p3_params, quad, L_ice[i], N_ice[i], ρq_rim, ρq_rim / ρ_rim[i])
+    sc = P3.ice_self_collection(vel_params, state, ρₐ[i])
+    output[i] = (; state.dist.logλ, sc)
 end
 
 function setup_output(dims, FT, default_value = nothing)
@@ -240,6 +240,7 @@ function run_gpu_performance_benchmarks(FT)
 
         # P3 setup
         p3_params = CMP.ParametersP3(FT)
+        quad = P3.GaussLegendre(FT, 16)
         Ch2022 = CMP.Chen2022VelType(FT)
 
         DT3 = @NamedTuple{logλ::FT, sc::@NamedTuple{dNdt::FT}}
@@ -251,14 +252,12 @@ function run_gpu_performance_benchmarks(FT)
         ρ_rim = constant_data(FT(400.0); ndrange)
 
         kernel_p3! = benchmark_p3_kernel!(backend, work_groups)
-        t_compile_p3 = @elapsed kernel_p3!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρ_arr; ndrange)
+        args_p3 = (p3_params, quad, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρ_arr)
+        t_compile_p3 = @elapsed kernel_p3!(args_p3...; ndrange)
         KernelAbstractions.synchronize(backend)
         @info "P3 Kernel first call (compile + run time): $(round(t_compile_p3, digits=4)) seconds"
 
-        b_p3 = BT.@benchmark (
-            $kernel_p3!($p3_params, $Ch2022, $output, $L_ice, $N_ice, $F_rim, $ρ_rim, $ρ_arr; ndrange = $ndrange);
-            KernelAbstractions.synchronize($backend)
-        )
+        b_p3 = BT.@benchmark ($kernel_p3!($args_p3...; ndrange = $ndrange); KernelAbstractions.synchronize($backend))
         @info "P3 Kernel runtime benchmark:" BT.minimum(b_p3)
     end
 end

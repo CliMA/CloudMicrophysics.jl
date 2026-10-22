@@ -123,17 +123,21 @@ get_p3_fields(::Type{FT}, space) where {FT} = (;
 )
 
 """
-    Test that `get_distribution_logλ` can be broadcast over ClimaCore fields.
-    Fields are initialised to physically-plausible non-zero values so that the
+    Test that the P3 distribution construction, which solves `logλ`, can be broadcast over ClimaCore fields.
+    Fields are initialized to physically-plausible non-zero values so that the
     root-finder has a well-posed problem.
 """
 p3_logλ_1d(::Type{FT}) where {FT} = p3_logλ(FT, make_column(FT))
 
 p3_logλ_3d(::Type{FT}) where {FT} = p3_logλ(FT, get_rcemipii_center_space(FT))
 
+p3_distribution_logλ(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, quad) =
+    P3.P3State(params, quad, ρq_ice, ρn_ice, ρq_rim, ρb_rim).dist.logλ
+
 function p3_logλ(::Type{FT}, space) where {FT}
     (; params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, logλ) = get_p3_fields(FT, space)
-    @. logλ = P3.get_distribution_logλ_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+    quad = P3.GaussLegendre(FT, 16)
+    @. logλ = p3_distribution_logλ(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, quad)
     return logλ
 end
 

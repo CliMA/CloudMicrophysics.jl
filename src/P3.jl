@@ -9,6 +9,7 @@ using DocStringExtensions
 
 import SpecialFunctions as SF
 import RootSolvers as RS
+import ForwardDiff as FD
 import LogExpFunctions
 import StaticArrays as SA
 import UnrolledUtilities as UU
@@ -26,8 +27,7 @@ import CloudMicrophysics: ShowMethods
 
 # Quadrature rules live in their own module (included before `Parameters` so a
 # constructed rule can be stored on a parameter struct). Bring the names into
-# `P3Scheme` so the `integrate(...; quad = ...)` API and the `P3.GaussLegendre`
-# / `P3.ChebyshevGauss` references used in the scheme and its tests are unchanged.
+# `P3Scheme` for the scheme and its tests.
 import CloudMicrophysics.Quadrature:
     QuadratureRule, ChebyshevGauss, GaussLegendre, integrate, node, weight,
     inv_weight_fun, subintervals

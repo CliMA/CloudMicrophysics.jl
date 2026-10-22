@@ -4,11 +4,10 @@
 # accessors) live in the `Quadrature` module. It is included before
 # `Parameters` so a constructed rule can be stored on a parameter struct and
 # shipped to GPU kernels rather than rebuilt in-kernel. The names are imported
-# and re-exported in `P3.jl`, so the `integrate(...; quad = ...)` API used
-# throughout the P3 scheme is unchanged.
+# and re-exported in `P3.jl`.
 
 """
-    integral_bounds(state::P3State, logλ; p, moment_order = 0)
+    integral_bounds(particles, dist; p, moment_order = 0)
 
 Compute the integration bounds for the P3 size distribution,
 
@@ -20,8 +19,8 @@ Compute the integration bounds for the P3 size distribution,
  are determined by this function.
 
 # Arguments
-- `state`: [`P3State`](@ref) object
-- `logλ`: The log of the slope parameter [log(1/m)]
+- `particles`: [`P3Particles`](@ref)
+- `dist`: [`P3Distribution`](@ref)
 - `p`: The integration bounds are set to the `p`-th and `1-p`-th quantiles of the size distribution.
 - `moment_order`: For integrands proportional to moments of the size distribution,
     `moment_order` can be used to indicate the order of the moment.
@@ -31,9 +30,10 @@ Compute the integration bounds for the P3 size distribution,
 # Returns
 - `bnds`: The integration bounds (a `Tuple`), for use in numerical integration (c.f. [`integrate`](@ref)).
 """
-@inline function integral_bounds(state::P3State{FT}, logλ; p, moment_order = 0) where {FT}
+@inline function integral_bounds(particles, (; μ, logλ); p, moment_order = 0)
+    FT = eltype(particles)
     # Get reduced lower and upper bounds from quantiles
-    k = get_μ(state, logλ) + moment_order
+    k = μ + moment_order
     λ = exp(logλ)
     # μ == 1 here, so use the unit-μ quantile (avoids a `(z/λ)^1` runtime pow per bound)
     D_min = DT.generalized_gamma_quantile_unit_μ(k, λ, FT(p))
@@ -41,7 +41,7 @@ Compute the integration bounds for the P3 size distribution,
 
     # Only integrate up to the maximum diameter, `D_max`, including intermediate thresholds
     # If `F_rim` is very close to 1, `D_cr` may be greater than `D_max`, in which case it is disregarded.
-    bnds = segment_boundaries(state, D_min, D_max)
+    bnds = segment_boundaries(particles, D_min, D_max)
     # A breakpoint at the decay scale of the size distribution keeps each subinterval resolvable
     # at low order
     D_e = clamp(3 / λ, D_min, D_max)
@@ -49,34 +49,46 @@ Compute the integration bounds for the P3 size distribution,
 end
 
 """
-    velocity_integral_bounds(state::P3State, logλ, v_term; p, moment_order = 0)
+    velocity_integral_bounds(particles, dist, v_term; p, moment_order = 0)
 
-Compute the integration bounds for a velocity-weighted P3 integral
+Compute the integration bounds for a velocity-weighted P3 integral.
 
 This function returns the same integration bounds as [`integral_bounds`](@ref),
   but with additional breakpoints that a terminal-velocity closure `v_term` may introduce,
   see [`velocity_breakpoints`](@ref).
 
-See [`integral_bounds`](@ref) for a description of the arguments and return value.
+# Arguments
+- `particles`: [`P3Particles`](@ref)
+- `dist`: [`P3Distribution`](@ref)
+- `v_term`: terminal-velocity closure, see [`ice_particle_terminal_velocity`](@ref)
+
+See [`integral_bounds`](@ref) for the keyword arguments and the return value.
 """
-function velocity_integral_bounds(state::P3State{FT}, logλ, v_term::V; p, moment_order = 0) where {FT, V}
-    bnds = integral_bounds(state, logλ; p, moment_order)
-    breaks = map(D -> clamp(FT(D), first(bnds), last(bnds)), velocity_breakpoints(v_term))
+function velocity_integral_bounds(
+    particles, dist, v_term::V; p, moment_order = 0,
+) where {V}
+    bnds = integral_bounds(particles, dist; p, moment_order)
+    D_min, D_max = first(bnds), last(bnds)
+    breaks = map(D -> clamp(oftype(D_min, D), D_min, D_max), velocity_breakpoints(v_term))
     return Tuple(SA.sort(SA.SVector(bnds..., breaks...)))
 end
 
 """
-    D_m(state, logλ)
+    D_m(particles, dist)
 
-Compute the mass weighted mean particle size [m]
+Compute the mass-weighted mean particle size [m] of a P3 size distribution.
+
+The size is `∫ D m(D) N′(D) dD / ∫ m(D) N′(D) dD` for the [`P3Distribution`](@ref) `dist` and the
+[`P3Particles`](@ref) `particles`, or zero without ice number.
 
 # Arguments
- - `state`: [`P3State`](@ref) object
- - `logλ`: The log of the slope parameter [log(1/m)]
+- `particles`: [`P3Particles`](@ref)
+- `dist`: [`P3Distribution`](@ref)
 """
-function D_m(state, logλ)
-    μ = get_μ(state, logλ)
-    mass_weighted_moment = logmass_gamma_moment(state, μ, logλ; n = 1)
-    log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
-    return exp(log_N₀ + mass_weighted_moment) / state.ρq_ice
+function D_m(particles, (; ρn, μ, logλ))
+    log_∫DmN′ = logmass_gamma_moment(particles, μ, logλ; n = 1)  # log(∫ D m(D) N′(D) dD / N₀)
+    log_∫mN′ = logmass_gamma_moment(particles, μ, logλ; n = 0)   # log(∫ m(D) N′(D) dD / N₀)
+    D_m = exp(log_∫DmN′ - log_∫mN′)
+    # Compare the primal value, since a dual number with zero value and nonzero partials exceeds zero
+    return ifelse(FD.value(ρn) > 0, D_m, zero(D_m))
 end

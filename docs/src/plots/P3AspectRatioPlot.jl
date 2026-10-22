@@ -39,22 +39,23 @@ function p3_relations_plot()
 
 	colgap!(fig.layout, 40) # add space between columns so xticklabels don't overlap
 
-	function lines_and_vlines!(ax, state, color)
-		lines!(ax, D_range * mm, P3.ϕᵢ.(state, D_range); color)
+	function lines_and_vlines!(ax, particles, color)
+		lines!(ax, D_range * mm, P3.ϕᵢ.(particles, D_range); color)
 
-		(; D_th, D_gr, D_cr) = state
+		(; D_th, D_gr, D_cr) = particles
 		vlines!(ax, D_th * mm; linestyle = (:dot, :loose), color = :gray)
 		vlines!(ax, D_gr * mm; linestyle = :dash, color)
 		vlines!(ax, D_cr * mm; linestyle = :dashdot, color)
 	end
+
 
 	# Make a plot for each rime fraction
 	ρ_rim₀ = 400.0
 	F_rims = [0.0, 0.5, 0.8]
 	for (i, F_rim) in enumerate(F_rims)
 		color = cl[i]
-		state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim₀)
-		lines_and_vlines!(ax1L, state, color)
+		particles = P3.P3Particles(params, F_rim, ρ_rim₀)
+		lines_and_vlines!(ax1L, particles, color)
 	end
 
 	# Make a plot for each rime density
@@ -62,8 +63,8 @@ function p3_relations_plot()
 	ρ_rims = [200.0, 400.0, 800.0]
 	for (i, ρ_rim) in enumerate(ρ_rims)
 		color = cl[i]
-		state = P3.P3State(params, FT(0), FT(0), F_rim₀, ρ_rim)
-		lines_and_vlines!(ax1R, state, color)
+		particles = P3.P3Particles(params, F_rim₀, ρ_rim)
+		lines_and_vlines!(ax1R, particles, color)
 	end
 
 	linkyaxes!(ax1R, ax1L)
