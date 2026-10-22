@@ -821,11 +821,11 @@ function test_p3_melting(FT)
         dist = state.dist
         N′ = P3.size_distribution(dist)
         ∫DFvN = QGK.quadgk(D -> D * F_v(D) * N′(D), FT(0), 100 / exp(dist.logλ))[1]
-        @test melt(T).dLdt ≈ 2 * FT(π) * aps.K_therm * (T - T_freeze) / TDI.Lf(tps, T) * ∫DFvN rtol = 1e-3
+        @test melt(T).dLdt ≈ 2 * FT(π) * aps.K_therm * (T - T_freeze) / TDI.Lf(tps, T_freeze) * ∫DFvN rtol = 1e-3
 
-        # The rate is linear in ΔT / L_f(T)
+        # The rate is linear in ΔT
         T₂ = T_freeze + FT(2)
-        @test melt(T₂).dLdt / melt(T).dLdt ≈ 2 * TDI.Lf(tps, T) / TDI.Lf(tps, T₂) rtol = sqrt(eps(FT))
+        @test melt(T₂).dLdt / melt(T).dLdt ≈ 2 rtol = sqrt(eps(FT))
     end
 
     @testset "Mass and number melt at the fractional rate of the size distribution" begin
@@ -874,7 +874,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Below freezing, max freeze rate is non-zero (check against reference value)
         Tₐ = T_freeze - 1 // 10
         max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, state.particles, ρₐ, Tₐ)
-        @test max_rate(D̄) ≈ FT(9.35962884896919e-13) rtol = 2e-4
+        @test max_rate(D̄) ≈ FT(9.353820628264536e-13) rtol = 2e-4
 
         # At freezing, max freeze rate is zero
         Tₐ = T_freeze
@@ -885,6 +885,13 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         Tₐ = T_freeze + 1 // 10
         max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, state.particles, ρₐ, Tₐ)
         @test iszero(max_rate(D̄))
+
+        # Every collected droplet freezes where its warming absorbs the latent heat, ΔT ≥ L_f(T_freeze) / c_l
+        ΔT_all = TDI.Lf(tps, T_freeze) / TDI.cp_l(tps)
+        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, state.particles, ρₐ, T_freeze - ΔT_all + 1)
+        @test 0 < max_rate(D̄) < floatmax(FT)
+        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, state.particles, ρₐ, T_freeze - ΔT_all - 1)
+        @test max_rate(D̄) == floatmax(FT)
     end
 
     @testset "local rime density" begin
@@ -1038,15 +1045,15 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Smoke tests, aka: Check that rates don't change with new commits.
         # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
         # reference values.
-        @test QCFRZ ≈ 5.942470654139085e-7 rtol = 5e-4
-        @test QCSHD ≈ 2.0729761363894677e-9 rtol = 5e-4
+        @test QCFRZ ≈ 5.94018818090004e-7 rtol = 5e-4
+        @test QCSHD ≈ 2.3012195901156718e-9 rtol = 5e-4
         @test NCCOL ≈ 60651.3567152377 rtol = 5e-4
-        @test QRFRZ ≈ 6.642660875225302e-5 rtol = 5e-4
-        @test QRSHD ≈ 3.6527381638257998e-6 rtol = 5e-4
+        @test QRFRZ ≈ 6.597990486656838e-5 rtol = 5e-4
+        @test QRSHD ≈ 4.099442068975966e-6 rtol = 5e-4
         @test NRCOL ≈ 172.61819652336334 rtol = 5e-4
         @test ∫M_col ≈ 7.067566695762912e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.5089259323110104e-9 rtol = 5e-4
-        @test BRCOL ≈ 7.24718229605571e-8 rtol = 5e-4
+        @test BCCOL ≈ 3.507494914606281e-9 rtol = 5e-4
+        @test BRCOL ≈ 7.198450133117282e-8 rtol = 5e-4
 
         ### Test the bulk source function
         rates = P3.bulk_liquid_ice_collision_sources(

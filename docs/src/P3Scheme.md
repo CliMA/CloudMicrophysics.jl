@@ -674,6 +674,7 @@ The maximum freezing rate is based on Musil (1970) [Musil1970](@cite),
 ```
 where the first term in the numerator is the heat transfer rate to the air surrounding the hailstone,
  and the second term is evaporative cooling. The denominator is the heat that must be dissipated by the hailstone.
+The latent heats ``L_v`` and ``L_f`` are evaluated at the freezing temperature, the temperature of the particle surface.
 
 !!! details "Symbol definitions"
     | Symbol     | Units | Description |
@@ -850,7 +851,8 @@ A particle of diameter ``D`` and capacitance ``C = D/2`` melts at
 ```math
 \frac{dm}{dt} = \frac{2 \pi D \, K_\mathrm{thermo}}{L_f} \left(T - T_\mathrm{freeze}\right) F_v(D),
 ```
-with the ventilation factor of [SeifertBeheng2006](@cite) and the terminal velocity of [Chen2022](@cite).
+with ``L_f`` evaluated at ``T_\mathrm{freeze}``, the temperature of the particle surface,
+  and the ventilation factor of [SeifertBeheng2006](@cite) and the terminal velocity of [Chen2022](@cite).
 Mass and number melt at the same fractional rate, that of the particle size distribution:
 ```math
 f = \frac{\int_{0}^{\infty} \frac{dm}{dt} N(D) \, \mathrm{d}D}{\int_{0}^{\infty} m(D) N(D) \, \mathrm{d}D}, \qquad

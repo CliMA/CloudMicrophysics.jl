@@ -110,9 +110,9 @@ function compute_max_freeze_rate(aps, tps, velocity_params, particles, ρₐ, T�
     (; D_vapor, K_therm) = aps
     cp_l = TDI.cp_l(tps)
     T_frz = TDI.T_freeze(tps)
-    Lᵥ = TDI.Lᵥ(tps, Tₐ)
-    L_f = TDI.Lf(tps, Tₐ)
     Tₛ = T_frz  # the surface of the ice particle is assumed to be at the freezing temperature
+    Lᵥ = TDI.Lᵥ(tps, Tₛ)
+    L_f = TDI.Lf(tps, Tₛ)
     ΔT = Tₛ - Tₐ  # temperature difference between the surface of the ice particle and the air
     Δρᵥ_sat =
         ρₐ * (  # saturation vapor density difference between the surface of the ice particle and the air
@@ -121,16 +121,8 @@ function compute_max_freeze_rate(aps, tps, velocity_params, particles, ρₐ, T�
         )
     v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
     F_v = CO.ventilation_factor(particles.params.vent, aps, v_term)
-    # Musil (1970) dry-growth formula: the denominator `(L_f - cp_l·ΔT)`
-    # represents the *net* latent heat per unit mass available to freeze a
-    # colliding droplet. At Tₐ ≲ 220 K (ΔT ≳ L_f/cp_l ≈ 53 K with
-    # T-dependent L_f, see Eq. A7 in Musil 1970), the denominator flips
-    # sign, making `max_freeze_rate < 0` — which is unphysical. Cold air
-    # is *further from* the dry/wet-growth transition, not closer to it:
-    # the physical answer is `f_frz → 1` (every colliding droplet
-    # freezes). We enforce that by returning `floatmax(FT)` when the
-    # denominator is non-positive, so `min(∂ₜM_col, ∂ₜM_max) = ∂ₜM_col` and
-    # `f_frz = 1`.
+    # Heat to remove per unit mass of collected liquid, which warms from Tₐ to Tₛ and freezes at Tₛ.
+    # It is nonpositive for ΔT ≥ L_f / cp_l ≈ 80 K, where every collected droplet freezes.
     denom = L_f - cp_l * ΔT
     function max_freeze_rate(Dᵢ)
         # fallback values typed by the promotion of the node and the captured particles
