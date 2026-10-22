@@ -411,14 +411,23 @@ The deficit is that between the target INP concentration of `inp` and the activa
 """
 function delivery_rate end
 
-# Target concentrations [m⁻³]: the median of the Frostenberg 2023 climatology, and the base target with its log
-# shifted and with a ceiling
+# Target concentrations [m⁻³]: Cooper (1986) with a ceiling, the median of the Frostenberg 2023 climatology, and
+# the base target with its log shifted and with a ceiling
+@inline ((; a, b, T₀, N_max)::CMP.ExponentialSupercoolingINP)(T) = min(a * exp(b * (T₀ - T)), N_max)
 @inline (inp::CMP.Frostenberg2023)(T) = exp(INP_concentration_mean(inp, T))
 @inline (inp::CMP.StochasticINPSpectrum)(T) = min(exp(log(inp.base(T)) + inp.log_shift), inp.N_max)
 
+@inline is_active(inp::CMP.ExponentialSupercoolingINP, T, S_i) = (T < inp.T_thr) & (S_i >= inp.S_thr)
 @inline is_active(inp::CMP.Frostenberg2023, T, S_i) = (T < inp.T_thr) & (S_i >= inp.S_thr)
 @inline is_active(inp::CMP.StochasticINPSpectrum, T, S_i) = (T >= inp.T_min) & is_active(inp.base, T, S_i)
 
+# The Cooper spectrum relaxes at the rate at which vapor deposition grows a crystal to the radius of a newly
+# nucleated crystal, `r ∂ₜr = G_ice S_i / ρ_i`
+@inline function delivery_rate(inp::CMP.ExponentialSupercoolingINP, mp, tps, T, S_i)
+    (; ρ_i, D_nuc) = mp.ice.scheme
+    r_nuc = D_nuc / 2
+    return 2 * CO.G_func_ice(mp.warm_rain.air_properties, tps, T) * max(S_i, 0) / (ρ_i * r_nuc^2)
+end
 @inline delivery_rate(inp::CMP.Frostenberg2023, mp, tps, T, S_i) = inv(oftype(T, inp.τ))
 @inline delivery_rate(inp::CMP.StochasticINPSpectrum, mp, tps, T, S_i) = delivery_rate(inp.base, mp, tps, T, S_i)
 
@@ -485,6 +494,8 @@ target concentration and `τ` the relaxation timescale of the [`CMP.INPTargetSpe
 For [`CMP.Frostenberg2023`](@ref), the limit is zero at and above `T_freeze`.
 For a [`CMP.StochasticINPSpectrum`](@ref) on a Frostenberg 2023 base, `N_t` is the shifted target, and the limit
 is also zero below `T_min`.
+A spectrum without an INP budget, such as [`CMP.ExponentialSupercoolingINP`](@ref), imposes no limit,
+`∂ₜn_frz = Inf`.
 """
 @inline function immersion_limit_rate(
     inp::Union{CMP.Frostenberg2023, CMP.StochasticINPSpectrum{<:Any, <:CMP.Frostenberg2023}}, T, ρ;
@@ -494,6 +505,10 @@ is also zero below `T_min`.
     ∂ₜn_frz = max(zero(FT), inp(T) / ρ - n_active) / _budget_timescale(inp)
     return (; ∂ₜn_frz = ifelse(_immersion_budget_is_open(inp, T), ∂ₜn_frz, zero(FT)))
 end
+
+# A spectrum without an INP budget, such as the Cooper spectrum, imposes no limit
+@inline immersion_limit_rate(::CMP.INPTargetSpectrum, T, ρ; n_active = zero(T)) =
+    (; ∂ₜn_frz = UT.promote_typeof(T, ρ, n_active)(Inf))
 
 @inline _budget_timescale(inp::CMP.Frostenberg2023) = inp.τ
 @inline _budget_timescale(inp::CMP.StochasticINPSpectrum) = _budget_timescale(inp.base)
