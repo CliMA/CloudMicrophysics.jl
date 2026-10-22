@@ -1,7 +1,7 @@
 """
     het_ice_nucleation(aerosol, tps, q_lcl, N_lcl, RH, T, ρₐ)
 
-Calculate the ice nucleation rate from heterogeneous freezing due to some `aerosol`
+Calculate the ice nucleation rate from heterogeneous freezing due to some `aerosol`.
 
 # Arguments
   - `aerosol`: aerosol parameters (supported types: desert dust, illite, kaolinite)

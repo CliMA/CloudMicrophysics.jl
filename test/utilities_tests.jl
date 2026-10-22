@@ -125,3 +125,23 @@ end
     end
 end
 nothing
+
+@testset "find_zeros" begin
+    RS = UT.RS
+    for FT in (Float32, Float64)
+        tol = RS.SolutionTolerance(FT(1e-6))
+        f(x) = (x - oftype(x, 0.23)) * (x - oftype(x, 0.51)) * (x - oftype(x, 0.86))
+        args = (RS.BrentsMethod, FT(0), FT(1), Val(10))
+        sol = @inferred UT.find_zeros(f, args..., Val(2), tol, 50)
+        @test sol.n_found == 2
+        @test all(isapprox.(sol.roots, (FT(0.23), FT(0.51)); atol = FT(1e-5)))
+        sol = UT.find_zeros(f, args..., Val(4), tol, 50)
+        @test sol.n_found == 3
+        @test all(isapprox.(sol.roots[1:3], (FT(0.23), FT(0.51), FT(0.86)); atol = FT(1e-5)))
+        @test sol.roots[4] == FT(0)  # a zero not found is returned as `x_lo`
+        sol = UT.find_zeros(x -> x + 1, args..., Val(2), tol, 50)
+        @test sol.n_found == 0 && sol.roots == (FT(0), FT(0))
+        sol = UT.find_zeros(x -> x - oftype(x, 0.5), args..., Val(2), tol, 50)  # a zero on a scan point
+        @test sol.n_found == 1 && sol.roots[1] == FT(0.5)
+    end
+end

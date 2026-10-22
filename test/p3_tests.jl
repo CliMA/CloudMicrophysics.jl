@@ -5,6 +5,7 @@ import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.DistributionTools as DT
 import CloudMicrophysics.ThermodynamicsInterface as TDI
+import CloudMicrophysics.Utilities as UT
 import ClimaParams as CP
 import SpecialFunctions as SF
 import QuadGK as QGK
@@ -82,15 +83,15 @@ function test_state_construction(FT)
         # (ρn_ice, bounded ρn_ice): too few particles, too many particles, within bounds
         cases = ((FT(1e-2), ρq_ice / x_max), (FT(1e14), ρq_ice / x_min), (FT(1e5), FT(1e5)))
         for (ρn_ice, ρn_bounded) in cases, (ρq_rim, ρb_rim) in ((FT(0), FT(0)), (FT(5e-5), FT(1e-7)))
-            state = P3.P3State(params, quad, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
-            dist = @inferred P3.P3Distribution(state.particles, quad, state.ρq_ice, state.ρn_ice)
-            @test state.ρn_ice == ρn_ice
+            st = P3.P3State(params, quad, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+            dist = @inferred P3.P3Distribution(st.particles, quad, st.ρq_ice, st.ρn_ice)
+            @test st.ρn_ice == ρn_ice
             @test dist.ρn ≈ ρn_bounded rtol = 4 * eps(FT)
             # The size distribution integrates back to the bounded moments
             N′ = P3.size_distribution(dist)
-            N = P3.integrate(N′, P3.integral_bounds(state.particles, state.dist; p = 1e-6), quad)
-            bnds_L = P3.integral_bounds(state.particles, state.dist; p = 1e-6, moment_order = 2)
-            L = P3.integrate(D -> N′(D) * P3.ice_mass(state.particles, D), bnds_L, quad)
+            N = P3.integrate(N′, P3.integral_bounds(st.particles, st.dist; p = 1e-6), quad)
+            bnds_L = P3.integral_bounds(st.particles, st.dist; p = 1e-6, moment_order = 2)
+            L = P3.integrate(D -> N′(D) * P3.ice_mass(st.particles, D), bnds_L, quad)
             rtol = FT === Float64 ? 1e-5 : 1e-3
             @test N ≈ dist.ρn rtol = rtol
             @test L ≈ ρq_ice rtol = rtol
@@ -941,7 +942,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test all(iszero, result)
 
         # Zero liquid content (n(D) = 0)
-        n_zero(D) = FT(0)
+        n_zero(D) = zero(D)
         integrals_n0 = P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds, P3.GaussLegendre(FT, 12))
         result = integrals_n0(Dᵢ)
         @test all(iszero, result)
@@ -952,7 +953,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
 
         # Test the full ∫liquid_ice_collisions function
         # Mock functions
-        ∂ₜM_max(Dᵢ) = FT(0.04)  # Small max freeze rate
+        ∂ₜM_max(Dᵢ) = oftype(Dᵢ, 0.04)  # Small max freeze rate
         rates = P3.∫liquid_ice_collisions(
             n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds, P3.GaussLegendre(FT, 12),
         )
@@ -974,7 +975,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Test edge cases for full collision integration
 
         # Zero ice content
-        n_i_zero(Dᵢ) = FT(0)
+        n_i_zero(Dᵢ) = zero(Dᵢ)
         rates = P3.∫liquid_ice_collisions(
             n_i_zero, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds, P3.GaussLegendre(FT, 12),
         )
@@ -990,7 +991,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test all(iszero, rates)
 
         # No freezing (above freezing temperature)
-        ∂ₜM_max_zero(Dᵢ) = FT(0)
+        ∂ₜM_max_zero(Dᵢ) = zero(Dᵢ)
         rates = P3.∫liquid_ice_collisions(
             n_i, ∂ₜM_max_zero, cloud_integrals, rain_integrals, ice_bounds, P3.GaussLegendre(FT, 12),
         )
@@ -1037,21 +1038,83 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Smoke tests, aka: Check that rates don't change with new commits.
         # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
         # reference values.
-        @test QCFRZ ≈ 5.943946584599112e-7 rtol = 5e-4
-        @test QCSHD ≈ 2.0702099007021667e-9 rtol = 5e-4
-        @test NCCOL ≈ 60666.71757403923 rtol = 5e-4
-        @test QRFRZ ≈ 6.640489628336987e-5 rtol = 5e-4
-        @test QRSHD ≈ 3.649838651816965e-6 rtol = 5e-4
-        @test NRCOL ≈ 172.65740739140853 rtol = 5e-4
-        @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
-        @test BCCOL ≈ 3.508183075042488e-9 rtol = 5e-4
-        @test BRCOL ≈ 7.244274484995898e-8 rtol = 5e-4
+        @test QCFRZ ≈ 5.942470654139085e-7 rtol = 5e-4
+        @test QCSHD ≈ 2.0729761363894677e-9 rtol = 5e-4
+        @test NCCOL ≈ 60651.3567152377 rtol = 5e-4
+        @test QRFRZ ≈ 6.642660875225302e-5 rtol = 5e-4
+        @test QRSHD ≈ 3.6527381638257998e-6 rtol = 5e-4
+        @test NRCOL ≈ 172.61819652336334 rtol = 5e-4
+        @test ∫M_col ≈ 7.067566695762912e-5 rtol = 5e-4
+        @test BCCOL ≈ 3.5089259323110104e-9 rtol = 5e-4
+        @test BRCOL ≈ 7.24718229605571e-8 rtol = 5e-4
 
         ### Test the bulk source function
         rates = P3.bulk_liquid_ice_collision_sources(
             psd_c, psd_r, aps, tps, vel_params, state, L_c, N_c, L_r, N_r, ρₐ, T,
         )
         @test eltype(rates) == FT  # check type stability
+    end
+
+    # The reference integrates the outer integral adaptively over the same subintervals
+    @testset "freeze/shed partition matches an adaptive reference" begin
+        toml_dict = CP.create_toml_dict(Float64)
+        psd_c = CMP.CloudParticlePDF_SB2006(toml_dict)
+        psd_r = CMP.RainParticlePDF_SB2006_limited(toml_dict)
+        L_c, N_c, L_r, N_r = 1e-3, 1e8, 1e-4, 1e6
+        params64 = CMP.ParametersP3(Float64)
+        vel64 = CMP.Chen2022VelType(Float64)
+        aps64 = CMP.AirProperties(Float64)
+        tps64 = TDI.TD.Parameters.ThermodynamicsParameters(Float64)
+        ρₐ64 = 1.2
+        T = params64.T_freeze - 5
+        st = rimed_state(params64, 1e-4 * ρₐ64, 2e5 * ρₐ64, 0.8, 800.0)
+        (; particles, dist) = st
+        m_l(D) = psd_c.ρw * CO.volume_sphere_D(D)
+
+        ∂ₜV = P3.volumetric_collision_rate_integrand(vel64, particles, ρₐ64)
+        ρ′_rim = P3.compute_local_rime_density(vel64, particles, ρₐ64, T)
+        ∂ₜM_max = P3.compute_max_freeze_rate(aps64, tps64, vel64, particles, ρₐ64, T)
+        n_i = DT.size_distribution(dist)
+        p = 1e-5
+        bounds_c = CM2.get_size_distribution_bounds(psd_c, L_c / ρₐ64, ρₐ64, N_c, p)
+        bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r / ρₐ64, ρₐ64, N_r, p)
+        quad64 = P3.GaussLegendre(Float64, 32)
+        n_c = DT.size_distribution(psd_c, L_c / ρₐ64, ρₐ64, N_c)
+        n_r = DT.size_distribution(psd_r, L_r / ρₐ64, ρₐ64, N_r)
+        cloud = P3.get_liquid_integrals(n_c, ∂ₜV, m_l, ρ′_rim, bounds_c, quad64)
+        rain = P3.get_liquid_integrals(n_r, ∂ₜV, m_l, ρ′_rim, bounds_r, quad64)
+        function partition(Dᵢ)
+            (N_c_col, M_c_col, B_c_col) = cloud(Dᵢ)
+            (N_r_col, M_r_col, B_r_col) = rain(Dᵢ)
+            M_col = M_c_col + M_r_col
+            f_frz = min(M_col, ∂ₜM_max(Dᵢ)) / M_col
+            n = n_i(Dᵢ)
+            return P3.SA.SVector(
+                n * M_c_col * f_frz, n * M_c_col * (1 - f_frz), n * N_c_col,
+                n * M_r_col * f_frz, n * M_r_col * (1 - f_frz), n * N_r_col,
+                n * M_col, n * B_c_col * f_frz, n * B_r_col * f_frz,
+            )
+        end
+        ice_bounds = P3.velocity_integral_bounds(particles, dist, ∂ₜV.v_i; p)
+        D_lo, D_hi = first(ice_bounds), last(ice_bounds)
+        D_wet = P3.wet_growth_onset_diameters(cloud, rain, ∂ₜM_max, D_lo, D_hi)
+        @test all(D -> D_lo ≤ D ≤ D_hi, D_wet)
+        breakpoints = sort(unique([ice_bounds..., D_wet...]))
+        reference, _ = QGK.quadgk(partition, breakpoints...; rtol = 1e-8)
+        @test reference[2] + reference[5] > 0  # wet growth sheds liquid
+
+        state_FT =
+            rimed_state(params, FT(1e-4 * ρₐ64), FT(2e5 * ρₐ64), FT(0.8), FT(800); quad = P3.GaussLegendre(FT, 16))
+        ρw = FT(psd_c.ρw)
+        rates = P3.∫liquid_ice_collisions(
+            CMP.CloudParticlePDF_SB2006(CP.create_toml_dict(FT)),
+            CMP.RainParticlePDF_SB2006_limited(CP.create_toml_dict(FT)),
+            aps, tps, vel_params, D -> ρw * CO.volume_sphere_D(D),
+            state_FT, FT(L_c), FT(N_c), FT(L_r), FT(N_r), FT(ρₐ64), FT(T),
+        )
+        for i in 1:9
+            @test rates[i] ≈ reference[i] rtol = 1e-3
+        end
     end
 
     # The state clamps ρ_rim to ρ_i, so only the prognostic rime volume shows the excess volume
@@ -1148,8 +1211,27 @@ function test_p3_ice_self_collection(FT)
         rates_zero = P3.ice_self_collection(vel_params, state_zero, ρₐ)
         @test rates_zero.dNdt == 0
 
-        # TODO: compare against an analytically derived reference
-        # For a simple size distribution and uniform velocity difference, one could compute analytical dNdt.
+        # The triangle equals half the full square, which counts each unordered pair twice
+        quad32 = P3.GaussLegendre(FT, 32)
+        (; particles, dist) = state32 = rimed_state(params, Lᵢ, Nᵢ, F_rim, ρ_rim; quad = quad32)
+        rates32 = P3.ice_self_collection(vel_params, state32, ρₐ)
+        n_i = DT.size_distribution(dist)
+        v_i = P3.ice_particle_terminal_velocity(vel_params, particles, ρₐ)
+        bnds = P3.velocity_integral_bounds(particles, dist, v_i; p = eps(one(ρₐ)))
+        r(D) = sqrt(P3.ice_area(particles, D) / π)  # effective radius
+        square = P3.integrate(
+            D₁ -> begin
+                v₁ = v_i(D₁)
+                collision_rate = D₂ -> π * (r(D₁) + r(D₂))^2 * abs(v₁ - v_i(D₂)) * n_i(D₂)
+                # Split the inner integral at D₂ = D₁, where |v₁ - v(D₂)| is not smooth
+                inner =
+                    P3.integrate(collision_rate, (first(bnds), D₁), quad32) +
+                    P3.integrate(collision_rate, (D₁, last(bnds)), quad32)
+                n_i(D₁) * inner
+            end,
+            bnds, quad32,
+        )
+        @test rates32.dNdt ≈ square / 2 rtol = 2e-3
     end
 end
 
@@ -1196,22 +1278,18 @@ function test_p3_number_tendencies_with_bounded_number(FT)
     end
 end
 
-function test_p3_closed_form_rain_inner(FT)
-    # The closed form is the exact analytic reduction of the rain inner integral.
-    # Testset checks:
-    #  - N and M matches an adaptive (QuadGK) reference numerical quadrature
-    #  - correctness of the rime volume quadrature
-    #  - smoke test for collision cross section
-    @testset "P3 closed-form rain inner (N, M, B) + cross-section coeffs" begin
+function test_p3_rain_inner(FT)
+    @testset "P3 rain inner (N, M, B) + cross-section coeffs" begin
         params = CMP.ParametersP3(FT)
         vel = CMP.Chen2022VelType(FT)
         psd_r = CMP.SB2006(FT).pdf_r
         ρₐ = FT(1)
         ρ_w = psd_r.ρw
         p = eltype(params)(1e-5)
-        m_liq(D) = ρ_w * FT(π) / 6 * D^3
-        rtol = FT == Float64 ? FT(1e-10) : FT(1e-3)
+        m_liq(D) = ρ_w * π / 6 * D^3
+        rtol = FT(5e-3)
         qrtol = FT == Float64 ? FT(1e-12) : FT(1e-7)
+        Brtol = FT(1e-2)
         v_l = CO.particle_terminal_velocity(vel.rain, ρₐ)
         for (L_ice, N_ice, F_rim, ρ_rim) in (
                 (1e-3, 1e6, 0.5, 500),
@@ -1226,29 +1304,22 @@ function test_p3_closed_form_rain_inner(FT)
             ρ′_rim = P3.compute_local_rime_density(vel, state.particles, ρₐ, FT(270))
             D_min, D_max = bnds = CM2.get_size_distribution_bounds(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p)
             D_max > D_min || continue
-            rc = P3.get_liquid_integrals_rain_closed(
-                psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state.particles, ∂ₜV,
-                m_liq, ρ′_rim, bnds, P3.ChebyshevGauss(FT, 40),
-            )
-            rn = P3.get_liquid_integrals(  # numerical fallback
-                n_r, ∂ₜV, m_liq, ρ′_rim, bnds, P3.ChebyshevGauss(FT, 40),
-            )
+            rn = P3.get_liquid_integrals(n_r, ∂ₜV, m_liq, ρ′_rim, bnds, P3.ChebyshevGauss(FT, 40))
             v_i = P3.ice_particle_terminal_velocity(vel, state.particles, ρₐ)
             for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
                 vi = v_i(Dᵢ)
                 Dstar = P3.crossover_diameter(vi, v_l, D_min, D_max)
 
-                # N, M: closed form vs adaptive reference
-                Nc, Mc, Bc = rc(Dᵢ)
+                # N, M, B: quadrature split at the crossing vs adaptive reference
+                Nc, Mc, Bc = rn(Dᵢ)
                 σ(D) = P3.collision_cross_section_ice_liquid(state.particles, Dᵢ, D)
                 gN(D) = σ(D) * abs(vi - v_l(D)) * n_r(D)
                 Nref = QGK.quadgk(gN, D_min, Dstar, D_max; rtol = qrtol)[1]
                 Mref = QGK.quadgk(D -> gN(D) * m_liq(D), D_min, Dstar, D_max; rtol = qrtol)[1]
                 @test isapprox(Nc, Nref; rtol)
                 @test isapprox(Mc, Mref; rtol)
-
-                # B: closed quadrature vs numerical fallback at the same order
-                @test isapprox(Bc, rn(Dᵢ)[3]; rtol = sqrt(eps(FT)))
+                Bref = QGK.quadgk(D -> gN(D) * m_liq(D) / ρ′_rim(Dᵢ, D), D_min, Dstar, D_max; rtol = qrtol)[1]
+                @test isapprox(Bc, Bref; rtol = Brtol)
 
                 # smoke test: collision cross section has form: `π(rᵢ + Dₗ/2)²`, with rᵢ derived from `P3.ice_area`
                 rᵢ = sqrt(P3.ice_area(state.particles, Dᵢ) / FT(π))
@@ -1260,51 +1331,10 @@ function test_p3_closed_form_rain_inner(FT)
         end
     end
 
-    # AD smoke test for the closed form.
-    # find D where ice/liquid sedimentation velocities are equal,
-    # separate the integrals, then check that closed form is correct.
-    @testset "P3 closed-form ForwardDiff AD smoke (v_i,r_i,Dr,N₀r)" begin
+    @testset "P3 crossover diameter ForwardDiff" begin
         vel = CMP.Chen2022VelType(FT)
-        psd_r = CMP.SB2006(FT).pdf_r
-        ρₐ = FT(1)
-        ρ_w = psd_r.ρw
-        ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, ρₐ)
-        v_l = CO.particle_terminal_velocity(vel.rain, ρₐ)
-        L_r, N_r = FT(1e-4), FT(1e3)
-        (; N₀r, Dr_mean) =
-            CM2.pdf_rain_parameters(psd_r, L_r / ρₐ, ρₐ, N_r)
-        Dᵢ0 = FT(3e-3)
-        rᵢ0 = FT(1e-3)
-        vi0 = FT(3.0)
+        v_l = CO.particle_terminal_velocity(vel.rain, FT(1))
         D_min, D_max = FT(1e-5), FT(5e-3)
-        rtolAD = FT(1e-4)
-        cases = (
-            ("v_i", vi0,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, x, v_l, rᵢ0, ρ_w,
-                    ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
-            ("r_i", rᵢ0,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, x, ρ_w,
-                    ai, bi, ci, D_min, D_max, N₀r, Dr_mean)),
-            ("Dr", Dr_mean,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
-                    ai, bi, ci, D_min, D_max, N₀r, x)),
-            ("N₀r", N₀r,
-                x -> P3.closed_rain_inner_NM(Dᵢ0, vi0, v_l, rᵢ0, ρ_w,
-                    ai, bi, ci, D_min, D_max, x, Dr_mean)),
-        )
-        for (_, x0, g) in cases, idx in (1, 2)
-            f(x) = g(x)[idx]
-            d_ad = FD.derivative(f, x0)
-            @test isfinite(d_ad)  # check that AD works
-            if FT == Float64
-                h = max(abs(x0) * FT(1e-5), FT(1e-12))
-                d_fd = (f(x0 + h) - f(x0 - h)) / (2h)
-                @test isapprox(d_ad, d_fd;
-                    rtol = rtolAD,
-                    atol = 100 * eps(FT) * max(abs(d_ad), abs(d_fd), one(FT)),
-                )
-            end
-        end
         # Check that the crossover diameter is differentiable
         v_tgt = (v_l(D_min) + v_l(D_max)) / 2
         dDstar_bisect = FD.derivative(
@@ -1327,9 +1357,7 @@ function test_p3_closed_form_rain_inner(FT)
         end
     end
 
-    # Check edge cases (e.g. ice velocity > liquid velocity for all sizes)
-    # still returns the correct result
-    @testset "P3 closed-form D*-at-bracket-end (v_i outside band)" begin
+    @testset "P3 crossover diameter at the bracket ends (v_i outside band)" begin
         vel = CMP.Chen2022VelType(FT)
         v_l = CO.particle_terminal_velocity(vel.rain, FT(1))
         D_min, D_max = FT(1e-5), FT(5e-3)
@@ -1341,38 +1369,52 @@ function test_p3_closed_form_rain_inner(FT)
         Dstar = P3.crossover_diameter(v_mid, v_l, D_min, D_max)
         @test D_min <= Dstar <= D_max
         @test isapprox(v_l(Dstar), v_mid; rtol = FT(1e-4))
-        # Full closed path with v_i outside the band stays finite and the
-        # absent-crossover side collapses (one piece zero).
-        r_i = FT(2e-4)
-        ai, bi, ci = CO.Chen2022_vel_coeffs(vel.rain, FT(1))
-        for v_i in (FT(-1), FT(1e6))
-            N, M = P3.closed_rain_inner_NM(
-                FT(1e-3), v_i, v_l, r_i, FT(1000), ai, bi, ci,
-                D_min, D_max, FT(1e7), FT(5e-4),
-            )
-            @test isfinite(N) && isfinite(M)
-        end
     end
+end
 
-    @testset "P3 closed-form dispatch fallback (non-Chen / non-SB2006)" begin
-        params = CMP.ParametersP3(FT)
-        vel = CMP.Chen2022VelType(FT)
-        psd_r = CMP.SB2006(FT).pdf_r
-        state = rimed_state(params, FT(1e-3), FT(1e6), FT(0.5), FT(500))
-        rest = (
-            identity, (a, b) -> a, identity, identity, identity,
-            FT(1), FT(1e-4), FT(1e3), state, P3.GaussLegendre(FT, 12),
-        )
-        m_closed = which(P3._rain_inner_integrals, typeof((psd_r, vel, rest...)))
-        m_fallback = which(P3._rain_inner_integrals, typeof((1.0, 2.0, rest...)))
-        # closed-form method: first two params are the typed bundle
-        @test m_closed.sig.parameters[2] <: CMP.RainParticlePDF_SB2006
-        @test m_closed.sig.parameters[3] <: CMP.Chen2022VelType
-        # fallback method: first two params are ::Any (Any === Any)
-        @test m_fallback.sig.parameters[2] === Any
-        @test m_fallback.sig.parameters[3] === Any
-        # and the two methods are distinct (no accidental ambiguity merge)
-        @test m_closed !== m_fallback
+function test_local_rime_density_wet_growth_limit(FT)
+    params = CMP.ParametersP3(FT)
+    ρ_rim_local = params.ρ_rim_local
+    T_freeze = FT(params.T_freeze)
+    ρ_ice = ρ_rim_local(FT(12))
+    ρ_lowest = ρ_rim_local(FT(1))
+    # The local rime density at a given velocity difference
+    free(T°C, v, Dₗ) =
+        P3.rime_density_at(P3.CollisionRimeDensity(ρ_rim_local, T°C, identity, identity), v, Dₗ)
+
+    Dₗs = FT[0, 1e-6, 20e-6, 200e-6, 3e-3]
+    vs = FT[0, 1e-2, 1e-1, 1, 5, 20]
+    T°Cs = FT[-40, -10, -4.2, -1, -1e-3, -1e-4, 0, 1e-4, 1, 5]
+
+    @testset "local rime density reaches the wet-growth limit" begin
+        @testset "finite and inside the parameterization's range everywhere" begin
+            for T°C in T°Cs, v in vs, Dₗ in Dₗs
+                ρ′ = free(T°C, v, Dₗ)
+                @test isfinite(ρ′)
+                @test ρ_lowest ≤ ρ′ ≤ ρ_ice
+            end
+        end
+
+        @testset "the melting point and above return the wet-growth limit" begin
+            for T°C in FT[0, 1e-4, 1, 5], v in vs, Dₗ in Dₗs
+                @test free(T°C, v, Dₗ) === ρ_ice
+            end
+        end
+
+        @testset "densifies toward solid ice as the supercooling vanishes" begin
+            for v in FT[1e-2, 1, 5], Dₗ in FT[1e-6, 20e-6, 200e-6]
+                @test issorted([free(T°C, v, Dₗ) for T°C in FT[-40, -20, -10, -1, -1e-3, 0]])
+            end
+        end
+
+        # The discarded branch divides by zero at the melting point
+        @testset "no non-finite value or partial through ForwardDiff" begin
+            for v in vs, Dₗ in Dₗs, Δ in FT[-10, -1, -1e-3, 0, 1]
+                f(t) = free(t - T_freeze, v, Dₗ)
+                @test isfinite(f(T_freeze + Δ))
+                @test isfinite(FD.derivative(f, T_freeze + Δ))
+            end
+        end
     end
 end
 
@@ -1400,6 +1442,7 @@ end
     test_p3_bulk_liquid_ice_collisions(FT)
     test_p3_ice_self_collection(FT)
     test_p3_number_tendencies_with_bounded_number(FT)
-    test_p3_closed_form_rain_inner(FT)
+    test_p3_rain_inner(FT)
+    test_local_rime_density_wet_growth_limit(FT)
 end
 nothing
