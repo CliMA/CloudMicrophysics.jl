@@ -1,6 +1,7 @@
 module CloudMicrophysics
 
 include("show.jl")
+include("Utilities.jl")
 
 # Quadrature rules are defined before `Parameters` so that a constructed
 # quadrature object can be stored on a parameter struct (host-side, once) and
@@ -18,7 +19,6 @@ export accretion
 function conv_q_lcl_to_q_rai end
 function accretion end
 
-include("Utilities.jl")
 include("ThermodynamicsInterface.jl")
 include("Common.jl")
 include("DistributionTools.jl")

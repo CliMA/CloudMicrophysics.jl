@@ -175,7 +175,7 @@ function test_ad_compatibility(FT)
         @test all(isfinite, f_b(x_boundary))
         @test all(isfinite, FD.jacobian(f_b, x_boundary))
 
-        # `wet_growth_onset_diameter` refines by an inverse-quadratic step whose residual
+        # `wet_growth_onset_diameters` refines by an inverse-quadratic step whose residual
         # differences reach Float32 rounding error over this band of `q_ice`, and the
         # partials of the onset diameter propagate into the collision quadrature bounds.
         # The `F_rim = 0` case is the control: with no rime there is no wet-growth balance

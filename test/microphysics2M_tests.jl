@@ -598,7 +598,7 @@ function test_microphysics2M(FT)
             # rain drop diameter distribution (eq.(3) from 2M docs)
             f_D(D) = N₀r * exp(-D / Dr_mean)
             # rain drop mass distribution (eq.(4) from 2M docs)
-            f_x(x) = iszero(x) ? 0 : Ar * x^νr * exp(-Br * x^μr)
+            f_x(x) = iszero(x) ? zero(x) : Ar * x^νr * exp(-Br * x^μr)
 
             ### Fetch the size distribution functions from the module
             psd = CM2.size_distribution(pdf_r, qᵣ, ρₐ, Nᵣ)

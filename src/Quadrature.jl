@@ -24,6 +24,7 @@ module Quadrature
 import StaticArrays as SA
 import UnrolledUtilities as UU
 import FastGaussQuadrature as FGQ
+import ..Utilities as UT
 
 export QuadratureRule, ChebyshevGauss, GaussLegendre, integrate
 
@@ -51,7 +52,7 @@ abstract type QuadratureRule end
 
 # Arguments
  - `f`: Function to integrate
- - `a`, `b`: Integration bounds. Note: if `a ≥ b`, or `a` or `b` is `NaN`, `zero(f(a))` is returned.
+ - `a`, `b`: Integration bounds. Note: if `a ≥ b`, or `a` or `b` is `NaN`, zero is returned.
  - `quad`: Quadrature scheme (a `QuadratureRule`).
 
 # Returns
@@ -63,7 +64,7 @@ abstract type QuadratureRule end
     shift = (a + b) / 2
 
     # Compute integral using the quadrature rule
-    result = zero(f(a))
+    result = zero(UT.return_type_of(f, a))
     a < b || return result  # return early unless a < b
     (; n) = quad
     for i in 1:n
@@ -112,8 +113,8 @@ Integrate the function `f` over each subinterval of the integration bounds, `bnd
  `(a, b), (b, c), (c, d), ...` — see [`subintervals`](@ref).
 """
 @inline function integrate(f::F, bnds::NTuple{N, T}, quad::QuadratureRule) where {F, N, T}
-    @inbounds result = integrate(f, bnds[1], bnds[2], quad)
-    @inbounds for i in 2:(N - 1)
+    result = zero(UT.return_type_of(f, bnds[1]))
+    @inbounds for i in 1:(N - 1)
         result += integrate(f, bnds[i], bnds[i + 1], quad)
     end
     return result
