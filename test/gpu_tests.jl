@@ -472,11 +472,17 @@ end
     output[i] = (; P, Q, x_inv)
 end
 
-@kernel inbounds = true function test_rain_freezing_kernel!(
-    rf, pdf_r, tps, output, q, ρ, N, T,
-)
+@kernel inbounds = true function test_liquid_freezing_kernel!(mp, tps, output, q, n, ρ, T)
     i = @index(Global, Linear)
-    output[i] = CMI_het.liquid_freezing_rate(rf, pdf_r, tps, q[i], ρ[i], N[i], T[i])
+    micro = (;
+        q_tot = 3 * q[i], q_lcl = q[i], n_lcl = n[i], q_rai = q[i], n_rai = n[i], q_ice = zero(q[i]),
+        n_ice = zero(q[i]),
+    )
+    thermo = (; ρ = ρ[i], T = T[i])
+    output[i] = (;
+        rain = CMI_het.rain_freezing_rate(mp, tps, micro, thermo),
+        cloud = CMI_het.cloud_freezing_rate(mp, tps, micro, thermo),
+    )
 end
 
 """
@@ -1133,25 +1139,24 @@ function test_gpu(FT)
             TT.@test J_linear ≈ FT(7.156568123338207e11)
         end
 
-        TT.@testset "CMI_het.liquid_freezing_rate (rain, Bigg)" begin
-            DT = @NamedTuple{∂ₜn_frz::FT, ∂ₜq_frz::FT}
-            (; output, ndrange) = setup_output(1, DT)
+        TT.@testset "CMI_het.rain_freezing_rate and cloud_freezing_rate" begin
+            R = @NamedTuple{∂ₜn_frz::FT, ∂ₜq_frz::FT}
+            (; output, ndrange) = setup_output(1, @NamedTuple{rain::R, cloud::R})
 
-            rf = CMP.RainFreezing(CP.create_toml_dict(FT))
-            pdf_r = CMP.RainParticlePDF_SB2006_limited(CP.create_toml_dict(FT))
             T_freeze = TDI.TD.Parameters.T_freeze(tps)
-
             q = ArrayType([FT(1e-4)])
+            n = ArrayType([FT(1e5)])
             ρ = ArrayType([FT(1)])
-            N = ArrayType([FT(1e3)])
             T = ArrayType([T_freeze - FT(20)])
 
-            kernel! = test_rain_freezing_kernel!(backend, work_groups)
-            kernel!(rf, pdf_r, tps, output, q, ρ, N, T; ndrange)
+            kernel! = test_liquid_freezing_kernel!(backend, work_groups)
+            kernel!(mp_2m_p3, tps, output, q, n, ρ, T; ndrange)
             out = Array(output)[1]
 
-            TT.@test isfinite(out.∂ₜn_frz) && out.∂ₜn_frz > FT(0)
-            TT.@test isfinite(out.∂ₜq_frz) && out.∂ₜq_frz > FT(0)
+            for r in (out.rain, out.cloud)
+                TT.@test isfinite(r.∂ₜn_frz) && r.∂ₜn_frz > FT(0)
+                TT.@test isfinite(r.∂ₜq_frz) && r.∂ₜq_frz > FT(0)
+            end
         end
     end  # TT.@testset "Ice nucleation kernels"
 
