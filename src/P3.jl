@@ -37,5 +37,7 @@ include("P3_size_distribution.jl")
 include("P3_integral_properties.jl")
 include("P3_terminal_velocity.jl")
 include("P3_processes.jl")
+include("P3/processes/liquid_ice_collisions.jl")
+include("P3/processes/ice_self_collection.jl")
 
 end
