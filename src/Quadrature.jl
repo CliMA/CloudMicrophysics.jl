@@ -15,6 +15,9 @@ machinery:
   `isbits` and ships to GPU kernels unchanged — only *construction* is
   host-side.
 
+The generalized Gauss-Laguerre rule [`GaussLaguerre`](@ref) integrates over `[0, ∞)` against a
+normalized gamma weight, for the drop freezing integrals over a size distribution.
+
 This module lives early in the include order (before `Parameters`) so that the
 constructed quadrature object can be stored on a parameter struct and shipped to
 the device, rather than being rebuilt inside a GPU kernel.
@@ -26,7 +29,7 @@ import UnrolledUtilities as UU
 import FastGaussQuadrature as FGQ
 import ..Utilities as UT
 
-export QuadratureRule, ChebyshevGauss, GaussLegendre, integrate
+export QuadratureRule, ChebyshevGauss, GaussLegendre, GaussLaguerre, integrate
 
 abstract type QuadratureRule end
 
@@ -244,5 +247,37 @@ function GaussLegendre(::Type{FT}, n::Int) where {FT}
     return GaussLegendre{FT, n}(n, nodes, weights)
 end
 GaussLegendre(n::Int) = GaussLegendre(Float64, n)
+
+"""
+    GaussLaguerre{FT, N}
+    GaussLaguerre(FT, n; α = 0)
+
+The `n`-point generalized Gauss-Laguerre rule on `[0, ∞)`,
+
+    ∫₀^∞ tᵅ exp(-t) / Γ(α + 1) g(t) dt ≈ Σᵢ wᵢ g(tᵢ),
+
+whose weight function is normalized, so the weights sum to one. The nodes and weights are
+computed once at construction with FastGaussQuadrature and stored as `SVector`s.
+
+# Fields
+- `α`: exponent of the weight function [-]
+- `nodes`, `weights`: the nodes `tᵢ` and the normalized weights `wᵢ`
+"""
+struct GaussLaguerre{FT, N}
+    α::FT
+    nodes::SA.SVector{N, FT}
+    weights::SA.SVector{N, FT}
+end
+Base.broadcastable(quad::GaussLaguerre) = (quad,)
+
+function GaussLaguerre(::Type{FT}, n::Int; α = 0) where {FT}
+    n ≥ 1 || error("GaussLaguerre: order n=$n must be ≥ 1")
+    # Compute in Float64 for accuracy, then convert to FT
+    nodes64, weights64 = FGQ.gausslaguerre(n, Float64(α))
+    w_sum = sum(weights64)
+    nodes = SA.SVector{n, FT}(ntuple(i -> FT(nodes64[i]), n))
+    weights = SA.SVector{n, FT}(ntuple(i -> FT(weights64[i] / w_sum), n))
+    return GaussLaguerre{FT, n}(FT(α), nodes, weights)
+end
 
 end # module Quadrature
