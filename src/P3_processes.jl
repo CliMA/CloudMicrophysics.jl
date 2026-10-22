@@ -64,7 +64,8 @@ A `NamedTuple` `(; dNdt, dLdt)` with the melting rates of ice number
   concentration [1/m³/s] and ice content [kg/m³/s].
 
 A particle melts by heat conduction at `dm/dt = 2π D K_therm (Tₐ - T_freeze) F_v(D) / L_f`,
-for capacitance ``C = D/2`` and without the vapor diffusion contribution in subsaturated air.
+for capacitance ``C = D/2`` and without the vapor diffusion contribution in subsaturated air,
+with `L_f` at `T_freeze`, the temperature of the particle surface.
 Mass and number melt at the same fractional rate, that of the size distribution,
 
 ```math
@@ -80,10 +81,9 @@ with `N` the prognostic ice number.
     # (we want ice core shape params)
     # Get constants
     (; K_therm) = aps
-    L_f = TDI.Lf(tps, Tₐ)
-
     (; ρq_ice) = state
     (; T_freeze, vent) = particles.params
+    L_f = TDI.Lf(tps, T_freeze)  # at the particle surface
 
     v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
     F_v = CO.ventilation_factor(vent, aps, v_term)
