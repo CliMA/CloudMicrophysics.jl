@@ -959,13 +959,11 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test all(x -> x isa FT, rates)  # check type stability
         @test all(>(0), rates)  # check positivity
 
-        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL = rates
 
         # Mass conservation: QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
         @test QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
 
-        # Wet growth indicator should be ≤ total collision rate
-        @test ∫𝟙_wet_M_col <= ∫M_col
 
         # Since we specified identical size distributions, we expect:
         @test QCFRZ == QRFRZ
@@ -996,13 +994,12 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         rates = P3.∫liquid_ice_collisions(
             n_i, ∂ₜM_max_zero, cloud_integrals, rain_integrals, ice_bounds, P3.GaussLegendre(FT, 12),
         )
-        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL = rates
         @test QCFRZ == 0  # No cloud freezing
         @test QRFRZ == 0  # No rain freezing
         @test QCSHD > 0  # All cloud particles should shed
         @test QRSHD > 0  # All rain particles should freeze
         @test QCSHD + QRSHD == ∫M_col  # All collisions should result shedding
-        @test ∫𝟙_wet_M_col == ∫M_col  # Above freezing, collisions at all sizes are wet
     end
 
     @testset "Bulk liquid-ice collisions" begin
@@ -1031,12 +1028,11 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         )
         @test eltype(rates) == FT  # check type stability
 
-        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
+        QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL = rates
 
         # Basic sanity checks
         @test all(rates .>= 0)
         @test QCFRZ + QCSHD + QRFRZ + QRSHD ≈ ∫M_col
-        @test ∫𝟙_wet_M_col <= ∫M_col
 
         # Smoke tests, aka: Check that rates don't change with new commits.
         # `rtol = 5e-4` admits both Float32 and Float64 against these (Float64)
@@ -1050,13 +1046,79 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test ∫M_col ≈ 7.069157000967575e-5 rtol = 5e-4
         @test BCCOL ≈ 3.508183075042488e-9 rtol = 5e-4
         @test BRCOL ≈ 7.244274484995898e-8 rtol = 5e-4
-        @test ∫𝟙_wet_M_col ≈ 1.7043100985839804e-5 rtol = 5e-4
 
         ### Test the bulk source function
         rates = P3.bulk_liquid_ice_collision_sources(
             psd_c, psd_r, aps, tps, vel_params, state, L_c, N_c, L_r, N_r, ρₐ, T,
         )
         @test eltype(rates) == FT  # check type stability
+    end
+
+    # The state clamps ρ_rim to ρ_i, so only the prognostic rime volume shows the excess volume
+    @testset "wet-growth densification uses the prognostic rime volume" begin
+        toml_dict = CP.create_toml_dict(FT)
+        psd_c = CMP.CloudParticlePDF_SB2006(toml_dict)
+        psd_r = CMP.RainParticlePDF_SB2006_limited(toml_dict)
+        L_c, N_c, L_r, N_r = FT(1e-3), FT(1e8), FT(1e-4), FT(1e6)
+        T = T_freeze - FT(5)
+        ρ_i = params.ρ_i
+        L_rim = Lᵢ * F_rim
+
+        # The state `st` with the prognostic rime volume `B`
+        with_ρb_rim(st, B) = P3.P3State(st.particles, st.integration, st.ρq_ice, st.ρn_ice, B, st.dist)
+        collide(st, B) = P3.bulk_liquid_ice_collision_sources(
+            psd_c, psd_r, aps, tps, vel_params, with_ρb_rim(st, B), L_c, N_c, L_r, N_r, ρₐ, T,
+        )
+        # The rime volume implied by the state's clamped rime density
+        recon_B((; ρq_ice, particles)) = particles.ρ_rim > 0 ? ρq_ice * particles.F_rim / particles.ρ_rim : zero(FT)
+        # The collision integrals, to separate QIWET and BIWET from the totals
+        integrals(st) = P3.∫liquid_ice_collisions(
+            psd_c, psd_r, aps, tps, vel_params, D -> psd_c.ρw * CO.volume_sphere_D(D), st, L_c, N_c, L_r, N_r, ρₐ, T,
+        )
+
+        st = rimed_state(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+        r = integrals(st)
+        f_shd = (r[2] + r[5]) / r[7]
+        @test 0 < f_shd <= 1
+
+        # On a consistent state the two volumes agree
+        @test st.particles.ρ_rim ≈ ρ_rim rtol = 8 * eps(FT)
+        @test all(Tuple(collide(st, L_rim / ρ_rim)) .=== Tuple(collide(st, recon_B(st))))
+
+        # Above solid ice, the prognostic volume is smaller, so the increment's density is below ρ_i
+        recon_B_rims = FT[]
+        prog_BIWETs = FT[]
+        for δ in FT[1e-3, 2e-2]
+            B_hard = L_rim / (ρ_i * (1 + δ))
+            st_h = P3.P3State(params, P3.GaussLegendre(FT, 12), Lᵢ, Nᵢ, L_rim, B_hard)
+            @test st_h.ρb_rim == B_hard
+            @test st_h.particles.ρ_rim ≈ ρ_i rtol = 8 * eps(FT)
+            r_h = integrals(st_h)
+            QCFRZ, QRFRZ, BCCOL, BRCOL = r_h[1], r_h[4], r_h[8], r_h[9]
+
+            prog = collide(st_h, B_hard)
+            recon = collide(st_h, recon_B(st_h))
+            @test prog.∂ₜB_rim > recon.∂ₜB_rim
+            @test prog.∂ₜL_rim == recon.∂ₜL_rim
+
+            QIWET = prog.∂ₜL_rim - (QCFRZ + QRFRZ)
+            BIWET_p = prog.∂ₜB_rim - (BCCOL + BRCOL)
+            BIWET_r = recon.∂ₜB_rim - (BCCOL + BRCOL)
+            @test QIWET > 0 && BIWET_p > 0 && BIWET_r > 0
+            @test QIWET / BIWET_r ≈ ρ_i rtol = 1e-3
+            @test QIWET / BIWET_p ≈ ρ_i * (1 - F_rim) / (1 - F_rim / (1 + δ)) rtol = 1e-3
+            push!(recon_B_rims, recon.∂ₜB_rim)
+            push!(prog_BIWETs, prog.∂ₜB_rim)
+        end
+        # Densification needs freezing, so it vanishes at and above the freezing temperature
+        warm = P3.bulk_liquid_ice_collision_sources(
+            psd_c, psd_r, aps, tps, vel_params, st, L_c, N_c, L_r, N_r, ρₐ, T_freeze + FT(1),
+        )
+        @test warm.∂ₜL_rim == 0 && warm.∂ₜB_rim == 0
+
+        # The same clamped density with different prognostic volumes densifies differently
+        @test recon_B_rims[1] ≈ recon_B_rims[2] rtol = 1e-3
+        @test prog_BIWETs[1] != prog_BIWETs[2]
     end
 end
 

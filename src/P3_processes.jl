@@ -455,8 +455,8 @@ Computes the bulk collision rate integrands between ice and liquid particles.
 - `quad`: quadrature rule, a `QuadratureRule`
 
 # Returns
-A 10-element vector of integrated rates,
-`(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col)`;
+A 9-element vector of integrated rates,
+`(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`;
 see the method below for the definition of each entry.
 """
 @inline function ∫liquid_ice_collisions(
@@ -472,7 +472,6 @@ see the method below for the definition of each entry.
 
         ∂ₜM_frz = min(∂ₜM_col, ∂ₜM_max(Dᵢ))
         f_frz = iszero(∂ₜM_col) ? zero(∂ₜM_frz) : ∂ₜM_frz / ∂ₜM_col
-        𝟙_wet = ∂ₜM_col > ∂ₜM_frz  # Used for wet densification
 
         n = n_i(Dᵢ)
         # Integrating over `Dᵢ` gives another unit of `[m]`, so `[X / s / m]` --> `[X / s]`
@@ -487,7 +486,6 @@ see the method below for the definition of each entry.
             n * ∂ₜM_col,                  # ∫M_col,      total collision rate
             n * ∂ₜB_c_col * f_frz,        # BCCOL,       ∂ₜB_rim source
             n * ∂ₜB_r_col * f_frz,        # BRCOL,       ∂ₜB_rim source
-            n * 𝟙_wet * ∂ₜM_col,          # ∫𝟙_wet_M_col, wet growth indicator
         ))
     end
     return integrate(liquid_ice_collisions_integrands, ice_bounds, quad)
@@ -517,7 +515,7 @@ Compute key liquid-ice collision rates and quantities. Used by [`bulk_liquid_ice
 - `T`: temperature [K]
 
 # Returns
-A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col)`, where:
+A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, where:
 1. `QCFRZ` - Cloud mass collision rate due to freezing [kg/s]
 2. `QCSHD` - Cloud mass collision rate due to shedding [kg/s]
 3. `NCCOL` - Cloud number collision rate [1/s]
@@ -527,7 +525,6 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫�
 7. `∫M_col` - Total collision rate [kg/s]
 8. `BCCOL` - Cloud rime volume source [m³/m³/s]
 9. `BRCOL` - Rain rime volume source [m³/m³/s]
-10. `∫𝟙_wet_M_col` - Wet growth indicator [kg/s]
 """
 @inline function ∫liquid_ice_collisions(
     psd_c, psd_r, aps, tps, vel, m_liq, state,
@@ -613,21 +610,21 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
         psd_c, psd_r, aps, tps, vel, m_liq, state,
         L_c, N_c, L_r, N_r, ρₐ, T,
     )
-    (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫∂ₜM_col, BCCOL, BRCOL, ∫𝟙_wet_M_col) = rates
+    (QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫∂ₜM_col, BCCOL, BRCOL) = rates
 
-    # Bulk wet growth fraction
-    f_wet = iszero(∫∂ₜM_col) ? zero(∫∂ₜM_col) : ∫𝟙_wet_M_col / ∫∂ₜM_col
+    # The shed fraction drives the rime densification, which needs freezing
+    f_shd = ifelse(T < TDI.T_freeze(tps), UT.guarded_quotient(QCSHD + QRSHD, ∫∂ₜM_col), zero(∫∂ₜM_col))
 
     # Shedding of rain
     # QRSHD = ∫∂ₜM_col - (QCFRZ + QRFRZ)
     NRSHD = QRSHD / m_liq(D_shd)
     # NCSHD = QCSHD / m_liq(D_shd)
 
-    # Densification of rime
+    # Densification of rime: relax the prognostic `(L_rim, ρb_rim)` toward `(ρq_ice, ρq_ice / ρ_i)`
     (; ρq_ice, ρb_rim) = state
     (; F_rim) = state.particles
-    QIWET = f_wet * ρq_ice * (1 - F_rim) / τ_wet   # densification of rime mass
-    BIWET = f_wet * (ρq_ice / ρ_i - ρb_rim) / τ_wet  # densification of rime volume
+    QIWET = f_shd * ρq_ice * (1 - F_rim) / τ_wet   # densification of rime mass
+    BIWET = f_shd * (ρq_ice / ρ_i - ρb_rim) / τ_wet  # densification of rime volume
 
     # Bulk rates
     ## Liquid phase
