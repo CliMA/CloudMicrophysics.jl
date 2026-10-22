@@ -788,7 +788,7 @@ end
         ::Microphysics2Moment,
         mp::Microphysics2MParams{WR, Nothing}, tps,
         ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
-        q_ice = 0, n_ice = 0, q_rim = 0, b_rim = 0, logλ = 0,
+        q_ice = 0, n_ice = 0, q_rim = 0, b_rim = 0,
         inpc_log_shift = 0, w = 0, p = 0,
     )
 
@@ -807,7 +807,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{WR, <:
 - `n_lcl`: Cloud droplet number per kg air (1/kg)
 - `q_rai`: Rain specific content (kg/kg)
 - `n_rai`: Rain number per kg air (1/kg)
-- `q_ice`, `n_ice`, `q_rim`, `b_rim`, `logλ`: (optional, default `0`)
+- `q_ice`, `n_ice`, `q_rim`, `b_rim`: (optional, default `0`)
   ice-state placeholders, accepted for interface uniformity and unused here
 - `inpc_log_shift`, `w`, `p`: (optional, default `0`) INP-concentration log
   shift, vertical velocity (m/s), and air pressure (Pa)
@@ -826,7 +826,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{WR, <:
 @inline function bulk_microphysics_tendencies(  # TODO: Delete this function
     ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, Nothing}, tps,
     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
-    q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ), logλ = zero(ρ),
+    q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ),
     inpc_log_shift = zero(ρ),
     w = zero(ρ), p = zero(ρ),
 ) where {WR}
@@ -864,7 +864,7 @@ end
         ::Microphysics2Moment,
         mp::Microphysics2MParams{WR, <:P3IceParams}, tps,
         ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
-        q_ice, n_ice, q_rim, b_rim, logλ,
+        q_ice, n_ice, q_rim, b_rim,
         inpc_log_shift = 0, w = 0, p = 0,
     )
 
@@ -888,7 +888,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `n_ice`: Ice number per kg air (1/kg)
 - `q_rim`: Rime mass (kg/kg)
 - `b_rim`: Rime volume (m³/kg)
-- `logλ`: Log of P3 distribution slope parameter, log(1/m)
 
 ## Optional
 - `inpc_log_shift`: Additive shift to log(INPC) (default `0`)
@@ -911,14 +910,12 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, ICE}, tps,
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai,
-    q_ice, n_ice, q_rim, b_rim, logλ,
+    q_ice, n_ice, q_rim, b_rim,
     inpc_log_shift = zero(ρ),
     w = zero(ρ), p = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = eltype(ρ)
-    ϵₘ = UT.ϵ_numerics_2M_M(FT)
-    ϵₙ = UT.ϵ_numerics_2M_N(FT)
-    ϵB = UT.ϵ_numerics_P3_B(FT)
+    ϵ = UT.ϵ_numerics(FT)
     # Clamp negative inputs to zero (robustness against numerical errors)
     ρ = UT.clamp_to_nonneg(ρ)
     q_tot = UT.clamp_to_nonneg(q_tot)
@@ -940,7 +937,8 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     N_ice = n_ice * ρ  # [1 / m³ air]
     L_rim = q_rim * ρ  # [kg rim / m³ air]
     B_rim = b_rim * ρ  # [m³ rim / m³ air]
-    state = CMP3.state_from_prognostic(mp.ice.scheme, L_ice, N_ice, L_rim, B_rim)
+    state = CMP3.P3State(mp.ice.scheme, mp.ice.integration, L_ice, N_ice, L_rim, B_rim)
+    (; F_rim, ρ_rim) = state.particles
 
     # Unpack warm rain parameters
     aps = mp.warm_rain.air_properties
@@ -967,15 +965,13 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     pdf_r = mp.ice.rain_pdf
     ice_nucleation = mp.ice.ice_nucleation
     inp_depletion_model = mp.ice.inp_depletion_model
-    quad = mp.ice.quad
 
     # Only compute ice processes if there is ice mass/number present
-    if q_ice > ϵₘ && n_ice > ϵₙ
+    if q_ice > ϵ && n_ice > ϵ
 
         # --- Liquid-ice collisions
         coll = CMP3.bulk_liquid_ice_collision_sources(
-            state, logλ, pdf_c, pdf_r, L_lcl, N_lcl, L_rai, N_rai, aps, tps, vel, ρ, T;
-            quad,
+            pdf_c, pdf_r, aps, tps, vel, state, L_lcl, N_lcl, L_rai, N_rai, ρ, T,
         )
         dq_lcl_dt += coll.∂ₜq_c
         dq_rai_dt += coll.∂ₜq_r
@@ -986,13 +982,13 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         db_rim_dt += coll.∂ₜB_rim / ρ
 
         # --- Ice self-collection (aggregation)
-        S_ice_agg = CMP3.ice_self_collection(state, logλ, vel, ρ; quad)
+        S_ice_agg = CMP3.ice_self_collection(vel, state, ρ)
         dn_ice_dt -= S_ice_agg.dNdt / ρ
 
         # Ice melting (above freezing temperature)
         T_freeze = TDI.TD.Parameters.T_freeze(tps)
         melt = ifelse(T > T_freeze,
-            CMP3.ice_melt(vel, aps, tps, T, ρ, state, logλ; quad),
+            CMP3.ice_melt(vel, aps, tps, state, ρ, T),
             (; dNdt = zero(ρ), dLdt = zero(ρ)),
         )
         # Specific (per-kg-air) ice-mass melt rate.
@@ -1004,8 +1000,8 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         dq_ice_dt -= ∂ₜq_ice_melt
         dn_ice_dt -= ∂ₜn_ice_melt  # Ice particles consumed by melting
         # Rim mass and rim volume drain proportionally to ice mass during melting
-        dq_rim_dt -= ∂ₜq_ice_melt * state.F_rim
-        db_rim_dt -= ifelse(state.ρ_rim > 0, ∂ₜq_ice_melt * state.F_rim / state.ρ_rim, zero(FT))
+        dq_rim_dt -= ∂ₜq_ice_melt * F_rim
+        db_rim_dt -= ifelse(ρ_rim > 0, ∂ₜq_ice_melt * F_rim / ρ_rim, zero(FT))
     end
 
     # --- Ice nucleation (F23 + Bigg)
@@ -1047,7 +1043,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     db_rim_dt += ∂ₜq_imm / p3.ρ_i  # solid-ice rime volume
 
     # --- Ice Sublimation / Deposition
-    n_per_q_ice = ifelse(q_ice > ϵₘ, n_ice / q_ice, zero(n_ice))
+    n_per_q_ice = ifelse(q_ice > ϵ, n_ice / q_ice, zero(n_ice))
     # Deposition/sublimation of cloud ice
     micro_mock = (; q_tot, q_lcl, q_icl = q_ice, q_rai, q_sno = zero(q_ice))
     thermo_mock = (; ρ, T)
@@ -1062,8 +1058,8 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dq_ice_dt += ∂ₜq_ice_dep
     dn_ice_dt += ∂ₜn_ice_dep
     ∂ₜq_ice_sub = min(∂ₜq_ice_dep, 0)   # ≤ 0; zero on the deposition branch
-    dq_rim_dt += ∂ₜq_ice_sub * state.F_rim
-    db_rim_dt += ifelse(state.ρ_rim > 0, ∂ₜq_ice_sub * state.F_rim / state.ρ_rim, zero(FT))
+    dq_rim_dt += ∂ₜq_ice_sub * F_rim
+    db_rim_dt += ifelse(ρ_rim > 0, ∂ₜq_ice_sub * F_rim / ρ_rim, zero(FT))
 
     # --- Ice number adjustment for mass limits
     # Nudges n_ice toward [q_ice / x_max, q_ice / x_min] over timescale τ.

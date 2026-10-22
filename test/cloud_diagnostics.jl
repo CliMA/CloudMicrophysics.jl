@@ -73,10 +73,10 @@ function test_cloud_diagnostics(FT)
         Nᵣ = FT(5.136e-18)
         Z = FT(-150)
         for SB in [SB2006, SB2006_no_limiters]
-            # Negligible water (q≈1e-25): the broadened SB2006 degenerate-input
-            # guard (Nᵣ<eps || qᵣ<eps) now zeroes the rain PSD for the unlimited
-            # scheme too, so all cases give rₑ = 0.
-            rₑ = FT(0)
+            # The second radius moment is below `ϵ_numerics(Float32)`, so rₑ = 0
+            # in Float32. In Float64 rₑ is the radius of cloud droplets with mean
+            # mass ρₐ qₗ / Nₗ ≈ 2e-14 kg.
+            rₑ = FT == Float32 ? FT(0) : FT(1.8e-6)
             Z_val = CMD.radar_reflectivity_2M(SB, qₗ, qᵣ, Nₗ, Nᵣ, ρₐ)
             rₑ_val = CMD.effective_radius_2M(SB, qₗ, qᵣ, Nₗ, Nᵣ, ρₐ)
             #test

@@ -562,7 +562,7 @@ The default free parameter values are:
     and mass using both the exact and approximated gamma function
 
 ```@example
-include("plots/RainEvapoartionSB2006.jl")
+include("plots/RainEvaporationSB2006.jl")
 ```
 ![](SB2006_rain_evaporation.svg)
 

@@ -187,31 +187,19 @@ function benchmark_test(FT)
     INPC = FT(1e5)
 
     @info "P3 Scheme"
-    state = P3.P3State(params_P3, L_ice, N_ice, F_rim, ρ_rim)
-    logλ = P3.get_distribution_logλ(state)
-    bench_press(
-        P3.P3State,
-        P3.P3State,
-        (params_P3, L_ice, N_ice, F_rim, ρ_rim),
-        400,
-    )
-    bench_press(FT, P3.get_distribution_logλ, (state,), 220_000)  # BrentsMethod, at most 18 iterations
+    quad = P3.ChebyshevGauss(FT, 100)
+    state = P3.P3State(params_P3, quad, L_ice, N_ice, F_rim * L_ice, F_rim * L_ice / ρ_rim)
+    # Includes the shape solve
+    bench_press(P3.P3State, P3.P3State, (params_P3, quad, L_ice, N_ice, F_rim * L_ice, F_rim * L_ice / ρ_rim), 220_500)
+    bench_press(P3.P3Distribution, P3.P3Distribution, (state.particles, quad, state.ρq_ice, state.ρn_ice), 220_000)
     # The weighted-velocity integrals build a nested terminal-velocity closure
     # that escapes into `integrate`. With `ice_particle_terminal_velocity`
     # returning a single (concretely-typed) closure, this path is type-stable
     # on both 1.10 and 1.12 and allocates nothing — keep the default zero
     # allocation/memory budget so a future closure regression is caught here.
-    quad = P3.ChebyshevGauss(100)
-    bench_press(
-        FT, (a, b, c, d) -> P3.ice_terminal_velocity_number_weighted(a, b, c, d; quad),
-        (ch2022, ρ_air, state, logλ), 170_000,
-    )
-    bench_press(
-        FT, (a, b, c, d) -> P3.ice_terminal_velocity_mass_weighted(a, b, c, d; quad),
-        (ch2022, ρ_air, state, logλ), 200_000,
-    )
-    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1), P3.ChebyshevGauss(100)), 7_000)
-    bench_press(FT, P3.D_m, (state, logλ), 18_000)
+    bench_press(@NamedTuple{v_n::FT, v_m::FT}, P3.ice_terminal_velocities, (ch2022, state, ρ_air), 220_000)
+    bench_press(FT, P3.integrate, (x -> x^4, FT(0), FT(1), P3.ChebyshevGauss(FT, 100)), 7_000)
+    bench_press(FT, P3.D_m, (state.particles, state.dist), 18_000)
 
     @info "P3 Ice Nucleation"
     bench_press(
@@ -222,8 +210,8 @@ function benchmark_test(FT)
     )
     bench_press(
         @NamedTuple{dNdt::FT, dLdt::FT},
-        (vp, ap, tp, T, ρ, st, lλ) -> P3.ice_melt(vp, ap, tp, T, ρ, st, lλ; quad),
-        (ch2022, aps, tps, T_air, ρ_air, state, logλ),
+        P3.ice_melt,
+        (ch2022, aps, tps, state, ρ_air, T_air),
         150_000,
     )
     bench_press(FT, CMI_het.P3_deposition_N_i, (ip.p3, T_air_cold), 230)
@@ -382,10 +370,8 @@ function benchmark_test(FT)
             bench_press(@NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT},
                 P3.bulk_liquid_ice_collision_sources,
                 (
-                    state, logλ,
-                    sb.pdf_c, sb.pdf_r, ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai,
-                    aps, tps, ch2022,
-                    ρ_air, T_air,
+                    sb.pdf_c, sb.pdf_r, aps, tps, ch2022, state,
+                    ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai, ρ_air, T_air,
                 ), 1e9)
         end
     end

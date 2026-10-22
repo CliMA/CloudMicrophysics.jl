@@ -243,6 +243,14 @@ we seek to solve for $N_0$ and $λ$. This is most conveniently achieved by first
 - \log\left(\frac{L_\mathrm{ice}}{N_\mathrm{ice}}\right) 
 ```
 
+The slope is a derived quantity of the ice state.
+Before the solve, the distribution construction bounds the ice number so that the mean particle mass $L_\mathrm{ice} / N_\mathrm{ice}$ lies between the mass of a newly nucleated crystal (a solid-ice sphere of diameter $D_\mathrm{nuc}$) and a largest mean mass of $10^{-4}$ kg.
+The root then lies in the search interval of the solve, from $\log λ = 2$ to the slope at which the mean particle mass equals the nucleation mass.
+Some of the gamma functions used to evaluate $\log λ$ do not have analytical derivatives, so $\log λ$ is treated as a constant with respect to the state when using automatic differentiation.
+$\log λ$ and the other distribution parameters are stored in the [`CloudMicrophysics.P3Scheme.P3Distribution`](@ref) type.
+The [`CloudMicrophysics.P3Scheme.P3State`](@ref) holds the prognostic moments, and constructs the distribution from them and from the [`CloudMicrophysics.P3Scheme.P3Particles`](@ref), the mass, area, and size thresholds of a particle.
+The process rates read the distribution from the state to compute the integrals over the distribution.
+
 !!! details "Computing Distribution Integrals Using Gamma Functions"
     The integrals presented above can be evaluated analytically using the Gamma function family. Here we present the key 
       formulas and their numerical implementation.
@@ -494,24 +502,12 @@ To continue with the same plotting format as we see above for terminal velocity,
   ``\phi``. This is because we want ``V_{ice}(D_{p})`` (velocity of a mixed-phase particle treating it as an ice particle
   with the same D).
 
-```@example
-nothing
-# include("plots/P3TerminalVelocityPlots_WithFliq.jl")
-# ![](MorrisonandMilbrandtFig2_with_F_liq.svg)
-```
-
 Visualizing mass-weighted terminal velocity as a function of ``F_{liq}``, ``F_{rim}`` with ``ρ_{rim} = 900 kg m^{-3}`` for small,
   medium, and large particles, we have mostly graupel (``D_{gr} < D < D_{cr}``) for small ``D_m`` and mostly partially rimed ice
   (``D > D_{cr}``) for medium and large ``D_m``. Thus, we can attribute the non-monotonic behavior of velocity with ``F_liq`` in the
   medium and large ``D_m`` plots to the variations in ``ϕ`` caused by nonspherical particle shape, whereas the small ``D_m`` plot
   confirms a more monotonic change in ``V_m`` for spherical ice. The ``L`` and ``N`` values used to generate small, medium, and large ``D_{m}``
   are the same as in the plot above.
-
-```@example
-nothing
-# include("plots/P3TerminalVelocity_F_liq_rim.jl")
-# ![](P3TerminalVelocity_F_liq_rim.svg)
-```
 
 When modifying process rates, we now need to consider whether they are concerned with the ice core or the whole particle, 
   in addition to whether they become sources and sinks of different prognostic variables with the inclusion of ``F_{liq}``.
@@ -868,8 +864,9 @@ f = \frac{\int_{0}^{\infty} \frac{dm}{dt} N(D) \, \mathrm{d}D}{\int_{0}^{\infty}
 \left. \frac{dL}{dt} \right|_\mathrm{melt} = L f, \qquad
 \left. \frac{dN}{dt} \right|_\mathrm{melt} = N f.
 ```
-When the size distribution solves the shape problem, its mass equals ``L``, and ``L f`` is the integral of ``dm/dt`` over the distribution.
-When the shape solve returns a bound of its search interval, the distribution holds a different mass than ``L``, and both rates still follow from its fractional rate.
+The size distribution solves the shape problem, so its mass equals ``L``, and ``L f`` is the integral of ``dm/dt`` over the distribution.
+``N`` is the prognostic ice number, so that a step removes at most the number that exists, while the size distribution has the number bounded by the mean particle mass limits.
+The number tendency of ice self-collection scales with the prognostic number in the same way.
 
 ```@example
 include("plots/P3Melting.jl")

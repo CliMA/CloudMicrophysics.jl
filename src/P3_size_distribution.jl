@@ -1,6 +1,6 @@
 import CloudMicrophysics.DistributionTools: size_distribution
 
-# Callable returned by `logN′ice`: evaluates `log(N′(D))` for a fixed state and slope.
+# Callable returned by `logN′ice`: evaluates `log(N′(D))` for a fixed distribution.
 # We store `λ = exp(logλ)` (computed once when the functor is built) rather than `logλ`
 # so the slope term is a single multiply `λ * D` in the quadrature hot loop, instead of
 # `exp(logλ + logD)` (a transcendental per evaluation). `logD = log(D)` is still needed
@@ -16,19 +16,20 @@ end
 end
 
 """
-    logN′ice(state, logλ)
+    logN′ice(dist)
 
-Return a callable that computes `log(N′(D))`, the log of the ice particle number
-concentration at diameter `D`, for the [`P3State`](@ref) `state` and log-slope `logλ`.
+Return a callable that computes `log(N′(D))` for the [`P3Distribution`](@ref) `dist`.
+
+`N′(D)` is the ice particle number concentration at diameter `D`.
+
+# Arguments
+- `dist`: [`P3Distribution`](@ref)
 """
-function logN′ice(state::P3State, logλ)
-    μ = get_μ(state, logλ)
-    log_N₀ = get_logN₀(state.ρn_ice, μ, logλ)
+function logN′ice((; μ, logλ, logN₀))
     # Promote to a common type: differentiating w.r.t. the ice number makes
-    # `log_N₀` a `Dual` while `μ` (a function of the fixed `logλ`) stays a plain
-    # float, and `P3LogNumberFunctor` stores both in a single field type.
-    λ = exp(logλ)
-    return P3LogNumberFunctor(promote(log_N₀, μ, λ)...)
+    # `logN₀` a `Dual` while `μ` and `logλ` stay plain floats, and
+    # `P3LogNumberFunctor` stores all three in a single field type.
+    return P3LogNumberFunctor(promote(logN₀, μ, exp(logλ))...)
 end
 
 # Callable returned by `size_distribution`: `n(D) = exp(logN′(D))`.
@@ -38,15 +39,11 @@ end
 @inline (f::P3SizeDistributionFunctor)(D) = exp(f.logN′(D))
 
 """
-    size_distribution(state::P3State, logλ)
+    size_distribution(dist::P3Distribution)
 
-Return `n(D)`, a function that computes the size distribution for ice particles at diameter `D`
-
-# Arguments
-- `state`: The [`P3State`](@ref)
-- `logλ`: The log of the slope parameter [log(1/m)]
+Return `n(D)`, the ice size distribution of the [`P3Distribution`](@ref) `dist` at diameter `D`.
 """
-DT.size_distribution(state::P3State, logλ) = P3SizeDistributionFunctor(logN′ice(state, logλ))
+DT.size_distribution(dist::P3Distribution) = P3SizeDistributionFunctor(logN′ice(dist))
 
 ### ------------------------------------------------ ###
 ### ----- Obtaining P3 distribution parameters ----- ###
@@ -113,8 +110,10 @@ end
 """
     gamma_inc_moment(D₁, D₂, p, α)
 
-`∫_{D₁}^{D₂} D^p e^{-α D} dD = α^{-(p+1)} Γ(p+1) [Q(p+1,αD₁) - Q(p+1,αD₂)]`
-with `Q` the regularized upper incomplete gamma.
+Compute the incomplete gamma moment `∫_{D₁}^{D₂} D^p e^{-α D} dD`.
+
+It equals `α^{-(p+1)} Γ(p+1) [Q(p+1,αD₁) - Q(p+1,αD₂)]`, with `Q` the regularized upper incomplete
+gamma.
 
 Returns `0` if `D₂ ≤ D₁`, and `NaN` if `α ≤ 0`
 
@@ -137,9 +136,10 @@ end
 """
     loggamma_moment(μ, logλ; [k = 0], [scale = 1])
 
-Compute `log(scale ⋅ ∫_0^∞ G(D) D^k dD)`,
- where `G(D) ≡ D^μ e^{-λD}` is the (unnormalized) gamma kernel,
- `k` is an arbitrary exponent, and `scale` is a scale factor.
+Compute `log(scale ⋅ ∫_0^∞ G(D) D^k dD)`.
+
+`G(D) ≡ D^μ e^{-λD}` is the (unnormalized) gamma kernel, `k` is an arbitrary exponent, and `scale`
+is a scale factor.
 
 # Arguments
  - `μ`: The PSD shape parameter [`-`]
@@ -159,14 +159,12 @@ function loggamma_moment(μ, logλ; k = 0, scale = 1)
 end
 
 """
-    get_μ(slope::CMP.SlopeLaw, logλ)
-    get_μ(state::P3State, logλ)
-    
-Compute the shape parameter μ
+    get_μ(slope, logλ)
+
+Compute the shape parameter μ.
 
 # Arguments
-- `slope`: [`CMP.SlopeLaw`](@ref) object, or
-- `state`: [`P3State`](@ref) object
+- `slope`: [`CMP.SlopeLaw`](@ref)
 - `logλ`: The log of the slope parameter [log(1/m)]
 """
 get_μ((; a, b, c, μ_max)::CMP.SlopePowerLaw, logλ) = clamp(a * exp(logλ)^b - c, 0, μ_max)
@@ -176,16 +174,16 @@ function get_μ((; a, b, c, μ_max, κ)::CMP.SmoothSlopePowerLaw, logλ)
     return μ_max - LogExpFunctions.log1pexp(κ * (μ_max - M₀)) / κ
 end
 get_μ((; μ)::CMP.SlopeConstant, logλ...) = μ
-get_μ((; params)::P3State, logλ) = get_μ(params.slope, logλ)
 
 """
-    logmass_gamma_moment(state::P3State, μ, logλ; n = 0)
+    logmass_gamma_moment(particles, μ, logλ; n = 0)
 
-Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state`, `μ`, and `logλ`.
-    This is the log of the `n`-th moment of the mass-weighted PSD.
+Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `particles`, `μ`, and `logλ`.
+
+This is the log of the `n`-th moment of the mass-weighted PSD.
 
 # Arguments
-- `state`: [`P3State`](@ref) object
+- `particles`: [`P3Particles`](@ref)
 - `μ`: The shape parameter [`-`]
 - `logλ`: The log of the slope parameter [log(1/m)]
 
@@ -196,27 +194,27 @@ Compute `log(∫_0^∞ Dⁿ m(D) N′(D) dD)` given the `state`, `μ`, and `log�
 - For `n = 0`, this evaluates to `log(L/N₀)`
 - For `n = 1`, this evaluates to the (unnormalized) mass-weighted mean particle size, see [`D_m`](@ref)
 """
-function logmass_gamma_moment(state::P3State, μ, logλ; n = 0)
-    bnds = segment_boundaries(state)
+function logmass_gamma_moment(particles, μ, logλ; n = 0)
+    bnds = segment_boundaries(particles)
     moments = UU.unrolled_map(subintervals(bnds)) do (D_lo, D_hi)
-        (a, b) = ice_mass_coeffs(state, (D_lo + D_hi) / 2)
+        (a, b) = ice_mass_coeffs(particles, (D_lo + D_hi) / 2)
         loggamma_inc_moment(D_lo, D_hi, μ, logλ, b + n, a)
     end
     return UT.unrolled_logsumexp(moments)
 end
 
 """
-    logLdivN(state, logλ)
+    logLdivN(particles, logλ)
 
-Compute `log(L/N)` given the `state` and `logλ`
+Compute `log(L/N)` given the `particles` and `logλ`
 
 # Arguments
-- `state`: [`P3State`](@ref) object
+- `particles`: [`P3Particles`](@ref)
 - `logλ`: The log of the slope parameter [log(1/m)]
 """
-function logLdivN(state::P3State, logλ)
-    μ = get_μ(state, logλ)
-    logLdivN₀ = logmass_gamma_moment(state, μ, logλ; n = 0)
+function logLdivN(particles, logλ)
+    μ = get_μ(particles.params.slope, logλ)
+    logLdivN₀ = logmass_gamma_moment(particles, μ, logλ; n = 0)
     logNdivN₀ = loggamma_moment(μ, logλ; k = 0)
     return logLdivN₀ - logNdivN₀
 end
@@ -246,8 +244,9 @@ end
 """
     FixedIterations{FT}()
 
-A `RootSolvers.AbstractTolerance` whose convergence predicate is always `false`,
-so the solver stops at the iteration budget instead of at a tolerance. This bounds
+A `RootSolvers.AbstractTolerance` whose convergence predicate is always `false`.
+
+The solver stops at the iteration budget instead of at a tolerance. This bounds
 the cost of a GPU warp by the budget for every input. `BrentsMethod` still returns
 early when the residual is exactly zero, which leaves the result unchanged. A tighter
 initial bracket improves accuracy but not the budget. Each caller sets its own budget.
@@ -256,10 +255,12 @@ struct FixedIterations{FT} <: RS.AbstractTolerance{FT} end
 @inline (::FixedIterations)(x1, x2, y) = false
 
 """
-    _logλ_max(params::CMP.ParametersP3)
+    _logλ_max(params)
 
-The largest `logλ` of the shape solve: the slope at which the mean particle mass equals the mass
-of a newly nucleated crystal, a solid-ice sphere of diameter `D_nuc`.
+Return the largest `logλ` of the shape solve.
+
+It is the slope at which the mean particle mass equals the mass of a newly nucleated crystal, a
+solid-ice sphere of diameter `D_nuc`.
 
 Small ice is spherical, `m(D) = (π/6) ρ_i D³`, so the mean particle mass is
 `(π/6) ρ_i Γ(μ + 4) / Γ(μ + 1) / λ³`. Equating it with `(π/6) ρ_i D_nuc³` gives
@@ -270,16 +271,22 @@ Small ice is spherical, `m(D) = (π/6) ρ_i D³`, so the mean particle mass is
 
 One update from `μ = 0` solves this exactly while `μ` is constant at such small sizes, as it is
 for the default slope law, [`CMP.SmoothSlopePowerLaw`](@ref).
+
+# Arguments
+- `params`: [`CMP.ParametersP3`](@ref)
 """
-@inline function _logλ_max((; slope, D_nuc)::CMP.ParametersP3)
+@inline function _logλ_max((; slope, D_nuc))
     logλ(μ) = log(cbrt((μ + 1) * (μ + 2) * (μ + 3)) / D_nuc)
     return logλ(get_μ(slope, logλ(zero(D_nuc))))
 end
 
 """
-    get_distribution_logλ(state, [logλ_guess])
+    get_distribution_logλ(particles, ρq_ice, ρn_ice)
 
-Solve for the distribution parameters given the state, and the mass (`L`) and number (`N`) concentrations.
+Solve for `logλ`, the log of the slope parameter of the P3 size distribution.
+
+The solve uses the ice mass `ρq_ice`, the bounded ice number `ρn_ice`, and the mass relation of the
+[`P3Particles`](@ref) `particles`.
 
 The assumed distribution is of the form
 
@@ -290,7 +297,7 @@ where `N′(D)` is the number concentration at diameter `D` and `μ` is the shap
     The shape parameter is parameterized, e.g. [`CMP.SlopePowerLaw`](@ref) or [`CMP.SlopeConstant`](@ref).
 
 This algorithm solves for `logλ = log(λ)`
-    given `L_ice` and `N_ice` by solving the equations:
+    given `ρq_ice` and `ρn_ice` by solving the equations:
 
 ```math
 \\begin{align*}
@@ -299,37 +306,37 @@ This algorithm solves for `logλ = log(λ)`
 \\end{align*}
 ```
 where `m(D)` is the mass of a particle at diameter `D` (see [`ice_mass`](@ref)).
-    The procedure is decribed in detail in [the P3 docs](@ref "Parameterizations for the slope parameter \$μ\$").
+    The procedure is described in detail in [the P3 docs](@ref "Parameterizations for the slope parameter \$μ\$").
+
+The solve uses the primal (as opposed to `ForwardDiff.Dual`) values of its arguments and returns
+a primal value, so `logλ` is constant under differentiation with respect to the state.
 
 # Arguments
-- `state`: The [`P3State`](@ref)
-- `logλ_guess`: Optional initial guess, which narrows the search bounds but does not change
-  the iteration count
+- `particles`: The [`P3Particles`](@ref)
+- `ρq_ice`: The ice mass concentration [kg/m³]
+- `ρn_ice`: The ice number concentration [1/m³], bounded by [`bounded_ice_number`](@ref)
 
 The search bounds are `logλ = 2` and the slope at which the mean particle mass equals the mass of
 a newly nucleated crystal. Without ice mass, the result is the upper bound, the smallest
 particles. With mass but without number, it is the lower bound, the largest particles.
-
-The result is not differentiable with respect to the state. Hold `logλ` fixed when
-differentiating quantities that depend on it.
 """
-function get_distribution_logλ(state, logλ_guess = nothing)
-    FT = eltype(state)
-    (; ρn_ice, ρq_ice) = state
-    lo, hi = FT(2), FT(_logλ_max(state.params))
+function get_distribution_logλ(particles, ρq_ice, ρn_ice)
+    particles = _primal_particles(particles)
+    FT = eltype(particles)
+    ρq_ice = FT(FD.value(ρq_ice))
+    ρn_ice = FT(FD.value(ρn_ice))
+    lo, hi = FT(2), FT(_logλ_max(particles.params))
     ρq_ice ≥ floatmin(FT) || return hi
     ρn_ice ≥ floatmin(FT) || return lo
 
     # Two logs instead of the log of the ratio, which can underflow to zero in Float32
     target_log_LdN = log(ρq_ice) - log(ρn_ice)
 
-    shape_problem(logλ) = logLdivN(state, logλ) - target_log_LdN
+    shape_problem(logλ) = logLdivN(particles, logλ) - target_log_LdN
     f_lo, f_hi = shape_problem(lo), shape_problem(hi)
     if !isfinite(f_lo) || !isfinite(f_hi) || f_lo * f_hi > 0
         return abs(f_lo) ≤ abs(f_hi) ? lo : hi
     end
-    (lo, f_lo, hi, f_hi) =
-        _narrow_bracket(shape_problem, lo, f_lo, hi, f_hi, logλ_guess)
 
     # A fixed budget instead of a tolerance bounds the GPU cost. 18 iterations reach the rounding
     # floor of `logLdivN` in both precisions, including the flat stretch and the knee of the
@@ -343,38 +350,4 @@ function get_distribution_logλ(state, logλ_guess = nothing)
         maxiters,
     )
     return sol.root  # logλ
-end
-
-"""
-    get_distribution_logλ_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, args...)
-
-Compute `log(λ)` for P3, using prognostic ice variables directly.
-Trailing `args...` are forwarded to [`get_distribution_logλ`](@ref).
-
-The P3 variables `F_rim` and `ρ_rim` are computed in a regularised way
-"""
-function get_distribution_logλ_from_prognostic(
-    params, ρq_ice, ρn_ice, ρq_rim, ρb_rim, args...,
-)
-    state = state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
-    return get_distribution_logλ(state, args...)
-end
-
-@inline _narrow_bracket(_sp, lo, f_lo, hi, f_hi, ::Nothing) = (lo, f_lo, hi, f_hi)
-@inline function _narrow_bracket(shape_problem, lo, f_lo, hi, f_hi, p::Real)
-    p_ = oftype(lo, p)
-    valid = isfinite(p_) & (lo < p_ < hi)
-    p_clean = ifelse(valid, p_, lo)
-    f_p = shape_problem(p_clean)
-    valid &= isfinite(f_p)
-
-    left = valid & (f_lo * f_p < 0)
-    right = valid & !left
-
-    new_hi = ifelse(left, p_clean, hi)
-    new_f_hi = ifelse(left, f_p, f_hi)
-    new_lo = ifelse(right, p_clean, lo)
-    new_f_lo = ifelse(right, f_p, f_lo)
-
-    return (new_lo, new_f_lo, new_hi, new_f_hi)
 end

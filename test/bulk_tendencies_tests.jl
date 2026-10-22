@@ -2305,7 +2305,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
     mp = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true)
 
     # Extract individual parameters for direct testing
-    p3 = mp.ice.scheme
     pdf_c = mp.ice.cloud_pdf
     pdf_r = mp.ice.rain_pdf
     T_freeze = TDI.T_freeze(tps)
@@ -2323,7 +2322,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
         q_rim = FT(0)
         b_rim = FT(0)
         q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, q_ice + q_rim, q_rai, FT(0))
-        logλ = FT(10)  # Dummy, not used without ice
 
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
@@ -2340,7 +2338,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
             n_ice,
             q_rim,
             b_rim,
-            logλ,
         )
 
         # Autoconversion from cloud to rain should occur
@@ -2363,14 +2360,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
         b_rim = FT(1e-7)  # Rime volume
         q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, q_ice + q_rim, q_rai, FT(0))
 
-        # Compute logλ from P3 state
-        L_ice = q_ice * ρ
-        N_ice = n_ice * ρ
-        F_rim = q_rim / q_ice
-        ρ_rim = q_rim * ρ / (b_rim * ρ)
-        state = CM.P3Scheme.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
-        logλ = CM.P3Scheme.get_distribution_logλ(state)
-
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
             mp,
@@ -2386,7 +2375,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
             n_ice,
             q_rim,
             b_rim,
-            logλ,
         )
 
         # Ice should decrease due to melting
@@ -2409,14 +2397,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
         b_rim = FT(1e-7)
         q_tot = get_saturated_q_tot(tps, T, ρ, q_lcl, q_ice, q_rai, FT(0))
 
-        # Compute logλ
-        L_ice = q_ice * ρ
-        N_ice = n_ice * ρ
-        F_rim = q_rim / q_ice
-        ρ_rim = q_rim * ρ / (b_rim * ρ)
-        state = CM.P3Scheme.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
-        logλ = CM.P3Scheme.get_distribution_logλ(state)
-
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
             mp,
@@ -2432,7 +2412,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
             n_ice,
             q_rim,
             b_rim,
-            logλ,
         )
 
         # Cloud liquid should decrease (collected by ice)
@@ -2454,13 +2433,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
         q_rim = FT(0.3e-4)
         b_rim = FT(5e-8)
 
-        L_ice = q_ice * ρ
-        N_ice = n_ice * ρ
-        F_rim = q_rim / q_ice
-        ρ_rim = q_rim * ρ / (b_rim * ρ)
-        state = CM.P3Scheme.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
-        logλ = CM.P3Scheme.get_distribution_logλ(state)
-
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(),
             mp,
@@ -2476,7 +2448,6 @@ function test_bulk_microphysics_p3_tendencies(FT)
             n_ice,
             q_rim,
             b_rim,
-            logλ,
         )
 
         @test isfinite(tendencies.dq_lcl_dt)
@@ -2501,17 +2472,10 @@ function test_bulk_microphysics_p3_tendencies(FT)
         q_rim = FT(0.3e-4)
         b_rim = FT(5e-8)
 
-        L_ice = q_ice * ρ
-        N_ice = n_ice * ρ
-        F_rim = q_rim / q_ice
-        ρ_rim = q_rim * ρ / (b_rim * ρ)
-        state = CM.P3Scheme.P3State(p3, L_ice, N_ice, F_rim, ρ_rim)
-        logλ = CM.P3Scheme.get_distribution_logλ(state)
-
         tendencies = BMT.bulk_microphysics_tendencies(
             BMT.Microphysics2Moment(), mp, tps, ρ, T, q_tot,
             q_lcl, n_lcl, q_rai, n_rai,
-            q_ice, n_ice, q_rim, b_rim, logλ,
+            q_ice, n_ice, q_rim, b_rim,
         )
 
         # Check that we get the expected NamedTuple type
@@ -2529,5 +2493,34 @@ end
     test_linearized_bulk_microphysics_1m_tendencies(FT)
     test_bulk_microphysics_2m_tendencies(FT)
     test_bulk_microphysics_p3_tendencies(FT)
+end
+
+@testset "Bulk Microphysics Tendencies 2M - Float32 agrees with Float64 at small contents" begin
+    params = Dict(
+        FT => (
+            tps = TDI.TD.Parameters.ThermodynamicsParameters(FT),
+            warm = CMP.Microphysics2MParams(FT; with_ice = false),
+            cold = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true),
+        ) for FT in (Float32, Float64)
+    )
+    function tendencies(FT, q_lcl, q_rai, q_ice)
+        (; tps, warm, cold) = params[FT]
+        t_warm = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics2Moment(), warm, tps,
+            FT(1), FT(285), FT(q_lcl + q_rai + 0.008), FT(q_lcl), FT(1e8), FT(q_rai), FT(q_rai / 1e-9),
+        )
+        t_cold = BMT.bulk_microphysics_tendencies(
+            BMT.Microphysics2Moment(), cold, tps,
+            FT(1), FT(260), FT(q_lcl + q_ice + 0.0015), FT(q_lcl), FT(1e8), FT(0), FT(0),
+            FT(q_ice), FT(q_ice / 1e-11), FT(0), FT(0), FT(log(1e5)),
+        )
+        return (; t_warm.dq_rai_dt, t_warm.dn_rai_dt, t_cold.dn_ice_dt)
+    end
+    for q_lcl in (1e-8, 1e-7, 1e-6), q_rai in (0, 1e-8, 1e-7), q_ice in (1e-9, 1e-8, 1e-7)
+        t32, t64 = tendencies(Float32, q_lcl, q_rai, q_ice), tendencies(Float64, q_lcl, q_rai, q_ice)
+        for k in keys(t64)
+            @test t32[k] ≈ t64[k] rtol = 1e-4
+        end
+    end
 end
 nothing

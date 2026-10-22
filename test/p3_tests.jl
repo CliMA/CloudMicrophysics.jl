@@ -10,39 +10,38 @@ import SpecialFunctions as SF
 import QuadGK as QGK
 import ForwardDiff as FD
 
-function test_p3_state_creation(FT)
-    @testset "P3State Creation and Properties" begin
-        # Test creating a state with valid parameters
+# P3 state from the rime mass fraction and the rime density
+rimed_state(params, ρq_ice, ρn_ice, F_rim, ρ_rim; quad = P3.GaussLegendre(typeof(params.ρ_i), 12)) =
+    P3.P3State(params, quad, ρq_ice, ρn_ice, F_rim * ρq_ice, F_rim * ρq_ice / ρ_rim)
+
+# Number- and mass-weighted means of `f(D)` over the size distribution of `state` on `bnds`, by
+# adaptive quadrature
+function adaptive_weighted_means(f, state, bnds)
+    n = P3.size_distribution(state.dist)
+    m(D) = P3.ice_mass(state.particles, D)
+    ∫(g) = QGK.quadgk(g, bnds...)[1]
+    return (∫(D -> n(D) * f(D)) / ∫(n), ∫(D -> n(D) * m(D) * f(D)) / ∫(D -> n(D) * m(D)))
+end
+
+function test_p3_particles(FT)
+    @testset "P3Particles from the rime mass fraction and the rime density" begin
         params = CMP.ParametersP3(FT)
-        L_ice = FT(0.22)
-        N_ice = FT(1e6)
-        F_rim = FT(0.5)
         ρ_rim = FT(400)
-
-        # Test unrimed state
-        state_unrimed = P3.P3State(params, L_ice, N_ice, FT(0), ρ_rim)
-        @test P3.isunrimed(state_unrimed)
-
-        # Test rimed state
-        state_rimed = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
-        @test !P3.isunrimed(state_rimed)
-
-        # Test thresholds for unrimed state. Per the `P3State` constructor,
-        # unrimed ice has no graupel → `D_gr = D_cr = Inf` (the "always before
-        # graupel regime" sentinel) and `ρ_g = NaN` (should not be used).
-        (; D_th, D_gr, D_cr) = state_unrimed
-        @test isfinite(D_th)
-        @test D_gr == Inf
-        @test D_cr == Inf
-
-        # Test thresholds for rimed state
-        (; D_th, D_gr, D_cr) = state_rimed
-        @test D_th < D_gr < D_cr
+        # Unrimed ice has no graupel regime
+        unrimed = P3.P3Particles(params, FT(0), ρ_rim)
+        @test P3.isunrimed(unrimed)
+        @test isfinite(unrimed.D_th) && unrimed.D_gr == unrimed.D_cr == Inf
+        rimed = P3.P3Particles(params, FT(0.5), ρ_rim)
+        @test !P3.isunrimed(rimed) && isbits(rimed)
+        @test rimed.D_th < rimed.D_gr < rimed.D_cr
+        # The state builds the same particles from its bulk rime moments
+        particles = rimed_state(params, FT(0.22), FT(1e6), FT(0.5), ρ_rim).particles
+        @test all(f -> getfield(particles, f) ≈ getfield(rimed, f), (:F_rim, :ρ_rim, :ρ_g, :D_th, :D_gr, :D_cr))
     end
 end
 
-function test_state_from_prognostic(FT)
-    @testset "state_from_prognostic projects the rime pair onto the admissible densities" begin
+function test_state_construction(FT)
+    @testset "P3State projects the rime pair onto the admissible densities" begin
         params = CMP.ParametersP3(FT)
         ρ_min, ρ_max = params.ρ_rim_local(one(FT)), params.ρ_i
         ρq_ice, ρn_ice = FT(1e-3), FT(1e5)
@@ -53,31 +52,91 @@ function test_state_from_prognostic(FT)
             (FT(3e-4), FT(-1e-6)), (FT(0), FT(1e-6)), (FT(-3e-4), FT(1e-6)), (FT(0), FT(0)),
         )
         for (ρq_rim, ρb_rim) in rime_pairs
-            state = @inferred P3.state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+            state = @inferred P3.P3State(params, P3.GaussLegendre(FT, 12), ρq_ice, ρn_ice, ρq_rim, ρb_rim)
             if ρq_rim > 0
                 # The rime mass is kept, and the volume moves to the nearest admissible value
-                @test state.F_rim ≈ ρq_rim / ρq_ice
-                @test state.ρ_rim ≈ (ρb_rim > 0 ? clamp(ρq_rim / ρb_rim, ρ_min, ρ_max) : ρ_max)
+                @test state.particles.F_rim ≈ ρq_rim / ρq_ice
+                @test state.particles.ρ_rim ≈ (ρb_rim > 0 ? clamp(ρq_rim / ρb_rim, ρ_min, ρ_max) : ρ_max)
             else
-                @test state.F_rim == 0 && state.ρ_rim == 0
+                @test state.particles.F_rim == 0 && state.particles.ρ_rim == 0
             end
-            f_q(q) = P3.state_from_prognostic(params, ρq_ice, ρn_ice, q, ρb_rim).ρ_rim
-            f_b(b) = P3.state_from_prognostic(params, ρq_ice, ρn_ice, ρq_rim, b).ρ_rim
+            # The state holds the prognostic rime volume, clamped to be nonnegative
+            @test state.ρb_rim == max(ρb_rim, 0)
+            f_q(q) = P3.P3State(params, P3.GaussLegendre(FT, 12), ρq_ice, ρn_ice, q, ρb_rim).particles.ρ_rim
+            f_b(b) = P3.P3State(params, P3.GaussLegendre(FT, 12), ρq_ice, ρn_ice, ρq_rim, b).particles.ρ_rim
             @test isfinite(FD.derivative(f_q, ρq_rim))
             @test isfinite(FD.derivative(f_b, ρb_rim))
         end
 
         # Negative ice mass and number are clamped to zero
-        state = P3.state_from_prognostic(params, -ρq_ice, -ρn_ice, FT(0), FT(0))
+        state = P3.P3State(params, P3.GaussLegendre(FT, 12), -ρq_ice, -ρn_ice, FT(0), FT(0))
         @test state.ρq_ice == 0 && state.ρn_ice == 0
+    end
+
+    @testset "the distribution bounds the mean ice mass and solves a consistent logλ" begin
+        params = CMP.ParametersP3(FT)
+        quad = P3.GaussLegendre(FT, 64)
+        x_min = P3.ice_mean_particle_mass_min(params)
+        x_max = P3.ice_mean_particle_mass_max(params)
+        ρq_ice = FT(1e-4)
+        # (ρn_ice, bounded ρn_ice): too few particles, too many particles, within bounds
+        cases = ((FT(1e-2), ρq_ice / x_max), (FT(1e14), ρq_ice / x_min), (FT(1e5), FT(1e5)))
+        for (ρn_ice, ρn_bounded) in cases, (ρq_rim, ρb_rim) in ((FT(0), FT(0)), (FT(5e-5), FT(1e-7)))
+            state = P3.P3State(params, quad, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+            dist = @inferred P3.P3Distribution(state.particles, quad, state.ρq_ice, state.ρn_ice)
+            @test state.ρn_ice == ρn_ice
+            @test dist.ρn ≈ ρn_bounded rtol = 4 * eps(FT)
+            # The size distribution integrates back to the bounded moments
+            N′ = P3.size_distribution(dist)
+            N = P3.integrate(N′, P3.integral_bounds(state.particles, state.dist; p = 1e-6), quad)
+            bnds_L = P3.integral_bounds(state.particles, state.dist; p = 1e-6, moment_order = 2)
+            L = P3.integrate(D -> N′(D) * P3.ice_mass(state.particles, D), bnds_L, quad)
+            rtol = FT === Float64 ? 1e-5 : 1e-3
+            @test N ≈ dist.ρn rtol = rtol
+            @test L ≈ ρq_ice rtol = rtol
+        end
+        # Without ice mass or without ice number, the number is zero
+        @test P3.P3State(params, quad, FT(0), FT(1e5), FT(0), FT(0)).dist.ρn == 0
+        @test P3.P3State(params, quad, ρq_ice, FT(0), FT(0), FT(0)).dist.ρn == 0
+        state = P3.P3State(params, quad, ρq_ice, FT(1e5), FT(0), FT(0))
+        @test isbits(state) && isbits(state.particles) && isbits(state.dist)
+        (; particles, ρq_ice, ρn_ice) = state
+        @test P3.P3Distribution(particles, quad, ρq_ice, ρn_ice) === state.dist
+    end
+
+    @testset "admissibility of the ice moments and the rime density bounds" begin
+        params = CMP.ParametersP3(FT)
+        x_min = P3.ice_mean_particle_mass_min(params)
+        x_max = P3.ice_mean_particle_mass_max(params)
+        @test x_max == params.m_max
+        ρq_ice = FT(1e-4)
+        @test P3.ice_moments_are_admissible(params, ρq_ice, FT(1e5))
+        @test P3.ice_moments_are_admissible(params, ρq_ice, ρq_ice / x_max)
+        @test P3.ice_moments_are_admissible(params, ρq_ice, ρq_ice / x_min)
+        @test !P3.ice_moments_are_admissible(params, ρq_ice, ρq_ice / x_max / 2)
+        @test !P3.ice_moments_are_admissible(params, ρq_ice, 2 * ρq_ice / x_min)
+        @test !P3.ice_moments_are_admissible(params, FT(0), FT(1e5))
+        @test !P3.ice_moments_are_admissible(params, ρq_ice, FT(0))
+        # Admissible moments are the moments the distribution leaves unchanged
+        for ρn_ice in (FT(1e-2), FT(1e5), FT(1e14))
+            dist = P3.P3State(params, P3.GaussLegendre(FT, 12), ρq_ice, ρn_ice, FT(0), FT(0)).dist
+            @test P3.ice_moments_are_admissible(params, ρq_ice, ρn_ice) == (dist.ρn == ρn_ice)
+        end
+        (ρ_rim_min, ρ_rim_max) = P3.rime_density_bounds(params)
+        @test ρ_rim_min == params.ρ_rim_local(1)
+        @test ρ_rim_max == params.ρ_i
+        # State construction moves the rime density into the bounds
+        for ρb_rim in (FT(1e-9), FT(1e-6), FT(1e-3))
+            state = P3.P3State(params, P3.GaussLegendre(FT, 12), ρq_ice, FT(1e5), FT(5e-5), ρb_rim)
+            @test ρ_rim_min * (1 - 4eps(FT)) <= state.particles.ρ_rim <= ρ_rim_max * (1 + 4eps(FT))
+        end
     end
 end
 
-function test_velocities_from_prognostic(FT)
+function test_velocities_from_nonphysical_prognostic(FT)
     @testset "Mean fall speeds from nonphysical prognostic input" begin
         params = CMP.ParametersP3(FT)
         Chen = CMP.Chen2022VelType(FT)
-        quad = P3.GaussLegendre(FT, 12)
         # (ρq_ice, ρn_ice, ρq_rim, ρb_rim) with negative moments, a rime mass above the ice
         # mass, and a rime density above solid ice
         nonphysical = (
@@ -89,14 +148,8 @@ function test_velocities_from_prognostic(FT)
             (FT(-1e-3), FT(-2e4), FT(-3e-4), FT(-1e-6)),
         )
         for prognostic in nonphysical
-            logλ = P3.get_distribution_logλ_from_prognostic(params, prognostic...)
-            for mean_fall_speed in (
-                P3.ice_terminal_velocity_number_weighted_from_prognostic,
-                P3.ice_terminal_velocity_mass_weighted_from_prognostic,
-            )
-                v = mean_fall_speed(Chen, FT(1), params, prognostic..., logλ; quad)
-                @test isfinite(v) && v >= 0
-            end
+            state = P3.P3State(params, P3.GaussLegendre(FT, 12), prognostic...)
+            @test all(v -> isfinite(v) && v ≥ 0, P3.ice_terminal_velocities(Chen, state, FT(1)))
         end
     end
 end
@@ -130,7 +183,7 @@ function test_thresholds_solver(FT)
         for F_rim in F_rim_good
             for ρ_rim in ρ_rim_good
                 ρ_d = P3.get_ρ_d(mass, F_rim, ρ_rim)
-                ρ_g = P3.get_ρ_g(F_rim, ρ_rim, ρ_d)
+                ρ_g = P3.get_ρ_g(mass, F_rim, ρ_rim)
                 D_gr = P3.get_D_gr(mass, ρ_g)
                 D_cr = P3.get_D_cr(mass, F_rim, ρ_g)
                 @test D_th < D_gr < D_cr
@@ -143,9 +196,9 @@ function test_thresholds_solver(FT)
         F_rim_bad = FT(0.93)
         @test P3.get_D_gr(mass, P3.get_ρ_g(mass, F_rim_bad, FT(975))) < D_th
         for ρ_rim in (FT(50), FT(400), ρ_i, FT(975), 2 * ρ_i)
-            state = P3.P3State(params, FT(1e-4), FT(1e6), F_rim_bad, ρ_rim)
-            @test state.ρ_rim == min(ρ_rim, ρ_i)
-            @test state.D_th ≤ state.D_gr ≤ state.D_cr
+            state = rimed_state(params, FT(1e-4), FT(1e6), F_rim_bad, ρ_rim)
+            @test state.particles.ρ_rim ≈ clamp(ρ_rim, P3.rime_density_bounds(params)...)
+            @test state.particles.D_th ≤ state.particles.D_gr ≤ state.particles.D_cr
         end
 
         # Check that the P3 scheme solution matches the published values
@@ -185,7 +238,7 @@ function test_thresholds_solver(FT)
         D_th = P3.get_D_th(mass, ρ_i)
         D_gr = P3.get_D_gr(mass, ρ_g)
         D_cr = P3.get_D_cr(mass, F_rim, ρ_g)
-        state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
+        state = rimed_state(params, L_ice, N_ice, F_rim, ρ_rim)
 
         # define in between values
         D_1 = D_th / 2
@@ -195,42 +248,43 @@ function test_thresholds_solver(FT)
         # test area
         spherical_area(D) = D^2 * π / 4
         nonspherical_area(D) = area.γ * D^area.σ
-        @test P3.ice_area(state, D_1) == spherical_area(D_1)
-        @test P3.ice_area(state, D_2) == nonspherical_area(D_2)
-        @test P3.ice_area(state, D_3) == spherical_area(D_3)
-        @test P3.ice_area(state, D_cr) == F_rim * spherical_area(D_cr) + (1 - F_rim) * nonspherical_area(D_cr)
+        @test P3.ice_area(state.particles, D_1) == spherical_area(D_1)
+        @test P3.ice_area(state.particles, D_2) == nonspherical_area(D_2)
+        @test P3.ice_area(state.particles, D_3) == spherical_area(D_3)
+        @test P3.ice_area(state.particles, D_cr) == F_rim * spherical_area(D_cr) + (1 - F_rim) * nonspherical_area(D_cr)
 
         # test mass
         spherical_mass(ρ, D) = ρ * π / 6 * D^3
         nonspherical_mass(D) = mass.α_va * D^mass.β_va
-        @test P3.ice_mass(state, D_1) == spherical_mass(ρ_i, D_1)
-        @test P3.ice_mass(state, D_2) == nonspherical_mass(D_2)
-        @test P3.ice_mass(state, D_3) == spherical_mass(ρ_g, D_3)
-        @test P3.ice_mass(state, D_cr) == nonspherical_mass(D_cr) / (1 - F_rim)
+        @test P3.ice_mass(state.particles, D_1) == spherical_mass(ρ_i, D_1)
+        @test P3.ice_mass(state.particles, D_2) == nonspherical_mass(D_2)
+        @test P3.ice_mass(state.particles, D_3) == spherical_mass(ρ_g, D_3)
+        @test P3.ice_mass(state.particles, D_cr) == nonspherical_mass(D_cr) / (1 - F_rim)
 
         # test density
-        @test P3.ice_density(state, D_1) ≈ ρ_i
-        @test P3.ice_density(state, D_2) ≈ 544.916989830
-        @test P3.ice_density(state, D_3) ≈ ρ_g
-        @test P3.ice_density(state, D_cr) ≈ 383.33480937
+        @test P3.ice_density(state.particles, D_1) ≈ ρ_i
+        @test P3.ice_density(state.particles, D_2) ≈ 544.916989830
+        @test P3.ice_density(state.particles, D_3) ≈ ρ_g
+        @test P3.ice_density(state.particles, D_cr) ≈ 383.33480937
 
         # test aspect ratio (oblate ϕ = 3√π m / (4 ρ A^{3/2}), ρ the per-regime
         # material density, see `P3.ϕᵢ`)
-        aspect_ratio_closed(ρ, D) = 3 * sqrt(FT(π)) * P3.ice_mass(state, D) /
-                                    (4 * ρ * P3.ice_area(state, D)^FT(1.5))
-        @test P3.ϕᵢ(state, D_1) ≈ 1                              # D < D_th: spherical
-        @test P3.ϕᵢ(state, D_2) ≈ aspect_ratio_closed(ρ_i, D_2)  # dense nonspherical
-        @test P3.ϕᵢ(state, D_2) < 1                              # oblate
-        @test P3.ϕᵢ(state, D_3) ≈ 1                              # graupel: spherical (ρ_g)
-        @test P3.ϕᵢ(state, D_cr) ≈ aspect_ratio_closed(ρ_i, D_cr)  # partially rimed
-        @test P3.ϕᵢ(state, D_cr) < 1                             # oblate
+        aspect_ratio_closed(ρ, D) =
+            3 * sqrt(FT(π)) * P3.ice_mass(state.particles, D) /
+            (4 * ρ * P3.ice_area(state.particles, D)^FT(1.5))
+        @test P3.ϕᵢ(state.particles, D_1) ≈ 1                              # D < D_th: spherical
+        @test P3.ϕᵢ(state.particles, D_2) ≈ aspect_ratio_closed(ρ_i, D_2)  # dense nonspherical
+        @test P3.ϕᵢ(state.particles, D_2) < 1                              # oblate
+        @test P3.ϕᵢ(state.particles, D_3) ≈ 1                              # graupel: spherical (ρ_g)
+        @test P3.ϕᵢ(state.particles, D_cr) ≈ aspect_ratio_closed(ρ_i, D_cr)  # partially rimed
+        @test P3.ϕᵢ(state.particles, D_cr) < 1                             # oblate
         # residual ϕ > 1 band just above D_th (area discontinuity, see `P3.ϕᵢ`)
-        @test 1 < P3.ϕᵢ(state, D_th * FT(1.001)) < FT(1.3)
+        @test 1 < P3.ϕᵢ(state.particles, D_th * FT(1.001)) < FT(1.3)
 
         # test F_rim = 0 and D > D_th
-        state′ = P3.P3State(params, L_ice, N_ice, FT(0), ρ_rim)
-        @test P3.ice_area(state′, D_2) == nonspherical_area(D_2)
-        @test P3.ice_mass(state′, D_2) == nonspherical_mass(D_2)
+        state′ = rimed_state(params, L_ice, N_ice, FT(0), ρ_rim)
+        @test P3.ice_area(state′.particles, D_2) == nonspherical_area(D_2)
+        @test P3.ice_mass(state′.particles, D_2) == nonspherical_mass(D_2)
 
         # TODO: Add tests for F_liq != 0
     end
@@ -244,13 +298,15 @@ function test_shape_solver(FT)
 
         @testset "Shape parameters - nonlinear solver" begin
             # -- First, test limiting behavior: `N_ice = L_ice = 0` gives the upper bound --
-            state = P3.P3State(params, FT(0), FT(0), FT(0.5), FT(500))
-            logλ = P3.get_distribution_logλ(state)
+            state = rimed_state(params, FT(0), FT(0), FT(0.5), FT(500))
+            logλ = state.dist.logλ
             @test logλ == P3._logλ_max(params)
             # --
 
             # initialize test values:
             ep = 1 #1e4 * eps(FT)
+            x_min = P3.ice_mean_particle_mass_min(params)
+            x_max = P3.ice_mean_particle_mass_max(params)
             N_test = (FT(1e7), FT(1e8), FT(1e9), FT(1e10))                         # N values
             λ_test = (FT(1e1), FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))        # test λ values in range also do 15000, 20000
             ρ_rim_test = (FT(200), FT(400), FT(600), FT(800))                        # representative ρ_rim values
@@ -266,18 +322,18 @@ function test_shape_solver(FT)
                         for F_rim in F_rim_test
                             # for F_liq in F_liq_test
 
-                            state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim) # L_ice, N_ice not used in this test
+                            state = rimed_state(params, FT(1e-4), FT(1e5), F_rim, ρ_rim) # L_ice, N_ice not used in this test
                             # Compute the shape parameters that correspond to the input test values
                             logλ_ex = log(λ_ex)
                             μ = P3.get_μ(params.slope, logλ_ex)
                             logN₀_ex = P3.get_logN₀(N_ice, μ, logλ_ex)
                             # Compute mass density based on input shape parameters
-                            L_calc = exp(log(N_ice) + P3.logLdivN(state, logλ_ex))
+                            L_calc = exp(log(N_ice) + P3.logLdivN(state.particles, logλ_ex))
 
-                            if L_calc < FT(1)
+                            if x_min ≤ L_calc / N_ice ≤ x_max
                                 # Solve for shape parameters
-                                state′ = P3.P3State(params, L_calc, N_ice, F_rim, ρ_rim)
-                                logλ = P3.get_distribution_logλ(state′)
+                                state′ = rimed_state(params, L_calc, N_ice, F_rim, ρ_rim)
+                                logλ = state′.dist.logλ
                                 log_N₀ = P3.get_logN₀(N_ice, μ, logλ)
 
                                 # Compare solved values with the input expected values
@@ -299,8 +355,8 @@ function test_shape_solver(FT)
             # interval into a region where `logLdivN` is not finite. The
             # bracketing `BrentsMethod` must return a finite, positive
             # `logλ` strictly inside the search bounds.
-            state_regr = P3.P3State(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800))
-            logλ = P3.get_distribution_logλ(state_regr)
+            state_regr = rimed_state(params, FT(2.366e-5), FT(16461.6), FT(0.2), FT(800))
+            logλ = state_regr.dist.logλ
             @test FT(2) < logλ < P3._logλ_max(params)
 
             # Broader sweep covering typical P3 microphysics inputs.
@@ -309,8 +365,8 @@ function test_shape_solver(FT)
                 for N_ice in (FT(1e2), FT(1e3), FT(1e4), FT(1e5), FT(1e6))
                     for F_rim in (FT(0), FT(0.2), FT(0.5), FT(0.8), FT(0.95))
                         for ρ_rim in (FT(200), FT(400), FT(600), FT(800))
-                            state_sweep = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
-                            logλ = P3.get_distribution_logλ(state_sweep)
+                            state_sweep = rimed_state(params, L_ice, N_ice, F_rim, ρ_rim)
+                            logλ = state_sweep.dist.logλ
                             @test FT(2) ≤ logλ ≤ P3._logλ_max(params)
                         end
                     end
@@ -323,18 +379,18 @@ function test_shape_solver(FT)
         # At the bound, the mean particle mass is that of a newly nucleated crystal
         for slope in (CMP.SlopeConstant(FT), CMP.SlopePowerLaw(FT), CMP.SmoothSlopePowerLaw(FT))
             params = CMP.ParametersP3(FT; slope)
-            state = P3.P3State(params, FT(1), FT(1), FT(0), FT(500))
+            state = rimed_state(params, FT(1), FT(1), FT(0), FT(500))
             m_nuc = params.ρ_i * FT(π) / 6 * params.D_nuc^3
-            @test P3.logLdivN(state, P3._logλ_max(params)) ≈ log(m_nuc) rtol = 8 * eps(FT)
+            @test P3.logLdivN(state.particles, P3._logλ_max(params)) ≈ log(m_nuc) rtol = 8 * eps(FT)
         end
     end
 
     @testset "Shape solver and size distribution without ice mass or number" begin
         params = CMP.ParametersP3(FT)
         (lo, hi) = (FT(2), P3._logλ_max(params))
-        state(q, n) = P3.P3State(params, q, n, FT(0.5), FT(500))
-        logλ(q, n) = P3.get_distribution_logλ(state(q, n))
-        N′(q, n) = P3.size_distribution(state(q, n), FT(10))(FT(1e-4))
+        state(q, n) = rimed_state(params, q, n, FT(0.5), FT(500))
+        logλ(q, n) = state(q, n).dist.logλ
+        N′(q, n) = P3.size_distribution(state(q, n).dist)(FT(1e-4))
 
         # No mass gives the smallest particles, and mass without number the largest
         @test logλ(FT(0), FT(0)) == hi
@@ -342,9 +398,9 @@ function test_shape_solver(FT)
         @test logλ(FT(1e-4), FT(0)) == lo
         # A subnormal mass counts as zero
         @test logλ(nextfloat(FT(0)), FT(1e3)) == hi
-        # Without a root in the bounds, the nearer bound
-        @test logλ(FT(1e-20), FT(1e6)) == hi
-        @test logλ(FT(1e-4), FT(1e-20)) == lo
+        # A mean mass out of bounds is moved to the nearer bound
+        @test logλ(FT(1e-20), FT(1e6)) ≈ hi rtol = 16 * eps(FT)
+        @test logλ(FT(1e-4), FT(1e-20)) == logλ(FT(1e-4), FT(1e-4) / P3.ice_mean_particle_mass_max(params))
         # Without number, the distribution is zero
         @test iszero(N′(FT(1e-4), FT(0)))
 
@@ -367,13 +423,14 @@ function test_shape_solver(FT)
             params = CMP.ParametersP3(FT; slope)
             for m̄ in FT.((1e-9, 1e-10, 1e-8)),
                 F_rim in FT.((0.9, 0.99)),
-                ρ_rim in FT.((50, 200, 900))
+                ρ_rim in (first(P3.rime_density_bounds(params)), FT(200), FT(900))
 
-                state = P3.P3State(params, L_ice, L_ice / m̄, F_rim, ρ_rim)
-                logλ = P3.get_distribution_logλ(state)
+                state = rimed_state(params, L_ice, L_ice / m̄, F_rim, ρ_rim)
+                dist = state.dist
+                logλ = dist.logλ
                 @test FT(2) < logλ < P3._logλ_max(params)
-                target = log(state.ρq_ice) - log(state.ρn_ice)
-                residual = P3.logLdivN(state, logλ) - target
+                target = log(state.ρq_ice) - log(dist.ρn)
+                residual = P3.logLdivN(state.particles, logλ) - target
                 @test abs(expm1(residual)) < 256 * eps(FT)
             end
         end
@@ -391,12 +448,13 @@ function test_shape_solver(FT)
                 ρ_rim in FT.((200, 700)),
                 logλ_true in FT.(range(9, 11; length = 81))
 
-                state₀ = P3.P3State(params, L_ice, FT(1e5), F_rim, ρ_rim)
-                N_ice = L_ice / exp(P3.logLdivN(state₀, logλ_true))
-                state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
-                logλ = P3.get_distribution_logλ(state)
-                target = log(state.ρq_ice) - log(state.ρn_ice)
-                residual = P3.logLdivN(state, logλ) - target
+                state₀ = rimed_state(params, L_ice, FT(1e5), F_rim, ρ_rim)
+                N_ice = L_ice / exp(P3.logLdivN(state₀.particles, logλ_true))
+                state = rimed_state(params, L_ice, N_ice, F_rim, ρ_rim)
+                dist = state.dist
+                logλ = dist.logλ
+                target = log(state.ρq_ice) - log(dist.ρn)
+                residual = P3.logLdivN(state.particles, logλ) - target
                 @test abs(expm1(residual)) < rtol
             end
         end
@@ -437,9 +495,9 @@ function test_smooth_slope_law(FT)
 
     @testset "SmoothSlopePowerLaw: log(L/N) decreases strictly in logλ, so the shape solve has one root" begin
         params = CMP.ParametersP3(FT; slope = smooth)
-        for F_rim in FT.((0, 0.2, 0.5, 0.8, 0.95)), ρ_rim in FT.((100, 400, 800))
-            state = P3.P3State(params, FT(1), FT(1), F_rim, ρ_rim)
-            @test all(<(0), diff(P3.logLdivN.(state, logλs)))
+        for F_rim in FT.((0, 0.2, 0.5, 0.8, 0.95)), ρ_rim in (first(P3.rime_density_bounds(params)), FT(400), FT(800))
+            state = rimed_state(params, FT(1), FT(1), F_rim, ρ_rim)
+            @test all(<(0), diff(P3.logLdivN.(state.particles, logλs)))
         end
     end
 end
@@ -465,11 +523,11 @@ function test_particle_terminal_velocities(FT)
         F_rim = FT(0.5)
         ρ_rim = FT(500)
         params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
-        state = P3.P3State(params_noar, FT(0), FT(0), F_rim, ρ_rim)
+        state = rimed_state(params_noar, FT(1e-4), FT(1e5), F_rim, ρ_rim)
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.08109, 0.4115, 0.7912, 1.1550, 1.4871]
-        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, state.particles, ρ_a)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -477,11 +535,11 @@ function test_particle_terminal_velocities(FT)
             @test vel ≈ expected[i] rtol = 1e-3
         end
 
-        state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)  # aspect_ratio = Oblate() default
+        state = rimed_state(params, FT(1e-4), FT(1e5), F_rim, ρ_rim)  # aspect_ratio = Oblate() default
         # one D per P3 regime; `cbrt(ϕ) ≤ 1` slows the nonspherical sizes
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.08109, 0.38381, 0.79121, 1.155, 1.1477]
-        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, state.particles, ρ_a)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -494,22 +552,28 @@ function test_particle_terminal_velocities(FT)
         F_rim = FT(0.5)
         F_liq = FT(0.5)  # TODO: Broken test since it assumes `F_liq != 0`
         ρ_rim = FT(500)
-        state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)  # aspect_ratio = Oblate() default
+        state = rimed_state(params, FT(1e-4), FT(1e5), F_rim, ρ_rim)  # aspect_ratio = Oblate() default
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.13192, 0.50457, 0.90753, 1.3015, 1.6757]
-        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, state.particles, ρ_a)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
             @test vel >= 0
             @test_broken vel ≈ expected[i] rtol = 1e-3  # TODO: Implement `F_liq != 0`
         end
-        state = P3.P3State(CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio()), FT(0), FT(0), F_rim, ρ_rim)
+        state = rimed_state(
+            CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio()),
+            FT(1e-4),
+            FT(1e5),
+            F_rim,
+            ρ_rim,
+        )
         # Allow for a D falling into every regime of the P3 Scheme
         Ds = range(FT(0.5e-4), stop = FT(4.5e-4), length = 5)
         expected = [0.13191, 0.50457, 0.90753, 1.301499, 1.67569]
-        v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
+        v_term = P3.ice_particle_terminal_velocity(Chen2022, state.particles, ρ_a)
         for i in axes(Ds, 1)
             D = Ds[i]
             vel = v_term(D)
@@ -528,157 +592,67 @@ function test_bulk_terminal_velocities(FT)
     ρ_rim = FT(800)
     F_rims = FT[0, 0.6]
 
-    # TODO: Implement `F_liq != 0`. The tests break below since they expect `F_liq != 0`
-    # F_liqs = [FT(0.5), FT(1)]
-
     @testset "Mass and number weighted terminal velocities" begin
 
-        # Zero mass with nonzero number: the smallest-particle limit
-        quad = P3.GaussLegendre(FT, 12)
-        state₀ = P3.P3State(params, FT(0), N_ice, FT(0.5), ρ_rim)
-        logλ = P3.get_distribution_logλ(state₀)
-        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ; quad)
-        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ; quad)
-        @test isfinite(vel_n₀) && vel_n₀ >= 0
-        @test isfinite(vel_m₀) && vel_m₀ >= 0
-        # At a fixed `logλ`, the mass-weighted mean depends on the shape of the distribution only,
-        # not on the ice mass
-        state_L = P3.P3State(params, L_ice, N_ice, FT(0.5), ρ_rim)
-        @test P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state_L, logλ; quad) ≈ vel_m₀
-
-        # The limit is within a factor of 2 of the velocity at a small ice mass
-        small_masses = FT[1e-9, 1e-12, 1e-15]
-        vel_n_small = map(small_masses) do L
-            state = P3.P3State(params, L, N_ice, FT(0.5), ρ_rim)
-            logλ_s = P3.get_distribution_logλ(state)
-            P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ_s; quad)
+        # Without ice mass or without ice number, both mean velocities vanish
+        for (ρq_ice, ρn_ice) in ((FT(0), N_ice), (L_ice, FT(0)))
+            state₀ = rimed_state(params, ρq_ice, ρn_ice, FT(0.5), ρ_rim)
+            (; v_n, v_m) = P3.ice_terminal_velocities(Chen2022, state₀, ρ_a)
+            @test iszero(v_n)
+            @test iszero(v_m)
         end
-        band = vel_n_small[end]
-        @test vel_n₀ <= 2 * band
-        @test vel_n₀ >= band / 2
 
-        # Zero number: no particles, so both mean velocities vanish.
-        state₀ = P3.P3State(params, L_ice, FT(0), FT(0.5), ρ_rim)
-        logλ = P3.get_distribution_logλ(state₀)
-        vel_n₀ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
-        vel_m₀ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state₀, logλ; quad = P3.GaussLegendre(FT, 12))
-        @test iszero(vel_n₀)
-        @test iszero(vel_m₀)
-
-        # Finite ForwardDiff derivatives with respect to an absent quantity, at a fixed `logλ`
-        logλ0 = P3.get_distribution_logλ(P3.P3State(params, L_ice, N_ice, FT(0.5), ρ_rim))
+        # Finite ForwardDiff derivatives with respect to an absent quantity
         function velocities(ρq_ice, ρn_ice)
-            state = P3.P3State(params, ρq_ice, ρn_ice, FT(0.5), ρ_rim)
-            quad = P3.GaussLegendre(FT, 12)
-            return (
-                P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ0; quad),
-                P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ0; quad),
-            )
+            state = rimed_state(params, ρq_ice, ρn_ice, FT(0.5), ρ_rim)
+            (; v_n, v_m) = P3.ice_terminal_velocities(Chen2022, state, ρ_a)
+            return (v_n, v_m)
         end
         for ρn_ice in (FT(0), N_ice)
             d = FD.derivative(x -> velocities(L_ice, x)[1], ρn_ice)
             @test !isnan(d)
         end
-        # This reaches the x-derivative of `gamma_inc` at `x = Inf`
         for ρn_ice in (FT(0), N_ice)
             d = FD.derivative(x -> velocities(x, ρn_ice)[2], FT(0))
             @test !isnan(d)
         end
 
-        # NOTE: All reference values are output from the code.
-        # A failing test indicates that the code has changed.
-        # But if the changes are intentional, the reference values can be updated.
-
-        # Liquid fraction = 0. The `_ϕ` (aspect-ratio-on) references are below
-        # their aspect-off counterparts (`cbrt(ϕ) < 1`).
-        ref_v_n = [3.6498119615119333, 2.623217220648736]
-        ref_v_n_ϕ = [1.5237982072911043, 1.467965341985524]
-        ref_v_m = [7.780999436865279, 5.789734504936903]
-        ref_v_m_ϕ = [2.4266298047731265, 2.3669977741571313]
-
+        # The aspect ratio slows the mean fall speeds
         params_noar = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
-        for (k, F_rim) in enumerate(F_rims)
-            state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
-            state_noar = P3.P3State(params_noar, L_ice, N_ice, F_rim, ρ_rim)
-            logλ = P3.get_distribution_logλ(state)
-            quad = P3.GaussLegendre(FT, 12)
-            vel_n = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state_noar, logλ; quad)
-            vel_m = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state_noar, logλ; quad)
-            vel_n_ϕ = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ; quad)
-            vel_m_ϕ = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; quad)
-
-            # number weighted
-            @test vel_n > 0
-            @test vel_n_ϕ > 0
-            @test vel_n ≈ ref_v_n[k] rtol = 1e-4
-            @test vel_n_ϕ ≈ ref_v_n_ϕ[k] rtol = 1e-4
-
-            # mass weighted
-            @test vel_m > 0
-            @test vel_m_ϕ > 0
-            @test vel_m ≈ ref_v_m[k] rtol = 5e-5
-            @test vel_m_ϕ ≈ ref_v_m_ϕ[k] rtol = 5e-5
-
-            # slower with aspect ratio (within machine precision)
-            @test vel_n_ϕ <= vel_n + eps(vel_n)
-            @test vel_m_ϕ <= vel_m + eps(vel_m)
+        for F_rim in F_rims
+            v_ϕ = P3.ice_terminal_velocities(Chen2022, rimed_state(params, L_ice, N_ice, F_rim, ρ_rim), ρ_a)
+            v = P3.ice_terminal_velocities(Chen2022, rimed_state(params_noar, L_ice, N_ice, F_rim, ρ_rim), ρ_a)
+            @test v_ϕ.v_n <= v.v_n + eps(v.v_n) && v_ϕ.v_m <= v.v_m + eps(v.v_m)
         end
 
-        # Liquid fraction != 0
-        ref_v_n = [1.674591925057434, 1.6180970319460353]
-        ref_v_n_ϕ = [1.674591925057434, 1.6180970319460353]
-        #ref_v_n_ϕ = [1.549777478756061, 1.6180970319460353]
-        ref_v_m = [5.126648558302173, 5.416679316254198]
-        ref_v_m_ϕ = [5.126648558302173, 5.416679316254198]
-        #ref_v_m_ϕ = [4.6358422594886495, 5.416679316254198]
-
-        # TODO: Add tests for F_liq != 0
-        # for k = 1:length(F_liqs)
-        #     F_liq = F_liqs[k]
-        #     F_rim = FT(0.4)
-        #     vel =
-        #         P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_rim, F_rim, F_liq, ρ_a, false)
-        #     vel_ϕ =
-        #         P3.ice_terminal_velocity(p3, Chen2022, L, N, ρ_rim, F_rim, F_liq, ρ_a, true)
-        #     # number weighted
-        #     @test vel[1] > 0
-        #     @test vel_ϕ[1] > 0
-        #     @test vel[1] ≈ ref_v_n[k] rtol = 1e-6
-        #     @test vel_ϕ[1] ≈ ref_v_n_ϕ[k] rtol = 1e-6
-
-        #     # mass weighted
-        #     @test vel[2] > 0
-        #     @test vel_ϕ[2] > 0
-        #     @test vel[2] ≈ ref_v_m[k] rtol = 1e-6
-        #     @test vel_ϕ[2] ≈ ref_v_m_ϕ[k] rtol = 1e-6
-
-        #     # slower with aspect ratio
-        #     @test vel_ϕ[1] <= vel[1]
-        #     @test vel_ϕ[2] <= vel[2]
-        # end
+        # Output of the code at F_rim = 0.6, without and with the aspect ratio, to detect any change
+        for (prm, ref) in (
+            (params_noar, [2.6232178141323046, 5.7902652329103335]),
+            (params, [1.4679656741018663, 2.3672147498976797]),
+        )
+            (; v_n, v_m) = P3.ice_terminal_velocities(Chen2022, rimed_state(prm, L_ice, N_ice, F_rims[2], ρ_rim), ρ_a)
+            @test [v_n, v_m] ≈ ref rtol = 5e-6
+        end
     end
 
     @testset "Mean fall speeds lie between the fall speeds at the integration bounds" begin
-        quad = P3.GaussLegendre(FT, 12)
         for aspect_ratio in (CMP.Oblate(), CMP.NoAspectRatio())
             params_ar = CMP.ParametersP3(FT; aspect_ratio)
             # (L_ice, N_ice, F_rim, ρ_rim): small and large unrimed ice, rimed ice, near-graupel,
-            # and the two bounds of the shape solve
+            # and two states with the mean mass out of bounds
             for (L, N, F_rim, ρ_r) in (
                 (FT(1e-5), FT(1e6), FT(0), FT(400)),
                 (FT(1e-3), FT(1e3), FT(0), FT(400)),
                 (FT(1e-4), FT(1e5), FT(0.5), FT(800)),
                 (FT(1e-3), FT(1e4), FT(0.9), FT(900)),
-                (FT(0), FT(1e6), FT(0.5), FT(400)),
+                (FT(1e-20), FT(1e6), FT(0.5), FT(400)),
                 (FT(1e-4), FT(1e-20), FT(0.5), FT(400)),
             )
-                state = P3.P3State(params_ar, L, N, F_rim, ρ_r)
-                logλ = P3.get_distribution_logλ(state)
-                v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
-                bnds = P3.velocity_integral_bounds(state, logλ, v_term; p = 1e-6)
-                V_n = P3.ice_terminal_velocity_number_weighted(Chen2022, ρ_a, state, logλ; quad)
-                V_m = P3.ice_terminal_velocity_mass_weighted(Chen2022, ρ_a, state, logλ; quad)
-                @test v_term(first(bnds)) ≤ V_n ≤ V_m ≤ v_term(last(bnds))
+                state = rimed_state(params_ar, L, N, F_rim, ρ_r)
+                v_term = P3.ice_particle_terminal_velocity(Chen2022, state.particles, ρ_a)
+                bnds = P3.velocity_integral_bounds(state.particles, state.dist, v_term; p = 1e-6)
+                (; v_n, v_m) = P3.ice_terminal_velocities(Chen2022, state, ρ_a)
+                @test v_term(first(bnds)) ≤ v_n ≤ v_m ≤ v_term(last(bnds))
             end
         end
     end
@@ -686,40 +660,26 @@ function test_bulk_terminal_velocities(FT)
     @testset "Mass-weighted mean diameters" begin
         ref_vals = [0.005388435466357483, 0.0033291124145735426]
         for (F_rim, ref_val) in zip(F_rims, ref_vals)
-            state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
-            logλ = P3.get_distribution_logλ(state)
-            Dₘ = P3.D_m(state, logλ)
-            @test Dₘ > 0
-            @test Dₘ ≈ ref_val
+            state = rimed_state(params, L_ice, N_ice, F_rim, ρ_rim)
+            @test P3.D_m(state.particles, state.dist) ≈ ref_val
         end
-
-        # TODO: Add tests for F_liq != 0
-        # nonzero F_liq
-        # F_rim = F_rims[2]
-        # F_liqs = [FT(0.33), FT(1)]
-        # ref_vals = [FT(0.0021371920600012184), FT(0.0016487352655895715)]
-        # for i in eachindex(F_liqs)
-        #     Dₘ = P3.D_m(p3, L, N, ρ_rim, F_rim, F_liqs[i])
-        #     @test Dₘ ≈ ref_vals[i]
-        # end
     end
 
     @testset "D_m presence gate at an absent number" begin
-        state0 = P3.P3State(params, L_ice, FT(0), F_rims[1], ρ_rim)
-        logλ0 = P3.get_distribution_logλ(state0)
-        @test iszero(P3.D_m(state0, logλ0))
+        state0 = rimed_state(params, L_ice, FT(0), F_rims[1], ρ_rim)
+        @test iszero(P3.D_m(state0.particles, state0.dist))
 
         # Finite derivatives for unrimed ice, whose segment [D_gr, D_cr] = [Inf, Inf] is empty
-        Dm(ρn_ice) = P3.D_m(
-            P3.P3State(params, L_ice, ρn_ice, F_rims[1], ρ_rim), logλ0,
-        )
+        function Dm(ρn_ice)
+            state = rimed_state(params, L_ice, ρn_ice, F_rims[1], ρ_rim)
+            return P3.D_m(state.particles, state.dist)
+        end
         @test isfinite(FD.derivative(Dm, FT(0)))
         @test isfinite(FD.derivative(Dm, N_ice))
     end
 end
 
 function test_numerical_integrals(FT)
-    params = CMP.ParametersP3(FT; aspect_ratio = CMP.NoAspectRatio())
     Chen2022 = CMP.Chen2022VelType(FT)
 
     N_ice = FT(1e8)
@@ -765,65 +725,27 @@ function test_numerical_integrals(FT)
         # The reused-once design: reading nodes/weights in the hot loop is a
         # static SVector lookup, type-stable for a concretely-typed rule.
         let q = P3.GaussLegendre(40)
-            @test (@inferred P3.node(q, 1.0, q.n)) isa Float64
-            @test (@inferred P3.weight(q, 1.0, q.n)) isa Float64
+            @test (@inferred P3.node(q, 1)) isa Float64
+            @test (@inferred P3.weight(q, 1)) isa Float64
         end
     end
 
-    @testset "Numerical integrals sanity checks for N, velocity and diameter" begin
-        for (F_rim, L_ice, p) in Iterators.product(F_rims, L_ices, ps)
+    @testset "Number, mean fall speeds and D_m match adaptive quadrature" begin
+        N_tol = FT == Float32 ? 2e-5 : 1e-5  # native-FT gamma_inc slightly less precise than Float64-backed SF
+        for aspect_ratio in (CMP.Oblate(), CMP.NoAspectRatio()),
+            (F_rim, L_ice, p) in Iterators.product(F_rims, L_ices, ps)
 
-            # Get shape parameters, thresholds and intergal bounds
-            state = P3.P3State(params, L_ice, N_ice, F_rim, ρ_rim)
-            logλ = P3.get_distribution_logλ(state)
+            state = rimed_state(CMP.ParametersP3(FT; aspect_ratio), L_ice, N_ice, F_rim, ρ_rim)
+            (; particles, dist) = state
+            bnds = P3.integral_bounds(particles, dist; p = 1e-6)
+            @test QGK.quadgk(P3.size_distribution(dist), bnds...)[1] ≈ N_ice rtol = N_tol
 
-            # Number concentration comparison
-            N′ = P3.size_distribution(state, logλ)
-            bnds = P3.integral_bounds(state, logλ; p = 1e-6, moment_order = 0)
-            N_estim_gl = P3.integrate(N′, bnds, P3.GaussLegendre(FT, 32))
-            N_tol = FT == Float32 ? 2e-5 : 1e-5  # native-FT gamma_inc slightly less precise than Float64-backed SF
-            @test N_ice ≈ N_estim_gl rtol = N_tol
+            v_term = P3.ice_particle_terminal_velocity(Chen2022, particles, ρ_a)
+            (; v_n, v_m) = P3.ice_terminal_velocities(Chen2022, state, ρ_a; p)
+            v_bnds = P3.velocity_integral_bounds(particles, dist, v_term; p)
+            @test [v_n, v_m] ≈ collect(adaptive_weighted_means(v_term, state, v_bnds)) rtol = 2e-4
 
-            # Compare with quadgk
-            N_estim_qgk = QGK.quadgk(N′, bnds...)[1]
-            @test N_estim_gl ≈ N_estim_qgk rtol = 1e-5
-
-
-            # Bulk velocity comparison
-            vel_N = P3.ice_terminal_velocity_number_weighted(
-                Chen2022, ρ_a, state, logλ;
-                p, quad = P3.GaussLegendre(FT, 12),
-            )
-            vel_m = P3.ice_terminal_velocity_mass_weighted(
-                Chen2022, ρ_a, state, logλ;
-                p, quad = P3.GaussLegendre(FT, 12),
-            )
-
-            v_term = P3.ice_particle_terminal_velocity(Chen2022, ρ_a, state)
-            g(D) = v_term(D) * N′(D)
-            gm(D) = g(D) * P3.ice_mass(state, D)
-            vel_N_estim_gl = P3.integrate(g, bnds, P3.GaussLegendre(FT, 32)) / N_ice
-            vel_m_estim_gl = P3.integrate(gm, bnds, P3.GaussLegendre(FT, 32)) / L_ice
-            @test vel_N ≈ vel_N_estim_gl rtol = 0.005
-            @test vel_m ≈ vel_m_estim_gl rtol = 0.05
-
-            # Compare with quadgk
-            vel_N_estim_qgk = QGK.quadgk(g, bnds...)[1] / N_ice
-            vel_m_estim_qgk = QGK.quadgk(gm, bnds...)[1] / L_ice
-
-            @test vel_N_estim_gl ≈ vel_N_estim_qgk rtol = 0.005
-            @test vel_m_estim_gl ≈ vel_m_estim_qgk rtol = 0.05
-
-
-            # Dₘ comparisons
-            D_m = P3.D_m(state, logλ)
-            D_m_func(D) = D * P3.ice_mass(state, D) * N′(D) / L_ice
-            D_m_estim_gl = P3.integrate(D_m_func, bnds, P3.GaussLegendre(FT, 32))
-            @test D_m ≈ D_m_estim_gl rtol = 5e-4
-
-            # Compare with quadgk
-            D_m_estim_qgk = QGK.quadgk(D_m_func, bnds...)[1]
-            @test D_m_estim_gl ≈ D_m_estim_qgk rtol = 5e-4
+            @test P3.D_m(particles, dist) ≈ last(adaptive_weighted_means(identity, state, bnds)) rtol = 1e-4
         end
     end
 end
@@ -883,9 +805,8 @@ function test_p3_melting(FT)
     Lᵢ = FT(1e-4) * ρₐ
     Nᵢ = FT(2e5) * ρₐ
     F_rim, ρ_rim = FT(0.8), FT(800)
-    state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
-    logλ = P3.get_distribution_logλ(state)
-    melt(T, st = state, lg = logλ) = P3.ice_melt(vel, aps, tps, T, ρₐ, st, lg; quad)
+    state = rimed_state(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+    melt(T, st = state) = P3.ice_melt(vel, aps, tps, st, ρₐ, T)
 
     @testset "Melting by heat conduction" begin
         # No melting at and below freezing
@@ -894,10 +815,11 @@ function test_p3_melting(FT)
 
         # The mass rate is 2π K_therm ΔT / L_f ∫ D F_v N′ dD, checked with an independent quadrature
         T = T_freeze + FT(1)
-        v_term = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
+        v_term = P3.ice_particle_terminal_velocity(vel, state.particles, ρₐ)
         F_v = CO.ventilation_factor(params.vent, aps, v_term)
-        N′ = P3.size_distribution(state, logλ)
-        ∫DFvN = QGK.quadgk(D -> D * F_v(D) * N′(D), FT(0), 100 / exp(logλ))[1]
+        dist = state.dist
+        N′ = P3.size_distribution(dist)
+        ∫DFvN = QGK.quadgk(D -> D * F_v(D) * N′(D), FT(0), 100 / exp(dist.logλ))[1]
         @test melt(T).dLdt ≈ 2 * FT(π) * aps.K_therm * (T - T_freeze) / TDI.Lf(tps, T) * ∫DFvN rtol = 1e-3
 
         # The rate is linear in ΔT / L_f(T)
@@ -910,26 +832,22 @@ function test_p3_melting(FT)
         rate = melt(T)
         @test rate.dNdt / Nᵢ ≈ rate.dLdt / Lᵢ
 
-        # At a fixed shape, each rate scales with its own moment
-        rate_2L = melt(T, P3.P3State(params, 2 * Lᵢ, Nᵢ, F_rim, ρ_rim))
-        rate_2N = melt(T, P3.P3State(params, Lᵢ, 2 * Nᵢ, F_rim, ρ_rim))
-        @test rate_2L.dLdt ≈ 2 * rate.dLdt && rate_2L.dNdt ≈ rate.dNdt
-        @test rate_2N.dNdt ≈ 2 * rate.dNdt && rate_2N.dLdt ≈ rate.dLdt
+        # At a fixed mean particle mass, both rates scale with the moments
+        rate_2 = melt(T, rimed_state(params, 2 * Lᵢ, 2 * Nᵢ, F_rim, ρ_rim))
+        @test rate_2.dLdt ≈ 2 * rate.dLdt && rate_2.dNdt ≈ 2 * rate.dNdt
 
-        # A mean particle mass below the nucleation mass puts the shape solve at its bound, where
-        # the size distribution holds more mass than the ice. Both moments still melt at the
-        # fractional rate of the distribution.
+        # With a mean particle mass below the nucleation mass, the mass and the prognostic number
+        # melt at the fractional rate of the bounded distribution
         L_small = FT(1e-12)
-        state_small = P3.P3State(params, L_small, Nᵢ, F_rim, ρ_rim)
-        rate = melt(T, state_small, P3.get_distribution_logλ(state_small))
+        state_small = rimed_state(params, L_small, Nᵢ, F_rim, ρ_rim)
+        rate = melt(T, state_small)
         @test rate.dLdt / L_small ≈ rate.dNdt / Nᵢ
 
-        # Number without mass melts, and mass without number does not
-        state_n = P3.P3State(params, FT(0), Nᵢ, F_rim, ρ_rim)
-        rate = melt(T, state_n, P3.get_distribution_logλ(state_n))
-        @test rate.dLdt == 0 && rate.dNdt > 0
-        state_q = P3.P3State(params, Lᵢ, FT(0), F_rim, ρ_rim)
-        @test melt(T, state_q, P3.get_distribution_logλ(state_q)) == (; dNdt = FT(0), dLdt = FT(0))
+        # Without ice mass or without ice number, nothing melts
+        for (ρq_ice, ρn_ice) in ((FT(0), Nᵢ), (Lᵢ, FT(0)))
+            state_absent = rimed_state(params, ρq_ice, ρn_ice, F_rim, ρ_rim)
+            @test melt(T, state_absent) == (; dNdt = FT(0), dLdt = FT(0))
+        end
     end
 end
 
@@ -948,36 +866,35 @@ function test_p3_bulk_liquid_ice_collisions(FT)
     F_rim = FT(0.8)
     ρ_rim = FT(800)
 
-    state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
-    logλ = P3.get_distribution_logλ(state)
-    D̄ = exp(-logλ)
+    state = rimed_state(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+    D̄ = exp(-state.dist.logλ)
 
     @testset "maximum dry freezing rate" begin
         # Below freezing, max freeze rate is non-zero (check against reference value)
         Tₐ = T_freeze - 1 // 10
-        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, ρₐ, Tₐ, state)
+        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, state.particles, ρₐ, Tₐ)
         @test max_rate(D̄) ≈ FT(9.35962884896919e-13) rtol = 2e-4
 
         # At freezing, max freeze rate is zero
         Tₐ = T_freeze
-        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, ρₐ, Tₐ, state)
+        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, state.particles, ρₐ, Tₐ)
         @test iszero(max_rate(D̄))
 
         # Above freezing, max freeze rate is zero
         Tₐ = T_freeze + 1 // 10
-        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, ρₐ, Tₐ, state)
+        max_rate = P3.compute_max_freeze_rate(aps, tps, vel_params, state.particles, ρₐ, Tₐ)
         @test iszero(max_rate(D̄))
     end
 
     @testset "local rime density" begin
         Tₐ = T_freeze - 1 // 10
-        ρ′_rim_func = P3.compute_local_rime_density(vel_params, ρₐ, Tₐ, state)
+        ρ′_rim_func = P3.compute_local_rime_density(vel_params, state.particles, ρₐ, Tₐ)
         # In Float32, `Tₐ - T_freeze` = -0.1 K has a relative rounding error of about 1e-4
         @test ρ′_rim_func(D̄, D̄) ≈ FT(282.8765520969483) rtol = 2e-4
 
         # Rᵢ > 0 for T < T_freeze, so ρ′_rim densifies toward ρ_ice as T → T_freeze.
         Dₗ = FT(200e-6)
-        ρ′_rim(T) = P3.compute_local_rime_density(vel_params, ρₐ, FT(T), state)(D̄, Dₗ)
+        ρ′_rim(T) = P3.compute_local_rime_density(vel_params, state.particles, ρₐ, FT(T))(D̄, Dₗ)
         @test issorted(ρ′_rim.((240, 250, 260, 265, 270)))
         # At and above T_freeze, the solid-ice (wet-growth) limit
         @test ρ′_rim(T_freeze) ≈ FT(916.7)
@@ -1004,8 +921,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         ρ′_rim(Dᵢ, D) = 500     # Constant rime density
         liq_bounds = ice_bounds = (FT(0), FT(1))
         Dᵢ = FT(2.5)
-        cloud_integrals = P3.get_liquid_integrals(n_c, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.GaussLegendre(FT, 12))
-        rain_integrals = P3.get_liquid_integrals(n_r, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.GaussLegendre(FT, 12))
+        cloud_integrals = P3.get_liquid_integrals(n_c, ∂ₜV, m_l, ρ′_rim, liq_bounds, P3.GaussLegendre(FT, 12))
+        rain_integrals = P3.get_liquid_integrals(n_r, ∂ₜV, m_l, ρ′_rim, liq_bounds, P3.GaussLegendre(FT, 12))
 
         # Test with known analytical result, noting e.g. that:
         # ∫₀¹ Dᵢ * D * exp(-D) * D³ dD = ∫₀¹ D⁴ * exp(-D) dD = γ(5, 1) [lower incomplete gamma function]
@@ -1025,7 +942,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
 
         # Zero liquid content (n(D) = 0)
         n_zero(D) = FT(0)
-        integrals_n0 = P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.GaussLegendre(FT, 12))
+        integrals_n0 = P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds, P3.GaussLegendre(FT, 12))
         result = integrals_n0(Dᵢ)
         @test all(iszero, result)
 
@@ -1037,7 +954,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Mock functions
         ∂ₜM_max(Dᵢ) = FT(0.04)  # Small max freeze rate
         rates = P3.∫liquid_ice_collisions(
-            n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
+            n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds, P3.GaussLegendre(FT, 12),
         )
         @test all(x -> x isa FT, rates)  # check type stability
         @test all(>(0), rates)  # check positivity
@@ -1061,23 +978,23 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         # Zero ice content
         n_i_zero(Dᵢ) = FT(0)
         rates = P3.∫liquid_ice_collisions(
-            n_i_zero, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
+            n_i_zero, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds, P3.GaussLegendre(FT, 12),
         )
         @test all(iszero, rates)
 
         # Zero liquid content
         n_zero = Returns(FT(0))
         zero_liq_integrals =
-            P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds; quad = P3.GaussLegendre(FT, 12))
+            P3.get_liquid_integrals(n_zero, ∂ₜV, m_l, ρ′_rim, liq_bounds, P3.GaussLegendre(FT, 12))
         rates = P3.∫liquid_ice_collisions(
-            n_i, ∂ₜM_max, zero_liq_integrals, zero_liq_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
+            n_i, ∂ₜM_max, zero_liq_integrals, zero_liq_integrals, ice_bounds, P3.GaussLegendre(FT, 12),
         )
         @test all(iszero, rates)
 
         # No freezing (above freezing temperature)
         ∂ₜM_max_zero(Dᵢ) = FT(0)
         rates = P3.∫liquid_ice_collisions(
-            n_i, ∂ₜM_max_zero, cloud_integrals, rain_integrals, ice_bounds; quad = P3.GaussLegendre(FT, 12),
+            n_i, ∂ₜM_max_zero, cloud_integrals, rain_integrals, ice_bounds, P3.GaussLegendre(FT, 12),
         )
         QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL, ∫𝟙_wet_M_col = rates
         @test QCFRZ == 0  # No cloud freezing
@@ -1090,8 +1007,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
 
     @testset "Bulk liquid-ice collisions" begin
         # Test the high-level interface with real P3 parameters
-        state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
-        logλ = P3.get_distribution_logλ(state)
+        state = rimed_state(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
 
         # Create mock particle size distributions
         toml_dict = CP.create_toml_dict(FT)
@@ -1111,9 +1027,7 @@ function test_p3_bulk_liquid_ice_collisions(FT)
 
         # Test the high-level interface
         rates = P3.∫liquid_ice_collisions(
-            state, logλ, psd_c, psd_r, L_c, N_c, L_r, N_r,
-            aps, tps, vel_params, ρₐ, T, m_l;
-            quad = P3.GaussLegendre(FT, 12),
+            psd_c, psd_r, aps, tps, vel_params, m_l, state, L_c, N_c, L_r, N_r, ρₐ, T,
         )
         @test eltype(rates) == FT  # check type stability
 
@@ -1139,12 +1053,8 @@ function test_p3_bulk_liquid_ice_collisions(FT)
         @test ∫𝟙_wet_M_col ≈ 1.7043100985839804e-5 rtol = 5e-4
 
         ### Test the bulk source function
-        state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
         rates = P3.bulk_liquid_ice_collision_sources(
-            state, logλ,
-            psd_c, psd_r, L_c, N_c, L_r, N_r,
-            aps, tps, vel_params, ρₐ, T;
-            quad = P3.GaussLegendre(FT, 12),
+            psd_c, psd_r, aps, tps, vel_params, state, L_c, N_c, L_r, N_r, ρₐ, T,
         )
         @test eltype(rates) == FT  # check type stability
     end
@@ -1161,26 +1071,66 @@ function test_p3_ice_self_collection(FT)
     F_rim = FT(0.8)
     ρ_rim = FT(800)
 
-    state = P3.P3State(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
-    logλ = P3.get_distribution_logλ(state)
+    state = rimed_state(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
 
     @testset "ice self-collection rate" begin
         # Call the new ice self-collection parameterization
-        rates = P3.ice_self_collection(state, logλ, vel_params, ρₐ; quad = P3.GaussLegendre(FT, 12))
+        rates = P3.ice_self_collection(vel_params, state, ρₐ)
         @test eltype(rates) == FT  # check type stability
 
         # Self-collection should represent a positive loss rate
         @test rates.dNdt > 0
 
         # Test edge case with virtually zero L_ice and N_ice
-        state_zero = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim)
-        logλ_zero = P3.get_distribution_logλ(state_zero)
-        rates_zero =
-            P3.ice_self_collection(state_zero, logλ_zero, vel_params, ρₐ; quad = P3.GaussLegendre(FT, 12))
+        state_zero = rimed_state(params, FT(0), FT(0), F_rim, ρ_rim)
+        rates_zero = P3.ice_self_collection(vel_params, state_zero, ρₐ)
         @test rates_zero.dNdt == 0
 
         # TODO: compare against an analytically derived reference
         # For a simple size distribution and uniform velocity difference, one could compute analytical dNdt.
+    end
+end
+
+function test_p3_number_tendencies_with_bounded_number(FT)
+    params = CMP.ParametersP3(FT)
+    vel = CMP.Chen2022VelType(FT)
+    aps = CMP.AirProperties(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    quad = P3.GaussLegendre(FT, 12)
+    ρₐ = FT(1.2)
+    T = params.T_freeze + FT(2)
+    Lᵢ = FT(1e-4) * ρₐ
+    F_rim, ρ_rim = FT(0.5), FT(500)
+    x_min = P3.ice_mean_particle_mass_min(params)
+    x_max = P3.ice_mean_particle_mass_max(params)
+
+    @testset "Number tendencies scale with the prognostic number ($label)" for (label, Nᵢ) in (
+        ("too few particles", Lᵢ / x_max / 10),
+        ("too many particles", Lᵢ / x_min * 10),
+    )
+        state = rimed_state(params, Lᵢ, Nᵢ, F_rim, ρ_rim)
+        dist = state.dist
+        state_bounded = rimed_state(params, Lᵢ, dist.ρn, F_rim, ρ_rim)
+        @test dist.ρn != Nᵢ
+
+        # Melting removes mass and prognostic number at one fractional rate
+        melt = P3.ice_melt(vel, aps, tps, state, ρₐ, T)
+        f_melt = melt.dLdt / Lᵢ
+        @test melt.dNdt / Nᵢ ≈ f_melt rtol = 16 * eps(FT)
+        Δt = FT(0.99) / f_melt
+        @test Nᵢ - Δt * melt.dNdt ≥ 0
+
+        # Self-collection removes the prognostic number at the fractional rate of the distribution
+        agg = P3.ice_self_collection(vel, state, ρₐ)
+        agg_bounded = P3.ice_self_collection(vel, state_bounded, ρₐ)
+        f_agg = agg_bounded.dNdt / dist.ρn
+        @test agg.dNdt / Nᵢ ≈ f_agg rtol = 16 * eps(FT)
+        Δt = FT(0.99) / f_agg
+        @test Nᵢ - Δt * agg.dNdt ≥ 0
+        # A rate of the bounded number would remove more number than exists
+        if Nᵢ < dist.ρn
+            @test Nᵢ - Δt * agg_bounded.dNdt < 0
+        end
     end
 end
 
@@ -1208,27 +1158,27 @@ function test_p3_closed_form_rain_inner(FT)
             ),
             (L_r, N_r) in ((1e-6, 1e4), (1e-4, 1e3), (2e-3, 5e2))
 
-            state = P3.P3State(params, FT(L_ice), FT(N_ice), FT(F_rim), FT(ρ_rim))
+            state = rimed_state(params, FT(L_ice), FT(N_ice), FT(F_rim), FT(ρ_rim))
             n_r = DT.size_distribution(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r))
-            ∂ₜV = P3.volumetric_collision_rate_integrand(vel, ρₐ, state)
-            ρ′_rim = P3.compute_local_rime_density(vel, ρₐ, FT(270), state)
+            ∂ₜV = P3.volumetric_collision_rate_integrand(vel, state.particles, ρₐ)
+            ρ′_rim = P3.compute_local_rime_density(vel, state.particles, ρₐ, FT(270))
             D_min, D_max = bnds = CM2.get_size_distribution_bounds(psd_r, FT(L_r) / ρₐ, ρₐ, FT(N_r), p)
             D_max > D_min || continue
             rc = P3.get_liquid_integrals_rain_closed(
-                psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state, ∂ₜV,
-                m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                psd_r, vel, n_r, ρₐ, FT(L_r), FT(N_r), state.particles, ∂ₜV,
+                m_liq, ρ′_rim, bnds, P3.ChebyshevGauss(FT, 40),
             )
             rn = P3.get_liquid_integrals(  # numerical fallback
-                n_r, ∂ₜV, m_liq, ρ′_rim, bnds; quad = P3.ChebyshevGauss(40),
+                n_r, ∂ₜV, m_liq, ρ′_rim, bnds, P3.ChebyshevGauss(FT, 40),
             )
-            v_i = P3.ice_particle_terminal_velocity(vel, ρₐ, state)
+            v_i = P3.ice_particle_terminal_velocity(vel, state.particles, ρₐ)
             for Dᵢ in FT.(10 .^ range(-5, -2; length = 5))
                 vi = v_i(Dᵢ)
                 Dstar = P3.crossover_diameter(vi, v_l, D_min, D_max)
 
                 # N, M: closed form vs adaptive reference
                 Nc, Mc, Bc = rc(Dᵢ)
-                σ(D) = P3.collision_cross_section_ice_liquid(state, Dᵢ, D)
+                σ(D) = P3.collision_cross_section_ice_liquid(state.particles, Dᵢ, D)
                 gN(D) = σ(D) * abs(vi - v_l(D)) * n_r(D)
                 Nref = QGK.quadgk(gN, D_min, Dstar, D_max; rtol = qrtol)[1]
                 Mref = QGK.quadgk(D -> gN(D) * m_liq(D), D_min, Dstar, D_max; rtol = qrtol)[1]
@@ -1239,8 +1189,8 @@ function test_p3_closed_form_rain_inner(FT)
                 @test isapprox(Bc, rn(Dᵢ)[3]; rtol = sqrt(eps(FT)))
 
                 # smoke test: collision cross section has form: `π(rᵢ + Dₗ/2)²`, with rᵢ derived from `P3.ice_area`
-                rᵢ = sqrt(P3.ice_area(state, Dᵢ) / FT(π))
-                K = P3.collision_cross_section_ice_liquid_coeffs(state, Dᵢ)
+                rᵢ = sqrt(P3.ice_area(state.particles, Dᵢ) / FT(π))
+                K = P3.collision_cross_section_ice_liquid_coeffs(state.particles, Dᵢ)
                 @test K == P3.collision_cross_section_ice_liquid_coeffs(rᵢ)
                 @test evalpoly(Dstar, K) ≈ FT(π) * (rᵢ + Dstar / 2)^2
                 @test evalpoly(D_max, K) ≈ FT(π) * (rᵢ + D_max / 2)^2
@@ -1346,10 +1296,10 @@ function test_p3_closed_form_rain_inner(FT)
         params = CMP.ParametersP3(FT)
         vel = CMP.Chen2022VelType(FT)
         psd_r = CMP.SB2006(FT).pdf_r
-        state = P3.P3State(params, FT(1e-3), FT(1e6), FT(0.5), FT(500))
+        state = rimed_state(params, FT(1e-3), FT(1e6), FT(0.5), FT(500))
         rest = (
             identity, (a, b) -> a, identity, identity, identity,
-            FT(1), FT(1e-4), FT(1e3), state,
+            FT(1), FT(1e-4), FT(1e3), state, P3.GaussLegendre(FT, 12),
         )
         m_closed = which(P3._rain_inner_integrals, typeof((psd_r, vel, rest...)))
         m_fallback = which(P3._rain_inner_integrals, typeof((1.0, 2.0, rest...)))
@@ -1366,8 +1316,8 @@ end
 
 @testset "P3 tests ($FT)" for FT in (Float64, Float32)
     # state creation
-    test_p3_state_creation(FT)
-    test_state_from_prognostic(FT)
+    test_p3_particles(FT)
+    test_state_construction(FT)
 
     # numerics
     test_thresholds_solver(FT)
@@ -1378,7 +1328,7 @@ end
     # velocity
     test_particle_terminal_velocities(FT)
     test_bulk_terminal_velocities(FT)
-    test_velocities_from_prognostic(FT)
+    test_velocities_from_nonphysical_prognostic(FT)
 
     # processes
     test_p3_het_freezing(FT)
@@ -1387,6 +1337,7 @@ end
     # bulk liquid-ice collisions and related processes
     test_p3_bulk_liquid_ice_collisions(FT)
     test_p3_ice_self_collection(FT)
+    test_p3_number_tendencies_with_bounded_number(FT)
     test_p3_closed_form_rain_inner(FT)
 end
 nothing
