@@ -4,6 +4,7 @@ ENV["GKSwstype"] = "nul"
 using CloudMicrophysics, Documenter
 using DocumenterCitations
 using Literate
+using Random: RandomDevice
 
 # Bibliography
 bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
@@ -107,7 +108,7 @@ makedocs(
     plugins = [bib, links],
 )
 
-deploydocs(
+deploy() = deploydocs(
     repo = "github.com/CliMA/CloudMicrophysics.jl.git",
     target = "build",
     push_preview = all(
@@ -117,3 +118,4 @@ deploydocs(
     devbranch = "main",
     forcepush = true,
 )
+retry(deploy; delays = rand(RandomDevice(), 10:30, 9))()
