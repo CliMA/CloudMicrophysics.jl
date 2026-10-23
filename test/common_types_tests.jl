@@ -32,6 +32,7 @@ function test_common_types_broadcasts(FT)
         CMP.Chen2022VelTypeLargeIce{FT},
         CMP.Chen2022VelTypeRain{FT},
         CMP.Parameters0M{FT},
+        CMP.Evaporation0M{FT},
         CMP.ParticlePDFSnow{FT},
         CMP.ParticlePDFIceRain{FT},
         CMP.ParticleMass{FT},
