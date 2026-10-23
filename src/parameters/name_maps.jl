@@ -58,6 +58,16 @@ name_map(::Type{Parameters0M}) = (;
     :specific_humidity_precipitation_threshold => :qc_0,
     :supersaturation_precipitation_threshold => :S_0,
 )
+# `Microphysics0MParams` reads only the updraft timescale ratio itself; `precip_updraft` is
+# `Parameters0M` with `τ_precip = τ_precip_updraft_ratio * precip.τ_precip`.
+name_map(::Type{Microphysics0MParams}) = (; :precipitation_timescale_updraft_ratio => :τ_precip_updraft_ratio)
+name_map(::Type{Evaporation0M}) = (;
+    :precipitation_evaporation_coefficient => :k_E,
+    :precipitation_evaporation_rh_crit => :RH_c,
+    :precipitation_evaporation_area_fraction => :a_p,
+    :precipitation_evaporation_flux_scale => :α₂,
+    :precipitation_evaporation_exponent => :α₃,
+)
 
 # ═══════════════════════════════════════════════════════════════════
 # 1-moment microphysics
@@ -658,6 +668,7 @@ const PLAIN_PARAMETER_TYPES = (
     RainFreezing,
     Frostenberg2023,
     Parameters0M,
+    Evaporation0M,
     CloudLiquid,
     IceNumberTemperatureFit,
     AcnvKK2000,
@@ -819,6 +830,8 @@ parameter_groups() = (
     ),
     "0-moment microphysics" => (
         Parameters0M,
+        Microphysics0MParams,
+        Evaporation0M,
     ),
     "1-moment microphysics" => (
         CloudLiquid,
