@@ -45,6 +45,36 @@ function het_ice_nucleation(
 end
 
 """
+    ice_ventilation_integral(velocity_params, aps, state, ρₐ)
+
+Return the ventilation integral `∫ D F_v(D) N′(D) dD` of the ice size distribution [m⁻²].
+
+`F_v` is the ventilation factor of [`CO.ventilation_factor`](@ref) with the coefficients of
+`state.particles.params.vent`. The method of
+
+    ice_ventilation_integral(velocity_params, aps, integration, state, ρₐ)
+
+for the type of `state.integration` evaluates the integral.
+
+# Arguments
+- `velocity_params`: [`CMP.Chen2022VelType`](@ref)
+- `aps`: [`CMP.AirProperties`](@ref)
+- `state`: [`P3State`](@ref)
+- `ρₐ`: air density [kg/m³]
+"""
+@inline ice_ventilation_integral(velocity_params, aps, state, ρₐ) =
+    ice_ventilation_integral(velocity_params, aps, state.integration, state, ρₐ)
+
+@inline function ice_ventilation_integral(velocity_params, aps, integration::QuadratureRule, state, ρₐ)
+    (; particles, dist) = state
+    v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
+    F_v = CO.ventilation_factor(particles.params.vent, aps, v_term)
+    N′ = size_distribution(dist)
+    bnds = velocity_integral_bounds(particles, dist, v_term; p = 1e-6)
+    return integrate(D -> D * F_v(D) * N′(D), bnds, integration)
+end
+
+"""
     ice_melt(velocity_params, aps, tps, state, ρₐ, Tₐ)
 
 Compute the melting rates of ice content and number concentration.
@@ -76,22 +106,16 @@ with `N` the prognostic ice number.
 """
 @inline function ice_melt(velocity_params, aps, tps, state, ρₐ, Tₐ)
     FT = eltype(state)
-    (; particles, integration, dist) = state
+    (; particles, dist) = state
     # Note: process not dependent on `F_liq`
     # (we want ice core shape params)
     # Get constants
     (; K_therm) = aps
     (; ρq_ice) = state
-    (; T_freeze, vent) = particles.params
+    (; T_freeze) = particles.params
     L_f = TDI.Lf(tps, T_freeze)  # at the particle surface
 
-    v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
-    F_v = CO.ventilation_factor(vent, aps, v_term)
-    N′ = size_distribution(dist)
-
-    # Integrate
-    bnds = velocity_integral_bounds(particles, dist, v_term; p = 1e-6)
-    ∫DFvN = integrate(D -> D * F_v(D) * N′(D), bnds, integration)
+    ∫DFvN = ice_ventilation_integral(velocity_params, aps, state, ρₐ)
 
     # only consider melting (not fusion)
     ΔT = max(Tₐ - T_freeze, 0)

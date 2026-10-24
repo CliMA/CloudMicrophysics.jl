@@ -6,6 +6,9 @@ Compute the ice self-collection (aggregation) rate.
 Self-collection decreases the ice number concentration and leaves mass, rime mass, and rime volume
 unchanged.
 
+The method of `ice_self_collection(vel, integration, state, ρₐ)` for the type of
+`state.integration` evaluates the collision integral.
+
 # Arguments
 - `vel`: the velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)
 - `state`: [`P3State`](@ref)
@@ -15,8 +18,10 @@ unchanged.
 A `NamedTuple` of `(; dNdt)`, where:
 1. `dNdt`: ice number concentration tendency due to self-collection `[1/m³/s]` (always positive or zero, represents a loss rate), the fractional rate of the size distribution times the prognostic ice number
 """
-@inline function ice_self_collection(vel, state, ρₐ)
-    (; particles, integration, dist) = state
+@inline ice_self_collection(vel, state, ρₐ) = ice_self_collection(vel, state.integration, state, ρₐ)
+
+@inline function ice_self_collection(vel, integration::QuadratureRule, state, ρₐ)
+    (; particles, dist) = state
     n_i = DT.size_distribution(dist)
     v_ice = ice_particle_terminal_velocity(vel, particles, ρₐ)
 

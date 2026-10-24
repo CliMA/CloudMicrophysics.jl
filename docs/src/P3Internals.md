@@ -38,6 +38,15 @@ P3Scheme.loggamma_inc_moment
 P3Scheme.get_μ
 P3Scheme.get_logN₀
 P3Scheme.logN′ice
+P3Scheme.logλ_bounds
+```
+
+## Ventilation
+
+[`P3Scheme.ice_melt`](@ref) reads the ventilation integral of the size distribution from `ice_ventilation_integral`.
+
+```@docs
+P3Scheme.ice_ventilation_integral
 ```
 
 ## Liquid-ice collisions
@@ -61,6 +70,7 @@ P3Scheme.crossover_diameter
 P3Scheme.crossing_integral_bounds
 P3Scheme.∫liquid_ice_collisions
 P3Scheme.wet_growth_onset_diameters
+P3Scheme.liquid_ice_collision_quantile
 P3Scheme.r_eff_ice
 ```
 
@@ -74,4 +84,57 @@ P3Scheme.subintervals
 P3Scheme.velocity_integral_bounds
 P3Scheme.insert_breakpoints
 P3Scheme.velocity_breakpoints
+```
+
+## Lookup tables
+
+[`P3Scheme.P3Tables`](@ref) holds one `UniformTable` per table group, a function with one or more components on a grid uniform along each `TableAxis`, read by multilinear interpolation with `lookup`.
+A component that scales as a power of the coordinates is stored as its logarithm.
+`tabulate` evaluates a point function at the points of a grid, and `group_table` stores the values of each group in the array type of the values, so a group is converted before the next one is filled.
+The rime axes use the coordinate `rime_coordinate`, `integral_logλ_bounds` gives the slopes of the integral tables, and `liquid_mass_bounds` the liquid mean-mass axes of the supported size distributions.
+
+```@docs
+P3Scheme.P3Tables
+P3Scheme.P3TableGrid
+P3Scheme.table_axes
+P3Scheme.tabulate
+P3Scheme.TableAxis
+P3Scheme.axis_point
+P3Scheme.axis_points
+P3Scheme.grid_point
+P3Scheme.GridPointFunction
+P3Scheme.evaluate_points
+P3Scheme.UniformTable
+P3Scheme.inner_axis_table
+P3Scheme.component_count
+P3Scheme.check_table_size
+P3Scheme.component_array
+P3Scheme.host_array
+P3Scheme.stored_components
+P3Scheme.device_array
+P3Scheme.lookup
+P3Scheme.interpolate
+P3Scheme.axis_cell
+P3Scheme.uniform_index
+P3Scheme.primal_value
+P3Scheme.rime_coordinate
+P3Scheme.rime_mass_fraction_at
+P3Scheme.integral_logλ_bounds
+P3Scheme.liquid_mass_bounds
+P3Scheme.check_liquid_pdfs
+P3Scheme.ice_parameters
+P3Scheme.group_table
+P3Scheme.table_fingerprint
+```
+
+### Inverse slope table
+
+The slope of the size distribution follows from `logLdivN`, which decreases with `logλ`.
+`SlopePoint` evaluates `logLdivN` on uniform `logλ` points, and `tabulated_distribution_logλ` inverts the table and refines the result with one Newton step on the closed form.
+
+```@docs
+P3Scheme.SlopePoint
+P3Scheme.tabulated_distribution_logλ
+P3Scheme.bilinear_column
+P3Scheme.bisection_steps
 ```

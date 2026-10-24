@@ -75,8 +75,13 @@ The velocities are
 - `v_n = ∫ n(D) v(D) dD / ∫ n(D) dD`, the number-weighted velocity [m/s],
 - `v_m = ∫ n(D) m(D) v(D) dD / ∫ n(D) m(D) dD`, the mass-weighted velocity [m/s].
 
-All four integrals come from one quadrature over the size distribution, so each velocity is a
-weighted mean of `v(D)` over the quadrature nodes. Both are zero without ice number.
+Both are zero without ice number. The method of
+
+    ice_terminal_velocities(velocity_params, integration, state, ρₐ; [p])
+
+for the type of `state.integration` evaluates the integrals. For a `QuadratureRule`, all four
+integrals come from one quadrature over the size distribution, so each velocity is a weighted
+mean of `v(D)` over the quadrature nodes.
 
 # Arguments
 - `velocity_params`: [`CMP.Chen2022VelType`](@ref)
@@ -84,13 +89,17 @@ weighted mean of `v(D)` over the quadrature nodes. Both are zero without ice num
 - `ρₐ`: air density [kg/m³]
 
 # Keyword arguments
-- `p`: tolerance parameter for the integral bounds, see [`integral_bounds`](@ref). Default is 1e-6.
+- `p`: tolerance parameter for the integral bounds of a `QuadratureRule`, see
+  [`integral_bounds`](@ref). Default is 1e-6.
 
 # Returns
 - `(; v_n, v_m)`: the number- and mass-weighted velocities [m/s]
 """
-function ice_terminal_velocities(velocity_params, state, ρₐ; p = 1e-6)
-    (; particles, integration, dist) = state
+ice_terminal_velocities(velocity_params, state, ρₐ; p = 1e-6) =
+    ice_terminal_velocities(velocity_params, state.integration, state, ρₐ; p)
+
+function ice_terminal_velocities(velocity_params, integration::QuadratureRule, state, ρₐ; p = 1e-6)
+    (; particles, dist) = state
     v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
     n = DT.size_distribution(dist)
     bnds = velocity_integral_bounds(particles, dist, v_term; p)

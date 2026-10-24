@@ -85,6 +85,7 @@ which constructs the parameterization with components:
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
+Adapt.@adapt_structure P3IceParams
 
 P3IceParams(toml_dict::CP.ParamDict;
     is_limited = true,
@@ -132,6 +133,7 @@ mp_p3 = CMP.Microphysics2MParams(Float64; with_ice = true)
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics2MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
+Adapt.@adapt_structure Microphysics2MParams
 
 """
     Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true,

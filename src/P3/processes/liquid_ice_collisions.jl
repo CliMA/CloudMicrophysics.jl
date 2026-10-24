@@ -392,6 +392,15 @@ end
 
 Compute key liquid-ice collision rates and quantities. Used by [`bulk_liquid_ice_collision_sources`](@ref).
 
+The method of
+
+    ∫liquid_ice_collisions(
+        psd_c, psd_r, aps, tps, vel, m_liq, integration, state,
+        L_c, N_c, L_r, N_r, ρₐ, T,
+    )
+
+for the type of `state.integration` evaluates the integrals.
+
 # Arguments
 - `psd_c`: [`CMP.CloudParticlePDF_SB2006`](@ref)
 - `psd_r`: [`CMP.RainParticlePDF_SB2006`](@ref)
@@ -419,20 +428,27 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, wh
 8. `BCCOL` - Cloud rime volume source [m³/m³/s]
 9. `BRCOL` - Rain rime volume source [m³/m³/s]
 """
-@inline function ∫liquid_ice_collisions(
+@inline ∫liquid_ice_collisions(
     psd_c, psd_r, aps, tps, vel, m_liq, state,
+    L_c, N_c, L_r, N_r, ρₐ, T,
+) = ∫liquid_ice_collisions(
+    psd_c, psd_r, aps, tps, vel, m_liq, state.integration, state,
+    L_c, N_c, L_r, N_r, ρₐ, T,
+)
+
+@inline function ∫liquid_ice_collisions(
+    psd_c, psd_r, aps, tps, vel, m_liq, integration::QuadratureRule, state,
     L_c, N_c, L_r, N_r, ρₐ, T,
 )
     FT = eltype(state)
-    (; particles, integration, dist) = state
+    (; particles, dist) = state
 
     # Particle size distributions
     n_c = DT.size_distribution(psd_c, L_c / ρₐ, ρₐ, N_c)  # n_c(Dₗ)
     n_r = DT.size_distribution(psd_r, L_r / ρₐ, ρₐ, N_r)  # n_r(Dₗ)
     n_i = DT.size_distribution(dist)                      # n_i(Dᵢ)
 
-    # Initialize integration buffers by evaluating a representative integral
-    p = FT(0.00001)
+    p = liquid_ice_collision_quantile(FT)
     ice_bounds = velocity_integral_bounds(particles, dist, ice_particle_terminal_velocity(vel, particles, ρₐ); p)
     bounds_c = CM2.get_size_distribution_bounds(psd_c, L_c / ρₐ, ρₐ, N_c, p)
     bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r / ρₐ, ρₐ, N_r, p)
@@ -453,6 +469,16 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, wh
 
     return ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds, integration)
 end
+
+"""
+    liquid_ice_collision_quantile(FT)
+
+Return the quantile `p` of the size distributions at which the liquid-ice collision integrals are cut.
+
+The integrals extend from the quantile `p` to the quantile `1 - p` of the ice, cloud and rain size
+distributions, see [`integral_bounds`](@ref).
+"""
+liquid_ice_collision_quantile(::Type{FT}) where {FT} = FT(1e-5)
 
 """
     wet_growth_onset_diameters(cloud_integrals, rain_integrals, ∂ₜM_max, D_lo, D_hi)

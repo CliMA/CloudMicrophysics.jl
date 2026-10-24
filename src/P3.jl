@@ -13,6 +13,7 @@ import ForwardDiff as FD
 import LogExpFunctions
 import StaticArrays as SA
 import UnrolledUtilities as UU
+import Adapt
 
 import ClimaParams as CP
 
@@ -39,5 +40,9 @@ include("P3_terminal_velocity.jl")
 include("P3_processes.jl")
 include("P3/processes/liquid_ice_collisions.jl")
 include("P3/processes/ice_self_collection.jl")
+include("P3/tables/uniform_table.jl")
+include("P3/tables/grid.jl")
+include("P3/tables/tables.jl")
+include("P3/tables/inverse_slope.jl")
 
 end
