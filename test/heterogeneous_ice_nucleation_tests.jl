@@ -7,6 +7,10 @@ import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Common as CO
 import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.HetIceNucleation as CMI_het
+import CloudMicrophysics.HomIceNucleation as CMI_hom
+import CloudMicrophysics.Microphysics2M as CM2
+import CloudMicrophysics.DistributionTools as DT
+import SpecialFunctions as SF
 
 function test_heterogeneous_ice_nucleation(FT)
 
@@ -382,64 +386,119 @@ function test_heterogeneous_ice_nucleation(FT)
         # No INP budget for immersion freezing
         TT.@test CMI_het.immersion_limit_rate(inp, T, ρ).∂ₜn_frz == FT(Inf)
     end
+end
 
-    TT.@testset "Cloud-droplet immersion freezing (Bigg + cloud PSD)" begin
+function test_drop_freezing(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    T_freeze = TDI.TD.Parameters.T_freeze(tps)
+    # The Cooper spectrum has no immersion budget
+    mp = CMP.Microphysics2MParams(FT; with_ice = true, ice_nucleation = CMP.ExponentialSupercoolingINP(FT))
+    mp_f23 = CMP.Microphysics2MParams(FT; with_ice = true)
+    ρ, qᵥ = FT(0.9), FT(3e-3)
+    state(q_r, N_r, q_c, N_c; n_ice = FT(0)) = (;
+        q_tot = qᵥ + q_c + q_r, q_lcl = q_c, n_lcl = N_c / ρ, q_rai = q_r, n_rai = N_r / ρ, q_ice = FT(0), n_ice,
+    )
+    rates(mp, micro, T) = (
+        CMI_het.rain_freezing_rate(mp, tps, micro, (; ρ, T)),
+        CMI_het.cloud_freezing_rate(mp, tps, micro, (; ρ, T)),
+    )
+    q_r, N_r, q_c, N_c = FT(1e-4), FT(1e3), FT(1e-4), FT(1e8)
 
-        toml_dict = CP.create_toml_dict(FT)
-        rf = CMP.RainFreezing(toml_dict)
-        pdf_c = CMP.CloudParticlePDF_SB2006(toml_dict)
-        pdf_r = CMP.RainParticlePDF_SB2006_limited(toml_dict)
-        T_freeze = TDI.TD.Parameters.T_freeze(tps)
+    TT.@testset "Gauss-Laguerre rule" begin
+        for α in (FT(0), FT(1), FT(1.5))
+            quad = CMI_het.QUAD.GaussLaguerre(FT, 8; α)
+            TT.@test sum(quad.weights) ≈ 1 rtol = 8 * eps(FT)
+            # Exact for the moments of the normalized gamma weight up to order 2n - 1
+            for k in (1, 5, 15)
+                exact = SF.gamma(Float64(α) + k + 1) / SF.gamma(Float64(α) + 1)
+                TT.@test sum(quad.weights .* quad.nodes .^ k) ≈ exact rtol = 100 * eps(FT)
+            end
+        end
+        TT.@test mp.ice.cloud_freezing_quad.α == (mp.ice.cloud_pdf.νc + 1) / mp.ice.cloud_pdf.μc - 1
+    end
 
-        ρ = FT(1)
-        N_lcl = FT(1e8)
-        q_lcl = FT(5e-4)
-
-        # Below the −4 °C gate ⇒ positive number and mass rates
-        T_cold = T_freeze - FT(20)
-        r_cold = CMI_het.liquid_freezing_rate(rf, pdf_c, tps, q_lcl, ρ, N_lcl, T_cold)
-        TT.@test r_cold.∂ₜn_frz > FT(0)
-        TT.@test r_cold.∂ₜq_frz > FT(0)
-
-        # Colder ⇒ larger rate (Bigg's exp(a·ΔT) is monotonically increasing)
-        r_colder = CMI_het.liquid_freezing_rate(
-            rf, pdf_c, tps, q_lcl, ρ, N_lcl, T_freeze - FT(30),
+    TT.@testset "freezing needs supercooled liquid" begin
+        for (micro, T) in (
+            (state(q_r, N_r, q_c, N_c), T_freeze),
+            (state(FT(0), N_r, FT(0), N_c), T_freeze - 10),
+            (state(q_r, FT(0), q_c, FT(0)), T_freeze - 10),
         )
-        TT.@test r_colder.∂ₜn_frz > r_cold.∂ₜn_frz
-        TT.@test r_colder.∂ₜq_frz > r_cold.∂ₜq_frz
+            for r in rates(mp, micro, T)
+                TT.@test r.∂ₜn_frz === FT(0) && r.∂ₜq_frz === FT(0)
+            end
+        end
+        for r in rates(mp, state(q_r, N_r, q_c, N_c), prevfloat(T_freeze))
+            TT.@test r.∂ₜn_frz > 0 && r.∂ₜq_frz > 0
+        end
+    end
 
-        # Above −4 °C gate ⇒ both rates zero
-        r_warm = CMI_het.liquid_freezing_rate(
-            rf, pdf_c, tps, q_lcl, ρ, N_lcl, T_freeze - FT(2),
-        )
-        TT.@test r_warm.∂ₜn_frz == FT(0)
-        TT.@test r_warm.∂ₜq_frz == FT(0)
+    TT.@testset "freezing increases with supercooling" begin
+        # Through immersion freezing, homogeneous freezing, and the supercooling at which the drop absorbs its
+        # latent heat as it warms
+        prev_r, prev_c = (FT(0), FT(0)), (FT(0), FT(0))
+        for ΔT in FT(10) .^ range(FT(-3), log10(FT(90)); length = 40)
+            r, c = rates(mp, state(q_r, N_r, q_c, N_c), T_freeze - ΔT)
+            for v in (r.∂ₜn_frz, r.∂ₜq_frz, c.∂ₜn_frz, c.∂ₜq_frz)
+                TT.@test isfinite(v) && v > 0
+            end
+            TT.@test r.∂ₜq_frz >= prev_r[2] * (1 - sqrt(eps(FT)))
+            TT.@test c.∂ₜn_frz >= prev_c[1] * (1 - sqrt(eps(FT)))
+            TT.@test c.∂ₜq_frz >= prev_c[2] * (1 - sqrt(eps(FT)))
+            prev_r, prev_c = (r.∂ₜn_frz, r.∂ₜq_frz), (c.∂ₜn_frz, c.∂ₜq_frz)
+        end
+    end
 
-        # Zero N or q ⇒ both rates zero
-        r_zero_N = CMI_het.liquid_freezing_rate(rf, pdf_c, tps, q_lcl, ρ, FT(0), T_cold)
-        TT.@test r_zero_N.∂ₜn_frz == FT(0)
-        TT.@test r_zero_N.∂ₜq_frz == FT(0)
-        r_zero_q = CMI_het.liquid_freezing_rate(rf, pdf_c, tps, FT(0), ρ, N_lcl, T_cold)
-        TT.@test r_zero_q.∂ₜn_frz == FT(0)
-        TT.@test r_zero_q.∂ₜq_frz == FT(0)
+    TT.@testset "rain number freezes at most at the mass fraction" begin
+        micro = (; q_tot = FT(3e-3), q_lcl = FT(0), n_lcl = FT(0), q_rai = FT(1.89e-3), n_rai = FT(26400),
+            q_ice = FT(0), n_ice = FT(0))
+        for T in (T_freeze - 37, T_freeze - 36, T_freeze - 15, T_freeze - 5)
+            r = CMI_het.rain_freezing_rate(mp, tps, micro, (; ρ = FT(0.8), T))
+            k_q = r.∂ₜq_frz / micro.q_rai
+            k_n = r.∂ₜn_frz / micro.n_rai
+            TT.@test 0 < k_n <= k_q * (1 + 4 * eps(FT))
+        end
+        # Where nucleation limits freezing, the large drops freeze first, and the number rate is that of the size
+        # distribution, about 1/20 of the mass fraction for an exponential distribution
+        r = CMI_het.rain_freezing_rate(mp, tps, micro, (; ρ = FT(0.8), T = T_freeze - 5))
+        TT.@test r.∂ₜn_frz / micro.n_rai < r.∂ₜq_frz / micro.q_rai / 10
+    end
 
-        # Cloud and rain methods both run and return finite rates with the
-        # same RainFreezing parameters — order-of-magnitude sanity only,
-        # not equality (PSD shape and number/mass differ).
-        r_cld = CMI_het.liquid_freezing_rate(rf, pdf_c, tps, q_lcl, ρ, N_lcl, T_cold)
-        r_rai = CMI_het.liquid_freezing_rate(
-            rf, pdf_r, tps, FT(1e-4), ρ, FT(1e3), T_cold,
-        )
-        TT.@test isfinite(r_cld.∂ₜn_frz) && r_cld.∂ₜn_frz > FT(0)
-        TT.@test isfinite(r_rai.∂ₜn_frz) && r_rai.∂ₜn_frz > FT(0)
+    TT.@testset "cloud droplet immersion freezing and its INP budget" begin
+        # At 255 K the homogeneous coefficient is zero and nucleation limits the freezing of cloud droplets, so the
+        # rates are the immersion moments of the size distribution
+        T, ρ_c, q_lcl, N_lcl = FT(255), FT(0.9), FT(5e-4), FT(1e8)
+        micro = (; q_tot = FT(2e-3) + q_lcl, q_lcl, n_lcl = N_lcl / ρ_c, q_rai = FT(0), n_rai = FT(0),
+            q_ice = FT(0), n_ice = FT(10))
+        pdf_c = mp.ice.cloud_pdf
+        J = mp.ice.rain_freezing(T, T_freeze)
+        (; λc, νcD, μcD) = CM2.pdf_cloud_parameters(pdf_c, q_lcl, ρ_c, N_lcl)
+        M_D⁶ = DT.generalized_gamma_Mⁿ(νcD, μcD, λc, N_lcl / ρ_c, 6)
+        unbounded = CMI_het.cloud_freezing_rate(mp, tps, micro, (; ρ = ρ_c, T))
+        TT.@test unbounded.∂ₜn_frz ≈ J * q_lcl / pdf_c.ρw rtol = FT(1e-4)
+        TT.@test unbounded.∂ₜq_frz ≈ J * pdf_c.ρw * (FT(π) / 6)^2 * M_D⁶ rtol = FT(1e-4)
 
-        # Type stability
-        TT.@test eltype(r_cold.∂ₜn_frz) == FT
-        TT.@test eltype(r_cold.∂ₜq_frz) == FT
+        # The Frostenberg 2023 budget bounds the immersion number rate
+        bounded = CMI_het.cloud_freezing_rate(mp_f23, tps, micro, (; ρ = ρ_c, T))
+        ∂ₜn_lim = CMI_het.immersion_limit_rate(mp_f23.ice.ice_nucleation, T, ρ_c; n_active = micro.n_ice).∂ₜn_frz
+        TT.@test FT(0) < ∂ₜn_lim < unbounded.∂ₜn_frz
+        TT.@test bounded.∂ₜn_frz ≈ ∂ₜn_lim rtol = FT(1e-3)
+    end
+
+    TT.@testset "homogeneous freezing coefficient" begin
+        hom = mp.ice.homogeneous
+        for T in (FT(236), FT(237), FT(238))
+            Δa_w = 1 - CO.a_w_ice(tps, T)
+            TT.@test CMI_hom.homogeneous_freezing_rate_coefficient(hom, tps, T) ≈
+                     CMI_hom.homogeneous_J_cubic(hom, Δa_w) rtol = 8 * eps(FT)
+        end
+        TT.@test CMI_hom.homogeneous_freezing_rate_coefficient(hom, tps, FT(260)) == 0
+        J_edge = CMI_hom.homogeneous_J_cubic(hom, hom.Δa_w_max)
+        TT.@test CMI_hom.homogeneous_freezing_rate_coefficient(hom, tps, FT(200)) ≈ J_edge rtol = 8 * eps(FT)
     end
 end
 
 TT.@testset "Heterogeneous Ice Nucleation Tests ($FT)" for FT in (Float64, Float32)
     test_heterogeneous_ice_nucleation(FT)
+    test_drop_freezing(FT)
 end
 nothing
