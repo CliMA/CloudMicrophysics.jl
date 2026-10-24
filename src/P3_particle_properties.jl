@@ -74,12 +74,19 @@ The construction has three steps:
 3. The shape parameter `μ` follows from the slope law of `particles.params`, and the intercept
    `logN₀` from the bounded number.
 
-The method dispatches on the type of `integration`; for a `QuadratureRule` it returns the
-distribution above.
+The method dispatches on the type of `integration`. For a `QuadratureRule` it returns the
+distribution above, and for [`P3Tables`](@ref) the slope comes from the inverse slope table instead,
+see [`tabulated_distribution_logλ`](@ref).
+
+    P3Distribution(slope, ρn, logλ)
+
+returns the distribution of the bounded number `ρn` and the slope `logλ` for the slope law `slope`,
+a [`CMP.SlopeLaw`](@ref), as the third step above.
 
 # Arguments
 - `particles`: [`P3Particles`](@ref)
-- `integration`: how the size-distribution integrals are evaluated, a `QuadratureRule`
+- `integration`: how the size-distribution integrals are evaluated, a `QuadratureRule` or
+  [`P3Tables`](@ref)
 - `ρq_ice`: ice mass concentration [kg/m³]
 - `ρn_ice`: ice number concentration [1/m³]
 
@@ -105,7 +112,11 @@ end
 function P3Distribution(particles::P3Particles, ::QuadratureRule, ρq_ice, ρn_ice)
     ρn = bounded_ice_number(particles.params, ρq_ice, ρn_ice)
     logλ = get_distribution_logλ(particles, ρq_ice, ρn)
-    μ, logλ = promote(get_μ(particles.params.slope, logλ), logλ)
+    return P3Distribution(particles.params.slope, ρn, logλ)
+end
+
+function P3Distribution(slope::CMP.SlopeLaw, ρn, logλ)
+    μ, logλ = promote(get_μ(slope, logλ), logλ)
     ρn, logN₀ = promote(ρn, get_logN₀(ρn, μ, logλ))
     return P3Distribution(ρn, μ, logλ, logN₀)
 end
@@ -139,7 +150,8 @@ The field `ρb_rim` keeps the prognostic rime volume, not the moved one.
 
 # Arguments
 - `params`: [`CMP.ParametersP3`](@ref)
-- `integration`: how the size-distribution integrals are evaluated, a `QuadratureRule`
+- `integration`: how the size-distribution integrals are evaluated, a `QuadratureRule` or
+  [`P3Tables`](@ref)
 - `ρq_ice`: ice mass concentration [kg/m³]
 - `ρn_ice`: ice number concentration [1/m³]
 - `ρq_rim`: rime mass concentration [kg/m³]
@@ -159,7 +171,7 @@ struct P3State{FT, P <: P3Particles, R, D}
     ρn_ice::FT
     "Volumetric prognostic rime volume [m³/m³]"
     ρb_rim::FT
-    "Size distribution, a [`P3Distribution`](@ref) for a `QuadratureRule` integration"
+    "Size distribution, a [`P3Distribution`](@ref)"
     dist::D
 end
 
@@ -189,7 +201,7 @@ It is the mass of a newly nucleated crystal, a solid-ice sphere of diameter `D_n
 # Arguments
 - `params`: [`CMP.ParametersP3`](@ref)
 """
-@inline ice_mean_particle_mass_min((; ρ_i, D_nuc)) = ρ_i * CO.volume_sphere_D(D_nuc)
+@inline ice_mean_particle_mass_min(params) = CO.nucleated_ice_mass(params)
 
 """
     ice_mean_particle_mass_max(params)
@@ -270,6 +282,7 @@ ShowMethods.field_units(::P3Distribution) = (; ρn = "1/m³", logλ = "log(1/m)"
 
 Base.eltype(::P3State{FT}) where {FT} = FT
 Base.broadcastable(state::P3State) = tuple(state)
+Adapt.@adapt_structure P3State
 
 Base.eltype(::P3Particles{FT}) where {FT} = FT
 Base.broadcastable(particles::P3Particles) = tuple(particles)

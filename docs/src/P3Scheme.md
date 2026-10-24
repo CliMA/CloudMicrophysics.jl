@@ -868,6 +868,157 @@ include("plots/P3Melting.jl")
 ```
 ![](P3_ice_melt.svg)
 
+## [Lookup tables](@id P3-lookup-tables)
+
+The size-distribution integrals and the slope solve can be read from lookup tables instead of evaluated by quadrature.
+[`CloudMicrophysics.P3Scheme.with_tables`](@ref) builds the tables for a complete set of parameters and returns a copy of the parameters whose `integration` is a [`CloudMicrophysics.P3Scheme.P3Tables`](@ref):
+
+```julia
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.P3Scheme as P3
+
+mp = CMP.Microphysics2MParams(Float32; with_ice = true)
+mp = P3.with_tables(mp)
+```
+
+A [`CloudMicrophysics.P3Scheme.P3State`](@ref) built from these parameters reads every tabulated integral from the tables, so the process rates need no other change.
+Quadrature stays the default, and it is the generator of the tables.
+The tables depend on the mass, area and slope laws, the terminal velocities and the cloud and rain size distributions, so a change to any of them needs new tables.
+The tables store a fingerprint of these parameters, and [`CloudMicrophysics.P3Scheme.tables_are_current`](@ref) returns `false` for parameters that differ from the ones the tables were built from.
+The constructors of the parameters from a parameter dictionary throw an `ArgumentError` for tables built from other parameters.
+The tables support the cloud size distribution `CloudParticlePDF_SB2006` and the limited rain size distribution `RainParticlePDF_SB2006_limited`, and the construction throws an `ArgumentError` for any other.
+
+### What is tabulated
+
+| Tables | Values | Axes |
+|:-------|:-------|:-----|
+| slope | ``\log(L/N)`` of the size distribution | ``\log λ``, ``w``, ``ρ_{rim}`` |
+| ice | ventilation moment ``M_v``, self-collection rate, ``v_n``, ``v_m``, per unit number | ``\log λ``, ``w``, ``ρ_{rim}``, ``\log ρ_a`` |
+| liquid-ice | collected number and mass of cloud or rain per unit ice number and per unit liquid number or mass, impact scale ``\log \bar{κ}`` | the ice axes and ``\log \bar{x}`` of the liquid |
+| rime density | mean local rime density of the collected mass | ``\log R``, the ice axes, ``\log \bar{x}`` |
+| wet set | mass one particle collects per unit liquid mass and its impact scale, ``D^{3/2} v^{1/2}``, mean local rime density of the mass one particle collects, fractions of the integrals below a diameter | ``\log D`` or the ice axes, with ``\log \bar{x}``, ``\log R``, the number logit and ``μ`` |
+
+The rime coordinate ``w = 1 - \sqrt{1 - F_{rim}}`` spreads the rime mass fractions near one, where the particle properties change fastest.
+The slope ``\log λ`` is the key of the integral tables, because the shape parameter ``μ`` changes steeply with the mean mass between ``\log \bar{x} = -20.2`` and ``-19.8``.
+The slope comes from the inverse of the slope table, by a bisection with a fixed number of steps and one Newton step on the closed form.
+The first moment ``M_1`` of the ventilation has a closed form, and so does the integral of ``D`` over the wet set.
+The local rime density depends on the temperature only through ``R = κ / |T|``, so the rime density tables cover every temperature below freezing on ``\log R``.
+No table holds an air property other than the air density: the ventilation coefficients, the viscosity, the diffusivity and the latent heats enter at run time.
+The freezing of liquid by Gauss-Laguerre quadrature and the effective radius are not tabulated.
+
+As in the quadrature, each ice particle freezes the fraction ``\min(m / (u + v), 1)`` of the liquid mass ``u + v`` it collects from cloud and rain, with ``m`` its maximum freezing rate, and sheds the rest.
+The tables locate the wet set, where a particle sheds, from the mass one particle collects and its maximum freezing rate.
+The fraction tables give the total frozen mass, the mass collected outside the wet set plus the maximum freezing rate on it, and the total shed mass.
+The division of the frozen and the shed mass between cloud and rain, and the mean rime density of the frozen mass, follow from a Gauss-Legendre rule of 8 points in ``\log D`` on each interval between the ends of the wet set.
+
+The slope ``\log λ`` is held under differentiation, as for the quadrature.
+The other coordinates of the tables, the rime coordinate, the rime density, the air density, the liquid mean masses and ``\log R``, keep their derivatives through the multilinear interpolation, so the derivatives with respect to the state follow those of the quadrature to the accuracy of the tables.
+On the default grid, at a partly frozen state, the elasticities of the collected masses and numbers with respect to the state differ from those of the quadrature by less than 0.03, and those of the frozen mass and the rime volume by less than 3%.
+A coordinate outside a table reads its nearest edge, in particular an air density outside ``0.005`` to ``1.7`` kg/m³, and the derivative along that axis is zero there.
+
+### Accuracy
+
+The default grid, [`CloudMicrophysics.P3Scheme.P3TableGrid`](@ref), was chosen from accuracy measurements against Gauss-Legendre quadrature of order 16 on 2000 seeded states between the grid points.
+The states have:
+
+- the mean ice mass log-uniform between the limits of the ice number, and the rime density uniform between its bounds,
+- the rime mass fraction zero for a fifth of the states, log-uniform from ``10^{-8}`` to ``10^{-2}`` for a fifth, uniform from 0.01 to 0.9 for two fifths, and with ``1 - F_{rim}`` log-uniform from ``10^{-3}`` to ``10^{-1}`` for a fifth,
+- the air density log-uniform from 0.005 to 1.7 kg/m³,
+- for the collisions, the ice number log-uniform from ``10^2`` to ``10^6`` m⁻³, the cloud mean mass log-uniform from ``5 \cdot 10^{-15}`` to ``2.5 \cdot 10^{-10}`` kg, the cloud number log-uniform from ``10^7`` to ``10^9`` m⁻³, the rain content log-uniform from ``10^{-6}`` to ``10^{-3}`` kg/m³, the rain number log-uniform from ``10^2`` to ``10^6`` m⁻³, and the temperature uniform from 235 to 278 K.
+
+The relative errors in `Float64` are
+
+| Quantity | Median | 99th percentile | Maximum |
+|:---------|:-------|:----------------|:--------|
+| ``\log λ`` (absolute) | ``8 \cdot 10^{-10}`` | ``4 \cdot 10^{-4}`` | ``1.5 \cdot 10^{-3}`` |
+| Ventilation integral | 0.003% | 0.24% | 0.57% |
+| Self-collection | 0.026% | 1.0% | 3.2% |
+| ``v_n`` | 0.030% | 0.79% | 1.3% |
+| ``v_m`` | 0.027% | 0.88% | 1.8% |
+| Melting | 0.003% | 0.23% | 0.57% |
+| Collected cloud mass | 0.12% | 3.0% | 4.7% |
+| Collected rain mass | 0.11% | 2.5% | 7.4% |
+| Collected cloud number | 0.13% | 2.8% | 5.1% |
+| Collected rain number | 0.086% | 1.8% | 4.5% |
+| Frozen mass, ice mass tendency | 0.042% | 2.0% | 6.5% |
+| Rime volume | 0.14% | 2.6% | 8.2% |
+| Rime volume of cloud | 0.69% | 7.1% | 22% |
+| Rime volume of rain | 0.084% | 3.6% | 17% |
+| Rime volume tendency | 0.14% | 2.6% | 16% |
+| Shed fraction (absolute) | ``5 \cdot 10^{-6}`` | ``5 \cdot 10^{-3}`` | 0.058 |
+
+On the 990 states that freeze and shed more than 0.1% of the collected mass each, the errors of the frozen and the shed mass of each species, relative to the mass the species gives to the ice, are
+
+| Quantity | Median | 99th percentile | Maximum |
+|:---------|:-------|:----------------|:--------|
+| Frozen cloud | 0.068% | 2.9% | 7.9% |
+| Shed cloud | 0.061% | 2.8% | 7.3% |
+| Frozen rain | 0.020% | 2.1% | 4.3% |
+| Shed rain | 0.082% | 1.6% | 5.0% |
+
+The errors in `Float32` agree with these to two digits.
+The rime volume of cloud has the largest errors.
+The mass one particle collects from cloud has a sharp minimum at the diameter where the particle falls as fast as most of the droplets, and the per-particle tables interpolate across this minimum.
+The tendencies sum the rime volumes of cloud and rain, so their errors are those of the total rime volume.
+
+### Building the tables
+
+The tables are built at initialization, from the parameters of the run.
+[`CloudMicrophysics.P3Scheme.with_tables`](@ref) fills them in two layers, and both are public.
+The building blocks are:
+
+1. [`CloudMicrophysics.P3Scheme.P3TableGrid`](@ref), the axes of every table, with bounds derived from the parameters,
+2. [`CloudMicrophysics.P3Scheme.table_point_functions`](@ref), one point function per table group, which maps the coordinates of one grid point to the values of its tables by quadrature in `Float64`,
+3. [`CloudMicrophysics.P3Scheme.table_axes`](@ref), the axes of the point function of each group,
+4. [`CloudMicrophysics.P3Scheme.tabulate`](@ref), which evaluates a point function at the points of its axes in an array of a given type,
+5. [`CloudMicrophysics.P3Scheme.P3Tables`](@ref) and the method `with_tables(mp, grid, values)`, which assemble the arrays of values into the tables in the float type of the parameters, with the fingerprint of the parameters.
+
+The point functions are `isbits` callable objects, and `tabulate` computes the coordinates of a point from its index, so no array of coordinates is stored.
+`with_tables(mp, ArrayType)` tabulates each group in an array of type `ArrayType` and stores it as a table before it fills the next group, so the tables are built where `ArrayType` places its data and they are stored there.
+For an `Array`, the default, the points are evaluated on all threads.
+A host with GPU arrays, such as ClimaAtmos with `ClimaComms.array_type(device)`, builds the tables on the device without a dependency of CloudMicrophysics on a GPU package:
+
+```julia
+mp = P3.with_tables(mp, ClimaComms.array_type(device))
+```
+
+A host that maps the point functions itself uses the building blocks:
+
+```julia
+grid = P3.P3TableGrid(mp)
+points = P3.table_point_functions(mp.ice, grid)
+values = map((f, axes) -> P3.tabulate(f, axes, ArrayType), points, P3.table_axes(grid))
+mp = P3.with_tables(mp, grid, values)
+@assert P3.tables_are_current(mp)
+```
+
+On the default grid, the tables take 176 MB in `Float64` and 88 MB in `Float32`.
+The build is dominated by the liquid-ice collision tables, a double integral at each of 4.7 million points, and by the ice tables, whose self-collection integral is a double integral at each of 0.9 million points:
+
+| Group | Points | Build, 16 threads | Build, 1 thread |
+|:------|-------:|------------------:|----------------:|
+| slope | 32768 | 0.01 s | 0.03 s |
+| ice | 912384 | 9.7 s | 109 s |
+| cloud collisions | 3133440 | 13.4 s | 154 s |
+| rain collisions | 1566720 | 12.2 s | 143 s |
+| rime density | 22400 | 0.8 s | 6.2 s |
+| wet set | 422464 | 4.1 s | 41 s |
+| all, with the assembly | | 40 s | 455 s |
+
+These are times on an Apple M4 Max with 12 performance and 4 efficiency cores, the same in `Float32` and `Float64`.
+The tables evaluate the rates 5 to 12000 times faster than the quadrature on one CPU thread:
+
+| Function | Quadrature | Tables |
+|:---------|-----------:|-------:|
+| `P3State`, with the slope | 2.9 μs | 0.53 μs |
+| `ice_terminal_velocities` | 6.5 μs | 0.03 μs |
+| `ice_self_collection` | 343 μs | 0.03 μs |
+| `ice_melt` | 6.8 μs | 0.31 μs |
+| `∫liquid_ice_collisions`, below freezing | 210 to 217 μs | 9.3 μs |
+| `∫liquid_ice_collisions`, above freezing | 172 μs | 0.30 μs |
+
+These are `Float32` times with the state built, except for `P3State`.
+
 ## Acknowledgments
 
 The reference Fortran implementation of the P3 scheme, developed by the authors

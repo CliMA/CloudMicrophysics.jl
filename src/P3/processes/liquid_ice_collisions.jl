@@ -107,6 +107,44 @@ balanced by the latent heat of fusion.
 From Eq (A7) in Musil (1970), [Musil1970](@cite).
 """
 function compute_max_freeze_rate(aps, tps, velocity_params, particles, ρₐ, Tₐ)
+    (; heat, denom, T_frz) = max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
+    v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
+    F_v = CO.ventilation_factor(particles.params.vent, aps, v_term)
+    function max_freeze_rate(Dᵢ)
+        # fallback values typed by the promotion of the node and the captured particles
+        # (mixed plain/Dual under differentiation)
+        FT = UT.promote_typeof(Dᵢ, heat, denom)
+        Tₐ ≥ T_frz && return zero(FT)  # No collisional freezing above the freezing temperature
+        denom > 0 || return floatmax(FT)
+        return 2 * (π * Dᵢ) * F_v(Dᵢ) * heat / denom
+    end
+    return max_freeze_rate
+end
+
+"""
+    max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
+
+Return the factors of the maximum freezing rate of [`compute_max_freeze_rate`](@ref) that do not depend on the particle.
+
+The maximum freezing rate of an ice particle of diameter `Dᵢ` is `2π Dᵢ F_v(Dᵢ) heat / denom`
+below the freezing temperature `T_frz` if `denom > 0`, and unbounded if `denom ≤ 0`.
+
+# Arguments
+- `aps`: [`CMP.AirProperties`](@ref)
+- `tps`: `TDP.ThermodynamicsParameters`
+- `ρₐ`: air density [kg/m³]
+- `Tₐ`: air temperature [K]
+
+# Returns
+A `NamedTuple` `(; heat, denom, T_frz)`, where:
+- `heat`: heat flux from the particle surface per unit capacity, by conduction and by vapor
+  diffusion [W/m]
+- `denom`: heat to remove per unit mass of collected liquid, which warms from `Tₐ` to the
+  surface temperature and freezes there [J/kg]; it is nonpositive for `T_frz - Tₐ ≥ L_f / cp_l
+  ≈ 80 K`, where every collected droplet freezes
+- `T_frz`: freezing temperature [K]
+"""
+@inline function max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
     (; D_vapor, K_therm) = aps
     cp_l = TDI.cp_l(tps)
     T_frz = TDI.T_freeze(tps)
@@ -119,20 +157,9 @@ function compute_max_freeze_rate(aps, tps, velocity_params, particles, ρₐ, T�
             TDI.p2q(tps, Tₛ, ρₐ, TDI.saturation_vapor_pressure_over_ice(tps, Tₛ)) -
             TDI.p2q(tps, Tₐ, ρₐ, TDI.saturation_vapor_pressure_over_ice(tps, Tₐ))
         )
-    v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
-    F_v = CO.ventilation_factor(particles.params.vent, aps, v_term)
-    # Heat to remove per unit mass of collected liquid, which warms from Tₐ to Tₛ and freezes at Tₛ.
-    # It is nonpositive for ΔT ≥ L_f / cp_l ≈ 80 K, where every collected droplet freezes.
+    heat = K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat
     denom = L_f - cp_l * ΔT
-    function max_freeze_rate(Dᵢ)
-        # fallback values typed by the promotion of the node and the captured particles
-        # (mixed plain/Dual under differentiation)
-        FT = UT.promote_typeof(Dᵢ, ΔT, Δρᵥ_sat, denom)
-        Tₐ ≥ T_frz && return zero(FT)  # No collisional freezing above the freezing temperature
-        denom > 0 || return floatmax(FT)
-        return 2 * (π * Dᵢ) * F_v(Dᵢ) * (K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat) / denom
-    end
-    return max_freeze_rate
+    return (; heat, denom, T_frz)
 end
 
 """
@@ -392,6 +419,15 @@ end
 
 Compute key liquid-ice collision rates and quantities. Used by [`bulk_liquid_ice_collision_sources`](@ref).
 
+The method of
+
+    ∫liquid_ice_collisions(
+        psd_c, psd_r, aps, tps, vel, m_liq, integration, state,
+        L_c, N_c, L_r, N_r, ρₐ, T,
+    )
+
+for the type of `state.integration` evaluates the integrals.
+
 # Arguments
 - `psd_c`: [`CMP.CloudParticlePDF_SB2006`](@ref)
 - `psd_r`: [`CMP.RainParticlePDF_SB2006`](@ref)
@@ -419,20 +455,27 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, wh
 8. `BCCOL` - Cloud rime volume source [m³/m³/s]
 9. `BRCOL` - Rain rime volume source [m³/m³/s]
 """
-@inline function ∫liquid_ice_collisions(
+@inline ∫liquid_ice_collisions(
     psd_c, psd_r, aps, tps, vel, m_liq, state,
+    L_c, N_c, L_r, N_r, ρₐ, T,
+) = ∫liquid_ice_collisions(
+    psd_c, psd_r, aps, tps, vel, m_liq, state.integration, state,
+    L_c, N_c, L_r, N_r, ρₐ, T,
+)
+
+@inline function ∫liquid_ice_collisions(
+    psd_c, psd_r, aps, tps, vel, m_liq, integration::QuadratureRule, state,
     L_c, N_c, L_r, N_r, ρₐ, T,
 )
     FT = eltype(state)
-    (; particles, integration, dist) = state
+    (; particles, dist) = state
 
     # Particle size distributions
     n_c = DT.size_distribution(psd_c, L_c / ρₐ, ρₐ, N_c)  # n_c(Dₗ)
     n_r = DT.size_distribution(psd_r, L_r / ρₐ, ρₐ, N_r)  # n_r(Dₗ)
     n_i = DT.size_distribution(dist)                      # n_i(Dᵢ)
 
-    # Initialize integration buffers by evaluating a representative integral
-    p = FT(0.00001)
+    p = liquid_ice_collision_quantile(FT)
     ice_bounds = velocity_integral_bounds(particles, dist, ice_particle_terminal_velocity(vel, particles, ρₐ); p)
     bounds_c = CM2.get_size_distribution_bounds(psd_c, L_c / ρₐ, ρₐ, N_c, p)
     bounds_r = CM2.get_size_distribution_bounds(psd_r, L_r / ρₐ, ρₐ, N_r, p)
@@ -453,6 +496,16 @@ A tuple `(QCFRZ, QCSHD, NCCOL, QRFRZ, QRSHD, NRCOL, ∫M_col, BCCOL, BRCOL)`, wh
 
     return ∫liquid_ice_collisions(n_i, ∂ₜM_max, cloud_integrals, rain_integrals, ice_bounds, integration)
 end
+
+"""
+    liquid_ice_collision_quantile(FT)
+
+Return the quantile `p` of the size distributions at which the liquid-ice collision integrals are cut.
+
+The integrals extend from the quantile `p` to the quantile `1 - p` of the ice, cloud and rain size
+distributions, see [`integral_bounds`](@ref).
+"""
+liquid_ice_collision_quantile(::Type{FT}) where {FT} = FT(1e-5)
 
 """
     wet_growth_onset_diameters(cloud_integrals, rain_integrals, ∂ₜM_max, D_lo, D_hi)
