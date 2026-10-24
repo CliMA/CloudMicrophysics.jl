@@ -261,6 +261,45 @@ include("plots/linear_HOM_J.jl")
 ```
 ![](linear_HOM_J.svg)
 
+## Deposition Nucleation in the Two-Moment P3 Tendencies
+The two-moment P3 tendencies take deposition nucleation from two parameter choices of [`CloudMicrophysics.Parameters.P3IceParams`](@ref).
+The target spectrum, a subtype of [`CloudMicrophysics.Parameters.INPTargetSpectrum`](@ref) selected by the `ice_nucleation` keyword, sets the target concentration of ice nucleating particles (INPs), ``N_t(T)``, the conditions under which nucleation is active, and the rate ``k`` at which nucleation relaxes toward the target.
+The depletion model, selected by the `inp_depletion_model` keyword, sets the specific concentration of activated INPs, ``n_{act}``.
+The default depletion model, [`CloudMicrophysics.Parameters.NIceProxyDepletion`](@ref), takes ``n_{act} = n_{ice}``, the specific ice number of the cell.
+[`CloudMicrophysics.HetIceNucleation.deposition_rate`](@ref) creates crystals at the rates
+```math
+\begin{equation}
+  \partial_t n_{frz} = k \max\left(\frac{N_t(T)}{\rho} - n_{act}, 0\right), \qquad
+  \partial_t q_{frz} = m_{nuc} \, \partial_t n_{frz},
+\end{equation}
+```
+where ``m_{nuc}`` is the mass of a newly nucleated crystal, a solid ice sphere of the P3 diameter ``D_{nuc}``.
+
+### Frostenberg 2023 spectrum
+The default target spectrum, [`CloudMicrophysics.Parameters.Frostenberg2023`](@ref), takes the median of the climatology of [Frostenberg2023](@cite) as the target, ``N_t(T) = \exp(\mu(T))``, with ``\mu`` the mean log concentration of the [INP Concentration Frequency](@ref) section.
+Nucleation relaxes toward it on the timescale ``\tau`` of 300 s, ``k = 1 / \tau``, below ``T_{thr} = 258.15`` K at an ice supersaturation of at least ``S_{thr} = 0.05``.
+The mass rate is at most half the vapor excess over ice saturation per relaxation time, ``\partial_t q_{frz} \leq \max(q_v - q_{sat,ice}, 0) / (2 \tau)``.
+The same relaxation bounds the number rate of cloud droplet immersion freezing, through [`CloudMicrophysics.HetIceNucleation.immersion_limit_rate`](@ref).
+
+### Stochastic spectrum
+[`CloudMicrophysics.Parameters.StochasticINPSpectrum`](@ref) shifts the log concentration of a base spectrum by ``s``, with a ceiling ``N_{max}`` and a lowest temperature ``T_{min}``,
+```math
+\begin{equation}
+  N_t(T) = \min\left(\exp\left(\log N_{t,base}(T) + s\right), N_{max}\right).
+\end{equation}
+```
+Nucleation is active where the base spectrum is active and ``T \geq T_{min}``, at the relaxation rate of the base spectrum.
+On a Frostenberg 2023 base, the INP budget of immersion freezing uses the shifted target and is zero below ``T_{min}``.
+
+### New spectra and depletion models
+A new target spectrum is a callable that returns ``N_t(T)``, with methods of the two functions below.
+It may define an INP budget for immersion freezing, a method of [`CloudMicrophysics.HetIceNucleation.immersion_limit_rate`](@ref).
+A new depletion model defines a method of [`CloudMicrophysics.HetIceNucleation.n_active`](@ref).
+```@docs
+CloudMicrophysics.HetIceNucleation.is_active
+CloudMicrophysics.HetIceNucleation.delivery_rate
+```
+
 ## Water Activity Based vs P3 Ice Nucleation Parameterizations
 The water activity based models are compared with P3 ice nucleation parameterizations as described
   in [MorrisonMilbrandt2015](@cite) using an adiabatic parcel model with depositional growth. The
