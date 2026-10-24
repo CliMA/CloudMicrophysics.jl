@@ -107,6 +107,44 @@ balanced by the latent heat of fusion.
 From Eq (A7) in Musil (1970), [Musil1970](@cite).
 """
 function compute_max_freeze_rate(aps, tps, velocity_params, particles, ρₐ, Tₐ)
+    (; heat, denom, T_frz) = max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
+    v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
+    F_v = CO.ventilation_factor(particles.params.vent, aps, v_term)
+    function max_freeze_rate(Dᵢ)
+        # fallback values typed by the promotion of the node and the captured particles
+        # (mixed plain/Dual under differentiation)
+        FT = UT.promote_typeof(Dᵢ, heat, denom)
+        Tₐ ≥ T_frz && return zero(FT)  # No collisional freezing above the freezing temperature
+        denom > 0 || return floatmax(FT)
+        return 2 * (π * Dᵢ) * F_v(Dᵢ) * heat / denom
+    end
+    return max_freeze_rate
+end
+
+"""
+    max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
+
+Return the factors of the maximum freezing rate of [`compute_max_freeze_rate`](@ref) that do not depend on the particle.
+
+The maximum freezing rate of an ice particle of diameter `Dᵢ` is `2π Dᵢ F_v(Dᵢ) heat / denom`
+below the freezing temperature `T_frz` if `denom > 0`, and unbounded if `denom ≤ 0`.
+
+# Arguments
+- `aps`: [`CMP.AirProperties`](@ref)
+- `tps`: `TDP.ThermodynamicsParameters`
+- `ρₐ`: air density [kg/m³]
+- `Tₐ`: air temperature [K]
+
+# Returns
+A `NamedTuple` `(; heat, denom, T_frz)`, where:
+- `heat`: heat flux from the particle surface per unit capacity, by conduction and by vapor
+  diffusion [W/m]
+- `denom`: heat to remove per unit mass of collected liquid, which warms from `Tₐ` to the
+  surface temperature and freezes there [J/kg]; it is nonpositive for `T_frz - Tₐ ≥ L_f / cp_l
+  ≈ 80 K`, where every collected droplet freezes
+- `T_frz`: freezing temperature [K]
+"""
+@inline function max_freeze_rate_scalars(aps, tps, ρₐ, Tₐ)
     (; D_vapor, K_therm) = aps
     cp_l = TDI.cp_l(tps)
     T_frz = TDI.T_freeze(tps)
@@ -119,20 +157,9 @@ function compute_max_freeze_rate(aps, tps, velocity_params, particles, ρₐ, T�
             TDI.p2q(tps, Tₛ, ρₐ, TDI.saturation_vapor_pressure_over_ice(tps, Tₛ)) -
             TDI.p2q(tps, Tₐ, ρₐ, TDI.saturation_vapor_pressure_over_ice(tps, Tₐ))
         )
-    v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
-    F_v = CO.ventilation_factor(particles.params.vent, aps, v_term)
-    # Heat to remove per unit mass of collected liquid, which warms from Tₐ to Tₛ and freezes at Tₛ.
-    # It is nonpositive for ΔT ≥ L_f / cp_l ≈ 80 K, where every collected droplet freezes.
+    heat = K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat
     denom = L_f - cp_l * ΔT
-    function max_freeze_rate(Dᵢ)
-        # fallback values typed by the promotion of the node and the captured particles
-        # (mixed plain/Dual under differentiation)
-        FT = UT.promote_typeof(Dᵢ, ΔT, Δρᵥ_sat, denom)
-        Tₐ ≥ T_frz && return zero(FT)  # No collisional freezing above the freezing temperature
-        denom > 0 || return floatmax(FT)
-        return 2 * (π * Dᵢ) * F_v(Dᵢ) * (K_therm * ΔT + Lᵥ * D_vapor * Δρᵥ_sat) / denom
-    end
-    return max_freeze_rate
+    return (; heat, denom, T_frz)
 end
 
 """

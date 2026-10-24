@@ -18,7 +18,7 @@ $(FIELDS)
 struct P3Tables{G <: NamedTuple, R}
     "Table of each table group, a [`UniformTable`](@ref), with the keys of [`table_axes`](@ref)"
     groups::G
-    "Gauss-Legendre rule of the freeze and shed partition of the liquid-ice collisions"
+    "Gauss-Legendre rule of the freeze and shed partition over the wet set, see [`tabulated_wet_set`](@ref)"
     partition_rule::R
     "Hash of the parameters the tables were built from"
     fingerprint::UInt64
@@ -32,6 +32,13 @@ Adapt.@adapt_structure P3Tables
 Return the [`UniformTable`](@ref) of the table group `name` from the array `values` of the values of its point function at the points of `grid`, see [`table_axes`](@ref).
 """
 function group_table end
+
+"""
+    partition_rule(FT)
+
+Return the Gauss-Legendre rule of the freeze and shed partition over the wet set, see [`tabulated_wet_set`](@ref).
+"""
+partition_rule(::Type{FT}) where {FT} = GaussLegendre(FT, 8)
 
 """
     table_fingerprint(ice_params)

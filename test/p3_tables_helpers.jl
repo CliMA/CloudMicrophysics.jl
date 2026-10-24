@@ -119,6 +119,103 @@ function test_ice_table_accuracy(ice, tables; n_states, median, p99)
     end
 end
 
+# Seeded liquid-ice collision states between the grid points: the ice states of
+# `sample_ice_states_in_air`, cloud and rain contents and numbers, and temperatures from 235 to
+# 278 K
+function sample_collision_states(params, n)
+    rng = Random.Xoshiro(3)
+    return map(sample_ice_states_in_air(params, n)) do (logx̄, F_rim, ρ_rim, ρₐ)
+        ρn_ice = exp10(2 + 4 * rand(rng))
+        x̄_c = exp(log(5e-15) + log(5e4) * rand(rng))
+        N_c = exp10(7 + 2 * rand(rng))
+        (;
+            ρq_ice = exp(logx̄) * ρn_ice, ρn_ice, F_rim, ρ_rim, ρₐ,
+            L_c = x̄_c * N_c, N_c, L_r = exp10(-6 + 3 * rand(rng)), N_r = exp10(2 + 4 * rand(rng)),
+            T = 235 + 43 * rand(rng),
+        )
+    end
+end
+
+# The liquid-ice collision rates and the bulk tendencies of a state of `sample_collision_states`
+# under the integration `rule`
+function collision_rates(ice, rule, s)
+    FT = eltype(ice.scheme)
+    (; ρq_ice, ρn_ice, F_rim, ρ_rim, ρₐ, L_c, N_c, L_r, N_r, T) = map(FT, s)
+    st = P3.P3State(ice.scheme, rule, ρq_ice, ρn_ice, F_rim * ρq_ice, F_rim * ρq_ice / ρ_rim)
+    aps = CMP.AirProperties(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    ρw = ice.cloud_pdf.ρw
+    m_liq(D) = ρw * CO.volume_sphere_D(D)
+    (; cloud_pdf, rain_pdf, terminal_velocity) = ice
+    return (;
+        r = P3.∫liquid_ice_collisions(
+            cloud_pdf,
+            rain_pdf,
+            aps,
+            tps,
+            terminal_velocity,
+            m_liq,
+            st,
+            L_c,
+            N_c,
+            L_r,
+            N_r,
+            ρₐ,
+            T,
+        ),
+        b = P3.bulk_liquid_ice_collision_sources(
+            cloud_pdf,
+            rain_pdf,
+            aps,
+            tps,
+            terminal_velocity,
+            st,
+            L_c,
+            N_c,
+            L_r,
+            N_r,
+            ρₐ,
+            T,
+        ),
+    )
+end
+
+# The quantiles of the collision rates of the tables against the quadrature: relative errors of the
+# collected masses and numbers, of the frozen mass, of the rime volumes and of the ice tendencies;
+# errors of the frozen and shed mass of each species relative to the mass the species gives to the
+# ice, on the states that partly freeze; and absolute errors of the shed fraction
+function collision_error_quantiles(ice, tables, n_states)
+    states = sample_collision_states(CMP.ParametersP3(CP.create_toml_dict(Float64)), n_states)
+    reference = [collision_rates(ice, ice.integration, s) for s in states]
+    tabulated = [collision_rates(ice, tables, s) for s in states]
+    R, Tt = map(x -> x.r, reference), map(x -> x.r, tabulated)
+    relative(f) = error_quantiles(map(f, R), map(f, Tt))
+    partial = [i for i in eachindex(R) if R[i][2] + R[i][5] > 1e-3 * R[i][7] && R[i][1] + R[i][4] > 1e-3 * R[i][7]]
+    partition(k, total) = quantiles(abs(Tt[i][k] - R[i][k]) / total(R[i]) for i in partial)
+    shed(r) = (r[2] + r[5]) / r[7]
+    tendency(name) =
+        error_quantiles(getproperty.(map(x -> x.b, reference), name), getproperty.(map(x -> x.b, tabulated), name))
+    return (;
+        cloud_mass = relative(r -> r[1] + r[2]),
+        rain_mass = relative(r -> r[4] + r[5]),
+        cloud_number = relative(r -> r[3]),
+        rain_number = relative(r -> r[6]),
+        frozen_mass = relative(r -> r[1] + r[4]),
+        rime_volume = relative(r -> r[8] + r[9]),
+        cloud_rime_volume = relative(r -> r[8]),
+        rain_rime_volume = relative(r -> r[9]),
+        cloud_frozen = partition(1, r -> r[1] + r[2]),
+        cloud_shed = partition(2, r -> r[1] + r[2]),
+        rain_frozen = partition(4, r -> r[4] + r[5]),
+        rain_shed = partition(5, r -> r[4] + r[5]),
+        shed_fraction = quantiles(abs(shed(t) - shed(r)) for (r, t) in zip(R, Tt) if r[7] > 0),
+        ice_mass_tendency = tendency(:∂ₜL_ice),
+        rime_mass_tendency = tendency(:∂ₜL_rim),
+        rime_volume_tendency = tendency(:∂ₜB_rim),
+        n_partial = length(partial),
+    )
+end
+
 # The tables of the point functions `points`, a `NamedTuple` with keys of `P3.table_axes`, on `grid`
 function tables_of(ice, grid, points, partition_rule = nothing)
     FT = eltype(ice.scheme)
@@ -126,4 +223,31 @@ function tables_of(ice, grid, points, partition_rule = nothing)
     groups =
         map((name, f) -> P3.group_table(Val(name), P3.tabulate(f, axes[name]), grid, FT), keys(points), values(points))
     return P3.P3Tables(NamedTuple{keys(points)}(groups), partition_rule, P3.table_fingerprint(ice))
+end
+
+# The point functions of every table group with the rule `generator`
+function point_functions(ice, grid, generator)
+    (; scheme, terminal_velocity, cloud_pdf, rain_pdf) = ice
+    logR = Tuple(P3.axis_points(grid.rime_density.logR))
+    particle_logR = Tuple(P3.axis_points(grid.particle_rime_density.logR))
+    logits = Tuple(P3.axis_points(grid.wet_set.number_logit))
+    return (;
+        slope = P3.SlopePoint(scheme),
+        ice = P3.IcePoint(scheme, terminal_velocity, generator),
+        cloud_collision = P3.CollisionPoint(scheme, terminal_velocity, cloud_pdf, generator),
+        rain_collision = P3.CollisionPoint(scheme, terminal_velocity, rain_pdf, generator),
+        cloud_rime_density = P3.RimeDensityPoint(scheme, terminal_velocity, cloud_pdf, generator, logR),
+        rain_rime_density = P3.RimeDensityPoint(scheme, terminal_velocity, rain_pdf, generator, logR),
+        collision_bounds = P3.CollisionBoundsPoint(),
+        cloud_collected = P3.CollectedPoint(scheme, terminal_velocity, cloud_pdf, generator),
+        rain_collected = P3.CollectedPoint(scheme, terminal_velocity, rain_pdf, generator),
+        capacity = P3.CapacityPoint(scheme, terminal_velocity),
+        cloud_fraction = P3.FractionPoint(scheme, terminal_velocity, cloud_pdf, generator, logits),
+        rain_fraction = P3.FractionPoint(scheme, terminal_velocity, rain_pdf, generator, logits),
+        capacity_fraction = P3.CapacityFractionPoint(scheme, terminal_velocity, generator, logits),
+        cloud_particle_rime_density =
+        P3.ParticleRimeDensityPoint(scheme, terminal_velocity, cloud_pdf, generator, particle_logR),
+        rain_particle_rime_density =
+        P3.ParticleRimeDensityPoint(scheme, terminal_velocity, rain_pdf, generator, particle_logR),
+    )
 end

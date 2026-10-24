@@ -63,6 +63,7 @@ P3Scheme.collision_cross_section_ice_liquid
 P3Scheme.volumetric_collision_rate_integrand
 P3Scheme.VolumetricCollisionRate
 P3Scheme.compute_max_freeze_rate
+P3Scheme.max_freeze_rate_scalars
 P3Scheme.compute_local_rime_density
 P3Scheme.CollisionRimeDensity
 P3Scheme.rime_density_at
@@ -126,6 +127,7 @@ P3Scheme.liquid_mass_bounds
 P3Scheme.check_liquid_pdfs
 P3Scheme.ice_parameters
 P3Scheme.group_table
+P3Scheme.partition_rule
 P3Scheme.table_fingerprint
 ```
 
@@ -153,4 +155,48 @@ P3Scheme.node_self_collection
 P3Scheme.table_state
 P3Scheme.ice_table_key
 P3Scheme.tabulated_ice_integrals
+```
+
+### Liquid-ice tables
+
+`CollisionPoint` evaluates the collected number and mass of cloud or rain per unit ice number and per unit liquid number or mass, on the four ice axes and the liquid mean mass, without the freeze and shed partition.
+The local rime density depends on the temperature through the ratio `Rᵢ` of the impact scale to the temperature, so `RimeDensityPoint` evaluates the mean rime density on the log of that ratio at the mean impact scale.
+`tabulated_collection` reads the tables for a state, and `liquid_table_scales` gives the coordinate and the scales of a liquid species.
+
+```@docs
+P3Scheme.CollisionPoint
+P3Scheme.RimeDensityPoint
+P3Scheme.collection_integrals
+P3Scheme.particle_collection
+P3Scheme.impact_scale
+P3Scheme.table_liquid
+P3Scheme.reference_liquid
+P3Scheme.liquid_table_scales
+P3Scheme.table_log_temperature
+P3Scheme.tabulated_collection
+```
+
+### Wet-set tables
+
+As in the quadrature, each particle freezes the collected liquid up to its maximum freezing rate and sheds the rest, so the particles that shed form the wet set.
+`CollectedPoint` and `CapacityPoint` evaluate the collected mass and the ventilation moment of one particle, which locate the wet set, and `FractionPoint` and `CapacityFractionPoint` the fractions of the integrals below a diameter, which give the total frozen and shed mass.
+`ParticleRimeDensityPoint` evaluates the mean rime density of the mass one particle collects.
+`tabulated_wet_set` reads these tables, and divides the frozen and the shed mass between cloud and rain, and gives the rime volume of the frozen mass, by a quadrature over the diameters of the particles.
+
+```@docs
+P3Scheme.CollisionBoundsPoint
+P3Scheme.partition_logξ_bounds
+P3Scheme.CollectedPoint
+P3Scheme.ParticleRimeDensityPoint
+P3Scheme.CapacityPoint
+P3Scheme.FractionPoint
+P3Scheme.CapacityFractionPoint
+P3Scheme.cumulative_logits
+P3Scheme.number_logit
+P3Scheme.logistic_fractions
+P3Scheme.fraction_between
+P3Scheme.fixed_cells
+P3Scheme.tabulated_wet_set
+P3Scheme.collision_diameter_bounds
+P3Scheme.collision_logξ_lo
 ```
