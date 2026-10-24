@@ -113,9 +113,11 @@ function test_inverse_slope(FT, ice, tables)
 
     @testset "P3Tables type" begin
         @test eltype(tables) == FT
-        @test keys(groups) == (:slope,)
+        @test keys(groups) == (:slope, :ice)
         @test groups.slope isa P3.UniformTable{FT, 3, 1}
         @test size(groups.slope.data) == (1, 128, 16, 16)
+        @test groups.ice isa P3.UniformTable{FT, 4, 4}
+        @test size(groups.ice.data) == (4, values(TEST_ICE_AXES)...)
         @test tables.fingerprint == P3.table_fingerprint(ice)
         @test !isempty(sprint(show, MIME"text/plain"(), tables))
 
@@ -123,11 +125,12 @@ function test_inverse_slope(FT, ice, tables)
         mp = CMP.Microphysics2MParams(CP.create_toml_dict(FT); with_ice = true, integration = tables)
         mp_view = Adapt.adapt(ViewAdaptor(), mp)
         @test mp_view.ice.integration.groups.slope.data isa SubArray
+        @test mp_view.ice.integration.groups.ice.data isa SubArray
         @test mp_view.ice.integration.fingerprint == tables.fingerprint
         @test mp_view.ice.scheme == mp.ice.scheme
         st = P3.P3State(params, tables, FT(1e-4), FT(1e5), FT(3e-5), FT(1e-7))
         st_view = Adapt.adapt(ViewAdaptor(), st)
-        @test st_view.integration.groups.slope.data isa SubArray
+        @test st_view.integration.groups.ice.data isa SubArray
         @test st_view.dist == st.dist && st_view.particles == st.particles
         @test P3.P3State(params, mp_view.ice.integration, FT(1e-4), FT(1e5), FT(3e-5), FT(1e-7)).dist == st.dist
     end
@@ -192,12 +195,112 @@ function test_inverse_slope(FT, ice, tables)
     end
 end
 
+# The elasticities `∂ log y / ∂ log x` of the outputs `f(x)` at `x`, with zero for a zero output
+elasticities(f, x) = FD.jacobian(f, x) .* x' ./ map(y -> iszero(y) ? one(y) : y, f(x))
+
+function test_ice_tables(FT, ice, tables)
+    params = ice.scheme
+    vel = ice.terminal_velocity
+    aps = CMP.AirProperties(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    ρq_ice, ρn_ice, ρq_rim, ρb_rim, ρₐ, T = FT(1e-4), FT(1e5), FT(3e-5), FT(1e-7), FT(0.8), FT(275.15)
+
+    @testset "Ice tables against the quadrature" begin
+        test_ice_table_accuracy(ice, tables; n_states = 400, median = 0.01, p99 = 0.1)
+    end
+
+    @testset "Ice tables at the grid points" begin
+        axes = P3.P3TableGrid(ice; ice = TEST_ICE_AXES).ice
+        points = map(P3.axis_points, values(axes))
+        rtol = FT === Float64 ? 1e-10 : 1e-4
+        for (i, j, k, l) in ((1, 1, 1, 1), (20, 4, 2, 3), (40, 9, 5, 4), (63, 7, 3, 2))
+            logλ, w, ρ_rim, logρₐ = points[1][i], points[2][j], points[3][k], points[4][l]
+            st = P3.table_state(params, P3.GaussLegendre(Float64, 16), logλ, w, ρ_rim)
+            (M_v, self_collection, v_n, v_m) = exp.(P3.lookup(tables.groups.ice, FT.((logλ, w, ρ_rim, logρₐ))...))
+            @test M_v ≈ P3.ice_ventilation_moments(vel, st, exp(logρₐ)).M_v rtol = rtol
+            @test self_collection ≈ P3.ice_self_collection(vel, st, exp(logρₐ)).dNdt rtol = rtol
+            # The self-collection of the tables is the quadrature of `ice_self_collection`
+            @test P3.node_self_collection(vel, st.integration, st, exp(logρₐ)) ≈
+                  P3.ice_self_collection(vel, st, exp(logρₐ)).dNdt rtol = 1e-12
+            velocities = P3.ice_terminal_velocities(vel, st, exp(logρₐ))
+            @test v_n ≈ velocities.v_n rtol = rtol
+            @test v_m ≈ velocities.v_m rtol = rtol
+        end
+    end
+
+    @testset "Ventilation from its two moments" begin
+        st = P3.P3State(params, ice.integration, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+        (; M_1, M_v) = P3.ice_ventilation_moments(vel, st, ρₐ)
+        (a, b) = CO.ventilation_coefficients(params.vent, aps)
+        @test a * M_1 + b * M_v ≈ P3.ice_ventilation_integral(vel, aps, st, ρₐ) rtol = 10eps(FT)
+        # The first moment in closed form
+        (; ρn, μ, logλ) = st.dist
+        @test M_1 ≈ ρn * (μ + 1) * exp(-logλ) rtol = FT === Float64 ? 1e-5 : 1e-4
+    end
+
+    @testset "Absent ice gives zero under tables" begin
+        for (q, n) in ((FT(0), ρn_ice), (ρq_ice, FT(0)), (FT(0), FT(0)))
+            st = P3.P3State(params, tables, q, n, FT(0), FT(0))
+            @test P3.ice_terminal_velocities(vel, st, ρₐ) == (; v_n = 0, v_m = 0)
+            @test P3.ice_self_collection(vel, st, ρₐ).dNdt == 0
+            @test P3.ice_ventilation_moments(vel, st, ρₐ) == (; M_1 = 0, M_v = 0)
+            @test P3.ice_melt(vel, aps, tps, st, ρₐ, T) == (; dNdt = 0, dLdt = 0)
+        end
+    end
+
+    @testset "The table path evaluates no quadrature node" begin
+        throwing =
+            (; small_ice = ThrowingVelocity(vel.small_ice.cutoff), large_ice = ThrowingVelocity(vel.large_ice.cutoff))
+        sq = P3.P3State(params, ice.integration, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+        @test_throws Exception P3.ice_terminal_velocities(throwing, sq, ρₐ)
+        st = P3.P3State(params, tables, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+        @test P3.ice_terminal_velocities(throwing, st, ρₐ) == P3.ice_terminal_velocities(vel, st, ρₐ)
+        @test P3.ice_self_collection(throwing, st, ρₐ) == P3.ice_self_collection(vel, st, ρₐ)
+        @test P3.ice_ventilation_moments(throwing, st, ρₐ) == P3.ice_ventilation_moments(vel, st, ρₐ)
+        @test P3.ice_melt(throwing, aps, tps, st, ρₐ, T) == P3.ice_melt(vel, aps, tps, st, ρₐ, T)
+    end
+
+    @testset "Inference and allocations under tables" begin
+        st = P3.P3State(params, tables, ρq_ice, ρn_ice, ρq_rim, ρb_rim)
+        @test (@inferred P3.ice_terminal_velocities(vel, st, ρₐ)) isa @NamedTuple{v_n::FT, v_m::FT}
+        @test (@inferred P3.ice_self_collection(vel, st, ρₐ)).dNdt isa FT
+        @test (@inferred P3.ice_ventilation_integral(vel, aps, st, ρₐ)) isa FT
+        @test (@inferred P3.ice_melt(vel, aps, tps, st, ρₐ, T)).dLdt isa FT
+        @test (BT.@ballocated P3.ice_terminal_velocities($vel, $st, $ρₐ) samples = 1 evals = 1) == 0
+        @test (BT.@ballocated P3.ice_self_collection($vel, $st, $ρₐ) samples = 1 evals = 1) == 0
+        @test (BT.@ballocated P3.ice_melt($vel, $aps, $tps, $st, $ρₐ, $T) samples = 1 evals = 1) == 0
+    end
+
+    @testset "Derivatives of the ice integrals under tables" begin
+        # x = (ρq_ice, ρn_ice, ρq_rim, ρb_rim, ρₐ); the slope is held under both rules, and the tables
+        # give the derivatives along the rime and air density axes by the interpolation
+        x = [ρq_ice, ρn_ice, ρq_rim, ρb_rim, ρₐ]
+        integrals(rule) =
+            x -> begin
+                st = P3.P3State(params, rule, x[1:4]...)
+                [
+                    P3.ice_terminal_velocities(vel, st, x[5]).v_m,
+                    P3.ice_self_collection(vel, st, x[5]).dNdt,
+                    P3.ice_melt(vel, aps, tps, st, x[5], T).dLdt,
+                ]
+            end
+        E_tab = elasticities(integrals(tables), x)
+        E_quad = elasticities(integrals(ice.integration), x)
+        @test all(isfinite, E_tab)
+        @test E_tab[:, 2] ≈ [0, 2, 0] atol = 10eps(FT)
+        @test maximum(abs, E_tab - E_quad) < 0.1
+    end
+end
+
 @testset "P3 tables ($FT)" for FT in (Float64, Float32)
     test_uniform_table(FT)
     test_table_grid(FT)
     ice = CMP.P3IceParams(CP.create_toml_dict(FT))
     grid = P3.P3TableGrid(ice; TEST_GRID...)
-    tables = tables_of(ice, grid, (; slope = P3.SlopePoint(ice.scheme)))
+    generator = P3.GaussLegendre(Float64, 16)
+    points = (; slope = P3.SlopePoint(ice.scheme), ice = P3.IcePoint(ice.scheme, ice.terminal_velocity, generator))
+    tables = tables_of(ice, grid, points)
     test_inverse_slope(FT, ice, tables)
+    test_ice_tables(FT, ice, tables)
 end
 nothing

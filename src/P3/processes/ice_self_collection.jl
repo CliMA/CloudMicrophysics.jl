@@ -7,7 +7,9 @@ Self-collection decreases the ice number concentration and leaves mass, rime mas
 unchanged.
 
 The method of `ice_self_collection(vel, integration, state, ρₐ)` for the type of
-`state.integration` evaluates the collision integral.
+`state.integration` evaluates the collision integral. For [`P3Tables`](@ref), the rate per unit
+number squared is read from the tables, which hold it for the terminal velocity the tables were
+built with, so `vel` is not used.
 
 # Arguments
 - `vel`: the velocity parameterization, e.g. [`CMP.Chen2022VelType`](@ref)

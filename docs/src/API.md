@@ -389,6 +389,7 @@ Common.Chen2022_exponential_pdf
 Common.volume_sphere_D
 Common.volume_sphere_R
 Common.ventilation_factor
+Common.ventilation_coefficients
 Common.KK2000_autoconversion
 Common.KK2000_accretion
 ```

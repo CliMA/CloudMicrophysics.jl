@@ -44,9 +44,11 @@ P3Scheme.logλ_bounds
 ## Ventilation
 
 [`P3Scheme.ice_melt`](@ref) reads the ventilation integral of the size distribution from `ice_ventilation_integral`.
+The integral separates into two moments of the distribution, `ice_ventilation_moments`, which do not depend on the air properties.
 
 ```@docs
 P3Scheme.ice_ventilation_integral
+P3Scheme.ice_ventilation_moments
 ```
 
 ## Liquid-ice collisions
@@ -137,4 +139,18 @@ P3Scheme.SlopePoint
 P3Scheme.tabulated_distribution_logλ
 P3Scheme.bilinear_column
 P3Scheme.bisection_steps
+```
+
+### Ice tables
+
+`IcePoint` evaluates the ventilation moment `M_v`, the self-collection rate and the mean fall speeds per unit number, on `logλ`, the rime coordinate, the rime density and the log air density.
+`node_self_collection` evaluates the self-collection rate with the node values of each subinterval evaluated once.
+`table_state` gives the state at a grid point, `ice_table_key` the coordinates of a state, and `tabulated_ice_integrals` reads the table.
+
+```@docs
+P3Scheme.IcePoint
+P3Scheme.node_self_collection
+P3Scheme.table_state
+P3Scheme.ice_table_key
+P3Scheme.tabulated_ice_integrals
 ```

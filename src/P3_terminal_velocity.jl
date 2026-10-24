@@ -81,7 +81,9 @@ Both are zero without ice number. The method of
 
 for the type of `state.integration` evaluates the integrals. For a `QuadratureRule`, all four
 integrals come from one quadrature over the size distribution, so each velocity is a weighted
-mean of `v(D)` over the quadrature nodes.
+mean of `v(D)` over the quadrature nodes. For [`P3Tables`](@ref), the velocities are read from
+the tables, which hold them for the terminal velocity the tables were built with, so
+`velocity_params` and `p` are not used.
 
 # Arguments
 - `velocity_params`: [`CMP.Chen2022VelType`](@ref)
