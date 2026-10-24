@@ -113,6 +113,75 @@ function test_table_grid(FT)
     end
 end
 
+function test_table_construction(FT, ice, tables)
+    grid = P3.P3TableGrid(ice; TEST_GRID...)
+    points = P3.table_point_functions(ice, grid)
+    axes = P3.table_axes(grid)
+
+    @testset "Point functions of the table groups" begin
+        @test keys(points) == keys(axes)
+        for (f, a) in zip(points, axes)
+            x_first = P3.grid_point(a, CartesianIndex(map(_ -> 1, a)))
+            x_last = P3.grid_point(a, CartesianIndex(map(ax -> ax.n, a)))
+            @test isbits(f)
+            @test (BT.@ballocated $f($x_first) samples = 1 evals = 1) == 0
+            @test (@inferred f(x_last)) isa Union{Float64, P3.SA.SVector{<:Any, Float64}}
+        end
+        # The inner axes of the point functions
+        x = P3.grid_point(axes.cloud_rime_density, CartesianIndex(1, 1, 1, 1, 1))
+        @test length(points.cloud_rime_density(x)) == TEST_GRID.rime_density.logR
+        x = P3.grid_point(axes.capacity_fraction, CartesianIndex(1, 1, 1, 1))
+        @test length(points.capacity_fraction(x)) == TEST_GRID.wet_set.number_logit
+    end
+
+    @testset "Tables from the point functions" begin
+        # A host maps the point functions itself and assembles the values
+        values = map(P3.tabulate, points, axes)
+        ice_tab = P3.with_tables(ice, grid, values)
+        @test ice_tab.integration.groups.slope.data == tables.groups.slope.data
+        @test ice_tab.integration.groups.ice.data == tables.groups.ice.data
+        @test ice_tab.integration.groups.capacity_fraction.data == tables.groups.capacity_fraction.data
+        @test P3.tables_are_current(ice_tab)
+        @test ice_tab.terminal_velocity == ice.terminal_velocity && ice_tab.scheme == ice.scheme
+        # Parameters for the whole scheme
+        mp = CMP.Microphysics2MParams(CP.create_toml_dict(FT); with_ice = true)
+        mp_tab = P3.with_tables(mp, grid, values)
+        @test mp_tab.ice.integration isa P3.P3Tables
+        @test mp_tab.warm_rain == mp.warm_rain
+        @test P3.tables_are_current(mp_tab) && P3.tables_are_current(mp)
+        @test P3.tables_are_current(CMP.Microphysics2MParams(CP.create_toml_dict(FT)))
+        @test_throws ArgumentError P3.with_tables(CMP.Microphysics2MParams(CP.create_toml_dict(FT)))
+        # Every group fills its table
+        @test_throws ArgumentError P3.with_tables(ice, grid, Base.structdiff(values, (; capacity = nothing)))
+        @test_throws DimensionMismatch P3.with_tables(ice, grid, (; values..., slope = values.slope[1:(end - 1), :, :]))
+        @test_throws ArgumentError P3.table_point_functions(
+            CMP.P3IceParams(CP.create_toml_dict(FT); is_limited = false),
+            grid,
+        )
+    end
+
+    @testset "Tables of other parameters" begin
+        # The constructors from a parameter dictionary accept only tables built from their parameters
+        toml = CP.create_toml_dict(FT)
+        @test CMP.P3IceParams(toml; integration = tables).integration === tables
+        @test CMP.Microphysics2MParams(toml; with_ice = true, integration = tables).ice.integration === tables
+        @test_throws ArgumentError CMP.P3IceParams(toml; is_limited = false, integration = tables)
+        @test_throws ArgumentError CMP.Microphysics2MParams(
+            toml;
+            with_ice = true,
+            is_limited = false,
+            integration = tables,
+        )
+        @test_throws ArgumentError CMP.P3IceParams(
+            CP.create_toml_dict(Float64 === FT ? Float32 : Float64);
+            integration = tables,
+        )
+        # A copy of other parameters with the tables is not current
+        not_limited = CMP.P3IceParams(toml; is_limited = false)
+        @test !P3.tables_are_current(P3.with_integration(not_limited, tables))
+    end
+end
+
 function test_inverse_slope(FT, ice, tables)
     params = ice.scheme
     params64 = CMP.ParametersP3(CP.create_toml_dict(Float64))
@@ -473,23 +542,9 @@ function test_liquid_ice_tables(FT, ice, tables)
         @test all(abs.(E_tab[5:6, :] - E_quad[5:6, :]) .≤ 0.05 .+ 0.2 .* abs.(E_quad[5:6, :]))
     end
 
-    @testset "Point functions of the table groups" begin
-        grid = P3.P3TableGrid(ice; TEST_GRID...)
-        points = point_functions(ice, grid, P3.GaussLegendre(Float64, 16))
-        axes = P3.table_axes(grid)
-        @test keys(points) == keys(axes)
-        for (f, a) in zip(points, axes)
-            x_first = P3.grid_point(a, CartesianIndex(map(_ -> 1, a)))
-            x_last = P3.grid_point(a, CartesianIndex(map(ax -> ax.n, a)))
-            @test isbits(f)
-            @test (BT.@ballocated $f($x_first) samples = 1 evals = 1) == 0
-            @test (@inferred f(x_last)) isa Union{Float64, P3.SA.SVector{<:Any, Float64}}
-        end
-        # The inner axes of the point functions
-        x = P3.grid_point(axes.cloud_rime_density, CartesianIndex(1, 1, 1, 1, 1))
-        @test length(points.cloud_rime_density(x)) == TEST_GRID.rime_density.logR
-        x = P3.grid_point(axes.capacity_fraction, CartesianIndex(1, 1, 1, 1))
-        @test length(points.capacity_fraction(x)) == TEST_GRID.wet_set.number_logit
+    @testset "Unsupported liquid size distributions" begin
+        not_limited = CMP.P3IceParams(CP.create_toml_dict(FT); is_limited = false)
+        @test_throws ArgumentError P3.with_tables(not_limited; grid = P3.P3TableGrid(ice; TEST_GRID...))
     end
 end
 
@@ -497,8 +552,8 @@ end
     test_uniform_table(FT)
     test_table_grid(FT)
     ice = CMP.P3IceParams(CP.create_toml_dict(FT))
-    grid = P3.P3TableGrid(ice; TEST_GRID...)
-    tables = tables_of(ice, grid, point_functions(ice, grid, P3.GaussLegendre(Float64, 16)), P3.partition_rule(FT))
+    tables = P3.with_tables(ice; grid = P3.P3TableGrid(ice; TEST_GRID...)).integration
+    test_table_construction(FT, ice, tables)
     test_inverse_slope(FT, ice, tables)
     test_ice_tables(FT, ice, tables)
     test_liquid_ice_tables(FT, ice, tables)

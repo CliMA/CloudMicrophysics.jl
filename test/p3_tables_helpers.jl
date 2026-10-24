@@ -215,39 +215,3 @@ function collision_error_quantiles(ice, tables, n_states)
         n_partial = length(partial),
     )
 end
-
-# The tables of the point functions `points`, a `NamedTuple` with keys of `P3.table_axes`, on `grid`
-function tables_of(ice, grid, points, partition_rule = nothing)
-    FT = eltype(ice.scheme)
-    axes = P3.table_axes(grid)
-    groups =
-        map((name, f) -> P3.group_table(Val(name), P3.tabulate(f, axes[name]), grid, FT), keys(points), values(points))
-    return P3.P3Tables(NamedTuple{keys(points)}(groups), partition_rule, P3.table_fingerprint(ice))
-end
-
-# The point functions of every table group with the rule `generator`
-function point_functions(ice, grid, generator)
-    (; scheme, terminal_velocity, cloud_pdf, rain_pdf) = ice
-    logR = Tuple(P3.axis_points(grid.rime_density.logR))
-    particle_logR = Tuple(P3.axis_points(grid.particle_rime_density.logR))
-    logits = Tuple(P3.axis_points(grid.wet_set.number_logit))
-    return (;
-        slope = P3.SlopePoint(scheme),
-        ice = P3.IcePoint(scheme, terminal_velocity, generator),
-        cloud_collision = P3.CollisionPoint(scheme, terminal_velocity, cloud_pdf, generator),
-        rain_collision = P3.CollisionPoint(scheme, terminal_velocity, rain_pdf, generator),
-        cloud_rime_density = P3.RimeDensityPoint(scheme, terminal_velocity, cloud_pdf, generator, logR),
-        rain_rime_density = P3.RimeDensityPoint(scheme, terminal_velocity, rain_pdf, generator, logR),
-        collision_bounds = P3.CollisionBoundsPoint(),
-        cloud_collected = P3.CollectedPoint(scheme, terminal_velocity, cloud_pdf, generator),
-        rain_collected = P3.CollectedPoint(scheme, terminal_velocity, rain_pdf, generator),
-        capacity = P3.CapacityPoint(scheme, terminal_velocity),
-        cloud_fraction = P3.FractionPoint(scheme, terminal_velocity, cloud_pdf, generator, logits),
-        rain_fraction = P3.FractionPoint(scheme, terminal_velocity, rain_pdf, generator, logits),
-        capacity_fraction = P3.CapacityFractionPoint(scheme, terminal_velocity, generator, logits),
-        cloud_particle_rime_density =
-        P3.ParticleRimeDensityPoint(scheme, terminal_velocity, cloud_pdf, generator, particle_logR),
-        rain_particle_rime_density =
-        P3.ParticleRimeDensityPoint(scheme, terminal_velocity, rain_pdf, generator, particle_logR),
-    )
-end

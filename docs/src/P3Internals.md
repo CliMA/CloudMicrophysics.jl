@@ -97,10 +97,6 @@ A component that scales as a power of the coordinates is stored as its logarithm
 The rime axes use the coordinate `rime_coordinate`, `integral_logλ_bounds` gives the slopes of the integral tables, and `liquid_mass_bounds` the liquid mean-mass axes of the supported size distributions.
 
 ```@docs
-P3Scheme.P3Tables
-P3Scheme.P3TableGrid
-P3Scheme.table_axes
-P3Scheme.tabulate
 P3Scheme.TableAxis
 P3Scheme.axis_point
 P3Scheme.axis_points
@@ -127,6 +123,8 @@ P3Scheme.liquid_mass_bounds
 P3Scheme.check_liquid_pdfs
 P3Scheme.ice_parameters
 P3Scheme.group_table
+P3Scheme.assemble_tables
+P3Scheme.with_integration
 P3Scheme.partition_rule
 P3Scheme.table_fingerprint
 ```
