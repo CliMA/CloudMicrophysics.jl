@@ -230,6 +230,56 @@ function Frostenberg2023(td::CP.ParamDict)
     return Frostenberg2023(; parameters...)
 end
 
+export ExponentialSupercoolingINP
+
+"""
+    ExponentialSupercoolingINP{FT}
+
+An ice nucleating particle spectrum that is exponential in supercooling, with a ceiling:
+
+```math
+N_t(T) = \\min\\big(a \\exp(b (T_0 - T)),\\ N_{max}\\big)
+```
+
+The default values are those of Cooper (1986) in the form of Thompson et al. (2004), used by Morrison and
+Milbrandt (2015), appendix C(a). Deposition nucleation is active where the air is colder than `T_thr` and its ice
+supersaturation is at least `S_thr`. The ceiling `N_max` and the activation conditions follow the P3 reference
+implementation.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct ExponentialSupercoolingINP{FT} <: INPTargetSpectrum
+    "prefactor [m⁻³]"
+    a::FT
+    "exponent coefficient [K⁻¹]"
+    b::FT
+    "reference (freezing) temperature [K]"
+    T₀::FT
+    "ceiling on the target concentration [m⁻³]"
+    N_max::FT
+    "temperature below which deposition nucleation is active [K]"
+    T_thr::FT
+    "ice supersaturation at and above which deposition nucleation is active [-]"
+    S_thr::FT
+end
+
+function ExponentialSupercoolingINP(td::CP.ParamDict)
+    name_map = (;
+        :P3_cooper_deposition_prefactor => :a,
+        :P3_cooper_deposition_exponent_coefficient => :b,
+        :temperature_water_freeze => :T₀,
+        :P3_cooper_deposition_max_concentration => :N_max,
+        :P3_cooper_deposition_temperature_threshold => :T_thr,
+        :P3_cooper_deposition_ice_supersaturation_threshold => :S_thr,
+    )
+    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    return ExponentialSupercoolingINP(; parameters...)
+end
+
+ShowMethods.field_units(::ExponentialSupercoolingINP) =
+    (; a = "m⁻³", b = "K⁻¹", T₀ = "K", N_max = "m⁻³", T_thr = "K", S_thr = "-")
+
 export StochasticINPSpectrum
 
 """
