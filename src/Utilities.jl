@@ -41,9 +41,10 @@ The type is concrete for a type-stable `f`, which every integrand must be.
 
 Find up to `max_roots` zeros of `f` in `[x_lo, x_hi]`, in ascending order.
 
-`f` is evaluated at `n_scan + 1` evenly spaced points, and each sign change between adjacent points is
-refined by `RootSolvers.find_zero` with the two-point `method`, which starts from the residuals of the scan.
-A scan point at which `f` is zero is a zero. Two zeros between adjacent points are missed.
+`f` is evaluated at `n_scan + 1` evenly spaced points, and the first `max_roots` sign changes between
+adjacent points are recorded. After the scan, each recorded sign change is refined by
+`RootSolvers.find_zero` with the two-point `method`, which starts from the residuals of the scan. A
+scan point at which `f` is zero is a zero. Two zeros between adjacent points are missed.
 
 # Arguments
 - `f`: function of one argument
@@ -54,27 +55,36 @@ A scan point at which `f` is zero is a zero. Two zeros between adjacent points a
 - `tol`, `maxiters`: tolerance and iteration limit of `RootSolvers.find_zero`
 
 # Returns
-- `(; roots, n_found)`: an `NTuple{max_roots}` of the zeros, with `x_lo` in place of each zero not found,
-  and the number of zeros found
+- `(; roots, n_found, f_lo)`: an `NTuple{max_roots}` of the zeros, with `x_lo` in place of each zero not
+  found, the number of zeros found, and `f(x_lo)`
 """
 function find_zeros(
     f::F, ::Type{M}, x_lo, x_hi, ::Val{n_scan}, ::Val{max_roots}, tol, maxiters,
 ) where {F, M, n_scan, max_roots}
     Δx = (x_hi - x_lo) / n_scan
-    roots = ntuple(_ -> x_lo, Val(max_roots))
+    f_lo = f(x_lo)
+    # Each bracket is `(x_a, x_b, f(x_a), f(x_b))`, with `x_a = x_b = x_lo` for a zero not found
+    brackets = ntuple(_ -> (x_lo, x_lo, f_lo, f_lo), Val(max_roots))
+    exact = ntuple(_ -> false, Val(max_roots))
     n_found = 0
-    x_prev, y_prev = x_lo, f(x_lo)
+    x_prev, y_prev = x_lo, f_lo
     for i in 1:n_scan
         x = x_lo + i * Δx
         y = f(x)
-        if (iszero(y) || y * y_prev < 0) && n_found < max_roots
-            root = iszero(y) ? x : RS.find_zero(f, M, x_prev, x, y_prev, y, RS.CompactSolution(), tol, maxiters).root
-            n_found += 1
-            roots = _replace_entry(roots, root, n_found)
-        end
+        record = (iszero(y) | (y * y_prev < 0)) & (n_found < max_roots)
+        # No entry has the index 0, so an unrecorded point changes no bracket
+        k = ifelse(record, n_found + 1, 0)
+        brackets = _replace_entry(brackets, (x_prev, x, y_prev, y), k)
+        exact = _replace_entry(exact, iszero(y), k)
+        n_found += record
         x_prev, y_prev = x, y
     end
-    return (; roots, n_found)
+    found = ntuple(identity, Val(max_roots)) .≤ n_found
+    roots = map(brackets, exact, found) do (x_a, x_b, y_a, y_b), at_point, is_found
+        root = RS.find_zero(f, M, x_a, x_b, y_a, y_b, RS.CompactSolution(), tol, maxiters).root
+        return ifelse(is_found, ifelse(at_point, x_b, root), x_lo)
+    end
+    return (; roots, n_found, f_lo)
 end
 
 # The tuple `t` with entry `i` replaced by `v`, without the bounds check of `Base.setindex`

@@ -9,6 +9,7 @@ using DocStringExtensions
 
 import ClimaParams as CP
 import SpecialFunctions as SF
+import Adapt
 import CloudMicrophysics: ShowMethods
 import CloudMicrophysics.Quadrature  # bind the module name (docstring @refs resolve here)
 import CloudMicrophysics.Quadrature as QUAD
