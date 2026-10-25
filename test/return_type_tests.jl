@@ -82,16 +82,12 @@ end
     )
     @test concrete_for_all_mixes(P3.loggamma_inc_moment, (), 4)
     # P3 aspect ratio: plain state with Dual D and vice versa
-    st = P3.state_from_prognostic(mp.ice.scheme, FT64(1e-4), FT64(1e4), FT64(2e-5), FT64(4e-8))
-    @test concrete_for_all_mixes(P3.ϕᵢ, (P(st),), 1)
+    st = P3.P3State(mp.ice.scheme, P3.GaussLegendre(FT64, 12), FT64(1e-4), FT64(1e4), FT64(2e-5), FT64(4e-8))
+    @test concrete_for_all_mixes(P3.ϕᵢ, (P(st.particles),), 1)
     # ice terminal velocities: plain state, Dual ρₐ (fallback previously typed
-    # off the state alone). Keyword wrapper -> probe the positional core.
-    _glq = P3.GaussLegendre(FT64, 12)
-    for f in (P3.ice_terminal_velocity_number_weighted, P3.ice_terminal_velocity_mass_weighted)
-        g = (vp, ρ, s, l) -> f(vp, ρ, s, l; quad = _glq)
-        rts = Base.return_types(g, Tuple{P(mp.ice.terminal_velocity), D8, P(st), FT64})
-        @test all(isconcretetype, rts)
-    end
+    # off the state alone).
+    rts = Base.return_types(P3.ice_terminal_velocities, Tuple{P(mp.ice.terminal_velocity), P(st), D8})
+    @test all(isconcretetype, rts)
 
     # LclRaiRates: mixed-type construction promotes instead of MethodError
     r = CM2.LclRaiRates(D8(1.0), 0.0, D8(2.0), 0.0)

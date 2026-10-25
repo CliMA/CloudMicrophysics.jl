@@ -125,8 +125,10 @@ end
 """
     SmoothSlopePowerLaw{FT}
 
-Slope parameter μ as a power law in slope λ, identical to [`SlopePowerLaw`](@ref)
-but with the `0 ≤ μ ≤ μ_max` limiters applied as smooth transitions of sharpness `κ`:
+Slope parameter μ as a power law in slope λ, with smooth limiters.
+
+It is identical to [`SlopePowerLaw`](@ref) but with the `0 ≤ μ ≤ μ_max` limiters applied as smooth
+transitions of sharpness `κ`:
 
 ```math
 μ(λ) = M_{μ_{max}}\\big(M_0(a λ^b - c)\\big)
@@ -227,8 +229,7 @@ end
     LocalRimeDensity{FT}
     (ρ′_rim::LocalRimeDensity)(Rᵢ)
 
-Local rime density parameterization based on Cober and List (1993) [CoberList1993](@cite),
-Eq. 16 and 17.
+Local rime density parameterization of Cober and List (1993) [CoberList1993](@cite), Eq. 16 and 17.
 
 Given an instance `ρ′_rim::LocalRimeDensity`, obtain the local rime density
 for a given Rᵢ [μm m s⁻¹ °C⁻¹] by calling `ρ′_rim(Rᵢ)`.
@@ -289,9 +290,10 @@ end
 """
     AspectRatio
 
-Aspect-ratio treatment for the ice terminal-velocity correction. Each subtype
-is a functor `(state, D)` returning the multiplicative velocity factor:
-`Oblate` returns `cbrt(ϕᵢ(state, D))`, `NoAspectRatio` returns `1`.
+Aspect-ratio treatment for the ice terminal-velocity correction.
+
+Each subtype is a functor `(particles, D)` returning the multiplicative velocity factor:
+`Oblate` returns `cbrt(ϕᵢ(particles, D))`, `NoAspectRatio` returns `1`.
 The functor methods are defined in `P3Scheme`, where `ϕᵢ` is available.
 """
 abstract type AspectRatio end
@@ -327,6 +329,8 @@ $(DocStringExtensions.FIELDS)
     τ_wet::FT
     "Diameter of a newly nucleated ice crystal [`m`]"
     D_nuc::FT
+    "Largest mean ice particle mass [`kg`]"
+    m_max::FT
     "Cloud ice density [`kg m⁻³`]"
     ρ_i::FT
     "Cloud liquid water density [`kg m⁻³`]"
@@ -356,6 +360,7 @@ function ParametersP3(toml_dict::CP.ParamDict; opts...)
             :temperature_water_freeze => :T_freeze,
             :P3_wet_growth_timescale => :τ_wet,
             :P3_ice_nucleation_diameter => :D_nuc,
+            :P3_ice_largest_mean_particle_mass => :m_max,
         ), "CloudMicrophysics")
     return ParametersP3(;
         mass = MassPowerLaw(toml_dict),
@@ -380,4 +385,4 @@ ShowMethods.field_units(::SlopePowerLaw) = (; a = "m^b")
 ShowMethods.field_units(::SmoothSlopePowerLaw) = (; a = "m^b")
 ShowMethods.field_units(::LocalRimeDensity) = (; ρ_ice = "kg m⁻³")
 ShowMethods.field_units(::ParametersP3) =
-    (; τ_wet = "s", D_nuc = "m", ρ_i = "kg m⁻³", ρ_l = "kg m⁻³", T_freeze = "K")
+    (; τ_wet = "s", D_nuc = "m", m_max = "kg", ρ_i = "kg m⁻³", ρ_l = "kg m⁻³", T_freeze = "K")

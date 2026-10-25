@@ -160,6 +160,25 @@ function run_type_stability_tests()
                 @test getproperty(val1_vd, k) isa FT
             end
 
+            # --- 1-Moment (KK2000 autoconversion and accretion, prescribed droplet number) ---
+            mp1_kk = CMP.Microphysics1MParams(FT;
+                rain_autoconversion = CMP.KK2000Autoconversion(),
+                cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
+            )
+            tendencies_1M_kk =
+                BMT.bulk_microphysics_tendencies.(
+                    Ref(BMT.Instantaneous()),
+                    Ref(BMT.Microphysics1Moment()),
+                    Ref(mp1_kk),
+                    Ref(tps),
+                    ρ, T, w_vd, q_tot, q_lcl, q_icl, q_rai, q_sno,
+                )
+            @test tendencies_1M_kk isa Vector
+            val1_kk = tendencies_1M_kk[1]
+            for k in keys(val1_kk)
+                @test getproperty(val1_kk, k) isa FT
+            end
+
             # --- 2-Moment (Warm Rain) ---
             # --- 2-Moment (Warm Rain) ---
             mp2_warm = CMP.Microphysics2MParams(FT; with_ice = false)
@@ -187,7 +206,6 @@ function run_type_stability_tests()
             n_ice = fill(FT(1e5), N)
             q_rim = fill(FT(1e-5), N)
             b_rim = fill(FT(1e-7), N)
-            logλ = fill(FT(0), N) # Not used if ice=0, but we test ice path
 
             tendencies_2M_p3 =
                 BMT.bulk_microphysics_tendencies.(
@@ -195,7 +213,7 @@ function run_type_stability_tests()
                     Ref(mp2_p3),
                     Ref(tps),
                     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
-                    q_ice, n_ice, q_rim, b_rim, logλ,
+                    q_ice, n_ice, q_rim, b_rim,
                 )
 
             @test tendencies_2M_p3 isa Vector

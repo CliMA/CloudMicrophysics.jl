@@ -562,7 +562,7 @@ The default free parameter values are:
     and mass using both the exact and approximated gamma function
 
 ```@example
-include("plots/RainEvapoartionSB2006.jl")
+include("plots/RainEvaporationSB2006.jl")
 ```
 ![](SB2006_rain_evaporation.svg)
 
@@ -703,22 +703,28 @@ From the above works:
 
 ``` math
 \begin{equation}
-  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} = A \; q_{lcl}^a \; N_d^b \; \rho^c
+  \left. \frac{d \, q_{rai}}{dt} \right|_{acnv} =
+    A \; q_{lcl}^a \; \left( \frac{N_d}{N_{ref}} \right)^b \; \left( \frac{\rho}{\rho_{ref}} \right)^c
 \end{equation}
 ```
 where:
   - ``q_{lcl}`` is the cloud liquid water specific content,
-  - ``N_d`` is the cloud droplet concentration,
+  - ``N_d`` is the cloud droplet number concentration [m``^{-3}``],
   - ``\rho`` is the air density,
+  - ``N_{ref}`` and ``\rho_{ref}`` are reference values that make the fractional powers
+    dimensionless; ``N_{ref} = 1`` cm``^{-3}`` is the unit of ``N_d`` in the original fit,
+    so that ``A`` is the coefficient published by [KhairoutdinovKogan2000](@cite),
 
 and the default free parameter values are:
 
-|   symbol   | default value             |
-|------------|---------------------------|
-|``A``       | ``7.42 \times 10^{13} ``  |
-|``a``       | ``2.47``                  |
-|``b``       | ``-1.79``                 |
-|``c``       | ``-1.47``                 |
+|   symbol       | default value             |
+|----------------|---------------------------|
+|``A``           | ``1350`` s``^{-1}``       |
+|``a``           | ``2.47``                  |
+|``b``           | ``-1.79``                 |
+|``c``           | ``-1.47``                 |
+|``N_{ref}``     | ``10^6`` m``^{-3}``       |
+|``\rho_{ref}``  | ``1`` kg m``^{-3}``       |
 
 
 #### Beheng (1994)
@@ -841,21 +847,24 @@ The default free parameter values are:
 
 ```math
 \begin{equation}
-  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} = A \; (q_{lcl} q_{rai})^a \; \rho^b
+  \left. \frac{d \, q_{rai}}{dt} \right|_{accr} =
+    A \; (q_{lcl} q_{rai})^a \; \left( \frac{\rho}{\rho_{ref}} \right)^b
 \end{equation}
 ```
 where:
   - ``q_{lcl}`` is the cloud liquid water specific content,
   - ``q_{rai}`` is the rain water specific content,
   - ``\rho``    is the air density,
+  - ``\rho_{ref}`` is the reference air density that makes the fractional power dimensionless,
 
 and the default free parameter values are:
 
-|   symbol   | default value             |
-|------------|---------------------------|
-|``A``       | ``67 ``                   |
-|``a``       | ``1.15``                  |
-|``b``       | ``-1.3``                  |
+|   symbol       | default value             |
+|----------------|---------------------------|
+|``A``           | ``67`` s``^{-1}``         |
+|``a``           | ``1.15``                  |
+|``b``           | ``-1.3``                  |
+|``\rho_{ref}``  | ``1`` kg m``^{-3}``       |
 
 
 #### Beheng (1994)

@@ -169,109 +169,71 @@ CMP.AspectRatio
 CMP.SmoothSlopePowerLaw
 ```
 
-## Obtain particle state
+## Ice state
+
+The state of the P3 ice in one cell is a [`P3Scheme.P3State`](@ref), which holds the
+[`P3Scheme.P3Particles`](@ref) and the [`P3Scheme.P3Distribution`](@ref).
 
 ```@docs
 P3Scheme.P3State
-P3Scheme.state_from_prognostic
+P3Scheme.P3Particles
+P3Scheme.P3Distribution
 ```
 
-### State relationships
+### Limits of the ice moments
 
 ```@docs
-P3Scheme.get_ρ_d
-P3Scheme.get_ρ_g
-P3Scheme.get_D_th
-P3Scheme.get_D_gr
-P3Scheme.get_D_cr
+P3Scheme.bounded_ice_number
+P3Scheme.ice_mean_particle_mass_min
+P3Scheme.ice_mean_particle_mass_max
+P3Scheme.ice_moments_are_admissible
+P3Scheme.rime_density_bounds
 ```
 
-### Derived quantities
-
-#### Main particle methods
+## Particle properties
 
 These methods are a function of the particle diameter, `D`.
 
 ```@docs
 P3Scheme.ice_mass
 P3Scheme.ice_density
-P3Scheme.∂ice_mass_∂D
 P3Scheme.ice_area
-P3Scheme.ϕ_material_density
 P3Scheme.ϕᵢ
-```
-
-## Distribution parameters
-
-```@docs
-P3Scheme.get_μ
-P3Scheme.get_logN₀
-P3Scheme.get_distribution_logλ
-```
-
-### Distribution relationships
-
-```@docs
-P3Scheme.logN′ice
-P3Scheme.size_distribution(::P3Scheme.P3State, _)
-P3Scheme.loggamma_inc_moment
-P3Scheme.gamma_inc_moment
-P3Scheme.loggamma_moment
-P3Scheme.logmass_gamma_moment
-P3Scheme.logLdivN
-```
-
-### Derived integral quantities
-
-These methods integrate over the particle size distribution.
-
-```@docs
-P3Scheme.D_m
 P3Scheme.ice_particle_terminal_velocity
-P3Scheme.ice_terminal_velocity_number_weighted
-P3Scheme.ice_terminal_velocity_mass_weighted
 ```
 
-### Processes
+## Size distribution
 
-#### Heterogeneous ice nucleation
+```@docs
+P3Scheme.size_distribution(::P3Scheme.P3Distribution)
+P3Scheme.integral_bounds
+P3Scheme.D_m
+```
+
+## Fall speeds
+
+```@docs
+P3Scheme.ice_terminal_velocities
+```
+
+## Processes
 
 ```@docs
 P3Scheme.het_ice_nucleation
-```
-
-#### Ice melting
-
-```@docs
 P3Scheme.ice_melt
-```
-
-#### Collisions with liquid droplets
-
-```@docs
 P3Scheme.bulk_liquid_ice_collision_sources
+P3Scheme.ice_self_collection
 ```
 
-Supporting methods:
-
-```@docs
-P3Scheme.volumetric_collision_rate_integrand
-P3Scheme.compute_max_freeze_rate
-P3Scheme.compute_local_rime_density
-P3Scheme.get_liquid_integrals
-P3Scheme.∫liquid_ice_collisions
-```
-
-### Supporting integral methods
+## Quadrature rules
 
 ```@docs
 Quadrature
-P3Scheme.integrate
-P3Scheme.subintervals
 P3Scheme.ChebyshevGauss
 Quadrature.GaussLegendre
-P3Scheme.integral_bounds
 ```
+
+The building blocks of these functions are listed on the [P3 internals](P3Internals.md) page.
 
 # Aerosol model
 
@@ -397,9 +359,6 @@ Utilities
 Utilities.clamp_to_nonneg
 Utilities.promote_typeof
 Utilities.ϵ_numerics
-Utilities.ϵ_numerics_2M_M
-Utilities.ϵ_numerics_2M_N
-Utilities.ϵ_numerics_P3_B
 Utilities.gamma_inc
 Utilities.gamma_inc_inv
 Utilities.rime_mass_fraction
@@ -428,6 +387,8 @@ Common.Chen2022_exponential_pdf
 Common.volume_sphere_D
 Common.volume_sphere_R
 Common.ventilation_factor
+Common.KK2000_autoconversion
+Common.KK2000_accretion
 ```
 
 # Precipitation susceptibility

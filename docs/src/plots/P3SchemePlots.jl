@@ -44,12 +44,12 @@ function p3_relations_plot()
 
 	Makie.colgap!(fig.layout, 40) # add space between columns so xticklabels don't overlap
 
-	function lines_and_vlines!((ax1, ax2, ax3), state, color)
-		Makie.lines!(ax1, D_range * mm, P3.ice_mass.(state, D_range); color)
-		Makie.lines!(ax2, D_range * mm, P3.ice_area.(state, D_range); color)
-		Makie.lines!(ax3, D_range * mm, P3.ice_density.(state, D_range); color)
+	function lines_and_vlines!((ax1, ax2, ax3), particles, color)
+		Makie.lines!(ax1, D_range * mm, P3.ice_mass.(particles, D_range); color)
+		Makie.lines!(ax2, D_range * mm, P3.ice_area.(particles, D_range); color)
+		Makie.lines!(ax3, D_range * mm, P3.ice_density.(particles, D_range); color)
 
-		(; D_th, D_gr, D_cr) = state
+		(; D_th, D_gr, D_cr) = particles
 		for ax in [ax1, ax2, ax3]
 			Makie.vlines!(ax, D_th * mm; linestyle = (:dot, :loose), color = :gray)
 			Makie.vlines!(ax, D_gr * mm; linestyle = :dash, color)
@@ -57,13 +57,14 @@ function p3_relations_plot()
 		end
 	end
 
+
 	# Make a plot for each rime fraction
 	ρ_rim₀ = 400.0
 	F_rims = [0.0, 0.5, 0.8]
 	for (i, F_rim) in enumerate(F_rims)
 		color = cl[i]
-		state = P3.P3State(params, FT(0), FT(0), F_rim, ρ_rim₀)
-		lines_and_vlines!((ax1L, ax2L, ax3L), state, color)
+		particles = P3.P3Particles(params, F_rim, ρ_rim₀)
+		lines_and_vlines!((ax1L, ax2L, ax3L), particles, color)
 	end
 
 	# Make a plot for each rime density
@@ -71,8 +72,8 @@ function p3_relations_plot()
 	ρ_rims = [200.0, 400.0, 800.0]
 	for (i, ρ_rim) in enumerate(ρ_rims)
 		color = cl[i]
-		state = P3.P3State(params, FT(0), FT(0), F_rim₀, ρ_rim)
-		lines_and_vlines!((ax1R, ax2R, ax3R), state, color)
+		particles = P3.P3Particles(params, F_rim₀, ρ_rim)
+		lines_and_vlines!((ax1R, ax2R, ax3R), particles, color)
 	end
 
 	Makie.linkyaxes!(ax1R, ax1L)

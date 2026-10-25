@@ -9,7 +9,7 @@ FT = Float64
 # parameters
 params = CMP.ParametersP3(FT)
 vel = CMP.Chen2022VelType(FT)
-quad = CMP.Microphysics2MParams(FT; with_ice = true).ice.quad  # the package default rule
+quad = CMP.Microphysics2MParams(FT; with_ice = true).ice.integration  # the package default rule
 aps = CMP.AirProperties(FT)
 tps = TDI.PS(FT)
 
@@ -33,9 +33,8 @@ Makie.with_theme(Makie.theme_minimal(), fontsize = 20, linewidth = 3) do
     ax_L = Makie.Axis(fig[1, 1]; xlabel = "T - T_freeze [K]", ylabel = "ice mass melting rate [g/m³/s]")
     ax_N = Makie.Axis(fig[1, 2]; xlabel = "T - T_freeze [K]", ylabel = "ice number melting rate [1/cm³/s]")
     for (ρₐ, Fᵣ, ρᵣ, color) in cases
-        state = P3.P3State(params, Lᵢ, Nᵢ, Fᵣ, ρᵣ)
-        logλ = P3.get_distribution_logλ(state)
-        melt = P3.ice_melt.(vel, aps, tps, params.T_freeze .+ ΔT_range, ρₐ, state, logλ; quad)
+        state = P3.P3State(params, quad, Lᵢ, Nᵢ, Fᵣ * Lᵢ, Fᵣ * Lᵢ / ρᵣ)
+        melt = P3.ice_melt.(vel, aps, tps, state, ρₐ, params.T_freeze .+ ΔT_range)
         label = "ρₐ = $ρₐ kg/m³, Fᵣ = $Fᵣ, ρᵣ = $(Int(ρᵣ)) kg/m³"
         Makie.lines!(ax_L, ΔT_range, getfield.(melt, :dLdt) * 1e3; color, label)
         Makie.lines!(ax_N, ΔT_range, getfield.(melt, :dNdt) * 1e-6; color)

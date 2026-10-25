@@ -11,7 +11,7 @@ import UnrolledUtilities as UU
 import SpecialFunctions as SF
 import ForwardDiff as FD
 
-export clamp_to_nonneg, ϵ_numerics, ϵ_numerics_2M_M, ϵ_numerics_2M_N, ϵ_numerics_P3_B
+export clamp_to_nonneg, ϵ_numerics
 export promote_typeof
 export fac
 
@@ -264,22 +264,16 @@ end
 #    `ifelse(cond, rate, 0)` cannot produce Inf/NaN, which matters for
 #    ForwardDiff gradients). They do not decide whether a tracer is "present".
 #
-# 2. Physical thresholds: the `ϵ_numerics*` functions below, used as `q > ϵ`
-#    gates that treat a tracer as absent. There is exactly one threshold per
-#    moment class, always called from here so the value has a single source of
-#    truth (no bare literals/zeros scattered across the schemes).
+# 2. Physical thresholds: `ϵ_numerics` below, used as `q > ϵ` gates that treat
+#    a tracer as absent. There is exactly one threshold, always called from here
+#    so the value has a single source of truth (no bare literals/zeros scattered
+#    across the schemes).
 #
-# The threshold values intentionally differ by moment class:
-#   - `ϵ_numerics`      = cbrt(floatmin(FT))  (≈3.8e-13 @ f32) - a floatmin-derived
-#     floor, sized so cbrt/pow arguments stay above `floatmin` (its cube is
-#     `floatmin`). Used by the 1-moment scheme.
-#   - `ϵ_numerics_2M_*` = eps(FT)             (≈1.2e-7  @ f32) - a relative round-off
-#     threshold for the 2-moment mass/number variables.
-#   - `ϵ_numerics_P3_B` = eps(FT)                                - same, for the P3
-#     rime-volume (B_rim) variable.
-# The ~6 orders of magnitude gap reflects the different roles (underflow-avoiding
-# floor vs. relative-precision threshold). If a scheme needs a different value,
-# change it here rather than at the call sites.
+# The mass and number thresholds of the 1-moment and 2-moment schemes are the same
+# value, `cbrt(floatmin(FT))` (≈2.3e-13 @ f32, ≈2.8e-103 @ f64). Its cube is
+# `floatmin`, so products of up to three small contents in the rate expressions
+# stay normal floats. It is many orders of magnitude below any physically relevant
+# content in both precisions, so the rates do not depend on the precision.
 # ---------------------------------------------------------------------------
 
 """
@@ -289,7 +283,7 @@ Clamp values to be non-negative. Compatible with dual numbers (AD) and GPUs.
 
 This is **domain sanitization**, not a physical threshold: use it to keep an
 argument of `cbrt`/`log`/`^` finite, not to decide whether a tracer is present
-(use the `ϵ_numerics*` gates for that).
+(use the [`ϵ_numerics`](@ref) gate for that).
 
 # Arguments
 - `x`: value to clamp
@@ -315,37 +309,20 @@ end
     ϵ_numerics(FT)
     ϵ_numerics(x::Real)
 
-Physical smallness threshold for the **1-moment** scheme: below this a tracer is
-treated as absent. Returns `cbrt(floatmin(float(FT)))`, a floatmin-derived floor
-that also keeps `cbrt`/`^` arguments above `floatmin`. The `float` guard maps
-integer types to their float counterpart, so gates accept integer inputs. The
-value method keys the threshold to the argument's own type, `ϵ_numerics(q)`.
-See the note above for how this relates to the 2-moment/P3 thresholds.
+Physical smallness threshold for the **1-moment** and **2-moment** schemes.
+
+Below this threshold a tracer is treated as absent.
+
+Returns `cbrt(floatmin(float(FT)))`, a floatmin-derived floor
+that also keeps `cbrt`/`^` arguments above `floatmin`.
+
+Can be called in three ways:
+- With a floating-point type (e.g., `Float32` or `Float64`), returning the threshold for that type.
+- With a concrete floating-point value, returning the threshold for its type.
+- With an integer type or value, returning the threshold for its float counterpart (e.g., `Int32` → `Float32`).
 """
 @inline ϵ_numerics(FT) = cbrt(floatmin(float(FT)))
 @inline ϵ_numerics(x::Real) = ϵ_numerics(typeof(x))
-
-"""
-    ϵ_numerics_2M_M(FT)
-
-Physical smallness threshold for **2-moment mass** variables (`eps(FT)`).
-"""
-@inline ϵ_numerics_2M_M(FT) = eps(FT)
-
-"""
-    ϵ_numerics_2M_N(FT)
-
-Physical smallness threshold for **2-moment number** variables (`eps(FT)`).
-"""
-@inline ϵ_numerics_2M_N(FT) = eps(FT)
-
-"""
-    ϵ_numerics_P3_B(FT)
-
-Physical smallness threshold for the **P3** rime-volume variable `B_rim`
-(`eps(FT)`).
-"""
-@inline ϵ_numerics_P3_B(FT) = eps(FT)
 
 """
     unrolled_logsumexp(x)
@@ -493,6 +470,7 @@ end
 
 """
     nearest_admissible_b(q, b_trial, ρ_min, ρ_max)
+    nearest_admissible_b(q, b_trial, (ρ_min, ρ_max))
 
 The value nearest `b_trial` whose ratio `q / b` lies in `[ρ_min, ρ_max]`, for a nonnegative `q`. 
 
@@ -508,5 +486,7 @@ Clamping the two independently can leave a positive `q` whose `b` has clipped to
 @inline function nearest_admissible_b(q, b_trial, ρ_min, ρ_max)
     return ifelse(q > 0, clamp(b_trial, q / ρ_max, q / ρ_min), zero(q))
 end
+@inline nearest_admissible_b(q, b_trial, (ρ_min, ρ_max)) =
+    nearest_admissible_b(q, b_trial, ρ_min, ρ_max)
 
 end # module

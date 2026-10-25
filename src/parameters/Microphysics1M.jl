@@ -417,10 +417,24 @@ function VarTimescaleAcnv(td::CP.ParamDict)
     name_map = (;
         :rain_autoconversion_timescale => :τ,
         :Variable_time_scale_autoconversion_coeff_alpha => :α,
-        :prescribed_cloud_droplet_number_concentration => :Nc,
     )
     parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return VarTimescaleAcnv(; parameters...)
+    return VarTimescaleAcnv(; parameters..., Nc = prescribed_cloud_droplet_number(td))
+end
+
+"""
+    prescribed_cloud_droplet_number(td)
+
+The prescribed cloud droplet number concentration `Nc` [1/m³] (ClimaParams
+`prescribed_cloud_droplet_number_concentration`) used by the 1-moment rain autoconversion
+options `PrescribedNd` and `KK2000Autoconversion`; an `ArgumentError` rejects a value that is
+not positive.
+"""
+function prescribed_cloud_droplet_number(td::CP.ParamDict)
+    name_map = (; :prescribed_cloud_droplet_number_concentration => :Nc)
+    (; Nc) = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
+    Nc > 0 || throw(ArgumentError("prescribed_cloud_droplet_number_concentration must be positive, got $Nc"))
+    return Nc
 end
 
 """

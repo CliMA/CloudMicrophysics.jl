@@ -438,35 +438,28 @@ end
 )
     i = @index(Global, Linear)
     CM2M = BMT.Microphysics2Moment()
-    # The 2M+P3 entry point takes `logλ` explicitly; compute it from the P3
-    # prognostic state (matches host-side usage, see bulk_tendencies_tests.jl).
-    L_ice = q_ice[i] * ρ[i]
-    N_ice = n_ice[i] * ρ[i]
-    F_rim = q_rim[i] / q_ice[i]
-    ρ_rim = q_rim[i] * ρ[i] / (b_rim[i] * ρ[i])
-    state = P3.P3State(mp.ice.scheme, L_ice, N_ice, F_rim, ρ_rim)
-    logλ = P3.get_distribution_logλ(state)
     output[i] = BMT.bulk_microphysics_tendencies(
         CM2M, mp, tps, ρ[i], T[i], q_tot[i], q_lcl[i], n_lcl[i], q_rai[i], n_rai[i],
-        q_ice[i], n_ice[i], q_rim[i], b_rim[i], logλ,
+        q_ice[i], n_ice[i], q_rim[i], b_rim[i],
     )
 end
 
-@kernel inbounds = true function test_P3_get_distribution_logλ_kernel!(
-    p3_params, output, L_ice, N_ice, F_rim, ρ_rim,
+@kernel inbounds = true function test_P3_distribution_logλ_kernel!(
+    p3_params, quad, output, L_ice, N_ice, F_rim, ρ_rim,
 )
     i = @index(Global, Linear)
-    state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
-    output[i] = P3.get_distribution_logλ(state)
+    ρq_rim = F_rim[i] * L_ice[i]
+    state = P3.P3State(p3_params, quad, L_ice[i], N_ice[i], ρq_rim, ρq_rim / ρ_rim[i])
+    output[i] = state.dist.logλ
 end
 
 @kernel inbounds = true function test_P3_ice_self_collection_kernel!(
-    p3_params, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ,
+    p3_params, quad, vel_params, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ,
 )
     i = @index(Global, Linear)
-    state = P3.P3State(p3_params, L_ice[i], N_ice[i], F_rim[i], ρ_rim[i])
-    logλ = P3.get_distribution_logλ(state)
-    output[i] = P3.ice_self_collection(state, logλ, vel_params, ρₐ[i])
+    ρq_rim = F_rim[i] * L_ice[i]
+    state = P3.P3State(p3_params, quad, L_ice[i], N_ice[i], ρq_rim, ρq_rim / ρ_rim[i])
+    output[i] = P3.ice_self_collection(vel_params, state, ρₐ[i])
 end
 
 # Evaluates the fast incomplete-gamma approximations on the device. This is the
@@ -558,6 +551,11 @@ function test_gpu(FT)
     mp_1m = CMP.Microphysics1MParams(FT)
     mp_1m_2M = CMP.Microphysics1MParams(FT;
         rain_autoconversion = CMP.PrescribedNd(),
+    )
+    # Khairoutdinov and Kogan (2000) autoconversion and accretion with a prescribed droplet number
+    mp_1m_kk = CMP.Microphysics1MParams(FT;
+        rain_autoconversion = CMP.KK2000Autoconversion(),
+        cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
     )
     # Kessler1M with different quiescent and convective regime values (velocity dependent).
     # Stratiform ("slow") values are scale factors on the convective ("fast") defaults:
@@ -750,6 +748,12 @@ function test_gpu(FT)
         # q_lcl = 0 → zero rate regardless of w
         TT.@test out[3] == FT(0)
 
+        # KK2000 autoconversion with a prescribed droplet number
+        kernel!(mp_1m_kk, tps, output, ql, w_arr; ndrange)
+        out = Array(output)
+        TT.@test out[1] > FT(0)
+        TT.@test out[3] == FT(0)
+
         DT = @NamedTuple{
             liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT,
             rai_sink::FT, sno_rai::FT, rai_sno::FT,
@@ -817,6 +821,12 @@ function test_gpu(FT)
         TT.@test out1_opt.sno_rai ≈ FT(2.466313958248222e-4)
         TT.@test out1_opt.rai_sno ≈ FT(6.830957197816771e-5)
 
+        # KK2000 cloud liquid + rain accretion
+        kernel_opt!(mp_1m_kk, tps, output, ρ, T_arr, qi, qs, ql, qr; ndrange)
+        out0_kk, out1_kk = Array(output)
+        TT.@test out0_kk.liq_rai == FT(0)
+        TT.@test out1_kk.liq_rai > FT(0)
+
         (; output, ndrange) = setup_output(3, FT)
 
         T_freeze = FT(273.15)
@@ -851,7 +861,7 @@ function test_gpu(FT)
             TT.@test S_LD2004 ≈ FT(1.6963072465911614e-6)
             TT.@test S_TC1980 ≈ FT(3.5482867084128596e-6)
             TT.@test S_B1994 ≈ FT(9.825462758968215e-7)
-            TT.@test S_KK2000 ≈ FT(5.855332513368727e-8)
+            TT.@test S_KK2000 ≈ FT(5.854386977448622e-8)
         end
 
         TT.@testset "accretion" begin
@@ -1341,8 +1351,9 @@ function test_gpu(FT)
         end
     end  # TT.@testset "Bulk microphysics tendencies kernels"
 
-    TT.@testset "P3 get_distribution_logλ" begin
+    TT.@testset "P3 distribution logλ" begin
         p3_params = CMP.ParametersP3(FT)
+        quad = P3.GaussLegendre(FT, 16)
 
         (; output, ndrange) = setup_output(10, FT)
 
@@ -1351,8 +1362,8 @@ function test_gpu(FT)
         F_rim = constant_data(FT(0.5); ndrange)
         ρ_rim = constant_data(FT(400); ndrange)
 
-        kernel! = test_P3_get_distribution_logλ_kernel!(backend, work_groups)
-        kernel!(p3_params, output, L_ice, N_ice, F_rim, ρ_rim; ndrange)
+        kernel! = test_P3_distribution_logλ_kernel!(backend, work_groups)
+        kernel!(p3_params, quad, output, L_ice, N_ice, F_rim, ρ_rim; ndrange)
         out = Array(output)
 
         TT.@test allequal(out)
@@ -1372,7 +1383,8 @@ function test_gpu(FT)
         ρₐ = constant_data(FT(1.2); ndrange)
 
         kernel! = test_P3_ice_self_collection_kernel!(backend, work_groups)
-        kernel!(p3_params, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ; ndrange)
+        quad = P3.GaussLegendre(FT, 16)
+        kernel!(p3_params, quad, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ; ndrange)
         out = Array(output)
 
         TT.@test allequal(out)

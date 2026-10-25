@@ -4,6 +4,7 @@ ENV["GKSwstype"] = "nul"
 using CloudMicrophysics, Documenter
 using DocumenterCitations
 using Literate
+using Random: RandomDevice
 
 # Bibliography
 bib = CitationBibliography(joinpath(@__DIR__, "bibliography.bib"))
@@ -46,6 +47,7 @@ Parameterizations = [
     "1-moment precipitation microphysics" => "Microphysics1M.md",
     "2-moment precipitation microphysics" => "Microphysics2M.md",
     "P3 Scheme" => "P3Scheme.md",
+    "P3 internals" => "P3Internals.md",
     "Terminal Velocity" => "TerminalVelocity.md",
     "Non-equilibrium cloud formation" => "MicrophysicsNonEq.md",
     "Smooth transition at thresholds" => "ThresholdsTransition.md",
@@ -106,7 +108,7 @@ makedocs(
     plugins = [bib, links],
 )
 
-deploydocs(
+deploy() = deploydocs(
     repo = "github.com/CliMA/CloudMicrophysics.jl.git",
     target = "build",
     push_preview = all(
@@ -116,3 +118,4 @@ deploydocs(
     devbranch = "main",
     forcepush = true,
 )
+retry(deploy; delays = rand(RandomDevice(), 10:30, 9))()

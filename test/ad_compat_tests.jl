@@ -11,39 +11,43 @@ import CloudMicrophysics.Microphysics2M as CM2
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import ForwardDiff as FD
-import SpecialFunctions as SF
 
 # ForwardDiff compatibility of the pointwise 2M+P3 path: `bulk_microphysics_tendencies`
-# must be differentiable w.r.t. the 8 prognostic species (with `logλ` held fixed,
-# matching the substepping semantics). Differentiating *through* the `logλ` shape
-# solve is out of scope here — it additionally requires a `∂/∂a` rule for the
-# forward `SF.gamma_inc`.
+# must be differentiable w.r.t. the 8 prognostic species. The P3 distribution holds `logλ` constant
+# under differentiation; differentiating through the shape solve additionally requires a
+# `∂/∂a` rule for the forward `gamma_inc`.
 
 function test_ad_compatibility(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     mp = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true)
     p3 = mp.ice.scheme
+    quad = mp.ice.integration
     D(v, ∂) = FD.Dual{:ad_test}(FT(v), FT(∂))
 
     @testset "P3State construction with Dual prognostics ($FT)" begin
-        st = P3.state_from_prognostic(p3, FT(1e-4), FT(1e4), FT(2e-5), FT(4e-8))
-        std = P3.state_from_prognostic(p3, D(1e-4, 1), D(1e4, 0), D(2e-5, 0), D(4e-8, 0))
+        st = P3.P3State(p3, quad, FT(1e-4), FT(1e4), FT(2e-5), FT(4e-8))
+        std = P3.P3State(p3, quad, D(1e-4, 1), D(1e4, 0), D(2e-5, 0), D(4e-8, 0))
         @test eltype(std) <: FD.Dual
         # primal values are unchanged by differentiation
-        @test FD.value(std.ρ_g) == st.ρ_g
-        @test FD.value(std.D_gr) == st.D_gr
-        @test FD.value(std.D_cr) == st.D_cr
-        @test FD.value(std.D_th) == st.D_th
+        @test FD.value(std.particles.ρ_g) == st.particles.ρ_g
+        @test FD.value(std.particles.D_gr) == st.particles.D_gr
+        @test FD.value(std.particles.D_cr) == st.particles.D_cr
+        @test FD.value(std.particles.D_th) == st.particles.D_th
+        dist, distd = st.dist, std.dist
+        @test eltype(distd) <: FD.Dual
+        @test FD.value(distd.logN₀) == dist.logN₀
+        # `μ` and `logλ` are constant under differentiation
+        @test distd.μ === dist.μ && distd.logλ === dist.logλ
         # params-only field is a true constant; rime-derived fields carry sensitivity
-        @test iszero(FD.partials(std.D_th))
-        @test !iszero(FD.partials(std.ρ_g))
-        @test !iszero(FD.partials(std.D_cr))
+        @test iszero(FD.partials(std.particles.D_th))
+        @test !iszero(FD.partials(std.particles.ρ_g))
+        @test !iszero(FD.partials(std.particles.D_cr))
         # partial seeding (derivative w.r.t. a single prognostic) also constructs
-        st1 = P3.state_from_prognostic(p3, D(1e-4, 1), FT(1e4), FT(2e-5), FT(4e-8))
+        st1 = P3.P3State(p3, quad, D(1e-4, 1), FT(1e4), FT(2e-5), FT(4e-8))
         @test eltype(st1) <: FD.Dual
         # the `F_rim = 0` branch stays intact under Duals
-        st0 = P3.state_from_prognostic(p3, D(1e-4, 1), D(1e4, 0), D(0, 0), D(0, 0))
-        @test FD.value(st0.D_gr) == FT(Inf) && FD.value(st0.D_cr) == FT(Inf)
+        st0 = P3.P3State(p3, quad, D(1e-4, 1), D(1e4, 0), D(0, 0), D(0, 0))
+        @test FD.value(st0.particles.D_gr) == FT(Inf) && FD.value(st0.particles.D_cr) == FT(Inf)
     end
 
     @testset "regularised ratios stay NaN-free across tiny denominators ($FT)" begin
@@ -51,14 +55,14 @@ function test_ad_compatibility(FT)
         # approaches zero, where the presence test switches. Sweep denominators
         # across that band for both ratios.
         for denom in (eps(FT)^2, eps(FT) / 8, eps(FT), sqrt(eps(FT)), FT(1e-9))
-            std = P3.state_from_prognostic(p3, D(denom, 1), D(10, 0), D(denom / 10, 1), D(denom / 10, 1))
+            std = P3.P3State(p3, quad, D(denom, 1), D(10, 0), D(denom / 10, 1), D(denom / 10, 1))
             # the regularised ratios must always be differentiable
-            @test all(isfinite, FD.partials(std.F_rim))
-            @test all(isfinite, FD.partials(std.ρ_rim))
+            @test all(isfinite, FD.partials(std.particles.F_rim))
+            @test all(isfinite, FD.partials(std.particles.ρ_rim))
             # the cached thresholds are NaN/Inf markers in degenerate rime
             # regimes (gated downstream); they need finite partials only where
             # their value is finite
-            for field in (std.ρ_g, std.D_gr, std.D_cr)
+            for field in (std.particles.ρ_g, std.particles.D_gr, std.particles.D_cr)
                 isfinite(FD.value(field)) && @test all(isfinite, FD.partials(field))
             end
         end
@@ -105,34 +109,32 @@ function test_ad_compatibility(FT)
     end
 
     @testset "BMT 2M+P3 Jacobian w.r.t. the 8 species ($FT)" begin
-        function rhs(x, ρ, T, q_tot, logλ)
+        function rhs(x, ρ, T, q_tot)
             t = BMT.bulk_microphysics_tendencies(
                 BMT.Microphysics2Moment(), mp, tps, ρ, T, q_tot,
-                x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], logλ)
+                x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8])
             return [t.dq_lcl_dt, t.dn_lcl_dt, t.dq_rai_dt, t.dn_rai_dt,
                 t.dq_ice_dt, t.dn_ice_dt, t.dq_rim_dt, t.db_rim_dt]
-        end
-        function consistent_logλ(ρ, x)
-            st = P3.state_from_prognostic(p3, ρ * x[5], ρ * x[6], ρ * x[7], ρ * x[8])
-            return P3.get_distribution_logλ(st)
         end
         # x = [q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice, q_rim, b_rim]; interior
         # states (all species nonzero where the regime is active)
         regimes = (
-            (; name = "warm rain", ρ = FT(1.05), T = FT(288), q_tot = FT(0.015),
-                x = FT[4e-4, 8e7, 2.1e-3, 5e4, 0, 0, 0, 0], logλ = FT(-Inf)),
-            (; name = "mixed phase", ρ = FT(0.78), T = FT(273.5), q_tot = FT(0.009),
-                x = FT[2e-4, 5e7, 1e-4, 4e4, 1e-4, 2e5, 4e-5, 6e-8], logλ = nothing),
-            (; name = "ice heavy", ρ = FT(0.45), T = FT(233), q_tot = FT(0.003),
-                x = FT[1e-6, 1e6, 1e-12, 1e-2, 8e-4, 5e5, 5e-4, 9e-7], logλ = nothing),
-            # sub-threshold ice with b_rim inside the band where the
-            # regularised ratios switch on their presence test
-            (; name = "cloud edge", ρ = FT(0.7), T = FT(263), q_tot = FT(0.005),
-                x = FT[1e-5, 1e7, 1e-6, 1e3, 3e-8, 30, 1e-8, 2.5e-11], logλ = nothing),
+            # warm rain
+            (; ρ = FT(1.05), T = FT(288), q_tot = FT(0.015),
+                x = FT[4e-4, 8e7, 2.1e-3, 5e4, 0, 0, 0, 0]),
+            # mixed phase
+            (; ρ = FT(0.78), T = FT(273.5), q_tot = FT(0.009),
+                x = FT[2e-4, 5e7, 1e-4, 4e4, 1e-4, 2e5, 4e-5, 6e-8]),
+            # ice heavy
+            (; ρ = FT(0.45), T = FT(233), q_tot = FT(0.003),
+                x = FT[1e-6, 1e6, 1e-12, 1e-2, 8e-4, 5e5, 5e-4, 9e-7]),
+            # cloud edge: sub-threshold ice with b_rim inside the band where the
+            # regularized ratios switch on their presence test
+            (; ρ = FT(0.7), T = FT(263), q_tot = FT(0.005),
+                x = FT[1e-5, 1e7, 1e-6, 1e3, 3e-8, 30, 1e-8, 2.5e-11]),
         )
         for r in regimes
-            logλ = isnothing(r.logλ) ? consistent_logλ(r.ρ, r.x) : r.logλ
-            f = x -> rhs(x, r.ρ, r.T, r.q_tot, logλ)
+            f = x -> rhs(x, r.ρ, r.T, r.q_tot)
             v₀ = f(r.x)
             J = FD.jacobian(f, r.x)
             @test all(isfinite, J)
@@ -140,14 +142,14 @@ function test_ad_compatibility(FT)
         end
 
         # Jacobian against central finite differences (Float64 only — FD
-        # truncation in Float32 is not meaningful at these magnitudes)
+        # truncation in Float32 is not meaningful at these magnitudes), in the
+        # liquid species, on which `logλ` does not depend
         if FT == Float64
             r = regimes[2]
-            logλ = consistent_logλ(r.ρ, r.x)
-            f = x -> rhs(x, r.ρ, r.T, r.q_tot, logλ)
-            J = FD.jacobian(f, r.x)
+            f = x -> rhs(x, r.ρ, r.T, r.q_tot)
+            J = FD.jacobian(f, r.x)[:, 1:4]
             J_fd = similar(J)
-            for j in 1:8
+            for j in 1:4
                 h = 1e-6 * r.x[j]
                 xp = copy(r.x)
                 xp[j] += h
@@ -169,8 +171,7 @@ function test_ad_compatibility(FT)
         # tangent at exactly zero rain with cloud present; the ϵ-gate in
         # `autoconversion` keeps the Jacobian finite there
         x_boundary = FT[1e-6, 1e6, 0, 0, 8e-4, 5e5, 5e-4, 9e-7]
-        logλ_b = consistent_logλ(FT(0.45), x_boundary)
-        f_b = x -> rhs(x, FT(0.45), FT(233), FT(0.003), logλ_b)
+        f_b = x -> rhs(x, FT(0.45), FT(233), FT(0.003))
         @test all(isfinite, f_b(x_boundary))
         @test all(isfinite, FD.jacobian(f_b, x_boundary))
 
@@ -185,22 +186,11 @@ function test_ad_compatibility(FT)
                 q_rim = F_rim * q_ice
                 b_rim = q_rim / FT(400)   # a 400 kg/m³ rime density
                 x_b = FT[1e-5, 1e7, 1e-6, 1e3, q_ice, 30, q_rim, b_rim]
-                logλ_w = consistent_logλ(ρ_b, x_b)
-                f_w = y -> rhs(y, ρ_b, T_b, qt_b, logλ_w)
+                f_w = y -> rhs(y, ρ_b, T_b, qt_b)
                 @test all(isfinite, f_w(x_b))
                 @test all(isfinite, FD.jacobian(f_w, x_b))
             end
         end
-    end
-end
-
-@testset "get_distribution_logλ_from_prognostic" begin
-    for FT in (Float32, Float64)
-        p3 = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true).ice.scheme
-        logλ = P3.get_distribution_logλ_from_prognostic(p3, FT(1e-4), FT(1e4), FT(2e-5), FT(4e-8))
-        st = P3.state_from_prognostic(p3, FT(1e-4), FT(1e4), FT(2e-5), FT(4e-8))
-        @test isfinite(logλ)
-        @test logλ == P3.get_distribution_logλ(st)
     end
 end
 
@@ -216,6 +206,10 @@ function test_ad_compatibility_1M(FT)
     tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
     mp = CMP.Microphysics1MParams(FT)
     mpS = CMP.Microphysics1MParams(FT; snow_autoconversion = CMP.WithSupersaturation())
+    mpKK = CMP.Microphysics1MParams(FT;
+        rain_autoconversion = CMP.KK2000Autoconversion(),
+        cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
+    )
     chen = CMP.Chen2022VelType(FT)
     rain, snow = mp.precip.rain, mp.precip.snow
     ρ0, T_cold, T_warm = FT(1.2), FT(270), FT(280)
@@ -245,6 +239,20 @@ function test_ad_compatibility_1M(FT)
         (
             "rain autoconversion",
             q -> CM1.conv_q_lcl_to_q_rai(CMP.Kessler1M(), mp, tps, state(q), (; ρ = ρ0, T = T_cold, w = zero(ρ0))),
+        ),
+        (
+            "rain autoconversion KK2000",
+            q -> CM1.conv_q_lcl_to_q_rai(
+                CMP.KK2000Autoconversion(),
+                mpKK,
+                tps,
+                state(q),
+                (; ρ = ρ0, T = T_cold, w = zero(ρ0)),
+            ),
+        ),
+        (
+            "accretion KK2000",
+            q -> CM1.accretion(CMP.KK2000Accretion(), mpKK, tps, state(q), (; ρ = ρ0, T = T_cold)),
         ),
         (
             "snow autoconversion",
@@ -310,21 +318,23 @@ function test_ad_compatibility_1M(FT)
     # thermo (kernel-level argument mixes are swept in return_type_tests.jl).
     @testset "1M rates concretely typed under Dual state ($FT)" begin
         DT = FD.Dual{:ad_1m, FT, 1}
-        for (opt, f) in (
-            (CMP.CloudLiquidRainAccretion(), CM1.accretion),
-            (CMP.RainSnowAccretion(), CM1.accretion_snow_rain),
-            (CMP.CloudIceRainAccretion(), CM1.accretion_rain_sink),
-            (CMP.RainEvaporation(), CM1.conv_q_rai_to_q_vap),
-            (CMP.DepositionAndSublimation(), CM1.conv_q_sno_to_q_vap),
-            (CMP.SnowMelt(), CM1.conv_q_sno_to_q_rai),
-            (CMP.CloudIceMelt(), CM1.conv_q_icl_to_q_lcl),
-            (CMP.Kessler1M(), CM1.conv_q_lcl_to_q_rai),
+        for (opt, params, f) in (
+            (CMP.CloudLiquidRainAccretion(), mp, CM1.accretion),
+            (CMP.RainSnowAccretion(), mp, CM1.accretion_snow_rain),
+            (CMP.CloudIceRainAccretion(), mp, CM1.accretion_rain_sink),
+            (CMP.RainEvaporation(), mp, CM1.conv_q_rai_to_q_vap),
+            (CMP.DepositionAndSublimation(), mp, CM1.conv_q_sno_to_q_vap),
+            (CMP.SnowMelt(), mp, CM1.conv_q_sno_to_q_rai),
+            (CMP.CloudIceMelt(), mp, CM1.conv_q_icl_to_q_lcl),
+            (CMP.Kessler1M(), mp, CM1.conv_q_lcl_to_q_rai),
+            (CMP.KK2000Autoconversion(), mpKK, CM1.conv_q_lcl_to_q_rai),
+            (CMP.KK2000Accretion(), mpKK, CM1.accretion),
         )
             rts = Base.return_types(
                 f,
                 Tuple{
                     typeof(opt),
-                    typeof(mp),
+                    typeof(params),
                     typeof(tps),
                     NamedTuple{(:q_tot, :q_lcl, :q_icl, :q_rai, :q_sno), NTuple{5, DT}},
                     NamedTuple{(:ρ, :T, :w), NTuple{3, FT}},
