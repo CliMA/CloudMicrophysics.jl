@@ -242,6 +242,19 @@ Quadrature.GaussLegendre
 
 The building blocks of these functions are listed on the [P3 internals](P3Internals.md) page.
 
+## Lookup tables
+
+[`P3Scheme.with_tables`](@ref) returns parameters whose `integration` is a
+[`P3Scheme.P3Tables`](@ref), which replaces the slope solve and the size-distribution quadratures
+of the ice with table lookups, see [Lookup tables](@ref P3-lookup-tables).
+
+```@docs
+P3Scheme.with_tables
+P3Scheme.P3Tables
+P3Scheme.P3TableGrid
+P3Scheme.tables_are_current
+```
+
 # Aerosol model
 
 ```@docs
@@ -396,6 +409,7 @@ Common.Chen2022_exponential_pdf
 Common.volume_sphere_D
 Common.volume_sphere_R
 Common.ventilation_factor
+Common.ventilation_coefficients
 Common.KK2000_autoconversion
 Common.KK2000_accretion
 ```

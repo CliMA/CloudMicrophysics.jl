@@ -215,7 +215,7 @@ L_\mathrm{ice} &= \int_{0}^{∞} m(D) N'(D) \mathrm{d}D
 
 To close the system of equations, it has been customary (e.g. [MorrisonMilbrandt2015](@cite)) to assume $μ$ to be a function of $λ$, $μ = μ(λ)$.
 
-## Calculating shape parameters
+## [Calculating shape parameters](@id P3-shape-parameters)
 
 Given the system
 
@@ -363,7 +363,7 @@ An alternative parameterization for $μ$ is a constant value:
 μ = μ_{const}
 ```
 
-## Terminal Velocity
+## [Terminal Velocity](@id P3-terminal-velocity)
 
 We use the Chen et al. [Chen2022](@cite) velocity parameterization,
   see [here](https://clima.github.io/CloudMicrophysics.jl/dev/TerminalVelocity.html#Chen-et.-al.-2022) for details.
@@ -587,7 +587,7 @@ Ice phase:
 
 Below, we describe the different processes in more detail.
 
-### Collisions with liquid droplets (``\textcolor{brown}{\textsf{COL}}``)
+### [Collisions with liquid droplets (``\textcolor{brown}{\textsf{COL}}``)](@id P3-collisions)
 
 At a high level, collisions between liquid droplets (cloud or rain) and ice particles lead to sources and sinks of the form:
 
@@ -843,7 +843,7 @@ include("plots/P3ImmersionFreezing.jl")
 ```
 ![](P3_het_ice_nucleation.svg)
 
-### Melting
+### [Melting](@id P3-melting)
 
 Melting follows from heat conduction to the particles, as in the
   [1-moment scheme](https://clima.github.io/CloudMicrophysics.jl/dev/Microphysics1M/#Snow-melt).
@@ -867,6 +867,98 @@ The number tendency of ice self-collection scales with the prognostic number in 
 include("plots/P3Melting.jl")
 ```
 ![](P3_ice_melt.svg)
+
+## [Lookup tables](@id P3-lookup-tables)
+
+By default, the P3 scheme evaluates the integrals over the ice size distribution of the sections above by quadrature at every call.
+Lookup tables replace the integrals of the ice alone and the slope solve by interpolation in tables that are computed once.
+[`CloudMicrophysics.P3Scheme.with_tables`](@ref) builds the tables from a complete set of parameters and returns a copy of the parameters that uses them:
+
+```julia
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.P3Scheme as P3
+
+mp = CMP.Microphysics2MParams(Float32; with_ice = true)
+mp = P3.with_tables(mp)
+```
+
+A [`CloudMicrophysics.P3Scheme.P3State`](@ref) built from the returned parameters reads its integrals from the tables, so the process rates need no other change.
+The liquid-ice collisions have no tables yet, and they evaluate with the quadrature rule that the tables were built with.
+
+!!! warning "Rebuild the tables after a change of the parameters"
+    The tables hold only for the parameters they were built from.
+    After a change of the mass, area or slope laws or the terminal velocities, build new tables, see [When to rebuild the tables](@ref P3-tables-rebuild).
+
+!!! note "Tables on a GPU"
+    To build the tables on a GPU and store them there, pass the array type of the device:
+    ```julia
+    mp = P3.with_tables(mp, ClimaComms.array_type(device))
+    ```
+
+### Speed and memory
+
+The speedups below were measured in November 2026 in `Float32` on one thread of an Apple M4 Max, and they vary with the machine and the states.
+With the tables, a call of [`CloudMicrophysics.BulkMicrophysicsTendencies.bulk_microphysics_tendencies`](@ref) for the two-moment scheme with P3 ice is about 2 times faster than with quadrature.
+The liquid-ice collisions have no tables yet and take most of the remaining time.
+Each tabulated process is faster by the following factor:
+
+| Process | Speedup |
+|:--------|--------:|
+| construction of a `P3State` | 8 |
+| melting | 10 |
+| mean fall speeds | 70 |
+| self-collection | 3000 |
+
+On the default grid, the tables take 15 MB in `Float32` and 30 MB in `Float64`.
+They build in about 8 s on 16 CPU threads, and in less than a second on a GPU after the first call, which compiles the build.
+The times behind these factors are in [Cost of the tables](@ref P3-cost-of-the-tables).
+
+### What is tabulated
+
+Each table stores an integral over the ice size distribution ``N'(D)`` divided by the ice number ``N``, so that it depends only on the shape of the distribution.
+The shape follows from the slope ``\textcolor{blue}{λ}`` and the rime state ``\textcolor{red}{F_{rim}}`` and ``\textcolor{red}{ρ_{rim}}``, and the fall speeds in the integrands depend on the air density ``\textcolor{orange}{ρ_a}``.
+At run time, the values are multiplied by the ice number.
+
+The [size distribution](@ref P3-shape-parameters) has the mean particle mass
+```math
+\frac{L}{N}\big(\textcolor{blue}{λ}, \textcolor{red}{F_{rim}}, \textcolor{red}{ρ_{rim}}\big)
+  = \frac{∫_0^∞ m(D) D^μ e^{-λD} \mathrm{d}D}{∫_0^∞ D^μ e^{-λD} \mathrm{d}D},
+```
+and `P3State` finds the slope ``λ`` of a given ``L/N`` by inverting this table.
+The ice table uses ``λ`` rather than ``L/N`` as its coordinate.
+
+The [fall speeds](@ref P3-terminal-velocity) ``V_n`` and ``V_m`` are tabulated as functions of ``\big(\textcolor{blue}{λ}, \textcolor{red}{F_{rim}}, \textcolor{red}{ρ_{rim}}, \textcolor{orange}{ρ_a}\big)``, and so are the moments of [melting](@ref P3-melting) and of self-collection ([`ice_self_collection`](@ref CloudMicrophysics.P3Scheme.ice_self_collection)):
+```math
+\begin{aligned}
+M_v &= \frac{1}{N} ∫_0^∞ D^{3/2} v(D)^{1/2} N'(D) \mathrm{d}D,
+\\
+K_{SLF} &= \frac{1}{N^2} ∫_0^∞ ∫_{D_1}^∞ π (r_1 + r_2)^2 |v(D_1) - v(D_2)| N'(D_2) N'(D_1) \mathrm{d}D_2 \mathrm{d}D_1.
+\end{aligned}
+```
+With the ventilation factor ``F_v(D) = a + b \sqrt{D v(D)}``, the melting integral is ``∫ D F_v(D) N'(D) \mathrm{d}D = a M_1 + b N M_v``, and the first moment ``M_1`` has a closed form.
+The coefficients ``a`` and ``b`` depend on the air, and enter at run time.
+
+The temperature, the air properties other than the air density, and the ice number and mass enter at run time and are not tabulated.
+The tables are uniform in ``\log λ``, in ``1 - \sqrt{1 - F_{rim}}``, which spreads the rime mass fractions near one, in ``ρ_{rim}``, and in ``\log ρ_a``, and they are read by multilinear interpolation.
+The grids and the evaluation at run time are described in [the lookup tables of the P3 internals](@ref P3-internals-lookup-tables).
+
+### [When to rebuild the tables](@id P3-tables-rebuild)
+
+The tables are valid only for the parameters they were built from: the mass, area and slope laws, the ice density, the nucleated crystal size, the largest mean particle mass, and the terminal velocities.
+After a change to any of these parameters, build new tables with `with_tables`.
+[`CloudMicrophysics.P3Scheme.tables_are_current`](@ref) returns `false` for parameters that differ from those of the tables, and the constructors of the parameters from a parameter dictionary throw an `ArgumentError` for tables built from other parameters.
+
+### Range and derivatives
+
+The tables cover air densities from 0.005 to 1.7 kg/m³, and the axis of the slope spans the mean-mass limits of the ice size distribution.
+A coordinate outside a table reads the nearest edge of the table, and the derivative along that coordinate is zero there.
+The slope ``λ`` is held constant under differentiation, as for the quadrature.
+The other coordinates keep their derivatives through the interpolation, so the derivatives with respect to the state follow those of the quadrature to the accuracy of the tables.
+
+### Accuracy
+
+On the default grid, the 99th percentile of the relative error against Gauss-Legendre quadrature of order 16 is at most 1% for every ice integral.
+The script `test/p3_tables_accuracy.jl` measures and prints the errors of every rate, for the default grid or for any other grid.
 
 ## Acknowledgments
 

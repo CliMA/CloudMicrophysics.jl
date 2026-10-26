@@ -268,7 +268,7 @@ end
     end
 
     # Initial guess
-    if p < 0.5
+    if p < FT(0.5)
         x = FT((p * SF.gamma(a + 1))^(1 / a))
     else
         x = FT(a - log(q))

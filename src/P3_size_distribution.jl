@@ -255,6 +255,19 @@ for the default slope law, [`CMP.SmoothSlopePowerLaw`](@ref).
 end
 
 """
+    logλ_bounds(params)
+
+Return the smallest and largest `logλ` [log(1/m)] of the slope solve.
+
+The smallest is 2, and the largest is the slope at which the mean particle mass equals the mass of a
+newly nucleated crystal.
+
+# Arguments
+- `params`: [`CMP.ParametersP3`](@ref)
+"""
+@inline logλ_bounds(params) = (2 * one(params.D_nuc), _logλ_max(params))
+
+"""
     get_distribution_logλ(particles, ρq_ice, ρn_ice)
 
 Solve for `logλ`, the log of the slope parameter of the P3 size distribution.
@@ -290,16 +303,15 @@ a primal value, so `logλ` is constant under differentiation with respect to the
 - `ρq_ice`: The ice mass concentration [kg/m³]
 - `ρn_ice`: The ice number concentration [1/m³], bounded by [`bounded_ice_number`](@ref)
 
-The search bounds are `logλ = 2` and the slope at which the mean particle mass equals the mass of
-a newly nucleated crystal. Without ice mass, the result is the upper bound, the smallest
-particles. With mass but without number, it is the lower bound, the largest particles.
+The search bounds are [`logλ_bounds`](@ref). Without ice mass, the result is the upper bound, the
+smallest particles. With mass but without number, it is the lower bound, the largest particles.
 """
 function get_distribution_logλ(particles, ρq_ice, ρn_ice)
     particles = _primal_particles(particles)
     FT = eltype(particles)
     ρq_ice = FT(FD.value(ρq_ice))
     ρn_ice = FT(FD.value(ρn_ice))
-    lo, hi = FT(2), FT(_logλ_max(particles.params))
+    lo, hi = map(FT, logλ_bounds(particles.params))
     ρq_ice ≥ floatmin(FT) || return hi
     ρn_ice ≥ floatmin(FT) || return lo
 
