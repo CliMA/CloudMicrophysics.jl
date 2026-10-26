@@ -141,20 +141,3 @@ function ice_terminal_velocities(velocity_params, state::TabulatedP3State, ρₐ
     present = primal_value(state.dist.ρn) > 0
     return (; v_n = ifelse(present, v_n, zero(v_n)), v_m = ifelse(present, v_m, zero(v_m)))
 end
-
-"""
-    ∫liquid_ice_collisions(
-        psd_c, psd_r, aps, tps, vel, m_liq, state::TabulatedP3State,
-        L_c, N_c, L_r, N_r, ρₐ, T,
-    )
-
-Return the liquid-ice collision rates of [`∫liquid_ice_collisions`](@ref) for a tabulated state, by quadrature with the rule of its tables.
-"""
-@inline function ∫liquid_ice_collisions(
-    psd_c, psd_r, aps, tps, vel, m_liq, state::TabulatedP3State,
-    L_c, N_c, L_r, N_r, ρₐ, T,
-)
-    (; particles, integration, ρq_ice, ρn_ice, ρb_rim, dist) = state
-    quadrature = P3State(particles, integration.generator, ρq_ice, ρn_ice, ρb_rim, dist)
-    return ∫liquid_ice_collisions(psd_c, psd_r, aps, tps, vel, m_liq, quadrature, L_c, N_c, L_r, N_r, ρₐ, T)
-end

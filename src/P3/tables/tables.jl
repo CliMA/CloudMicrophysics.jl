@@ -1,28 +1,26 @@
 """
-    P3Tables{G, Q}
+    P3Tables{G}
 
-Lookup tables that evaluate the P3 ice size-distribution integrals and the slope solve.
+Lookup tables that evaluate the P3 size-distribution integrals and the slope solve.
 
-A [`P3State`](@ref) whose `integration` is a `P3Tables` reads the ice integrals from the tables,
-and its [`P3Distribution`](@ref) takes the slope from the inverse slope table. The liquid-ice
-collisions have no tables, and evaluate with the quadrature rule `generator`.
+A [`P3State`](@ref) whose `integration` is a `P3Tables` reads every ice integral group from the
+tables, and its [`P3Distribution`](@ref) takes the slope from the inverse slope table.
 
 [`with_tables`](@ref) builds the tables and returns parameters that use them, and
 [`tables_are_current`](@ref) detects tables built from other parameters.
 
-The tables hold the integrals for the terminal velocities they were built with, so the table
-methods ignore the velocity arguments of the process functions.
+The tables hold the integrals for the terminal velocities and the liquid size distributions they
+were built with, so the table methods ignore the velocity and liquid mass arguments of the process
+functions.
 
 # Fields
 $(FIELDS)
 """
-struct P3Tables{G <: NamedTuple, Q <: QuadratureRule}
+struct P3Tables{G <: NamedTuple}
     "Table of each table group, a [`UniformTable`](@ref), with the keys of the groups of [`P3TableGrid`](@ref)"
     groups::G
     "Hash of the parameters the tables were built from"
     fingerprint::UInt64
-    "Quadrature rule the tables were built with, which evaluates the integrals without tables"
-    generator::Q
 end
 
 Adapt.@adapt_structure P3Tables
@@ -44,11 +42,25 @@ coordinates of a grid point to the values of the group there by quadrature with 
 `generator`, and the keyword arguments `logs` and `inner` of [`UniformTable`](@ref).
 """
 function table_groups(ice_params, grid, generator)
-    (; scheme, terminal_velocity) = ice_params
+    (; scheme, terminal_velocity, cloud_pdf, rain_pdf) = ice_params
+    vel = terminal_velocity
+    logR = Tuple(axis_points(first(grid.groups.cloud_rime_density)))
+    logits = Tuple(axis_points(first(grid.groups.cloud_fraction)))
     group(point; logs = nothing, inner = false) = (; point, logs, inner)
     return (;
         slope = group(x -> slope_point(scheme, x)),
-        ice = group(x -> ice_point(scheme, terminal_velocity, generator, x); logs = (true, true, true, true)),
+        ice = group(x -> ice_point(scheme, vel, generator, x); logs = (true, true, true, true)),
+        cloud_collision = group(x -> collision_point(scheme, vel, cloud_pdf, generator, x); logs = (true, true, false)),
+        rain_collision = group(x -> collision_point(scheme, vel, rain_pdf, generator, x); logs = (true, true, false)),
+        cloud_rime_density = group(x -> rime_density_point(scheme, vel, cloud_pdf, generator, logR, x); inner = true),
+        rain_rime_density = group(x -> rime_density_point(scheme, vel, rain_pdf, generator, logR, x); inner = true),
+        collision_bounds = group(collision_bounds_point),
+        cloud_collected = group(x -> collected_point(scheme, vel, cloud_pdf, generator, x); logs = (true, false)),
+        rain_collected = group(x -> collected_point(scheme, vel, rain_pdf, generator, x); logs = (true, false)),
+        capacity = group(x -> capacity_point(scheme, vel, x); logs = (true,)),
+        cloud_fraction = group(x -> fraction_point(scheme, vel, cloud_pdf, generator, logits, x); inner = true),
+        rain_fraction = group(x -> fraction_point(scheme, vel, rain_pdf, generator, logits, x); inner = true),
+        capacity_fraction = group(x -> capacity_fraction_point(scheme, vel, generator, logits, x); inner = true),
     )
 end
 
@@ -78,11 +90,12 @@ function with_tables(
     grid = P3TableGrid(ice_params),
     generator = GaussLegendre(eltype(ice_params.scheme), 16),
 )
+    check_liquid_pdfs(ice_params)
     FT = eltype(ice_params.scheme)
     groups = map(table_groups(ice_params, grid, generator), grid.groups) do (; point, logs, inner), axes
         UniformTable(tabulate(point, inner ? Base.tail(axes) : axes, ArrayType), axes, FT; logs, inner)
     end
-    return with_integration(ice_params, P3Tables(groups, table_fingerprint(ice_params), generator))
+    return with_integration(ice_params, P3Tables(groups, table_fingerprint(ice_params)))
 end
 with_tables(mp::CMP.Microphysics2MParams, args...; kwargs...) =
     CMP.Microphysics2MParams(mp.warm_rain, with_tables(ice_parameters(mp), args...; kwargs...))

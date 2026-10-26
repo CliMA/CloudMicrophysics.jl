@@ -1397,8 +1397,14 @@ function test_gpu(FT)
         # Coarse tables built on the device and on the host
         grid = P3.P3TableGrid(
             mp_2m_p3;
-            slope = (; logλ = 16, w = 3, ρ_rim = 3),
             ice = (; logλ = 16, w = 5, ρ_rim = 3, logρₐ = 3),
+            cloud_collision = (; logλ = 8, w = 3, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 4),
+            rain_collision = (; logλ = 8, w = 3, ρ_rim = 2, logρₐ = 2, rain_logx̄ = 3),
+            rime_density = (; logλ = 4, w = 2, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 3, rain_logx̄ = 2, logR = 8),
+            wet_set = (;
+                logλ = 4, w = 3, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 3, rain_logx̄ = 2,
+                logD = 8, number_logit = 9, μ = 8,
+            ),
         )
         mp_host = P3.with_tables(mp_2m_p3, Array; grid)
         mp_device = P3.with_tables(mp_2m_p3, ArrayType; grid)
@@ -1421,8 +1427,11 @@ function test_gpu(FT)
         state_host = P3.P3State(p3_params, tables_host, FT(1e-4), FT(1e4), FT(0.5e-4), FT(0.5e-4 / 400))
         expected = P3.ice_self_collection(Ch2022, state_host, FT(1.2)).dNdt
         TT.@test all(r -> r.dNdt ≈ expected, Array(output))
-        states = P3.P3State.(p3_params, tables_device, L_ice, N_ice, F_rim .* L_ice, F_rim .* L_ice ./ ρ_rim)
-        TT.@test all(r -> r.dNdt ≈ expected, Array(P3.ice_self_collection.(Ref(Ch2022), states, ρₐ)))
+        rates = P3.ice_self_collection.(
+            Ref(Ch2022),
+            P3.P3State.(p3_params, tables_device, L_ice, N_ice, F_rim .* L_ice, F_rim .* L_ice ./ ρ_rim), ρₐ,
+        )
+        TT.@test all(r -> r.dNdt ≈ expected, Array(rates))
 
         # Bulk tendencies of 2M+P3 under the tables
         DT_p3 = @NamedTuple{

@@ -380,6 +380,7 @@ Utilities.clamp_to_nonneg
 Utilities.promote_typeof
 Utilities.return_type_of
 Utilities.find_zeros
+Utilities.scan_zeros
 Utilities.ϵ_numerics
 Utilities.gamma_inc
 Utilities.gamma_inc_inv

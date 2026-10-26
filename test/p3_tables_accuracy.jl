@@ -9,8 +9,11 @@
 include("p3_tables_helpers.jl")
 
 # The quantiles of the errors of `tables` against the quadrature of `ice` on `n_states` seeded
-# states, relative errors except the absolute error of `logλ`
-table_accuracy(ice, tables; n_states = 2000) = ice_error_quantiles(ice, tables, n_states)
+# states, relative errors except the absolute errors of `logλ` and the shed fraction
+function table_accuracy(ice, tables; n_states = 2000)
+    collisions = collision_error_quantiles(ice, tables, n_states)
+    return (; ice_error_quantiles(ice, tables, n_states)..., Base.structdiff(collisions, (; n_partial = 0))...)
+end
 
 function print_table_accuracy(q)
     println(rpad("Quantity", 24), lpad("Median", 12), lpad("99th pct.", 12), lpad("Maximum", 12))
@@ -26,10 +29,24 @@ end
     println("Errors of the P3 tables on the default grid in $FT")
     print_table_accuracy(q)
     @test q.logλ.p99 < 1e-3
-    for name in filter(!=(:logλ), keys(q))
+    for name in (:ventilation, :self_collection, :v_n, :v_m, :melt)
         @test q[name].median < 0.01
         @test q[name].p99 < 0.03
         @test q[name].mismatch == 0
+    end
+    for name in (:cloud_mass, :rain_mass, :cloud_number, :rain_number, :frozen_mass, :rime_volume)
+        @test q[name].median < 0.01
+        @test q[name].p99 < 0.03
+        @test q[name].mismatch == 0
+    end
+    for name in (:cloud_frozen, :cloud_shed, :rain_frozen, :rain_shed)
+        @test q[name].median < 0.01
+        @test q[name].p99 < 0.03
+    end
+    @test q.shed_fraction.p99 < 0.01
+    for name in (:ice_mass_tendency, :rime_mass_tendency, :rime_volume_tendency)
+        @test q[name].median < 0.01
+        @test q[name].p99 < 0.03
     end
 end
 nothing
