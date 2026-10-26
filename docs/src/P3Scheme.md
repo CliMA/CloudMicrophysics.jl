@@ -868,6 +868,95 @@ include("plots/P3Melting.jl")
 ```
 ![](P3_ice_melt.svg)
 
+## [Lookup tables](@id P3-lookup-tables)
+
+By default, the P3 scheme evaluates its size-distribution integrals by quadrature at every call.
+Lookup tables replace the integrals of the ice size distribution and the slope solve by interpolation in tables that are computed once.
+[`CloudMicrophysics.P3Scheme.with_tables`](@ref) builds the tables from a complete set of parameters and returns a copy of the parameters that uses them:
+
+```julia
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.P3Scheme as P3
+
+mp = CMP.Microphysics2MParams(Float32; with_ice = true)
+mp = P3.with_tables(mp)
+```
+
+The process rates need no other change, because a [`CloudMicrophysics.P3Scheme.P3State`](@ref) built from the returned parameters reads its integrals from the tables.
+The liquid-ice collisions have no tables, and they evaluate with the quadrature rule that the tables were built with.
+To build the tables on a GPU, pass the array type of the device, and the tables are built and stored on the device:
+
+```julia
+mp = P3.with_tables(mp, ClimaComms.array_type(device))
+```
+
+### Speed and memory
+
+The speedups below are for one CPU thread in `Float32`.
+With the tables, a call of [`CloudMicrophysics.BulkMicrophysicsTendencies.bulk_microphysics_tendencies`](@ref) for the two-moment scheme with P3 ice is about 2 times faster than with quadrature.
+The liquid-ice collisions have no tables yet and take most of the remaining time.
+Each tabulated process is faster by the following factor:
+
+| Process | Speedup |
+|:--------|--------:|
+| construction of a `P3State` | 8 |
+| melting | 10 |
+| mean fall speeds | 70 |
+| self-collection | 3000 |
+
+On the default grid, the tables take 15 MB in `Float32` and 30 MB in `Float64`.
+They build in about 8 s on 16 CPU threads, and in less than a second on a GPU after the first call, which compiles the build.
+The times behind these factors are in [Cost of the tables](@ref P3-cost-of-the-tables).
+
+### What is tabulated
+
+| Tables | Values | Coordinates |
+|:-------|:-------|:------------|
+| slope | log mean particle mass ``\log(L/N)`` | ``\log λ``, ``w``, ``ρ_{rim}`` |
+| ice | ventilation moment ``M_v``, self-collection rate, fall speeds ``v_n`` and ``v_m``, per unit number | ``\log λ``, ``w``, ``ρ_{rim}``, ``\log ρ_a`` |
+
+Here ``λ`` is the slope of the ice size distribution, ``w = 1 - \sqrt{1 - F_{rim}}`` the rime coordinate, ``ρ_{rim}`` the rime density and ``ρ_a`` the air density.
+The rime coordinate spreads the rime mass fractions near one, where the particle properties change fastest.
+Every table is read by multilinear interpolation in its coordinates.
+
+#### Slope
+
+The slope table holds the log mean particle mass as a function of the slope and the rime state.
+`P3State` inverts this table to find the slope of a given mean mass, by a bisection with a fixed number of steps and one Newton step on the closed form.
+The other tables use the slope instead of the mean mass as their coordinate, because the shape parameter ``μ`` changes steeply with the mean mass between ``\log \bar{x} = -20.2`` and ``-19.8``.
+The left panel shows the content of the slope table at the rime density 400 kg/m³: the mean mass decreases monotonically with the slope, so the table has an inverse.
+The right panel shows the shape parameter against the mean mass, with the steep range in gray.
+
+```@example
+include("plots/P3SlopeTable.jl")
+nothing # hide
+```
+![](P3SlopeTable.svg)
+
+#### Ice integrals
+
+The ice tables hold the integrals of the ice size distribution alone, per unit ice number.
+The ventilation moment ``M_v`` enters the melting rate, and the first moment ``M_1`` that melting also needs has a closed form.
+No table holds an air property other than the air density, so the ventilation coefficients, the viscosity, the diffusivity and the latent heats enter at run time.
+
+#### Derivatives and table edges
+
+The slope ``\log λ`` is held under differentiation, as for the quadrature.
+The other coordinates keep their derivatives through the interpolation, so the derivatives with respect to the state follow those of the quadrature to the accuracy of the tables.
+A coordinate outside a table reads the nearest edge of the table, and the derivative along that coordinate is zero there.
+In particular, the tables cover air densities from 0.005 to 1.7 kg/m³.
+
+### When to rebuild the tables
+
+The tables are valid only for the parameters they were built from: the mass, area and slope laws and the terminal velocities.
+After a change to any of these parameters, build new tables with `with_tables`.
+[`CloudMicrophysics.P3Scheme.tables_are_current`](@ref) returns `false` for parameters that differ from those of the tables, and the parameter constructors throw an `ArgumentError` for tables built from other parameters.
+
+### Accuracy
+
+On the default grid, the 99th percentile of the relative error against Gauss-Legendre quadrature of order 16 is at most 1% for every ice integral.
+The script `test/p3_tables_accuracy.jl` measures and prints the errors of every rate, for the default grid or for any other grid.
+
 ## Acknowledgments
 
 The reference Fortran implementation of the P3 scheme, developed by the authors

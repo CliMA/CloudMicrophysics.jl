@@ -38,6 +38,15 @@ P3Scheme.loggamma_inc_moment
 P3Scheme.get_μ
 P3Scheme.get_logN₀
 P3Scheme.logN′ice
+P3Scheme.logλ_bounds
+```
+
+## Ventilation
+
+[`P3Scheme.ice_melt`](@ref) reads the ventilation integral of the size distribution from `ice_ventilation_integral`.
+
+```@docs
+P3Scheme.ice_ventilation_integral
 ```
 
 ## Liquid-ice collisions
@@ -75,3 +84,77 @@ P3Scheme.velocity_integral_bounds
 P3Scheme.insert_breakpoints
 P3Scheme.velocity_breakpoints
 ```
+
+## Lookup tables
+
+[`P3Scheme.P3Tables`](@ref) holds one `UniformTable` per table group, a function with one or more components on a grid uniform along each `TableAxis`, read by multilinear interpolation with `lookup`.
+A component that scales as a power of the coordinates is stored as its logarithm.
+`table_groups` gives the point function of each table group, and `tabulate` evaluates it at the points of the axes of the group.
+The rime axes use the coordinate `rime_coordinate`, and `integral_logλ_bounds` gives the slopes of the integral tables.
+
+```@docs
+P3Scheme.TableAxis
+P3Scheme.grid_point
+P3Scheme.UniformTable
+P3Scheme.lookup
+P3Scheme.interpolate
+P3Scheme.axis_cell
+P3Scheme.uniform_index
+P3Scheme.primal_value
+P3Scheme.rime_coordinate
+P3Scheme.rime_mass_fraction_at
+P3Scheme.integral_logλ_bounds
+P3Scheme.TABLE_POINTS
+P3Scheme.table_groups
+P3Scheme.TabulatedP3State
+P3Scheme.tabulate
+```
+
+### Inverse slope table
+
+The slope of the size distribution follows from `logLdivN`, which decreases with `logλ`.
+`slope_point` evaluates `logLdivN` on uniform `logλ` points.
+`tabulated_distribution_logλ` interpolates the table bilinearly in the rime coordinate and the rime density, finds the segment of `logλ` that holds the target by a bisection with a fixed number of steps, inverts the target linearly on it, and refines the result with one Newton step on the closed form.
+
+```@docs
+P3Scheme.slope_point
+P3Scheme.tabulated_distribution_logλ
+```
+
+### Ice tables
+
+`ice_point` evaluates the ventilation moment `M_v`, the self-collection rate and the mean fall speeds per unit number, on `logλ`, the rime coordinate, the rime density and the log air density.
+`node_self_collection` evaluates the self-collection rate with the node values of each subinterval evaluated once.
+`table_state` gives the state at a grid point, `ice_table_key` the coordinates of a state, and `tabulated_ice_integrals` reads the table.
+
+```@docs
+P3Scheme.ice_point
+P3Scheme.ventilation_moment
+P3Scheme.node_self_collection
+P3Scheme.table_state
+P3Scheme.ice_table_key
+P3Scheme.tabulated_ice_integrals
+```
+
+### [Cost of the tables](@id P3-cost-of-the-tables)
+
+The build is dominated by the ice tables, whose self-collection integral is a double integral at each of 0.9 million points:
+
+| Group | Points | Build, 16 threads | Build, 1 thread |
+|:------|-------:|------------------:|----------------:|
+| slope | 32768 | 0.01 s | 0.02 s |
+| ice | 912384 | 10 s | 109 s |
+
+These are times in `Float64` on an Apple M4 Max with 12 performance and 4 efficiency cores; in `Float32` the ice tables take 7.7 s on 16 threads and 84 s on one.
+On one CPU thread, the rates take
+
+| Function | Quadrature | Tables |
+|:---------|-----------:|-------:|
+| `P3State`, with the slope | 4.8 μs | 0.60 μs |
+| `ice_terminal_velocities` | 4.1 μs | 0.06 μs |
+| `ice_self_collection` | 183 μs | 0.06 μs |
+| `ice_melt` | 4.6 μs | 0.39 μs |
+| `bulk_microphysics_tendencies`, two-moment with P3 ice | 300 μs | 140 μs |
+
+These are `Float32` times with the state built, except for `P3State` and `bulk_microphysics_tendencies`.
+The time of `bulk_microphysics_tendencies` is the mean over 400 random states from 235 K to 280 K.
