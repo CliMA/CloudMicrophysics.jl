@@ -15,10 +15,36 @@ Adapt.adapt_storage(::ViewAdaptor, a::Array) = view(a, axes(a)...)
 
 # Point counts of the axes for the tests, coarser than the default grid
 const TEST_ICE_AXES = (; logλ = 64, w = 9, ρ_rim = 5, logρₐ = 8)
-const TEST_GRID = (; ice = TEST_ICE_AXES)
+const TEST_GRID = (;
+    ice = TEST_ICE_AXES,
+    cloud_collision = (; logλ = 48, w = 9, ρ_rim = 4, logρₐ = 5, cloud_logx̄ = 10),
+    rain_collision = (; logλ = 48, w = 9, ρ_rim = 4, logρₐ = 5, rain_logx̄ = 6),
+    rime_density = (; logλ = 12, w = 4, ρ_rim = 3, logρₐ = 3, cloud_logx̄ = 5, rain_logx̄ = 4, logR = 24),
+    wet_set = (;
+        logλ = 16, w = 5, ρ_rim = 3, logρₐ = 3, cloud_logx̄ = 5, rain_logx̄ = 4,
+        logD = 48, number_logit = 17, μ = 32,
+    ),
+)
 
 # The coarsest grid, for tests of the construction
-const TINY_GRID = (; slope = (; logλ = 16, w = 3, ρ_rim = 3), ice = (; logλ = 16, w = 5, ρ_rim = 3, logρₐ = 3))
+const TINY_GRID = (;
+    slope = (; logλ = 16, w = 3, ρ_rim = 3),
+    ice = (; logλ = 16, w = 5, ρ_rim = 3, logρₐ = 3),
+    cloud_collision = (; logλ = 8, w = 3, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 4),
+    rain_collision = (; logλ = 8, w = 3, ρ_rim = 2, logρₐ = 2, rain_logx̄ = 3),
+    rime_density = (; logλ = 4, w = 2, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 3, rain_logx̄ = 2, logR = 8),
+    wet_set = (;
+        logλ = 4,
+        w = 3,
+        ρ_rim = 2,
+        logρₐ = 2,
+        cloud_logx̄ = 3,
+        rain_logx̄ = 2,
+        logD = 8,
+        number_logit = 9,
+        μ = 8,
+    ),
+)
 
 # A terminal velocity that throws when evaluated, so a test detects any quadrature node
 struct ThrowingVelocity{FT}
@@ -124,4 +150,101 @@ function test_ice_table_accuracy(ice, tables; n_states, median, p99)
         @test q[name].p99 < p99
         @test q[name].mismatch == 0
     end
+end
+
+# Seeded liquid-ice collision states between the grid points: the ice states of
+# `sample_ice_states_in_air`, cloud and rain contents and numbers, and temperatures from 235 to
+# 278 K
+function sample_collision_states(params, n)
+    rng = Random.Xoshiro(3)
+    return map(sample_ice_states_in_air(params, n)) do (logx̄, F_rim, ρ_rim, ρₐ)
+        ρn_ice = exp10(2 + 4 * rand(rng))
+        x̄_c = exp(log(5e-15) + log(5e4) * rand(rng))
+        N_c = exp10(7 + 2 * rand(rng))
+        (;
+            ρq_ice = exp(logx̄) * ρn_ice, ρn_ice, F_rim, ρ_rim, ρₐ,
+            L_c = x̄_c * N_c, N_c, L_r = exp10(-6 + 3 * rand(rng)), N_r = exp10(2 + 4 * rand(rng)),
+            T = 235 + 43 * rand(rng),
+        )
+    end
+end
+
+# The liquid-ice collision rates and the bulk tendencies of a state of `sample_collision_states`
+# under the integration `rule`
+function collision_rates(ice, rule, s)
+    FT = eltype(ice.scheme)
+    (; ρq_ice, ρn_ice, F_rim, ρ_rim, ρₐ, L_c, N_c, L_r, N_r, T) = map(FT, s)
+    st = P3.P3State(ice.scheme, rule, ρq_ice, ρn_ice, F_rim * ρq_ice, F_rim * ρq_ice / ρ_rim)
+    aps = CMP.AirProperties(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    ρw = ice.cloud_pdf.ρw
+    m_liq(D) = ρw * CO.volume_sphere_D(D)
+    (; cloud_pdf, rain_pdf, terminal_velocity) = ice
+    return (;
+        r = P3.∫liquid_ice_collisions(
+            cloud_pdf,
+            rain_pdf,
+            aps,
+            tps,
+            terminal_velocity,
+            m_liq,
+            st,
+            L_c,
+            N_c,
+            L_r,
+            N_r,
+            ρₐ,
+            T,
+        ),
+        b = P3.bulk_liquid_ice_collision_sources(
+            cloud_pdf,
+            rain_pdf,
+            aps,
+            tps,
+            terminal_velocity,
+            st,
+            L_c,
+            N_c,
+            L_r,
+            N_r,
+            ρₐ,
+            T,
+        ),
+    )
+end
+
+# The quantiles of the collision rates of the tables against the quadrature: relative errors of the
+# collected masses and numbers, of the frozen mass, of the rime volumes and of the ice tendencies;
+# errors of the frozen and shed mass of each species relative to the mass the species gives to the
+# ice, on the states that partly freeze; and absolute errors of the shed fraction
+function collision_error_quantiles(ice, tables, n_states)
+    states = sample_collision_states(CMP.ParametersP3(CP.create_toml_dict(Float64)), n_states)
+    reference = [collision_rates(ice, ice.integration, s) for s in states]
+    tabulated = [collision_rates(ice, tables, s) for s in states]
+    R, Tt = map(x -> x.r, reference), map(x -> x.r, tabulated)
+    relative(f) = error_quantiles(map(f, R), map(f, Tt))
+    partial = [i for i in eachindex(R) if R[i][2] + R[i][5] > 1e-3 * R[i][7] && R[i][1] + R[i][4] > 1e-3 * R[i][7]]
+    partition(k, total) = quantiles(abs(Tt[i][k] - R[i][k]) / total(R[i]) for i in partial)
+    shed(r) = (r[2] + r[5]) / r[7]
+    tendency(name) =
+        error_quantiles(getproperty.(map(x -> x.b, reference), name), getproperty.(map(x -> x.b, tabulated), name))
+    return (;
+        cloud_mass = relative(r -> r[1] + r[2]),
+        rain_mass = relative(r -> r[4] + r[5]),
+        cloud_number = relative(r -> r[3]),
+        rain_number = relative(r -> r[6]),
+        frozen_mass = relative(r -> r[1] + r[4]),
+        rime_volume = relative(r -> r[8] + r[9]),
+        cloud_rime_volume = relative(r -> r[8]),
+        rain_rime_volume = relative(r -> r[9]),
+        cloud_frozen = partition(1, r -> r[1] + r[2]),
+        cloud_shed = partition(2, r -> r[1] + r[2]),
+        rain_frozen = partition(4, r -> r[4] + r[5]),
+        rain_shed = partition(5, r -> r[4] + r[5]),
+        shed_fraction = quantiles(abs(shed(t) - shed(r)) for (r, t) in zip(R, Tt) if r[7] > 0),
+        ice_mass_tendency = tendency(:∂ₜL_ice),
+        rime_mass_tendency = tendency(:∂ₜL_rim),
+        rime_volume_tendency = tendency(:∂ₜB_rim),
+        n_partial = length(partial),
+    )
 end

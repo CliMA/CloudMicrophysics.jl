@@ -61,6 +61,7 @@ P3Scheme.collision_cross_section_ice_liquid
 P3Scheme.volumetric_collision_rate_integrand
 P3Scheme.VolumetricCollisionRate
 P3Scheme.compute_max_freeze_rate
+P3Scheme.max_freeze_rate_scalars
 P3Scheme.compute_local_rime_density
 P3Scheme.CollisionRimeDensity
 P3Scheme.rime_density_at
@@ -70,6 +71,7 @@ P3Scheme.crossover_diameter
 P3Scheme.crossing_integral_bounds
 P3Scheme.∫liquid_ice_collisions
 P3Scheme.wet_growth_onset_diameters
+P3Scheme.liquid_ice_collision_quantile
 P3Scheme.r_eff_ice
 ```
 
@@ -90,7 +92,7 @@ P3Scheme.velocity_breakpoints
 [`P3Scheme.P3Tables`](@ref) holds one `UniformTable` per table group, a function with one or more components on a grid uniform along each `TableAxis`, read by multilinear interpolation with `lookup`.
 A component that scales as a power of the coordinates is stored as its logarithm.
 `table_groups` gives the point function of each table group, and `tabulate` evaluates it at the points of the axes of the group.
-The rime axes use the coordinate `rime_coordinate`, and `integral_logλ_bounds` gives the slopes of the integral tables.
+The rime axes use the coordinate `rime_coordinate`, `integral_logλ_bounds` gives the slopes of the integral tables, and `liquid_mass_bounds` the liquid mean-mass axes of the supported size distributions.
 
 ```@docs
 P3Scheme.TableAxis
@@ -104,6 +106,7 @@ P3Scheme.primal_value
 P3Scheme.rime_coordinate
 P3Scheme.rime_mass_fraction_at
 P3Scheme.integral_logλ_bounds
+P3Scheme.liquid_mass_bounds
 P3Scheme.TABLE_POINTS
 P3Scheme.table_groups
 P3Scheme.TabulatedP3State
@@ -136,25 +139,80 @@ P3Scheme.ice_table_key
 P3Scheme.tabulated_ice_integrals
 ```
 
+### Liquid-ice tables
+
+`collision_point` evaluates the collected number and mass of cloud or rain per unit ice number and per unit liquid number or mass, on the four ice axes and the liquid mean mass, without the freeze and shed partition.
+The local rime density depends on the temperature through the ratio `Rᵢ` of the impact scale to the temperature, so `rime_density_point` evaluates the mean rime density on the log of that ratio at the mean impact scale.
+`tabulated_collection` reads the tables for a state, and `liquid_table_scales` gives the coordinate and the scales of a liquid species.
+
+```@docs
+P3Scheme.collision_point
+P3Scheme.rime_density_point
+P3Scheme.collection_integrals
+P3Scheme.particle_collection
+P3Scheme.impact_scale
+P3Scheme.table_liquid
+P3Scheme.liquid_table_scales
+P3Scheme.table_log_temperature
+P3Scheme.tabulated_collection
+```
+
+### Wet-set tables
+
+As in the quadrature, an ice particle of diameter `D` freezes the liquid mass `u(D)` it collects from cloud and rain up to its maximum freezing rate `m(D) = c₁ D + c₂ D^(3/2) v(D)^(1/2)`, and sheds the rest.
+The coefficients `c₁` and `c₂` hold the air properties and the ventilation coefficients, see `max_freeze_rate_scalars`.
+The particles with `u > m` form the wet set `W`, and the shed mass is `S = ∫_W (u - m) N′ dD`.
+
+`tabulated_wet_set` evaluates the partition in four steps:
+
+1. A scan of `wet_set_scan_intervals` intervals in `log D` between the bounds of the collision integrals locates the ends of `W` as the zeros of `log(u / m)`, with `u` from the per-particle tables of `collected_point` and `m` from the table of `capacity_point`.
+2. The fraction tables of `fraction_point` and `capacity_fraction_point` give the integrals of `u` and of `D^(3/2) v^(1/2)` over `W`, on the number logit of each end, see `number_logit`, and the integral of `D` has a closed form.
+   The frozen mass is the mass collected on the dry set plus `c₁ M_1 + c₂ M_v` on `W`, and the shed mass the collected mass on `W` less that.
+   The smaller of the two is computed, and the larger is the collected mass less the smaller.
+3. The trapezoid rule on the scan points, with the frozen fraction `min(m / u, 1)` at each point, divides the smaller between cloud and rain.
+4. The rime volume of each species is its frozen mass over its mean local rime density, with the local rime density at the mean impact scale of the mass each particle collects, scaled to the rime density table where every particle freezes.
+
+```@docs
+P3Scheme.collision_bounds_point
+P3Scheme.collected_point
+P3Scheme.capacity_point
+P3Scheme.fraction_point
+P3Scheme.capacity_fraction_point
+P3Scheme.cumulative_logits
+P3Scheme.number_logit
+P3Scheme.logistic_fractions
+P3Scheme.wet_set_scan_intervals
+P3Scheme.tabulated_wet_set
+P3Scheme.collision_diameter_bounds
+P3Scheme.collision_logξ_lo
+```
+
 ### [Cost of the tables](@id P3-cost-of-the-tables)
 
-The build is dominated by the ice tables, whose self-collection integral is a double integral at each of 0.9 million points:
+The build is dominated by the liquid-ice collision tables, a double integral at each of 6.2 million points, and by the ice tables, whose self-collection integral is a double integral at each of 0.9 million points:
 
 | Group | Points | Build, 16 threads | Build, 1 thread |
 |:------|-------:|------------------:|----------------:|
 | slope | 32768 | 0.01 s | 0.02 s |
 | ice | 912384 | 10 s | 109 s |
+| cloud collisions | 3133440 | 14 s | 151 s |
+| rain collisions | 3041280 | 25 s | 273 s |
+| rime density | 716800 | 0.9 s | 5.1 s |
+| wet set | 2741824 | 4.3 s | 40 s |
+| all, with the assembly | | 52 s | 577 s |
 
-These are times in `Float64` on an Apple M4 Max with 12 performance and 4 efficiency cores; in `Float32` the ice tables take 7.7 s on 16 threads and 84 s on one.
+These are times in `Float64` on an Apple M4 Max with 12 performance and 4 efficiency cores; in `Float32` the build takes 50 s on 16 threads and 515 s on one.
 On one CPU thread, the rates take
 
 | Function | Quadrature | Tables |
 |:---------|-----------:|-------:|
-| `P3State`, with the slope | 4.8 μs | 0.60 μs |
-| `ice_terminal_velocities` | 4.1 μs | 0.06 μs |
-| `ice_self_collection` | 183 μs | 0.06 μs |
-| `ice_melt` | 4.6 μs | 0.39 μs |
-| `bulk_microphysics_tendencies`, two-moment with P3 ice | 300 μs | 140 μs |
+| `P3State`, with the slope | 4.7 μs | 0.63 μs |
+| `ice_terminal_velocities` | 4.2 μs | 0.09 μs |
+| `ice_self_collection` | 183 μs | 0.09 μs |
+| `ice_melt` | 4.6 μs | 0.42 μs |
+| `∫liquid_ice_collisions`, below freezing | 152 μs | 2.4 μs |
+| `∫liquid_ice_collisions`, above freezing | 127 μs | 0.26 μs |
+| `bulk_microphysics_tendencies`, two-moment with P3 ice | 300 μs | 3.6 μs |
 
 These are `Float32` times with the state built, except for `P3State` and `bulk_microphysics_tendencies`.
 The time of `bulk_microphysics_tendencies` is the mean over 400 random states from 235 K to 280 K.

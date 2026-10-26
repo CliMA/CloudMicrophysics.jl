@@ -133,7 +133,7 @@ nothing
         f(x) = (x - oftype(x, 0.23)) * (x - oftype(x, 0.51)) * (x - oftype(x, 0.86))
         args = (RS.BrentsMethod, FT(0), FT(1), Val(10))
         sol = @inferred UT.find_zeros(f, args..., Val(2), tol, 50)
-        @test sol.n_found == 2
+        @test sol.n_found == 2 && sol.f_lo == f(FT(0))
         @test all(isapprox.(sol.roots, (FT(0.23), FT(0.51)); atol = FT(1e-5)))
         sol = UT.find_zeros(f, args..., Val(4), tol, 50)
         @test sol.n_found == 3
@@ -143,5 +143,21 @@ nothing
         @test sol.n_found == 0 && sol.roots == (FT(0), FT(0))
         sol = UT.find_zeros(x -> x - oftype(x, 0.5), args..., Val(2), tol, 50)  # a zero on a scan point
         @test sol.n_found == 1 && sol.roots[1] == FT(0.5)
+    end
+end
+
+@testset "scan_zeros" begin
+    RS = UT.RS
+    for FT in (Float32, Float64)
+        tol = RS.SolutionTolerance(FT(1e-6))
+        f(x) = (x - oftype(x, 0.23)) * (x - oftype(x, 0.51)) * (x - oftype(x, 0.86))
+        args = (RS.BrentsMethod, FT(0), FT(1), Val(10), Val(2), tol, 50)
+        # The trapezoid rule sums x² over the scan points
+        trapezoid(i, Δx) = ifelse((i == 0) | (i == 10), Δx / 2, Δx)
+        sol = @inferred UT.scan_zeros(x -> (f(x), x^2), f, args..., trapezoid)
+        @test sol.total ≈ FT(0.335) rtol = 10eps(FT)
+        @test sol.n_found == 2 && sol.f_lo == f(FT(0))
+        @test all(isapprox.(sol.roots, (FT(0.23), FT(0.51)); atol = FT(1e-5)))
+        @test UT.scan_zeros(x -> (f(x), nothing), f, args..., (i, Δx) -> nothing).total === nothing
     end
 end

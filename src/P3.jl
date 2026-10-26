@@ -45,5 +45,7 @@ include("P3/tables/grid.jl")
 include("P3/tables/tables.jl")
 include("P3/tables/inverse_slope.jl")
 include("P3/tables/ice.jl")
+include("P3/tables/liquid_ice.jl")
+include("P3/tables/wet_set.jl")
 
 end
