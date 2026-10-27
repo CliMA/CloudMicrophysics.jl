@@ -343,6 +343,46 @@ function test_heterogeneous_ice_nucleation(FT)
         TT.@test rate(dense, T, S_i, FT(0)).∂ₜq_frz ≈ q_excess / (2 * f23.τ) rtol = 8 * eps(FT)
     end
 
+    TT.@testset "Deposition nucleation toward the Cooper spectrum" begin
+        inp = CMP.ExponentialSupercoolingINP(FT)
+        mp = CMP.Microphysics2MParams(FT; with_ice = true, ice_nucleation = inp)
+        p3 = mp.ice.scheme
+        # A cold cirrus state at about 215 hPa
+        T, ρ = FT(215), FT(0.348)
+        function rate(T, S_i, n_ice)
+            q_vap = (1 + S_i) * TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+            micro = (; q_tot = q_vap, q_lcl = FT(0), q_rai = FT(0), q_ice = FT(0), n_ice)
+            return CMI_het.deposition_rate(mp, tps, micro, (; ρ, T))
+        end
+
+        # The target is exponential in supercooling up to the ceiling
+        TT.@test inp(T) == inp.N_max
+        TT.@test inp(FT(250)) ≈ inp.a * exp(inp.b * (inp.T₀ - FT(250))) < inp.N_max
+
+        # Relaxation at the rate at which deposition grows a crystal to the nucleated radius
+        S_i = FT(0.3)
+        k = CMI_het.delivery_rate(inp, mp, tps, T, S_i)
+        G = CO.G_func_ice(mp.warm_rain.air_properties, tps, T)
+        TT.@test k ≈ 2 * G * S_i / (p3.ρ_i * (p3.D_nuc / 2)^2) rtol = 4 * eps(FT)
+        TT.@test FT(1) < 1 / CMI_het.delivery_rate(inp, mp, tps, T, inp.S_thr) < FT(100)
+        TT.@test CMI_het.delivery_rate(inp, mp, tps, T, FT(-0.3)) == 0
+
+        # Crystals of the nucleated mass, relaxing toward the target
+        r = rate(T, S_i, FT(0))
+        TT.@test r.∂ₜn_frz ≈ k * inp(T) / ρ rtol = 8 * eps(FT)
+        TT.@test r.∂ₜq_frz == CO.nucleated_ice_mass(p3) * r.∂ₜn_frz
+        TT.@test FT(0) < rate(T, S_i, inp(T) / ρ / 2).∂ₜn_frz < r.∂ₜn_frz
+        TT.@test rate(T, S_i, 2 * inp(T) / ρ).∂ₜn_frz == 0
+
+        # Active below T_thr at an ice supersaturation of at least S_thr
+        TT.@test rate(inp.T_thr, S_i, FT(0)).∂ₜn_frz == 0
+        TT.@test rate(T, FT(0.049), FT(0)).∂ₜn_frz == 0
+        TT.@test CMI_het.is_active(inp, T, inp.S_thr)
+
+        # No INP budget for immersion freezing
+        TT.@test CMI_het.immersion_limit_rate(inp, T, ρ).∂ₜn_frz == FT(Inf)
+    end
+
     TT.@testset "Cloud-droplet immersion freezing (Bigg + cloud PSD)" begin
 
         toml_dict = CP.create_toml_dict(FT)
