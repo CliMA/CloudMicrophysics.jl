@@ -231,6 +231,7 @@ P3Scheme.ice_self_collection
 Quadrature
 P3Scheme.ChebyshevGauss
 Quadrature.GaussLegendre
+Quadrature.GaussLaguerre
 ```
 
 The building blocks of these functions are listed on the [P3 internals](P3Internals.md) page.
@@ -322,7 +323,8 @@ HetIceNucleation.INP_concentration_frequency
 HetIceNucleation.INP_concentration_mean
 HetIceNucleation.deposition_rate
 HetIceNucleation.immersion_limit_rate
-HetIceNucleation.liquid_freezing_rate
+HetIceNucleation.rain_freezing_rate
+HetIceNucleation.cloud_freezing_rate
 HetIceNucleation.n_active
 ```
 

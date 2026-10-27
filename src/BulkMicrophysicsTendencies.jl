@@ -959,8 +959,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     vel = mp.ice.terminal_velocity
     pdf_c = mp.ice.cloud_pdf
     pdf_r = mp.ice.rain_pdf
-    ice_nucleation = mp.ice.ice_nucleation
-    inp_depletion_model = mp.ice.inp_depletion_model
 
     # Only compute ice processes if there is ice mass/number present
     if q_ice > ϵ && n_ice > ϵ
@@ -1003,7 +1001,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     # --- Ice nucleation, at the cell state
     micro_frz = (; q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice)
     thermo_frz = (; ρ, T)
-    n_active = CM_HetIce.n_active(inp_depletion_model, micro_frz)
 
     # --- deposition nucleation (vapor → pristine ice)
     dep = CM_HetIce.deposition_rate(mp, tps, micro_frz, thermo_frz)
@@ -1012,13 +1009,10 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     dq_ice_dt += dep.∂ₜq_frz
     # No contribution to q_rim, b_rim — pristine deposition crystals have F_rim = 0.
 
-    # --- F23-bounded Bigg immersion freezing of cloud drops
-    cld_bigg = CM_HetIce.liquid_freezing_rate(
-        mp.ice.rain_freezing, pdf_c, tps, q_lcl, ρ, N_lcl, T,
-    )
-    cld_cap = CM_HetIce.immersion_limit_rate(ice_nucleation, T, ρ; n_active)
-    ∂ₜn_imm = min(cld_bigg.∂ₜn_frz, cld_cap.∂ₜn_frz)
-    ∂ₜq_imm = ifelse(cld_bigg.∂ₜn_frz > 0, cld_bigg.∂ₜq_frz * ∂ₜn_imm / cld_bigg.∂ₜn_frz, zero(FT))
+    # --- Freezing of cloud drops: immersion, bounded by the INP budget, and homogeneous
+    cld_frz = CM_HetIce.cloud_freezing_rate(mp, tps, micro_frz, thermo_frz)
+    ∂ₜn_imm = cld_frz.∂ₜn_frz
+    ∂ₜq_imm = cld_frz.∂ₜq_frz
 
     # Drain liquid:
     dq_lcl_dt -= ∂ₜq_imm
@@ -1058,8 +1052,8 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ∂ₜn_ice_numadj = CM2.number_tendency_from_mass_limits(numadj, q_ice, n_ice)
     dn_ice_dt += ∂ₜn_ice_numadj
 
-    # --- Rain Heterogeneous Freezing (Bigg 1953)
-    rain_frz = CM_HetIce.liquid_freezing_rate(mp.ice.rain_freezing, pdf_r, tps, q_rai, ρ, N_rai, T)
+    # --- Rain freezing: immersion and homogeneous nucleation
+    rain_frz = CM_HetIce.rain_freezing_rate(mp, tps, micro_frz, thermo_frz)
 
     # Rain → ice (frozen rain is fully rimed, per MM15)
     dq_rai_dt -= rain_frz.∂ₜq_frz
