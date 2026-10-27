@@ -1393,6 +1393,66 @@ function test_gpu(FT)
         TT.@test res.dNdt > 0
     end
 
+    TT.@testset "P3 lookup tables" begin
+        # Coarse tables built on the device and on the host
+        grid = P3.P3TableGrid(
+            mp_2m_p3;
+            ice = (; logλ = 16, w = 5, ρ_rim = 3, logρₐ = 3),
+            liquid_ice = (; logλ = 8, w = 3, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 4, rain_logx̄ = 3),
+            rime_density = (; logλ = 4, w = 2, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 3, rain_logx̄ = 2, logR = 8),
+            wet_set = (;
+                logλ = 4, w = 3, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 3, rain_logx̄ = 2,
+                logD = 8, number_logit = 9, μ = 8,
+            ),
+            particle_rime_density = (; logD = 4, w = 2, ρ_rim = 2, logρₐ = 2, cloud_logx̄ = 2, rain_logx̄ = 2, logR = 4),
+        )
+        mp_host = P3.with_tables(mp_2m_p3, Array; grid)
+        mp_device = P3.with_tables(mp_2m_p3, ArrayType; grid)
+        tables_host, tables_device = mp_host.ice.integration, mp_device.ice.integration
+        TT.@test P3.tables_are_current(mp_device)
+        for name in keys(tables_host.groups)
+            TT.@test tables_device.groups[name].data isa ArrayType
+            TT.@test Array(tables_device.groups[name].data) ≈ tables_host.groups[name].data rtol = sqrt(eps(FT))
+        end
+
+        # Self-collection with the state built in a kernel and in a broadcast
+        (; output, ndrange) = setup_output(10, @NamedTuple{dNdt::FT})
+        L_ice = constant_data(FT(1e-4); ndrange)
+        N_ice = constant_data(FT(1e4); ndrange)
+        F_rim = constant_data(FT(0.5); ndrange)
+        ρ_rim = constant_data(FT(400); ndrange)
+        ρₐ = constant_data(FT(1.2); ndrange)
+        kernel! = test_P3_ice_self_collection_kernel!(backend, work_groups)
+        kernel!(p3_params, tables_device, Ch2022, output, L_ice, N_ice, F_rim, ρ_rim, ρₐ; ndrange)
+        state_host = P3.P3State(p3_params, tables_host, FT(1e-4), FT(1e4), FT(0.5e-4), FT(0.5e-4 / 400))
+        expected = P3.ice_self_collection(Ch2022, state_host, FT(1.2)).dNdt
+        TT.@test all(r -> r.dNdt ≈ expected, Array(output))
+        states = P3.P3State.(p3_params, tables_device, L_ice, N_ice, F_rim .* L_ice, F_rim .* L_ice ./ ρ_rim)
+        TT.@test all(r -> r.dNdt ≈ expected, Array(P3.ice_self_collection.(Ref(Ch2022), states, ρₐ)))
+
+        # Bulk tendencies of 2M+P3 under the tables
+        DT_p3 = @NamedTuple{
+            dq_lcl_dt::FT, dn_lcl_dt::FT, dq_rai_dt::FT, dn_rai_dt::FT,
+            dq_ice_dt::FT, dn_ice_dt::FT, dq_rim_dt::FT, db_rim_dt::FT, dn_lcl_activation_dt::FT,
+        }
+        (; output) = setup_output(ndrange, DT_p3)
+        inputs = map(
+            v -> constant_data(FT(v); ndrange),
+            (0.9, 263, 8e-3, 3e-4, 1e8, 1e-4, 1e4, 1e-4, 1e5, 3e-5, 1e-7),
+        )
+        kernel! = test_bulk_tendencies_2m_p3_kernel!(backend, work_groups)
+        if VERSION < v"1.12"
+            # As for the quadrature, the 2M+P3 tendency kernel needs the inference of Julia 1.12
+            TT.@test_broken VERSION >= v"1.12"
+        else
+            kernel!(mp_device, tps, output, inputs...; ndrange)
+            expected = BMT.bulk_microphysics_tendencies(
+                BMT.Microphysics2Moment(), mp_host, tps, map(x -> Array(x)[1], inputs)...,
+            )
+            TT.@test all(t -> all(map(≈, t, expected)), Array(output))
+        end
+    end
+
     TT.@testset "incomplete gamma (UT vs SpecialFunctions) on device" begin
         # Direct comparison of the fast `UT.gamma_inc` / `UT.gamma_inc_inv`
         # against `SpecialFunctions`, evaluated ON the GPU. This validates both

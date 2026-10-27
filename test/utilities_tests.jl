@@ -133,7 +133,7 @@ nothing
         f(x) = (x - oftype(x, 0.23)) * (x - oftype(x, 0.51)) * (x - oftype(x, 0.86))
         args = (RS.BrentsMethod, FT(0), FT(1), Val(10))
         sol = @inferred UT.find_zeros(f, args..., Val(2), tol, 50)
-        @test sol.n_found == 2
+        @test sol.n_found == 2 && sol.f_lo == f(FT(0))
         @test all(isapprox.(sol.roots, (FT(0.23), FT(0.51)); atol = FT(1e-5)))
         sol = UT.find_zeros(f, args..., Val(4), tol, 50)
         @test sol.n_found == 3
