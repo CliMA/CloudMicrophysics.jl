@@ -9,7 +9,9 @@
 """
     integral_bounds(particles, dist; p, moment_order = 0)
 
-Compute the integration bounds for the P3 size distribution,
+Compute the integration bounds for the moments of the P3 size distribution.
+
+The moments are
 
     Mⁿ = ∫_a^b Dⁿ * N′(D) dD = N₀ * ∫_a^b Dⁿ D^μ * exp(-λ * D) dD
 
@@ -45,8 +47,17 @@ Compute the integration bounds for the P3 size distribution,
     # A breakpoint at the decay scale of the size distribution keeps each subinterval resolvable
     # at low order
     D_e = clamp(3 / λ, D_min, D_max)
-    return Tuple(SA.sort(SA.SVector(bnds..., D_e)))
+    return insert_breakpoints(bnds, (D_e,))
 end
+
+"""
+    insert_breakpoints(bnds, Ds)
+
+Return the integration bounds `bnds` with the diameters `Ds` inserted, in ascending order.
+
+Each diameter in `Ds` must lie in `[first(bnds), last(bnds)]`.
+"""
+@inline insert_breakpoints(bnds, Ds) = Tuple(SA.sort(SA.SVector(bnds..., Ds...)))
 
 """
     velocity_integral_bounds(particles, dist, v_term; p, moment_order = 0)
@@ -70,7 +81,7 @@ function velocity_integral_bounds(
     bnds = integral_bounds(particles, dist; p, moment_order)
     D_min, D_max = first(bnds), last(bnds)
     breaks = map(D -> clamp(oftype(D_min, D), D_min, D_max), velocity_breakpoints(v_term))
-    return Tuple(SA.sort(SA.SVector(bnds..., breaks...)))
+    return insert_breakpoints(bnds, breaks)
 end
 
 """
