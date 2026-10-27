@@ -789,7 +789,7 @@ end
         mp::Microphysics2MParams{WR, Nothing}, tps,
         ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
         q_ice = 0, n_ice = 0, q_rim = 0, b_rim = 0,
-        inpc_log_shift = 0, w = 0, p = 0,
+        w = 0, p = 0,
     )
 
 Compute 2-moment **warm rain only** microphysics tendencies (Seifert-Beheng 2006).
@@ -809,8 +809,7 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{WR, <:
 - `n_rai`: Rain number per kg air (1/kg)
 - `q_ice`, `n_ice`, `q_rim`, `b_rim`: (optional, default `0`)
   ice-state placeholders, accepted for interface uniformity and unused here
-- `inpc_log_shift`, `w`, `p`: (optional, default `0`) INP-concentration log
-  shift, vertical velocity (m/s), and air pressure (Pa)
+- `w`, `p`: (optional, default `0`) vertical velocity (m/s) and air pressure (Pa)
 
 # Returns
 `NamedTuple` with warm rain tendency fields:
@@ -827,7 +826,6 @@ For warm rain + P3 ice, see the method that accepts `Microphysics2MParams{WR, <:
     ::Microphysics2Moment, mp::CMP.Microphysics2MParams{WR, Nothing}, tps,
     ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
     q_ice = zero(ρ), n_ice = zero(ρ), q_rim = zero(ρ), b_rim = zero(ρ),
-    inpc_log_shift = zero(ρ),
     w = zero(ρ), p = zero(ρ),
 ) where {WR}
     # Clamp negative inputs to zero (robustness against numerical errors)
@@ -865,7 +863,7 @@ end
         mp::Microphysics2MParams{WR, <:P3IceParams}, tps,
         ρ, T, q_tot, q_lcl, n_lcl, q_rai, n_rai,
         q_ice, n_ice, q_rim, b_rim,
-        inpc_log_shift = 0, w = 0, p = 0,
+        w = 0, p = 0,
     )
 
 Compute 2-moment **warm rain + P3 ice** microphysics tendencies.
@@ -890,7 +888,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 - `b_rim`: Rime volume (m³/kg)
 
 ## Optional
-- `inpc_log_shift`: Additive shift to log(INPC) (default `0`)
 - `w`: Vertical velocity (m/s), default `0`
 - `p`: Air pressure (Pa), default `0`
 
@@ -911,7 +908,6 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     ρ, T, q_tot,
     q_lcl, n_lcl, q_rai, n_rai,
     q_ice, n_ice, q_rim, b_rim,
-    inpc_log_shift = zero(ρ),
     w = zero(ρ), p = zero(ρ),
 ) where {WR, ICE <: CMP.P3IceParams}
     FT = eltype(ρ)
@@ -1004,18 +1000,13 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
         db_rim_dt -= ifelse(ρ_rim > 0, ∂ₜq_ice_melt * F_rim / ρ_rim, zero(FT))
     end
 
-    # --- Ice nucleation (F23 + Bigg)
-    τ_act = inp_depletion_model.τ_act
-    m_nuc = CMP3.ice_mean_particle_mass_min(p3)  # a newly nucleated crystal
-
-    # F23 INP-activation depletion proxy.
-    n_active = CM_HetIce.n_active(inp_depletion_model, n_ice)
+    # --- Ice nucleation, at the cell state
+    micro_frz = (; q_tot, q_lcl, n_lcl, q_rai, n_rai, q_ice, n_ice)
+    thermo_frz = (; ρ, T)
+    n_active = CM_HetIce.n_active(inp_depletion_model, micro_frz)
 
     # --- deposition nucleation (vapor → pristine ice)
-    dep = CM_HetIce.deposition_rate(
-        ice_nucleation, tps, T, ρ, q_tot, q_lcl + q_rai, q_ice, n_active;
-        m_nuc, τ_act, inpc_log_shift,
-    )
+    dep = CM_HetIce.deposition_rate(mp, tps, micro_frz, thermo_frz)
 
     dn_ice_dt += dep.∂ₜn_frz
     dq_ice_dt += dep.∂ₜq_frz
@@ -1025,9 +1016,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
     cld_bigg = CM_HetIce.liquid_freezing_rate(
         mp.ice.rain_freezing, pdf_c, tps, q_lcl, ρ, N_lcl, T,
     )
-    cld_cap = CM_HetIce.immersion_limit_rate(
-        ice_nucleation, T, ρ; τ = τ_act, inpc_log_shift, n_active,
-    )
+    cld_cap = CM_HetIce.immersion_limit_rate(ice_nucleation, T, ρ; n_active)
     ∂ₜn_imm = min(cld_bigg.∂ₜn_frz, cld_cap.∂ₜn_frz)
     ∂ₜq_imm = ifelse(cld_bigg.∂ₜn_frz > 0, cld_bigg.∂ₜq_frz * ∂ₜn_imm / cld_bigg.∂ₜn_frz, zero(FT))
 
