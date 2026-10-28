@@ -340,7 +340,10 @@ function test_heterogeneous_ice_nucleation(FT)
         dense =
             with_spectrum(CMP.StochasticINPSpectrum(; base = f23, log_shift = FT(30), T_min = FT(0), N_max = FT(Inf)))
         q_excess = S_i * TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-        TT.@test rate(dense, T, S_i, FT(0)).∂ₜq_frz ≈ q_excess / (2 * f23.τ) rtol = 8 * eps(FT)
+        r_dense = rate(dense, T, S_i, FT(0))
+        TT.@test r_dense.∂ₜq_frz ≈ q_excess / (2 * f23.τ) rtol = 8 * eps(FT)
+        # and the number rate is reduced with it, to crystals of the nucleated mass
+        TT.@test r_dense.∂ₜn_frz ≈ r_dense.∂ₜq_frz / m_nuc rtol = 8 * eps(FT)
     end
 
     TT.@testset "Cloud-droplet immersion freezing (Bigg + cloud PSD)" begin

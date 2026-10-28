@@ -446,8 +446,9 @@ The nucleation relaxes the activated concentration toward the target concentrati
 with `n_active` the activated concentration of the depletion model `mp.ice.inp_depletion_model` (see
 [`n_active`](@ref)), `k` the relaxation rate of `inp`, and `m_nuc` the mass of a newly nucleated crystal, a
 solid-ice sphere of the P3 diameter `D_nuc`. For [`CMP.Frostenberg2023`](@ref) and a spectrum based on it, the
-mass rate is at most half the vapor excess over ice saturation per relaxation time. Both rates are zero outside
-the activation conditions of `inp`. See the Ice Nucleation docs page.
+mass rate is at most half the vapor excess over ice saturation per relaxation time, and the number rate is then
+reduced with it, so that every nucleated crystal has the mass `m_nuc`. Both rates are zero outside the activation
+conditions of `inp`. See the Ice Nucleation docs page.
 
 # Arguments
  - `mp`: the [`CMP.Microphysics2MParams`](@ref) parameters with P3 ice.
@@ -471,6 +472,7 @@ the activation conditions of `inp`. See the Ice Nucleation docs page.
     ∂ₜn_frz = max(0, inp(T) / ρ - n_act) * k
     ∂ₜn_frz = ifelse(is_active(inp, T, S_i), ∂ₜn_frz, zero(∂ₜn_frz))
     ∂ₜq_frz = _nucleated_mass_rate(inp, m_nuc, ∂ₜn_frz, max(0, q_vap - q_sat_ice), k)
+    ∂ₜn_frz = min(∂ₜn_frz, ∂ₜq_frz / m_nuc)
     return (; ∂ₜn_frz, ∂ₜq_frz)
 end
 
