@@ -35,6 +35,13 @@ Modules = [Parameters]
 Pages   = ["Microphysics0M.jl", "Microphysics0MParams.jl"]
 ```
 
+## Parameter name maps
+
+```@autodocs
+Modules = [Parameters]
+Pages   = ["name_maps.jl"]
+```
+
 # 1-moment precipitation microphysics
 
 ```@docs

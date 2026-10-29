@@ -15,6 +15,7 @@ TT.@testset "All tests" begin
     include("cloud_diagnostics.jl")
     include("common_functions_tests.jl")
     include("common_types_tests.jl")
+    include("parameter_name_maps_tests.jl")
     include("nucleation_unit_tests.jl")
     include("precipitation_susceptibility_tests.jl")
     include("p3_tests.jl")

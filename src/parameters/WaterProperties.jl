@@ -14,9 +14,3 @@ $(DocStringExtensions.FIELDS)
     "density of ice [kg/m3]"
     ρi::FT
 end
-
-function WaterProperties(td::CP.ParamDict)
-    name_map = (; :density_liquid_water => :ρw, :density_ice_water => :ρi)
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return WaterProperties(; parameters...)
-end

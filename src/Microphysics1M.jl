@@ -367,52 +367,6 @@ end
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 
-# The option argument selects the parameterization, but the shape of
-# `mp.process_params` is fixed by the options `mp` was constructed with.
-# This guard turns an option/parameter mismatch into an actionable error
-# instead of an obscure field-access failure; the `isa` check folds away at
-# compile time when the types are consistent.
-@noinline _throw_option_params_mismatch(opt, pp, field::Symbol) = throw(
-    ArgumentError(
-        "$(typeof(opt)) requires `mp.process_params.$field` built for this " *
-        "option, got $(typeof(pp)). Construct the parameters with the " *
-        "matching option, e.g. " *
-        "`Microphysics1MParams(FT; $field = $(nameof(typeof(opt)))())`.",
-    ),
-)
-@inline function _consistent_params(pp, ::Type{T}, opt, field::Symbol) where {T}
-    pp isa T || _throw_option_params_mismatch(opt, pp, field)
-    return pp
-end
-
-# Rain autoconversion parameters, checked against the selected option: a mismatched combination
-# (e.g. `Kessler1M()` with `PrescribedNd` parameters) raises an `ArgumentError` from every entry
-# point below instead of silently reading the wrong fields.
-@inline _rain_acnv_params(opt::CMP.Kessler1M, mp) =
-    _consistent_params(mp.process_params.rain_autoconversion, CMP.KesslerAcnv, opt, :rain_autoconversion)
-@inline _rain_acnv_params(opt::CMP.PrescribedNd, mp) =
-    _consistent_params(mp.process_params.rain_autoconversion, CMP.VarTimescaleAcnv, opt, :rain_autoconversion)
-@inline _rain_acnv_params(opt::CMP.KK2000Autoconversion, mp) = _consistent_params(
-    mp.process_params.rain_autoconversion,
-    NamedTuple{(:acnv, :Nc, :A_Nc)},
-    opt,
-    :rain_autoconversion,
-)
-
-# Cloud liquid + rain accretion parameters, checked against the selected option in the same way.
-@inline _cloud_liquid_rain_accr_params(opt::CMP.CloudLiquidRainAccretion, mp) = _consistent_params(
-    mp.process_params.cloud_liquid_rain_accretion,
-    NamedTuple{(:e,)},
-    opt,
-    :cloud_liquid_rain_accretion,
-)
-@inline _cloud_liquid_rain_accr_params(opt::CMP.KK2000Accretion, mp) = _consistent_params(
-    mp.process_params.cloud_liquid_rain_accretion,
-    CMP.AccrKK2000,
-    opt,
-    :cloud_liquid_rain_accretion,
-)
-
 # Blending factor between the quiescent (stratiform) and the convective autoconversion regimes,
 #     f(w) = w₊² / (w₊² + w_0²),   w₊ = max(w, 0):
 # 0 in descending or still air, 1/2 at w = w_0, → 1 for w ≫ w_0.
@@ -452,12 +406,12 @@ state-independent timescale exists.
 end
 
 @inline function rain_autoconversion_timescale(opt::CMP.PrescribedNd, mp, w = 0)
-    (; τ, α, Nc) = _rain_acnv_params(opt, mp)
+    (; τ, α, Nc) = CMP.process_params(mp, opt)
     return τ * (Nc / 100_000_000)^α
 end
 
 @inline function rain_autoconversion_timescale(opt::CMP.Kessler1M, mp, w)
-    (; τ_slow, τ_fast, w_0) = _rain_acnv_params(opt, mp)
+    (; τ_slow, τ_fast, w_0) = CMP.process_params(mp, opt)
     return τ_slow + (τ_fast - τ_slow) * _velocity_blend(w, w_0)
 end
 
@@ -487,12 +441,12 @@ models (e.g. ClimaAtmos).
     mp,
     w = 0,
 )
-    _rain_acnv_params(opt, mp)
+    CMP.process_params(mp, opt)
     return zero(eltype(mp))
 end
 
 @inline function rain_autoconversion_threshold(opt::CMP.Kessler1M, mp, w)
-    (; q_threshold_slow, q_threshold_fast, w_0) = _rain_acnv_params(opt, mp)
+    (; q_threshold_slow, q_threshold_fast, w_0) = CMP.process_params(mp, opt)
     return q_threshold_slow + (q_threshold_fast - q_threshold_slow) * _velocity_blend(w, w_0)
 end
 
@@ -541,7 +495,7 @@ A mismatch between the option and the parameters stored in `mp` raises an `Argum
 @inline conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo) = zero(micro.q_lcl)
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
-    (; k) = _rain_acnv_params(opt, mp)
+    (; k) = CMP.process_params(mp, opt)
     (; w) = thermo
     q_thr = rain_autoconversion_threshold(opt, mp, w)
     τ_acnv = rain_autoconversion_timescale(opt, mp, w)
@@ -553,7 +507,7 @@ end
 end
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.KK2000Autoconversion, mp, tps, micro, thermo)
-    (; acnv, A_Nc) = _rain_acnv_params(opt, mp)
+    (; acnv, A_Nc) = CMP.process_params(mp, opt)
     return CO.KK2000_autoconversion(acnv, A_Nc, micro.q_lcl, thermo.ρ)
 end
 
@@ -606,22 +560,17 @@ Harrington et al. (1995) and Kaul et al. (2015).
 @inline conv_q_icl_to_q_sno(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(micro.q_icl)
 
 @inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo, sd = nothing)
-    pp = _consistent_params(mp.process_params.snow_autoconversion, CMP.Acnv1M, opt, :snow_autoconversion)
-    (; τ, q_threshold, k) = pp
+    (; τ, q_threshold, k) = CMP.process_params(mp, opt)
     q_icl = micro.q_icl
     return CO.logistic_function_integral(q_icl, q_threshold, k) / τ
 end
 
 @inline function conv_q_icl_to_q_sno(
-    ::CMP.WithSupersaturation, mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo),
+    opt::CMP.WithSupersaturation, mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo),
 )
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    pp = _consistent_params(
-        mp.process_params.snow_autoconversion, NamedTuple{(:r_ice_snow,)},
-        CMP.WithSupersaturation(), :snow_autoconversion,
-    )
-    r_ice_snow = pp.r_ice_snow
+    (; r_ice_snow) = CMP.process_params(mp, opt)
     (; pdf, mass) = mp.cloud.ice
     aps = mp.air_properties
     FT = eltype(ρ)
@@ -955,7 +904,7 @@ option paired with the parameters of the other variant raises an `ArgumentError`
         mp.cloud.liquid,
         mp.precip.rain,
         mp.terminal_velocity.rain,
-        _cloud_liquid_rain_accr_params(opt, mp).e,
+        CMP.process_params(mp, opt).e,
         q_lcl,
         q_rai,
         ρ,
@@ -966,10 +915,10 @@ option paired with the parameters of the other variant raises an `ArgumentError`
 end
 
 @inline accretion(opt::CMP.KK2000Accretion, mp, tps, micro, thermo, sd = nothing) =
-    CO.KK2000_accretion(_cloud_liquid_rain_accr_params(opt, mp), micro.q_lcl, micro.q_rai, thermo.ρ)
+    CO.KK2000_accretion(CMP.process_params(mp, opt), micro.q_lcl, micro.q_rai, thermo.ρ)
 
 @inline function accretion(
-    ::CMP.CloudLiquidSnowAccretion,
+    opt::CMP.CloudLiquidSnowAccretion,
     mp,
     tps,
     micro,
@@ -984,7 +933,7 @@ end
         mp.cloud.liquid,
         mp.precip.snow,
         mp.terminal_velocity.snow,
-        mp.process_params.cloud_liquid_snow_accretion.e,
+        CMP.process_params(mp, opt).e,
         q_lcl,
         q_sno,
         ρ,
@@ -997,7 +946,7 @@ end
 end
 
 @inline function accretion(
-    ::CMP.CloudIceRainAccretion,
+    opt::CMP.CloudIceRainAccretion,
     mp,
     tps,
     micro,
@@ -1011,7 +960,7 @@ end
         mp.cloud.ice,
         mp.precip.rain,
         mp.terminal_velocity.rain,
-        mp.process_params.cloud_ice_rain_accretion.e,
+        CMP.process_params(mp, opt).e,
         q_icl,
         q_rai,
         ρ,
@@ -1022,7 +971,7 @@ end
 end
 
 @inline function accretion(
-    ::CMP.CloudIceSnowAccretion,
+    opt::CMP.CloudIceSnowAccretion,
     mp,
     tps,
     micro,
@@ -1036,7 +985,7 @@ end
         mp.cloud.ice,
         mp.precip.snow,
         mp.terminal_velocity.snow,
-        mp.process_params.cloud_ice_snow_accretion.e,
+        CMP.process_params(mp, opt).e,
         q_icl,
         q_sno,
         ρ,
@@ -1050,7 +999,7 @@ end
     (; S_rai_sno = zero(thermo.T), S_sno_rai = zero(thermo.T), S_melt = zero(thermo.T))
 
 @inline function accretion_snow_rain(
-    ::CMP.RainSnowAccretion,
+    opt::CMP.RainSnowAccretion,
     mp,
     tps,
     micro,
@@ -1064,7 +1013,7 @@ end
     vel = mp.terminal_velocity
     sno = mp.precip.snow
     rai = mp.precip.rain
-    (; e, coeff_disp) = mp.process_params.rain_snow_accretion
+    (; e, coeff_disp) = CMP.process_params(mp, opt)
     S_rai_sno = accretion_snow_rain(
         sno,
         rai,
@@ -1107,7 +1056,7 @@ end
 @inline accretion_rain_sink(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
 @inline function accretion_rain_sink(
-    ::CMP.CloudIceRainAccretion,
+    opt::CMP.CloudIceRainAccretion,
     mp,
     tps,
     micro,
@@ -1121,7 +1070,7 @@ end
         mp.precip.rain,
         mp.cloud.ice,
         mp.terminal_velocity.rain,
-        mp.process_params.cloud_ice_rain_accretion.e,
+        CMP.process_params(mp, opt).e,
         q_icl,
         q_rai,
         ρ,
@@ -1343,14 +1292,13 @@ Droplet volume is based on prescribed cloud droplet number concentration.
 """
 @inline conv_q_lcl_to_q_icl(::Nothing, mp, tps, micro, thermo) = zero(thermo.T)
 
-@inline function conv_q_lcl_to_q_icl(::CMP.Homogeneous, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_icl(opt::CMP.Homogeneous, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     T = thermo.T
     FT = UT.promote_typeof(q_lcl, T)
 
-    pp = mp.process_params.cloud_liquid_freezing
-    T_hom = pp.T_hom
-    τ_hom = pp.τ_hom
+    (; T_hom, τ_hom) = CMP.process_params(mp, opt)
+
     has_liquid = q_lcl > UT.ϵ_numerics(FT)
 
     rate = q_lcl / τ_hom
@@ -1358,16 +1306,17 @@ Droplet volume is based on prescribed cloud droplet number concentration.
     return ifelse(has_liquid & (T < T_hom), rate, zero(FT))
 end
 
-@inline function conv_q_lcl_to_q_icl(::CMP.Heterogeneous, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_icl(opt::CMP.Heterogeneous, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     (; ρ, T) = thermo
     FT = UT.promote_typeof(q_lcl, ρ, T)
 
     T_freeze = TDI.T_freeze(tps)
-    Bigg = mp.process_params.cloud_liquid_freezing
 
     # Cloud liquid properties
     (; ρw, N_0) = mp.cloud.liquid
+    # Bigg heterogeneous freezing parameters
+    (; A, B) = CMP.process_params(mp, opt)
 
     # Guard: no freezing if no liquid or T ≥ T_freeze
     has_liquid = q_lcl > UT.ϵ_numerics(FT) && N_0 > UT.ϵ_numerics(FT)
@@ -1377,12 +1326,13 @@ end
     V_drop = ρ * q_lcl / N_0 / ρw  # m³
 
     # Bigg freezing rate (Reisner et al. 1998, eq. A22)
-    rate = Bigg.B * (exp(Bigg.A * (T_freeze - T)) - 1) * V_drop * q_lcl
+    rate = B * (exp(A * (T_freeze - T)) - 1) * V_drop * q_lcl
 
     return ifelse(has_liquid & below_freezing, rate, zero(FT))
 end
 
-@inline function conv_q_lcl_to_q_icl(::CMP.HomogeneousAndHeterogeneous, mp, tps, micro, thermo)
+@inline function conv_q_lcl_to_q_icl(opt::CMP.HomogeneousAndHeterogeneous, mp, tps, micro, thermo)
+    CMP.process_params(mp, opt)
     return conv_q_lcl_to_q_icl(CMP.Homogeneous(), mp, tps, micro, thermo) +
            conv_q_lcl_to_q_icl(CMP.Heterogeneous(), mp, tps, micro, thermo)
 end
