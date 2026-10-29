@@ -81,6 +81,7 @@ where:
   - ``a_p`` is the fraction of the grid box covered by precipitation,
   - ``k_E`` is the evaporation coefficient (``k_E = 0`` disables evaporation),
   - ``RH_c`` is the critical relative humidity above which precipitation does not evaporate,
+  - ``q_{vap}`` is the water vapor specific content,
   - ``q_{vap}^{sat}`` is the saturation specific humidity
     (over liquid for rain and over ice for snow),
   - ``p/p_s`` is the ratio of the air pressure to the surface pressure,
@@ -88,6 +89,17 @@ where:
 The parameters are stored in `Evaporation0M` and defined in `ClimaParams.jl`.
 The default ``k_E = 0`` turns evaporation off; the IFS uses
   ``k_E = 5.44 \times 10^{-4} \, s^{-1}``.
+
+The evaporation parameters are only built if requested:
+```julia
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Microphysics0M as CM0
+
+mp = CMP.Microphysics0MParams(Float64; with_evaporation = true)
+E = CM0.evaporate_precipitation(mp.evaporation, q_vap, q_vap_sat, p_over_ps, F)
+```
+With the default `with_evaporation = false`, `mp.evaporation` is `nothing`
+  and `evaporate_precipitation` returns zero.
 
 The rate is not limited.
 Time-stepping schemes should limit it so that no more precipitation

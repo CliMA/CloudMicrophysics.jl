@@ -11,6 +11,7 @@ module Microphysics0M
 import CloudMicrophysics.Parameters as CMP
 
 import CloudMicrophysics.ThermodynamicsInterface as TDI
+import CloudMicrophysics.Utilities as UT
 
 export remove_precipitation
 export ∂remove_precipitation_∂q_tot
@@ -77,32 +78,42 @@ The derivative is −1/τ_precip whenever precipitation is actively being remove
 ) = ifelse(q_lcl + q_icl > S_0 * q_vap_sat, -1 / τ_precip, zero(q_lcl))
 
 """
-    evaporate_precipitation(params::Evaporation0M, deficit, p_over_ps, F)
+    evaporate_precipitation(params::Evaporation0M, q_vap, q_vap_sat, p_over_ps, F)
+    evaporate_precipitation(::Nothing, q_vap, q_vap_sat, p_over_ps, F)
 
 Returns the evaporation (or sublimation) rate of the precipitation flux
 in sub-saturated air (kg/kg/s, positive for a vapor source),
 following [Kessler1969](@cite) as used in the IFS ([Tiedtke1993](@cite)):
 
 ```math
-E = a_p k_E \\max(0, \\mathrm{deficit})
+E = a_p k_E \\max(0, RH_c q_{vap}^{sat} - q_{vap})
     \\left[\\frac{\\sqrt{p/p_s} \\, F / a_p}{α_2}\\right]^{α_3}
 ```
 
 The rate is not limited by the available precipitation or by the vapor
-needed to saturate the air; time-stepping schemes should apply those limits.
+needed to bring the air to `RH_c`; time-stepping schemes should apply those limits.
+Negative `p_over_ps` and `F` are clamped to zero.
+Returns zero if `params` is `nothing` (evaporation not configured).
 
 # Arguments
-- `params`: 0-moment evaporation parameters (contains `k_E`, `a_p`, `α₂`, `α₃`)
-- `deficit`: humidity deficit `RH_c q_vap_sat - q_vap` (kg/kg), with `RH_c` from
-  `params` and `q_vap_sat` over liquid for rain and over ice for snow
-- `p_over_ps`: ratio of air pressure to surface pressure (≥ 0) (-)
-- `F`: grid-mean precipitation flux, positive downward (≥ 0) (kg/m2/s)
+- `params`: 0-moment evaporation parameters (contains `k_E`, `RH_c`, `a_p`, `α₂`, `α₃`)
+- `q_vap`: water vapor specific content (kg/kg)
+- `q_vap_sat`: saturation specific humidity (kg/kg), over liquid for rain and
+  over ice for snow
+- `p_over_ps`: ratio of air pressure to surface pressure (-)
+- `F`: grid-mean precipitation flux, positive downward (kg/m2/s)
 """
-evaporate_precipitation(
-    (; k_E, a_p, α₂, α₃)::CMP.Evaporation0M,
-    deficit,
+function evaporate_precipitation(
+    (; k_E, RH_c, a_p, α₂, α₃)::CMP.Evaporation0M,
+    q_vap,
+    q_vap_sat,
     p_over_ps,
     F,
-) = a_p * k_E * max(0, deficit) * (sqrt(p_over_ps) * F / (a_p * α₂))^α₃
+)
+    deficit = UT.clamp_to_nonneg(RH_c * q_vap_sat - q_vap)
+    flux = sqrt(UT.clamp_to_nonneg(p_over_ps)) * UT.clamp_to_nonneg(F) / (a_p * α₂)
+    return a_p * k_E * deficit * flux^α₃
+end
+evaporate_precipitation(::Nothing, q_vap, q_vap_sat, p_over_ps, F) = zero(F)
 
 end #module Microphysics0M.jl
