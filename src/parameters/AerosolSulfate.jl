@@ -22,16 +22,3 @@ $(DocStringExtensions.FIELDS)
     "hygroscopicity parameter [-]"
     κ::FT
 end
-
-function Sulfate(td::CP.ParamDict)
-    name_map = (;
-        :sulfate_aerosol_molar_mass => :M,
-        :sulfate_aerosol_density => :ρ,
-        :sulfate_aerosol_osmotic_coefficient => :ϕ,
-        :sulfate_aerosol_ion_number => :ν,
-        :sulfate_aerosol_water_soluble_mass_fraction => :ϵ,
-        :sulfate_aerosol_kappa => :κ,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Sulfate(; parameters...)
-end

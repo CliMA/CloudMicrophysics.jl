@@ -31,20 +31,3 @@ $(DocStringExtensions.FIELDS)
     "coefficient [-]"
     c7::FT
 end
-
-function H2SO4SolutionParameters(td::CP.ParamDict)
-    name_map = (;
-        :p_over_sulphuric_acid_solution_T_max => :T_max,
-        :p_over_sulphuric_acid_solution_T_min => :T_min,
-        :p_over_sulphuric_acid_solution_w_2 => :w_2,
-        :p_over_sulphuric_acid_solution_c1 => :c1,
-        :p_over_sulphuric_acid_solution_c2 => :c2,
-        :p_over_sulphuric_acid_solution_c3 => :c3,
-        :p_over_sulphuric_acid_solution_c4 => :c4,
-        :p_over_sulphuric_acid_solution_c5 => :c5,
-        :p_over_sulphuric_acid_solution_c6 => :c6,
-        :p_over_sulphuric_acid_solution_c7 => :c7,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return H2SO4SolutionParameters(; parameters...)
-end

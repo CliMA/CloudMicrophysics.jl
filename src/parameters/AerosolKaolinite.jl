@@ -20,14 +20,3 @@ $(DocStringExtensions.FIELDS)
     "c coefficient for immersion freezing J [-]"
     ABIFM_c::FT
 end
-
-function Kaolinite(td::CP.ParamDict)
-    name_map = (;
-        :China2017_J_deposition_m_Kaolinite => :deposition_m,
-        :China2017_J_deposition_c_Kaolinite => :deposition_c,
-        :KnopfAlpert2013_J_ABIFM_m_Kaolinite => :ABIFM_m,
-        :KnopfAlpert2013_J_ABIFM_c_Kaolinite => :ABIFM_c,
-    )
-    parameters = CP.get_parameter_values(td, name_map, "CloudMicrophysics")
-    return Kaolinite(; parameters...)
-end
