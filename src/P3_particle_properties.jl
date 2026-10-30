@@ -33,13 +33,13 @@ struct P3Particles{FT, PARAMS <: CMP.ParametersP3}
     F_rim::FT
     "Rime density [kg/m³]"
     ρ_rim::FT
-    "Graupel density [kg/m³] — `NaN` when `F_rim = 0` (no graupel regime)"
+    "Graupel density [kg/m³], `NaN` when `F_rim = 0` (no graupel regime)"
     ρ_g::FT
     "Critical size separating spherical and nonspherical ice [m]"
     D_th::FT
-    "Size of equal mass for graupel and unrimed ice [m] — `Inf` when `F_rim = 0`"
+    "Size of equal mass for graupel and unrimed ice [m], `Inf` when `F_rim = 0`"
     D_gr::FT
-    "Size of equal mass for graupel and partially rimed ice [m] — `Inf` when `F_rim = 0`"
+    "Size of equal mass for graupel and partially rimed ice [m], `Inf` when `F_rim = 0`"
     D_cr::FT
 end
 
@@ -373,7 +373,7 @@ end
 """
     get_ρ_g(mass, F_rim, ρ_rim)
 
-Return the density of total (deposition + rime) ice mass for graupel [kg/m³]
+Return the density of total (deposition + rime) ice mass for graupel [kg/m³].
 
 # Arguments
 - `mass`: [`CMP.MassPowerLaw`](@ref) parameters
@@ -391,6 +391,8 @@ get_ρ_g(mass, F_rim, ρ_rim) = weighted_average(F_rim, ρ_rim, get_ρ_d(mass, F
 
 """
     _get_threshold(params, ρ)
+
+Return the size threshold of the mass relation for the density `ρ` [m].
 
 All thresholds are on the form
 
@@ -414,7 +416,7 @@ _get_threshold((; α_va, β_va), ρ) =
 """
     get_D_th(mass, ρ_i)
 
-Return the critical size separating spherical and nonspherical ice [meters]
+Return the critical size separating spherical and nonspherical ice [m].
 
 See Eq. 8 in [MorrisonMilbrandt2015](@cite).
 
@@ -427,7 +429,7 @@ get_D_th(mass, ρ_i) = _get_threshold(mass, ρ_i)
 """
     get_D_gr(mass, ρ_g)
 
-Return the size of equal mass for graupel and unrimed ice [meters]
+Return the size of equal mass for graupel and unrimed ice [m].
 
 See Eq. 15 in [MorrisonMilbrandt2015](@cite).
 
@@ -440,7 +442,7 @@ get_D_gr(mass, ρ_g) = _get_threshold(mass, ρ_g)
 """
     get_D_cr(mass, F_rim, ρ_g)
 
-Return the size of equal mass for graupel and partially rimed ice [meters]
+Return the size of equal mass for graupel and partially rimed ice [m].
 
 See Eq. 14 in [MorrisonMilbrandt2015](@cite).
 
@@ -460,8 +462,8 @@ The thresholds are clamped into the integration window `[D_min, D_max]`. The res
 the `bnds` argument to [`integrate`](@ref) / [`subintervals`](@ref).
 
 If `F_rim = 0`, `particles.D_gr` and `particles.D_cr` are `Inf`; the clamp
-collapses them to `D_max`, producing zero-width upper segments —
-correct for the unrimed regime where only `(D_min, D_th)` and
+collapses them to `D_max`, producing zero-width upper segments,
+which is correct for the unrimed regime where only `(D_min, D_th)` and
 `(D_th, D_max)` carry mass.
 
 # Arguments
@@ -479,7 +481,9 @@ end
 """
     weighted_average(f_a, a, b)
 
-Return the weighted average of `a` and `b` with fraction `f_a`,
+Return the weighted average of `a` and `b` with fraction `f_a`.
+
+The average is
 
 ```math
 f_a ⋅ a + (1 - f_a) ⋅ b
@@ -551,7 +555,7 @@ end
 """
     ice_mass(particles, D)
 
-Return the mass of a particle with diameter `D`
+Return the mass of a particle with diameter `D`.
 
 # Arguments
  - `particles`: The [`P3Particles`](@ref)
@@ -565,7 +569,7 @@ end
 """
     ice_density(particles, D)
 
-Return the density of a particle with diameter `D`
+Return the density of a particle with diameter `D`.
 
 # Arguments
  - `particles`: The [`P3Particles`](@ref)
@@ -598,6 +602,15 @@ function ice_area(particles, D)
         weighted_average(F_rim, spherical, nonspherical),
     )
 end
+
+"""
+    r_eff_ice(particles, D)
+
+Return the effective radius `√(A/π)` [m] of an ice particle of diameter `D`, with projected area `A`.
+
+See [`ice_area`](@ref).
+"""
+@inline r_eff_ice(particles, D) = √(ice_area(particles, D) / π)
 
 """
     ϕ_material_density(particles, D)

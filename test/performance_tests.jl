@@ -367,12 +367,14 @@ function benchmark_test(FT)
         # spuriously there. 1.12 resolves the chain: zero JET reports, zero
         # allocations. TODO: drop the gate once CI runs >= 1.12.
         if VERSION >= v"1.12"
+            quad = P3.GaussLegendre(FT, 6)
+            state_coll = P3.P3State(params_P3, quad, L_ice, N_ice, F_rim * L_ice, F_rim * L_ice / ρ_rim)
             bench_press(@NamedTuple{∂ₜq_c::FT, ∂ₜq_r::FT, ∂ₜN_c::FT, ∂ₜN_r::FT, ∂ₜL_rim::FT, ∂ₜL_ice::FT, ∂ₜB_rim::FT},
                 P3.bulk_liquid_ice_collision_sources,
                 (
-                    sb.pdf_c, sb.pdf_r, aps, tps, ch2022, state,
+                    sb.pdf_c, sb.pdf_r, aps, tps, ch2022, state_coll,
                     ρ_air * q_liq, N_liq, ρ_air * q_rai, N_rai, ρ_air, T_air,
-                ), 1e9)
+                ), 1e7)
         end
     end
     bench_press(FT, CMD.effective_radius_Liu_Hallet_97, (wtr, ρ_air, q_liq, N_liq, q_rai, N_rai), 300)
