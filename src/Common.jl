@@ -305,7 +305,7 @@ See [Chen2022](@cite) for more details.
 """
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeRain, ρₐ)
     (; ρ0, a, a3_pow, b, b_ρ, c) = coeffs
-    ρₐ = max(ρₐ, zero(ρₐ))
+    ρₐ = max(ρₐ, UT.ϵ_numerics(ρₐ))
     # Table B1
     q = exp(ρ0 * ρₐ)
     ai = (a[1] * q, a[2] * q, a[3] * q * ρₐ^a3_pow)
@@ -317,7 +317,7 @@ end
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeSmallIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G) = coeffs
-    ρₐ = max(ρₐ, zero(ρₐ))
+    ρₐ = max(ρₐ, UT.ϵ_numerics(ρₐ))
     # Table B3 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
@@ -337,7 +337,7 @@ end
 @inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G, H) = coeffs
-    ρₐ = max(ρₐ, zero(ρₐ))
+    ρₐ = max(ρₐ, UT.ϵ_numerics(ρₐ))
     # Table B5 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
@@ -471,7 +471,8 @@ regime (Re < 1).
 function particle_terminal_velocity(velocity_params::CMP.StokesRegimeVelType, ρ)
     (; ρw, grav, ν_air) = velocity_params
     FT = eltype(ρ)
-    terminal_velocity_prefactor = FT(1 / 18) * (ρw / ρ - 1) * grav / ν_air
+    ρ_safe = max(ρ, UT.ϵ_numerics(ρ))
+    terminal_velocity_prefactor = FT(1 / 18) * max(ρw / ρ_safe - 1, zero(FT)) * grav / ν_air
     v_term(D) = terminal_velocity_prefactor * D^2
     return v_term
 end

@@ -177,6 +177,14 @@ function test_Chen_coefficients(FT)
         )
         TT.@test all(isapprox.(ciu, [0.0, 34.820462392120504], rtol = tol))
     end
+
+    TT.@testset "Chen terminal velocity coefficients finite at ρ ≤ 0" begin
+        for ρ0 in (FT(0), FT(-0.5))
+            TT.@test all(all.(isfinite, CO.Chen2022_vel_coeffs(Ch2022.rain, ρ0)))
+            TT.@test all(all.(isfinite, CO.Chen2022_vel_coeffs(Ch2022.small_ice, ρ0, ice.ρᵢ)))
+            TT.@test all(all.(isfinite, CO.Chen2022_vel_coeffs(Ch2022.large_ice, ρ0, snow.ρᵢ)))
+        end
+    end
 end
 
 function test_volume_sphere(FT)

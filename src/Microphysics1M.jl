@@ -106,10 +106,11 @@ Guards against unphysical density ratios (ρ > ρw) that would cause sqrt of neg
 - `ρ`: air density (rain only)
 """
 @inline function get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain, ρ)
-    # Guard against ρ > ρw (unphysical but possible from numerical errors).
+    # Guard against ρ ≤ 0 and ρ > ρw (unphysical but possible from numerical errors).
     # The floor is ϵ > 0 rather than 0: sqrt has an infinite derivative at
     # 0, so a zero floor turns Dual (ForwardDiff) partials into Inf/NaN.
-    density_factor = max(ρw / ρ - 1, UT.ϵ_numerics(ρ))
+    ρ_safe = max(ρ, UT.ϵ_numerics(ρ))
+    density_factor = max(ρw / ρ_safe - 1, UT.ϵ_numerics(ρ))
     # Integer literals keep this in the arguments' own type
     # (no Float64 promotion).
     return sqrt(8 * density_factor * grav * r0 / (3 * C_drag))
@@ -219,6 +220,19 @@ end
 end
 
 """
+    _bounded_fall_speed(w, w_max)
+
+Smooth upper bound on a terminal velocity `w ≥ 0`:
+
+    w_bounded = w / √(1 + (w / w_max)²) = w / hypot(1, w / w_max)
+
+Behaves like `w` for `w ≪ w_max` and saturates at `w_max` as `w → ∞`, providing a
+smooth, differentiable representation of the physical terminal velocity ceiling set
+by hydrodynamic drop/aggregate breakup (Gunn and Kinzer, 1949).
+"""
+@inline _bounded_fall_speed(w, w_max) = w / hypot(one(w), w / w_max)
+
+"""
     terminal_velocity(precip::Rain, vel::Blk1MVelTypeRain, ρ, q)
     terminal_velocity(precip::Snow, vel::Blk1MVelTypeSnow, ρ, q)
     terminal_velocity(precip::Rain, vel::Chen2022VelTypeRain, ρ, q)
@@ -235,7 +249,8 @@ total mass. This represents the sedimentation velocity of the bulk hydrometeor f
 
 Fall velocity of individual particles is parameterized:
   - using empirical power-law relations for `Blk1MVelType`
-  - following Chen et al. (2022), https://doi.org/10.1016/j.atmosres.2022.106171, for `Chen2022VelType`
+  - following Chen et al. (2022), https://doi.org/10.1016/j.atmosres.2022.106171, for `Chen2022VelType`,
+    with a smooth upper bound `vel.v_max` representing hydrodynamic breakup
 
 # Arguments
 - `precip`: precipitation parameters (Rain or Snow, contains `pdf`, `mass`, and for snow: `area`, `ρᵢ`, `aspr`)
@@ -301,7 +316,7 @@ end
         CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3) +
         CO.Chen2022_exponential_pdf(aiu[3], bi[3], ciu[3], λ_inv_diameter, 3)
     # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
-    fall_w = UT.clamp_to_nonneg(fall_w)
+    fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 
@@ -328,7 +343,7 @@ end
     fall_w =
         ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
         ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
-    fall_w = UT.clamp_to_nonneg(fall_w)
+    fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 
@@ -363,7 +378,7 @@ end
     fall_w =
         ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
         ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
-    fall_w = UT.clamp_to_nonneg(fall_w)
+    fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 

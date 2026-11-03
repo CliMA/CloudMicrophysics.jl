@@ -422,9 +422,10 @@ function terminal_velocity(
     v_term = CO.particle_terminal_velocity(vel, ρₐ)
     # `clamp_to_nonneg` is domain sanitization for the cbrt below (keeps the discarded
     # ifelse branch finite); the physical threshold is the `q > ϵ_numerics` gate.
+    safe_ρ = UT.clamp_to_nonneg(ρₐ)
     safe_q = UT.clamp_to_nonneg(q)
     # Mean volume diameter from assumed number concentration
-    D = cbrt(FT(6 / π) * ρₐ * safe_q / N_0 / ρw)
+    D = cbrt(FT(6 / π) * safe_ρ * safe_q / N_0 / ρw)
     fall_w = v_term(D)
     return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
@@ -438,9 +439,10 @@ function terminal_velocity(
     v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
     # `clamp_to_nonneg` is domain sanitization for the cbrt below (keeps the discarded
     # ifelse branch finite); the physical threshold is the `q > ϵ_numerics` gate.
+    safe_ρ = UT.clamp_to_nonneg(ρₐ)
     safe_q = UT.clamp_to_nonneg(q)
     # Mean volume diameter from assumed number concentration
-    D = cbrt(FT(6 / π) * ρₐ * safe_q / N_0 / ρᵢ)
+    D = cbrt(FT(6 / π) * safe_ρ * safe_q / N_0 / ρᵢ)
     fall_w = max(FT(0), v_term(D))
     return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end

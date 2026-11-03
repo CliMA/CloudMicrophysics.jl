@@ -385,6 +385,7 @@ name_map(::Type{Chen2022VelTypeLargeIce}) = (;
     :Chen2022_table_B5_Gl => :G,
     :Chen2022_table_B5_Hl => :H,
     :Chen2022_ice_cutoff => :cutoff,
+    :Chen2022_large_ice_terminal_velocity_max => :v_max,
 )
 name_map(::Type{Chen2022VelTypeRain}) = (;
     :Chen2022_table_B1_q_coeff => :ρ0,
@@ -393,6 +394,7 @@ name_map(::Type{Chen2022VelTypeRain}) = (;
     :Chen2022_table_B1_bi => :b,
     :Chen2022_table_B1_b_rho_coeff => :b_ρ,
     :Chen2022_table_B1_ci => :c,
+    :Chen2022_rain_terminal_velocity_max => :v_max,
 )
 
 name_map(::Type{Blk1MVelTypeRain}) = (;
