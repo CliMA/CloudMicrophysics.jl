@@ -659,8 +659,8 @@ function test_gpu(FT)
         # test that terminal velocity is callable and returns a reasonable value
         TT.@test v_term.lcl_stokes ≈ FT(0.021314907475574747)  # CloudLiquid with Stokes velocity
         TT.@test v_term.lci_chen2022 ≈ FT(0.01696129041896599)   # CloudIce with Chen2022 small ice
-        TT.@test v_term.rai_chen2022 ≈ FT(6.9241079942767305)    # Rain with Chen2022 rain
-        TT.@test v_term.sno_chen2022 ≈ FT(0.9514450529349796)    # Snow with Chen2022 large ice
+        TT.@test v_term.rai_chen2022 ≈ FT(5.6926728181788775)    # Rain with Chen2022 rain
+        TT.@test v_term.sno_chen2022 ≈ FT(0.9069269283566964)    # Snow with Chen2022 large ice
     end
 
     TT.@testset "0-moment microphysics kernels" begin

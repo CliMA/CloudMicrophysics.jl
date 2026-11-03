@@ -308,8 +308,9 @@ function test_ad_compatibility_1M(FT)
     @testset "1M ForwardDiff w.r.t. ρ, sign and guards ($FT)" begin
         # denser air slows the fall speed
         @test FD.derivative(r -> CM1.terminal_velocity(rain, mp.terminal_velocity.rain, r, FT(1e-4)), ρ0) < 0
-        # the ρ ≥ ρw density guard must not poison the derivative
+        # the ρ ≤ 0 and ρ ≥ ρw density guards must not poison the derivative
         ρw = mp.terminal_velocity.rain.ρw
+        @test isfinite(FD.derivative(r -> CM1.get_v0(mp.terminal_velocity.rain, r), FT(0)))
         @test isfinite(FD.derivative(r -> CM1.get_v0(mp.terminal_velocity.rain, r), ρw))
         @test isfinite(FD.derivative(r -> CM1.get_v0(mp.terminal_velocity.rain, r), 2 * ρw))
     end

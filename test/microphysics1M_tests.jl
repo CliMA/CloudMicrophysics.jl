@@ -58,10 +58,15 @@ function test_microphysics1M(FT)
         v_bigger = CM1.terminal_velocity(rain, Ch2022.rain, ρ, q_rai * 2)
 
         #test
-        TT.@test vt_rai ≈ 5.25213637238494 rtol = 1e-5
+        TT.@test vt_rai ≈ 4.649821627948085 rtol = 1e-5
         TT.@test CM1.terminal_velocity(rain, Ch2022.rain, ρ, FT(0))[1] ≈ 0 atol =
             eps(FT)
+        TT.@test CM1.terminal_velocity(rain, Ch2022.rain, ρ, FT(-1e-5)) == FT(0)
+        TT.@test isfinite(CM1.terminal_velocity(rain, Ch2022.rain, FT(0), q_rai))
         TT.@test v_bigger > vt_rai
+        # bounded by v_max at large q / low density
+        vt_extreme = CM1.terminal_velocity(rain, Ch2022.rain, FT(0.1), FT(0.05))
+        TT.@test 0 < vt_extreme < Ch2022.rain.v_max
     end
 
     TT.@testset "1M_microphysics - Chen 2022 snow terminal velocity" begin
@@ -74,10 +79,15 @@ function test_microphysics1M(FT)
         v_bigger = CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, q_sno * 2)
 
         #test
-        TT.@test vt_sno ≈ 0.8573952434834717 rtol = 3e-6
+        TT.@test vt_sno ≈ 0.8243877365905242 rtol = 3e-6
         TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(0)) ≈ 0 atol =
             eps(FT)
+        TT.@test CM1.terminal_velocity(snow, Ch2022.large_ice, ρ, FT(-1e-5)) == FT(0)
+        TT.@test isfinite(CM1.terminal_velocity(snow, Ch2022.large_ice, FT(0), q_sno))
         TT.@test v_bigger > vt_sno
+        # bounded by v_max at large q / low density
+        vt_extreme = CM1.terminal_velocity(snow, Ch2022.large_ice, FT(0.1), FT(0.05))
+        TT.@test 0 < vt_extreme < Ch2022.large_ice.v_max
     end
 
     TT.@testset "1M_microphysics - Chen 2022 snow terminal velocity with snow_shape" begin
@@ -106,8 +116,14 @@ function test_microphysics1M(FT)
         # reference values. `ϕ` is a function of diameter, so the mass-weighted
         # ⟨ϕ⟩ must use the diameter-based slope: checking here for consistency.
         # The values assume the bulk ice density in the spheroid relation.
-        TT.@test vt_oblate ≈ FT(0.81191) rtol = 1e-4
-        TT.@test vt_prolate ≈ FT(0.71074) rtol = 1e-4
+        TT.@test vt_oblate ≈ FT(0.78374) rtol = 1e-4
+        TT.@test vt_prolate ≈ FT(0.69161) rtol = 1e-4
+
+        # bounded by v_max at large q / low density
+        TT.@test 0 < CM1.terminal_velocity(snow, Ch2022.large_ice, FT(0.1), FT(0.05), CM1.Oblate()) <
+                 Ch2022.large_ice.v_max
+        TT.@test 0 < CM1.terminal_velocity(snow, Ch2022.large_ice, FT(0.1), FT(0.05), CM1.Prolate()) <
+                 Ch2022.large_ice.v_max
 
         # with the bulk ice density in the spheroid relation, both shape
         # options must stay consistent with the prescribed-ϕ default
