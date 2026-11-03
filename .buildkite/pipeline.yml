@@ -11,6 +11,8 @@ env:
 steps:
   - label: "initialize"
     key: "initialize"
+    concurrency: 1
+    concurrency_group: "depot/${BUILDKITE_PIPELINE_SLUG}"
     command:
       - echo "--- Instantiate project"
       - julia --project -e 'using Pkg; Pkg.instantiate(;verbose=true); Pkg.precompile(;strict=true)'
