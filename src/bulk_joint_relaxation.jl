@@ -113,7 +113,7 @@ capacity of the rate functions.
 end
 
 """
-    _joint_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+    _joint_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, ice_deposition_blocked = false)
 
 Transfers over the substep of the four vapor-driven phase changes (cloud liquid
 condensation/evaporation, rain evaporation, cloud ice deposition/sublimation, snow
@@ -137,7 +137,9 @@ time-averaged exactly over the substep (`_averaged_excess`) and the transfers ar
 `Δq_k = c_k δ̄_k Δt`, with sinks clamped to their pools. For a phase that is a sink at the
 start of the substep and on average, the coefficient is lowered to the scheme's pool-bounded
 rate per unit excess, `min(c_k, S_k/δ_k)`, and the averages are evaluated again, so a thin
-cloud in dry air evaporates at the scheme's rate `S_k` for `Δt ≪ τ` instead of at `|δ_k|/(τ Γ)`. The saturation difference and
+cloud in dry air evaporates at the scheme's rate `S_k` for `Δt ≪ τ` instead of at `|δ_k|/(τ Γ)`.
+Where `ice_deposition_blocked`, the cloud ice coefficient is set to zero when the averaged excess
+over ice is positive, so cloud ice only sublimates. The saturation difference and
 the `Γ`, `κ` factors are held at their start-of-substep values (as in MM15); as in P3,
 pools are not tracked within the substep: the implicit solve shares each pool among its
 sinks and a Γ-consistent vapor check on the solved state (`_linearized_implicit_step`)
@@ -148,7 +150,19 @@ positive = vapor → condensate] and, for the vapor check, the lower saturation
 `q_smin = min(q*_liq, q*_ice)`, its temperature derivative `λ_min`, the corresponding
 `Γ_min`, and the round-off tolerance `q_tol` used for the excesses.
 """
-@inline function _joint_vapor_transfers(src, tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+@inline function _joint_vapor_transfers(
+    src,
+    tps::TDI.PS,
+    ρ,
+    T,
+    q_tot,
+    q_lcl,
+    q_icl,
+    q_rai,
+    q_sno,
+    Δt,
+    ice_deposition_blocked = false,
+)
     (; qᵥ, q_sl, q_si, Γₗ, Γᵢ, κ_il, κ_li, q_smin, λ_min, Γ_min, q_tol) =
         _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
     δₗ = qᵥ - q_sl
@@ -172,6 +186,7 @@ positive = vapor → condensate] and, for the vapor check, the lower saturation
     sink_i = (δᵢ < -q_tol) & (δ̄ᵢ < zero(FT))
     c_l = ifelse(sink_l, min(c_l, max(S_l / min(δₗ, -q_tol), zero(FT))), c_l)
     c_i = ifelse(sink_i, min(c_i, max(S_i / min(δᵢ, -q_tol), zero(FT))), c_i)
+    c_i = ifelse(ice_deposition_blocked & (δ̄ᵢ > zero(FT)), zero(FT), c_i)
     (δ̄ₗ, δ̄ᵢ) = _joint_averaged_excesses(c_l, c_r, c_i, c_s, Γₗ, Γᵢ, κ_il, κ_li, δₗ, δᵢ, Δs, Δt)
     Δq_lcl = max(c_l * δ̄ₗ * Δt, -q_lcl)
     Δq_rai = max(c_r * δ̄ₗ * Δt, -q_rai)

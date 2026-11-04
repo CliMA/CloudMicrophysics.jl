@@ -350,7 +350,11 @@ construction of the implicit decays). Negative species are clamped to zero on in
     q = max.(q, zero(FT))   # non-negative pools (hosts may pass slightly negative reconstructed values)
     terms = _microphysics_source_terms(Microphysics1Moment(), mp, tps, ρ, T, w, q_tot, q...)
     q_min = TDI.TD.Parameters.q_min(tps)
-    (terms, sf) = _vapor_terms(mp.processes.vapor_relaxation, terms, tps, ρ, T, q_tot, q, Δt)
+    # true where deposition onto cloud ice is suppressed (a positive tendency would be zeroed)
+    ice_deposition_blocked = CMNonEq.INP_limiter(
+        one(FT), tps, T; q.q_lcl, CMNonEq._ice_deposition_limits(mp.processes.cloud_ice_formation, mp)...,
+    )
+    (terms, sf) = _vapor_terms(mp.processes.vapor_relaxation, terms, tps, ρ, T, q_tot, q, Δt, ice_deposition_blocked)
     lin = donor_linearization(terms, q, q_min, Δt)
     q1 = backward_euler_solve(lin, q, one(FT), Δt)
     (; α_cap, f_lim, f_k) = _limiter_factors(mp, tps, terms, lin, q, q1, sf, q_tot, q_min, Δt)
@@ -365,7 +369,7 @@ construction of the implicit decays). Negative species are clamped to zero on in
 end
 
 """
-    _vapor_terms(coupling, terms, tps, ρ, T, q_tot, q, Δt)
+    _vapor_terms(coupling, terms, tps, ρ, T, q_tot, q, Δt, ice_deposition_blocked)
 
 The process terms of the substep and the saturation quantities of the vapor limiter
 (`q_smin`, `λ_min`, `Γ_min`, `q_tol`), for the option `coupling`:
@@ -373,8 +377,8 @@ with `JointVaporRelaxation` the four vapor-driven phase changes are replaced by 
 [`JointVaporTransfer`](@ref) terms solved by `_joint_vapor_transfers`; with
 `PerProcessVaporRelaxation` the terms are returned unchanged.
 """
-@inline function _vapor_terms(::CMP.JointVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
-    jv = _joint_vapor_transfers(terms, tps, ρ, T, q_tot, q..., Δt)
+@inline function _vapor_terms(::CMP.JointVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt, ice_deposition_blocked)
+    jv = _joint_vapor_transfers(terms, tps, ρ, T, q_tot, q..., Δt, ice_deposition_blocked)
     terms = merge(
         terms,
         (;
@@ -386,7 +390,7 @@ with `JointVaporRelaxation` the four vapor-driven phase changes are replaced by 
     )
     return (terms, (; jv.q_smin, jv.λ_min, jv.Γ_min, jv.q_tol))
 end
-@inline function _vapor_terms(::CMP.PerProcessVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
+@inline function _vapor_terms(::CMP.PerProcessVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt, ice_deposition_blocked)
     st = _saturation_state(tps, ρ, T, q_tot, q...)
     return (terms, (; st.q_smin, st.λ_min, st.Γ_min, st.q_tol))
 end
