@@ -553,7 +553,6 @@ A `NamedTuple` of `(; ∂ₜq_c, ∂ₜq_r, ∂ₜN_c, ∂ₜN_r, ∂ₜL_rim, �
     D_shd = FT(1e-3) # 1mm  # TODO: Externalize this parameter
 
     ρw = psd_c.ρw
-    @assert ρw == psd_r.ρw "Cloud and rain should have the same liquid water density"
     m_liq(Dₗ) = ρw * CO.volume_sphere_D(Dₗ)
 
     rates = ∫liquid_ice_collisions(

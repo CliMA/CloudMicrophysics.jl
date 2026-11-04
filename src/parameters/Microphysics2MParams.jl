@@ -83,6 +83,20 @@ which constructs the parameterization with components:
     inp_depletion_model::INPDM = NIceProxyDepletion()
     "How the size-distribution integrals are evaluated, a quadrature rule such as [`Quadrature.GaussLegendre`](@ref), or lookup tables, [`P3Scheme.P3Tables`](@ref CloudMicrophysics.P3Scheme.P3Tables)"
     integration::Q = QUAD.GaussLegendre(Float64, 16)
+    function P3IceParams(
+        scheme::P3, terminal_velocity::VL, cloud_pdf::PDc, rain_pdf::PDr,
+        ice_nucleation::HET, rain_freezing::RF, inp_depletion_model::INPDM, integration::Q,
+    ) where {P3, VL, PDc, PDr, HET, RF, INPDM, Q}
+        cloud_pdf.ρw == rain_pdf.ρw || throw(
+            ArgumentError(
+                "P3IceParams requires one liquid water density for the cloud and rain size distributions, got $(cloud_pdf.ρw) and $(rain_pdf.ρw)",
+            ),
+        )
+        return new{P3, VL, PDc, PDr, HET, RF, INPDM, Q}(
+            scheme, terminal_velocity, cloud_pdf, rain_pdf,
+            ice_nucleation, rain_freezing, inp_depletion_model, integration,
+        )
+    end
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)

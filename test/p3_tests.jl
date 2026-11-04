@@ -852,6 +852,17 @@ function test_p3_melting(FT)
     end
 end
 
+function test_ice_params_liquid_density(FT)
+    @testset "P3IceParams with unequal liquid water densities" begin
+        ice = CMP.P3IceParams(CP.create_toml_dict(FT))
+        replace_field(x, name, v) =
+            typeof(x).name.wrapper(map(n -> n === name ? v : getfield(x, n), fieldnames(typeof(x)))...)
+        rain_pdf = replace_field(ice.rain_pdf, :ρw, 2 * ice.rain_pdf.ρw)
+        @test_throws ArgumentError replace_field(ice, :rain_pdf, rain_pdf)
+        @test replace_field(ice, :rain_pdf, ice.rain_pdf) == ice
+    end
+end
+
 function test_p3_bulk_liquid_ice_collisions(FT)
     params = CMP.ParametersP3(FT)
     vel_params = CMP.Chen2022VelType(FT)
@@ -1446,6 +1457,7 @@ end
     test_p3_melting(FT)
 
     # bulk liquid-ice collisions and related processes
+    test_ice_params_liquid_density(FT)
     test_p3_bulk_liquid_ice_collisions(FT)
     test_p3_ice_self_collection(FT)
     test_p3_number_tendencies_with_bounded_number(FT)
