@@ -9,7 +9,7 @@ Logarithmic derivative of universal function for autoconversion as described
     from SB2006.
 """
 d_ln_phi_au_d_ln_τ(
-    (; A, a, b)::CMP.AcnvSB2006{FT},
+    (; A, a, b)::CMP.AcnvSB2006,
     τ::FT,
 ) where {FT <: AbstractFloat} =
     -(
@@ -24,7 +24,7 @@ Logarithmic derivative of universal function for accretion as described
     in Glassmeier & Lohmann
 """
 d_ln_phi_acc_d_ln_τ(
-    (; τ0, c)::CMP.AccrSB2006{FT},
+    (; τ0, c)::CMP.AccrSB2006,
     τ::FT,
 ) where {FT <: AbstractFloat} = (c * τ0) / (τ + τ0)
 

@@ -10,7 +10,7 @@ DOI:10.1126/science.aaf2649
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct H2S04NucleationParameters{FT} <: ParametersType
+@params struct H2S04NucleationParameters{FT} <: ParametersType
     p_b_n::FT
     p_b_i::FT
     u_b_n::FT
@@ -42,7 +42,7 @@ DOI: 10.1038/nature17953
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct OrganicNucleationParameters{FT} <: ParametersType
+@params struct OrganicNucleationParameters{FT} <: ParametersType
     a_1::FT
     a_2::FT
     a_3::FT
@@ -65,7 +65,7 @@ DOI:10.1126/science.1243527
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct MixedNucleationParameters{FT} <: ParametersType
+@params struct MixedNucleationParameters{FT} <: ParametersType
     k_H2SO4org::FT
     k_MTOH::FT
     exp_MTOH::FT

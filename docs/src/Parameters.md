@@ -131,7 +131,7 @@ mp = CMP.Microphysics1MParams(Float64;
     cloud_ice_melt = nothing,                   # disable a process
 )
 mp.processes.rain_autoconversion       # PrescribedNd()
-mp.process_params.rain_autoconversion  # VarTimescaleAcnv{Float64}(τ = ..., α = ..., Nc = ...)
+mp.process_params.rain_autoconversion  # VarTimescaleAcnv(τ = ..., α = ..., Nc = ...)
 ```
 
 Process functions dispatch on the option and read their parameters from the

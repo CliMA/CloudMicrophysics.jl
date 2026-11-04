@@ -48,11 +48,8 @@ numerical robustness.
 - Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
 - This prevents NaN/Inf propagation from near-zero denominators
 """
-@inline function G_func_liquid(
-    (; K_therm, D_vapor)::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    T,
-) where {FT}
+@inline function G_func_liquid((; K_therm, D_vapor)::CMP.AirProperties, tps::TDI.PS, T)
+    FT = typeof(K_therm)
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lᵥ(tps, T)
     p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
@@ -87,11 +84,8 @@ numerical robustness.
 - Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
 - This prevents NaN/Inf propagation from near-zero denominators
 """
-@inline function G_func_ice(
-    (; K_therm, D_vapor)::CMP.AirProperties{FT},
-    tps::TDI.PS,
-    T,
-) where {FT}
+@inline function G_func_ice((; K_therm, D_vapor)::CMP.AirProperties, tps::TDI.PS, T)
+    FT = typeof(K_therm)
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lₛ(tps, T)
     p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T)
@@ -203,7 +197,7 @@ function H2SO4_soln_saturation_vapor_pressure(
         c5,
         c6,
         c7,
-    )::CMP.H2SO4SolutionParameters{FT},
+    )::CMP.H2SO4SolutionParameters,
     x::FT,
     T::FT,
 ) where {FT}

@@ -8,7 +8,7 @@ Parameters for zero-moment bulk microphysics scheme
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Parameters0M{FT} <: ParametersType
+@params struct Parameters0M{FT} <: ParametersType
     "precipitation timescale [s]"
     τ_precip::FT
     "condensate specific content precipitation threshold [-]"

@@ -8,7 +8,7 @@ A struct with snow size distribution parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct ParticlePDFSnow{FT} <: ParametersType
+@params struct ParticlePDFSnow{FT} <: ParametersType
     "snow size distribution coefficient [1/m4]"
     μ::FT
     "snow size distribution coefficient [-]"
@@ -23,7 +23,7 @@ A struct with cloud ice or rain size distribution parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct ParticlePDFIceRain{FT} <: ParametersType
+@params struct ParticlePDFIceRain{FT} <: ParametersType
     "size distribution coefficient [1/m⁴]"
     n0::FT
 end
@@ -38,7 +38,7 @@ m(r) = m0 χm (r/r0)^(me + Δm)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct ParticleMass{FT} <: ParametersType
+@params struct ParticleMass{FT} <: ParametersType
     "particle length scale [m]"
     r0::FT
     "mass size relation coefficient [kg]"
@@ -65,7 +65,7 @@ a(r) = a0 χa (r/r0)^(ae + Δa)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct ParticleArea{FT} <: ParametersType
+@params struct ParticleArea{FT} <: ParametersType
     "cross section size relation coefficient [m²]"
     a0::FT
     "cross section size relation coefficient [-]"
@@ -85,7 +85,7 @@ A struct with ventilation coefficients
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Ventilation{FT} <: ParametersType
+@params struct Ventilation{FT} <: ParametersType
     "ventilation coefficient `a` [-]"
     a::FT
     "ventilation coefficient `b` [-]"
@@ -100,7 +100,7 @@ A struct with aspect ratio coefficients
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct SnowAspectRatio{FT} <: ParametersType
+@params struct SnowAspectRatio{FT} <: ParametersType
     "aspect ratio [-]"
     ϕ::FT
     "power law coefficient in terminal velocity parameterization from Chen et al 2022 [-]"
@@ -116,7 +116,7 @@ cloud ice, `NoSupersaturation`). Rain autoconversion (`Kessler1M`) uses [`Kessle
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct Acnv1M{FT} <: ParametersType
+@params struct Acnv1M{FT} <: ParametersType
     "autoconversion timescale [s]"
     τ::FT
     "condensate specific content autoconversion threshold [-]"
@@ -133,7 +133,7 @@ The parameters and type for cloud liquid water condensate
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct CloudLiquid{FT} <: CloudCondensateType
+@params struct CloudLiquid{FT} <: CloudCondensateType
     "water density [kg/m³]"
     ρw::FT
     "effective radius [m]"
@@ -152,7 +152,7 @@ The parameters and type for cloud ice condensate
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct CloudIce{FT, PD, MS} <: CloudCondensateType
+@params struct CloudIce{FT, PD, MS} <: CloudCondensateType
     "a struct with size distribution parameters"
     pdf::PD
     "a struct with mass size relation parameters"
@@ -186,7 +186,7 @@ formation option (see `MicrophysicsNonEq.ice_number_concentration`):
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct IceNumberTemperatureFit{FT} <: ParametersType
+@params struct IceNumberTemperatureFit{FT} <: ParametersType
     "prefactor of the fit [1/m³]"
     N_ref::FT
     "intercept of the exponent [-]"
@@ -256,7 +256,7 @@ The parameters and type for snow
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Snow{FT, PD, MS, AR, VT, AP} <: PrecipitationType
+@params struct Snow{FT, PD, MS, AR, VT, AP} <: PrecipitationType
     "a struct with size distribution parameters"
     pdf::PD
     "a struct with mass size relation parameters"
@@ -327,7 +327,7 @@ Active when `PrescribedNd` is selected in `Microphysics1MOptions`.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct VarTimescaleAcnv{FT} <: Precipitation2MType
+@params struct VarTimescaleAcnv{FT} <: Precipitation2MType
     "Autoconversion timescale [s]"
     τ::FT
     "Powerlaw coefficient relating timescale to droplet number [-]"
@@ -364,7 +364,7 @@ Active when `Kessler1M` is selected in in `Microphysics1MOptions`.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct KesslerAcnv{FT} <: ParametersType
+@params struct KesslerAcnv{FT} <: ParametersType
     "Autoconversion timescale for quiescent (stratiform) conditions [s]"
     τ_slow::FT
     "Autoconversion timescale for strong vertical motions (convective) [s]"
