@@ -88,8 +88,6 @@ Compute `log(Iᵏ)` where `Iᵏ` is the following integral:
     `Γ(z) ⋅ (q_D₁ - q_D₂) / λ^z`
  In log-space, this is:
     `- z log(λ) + logΓ(z) + log(q_D₁ - q_D₂)`
-
-See also [`gamma_inc_moment`](@ref)
 """
 function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     FT = UT.promote_typeof(D₁, D₂, μ, logλ)
@@ -105,32 +103,6 @@ function loggamma_inc_moment(D₁, D₂, μ, logλ, k = 0, scale = 1)
     # derivative finite.
     Δq = max(Δq, floatmin(FT))
     return -z * logλ + SF.loggamma(z) + log(Δq) + log(FT(scale))
-end
-
-"""
-    gamma_inc_moment(D₁, D₂, p, α)
-
-Compute the incomplete gamma moment `∫_{D₁}^{D₂} D^p e^{-α D} dD`.
-
-It equals `α^{-(p+1)} Γ(p+1) [Q(p+1,αD₁) - Q(p+1,αD₂)]`, with `Q` the regularized upper incomplete
-gamma.
-
-Returns `0` if `D₂ ≤ D₁`, and `NaN` if `α ≤ 0`
-
-See also [`loggamma_inc_moment`](@ref)
-"""
-@inline function gamma_inc_moment(D₁, D₂, p, α)
-    FT = float(promote_type(typeof(D₁), typeof(D₂), typeof(α)))
-    D₂ > D₁ || return zero(FT)
-    α > 0 || return FT(NaN)
-    z = p + 1
-    x1 = α * D₁
-    x2 = α * D₂
-    (p1, q1) = UT.gamma_inc(z, x1)
-    (p2, q2) = UT.gamma_inc(z, x2)
-    Δq = x2 < z + 1 ? p2 - p1 : q1 - q2
-    Δq = max(Δq, zero(FT))
-    return SF.gamma(z) * Δq / α^z
 end
 
 """
@@ -206,7 +178,7 @@ end
 """
     logLdivN(particles, logλ)
 
-Compute `log(L/N)` given the `particles` and `logλ`
+Compute `log(L/N)` given the `particles` and `logλ`.
 
 # Arguments
 - `particles`: [`P3Particles`](@ref)
@@ -222,7 +194,9 @@ end
 """
     get_logN₀(N_ice, μ, logλ)
 
-Compute `log(N₀)` given `N_ice`, `μ`, and `logλ`,
+Compute `log(N₀)` given `N_ice`, `μ`, and `logλ`.
+
+The intercept follows from
 
         N  = N₀ ∫ G(D) dD
     log N₀ = log N - log(∫G(D) dD)

@@ -35,7 +35,6 @@ P3Scheme.logLdivN
 P3Scheme.logmass_gamma_moment
 P3Scheme.loggamma_moment
 P3Scheme.loggamma_inc_moment
-P3Scheme.gamma_inc_moment
 P3Scheme.get_μ
 P3Scheme.get_logN₀
 P3Scheme.logN′ice
@@ -44,14 +43,25 @@ P3Scheme.logN′ice
 ## Liquid-ice collisions
 
 [`P3Scheme.bulk_liquid_ice_collision_sources`](@ref) builds the collision kernel, the local rime density, and the maximum freezing rate for the ice particles of the state.
-For each ice diameter, `get_liquid_integrals` integrates the kernel over the liquid size distribution, and `∫liquid_ice_collisions` integrates the result over the ice size distribution and partitions the collected mass between freezing and shedding.
+For each ice diameter, `get_liquid_integrals` integrates the kernel over the liquid size distribution, split at the diameter at which a drop falls as fast as the ice particle.
+`∫liquid_ice_collisions` integrates the result over the ice size distribution, split at the wet-growth onset diameters, and partitions the collected mass between freezing and shedding.
 
 ```@docs
+P3Scheme.collision_cross_section_ice_liquid_coeffs
+P3Scheme.collision_cross_section_ice_liquid
 P3Scheme.volumetric_collision_rate_integrand
+P3Scheme.VolumetricCollisionRate
 P3Scheme.compute_max_freeze_rate
 P3Scheme.compute_local_rime_density
+P3Scheme.CollisionRimeDensity
+P3Scheme.rime_density_at
 P3Scheme.get_liquid_integrals
+P3Scheme.liquid_collision_integrand
+P3Scheme.crossover_diameter
+P3Scheme.crossing_integral_bounds
 P3Scheme.∫liquid_ice_collisions
+P3Scheme.wet_growth_onset_diameters
+P3Scheme.r_eff_ice
 ```
 
 ## Quadrature
@@ -62,5 +72,6 @@ The P3 integrals split the integration range at the regime thresholds and at the
 P3Scheme.integrate
 P3Scheme.subintervals
 P3Scheme.velocity_integral_bounds
+P3Scheme.insert_breakpoints
 P3Scheme.velocity_breakpoints
 ```

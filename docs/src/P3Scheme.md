@@ -582,7 +582,7 @@ Ice phase:
     There are numerous differences between the P3 scheme in Morrison & Milbrandt (2015) and the P3 scheme in this package:
     - the maximum freezing rate (wet growth limit) is computed at the particle level, instead of as a bulk process
     - changes in rime volume due to (dry) collisions with cloud and rain are computed at the particle level, with a local rime density evaluated as a function of both the liquid and ice particle diameters
-    - in the wet growth regime, the densification process is computed as a rapidly adjusting bulk process, instead of instantenous particle-level densification. We also scale by the fraction of the mass rate that undergoes wet growth.
+    - in the wet growth regime, the densification process is computed as a rapidly adjusting bulk process, instead of instantenous particle-level densification. We also scale by the fraction of the collected liquid mass that is shed.
 
 
 Below, we describe the different processes in more detail.
@@ -674,6 +674,7 @@ The maximum freezing rate is based on Musil (1970) [Musil1970](@cite),
 ```
 where the first term in the numerator is the heat transfer rate to the air surrounding the hailstone,
  and the second term is evaporative cooling. The denominator is the heat that must be dissipated by the hailstone.
+The latent heats ``L_v`` and ``L_f`` are evaluated at the freezing temperature, the temperature of the particle surface.
 
 !!! details "Symbol definitions"
     | Symbol     | Units | Description |
@@ -792,32 +793,25 @@ The change in rime volume at some diameter $D_i$ is then given by
 
 In the wet growth regime, the rime compacts, rapidly relaxing towards the solid bulk ice density of $916.7$ kg/m³.
 Because the P3 scheme only tracks the bulk rime volume $B_\text{rim}$, the densification rate is applied to the bulk rime volume.
-As a measure of the "intensity" of wet growth, we use the fraction of the total liquid collection that occurs by particles in wet growth regime,
+The intensity of wet growth is measured by the fraction of the collected liquid mass that is shed,
 ```math
-\begin{align*}
-f_\text{wet} 
-&= \frac{
-  ∫_0^∞ \mathbb{1}_\text{wet}(D_i) ⋅ ∂_t \mathcal{M}_{col}(D_i) N'(D_i) \mathrm{d}D_i
-}{∫_0^∞ ∂_t \mathcal{M}_\text{col}(D_i) N'(D_i) \mathrm{d}D_i
-}, \\
-&= \frac{
-  ∫_0^∞ \mathbb{1}_\text{wet}(D_i) ⋅ ∂_t \mathcal{M}_{col}(D_i) N'(D_i) \mathrm{d}D_i
-}{\textcolor{brown}{\text{QCFRZ} + \text{QCSHD} + \text{QRFRZ} + \text{QRSHD}}
-},
-\end{align*}
+f_\text{shd}
+= \frac{\textcolor{brown}{\text{QCSHD} + \text{QRSHD}}}
+{\textcolor{brown}{\text{QCFRZ} + \text{QCSHD} + \text{QRFRZ} + \text{QRSHD}}},
 ```
-where $\mathbb{1}_\text{wet}(D_i)$ is the indicator function for particles in the wet growth regime.
+which is zero when all collected liquid freezes, and approaches one when little of it freezes.
+Densification requires freezing, so $f_\text{shd}$ is zero at and above the freezing temperature.
 
 !!! note "Bulk rime volume change from wet growth"
     The bulk rate of rime volume change is then given by
     ```math
     \begin{align*}
     \textcolor{brown}{\text{QIWET}}
-      &= f_\text{wet} ⋅ \frac{1}{τ_\text{wet}} (L_\text{ice} - L_\text{rim})
-      = f_\text{wet} ⋅ \frac{1}{τ_\text{wet}}  L_\text{ice} (1 - F_{rim})
+      &= f_\text{shd} ⋅ \frac{1}{τ_\text{wet}} (L_\text{ice} - L_\text{rim})
+      = f_\text{shd} ⋅ \frac{1}{τ_\text{wet}}  L_\text{ice} (1 - F_{rim})
     \\
     \textcolor{brown}{\text{BIWET}}
-      &= f_\text{wet} ⋅ \frac{1}{τ_\text{wet}} \left(\frac{L_\text{ice}}{ρ^*} - B_\text{rim}\right) \\
+      &= f_\text{shd} ⋅ \frac{1}{τ_\text{wet}} \left(\frac{L_\text{ice}}{ρ^*} - B_\text{rim}\right) \\
     \end{align*}
     ```
 
@@ -857,7 +851,8 @@ A particle of diameter ``D`` and capacitance ``C = D/2`` melts at
 ```math
 \frac{dm}{dt} = \frac{2 \pi D \, K_\mathrm{thermo}}{L_f} \left(T - T_\mathrm{freeze}\right) F_v(D),
 ```
-with the ventilation factor of [SeifertBeheng2006](@cite) and the terminal velocity of [Chen2022](@cite).
+with ``L_f`` evaluated at ``T_\mathrm{freeze}``, the temperature of the particle surface,
+  and the ventilation factor of [SeifertBeheng2006](@cite) and the terminal velocity of [Chen2022](@cite).
 Mass and number melt at the same fractional rate, that of the particle size distribution:
 ```math
 f = \frac{\int_{0}^{\infty} \frac{dm}{dt} N(D) \, \mathrm{d}D}{\int_{0}^{\infty} m(D) N(D) \, \mathrm{d}D}, \qquad

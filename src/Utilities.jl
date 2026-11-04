@@ -10,9 +10,10 @@ module Utilities
 import UnrolledUtilities as UU
 import SpecialFunctions as SF
 import ForwardDiff as FD
+import RootSolvers as RS
 
 export clamp_to_nonneg, ϵ_numerics
-export promote_typeof
+export promote_typeof, return_type_of, find_zeros
 export fac
 
 """
@@ -25,6 +26,59 @@ their types. Useful to guarantee a single, concrete return type for functions
 that accept mixed input types (e.g. `Float32` and `ForwardDiff.Dual{Float32}`)
 """
 @inline promote_typeof(args...) = Base.promote_typeof(args...)
+
+"""
+    return_type_of(f, args...)
+
+Return the type that `f(args...)` returns, as inferred by the compiler, without calling `f`.
+
+The type is concrete for a type-stable `f`, which every integrand must be.
+"""
+@inline return_type_of(f::F, args...) where {F} = Core.Compiler.return_type(f, typeof(args))
+
+"""
+    find_zeros(f, method, x_lo, x_hi, ::Val{n_scan}, ::Val{max_roots}, tol, maxiters)
+
+Find up to `max_roots` zeros of `f` in `[x_lo, x_hi]`, in ascending order.
+
+`f` is evaluated at `n_scan + 1` evenly spaced points, and each sign change between adjacent points is
+refined by `RootSolvers.find_zero` with the two-point `method`, which starts from the residuals of the scan.
+A scan point at which `f` is zero is a zero. Two zeros between adjacent points are missed.
+
+# Arguments
+- `f`: function of one argument
+- `method`: two-point method type of RootSolvers, e.g. `RegulaFalsiMethod`
+- `x_lo`, `x_hi`: bounds of the search
+- `n_scan`: number of scan intervals
+- `max_roots`: largest number of zeros returned
+- `tol`, `maxiters`: tolerance and iteration limit of `RootSolvers.find_zero`
+
+# Returns
+- `(; roots, n_found)`: an `NTuple{max_roots}` of the zeros, with `x_lo` in place of each zero not found,
+  and the number of zeros found
+"""
+function find_zeros(
+    f::F, ::Type{M}, x_lo, x_hi, ::Val{n_scan}, ::Val{max_roots}, tol, maxiters,
+) where {F, M, n_scan, max_roots}
+    Δx = (x_hi - x_lo) / n_scan
+    roots = ntuple(_ -> x_lo, Val(max_roots))
+    n_found = 0
+    x_prev, y_prev = x_lo, f(x_lo)
+    for i in 1:n_scan
+        x = x_lo + i * Δx
+        y = f(x)
+        if (iszero(y) || y * y_prev < 0) && n_found < max_roots
+            root = iszero(y) ? x : RS.find_zero(f, M, x_prev, x, y_prev, y, RS.CompactSolution(), tol, maxiters).root
+            n_found += 1
+            roots = _replace_entry(roots, root, n_found)
+        end
+        x_prev, y_prev = x, y
+    end
+    return (; roots, n_found)
+end
+
+# The tuple `t` with entry `i` replaced by `v`, without the bounds check of `Base.setindex`
+@inline _replace_entry(t::NTuple{N}, v, i) where {N} = ntuple(k -> ifelse(k == i, v, t[k]), Val(N))
 export unrolled_logsumexp
 export rime_mass_fraction, rime_density
 export guarded_quotient, nearest_admissible_b

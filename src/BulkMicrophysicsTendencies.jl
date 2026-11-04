@@ -1006,9 +1006,7 @@ to be non-Nothing, eliminating runtime type checks and dynamic dispatch.
 
     # --- Ice nucleation (F23 + Bigg)
     τ_act = inp_depletion_model.τ_act
-    # Vapor deposition nucleation size. TODO: put into ClimaParams.
-    D_nuc = FT(10e-6)  # 10 μm nascent crystal - small-D tail of the P3
-    m_nuc = p3.ρ_i * CO.volume_sphere_D(D_nuc)
+    m_nuc = CMP3.ice_mean_particle_mass_min(p3)  # a newly nucleated crystal
 
     # F23 INP-activation depletion proxy.
     n_active = CM_HetIce.n_active(inp_depletion_model, n_ice)
