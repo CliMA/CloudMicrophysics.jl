@@ -78,7 +78,8 @@ Two temperature-based limiters are applied to the tendencies:
 
 1. **INP limiter (ice)**: Ice deposition (positive tendency) is suppressed
    at temperatures above freezing (``T > T_{freeze}``), where no ice
-   nucleating particles (INPs) are available.
+   nucleating particles (INPs) are available. With `TemperatureDependentIceNumber`
+   the limits are ``T_{dep,max}`` and ``T_{vap,nuc}`` (see below).
    Ice sublimation (negative tendency) is unaffected.
 
 2. **Homogeneous limiter (liquid)**: Liquid condensation (positive tendency)
@@ -180,6 +181,12 @@ The resulting timescale is hours in the mixed-phase range, so supercooled liquid
 The timescale is very slow at sub-zero temperatures and the deposition onto ice-free
   supersaturated air is very slow there (with ``q_{icl} \to 0`` the ``1\,\mu m`` radius floor gives
   ``\tau_i`` of days).
+
+Vapor deposits onto cloud ice only below ``T_{dep,max}`` (`temperature_cloud_ice_deposition_max`),
+  and between ``T_{vap,nuc}`` (`temperature_cloud_ice_vapor_nucleation`) and ``T_{dep,max}``
+  only where there is cloud liquid.
+With the default ``T_{dep,max} = T_{vap,nuc} = 273.15\,\text{K}`` vapor deposits at all
+  temperatures below freezing.
 
 ```@example
 include("plots/plotting_tau_relax_temperature_dependent_N.jl")

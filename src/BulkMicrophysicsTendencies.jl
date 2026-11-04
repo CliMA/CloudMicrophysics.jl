@@ -215,6 +215,7 @@ the term of the inactive branch is zero.
     S_phase_change_vap_icl = VaporRelaxation(:q_icl,
         CMNonEq.conv_q_vap_to_q_icl(procs.cloud_ice_formation, mp, tps, micro, thermo),
         CMNonEq.τ_vap_to_q_icl(procs.cloud_ice_formation, mp, tps, micro, thermo),
+        CMNonEq.INP_limiter(one(FT), tps, T; q_lcl, CMNonEq._ice_deposition_limits(procs.cloud_ice_formation, mp)...),
     )
 
     # --- Autoconversion (cloud → precipitation, ≥ 0) ---

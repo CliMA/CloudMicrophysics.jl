@@ -80,6 +80,8 @@ name_map(::Type{IceNumberTemperatureFit}) = (;
     :cloud_ice_number_temperature_fit_slope => :b,
     :cloud_ice_number_max => :N_max,
     :temperature_water_freeze => :T_freeze,
+    :temperature_cloud_ice_deposition_max => :T_dep_max,
+    :temperature_cloud_ice_vapor_nucleation => :T_vap_nuc,
 )
 name_map(::Type{ParticleMass}, ::Type{CloudIce}) = (;
     :cloud_ice_apparent_density => :ρᵢ,

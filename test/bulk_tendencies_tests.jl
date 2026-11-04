@@ -924,6 +924,47 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test q_lcl - q_lcl_new_presc > FT(10) * max(q_lcl - q_lcl_new, FT(0))
     end
 
+    @testset "LinearizedAverage - TemperatureDependentIceNumber: deposition temperature limits" begin
+        # between T_vap_nuc and T_dep_max no cloud ice forms in ice-supersaturated air without cloud liquid
+        limits = Dict(
+            "temperature_cloud_ice_deposition_max" => Dict("value" => 268.15, "type" => "float"),
+            "temperature_cloud_ice_vapor_nucleation" => Dict("value" => 248.15, "type" => "float"),
+        )
+        opt = CMP.TemperatureDependentIceNumber()
+        mp_lim = CMP.Microphysics1MParams(CP.create_toml_dict(FT; override_file = limits); cloud_ice_formation = opt)
+        mp_fit = CMP.Microphysics1MParams(FT; cloud_ice_formation = opt)
+        ρ = FT(0.7)
+        T = FT(260)
+        q_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+        q_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+        dq_icl_dt(mp_, q_tot, q_lcl) = BMT.bulk_microphysics_tendencies(
+            BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
+            mp_, tps, ρ, T, FT(0), q_tot, q_lcl, FT(0), FT(0), FT(0), FT(180), 3,
+        ).dq_icl_dt
+        q_tot_dry = FT(1.05) * q_sat_ice
+        @test dq_icl_dt(mp_lim, q_tot_dry, FT(0)) == FT(0)
+        @test dq_icl_dt(mp_fit, q_tot_dry, FT(0)) > FT(0)
+        q_lcl = FT(1e-4)
+        @test dq_icl_dt(mp_lim, q_sat_liq + q_lcl, q_lcl) == dq_icl_dt(mp_fit, q_sat_liq + q_lcl, q_lcl)
+        # above T_dep_max, liquid evaporating in ice-subsaturated air lifts the vapor past ice saturation
+        # within the substep; without the limits cloud ice grows from it, with them it does not
+        # (autoconversion to snow and liquid freezing off, so the vapor transfer is the cloud ice tendency)
+        T_warm = FT(270)
+        q_sat_ice_warm = TDI.saturation_vapor_specific_content_over_ice(tps, T_warm, ρ)
+        q_icl = FT(1e-5)
+        dq_icl_dt_warm(td) = BMT.bulk_microphysics_tendencies(
+            BMT.LinearizedAverage(), BMT.Microphysics1Moment(),
+            CMP.Microphysics1MParams(
+                td; cloud_ice_formation = opt, snow_autoconversion = nothing, cloud_liquid_freezing = nothing,
+            ),
+            tps, ρ, T_warm,
+            FT(0),
+            FT(0.99) * q_sat_ice_warm + q_lcl + q_icl, q_lcl, q_icl, FT(0), FT(0), FT(180), 1,
+        ).dq_icl_dt
+        @test dq_icl_dt_warm(CP.create_toml_dict(FT)) > FT(0)
+        @test dq_icl_dt_warm(CP.create_toml_dict(FT; override_file = limits)) <= FT(0)
+    end
+
     @testset "LinearizedAverage - stiff vapor↔ice relaxation (PrescribedIceNumber) does not cross saturation" begin
         # With the default N_0 = 5e8 m⁻³ the deposition/sublimation timescale is 1-7 s,
         # far below a 60 s substep. Using the time-averaged relaxation over the substep must

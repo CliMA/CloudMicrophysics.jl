@@ -50,7 +50,7 @@ end
 
 """
     VaporRelaxation{Condensate, FT}
-    VaporRelaxation(:Condensate, S, τ)
+    VaporRelaxation(:Condensate, S, τ, sink_only = false)
 
 Exchange of mass between the vapor and the condensate species `Condensate` that relaxes toward
 equilibrium.
@@ -61,6 +61,7 @@ condensation and evaporation of cloud liquid. `Condensate` is a species name, su
 # Fields
 - `S`: exchange rate, positive from the vapor to `Condensate` [kg/kg/s].
 - `τ`: relaxation timescale [s].
+- `sink_only`: `Condensate` can lose mass to the vapor but not gain it.
 
 # Examples
 ```julia
@@ -71,8 +72,10 @@ BMT.VaporRelaxation(:q_lcl, -2e-7, 30.0)  # evaporation of cloud liquid
 struct VaporRelaxation{Condensate, FT}
     S::FT
     τ::FT
+    sink_only::Bool
 end
-@inline VaporRelaxation(species::Symbol, S, τ) = VaporRelaxation{species, typeof(S)}(S, τ)
+@inline VaporRelaxation(species::Symbol, S, τ, sink_only = false) =
+    VaporRelaxation{species, typeof(S)}(S, τ, sink_only)
 
 """
     JointVaporTransfer{Condensate, FT}
