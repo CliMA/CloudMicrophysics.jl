@@ -115,14 +115,23 @@ end
 end
 
 """
-    INP_limiter(tendency, tps, T)
+    INP_limiter(tendency, tps, T; q_lcl = 0, T_dep_max = T_freeze, T_vap_nuc = T_dep_max)
 
-Returns `true` when ice deposition should be suppressed:
-positive tendency (deposition) at T > T_freeze (no INPs available).
+Returns `true` when ice deposition should be suppressed: positive tendency (deposition)
+at `T > T_dep_max`, or at `T > T_vap_nuc` where there is no cloud liquid (`q_lcl` [kg/kg] at most
+the specific humidity minimum of `tps`).
 """
-@inline function INP_limiter(tendency, tps, T)
-    return T > TDI.T_freeze(tps) && tendency > zero(tendency)
+@inline function INP_limiter(tendency, tps, T; q_lcl = zero(T), T_dep_max = TDI.T_freeze(tps), T_vap_nuc = T_dep_max)
+    no_liquid = q_lcl <= TDI.TD.Parameters.q_min(tps)
+    return ((T > T_dep_max) | ((T > T_vap_nuc) & no_liquid)) & (tendency > zero(tendency))
 end
+
+# Deposition temperature limits of the cloud ice formation `opt`, as keyword arguments
+@inline function _ice_deposition_limits(opt::CMP.TemperatureDependentIceNumber, mp)
+    fit = CMP.process_params(mp, opt)
+    return (; fit.T_dep_max, fit.T_vap_nuc)
+end
+@inline _ice_deposition_limits(opt, mp) = (;)
 
 """
     homogeneous_limiter(tendency, T, T_hom)
@@ -261,11 +270,11 @@ end
     (; ρ, T) = thermo
     fit = CMP.process_params(mp, opt)
     τ = τ_relax(mp.cloud.ice, mp.air_properties, fit, q_icl, T, ρ)
-    return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo)
+    return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo; _ice_deposition_limits(opt, mp)...)
 end
 
 # Kernel for `conv_q_vap_to_q_icl` with a constant relaxation timescale `τ`
-@inline function _conv_q_vap_to_q_icl_const(τ, tps::TDI.PS, micro, thermo)
+@inline function _conv_q_vap_to_q_icl_const(τ, tps::TDI.PS, micro, thermo; limits...)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
 
@@ -290,7 +299,7 @@ end
         -min(-sat_excess, Γᵢ * max(0, q_icl)) / timescale,
         sat_excess / timescale,
     )
-    limiter = INP_limiter(tendency, tps, T)
+    limiter = INP_limiter(tendency, tps, T; q_lcl, limits...)
     return ifelse(limiter, zero(tendency), tendency)
 end
 @inline function conv_q_vap_to_q_icl(
@@ -375,8 +384,15 @@ for how the timescale is used.
     CMP.process_params(mp, opt).τ_relax
 @inline τ_vap_to_q_icl(::CMP.PrescribedIceNumber, mp, tps::TDI.PS, micro, thermo) =
     τ_relax(mp.cloud.ice, mp.air_properties, micro.q_icl, thermo.ρ)
-@inline τ_vap_to_q_icl(opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo) =
-    τ_relax(mp.cloud.ice, mp.air_properties, CMP.process_params(mp, opt), micro.q_icl, thermo.T, thermo.ρ)
+@inline function τ_vap_to_q_icl(opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo)
+    (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
+    (; ρ, T) = thermo
+    τ = τ_relax(mp.cloud.ice, mp.air_properties, CMP.process_params(mp, opt), q_icl, T, ρ)
+    sat_excess =
+        TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno) - TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    blocked = INP_limiter(sat_excess, tps, T; q_lcl, _ice_deposition_limits(opt, mp)...)
+    return ifelse(blocked, oftype(τ, Inf), τ)
+end
 @inline function τ_vap_to_q_icl(opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo

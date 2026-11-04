@@ -134,6 +134,30 @@ function test_microphysics_noneq(FT)
         qᵥ_si_w = TDI.p2q(tps, T_warm, ρ, TDI.saturation_vapor_pressure_over_ice(tps, T_warm))
         TT.@test _conv(FT(1.5) * qᵥ_si_w, FT(0), ρ, T_warm) == FT(0)
         TT.@test _conv(FT(0.5) * qᵥ_si_w, FT(1e-3), ρ, T_warm) < FT(0)
+
+        # deposition temperature limits: none above T_dep_max, and above T_vap_nuc only with cloud liquid
+        fit_lim = CMP.IceNumberTemperatureFit(;
+            fit.N_ref, fit.a, fit.b, fit.N_max, fit.T_freeze, T_dep_max = FT(268.15), T_vap_nuc = FT(248.15),
+        )
+        mp_lim = (; cloud = (; ice), air_properties = aps, process_params = (; cloud_ice_formation = fit_lim))
+        function _conv_lim(mp_, T_, RHi, q_lcl)
+            q_icl = FT(1e-5)
+            q_si = TDI.p2q(tps, T_, ρ, TDI.saturation_vapor_pressure_over_ice(tps, T_))
+            micro = (; q_tot = RHi * q_si + q_lcl + q_icl, q_lcl, q_icl, q_rai = FT(0), q_sno = FT(0))
+            return CMNe.conv_q_vap_to_q_icl(opt, mp_, tps, micro, (; ρ, T = T_))
+        end
+        q_lcl = FT(1e-4)
+        TT.@test _conv_lim(mp_lim, FT(270), FT(1.05), q_lcl) == FT(0)
+        TT.@test _conv_lim(mp_lim, FT(260), FT(1.05), FT(0)) == FT(0)
+        TT.@test _conv_lim(mp_lim, FT(260), FT(1.05), q_lcl) == _conv_lim(mp_fit, FT(260), FT(1.05), q_lcl) > FT(0)
+        TT.@test _conv_lim(mp_lim, FT(240), FT(1.05), FT(0)) == _conv_lim(mp_fit, FT(240), FT(1.05), FT(0)) > FT(0)
+        TT.@test _conv_lim(mp_lim, FT(260), FT(0.9), FT(0)) == _conv_lim(mp_fit, FT(260), FT(0.9), FT(0)) < FT(0)
+        TT.@test _conv_lim(mp_fit, FT(260), FT(1.05), FT(0)) > FT(0)
+        TT.@test _conv_lim(mp_lim, FT(260), FT(1.05), FT(5e-11)) == FT(0)   # liquid below q_min counts as none
+        # the timescale accessor reports a blocked deposition as no relaxation
+        micro_lim = (; q_tot = FT(1.05) * qᵥ_si, q_lcl = FT(0), q_icl = FT(1e-5), q_rai = FT(0), q_sno = FT(0))
+        TT.@test CMNe.τ_vap_to_q_icl(opt, mp_lim, tps, micro_lim, (; ρ, T)) == FT(Inf)
+        TT.@test isfinite(CMNe.τ_vap_to_q_icl(opt, mp_fit, tps, micro_lim, (; ρ, T)))
     end
 
     TT.@testset "CondEvap_DepSub" begin

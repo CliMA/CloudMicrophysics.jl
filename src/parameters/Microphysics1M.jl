@@ -183,6 +183,9 @@ formation option (see `MicrophysicsNonEq.ice_number_concentration`):
 
     N_ice(T) = min(N_ref exp(a + b max(T_freeze - T, 0)), N_max)
 
+and the temperature limits of vapor deposition onto cloud ice: none above `T_dep_max`, and
+only where there is cloud liquid above `T_vap_nuc`.
+
 # Fields
 $(DocStringExtensions.FIELDS)
 """
@@ -197,6 +200,10 @@ $(DocStringExtensions.FIELDS)
     N_max::FT
     "freezing temperature [K]"
     T_freeze::FT
+    "temperature above which vapor does not deposit onto cloud ice [K]"
+    T_dep_max::FT
+    "temperature below which vapor deposits onto cloud ice also without cloud liquid [K]"
+    T_vap_nuc::FT
 end
 
 function ParticleMass(::Type{CloudIce}, td::CP.ParamDict)
