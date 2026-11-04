@@ -26,6 +26,7 @@ MicrophysicsNonEq.gamma_helper
 Microphysics0M
 Microphysics0M.remove_precipitation
 Microphysics0M.∂remove_precipitation_∂q_tot
+Microphysics0M.evaporate_precipitation
 ```
 
 ## Parameters
