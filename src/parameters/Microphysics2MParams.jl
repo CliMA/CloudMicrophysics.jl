@@ -60,8 +60,9 @@ which constructs the parameterization with components:
   (default: `Quadrature.GaussLegendre(FT, quadrature_order)`). Pass a quadrature rule to use a rule
   other than Gauss-Legendre; for lookup tables, build the parameters with `P3Scheme.with_tables`.
   Tables built from other parameters throw an `ArgumentError`, see [`check_integration`](@ref).
-- `ice_nucleation`: the deposition nucleation target spectrum, an [`INPTargetSpectrum`](@ref) such as
-  [`Frostenberg2023`](@ref) (the default) or a [`StochasticINPSpectrum`](@ref)
+- `ice_nucleation`: the deposition nucleation target spectrum, an [`INPTargetSpectrum`](@ref):
+  [`Frostenberg2023`](@ref) (the default), the Cooper (1986) spectrum [`ExponentialSupercoolingINP`](@ref), or a
+  [`StochasticINPSpectrum`](@ref)
 - `inp_depletion_model`: the INP depletion model (default: `NIceProxyDepletion()`)
 
 """
