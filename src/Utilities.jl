@@ -13,7 +13,7 @@ import ForwardDiff as FD
 import RootSolvers as RS
 
 export clamp_to_nonneg, ϵ_numerics
-export promote_typeof, return_type_of, find_zeros
+export promote_typeof, return_type_of, find_zeros, scan_zeros
 export fac
 
 """
@@ -41,9 +41,10 @@ The type is concrete for a type-stable `f`, which every integrand must be.
 
 Find up to `max_roots` zeros of `f` in `[x_lo, x_hi]`, in ascending order.
 
-`f` is evaluated at `n_scan + 1` evenly spaced points, and each sign change between adjacent points is
-refined by `RootSolvers.find_zero` with the two-point `method`, which starts from the residuals of the scan.
-A scan point at which `f` is zero is a zero. Two zeros between adjacent points are missed.
+`f` is evaluated at `n_scan + 1` evenly spaced points, and the first `max_roots` sign changes between
+adjacent points are recorded. After the scan, each recorded sign change is refined by
+`RootSolvers.find_zero` with the two-point `method`, which starts from the residuals of the scan. A
+scan point at which `f` is zero is a zero. Two zeros between adjacent points are missed.
 
 # Arguments
 - `f`: function of one argument
@@ -54,28 +55,76 @@ A scan point at which `f` is zero is a zero. Two zeros between adjacent points a
 - `tol`, `maxiters`: tolerance and iteration limit of `RootSolvers.find_zero`
 
 # Returns
-- `(; roots, n_found)`: an `NTuple{max_roots}` of the zeros, with `x_lo` in place of each zero not found,
-  and the number of zeros found
+- `(; roots, n_found, f_lo)`: an `NTuple{max_roots}` of the zeros, with `x_lo` in place of each zero not
+  found, the number of zeros found, and `f(x_lo)`
 """
 function find_zeros(
-    f::F, ::Type{M}, x_lo, x_hi, ::Val{n_scan}, ::Val{max_roots}, tol, maxiters,
-) where {F, M, n_scan, max_roots}
+    f::F, ::Type{M}, x_lo, x_hi, n_scan::Val, max_roots::Val, tol, maxiters,
+) where {F, M}
+    no_summand = x -> (f(x), nothing)
+    (; roots, n_found, f_lo) =
+        scan_zeros(no_summand, f, M, x_lo, x_hi, n_scan, max_roots, tol, maxiters, (i, Δx) -> nothing)
+    return (; roots, n_found, f_lo)
+end
+
+"""
+    scan_zeros(g, f, method, x_lo, x_hi, ::Val{n_scan}, ::Val{max_roots}, tol, maxiters, weight)
+
+Find up to `max_roots` zeros of `f` in `[x_lo, x_hi]` as [`find_zeros`](@ref) does, and compute a weighted sum of a second function `h` over the scan points.
+
+At each of the `n_scan + 1` scan points `x`, `g(x)` returns `(f(x), h(x))`, so that one evaluation
+gives the residual of the scan and the summand. The first element of `g(x)` must equal `f(x)`, and
+`f` alone refines the sign changes. The sum is `Σᵢ weight(i, Δx) h(x_lo + i Δx)` over the scan
+points `i = 0, …, n_scan` of spacing `Δx`, and it is `nothing` if `h` returns `nothing`.
+
+# Returns
+- `(; roots, n_found, f_lo, total)`: as [`find_zeros`](@ref), and the weighted sum `total` of `h`
+"""
+@inline function scan_zeros(
+    g::G, f::F, ::Type{M}, x_lo, x_hi, ::Val{n_scan}, ::Val{max_roots}, tol, maxiters, weight::W,
+) where {G, F, M, n_scan, max_roots, W}
     Δx = (x_hi - x_lo) / n_scan
-    roots = ntuple(_ -> x_lo, Val(max_roots))
+    (f_lo, summand) = g(x_lo)
+    total = _weighted(weight(0, Δx), summand)
+    # Each bracket is `(x_a, x_b, f(x_a), f(x_b))`, with `x_a = x_b = x_lo` for a zero not found
+    brackets = ntuple(_ -> (x_lo, x_lo, f_lo, f_lo), Val(max_roots))
+    exact = ntuple(_ -> false, Val(max_roots))
     n_found = 0
-    x_prev, y_prev = x_lo, f(x_lo)
+    x_prev, y_prev = x_lo, f_lo
     for i in 1:n_scan
         x = x_lo + i * Δx
-        y = f(x)
-        if (iszero(y) || y * y_prev < 0) && n_found < max_roots
-            root = iszero(y) ? x : RS.find_zero(f, M, x_prev, x, y_prev, y, RS.CompactSolution(), tol, maxiters).root
-            n_found += 1
-            roots = _replace_entry(roots, root, n_found)
-        end
+        (y, summand) = g(x)
+        total = _add(total, _weighted(weight(i, Δx), summand))
+        record = (iszero(y) | (y * y_prev < 0)) & (n_found < max_roots)
+        # No entry has the index 0, so an unrecorded point changes no bracket
+        k = ifelse(record, n_found + 1, 0)
+        brackets = _replace_entry(brackets, (x_prev, x, y_prev, y), k)
+        exact = _replace_entry(exact, iszero(y), k)
+        n_found += record
         x_prev, y_prev = x, y
     end
-    return (; roots, n_found)
+    found = ntuple(identity, Val(max_roots)) .≤ n_found
+    roots = map(
+        @inline((bracket, at_point, is_found) -> _refined_zero(f, M, bracket, at_point, is_found, x_lo, tol, maxiters)),
+        brackets,
+        exact,
+        found,
+    )
+    return (; roots, n_found, f_lo, total)
 end
+
+@inline function _refined_zero(
+    f::F, ::Type{M}, (x_a, x_b, y_a, y_b), at_point, is_found, x_lo, tol, maxiters,
+) where {F, M}
+    is_found || return x_lo
+    at_point && return x_b
+    return @inline(RS.find_zero(f, M, x_a, x_b, y_a, y_b, RS.CompactSolution(), tol, maxiters)).root
+end
+
+@inline _weighted(w, summand) = w * summand
+@inline _weighted(w, ::Nothing) = nothing
+@inline _add(a, b) = a + b
+@inline _add(::Nothing, ::Nothing) = nothing
 
 # The tuple `t` with entry `i` replaced by `v`, without the bounds check of `Base.setindex`
 @inline _replace_entry(t::NTuple{N}, v, i) where {N} = ntuple(k -> ifelse(k == i, v, t[k]), Val(N))
@@ -268,7 +317,7 @@ end
     end
 
     # Initial guess
-    if p < 0.5
+    if p < FT(0.5)
         x = FT((p * SF.gamma(a + 1))^(1 / a))
     else
         x = FT(a - log(q))

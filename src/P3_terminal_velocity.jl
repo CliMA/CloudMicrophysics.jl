@@ -89,7 +89,7 @@ weighted mean of `v(D)` over the quadrature nodes. Both are zero without ice num
 # Returns
 - `(; v_n, v_m)`: the number- and mass-weighted velocities [m/s]
 """
-function ice_terminal_velocities(velocity_params, state, ρₐ; p = 1e-6)
+function ice_terminal_velocities(velocity_params, state, ρₐ; p = eltype(state)(1e-6))
     (; particles, integration, dist) = state
     v_term = ice_particle_terminal_velocity(velocity_params, particles, ρₐ)
     n = DT.size_distribution(dist)

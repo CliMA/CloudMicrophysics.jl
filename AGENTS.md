@@ -26,6 +26,8 @@ Before making changes that are externally visible or scientifically consequentia
 | `src/MicrophysicsNonEq.jl` | Non-equilibrium condensation/evaporation and cloud terminal velocities |
 | `src/BulkMicrophysicsTendencies.jl` | Unified tendency API for bulk schemes |
 | `src/P3.jl`, `src/P3_*.jl` | P3 ice microphysics scheme (properties, size distribution, processes, velocity) |
+| `src/P3/processes/` | P3 liquid-ice collisions and ice self-collection |
+| `src/P3/tables/` | P3 lookup tables of the size-distribution integrals and the slope solve |
 | `src/AerosolActivation.jl` | Aerosol activation (CCN) |
 | `src/AerosolModel.jl` | Aerosol size distribution types (`Mode_B`, `Mode_κ`, `AerosolDistribution`) |
 | `src/IceNucleation.jl` | Heterogeneous and homogeneous ice nucleation |

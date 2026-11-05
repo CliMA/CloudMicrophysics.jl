@@ -24,6 +24,7 @@ export Chen2022_vel_coeffs
 export Chen2022_monodisperse_pdf
 export Chen2022_exponential_pdf
 export ventilation_factor
+export ventilation_coefficients
 export KK2000_autoconversion
 export KK2000_accretion
 
@@ -504,12 +505,29 @@ See also [`volume_sphere_D`](@ref).
 @inline volume_sphere_R(R) = volume_sphere_D(2R)
 
 """
+    ventilation_coefficients(vent, aps)
+
+Return the coefficients `(a, b)` of the ventilation factor `F_v(D) = a + b √(D v(D))` of [`ventilation_factor`](@ref).
+
+The coefficients are `a = aᵥ` and `b = bᵥ Sc^(1/3) / √ν`, with the Schmidt number `Sc = ν / D_v`.
+
+# Arguments
+- `vent`: ventilation parameterization constants (contains `aᵥ`, `bᵥ`)
+- `aps`: air properties parameters (contains `ν_air`, `D_vapor`)
+"""
+@inline function ventilation_coefficients((; aᵥ, bᵥ), (; ν_air, D_vapor))
+    N_sc = ν_air / D_vapor  # Schmidt number
+    return (aᵥ, bᵥ * cbrt(N_sc) / sqrt(ν_air))
+end
+
+"""
     ventilation_factor(vent, aps, v_term)
 
 Returns a function that computes the ventilation factor for a particle as a function of its diameter.
 
 The ventilation factor parameterizes the increase in the mass and heat exchange for falling particles.
 See e.g., Seifert and Beheng (2006), https://doi.org/10.1007/s00703-005-0112-4, Eq. (24).
+The factor is `F_v(D) = a + b √(D v(D))`, with the coefficients of [`ventilation_coefficients`](@ref).
 
 # Arguments
 - `vent`: ventilation parameterization constants (contains `aᵥ`, `bᵥ`)
