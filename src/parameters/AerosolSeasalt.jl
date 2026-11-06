@@ -8,7 +8,7 @@ Parameters for seasalt
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Seasalt{FT} <: AerosolType
+@params struct Seasalt{FT} <: AerosolType
     "molar mass [kg/mol]"
     M::FT
     "density [kg/m3]"

@@ -10,7 +10,7 @@ DOI: 10.5194/acp-6-3007-2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Mohler2006{FT} <: ParametersType
+@params struct Mohler2006{FT} <: ParametersType
     "max allowed supersaturation [-]"
     Sᵢ_max::FT
     "threshold temperature [K]"
@@ -26,7 +26,7 @@ DOI: 10.1038/35020537
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Koop2000{FT} <: ParametersType
+@params struct Koop2000{FT} <: ParametersType
     "min Δaw [-]"
     Δa_w_min::FT
     "max Δaw [-]"
@@ -54,7 +54,7 @@ DOI: 10.1175/JAS-D-14-0065.1
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct MorrisonMilbrandt2014{FT} <: ParametersType
+@params struct MorrisonMilbrandt2014{FT} <: ParametersType
     "Cutoff temperature for deposition nucleation `[K]`; maps to the ClimaParams homogeneous nucleation temperature, 233 K"
     T_dep_thres::FT
     "coefficient [-]"
@@ -88,7 +88,7 @@ $(DocStringExtensions.FIELDS)
 
 Compute the volumetric freezing rate [m⁻³ s⁻¹]
 """
-@kwdef struct RainFreezing{FT} <: ParametersType
+@params struct RainFreezing{FT} <: ParametersType
     "empirical parameter [K⁻¹]"
     het_a::FT
     "water-type dependent parameter [m⁻³ s⁻¹]"
@@ -131,7 +131,7 @@ DOI: 10.5194/acp-23-10883-2023
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Frostenberg2023{FT} <: ParametersType
+@params struct Frostenberg2023{FT} <: ParametersType
     "standard deviation"
     σ::FT
     "coefficient"
@@ -163,8 +163,7 @@ clean air below it and the F23 channel artificially shuts off.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-struct NIceProxyDepletion{FT}
+@params struct NIceProxyDepletion{FT}
     "F23 activation relaxation timescale `[s]` (default `300`)"
-    τ_act::FT
+    τ_act::FT = 300
 end
-NIceProxyDepletion(; τ_act = 300) = NIceProxyDepletion(τ_act)

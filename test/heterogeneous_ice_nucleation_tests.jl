@@ -253,7 +253,7 @@ function test_heterogeneous_ice_nucleation(FT)
                  FT(6.238324625039508)
 
         # b shifts the mean by +9 log(b)
-        ip_b = CMP.Frostenberg2023{FT}(;
+        ip_b = CMP.Frostenberg2023(;
             σ = ip_frostenberg.σ,
             b = FT(2),
             T_freeze = ip_frostenberg.T_freeze,
