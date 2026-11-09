@@ -95,7 +95,10 @@ Small structs are composed into the containers that the process functions
   take as their `mp` argument:
 
 - [`Microphysics0MParams`](@ref CloudMicrophysics.Parameters.Microphysics0MParams)
-  wraps the 0-moment removal parameters.
+  wraps the 0-moment removal parameters, their convective-updraft variant, and,
+  with `with_evaporation = true`, the
+  [`Evaporation0M`](@ref CloudMicrophysics.Parameters.Evaporation0M) parameters for the
+  evaporation of the precipitation flux (`nothing` otherwise).
 - [`Microphysics1MParams`](@ref CloudMicrophysics.Parameters.Microphysics1MParams)
   stores the cloud and precipitation particle properties, air properties and
   terminal velocity parameters, plus the process options and their parameters
