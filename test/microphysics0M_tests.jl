@@ -1,6 +1,6 @@
 import Test as TT
 
-import ClimaParams
+import ClimaParams as CP
 
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Parameters as CMP
@@ -48,7 +48,127 @@ function test_microphysics0M(FT)
     end
 end
 
+function test_microphysics0M_params(FT)
+
+    TT.@testset "0M_parameters" begin
+        toml_dict = CP.create_toml_dict(FT)
+        mp = CMP.Microphysics0MParams(toml_dict)
+
+        TT.@test mp.precip isa CMP.Parameters0M{FT}
+        TT.@test mp.precip_updraft isa CMP.Parameters0M{FT}
+        TT.@test mp.precip == CMP.Parameters0M(toml_dict)
+        # default ratio of 1: updrafts use the grid-mean timescale
+        TT.@test mp.precip_updraft.τ_precip == mp.precip.τ_precip
+        TT.@test mp.precip_updraft.qc_0 == mp.precip.qc_0
+        TT.@test mp.precip_updraft.S_0 == mp.precip.S_0
+        TT.@test CMP.Microphysics0MParams(FT) == mp
+        TT.@test eltype(mp) == FT
+
+        # evaporation parameters are built only if requested
+        TT.@test isnothing(mp.evaporation)
+        TT.@test isnothing(CMP.Microphysics0MParams(toml_dict; with_evaporation = false).evaporation)
+        mp_e = CMP.Microphysics0MParams(toml_dict; with_evaporation = true)
+        TT.@test mp_e.evaporation isa CMP.Evaporation0M{FT}
+        TT.@test mp_e.evaporation == CMP.Evaporation0M(toml_dict)
+        TT.@test mp_e.precip == mp.precip
+        TT.@test mp_e.precip_updraft == mp.precip_updraft
+        TT.@test CMP.Microphysics0MParams(FT; with_evaporation = true) == mp_e
+        TT.@test eltype(mp_e) == FT
+
+        # updraft timescale is the ratio times the grid-mean timescale
+        override = CP.create_toml_dict(
+            FT;
+            override_file = Dict(
+                "precipitation_timescale_updraft_ratio" =>
+                    Dict("value" => 0.2, "type" => "float"),
+                "precipitation_evaporation_coefficient" =>
+                    Dict("value" => 1.36e-4, "type" => "float"),
+                "precipitation_evaporation_rh_crit" =>
+                    Dict("value" => 0.8, "type" => "float"),
+            ),
+        )
+        mp_o = CMP.Microphysics0MParams(override; with_evaporation = true)
+        TT.@test mp_o.precip_updraft.τ_precip ≈ FT(0.2) * mp.precip.τ_precip
+        TT.@test mp_o.precip_updraft.qc_0 == mp.precip.qc_0
+        TT.@test mp_o.precip_updraft.S_0 == mp.precip.S_0
+        TT.@test mp_o.precip.τ_precip == mp.precip.τ_precip
+        TT.@test mp_o.evaporation.k_E == FT(1.36e-4)
+        TT.@test mp_o.evaporation.RH_c == FT(0.8)
+
+        # keyword construction without updraft or evaporation parameters
+        mp_kw = CMP.Microphysics0MParams(; precip = mp.precip)
+        TT.@test mp_kw.precip_updraft === mp.precip
+        TT.@test isnothing(mp_kw.evaporation)
+    end
+end
+
+function test_microphysics0M_evaporation(FT)
+
+    TT.@testset "0M_evaporation" begin
+        pe = CMP.Evaporation0M(FT)
+        pe_on = CMP.Evaporation0M(;
+            k_E = FT(5.44e-4),
+            RH_c = pe.RH_c,
+            a_p = pe.a_p,
+            α₂ = pe.α₂,
+            α₃ = pe.α₃,
+        )
+        (; k_E, RH_c, a_p, α₂, α₃) = pe_on
+
+        q_vap_sat = FT(15e-3)
+        q_vap = FT(10e-3)
+        p_over_ps = FT(0.8)
+        F = FT(1e-3)
+        deficit = RH_c * q_vap_sat - q_vap
+        TT.@test deficit > FT(0)
+
+        # default parameters from ClimaParams evaporate below RH_c
+        TT.@test pe.k_E > FT(0)
+        TT.@test CM0.evaporate_precipitation(pe, q_vap, q_vap_sat, p_over_ps, F) > FT(0)
+
+        # off without evaporation parameters
+        mp = CMP.Microphysics0MParams(FT)
+        TT.@test CM0.evaporate_precipitation(mp.evaporation, q_vap, q_vap_sat, p_over_ps, F) === FT(0)
+        TT.@test CM0.evaporate_precipitation(nothing, q_vap, q_vap_sat, p_over_ps, F) === FT(0)
+
+        # no evaporation at or above RH_c, or without a flux
+        TT.@test CM0.evaporate_precipitation(pe_on, RH_c * q_vap_sat, q_vap_sat, p_over_ps, F) == FT(0)
+        TT.@test CM0.evaporate_precipitation(pe_on, q_vap_sat, q_vap_sat, p_over_ps, F) == FT(0)
+        TT.@test CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps, FT(0)) == FT(0)
+        # negative flux and pressure ratio are clamped to zero
+        TT.@test CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps, -F) == FT(0)
+        TT.@test CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, -p_over_ps, F) == FT(0)
+
+        # rate value
+        E = CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps, F)
+        TT.@test E ≈ a_p * k_E * deficit * (sqrt(p_over_ps) * F / (a_p * α₂))^α₃
+        TT.@test E > FT(0)
+        TT.@test E isa FT
+
+        # RH_c sets the humidity the air is evaporated towards
+        pe_rh = CMP.Evaporation0M(; k_E, RH_c = FT(1), a_p, α₂, α₃)
+        TT.@test CM0.evaporate_precipitation(pe_rh, q_vap, q_vap_sat, p_over_ps, F) ≈
+                 E * (q_vap_sat - q_vap) / deficit
+        TT.@test CM0.evaporate_precipitation(pe_rh, RH_c * q_vap_sat, q_vap_sat, p_over_ps, F) > FT(0)
+
+        # scaling: linear in k_E and deficit, F^α₃, (p/p_s)^(α₃/2)
+        pe_2k = CMP.Evaporation0M(; k_E = 2 * k_E, RH_c, a_p, α₂, α₃)
+        TT.@test CM0.evaporate_precipitation(pe_2k, q_vap, q_vap_sat, p_over_ps, F) ≈ 2 * E
+        TT.@test CM0.evaporate_precipitation(pe_on, q_vap - deficit, q_vap_sat, p_over_ps, F) ≈ 2 * E
+        TT.@test CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps, 2 * F) ≈ 2^α₃ * E
+        TT.@test CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps / 4, F) ≈ (FT(1) / 2)^α₃ * E
+
+        # type stability
+        TT.@inferred CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps, F)
+        TT.@inferred CM0.evaporate_precipitation(nothing, q_vap, q_vap_sat, p_over_ps, F)
+        TT.@test @allocated(CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps, F)) == 0
+        TT.@test @allocated(CM0.evaporate_precipitation(nothing, q_vap, q_vap_sat, p_over_ps, F)) == 0
+    end
+end
+
 TT.@testset "Microphysics 0M Tests ($FT)" for FT in (Float64, Float32)
     test_microphysics0M(FT)
+    test_microphysics0M_params(FT)
+    test_microphysics0M_evaporation(FT)
 end
 nothing
