@@ -1164,12 +1164,14 @@ end
     conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo)
     conv_q_sno_to_q_vap(::SublimationOnly, mp, tps, micro, thermo)
     conv_q_sno_to_q_vap(::DepositionAndSublimation, mp, tps, micro, thermo)
+    conv_q_sno_to_q_vap(::DepositionWithoutCloudCondensate, mp, tps, micro, thermo)
 
 Returns the tendency due to snow sublimation or sublimation+deposition.
 Ventilation factor parameterization follows Seifert and Beheng (2006).
 
 # Arguments
-- `opt`: `nothing`, `SublimationOnly()`, or `DepositionAndSublimation()`
+- `opt`: `nothing`, `SublimationOnly()`, `DepositionAndSublimation()`, or
+  `DepositionWithoutCloudCondensate()`
 - `mp`: 1-moment microphysics parameters
 - `tps`: thermodynamics parameters
 - `micro`: microphysics state `(; q_tot, q_lcl, q_icl, q_rai, q_sno)`
@@ -1192,13 +1194,16 @@ end
 """
     _snow_deposition_blocked(opt, tps, micro, thermo)
 
-`true` where the snow option `opt` allows sublimation only: everywhere for `SublimationOnly`, and
-above freezing for `DepositionAndSublimation` (ice does not grow by vapor deposition in the melting
-regime, even if the air is supersaturated over ice).
+`true` where the snow option `opt` allows sublimation only: everywhere for `SublimationOnly`, above
+freezing for `DepositionAndSublimation` (ice does not grow by vapor deposition in the melting regime,
+even if the air is supersaturated over ice), and for `DepositionWithoutCloudCondensate` also where
+cloud liquid or cloud ice (`q_lcl`, `q_icl` [kg/kg]) exceeds the specific humidity minimum of `tps`.
 """
 @inline _snow_deposition_blocked(::Nothing, tps, micro, thermo) = false
 @inline _snow_deposition_blocked(::CMP.SublimationOnly, tps, micro, thermo) = true
 @inline _snow_deposition_blocked(::CMP.DepositionAndSublimation, tps, micro, thermo) = thermo.T > TDI.T_freeze(tps)
+@inline _snow_deposition_blocked(::CMP.DepositionWithoutCloudCondensate, tps, micro, thermo) =
+    (thermo.T > TDI.T_freeze(tps)) | (max(micro.q_lcl, micro.q_icl) > TDI.TD.Parameters.q_min(tps))
 
 """Internal helper: snow sublimation/deposition physics kernel."""
 @inline function _snow_subl_dep_rate(mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo))

@@ -18,6 +18,7 @@ export Microphysics1MOptions,
     SnowDepositionSublimation,
     SublimationOnly,
     DepositionAndSublimation,
+    DepositionWithoutCloudCondensate,
     JointVaporRelaxation,
     PerProcessVaporRelaxation,
     SnowMelt,
@@ -75,7 +76,8 @@ abstract type SnowAutoconversion <: MicrophysicsOption end
     SnowDepositionSublimation <: MicrophysicsOption
 
 Abstract type for snow deposition/sublimation methods.
-See subtypes: [`SublimationOnly`](@ref), [`DepositionAndSublimation`](@ref).
+See subtypes: [`SublimationOnly`](@ref), [`DepositionAndSublimation`](@ref),
+[`DepositionWithoutCloudCondensate`](@ref).
 """
 abstract type SnowDepositionSublimation <: MicrophysicsOption end
 
@@ -269,6 +271,9 @@ struct SublimationOnly <: SnowDepositionSublimation end
 
 """Both sublimation (S < 0) and deposition (S > 0) in the Marshall-Palmer integral."""
 struct DepositionAndSublimation <: SnowDepositionSublimation end
+
+"""As `DepositionAndSublimation`, but only allowing deposition where cloud liquid or cloud ice are not present."""
+struct DepositionWithoutCloudCondensate <: SnowDepositionSublimation end
 
 """
     JointVaporRelaxation <: MicrophysicsOption
