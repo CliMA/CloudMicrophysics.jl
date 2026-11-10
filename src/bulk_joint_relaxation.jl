@@ -138,8 +138,8 @@ time-averaged exactly over the substep (`_averaged_excess`) and the transfers ar
 start of the substep and on average, the coefficient is lowered to the scheme's pool-bounded
 rate per unit excess, `min(c_k, S_k/δ_k)`, and the averages are evaluated again, so a thin
 cloud in dry air evaporates at the scheme's rate `S_k` for `Δt ≪ τ` instead of at `|δ_k|/(τ Γ)`.
-Where the cloud ice term is `sink_only`, its coefficient is set to zero when the averaged excess
-over ice is positive, so cloud ice only sublimates. The saturation difference and
+Where the cloud ice or snow term is `sink_only`, its coefficient is set to zero when the averaged
+excess over ice is positive, so it only sublimates. The saturation difference and
 the `Γ`, `κ` factors are held at their start-of-substep values (as in MM15); as in P3,
 pools are not tracked within the substep: the implicit solve shares each pool among its
 sinks and a Γ-consistent vapor check on the solved state (`_linearized_implicit_step`)
@@ -175,6 +175,7 @@ positive = vapor → condensate] and, for the vapor check, the lower saturation
     c_l = ifelse(sink_l, min(c_l, max(S_l / min(δₗ, -q_tol), zero(FT))), c_l)
     c_i = ifelse(sink_i, min(c_i, max(S_i / min(δᵢ, -q_tol), zero(FT))), c_i)
     c_i = ifelse(src.S_phase_change_vap_icl.sink_only & (δ̄ᵢ > zero(FT)), zero(FT), c_i)
+    c_s = ifelse(src.S_phase_change_vap_sno.sink_only & (δ̄ᵢ > zero(FT)), zero(FT), c_s)
     (δ̄ₗ, δ̄ᵢ) = _joint_averaged_excesses(c_l, c_r, c_i, c_s, Γₗ, Γᵢ, κ_il, κ_li, δₗ, δᵢ, Δs, Δt)
     Δq_lcl = max(c_l * δ̄ₗ * Δt, -q_lcl)
     Δq_rai = max(c_r * δ̄ₗ * Δt, -q_rai)
