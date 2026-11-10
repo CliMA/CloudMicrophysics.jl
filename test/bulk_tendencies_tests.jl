@@ -1308,6 +1308,29 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         end
     end
 
+    @testset "_microphysics_source_terms - liquid fraction ramp of rain collision products" begin
+        override = Dict(
+            "temperature_rain_collision_snow" => Dict("value" => 243, "type" => "float"),
+            "temperature_rain_collision_rain" => Dict("value" => 268, "type" => "float"),
+        )
+        td = CP.create_toml_dict(FT; override_file = override)
+        mp_off = CMP.Microphysics1MParams(td)
+        mp_ramp = CMP.Microphysics1MParams(td; rain_collision_phase = CMP.LiquidFractionRamp())
+        ρ, w = FT(0.8), FT(0)
+        micro = (; q_tot = FT(4e-3), q_lcl = FT(3e-4), q_icl = FT(5e-4), q_rai = FT(4e-4), q_sno = FT(6e-4))
+        terms(mp, T) = BMT._microphysics_source_terms(BMT.Microphysics1Moment(), mp, tps, ρ, T, w, micro...)
+        for (T, f_liq) in ((FT(238), FT(0)), (FT(253), FT(0.4)), (FT(270), FT(1)))
+            off, ramp = terms(mp_off, T), terms(mp_ramp, T)
+            (; S_sno_rai) = CM1.accretion_snow_rain(mp_off.processes.rain_snow_accretion, mp_off, tps, micro, (; ρ, T))
+            @test ramp.S_accr_icl_rai.S ≈ (1 - f_liq) * off.S_accr_icl_rai.S
+            @test ramp.S_accr_melt_icl_rai.S ≈ f_liq * off.S_accr_icl_rai.S
+            @test ramp.S_accr_freeze_icl_rai.S ≈ (1 - f_liq) * off.S_accr_freeze_icl_rai.S
+            @test ramp.S_accr_rai_sno_cold.S ≈ (1 - f_liq) * off.S_accr_rai_sno_cold.S
+            @test ramp.S_accr_rai_sno_warm.S ≈ f_liq * S_sno_rai
+            @test off.S_accr_melt_icl_rai.S == off.S_accr_rai_sno_warm.S == 0
+        end
+    end
+
     @testset "bulk_microphysics_tendencies(LinearizedAverage()) - Finiteness checks" begin
         ρ = FT(1.2)
         T = T_freeze - FT(5)

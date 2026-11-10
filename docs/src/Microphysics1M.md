@@ -704,6 +704,25 @@ Similarly to cloud ice and snow collisions, there is additional melting term
    when snow collides with rain in temperatures warmer than freezing.
 This term is proportional to ``\frac{c_{vl}}{L_f}(T - T_\text{freeze})``.
 
+With the `LiquidFractionRamp` option for `rain_collision_phase`,
+  the products of the collisions of rain with cloud ice, and below freezing with snow,
+  are split between rain and snow with the liquid fraction
+
+```math
+\begin{equation}
+  f_\text{liq}(T) = \min\left(1, \max\left(0, \frac{T - T_\text{snow}}{T_\text{rain} - T_\text{snow}}\right)\right).
+\end{equation}
+```
+
+The cloud ice collected by rain becomes rain with the fraction ``f_\text{liq}`` and snow with ``1 - f_\text{liq}``,
+  the rain collected by cloud ice or, below freezing, by snow becomes snow with the fraction ``1 - f_\text{liq}``,
+  and below freezing the snow collected by rain becomes rain with the fraction ``f_\text{liq}``.
+Below freezing, the cloud ice and snow that become rain absorb the latent heat of fusion,
+  so near freezing the rain collisions cool the air.
+The terms are continuous at freezing for ``T_\text{rain}`` at or below freezing.
+``T_\text{snow}`` and ``T_\text{rain}`` are the parameters `temperature_rain_collision_snow`
+  and `temperature_rain_collision_rain`.
+
 ## Rain evaporation and snow sublimation
 
 We start from a similar equation as when computing snow autoconversion rate

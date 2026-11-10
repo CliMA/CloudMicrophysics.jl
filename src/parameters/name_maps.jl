@@ -171,6 +171,11 @@ name_map(::Type{NoSupersaturation}) = (;
     :threshold_smooth_transition_steepness => :k,
 )
 
+name_map(::Type{LiquidFractionRamp}) = (;
+    :temperature_rain_collision_snow => :T_snow,
+    :temperature_rain_collision_rain => :T_rain,
+)
+
 name_map(::Type{CloudLiquidFormation}) = (;
     :condensation_evaporation_timescale => :τ_relax,
     :temperature_homogenous_nucleation => :T_hom,
@@ -743,6 +748,7 @@ process_field(::CloudLiquidSnowAccretion) = :cloud_liquid_snow_accretion
 process_field(::CloudIceRainAccretion) = :cloud_ice_rain_accretion
 process_field(::CloudIceSnowAccretion) = :cloud_ice_snow_accretion
 process_field(::RainSnowAccretion) = :rain_snow_accretion
+process_field(::LiquidFractionRamp) = :rain_collision_phase
 
 # Expected type or NamedTuple key set(s) in `mp.process_params.<field>` for each
 # option. Options with a `name_map` default to `values(name_map(T))`; `Homogeneous`
@@ -865,6 +871,7 @@ parameter_groups() = (
         CloudIceRainAccretion,
         CloudIceSnowAccretion,
         RainSnowAccretion,
+        LiquidFractionRamp,
     ),
     "2-moment microphysics" => (
         AcnvKK2000,

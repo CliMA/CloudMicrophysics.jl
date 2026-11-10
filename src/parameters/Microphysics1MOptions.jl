@@ -28,6 +28,7 @@ export Microphysics1MOptions,
     CloudIceRainAccretion,
     CloudIceSnowAccretion,
     RainSnowAccretion,
+    LiquidFractionRamp,
     Homogeneous,
     Heterogeneous,
     HomogeneousAndHeterogeneous
@@ -262,6 +263,19 @@ stored in `process_params.rain_snow_accretion` in [`Microphysics1MParams`](@ref)
 """
 struct RainSnowAccretion <: MicrophysicsOption end
 
+"""
+    LiquidFractionRamp <: MicrophysicsOption
+
+The cloud ice collected by rain becomes rain with the fraction
+`f_liq = clamp((T - T_snow) / (T_rain - T_snow), 0, 1)` and snow with `1 - f_liq`, and the rain
+collected by cloud ice becomes snow with the fraction `1 - f_liq`. Below freezing, the rain
+collected by snow becomes snow with the fraction `1 - f_liq` and the snow collected by rain
+becomes rain with the fraction `f_liq`. The rain-collision terms are continuous at freezing for
+`T_rain` at or below freezing. `T_snow` and `T_rain` are stored in
+`process_params.rain_collision_phase` in [`Microphysics1MParams`](@ref).
+"""
+struct LiquidFractionRamp <: MicrophysicsOption end
+
 # ═══════════════════════════════════════════════════════════════════
 # Snow deposition/sublimation variants
 # ═══════════════════════════════════════════════════════════════════
@@ -332,14 +346,15 @@ struct HomogeneousAndHeterogeneous <: MicrophysicsOption end
 # ═══════════════════════════════════════════════════════════════════
 
 """
-    Microphysics1MOptions{CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA, VRC}
+    Microphysics1MOptions{CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA, RCP, VRC}
 
 Process configuration for 1-moment microphysics.
 
 Each field selects a process variant (a concrete `MicrophysicsOption` subtype).
 Set any field to `nothing` to disable that process entirely. The last field,
 `vapor_relaxation`, selects how the substep solver couples the vapor-driven phase changes
-([`JointVaporRelaxation`](@ref) or [`PerProcessVaporRelaxation`](@ref)).
+([`JointVaporRelaxation`](@ref) or [`PerProcessVaporRelaxation`](@ref)), and `rain_collision_phase`
+selects the phase of the rain collision products (`nothing`: snow).
 
 # Example
 ```julia
@@ -365,7 +380,7 @@ opts = CMP.Microphysics1MOptions(;
 ```
 """
 @kwdef struct Microphysics1MOptions{
-    CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA, VRC,
+    CLF, CIF, CIM, CLFr, RA, SA, RCE, SDS, SM, CLRA, CLSA, CIRA, CISA, RSA, RCP, VRC,
 }
     "cloud liquid formation option"
     cloud_liquid_formation::CLF = CloudLiquidFormation()
@@ -395,6 +410,8 @@ opts = CMP.Microphysics1MOptions(;
     cloud_ice_snow_accretion::CISA = CloudIceSnowAccretion()
     "rain-snow collisions option"
     rain_snow_accretion::RSA = RainSnowAccretion()
+    "phase of the products of rain collisions with cloud ice and snow (`nothing`: snow)"
+    rain_collision_phase::RCP = nothing
     "coupling of the vapor-driven phase changes in the substep solver"
     vapor_relaxation::VRC = JointVaporRelaxation()
 end
@@ -449,6 +466,13 @@ end
 
 process_params_for(::KK2000Accretion, td::CP.ParamDict) = AccrKK2000(td)
 
+function process_params_for(::LiquidFractionRamp, td::CP.ParamDict)
+    p = make_params(td, name_map(LiquidFractionRamp))
+    p.T_snow < p.T_rain ||
+        throw(ArgumentError("temperature_rain_collision_snow must be below temperature_rain_collision_rain"))
+    return p
+end
+
 """
     microphysics_1m_process_params(toml_dict, options)
 
@@ -471,6 +495,7 @@ microphysics_1m_process_params(td::CP.ParamDict, o::Microphysics1MOptions) = (;
     cloud_ice_rain_accretion = process_params_for(o.cloud_ice_rain_accretion, td),
     cloud_ice_snow_accretion = process_params_for(o.cloud_ice_snow_accretion, td),
     rain_snow_accretion = process_params_for(o.rain_snow_accretion, td),
+    rain_collision_phase = process_params_for(o.rain_collision_phase, td),
 )
 
 # ═══════════════════════════════════════════════════════════════════
