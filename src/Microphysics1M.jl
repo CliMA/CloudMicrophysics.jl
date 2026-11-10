@@ -1209,38 +1209,41 @@ end
 @inline function _snow_subl_dep_rate(mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo))
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    (; pdf, mass, vent) = mp.precip.snow
+    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
+    C = _snow_subl_dep_coeff(mp, tps, ρ, T, sd.n0_sno, sd.v0_sno, sd.λ_inv_sno)
+    cond = q_sno > UT.ϵ_numerics(q_sno)
+    return ifelse(cond, C * S, zero(C * S))
+end
+# Internal helper: ventilation-integral prefactor C for snow sublimation/deposition.
+# Returns 4π n0/ρ · G(T) · λ_inv² · vent(n0, v0, λ_inv).
+# The phase-change rate is C · S_rel (relative supersaturation over ice).
+@inline function _snow_subl_dep_coeff(mp, tps, ρ::FT, T, n0, v0, λ_inv) where {FT}
+    (; mass, vent) = mp.precip.snow
     vel = mp.terminal_velocity.snow
     aps = mp.air_properties
-    FT = eltype(ρ)
-
     (; ν_air, D_vapor) = aps
-    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
     G = CO.G_func_ice(aps, tps, T)
-
-    n0 = sd.n0_sno
-    v0 = sd.v0_sno
-    λ_inv = sd.λ_inv_sno
-
     (; r0) = mass
     (; χv, ve, Δv, gamma_vent) = vel
     a_vent = vent.a
     b_vent = vent.b
-
     Sc = ν_air / max(D_vapor, UT.ϵ_numerics(D_vapor))
-
-    subl_rate =
-        4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
-        (
-            a_vent +
-            b_vent * cbrt(Sc) /
-            (r0 / λ_inv)^((ve + Δv) / 2) *
-            sqrt(2 * v0 * χv / ν_air * λ_inv) *
-            gamma_vent
-        )
-
-    cond = q_sno > UT.ϵ_numerics(q_sno)
-    return ifelse(cond, subl_rate, zero(subl_rate))
+    return 4 * FT(π) * n0 / ρ * G * λ_inv^2 *
+           (
+               a_vent +
+               b_vent * cbrt(Sc) /
+               (r0 / λ_inv)^((ve + Δv) / 2) *
+               sqrt(2 * v0 * χv / ν_air * λ_inv) *
+               gamma_vent
+           )
+end
+@inline function _snow_subl_dep_coeff(mp, tps, q_sno, ρ, T)
+    (; pdf, mass) = mp.precip.snow
+    vel = mp.terminal_velocity.snow
+    n0 = get_n0(pdf, q_sno, ρ)
+    v0 = get_v0(vel, ρ)
+    λ_inv = lambda_inverse(pdf, mass, q_sno, ρ)
+    return _snow_subl_dep_coeff(mp, tps, ρ, T, n0, v0, λ_inv)
 end
 
 
