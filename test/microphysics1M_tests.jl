@@ -470,6 +470,19 @@ function test_microphysics1M(FT)
         TT.@test CM1.conv_q_sno_to_q_vap(CMP.DepositionAndSublimation(), mp, tps, dry, warm) < 0
     end
 
+    TT.@testset "DepositionWithoutCloudCondensate" begin
+        # below freezing: deposition only where there is no cloud liquid or cloud ice, sublimation everywhere
+        thermo = (; ρ = FT(1.2), T = FT(260))
+        gated(micro) = CM1.conv_q_sno_to_q_vap(CMP.DepositionWithoutCloudCondensate(), mp, tps, micro, thermo)
+        full(micro) = CM1.conv_q_sno_to_q_vap(CMP.DepositionAndSublimation(), mp, tps, micro, thermo)
+        clear = (; q_tot = FT(5e-3), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(1e-3))
+        TT.@test gated(clear) == full(clear) > 0
+        TT.@test gated((; clear..., q_icl = FT(1e-4))) == 0
+        TT.@test gated((; clear..., q_lcl = FT(1e-4))) == 0
+        dry_cloud = (; clear..., q_tot = FT(1.2e-3), q_icl = FT(1e-5))
+        TT.@test gated(dry_cloud) == full(dry_cloud) < 0
+    end
+
     TT.@testset "RainAutoconversionVelocityDependence" begin
         # Kessler1M with different quiescent and convective regime values
         mp_vd = CMP.Microphysics1MParams(regime_toml(FT))

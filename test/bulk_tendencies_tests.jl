@@ -1284,7 +1284,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test isempty(offending)
     end
 
-    @testset "SublimationOnly - no snow deposition over the substeps" begin
+    @testset "SublimationOnly, DepositionWithoutCloudCondensate - no snow deposition over the substeps" begin
         # ice-subsaturated start with cloud liquid: the evaporating liquid drives the air above ice
         # saturation within the step
         td = CP.create_toml_dict(FT)
@@ -1301,8 +1301,10 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             return tendencies.S_phase_change_vap_sno
         end
         @test snow_tendency(CMP.DepositionAndSublimation(), CMP.JointVaporRelaxation()) > 0
-        for vapor_relaxation in (CMP.JointVaporRelaxation(), CMP.PerProcessVaporRelaxation())
-            @test snow_tendency(CMP.SublimationOnly(), vapor_relaxation) <= 0
+        for snow_deposition_sublimation in (CMP.SublimationOnly(), CMP.DepositionWithoutCloudCondensate()),
+            vapor_relaxation in (CMP.JointVaporRelaxation(), CMP.PerProcessVaporRelaxation())
+
+            @test snow_tendency(snow_deposition_sublimation, vapor_relaxation) <= 0
         end
     end
 

@@ -734,9 +734,12 @@ where:
 
 For snow, both deposition (``S > 1``) and sublimation (``S < 1``) are
   allowed by default, except that deposition is suppressed above freezing,
-  where ice does not grow by vapor deposition;
-  a `SublimationOnly` option is also available that
+  where ice does not grow by vapor deposition.
+A `SublimationOnly` option
   clamps the rate to be non-positive (sublimation only) at all temperatures.
+A `DepositionWithoutCloudCondensate` option suppresses
+  deposition where cloud liquid or cloud ice is present,
+  while keeping the sublimation unchanged.
 
 The final integral is:
 
