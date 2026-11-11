@@ -546,6 +546,7 @@ name_map(::Type{RainFreezing}) = (;
     :BarklieGokhale1959_a_parameter => :het_a,
     :BarklieGokhale1959_B_parameter => :het_B,
 )
+name_map(::Type{DendriticFreezing}) = (; :dendritic_freezing_velocity => :v_dend)
 name_map(::Type{Frostenberg2023}) = (;
     :Frostenberg2023_standard_deviation => :σ,
     :Frostenberg2023_b_coefficient => :b,
@@ -681,6 +682,7 @@ const PLAIN_PARAMETER_TYPES = (
     Koop2000,
     MorrisonMilbrandt2014,
     RainFreezing,
+    DendriticFreezing,
     Frostenberg2023,
     ExponentialSupercoolingINP,
     Parameters0M,
@@ -929,6 +931,7 @@ parameter_groups() = (
         Koop2000,
         MorrisonMilbrandt2014,
         RainFreezing,
+        DendriticFreezing,
         Frostenberg2023,
         ExponentialSupercoolingINP,
     ),

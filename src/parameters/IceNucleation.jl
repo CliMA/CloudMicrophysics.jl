@@ -122,6 +122,23 @@ IceNucleationParameters(toml_dict::CP.ParamDict) =
         p3 = MorrisonMilbrandt2014(toml_dict),
     )
 
+export DendriticFreezing
+
+"""
+    DendriticFreezing{FT}
+
+The growth of the dendritic freezing front across a supercooled drop after an ice embryo nucleates in it.
+
+# Fields
+$(DocStringExtensions.FIELDS)
+"""
+@kwdef struct DendriticFreezing{FT} <: ParametersType
+    "speed of the freezing front [m/s]"
+    v_dend::FT
+end
+
+ShowMethods.field_units(::DendriticFreezing) = (; v_dend = "m/s")
+
 # ---------------------------------------------------------------------------
 # INP target spectra for deposition nucleation
 # ---------------------------------------------------------------------------
