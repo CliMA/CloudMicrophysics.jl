@@ -351,7 +351,7 @@ end
 """
     prescribed_cloud_droplet_number(td)
 
-The prescribed cloud droplet number concentration `Nc` [1/m³] (ClimaParams
+The prescribed cloud droplet number concentration `Nc` (1/m³; ClimaParams
 `prescribed_cloud_droplet_number_concentration`) used by the 1-moment rain autoconversion
 options `PrescribedNd` and `KK2000Autoconversion`; an `ArgumentError` rejects a value that is
 not positive.
