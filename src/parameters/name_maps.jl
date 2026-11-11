@@ -550,6 +550,9 @@ name_map(::Type{Frostenberg2023}) = (;
     :Frostenberg2023_standard_deviation => :σ,
     :Frostenberg2023_b_coefficient => :b,
     :temperature_water_freeze => :T_freeze,
+    :Frostenberg2023_deposition_relaxation_timescale => :τ,
+    :P3_cooper_deposition_temperature_threshold => :T_thr,
+    :P3_cooper_deposition_ice_supersaturation_threshold => :S_thr,
 )
 
 # ═══════════════════════════════════════════════════════════════════

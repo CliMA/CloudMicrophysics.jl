@@ -43,14 +43,14 @@ The main constructor is
 ```
 P3IceParams(toml_dict::CP.ParamDict; is_limited = true, quadrature_order = 16,
     integration = Quadrature.GaussLegendre(FT, quadrature_order),
-    inp_depletion_model = NIceProxyDepletion(τ_act = 300))
+    ice_nucleation = Frostenberg2023(toml_dict),
+    inp_depletion_model = NIceProxyDepletion())
 ```
 which constructs the parameterization with components:
 - `scheme` = [`ParametersP3`](@ref)
 - `terminal_velocity` = [`Chen2022VelType`](@ref)
 - `cloud_pdf` = [`CloudParticlePDF_SB2006`](@ref)
 - `rain_pdf` = [`RainParticlePDF_SB2006`](@ref)
-- `ice_nucleation` = [`Frostenberg2023`](@ref)
 - `rain_freezing` = [`RainFreezing`](@ref)
 
 # Keyword arguments
@@ -60,7 +60,9 @@ which constructs the parameterization with components:
   (default: `Quadrature.GaussLegendre(FT, quadrature_order)`). Pass a quadrature rule to use a rule
   other than Gauss-Legendre; for lookup tables, build the parameters with `P3Scheme.with_tables`.
   Tables built from other parameters throw an `ArgumentError`, see [`check_integration`](@ref).
-- `inp_depletion_model`: the INP depletion model (default: `NIceProxyDepletion(τ_act = 300)`)
+- `ice_nucleation`: the deposition nucleation target spectrum, an [`INPTargetSpectrum`](@ref) such as
+  [`Frostenberg2023`](@ref) (the default) or a [`StochasticINPSpectrum`](@ref)
+- `inp_depletion_model`: the INP depletion model (default: `NIceProxyDepletion()`)
 
 """
 @kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM, Q} <: ParametersType
@@ -72,7 +74,7 @@ which constructs the parameterization with components:
     cloud_pdf::PDc
     "The rain drop size distribution"
     rain_pdf::PDr
-    "The ice nucleation parameters (empirical INP closure)"
+    "The deposition nucleation target spectrum, an [`INPTargetSpectrum`](@ref)"
     ice_nucleation::HET
     "The rain freezing parameters (Bigg-type immersion freezing)"
     rain_freezing::RF
@@ -92,14 +94,15 @@ function P3IceParams(toml_dict::CP.ParamDict;
     is_limited = true,
     quadrature_order = 16,
     integration = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
-    inp_depletion_model = NIceProxyDepletion(τ_act = 300),
+    ice_nucleation = Frostenberg2023(toml_dict),
+    inp_depletion_model = NIceProxyDepletion(),
 )
     ice_params = P3IceParams(;
         scheme = ParametersP3(toml_dict),
         terminal_velocity = Chen2022VelType(toml_dict),
         cloud_pdf = CloudParticlePDF_SB2006(toml_dict),
         rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited),
-        ice_nucleation = Frostenberg2023(toml_dict),
+        ice_nucleation,
         rain_freezing = RainFreezing(toml_dict),
         inp_depletion_model,
         integration,
@@ -153,7 +156,8 @@ Adapt.@adapt_structure Microphysics2MParams
 """
     Microphysics2MParams(toml_dict::CP.ParamDict; with_ice = false, is_limited = true,
         quadrature_order = 16, integration = Quadrature.GaussLegendre(FT, quadrature_order),
-        inp_depletion_model = NIceProxyDepletion(τ_act = 300))
+        ice_nucleation = Frostenberg2023(toml_dict),
+        inp_depletion_model = NIceProxyDepletion())
 
 Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
 
@@ -165,19 +169,22 @@ Create a `Microphysics2MParams` object from a ClimaParams TOML dictionary.
   [`P3IceParams`](@ref) when `with_ice` (default: 16)
 - `integration`: the evaluation of the size-distribution integrals passed to
   [`P3IceParams`](@ref) when `with_ice` (default: `Quadrature.GaussLegendre(FT, quadrature_order)`)
+- `ice_nucleation`: the deposition nucleation target spectrum passed to [`P3IceParams`](@ref)
+  when `with_ice` (default: `Frostenberg2023(toml_dict)`)
 - `inp_depletion_model`: the INP depletion model passed to [`P3IceParams`](@ref) when
-  `with_ice` (default: `NIceProxyDepletion(τ_act = 300)`)
+  `with_ice` (default: `NIceProxyDepletion()`)
 """
 Microphysics2MParams(toml_dict::CP.ParamDict;
     with_ice = false, is_limited = true,
     quadrature_order = 16,
     integration = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
-    inp_depletion_model = NIceProxyDepletion(τ_act = 300),
+    ice_nucleation = Frostenberg2023(toml_dict),
+    inp_depletion_model = NIceProxyDepletion(),
 ) = Microphysics2MParams(;
     # Warm rain parameters (always present)
     warm_rain = WarmRainParams2M(toml_dict; is_limited),
     # Optional ice phase parameters
     ice = with_ice ?
-          P3IceParams(toml_dict; is_limited, integration, inp_depletion_model) :
+          P3IceParams(toml_dict; is_limited, integration, ice_nucleation, inp_depletion_model) :
           nothing,
 )
