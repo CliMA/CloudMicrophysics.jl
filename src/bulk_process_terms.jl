@@ -27,7 +27,7 @@ end
 
 """
     VaporExchange{Condensate, FT}
-    VaporExchange(:Condensate, S)
+    VaporExchange(:Condensate, S, sink_only = false)
 
 Exchange of mass between the vapor and the condensate species `Condensate`.
 
@@ -36,6 +36,7 @@ snow. `Condensate` is a species name, such as `:q_sno`.
 
 # Fields
 - `S`: exchange rate, positive from the vapor to `Condensate` [kg/kg/s].
+- `sink_only`: `Condensate` can lose mass to the vapor but not gain it.
 
 # Examples
 ```julia
@@ -45,8 +46,9 @@ BMT.VaporExchange(:q_sno, 1e-7)  # deposition on snow
 """
 struct VaporExchange{Condensate, FT}
     S::FT
+    sink_only::Bool
 end
-@inline VaporExchange(species::Symbol, S) = VaporExchange{species, typeof(S)}(S)
+@inline VaporExchange(species::Symbol, S, sink_only = false) = VaporExchange{species, typeof(S)}(S, sink_only)
 
 """
     VaporRelaxation{Condensate, FT}

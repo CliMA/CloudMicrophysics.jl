@@ -264,8 +264,10 @@ the term of the inactive branch is zero.
     # --- Phase change: precipitation ↔ vapor ---
     S_phase_change_vap_rai =
         VaporExchange(:q_rai, CM1.conv_q_rai_to_q_vap(procs.rain_condensation_evaporation, mp, tps, micro, thermo, sd))
-    S_phase_change_vap_sno =
-        VaporExchange(:q_sno, CM1.conv_q_sno_to_q_vap(procs.snow_deposition_sublimation, mp, tps, micro, thermo, sd))
+    S_phase_change_vap_sno = VaporExchange(:q_sno,
+        CM1.conv_q_sno_to_q_vap(procs.snow_deposition_sublimation, mp, tps, micro, thermo, sd),
+        CM1._snow_deposition_blocked(procs.snow_deposition_sublimation, tps, micro, thermo),
+    )
 
     # --- Melting ---
     S_melt_icl_lcl =

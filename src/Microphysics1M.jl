@@ -1178,18 +1178,7 @@ Ventilation factor parameterization follows Seifert and Beheng (2006).
 @inline conv_q_sno_to_q_vap(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
 @inline function conv_q_sno_to_q_vap(
-    ::CMP.SublimationOnly,
-    mp,
-    tps,
-    micro,
-    thermo,
-    sd = size_distr_parameters(mp, micro, thermo),
-)
-    return min(0, _snow_subl_dep_rate(mp, tps, micro, thermo, sd))
-end
-
-@inline function conv_q_sno_to_q_vap(
-    ::CMP.DepositionAndSublimation,
+    opt::CMP.SnowDepositionSublimation,
     mp,
     tps,
     micro,
@@ -1197,13 +1186,19 @@ end
     sd = size_distr_parameters(mp, micro, thermo),
 )
     rate = _snow_subl_dep_rate(mp, tps, micro, thermo, sd)
-    # No deposition above freezing: ice does not grow by vapor deposition
-    # in the melting regime, even if the air is supersaturated over ice
-    # (possible for transient supersaturation spikes). Sublimation stays
-    # active at all temperatures.
-    is_warm = thermo.T > TDI.T_freeze(tps)
-    return ifelse(is_warm, min(0, rate), rate)
+    return ifelse(_snow_deposition_blocked(opt, tps, micro, thermo), min(0, rate), rate)
 end
+
+"""
+    _snow_deposition_blocked(opt, tps, micro, thermo)
+
+`true` where the snow option `opt` allows sublimation only: everywhere for `SublimationOnly`, and
+above freezing for `DepositionAndSublimation` (ice does not grow by vapor deposition in the melting
+regime, even if the air is supersaturated over ice).
+"""
+@inline _snow_deposition_blocked(::Nothing, tps, micro, thermo) = false
+@inline _snow_deposition_blocked(::CMP.SublimationOnly, tps, micro, thermo) = true
+@inline _snow_deposition_blocked(::CMP.DepositionAndSublimation, tps, micro, thermo) = thermo.T > TDI.T_freeze(tps)
 
 """Internal helper: snow sublimation/deposition physics kernel."""
 @inline function _snow_subl_dep_rate(mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo))
