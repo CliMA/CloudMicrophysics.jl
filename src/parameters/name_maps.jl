@@ -554,6 +554,14 @@ name_map(::Type{Frostenberg2023}) = (;
     :P3_cooper_deposition_temperature_threshold => :T_thr,
     :P3_cooper_deposition_ice_supersaturation_threshold => :S_thr,
 )
+name_map(::Type{ExponentialSupercoolingINP}) = (;
+    :P3_cooper_deposition_prefactor => :a,
+    :P3_cooper_deposition_exponent_coefficient => :b,
+    :temperature_water_freeze => :T₀,
+    :P3_cooper_deposition_max_concentration => :N_max,
+    :P3_cooper_deposition_temperature_threshold => :T_thr,
+    :P3_cooper_deposition_ice_supersaturation_threshold => :S_thr,
+)
 
 # ═══════════════════════════════════════════════════════════════════
 # Aerosol species
@@ -674,6 +682,7 @@ const PLAIN_PARAMETER_TYPES = (
     MorrisonMilbrandt2014,
     RainFreezing,
     Frostenberg2023,
+    ExponentialSupercoolingINP,
     Parameters0M,
     Evaporation0M,
     CloudLiquid,
@@ -921,6 +930,7 @@ parameter_groups() = (
         MorrisonMilbrandt2014,
         RainFreezing,
         Frostenberg2023,
+        ExponentialSupercoolingINP,
     ),
     "Aerosol species" => (
         ArizonaTestDust,
