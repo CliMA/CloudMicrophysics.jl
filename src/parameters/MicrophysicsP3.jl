@@ -23,7 +23,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct MassPowerLaw{FT} <: ParametersType
+@params struct MassPowerLaw{FT} <: ParametersType
     "Coefficient in mass(size) relation [`kg m^(-β_va)`]"
     α_va::FT
     "Coefficient in mass(size) relation [`-`]"
@@ -33,7 +33,7 @@ function MassPowerLaw(toml_dict::CP.ParamDict)
     (; β_va) = p = make_params(toml_dict, name_map(MassPowerLaw))
     α_va = p.α_va * 10^(6 * β_va - 3)
     FT = CP.float_type(toml_dict)
-    return MassPowerLaw{FT}(; α_va, β_va)
+    return MassPowerLaw(; α_va = FT(α_va), β_va = FT(β_va))
 end
 
 """
@@ -53,7 +53,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AreaPowerLaw{FT} <: ParametersType
+@params struct AreaPowerLaw{FT} <: ParametersType
     "Scale [`m^(2-σ)`]"
     γ::FT
     "Power [`-`]"
@@ -62,7 +62,7 @@ end
 function AreaPowerLaw(toml_dict::CP.ParamDict)
     params = make_params(toml_dict, name_map(AreaPowerLaw))
     FT = CP.float_type(toml_dict)
-    return AreaPowerLaw{FT}(; params...)
+    return AreaPowerLaw(; map(FT, params)...)
 end
 
 """
@@ -96,7 +96,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SlopePowerLaw{FT} <: SlopeLaw
+@params struct SlopePowerLaw{FT} <: SlopeLaw
     "Scale [`m^b`]"
     a::FT
     "Power [`-`]"
@@ -129,7 +129,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SmoothSlopePowerLaw{FT} <: SlopeLaw
+@params struct SmoothSlopePowerLaw{FT} <: SlopeLaw
     "Scale [`m^b`]"
     a::FT
     "Power [`-`]"
@@ -156,7 +156,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SlopeConstant{FT} <: SlopeLaw
+@params struct SlopeConstant{FT} <: SlopeLaw
     "Slope parameter μ [`-`]"
     μ::FT
 end
@@ -179,7 +179,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct VentilationFactor{FT} <: ParametersType
+@params struct VentilationFactor{FT} <: ParametersType
     "Constant coefficient in ventilation factor [`-`]"
     aᵥ::FT
     "Linear coefficient in ventilation factor [`-`]"
@@ -208,7 +208,7 @@ For calculating Rᵢ, see [`compute_local_rime_density`](@ref CloudMicrophysics.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct LocalRimeDensity{FT} <: ParametersType
+@params struct LocalRimeDensity{FT} <: ParametersType
     "Constant coefficient"
     a::FT
     "Linear coefficient"
@@ -265,17 +265,25 @@ From Morrison and Milbrandt (2015) [MorrisonMilbrandt2015](@cite)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct ParametersP3{FT, SLOPELAW <: SlopeLaw, AR <: AspectRatio} <: ParametersType
+@params struct ParametersP3{
+    FT,
+    MASSLAW <: ParametersType,
+    AREALAW <: ParametersType,
+    SLOPELAW <: SlopeLaw,
+    VENTLAW <: ParametersType,
+    RIMELAW <: ParametersType,
+    AR <: AspectRatio,
+} <: ParametersType
     "Mass-size relation, e.g. [`MassPowerLaw`](@ref)"
-    mass::MassPowerLaw{FT}
+    mass::MASSLAW
     "Area-size relation, e.g. [`AreaPowerLaw`](@ref)"
-    area::AreaPowerLaw{FT}
+    area::AREALAW
     "Slope relation, e.g. [`SlopePowerLaw`](@ref) or [`SlopeConstant`](@ref)"
     slope::SLOPELAW
     "Ventilation relation, e.g. [`VentilationFactor`](@ref)"
-    vent::VentilationFactor{FT}
+    vent::VENTLAW
     "Local rime density, e.g. [`LocalRimeDensity`](@ref)"
-    ρ_rim_local::LocalRimeDensity{FT}
+    ρ_rim_local::RIMELAW
     "Wet growth time scale [`s`]"
     τ_wet::FT
     "Diameter of a newly nucleated ice crystal [`m`]"

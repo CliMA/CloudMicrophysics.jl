@@ -475,7 +475,7 @@ function test_microphysics1M(FT)
         mp_vd = CMP.Microphysics1MParams(regime_toml(FT))
         opt = mp_vd.processes.rain_autoconversion
         TT.@test opt isa CMP.Kessler1M
-        TT.@test mp_vd.process_params.rain_autoconversion isa CMP.KesslerAcnv{FT}
+        TT.@test mp_vd.process_params.rain_autoconversion isa CMP.KesslerAcnv
         (; τ_slow, τ_fast, q_threshold_slow, q_threshold_fast, w_0, k) = mp_vd.process_params.rain_autoconversion
         TT.@test τ_slow > τ_fast > FT(0)
         TT.@test q_threshold_slow > q_threshold_fast > FT(0)

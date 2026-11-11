@@ -169,8 +169,8 @@ CMP.ParametersP3
 CMP.MassPowerLaw
 CMP.AreaPowerLaw
 CMP.SlopeLaw
-CMP.SlopePowerLaw{Float64}
-CMP.SlopeConstant{Float64}
+CMP.SlopePowerLaw
+CMP.SlopeConstant
 CMP.VentilationFactor
 CMP.LocalRimeDensity
 CMP.AspectRatio
