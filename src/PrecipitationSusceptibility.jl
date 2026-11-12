@@ -2,6 +2,7 @@ module PrecipitationSusceptibility
 
 import ..Microphysics2M as CM2
 import ..Parameters as CMP
+import ClimaParams as CP
 
 using ForwardDiff
 
@@ -15,7 +16,7 @@ A structure containing the logarithmic derivatives of the production of
 precipitation with respect to the specific contents and number
 densities of cloud liquid water and rain water.
 """
-@kwdef struct precip_susceptibility_rates{FT}
+CP.@params struct precip_susceptibility_rates{FT}
     d_ln_pp_d_ln_q_lcl::FT = FT(0)
     d_ln_pp_d_ln_q_rai::FT = FT(0)
     d_ln_pp_d_ln_N_lcl::FT = FT(0)

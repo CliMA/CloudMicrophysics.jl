@@ -63,7 +63,7 @@ which constructs the parameterization with components:
 - `inp_depletion_model`: the INP depletion model (default: `NIceProxyDepletion(τ_act = 300)`)
 
 """
-@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM, Q} <: ParametersType
+CP.@params struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM, Q} <: ParametersType
     "The core P3 scheme parameters"
     scheme::P3
     "The terminal velocity parameterization"

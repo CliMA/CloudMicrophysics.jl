@@ -11,6 +11,7 @@ module Microphysics2M
 
 import SpecialFunctions as SF
 import RootSolvers as RS
+import ClimaParams as CP
 
 import ..ThermodynamicsInterface as TDI
 import ..Common as CO
@@ -372,7 +373,7 @@ end
 A structure containing the rates of change of the specific contents and number
 densities of cloud liquid water and rain water.
 """
-@kwdef struct LclRaiRates{FT}
+CP.@params struct LclRaiRates{FT}
     "Rate of change of the cloud liquid water specific content"
     dq_lcl_dt::FT = FT(0)
     "Rate of change of the cloud liquid water number density"

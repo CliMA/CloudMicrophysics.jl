@@ -8,7 +8,7 @@ Parameters with air properties.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AirProperties{FT} <: ParametersType
+CP.@params struct AirProperties{FT} <: ParametersType
     "thermal conductivity of air [W/m/K]"
     K_therm::FT
     "diffusivity of water vapor [m²/s]"
