@@ -1,0 +1,9 @@
+[deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+ClimaParams = "5c42b081-d73a-476f-9059-fd94b934656c"
+CloudMicrophysics = "6a9e3e04-43cd-43ba-94b9-e8782df3c71b"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+Serialization = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+
+[sources]
+CloudMicrophysics = {path = "../.."}

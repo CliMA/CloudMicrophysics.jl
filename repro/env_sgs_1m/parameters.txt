@@ -1,0 +1,60 @@
+dt = 8.786797  nsubs_quad = 2  mp_averaging = ClimaAtmos.StageAveraging()
+
+microphysics_model:
+ClimaAtmos.NonEquilibriumMicrophysics1M{CloudMicrophysics.Parameters.Microphysics1MOptions{CloudMicrophysics.Parameters.CloudLiquidFormation, CloudMicrophysics.Parameters.TemperatureDependentIceNumber, CloudMicrophysics.Parameters.CloudIceMelt, CloudMicrophysics.Parameters.HomogeneousAndHeterogeneous, CloudMicrophysics.Parameters.Kessler1M, CloudMicrophysics.Parameters.NoSupersaturation, CloudMicrophysics.Parameters.RainEvaporation, CloudMicrophysics.Parameters.DepositionAndSublimation, CloudMicrophysics.Parameters.SnowMelt, CloudMicrophysics.Parameters.CloudLiquidRainAccretion, CloudMicrophysics.Parameters.CloudLiquidSnowAccretion, CloudMicrophysics.Parameters.CloudIceRainAccretion, CloudMicrophysics.Parameters.CloudIceSnowAccretion, CloudMicrophysics.Parameters.RainSnowAccretion, CloudMicrophysics.Parameters.JointVaporRelaxation}}(3, 2, CloudMicrophysics.Parameters.Microphysics1MOptions{CloudMicrophysics.Parameters.CloudLiquidFormation, CloudMicrophysics.Parameters.TemperatureDependentIceNumber, CloudMicrophysics.Parameters.CloudIceMelt, CloudMicrophysics.Parameters.HomogeneousAndHeterogeneous, CloudMicrophysics.Parameters.Kessler1M, CloudMicrophysics.Parameters.NoSupersaturation, CloudMicrophysics.Parameters.RainEvaporation, CloudMicrophysics.Parameters.DepositionAndSublimation, CloudMicrophysics.Parameters.SnowMelt, CloudMicrophysics.Parameters.CloudLiquidRainAccretion, CloudMicrophysics.Parameters.CloudLiquidSnowAccretion, CloudMicrophysics.Parameters.CloudIceRainAccretion, CloudMicrophysics.Parameters.CloudIceSnowAccretion, CloudMicrophysics.Parameters.RainSnowAccretion, CloudMicrophysics.Parameters.JointVaporRelaxation}(CloudMicrophysics.Parameters.CloudLiquidFormation(), CloudMicrophysics.Parameters.TemperatureDependentIceNumber(), CloudMicrophysics.Parameters.CloudIceMelt(), CloudMicrophysics.Parameters.HomogeneousAndHeterogeneous(), CloudMicrophysics.Parameters.Kessler1M(), CloudMicrophysics.Parameters.NoSupersaturation(), CloudMicrophysics.Parameters.RainEvaporation(), CloudMicrophysics.Parameters.DepositionAndSublimation(), CloudMicrophysics.Parameters.SnowMelt(), CloudMicrophysics.Parameters.CloudLiquidRainAccretion(), CloudMicrophysics.Parameters.CloudLiquidSnowAccretion(), CloudMicrophysics.Parameters.CloudIceRainAccretion(), CloudMicrophysics.Parameters.CloudIceSnowAccretion(), CloudMicrophysics.Parameters.RainSnowAccretion(), CloudMicrophysics.Parameters.JointVaporRelaxation()))
+
+microphysics_1m_options:
+(cloud_liquid_formation = CloudMicrophysics.Parameters.CloudLiquidFormation(), cloud_ice_formation = CloudMicrophysics.Parameters.TemperatureDependentIceNumber(), cloud_ice_melt = CloudMicrophysics.Parameters.CloudIceMelt(), cloud_liquid_freezing = CloudMicrophysics.Parameters.HomogeneousAndHeterogeneous(), rain_autoconversion = CloudMicrophysics.Parameters.Kessler1M(), snow_autoconversion = CloudMicrophysics.Parameters.NoSupersaturation(), rain_condensation_evaporation = CloudMicrophysics.Parameters.RainEvaporation(), snow_deposition_sublimation = CloudMicrophysics.Parameters.DepositionAndSublimation(), snow_melt = CloudMicrophysics.Parameters.SnowMelt(), cloud_liquid_rain_accretion = CloudMicrophysics.Parameters.CloudLiquidRainAccretion(), cloud_liquid_snow_accretion = CloudMicrophysics.Parameters.CloudLiquidSnowAccretion(), cloud_ice_rain_accretion = CloudMicrophysics.Parameters.CloudIceRainAccretion(), cloud_ice_snow_accretion = CloudMicrophysics.Parameters.CloudIceSnowAccretion(), rain_snow_accretion = CloudMicrophysics.Parameters.RainSnowAccretion(), vapor_relaxation = CloudMicrophysics.Parameters.JointVaporRelaxation())
+
+sgs_quad:
+ClimaAtmos.SGSQuadrature(Float32; quadrature_order = 3)
+
+opts:
+ClimaAtmos.SGSMicrophysicsOptions{Float32}(0.0f0, 0.0f0, 1.0f0, 0.1f0)
+
+cmp:
+[36mMicrophysics1MParams[0m
+├─ processes: CloudMicrophysics.Parameters.Microphysics1MOptions{Nothing, Nothing, CloudMicrophysics.Parameters.CloudIceMelt, CloudMicrophysics.Parameters.HomogeneousAndHeterogeneous, CloudMicrophysics.Parameters.Kessler1M, CloudMicrophysics.Parameters.NoSupersaturation, CloudMicrophysics.Parameters.RainEvaporation, CloudMicrophysics.Parameters.DepositionAndSublimation, CloudMicrophysics.Parameters.SnowMelt, CloudMicrophysics.Parameters.CloudLiquidRainAccretion, CloudMicrophysics.Parameters.CloudLiquidSnowAccretion, CloudMicrophysics.Parameters.CloudIceRainAccretion, CloudMicrophysics.Parameters.CloudIceSnowAccretion, CloudMicrophysics.Parameters.RainSnowAccretion, CloudMicrophysics.Parameters.JointVaporRelaxation}(nothing, nothing, CloudMicrophysics.Parameters.CloudIceMelt(), CloudMicrophysics.Parameters.HomogeneousAndHeterogeneous(), CloudMicrophysics.Parameters.Kessler1M(), CloudMicrophysics.Parameters.NoSupersaturation(), CloudMicrophysics.Parameters.RainEvaporation(), CloudMicrophysics.Parameters.DepositionAndSublimation(), CloudMicrophysics.Parameters.SnowMelt(), CloudMicrophysics.Parameters.CloudLiquidRainAccretion(), CloudMicrophysics.Parameters.CloudLiquidSnowAccretion(), CloudMicrophysics.Parameters.CloudIceRainAccretion(), CloudMicrophysics.Parameters.CloudIceSnowAccretion(), CloudMicrophysics.Parameters.RainSnowAccretion(), CloudMicrophysics.Parameters.JointVaporRelaxation())
+├─ process_params: (cloud_liquid_formation = nothing, cloud_ice_formation = nothing, cloud_ice_melt = nothing, cloud_liquid_freezing = (τ_hom = 1.0f0, T_hom = 233.0f0, A = 0.66f0, B = 100.0f0), rain_autoconversion = [36mKesslerAcnv[0m(τ_slow = 1200.0f0, τ_fast = 1200.0f0, q_threshold_slow = 0.00025f0, q_threshold_fast = 0.000125f0, w_0 = 0.05f0, k = 10.0f0), snow_autoconversion = [36mAcnv1M[0m(τ = 1360.0f0, q_threshold = 5.0f-6, k = 10.0f0), rain_condensation_evaporation = nothing, snow_deposition_sublimation = nothing, snow_melt = nothing, cloud_liquid_rain_accretion = (e = 0.8f0,), cloud_liquid_snow_accretion = (e = 0.1f0,), cloud_ice_rain_accretion = (e = 1.0f0,), cloud_ice_snow_accretion = (e = 0.1f0,), rain_snow_accretion = (e = 1.0f0, coeff_disp = 0.2f0))
+├─ cloud: [36mCloudPhaseParams1M[0m
+│  ├─ liquid: [36mCloudLiquid[0m(ρw = 1000.0f0 [kg/m³], r_eff = 1.4f-5 [m], N_0 = 5.0f8 [1/m³])
+│  └─ ice: [36mCloudIce[0m(pdf = [36mParticlePDFIceRain[0m(n0 = 2.0f7) [-], mass = [36mParticleMass[0m(r0 = 1.0f-5, m0 = 2.094395f-12, me = 3.0f0, Δm = 0.0f0, χm = 1.0f0, gamma_coeff = 6.0f0) [-], ρᵢ = 500.0f0 [kg/m³], r_eff = 2.5f-5 [m], N_0 = 100000.0f0 [1/m³])
+├─ precip: [36mPrecipPhaseParams1M[0m
+│  ├─ rain: [36mRain[0m(pdf = [36mParticlePDFIceRain[0m(n0 = 1.6f7), mass = [36mParticleMass[0m(r0 = 0.001f0, m0 = 4.188791f-6, me = 3.0f0, Δm = 0.0f0, χm = 1.0f0, gamma_coeff = 6.0f0), area = [36mParticleArea[0m(a0 = 3.1415932f-6, ae = 2.0f0, Δa = 0.0f0, χa = 1.0f0), vent = [36mVentilation[0m(a = 1.5f0, b = 0.53f0))
+│  └─ snow: [36mSnow[0m
+│     ├─ pdf: [36mParticlePDFSnow[0m(μ = 4.36f9, ν = 0.63f0)
+│     ├─ mass: [36mParticleMass[0m(r0 = 0.001f0 [m], m0 = 1.0000001f-7 [kg], me = 2.0f0 [-], Δm = 0.0f0 [-], χm = 1.0f0 [-], gamma_coeff = 2.0f0 [-])
+│     ├─ area: [36mParticleArea[0m(a0 = 9.424779f-7 [m²], ae = 2.0f0 [-], Δa = 0.0f0 [-], χa = 1.0f0 [-])
+│     ├─ vent: [36mVentilation[0m(a = 0.65f0, b = 0.44f0)
+│     ├─ aspr: [36mSnowAspectRatio[0m(ϕ = 0.15f0, κ = 0.33333334f0)
+│     ├─ ρᵢ = 200.0
+│     ├─ ρᵢ_bulk = 916.7
+│     ├─ gamma_aspect_oblate = 0.33333334
+│     └─ gamma_aspect_prolate = 20.0
+├─ air_properties: [36mAirProperties[0m(K_therm = 0.024f0 [W/m/K], D_vapor = 2.26f-5 [m²/s], ν_air = 1.6f-5 [m²/s])
+├─ terminal_velocity: [36mBlk1MVelType[0m
+│  ├─ rain: [36mBlk1MVelTypeRain[0m
+│  │  ├─ r0 = 0.001
+│  │  ├─ ve = 0.5
+│  │  ├─ Δv = 0.0
+│  │  ├─ χv = 1.0
+│  │  ├─ ρw = 1000.0
+│  │  ├─ C_drag = 0.55
+│  │  ├─ grav = 9.81
+│  │  ├─ gamma_vent = 1.6083595
+│  │  ├─ gamma_term = 11.631728
+│  │  ├─ gamma_accr = 3.323351
+│  │  └─ gamma_accr_rain_sink = 287.88528
+│  └─ snow: [36mBlk1MVelTypeSnow[0m
+│     ├─ r0 = 0.001
+│     ├─ ve = 0.25
+│     ├─ Δv = 0.0
+│     ├─ χv = 1.0
+│     ├─ v0 = 0.845897
+│     ├─ gamma_vent = 1.4569333
+│     ├─ gamma_term = 2.549257
+│     └─ gamma_accr = 2.549257
+└─ max_latent_heating_rate = 0.033333335
+
+thp:
+Thermodynamics.Parameters.ThermodynamicsParameters{Float32}(273.16f0, 273.16f0, 273.15f0, 233.0f0, 1.0f0, 1000.0f0, 150.0f0, 288.0f0, 215.0f0, 298.15f0, 101325.0f0, 100000.0f0, 611.657f0, 287.0f0, 461.5f0, 1004.5f0, 1859.0f0, 4181.0f0, 2070.0f0, 2.5008f6, 2.8344f6, 6864.8f0, 10513.6f0, 9.81f0, 1.0f0, 1.0f-10)
