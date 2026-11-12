@@ -417,7 +417,8 @@ Physical smallness threshold for the **1-moment** and **2-moment** schemes.
 Below this threshold a tracer is treated as absent.
 
 Returns `cbrt(floatmin(float(FT)))`, a floatmin-derived floor
-that also keeps `cbrt`/`^` arguments above `floatmin`.
+that also keeps `cbrt`/`^` arguments above `floatmin`. For `Float32` and `Float64` the value is
+a constant of the method, since a GPU compiler does not fold the call of `cbrt`.
 
 Can be called in three ways:
 - With a floating-point type (e.g., `Float32` or `Float64`), returning the threshold for that type.
@@ -425,6 +426,9 @@ Can be called in three ways:
 - With an integer type or value, returning the threshold for its float counterpart (e.g., `Int32` → `Float32`).
 """
 @inline ϵ_numerics(FT) = cbrt(floatmin(float(FT)))
+for FT in (Float32, Float64)
+    @eval @inline ϵ_numerics(::Type{$FT}) = $(cbrt(floatmin(FT)))
+end
 @inline ϵ_numerics(x::Real) = ϵ_numerics(typeof(x))
 
 """

@@ -166,8 +166,9 @@ end
 
 """
     donor_linearization(terms, q, q_min, Δt, f_k = one.(q))
+    donor_linearization!(lin, terms, q, q_min, Δt, f_k = one.(q))
 
-Return the donor-based [`LinearizedTendency`](@ref) of `terms` at the species `q`.
+Return the donor-based [`LinearizedTendency`](@ref) of `terms` at the species `q`, or add it to `lin`.
 
 Each term adds the coefficients `(s, D)` of [`donor_coefficients`](@ref): `-D` to the
 diagonal entry of its donor, `D` to the entry in the row of its receiver if the receiver is
@@ -182,24 +183,22 @@ entry of their donor (the per-donor factors of the latent-heating limiter).
 - `Δt`: width of the substep [s].
 - `f_k`: decay scale per donor, a state like `q` [-].
 """
-@inline function donor_linearization(terms, q::Q, q_min, Δt, f_k = one.(q)) where {Q}
-    lin = LinearizedTendency(Q)
+@inline donor_linearization(terms, q::Q, q_min, Δt, f_k = one.(q)) where {Q} =
+    donor_linearization!(LinearizedTendency(Q), terms, q, q_min, Δt, f_k)
+@inline function donor_linearization!(lin, terms, q, q_min, Δt, f_k = one.(q))
     UU.unrolled_foreach(t -> (@inline; _add_donor_term!(lin, t, q, q_min, Δt, f_k)), values(terms))
     return lin
 end
 
 """
-    limiter_decay_totals(terms, q, q_min, Δt)
+    limiter_decay_totals(terms, q, q_min, Δt, init = (zero(q), zero(q)))
 
 Return per donor the total decay of the terms that change phase and the total decay of the
-other terms, `(Dpc, Dcol)`, as two states like `q` [1/s]; the inputs of
+other terms, `(Dpc, Dcol)`, as two states like `q` [1/s], added to `init`; the inputs of
 [`_donor_limiter_scale`](@ref).
 """
-@inline function limiter_decay_totals(terms, q::Q, q_min, Δt) where {Q}
-    return UU.unrolled_reduce(
-        (acc, t) -> (@inline; _add_decay_total(acc, t, q, q_min, Δt)), values(terms), (zero(q), zero(q)),
-    )
-end
+@inline limiter_decay_totals(terms, q, q_min, Δt, init = (zero(q), zero(q))) =
+    UU.unrolled_reduce((acc, t) -> (@inline; _add_decay_total(acc, t, q, q_min, Δt)), values(terms), init)
 @inline function _add_decay_total((Dpc, Dcol), t::Transfer{Donor}, q, q_min, Δt) where {Donor}
     (_, D) = donor_coefficients(t, q, q_min, Δt)
     return ifelse(
@@ -228,6 +227,27 @@ terms that change phase and `Dcol` that of its other terms ([`limiter_decay_tota
 @inline function _donor_limiter_scale(f, Dpc, Dcol, Δt)
     FT = typeof(f)
     return f * (one(FT) + Dcol * Δt) / (one(FT) + Dcol * Δt + (one(FT) - f) * Dpc * Δt)
+end
+
+"""
+    limited_linearization(lin, Dpc, Dcol, f_k)
+
+Return the [`LinearizedTendency`](@ref) `lin` of unscaled terms with the decays of the terms that
+change phase scaled by the entry of their donor in `f_k`, from the totals `(Dpc, Dcol)` of
+[`limiter_decay_totals`](@ref) for the same terms; equal, up to rounding, to
+[`donor_linearization`](@ref) of the terms with `f_k`, and identical to `lin` where `f_k` is 1.
+
+A transfer changes phase if its donor and its receiver are of different phases, so an off-diagonal
+entry of `M` holds only decays that are scaled or only decays that are not, and the diagonal entry
+of a donor is minus its total decay, `f_k Dpc + Dcol`.
+"""
+@inline function limited_linearization((; M, e)::LinearizedTendency{Q}, Dpc, Dcol, f_k) where {Q}
+    is_ice = SA.SVector(map(_is_ice, fieldnames(Q)))
+    changes_phase = is_ice .!= is_ice'  # the receiver (row) and the donor (column) differ in phase
+    is_diagonal = SA.SMatrix{length(Q), length(Q), Bool}(SA.I)
+    D = ifelse.(isone.(f_k), -SA.diag(M), f_k .* Dpc .+ Dcol)
+    M_lim = ifelse.(is_diagonal, -D', ifelse.(changes_phase, f_k' .* M, M))
+    return LinearizedTendency{Q, typeof(M_lim), typeof(e)}(M_lim, e)
 end
 
 """
