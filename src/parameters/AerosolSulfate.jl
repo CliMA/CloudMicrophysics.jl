@@ -8,7 +8,7 @@ Parameters for sulfate aerosol
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Sulfate{FT} <: AerosolType
+CP.@params struct Sulfate{FT} <: AerosolType
     "molar mass [kg/mol]"
     M::FT
     "density [kg/m3]"

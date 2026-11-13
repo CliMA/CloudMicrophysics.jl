@@ -8,7 +8,7 @@ Parameters for zero-moment bulk microphysics scheme
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Parameters0M{FT} <: ParametersType
+CP.@params struct Parameters0M{FT} <: ParametersType
     "precipitation timescale [s]"
     τ_precip::FT
     "condensate specific content precipitation threshold [-]"
@@ -27,7 +27,7 @@ precipitation flux in sub-saturated air, following
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Evaporation0M{FT} <: ParametersType
+CP.@params struct Evaporation0M{FT} <: ParametersType
     "evaporation coefficient (`0` disables evaporation) [1/s]"
     k_E::FT
     "critical relative humidity above which precipitation does not evaporate [-]"

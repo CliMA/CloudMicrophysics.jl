@@ -64,4 +64,17 @@ end
 TT.@testset "Broadcasting over common types tests ($FT)" for FT in (Float64, Float32)
     test_common_types_broadcasts(FT)
 end
+
+TT.@testset "Showing parameter values ($FT)" for FT in (Float64, Float32)
+    # one struct for the compact method and one, with more than 7 fields, for the verbose method
+    for params in (CMP.AirProperties(FT), CMP.AerosolActivationParameters(FT))
+        compact_str = sprint(show, params)
+        verbose_str = sprint(show, MIME("text/plain"), params)
+        for name in propertynames(params)
+            value = getproperty(params, name)
+            TT.@test occursin(repr(value), compact_str)
+            TT.@test occursin(repr(value), verbose_str) || occursin(string(value), verbose_str)
+        end
+    end
+end
 nothing
