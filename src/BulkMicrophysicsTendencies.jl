@@ -405,7 +405,10 @@ construction of the implicit decays). Negative species are clamped to zero on in
     q1 = backward_euler_solve(lin, q, one(FT), Δt)
     (; α_cap, f_lim, f_k) = _limiter_factors(mp, tps, lin, Dpc, Dcol, q, q1, sf, q_tot, Δt)
 
-    q2 = backward_euler_solve(limited_linearization(lin, Dpc, Dcol, f_k), q, α_cap * f_lim, Δt)
+    # with both limiters inactive the limited linearization is `lin` and the second step is the first
+    q2 =
+        (α_cap == one(FT)) & (f_lim == one(FT)) ? q1 :
+        backward_euler_solve(limited_linearization(lin, Dpc, Dcol, f_k), q, α_cap * f_lim, Δt)
     g_uniform = _uniform_scale(mp, tps, q, q2, q_tot, Δt)
 
     dq_dt = (q2 - q) * (g_uniform / Δt)
