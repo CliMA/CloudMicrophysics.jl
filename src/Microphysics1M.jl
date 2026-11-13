@@ -118,7 +118,7 @@ end
 @inline get_v0((; v0)::CMP.Blk1MVelTypeSnow, args...) = v0
 
 """
-    lambda_inverse(pdf, mass::ParticleMass, q, ρ)
+    lambda_inverse(pdf, mass::ParticleMass, q, ρ, n0 = get_n0(pdf, q, ρ))
 
 Returns the inverse of the rate parameter (λ⁻¹) of the assumed Marshall-Palmer
 size distribution of particles (rain drops, ice crystals, snow crystals).
@@ -131,6 +131,7 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
 - `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`, `gamma_coeff`)
 - `q`: specific content of rain, cloud ice, or snow [kg/kg]
 - `ρ`: air density [kg/m³]
+- `n0`: intercept parameter of the size distribution (`get_n0`), for a caller that holds it
 
 # Returns
 - `λ⁻¹`: inverse rate parameter [m]
@@ -141,10 +142,9 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     mass::CMP.ParticleMass,
     q,
     ρ,
+    n0 = get_n0(pdf, q, ρ),
 )
     FT = UT.promote_typeof(q, ρ)
-    # size distribution
-    n0 = get_n0(pdf, q, ρ)
     # mass(size)
     (; r0, m0, me, Δm, χm, gamma_coeff) = mass
 
@@ -538,12 +538,13 @@ end
 @inline function size_distr_parameters(mp, micro, thermo)
     (; q_rai, q_sno, q_icl) = micro
     ρ = thermo.ρ
+    n0_sno = get_n0(mp.precip.snow.pdf, q_sno, ρ)
     return (;
         λ_inv_rai = lambda_inverse(mp.precip.rain.pdf, mp.precip.rain.mass, q_rai, ρ),
         n0_rai = get_n0(mp.precip.rain.pdf, q_rai, ρ),
         v0_rai = get_v0(mp.terminal_velocity.rain, ρ),
-        λ_inv_sno = lambda_inverse(mp.precip.snow.pdf, mp.precip.snow.mass, q_sno, ρ),
-        n0_sno = get_n0(mp.precip.snow.pdf, q_sno, ρ),
+        λ_inv_sno = lambda_inverse(mp.precip.snow.pdf, mp.precip.snow.mass, q_sno, ρ, n0_sno),
+        n0_sno,
         v0_sno = get_v0(mp.terminal_velocity.snow, ρ),
         λ_inv_icl = lambda_inverse(mp.cloud.ice.pdf, mp.cloud.ice.mass, q_icl, ρ),
         n0_icl = get_n0(mp.cloud.ice.pdf),
