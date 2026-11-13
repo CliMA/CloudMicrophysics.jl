@@ -30,6 +30,8 @@ jobs:
           repository: 'CliMA/ClimaAtmos.jl'
           path: ClimaAtmos.jl
       - run: |
+          # Temporary: remove when ClimaParams with `@params` is released.
+          julia --color=yes --project=ClimaAtmos.jl -e 'using Pkg; Pkg.add(PackageSpec(; url = "https://github.com/CliMA/ClimaParams.jl", rev = "dy/params_macro"))'
           julia --color=yes --project=ClimaAtmos.jl -e 'using Pkg; Pkg.instantiate(); Pkg.develop(; path = ".")'
           julia --color=yes --project=ClimaAtmos.jl -e '
             import ClimaComms; ClimaComms.@import_required_backends

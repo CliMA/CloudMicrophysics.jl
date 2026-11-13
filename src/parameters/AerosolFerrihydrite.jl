@@ -9,7 +9,7 @@ DOI: 10.1039/D1EA00077B
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Ferrihydrite{FT} <: AerosolType
+CP.@params struct Ferrihydrite{FT} <: AerosolType
     "m coefficient for deposition nucleation J [-]"
     deposition_m::FT
     "c coefficient for deposition nucleation J [-]"
