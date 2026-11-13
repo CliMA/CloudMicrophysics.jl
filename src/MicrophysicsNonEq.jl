@@ -209,7 +209,7 @@ end
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
 
-    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, thermo)
 
     dqsl_dT = dqcld_dT(qᵥ_sat_liq, Lᵥ, Rᵥ, T)
     Γₗ = gamma_helper(Lᵥ, cₚ_air, dqsl_dT)
@@ -264,13 +264,28 @@ end
     τ = τ_relax(mp.cloud.ice, mp.air_properties, q_icl, ρ)
     return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo)
 end
-@inline function conv_q_vap_to_q_icl(
-    opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo)
-    (; q_icl) = micro
+@inline conv_q_vap_to_q_icl(opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo) =
+    first(conv_and_τ_vap_to_q_icl(opt, mp, tps, micro, thermo))
+
+"""
+    conv_and_τ_vap_to_q_icl(opt, mp, tps, micro, thermo)
+
+The rate of `conv_q_vap_to_q_icl` and the timescale of `τ_vap_to_q_icl` at one state, `(S, τ)`
+[kg/kg/s, s]. With `TemperatureDependentIceNumber` the ice number concentration and the
+relaxation timescale that both use are evaluated once.
+"""
+@inline conv_and_τ_vap_to_q_icl(opt, mp, tps::TDI.PS, micro, thermo) =
+    (conv_q_vap_to_q_icl(opt, mp, tps, micro, thermo), τ_vap_to_q_icl(opt, mp, tps, micro, thermo))
+@inline function conv_and_τ_vap_to_q_icl(opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo)
+    (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    fit = CMP.process_params(mp, opt)
-    τ = τ_relax(mp.cloud.ice, mp.air_properties, fit, q_icl, T, ρ)
-    return _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo; _ice_deposition_limits(opt, mp)...)
+    limits = _ice_deposition_limits(opt, mp)
+    τ = τ_relax(mp.cloud.ice, mp.air_properties, CMP.process_params(mp, opt), q_icl, T, ρ)
+    S = _conv_q_vap_to_q_icl_const(τ, tps, micro, thermo; limits...)
+    sat_excess =
+        TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno) - TDI.saturation_vapor_specific_content_over_ice(tps, thermo)
+    blocked = INP_limiter(sat_excess, tps, T; q_lcl, limits...)
+    return (S, ifelse(blocked, oftype(τ, Inf), τ))
 end
 
 # Kernel for `conv_q_vap_to_q_icl` with a constant relaxation timescale `τ`
@@ -283,7 +298,7 @@ end
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
 
-    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, thermo)
 
     dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
     Γᵢ = gamma_helper(Lₛ, cₚ_air, dqsi_dT)
@@ -315,7 +330,7 @@ end
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
 
-    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, thermo)
 
     dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
     Γᵢ = gamma_helper(Lₛ, cₚ_air, dqsi_dT)
@@ -384,21 +399,14 @@ for how the timescale is used.
     CMP.process_params(mp, opt).τ_relax
 @inline τ_vap_to_q_icl(::CMP.PrescribedIceNumber, mp, tps::TDI.PS, micro, thermo) =
     τ_relax(mp.cloud.ice, mp.air_properties, micro.q_icl, thermo.ρ)
-@inline function τ_vap_to_q_icl(opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo)
-    (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
-    (; ρ, T) = thermo
-    τ = τ_relax(mp.cloud.ice, mp.air_properties, CMP.process_params(mp, opt), q_icl, T, ρ)
-    sat_excess =
-        TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno) - TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
-    blocked = INP_limiter(sat_excess, tps, T; q_lcl, _ice_deposition_limits(opt, mp)...)
-    return ifelse(blocked, oftype(τ, Inf), τ)
-end
+@inline τ_vap_to_q_icl(opt::CMP.TemperatureDependentIceNumber, mp, tps::TDI.PS, micro, thermo) =
+    last(conv_and_τ_vap_to_q_icl(opt, mp, tps, micro, thermo))
 @inline function τ_vap_to_q_icl(opt::CMP.TemperatureDependent, mp, tps::TDI.PS, micro, thermo)
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
     pp = CMP.process_params(mp, opt)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
-    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, thermo)
     τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, pp.frostenberg, q_icl, T, ρ)
     # promote the constant branch to the state type so that `ifelse` is type stable
     return ifelse(qᵥ - qᵥ_sat_ice < 0, oftype(τ_dep, pp.τ_relax), τ_dep)

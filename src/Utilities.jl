@@ -14,7 +14,7 @@ import RootSolvers as RS
 
 export clamp_to_nonneg, ϵ_numerics
 export promote_typeof, return_type_of, find_zeros, scan_zeros
-export fac
+export fac, precomputed
 
 """
     promote_typeof(args...)
@@ -409,6 +409,22 @@ representable in `Int64`.
 end
 
 """
+    precomputed(f, params...)
+
+Return `f(params...)`, evaluated at compile time when every element of `params`
+is a singleton (parameter structs whose values are stored in their type) and at
+run time otherwise. This keeps calls such as `exp`, `log`, `^`, and `gamma` of
+parameter-only values out of compiled kernels. `f` must be a function without
+state, and must be defined before the method that calls `precomputed`.
+"""
+@generated function precomputed(f::F, params...) where {F}
+    if Base.issingletontype(F) && all(Base.issingletontype, params)
+        return :($(F.instance(map(P -> P.instance, params)...)))
+    end
+    return :(f(params...))
+end
+
+"""
     ϵ_numerics(FT)
     ϵ_numerics(x::Real)
 
@@ -417,14 +433,15 @@ Physical smallness threshold for the **1-moment** and **2-moment** schemes.
 Below this threshold a tracer is treated as absent.
 
 Returns `cbrt(floatmin(float(FT)))`, a floatmin-derived floor
-that also keeps `cbrt`/`^` arguments above `floatmin`.
+that also keeps `cbrt`/`^` arguments above `floatmin`. The value is computed once per type, since
+a GPU compiler does not fold the call of `cbrt`.
 
 Can be called in three ways:
 - With a floating-point type (e.g., `Float32` or `Float64`), returning the threshold for that type.
 - With a concrete floating-point value, returning the threshold for its type.
 - With an integer type or value, returning the threshold for its float counterpart (e.g., `Int32` → `Float32`).
 """
-@inline ϵ_numerics(FT) = cbrt(floatmin(float(FT)))
+@generated ϵ_numerics(::Type{FT}) where {FT} = cbrt(floatmin(float(FT)))
 @inline ϵ_numerics(x::Real) = ϵ_numerics(typeof(x))
 
 """

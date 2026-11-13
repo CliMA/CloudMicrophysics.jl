@@ -383,6 +383,7 @@ Utilities.return_type_of
 Utilities.find_zeros
 Utilities.scan_zeros
 Utilities.ϵ_numerics
+Utilities.precomputed
 Utilities.gamma_inc
 Utilities.gamma_inc_inv
 Utilities.rime_mass_fraction
