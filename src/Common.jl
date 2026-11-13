@@ -29,7 +29,7 @@ export KK2000_autoconversion
 export KK2000_accretion
 
 """
-    G_func_liquid(air_props, tps, T)
+    G_func_liquid(air_props, tps, T, p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T))
 
 Utility function combining thermal conductivity and vapor diffusivity effects
 for vapor to liquid phase change.
@@ -41,6 +41,7 @@ numerical robustness.
 - `air_props`: air parameters struct (contains `K_therm`, `D_vapor`)
 - `tps`: thermodynamics parameters struct
 - `T`: air temperature [K]
+- `p_vs`: saturation vapor pressure over liquid at `T` [Pa]
 
 # Returns
 - G function for liquid [kg/m/s]
@@ -53,10 +54,10 @@ numerical robustness.
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
     T,
+    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T),
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lᵥ(tps, T)
-    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 
     # Guard against division by zero
     p_vs_safe = max(p_vs, UT.ϵ_numerics(FT))
@@ -68,7 +69,7 @@ numerical robustness.
 end
 
 """
-    G_func_ice(air_props, tps, T)
+    G_func_ice(air_props, tps, T, p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T))
 
 Utility function combining thermal conductivity and vapor diffusivity effects
 for vapor to ice phase change.
@@ -80,6 +81,7 @@ numerical robustness.
 - `air_props`: air parameters struct (contains `K_therm`, `D_vapor`)
 - `tps`: thermodynamics parameters struct
 - `T`: air temperature [K]
+- `p_vs`: saturation vapor pressure over ice at `T` [Pa]
 
 # Returns
 - G function for ice [kg/m/s]
@@ -92,10 +94,10 @@ numerical robustness.
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
     T,
+    p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T),
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lₛ(tps, T)
-    p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T)
 
     # Guard against division by zero
     p_vs_safe = max(p_vs, UT.ϵ_numerics(FT))
@@ -329,7 +331,8 @@ end
     Fs = -exp(F[1] - F[2] * log_ρᵢ^2 + F[3] * log_ρᵢ)
     Gs = 1 / (G[1] + G[2] / log_ρᵢ - G[3] * log_ρᵢ / ρᵢ)
     # Table B3
-    ai = (Es * ρₐ^As, Fs * ρₐ^As)
+    ρₐ_As = ρₐ^As
+    ai = (Es * ρₐ_As, Fs * ρₐ_As)
     bi = (Bs + ρₐ * Cs, Bs + ρₐ * Cs)
     ci = (FT(0), Gs)
     return chen2022_coeffs_si(ai, bi, ci)
@@ -350,7 +353,8 @@ end
     Gl = 1 / (G[1] + G[2] * log_ρᵢ * sqrt_ρᵢ + G[3] / sqrt_ρᵢ)
     Hl = H[1] + H[2] * ρᵢ^2 * sqrt_ρᵢ + exp(log(-H[3]) - ρᵢ)  # ρᵢ^(5/2) = ρᵢ^2 * sqrt(ρᵢ)
     # Table B5
-    ai = (Bl * ρₐ^Al, El * ρₐ^Al * exp(Hl * ρₐ))
+    ρₐ_Al = ρₐ^Al
+    ai = (Bl * ρₐ_Al, El * ρₐ_Al * exp(Hl * ρₐ))
     bi = (Cl, Fl)
     ci = (FT(0), Gl)
     return chen2022_coeffs_si(ai, bi, ci)
@@ -434,6 +438,29 @@ Assumes exponential size distribution (μ=0).
     gamma_delta = FT(UT.fac(k))
     return a * exp(-δ * log(λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / gamma_delta
 end
+
+"""
+    Chen2022_log_inv(c, log_λ_inv, λ_inv)
+
+`log(1 / λ_inv + c)`, computed as `-log_λ_inv` when `c` is zero, where
+`log_λ_inv = log(λ_inv)`.
+"""
+@inline Chen2022_log_inv(c, log_λ_inv, λ_inv) =
+    iszero(c) ? -log_λ_inv : log(1 / λ_inv + c)
+
+"""
+    Chen2022_exponential_pdf_k3(a, b, log_λ_inv, log_inv, gamma_b_δ)
+
+[`Chen2022_exponential_pdf`](@ref) for `k = 3`, given the logarithms and gamma
+function value that it would otherwise recompute, so that terms of a velocity
+curve can share them:
+
+- `log_λ_inv`: `log(λ_inv)`
+- `log_inv`: `log(1 / λ_inv + c)` ([`Chen2022_log_inv`](@ref))
+- `gamma_b_δ`: `gamma(b + 4)`
+"""
+@inline Chen2022_exponential_pdf_k3(a, b, log_λ_inv, log_inv, gamma_b_δ) =
+    a * exp(-4 * log_λ_inv - (b + 4) * log_inv) * gamma_b_δ / 6
 
 """
     particle_terminal_velocity(velocity_params, ρₐ)
