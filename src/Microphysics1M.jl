@@ -717,15 +717,17 @@ end
     v0,
     λ_inv,
 )
-    (; r0, m0, me, Δm, χm) = rain.mass
+    (; r0, gamma_coeff) = rain.mass
     (; χv, ve, Δv, gamma_accr_rain_sink) = vel
     (; a0, ae, χa, Δa) = rain.area
 
-    # gamma_accr_rain_sink = SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) (pre-computed in vel)
+    # gamma_accr_rain_sink = SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) (pre-computed in vel).
+    # The rain mass content ρ q_rai = n0 m0 χm gamma_coeff λ_inv^(me + Δm + 1) / r0^(me + Δm)
+    # (`lambda_inverse`) is a factor of the rate, which leaves the power of the accretion rate.
     accr_rate =
-        E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv * λ_ice_inv * λ_inv *
-        gamma_accr_rain_sink /
-        (r0 / λ_inv)^(me + ae + ve + Δm + Δa + Δv)
+        E * q_rai * n0_ice * λ_ice_inv * a0 * v0 * χa * χv *
+        gamma_accr_rain_sink / gamma_coeff /
+        (r0 / λ_inv)^(ae + ve + Δa + Δv)
 
     ϵ = UT.ϵ_numerics(UT.promote_typeof(q_icl, q_rai))
     cond = q_icl > ϵ && q_rai > ϵ
@@ -809,15 +811,14 @@ deviations are proportional to the mean fall velocities, with coefficient
         type_i, type_j, blk1mveltype_ti, blk1mveltype_tj, coeff_disp, q_i, q_j, ρ, v0_i, v0_j, λ_i_inv, λ_j_inv,
     ),
 )
-    (; r0, m0, me, Δm, χm, gamma_coeff) = type_j.mass
+    (; me, Δm) = type_j.mass
     δ = me + Δm
 
-    # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms.
-    # gamma_coeff = Γ(δ + 1) is pre-computed. The common factor λ_i_inv λ_j_inv^(δ + 1)
-    # of the three terms is taken out, so that one power is evaluated.
+    # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms. The common
+    # factor of the three terms, n0_j m0 χm Γ(δ + 1) λ_j_inv^(δ + 1) / r0^δ, is the mass
+    # content ρ q_j of species j (`lambda_inverse`), so no power is evaluated.
     accr_rate =
-        π / ρ * n0_i * n0_j * m0 * χm * E_ij * Δv_eff * gamma_coeff /
-        r0^δ * λ_i_inv * λ_j_inv^(δ + 1) *
+        π * n0_i * E_ij * Δv_eff * q_j * λ_i_inv *
         (2 * λ_i_inv^2 + 2 * (δ + 1) * λ_i_inv * λ_j_inv + (δ + 2) * (δ + 1) * λ_j_inv^2)
 
     ϵ = UT.ϵ_numerics(UT.promote_typeof(q_i, q_j))
