@@ -393,12 +393,15 @@ construction of the implicit decays). Negative species are clamped to zero on in
     vapor = _vapor_source_terms(mp, tps, state)
     (vapor, sf) = _vapor_terms(_vapor_coupling(mp.processes), vapor, tps, ρ, T, q_tot, q, Δt, state.thermo)
     # each process adds its terms to the linearization and to the decay totals as soon as its rates are known
-    init = (LinearizedTendency(typeof(q)), (zero(q), zero(q)), (;))
-    (lin, (Dpc, Dcol), terms) = _foldl_source_terms(init, mp, tps, state, vapor) do (lin, decays, terms), new_terms
+    init = (LinearizedTendency(typeof(q)), zero(q), (;))
+    (lin, Dpc, terms) = _foldl_source_terms(init, mp, tps, state, vapor) do (lin, Dpc, terms), new_terms
         @inline
         donor_linearization!(lin, new_terms, q, q_min, Δt)
-        (lin, limiter_decay_totals(new_terms, q, q_min, Δt, decays), merge(terms, new_terms))
+        (lin, first(limiter_decay_totals(new_terms, q, q_min, Δt, (Dpc, zero(q)))), merge(terms, new_terms))
     end
+    # the diagonal of M is minus the total decay of each donor, so the decay of its terms that do not change phase
+    # is what the phase changes leave of it, and only one total per donor is carried through the processes
+    Dcol = typeof(q)(-SA.diag(lin.M)) - Dpc
     q1 = backward_euler_solve(lin, q, one(FT), Δt)
     (; α_cap, f_lim, f_k) = _limiter_factors(mp, tps, lin, Dpc, Dcol, q, q1, sf, q_tot, Δt)
 
