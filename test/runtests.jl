@@ -1,6 +1,4 @@
 import Test as TT
-import Preferences
-import ClimaParams
 
 TT.@testset "All tests" begin
     include("aerosol_activation_tests.jl")
@@ -25,6 +23,8 @@ TT.@testset "All tests" begin
     include("p3_rho_d_stability.jl")
     include("aqua.jl")
     include("performance_tests.jl")
+    include("aerosol_activation_calibration.jl")
+    include("ice_nucleation_calibration.jl")
     include("ventilation_tests.jl")
     include("ad_compat_tests.jl")
     include("return_type_tests.jl")
@@ -32,17 +32,5 @@ TT.@testset "All tests" begin
     include("utilities_tests.jl")
     include("gamma_inc_tests.jl")
     include("unrolled_logsumexp.jl")
-end
-
-# The calibration tests construct many parameter sets, each of which is a new
-# type that has to be compiled when the `CLIMA_PARAMS_MODE` preference of
-# ClimaParams is "type", so they run in a separate process in "bits" mode.
-TT.@testset "Calibration tests" begin
-    Preferences.set_preferences!(ClimaParams, "CLIMA_PARAMS_MODE" => "bits"; force = true)
-    for file in ("aerosol_activation_calibration.jl", "ice_nucleation_calibration.jl")
-        cmd = `$(Base.julia_cmd()) --project=$(Base.active_project()) $(joinpath(@__DIR__, file))`
-        TT.@test success(run(ignorestatus(cmd)))
-    end
-    Preferences.delete_preferences!(ClimaParams, "CLIMA_PARAMS_MODE"; force = true)
 end
 nothing
