@@ -161,8 +161,11 @@ function test_microphysics0M_evaporation(FT)
         # type stability
         TT.@inferred CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps, F)
         TT.@inferred CM0.evaporate_precipitation(nothing, q_vap, q_vap_sat, p_over_ps, F)
-        TT.@test @allocated(CM0.evaporate_precipitation(pe_on, q_vap, q_vap_sat, p_over_ps, F)) == 0
-        TT.@test @allocated(CM0.evaporate_precipitation(nothing, q_vap, q_vap_sat, p_over_ps, F)) == 0
+        # `allocated` is a function barrier: the type of `pe_on` holds its parameter values,
+        # so it is not inferred in this function
+        allocated(pe) = @allocated CM0.evaporate_precipitation(pe, q_vap, q_vap_sat, p_over_ps, F)
+        TT.@test allocated(pe_on) == 0
+        TT.@test allocated(nothing) == 0
     end
 end
 

@@ -9,7 +9,7 @@ Khairoutdinov and Kogan (2000) autoconversion parameters of the rate
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AcnvKK2000{FT} <: ParametersType
+CP.@params struct AcnvKK2000{FT} <: ParametersType
     "Rate coefficient A [1/s]"
     A::FT
     "Exponent a of the cloud liquid specific content [-]"
@@ -49,7 +49,7 @@ Khairoutdinov and Kogan (2000) accretion parameters of the rate
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AccrKK2000{FT} <: ParametersType
+CP.@params struct AccrKK2000{FT} <: ParametersType
     "Rate coefficient A [1/s]"
     A::FT
     "Exponent a of the product of cloud liquid and rain specific contents [-]"
@@ -89,7 +89,7 @@ Beheng (1994) autoconversion parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AcnvB1994{FT} <: ParametersType
+CP.@params struct AcnvB1994{FT} <: ParametersType
     "Autoconversion coeff C"
     C::FT
     "Autoconversion coeff a"
@@ -116,7 +116,7 @@ Beheng (1994) accretion parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AccrB1994{FT} <: ParametersType
+CP.@params struct AccrB1994{FT} <: ParametersType
     "Accretion coefficient A"
     A::FT
 end
@@ -148,7 +148,7 @@ Tripoli and Cotton (1980) autoconversion parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AcnvTC1980{FT} <: ParametersType
+CP.@params struct AcnvTC1980{FT} <: ParametersType
     "Autoconversion coefficient a"
     a::FT
     "Autoconversion coefficient b"
@@ -179,7 +179,7 @@ Tripoli and Cotton (1980) accretion parameters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AccrTC1980{FT} <: ParametersType
+CP.@params struct AccrTC1980{FT} <: ParametersType
     "Accretion coefficient A"
     A::FT
 end
@@ -216,7 +216,7 @@ DOI: 10.1175/1520-0469(2004)061<1539:POTAPI>2.0.CO;2
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct LD2004{FT} <: Precipitation2MType
+CP.@params struct LD2004{FT} <: Precipitation2MType
     "Autoconversion coefficient R_6C_0"
     R_6C_0::FT
     "Autoconversion coefficient E_0"
@@ -261,7 +261,7 @@ on drop maximum mass and the size distribution coefficients N0 and lambda
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct RainParticlePDF_SB2006_limited{FT} <: RainParticlePDF_SB2006
+CP.@params struct RainParticlePDF_SB2006_limited{FT} <: RainParticlePDF_SB2006
     "Raindrop size distribution coefficient νr"
     νr::FT
     "Raindrop size distribution coefficient μr"
@@ -292,7 +292,7 @@ Rain size distribution parameters from SB2006 but without the limiters
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct RainParticlePDF_SB2006_notlimited{FT} <: RainParticlePDF_SB2006
+CP.@params struct RainParticlePDF_SB2006_notlimited{FT} <: RainParticlePDF_SB2006
     "Raindrop size distribution coefficient νr"
     νr::FT
     "Raindrop size distribution coefficient μr"
@@ -318,7 +318,7 @@ Cloud droplets size distribution parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct CloudParticlePDF_SB2006{FT} <: ParametersType
+CP.@params struct CloudParticlePDF_SB2006{FT} <: ParametersType
     "Cloud droplet size distribution coefficient νc"
     νc::FT
     "Cloud droplet size distribution coefficient μc"
@@ -353,7 +353,7 @@ Autoconversion parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AcnvSB2006{FT} <: ParametersType
+CP.@params struct AcnvSB2006{FT} <: ParametersType
     "Collection kernel coefficient"
     kcc::FT
     "Minimum mass of rain droplets"
@@ -376,7 +376,7 @@ Accretion parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AccrSB2006{FT} <: ParametersType
+CP.@params struct AccrSB2006{FT} <: ParametersType
     "Collection kernel coefficient Kcr"
     kcr::FT
     "Accretion correcting function coefficient τ_0"
@@ -395,7 +395,7 @@ Rain selfcollection parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SelfColSB2006{FT} <: ParametersType
+CP.@params struct SelfColSB2006{FT} <: ParametersType
     "Collection kernel coefficient krr"
     krr::FT
     "Collection kernel coefficient kappa rr"
@@ -412,7 +412,7 @@ Rain breakup parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct BreakupSB2006{FT} <: ParametersType
+CP.@params struct BreakupSB2006{FT} <: ParametersType
     "Raindrop equilibrium mean diameter"
     Deq::FT
     "Raindrop breakup mean diameter threshold"
@@ -431,7 +431,7 @@ Rain evaporation parameters from SB2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct EvaporationSB2006{FT} <: ParametersType
+CP.@params struct EvaporationSB2006{FT} <: ParametersType
     "Ventilation coefficient a"
     av::FT
     "Ventilation coefficient b"
@@ -474,7 +474,7 @@ Number concentration adjustment parameter from Horn (2012, DOI: 10.5194/gmd-5-34
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct NumberAdjustmentHorn2012{FT} <: ParametersType
+CP.@params struct NumberAdjustmentHorn2012{FT} <: ParametersType
     "Number concentration adjustment timescale [s]"
     τ::FT
 end
@@ -531,7 +531,7 @@ Relaxation parameters for 2-moment vapor condensation / liquid evaporation
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct CondEvap2M{FT} <: ParametersType
+CP.@params struct CondEvap2M{FT} <: ParametersType
     "condensation/evaporation relaxation timescale [s]"
     τ_relax::FT
 end
@@ -544,7 +544,7 @@ Relaxation parameters for 2-moment vapor deposition / ice sublimation
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SubDep2M{FT} <: ParametersType
+CP.@params struct SubDep2M{FT} <: ParametersType
     "deposition/sublimation relaxation timescale [s]"
     τ_relax::FT
 end

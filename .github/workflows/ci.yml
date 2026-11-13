@@ -30,6 +30,10 @@ jobs:
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
+      # Temporary: remove when ClimaParams with `@params` is released.
+      - if: matrix.version == '1.10'
+        run: using Pkg; Pkg.add(PackageSpec(; url = "https://github.com/CliMA/ClimaParams.jl", rev = "dy/params_macro"))
+        shell: julia --color=yes --project=. {0}
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
         with:

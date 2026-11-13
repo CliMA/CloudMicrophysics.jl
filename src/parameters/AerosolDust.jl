@@ -8,7 +8,7 @@ Parameters for generic dust.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Dust{FT} <: AerosolType
+CP.@params struct Dust{FT} <: AerosolType
     "m coefficient for deposition nucleation J [-]"
     deposition_m::FT
     "c coefficient for deposition nucleation J [-]"
