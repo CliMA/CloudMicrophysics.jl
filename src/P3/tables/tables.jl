@@ -101,7 +101,7 @@ with_tables(mp::CMP.Microphysics2MParams, args...; kwargs...) =
     CMP.Microphysics2MParams(mp.warm_rain, with_tables(ice_parameters(mp), args...; kwargs...))
 
 function with_integration(ice_params, integration)
-    fields = map(name -> name === :integration ? integration : getfield(ice_params, name), fieldnames(CMP.P3IceParams))
+    fields = map(name -> name === :integration ? integration : getproperty(ice_params, name), propertynames(ice_params))
     return CMP.P3IceParams(fields...)
 end
 

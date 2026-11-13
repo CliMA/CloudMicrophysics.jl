@@ -8,6 +8,7 @@ module Parameters
 using DocStringExtensions
 
 import ClimaParams as CP
+import ClimaParams: @params
 import SpecialFunctions as SF
 import Adapt
 import UnrolledUtilities as UU
