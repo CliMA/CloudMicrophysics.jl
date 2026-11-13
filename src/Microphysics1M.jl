@@ -591,8 +591,9 @@ end
     FT = eltype(ρ)
     T_freeze = TDI.T_freeze(tps)
 
-    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
-    G = CO.G_func_ice(aps, tps, T)
+    p_sat = TDI.saturation_vapor_pressure_over_ice(tps, thermo)
+    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_sat)
+    G = CO.G_func_ice(aps, tps, T, p_sat)
     λ_inv = sd.λ_inv_icl
 
     # Only allow ice autoconversion below freezing with positive supersaturation
@@ -1152,10 +1153,11 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     aps = mp.air_properties
     FT = eltype(ρ)
 
-    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
+    p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, thermo)
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_sat)
 
     (; ν_air, D_vapor) = aps
-    G = CO.G_func_liquid(aps, tps, T)
+    G = CO.G_func_liquid(aps, tps, T, p_sat)
 
     n0 = sd.n0_rai
     v0 = sd.v0_rai
@@ -1231,20 +1233,24 @@ cloud liquid or cloud ice (`q_lcl`, `q_icl` [kg/kg]) exceeds the specific humidi
 @inline function _snow_subl_dep_rate(mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo))
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
-    C = _snow_subl_dep_coeff(mp, tps, ρ, T, sd.n0_sno, sd.v0_sno, sd.λ_inv_sno)
+    p_sat = TDI.saturation_vapor_pressure_over_ice(tps, thermo)
+    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_sat)
+    C = _snow_subl_dep_coeff(mp, tps, ρ, T, sd.n0_sno, sd.v0_sno, sd.λ_inv_sno, p_sat)
     cond = q_sno > UT.ϵ_numerics(q_sno)
     return ifelse(cond, C * S, zero(C * S))
 end
 # Internal helper: ventilation-integral prefactor C for snow sublimation/deposition.
 # Returns 4π n0/ρ · G(T) · λ_inv² · vent(n0, v0, λ_inv).
 # The phase-change rate is C · S_rel (relative supersaturation over ice).
-@inline function _snow_subl_dep_coeff(mp, tps, ρ::FT, T, n0, v0, λ_inv) where {FT}
+# `p_sat` is the saturation vapor pressure over ice at `T`.
+@inline function _snow_subl_dep_coeff(
+    mp, tps, ρ::FT, T, n0, v0, λ_inv, p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T),
+) where {FT}
     (; mass, vent) = mp.precip.snow
     vel = mp.terminal_velocity.snow
     aps = mp.air_properties
     (; ν_air, D_vapor) = aps
-    G = CO.G_func_ice(aps, tps, T)
+    G = CO.G_func_ice(aps, tps, T, p_sat)
     (; r0) = mass
     (; χv, ve, Δv, gamma_vent) = vel
     a_vent = vent.a

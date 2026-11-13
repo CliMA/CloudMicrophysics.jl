@@ -29,7 +29,7 @@ export KK2000_autoconversion
 export KK2000_accretion
 
 """
-    G_func_liquid(air_props, tps, T)
+    G_func_liquid(air_props, tps, T, p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T))
 
 Utility function combining thermal conductivity and vapor diffusivity effects
 for vapor to liquid phase change.
@@ -41,6 +41,7 @@ numerical robustness.
 - `air_props`: air parameters struct (contains `K_therm`, `D_vapor`)
 - `tps`: thermodynamics parameters struct
 - `T`: air temperature [K]
+- `p_vs`: saturation vapor pressure over liquid at `T` [Pa]
 
 # Returns
 - G function for liquid [kg/m/s]
@@ -53,10 +54,10 @@ numerical robustness.
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
     T,
+    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T),
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lᵥ(tps, T)
-    p_vs = TDI.saturation_vapor_pressure_over_liquid(tps, T)
 
     # Guard against division by zero
     p_vs_safe = max(p_vs, UT.ϵ_numerics(FT))
@@ -68,7 +69,7 @@ numerical robustness.
 end
 
 """
-    G_func_ice(air_props, tps, T)
+    G_func_ice(air_props, tps, T, p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T))
 
 Utility function combining thermal conductivity and vapor diffusivity effects
 for vapor to ice phase change.
@@ -80,6 +81,7 @@ numerical robustness.
 - `air_props`: air parameters struct (contains `K_therm`, `D_vapor`)
 - `tps`: thermodynamics parameters struct
 - `T`: air temperature [K]
+- `p_vs`: saturation vapor pressure over ice at `T` [Pa]
 
 # Returns
 - G function for ice [kg/m/s]
@@ -92,10 +94,10 @@ numerical robustness.
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
     T,
+    p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T),
 ) where {FT}
     R_v = TDI.Rᵥ(tps)
     L = TDI.Lₛ(tps, T)
-    p_vs = TDI.saturation_vapor_pressure_over_ice(tps, T)
 
     # Guard against division by zero
     p_vs_safe = max(p_vs, UT.ϵ_numerics(FT))

@@ -209,7 +209,7 @@ end
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
 
-    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+    qᵥ_sat_liq = TDI.saturation_vapor_specific_content_over_liquid(tps, thermo)
 
     dqsl_dT = dqcld_dT(qᵥ_sat_liq, Lᵥ, Rᵥ, T)
     Γₗ = gamma_helper(Lᵥ, cₚ_air, dqsl_dT)
@@ -283,7 +283,7 @@ end
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
 
-    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, thermo)
 
     dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
     Γᵢ = gamma_helper(Lₛ, cₚ_air, dqsi_dT)
@@ -315,7 +315,7 @@ end
     cₚ_air = TDI.cpₘ(tps, q_tot, q_lcl + q_rai, q_icl + q_sno)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
 
-    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, thermo)
 
     dqsi_dT = dqcld_dT(qᵥ_sat_ice, Lₛ, Rᵥ, T)
     Γᵢ = gamma_helper(Lₛ, cₚ_air, dqsi_dT)
@@ -389,7 +389,7 @@ for how the timescale is used.
     (; ρ, T) = thermo
     τ = τ_relax(mp.cloud.ice, mp.air_properties, CMP.process_params(mp, opt), q_icl, T, ρ)
     sat_excess =
-        TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno) - TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+        TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno) - TDI.saturation_vapor_specific_content_over_ice(tps, thermo)
     blocked = INP_limiter(sat_excess, tps, T; q_lcl, _ice_deposition_limits(opt, mp)...)
     return ifelse(blocked, oftype(τ, Inf), τ)
 end
@@ -398,7 +398,7 @@ end
     (; ρ, T) = thermo
     pp = CMP.process_params(mp, opt)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
-    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    qᵥ_sat_ice = TDI.saturation_vapor_specific_content_over_ice(tps, thermo)
     τ_dep = τ_relax(mp.cloud.ice, mp.air_properties, pp.frostenberg, q_icl, T, ρ)
     # promote the constant branch to the state type so that `ifelse` is type stable
     return ifelse(qᵥ - qᵥ_sat_ice < 0, oftype(τ_dep, pp.τ_relax), τ_dep)

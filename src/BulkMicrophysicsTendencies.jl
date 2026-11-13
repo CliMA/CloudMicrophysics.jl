@@ -185,25 +185,28 @@ the term of the inactive branch is zero.
     ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
     ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
-    state = _source_state(mp, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    state = _source_state(mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
     return _foldl_source_terms(merge, (;), mp, tps, state, _vapor_source_terms(mp, tps, state))
 end
 
 """
-    _source_state(mp, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    _source_state(mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
 
 Inputs of the 1-moment process rates, with negative values clamped to zero (robustness against
 numerical errors): the state tuples `micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)` and
 `thermo = (; ρ, T, w)`, and the size-distribution and fall-speed quantities `sd` (λ⁻¹, n₀, v₀ of
 rain, snow and cloud ice), which are pow/exp-heavy and shared by several processes of a species.
+If a vapor-driven phase change is enabled (`_vapor_coupling`), `thermo` also holds the saturation
+vapor pressures over liquid and ice (`TDI.saturation_vapor_pressures`), which those processes share.
 """
-@inline function _source_state(mp::CMP.Microphysics1MParams, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+@inline function _source_state(mp::CMP.Microphysics1MParams, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
     micro = (;
         q_tot = UT.clamp_to_nonneg(q_tot),
         q_lcl = UT.clamp_to_nonneg(q_lcl), q_icl = UT.clamp_to_nonneg(q_icl),
         q_rai = UT.clamp_to_nonneg(q_rai), q_sno = UT.clamp_to_nonneg(q_sno),
     )
     thermo = (; ρ = UT.clamp_to_nonneg(ρ), T, w)
+    thermo = isnothing(_vapor_coupling(mp.processes)) ? thermo : merge(thermo, TDI.saturation_vapor_pressures(tps, T))
     return (; micro, thermo, sd = CM1.size_distr_parameters(mp, micro, thermo))
 end
 
@@ -386,9 +389,9 @@ construction of the implicit decays). Negative species are clamped to zero on in
     FT = eltype(q_start)
     q = max.(q_start, zero(FT))   # non-negative pools (hosts may pass slightly negative reconstructed values)
     q_min = TDI.TD.Parameters.q_min(tps)
-    state = _source_state(mp, ρ, T, w, q_tot, q...)
+    state = _source_state(mp, tps, ρ, T, w, q_tot, q...)
     vapor = _vapor_source_terms(mp, tps, state)
-    (vapor, sf) = _vapor_terms(_vapor_coupling(mp.processes), vapor, tps, ρ, T, q_tot, q, Δt)
+    (vapor, sf) = _vapor_terms(_vapor_coupling(mp.processes), vapor, tps, ρ, T, q_tot, q, Δt, state.thermo)
     # each process adds its terms to the linearization and to the decay totals as soon as its rates are known
     init = (LinearizedTendency(typeof(q)), (zero(q), zero(q)), (;))
     (lin, (Dpc, Dcol), terms) = _foldl_source_terms(init, mp, tps, state, vapor) do (lin, decays, terms), new_terms
@@ -419,7 +422,7 @@ options `procs`, or `nothing` if all four of them are disabled.
     nothing : procs.vapor_relaxation
 
 """
-    _vapor_terms(coupling, terms, tps, ρ, T, q_tot, q, Δt)
+    _vapor_terms(coupling, terms, tps, ρ, T, q_tot, q, Δt, thermo = (; ρ, T))
 
 The process terms of the substep and the saturation quantities of the vapor limiter
 (`q_smin`, `λ_min`, `Γ_min`, `q_tol`), for the option `coupling` and `terms` that hold the
@@ -428,9 +431,10 @@ with `JointVaporRelaxation` these are replaced by the
 [`JointVaporTransfer`](@ref) terms solved by `_joint_vapor_transfers`; with
 `PerProcessVaporRelaxation` the terms are returned unchanged. With `nothing` (`_vapor_coupling`)
 the terms are zero transfers and no saturation is evaluated: without a vapor source the limiter
-is inactive, which the infinite tolerance `q_tol` states.
+is inactive, which the infinite tolerance `q_tol` states. `thermo` is the thermodynamic state of
+`_source_state`, whose saturation vapor pressures are used if it holds them.
 """
-@inline function _vapor_terms(::Nothing, terms, tps, ρ, T, q_tot, q, Δt)
+@inline function _vapor_terms(::Nothing, terms, tps, ρ, T, q_tot, q, Δt, thermo = (; ρ, T))
     FT = eltype(q)
     terms = (;
         S_phase_change_vap_lcl = JointVaporTransfer(:q_lcl, zero(FT)),
@@ -440,8 +444,8 @@ is inactive, which the infinite tolerance `q_tol` states.
     )
     return (terms, (; q_smin = zero(FT), λ_min = zero(FT), Γ_min = one(FT), q_tol = FT(Inf)))
 end
-@inline function _vapor_terms(::CMP.JointVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
-    jv = _joint_vapor_transfers(terms, tps, ρ, T, q_tot, q..., Δt)
+@inline function _vapor_terms(::CMP.JointVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt, thermo = (; ρ, T))
+    jv = _joint_vapor_transfers(terms, tps, ρ, T, q_tot, q..., Δt, thermo)
     terms = merge(
         terms,
         (;
@@ -453,8 +457,8 @@ end
     )
     return (terms, (; jv.q_smin, jv.λ_min, jv.Γ_min, jv.q_tol))
 end
-@inline function _vapor_terms(::CMP.PerProcessVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
-    st = _saturation_state(tps, ρ, T, q_tot, q...)
+@inline function _vapor_terms(::CMP.PerProcessVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt, thermo = (; ρ, T))
+    st = _saturation_state(tps, ρ, T, q_tot, q..., thermo)
     return (terms, (; st.q_smin, st.λ_min, st.Γ_min, st.q_tol))
 end
 
@@ -635,7 +639,7 @@ This is a pure function of local thermodynamic state, suitable for:
     mode::Union{Instantaneous, InstantaneousVerbose}, ::Microphysics1Moment,
     mp::CMP.Microphysics1MParams, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
-    state = _source_state(mp, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    state = _source_state(mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
     init = (zero(Condensates1M{typeof(q_tot)}), (;))
     (dq_dt, rates) = _foldl_source_terms(init, mp, tps, state, _vapor_source_terms(mp, tps, state)) do (dq_dt, rates), terms
         @inline
