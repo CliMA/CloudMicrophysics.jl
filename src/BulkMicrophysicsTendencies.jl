@@ -221,14 +221,13 @@ without Γ, `Inf` when disabled) and the two exchanges of the precipitation with
     procs = mp.processes
     (; ρ, T) = thermo
     FT = UT.promote_typeof(ρ, T, values(micro)...)
+    (S_icl, τ_icl) = CMNonEq.conv_and_τ_vap_to_q_icl(procs.cloud_ice_formation, mp, tps, micro, thermo)
     return (;
         S_phase_change_vap_lcl = VaporRelaxation(:q_lcl,
             CMNonEq.conv_q_vap_to_q_lcl(procs.cloud_liquid_formation, mp, tps, micro, thermo),
             CMNonEq.τ_vap_to_q_lcl(procs.cloud_liquid_formation, mp, tps, micro, thermo),
         ),
-        S_phase_change_vap_icl = VaporRelaxation(:q_icl,
-            CMNonEq.conv_q_vap_to_q_icl(procs.cloud_ice_formation, mp, tps, micro, thermo),
-            CMNonEq.τ_vap_to_q_icl(procs.cloud_ice_formation, mp, tps, micro, thermo),
+        S_phase_change_vap_icl = VaporRelaxation(:q_icl, S_icl, τ_icl,
             CMNonEq.INP_limiter(
                 one(FT), tps, T; micro.q_lcl, CMNonEq._ice_deposition_limits(procs.cloud_ice_formation, mp)...,
             ),
