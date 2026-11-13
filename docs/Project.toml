@@ -21,6 +21,7 @@ UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
 UnrolledUtilities = "0fe1646c-419e-43be-ac14-22321958931b"
 
 [sources]
+ClimaParams = {rev = "dy/params_macro", url = "https://github.com/CliMA/ClimaParams.jl"}
 CloudMicrophysics = {path = ".."}
 Parcel = {path = "../parcel"}
 

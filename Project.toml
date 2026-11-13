@@ -25,6 +25,9 @@ MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
 [extensions]
 EmulatorModelsExt = ["DataFrames", "MLJ"]
 
+[sources]
+ClimaParams = {rev = "dy/params_macro", url = "https://github.com/CliMA/ClimaParams.jl"}
+
 [compat]
 Adapt = "4"
 ClimaParams = "1.3.7"

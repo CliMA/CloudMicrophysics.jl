@@ -110,7 +110,7 @@ function CMP.AerosolActivationParameters(ekp_params::AbstractArray{FT}) where {F
     (f1, f2, g1, g2, p1, p2) = FT.(ekp_params)
     cur_values = (;
         (
-            name => getfield(default_param_set, name) for
+            name => getproperty(default_param_set, name) for
             name in fieldnames(typeof(default_param_set))
         )...
     )

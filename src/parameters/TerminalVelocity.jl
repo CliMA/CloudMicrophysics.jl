@@ -9,7 +9,7 @@ for rain
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Blk1MVelTypeRain{FT} <: ParametersType
+CP.@params struct Blk1MVelTypeRain{FT} <: ParametersType
     "particle length scale [m]"
     r0::FT
     "rain terminal velocity size relation coefficient [-]"
@@ -54,7 +54,7 @@ for snow
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Blk1MVelTypeSnow{FT} <: ParametersType
+CP.@params struct Blk1MVelTypeSnow{FT} <: ParametersType
     "particle length scale [m]"
     r0::FT
     "snow terminal velocity size relation coefficient [-]"
@@ -113,7 +113,7 @@ The type for precipitation terminal velocity in the Stokes regime (Re < 1)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct StokesRegimeVelType{FT} <: TerminalVelocityType
+CP.@params struct StokesRegimeVelType{FT} <: TerminalVelocityType
     "liquid water density [kg/m³]"
     ρw::FT
     "kinematic viscosity of air [m²/s]"
@@ -130,7 +130,7 @@ The type for precipitation terminal velocity from Seifert and Beheng 2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SB2006VelType{FT} <: TerminalVelocityType
+CP.@params struct SB2006VelType{FT} <: TerminalVelocityType
     "reference air density [kg/m³]"
     ρ0::FT
     "raindrop terminal velocity coefficient aR [m/s]"
@@ -156,7 +156,7 @@ See Table B3 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Chen2022VelTypeSmallIce{FT, N, M} <: TerminalVelocityType
+CP.@params struct Chen2022VelTypeSmallIce{FT, N, M} <: TerminalVelocityType
     A::NTuple{N, FT}
     B::NTuple{N, FT}
     C::NTuple{M, FT}
@@ -178,7 +178,7 @@ See Table B5 for parameter definitions. DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Chen2022VelTypeLargeIce{FT, N} <: TerminalVelocityType
+CP.@params struct Chen2022VelTypeLargeIce{FT, N} <: TerminalVelocityType
     A::NTuple{N, FT}
     B::NTuple{N, FT}
     C::NTuple{N, FT}
@@ -202,7 +202,7 @@ DOI: 10.1016/j.atmosres.2022.106171
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Chen2022VelTypeRain{FT, N} <: TerminalVelocityType
+CP.@params struct Chen2022VelTypeRain{FT, N} <: TerminalVelocityType
     "reference air density coefficient [m³/kg]"
     ρ0::FT
     "velocity coefficients a [-]"

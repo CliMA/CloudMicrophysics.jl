@@ -21,6 +21,7 @@ the device, rather than being rebuilt inside a GPU kernel.
 """
 module Quadrature
 
+import ClimaParams as CP
 import StaticArrays as SA
 import UnrolledUtilities as UU
 import FastGaussQuadrature as FGQ
@@ -161,7 +162,7 @@ If we are interested in only the integral of `f(x)`, we can instead integrate `g
 - https://en.wikipedia.org/wiki/Chebyshev–Gauss_quadrature
 - https://en.wikipedia.org/wiki/Gaussian_quadrature
 """
-struct ChebyshevGauss{FT} <: QuadratureRule
+CP.@params struct ChebyshevGauss{FT} <: QuadratureRule
     n::Int
 end
 ChebyshevGauss(n::Int) = ChebyshevGauss(Float64, n)
@@ -222,7 +223,7 @@ geometrically there too.
 - https://en.wikipedia.org/wiki/Gauss–Legendre_quadrature
 - A. Townsend, *FastGaussQuadrature.jl* (MIT); Bogaert (2014) O(n) nodes/weights.
 """
-struct GaussLegendre{FT, N} <: QuadratureRule
+CP.@params struct GaussLegendre{FT, N} <: QuadratureRule
     n::Int
     nodes::SA.SVector{N, FT}
     weights::SA.SVector{N, FT}
