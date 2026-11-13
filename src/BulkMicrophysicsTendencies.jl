@@ -388,7 +388,7 @@ construction of the implicit decays). Negative species are clamped to zero on in
     q_min = TDI.TD.Parameters.q_min(tps)
     state = _source_state(mp, ρ, T, w, q_tot, q...)
     vapor = _vapor_source_terms(mp, tps, state)
-    (vapor, sf) = _vapor_terms(mp.processes.vapor_relaxation, vapor, tps, ρ, T, q_tot, q, Δt)
+    (vapor, sf) = _vapor_terms(_vapor_coupling(mp.processes), vapor, tps, ρ, T, q_tot, q, Δt)
     # each process adds its terms to the linearization and to the decay totals as soon as its rates are known
     init = (LinearizedTendency(typeof(q)), (zero(q), zero(q)), (;))
     (lin, (Dpc, Dcol), terms) = _foldl_source_terms(init, mp, tps, state, vapor) do (lin, decays, terms), new_terms
@@ -408,6 +408,17 @@ construction of the implicit decays). Negative species are clamped to zero on in
 end
 
 """
+    _vapor_coupling(procs)
+
+The option `procs.vapor_relaxation` that couples the vapor-driven phase changes of the process
+options `procs`, or `nothing` if all four of them are disabled.
+"""
+@inline _vapor_coupling(procs) =
+    isnothing(procs.cloud_liquid_formation) && isnothing(procs.cloud_ice_formation) &&
+    isnothing(procs.rain_condensation_evaporation) && isnothing(procs.snow_deposition_sublimation) ?
+    nothing : procs.vapor_relaxation
+
+"""
     _vapor_terms(coupling, terms, tps, ρ, T, q_tot, q, Δt)
 
 The process terms of the substep and the saturation quantities of the vapor limiter
@@ -415,8 +426,20 @@ The process terms of the substep and the saturation quantities of the vapor limi
 four vapor-driven phase changes (`_vapor_source_terms`):
 with `JointVaporRelaxation` these are replaced by the
 [`JointVaporTransfer`](@ref) terms solved by `_joint_vapor_transfers`; with
-`PerProcessVaporRelaxation` the terms are returned unchanged.
+`PerProcessVaporRelaxation` the terms are returned unchanged. With `nothing` (`_vapor_coupling`)
+the terms are zero transfers and no saturation is evaluated: without a vapor source the limiter
+is inactive, which the infinite tolerance `q_tol` states.
 """
+@inline function _vapor_terms(::Nothing, terms, tps, ρ, T, q_tot, q, Δt)
+    FT = eltype(q)
+    terms = (;
+        S_phase_change_vap_lcl = JointVaporTransfer(:q_lcl, zero(FT)),
+        S_phase_change_vap_icl = JointVaporTransfer(:q_icl, zero(FT)),
+        S_phase_change_vap_rai = JointVaporTransfer(:q_rai, zero(FT)),
+        S_phase_change_vap_sno = JointVaporTransfer(:q_sno, zero(FT)),
+    )
+    return (terms, (; q_smin = zero(FT), λ_min = zero(FT), Γ_min = one(FT), q_tol = FT(Inf)))
+end
 @inline function _vapor_terms(::CMP.JointVaporRelaxation, terms, tps, ρ, T, q_tot, q, Δt)
     jv = _joint_vapor_transfers(terms, tps, ρ, T, q_tot, q..., Δt)
     terms = merge(
