@@ -281,27 +281,24 @@ end
 end
 
 """
-    _solve_2x2(A, b)
+    _solve_2x2(a₁, a₂, d₂₁, d₁₂, b₁, b₂)
 
-Return the solution `x` of `A x = b` for a `2 × 2` diagonal block `A` of the backward Euler
-step in [`backward_euler_solve`](@ref), by Cramer's rule.
+Return the solution `(x₁, x₂)` of a `2 × 2` diagonal block of the backward Euler step in
+[`backward_euler_solve`](@ref), by Cramer's rule.
 
 The block is `I/Δt - M` restricted to two species, with the decays `D ≥ 0` of
 [`donor_coefficients`](@ref):
 
-    A = [ 1/Δt + D₁    -D₂₁      ]
-        [ -D₁₂         1/Δt + D₂ ]
+    [ a₁     -d₂₁ ] [ x₁ ]   [ b₁ ]        a₁ = 1/Δt + D₁,  a₂ = 1/Δt + D₂,
+    [ -d₁₂   a₂   ] [ x₂ ] = [ b₂ ]
 
-Here `Dⱼ` is the total decay of species `j`, and `Dⱼᵢ ≤ Dⱼ` is the part of it transferred to
-species `i`. Then `det A = (1/Δt + D₁)(1/Δt + D₂) - D₁₂ D₂₁ > 0`, so the closed form needs
+Here `Dⱼ` is the total decay of species `j`, and `dⱼᵢ ≤ Dⱼ` is the part of it transferred to
+species `i` (the entry `M[i, j]`). Then `det = a₁ a₂ - d₁₂ d₂₁ > 0`, so the closed form needs
 no pivoting or check for a singular block.
 """
-@inline function _solve_2x2(A, b)
-    det = muladd(-A[1, 2], A[2, 1], A[1, 1] * A[2, 2])  # one rounding for the difference
-    return SA.SVector(
-        (b[1] * A[2, 2] - A[1, 2] * b[2]) / det,
-        (A[1, 1] * b[2] - A[2, 1] * b[1]) / det,
-    )
+@inline function _solve_2x2(a₁, a₂, d₂₁, d₁₂, b₁, b₂)
+    det = muladd(-d₂₁, d₁₂, a₁ * a₂)  # one rounding for the difference
+    return ((b₁ * a₂ + d₂₁ * b₂) / det, (a₁ * b₂ + d₁₂ * b₁) / det)
 end
 
 """
@@ -325,21 +322,16 @@ precipitation species, such as autoconversion and accretion. The step is then so
     A_pp q_new_p = b_p + M_pc q_new_c
 
 The solve assumes that the block `M_cp` from the precipitation to the cloud species is zero.
+Each block reads its entries of `M`, `e` and `q` when it is solved, so that neither `A` nor
+`b` is held as a whole.
 """
 @inline function backward_euler_solve((; M, e)::LinearizedTendency{Q}, q::Q, α, Δt) where {Q <: Condensates1M}
-    to_index(s) = Base.fieldindex(Q, s)
-    c = map(to_index, SA.SVector((:q_lcl, :q_icl)))  # cloud  species indices
-    p = map(to_index, SA.SVector((:q_rai, :q_sno)))  # precip species indices
+    (l, i, r, s) = map(species -> Base.fieldindex(Q, species), (:q_lcl, :q_icl, :q_rai, :q_sno))
     invΔt = one(eltype(q)) / Δt
-    A = invΔt * SA.I - M
-    b = α * e + invΔt * q
-
-    q_cloud = _solve_2x2(A[c, c], b[c])
-    M_pc = M[p, c]
-    r = muladd.(M_pc[:, 1], q_cloud[1], muladd.(M_pc[:, 2], q_cloud[2], b[p]))  # b_p + M_pc q_new_c
-    q_precip = _solve_2x2(A[p, p], r)
-
-    q_new = similar(q)
-    q_new[c], q_new[p] = q_cloud, q_precip
-    return Q(q_new)
+    b(k) = α * e[k] + invΔt * q[k]
+    (q_l, q_i) = _solve_2x2(invΔt - M[l, l], invΔt - M[i, i], M[l, i], M[i, l], b(l), b(i))
+    b_r = muladd(M[r, l], q_l, muladd(M[r, i], q_i, b(r)))  # b_p + M_pc q_new_c
+    b_s = muladd(M[s, l], q_l, muladd(M[s, i], q_i, b(s)))
+    (q_r, q_s) = _solve_2x2(invΔt - M[r, r], invΔt - M[s, s], M[r, s], M[s, r], b_r, b_s)
+    return Q(q_l, q_i, q_r, q_s)
 end
