@@ -320,12 +320,20 @@ end
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 
+# gamma(b + 4) for the large ice coefficients b, which depend only on parameters
+@inline function chen2022_large_ice_gammas(vel, (; ρᵢ)::CMP.Snow)
+    (_, bi, _) = CO.Chen2022_vel_coeffs(vel, one(ρᵢ), ρᵢ)
+    return map(b -> SF.gamma(b + 4), bi)
+end
+
 @inline function terminal_velocity(
-    (; pdf, mass, area, ρᵢ, aspr)::CMP.Snow,
+    snow::CMP.Snow,
     vel::CMP.Chen2022VelTypeLargeIce,
     ρₐ,
     q,
 )
+    (; pdf, mass, ρᵢ, aspr) = snow
+    gammas = UT.precomputed(chen2022_large_ice_gammas, vel, snow)
     # We assume the B5 table coeffs for snow and B3 table coeffs for cloud ice.
     # Instead we should do partial integrals
     # from D=125um to D=625um using B3 and D=625um to inf using B5.
@@ -341,8 +349,8 @@ end
 
     # eq 20 from Chen 2022 (loop unrolled for GPU performance)
     fall_w =
-        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
+        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3, gammas[1]) +
+        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3, gammas[2])
     fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
@@ -717,15 +725,17 @@ end
     v0,
     λ_inv,
 )
-    (; r0, m0, me, Δm, χm) = rain.mass
+    (; r0, gamma_coeff) = rain.mass
     (; χv, ve, Δv, gamma_accr_rain_sink) = vel
     (; a0, ae, χa, Δa) = rain.area
 
-    # gamma_accr_rain_sink = SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) (pre-computed in vel)
+    # gamma_accr_rain_sink = SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) (pre-computed in vel).
+    # The rain mass content ρ q_rai = n0 m0 χm gamma_coeff λ_inv^(me + Δm + 1) / r0^(me + Δm)
+    # (`lambda_inverse`) is a factor of the rate, which leaves the power of the accretion rate.
     accr_rate =
-        E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv * λ_ice_inv * λ_inv *
-        gamma_accr_rain_sink /
-        (r0 / λ_inv)^(me + ae + ve + Δm + Δa + Δv)
+        E * q_rai * n0_ice * λ_ice_inv * a0 * v0 * χa * χv *
+        gamma_accr_rain_sink / gamma_coeff /
+        (r0 / λ_inv)^(ae + ve + Δa + Δv)
 
     ϵ = UT.ϵ_numerics(UT.promote_typeof(q_icl, q_rai))
     cond = q_icl > ϵ && q_rai > ϵ
@@ -786,6 +796,8 @@ deviations are proportional to the mean fall velocities, with coefficient
 - `n0_i`, `n0_j`, `v0_i`, `v0_j`, `λ_i_inv`, `λ_j_inv`: (kernel form only)
   precomputed size-distribution intercepts, fall-speed scales, and inverse
   slopes for both species
+- `Δv_eff`: (kernel form only, optional) effective fall speed difference of the two
+  species (`_fall_speed_difference`), which is the same for both orders of the species
 """
 @inline function accretion_snow_rain(
     type_i::CMP.PrecipitationType,
@@ -803,31 +815,43 @@ deviations are proportional to the mean fall velocities, with coefficient
     v0_j,
     λ_i_inv,
     λ_j_inv,
+    Δv_eff = _fall_speed_difference(
+        type_i, type_j, blk1mveltype_ti, blk1mveltype_tj, coeff_disp, q_i, q_j, ρ, v0_i, v0_j, λ_i_inv, λ_j_inv,
+    ),
 )
-    (; r0, m0, me, Δm, χm, gamma_coeff) = type_j.mass
+    (; me, Δm) = type_j.mass
     δ = me + Δm
 
-    v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i, v0_i, λ_i_inv)
-    v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j, v0_j, λ_j_inv)
-
-    # Add simple parameterization for velocity dispersion, assuming that fall velocity
-    # standard deviations are proportional to the mean fall velocities, with coefficient
-    # coeff_disp
-    Δv_eff = sqrt((v_ti - v_tj)^2 + coeff_disp * (v_ti^2 + v_tj^2))
-
-    # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms.
-    # gamma_coeff = Γ(δ + 1) is pre-computed.
+    # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms. The common
+    # factor of the three terms, n0_j m0 χm Γ(δ + 1) λ_j_inv^(δ + 1) / r0^δ, is the mass
+    # content ρ q_j of species j (`lambda_inverse`), so no power is evaluated.
     accr_rate =
-        π / ρ * n0_i * n0_j * m0 * χm * E_ij * Δv_eff * gamma_coeff /
-        r0^δ * (
-            2 * λ_i_inv^3 * λ_j_inv^(δ + 1) +
-            2 * (δ + 1) * λ_i_inv^2 * λ_j_inv^(δ + 2) +
-            (δ + 2) * (δ + 1) * λ_i_inv * λ_j_inv^(δ + 3)
-        )
+        π * n0_i * E_ij * Δv_eff * q_j * λ_i_inv *
+        (2 * λ_i_inv^2 + 2 * (δ + 1) * λ_i_inv * λ_j_inv + (δ + 2) * (δ + 1) * λ_j_inv^2)
 
     ϵ = UT.ϵ_numerics(UT.promote_typeof(q_i, q_j))
     cond = q_i > ϵ && q_j > ϵ
     return ifelse(cond, accr_rate, zero(accr_rate))
+end
+
+"""
+    _fall_speed_difference(
+        type_i, type_j, blk1mveltype_ti, blk1mveltype_tj, coeff_disp, q_i, q_j, ρ,
+        v0_i, v0_j, λ_i_inv, λ_j_inv,
+    )
+
+Effective difference of the mass-weighted fall speeds of two precipitation species [m/s],
+`√((v_i - v_j)² + coeff_disp (v_i² + v_j²))`: the difference of the mean fall speeds with a
+velocity dispersion that assumes fall speed standard deviations proportional to the mean fall
+speeds, with coefficient `coeff_disp`. The arguments are those of `accretion_snow_rain`; the
+result is unchanged when the species are exchanged.
+"""
+@inline function _fall_speed_difference(
+    type_i, type_j, blk1mveltype_ti, blk1mveltype_tj, coeff_disp, q_i, q_j, ρ, v0_i, v0_j, λ_i_inv, λ_j_inv,
+)
+    v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i, v0_i, λ_i_inv)
+    v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j, v0_j, λ_j_inv)
+    return sqrt((v_ti - v_tj)^2 + coeff_disp * (v_ti^2 + v_tj^2))
 end
 
 @inline function accretion_snow_rain(
@@ -1029,6 +1053,10 @@ end
     sno = mp.precip.snow
     rai = mp.precip.rain
     (; e, coeff_disp) = CMP.process_params(mp, opt)
+    Δv_eff = _fall_speed_difference(
+        sno, rai, vel.snow, vel.rain, coeff_disp, q_sno, q_rai, ρ,
+        sd.v0_sno, sd.v0_rai, sd.λ_inv_sno, sd.λ_inv_rai,
+    )
     S_rai_sno = accretion_snow_rain(
         sno,
         rai,
@@ -1045,6 +1073,7 @@ end
         sd.v0_rai,
         sd.λ_inv_sno,
         sd.λ_inv_rai,
+        Δv_eff,
     )
     S_sno_rai = accretion_snow_rain(
         rai,
@@ -1062,6 +1091,7 @@ end
         sd.v0_sno,
         sd.λ_inv_rai,
         sd.λ_inv_sno,
+        Δv_eff,
     )
     α = warm_accretion_melt_factor(tps, T)
     return (; S_rai_sno, S_sno_rai, S_melt = α * S_rai_sno)

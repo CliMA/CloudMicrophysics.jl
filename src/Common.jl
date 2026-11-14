@@ -411,7 +411,7 @@ Return the Chen et al. (2022) terminal velocity term for a single particle.
 end
 
 """
-    Chen2022_exponential_pdf(a, b, c, λ_inv, k)
+    Chen2022_exponential_pdf(a, b, c, λ_inv, k, gamma_b_δ = SF.gamma(b + (k + 1)))
 
 Returns the addends of the bulk fall speed of rain or ice particles
 following Chen et al. (2022), https://doi.org/10.1016/j.atmosres.2022.106171.
@@ -421,18 +421,21 @@ Assumes exponential size distribution (μ=0).
  - `a`, `b`, `c`: free parameters defined in Chen et al. (2022)
  - `λ_inv`: inverse of the size distribution parameter [m]
  - `k`: size distribution moment for which we compute the bulk fall speed
+ - `gamma_b_δ`: `Γ(b + k + 1)`
 
 # Returns
 - Bulk fall speed component [m/s]
 """
-@inline function Chen2022_exponential_pdf(a, b, c, λ_inv, k::Int)
+@inline function Chen2022_exponential_pdf(a, b, c, λ_inv, k::Int, gamma_b_δ = SF.gamma(b + (k + 1)))
     FT = UT.promote_typeof(a, b, c, λ_inv)
     # μ = 0 for exponential distribution, δ = k + 1
     δ = FT(k + 1)
     # Γ(δ) = k! for integer δ = k + 1. `UT.fac` computes the product directly;
     # `Base.factorial` reads a host-memory table, which is not GPU-compatible.
     gamma_delta = FT(UT.fac(k))
-    return a * exp(-δ * log(λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / gamma_delta
+    # log(1 / λ_inv + c) is -log(λ_inv) for c = 0
+    log_inv = iszero(c) ? -log(λ_inv) : log(1 / λ_inv + c)
+    return a * exp(-δ * log(λ_inv) - (b + δ) * log_inv) * gamma_b_δ / gamma_delta
 end
 
 """
