@@ -11,7 +11,7 @@ scheme's rate per unit excess when its pool is not limiting (`_joint_vapor_trans
 to the scheme's pool-bounded rate for a phase that stays a sink over the substep), or `0` when the process is disabled (`τ = Inf`) or its rate was zeroed by a switch
 or limiter (`S = 0` at `|δ| > tol`).
 """
-@inline function _relaxation_coefficient(S, τ, Γ, δ, tol)
+UT.@approx_ops @inline function _relaxation_coefficient(S, τ, Γ, δ, tol)
     FT = typeof(S)
     τ_c = clamp(τ, eps(FT), floatmax(FT))
     c = ifelse(τ < floatmax(FT), one(FT) / (τ_c * Γ), zero(FT))
@@ -27,7 +27,7 @@ or sublimation) whose 1-moment rate is linear in the vapor excess `δ`; `0` when
 vanishes (`|δ| ≤ tol`) or the rate was zeroed by a switch. The 1-moment rain rate is a sink
 only (`conv_q_rai_to_q_vap` returns `min(0, ⋅)`); a positive rain rate would be accepted.
 """
-@inline function _ratio_coefficient(S, δ, tol)
+UT.@approx_ops @inline function _ratio_coefficient(S, δ, tol)
     FT = typeof(S)
     excess = abs(δ) > tol
     return ifelse(excess, max(S / ifelse(excess, δ, one(FT)), zero(FT)), zero(FT))
@@ -42,7 +42,7 @@ Milbrandt 2015, eq. C5): `δ̄ = A τ + (δ₀ - A τ) φ(Δt/τ)` with the fact
 [`_relaxation_transfer`](@ref) (which is this with `A = 0`). Reduces to `δ₀` when
 `invτ = 1/τ = 0` (no active process).
 """
-@inline function _averaged_excess(δ₀, A, invτ, Δt)
+UT.@approx_ops @inline function _averaged_excess(δ₀, A, invτ, Δt)
     FT = typeof(δ₀)
     x = invτ * Δt                       # Δt/τ
     active = x > eps(FT)                # for x ≤ eps the average is δ₀ to round-off
@@ -150,7 +150,7 @@ positive = vapor → condensate] and, for the vapor check, the lower saturation
 `q_smin = min(q*_liq, q*_ice)`, its temperature derivative `λ_min`, the corresponding
 `Γ_min`, and the round-off tolerance `q_tol` used for the excesses.
 """
-@inline function _joint_vapor_transfers(src, tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+UT.@approx_ops @inline function _joint_vapor_transfers(src, tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
     (; qᵥ, q_sl, q_si, Γₗ, Γᵢ, κ_il, κ_li, q_smin, λ_min, Γ_min, q_tol) =
         _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
     δₗ = qᵥ - q_sl
