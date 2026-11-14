@@ -146,7 +146,7 @@ For x < 0 the value at x = 0 is returned. For x_0 = 0, H(x) is returned.
 end
 
 """
-    logistic_function_integral(x, x_0, k)
+    logistic_function_integral(x, x_0, k, trnslt = logistic_translation(k))
 
 Returns the value of the indefinite integral of the logistic function, for smooth transitioning
 of piecewise linear profiles at thresholds.
@@ -157,20 +157,18 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
 - `x`: independent variable
 - `x_0`: threshold value for x
 - `k`: growth rate of the logistic function, characterizing steepness of the transition
+- `trnslt`: translation of the curve that enforces zero at x = 0, which depends only on `k`
 
 # Returns
 - Integral of logistic function (same units as x)
 """
-@inline function logistic_function_integral(x, x_0, k)
+@inline function logistic_function_integral(x, x_0, k, trnslt = logistic_translation(k))
     FT = UT.promote_typeof(x, x_0, k)
     # Branchless GPU-compatible implementation
     x = max(FT(0), x)
     x_safe = max(x, UT.ϵ_numerics(FT))
     x_0_safe = max(x_0, UT.ϵ_numerics(FT))
 
-    # translation of the curve in x and y to enforce zero at x = 0
-    # Using log1mexp for numerical stability: log1mexp(x) = log(1 - exp(x))
-    trnslt = -LEF.log1mexp(-k) / k
     kt = k * (x_safe / x_0_safe - 1 + trnslt)
     # log1pexp handles all kt values correctly
     result = (LEF.log1pexp(kt) / k - trnslt) * x_0_safe
@@ -178,6 +176,10 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
     # Handle edge cases: if x ≈ 0, return 0; if x_0 ≈ 0, return x
     return ifelse(x < UT.ϵ_numerics(FT), FT(0), ifelse(x_0 < UT.ϵ_numerics(FT), x, result))
 end
+
+# The translation of the curve of `logistic_function_integral` in x and y that enforces zero at
+# x = 0, using log1mexp for numerical stability: log1mexp(x) = log(1 - exp(x))
+@inline logistic_translation(k) = -LEF.log1mexp(-k) / k
 
 """
     H2SO4_soln_saturation_vapor_pressure(prs, x, T)
@@ -286,6 +288,7 @@ end
 """
     Chen2022_vel_coeffs(coeffs, ρₐ)
     Chen2022_vel_coeffs(coeffs, ρₐ, ρᵢ)
+    Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ, table)
 
 Compute the coefficients for the Chen 2022 terminal velocity parametrization.
 
@@ -297,6 +300,8 @@ Compute the coefficients for the Chen 2022 terminal velocity parametrization.
  - `ρₐ`: air density [kg/m³]
  - `ρᵢ`: apparent density of ice particles [kg/m³],
     only used for [`CMP.Chen2022VelTypeSmallIce`](@ref) and [`CMP.Chen2022VelTypeLargeIce`](@ref)
+ - `table`: the coefficients of [`CMP.Chen2022VelTypeLargeIce`](@ref) that depend only on `ρᵢ`
+   ([`Chen2022_large_ice_table`](@ref)), for a caller that precomputes them
 
 # Returns
  - A tuple `(aiu, bi, ciu)` of coefficient tuples, with `aiu` and `ciu`
@@ -335,10 +340,27 @@ end
     return chen2022_coeffs_si(ai, bi, ci)
 end
 
-@inline function Chen2022_vel_coeffs(coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ)
+@inline function Chen2022_vel_coeffs(
+    coeffs::CMP.Chen2022VelTypeLargeIce, ρₐ, ρᵢ, table = Chen2022_large_ice_table(coeffs, ρᵢ),
+)
+    (; Al, Bl, El, Hl, bi, ciu, scale) = table
+    ρₐ = max(ρₐ, UT.ϵ_numerics(ρₐ))
+    # Table B5
+    aiu = (Bl * ρₐ^Al * scale[1], El * ρₐ^Al * exp(Hl * ρₐ) * scale[2])
+    return (aiu, bi, ciu)
+end
+
+"""
+    Chen2022_large_ice_table(coeffs, ρᵢ)
+
+The coefficients of Table B5 of Chen et al. (2022) for [`CMP.Chen2022VelTypeLargeIce`](@ref)
+that depend only on the apparent density of the ice particles `ρᵢ` [kg/m³]:
+`(; Al, Bl, El, Hl, bi, ciu, scale)`, with the exponents `bi`, the rates `ciu` in SI units, and
+the factors `scale = 1000 .^ bi` of the prefactors in SI units.
+"""
+@inline function Chen2022_large_ice_table(coeffs::CMP.Chen2022VelTypeLargeIce, ρᵢ)
     FT = eltype(coeffs)
     (; A, B, C, E, F, G, H) = coeffs
-    ρₐ = max(ρₐ, UT.ϵ_numerics(ρₐ))
     # Table B5 - cache sqrt for reuse
     log_ρᵢ = log(ρᵢ)
     sqrt_ρᵢ = sqrt(ρᵢ)
@@ -349,11 +371,9 @@ end
     Fl = F[1] + F[2] * log_ρᵢ - exp(log(-F[3]) - ρᵢ)
     Gl = 1 / (G[1] + G[2] * log_ρᵢ * sqrt_ρᵢ + G[3] / sqrt_ρᵢ)
     Hl = H[1] + H[2] * ρᵢ^2 * sqrt_ρᵢ + exp(log(-H[3]) - ρᵢ)  # ρᵢ^(5/2) = ρᵢ^2 * sqrt(ρᵢ)
-    # Table B5
-    ai = (Bl * ρₐ^Al, El * ρₐ^Al * exp(Hl * ρₐ))
     bi = (Cl, Fl)
     ci = (FT(0), Gl)
-    return chen2022_coeffs_si(ai, bi, ci)
+    return (; Al, Bl, El, Hl, bi, ciu = map(c -> c * 1000, ci), scale = map(b -> 1000^b, bi))
 end
 
 """
@@ -411,7 +431,7 @@ Return the Chen et al. (2022) terminal velocity term for a single particle.
 end
 
 """
-    Chen2022_exponential_pdf(a, b, c, λ_inv, k)
+    Chen2022_exponential_pdf(a, b, c, λ_inv, k, gamma_b_δ = SF.gamma(b + (k + 1)))
 
 Returns the addends of the bulk fall speed of rain or ice particles
 following Chen et al. (2022), https://doi.org/10.1016/j.atmosres.2022.106171.
@@ -421,18 +441,21 @@ Assumes exponential size distribution (μ=0).
  - `a`, `b`, `c`: free parameters defined in Chen et al. (2022)
  - `λ_inv`: inverse of the size distribution parameter [m]
  - `k`: size distribution moment for which we compute the bulk fall speed
+ - `gamma_b_δ`: `Γ(b + k + 1)`
 
 # Returns
 - Bulk fall speed component [m/s]
 """
-@inline function Chen2022_exponential_pdf(a, b, c, λ_inv, k::Int)
+@inline function Chen2022_exponential_pdf(a, b, c, λ_inv, k::Int, gamma_b_δ = SF.gamma(b + (k + 1)))
     FT = UT.promote_typeof(a, b, c, λ_inv)
     # μ = 0 for exponential distribution, δ = k + 1
     δ = FT(k + 1)
     # Γ(δ) = k! for integer δ = k + 1. `UT.fac` computes the product directly;
     # `Base.factorial` reads a host-memory table, which is not GPU-compatible.
     gamma_delta = FT(UT.fac(k))
-    return a * exp(-δ * log(λ_inv) - (b + δ) * log(1 / λ_inv + c)) * SF.gamma(b + δ) / gamma_delta
+    # log(1 / λ_inv + c) is -log(λ_inv) for c = 0
+    log_inv = iszero(c) ? -log(λ_inv) : log(1 / λ_inv + c)
+    return a * exp(-δ * log(λ_inv) - (b + δ) * log_inv) * gamma_b_δ / gamma_delta
 end
 
 """
