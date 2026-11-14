@@ -166,8 +166,9 @@ end
 
 """
     donor_linearization(terms, q, q_min, Δt, f_k = one.(q))
+    donor_linearization!(lin, terms, q, q_min, Δt, f_k = one.(q))
 
-Return the donor-based [`LinearizedTendency`](@ref) of `terms` at the species `q`.
+Return the donor-based [`LinearizedTendency`](@ref) of `terms` at the species `q`, or add it to `lin`.
 
 Each term adds the coefficients `(s, D)` of [`donor_coefficients`](@ref): `-D` to the
 diagonal entry of its donor, `D` to the entry in the row of its receiver if the receiver is
@@ -182,24 +183,22 @@ entry of their donor (the per-donor factors of the latent-heating limiter).
 - `Δt`: width of the substep [s].
 - `f_k`: decay scale per donor, a state like `q` [-].
 """
-@inline function donor_linearization(terms, q::Q, q_min, Δt, f_k = one.(q)) where {Q}
-    lin = LinearizedTendency(Q)
+@inline donor_linearization(terms, q::Q, q_min, Δt, f_k = one.(q)) where {Q} =
+    donor_linearization!(LinearizedTendency(Q), terms, q, q_min, Δt, f_k)
+@inline function donor_linearization!(lin, terms, q, q_min, Δt, f_k = one.(q))
     UU.unrolled_foreach(t -> (@inline; _add_donor_term!(lin, t, q, q_min, Δt, f_k)), values(terms))
     return lin
 end
 
 """
-    limiter_decay_totals(terms, q, q_min, Δt)
+    limiter_decay_totals(terms, q, q_min, Δt, init = (zero(q), zero(q)))
 
 Return per donor the total decay of the terms that change phase and the total decay of the
-other terms, `(Dpc, Dcol)`, as two states like `q` [1/s]; the inputs of
+other terms, `(Dpc, Dcol)`, as two states like `q` [1/s], added to `init`; the inputs of
 [`_donor_limiter_scale`](@ref).
 """
-@inline function limiter_decay_totals(terms, q::Q, q_min, Δt) where {Q}
-    return UU.unrolled_reduce(
-        (acc, t) -> (@inline; _add_decay_total(acc, t, q, q_min, Δt)), values(terms), (zero(q), zero(q)),
-    )
-end
+@inline limiter_decay_totals(terms, q, q_min, Δt, init = (zero(q), zero(q))) =
+    UU.unrolled_reduce((acc, t) -> (@inline; _add_decay_total(acc, t, q, q_min, Δt)), values(terms), init)
 @inline function _add_decay_total((Dpc, Dcol), t::Transfer{Donor}, q, q_min, Δt) where {Donor}
     (_, D) = donor_coefficients(t, q, q_min, Δt)
     return ifelse(
@@ -228,6 +227,27 @@ terms that change phase and `Dcol` that of its other terms ([`limiter_decay_tota
 @inline function _donor_limiter_scale(f, Dpc, Dcol, Δt)
     FT = typeof(f)
     return f * (one(FT) + Dcol * Δt) / (one(FT) + Dcol * Δt + (one(FT) - f) * Dpc * Δt)
+end
+
+"""
+    limited_linearization(lin, Dpc, Dcol, f_k)
+
+Return the [`LinearizedTendency`](@ref) `lin` of unscaled terms with the decays of the terms that
+change phase scaled by the entry of their donor in `f_k`, from the totals `(Dpc, Dcol)` of
+[`limiter_decay_totals`](@ref) for the same terms; equal, up to rounding, to
+[`donor_linearization`](@ref) of the terms with `f_k`, and identical to `lin` where `f_k` is 1.
+
+A transfer changes phase if its donor and its receiver are of different phases, so an off-diagonal
+entry of `M` holds only decays that are scaled or only decays that are not, and the diagonal entry
+of a donor is minus its total decay, `f_k Dpc + Dcol`.
+"""
+@inline function limited_linearization((; M, e)::LinearizedTendency{Q}, Dpc, Dcol, f_k) where {Q}
+    is_ice = SA.SVector(map(_is_ice, fieldnames(Q)))
+    changes_phase = is_ice .!= is_ice'  # the receiver (row) and the donor (column) differ in phase
+    is_diagonal = SA.SMatrix{length(Q), length(Q), Bool}(SA.I)
+    D = ifelse.(isone.(f_k), -SA.diag(M), f_k .* Dpc .+ Dcol)
+    M_lim = ifelse.(is_diagonal, -D', ifelse.(changes_phase, f_k' .* M, M))
+    return LinearizedTendency{Q, typeof(M_lim), typeof(e)}(M_lim, e)
 end
 
 """
@@ -261,27 +281,24 @@ end
 end
 
 """
-    _solve_2x2(A, b)
+    _solve_2x2(a₁, a₂, d₂₁, d₁₂, b₁, b₂)
 
-Return the solution `x` of `A x = b` for a `2 × 2` diagonal block `A` of the backward Euler
-step in [`backward_euler_solve`](@ref), by Cramer's rule.
+Return the solution `(x₁, x₂)` of a `2 × 2` diagonal block of the backward Euler step in
+[`backward_euler_solve`](@ref), by Cramer's rule.
 
 The block is `I/Δt - M` restricted to two species, with the decays `D ≥ 0` of
 [`donor_coefficients`](@ref):
 
-    A = [ 1/Δt + D₁    -D₂₁      ]
-        [ -D₁₂         1/Δt + D₂ ]
+    [ a₁     -d₂₁ ] [ x₁ ]   [ b₁ ]        a₁ = 1/Δt + D₁,  a₂ = 1/Δt + D₂,
+    [ -d₁₂   a₂   ] [ x₂ ] = [ b₂ ]
 
-Here `Dⱼ` is the total decay of species `j`, and `Dⱼᵢ ≤ Dⱼ` is the part of it transferred to
-species `i`. Then `det A = (1/Δt + D₁)(1/Δt + D₂) - D₁₂ D₂₁ > 0`, so the closed form needs
+Here `Dⱼ` is the total decay of species `j`, and `dⱼᵢ ≤ Dⱼ` is the part of it transferred to
+species `i` (the entry `M[i, j]`). Then `det = a₁ a₂ - d₁₂ d₂₁ > 0`, so the closed form needs
 no pivoting or check for a singular block.
 """
-@inline function _solve_2x2(A, b)
-    det = muladd(-A[1, 2], A[2, 1], A[1, 1] * A[2, 2])  # one rounding for the difference
-    return SA.SVector(
-        (b[1] * A[2, 2] - A[1, 2] * b[2]) / det,
-        (A[1, 1] * b[2] - A[2, 1] * b[1]) / det,
-    )
+@inline function _solve_2x2(a₁, a₂, d₂₁, d₁₂, b₁, b₂)
+    det = muladd(-d₂₁, d₁₂, a₁ * a₂)  # one rounding for the difference
+    return ((b₁ * a₂ + d₂₁ * b₂) / det, (a₁ * b₂ + d₁₂ * b₁) / det)
 end
 
 """
@@ -305,21 +322,16 @@ precipitation species, such as autoconversion and accretion. The step is then so
     A_pp q_new_p = b_p + M_pc q_new_c
 
 The solve assumes that the block `M_cp` from the precipitation to the cloud species is zero.
+Each block reads its entries of `M`, `e` and `q` when it is solved, so that neither `A` nor
+`b` is held as a whole.
 """
 @inline function backward_euler_solve((; M, e)::LinearizedTendency{Q}, q::Q, α, Δt) where {Q <: Condensates1M}
-    to_index(s) = Base.fieldindex(Q, s)
-    c = map(to_index, SA.SVector((:q_lcl, :q_icl)))  # cloud  species indices
-    p = map(to_index, SA.SVector((:q_rai, :q_sno)))  # precip species indices
+    (l, i, r, s) = map(species -> Base.fieldindex(Q, species), (:q_lcl, :q_icl, :q_rai, :q_sno))
     invΔt = one(eltype(q)) / Δt
-    A = invΔt * SA.I - M
-    b = α * e + invΔt * q
-
-    q_cloud = _solve_2x2(A[c, c], b[c])
-    M_pc = M[p, c]
-    r = muladd.(M_pc[:, 1], q_cloud[1], muladd.(M_pc[:, 2], q_cloud[2], b[p]))  # b_p + M_pc q_new_c
-    q_precip = _solve_2x2(A[p, p], r)
-
-    q_new = similar(q)
-    q_new[c], q_new[p] = q_cloud, q_precip
-    return Q(q_new)
+    b(k) = α * e[k] + invΔt * q[k]
+    (q_l, q_i) = _solve_2x2(invΔt - M[l, l], invΔt - M[i, i], M[l, i], M[i, l], b(l), b(i))
+    b_r = muladd(M[r, l], q_l, muladd(M[r, i], q_i, b(r)))  # b_p + M_pc q_new_c
+    b_s = muladd(M[s, l], q_l, muladd(M[s, i], q_i, b(s)))
+    (q_r, q_s) = _solve_2x2(invΔt - M[r, r], invΔt - M[s, s], M[r, s], M[s, r], b_r, b_s)
+    return Q(q_l, q_i, q_r, q_s)
 end

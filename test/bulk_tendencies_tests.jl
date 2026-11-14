@@ -1263,7 +1263,8 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             src = BMT._microphysics_source_terms(args...)
             terms = map(with_rate, src, NamedTuple{keys(src)}(verbose))
             Σ = BMT.species_tendency(terms, BMT.Condensates1M{FT})
-            @test Σ ≈ BMT.Condensates1M(values(avg)...) atol = atol
+            # each rate is rounded relative to its own magnitude, which can exceed the net tendencies
+            @test Σ ≈ BMT.Condensates1M(values(avg)...) atol = 10 * eps(FT) * sum(t -> abs(t.S), terms)
         end
     end
 
