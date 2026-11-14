@@ -10,7 +10,7 @@ and from Mohler et al, 2006 DOI: 10.5194/acp-6-3007-2006
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct DesertDust{FT} <: AerosolType
+CP.@params struct DesertDust{FT} <: AerosolType
     "S₀ for T > T_thr [-]"
     S₀_warm::FT
     "S₀ for T < T_thr [-]"

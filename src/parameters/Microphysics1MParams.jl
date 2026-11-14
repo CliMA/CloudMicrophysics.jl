@@ -84,7 +84,7 @@ mp = CMP.Microphysics1MParams(Float64;
 )
 ```
 """
-@kwdef struct Microphysics1MParams{OPT, PPR, CP, PP, AP, VL, FT} <: ParametersType
+CP.@params struct Microphysics1MParams{OPT, PPR, CP, PP, AP, VL, FT} <: ParametersType
     processes::OPT
     process_params::PPR
     cloud::CP

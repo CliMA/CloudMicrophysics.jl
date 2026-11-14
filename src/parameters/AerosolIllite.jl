@@ -9,7 +9,7 @@ DOI: 10.1039/C3FD00035D
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Illite{FT} <: AerosolType
+CP.@params struct Illite{FT} <: AerosolType
     "m coefficient for deposition nucleation J [-]"
     deposition_m::FT
     "c coefficient for deposition nucleation J [-]"

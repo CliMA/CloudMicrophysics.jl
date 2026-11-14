@@ -23,7 +23,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct MassPowerLaw{FT} <: ParametersType
+CP.@params struct MassPowerLaw{FT} <: ParametersType
     "Coefficient in mass(size) relation [`kg m^(-β_va)`]"
     α_va::FT
     "Coefficient in mass(size) relation [`-`]"
@@ -53,7 +53,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AreaPowerLaw{FT} <: ParametersType
+CP.@params struct AreaPowerLaw{FT} <: ParametersType
     "Scale [`m^(2-σ)`]"
     γ::FT
     "Power [`-`]"
@@ -96,7 +96,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SlopePowerLaw{FT} <: SlopeLaw
+CP.@params struct SlopePowerLaw{FT} <: SlopeLaw
     "Scale [`m^b`]"
     a::FT
     "Power [`-`]"
@@ -129,7 +129,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SmoothSlopePowerLaw{FT} <: SlopeLaw
+CP.@params struct SmoothSlopePowerLaw{FT} <: SlopeLaw
     "Scale [`m^b`]"
     a::FT
     "Power [`-`]"
@@ -156,7 +156,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct SlopeConstant{FT} <: SlopeLaw
+CP.@params struct SlopeConstant{FT} <: SlopeLaw
     "Slope parameter μ [`-`]"
     μ::FT
 end
@@ -179,7 +179,7 @@ A part of the [`ParametersP3`](@ref) parameter set.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct VentilationFactor{FT} <: ParametersType
+CP.@params struct VentilationFactor{FT} <: ParametersType
     "Constant coefficient in ventilation factor [`-`]"
     aᵥ::FT
     "Linear coefficient in ventilation factor [`-`]"
@@ -208,7 +208,7 @@ For calculating Rᵢ, see [`compute_local_rime_density`](@ref CloudMicrophysics.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct LocalRimeDensity{FT} <: ParametersType
+CP.@params struct LocalRimeDensity{FT} <: ParametersType
     "Constant coefficient"
     a::FT
     "Linear coefficient"
@@ -265,7 +265,7 @@ From Morrison and Milbrandt (2015) [MorrisonMilbrandt2015](@cite)
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct ParametersP3{FT, SLOPELAW <: SlopeLaw, AR <: AspectRatio} <: ParametersType
+CP.@params struct ParametersP3{FT, SLOPELAW <: SlopeLaw, AR <: AspectRatio} <: ParametersType
     "Mass-size relation, e.g. [`MassPowerLaw`](@ref)"
     mass::MassPowerLaw{FT}
     "Area-size relation, e.g. [`AreaPowerLaw`](@ref)"
