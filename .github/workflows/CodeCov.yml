@@ -15,7 +15,7 @@ jobs:
     - name: Set up Julia
       uses: julia-actions/setup-julia@v3
       with:
-        version: '1.11'
+        version: '1.13'
 
     - name: Test with coverage
       env:
