@@ -156,7 +156,7 @@ temperature for a given phase of water.
 - `Rᵥ` - gas constant for water vapor [J/kg/K]
 - `T` - temperature [K]
 """
-@inline function dqcld_dT(qᵥ_sat, L, Rᵥ, T)
+UT.@approx_ops @inline function dqcld_dT(qᵥ_sat, L, Rᵥ, T)
     return qᵥ_sat * (L / (Rᵥ * T^2) - 1 / T)
 end
 
@@ -170,7 +170,7 @@ Computes the thermodynamic adjustment factor Γ.
 - `cₚ_air` - specific heat capacity of air [J/kg/K]
 - `dqcld_dT` - derivative of saturation specific humidity with respect to temperature [kg/kg/K]
 """
-@inline function gamma_helper(L, cₚ_air, dqcld_dT)
+UT.@approx_ops @inline function gamma_helper(L, cₚ_air, dqcld_dT)
     return 1 + (L / cₚ_air) * dqcld_dT
 end
 

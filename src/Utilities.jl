@@ -11,6 +11,7 @@ import UnrolledUtilities as UU
 import SpecialFunctions as SF
 import ForwardDiff as FD
 import RootSolvers as RS
+import StaticArrays as SA
 
 export clamp_to_nonneg, ϵ_numerics
 export promote_typeof, return_type_of, find_zeros, scan_zeros
@@ -26,6 +27,92 @@ their types. Useful to guarantee a single, concrete return type for functions
 that accept mixed input types (e.g. `Float32` and `ForwardDiff.Dual{Float32}`)
 """
 @inline promote_typeof(args...) = Base.promote_typeof(args...)
+
+"""
+    fast_div(a, b)
+
+`a / b`, which for `Float32` carries the LLVM fast-math flag `afn` ("approximate functions").
+
+On a CPU the flag changes nothing: the division stays the correctly rounded IEEE division. On
+a GPU it selects the approximate division of the hardware (PTX `div.approx.f32`, error up to
+2 ulp for a divisor of magnitude between `2^-126` and `2^126`; a finite divisor above `2^126`,
+about `8.5e37`, gives `0`, or `NaN` for an infinite numerator) in place of the correctly rounded one, which CUDA evaluates in a
+subroutine that costs several times a multiplication and up to ten times one when an operand
+or the result is zero, subnormal or infinite. None of the value-changing fast-math assumptions
+(no `NaN`, no `Inf`, reassociation) is made, so infinite time scales and `ifelse` guards keep
+their meaning. Every other number type (`Float64`, dual numbers, arrays) uses `/`, except
+that a static array is divided element by element.
+"""
+@inline fast_div(a::Float32, b::Float32) =
+    Base.llvmcall("%3 = fdiv afn float %0, %1\nret float %3", Float32, Tuple{Float32, Float32}, a, b)
+@inline fast_div(a::Real, b::Real) = _fast_div(promote(a, b)...)
+@inline fast_div(a::SA.StaticArray, b::Real) = map(x -> fast_div(x, b), a)
+@inline fast_div(a, b) = a / b
+@inline _fast_div(a::Float32, b::Float32) = fast_div(a, b)
+@inline _fast_div(a, b) = a / b
+
+"""
+    fast_pow(x, y)
+
+`x^y` for a base `x ≥ 0`, evaluated for two `Float32` arguments with `Base.FastMath.pow_fast`.
+
+On a GPU that is `exp2(y * log2(x))` in single precision, in place of the `Float32` `^` of
+CUDA, which is evaluated in double precision. The relative error is a few
+`eps(Float32) * |y log2(x)|`. Every other combination of types uses `^`.
+"""
+@inline fast_pow(x::Float32, y::Float32) = Base.FastMath.pow_fast(x, y)
+@inline fast_pow(x, y) = x^y
+
+"""
+    fast_sqrt(x)
+
+`sqrt(x)` for `x ≥ 0`. For `Float32` it is the LLVM square root with the fast-math flag `afn`,
+without the domain check of `Base.sqrt`: a negative argument gives `NaN` instead of an error.
+
+On a CPU the result is the correctly rounded square root. On a GPU it is the approximate one
+of the hardware (PTX `sqrt.approx.f32`), and the kernel no longer carries the error path of
+the domain check. Every other number type uses `sqrt`.
+"""
+@inline fast_sqrt(x::Float32) = Base.llvmcall(
+    (
+        """
+        declare float @llvm.sqrt.f32(float)
+        define float @entry(float %0) alwaysinline {
+            %2 = call afn float @llvm.sqrt.f32(float %0)
+            ret float %2
+        }
+        """,
+        "entry",
+    ), Float32, Tuple{Float32}, x)
+@inline fast_sqrt(x) = sqrt(x)
+
+"""
+    @approx_ops expr
+
+Replace, in `expr`, every `a / b` by [`fast_div`](@ref)`(a, b)`, every `sqrt(x)` by
+[`fast_sqrt`](@ref)`(x)` and every `x^y` whose exponent is not an integer literal by
+[`fast_pow`](@ref)`(x, y)`.
+
+The macro is applied to the definitions of the functions evaluated at every grid point on a
+GPU. It changes `Float32` evaluations only: on a GPU to operations accurate to a few units in
+the last place, on a CPU only through `fast_pow` and the missing domain check of `fast_sqrt`.
+Unlike `@fastmath` it assumes nothing about `NaN` or `Inf` and does not reorder operations.
+"""
+macro approx_ops(expr)
+    return esc(_approx_ops(expr))
+end
+_approx_ops(x) = x
+function _approx_ops(ex::Expr)
+    args = map(_approx_ops, ex.args)
+    if ex.head === :call && length(args) == 3 && args[1] === :/
+        return Expr(:call, fast_div, args[2], args[3])
+    elseif ex.head === :call && length(args) == 3 && args[1] === :^ && !(args[3] isa Integer)
+        return Expr(:call, fast_pow, args[2], args[3])
+    elseif ex.head === :call && length(args) == 2 && args[1] === :sqrt
+        return Expr(:call, fast_sqrt, args[2])
+    end
+    return Expr(ex.head, args...)
+end
 
 """
     return_type_of(f, args...)
@@ -425,6 +512,13 @@ Can be called in three ways:
 - With an integer type or value, returning the threshold for its float counterpart (e.g., `Int32` → `Float32`).
 """
 @inline ϵ_numerics(FT) = cbrt(floatmin(float(FT)))
+# The two common float types return a value computed once, on the CPU. A GPU compiler does not
+# fold `cbrt` of a constant, so the generic method would evaluate it in every kernel and keep
+# the result, and every `max(x, ϵ)` of a constant `x`, in a register.
+const _ϵ_numerics_f32 = cbrt(floatmin(Float32))
+const _ϵ_numerics_f64 = cbrt(floatmin(Float64))
+@inline ϵ_numerics(::Type{Float32}) = _ϵ_numerics_f32
+@inline ϵ_numerics(::Type{Float64}) = _ϵ_numerics_f64
 @inline ϵ_numerics(x::Real) = ϵ_numerics(typeof(x))
 
 """

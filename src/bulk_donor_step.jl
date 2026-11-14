@@ -54,7 +54,7 @@ relaxation `e^{-t/τ}` relative to its initial value (Morrison & Milbrandt 2015,
 Tends to `1` for `x → 0` (the instantaneous rate is realized) and to `1/x` for `x ≫ 1` (the
 substep ends at the equilibrium); `1` within round-off of `x = 0`.
 """
-@inline function _relaxation_average_factor(x)
+UT.@approx_ops @inline function _relaxation_average_factor(x)
     FT = typeof(x)
     x_c = max(x, eps(FT))
     return ifelse(x > eps(FT), -expm1(-x_c) / x_c, one(FT))
@@ -75,7 +75,7 @@ Morrison and Milbrandt, 2015, Appendix C):
 
 A disabled process has `S = 0` and `τ = Inf`, and its transfer is zero.
 """
-@inline function _relaxation_transfer(S, τ, Δt)
+UT.@approx_ops @inline function _relaxation_transfer(S, τ, Δt)
     τ_c = clamp(τ, eps(typeof(τ)), floatmax(typeof(τ)))
     return S * Δt * _relaxation_average_factor(Δt / τ_c)
 end
@@ -126,9 +126,9 @@ The optional `f_k`, a state like `q`, scales the decay `D` of a term that change
 (`_changes_phase`) by the entry of its donor; it holds the per-donor factors of the
 latent-heating limiter of `linearized_step_1m`. The default leaves the decays unscaled.
 """
-@inline donor_coefficients(t::Transfer{Donor}, q, q_min, Δt, f_k = one.(q)) where {Donor} =
+UT.@approx_ops @inline donor_coefficients(t::Transfer{Donor}, q, q_min, Δt, f_k = one.(q)) where {Donor} =
     (zero(t.S), _decay_scale(t, f_k) * t.S / max(q_min, q[Donor]))
-@inline function donor_coefficients(
+UT.@approx_ops @inline function donor_coefficients(
     t::VaporExchange{Condensate, FT}, q, q_min, Δt, f_k = one.(q),
 ) where {Condensate, FT}
     is_source = t.S >= zero(FT)
@@ -143,7 +143,7 @@ end
     _transfer_coefficients(t.Δq, q[Condensate], q_min, Δt, _decay_scale(t, f_k))
 # source and matched decay of a transfer `Δq` over the substep, the decay scaled by `f`: the unscaled
 # decay removes exactly `|Δq|` when acting alone (the `q_min` floor keeps it finite when the whole pool is removed)
-@inline function _transfer_coefficients(Δq, q_cond, q_min, Δt, f = one(Δq))
+UT.@approx_ops @inline function _transfer_coefficients(Δq, q_cond, q_min, Δt, f = one(Δq))
     D = ifelse(Δq < zero(Δq), -Δq / (max(q_cond + Δq, q_min) * Δt), zero(Δq))
     return (max(zero(Δq), Δq) / Δt, f * D)
 end
@@ -225,7 +225,7 @@ over the substep, `q f_k Dpc Δt / (1 + (Dcol + f_k Dpc) Δt)`, is `f` times the
 (`f ∈ (0, 1]`); `f_k ≤ f`, with `f_k = 1` for `f = 1`. `Dpc` is the total decay of the donor's
 terms that change phase and `Dcol` that of its other terms ([`limiter_decay_totals`](@ref)).
 """
-@inline function _donor_limiter_scale(f, Dpc, Dcol, Δt)
+UT.@approx_ops @inline function _donor_limiter_scale(f, Dpc, Dcol, Δt)
     FT = typeof(f)
     return f * (one(FT) + Dcol * Δt) / (one(FT) + Dcol * Δt + (one(FT) - f) * Dpc * Δt)
 end
@@ -276,7 +276,7 @@ Here `Dⱼ` is the total decay of species `j`, and `Dⱼᵢ ≤ Dⱼ` is the par
 species `i`. Then `det A = (1/Δt + D₁)(1/Δt + D₂) - D₁₂ D₂₁ > 0`, so the closed form needs
 no pivoting or check for a singular block.
 """
-@inline function _solve_2x2(A, b)
+UT.@approx_ops @inline function _solve_2x2(A, b)
     det = muladd(-A[1, 2], A[2, 1], A[1, 1] * A[2, 2])  # one rounding for the difference
     return SA.SVector(
         (b[1] * A[2, 2] - A[1, 2] * b[2]) / det,
@@ -306,7 +306,12 @@ precipitation species, such as autoconversion and accretion. The step is then so
 
 The solve assumes that the block `M_cp` from the precipitation to the cloud species is zero.
 """
-@inline function backward_euler_solve((; M, e)::LinearizedTendency{Q}, q::Q, α, Δt) where {Q <: Condensates1M}
+UT.@approx_ops @inline function backward_euler_solve(
+    (; M, e)::LinearizedTendency{Q},
+    q::Q,
+    α,
+    Δt,
+) where {Q <: Condensates1M}
     to_index(s) = Base.fieldindex(Q, s)
     c = map(to_index, SA.SVector((:q_lcl, :q_icl)))  # cloud  species indices
     p = map(to_index, SA.SVector((:q_rai, :q_sno)))  # precip species indices

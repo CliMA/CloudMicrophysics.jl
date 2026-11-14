@@ -49,7 +49,7 @@ numerical robustness.
 - Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
 - This prevents NaN/Inf propagation from near-zero denominators
 """
-@inline function G_func_liquid(
+UT.@approx_ops @inline function G_func_liquid(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
     T,
@@ -88,7 +88,7 @@ numerical robustness.
 - Division by `K_therm`, `D_vapor`, and `p_vs` are guarded with `max(value, UT.ϵ_numerics(FT))`
 - This prevents NaN/Inf propagation from near-zero denominators
 """
-@inline function G_func_ice(
+UT.@approx_ops @inline function G_func_ice(
     (; K_therm, D_vapor)::CMP.AirProperties{FT},
     tps::TDI.PS,
     T,
@@ -161,7 +161,7 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
 # Returns
 - Integral of logistic function (same units as x)
 """
-@inline function logistic_function_integral(x, x_0, k)
+UT.@approx_ops @inline function logistic_function_integral(x, x_0, k)
     FT = UT.promote_typeof(x, x_0, k)
     # Branchless GPU-compatible implementation
     x = max(FT(0), x)
@@ -172,8 +172,10 @@ This curve smoothly transitions from y = 0 for 0 < x < x_0 to y = x - x_0 for x_
     # Using log1mexp for numerical stability: log1mexp(x) = log(1 - exp(x))
     trnslt = -LEF.log1mexp(-k) / k
     kt = k * (x_safe / x_0_safe - 1 + trnslt)
-    # log1pexp handles all kt values correctly
-    result = (LEF.log1pexp(kt) / k - trnslt) * x_0_safe
+    # log(1 + exp(kt)) as max(kt, 0) + log1p(exp(-|kt|)): accurate for all kt, and a single
+    # exponential without branches (`LEF.log1pexp` has three branches with one exponential each)
+    log1pexp_kt = ifelse(kt > 0, kt, zero(kt)) + log1p(exp(ifelse(kt > 0, -kt, kt)))
+    result = (log1pexp_kt / k - trnslt) * x_0_safe
 
     # Handle edge cases: if x ≈ 0, return 0; if x_0 ≈ 0, return x
     return ifelse(x < UT.ϵ_numerics(FT), FT(0), ifelse(x_0 < UT.ϵ_numerics(FT), x, result))

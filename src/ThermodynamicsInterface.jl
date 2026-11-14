@@ -83,10 +83,19 @@ saturation_vapor_pressure_over_liquid(tps::PS, T) =
 saturation_vapor_pressure_over_ice(tps::PS, T) =
     TD.saturation_vapor_pressure(tps, T, TD.Ice())
 
-saturation_vapor_specific_content_over_liquid(tps::PS, T, ρ) =
-    TD.q_vap_saturation(tps, T, ρ, TD.Liquid())
-saturation_vapor_specific_content_over_ice(tps::PS, T, ρ) =
-    TD.q_vap_saturation(tps, T, ρ, TD.Ice())
+# The quotients of `TD.q_vap_saturation` and `TD.supersaturation`, `p_v_sat / (ρ R_v T)` and
+# `p_v / p_v_sat`, are written out here with `UT.fast_div`: these functions are evaluated at
+# every grid point, and the exact `Float32` division of Thermodynamics.jl is slow on a GPU, most of
+# all where the saturation vapor pressure is zero (see `UT.fast_div`). On a CPU, and for every
+# other number type, the results are those of Thermodynamics.jl.
+@inline _q_vap_from_p_vap(tps::PS, T, ρ, p_v) = UT.fast_div(p_v, ρ * TD.Parameters.R_v(tps) * T)
+@inline _supersaturation(tps::PS, qᵥ, ρ, T, p_v_sat) =
+    UT.fast_div(qᵥ * (ρ * TD.Parameters.R_v(tps) * T), p_v_sat) - 1
+
+@inline saturation_vapor_specific_content_over_liquid(tps::PS, T, ρ) =
+    _q_vap_from_p_vap(tps, T, ρ, saturation_vapor_pressure_over_liquid(tps, T))
+@inline saturation_vapor_specific_content_over_ice(tps::PS, T, ρ) =
+    _q_vap_from_p_vap(tps, T, ρ, saturation_vapor_pressure_over_ice(tps, T))
 
 """
     supersaturation_over_liquid(tps, qₜ, qₗ, qᵢ, ρ, T)
@@ -116,11 +125,11 @@ negative humidity inputs while preserving AD compatibility.
 """
 function supersaturation_over_liquid(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
-    return TD.supersaturation(tps, qᵥ, ρ, T, TD.Liquid())
+    return _supersaturation(tps, qᵥ, ρ, T, saturation_vapor_pressure_over_liquid(tps, T))
 end
 function supersaturation_over_ice(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
-    return TD.supersaturation(tps, qᵥ, ρ, T, TD.Ice())
+    return _supersaturation(tps, qᵥ, ρ, T, saturation_vapor_pressure_over_ice(tps, T))
 end
 
 end
