@@ -261,7 +261,7 @@ order of the terms of `_microphysics_source_terms`, so that a rate is consumed a
 is computed. `vapor` holds the terms of the four vapor-driven phase changes, from
 `_vapor_source_terms` or solved jointly by `_vapor_terms`.
 """
-@inline function _foldl_source_terms(
+UT.@approx_ops @inline function _foldl_source_terms(
     op::F, init, mp::CMP.Microphysics1MParams, tps, (; micro, thermo, sd), vapor,
 ) where {F}
     procs = mp.processes
@@ -351,7 +351,7 @@ Temperature change [K] from the latent heat of the species change `Δq`, a
 [`Condensates1M`](@ref) [kg/kg], with the reference latent heats and the dry-air specific
 heat of the substep temperature update: `(L_v (Δq_lcl + Δq_rai) + L_s (Δq_icl + Δq_sno)) / c_p`.
 """
-@inline function _latent_heating(Δq::Condensates1M, tps)
+UT.@approx_ops @inline function _latent_heating(Δq::Condensates1M, tps)
     cp_d = TDI.TD.Parameters.cp_d(tps)
     Lv = TDI.TD.Parameters.LH_v0(tps)
     Ls = TDI.TD.Parameters.LH_s0(tps)
@@ -402,7 +402,7 @@ construction of the implicit decays). Negative species are clamped to zero on in
   [kg/kg/s], the rate of each process from [`donor_rates`](@ref) [kg/kg/s], and the factors of
   the vapor limiter, the heating limiter and the uniform scaling [-].
 """
-@inline function linearized_step_1m(mp::CMP.Microphysics1MParams, tps, ρ, T, w, q_tot, q::Q, Δt) where {Q}
+UT.@approx_ops @inline function linearized_step_1m(mp::CMP.Microphysics1MParams, tps, ρ, T, w, q_tot, q::Q, Δt) where {Q}
     FT = eltype(q)
     q = max.(q, zero(FT))   # non-negative pools (hosts may pass slightly negative reconstructed values)
     q_min = TDI.TD.Parameters.q_min(tps)
@@ -504,7 +504,7 @@ quantities `sf` of the vapor limiter (`q_smin`, `λ_min`, `Γ_min`, `q_tol` of
 the realized heating, and the per-donor scale of the phase-change decays
 ([`_donor_limiter_scale`](@ref)).
 """
-@inline function _limiter_factors(mp, tps, lin, Dpc, Dcol, q, q1, sf, q_tot, Δt)
+UT.@approx_ops @inline function _limiter_factors(mp, tps, lin, Dpc, Dcol, q, q1, sf, q_tot, Δt)
     FT = eltype(q)
     ΔT1 = _latent_heating(q1 - q, tps)
 
@@ -533,7 +533,7 @@ backward Euler step `q2`: the smaller of the scale that bounds the realized heat
 `max_latent_heating_rate × Δt` and the scale that keeps the condensate from growing by more
 than the available vapor; 1 when neither bound is exceeded.
 """
-@inline function _uniform_scale(mp, tps, q, q2, q_tot, Δt)
+UT.@approx_ops @inline function _uniform_scale(mp, tps, q, q2, q_tot, Δt)
     FT = eltype(q)
     # the per-donor scaling is exact for a donor whose pool is not refilled by another phase change; when
     # pools feed each other the realized heating can still exceed the
@@ -771,7 +771,7 @@ end
 
 # Unguarded 1M linearized substep loop (also called directly by the bit-identity tests;
 # see `_instantaneous_1m` for the CPU caller-size inlining note).
-@inline function _linearized_average_1m(
+UT.@approx_ops @inline function _linearized_average_1m(
     mode::Union{LinearizedAverage, LinearizedAverageVerbose},
     mp::CMP.Microphysics1MParams, tps, ρ, T, w,
     q_tot, q_lcl, q_icl, q_rai, q_sno,
@@ -873,7 +873,7 @@ is present and vapor cannot nucleate cloud condensate.
 - With `LinearizedAverageVerbose`, also the average rate of each process over `Δt`, with
   the names of `InstantaneousVerbose` [kg/kg/s].
 """
-@inline function bulk_microphysics_tendencies(
+UT.@approx_ops @inline function bulk_microphysics_tendencies(
     mode::Union{LinearizedAverage, LinearizedAverageVerbose}, s::Microphysics1Moment,
     mp::CMP.Microphysics1MParams, tps, ρ, T, w,
     q_tot, q_lcl, q_icl, q_rai, q_sno,

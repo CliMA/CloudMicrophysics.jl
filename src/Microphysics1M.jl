@@ -85,7 +85,7 @@ Returns the intercept parameter of the assumed Marshall-Palmer distribution
 - `q_sno`: snow specific content (snow only)
 - `ρ`: air density (snow only)
 """
-@inline function get_n0((; ν, μ)::CMP.ParticlePDFSnow, q_sno, ρ)
+UT.@approx_ops @inline function get_n0((; ν, μ)::CMP.ParticlePDFSnow, q_sno, ρ)
     ϵ = UT.ϵ_numerics(q_sno)
     safe_q_sno = max(q_sno, ϵ)
     n0 = μ * (ρ * safe_q_sno)^ν
@@ -105,7 +105,7 @@ Guards against unphysical density ratios (ρ > ρw) that would cause sqrt of neg
 - `vel`: terminal velocity parameters (contains `C_drag`, `ρw`, `grav`, `r0`, `gamma_term` for rain; `v0`, `gamma_term` for snow)
 - `ρ`: air density (rain only)
 """
-@inline function get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain, ρ)
+UT.@approx_ops @inline function get_v0((; C_drag, ρw, grav, r0)::CMP.Blk1MVelTypeRain, ρ)
     # Guard against ρ ≤ 0 and ρ > ρw (unphysical but possible from numerical errors).
     # The floor is ϵ > 0 rather than 0: sqrt has an infinite derivative at
     # 0, so a zero floor turns Dual (ForwardDiff) partials into Inf/NaN.
@@ -141,7 +141,7 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
 # Returns
 - `λ⁻¹`: inverse rate parameter [m]
 """
-@inline function lambda_inverse(
+UT.@approx_ops @inline function lambda_inverse(
     #(; pdf, mass)::Union{CMP.Snow{FT}, CMP.Rain{FT}, CMP.CloudIce{FT}},
     pdf::Union{CMP.ParticlePDFIceRain, CMP.ParticlePDFSnow},
     mass::CMP.ParticleMass,
@@ -276,7 +276,7 @@ Fall velocity of individual particles is parameterized:
   `q v_t` is below 1e-13 kg/kg m/s, so physically negligible, but treat `v_t`
   near the gate with care.
 """
-@inline function terminal_velocity(
+UT.@approx_ops @inline function terminal_velocity(
     (; pdf, mass)::Union{CMP.Rain, CMP.Snow},
     vel::Union{CMP.Blk1MVelTypeRain, CMP.Blk1MVelTypeSnow},
     ρ,
@@ -409,7 +409,7 @@ end
 # Blending factor between the quiescent (stratiform) and the convective autoconversion regimes,
 #     f(w) = w₊² / (w₊² + w_0²),   w₊ = max(w, 0):
 # 0 in descending or still air, 1/2 at w = w_0, → 1 for w ≫ w_0.
-@inline function _velocity_blend(w, w_0)
+UT.@approx_ops @inline function _velocity_blend(w, w_0)
     w₊ = max(w, zero(w))
     return w₊^2 / (w₊^2 + w_0^2)
 end
@@ -535,7 +535,7 @@ A mismatch between the option and the parameters stored in `mp` raises an `Argum
 
 @inline _logistic_translation((; k)) = CO.logistic_translation(k)
 
-@inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
+UT.@approx_ops @inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
     pp = CMP.process_params(mp, opt)
     (; w) = thermo
     q_thr = rain_autoconversion_threshold(opt, mp, w)
@@ -601,7 +601,7 @@ Harrington et al. (1995) and Kaul et al. (2015).
 """
 @inline conv_q_icl_to_q_sno(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(micro.q_icl)
 
-@inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo, sd = nothing)
+UT.@approx_ops @inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo, sd = nothing)
     pp = CMP.process_params(mp, opt)
     trnslt = UT.precomputed(_logistic_translation, pp)
     return CO.logistic_function_integral(micro.q_icl, pp.q_threshold, pp.k, trnslt) / pp.τ
@@ -646,7 +646,7 @@ Used by `accretion(::CloudLiquidSnowAccretion, ...)` and
 `accretion_snow_rain(::RainSnowAccretion, ...)` to compute the thermal melt
 contribution of warm liquid on snow.
 """
-@inline function warm_accretion_melt_factor(tps, T)
+UT.@approx_ops @inline function warm_accretion_melt_factor(tps, T)
     L_f = TDI.Lf(tps, T)
     cp_l = TDI.cp_l(tps)
     T_freeze = TDI.T_freeze(tps)
@@ -686,7 +686,7 @@ distribution before calling the 10-argument kernel.
 - `n0`, `v0`, `λ_inv`: (kernel form only) precomputed size-distribution
   intercept, fall-speed scale, and inverse slope
 """
-@inline function accretion(
+UT.@approx_ops @inline function accretion(
     cloud::CMP.CloudCondensateType,
     precip::CMP.PrecipitationType,
     vel::Union{CMP.Blk1MVelTypeRain, CMP.Blk1MVelTypeSnow},
@@ -731,7 +731,7 @@ end
 #
 # Returns the sink of rain water (partial source of snow) due to collisions
 # with cloud ice.
-@inline function accretion_rain_sink(
+UT.@approx_ops @inline function accretion_rain_sink(
     rain::CMP.Rain,
     ice::CMP.CloudIce,
     vel::CMP.Blk1MVelTypeRain,
@@ -813,7 +813,7 @@ deviations are proportional to the mean fall velocities, with coefficient
   precomputed size-distribution intercept of species i, and fall-speed scales
   and inverse slopes of both species
 """
-@inline function accretion_snow_rain(
+UT.@approx_ops @inline function accretion_snow_rain(
     type_i::CMP.PrecipitationType,
     type_j::CMP.PrecipitationType,
     blk1mveltype_ti,
@@ -1115,7 +1115,7 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
 """
 @inline conv_q_rai_to_q_vap(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function conv_q_rai_to_q_vap(
+UT.@approx_ops @inline function conv_q_rai_to_q_vap(
     ::CMP.RainEvaporation,
     mp,
     tps,
@@ -1219,7 +1219,7 @@ end
 # Returns 4π n0/ρ · G(T) · λ_inv² · vent(n0, v0, λ_inv).
 # The phase-change rate is C · S_rel (relative supersaturation over ice).
 # `p_sat` is the saturation vapor pressure over ice at `T`.
-@inline function _snow_subl_dep_coeff(
+UT.@approx_ops @inline function _snow_subl_dep_coeff(
     mp, tps, ρ::FT, T, n0, v0, λ_inv, p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T),
 ) where {FT}
     (; mass, vent) = mp.precip.snow
@@ -1265,7 +1265,7 @@ Returns the tendency due to cloud ice melt.
 """
 @inline conv_q_icl_to_q_lcl(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function conv_q_icl_to_q_lcl(
+UT.@approx_ops @inline function conv_q_icl_to_q_lcl(
     ::CMP.CloudIceMelt,
     mp,
     tps,
@@ -1327,7 +1327,7 @@ Droplet volume is based on prescribed cloud droplet number concentration.
     return ifelse(has_liquid & (T < T_hom), rate, zero(FT))
 end
 
-@inline function conv_q_lcl_to_q_icl(opt::CMP.Heterogeneous, mp, tps, micro, thermo)
+UT.@approx_ops @inline function conv_q_lcl_to_q_icl(opt::CMP.Heterogeneous, mp, tps, micro, thermo)
     q_lcl = micro.q_lcl
     (; ρ, T) = thermo
     FT = UT.promote_typeof(q_lcl, ρ, T)
@@ -1373,7 +1373,7 @@ Returns the tendency due to snow melt.
 """
 @inline conv_q_sno_to_q_rai(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(thermo.T)
 
-@inline function conv_q_sno_to_q_rai(
+UT.@approx_ops @inline function conv_q_sno_to_q_rai(
     ::CMP.SnowMelt,
     mp,
     tps,
