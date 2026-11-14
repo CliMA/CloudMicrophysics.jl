@@ -75,7 +75,7 @@ relaxation (see `_joint_vapor_transfers`), written in the excess of the primary 
 end
 
 """
-    _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, thermo = (; ρ, T))
 
 Vapor content (with the same expression as the rate functions, so that a rate of exactly zero
 corresponds to a zero excess), saturations over liquid and ice, the latent-heat factors `Γ`
@@ -84,13 +84,14 @@ check of `_linearized_implicit_step`: the lower saturation `q_smin`, its tempera
 `λ_min`, the corresponding `Γ_min`, and the round-off tolerance `q_tol` (one ulp of the larger saturation content) for a vanishing excess.
 `Γ_min` uses the reference latent heat and the dry-air heat capacity of the substep temperature
 update (`_latent_heating`), as the vapor limiter needs; `Γ` and `κ` use `L(T)` and the moist heat
-capacity of the rate functions.
+capacity of the rate functions. The saturation vapor pressures are those of the thermodynamic
+state `thermo`, if it holds them (`TDI.saturation_vapor_pressures`).
 """
-@inline function _saturation_state(tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+@inline function _saturation_state(tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, thermo = (; ρ, T))
     FT = typeof(q_tot)
     qᵥ = TDI.q_vap(q_tot, q_lcl + q_rai, q_icl + q_sno)
-    q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
-    q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+    q_sl = TDI.p2q(tps, T, ρ, TDI.saturation_vapor_pressure_over_liquid(tps, thermo))
+    q_si = TDI.p2q(tps, T, ρ, TDI.saturation_vapor_pressure_over_ice(tps, thermo))
     Lᵥ = TDI.Lᵥ(tps, T)
     Lₛ = TDI.Lₛ(tps, T)
     Rᵥ = TDI.Rᵥ(tps)
@@ -113,7 +114,7 @@ capacity of the rate functions.
 end
 
 """
-    _joint_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+    _joint_vapor_transfers(src, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, thermo = (; ρ, T))
 
 Transfers over the substep of the four vapor-driven phase changes (cloud liquid
 condensation/evaporation, rain evaporation, cloud ice deposition/sublimation, snow
@@ -150,9 +151,11 @@ positive = vapor → condensate] and, for the vapor check, the lower saturation
 `q_smin = min(q*_liq, q*_ice)`, its temperature derivative `λ_min`, the corresponding
 `Γ_min`, and the round-off tolerance `q_tol` used for the excesses.
 """
-@inline function _joint_vapor_transfers(src, tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt)
+@inline function _joint_vapor_transfers(
+    src, tps::TDI.PS, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt, thermo = (; ρ, T),
+)
     (; qᵥ, q_sl, q_si, Γₗ, Γᵢ, κ_il, κ_li, q_smin, λ_min, Γ_min, q_tol) =
-        _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+        _saturation_state(tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno, thermo)
     δₗ = qᵥ - q_sl
     δᵢ = qᵥ - q_si
     Δs = q_sl - q_si
