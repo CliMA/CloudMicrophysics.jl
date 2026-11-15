@@ -78,19 +78,33 @@ q_vap_from_RH_over_liquid(tps::PS, p, T, RH) =
 ###
 ### Supersaturations
 ###
+# The methods for a thermodynamic state `thermo = (; ρ, T)` use the saturation
+# vapor pressures that it carries (`p_sat_liq` and `p_sat_ice`), or evaluate
+# them at its temperature.
 saturation_vapor_pressure_over_liquid(tps::PS, T) =
     TD.saturation_vapor_pressure(tps, T, TD.Liquid())
+saturation_vapor_pressure_over_liquid(tps::PS, thermo::NamedTuple) =
+    hasproperty(thermo, :p_sat_liq) ? thermo.p_sat_liq : saturation_vapor_pressure_over_liquid(tps, thermo.T)
+
 saturation_vapor_pressure_over_ice(tps::PS, T) =
     TD.saturation_vapor_pressure(tps, T, TD.Ice())
+saturation_vapor_pressure_over_ice(tps::PS, thermo::NamedTuple) =
+    hasproperty(thermo, :p_sat_ice) ? thermo.p_sat_ice : saturation_vapor_pressure_over_ice(tps, thermo.T)
 
 saturation_vapor_specific_content_over_liquid(tps::PS, T, ρ) =
     TD.q_vap_saturation(tps, T, ρ, TD.Liquid())
+saturation_vapor_specific_content_over_liquid(tps::PS, thermo::NamedTuple) =
+    p2q(tps, thermo.T, thermo.ρ, saturation_vapor_pressure_over_liquid(tps, thermo))
+
 saturation_vapor_specific_content_over_ice(tps::PS, T, ρ) =
     TD.q_vap_saturation(tps, T, ρ, TD.Ice())
+saturation_vapor_specific_content_over_ice(tps::PS, thermo::NamedTuple) =
+    p2q(tps, thermo.T, thermo.ρ, saturation_vapor_pressure_over_ice(tps, thermo))
 
 """
-    supersaturation_over_liquid(tps, qₜ, qₗ, qᵢ, ρ, T)
-    supersaturation_over_ice(tps, qₜ, qₗ, qᵢ, ρ, T)
+    supersaturation_over_liquid(tps, qₜ, qₗ, qᵢ, ρ, T, p_sat = saturation_vapor_pressure_over_liquid(tps, T))
+    supersaturation_over_ice(tps, qₜ, qₗ, qᵢ, ρ, T,
+    p_sat = saturation_vapor_pressure_over_ice(tps, T))
 
 Compute supersaturation with respect to liquid water or ice.
 
@@ -104,6 +118,7 @@ negative humidity inputs while preserving AD compatibility.
 - `qᵢ`: Total ice specific content [kg/kg]
 - `ρ`: Air density [kg/m³]
 - `T`: Temperature [K]
+- `p_sat`: Saturation vapor pressure over the phase at `T` [Pa]
 
 # Returns
 - Supersaturation: `S = (pᵥ / pᵥ_sat) - 1` (dimensionless)
@@ -114,13 +129,13 @@ negative humidity inputs while preserving AD compatibility.
 - Internally uses `q_vap` which clamps negative vapor values to zero
 - This prevents unphysical supersaturation values from negative humidity inputs
 """
-function supersaturation_over_liquid(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
+function supersaturation_over_liquid(tps::PS, qₜ, qₗ, qᵢ, ρ, T, p_sat = saturation_vapor_pressure_over_liquid(tps, T))
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
-    return TD.supersaturation(tps, qᵥ, ρ, T, TD.Liquid())
+    return TD.supersaturation(tps, qᵥ, ρ, T, p_sat)
 end
-function supersaturation_over_ice(tps::PS, qₜ, qₗ, qᵢ, ρ, T)
+function supersaturation_over_ice(tps::PS, qₜ, qₗ, qᵢ, ρ, T, p_sat = saturation_vapor_pressure_over_ice(tps, T))
     qᵥ = q_vap(qₜ, qₗ, qᵢ)
-    return TD.supersaturation(tps, qᵥ, ρ, T, TD.Ice())
+    return TD.supersaturation(tps, qᵥ, ρ, T, p_sat)
 end
 
 end

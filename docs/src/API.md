@@ -384,6 +384,7 @@ Utilities.return_type_of
 Utilities.find_zeros
 Utilities.scan_zeros
 Utilities.ϵ_numerics
+Utilities.precomputed
 Utilities.gamma_inc
 Utilities.gamma_inc_inv
 Utilities.rime_mass_fraction
@@ -407,6 +408,7 @@ Common.a_w_xT
 Common.a_w_eT
 Common.a_w_ice
 Common.Chen2022_vel_coeffs
+Common.Chen2022_large_ice_table
 Common.Chen2022_monodisperse_pdf
 Common.Chen2022_exponential_pdf
 Common.volume_sphere_D

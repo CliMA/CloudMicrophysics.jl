@@ -1,6 +1,7 @@
 import Test as TT
 
 import ClimaParams
+import ForwardDiff as FD
 import CloudMicrophysics as CM
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Common as CO
@@ -26,6 +27,21 @@ TT.@testset "logistic_function_integral unit tests" begin
 
     TT.@test CO.logistic_function_integral(1.0, 0.0, 2.0) == 1.0
     TT.@test CO.logistic_function_integral(0.0, 0.0, 2.0) == 0.0
+
+    # the type follows every argument, also the translation
+    trnslt = FD.Dual{Nothing}(CO.logistic_translation(2.0), 1.0)
+    TT.@test TT.@inferred(CO.logistic_function_integral(1.0, 1.0, 2.0, trnslt)) isa typeof(trnslt)
+end
+
+TT.@testset "Chen2022_log_inv" begin
+    λ_inv = 2e-4
+    TT.@test CO.Chen2022_log_inv(0.0, log(λ_inv), λ_inv) === -log(λ_inv)
+    TT.@test CO.Chen2022_log_inv(3.0, log(λ_inv), λ_inv) === log(1 / λ_inv + 3.0)
+    # at c = 0 the value has the type and the derivatives of log(1 / λ_inv + c)
+    c = FD.Dual{Nothing}(0.0, 0.0)
+    TT.@test TT.@inferred(CO.Chen2022_log_inv(c, log(λ_inv), λ_inv)) isa typeof(c)
+    TT.@test FD.derivative(c -> CO.Chen2022_log_inv(c, log(λ_inv), λ_inv), 0.0) ≈ λ_inv
+    TT.@test FD.derivative(λ -> CO.Chen2022_log_inv(0.0, log(λ), λ), λ_inv) ≈ -1 / λ_inv
 end
 
 function test_H2SO4_soln_saturation_vapor_pressure(FT)

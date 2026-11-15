@@ -1272,7 +1272,57 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             src = BMT._microphysics_source_terms(args...)
             terms = map(with_rate, src, NamedTuple{keys(src)}(verbose))
             Σ = BMT.species_tendency(terms, BMT.Condensates1M{FT})
-            @test Σ ≈ BMT.Condensates1M(values(avg)...) atol = atol
+            # each rate is rounded relative to its own magnitude, which can exceed the net tendencies
+            @test Σ ≈ BMT.Condensates1M(values(avg)...) atol = 10 * eps(FT) * sum(t -> abs(t.S), terms)
+        end
+    end
+
+    @testset "LinearizedAverageVerbose - process rates sum to the tendencies with an active latent-heating limiter" begin
+        # The phase changes of the cloud liquid decay it much faster than its collisions with rain: below T_hom it
+        # freezes, under a tight limiter (cold), and in warm subsaturated air the vapor relaxation removes all of
+        # it within the substep, under the default limiter (warm).
+        override = Dict("microphysics_max_latent_heating_rate" => Dict("value" => 1e-3, "type" => "float"))
+        mp_tight = CMP.Microphysics1MParams(CP.create_toml_dict(FT; override_file = override))
+        mp_default = CMP.Microphysics1MParams(FT)
+        cold = (mp_tight, FT(0.5), FT(228), BMT.Condensates1M(FT(1e-3), FT(1e-5), FT(2e-4), FT(1e-5)), FT(0.9))
+        warm = (mp_default, FT(1.1), FT(285), BMT.Condensates1M(FT(1e-3), FT(0), FT(2e-4), FT(0)), FT(0.3))
+        with_rate(::BMT.Transfer{Donor, Receiver}, S) where {Donor, Receiver} = BMT.Transfer(Donor => Receiver, S)
+        with_rate(::Union{BMT.VaporExchange{Condensate}, BMT.VaporRelaxation{Condensate}}, S) where {Condensate} =
+            BMT.VaporExchange(Condensate, S)
+        Δt = FT(60)
+        for (mp_lim, ρ, T, q, rh) in (cold, warm)
+            q_tot = rh * TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ) + sum(q)
+            @test BMT.linearized_step_1m(mp_lim, tps, ρ, T, FT(0.5), q_tot, q, Δt).f_lim < 1
+            args = (BMT.Microphysics1Moment(), mp_lim, tps, ρ, T, FT(0.5), q_tot, q...)
+            verbose = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverageVerbose(), args..., Δt, 1)
+            dq_dt = BMT.Condensates1M(verbose.dq_lcl_dt, verbose.dq_icl_dt, verbose.dq_rai_dt, verbose.dq_sno_dt)
+            src = BMT._microphysics_source_terms(args...)
+            terms = map(with_rate, src, NamedTuple{keys(src)}(verbose))
+            atol = 10 * eps(FT) * sum(t -> abs(t.S), terms)
+            @test BMT.species_tendency(terms, BMT.Condensates1M{FT}) ≈ dq_dt atol = atol
+            # the condensate gains what the vapor-driven terms take from the vapor
+            @test sum(dq_dt) ≈ sum(t -> t isa BMT.VaporExchange ? t.S : zero(FT), terms) atol = atol
+            @test all(>=(0), q + dq_dt * Δt)
+        end
+    end
+
+    @testset "LinearizedAverageVerbose - without vapor-driven processes" begin
+        mp_novap = CMP.Microphysics1MParams(FT; cloud_liquid_formation = nothing, cloud_ice_formation = nothing,
+            rain_condensation_evaporation = nothing, snow_deposition_sublimation = nothing)
+        @test isnothing(BMT._vapor_coupling(mp_novap.processes))
+        vapor_rates =
+            (:S_phase_change_vap_lcl, :S_phase_change_vap_icl, :S_phase_change_vap_rai, :S_phase_change_vap_sno)
+        q = (FT(3e-4), FT(5e-4), FT(2e-4), FT(4e-4))
+        for T in (T_freeze - FT(10), T_freeze + FT(4)), q_tot in (FT(2e-3), FT(0.012))
+            args = (BMT.Microphysics1Moment(), mp_novap, tps, FT(1.2), T, FT(0.5), q_tot, q...)
+            verbose = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverageVerbose(), args..., FT(60), 3)
+            dq_dt = (verbose.dq_lcl_dt, verbose.dq_icl_dt, verbose.dq_rai_dt, verbose.dq_sno_dt)
+            @test all(isfinite, values(verbose))
+            @test all(r -> iszero(verbose[r]), vapor_rates)
+            # the processes only move mass between the condensate species
+            @test sum(dq_dt) ≈ 0 atol = 10 * eps(FT) * sum(q) / FT(60)
+            @test any(!iszero, dq_dt)
+            @test all(>=(0), q .+ dq_dt .* FT(60))
         end
     end
 

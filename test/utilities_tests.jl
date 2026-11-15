@@ -1,5 +1,7 @@
 using Test
 import ForwardDiff as FD
+import CloudMicrophysics.Common as CO
+import CloudMicrophysics.Parameters as CMP
 import CloudMicrophysics.Utilities as UT
 
 # `rime_density` and `rime_mass_fraction` must agree between `Float32` and `Float64`
@@ -159,5 +161,37 @@ end
         @test sol.n_found == 2 && sol.f_lo == f(FT(0))
         @test all(isapprox.(sol.roots, (FT(0.23), FT(0.51)); atol = FT(1e-5)))
         @test UT.scan_zeros(x -> (f(x), nothing), f, args..., (i, Δx) -> nothing).total === nothing
+    end
+end
+
+# A real number type whose `float`, `floatmin` and `cbrt` are defined after the
+# package is loaded
+struct LateDefinedReal <: Real
+    x::Float64
+end
+Base.float(::Type{LateDefinedReal}) = LateDefinedReal
+Base.floatmin(::Type{LateDefinedReal}) = LateDefinedReal(floatmin(Float64))
+Base.cbrt(a::LateDefinedReal) = LateDefinedReal(cbrt(a.x))
+
+@testset "ϵ_numerics" begin
+    for FT in (Float32, Float64)
+        @test UT.ϵ_numerics(FT) === cbrt(floatmin(FT))
+        @test UT.ϵ_numerics(one(FT)) === cbrt(floatmin(FT))
+    end
+    @test UT.ϵ_numerics(LateDefinedReal).x === cbrt(floatmin(Float64))
+end
+
+function allocations(f::F, args::Vararg{Any, N}) where {F, N}
+    f(args...)
+    return @allocated f(args...)
+end
+
+@testset "precomputed" begin
+    for FT in (Float32, Float64)
+        vel = CMP.Chen2022VelType(FT).large_ice
+        @test UT.precomputed(CO.Chen2022_large_ice_table, vel, FT(900)) === CO.Chen2022_large_ice_table(vel, FT(900))
+        # an argument that is not a singleton makes `precomputed` run at run
+        # time, as in the "bits" mode of ClimaParams
+        @test allocations((vel, ρᵢ) -> UT.precomputed(CO.Chen2022_large_ice_table, vel, ρᵢ).Al, vel, FT(900)) == 0
     end
 end

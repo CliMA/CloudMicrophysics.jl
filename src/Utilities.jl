@@ -409,6 +409,17 @@ representable in `Int64`.
 end
 
 """
+    precomputed(f, params...)
+
+Return `f(params...)`, which the compiler evaluates when it compiles the caller
+if every element of `params` is a singleton (parameter structs whose values are
+stored in their type), and which is evaluated at run time otherwise. This keeps
+calls such as `exp`, `log`, `^`, and `gamma` of parameter-only values out of
+compiled kernels. `f` must be a function without state.
+"""
+Base.@assume_effects :foldable precomputed(f::F, params...) where {F} = (@inline; f(params...))
+
+"""
     ϵ_numerics(FT)
     ϵ_numerics(x::Real)
 
@@ -424,7 +435,7 @@ Can be called in three ways:
 - With a concrete floating-point value, returning the threshold for its type.
 - With an integer type or value, returning the threshold for its float counterpart (e.g., `Int32` → `Float32`).
 """
-@inline ϵ_numerics(FT) = cbrt(floatmin(float(FT)))
+Base.@assume_effects :foldable ϵ_numerics(::Type{FT}) where {FT} = cbrt(floatmin(float(FT)))
 @inline ϵ_numerics(x::Real) = ϵ_numerics(typeof(x))
 
 """

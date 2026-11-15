@@ -148,58 +148,53 @@ end
     return (max(zero(Δq), Δq) / Δt, f * D)
 end
 
-@inline function _add_donor_term!(lin, t::Transfer{Donor, Receiver}, q, q_min, Δt, f_k) where {Donor, Receiver}
-    (_, D) = donor_coefficients(t, q, q_min, Δt, f_k)
+@inline function _add_donor_term!(lin, t::Transfer{Donor, Receiver}, q, q_min, Δt) where {Donor, Receiver}
+    (_, D) = donor_coefficients(t, q, q_min, Δt)
     lin[Donor, Donor] -= D
     lin[Receiver, Donor] += D
     return nothing
 end
 @inline function _add_donor_term!(
     lin, t::Union{VaporExchange{Condensate}, VaporRelaxation{Condensate}, JointVaporTransfer{Condensate}}, q, q_min, Δt,
-    f_k,
 ) where {Condensate}
-    (s, D) = donor_coefficients(t, q, q_min, Δt, f_k)
+    (s, D) = donor_coefficients(t, q, q_min, Δt)
     lin[Condensate] += s
     lin[Condensate, Condensate] -= D
     return nothing
 end
 
 """
-    donor_linearization(terms, q, q_min, Δt, f_k = one.(q))
+    donor_linearization(terms, q, q_min, Δt)
+    donor_linearization!(lin, terms, q, q_min, Δt)
 
-Return the donor-based [`LinearizedTendency`](@ref) of `terms` at the species `q`.
+Return the donor-based [`LinearizedTendency`](@ref) of `terms` at the species `q`, or add it
+to `lin`.
 
 Each term adds the coefficients `(s, D)` of [`donor_coefficients`](@ref): `-D` to the
 diagonal entry of its donor, `D` to the entry in the row of its receiver if the receiver is
-one of the species, and `s` to the entry of `e` of its receiver. The optional `f_k` is passed
-to [`donor_coefficients`](@ref): it scales the decays of the terms that change phase by the
-entry of their donor (the per-donor factors of the latent-heating limiter).
+one of the species, and `s` to the entry of `e` of its receiver.
 
 # Arguments
 - `terms`: `NamedTuple` of process terms, such as the output of `_microphysics_source_terms`.
 - `q`: species, such as a [`Condensates1M`](@ref) [kg/kg].
 - `q_min`: lower bound of the donor in the decay coefficients [kg/kg].
 - `Δt`: width of the substep [s].
-- `f_k`: decay scale per donor, a state like `q` [-].
 """
-@inline function donor_linearization(terms, q::Q, q_min, Δt, f_k = one.(q)) where {Q}
-    lin = LinearizedTendency(Q)
-    UU.unrolled_foreach(t -> (@inline; _add_donor_term!(lin, t, q, q_min, Δt, f_k)), values(terms))
-    return lin
-end
+@inline donor_linearization(terms, q::Q, q_min, Δt) where {Q} =
+    donor_linearization!(LinearizedTendency(Q), terms, q, q_min, Δt)
+@inline donor_linearization!(lin, terms, q, q_min, Δt) =
+    (UU.unrolled_foreach(t -> (@inline; _add_donor_term!(lin, t, q, q_min, Δt)), values(terms)); lin)
 
 """
-    limiter_decay_totals(terms, q, q_min, Δt)
+    limiter_decay_totals(terms, q, q_min, Δt, init = (zero(q), zero(q)))
 
 Return per donor the total decay of the terms that change phase and the total decay of the
-other terms, `(Dpc, Dcol)`, as two states like `q` [1/s]; the inputs of
+other terms, `(Dpc, Dcol)`, as two states like `q` [1/s], added to `init`; the inputs of
 [`_donor_limiter_scale`](@ref).
 """
-@inline function limiter_decay_totals(terms, q::Q, q_min, Δt) where {Q}
-    return UU.unrolled_reduce(
-        (acc, t) -> (@inline; _add_decay_total(acc, t, q, q_min, Δt)), values(terms), (zero(q), zero(q)),
-    )
-end
+@inline limiter_decay_totals(terms, q, q_min, Δt, init = (zero(q), zero(q))) =
+    UU.unrolled_reduce((acc, t) -> (@inline; _add_decay_total(acc, t, q, q_min, Δt)), values(terms), init)
+
 @inline function _add_decay_total((Dpc, Dcol), t::Transfer{Donor}, q, q_min, Δt) where {Donor}
     (_, D) = donor_coefficients(t, q, q_min, Δt)
     return ifelse(
@@ -236,8 +231,8 @@ end
 Return the rate of each term over a donor-based substep of width `Δt` from `q` to `q_new`.
 
 The rates are positive in the direction of the term [kg/kg/s].
-With the coefficients of [`donor_coefficients`](@ref) (scaled by the optional `f_k` as in
-[`donor_linearization`](@ref)) and the factor `α` that scales the source `e` [-], the rate is:
+With the coefficients of [`donor_coefficients`](@ref) (with the decays scaled by the optional
+`f_k`) and the factor `α` that scales the source `e` [-], the rate is:
 - `Transfer(:Donor => :Receiver, S)`: `D q_new[Donor]`.
 - `VaporExchange(:Condensate, S)` and `VaporRelaxation(:Condensate, S, τ)`:
   `α s - D q_new[Condensate]`.

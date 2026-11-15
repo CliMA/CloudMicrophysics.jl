@@ -117,8 +117,13 @@ Guards against unphysical density ratios (ρ > ρw) that would cause sqrt of neg
 end
 @inline get_v0((; v0)::CMP.Blk1MVelTypeSnow, args...) = v0
 
+@inline _r0_power((; r0, me, Δm)::CMP.ParticleMass) = r0^(me + Δm)
+
+# The cube root of the Schmidt number of the air (guard against division by near-zero D_vapor)
+@inline _cbrt_schmidt((; ν_air, D_vapor)::CMP.AirProperties) = cbrt(ν_air / max(D_vapor, UT.ϵ_numerics(D_vapor)))
+
 """
-    lambda_inverse(pdf, mass::ParticleMass, q, ρ)
+    lambda_inverse(pdf, mass::ParticleMass, q, ρ, n0 = get_n0(pdf, q, ρ))
 
 Returns the inverse of the rate parameter (λ⁻¹) of the assumed Marshall-Palmer
 size distribution of particles (rain drops, ice crystals, snow crystals).
@@ -131,6 +136,7 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
 - `mass`: mass(radius) parameters (contains `r0`, `m0`, `me`, `Δm`, `χm`, `gamma_coeff`)
 - `q`: specific content of rain, cloud ice, or snow [kg/kg]
 - `ρ`: air density [kg/m³]
+- `n0`: intercept parameter of the size distribution (`get_n0`), for a caller that holds it
 
 # Returns
 - `λ⁻¹`: inverse rate parameter [m]
@@ -141,10 +147,9 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     mass::CMP.ParticleMass,
     q,
     ρ,
+    n0 = get_n0(pdf, q, ρ),
 )
     FT = UT.promote_typeof(q, ρ)
-    # size distribution
-    n0 = get_n0(pdf, q, ρ)
     # mass(size)
     (; r0, m0, me, Δm, χm, gamma_coeff) = mass
 
@@ -160,7 +165,7 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     qp = UT.clamp_to_nonneg(q)
     ρp = UT.clamp_to_nonneg(ρ)
     denom = χm * m0 * max(n0, UT.ϵ_numerics(n0)) * gamma_coeff
-    λ_inv = (ρp * qp * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
+    λ_inv = (ρp * qp * UT.precomputed(_r0_power, mass) / denom)^(1 / (me + Δm + 1))
     return max(r0 * FT(1e-5), λ_inv)
 end
 
@@ -310,39 +315,58 @@ end
     # size distribution parameter
     λ_inv_radius = lambda_inverse(pdf, mass, q, ρₐ)
     λ_inv_diameter = 2 * λ_inv_radius
+    # Terms that share a coefficient share its logarithm and gamma function value.
+    log_λ_inv = log(λ_inv_diameter)
+    log_inv_1 = CO.Chen2022_log_inv(ciu[1], log_λ_inv, λ_inv_diameter)
+    log_inv_2 = CO.Chen2022_log_inv(ciu[2], log_λ_inv, λ_inv_diameter)
+    log_inv_3 =
+        vel.c[3] == vel.c[2] ? log_inv_2 :
+        CO.Chen2022_log_inv(ciu[3], log_λ_inv, λ_inv_diameter)
+    gamma_1 = SF.gamma(bi[1] + 4)
+    gamma_2 = vel.b[2] == vel.b[1] ? gamma_1 : SF.gamma(bi[2] + 4)
+    gamma_3 = SF.gamma(bi[3] + 4)
     # eq 20 from Chen et al 2022 (loop unrolled for GPU performance)
     fall_w =
-        CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-        CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3) +
-        CO.Chen2022_exponential_pdf(aiu[3], bi[3], ciu[3], λ_inv_diameter, 3)
+        CO.Chen2022_exponential_pdf_k3(aiu[1], bi[1], log_λ_inv, log_inv_1, gamma_1) +
+        CO.Chen2022_exponential_pdf_k3(aiu[2], bi[2], log_λ_inv, log_inv_2, gamma_2) +
+        CO.Chen2022_exponential_pdf_k3(aiu[3], bi[3], log_λ_inv, log_inv_3, gamma_3)
     # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
     fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 
+@inline function chen2022_large_ice_constants(vel, (; ρᵢ, aspr)::CMP.Snow)
+    table = CO.Chen2022_large_ice_table(vel, ρᵢ)
+    return (; table, gammas = map(b -> SF.gamma(b + 4), table.bi), ϕ_κ = aspr.ϕ^aspr.κ)
+end
+
 @inline function terminal_velocity(
-    (; pdf, mass, area, ρᵢ, aspr)::CMP.Snow,
+    snow::CMP.Snow,
     vel::CMP.Chen2022VelTypeLargeIce,
     ρₐ,
     q,
 )
+    (; pdf, mass, ρᵢ) = snow
+    (; table, gammas, ϕ_κ) = UT.precomputed(chen2022_large_ice_constants, vel, snow)
     # We assume the B5 table coeffs for snow and B3 table coeffs for cloud ice.
     # Instead we should do partial integrals
     # from D=125um to D=625um using B3 and D=625um to inf using B5.
     # coefficients from Table B5 from Chen et. al. 2022
-    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ)
+    aiu, bi, ciu = CO.Chen2022_vel_coeffs(vel, ρₐ, ρᵢ, table)
     # size distribution parameter
     λ_inv_radius = lambda_inverse(pdf, mass, q, ρₐ)
     λ_inv_diameter = 2 * λ_inv_radius
+    log_λ_inv = log(λ_inv_diameter)
+    log_inv_1 = CO.Chen2022_log_inv(ciu[1], log_λ_inv, λ_inv_diameter)
+    log_inv_2 = CO.Chen2022_log_inv(ciu[2], log_λ_inv, λ_inv_diameter)
 
     # As a next step, we could keep ϕ(r) under the integrals
-    # assume oblate shape and aspect ratio
-    (; ϕ, κ) = aspr
+    # assume oblate shape and aspect ratio (ϕ_κ = ϕ^κ)
 
     # eq 20 from Chen 2022 (loop unrolled for GPU performance)
     fall_w =
-        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
-        ϕ^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
+        ϕ_κ * CO.Chen2022_exponential_pdf_k3(aiu[1], bi[1], log_λ_inv, log_inv_1, gammas[1]) +
+        ϕ_κ * CO.Chen2022_exponential_pdf_k3(aiu[2], bi[2], log_λ_inv, log_inv_2, gammas[2])
     fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
@@ -509,12 +533,14 @@ A mismatch between the option and the parameters stored in `mp` raises an `Argum
 """
 @inline conv_q_lcl_to_q_rai(::Nothing, mp, tps, micro, thermo) = zero(micro.q_lcl)
 
+@inline _logistic_translation((; k)) = CO.logistic_translation(k)
+
 @inline function conv_q_lcl_to_q_rai(opt::CMP.Kessler1M, mp, tps, micro, thermo)
-    (; k) = CMP.process_params(mp, opt)
+    pp = CMP.process_params(mp, opt)
     (; w) = thermo
     q_thr = rain_autoconversion_threshold(opt, mp, w)
     τ_acnv = rain_autoconversion_timescale(opt, mp, w)
-    return CO.logistic_function_integral(micro.q_lcl, q_thr, k) / τ_acnv
+    return CO.logistic_function_integral(micro.q_lcl, q_thr, pp.k, UT.precomputed(_logistic_translation, pp)) / τ_acnv
 end
 
 @inline function conv_q_lcl_to_q_rai(opt::CMP.PrescribedNd, mp, tps, micro, thermo)
@@ -538,12 +564,13 @@ end
 @inline function size_distr_parameters(mp, micro, thermo)
     (; q_rai, q_sno, q_icl) = micro
     ρ = thermo.ρ
+    n0_sno = get_n0(mp.precip.snow.pdf, q_sno, ρ)
     return (;
         λ_inv_rai = lambda_inverse(mp.precip.rain.pdf, mp.precip.rain.mass, q_rai, ρ),
         n0_rai = get_n0(mp.precip.rain.pdf, q_rai, ρ),
         v0_rai = get_v0(mp.terminal_velocity.rain, ρ),
-        λ_inv_sno = lambda_inverse(mp.precip.snow.pdf, mp.precip.snow.mass, q_sno, ρ),
-        n0_sno = get_n0(mp.precip.snow.pdf, q_sno, ρ),
+        λ_inv_sno = lambda_inverse(mp.precip.snow.pdf, mp.precip.snow.mass, q_sno, ρ, n0_sno),
+        n0_sno,
         v0_sno = get_v0(mp.terminal_velocity.snow, ρ),
         λ_inv_icl = lambda_inverse(mp.cloud.ice.pdf, mp.cloud.ice.mass, q_icl, ρ),
         n0_icl = get_n0(mp.cloud.ice.pdf),
@@ -575,9 +602,9 @@ Harrington et al. (1995) and Kaul et al. (2015).
 @inline conv_q_icl_to_q_sno(::Nothing, mp, tps, micro, thermo, sd = nothing) = zero(micro.q_icl)
 
 @inline function conv_q_icl_to_q_sno(opt::CMP.NoSupersaturation, mp, tps, micro, thermo, sd = nothing)
-    (; τ, q_threshold, k) = CMP.process_params(mp, opt)
-    q_icl = micro.q_icl
-    return CO.logistic_function_integral(q_icl, q_threshold, k) / τ
+    pp = CMP.process_params(mp, opt)
+    trnslt = UT.precomputed(_logistic_translation, pp)
+    return CO.logistic_function_integral(micro.q_icl, pp.q_threshold, pp.k, trnslt) / pp.τ
 end
 
 @inline function conv_q_icl_to_q_sno(
@@ -591,8 +618,9 @@ end
     FT = eltype(ρ)
     T_freeze = TDI.T_freeze(tps)
 
-    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
-    G = CO.G_func_ice(aps, tps, T)
+    p_sat = TDI.saturation_vapor_pressure_over_ice(tps, thermo)
+    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_sat)
+    G = CO.G_func_ice(aps, tps, T, p_sat)
     λ_inv = sd.λ_inv_icl
 
     # Only allow ice autoconversion below freezing with positive supersaturation
@@ -710,22 +738,23 @@ end
     E,
     q_icl,
     q_rai,
-    ρ,
     n0_ice,
     λ_ice_inv,
-    n0,
     v0,
     λ_inv,
 )
-    (; r0, m0, me, Δm, χm) = rain.mass
+    (; r0, gamma_coeff) = rain.mass
     (; χv, ve, Δv, gamma_accr_rain_sink) = vel
     (; a0, ae, χa, Δa) = rain.area
 
-    # gamma_accr_rain_sink = SF.gamma(me + ae + ve + Δm + Δa + Δv + 1) (pre-computed in vel)
+    # gamma_accr_rain_sink = SF.gamma(me + ae + ve + Δm + Δa + Δv + 1)
+    # (pre-computed in vel). The rain mass content ρ q_rai = n0 m0 χm
+    # gamma_coeff λ_inv^(me + Δm + 1) / r0^(me + Δm) (`lambda_inverse`) is a
+    # factor of the rate, which leaves the power of the accretion rate.
     accr_rate =
-        E / ρ * n0 * n0_ice * m0 * a0 * v0 * χm * χa * χv * λ_ice_inv * λ_inv *
-        gamma_accr_rain_sink /
-        (r0 / λ_inv)^(me + ae + ve + Δm + Δa + Δv)
+        E * q_rai * n0_ice * λ_ice_inv * a0 * v0 * χa * χv *
+        gamma_accr_rain_sink / gamma_coeff /
+        (r0 / λ_inv)^(ae + ve + Δa + Δv)
 
     ϵ = UT.ϵ_numerics(UT.promote_typeof(q_icl, q_rai))
     cond = q_icl > ϵ && q_rai > ϵ
@@ -743,17 +772,16 @@ end
 )
     n0_ice = get_n0(ice.pdf)
     λ_ice_inv = lambda_inverse(ice.pdf, ice.mass, q_icl, ρ)
-    n0 = get_n0(rain.pdf, q_rai, ρ)
     v0 = get_v0(vel, ρ)
     λ_inv = lambda_inverse(rain.pdf, rain.mass, q_rai, ρ)
-    return accretion_rain_sink(rain, ice, vel, E, q_icl, q_rai, ρ, n0_ice, λ_ice_inv, n0, v0, λ_inv)
+    return accretion_rain_sink(rain, ice, vel, E, q_icl, q_rai, n0_ice, λ_ice_inv, v0, λ_inv)
 end
 
 """
     accretion_snow_rain(
         type_i, type_j, blk1mveltype_ti, blk1mveltype_tj,
         E_ij, coeff_disp, q_i, q_j, ρ,
-        n0_i, n0_j, v0_i, v0_j, λ_i_inv, λ_j_inv,
+        n0_i, v0_i, v0_j, λ_i_inv, λ_j_inv,
     )
     accretion_snow_rain(
         type_i, type_j, blk1mveltype_ti, blk1mveltype_tj,
@@ -781,9 +809,9 @@ deviations are proportional to the mean fall velocities, with coefficient
 - `coeff_disp`: velocity dispersion coefficient
 - `q_i`, `q_j`: specific contents of snow or rain [kg/kg]
 - `ρ`: air density [kg/m³]
-- `n0_i`, `n0_j`, `v0_i`, `v0_j`, `λ_i_inv`, `λ_j_inv`: (kernel form only)
-  precomputed size-distribution intercepts, fall-speed scales, and inverse
-  slopes for both species
+- `n0_i`, `v0_i`, `v0_j`, `λ_i_inv`, `λ_j_inv`: (kernel form only)
+  precomputed size-distribution intercept of species i, and fall-speed scales
+  and inverse slopes of both species
 """
 @inline function accretion_snow_rain(
     type_i::CMP.PrecipitationType,
@@ -796,13 +824,12 @@ deviations are proportional to the mean fall velocities, with coefficient
     q_j,
     ρ,
     n0_i,
-    n0_j,
     v0_i,
     v0_j,
     λ_i_inv,
     λ_j_inv,
 )
-    (; r0, m0, me, Δm, χm, gamma_coeff) = type_j.mass
+    (; me, Δm) = type_j.mass
     δ = me + Δm
 
     v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i, v0_i, λ_i_inv)
@@ -813,15 +840,13 @@ deviations are proportional to the mean fall velocities, with coefficient
     # coeff_disp
     Δv_eff = sqrt((v_ti - v_tj)^2 + coeff_disp * (v_ti^2 + v_tj^2))
 
-    # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms.
-    # gamma_coeff = Γ(δ + 1) is pre-computed.
+    # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms. The
+    # common factor of the three terms, n0_j m0 χm Γ(δ + 1)
+    # λ_j_inv^(δ + 1) / r0^δ, is the mass content ρ q_j of species j
+    # (`lambda_inverse`), so no power is evaluated.
     accr_rate =
-        π / ρ * n0_i * n0_j * m0 * χm * E_ij * Δv_eff * gamma_coeff /
-        r0^δ * (
-            2 * λ_i_inv^3 * λ_j_inv^(δ + 1) +
-            2 * (δ + 1) * λ_i_inv^2 * λ_j_inv^(δ + 2) +
-            (δ + 2) * (δ + 1) * λ_i_inv * λ_j_inv^(δ + 3)
-        )
+        π * n0_i * E_ij * Δv_eff * q_j * λ_i_inv *
+        (2 * λ_i_inv^2 + 2 * (δ + 1) * λ_i_inv * λ_j_inv + (δ + 2) * (δ + 1) * λ_j_inv^2)
 
     ϵ = UT.ϵ_numerics(UT.promote_typeof(q_i, q_j))
     cond = q_i > ϵ && q_j > ϵ
@@ -840,7 +865,6 @@ end
     ρ,
 )
     n0_i = get_n0(type_i.pdf, q_i, ρ)
-    n0_j = get_n0(type_j.pdf, q_j, ρ)
     v0_i = get_v0(blk1mveltype_ti, ρ)
     v0_j = get_v0(blk1mveltype_tj, ρ)
     λ_i_inv = lambda_inverse(type_i.pdf, type_i.mass, q_i, ρ)
@@ -856,7 +880,6 @@ end
         q_j,
         ρ,
         n0_i,
-        n0_j,
         v0_i,
         v0_j,
         λ_i_inv,
@@ -1038,7 +1061,6 @@ end
         q_rai,
         ρ,
         sd.n0_sno,
-        sd.n0_rai,
         sd.v0_sno,
         sd.v0_rai,
         sd.λ_inv_sno,
@@ -1061,7 +1083,6 @@ end
 )
     q_icl = micro.q_icl
     q_rai = micro.q_rai
-    ρ = thermo.ρ
     return accretion_rain_sink(
         mp.precip.rain,
         mp.cloud.ice,
@@ -1069,10 +1090,8 @@ end
         CMP.process_params(mp, opt).e,
         q_icl,
         q_rai,
-        ρ,
         sd.n0_icl,
         sd.λ_inv_icl,
-        sd.n0_rai,
         sd.v0_rai,
         sd.λ_inv_rai,
     )
@@ -1111,10 +1130,11 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     aps = mp.air_properties
     FT = eltype(ρ)
 
-    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
+    p_sat = TDI.saturation_vapor_pressure_over_liquid(tps, thermo)
+    S = TDI.supersaturation_over_liquid(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_sat)
 
-    (; ν_air, D_vapor) = aps
-    G = CO.G_func_liquid(aps, tps, T)
+    (; ν_air) = aps
+    G = CO.G_func_liquid(aps, tps, T, p_sat)
 
     n0 = sd.n0_rai
     v0 = sd.v0_rai
@@ -1125,13 +1145,11 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
     a_vent = vent.a
     b_vent = vent.b
 
-    Sc = ν_air / max(D_vapor, UT.ϵ_numerics(D_vapor))
-
     evap_rate =
         4 * FT(π) * n0 / ρ * S * G * λ_inv^2 *
         (
             a_vent +
-            b_vent * cbrt(Sc) /
+            b_vent * UT.precomputed(_cbrt_schmidt, aps) /
             (r0 / λ_inv)^((ve + Δv) / 2) *
             sqrt(2 * v0 * χv / ν_air * λ_inv) *
             gamma_vent
@@ -1190,29 +1208,33 @@ cloud liquid or cloud ice (`q_lcl`, `q_icl` [kg/kg]) exceeds the specific humidi
 @inline function _snow_subl_dep_rate(mp, tps, micro, thermo, sd = size_distr_parameters(mp, micro, thermo))
     (; q_tot, q_lcl, q_icl, q_rai, q_sno) = micro
     (; ρ, T) = thermo
-    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T)
-    C = _snow_subl_dep_coeff(mp, tps, ρ, T, sd.n0_sno, sd.v0_sno, sd.λ_inv_sno)
+    p_sat = TDI.saturation_vapor_pressure_over_ice(tps, thermo)
+    S = TDI.supersaturation_over_ice(tps, q_tot, q_lcl + q_rai, q_icl + q_sno, ρ, T, p_sat)
+    C = _snow_subl_dep_coeff(mp, tps, ρ, T, sd.n0_sno, sd.v0_sno, sd.λ_inv_sno, p_sat)
     cond = q_sno > UT.ϵ_numerics(q_sno)
     return ifelse(cond, C * S, zero(C * S))
 end
+
 # Internal helper: ventilation-integral prefactor C for snow sublimation/deposition.
 # Returns 4π n0/ρ · G(T) · λ_inv² · vent(n0, v0, λ_inv).
 # The phase-change rate is C · S_rel (relative supersaturation over ice).
-@inline function _snow_subl_dep_coeff(mp, tps, ρ::FT, T, n0, v0, λ_inv) where {FT}
+# `p_sat` is the saturation vapor pressure over ice at `T`.
+@inline function _snow_subl_dep_coeff(
+    mp, tps, ρ::FT, T, n0, v0, λ_inv, p_sat = TDI.saturation_vapor_pressure_over_ice(tps, T),
+) where {FT}
     (; mass, vent) = mp.precip.snow
     vel = mp.terminal_velocity.snow
     aps = mp.air_properties
-    (; ν_air, D_vapor) = aps
-    G = CO.G_func_ice(aps, tps, T)
+    (; ν_air) = aps
+    G = CO.G_func_ice(aps, tps, T, p_sat)
     (; r0) = mass
     (; χv, ve, Δv, gamma_vent) = vel
     a_vent = vent.a
     b_vent = vent.b
-    Sc = ν_air / max(D_vapor, UT.ϵ_numerics(D_vapor))
     return 4 * FT(π) * n0 / ρ * G * λ_inv^2 *
            (
                a_vent +
-               b_vent * cbrt(Sc) /
+               b_vent * UT.precomputed(_cbrt_schmidt, aps) /
                (r0 / λ_inv)^((ve + Δv) / 2) *
                sqrt(2 * v0 * χv / ν_air * λ_inv) *
                gamma_vent
@@ -1367,7 +1389,7 @@ Returns the tendency due to snow melt.
     FT = eltype(ρ)
     T_freeze = TDI.T_freeze(tps)
 
-    (; ν_air, D_vapor, K_therm) = aps
+    (; ν_air, K_therm) = aps
 
     L = TDI.Lf(tps, T)
 
@@ -1381,14 +1403,11 @@ Returns the tendency due to snow melt.
     a_vent = vent.a
     b_vent = vent.b
 
-    # Schmidt number (guard against division by near-zero D_vapor)
-    Sc = ν_air / max(D_vapor, UT.ϵ_numerics(D_vapor))
-
     snow_melt_rate =
         4 * FT(π) * n0 / ρ * K_therm / L * (T - T_freeze) * λ_inv^2 *
         (
             a_vent +
-            b_vent * cbrt(Sc) /
+            b_vent * UT.precomputed(_cbrt_schmidt, aps) /
             (r0 / λ_inv)^((ve + Δv) / 2) *
             sqrt(2 * v0 * χv / ν_air * λ_inv) *
             gamma_vent
