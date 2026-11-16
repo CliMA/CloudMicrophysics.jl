@@ -309,7 +309,7 @@ function benchmark_test(FT)
     bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_ice_rain_accretion, mp_1m, tps, micro_1m, thermo_1m), 650)
     bench_press(FT, CM1.accretion, (mp_1m.processes.cloud_ice_snow_accretion, mp_1m, tps, micro_1m, thermo_1m), 650)
     bench_press(
-        @NamedTuple{S_rai_sno::FT, S_sno_rai::FT, S_melt::FT},
+        @NamedTuple{S_rai_sno::FT, S_melt::FT},
         CM1.accretion_snow_rain,
         (mp_1m.processes.rain_snow_accretion, mp_1m, tps, micro_1m, thermo_1m),
         1400,

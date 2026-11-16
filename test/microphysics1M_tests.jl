@@ -839,13 +839,11 @@ function test_microphysics1M(FT)
             TT.@test r.S_melt == FT(0)
         end
 
-        # RainSnowAccretion: NamedTuple (; S_rai_sno, S_sno_rai, S_melt)
-        # cold arm S_rai_sno matches internal (sno, rai) call
-        # warm arm S_sno_rai matches internal (rai, sno) call
+        # RainSnowAccretion: NamedTuple (; S_rai_sno, S_melt)
+        # S_rai_sno matches internal (sno, rai) call; S_melt > 0 above freezing
         let r = CM1.accretion_snow_rain(mp.processes.rain_snow_accretion, mp, tps, micro, thermo_warm)
             TT.@test r.S_rai_sno ≈ FT(2.466313958248222e-4)
-            TT.@test r.S_sno_rai ≈ FT(6.830957197816771e-5)
-            TT.@test r.S_melt >= FT(0)
+            TT.@test r.S_melt > FT(0)
         end
         # Cold: S_melt = 0 (α = 0 below freezing)
         let r = CM1.accretion_snow_rain(mp.processes.rain_snow_accretion, mp, tps, micro, thermo_cold)
@@ -855,8 +853,8 @@ function test_microphysics1M(FT)
         # nothing variants return zero
         micro_zero = (; q_tot = FT(0), q_lcl = FT(0), q_icl = FT(0), q_rai = FT(0), q_sno = FT(0))
         TT.@test CM1.accretion(nothing, mp, tps, micro_zero, thermo_warm) == FT(0)
-        TT.@test CM1.accretion_snow_rain(nothing, mp, tps, micro_zero, thermo_warm).S_rai_sno == FT(0)
-        TT.@test CM1.accretion_snow_rain(nothing, mp, tps, micro_zero, thermo_warm).S_sno_rai == FT(0)
+        TT.@test CM1.accretion_snow_rain(nothing, mp, tps, micro_zero, thermo_warm) ==
+                 (; S_rai_sno = FT(0), S_melt = FT(0))
         # Active variants: zero inputs → zero rates
         TT.@test CM1.accretion(mp.processes.cloud_liquid_rain_accretion, mp, tps, micro_zero, thermo_warm) == FT(0)
         TT.@test CM1.accretion(mp.processes.cloud_ice_rain_accretion, mp, tps, micro_zero, thermo_warm) == FT(0)
@@ -869,16 +867,7 @@ function test_microphysics1M(FT)
             tps,
             micro_zero,
             thermo_warm,
-        ).S_rai_sno ==
-                 FT(0)
-        TT.@test CM1.accretion_snow_rain(
-            mp.processes.rain_snow_accretion,
-            mp,
-            tps,
-            micro_zero,
-            thermo_warm,
-        ).S_sno_rai ==
-                 FT(0)
+        ) == (; S_rai_sno = FT(0), S_melt = FT(0))
     end
 
     TT.@testset "RainEvaporation" begin

@@ -570,10 +570,11 @@ The sink of snow is proportional to the sink of cloud liquid water with
  ``L_f`` is the latent heat of freezing,
   and ``T_\text{freeze}`` is the freezing temperature.
 
-The collisions between cloud ice and rain create snow.
-The source of snow in this case is a sum of sinks from cloud ice and rain.
+In collisions between cloud ice and rain, the collected cloud ice forms snow below freezing
+  and melts into rain at and above freezing.
 The sink of cloud ice is defined by eq. (\ref{eq:accrfin}).
-The sink of rain is defined as:
+Below freezing, the collected rain freezes into snow, except for the liquid fraction ``f_\text{liq}`` defined below;
+  the collected-rain rate is defined as:
 
 ```math
 \begin{equation}
@@ -613,9 +614,7 @@ where:
 - ``\Pi_{m, a, v}^{rai} =  m_0^{rai} \, a_0^{rai} \, v_0^{rai} \, \chi_m^{rai} \, \chi_a^{rai} \, \chi_v^{rai}``
 - ``\Sigma_{m, a, v}^{rai} = m_e^{rai} + a_e^{rai} + v_e^{rai} + \Delta_m^{rai} + \Delta_a^{rai} + \Delta_v^{rai}``
 
-Collisions between rain and snow result in snow in temperatures below freezing
-  and in rain in temperatures above freezing.
-The source term is defined as:
+For collisions between rain and snow, the rate at which species ``i`` collects species ``j`` is:
 
 ```math
 \begin{equation}
@@ -629,8 +628,7 @@ The source term is defined as:
 
 where
 
-- ``i`` stands for rain (``T>T_\text{freeze}``) or snow (``T<T_\text{freeze}``)
-- ``j`` stands for snow (``T>T_\text{freeze}``) or rain (``T<T_\text{freeze}``)
+- ``i`` stands for snow and ``j`` stands for rain for the rain collected by snow (``S_\text{rai,sno}``)
 - ``a(r_i, r_j)`` is the crossection of the two colliding particles
 
 There are two additional assumptions that we make to integrate
@@ -700,9 +698,30 @@ The eq.(\ref{eq:accr_sr1}) can then be integrated as:
     with the snow crossection used when modelling collisions with cloud water
     and cloud ice.
 
-Similarly to cloud ice and snow collisions, there is additional melting term
-   when snow collides with rain in temperatures warmer than freezing.
-This term is proportional to ``\frac{c_{vl}}{L_f}(T - T_\text{freeze})``.
+Similarly to cloud liquid and snow collisions, there is a thermal melting term
+   when snow collides with rain at temperatures warmer than freezing,
+   proportional to ``\frac{c_{vl}}{L_f}(T - T_\text{freeze})`` times the collected-rain rate.
+
+In `BulkMicrophysicsTendencies`, ice and snow melt in rain collisions only at and above freezing:
+  the collected cloud ice melts into rain, and snow melts only by the heat of the collected rain.
+Below freezing, all collected cloud ice forms snow, while the rain collected by cloud ice or snow
+  freezes into snow at a rate limited by conductive removal of latent heat, approximated by the
+  frozen fraction ``1 - f_\text{liq}(T)``, where the liquid fraction of the collected rain is
+
+```math
+\begin{equation}
+  f_\text{liq}(T) =
+  \begin{cases}
+    1 & T \geq T_\text{freeze}, \\
+    0 & T < T_\text{freeze}, \; T \leq T_\text{snow}, \\
+    \dfrac{T - T_\text{snow}}{T_\text{freeze} - T_\text{snow}} & T_\text{snow} < T < T_\text{freeze}.
+  \end{cases}
+\end{equation}
+```
+
+``T_\text{snow}`` is the parameter `temperature_rain_collision_snow`.
+With ``T_\text{snow}`` at or above freezing, all collected rain freezes below freezing;
+  a lower ``T_\text{snow}`` ramps the freezing of collected rain linearly to zero at freezing.
 
 ## Rain evaporation and snow sublimation
 

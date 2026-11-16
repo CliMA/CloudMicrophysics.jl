@@ -123,17 +123,17 @@ MK.with_theme(MK.theme_minimal()) do
     MK.save("accretion_rain_sink_rate.svg", fig)
 end
 
-# Snow-rain accretion rate figures, above freezing (snow → rain) and below freezing (rain → snow)
-accretion_snow_rain(q_rai, q_sno) = CM1.accretion_snow_rain(
+# Snow-rain accretion rate figures: above freezing (thermal melt snow → rain) and below freezing (rain → snow)
+accretion_snow_rain(q_rai, q_sno, T_sr = T) = CM1.accretion_snow_rain(
     mp.processes.rain_snow_accretion, mp, tps,
     (; q_tot, q_lcl, q_icl, q_rai, q_sno),
-    (; ρ = ρ_air, T),
+    (; ρ = ρ_air, T = T_sr),
 )
-accretion_snow_rain_warm(q_sno) = [accretion_snow_rain(q, q_sno).S_sno_rai for q in q_rain_range]
+accretion_snow_rain_warm(q_sno) = [accretion_snow_rain(q, q_sno, T + 5).S_melt for q in q_rain_range]
 accretion_snow_rain_cold(q_rai) = [accretion_snow_rain(q_rai, q).S_rai_sno for q in q_snow_range]
 MK.with_theme(MK.theme_minimal()) do
     fig = MK.Figure()
-    ax = MK.Axis(fig[1, 1]; xlabel = "q_rain [g/kg]", ylabel = "snow-rain accretion rate [1/s] T>0", limits)
+    ax = MK.Axis(fig[1, 1]; xlabel = "q_rain [g/kg]", ylabel = "snow-rain melt rate [1/s] (T = 5°C)", limits)
     MK.lines!(ax, q_rain_range * 1e3, accretion_snow_rain_warm(1e-6); label = "q_snow = 1e-6")
     MK.lines!(ax, q_rain_range * 1e3, accretion_snow_rain_warm(1e-5); label = "q_snow = 1e-5")
     MK.lines!(ax, q_rain_range * 1e3, accretion_snow_rain_warm(1e-4); label = "q_snow = 1e-4")
@@ -240,6 +240,7 @@ mp_with_N_0(N_0) = CMP.Microphysics1MParams(;
     air_properties = mp.air_properties,
     terminal_velocity = mp.terminal_velocity,
     max_latent_heating_rate = mp.max_latent_heating_rate,
+    temperature_rain_collision_snow = mp.temperature_rain_collision_snow,
 )
 q_tot_het = 15e-3
 heterogeneous_freezing(N_0, q_lcl, T) = CM1.conv_q_lcl_to_q_icl(
