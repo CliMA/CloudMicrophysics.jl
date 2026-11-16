@@ -570,10 +570,11 @@ The sink of snow is proportional to the sink of cloud liquid water with
  ``L_f`` is the latent heat of freezing,
   and ``T_\text{freeze}`` is the freezing temperature.
 
-The collisions between cloud ice and rain create snow.
-The source of snow in this case is a sum of sinks from cloud ice and rain.
+The collisions between cloud ice and rain create snow,
+  or rain with the liquid fraction ``f_\text{liq}`` of the rain collision products defined below.
+The source of snow in this case is ``1 - f_\text{liq}`` times the sum of the sinks from cloud ice and rain.
 The sink of cloud ice is defined by eq. (\ref{eq:accrfin}).
-The sink of rain is defined as:
+The sink of rain, of which the fraction ``1 - f_\text{liq}`` freezes into snow, is defined as:
 
 ```math
 \begin{equation}
@@ -614,7 +615,8 @@ where:
 - ``\Sigma_{m, a, v}^{rai} = m_e^{rai} + a_e^{rai} + v_e^{rai} + \Delta_m^{rai} + \Delta_a^{rai} + \Delta_v^{rai}``
 
 Collisions between rain and snow result in snow in temperatures below freezing
-  and in rain in temperatures above freezing.
+  and in rain in temperatures above freezing, with the liquid fraction ``f_\text{liq}`` defined below
+  splitting the products below freezing.
 The source term is defined as:
 
 ```math
@@ -703,6 +705,28 @@ The eq.(\ref{eq:accr_sr1}) can then be integrated as:
 Similarly to cloud ice and snow collisions, there is additional melting term
    when snow collides with rain in temperatures warmer than freezing.
 This term is proportional to ``\frac{c_{vl}}{L_f}(T - T_\text{freeze})``.
+
+The products of the collisions of rain with cloud ice, and below freezing with snow,
+  are split between rain and snow with the liquid fraction
+
+```math
+\begin{equation}
+  f_\text{liq}(T) =
+  \begin{cases}
+    1 & T \geq T_\text{freeze}, \\
+    0 & T < T_\text{freeze}, \; T \leq T_\text{snow}, \\
+    \dfrac{T - T_\text{snow}}{T_\text{freeze} - T_\text{snow}} & T_\text{snow} < T < T_\text{freeze}.
+  \end{cases}
+\end{equation}
+```
+
+The cloud ice collected by rain becomes rain with the fraction ``f_\text{liq}`` and snow with ``1 - f_\text{liq}``,
+  the rain collected by cloud ice or, below freezing, by snow becomes snow with the fraction ``1 - f_\text{liq}``,
+  and below freezing the snow collected by rain becomes rain with the fraction ``f_\text{liq}``.
+The cloud ice and snow that become rain absorb the latent heat of fusion.
+``T_\text{snow}`` is the parameter `temperature_rain_collision_snow`.
+With ``T_\text{snow}`` at or above freezing the products switch from snow to rain at freezing;
+  a lower ``T_\text{snow}`` makes the switch a linear ramp, continuous at freezing.
 
 ## Rain evaporation and snow sublimation
 

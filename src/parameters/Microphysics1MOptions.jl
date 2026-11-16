@@ -236,7 +236,8 @@ struct CloudLiquidSnowAccretion <: MicrophysicsOption end
 """
     CloudIceRainAccretion <: MicrophysicsOption
 
-Cloud ice + rain → snow (Marshall-Palmer kernel).
+Cloud ice + rain → snow and rain, split by the liquid fraction of the rain collision
+products (Marshall-Palmer kernel).
 The coupled rain-sink arm (rain + cloud ice → snow) is toggled automatically.
 Parameters (collision efficiency `e`) are stored in
 `process_params.cloud_ice_rain_accretion` in [`Microphysics1MParams`](@ref).

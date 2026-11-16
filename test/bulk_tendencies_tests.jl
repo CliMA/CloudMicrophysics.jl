@@ -12,11 +12,19 @@ import CloudMicrophysics.Parameters as CMP
 the value the stiff vapor <-> ice relaxation tests below were written for. Pinned here so the
 tests do not depend on the ClimaParams default (1e5 m⁻³ since ClimaParams 1.1.12).
 """
-function stiff_prescribed_ice_params(FT; max_latent_heating_rate = Inf, N_0 = 5.0e8, τ_liq = nothing, joint = true)
+function stiff_prescribed_ice_params(
+    FT;
+    max_latent_heating_rate = Inf,
+    N_0 = 5.0e8,
+    τ_liq = nothing,
+    joint = true,
+    T_snow = 273.15,
+)
     override = Dict(
         "cloud_ice_sedimentation_number_concentration" => Dict("value" => N_0, "type" => "float"),
         # the solver tests probe the relaxation itself; the latent-heating limiter has its own tests
         "microphysics_max_latent_heating_rate" => Dict("value" => max_latent_heating_rate, "type" => "float"),
+        "temperature_rain_collision_snow" => Dict("value" => T_snow, "type" => "float"),
     )
     τ_liq === nothing || (override["condensation_evaporation_timescale"] = Dict("value" => τ_liq, "type" => "float"))
     td = CP.create_toml_dict(FT; override_file = override)
@@ -1143,8 +1151,8 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
               lin[:q_lcl, :q_lcl] * q_lcl_new + lin[:q_lcl, :q_icl] * q_icl_new + lin[:q_lcl] atol = FT(100) * eps(FT)
         @test (q_icl_new - q_icl) * invΔt ≈ lin[:q_icl, :q_icl] * q_icl_new + lin[:q_icl] atol = FT(100) * eps(FT)
         @test (q_rai_new - q_rai) * invΔt ≈
-              lin[:q_rai, :q_lcl] * q_lcl_new + lin[:q_rai, :q_rai] * q_rai_new + lin[:q_rai, :q_sno] * q_sno_new atol =
-            FT(100) * eps(FT)
+              lin[:q_rai, :q_lcl] * q_lcl_new + lin[:q_rai, :q_icl] * q_icl_new + lin[:q_rai, :q_rai] * q_rai_new +
+              lin[:q_rai, :q_sno] * q_sno_new atol = FT(100) * eps(FT)
         @test (q_sno_new - q_sno) * invΔt ≈
               lin[:q_sno, :q_lcl] * q_lcl_new + lin[:q_sno, :q_icl] * q_icl_new + lin[:q_sno, :q_rai] * q_rai_new +
               lin[:q_sno, :q_sno] * q_sno_new + lin[:q_sno] atol =
@@ -1305,6 +1313,44 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             vapor_relaxation in (CMP.JointVaporRelaxation(), CMP.PerProcessVaporRelaxation())
 
             @test snow_tendency(snow_deposition_sublimation, vapor_relaxation) <= 0
+        end
+    end
+
+    @testset "_microphysics_source_terms - liquid fraction of rain collision products" begin
+        params(T_snow) = CMP.Microphysics1MParams(
+            CP.create_toml_dict(
+                FT;
+                override_file = Dict("temperature_rain_collision_snow" => Dict("value" => T_snow, "type" => "float")),
+            ),
+        )
+        mp_step, mp_ramp, mp_above = params(273.15), params(253.15), params(283.15)
+        ρ, w = FT(0.8), FT(0)
+        micro = (; q_tot = FT(4e-3), q_lcl = FT(3e-4), q_icl = FT(5e-4), q_rai = FT(4e-4), q_sno = FT(6e-4))
+        terms(mp, T) = BMT._microphysics_source_terms(BMT.Microphysics1Moment(), mp, tps, ρ, T, w, micro...)
+
+        # T_snow at freezing switches the products from snow to rain at freezing
+        cold, warm = terms(mp_step, T_freeze - FT(0.1)), terms(mp_step, T_freeze + FT(5))
+        @test cold.S_accr_icl_rai isa BMT.Transfer{:q_icl, :q_sno}
+        @test cold.S_accr_melt_icl_rai isa BMT.Transfer{:q_icl, :q_rai}
+        @test cold.S_accr_icl_rai.S > 0 && cold.S_accr_freeze_icl_rai.S > 0
+        @test cold.S_accr_melt_icl_rai.S == cold.S_accr_rai_sno_warm.S == 0
+        @test warm.S_accr_melt_icl_rai.S > 0
+        @test warm.S_accr_icl_rai.S == warm.S_accr_freeze_icl_rai.S == 0
+
+        # so does T_snow above freezing, and above freezing T_snow has no effect
+        @test terms(mp_above, T_freeze - FT(5)) == terms(mp_step, T_freeze - FT(5))
+        @test terms(mp_above, T_freeze + FT(5)) == terms(mp_ramp, T_freeze + FT(5)) == warm
+
+        # a lower T_snow ramps them below freezing
+        for (T, f_liq) in ((FT(248), FT(0)), (FT(263.15), FT(0.5)), (FT(268.15), FT(0.75)))
+            step, ramp = terms(mp_step, T), terms(mp_ramp, T)
+            (; S_sno_rai) =
+                CM1.accretion_snow_rain(mp_step.processes.rain_snow_accretion, mp_step, tps, micro, (; ρ, T))
+            @test ramp.S_accr_icl_rai.S ≈ (1 - f_liq) * step.S_accr_icl_rai.S
+            @test ramp.S_accr_melt_icl_rai.S ≈ f_liq * step.S_accr_icl_rai.S
+            @test ramp.S_accr_freeze_icl_rai.S ≈ (1 - f_liq) * step.S_accr_freeze_icl_rai.S
+            @test ramp.S_accr_rai_sno_cold.S ≈ (1 - f_liq) * step.S_accr_rai_sno_cold.S
+            @test ramp.S_accr_rai_sno_warm.S ≈ f_liq * S_sno_rai
         end
     end
 
@@ -1694,12 +1740,13 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
     end
 
     @testset "LinearizedAverage - latent heating limiter holds when rain and snow feed each other" begin
-        # 274 K with cloud ice, rain and snow: rain freezes on the ice (rai → sno) while the snow melts
-        # (sno → rai), two large opposing fusion transfers through pools that refill each other. The
-        # per-donor scaling alone can then miss the bound; the uniform fallback must enforce it.
-        mp_lim = stiff_prescribed_ice_params(FT; max_latent_heating_rate = 0.002)
+        # 270 K inside a rain collision ramp from 253.15 K, with cloud ice, rain and snow: rain freezes onto
+        # the snow (rai → sno) while the snow collected by rain becomes rain (sno → rai), two large opposing
+        # fusion transfers through pools that refill each other. The per-donor scaling alone can then miss the
+        # bound; the uniform fallback must enforce it.
+        mp_lim = stiff_prescribed_ice_params(FT; max_latent_heating_rate = 0.002, T_snow = 253.15)
         ρ = FT(1);
-        T = FT(274)
+        T = FT(270)
         q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
         q = (FT(1e-4), FT(5e-4), FT(1e-4), FT(1e-3))
         q_tot = FT(1.03) * q_sl + sum(q)
@@ -1708,7 +1755,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         Ls_over_cp = TDI.TD.Parameters.LH_s0(tps) / TDI.TD.Parameters.cp_d(tps)
         heating(r) = (Lv_over_cp * (r.dq_lcl_dt + r.dq_rai_dt) + Ls_over_cp * (r.dq_icl_dt + r.dq_sno_dt)) * Δts
         Tloc = T
-        engaged = false
+        engaged = uniform = false
         for _ in 1:3
             st = BMT._linearized_implicit_step_factors(
                 BMT.Microphysics1Moment(),
@@ -1724,6 +1771,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             r = st.rates
             @test abs(heating(r)) <= FT(0.002) * Δts * (one(FT) + FT(1e-3))
             engaged |= st.f_lim < one(FT)
+            uniform |= st.g_uniform < one(FT)
             q = (
                 q[1] + r.dq_lcl_dt * Δts,
                 q[2] + r.dq_icl_dt * Δts,
@@ -1734,6 +1782,7 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             Tloc += heating(r)
         end
         @test engaged                                          # the bound was needed in at least one substep
+        @test uniform                                          # and the per-donor scaling alone missed it
     end
 
     @testset "LinearizedAverage - vapor check floor follows the saturation curve for a large substep heating" begin

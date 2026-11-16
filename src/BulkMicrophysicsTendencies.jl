@@ -165,8 +165,11 @@ Compute the term of each 1-moment microphysics process.
 
 Each term is a [`Transfer`](@ref), [`VaporExchange`](@ref) or [`VaporRelaxation`](@ref), and
 its type gives the species of the process and the direction of its rate. A collision with a
-cold and a warm branch has one term for each branch, with the suffix `_cold` or `_warm`, and
-the term of the inactive branch is zero.
+cold and a warm branch has one term for each branch, with the suffix `_cold` or `_warm`. The
+products of rain collisions with cloud ice and snow are split between snow and rain by the
+liquid fraction `f_liq`: one at and above freezing; below freezing, zero at and below `T_snow` (the
+`temperature_rain_collision_snow` of `mp`) and linear in temperature from `T_snow` to freezing.
+The other collisions switch at freezing, and the term of the inactive branch is zero.
 
 # Arguments
 - `mp`: 1-moment microphysics parameters.
@@ -226,7 +229,10 @@ the term of the inactive branch is zero.
         Transfer(:q_icl => :q_sno, CM1.conv_q_icl_to_q_sno(procs.snow_autoconversion, mp, tps, micro, thermo, sd))
 
     # --- Accretion (collisions between species) ---
-    is_warm = T >= TDI.T_freeze(tps)
+    T_freeze, T_snow = TDI.T_freeze(tps), mp.temperature_rain_collision_snow
+    is_warm = T >= T_freeze
+    # Liquid fraction of the cloud ice, rain and snow collected in rain collisions
+    f_liq = ifelse(is_warm, one(FT), ifelse(T <= T_snow, zero(FT), (T - T_snow) / (T_freeze - T_snow)))
 
     # Cloud liquid + rain → rain
     S_accr_lcl_rai =
@@ -243,22 +249,24 @@ the term of the inactive branch is zero.
     S_accr_lcl_sno_warm = Transfer(:q_lcl => :q_rai, ifelse(is_warm, S_accr, zero(FT))) # warm
     S_accr_melt_lcl_sno = Transfer(:q_sno => :q_rai, S_melt) # thermal melt, zero when cold
 
-    # Cloud ice + rain → snow (ice-side sink)
-    S_accr_icl_rai =
-        Transfer(:q_icl => :q_sno, CM1.accretion(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd))
+    # Cloud ice + rain: the collected cloud ice → snow (1 - f_liq) and rain (f_liq)
+    S_icl_rai = CM1.accretion(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd)
+    S_accr_icl_rai = Transfer(:q_icl => :q_sno, (1 - f_liq) * S_icl_rai)
+    S_accr_melt_icl_rai = Transfer(:q_icl => :q_rai, f_liq * S_icl_rai)
 
-    # Rain frozen in cloud ice + rain collision → snow (rain sink)
-    S_accr_freeze_icl_rai =
-        Transfer(:q_rai => :q_sno, CM1.accretion_rain_sink(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd))
+    # Rain frozen in cloud ice + rain collision → snow (1 - f_liq of the collected rain)
+    S_accr_freeze_icl_rai = Transfer(:q_rai => :q_sno,
+        (1 - f_liq) * CM1.accretion_rain_sink(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd),
+    )
 
     # Cloud ice + snow → snow
     S_accr_icl_sno =
         Transfer(:q_icl => :q_sno, CM1.accretion(procs.cloud_ice_snow_accretion, mp, tps, micro, thermo, sd))
 
-    # Rain-snow collisions: split into cold/warm arms (inactive arm = zero)
+    # Rain-snow collisions: the collected rain → snow (1 - f_liq) and the collected snow → rain (f_liq)
     (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(procs.rain_snow_accretion, mp, tps, micro, thermo, sd)
-    S_accr_rai_sno_cold = Transfer(:q_rai => :q_sno, ifelse(is_warm, zero(FT), S_rai_sno)) # cold
-    S_accr_rai_sno_warm = Transfer(:q_sno => :q_rai, ifelse(is_warm, S_sno_rai, zero(FT))) # warm
+    S_accr_rai_sno_cold = Transfer(:q_rai => :q_sno, (1 - f_liq) * S_rai_sno) # cold
+    S_accr_rai_sno_warm = Transfer(:q_sno => :q_rai, f_liq * S_sno_rai) # warm
     S_accr_melt_rai_sno = Transfer(:q_sno => :q_rai, ifelse(is_warm, S_melt, zero(FT)))    # thermal melt
 
     # --- Phase change: precipitation ↔ vapor ---
@@ -283,7 +291,7 @@ the term of the inactive branch is zero.
         S_phase_change_vap_lcl, S_phase_change_vap_icl,
         S_acnv_lcl_rai, S_acnv_icl_sno,
         S_accr_lcl_rai, S_accr_lcl_sno_cold, S_accr_lcl_sno_warm, S_accr_melt_lcl_sno,
-        S_accr_icl_rai, S_accr_freeze_icl_rai, S_accr_icl_sno,
+        S_accr_icl_rai, S_accr_melt_icl_rai, S_accr_freeze_icl_rai, S_accr_icl_sno,
         S_accr_rai_sno_cold, S_accr_rai_sno_warm, S_accr_melt_rai_sno,
         S_phase_change_vap_rai, S_phase_change_vap_sno,
         S_melt_icl_lcl, S_melt_sno_rai,
@@ -436,7 +444,7 @@ than the available vapor; 1 when neither bound is exceeded.
 @inline function _uniform_scale(mp, tps, q, q2, q_tot, Δt)
     FT = eltype(q)
     # the per-donor scaling is exact for a donor whose pool is not refilled by another phase change; when
-    # pools feed each other (rain freezing on ice while snow melts) the realized heating can still exceed the
+    # pools feed each other the realized heating can still exceed the
     # bound, in which case all substep tendencies are scaled uniformly to it (exact: heating is linear in them)
     ΔT2 = _latent_heating(q2 - q, tps)
     ΔT_max = mp.max_latent_heating_rate * Δt

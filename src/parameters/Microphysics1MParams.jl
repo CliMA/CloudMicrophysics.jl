@@ -61,6 +61,10 @@ directly.
 - `max_latent_heating_rate::FT`: bound on the latent heating or cooling rate of the phase
   changes within a substep of the `LinearizedAverage` solver [K/s], from ClimaParams
   `microphysics_max_latent_heating_rate` (`inf` disables the limiter; must be positive)
+- `temperature_rain_collision_snow::FT`: temperature [K] from which the rain fraction of the products
+  of rain collisions with cloud ice and snow rises linearly to one at freezing; below freezing the
+  products are snow at and below it, and a value at or above freezing gives a switch at freezing
+  (ClimaParams `temperature_rain_collision_snow`)
 
 # Constructors
 
@@ -93,6 +97,8 @@ mp = CMP.Microphysics1MParams(Float64;
     terminal_velocity::VL
     "Upper bound on the latent heating or cooling rate of all phase changes within a substep [K/s]; `Inf` disables the limiter"
     max_latent_heating_rate::FT
+    "Temperature from which the rain fraction of the products of rain collisions rises linearly to one at freezing [K]"
+    temperature_rain_collision_snow::FT
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Microphysics1MParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -132,6 +138,11 @@ function Microphysics1MParams(
                 "CloudMicrophysics",
             ).microphysics_max_latent_heating_rate,
         ),
+        temperature_rain_collision_snow = CP.get_parameter_values(
+            toml_dict,
+            "temperature_rain_collision_snow",
+            "CloudMicrophysics",
+        ).temperature_rain_collision_snow,
     )
 end
 
