@@ -570,10 +570,13 @@ The sink of snow is proportional to the sink of cloud liquid water with
  ``L_f`` is the latent heat of freezing,
   and ``T_\text{freeze}`` is the freezing temperature.
 
-The collisions between cloud ice and rain create snow.
+The collisions between cloud ice and rain create snow
+  when ``T < T_\text{freeze}``.
 The source of snow in this case is a sum of sinks from cloud ice and rain.
 The sink of cloud ice is defined by eq. (\ref{eq:accrfin}).
-The sink of rain is defined as:
+When ``T \geq T_\text{freeze}``, the collected cloud ice melts into the rain:
+  the sink of cloud ice is a source of rain, and the sink of rain is zero.
+The sink of rain when ``T < T_\text{freeze}`` is defined as:
 
 ```math
 \begin{equation}

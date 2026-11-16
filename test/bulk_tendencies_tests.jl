@@ -1143,8 +1143,8 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
               lin[:q_lcl, :q_lcl] * q_lcl_new + lin[:q_lcl, :q_icl] * q_icl_new + lin[:q_lcl] atol = FT(100) * eps(FT)
         @test (q_icl_new - q_icl) * invΔt ≈ lin[:q_icl, :q_icl] * q_icl_new + lin[:q_icl] atol = FT(100) * eps(FT)
         @test (q_rai_new - q_rai) * invΔt ≈
-              lin[:q_rai, :q_lcl] * q_lcl_new + lin[:q_rai, :q_rai] * q_rai_new + lin[:q_rai, :q_sno] * q_sno_new atol =
-            FT(100) * eps(FT)
+              lin[:q_rai, :q_lcl] * q_lcl_new + lin[:q_rai, :q_icl] * q_icl_new + lin[:q_rai, :q_rai] * q_rai_new +
+              lin[:q_rai, :q_sno] * q_sno_new atol = FT(100) * eps(FT)
         @test (q_sno_new - q_sno) * invΔt ≈
               lin[:q_sno, :q_lcl] * q_lcl_new + lin[:q_sno, :q_icl] * q_icl_new + lin[:q_sno, :q_rai] * q_rai_new +
               lin[:q_sno, :q_sno] * q_sno_new + lin[:q_sno] atol =
@@ -1265,6 +1265,27 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
             Σ = BMT.species_tendency(terms, BMT.Condensates1M{FT})
             @test Σ ≈ BMT.Condensates1M(values(avg)...) atol = atol
         end
+    end
+
+    @testset "_microphysics_source_terms - cloud ice and rain collisions across freezing" begin
+        rate(term) = term.S
+        args(T) = (BMT.Microphysics1Moment(), mp, tps, FT(1.2), T, FT(0), FT(0.012), FT(0), FT(5e-4), FT(5e-4), FT(0))
+
+        cold = BMT._microphysics_source_terms(args(T_freeze - FT(5))...)
+        @test rate(cold.S_accr_icl_rai_cold) > 0
+        @test rate(cold.S_accr_freeze_icl_rai) > 0
+        @test rate(cold.S_accr_icl_rai_warm) == 0
+
+        # Above freezing, the collected ice melts into the rain: no snow forms and no rain freezes
+        warm = BMT._microphysics_source_terms(args(T_freeze + FT(5))...)
+        @test rate(warm.S_accr_icl_rai_warm) > 0
+        @test rate(warm.S_accr_icl_rai_cold) == 0
+        @test rate(warm.S_accr_freeze_icl_rai) == 0
+        @test warm.S_accr_icl_rai_warm isa BMT.Transfer{:q_icl, :q_rai}
+
+        # Autoconversion of cloud ice is the only source of snow
+        tendencies = BMT.bulk_microphysics_tendencies(BMT.Instantaneous(), args(T_freeze + FT(5))...)
+        @test tendencies.dq_sno_dt ≈ rate(warm.S_acnv_icl_sno)
     end
 
     @testset "_microphysics_source_terms - no transfer from a precipitation to a cloud species" begin

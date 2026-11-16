@@ -243,13 +243,14 @@ the term of the inactive branch is zero.
     S_accr_lcl_sno_warm = Transfer(:q_lcl => :q_rai, ifelse(is_warm, S_accr, zero(FT))) # warm
     S_accr_melt_lcl_sno = Transfer(:q_sno => :q_rai, S_melt) # thermal melt, zero when cold
 
-    # Cloud ice + rain → snow (ice-side sink)
-    S_accr_icl_rai =
-        Transfer(:q_icl => :q_sno, CM1.accretion(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd))
+    # Cloud ice + rain: the collected ice forms snow (cold) or melts into the rain (warm)
+    S_icl_rai = CM1.accretion(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd)
+    S_accr_icl_rai_cold = Transfer(:q_icl => :q_sno, ifelse(is_warm, zero(FT), S_icl_rai)) # cold
+    S_accr_icl_rai_warm = Transfer(:q_icl => :q_rai, ifelse(is_warm, S_icl_rai, zero(FT))) # warm
 
-    # Rain frozen in cloud ice + rain collision → snow (rain sink)
-    S_accr_freeze_icl_rai =
-        Transfer(:q_rai => :q_sno, CM1.accretion_rain_sink(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd))
+    # Rain frozen in cloud ice + rain collision → snow (rain sink), zero when warm
+    S_frz_icl_rai = CM1.accretion_rain_sink(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd)
+    S_accr_freeze_icl_rai = Transfer(:q_rai => :q_sno, ifelse(is_warm, zero(FT), S_frz_icl_rai))
 
     # Cloud ice + snow → snow
     S_accr_icl_sno =
@@ -283,7 +284,7 @@ the term of the inactive branch is zero.
         S_phase_change_vap_lcl, S_phase_change_vap_icl,
         S_acnv_lcl_rai, S_acnv_icl_sno,
         S_accr_lcl_rai, S_accr_lcl_sno_cold, S_accr_lcl_sno_warm, S_accr_melt_lcl_sno,
-        S_accr_icl_rai, S_accr_freeze_icl_rai, S_accr_icl_sno,
+        S_accr_icl_rai_cold, S_accr_icl_rai_warm, S_accr_freeze_icl_rai, S_accr_icl_sno,
         S_accr_rai_sno_cold, S_accr_rai_sno_warm, S_accr_melt_rai_sno,
         S_phase_change_vap_rai, S_phase_change_vap_sno,
         S_melt_icl_lcl, S_melt_sno_rai,
