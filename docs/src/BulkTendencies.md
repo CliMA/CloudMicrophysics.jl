@@ -458,6 +458,7 @@ This is consistent with the microphysics-only update and avoids coupling to a fu
 | Joint relaxation        | `JointVaporTransfer(:Condensate, Δq)` | the transfer solved by the joint relaxation     |
 
 To add a process to the 1-moment scheme, compute its rate in `Microphysics1M` and add its term to `_microphysics_source_terms`.
+If the rate is zero unless the contents of its species exceed `ϵ_numerics`, evaluate it in a branch on the presence of those species (`has_lcl`, `has_icl`, `has_rai`, `has_sno`), so that the kernel skips the process where a species is absent.
 The instantaneous tendencies, the entries of $M$ and $e$, the rate of the process in the verbose modes and its treatment by the latent-heating limiter follow from the term: a transfer between a liquid and an ice species (`:q_lcl`, `:q_rai` versus `:q_icl`, `:q_sno`) and every exchange with the vapor change phase.
 A transfer from a precipitation species to a cloud species is not supported, because the block solve assumes that the upper right block of $M$ is zero.
 

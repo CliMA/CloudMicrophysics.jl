@@ -168,6 +168,10 @@ its type gives the species of the process and the direction of its rate. A colli
 cold and a warm branch has one term for each branch, with the suffix `_cold` or `_warm`, and
 the term of the inactive branch is zero.
 
+A process whose rate is zero where one of its species is absent is evaluated in a branch on
+the presence of those species, and its term is zero elsewhere. The branches leave every
+term equal to the rate that its process function returns.
+
 # Arguments
 - `mp`: 1-moment microphysics parameters.
 - `tps`: thermodynamics parameters.
@@ -200,10 +204,27 @@ the term of the inactive branch is zero.
     micro = (; q_tot, q_lcl, q_icl, q_rai, q_sno)
     thermo = (; ρ, T, w)
 
+    # Presence of each species. Most rates are zero unless the content of every species
+    # they act on exceeds `ϵ_numerics` (`has_*`); they are evaluated in a branch on those
+    # flags, so the `pow` and `exp` calls of a process run only where its species are
+    # present. The autoconversions and the cloud liquid + rain accretion have options whose
+    # rate vanishes only at zero content, so they branch on a positive content instead
+    # (`pos_*`). Cloud liquid and cloud ice form from vapor at zero content, so their terms
+    # are evaluated everywhere.
+    has_lcl = q_lcl > UT.ϵ_numerics(q_lcl)
+    has_icl = q_icl > UT.ϵ_numerics(q_icl)
+    has_rai = q_rai > UT.ϵ_numerics(q_rai)
+    has_sno = q_sno > UT.ϵ_numerics(q_sno)
+    pos_lcl = q_lcl > zero(q_lcl)
+    pos_icl = q_icl > zero(q_icl)
+    pos_rai = q_rai > zero(q_rai)
+    z = zero(FT)
+
     # Size-distribution / fall-speed quantities (λ⁻¹, n₀, v₀ for rain/snow/ice) are
-    # pow/exp-heavy and shared by several processes per species: compute once and pass
-    # to each process via its `sd` argument so they are not recomputed per process.
-    sd = CM1.size_distr_parameters(mp, micro, thermo)
+    # pow/exp-heavy and shared by several processes per species: compute once, for the
+    # species that are present, and pass to each process via its `sd` argument so they are
+    # not recomputed per process.
+    sd = CM1.size_distr_parameters(mp, micro, thermo, has_rai, has_sno, has_icl)
 
     # --- Phase change: vapor ↔ cloud condensate (bidirectional, ±) ---
     # Relaxation timescales (without Γ); `Inf` when disabled
@@ -219,65 +240,81 @@ the term of the inactive branch is zero.
     )
 
     # --- Autoconversion (cloud → precipitation, ≥ 0) ---
-    S_acnv_lcl_rai =
-        Transfer(:q_lcl => :q_rai, CM1.conv_q_lcl_to_q_rai(procs.rain_autoconversion, mp, tps, micro, thermo))
+    S_acnv_lcl_rai = Transfer(:q_lcl => :q_rai,
+        pos_lcl ? CM1.conv_q_lcl_to_q_rai(procs.rain_autoconversion, mp, tps, micro, thermo) : z,
+    )
 
-    S_acnv_icl_sno =
-        Transfer(:q_icl => :q_sno, CM1.conv_q_icl_to_q_sno(procs.snow_autoconversion, mp, tps, micro, thermo, sd))
+    S_acnv_icl_sno = Transfer(:q_icl => :q_sno,
+        pos_icl ? CM1.conv_q_icl_to_q_sno(procs.snow_autoconversion, mp, tps, micro, thermo, sd) : z,
+    )
 
     # --- Accretion (collisions between species) ---
     is_warm = T >= TDI.T_freeze(tps)
 
     # Cloud liquid + rain → rain
-    S_accr_lcl_rai =
-        Transfer(:q_lcl => :q_rai, CM1.accretion(procs.cloud_liquid_rain_accretion, mp, tps, micro, thermo, sd))
+    S_accr_lcl_rai = Transfer(:q_lcl => :q_rai,
+        pos_lcl & pos_rai ? CM1.accretion(procs.cloud_liquid_rain_accretion, mp, tps, micro, thermo, sd) : z,
+    )
 
     # Cloud liquid + snow: product goes to sno (cold) or rai (warm), plus thermal melt.
     # The previous accretion versions return a single number, this one has to return a tuple.
-    (; S_accr, S_melt) = if isnothing(procs.cloud_liquid_snow_accretion)
-        (; S_accr = zero(FT), S_melt = zero(FT))
-    else
+    (; S_accr, S_melt) = if !isnothing(procs.cloud_liquid_snow_accretion) && has_lcl & has_sno
         CM1.accretion(procs.cloud_liquid_snow_accretion, mp, tps, micro, thermo, sd)
+    else
+        (; S_accr = z, S_melt = z)
     end
-    S_accr_lcl_sno_cold = Transfer(:q_lcl => :q_sno, ifelse(is_warm, zero(FT), S_accr)) # cold
-    S_accr_lcl_sno_warm = Transfer(:q_lcl => :q_rai, ifelse(is_warm, S_accr, zero(FT))) # warm
+    S_accr_lcl_sno_cold = Transfer(:q_lcl => :q_sno, ifelse(is_warm, z, S_accr)) # cold
+    S_accr_lcl_sno_warm = Transfer(:q_lcl => :q_rai, ifelse(is_warm, S_accr, z)) # warm
     S_accr_melt_lcl_sno = Transfer(:q_sno => :q_rai, S_melt) # thermal melt, zero when cold
 
-    # Cloud ice + rain → snow (ice-side sink)
-    S_accr_icl_rai =
-        Transfer(:q_icl => :q_sno, CM1.accretion(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd))
-
-    # Rain frozen in cloud ice + rain collision → snow (rain sink)
-    S_accr_freeze_icl_rai =
-        Transfer(:q_rai => :q_sno, CM1.accretion_rain_sink(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd))
+    # Cloud ice + rain → snow: the ice-side sink, and the rain frozen in the collision (rain sink)
+    (S_icl_rai, S_freeze_icl_rai) = if has_icl & has_rai
+        (
+            CM1.accretion(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd),
+            CM1.accretion_rain_sink(procs.cloud_ice_rain_accretion, mp, tps, micro, thermo, sd),
+        )
+    else
+        (z, z)
+    end
+    S_accr_icl_rai = Transfer(:q_icl => :q_sno, S_icl_rai)
+    S_accr_freeze_icl_rai = Transfer(:q_rai => :q_sno, S_freeze_icl_rai)
 
     # Cloud ice + snow → snow
-    S_accr_icl_sno =
-        Transfer(:q_icl => :q_sno, CM1.accretion(procs.cloud_ice_snow_accretion, mp, tps, micro, thermo, sd))
+    S_accr_icl_sno = Transfer(:q_icl => :q_sno,
+        has_icl & has_sno ? CM1.accretion(procs.cloud_ice_snow_accretion, mp, tps, micro, thermo, sd) : z,
+    )
 
     # Rain-snow collisions: split into cold/warm arms (inactive arm = zero)
-    (; S_rai_sno, S_sno_rai, S_melt) = CM1.accretion_snow_rain(procs.rain_snow_accretion, mp, tps, micro, thermo, sd)
-    S_accr_rai_sno_cold = Transfer(:q_rai => :q_sno, ifelse(is_warm, zero(FT), S_rai_sno)) # cold
-    S_accr_rai_sno_warm = Transfer(:q_sno => :q_rai, ifelse(is_warm, S_sno_rai, zero(FT))) # warm
-    S_accr_melt_rai_sno = Transfer(:q_sno => :q_rai, ifelse(is_warm, S_melt, zero(FT)))    # thermal melt
+    (; S_rai_sno, S_sno_rai, S_melt) = if has_rai & has_sno
+        CM1.accretion_snow_rain(procs.rain_snow_accretion, mp, tps, micro, thermo, sd)
+    else
+        (; S_rai_sno = z, S_sno_rai = z, S_melt = z)
+    end
+    S_accr_rai_sno_cold = Transfer(:q_rai => :q_sno, ifelse(is_warm, z, S_rai_sno)) # cold
+    S_accr_rai_sno_warm = Transfer(:q_sno => :q_rai, ifelse(is_warm, S_sno_rai, z)) # warm
+    S_accr_melt_rai_sno = Transfer(:q_sno => :q_rai, ifelse(is_warm, S_melt, z))    # thermal melt
 
     # --- Phase change: precipitation ↔ vapor ---
-    S_phase_change_vap_rai =
-        VaporExchange(:q_rai, CM1.conv_q_rai_to_q_vap(procs.rain_condensation_evaporation, mp, tps, micro, thermo, sd))
+    S_phase_change_vap_rai = VaporExchange(:q_rai,
+        has_rai ? CM1.conv_q_rai_to_q_vap(procs.rain_condensation_evaporation, mp, tps, micro, thermo, sd) : z,
+    )
     S_phase_change_vap_sno = VaporExchange(:q_sno,
-        CM1.conv_q_sno_to_q_vap(procs.snow_deposition_sublimation, mp, tps, micro, thermo, sd),
+        has_sno ? CM1.conv_q_sno_to_q_vap(procs.snow_deposition_sublimation, mp, tps, micro, thermo, sd) : z,
         CM1._snow_deposition_blocked(procs.snow_deposition_sublimation, tps, micro, thermo),
     )
 
     # --- Melting ---
-    S_melt_icl_lcl =
-        Transfer(:q_icl => :q_lcl, CM1.conv_q_icl_to_q_lcl(procs.cloud_ice_melt, mp, tps, micro, thermo, sd))
-    S_melt_sno_rai =
-        Transfer(:q_sno => :q_rai, CM1.conv_q_sno_to_q_rai(procs.snow_melt, mp, tps, micro, thermo, sd))
+    S_melt_icl_lcl = Transfer(:q_icl => :q_lcl,
+        has_icl ? CM1.conv_q_icl_to_q_lcl(procs.cloud_ice_melt, mp, tps, micro, thermo, sd) : z,
+    )
+    S_melt_sno_rai = Transfer(:q_sno => :q_rai,
+        has_sno ? CM1.conv_q_sno_to_q_rai(procs.snow_melt, mp, tps, micro, thermo, sd) : z,
+    )
 
     # --- Freezing ---
-    S_freeze_lcl_icl =
-        Transfer(:q_lcl => :q_icl, CM1.conv_q_lcl_to_q_icl(procs.cloud_liquid_freezing, mp, tps, micro, thermo))
+    S_freeze_lcl_icl = Transfer(:q_lcl => :q_icl,
+        has_lcl ? CM1.conv_q_lcl_to_q_icl(procs.cloud_liquid_freezing, mp, tps, micro, thermo) : z,
+    )
 
     return (;
         S_phase_change_vap_lcl, S_phase_change_vap_icl,

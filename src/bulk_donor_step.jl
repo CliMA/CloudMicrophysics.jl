@@ -245,7 +245,7 @@ With the coefficients of [`donor_coefficients`](@ref) (scaled by the optional `f
 [`species_tendency`](@ref) of the terms with these rates is `(q_new - q) / Δt`.
 """
 @inline donor_rates(terms, q, q_new, α, q_min, Δt, f_k = one.(q)) =
-    UU.unrolled_map(t -> _donor_rate(t, q, q_new, α, q_min, Δt, f_k), terms)
+    UU.unrolled_map(t -> (@inline; _donor_rate(t, q, q_new, α, q_min, Δt, f_k)), terms)
 
 @inline function _donor_rate(t::Transfer{Donor}, q, q_new, _, q_min, Δt, f_k) where {Donor}
     (_, D) = donor_coefficients(t, q, q_min, Δt, f_k)

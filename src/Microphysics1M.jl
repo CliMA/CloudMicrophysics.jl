@@ -142,7 +142,6 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     q,
     ρ,
 )
-    FT = UT.promote_typeof(q, ρ)
     # size distribution
     n0 = get_n0(pdf, q, ρ)
     # mass(size)
@@ -161,8 +160,11 @@ average particles. The value is clipped at `r0 * 1e-5` to prevent numerical issu
     ρp = UT.clamp_to_nonneg(ρ)
     denom = χm * m0 * max(n0, UT.ϵ_numerics(n0)) * gamma_coeff
     λ_inv = (ρp * qp * r0^(me + Δm) / denom)^(1 / (me + Δm + 1))
-    return max(r0 * FT(1e-5), λ_inv)
+    return max(_lambda_inverse_floor(mass, q, ρ), λ_inv)
 end
+
+# Lower bound of `lambda_inverse`, which is its value at zero specific content.
+@inline _lambda_inverse_floor((; r0)::CMP.ParticleMass, q, ρ) = r0 * UT.promote_typeof(q, ρ)(1e-5)
 
 """
     aspect_ratio_coeffs(snow_shape::Oblate, mass::ParticleMass, area::ParticleArea, ρᵢ)
@@ -535,18 +537,30 @@ end
 # functions below via their optional `sd` argument. The `sd = size_distr_parameters(...)`
 # default is evaluated only for standalone callers that omit it, so there is no repeated
 # computation on the BMT hot path; for such callers the compiler drops the unused fields.
-@inline function size_distr_parameters(mp, micro, thermo)
+#
+# The flags `has_rai`, `has_sno` and `has_icl` say whether the content of the species
+# exceeds `ϵ_numerics`. The slope and intercept of a species enter only rates that are
+# zero unless its content exceeds `ϵ_numerics`, so for an absent species they take their
+# values at zero content and the `pow` calls are skipped.
+@inline size_distr_parameters(mp, micro, thermo) = size_distr_parameters(mp, micro, thermo, true, true, true)
+@inline function size_distr_parameters(mp, micro, thermo, has_rai::Bool, has_sno::Bool, has_icl::Bool)
     (; q_rai, q_sno, q_icl) = micro
     ρ = thermo.ρ
+    (; rain, snow) = mp.precip
+    ice = mp.cloud.ice
+    (; ν, μ) = snow.pdf
     return (;
-        λ_inv_rai = lambda_inverse(mp.precip.rain.pdf, mp.precip.rain.mass, q_rai, ρ),
-        n0_rai = get_n0(mp.precip.rain.pdf, q_rai, ρ),
+        λ_inv_rai = has_rai ? lambda_inverse(rain.pdf, rain.mass, q_rai, ρ) :
+                    _lambda_inverse_floor(rain.mass, q_rai, ρ),
+        n0_rai = get_n0(rain.pdf, q_rai, ρ),
         v0_rai = get_v0(mp.terminal_velocity.rain, ρ),
-        λ_inv_sno = lambda_inverse(mp.precip.snow.pdf, mp.precip.snow.mass, q_sno, ρ),
-        n0_sno = get_n0(mp.precip.snow.pdf, q_sno, ρ),
+        λ_inv_sno = has_sno ? lambda_inverse(snow.pdf, snow.mass, q_sno, ρ) :
+                    _lambda_inverse_floor(snow.mass, q_sno, ρ),
+        n0_sno = has_sno ? get_n0(snow.pdf, q_sno, ρ) : zero(UT.promote_typeof(μ, ν, q_sno, ρ)),
         v0_sno = get_v0(mp.terminal_velocity.snow, ρ),
-        λ_inv_icl = lambda_inverse(mp.cloud.ice.pdf, mp.cloud.ice.mass, q_icl, ρ),
-        n0_icl = get_n0(mp.cloud.ice.pdf),
+        λ_inv_icl = has_icl ? lambda_inverse(ice.pdf, ice.mass, q_icl, ρ) :
+                    _lambda_inverse_floor(ice.mass, q_icl, ρ),
+        n0_icl = get_n0(ice.pdf),
     )
 end
 
@@ -628,8 +642,9 @@ contribution of warm liquid on snow.
 end
 
 # Gating convention for the process-rate kernels below: the rate is computed
-# unconditionally and then gated with `ifelse(cond, rate, zero(rate))`, so the
-# kernel stays branchless on the GPU. `zero(rate)` types the fallback from the
+# unconditionally and then gated with `ifelse(cond, rate, zero(rate))`, so each
+# rate kernel is branchless on the GPU (`BulkMicrophysicsTendencies` branches on
+# the presence of the species around the calls). `zero(rate)` types the fallback from the
 # live branch, so both `ifelse` arms agree for any argument mix (plain floats,
 # ForwardDiff Duals). The `max(x, ϵ_numerics)` clamps on denominators (e.g.,
 # `lambda_inverse`'s floor, the Schmidt-number guard) keep the discarded
@@ -804,16 +819,30 @@ deviations are proportional to the mean fall velocities, with coefficient
     λ_i_inv,
     λ_j_inv,
 )
-    (; r0, m0, me, Δm, χm, gamma_coeff) = type_j.mass
-    δ = me + Δm
+    Δv_eff = _snow_rain_velocity_difference(
+        type_i, type_j, blk1mveltype_ti, blk1mveltype_tj, coeff_disp, q_i, q_j, ρ, v0_i, v0_j, λ_i_inv, λ_j_inv,
+    )
+    return _accretion_snow_rain(type_j, E_ij, q_i, q_j, ρ, n0_i, n0_j, λ_i_inv, λ_j_inv, Δv_eff)
+end
 
+# Effective difference of the fall velocities of the colliding species `i` and `j`: the
+# difference of their mean fall velocities with a velocity dispersion, assuming that
+# the standard deviations of the fall velocities are proportional to the means, with
+# coefficient `coeff_disp`. Its value is the same with `i` and `j` exchanged, so the two arms
+# of the rain-snow collisions share one evaluation.
+@inline function _snow_rain_velocity_difference(
+    type_i, type_j, blk1mveltype_ti, blk1mveltype_tj, coeff_disp, q_i, q_j, ρ, v0_i, v0_j, λ_i_inv, λ_j_inv,
+)
     v_ti = terminal_velocity(type_i, blk1mveltype_ti, ρ, q_i, v0_i, λ_i_inv)
     v_tj = terminal_velocity(type_j, blk1mveltype_tj, ρ, q_j, v0_j, λ_j_inv)
+    return sqrt((v_ti - v_tj)^2 + coeff_disp * (v_ti^2 + v_tj^2))
+end
 
-    # Add simple parameterization for velocity dispersion, assuming that fall velocity
-    # standard deviations are proportional to the mean fall velocities, with coefficient
-    # coeff_disp
-    Δv_eff = sqrt((v_ti - v_tj)^2 + coeff_disp * (v_ti^2 + v_tj^2))
+# Rate of the collisions in which species `j` is collected by species `i`, for the effective
+# difference `Δv_eff` of their fall velocities.
+@inline function _accretion_snow_rain(type_j, E_ij, q_i, q_j, ρ, n0_i, n0_j, λ_i_inv, λ_j_inv, Δv_eff)
+    (; r0, m0, me, Δm, χm, gamma_coeff) = type_j.mass
+    δ = me + Δm
 
     # We use the recurrence relation Γ(x+1) = xΓ(x) to simplify gamma terms.
     # gamma_coeff = Γ(δ + 1) is pre-computed.
@@ -1029,39 +1058,16 @@ end
     sno = mp.precip.snow
     rai = mp.precip.rain
     (; e, coeff_disp) = CMP.process_params(mp, opt)
-    S_rai_sno = accretion_snow_rain(
-        sno,
-        rai,
-        vel.snow,
-        vel.rain,
-        e,
-        coeff_disp,
-        q_sno,
-        q_rai,
-        ρ,
-        sd.n0_sno,
-        sd.n0_rai,
-        sd.v0_sno,
-        sd.v0_rai,
-        sd.λ_inv_sno,
-        sd.λ_inv_rai,
+    # the fall velocities and their effective difference are shared by the two arms
+    Δv_eff = _snow_rain_velocity_difference(
+        sno, rai, vel.snow, vel.rain, coeff_disp, q_sno, q_rai, ρ,
+        sd.v0_sno, sd.v0_rai, sd.λ_inv_sno, sd.λ_inv_rai,
     )
-    S_sno_rai = accretion_snow_rain(
-        rai,
-        sno,
-        vel.rain,
-        vel.snow,
-        e,
-        coeff_disp,
-        q_rai,
-        q_sno,
-        ρ,
-        sd.n0_rai,
-        sd.n0_sno,
-        sd.v0_rai,
-        sd.v0_sno,
-        sd.λ_inv_rai,
-        sd.λ_inv_sno,
+    S_rai_sno = _accretion_snow_rain(
+        rai, e, q_sno, q_rai, ρ, sd.n0_sno, sd.n0_rai, sd.λ_inv_sno, sd.λ_inv_rai, Δv_eff,
+    )
+    S_sno_rai = _accretion_snow_rain(
+        sno, e, q_rai, q_sno, ρ, sd.n0_rai, sd.n0_sno, sd.λ_inv_rai, sd.λ_inv_sno, Δv_eff,
     )
     α = warm_accretion_melt_factor(tps, T)
     return (; S_rai_sno, S_sno_rai, S_melt = α * S_rai_sno)
@@ -1157,7 +1163,7 @@ Only evaporation is considered (sub-saturated over liquid); result is clamped �
         )
 
     cond = q_rai > UT.ϵ_numerics(q_rai) && S < 0
-    return min(0, ifelse(cond, evap_rate, zero(evap_rate)))
+    return min(zero(evap_rate), ifelse(cond, evap_rate, zero(evap_rate)))
 end
 
 """
@@ -1188,7 +1194,7 @@ Ventilation factor parameterization follows Seifert and Beheng (2006).
     sd = size_distr_parameters(mp, micro, thermo),
 )
     rate = _snow_subl_dep_rate(mp, tps, micro, thermo, sd)
-    return ifelse(_snow_deposition_blocked(opt, tps, micro, thermo), min(0, rate), rate)
+    return ifelse(_snow_deposition_blocked(opt, tps, micro, thermo), min(zero(rate), rate), rate)
 end
 
 """

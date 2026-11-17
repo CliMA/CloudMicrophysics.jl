@@ -222,7 +222,7 @@ end
     # and never more than closes the vapor deficit (Γ accounts for the cooling)
     tendency = ifelse(
         sat_excess < 0,
-        -min(-sat_excess, Γₗ * max(0, q_lcl)) / timescale,
+        -min(-sat_excess, Γₗ * max(zero(q_lcl), q_lcl)) / timescale,
         sat_excess / timescale,
     )
     limiter = homogeneous_limiter(tendency, T, T_hom)
@@ -296,7 +296,7 @@ end
     # and never more than closes the vapor deficit (Γ accounts for the cooling)
     tendency = ifelse(
         sat_excess < 0,
-        -min(-sat_excess, Γᵢ * max(0, q_icl)) / timescale,
+        -min(-sat_excess, Γᵢ * max(zero(q_icl), q_icl)) / timescale,
         sat_excess / timescale,
     )
     limiter = INP_limiter(tendency, tps, T; q_lcl, limits...)
@@ -327,7 +327,7 @@ end
     # compute the tendency (sublimation bounded as in `_conv_q_vap_to_q_icl_const`)
     tendency = ifelse(
         sat_excess < 0,
-        -min(-sat_excess, Γᵢ * max(0, q_icl)) / sublimation_timescale,
+        -min(-sat_excess, Γᵢ * max(zero(q_icl), q_icl)) / sublimation_timescale,
         sat_excess / deposition_timescale,
     )
     limiter = INP_limiter(tendency, tps, T)

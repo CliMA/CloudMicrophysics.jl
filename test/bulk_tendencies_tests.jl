@@ -1284,6 +1284,56 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
         @test isempty(offending)
     end
 
+    @testset "_microphysics_source_terms - terms equal the process rates for absent, sub-threshold and present species" begin
+        # contents at zero, below, at and just above the presence threshold, and well above it
+        ϵ = CM.Utilities.ϵ_numerics(FT)
+        q_values = (FT(0), ϵ / 2, ϵ, nextfloat(ϵ), FT(4e-4))
+        option_sets = (
+            (;),
+            (; rain_autoconversion = CMP.PrescribedNd(), snow_autoconversion = CMP.WithSupersaturation()),
+            (; rain_autoconversion = CMP.KK2000Autoconversion(), cloud_liquid_rain_accretion = CMP.KK2000Accretion()),
+        )
+        ρ, w = FT(1), FT(0.5)
+        n_mismatch = 0
+        for options in option_sets, T in (T_freeze + FT(10), T_freeze - FT(5), FT(225))
+            mp_o = CMP.Microphysics1MParams(FT; options...)
+            procs = mp_o.processes
+            q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+            for q_lcl in q_values, q_icl in q_values, q_rai in q_values, q_sno in q_values
+                micro = (; q_tot = FT(0.9) * q_sl + q_lcl + q_icl + q_rai + q_sno, q_lcl, q_icl, q_rai, q_sno)
+                thermo = (; ρ, T, w)
+                terms = BMT._microphysics_source_terms(BMT.Microphysics1Moment(), mp_o, tps, ρ, T, w, micro...)
+                # the rate of each process with the size-distribution parameters of all species
+                sd = CM1.size_distr_parameters(mp_o, micro, thermo)
+                rate(f, opt) = f(opt, mp_o, tps, micro, thermo, sd)
+                is_warm = T >= T_freeze
+                lcl_sno = rate(CM1.accretion, procs.cloud_liquid_snow_accretion)
+                rai_sno = rate(CM1.accretion_snow_rain, procs.rain_snow_accretion)
+                expected = (;
+                    S_acnv_lcl_rai = CM1.conv_q_lcl_to_q_rai(procs.rain_autoconversion, mp_o, tps, micro, thermo),
+                    S_acnv_icl_sno = rate(CM1.conv_q_icl_to_q_sno, procs.snow_autoconversion),
+                    S_accr_lcl_rai = rate(CM1.accretion, procs.cloud_liquid_rain_accretion),
+                    S_accr_lcl_sno_cold = ifelse(is_warm, FT(0), lcl_sno.S_accr),
+                    S_accr_lcl_sno_warm = ifelse(is_warm, lcl_sno.S_accr, FT(0)),
+                    S_accr_melt_lcl_sno = lcl_sno.S_melt,
+                    S_accr_icl_rai = rate(CM1.accretion, procs.cloud_ice_rain_accretion),
+                    S_accr_freeze_icl_rai = rate(CM1.accretion_rain_sink, procs.cloud_ice_rain_accretion),
+                    S_accr_icl_sno = rate(CM1.accretion, procs.cloud_ice_snow_accretion),
+                    S_accr_rai_sno_cold = ifelse(is_warm, FT(0), rai_sno.S_rai_sno),
+                    S_accr_rai_sno_warm = ifelse(is_warm, rai_sno.S_sno_rai, FT(0)),
+                    S_accr_melt_rai_sno = ifelse(is_warm, rai_sno.S_melt, FT(0)),
+                    S_phase_change_vap_rai = rate(CM1.conv_q_rai_to_q_vap, procs.rain_condensation_evaporation),
+                    S_phase_change_vap_sno = rate(CM1.conv_q_sno_to_q_vap, procs.snow_deposition_sublimation),
+                    S_melt_icl_lcl = rate(CM1.conv_q_icl_to_q_lcl, procs.cloud_ice_melt),
+                    S_melt_sno_rai = rate(CM1.conv_q_sno_to_q_rai, procs.snow_melt),
+                    S_freeze_lcl_icl = CM1.conv_q_lcl_to_q_icl(procs.cloud_liquid_freezing, mp_o, tps, micro, thermo),
+                )
+                n_mismatch += count(name -> terms[name].S !== expected[name], keys(expected))
+            end
+        end
+        @test n_mismatch == 0
+    end
+
     @testset "SublimationOnly, DepositionWithoutCloudCondensate - no snow deposition over the substeps" begin
         # ice-subsaturated start with cloud liquid: the evaporating liquid drives the air above ice
         # saturation within the step
