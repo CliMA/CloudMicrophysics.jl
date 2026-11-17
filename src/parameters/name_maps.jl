@@ -809,14 +809,11 @@ end
 
 _describe_expected(expected::Tuple{Vararg{Tuple}}) =
     "a NamedTuple with fields " * join(map(string, expected), " or ")
-_describe_expected(expected::Tuple) = "a NamedTuple with fields $expected"
-_describe_expected(expected) = "$expected"
+_describe_expected(expected::Tuple) = lazy"a NamedTuple with fields $expected"
+_describe_expected(expected) = lazy"$expected"
 @noinline _throw_option_params_mismatch(opt, pp, field::Symbol, expected) = throw(
     ArgumentError(
-        "$(typeof(opt)) requires `mp.process_params.$field` built for this " *
-        "option (expected $(_describe_expected(expected)), got $(typeof(pp))). " *
-        "Construct the parameters with the matching option, e.g. " *
-        "`Microphysics1MParams(FT; $field = $(nameof(typeof(opt)))())`.",
+        lazy"$(typeof(opt)) requires `mp.process_params.$field` built for this option (expected $(_describe_expected(expected)), got $(typeof(pp))). Construct the parameters with the matching option, e.g. `Microphysics1MParams(FT; $field = $(nameof(typeof(opt)))())`.",
     ),
 )
 
