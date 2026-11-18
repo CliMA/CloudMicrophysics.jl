@@ -104,10 +104,31 @@ end
         @test n_zero(D8(1e-4)) isa D8  # zero branch, Dual node
     end
 
-    # NOTE: the 1M Instantaneous entry is NOT asserted here: its process
-    # leaves (Microphysics1M.jl) carry their own single-argument-typed
-    # returns. The 1M leaves share this pattern and are out of scope for
-    # this 2M/P3 sweep (the BMT-level source-terms FT is fixed).
+    # 1M BMT entry points and `no_rates` predicate across all modes and cloud-formation configs
+    for mp1_bmt in (
+        CMP.Microphysics1MParams(FT64),
+        CMP.Microphysics1MParams(FT64; cloud_liquid_formation = nothing, cloud_ice_formation = nothing),
+    )
+        @test concrete_for_all_mixes(
+            BMT.no_rates, (P(BMT.Microphysics1Moment()), P(mp1_bmt), P(tps)), 5,
+        )
+        @test concrete_for_all_mixes(
+            BMT.no_rates, (P(BMT.Microphysics1Moment()), P(mp1_bmt), P(tps)), 6,
+        )
+        for mode in (BMT.Instantaneous(), BMT.InstantaneousVerbose())
+            @test concrete_for_all_mixes(
+                BMT.bulk_microphysics_tendencies,
+                (P(mode), P(BMT.Microphysics1Moment()), P(mp1_bmt), P(tps)), 8,
+            )
+        end
+        for mode in (BMT.LinearizedAverage(), BMT.LinearizedAverageVerbose())
+            @test concrete_for_all_mixes(
+                BMT.bulk_microphysics_tendencies,
+                (P(mode), P(BMT.Microphysics1Moment()), P(mp1_bmt), P(tps)), 8;
+                post = (FT64, Int),
+            )
+        end
+    end
 end
 
 @testset "1M kernels are concretely typed under mixed Dual/plain args" begin

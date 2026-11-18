@@ -318,7 +318,29 @@ function benchmark_test(FT)
 
     @info "1-Moment Bulk Tendencies"
     CM1M = BMT.Microphysics1Moment()
+    mp_1m_nocloud = CMP.Microphysics1MParams(FT;
+        cloud_liquid_formation = nothing,
+        cloud_ice_formation = nothing,
+    )
     Δt = FT(1)
+    bench_press(
+        Bool,
+        BMT.no_rates,
+        (CM1M, mp_1m_nocloud, tps, T_air, FT(0), FT(0), FT(0), FT(0)),
+        50,
+    )
+    bench_press(
+        @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
+        BMT.bulk_microphysics_tendencies,
+        (BMT.Instantaneous(), CM1M, mp_1m_nocloud, tps, ρ_air, T_air, FT(0), q_tot, FT(0), FT(0), FT(0), FT(0)),
+        100,
+    )
+    bench_press(
+        @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
+        BMT.bulk_microphysics_tendencies,
+        (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, FT(0), FT(0), FT(0), FT(0), Δt, 3),
+        300,
+    )
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
