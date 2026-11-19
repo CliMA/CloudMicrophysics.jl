@@ -34,6 +34,7 @@ import ..P3Scheme as CMP3
 import ..HetIceNucleation as CM_HetIce
 import ...ThermodynamicsInterface as TDI
 import ..Common as CO
+import ForwardDiff as FD
 import StaticArrays as SA
 import UnrolledUtilities as UU
 
@@ -46,7 +47,8 @@ export MicrophysicsScheme,
     InstantaneousVerbose,
     LinearizedAverage,
     LinearizedAverageVerbose,
-    bulk_microphysics_tendencies
+    bulk_microphysics_tendencies,
+    no_rates
 
 #####
 ##### Singleton types for dispatch
@@ -525,6 +527,167 @@ with `InstantaneousVerbose` and `LinearizedAverageVerbose`, also the rates.
     return mode isa Union{InstantaneousVerbose, LinearizedAverageVerbose} ? merge(tendencies, rates) : tendencies
 end
 
+"""
+    no_rates(
+        ::Microphysics1Moment, mp, tps, T_hi, q_lcl, q_icl, q_rai, q_sno,
+        ϵ_precip = UT.ϵ_numerics(T_hi),
+    )
+    no_rates(args...)
+
+Return `true` when every 1-moment process rate of `mp` is zero for `q_lcl`, `q_icl`,
+`q_rai`, and `q_sno` at all temperatures up to `T_hi`, for any vapor content `q_tot`.
+The fallback `no_rates(args...)` returns `false` for other schemes or signatures.
+
+Requires `mp` with `cloud_liquid_formation === nothing` and `cloud_ice_formation === nothing`;
+when either cloud-formation process is enabled, compiles to `return false`. Host models with
+subgrid quadrature may pass an upper bound `T_hi` on node temperatures and `ϵ_precip = 0` when
+subgrid precipitation placement scales cell-mean rain or snow onto shaft nodes.
+
+# Arguments
+- `mp`: `Microphysics1MParams` parameter container.
+- `tps`: Thermodynamics parameters.
+- `T_hi`: Upper bound on air temperature [K].
+- `q_lcl`: Cloud liquid specific content [kg/kg].
+- `q_icl`: Cloud ice specific content [kg/kg].
+- `q_rai`: Rain specific content [kg/kg].
+- `q_sno`: Snow specific content [kg/kg].
+- `ϵ_precip`: Threshold at or below which rain and snow have zero rates, default
+  `UT.ϵ_numerics(T_hi)` [kg/kg].
+
+# Examples
+```julia
+import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
+import CloudMicrophysics.ThermodynamicsInterface as TDI
+
+FT = Float64
+tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+mp = CMP.Microphysics1MParams(FT; cloud_liquid_formation = nothing, cloud_ice_formation = nothing)
+BMT.no_rates(BMT.Microphysics1Moment(), mp, tps, 280.0, 0.0, 0.0, 0.0, 0.0)
+```
+
+See also [`bulk_microphysics_tendencies`](@ref).
+"""
+@inline no_rates(args...) = false
+@inline function no_rates(
+    ::Microphysics1Moment, mp::CMP.Microphysics1MParams, tps,
+    T_hi, q_lcl, q_icl, q_rai, q_sno,
+    ϵ_precip = UT.ϵ_numerics(T_hi),
+)
+    procs = mp.processes
+    forms_cloud =
+        !isnothing(procs.cloud_liquid_formation) ||
+        !isnothing(procs.cloud_ice_formation)
+    forms_cloud && return false
+
+    no_cloud = (q_lcl <= zero(q_lcl)) & (q_icl <= zero(q_icl))
+    no_rai = q_rai <= ϵ_precip
+    no_sno = q_sno <= ϵ_precip
+
+    no_rain_rates = no_rai | isnothing(procs.rain_condensation_evaporation)
+    no_snow_melt = isnothing(procs.snow_melt) | (T_hi <= TDI.T_freeze(tps))
+    no_snow_rates =
+        no_sno | (isnothing(procs.snow_deposition_sublimation) & no_snow_melt)
+    no_collisions = no_rai | no_sno | isnothing(procs.rain_snow_accretion)
+
+    return no_cloud & no_rain_rates & no_snow_rates & no_collisions
+end
+
+# True when no hydrometeor is present and vapor cannot nucleate cloud liquid or ice.
+# Called in `LinearizedAverage` / `LinearizedAverageVerbose`: clear subsaturated air
+# dominates atmospheric warps, so an early return skips the `nsub` implicit substeps.
+@inline function _clear_and_subsaturated_1m(
+    mp::CMP.Microphysics1MParams, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
+)
+    ϵ = UT.ϵ_numerics(T)
+    all_absent =
+        (q_lcl <= zero(q_lcl)) & (q_icl <= zero(q_icl)) &
+        (q_rai <= ϵ) & (q_sno <= ϵ)
+    all_absent || return false
+
+    procs = mp.processes
+    qᵥ = TDI.q_vap(
+        q_tot,
+        UT.clamp_to_nonneg(q_rai),
+        UT.clamp_to_nonneg(q_sno),
+    )
+
+    # Under `JointVaporRelaxation`, `_relaxation_coefficient` zeroes a `T < T_hom`
+    # liquid source only when `|qᵥ - q_sl| > q_tol`, so require `qᵥ <= q_sl` at all `T`.
+    clf = procs.cloud_liquid_formation
+    liq_inactive =
+        isnothing(clf) ||
+        (qᵥ <= TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ))
+    liq_inactive || return false
+
+    cif = procs.cloud_ice_formation
+    isnothing(cif) && return true
+    ice_blocked = CMNonEq.INP_limiter(
+        one(T), tps, T;
+        q_lcl = zero(T),
+        CMNonEq._ice_deposition_limits(cif, mp)...,
+    )
+    return ice_blocked ||
+           (qᵥ <= TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ))
+end
+
+@inline _real_float_type(::Type{FT}) where {FT <: Real} = FT
+@inline _real_float_type(::Type{FD.Dual{T, V, N}}) where {T, V, N} = _real_float_type(V)
+
+# Zero output matching the return type of `_output_1m` in all four `TendencyMode`s,
+# preserving `ForwardDiff.Dual` promotion across mixed real and `Dual` inputs.
+@inline function _zero_output_1m(
+    mode, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
+)
+    FT = UT.promote_typeof(ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    z = Condensates1M(zero(FT), zero(FT), zero(FT), zero(FT))
+    rates = if mode isa Union{InstantaneousVerbose, LinearizedAverageVerbose}
+        _zero_increments_1m(mp, tps, FT(ρ), FT(T), FT(w), FT(q_tot), z, one(_real_float_type(FT)))
+    else
+        (;)
+    end
+    return _output_1m(mode, z, rates)
+end
+
+# Unguarded 1M instantaneous kernel (also called directly by the bit-identity tests).
+# On CPU, keeping the entry guard in the outer method avoids hitting Julia's caller-size
+# inlining threshold on unannotated `ThermodynamicsInterface` callees (~8% faster on CPU;
+# `GPUCompiler` inlines everything either way).
+@inline function _instantaneous_1m(
+    mode::Union{Instantaneous, InstantaneousVerbose}, s::Microphysics1Moment,
+    mp::CMP.Microphysics1MParams, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
+)
+    FT = UT.promote_typeof(ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    terms = _microphysics_source_terms(
+        s, mp, tps,
+        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
+    )
+    dq_dt = species_tendency(terms, Condensates1M{FT})
+    return _output_1m(mode, dq_dt, UU.unrolled_map(t -> t.S, terms))
+end
+
+# Unguarded 1M linearized substep loop (also called directly by the bit-identity tests;
+# see `_instantaneous_1m` for the CPU caller-size inlining note).
+@inline function _linearized_average_1m(
+    mode::Union{LinearizedAverage, LinearizedAverageVerbose},
+    mp::CMP.Microphysics1MParams, tps, ρ, T, w,
+    q_tot, q_lcl, q_icl, q_rai, q_sno,
+    Δt::AbstractFloat, nsub::Integer,
+)
+    q₀ = Condensates1M(q_lcl, q_icl, q_rai, q_sno)
+    Δt_sub = Δt / typeof(Δt)(nsub)
+
+    q = q₀
+    increments = _zero_increments_1m(mp, tps, ρ, T, w, q_tot, q₀, Δt_sub)
+    for _ in 1:nsub
+        substep = _substep_1m(mp, tps, ρ, T, w, q_tot, q, Δt_sub)
+        (; q, T) = substep
+        increments = UU.unrolled_map(+, increments, substep.increments)
+    end
+    dq_dt = (q - q₀) / Δt
+    return _output_1m(mode, dq_dt, UU.unrolled_map(Δ -> Δ / Δt, increments))
+end
+
 # --- Public API: bulk_microphysics_tendencies with TendencyMode dispatch ---
 
 """
@@ -564,17 +727,20 @@ This is a pure function of local thermodynamic state, suitable for:
 # Notes
 - Negative specific contents are clamped to zero for robustness.
 - Does NOT apply timestep-dependent limiters.
+- Returns zeros immediately when [`no_rates`](@ref) holds.
 """
 @inline function bulk_microphysics_tendencies(
-    mode::Union{Instantaneous, InstantaneousVerbose}, ::Microphysics1Moment,
+    mode::Union{Instantaneous, InstantaneousVerbose}, s::Microphysics1Moment,
     mp::CMP.Microphysics1MParams, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
-    terms = _microphysics_source_terms(
-        Microphysics1Moment(), mp, tps,
-        ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno,
-    )
-    dq_dt = species_tendency(terms, Condensates1M{typeof(q_tot)})
-    return _output_1m(mode, dq_dt, UU.unrolled_map(t -> t.S, terms))
+    FT = UT.promote_typeof(ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno =
+        FT(ρ), FT(T), FT(w), FT(q_tot), FT(q_lcl), FT(q_icl), FT(q_rai), FT(q_sno)
+    # Clear and dry-precipitating warps skip all size-distribution and process evaluations.
+    if no_rates(s, mp, tps, T, q_lcl, q_icl, q_rai, q_sno)
+        return _zero_output_1m(mode, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    end
+    return _instantaneous_1m(mode, s, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
 end
 
 """
@@ -593,7 +759,8 @@ liquid, cloud ice, rain, and snow, with a vapor limiter and a latent-heating lim
 `vapor_relaxation = PerProcessVaporRelaxation()` is selected. Temperature is then updated from the latent
 heating implied by the substep tendencies. Increasing `nsub` improves how well the method
 captures nonlinear changes in the active microphysical processes, including regime changes
-near freezing.
+near freezing. Returns zeros immediately when [`no_rates`](@ref) holds or when no hydrometeor
+is present and vapor cannot nucleate cloud condensate.
 
 # Returns
 - `NamedTuple` with the net change of each species over `Δt` divided by `Δt` [kg/kg/s]:
@@ -602,24 +769,21 @@ near freezing.
   the names of `InstantaneousVerbose` [kg/kg/s].
 """
 @inline function bulk_microphysics_tendencies(
-    mode::Union{LinearizedAverage, LinearizedAverageVerbose}, ::Microphysics1Moment,
+    mode::Union{LinearizedAverage, LinearizedAverageVerbose}, s::Microphysics1Moment,
     mp::CMP.Microphysics1MParams, tps, ρ, T, w,
     q_tot, q_lcl, q_icl, q_rai, q_sno,
     Δt::AbstractFloat, nsub::Integer = 1,
 )
-    FT = typeof(q_tot)
-    q₀ = Condensates1M(q_lcl, q_icl, q_rai, q_sno)
-    Δt_sub = Δt / FT(nsub)
-
-    q = q₀
-    increments = _zero_increments_1m(mp, tps, ρ, T, w, q_tot, q₀, Δt_sub)
-    for _ in 1:nsub
-        substep = _substep_1m(mp, tps, ρ, T, w, q_tot, q, Δt_sub)
-        (; q, T) = substep
-        increments = UU.unrolled_map(+, increments, substep.increments)
+    FT = UT.promote_typeof(ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+    ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno =
+        FT(ρ), FT(T), FT(w), FT(q_tot), FT(q_lcl), FT(q_icl), FT(q_rai), FT(q_sno)
+    Δt_ft = _real_float_type(FT)(Δt)
+    # Clear subsaturated warps skip the `nsub` implicit substep solves.
+    if no_rates(s, mp, tps, T, q_lcl, q_icl, q_rai, q_sno) ||
+       _clear_and_subsaturated_1m(mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+        return _zero_output_1m(mode, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
     end
-    dq_dt = (q - q₀) / Δt
-    return _output_1m(mode, dq_dt, UU.unrolled_map(Δ -> Δ / Δt, increments))
+    return _linearized_average_1m(mode, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno, Δt_ft, nsub)
 end
 
 # --- 0-Moment Microphysics ---

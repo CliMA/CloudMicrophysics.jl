@@ -149,6 +149,7 @@ BulkMicrophysicsTendencies.InstantaneousVerbose
 BulkMicrophysicsTendencies.LinearizedAverage
 BulkMicrophysicsTendencies.LinearizedAverageVerbose
 BulkMicrophysicsTendencies.bulk_microphysics_tendencies
+BulkMicrophysicsTendencies.no_rates
 ```
 
 # P3 scheme

@@ -36,6 +36,7 @@ import CloudMicrophysics.BulkMicrophysicsTendencies as BMT
 import CloudMicrophysics.Microphysics1M as CM1
 import CloudMicrophysics.MicrophysicsNonEq as CMNonEq
 import CloudMicrophysics.ThermodynamicsInterface as TDI
+import ForwardDiff as FD
 
 # Helper to compute q_tot that enforces saturation (S=0) over liquid
 # This disables condensation/evaporation to isolate microphysical processes
@@ -2259,6 +2260,425 @@ function test_linearized_bulk_microphysics_1m_tendencies(FT)
 
 end
 
+@noinline _splat_call(f::F, args::T) where {F, T <: Tuple} = f(args...)
+function _allocated_after_warmup(f::F, args::T) where {F, T <: Tuple}
+    _splat_call(f, args)
+    return @allocated _splat_call(f, args)
+end
+
+# Strip dead-instruction `nothing` placeholders (Julia 1.10) and `--code-coverage`
+# markers before checking that `code_typed` constant-folded a method body.
+_is_ir_noop(@nospecialize(stmt)) =
+    stmt === nothing || (stmt isa Expr && stmt.head === :code_coverage_effect)
+_effective_ir_stmts(ci) = filter(!_is_ir_noop, ci.code)
+
+# Exact match on zeros (`atol = 0`, preserving sign of zero via `===`) while allowing
+# a few ulps of FMA/inlining rounding between guarded and unguarded active call sites.
+_same_or_few_ulps(nt::NamedTuple, ref::NamedTuple, ::Type{FT}) where {FT} =
+    keys(nt) === keys(ref) &&
+    all(((a, b),) -> (a === b) || isapprox(a, b; rtol = 16 * eps(FT), atol = 0), zip(values(nt), values(ref)))
+
+function test_1m_zero_rate_predicates_and_early_exit(FT)
+    tps = TDI.TD.Parameters.ThermodynamicsParameters(FT)
+    T_freeze = TDI.T_freeze(tps)
+    ϵ = CM.Utilities.ϵ_numerics(FT)
+    s = BMT.Microphysics1Moment()
+
+    @testset "no_rates - compile-time constant folding and truth table" begin
+        @test :no_rates in names(BMT)
+
+        # Generic fallback returns `false` at compile time for other schemes or signatures
+        mp0 = CMP.Microphysics0MParams(FT)
+        mp2 = CMP.Microphysics2MParams(FT; with_ice = false)
+        @test (@inferred BMT.no_rates(BMT.Microphysics0Moment(), mp0, tps, T_freeze, FT(0), FT(0))) === false
+        @test (@inferred BMT.no_rates(BMT.Microphysics2Moment(), mp2, tps, T_freeze)) === false
+        ci_fb = only(code_typed(BMT.no_rates, Tuple{BMT.Microphysics0Moment, typeof(mp0), typeof(tps), FT, FT, FT}))[1]
+        @test _effective_ir_stmts(ci_fb) == Any[Core.ReturnNode(false)]
+
+        # Any enabled cloud-formation process compiles `no_rates` to `return false`
+        cloud_param_sets = (
+            CMP.Microphysics1MParams(FT),
+            CMP.Microphysics1MParams(FT; cloud_ice_formation = nothing),
+            CMP.Microphysics1MParams(
+                FT;
+                cloud_liquid_formation = nothing,
+                cloud_ice_formation = CMP.ConstantTimescale(),
+            ),
+            CMP.Microphysics1MParams(
+                FT;
+                cloud_liquid_formation = nothing,
+                cloud_ice_formation = CMP.PrescribedIceNumber(),
+            ),
+            CMP.Microphysics1MParams(
+                FT;
+                cloud_liquid_formation = nothing,
+                cloud_ice_formation = CMP.TemperatureDependent(),
+            ),
+            CMP.Microphysics1MParams(
+                FT;
+                cloud_liquid_formation = nothing,
+                cloud_ice_formation = CMP.TemperatureDependentIceNumber(),
+            ),
+        )
+        for m in cloud_param_sets
+            @test (@inferred BMT.no_rates(s, m, tps, T_freeze, FT(0), FT(0), FT(0), FT(0))) === false
+            @test (@inferred BMT.no_rates(s, m, tps, T_freeze, FT(0), FT(0), FT(0), FT(0), FT(0))) === false
+            ci8 = only(code_typed(BMT.no_rates, Tuple{typeof(s), typeof(m), typeof(tps), FT, FT, FT, FT, FT}))[1]
+            ci9 = only(code_typed(BMT.no_rates, Tuple{typeof(s), typeof(m), typeof(tps), FT, FT, FT, FT, FT, FT}))[1]
+            @test _effective_ir_stmts(ci8) == Any[Core.ReturnNode(false)]
+            @test _effective_ir_stmts(ci9) == Any[Core.ReturnNode(false)]
+        end
+
+        # Without cloud formation: species, temperature, `ϵ_precip`, and process-option truth table
+        mp_precip = CMP.Microphysics1MParams(FT; cloud_liquid_formation = nothing, cloud_ice_formation = nothing)
+        for T_hi in (T_freeze - FT(15), T_freeze, T_freeze + FT(15))
+            @test (@inferred BMT.no_rates(s, mp_precip, tps, T_hi, FT(0), FT(0), FT(0), FT(0))) === true
+            @test BMT.no_rates(s, mp_precip, tps, T_hi, -FT(1e-7), -FT(1e-7), ϵ, ϵ) === true
+            @test BMT.no_rates(s, mp_precip, tps, T_hi, nextfloat(FT(0)), FT(0), FT(0), FT(0)) === false
+            @test BMT.no_rates(s, mp_precip, tps, T_hi, FT(0), nextfloat(FT(0)), FT(0), FT(0)) === false
+            @test BMT.no_rates(s, mp_precip, tps, T_hi, FT(0), FT(0), nextfloat(ϵ), FT(0)) === false
+            @test BMT.no_rates(s, mp_precip, tps, T_hi, FT(0), FT(0), FT(0), nextfloat(ϵ)) === false
+            # `ϵ_precip = 0` for subgrid precipitation placement
+            @test (@inferred BMT.no_rates(s, mp_precip, tps, T_hi, FT(0), FT(0), FT(0), FT(0), FT(0))) === true
+            @test BMT.no_rates(s, mp_precip, tps, T_hi, FT(0), FT(0), ϵ / 2, FT(0), FT(0)) === false
+            @test BMT.no_rates(s, mp_precip, tps, T_hi, FT(0), FT(0), FT(0), ϵ / 2, FT(0)) === false
+        end
+
+        mp_no_revap = CMP.Microphysics1MParams(
+            FT;
+            cloud_liquid_formation = nothing,
+            cloud_ice_formation = nothing,
+            rain_condensation_evaporation = nothing,
+        )
+        @test BMT.no_rates(s, mp_no_revap, tps, T_freeze + FT(5), FT(0), FT(0), FT(1e-3), FT(0)) === true
+        @test BMT.no_rates(s, mp_no_revap, tps, T_freeze - FT(5), FT(0), FT(0), FT(1e-3), FT(1e-3)) === false
+
+        mp_no_svap = CMP.Microphysics1MParams(
+            FT;
+            cloud_liquid_formation = nothing,
+            cloud_ice_formation = nothing,
+            snow_deposition_sublimation = nothing,
+        )
+        @test BMT.no_rates(s, mp_no_svap, tps, T_freeze - FT(5), FT(0), FT(0), FT(0), FT(1e-3)) === true
+        @test BMT.no_rates(s, mp_no_svap, tps, T_freeze, FT(0), FT(0), FT(0), FT(1e-3)) === true
+        @test BMT.no_rates(s, mp_no_svap, tps, nextfloat(T_freeze), FT(0), FT(0), FT(0), FT(1e-3)) === false
+
+        mp_no_svap_melt = CMP.Microphysics1MParams(
+            FT;
+            cloud_liquid_formation = nothing,
+            cloud_ice_formation = nothing,
+            snow_deposition_sublimation = nothing,
+            snow_melt = nothing,
+        )
+        @test BMT.no_rates(s, mp_no_svap_melt, tps, T_freeze + FT(10), FT(0), FT(0), FT(0), FT(1e-3)) === true
+
+        mp_no_precip_procs = CMP.Microphysics1MParams(
+            FT;
+            cloud_liquid_formation = nothing,
+            cloud_ice_formation = nothing,
+            rain_condensation_evaporation = nothing,
+            snow_deposition_sublimation = nothing,
+            rain_snow_accretion = nothing,
+        )
+        @test BMT.no_rates(s, mp_no_precip_procs, tps, T_freeze, FT(0), FT(0), FT(1e-3), FT(1e-3)) === true
+        @test BMT.no_rates(s, mp_no_precip_procs, tps, nextfloat(T_freeze), FT(0), FT(0), FT(1e-3), FT(1e-3)) === false
+    end
+
+    @testset "early exit - soundness and bit-identity across states and options" begin
+        limits = Dict(
+            "temperature_cloud_ice_deposition_max" => Dict("value" => 268.15, "type" => "float"),
+            "temperature_cloud_ice_vapor_nucleation" => Dict("value" => 248.15, "type" => "float"),
+        )
+        param_sets = (
+            CMP.Microphysics1MParams(FT),
+            CMP.Microphysics1MParams(
+                FT;
+                cloud_ice_formation = CMP.PrescribedIceNumber(),
+                vapor_relaxation = CMP.PerProcessVaporRelaxation(),
+            ),
+            CMP.Microphysics1MParams(
+                CP.create_toml_dict(FT; override_file = limits);
+                cloud_ice_formation = CMP.TemperatureDependentIceNumber(),
+            ),
+            CMP.Microphysics1MParams(
+                FT;
+                cloud_ice_formation = CMP.TemperatureDependent(),
+                rain_autoconversion = CMP.PrescribedNd(),
+                snow_autoconversion = CMP.WithSupersaturation(),
+                snow_deposition_sublimation = CMP.DepositionWithoutCloudCondensate(),
+            ),
+            CMP.Microphysics1MParams(
+                FT;
+                rain_autoconversion = CMP.KK2000Autoconversion(),
+                cloud_liquid_rain_accretion = CMP.KK2000Accretion(),
+                snow_deposition_sublimation = CMP.SublimationOnly(),
+            ),
+            CMP.Microphysics1MParams(FT; cloud_liquid_formation = nothing, cloud_ice_formation = nothing),
+            CMP.Microphysics1MParams(
+                FT;
+                cloud_liquid_formation = nothing,
+                cloud_ice_formation = nothing,
+                rain_condensation_evaporation = nothing,
+                snow_deposition_sublimation = nothing,
+            ),
+        )
+
+        ρ, w, Δt, nsub = FT(0.9), FT(0.5), FT(57), 3
+        T_vals = (FT(225), FT(245), FT(260), T_freeze, T_freeze + FT(0.005), T_freeze + FT(8))
+        cond_states = (
+            (-FT(1e-7), -FT(1e-7), -FT(1e-7), -FT(1e-7)),
+            (FT(0), FT(0), FT(0), FT(0)),
+            (FT(0), FT(0), ϵ, ϵ),
+            (FT(0), FT(0), nextfloat(ϵ), FT(0)),
+            (FT(0), FT(0), FT(0), nextfloat(ϵ)),
+            (nextfloat(FT(0)), FT(0), FT(0), FT(0)),
+            (FT(0), nextfloat(FT(0)), FT(0), FT(0)),
+            (FT(0), FT(0), FT(0), FT(2e-4)),
+            (FT(2e-4), FT(0), FT(0), FT(0)),
+            (FT(2e-4), FT(1e-4), FT(1e-4), FT(2e-4)),
+        )
+
+        n_no_rates = 0
+        n_clear_sub = 0
+        n_active = 0
+        for mp_ in param_sets
+            z_plain =
+                BMT._zero_output_1m(BMT.Instantaneous(), mp_, tps, ρ, T_freeze, w, FT(0), FT(0), FT(0), FT(0), FT(0))
+            z_inst_v = BMT._zero_output_1m(
+                BMT.InstantaneousVerbose(),
+                mp_,
+                tps,
+                ρ,
+                T_freeze,
+                w,
+                FT(0),
+                FT(0),
+                FT(0),
+                FT(0),
+                FT(0),
+            )
+            z_lin_v = BMT._zero_output_1m(
+                BMT.LinearizedAverageVerbose(),
+                mp_,
+                tps,
+                ρ,
+                T_freeze,
+                w,
+                FT(0),
+                FT(0),
+                FT(0),
+                FT(0),
+                FT(0),
+            )
+            for T in T_vals
+                q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+                q_si = TDI.saturation_vapor_specific_content_over_ice(tps, T, ρ)
+                qv_vals = (
+                    FT(0),
+                    FT(0.8) * min(q_sl, q_si),
+                    q_si,
+                    nextfloat(q_si),
+                    q_sl,
+                    nextfloat(q_sl),
+                    FT(1.1) * max(q_sl, q_si),
+                )
+                for (q_lcl, q_icl, q_rai, q_sno) in cond_states
+                    q_cond = max(FT(0), q_lcl) + max(FT(0), q_icl) + max(FT(0), q_rai) + max(FT(0), q_sno)
+                    q_max = max(FT(0), q_lcl, q_icl, q_rai, q_sno)
+                    nr = BMT.no_rates(s, mp_, tps, T, q_lcl, q_icl, q_rai, q_sno)
+                    for qv in qv_vals
+                        q_tot = qv + q_cond
+                        cs = BMT._clear_and_subsaturated_1m(mp_, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
+                        args = (s, mp_, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+                        inst = BMT.bulk_microphysics_tendencies(BMT.Instantaneous(), args...)
+                        inst_v = BMT.bulk_microphysics_tendencies(BMT.InstantaneousVerbose(), args...)
+                        lin = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverage(), args..., Δt, nsub)
+                        lin_v = BMT.bulk_microphysics_tendencies(BMT.LinearizedAverageVerbose(), args..., Δt, nsub)
+
+                        ref_inst = BMT._instantaneous_1m(
+                            BMT.Instantaneous(),
+                            s,
+                            mp_,
+                            tps,
+                            ρ,
+                            T,
+                            w,
+                            q_tot,
+                            q_lcl,
+                            q_icl,
+                            q_rai,
+                            q_sno,
+                        )
+                        ref_inst_v = BMT._instantaneous_1m(
+                            BMT.InstantaneousVerbose(),
+                            s,
+                            mp_,
+                            tps,
+                            ρ,
+                            T,
+                            w,
+                            q_tot,
+                            q_lcl,
+                            q_icl,
+                            q_rai,
+                            q_sno,
+                        )
+                        ref_lin = BMT._linearized_average_1m(
+                            BMT.LinearizedAverage(),
+                            mp_,
+                            tps,
+                            ρ,
+                            T,
+                            w,
+                            q_tot,
+                            q_lcl,
+                            q_icl,
+                            q_rai,
+                            q_sno,
+                            Δt,
+                            nsub,
+                        )
+                        ref_lin_v = BMT._linearized_average_1m(
+                            BMT.LinearizedAverageVerbose(),
+                            mp_,
+                            tps,
+                            ρ,
+                            T,
+                            w,
+                            q_tot,
+                            q_lcl,
+                            q_icl,
+                            q_rai,
+                            q_sno,
+                            Δt,
+                            nsub,
+                        )
+
+                        # Instantaneous modes agree with `_instantaneous_1m` everywhere (`no_rates` implies all source terms === 0)
+                        @test _same_or_few_ulps(inst, ref_inst, FT)
+                        @test _same_or_few_ulps(inst_v, ref_inst_v, FT)
+
+                        if nr || cs
+                            nr ? (n_no_rates += 1) : (n_clear_sub += 1)
+                            src = BMT._microphysics_source_terms(args...)
+                            @test all(t -> iszero(t.S), values(src))
+                            nr && @test inst === z_plain && inst_v === z_inst_v
+                            @test lin === z_plain
+                            @test lin_v === z_lin_v
+                            tol_round = 4 * eps(q_max) / Δt
+                            @test all(v -> abs(v) <= tol_round, values(ref_lin))
+                            @test all(v -> abs(v) <= tol_round, values(ref_lin_v))
+                        else
+                            n_active += 1
+                            @test _same_or_few_ulps(lin, ref_lin, FT)
+                            @test _same_or_few_ulps(lin_v, ref_lin_v, FT)
+                        end
+                    end
+                end
+            end
+        end
+        @test n_no_rates > 0 && n_clear_sub > 0 && n_active > 0
+    end
+
+    @testset "early exit - type stability, ForwardDiff Duals, and allocations" begin
+        mp_def = CMP.Microphysics1MParams(FT)
+        mp_nocloud = CMP.Microphysics1MParams(FT; cloud_liquid_formation = nothing, cloud_ice_formation = nothing)
+        ρ, T, w, Δt = FT(1.1), T_freeze + FT(5), FT(0.2), FT(60)
+        q_sl = TDI.saturation_vapor_specific_content_over_liquid(tps, T, ρ)
+
+        d(x, ∂ = one(FT)) = FD.Dual{:bmt_1m_ad}(FT(x), FT(∂))
+        DT = typeof(d(0))
+
+        for mp_ in (mp_def, mp_nocloud),
+            (q_tot, q_lcl, q_icl, q_rai, q_sno) in (
+                (FT(0.5) * q_sl, FT(0), FT(0), FT(0), FT(0)),
+                (FT(1.05) * q_sl + FT(5e-4), FT(2e-4), FT(1e-4), FT(1e-4), FT(1e-4)),
+            )
+
+            base = (ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
+            for mode in (
+                BMT.Instantaneous(),
+                BMT.InstantaneousVerbose(),
+                BMT.LinearizedAverage(),
+                BMT.LinearizedAverageVerbose(),
+            )
+                tail = mode isa Union{BMT.Instantaneous, BMT.InstantaneousVerbose} ? () : (Δt, 2)
+                r_ft = @inferred BMT.bulk_microphysics_tendencies(mode, s, mp_, tps, base..., tail...)
+                @test all(v -> v isa FT, values(r_ft))
+
+                # A Float64 `Δt` with Float32 (or Dual{..., Float32}) state must not promote tendencies to Float64
+                if mode isa Union{BMT.LinearizedAverage, BMT.LinearizedAverageVerbose}
+                    r_f64_dt = @inferred BMT.bulk_microphysics_tendencies(mode, s, mp_, tps, base..., Float64(Δt), 2)
+                    @test typeof(r_f64_dt) === typeof(r_ft)
+                    r_dual_f64_dt = @inferred BMT.bulk_microphysics_tendencies(
+                        mode, s, mp_, tps, d(base[1]), base[2:end]..., Float64(Δt), 2,
+                    )
+                    @test all(v -> v isa DT, values(r_dual_f64_dt))
+                end
+
+                # All-Dual and mixed real/Dual argument combinations share one concrete return type
+                r_all = @inferred BMT.bulk_microphysics_tendencies(mode, s, mp_, tps, map(d, base)..., tail...)
+                @test all(v -> v isa DT, values(r_all))
+                for idx in (1, 2, 3, 5) # ρ, T, w, q_lcl seeded individually; full slot sweep in return_type_tests.jl
+                    mixed = ntuple(j -> j == idx ? d(base[j]) : base[j], length(base))
+                    r_mix = @inferred BMT.bulk_microphysics_tendencies(mode, s, mp_, tps, mixed..., tail...)
+                    @test typeof(r_mix) === typeof(r_all)
+                end
+
+                # Zero heap allocations after warmup (skipped under coverage or forced bounds checking)
+                if Base.JLOptions().code_coverage == 0 && Base.JLOptions().check_bounds != 1
+                    allocs =
+                        _allocated_after_warmup(BMT.bulk_microphysics_tendencies, (mode, s, mp_, tps, base..., tail...))
+                    @test allocs == 0
+                end
+            end
+        end
+
+        if Base.JLOptions().code_coverage == 0 && Base.JLOptions().check_bounds != 1
+            @test _allocated_after_warmup(BMT.no_rates, (s, mp_nocloud, tps, T, FT(0), FT(0), FT(0), FT(0))) == 0
+        end
+
+        # Boundary right-derivatives: `Dual(0, +1)`, `Dual(q_sl, +1)`, and `Dual(T_freeze, +1)` take the active branch
+        mp_pnd = CMP.Microphysics1MParams(
+            FT;
+            cloud_liquid_formation = nothing,
+            cloud_ice_formation = nothing,
+            rain_autoconversion = CMP.PrescribedNd(),
+        )
+        τ_acnv = CM1.rain_autoconversion_timescale(CMP.PrescribedNd(), mp_pnd)
+        d_inst = FD.derivative(
+            ql -> BMT.bulk_microphysics_tendencies(
+                BMT.Instantaneous(), s, mp_pnd, tps, ρ, T, w, FT(0.5) * q_sl + ql, ql, FT(0), FT(0), FT(0),
+            ).dq_rai_dt,
+            FT(0),
+        )
+        @test d_inst ≈ inv(τ_acnv) rtol = 10 * eps(FT)
+
+        dq_lcl_dqt_lin = FD.derivative(
+            qt -> BMT.bulk_microphysics_tendencies(
+                BMT.LinearizedAverage(), s, mp_def, tps, ρ, T, w, qt, FT(0), FT(0), FT(0), FT(0), Δt, 2,
+            ).dq_lcl_dt,
+            q_sl,
+        )
+        @test dq_lcl_dqt_lin > FT(0)
+
+        mp_sno_only = CMP.Microphysics1MParams(
+            FT;
+            cloud_liquid_formation = nothing,
+            cloud_ice_formation = nothing,
+            rain_condensation_evaporation = nothing,
+            snow_deposition_sublimation = nothing,
+        )
+        dT_melt = FD.derivative(
+            Tmp -> BMT.bulk_microphysics_tendencies(
+                BMT.Instantaneous(), s, mp_sno_only, tps, ρ, Tmp, w, FT(1e-3), FT(0), FT(0), FT(0), FT(1e-4),
+            ).dq_rai_dt,
+            T_freeze,
+        )
+        @test dT_melt > FT(0)
+    end
+end
+
 ###
 ### 2M tendencies and derivatives tests
 ###
@@ -2556,6 +2976,7 @@ end
     test_bulk_microphysics_0m_tendencies(FT)
     test_bulk_microphysics_1m_tendencies(FT)
     test_linearized_bulk_microphysics_1m_tendencies(FT)
+    test_1m_zero_rate_predicates_and_early_exit(FT)
     test_bulk_microphysics_2m_tendencies(FT)
     test_bulk_microphysics_p3_tendencies(FT)
 end
