@@ -33,10 +33,10 @@ Each substep:
 6. Updates the temperature from the latent heat of the change in $q$.
 
 The average tendency is the net change of $q$ over the model time step divided by its length.
-Before entering the substep loop, `bulk_microphysics_tendencies` returns zero tendencies when
+At entry, 1-moment `bulk_microphysics_tendencies` (in both `Instantaneous*` and
+`LinearizedAverage*` modes) returns zero tendencies when
 [`no_rates`](@ref CloudMicrophysics.BulkMicrophysicsTendencies.no_rates) holds or when all four
-condensates are absent and the vapor cannot nucleate cloud liquid or cloud ice; `Instantaneous`
-and `InstantaneousVerbose` check `no_rates` at entry.
+condensates are absent and the vapor cannot nucleate cloud liquid or cloud ice.
 The following sections describe each part.
 
 ### Donor-based linearization

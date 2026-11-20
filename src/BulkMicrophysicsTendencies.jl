@@ -594,8 +594,9 @@ See also [`bulk_microphysics_tendencies`](@ref).
 end
 
 # True when no hydrometeor is present and vapor cannot nucleate cloud liquid or ice.
-# Called in `LinearizedAverage` / `LinearizedAverageVerbose`: clear subsaturated air
-# dominates atmospheric warps, so an early return skips the `nsub` implicit substeps.
+# On cloudy or precipitating states, `all_absent` short-circuits before any saturation
+# call; on clear subsaturated states, 1–2 saturation checks skip all size-distribution,
+# ventilation, and process evaluations in both `Instantaneous*` and `LinearizedAverage*`.
 @inline function _clear_and_subsaturated_1m(
     mp::CMP.Microphysics1MParams, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno,
 )
@@ -727,7 +728,8 @@ This is a pure function of local thermodynamic state, suitable for:
 # Notes
 - Negative specific contents are clamped to zero for robustness.
 - Does NOT apply timestep-dependent limiters.
-- Returns zeros immediately when [`no_rates`](@ref) holds.
+- Returns zeros immediately when [`no_rates`](@ref) holds or when no hydrometeor is present and
+  vapor cannot nucleate cloud condensate.
 """
 @inline function bulk_microphysics_tendencies(
     mode::Union{Instantaneous, InstantaneousVerbose}, s::Microphysics1Moment,
@@ -736,8 +738,9 @@ This is a pure function of local thermodynamic state, suitable for:
     FT = UT.promote_typeof(ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
     ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno =
         FT(ρ), FT(T), FT(w), FT(q_tot), FT(q_lcl), FT(q_icl), FT(q_rai), FT(q_sno)
-    # Clear and dry-precipitating warps skip all size-distribution and process evaluations.
-    if no_rates(s, mp, tps, T, q_lcl, q_icl, q_rai, q_sno)
+    # Clear subsaturated and dry-precipitating warps skip size-distribution and process evaluations.
+    if no_rates(s, mp, tps, T, q_lcl, q_icl, q_rai, q_sno) ||
+       _clear_and_subsaturated_1m(mp, tps, ρ, T, q_tot, q_lcl, q_icl, q_rai, q_sno)
         return _zero_output_1m(mode, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
     end
     return _instantaneous_1m(mode, s, mp, tps, ρ, T, w, q_tot, q_lcl, q_icl, q_rai, q_sno)
