@@ -44,7 +44,7 @@ The main constructor is
 P3IceParams(toml_dict::CP.ParamDict; is_limited = true, quadrature_order = 16,
     integration = Quadrature.GaussLegendre(FT, quadrature_order),
     ice_nucleation = Frostenberg2023(toml_dict),
-    inp_depletion_model = NIceProxyDepletion())
+    inp_depletion_model = NIceProxyDepletion(), freezing_quadrature_order = 8)
 ```
 which constructs the parameterization with components:
 - `scheme` = [`ParametersP3`](@ref)
@@ -52,6 +52,8 @@ which constructs the parameterization with components:
 - `cloud_pdf` = [`CloudParticlePDF_SB2006`](@ref)
 - `rain_pdf` = [`RainParticlePDF_SB2006`](@ref)
 - `rain_freezing` = [`RainFreezing`](@ref)
+- `homogeneous` = [`Koop2000`](@ref)
+- `dendritic_freezing` = [`DendriticFreezing`](@ref)
 
 # Keyword arguments
 - `is_limited`: use limited rain size-distribution parameters (default: true)
@@ -64,9 +66,11 @@ which constructs the parameterization with components:
   [`Frostenberg2023`](@ref) (the default), the Cooper (1986) spectrum [`ExponentialSupercoolingINP`](@ref), or a
   [`StochasticINPSpectrum`](@ref)
 - `inp_depletion_model`: the INP depletion model (default: `NIceProxyDepletion()`)
+- `freezing_quadrature_order`: number of nodes of the [`Quadrature.GaussLaguerre`](@ref) rules of the rain and
+  cloud droplet freezing integrals (default: 8)
 
 """
-@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, INPDM, Q} <: ParametersType
+@kwdef struct P3IceParams{P3, VL, PDc, PDr, HET, RF, HOM, DF, INPDM, Q, QR, QC} <: ParametersType
     "The core P3 scheme parameters"
     scheme::P3
     "The terminal velocity parameterization"
@@ -79,6 +83,10 @@ which constructs the parameterization with components:
     ice_nucleation::HET
     "The rain freezing parameters (Bigg-type immersion freezing)"
     rain_freezing::RF
+    "The homogeneous freezing parameters, [`Koop2000`](@ref)"
+    homogeneous::HOM
+    "The growth of the freezing front across a nucleated drop, [`DendriticFreezing`](@ref)"
+    dendritic_freezing::DF
     "Model for F23 INP-activation depletion. Currently only
     [`NIceProxyDepletion`](@ref) (n_ice-as-proxy form) is provided;
     it sets the value subtracted from `INPC(T)/ρ` in the F23 deposition +
@@ -86,6 +94,12 @@ which constructs the parameterization with components:
     inp_depletion_model::INPDM = NIceProxyDepletion()
     "How the size-distribution integrals are evaluated, a quadrature rule such as [`Quadrature.GaussLegendre`](@ref), or lookup tables, [`P3Scheme.P3Tables`](@ref CloudMicrophysics.P3Scheme.P3Tables)"
     integration::Q = QUAD.GaussLegendre(Float64, 16)
+    "Quadrature rule of the raindrop freezing integrals, a [`Quadrature.GaussLaguerre`](@ref) rule in the diameter
+    over the mean diameter"
+    rain_freezing_quad::QR
+    "Quadrature rule of the cloud droplet freezing integrals, a [`Quadrature.GaussLaguerre`](@ref) rule in
+    `λc D^μcD` with `α = (νc + 1)/μc - 1`"
+    cloud_freezing_quad::QC
 end
 Base.show(io::IO, mime::MIME"text/plain", x::P3IceParams) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)
@@ -97,16 +111,24 @@ function P3IceParams(toml_dict::CP.ParamDict;
     integration = QUAD.GaussLegendre(CP.float_type(toml_dict), quadrature_order),
     ice_nucleation = Frostenberg2023(toml_dict),
     inp_depletion_model = NIceProxyDepletion(),
+    freezing_quadrature_order = 8,
 )
+    FT = CP.float_type(toml_dict)
+    cloud_pdf = CloudParticlePDF_SB2006(toml_dict)
+    (; νc, μc) = cloud_pdf
     ice_params = P3IceParams(;
         scheme = ParametersP3(toml_dict),
         terminal_velocity = Chen2022VelType(toml_dict),
-        cloud_pdf = CloudParticlePDF_SB2006(toml_dict),
+        cloud_pdf,
         rain_pdf = RainParticlePDF_SB2006(toml_dict; is_limited),
         ice_nucleation,
         rain_freezing = RainFreezing(toml_dict),
+        homogeneous = Koop2000(toml_dict),
+        dendritic_freezing = DendriticFreezing(toml_dict),
         inp_depletion_model,
         integration,
+        rain_freezing_quad = QUAD.GaussLaguerre(FT, freezing_quadrature_order),
+        cloud_freezing_quad = QUAD.GaussLaguerre(FT, freezing_quadrature_order; α = (νc + 1) / μc - 1),
     )
     check_integration(integration, ice_params)
     return ice_params
