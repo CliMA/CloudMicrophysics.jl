@@ -2554,7 +2554,7 @@ function test_1m_zero_rate_predicates_and_early_exit(FT)
                             nsub,
                         )
 
-                        # Instantaneous modes agree with `_instantaneous_1m` everywhere (`no_rates` implies all source terms === 0)
+                        # Instantaneous modes agree with `_instantaneous_1m` everywhere
                         @test _same_or_few_ulps(inst, ref_inst, FT)
                         @test _same_or_few_ulps(inst_v, ref_inst_v, FT)
 
@@ -2562,7 +2562,7 @@ function test_1m_zero_rate_predicates_and_early_exit(FT)
                             nr ? (n_no_rates += 1) : (n_clear_sub += 1)
                             src = BMT._microphysics_source_terms(args...)
                             @test all(t -> iszero(t.S), values(src))
-                            nr && @test inst === z_plain && inst_v === z_inst_v
+                            @test inst === z_plain && inst_v === z_inst_v
                             @test lin === z_plain
                             @test lin_v === z_lin_v
                             tol_round = 4 * eps(q_max) / Δt
@@ -2653,6 +2653,14 @@ function test_1m_zero_rate_predicates_and_early_exit(FT)
             FT(0),
         )
         @test d_inst ≈ inv(τ_acnv) rtol = 10 * eps(FT)
+
+        dq_lcl_dqt_inst = FD.derivative(
+            qt -> BMT.bulk_microphysics_tendencies(
+                BMT.Instantaneous(), s, mp_def, tps, ρ, T, w, qt, FT(0), FT(0), FT(0), FT(0),
+            ).dq_lcl_dt,
+            q_sl,
+        )
+        @test dq_lcl_dqt_inst > FT(0)
 
         dq_lcl_dqt_lin = FD.derivative(
             qt -> BMT.bulk_microphysics_tendencies(

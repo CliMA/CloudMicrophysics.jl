@@ -338,6 +338,12 @@ function benchmark_test(FT)
     bench_press(
         @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
         BMT.bulk_microphysics_tendencies,
+        (BMT.Instantaneous(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, FT(0), FT(0), FT(0), FT(0)),
+        300,
+    )
+    bench_press(
+        @NamedTuple{dq_lcl_dt::FT, dq_icl_dt::FT, dq_rai_dt::FT, dq_sno_dt::FT},
+        BMT.bulk_microphysics_tendencies,
         (BMT.LinearizedAverage(), CM1M, mp_1m, tps, ρ_air, T_air, FT(0), q_tot, FT(0), FT(0), FT(0), FT(0), Δt, 3),
         300,
     )
