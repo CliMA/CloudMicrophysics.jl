@@ -382,7 +382,7 @@ g = \min(g_T, g_v), \qquad
 ```
 
 The uniform factor $g$ covers the edge cases the above limiters miss
-  (pools that refill each other, such as rain freezing on cloud ice while snow melts)
+  (pools that refill each other)
   and bounds the condensate growth by the vapor available.
 With the implicit decays keeping every pool non-negative,
   no tracer can become negative in a substep however stiff the processes are.
@@ -405,7 +405,7 @@ A =
 A_{\mathrm{lcl},\mathrm{lcl}} & A_{\mathrm{lcl},\mathrm{icl}} & 0 & 0 \\
 A_{\mathrm{icl},\mathrm{lcl}} & A_{\mathrm{icl},\mathrm{icl}} & 0 & 0 \\
 \hline
-A_{\mathrm{rai},\mathrm{lcl}} & 0 & A_{\mathrm{rai},\mathrm{rai}} & A_{\mathrm{rai},\mathrm{sno}} \\
+A_{\mathrm{rai},\mathrm{lcl}} & A_{\mathrm{rai},\mathrm{icl}} & A_{\mathrm{rai},\mathrm{rai}} & A_{\mathrm{rai},\mathrm{sno}} \\
 A_{\mathrm{sno},\mathrm{lcl}} & A_{\mathrm{sno},\mathrm{icl}} & A_{\mathrm{sno},\mathrm{rai}} & A_{\mathrm{sno},\mathrm{sno}}
 \end{array}
 \right].

@@ -236,8 +236,9 @@ struct CloudLiquidSnowAccretion <: MicrophysicsOption end
 """
     CloudIceRainAccretion <: MicrophysicsOption
 
-Cloud ice + rain → snow (Marshall-Palmer kernel).
-The coupled rain-sink arm (rain + cloud ice → snow) is toggled automatically.
+Cloud ice + rain → snow (below freezing) or rain (at and above freezing, Marshall-Palmer kernel).
+The coupled rain-sink arm (collected rain freezing into snow below freezing, scaled by `1 - f_liq`)
+is toggled automatically.
 Parameters (collision efficiency `e`) are stored in
 `process_params.cloud_ice_rain_accretion` in [`Microphysics1MParams`](@ref).
 """
@@ -255,8 +256,8 @@ struct CloudIceSnowAccretion <: MicrophysicsOption end
 """
     RainSnowAccretion <: MicrophysicsOption
 
-Snow-rain collisions: both temperature pathways
-(cold: rain→snow, warm: snow→rain) plus thermal melt.
+Snow-rain collisions: below freezing, collected rain freezes into snow (scaled by `1 - f_liq`);
+at and above freezing, snow melts by the heat of the collected rain.
 Parameters (collision efficiency `e`, velocity dispersion `coeff_disp`) are
 stored in `process_params.rain_snow_accretion` in [`Microphysics1MParams`](@ref).
 """

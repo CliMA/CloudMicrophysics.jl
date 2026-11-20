@@ -760,8 +760,7 @@ end
         E_ij, coeff_disp, q_i, q_j, ρ,
     )
 
-Returns the accretion rate when rain and snow collide.
-Collisions result in snow for T < T_freeze and rain for T > T_freeze.
+Returns the rate at which species `i` collects species `j` in rain-snow collisions.
 The 9-argument form computes the size-distribution and fall-speed
 parameters before calling the full kernel.
 
@@ -773,11 +772,10 @@ deviations are proportional to the mean fall velocities, with coefficient
 !!! note "Internal use only"
     This low-level positional-argument kernel is kept for internal dispatch.
     Prefer `accretion_snow_rain(::RainSnowAccretion, mp, tps, micro, thermo)`,
-    which calls both the cold and warm arms and returns `(; S_rai_sno, S_sno_rai, S_melt)`.
+    which returns `(; S_rai_sno, S_melt)`.
 
 # Arguments
-- `type_i`: snow (T < T_freeze) or rain (T > T_freeze)
-- `type_j`: rain (T < T_freeze) or snow (T > T_freeze)
+- `type_i`, `type_j`: collector and collected precipitation species (e.g. snow and rain)
 - `blk1mveltype_ti`, `blk1mveltype_tj`: 1M terminal velocity parameters
 - `E_ij`: collision efficiency
 - `coeff_disp`: velocity dispersion coefficient
@@ -894,7 +892,7 @@ option paired with the parameters of the other variant raises an `ArgumentError`
 # Returns
 - `accretion(::CloudLiquidSnowAccretion, ...)` returns `(; S_accr, S_melt)`;
   the other `accretion` methods return a scalar rate.
-- `accretion_snow_rain` returns `(; S_rai_sno, S_sno_rai, S_melt)`
+- `accretion_snow_rain` returns `(; S_rai_sno, S_melt)`
   (a NamedTuple of zeros for the `nothing` variant).
 """
 # Nothing dispatch: scalar zero for simple accretion, NamedTuple for processes
@@ -1011,7 +1009,7 @@ end
 end
 
 @inline accretion_snow_rain(::Nothing, mp, tps, micro, thermo, sd = nothing) =
-    (; S_rai_sno = zero(thermo.T), S_sno_rai = zero(thermo.T), S_melt = zero(thermo.T))
+    (; S_rai_sno = zero(thermo.T), S_melt = zero(thermo.T))
 
 @inline function accretion_snow_rain(
     opt::CMP.RainSnowAccretion,
@@ -1046,25 +1044,8 @@ end
         sd.λ_inv_sno,
         sd.λ_inv_rai,
     )
-    S_sno_rai = accretion_snow_rain(
-        rai,
-        sno,
-        vel.rain,
-        vel.snow,
-        e,
-        coeff_disp,
-        q_rai,
-        q_sno,
-        ρ,
-        sd.n0_rai,
-        sd.n0_sno,
-        sd.v0_rai,
-        sd.v0_sno,
-        sd.λ_inv_rai,
-        sd.λ_inv_sno,
-    )
     α = warm_accretion_melt_factor(tps, T)
-    return (; S_rai_sno, S_sno_rai, S_melt = α * S_rai_sno)
+    return (; S_rai_sno, S_melt = α * S_rai_sno)
 end
 
 # Rain sink arm of cloud ice + rain accretion

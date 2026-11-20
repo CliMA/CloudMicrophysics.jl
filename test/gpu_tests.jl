@@ -193,7 +193,7 @@ end
     rai_sink = CM1.accretion_rain_sink(mp.processes.cloud_ice_rain_accretion, mp, tps, micro, thermo)
     r_sr = CM1.accretion_snow_rain(mp.processes.rain_snow_accretion, mp, tps, micro, thermo)
     output[i] = (; liq_rai, ice_sno, liq_sno, ice_rai, rai_sink,
-        sno_rai = r_sr.S_rai_sno, rai_sno = r_sr.S_sno_rai)
+        sno_rai = r_sr.S_rai_sno, sr_melt = r_sr.S_melt)
 end
 
 @kernel inbounds = true function test_1_moment_micro_snow_melt_kernel!(
@@ -803,7 +803,7 @@ function test_gpu(FT)
         # Option-dispatched wrappers must give identical values on GPU
         DT_opt = @NamedTuple{
             liq_rai::FT, ice_sno::FT, liq_sno::FT, ice_rai::FT,
-            rai_sink::FT, sno_rai::FT, rai_sno::FT,
+            rai_sink::FT, sno_rai::FT, sr_melt::FT,
         }
         (; output, ndrange) = setup_output(2, DT_opt)
         T_arr = ArrayType([FT(290), FT(290)])
@@ -819,7 +819,7 @@ function test_gpu(FT)
         TT.@test out1_opt.ice_rai ≈ FT(1.768763302130443e-6)
         TT.@test out1_opt.rai_sink ≈ FT(3.590060148920767e-5)
         TT.@test out1_opt.sno_rai ≈ FT(2.466313958248222e-4)
-        TT.@test out1_opt.rai_sno ≈ FT(6.830957197816771e-5)
+        TT.@test out1_opt.sr_melt > FT(0)
 
         # KK2000 cloud liquid + rain accretion
         kernel_opt!(mp_1m_kk, tps, output, ρ, T_arr, qi, qs, ql, qr; ndrange)
