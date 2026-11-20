@@ -9,7 +9,7 @@ DOI: 10.1029/1999JD901161
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AerosolActivationParameters{FT} <: ParametersType
+@params struct AerosolActivationParameters{FT} <: ParametersType
     "molar mass of water [kg/mol]"
     M_w::FT
     "gas constant [J/mol/K]"

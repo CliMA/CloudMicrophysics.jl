@@ -138,12 +138,8 @@ If not provided by the user, it is assumed that there is no rain present and tha
 the cloud droplet number concentration is 1e8 1/m3 (100 1/cm3).
 """
 function effective_radius_Liu_Hallet_97(
-    (; ρw)::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
-    ρ_air::FT,
-    q_lcl::FT,
-    N_lcl::FT,
-    q_rai::FT,
-    N_rai::FT,
+    (; ρw)::Union{CMP.WaterProperties, CMP.CloudLiquid},
+    ρ_air::FT, q_lcl::FT, N_lcl::FT, q_rai::FT, N_rai::FT,
 ) where {FT}
 
     k = FT(0.8)
@@ -157,17 +153,12 @@ function effective_radius_Liu_Hallet_97(
     return r_vol / k^FT(1 / 3)
 end
 function effective_radius_Liu_Hallet_97(
-    wtr::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
-    ρ_air::FT,
-    q_lcl::FT,
+    wtr::Union{CMP.WaterProperties, CMP.CloudLiquid},
+    ρ_air::FT, q_lcl::FT,
 ) where {FT}
     return effective_radius_Liu_Hallet_97(
-        wtr::Union{CMP.WaterProperties{FT}, CMP.CloudLiquid{FT}},
-        ρ_air::FT,
-        q_lcl::FT,
-        FT(1e8),
-        FT(0),
-        FT(0),
+        wtr::Union{CMP.WaterProperties, CMP.CloudLiquid},
+        ρ_air::FT, q_lcl::FT, FT(1e8), FT(0), FT(0),
     )
 end
 
@@ -178,11 +169,7 @@ end
 
 Returns a constant assumed effective radius for clouds
 """
-function effective_radius_const(cloud_params::CMP.CloudLiquid{FT}) where {FT}
-    return cloud_params.r_eff
-end
-function effective_radius_const(cloud_params::CMP.CloudIce{FT}) where {FT}
-    return cloud_params.r_eff
-end
+effective_radius_const(cloud_params::CMP.CloudLiquid) = cloud_params.r_eff
+effective_radius_const(cloud_params::CMP.CloudIce) = cloud_params.r_eff
 
 end # end module

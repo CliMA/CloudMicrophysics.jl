@@ -30,8 +30,8 @@ function test_name_maps(FT)
             # read-but-unmapped names would be missing from the documentation
             TT.@test isempty(setdiff(used, all_names))
             if key isa Type && key <: CMP.ParametersType && key in CMP.PLAIN_PARAMETER_TYPES
-                # generated constructors: every local name is a struct field
-                TT.@test Set(values(nm)) ⊆ Set(fieldnames(key))
+                # generated constructors: every local name is a parameter of the struct
+                TT.@test Set(values(nm)) ⊆ Set(propertynames(obj))
             end
         end
     end

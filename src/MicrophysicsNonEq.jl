@@ -429,10 +429,7 @@ assuming a monodisperse size distribution.
 - Mass-weighted terminal velocity [m/s]
 """
 function terminal_velocity(
-    (; ρw, N_0)::CMP.CloudLiquid{FT},
-    vel::CMP.StokesRegimeVelType{FT},
-    ρₐ::FT,
-    q::FT,
+    (; ρw, N_0)::CMP.CloudLiquid, vel::CMP.StokesRegimeVelType, ρₐ::FT, q::FT,
 ) where {FT}
     # Stokes law: v(D) = C * D^2, valid for D < ~80 μm (Re < 1)
     v_term = CO.particle_terminal_velocity(vel, ρₐ)
@@ -447,10 +444,7 @@ function terminal_velocity(
 end
 
 function terminal_velocity(
-    (; ρᵢ, N_0)::CMP.CloudIce{FT},
-    vel::CMP.Chen2022VelTypeSmallIce{FT},
-    ρₐ::FT,
-    q::FT,
+    (; ρᵢ, N_0)::CMP.CloudIce, vel::CMP.Chen2022VelTypeSmallIce, ρₐ::FT, q::FT,
 ) where {FT}
     v_term = CO.particle_terminal_velocity(vel, ρₐ, ρᵢ)
     # `clamp_to_nonneg` is domain sanitization for the cbrt below (keeps the discarded

@@ -100,8 +100,8 @@ function verbose_show_type_and_fields(io::IO, mime::MIME"text/plain", x; with_mo
     compact = get(io, :compact, false)::Bool
     indent = get(io, :indent, "")::String
     typename = _type_name(x; with_module_prefix)
-    keys = fieldnames(typeof(x))
-    vals = [getfield(x, k) for k in keys]
+    keys = propertynames(x)
+    vals = [getproperty(x, k) for k in keys]
     units = field_units(x)
     print(io, "$(typename)")
     if compact
@@ -173,8 +173,8 @@ function compact_show_type_and_fields(io::IO, ::MIME"text/plain", x;
     with_module_prefix = false, skip_fields_by_value = (),
 )
     typename = _type_name(x; with_module_prefix)
-    keys = fieldnames(typeof(x))
-    vals = [getfield(x, k) for k in keys]
+    keys = propertynames(x)
+    vals = [getproperty(x, k) for k in keys]
     units = with_units ? field_units(x) : nothing
     print(io, typename, "(")
     printed_first = false
@@ -222,7 +222,7 @@ Types with `threshold` or fewer fields use
 [`compact_show_type_and_fields`](@ref) (one-liner with units).
 """
 show_type_and_fields(io::IO, mime::MIME"text/plain", x; threshold = 7, kw...) =
-    if fieldcount(typeof(x)) > threshold
+    if length(propertynames(x)) > threshold
         verbose_show_type_and_fields(io, mime, x; kw...)
     else
         compact_show_type_and_fields(io, mime, x; kw...)
@@ -302,7 +302,7 @@ pretty-printed (i.e. a non-trivial struct with fields, but not a
 """
 _is_nested_struct(v) =
     isstructtype(typeof(v)) &&
-    fieldcount(typeof(v)) > 0 &&
+    !isempty(propertynames(v)) &&
     !(v isa Union{Number, AbstractString, Symbol, Nothing})
 
 end  # module ShowMethods
