@@ -167,6 +167,23 @@ function test_ad_compatibility(FT)
             end
         end
 
+        # Each target spectrum of deposition nucleation, in cold supersaturated air
+        f23 = CMP.Frostenberg2023(FT)
+        for inp in (
+            CMP.ExponentialSupercoolingINP(FT),
+            CMP.StochasticINPSpectrum(; base = f23, log_shift = FT(1), T_min = FT(220), N_max = FT(1e6)),
+        )
+            mp_inp = CMP.Microphysics2MParams(FT; with_ice = true, is_limited = true, ice_nucleation = inp)
+            f_inp =
+                x -> begin
+                    t = BMT.bulk_microphysics_tendencies(
+                        BMT.Microphysics2Moment(), mp_inp, tps, FT(0.45), FT(233), FT(0.003), x...)
+                    [t.dq_ice_dt, t.dn_ice_dt, t.dq_lcl_dt, t.dn_lcl_dt]
+                end
+            x_inp = FT[1e-6, 1e6, 1e-6, 1e3, 1e-6, 1e4, 0, 0]
+            @test all(isfinite, FD.jacobian(f_inp, x_inp))
+        end
+
         # Boundary: SB2006 autoconversion Φ_au(τ) ∝ τ^0.7 has a vertical
         # tangent at exactly zero rain with cloud present; the ϵ-gate in
         # `autoconversion` keeps the Jacobian finite there
