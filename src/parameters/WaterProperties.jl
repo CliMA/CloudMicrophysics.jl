@@ -8,7 +8,7 @@ Parameters with water properties.
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct WaterProperties{FT} <: ParametersType
+@params struct WaterProperties{FT} <: ParametersType
     "density of liquid water [kg/m3]"
     ρw::FT
     "density of ice [kg/m3]"

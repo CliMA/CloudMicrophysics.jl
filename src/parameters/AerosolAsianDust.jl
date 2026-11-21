@@ -8,7 +8,7 @@ Parameters for Asian Dust
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct AsianDust{FT} <: AerosolType
+@params struct AsianDust{FT} <: AerosolType
     "m coefficient for deposition nucleation J [-]"
     deposition_m::FT
     "c coefficient for deposition nucleation J [-]"

@@ -34,7 +34,7 @@ The mapping from the long, unique ClimaParams name to the short field name is
   defined in `src/parameters/name_maps.jl`.
 
 ```julia
-@kwdef struct CloudLiquid{FT} <: ParametersType
+@params struct CloudLiquid{FT} <: ParametersType
     "liquid water density [kg/m3]"
     ρw::FT
     "prescribed liquid cloud droplet effective radius [m]"
@@ -147,6 +147,25 @@ The process functions guard against this with
   and raise an `ArgumentError` that names the option and the constructor call
   that fixes it, instead of failing with an obscure field-access error.
 
+## Parameter values as type parameters
+
+Parameter structs that hold values are defined with
+  [`ClimaParams.@params`](https://clima.github.io/ClimaParams.jl/dev/API/#ClimaParams.@params).
+In the default "type" mode of ClimaParams, they are singletons that hold their
+  values in a type parameter, so GPU kernels do not allocate any registers or
+  parameter memory for them.
+Read parameter values with `getproperty` (`p.field`), since `getfield` returns
+  `nothing` in "type" mode.
+Workflows that construct many parameter sets (e.g., calibrations and parameter
+  sweeps) should set the mode of ClimaParams to "bits", which keeps parameter
+  values in struct fields and avoids recompilation for every new set of values.
+To enable "bits" mode, add the following to `Project.toml` and restart Julia:
+
+```toml
+[preferences.ClimaParams]
+CLIMA_PARAMS_MODE = "bits"
+```
+
 ## Overriding parameter values
 
 Overrides are applied when the `ParamDict` is created, so a single override
@@ -215,7 +234,9 @@ This writes all used parameters (with their final values) to a TOML file that
    Prefer a long, descriptive ClimaParams name (they must be unique across all
    CliMA packages) and a short field name that matches the notation of the
    documentation.
-   A new struct gets a `name_map` method and an entry in `parameter_groups()`;
+   A new `isbits` struct should be defined with `@params` from ClimaParams,
+   while non-`isbits` structs can use the built-in `@kwdef`.
+   Every new struct gets a `name_map` method and an entry in `parameter_groups()`;
    add it to `PLAIN_PARAMETER_TYPES` if its constructor needs nothing beyond
    the map, otherwise write the constructor by hand using
    `make_params(td, name_map(T))`.

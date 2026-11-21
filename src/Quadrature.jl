@@ -21,6 +21,7 @@ the device, rather than being rebuilt inside a GPU kernel.
 """
 module Quadrature
 
+import ClimaParams: @params
 import StaticArrays as SA
 import UnrolledUtilities as UU
 import FastGaussQuadrature as FGQ
@@ -29,6 +30,8 @@ import ..Utilities as UT
 export QuadratureRule, ChebyshevGauss, GaussLegendre, integrate
 
 abstract type QuadratureRule end
+
+Base.broadcastable(x::QuadratureRule) = tuple(x)
 
 """
     integrate(f, a, b, quad)
@@ -161,12 +164,12 @@ If we are interested in only the integral of `f(x)`, we can instead integrate `g
 - https://en.wikipedia.org/wiki/Chebyshev–Gauss_quadrature
 - https://en.wikipedia.org/wiki/Gaussian_quadrature
 """
-struct ChebyshevGauss{FT} <: QuadratureRule
+@params struct ChebyshevGauss{FT} <: QuadratureRule
     n::Int
 end
 ChebyshevGauss(n::Int) = ChebyshevGauss(Float64, n)
 ChebyshevGauss(::Type{FT}, n::Int) where {FT} = ChebyshevGauss{FT}(n)
-Base.broadcastable(quad::ChebyshevGauss) = (quad,)
+Base.show(io::IO, quad::ChebyshevGauss{FT}) where {FT} = print(io, "ChebyshevGauss(", FT, ", ", quad.n, ")")
 
 @inline node((; n)::ChebyshevGauss{FT}, i) where {FT} = cospi((2 * FT(i) - 1) / (2n))
 @inline weight((; n)::ChebyshevGauss{FT}, i) where {FT} = FT(π) / n
@@ -197,7 +200,7 @@ Arbitrary orders `n ≥ 1` are supported (the order is the type parameter `N`).
 # GPU / type-stability
 
 `GaussLegendre{FT, N}` stores `SVector{N, FT}` nodes/weights, so it is `isbits`
-(GPU-safe) and fully concrete. The order `N` is a type parameter, fixed at
+(GPU-safe). The order `N` is a type parameter, fixed at
 construction; the object is built host-side once and shipped to the device, so
 `N` never ripples a runtime value into a kernel.
 
@@ -222,12 +225,11 @@ geometrically there too.
 - https://en.wikipedia.org/wiki/Gauss–Legendre_quadrature
 - A. Townsend, *FastGaussQuadrature.jl* (MIT); Bogaert (2014) O(n) nodes/weights.
 """
-struct GaussLegendre{FT, N} <: QuadratureRule
+@params struct GaussLegendre{FT, N} <: QuadratureRule
     n::Int
     nodes::SA.SVector{N, FT}
     weights::SA.SVector{N, FT}
 end
-Base.broadcastable(quad::GaussLegendre) = (quad,)
 
 @inline node(q::GaussLegendre, i) = @inbounds q.nodes[i]
 @inline weight(q::GaussLegendre, i) = @inbounds q.weights[i]
@@ -244,5 +246,6 @@ function GaussLegendre(::Type{FT}, n::Int) where {FT}
     return GaussLegendre{FT, n}(n, nodes, weights)
 end
 GaussLegendre(n::Int) = GaussLegendre(Float64, n)
+Base.show(io::IO, quad::GaussLegendre{FT}) where {FT} = print(io, "GaussLegendre(", FT, ", ", quad.n, ")")
 
 end # module Quadrature

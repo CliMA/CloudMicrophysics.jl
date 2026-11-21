@@ -47,7 +47,7 @@ The verbose and compact show methods also display units, if defined.
 If the contents of a struct are numbers, it may be useful to define
 [`field_units`](@ref) for the struct:
 ```julia
-@kwdef struct MyStruct{FT}
+@params struct MyStruct{FT}
     velocity::FT
     mass::FT
     constant_value::FT
@@ -100,8 +100,8 @@ function verbose_show_type_and_fields(io::IO, mime::MIME"text/plain", x; with_mo
     compact = get(io, :compact, false)::Bool
     indent = get(io, :indent, "")::String
     typename = _type_name(x; with_module_prefix)
-    keys = fieldnames(typeof(x))
-    vals = [getfield(x, k) for k in keys]
+    keys = propertynames(x)
+    vals = [getproperty(x, k) for k in keys]
     units = field_units(x)
     print(io, "$(typename)")
     if compact
@@ -151,7 +151,8 @@ Print a compact one-line representation of `x`: `TypeName(field = value, ...)`.
     + When false, display only the value, e.g. `1.0`
 - `with_kwargs = true`: Print fields as keyword arguments (`field = value`).
     + It is recommended that this is `true` only when the struct has
-        a `@kwdef` prefix to its definition, which provides a keyword constructor.
+        a `@kwdef`/`@params` prefix to its definition, which provides a keyword
+        constructor.
 - `with_module_prefix = false`: Use module-qualified type name.
     + When true, display e.g. `CloudMicrophysics.Parameters.AirProperties`
     + When false, display e.g. `AirProperties`
@@ -173,8 +174,8 @@ function compact_show_type_and_fields(io::IO, ::MIME"text/plain", x;
     with_module_prefix = false, skip_fields_by_value = (),
 )
     typename = _type_name(x; with_module_prefix)
-    keys = fieldnames(typeof(x))
-    vals = [getfield(x, k) for k in keys]
+    keys = propertynames(x)
+    vals = [getproperty(x, k) for k in keys]
     units = with_units ? field_units(x) : nothing
     print(io, typename, "(")
     printed_first = false
@@ -196,8 +197,8 @@ Print a parseable (copy-pasteable) one-line representation of `x`.
 Thin wrapper around [`compact_show_type_and_fields`](@ref) with
 `with_units = false` and `with_module_prefix = true` by default.
 
-Note: This assumes that the type has a `@kwdef` prefix to its definition,
-which provides a keyword constructor.
+Note: This assumes that the type has a `@kwdef`/`@params` prefix to its
+definition, which provides a keyword constructor.
 
 # Examples
 ```julia-repl
@@ -245,7 +246,7 @@ To include unit annotations in the verbose or compact `show` output for a type,
 define a method that associates field names with units, such as
 
 ```julia
-@kwdef struct MyStruct{FT}
+@params struct MyStruct{FT}
     velocity::FT
     mass::FT
     constant_value::FT

@@ -154,9 +154,9 @@ end
         CM1.terminal_velocity, (P(snow), P(chen.large_ice)), 2; post = (P(CM1.Prolate()),),
     )
     @test concrete_for_all_mixes(CM1.accretion, (P(mp1.cloud.liquid), P(rain), P(velr)), 7)
-    # the full kernels: 9 and 11 numeric arguments respectively
-    @test concrete_for_all_mixes(CM1.accretion_rain_sink, (P(rain), P(ice), P(velr)), 9)
-    @test concrete_for_all_mixes(CM1.accretion_snow_rain, (P(snow), P(rain), P(vels), P(velr)), 11)
+    # the full kernels: 7 and 10 numeric arguments respectively
+    @test concrete_for_all_mixes(CM1.accretion_rain_sink, (P(rain), P(ice), P(velr)), 7)
+    @test concrete_for_all_mixes(CM1.accretion_snow_rain, (P(snow), P(rain), P(vels), P(velr)), 10)
     # and their argument-computing wrappers
     @test concrete_for_all_mixes(CM1.accretion_rain_sink, (P(rain), P(ice), P(velr)), 4)
     @test concrete_for_all_mixes(CM1.accretion_snow_rain, (P(snow), P(rain), P(vels), P(velr)), 5)

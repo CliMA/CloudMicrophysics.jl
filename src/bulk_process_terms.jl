@@ -101,8 +101,9 @@ end
 
 """
     species_tendency(terms, Q)
+    species_tendency(terms, dq_dt)
 
-Sum the tendencies of `terms` into a state of the type `Q` [kg/kg/s].
+Sum the tendencies of `terms` into a state of the type `Q` [kg/kg/s], or add them to the state `dq_dt`.
 
 `Q` is a state type with one field per species, for example `Condensates1M{FT}`. Each term adds its rate `S`:
 - `Transfer(:Donor => :Receiver, S)`: `-S` to `Donor` and `S` to `Receiver`.
@@ -110,8 +111,8 @@ Sum the tendencies of `terms` into a state of the type `Q` [kg/kg/s].
 
 The vapor is not a species of `Q`; it changes by minus the sum of the tendencies.
 """
-@inline species_tendency(terms, ::Type{Q}) where {Q} =
-    UU.unrolled_reduce(_add_tendency, values(terms), zero(Q))
+@inline species_tendency(terms, ::Type{Q}) where {Q} = species_tendency(terms, zero(Q))
+@inline species_tendency(terms, dq_dt) = UU.unrolled_reduce(_add_tendency, values(terms), dq_dt)
 
 @inline function _add_tendency(dq_dt, t::Transfer{Donor, Receiver}) where {Donor, Receiver}
     dq_dt = Base.setindex(dq_dt, dq_dt[Donor] - t.S, Donor)

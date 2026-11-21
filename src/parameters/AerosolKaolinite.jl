@@ -10,7 +10,7 @@ DOI: 10.1002/2016JD025817
 # Fields
 $(DocStringExtensions.FIELDS)
 """
-@kwdef struct Kaolinite{FT} <: AerosolType
+@params struct Kaolinite{FT} <: AerosolType
     "m coefficient for deposition nucleation J [-]"
     deposition_m::FT
     "c coefficient for deposition nucleation J [-]"
