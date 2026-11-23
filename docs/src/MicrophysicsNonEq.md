@@ -255,7 +255,8 @@ For simplicity, we assume a monodisperse size distribution
 where:
  - ``\rho_{air}`` is the air density,
  - ``q`` is the cloud liquid or cloud ice specific content,
- - ``N`` is the prescribed number concentration (``500/cm^3`` by default),
+ - ``N`` is the prescribed number concentration
+   (by default, ``500/cm^3`` for cloud liquid and ``0.1/cm^3`` for cloud ice),
  - ``\rho`` is the cloud water or cloud ice density.
 
 The sedimentation velocity then is
@@ -264,6 +265,18 @@ The sedimentation velocity then is
   v_t = v_{term}(D_{vol}).
 \end{equation}
 ```
+For cloud ice, the sedimentation velocity has a smooth upper bound ``v_{max}``
+  (``1.5 \, m/s`` by default):
+```math
+\begin{equation}
+  v_t = \frac{v_{term}(D_{vol})}{\sqrt{1 + (v_{term}(D_{vol}) / v_{max})^2}}.
+\end{equation}
+```
+The velocity ``v_t`` approaches ``v_{max}`` for ``v_{term}(D_{vol}) \gg v_{max}``,
+  and the bound also lowers smaller velocities:
+  with the default parameters and ``\rho_{air} = 1.2 \, kg/m^3``,
+  ``v_t`` is 2% below ``v_{term}(D_{vol})`` for ``q = 0.1 \, g/kg``
+  and 11% below it for ``q = 1 \, g/kg``.
 
 !!! note
     The Chen et al. [Chen2022](@cite) coefficients used for cloud ice

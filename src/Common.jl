@@ -485,6 +485,23 @@ curve can share them:
     a * exp(-4 * log_λ_inv - (b + 4) * log_inv) * gamma_b_δ / 6
 
 """
+    bounded_fall_speed(w, w_max)
+
+Smooth upper bound on a terminal velocity `w ≥ 0`:
+
+    w_bounded = w / √(1 + (w / w_max)²) = w / hypot(1, w / w_max)
+
+It increases monotonically with `w`, equals `w (1 - (w / w_max)² / 2)` to leading
+order for `w ≪ w_max`, and approaches `w_max` as `w → ∞`.
+
+The bulk terminal velocities of rain, snow, and cloud ice use this bound. For rain,
+`w_max` represents the fall speed of the largest drops that are stable against
+hydrodynamic breakup (Gunn and Kinzer, 1949); for snow, it represents the breakup
+of aggregates.
+"""
+@inline bounded_fall_speed(w, w_max) = w / hypot(one(w), w / w_max)
+
+"""
     particle_terminal_velocity(velocity_params, ρₐ)
     particle_terminal_velocity(velocity_params, ρₐ, ρᵢ)
 

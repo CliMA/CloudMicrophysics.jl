@@ -165,6 +165,8 @@ $(DocStringExtensions.FIELDS)
     G::NTuple{N, FT}
     "cutoff for small vs large ice particle dimension [m]"
     cutoff::FT
+    "maximum bulk terminal velocity of cloud ice [m/s]"
+    v_max::FT
 end
 Base.show(io::IO, mime::MIME"text/plain", x::Chen2022VelTypeSmallIce) =
     ShowMethods.verbose_show_type_and_fields(io, mime, x)

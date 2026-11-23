@@ -225,19 +225,6 @@ end
 end
 
 """
-    _bounded_fall_speed(w, w_max)
-
-Smooth upper bound on a terminal velocity `w ≥ 0`:
-
-    w_bounded = w / √(1 + (w / w_max)²) = w / hypot(1, w / w_max)
-
-Behaves like `w` for `w ≪ w_max` and saturates at `w_max` as `w → ∞`, providing a
-smooth, differentiable representation of the physical terminal velocity ceiling set
-by hydrodynamic drop/aggregate breakup (Gunn and Kinzer, 1949).
-"""
-@inline _bounded_fall_speed(w, w_max) = w / hypot(one(w), w / w_max)
-
-"""
     terminal_velocity(precip::Rain, vel::Blk1MVelTypeRain, ρ, q)
     terminal_velocity(precip::Snow, vel::Blk1MVelTypeSnow, ρ, q)
     terminal_velocity(precip::Rain, vel::Chen2022VelTypeRain, ρ, q)
@@ -331,7 +318,7 @@ end
         CO.Chen2022_exponential_pdf_k3(aiu[2], bi[2], log_λ_inv, log_inv_2, gamma_2) +
         CO.Chen2022_exponential_pdf_k3(aiu[3], bi[3], log_λ_inv, log_inv_3, gamma_3)
     # It should be ϕ^κ * fall_w, but for rain drops ϕ = 1 and κ = 0
-    fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
+    fall_w = CO.bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 
@@ -367,7 +354,7 @@ end
     fall_w =
         ϕ_κ * CO.Chen2022_exponential_pdf_k3(aiu[1], bi[1], log_λ_inv, log_inv_1, gammas[1]) +
         ϕ_κ * CO.Chen2022_exponential_pdf_k3(aiu[2], bi[2], log_λ_inv, log_inv_2, gammas[2])
-    fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
+    fall_w = CO.bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 
@@ -402,7 +389,7 @@ end
     fall_w =
         ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[1], bi[1], ciu[1], λ_inv_diameter, 3) +
         ϕ_av^κ * CO.Chen2022_exponential_pdf(aiu[2], bi[2], ciu[2], λ_inv_diameter, 3)
-    fall_w = _bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
+    fall_w = CO.bounded_fall_speed(UT.clamp_to_nonneg(fall_w), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(q), fall_w, zero(fall_w))
 end
 
