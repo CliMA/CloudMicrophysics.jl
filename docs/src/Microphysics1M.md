@@ -289,14 +289,40 @@ Integrating the Chen et al. [Chen2022](@cite) formulae over the assumed Marshall
 
 ```math
 \begin{equation}
-  v_t = \phi_\text{avg}^\kappa \sum_{i=1}^{j} \frac{a_i \lambda^{\delta} \Gamma(b_i + \delta)}{(\lambda + c_i)^{b_i + \delta} \; \Gamma(\delta)},
+  v_\text{Chen} = \phi_\text{avg}^\kappa \sum_{i=1}^{j} \frac{a_i \lambda_D^{\delta} \Gamma(b_i + \delta)}{(\lambda_D + c_i)^{b_i + \delta} \; \Gamma(\delta)},
 \end{equation}
 ```
 
-where ``\delta = 4`` for the case of an exponential size distribution and the mass-weighted mean.
-For snow, for simplicity, we first compute the
-  mass-weighted mean aspect ratio over the size distribution of particles ``\phi_\text{avg}``
-  and then treat this as constant when computing the group terminal velocity.
+where:
+
+- the slope ``\lambda_D = \lambda / 2`` is that of the size distribution as a function
+  of the particle diameter ``D = 2r``, the size variable of the [Chen2022](@cite) formulae,
+- the exponent ``\delta = 4`` corresponds to an exponential size distribution weighted by ``D^3``.
+
+The weight ``D^3`` gives the mass-weighted mean for rain.
+The same weight is used for snow, whose mass scales as ``r^2`` by default.
+
+The sedimentation velocity is ``v_\text{Chen}`` with a smooth upper bound ``v_{max}``:
+
+```math
+\begin{equation}
+  v_t = \frac{v_\text{Chen}}{\sqrt{1 + (v_\text{Chen} / v_{max})^2}}.
+\end{equation}
+```
+
+By default, ``v_{max}`` is ``10 \, m/s`` for rain and ``3 \, m/s`` for snow.
+For rain, it represents the fall speed of the largest drops that are stable against
+  hydrodynamic breakup [Gunn1949](@cite); for snow, it represents the breakup of aggregates.
+The velocity ``v_t`` approaches ``v_{max}`` for ``v_\text{Chen} \gg v_{max}``,
+  and the bound also lowers smaller velocities:
+  with the default parameters and an air density of ``1.2 \, kg/m^3``,
+  ``v_t`` is 7% (rain) and 3% (snow) below ``v_\text{Chen}`` for ``q = 0.1 \, g/kg``,
+  and 14% (rain) and 4% (snow) below it for ``q = 1 \, g/kg``.
+
+For snow, ``\phi_\text{avg}`` is prescribed (``0.15`` by default).
+With the optional oblate or prolate snow shape, it is the ``D^3``-weighted mean aspect ratio
+  over the size distribution of particles,
+  which is then treated as constant when computing the group terminal velocity.
 The aspect ratio is obtained by inverting the assumed mass and area laws for
   the particle thickness at the bulk ice density, as in the P3 scheme.
 Because the mass and area laws are independent parameterizations,

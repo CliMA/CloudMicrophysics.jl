@@ -426,7 +426,8 @@ assuming a monodisperse size distribution.
 
 - **Cloud Liquid**: Uses Stokes Law (v ∝ D²), valid for small droplets (Re < 1).
 - **Cloud Ice**: Uses Chen et al. (2022) parameterization,
-  [DOI: 10.1016/j.atmosres.2022.106171](https://doi.org/10.1016/j.atmosres.2022.106171)
+  [DOI: 10.1016/j.atmosres.2022.106171](https://doi.org/10.1016/j.atmosres.2022.106171),
+  with the smooth upper bound `vel.v_max` of [`CO.bounded_fall_speed`](@ref)
 
 # Arguments
 - `sediment` - cloud liquid or ice parameters struct (provides density and N_0)
@@ -468,7 +469,7 @@ function terminal_velocity(
     safe_q = UT.clamp_to_nonneg(q)
     # Mean volume diameter from assumed number concentration
     D = cbrt(FT(6 / π) * safe_ρ * safe_q / N_0 / ρᵢ)
-    fall_w = max(FT(0), v_term(D))
+    fall_w = CO.bounded_fall_speed(max(FT(0), v_term(D)), vel.v_max)
     return ifelse(q > UT.ϵ_numerics(FT), fall_w, zero(FT))
 end
 

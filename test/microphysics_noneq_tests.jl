@@ -4,6 +4,7 @@ import ClimaParams
 
 import CloudMicrophysics.ThermodynamicsInterface as TDI
 import CloudMicrophysics.Parameters as CMP
+import CloudMicrophysics.Common as CO
 import CloudMicrophysics.MicrophysicsNonEq as CMNe
 
 function test_microphysics_noneq(FT)
@@ -397,6 +398,47 @@ function test_microphysics_noneq(FT)
         TT.@test vt_zero == FT(0)
         TT.@test vt_ice > FT(0)  # Updated regression: 6/π factor added
         TT.@test v_bigger > vt_ice
+    end
+
+    TT.@testset "Cloud condensate sedimentation - ice velocity bound" begin
+        ρ = FT(0.75)
+        vel = Ch2022.small_ice
+        TT.@test vel.v_max == FT(1.5)
+
+        # monodisperse velocity at the mean volume diameter, before the bound
+        w_unbounded(q) =
+            CO.particle_terminal_velocity(vel, ρ, ice.ρᵢ)(cbrt(FT(6 / π) * ρ * q / ice.N_0 / ice.ρᵢ))
+
+        # for w ≪ v_max, the bound lowers the velocity by a factor 1 - (w / v_max)² / 2
+        q_small = FT(1e-6)
+        w_small = w_unbounded(q_small)
+        vt_small = TT.@inferred CMNe.terminal_velocity(ice, vel, ρ, q_small)
+        TT.@test vt_small isa FT
+        TT.@test 0 < w_small < vel.v_max / 50
+        TT.@test vt_small < w_small
+        TT.@test vt_small ≈ w_small rtol = (w_small / vel.v_max)^2
+
+        # at intermediate w, the velocity follows w / √(1 + (w / v_max)²)
+        q_mid = FT(1e-3)
+        w_mid = w_unbounded(q_mid)
+        vt_mid = TT.@inferred CMNe.terminal_velocity(ice, vel, ρ, q_mid)
+        TT.@test vel.v_max / 4 < w_mid < vel.v_max
+        TT.@test vt_mid ≈ w_mid / sqrt(1 + (w_mid / vel.v_max)^2) rtol = 10 * eps(FT)
+
+        # bounded by v_max at large q / low density
+        vt_extreme = TT.@inferred CMNe.terminal_velocity(ice, vel, FT(0.1), FT(0.05))
+        TT.@test vt_extreme isa FT
+        TT.@test 0 < vt_extreme < vel.v_max
+
+        # for w ≫ v_max, the velocity saturates at v_max
+        q_icl = FT(0.5 * 1e-3)
+        (; A, B, C, E, F, G, cutoff) = vel
+        vel_low = CMP.Chen2022VelTypeSmallIce(; A, B, C, E, F, G, cutoff, v_max = w_unbounded(q_icl) / 100)
+        vt_low = TT.@inferred CMNe.terminal_velocity(ice, vel_low, ρ, q_icl)
+        TT.@test vt_low isa FT
+        TT.@test vt_low < vel_low.v_max
+        TT.@test vt_low ≈ vel_low.v_max rtol = 1e-4
+        TT.@test CMNe.terminal_velocity(ice, vel_low, ρ, FT(0)) == FT(0)
     end
 end
 

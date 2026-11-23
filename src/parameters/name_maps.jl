@@ -386,6 +386,7 @@ name_map(::Type{Chen2022VelTypeSmallIce}) = (;
     :Chen2022_table_B3_Fs => :F,
     :Chen2022_table_B3_Gs => :G,
     :Chen2022_ice_cutoff => :cutoff,
+    :Chen2022_small_ice_terminal_velocity_max => :v_max,
 )
 # TODO: These should be array parameters.
 name_map(::Type{Chen2022VelTypeLargeIce}) = (;
